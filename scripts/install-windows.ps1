@@ -38,6 +38,13 @@ function Assert-Version([string]$Version) {
     }
 }
 
+function Assert-NamedInstallSupported {
+    $helpText = (& wsl.exe --help 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0 -or $helpText -notmatch '(?m)--name\b') {
+        throw "This WSL installation does not support named distribution installation. Update WSL explicitly with 'wsl --update', then run the Hacocoon installer again."
+    }
+}
+
 function Get-ReleaseBase([string]$Version) {
     if ($Version -eq "latest") {
         return "https://github.com/$Repository/releases/latest/download"
@@ -149,6 +156,7 @@ if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
 
 $installed = @(Get-InstalledDistros)
 if (-not ($installed -contains $InstanceName)) {
+    Assert-NamedInstallSupported
     if (-not (Test-Administrator)) {
         throw "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell. Re-run this installer as Administrator."
     }
