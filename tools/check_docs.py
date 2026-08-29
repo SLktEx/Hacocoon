@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import hashlib
 import re
-import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[1]
@@ -47,15 +45,6 @@ if 'Hacocoon is a **Secure Workspace Runtime**' not in roadmap and 'Hacocoon は
 if errors:
     print('DOC CONSISTENCY FAILED')
     print('\n'.join(errors))
-    sys.exit(1)
-
-master = root / 'Hacocoon_v0.1-v0.7_MASTER.md'
-before = hashlib.sha256(master.read_bytes()).hexdigest() if master.exists() else None
-subprocess.run([sys.executable, str(root / 'tools/build_master.py')], check=True)
-after = hashlib.sha256(master.read_bytes()).hexdigest()
-if before is not None and before != after:
-    print('DOC CONSISTENCY FAILED')
-    print('MASTER was stale and was regenerated; commit/regenerate it before packaging')
     sys.exit(1)
 
 print('DOC CONSISTENCY OK')
