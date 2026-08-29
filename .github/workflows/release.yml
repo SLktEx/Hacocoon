@@ -6,7 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -16,9 +16,11 @@ env:
   GOTOOLCHAIN: local
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -69,10 +71,8 @@ jobs:
       - name: Build release artifacts
         run: goreleaser release --clean --skip=publish
 
-      - name: Publish GitHub Release
+      - name: Stage exact release payload
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -84,25 +84,108 @@ jobs:
             exit 1
           fi
 
+          test -f dist/haco_linux_amd64.tar.gz
+          test -f dist/haco_linux_arm64.tar.gz
           test -f dist/checksums.txt
           test -f scripts/install.sh
           test -f scripts/bootstrap-wsl.sh
           test -f scripts/install-windows.ps1
+
+          rm -rf release-payload
+          mkdir -m 0700 release-payload
+          cp dist/haco_linux_amd64.tar.gz release-payload/
+          cp dist/haco_linux_arm64.tar.gz release-payload/
+          cp dist/checksums.txt release-payload/
+          cp scripts/install.sh release-payload/
+          cp scripts/bootstrap-wsl.sh release-payload/
+          cp scripts/install-windows.ps1 release-payload/
+
+      - name: Transfer release payload to privileged publisher
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-payload
+          path: release-payload/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Download payload from this workflow run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-payload
+          path: release-payload
+
+      - name: Validate publisher input
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(release-payload/*)
+          archives=(release-payload/haco_linux_*.tar.gz)
+          (( ${#files[@]} == 6 )) || { printf 'Unexpected release payload file count: %s\n' "${#files[@]}" >&2; exit 1; }
+          (( ${#archives[@]} == 2 )) || { printf 'Unexpected Linux archive count: %s\n' "${#archives[@]}" >&2; exit 1; }
+          test -f release-payload/haco_linux_amd64.tar.gz
+          test -f release-payload/haco_linux_arm64.tar.gz
+          test -f release-payload/checksums.txt
+          test -f release-payload/install.sh
+          test -f release-payload/bootstrap-wsl.sh
+          test -f release-payload/install-windows.ps1
+
+      - name: Attest public release payload
+        if: ${{ !github.event.repository.private }}
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            release-payload/haco_linux_amd64.tar.gz
+            release-payload/haco_linux_arm64.tar.gz
+            release-payload/checksums.txt
+            release-payload/install.sh
+            release-payload/bootstrap-wsl.sh
+            release-payload/install-windows.ps1
+
+      - name: Explain private repository provenance limitation
+        if: ${{ github.event.repository.private }}
+        shell: bash
+        run: |
+          echo "::notice::GitHub artifact attestations are skipped while Hacocoon is private. Public releases will fail closed if provenance generation fails."
+
+      - name: Create draft release and publish atomically
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
 
           args=(
             --repo "$GITHUB_REPOSITORY"
             --verify-tag
             --generate-notes
             --title "Hacocoon $GITHUB_REF_NAME"
+            --draft
           )
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then
             args+=(--prerelease)
           fi
 
           gh release create "$GITHUB_REF_NAME" \
-            "${archives[@]}" \
-            dist/checksums.txt \
-            scripts/install.sh \
-            scripts/bootstrap-wsl.sh \
-            scripts/install-windows.ps1 \
+            release-payload/haco_linux_amd64.tar.gz \
+            release-payload/haco_linux_arm64.tar.gz \
+            release-payload/checksums.txt \
+            release-payload/install.sh \
+            release-payload/bootstrap-wsl.sh \
+            release-payload/install-windows.ps1 \
             "${args[@]}"
+
+          gh release edit "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft=false
