@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$Distro = "",
+    [string]$InstanceName = "Hacocoon",
+    [string]$BaseDistro = "Ubuntu-26.04",
     [string]$HacocoonVersion = "latest",
     [switch]$WebDownload,
     [switch]$SkipIncus,
@@ -28,19 +29,6 @@ function Get-InstalledDistros {
     return @($lines | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" })
 }
 
-function Get-DefaultDistro {
-    $lines = & wsl.exe --list --verbose 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        return $null
-    }
-    foreach ($line in $lines) {
-        if ($line -match '^\s*\*\s+([^\s]+)\s+') {
-            return $Matches[1]
-        }
-    }
-    return $null
-}
-
 function Assert-Wsl2([string]$Name) {
     $lines = & wsl.exe --list --verbose 2>$null
     if ($LASTEXITCODE -ne 0) {
@@ -50,7 +38,7 @@ function Assert-Wsl2([string]$Name) {
     foreach ($line in $lines) {
         if ($line -match "^\s*\*?\s*$escaped\s+.*\s+([12])\s*$") {
             if ($Matches[1] -ne "2") {
-                throw "WSL distribution '$Name' is WSL 1. Convert it explicitly with: wsl --set-version $Name 2"
+                throw "Dedicated WSL instance '$Name' is WSL 1. Convert it explicitly with: wsl --set-version $Name 2"
             }
             return
         }
@@ -58,63 +46,62 @@ function Assert-Wsl2([string]$Name) {
     throw "Unable to determine the WSL version for '$Name'."
 }
 
+function Assert-SafeName([string]$Value, [string]$Label) {
+    if ($Value -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
+        throw "$Label '$Value' contains unsupported characters. Use letters, digits, '.', '_' or '-'."
+    }
+}
+
 if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
     throw "wsl.exe is not available. This bootstrap requires a supported Windows 10/11 installation."
 }
 
+Assert-SafeName $InstanceName "WSL instance name"
+Assert-SafeName $BaseDistro "WSL base distribution"
+
 $installed = @(Get-InstalledDistros)
-$selected = $Distro
-if ([string]::IsNullOrWhiteSpace($selected)) {
-    $selected = Get-DefaultDistro
-    if ([string]::IsNullOrWhiteSpace($selected) -and $installed.Count -gt 0) {
-        $selected = $installed[0]
-    }
-}
-
-if ([string]::IsNullOrWhiteSpace($selected) -or -not ($installed -contains $selected)) {
-    if ([string]::IsNullOrWhiteSpace($selected)) {
-        $selected = "Ubuntu"
-    }
+if (-not ($installed -contains $InstanceName)) {
     if (-not (Test-Administrator)) {
-        throw "Installing WSL or a new distribution requires an elevated PowerShell. Re-run this script as Administrator."
+        throw "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell. Re-run this script as Administrator."
     }
 
-    Write-Step "Installing WSL 2 distribution '$selected'"
+    Write-Step "Creating dedicated WSL 2 instance '$InstanceName' from '$BaseDistro'"
     & wsl.exe --set-default-version 2
     if ($LASTEXITCODE -ne 0) {
-        throw "Failed to set WSL 2 as the default version."
+        throw "Failed to set WSL 2 as the default version for new distributions."
     }
 
-    $installArgs = @("--install", "--distribution", $selected, "--no-launch")
+    $installArgs = @("--install", $BaseDistro, "--name", $InstanceName, "--no-launch")
     if ($WebDownload) {
         $installArgs += "--web-download"
     }
     & wsl.exe @installArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "WSL distribution installation failed. Run 'wsl --list --online' to inspect valid distribution names."
+        throw "Failed to create dedicated WSL instance '$InstanceName' from '$BaseDistro'. Run 'wsl --list --online' to inspect available base distributions."
     }
 
     Write-Host ""
-    Write-Host "WSL distribution '$selected' was installed."
-    Write-Host "Windows or the distribution may require first-launch initialization or a reboot."
-    Write-Host "Launch it once with: wsl -d $selected"
+    Write-Host "Dedicated Hacocoon WSL instance '$InstanceName' was installed."
+    Write-Host "Existing WSL distributions were not modified or selected as Hacocoon hosts."
+    Write-Host "Windows or the new instance may require a reboot or first-launch Linux user setup."
+    Write-Host "Launch it once with: wsl -d $InstanceName"
     Write-Host "Complete the Linux user setup if prompted, then run this bootstrap again."
     exit 0
 }
 
-Assert-Wsl2 $selected
+Assert-Wsl2 $InstanceName
 
-Write-Step "Checking that '$selected' can execute Linux commands"
-& wsl.exe --distribution $selected -- sh -c "printf hacocoon-wsl-ready"
+Write-Step "Checking dedicated WSL instance '$InstanceName'"
+& wsl.exe --distribution $InstanceName -- sh -c "printf hacocoon-wsl-ready"
 if ($LASTEXITCODE -ne 0) {
-    throw "The WSL distribution '$selected' is installed but not ready. Launch it once with 'wsl -d $selected', complete first-run setup, and re-run this script."
+    throw "Dedicated WSL instance '$InstanceName' exists but is not ready. Launch it once with 'wsl -d $InstanceName', complete first-run setup, and re-run this script."
 }
 Write-Host ""
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$linuxRepoRoot = (& wsl.exe --distribution $selected -- wslpath -u -a $repoRoot).Trim()
+$linuxRepoRoot = (& wsl.exe --distribution $InstanceName -- wslpath -u -a $repoRoot).Trim()
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxRepoRoot)) {
-    throw "Failed to translate the Hacocoon repository path into WSL."
+    throw "Failed to translate the Hacocoon repository path into the dedicated WSL instance."
 }
 $linuxBootstrap = "$linuxRepoRoot/scripts/bootstrap-wsl.sh"
 $linuxInstaller = "$linuxRepoRoot/scripts/install.sh"
@@ -125,9 +112,9 @@ if ($GrantIncusAdmin) {
     Write-Warning "Granting incus-admin gives the Linux user root-equivalent local Incus authority."
 }
 
-Write-Step "Installing Hacocoon inside '$selected'"
+Write-Step "Installing Hacocoon inside dedicated WSL instance '$InstanceName'"
 $wslArgs = @(
-    "--distribution", $selected,
+    "--distribution", $InstanceName,
     "--",
     "env",
     "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue",
@@ -141,8 +128,10 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ""
 Write-Step "Bootstrap complete"
-Write-Host "WSL distribution: $selected"
-Write-Host "Next: open a workspace inside the WSL Linux filesystem and run 'haco-vscode open .'"
+Write-Host "Dedicated WSL instance: $InstanceName"
+Write-Host "Base distribution: $BaseDistro"
+Write-Host "Existing WSL distributions remain separate and untouched."
+Write-Host "Next: run 'wsl -d $InstanceName', place workspaces in its Linux filesystem, then run 'haco-vscode open .'"
 if (-not $SkipIncus -and -not $GrantIncusAdmin) {
     Write-Host "Incus was installed, but incus-admin was not granted. Re-run with -GrantIncusAdmin if this user should control the local Incus daemon."
 }
