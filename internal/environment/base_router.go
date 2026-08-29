@@ -13,8 +13,8 @@ type BaseCatalogProvider interface {
 	InspectBase(context.Context, core.BaseName) (core.BaseInfo, error)
 }
 
-// BaseRouter preserves the v0.7 provider routing contract while forwarding the
-// immutable Base identity returned by a Base-aware provider.
+// BaseRouter preserves the v0.7 provider routing contract while forwarding
+// provider-neutral creation metadata (Base identity and ResourceBudget).
 type BaseRouter struct {
 	*Router
 }
@@ -39,8 +39,9 @@ func (r *BaseRouter) CreateEnvironment(ctx context.Context, spec core.Environmen
 		return core.EnvironmentRuntime{}, fmt.Errorf("provider %q returned empty runtime ref: %w", r.defaultProvider, core.ErrIncompatibleState)
 	}
 	return core.EnvironmentRuntime{
-		Ref:  encodeRouteRef(r.defaultProvider, created.Ref),
-		Base: created.Base,
+		Ref:       encodeRouteRef(r.defaultProvider, created.Ref),
+		Base:      created.Base,
+		Resources: created.Resources,
 	}, nil
 }
 
