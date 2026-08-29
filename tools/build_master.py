@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import sys
 
 root = Path(__file__).resolve().parents[1]
 order = [
@@ -28,4 +29,9 @@ for rel in order:
     p = root / rel
     out.append(f'<!-- FILE: {rel} -->\n\n' + p.read_text().rstrip() + '\n')
 
-(root / 'Hacocoon_v0.1-v0.7_MASTER.md').write_text('\n\n'.join(out) + '\n')
+output = Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'dist/Hacocoon_v0.1-v0.7_MASTER.md'
+if not output.is_absolute():
+    output = root / output
+output.parent.mkdir(parents=True, exist_ok=True)
+output.write_text('\n\n'.join(out) + '\n')
+print(output)
