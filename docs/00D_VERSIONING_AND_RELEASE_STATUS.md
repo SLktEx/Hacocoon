@@ -6,19 +6,11 @@
 
 ## Purpose
 
-This document is the source of truth for Hacocoon roadmap version numbers. It exists to keep the public version sequence understandable when implementation and design work happen in parallel.
-
-Use it together with:
-
-- `00_REBASELINE_AND_ROADMAP.md` for product-boundary and roadmap intent;
-- `IMPLEMENTATION_STATUS.md` for code that is actually present on `main`;
-- each versioned specification for the detailed acceptance contract.
+This document is the source of truth for Hacocoon roadmap version numbers. Use it together with `00_REBASELINE_AND_ROADMAP.md` for product intent and `IMPLEMENTATION_STATUS.md` for code that is actually present on `main`.
 
 ## Numbering policy
 
-For pre-1.0 Hacocoon, version numbers should primarily describe the order in which product gates become real, user-visible implementation milestones.
-
-The rules are:
+For pre-1.0 Hacocoon, version numbers primarily describe the order in which product gates become real, user-visible implementation milestones.
 
 1. implemented milestones should remain contiguous whenever renumbering is still cheap;
 2. an implementation-pending design gate must not occupy a lower number while an already-implemented independent gate is forced above it;
@@ -27,8 +19,6 @@ The rules are:
 5. security/hardening work normally does not consume a product version number;
 6. `IMPLEMENTATION_STATUS.md` remains authoritative for implementation reality;
 7. tags/releases remain separate from roadmap-gate numbering.
-
-This intentionally replaces the earlier rule that treated every design assignment committed to `main` as permanently fixed. While Hacocoon is pre-1.0, clarity is more valuable than preserving an awkward numbering accident.
 
 ## Current authoritative numbering
 
@@ -43,51 +33,32 @@ This intentionally replaces the earlier rule that treated every design assignmen
 | v0.7 | Remote / Cloud Runtime & External Capabilities | implemented experimentally | EC2 remains explicit opt-in; real AWS acceptance pending |
 | v0.8 | Client Adapters & VS Code Integration | implemented | `haco-vscode`, dedicated Windows/WSL path; real client acceptance pending |
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | broker foundation implemented | trusted session -> Environment binding; real Agent Host/AHP routing acceptance pending |
-| v0.10 | VS Code Remote Agent Host Adapter | active integration candidate | PR #111; not part of `main` code reality until merged |
-| v0.11 | Base Images & Custom Environments | design contract only | implementation pending |
+| v0.10 | VS Code Remote Agent Host Adapter | implemented | merged in PR #137; real Windows/WSL + Incus + VS Code Agents-window acceptance remains host-dependent |
+| v0.11 | Base Images & Custom Environments | implemented first slice | logical Base selection, immutable revision pinning, persisted identity, list/inspect; broader build/import/GC remains future work |
 | v0.12 | Sandbox Resource Limits | design contract only | CPU/memory/PID/root-storage budget contract; implementation pending |
 
-The implemented progression is therefore contiguous through **v0.9**. v0.10 is the next active implementation gate, while v0.11 and v0.12 are intentionally kept behind it until their implementations land.
+The implemented progression is therefore contiguous through **v0.11**. v0.12 is the next design/implementation gate.
 
 ## Renumbering applied on 2026-08-30
 
-The previous assignment was:
-
-```text
-v0.9   Base Images & Custom Environments             design only
-v0.10  Per-Agent Sandbox & Agent Host Integration    implemented
-v0.11  Sandbox Resource Limits                       design only
-v0.12  VS Code Remote Agent Host Adapter             active PR
-```
-
-That ordering made the version sequence misleading. It is replaced by:
+The earlier assignment temporarily placed design-only Base Images before implemented per-agent work. That ordering was replaced with the current sequence:
 
 ```text
 v0.9   Per-Agent Sandbox & Agent Host Integration    implemented
-v0.10  VS Code Remote Agent Host Adapter             active PR
-v0.11  Base Images & Custom Environments             design only
+v0.10  VS Code Remote Agent Host Adapter             implemented
+v0.11  Base Images & Custom Environments             implemented first slice
 v0.12  Sandbox Resource Limits                       design only
 ```
 
-This renumbering changes roadmap/documentation labels only. It does not rewrite Git history or claim new implementation work.
+Historical commit messages, closed PR titles, and temporary candidate branch names may retain older labels as history. They are not authoritative for current numbering.
 
-## Migration notes
+## Current acceptance watch list
 
-The maintained documentation surface must use the new numbers consistently:
-
-- former `v0.10 Per-Agent Sandbox` references become **v0.9**;
-- PR #111 / former `v0.12 Agent Host Adapter` references become **v0.10**;
-- former `v0.9 Base Images` references become **v0.11**;
-- former `v0.11 Resource Limits` references become **v0.12**.
-
-Historical commit messages, closed PR titles, and already-existing temporary candidate branch names may retain their original text as history. They are not authoritative for current numbering.
-
-## Current integration watch list
-
-- PR #111: Agent Host adapter — **v0.10** under the current numbering; real Windows/WSL + Incus + VS Code Agents-window acceptance remains environment-dependent.
-- PR #113: minimum patched Go toolchain hardening — no roadmap version assignment required.
-- PR #114: Incus delete/absence verification hardening — no roadmap version assignment required.
+- v0.8: real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending.
+- v0.9/v0.10: real VS Code Agent Host/AHP routing and real Incus SSH acceptance remain host-dependent.
+- v0.11: real Incus image-remote/custom-Base acceptance remains host-dependent; custom build/import/history/rollback/GC are not part of the first implemented slice.
+- v0.7 EC2: real AWS acceptance remains pending and the provider stays experimental/default-off.
 
 ## One-sentence rule
 
-> **Keep implemented Hacocoon milestones contiguous, put active implementation next, and move design-only gates behind them while `IMPLEMENTATION_STATUS.md` separately records what is actually implemented.**
+> **Keep implemented Hacocoon milestones contiguous, put active implementation next, and keep design-only gates behind them while `IMPLEMENTATION_STATUS.md` separately records actual code and real-host acceptance.**
