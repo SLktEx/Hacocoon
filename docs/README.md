@@ -2,9 +2,9 @@
 
 [**日本語**](README.ja.md) | English
 
-This file defines how to read Hacocoon documentation after the 2026-08-29 architecture rebaseline, the implementation progression through v0.8, and the explicit v0.9 Base-image roadmap decision.
+This file defines how to read Hacocoon documentation after the 2026-08-29 architecture rebaseline, the v0.8 implementation progression, the v0.9 Base-image roadmap contract, and the v0.10 per-agent sandbox broker foundation.
 
-Hacocoon remains **pre-1.0**. The documents describe the current architecture, implemented roadmap contracts, and scheduled design contracts, but they do not imply API, CLI, state-format, provider, client-adapter, image, or configuration compatibility guarantees.
+Hacocoon remains **pre-1.0**. Documentation describes architecture, implementation state, and roadmap contracts; it does not imply API, CLI, state-format, provider, client-adapter, image, agent-integration, or configuration compatibility guarantees.
 
 For a Japanese overview, start with [`../README.ja.md`](../README.ja.md), [`README.ja.md`](README.ja.md), and [`ARCHITECTURE_GUIDE.ja.md`](ARCHITECTURE_GUIDE.ja.md).
 
@@ -15,78 +15,55 @@ When documents appear to disagree, use this order:
 1. `00_REBASELINE_AND_ROADMAP.md` — product boundary and roadmap progression.
 2. `00C_TERMINOLOGY_AND_BOUNDARIES.md` — canonical architecture vocabulary.
 3. `00B_SECURITY_ARCHITECTURE.md` — cross-cutting trust and security rules.
-4. `IMPLEMENTATION_STATUS.md` — what `main` actually implements and what acceptance is still pending.
-5. The relevant versioned release specification (`01_...` through `09_...`) — the contract for that roadmap gate.
-6. Specialized design documents such as `CLIENT_ACCESS.md`, `REMOTE_CLOUD_PROVISIONING.md`, and `BASE_IMAGES.md` — detailed contracts or explicitly labeled design proposals for their subject area.
-7. `00A_PLUGIN_ARCHITECTURE.md` — extension/adaptor guidance; it does not require speculative interfaces or a plugin marketplace.
-8. `90_CODEX_IMPLEMENTATION_HANDOFF.md` — current implementation and maintenance workflow derived from the sources above.
-9. `91_IMPLEMENTATION_REFERENCE_NOTES.md` — non-normative external references and historical notes.
-10. ADRs under `adr/` — scoped decisions. If an older ADR uses superseded architecture terms, the rebaseline documents above win unless the ADR is explicitly updated.
+4. `IMPLEMENTATION_STATUS.md` — current code reality and pending acceptance.
+5. The relevant versioned release specification (`01_...` through `10_...`).
+6. Specialized documents such as `CLIENT_ACCESS.md`, `REMOTE_CLOUD_PROVISIONING.md`, and `BASE_IMAGES.md`.
+7. `00A_PLUGIN_ARCHITECTURE.md` — extension/adapter guidance.
+8. `90_CODEX_IMPLEMENTATION_HANDOFF.md` — implementation and maintenance workflow.
+9. `91_IMPLEMENTATION_REFERENCE_NOTES.md` — non-normative references and historical notes.
+10. ADRs under `adr/` — scoped decisions.
 
-`README.md`, `CODEX_START_HERE.md`, and `Hacocoon_v0.1-v0.7_MASTER.md` are entry points/indexes; they should summarize, not redefine, the architecture. The master filename is historical; v0.9 is authoritative through the roadmap/specification documents above even though the implementation currently remains at v0.8.
+`README.md`, `CODEX_START_HERE.md`, and `Hacocoon_v0.1-v0.7_MASTER.md` are entry points/indexes; they summarize rather than redefine the architecture.
 
 ## Current documentation state
 
-The original rebaseline documents were written while v0.1 was the active implementation gate. The repository has since progressed through the v0.8 implementation pass, and the next explicit roadmap gate is now v0.9.
-
-Therefore:
-
-- v0.1-v0.9 specifications are **versioned design contracts**;
-- v0.1-v0.8 have implementation passes represented on `main`;
-- v0.9 Base Images & Custom Environments is scheduled as a design/roadmap gate but is not yet an implementation claim;
-- `IMPLEMENTATION_STATUS.md` is the source for current repository reality;
-- an implemented roadmap gate does not mean its public surface is frozen;
-- real-provider/client acceptance remains separate from unit, integration, fake-provider E2E, race, vet, build, and CI checks;
-- EC2 remains experimental and disabled by default even though its v0.7 implementation exists;
-- v0.8 explicitly introduces thin Client Adapters, starting with `haco-vscode`, without moving IDE or AI UI ownership into Core;
-- v0.9 introduces selectable logical Bases that resolve to immutable Environment starting revisions while keeping Incus aliases/fingerprints behind the adapter boundary;
-- `BASE_IMAGES.md` remains the detailed companion proposal; the authoritative minimum v0.9 gate is `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`;
-- post-v0.9 work must not be invented merely because the numbered roadmap has progressed.
+- v0.1-v0.10 specifications are **versioned design contracts**.
+- v0.1-v0.8 have implementation passes represented in the repository.
+- v0.9 Base Images & Custom Environments is a design/roadmap contract; its CLI/provider implementation remains pending.
+- v0.10 adds an implemented trusted session-to-Environment broker foundation outside Core.
+- `IMPLEMENTATION_STATUS.md` is the source for current repository reality.
+- real-provider/client acceptance remains separate from unit, integration, fake-provider E2E, race, vet, build, and CI checks.
+- EC2 remains experimental and disabled by default.
 
 ## Specification vs implementation
 
-A release specification describes the design and acceptance contract for that roadmap stage. `IMPLEMENTATION_STATUS.md` describes the **current code reality**.
+A release specification describes a roadmap/design/acceptance contract. `IMPLEMENTATION_STATUS.md` describes **current code reality**.
 
-These are deliberately different claims.
+Examples:
 
-For example, v0.7 may have an implemented EC2 adapter while real AWS acceptance is still pending. Likewise, v0.8 may have a `haco-vscode` implementation while real Windows/WSL + Incus + VS Code Remote-SSH acceptance is still pending. v0.9 may exist as a design contract before `haco image` or `haco create --base` exists in code.
+- v0.7 EC2 code can exist while real AWS acceptance remains pending.
+- v0.8 `haco-vscode` can exist while real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending.
+- v0.9 can exist as a Base-image design contract before `haco image` or `haco create --base` is implemented.
+- v0.10 can contain a session broker while real VS Code Agent Host/AHP + Incus per-session routing remains pending.
 
-Do not infer release/tag readiness, compatibility guarantees, production support, or implementation presence solely from a roadmap document.
+Do not infer release/tag readiness, production support, or implementation presence from a roadmap document alone.
 
 ## v0.8 reading path
 
-For the client-adapter work, read these together:
+1. `08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md`
+2. `CLIENT_ACCESS.md`
+3. `00_REBASELINE_AND_ROADMAP.md`
+4. `IMPLEMENTATION_STATUS.md`
 
-1. `08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md` — the v0.8 contract.
-2. `CLIENT_ACCESS.md` — generic SSH/port access supplied by Hacocoon.
-3. `00_REBASELINE_AND_ROADMAP.md` — why VS Code and orchestrators remain outside Core.
-4. `IMPLEMENTATION_STATUS.md` — what is implemented and what real-client acceptance remains pending.
-
-The intended model is:
-
-```text
-VS Code / another client
-        |
- thin Client Adapter
-        |
-    Hacocoon
-        |
- isolated Environment
-```
-
-VS Code owns its editor, terminal, debugger, Git UI, and AI/coding-agent UI. Hacocoon owns the Environment and the security boundary around external authority.
+VS Code owns its editor, terminal, debugger, Git UI, and coding-agent UI. Hacocoon owns the Environment and external-authority boundary.
 
 ## v0.9 reading path
 
-For Base-image/custom-Environment work, read these together:
-
-1. `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` — authoritative minimum v0.9 roadmap/acceptance contract.
-2. `BASE_IMAGES.md` — detailed design companion for identity, import/build, deletion, GC, and concurrency.
-3. `00_REBASELINE_AND_ROADMAP.md` — placement of Base selection inside the Environment boundary.
-4. `00B_SECURITY_ARCHITECTURE.md` — custom images do not grant host/external authority.
-5. `IMPLEMENTATION_STATUS.md` — confirms that v0.9 is not yet implemented until code actually lands.
-
-The intended identity model is:
+1. `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`
+2. `BASE_IMAGES.md`
+3. `00_REBASELINE_AND_ROADMAP.md`
+4. `00B_SECURITY_ARCHITECTURE.md`
+5. `IMPLEMENTATION_STATUS.md`
 
 ```text
 logical Base name
@@ -101,43 +78,52 @@ provider-native starting point
 Environment
 ```
 
-For Incus, the provider-native starting point may be an image fingerprint, but that fingerprint is not the public Core identity.
+For Incus, a provider-native starting point may be an image fingerprint, but that fingerprint is not the public Core identity. v0.9 remains implementation-pending until code actually lands.
+
+## v0.10 reading path
+
+1. `10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.md` — authoritative v0.10 contract.
+2. `10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md` — maintained Japanese explanation.
+3. `02_v0.2_WORKSPACE_ABSTRACTION_AND_LEASE.md` — Workspace lease/concurrency rules.
+4. `08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md` — existing VS Code/client boundary.
+5. `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` — Base contract that v0.10 composes with.
+6. `IMPLEMENTATION_STATUS.md` — implementation versus real-client acceptance.
+
+```text
+VS Code Agents window / trusted client
+                 |
+       trusted integration
+                 |
+      per-session broker
+          /           \
+ Environment A     Environment B
+      |                 |
+    Incus A           Incus B
+```
+
+The coding agent is deliberately absent from the Hacocoon management path. Session-to-Environment ownership proof is persisted in trusted state, and a deterministic Environment name alone is insufficient to authorize adoption or deletion.
+
+Parallel write-capable sessions normally use separate Git worktrees/Workspace paths. Worktrees isolate code changes; Incus/Environment isolation is the security boundary.
+
+VS Code Agent Host/AHP is the preferred client-integration direction, but real Agent Host/AHP + Incus per-session routing remains environment-dependent acceptance work.
 
 ## Compatibility and breaking changes
 
-Hacocoon is still pre-1.0 and actively being simplified and hardened.
+Hacocoon is pre-1.0 and actively being simplified and hardened. Breaking changes may affect CLI/helper binaries, persisted state, Core/adapter APIs, capability/policy contracts, provider configuration, Base/image lifecycle, client/agent integration, experimental backends, and documentation structure.
 
-Breaking changes may affect:
-
-- CLI commands, helper binaries, flags, and output;
-- persisted state and migration behavior;
-- Core and adapter APIs;
-- capability and policy contracts;
-- provider configuration;
-- client-adapter configuration;
-- Base/image configuration and lifecycle;
-- experimental backends;
-- documentation structure itself.
-
-When making a breaking change, prefer an explicit deletion/replacement over preserving accidental compatibility that weakens the architecture. Document material operator impact and add migration guidance when a safe migration path is actually supported.
+Prefer an explicit incompatible correction over preserving accidental compatibility that weakens the architecture. Material operator impact should remain documented and tested.
 
 ## Historical material
 
-- Historical `Session`, Runtime/Storage-centric, or plugin-heavy code may remain as migration inventory.
-- Deleted or superseded documents can still appear in Git history or a stale GitHub search index. Do not use them as current specifications.
-- Historical experiments such as advanced storage backing formats are not roadmap commitments unless a current specification or ADR explicitly reintroduces them.
-- The old instruction to stop implementation at v0.1 is historical and no longer describes `main`.
-- `Hacocoon_v0.1-v0.7_MASTER.md` retains its old filename as an entry-point artifact; it must not override the v0.9 authoritative documents.
+Historical `Session`, Runtime/Storage-centric, plugin-heavy, or advanced storage experiments may remain in Git history or as migration inventory without becoming current architecture commitments.
 
 ## Editing rule
 
-When changing architecture documentation:
-
 1. update the authoritative document first;
 2. update `IMPLEMENTATION_STATUS.md` when code reality changes;
-3. update entry points and handoff documents when their summary becomes stale;
+3. update entry points/handoffs when their summary becomes stale;
 4. keep implementation claims distinct from real-provider/client acceptance claims;
-5. preserve the explicit experimental/default-off status of unstable providers;
-6. update Japanese summaries when their user-facing description becomes stale;
+5. preserve explicit experimental/default-off provider rules;
+6. update Japanese summaries when user-facing descriptions change;
 7. run `python tools/check_docs.py`;
-8. do not turn an existing implementation detail into a compatibility promise by accident.
+8. do not turn an implementation detail into an accidental compatibility promise.
