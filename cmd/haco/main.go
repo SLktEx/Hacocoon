@@ -12,6 +12,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/composition"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
+	runapp "github.com/SLktEx/Hacocoon/internal/run"
 )
 
 type command func(context.Context, *composition.App, []string) error
@@ -42,6 +43,8 @@ func dispatch(ctx context.Context, app *composition.App, args []string) error {
 	commands := map[string]command{
 		"create":      createCommand,
 		"git":         gitCommand,
+		"run":         runCommand,
+		"events":      eventsCommand,
 		"capability":  capabilityCommand,
 		"status":      statusCommand,
 		"connections": connectionsCommand,
@@ -101,6 +104,106 @@ func parseCreateSpec(args []string) (core.EnvironmentSpec, error) {
 	}
 	spec.Name = args[0]
 	return spec, nil
+}
+
+func runCommand(ctx context.Context, app *composition.App, args []string) error {
+	spec, jsonOutput, err := parseRunSpec(args)
+	if err != nil {
+		return err
+	}
+	result, runErr := app.Runner.Run(ctx, spec)
+	if jsonOutput {
+		payload, err := json.Marshal(result)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(payload))
+	} else {
+		fmt.Print(result.Execution.Stdout)
+		fmt.Fprint(os.Stderr, result.Execution.Stderr)
+	}
+	if runErr != nil {
+		return runErr
+	}
+	if result.Execution.ExitCode > 0 {
+		return commandExitError{code: result.Execution.ExitCode}
+	}
+	return nil
+}
+
+func parseRunSpec(args []string) (runapp.Spec, bool, error) {
+	spec := runapp.Spec{AccessMode: core.WorkspaceReadWrite}
+	jsonOutput := false
+	readOnlySeen := false
+	workspaceSeen := false
+	separator := -1
+	for i, arg := range args {
+		if arg == "--" {
+			separator = i
+			break
+		}
+	}
+	if separator < 0 || separator == len(args)-1 {
+		return runapp.Spec{}, false, fmt.Errorf("usage: haco run [--read-only] --workspace <path> [--json] -- <command...>: %w", core.ErrInvalidArgument)
+	}
+	options := args[:separator]
+	for len(options) > 0 {
+		switch options[0] {
+		case "--read-only":
+			if readOnlySeen {
+				return runapp.Spec{}, false, core.ErrInvalidArgument
+			}
+			readOnlySeen = true
+			spec.AccessMode = core.WorkspaceReadOnly
+			options = options[1:]
+		case "--workspace":
+			if len(options) < 2 || workspaceSeen {
+				return runapp.Spec{}, false, core.ErrInvalidArgument
+			}
+			workspaceSeen = true
+			spec.WorkspacePath = options[1]
+			options = options[2:]
+		case "--json":
+			if jsonOutput {
+				return runapp.Spec{}, false, core.ErrInvalidArgument
+			}
+			jsonOutput = true
+			options = options[1:]
+		default:
+			return runapp.Spec{}, false, fmt.Errorf("unknown run option %q: %w", options[0], core.ErrInvalidArgument)
+		}
+	}
+	if !workspaceSeen || strings.TrimSpace(spec.WorkspacePath) == "" {
+		return runapp.Spec{}, false, core.ErrInvalidArgument
+	}
+	spec.Argv = append([]string(nil), args[separator+1:]...)
+	return spec, jsonOutput, nil
+}
+
+func eventsCommand(ctx context.Context, app *composition.App, args []string) error {
+	jsonOutput := false
+	if len(args) == 1 && args[0] == "--json" {
+		jsonOutput = true
+	} else if len(args) != 0 {
+		return fmt.Errorf("usage: haco events [--json]: %w", core.ErrInvalidArgument)
+	}
+	events, err := app.Events.List(ctx)
+	if err != nil {
+		return err
+	}
+	if jsonOutput {
+		encoder := json.NewEncoder(os.Stdout)
+		for _, event := range events {
+			if err := encoder.Encode(event); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	for _, event := range events {
+		fmt.Printf("%s\t%s\t%s\t%s\t%s\n", event.Time.UTC().Format("2006-01-02T15:04:05Z07:00"), event.Type, event.Capability, event.Action, event.Decision)
+	}
+	return nil
 }
 
 func gitCommand(ctx context.Context, app *composition.App, args []string) error {
@@ -368,7 +471,7 @@ func doctorCommand(ctx context.Context, app *composition.App, args []string) err
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: haco <create|git|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
+	fmt.Fprintln(os.Stderr, "usage: haco <create|git|run|events|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
 }
 
 func fail(err error) {
