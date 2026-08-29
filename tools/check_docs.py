@@ -13,13 +13,18 @@ checks = [
     (r'Manager/Session trust boundary|Manager / Session trust boundary', 'legacy Manager/Session architecture boundary'),
     (r'Runtime/Storage seams|Security and Feature Plugin boundaries', 'pre-rebaseline ADR terminology'),
     (r'\bDirectoryWorkspace\b', 'redundant workspace-provider name'),
+    (r'Status:\s*\*\*current implementation gate\*\*', 'stale v0.1-as-current status'),
+    (r'Finish \*\*v0\.1 Secure Workspace Runtime MVP\*\* before extending later releases', 'stale v0.1-only implementation objective'),
+    (r'Do not implement v0\.2-v0\.7 while finishing v0\.1', 'stale v0.1-only implementation rule'),
+    (r'Stop at the v0\.1 acceptance gate', 'stale v0.1-only stop rule'),
+    (r'current release specification.*currently `01_v0\.1_SECURE_WORKSPACE_RUNTIME\.md`', 'stale documentation precedence'),
 ]
 
 errors = []
 for p in files:
     text = p.read_text()
     for pat, label in checks:
-        for m in re.finditer(pat, text):
+        for m in re.finditer(pat, text, flags=re.IGNORECASE):
             line = text[:m.start()].count('\n') + 1
             snippet = text.splitlines()[line - 1]
             # Historical mention of the old IAM name is allowed only when clearly
@@ -57,11 +62,15 @@ if (root / 'docs/README.md').exists():
     docmap = (root / 'docs/README.md').read_text()
     if 'Source-of-truth order' not in docmap or 'Specification vs implementation' not in docmap:
         errors.append('docs/README.md must define documentation precedence and specification-vs-implementation semantics')
+    if 'pre-1.0' not in docmap or 'IMPLEMENTATION_STATUS.md' not in docmap:
+        errors.append('docs/README.md must describe pre-1.0 compatibility and point to current implementation reality')
 
 v01 = (root / 'docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md').read_text()
 for required in ['haco create --workspace', 'haco exec', 'haco shell', 'haco delete', 'Incus']:
     if required not in v01:
         errors.append(f'v0.1 missing required runtime gate text: {required}')
+if 'implementation exists on `main`' not in v01:
+    errors.append('v0.1 spec must be identified as an implemented roadmap contract, not the current-only gate')
 
 v03 = (root / 'docs/03_v0.3_CLIENT_AND_INTERACTIVE_ACCESS.md').read_text()
 if 'v0.4 Policy/Capability boundary' not in v03:
@@ -74,25 +83,34 @@ if 'EC2 release status: experimental and disabled by default' not in v07:
     errors.append('v0.7 must mark EC2 experimental and disabled by default')
 if 'no AWS API call' not in v07:
     errors.append('v0.7 must require the disabled EC2 path to avoid AWS API calls')
+for required in ['HACO_RUNTIME_PROVIDER=runtime.ec2', 'HACO_EXPERIMENTAL_EC2=1']:
+    if required not in v07:
+        errors.append(f'v0.7 must document the implemented EC2 opt-in: {required}')
 
 roadmap = (root / 'docs/00_REBASELINE_AND_ROADMAP.md').read_text()
 if 'Hacocoon is a **Secure Workspace Runtime**' not in roadmap:
     errors.append('roadmap missing Secure Workspace Runtime baseline')
 if 'experimental and disabled by default' not in roadmap:
     errors.append('roadmap must preserve the v0.7 experimental EC2 default-off rule')
+if 'pre-1.0' not in roadmap:
+    errors.append('roadmap must preserve the pre-1.0 compatibility policy')
 
 status = (root / 'docs/IMPLEMENTATION_STATUS.md').read_text()
 if 'current code reality' not in status.lower() or '`haco create --workspace`' not in status:
-    errors.append('IMPLEMENTATION_STATUS must distinguish repository reality from the v0.1 target')
+    errors.append('IMPLEMENTATION_STATUS must distinguish current repository reality from versioned roadmap contracts')
+if 'pre-1.0' not in status or 'real AWS acceptance pending' not in status:
+    errors.append('IMPLEMENTATION_STATUS must distinguish compatibility and real-provider acceptance from implementation presence')
 
 reference = (root / 'docs/91_IMPLEMENTATION_REFERENCE_NOTES.md').read_text()
-if 'non-normative' not in reference.lower() or 'No current release gate commits' not in reference:
+if 'non-normative' not in reference.lower() or 'No current architecture contract commits' not in reference:
     errors.append('reference notes must be explicitly non-normative and avoid turning historical storage experiments into commitments')
 
 for rel in ('README.md', 'CODEX_START_HERE.md', 'Hacocoon_v0.1-v0.7_MASTER.md'):
     text = (root / rel).read_text()
     if 'docs/README.md' not in text:
         errors.append(f'{rel} must point to docs/README.md for documentation precedence')
+    if 'pre-1.0' not in text:
+        errors.append(f'{rel} must make the pre-1.0 compatibility state explicit')
 
 if errors:
     print('DOC CONSISTENCY FAILED')

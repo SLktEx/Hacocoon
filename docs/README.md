@@ -1,41 +1,80 @@
 # Documentation Map
 
-This file defines how to read Hacocoon documentation after the 2026-08-29 architecture rebaseline.
+This file defines how to read Hacocoon documentation after the 2026-08-29 architecture rebaseline and the subsequent implementation progression through v0.7.
+
+Hacocoon remains **pre-1.0**. The documents describe the current architecture and implemented roadmap contracts, but they do not imply API, CLI, state-format, provider, or configuration compatibility guarantees.
 
 ## Source-of-truth order
 
 When documents appear to disagree, use this order:
 
-1. `00_REBASELINE_AND_ROADMAP.md` — product boundary and release order.
+1. `00_REBASELINE_AND_ROADMAP.md` — product boundary and roadmap progression.
 2. `00C_TERMINOLOGY_AND_BOUNDARIES.md` — canonical architecture vocabulary.
 3. `00B_SECURITY_ARCHITECTURE.md` — cross-cutting trust and security rules.
-4. The **current release specification** — currently `01_v0.1_SECURE_WORKSPACE_RUNTIME.md`.
-5. `IMPLEMENTATION_STATUS.md` — what the repository actually implements today.
-6. Future release documents (`02_...` through `07_...`) — planning only; they must not expand the current release gate.
-7. `00A_PLUGIN_ARCHITECTURE.md` — extension/adaptor guidance, not a requirement to create interfaces or plugins now.
-8. `90_CODEX_IMPLEMENTATION_HANDOFF.md` — implementation workflow derived from the sources above.
+4. `IMPLEMENTATION_STATUS.md` — what `main` actually implements and what acceptance is still pending.
+5. The relevant versioned release specification (`01_...` through `07_...`) — the contract for that roadmap gate.
+6. Specialized design documents such as `CLIENT_ACCESS.md` and `REMOTE_CLOUD_PROVISIONING.md` — detailed contracts for their subject area.
+7. `00A_PLUGIN_ARCHITECTURE.md` — extension/adaptor guidance; it does not require speculative interfaces or a plugin marketplace.
+8. `90_CODEX_IMPLEMENTATION_HANDOFF.md` — current implementation and maintenance workflow derived from the sources above.
 9. `91_IMPLEMENTATION_REFERENCE_NOTES.md` — non-normative external references and historical notes.
 10. ADRs under `adr/` — scoped decisions. If an older ADR uses superseded architecture terms, the rebaseline documents above win unless the ADR is explicitly updated.
 
 `README.md`, `CODEX_START_HERE.md`, and `Hacocoon_v0.1-v0.7_MASTER.md` are entry points/indexes; they should summarize, not redefine, the architecture.
 
+## Current documentation state
+
+The original rebaseline documents were written while v0.1 was the active implementation gate. `main` has since progressed through the v0.7 implementation pass.
+
+Therefore:
+
+- v0.1-v0.7 specifications are now read as **versioned design contracts**;
+- `IMPLEMENTATION_STATUS.md` is the source for current repository reality;
+- an implemented roadmap gate does not mean its public surface is frozen;
+- real-provider acceptance remains separate from unit, integration, fake-provider E2E, race, vet, build, and CI checks;
+- EC2 remains experimental and disabled by default even though its v0.7 implementation exists;
+- post-v0.7 work must not be invented merely because the numbered roadmap has been implemented.
+
 ## Specification vs implementation
 
-The release specification describes the **target gate**. `IMPLEMENTATION_STATUS.md` describes the **current code reality**.
+A release specification describes the design and acceptance contract for that roadmap stage. `IMPLEMENTATION_STATUS.md` describes the **current code reality**.
 
-For example, historical code may still expose `Session`, `haco new`, `haco rm`, or advanced storage commands while the v0.1 target uses Workspace/Environment terminology and `haco create` / `haco delete`. Existing code is not automatically current product scope.
+These are deliberately different claims.
+
+For example, v0.7 may have an implemented EC2 adapter while real AWS acceptance is still pending. Likewise, historical packages may still exist without becoming part of the supported architecture.
+
+Do not infer release/tag readiness, compatibility guarantees, or production support solely from the presence of implementation code.
+
+## Compatibility and breaking changes
+
+Hacocoon is still pre-1.0 and actively being simplified and hardened.
+
+Breaking changes may affect:
+
+- CLI commands, flags, and output;
+- persisted state and migration behavior;
+- Core and adapter APIs;
+- capability and policy contracts;
+- provider configuration;
+- experimental backends;
+- documentation structure itself.
+
+When making a breaking change, prefer an explicit deletion/replacement over preserving accidental compatibility that weakens the architecture. Document material operator impact and add migration guidance when a safe migration path is actually supported.
 
 ## Historical material
 
-- Historical `Session`, Runtime/Storage-centric, or plugin-heavy code may remain during migration.
-- Deleted/superseded documents can still appear in Git history or a stale GitHub search index. Do not use them as current specifications.
-- Historical experiments such as advanced storage backing formats are not roadmap commitments unless a current release document or ADR explicitly reintroduces them.
+- Historical `Session`, Runtime/Storage-centric, or plugin-heavy code may remain as migration inventory.
+- Deleted or superseded documents can still appear in Git history or a stale GitHub search index. Do not use them as current specifications.
+- Historical experiments such as advanced storage backing formats are not roadmap commitments unless a current specification or ADR explicitly reintroduces them.
+- The old instruction to stop implementation at v0.1 is historical and no longer describes `main`.
 
 ## Editing rule
 
 When changing architecture documentation:
 
 1. update the authoritative document first;
-2. update summaries/status documents only as needed;
-3. run `python tools/check_docs.py`;
-4. keep future-release ideas from leaking into the current implementation gate.
+2. update `IMPLEMENTATION_STATUS.md` when code reality changes;
+3. update entry points and handoff documents when their summary becomes stale;
+4. keep implementation claims distinct from real-provider acceptance claims;
+5. preserve the explicit experimental/default-off status of unstable providers;
+6. run `python tools/check_docs.py`;
+7. do not turn an existing implementation detail into a compatibility promise by accident.
