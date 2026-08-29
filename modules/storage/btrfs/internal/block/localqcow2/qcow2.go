@@ -120,7 +120,9 @@ func (s *Store) Compact(ctx context.Context, handle block.Handle) error {
 }
 
 func (s *Store) Delete(ctx context.Context, handle block.Handle) error {
-	_ = s.Detach(ctx, handle)
+	if err := s.Detach(ctx, handle); err != nil {
+		return fmt.Errorf("detach qcow2 NBD image before delete: %w", err)
+	}
 	if err := os.Remove(handle.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}

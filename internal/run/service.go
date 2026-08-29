@@ -6,9 +6,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
+
+const defaultCleanupTimeout = 30 * time.Second
 
 type Spec struct {
 	WorkspacePath string                   `json:"workspace_path"`
@@ -35,12 +38,17 @@ type environmentLifecycle interface {
 }
 
 type Service struct {
-	environments environmentLifecycle
-	newName      func() (string, error)
+	environments  environmentLifecycle
+	newName       func() (string, error)
+	cleanupTimeout time.Duration
 }
 
 func New(environments environmentLifecycle) *Service {
-	return &Service{environments: environments, newName: randomEnvironmentName}
+	return &Service{
+		environments:  environments,
+		newName:       randomEnvironmentName,
+		cleanupTimeout: defaultCleanupTimeout,
+	}
 }
 
 func (s *Service) Run(ctx context.Context, spec Spec) (Result, error) {
@@ -63,7 +71,9 @@ func (s *Service) Run(ctx context.Context, spec Spec) (Result, error) {
 	result := Result{Environment: environment.Name}
 	execution, execErr := s.environments.Exec(ctx, environment.Name, core.ExecutionRequest{Argv: append([]string(nil), spec.Argv...)})
 	result.Execution = ExecutionResult{ExitCode: execution.ExitCode, Stdout: execution.Stdout, Stderr: execution.Stderr}
-	cleanupErr := s.environments.Delete(context.WithoutCancel(ctx), environment.Name)
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.cleanupTimeout)
+	cleanupErr := s.environments.Delete(cleanupCtx, environment.Name)
+	cancel()
 	result.CleanedUp = cleanupErr == nil
 
 	if execErr != nil && cleanupErr != nil {

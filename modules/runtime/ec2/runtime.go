@@ -309,17 +309,30 @@ func restoreWorkspaceArchive(ctx context.Context, runner host.Runner, archive, w
 	if _, err := runner.Run(ctx, "tar", "-xzf", archive, "-C", extracted); err != nil {
 		return err
 	}
-	backup := workspace + ".haco-backup"
-	_ = os.RemoveAll(backup)
+
+	backupDir, err := os.MkdirTemp(parent, ".haco-backup-*")
+	if err != nil {
+		return fmt.Errorf("create workspace backup directory: %w", err)
+	}
+	backup := filepath.Join(backupDir, "workspace")
 	if err := os.Rename(workspace, backup); err != nil {
+		_ = os.Remove(backupDir)
 		return err
 	}
 	if err := os.Rename(extracted, workspace); err != nil {
-		_ = os.Rename(backup, workspace)
-		return err
+		rollbackErr := os.Rename(backup, workspace)
+		if rollbackErr == nil {
+			_ = os.Remove(backupDir)
+			return err
+		}
+		return errors.Join(
+			err,
+			fmt.Errorf("restore original workspace from %s: %w", backup, rollbackErr),
+			core.ErrRecoveryRequired,
+		)
 	}
-	if err := os.RemoveAll(backup); err != nil {
-		return err
+	if err := os.RemoveAll(backupDir); err != nil {
+		return fmt.Errorf("remove workspace backup %s: %w", backupDir, err)
 	}
 	return nil
 }
