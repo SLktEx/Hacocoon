@@ -1,6 +1,7 @@
 package state
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -12,6 +13,11 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
+
+type childProcess struct {
+	cmd    *exec.Cmd
+	output *bytes.Buffer
+}
 
 func TestEnvironmentJSONStoreChildWriter(t *testing.T) {
 	if os.Getenv("HACO_STATE_CHILD") != "1" {
@@ -48,7 +54,7 @@ func TestEnvironmentJSONStoreSerializesIndependentProcesses(t *testing.T) {
 	path := filepath.Join(root, "state", "environments.json")
 	barrier := filepath.Join(root, "go")
 	const writers = 8
-	commands := make([]*exec.Cmd, 0, writers)
+	children := make([]childProcess, 0, writers)
 
 	for i := 0; i < writers; i++ {
 		name := fmt.Sprintf("writer-%d", i)
@@ -59,18 +65,21 @@ func TestEnvironmentJSONStoreSerializesIndependentProcesses(t *testing.T) {
 			"HACO_STATE_NAME="+name,
 			"HACO_STATE_BARRIER="+barrier,
 		)
+		output := &bytes.Buffer{}
+		cmd.Stdout = output
+		cmd.Stderr = output
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
 		}
-		commands = append(commands, cmd)
+		children = append(children, childProcess{cmd: cmd, output: output})
 	}
 
 	if err := os.WriteFile(barrier, []byte("go"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	for _, cmd := range commands {
-		if output, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("child writer failed: %v\n%s", err, output)
+	for _, child := range children {
+		if err := child.cmd.Wait(); err != nil {
+			t.Fatalf("child writer failed: %v\n%s", err, child.output.String())
 		}
 	}
 
