@@ -98,6 +98,7 @@ jobs:
             listing="$(tar -tzf "$archive")"
             grep -Fx 'haco' <<<"$listing" >/dev/null
             grep -Fx 'haco-vscode' <<<"$listing" >/dev/null
+            grep -Fx 'haco-agent-host' <<<"$listing" >/dev/null
           done
 
           grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
