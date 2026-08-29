@@ -1,12 +1,12 @@
 # Versioning and Release Status
 
 **Status:** authoritative numbering/status note  
-**Date:** 2026-08-29  
+**Date:** 2026-08-30  
 **Compatibility:** Hacocoon is pre-1.0; versioned design gates and concrete interfaces may still change incompatibly.
 
 ## Purpose
 
-This document prevents parallel design/implementation work from accidentally assigning the same Hacocoon version number to different gates.
+This document is the source of truth for Hacocoon roadmap version numbers. It exists to keep the public version sequence understandable when implementation and design work happen in parallel.
 
 Use it together with:
 
@@ -14,7 +14,21 @@ Use it together with:
 - `IMPLEMENTATION_STATUS.md` for code that is actually present on `main`;
 - each versioned specification for the detailed acceptance contract.
 
-When an open branch or pull request disagrees with this document and `main`, the branch/PR must be renumbered or rebased before merge. An open PR does not reserve or redefine a version number that is already assigned on `main`.
+## Numbering policy
+
+For pre-1.0 Hacocoon, version numbers should primarily describe the order in which product gates become real, user-visible implementation milestones.
+
+The rules are:
+
+1. implemented milestones should remain contiguous whenever renumbering is still cheap;
+2. an implementation-pending design gate must not occupy a lower number while an already-implemented independent gate is forced above it;
+3. active unmerged integration work follows the last implemented milestone;
+4. design-only gates follow active implementation work;
+5. security/hardening work normally does not consume a product version number;
+6. `IMPLEMENTATION_STATUS.md` remains authoritative for implementation reality;
+7. tags/releases remain separate from roadmap-gate numbering.
+
+This intentionally replaces the earlier rule that treated every design assignment committed to `main` as permanently fixed. While Hacocoon is pre-1.0, clarity is more valuable than preserving an awkward numbering accident.
 
 ## Current authoritative numbering
 
@@ -28,50 +42,52 @@ When an open branch or pull request disagrees with this document and `main`, the
 | v0.6 | Agent & Orchestrator Integration | implemented | `haco run`, machine output, external security events |
 | v0.7 | Remote / Cloud Runtime & External Capabilities | implemented experimentally | EC2 remains explicit opt-in; real AWS acceptance pending |
 | v0.8 | Client Adapters & VS Code Integration | implemented | `haco-vscode`, dedicated Windows/WSL path; real client acceptance pending |
-| v0.9 | Base Images & Custom Environments | design contract only | implementation remains pending |
-| v0.10 | Per-Agent Sandbox & Agent Host Integration | broker foundation implemented | trusted session -> Environment binding; real Agent Host/AHP routing acceptance pending |
-| v0.11 | Sandbox Resource Limits | design contract only | CPU/memory/PID/root-storage budget contract; implementation pending |
-| v0.12 | VS Code Remote Agent Host Adapter | active integration candidate | reserved for the Agent Host remote-SSH adapter currently developed in PR #111; not part of `main` code reality until merged |
+| v0.9 | Per-Agent Sandbox & Agent Host Integration | broker foundation implemented | trusted session -> Environment binding; real Agent Host/AHP routing acceptance pending |
+| v0.10 | VS Code Remote Agent Host Adapter | active integration candidate | PR #111; not part of `main` code reality until merged |
+| v0.11 | Base Images & Custom Environments | design contract only | implementation pending |
+| v0.12 | Sandbox Resource Limits | design contract only | CPU/memory/PID/root-storage budget contract; implementation pending |
 
-Version numbers describe roadmap gates, not a promise that all lower-numbered gates are fully implemented before higher-numbered additive work lands. The existing v0.9/v0.10 ordering is the explicit example: v0.9 remains design-only while the independent v0.10 broker foundation is already implemented.
+The implemented progression is therefore contiguous through **v0.9**. v0.10 is the next active implementation gate, while v0.11 and v0.12 are intentionally kept behind it until their implementations land.
 
-## Resolved numbering collision: PR #111
+## Renumbering applied on 2026-08-30
 
-PR #111 was originally opened as **`v0.11 VS Code Remote Agent Host Adapter`** while `main` independently assigned **v0.11** to **Sandbox Resource Limits**.
-
-The authoritative resolution is:
+The previous assignment was:
 
 ```text
-v0.10  Per-Agent Sandbox & Agent Host Integration
-v0.11  Sandbox Resource Limits
-v0.12  VS Code Remote Agent Host Adapter
+v0.9   Base Images & Custom Environments             design only
+v0.10  Per-Agent Sandbox & Agent Host Integration    implemented
+v0.11  Sandbox Resource Limits                       design only
+v0.12  VS Code Remote Agent Host Adapter             active PR
 ```
 
-The reason for keeping Resource Limits as v0.11 is operational rather than architectural preference: its specification and documentation consistency contract are already committed to `main`. The still-open Agent Host adapter branch is therefore the safer place to renumber.
+That ordering made the version sequence misleading. It is replaced by:
 
-Before PR #111 merges, its user-facing/versioned documentation must use v0.12 names and text. Code/package names such as `haco-agent-host` do not need a version suffix and are unaffected.
+```text
+v0.9   Per-Agent Sandbox & Agent Host Integration    implemented
+v0.10  VS Code Remote Agent Host Adapter             active PR
+v0.11  Base Images & Custom Environments             design only
+v0.12  Sandbox Resource Limits                       design only
+```
 
-## Assignment rules for future parallel work
+This renumbering changes roadmap/documentation labels only. It does not rewrite Git history or claim new implementation work.
 
-1. A version number becomes reserved when its roadmap/spec assignment is committed to `main`.
-2. Open branches and PR titles do not override an assignment already present on `main`.
-3. Before assigning a new version, search `main` documentation, open PRs, and active roadmap work for the proposed number.
-4. If two parallel efforts collide, keep the number already committed to `main` unless there is a compelling migration reason; renumber the unmerged work.
-5. Renumber the whole documentation surface together: filename, heading, prose references, roadmap/index links, docs consistency checks, PR title/body, and Japanese companion docs.
-6. Do not infer implementation completeness from numbering. `IMPLEMENTATION_STATUS.md` remains the source of truth for code reality.
-7. Security/hardening PRs that do not introduce a roadmap gate normally do not consume a product version number.
-8. Tags/releases are separate from roadmap gate assignment. A design gate named v0.x does not by itself mean a release/tag with that version is ready.
+## Migration notes
+
+The maintained documentation surface must use the new numbers consistently:
+
+- former `v0.10 Per-Agent Sandbox` references become **v0.9**;
+- PR #111 / former `v0.12 Agent Host Adapter` references become **v0.10**;
+- former `v0.9 Base Images` references become **v0.11**;
+- former `v0.11 Resource Limits` references become **v0.12**.
+
+Historical commit messages, closed PR titles, and already-existing temporary candidate branch names may retain their original text as history. They are not authoritative for current numbering.
 
 ## Current integration watch list
 
-As of 2026-08-29:
-
-- PR #111: Agent Host adapter — treat as **v0.12** before merge; real Windows/WSL + Incus + VS Code Agents-window acceptance remains environment-dependent.
+- PR #111: Agent Host adapter — **v0.10** under the current numbering; real Windows/WSL + Incus + VS Code Agents-window acceptance remains environment-dependent.
 - PR #113: minimum patched Go toolchain hardening — no roadmap version assignment required.
 - PR #114: Incus delete/absence verification hardening — no roadmap version assignment required.
 
-These entries are coordination notes, not substitutes for the PRs themselves. If a PR closes, is replaced, or materially changes scope, update this document only when the version/status summary would otherwise become misleading.
-
 ## One-sentence rule
 
-> **`main` owns Hacocoon version-number assignments; parallel work must rebase onto that numbering before merge, while `IMPLEMENTATION_STATUS.md` separately owns the truth about what is actually implemented.**
+> **Keep implemented Hacocoon milestones contiguous, put active implementation next, and move design-only gates behind them while `IMPLEMENTATION_STATUS.md` separately records what is actually implemented.**
