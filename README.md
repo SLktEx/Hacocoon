@@ -1,6 +1,6 @@
 # Hacocoon
 
-**Pronounced: はこーん (ha-kōn)**
+**Pronounced: ha-kōn**
 
 ⚠️ **Experimental:** Hacocoon is under active development and may introduce breaking changes without notice.
 
