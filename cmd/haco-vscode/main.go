@@ -28,6 +28,11 @@ type managedSSHConfig struct {
 	IdentityFile string
 }
 
+type clientFilesystem struct {
+	Home string
+	WSL  bool
+}
+
 func main() {
 	ctx := context.Background()
 	app, err := composition.Local(ctx)
@@ -59,7 +64,7 @@ func openCommand(ctx context.Context, app *composition.App, args []string) error
 	fs := flag.NewFlagSet("open", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	name := fs.String("name", "", "Hacocoon Environment name")
-	identity := fs.String("identity", "", "SSH private key used by VS Code")
+	identity := fs.String("identity", "", "SSH private key used by the VS Code client")
 	hostPort := fs.Int("host-port", 0, "loopback SSH port (0 chooses a free port)")
 	codeCommand := fs.String("code", "code", "VS Code CLI command")
 	noLaunch := fs.Bool("no-launch", false, "prepare the connection without launching VS Code")
@@ -85,22 +90,26 @@ func openCommand(ctx context.Context, app *composition.App, args []string) error
 		return fmt.Errorf("host port %d: %w", *hostPort, core.ErrInvalidArgument)
 	}
 
-	home, err := os.UserHomeDir()
+	clientFS, err := resolveClientFilesystem(ctx)
 	if err != nil {
-		return fmt.Errorf("resolve home directory: %w", err)
+		return err
 	}
 	if *identity == "" {
-		*identity = filepath.Join(home, ".ssh", "id_ed25519")
+		*identity = filepath.Join(clientFS.Home, ".ssh", "id_ed25519")
 	}
 	identityPath, err := filepath.Abs(*identity)
 	if err != nil {
 		return fmt.Errorf("resolve identity file: %w", err)
 	}
-	if info, err := os.Stat(identityPath); err != nil || info.IsDir() {
-		if err == nil {
-			err = fmt.Errorf("path is a directory")
+	if info, statErr := os.Stat(identityPath); statErr != nil || info.IsDir() {
+		if statErr == nil {
+			statErr = fmt.Errorf("path is a directory")
 		}
-		return fmt.Errorf("SSH private key %q: %w", identityPath, err)
+		return fmt.Errorf("SSH private key %q: %w", identityPath, statErr)
+	}
+	identityConfigValue, err := identityForClientConfig(ctx, clientFS, identityPath)
+	if err != nil {
+		return err
 	}
 	publicKeyPath := identityPath + ".pub"
 	publicKey, err := os.ReadFile(publicKeyPath)
@@ -140,7 +149,7 @@ func openCommand(ctx context.Context, app *composition.App, args []string) error
 	}
 
 	alias := "haco-vscode-" + *name
-	managedPath := managedConfigPath(home, *name)
+	managedPath := managedConfigPath(clientFS.Home, *name)
 	previous, _ := readManagedSSHConfig(managedPath)
 	connections, err := app.Clients.Connections(ctx, *name)
 	if err != nil {
@@ -148,7 +157,7 @@ func openCommand(ctx context.Context, app *composition.App, args []string) error
 	}
 
 	var connection core.ClientConnection
-	if previous.Port != 0 && samePath(previous.IdentityFile, identityPath) {
+	if previous.Port != 0 && previous.IdentityFile == identityConfigValue {
 		for _, candidate := range connections {
 			if candidate.Kind == "ssh" && candidate.Port == previous.Port {
 				connection = candidate
@@ -177,10 +186,10 @@ func openCommand(ctx context.Context, app *composition.App, args []string) error
 		}
 	}
 
-	if err := ensureSSHInclude(home); err != nil {
+	if err := ensureSSHInclude(clientFS.Home); err != nil {
 		return err
 	}
-	managed := managedSSHConfig{Alias: alias, Port: connection.Port, IdentityFile: identityPath}
+	managed := managedSSHConfig{Alias: alias, Port: connection.Port, IdentityFile: identityConfigValue}
 	if err := writeManagedSSHConfig(managedPath, managed); err != nil {
 		return err
 	}
@@ -209,7 +218,7 @@ func deleteCommand(ctx context.Context, app *composition.App, args []string) err
 	if fs.NArg() > 1 {
 		return fmt.Errorf("usage: haco-vscode delete [--name <environment>] [workspace]: %w", core.ErrInvalidArgument)
 	}
-	home, err := os.UserHomeDir()
+	clientFS, err := resolveClientFilesystem(ctx)
 	if err != nil {
 		return err
 	}
@@ -227,12 +236,61 @@ func deleteCommand(ctx context.Context, app *composition.App, args []string) err
 	if err := app.Environments.Delete(ctx, *name); err != nil {
 		return err
 	}
-	path := managedConfigPath(home, *name)
+	path := managedConfigPath(clientFS.Home, *name)
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove managed SSH config: %w", err)
 	}
 	fmt.Printf("deleted: %s\n", *name)
 	return nil
+}
+
+func resolveClientFilesystem(ctx context.Context) (clientFilesystem, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return clientFilesystem{}, fmt.Errorf("resolve home directory: %w", err)
+	}
+	if strings.TrimSpace(os.Getenv("WSL_DISTRO_NAME")) == "" {
+		return clientFilesystem{Home: home}, nil
+	}
+	profileCommand := exec.CommandContext(ctx, "cmd.exe", "/C", "echo", "%USERPROFILE%")
+	profileOutput, err := profileCommand.Output()
+	if err != nil {
+		return clientFilesystem{}, fmt.Errorf("resolve Windows user profile from WSL: %w", err)
+	}
+	windowsProfile := strings.TrimSpace(strings.ReplaceAll(string(profileOutput), "\r", ""))
+	if windowsProfile == "" {
+		return clientFilesystem{}, fmt.Errorf("resolve Windows user profile from WSL: %w", core.ErrNotFound)
+	}
+	wslPathCommand := exec.CommandContext(ctx, "wslpath", "-u", windowsProfile)
+	wslPathOutput, err := wslPathCommand.Output()
+	if err != nil {
+		return clientFilesystem{}, fmt.Errorf("translate Windows user profile for WSL: %w", err)
+	}
+	clientHome := strings.TrimSpace(string(wslPathOutput))
+	if clientHome == "" {
+		return clientFilesystem{}, fmt.Errorf("translate Windows user profile for WSL: %w", core.ErrNotFound)
+	}
+	return clientFilesystem{Home: filepath.Clean(clientHome), WSL: true}, nil
+}
+
+func identityForClientConfig(ctx context.Context, clientFS clientFilesystem, identityPath string) (string, error) {
+	relative, err := filepath.Rel(clientFS.Home, identityPath)
+	if err == nil && relative != "." && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "~/" + filepath.ToSlash(relative), nil
+	}
+	if !clientFS.WSL {
+		return filepath.Clean(identityPath), nil
+	}
+	command := exec.CommandContext(ctx, "wslpath", "-w", identityPath)
+	output, err := command.Output()
+	if err != nil {
+		return "", fmt.Errorf("translate SSH identity path for Windows VS Code: %w", err)
+	}
+	translated := strings.TrimSpace(strings.ReplaceAll(string(output), "\r", ""))
+	if translated == "" {
+		return "", fmt.Errorf("translate SSH identity path for Windows VS Code: %w", core.ErrNotFound)
+	}
+	return strings.ReplaceAll(translated, "\\", "/"), nil
 }
 
 func resolveWorkspacePath(path string) (string, error) {
@@ -291,9 +349,7 @@ func ensureSSHInclude(home string) error {
 	if err := os.MkdirAll(managedDir, 0o700); err != nil {
 		return fmt.Errorf("create Hacocoon SSH config directory: %w", err)
 	}
-	if err := os.Chmod(managedDir, 0o700); err != nil {
-		return err
-	}
+	_ = os.Chmod(managedDir, 0o700)
 	configPath := filepath.Join(sshDir, "config")
 	content, err := os.ReadFile(configPath)
 	if err != nil && !os.IsNotExist(err) {
@@ -328,7 +384,8 @@ func writeManagedSSHConfig(path string, config managedSSHConfig) error {
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		return fmt.Errorf("write managed SSH config: %w", err)
 	}
-	return os.Chmod(path, 0o600)
+	_ = os.Chmod(path, 0o600)
+	return nil
 }
 
 func readManagedSSHConfig(path string) (managedSSHConfig, error) {
