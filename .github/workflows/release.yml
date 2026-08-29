@@ -25,6 +25,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Require release tag on trusted main history
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: bash tools/check_release_tag_trust.sh "$GITHUB_REF_NAME" origin "$DEFAULT_BRANCH"
+
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.0
@@ -44,15 +50,6 @@ jobs:
           set -euo pipefail
           go version
           goreleaser --version
-
-      - name: Validate release tag
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Refusing to release invalid version tag: $GITHUB_REF_NAME" >&2
-            exit 1
-          fi
 
       - name: Test
         run: go test -count=1 ./...
