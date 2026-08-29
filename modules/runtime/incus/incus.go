@@ -2,12 +2,14 @@ package incus
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
@@ -17,17 +19,28 @@ const defaultProject = "hacocoon"
 
 const defaultImage = "images:ubuntu/26.04"
 
+const defaultCleanupTimeout = 30 * time.Second
+
 type Runtime struct {
-	runner  host.Runner
-	project string
-	image   string
-	stdin   io.Reader
-	stdout  io.Writer
-	stderr  io.Writer
+	runner         host.Runner
+	project        string
+	image          string
+	stdin          io.Reader
+	stdout         io.Writer
+	stderr         io.Writer
+	cleanupTimeout time.Duration
 }
 
 func New(runner host.Runner) *Runtime {
-	return &Runtime{runner: runner, project: defaultProject, image: defaultImage, stdin: os.Stdin, stdout: os.Stdout, stderr: os.Stderr}
+	return &Runtime{
+		runner:         runner,
+		project:        defaultProject,
+		image:          defaultImage,
+		stdin:          os.Stdin,
+		stdout:         os.Stdout,
+		stderr:         os.Stderr,
+		cleanupTimeout: defaultCleanupTimeout,
+	}
 }
 
 func (*Runtime) ID() string { return "runtime.incus" }
@@ -74,15 +87,25 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	if err := r.ensureProject(ctx); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("ensure Incus project: %w", err)
 	}
+	rootPool, err := r.defaultRootPool(ctx)
+	if err != nil {
+		return core.EnvironmentRuntime{}, fmt.Errorf("resolve isolated root storage: %w", err)
+	}
 
 	ref := "haco-" + spec.Name
-	if _, err := r.runner.Run(ctx, "incus", "init", r.image, ref, "--project", r.project); err != nil {
-		return core.EnvironmentRuntime{}, fmt.Errorf("init Incus environment %s: %w", ref, err)
+	if _, err := r.runner.Run(ctx, "incus", "init", r.image, ref, "--project", r.project, "--no-profiles", "--storage", rootPool); err != nil {
+		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}
 	cleanup := func(cause error) (core.EnvironmentRuntime, error) {
-		cleanupCtx := context.WithoutCancel(ctx)
-		if _, cleanupErr := r.runner.Run(cleanupCtx, "incus", "delete", ref, "--project", r.project, "--force"); cleanupErr != nil {
-			return core.EnvironmentRuntime{}, errors.Join(cause, fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr))
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cleanupTimeout)
+		defer cancel()
+		result, cleanupErr := r.runner.Run(cleanupCtx, "incus", "delete", ref, "--project", r.project, "--force")
+		if cleanupErr != nil && !isIncusNotFound(result) {
+			return core.EnvironmentRuntime{}, errors.Join(
+				cause,
+				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
+				core.ErrRecoveryRequired,
+			)
 		}
 		return core.EnvironmentRuntime{}, cause
 	}
@@ -94,6 +117,8 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	}
 	if spec.ReadOnly {
 		deviceArgs = append(deviceArgs, "readonly=true")
+	} else {
+		deviceArgs = append(deviceArgs, "shift=true")
 	}
 	deviceArgs = append(deviceArgs, "--project", r.project)
 	if _, err := r.runner.Run(ctx, "incus", deviceArgs...); err != nil {
@@ -101,6 +126,19 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	}
 	if _, err := r.runner.Run(ctx, "incus", "start", ref, "--project", r.project); err != nil {
 		return cleanup(fmt.Errorf("start Incus environment %s: %w", ref, err))
+	}
+	if !spec.ReadOnly {
+		result, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "test", "-w", "/workspace")
+		if err != nil {
+			reason := strings.TrimSpace(result.Stderr)
+			if reason == "" {
+				reason = err.Error()
+			}
+			return cleanup(errors.Join(
+				fmt.Errorf("workspace %q is not writable from unprivileged environment %s: %s", spec.WorkspacePath, ref, reason),
+				core.ErrUnsupported,
+			))
+		}
 	}
 	return core.EnvironmentRuntime{Ref: ref}, nil
 }
@@ -124,7 +162,10 @@ func (r *Runtime) ShellEnvironment(ctx context.Context, ref string) error {
 }
 
 func (r *Runtime) DeleteEnvironment(ctx context.Context, ref string) error {
-	_, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
+	result, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
+	if err != nil && isIncusNotFound(result) {
+		return fmt.Errorf("Incus environment %s: %w", ref, core.ErrNotFound)
+	}
 	return err
 }
 
@@ -179,6 +220,25 @@ func (r *Runtime) ensureProject(ctx context.Context) error {
 	return err
 }
 
+func (r *Runtime) defaultRootPool(ctx context.Context) (string, error) {
+	result, err := r.runner.Run(ctx, "incus", "profile", "show", "default", "--project", "default", "--format", "json")
+	if err != nil {
+		return "", err
+	}
+	var profile struct {
+		Devices map[string]map[string]string `json:"devices"`
+	}
+	if err := json.Unmarshal([]byte(result.Stdout), &profile); err != nil {
+		return "", fmt.Errorf("decode default profile: %w", err)
+	}
+	for _, device := range profile.Devices {
+		if device["type"] == "disk" && device["path"] == "/" && device["pool"] != "" {
+			return device["pool"], nil
+		}
+	}
+	return "", fmt.Errorf("default profile has no root disk pool: %w", core.ErrUnsupported)
+}
+
 func (r *Runtime) ensureStoragePool(ctx context.Context, attachment map[string]string) (string, error) {
 	pool := attachment["incus_pool"]
 	if pool == "" {
@@ -211,4 +271,9 @@ func (r *Runtime) execInteractive(ctx context.Context, ref string, argv []string
 		return core.ExecResult{ExitCode: exit.ExitCode()}, err
 	}
 	return core.ExecResult{ExitCode: -1}, err
+}
+
+func isIncusNotFound(result host.Result) bool {
+	message := strings.ToLower(result.Stderr + "\n" + result.Stdout)
+	return strings.Contains(message, "not found") || strings.Contains(message, "does not exist") || strings.Contains(message, "doesn't exist")
 }
