@@ -46,8 +46,14 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Validate installer
-        run: bash -n scripts/install.sh
+      - name: Validate Linux installers
+        run: bash -n scripts/install.sh scripts/bootstrap-wsl.sh
+
+      - name: Validate Windows installers
+        shell: pwsh
+        run: |
+          [scriptblock]::Create((Get-Content -Raw "scripts/bootstrap-windows.ps1")) | Out-Null
+          [scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null
 
       - name: Build release artifacts
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
@@ -73,6 +79,8 @@ jobs:
 
           test -f dist/checksums.txt
           test -f scripts/install.sh
+          test -f scripts/bootstrap-wsl.sh
+          test -f scripts/install-windows.ps1
 
           args=(
             --repo "$GITHUB_REPOSITORY"
@@ -88,4 +96,6 @@ jobs:
             "${archives[@]}" \
             dist/checksums.txt \
             scripts/install.sh \
+            scripts/bootstrap-wsl.sh \
+            scripts/install-windows.ps1 \
             "${args[@]}"
