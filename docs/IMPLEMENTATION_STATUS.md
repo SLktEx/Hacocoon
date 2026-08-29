@@ -13,7 +13,7 @@
 | host init/doctor | new | 0.1 | initial implementation |
 | base image systemd/containerd/nerdctl | new | 0.1 | host integration pending |
 | storage grow | new | 0.1 | adapter implementation present; integration pending |
-| shrink plan / safe ordering | new | 0.1 | implemented with ordering tests |
+| shrink plan / safe ordering | new | 0.1 | implemented with session quiescence and ordering tests |
 | crash reconciliation | new | 0.1 | Core lifecycle reconciliation present; storage step recovery needs integration tests |
 | v0.1 WSL E2E acceptance | new | 0.1 | pending supported WSL host |
 | repositories/workspace | no | 0.2 | deferred |

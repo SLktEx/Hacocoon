@@ -9,4 +9,5 @@ var (
 	ErrUnsafeShrink       = errors.New("unsafe shrink refused")
 	ErrRuntimeUnavailable = errors.New("runtime unavailable")
 	ErrStorageUnavailable = errors.New("storage unavailable")
+	ErrStorageBusy        = errors.New("storage has active sessions")
 )

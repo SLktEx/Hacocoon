@@ -120,6 +120,41 @@ func (m *Manager) Exec(ctx context.Context, id SessionID, req ExecRequest) (Exec
 	return m.runtime.Exec(ctx, session.RuntimeRef, req)
 }
 
+// ShrinkStorage performs the session-aware safety check that cannot live inside a
+// concrete storage module. The storage module remains responsible for filesystem
+// and backing-image ordering; Core only verifies that Sessions using this storage
+// are actually stopped before the destructive operation begins.
+func (m *Manager) ShrinkStorage(ctx context.Context, handle StorageHandle, plan ShrinkPlan) error {
+	resizable, ok := m.storage.(ResizableStorage)
+	if !ok {
+		return ErrUnsupported
+	}
+	if err := m.ensureStorageQuiesced(ctx, handle.ID); err != nil {
+		return err
+	}
+	return resizable.Shrink(ctx, handle, plan)
+}
+
+func (m *Manager) ensureStorageQuiesced(ctx context.Context, storageRef string) error {
+	sessions, err := m.store.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, session := range sessions {
+		if session.StorageRef != storageRef {
+			continue
+		}
+		state, inspectErr := m.runtime.Inspect(ctx, session.RuntimeRef)
+		if inspectErr != nil {
+			return fmt.Errorf("inspect session %s before storage shrink: %w", session.ID, inspectErr)
+		}
+		if state.Observed != ObservedStopped {
+			return fmt.Errorf("%w: session %s is %s", ErrStorageBusy, session.ID, state.Observed)
+		}
+	}
+	return nil
+}
+
 func (m *Manager) Reconcile(ctx context.Context) error {
 	sessions, err := m.store.List(ctx)
 	if err != nil {

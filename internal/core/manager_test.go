@@ -36,7 +36,8 @@ func (f *fakeRuntime) Inspect(context.Context, string) (RuntimeState, error) {
 }
 
 type fakeStorage struct {
-	ensureErr error
+	ensureErr    error
+	shrinkCalled bool
 }
 
 func (*fakeStorage) ID() string { return "storage.fake" }
@@ -52,7 +53,16 @@ func (f *fakeStorage) Ensure(context.Context, StorageSpec) (StorageHandle, error
 func (*fakeStorage) Inspect(context.Context, StorageHandle) (StorageState, error) {
 	return StorageState{Healthy: true}, nil
 }
-func (*fakeStorage) Delete(context.Context, StorageHandle) error { return nil }
+func (*fakeStorage) Delete(context.Context, StorageHandle) error      { return nil }
+func (*fakeStorage) Grow(context.Context, StorageHandle, int64) error { return nil }
+func (*fakeStorage) PlanShrink(_ context.Context, handle StorageHandle, target int64) (ShrinkPlan, error) {
+	return ShrinkPlan{HandleID: handle.ID, CurrentBytes: 100 << 30, TargetBytes: target, Feasible: true}, nil
+}
+func (f *fakeStorage) Shrink(context.Context, StorageHandle, ShrinkPlan) error {
+	f.shrinkCalled = true
+	return nil
+}
+func (*fakeStorage) Compact(context.Context, StorageHandle) error { return nil }
 
 type memStore struct {
 	sessions map[SessionID]Session
@@ -142,5 +152,72 @@ func TestReconcileUpdatesObservedState(t *testing.T) {
 	got, _ := store.Get(context.Background(), "id")
 	if got.ObservedState != ObservedStopped {
 		t.Fatalf("got %s", got.ObservedState)
+	}
+}
+
+func TestShrinkStorageRefusesRunningSession(t *testing.T) {
+	runtime := &fakeRuntime{state: ObservedRunning}
+	storage := &fakeStorage{}
+	store := newMemStore()
+	store.sessions["id"] = Session{
+		ID:            "id",
+		RuntimeRef:    "runtime-ref",
+		StorageRef:    "storage-ref",
+		ObservedState: ObservedRunning,
+	}
+	manager := NewManager(runtime, storage, store)
+	handle := StorageHandle{ID: "storage-ref"}
+	plan, _ := storage.PlanShrink(context.Background(), handle, 80<<30)
+
+	err := manager.ShrinkStorage(context.Background(), handle, plan)
+	if !errors.Is(err, ErrStorageBusy) {
+		t.Fatalf("expected ErrStorageBusy, got %v", err)
+	}
+	if storage.shrinkCalled {
+		t.Fatal("storage shrink must not start while a session is running")
+	}
+}
+
+func TestShrinkStorageAllowsStoppedSession(t *testing.T) {
+	runtime := &fakeRuntime{state: ObservedStopped}
+	storage := &fakeStorage{}
+	store := newMemStore()
+	store.sessions["id"] = Session{
+		ID:            "id",
+		RuntimeRef:    "runtime-ref",
+		StorageRef:    "storage-ref",
+		ObservedState: ObservedStopped,
+	}
+	manager := NewManager(runtime, storage, store)
+	handle := StorageHandle{ID: "storage-ref"}
+	plan, _ := storage.PlanShrink(context.Background(), handle, 80<<30)
+
+	if err := manager.ShrinkStorage(context.Background(), handle, plan); err != nil {
+		t.Fatal(err)
+	}
+	if !storage.shrinkCalled {
+		t.Fatal("storage shrink was not called for a stopped session")
+	}
+}
+
+func TestShrinkStorageIgnoresSessionsOnOtherStorage(t *testing.T) {
+	runtime := &fakeRuntime{state: ObservedRunning}
+	storage := &fakeStorage{}
+	store := newMemStore()
+	store.sessions["id"] = Session{
+		ID:            "id",
+		RuntimeRef:    "runtime-ref",
+		StorageRef:    "other-storage",
+		ObservedState: ObservedRunning,
+	}
+	manager := NewManager(runtime, storage, store)
+	handle := StorageHandle{ID: "storage-ref"}
+	plan, _ := storage.PlanShrink(context.Background(), handle, 80<<30)
+
+	if err := manager.ShrinkStorage(context.Background(), handle, plan); err != nil {
+		t.Fatal(err)
+	}
+	if !storage.shrinkCalled {
+		t.Fatal("unrelated session should not block storage shrink")
 	}
 }
