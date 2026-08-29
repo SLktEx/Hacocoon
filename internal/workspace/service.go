@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"time"
 
@@ -25,16 +24,23 @@ type environmentStore interface {
 	GetEnvironment(context.Context, string) (core.Environment, error)
 	PutEnvironment(context.Context, core.Environment) error
 	DeleteEnvironment(context.Context, string) error
+	AcquireWorkspaceLease(context.Context, core.WorkspaceLease) error
+	DeleteWorkspaceLease(context.Context, string) error
 }
 
 type Service struct {
-	runtime environmentRuntime
-	store   environmentStore
-	now     func() time.Time
+	runtime  environmentRuntime
+	store    environmentStore
+	provider WorkspaceProvider
+	now      func() time.Time
 }
 
 func New(runtime environmentRuntime, store environmentStore) *Service {
-	return &Service{runtime: runtime, store: store, now: time.Now}
+	return NewWithProvider(runtime, store, NewExternalPathWorkspace())
+}
+
+func NewWithProvider(runtime environmentRuntime, store environmentStore, provider WorkspaceProvider) *Service {
+	return &Service{runtime: runtime, store: store, provider: provider, now: time.Now}
 }
 
 func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
@@ -42,36 +48,65 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 	if err != nil {
 		return core.Environment{}, err
 	}
-	workspacePath, err := resolveWorkspace(spec.WorkspacePath)
+	mode, err := normalizeAccessMode(spec.AccessMode)
 	if err != nil {
 		return core.Environment{}, err
 	}
+	workspace, err := s.provider.Resolve(ctx, WorkspaceRequest{Path: spec.WorkspacePath})
+	if err != nil {
+		return core.Environment{}, err
+	}
+	unlock, err := lockWorkspace(ctx, workspace.ID)
+	if err != nil {
+		return core.Environment{}, fmt.Errorf("lock workspace: %w", err)
+	}
+	defer unlock()
 	if _, err := s.store.GetEnvironment(ctx, name); err == nil {
 		return core.Environment{}, fmt.Errorf("environment %q: %w", name, core.ErrAlreadyExists)
 	} else if !isNotFound(err) {
 		return core.Environment{}, err
 	}
 
+	lease := core.WorkspaceLease{
+		WorkspaceID:   workspace.ID,
+		SourcePath:    workspace.Path,
+		EnvironmentID: name,
+		AccessMode:    mode,
+		Owner:         name,
+		AcquiredAt:    s.now().UTC(),
+	}
+	if err := s.store.AcquireWorkspaceLease(ctx, lease); err != nil {
+		return core.Environment{}, fmt.Errorf("acquire workspace lease: %w", err)
+	}
+	releaseLease := func() error {
+		err := s.store.DeleteWorkspaceLease(context.WithoutCancel(ctx), name)
+		if isNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
 	created, err := s.runtime.CreateEnvironment(ctx, core.EnvironmentRuntimeSpec{
 		Name:          name,
-		WorkspacePath: workspacePath,
+		WorkspacePath: workspace.Path,
+		ReadOnly:      mode == core.WorkspaceReadOnly,
 	})
 	if err != nil {
-		return core.Environment{}, fmt.Errorf("create environment %q: %w", name, err)
+		releaseErr := releaseLease()
+		return core.Environment{}, errors.Join(fmt.Errorf("create environment %q: %w", name, err), releaseErr)
 	}
 
 	environment := core.Environment{
 		Name:       name,
-		Workspace:  core.Workspace{Path: workspacePath},
+		Workspace:  workspace,
+		AccessMode: mode,
 		RuntimeRef: created.Ref,
 		CreatedAt:  s.now().UTC(),
 	}
 	if err := s.store.PutEnvironment(ctx, environment); err != nil {
 		cleanupErr := s.runtime.DeleteEnvironment(context.WithoutCancel(ctx), created.Ref)
-		if cleanupErr != nil {
-			return core.Environment{}, fmt.Errorf("persist environment: %v; cleanup runtime %q: %w", err, created.Ref, cleanupErr)
-		}
-		return core.Environment{}, fmt.Errorf("persist environment: %w", err)
+		releaseErr := releaseLease()
+		return core.Environment{}, errors.Join(fmt.Errorf("persist environment: %w", err), cleanupErr, releaseErr)
 	}
 	return environment, nil
 }
@@ -106,6 +141,9 @@ func (s *Service) Delete(ctx context.Context, name string) error {
 	if err := s.store.DeleteEnvironment(ctx, name); err != nil {
 		return fmt.Errorf("delete environment metadata %q: %w", name, err)
 	}
+	if err := s.store.DeleteWorkspaceLease(ctx, name); err != nil && !isNotFound(err) {
+		return fmt.Errorf("release workspace lease for %q: %w", name, err)
+	}
 	return nil
 }
 
@@ -116,26 +154,16 @@ func validateEnvironmentName(name string) (string, error) {
 	return name, nil
 }
 
-func resolveWorkspace(path string) (string, error) {
-	if path == "" {
-		return "", fmt.Errorf("workspace path is required: %w", core.ErrInvalidArgument)
+func normalizeAccessMode(mode core.WorkspaceAccessMode) (core.WorkspaceAccessMode, error) {
+	if mode == "" {
+		return core.WorkspaceReadWrite, nil
 	}
-	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return "", fmt.Errorf("resolve workspace path: %w", err)
+	switch mode {
+	case core.WorkspaceReadOnly, core.WorkspaceReadWrite:
+		return mode, nil
+	default:
+		return "", fmt.Errorf("workspace access mode %q: %w", mode, core.ErrInvalidArgument)
 	}
-	resolved, err := filepath.EvalSymlinks(absolute)
-	if err != nil {
-		return "", fmt.Errorf("resolve workspace %q: %w", path, err)
-	}
-	info, err := os.Stat(resolved)
-	if err != nil {
-		return "", fmt.Errorf("stat workspace %q: %w", resolved, err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("workspace %q is not a directory: %w", resolved, core.ErrInvalidArgument)
-	}
-	return filepath.Clean(resolved), nil
 }
 
 func isNotFound(err error) bool {

@@ -2,25 +2,47 @@ package core
 
 import "time"
 
+type WorkspaceID string
+
+type WorkspaceAccessMode string
+
+const (
+	WorkspaceReadOnly  WorkspaceAccessMode = "ro"
+	WorkspaceReadWrite WorkspaceAccessMode = "rw"
+)
+
 type Workspace struct {
-	Path string `json:"path"`
+	ID   WorkspaceID `json:"id"`
+	Path string      `json:"path"`
+}
+
+type WorkspaceLease struct {
+	WorkspaceID   WorkspaceID         `json:"workspace_id"`
+	SourcePath    string              `json:"source_path"`
+	EnvironmentID string              `json:"environment_id"`
+	AccessMode    WorkspaceAccessMode `json:"access_mode"`
+	Owner         string              `json:"owner"`
+	AcquiredAt    time.Time           `json:"acquired_at"`
 }
 
 type Environment struct {
-	Name       string    `json:"name"`
-	Workspace  Workspace `json:"workspace"`
-	RuntimeRef string    `json:"runtime_ref"`
-	CreatedAt  time.Time `json:"created_at"`
+	Name       string              `json:"name"`
+	Workspace  Workspace           `json:"workspace"`
+	AccessMode WorkspaceAccessMode `json:"access_mode"`
+	RuntimeRef string              `json:"runtime_ref"`
+	CreatedAt  time.Time           `json:"created_at"`
 }
 
 type EnvironmentSpec struct {
 	Name          string
 	WorkspacePath string
+	AccessMode    WorkspaceAccessMode
 }
 
 type EnvironmentRuntimeSpec struct {
 	Name          string
 	WorkspacePath string
+	ReadOnly      bool
 }
 
 type EnvironmentRuntime struct {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/state"
 )
 
 type fakeEnvironmentRuntime struct {
@@ -51,14 +52,16 @@ func (f *fakeEnvironmentRuntime) DeleteEnvironment(ctx context.Context, ref stri
 
 type fakeEnvironmentStore struct {
 	environments map[string]core.Environment
+	leases       map[string]core.WorkspaceLease
 	getErr       error
 	putErr       error
 	deleteErr    error
+	leaseErr     error
 	deleted      []string
 }
 
 func newFakeEnvironmentStore() *fakeEnvironmentStore {
-	return &fakeEnvironmentStore{environments: map[string]core.Environment{}}
+	return &fakeEnvironmentStore{environments: map[string]core.Environment{}, leases: map[string]core.WorkspaceLease{}}
 }
 
 func (f *fakeEnvironmentStore) GetEnvironment(_ context.Context, name string) (core.Environment, error) {
@@ -89,6 +92,28 @@ func (f *fakeEnvironmentStore) DeleteEnvironment(_ context.Context, name string)
 	return nil
 }
 
+func (f *fakeEnvironmentStore) AcquireWorkspaceLease(_ context.Context, lease core.WorkspaceLease) error {
+	if f.leaseErr != nil {
+		return f.leaseErr
+	}
+	for _, existing := range f.leases {
+		if existing.WorkspaceID == lease.WorkspaceID && existing.EnvironmentID != lease.EnvironmentID &&
+			(existing.AccessMode == core.WorkspaceReadWrite || lease.AccessMode == core.WorkspaceReadWrite) {
+			return core.ErrWorkspaceBusy
+		}
+	}
+	f.leases[lease.EnvironmentID] = lease
+	return nil
+}
+
+func (f *fakeEnvironmentStore) DeleteWorkspaceLease(_ context.Context, environmentID string) error {
+	if _, ok := f.leases[environmentID]; !ok {
+		return core.ErrNotFound
+	}
+	delete(f.leases, environmentID)
+	return nil
+}
+
 func TestCreateResolvesWorkspaceAndPersistsEnvironment(t *testing.T) {
 	root := t.TempDir()
 	workspaceDir := filepath.Join(root, "workspace")
@@ -110,10 +135,10 @@ func TestCreateResolvesWorkspaceAndPersistsEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if runtime.createSpec.Name != "demo" || runtime.createSpec.WorkspacePath != workspaceDir {
+	if runtime.createSpec.Name != "demo" || runtime.createSpec.WorkspacePath != workspaceDir || runtime.createSpec.ReadOnly {
 		t.Fatalf("runtime spec = %#v", runtime.createSpec)
 	}
-	if environment.Name != "demo" || environment.RuntimeRef != "haco-demo" || environment.Workspace.Path != workspaceDir || !environment.CreatedAt.Equal(fixed) {
+	if environment.Name != "demo" || environment.RuntimeRef != "haco-demo" || environment.Workspace.Path != workspaceDir || environment.Workspace.ID == "" || environment.AccessMode != core.WorkspaceReadWrite || !environment.CreatedAt.Equal(fixed) {
 		t.Fatalf("environment = %#v", environment)
 	}
 	if got := store.environments["demo"]; !reflect.DeepEqual(got, environment) {
@@ -184,6 +209,60 @@ func TestCreateCleansRuntimeWhenPersistenceFailsEvenAfterCancellation(t *testing
 	}
 }
 
+func TestCreateReadOnlyAcquiresReadOnlyLease(t *testing.T) {
+	root := t.TempDir()
+	runtime := &fakeEnvironmentRuntime{createResult: core.EnvironmentRuntime{Ref: "haco-demo"}}
+	store := newFakeEnvironmentStore()
+	service := New(runtime, store)
+
+	environment, err := service.Create(context.Background(), core.EnvironmentSpec{Name: "demo", WorkspacePath: root, AccessMode: core.WorkspaceReadOnly})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !runtime.createSpec.ReadOnly || environment.AccessMode != core.WorkspaceReadOnly {
+		t.Fatalf("runtime=%#v environment=%#v", runtime.createSpec, environment)
+	}
+	lease, ok := store.leases["demo"]
+	if !ok || lease.AccessMode != core.WorkspaceReadOnly || lease.WorkspaceID != environment.Workspace.ID {
+		t.Fatalf("lease = %#v", lease)
+	}
+}
+
+func TestCreateReleasesLeaseWhenRuntimeCreateFails(t *testing.T) {
+	root := t.TempDir()
+	runtimeErr := errors.New("incus unavailable")
+	runtime := &fakeEnvironmentRuntime{createErr: runtimeErr}
+	store := newFakeEnvironmentStore()
+
+	_, err := New(runtime, store).Create(context.Background(), core.EnvironmentSpec{Name: "demo", WorkspacePath: root})
+	if !errors.Is(err, runtimeErr) {
+		t.Fatalf("error = %v", err)
+	}
+	if len(store.leases) != 0 {
+		t.Fatalf("lease leaked after create failure: %#v", store.leases)
+	}
+}
+
+func TestCreateRefusesConflictingWorkspaceLease(t *testing.T) {
+	root := t.TempDir()
+	provider := NewExternalPathWorkspace()
+	workspace, err := provider.Resolve(context.Background(), WorkspaceRequest{Path: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := newFakeEnvironmentStore()
+	store.leases["other"] = core.WorkspaceLease{WorkspaceID: workspace.ID, EnvironmentID: "other", AccessMode: core.WorkspaceReadWrite}
+	runtime := &fakeEnvironmentRuntime{}
+
+	_, err = New(runtime, store).Create(context.Background(), core.EnvironmentSpec{Name: "demo", WorkspacePath: root})
+	if !errors.Is(err, core.ErrWorkspaceBusy) {
+		t.Fatalf("error = %v", err)
+	}
+	if runtime.createSpec != (core.EnvironmentRuntimeSpec{}) {
+		t.Fatalf("runtime called with %#v", runtime.createSpec)
+	}
+}
+
 func TestExecForwardsEnvironmentAndPreservesResult(t *testing.T) {
 	runtimeErr := errors.New("remote exit")
 	runtime := &fakeEnvironmentRuntime{
@@ -226,12 +305,16 @@ func TestDeleteRemovesRuntimeBeforeMetadata(t *testing.T) {
 	runtime := &fakeEnvironmentRuntime{}
 	store := newFakeEnvironmentStore()
 	store.environments["demo"] = core.Environment{Name: "demo", RuntimeRef: "haco-demo"}
+	store.leases["demo"] = core.WorkspaceLease{EnvironmentID: "demo", AccessMode: core.WorkspaceReadWrite}
 
 	if err := New(runtime, store).Delete(context.Background(), "demo"); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(runtime.deleteRefs, []string{"haco-demo"}) || !reflect.DeepEqual(store.deleted, []string{"demo"}) {
 		t.Fatalf("runtime deletes=%#v metadata deletes=%#v", runtime.deleteRefs, store.deleted)
+	}
+	if _, ok := store.leases["demo"]; ok {
+		t.Fatal("workspace lease remains after delete")
 	}
 }
 
@@ -245,5 +328,57 @@ func TestShellUsesStoredRuntimeReference(t *testing.T) {
 	}
 	if runtime.shellRef != "haco-demo" {
 		t.Fatalf("shell ref = %q", runtime.shellRef)
+	}
+}
+
+type blockingEnvironmentRuntime struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+func (b *blockingEnvironmentRuntime) CreateEnvironment(_ context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
+	if spec.Name == "one" {
+		close(b.started)
+		<-b.release
+	}
+	return core.EnvironmentRuntime{Ref: "haco-" + spec.Name}, nil
+}
+func (*blockingEnvironmentRuntime) ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error) {
+	return core.ExecutionResult{}, nil
+}
+func (*blockingEnvironmentRuntime) ShellEnvironment(context.Context, string) error  { return nil }
+func (*blockingEnvironmentRuntime) DeleteEnvironment(context.Context, string) error { return nil }
+
+func TestCreateSerializesConcurrentWorkspaceLeaseAcquisition(t *testing.T) {
+	root := t.TempDir()
+	runtime := &blockingEnvironmentRuntime{started: make(chan struct{}), release: make(chan struct{})}
+	store := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state", "environments.json"))
+	service := New(runtime, store)
+
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := service.Create(context.Background(), core.EnvironmentSpec{Name: "one", WorkspacePath: root})
+		firstDone <- err
+	}()
+	<-runtime.started
+
+	secondDone := make(chan error, 1)
+	go func() {
+		_, err := service.Create(context.Background(), core.EnvironmentSpec{Name: "two", WorkspacePath: root})
+		secondDone <- err
+	}()
+
+	select {
+	case err := <-secondDone:
+		t.Fatalf("second create escaped workspace serialization early: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(runtime.release)
+	if err := <-firstDone; err != nil {
+		t.Fatalf("first create: %v", err)
+	}
+	if err := <-secondDone; !errors.Is(err, core.ErrWorkspaceBusy) {
+		t.Fatalf("second create error = %v", err)
 	}
 }

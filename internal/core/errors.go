@@ -11,4 +11,5 @@ var (
 	ErrRuntimeUnavailable = errors.New("runtime unavailable")
 	ErrStorageUnavailable = errors.New("storage unavailable")
 	ErrStorageBusy        = errors.New("storage has active sessions")
+	ErrWorkspaceBusy      = errors.New("workspace has conflicting active lease")
 )
