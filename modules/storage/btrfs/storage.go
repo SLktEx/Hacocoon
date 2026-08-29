@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"syscall"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -13,6 +14,8 @@ import (
 )
 
 const defaultSafetyMargin int64 = 4 << 30
+
+var storageIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
 type Storage struct {
 	rootDir string
@@ -46,6 +49,9 @@ func (s *Storage) Probe(ctx context.Context) (core.StorageCapabilities, error) {
 }
 
 func (s *Storage) Ensure(ctx context.Context, spec core.StorageSpec) (core.StorageHandle, error) {
+	if err := validateStorageID(spec.ID); err != nil {
+		return core.StorageHandle{}, err
+	}
 	var out core.StorageHandle
 	err := s.withLease(spec.ID, func() error {
 		blockHandle, err := s.block.Ensure(ctx, block.Spec{ID: spec.ID, Path: s.imagePath(spec.ID), SizeBytes: spec.SizeBytes})
@@ -70,6 +76,9 @@ func (s *Storage) Ensure(ctx context.Context, spec core.StorageSpec) (core.Stora
 }
 
 func (s *Storage) Inspect(ctx context.Context, handle core.StorageHandle) (core.StorageState, error) {
+	if err := validateStorageID(handle.ID); err != nil {
+		return core.StorageState{}, err
+	}
 	fsState, err := s.fs.Inspect(ctx, s.mountPath(handle.ID))
 	if err != nil {
 		return core.StorageState{}, err
@@ -83,13 +92,21 @@ func (s *Storage) Inspect(ctx context.Context, handle core.StorageHandle) (core.
 }
 
 func (s *Storage) Delete(ctx context.Context, handle core.StorageHandle) error {
+	if err := validateStorageID(handle.ID); err != nil {
+		return err
+	}
 	return s.withLease(handle.ID, func() error {
-		_ = s.fs.Unmount(ctx, s.mountPath(handle.ID))
+		if err := s.fs.Unmount(ctx, s.mountPath(handle.ID)); err != nil {
+			return fmt.Errorf("unmount storage %s before deleting backing image: %w", handle.ID, err)
+		}
 		return s.block.Delete(ctx, s.blockHandle(handle.ID))
 	})
 }
 
 func (s *Storage) Grow(ctx context.Context, handle core.StorageHandle, target int64) error {
+	if err := validateStorageID(handle.ID); err != nil {
+		return err
+	}
 	return s.withLease(handle.ID, func() error {
 		current, err := s.fs.Inspect(ctx, s.mountPath(handle.ID))
 		if err != nil {
@@ -113,6 +130,9 @@ func (s *Storage) Grow(ctx context.Context, handle core.StorageHandle, target in
 }
 
 func (s *Storage) PlanShrink(ctx context.Context, handle core.StorageHandle, target int64) (core.ShrinkPlan, error) {
+	if err := validateStorageID(handle.ID); err != nil {
+		return core.ShrinkPlan{}, err
+	}
 	var plan core.ShrinkPlan
 	err := s.withLease(handle.ID, func() error {
 		var err error
@@ -123,6 +143,9 @@ func (s *Storage) PlanShrink(ctx context.Context, handle core.StorageHandle, tar
 }
 
 func (s *Storage) Shrink(ctx context.Context, handle core.StorageHandle, supplied core.ShrinkPlan) error {
+	if err := validateStorageID(handle.ID); err != nil {
+		return err
+	}
 	return s.withLease(handle.ID, func() error {
 		plan, err := s.planShrinkUnlocked(ctx, handle, supplied.TargetBytes)
 		if err != nil {
@@ -168,6 +191,9 @@ func (s *Storage) Shrink(ctx context.Context, handle core.StorageHandle, supplie
 }
 
 func (s *Storage) Compact(ctx context.Context, handle core.StorageHandle) error {
+	if err := validateStorageID(handle.ID); err != nil {
+		return err
+	}
 	return s.withLease(handle.ID, func() error {
 		if err := s.fs.Compact(ctx, s.mountPath(handle.ID)); err != nil {
 			return err
@@ -242,6 +268,9 @@ func (s *Storage) mountPath(id string) string {
 }
 
 func (s *Storage) withLease(id string, fn func() error) error {
+	if err := validateStorageID(id); err != nil {
+		return err
+	}
 	locks := filepath.Join(s.rootDir, "locks")
 	if err := os.MkdirAll(locks, 0o700); err != nil {
 		return err
@@ -256,4 +285,11 @@ func (s *Storage) withLease(id string, fn func() error) error {
 	}
 	defer syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 	return fn()
+}
+
+func validateStorageID(id string) error {
+	if !storageIDPattern.MatchString(id) {
+		return fmt.Errorf("storage id %q: %w", id, core.ErrInvalidArgument)
+	}
+	return nil
 }
