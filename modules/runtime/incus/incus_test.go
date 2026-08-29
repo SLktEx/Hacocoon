@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
@@ -27,13 +28,23 @@ func (f *fakeRunner) Run(ctx context.Context, name string, args ...string) (host
 	if f.run != nil {
 		return f.run(ctx, len(f.calls)-1, name, copyArgs)
 	}
+	if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
+		return rootProfileResult(), nil
+	}
 	return host.Result{}, nil
 }
 
-func TestCreateEnvironmentUsesOnlyIncusWorkspaceLifecycle(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, _ []string) (host.Result, error) {
+func rootProfileResult() host.Result {
+	return host.Result{Stdout: `{"devices":{"root":{"type":"disk","path":"/","pool":"default"}}}`}
+}
+
+func TestCreateEnvironmentUsesIsolatedProfileAndShiftedWritableWorkspace(t *testing.T) {
+	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, args []string) (host.Result, error) {
 		if call == 0 {
 			return host.Result{}, errors.New("project missing")
+		}
+		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
+			return rootProfileResult(), nil
 		}
 		return host.Result{}, nil
 	}}
@@ -53,20 +64,14 @@ func TestCreateEnvironmentUsesOnlyIncusWorkspaceLifecycle(t *testing.T) {
 	want := []runnerCall{
 		{name: "incus", args: []string{"project", "show", defaultProject}},
 		{name: "incus", args: []string{"project", "create", defaultProject, "--config", "features.profiles=false"}},
-		{name: "incus", args: []string{"init", defaultImage, "haco-demo", "--project", defaultProject}},
-		{name: "incus", args: []string{"config", "device", "add", "haco-demo", "workspace", "disk", "source=/tmp/work space", "path=/workspace", "--project", defaultProject}},
+		{name: "incus", args: []string{"profile", "show", "default", "--project", "default", "--format", "json"}},
+		{name: "incus", args: []string{"init", defaultImage, "haco-demo", "--project", defaultProject, "--no-profiles", "--storage", "default"}},
+		{name: "incus", args: []string{"config", "device", "add", "haco-demo", "workspace", "disk", "source=/tmp/work space", "path=/workspace", "shift=true", "--project", defaultProject}},
 		{name: "incus", args: []string{"start", "haco-demo", "--project", defaultProject}},
+		{name: "incus", args: []string{"exec", "haco-demo", "--project", defaultProject, "--", "test", "-w", "/workspace"}},
 	}
 	if !reflect.DeepEqual(runner.calls, want) {
 		t.Fatalf("calls = %#v\nwant = %#v", runner.calls, want)
-	}
-	for _, call := range runner.calls {
-		joined := strings.Join(call.args, " ")
-		for _, forbidden := range []string{"storage create", "qcow", "btrfs", "security.nesting"} {
-			if strings.Contains(joined, forbidden) {
-				t.Fatalf("v0.1 environment path leaked %q into %q", forbidden, joined)
-			}
-		}
 	}
 }
 
@@ -84,16 +89,41 @@ func TestCreateEnvironmentReusesExistingProject(t *testing.T) {
 	}
 }
 
-func TestCreateEnvironmentCleansUpAfterWorkspaceMountFailure(t *testing.T) {
+func TestCreateEnvironmentReadOnlyDoesNotRequestShiftOrWriteProbe(t *testing.T) {
+	runner := &fakeRunner{}
+	_, err := New(runner).CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/tmp/workspace", ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seenReadonly := false
+	for _, call := range runner.calls {
+		joined := strings.Join(call.args, " ")
+		if strings.Contains(joined, "readonly=true") {
+			seenReadonly = true
+		}
+		if strings.Contains(joined, "shift=true") {
+			t.Fatalf("read-only mount requested id shifting: %#v", call)
+		}
+		if strings.Contains(joined, " test -w /workspace") {
+			t.Fatalf("read-only mount was write-probed: %#v", call)
+		}
+	}
+	if !seenReadonly {
+		t.Fatalf("readonly=true missing from calls: %#v", runner.calls)
+	}
+}
+
+func TestCreateEnvironmentCleansUpAfterWorkspaceMountFailureWithDetachedContext(t *testing.T) {
 	mountErr := errors.New("mount denied")
-	runner := &fakeRunner{run: func(ctx context.Context, call int, _ string, _ []string) (host.Result, error) {
-		switch call {
-		case 2:
+	runner := &fakeRunner{run: func(ctx context.Context, call int, _ string, args []string) (host.Result, error) {
+		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
+			return rootProfileResult(), nil
+		}
+		if call == 3 {
 			return host.Result{}, mountErr
-		case 3:
-			if ctx.Err() != nil {
-				t.Fatalf("cleanup context is canceled: %v", ctx.Err())
-			}
+		}
+		if call == 4 && ctx.Err() != nil {
+			t.Fatalf("cleanup context is canceled: %v", ctx.Err())
 		}
 		return host.Result{}, nil
 	}}
@@ -109,18 +139,47 @@ func TestCreateEnvironmentCleansUpAfterWorkspaceMountFailure(t *testing.T) {
 	assertRunnerCall(t, last, "incus", "delete", "haco-demo", "--project", defaultProject, "--force")
 }
 
-func TestCreateEnvironmentCleansUpAfterStartFailure(t *testing.T) {
-	startErr := errors.New("start failed")
-	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, _ []string) (host.Result, error) {
+func TestCreateEnvironmentCleanupIsBoundedAndSignalsRecovery(t *testing.T) {
+	mountErr := errors.New("mount denied")
+	runner := &fakeRunner{run: func(ctx context.Context, call int, _ string, args []string) (host.Result, error) {
+		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
+			return rootProfileResult(), nil
+		}
 		if call == 3 {
-			return host.Result{}, startErr
+			return host.Result{}, mountErr
+		}
+		if call == 4 {
+			<-ctx.Done()
+			return host.Result{}, ctx.Err()
 		}
 		return host.Result{}, nil
 	}}
 	runtime := New(runner)
+	runtime.cleanupTimeout = 20 * time.Millisecond
 
+	started := time.Now()
 	_, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/tmp/workspace"})
-	if !errors.Is(err, startErr) {
+	if !errors.Is(err, mountErr) || !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("error = %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("cleanup exceeded bounded deadline: %v", elapsed)
+	}
+}
+
+func TestCreateEnvironmentRejectsUnwritableRWWorkspace(t *testing.T) {
+	writeErr := errors.New("permission denied")
+	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, args []string) (host.Result, error) {
+		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
+			return rootProfileResult(), nil
+		}
+		if call == 5 {
+			return host.Result{ExitCode: 1, Stderr: "permission denied"}, writeErr
+		}
+		return host.Result{}, nil
+	}}
+	_, err := New(runner).CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/tmp/workspace"})
+	if !errors.Is(err, core.ErrUnsupported) {
 		t.Fatalf("error = %v", err)
 	}
 	last := runner.calls[len(runner.calls)-1]
@@ -139,6 +198,16 @@ func TestExecEnvironmentPreservesArgumentBoundariesAndResult(t *testing.T) {
 		t.Fatalf("result=%#v err=%v", result, err)
 	}
 	assertRunnerCall(t, runner.calls[0], "incus", "exec", "haco-demo", "--project", defaultProject, "--", "printf", "%s", "hello world")
+}
+
+func TestDeleteEnvironmentTreatsIncusNotFoundAsCoreNotFound(t *testing.T) {
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, _ []string) (host.Result, error) {
+		return host.Result{ExitCode: 1, Stderr: "Error: Instance not found"}, errors.New("exit status 1")
+	}}
+	err := New(runner).DeleteEnvironment(context.Background(), "haco-demo")
+	if !errors.Is(err, core.ErrNotFound) {
+		t.Fatalf("error = %v", err)
+	}
 }
 
 func TestDeleteEnvironmentIsProjectScopedAndForced(t *testing.T) {
