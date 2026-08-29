@@ -11,7 +11,7 @@ It takes an existing workspace, places it behind an isolated execution boundary,
 > [!WARNING]
 > **Hacocoon is pre-1.0 and under active development. Breaking changes are expected.**
 >
-> CLI behavior, helper binaries, state formats, APIs, capability contracts, provider interfaces, and configuration may change incompatibly. Pin the version or commit you depend on and review changes before upgrading.
+> CLI behavior, helper binaries, state formats, APIs, capability contracts, provider interfaces, Base/image configuration, and client configuration may change incompatibly. Pin the version or commit you depend on and review changes before upgrading.
 
 ## What Hacocoon is
 
@@ -49,7 +49,7 @@ The intended interactive-development model is simple: a normal client such as VS
 
 ## Current state
 
-`main` contains the implementation progression through the **v0.8 roadmap**. That describes repository implementation state, not a promise of release or API stability.
+`main` contains the implementation progression through the **v0.8 roadmap**. The next explicit roadmap/design gate is **v0.9 Base Images & Custom Environments**. v0.9 is not yet an implementation claim.
 
 | Area | Current state |
 |---|---|
@@ -68,6 +68,7 @@ The intended interactive-development model is simple: a normal client such as VS
 | Client adapters | thin adapter layer introduced without adding client-specific concepts to Core |
 | VS Code integration | `haco-vscode` prepares standard Remote-SSH access and opens `/workspace` |
 | Windows + WSL bridge | WSL execution resolves the Windows desktop client's SSH profile/configuration |
+| Base images / custom Environments | **v0.9 design contract established; implementation pending** |
 
 Real-provider/client acceptance is deliberately tracked separately. Real Incus host acceptance, real Windows/WSL + VS Code Remote-SSH acceptance, and real AWS / EC2 / SSM / EBS acceptance require suitable external environments; unit, integration, fake-provider E2E, race, vet, build, and CI results are not substitutes for those checks.
 
@@ -144,6 +145,48 @@ The adapter keeps unrelated SSH configuration intact. It adds a single include w
 When Hacocoon runs inside WSL and desktop VS Code runs on Windows, `haco-vscode` targets the Windows user's SSH configuration rather than only the WSL user's Linux SSH config.
 
 See [`docs/08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md`](docs/08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md) for the v0.8 contract.
+
+## v0.9: selectable Base images
+
+v0.9 makes an Environment's starting point selectable through a Hacocoon **Base**.
+
+```text
+logical Base name
+        |
+        v
+immutable Base revision
+        |
+        v
+provider-native starting point
+        |
+        v
+Environment
+```
+
+For the Incus provider, the provider-native starting point is ultimately an Incus image fingerprint. Incus aliases, remotes, and fingerprints remain adapter details rather than required Core/public concepts.
+
+A logical Base can move to a new revision without changing an existing Environment:
+
+```text
+my-dev -> revision A -> Environment 1
+my-dev -> revision B -> Environment 2
+
+Environment 1 stays on revision A
+```
+
+The v0.9 contract also treats custom Base contents as untrusted. An image cannot grant host mounts, privileged mode, devices, Linux capabilities, credentials, or external-service authority just because its metadata asks for them.
+
+The likely interaction shape includes commands such as:
+
+```text
+haco image list
+haco image inspect <base>
+haco create --base <base> --workspace <path> <environment>
+```
+
+These commands are **planned, not implemented or frozen yet**.
+
+Read [`docs/09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](docs/09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md) for the authoritative v0.9 gate and [`docs/BASE_IMAGES.md`](docs/BASE_IMAGES.md) for the detailed design companion.
 
 ## AI agents: permissive inside, mediated outside
 
@@ -228,6 +271,8 @@ haco-vscode open
 haco-vscode delete
 ```
 
+The proposed v0.9 `haco image` commands are not part of the current implemented CLI yet.
+
 All surfaces remain pre-1.0 and may change.
 
 ## External orchestrators
@@ -264,6 +309,7 @@ Core rules include:
 - workspace write access is protected by persisted leases;
 - local port exposure is loopback-oriented by default;
 - provider-specific and client-specific concepts stay outside the Core domain;
+- custom Base/image contents do not grant host-side authority;
 - cleanup and recovery failures are surfaced instead of silently converted into success.
 
 Security still depends on the host, provider, client, and deployment configuration. Hacocoon does not turn an incorrectly configured Incus, SSH, VS Code, or cloud environment into a safe one by itself.
@@ -298,6 +344,7 @@ Core does not own:
 - model/token budgets;
 - provider-specific storage mechanics;
 - provider-specific cloud APIs;
+- Incus-native image alias/remote/fingerprint mechanics;
 - client-native SSH configuration or launch behavior.
 
 Concrete integrations such as Incus, Git/GitHub, AWS/EC2/EBS, VS Code, Daintree, or external orchestrators live at explicit boundaries around the common Workspace / Environment / Execution model.
@@ -319,7 +366,7 @@ Some integration and acceptance paths require external infrastructure and are in
 
 ## Roadmap documents
 
-The v0.1-v0.8 documents are **versioned design contracts**, not promises that their public interfaces are frozen:
+The v0.1-v0.9 documents are **versioned design contracts**, not promises that their public interfaces are frozen. Implementation currently reaches v0.8; v0.9 is the next scheduled gate.
 
 1. [`v0.1 Secure Workspace Runtime`](docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md)
 2. [`v0.2 Workspace Abstraction & Lease`](docs/02_v0.2_WORKSPACE_ABSTRACTION_AND_LEASE.md)
@@ -329,6 +376,7 @@ The v0.1-v0.8 documents are **versioned design contracts**, not promises that th
 6. [`v0.6 Agent & Orchestrator Integration`](docs/06_v0.6_AGENT_AND_ORCHESTRATOR_INTEGRATION.md)
 7. [`v0.7 Remote / Cloud Runtime & External Capabilities`](docs/07_v0.7_REMOTE_AND_CLOUD_RUNTIME.md)
 8. [`v0.8 Client Adapters & VS Code Integration`](docs/08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md)
+9. [`v0.9 Base Images & Custom Environments`](docs/09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md)
 
 For architecture and documentation rules, start with [`docs/README.md`](docs/README.md) and [`docs/00_REBASELINE_AND_ROADMAP.md`](docs/00_REBASELINE_AND_ROADMAP.md).
 
@@ -338,4 +386,4 @@ Until Hacocoon reaches a stable compatibility milestone, assume that **breaking 
 
 That freedom is intentional: the project is still hardening its boundaries and may delete, rename, replace, or redesign behavior when doing so produces a smaller and safer system.
 
-Do not infer compatibility guarantees from an implemented roadmap version, an existing command, helper binary, or persisted state merely because it exists on `main` today.
+Do not infer compatibility guarantees or implementation presence from a roadmap version, an existing command, helper binary, or persisted state merely because it exists in documentation or on `main` today.

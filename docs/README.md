@@ -2,9 +2,9 @@
 
 [**日本語**](README.ja.md) | English
 
-This file defines how to read Hacocoon documentation after the 2026-08-29 architecture rebaseline and the subsequent implementation progression through v0.8.
+This file defines how to read Hacocoon documentation after the 2026-08-29 architecture rebaseline, the implementation progression through v0.8, and the explicit v0.9 Base-image roadmap decision.
 
-Hacocoon remains **pre-1.0**. The documents describe the current architecture and implemented roadmap contracts, but they do not imply API, CLI, state-format, provider, client-adapter, or configuration compatibility guarantees.
+Hacocoon remains **pre-1.0**. The documents describe the current architecture, implemented roadmap contracts, and scheduled design contracts, but they do not imply API, CLI, state-format, provider, client-adapter, image, or configuration compatibility guarantees.
 
 For a Japanese overview, start with [`../README.ja.md`](../README.ja.md), [`README.ja.md`](README.ja.md), and [`ARCHITECTURE_GUIDE.ja.md`](ARCHITECTURE_GUIDE.ja.md).
 
@@ -16,29 +16,32 @@ When documents appear to disagree, use this order:
 2. `00C_TERMINOLOGY_AND_BOUNDARIES.md` — canonical architecture vocabulary.
 3. `00B_SECURITY_ARCHITECTURE.md` — cross-cutting trust and security rules.
 4. `IMPLEMENTATION_STATUS.md` — what `main` actually implements and what acceptance is still pending.
-5. The relevant versioned release specification (`01_...` through `08_...`) — the contract for that roadmap gate.
+5. The relevant versioned release specification (`01_...` through `09_...`) — the contract for that roadmap gate.
 6. Specialized design documents such as `CLIENT_ACCESS.md`, `REMOTE_CLOUD_PROVISIONING.md`, and `BASE_IMAGES.md` — detailed contracts or explicitly labeled design proposals for their subject area.
 7. `00A_PLUGIN_ARCHITECTURE.md` — extension/adaptor guidance; it does not require speculative interfaces or a plugin marketplace.
 8. `90_CODEX_IMPLEMENTATION_HANDOFF.md` — current implementation and maintenance workflow derived from the sources above.
 9. `91_IMPLEMENTATION_REFERENCE_NOTES.md` — non-normative external references and historical notes.
 10. ADRs under `adr/` — scoped decisions. If an older ADR uses superseded architecture terms, the rebaseline documents above win unless the ADR is explicitly updated.
 
-`README.md`, `CODEX_START_HERE.md`, and `Hacocoon_v0.1-v0.7_MASTER.md` are entry points/indexes; they should summarize, not redefine, the architecture. The master filename is historical; v0.8 is authoritative through the roadmap/specification documents above.
+`README.md`, `CODEX_START_HERE.md`, and `Hacocoon_v0.1-v0.7_MASTER.md` are entry points/indexes; they should summarize, not redefine, the architecture. The master filename is historical; v0.9 is authoritative through the roadmap/specification documents above even though the implementation currently remains at v0.8.
 
 ## Current documentation state
 
-The original rebaseline documents were written while v0.1 was the active implementation gate. The repository has since progressed through the v0.8 implementation pass.
+The original rebaseline documents were written while v0.1 was the active implementation gate. The repository has since progressed through the v0.8 implementation pass, and the next explicit roadmap gate is now v0.9.
 
 Therefore:
 
-- v0.1-v0.8 specifications are now read as **versioned design contracts**;
+- v0.1-v0.9 specifications are **versioned design contracts**;
+- v0.1-v0.8 have implementation passes represented on `main`;
+- v0.9 Base Images & Custom Environments is scheduled as a design/roadmap gate but is not yet an implementation claim;
 - `IMPLEMENTATION_STATUS.md` is the source for current repository reality;
 - an implemented roadmap gate does not mean its public surface is frozen;
 - real-provider/client acceptance remains separate from unit, integration, fake-provider E2E, race, vet, build, and CI checks;
 - EC2 remains experimental and disabled by default even though its v0.7 implementation exists;
 - v0.8 explicitly introduces thin Client Adapters, starting with `haco-vscode`, without moving IDE or AI UI ownership into Core;
-- `BASE_IMAGES.md` is an explicitly labeled design proposal and does not by itself schedule post-v0.8 implementation;
-- post-v0.8 work must not be invented merely because the numbered roadmap has progressed.
+- v0.9 introduces selectable logical Bases that resolve to immutable Environment starting revisions while keeping Incus aliases/fingerprints behind the adapter boundary;
+- `BASE_IMAGES.md` remains the detailed companion proposal; the authoritative minimum v0.9 gate is `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`;
+- post-v0.9 work must not be invented merely because the numbered roadmap has progressed.
 
 ## Specification vs implementation
 
@@ -46,9 +49,9 @@ A release specification describes the design and acceptance contract for that ro
 
 These are deliberately different claims.
 
-For example, v0.7 may have an implemented EC2 adapter while real AWS acceptance is still pending. Likewise, v0.8 may have a `haco-vscode` implementation while real Windows/WSL + Incus + VS Code Remote-SSH acceptance is still pending. Historical packages may remain without becoming part of the supported architecture.
+For example, v0.7 may have an implemented EC2 adapter while real AWS acceptance is still pending. Likewise, v0.8 may have a `haco-vscode` implementation while real Windows/WSL + Incus + VS Code Remote-SSH acceptance is still pending. v0.9 may exist as a design contract before `haco image` or `haco create --base` exists in code.
 
-Do not infer release/tag readiness, compatibility guarantees, or production support solely from the presence of implementation code.
+Do not infer release/tag readiness, compatibility guarantees, production support, or implementation presence solely from a roadmap document.
 
 ## v0.8 reading path
 
@@ -73,6 +76,33 @@ VS Code / another client
 
 VS Code owns its editor, terminal, debugger, Git UI, and AI/coding-agent UI. Hacocoon owns the Environment and the security boundary around external authority.
 
+## v0.9 reading path
+
+For Base-image/custom-Environment work, read these together:
+
+1. `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` — authoritative minimum v0.9 roadmap/acceptance contract.
+2. `BASE_IMAGES.md` — detailed design companion for identity, import/build, deletion, GC, and concurrency.
+3. `00_REBASELINE_AND_ROADMAP.md` — placement of Base selection inside the Environment boundary.
+4. `00B_SECURITY_ARCHITECTURE.md` — custom images do not grant host/external authority.
+5. `IMPLEMENTATION_STATUS.md` — confirms that v0.9 is not yet implemented until code actually lands.
+
+The intended identity model is:
+
+```text
+logical Base name
+        |
+        v
+immutable Base revision
+        |
+        v
+provider-native starting point
+        |
+        v
+Environment
+```
+
+For Incus, the provider-native starting point may be an image fingerprint, but that fingerprint is not the public Core identity.
+
 ## Compatibility and breaking changes
 
 Hacocoon is still pre-1.0 and actively being simplified and hardened.
@@ -85,6 +115,7 @@ Breaking changes may affect:
 - capability and policy contracts;
 - provider configuration;
 - client-adapter configuration;
+- Base/image configuration and lifecycle;
 - experimental backends;
 - documentation structure itself.
 
@@ -96,7 +127,7 @@ When making a breaking change, prefer an explicit deletion/replacement over pres
 - Deleted or superseded documents can still appear in Git history or a stale GitHub search index. Do not use them as current specifications.
 - Historical experiments such as advanced storage backing formats are not roadmap commitments unless a current specification or ADR explicitly reintroduces them.
 - The old instruction to stop implementation at v0.1 is historical and no longer describes `main`.
-- `Hacocoon_v0.1-v0.7_MASTER.md` retains its old filename as an entry-point artifact; it must not override the v0.8 authoritative documents.
+- `Hacocoon_v0.1-v0.7_MASTER.md` retains its old filename as an entry-point artifact; it must not override the v0.9 authoritative documents.
 
 ## Editing rule
 

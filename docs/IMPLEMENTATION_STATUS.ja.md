@@ -2,11 +2,13 @@
 
 [English](IMPLEMENTATION_STATUS.md) | **日本語**
 
-Status date: 2026-08-29 — v0.8 Client Adapters & VS Code Integration implementation pass 後。
+Status date: 2026-08-29 — v0.8 Client Adapters & VS Code Integration implementation pass 後、v0.9 Base Images & Custom Environments roadmap decision 反映後。
 
 このファイルは **現在のコードの事実**を説明するための日本語版です。理想 architecture や互換性保証ではありません。
 
 Hacocoon はまだ **pre-1.0** です。実装済みであることは interface 固定、本番 support、real-provider/client acceptance 済みを意味しません。
+
+また、v0.9 の specification が存在することは、v0.9 のコードが実装済みであることを意味しません。現在の implementation progression は v0.8 までです。
 
 | 領域 | 現在の repository reality | Release | 検証状況 |
 |---|---|---:|---|
@@ -25,7 +27,8 @@ Hacocoon はまだ **pre-1.0** です。実装済みであることは interface
 | Windows / WSL bridge | WSL 実行時に Windows user profile を解決し、desktop Client 側 `.ssh` を対象にする | v0.8 | implementation exists。real Windows/WSL acceptance pending |
 | Windows / WSL bootstrap | `scripts/bootstrap-windows.ps1` は default/既存の普段使い WSL を選ばず、`Hacocoon` という dedicated WSL 2 instance を create/reuse。Linux dependency setup は `scripts/bootstrap-wsl.sh`、Hacocoon install は既存 `scripts/install.sh` に委譲。無関係な WSL は触らず、`incus-admin` は explicit opt-in | v0.8 | PowerShell / shell syntax は CI 対象。real Windows install/reboot/dedicated WSL/Incus acceptance pending |
 | Client Adapter boundary | VS Code / Daintree / JetBrains 等の client-specific behavior を Core に入れない | v0.8 | architecture + separate binary boundary |
-| CI | Go tests、vet、race、docs consistency、bootstrap syntax、release packaging、host-independent E2E | cross-cutting | v0.8 PR CI pass が merge gate。real provider/client acceptance は別 |
+| Base Images & Custom Environments | logical Base、immutable revision、Incus fingerprint pinning の adapter boundary、custom image の trust boundary、safe deletion/reference semantics を v0.9 contract として定義 | v0.9 | **design only / implementation pending**。`haco image` / `haco create --base` はまだ実装済みと扱わない |
+| CI | Go tests、vet、race、docs consistency、bootstrap syntax、release packaging、host-independent E2E | cross-cutting | implementation PR の CI pass が merge gate。real provider/client acceptance は別 |
 
 ## v0.8 で増えたもの
 
@@ -52,6 +55,41 @@ haco-vscode delete .
 ```
 
 Private SSH key は Client 側に残し、Hacocoon の既存 SSH path には public key のみを渡します。
+
+## v0.9 で作るもの
+
+次の explicit roadmap gate は **Base Images & Custom Environments** です。
+
+```text
+logical Base name
+  -> immutable Base revision
+  -> Incus fingerprint (adapter内部)
+  -> newly created Environment
+```
+
+大事な contract は次です。
+
+```text
+my-dev -> revision A -> Environment 1
+my-dev -> revision B -> Environment 2
+Environment 1 は revision A のまま
+```
+
+つまり logical Base の更新は **新しく作る Environment だけ**に反映します。既存 Environment の Base を途中で差し替えません。
+
+Custom Base は untrusted input として扱い、image metadata だけで Host mount、device、privileged mode、Linux capability、credential、network authority、GitHub/AWS authority 等を増やすことを許可しません。
+
+予定している interaction は例えば次です。
+
+```text
+haco image list
+haco image inspect <base>
+haco create --base <base> --workspace <path> <environment>
+```
+
+ただしこれはまだ **planned CLI** であり、実装済みでも固定済みでもありません。
+
+正本は [`09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md)、詳細は [`BASE_IMAGES.ja.md`](BASE_IMAGES.ja.md) / [`BASE_IMAGES.md`](BASE_IMAGES.md) を参照してください。
 
 ## Windows / WSL bootstrap
 
@@ -149,13 +187,13 @@ export HACO_EXPERIMENTAL_EC2=1
 - script syntax
 - repository CI
 
-Real Incus、Windows dedicated WSL install、Windows/WSL + VS Code Remote-SSH、AWS/EC2/SSM/EBS はそれぞれ対応環境で確認します。
+Real Incus、Base/image lifecycle、Windows dedicated WSL install、Windows/WSL + VS Code Remote-SSH、AWS/EC2/SSM/EBS はそれぞれ対応環境で確認します。
 
 ## Compatibility status
 
-v0.1〜v0.8 のどの実装も、現在の concrete interface が変更されないという約束ではありません。
+v0.1〜v0.9 のどの design / implementation も、現在の concrete interface が変更されないという約束ではありません。
 
-Breaking Change により CLI / helper binary / state / provider / capability / client-adapter configuration / host bootstrap behavior 等は変更可能です。
+Breaking Change により CLI / helper binary / state / provider / Base/image lifecycle / capability / client-adapter configuration / host bootstrap behavior 等は変更可能です。
 
 Compatibility のために unsafe authority boundary、曖昧な ownership、silent data loss、不要な complexity を残しません。ただし material change は explicit・tested・documented にします。
 
