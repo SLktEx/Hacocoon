@@ -35,6 +35,12 @@ func normalizePublicKey(raw string) (string, error) {
 		return "", fmt.Errorf("SSH public key algorithm mismatch: %w", core.ErrInvalidArgument)
 	}
 
+	payloadOffset := 4 + algorithmLength
+	firstFieldLength := int(binary.BigEndian.Uint32(blob[payloadOffset : payloadOffset+4]))
+	if firstFieldLength <= 0 || payloadOffset+4+firstFieldLength > len(blob) {
+		return "", fmt.Errorf("SSH public key payload: %w", core.ErrInvalidArgument)
+	}
+
 	return fields[0] + " " + fields[1], nil
 }
 
