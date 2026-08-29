@@ -139,6 +139,9 @@ func (s *EnvironmentJSONStore) AcquireWorkspaceLease(_ context.Context, lease co
 	if err != nil {
 		return err
 	}
+	if err := validateLeaseCompatibleState(data); err != nil {
+		return err
+	}
 	if _, ok := data.Environments[lease.EnvironmentID]; ok {
 		return fmt.Errorf("environment %q: %w", lease.EnvironmentID, core.ErrAlreadyExists)
 	}
@@ -242,10 +245,10 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 		if environment.Name == "" {
 			environment.Name = name
 		}
-		if environment.Workspace.ID == "" || environment.Workspace.Path == "" || environment.AccessMode == "" || environment.RuntimeRef == "" {
-			return fmt.Errorf("environment %q uses pre-v0.2 metadata; delete v0.1 environments before upgrading: %w", name, core.ErrIncompatibleState)
-		}
 		data.Environments[name] = environment
+		if !environmentSupportsLease(environment) {
+			continue
+		}
 		if _, ok := data.Leases[name]; !ok {
 			data.Leases[name] = core.WorkspaceLease{
 				WorkspaceID:   environment.Workspace.ID,
@@ -276,6 +279,22 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 	}
 	data.Version = environmentStateVersion
 	return nil
+}
+
+func validateLeaseCompatibleState(data environmentFileState) error {
+	for name, environment := range data.Environments {
+		if !environmentSupportsLease(environment) {
+			return fmt.Errorf("environment %q uses pre-v0.2 metadata; delete v0.1 environments before creating leased workspaces: %w", name, core.ErrIncompatibleState)
+		}
+	}
+	return nil
+}
+
+func environmentSupportsLease(environment core.Environment) bool {
+	return environment.Workspace.ID != "" &&
+		environment.Workspace.Path != "" &&
+		environment.AccessMode != "" &&
+		environment.RuntimeRef != ""
 }
 
 func (s *EnvironmentJSONStore) writeEnvironments(data environmentFileState) error {
