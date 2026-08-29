@@ -2,7 +2,7 @@
 
 **Status:** authoritative architecture baseline  
 **Date:** 2026-08-29  
-**Implementation note:** `main` has progressed through the v0.8 implementation pass. The explicit v0.9 roadmap gate adds selectable immutable Base images/custom Environment starting points and remains implementation-pending. v0.10 adds a trusted per-agent session-to-Environment broker foundation outside Core. See `IMPLEMENTATION_STATUS.md` for current code reality and pending real-provider/client acceptance.
+**Implementation note:** `main` has progressed through the v0.8 implementation pass. The explicit v0.9 roadmap gate adds selectable immutable Base images/custom Environment starting points and remains implementation-pending. v0.10 adds a trusted per-agent session-to-Environment broker foundation outside Core. v0.11 adds explicit per-Environment resource budgets as the next design gate. See `IMPLEMENTATION_STATUS.md` for current code reality and pending real-provider/client acceptance.
 
 ## Decision
 
@@ -81,6 +81,8 @@ The v0.9 Base concept is an Environment starting-point identity. It must not tur
 
 The v0.10 agent-session identity is likewise an integration-layer concern. It does not add `Agent`, `VS Code Session`, or AHP to Core vocabulary.
 
+The v0.11 ResourceBudget concept describes a provider-neutral Environment resource ceiling. It must not expose Incus-native resource keys as Core/public architecture, and it remains distinct from Capability authority.
+
 ## Workspace and worktree boundary
 
 A Workspace is opaque to Hacocoon Core. It may be:
@@ -119,7 +121,7 @@ Hacocoon security approval covers privileged authority such as protected Git ope
 
 ## Baseline roadmap progression
 
-The 2026-08-29 rebaseline established v0.1-v0.7. v0.8 added client adapters. v0.9 adds selectable immutable Base images/custom Environment starting points while keeping Incus-native image mechanics behind the Environment adapter boundary. v0.10 adds a trusted per-agent session-to-Environment binding layer outside Core.
+The 2026-08-29 rebaseline established v0.1-v0.7. v0.8 added client adapters. v0.9 adds selectable immutable Base images/custom Environment starting points while keeping Incus-native image mechanics behind the Environment adapter boundary. v0.10 adds a trusted per-agent session-to-Environment binding layer outside Core. v0.11 adds explicit Environment resource budgets so permissive sandbox execution cannot consume unbounded shared host capacity.
 
 | Version | Gate | Purpose | Repository state |
 |---|---|---|---|
@@ -133,6 +135,7 @@ The 2026-08-29 rebaseline established v0.1-v0.7. v0.8 added client adapters. v0.
 | v0.8 | Client Adapters & VS Code Integration | thin client adapter layer; VS Code Remote-SSH first | implementation introduced; real VS Code + Incus acceptance remains environment-dependent |
 | v0.9 | Base Images & Custom Environments | selectable logical Bases resolved to immutable Environment starting revisions | design contract established; implementation pending |
 | v0.10 | Per-Agent Sandbox & Agent Host Integration | bind independently routable coding-agent sessions to dedicated Environments without giving agents Hacocoon/Incus control authority | broker foundation implemented; real VS Code Agent Host/AHP + Incus routing acceptance pending |
+| v0.11 | Sandbox Resource Limits | explicit host-enforced CPU/memory/PID/root-storage budgets for each Environment | design contract established; implementation pending |
 
 These rows describe roadmap/design and implementation progression, **not compatibility guarantees**. Hacocoon remains pre-1.0 and may change CLI, state formats, APIs, capabilities, adapters, and configuration incompatibly.
 
@@ -261,6 +264,28 @@ v0.10 composes with v0.9 rather than replacing it: a per-agent Environment may u
 
 See `10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.md` for the detailed contract.
 
+## Sandbox resource limits
+
+v0.11 gives each Environment an explicit resource budget.
+
+```text
+Environment
+  +-- CPU ceiling
+  +-- memory ceiling
+  +-- process/PID ceiling
+  +-- root-storage ceiling where safely enforceable
+```
+
+The resource budget describes how much capacity an Environment may consume; it is not a Hacocoon Capability and does not grant external authority.
+
+For Incus, provider-neutral resource concepts are mapped to Incus-native controls inside the adapter. If a caller explicitly requests a limit the selected provider cannot enforce, creation must fail closed rather than silently ignore it.
+
+The effective creation-time budget is persisted with the Environment. Changing defaults later affects only future Environment creation. The first gate prefers creation-time budgets and does not require arbitrary live resize or aggregate host scheduling.
+
+v0.11 composes with v0.9 Bases and v0.10 per-agent Environment binding. A Base must not raise resource limits, and an agent must not gain control-plane authority to raise its own host-enforced limits.
+
+See `11_v0.11_SANDBOX_RESOURCE_LIMITS.md` for the detailed contract.
+
 ## Responsibility placement
 
 | Concern | Placement |
@@ -278,6 +303,8 @@ See `10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.md` for the detailed contract.
 | AWS / EC2 / EBS | provider/capability adapters; EC2 remains experimental |
 | Base selection / immutable Environment starting revision | Hacocoon domain contract; provider-native image mapping stays in adapter |
 | Incus image alias/fingerprint/import mechanics | Incus adapter / explicit Incus administration |
+| per-Environment CPU/memory/PID/root-storage budget | Hacocoon Environment contract; provider-native enforcement stays in adapter |
+| aggregate host scheduling/admission | future separate concern; not v0.11 Core scheduler ownership |
 | Btrfs / QCOW2 / storage mechanics | provider/adapter detail only when actually required |
 
 ## Experimental EC2 rule
@@ -312,9 +339,11 @@ Breaking-change freedom should still be disciplined: document operator-visible i
 - Do not hand long-lived parent credentials to untrusted executed tools.
 - Hacocoon must remain usable from multiple clients and orchestrators.
 - Let coding agents be permissive inside an isolated Environment without turning that into host authority.
+- Bound permissive Environment execution with explicit host-enforced resource budgets.
 - Client convenience adapters must translate protocols, not absorb IDE or orchestration ownership.
 - Resolve mutable Base names to immutable revisions before Environment creation depends on them.
 - Keep provider-native image mechanics outside Core.
+- Keep provider-native resource controls outside Core while preserving provider-neutral effective limits.
 - Keep agent-session routing outside Core and require persisted proof before destructive agent-session cleanup.
 - Do not create abstractions solely for hypothetical future backends.
 - Treat cleanup, retry, cancellation, concurrency, and partial failure as part of the feature.
@@ -322,4 +351,4 @@ Breaking-change freedom should still be disciplined: document operator-visible i
 
 ## One-sentence definition
 
-> **Hacocoon is a secure workspace runtime that runs developer tools and AI agents inside isolated environments without owning the IDE, Git workflow, or AI orchestration layer.**
+> **Hacocoon is a secure workspace runtime that runs developer tools and AI agents inside isolated, resource-bounded environments without owning the IDE, Git workflow, or AI orchestration layer.**
