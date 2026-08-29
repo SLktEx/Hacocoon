@@ -14,16 +14,17 @@ import (
 
 const defaultProject = "hacocoon"
 
-const defaultImage = "images:ubuntu/26.04"
+const defaultSourceImage = "images:ubuntu/26.04"
 
 type Runtime struct {
-	runner  host.Runner
-	project string
-	image   string
+	runner      host.Runner
+	project     string
+	sourceImage string
+	image       string
 }
 
 func New(runner host.Runner) *Runtime {
-	return &Runtime{runner: runner, project: defaultProject, image: defaultImage}
+	return &Runtime{runner: runner, project: defaultProject, sourceImage: defaultSourceImage, image: preparedImageAlias}
 }
 
 func (*Runtime) ID() string { return "runtime.incus" }
@@ -40,8 +41,11 @@ func (r *Runtime) Prepare(ctx context.Context, spec core.RuntimePrepareSpec) err
 	if err := r.ensureProject(ctx); err != nil {
 		return err
 	}
-	_, err := r.ensureStoragePool(ctx, spec.StorageAttachment)
-	return err
+	pool, err := r.ensureStoragePool(ctx, spec.StorageAttachment)
+	if err != nil {
+		return err
+	}
+	return r.ensureBaseImage(ctx, pool)
 }
 
 func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (core.RuntimeSession, error) {
@@ -52,8 +56,11 @@ func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (cor
 	if err != nil {
 		return core.RuntimeSession{}, err
 	}
+	if err := r.ensureBaseImage(ctx, pool); err != nil {
+		return core.RuntimeSession{}, err
+	}
 	name := "haco-" + string(spec.ID)
-	args := []string{"launch", r.image, name, "--project", r.project}
+	args := []string{"launch", r.image, name, "--project", r.project, "-c", "security.nesting=true"}
 	if pool != "" {
 		args = append(args, "--storage", pool)
 	}
