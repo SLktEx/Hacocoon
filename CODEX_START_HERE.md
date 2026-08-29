@@ -4,42 +4,52 @@ Hacocoon is built around one product boundary:
 
 > **Hacocoon is a secure workspace runtime, not an AI orchestrator.**
 
-The 2026-08-29 architecture rebaseline has now been followed by implementation work through the v0.8 roadmap, with v0.9 Base Images & Custom Environments established as the next explicit design/implementation gate. Do not use old instructions that describe v0.1, v0.7, or v0.8 as the only roadmap scope.
-
 Hacocoon is still **pre-1.0**. Breaking changes are allowed when they simplify the system, strengthen the trust boundary, remove accidental complexity, or correct an unsafe contract.
+
+The implemented milestone sequence is contiguous through **v0.9**. v0.10 is the active VS Code Remote Agent Host Adapter integration candidate. v0.11 Base Images and v0.12 Resource Limits remain design-only.
 
 ## Read first
 
 1. `docs/README.md` — documentation precedence and current-vs-historical rules.
 2. `docs/00_REBASELINE_AND_ROADMAP.md` — product boundary and roadmap progression.
-3. `docs/00C_TERMINOLOGY_AND_BOUNDARIES.md` — canonical terminology.
-4. `docs/00B_SECURITY_ARCHITECTURE.md` — trust boundary.
-5. `docs/IMPLEMENTATION_STATUS.md` — current repository reality and pending acceptance.
-6. the release specification relevant to the code being changed (`docs/01_...` through `docs/09_...`).
-7. `docs/90_CODEX_IMPLEMENTATION_HANDOFF.md` — implementation and maintenance workflow.
-8. `.github/security/ADVERSARIAL_AUDIT.md` for security-sensitive or hostile review.
+3. `docs/00D_VERSIONING_AND_RELEASE_STATUS.md` — authoritative version numbering.
+4. `docs/00C_TERMINOLOGY_AND_BOUNDARIES.md` — canonical terminology.
+5. `docs/00B_SECURITY_ARCHITECTURE.md` — trust boundary.
+6. `docs/IMPLEMENTATION_STATUS.md` — current repository reality and pending acceptance.
+7. the versioned specification relevant to the code being changed.
+8. `docs/90_CODEX_IMPLEMENTATION_HANDOFF.md` — implementation and maintenance workflow.
+9. `.github/security/ADVERSARIAL_AUDIT.md` for security-sensitive or hostile review.
 
 `docs/00A_PLUGIN_ARCHITECTURE.md` is extension/adaptor guidance, not an instruction to create speculative plugin interfaces.
 
 ## Roadmap progression
 
 ```text
-0.1 Secure Workspace Runtime MVP
-0.2 Workspace Abstraction & Lease
-0.3 Client & Interactive Access
-0.4 Policy & Capability Foundation
-0.5 Git / GitHub Capability
-0.6 Agent & Orchestrator Integration
-0.7 Remote / Cloud Runtime & External Capabilities
-0.8 Client Adapters & VS Code Integration
-0.9 Base Images & Custom Environments
+0.1  Secure Workspace Runtime MVP                         implemented
+0.2  Workspace Abstraction & Lease                        implemented
+0.3  Client & Interactive Access                          implemented
+0.4  Policy & Capability Foundation                       implemented
+0.5  Git / GitHub Capability                              implemented
+0.6  Agent & Orchestrator Integration                     implemented
+0.7  Remote / Cloud Runtime & External Capabilities       experimental implementation
+0.8  Client Adapters & VS Code Integration                implemented
+0.9  Per-Agent Sandbox & Agent Host Integration           broker foundation implemented
+0.10 VS Code Remote Agent Host Adapter                    active PR #111
+0.11 Base Images & Custom Environments                    design only
+0.12 Sandbox Resource Limits                              design only
 ```
 
-The implementation progression currently reaches v0.8. v0.9 is the next explicit roadmap contract and must not be reported as implemented until the code and tests actually land. None of these version numbers imply interface stability or completed real-provider/client acceptance.
+Do not infer implementation, release readiness, or compatibility from a version number alone. `docs/IMPLEMENTATION_STATUS.md` owns implementation truth.
 
-## Current job
+## Current work rule
 
-Treat the existing v0.1-v0.8 implementation as a system to **harden, simplify, verify, and evolve**, and use the v0.9 contract when implementing Base-image/custom-Environment work.
+Treat the existing v0.1-v0.9 implementation as a system to **harden, simplify, verify, and evolve**.
+
+When working on numbered roadmap gates:
+
+- v0.10 work belongs to the trusted VS Code Remote Agent Host Adapter boundary;
+- v0.11 work belongs to Base Images & Custom Environments;
+- v0.12 work belongs to provider-neutral Sandbox Resource Limits.
 
 Before changing behavior:
 
@@ -50,15 +60,13 @@ Before changing behavior:
 5. add or strengthen tests for the changed contract;
 6. update status/documentation when reality changes.
 
-Do not invent a post-v0.9 product direction or broaden Core merely because the numbered roadmap exists.
+Do not assign a new roadmap number without checking `docs/00D_VERSIONING_AND_RELEASE_STATUS.md` and active PRs.
 
 ## v0.8 client-adapter rule
 
 VS Code is the first convenience client, not a Core dependency.
 
 `haco-vscode` may translate generic Hacocoon Environment/client-access state into client-native SSH configuration and launch standard Remote-SSH. It must not absorb editor, terminal, Git UI, AI chat, model routing, task orchestration, or worktree ownership.
-
-The intended trust model is:
 
 ```text
 VS Code AI / coding agent
@@ -73,9 +81,33 @@ Hacocoon Policy / Capability / Audit
 GitHub / AWS / Host
 ```
 
-When Hacocoon runs in WSL while desktop VS Code runs on Windows, treat the Windows SSH client configuration as client-side state. Do not assume the WSL user's `~/.ssh/config` is the desktop client's configuration.
+When Hacocoon runs in WSL while desktop VS Code runs on Windows, treat the Windows SSH client configuration as client-side state.
 
-## v0.9 Base-image rule
+## v0.9 per-agent sandbox rule
+
+`internal/agenthost` binds an opaque external session identity to a dedicated Environment while reusing the normal WorkspaceLease and Environment lifecycle.
+
+Rules:
+
+- the coding agent must not receive Hacocoon/Incus management authority;
+- raw session IDs must not become runtime names or trusted ownership proof;
+- exact reacquire is idempotent;
+- Workspace/access-mode rebinding fails closed;
+- release requires persisted ownership proof;
+- parallel RW sessions normally use distinct canonical Workspace paths/worktrees;
+- real Agent Host/AHP routing acceptance remains separate from the broker foundation.
+
+Read `docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md`.
+
+## v0.10 Remote Agent Host Adapter rule
+
+v0.10 is the active integration candidate in PR #111 and is not part of `main` until merged.
+
+The adapter may prepare a v0.9-bound Environment as a loopback-only SSH target for the VS Code Agents window. The client keeps the private SSH key; only the public key crosses the existing Hacocoon SSH-access boundary.
+
+VS Code owns Agent Host/AHP behavior. Hacocoon owns trusted Environment selection and safe connection preparation.
+
+## v0.11 Base-image rule
 
 Hacocoon exposes a **Base**, not an Incus image alias, as the Environment starting-point concept.
 
@@ -92,21 +124,36 @@ provider-native image identity
 Environment
 ```
 
-For Incus, the provider-native identity may be an image fingerprint, but aliases/remotes/fingerprints stay behind the Incus adapter except for explicit diagnostics or Incus-specific administration.
+Rules:
+
+- resolve the logical Base to an immutable revision before Environment creation depends on it;
+- persist the resolved immutable revision with Environment state;
+- updating a Base affects future Environments only;
+- custom images and image archives are untrusted input;
+- image metadata must not grant host mounts, devices, privileged mode, credentials, network authority, or external-service authority;
+- arbitrary custom-image build steps must not execute directly with Hacocoon host authority;
+- deletion/GC must not remove a revision still referenced by a running or recoverable Environment;
+- handle create/update/remove/GC races deliberately.
+
+Read `docs/11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` first and `docs/BASE_IMAGES.md` for the detailed companion design.
+
+## v0.12 resource-budget rule
+
+Resource limits describe Environment consumption, not external authority.
+
+The first design gate covers CPU, memory, PIDs/process count, and root storage where safely enforceable.
 
 Rules:
 
-- Resolve the logical Base to an immutable revision before Environment creation depends on it.
-- Persist the resolved immutable revision with Environment state.
-- Updating a Base must affect future Environments only; never silently retarget an existing Environment.
-- Custom images and image archives are untrusted input.
-- Image metadata must not grant host mounts, devices, privileged mode, Linux capabilities, credentials, network authority, or external-service authority.
-- Arbitrary custom-image build steps must not execute directly with Hacocoon host authority.
-- Deletion/GC must not remove a revision still referenced by a running or recoverable Environment.
-- Handle create/update/remove/GC races deliberately; do not rely on timing.
-- Keep the first implementation narrow. Do not build a provider-generic image framework solely because another backend might exist later.
+- keep provider-neutral concepts in the Hacocoon contract;
+- keep Incus-native resource keys inside the adapter;
+- requested-but-unsupported limits fail closed;
+- apply requested limits before client/agent access;
+- persist the effective creation-time budget;
+- Base metadata cannot raise host-selected limits;
+- coding agents cannot receive control-plane authority to raise their own limits.
 
-Read `docs/09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` first and `docs/BASE_IMAGES.md` for the detailed companion design.
+Read `docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.md`.
 
 ## Hard rules
 
@@ -133,7 +180,7 @@ A breaking change should still be deliberate: explain the replacement, avoid sil
 ## Work method
 
 1. Reproduce or define the behavior being changed.
-2. Map it to Workspace / Environment / Execution / Base / Client Adapter / Policy / Capability / provider boundaries.
+2. Map it to Workspace / Environment / Execution / Client Adapter / agent binding / Base / ResourceBudget / Policy / Capability / provider boundaries.
 3. Read the relevant implementation and tests.
 4. Consider hostile input, concurrent operations, cancellation, retry, and partial failure.
 5. Implement the smallest coherent change.
@@ -149,7 +196,7 @@ go build ./cmd/haco-vscode
 python tools/check_docs.py
 ```
 
-8. Keep real Incus, real Windows/WSL + VS Code, and real AWS acceptance claims separate from fake/process-boundary tests.
+8. Keep real Incus, real Windows/WSL + VS Code, Agent Host/AHP, and real AWS acceptance claims separate from fake/process-boundary tests.
 9. Update `docs/IMPLEMENTATION_STATUS.md` whenever repository reality materially changes.
 
-When uncertain, choose the smallest design that preserves the trust boundary and keeps Workspace, Client, Orchestrator, Environment, Base, and external authority responsibilities separate.
+When uncertain, choose the smallest design that preserves the trust boundary and keeps Workspace, Client, Orchestrator, Environment, agent binding, Base, ResourceBudget, and external authority responsibilities separate.
