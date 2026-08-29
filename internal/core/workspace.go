@@ -6,9 +6,15 @@ type WorkspaceID string
 
 type WorkspaceAccessMode string
 
+type WorkspaceLeaseState string
+
 const (
 	WorkspaceReadOnly  WorkspaceAccessMode = "ro"
 	WorkspaceReadWrite WorkspaceAccessMode = "rw"
+
+	WorkspaceLeaseAcquiring       WorkspaceLeaseState = "acquiring"
+	WorkspaceLeaseActive          WorkspaceLeaseState = "active"
+	WorkspaceLeaseCleanupRequired WorkspaceLeaseState = "cleanup-required"
 )
 
 type Workspace struct {
@@ -22,6 +28,8 @@ type WorkspaceLease struct {
 	EnvironmentID string              `json:"environment_id"`
 	AccessMode    WorkspaceAccessMode `json:"access_mode"`
 	Owner         string              `json:"owner"`
+	RuntimeRef    string              `json:"runtime_ref,omitempty"`
+	State         WorkspaceLeaseState `json:"state,omitempty"`
 	AcquiredAt    time.Time           `json:"acquired_at"`
 }
 
