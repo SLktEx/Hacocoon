@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -20,10 +21,13 @@ type Runtime struct {
 	runner  host.Runner
 	project string
 	image   string
+	stdin   io.Reader
+	stdout  io.Writer
+	stderr  io.Writer
 }
 
 func New(runner host.Runner) *Runtime {
-	return &Runtime{runner: runner, project: defaultProject, image: defaultImage}
+	return &Runtime{runner: runner, project: defaultProject, image: defaultImage, stdin: os.Stdin, stdout: os.Stdout, stderr: os.Stderr}
 }
 
 func (*Runtime) ID() string { return "runtime.incus" }
@@ -61,6 +65,65 @@ func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (cor
 		return core.RuntimeSession{}, err
 	}
 	return core.RuntimeSession{Ref: name}, nil
+}
+
+func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
+	if spec.Name == "" || spec.WorkspacePath == "" {
+		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
+	}
+	if err := r.ensureProject(ctx); err != nil {
+		return core.EnvironmentRuntime{}, fmt.Errorf("ensure Incus project: %w", err)
+	}
+
+	ref := "haco-" + spec.Name
+	if _, err := r.runner.Run(ctx, "incus", "init", r.image, ref, "--project", r.project); err != nil {
+		return core.EnvironmentRuntime{}, fmt.Errorf("init Incus environment %s: %w", ref, err)
+	}
+	cleanup := func(cause error) (core.EnvironmentRuntime, error) {
+		cleanupCtx := context.WithoutCancel(ctx)
+		if _, cleanupErr := r.runner.Run(cleanupCtx, "incus", "delete", ref, "--project", r.project, "--force"); cleanupErr != nil {
+			return core.EnvironmentRuntime{}, errors.Join(cause, fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr))
+		}
+		return core.EnvironmentRuntime{}, cause
+	}
+
+	if _, err := r.runner.Run(
+		ctx,
+		"incus",
+		"config", "device", "add", ref, "workspace", "disk",
+		"source="+spec.WorkspacePath,
+		"path=/workspace",
+		"--project", r.project,
+	); err != nil {
+		return cleanup(fmt.Errorf("mount workspace in %s: %w", ref, err))
+	}
+	if _, err := r.runner.Run(ctx, "incus", "start", ref, "--project", r.project); err != nil {
+		return cleanup(fmt.Errorf("start Incus environment %s: %w", ref, err))
+	}
+	return core.EnvironmentRuntime{Ref: ref}, nil
+}
+
+func (r *Runtime) ExecEnvironment(ctx context.Context, ref string, req core.ExecutionRequest) (core.ExecutionResult, error) {
+	if len(req.Argv) == 0 {
+		return core.ExecutionResult{}, core.ErrInvalidArgument
+	}
+	args := append([]string{"exec", ref, "--project", r.project, "--"}, req.Argv...)
+	result, err := r.runner.Run(ctx, "incus", args...)
+	return core.ExecutionResult{
+		ExitCode: result.ExitCode,
+		Stdout:   result.Stdout,
+		Stderr:   result.Stderr,
+	}, err
+}
+
+func (r *Runtime) ShellEnvironment(ctx context.Context, ref string) error {
+	_, err := r.execInteractive(ctx, ref, []string{"/bin/bash"})
+	return err
+}
+
+func (r *Runtime) DeleteEnvironment(ctx context.Context, ref string) error {
+	_, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
+	return err
 }
 
 func (r *Runtime) Start(ctx context.Context, ref string) error {
@@ -110,7 +173,7 @@ func (r *Runtime) ensureProject(ctx context.Context) error {
 	if _, err := r.runner.Run(ctx, "incus", "project", "show", r.project); err == nil {
 		return nil
 	}
-	_, err := r.runner.Run(ctx, "incus", "project", "create", r.project)
+	_, err := r.runner.Run(ctx, "incus", "project", "create", r.project, "--config", "features.profiles=false")
 	return err
 }
 
@@ -134,9 +197,9 @@ func (r *Runtime) ensureStoragePool(ctx context.Context, attachment map[string]s
 func (r *Runtime) execInteractive(ctx context.Context, ref string, argv []string) (core.ExecResult, error) {
 	args := append([]string{"exec", ref, "--project", r.project, "--"}, argv...)
 	cmd := exec.CommandContext(ctx, "incus", args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdin = r.stdin
+	cmd.Stdout = r.stdout
+	cmd.Stderr = r.stderr
 	err := cmd.Run()
 	if err == nil {
 		return core.ExecResult{ExitCode: 0}, nil
