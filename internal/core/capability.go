@@ -15,6 +15,7 @@ type CapabilityRequest struct {
 	Action      string            `json:"action"`
 	Resource    string            `json:"resource,omitempty"`
 	Environment string            `json:"environment,omitempty"`
+	Attributes  map[string]string `json:"attributes,omitempty"`
 	Parameters  map[string]string `json:"-"`
 }
 
@@ -34,14 +35,15 @@ type CapabilityResult struct {
 }
 
 type CapabilityAuditEvent struct {
-	Time        time.Time      `json:"time"`
-	Type        string         `json:"type"`
-	Capability  string         `json:"capability"`
-	Action      string         `json:"action"`
-	Resource    string         `json:"resource,omitempty"`
-	Environment string         `json:"environment,omitempty"`
-	Decision    PolicyDecision `json:"decision,omitempty"`
-	Approved    *bool          `json:"approved,omitempty"`
-	Success     *bool          `json:"success,omitempty"`
-	Reason      string         `json:"reason,omitempty"`
+	Time        time.Time         `json:"time"`
+	Type        string            `json:"type"`
+	Capability  string            `json:"capability"`
+	Action      string            `json:"action"`
+	Resource    string            `json:"resource,omitempty"`
+	Environment string            `json:"environment,omitempty"`
+	Attributes  map[string]string `json:"attributes,omitempty"`
+	Decision    PolicyDecision    `json:"decision,omitempty"`
+	Approved    *bool             `json:"approved,omitempty"`
+	Success     *bool             `json:"success,omitempty"`
+	Reason      string            `json:"reason,omitempty"`
 }

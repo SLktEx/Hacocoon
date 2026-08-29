@@ -11,6 +11,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/composition"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
 )
 
 type command func(context.Context, *composition.App, []string) error
@@ -40,6 +41,7 @@ func dispatch(ctx context.Context, app *composition.App, args []string) error {
 	}
 	commands := map[string]command{
 		"create":      createCommand,
+		"git":         gitCommand,
 		"capability":  capabilityCommand,
 		"status":      statusCommand,
 		"connections": connectionsCommand,
@@ -98,6 +100,62 @@ func parseCreateSpec(args []string) (core.EnvironmentSpec, error) {
 		return core.EnvironmentSpec{}, fmt.Errorf("usage: haco create [--read-only] --workspace <path> <environment>: %w", core.ErrInvalidArgument)
 	}
 	spec.Name = args[0]
+	return spec, nil
+}
+
+func gitCommand(ctx context.Context, app *composition.App, args []string) error {
+	if len(args) < 2 || args[0] != "push" {
+		return fmt.Errorf("usage: haco git push <environment> --branch <branch> [--source <revision>] [--remote <remote>] [--force]: %w", core.ErrInvalidArgument)
+	}
+	spec, err := parseGitPushSpec(args[1:])
+	if err != nil {
+		return err
+	}
+	result, err := app.Git.Push(ctx, spec)
+	if result.Output != "" {
+		fmt.Println(result.Output)
+	}
+	return err
+}
+
+func parseGitPushSpec(args []string) (gitcapapp.PushSpec, error) {
+	if len(args) < 3 {
+		return gitcapapp.PushSpec{}, core.ErrInvalidArgument
+	}
+	spec := gitcapapp.PushSpec{Environment: args[0], Remote: "origin", Source: "HEAD"}
+	args = args[1:]
+	seenBranch := false
+	seenSource := false
+	seenRemote := false
+	for len(args) > 0 {
+		switch args[0] {
+		case "--branch":
+			if len(args) < 2 || seenBranch {
+				return gitcapapp.PushSpec{}, core.ErrInvalidArgument
+			}
+			spec.Branch, seenBranch, args = args[1], true, args[2:]
+		case "--source":
+			if len(args) < 2 || seenSource {
+				return gitcapapp.PushSpec{}, core.ErrInvalidArgument
+			}
+			spec.Source, seenSource, args = args[1], true, args[2:]
+		case "--remote":
+			if len(args) < 2 || seenRemote {
+				return gitcapapp.PushSpec{}, core.ErrInvalidArgument
+			}
+			spec.Remote, seenRemote, args = args[1], true, args[2:]
+		case "--force":
+			if spec.Force {
+				return gitcapapp.PushSpec{}, core.ErrInvalidArgument
+			}
+			spec.Force, args = true, args[1:]
+		default:
+			return gitcapapp.PushSpec{}, fmt.Errorf("unknown git push option %q: %w", args[0], core.ErrInvalidArgument)
+		}
+	}
+	if strings.TrimSpace(spec.Environment) == "" || !seenBranch || strings.TrimSpace(spec.Branch) == "" {
+		return gitcapapp.PushSpec{}, core.ErrInvalidArgument
+	}
 	return spec, nil
 }
 
@@ -310,7 +368,7 @@ func doctorCommand(ctx context.Context, app *composition.App, args []string) err
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: haco <create|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
+	fmt.Fprintln(os.Stderr, "usage: haco <create|git|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
 }
 
 func fail(err error) {
