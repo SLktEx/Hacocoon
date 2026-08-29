@@ -2,6 +2,8 @@
 
 **Pronounced: ha-kōn**
 
+[**日本語**](README.ja.md) | English
+
 Hacocoon is an OSS **secure workspace runtime** for humans, developer tools, and coding agents.
 
 It takes an existing workspace, places it behind an isolated execution boundary, and provides a small host-side control plane for environment lifecycle, execution, access, policy, approvals, capabilities, and audit.

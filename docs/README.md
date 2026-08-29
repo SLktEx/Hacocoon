@@ -1,8 +1,12 @@
 # Documentation Map
 
+[**日本語**](README.ja.md) | English
+
 This file defines how to read Hacocoon documentation after the 2026-08-29 architecture rebaseline and the subsequent implementation progression through v0.7.
 
 Hacocoon remains **pre-1.0**. The documents describe the current architecture and implemented roadmap contracts, but they do not imply API, CLI, state-format, provider, or configuration compatibility guarantees.
+
+For a Japanese overview, start with [`../README.ja.md`](../README.ja.md), [`README.ja.md`](README.ja.md), and [`ARCHITECTURE_GUIDE.ja.md`](ARCHITECTURE_GUIDE.ja.md).
 
 ## Source-of-truth order
 
@@ -76,5 +80,6 @@ When changing architecture documentation:
 3. update entry points and handoff documents when their summary becomes stale;
 4. keep implementation claims distinct from real-provider acceptance claims;
 5. preserve the explicit experimental/default-off status of unstable providers;
-6. run `python tools/check_docs.py`;
-7. do not turn an existing implementation detail into a compatibility promise by accident.
+6. update Japanese summaries when their user-facing description becomes stale;
+7. run `python tools/check_docs.py`;
+8. do not turn an existing implementation detail into a compatibility promise by accident.
