@@ -35,7 +35,7 @@ func TestForwardLocalPortIsLoopbackOnly(t *testing.T) {
 	}
 }
 
-func TestPrepareSSHUsesPublicKeyAsArgumentAndLoopbackProxy(t *testing.T) {
+func TestPrepareSSHDelegatesToTransactionalAccessLifecycle(t *testing.T) {
 	runner := &fakeRunner{}
 	key := "ssh-ed25519 AAAATEST comment with spaces"
 	connection, err := New(runner).PrepareSSH(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: key, HostPort: 2222})
@@ -48,11 +48,11 @@ func TestPrepareSSHUsesPublicKeyAsArgumentAndLoopbackProxy(t *testing.T) {
 	if len(runner.calls) != 2 {
 		t.Fatalf("calls=%#v", runner.calls)
 	}
-	first := runner.calls[0]
-	if first.args[len(first.args)-1] != key || strings.Contains(sshProvisionScript, key) {
-		t.Fatalf("public key was not passed as an isolated argv: %#v", first.args)
+	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "add", "haco-demo", "haco-ssh-2222", "proxy", "listen=tcp:127.0.0.1:2222", "connect=tcp:127.0.0.1:22", "--project", defaultProject)
+	provision := runner.calls[1]
+	if provision.args[len(provision.args)-2] != key || provision.args[len(provision.args)-1] != "haco:ssh-2222" {
+		t.Fatalf("managed SSH argv = %#v", provision.args)
 	}
-	assertRunnerCall(t, runner.calls[1], "incus", "config", "device", "add", "haco-demo", "haco-ssh-2222", "proxy", "listen=tcp:127.0.0.1:2222", "connect=tcp:127.0.0.1:22", "--project", defaultProject)
 }
 
 func TestRemoveClientConnectionUsesScopedDeviceName(t *testing.T) {
