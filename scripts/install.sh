@@ -186,7 +186,7 @@ printf 'Verified SHA-256 integrity for %s against checksums.txt.\n' "$archive"
 verify_provenance
 
 tar -xzf "$tmpdir/$archive" -C "$tmpdir"
-for binary in haco haco-vscode; do
+for binary in haco haco-vscode haco-agent-host; do
   [ -f "$tmpdir/$binary" ] || die "release archive does not contain $binary"
   [ -x "$tmpdir/$binary" ] || chmod 0755 "$tmpdir/$binary"
 done
@@ -209,3 +209,4 @@ install_binary() {
 
 install_binary haco
 install_binary haco-vscode
+install_binary haco-agent-host
