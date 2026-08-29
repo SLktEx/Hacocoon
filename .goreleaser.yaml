@@ -1,0 +1,37 @@
+version: 2
+
+project_name: hacocoon
+
+builds:
+  - id: haco
+    main: ./cmd/haco
+    binary: haco
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+
+archives:
+  - id: haco
+    ids:
+      - haco
+    formats:
+      - tar.gz
+    name_template: "haco_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+  extra_files:
+    - glob: ./scripts/install.sh
+      name_template: install.sh
+
+changelog:
+  disable: true
