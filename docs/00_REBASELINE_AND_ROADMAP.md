@@ -1,8 +1,8 @@
 # Architecture Rebaseline and Roadmap
 
 **Status:** authoritative architecture baseline  
-**Date:** 2026-08-29  
-**Implementation note:** `main` has progressed through the v0.8 implementation pass. The explicit v0.9 roadmap gate adds selectable immutable Base images/custom Environment starting points and remains implementation-pending. v0.10 adds a trusted per-agent session-to-Environment broker foundation outside Core. v0.11 adds explicit per-Environment resource budgets as the next design gate. See `IMPLEMENTATION_STATUS.md` for current code reality and pending real-provider/client acceptance.
+**Date:** 2026-08-30  
+**Implementation note:** `main` has implemented milestones continuously through v0.9. v0.10 is the active VS Code Remote Agent Host Adapter integration candidate. v0.11 Base Images & Custom Environments and v0.12 Sandbox Resource Limits remain design-only. See `IMPLEMENTATION_STATUS.md` for current code reality and pending real-provider/client acceptance.
 
 ## Decision
 
@@ -77,11 +77,11 @@ ApprovalRequest
 
 Concrete technologies stay behind adapters/ports. Core must not depend directly on Incus, Git, GitHub, AWS, VS Code, AHP, Daintree, Rookery, Btrfs, QCOW2, EC2, EBS, or other provider-specific concepts.
 
-The v0.9 Base concept is an Environment starting-point identity. It must not turn Core into an Incus image manager: backend-native aliases, remotes, fingerprints, and image lifecycle mechanics remain adapter details.
+The v0.9 agent-session identity is an integration-layer concern. It does not add `Agent`, `VS Code Session`, or AHP to Core vocabulary.
 
-The v0.10 agent-session identity is likewise an integration-layer concern. It does not add `Agent`, `VS Code Session`, or AHP to Core vocabulary.
+The v0.11 Base concept is an Environment starting-point identity. It must not turn Core into an Incus image manager: backend-native aliases, remotes, fingerprints, and image lifecycle mechanics remain adapter details.
 
-The v0.11 ResourceBudget concept describes a provider-neutral Environment resource ceiling. It must not expose Incus-native resource keys as Core/public architecture, and it remains distinct from Capability authority.
+The v0.12 ResourceBudget concept describes a provider-neutral Environment resource ceiling. It must not expose Incus-native resource keys as Core/public architecture, and it remains distinct from Capability authority.
 
 ## Workspace and worktree boundary
 
@@ -121,7 +121,7 @@ Hacocoon security approval covers privileged authority such as protected Git ope
 
 ## Baseline roadmap progression
 
-The 2026-08-29 rebaseline established v0.1-v0.7. v0.8 added client adapters. v0.9 adds selectable immutable Base images/custom Environment starting points while keeping Incus-native image mechanics behind the Environment adapter boundary. v0.10 adds a trusted per-agent session-to-Environment binding layer outside Core. v0.11 adds explicit Environment resource budgets so permissive sandbox execution cannot consume unbounded shared host capacity.
+The 2026-08-29 rebaseline established v0.1-v0.7. v0.8 added client adapters. The 2026-08-30 numbering cleanup keeps the already-implemented per-agent broker as v0.9, puts the active Remote Agent Host Adapter integration at v0.10, and moves implementation-pending Base Images and Resource Limits to v0.11 and v0.12.
 
 | Version | Gate | Purpose | Repository state |
 |---|---|---|---|
@@ -132,10 +132,11 @@ The 2026-08-29 rebaseline established v0.1-v0.7. v0.8 added client adapters. v0.
 | v0.5 | Git / GitHub Capability | scoped Git/GitHub authority without broad ambient credentials | implemented |
 | v0.6 | Agent & Orchestrator Integration | generic machine/agent integration above secure execution | implemented |
 | v0.7 | Remote / Cloud Runtime & External Capabilities | AWS capability plus remote provider work | implemented experimentally; real AWS acceptance pending |
-| v0.8 | Client Adapters & VS Code Integration | thin client adapter layer; VS Code Remote-SSH first | implementation introduced; real VS Code + Incus acceptance remains environment-dependent |
-| v0.9 | Base Images & Custom Environments | selectable logical Bases resolved to immutable Environment starting revisions | design contract established; implementation pending |
-| v0.10 | Per-Agent Sandbox & Agent Host Integration | bind independently routable coding-agent sessions to dedicated Environments without giving agents Hacocoon/Incus control authority | broker foundation implemented; real VS Code Agent Host/AHP + Incus routing acceptance pending |
-| v0.11 | Sandbox Resource Limits | explicit host-enforced CPU/memory/PID/root-storage budgets for each Environment | design contract established; implementation pending |
+| v0.8 | Client Adapters & VS Code Integration | thin client adapter layer; VS Code Remote-SSH first | implemented; real VS Code + Incus acceptance remains environment-dependent |
+| v0.9 | Per-Agent Sandbox & Agent Host Integration | bind independently routable coding-agent sessions to dedicated Environments without giving agents Hacocoon/Incus control authority | broker foundation implemented; real VS Code Agent Host/AHP + Incus routing acceptance pending |
+| v0.10 | VS Code Remote Agent Host Adapter | connect the VS Code Agents window to the v0.9-bound Environment through the trusted client adapter boundary | active PR #111; not yet on `main` |
+| v0.11 | Base Images & Custom Environments | selectable logical Bases resolved to immutable Environment starting revisions | design contract established; implementation pending |
+| v0.12 | Sandbox Resource Limits | explicit host-enforced CPU/memory/PID/root-storage budgets for each Environment | design contract established; implementation pending |
 
 These rows describe roadmap/design and implementation progression, **not compatibility guarantees**. Hacocoon remains pre-1.0 and may change CLI, state formats, APIs, capabilities, adapters, and configuration incompatibly.
 
@@ -210,9 +211,55 @@ VS Code can use Hacocoon as the underlying Environment runtime while remaining a
 
 Other IDEs should consume the same generic client/environment boundary rather than causing IDE-specific branching inside Core. Future adapters may include JetBrains, web clients, Daintree, or other tools, but those adapters are not Core concepts.
 
+## Per-agent sandbox integration
+
+v0.9 introduces a trusted integration-layer broker that maps an opaque external session identity to one Environment while reusing the normal Environment/WorkspaceLease lifecycle.
+
+```text
+VS Code Agents window / trusted client
+              |
+      trusted integration
+              |
+       session broker
+          /       \
+ Environment A   Environment B
+     |                |
+   Incus A          Incus B
+```
+
+The coding agent is intentionally absent from the management path. It is not expected to invoke `haco`, and must not receive Incus administrator authority, Hacocoon state/control access, or broad host credentials merely because an Environment was allocated for it.
+
+Session-to-Environment binding is persisted in trusted control-plane state. A deterministic Environment name alone is not ownership proof: the broker refuses to adopt or release an Environment without a matching persisted binding.
+
+For VS Code, the preferred direction is to place the Agent Host next to the assigned Workspace inside the Environment and keep Agent Host Protocol details at the client-integration boundary. AHP-specific types/versioning remain outside Core.
+
+See `09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md` for the detailed contract.
+
+## VS Code Remote Agent Host Adapter
+
+v0.10 is the trusted adapter layer currently developed in PR #111.
+
+Its intended flow is:
+
+```text
+VS Code Agents window
+      |
+standard Remote SSH
+      |
+Hacocoon-managed loopback alias
+      |
+v0.9-bound Environment
+      |
+/workspace + Agent Host
+```
+
+The client retains the SSH private key. Hacocoon receives only the public key through the existing hardened SSH-access boundary. VS Code owns Agent Host/AHP behavior; Hacocoon owns Environment selection and safe connection preparation.
+
+This gate is **not implemented on `main` until PR #111 is merged**. Real Windows/WSL + Incus + current VS Code Agents-window acceptance remains environment-dependent.
+
 ## Base images and custom Environment starting points
 
-v0.9 introduces a Hacocoon-level **Base** as the selectable starting point for a newly created Environment.
+v0.11 introduces a Hacocoon-level **Base** as the selectable starting point for a newly created Environment.
 
 ```text
 logical Base name
@@ -236,37 +283,13 @@ Environment 2 -> revision B
 
 A Base controls guest filesystem/runtime contents. It does not grant host mounts, devices, privileged mode, Linux capabilities, credentials, network authority, or external-service authority. Those remain governed by the Environment / Policy / Capability boundary.
 
-See `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` for the v0.9 gate and `BASE_IMAGES.md` for the detailed companion design.
+v0.11 composes with the implemented v0.9 per-agent broker and the v0.10 adapter when those paths request Environment creation; Base selection must still resolve through the normal immutable-revision contract.
 
-## Per-agent sandbox integration
-
-v0.10 introduces a trusted integration-layer broker that maps an opaque external session identity to one Environment while reusing the normal Environment/WorkspaceLease lifecycle.
-
-```text
-VS Code Agents window / trusted client
-              |
-      trusted integration
-              |
-       session broker
-          /       \
- Environment A   Environment B
-     |                |
-   Incus A          Incus B
-```
-
-The coding agent is intentionally absent from the management path. It is not expected to invoke `haco`, and must not receive Incus administrator authority, Hacocoon state/control access, or broad host credentials merely because an Environment was allocated for it.
-
-Session-to-Environment binding is persisted in trusted control-plane state. A deterministic Environment name alone is not ownership proof: the broker refuses to adopt or release an Environment without a matching persisted binding.
-
-For VS Code, the preferred direction is to place the Agent Host next to the assigned Workspace inside the Environment and keep Agent Host Protocol details at the client-integration boundary. AHP-specific types/versioning remain outside Core.
-
-v0.10 composes with v0.9 rather than replacing it: a per-agent Environment may use the normal Base selection contract when that implementation lands.
-
-See `10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.md` for the detailed contract.
+See `11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` for the v0.11 gate and `BASE_IMAGES.md` for the detailed companion design.
 
 ## Sandbox resource limits
 
-v0.11 gives each Environment an explicit resource budget.
+v0.12 gives each Environment an explicit resource budget.
 
 ```text
 Environment
@@ -282,9 +305,9 @@ For Incus, provider-neutral resource concepts are mapped to Incus-native control
 
 The effective creation-time budget is persisted with the Environment. Changing defaults later affects only future Environment creation. The first gate prefers creation-time budgets and does not require arbitrary live resize or aggregate host scheduling.
 
-v0.11 composes with v0.9 Bases and v0.10 per-agent Environment binding. A Base must not raise resource limits, and an agent must not gain control-plane authority to raise its own host-enforced limits.
+v0.12 composes with v0.11 Bases and v0.9/v0.10 agent integration. A Base must not raise resource limits, and an agent must not gain control-plane authority to raise its own host-enforced limits.
 
-See `11_v0.11_SANDBOX_RESOURCE_LIMITS.md` for the detailed contract.
+See `12_v0.12_SANDBOX_RESOURCE_LIMITS.md` for the detailed contract.
 
 ## Responsibility placement
 
@@ -304,7 +327,7 @@ See `11_v0.11_SANDBOX_RESOURCE_LIMITS.md` for the detailed contract.
 | Base selection / immutable Environment starting revision | Hacocoon domain contract; provider-native image mapping stays in adapter |
 | Incus image alias/fingerprint/import mechanics | Incus adapter / explicit Incus administration |
 | per-Environment CPU/memory/PID/root-storage budget | Hacocoon Environment contract; provider-native enforcement stays in adapter |
-| aggregate host scheduling/admission | future separate concern; not v0.11 Core scheduler ownership |
+| aggregate host scheduling/admission | future separate concern; not v0.12 Core scheduler ownership |
 | Btrfs / QCOW2 / storage mechanics | provider/adapter detail only when actually required |
 
 ## Experimental EC2 rule
