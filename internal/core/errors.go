@@ -14,4 +14,6 @@ var (
 	ErrWorkspaceBusy      = errors.New("workspace has conflicting active lease")
 	ErrPolicyDenied       = errors.New("capability denied by policy")
 	ErrApprovalDenied     = errors.New("capability approval denied")
+	ErrIncompatibleState  = errors.New("incompatible state")
+	ErrRecoveryRequired   = errors.New("manual recovery required")
 )
