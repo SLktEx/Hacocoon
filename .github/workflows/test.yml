@@ -51,6 +51,8 @@ jobs:
         run: bash tools/test_release_tag_trust.sh
       - name: Validate release provenance contract
         run: python3 tools/check_release_provenance.py
+      - name: Test installer archive safety
+        run: bash tools/test_install_archive_safety.sh
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.x
@@ -65,7 +67,7 @@ jobs:
       - name: Validate GoReleaser configuration
         run: goreleaser check
       - name: Validate release and WSL shell syntax
-        run: bash -n scripts/install.sh scripts/bootstrap-wsl.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh
+        run: bash -n scripts/install.sh scripts/bootstrap-wsl.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
       - name: Validate Windows installer syntax
         shell: pwsh
         run: |
