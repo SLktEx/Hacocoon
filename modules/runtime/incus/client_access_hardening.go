@@ -49,6 +49,9 @@ trap - EXIT
 `
 
 func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSHAccessRequest) (core.ClientConnection, error) {
+	if err := validateDirectSSHRequest(req); err != nil {
+		return core.ClientConnection{}, err
+	}
 	id := fmt.Sprintf("ssh-%d", req.HostPort)
 	if err := r.addLoopbackProxy(ctx, ref, id, req.HostPort, 22); err != nil {
 		return core.ClientConnection{}, err
@@ -74,8 +77,8 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 }
 
 func (r *Runtime) RevokeSSHAccess(ctx context.Context, ref, connectionID string) error {
-	if !strings.HasPrefix(connectionID, "ssh-") {
-		return fmt.Errorf("SSH connection id %q: %w", connectionID, core.ErrInvalidArgument)
+	if err := validateSSHConnectionID(connectionID); err != nil {
+		return err
 	}
 	marker := "haco:" + connectionID
 	if _, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", managedSSHRevokeScript, "haco-ssh-revoke", marker); err != nil {
@@ -83,6 +86,26 @@ func (r *Runtime) RevokeSSHAccess(ctx context.Context, ref, connectionID string)
 	}
 	if err := r.RemoveClientConnection(ctx, ref, connectionID); err != nil {
 		return fmt.Errorf("remove SSH proxy %s: %w", connectionID, err)
+	}
+	return nil
+}
+
+func validateDirectSSHRequest(req core.SSHAccessRequest) error {
+	key := strings.TrimSpace(req.PublicKey)
+	if req.HostPort < 1 || req.HostPort > 65535 || key == "" || key != req.PublicKey || strings.ContainsAny(key, "\r\n\x00") {
+		return fmt.Errorf("SSH access request: %w", core.ErrInvalidArgument)
+	}
+	return nil
+}
+
+func validateSSHConnectionID(connectionID string) error {
+	if !strings.HasPrefix(connectionID, "ssh-") {
+		return fmt.Errorf("SSH connection id %q: %w", connectionID, core.ErrInvalidArgument)
+	}
+	rawPort := strings.TrimPrefix(connectionID, "ssh-")
+	port, err := strconv.Atoi(rawPort)
+	if err != nil || port < 1 || port > 65535 || fmt.Sprintf("ssh-%d", port) != connectionID {
+		return fmt.Errorf("SSH connection id %q: %w", connectionID, core.ErrInvalidArgument)
 	}
 	return nil
 }
