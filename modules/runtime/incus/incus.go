@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
@@ -20,6 +21,8 @@ const defaultProject = "hacocoon"
 const defaultImage = "images:ubuntu/26.04"
 
 const defaultCleanupTimeout = 30 * time.Second
+
+var managedRefPattern = regexp.MustCompile(`^haco-[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
 type Runtime struct {
 	runner         host.Runner
@@ -70,6 +73,9 @@ func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (cor
 		return core.RuntimeSession{}, err
 	}
 	name := "haco-" + string(spec.ID)
+	if err := validateManagedRef(name); err != nil {
+		return core.RuntimeSession{}, err
+	}
 	args := []string{"launch", r.image, name, "--project", r.project}
 	if pool != "" {
 		args = append(args, "--storage", pool)
@@ -93,6 +99,9 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	}
 
 	ref := "haco-" + spec.Name
+	if err := validateManagedRef(ref); err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
 	if _, err := r.runner.Run(ctx, "incus", "init", r.image, ref, "--project", r.project, "--no-profiles", "--storage", rootPool); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}
@@ -147,6 +156,9 @@ func (r *Runtime) ExecEnvironment(ctx context.Context, ref string, req core.Exec
 	if len(req.Argv) == 0 {
 		return core.ExecutionResult{}, core.ErrInvalidArgument
 	}
+	if err := validateManagedRef(ref); err != nil {
+		return core.ExecutionResult{}, err
+	}
 	args := append([]string{"exec", ref, "--project", r.project, "--"}, req.Argv...)
 	result, err := r.runner.Run(ctx, "incus", args...)
 	return core.ExecutionResult{
@@ -162,6 +174,9 @@ func (r *Runtime) ShellEnvironment(ctx context.Context, ref string) error {
 }
 
 func (r *Runtime) DeleteEnvironment(ctx context.Context, ref string) error {
+	if err := validateManagedRef(ref); err != nil {
+		return err
+	}
 	result, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
 	if err != nil && isIncusNotFound(result) {
 		return fmt.Errorf("Incus environment %s: %w", ref, core.ErrNotFound)
@@ -170,6 +185,9 @@ func (r *Runtime) DeleteEnvironment(ctx context.Context, ref string) error {
 }
 
 func (r *Runtime) InspectEnvironment(ctx context.Context, ref string) (core.EnvironmentRuntimeStatus, error) {
+	if err := validateManagedRef(ref); err != nil {
+		return core.EnvironmentRuntimeStatus{}, err
+	}
 	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "s")
 	if err != nil {
 		return core.EnvironmentRuntimeStatus{}, err
@@ -194,6 +212,9 @@ func (r *Runtime) ForwardLocalPort(ctx context.Context, ref string, req core.Loc
 }
 
 func (r *Runtime) RemoveClientConnection(ctx context.Context, ref, connectionID string) error {
+	if err := validateManagedRef(ref); err != nil {
+		return err
+	}
 	_, err := r.runner.Run(ctx, "incus", "config", "device", "remove", ref, "haco-"+connectionID, "--project", r.project)
 	return err
 }
@@ -203,6 +224,9 @@ func (r *Runtime) PrepareSSH(ctx context.Context, ref string, req core.SSHAccess
 }
 
 func (r *Runtime) addLoopbackProxy(ctx context.Context, ref, id string, hostPort, targetPort int) error {
+	if err := validateManagedRef(ref); err != nil {
+		return err
+	}
 	_, err := r.runner.Run(ctx, "incus", "config", "device", "add", ref, "haco-"+id, "proxy",
 		fmt.Sprintf("listen=tcp:127.0.0.1:%d", hostPort),
 		fmt.Sprintf("connect=tcp:127.0.0.1:%d", targetPort),
@@ -214,16 +238,25 @@ func (r *Runtime) addLoopbackProxy(ctx context.Context, ref, id string, hostPort
 }
 
 func (r *Runtime) Start(ctx context.Context, ref string) error {
+	if err := validateManagedRef(ref); err != nil {
+		return err
+	}
 	_, err := r.runner.Run(ctx, "incus", "start", ref, "--project", r.project)
 	return err
 }
 
 func (r *Runtime) Stop(ctx context.Context, ref string) error {
+	if err := validateManagedRef(ref); err != nil {
+		return err
+	}
 	_, err := r.runner.Run(ctx, "incus", "stop", ref, "--project", r.project)
 	return err
 }
 
 func (r *Runtime) Delete(ctx context.Context, ref string) error {
+	if err := validateManagedRef(ref); err != nil {
+		return err
+	}
 	_, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
 	return err
 }
@@ -231,6 +264,9 @@ func (r *Runtime) Delete(ctx context.Context, ref string) error {
 func (r *Runtime) Exec(ctx context.Context, ref string, req core.ExecRequest) (core.ExecResult, error) {
 	if len(req.Argv) == 0 {
 		return core.ExecResult{}, core.ErrInvalidArgument
+	}
+	if err := validateManagedRef(ref); err != nil {
+		return core.ExecResult{}, err
 	}
 	if req.Interactive {
 		return r.execInteractive(ctx, ref, req.Argv)
@@ -241,6 +277,9 @@ func (r *Runtime) Exec(ctx context.Context, ref string, req core.ExecRequest) (c
 }
 
 func (r *Runtime) Inspect(ctx context.Context, ref string) (core.RuntimeState, error) {
+	if err := validateManagedRef(ref); err != nil {
+		return core.RuntimeState{}, err
+	}
 	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "s")
 	if err != nil {
 		return core.RuntimeState{}, err
@@ -301,6 +340,9 @@ func (r *Runtime) ensureStoragePool(ctx context.Context, attachment map[string]s
 }
 
 func (r *Runtime) execInteractive(ctx context.Context, ref string, argv []string) (core.ExecResult, error) {
+	if err := validateManagedRef(ref); err != nil {
+		return core.ExecResult{}, err
+	}
 	args := append([]string{"exec", ref, "--project", r.project, "--"}, argv...)
 	cmd := exec.CommandContext(ctx, "incus", args...)
 	cmd.Stdin = r.stdin
@@ -315,6 +357,13 @@ func (r *Runtime) execInteractive(ctx context.Context, ref string, argv []string
 		return core.ExecResult{ExitCode: exit.ExitCode()}, err
 	}
 	return core.ExecResult{ExitCode: -1}, err
+}
+
+func validateManagedRef(ref string) error {
+	if !managedRefPattern.MatchString(ref) {
+		return fmt.Errorf("Incus managed ref %q: %w", ref, core.ErrInvalidArgument)
+	}
+	return nil
 }
 
 func isIncusNotFound(result host.Result) bool {
