@@ -3,6 +3,8 @@ set -eu
 
 REPOSITORY="SLktEx/Hacocoon"
 SIGNER_WORKFLOW="$REPOSITORY/.github/workflows/release.yml"
+SIGNER_SOURCE_REF="refs/heads/main"
+RELEASE_PREDICATE_TYPE="https://hacocoon.dev/attestations/release/v1"
 INSTALL_DIR="${HACO_INSTALL_DIR:-/usr/local/bin}"
 VERSION="${1:-${HACO_VERSION:-latest}}"
 REQUIRE_PROVENANCE="${HACO_REQUIRE_PROVENANCE:-0}"
@@ -109,29 +111,48 @@ verify_provenance() {
     return 0
   fi
 
+  if ! gh attestation verify "$tmpdir/$archive" \
+    --repo "$REPOSITORY" \
+    --signer-workflow "$SIGNER_WORKFLOW" \
+    --source-ref "$SIGNER_SOURCE_REF" \
+    --deny-self-hosted-runners >/dev/null; then
+    if [ "$REQUIRE_PROVENANCE" = "1" ]; then
+      die "trusted build provenance verification failed for $archive"
+    fi
+    warn "SHA-256 integrity verified, but trusted build provenance verification failed for this release"
+    return 0
+  fi
+
+  printf 'Verified GitHub/Sigstore provenance for %s from trusted main release workflow.\n' "$archive"
+
   if [ "$VERSION" = "latest" ]; then
-    if gh attestation verify "$tmpdir/$archive" \
+    if [ "$REQUIRE_PROVENANCE" = "1" ]; then
+      die "HACO_REQUIRE_PROVENANCE=1 requires an explicit release version so the signed tag binding can be verified"
+    fi
+    warn "trusted workflow provenance verified, but latest mode does not pin the signed release tag; use an explicit version for tag binding"
+    return 0
+  fi
+
+  binding_tags="$(
+    gh attestation verify "$tmpdir/$archive" \
       --repo "$REPOSITORY" \
       --signer-workflow "$SIGNER_WORKFLOW" \
-      --deny-self-hosted-runners >/dev/null; then
-      printf 'Verified GitHub/Sigstore provenance for %s (repository and signer workflow).\n' "$archive"
-      return 0
-    fi
-  else
-    if gh attestation verify "$tmpdir/$archive" \
-      --repo "$REPOSITORY" \
-      --signer-workflow "$SIGNER_WORKFLOW" \
-      --source-ref "refs/tags/$VERSION" \
-      --deny-self-hosted-runners >/dev/null; then
-      printf 'Verified GitHub/Sigstore provenance for %s from refs/tags/%s.\n' "$archive" "$VERSION"
-      return 0
-    fi
+      --source-ref "$SIGNER_SOURCE_REF" \
+      --predicate-type "$RELEASE_PREDICATE_TYPE" \
+      --deny-self-hosted-runners \
+      --format json \
+      --jq '.[].verificationResult.statement.predicate.tag' 2>/dev/null || true
+  )"
+
+  if printf '%s\n' "$binding_tags" | grep -Fx "$VERSION" >/dev/null 2>&1; then
+    printf 'Verified signed release binding for %s.\n' "$VERSION"
+    return 0
   fi
 
   if [ "$REQUIRE_PROVENANCE" = "1" ]; then
-    die "artifact provenance verification failed for $archive"
+    die "signed release binding verification failed for $VERSION"
   fi
-  warn "SHA-256 integrity verified, but GitHub/Sigstore provenance verification failed or is unavailable for this release"
+  warn "trusted workflow provenance verified, but signed release binding verification failed for $VERSION"
 }
 
 if has_authenticated_gh; then
@@ -160,7 +181,8 @@ actual="$(sha256sum "$tmpdir/$archive" | awk '{print $1}')"
 printf 'Verified SHA-256 integrity for %s against checksums.txt.\n' "$archive"
 
 # checksums.txt and the archive share GitHub Release authority. The attestation
-# check below is the independent publisher/workflow provenance layer.
+# checks below independently bind the artifact to the trusted main workflow and,
+# for explicit versions, to the release tag authorized by that workflow.
 verify_provenance
 
 tar -xzf "$tmpdir/$archive" -C "$tmpdir"
