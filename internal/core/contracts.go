@@ -13,6 +13,13 @@ type Runtime interface {
 	Inspect(context.Context, string) (RuntimeState, error)
 }
 
+// RuntimePreparer is an optional host-side initialization capability. Concrete
+// runtimes keep provider details behind this seam while Core can make `haco init`
+// prepare the selected runtime composition idempotently.
+type RuntimePreparer interface {
+	Prepare(context.Context, RuntimePrepareSpec) error
+}
+
 type Storage interface {
 	ID() string
 	Probe(context.Context) (StorageCapabilities, error)
