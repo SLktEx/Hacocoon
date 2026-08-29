@@ -1,44 +1,45 @@
 # Implementation Status
 
-Status date: 2026-08-29, after the Secure Workspace Runtime v0.1 implementation pass.
+Status date: 2026-08-29, after the v0.7 Remote / Cloud Runtime implementation pass.
 
-This file reports **current code reality**, not desired architecture. The current release specification is `01_v0.1_SECURE_WORKSPACE_RUNTIME.md`.
+This file reports **current code reality**, not desired architecture. Release specifications under `docs/01_...` through `docs/07_...` remain the normative design references; this file records what is actually present on `main`.
 
-The repository still contains historical code from the previous roadmap. Existing code does not automatically belong to the new v0.1 gate.
+The repository still contains historical code from the pre-rebaseline roadmap. Existing historical packages do not automatically define the current public architecture.
 
-| Area | Current repository reality | Target | Rebaseline action |
+| Area | Current repository reality | Release | Validation status |
 |---|---|---:|---|
-| Go CLI | public path is `create`, `exec`, `shell`, `delete`, plus `doctor`; legacy command implementations may remain in historical packages | v0.1 | implemented for the current vertical slice |
-| Core model | minimal `Workspace`, `Environment`, and `ExecutionResult` values plus a focused Environment lifecycle service exist; legacy `Session`, Runtime, Storage, Manager code still remains | v0.1 migration | new public path uses Workspace/Environment/Execution; do not deepen legacy architecture |
-| Incus CLI adapter | concrete Incus Environment path exists | v0.1 | creates an Incus system container, mounts only the requested workspace, starts it, executes commands/shell, and deletes it |
-| arbitrary command execution | implemented on the Environment path | v0.1 | unit and process-boundary integration cover argv, exit status, stdout, and stderr; supported-host Incus run still pending |
-| interactive shell | implemented on the Environment path | v0.1 | process-boundary integration passes; supported-host Incus shell acceptance still pending |
-| external workspace mount | implemented as a read/write Incus disk device at `/workspace` | v0.1 | unit and process-boundary integration verify host-to-Environment reads and Environment-to-host writes |
-| `haco create --workspace` | implemented | v0.1 | validates/canonicalizes the host directory, creates the Environment, persists minimal metadata, and cleans partial failures |
-| `haco delete` | implemented | v0.1 | deletes the runtime resource before metadata and retains metadata when runtime deletion fails |
-| Environment metadata | JSON store under `HACO_ROOT/state/environments.json` | v0.1 | implemented with restricted permissions and temp-file rename |
-| process-boundary integration | real child-process boundary using an `incus` executable shim on `PATH` | v0.1 | implemented and passing in ordinary test runs |
-| real Incus vertical-slice integration test | opt-in Go acceptance test and CLI E2E script exist behind `HACO_E2E_INCUS=1` | v0.1 | test path implemented; actual supported-host pass remains pending because the current sandbox has no Incus daemon/CLI |
-| security acceptance checks | E2E asserts requested workspace exposure and checks common host credential stores / Incus control socket are not mounted | v0.1 | automated test exists; supported-host verification pending |
-| storage abstraction | extensive historical implementation exists | later/provider detail | detached from the new public v0.1 path |
-| Btrfs grow/shrink/compact | historical code exists | uncommitted future detail | not a v0.1 requirement |
-| raw/QCOW2 backing code | historical code exists | no current commitment | not used by the new public v0.1 path |
-| crash/partial-failure cleanup | legacy reconciliation exists; new Environment path has explicit create/persist cleanup and delete ordering | v0.1 only as required | deterministic paths are unit-tested; real-host failure recovery remains part of integration acceptance |
-| WorkspaceProvider / WorkspaceLease | not implemented | v0.2 | deferred until v0.1 passes |
-| VS Code/client connection layer | not implemented | v0.3 | deferred |
-| Policy/Capability foundation | not implemented | v0.4 | deferred |
-| Git/GitHub capability | not implemented | v0.5 | deferred |
-| Codex/Claude/Daintree/Rookery integration | not implemented | v0.6 | deferred; orchestration remains external |
-| AWS/EC2/EBS | not implemented | v0.7 | deferred |
+| Secure Workspace Runtime | public Environment path supports `haco create --workspace`, `haco exec`, `haco shell`, and `haco delete` | v0.1 | unit and process-boundary integration pass; supported-host real Incus acceptance remains pending |
+| Workspace model | `Workspace`, `Environment`, `ExecutionResult`, canonical external-path Workspace identity, and persisted Workspace leases are implemented | v0.1-v0.2 | unit, persistence, concurrency, and process-boundary tests pass |
+| Workspace lease safety | RO/RW leases, RW conflict prevention, stale-lease recovery, and process serialization are implemented | v0.2 | unit/concurrency/integration tests pass |
+| Incus Environment provider | concrete local Incus Environment implementation remains the default runtime | v0.1+ | unit/process tests pass; real Incus host acceptance remains pending in this sandbox |
+| Client access | status, local-only port forwarding, connection listing/removal, SSH preparation/revocation, and hardened public-key handling are implemented | v0.3 | unit/process integration pass; real Incus SSH acceptance remains host-dependent |
+| Policy / Capability | fail-closed PolicyEvaluator, allow/deny/require-approval, human security approval, request correlation, and JSONL audit are implemented | v0.4 | unit/process integration and actual CLI capability E2E pass |
+| Git / GitHub capability | host-side brokered GitHub push uses normalized repo/ref authority, exact source SHA, policy/approval, and force-with-lease semantics without exporting host credentials | v0.5 | unit, adversarial tests, real-git integration, and actual CLI E2E pass |
+| Agent / orchestrator integration | `haco run`, stable machine JSON output, and external security event export are implemented without moving orchestration/DAG/model selection into Hacocoon | v0.6 | unit/race/process integration and actual CLI E2E pass |
+| Environment routing | provider-neutral Environment router exists; pre-v0.7 bare runtime refs remain backward-compatible as Incus refs | v0.7 | router unit tests pass |
+| EC2 Environment provider | experimental S3-staged / SSM-driven EC2 Environment provider exists; EC2 is disabled by default and requires both provider selection and explicit Hacocoon-owned opt-in | v0.7 | unit, fake-`aws` process integration, and actual `haco` fake-AWS E2E pass; real AWS acceptance pending |
+| Experimental EC2 gate | `HACO_RUNTIME_PROVIDER=runtime.ec2` does not enable EC2 alone; `HACO_EXPERIMENTAL_EC2=1` is also required, and disabled paths fail before AWS activity | v0.7 | actual binary E2E verifies zero fake-AWS calls on the disabled path |
+| AWS capability | narrow host-side `aws.api` read capability is mediated through the existing Policy/Approval/Audit path and generic capability CLI | v0.7 | unit/process integration and fake-AWS CLI E2E pass; real AWS acceptance pending |
+| EBS replacement | adapter-owned replacement/migration flow exists for shrink-like operations; no in-place EBS shrink and no automatic source-volume deletion | v0.7 | unit and fake-AWS process integration cover preflight, migration, verification, cleanup, and recovery-required transitions |
+| Btrfs / raw / QCOW2 historical storage | historical local storage implementation remains in the repository | historical / provider detail | not part of the current v0.1 public Environment path and not required by current release gates |
+| CI | Go version matrix tests, `go vet`, race detector, docs consistency, and existing non-host-dependent E2Es are enabled | cross-cutting | PR #60 workflow run #217 passed all jobs before merge |
 
-## Current release gate
+## Current release state
 
-The v0.1 implementation path now exists:
+The implemented progression on `main` now reaches v0.7:
 
 ```text
-external workspace -> Incus Environment -> exec/shell -> delete/cleanup
+Workspace
+  -> Environment lifecycle
+  -> local Incus by default
+  -> Policy / Approval / Capability boundary
+  -> Git/GitHub broker
+  -> machine/orchestrator access
+  -> experimental remote EC2 provider
 ```
 
-Automated unit and process-boundary integration tests pass. The remaining v0.1 acceptance item is a successful run of the opt-in tests on a supported real Incus host, including the real interactive-shell check. Do not tag v0.1 alpha until that supported-host acceptance passes.
+The v0.7 EC2 provider is **experimental and disabled by default**. Shipping the implementation does not make EC2 a normal supported backend. Real AWS/EC2/SSM/EBS acceptance has not been performed from the current sandbox and must not be reported as passed.
 
-Future-release documents are planning references and must not be used to justify adding scope to v0.1.
+Likewise, the real Incus acceptance path exists but still requires execution on a supported Incus host. Unit tests, process-boundary integrations, fake-provider E2Es, race checks, vet, build, and repository CI are not substitutes for those host/provider acceptance runs.
+
+Do not infer release/tag readiness solely from this implementation status. Tagging decisions must also respect the acceptance requirements in the corresponding release specification.
