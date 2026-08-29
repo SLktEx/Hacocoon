@@ -28,6 +28,42 @@ type Event struct {
 	Reason      string              `json:"reason,omitempty"`
 }
 
+type CorruptionKind string
+
+const (
+	CorruptionMalformedJSON CorruptionKind = "malformed-json"
+	CorruptionIncomplete    CorruptionKind = "incomplete-record"
+	CorruptionReadError     CorruptionKind = "read-error"
+)
+
+// AuditCorruptionError reports the first audit record that cannot be trusted.
+// List returns only the valid prefix before this position; records at and after
+// the corruption are deliberately not exposed because their ordering/history
+// can no longer be established from the JSONL stream.
+type AuditCorruptionError struct {
+	Line       int
+	ByteOffset int64
+	Kind       CorruptionKind
+	Err        error
+}
+
+func (e *AuditCorruptionError) Error() string {
+	if e == nil {
+		return "capability audit corruption"
+	}
+	if e.Err != nil {
+		return fmt.Sprintf("capability audit corruption at line %d byte %d (%s): %v", e.Line, e.ByteOffset, e.Kind, e.Err)
+	}
+	return fmt.Sprintf("capability audit corruption at line %d byte %d (%s)", e.Line, e.ByteOffset, e.Kind)
+}
+
+func (e *AuditCorruptionError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 type Service struct {
 	path string
 }
@@ -51,6 +87,7 @@ func (s *Service) List(ctx context.Context) ([]Event, error) {
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 	line := 0
+	var byteOffset int64
 	for scanner.Scan() {
 		line++
 		select {
@@ -58,12 +95,30 @@ func (s *Service) List(ctx context.Context) ([]Event, error) {
 			return nil, ctx.Err()
 		default:
 		}
+
+		recordOffset := byteOffset
+		record := scanner.Bytes()
+		// Scanner's line split removes '\n' but preserves a preceding '\r'.
+		// Every record followed by another record therefore advances by the
+		// scanned bytes plus the one removed newline byte.
+		byteOffset += int64(len(record)) + 1
+
 		var audit core.CapabilityAuditEvent
-		if err := json.Unmarshal(scanner.Bytes(), &audit); err != nil {
-			return nil, fmt.Errorf("decode capability audit line %d: %w", line, err)
+		if err := json.Unmarshal(record, &audit); err != nil {
+			return events, &AuditCorruptionError{
+				Line:       line,
+				ByteOffset: recordOffset,
+				Kind:       CorruptionMalformedJSON,
+				Err:        err,
+			}
 		}
 		if audit.Time.IsZero() || audit.Type == "" {
-			return nil, fmt.Errorf("capability audit line %d is incomplete", line)
+			return events, &AuditCorruptionError{
+				Line:       line,
+				ByteOffset: recordOffset,
+				Kind:       CorruptionIncomplete,
+				Err:        errors.New("required time/type field is missing"),
+			}
 		}
 		events = append(events, Event{
 			RequestID:   audit.RequestID,
@@ -82,7 +137,12 @@ func (s *Service) List(ctx context.Context) ([]Event, error) {
 		})
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("read capability audit: %w", err)
+		return events, &AuditCorruptionError{
+			Line:       line + 1,
+			ByteOffset: byteOffset,
+			Kind:       CorruptionReadError,
+			Err:        err,
+		}
 	}
 	return events, nil
 }
