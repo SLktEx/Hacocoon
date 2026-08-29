@@ -87,14 +87,16 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return core.EnvironmentRuntime{}, cause
 	}
 
-	if _, err := r.runner.Run(
-		ctx,
-		"incus",
+	deviceArgs := []string{
 		"config", "device", "add", ref, "workspace", "disk",
-		"source="+spec.WorkspacePath,
+		"source=" + spec.WorkspacePath,
 		"path=/workspace",
-		"--project", r.project,
-	); err != nil {
+	}
+	if spec.ReadOnly {
+		deviceArgs = append(deviceArgs, "readonly=true")
+	}
+	deviceArgs = append(deviceArgs, "--project", r.project)
+	if _, err := r.runner.Run(ctx, "incus", deviceArgs...); err != nil {
 		return cleanup(fmt.Errorf("mount workspace in %s: %w", ref, err))
 	}
 	if _, err := r.runner.Run(ctx, "incus", "start", ref, "--project", r.project); err != nil {
