@@ -2,6 +2,8 @@
 
 **Pronounced: はこーん (ha-kōn)**
 
+⚠️ **Experimental:** Hacocoon is under active development and may introduce breaking changes without notice.
+
 Hacocoon is an OSS **secure workspace runtime** for humans, developer tools, and coding agents.
 
 Hacocoon does not own the IDE, Git workflow, worktree orchestration, or AI-agent scheduler. It accepts a workspace, places it in an isolated execution environment, runs commands there, and later adds narrowly-scoped capabilities and human approval at security boundaries.
