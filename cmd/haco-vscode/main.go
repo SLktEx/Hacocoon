@@ -21,6 +21,7 @@ import (
 const remoteWorkspacePath = "/workspace"
 
 var nonNameCharacter = regexp.MustCompile(`[^a-z0-9]+`)
+var adapterEnvironmentNamePattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,55}[a-z0-9])?$`)
 
 type managedSSHConfig struct {
 	Alias        string
@@ -86,6 +87,9 @@ func openCommand(ctx context.Context, app *composition.App, args []string) error
 	}
 	if *name == "" {
 		*name = defaultEnvironmentName(workspace)
+	}
+	if err := validateAdapterEnvironmentName(*name); err != nil {
+		return err
 	}
 	if *hostPort < 0 || *hostPort > 65535 {
 		return fmt.Errorf("host port %d: %w", *hostPort, core.ErrInvalidArgument)
@@ -287,6 +291,9 @@ func deleteCommand(ctx context.Context, app *composition.App, args []string) err
 		}
 		*name = defaultEnvironmentName(workspace)
 	}
+	if err := validateAdapterEnvironmentName(*name); err != nil {
+		return err
+	}
 	if err := app.Environments.Delete(ctx, *name); err != nil {
 		return err
 	}
@@ -378,6 +385,13 @@ func defaultEnvironmentName(workspace string) string {
 	}
 	sum := sha256.Sum256([]byte(filepath.Clean(workspace)))
 	return fmt.Sprintf("vscode-%s-%x", base, sum[:4])
+}
+
+func validateAdapterEnvironmentName(name string) error {
+	if !adapterEnvironmentNamePattern.MatchString(name) {
+		return fmt.Errorf("environment name %q is unsafe for managed SSH config: %w", name, core.ErrInvalidArgument)
+	}
+	return nil
 }
 
 func freeLoopbackPort() (int, error) {
