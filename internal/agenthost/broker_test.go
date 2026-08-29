@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -179,7 +180,7 @@ func TestAcquireCanonicalizesWorkspacePath(t *testing.T) {
 	broker := New(backend, backend)
 	workspace := t.TempDir()
 	child := filepath.Join(workspace, "child")
-	if err := osMkdirAll(child); err != nil {
+	if err := os.MkdirAll(child, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -203,10 +204,4 @@ func TestRejectsInvalidSessionID(t *testing.T) {
 			t.Fatalf("session id %q error = %v, want ErrInvalidArgument", sessionID, err)
 		}
 	}
-}
-
-// Kept behind a tiny helper so this test file does not accidentally make file
-// creation semantics part of the broker API.
-func osMkdirAll(path string) error {
-	return mkdirAll(path)
 }
