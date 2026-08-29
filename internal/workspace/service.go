@@ -104,6 +104,7 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 		Name:          name,
 		WorkspacePath: workspace.Path,
 		ReadOnly:      mode == core.WorkspaceReadOnly,
+		Base:          spec.Base,
 	})
 	if err != nil {
 		if errors.Is(err, core.ErrRecoveryRequired) {
@@ -131,6 +132,7 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 		Name:       name,
 		Workspace:  workspace,
 		AccessMode: mode,
+		Base:       created.Base,
 		RuntimeRef: created.Ref,
 		CreatedAt:  s.now().UTC(),
 	}
