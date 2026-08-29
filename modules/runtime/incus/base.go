@@ -1,0 +1,191 @@
+package incus
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"regexp"
+	"sort"
+	"strings"
+
+	"github.com/SLktEx/Hacocoon/internal/core"
+)
+
+const (
+	defaultBaseName = core.BaseName("haco/ubuntu-26.04")
+	baseConfigEnv   = "HACO_INCUS_BASES_JSON"
+	maxBaseConfig   = 64 * 1024
+)
+
+var baseFingerprintPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+type BaseProvider struct {
+	*Runtime
+	sources map[core.BaseName]string
+}
+
+type resolvedBase struct {
+	ref          core.BaseRef
+	pinnedSource string
+}
+
+func NewBaseProvider(runtime *Runtime) (*BaseProvider, error) {
+	if runtime == nil {
+		return nil, core.ErrInvalidArgument
+	}
+	sources := map[core.BaseName]string{
+		defaultBaseName:                   "images:ubuntu/26.04",
+		core.BaseName("haco/ubuntu-24.04"): "images:ubuntu/24.04",
+	}
+	custom, err := customBaseSourcesFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	for name, source := range custom {
+		if strings.HasPrefix(string(name), "haco/") {
+			return nil, fmt.Errorf("custom Base %q may not override reserved haco/ namespace: %w", name, core.ErrInvalidArgument)
+		}
+		sources[name] = source
+	}
+	return &BaseProvider{Runtime: runtime, sources: sources}, nil
+}
+
+func customBaseSourcesFromEnv() (map[core.BaseName]string, error) {
+	raw := strings.TrimSpace(os.Getenv(baseConfigEnv))
+	if raw == "" {
+		return nil, nil
+	}
+	if len(raw) > maxBaseConfig {
+		return nil, fmt.Errorf("%s is too large: %w", baseConfigEnv, core.ErrInvalidArgument)
+	}
+	var decoded map[string]string
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		return nil, fmt.Errorf("decode %s: %w", baseConfigEnv, core.ErrInvalidArgument)
+	}
+	result := make(map[core.BaseName]string, len(decoded))
+	for rawName, rawSource := range decoded {
+		name := core.BaseName(rawName)
+		if err := validateBaseName(name); err != nil {
+			return nil, err
+		}
+		source := strings.TrimSpace(rawSource)
+		if source != rawSource || source == "" || len(source) > 512 || strings.HasPrefix(source, "-") || hasControlString(source) {
+			return nil, fmt.Errorf("invalid Incus source for Base %q: %w", name, core.ErrInvalidArgument)
+		}
+		result[name] = source
+	}
+	return result, nil
+}
+
+func validateBaseName(name core.BaseName) error {
+	value := string(name)
+	if value == "" || len(value) > 128 || strings.HasPrefix(value, "/") || strings.HasSuffix(value, "/") || hasControlString(value) {
+		return fmt.Errorf("invalid Base name %q: %w", value, core.ErrInvalidArgument)
+	}
+	for _, segment := range strings.Split(value, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return fmt.Errorf("invalid Base name %q: %w", value, core.ErrInvalidArgument)
+		}
+		for _, r := range segment {
+			if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.') {
+				return fmt.Errorf("invalid Base name %q: %w", value, core.ErrInvalidArgument)
+			}
+		}
+	}
+	return nil
+}
+
+func hasControlString(value string) bool {
+	for _, r := range value {
+		if r < 0x20 || r == 0x7f {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *BaseProvider) CreateEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
+	resolved, err := p.resolveBase(ctx, spec.Base)
+	if err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
+	clone := *p.Runtime
+	clone.image = resolved.pinnedSource
+	created, err := clone.CreateEnvironment(ctx, spec)
+	if err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
+	base := resolved.ref
+	created.Base = &base
+	return created, nil
+}
+
+func (p *BaseProvider) ListBases(context.Context) ([]core.BaseInfo, error) {
+	if p == nil {
+		return nil, core.ErrRuntimeUnavailable
+	}
+	names := make([]string, 0, len(p.sources))
+	for name := range p.sources {
+		names = append(names, string(name))
+	}
+	sort.Strings(names)
+	result := make([]core.BaseInfo, 0, len(names))
+	for _, name := range names {
+		result = append(result, core.BaseInfo{Name: core.BaseName(name)})
+	}
+	return result, nil
+}
+
+func (p *BaseProvider) InspectBase(ctx context.Context, name core.BaseName) (core.BaseInfo, error) {
+	resolved, err := p.resolveBase(ctx, name)
+	if err != nil {
+		return core.BaseInfo{}, err
+	}
+	return core.BaseInfo{Name: resolved.ref.Name, Revision: resolved.ref.Revision}, nil
+}
+
+func (p *BaseProvider) resolveBase(ctx context.Context, requested core.BaseName) (resolvedBase, error) {
+	if p == nil {
+		return resolvedBase{}, core.ErrRuntimeUnavailable
+	}
+	name := requested
+	if name == "" {
+		name = defaultBaseName
+	}
+	if err := validateBaseName(name); err != nil {
+		return resolvedBase{}, err
+	}
+	source, ok := p.sources[name]
+	if !ok {
+		return resolvedBase{}, fmt.Errorf("Base %q: %w", name, core.ErrNotFound)
+	}
+	result, err := p.runner.Run(ctx, "incus", "image", "info", source, "--format", "json")
+	if err != nil {
+		return resolvedBase{}, fmt.Errorf("resolve Base %q from %q: %w", name, source, err)
+	}
+	var info struct {
+		Fingerprint string `json:"fingerprint"`
+	}
+	if err := json.Unmarshal([]byte(result.Stdout), &info); err != nil {
+		return resolvedBase{}, fmt.Errorf("decode immutable revision for Base %q: %w", name, core.ErrIncompatibleState)
+	}
+	fingerprint := strings.ToLower(strings.TrimSpace(info.Fingerprint))
+	if !baseFingerprintPattern.MatchString(fingerprint) {
+		return resolvedBase{}, fmt.Errorf("invalid immutable revision for Base %q: %w", name, core.ErrIncompatibleState)
+	}
+	return resolvedBase{
+		ref: core.BaseRef{
+			Name:     name,
+			Revision: core.BaseRevision("sha256:" + fingerprint),
+		},
+		pinnedSource: pinImageSource(source, fingerprint),
+	}, nil
+}
+
+func pinImageSource(source, fingerprint string) string {
+	if cut := strings.IndexByte(source, ':'); cut > 0 {
+		return source[:cut+1] + fingerprint
+	}
+	return fingerprint
+}
