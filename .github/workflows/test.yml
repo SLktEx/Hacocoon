@@ -45,6 +45,20 @@ jobs:
         run: goreleaser check
       - name: Validate release installer syntax
         run: bash -n scripts/install.sh
+      - name: Dry-run release packaging
+        run: goreleaser release --snapshot --clean --skip=publish
+      - name: Validate release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f dist/haco_linux_amd64.tar.gz
+          test -f dist/haco_linux_arm64.tar.gz
+          test -f dist/checksums.txt
+          tar -tzf dist/haco_linux_amd64.tar.gz | grep -qx haco
+          tar -tzf dist/haco_linux_arm64.tar.gz | grep -qx haco
+          grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
+          grep -q 'haco_linux_arm64.tar.gz' dist/checksums.txt
+          grep -q 'install.sh' dist/checksums.txt
 
   test:
     runs-on: ubuntu-24.04
