@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/composition"
@@ -37,11 +39,15 @@ func dispatch(ctx context.Context, app *composition.App, args []string) error {
 		return core.ErrInvalidArgument
 	}
 	commands := map[string]command{
-		"create": createCommand,
-		"exec":   execCommand,
-		"shell":  shellCommand,
-		"delete": deleteCommand,
-		"doctor": doctorCommand,
+		"create":    createCommand,
+		"status":    statusCommand,
+		"forward":   forwardCommand,
+		"unforward": unforwardCommand,
+		"ssh":       sshCommand,
+		"exec":      execCommand,
+		"shell":     shellCommand,
+		"delete":    deleteCommand,
+		"doctor":    doctorCommand,
 	}
 	run, ok := commands[args[0]]
 	if !ok {
@@ -91,6 +97,83 @@ func parseCreateSpec(args []string) (core.EnvironmentSpec, error) {
 	}
 	spec.Name = args[0]
 	return spec, nil
+}
+
+func statusCommand(ctx context.Context, app *composition.App, args []string) error {
+	if len(args) < 1 || len(args) > 2 || (len(args) == 2 && args[1] != "--json") {
+		return fmt.Errorf("usage: haco status <environment> [--json]: %w", core.ErrInvalidArgument)
+	}
+	status, err := app.Clients.Status(ctx, args[0])
+	if err != nil {
+		return err
+	}
+	if len(args) == 2 {
+		payload, err := json.Marshal(status)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(payload))
+		return nil
+	}
+	fmt.Printf("name: %s\nstate: %s\nruntime: %s\nworkspace: %s\naccess: %s\n",
+		status.Environment.Name, status.State, status.Environment.RuntimeRef,
+		status.Environment.Workspace.Path, status.Environment.AccessMode)
+	return nil
+}
+
+func forwardCommand(ctx context.Context, app *composition.App, args []string) error {
+	if len(args) != 5 || args[1] != "--host-port" || args[3] != "--target-port" {
+		return fmt.Errorf("usage: haco forward <environment> --host-port <port> --target-port <port>: %w", core.ErrInvalidArgument)
+	}
+	hostPort, err := parsePort(args[2])
+	if err != nil {
+		return err
+	}
+	targetPort, err := parsePort(args[4])
+	if err != nil {
+		return err
+	}
+	connection, err := app.Clients.Forward(ctx, args[0], core.LocalPortRequest{Protocol: "tcp", HostPort: hostPort, TargetPort: targetPort})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s\ttcp://%s:%d\t->\t%d\n", connection.ID, connection.Host, connection.Port, connection.TargetPort)
+	return nil
+}
+
+func unforwardCommand(ctx context.Context, app *composition.App, args []string) error {
+	if len(args) != 2 {
+		return fmt.Errorf("usage: haco unforward <environment> <connection-id>: %w", core.ErrInvalidArgument)
+	}
+	return app.Clients.Unforward(ctx, args[0], args[1])
+}
+
+func sshCommand(ctx context.Context, app *composition.App, args []string) error {
+	if len(args) != 5 || args[1] != "--public-key" || args[3] != "--host-port" {
+		return fmt.Errorf("usage: haco ssh <environment> --public-key <path> --host-port <port>: %w", core.ErrInvalidArgument)
+	}
+	key, err := os.ReadFile(args[2])
+	if err != nil {
+		return fmt.Errorf("read SSH public key: %w", err)
+	}
+	hostPort, err := parsePort(args[4])
+	if err != nil {
+		return err
+	}
+	connection, err := app.Clients.SSH(ctx, args[0], core.SSHAccessRequest{PublicKey: string(key), HostPort: hostPort})
+	if err != nil {
+		return err
+	}
+	fmt.Println(connection.Command)
+	return nil
+}
+
+func parsePort(raw string) (int, error) {
+	port, err := strconv.Atoi(raw)
+	if err != nil || port < 1 || port > 65535 {
+		return 0, fmt.Errorf("port %q: %w", raw, core.ErrInvalidArgument)
+	}
+	return port, nil
 }
 
 func execCommand(ctx context.Context, app *composition.App, args []string) error {
@@ -143,7 +226,7 @@ func doctorCommand(ctx context.Context, app *composition.App, args []string) err
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: haco <create|exec|shell|delete|doctor>")
+	fmt.Fprintln(os.Stderr, "usage: haco <create|status|forward|unforward|ssh|exec|shell|delete|doctor>")
 }
 
 func fail(err error) {
