@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	clientapp "github.com/SLktEx/Hacocoon/internal/client"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
@@ -13,6 +14,7 @@ import (
 
 type App struct {
 	Environments *workspaceapp.Service
+	Clients      *clientapp.Service
 	Runtime      *incus.Runtime
 }
 
@@ -23,6 +25,7 @@ func Local(_ context.Context) (*App, error) {
 	store := state.NewEnvironmentJSONStore(filepath.Join(root, "state", "environments.json"))
 	return &App{
 		Environments: workspaceapp.New(runtime, store),
+		Clients:      clientapp.New(runtime, store),
 		Runtime:      runtime,
 	}, nil
 }
