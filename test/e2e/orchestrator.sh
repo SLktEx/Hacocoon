@@ -36,6 +36,13 @@ case "$command_name" in
       *) exit 2 ;;
     esac
     ;;
+  profile)
+    if [ "${1:-}" = 'show' ] && [ "${2:-}" = 'default' ]; then
+      printf '%s\n' '{"devices":{"root":{"type":"disk","path":"/","pool":"default"}}}'
+      exit 0
+    fi
+    exit 2
+    ;;
   init|launch)
     image="${1:-}"; instance="${2:-}"
     [ -n "$image" ] && [ -n "$instance" ] || exit 2
@@ -81,6 +88,13 @@ case "$command_name" in
       cat)
         target="$(printf '%s' "${1:-}" | sed "s#^/workspace#$workspace#")"
         cat "$target"
+        ;;
+      test)
+        if [ "${1:-}" = '-w' ] && [ "${2:-}" = '/workspace' ]; then
+          test -w "$workspace"
+        else
+          test "$@"
+        fi
         ;;
       *) "$executable" "$@" ;;
     esac

@@ -2,19 +2,84 @@ name: test
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+
 jobs:
-  go-test:
-    runs-on: ubuntu-latest
+  docs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version-file: go.mod
-      - run: python tools/check_docs.py
-      - run: go test ./...
+          persist-credentials: false
+      - run: python3 tools/check_docs.py
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version:
+          - 1.26.x
+          - 1.27.x
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          check-latest: true
+          cache: false
+      - run: go test -count=1 -shuffle=on ./...
       - run: go vet ./...
+
+  race:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - run: go test -race -count=1 ./...
+
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Validate E2E shell syntax
+        run: bash -n test/e2e/*.sh
+      - name: Capability E2E
+        run: bash test/e2e/capability.sh
+      - name: Git/GitHub E2E
+        run: bash test/e2e/git_github.sh
+      - name: Orchestrator E2E
+        run: bash test/e2e/orchestrator.sh
