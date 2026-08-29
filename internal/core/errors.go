@@ -12,4 +12,6 @@ var (
 	ErrStorageUnavailable = errors.New("storage unavailable")
 	ErrStorageBusy        = errors.New("storage has active sessions")
 	ErrWorkspaceBusy      = errors.New("workspace has conflicting active lease")
+	ErrPolicyDenied       = errors.New("capability denied by policy")
+	ErrApprovalDenied     = errors.New("capability approval denied")
 )
