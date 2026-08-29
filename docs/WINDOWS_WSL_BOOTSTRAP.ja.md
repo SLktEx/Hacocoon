@@ -17,60 +17,78 @@ Windows VS Code
   -> Hacocoon Environment
 ```
 
-Windows / WSL の lifecycle 自体は Hacocoon Core に入れず、bootstrap script だけが host setup を補助します。
+Windows / WSL の lifecycle 自体は Hacocoon Core に入れず、host-side installer だけが初期 setup を補助します。
 
-## まず実行するもの
+## 普通に使うインストーラー
 
-Hacocoon を checkout した PowerShell から:
+GitHub Release に `install-windows.ps1` を standalone installer として載せます。**Hacocoon repository を先に clone する必要はありません。**
+
+Release asset を Windows に保存して、管理者 PowerShell から:
 
 ```powershell
-.\scripts\bootstrap-windows.ps1
+.\install-windows.ps1
 ```
 
-標準の WSL instance 名は:
+を実行します。
+
+標準の専用 WSL instance 名は:
 
 ```text
 Hacocoon
 ```
 
-標準 base distribution は `Ubuntu-26.04` です。
+標準 base distribution は:
 
-別の base を使う場合:
-
-```powershell
-.\scripts\bootstrap-windows.ps1 -BaseDistro Ubuntu
+```text
+Ubuntu-26.04
 ```
 
-専用 instance の名前だけ変える場合:
+です。
+
+Fresh PC では Windows reboot や新規 distribution の初回 Linux user 作成が必要な場合があります。その場合 installer は専用 WSL を作ったところで一度止まります。
 
 ```powershell
-.\scripts\bootstrap-windows.ps1 -InstanceName Hacocoon-Dev
+wsl -d Hacocoon
 ```
 
-WSL は同じ Ubuntu release でも `--name` で別 instance として install できます。Hacocoon はこの仕組みを使い、既存の普段使い WSL と完全に分けます。
+で一度起動して Linux user の初期設定を済ませ、終了後に `install-windows.ps1` をもう一度実行してください。
+
+## standalone installer がすること
+
+Installer は次を行います。
+
+1. instance 名 / base distro / Hacocoon version を検証
+2. `Hacocoon` という named WSL が既にあればそれだけを再利用
+3. なければ `wsl --install <distro> --name <name> --no-launch` で専用 instance を作成
+4. 選択した Hacocoon Release から `checksums.txt` / `bootstrap-wsl.sh` / `install.sh` を取得
+5. Linux bootstrap script を SHA-256 checksum で検証
+6. 専用 WSL 内で Linux bootstrap を実行
+7. Incus と `haco` / `haco-vscode` を install
+
+Release には Windows installer だけでなく、Linux bootstrap script も個別 asset として載せます。そのため standalone installer は repository checkout に依存しません。
+
+Repository が private の間は、release asset の取得に authenticated `gh` CLI または `GH_TOKEN` / `GITHUB_TOKEN` が必要です。Public release になれば通常の HTTPS download が使えます。
 
 ## 専用 WSL のルール
 
-Bootstrap は **default WSL を選びません**。最初に見つかった distribution を流用することもしません。
+Installer は **default WSL を選びません**。最初に見つかった distribution を流用することもしません。
 
-`Hacocoon` が既に存在する場合だけ、その named instance を再利用します。存在しない場合は概念的に次を実行します。
+`Hacocoon` がなければ、重要な platform operation は概念的にこれだけです。
 
 ```powershell
-wsl --set-default-version 2
 wsl --install Ubuntu-26.04 --name Hacocoon --no-launch
 ```
 
-必要なら `-WebDownload` も利用できます。
+`wsl --set-default-version` は実行しません。既存の default WSL distribution も変更しません。
 
-既存の Ubuntu / Debian / Arch 等には次を行いません。
+既存 Ubuntu / Debian / Arch などに対して、次を自動では行いません。
 
-- unregister
-- reset
-- delete
-- WSL 1 -> WSL 2 自動変換
+- unregister / reset / delete
+- WSL 1 -> WSL 2 conversion
 - default distribution 変更
+- 今後作る distribution に効く global default 変更
 - Linux user の置換
-- 任意の WSL config 書き換え
+- `/etc/wsl.conf` や Windows `.wslconfig` の任意書き換え
 
 利用中の WSL catalog に `Ubuntu-26.04` がない場合は:
 
@@ -78,50 +96,29 @@ wsl --install Ubuntu-26.04 --name Hacocoon --no-launch
 wsl --list --online
 ```
 
-で確認し、使える名前を `-BaseDistro` に渡してください。
-
-## fresh PC の場合
-
-WSL component の有効化や distribution install では、Windows reboot が必要になる場合があります。また、新規 distribution は初回 Linux user 作成が必要です。
-
-そのため fresh PC では、1回目の bootstrap が専用 WSL を作ったところで止まる場合があります。
-
-その場合:
+で確認し、使える名前を指定できます。
 
 ```powershell
-wsl -d Hacocoon
+.\install-windows.ps1 -BaseDistro Ubuntu
 ```
 
-で一度起動し、Linux user の初期設定を完了して終了し、同じ bootstrap をもう一度実行してください。
-
-Windows reboot や Linux credential を勝手に自動化しないため、意図的に resume 可能な2段階にしています。
-
-## 専用 WSL 内で入るもの
-
-apt 系 distribution では `scripts/bootstrap-wsl.sh` が次を準備します。
-
-- CA certificates
-- `curl`
-- `tar`
-- `git`
-- Incus（`-SkipIncus` なしの場合）
-
-その後、Hacocoon 本体は既存の `scripts/install.sh` へ委譲します。
-
-Install される binary:
-
-```text
-haco
-haco-vscode
-```
-
-特定 version を入れる場合:
+専用 instance 名を変えたい場合:
 
 ```powershell
-.\scripts\bootstrap-windows.ps1 -HacocoonVersion v0.8.0
+.\install-windows.ps1 -InstanceName Hacocoon-Dev
 ```
 
-Private repository の release を取得する場合は、`scripts/install.sh` が使える GitHub authentication が必要です。
+も使えます。これは別の general-purpose WSL を再利用する機能ではなく、別名の専用 instance を作るための option です。
+
+## Hacocoon version
+
+既定では最新 Release を入れます。Version を固定する場合:
+
+```powershell
+.\install-windows.ps1 -HacocoonVersion v0.8.0
+```
+
+Linux 側の release installer も binary archive を `checksums.txt` で検証してから `haco` / `haco-vscode` を install します。
 
 ## incus-admin は勝手に付けない
 
@@ -134,7 +131,7 @@ Incus package の install と、Incus daemon の管理権限付与は別です�
 この専用 WSL user に Incus 管理権限を明示的に与える場合だけ:
 
 ```powershell
-.\scripts\bootstrap-windows.ps1 -GrantIncusAdmin
+.\install-windows.ps1 -GrantIncusAdmin
 ```
 
 を使います。
@@ -144,18 +141,32 @@ Group membership 変更後は WSL shell を開き直すか `newgrp incus-admin` 
 Incus を別手段で管理する場合:
 
 ```powershell
-.\scripts\bootstrap-windows.ps1 -SkipIncus
+.\install-windows.ps1 -SkipIncus
 ```
 
 も利用できます。
 
+## Hacocoon開発者向けのcheckout版
+
+Repository checkout 内には引き続き:
+
+```powershell
+.\scripts\bootstrap-windows.ps1
+```
+
+も残します。
+
+これは Hacocoon 自体を開発するとき用で、checkout 内の `bootstrap-wsl.sh` / `install.sh` を使います。
+
+一般利用者の標準導線は Release asset の **`install-windows.ps1`** です。
+
 ## systemd と Incus init
 
-systemd が動いている場合、bootstrap は package で入った Incus service の起動を試みます。
+systemd が動いている場合、Linux bootstrap は package で入った Incus service の起動を試みます。
 
 Incus daemon に接続でき、storage pool が存在しない場合だけ `incus admin init --minimal` を実行します。
 
-`/etc/wsl.conf` や Windows 側 `~/.wslconfig` を bootstrap が勝手に書き換えることはしません。必要な host configuration は明示的に直してから再実行します。
+`/etc/wsl.conf` や Windows `.wslconfig` を installer が勝手に書き換えることはしません。必要な host configuration は明示的に直してから再実行します。
 
 ## Workspace は専用 WSL に置く
 
@@ -181,10 +192,10 @@ haco-vscode open .
 
 ## VS Code との関係
 
-VS Code は Windows desktop client のままです。専用 AI UI は作りません。
+VS Code は Windows desktop client のままです。Hacocoon 専用 AI UI は作りません。
 
 ```text
-PowerShell bootstrap
+install-windows.ps1
   -> Hacocoon 専用 WSL 2
   -> Incus + Hacocoon
   -> 専用 WSL filesystem 上の Workspace
@@ -196,13 +207,13 @@ PowerShell bootstrap
 
 ## Acceptance の扱い
 
-CI で確認できるのは script syntax や repository integration までです。
+CI で確認するのは PowerShell / shell syntax、checksum inclusion、release packaging、repository integration までです。
 
 次は real Windows host 上での acceptance が必要です。
 
 - Windows feature enablement
 - reboot 後の WSL 起動
-- dedicated distribution download / install
+- named distribution download / install
 - first-run Linux user setup
 - real WSL 2 kernel
 - real Incus daemon
