@@ -246,6 +246,18 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 			return fmt.Errorf("environment %q uses pre-v0.2 metadata; delete v0.1 environments before upgrading: %w", name, core.ErrIncompatibleState)
 		}
 		data.Environments[name] = environment
+		if _, ok := data.Leases[name]; !ok {
+			data.Leases[name] = core.WorkspaceLease{
+				WorkspaceID:   environment.Workspace.ID,
+				SourcePath:    environment.Workspace.Path,
+				EnvironmentID: name,
+				AccessMode:    environment.AccessMode,
+				Owner:         name,
+				RuntimeRef:    environment.RuntimeRef,
+				State:         core.WorkspaceLeaseActive,
+				AcquiredAt:    environment.CreatedAt,
+			}
+		}
 	}
 
 	for environmentID, lease := range data.Leases {
