@@ -2,9 +2,9 @@
 
 [**日本語**](README.ja.md) | English
 
-This file defines how to read Hacocoon documentation after the 2026-08-29 architecture rebaseline, the v0.8 implementation progression, the v0.9 Base-image roadmap contract, and the v0.10 per-agent sandbox broker foundation.
+This file defines how to read Hacocoon documentation after the 2026-08-29 architecture rebaseline, the v0.8 implementation progression, the v0.9 Base-image roadmap contract, the v0.10 per-agent sandbox broker foundation, and the v0.11 sandbox resource-limits design gate.
 
-Hacocoon remains **pre-1.0**. Documentation describes architecture, implementation state, and roadmap contracts; it does not imply API, CLI, state-format, provider, client-adapter, image, agent-integration, or configuration compatibility guarantees.
+Hacocoon remains **pre-1.0**. Documentation describes architecture, implementation state, and roadmap contracts; it does not imply API, CLI, state-format, provider, client-adapter, image, agent-integration, resource-budget, or configuration compatibility guarantees.
 
 For a Japanese overview, start with [`../README.ja.md`](../README.ja.md), [`README.ja.md`](README.ja.md), and [`ARCHITECTURE_GUIDE.ja.md`](ARCHITECTURE_GUIDE.ja.md).
 
@@ -16,7 +16,7 @@ When documents appear to disagree, use this order:
 2. `00C_TERMINOLOGY_AND_BOUNDARIES.md` — canonical architecture vocabulary.
 3. `00B_SECURITY_ARCHITECTURE.md` — cross-cutting trust and security rules.
 4. `IMPLEMENTATION_STATUS.md` — current code reality and pending acceptance.
-5. The relevant versioned release specification (`01_...` through `10_...`).
+5. The relevant versioned release specification (`01_...` through `11_...`).
 6. Specialized documents such as `CLIENT_ACCESS.md`, `REMOTE_CLOUD_PROVISIONING.md`, and `BASE_IMAGES.md`.
 7. `00A_PLUGIN_ARCHITECTURE.md` — extension/adapter guidance.
 8. `90_CODEX_IMPLEMENTATION_HANDOFF.md` — implementation and maintenance workflow.
@@ -27,10 +27,11 @@ When documents appear to disagree, use this order:
 
 ## Current documentation state
 
-- v0.1-v0.10 specifications are **versioned design contracts**.
+- v0.1-v0.11 specifications are **versioned design contracts**.
 - v0.1-v0.8 have implementation passes represented in the repository.
 - v0.9 Base Images & Custom Environments is a design/roadmap contract; its CLI/provider implementation remains pending.
 - v0.10 adds an implemented trusted session-to-Environment broker foundation outside Core.
+- v0.11 Sandbox Resource Limits is a design/roadmap contract; its resource-budget/provider implementation remains pending.
 - `IMPLEMENTATION_STATUS.md` is the source for current repository reality.
 - real-provider/client acceptance remains separate from unit, integration, fake-provider E2E, race, vet, build, and CI checks.
 - EC2 remains experimental and disabled by default.
@@ -45,6 +46,7 @@ Examples:
 - v0.8 `haco-vscode` can exist while real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending.
 - v0.9 can exist as a Base-image design contract before `haco image` or `haco create --base` is implemented.
 - v0.10 can contain a session broker while real VS Code Agent Host/AHP + Incus per-session routing remains pending.
+- v0.11 can define provider-neutral resource budgets before CPU/memory/PID/root-storage enforcement is implemented.
 
 Do not infer release/tag readiness, production support, or implementation presence from a roadmap document alone.
 
@@ -107,9 +109,36 @@ Parallel write-capable sessions normally use separate Git worktrees/Workspace pa
 
 VS Code Agent Host/AHP is the preferred client-integration direction, but real Agent Host/AHP + Incus per-session routing remains environment-dependent acceptance work.
 
+## v0.11 reading path
+
+1. `11_v0.11_SANDBOX_RESOURCE_LIMITS.md` — authoritative v0.11 contract.
+2. `11_v0.11_SANDBOX_RESOURCE_LIMITS.ja.md` — maintained Japanese explanation.
+3. `00_REBASELINE_AND_ROADMAP.md` — product-boundary placement and version progression.
+4. `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` — Base contract that cannot raise host-selected resource limits.
+5. `10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.md` — per-agent Environment binding that composes with resource budgets.
+6. `00B_SECURITY_ARCHITECTURE.md` — cross-boundary security rules.
+7. `IMPLEMENTATION_STATUS.md` — implementation reality versus roadmap intent.
+
+```text
+Agent / developer tool
+        |
+        v
+   Environment
+  CPU / memory
+  PIDs / root disk
+        |
+--- authority boundary ---
+        |
+Policy / Capability / Audit
+```
+
+Resource budgets bound consumption **inside** an Environment. They are deliberately separate from Capabilities, which mediate authority crossing the Environment boundary.
+
+The first v0.11 gate is creation-time resource budgeting. It does not make Hacocoon an AI scheduler, aggregate workstation scheduler, or Kubernetes-style resource planner.
+
 ## Compatibility and breaking changes
 
-Hacocoon is pre-1.0 and actively being simplified and hardened. Breaking changes may affect CLI/helper binaries, persisted state, Core/adapter APIs, capability/policy contracts, provider configuration, Base/image lifecycle, client/agent integration, experimental backends, and documentation structure.
+Hacocoon is pre-1.0 and actively being simplified and hardened. Breaking changes may affect CLI/helper binaries, persisted state, Core/adapter APIs, capability/policy contracts, provider configuration, Base/image lifecycle, client/agent integration, resource-budget behavior, experimental backends, and documentation structure.
 
 Prefer an explicit incompatible correction over preserving accidental compatibility that weakens the architecture. Material operator impact should remain documented and tested.
 
