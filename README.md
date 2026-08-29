@@ -18,18 +18,18 @@ VS Code / Shell / Daintree / Rookery / other clients
                   | secure      |
                   | workspace   |
                   | runtime     |
-                  +------+------+ 
+                  +------+------+
                          |
-                 EnvironmentProvider
+                 Environment boundary
                          |
-                       Incus
+                   Incus adapter
 ```
 
 ## Current implementation target
 
-The repository is being **rebaselined**. Historical code may contain functionality that belonged to the previous v0.1-v0.7 plan; its presence does not make that functionality part of the new v0.1 gate.
+The repository is being **rebaselined**. Historical code may contain functionality that belonged to the previous plan; its presence does not make that functionality part of the new v0.1 gate.
 
-The authoritative release order is now:
+The authoritative release order is:
 
 1. **v0.1 Secure Workspace Runtime MVP**
 2. **v0.2 Workspace Abstraction & Lease**
@@ -39,7 +39,7 @@ The authoritative release order is now:
 6. **v0.6 Agent & Orchestrator Integration**
 7. **v0.7 Remote / Cloud Runtime & External Capabilities**
 
-Read `docs/00_REBASELINE_AND_ROADMAP.md` and `CODEX_START_HERE.md` before extending the implementation.
+Read `docs/README.md` for documentation precedence, then `docs/00_REBASELINE_AND_ROADMAP.md` and `CODEX_START_HERE.md` before extending the implementation.
 
 ## v0.1 definition of done
 
@@ -62,17 +62,17 @@ haco shell <environment>
 haco delete <environment>
 ```
 
-The first implementation uses an external path as the workspace and Incus system containers as the environment provider.
+The first implementation uses a direct external path as the workspace and a concrete Incus adapter. v0.1 does not require a generalized provider/plugin framework.
 
 ## Design rules
 
-- Core owns only Hacocoon concepts: Workspace, Environment, Execution, CapabilityRequest, PolicyDecision, and ApprovalRequest.
+- Core owns only stable Hacocoon concepts needed by the current design; later concepts are introduced in their release, not pre-built in v0.1.
 - Core does not know whether a workspace is a Git repository, Git worktree, or ordinary directory.
 - Incus, Git, GitHub, AWS, VS Code, Daintree, Rookery, storage backends, and cloud runtimes remain outside Core.
 - Hacocoon does not choose Codex vs Claude, build an agent DAG, or optimize model budgets.
 - Long-lived host credentials are not mounted into an execution environment for convenience.
 - Human-in-the-loop inside Hacocoon is primarily a **security approval boundary**.
-- Do not build a provider/plugin framework before a second implementation actually needs the seam.
+- Do not create a provider/plugin interface before testing or a second implementation makes the seam useful.
 - Implement one release gate at a time.
 
 ## Build and test
@@ -80,6 +80,7 @@ The first implementation uses an external path as the workspace and Incus system
 ```bash
 go test ./...
 go build ./cmd/haco
+python tools/check_docs.py
 ```
 
-Historical tests may need to be reclassified as the rebaseline is implemented. Do not delete useful code merely because it moved to a later release; isolate it behind the new boundaries or defer it without allowing it to expand v0.1.
+`docs/IMPLEMENTATION_STATUS.md` records the current code reality. Historical tests and code may need to be reclassified during the rebaseline; preserve useful behavior without allowing old implementation surface to expand v0.1.
