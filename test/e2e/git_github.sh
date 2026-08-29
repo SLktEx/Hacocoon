@@ -37,9 +37,13 @@ cat > "$HACO_ROOT/policy.json" <<'JSON'
     {
       "capability": "github.git",
       "action": "push",
+      "resource": "github://acme/demo/refs/heads/feature/e2e",
+      "environment": "demo",
       "attributes": {
         "organization": "acme",
         "repository": "demo",
+        "remote": "origin",
+        "source_sha": "*",
         "target_ref": "refs/heads/feature/e2e"
       },
       "decision": "allow",
@@ -48,10 +52,15 @@ cat > "$HACO_ROOT/policy.json" <<'JSON'
     {
       "capability": "github.git",
       "action": "force-push",
+      "resource": "github://acme/demo/refs/heads/main",
+      "environment": "demo",
       "attributes": {
         "organization": "acme",
         "repository": "demo",
-        "target_ref": "refs/heads/main"
+        "remote": "origin",
+        "source_sha": "*",
+        "target_ref": "refs/heads/main",
+        "expected_remote_sha": "*"
       },
       "decision": "require-approval",
       "reason": "protected branch force push"
@@ -72,6 +81,8 @@ git -C "$workspace" commit -qm second
 second="$(git -C "$workspace" rev-parse HEAD)"
 printf 'yes\n' | "$haco" git push demo --branch main --force >"$root/force.out" 2>"$root/force.err"
 grep -Fq '[y/N]' "$root/force.err"
+grep -Fq 'environment=demo' "$root/force.err"
+grep -Fq 'reason=protected branch force push' "$root/force.err"
 [[ "$(git --git-dir="$bare" rev-parse refs/heads/main)" == "$second" ]]
 
 printf 'third\n' > "$workspace/README.md"
@@ -95,6 +106,7 @@ fi
 audit="$HACO_ROOT/audit/capabilities.jsonl"
 [[ -f "$audit" ]]
 grep -Fq '"capability":"github.git"' "$audit"
+grep -Fq '"request_id":"' "$audit"
 grep -Fq '"organization":"acme"' "$audit"
 grep -Fq '"repository":"demo"' "$audit"
 grep -Fq '"target_ref":"refs/heads/main"' "$audit"
