@@ -56,9 +56,11 @@ func TestRealIncusWorkspaceLifecycleE2E(t *testing.T) {
 	store := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state", "environments.json"))
 	service := workspaceapp.New(runtimeAdapter, store)
 	instanceRef := "haco-demo"
+	readonlyRef := "haco-readonly"
 	defer func() {
 		cleanupCtx := context.Background()
 		_, _ = runner.Run(cleanupCtx, "incus", "delete", instanceRef, "--project", project, "--force")
+		_, _ = runner.Run(cleanupCtx, "incus", "delete", readonlyRef, "--project", project, "--force")
 		_, _ = runner.Run(cleanupCtx, "incus", "project", "delete", project)
 	}()
 
@@ -121,6 +123,21 @@ func TestRealIncusWorkspaceLifecycleE2E(t *testing.T) {
 	}
 	if _, err := runner.Run(ctx, "incus", "info", instanceRef, "--project", project); err == nil {
 		t.Fatalf("Incus environment %s still exists after delete", instanceRef)
+	}
+
+	readonlyEnvironment, err := service.Create(ctx, core.EnvironmentSpec{Name: "readonly", WorkspacePath: workspaceDir, AccessMode: core.WorkspaceReadOnly})
+	if err != nil {
+		t.Fatalf("create read-only environment: %v", err)
+	}
+	if readonlyEnvironment.RuntimeRef != readonlyRef {
+		t.Fatalf("read-only runtime ref = %q", readonlyEnvironment.RuntimeRef)
+	}
+	writeReadonly, err := service.Exec(ctx, "readonly", core.ExecutionRequest{Argv: []string{"sh", "-c", "touch /workspace/should-fail"}})
+	if err == nil || writeReadonly.ExitCode == 0 {
+		t.Fatalf("read-only workspace unexpectedly allowed write: result=%#v err=%v", writeReadonly, err)
+	}
+	if err := service.Delete(ctx, "readonly"); err != nil {
+		t.Fatalf("delete read-only environment: %v", err)
 	}
 }
 
