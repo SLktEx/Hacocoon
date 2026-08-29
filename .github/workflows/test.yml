@@ -39,6 +39,10 @@ jobs:
         run: python3 tools/check_workflow_policy.py
       - name: Test workflow trust policy
         run: python3 tools/test_workflow_policy.py
+      - name: Validate Renovate fail-closed policy
+        run: python3 tools/check_renovate_policy.py
+      - name: Test Renovate policy regressions
+        run: python3 tools/test_renovate_policy.py
 
   release-config:
     runs-on: ubuntu-24.04
