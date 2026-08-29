@@ -3,19 +3,29 @@ package core
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
 type fakeRuntime struct {
-	created   bool
-	deleted   bool
-	state     ObservedState
-	createErr error
+	created            bool
+	deleted            bool
+	state              ObservedState
+	createErr          error
+	unavailable        bool
+	prepareCalled      bool
+	prepareErr         error
+	preparedAttachment map[string]string
 }
 
 func (*fakeRuntime) ID() string { return "runtime.fake" }
-func (*fakeRuntime) Probe(context.Context) (RuntimeCapabilities, error) {
-	return RuntimeCapabilities{Available: true}, nil
+func (f *fakeRuntime) Probe(context.Context) (RuntimeCapabilities, error) {
+	return RuntimeCapabilities{Available: !f.unavailable}, nil
+}
+func (f *fakeRuntime) Prepare(_ context.Context, spec RuntimePrepareSpec) error {
+	f.prepareCalled = true
+	f.preparedAttachment = cloneMap(spec.StorageAttachment)
+	return f.prepareErr
 }
 func (f *fakeRuntime) Create(context.Context, RuntimeSessionSpec) (RuntimeSession, error) {
 	if f.createErr != nil {
@@ -37,6 +47,7 @@ func (f *fakeRuntime) Inspect(context.Context, string) (RuntimeState, error) {
 
 type fakeStorage struct {
 	ensureErr    error
+	ensureCalled bool
 	shrinkCalled bool
 }
 
@@ -45,6 +56,7 @@ func (*fakeStorage) Probe(context.Context) (StorageCapabilities, error) {
 	return StorageCapabilities{Available: true}, nil
 }
 func (f *fakeStorage) Ensure(context.Context, StorageSpec) (StorageHandle, error) {
+	f.ensureCalled = true
 	if f.ensureErr != nil {
 		return StorageHandle{}, f.ensureErr
 	}
@@ -219,5 +231,50 @@ func TestShrinkStorageIgnoresSessionsOnOtherStorage(t *testing.T) {
 	}
 	if !storage.shrinkCalled {
 		t.Fatal("unrelated session should not block storage shrink")
+	}
+}
+
+func TestInitPreparesRuntimeWithOpaqueStorageAttachment(t *testing.T) {
+	runtime := &fakeRuntime{}
+	storage := &fakeStorage{}
+	manager := NewManager(runtime, storage, newMemStore())
+
+	handle, err := manager.Init(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !runtime.prepareCalled {
+		t.Fatal("runtime prepare was not called")
+	}
+	if runtime.preparedAttachment["opaque"] != "value" {
+		t.Fatalf("storage attachment not passed to runtime prepare: %+v", runtime.preparedAttachment)
+	}
+	if handle.ID != "storage-ref" {
+		t.Fatalf("unexpected storage handle %q", handle.ID)
+	}
+}
+
+func TestInitRefusesUnavailableRuntimeBeforeStorageMutation(t *testing.T) {
+	runtime := &fakeRuntime{unavailable: true}
+	storage := &fakeStorage{}
+	manager := NewManager(runtime, storage, newMemStore())
+
+	_, err := manager.Init(context.Background())
+	if !errors.Is(err, ErrRuntimeUnavailable) {
+		t.Fatalf("expected ErrRuntimeUnavailable, got %v", err)
+	}
+	if storage.ensureCalled {
+		t.Fatal("storage must not be mutated when runtime is unavailable")
+	}
+}
+
+func TestInitReturnsRuntimePrepareFailure(t *testing.T) {
+	runtime := &fakeRuntime{prepareErr: errors.New("project setup failed")}
+	storage := &fakeStorage{}
+	manager := NewManager(runtime, storage, newMemStore())
+
+	_, err := manager.Init(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "prepare runtime runtime.fake") {
+		t.Fatalf("expected runtime prepare error, got %v", err)
 	}
 }
