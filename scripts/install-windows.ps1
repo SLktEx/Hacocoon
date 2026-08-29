@@ -154,11 +154,6 @@ if (-not ($installed -contains $InstanceName)) {
     }
 
     Write-Step "Creating dedicated WSL 2 instance '$InstanceName' from '$BaseDistro'"
-    & wsl.exe --set-default-version 2
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to set WSL 2 as the default version for new distributions."
-    }
-
     $installArgs = @("--install", $BaseDistro, "--name", $InstanceName, "--no-launch")
     if ($WebDownload) {
         $installArgs += "--web-download"
@@ -170,7 +165,7 @@ if (-not ($installed -contains $InstanceName)) {
 
     Write-Host ""
     Write-Host "Dedicated Hacocoon WSL instance '$InstanceName' was installed."
-    Write-Host "Existing WSL distributions were not modified."
+    Write-Host "Existing WSL distributions and global WSL defaults were not modified."
     Write-Host "Windows or the new instance may require a reboot or first-launch Linux user setup."
     Write-Host "Launch it once with: wsl -d $InstanceName"
     Write-Host "Complete the Linux user setup if prompted, then run this installer again."
@@ -234,7 +229,7 @@ Write-Host ""
 Write-Step "Hacocoon installation complete"
 Write-Host "Dedicated WSL instance: $InstanceName"
 Write-Host "Base distribution: $BaseDistro"
-Write-Host "Existing WSL distributions remain separate and untouched."
+Write-Host "Existing WSL distributions and global WSL defaults remain separate and untouched."
 Write-Host "Next: wsl -d $InstanceName"
 Write-Host "Then place a workspace in the Linux filesystem and run: haco-vscode open ."
 if (-not $SkipIncus -and -not $GrantIncusAdmin) {
