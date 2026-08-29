@@ -12,6 +12,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $Repository = "SLktEx/Hacocoon"
+$SystemdRestartRequired = 42
 
 function Write-Step([string]$Message) {
     Write-Host "==> $Message"
@@ -42,6 +43,13 @@ function Assert-NamedInstallSupported {
     $helpText = (& wsl.exe --help 2>&1 | Out-String)
     if ($LASTEXITCODE -ne 0 -or $helpText -notmatch '(?m)--name\b') {
         throw "This WSL installation does not support named distribution installation. Update WSL explicitly with 'wsl --update', then run the Hacocoon installer again."
+    }
+}
+
+function Assert-SystemdSupported {
+    $null = (& wsl.exe --version 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "This WSL installation is too old for supported systemd integration. Update WSL explicitly with 'wsl --update', then run the Hacocoon installer again."
     }
 }
 
@@ -129,7 +137,7 @@ function Get-InstalledDistros {
     return @($lines | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" })
 }
 
-function Assert-Wsl2([string]$Name) {
+function Get-WslGeneration([string]$Name) {
     $lines = & wsl.exe --list --verbose 2>$null
     if ($LASTEXITCODE -ne 0) {
         throw "Unable to inspect WSL distributions."
@@ -137,13 +145,32 @@ function Assert-Wsl2([string]$Name) {
     $escaped = [regex]::Escape($Name)
     foreach ($line in $lines) {
         if ($line -match "^\s*\*?\s*$escaped\s+.*\s+([12])\s*$") {
-            if ($Matches[1] -ne "2") {
-                throw "Dedicated WSL instance '$Name' is WSL 1. Convert it explicitly with: wsl --set-version $Name 2"
-            }
-            return
+            return [int]$Matches[1]
         }
     }
     throw "Unable to determine the WSL version for '$Name'."
+}
+
+function Ensure-Wsl2([string]$Name) {
+    if ((Get-WslGeneration $Name) -eq 2) {
+        return
+    }
+
+    Write-Step "Converting dedicated WSL instance '$Name' to WSL 2"
+    & wsl.exe --set-version $Name 2
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to convert dedicated WSL instance '$Name' to WSL 2."
+    }
+    if ((Get-WslGeneration $Name) -ne 2) {
+        throw "Dedicated WSL instance '$Name' is not running as WSL 2 after conversion."
+    }
+}
+
+function Assert-SystemdActive([string]$Name) {
+    $pid1 = (& wsl.exe --distribution $Name -- sh -c "ps -p 1 -o comm=").Trim()
+    if ($LASTEXITCODE -ne 0 -or $pid1 -ne "systemd") {
+        throw "systemd is not active as PID 1 inside dedicated WSL instance '$Name'."
+    }
 }
 
 Assert-SafeName $InstanceName "WSL instance name"
@@ -157,6 +184,7 @@ if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
 $installed = @(Get-InstalledDistros)
 if (-not ($installed -contains $InstanceName)) {
     Assert-NamedInstallSupported
+    Assert-SystemdSupported
     if (-not (Test-Administrator)) {
         throw "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell. Re-run this installer as Administrator."
     }
@@ -171,8 +199,10 @@ if (-not ($installed -contains $InstanceName)) {
         throw "Failed to create dedicated WSL instance '$InstanceName' from '$BaseDistro'. Run 'wsl --list --online' to inspect available base distributions."
     }
 
+    Ensure-Wsl2 $InstanceName
+
     Write-Host ""
-    Write-Host "Dedicated Hacocoon WSL instance '$InstanceName' was installed."
+    Write-Host "Dedicated Hacocoon WSL 2 instance '$InstanceName' was installed."
     Write-Host "Existing WSL distributions and global WSL defaults were not modified."
     Write-Host "Windows or the new instance may require a reboot or first-launch Linux user setup."
     Write-Host "Launch it once with: wsl -d $InstanceName"
@@ -180,9 +210,10 @@ if (-not ($installed -contains $InstanceName)) {
     exit 0
 }
 
-Assert-Wsl2 $InstanceName
+Assert-SystemdSupported
+Ensure-Wsl2 $InstanceName
 
-Write-Step "Checking dedicated WSL instance '$InstanceName'"
+Write-Step "Checking dedicated WSL 2 instance '$InstanceName'"
 & wsl.exe --distribution $InstanceName -- sh -c "printf hacocoon-wsl-ready"
 if ($LASTEXITCODE -ne 0) {
     throw "Dedicated WSL instance '$InstanceName' exists but is not ready. Launch it once with 'wsl -d $InstanceName', complete first-run setup, and run this installer again."
@@ -215,7 +246,6 @@ try {
         Write-Warning "Granting incus-admin gives the Linux user root-equivalent local Incus authority."
     }
 
-    Write-Step "Installing Incus and Hacocoon inside '$InstanceName'"
     $wslArgs = @(
         "--distribution", $InstanceName,
         "--",
@@ -224,10 +254,31 @@ try {
         "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue",
         "sh", "$linuxTemp/bootstrap-wsl.sh", "$linuxTemp/install.sh", $HacocoonVersion
     )
+
+    Write-Step "Installing systemd, Incus and Hacocoon inside '$InstanceName'"
     & wsl.exe @wslArgs
-    if ($LASTEXITCODE -ne 0) {
+    $bootstrapExit = $LASTEXITCODE
+
+    if ($bootstrapExit -eq $SystemdRestartRequired) {
+        Write-Step "Restarting dedicated WSL instance '$InstanceName' to activate systemd"
+        & wsl.exe --terminate $InstanceName
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to terminate dedicated WSL instance '$InstanceName' for systemd activation."
+        }
+        Start-Sleep -Milliseconds 750
+
+        & wsl.exe @wslArgs
+        $bootstrapExit = $LASTEXITCODE
+    }
+
+    if ($bootstrapExit -eq $SystemdRestartRequired) {
+        throw "systemd still requires a restart after the dedicated WSL instance was restarted."
+    }
+    if ($bootstrapExit -ne 0) {
         throw "Hacocoon WSL installation failed."
     }
+
+    Assert-SystemdActive $InstanceName
 }
 finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
@@ -235,7 +286,8 @@ finally {
 
 Write-Host ""
 Write-Step "Hacocoon installation complete"
-Write-Host "Dedicated WSL instance: $InstanceName"
+Write-Host "Dedicated WSL instance: $InstanceName (WSL 2)"
+Write-Host "Init system: systemd"
 Write-Host "Base distribution: $BaseDistro"
 Write-Host "Existing WSL distributions and global WSL defaults remain separate and untouched."
 Write-Host "Next: wsl -d $InstanceName"
