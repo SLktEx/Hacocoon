@@ -10,7 +10,7 @@
 | storage.btrfs | new | 0.1 | initial implementation; local BlockStore seam is private to this module |
 | block.local-raw | new | 0.1 | initial implementation |
 | block.local-qcow2 | new | 0.1 | initial implementation |
-| host init/doctor | new | 0.1 | initial implementation |
+| host init/doctor | new | 0.1 | runtime/storage probe + Incus project/pool prepare; base image pending |
 | base image systemd/containerd/nerdctl | new | 0.1 | host integration pending |
 | storage grow | new | 0.1 | adapter implementation present; integration pending |
 | shrink plan / safe ordering | new | 0.1 | implemented with session quiescence and ordering tests |

@@ -36,6 +36,14 @@ func (r *Runtime) Probe(ctx context.Context) (core.RuntimeCapabilities, error) {
 	return core.RuntimeCapabilities{Available: true, Details: []string{strings.TrimSpace(result.Stdout)}}, nil
 }
 
+func (r *Runtime) Prepare(ctx context.Context, spec core.RuntimePrepareSpec) error {
+	if err := r.ensureProject(ctx); err != nil {
+		return err
+	}
+	_, err := r.ensureStoragePool(ctx, spec.StorageAttachment)
+	return err
+}
+
 func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (core.RuntimeSession, error) {
 	if err := r.ensureProject(ctx); err != nil {
 		return core.RuntimeSession{}, err
