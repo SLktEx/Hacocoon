@@ -75,6 +75,7 @@ func openCommand(ctx context.Context, app *composition.App, args []string) error
 	if fs.NArg() > 1 {
 		return fmt.Errorf("usage: haco-vscode open [options] [workspace]: %w", core.ErrInvalidArgument)
 	}
+
 	workspaceArg := "."
 	if fs.NArg() == 1 {
 		workspaceArg = fs.Arg(0)
@@ -138,14 +139,20 @@ func openCommand(ctx context.Context, app *composition.App, args []string) error
 		created = true
 		status, err = app.Clients.Status(ctx, *name)
 		if err != nil {
-			return err
+			return cleanupOpenFailure(ctx, app, *name, created, "", err)
 		}
 	}
 	if filepath.Clean(status.Environment.Workspace.Path) != filepath.Clean(workspace) {
-		return fmt.Errorf("environment %q belongs to workspace %q, not %q: %w", *name, status.Environment.Workspace.Path, workspace, core.ErrAlreadyExists)
+		return cleanupOpenFailure(ctx, app, *name, created, "", fmt.Errorf(
+			"environment %q belongs to workspace %q, not %q: %w",
+			*name, status.Environment.Workspace.Path, workspace, core.ErrAlreadyExists,
+		))
 	}
 	if status.State != core.EnvironmentRunning {
-		return fmt.Errorf("environment %q is %s; VS Code adapter currently requires a running environment: %w", *name, status.State, core.ErrUnsupported)
+		return cleanupOpenFailure(ctx, app, *name, created, "", fmt.Errorf(
+			"environment %q is %s; VS Code adapter currently requires a running environment: %w",
+			*name, status.State, core.ErrUnsupported,
+		))
 	}
 
 	alias := "haco-vscode-" + *name
@@ -153,25 +160,25 @@ func openCommand(ctx context.Context, app *composition.App, args []string) error
 	previous, _ := readManagedSSHConfig(managedPath)
 	connections, err := app.Clients.Connections(ctx, *name)
 	if err != nil {
-		return err
+		return cleanupOpenFailure(ctx, app, *name, created, "", err)
 	}
+	oldConnection := findSSHConnection(connections, previous.Port)
 
-	var connection core.ClientConnection
-	if previous.Port != 0 && previous.IdentityFile == identityConfigValue {
-		for _, candidate := range connections {
-			if candidate.Kind == "ssh" && candidate.Port == previous.Port {
-				connection = candidate
-				break
-			}
-		}
-	}
-
+	connection := reusableSSHConnection(previous, identityConfigValue, *hostPort, connections)
+	preparedConnectionID := ""
 	if connection.Port == 0 {
+		if *hostPort != 0 && oldConnection.Port == *hostPort {
+			return cleanupOpenFailure(ctx, app, *name, created, "", fmt.Errorf(
+				"host port %d is still owned by the previous Hacocoon VS Code SSH connection; omit --host-port to rotate safely or delete the old connection first: %w",
+				*hostPort, core.ErrAlreadyExists,
+			))
+		}
+
 		port := *hostPort
 		if port == 0 {
 			port, err = freeLoopbackPort()
 			if err != nil {
-				return err
+				return cleanupOpenFailure(ctx, app, *name, created, "", err)
 			}
 		}
 		connection, err = app.Clients.SSH(ctx, *name, core.SSHAccessRequest{
@@ -179,19 +186,26 @@ func openCommand(ctx context.Context, app *composition.App, args []string) error
 			HostPort:  port,
 		})
 		if err != nil {
-			if created {
-				return fmt.Errorf("prepare SSH for newly created environment %q: %w", *name, err)
-			}
-			return err
+			return cleanupOpenFailure(ctx, app, *name, created, "", fmt.Errorf("prepare SSH for environment %q: %w", *name, err))
 		}
+		preparedConnectionID = connection.ID
 	}
 
 	if err := ensureSSHInclude(clientFS.Home); err != nil {
-		return err
+		return cleanupOpenFailure(ctx, app, *name, created, preparedConnectionID, err)
 	}
 	managed := managedSSHConfig{Alias: alias, Port: connection.Port, IdentityFile: identityConfigValue}
 	if err := writeManagedSSHConfig(managedPath, managed); err != nil {
-		return err
+		return cleanupOpenFailure(ctx, app, *name, created, preparedConnectionID, err)
+	}
+
+	if oldConnection.Port != 0 && oldConnection.ID != connection.ID {
+		if err := app.Clients.Unforward(context.WithoutCancel(ctx), *name, oldConnection.ID); err != nil {
+			return errors.Join(
+				fmt.Errorf("new VS Code SSH connection is active but old managed SSH connection %q could not be revoked: %w", oldConnection.ID, err),
+				core.ErrRecoveryRequired,
+			)
+		}
 	}
 
 	fmt.Printf("environment: %s\nssh: %s\nworkspace: %s\n", *name, alias, remoteWorkspacePath)
@@ -206,6 +220,46 @@ func openCommand(ctx context.Context, app *composition.App, args []string) error
 		return fmt.Errorf("launch VS Code: %w", err)
 	}
 	return nil
+}
+
+func cleanupOpenFailure(ctx context.Context, app *composition.App, environment string, created bool, preparedConnectionID string, cause error) error {
+	cleanupCtx := context.WithoutCancel(ctx)
+	var cleanupErr error
+	if created {
+		cleanupErr = app.Environments.Delete(cleanupCtx, environment)
+	} else if preparedConnectionID != "" {
+		cleanupErr = app.Clients.Unforward(cleanupCtx, environment, preparedConnectionID)
+	}
+	if cleanupErr == nil {
+		return cause
+	}
+	return errors.Join(
+		cause,
+		fmt.Errorf("cleanup failed after VS Code adapter setup error: %w", cleanupErr),
+		core.ErrRecoveryRequired,
+	)
+}
+
+func findSSHConnection(connections []core.ClientConnection, port int) core.ClientConnection {
+	if port == 0 {
+		return core.ClientConnection{}
+	}
+	for _, connection := range connections {
+		if connection.Kind == "ssh" && connection.Port == port {
+			return connection
+		}
+	}
+	return core.ClientConnection{}
+}
+
+func reusableSSHConnection(previous managedSSHConfig, identity string, requestedPort int, connections []core.ClientConnection) core.ClientConnection {
+	if previous.Port == 0 || previous.IdentityFile != identity {
+		return core.ClientConnection{}
+	}
+	if requestedPort != 0 && requestedPort != previous.Port {
+		return core.ClientConnection{}
+	}
+	return findSSHConnection(connections, previous.Port)
 }
 
 func deleteCommand(ctx context.Context, app *composition.App, args []string) error {
@@ -380,9 +434,33 @@ func writeManagedSSHConfig(path string, config managedSSHConfig) error {
 	if config.Port < 1 || config.Port > 65535 || config.Alias == "" || config.IdentityFile == "" {
 		return core.ErrInvalidArgument
 	}
-	content := fmt.Sprintf("Host %s\n    HostName 127.0.0.1\n    User root\n    Port %d\n    IdentityFile %s\n    IdentitiesOnly yes\n", config.Alias, config.Port, quoteSSHValue(config.IdentityFile))
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+	content := fmt.Sprintf(
+		"Host %s\n    HostName 127.0.0.1\n    User root\n    Port %d\n    IdentityFile %s\n    IdentitiesOnly yes\n",
+		config.Alias, config.Port, quoteSSHValue(config.IdentityFile),
+	)
+	dir := filepath.Dir(path)
+	temp, err := os.CreateTemp(dir, ".haco-vscode-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create managed SSH config temp file: %w", err)
+	}
+	tempPath := temp.Name()
+	cleanup := func() {
+		_ = temp.Close()
+		_ = os.Remove(tempPath)
+	}
+	defer cleanup()
+	_ = temp.Chmod(0o600)
+	if _, err := temp.WriteString(content); err != nil {
 		return fmt.Errorf("write managed SSH config: %w", err)
+	}
+	if err := temp.Sync(); err != nil {
+		return fmt.Errorf("sync managed SSH config: %w", err)
+	}
+	if err := temp.Close(); err != nil {
+		return fmt.Errorf("close managed SSH config: %w", err)
+	}
+	if err := os.Rename(tempPath, path); err != nil {
+		return fmt.Errorf("replace managed SSH config: %w", err)
 	}
 	_ = os.Chmod(path, 0o600)
 	return nil
