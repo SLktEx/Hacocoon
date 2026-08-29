@@ -1,10 +1,10 @@
 # Base Image Architecture
 
-Status: **design proposal; not yet an implementation or roadmap commitment.**
+Status: **detailed design companion for v0.9 Base Images & Custom Environments.** The minimum v0.9 roadmap/acceptance contract is defined by `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`; broader ideas in this document are not automatically required in the first v0.9 implementation slice.
 
 This document defines how Hacocoon should represent reusable Environment starting points without leaking Incus-specific image mechanics into Core.
 
-It is subordinate to `00_REBASELINE_AND_ROADMAP.md`, `00C_TERMINOLOGY_AND_BOUNDARIES.md`, and `00B_SECURITY_ARCHITECTURE.md`. If this document conflicts with those authoritative documents, they win.
+It is subordinate to `00_REBASELINE_AND_ROADMAP.md`, `00C_TERMINOLOGY_AND_BOUNDARIES.md`, `00B_SECURITY_ARCHITECTURE.md`, and the minimum v0.9 contract in `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`. If this document conflicts with those authoritative documents, they win.
 
 ## Goal
 
@@ -127,7 +127,6 @@ Project Setup
         |
         v
 Environment
-  agent/developer execution
 ```
 
 A future project configuration may select a Base and a setup action, for example:
@@ -160,6 +159,8 @@ haco image inspect my-dev
 haco image build my-dev
 haco create --base my-dev --workspace . dev-1
 ```
+
+The minimum v0.9 implementation gate prioritizes selection, immutable revision pinning, persisted identity, list/inspect diagnostics, and safe reference semantics. Build/import/history/rollback/GC may follow once the underlying lifecycle is safe.
 
 Normal output should use Hacocoon concepts. Backend-native identifiers may appear only in an explicit diagnostic section or backend-specific administrative command.
 
@@ -363,9 +364,9 @@ This design deliberately does not require every Environment implementation to us
 
 A future adapter could map the same high-level Base concept to a backend-native immutable starting point, for example an AMI or another runtime image/profile. Such adapters are not committed by this document; they only explain why Core should not equate Base with an Incus image.
 
-## Initial implementation slice
+## Initial v0.9 implementation slice
 
-When this design is scheduled for implementation, prefer a narrow first slice:
+Prefer a narrow first slice:
 
 1. resolve a configured Hacocoon Base to an existing Incus image;
 2. allow `haco create --base <name>`;
