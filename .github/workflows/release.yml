@@ -27,9 +27,23 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.27.x
-          check-latest: true
+          go-version: 1.27.0
+          check-latest: false
           cache: false
+
+      - name: Install pinned GoReleaser
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: v2.17.1
+          install-only: true
+
+      - name: Record release toolchain versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          go version
+          goreleaser --version
 
       - name: Validate release tag
         shell: bash
@@ -56,11 +70,7 @@ jobs:
           [scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null
 
       - name: Build release artifacts
-        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
-        with:
-          distribution: goreleaser
-          version: v2.17.1
-          args: release --clean --skip=publish
+        run: goreleaser release --clean --skip=publish
 
       - name: Publish GitHub Release
         shell: bash
