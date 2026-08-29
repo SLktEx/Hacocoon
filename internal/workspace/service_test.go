@@ -25,6 +25,7 @@ type fakeEnvironmentRuntime struct {
 	shellErr      error
 	deleteRefs    []string
 	deleteErr     error
+	deleteFunc    func(context.Context, string) error
 	cleanupCtxErr error
 }
 
@@ -47,17 +48,23 @@ func (f *fakeEnvironmentRuntime) ShellEnvironment(_ context.Context, ref string)
 func (f *fakeEnvironmentRuntime) DeleteEnvironment(ctx context.Context, ref string) error {
 	f.deleteRefs = append(f.deleteRefs, ref)
 	f.cleanupCtxErr = ctx.Err()
+	if f.deleteFunc != nil {
+		return f.deleteFunc(ctx, ref)
+	}
 	return f.deleteErr
 }
 
 type fakeEnvironmentStore struct {
-	environments map[string]core.Environment
-	leases       map[string]core.WorkspaceLease
-	getErr       error
-	putErr       error
-	deleteErr    error
-	leaseErr     error
-	deleted      []string
+	environments   map[string]core.Environment
+	leases         map[string]core.WorkspaceLease
+	getErr         error
+	putErr         error
+	deleteErr      error
+	leaseErr       error
+	getLeaseErr    error
+	putLeaseErr    error
+	deleteLeaseErr error
+	deleted        []string
 }
 
 func newFakeEnvironmentStore() *fakeEnvironmentStore {
@@ -96,8 +103,11 @@ func (f *fakeEnvironmentStore) AcquireWorkspaceLease(_ context.Context, lease co
 	if f.leaseErr != nil {
 		return f.leaseErr
 	}
+	if _, ok := f.leases[lease.EnvironmentID]; ok {
+		return core.ErrAlreadyExists
+	}
 	for _, existing := range f.leases {
-		if existing.WorkspaceID == lease.WorkspaceID && existing.EnvironmentID != lease.EnvironmentID &&
+		if existing.WorkspaceID == lease.WorkspaceID &&
 			(existing.AccessMode == core.WorkspaceReadWrite || lease.AccessMode == core.WorkspaceReadWrite) {
 			return core.ErrWorkspaceBusy
 		}
@@ -106,7 +116,32 @@ func (f *fakeEnvironmentStore) AcquireWorkspaceLease(_ context.Context, lease co
 	return nil
 }
 
+func (f *fakeEnvironmentStore) GetWorkspaceLease(_ context.Context, environmentID string) (core.WorkspaceLease, error) {
+	if f.getLeaseErr != nil {
+		return core.WorkspaceLease{}, f.getLeaseErr
+	}
+	lease, ok := f.leases[environmentID]
+	if !ok {
+		return core.WorkspaceLease{}, core.ErrNotFound
+	}
+	return lease, nil
+}
+
+func (f *fakeEnvironmentStore) PutWorkspaceLease(_ context.Context, lease core.WorkspaceLease) error {
+	if f.putLeaseErr != nil {
+		return f.putLeaseErr
+	}
+	if _, ok := f.leases[lease.EnvironmentID]; !ok {
+		return core.ErrNotFound
+	}
+	f.leases[lease.EnvironmentID] = lease
+	return nil
+}
+
 func (f *fakeEnvironmentStore) DeleteWorkspaceLease(_ context.Context, environmentID string) error {
+	if f.deleteLeaseErr != nil {
+		return f.deleteLeaseErr
+	}
 	if _, ok := f.leases[environmentID]; !ok {
 		return core.ErrNotFound
 	}
@@ -143,6 +178,10 @@ func TestCreateResolvesWorkspaceAndPersistsEnvironment(t *testing.T) {
 	}
 	if got := store.environments["demo"]; !reflect.DeepEqual(got, environment) {
 		t.Fatalf("stored = %#v, want %#v", got, environment)
+	}
+	lease := store.leases["demo"]
+	if lease.RuntimeRef != "haco-demo" || lease.State != core.WorkspaceLeaseActive {
+		t.Fatalf("lease = %#v", lease)
 	}
 }
 
@@ -207,6 +246,58 @@ func TestCreateCleansRuntimeWhenPersistenceFailsEvenAfterCancellation(t *testing
 	if runtime.cleanupCtxErr != nil {
 		t.Fatalf("cleanup context remained canceled: %v", runtime.cleanupCtxErr)
 	}
+	if len(store.leases) != 0 {
+		t.Fatalf("lease remains after confirmed runtime cleanup: %#v", store.leases)
+	}
+}
+
+func TestCreateKeepsLeaseWhenRuntimeCleanupFails(t *testing.T) {
+	root := t.TempDir()
+	persistErr := errors.New("disk full")
+	cleanupErr := errors.New("incus delete failed")
+	runtime := &fakeEnvironmentRuntime{createResult: core.EnvironmentRuntime{Ref: "haco-demo"}, deleteErr: cleanupErr}
+	store := newFakeEnvironmentStore()
+	store.putErr = persistErr
+
+	_, err := New(runtime, store).Create(context.Background(), core.EnvironmentSpec{Name: "demo", WorkspacePath: root})
+	if !errors.Is(err, persistErr) || !errors.Is(err, cleanupErr) || !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("error = %v", err)
+	}
+	lease, ok := store.leases["demo"]
+	if !ok {
+		t.Fatal("lease was released even though runtime cleanup failed")
+	}
+	if lease.RuntimeRef != "haco-demo" || lease.State != core.WorkspaceLeaseCleanupRequired {
+		t.Fatalf("recovery lease = %#v", lease)
+	}
+}
+
+func TestCreateCleanupHasOwnDeadline(t *testing.T) {
+	root := t.TempDir()
+	persistErr := errors.New("disk full")
+	runtime := &fakeEnvironmentRuntime{
+		createResult: core.EnvironmentRuntime{Ref: "haco-demo"},
+		deleteFunc: func(ctx context.Context, _ string) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	}
+	store := newFakeEnvironmentStore()
+	store.putErr = persistErr
+	service := New(runtime, store)
+	service.cleanupTimeout = 20 * time.Millisecond
+
+	started := time.Now()
+	_, err := service.Create(context.Background(), core.EnvironmentSpec{Name: "demo", WorkspacePath: root})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("cleanup exceeded bounded deadline: %v", elapsed)
+	}
+	if _, ok := store.leases["demo"]; !ok {
+		t.Fatal("lease was released after timed-out runtime cleanup")
+	}
 }
 
 func TestCreateReadOnlyAcquiresReadOnlyLease(t *testing.T) {
@@ -240,6 +331,20 @@ func TestCreateReleasesLeaseWhenRuntimeCreateFails(t *testing.T) {
 	}
 	if len(store.leases) != 0 {
 		t.Fatalf("lease leaked after create failure: %#v", store.leases)
+	}
+}
+
+func TestCreateKeepsLeaseWhenRuntimeReportsRecoveryRequired(t *testing.T) {
+	root := t.TempDir()
+	runtime := &fakeEnvironmentRuntime{createErr: errors.Join(errors.New("start failed"), core.ErrRecoveryRequired)}
+	store := newFakeEnvironmentStore()
+
+	_, err := New(runtime, store).Create(context.Background(), core.EnvironmentSpec{Name: "demo", WorkspacePath: root})
+	if !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("error = %v", err)
+	}
+	if _, ok := store.leases["demo"]; !ok {
+		t.Fatal("lease released although runtime cleanup was uncertain")
 	}
 }
 
@@ -301,11 +406,66 @@ func TestDeleteKeepsMetadataWhenRuntimeDeleteFails(t *testing.T) {
 	}
 }
 
+func TestDeleteTreatsMissingRuntimeAsAlreadyDeleted(t *testing.T) {
+	runtime := &fakeEnvironmentRuntime{deleteErr: core.ErrNotFound}
+	store := newFakeEnvironmentStore()
+	store.environments["demo"] = core.Environment{Name: "demo", RuntimeRef: "haco-demo"}
+	store.leases["demo"] = core.WorkspaceLease{EnvironmentID: "demo", RuntimeRef: "haco-demo", AccessMode: core.WorkspaceReadWrite}
+
+	if err := New(runtime, store).Delete(context.Background(), "demo"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.environments["demo"]; ok {
+		t.Fatal("metadata remains after missing runtime was treated as deleted")
+	}
+	if _, ok := store.leases["demo"]; ok {
+		t.Fatal("lease remains after idempotent delete")
+	}
+}
+
+func TestDeleteRecoversLeaseAfterMetadataWasAlreadyRemoved(t *testing.T) {
+	runtime := &fakeEnvironmentRuntime{deleteErr: core.ErrNotFound}
+	store := newFakeEnvironmentStore()
+	store.leases["demo"] = core.WorkspaceLease{
+		EnvironmentID: "demo",
+		RuntimeRef:    "haco-demo",
+		AccessMode:    core.WorkspaceReadWrite,
+		State:         core.WorkspaceLeaseActive,
+	}
+
+	if err := New(runtime, store).Delete(context.Background(), "demo"); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(runtime.deleteRefs, []string{"haco-demo"}) {
+		t.Fatalf("recovery runtime deletes = %#v", runtime.deleteRefs)
+	}
+	if _, ok := store.leases["demo"]; ok {
+		t.Fatal("lease remains after recovery delete")
+	}
+}
+
+func TestDeleteRefusesLeaseRecoveryWithoutRuntimeProof(t *testing.T) {
+	store := newFakeEnvironmentStore()
+	store.leases["demo"] = core.WorkspaceLease{
+		EnvironmentID: "demo",
+		AccessMode:    core.WorkspaceReadWrite,
+		State:         core.WorkspaceLeaseAcquiring,
+	}
+
+	err := New(&fakeEnvironmentRuntime{}, store).Delete(context.Background(), "demo")
+	if !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("error = %v", err)
+	}
+	if _, ok := store.leases["demo"]; !ok {
+		t.Fatal("uncertain lease was reclaimed")
+	}
+}
+
 func TestDeleteRemovesRuntimeBeforeMetadata(t *testing.T) {
 	runtime := &fakeEnvironmentRuntime{}
 	store := newFakeEnvironmentStore()
 	store.environments["demo"] = core.Environment{Name: "demo", RuntimeRef: "haco-demo"}
-	store.leases["demo"] = core.WorkspaceLease{EnvironmentID: "demo", AccessMode: core.WorkspaceReadWrite}
+	store.leases["demo"] = core.WorkspaceLease{EnvironmentID: "demo", RuntimeRef: "haco-demo", AccessMode: core.WorkspaceReadWrite}
 
 	if err := New(runtime, store).Delete(context.Background(), "demo"); err != nil {
 		t.Fatal(err)
@@ -380,5 +540,39 @@ func TestCreateSerializesConcurrentWorkspaceLeaseAcquisition(t *testing.T) {
 	}
 	if err := <-secondDone; !errors.Is(err, core.ErrWorkspaceBusy) {
 		t.Fatalf("second create error = %v", err)
+	}
+}
+
+func TestCreateOnDifferentWorkspaceDoesNotReclaimInFlightLease(t *testing.T) {
+	root := t.TempDir()
+	onePath := filepath.Join(root, "one")
+	twoPath := filepath.Join(root, "two")
+	if err := os.Mkdir(onePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(twoPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &blockingEnvironmentRuntime{started: make(chan struct{}), release: make(chan struct{})}
+	store := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state", "environments.json"))
+	service := New(runtime, store)
+
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := service.Create(context.Background(), core.EnvironmentSpec{Name: "one", WorkspacePath: onePath})
+		firstDone <- err
+	}()
+	<-runtime.started
+
+	if _, err := service.Create(context.Background(), core.EnvironmentSpec{Name: "two", WorkspacePath: twoPath}); err != nil {
+		t.Fatalf("second workspace create: %v", err)
+	}
+	if _, err := store.GetWorkspaceLease(context.Background(), "one"); err != nil {
+		t.Fatalf("in-flight lease was reclaimed: %v", err)
+	}
+
+	close(runtime.release)
+	if err := <-firstDone; err != nil {
+		t.Fatalf("first create: %v", err)
 	}
 }
