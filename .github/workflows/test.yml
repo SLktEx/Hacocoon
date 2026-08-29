@@ -77,6 +77,8 @@ jobs:
           cache: false
       - name: Validate E2E shell syntax
         run: bash -n test/e2e/*.sh
+      - name: Validate release installer syntax
+        run: bash -n scripts/install.sh
       - name: Capability E2E
         run: bash test/e2e/capability.sh
       - name: Git/GitHub E2E
