@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -96,7 +97,14 @@ func (m *Manager) Create(ctx context.Context, spec SessionSpec) (Session, error)
 		UpdatedAt:     now,
 	}
 	if err := m.store.Put(ctx, session); err != nil {
-		_ = m.runtime.Delete(ctx, created.Ref)
+		cleanupErr := m.runtime.Delete(ctx, created.Ref)
+		if cleanupErr != nil {
+			return Session{}, errors.Join(
+				fmt.Errorf("persist session: %w", err),
+				fmt.Errorf("cleanup runtime %s: %w", created.Ref, cleanupErr),
+				ErrRecoveryRequired,
+			)
+		}
 		return Session{}, fmt.Errorf("persist session: %w", err)
 	}
 	return session, nil
