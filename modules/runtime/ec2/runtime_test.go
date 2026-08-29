@@ -107,6 +107,22 @@ func TestDeleteReadWriteSynchronizesBeforeTerminate(t *testing.T) {
 	joined := strings.Join(runner.calls, "\n"); syncAt := strings.Index(joined, "s3 cp /tmp/haco-output.tgz"); terminateAt := strings.Index(joined, "ec2 terminate-instances"); if syncAt < 0 || terminateAt < 0 || syncAt > terminateAt { t.Fatalf("sync must precede terminate:\n%s", joined) }
 }
 
+func TestDeletePreservesUnrelatedLegacyBackupPath(t *testing.T) {
+	parent := t.TempDir()
+	workspace := filepath.Join(parent, "workspace")
+	if err := os.Mkdir(workspace, 0o700); err != nil { t.Fatal(err) }
+	legacyBackup := workspace + ".haco-backup"
+	if err := os.Mkdir(legacyBackup, 0o700); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(filepath.Join(legacyBackup, "keep.txt"), []byte("keep\n"), 0o600); err != nil { t.Fatal(err) }
+
+	runner := &fakeRunner{}; runtime := newTestRuntime(runner)
+	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: workspace, Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo", ReadOnly: false})
+	if err := runtime.DeleteEnvironment(context.Background(), raw); err != nil { t.Fatal(err) }
+	if content, err := os.ReadFile(filepath.Join(legacyBackup, "keep.txt")); err != nil || string(content) != "keep\n" {
+		t.Fatalf("unrelated backup was modified: content=%q err=%v", content, err)
+	}
+}
+
 func TestDeleteFailsClosedBeforeTerminateWhenSyncCannotBeProven(t *testing.T) {
 	runner := &fakeRunner{instanceState: "stopped"}; runtime := newTestRuntime(runner)
 	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: t.TempDir(), Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo"})
