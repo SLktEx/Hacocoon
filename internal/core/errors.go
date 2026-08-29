@@ -12,4 +12,6 @@ var (
 	ErrStorageUnavailable = errors.New("storage unavailable")
 	ErrStorageBusy        = errors.New("storage has active sessions")
 	ErrWorkspaceBusy      = errors.New("workspace has conflicting active lease")
+	ErrIncompatibleState  = errors.New("incompatible state")
+	ErrRecoveryRequired   = errors.New("manual recovery required")
 )
