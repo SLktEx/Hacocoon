@@ -14,5 +14,36 @@
   "internalChecksFilter": "strict",
   "automerge": true,
   "automergeType": "pr",
-  "platformAutomerge": false
+  "platformAutomerge": false,
+  "packageRules": [
+    {
+      "description": "Require human review for executable GitHub Actions updates",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Require human review for Go toolchain updates",
+      "matchDatasources": [
+        "golang-version"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Require human review for release tooling updates",
+      "matchDepNames": [
+        "goreleaser/goreleaser",
+        "goreleaser/goreleaser-action"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Require human review for all major-version updates",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "automerge": false
+    }
+  ]
 }
