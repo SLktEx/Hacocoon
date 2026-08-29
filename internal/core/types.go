@@ -41,6 +41,10 @@ type RuntimeCapabilities struct {
 	Details   []string
 }
 
+type RuntimePrepareSpec struct {
+	StorageAttachment map[string]string
+}
+
 type RuntimeSessionSpec struct {
 	ID                SessionID
 	Name              string
