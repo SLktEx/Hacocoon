@@ -2,6 +2,7 @@ package gitcap_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,7 +16,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/state"
 )
 
-func TestBrokeredPushWithRealGitAndGitHubShapedRemote(t *testing.T) {
+func TestBrokeredPushRejectsRepositoryURLRewriteWithRealGit(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
@@ -27,40 +28,43 @@ func TestBrokeredPushWithRealGitAndGitHubShapedRemote(t *testing.T) {
 	runGit(t, "init", workspace)
 	runGit(t, "-C", workspace, "config", "user.email", "test@example.invalid")
 	runGit(t, "-C", workspace, "config", "user.name", "Hacocoon Test")
-	if err := os.WriteFile(filepath.Join(workspace, "README.md"), []byte("first\n"), 0o644); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(filepath.Join(workspace, "README.md"), []byte("first\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	runGit(t, "-C", workspace, "add", "README.md")
 	runGit(t, "-C", workspace, "commit", "-m", "first")
-	first := strings.TrimSpace(runGit(t, "-C", workspace, "rev-parse", "HEAD"))
 	runGit(t, "-C", workspace, "remote", "add", "origin", "https://github.com/acme/demo.git")
+
+	// This used to be the integration test's trick for making a GitHub-shaped
+	// remote write to a local repository. That same trick is an authorization
+	// bypass when the workspace is attacker-controlled, so it must now fail.
 	runGit(t, "-C", workspace, "config", "url.file://"+bare+".insteadOf", "https://github.com/acme/demo.git")
 
 	store := state.NewEnvironmentJSONStore(filepath.Join(root, "state", "environments.json"))
-	if err := store.PutEnvironment(ctx, core.Environment{Name: "demo", Workspace: core.Workspace{ID: "path:test", Path: workspace}, AccessMode: core.WorkspaceReadWrite}); err != nil { t.Fatal(err) }
+	if err := store.PutEnvironment(ctx, core.Environment{Name: "demo", Workspace: core.Workspace{ID: "path:test", Path: workspace}, AccessMode: core.WorkspaceReadWrite}); err != nil {
+		t.Fatal(err)
+	}
 	policyPath := filepath.Join(root, "policy.json")
 	policy := `{"default":"deny","rules":[` +
-		`{"capability":"github.git","action":"push","resource":"github://acme/demo/refs/heads/feature/test","environment":"demo","attributes":{"organization":"acme","repository":"demo","remote":"origin","source_sha":"*","target_ref":"refs/heads/feature/test"},"decision":"allow"},` +
-		`{"capability":"github.git","action":"force-push","resource":"github://acme/demo/refs/heads/main","environment":"demo","attributes":{"organization":"acme","repository":"demo","remote":"origin","source_sha":"*","target_ref":"refs/heads/main","expected_remote_sha":"*"},"decision":"allow"}` +
+		`{"capability":"github.git","action":"push","resource":"github://acme/demo/refs/heads/feature/test","environment":"demo","attributes":{"organization":"acme","repository":"demo","remote":"origin","source_sha":"*","target_ref":"refs/heads/feature/test"},"decision":"allow"}` +
 		`]}`
-	if err := os.WriteFile(policyPath, []byte(policy), 0o600); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(policyPath, []byte(policy), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	runner := host.ExecRunner{}
 	provider := gitcapapp.NewProvider(runner, store)
 	caps, err := capabilityapp.New(capabilityapp.NewFilePolicyEvaluator(policyPath), nil, capabilityapp.NewJSONLAudit(filepath.Join(root, "audit", "capabilities.jsonl")), provider)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	broker := gitcapapp.NewBroker(runner, store, caps)
 
-	if _, err := broker.Push(ctx, gitcapapp.PushSpec{Environment: "demo", Branch: "feature/test"}); err != nil { t.Fatal(err) }
-	if got := strings.TrimSpace(runGit(t, "--git-dir="+bare, "rev-parse", "refs/heads/feature/test")); got != first { t.Fatalf("feature ref=%s want=%s", got, first) }
-
-	runGit(t, "--git-dir="+bare, "update-ref", "refs/heads/main", first)
-	if err := os.WriteFile(filepath.Join(workspace, "README.md"), []byte("second\n"), 0o644); err != nil { t.Fatal(err) }
-	runGit(t, "-C", workspace, "add", "README.md")
-	runGit(t, "-C", workspace, "commit", "-m", "second")
-	second := strings.TrimSpace(runGit(t, "-C", workspace, "rev-parse", "HEAD"))
-	if _, err := broker.Push(ctx, gitcapapp.PushSpec{Environment: "demo", Branch: "main", Force: true}); err != nil { t.Fatal(err) }
-	if got := strings.TrimSpace(runGit(t, "--git-dir="+bare, "rev-parse", "refs/heads/main")); got != second { t.Fatalf("main ref=%s want=%s", got, second) }
-
-	if _, err := broker.Push(ctx, gitcapapp.PushSpec{Environment: "demo", Branch: "denied"}); err == nil { t.Fatal("default-denied branch unexpectedly pushed") }
-	if cmd := exec.Command("git", "--git-dir="+bare, "show-ref", "--verify", "--quiet", "refs/heads/denied"); cmd.Run() == nil { t.Fatal("denied ref exists") }
+	if _, err := broker.Push(ctx, gitcapapp.PushSpec{Environment: "demo", Branch: "feature/test"}); !errors.Is(err, core.ErrPolicyDenied) {
+		t.Fatalf("repository-local URL rewrite was not denied: %v", err)
+	}
+	if cmd := exec.Command("git", "--git-dir="+bare, "show-ref", "--verify", "--quiet", "refs/heads/feature/test"); cmd.Run() == nil {
+		t.Fatal("rewritten destination was modified despite policy denial")
+	}
 }
 
 func runGit(t *testing.T, args ...string) string {
@@ -68,6 +72,17 @@ func runGit(t *testing.T, args ...string) string {
 	cmd := exec.Command("git", args...)
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	output, err := cmd.CombinedOutput()
-	if err != nil { t.Fatalf("git %v: %v\n%s", args, err, output) }
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, output)
+	}
 	return string(output)
+}
+
+func containsLine(output, want string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		if strings.TrimSpace(line) == want {
+			return true
+		}
+	}
+	return false
 }
