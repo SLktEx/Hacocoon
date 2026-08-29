@@ -2,23 +2,28 @@
 
 Status date: YYYY-MM-DD.
 
-| Area | Existing code | Target | Status / next action |
-|---|---:|---:|---|
-| Go CLI | | v0.1 | |
-| Workspace path resolution/mount | | v0.1 | |
-| Incus Environment create | | v0.1 | |
-| command exec | | v0.1 | |
-| interactive shell | | v0.1 | |
-| delete/cleanup | | v0.1 | |
-| real Incus acceptance test | | v0.1 | |
-| WorkspaceLease/provider abstraction | | v0.2 | |
-| Client/VS Code access | | v0.3 | |
-| Policy/Capability | | v0.4 | |
-| Git/GitHub capability | | v0.5 | |
-| Agent/orchestrator integration | | v0.6 | |
-| Remote/AWS/EC2/EBS | | v0.7 | |
+This template records **current repository reality**. Roadmap versions are design/implementation milestones, not compatibility guarantees.
+
+| Area | Current repository reality | Roadmap stage | Validation / next action |
+|---|---|---:|---|
+| Secure Workspace Runtime | | v0.1 | |
+| Workspace identity / leases | | v0.2 | |
+| Client / interactive access | | v0.3 | |
+| Policy / Capability / audit | | v0.4 | |
+| Git / GitHub capability | | v0.5 | |
+| Agent / orchestrator integration | | v0.6 | |
+| Environment routing | | v0.7 | |
+| Experimental EC2 runtime | | v0.7 | |
+| AWS capability | | v0.7 | |
+| EBS replacement / recovery | | v0.7 | |
+| Historical storage code | | historical/provider detail | |
+| CI / race / vet / docs | | cross-cutting | |
 
 Notes:
 
-- Historical code outside the current gate should be marked `deferred`, not used to expand the current release.
-- Record destructive deletions or compatibility decisions explicitly.
+- Distinguish implemented code from real-provider acceptance.
+- Record fake/process-boundary tests separately from real Incus or real AWS acceptance.
+- Experimental/default-off providers must remain clearly marked as such.
+- Record destructive deletions, state-format changes, and compatibility decisions explicitly.
+- Hacocoon is pre-1.0; do not turn implementation presence into an accidental stability promise.
+- When a breaking change is deliberate, record operator impact and any supported migration/recovery path.
