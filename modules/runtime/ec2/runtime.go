@@ -189,13 +189,12 @@ func (r *Runtime) syncBack(ctx context.Context, ref runtimeRef) error {
 	if _, err := r.runSSM(ctx, ref.InstanceID, command); err != nil {
 		return fmt.Errorf("stage remote workspace changes: %w", err)
 	}
-	archive, err := os.CreateTemp(filepath.Dir(ref.WorkspacePath), ".haco-remote-*.tgz")
+	downloadDir, err := os.MkdirTemp("", "haco-remote-download-*")
 	if err != nil {
-		return fmt.Errorf("create remote workspace download: %w", err)
+		return fmt.Errorf("create private remote workspace download directory: %w", err)
 	}
-	archivePath := archive.Name()
-	_ = archive.Close()
-	defer os.Remove(archivePath)
+	defer os.RemoveAll(downloadDir)
+	archivePath := filepath.Join(downloadDir, "workspace.tgz")
 	if _, err := r.aws(ctx, "s3", "cp", outputURI, archivePath, "--only-show-errors"); err != nil {
 		return fmt.Errorf("download remote workspace changes: %w", err)
 	}
