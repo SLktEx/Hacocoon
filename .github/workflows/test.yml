@@ -55,13 +55,21 @@ jobs:
         run: |
           [scriptblock]::Create((Get-Content -Raw "scripts/bootstrap-windows.ps1")) | Out-Null
           [scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null
-      - name: Validate dedicated WSL boundary
+      - name: Validate dedicated WSL 2 and systemd boundary
         shell: bash
         run: |
           set -euo pipefail
           grep -q -- '--name' scripts/install-windows.ps1
           grep -q 'Hacocoon' scripts/install-windows.ps1
+          grep -q -- '--set-version' scripts/install-windows.ps1
+          grep -q -- '--set-version' scripts/bootstrap-windows.ps1
+          grep -q -- '--terminate' scripts/install-windows.ps1
+          grep -q -- '--terminate' scripts/bootstrap-windows.ps1
+          grep -q 'systemd=true' scripts/bootstrap-wsl.sh
+          grep -q 'systemd-sysv' scripts/bootstrap-wsl.sh
+          grep -q 'ps -p 1 -o comm=' scripts/bootstrap-wsl.sh
           ! grep -q -- '--set-default-version' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
+          ! grep -q -- '--shutdown' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
       - name: Dry-run release packaging
         run: goreleaser release --snapshot --clean --skip=publish
       - name: Validate release artifacts
