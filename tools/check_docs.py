@@ -56,6 +56,8 @@ required_files = [
     'docs/08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md',
     'docs/09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md',
     'docs/BASE_IMAGES.md',
+    'docs/10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.md',
+    'docs/10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md',
     'docs/IMPLEMENTATION_STATUS.md',
     'README.ja.md',
     'docs/README.ja.md',
@@ -78,6 +80,8 @@ if (root / 'docs/README.md').exists():
         errors.append('docs/README.md must point to the v0.8 Client Adapter contract')
     if '09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md' not in docmap or 'BASE_IMAGES.md' not in docmap:
         errors.append('docs/README.md must point to the v0.9 Base-image contract and detailed companion')
+    if '10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.md' not in docmap:
+        errors.append('docs/README.md must point to the v0.10 per-agent sandbox contract')
 
 v01 = (root / 'docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md').read_text()
 for required in ['haco create --workspace', 'haco exec', 'haco shell', 'haco delete', 'Incus']:
@@ -116,6 +120,14 @@ for required in ['future Environment creation only', 'must not implicitly add', 
     if required.lower() not in v09.lower():
         errors.append(f'v0.9 missing immutability/security/lifecycle rule: {required}')
 
+v10 = (root / 'docs/10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.md').read_text()
+for required in ['Per-Agent Sandbox', 'per-session broker', 'Agent Host', 'AHP', 'WorkspaceLease', 'persisted binding proof', 'real VS Code Agent Host/AHP + Incus routing acceptance pending']:
+    if required.lower() not in v10.lower():
+        errors.append(f'v0.10 missing required per-agent contract text: {required}')
+for required in ['must not receive', '`haco` remains a human/operator', 'independently routable top-level agent session', 'v0.9 Base Images & Custom Environments']:
+    if required.lower() not in v10.lower():
+        errors.append(f'v0.10 missing authority/routing/composition rule: {required}')
+
 roadmap = (root / 'docs/00_REBASELINE_AND_ROADMAP.md').read_text()
 if 'Hacocoon is a **Secure Workspace Runtime**' not in roadmap:
     errors.append('roadmap missing Secure Workspace Runtime baseline')
@@ -127,6 +139,8 @@ if 'v0.8 | Client Adapters & VS Code Integration' not in roadmap:
     errors.append('roadmap must include the explicit v0.8 Client Adapter gate')
 if 'v0.9 | Base Images & Custom Environments' not in roadmap:
     errors.append('roadmap must include the explicit v0.9 Base Images gate')
+if 'v0.10 | Per-Agent Sandbox & Agent Host Integration' not in roadmap:
+    errors.append('roadmap must include the explicit v0.10 per-agent sandbox gate')
 
 status = (root / 'docs/IMPLEMENTATION_STATUS.md').read_text()
 if 'current code reality' not in status.lower() or '`haco create --workspace`' not in status:
@@ -139,6 +153,9 @@ for required in ['haco-vscode', 'Windows/WSL', 'real Windows/WSL + Incus + VS Co
 for required in ['Base Images & Custom Environments', 'design only; implementation pending', 'haco create --base']:
     if required.lower() not in status.lower():
         errors.append(f'IMPLEMENTATION_STATUS missing v0.9 planned-state distinction: {required}')
+for required in ['Per-agent sandbox broker', 'internal/agenthost', 'agent-bindings.json', 'real VS Code Agent Host/AHP + Incus end-to-end routing acceptance pending']:
+    if required.lower() not in status.lower():
+        errors.append(f'IMPLEMENTATION_STATUS missing v0.10 implementation distinction: {required}')
 
 reference = (root / 'docs/91_IMPLEMENTATION_REFERENCE_NOTES.md').read_text()
 if 'non-normative' not in reference.lower() or 'No current architecture contract commits' not in reference:
