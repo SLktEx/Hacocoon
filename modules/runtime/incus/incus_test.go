@@ -173,7 +173,7 @@ func TestCreateEnvironmentRejectsUnwritableRWWorkspace(t *testing.T) {
 		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
 			return rootProfileResult(), nil
 		}
-		if call == 4 {
+		if call == 5 {
 			return host.Result{ExitCode: 1, Stderr: "permission denied"}, writeErr
 		}
 		return host.Result{}, nil
