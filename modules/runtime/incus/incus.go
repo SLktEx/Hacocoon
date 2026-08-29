@@ -128,6 +128,84 @@ func (r *Runtime) DeleteEnvironment(ctx context.Context, ref string) error {
 	return err
 }
 
+const sshProvisionScript = `
+set -eu
+export DEBIAN_FRONTEND=noninteractive
+if ! command -v sshd >/dev/null 2>&1; then
+  apt-get update
+  apt-get install -y --no-install-recommends openssh-server
+fi
+install -d -m 0700 /root/.ssh
+install -m 0600 /dev/null /root/.ssh/authorized_keys.tmp
+if [ -f /root/.ssh/authorized_keys ]; then
+  cat /root/.ssh/authorized_keys > /root/.ssh/authorized_keys.tmp
+fi
+key="$1"
+grep -Fqx -- "$key" /root/.ssh/authorized_keys.tmp || printf '%s\n' "$key" >> /root/.ssh/authorized_keys.tmp
+mv /root/.ssh/authorized_keys.tmp /root/.ssh/authorized_keys
+chmod 0600 /root/.ssh/authorized_keys
+systemctl enable --now ssh
+`
+
+func (r *Runtime) InspectEnvironment(ctx context.Context, ref string) (core.EnvironmentRuntimeStatus, error) {
+	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "s")
+	if err != nil {
+		return core.EnvironmentRuntimeStatus{}, err
+	}
+	states := map[string]core.EnvironmentState{
+		"RUNNING": core.EnvironmentRunning,
+		"STOPPED": core.EnvironmentStopped,
+	}
+	state, ok := states[strings.ToUpper(strings.TrimSpace(result.Stdout))]
+	if !ok {
+		state = core.EnvironmentUnknown
+	}
+	return core.EnvironmentRuntimeStatus{State: state}, nil
+}
+
+func (r *Runtime) ForwardLocalPort(ctx context.Context, ref string, req core.LocalPortRequest) (core.ClientConnection, error) {
+	id := fmt.Sprintf("tcp-%d-%d", req.HostPort, req.TargetPort)
+	if err := r.addLoopbackProxy(ctx, ref, id, req.HostPort, req.TargetPort); err != nil {
+		return core.ClientConnection{}, err
+	}
+	return core.ClientConnection{ID: id, Kind: "tcp", Host: "127.0.0.1", Port: req.HostPort, TargetPort: req.TargetPort}, nil
+}
+
+func (r *Runtime) RemoveClientConnection(ctx context.Context, ref, connectionID string) error {
+	_, err := r.runner.Run(ctx, "incus", "config", "device", "remove", ref, "haco-"+connectionID, "--project", r.project)
+	return err
+}
+
+func (r *Runtime) PrepareSSH(ctx context.Context, ref string, req core.SSHAccessRequest) (core.ClientConnection, error) {
+	if _, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", sshProvisionScript, "haco-ssh", req.PublicKey); err != nil {
+		return core.ClientConnection{}, fmt.Errorf("prepare SSH in %s: %w", ref, err)
+	}
+	id := fmt.Sprintf("ssh-%d", req.HostPort)
+	if err := r.addLoopbackProxy(ctx, ref, id, req.HostPort, 22); err != nil {
+		return core.ClientConnection{}, err
+	}
+	return core.ClientConnection{
+		ID:         id,
+		Kind:       "ssh",
+		Host:       "127.0.0.1",
+		Port:       req.HostPort,
+		TargetPort: 22,
+		User:       "root",
+		Command:    fmt.Sprintf("ssh -p %d root@127.0.0.1", req.HostPort),
+	}, nil
+}
+
+func (r *Runtime) addLoopbackProxy(ctx context.Context, ref, id string, hostPort, targetPort int) error {
+	_, err := r.runner.Run(ctx, "incus", "config", "device", "add", ref, "haco-"+id, "proxy",
+		fmt.Sprintf("listen=tcp:127.0.0.1:%d", hostPort),
+		fmt.Sprintf("connect=tcp:127.0.0.1:%d", targetPort),
+		"--project", r.project)
+	if err != nil {
+		return fmt.Errorf("add local proxy %s: %w", id, err)
+	}
+	return nil
+}
+
 func (r *Runtime) Start(ctx context.Context, ref string) error {
 	_, err := r.runner.Run(ctx, "incus", "start", ref, "--project", r.project)
 	return err
