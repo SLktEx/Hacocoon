@@ -126,10 +126,15 @@ if ($GrantIncusAdmin) {
 }
 
 Write-Step "Installing Hacocoon inside '$selected'"
-& wsl.exe --distribution $selected -- env \
-    "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue" \
-    "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue" \
-    sh $linuxBootstrap $linuxInstaller $HacocoonVersion
+$wslArgs = @(
+    "--distribution", $selected,
+    "--",
+    "env",
+    "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue",
+    "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue",
+    "sh", $linuxBootstrap, $linuxInstaller, $HacocoonVersion
+)
+& wsl.exe @wslArgs
 if ($LASTEXITCODE -ne 0) {
     throw "Hacocoon WSL bootstrap failed."
 }
