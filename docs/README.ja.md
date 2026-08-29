@@ -2,136 +2,145 @@
 
 [English](README.md) | **日本語**
 
-このファイルは、2026-08-29 の architecture rebaseline、**v0.8 までの実装進行**、そして v0.9 Base Images & Custom Environments の roadmap decision を踏まえて、Hacocoon の資料をどの順番で読めばよいかを説明します。
+このファイルは、2026-08-29 のarchitecture rebaselineと、v0.8〜v0.11のClient/Agent連携を含む現在の資料案内です。
 
 > [!NOTE]
-> 日本語資料は読みやすさのための補助資料です。設計上の最終的な正本は英語版の authoritative document です。
+> 日本語資料は読みやすさのための補助資料です。設計上の最終的な正本は英語版authoritative documentです。
 
-Hacocoon はまだ **pre-1.0** です。現在の architecture や roadmap が書かれていても、API / CLI / state format / provider / client adapter / Base image / configuration の互換性保証ではありません。
+Hacocoonはまだ **pre-1.0** です。API / CLI / state / provider / client adapter / Base image / agent integrationは互換性なく変わる可能性があります。
 
 ## まず日本語で読むなら
 
-1. [`../README.ja.md`](../README.ja.md) — Hacocoon の目的と、`haco-vscode open .` を中心にした使い方。
-2. [`ARCHITECTURE_GUIDE.ja.md`](ARCHITECTURE_GUIDE.ja.md) — architecture、security boundary、v0.1〜v0.8 の実装の流れ。
-3. [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) — `main` に何が実装され、何が real acceptance 待ちか。
-4. [`BASE_IMAGES.ja.md`](BASE_IMAGES.ja.md) — v0.9 の Incus standard/custom image を Hacocoon の `Base` として扱う詳細設計。
-5. [`09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md) — v0.9 の英語正本となる最小 roadmap/acceptance contract。
+1. [`../README.ja.md`](../README.ja.md) — 全体概要。
+2. [`ARCHITECTURE_GUIDE.ja.md`](ARCHITECTURE_GUIDE.ja.md) — architecture / security boundary。
+3. [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) — 現在何が実装されているか。
+4. [`10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md`](10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md) — SessionごとのEnvironment割当。
+5. [`11_v0.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md`](11_v0.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md) — VS Code Agents windowから専用Environmentを使う方法。
+6. [`BASE_IMAGES.ja.md`](BASE_IMAGES.ja.md) — v0.9 Base Images詳細設計。
 
 ## 正本の優先順位
 
-資料同士が矛盾して見える場合、英語版は次の順番で優先します。
+1. `00_REBASELINE_AND_ROADMAP.md`
+2. `00C_TERMINOLOGY_AND_BOUNDARIES.md`
+3. `00B_SECURITY_ARCHITECTURE.md`
+4. `IMPLEMENTATION_STATUS.md`
+5. `01_...`〜`11_...` のversioned release specification
+6. 個別詳細資料 (`CLIENT_ACCESS.md`, `BASE_IMAGES.md`等)
+7. `00A_PLUGIN_ARCHITECTURE.md`
+8. `90_CODEX_IMPLEMENTATION_HANDOFF.md`
+9. `91_IMPLEMENTATION_REFERENCE_NOTES.md`
+10. `adr/`
 
-1. `00_REBASELINE_AND_ROADMAP.md` — product boundary と roadmap progression。
-2. `00C_TERMINOLOGY_AND_BOUNDARIES.md` — architecture 用語と responsibility boundary。
-3. `00B_SECURITY_ARCHITECTURE.md` — trust / security の横断ルール。
-4. `IMPLEMENTATION_STATUS.md` — 現在の code reality と未 acceptance 項目。
-5. `01_...`〜`09_...` — 各 roadmap stage の versioned design contract。
-6. `CLIENT_ACCESS.md` / `REMOTE_CLOUD_PROVISIONING.md` / `BASE_IMAGES.md` 等 — 個別領域の詳細 contract または明示的な design proposal。
-7. `00A_PLUGIN_ARCHITECTURE.md` — extension / adapter guidance。
-8. `90_CODEX_IMPLEMENTATION_HANDOFF.md` — 実装・maintenance workflow。
-9. `91_IMPLEMENTATION_REFERENCE_NOTES.md` — non-normative reference / historical notes。
-10. `adr/` 配下 — 個別 decision。
+README類は入口であり、上記正本を上書きしません。
 
-`README.md`、`CODEX_START_HERE.md`、`Hacocoon_v0.1-v0.7_MASTER.md` は入口です。最後の master filename は historical name であり、v0.9 の正本を上書きしません。
+## 現在の状態
 
-## 現在の読み方
+- v0.1〜v0.11 specは **versioned design contract**。
+- v0.1〜v0.8は実装passあり。
+- v0.9 Base Images & Custom Environmentsは **design only / implementation pending**。
+- v0.10はopaque Session ID→専用Environmentのpersisted Brokerを実装。
+- v0.11は`haco-agent-host`で、そのEnvironmentをVS Code Agents window用Remote-SSH targetとして準備する。
+- AHPそのものはHacocoonで再実装せずVS Code側へ任せる。
+- Real provider/client acceptanceとrepository CIは別物。
 
-現在の **実装進行は v0.8**、次の明示的な roadmap gate は **v0.9** です。
-
-- v0.1〜v0.9 spec は **versioned design contract**。
-- v0.1〜v0.8 は `main` に implementation pass が存在する。
-- v0.9 は Base Images & Custom Environments の設計/roadmap gate として確定したが、まだ実装済みとは扱わない。
-- `IMPLEMENTATION_STATUS.md` が現在の repository reality。
-- 実装済みでも public surface が固定されたわけではない。
-- real-provider / real-client acceptance と CI は別物。
-- EC2 は引き続き experimental / disabled by default。
-- v0.8 は Client Adapter を追加し、VS Code を最初の adapter とする。
-- VS Code の editor / terminal / Git UI / AI UI は VS Code が所有し、Hacocoon Core には持ち込まない。
-- v0.9 は logical Base を immutable revision に解決して Environment を作る。
-- Incus alias / remote / fingerprint は Core API に出さず、Incus adapter の内部詳細にする。
-- `BASE_IMAGES.md` は詳細 companion、`09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` が v0.9 の最小 authoritative gate。
-- v0.9 より後の scope は、明示的な decision なしに勝手に invent しない。
-
-## v0.8 を読む順番
-
-1. [`08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md`](08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md)
-2. [`CLIENT_ACCESS.md`](CLIENT_ACCESS.md)
-3. [`00_REBASELINE_AND_ROADMAP.md`](00_REBASELINE_AND_ROADMAP.md)
-4. [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)
-
-意図している構造は次です。
+## v0.8: 普通のVS Code
 
 ```text
-VS Code / another client
-        |
- thin Client Adapter
-        |
-    Hacocoon
-        |
- isolated Environment
+haco-vscode open .
+  -> Environment
+  -> loopback-only SSH
+  -> VS Code Remote-SSH /workspace
 ```
 
-Environment 内では coding agent を permissive に動かせますが、GitHub / AWS / Host 等の外部 authority は Policy / Capability / Audit boundary を維持します。
+VS Codeのeditor / terminal / Git UI / AI UIはVS Code側が所有します。
 
-## v0.9 を読む順番
-
-1. [`09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md)
-2. [`BASE_IMAGES.ja.md`](BASE_IMAGES.ja.md) / [`BASE_IMAGES.md`](BASE_IMAGES.md)
-3. [`00_REBASELINE_AND_ROADMAP.md`](00_REBASELINE_AND_ROADMAP.md)
-4. [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
-5. [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)
-
-概念は次です。
+## v0.9: Base Images
 
 ```text
-my-dev という logical Base
-        |
-        v
-immutable Base revision
-        |
-        v
-Incus fingerprint (adapter内部)
-        |
-        v
-Environment
+logical Base
+  -> immutable revision
+  -> Incus fingerprint (adapter内部)
+  -> Environment
 ```
 
-`my-dev` が新しい revision に更新されても、既存 Environment は古い revision のままです。新しい Environment だけが新 revision を使います。
+これはまだ実装pendingです。`haco image` / `haco create --base`は実装済みとは扱いません。
 
-また custom Base は guest の中身を決めるだけで、Host mount / privileged / capability / credential / external authority を増やす権限は持ちません。
+## v0.10: SessionごとのEnvironment
+
+```text
+opaque Session ID
+      |
+trusted persisted binding
+      |
+Environment / Incus
+```
+
+Coding Agent自身に`haco`、Incus socket、Hacocoon管理権限を渡しません。
+
+同じrepositoryを複数Agentがwriteする場合は通常別worktreeを使います。
+
+## v0.11: VS Code Agents window
+
+準備:
+
+```bash
+haco-agent-host prepare --session task-a /path/to/worktree-a
+```
+
+```text
+v0.10 Environment
+   -> localhost SSH alias
+   -> VS Code Agents window
+      New -> Remote -> SSH -> alias
+   -> VS Code側Agent Host / AHP
+```
+
+`--no-launch`なしなら`code --agents`を起動します。
+
+終了:
+
+```bash
+haco-agent-host release --session task-a
+```
+
+Private SSH keyはClient側に残り、Environmentへ渡すのはpublic keyだけです。
+
+### 隔離単位
+
+保証単位は **1 Hacocoon `--session` slot = 1 Environment** です。
+
+HacocoonがVS Code内部のSession UUIDを自動で取得するわけではないため、同じSSH aliasで複数VS Code Sessionを作れば同じEnvironmentを共有します。
+
+完全に分けたい場合:
+
+```bash
+haco-agent-host prepare --session task-a /worktrees/a
+haco-agent-host prepare --session task-b /worktrees/b
+```
+
+のようにslotとworktreeを分けます。
 
 ## Specification と Implementation
 
-Release specification は、その roadmap stage の設計・acceptance contract を示します。
+Specificationが存在することとcode/real-client acceptance済みであることは別です。
 
-`IMPLEMENTATION_STATUS.md` は **現在コードに何が存在するか**を示します。
+特に:
 
-たとえば v0.7 EC2 adapter が実装済みでも real AWS acceptance は別途必要です。同様に v0.8 の `haco-vscode` が実装済みでも、real Windows/WSL + Incus + VS Code Remote-SSH acceptance は対応環境で確認する必要があります。
-
-v0.9 の spec が存在していても、`haco image` や `haco create --base` が実装されるまでは implementation 済みとは扱いません。
+- v0.9はdesign-only。
+- v0.10 Brokerは実装済みだがreal Agent Host routingは別Acceptance。
+- v0.11 adapterは実装済みだがreal Windows/WSL/Incus + current VS Code Agents window acceptanceは別。
 
 ## Breaking Change
 
-Hacocoon は pre-1.0 であり、simplification / hardening を継続します。
+Hacocoonはpre-1.0です。CLI、helper binary、state、Provider、Capability、Client/Agent Integration等はBreaking Change可能です。
 
-Breaking Change の対象には CLI、helper binary、state、Core / adapter API、Capability / Policy、Provider、Client Adapter configuration、Base/image lifecycle、experimental backend、document structure が含まれます。
-
-Accidental compatibility を守るために architecture や security boundary を弱くすることはしません。ただし silent data loss や security regression も許容しません。
-
-## Historical material
-
-- `Session`、Runtime/Storage-centric、plugin-heavy な旧コードは migration inventory として残る場合があります。
-- 削除済み・superseded 資料が Git history や stale search index に見える場合があります。
-- Btrfs / raw / QCOW2 等の historical experiment は current spec / ADR が再導入しない限り roadmap commitment ではありません。
-- 「v0.1 を終えるまで後続を実装するな」という古い指示は historical です。
+Security boundaryを弱めるためにaccidental compatibilityを残しません。
 
 ## ドキュメント変更時のルール
 
-1. authoritative document を先に更新する。
-2. code reality が変わったら `IMPLEMENTATION_STATUS.md` を更新する。
-3. README / CODEX / handoff 等の入口も追従させる。
-4. 日本語 summary も user-facing description が古くなったら更新する。
-5. implementation claim と real-provider/client acceptance claim を混ぜない。
-6. experimental provider の default-off status を維持する。
-7. `python tools/check_docs.py` を実行する。
-8. implementation detail を accidental compatibility promise にしない。
+1. authoritative documentを先に更新する。
+2. code realityが変わったら`IMPLEMENTATION_STATUS.md`を更新する。
+3. entry point / 日本語summaryも追従する。
+4. implementation claimとreal acceptanceを混ぜない。
+5. experimental providerのdefault-offを維持する。
+6. `python tools/check_docs.py`を実行する。
