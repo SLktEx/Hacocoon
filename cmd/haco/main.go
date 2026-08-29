@@ -221,7 +221,7 @@ func storageCommand(ctx context.Context, app *composition.App, args []string) er
 				return err
 			}
 			printShrinkPlan(plan)
-			return resizable.Shrink(ctx, handle, plan)
+			return app.Manager.ShrinkStorage(ctx, handle, plan)
 		},
 		"compact": func() error { return resizable.Compact(ctx, handle) },
 	}
