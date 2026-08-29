@@ -1,5 +1,7 @@
 # Hacocoon
 
+**Pronounced: はこーん (ha-kōn)**
+
 Hacocoon is an OSS disposable Linux development-session runtime for humans and coding agents.
 
 The project is intentionally built around a tiny vendor-neutral Core. Concrete infrastructure such as Incus, Btrfs, QCOW2, GitHub, AWS, VS Code and WSLg lives behind replaceable modules/plugins instead of leaking into Core.
