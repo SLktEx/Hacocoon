@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
 	awscapapp "github.com/SLktEx/Hacocoon/internal/awscap"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	clientapp "github.com/SLktEx/Hacocoon/internal/client"
@@ -22,6 +23,7 @@ import (
 
 type App struct {
 	Environments *workspaceapp.Service
+	AgentHosts   *agenthostapp.Broker
 	Clients      *clientapp.Service
 	Capabilities *capabilityapp.Service
 	Git          *gitcapapp.Broker
@@ -68,6 +70,7 @@ func Local(_ context.Context) (*App, error) {
 	environments := workspaceapp.New(runtime, store)
 	return &App{
 		Environments: environments,
+		AgentHosts:   agenthostapp.New(environments, store),
 		Clients:      clientapp.New(runtime, store),
 		Capabilities: capabilities,
 		Git:          gitcapapp.NewBroker(runner, store, capabilities),
