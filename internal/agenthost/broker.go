@@ -129,7 +129,7 @@ func (b *Broker) Lookup(ctx context.Context, sessionID string) (Binding, error) 
 }
 
 func (b *Broker) Release(ctx context.Context, sessionID string) error {
-	if b == nil || b.environments == nil || b.bindings == nil {
+	if b == nil || b.environments == nil || b.envStore == nil || b.bindings == nil {
 		return core.ErrInvalidArgument
 	}
 	if err := validateSessionID(sessionID); err != nil {
@@ -138,6 +138,13 @@ func (b *Broker) Release(ctx context.Context, sessionID string) error {
 	key := sessionKey(sessionID)
 	record, err := b.bindings.Get(ctx, key)
 	if err != nil {
+		return err
+	}
+	environment, err := b.envStore.GetEnvironment(ctx, record.EnvironmentName)
+	if err != nil {
+		return fmt.Errorf("resolve bound environment %q before release: %w", record.EnvironmentName, err)
+	}
+	if err := verifyRecord(record, environment); err != nil {
 		return err
 	}
 	if err := b.environments.Delete(ctx, record.EnvironmentName); err != nil {
