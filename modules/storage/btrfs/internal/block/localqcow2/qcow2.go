@@ -120,7 +120,12 @@ func (s *Store) Compact(ctx context.Context, handle block.Handle) error {
 }
 
 func (s *Store) Delete(ctx context.Context, handle block.Handle) error {
-	_ = s.Detach(ctx, handle)
+	if handle.Device == "" {
+		return fmt.Errorf("refuse to delete qcow2 image %s without proven NBD device identity", handle.Path)
+	}
+	if err := s.Detach(ctx, handle); err != nil {
+		return fmt.Errorf("disconnect qcow2 NBD device before delete: %w", err)
+	}
 	if err := os.Remove(handle.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
