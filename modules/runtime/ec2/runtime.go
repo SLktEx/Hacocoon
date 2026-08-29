@@ -47,7 +47,7 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
-	defer os.Remove(archive)
+	defer os.RemoveAll(filepath.Dir(archive))
 
 	prefix := cfg.WorkspacePrefix + "/" + spec.Name
 	inputURI := s3URI(cfg.WorkspaceBucket, prefix+"/input.tgz")
@@ -144,7 +144,16 @@ func (r *Runtime) DeleteEnvironment(ctx context.Context, rawRef string) error {
 	if err != nil {
 		return err
 	}
-	if state != "terminated" {
+	if state == "terminated" {
+		if !ref.ReadOnly {
+			if err := r.restoreStagedOutput(ctx, ref); err != nil {
+				return errors.Join(
+					fmt.Errorf("recover terminated EC2 workspace %s from staged output: %w", ref.InstanceID, err),
+					core.ErrRecoveryRequired,
+				)
+			}
+		}
+	} else {
 		if !ref.ReadOnly {
 			if state != "running" {
 				return fmt.Errorf("EC2 environment %s state=%s cannot be synchronized safely: %w", ref.InstanceID, state, core.ErrRecoveryRequired)
@@ -189,13 +198,17 @@ func (r *Runtime) syncBack(ctx context.Context, ref runtimeRef) error {
 	if _, err := r.runSSM(ctx, ref.InstanceID, command); err != nil {
 		return fmt.Errorf("stage remote workspace changes: %w", err)
 	}
-	archive, err := os.CreateTemp(filepath.Dir(ref.WorkspacePath), ".haco-remote-*.tgz")
+	return r.restoreStagedOutput(ctx, ref)
+}
+
+func (r *Runtime) restoreStagedOutput(ctx context.Context, ref runtimeRef) error {
+	outputURI := s3URI(ref.Bucket, ref.Prefix+"/output.tgz")
+	downloadDir, err := os.MkdirTemp("", "haco-remote-download-*")
 	if err != nil {
-		return fmt.Errorf("create remote workspace download: %w", err)
+		return fmt.Errorf("create private remote workspace download directory: %w", err)
 	}
-	archivePath := archive.Name()
-	_ = archive.Close()
-	defer os.Remove(archivePath)
+	defer os.RemoveAll(downloadDir)
+	archivePath := filepath.Join(downloadDir, "workspace.tgz")
 	if _, err := r.aws(ctx, "s3", "cp", outputURI, archivePath, "--only-show-errors"); err != nil {
 		return fmt.Errorf("download remote workspace changes: %w", err)
 	}
@@ -285,15 +298,13 @@ func (r *Runtime) aws(ctx context.Context, args ...string) (host.Result, error) 
 }
 
 func createWorkspaceArchive(ctx context.Context, runner host.Runner, workspace string) (string, error) {
-	archive, err := os.CreateTemp("", "haco-workspace-*.tgz")
+	dir, err := os.MkdirTemp("", "haco-workspace-*")
 	if err != nil {
 		return "", err
 	}
-	path := archive.Name()
-	_ = archive.Close()
-	_ = os.Remove(path)
+	path := filepath.Join(dir, "workspace.tgz")
 	if _, err := runner.Run(ctx, "tar", "-czf", path, "-C", workspace, "."); err != nil {
-		_ = os.Remove(path)
+		_ = os.RemoveAll(dir)
 		return "", fmt.Errorf("archive workspace: %w", err)
 	}
 	return path, nil
@@ -309,16 +320,25 @@ func restoreWorkspaceArchive(ctx context.Context, runner host.Runner, archive, w
 	if _, err := runner.Run(ctx, "tar", "-xzf", archive, "-C", extracted); err != nil {
 		return err
 	}
-	backup := workspace + ".haco-backup"
-	_ = os.RemoveAll(backup)
+
+	backupRoot, err := os.MkdirTemp(parent, ".haco-backup-*")
+	if err != nil {
+		return err
+	}
+	backup := filepath.Join(backupRoot, "workspace")
 	if err := os.Rename(workspace, backup); err != nil {
+		_ = os.RemoveAll(backupRoot)
 		return err
 	}
 	if err := os.Rename(extracted, workspace); err != nil {
-		_ = os.Rename(backup, workspace)
+		rollbackErr := os.Rename(backup, workspace)
+		_ = os.RemoveAll(backupRoot)
+		if rollbackErr != nil {
+			return errors.Join(err, fmt.Errorf("restore original workspace after failed swap: %w", rollbackErr))
+		}
 		return err
 	}
-	if err := os.RemoveAll(backup); err != nil {
+	if err := os.RemoveAll(backupRoot); err != nil {
 		return err
 	}
 	return nil
