@@ -1,31 +1,36 @@
 # Architecture Rebaseline and Roadmap
 
-**Status:** authoritative baseline  
-**Date:** 2026-08-29
+**Status:** authoritative architecture baseline  
+**Date:** 2026-08-29  
+**Implementation note:** `main` has progressed through the v0.7 implementation pass; see `IMPLEMENTATION_STATUS.md` for current code reality and pending real-provider acceptance.
 
 ## Decision
 
 Hacocoon is a **Secure Workspace Runtime**.
 
-It receives a Workspace from a human, IDE, shell, or external orchestrator; places that Workspace inside an isolated Environment; executes tools there; and later mediates privileged capabilities such as GitHub or cloud access.
+It receives a Workspace from a human, IDE, shell, or external orchestrator; places that Workspace inside an isolated Environment; executes tools there; and mediates privileged capabilities such as GitHub or cloud access without handing broad parent authority to the Environment.
 
 It is **not** the owner of IDE workflow, Git branch/worktree orchestration, AI task DAGs, model routing, retry strategy, or model budgets.
 
 ```text
-VS Code / Shell / Daintree / Rookery / other clients
-                         |
-                    Workspace
-                         v
-                +----------------+
-                |    Hacocoon    |
-                | Secure         |
-                | Workspace      |
-                | Runtime        |
-                +--+----------+--+
-                   |          |
-              Environment   Policy/Capability
-                   |
-                 Incus
+VS Code / Shell / coding agents / orchestrators / other clients
+                              |
+                         Workspace
+                              v
+                    +-------------------+
+                    |     Hacocoon      |
+                    | Secure Workspace  |
+                    | Runtime           |
+                    +---------+---------+
+                              |
+              +---------------+----------------+
+              |                                |
+         Environment                    Policy/Capability
+              |
+      Environment provider
+         /           \
+ runtime.incus   runtime.ec2
+ local default  experimental
 ```
 
 ## Hacocoon responsibilities
@@ -35,11 +40,12 @@ Hacocoon owns:
 - accepting/resolving a Workspace;
 - binding a Workspace to an isolated Environment;
 - Environment lifecycle and cleanup;
-- command/interactive execution;
-- later, Workspace lease/ownership safety;
-- later, policy evaluation and security approval;
-- later, scoped external-service capabilities;
-- stable boundaries that clients/orchestrators can call.
+- command and interactive execution;
+- Workspace lease/ownership safety;
+- policy evaluation and security approval;
+- scoped external-service capabilities;
+- stable conceptual boundaries that clients and orchestrators can call;
+- audit/recovery behavior for authority-sensitive operations.
 
 Hacocoon does not own:
 
@@ -53,7 +59,7 @@ Hacocoon does not own:
 
 ## Core concepts
 
-The long-term Core vocabulary is intentionally small:
+The Core vocabulary is intentionally small:
 
 ```text
 Workspace
@@ -65,7 +71,7 @@ PolicyDecision
 ApprovalRequest
 ```
 
-Concrete technologies stay behind adapters/ports. Core must not depend directly on Incus, Git, GitHub, AWS, VS Code, Daintree, Rookery, Btrfs, QCOW2, or EC2.
+Concrete technologies stay behind adapters/ports. Core must not depend directly on Incus, Git, GitHub, AWS, VS Code, Daintree, Rookery, Btrfs, QCOW2, EC2, EBS, or other provider-specific concepts.
 
 ## Workspace and worktree boundary
 
@@ -73,53 +79,53 @@ A Workspace is opaque to Hacocoon Core. It may be:
 
 - an ordinary directory;
 - a Git repository;
-- a Git worktree produced by Daintree/Rookery;
-- a worktree produced by an optional Hacocoon WorkspaceProvider.
+- a Git worktree produced by an external tool;
+- a workspace produced by an optional Hacocoon WorkspaceProvider.
 
 External ownership:
 
 ```text
-Daintree/Rookery -> create worktree -> path -> Hacocoon
+external orchestrator -> create/select workspace -> path -> Hacocoon
 ```
 
 Standalone ownership:
 
 ```text
-Human/CLI -> optional GitWorktreeWorkspace -> Hacocoon
+Human/CLI -> optional WorkspaceProvider -> Workspace -> Hacocoon
 ```
 
-Both paths must converge on the same Workspace/Environment runtime path.
+Both paths converge on the same Workspace/Environment runtime path.
 
 ## Human-in-the-loop split
 
 There are two different approval responsibilities:
 
 ```text
-Development approval -> Human / GitHub / Daintree / Rookery
+Development approval -> Human / GitHub / external orchestrator
 Security approval    -> Hacocoon Policy/Capability boundary
 ```
 
-Hacocoon security approval covers privileged authority such as credential issuance, protected GitHub operations, sensitive port exposure, AWS/API access, or runtime privilege changes.
+Hacocoon security approval covers privileged authority such as protected Git operations, sensitive exposure, AWS/API access, or runtime privilege changes. It is not a general development workflow engine.
 
-## New release order
+## Baseline roadmap progression
 
-The previous v0.1-v0.7 sequence is superseded by this order:
+The 2026-08-29 rebaseline established this sequence:
 
-| Version | Gate | Purpose |
-|---|---|---|
-| v0.1 | Secure Workspace Runtime MVP | external path -> Incus -> exec/shell -> delete |
-| v0.2 | Workspace Abstraction & Lease | formal workspace providers/leases; optional worktree provider |
-| v0.3 | Client & Interactive Access | VS Code/SSH/code-server/ports without IDE ownership |
-| v0.4 | Policy & Capability Foundation | allow/deny/require-approval and audit boundary |
-| v0.5 | Git / GitHub Capability | scoped Git/GitHub authority without broad ambient credentials |
-| v0.6 | Agent & Orchestrator Integration | Codex/Claude/Daintree/Rookery/MCP integration above generic execution |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | AWS capabilities plus experimental, disabled-by-default EC2 EnvironmentProvider/EBS work |
+| Version | Gate | Purpose | Repository state |
+|---|---|---|---|
+| v0.1 | Secure Workspace Runtime MVP | external path -> Incus -> exec/shell -> delete | implemented; real Incus acceptance remains environment-dependent |
+| v0.2 | Workspace Abstraction & Lease | formal workspace identity/leases and concurrency safety | implemented |
+| v0.3 | Client & Interactive Access | status/SSH/ports/client integration without IDE ownership | implemented |
+| v0.4 | Policy & Capability Foundation | allow/deny/require-approval and audit boundary | implemented |
+| v0.5 | Git / GitHub Capability | scoped Git/GitHub authority without broad ambient credentials | implemented |
+| v0.6 | Agent & Orchestrator Integration | generic machine/agent integration above secure execution | implemented |
+| v0.7 | Remote / Cloud Runtime & External Capabilities | AWS capability plus remote provider work | implemented experimentally; real AWS acceptance pending |
 
-The v0.7 EC2 Environment Provider is an explicit exception to normal backend availability: it remains experimental and disabled by default. AWS credentials or host environment discovery must never implicitly enable it.
+These rows describe the implementation progression, **not compatibility guarantees**. Hacocoon remains pre-1.0 and may change CLI, state formats, APIs, capabilities, adapters, and configuration incompatibly.
 
-## v0.1 scope freeze
+## v0.1 baseline gate record
 
-v0.1 proves one vertical slice only:
+v0.1 established the first vertical slice:
 
 ```text
 host directory
@@ -129,79 +135,65 @@ host directory
   -> haco delete
 ```
 
-v0.1 includes:
+Its scope intentionally excluded policy, GitHub/AWS authority, agent orchestration, advanced storage, and cloud runtime. Those boundaries were introduced by later roadmap stages instead of being pre-built into v0.1.
 
-- Go CLI;
-- external path Workspace;
-- Incus Environment lifecycle;
-- read/write workspace mount;
-- command execution;
-- interactive shell;
-- minimal state/cleanup;
-- unit tests plus a real-Incus integration path.
-
-v0.1 explicitly excludes:
-
-- Hacocoon-owned worktree orchestration;
-- Policy/Capability engine;
-- GitHub/AWS;
-- AI-specific agent management;
-- MCP;
-- VS Code extension/Web UI;
-- advanced Btrfs/loop/QCOW2 storage lifecycle;
-- EC2/EBS;
-- speculative plugin frameworks.
-
-Historical code for later areas may remain in the repository but must not expand the v0.1 acceptance gate.
-
-## v0.1 implementation order
-
-1. Minimal `Workspace`, `Environment`, and `ExecutionResult` concepts.
-2. Thin Incus CLI adapter.
-3. `haco create --workspace`.
-4. `haco exec`.
-5. `haco shell`.
-6. `haco delete` and cleanup.
-7. Real Incus integration acceptance.
-8. Scope freeze and v0.1 alpha tag.
+This section is retained as a historical design constraint. It is **not** an instruction to remove later v0.2-v0.7 functionality now present on `main`.
 
 ## Cooperation with external orchestrators
 
-### Daintree
+External orchestrators may own tasks, worktrees, workers, budgets, retries, and development review. Hacocoon receives the resulting Workspace and provides the secure Environment and Capability boundary underneath them.
 
-Daintree may own task/worktree/agent supervision. Hacocoon receives the resulting workspace path and executes the chosen agent/tool inside an isolated Environment.
+### VS Code and other IDEs
 
-### Rookery
+VS Code can use Hacocoon as the underlying Environment runtime while remaining a client, not a Core dependency. Other IDEs should consume the same generic client/environment boundary rather than causing IDE-specific branching inside Core.
 
-Rookery may own workers, budgets, worktrees, and development attention queues. Hacocoon can later expose a CLI/MCP surface for secure Environment and Capability operations.
+## Responsibility placement
 
-### VS Code
-
-VS Code can open an ordinary repository or worktree and use Hacocoon as the underlying Environment runtime. VS Code remains a client, not a Core dependency.
-
-## Old-to-new placement
-
-| Historical idea | New placement |
+| Concern | Placement |
 |---|---|
-| worktree management | optional WorkspaceProvider, v0.2 |
-| VS Code / code-server | Client integration, v0.3 |
-| authorization / approval | Policy + Capability, v0.4 |
-| Git push / GitHub authority | GitHub Capability, v0.5 |
-| AI agent integration | generic execution + external orchestrator integration, v0.6 |
+| worktree management | outside Core; optional WorkspaceProvider boundary |
+| VS Code / code-server / IDE access | client integration |
+| authorization / approval | Policy + Capability |
+| Git push / GitHub authority | Git/GitHub capability boundary |
+| AI agent integration | generic execution + external orchestrator integration |
 | model routing / task DAG / budgets | outside Hacocoon |
-| AWS / EC2 / EBS | v0.7 provider/capability work; EC2 remains experimental and explicit opt-in |
-| Btrfs / QCOW2 / storage mechanics | adapter detail when actually needed |
+| AWS / EC2 / EBS | provider/capability adapters; EC2 remains experimental |
+| Btrfs / QCOW2 / storage mechanics | provider/adapter detail only when actually required |
+
+## Experimental EC2 rule
+
+The EC2 Environment provider is **experimental and disabled by default**.
+
+It must never become active merely because AWS credentials, AWS environment variables, the AWS CLI, or cloud metadata are present. Enabling it requires explicit Hacocoon-owned operator opt-in. Disabling the experimental gate must fail closed before real provider initialization or AWS activity while preserving recoverable remote state.
+
+See `07_v0.7_REMOTE_AND_CLOUD_RUNTIME.md` and `REMOTE_CLOUD_PROVISIONING.md` for the detailed contract.
+
+## Pre-1.0 compatibility rule
+
+Breaking changes remain allowed while the architecture is being hardened.
+
+Prefer a deliberate incompatible correction over preserving accidental behavior when the old behavior:
+
+- leaks authority across a trust boundary;
+- makes ownership ambiguous;
+- creates unsafe cleanup/retry semantics;
+- forces provider-specific concepts into Core;
+- preserves unnecessary complexity only for compatibility.
+
+Breaking-change freedom should still be disciplined: document operator-visible impact, preserve data/recovery where possible, update tests, and provide migration guidance when a supported migration exists.
 
 ## Design principles
 
 - Keep Core small.
 - Prefer clear responsibility boundaries over premature common abstractions.
 - Treat the Workspace as opaque to the runtime.
-- Keep OS/Incus/process side effects in a narrow imperative shell.
+- Keep OS/Incus/process side effects in a narrow imperative shell/adaptor layer.
 - Human approval is a first-class security decision, not a UI patch.
 - Do not hand long-lived parent credentials to untrusted executed tools.
 - Hacocoon must remain usable from multiple clients and orchestrators.
-- Finish the current release gate before designing the next one into the implementation.
+- Do not create abstractions solely for hypothetical future backends.
+- Treat cleanup, retry, cancellation, concurrency, and partial failure as part of the feature.
+- Keep implementation claims separate from real-provider acceptance claims.
 
 ## One-sentence definition
 
