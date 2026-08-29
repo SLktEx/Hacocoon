@@ -19,6 +19,7 @@ order = [
     'docs/05_v0.5_GIT_AND_GITHUB_CAPABILITY.md',
     'docs/06_v0.6_AGENT_AND_ORCHESTRATOR_INTEGRATION.md',
     'docs/07_v0.7_REMOTE_AND_CLOUD_RUNTIME.md',
+    'docs/08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md',
     'docs/00A_PLUGIN_ARCHITECTURE.md',
     'docs/90_CODEX_IMPLEMENTATION_HANDOFF.md',
     'docs/91_IMPLEMENTATION_REFERENCE_NOTES.md',
@@ -31,7 +32,7 @@ for rel in order:
     p = root / rel
     out.append(f'<!-- FILE: {rel} -->\n\n' + p.read_text().rstrip() + '\n')
 
-output = Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'dist/Hacocoon_v0.1-v0.7_MASTER.md'
+output = Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'dist/Hacocoon_v0.1-v0.8_MASTER.md'
 if not output.is_absolute():
     output = root / output
 output.parent.mkdir(parents=True, exist_ok=True)
