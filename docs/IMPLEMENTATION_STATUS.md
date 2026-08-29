@@ -1,8 +1,8 @@
 # Implementation Status
 
-Status date: 2026-08-29, after the v0.8 Client Adapters & VS Code Integration implementation pass.
+Status date: 2026-08-29, after the v0.8 Client Adapters & VS Code Integration implementation pass and the v0.9 Base Images & Custom Environments roadmap decision.
 
-This file reports **current code reality**, not desired architecture and not a compatibility guarantee. Release specifications under `docs/01_...` through `docs/08_...` remain the versioned design references for their roadmap stages.
+This file reports **current code reality**, not desired architecture and not a compatibility guarantee. Release specifications under `docs/01_...` through `docs/09_...` are the versioned design references for their roadmap stages. The presence of the v0.9 specification does **not** mean its implementation exists on `main` yet.
 
 Hacocoon is still **pre-1.0**. An area being implemented on `main` means the code path exists; it does not mean its CLI/API/state/config surface is frozen, production support is guaranteed, or every real-provider/client acceptance test has passed.
 
@@ -27,12 +27,13 @@ The repository still contains historical code from the pre-rebaseline roadmap. E
 | Windows/WSL client bridge | when run under WSL, `haco-vscode` resolves the Windows user profile and targets the desktop-client `.ssh` configuration rather than WSL-only SSH config | v0.8 | code path implemented; real Windows/WSL acceptance pending |
 | Windows/WSL bootstrap | `scripts/bootstrap-windows.ps1` creates or reuses only a dedicated named WSL 2 instance (`Hacocoon` by default) instead of selecting general-purpose user distributions, delegates Linux dependency setup to `scripts/bootstrap-wsl.sh`, and reuses `scripts/install.sh`; unrelated WSL distributions remain untouched and Incus administrator authority requires explicit opt-in | v0.8 | PowerShell and shell syntax checked in CI; real Windows install/reboot/dedicated-WSL/Incus acceptance remains pending |
 | Client adapter boundary | IDE-specific launch/configuration remains outside Core; Core does not depend on VS Code, Daintree, JetBrains, or client-native configuration | v0.8 | architecture/documentation contract plus separate adapter binary |
+| Base Images & Custom Environments | explicit v0.9 roadmap contract now defines logical Base names, immutable Base revisions, Incus fingerprint pinning behind the adapter, custom-image trust boundaries, and safe reference/deletion semantics | v0.9 | **design only; implementation pending** — `haco image` / `haco create --base` must not be reported as implemented yet |
 | Btrfs / raw / QCOW2 historical storage | historical local storage implementation remains in the repository | historical / provider detail | not part of the current Core Environment model and not a compatibility commitment |
-| CI | Go version matrix tests, `go vet`, race detector, docs consistency, bootstrap syntax, release packaging, and existing non-host-dependent E2Es are enabled | cross-cutting | latest v0.8 PR CI must pass before merge; real-provider/client acceptance remains separate |
+| CI | Go version matrix tests, `go vet`, race detector, docs consistency, bootstrap syntax, release packaging, and existing non-host-dependent E2Es are enabled | cross-cutting | latest implementation PR CI must pass before merge; real-provider/client acceptance remains separate |
 
 ## Current implementation state
 
-The implemented progression now reaches v0.8:
+The implemented progression still reaches **v0.8**:
 
 ```text
 Workspace
@@ -46,6 +47,17 @@ Workspace
   -> thin Client Adapter layer, starting with VS Code Remote-SSH
   -> dedicated Windows/WSL bootstrap helper outside Core
 ```
+
+The next scheduled roadmap gate is **v0.9 Base Images & Custom Environments**:
+
+```text
+logical Base name
+  -> immutable Base revision
+  -> provider-native starting point (Incus fingerprint internally)
+  -> newly created Environment
+```
+
+This v0.9 sequence is a design/acceptance contract only until code actually lands. Existing Environments must not be retargeted when a logical Base changes, and custom image contents must not grant host-side authority.
 
 The v0.8 adapter deliberately does not add AI chat, model selection, task planning, worktree orchestration, or IDE-specific concepts to Core. The intended interactive development path is that VS Code (including its own AI/coding-agent UI) connects through standard Remote-SSH and operates inside the Hacocoon Environment.
 
@@ -91,15 +103,38 @@ For Windows host setup, the repository provides:
 
 This creates/reuses the dedicated `Hacocoon` WSL instance rather than using the user's normal WSL environment. Use `-GrantIncusAdmin` only when the workstation owner explicitly accepts root-equivalent local Incus authority for that Linux user.
 
+## v0.9 planned Base workflow
+
+The v0.9 design intends a flow approximately like:
+
+```text
+haco image list
+haco image inspect <base>
+haco create --base <base> --workspace <path> <environment>
+```
+
+This command surface is **not implemented yet and is not frozen**.
+
+The required semantic rule is more important than the exact command spelling:
+
+```text
+my-dev -> revision A -> Environment 1
+my-dev -> revision B -> Environment 2
+Environment 1 remains on revision A
+```
+
+See `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` and `BASE_IMAGES.md`.
+
 ## Compatibility status
 
-No v0.1-v0.8 implementation row should be read as a promise that the current concrete interface will remain unchanged.
+No v0.1-v0.9 design or implementation row should be read as a promise that the current concrete interface will remain unchanged.
 
 Until an explicit stable compatibility milestone is declared, breaking changes may modify or replace:
 
 - CLI commands, helper binaries, flags, and output;
 - persisted state and migrations;
 - provider interfaces and configuration;
+- Base/image identity, configuration, and lifecycle;
 - capability/policy schemas;
 - client-adapter configuration;
 - host bootstrap behavior;
