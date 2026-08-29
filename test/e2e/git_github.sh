@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for command in go git grep mktemp python3; do
+for command in go git mktemp python3; do
   command -v "$command" >/dev/null 2>&1 || { echo "missing required command: $command" >&2; exit 1; }
 done
 
 root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
 workspace="$root/workspace"
-bare="$root/remote.git"
+bare="$root/attacker.git"
 export HACO_ROOT="$root/haco-root"
 haco="$root/haco"
 
@@ -19,9 +19,7 @@ git -C "$workspace" config user.name 'Hacocoon E2E'
 printf 'first\n' > "$workspace/README.md"
 git -C "$workspace" add README.md
 git -C "$workspace" commit -qm first
-first="$(git -C "$workspace" rev-parse HEAD)"
 git -C "$workspace" remote add origin https://github.com/acme/demo.git
-git -C "$workspace" config url."file://$bare".insteadOf https://github.com/acme/demo.git
 
 mkdir -p "$HACO_ROOT/state"
 python3 - "$HACO_ROOT/state/environments.json" "$workspace" <<'PY'
@@ -48,22 +46,6 @@ cat > "$HACO_ROOT/policy.json" <<'JSON'
       },
       "decision": "allow",
       "reason": "narrow feature push"
-    },
-    {
-      "capability": "github.git",
-      "action": "force-push",
-      "resource": "github://acme/demo/refs/heads/main",
-      "environment": "demo",
-      "attributes": {
-        "organization": "acme",
-        "repository": "demo",
-        "remote": "origin",
-        "source_sha": "*",
-        "target_ref": "refs/heads/main",
-        "expected_remote_sha": "*"
-      },
-      "decision": "require-approval",
-      "reason": "protected branch force push"
     }
   ]
 }
@@ -71,55 +53,33 @@ JSON
 
 go build -o "$haco" ./cmd/haco
 
-"$haco" git push demo --branch feature/e2e >/dev/null
-[[ "$(git --git-dir="$bare" rev-parse refs/heads/feature/e2e)" == "$first" ]]
-
-git --git-dir="$bare" update-ref refs/heads/main "$first"
-printf 'second\n' > "$workspace/README.md"
-git -C "$workspace" add README.md
-git -C "$workspace" commit -qm second
-second="$(git -C "$workspace" rev-parse HEAD)"
-printf 'yes\n' | "$haco" git push demo --branch main --force >"$root/force.out" 2>"$root/force.err"
-grep -Fq '[y/N]' "$root/force.err"
-grep -Fq 'environment=demo' "$root/force.err"
-grep -Fq 'reason=protected branch force push' "$root/force.err"
-[[ "$(git --git-dir="$bare" rev-parse refs/heads/main)" == "$second" ]]
-
-printf 'third\n' > "$workspace/README.md"
-git -C "$workspace" add README.md
-git -C "$workspace" commit -qm third
-third="$(git -C "$workspace" rev-parse HEAD)"
+# A repository-local URL rewrite changes the transport destination after the
+# policy layer has approved github.com/acme/demo. This was previously used by
+# the E2E itself to redirect the push to a local bare repository; it is exactly
+# the confused-deputy path the broker must reject.
+git -C "$workspace" config url."file://$bare".insteadOf https://github.com/acme/demo.git
 set +e
-printf 'no\n' | "$haco" git push demo --branch main --force >"$root/no.out" 2>"$root/no.err"
-no_code=$?
-"$haco" git push demo --branch denied >"$root/deny.out" 2>"$root/deny.err"
-deny_code=$?
+"$haco" git push demo --branch feature/e2e >"$root/rewrite.out" 2>"$root/rewrite.err"
+rewrite_code=$?
 set -e
-[[ "$no_code" != 0 && "$deny_code" != 0 ]]
-[[ "$(git --git-dir="$bare" rev-parse refs/heads/main)" == "$second" ]]
-[[ "$third" != "$second" ]]
-if git --git-dir="$bare" show-ref --verify --quiet refs/heads/denied; then
-  echo 'denied branch was pushed' >&2
+[[ "$rewrite_code" != 0 ]]
+if git --git-dir="$bare" show-ref --verify --quiet refs/heads/feature/e2e; then
+  echo 'repository URL rewrite bypassed GitHub authorization' >&2
   exit 1
 fi
 
-audit="$HACO_ROOT/audit/capabilities.jsonl"
-[[ -f "$audit" ]]
-grep -Fq '"capability":"github.git"' "$audit"
-grep -Fq '"request_id":"' "$audit"
-grep -Fq '"organization":"acme"' "$audit"
-grep -Fq '"repository":"demo"' "$audit"
-grep -Fq '"target_ref":"refs/heads/main"' "$audit"
-grep -Fq '"approved":true' "$audit"
-grep -Fq '"approved":false' "$audit"
-grep -Fq '"decision":"deny"' "$audit"
-grep -Fq "$first" "$audit"
-grep -Fq "$second" "$audit"
-
-# Hacocoon must never have needed a GH_TOKEN/PAT in the Environment for this path.
-if grep -Eqi 'gh_token|github_token|authorization|password' "$audit"; then
-  echo 'credential-like material leaked into audit' >&2
+# A pushurl is even more direct: policy reads remote.origin.url while git push
+# normally prefers remote.origin.pushurl. It must be rejected before execution.
+git -C "$workspace" config --unset-all url."file://$bare".insteadOf
+git -C "$workspace" config remote.origin.pushurl "file://$bare"
+set +e
+"$haco" git push demo --branch feature/e2e >"$root/pushurl.out" 2>"$root/pushurl.err"
+pushurl_code=$?
+set -e
+[[ "$pushurl_code" != 0 ]]
+if git --git-dir="$bare" show-ref --verify --quiet refs/heads/feature/e2e; then
+  echo 'repository pushurl bypassed GitHub authorization' >&2
   exit 1
 fi
 
-echo 'PASS: Hacocoon v0.5 brokered Git/GitHub E2E'
+echo 'PASS: Hacocoon rejects repository-controlled Git transport overrides'
