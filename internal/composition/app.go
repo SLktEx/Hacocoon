@@ -25,12 +25,15 @@ func Local(_ context.Context) (*App, error) {
 	root := envOr("HACO_ROOT", "/var/lib/hacocoon")
 	runtime := incus.New(runner)
 	store := state.NewEnvironmentJSONStore(filepath.Join(root, "state", "environments.json"))
-	capabilities := capabilityapp.New(
+	capabilities, err := capabilityapp.New(
 		capabilityapp.NewFilePolicyEvaluator(filepath.Join(root, "policy.json")),
 		capabilityapp.NewStdioApproval(os.Stdin, os.Stderr),
 		capabilityapp.NewJSONLAudit(filepath.Join(root, "audit", "capabilities.jsonl")),
 		capabilityapp.LocalEcho{},
 	)
+	if err != nil {
+		return nil, err
+	}
 	return &App{
 		Environments: workspaceapp.New(runtime, store),
 		Clients:      clientapp.New(runtime, store),
