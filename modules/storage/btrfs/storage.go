@@ -1,4 +1,4 @@
-package localbtrfs
+package btrfs
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"syscall"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
-	"github.com/SLktEx/Hacocoon/modules/storage/block"
+	"github.com/SLktEx/Hacocoon/modules/storage/btrfs/internal/block"
 )
 
 const defaultSafetyMargin int64 = 4 << 30
@@ -24,7 +24,7 @@ func New(rootDir string, backend block.Store, fs Filesystem) *Storage {
 	return &Storage{rootDir: rootDir, block: backend, fs: fs}
 }
 
-func (*Storage) ID() string { return "storage.local-btrfs" }
+func (*Storage) ID() string { return "storage.btrfs" }
 
 func (s *Storage) Probe(ctx context.Context) (core.StorageCapabilities, error) {
 	blockCaps, err := s.block.Probe(ctx)

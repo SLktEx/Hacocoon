@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/host"
-	"github.com/SLktEx/Hacocoon/modules/storage/block"
+	"github.com/SLktEx/Hacocoon/modules/storage/btrfs/internal/block"
 )
 
 type Store struct {

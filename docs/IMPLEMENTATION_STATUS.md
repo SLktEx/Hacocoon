@@ -7,7 +7,7 @@
 | Storage contract | new | 0.1 | implemented |
 | Core fake Runtime/Storage tests | new | 0.1 | implemented |
 | runtime.incus CLI adapter | new | 0.1 | initial implementation |
-| storage.local-btrfs | new | 0.1 | initial implementation |
+| storage.btrfs | new | 0.1 | initial implementation; local BlockStore seam is private to this module |
 | block.local-raw | new | 0.1 | initial implementation |
 | block.local-qcow2 | new | 0.1 | initial implementation |
 | host init/doctor | new | 0.1 | initial implementation |

@@ -1,4 +1,4 @@
-package localbtrfs
+package btrfs
 
 import (
 	"context"
