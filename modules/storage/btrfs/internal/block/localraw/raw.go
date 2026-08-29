@@ -6,9 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/modules/storage/btrfs/internal/block"
@@ -23,35 +22,30 @@ func New(runner host.Runner) *Store { return &Store{runner: runner} }
 func (*Store) ID() string { return "block.local-raw" }
 
 func (s *Store) Probe(ctx context.Context) (block.Capabilities, error) {
-	checks := []struct {
-		name string
-		args []string
-	}{
-		{"losetup", []string{"--version"}},
-		{"truncate", []string{"--version"}},
-	}
-	for _, check := range checks {
-		if _, err := s.runner.Run(ctx, check.name, check.args...); err != nil {
-			return block.Capabilities{Available: false, Details: []string{check.name + " unavailable"}}, nil
-		}
+	if _, err := s.runner.Run(ctx, "losetup", "--version"); err != nil {
+		return block.Capabilities{Available: false, Details: []string{"losetup unavailable"}}, nil
 	}
 	return block.Capabilities{Available: true, Shrink: true, Compact: true}, nil
 }
 
 func (s *Store) Ensure(ctx context.Context, spec block.Spec) (block.Handle, error) {
-	if err := os.MkdirAll(filepath.Dir(spec.Path), 0o700); err != nil {
+	if err := block.PrepareBackingDirectory(spec.Path); err != nil {
+		return block.Handle{}, fmt.Errorf("prepare raw backing directory: %w", err)
+	}
+	info, err := block.ValidateBackingPath(spec.Path, true)
+	if err != nil {
 		return block.Handle{}, err
 	}
-	info, err := os.Stat(spec.Path)
 	switch {
-	case errors.Is(err, os.ErrNotExist):
-		if _, err := s.runner.Run(ctx, "truncate", "-s", strconv.FormatInt(spec.SizeBytes, 10), spec.Path); err != nil {
+	case info == nil:
+		if err := resizeRawNoFollow(spec.Path, spec.SizeBytes, true); err != nil {
 			return block.Handle{}, fmt.Errorf("create sparse raw image: %w", err)
 		}
-	case err != nil:
-		return block.Handle{}, err
+		if _, err := block.ValidateBackingPath(spec.Path, false); err != nil {
+			return block.Handle{}, fmt.Errorf("validate created raw image: %w", err)
+		}
 	case info.Size() < spec.SizeBytes:
-		if _, err := s.runner.Run(ctx, "truncate", "-s", strconv.FormatInt(spec.SizeBytes, 10), spec.Path); err != nil {
+		if err := resizeRawNoFollow(spec.Path, spec.SizeBytes, false); err != nil {
 			return block.Handle{}, fmt.Errorf("grow sparse raw image: %w", err)
 		}
 	}
@@ -59,7 +53,7 @@ func (s *Store) Ensure(ctx context.Context, spec block.Spec) (block.Handle, erro
 }
 
 func (s *Store) Inspect(ctx context.Context, handle block.Handle) (block.State, error) {
-	info, err := os.Stat(handle.Path)
+	info, err := block.ValidateBackingPath(handle.Path, false)
 	if err != nil {
 		return block.State{}, err
 	}
@@ -68,6 +62,9 @@ func (s *Store) Inspect(ctx context.Context, handle block.Handle) (block.State, 
 }
 
 func (s *Store) Attach(ctx context.Context, handle block.Handle) (block.Handle, error) {
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		return block.Handle{}, err
+	}
 	device, _ := s.findDevice(ctx, handle.Path)
 	if device != "" {
 		handle.Device = device
@@ -84,6 +81,9 @@ func (s *Store) Attach(ctx context.Context, handle block.Handle) (block.Handle, 
 func (s *Store) Detach(ctx context.Context, handle block.Handle) error {
 	device := handle.Device
 	if device == "" {
+		if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+			return err
+		}
 		device, _ = s.findDevice(ctx, handle.Path)
 	}
 	if device == "" {
@@ -94,7 +94,10 @@ func (s *Store) Detach(ctx context.Context, handle block.Handle) error {
 }
 
 func (s *Store) Grow(ctx context.Context, handle block.Handle, target int64) (block.Handle, error) {
-	if _, err := s.runner.Run(ctx, "truncate", "-s", strconv.FormatInt(target, 10), handle.Path); err != nil {
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		return block.Handle{}, err
+	}
+	if err := resizeRawNoFollow(handle.Path, target, false); err != nil {
 		return block.Handle{}, fmt.Errorf("grow raw image: %w", err)
 	}
 	attached, err := s.Attach(ctx, handle)
@@ -109,10 +112,13 @@ func (s *Store) Grow(ctx context.Context, handle block.Handle, target int64) (bl
 }
 
 func (s *Store) Shrink(ctx context.Context, handle block.Handle, target int64) (block.Handle, error) {
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		return block.Handle{}, err
+	}
 	if err := s.Detach(ctx, handle); err != nil {
 		return block.Handle{}, fmt.Errorf("detach before raw shrink: %w", err)
 	}
-	if _, err := s.runner.Run(ctx, "truncate", "-s", strconv.FormatInt(target, 10), handle.Path); err != nil {
+	if err := resizeRawNoFollow(handle.Path, target, false); err != nil {
 		return block.Handle{}, fmt.Errorf("shrink raw image: %w", err)
 	}
 	handle.Bytes = target
@@ -121,11 +127,20 @@ func (s *Store) Shrink(ctx context.Context, handle block.Handle, target int64) (
 }
 
 func (s *Store) Compact(ctx context.Context, handle block.Handle) error {
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		return err
+	}
 	_, err := s.runner.Run(ctx, "fallocate", "-d", handle.Path)
 	return err
 }
 
 func (s *Store) Delete(ctx context.Context, handle block.Handle) error {
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
 	if err := s.Detach(ctx, handle); err != nil {
 		return fmt.Errorf("detach raw loop image before delete: %w", err)
 	}
@@ -150,4 +165,29 @@ func (s *Store) findDevice(ctx context.Context, path string) (string, error) {
 		return "", nil
 	}
 	return strings.TrimSpace(device), nil
+}
+
+func resizeRawNoFollow(path string, size int64, create bool) error {
+	flags := syscall.O_RDWR | syscall.O_NOFOLLOW | syscall.O_CLOEXEC
+	if create {
+		flags |= syscall.O_CREAT | syscall.O_EXCL
+	}
+	fd, err := syscall.Open(path, flags, 0o600)
+	if err != nil {
+		return err
+	}
+	file := os.NewFile(uintptr(fd), path)
+	if file == nil {
+		_ = syscall.Close(fd)
+		return fmt.Errorf("open raw image %q", path)
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("raw backing image %q must be a regular file", path)
+	}
+	return file.Truncate(size)
 }
