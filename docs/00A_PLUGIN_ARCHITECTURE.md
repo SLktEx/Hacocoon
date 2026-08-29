@@ -4,13 +4,13 @@ Status: cross-cutting architecture reference. This is **not** a v0.1 implementat
 
 ## Goal
 
-Hacocoon keeps a small Core while allowing concrete runtime, workspace, capability, approval, storage, and client integrations to evolve independently.
+Hacocoon keeps a small Core while concrete environment, workspace, capability, approval, storage, and client integrations evolve independently.
 
-The design uses ordinary Go package boundaries and ports/adapters first. A dynamic plugin framework is added only if deployment or third-party extension needs justify it.
+Use ordinary Go package boundaries and ports/adapters first. A dynamic plugin framework is added only if deployment or third-party extension needs justify it.
 
-## Core ports
+## Candidate seams
 
-Expected long-term seams:
+These are long-term conceptual seams, **not a checklist of interfaces to create now**:
 
 ```text
 WorkspaceProvider
@@ -22,39 +22,48 @@ ApprovalProvider
 EventSink
 ```
 
-Core domain values should not import Incus, Git, GitHub, AWS, VS Code, Daintree, Rookery, Btrfs, QCOW2, or EC2 packages.
+Promote a seam into a Go interface when a second implementation, a stable test boundary, or a real replacement requirement makes it useful.
 
-## Initial adapters
+Core domain values must not import Incus, Git, GitHub, AWS, VS Code, Daintree, Rookery, storage-backend, or cloud-provider implementation packages.
+
+## Release placement
 
 ```text
-Workspace
-  ExternalPathWorkspace   <- v0.1
-  DirectoryWorkspace      <- v0.2
-  GitWorktreeWorkspace    <- optional v0.2+
+v0.1
+  direct external workspace path
+  concrete Incus adapter
 
-Environment
-  IncusEnvironment        <- v0.1
-  EC2Environment          <- v0.7+
+v0.2+
+  WorkspaceProvider boundary when useful
+  ExternalPath provider
+  optional GitWorktree provider
 
-Approval
-  CLIApproval             <- v0.4
-  external/UI adapters    <- later
+v0.4+
+  Policy / Approval / Capability seams
 
-Capability
-  GitHubCapability        <- v0.5
-  AWSCapability           <- v0.7
+v0.5
+  GitHub capability adapter
+
+v0.7+
+  AWS capability adapter
+  additional Environment implementation such as EC2
+  storage adapters only where required by an Environment implementation
 ```
+
+The first Incus implementation does not by itself require a generalized `EnvironmentProvider` framework. The second real environment backend is the natural point to validate that seam.
 
 ## Do not over-generalize v0.1
 
-v0.1 should not create interfaces merely because the roadmap names future providers. Start with the smallest concrete Incus/external-path vertical slice. Formalize a port when a second implementation or a stable test seam makes the abstraction useful.
+v0.1 should not create interfaces merely because the roadmap names future providers. Start with the smallest concrete Incus/external-path vertical slice.
+
+Advanced storage code already present in the repository is historical implementation inventory, not proof that storage belongs in Core or in the v0.1 architecture.
 
 ## Workspace ownership rule
 
 A workspace is opaque to the runtime. If Daintree, Rookery, VS Code, a shell script, or a human created the directory/worktree, Hacocoon accepts the path without taking ownership of the upstream Git workflow.
 
-`GitWorktreeWorkspace`, when implemented, is a convenience provider for standalone Hacocoon use—not the definition of a Workspace.
+An optional Git-worktree WorkspaceProvider, when implemented, is convenience functionality for standalone Hacocoon use—not the definition of a Workspace.
 
 ## External orchestrators
 
-Orchestrators are clients, not plugins inside Core. They may call the CLI, a future MCP adapter, or another stable protocol. Hacocoon never depends on their task DAG, model selection, retries, or budget model.
+Orchestrators are clients above Hacocoon, not plugins inside Core. They may call the CLI, a future MCP adapter, or another stable protocol. Hacocoon never depends on their task DAG, model selection, retries, or budget model.
