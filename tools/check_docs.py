@@ -136,7 +136,7 @@ v11 = (root / 'docs/11_v0.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md').read_text()
 for required in ['haco-agent-host prepare', 'haco-agent-host release', 'Remote -> SSH', 'code --agents', 'loopback-only', 'does not currently receive VS Code', 'real Windows/WSL + Incus + VS Code Agents window remote-SSH acceptance pending']:
     if required.lower() not in v11.lower():
         errors.append(f'v0.11 missing required adapter contract text: {required}')
-for required in ['private SSH key remains on the client side', 'does not automatically release the session Environment', 'one prepared Hacocoon session slot']:
+for required in ['private SSH key remains on the client side', 'do not automatically release the session Environment', 'one prepared Hacocoon session slot']:
     if required.lower() not in v11.lower():
         errors.append(f'v0.11 missing security/isolation rule: {required}')
 
@@ -165,7 +165,7 @@ for required in ['Base Images & Custom Environments', 'design only; implementati
 for required in ['Per-agent sandbox broker', 'internal/agenthost', 'agent-bindings.json']:
     if required.lower() not in status.lower():
         errors.append(f'IMPLEMENTATION_STATUS missing v0.10 implementation distinction: {required}')
-for required in ['haco-agent-host prepare/release', 'does not implement AHP', 'one trusted `--session` slot', 'real Agents-window remote-SSH acceptance pending']:
+for required in ['haco-agent-host prepare/release', 'does **not** implement AHP', 'one trusted `--session` slot', 'real Agents-window remote-SSH acceptance pending']:
     if required.lower() not in status.lower():
         errors.append(f'IMPLEMENTATION_STATUS missing v0.11 implementation distinction: {required}')
 
