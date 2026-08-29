@@ -25,7 +25,7 @@ The repository still contains historical code from the pre-rebaseline roadmap. E
 | EBS replacement | adapter-owned replacement/migration flow exists for shrink-like operations; no in-place EBS shrink and no automatic source-volume deletion | v0.7 | unit and fake-AWS process integration cover preflight, migration, verification, cleanup, and recovery-required transitions |
 | VS Code Client Adapter | separate `haco-vscode` binary creates/reuses a matching Environment, prepares existing loopback SSH access, writes isolated adapter-owned SSH host configuration, and launches standard VS Code Remote-SSH to `/workspace` | v0.8 | helper unit coverage added; real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending |
 | Windows/WSL client bridge | when run under WSL, `haco-vscode` resolves the Windows user profile and targets the desktop-client `.ssh` configuration rather than WSL-only SSH config | v0.8 | code path implemented; real Windows/WSL acceptance pending |
-| Windows/WSL bootstrap | `scripts/bootstrap-windows.ps1` installs/selects WSL 2 without destroying existing distributions, delegates Linux dependency setup to `scripts/bootstrap-wsl.sh`, and reuses `scripts/install.sh` for Hacocoon binaries; Incus administrator authority requires explicit opt-in | v0.8 | PowerShell and shell syntax checked in CI; real Windows install/reboot/WSL/Incus acceptance remains pending |
+| Windows/WSL bootstrap | `scripts/bootstrap-windows.ps1` creates or reuses only a dedicated named WSL 2 instance (`Hacocoon` by default) instead of selecting general-purpose user distributions, delegates Linux dependency setup to `scripts/bootstrap-wsl.sh`, and reuses `scripts/install.sh`; unrelated WSL distributions remain untouched and Incus administrator authority requires explicit opt-in | v0.8 | PowerShell and shell syntax checked in CI; real Windows install/reboot/dedicated-WSL/Incus acceptance remains pending |
 | Client adapter boundary | IDE-specific launch/configuration remains outside Core; Core does not depend on VS Code, Daintree, JetBrains, or client-native configuration | v0.8 | architecture/documentation contract plus separate adapter binary |
 | Btrfs / raw / QCOW2 historical storage | historical local storage implementation remains in the repository | historical / provider detail | not part of the current Core Environment model and not a compatibility commitment |
 | CI | Go version matrix tests, `go vet`, race detector, docs consistency, bootstrap syntax, release packaging, and existing non-host-dependent E2Es are enabled | cross-cutting | latest v0.8 PR CI must pass before merge; real-provider/client acceptance remains separate |
@@ -44,12 +44,12 @@ Workspace
   -> machine/orchestrator access
   -> experimental remote EC2 provider and AWS capability
   -> thin Client Adapter layer, starting with VS Code Remote-SSH
-  -> Windows/WSL bootstrap helper outside Core
+  -> dedicated Windows/WSL bootstrap helper outside Core
 ```
 
 The v0.8 adapter deliberately does not add AI chat, model selection, task planning, worktree orchestration, or IDE-specific concepts to Core. The intended interactive development path is that VS Code (including its own AI/coding-agent UI) connects through standard Remote-SSH and operates inside the Hacocoon Environment.
 
-The Windows/WSL bootstrap is likewise a host setup helper, not a new Core lifecycle. It avoids unregistering/resetting existing WSL distributions, avoids automatic WSL 1 conversion, and does not silently grant `incus-admin`. See `WINDOWS_WSL_BOOTSTRAP.md`.
+The Windows/WSL bootstrap is likewise a host setup helper, not a new Core lifecycle. It reserves a dedicated WSL 2 instance for Hacocoon (`Hacocoon` by default), never falls back to the user's default/first installed distribution, avoids unregistering/resetting unrelated WSL distributions, avoids automatic WSL 1 conversion, and does not silently grant `incus-admin`. See `WINDOWS_WSL_BOOTSTRAP.md`.
 
 The coding agent may be intentionally permissive inside the isolated Environment. Authority outside the Environment remains mediated by the existing Hacocoon Policy/Capability/Audit boundary.
 
@@ -83,13 +83,13 @@ haco-vscode delete .
 
 When the adapter runs in WSL for a Windows desktop VS Code client, the SSH configuration must be managed in the Windows client profile, not only under the WSL user's Linux home.
 
-For Windows host setup, the repository now provides:
+For Windows host setup, the repository provides:
 
 ```powershell
 .\scripts\bootstrap-windows.ps1
 ```
 
-Use `-GrantIncusAdmin` only when the workstation owner explicitly accepts root-equivalent local Incus authority for that Linux user.
+This creates/reuses the dedicated `Hacocoon` WSL instance rather than using the user's normal WSL environment. Use `-GrantIncusAdmin` only when the workstation owner explicitly accepts root-equivalent local Incus authority for that Linux user.
 
 ## Compatibility status
 

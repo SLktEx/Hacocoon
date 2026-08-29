@@ -1,62 +1,102 @@
 # Windows / WSL セットアップ
 
-Windows で Hacocoon のローカル runtime を使う場合、基本構成は次です。
+Windows で Hacocoon のローカル runtime を使う場合、**普段使いの WSL を再利用せず、Hacocoon 専用の WSL 2 instance を1個作る**のを標準にします。
 
 ```text
 Windows desktop
-  -> WSL 2
-     -> Incus
-        -> Hacocoon Environment
-  -> VS Code desktop
-     -> haco-vscode
-     -> Remote-SSH
+  |
+  +-- 普段使いの Ubuntu / Debian 等      <- 触らない
+  |
+  +-- WSL 2: Hacocoon                    <- はこーん専用
+        -> Incus
+           -> Hacocoon Environment
+
+Windows VS Code
+  -> haco-vscode
+  -> Remote-SSH
+  -> Hacocoon Environment
 ```
 
-Windows や WSL のライフサイクルそのものを Hacocoon Core に持ち込まず、bootstrap script で初期セットアップだけを補助します。
+Windows / WSL の lifecycle 自体は Hacocoon Core に入れず、bootstrap script だけが host setup を補助します。
 
 ## まず実行するもの
 
-Hacocoon を checkout した PowerShell から実行します。
+Hacocoon を checkout した PowerShell から:
 
 ```powershell
 .\scripts\bootstrap-windows.ps1
 ```
 
-既に WSL と Linux distribution がある場合は、default distribution を使います。Default が判定できない場合は、最初に見つかった installed distribution を使います。
+標準の WSL instance 名は:
 
-Distribution を明示したい場合:
-
-```powershell
-.\scripts\bootstrap-windows.ps1 -Distro Ubuntu
+```text
+Hacocoon
 ```
 
-この script は Windows 標準の `wsl.exe` を使います。既存 distribution を unregister / reset / delete したり、勝手に置き換えたりしません。
+標準 base distribution は `Ubuntu-26.04` です。
 
-利用可能な distribution 名は、そのPC上で次を実行して確認してください。
+別の base を使う場合:
+
+```powershell
+.\scripts\bootstrap-windows.ps1 -BaseDistro Ubuntu
+```
+
+専用 instance の名前だけ変える場合:
+
+```powershell
+.\scripts\bootstrap-windows.ps1 -InstanceName Hacocoon-Dev
+```
+
+WSL は同じ Ubuntu release でも `--name` で別 instance として install できます。Hacocoon はこの仕組みを使い、既存の普段使い WSL と完全に分けます。
+
+## 専用 WSL のルール
+
+Bootstrap は **default WSL を選びません**。最初に見つかった distribution を流用することもしません。
+
+`Hacocoon` が既に存在する場合だけ、その named instance を再利用します。存在しない場合は概念的に次を実行します。
+
+```powershell
+wsl --set-default-version 2
+wsl --install Ubuntu-26.04 --name Hacocoon --no-launch
+```
+
+必要なら `-WebDownload` も利用できます。
+
+既存の Ubuntu / Debian / Arch 等には次を行いません。
+
+- unregister
+- reset
+- delete
+- WSL 1 -> WSL 2 自動変換
+- default distribution 変更
+- Linux user の置換
+- 任意の WSL config 書き換え
+
+利用中の WSL catalog に `Ubuntu-26.04` がない場合は:
 
 ```powershell
 wsl --list --online
 ```
 
-特定バージョンの Ubuntu などを使いたい場合は、ここに表示された名前を `-Distro` に渡してください。
+で確認し、使える名前を `-BaseDistro` に渡してください。
 
-## WSL がまだない場合
+## fresh PC の場合
 
-利用できる distribution がない場合、bootstrap は WSL 2 distribution の install を開始します。
+WSL component の有効化や distribution install では、Windows reboot が必要になる場合があります。また、新規 distribution は初回 Linux user 作成が必要です。
 
-新規 WSL install では Windows reboot や、distribution 初回起動時の Linux user 作成が必要になる場合があります。この部分は Windows / WSL が所有するセットアップです。
-
-そのため fresh PC では、最初の実行で WSL を入れたあと一旦終了する場合があります。
+そのため fresh PC では、1回目の bootstrap が専用 WSL を作ったところで止まる場合があります。
 
 その場合:
 
 ```powershell
-wsl -d <Distro>
+wsl -d Hacocoon
 ```
 
-で一度起動し、Linux user の初期設定を済ませてから同じ bootstrap をもう一度実行してください。
+で一度起動し、Linux user の初期設定を完了して終了し、同じ bootstrap をもう一度実行してください。
 
-## WSL 内で入るもの
+Windows reboot や Linux credential を勝手に自動化しないため、意図的に resume 可能な2段階にしています。
+
+## 専用 WSL 内で入るもの
 
 apt 系 distribution では `scripts/bootstrap-wsl.sh` が次を準備します。
 
@@ -64,11 +104,9 @@ apt 系 distribution では `scripts/bootstrap-wsl.sh` が次を準備します�
 - `curl`
 - `tar`
 - `git`
-- Incus（`-SkipIncus` を付けない場合）
+- Incus（`-SkipIncus` なしの場合）
 
-その後、Hacocoon 本体の install は既存の `scripts/install.sh` に委譲します。
-
-つまり Windows bootstrap が別の download / release install 実装を持つわけではありません。
+その後、Hacocoon 本体は既存の `scripts/install.sh` へ委譲します。
 
 Install される binary:
 
@@ -83,17 +121,17 @@ haco-vscode
 .\scripts\bootstrap-windows.ps1 -HacocoonVersion v0.8.0
 ```
 
-Private repository の release を取得する場合は、`scripts/install.sh` が利用できる GitHub authentication が別途必要です。
+Private repository の release を取得する場合は、`scripts/install.sh` が使える GitHub authentication が必要です。
 
 ## incus-admin は勝手に付けない
 
-Incus の package install と、ユーザーへ Incus daemon の管理権限を与えることは別です。
+Incus package の install と、Incus daemon の管理権限付与は別です。
 
-`incus-admin` は local Incus 上で host path や device を instance に付けたり security setting を変更できるため、実質的に root 相当の強い権限です。
+`incus-admin` は host path / device の attach や security setting 変更が可能なので、実質 root 相当の強い権限です。
 
-そのため bootstrap は user を `incus-admin` に自動追加しません。
+そのため自動では付与しません。
 
-このPCの所有者として明示的に許可する場合だけ:
+この専用 WSL user に Incus 管理権限を明示的に与える場合だけ:
 
 ```powershell
 .\scripts\bootstrap-windows.ps1 -GrantIncusAdmin
@@ -101,57 +139,35 @@ Incus の package install と、ユーザーへ Incus daemon の管理権限を�
 
 を使います。
 
-Group membership を追加した後は、WSL shell を開き直すか `newgrp incus-admin` が必要です。
+Group membership 変更後は WSL shell を開き直すか `newgrp incus-admin` を使ってください。
 
-Incus を別手段で管理している場合:
+Incus を別手段で管理する場合:
 
 ```powershell
 .\scripts\bootstrap-windows.ps1 -SkipIncus
 ```
 
-も使えます。
+も利用できます。
 
 ## systemd と Incus init
 
 systemd が動いている場合、bootstrap は package で入った Incus service の起動を試みます。
 
-Incus daemon に接続でき、storage pool がまだ存在しない場合だけ:
+Incus daemon に接続でき、storage pool が存在しない場合だけ `incus admin init --minimal` を実行します。
 
-```text
-incus admin init --minimal
-```
+`/etc/wsl.conf` や Windows 側 `~/.wslconfig` を bootstrap が勝手に書き換えることはしません。必要な host configuration は明示的に直してから再実行します。
 
-を使って最小構成を作ります。
+## Workspace は専用 WSL に置く
 
-`/etc/wsl.conf` は bootstrap が勝手に書き換えません。Systemd が無効な distribution なら、その設定は明示的に直してから再実行してください。
+通常の Incus backend を使う Workspace は **Hacocoon 専用 WSL の Linux filesystem** に置くのを標準にします。
 
-## 既存 WSL を壊さない
-
-既存 WSL distribution は user-owned state として扱います。
-
-Bootstrap は次を自動では行いません。
-
-- unregister
-- reset
-- delete
-- WSL 1 -> WSL 2 conversion
-- default distribution の変更
-- Linux user の置換
-- 任意の WSL config 書き換え
-
-選択した distribution が WSL 1 の場合は停止し、必要なら利用者自身で次を実行するよう案内します。
+PowerShell:
 
 ```powershell
-wsl --set-version <Distro> 2
+wsl -d Hacocoon
 ```
 
-Conversion は時間・容量・既存VM状態に影響し得るため、自動化しません。
-
-## Workspace は WSL 側に置く
-
-通常の Incus backend を使う Workspace は、Windows の `/mnt/c` 配下より **WSL の Linux filesystem 側**へ置くのを基本にします。
-
-例:
+その中で:
 
 ```bash
 mkdir -p ~/src
@@ -161,20 +177,17 @@ cd <repository>
 haco-vscode open .
 ```
 
-Linux ownership / filesystem semantics / Incus bind mount / 開発ツールを同じ側に揃えられます。
+これで Linux ownership / filesystem semantics / Incus bind mount / Hacocoon tooling を同じ host boundary に揃えられます。
 
 ## VS Code との関係
 
-この bootstrap は VS Code の AI UI を作ったり置き換えたりしません。
-
-VS Code は Windows desktop client のままで、`haco-vscode` は薄い Client Adapter です。
-
-最終的な流れ:
+VS Code は Windows desktop client のままです。専用 AI UI は作りません。
 
 ```text
 PowerShell bootstrap
-  -> WSL 2 + Incus + Hacocoon
-  -> WSL filesystem 上の Workspace
+  -> Hacocoon 専用 WSL 2
+  -> Incus + Hacocoon
+  -> 専用 WSL filesystem 上の Workspace
   -> haco-vscode open .
   -> Windows VS Code Remote-SSH
   -> Hacocoon Environment の /workspace
@@ -185,13 +198,14 @@ PowerShell bootstrap
 
 CI で確認できるのは script syntax や repository integration までです。
 
-次は本物の Windows host で実行しない限り pass と扱いません。
+次は real Windows host 上での acceptance が必要です。
 
 - Windows feature enablement
 - reboot 後の WSL 起動
-- Store / web download の distribution install
+- dedicated distribution download / install
+- first-run Linux user setup
 - real WSL 2 kernel
 - real Incus daemon
 - Windows desktop VS Code Remote-SSH
 
-これらは Windows + WSL 2 + Incus host での real acceptance test として別扱いにします。
+これらは実際に Windows + Hacocoon専用WSL 2 + Incus host で実行した場合だけ pass と扱います。

@@ -1,18 +1,23 @@
 # Windows / WSL bootstrap
 
-Hacocoon runs its local runtime on Linux. On a Windows workstation, the supported local shape is:
+Hacocoon runs its local runtime on Linux. On Windows, the supported local shape uses a **dedicated WSL 2 instance for Hacocoon** instead of reusing the user's normal Ubuntu/Debian environment:
 
 ```text
 Windows desktop
-  -> WSL 2
-     -> Incus
-        -> Hacocoon Environment
-  -> VS Code desktop
-     -> haco-vscode
-     -> Remote-SSH
+  |
+  +-- normal user WSL distributions      <- untouched
+  |
+  +-- WSL 2 instance: Hacocoon           <- dedicated Hacocoon host
+        -> Incus
+           -> Hacocoon Environment
+
+Windows VS Code
+  -> haco-vscode
+  -> Remote-SSH
+  -> Hacocoon Environment
 ```
 
-The bootstrap scripts make the Windows/WSL host setup repeatable without turning Windows or WSL lifecycle into Hacocoon Core responsibilities.
+The bootstrap scripts make host setup repeatable without moving Windows or WSL lifecycle into Hacocoon Core.
 
 ## Bootstrap entrypoint
 
@@ -22,29 +27,66 @@ From a PowerShell prompt in a Hacocoon checkout:
 .\scripts\bootstrap-windows.ps1
 ```
 
-If WSL and a Linux distribution already exist, the script uses the default distribution (or the first installed distribution when no default can be identified).
+The default dedicated instance name is:
 
-To select a distribution explicitly:
-
-```powershell
-.\scripts\bootstrap-windows.ps1 -Distro Ubuntu
+```text
+Hacocoon
 ```
 
-The script uses the normal Windows `wsl.exe` management commands. It does not unregister, delete, reset, or overwrite an existing distribution.
+The default base distribution is `Ubuntu-26.04`. A different base may be selected explicitly:
 
-If no usable distribution exists, the script installs a WSL 2 distribution and then stops. Windows may require a reboot, and a newly installed distribution may require first-launch Linux user creation. Complete that platform-owned setup and run the bootstrap again.
+```powershell
+.\scripts\bootstrap-windows.ps1 -BaseDistro Ubuntu
+```
 
-Microsoft documents the supported distribution names through:
+The instance name may also be changed without reusing another general-purpose WSL instance:
+
+```powershell
+.\scripts\bootstrap-windows.ps1 -InstanceName Hacocoon-Dev
+```
+
+Modern WSL supports installing another instance of the same distribution under a custom name with `wsl --install <distro> --name <name>`. Hacocoon uses that model so existing WSL distributions remain separate.
+
+## Dedicated-instance rule
+
+The bootstrap does **not** select the default WSL distribution and does not fall back to the first installed distribution.
+
+If `Hacocoon` already exists, the bootstrap reuses that named instance. Otherwise it creates it with the equivalent of:
+
+```powershell
+wsl --set-default-version 2
+wsl --install Ubuntu-26.04 --name Hacocoon --no-launch
+```
+
+`-WebDownload` may be supplied when the local WSL installation needs the web-download path.
+
+The script never unregisters, resets, deletes, converts, or mutates unrelated WSL distributions. It also does not change the user's default WSL distribution.
+
+If the requested base distribution is not available through the local WSL catalog, inspect the supported names with:
 
 ```powershell
 wsl --list --online
 ```
 
-Do not hard-code an assumed Store distribution name when a specific version is required; pass the name returned by the local WSL installation through `-Distro`.
+and pass a valid name through `-BaseDistro`.
 
-## What is installed inside WSL
+## Fresh-machine flow
 
-For an apt-based distribution, `scripts/bootstrap-wsl.sh` installs the base dependencies required by the release installer:
+Installing WSL components or a new distribution may require a Windows reboot. A newly created distribution may also require first-launch Linux user creation.
+
+For that reason a fresh-machine run may stop after creating the dedicated instance. If instructed, run:
+
+```powershell
+wsl -d Hacocoon
+```
+
+complete the Linux user setup, exit, and run the bootstrap again.
+
+This is intentionally a resumable two-step flow rather than trying to automate Windows reboot or invent Linux credentials.
+
+## What is installed inside the dedicated WSL instance
+
+For an apt-based distribution, `scripts/bootstrap-wsl.sh` installs:
 
 - CA certificates;
 - `curl`;
@@ -52,9 +94,7 @@ For an apt-based distribution, `scripts/bootstrap-wsl.sh` installs the base depe
 - `git`;
 - Incus, unless `-SkipIncus` is used.
 
-It then delegates Hacocoon installation to the existing `scripts/install.sh`. The bootstrap does not create a second release/download implementation.
-
-The release installer installs both:
+It then delegates Hacocoon installation to `scripts/install.sh`, which installs:
 
 ```text
 haco
@@ -75,7 +115,7 @@ Installing Incus and granting control of the Incus daemon are different operatio
 
 The bootstrap does **not** silently add the Linux user to `incus-admin`. Local Incus administrator access is effectively root-equivalent authority because it can attach host paths/devices and alter instance security.
 
-When the workstation owner explicitly wants the WSL user to control the local Incus daemon, run:
+When the workstation owner explicitly wants the dedicated Hacocoon WSL user to control Incus:
 
 ```powershell
 .\scripts\bootstrap-windows.ps1 -GrantIncusAdmin
@@ -83,7 +123,7 @@ When the workstation owner explicitly wants the WSL user to control the local In
 
 After group membership changes, restart the WSL shell or use `newgrp incus-admin` before relying on the new membership.
 
-If Incus is already managed separately:
+If Incus is managed separately:
 
 ```powershell
 .\scripts\bootstrap-windows.ps1 -SkipIncus
@@ -93,34 +133,19 @@ If Incus is already managed separately:
 
 The bootstrap attempts to start the packaged Incus service when systemd is active. It applies `incus admin init --minimal` only when the daemon is reachable and no storage pool exists.
 
-The bootstrap deliberately does not rewrite `/etc/wsl.conf` or force-enable systemd. If the selected distribution does not run systemd, fix that WSL configuration explicitly and re-run the bootstrap.
-
-## Existing WSL distributions
-
-Existing distributions are treated as user-owned state.
-
-The bootstrap:
-
-- does not unregister them;
-- does not reset them;
-- does not convert WSL 1 distributions automatically;
-- does not change the default distribution;
-- does not replace existing Linux users;
-- does not rewrite arbitrary WSL configuration.
-
-If the selected distribution is WSL 1, the script fails with an explicit instruction to perform the conversion yourself:
-
-```powershell
-wsl --set-version <Distro> 2
-```
-
-Automatic conversion is intentionally avoided because it can be expensive and affects user-owned VM state.
+The bootstrap does not rewrite `/etc/wsl.conf` or silently alter global `~/.wslconfig` settings. If systemd or virtualization requirements are not satisfied, fix that host configuration explicitly and re-run the bootstrap.
 
 ## Workspace placement
 
-For the normal local Incus path, keep active Hacocoon workspaces in the WSL Linux filesystem rather than treating a Windows-mounted path under `/mnt/c` as the default workspace location.
+Keep active Hacocoon workspaces in the **dedicated Hacocoon WSL Linux filesystem**, not in another WSL distribution and not under `/mnt/c` by default.
 
 Example:
+
+```powershell
+wsl -d Hacocoon
+```
+
+then inside that instance:
 
 ```bash
 mkdir -p ~/src
@@ -130,18 +155,17 @@ cd <repository>
 haco-vscode open .
 ```
 
-This keeps Linux ownership, filesystem semantics, Incus bind-mount behavior, and developer tooling on the same side of the Windows/WSL boundary.
+This keeps Linux ownership, filesystem semantics, Incus bind-mount behavior, and Hacocoon tooling inside one explicit host boundary.
 
 ## VS Code
 
-The bootstrap does not install or replace VS Code's AI UI. VS Code remains a Windows desktop client and `haco-vscode` remains a thin Client Adapter.
-
-After the WSL/Incus setup is ready, the intended workflow is:
+VS Code remains a Windows desktop client. The bootstrap does not create another AI UI or make VS Code part of Core.
 
 ```text
 PowerShell bootstrap
-  -> WSL 2 + Incus + Hacocoon
-  -> workspace in WSL filesystem
+  -> dedicated Hacocoon WSL 2 instance
+  -> Incus + Hacocoon
+  -> workspace in Hacocoon WSL filesystem
   -> haco-vscode open .
   -> Windows VS Code Remote-SSH
   -> /workspace inside the Hacocoon Environment
@@ -150,6 +174,6 @@ PowerShell bootstrap
 
 ## Acceptance boundary
 
-CI can validate script syntax and repository integration, but it cannot prove Windows feature enablement, reboot behavior, Store distribution installation, real WSL 2 kernel behavior, real Incus startup, or desktop VS Code Remote-SSH.
+CI validates script syntax and repository integration. It does not prove Windows feature enablement, reboot behavior, distribution download, first-run user setup, real WSL 2 behavior, real Incus startup, or desktop VS Code Remote-SSH.
 
-Those remain real-host acceptance tests and must not be reported as passed unless they were run on an appropriate Windows + WSL 2 + Incus host.
+Those remain real-host acceptance tests and must not be reported as passed unless they were run on an appropriate Windows + dedicated Hacocoon WSL 2 + Incus host.
