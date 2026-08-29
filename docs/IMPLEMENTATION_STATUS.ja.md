@@ -2,72 +2,81 @@
 
 [English](IMPLEMENTATION_STATUS.md) | **日本語**
 
-Status date: 2026-08-29 — v0.8 Client Adapters & VS Code Integration implementation pass 後、v0.9 Base Images & Custom Environments roadmap decision 反映後。
+Status date: 2026-08-29 — v0.10 per-agent sandbox broker implementation pass 後。v0.11 Resource Limits は design-only、v0.12 Agent Host Adapter は PR #111 の integration slot として扱います。
 
-このファイルは **現在のコードの事実**を説明するための日本語版です。理想 architecture や互換性保証ではありません。
+このファイルは **現在の `main` のコードの事実**を説明する日本語 companion です。roadmap の希望や compatibility guarantee ではありません。厳密な正本は [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) です。
 
-Hacocoon はまだ **pre-1.0** です。実装済みであることは interface 固定、本番 support、real-provider/client acceptance 済みを意味しません。
+Hacocoon はまだ **pre-1.0** です。実装済みであっても CLI/API/state/config が固定された、本番 support 済み、real-provider/client acceptance 済み、という意味ではありません。
 
-また、v0.9 の specification が存在することは、v0.9 のコードが実装済みであることを意味しません。現在の implementation progression は v0.8 までです。
+また、version number と implementation completeness は別です。v0.9 は設計のみですが、独立した v0.10 broker foundation は既に実装されています。番号の割り当ては [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md) を参照してください。
 
-| 領域 | 現在の repository reality | Release | 検証状況 |
+## 現在の repository reality
+
+| 領域 | 現在の状態 | Release | 検証状況 |
 |---|---|---:|---|
-| Secure Workspace Runtime | `haco create --workspace` / `exec` / `shell` / `delete` | v0.1 | unit / process integration pass。real Incus acceptance は host-dependent |
-| Workspace / Lease | canonical Workspace identity、RO/RW lease、RW conflict prevention、stale recovery、process serialization | v0.1-v0.2 | unit / persistence / concurrency / integration pass |
-| Incus provider | local default Environment provider | v0.1+ | unit / process pass。real host acceptance pending |
-| Client access | status、loopback forward、connection管理、SSH prepare/revoke、public-key hardening | v0.3 | unit / process integration pass。real Incus SSH acceptance pending |
-| Policy / Capability | fail-closed allow/deny/require-approval、human security approval、JSONL audit | v0.4 | unit / integration / CLI E2E pass |
-| Git / GitHub | Host-side brokered push。broad host credential を Environment に export しない | v0.5 | unit / adversarial / real-git integration / CLI E2E pass |
-| Agent / Orchestrator | `haco run`、machine JSON、security event export。DAG/model selection は外部 responsibility | v0.6 | unit / race / integration / CLI E2E pass |
-| Environment routing | provider-neutral router | v0.7 | unit pass |
-| EC2 provider | S3 staging + SSM、experimental / disabled by default | v0.7 | fake-AWS path pass。real AWS acceptance pending |
-| AWS capability | narrow host-side `aws.api` read capability | v0.7 | fake-AWS CLI/integration pass。real AWS pending |
-| EBS replacement | adapter-owned replacement/migration。in-place shrink / automatic source deletion なし | v0.7 | fake-AWS integration pass |
-| VS Code Client Adapter | separate `haco-vscode` binary。Environment create/reuse -> existing SSH path -> adapter-owned SSH config -> standard Remote-SSH `/workspace` | v0.8 | helper unit coverage added。real VS Code + Incus acceptance pending |
-| Windows / WSL bridge | WSL 実行時に Windows user profile を解決し、desktop Client 側 `.ssh` を対象にする | v0.8 | implementation exists。real Windows/WSL acceptance pending |
-| Windows / WSL bootstrap | standalone/source bootstrap は default/普段使い WSL を使わず `Hacocoon` dedicated instance を create/reuse。そのinstanceだけ WSL 2 を強制し、`systemd` / `systemd-sysv` を install、既存 `/etc/wsl.conf` の他設定を残して `[boot] systemd=true` を保証。必要ならそのinstanceだけ terminate/restartし、systemd が PID 1 であることを検証してから Incus を起動。無関係な WSL/global defaults は触らず `incus-admin` は explicit opt-in | v0.8 | PowerShell / shell syntax と static WSL2/systemd contract は CI 対象。real Windows install/reboot/WSL2 conversion/systemd/Incus acceptance pending |
-| Client Adapter boundary | VS Code / Daintree / JetBrains 等の client-specific behavior を Core に入れない | v0.8 | architecture + separate binary boundary |
-| Base Images & Custom Environments | logical Base、immutable revision、Incus fingerprint pinning の adapter boundary、custom image の trust boundary、safe deletion/reference semantics を v0.9 contract として定義 | v0.9 | **design only / implementation pending**。`haco image` / `haco create --base` はまだ実装済みと扱わない |
-| CI | Go tests、vet、race、docs consistency、bootstrap syntax、release packaging、host-independent E2E | cross-cutting | implementation PR の CI pass が merge gate。real provider/client acceptance は別 |
+| Secure Workspace Runtime | `haco create --workspace` / `haco exec` / `haco shell` / `haco delete` | v0.1 | unit / process-boundary integration pass。real Incus acceptance pending |
+| Workspace model / Lease | canonical external-path Workspace identity、RO/RW lease、RW conflict prevention、process serialization | v0.1-v0.2 | unit / persistence / concurrency / integration pass |
+| Incus Environment provider | local default runtime | v0.1+ | unit/process pass。real supported-host acceptance pending |
+| Client access | status、loopback forwarding、connection list/remove、SSH prepare/revoke、SSH key hardening | v0.3 | unit/process integration pass。real Incus SSH acceptance pending |
+| Policy / Capability | fail-closed policy、allow/deny/require-approval、human security approval、request correlation、JSONL audit | v0.4 | unit/process integration + CLI E2E pass |
+| Git / GitHub Capability | host-side brokered push。host credential を Environment に export しない | v0.5 | unit / adversarial / real-git integration / CLI E2E pass |
+| Agent / Orchestrator | `haco run`、stable machine JSON、security event export。DAG/model/retry は外部 responsibility | v0.6 | unit/race/process integration + CLI E2E pass |
+| Environment routing | provider-neutral Environment router | v0.7 | unit pass |
+| EC2 Environment provider | S3 staging + SSM、experimental / disabled by default | v0.7 | fake-AWS integration/E2E pass。real AWS acceptance pending |
+| AWS capability | narrow host-side `aws.api` read capability | v0.7 | unit/process/fake-AWS pass。real AWS pending |
+| EBS replacement | adapter-owned replacement/migration。in-place shrink と automatic source deletion はしない | v0.7 | unit/fake-AWS process integration pass |
+| VS Code Client Adapter | `haco-vscode` が Environment create/reuse -> loopback SSH -> adapter-owned SSH config -> standard Remote-SSH `/workspace` | v0.8 | helper unit coverage。real Windows/WSL + Incus + VS Code acceptance pending |
+| Windows / WSL bridge | dedicated Hacocoon WSL 2、systemd PID 1、Windows desktop SSH config を対象 | v0.8 | static/bootstrap checks。real Windows acceptance pending |
+| Client Adapter boundary | VS Code / Daintree / JetBrains 等の client-specific ownership は Core 外 | v0.8 | architecture + separate adapter boundary |
+| Base Images & Custom Environments | logical Base、immutable revision、custom-image trust boundary を定義 | v0.9 | **design only / implementation pending**。`haco image` / `haco create --base` は未実装 |
+| Per-agent sandbox broker | `internal/agenthost` が opaque external session identity を dedicated Environment に bind | v0.10 | allocation/idempotence/rebinding/persistence/ownership proof の unit coverage |
+| Agent binding state | `agent-bindings.json` に session -> Environment ownership proof を trusted state として保存。raw session ID は hash 化 | v0.10 | Linux lock + atomic/fsync-backed writes。real crash/fault acceptance pending |
+| Agent control-plane separation | coding agent 自身に `haco` / Incus management authority を渡さない | v0.10 | architecture/test contract。real-host adversarial acceptance pending |
+| VS Code Agent Host / AHP routing | Agent Host を assigned Environment 側に置く方向 | v0.10 foundation | real Agent Host/AHP + Incus end-to-end routing acceptance pending |
+| Sandbox Resource Limits | CPU / memory / PID / root-storage budget contract | v0.11 | **design only / implementation pending** |
+| VS Code Remote Agent Host Adapter | PR #111 の active integration candidate。authoritative numbering は v0.12 | v0.12 | **まだ `main` implementation claim ではない**。merge前に branch docs の renumber/rebase が必要 |
+| CI / release hardening | Go matrix、vet、race、docs consistency、bootstrap syntax、release packaging、workflow trust guard、trusted-main release-tag boundary | cross-cutting | repository CI 対象。real provider/client acceptance は別 |
 
-## v0.8 で増えたもの
+## 現在の実装の流れ
 
-通常の VS Code 利用では次を狙います。
+```text
+Workspace
+  -> Environment lifecycle
+  -> local Incus by default
+  -> Workspace leases / client access
+  -> Policy / Approval / Capability
+  -> Git/GitHub broker
+  -> machine/orchestrator access
+  -> experimental EC2 / AWS capability
+  -> VS Code Client Adapter
+  -> dedicated Windows/WSL 2 + systemd bootstrap
+  -> trusted external agent session -> persisted Environment binding broker
+```
+
+## v0.8 VS Code path
 
 ```bash
 haco-vscode open .
 ```
 
-内部では概念的に:
+概念的には:
 
 ```text
-Workspace
-  -> Environment create/reuse
-  -> loopback-only SSH prepare
-  -> Hacocoon-owned SSH host entry
-  -> code --remote ssh-remote+<alias> /workspace
+local Workspace
+  -> create/reuse Hacocoon Environment
+  -> prepare loopback-only SSH
+  -> create adapter-owned SSH host entry
+  -> VS Code Remote-SSH
+  -> /workspace
 ```
 
-終了して Environment を削除する場合:
+Private SSH key は Client 側に残します。
 
-```bash
-haco-vscode delete .
-```
+## v0.9 Base Images
 
-Private SSH key は Client 側に残し、Hacocoon の既存 SSH path には public key のみを渡します。
+v0.9 はまだ実装されていません。
 
-## v0.9 で作るもの
-
-次の explicit roadmap gate は **Base Images & Custom Environments** です。
-
-```text
-logical Base name
-  -> immutable Base revision
-  -> Incus fingerprint (adapter内部)
-  -> newly created Environment
-```
-
-大事な contract は次です。
+予定概念:
 
 ```text
 my-dev -> revision A -> Environment 1
@@ -75,151 +84,105 @@ my-dev -> revision B -> Environment 2
 Environment 1 は revision A のまま
 ```
 
-つまり logical Base の更新は **新しく作る Environment だけ**に反映します。既存 Environment の Base を途中で差し替えません。
+logical Base の更新で既存 Environment を silent retarget しない contract です。
 
-Custom Base は untrusted input として扱い、image metadata だけで Host mount、device、privileged mode、Linux capability、credential、network authority、GitHub/AWS authority 等を増やすことを許可しません。
+## v0.10 Per-Agent Sandbox
 
-予定している interaction は例えば次です。
-
-```text
-haco image list
-haco image inspect <base>
-haco create --base <base> --workspace <path> <environment>
-```
-
-ただしこれはまだ **planned CLI** であり、実装済みでも固定済みでもありません。
-
-正本は [`09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md)、詳細は [`BASE_IMAGES.ja.md`](BASE_IMAGES.ja.md) / [`BASE_IMAGES.md`](BASE_IMAGES.md) を参照してください。
-
-## Windows / WSL bootstrap
-
-Windows host の初期 setup は standalone installer または source checkout の bootstrap を使います。
-
-```powershell
-.\install-windows.ps1
-.\scripts\bootstrap-windows.ps1
-```
-
-どちらも普段使いの Ubuntu / Debian を流用せず、標準では次の dedicated instance を使います。
+実装済み foundation:
 
 ```text
-Instance: Hacocoon
-Base: Ubuntu-26.04
-WSL: 2
-Init: systemd
+trusted client / integration
+        |
+ opaque session identity
+        |
+ internal/agenthost broker
+        |
+ persisted ownership proof
+        |
+ existing Environment service
+        |
+ Incus
 ```
 
-存在しなければ概念的に:
+Deterministic Environment name だけでは ownership proof になりません。persisted binding が一致しなければ Acquire/Release は fail closed します。
 
-```powershell
-wsl --install Ubuntu-26.04 --name Hacocoon --no-launch
-```
+Parallel RW agent は別 canonical Workspace、通常は別 Git worktree を使います。
 
-で作ります。既に `Hacocoon` が存在する場合だけその instance を再利用し、default WSL や最初に見つかった既存 distribution へ fallback しません。
+## v0.11 Resource Limits
 
-専用 `Hacocoon` instance が WSL 1 の場合は、そのinstanceだけ:
+v0.11 は design-only です。
 
-```powershell
-wsl --set-version Hacocoon 2
-```
-
-で WSL 2 に変換します。無関係な WSL の version や global default は変更しません。
-
-Linux側では `systemd` / `systemd-sysv` を installし、専用instanceの `/etc/wsl.conf` に `[boot] systemd=true` を保証します。他のsection/keyは保持し、Windows `.wslconfig` は変更しません。
-
-systemd activation に restart が必要なら Windows側が:
-
-```powershell
-wsl --terminate Hacocoon
-```
-
-で **そのinstanceだけ** 再起動し、systemd が PID 1 であることを確認してから Incus setup へ進みます。
-
-Fresh PC では Windows reboot や Linux user の初回作成が必要なら一度停止し、`wsl -d Hacocoon` で初期設定後に bootstrap を再実行します。
-
-Incus administrator 権限は root 相当なので自動付与しません。明示的に許可する場合だけ:
-
-```powershell
-.\install-windows.ps1 -GrantIncusAdmin
-```
-
-または checkout版なら:
-
-```powershell
-.\scripts\bootstrap-windows.ps1 -GrantIncusAdmin
-```
-
-を使います。詳細は [`WINDOWS_WSL_BOOTSTRAP.ja.md`](WINDOWS_WSL_BOOTSTRAP.ja.md) を参照してください。
-
-## AI の扱い
-
-v0.8 は Hacocoon 独自の AI UI を追加しません。
-
-VS Code 上の Copilot / Codex / Claude 等の既存 UI / extension を使い、Agent は Incus Environment 内で permissive に動かせます。
+予定する provider-neutral budget:
 
 ```text
-Agent
-  -> isolated Environment      <- broad local freedom
-  -> Hacocoon trust boundary
-  -> Policy / Capability / Audit
-  -> GitHub / AWS / Host
+CPU
+memory
+process/PID count
+root storage size where safely enforceable
 ```
 
-Environment 内の freedom と Host authority は分離したままです。
+Resource limit は Capability とは別です。requested limit を provider が enforce できない場合は silent ignore せず fail closed する設計です。
 
-## Windows + WSL
+## v0.12 Agent Host Adapter
 
-Hacocoon/Incus は dedicated `Hacocoon` WSL 2 + systemd、VS Code は Windows desktop に置きます。VS Code Remote-SSH は Windows Client 側の SSH configuration を利用し、`haco-vscode` が adapter 側でこの差を吸収します。
+PR #111 は VS Code Agents window を v0.10 bound Environment へ standard remote SSH で接続する adapter を実装中です。
 
-Real Windows + dedicated WSL 2 + systemd + Incus + VS Code Remote-SSH の end-to-end acceptance は対応環境で別途必要です。
-
-## Orchestrator
-
-Daintree 等との統合は引き続き Hacocoon の上位です。
+ただし、`main` には既に v0.11 Resource Limits が存在するため、PR #111 の version assignment は **v0.12** に統一します。
 
 ```text
-Daintree
-  -> task / worktree / agent orchestration
-  -> Workspace
-  -> Hacocoon Environment
+VS Code Agents window
+  -> Remote SSH
+  -> Hacocoon-managed loopback alias
+  -> v0.10 bound Environment
+  -> /workspace
 ```
 
-Hacocoon 自体は worktree manager、Agent scheduler、model router にはなりません。
+VS Code が Agent Host / AHP を所有し、Hacocoon は Environment と安全な connection preparation を所有します。
 
-## EC2 の扱い
+PRがmergeされるまでは `haco-agent-host` を current `main` implementation として報告しません。
 
-v0.7 EC2 provider は引き続き **experimental / disabled by default** です。
+## Windows / WSL
+
+Windows bootstrap は dedicated `Hacocoon` WSL instance を create/reuse し、その instance だけ WSL 2 を保証します。
+
+`systemd` / `systemd-sysv` を installし、`/etc/wsl.conf` の他設定を保持しながら `[boot] systemd=true` を保証します。必要な restart も dedicated instance だけです。
+
+`incus-admin` は root-equivalent authority なので silent grant しません。
+
+## EC2
+
+EC2 provider は **experimental / disabled by default** です。
 
 ```bash
 export HACO_RUNTIME_PROVIDER=runtime.ec2
 export HACO_EXPERIMENTAL_EC2=1
 ```
 
-両方を明示しない限り有効化されません。Real AWS / EC2 / SSM / EBS acceptance は pending です。
+両方の explicit opt-in が必要です。
 
-## Acceptance の区別
+## Acceptance の境界
 
 次が pass しても real-provider/client acceptance の代替にはなりません。
 
 - unit test
 - process-boundary integration
 - fake-provider E2E
-- race
+- race detector
 - vet
 - build
 - script syntax
 - repository CI
 
-Real Incus、Base/image lifecycle、Windows dedicated WSL2 install/conversion、systemd activation、Windows/WSL + VS Code Remote-SSH、AWS/EC2/SSM/EBS はそれぞれ対応環境で確認します。
+Real Incus、Windows/WSL + VS Code、Agent Host/AHP routing、Base/image lifecycle、AWS/EC2/SSM/EBS、resource enforcement は対応環境で別途確認が必要です。
 
 ## Compatibility status
 
-v0.1〜v0.9 のどの design / implementation も、現在の concrete interface が変更されないという約束ではありません。
+v0.1〜v0.12 の design / implementation / reserved integration slot は、concrete interface の互換性保証ではありません。
 
-Breaking Change により CLI / helper binary / state / provider / Base/image lifecycle / capability / client-adapter configuration / host bootstrap behavior 等は変更可能です。
+pre-1.0 の間は CLI、helper binary、state、provider、Base/image lifecycle、Capability/Policy、client/agent integration、resource-budget behavior、host bootstrap、experimental runtime を breaking change で修正できます。
 
-Compatibility のために unsafe authority boundary、曖昧な ownership、silent data loss、不要な complexity を残しません。ただし material change は explicit・tested・documented にします。
+ただし compatibility freedom を理由に unsafe authority boundary、ambiguous ownership、silent data loss を許容しません。
 
 ## Release / tag
 
-この implementation status だけを見て release/tag readiness を判断しません。Specification の acceptance requirement と、その時点の stability level を別途確認します。
+この implementation status や roadmap version number だけでは release/tag readiness を判断しません。release workflow の trust boundary、acceptance requirement、real-host validation、stability level を別途確認します。
