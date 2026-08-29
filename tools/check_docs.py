@@ -53,6 +53,10 @@ required_files = [
     'docs/00B_SECURITY_ARCHITECTURE.md',
     'docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md',
     'docs/IMPLEMENTATION_STATUS.md',
+    'README.ja.md',
+    'docs/README.ja.md',
+    'docs/ARCHITECTURE_GUIDE.ja.md',
+    'docs/IMPLEMENTATION_STATUS.ja.md',
 ]
 for rel in required_files:
     if not (root / rel).exists():
@@ -64,6 +68,8 @@ if (root / 'docs/README.md').exists():
         errors.append('docs/README.md must define documentation precedence and specification-vs-implementation semantics')
     if 'pre-1.0' not in docmap or 'IMPLEMENTATION_STATUS.md' not in docmap:
         errors.append('docs/README.md must describe pre-1.0 compatibility and point to current implementation reality')
+    if 'README.ja.md' not in docmap or 'ARCHITECTURE_GUIDE.ja.md' not in docmap:
+        errors.append('docs/README.md must link the maintained Japanese documentation entry points')
 
 v01 = (root / 'docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md').read_text()
 for required in ['haco create --workspace', 'haco exec', 'haco shell', 'haco delete', 'Incus']:
@@ -111,6 +117,15 @@ for rel in ('README.md', 'CODEX_START_HERE.md', 'Hacocoon_v0.1-v0.7_MASTER.md'):
         errors.append(f'{rel} must point to docs/README.md for documentation precedence')
     if 'pre-1.0' not in text:
         errors.append(f'{rel} must make the pre-1.0 compatibility state explicit')
+
+readme = (root / 'README.md').read_text()
+if 'README.ja.md' not in readme:
+    errors.append('README.md must link the maintained Japanese README')
+
+ja_readme = (root / 'README.ja.md').read_text()
+for required in ['読み方: はこーん', 'pre-1.0', 'Breaking Change', 'IMPLEMENTATION_STATUS.ja.md', 'ARCHITECTURE_GUIDE.ja.md']:
+    if required not in ja_readme:
+        errors.append(f'README.ja.md missing required Japanese entry-point content: {required}')
 
 if errors:
     print('DOC CONSISTENCY FAILED')
