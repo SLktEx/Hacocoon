@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 func TestDefaultEnvironmentNameIsStableAndValid(t *testing.T) {
@@ -67,5 +69,40 @@ func TestManagedSSHConfigRoundTrip(t *testing.T) {
 	}
 	if info.Mode().Perm() != 0o600 {
 		t.Fatalf("managed config permissions = %o", info.Mode().Perm())
+	}
+}
+
+func TestReusableSSHConnectionRequiresSameIdentityAndCompatiblePort(t *testing.T) {
+	connections := []core.ClientConnection{
+		{ID: "tcp-8080-3000", Kind: "tcp", Port: 8080},
+		{ID: "ssh-2222", Kind: "ssh", Port: 2222, User: "root"},
+	}
+	previous := managedSSHConfig{Alias: "haco-vscode-dev", Port: 2222, IdentityFile: "~/.ssh/id_ed25519"}
+
+	for _, requestedPort := range []int{0, 2222} {
+		got := reusableSSHConnection(previous, "~/.ssh/id_ed25519", requestedPort, connections)
+		if got.ID != "ssh-2222" {
+			t.Fatalf("expected reusable SSH connection for requested port %d, got %+v", requestedPort, got)
+		}
+	}
+
+	if got := reusableSSHConnection(previous, "~/.ssh/other", 0, connections); got.Port != 0 {
+		t.Fatalf("changed identity must not reuse old connection: %+v", got)
+	}
+	if got := reusableSSHConnection(previous, "~/.ssh/id_ed25519", 3333, connections); got.Port != 0 {
+		t.Fatalf("explicit different port must not reuse old connection: %+v", got)
+	}
+}
+
+func TestFindSSHConnectionIgnoresNonSSHConnections(t *testing.T) {
+	connections := []core.ClientConnection{
+		{ID: "tcp-2222-22", Kind: "tcp", Port: 2222},
+		{ID: "ssh-3333", Kind: "ssh", Port: 3333},
+	}
+	if got := findSSHConnection(connections, 2222); got.Port != 0 {
+		t.Fatalf("non-SSH connection must not match: %+v", got)
+	}
+	if got := findSSHConnection(connections, 3333); got.ID != "ssh-3333" {
+		t.Fatalf("expected SSH connection, got %+v", got)
 	}
 }
