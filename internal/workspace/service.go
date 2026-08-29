@@ -154,6 +154,9 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 }
 
 func (s *Service) Exec(ctx context.Context, name string, req core.ExecutionRequest) (core.ExecutionResult, error) {
+	if _, err := validateEnvironmentName(name); err != nil {
+		return core.ExecutionResult{}, err
+	}
 	if len(req.Argv) == 0 {
 		return core.ExecutionResult{}, core.ErrInvalidArgument
 	}
@@ -165,6 +168,9 @@ func (s *Service) Exec(ctx context.Context, name string, req core.ExecutionReque
 }
 
 func (s *Service) Shell(ctx context.Context, name string) error {
+	if _, err := validateEnvironmentName(name); err != nil {
+		return err
+	}
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err != nil {
 		return err
@@ -173,6 +179,9 @@ func (s *Service) Shell(ctx context.Context, name string) error {
 }
 
 func (s *Service) Delete(ctx context.Context, name string) error {
+	if _, err := validateEnvironmentName(name); err != nil {
+		return err
+	}
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err == nil {
 		if err := s.runtime.DeleteEnvironment(ctx, environment.RuntimeRef); err != nil && !isNotFound(err) {
