@@ -65,4 +65,4 @@ Approval is for security-sensitive authority. It is not code-review, task, PR, o
 
 Events are appended to `$HACO_ROOT/audit/capabilities.jsonl` with private file permissions. Events record request metadata, policy decisions, approval outcomes, and completion status, but not request parameters or provider output.
 
-GitHub-specific authority is introduced in v0.5; AWS/EC2 remains v0.7.
+GitHub-specific authority is introduced in v0.5; AWS capabilities remain v0.7. The EC2 Environment Provider introduced alongside that work is experimental and disabled by default; discovering AWS credentials or an instance role must not enable EC2 implicitly.
