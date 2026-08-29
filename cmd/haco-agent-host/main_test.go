@@ -79,6 +79,21 @@ func TestManagedSSHConfigRoundTrip(t *testing.T) {
 	}
 }
 
+func TestManagedSSHConfigRejectsInjectionValues(t *testing.T) {
+	home := t.TempDir()
+	path := filepath.Join(home, "managed.conf")
+	cases := []managedSSHConfig{
+		{Alias: "haco-agent-good\nHost-evil", Port: 2222, IdentityFile: "~/.ssh/id_ed25519"},
+		{Alias: "haco-agent-good", Port: 2222, IdentityFile: "~/.ssh/id_ed25519\nProxyCommand evil"},
+		{Alias: "haco agent bad", Port: 2222, IdentityFile: "~/.ssh/id_ed25519"},
+	}
+	for _, config := range cases {
+		if err := writeManagedSSHConfig(path, config); err == nil {
+			t.Fatalf("unsafe managed SSH config unexpectedly accepted: %+v", config)
+		}
+	}
+}
+
 func TestReusableSSHConnectionRequiresAliasIdentityAndCompatiblePort(t *testing.T) {
 	connections := []core.ClientConnection{
 		{ID: "tcp-2222", Kind: "tcp", Port: 2222},
