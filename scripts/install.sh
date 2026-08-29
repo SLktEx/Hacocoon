@@ -32,6 +32,7 @@ need tar
 need sha256sum
 need awk
 need mktemp
+need mkdir
 need cp
 need chmod
 
@@ -155,6 +156,31 @@ verify_provenance() {
   warn "trusted workflow provenance verified, but signed release binding verification failed for $VERSION"
 }
 
+validate_release_archive() {
+  archive_path="$1"
+
+  archive_names="$(tar -tzf "$archive_path")" || die "release archive cannot be listed safely"
+  if ! printf '%s\n' "$archive_names" | awk '
+    $0 == "haco" { haco++ }
+    $0 == "haco-vscode" { vscode++ }
+    { count++ }
+    END { exit !(count == 2 && haco == 1 && vscode == 1) }
+  '; then
+    die "release archive must contain exactly haco and haco-vscode"
+  fi
+
+  archive_verbose="$(LC_ALL=C tar -tvzf "$archive_path")" || die "release archive entry types cannot be inspected"
+  if ! printf '%s\n' "$archive_verbose" | awk '
+    NF {
+      count++
+      if (substr($1, 1, 1) != "-") bad = 1
+    }
+    END { exit !(count == 2 && bad != 1) }
+  '; then
+    die "release archive contains a non-regular entry"
+  fi
+}
+
 if has_authenticated_gh; then
   download_with_gh "$VERSION" || die "failed to download release assets with gh"
 else
@@ -185,21 +211,28 @@ printf 'Verified SHA-256 integrity for %s against checksums.txt.\n' "$archive"
 # for explicit versions, to the release tag authorized by that workflow.
 verify_provenance
 
-tar -xzf "$tmpdir/$archive" -C "$tmpdir"
+# Treat the archive itself as untrusted input even after integrity/provenance
+# checks. A release compromise must not turn extraction into a path/link/device
+# write primitive on the installer's host.
+validate_release_archive "$tmpdir/$archive"
+staging="$tmpdir/staging"
+mkdir -m 0700 "$staging"
+tar -xzf "$tmpdir/$archive" -C "$staging"
 for binary in haco haco-vscode; do
-  [ -f "$tmpdir/$binary" ] || die "release archive does not contain $binary"
-  [ -x "$tmpdir/$binary" ] || chmod 0755 "$tmpdir/$binary"
+  [ -f "$staging/$binary" ] || die "release archive does not contain regular file $binary"
+  [ ! -L "$staging/$binary" ] || die "release archive extracted symbolic link for $binary"
+  chmod 0755 "$staging/$binary"
 done
 
 install_binary() {
   binary="$1"
   install_target="$INSTALL_DIR/$binary"
   if [ -d "$INSTALL_DIR" ] && [ -w "$INSTALL_DIR" ]; then
-    cp "$tmpdir/$binary" "$install_target"
+    cp "$staging/$binary" "$install_target"
     chmod 0755 "$install_target"
   elif command -v sudo >/dev/null 2>&1; then
     sudo mkdir -p "$INSTALL_DIR"
-    sudo cp "$tmpdir/$binary" "$install_target"
+    sudo cp "$staging/$binary" "$install_target"
     sudo chmod 0755 "$install_target"
   else
     die "cannot write to $INSTALL_DIR; set HACO_INSTALL_DIR to a writable directory or install sudo"
