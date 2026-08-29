@@ -52,18 +52,45 @@ func dispatch(ctx context.Context, app *composition.App, args []string) error {
 }
 
 func createCommand(ctx context.Context, app *composition.App, args []string) error {
-	if len(args) != 3 || args[0] != "--workspace" {
-		return fmt.Errorf("usage: haco create --workspace <path> <environment>: %w", core.ErrInvalidArgument)
-	}
-	environment, err := app.Environments.Create(ctx, core.EnvironmentSpec{
-		WorkspacePath: args[1],
-		Name:          args[2],
-	})
+	spec, err := parseCreateSpec(args)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s\t%s\n", environment.Name, environment.Workspace.Path)
+	environment, err := app.Environments.Create(ctx, spec)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s\t%s\t%s\n", environment.Name, environment.Workspace.Path, environment.AccessMode)
 	return nil
+}
+
+func parseCreateSpec(args []string) (core.EnvironmentSpec, error) {
+	if len(args) < 3 {
+		return core.EnvironmentSpec{}, fmt.Errorf("usage: haco create [--read-only] --workspace <path> <environment>: %w", core.ErrInvalidArgument)
+	}
+	spec := core.EnvironmentSpec{AccessMode: core.WorkspaceReadWrite}
+	for len(args) > 1 {
+		switch args[0] {
+		case "--read-only":
+			spec.AccessMode = core.WorkspaceReadOnly
+			args = args[1:]
+		case "--workspace":
+			if len(args) < 3 || spec.WorkspacePath != "" {
+				return core.EnvironmentSpec{}, fmt.Errorf("usage: haco create [--read-only] --workspace <path> <environment>: %w", core.ErrInvalidArgument)
+			}
+			spec.WorkspacePath = args[1]
+			args = args[2:]
+		default:
+			if len(args) != 1 {
+				return core.EnvironmentSpec{}, fmt.Errorf("unknown create option %q: %w", args[0], core.ErrInvalidArgument)
+			}
+		}
+	}
+	if len(args) != 1 || spec.WorkspacePath == "" {
+		return core.EnvironmentSpec{}, fmt.Errorf("usage: haco create [--read-only] --workspace <path> <environment>: %w", core.ErrInvalidArgument)
+	}
+	spec.Name = args[0]
+	return spec, nil
 }
 
 func execCommand(ctx context.Context, app *composition.App, args []string) error {
