@@ -109,7 +109,7 @@ if 'must not' not in v08 or 'Core' not in v08:
     errors.append('v0.8 must keep client-specific ownership outside Core')
 
 v09 = (root / 'docs/09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md').read_text()
-for required in ['Base Images & Custom Environments', 'immutable Base revision', 'Incus image fingerprint', 'implementation pending', 'custom', 'Environment']:
+for required in ['Base Images & Custom Environments', 'immutable Base revision', 'Incus image fingerprint', 'implementation not yet introduced', 'custom', 'Environment']:
     if required.lower() not in v09.lower():
         errors.append(f'v0.9 missing required Base-image contract text: {required}')
 for required in ['future Environment creation only', 'must not implicitly add', 'referenced revision']:
