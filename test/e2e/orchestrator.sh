@@ -15,6 +15,7 @@ mkdir -p "$bin" "$state" "$workspace"
 export HACO_ROOT="$root/haco-root"
 export HACO_FAKE_INCUS_STATE="$state"
 export HACO_FAKE_INCUS_LOG="$root/incus.log"
+export HACO_INCUS_BASES_JSON='{"my-dev":"images:custom-moving"}'
 export PATH="$bin:$PATH"
 
 cat > "$bin/incus" <<'SH'
@@ -45,7 +46,11 @@ case "$command_name" in
     ;;
   image)
     if [ "${1:-}" = 'info' ] && [ -n "${2:-}" ]; then
-      printf '%s\n' '{"fingerprint":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+      if [ "${2:-}" = 'images:custom-moving' ]; then
+        printf '%s\n' '{"fingerprint":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}'
+      else
+        printf '%s\n' '{"fingerprint":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+      fi
       exit 0
     fi
     exit 2
@@ -72,6 +77,20 @@ case "$command_name" in
   start)
     instance="${1:-}"
     echo 'RUNNING' > "$state/instance-$instance"
+    ;;
+  list)
+    instance="${1:-}"
+    [ -f "$state/instance-$instance" ] || exit 0
+    column=''
+    previous=''
+    for arg in "$@"; do
+      if [ "$previous" = '-c' ]; then column="$arg"; fi
+      previous="$arg"
+    done
+    case "$column" in
+      n) printf '%s\n' "$instance" ;;
+      s|*) cat "$state/instance-$instance" ;;
+    esac
     ;;
   delete)
     instance="${1:-}"
@@ -112,6 +131,33 @@ SH
 chmod +x "$bin/incus"
 
 go build -o "$haco" ./cmd/haco
+
+# v0.11 Base catalog: public names stay provider-neutral and inspect resolves
+# the current logical source to an immutable revision.
+"$haco" image list > "$root/bases.txt"
+grep -Fxq 'haco/ubuntu-24.04' "$root/bases.txt"
+grep -Fxq 'haco/ubuntu-26.04' "$root/bases.txt"
+grep -Fxq 'my-dev' "$root/bases.txt"
+base_info="$($haco image inspect my-dev --json)"
+python3 - "$base_info" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])
+assert r['name'] == 'my-dev', r
+assert r['revision'] == 'sha256:' + ('b' * 64), r
+PY
+
+"$haco" create --base my-dev --workspace "$workspace" base-demo >/dev/null
+status_json="$($haco status base-demo --json)"
+python3 - "$status_json" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])
+env=r['environment']
+assert env['base']['name'] == 'my-dev', r
+assert env['base']['revision'] == 'sha256:' + ('b' * 64), r
+PY
+grep -Fq 'image info images:custom-moving --format json' "$HACO_FAKE_INCUS_LOG"
+grep -Fq 'init images:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb haco-base-demo' "$HACO_FAKE_INCUS_LOG"
+"$haco" delete base-demo
 
 json="$($haco run --workspace "$workspace" --json -- sh -c "printf 'agent-ok\\n'; printf 'from-run\\n' > /workspace/result.txt")"
 python3 - "$json" <<'PY'
@@ -159,4 +205,4 @@ assert 'parameters' not in raw
 assert 'message' not in raw
 PY
 
-echo 'PASS: Hacocoon v0.6 run/events orchestration E2E'
+echo 'PASS: Hacocoon v0.6/v0.11 orchestration and Base E2E'
