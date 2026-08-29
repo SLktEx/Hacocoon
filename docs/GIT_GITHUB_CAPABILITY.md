@@ -90,7 +90,31 @@ The broker currently carries the normalized remote URL as compatibility metadata
 
 No `GH_TOKEN`, GitHub PAT, SSH private key, credential-helper plaintext, or authorization header is copied into the Environment, Hacocoon state, policy request, or audit log.
 
-The broker invokes host-side Git after authorization. Authentication therefore comes from the host's configured Git authentication path (for example a host credential helper or a future GitHub App-backed host adapter) and remains outside the untrusted Environment.
+### Host Git process isolation
+
+Every Git command used by the broker/provider runs with a freshly constructed environment rather than inheriting the Hacocoon process environment. This is part of the capability trust boundary, not an optional hardening step.
+
+The brokered process starts through `/usr/bin/env -i` and `/usr/bin/git`. It sets only:
+
+```text
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+GIT_CONFIG_NOSYSTEM=1
+GIT_CONFIG_GLOBAL=/dev/null
+GIT_TERMINAL_PROMPT=0
+GIT_ASKPASS=/usr/bin/false
+SSH_ASKPASS=/usr/bin/false
+GIT_SSH_COMMAND=/usr/bin/ssh -F /dev/null -o BatchMode=yes -o ClearAllForwardings=yes -o PermitLocalCommand=no
+```
+
+and selectively carries `HOME`, `SSH_AUTH_SOCK`, `LANG`, and `LC_ALL` when present.
+
+All ambient `GIT_*` variables other than the values explicitly created above are discarded. In particular, caller-controlled `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_*`, `GIT_CONFIG_VALUE_*`, `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM`, `GIT_DIR`, `GIT_WORK_TREE`, `GIT_SSH`, `GIT_SSH_COMMAND`, and `GIT_ASKPASS` cannot flow into brokered Git. Ambient `SSH_ASKPASS`, proxy variables, and other unrelated process state are also not inherited.
+
+Global and system Git configuration are deliberately disabled. Repository-local configuration remains visible because the Workspace remote must be resolved, but transport/credential/command-sensitive local entries are rejected before authorization and again before execution.
+
+For SSH remotes, Hacocoon disables user SSH configuration with `-F /dev/null`. The host user's default SSH keys/known-hosts and `SSH_AUTH_SOCK` may still provide authentication, but `~/.ssh/config` cannot introduce `HostName`, `ProxyCommand`, or similar transport rewrites for `github.com`.
+
+For HTTPS remotes, ambient global credential helpers are intentionally not trusted because global Git configuration is outside the brokered capability boundary. A future HTTPS credential provider must be explicit host-owned provider state, not inherited Git configuration or Environment-supplied credentials.
 
 GitHub App token minting can be added behind this same provider boundary when deployment conditions make it useful; it is not required to weaken the boundary by injecting tokens into the Environment.
 

@@ -39,7 +39,7 @@ type Broker struct {
 }
 
 func NewBroker(runner host.Runner, store EnvironmentStore, capabilities *capabilityapp.Service) *Broker {
-	return &Broker{runner: runner, store: store, capabilities: capabilities}
+	return &Broker{runner: newIsolatedGitRunner(runner), store: store, capabilities: capabilities}
 }
 
 func (b *Broker) Push(ctx context.Context, spec PushSpec) (core.CapabilityResult, error) {
@@ -113,7 +113,7 @@ type Provider struct {
 }
 
 func NewProvider(runner host.Runner, store EnvironmentStore) *Provider {
-	return &Provider{runner: runner, store: store}
+	return &Provider{runner: newIsolatedGitRunner(runner), store: store}
 }
 
 func (*Provider) Capability() string { return GitHubCapability }
