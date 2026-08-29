@@ -11,11 +11,9 @@ Hacocoon は、人間・開発ツール・コーディングエージェント�
 > [!WARNING]
 > **Hacocoon はまだ pre-1.0 で、Breaking Change は今後も発生します。**
 >
-> CLI、補助バイナリ、state format、API、Capability、Provider、Client Adapter、Base/image 設定は互換性なく変わる可能性があります。
+> CLI、補助バイナリ、state format、API、Capability、Provider、Client Adapter、Base/image 設定、roadmap 番号は互換性なく変わる可能性があります。
 
 ## いちばんやりたい使い方
-
-v0.8 では、普段の対話的な開発を次の形にします。
 
 ```text
 VS Code
@@ -36,9 +34,7 @@ Incus Environment
 
 **AI 専用 UI を Hacocoon に作りません。** VS Code にある Copilot / Codex / Claude 等の UI や拡張をそのまま使います。
 
-AI は隔離 Environment の中ではかなり自由に動かせます。Package install、コード変更、build、test、壊してやり直す、といった処理は Environment 内に閉じ込めます。
-
-一方で、GitHub、AWS、Host credential など Environment の外の authority は Hacocoon の Policy / Capability / Audit を通します。
+AI は隔離 Environment の中ではかなり自由に動かせます。一方、GitHub、AWS、Host credential など Environment の外の authority は Hacocoon の Policy / Capability / Audit を通します。
 
 ```text
 Coding Agent
@@ -54,9 +50,30 @@ Incus Environment       <- YOLO zone
 GitHub / AWS / Host
 ```
 
-## VS Code で開く
+## 現在のバージョン
 
-標準ローカル runtime は Incus です。
+実装済み milestone は **v0.1〜v0.9 まで連番**に整理しています。
+
+| Version | Gate | 状態 |
+|---|---|---|
+| v0.1 | Secure Workspace Runtime MVP | 実装済み |
+| v0.2 | Workspace Abstraction & Lease | 実装済み |
+| v0.3 | Client & Interactive Access | 実装済み |
+| v0.4 | Policy & Capability Foundation | 実装済み |
+| v0.5 | Git / GitHub Capability | 実装済み |
+| v0.6 | Agent & Orchestrator Integration | 実装済み |
+| v0.7 | Remote / Cloud Runtime | experimental 実装済み |
+| v0.8 | Client Adapters & VS Code | 実装済み |
+| v0.9 | Per-Agent Sandbox & Agent Host Integration | broker foundation 実装済み |
+| v0.10 | VS Code Remote Agent Host Adapter | PR #111 で実装中。まだ `main` ではない |
+| v0.11 | Base Images & Custom Environments | 設計のみ |
+| v0.12 | Sandbox Resource Limits | 設計のみ |
+
+以前は design-only v0.9 の後に implemented v0.10 が来るなど番号が飛び飛びでしたが、pre-1.0 のうちに **実装済み → 実装中 → 設計待ち** の順へ整理しました。
+
+詳しくは [`docs/00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](docs/00D_VERSIONING_AND_RELEASE_STATUS.ja.md) と [`docs/IMPLEMENTATION_STATUS.ja.md`](docs/IMPLEMENTATION_STATUS.ja.md) を参照してください。
+
+## VS Code で開く
 
 ソースから使う場合:
 
@@ -69,13 +86,13 @@ go build -o ./bin/haco-vscode ./cmd/haco-vscode
 ./bin/haco doctor
 ```
 
-VS Code Remote-SSH と SSH key pair を用意したうえで、開きたい Workspace から:
+開きたい Workspace から:
 
 ```bash
 ./bin/haco-vscode open .
 ```
 
-これで概念的には次を自動化します。
+概念的には次を自動化します。
 
 ```text
 Workspace を認識
@@ -94,75 +111,70 @@ Private key は Client 側に残り、Environment に渡しません。
 ./bin/haco-vscode delete .
 ```
 
-主な option:
+## v0.9: Per-Agent Sandbox
 
-```bash
-./bin/haco-vscode open --name dev .
-./bin/haco-vscode open --identity /path/to/id_ed25519 .
-./bin/haco-vscode open --read-only .
-./bin/haco-vscode open --no-launch .
-```
-
-## Windows + WSL
-
-Hacocoon/Incus が WSL 側、デスクトップ VS Code が Windows 側にある場合、SSH client の設定場所も別です。
-
-v0.8 の `haco-vscode` は WSL から実行された場合に Windows user profile を解決し、**Windows 側の `.ssh` 設定**を対象にします。
+v0.9 は opaque な Agent Session identity を dedicated Environment に結びつける trusted broker foundation です。
 
 ```text
-Windows VS Code
-   -> Windows OpenSSH
-   -> 127.0.0.1:<port>
-   -> WSL / Hacocoon
-   -> Incus:22
+trusted client / integration
+        |
+ opaque session identity
+        |
+ internal/agenthost broker
+        |
+ persisted ownership proof
+        |
+ Environment
+        |
+ Incus
 ```
 
-Real Windows/WSL + Incus + VS Code Remote-SSH acceptance は、対応環境上で別途確認する必要があります。
+Coding agent 自身に `haco` / Incus 管理 authority を渡しません。Deterministic な Environment 名だけでも ownership proof にはせず、persisted binding が一致しなければ Acquire / Release は fail closed します。
 
-## v0.9: Base image を選べるようにする
+Parallel RW agent は原則として別 Git worktree / 別 canonical Workspace を使います。
 
-次の roadmap gate は **v0.9 Base Images & Custom Environments** です。
+正本は [`docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md`](docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md) です。
 
-Hacocoon から Incus の alias や fingerprint を直接選ぶのではなく、Hacocoon の **Base** を指定します。
+## v0.10: VS Code Remote Agent Host Adapter
+
+v0.10 は PR #111 の active integration candidate です。まだ `main` implementation claim ではありません。
 
 ```text
-my-dev                 <- logical Base name
-  |
-  v
-immutable Base revision
-  |
-  v
-Incus fingerprint      <- Incus adapter 内部
-  |
-  v
-Environment
+VS Code Agents window
+        |
+   Remote SSH
+        |
+Hacocoon-managed loopback SSH alias
+        |
+v0.9 bound Environment
+        |
+ /workspace + Agent Host
 ```
 
-大事なルールは、logical Base を更新しても既存 Environment を勝手に変えないことです。
+Hacocoon は Environment と安全な接続準備を所有し、VS Code が Agent Host / Agent Host Protocol を所有します。
+
+## v0.11: Base Images & Custom Environments
+
+v0.11 はまだ設計段階です。
+
+```text
+logical Base
+   -> immutable Base revision
+   -> provider-native starting point
+   -> Environment
+```
+
+logical Base の更新で既存 Environment を silent retarget しません。
 
 ```text
 my-dev -> revision A -> Environment 1
-
-my-dev を revision B に更新
-
-Environment 1 -> revision A のまま
-Environment 2 -> revision B
+my-dev -> revision B -> Environment 2
+Environment 1 は revision A のまま
 ```
 
-つまり、Base を変えたい場合は新しい Environment を作ります。起動済み Environment の root の出発点を途中で差し替える機能にはしません。
+Custom Base の中身や metadata だけで Host mount、privileged mode、device、credential、external authority を増やすことも禁止します。
 
-Custom Base も信用しません。Image の中身や metadata だけで次の権限を増やすことは禁止します。
-
-- Host filesystem mount
-- Incus device
-- privileged container
-- Linux capability
-- Host network authority
-- GitHub / AWS / cloud credential
-- SSH private key
-- Hacocoon control authority
-
-想定している CLI は例えば次です。
+想定 CLI は次のような形ですが、**まだ実装済みではありません**。
 
 ```text
 haco image list
@@ -170,28 +182,37 @@ haco image inspect <base>
 haco create --base <base> --workspace <path> <environment>
 ```
 
-ただし **これは v0.9 の設計 contract で、まだ実装済み CLI ではありません**。CLI/config は pre-1.0 の間は変更可能です。
+正本は [`docs/11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](docs/11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md)、詳しい日本語設計は [`docs/BASE_IMAGES.ja.md`](docs/BASE_IMAGES.ja.md) です。
 
-正本は [`docs/09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](docs/09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md)、詳しい日本語設計は [`docs/BASE_IMAGES.ja.md`](docs/BASE_IMAGES.ja.md) です。
+## v0.12: Sandbox Resource Limits
 
-## VS Code は最初の Client であって Core ではない
+v0.12 は design-only です。
 
-Hacocoon Core に VS Code 固有概念は入れません。
+予定する resource budget:
+
+- CPU
+- memory
+- process / PID count
+- Environment root storage size（安全に enforce できる場合）
 
 ```text
-VS Code adapter -----+
-JetBrains adapter ---+----> Hacocoon ----> Environment
-Web client ----------+
-Daintree adapter ----+
+ResourceBudget  -> Environment 内部の消費量を制限
+Capability      -> Environment 境界を越える authority を制御
 ```
 
-将来別の IDE や Client を使うときも、同じ Environment / client-access boundary を利用します。
+requested limit を provider が enforce できない場合は silent ignore せず fail closed します。
 
-VS Code Extension を将来作る場合も、ボタン・状態表示・通知・Approval UX などを足す **薄い Adapter** とし、Remote-SSH や AI UI を再実装しません。
+詳しくは [`docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md`](docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md) を参照してください。
+
+## Windows + WSL
+
+Hacocoon/Incus が WSL 側、デスクトップ VS Code が Windows 側にある場合、`haco-vscode` は Windows user profile を解決して Windows 側の `.ssh` 設定を対象にします。
+
+Hacocoon は専用 `Hacocoon` WSL 2 instance を使い、systemd を PID 1 として Incus を動かす方向です。普段使いの WSL distribution や global default を勝手に変更せず、`incus-admin` は explicit opt-in のままです。
 
 ## Orchestrator との関係
 
-Daintree などの Orchestrator は Hacocoon の上に置けます。
+Daintree などの Orchestrator は Hacocoon の上に置きます。
 
 ```text
 Daintree / Orchestrator
@@ -203,11 +224,7 @@ Daintree / Orchestrator
 
 Task 分解、worktree、Agent 選択、retry、budget、development review は Orchestrator 側の責任です。
 
-Hacocoon は「どこで安全に動かすか」と「外へ出る authority」を担当します。
-
 ## 低レベル CLI
-
-`haco` 自体の低レベル CLI も、script、debug、Client Adapter、Orchestrator から利用できます。
 
 ```bash
 haco create --workspace "$PWD" dev
@@ -215,11 +232,7 @@ haco exec dev -- go test ./...
 haco shell dev
 haco status dev
 haco delete dev
-```
 
-一回だけ Agent / tool を実行する場合:
-
-```bash
 haco run --workspace "$PWD" -- go test ./...
 haco run --workspace "$PWD" --json -- go test ./...
 ```
@@ -246,50 +259,16 @@ haco-vscode open
 haco-vscode delete
 ```
 
-`haco image` と `haco create --base` は v0.9 の予定であり、現時点の実装済み command としては扱いません。
+## EC2
 
-## 現在の状態
+v0.7 EC2 provider は **experimental / disabled by default** です。
 
-`main` の **実装進行は v0.8 まで**です。Roadmap/design は **v0.9** まで確定しています。
+```bash
+export HACO_RUNTIME_PROVIDER=runtime.ec2
+export HACO_EXPERIMENTAL_EC2=1
+```
 
-- v0.1: Secure Workspace Runtime
-- v0.2: Workspace Abstraction & Lease
-- v0.3: Client & Interactive Access
-- v0.4: Policy & Capability Foundation
-- v0.5: Git / GitHub Capability
-- v0.6: Agent & Orchestrator Integration
-- v0.7: Remote / Cloud Runtime & External Capabilities
-- v0.8: Client Adapters & VS Code Integration — 実装済み
-- v0.9: Base Images & Custom Environments — **設計 contract、実装待ち**
-
-EC2 は引き続き **experimental / disabled by default** です。`HACO_RUNTIME_PROVIDER=runtime.ec2` と `HACO_EXPERIMENTAL_EC2=1` の両方を明示しない限り有効にしません。
-
-実装が存在することと real-provider/client acceptance が済んでいることは別です。詳細は [`docs/IMPLEMENTATION_STATUS.ja.md`](docs/IMPLEMENTATION_STATUS.ja.md) を参照してください。
-
-## 設計境界
-
-Hacocoon が所有するもの:
-
-- Workspace と Environment の結合
-- Environment lifecycle
-- Workspace lease / ownership safety
-- Base name → immutable Base revision の解決 contract
-- generic execution / client access
-- Policy / Approval / Capability / Audit
-- Host / external authority の security boundary
-
-Core が所有しないもの:
-
-- IDE / editor / AI chat UX
-- Git branch / worktree orchestration
-- model selection
-- Agent DAG / retry / budget
-- VS Code 固有設定
-- Daintree 固有 workflow
-- Incus alias / remote / fingerprint の native mechanics
-- Provider 固有 Cloud / Storage mechanics
-
-詳しい日本語設計は [`docs/ARCHITECTURE_GUIDE.ja.md`](docs/ARCHITECTURE_GUIDE.ja.md)、資料の優先順位は [`docs/README.ja.md`](docs/README.ja.md) を参照してください。
+両方の explicit opt-in が必要です。Real AWS / EC2 / SSM / EBS acceptance は pending です。
 
 ## 開発とテスト
 
@@ -302,10 +281,12 @@ go build ./cmd/haco-vscode
 python tools/check_docs.py
 ```
 
-Real Incus、Base/image lifecycle、Windows/WSL + VS Code、AWS/EC2/SSM/EBS の acceptance は、実際の対応環境で実行していない限り pass と扱いません。
+Real Incus、Windows/WSL + VS Code、Agent Host/AHP、Base/image lifecycle、AWS/EC2/SSM/EBS、resource enforcement の acceptance は、実際の対応環境で実行していない限り pass と扱いません。
+
+資料の優先順位は [`docs/README.ja.md`](docs/README.ja.md)、詳しい architecture は [`docs/ARCHITECTURE_GUIDE.ja.md`](docs/ARCHITECTURE_GUIDE.ja.md) を参照してください。
 
 ## Breaking Change 方針
 
 Hacocoon が stable compatibility milestone に到達するまでは、**どの revision 間でも Breaking Change が起こり得ます**。
 
-ただし security boundary を弱めたり、silent data loss を許したりするための自由ではありません。より小さく安全な境界へ直すことを優先し、material な影響や safe migration path がある場合は明示します。
+ただし security boundary を弱めたり、silent data loss を許したりするための自由ではありません。より小さく安全な境界へ直すことを優先します。
