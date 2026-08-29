@@ -17,9 +17,11 @@ type environmentStore interface {
 
 type accessRuntime interface {
 	InspectEnvironment(context.Context, string) (core.EnvironmentRuntimeStatus, error)
+	ListClientConnections(context.Context, string) ([]core.ClientConnection, error)
 	ForwardLocalPort(context.Context, string, core.LocalPortRequest) (core.ClientConnection, error)
 	RemoveClientConnection(context.Context, string, string) error
-	PrepareSSH(context.Context, string, core.SSHAccessRequest) (core.ClientConnection, error)
+	PrepareSSHAccess(context.Context, string, core.SSHAccessRequest) (core.ClientConnection, error)
+	RevokeSSHAccess(context.Context, string, string) error
 }
 
 type Service struct {
@@ -43,15 +45,28 @@ func (s *Service) Status(ctx context.Context, name string) (core.EnvironmentStat
 	return core.EnvironmentStatus{Environment: environment, State: observed.State}, nil
 }
 
+func (s *Service) Connections(ctx context.Context, name string) ([]core.ClientConnection, error) {
+	environment, err := s.store.GetEnvironment(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	connections, err := s.runtime.ListClientConnections(ctx, environment.RuntimeRef)
+	if err != nil {
+		return nil, fmt.Errorf("list client connections for %q: %w", name, err)
+	}
+	return connections, nil
+}
+
 func (s *Service) Forward(ctx context.Context, name string, req core.LocalPortRequest) (core.ClientConnection, error) {
-	if err := validatePortRequest(req); err != nil {
+	normalized, err := normalizePortRequest(req)
+	if err != nil {
 		return core.ClientConnection{}, err
 	}
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err != nil {
 		return core.ClientConnection{}, err
 	}
-	return s.runtime.ForwardLocalPort(ctx, environment.RuntimeRef, req)
+	return s.runtime.ForwardLocalPort(ctx, environment.RuntimeRef, normalized)
 }
 
 func (s *Service) Unforward(ctx context.Context, name, connectionID string) error {
@@ -62,6 +77,9 @@ func (s *Service) Unforward(ctx context.Context, name, connectionID string) erro
 	if err != nil {
 		return err
 	}
+	if strings.HasPrefix(connectionID, "ssh-") {
+		return s.runtime.RevokeSSHAccess(ctx, environment.RuntimeRef, connectionID)
+	}
 	return s.runtime.RemoveClientConnection(ctx, environment.RuntimeRef, connectionID)
 }
 
@@ -69,31 +87,27 @@ func (s *Service) SSH(ctx context.Context, name string, req core.SSHAccessReques
 	if req.HostPort < 1 || req.HostPort > 65535 {
 		return core.ClientConnection{}, fmt.Errorf("SSH host port %d: %w", req.HostPort, core.ErrInvalidArgument)
 	}
-	key := strings.TrimSpace(req.PublicKey)
-	if key == "" || strings.ContainsAny(key, "\r\n") || !looksLikePublicKey(key) {
-		return core.ClientConnection{}, fmt.Errorf("SSH public key: %w", core.ErrInvalidArgument)
+	key, err := normalizePublicKey(req.PublicKey)
+	if err != nil {
+		return core.ClientConnection{}, err
 	}
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err != nil {
 		return core.ClientConnection{}, err
 	}
 	req.PublicKey = key
-	return s.runtime.PrepareSSH(ctx, environment.RuntimeRef, req)
+	return s.runtime.PrepareSSHAccess(ctx, environment.RuntimeRef, req)
 }
 
-func validatePortRequest(req core.LocalPortRequest) error {
+func normalizePortRequest(req core.LocalPortRequest) (core.LocalPortRequest, error) {
 	if req.Protocol == "" {
 		req.Protocol = "tcp"
 	}
 	if req.Protocol != "tcp" {
-		return fmt.Errorf("protocol %q: %w", req.Protocol, core.ErrUnsupported)
+		return core.LocalPortRequest{}, fmt.Errorf("protocol %q: %w", req.Protocol, core.ErrUnsupported)
 	}
 	if req.HostPort < 1 || req.HostPort > 65535 || req.TargetPort < 1 || req.TargetPort > 65535 {
-		return fmt.Errorf("ports host=%d target=%d: %w", req.HostPort, req.TargetPort, core.ErrInvalidArgument)
+		return core.LocalPortRequest{}, fmt.Errorf("ports host=%d target=%d: %w", req.HostPort, req.TargetPort, core.ErrInvalidArgument)
 	}
-	return nil
-}
-
-func looksLikePublicKey(key string) bool {
-	return strings.HasPrefix(key, "ssh-") || strings.HasPrefix(key, "ecdsa-") || strings.HasPrefix(key, "sk-ssh-") || strings.HasPrefix(key, "sk-ecdsa-")
+	return req, nil
 }
