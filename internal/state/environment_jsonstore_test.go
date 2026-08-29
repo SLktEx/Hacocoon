@@ -17,7 +17,8 @@ func TestEnvironmentJSONStoreRoundTripAndDelete(t *testing.T) {
 	ctx := context.Background()
 	environment := core.Environment{
 		Name:       "demo",
-		Workspace:  core.Workspace{Path: "/tmp/workspace"},
+		Workspace:  core.Workspace{ID: "workspace:demo", Path: "/tmp/workspace"},
+		AccessMode: core.WorkspaceReadWrite,
 		RuntimeRef: "haco-demo",
 		CreatedAt:  time.Date(2026, 8, 29, 6, 30, 0, 0, time.UTC),
 	}
@@ -45,11 +46,34 @@ func TestEnvironmentJSONStoreRoundTripAndDelete(t *testing.T) {
 	if _, err := store.GetEnvironment(ctx, "demo"); !errors.Is(err, core.ErrNotFound) {
 		t.Fatalf("get after delete = %v", err)
 	}
+	if err := store.DeleteEnvironment(ctx, "demo"); err != nil {
+		t.Fatalf("repeated delete must be idempotent: %v", err)
+	}
 }
 
 func TestEnvironmentJSONStoreMissingIsNotFound(t *testing.T) {
 	store := NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "missing.json"))
 	if _, err := store.GetEnvironment(context.Background(), "demo"); !errors.Is(err, core.ErrNotFound) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestEnvironmentJSONStoreRejectsV01State(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "environments.json")
+	legacy := `{
+  "environments": {
+    "old": {
+      "name": "old",
+      "runtime_ref": "haco-old",
+      "created_at": "2026-08-29T00:00:00Z"
+    }
+  }
+}`
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store := NewEnvironmentJSONStore(path)
+	if _, err := store.GetEnvironment(context.Background(), "old"); !errors.Is(err, core.ErrIncompatibleState) {
+		t.Fatalf("legacy state error = %v", err)
 	}
 }
