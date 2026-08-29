@@ -97,11 +97,11 @@ func (s *Service) Request(ctx context.Context, req core.CapabilityRequest) (core
 
 	evaluation, err := s.policy.Evaluate(ctx, req)
 	if err != nil {
-		_ = s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-error", Decision: core.PolicyDeny, Reason: err.Error()})
+		_ = s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-error", Decision: core.PolicyDeny, Reason: "policy-evaluation-failed"})
 		return baseResult, fmt.Errorf("evaluate capability policy: %w", err)
 	}
 	if !validDecision(evaluation.Decision) {
-		_ = s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-error", Decision: core.PolicyDeny, Reason: "invalid policy decision"})
+		_ = s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-error", Decision: core.PolicyDeny, Reason: "invalid-policy-decision"})
 		return baseResult, fmt.Errorf("invalid policy decision %q: %w", evaluation.Decision, core.ErrPolicyDenied)
 	}
 	if err := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-decision", Decision: evaluation.Decision, Reason: evaluation.Reason}); err != nil {
@@ -118,7 +118,7 @@ func (s *Service) Request(ctx context.Context, req core.CapabilityRequest) (core
 		approved, approvalErr := s.approval.Approve(ctx, core.ApprovalRequest{CapabilityRequest: req, Reason: evaluation.Reason})
 		if approvalErr != nil {
 			falseValue := false
-			_ = s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "approval-decision", Approved: &falseValue, Reason: approvalErr.Error()})
+			_ = s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "approval-decision", Approved: &falseValue, Reason: "approval-provider-failed"})
 			return baseResult, fmt.Errorf("obtain capability approval: %w", approvalErr)
 		}
 		if err := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "approval-decision", Approved: &approved, Reason: evaluation.Reason}); err != nil {
@@ -137,7 +137,7 @@ func (s *Service) Request(ctx context.Context, req core.CapabilityRequest) (core
 		result.ExecutionState = core.CapabilityFailed
 	}
 	success := execErr == nil
-	completionErr := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "completed", Success: &success, Reason: errorText(execErr)})
+	completionErr := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "completed", Success: &success, Reason: auditErrorReason(execErr)})
 	result.AuditComplete = completionErr == nil
 	if execErr != nil && completionErr != nil {
 		return result, errors.Join(execErr, core.ErrAuditIncomplete, fmt.Errorf("record capability completion: %w", completionErr))
@@ -234,11 +234,42 @@ func randomRequestID() (string, error) {
 	return hex.EncodeToString(value), nil
 }
 
-func errorText(err error) string {
+// auditErrorReason deliberately converts provider failures into a closed set of
+// stable categories. Provider error strings can contain untrusted subprocess
+// stderr, credentials, local paths, or other diagnostics that must not become
+// durable security-audit data. The original error is still returned to the
+// immediate caller by Request.
+func auditErrorReason(err error) string {
 	if err == nil {
 		return ""
 	}
-	return err.Error()
+	for _, candidate := range []struct {
+		err    error
+		reason string
+	}{
+		{context.Canceled, "context-canceled"},
+		{context.DeadlineExceeded, "context-deadline-exceeded"},
+		{core.ErrCapabilityStale, "capability-stale"},
+		{core.ErrInvalidArgument, "invalid-argument"},
+		{core.ErrNotFound, "not-found"},
+		{core.ErrAlreadyExists, "already-exists"},
+		{core.ErrUnsupported, "unsupported"},
+		{core.ErrUnsafeShrink, "unsafe-shrink"},
+		{core.ErrRuntimeUnavailable, "runtime-unavailable"},
+		{core.ErrStorageUnavailable, "storage-unavailable"},
+		{core.ErrStorageBusy, "storage-busy"},
+		{core.ErrWorkspaceBusy, "workspace-busy"},
+		{core.ErrPolicyDenied, "policy-denied"},
+		{core.ErrApprovalDenied, "approval-denied"},
+		{core.ErrAuditIncomplete, "audit-incomplete"},
+		{core.ErrIncompatibleState, "incompatible-state"},
+		{core.ErrRecoveryRequired, "recovery-required"},
+	} {
+		if errors.Is(err, candidate.err) {
+			return candidate.reason
+		}
+	}
+	return "provider-execution-failed"
 }
 
 func cloneStrings(values map[string]string) map[string]string {
