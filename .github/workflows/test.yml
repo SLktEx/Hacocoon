@@ -28,6 +28,18 @@ jobs:
           persist-credentials: false
       - run: python3 tools/check_docs.py
 
+  workflow-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate workflow trust boundary
+        run: python3 tools/check_workflow_policy.py
+      - name: Test workflow trust policy
+        run: python3 tools/test_workflow_policy.py
+
   release-config:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
