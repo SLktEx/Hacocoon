@@ -58,7 +58,7 @@ func TestEnvironmentJSONStoreMissingIsNotFound(t *testing.T) {
 	}
 }
 
-func TestEnvironmentJSONStoreRejectsV01State(t *testing.T) {
+func TestEnvironmentJSONStoreReadsLegacyMetadataButRefusesToEnableLeases(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "environments.json")
 	legacy := `{
   "environments": {
@@ -73,7 +73,15 @@ func TestEnvironmentJSONStoreRejectsV01State(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := NewEnvironmentJSONStore(path)
-	if _, err := store.GetEnvironment(context.Background(), "old"); !errors.Is(err, core.ErrIncompatibleState) {
-		t.Fatalf("legacy state error = %v", err)
+	if _, err := store.GetEnvironment(context.Background(), "old"); err != nil {
+		t.Fatalf("legacy metadata must remain readable for existing client operations: %v", err)
+	}
+	err := store.AcquireWorkspaceLease(context.Background(), core.WorkspaceLease{
+		WorkspaceID:   "workspace:new",
+		EnvironmentID: "new",
+		AccessMode:    core.WorkspaceReadWrite,
+	})
+	if !errors.Is(err, core.ErrIncompatibleState) {
+		t.Fatalf("legacy state lease error = %v", err)
 	}
 }
