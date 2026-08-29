@@ -28,6 +28,24 @@ jobs:
           persist-credentials: false
       - run: python3 tools/check_docs.py
 
+  release-config:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: v2.17.1
+          install-only: true
+      - name: Validate GoReleaser configuration
+        run: goreleaser check
+      - name: Validate release installer syntax
+        run: bash -n scripts/install.sh
+
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -77,8 +95,6 @@ jobs:
           cache: false
       - name: Validate E2E shell syntax
         run: bash -n test/e2e/*.sh
-      - name: Validate release installer syntax
-        run: bash -n scripts/install.sh
       - name: Capability E2E
         run: bash test/e2e/capability.sh
       - name: Git/GitHub E2E
