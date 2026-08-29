@@ -166,10 +166,6 @@ func (p *Provider) Execute(ctx context.Context, req core.CapabilityRequest) (cor
 		}
 		args = append(args, "--force-with-lease="+targetRef+":"+expected)
 	}
-	// Push the exact URL that was re-resolved and compared after policy evaluation.
-	// Never pass the remote name here: Git gives remote.<name>.pushurl authority over
-	// the actual destination, which would turn a repository-local config value into
-	// an authorization bypass.
 	args = append(args, remoteURL, sourceSHA+":"+targetRef)
 	result, err := p.runner.Run(ctx, "git", args...)
 	if err != nil {
@@ -200,14 +196,11 @@ func resolveGitHubRemote(ctx context.Context, runner host.Runner, workspace, rem
 	return raw, repository, nil
 }
 
-// rejectUnsafeLocalGitConfig keeps repository-controlled Git configuration from
-// acquiring transport or host-command authority. This is deliberately checked
-// both before policy evaluation and again immediately before execution.
 func rejectUnsafeLocalGitConfig(ctx context.Context, runner host.Runner, workspace, remote string) error {
-	pattern := `^(remote\.` + regexp.QuoteMeta(remote) + `\.(pushurl|receivepack|proxy)|url\..*\.(insteadOf|pushInsteadOf)|credential\..*|core\.(hooksPath|sshCommand|askPass))$`
+	// Git canonicalizes variable names to lower-case when reporting them.
+	pattern := `^(remote\.` + regexp.QuoteMeta(remote) + `\.(pushurl|receivepack|proxy)|url\..*\.(insteadof|pushinsteadof)|credential\..*|core\.(hookspath|sshcommand|askpass))$`
 	result, err := runner.Run(ctx, "git", "-C", workspace, "config", "--local", "--get-regexp", pattern)
 	if err != nil {
-		// git config returns 1 when no matching key exists.
 		if result.ExitCode == 1 {
 			return nil
 		}
