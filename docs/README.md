@@ -17,7 +17,7 @@ When documents appear to disagree, use this order:
 3. `00B_SECURITY_ARCHITECTURE.md` — cross-cutting trust and security rules.
 4. `IMPLEMENTATION_STATUS.md` — what `main` actually implements and what acceptance is still pending.
 5. The relevant versioned release specification (`01_...` through `08_...`) — the contract for that roadmap gate.
-6. Specialized design documents such as `CLIENT_ACCESS.md` and `REMOTE_CLOUD_PROVISIONING.md` — detailed contracts for their subject area.
+6. Specialized design documents such as `CLIENT_ACCESS.md`, `REMOTE_CLOUD_PROVISIONING.md`, and `BASE_IMAGES.md` — detailed contracts or explicitly labeled design proposals for their subject area.
 7. `00A_PLUGIN_ARCHITECTURE.md` — extension/adaptor guidance; it does not require speculative interfaces or a plugin marketplace.
 8. `90_CODEX_IMPLEMENTATION_HANDOFF.md` — current implementation and maintenance workflow derived from the sources above.
 9. `91_IMPLEMENTATION_REFERENCE_NOTES.md` — non-normative external references and historical notes.
@@ -37,6 +37,7 @@ Therefore:
 - real-provider/client acceptance remains separate from unit, integration, fake-provider E2E, race, vet, build, and CI checks;
 - EC2 remains experimental and disabled by default even though its v0.7 implementation exists;
 - v0.8 explicitly introduces thin Client Adapters, starting with `haco-vscode`, without moving IDE or AI UI ownership into Core;
+- `BASE_IMAGES.md` is an explicitly labeled design proposal and does not by itself schedule post-v0.8 implementation;
 - post-v0.8 work must not be invented merely because the numbered roadmap has progressed.
 
 ## Specification vs implementation
