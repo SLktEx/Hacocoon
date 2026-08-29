@@ -150,6 +150,10 @@ case "$command_name" in
       *) exit 2 ;;
     esac
     ;;
+  profile)
+    [ "${1:-}" = "show" ] || exit 2
+    printf '%s\n' '{"devices":{"root":{"type":"disk","path":"/","pool":"default"}}}'
+    ;;
   init)
     image="${1:-}"; instance="${2:-}"
     [ -n "$image" ] && [ -n "$instance" ] || exit 2
@@ -174,6 +178,10 @@ case "$command_name" in
     ;;
   delete)
     instance="${1:-}"
+    if [ ! -f "$state/instance-$instance" ]; then
+      echo "Error: Instance not found" >&2
+      exit 1
+    fi
     rm -f "$state/instance-$instance" "$state/workspace-$instance"
     ;;
   exec)
@@ -186,6 +194,10 @@ case "$command_name" in
     executable="$1"
     shift
     case "$executable" in
+      test)
+        [ "${1:-}" = "-w" ] && [ "${2:-}" = "/workspace" ] || exit 2
+        [ -w "$workspace" ]
+        ;;
       cat)
         target="$(printf '%s' "${1:-}" | sed "s#^/workspace#$workspace#")"
         cat "$target"
