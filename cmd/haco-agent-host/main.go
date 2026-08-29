@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode"
 
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
 	"github.com/SLktEx/Hacocoon/internal/composition"
@@ -106,6 +107,9 @@ func prepareCommand(ctx context.Context, app *composition.App, args []string) er
 	identityConfigValue, err := identityForClientConfig(ctx, clientFS, identityPath)
 	if err != nil {
 		return err
+	}
+	if err := validateSSHConfigValue(identityConfigValue); err != nil {
+		return fmt.Errorf("SSH identity path cannot be represented safely in managed config: %w", err)
 	}
 	publicKeyPath := identityPath + ".pub"
 	publicKey, err := os.ReadFile(publicKeyPath)
@@ -221,32 +225,31 @@ func releaseCommand(ctx context.Context, app *composition.App, args []string) er
 		return fmt.Errorf("usage: haco-agent-host release --session <id>: %w", core.ErrInvalidArgument)
 	}
 
-	clientFS, err := resolveClientFilesystem(ctx)
-	if err != nil {
-		return err
+	releaseErr := app.AgentHosts.Release(ctx, *sessionID)
+	if releaseErr != nil && !errors.Is(releaseErr, core.ErrNotFound) && !os.IsNotExist(releaseErr) {
+		return releaseErr
 	}
+
 	alias := agentSSHAlias(*sessionID)
+	clientFS, err := resolveClientFilesystem(context.WithoutCancel(ctx))
+	if err != nil {
+		if releaseErr == nil {
+			return errors.Join(
+				fmt.Errorf("agent environment was released but client SSH configuration could not be resolved: %w", err),
+				core.ErrRecoveryRequired,
+			)
+		}
+		return fmt.Errorf("session was already released but stale client SSH configuration could not be resolved: %w", err)
+	}
 	managedPath := managedConfigPath(clientFS.Home, alias)
-
-	if _, err := app.AgentHosts.Lookup(ctx, *sessionID); err != nil {
-		if !errors.Is(err, core.ErrNotFound) && !os.IsNotExist(err) {
-			return err
-		}
-		if removeErr := os.Remove(managedPath); removeErr != nil && !os.IsNotExist(removeErr) {
-			return fmt.Errorf("remove stale managed SSH config: %w", removeErr)
-		}
-		fmt.Printf("released: %s\n", alias)
-		return nil
-	}
-
-	if err := app.AgentHosts.Release(ctx, *sessionID); err != nil {
-		return err
-	}
 	if err := os.Remove(managedPath); err != nil && !os.IsNotExist(err) {
-		return errors.Join(
-			fmt.Errorf("agent environment was released but managed SSH config could not be removed: %w", err),
-			core.ErrRecoveryRequired,
-		)
+		if releaseErr == nil {
+			return errors.Join(
+				fmt.Errorf("agent environment was released but managed SSH config could not be removed: %w", err),
+				core.ErrRecoveryRequired,
+			)
+		}
+		return fmt.Errorf("remove stale managed SSH config: %w", err)
 	}
 	fmt.Printf("released: %s\n", alias)
 	return nil
@@ -413,8 +416,11 @@ func ensureSSHInclude(home string) error {
 }
 
 func writeManagedSSHConfig(path string, config managedSSHConfig) error {
-	if config.Port < 1 || config.Port > 65535 || config.Alias == "" || config.IdentityFile == "" {
+	if config.Port < 1 || config.Port > 65535 || !safeSSHAlias(config.Alias) {
 		return core.ErrInvalidArgument
+	}
+	if err := validateSSHConfigValue(config.IdentityFile); err != nil {
+		return err
 	}
 	content := fmt.Sprintf(
 		"Host %s\n    HostName 127.0.0.1\n    User root\n    Port %d\n    IdentityFile %s\n    IdentitiesOnly yes\n",
@@ -474,6 +480,30 @@ func readManagedSSHConfig(path string) (managedSSHConfig, error) {
 		}
 	}
 	return config, nil
+}
+
+func safeSSHAlias(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+func validateSSHConfigValue(value string) error {
+	if value == "" {
+		return core.ErrInvalidArgument
+	}
+	for _, r := range value {
+		if unicode.IsControl(r) {
+			return core.ErrInvalidArgument
+		}
+	}
+	return nil
 }
 
 func quoteSSHValue(value string) string {
