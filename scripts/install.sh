@@ -109,7 +109,7 @@ actual="$(sha256sum "$tmpdir/$archive" | awk '{print $1}')"
 [ "$actual" = "$expected" ] || die "checksum verification failed for $archive"
 
 tar -xzf "$tmpdir/$archive" -C "$tmpdir"
-for binary in haco haco-vscode; do
+for binary in haco haco-vscode haco-agent-host; do
   [ -f "$tmpdir/$binary" ] || die "release archive does not contain $binary"
   [ -x "$tmpdir/$binary" ] || chmod 0755 "$tmpdir/$binary"
 done
@@ -132,3 +132,4 @@ install_binary() {
 
 install_binary haco
 install_binary haco-vscode
+install_binary haco-agent-host
