@@ -2,17 +2,28 @@
 set -eu
 
 REPOSITORY="SLktEx/Hacocoon"
+SIGNER_WORKFLOW="$REPOSITORY/.github/workflows/release.yml"
 INSTALL_DIR="${HACO_INSTALL_DIR:-/usr/local/bin}"
 VERSION="${1:-${HACO_VERSION:-latest}}"
+REQUIRE_PROVENANCE="${HACO_REQUIRE_PROVENANCE:-0}"
 
 die() {
   printf 'haco installer: %s\n' "$*" >&2
   exit 1
 }
 
+warn() {
+  printf 'haco installer: WARNING: %s\n' "$*" >&2
+}
+
 need() {
   command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
+
+case "$REQUIRE_PROVENANCE" in
+  0|1) ;;
+  *) die "HACO_REQUIRE_PROVENANCE must be 0 or 1" ;;
+esac
 
 need uname
 need tar
@@ -42,6 +53,11 @@ fi
 archive="haco_${os}_${arch}.tar.gz"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT HUP INT TERM
+
+has_authenticated_gh() {
+  command -v gh >/dev/null 2>&1 &&
+    { [ -n "${GH_TOKEN:-}" ] || [ -n "${GITHUB_TOKEN:-}" ] || gh auth status >/dev/null 2>&1; }
+}
 
 download_with_gh() {
   tag="$1"
@@ -84,7 +100,41 @@ download_with_curl() {
   fi
 }
 
-if command -v gh >/dev/null 2>&1 && { [ -n "${GH_TOKEN:-}" ] || [ -n "${GITHUB_TOKEN:-}" ] || gh auth status >/dev/null 2>&1; }; then
+verify_provenance() {
+  if ! command -v gh >/dev/null 2>&1 || ! gh attestation verify --help >/dev/null 2>&1; then
+    if [ "$REQUIRE_PROVENANCE" = "1" ]; then
+      die "HACO_REQUIRE_PROVENANCE=1 requires a GitHub CLI version with 'gh attestation verify' support"
+    fi
+    warn "SHA-256 integrity verified, but provenance was not verified; install a current GitHub CLI and run 'gh attestation verify'"
+    return 0
+  fi
+
+  if [ "$VERSION" = "latest" ]; then
+    if gh attestation verify "$tmpdir/$archive" \
+      --repo "$REPOSITORY" \
+      --signer-workflow "$SIGNER_WORKFLOW" \
+      --deny-self-hosted-runners >/dev/null; then
+      printf 'Verified GitHub/Sigstore provenance for %s (repository and signer workflow).\n' "$archive"
+      return 0
+    fi
+  else
+    if gh attestation verify "$tmpdir/$archive" \
+      --repo "$REPOSITORY" \
+      --signer-workflow "$SIGNER_WORKFLOW" \
+      --source-ref "refs/tags/$VERSION" \
+      --deny-self-hosted-runners >/dev/null; then
+      printf 'Verified GitHub/Sigstore provenance for %s from refs/tags/%s.\n' "$archive" "$VERSION"
+      return 0
+    fi
+  fi
+
+  if [ "$REQUIRE_PROVENANCE" = "1" ]; then
+    die "artifact provenance verification failed for $archive"
+  fi
+  warn "SHA-256 integrity verified, but GitHub/Sigstore provenance verification failed or is unavailable for this release"
+}
+
+if has_authenticated_gh; then
   download_with_gh "$VERSION" || die "failed to download release assets with gh"
 else
   need curl
@@ -107,6 +157,11 @@ expected="$(
 
 actual="$(sha256sum "$tmpdir/$archive" | awk '{print $1}')"
 [ "$actual" = "$expected" ] || die "checksum verification failed for $archive"
+printf 'Verified SHA-256 integrity for %s against checksums.txt.\n' "$archive"
+
+# checksums.txt and the archive share GitHub Release authority. The attestation
+# check below is the independent publisher/workflow provenance layer.
+verify_provenance
 
 tar -xzf "$tmpdir/$archive" -C "$tmpdir"
 for binary in haco haco-vscode; do
