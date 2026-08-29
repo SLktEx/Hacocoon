@@ -207,9 +207,9 @@ func (s *Storage) planShrinkUnlocked(ctx context.Context, handle core.StorageHan
 	if err != nil {
 		return core.ShrinkPlan{}, err
 	}
-	minimum, minErr := s.fs.MinimumSize(ctx, s.mountPath(handle.ID))
-	if minErr != nil {
-		minimum = state.UsedBytes
+	minimum, err := s.fs.MinimumSize(ctx, s.mountPath(handle.ID))
+	if err != nil {
+		return core.ShrinkPlan{}, fmt.Errorf("determine btrfs minimum size before shrink: %w", err)
 	}
 	margin := defaultSafetyMargin
 	if tenPercent := state.LogicalBytes / 10; tenPercent > margin {
