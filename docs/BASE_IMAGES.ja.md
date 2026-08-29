@@ -1,16 +1,14 @@
 # Base Image Architecture — 日本語ガイド
 
-Status: **v0.9 Base Images & Custom Environments の詳細設計 companion。v0.9 の最小 contract は roadmap commitment、ここに書かれた追加アイデアのすべてが初回実装必須という意味ではありません。**
+Status: **v0.11 Base Images & Custom Environments の詳細設計 companion。v0.11 の最小 contract は roadmap commitment、ここに書かれた追加アイデアのすべてが初回実装必須という意味ではありません。**
 
-英語版 [`09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md) が v0.9 の authoritative minimum contract、[`BASE_IMAGES.md`](BASE_IMAGES.md) が詳細設計の英語版です。全体アーキテクチャと用語については `00_REBASELINE_AND_ROADMAP.md`、`00C_TERMINOLOGY_AND_BOUNDARIES.md`、`00B_SECURITY_ARCHITECTURE.md` が優先されます。
+英語版 [`11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md) が v0.11 の authoritative minimum contract、[`BASE_IMAGES.md`](BASE_IMAGES.md) が詳細設計の英語版です。全体アーキテクチャと用語については `00_REBASELINE_AND_ROADMAP.md`、`00C_TERMINOLOGY_AND_BOUNDARIES.md`、`00B_SECURITY_ARCHITECTURE.md` が優先されます。
 
 ## 何をしたいか
 
 Incus で Environment を作るとき、毎回固定の image だけを使うのではなく、Hacocoon 標準の starting point やユーザーが用意した custom image を選べるようにします。
 
-ただし、Incus の alias / remote / fingerprint を Hacocoon Core の公開概念にはしません。
-
-Hacocoon から見えるのは **Base** です。
+ただし、Incus の alias / remote / fingerprint を Hacocoon Core の公開概念にはしません。Hacocoon から見えるのは **Base** です。
 
 ```text
 Official Base
@@ -49,15 +47,7 @@ haco create --base my-dev --workspace . dev-1
 
 Environment 作成時に Hacocoon が `my-dev` を immutable revision に一度だけ解決し、その revision を Environment metadata に記録します。
 
-Incus backend では、その revision が最終的に Incus image fingerprint に対応します。
-
-```text
-my-dev
-  -> immutable Base revision
-  -> Incus image fingerprint
-```
-
-Incus alias は変更可能なので、作成済み Environment の最終 identity として使いません。
+Incus backend では、その revision が最終的に Incus image fingerprint に対応します。Incus alias は変更可能なので、作成済み Environment の最終 identity として使いません。
 
 ## Base を更新したとき
 
@@ -72,15 +62,11 @@ Environment A -> revision A のまま
 Environment B -> revision B
 ```
 
-つまり Base の変更は **次に作る Environment から反映**します。
-
-起動済み・既存 Environment の root starting point を途中で差し替える操作は最初の scope に入れません。必要なら新しい Environment を作り直します。
+Base の変更は **次に作る Environment から反映**します。起動済み・既存 Environment の root starting point を途中で差し替える操作は最初の scope に入れません。
 
 ## Project Setup との分離
 
-Base には複数 Environment / project で共有したい OS・runtime・共通 tooling を置きます。
-
-Repository 固有の依存関係やセットアップは Project Setup に寄せます。
+Base には複数 Environment / project で共有したい OS・runtime・共通 tooling を置きます。Repository 固有の依存関係やセットアップは Project Setup に寄せます。
 
 ```text
 Base
@@ -94,11 +80,9 @@ Project Setup
 Environment
 ```
 
-これにより repository の小さな変更のたびに custom Base を作り直す必要を減らします。
-
 ## 想定 CLI
 
-以下は v0.9 の interaction model ですが、**現時点では未実装で、pre-1.0 の間は command/config の形を変更できます。**
+以下は v0.11 の interaction model ですが、**現時点では未実装で、pre-1.0 の間は command/config の形を変更できます。**
 
 ```text
 haco image list
@@ -108,7 +92,7 @@ haco image remove <name>
 haco create --base <name> --workspace <path> <environment>
 ```
 
-最初の v0.9 implementation gate では `list` / `inspect` / `create --base` と immutable revision pinning を優先し、`build` / `remove` / GC 等は reference/lifecycle semantics が安全になってから追加して構いません。
+最初の v0.11 implementation gate では `list` / `inspect` / `create --base` と immutable revision pinning を優先し、`build` / `remove` / GC 等は reference/lifecycle semantics が安全になってから追加します。
 
 Base の選択優先順位は次の形を想定します。
 
@@ -121,9 +105,7 @@ CLI --base
 
 ## Custom Base を信用しない
 
-Custom image は悪意がある前提で扱います。
-
-Base が決めてよいのは guest 側の filesystem / runtime contents までです。
+Custom image は悪意がある前提で扱います。Base が決めてよいのは guest 側の filesystem / runtime contents までです。
 
 Base を変更・選択しただけで、次の権限が増えてはいけません。
 
@@ -135,9 +117,7 @@ Base を変更・選択しただけで、次の権限が増えてはいけませ
 - GitHub / AWS / cloud credentials
 - SSH private key
 - registry credential
-- Hacocoon daemon authority
-
-これらは Base の外側にある Environment / Capability / Policy 側で決めます。
+- Hacocoon control authority
 
 ```text
 Base = guest contents
@@ -193,8 +173,6 @@ my-dev を remove
 
 複数 agent / client が同時に操作する前提にします。
 
-特に次の競合を考慮します。
-
 ```text
 build vs build
 remove vs create
@@ -213,17 +191,18 @@ type BaseName string
 type BaseRevision string
 ```
 
-Incus adapter の中だけで fingerprint に変換します。
+Incus adapter の中だけで fingerprint に変換します。Core に `IncusImageAlias` のような Incus 固有概念を持ち込まないことが重要です。
 
-```go
-type IncusImageRef struct {
-    Fingerprint string
-}
-```
+## 現在の roadmap との関係
 
-Core に `IncusImageAlias` のような Incus 固有概念を持ち込まないことが重要です。
+- **v0.9**: 実装済み Per-Agent Sandbox broker。
+- **v0.10**: PR #111 の VS Code Remote Agent Host Adapter integration。
+- **v0.11**: この Base Images & Custom Environments design gate。
+- **v0.12**: Resource Limits。Base metadata から host-selected resource limit を上げることはできない。
 
-## 最初の v0.9 implementation slice
+v0.11 Base 実装は通常の Environment lifecycle を使い、v0.9/v0.10 の ownership/security boundary を迂回しません。
+
+## 最初の v0.11 implementation slice
 
 最初は欲張らず、次までを狙います。
 
@@ -238,12 +217,6 @@ Core に `IncusImageAlias` のような Incus 固有概念を持ち込まない�
 
 ## まとめ
 
-中心となる contract はこれです。
-
 > Hacocoon Environment は 1 つの immutable Base revision から作成される。論理 Base を更新しても既存 Environment は変更しない。
 
-セキュリティ上の contract はこれです。
-
 > Base が定義するのは guest 側の starting contents であり、host 権限・credential・device・mount・external authority ではない。
-
-この分離によって、Incus の custom image を便利に使いつつ、Hacocoon Core を Incus 固有設計に固定しない形にできます。
