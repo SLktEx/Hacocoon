@@ -3,19 +3,27 @@
 [English](00D_VERSIONING_AND_RELEASE_STATUS.md) | **日本語**
 
 **Status:** バージョン番号・進行状況の日本語案内  
-**Date:** 2026-08-29  
+**Date:** 2026-08-30  
 **Compatibility:** Hacocoon は pre-1.0 です。
 
 > [!NOTE]
 > 厳密な正本は英語版 `00D_VERSIONING_AND_RELEASE_STATUS.md` です。この日本語版は同じ判断を読みやすく説明します。
 
-## 何のための資料か
+## 方針
 
-並行して複数の設計・実装を進めていると、別々の機能が同じ `v0.x` を名乗ることがあります。この資料は、その衝突を防ぎ、`main` 上でどの番号が何に割り当てられているかを明確にするためのものです。
+pre-1.0 の間は、バージョン番号をなるべく **実装された順番として読める形** に保ちます。
 
-重要な原則は次です。
+ルールは次です。
 
-> **バージョン番号の割り当ては `main` が正本です。open PR が先に名乗っていても、`main` で既に別の機能へ割り当て済みなら、未merge側を変更します。**
+1. 実装済み milestone は可能な限り連番にする。
+2. 未実装の design gate が、独立して既に実装された機能より若い番号を占有しないようにする。
+3. 次に merge される active implementation を、最後の実装済み milestone の次へ置く。
+4. design-only gate はその後ろへ送る。
+5. Security / hardening だけの変更は通常 product version を消費しない。
+6. 実装の事実は `IMPLEMENTATION_STATUS.md` が正本。
+7. roadmap の番号と tag/release は別物として扱う。
+
+これは以前の「`main` に design 番号が入ったら原則固定」というルールを置き換えます。pre-1.0 の今は、偶然できた分かりにくい番号を守るより、読みやすさを優先します。
 
 ## 現在の番号
 
@@ -29,45 +37,52 @@
 | v0.6 | Agent & Orchestrator Integration | 実装済み |
 | v0.7 | Remote / Cloud Runtime & External Capabilities | experimental 実装済み。real AWS acceptance pending |
 | v0.8 | Client Adapters & VS Code Integration | 実装済み。real client acceptance pending |
-| v0.9 | Base Images & Custom Environments | 設計のみ。実装 pending |
-| v0.10 | Per-Agent Sandbox & Agent Host Integration | session -> Environment broker foundation 実装済み |
-| v0.11 | Sandbox Resource Limits | 設計のみ。実装 pending |
-| v0.12 | VS Code Remote Agent Host Adapter | PR #111 の integration 用に予約。まだ `main` 実装とは扱わない |
+| v0.9 | Per-Agent Sandbox & Agent Host Integration | session -> Environment broker foundation 実装済み |
+| v0.10 | VS Code Remote Agent Host Adapter | PR #111 の active integration。まだ `main` 実装とは扱わない |
+| v0.11 | Base Images & Custom Environments | 設計のみ。実装 pending |
+| v0.12 | Sandbox Resource Limits | 設計のみ。実装 pending |
 
-番号は「下の番号が全部実装完了してから次へ進む」という意味ではありません。実際に v0.9 は設計のみですが、独立した v0.10 broker foundation はすでに実装されています。
+これで **v0.1〜v0.9 まで実装済み milestone が連続**します。v0.10 が次の実装中 gate、v0.11 / v0.12 は design-only としてその後ろです。
 
-## 今回見つかった衝突
+## 2026-08-30 の整理
 
-PR #111 は当初 **`v0.11 VS Code Remote Agent Host Adapter`** として作られていました。一方、`main` には既に **v0.11 Sandbox Resource Limits** の仕様が入っています。
-
-そのため、現在の正しい並びは次です。
+変更前:
 
 ```text
-v0.10  Per-Agent Sandbox & Agent Host Integration
-v0.11  Sandbox Resource Limits
-v0.12  VS Code Remote Agent Host Adapter
+v0.9   Base Images & Custom Environments             design only
+v0.10  Per-Agent Sandbox & Agent Host Integration    implemented
+v0.11  Sandbox Resource Limits                       design only
+v0.12  VS Code Remote Agent Host Adapter             active PR
 ```
 
-既に `main` にある v0.11 を動かすより、まだ merge 前の #111 を v0.12 に変更する方が履歴・docs consistency・merge safety の面で安全です。
+変更後:
 
-PR #111 を merge する前に、versioned document の filename、heading、本文、README/roadmap link、docs check、PR title/body、日本語 companion を v0.12 にそろえる必要があります。
+```text
+v0.9   Per-Agent Sandbox & Agent Host Integration    implemented
+v0.10  VS Code Remote Agent Host Adapter             active PR
+v0.11  Base Images & Custom Environments             design only
+v0.12  Sandbox Resource Limits                       design only
+```
 
-## 今後のルール
+これは roadmap / documentation の番号整理です。Git history を書き換えたり、新しい実装が完了したと主張したりはしません。
 
-1. `main` に roadmap/spec の割り当てが入った時点で、その番号は予約済みとする。
-2. 新しい番号を決める前に `main` docs と open PR の両方を確認する。
-3. 衝突した場合は、原則として merge 前の作業側を次の空き番号へ変更する。
-4. filename だけでなく、heading・本文・index・docs check・PR metadata・日本語版までまとめて変更する。
-5. Security/hardening だけのPRは通常、product roadmap version を消費しない。
-6. version number と implementation status を混同しない。実装済みかどうかは `IMPLEMENTATION_STATUS.md` / `.ja.md` を見る。
-7. design gate の番号が存在しても、その version の release/tag が ready という意味ではない。
+## 移行ルール
+
+maintained docs では次のように読み替えます。
+
+- 旧 `v0.10 Per-Agent Sandbox` → **v0.9**
+- PR #111 / 旧 `v0.12 Agent Host Adapter` → **v0.10**
+- 旧 `v0.9 Base Images` → **v0.11**
+- 旧 `v0.11 Resource Limits` → **v0.12**
+
+過去の commit message、closed PR title、既に作られた一時的な candidate branch 名は履歴として旧番号が残る場合があります。現在の番号の正本にはしません。
 
 ## 現在の watch list
 
-- PR #111: Agent Host adapter — **v0.12 として扱う**。merge前にbranch docsのrenumberが必要。
+- PR #111: Agent Host adapter — 現在の番号では **v0.10**。real Windows/WSL + Incus + VS Code Agents-window acceptance は host-dependent。
 - PR #113: patched Go toolchain hardening — roadmap version 不要。
 - PR #114: Incus delete/absence verification hardening — roadmap version 不要。
 
 ## 一文でいうと
 
-> **`main` が Hacocoon のバージョン番号を決め、`IMPLEMENTATION_STATUS` が実装の事実を決める。並行ブランチはその両方に合わせてから merge する。**
+> **実装済みを連番にし、その次に実装中、その後ろに design-only を置く。実装の事実そのものは `IMPLEMENTATION_STATUS.md` で管理する。**
