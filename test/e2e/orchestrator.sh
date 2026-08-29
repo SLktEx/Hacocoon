@@ -43,6 +43,13 @@ case "$command_name" in
     fi
     exit 2
     ;;
+  image)
+    if [ "${1:-}" = 'info' ] && [ -n "${2:-}" ]; then
+      printf '%s\n' '{"fingerprint":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+      exit 0
+    fi
+    exit 2
+    ;;
   init|launch)
     image="${1:-}"; instance="${2:-}"
     [ -n "$image" ] && [ -n "$instance" ] || exit 2
@@ -118,6 +125,8 @@ assert r['cleaned_up'] is True, r
 PY
 [[ "$(cat "$workspace/result.txt")" == 'from-run' ]]
 run_name="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["environment"])' "$json")"
+grep -Fq "image info images:ubuntu/26.04 --format json" "$HACO_FAKE_INCUS_LOG"
+grep -Fq "init images:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa haco-$run_name" "$HACO_FAKE_INCUS_LOG"
 grep -Fq "delete haco-$run_name" "$HACO_FAKE_INCUS_LOG"
 [[ ! -e "$state/instance-haco-$run_name" ]]
 
