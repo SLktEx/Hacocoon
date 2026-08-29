@@ -12,7 +12,7 @@
   "minimumReleaseAge": "30 days",
   "minimumReleaseAgeBehaviour": "timestamp-required",
   "internalChecksFilter": "strict",
-  "automerge": true,
+  "automerge": false,
   "automergeType": "pr",
   "platformAutomerge": false,
   "packageRules": [
