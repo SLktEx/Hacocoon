@@ -59,6 +59,15 @@ func TestWorkspaceLifecycleCrossesRealProcessBoundary(t *testing.T) {
 		t.Fatalf("fake Incus instance was not created: %v", err)
 	}
 
+	secondStore := state.NewEnvironmentJSONStore(filepath.Join(root, "haco", "environments.json"))
+	secondService := workspaceapp.New(runtimeAdapter, secondStore)
+	if _, err := secondService.Create(ctx, core.EnvironmentSpec{Name: "conflict", WorkspacePath: workspaceDir}); !errors.Is(err, core.ErrWorkspaceBusy) {
+		t.Fatalf("second process-equivalent service did not observe rw lease conflict: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(fakeState, "instance-haco-conflict")); !os.IsNotExist(err) {
+		t.Fatalf("conflicting environment reached Incus: %v", err)
+	}
+
 	readResult, err := service.Exec(ctx, "demo", core.ExecutionRequest{Argv: []string{"cat", "/workspace/host.txt"}})
 	if err != nil || readResult.ExitCode != 0 || readResult.Stdout != "from-host\n" {
 		t.Fatalf("read result=%#v err=%v", readResult, err)
@@ -102,6 +111,13 @@ func TestWorkspaceLifecycleCrossesRealProcessBoundary(t *testing.T) {
 	}
 	if _, err := store.GetEnvironment(ctx, "demo"); !errors.Is(err, core.ErrNotFound) {
 		t.Fatalf("metadata remains after delete: %v", err)
+	}
+
+	if _, err := secondService.Create(ctx, core.EnvironmentSpec{Name: "after-delete", WorkspacePath: workspaceDir}); err != nil {
+		t.Fatalf("workspace lease was not released after delete: %v", err)
+	}
+	if err := secondService.Delete(ctx, "after-delete"); err != nil {
+		t.Fatalf("delete second environment: %v", err)
 	}
 }
 
