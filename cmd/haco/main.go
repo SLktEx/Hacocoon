@@ -100,6 +100,10 @@ func execCommand(ctx context.Context, app *composition.App, args []string) error
 	result, err := app.Environments.Exec(ctx, args[0], core.ExecutionRequest{Argv: args[2:]})
 	fmt.Print(result.Stdout)
 	fmt.Fprint(os.Stderr, result.Stderr)
+	return executionResultError(result, err)
+}
+
+func executionResultError(result core.ExecutionResult, err error) error {
 	if err != nil {
 		return err
 	}
