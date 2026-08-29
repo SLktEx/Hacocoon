@@ -23,7 +23,7 @@ Hacocoon はまだ **pre-1.0** です。実装済みであることは interface
 | EBS replacement | adapter-owned replacement/migration。in-place shrink / automatic source deletion なし | v0.7 | fake-AWS integration pass |
 | VS Code Client Adapter | separate `haco-vscode` binary。Environment create/reuse -> existing SSH path -> adapter-owned SSH config -> standard Remote-SSH `/workspace` | v0.8 | helper unit coverage added。real VS Code + Incus acceptance pending |
 | Windows / WSL bridge | WSL 実行時に Windows user profile を解決し、desktop Client 側 `.ssh` を対象にする | v0.8 | implementation exists。real Windows/WSL acceptance pending |
-| Windows / WSL bootstrap | `scripts/bootstrap-windows.ps1` が既存 WSL を破壊せず WSL 2 を install/select し、`scripts/bootstrap-wsl.sh` へ Linux dependency setup を委譲し、Hacocoon 本体は既存 `scripts/install.sh` で install。`incus-admin` は explicit opt-in | v0.8 | PowerShell / shell syntax は CI 対象。real Windows install/reboot/WSL/Incus acceptance pending |
+| Windows / WSL bootstrap | `scripts/bootstrap-windows.ps1` は default/既存の普段使い WSL を選ばず、`Hacocoon` という dedicated WSL 2 instance を create/reuse。Linux dependency setup は `scripts/bootstrap-wsl.sh`、Hacocoon install は既存 `scripts/install.sh` に委譲。無関係な WSL は触らず、`incus-admin` は explicit opt-in | v0.8 | PowerShell / shell syntax は CI 対象。real Windows install/reboot/dedicated WSL/Incus acceptance pending |
 | Client Adapter boundary | VS Code / Daintree / JetBrains 等の client-specific behavior を Core に入れない | v0.8 | architecture + separate binary boundary |
 | CI | Go tests、vet、race、docs consistency、bootstrap syntax、release packaging、host-independent E2E | cross-cutting | v0.8 PR CI pass が merge gate。real provider/client acceptance は別 |
 
@@ -55,13 +55,30 @@ Private SSH key は Client 側に残し、Hacocoon の既存 SSH path には pub
 
 ## Windows / WSL bootstrap
 
-Windows host の初期 setup 用に次を追加しています。
+Windows host の初期 setup 用:
 
 ```powershell
 .\scripts\bootstrap-windows.ps1
 ```
 
-Fresh PC では WSL 2 distribution の install まで行い、Windows reboot や Linux user の初回作成が必要ならそこで一度止まります。既存 WSL がある場合は user-owned state として扱い、unregister / reset / delete / WSL 1 conversion は自動では行いません。
+これは普段使いの Ubuntu / Debian を流用せず、標準では次の dedicated instance を作ります。
+
+```text
+Instance: Hacocoon
+Base: Ubuntu-26.04
+```
+
+概念的には:
+
+```powershell
+wsl --install Ubuntu-26.04 --name Hacocoon --no-launch
+```
+
+です。既に `Hacocoon` が存在する場合だけその instance を再利用し、default WSL や最初に見つかった既存 distribution へ fallback しません。
+
+Fresh PC では Windows reboot や Linux user の初回作成が必要なら一度停止し、`wsl -d Hacocoon` で初期設定後に bootstrap を再実行します。
+
+既存の無関係な WSL は user-owned state として扱い、unregister / reset / delete / WSL 1 conversion / default変更は自動で行いません。
 
 WSL 内では base dependency と Incus を準備し、Hacocoon binary 自体は既存 `scripts/install.sh` に委譲します。
 
@@ -91,9 +108,9 @@ Environment 内の freedom と Host authority は分離したままです。
 
 ## Windows + WSL
 
-Hacocoon/Incus が WSL、VS Code が Windows desktop の場合、VS Code Remote-SSH は Windows Client 側の SSH configuration を利用します。
+Hacocoon/Incus は dedicated `Hacocoon` WSL、VS Code は Windows desktop に置きます。VS Code Remote-SSH は Windows Client 側の SSH configuration を利用し、`haco-vscode` が adapter 側でこの差を吸収します。
 
-`haco-vscode` はこの差を adapter 側で吸収します。ただし real Windows + WSL + Incus + VS Code Remote-SSH の end-to-end acceptance は対応環境で別途必要です。
+Real Windows + dedicated WSL + Incus + VS Code Remote-SSH の end-to-end acceptance は対応環境で別途必要です。
 
 ## Orchestrator
 
@@ -132,7 +149,7 @@ export HACO_EXPERIMENTAL_EC2=1
 - script syntax
 - repository CI
 
-Real Incus、Windows/WSL install、Windows/WSL + VS Code Remote-SSH、AWS/EC2/SSM/EBS はそれぞれ対応環境で確認します。
+Real Incus、Windows dedicated WSL install、Windows/WSL + VS Code Remote-SSH、AWS/EC2/SSM/EBS はそれぞれ対応環境で確認します。
 
 ## Compatibility status
 
