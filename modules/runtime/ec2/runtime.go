@@ -189,12 +189,15 @@ func (r *Runtime) syncBack(ctx context.Context, ref runtimeRef) error {
 	if _, err := r.runSSM(ctx, ref.InstanceID, command); err != nil {
 		return fmt.Errorf("stage remote workspace changes: %w", err)
 	}
-	archive, err := os.CreateTemp(filepath.Dir(ref.WorkspacePath), ".haco-remote-*.tgz")
+	archive, err := os.CreateTemp("", ".haco-remote-*.tgz")
 	if err != nil {
 		return fmt.Errorf("create remote workspace download: %w", err)
 	}
 	archivePath := archive.Name()
-	_ = archive.Close()
+	if err := archive.Close(); err != nil {
+		_ = os.Remove(archivePath)
+		return fmt.Errorf("close remote workspace download: %w", err)
+	}
 	defer os.Remove(archivePath)
 	if _, err := r.aws(ctx, "s3", "cp", outputURI, archivePath, "--only-show-errors"); err != nil {
 		return fmt.Errorf("download remote workspace changes: %w", err)
@@ -290,8 +293,10 @@ func createWorkspaceArchive(ctx context.Context, runner host.Runner, workspace s
 		return "", err
 	}
 	path := archive.Name()
-	_ = archive.Close()
-	_ = os.Remove(path)
+	if err := archive.Close(); err != nil {
+		_ = os.Remove(path)
+		return "", fmt.Errorf("close workspace archive temp file: %w", err)
+	}
 	if _, err := runner.Run(ctx, "tar", "-czf", path, "-C", workspace, "."); err != nil {
 		_ = os.Remove(path)
 		return "", fmt.Errorf("archive workspace: %w", err)
@@ -310,12 +315,19 @@ func restoreWorkspaceArchive(ctx context.Context, runner host.Runner, archive, w
 		return err
 	}
 	backup := workspace + ".haco-backup"
-	_ = os.RemoveAll(backup)
+	if _, err := os.Lstat(backup); err == nil {
+		return fmt.Errorf("refuse to overwrite existing workspace recovery backup %q: %w", backup, core.ErrRecoveryRequired)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect workspace recovery backup %q: %w", backup, err)
+	}
 	if err := os.Rename(workspace, backup); err != nil {
 		return err
 	}
 	if err := os.Rename(extracted, workspace); err != nil {
-		_ = os.Rename(backup, workspace)
+		rollbackErr := os.Rename(backup, workspace)
+		if rollbackErr != nil {
+			return errors.Join(err, fmt.Errorf("restore original workspace after replacement failure: %w", rollbackErr), core.ErrRecoveryRequired)
+		}
 		return err
 	}
 	if err := os.RemoveAll(backup); err != nil {
