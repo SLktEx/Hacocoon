@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,17 @@ func TestDefaultEnvironmentNameIsStableAndValid(t *testing.T) {
 	}
 	if !strings.HasPrefix(first, "vscode-my-project-with-symbols-") {
 		t.Fatalf("unexpected name: %q", first)
+	}
+}
+
+func TestAdapterEnvironmentNameRejectsManagedConfigTraversal(t *testing.T) {
+	for _, name := range []string{"../../../../tmp/victim", "../victim", "demo/../../victim", "demo\nHost evil"} {
+		if err := validateAdapterEnvironmentName(name); !errors.Is(err, core.ErrInvalidArgument) {
+			t.Fatalf("name %q: expected invalid argument, got %v", name, err)
+		}
+	}
+	if err := validateAdapterEnvironmentName("vscode-demo-0123abcd"); err != nil {
+		t.Fatalf("valid name rejected: %v", err)
 	}
 }
 
