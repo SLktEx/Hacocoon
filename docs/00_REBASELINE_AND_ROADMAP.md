@@ -113,7 +113,9 @@ The previous v0.1-v0.7 sequence is superseded by this order:
 | v0.4 | Policy & Capability Foundation | allow/deny/require-approval and audit boundary |
 | v0.5 | Git / GitHub Capability | scoped Git/GitHub authority without broad ambient credentials |
 | v0.6 | Agent & Orchestrator Integration | Codex/Claude/Daintree/Rookery/MCP integration above generic execution |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | AWS, EC2 EnvironmentProvider, EBS and remote-runtime concerns |
+| v0.7 | Remote / Cloud Runtime & External Capabilities | AWS capabilities plus experimental, disabled-by-default EC2 EnvironmentProvider/EBS work |
+
+The v0.7 EC2 Environment Provider is an explicit exception to normal backend availability: it remains experimental and disabled by default. AWS credentials or host environment discovery must never implicitly enable it.
 
 ## v0.1 scope freeze
 
@@ -187,7 +189,7 @@ VS Code can open an ordinary repository or worktree and use Hacocoon as the unde
 | Git push / GitHub authority | GitHub Capability, v0.5 |
 | AI agent integration | generic execution + external orchestrator integration, v0.6 |
 | model routing / task DAG / budgets | outside Hacocoon |
-| AWS / EC2 / EBS | v0.7 provider/capability work |
+| AWS / EC2 / EBS | v0.7 provider/capability work; EC2 remains experimental and explicit opt-in |
 | Btrfs / QCOW2 / storage mechanics | adapter detail when actually needed |
 
 ## Design principles

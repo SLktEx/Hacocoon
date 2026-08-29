@@ -46,11 +46,13 @@ v0.5
 
 v0.7+
   AWS capability adapter
-  additional Environment implementation such as EC2
+  experimental EC2 Environment implementation, disabled by default
   storage adapters only where required by an Environment implementation
 ```
 
 The first Incus implementation does not by itself require a generalized `EnvironmentProvider` framework. The second real environment backend is the natural point to validate that seam.
+
+The EC2 provider is not part of the normal provider set in v0.7. Composition/registration must require an explicit host/operator experimental opt-in. With that gate disabled, EC2 provider construction must not trigger AWS credential lookup, network activity, or AWS API calls.
 
 ## Do not over-generalize v0.1
 
