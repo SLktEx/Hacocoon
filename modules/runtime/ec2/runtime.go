@@ -290,8 +290,10 @@ func createWorkspaceArchive(ctx context.Context, runner host.Runner, workspace s
 		return "", err
 	}
 	path := archive.Name()
-	_ = archive.Close()
-	_ = os.Remove(path)
+	if err := archive.Close(); err != nil {
+		_ = os.Remove(path)
+		return "", fmt.Errorf("close workspace archive: %w", err)
+	}
 	if _, err := runner.Run(ctx, "tar", "-czf", path, "-C", workspace, "."); err != nil {
 		_ = os.Remove(path)
 		return "", fmt.Errorf("archive workspace: %w", err)
