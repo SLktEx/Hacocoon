@@ -38,6 +38,16 @@ git -C "$work" tag -a v1.0.1 -m v1.0.1 "$main_commit"
   bash "$checker" v1.0.1 origin main
 )
 
+# The repository_dispatch workflow checks the trusted control repository out
+# below the workspace root. When invoked from a non-repository parent, the
+# checker must anchor itself to the repository containing the checker script.
+mkdir -p "$work/tools"
+cp "$checker" "$work/tools/check_release_tag_trust.sh"
+(
+  cd "$tmp"
+  bash "$work/tools/check_release_tag_trust.sh" v1.0.0 origin main
+)
+
 # A release-looking tag on an attacker-only side branch must fail.
 git -C "$work" switch -c attacker HEAD~1 >/dev/null
 printf 'X\n' >>"$work/history.txt"
