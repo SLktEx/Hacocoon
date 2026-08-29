@@ -25,4 +25,4 @@ Fill this from the actual repository before changing architecture.
 | code-server | ? | ? | 0.6 | defer |
 | remote Linux/Gateway | ? | ? | 0.7 | defer |
 | EC2 runtime | ? | ? | 0.7 | defer |
-| EBS | ? | ? | 0.7 | defer |
+| EC2/EBS lifecycle | ? | ? | 0.7 | defer; package boundary intentionally unresolved until v0.7 design gate |
