@@ -58,6 +58,8 @@ required_files = [
     'docs/BASE_IMAGES.md',
     'docs/10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.md',
     'docs/10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md',
+    'docs/11_v0.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md',
+    'docs/11_v0.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md',
     'docs/IMPLEMENTATION_STATUS.md',
     'README.ja.md',
     'docs/README.ja.md',
@@ -82,6 +84,8 @@ if (root / 'docs/README.md').exists():
         errors.append('docs/README.md must point to the v0.9 Base-image contract and detailed companion')
     if '10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.md' not in docmap:
         errors.append('docs/README.md must point to the v0.10 per-agent sandbox contract')
+    if '11_v0.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md' not in docmap:
+        errors.append('docs/README.md must point to the v0.11 VS Code Agent Host adapter contract')
 
 v01 = (root / 'docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md').read_text()
 for required in ['haco create --workspace', 'haco exec', 'haco shell', 'haco delete', 'Incus']:
@@ -128,6 +132,14 @@ for required in ['must not receive', '`haco` remains a human/operator', 'indepen
     if required.lower() not in v10.lower():
         errors.append(f'v0.10 missing authority/routing/composition rule: {required}')
 
+v11 = (root / 'docs/11_v0.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md').read_text()
+for required in ['haco-agent-host prepare', 'haco-agent-host release', 'Remote -> SSH', 'code --agents', 'loopback-only', 'does not currently receive VS Code', 'real Windows/WSL + Incus + VS Code Agents window remote-SSH acceptance pending']:
+    if required.lower() not in v11.lower():
+        errors.append(f'v0.11 missing required adapter contract text: {required}')
+for required in ['private SSH key remains on the client side', 'does not automatically release the session Environment', 'one prepared Hacocoon session slot']:
+    if required.lower() not in v11.lower():
+        errors.append(f'v0.11 missing security/isolation rule: {required}')
+
 roadmap = (root / 'docs/00_REBASELINE_AND_ROADMAP.md').read_text()
 if 'Hacocoon is a **Secure Workspace Runtime**' not in roadmap:
     errors.append('roadmap missing Secure Workspace Runtime baseline')
@@ -135,12 +147,9 @@ if 'experimental and disabled by default' not in roadmap:
     errors.append('roadmap must preserve the v0.7 experimental EC2 default-off rule')
 if 'pre-1.0' not in roadmap:
     errors.append('roadmap must preserve the pre-1.0 compatibility policy')
-if 'v0.8 | Client Adapters & VS Code Integration' not in roadmap:
-    errors.append('roadmap must include the explicit v0.8 Client Adapter gate')
-if 'v0.9 | Base Images & Custom Environments' not in roadmap:
-    errors.append('roadmap must include the explicit v0.9 Base Images gate')
-if 'v0.10 | Per-Agent Sandbox & Agent Host Integration' not in roadmap:
-    errors.append('roadmap must include the explicit v0.10 per-agent sandbox gate')
+for required in ['v0.8 | Client Adapters & VS Code Integration', 'v0.9 | Base Images & Custom Environments', 'v0.10 | Per-Agent Sandbox & Agent Host Integration', 'v0.11 | VS Code Remote Agent Host Adapter']:
+    if required not in roadmap:
+        errors.append(f'roadmap missing version gate: {required}')
 
 status = (root / 'docs/IMPLEMENTATION_STATUS.md').read_text()
 if 'current code reality' not in status.lower() or '`haco create --workspace`' not in status:
@@ -153,9 +162,12 @@ for required in ['haco-vscode', 'Windows/WSL', 'real Windows/WSL + Incus + VS Co
 for required in ['Base Images & Custom Environments', 'design only; implementation pending', 'haco create --base']:
     if required.lower() not in status.lower():
         errors.append(f'IMPLEMENTATION_STATUS missing v0.9 planned-state distinction: {required}')
-for required in ['Per-agent sandbox broker', 'internal/agenthost', 'agent-bindings.json', 'real VS Code Agent Host/AHP + Incus end-to-end routing acceptance pending']:
+for required in ['Per-agent sandbox broker', 'internal/agenthost', 'agent-bindings.json']:
     if required.lower() not in status.lower():
         errors.append(f'IMPLEMENTATION_STATUS missing v0.10 implementation distinction: {required}')
+for required in ['haco-agent-host prepare/release', 'does not implement AHP', 'one trusted `--session` slot', 'real Agents-window remote-SSH acceptance pending']:
+    if required.lower() not in status.lower():
+        errors.append(f'IMPLEMENTATION_STATUS missing v0.11 implementation distinction: {required}')
 
 reference = (root / 'docs/91_IMPLEMENTATION_REFERENCE_NOTES.md').read_text()
 if 'non-normative' not in reference.lower() or 'No current architecture contract commits' not in reference:
