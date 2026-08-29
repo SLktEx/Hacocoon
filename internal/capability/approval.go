@@ -30,7 +30,7 @@ func (a *StdioApproval) Approve(ctx context.Context, req core.ApprovalRequest) (
 		return false, fmt.Errorf("approval terminal unavailable")
 	}
 	request := req.CapabilityRequest
-	if _, err := fmt.Fprintf(a.out, "Approve capability %s action=%s resource=%s environment=%s", request.Capability, request.Action, request.Resource, request.Environment); err != nil {
+	if _, err := fmt.Fprintf(a.out, "Approve capability %q action=%q resource=%q environment=%q", request.Capability, request.Action, request.Resource, request.Environment); err != nil {
 		return false, fmt.Errorf("display approval request: %w", err)
 	}
 	keys := make([]string, 0, len(request.Attributes))
@@ -39,11 +39,11 @@ func (a *StdioApproval) Approve(ctx context.Context, req core.ApprovalRequest) (
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		if _, err := fmt.Fprintf(a.out, " %s=%s", key, request.Attributes[key]); err != nil {
+		if _, err := fmt.Fprintf(a.out, " %q=%q", key, request.Attributes[key]); err != nil {
 			return false, fmt.Errorf("display approval request: %w", err)
 		}
 	}
-	if _, err := fmt.Fprintf(a.out, " reason=%s? [y/N] ", req.Reason); err != nil {
+	if _, err := fmt.Fprintf(a.out, " reason=%q? [y/N] ", req.Reason); err != nil {
 		return false, fmt.Errorf("display approval request: %w", err)
 	}
 	line, err := bufio.NewReader(a.in).ReadString('\n')
