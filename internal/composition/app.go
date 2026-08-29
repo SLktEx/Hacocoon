@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
 	awscapapp "github.com/SLktEx/Hacocoon/internal/awscap"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	clientapp "github.com/SLktEx/Hacocoon/internal/client"
@@ -22,6 +23,7 @@ import (
 
 type App struct {
 	Environments *workspaceapp.Service
+	AgentHosts   *agenthostapp.Broker
 	Clients      *clientapp.Service
 	Capabilities *capabilityapp.Service
 	Git          *gitcapapp.Broker
@@ -52,6 +54,7 @@ func Local(_ context.Context) (*App, error) {
 	}
 
 	store := state.NewEnvironmentJSONStore(filepath.Join(root, "state", "environments.json"))
+	bindingStore := agenthostapp.NewJSONBindingStore(filepath.Join(root, "state", "agent-bindings.json"))
 	gitProvider := gitcapapp.NewProvider(runner, store)
 	auditPath := filepath.Join(root, "audit", "capabilities.jsonl")
 	capabilities, err := capabilityapp.New(
@@ -68,6 +71,7 @@ func Local(_ context.Context) (*App, error) {
 	environments := workspaceapp.New(runtime, store)
 	return &App{
 		Environments: environments,
+		AgentHosts:   agenthostapp.New(environments, store, bindingStore),
 		Clients:      clientapp.New(runtime, store),
 		Capabilities: capabilities,
 		Git:          gitcapapp.NewBroker(runner, store, capabilities),
