@@ -84,7 +84,11 @@ func (s *Store) Attach(ctx context.Context, handle block.Handle) (block.Handle, 
 func (s *Store) Detach(ctx context.Context, handle block.Handle) error {
 	device := handle.Device
 	if device == "" {
-		device, _ = s.findDevice(ctx, handle.Path)
+		var err error
+		device, err = s.findDevice(ctx, handle.Path)
+		if err != nil {
+			return fmt.Errorf("locate loop device for detach: %w", err)
+		}
 	}
 	if device == "" {
 		return nil
@@ -126,7 +130,9 @@ func (s *Store) Compact(ctx context.Context, handle block.Handle) error {
 }
 
 func (s *Store) Delete(ctx context.Context, handle block.Handle) error {
-	_ = s.Detach(ctx, handle)
+	if err := s.Detach(ctx, handle); err != nil {
+		return fmt.Errorf("detach raw image before delete: %w", err)
+	}
 	if err := os.Remove(handle.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -140,12 +146,15 @@ func (s *Store) findDevice(ctx context.Context, path string) (string, error) {
 	}
 	scanner := bufio.NewScanner(strings.NewReader(result.Stdout))
 	if !scanner.Scan() {
+		if err := scanner.Err(); err != nil {
+			return "", err
+		}
 		return "", nil
 	}
 	line := scanner.Text()
 	device, _, ok := strings.Cut(line, ":")
 	if !ok {
-		return "", nil
+		return "", fmt.Errorf("unexpected losetup output %q", line)
 	}
 	return strings.TrimSpace(device), nil
 }
