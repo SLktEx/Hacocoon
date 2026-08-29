@@ -143,6 +143,37 @@ func TestReleaseRequiresPersistedBindingProof(t *testing.T) {
 	}
 }
 
+func TestReleaseRefusesStaleBindingForRecreatedEnvironment(t *testing.T) {
+	backend := newFakeBackend()
+	broker, statePath := newTestBroker(t, backend)
+	sessionID := "session-stale"
+	original, err := broker.Acquire(context.Background(), Spec{SessionID: sessionID, WorkspacePath: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	delete(backend.environments, original.EnvironmentName)
+	otherWorkspace := t.TempDir()
+	backend.environments[original.EnvironmentName] = core.Environment{
+		Name:       original.EnvironmentName,
+		Workspace:  core.Workspace{ID: "human", Path: otherWorkspace},
+		AccessMode: core.WorkspaceReadWrite,
+		RuntimeRef: "runtime:replacement",
+	}
+
+	restarted := New(backend, backend, NewJSONBindingStore(statePath))
+	err = restarted.Release(context.Background(), sessionID)
+	if !errors.Is(err, core.ErrIncompatibleState) {
+		t.Fatalf("release error=%v, want ErrIncompatibleState", err)
+	}
+	if _, ok := backend.environments[original.EnvironmentName]; !ok {
+		t.Fatalf("recreated environment %q was deleted", original.EnvironmentName)
+	}
+	if backend.deletes != 0 {
+		t.Fatalf("delete calls=%d, want 0", backend.deletes)
+	}
+}
+
 func TestReleaseDeletesOnlyBoundEnvironment(t *testing.T) {
 	backend := newFakeBackend()
 	broker, _ := newTestBroker(t, backend)
