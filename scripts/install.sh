@@ -60,6 +60,20 @@ download_with_gh() {
   fi
 }
 
+curl_fetch() {
+  output="$1"
+  url="$2"
+  header_file="${3:-}"
+  if [ -n "$header_file" ]; then
+    curl -q -fL --proto '=https' --proto-redir '=https' --tlsv1.2 \
+      --header "@$header_file" \
+      -o "$output" "$url"
+  else
+    curl -q -fL --proto '=https' --proto-redir '=https' --tlsv1.2 \
+      -o "$output" "$url"
+  fi
+}
+
 download_with_curl() {
   tag="$1"
   if [ "$tag" = "latest" ]; then
@@ -69,19 +83,15 @@ download_with_curl() {
   fi
 
   token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+  auth_header=""
   if [ -n "$token" ]; then
-    curl -fL --proto '=https' --tlsv1.2 \
-      -H "Authorization: Bearer $token" \
-      -o "$tmpdir/$archive" "$base/$archive"
-    curl -fL --proto '=https' --tlsv1.2 \
-      -H "Authorization: Bearer $token" \
-      -o "$tmpdir/checksums.txt" "$base/checksums.txt"
-  else
-    curl -fL --proto '=https' --tlsv1.2 \
-      -o "$tmpdir/$archive" "$base/$archive"
-    curl -fL --proto '=https' --tlsv1.2 \
-      -o "$tmpdir/checksums.txt" "$base/checksums.txt"
+    auth_header="$tmpdir/curl-auth-header"
+    printf 'Authorization: Bearer %s\n' "$token" > "$auth_header"
+    chmod 0600 "$auth_header"
   fi
+
+  curl_fetch "$tmpdir/$archive" "$base/$archive" "$auth_header"
+  curl_fetch "$tmpdir/checksums.txt" "$base/checksums.txt" "$auth_header"
 }
 
 if command -v gh >/dev/null 2>&1 && { [ -n "${GH_TOKEN:-}" ] || [ -n "${GITHUB_TOKEN:-}" ] || gh auth status >/dev/null 2>&1; }; then
