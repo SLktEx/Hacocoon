@@ -200,13 +200,31 @@ func TestExecEnvironmentPreservesArgumentBoundariesAndResult(t *testing.T) {
 	assertRunnerCall(t, runner.calls[0], "incus", "exec", "haco-demo", "--project", defaultProject, "--", "printf", "%s", "hello world")
 }
 
-func TestDeleteEnvironmentTreatsIncusNotFoundAsCoreNotFound(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, _ []string) (host.Result, error) {
-		return host.Result{ExitCode: 1, Stderr: "Error: Instance not found"}, errors.New("exit status 1")
+func TestDeleteEnvironmentTreatsConfirmedAbsenceAsCoreNotFound(t *testing.T) {
+	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, _ []string) (host.Result, error) {
+		if call == 0 {
+			return host.Result{ExitCode: 1, Stderr: "Error: Instance not found"}, errors.New("exit status 1")
+		}
+		return host.Result{Stdout: ""}, nil
 	}}
 	err := New(runner).DeleteEnvironment(context.Background(), "haco-demo")
 	if !errors.Is(err, core.ErrNotFound) {
 		t.Fatalf("error = %v", err)
+	}
+	assertRunnerCall(t, runner.calls[1], "incus", "list", "haco-demo", "--project", defaultProject, "--format", "csv", "-c", "n")
+}
+
+func TestDeleteEnvironmentDoesNotTrustUnrelatedNotFoundText(t *testing.T) {
+	deleteErr := errors.New("exit status 1")
+	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, _ []string) (host.Result, error) {
+		if call == 0 {
+			return host.Result{ExitCode: 1, Stderr: "Error: dependent network not found"}, deleteErr
+		}
+		return host.Result{Stdout: "haco-demo\n"}, nil
+	}}
+	err := New(runner).DeleteEnvironment(context.Background(), "haco-demo")
+	if !errors.Is(err, deleteErr) || errors.Is(err, core.ErrNotFound) {
+		t.Fatalf("error = %v, want original delete failure only", err)
 	}
 }
 
