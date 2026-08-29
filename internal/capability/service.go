@@ -116,6 +116,7 @@ func (s *Service) record(ctx context.Context, req core.CapabilityRequest, event 
 	event.Action = req.Action
 	event.Resource = req.Resource
 	event.Environment = req.Environment
+	event.Attributes = cloneStrings(req.Attributes)
 	return s.audit.Record(ctx, event)
 }
 
@@ -124,6 +125,13 @@ func normalizeRequest(req core.CapabilityRequest) core.CapabilityRequest {
 	req.Action = strings.TrimSpace(req.Action)
 	req.Resource = strings.TrimSpace(req.Resource)
 	req.Environment = strings.TrimSpace(req.Environment)
+	if req.Attributes != nil {
+		normalized := make(map[string]string, len(req.Attributes))
+		for key, value := range req.Attributes {
+			normalized[strings.TrimSpace(key)] = strings.TrimSpace(value)
+		}
+		req.Attributes = normalized
+	}
 	return req
 }
 
@@ -133,6 +141,11 @@ func validateRequest(req core.CapabilityRequest) error {
 	}
 	for _, value := range []string{req.Capability, req.Action, req.Resource, req.Environment} {
 		if strings.ContainsAny(value, "\r\n\x00") {
+			return core.ErrInvalidArgument
+		}
+	}
+	for key, value := range req.Attributes {
+		if key == "" || strings.ContainsAny(key, "\r\n\x00") || strings.ContainsAny(value, "\r\n\x00") {
 			return core.ErrInvalidArgument
 		}
 	}
@@ -148,4 +161,15 @@ func errorText(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func cloneStrings(values map[string]string) map[string]string {
+	if values == nil {
+		return nil
+	}
+	clone := make(map[string]string, len(values))
+	for key, value := range values {
+		clone[key] = value
+	}
+	return clone
 }

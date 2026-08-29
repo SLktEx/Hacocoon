@@ -15,6 +15,7 @@ type PolicyRule struct {
 	Capability string              `json:"capability"`
 	Action     string              `json:"action"`
 	Resource   string              `json:"resource,omitempty"`
+	Attributes map[string]string   `json:"attributes,omitempty"`
 	Decision   core.PolicyDecision `json:"decision"`
 	Reason     string              `json:"reason,omitempty"`
 }
@@ -42,6 +43,9 @@ func (e *FilePolicyEvaluator) Evaluate(_ context.Context, req core.CapabilityReq
 			continue
 		}
 		if rule.Resource != "" && rule.Resource != req.Resource {
+			continue
+		}
+		if !matchAttributes(rule.Attributes, req.Attributes) {
 			continue
 		}
 		if !validDecision(rule.Decision) {
@@ -72,4 +76,13 @@ func (e *FilePolicyEvaluator) load() (PolicyFile, error) {
 		return PolicyFile{}, fmt.Errorf("parse policy %s: %w", filepath.Clean(e.path), err)
 	}
 	return policy, nil
+}
+
+func matchAttributes(required, actual map[string]string) bool {
+	for key, value := range required {
+		if actual[key] != value {
+			return false
+		}
+	}
+	return true
 }
