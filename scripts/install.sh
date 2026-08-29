@@ -109,19 +109,26 @@ actual="$(sha256sum "$tmpdir/$archive" | awk '{print $1}')"
 [ "$actual" = "$expected" ] || die "checksum verification failed for $archive"
 
 tar -xzf "$tmpdir/$archive" -C "$tmpdir"
-[ -f "$tmpdir/haco" ] || die "release archive does not contain haco"
-[ -x "$tmpdir/haco" ] || chmod 0755 "$tmpdir/haco"
+for binary in haco haco-vscode; do
+  [ -f "$tmpdir/$binary" ] || die "release archive does not contain $binary"
+  [ -x "$tmpdir/$binary" ] || chmod 0755 "$tmpdir/$binary"
+done
 
-install_target="$INSTALL_DIR/haco"
-if [ -d "$INSTALL_DIR" ] && [ -w "$INSTALL_DIR" ]; then
-  cp "$tmpdir/haco" "$install_target"
-  chmod 0755 "$install_target"
-elif command -v sudo >/dev/null 2>&1; then
-  sudo mkdir -p "$INSTALL_DIR"
-  sudo cp "$tmpdir/haco" "$install_target"
-  sudo chmod 0755 "$install_target"
-else
-  die "cannot write to $INSTALL_DIR; set HACO_INSTALL_DIR to a writable directory or install sudo"
-fi
+install_binary() {
+  binary="$1"
+  install_target="$INSTALL_DIR/$binary"
+  if [ -d "$INSTALL_DIR" ] && [ -w "$INSTALL_DIR" ]; then
+    cp "$tmpdir/$binary" "$install_target"
+    chmod 0755 "$install_target"
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo mkdir -p "$INSTALL_DIR"
+    sudo cp "$tmpdir/$binary" "$install_target"
+    sudo chmod 0755 "$install_target"
+  else
+    die "cannot write to $INSTALL_DIR; set HACO_INSTALL_DIR to a writable directory or install sudo"
+  fi
+  printf 'Installed %s to %s\n' "$binary" "$install_target"
+}
 
-printf 'Installed haco to %s\n' "$install_target"
+install_binary haco
+install_binary haco-vscode

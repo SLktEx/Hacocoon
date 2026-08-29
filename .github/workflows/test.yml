@@ -59,8 +59,13 @@ jobs:
           test -f dist/haco_linux_amd64.tar.gz
           test -f dist/haco_linux_arm64.tar.gz
           test -f dist/checksums.txt
-          tar -tzf dist/haco_linux_amd64.tar.gz | grep -qx haco
-          tar -tzf dist/haco_linux_arm64.tar.gz | grep -qx haco
+
+          for archive in dist/haco_linux_amd64.tar.gz dist/haco_linux_arm64.tar.gz; do
+            listing="$(tar -tzf "$archive")"
+            grep -Fx 'haco' <<<"$listing" >/dev/null
+            grep -Fx 'haco-vscode' <<<"$listing" >/dev/null
+          done
+
           grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
           grep -q 'haco_linux_arm64.tar.gz' dist/checksums.txt
           grep -q 'install.sh' dist/checksums.txt

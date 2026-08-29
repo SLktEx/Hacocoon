@@ -17,11 +17,26 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
+  - id: haco-vscode
+    main: ./cmd/haco-vscode
+    binary: haco-vscode
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
 
 archives:
   - id: haco
     ids:
       - haco
+      - haco-vscode
     formats:
       - tar.gz
     name_template: "haco_{{ .Os }}_{{ .Arch }}"
