@@ -40,6 +40,21 @@ jobs:
             exit 1
           fi
 
+      - name: Require release commit on default branch
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$DEFAULT_BRANCH" ]]; then
+            echo "Repository default branch is unavailable" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"; then
+            echo "Refusing to release $GITHUB_SHA because it is not on origin/$DEFAULT_BRANCH" >&2
+            exit 1
+          fi
+
       - name: Test
         run: go test -count=1 ./...
 
