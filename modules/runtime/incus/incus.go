@@ -99,8 +99,27 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	cleanup := func(cause error) (core.EnvironmentRuntime, error) {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cleanupTimeout)
 		defer cancel()
-		result, cleanupErr := r.runner.Run(cleanupCtx, "incus", "delete", ref, "--project", r.project, "--force")
-		if cleanupErr != nil && !isIncusNotFound(result) {
+		_, cleanupErr := r.runner.Run(cleanupCtx, "incus", "delete", ref, "--project", r.project, "--force")
+		if cleanupErr == nil {
+			return core.EnvironmentRuntime{}, cause
+		}
+		if cleanupCtx.Err() != nil {
+			return core.EnvironmentRuntime{}, errors.Join(
+				cause,
+				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
+				core.ErrRecoveryRequired,
+			)
+		}
+		exists, inspectErr := r.environmentExists(cleanupCtx, ref)
+		if inspectErr != nil {
+			return core.EnvironmentRuntime{}, errors.Join(
+				cause,
+				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
+				fmt.Errorf("confirm Incus cleanup state for %s: %w", ref, inspectErr),
+				core.ErrRecoveryRequired,
+			)
+		}
+		if exists {
 			return core.EnvironmentRuntime{}, errors.Join(
 				cause,
 				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
@@ -162,11 +181,34 @@ func (r *Runtime) ShellEnvironment(ctx context.Context, ref string) error {
 }
 
 func (r *Runtime) DeleteEnvironment(ctx context.Context, ref string) error {
-	result, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
-	if err != nil && isIncusNotFound(result) {
+	_, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
+	if err == nil {
+		return nil
+	}
+	if ctx.Err() != nil {
+		return err
+	}
+	exists, inspectErr := r.environmentExists(ctx, ref)
+	if inspectErr != nil {
+		return errors.Join(err, fmt.Errorf("confirm Incus delete state for %s: %w", ref, inspectErr))
+	}
+	if !exists {
 		return fmt.Errorf("Incus environment %s: %w", ref, core.ErrNotFound)
 	}
 	return err
+}
+
+func (r *Runtime) environmentExists(ctx context.Context, ref string) (bool, error) {
+	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "n")
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(result.Stdout, "\n") {
+		if strings.TrimSpace(line) == ref {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (r *Runtime) InspectEnvironment(ctx context.Context, ref string) (core.EnvironmentRuntimeStatus, error) {
@@ -315,9 +357,4 @@ func (r *Runtime) execInteractive(ctx context.Context, ref string, argv []string
 		return core.ExecResult{ExitCode: exit.ExitCode()}, err
 	}
 	return core.ExecResult{ExitCode: -1}, err
-}
-
-func isIncusNotFound(result host.Result) bool {
-	message := strings.ToLower(result.Stderr + "\n" + result.Stdout)
-	return strings.Contains(message, "not found") || strings.Contains(message, "does not exist") || strings.Contains(message, "doesn't exist")
 }
