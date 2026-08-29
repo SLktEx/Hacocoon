@@ -197,9 +197,11 @@ func resolveGitHubRemote(ctx context.Context, runner host.Runner, workspace, rem
 }
 
 func rejectUnsafeLocalGitConfig(ctx context.Context, runner host.Runner, workspace, remote string) error {
-	// Git canonicalizes variable names to lower-case when reporting them.
-	pattern := `^(remote\.` + regexp.QuoteMeta(remote) + `\.(pushurl|receivepack|proxy)|url\..*\.(insteadof|pushinsteadof)|credential\..*|core\.(hookspath|sshcommand|askpass))$`
-	result, err := runner.Run(ctx, "git", "-C", workspace, "config", "--local", "--get-regexp", pattern)
+	// Query the local file without expanding includes, then reject the include
+	// directives themselves. Otherwise repository-controlled config can hide a
+	// command/transport override in another file that normal git push will read.
+	pattern := `^(remote\.` + regexp.QuoteMeta(remote) + `\.(pushurl|receivepack|proxy)|url\..*\.(insteadof|pushinsteadof)|credential\..*|core\.(hookspath|sshcommand|askpass)|include\.path|includeif\..*\.path|extensions\.worktreeconfig)$`
+	result, err := runner.Run(ctx, "git", "-C", workspace, "config", "--local", "--no-includes", "--get-regexp", pattern)
 	if err != nil {
 		if result.ExitCode == 1 {
 			return nil
