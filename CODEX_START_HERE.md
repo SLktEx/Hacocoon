@@ -1,24 +1,27 @@
 # CODEX START HERE
 
-Hacocoon has been rebaselined around one idea:
+Hacocoon is built around one product boundary:
 
 > **Hacocoon is a secure workspace runtime, not an AI orchestrator.**
 
-The repository contains working code from an older and broader design. Treat that code as implementation inventory, not as the current product boundary.
+The 2026-08-29 architecture rebaseline has now been followed by implementation work through the v0.7 roadmap. Do not use old instructions that describe v0.1 as the only active implementation gate.
+
+Hacocoon is still **pre-1.0**. Breaking changes are allowed when they simplify the system, strengthen the trust boundary, remove accidental complexity, or correct an unsafe contract.
 
 ## Read first
 
 1. `docs/README.md` — documentation precedence and current-vs-historical rules.
-2. `docs/00_REBASELINE_AND_ROADMAP.md` — product boundary and release order.
+2. `docs/00_REBASELINE_AND_ROADMAP.md` — product boundary and roadmap progression.
 3. `docs/00C_TERMINOLOGY_AND_BOUNDARIES.md` — canonical terminology.
 4. `docs/00B_SECURITY_ARCHITECTURE.md` — trust boundary.
-5. `docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md` — current release gate.
-6. `docs/IMPLEMENTATION_STATUS.md` — current repository reality.
-7. `docs/90_CODEX_IMPLEMENTATION_HANDOFF.md` — implementation checklist.
+5. `docs/IMPLEMENTATION_STATUS.md` — current repository reality and pending acceptance.
+6. the release specification relevant to the code being changed (`docs/01_...` through `docs/07_...`).
+7. `docs/90_CODEX_IMPLEMENTATION_HANDOFF.md` — implementation and maintenance workflow.
+8. `.github/security/ADVERSARIAL_AUDIT.md` when performing a security-sensitive or hostile review.
 
-`docs/00A_PLUGIN_ARCHITECTURE.md` is a later extension reference. Do not build a provider/plugin framework during v0.1.
+`docs/00A_PLUGIN_ARCHITECTURE.md` is extension/adaptor guidance, not an instruction to create speculative plugin interfaces.
 
-## Authoritative order
+## Roadmap progression
 
 ```text
 0.1 Secure Workspace Runtime MVP
@@ -30,49 +33,69 @@ The repository contains working code from an older and broader design. Treat tha
 0.7 Remote / Cloud Runtime & External Capabilities
 ```
 
-## v0.1 job
+The implementation progression on `main` currently reaches v0.7. This does **not** mean the interfaces are stable or that every real-provider acceptance gate has passed.
 
-Make this path work reliably:
+## Current job
 
-```text
-external directory
-  -> create Incus environment
-  -> mount directory read/write
-  -> execute command
-  -> open interactive shell
-  -> delete environment and clean metadata
-```
+Treat the existing v0.1-v0.7 implementation as a system to **harden, simplify, verify, and evolve**, not as frozen compatibility surface.
 
-Target CLI:
+Before changing behavior:
 
-```text
-haco create --workspace ./repo dev
-haco exec dev -- go test ./...
-haco shell dev
-haco delete dev
-```
+1. check `docs/IMPLEMENTATION_STATUS.md` for current reality;
+2. identify which architecture boundary and versioned contract the change belongs to;
+3. inspect the actual code and tests rather than trusting documentation claims;
+4. preserve fail-closed security behavior;
+5. add or strengthen tests for the changed contract;
+6. update status/documentation when reality changes.
 
-The current repository still exposes historical commands and Session/Storage-oriented internals. Do not mistake them for the target public API; use `docs/IMPLEMENTATION_STATUS.md` to distinguish existing code from desired v0.1 behavior.
+Do not invent a v0.8 product direction or broaden Core merely because the numbered v0.1-v0.7 implementation exists.
 
 ## Hard rules
 
-- Do not implement v0.2-v0.7 while finishing v0.1.
 - Do not make Git worktree a Core concept.
-- Do not add GitHub, AWS, MCP, Web UI, agent routing, model budgets, notifications, or remote runtime to v0.1.
-- Do not retain advanced storage complexity in v0.1 merely because historical code already implements it.
-- Do not create abstractions solely because a future provider might exist.
-- Keep Incus/process/OS side effects behind a narrow adapter.
-- Do not mount host HOME, `~/.ssh`, `~/.aws`, GitHub tokens, the Incus socket, or Hacocoon control state into the Environment as a shortcut.
-- A command executed inside the Environment is untrusted with respect to host authority.
+- Do not move agent scheduling, model routing, retry strategy, task DAGs, or model budgets into Hacocoon.
+- Do not mount host HOME, `~/.ssh`, `~/.aws`, GitHub tokens, the Incus socket, or Hacocoon control state into an Environment as a shortcut.
+- Treat commands running inside an Environment as untrusted with respect to host authority.
+- Keep provider-specific concepts such as Incus, GitHub, AWS, EC2, EBS, Btrfs, and QCOW2 outside the Core domain.
+- EC2 remains experimental and disabled by default. Never activate it by implicit AWS credential discovery.
 - Prefer standard CLI/protocol boundaries over Hacocoon-specific wrappers.
+- Do not create an interface only because a hypothetical future backend might need one.
+- Do not preserve accidental compatibility when it conflicts with a smaller or safer pre-1.0 design.
+- Destructive and authority-sensitive operations must be reviewed adversarially, including retry, partial failure, concurrency, and cleanup.
+
+## Compatibility rule
+
+Until an explicit stable compatibility milestone is declared, existing behavior on `main` is not automatically a permanent public contract.
+
+A breaking change should still be deliberate:
+
+- explain why the old behavior is being replaced;
+- avoid silent data loss;
+- preserve recoverability where possible;
+- update affected docs and tests;
+- provide migration guidance when a supported migration exists.
+
+Breaking change freedom is not permission to make arbitrary churn. Prefer changes that make ownership, responsibility, failure behavior, and security boundaries clearer.
 
 ## Work method
 
-1. Inventory current code and tests against `docs/IMPLEMENTATION_STATUS.md`.
-2. Preserve useful code, but move/defer behavior that is outside the new v0.1 gate.
-3. Implement one vertical slice at a time: minimal domain -> Incus adapter -> create -> exec -> shell -> delete.
-4. Add unit tests for deterministic logic and integration tests for the real Incus path.
-5. Run `python tools/check_docs.py` for documentation changes.
-6. Stop when the v0.1 acceptance gate passes.
+1. Reproduce or define the behavior being changed.
+2. Map it to Workspace / Environment / Execution / Policy / Capability / provider boundaries.
+3. Read the relevant implementation and tests.
+4. Consider hostile input, concurrent operations, cancellation, retry, and partial failure.
+5. Implement the smallest coherent change.
+6. Add unit tests and the strongest practical integration/E2E coverage.
+7. Run maintained checks:
 
-When uncertain, choose the smallest design that preserves the trust boundary and keeps Workspace, Client, Orchestrator, and Environment responsibilities separate.
+```bash
+go test ./...
+go test -race ./...
+go vet ./...
+go build ./cmd/haco
+python tools/check_docs.py
+```
+
+8. Keep real Incus and real AWS acceptance claims separate from fake/process-boundary tests.
+9. Update `docs/IMPLEMENTATION_STATUS.md` whenever the repository reality materially changes.
+
+When uncertain, choose the smallest design that preserves the trust boundary and keeps Workspace, Client, Orchestrator, Environment, and external authority responsibilities separate.
