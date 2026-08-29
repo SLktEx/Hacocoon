@@ -52,6 +52,9 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 	if err := validateDirectSSHRequest(req); err != nil {
 		return core.ClientConnection{}, err
 	}
+	if err := validateManagedRef(ref); err != nil {
+		return core.ClientConnection{}, err
+	}
 	id := fmt.Sprintf("ssh-%d", req.HostPort)
 	if err := r.addLoopbackProxy(ctx, ref, id, req.HostPort, 22); err != nil {
 		return core.ClientConnection{}, err
@@ -77,6 +80,9 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 }
 
 func (r *Runtime) RevokeSSHAccess(ctx context.Context, ref, connectionID string) error {
+	if err := validateManagedRef(ref); err != nil {
+		return err
+	}
 	if err := validateSSHConnectionID(connectionID); err != nil {
 		return err
 	}
@@ -111,6 +117,9 @@ func validateSSHConnectionID(connectionID string) error {
 }
 
 func (r *Runtime) ListClientConnections(ctx context.Context, ref string) ([]core.ClientConnection, error) {
+	if err := validateManagedRef(ref); err != nil {
+		return nil, err
+	}
 	result, err := r.runner.Run(ctx, "incus", "config", "show", ref, "--project", r.project, "--format", "json")
 	if err != nil {
 		return nil, err
