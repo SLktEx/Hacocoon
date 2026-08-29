@@ -11,6 +11,8 @@ type LocalEcho struct{}
 
 func (LocalEcho) Capability() string { return "local.echo" }
 
+func (LocalEcho) NonAuthorityParameters() []string { return []string{"message"} }
+
 func (LocalEcho) Execute(_ context.Context, req core.CapabilityRequest) (core.CapabilityResult, error) {
 	if req.Action != "echo" {
 		return core.CapabilityResult{}, fmt.Errorf("local.echo action %q: %w", req.Action, core.ErrUnsupported)

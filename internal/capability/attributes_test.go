@@ -11,9 +11,9 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-func TestFilePolicyMatchesAuditableAttributes(t *testing.T) {
+func TestFilePolicyMatchesEveryAuditableAttribute(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "policy.json")
-	policy := `{"default":"deny","rules":[{"capability":"github.git","action":"push","attributes":{"organization":"acme","repository":"demo","target_ref":"refs/heads/feature/x"},"decision":"allow"}]}`
+	policy := `{"default":"deny","rules":[{"capability":"github.git","action":"push","resource":"*","environment":"demo","attributes":{"organization":"acme","repository":"demo","target_ref":"refs/heads/feature/x","source_sha":"*"},"decision":"allow"}]}`
 	if err := os.WriteFile(path, []byte(policy), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -23,12 +23,12 @@ func TestFilePolicyMatchesAuditableAttributes(t *testing.T) {
 		attrs map[string]string
 		want  core.PolicyDecision
 	}{
-		{name: "exact", attrs: map[string]string{"organization": "acme", "repository": "demo", "target_ref": "refs/heads/feature/x", "source_sha": "abc"}, want: core.PolicyAllow},
-		{name: "wrong repo", attrs: map[string]string{"organization": "acme", "repository": "other", "target_ref": "refs/heads/feature/x"}, want: core.PolicyDeny},
-		{name: "wrong branch", attrs: map[string]string{"organization": "acme", "repository": "demo", "target_ref": "refs/heads/main"}, want: core.PolicyDeny},
+		{name: "exact scope", attrs: map[string]string{"organization": "acme", "repository": "demo", "target_ref": "refs/heads/feature/x", "source_sha": "abc"}, want: core.PolicyAllow},
+		{name: "wrong repo", attrs: map[string]string{"organization": "acme", "repository": "other", "target_ref": "refs/heads/feature/x", "source_sha": "abc"}, want: core.PolicyDeny},
+		{name: "extra authority input", attrs: map[string]string{"organization": "acme", "repository": "demo", "target_ref": "refs/heads/feature/x", "source_sha": "abc", "unexpected": "authority"}, want: core.PolicyDeny},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := evaluator.Evaluate(context.Background(), core.CapabilityRequest{Capability: "github.git", Action: "push", Attributes: tc.attrs})
+			got, err := evaluator.Evaluate(context.Background(), core.CapabilityRequest{Capability: "github.git", Action: "push", Environment: "demo", Attributes: tc.attrs})
 			if err != nil || got.Decision != tc.want {
 				t.Fatalf("got=%#v err=%v", got, err)
 			}
@@ -39,14 +39,14 @@ func TestFilePolicyMatchesAuditableAttributes(t *testing.T) {
 func TestApprovalPromptShowsSortedSafeAttributes(t *testing.T) {
 	var out bytes.Buffer
 	approved, err := NewStdioApproval(strings.NewReader("yes\n"), &out).Approve(context.Background(), core.ApprovalRequest{CapabilityRequest: core.CapabilityRequest{
-		Capability: "github.git", Action: "push", Resource: "github://acme/demo/refs/heads/feature/x",
+		Capability: "github.git", Action: "push", Resource: "github://acme/demo/refs/heads/feature/x", Environment: "demo",
 		Attributes: map[string]string{"source_sha": "deadbeef", "repository": "demo", "organization": "acme"},
-	}})
+	}, Reason: "policy requires approval"})
 	if err != nil || !approved {
 		t.Fatalf("approved=%t err=%v", approved, err)
 	}
 	prompt := out.String()
-	for _, want := range []string{"organization=acme", "repository=demo", "source_sha=deadbeef"} {
+	for _, want := range []string{"environment=demo", "organization=acme", "repository=demo", "source_sha=deadbeef", "reason=policy requires approval"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("missing %q in %q", want, prompt)
 		}
@@ -56,10 +56,10 @@ func TestApprovalPromptShowsSortedSafeAttributes(t *testing.T) {
 	}
 }
 
-func TestAuditIncludesAttributesButStillExcludesParameters(t *testing.T) {
+func TestAuditIncludesAttributesButStillExcludesDeclaredNonAuthorityParameters(t *testing.T) {
 	audit := &fakeAudit{}
 	provider := &fakeProvider{}
-	service := New(fakePolicy{evaluation: core.PolicyEvaluation{Decision: core.PolicyAllow}}, &fakeApproval{}, audit, provider)
+	service := newTestService(t, fakePolicy{evaluation: core.PolicyEvaluation{Decision: core.PolicyAllow}}, &fakeApproval{}, audit, provider)
 	_, err := service.Request(context.Background(), core.CapabilityRequest{
 		Capability: "local.echo", Action: "echo",
 		Attributes: map[string]string{"repository": "demo", "source_sha": "abc"},

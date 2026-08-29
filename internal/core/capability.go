@@ -10,6 +10,14 @@ const (
 	PolicyRequireApproval PolicyDecision = "require-approval"
 )
 
+type CapabilityExecutionState string
+
+const (
+	CapabilityNotExecuted CapabilityExecutionState = "not-executed"
+	CapabilitySucceeded   CapabilityExecutionState = "succeeded"
+	CapabilityFailed      CapabilityExecutionState = "failed"
+)
+
 type CapabilityRequest struct {
 	Capability  string            `json:"capability"`
 	Action      string            `json:"action"`
@@ -30,12 +38,16 @@ type ApprovalRequest struct {
 }
 
 type CapabilityResult struct {
-	Provider string `json:"provider"`
-	Output   string `json:"output,omitempty"`
+	Provider       string                   `json:"provider"`
+	Output         string                   `json:"output,omitempty"`
+	RequestID      string                   `json:"request_id,omitempty"`
+	ExecutionState CapabilityExecutionState `json:"execution_state,omitempty"`
+	AuditComplete  bool                     `json:"audit_complete"`
 }
 
 type CapabilityAuditEvent struct {
 	Time        time.Time         `json:"time"`
+	RequestID   string            `json:"request_id"`
 	Type        string            `json:"type"`
 	Capability  string            `json:"capability"`
 	Action      string            `json:"action"`

@@ -1,23 +1,27 @@
 package capability
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 type PolicyRule struct {
-	Capability string              `json:"capability"`
-	Action     string              `json:"action"`
-	Resource   string              `json:"resource,omitempty"`
-	Attributes map[string]string   `json:"attributes,omitempty"`
-	Decision   core.PolicyDecision `json:"decision"`
-	Reason     string              `json:"reason,omitempty"`
+	Capability  string              `json:"capability"`
+	Action      string              `json:"action"`
+	Resource    string              `json:"resource"`
+	Environment string              `json:"environment,omitempty"`
+	Attributes  map[string]string   `json:"attributes,omitempty"`
+	Decision    core.PolicyDecision `json:"decision"`
+	Reason      string              `json:"reason,omitempty"`
 }
 
 type PolicyFile struct {
@@ -39,17 +43,8 @@ func (e *FilePolicyEvaluator) Evaluate(_ context.Context, req core.CapabilityReq
 		return core.PolicyEvaluation{}, err
 	}
 	for _, rule := range policy.Rules {
-		if rule.Capability != req.Capability || rule.Action != req.Action {
+		if !ruleMatches(rule, req) {
 			continue
-		}
-		if rule.Resource != "" && rule.Resource != req.Resource {
-			continue
-		}
-		if !matchAttributes(rule.Attributes, req.Attributes) {
-			continue
-		}
-		if !validDecision(rule.Decision) {
-			return core.PolicyEvaluation{}, fmt.Errorf("invalid policy decision %q", rule.Decision)
 		}
 		return core.PolicyEvaluation{Decision: rule.Decision, Reason: rule.Reason}, nil
 	}
@@ -57,10 +52,33 @@ func (e *FilePolicyEvaluator) Evaluate(_ context.Context, req core.CapabilityReq
 	if decision == "" {
 		decision = core.PolicyDeny
 	}
-	if !validDecision(decision) {
-		return core.PolicyEvaluation{}, fmt.Errorf("invalid default policy decision %q", decision)
-	}
 	return core.PolicyEvaluation{Decision: decision, Reason: "default policy"}, nil
+}
+
+func ruleMatches(rule PolicyRule, req core.CapabilityRequest) bool {
+	if rule.Capability != req.Capability || rule.Action != req.Action {
+		return false
+	}
+	if rule.Resource != "*" && rule.Resource != req.Resource {
+		return false
+	}
+	if rule.Environment != "*" && rule.Environment != req.Environment {
+		return false
+	}
+	return matchAttributes(rule.Attributes, req.Attributes)
+}
+
+func matchAttributes(required, actual map[string]string) bool {
+	if len(required) != len(actual) {
+		return false
+	}
+	for key, actualValue := range actual {
+		requiredValue, ok := required[key]
+		if !ok || (requiredValue != "*" && requiredValue != actualValue) {
+			return false
+		}
+	}
+	return true
 }
 
 func (e *FilePolicyEvaluator) load() (PolicyFile, error) {
@@ -71,18 +89,52 @@ func (e *FilePolicyEvaluator) load() (PolicyFile, error) {
 	if err != nil {
 		return PolicyFile{}, fmt.Errorf("read policy %s: %w", filepath.Clean(e.path), err)
 	}
+	decoder := json.NewDecoder(bytes.NewReader(content))
+	decoder.DisallowUnknownFields()
 	var policy PolicyFile
-	if err := json.Unmarshal(content, &policy); err != nil {
+	if err := decoder.Decode(&policy); err != nil {
 		return PolicyFile{}, fmt.Errorf("parse policy %s: %w", filepath.Clean(e.path), err)
+	}
+	if err := rejectTrailingJSON(decoder); err != nil {
+		return PolicyFile{}, fmt.Errorf("parse policy %s: %w", filepath.Clean(e.path), err)
+	}
+	if err := validatePolicy(policy); err != nil {
+		return PolicyFile{}, fmt.Errorf("validate policy %s: %w", filepath.Clean(e.path), err)
 	}
 	return policy, nil
 }
 
-func matchAttributes(required, actual map[string]string) bool {
-	for key, value := range required {
-		if actual[key] != value {
-			return false
+func rejectTrailingJSON(decoder *json.Decoder) error {
+	var extra any
+	if err := decoder.Decode(&extra); err == io.EOF {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return fmt.Errorf("multiple JSON values are not allowed")
+}
+
+func validatePolicy(policy PolicyFile) error {
+	if policy.Default != "" && !validDecision(policy.Default) {
+		return fmt.Errorf("invalid default policy decision %q", policy.Default)
+	}
+	for index, rule := range policy.Rules {
+		if strings.TrimSpace(rule.Capability) == "" || strings.TrimSpace(rule.Action) == "" || strings.TrimSpace(rule.Resource) == "" {
+			return fmt.Errorf("rule %d requires capability, action, and explicit resource", index)
+		}
+		if !validDecision(rule.Decision) {
+			return fmt.Errorf("rule %d has invalid policy decision %q", index, rule.Decision)
+		}
+		for _, value := range []string{rule.Capability, rule.Action, rule.Resource, rule.Environment, rule.Reason} {
+			if strings.ContainsAny(value, "\r\n\x00") {
+				return fmt.Errorf("rule %d contains invalid control characters", index)
+			}
+		}
+		for key, value := range rule.Attributes {
+			if strings.TrimSpace(key) == "" || strings.ContainsAny(key+value, "\r\n\x00") {
+				return fmt.Errorf("rule %d contains invalid attribute scope", index)
+			}
 		}
 	}
-	return true
+	return nil
 }

@@ -21,19 +21,22 @@ func TestCapabilityFlowAcrossFilePolicyApprovalAndAudit(t *testing.T) {
 		t.Fatal(err)
 	}
 	var prompt bytes.Buffer
-	service := capabilityapp.New(
+	service, err := capabilityapp.New(
 		capabilityapp.NewFilePolicyEvaluator(policyPath),
 		capabilityapp.NewStdioApproval(strings.NewReader("yes\n"), &prompt),
 		capabilityapp.NewJSONLAudit(auditPath),
 		capabilityapp.LocalEcho{},
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	result, err := service.Request(context.Background(), core.CapabilityRequest{
 		Capability: "local.echo", Action: "echo", Resource: "sensitive", Parameters: map[string]string{"message": "private-parameter"},
 	})
-	if err != nil || result.Output != "private-parameter" {
+	if err != nil || result.Output != "private-parameter" || result.RequestID == "" || result.ExecutionState != core.CapabilitySucceeded || !result.AuditComplete {
 		t.Fatalf("result=%#v err=%v", result, err)
 	}
-	if !strings.Contains(prompt.String(), "Approve capability local.echo") {
+	if !strings.Contains(prompt.String(), "Approve capability local.echo") || !strings.Contains(prompt.String(), "reason=sensitive local action") {
 		t.Fatalf("prompt=%q", prompt.String())
 	}
 	audit, err := os.ReadFile(auditPath)
@@ -41,12 +44,12 @@ func TestCapabilityFlowAcrossFilePolicyApprovalAndAudit(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(audit)
-	for _, want := range []string{`"type":"requested"`, `"decision":"require-approval"`, `"approved":true`, `"success":true`} {
+	for _, want := range []string{`"type":"requested"`, `"decision":"require-approval"`, `"approved":true`, `"success":true`, `"request_id":"`} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %s in audit:\n%s", want, text)
 		}
 	}
 	if strings.Contains(text, "private-parameter") {
-		t.Fatalf("request parameter leaked into audit:\n%s", text)
+		t.Fatalf("non-authority parameter leaked into audit:\n%s", text)
 	}
 }
