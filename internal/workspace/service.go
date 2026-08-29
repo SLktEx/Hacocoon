@@ -175,16 +175,7 @@ func (s *Service) Shell(ctx context.Context, name string) error {
 func (s *Service) Delete(ctx context.Context, name string) error {
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err == nil {
-		if err := s.runtime.DeleteEnvironment(ctx, environment.RuntimeRef); err != nil && !isNotFound(err) {
-			return fmt.Errorf("delete runtime %q: %w", environment.RuntimeRef, err)
-		}
-		if err := s.store.DeleteEnvironment(ctx, name); err != nil && !isNotFound(err) {
-			return fmt.Errorf("delete environment metadata %q: %w", name, err)
-		}
-		if err := s.store.DeleteWorkspaceLease(ctx, name); err != nil && !isNotFound(err) {
-			return fmt.Errorf("release workspace lease for %q: %w", name, err)
-		}
-		return nil
+		return s.deleteExistingEnvironment(ctx, name, environment)
 	}
 	if !isNotFound(err) {
 		return err
@@ -197,6 +188,60 @@ func (s *Service) Delete(ctx context.Context, name string) error {
 	if leaseErr != nil {
 		return leaseErr
 	}
+	return s.deleteRecoveryLease(ctx, name, lease)
+}
+
+func (s *Service) deleteExistingEnvironment(ctx context.Context, name string, snapshot core.Environment) error {
+	unlock, err := lockWorkspace(ctx, deletionLockID(name, snapshot.Workspace.ID))
+	if err != nil {
+		return fmt.Errorf("lock workspace before deleting environment %q: %w", name, err)
+	}
+	defer unlock()
+
+	current, err := s.store.GetEnvironment(ctx, name)
+	if isNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !sameEnvironmentGeneration(snapshot, current) {
+		return nil
+	}
+	if err := s.runtime.DeleteEnvironment(ctx, current.RuntimeRef); err != nil && !isNotFound(err) {
+		return fmt.Errorf("delete runtime %q: %w", current.RuntimeRef, err)
+	}
+	if err := s.store.DeleteEnvironment(ctx, name); err != nil && !isNotFound(err) {
+		return fmt.Errorf("delete environment metadata %q: %w", name, err)
+	}
+	if err := s.store.DeleteWorkspaceLease(ctx, name); err != nil && !isNotFound(err) {
+		return fmt.Errorf("release workspace lease for %q: %w", name, err)
+	}
+	return nil
+}
+
+func (s *Service) deleteRecoveryLease(ctx context.Context, name string, snapshot core.WorkspaceLease) error {
+	unlock, err := lockWorkspace(ctx, deletionLockID(name, snapshot.WorkspaceID))
+	if err != nil {
+		return fmt.Errorf("lock workspace before recovering environment %q: %w", name, err)
+	}
+	defer unlock()
+
+	if _, err := s.store.GetEnvironment(ctx, name); err == nil {
+		return nil
+	} else if !isNotFound(err) {
+		return err
+	}
+	lease, err := s.store.GetWorkspaceLease(ctx, name)
+	if isNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !sameLeaseGeneration(snapshot, lease) {
+		return nil
+	}
 	if lease.RuntimeRef == "" {
 		return fmt.Errorf("workspace lease for %q has no runtime reference; refusing to reclaim without proof: %w", name, core.ErrRecoveryRequired)
 	}
@@ -207,6 +252,28 @@ func (s *Service) Delete(ctx context.Context, name string) error {
 		return fmt.Errorf("release recovered workspace lease for %q: %w", name, err)
 	}
 	return nil
+}
+
+func deletionLockID(name string, workspaceID core.WorkspaceID) core.WorkspaceID {
+	if workspaceID != "" {
+		return workspaceID
+	}
+	return core.WorkspaceID("environment:" + name)
+}
+
+func sameEnvironmentGeneration(left, right core.Environment) bool {
+	return left.Name == right.Name &&
+		left.Workspace.ID == right.Workspace.ID &&
+		left.Workspace.Path == right.Workspace.Path &&
+		left.RuntimeRef == right.RuntimeRef &&
+		left.CreatedAt.Equal(right.CreatedAt)
+}
+
+func sameLeaseGeneration(left, right core.WorkspaceLease) bool {
+	return left.WorkspaceID == right.WorkspaceID &&
+		left.EnvironmentID == right.EnvironmentID &&
+		left.RuntimeRef == right.RuntimeRef &&
+		left.AcquiredAt.Equal(right.AcquiredAt)
 }
 
 func (s *Service) deleteRuntimeForCleanup(parent context.Context, ref string) error {
