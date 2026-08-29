@@ -2,9 +2,9 @@
 
 [**日本語**](README.ja.md) | English
 
-This file defines how to read Hacocoon documentation after the 2026-08-29 architecture rebaseline, the v0.8 implementation progression, the v0.9 Base-image roadmap contract, the v0.10 per-agent sandbox broker foundation, and the v0.11 sandbox resource-limits design gate.
+This file defines how to read Hacocoon documentation after the 2026-08-29 architecture rebaseline, the v0.8 implementation progression, the v0.9 Base-image roadmap contract, the v0.10 per-agent sandbox broker foundation, and the v0.11 sandbox resource-limits design gate. Parallel version assignment and active numbering conflicts are tracked in `00D_VERSIONING_AND_RELEASE_STATUS.md`; the VS Code Remote Agent Host adapter is reserved as v0.12 before PR #111 may merge.
 
-Hacocoon remains **pre-1.0**. Documentation describes architecture, implementation state, and roadmap contracts; it does not imply API, CLI, state-format, provider, client-adapter, image, agent-integration, resource-budget, or configuration compatibility guarantees.
+Hacocoon remains **pre-1.0**. Documentation describes architecture, implementation state, roadmap contracts, and active integration numbering; it does not imply API, CLI, state-format, provider, client-adapter, image, agent-integration, resource-budget, or configuration compatibility guarantees.
 
 For a Japanese overview, start with [`../README.ja.md`](../README.ja.md), [`README.ja.md`](README.ja.md), and [`ARCHITECTURE_GUIDE.ja.md`](ARCHITECTURE_GUIDE.ja.md).
 
@@ -13,26 +13,29 @@ For a Japanese overview, start with [`../README.ja.md`](../README.ja.md), [`READ
 When documents appear to disagree, use this order:
 
 1. `00_REBASELINE_AND_ROADMAP.md` — product boundary and roadmap progression.
-2. `00C_TERMINOLOGY_AND_BOUNDARIES.md` — canonical architecture vocabulary.
-3. `00B_SECURITY_ARCHITECTURE.md` — cross-cutting trust and security rules.
-4. `IMPLEMENTATION_STATUS.md` — current code reality and pending acceptance.
-5. The relevant versioned release specification (`01_...` through `11_...`).
-6. Specialized documents such as `CLIENT_ACCESS.md`, `REMOTE_CLOUD_PROVISIONING.md`, and `BASE_IMAGES.md`.
-7. `00A_PLUGIN_ARCHITECTURE.md` — extension/adapter guidance.
-8. `90_CODEX_IMPLEMENTATION_HANDOFF.md` — implementation and maintenance workflow.
-9. `91_IMPLEMENTATION_REFERENCE_NOTES.md` — non-normative references and historical notes.
-10. ADRs under `adr/` — scoped decisions.
+2. `00D_VERSIONING_AND_RELEASE_STATUS.md` — authoritative version-number assignment, active numbering collisions, and merge-time renumbering rules.
+3. `00C_TERMINOLOGY_AND_BOUNDARIES.md` — canonical architecture vocabulary.
+4. `00B_SECURITY_ARCHITECTURE.md` — cross-cutting trust and security rules.
+5. `IMPLEMENTATION_STATUS.md` — current code reality and pending acceptance.
+6. The relevant versioned release specification (`01_...` through `11_...`; later specs become authoritative only when committed to `main`).
+7. Specialized documents such as `CLIENT_ACCESS.md`, `REMOTE_CLOUD_PROVISIONING.md`, and `BASE_IMAGES.md`.
+8. `00A_PLUGIN_ARCHITECTURE.md` — extension/adapter guidance.
+9. `90_CODEX_IMPLEMENTATION_HANDOFF.md` — implementation and maintenance workflow.
+10. `91_IMPLEMENTATION_REFERENCE_NOTES.md` — non-normative references and historical notes.
+11. ADRs under `adr/` — scoped decisions.
 
 `README.md`, `CODEX_START_HERE.md`, and `Hacocoon_v0.1-v0.7_MASTER.md` are entry points/indexes; they summarize rather than redefine the architecture.
 
 ## Current documentation state
 
-- v0.1-v0.11 specifications are **versioned design contracts**.
+- v0.1-v0.11 specifications on `main` are **versioned design contracts**.
 - v0.1-v0.8 have implementation passes represented in the repository.
 - v0.9 Base Images & Custom Environments is a design/roadmap contract; its CLI/provider implementation remains pending.
 - v0.10 adds an implemented trusted session-to-Environment broker foundation outside Core.
 - v0.11 Sandbox Resource Limits is a design/roadmap contract; its resource-budget/provider implementation remains pending.
+- v0.12 is reserved for the VS Code Remote Agent Host Adapter currently being integrated in PR #111; it is not `main` code reality until that work is rebased/renumbered and merged.
 - `IMPLEMENTATION_STATUS.md` is the source for current repository reality.
+- `00D_VERSIONING_AND_RELEASE_STATUS.md` is the source for version-number ownership when parallel branches collide.
 - real-provider/client acceptance remains separate from unit, integration, fake-provider E2E, race, vet, build, and CI checks.
 - EC2 remains experimental and disabled by default.
 
@@ -47,8 +50,23 @@ Examples:
 - v0.9 can exist as a Base-image design contract before `haco image` or `haco create --base` is implemented.
 - v0.10 can contain a session broker while real VS Code Agent Host/AHP + Incus per-session routing remains pending.
 - v0.11 can define provider-neutral resource budgets before CPU/memory/PID/root-storage enforcement is implemented.
+- v0.12 can be reserved for an active integration branch without claiming that its adapter code is already on `main`.
 
-Do not infer release/tag readiness, production support, or implementation presence from a roadmap document alone.
+Do not infer release/tag readiness, production support, or implementation presence from a roadmap document or version number alone.
+
+## Parallel version assignment
+
+Version numbers are assigned by `main`, not by whichever parallel branch happens to use a number first.
+
+The current resolved collision is:
+
+```text
+v0.10  Per-Agent Sandbox & Agent Host Integration
+v0.11  Sandbox Resource Limits
+v0.12  VS Code Remote Agent Host Adapter
+```
+
+PR #111 originally used v0.11 for the Agent Host adapter after `main` had already assigned v0.11 to Resource Limits. The open adapter work must therefore be renumbered to v0.12 before merge. See `00D_VERSIONING_AND_RELEASE_STATUS.md` for the full rule and current integration watch list.
 
 ## v0.8 reading path
 
@@ -136,9 +154,29 @@ Resource budgets bound consumption **inside** an Environment. They are deliberat
 
 The first v0.11 gate is creation-time resource budgeting. It does not make Hacocoon an AI scheduler, aggregate workstation scheduler, or Kubernetes-style resource planner.
 
+## v0.12 integration path
+
+v0.12 is currently a **reserved integration slot**, not an implementation claim for `main`.
+
+The intended adapter path is:
+
+```text
+VS Code Agents window
+        |
+    Remote -> SSH
+        |
+Hacocoon-managed loopback SSH alias
+        |
+ v0.10 bound Environment
+        |
+    /workspace
+```
+
+Hacocoon prepares the trusted Environment and SSH access; VS Code continues to own the Agent Host and Agent Host Protocol. Until PR #111 is rebased/renumbered and merged, detailed implementation claims belong to that PR rather than `IMPLEMENTATION_STATUS.md`.
+
 ## Compatibility and breaking changes
 
-Hacocoon is pre-1.0 and actively being simplified and hardened. Breaking changes may affect CLI/helper binaries, persisted state, Core/adapter APIs, capability/policy contracts, provider configuration, Base/image lifecycle, client/agent integration, resource-budget behavior, experimental backends, and documentation structure.
+Hacocoon is pre-1.0 and actively being simplified and hardened. Breaking changes may affect CLI/helper binaries, persisted state, Core/adapter APIs, capability/policy contracts, provider configuration, Base/image lifecycle, client/agent integration, resource-budget behavior, experimental backends, version numbering of unmerged work, and documentation structure.
 
 Prefer an explicit incompatible correction over preserving accidental compatibility that weakens the architecture. Material operator impact should remain documented and tested.
 
@@ -149,10 +187,11 @@ Historical `Session`, Runtime/Storage-centric, plugin-heavy, or advanced storage
 ## Editing rule
 
 1. update the authoritative document first;
-2. update `IMPLEMENTATION_STATUS.md` when code reality changes;
-3. update entry points/handoffs when their summary becomes stale;
-4. keep implementation claims distinct from real-provider/client acceptance claims;
-5. preserve explicit experimental/default-off provider rules;
-6. update Japanese summaries when user-facing descriptions change;
-7. run `python tools/check_docs.py`;
-8. do not turn an implementation detail into an accidental compatibility promise.
+2. update `00D_VERSIONING_AND_RELEASE_STATUS.md` when a new version is assigned or parallel version work collides;
+3. update `IMPLEMENTATION_STATUS.md` when code reality changes;
+4. update entry points/handoffs when their summary becomes stale;
+5. keep implementation claims distinct from real-provider/client acceptance claims;
+6. preserve explicit experimental/default-off provider rules;
+7. update Japanese summaries when user-facing descriptions change;
+8. run `python tools/check_docs.py`;
+9. do not turn an implementation detail into an accidental compatibility promise.
