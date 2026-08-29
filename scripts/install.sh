@@ -3,6 +3,7 @@ set -eu
 
 REPOSITORY="SLktEx/Hacocoon"
 SIGNER_WORKFLOW="$REPOSITORY/.github/workflows/release.yml"
+SOURCE_REF="refs/heads/main"
 INSTALL_DIR="${HACO_INSTALL_DIR:-/usr/local/bin}"
 VERSION="${1:-${HACO_VERSION:-latest}}"
 REQUIRE_PROVENANCE="${HACO_REQUIRE_PROVENANCE:-0}"
@@ -109,23 +110,33 @@ verify_provenance() {
     return 0
   fi
 
-  if [ "$VERSION" = "latest" ]; then
-    if gh attestation verify "$tmpdir/$archive" \
-      --repo "$REPOSITORY" \
-      --signer-workflow "$SIGNER_WORKFLOW" \
-      --deny-self-hosted-runners >/dev/null; then
-      printf 'Verified GitHub/Sigstore provenance for %s (repository and signer workflow).\n' "$archive"
+  release_tag="$VERSION"
+  if [ "$release_tag" = "latest" ]; then
+    if ! release_tag="$(gh release view --repo "$REPOSITORY" --json tagName --jq .tagName 2>/dev/null)" || [ -z "$release_tag" ]; then
+      if [ "$REQUIRE_PROVENANCE" = "1" ]; then
+        die "unable to resolve the latest release tag for provenance verification"
+      fi
+      warn "SHA-256 integrity verified, but the latest release tag could not be resolved for provenance verification"
       return 0
     fi
-  else
-    if gh attestation verify "$tmpdir/$archive" \
-      --repo "$REPOSITORY" \
-      --signer-workflow "$SIGNER_WORKFLOW" \
-      --source-ref "refs/tags/$VERSION" \
-      --deny-self-hosted-runners >/dev/null; then
-      printf 'Verified GitHub/Sigstore provenance for %s from refs/tags/%s.\n' "$archive" "$VERSION"
-      return 0
+  fi
+
+  if ! source_sha="$(gh api "repos/$REPOSITORY/commits/$release_tag" --jq .sha 2>/dev/null)" || [ -z "$source_sha" ]; then
+    if [ "$REQUIRE_PROVENANCE" = "1" ]; then
+      die "unable to resolve source commit for release $release_tag"
     fi
+    warn "SHA-256 integrity verified, but release source commit could not be resolved for provenance verification"
+    return 0
+  fi
+
+  if gh attestation verify "$tmpdir/$archive" \
+    --repo "$REPOSITORY" \
+    --signer-workflow "$SIGNER_WORKFLOW" \
+    --source-ref "$SOURCE_REF" \
+    --source-digest "$source_sha" \
+    --deny-self-hosted-runners >/dev/null; then
+    printf 'Verified GitHub/Sigstore provenance for %s from %s at %s.\n' "$archive" "$SOURCE_REF" "$source_sha"
+    return 0
   fi
 
   if [ "$REQUIRE_PROVENANCE" = "1" ]; then
