@@ -31,14 +31,31 @@ func NewManager(runtime Runtime, storage Storage, store SessionStore) *Manager {
 }
 
 func (m *Manager) Init(ctx context.Context) (StorageHandle, error) {
-	caps, err := m.storage.Probe(ctx)
+	runtimeCaps, err := m.runtime.Probe(ctx)
+	if err != nil {
+		return StorageHandle{}, fmt.Errorf("probe runtime %s: %w", m.runtime.ID(), err)
+	}
+	if !runtimeCaps.Available {
+		return StorageHandle{}, fmt.Errorf("%w: %s", ErrRuntimeUnavailable, m.runtime.ID())
+	}
+
+	storageCaps, err := m.storage.Probe(ctx)
 	if err != nil {
 		return StorageHandle{}, fmt.Errorf("probe storage %s: %w", m.storage.ID(), err)
 	}
-	if !caps.Available {
+	if !storageCaps.Available {
 		return StorageHandle{}, fmt.Errorf("%w: %s", ErrStorageUnavailable, m.storage.ID())
 	}
-	return m.storage.Ensure(ctx, StorageSpec{ID: defaultStorageID, SizeBytes: defaultStorageBytes})
+	handle, err := m.storage.Ensure(ctx, StorageSpec{ID: defaultStorageID, SizeBytes: defaultStorageBytes})
+	if err != nil {
+		return StorageHandle{}, err
+	}
+	if preparer, ok := m.runtime.(RuntimePreparer); ok {
+		if err := preparer.Prepare(ctx, RuntimePrepareSpec{StorageAttachment: cloneMap(handle.Attachment)}); err != nil {
+			return StorageHandle{}, fmt.Errorf("prepare runtime %s: %w", m.runtime.ID(), err)
+		}
+	}
+	return handle, nil
 }
 
 func (m *Manager) Create(ctx context.Context, spec SessionSpec) (Session, error) {
