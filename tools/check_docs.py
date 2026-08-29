@@ -9,6 +9,7 @@ files = [p for p in root.rglob('*.md') if p.name != 'Hacocoon_v0.1-v0.7_MASTER.m
 checks = [
     (r'v0\.1 Local Foundation|v0\.2 Developer Workspace|v0\.3 Security Framework|v0\.4 External Capabilities|v0\.5 Local GUI|v0\.6 Local Web', 'old release ordering'),
     (r'01_v0\.1_LOCAL_FOUNDATION|02_v0\.2_DEVELOPER_WORKSPACE|03_v0\.3_SECURITY_FRAMEWORK_AND_GIT|04_v0\.4_EXTERNAL_CAPABILITIES|05_v0\.5_LOCAL_GUI_AND_IDE|06_v0\.6_LOCAL_WEB_AND_INTERACTION|07_v0\.7_REMOTE_AND_EC2', 'superseded release filename'),
+    (r'11_v0\.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER|#\s*v0\.11\s+VS Code Remote Agent Host Adapter', 'stale v0.11 Agent Host adapter assignment'),
     (r'\bHacocoon IAM\b', 'legacy Hacocoon IAM term'),
     (r'Manager/Session trust boundary|Manager / Session trust boundary', 'legacy Manager/Session architecture boundary'),
     (r'Runtime/Storage seams|Security and Feature Plugin boundaries', 'pre-rebaseline ADR terminology'),
@@ -42,6 +43,8 @@ superseded_files = [
     'docs/05_v0.5_LOCAL_GUI_AND_IDE.md',
     'docs/06_v0.6_LOCAL_WEB_AND_INTERACTION.md',
     'docs/07_v0.7_REMOTE_AND_EC2.md',
+    'docs/11_v0.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md',
+    'docs/11_v0.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md',
 ]
 for rel in superseded_files:
     if (root / rel).exists():
@@ -50,6 +53,8 @@ for rel in superseded_files:
 required_files = [
     'docs/README.md',
     'docs/00_REBASELINE_AND_ROADMAP.md',
+    'docs/00D_VERSIONING_AND_RELEASE_STATUS.md',
+    'docs/00D_VERSIONING_AND_RELEASE_STATUS.ja.md',
     'docs/00C_TERMINOLOGY_AND_BOUNDARIES.md',
     'docs/00B_SECURITY_ARCHITECTURE.md',
     'docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md',
@@ -78,6 +83,8 @@ if (root / 'docs/README.md').exists():
         errors.append('docs/README.md must describe pre-1.0 compatibility and point to current implementation reality')
     if 'README.ja.md' not in docmap or 'ARCHITECTURE_GUIDE.ja.md' not in docmap:
         errors.append('docs/README.md must link the maintained Japanese documentation entry points')
+    if '00D_VERSIONING_AND_RELEASE_STATUS.md' not in docmap or 'v0.12' not in docmap:
+        errors.append('docs/README.md must point to authoritative version numbering and current v0.12 reservation')
     if '08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md' not in docmap:
         errors.append('docs/README.md must point to the v0.8 Client Adapter contract')
     if '09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md' not in docmap or 'BASE_IMAGES.md' not in docmap:
@@ -86,6 +93,11 @@ if (root / 'docs/README.md').exists():
         errors.append('docs/README.md must point to the v0.10 per-agent sandbox contract')
     if '11_v0.11_SANDBOX_RESOURCE_LIMITS.md' not in docmap:
         errors.append('docs/README.md must point to the v0.11 sandbox resource-limits contract')
+
+versioning = (root / 'docs/00D_VERSIONING_AND_RELEASE_STATUS.md').read_text()
+for required in ['v0.11 | Sandbox Resource Limits', 'v0.12 | VS Code Remote Agent Host Adapter', 'main', 'PR #111']:
+    if required.lower() not in versioning.lower():
+        errors.append(f'versioning status missing authoritative numbering rule: {required}')
 
 v01 = (root / 'docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md').read_text()
 for required in ['haco create --workspace', 'haco exec', 'haco shell', 'haco delete', 'Incus']:
