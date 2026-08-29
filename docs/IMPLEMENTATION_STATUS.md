@@ -25,7 +25,7 @@ The repository still contains historical code from the pre-rebaseline roadmap. E
 | EBS replacement | adapter-owned replacement/migration flow exists for shrink-like operations; no in-place EBS shrink and no automatic source-volume deletion | v0.7 | unit and fake-AWS process integration cover preflight, migration, verification, cleanup, and recovery-required transitions |
 | VS Code Client Adapter | separate `haco-vscode` binary creates/reuses a matching Environment, prepares existing loopback SSH access, writes isolated adapter-owned SSH host configuration, and launches standard VS Code Remote-SSH to `/workspace` | v0.8 | helper unit coverage added; real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending |
 | Windows/WSL client bridge | when run under WSL, `haco-vscode` resolves the Windows user profile and targets the desktop-client `.ssh` configuration rather than WSL-only SSH config | v0.8 | code path implemented; real Windows/WSL acceptance pending |
-| Windows/WSL bootstrap | `scripts/bootstrap-windows.ps1` creates or reuses only a dedicated named WSL 2 instance (`Hacocoon` by default) instead of selecting general-purpose user distributions, delegates Linux dependency setup to `scripts/bootstrap-wsl.sh`, and reuses `scripts/install.sh`; unrelated WSL distributions remain untouched and Incus administrator authority requires explicit opt-in | v0.8 | PowerShell and shell syntax checked in CI; real Windows install/reboot/dedicated-WSL/Incus acceptance remains pending |
+| Windows/WSL bootstrap | standalone/source bootstrap creates or reuses only a dedicated named WSL instance (`Hacocoon` by default), enforces WSL 2 for that dedicated instance, installs `systemd`/`systemd-sysv`, preserves unrelated `/etc/wsl.conf` keys while enforcing `[boot] systemd=true`, restarts only the dedicated instance when required, verifies systemd as PID 1, then starts Incus; unrelated WSL distributions/global defaults remain untouched and `incus-admin` requires explicit opt-in | v0.8 | PowerShell/shell syntax and static WSL2/systemd contract checked in CI; real Windows install/reboot/WSL2 conversion/systemd/Incus acceptance remains pending |
 | Client adapter boundary | IDE-specific launch/configuration remains outside Core; Core does not depend on VS Code, Daintree, JetBrains, or client-native configuration | v0.8 | architecture/documentation contract plus separate adapter binary |
 | Base Images & Custom Environments | explicit v0.9 roadmap contract now defines logical Base names, immutable Base revisions, Incus fingerprint pinning behind the adapter, custom-image trust boundaries, and safe reference/deletion semantics | v0.9 | **design only; implementation pending** — `haco image` / `haco create --base` must not be reported as implemented yet |
 | Btrfs / raw / QCOW2 historical storage | historical local storage implementation remains in the repository | historical / provider detail | not part of the current Core Environment model and not a compatibility commitment |
@@ -45,7 +45,7 @@ Workspace
   -> machine/orchestrator access
   -> experimental remote EC2 provider and AWS capability
   -> thin Client Adapter layer, starting with VS Code Remote-SSH
-  -> dedicated Windows/WSL bootstrap helper outside Core
+  -> dedicated Windows/WSL 2 + systemd bootstrap helper outside Core
 ```
 
 The next scheduled roadmap gate is **v0.9 Base Images & Custom Environments**:
@@ -61,7 +61,7 @@ This v0.9 sequence is a design/acceptance contract only until code actually land
 
 The v0.8 adapter deliberately does not add AI chat, model selection, task planning, worktree orchestration, or IDE-specific concepts to Core. The intended interactive development path is that VS Code (including its own AI/coding-agent UI) connects through standard Remote-SSH and operates inside the Hacocoon Environment.
 
-The Windows/WSL bootstrap is likewise a host setup helper, not a new Core lifecycle. It reserves a dedicated WSL 2 instance for Hacocoon (`Hacocoon` by default), never falls back to the user's default/first installed distribution, avoids unregistering/resetting unrelated WSL distributions, avoids automatic WSL 1 conversion, and does not silently grant `incus-admin`. See `WINDOWS_WSL_BOOTSTRAP.md`.
+The Windows/WSL bootstrap is likewise a host setup helper, not a new Core lifecycle. It reserves a dedicated WSL instance for Hacocoon (`Hacocoon` by default), never falls back to the user's default/first installed distribution, and may automatically convert **only that Hacocoon-owned instance** from WSL 1 to WSL 2. It installs/enables systemd for that instance by maintaining `[boot] systemd=true` in its `/etc/wsl.conf`, terminates/restarts only that named instance when activation is needed, and verifies systemd as PID 1 before continuing to Incus. Unrelated WSL distributions, global WSL defaults, and Windows `.wslconfig` remain untouched. `incus-admin` is never granted silently. See `WINDOWS_WSL_BOOTSTRAP.md`.
 
 The coding agent may be intentionally permissive inside the isolated Environment. Authority outside the Environment remains mediated by the existing Hacocoon Policy/Capability/Audit boundary.
 
@@ -95,13 +95,14 @@ haco-vscode delete .
 
 When the adapter runs in WSL for a Windows desktop VS Code client, the SSH configuration must be managed in the Windows client profile, not only under the WSL user's Linux home.
 
-For Windows host setup, the repository provides:
+For Windows host setup, the repository provides the standalone release installer plus the source-checkout bootstrap:
 
 ```powershell
+.\install-windows.ps1
 .\scripts\bootstrap-windows.ps1
 ```
 
-This creates/reuses the dedicated `Hacocoon` WSL instance rather than using the user's normal WSL environment. Use `-GrantIncusAdmin` only when the workstation owner explicitly accepts root-equivalent local Incus authority for that Linux user.
+Both paths enforce a dedicated Hacocoon WSL 2 instance with systemd as PID 1 before the local Incus path is considered ready. Use `-GrantIncusAdmin` only when the workstation owner explicitly accepts root-equivalent local Incus authority for that Linux user.
 
 ## v0.9 planned Base workflow
 
