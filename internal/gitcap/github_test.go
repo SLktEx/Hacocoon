@@ -53,8 +53,12 @@ func (r *runnerFunc) Run(_ context.Context, name string, args ...string) (host.R
 	return r.fn(name, args)
 }
 
+func isLocalSecurityConfigCheck(joined string) bool {
+	return strings.Contains(joined, "config --local") && strings.Contains(joined, "--get-regexp")
+}
+
 func noLocalSecurityConfig(joined string) (host.Result, error, bool) {
-	if strings.Contains(joined, "config --local --get-regexp") {
+	if isLocalSecurityConfigCheck(joined) {
 		return host.Result{ExitCode: 1}, errors.New("no matching local config"), true
 	}
 	return host.Result{}, nil, false
@@ -201,15 +205,18 @@ func TestForcePushRejectsRemoteRefMutation(t *testing.T) {
 func TestBrokerRejectsRepositoryTransportAndCommandOverrides(t *testing.T) {
 	for _, configLine := range []string{
 		"remote.origin.pushurl file:///tmp/attacker.git\n",
-		"url.ssh://attacker.invalid/.insteadOf https://github.com/\n",
+		"url.ssh://attacker.invalid/.insteadof https://github.com/\n",
 		"credential.helper !sh -c 'id > /tmp/pwned'\n",
 		"core.sshcommand sh -c 'id > /tmp/pwned'\n",
 		"core.hookspath .githooks\n",
+		"include.path ../hostile.gitconfig\n",
+		"includeif.gitdir:/work/demo/.path ../hostile.gitconfig\n",
+		"extensions.worktreeconfig true\n",
 	} {
 		t.Run(strings.Fields(configLine)[0], func(t *testing.T) {
 			runner := &runnerFunc{fn: func(_ string, args []string) (host.Result, error) {
 				joined := strings.Join(args, " ")
-				if strings.Contains(joined, "config --local --get-regexp") {
+				if isLocalSecurityConfigCheck(joined) {
 					return host.Result{Stdout: configLine}, nil
 				}
 				return host.Result{}, fmt.Errorf("unexpected call after hostile config: %s", joined)
