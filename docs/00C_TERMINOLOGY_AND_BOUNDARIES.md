@@ -8,7 +8,7 @@ User-selected files made available to an Environment. A Workspace may happen to 
 
 ## WorkspaceLease
 
-A time-bounded association between one Workspace and one Environment, including access mode and ownership information. Introduced formally in v0.2.
+A lifecycle-bound association between one Workspace and one Environment, including access mode and ownership information. It is introduced formally in v0.2. A lease is not required to imply wall-clock expiration.
 
 ## Environment
 
@@ -20,7 +20,7 @@ One command or interactive process executed inside an Environment, with explicit
 
 ## Client
 
-A human-facing or tool-facing entry point that asks Hacocoon to operate on a Workspace/Environment. Examples: CLI, VS Code integration, shell scripts, future Web UI.
+A human-facing or tool-facing entry point that asks Hacocoon to operate on a Workspace/Environment. Examples include the CLI, VS Code integration, shell scripts, and external orchestrators using a stable Hacocoon interface.
 
 ## Orchestrator
 
@@ -28,24 +28,24 @@ A system that decides tasks, agents, retries, model selection, worktrees, budget
 
 ## WorkspaceProvider
 
-Produces or resolves a Workspace. `ExternalPathWorkspace` is the initial behavior. A Git worktree provider is optional convenience functionality, not Core semantics.
+A v0.2+ seam that produces or resolves a Workspace. The direct external-path behavior used by v0.1 does **not** require a formal provider interface. A Git worktree provider is optional convenience functionality, not Core semantics.
 
 ## EnvironmentProvider
 
-Creates, inspects, and destroys Environments. Incus is first; cloud runtimes are later.
+The conceptual boundary for creating, inspecting, and destroying Environments. Incus is the first implementation. v0.1 may use a concrete Incus adapter without prematurely generalizing a provider framework; a formal provider interface should be justified by testing or another implementation.
 
 ## CapabilityRequest
 
-A request to perform an operation that crosses the untrusted execution boundary into privileged host or external-service authority.
+A request to perform an operation that crosses the untrusted execution boundary into privileged host or external-service authority. This vocabulary becomes an implementation concern in v0.4.
 
 ## PolicyDecision
 
-The result of evaluating a CapabilityRequest: `allow`, `deny`, or `require-approval`.
+The result of evaluating a CapabilityRequest: `allow`, `deny`, or `require-approval`. Introduced in v0.4.
 
 ## ApprovalRequest
 
-A durable request for human authorization of a privileged action.
+A durable request for human authorization of a privileged action. Introduced in v0.4.
 
 ## Historical Session terminology
 
-Existing code may still contain `Session` while the rebaseline is implemented. Do not create new architecture coupling around the old term. Migrate toward Workspace + Environment + Execution where that distinction improves clarity.
+Existing code still contains `Session` while the rebaseline is implemented. `Session` is an implementation-migration term, not the preferred new architecture vocabulary. Do not create new public architecture coupling around it; migrate toward Workspace + Environment + Execution where that distinction improves clarity.
