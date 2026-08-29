@@ -45,8 +45,20 @@ func (b *Btrfs) Ensure(ctx context.Context, device, mountpoint string) error {
 	if err := os.MkdirAll(mountpoint, 0o700); err != nil {
 		return err
 	}
-	fsType, _ := b.runner.Run(ctx, "blkid", "-o", "value", "-s", "TYPE", device)
-	if strings.TrimSpace(fsType.Stdout) != "btrfs" {
+	fsType, probeErr := b.runner.Run(ctx, "blkid", "-o", "value", "-s", "TYPE", device)
+	filesystemType := strings.TrimSpace(fsType.Stdout)
+	switch {
+	case probeErr == nil && filesystemType == "btrfs":
+		// Existing managed filesystem.
+	case probeErr == nil && filesystemType != "":
+		return fmt.Errorf("refuse to format %s: existing filesystem type is %q", device, filesystemType)
+	case probeErr != nil && fsType.ExitCode != 2:
+		return fmt.Errorf("probe filesystem on %s before formatting: %w", device, probeErr)
+	case probeErr == nil && filesystemType == "":
+		return fmt.Errorf("refuse to format %s: blkid returned no type without the expected not-found status", device)
+	default:
+		// blkid exit 2 means no identifiable filesystem/signature. Only this
+		// explicit state is allowed to reach destructive formatting.
 		if _, err := b.runner.Run(ctx, "mkfs.btrfs", "-f", device); err != nil {
 			return fmt.Errorf("format btrfs: %w", err)
 		}
@@ -102,16 +114,33 @@ func (b *Btrfs) Shrink(ctx context.Context, mountpoint string, target int64) err
 }
 
 func (b *Btrfs) Unmount(ctx context.Context, mountpoint string) error {
-	_, err := b.runner.Run(ctx, "umount", mountpoint)
+	mounted, err := b.runner.Run(ctx, "findmnt", "-rn", "--target", mountpoint)
+	if err != nil {
+		if mounted.ExitCode == 1 {
+			return nil
+		}
+		return fmt.Errorf("inspect mountpoint %s before unmount: %w", mountpoint, err)
+	}
+	if strings.TrimSpace(mounted.Stdout) == "" {
+		return nil
+	}
+	_, err = b.runner.Run(ctx, "umount", mountpoint)
 	return err
 }
 
 func (b *Btrfs) Mount(ctx context.Context, device, mountpoint string) error {
-	mounted, _ := b.runner.Run(ctx, "findmnt", "-rn", mountpoint)
-	if strings.TrimSpace(mounted.Stdout) != "" {
+	mounted, err := b.runner.Run(ctx, "findmnt", "-rn", "-o", "SOURCE", "--target", mountpoint)
+	if err == nil && strings.TrimSpace(mounted.Stdout) != "" {
+		source := strings.TrimSpace(mounted.Stdout)
+		if source != device {
+			return fmt.Errorf("mountpoint %s is already backed by %s, expected %s", mountpoint, source, device)
+		}
 		return nil
 	}
-	_, err := b.runner.Run(ctx, "mount", device, mountpoint)
+	if err != nil && mounted.ExitCode != 1 {
+		return fmt.Errorf("inspect mountpoint %s before mount: %w", mountpoint, err)
+	}
+	_, err = b.runner.Run(ctx, "mount", device, mountpoint)
 	return err
 }
 

@@ -63,6 +63,9 @@ func (b *Broker) Push(ctx context.Context, spec PushSpec) (core.CapabilityResult
 	if err != nil {
 		return core.CapabilityResult{}, err
 	}
+	if err := rejectUnsafeLocalGitConfig(ctx, b.runner, environment.Workspace.Path, spec.Remote); err != nil {
+		return core.CapabilityResult{}, err
+	}
 	targetRef, err := normalizeBranch(ctx, b.runner, environment.Workspace.Path, spec.Branch)
 	if err != nil {
 		return core.CapabilityResult{}, err
@@ -85,7 +88,7 @@ func (b *Broker) Push(ctx context.Context, spec PushSpec) (core.CapabilityResult
 	}
 	if spec.Force {
 		action = "force-push"
-		expected, err := resolveRemoteRef(ctx, b.runner, environment.Workspace.Path, spec.Remote, targetRef)
+		expected, err := resolveRemoteRef(ctx, b.runner, environment.Workspace.Path, remoteURL, targetRef)
 		if err != nil {
 			return core.CapabilityResult{}, err
 		}
@@ -132,23 +135,29 @@ func (p *Provider) Execute(ctx context.Context, req core.CapabilityRequest) (cor
 	if !safeRemoteName(remote) || !validTargetRef(targetRef) || !validObjectID(sourceSHA) {
 		return core.CapabilityResult{}, core.ErrInvalidArgument
 	}
-	_, repository, err := resolveGitHubRemote(ctx, p.runner, environment.Workspace.Path, remote)
+	if err := rejectUnsafeLocalGitConfig(ctx, p.runner, environment.Workspace.Path, remote); err != nil {
+		return core.CapabilityResult{}, err
+	}
+	remoteURL, repository, err := resolveGitHubRemote(ctx, p.runner, environment.Workspace.Path, remote)
 	if err != nil {
 		return core.CapabilityResult{}, err
 	}
 	if req.Resource != repository.Resource(targetRef) || req.Attributes["organization"] != repository.Owner || req.Attributes["repository"] != repository.Name {
 		return core.CapabilityResult{}, fmt.Errorf("git remote or target changed after policy evaluation: %w", core.ErrCapabilityStale)
 	}
+	if approvedURL := strings.TrimSpace(req.Parameters["remote_url"]); approvedURL == "" || approvedURL != remoteURL {
+		return core.CapabilityResult{}, fmt.Errorf("git remote URL changed after policy evaluation: %w", core.ErrCapabilityStale)
+	}
 	if err := ensureCommit(ctx, p.runner, environment.Workspace.Path, sourceSHA); err != nil {
 		return core.CapabilityResult{}, err
 	}
-	args := []string{"-C", environment.Workspace.Path, "push", "--porcelain"}
+	args := []string{"-c", "core.hooksPath=/dev/null", "-C", environment.Workspace.Path, "push", "--porcelain", "--no-verify"}
 	if req.Action == "force-push" {
 		expected := strings.ToLower(req.Attributes["expected_remote_sha"])
 		if !validObjectID(expected) {
 			return core.CapabilityResult{}, core.ErrInvalidArgument
 		}
-		current, err := resolveRemoteRef(ctx, p.runner, environment.Workspace.Path, remote, targetRef)
+		current, err := resolveRemoteRef(ctx, p.runner, environment.Workspace.Path, remoteURL, targetRef)
 		if err != nil {
 			return core.CapabilityResult{}, err
 		}
@@ -157,7 +166,7 @@ func (p *Provider) Execute(ctx context.Context, req core.CapabilityRequest) (cor
 		}
 		args = append(args, "--force-with-lease="+targetRef+":"+expected)
 	}
-	args = append(args, remote, sourceSHA+":"+targetRef)
+	args = append(args, remoteURL, sourceSHA+":"+targetRef)
 	result, err := p.runner.Run(ctx, "git", args...)
 	if err != nil {
 		return core.CapabilityResult{}, fmt.Errorf("brokered git push failed: %w%s", err, sanitizedGitDetail(result.Stderr))
@@ -185,6 +194,22 @@ func resolveGitHubRemote(ctx context.Context, runner host.Runner, workspace, rem
 		return "", GitHubRepository{}, err
 	}
 	return raw, repository, nil
+}
+
+func rejectUnsafeLocalGitConfig(ctx context.Context, runner host.Runner, workspace, remote string) error {
+	// Git canonicalizes variable names to lower-case when reporting them.
+	pattern := `^(remote\.` + regexp.QuoteMeta(remote) + `\.(pushurl|receivepack|proxy)|url\..*\.(insteadof|pushinsteadof)|credential\..*|core\.(hookspath|sshcommand|askpass))$`
+	result, err := runner.Run(ctx, "git", "-C", workspace, "config", "--local", "--get-regexp", pattern)
+	if err != nil {
+		if result.ExitCode == 1 {
+			return nil
+		}
+		return fmt.Errorf("inspect repository-local git security config: %w", err)
+	}
+	if strings.TrimSpace(result.Stdout) != "" {
+		return fmt.Errorf("repository-local git transport or command override is not allowed: %w", core.ErrPolicyDenied)
+	}
+	return nil
 }
 
 func ParseGitHubRemote(raw string) (GitHubRepository, error) {
@@ -252,8 +277,8 @@ func ensureCommit(ctx context.Context, runner host.Runner, workspace, sha string
 	return nil
 }
 
-func resolveRemoteRef(ctx context.Context, runner host.Runner, workspace, remote, targetRef string) (string, error) {
-	result, err := runner.Run(ctx, "git", "-C", workspace, "ls-remote", "--refs", remote, targetRef)
+func resolveRemoteRef(ctx context.Context, runner host.Runner, workspace, remoteURL, targetRef string) (string, error) {
+	result, err := runner.Run(ctx, "git", "-c", "core.hooksPath=/dev/null", "-C", workspace, "ls-remote", "--refs", remoteURL, targetRef)
 	if err != nil {
 		return "", fmt.Errorf("inspect remote ref %s: %w", targetRef, err)
 	}
