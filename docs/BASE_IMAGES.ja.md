@@ -1,8 +1,8 @@
 # Base Image Architecture — 日本語ガイド
 
-Status: **設計提案。現時点では実装済み機能や roadmap commitment を意味しません。**
+Status: **v0.9 Base Images & Custom Environments の詳細設計 companion。v0.9 の最小 contract は roadmap commitment、ここに書かれた追加アイデアのすべてが初回実装必須という意味ではありません。**
 
-英語版 [`BASE_IMAGES.md`](BASE_IMAGES.md) がこの個別設計の正本です。全体アーキテクチャと用語については `00_REBASELINE_AND_ROADMAP.md`、`00C_TERMINOLOGY_AND_BOUNDARIES.md`、`00B_SECURITY_ARCHITECTURE.md` が優先されます。
+英語版 [`09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md) が v0.9 の authoritative minimum contract、[`BASE_IMAGES.md`](BASE_IMAGES.md) が詳細設計の英語版です。全体アーキテクチャと用語については `00_REBASELINE_AND_ROADMAP.md`、`00C_TERMINOLOGY_AND_BOUNDARIES.md`、`00B_SECURITY_ARCHITECTURE.md` が優先されます。
 
 ## 何をしたいか
 
@@ -98,7 +98,7 @@ Environment
 
 ## 想定 CLI
 
-以下は設計案であり、まだ実装済みとは限りません。
+以下は v0.9 の interaction model ですが、**現時点では未実装で、pre-1.0 の間は command/config の形を変更できます。**
 
 ```text
 haco image list
@@ -107,6 +107,8 @@ haco image build <name>
 haco image remove <name>
 haco create --base <name> --workspace <path> <environment>
 ```
+
+最初の v0.9 implementation gate では `list` / `inspect` / `create --base` と immutable revision pinning を優先し、`build` / `remove` / GC 等は reference/lifecycle semantics が安全になってから追加して構いません。
 
 Base の選択優先順位は次の形を想定します。
 
@@ -221,7 +223,7 @@ type IncusImageRef struct {
 
 Core に `IncusImageAlias` のような Incus 固有概念を持ち込まないことが重要です。
 
-## 最初に実装するなら
+## 最初の v0.9 implementation slice
 
 最初は欲張らず、次までを狙います。
 
