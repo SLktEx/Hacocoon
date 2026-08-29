@@ -58,6 +58,8 @@ required_files = [
     'docs/BASE_IMAGES.md',
     'docs/10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.md',
     'docs/10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md',
+    'docs/11_v0.11_SANDBOX_RESOURCE_LIMITS.md',
+    'docs/11_v0.11_SANDBOX_RESOURCE_LIMITS.ja.md',
     'docs/IMPLEMENTATION_STATUS.md',
     'README.ja.md',
     'docs/README.ja.md',
@@ -82,6 +84,8 @@ if (root / 'docs/README.md').exists():
         errors.append('docs/README.md must point to the v0.9 Base-image contract and detailed companion')
     if '10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.md' not in docmap:
         errors.append('docs/README.md must point to the v0.10 per-agent sandbox contract')
+    if '11_v0.11_SANDBOX_RESOURCE_LIMITS.md' not in docmap:
+        errors.append('docs/README.md must point to the v0.11 sandbox resource-limits contract')
 
 v01 = (root / 'docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md').read_text()
 for required in ['haco create --workspace', 'haco exec', 'haco shell', 'haco delete', 'Incus']:
@@ -128,6 +132,14 @@ for required in ['must not receive', '`haco` remains a human/operator', 'indepen
     if required.lower() not in v10.lower():
         errors.append(f'v0.10 missing authority/routing/composition rule: {required}')
 
+v11 = (root / 'docs/11_v0.11_SANDBOX_RESOURCE_LIMITS.md').read_text()
+for required in ['Sandbox Resource Limits', 'ResourceBudget', 'CPU', 'memory', 'process/PID', 'root-storage', 'fail closed']:
+    if required.lower() not in v11.lower():
+        errors.append(f'v0.11 missing required resource-budget contract text: {required}')
+for required in ['Resource limits are not capabilities', 'applied before the Environment is made available', 'Workspace storage is separate', 'v0.10 agent-session binding']:
+    if required.lower() not in v11.lower():
+        errors.append(f'v0.11 missing boundary/lifecycle/composition rule: {required}')
+
 roadmap = (root / 'docs/00_REBASELINE_AND_ROADMAP.md').read_text()
 if 'Hacocoon is a **Secure Workspace Runtime**' not in roadmap:
     errors.append('roadmap missing Secure Workspace Runtime baseline')
@@ -141,6 +153,8 @@ if 'v0.9 | Base Images & Custom Environments' not in roadmap:
     errors.append('roadmap must include the explicit v0.9 Base Images gate')
 if 'v0.10 | Per-Agent Sandbox & Agent Host Integration' not in roadmap:
     errors.append('roadmap must include the explicit v0.10 per-agent sandbox gate')
+if 'v0.11 | Sandbox Resource Limits' not in roadmap:
+    errors.append('roadmap must include the explicit v0.11 Sandbox Resource Limits gate')
 
 status = (root / 'docs/IMPLEMENTATION_STATUS.md').read_text()
 if 'current code reality' not in status.lower() or '`haco create --workspace`' not in status:
