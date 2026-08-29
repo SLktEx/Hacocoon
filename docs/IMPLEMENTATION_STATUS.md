@@ -1,24 +1,30 @@
-# Implementation status
+# Implementation Status
 
-| Area | Existing? | Target | Status / action |
+Status date: 2026-08-29 rebaseline.
+
+The repository already contains code from the previous roadmap. The table below classifies it against the **new** roadmap; it is not a claim that v0.1 is complete.
+
+| Area | Existing code | New target | Rebaseline action |
 |---|---:|---:|---|
-| Core Session model | new | 0.1 | implemented |
-| Runtime contract | new | 0.1 | implemented |
-| Storage contract | new | 0.1 | implemented |
-| Core fake Runtime/Storage tests | new | 0.1 | implemented |
-| runtime.incus CLI adapter | new | 0.1 | initial implementation |
-| storage.btrfs | new | 0.1 | initial implementation; local BlockStore seam is private to this module |
-| block.local-raw | new | 0.1 | initial implementation |
-| block.local-qcow2 | new | 0.1 | initial implementation |
-| host init/doctor | new | 0.1 | runtime/storage probe + Incus project/pool prepare; base image pending |
-| base image systemd/containerd/nerdctl | new | 0.1 | host integration pending |
-| storage grow | new | 0.1 | adapter implementation present; integration pending |
-| shrink plan / safe ordering | new | 0.1 | implemented with session quiescence and ordering tests |
-| crash reconciliation | new | 0.1 | Core lifecycle reconciliation present; storage step recovery needs integration tests |
-| v0.1 WSL E2E acceptance | new | 0.1 | pending supported WSL host |
-| repositories/workspace | no | 0.2 | deferred |
-| Security + Git | no | 0.3 | deferred |
-| GitHub/AWS/registry capabilities | no | 0.4 | deferred |
-| WSLg/IntelliJ | no | 0.5 | deferred |
-| Web/Interaction | no | 0.6 | deferred |
-| Remote/EC2/EBS | no | 0.7 | deferred |
+| Go CLI | yes | v0.1 | narrow public path to create/exec/shell/delete |
+| Core Session/Manager model | yes | v0.1 migration | reuse useful lifecycle logic; migrate concepts toward Workspace/Environment where helpful |
+| Incus CLI adapter | yes | v0.1 | retain and simplify around Environment lifecycle |
+| arbitrary command execution | partial/yes | v0.1 | validate result/exit semantics end-to-end |
+| interactive shell | existing/partial | v0.1 | validate against target Environment path |
+| external workspace mount | incomplete/new target | v0.1 | make this a first-class acceptance requirement |
+| real Incus vertical-slice integration test | incomplete | v0.1 | required before v0.1 alpha |
+| storage abstraction | yes | later/provider detail | keep only what v0.1 actually requires; detach advanced behavior from gate |
+| Btrfs grow/shrink/compact | yes/partial | later | defer; not v0.1 acceptance |
+| raw/QCOW2 backing code | yes | later/optional | isolate or remove if obsolete; never require for v0.1 |
+| crash reconciliation | partial | v0.1 if needed | keep only lifecycle recovery needed for create/delete correctness |
+| Git/worktree workspace ownership | no/limited | v0.2 | implement only after v0.1 |
+| WorkspaceLease | no | v0.2 | deferred |
+| VS Code/interactive client integration | no | v0.3 | deferred |
+| Policy/Capability foundation | no | v0.4 | deferred |
+| Git/GitHub capability | no | v0.5 | deferred |
+| Codex/Claude/Daintree/Rookery integration | no | v0.6 | deferred; orchestration remains external |
+| AWS/EC2/EBS | no | v0.7 | deferred |
+
+## Current release gate
+
+The only current release gate is `docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md`.

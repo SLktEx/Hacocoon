@@ -1,64 +1,51 @@
-# Hacocoon Canonical Terminology and Boundary Glossary
+# Terminology and Boundaries
 
-Status: Authoritative naming guide for v0.1-v0.7
-Date: 2026-08-29
+Status: authoritative terminology.
 
-This file exists to prevent historical terms from silently re-entering the design. When another current document uses a conflicting name, this glossary wins for terminology; the version specification still wins for release scope.
+## Workspace
 
-## Canonical architecture names
+User-selected files made available to an Environment. A Workspace may happen to be a Git repository or worktree, but Core treats it as opaque data plus access metadata.
 
-| Canonical term | Meaning | Do not use as synonym |
-|---|---|---|
-| **Core** | Hacocoon-generic Session concepts, lifecycle orchestration, composition and generic state | Incus wrapper, Btrfs manager |
-| **System Module** | replaceable infrastructure implementation such as Runtime/Storage/Host/Access | security sandbox |
-| **Security Framework** | authoritative Session capability authorization | Hacocoon IAM |
-| **Capability Profile / Capability Policy** | reusable posture/rules evaluated by Security Framework | human IAM/RBAC |
-| **CapabilityRequest** | normalized request for a cross-boundary capability | raw argv |
-| **Grant / Lease** | exact authorization / runtime realization with scope and lifecycle | credential as the primary model |
-| **Feature Plugin** | optional provider/tool/product realization such as Git/GitHub/AWS/IDE | authorization authority |
-| **Capability Broker** | optional v0.4 routing/materialization mechanism after/beside Security authorization | Security Framework |
-| **Access Layer** | deployment-owned authentication/Internet-edge controls such as TLS/SSO/VPN/WAF | Hacocoon Security Framework |
-| **Gateway/access adapter** | Hacocoon routing adapter that consumes verified identity context and Session access decisions | identity provider / Internet edge |
-| **Interaction API** | client-neutral events/actions for approval/notification UX | authorization state machine |
+## WorkspaceLease
 
-## Runtime and storage names
+A time-bounded association between one Workspace and one Environment, including access mode and ownership information. Introduced formally in v0.2.
 
-Canonical implementation IDs for the current plan:
+## Environment
 
-```text
-runtime.incus
-storage.btrfs
-block.local-qcow2   # private implementation seam under local storage
-block.local-raw     # private implementation seam under local storage
-host.local-wsl
-host.remote-linux
-runtime.ec2         # v0.7
-```
+An isolated place in which commands run. Incus system containers are the first Environment implementation. EC2 or other runtimes may be added later behind the same conceptual boundary.
 
-`storage.ebs` is **not frozen as a cross-version contract**. EC2/EBS attachment/provisioning order differs enough from the v0.1 Incus path that v0.7 has an explicit design gate. EBS-specific code must remain outside Core, but its exact module boundary is chosen only after the concrete EC2 composition proves the right seam.
+## Execution
 
-## Security naming rules
+One command or interactive process executed inside an Environment, with explicit exit/error/result handling.
 
-Use:
+## Client
 
-```text
-Security Framework
-Capability Profile
-Capability Policy evaluator
-ALLOW / ASK / DENY
-Approval
-Grant / Lease
-```
+A human-facing or tool-facing entry point that asks Hacocoon to operate on a Workspace/Environment. Examples: CLI, VS Code integration, shell scripts, future Web UI.
 
-Do not introduce a Hacocoon component called `Hacocoon IAM`. `AWS IAM` remains the correct name for AWS's provider-side permission system.
+## Orchestrator
 
-## Authority rule
+A system that decides tasks, agents, retries, model selection, worktrees, budgets, and development workflow. Examples may include Daintree or Rookery. An Orchestrator is outside Hacocoon Core.
 
-```text
-Access Layer: who is connecting?
-Security Framework: what capability/access may this principal exercise?
-Plugin/Module: how is the approved capability realized?
-Provider-native IAM/API: what does the external provider ultimately permit?
-```
+## WorkspaceProvider
 
-A UI, Gateway, plugin or provider adapter never becomes authoritative merely because it can execute the operation.
+Produces or resolves a Workspace. `ExternalPathWorkspace` is the initial behavior. A Git worktree provider is optional convenience functionality, not Core semantics.
+
+## EnvironmentProvider
+
+Creates, inspects, and destroys Environments. Incus is first; cloud runtimes are later.
+
+## CapabilityRequest
+
+A request to perform an operation that crosses the untrusted execution boundary into privileged host or external-service authority.
+
+## PolicyDecision
+
+The result of evaluating a CapabilityRequest: `allow`, `deny`, or `require-approval`.
+
+## ApprovalRequest
+
+A durable request for human authorization of a privileged action.
+
+## Historical Session terminology
+
+Existing code may still contain `Session` while the rebaseline is implemented. Do not create new architecture coupling around the old term. Migrate toward Workspace + Environment + Execution where that distinction improves clarity.

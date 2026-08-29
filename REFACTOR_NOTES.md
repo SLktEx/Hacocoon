@@ -1,24 +1,46 @@
-# Documentation Refactor Notes
+# Rebaseline / Refactor Notes
 
-Date: 2026-08-29
+Status: migration notes for the 2026-08-29 architecture rebaseline.
 
-This revision is a documentation/architecture refactor. It intentionally adds no new release feature.
+## Why this rebaseline exists
 
-## Contradictions removed
+The earlier roadmap put local storage management, Git/worktree behavior, security, IDE integration, web interaction, and cloud runtime into a sequence that made v0.1 too large. Implementation began accumulating mechanisms before the smallest useful Hacocoon runtime had been proven end-to-end.
 
-1. **Storage naming drift**: unified the local implementation on `storage.btrfs`; removed simultaneous `storage.local-btrfs` / `storage.btrfs` usage.
-2. **Premature EBS abstraction**: removed EBS from the v0.1 private BlockStore seam. The exact EBS package/contract is now a v0.7 design gate because EC2 placement/attachment ordering is materially different from local Incus storage creation.
-3. **Legacy `Hacocoon IAM` terminology**: replaced with `Security Framework`, `Capability Profile/Policy`, and `Capability Policy evaluator`. `AWS IAM` remains provider terminology.
-4. **Capability Broker authority ambiguity**: clarified that Broker means routing/materialization, while Security Framework remains authorization authority.
-5. **Access Layer ambiguity**: remote Gateway consumes verified identity context; Hacocoon does not become the SSO/TLS/WAF/IdP layer.
-6. **Storage shrink duplication/wording**: removed duplicate prohibition and retained strict inner-to-outer shrink ordering.
-7. **Generated master drift**: the MASTER file is now regenerated from canonical source documents by a build script rather than hand-maintained.
+The new baseline narrows the product:
 
-## Explicitly preserved decisions
+> Hacocoon receives a Workspace and executes it safely inside an isolated Environment.
 
-- AWS developer access stays v0.4.
-- EC2/remote deployment stays v0.7.
-- Local GUI/IntelliJ is v0.5.
-- Local Web UI, Browser Notification, approval interaction and code-server are v0.6.
-- Core stays vendor-neutral; Incus/Btrfs/QCOW2/AWS/GitHub/IDE details remain outside Core.
-- Access Layer remains deployment-owned.
+AI orchestration and Git workflow ownership move above Hacocoon. Security capabilities remain inside Hacocoon because they protect the host/runtime boundary.
+
+## Migration map
+
+| Historical responsibility | New home |
+|---|---|
+| Session-oriented local runtime | Environment / Execution; refactor during v0.1 |
+| Git repository/worktree ownership | WorkspaceProvider; optional from v0.2 |
+| Btrfs / loop image / QCOW2 lifecycle | Storage or Environment adapter; not a v0.1 gate |
+| VS Code / code-server / GUI | Client adapters, v0.3 |
+| Authorization framework | Policy + Capability, v0.4 |
+| Git push / GitHub operations | GitHub Capability, v0.5 |
+| Agent CLI integration | Generic execution first; integration recipes/MCP in v0.6 |
+| Model routing / task DAG / budgets | external orchestrator such as Daintree/Rookery |
+| AWS and EC2/EBS | external capability + EnvironmentProvider, v0.7 |
+
+## Existing code policy
+
+Do not perform a destructive rewrite only to make the tree look new.
+
+For each existing subsystem:
+
+1. Keep it if it directly supports the new current gate.
+2. Move it behind the correct boundary if it is useful later.
+3. Stop wiring it into current behavior if it expands the current release scope.
+4. Delete it only when it is clearly obsolete and tests prove there is no retained value.
+
+The new v0.1 acceptance gate, not historical feature count, determines completion.
+
+## Naming
+
+Preferred current terms are `Workspace`, `WorkspaceLease`, `Environment`, `Execution`, `CapabilityRequest`, `PolicyDecision`, and `ApprovalRequest`.
+
+Historical `Session` types may remain temporarily while code is migrated, but new architecture documentation and new public APIs should prefer `Environment`/`Workspace` terminology where it is semantically correct.

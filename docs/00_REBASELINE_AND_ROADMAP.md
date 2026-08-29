@@ -1,201 +1,206 @@
-# Hacocoon v0.1-v0.7 Rebaseline and Roadmap
+# Architecture Rebaseline and Roadmap
 
-Status: Authoritative draft for implementation  
-Date: 2026-08-29  
-CLI: `haco`  
-Primary first target: Windows 11 + WSL2 + Ubuntu 26.04 + Incus
+**Status:** authoritative baseline  
+**Date:** 2026-08-29
 
-## 1. Why this rebaseline exists
+## Decision
 
-Hacocoon accumulated valid ideas in an order that no longer matched implementation dependencies. The new order optimizes for a working local product first, then adds remote/EC2 deployment only after the local model is stable.
+Hacocoon is a **Secure Workspace Runtime**.
 
-```text
-v0.1  Local Foundation
-       ↓
-v0.2  Developer Workspace
-       ↓
-v0.3  Security Framework + Git
-       ↓
-v0.4  External Capabilities
-       ↓
-v0.5  Local GUI + IDE
-       ↓
-v0.6  Local Web + Interaction
-       ↓
-==============================
-local product is feature-complete enough to validate
-==============================
-       ↓
-v0.7  Remote + EC2
-```
+It receives a Workspace from a human, IDE, shell, or external orchestrator; places that Workspace inside an isolated Environment; executes tools there; and later mediates privileged capabilities such as GitHub or cloud access.
 
-The architecture underneath every release is:
+It is **not** the owner of IDE workflow, Git branch/worktree orchestration, AI task DAGs, model routing, retry strategy, or model budgets.
 
 ```text
-Core        = stable product concepts + lifecycle orchestration
-Modules     = replaceable infrastructure implementations
-Security    = privileged authorization authority
-Plugins     = optional provider/product/tool integrations
+VS Code / Shell / Daintree / Rookery / other clients
+                         |
+                    Workspace
+                         v
+                +----------------+
+                |    Hacocoon    |
+                | Secure         |
+                | Workspace      |
+                | Runtime        |
+                +--+----------+--+
+                   |          |
+              Environment   Policy/Capability
+                   |
+                 Incus
 ```
 
-## 2. Critical split: AWS access vs EC2 deployment
+## Hacocoon responsibilities
 
-These are independent:
+Hacocoon owns:
+
+- accepting/resolving a Workspace;
+- binding a Workspace to an isolated Environment;
+- Environment lifecycle and cleanup;
+- command/interactive execution;
+- later, Workspace lease/ownership safety;
+- later, policy evaluation and security approval;
+- later, scoped external-service capabilities;
+- stable boundaries that clients/orchestrators can call.
+
+Hacocoon does not own:
+
+- Codex vs Claude selection;
+- task decomposition or agent DAGs;
+- model/token budgets;
+- development-review queues;
+- branch strategy or worktree orchestration as a Core concern;
+- a proprietary IDE/editor/chat UI;
+- cloud/provider/storage logic inside Core.
+
+## Core concepts
+
+The long-term Core vocabulary is intentionally small:
 
 ```text
-v0.4 AWS capability
-Session -> Security -> short-lived delegated AWS identity -> AWS APIs
-
-v0.7 EC2 deployment/runtime
-Hacocoon -> runtime.ec2 / host.remote-linux / v0.7 EBS infrastructure -> remote infrastructure
+Workspace
+WorkspaceLease
+Environment
+Execution
+CapabilityRequest
+PolicyDecision
+ApprovalRequest
 ```
 
-Therefore AWS CLI, SDKs, Packer and Terraform integration remain v0.4. EC2 lifecycle, AMI/EBS, remote Gateway deployment and cloud-host operations are v0.7.
+Concrete technologies stay behind adapters/ports. Core must not depend directly on Incus, Git, GitHub, AWS, VS Code, Daintree, Rookery, Btrfs, QCOW2, or EC2.
 
-## 3. Product definition
+## Workspace and worktree boundary
 
-Hacocoon is an OSS disposable Linux development workspace runtime for humans and coding agents.
+A Workspace is opaque to Hacocoon Core. It may be:
+
+- an ordinary directory;
+- a Git repository;
+- a Git worktree produced by Daintree/Rookery;
+- a worktree produced by an optional Hacocoon WorkspaceProvider.
+
+External ownership:
 
 ```text
-Existing client / IDE / agent
-          |
-          v
-+-----------------------------------------------+
-| Hacocoon Session [UNTRUSTED]                  |
-| full Linux userspace                          |
-| systemd                                       |
-| containerd / nerdctl                          |
-| build tools / DB / language runtimes          |
-| coding agent                                  |
-| workspace                                     |
-+----------------------+------------------------+
-                       |
-                       | explicit boundary
-                       v
-+---------------------------------------------------------------+
-| Hacocoon Manager [TRUSTED]                       |
-| Core + Modules + Security + Feature Plugins                   |
-+---------------------------+-----------------------------------+
-                            |
-                            v
-                 GitHub / AWS / Registry / Host
+Daintree/Rookery -> create worktree -> path -> Hacocoon
 ```
 
-Hacocoon does not implement a new editor, container runtime, package manager, cloud provider, filesystem, or enterprise identity platform.
+Standalone ownership:
 
-## 4. Global invariants
+```text
+Human/CLI -> optional GitWorktreeWorkspace -> Hacocoon
+```
 
-### G-1 Session is a disposable machine
-A Session may run systemd services, package managers, build tools, nested nerdctl workloads, local databases, agents and IDE backends.
+Both paths must converge on the same Workspace/Environment runtime path.
 
-### G-2 Manager/host is trusted; Session is untrusted
-Repository content, dependencies, setup scripts, agents and IDE extensions inside the Session can be hostile.
+## Human-in-the-loop split
 
-### G-3 Inside Session = free development
-Do not approve ordinary local filesystem/process/build operations one command at a time.
+There are two different approval responsibilities:
 
-### G-4 Boundary effects = explicit policy
-External writes, privileged identities, host devices, public exposure and cross-boundary access are policy-controlled.
+```text
+Development approval -> Human / GitHub / Daintree / Rookery
+Security approval    -> Hacocoon Policy/Capability boundary
+```
 
-### G-5 Parent credentials stay outside
-No host SSH private keys, GitHub parent token, AWS parent credential/SSO cache, Manager HOME or Incus control socket enters the Session.
+Hacocoon security approval covers privileged authority such as credential issuance, protected GitHub operations, sensitive port exposure, AWS/API access, or runtime privilege changes.
 
-### G-6 Tiny vendor-neutral Core
-Core must not import concrete Incus, Btrfs, QCOW2/QEMU, EBS, AWS, GitHub, VS Code, code-server, WSLg or IntelliJ implementation packages.
+## New release order
 
-### G-7 Runtime and storage are replaceable
-Initial local composition uses Incus plus local Btrfs-backed managed storage. v0.7 may add EC2/EBS without changing Session semantics.
+The previous v0.1-v0.7 sequence is superseded by this order:
 
-### G-8 Security is separate authority
-Policy, ALLOW/ASK/DENY, Approval, Grant/Lease and authoritative security audit belong to Security Framework.
-
-### G-9 UI is never authorization authority
-CLI, Web UI, Browser Notification and optional IDE extensions display/submit decisions; Manager/Security state is authoritative.
-
-### G-10 Prefer standard interfaces
-OpenSSH, Git transport, AWS credential chains, OCI, Wayland/X11/WSLg and provider-native APIs are preferred over proprietary wrappers.
-
-### G-11 Deletion/replacement is a design requirement
-A concrete feature should be removable mostly by deleting its implementation directory and composition registration.
-
-### G-12 Remote is not allowed to infect local Core
-Local mode must remain fully usable without Gateway, EC2, EBS, OIDC or remote-host packages.
-
-## 5. Version themes and gates
-
-| Version | Theme | Release gate |
+| Version | Gate | Purpose |
 |---|---|---|
-| v0.1 | Local Foundation | local Session lifecycle works with systemd/nerdctl; managed local storage can inspect/grow and safely shrink/compact where backend supports it |
-| v0.2 | Developer Workspace | repo/workspace, SSH/VS Code, localhost preview, snapshots and coding agent work without host credential leakage |
-| v0.3 | Security + Git | Capability/Grant/Approval works and safe Git read/write uses it |
-| v0.4 | External Capabilities | GitHub, AWS delegated access and Registry reuse Security contracts; standard AWS tools work |
-| v0.5 | Local GUI + IDE | WSLg/native GUI and IntelliJ work as explicit replaceable host integrations |
-| v0.6 | Local Web + Interaction | local Web UI, Browser Notification, approval interaction and code-server work without becoming security authority |
-| v0.7 | Remote + EC2 | remote Linux/EC2/EBS compositions work without changing Core Session/Security semantics |
+| v0.1 | Secure Workspace Runtime MVP | external path -> Incus -> exec/shell -> delete |
+| v0.2 | Workspace Abstraction & Lease | formal workspace providers/leases; optional worktree provider |
+| v0.3 | Client & Interactive Access | VS Code/SSH/code-server/ports without IDE ownership |
+| v0.4 | Policy & Capability Foundation | allow/deny/require-approval and audit boundary |
+| v0.5 | Git / GitHub Capability | scoped Git/GitHub authority without broad ambient credentials |
+| v0.6 | Agent & Orchestrator Integration | Codex/Claude/Daintree/Rookery/MCP integration above generic execution |
+| v0.7 | Remote / Cloud Runtime & External Capabilities | AWS, EC2 EnvironmentProvider, EBS and remote-runtime concerns |
 
-## 6. Feature matrix
+## v0.1 scope freeze
 
-Legend: `M` mandatory, `O` optional/experimental, `-` out of scope.
+v0.1 proves one vertical slice only:
 
-| Capability | 0.1 | 0.2 | 0.3 | 0.4 | 0.5 | 0.6 | 0.7 |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Core contracts/orchestration | M | M | M | M | M | M | M |
-| runtime.incus local | M | M | M | M | M | M | M |
-| local managed storage | M | M | M | M | M | M | M |
-| local QCOW2 backend | O/M* | O/M* | O/M* | O/M* | O/M* | O/M* | O/M* |
-| Btrfs filesystem/storage implementation | M | M | M | M | M | M | M |
-| grow/inspect/health | M | M | M | M | M | M | M |
-| shrink/compact orchestration | M | M | M | M | M | M | M |
-| repo/workspace | - | M | M | M | M | M | M |
-| VS Code/SSH | - | M | M | M | M | M | M |
-| local preview | - | M | M | M | M | M | M |
-| coding agent | - | M | M | M | M | M | M |
-| Security Framework | - | - | M | M | M | M | M |
-| Git plugin | - | - | M | M | M | M | M |
-| GitHub plugin | - | - | - | M | M | M | M |
-| AWS delegated identity | - | - | - | M | M | M | M |
-| Packer/Terraform AWS compatibility | - | - | - | M | M | M | M |
-| Registry provider | - | O | - | M | M | M | M |
-| WSLg / GUI / IntelliJ | - | - | - | - | M | M | M |
-| Hacocoon Web UI + Browser Notification | - | - | - | - | - | M | M |
-| code-server local Web IDE | - | - | - | - | - | M | M |
-| remote-linux host adapter | - | - | - | - | - | - | M |
-| remote Gateway integration | - | - | - | - | - | - | M |
-| runtime.ec2 | - | - | - | - | - | - | M |
-| EC2/EBS lifecycle | - | - | - | - | - | - | M |
+```text
+host directory
+  -> haco create --workspace
+  -> Incus system container
+  -> haco exec / haco shell
+  -> haco delete
+```
 
-`O/M*`: QCOW2 is the target managed-image backend when the supported host can provide the required block attachment mechanism. A sparse raw-loop fallback may remain supported. The mandatory requirement is the provider-neutral managed local storage lifecycle and safe behavior, not that Core knows QCOW2.
+v0.1 includes:
 
-## 7. Stable seams introduced early
+- Go CLI;
+- external path Workspace;
+- Incus Environment lifecycle;
+- read/write workspace mount;
+- command execution;
+- interactive shell;
+- minimal state/cleanup;
+- unit tests plus a real-Incus integration path.
 
-- `SessionID` exists from v0.1.
-- Core depends on `Runtime`, not Incus.
-- Core depends on `Storage`, not Btrfs/QCOW2 implementation details.
-- `storage.btrfs` may internally compose a narrow local block-image seam for QCOW2/raw because those are real v0.1 alternatives.
-- EBS package/contract shape is deliberately deferred to the v0.7 EC2 provisioning design gate; EBS-specific code must remain outside Core.
-- Feature Plugins request Security authorization; they do not own policy truth.
-- Host/Access/GUI/Web/Remote implementations do not define Session semantics.
+v0.1 explicitly excludes:
 
-## 8. Release discipline
+- Hacocoon-owned worktree orchestration;
+- Policy/Capability engine;
+- GitHub/AWS;
+- AI-specific agent management;
+- MCP;
+- VS Code extension/Web UI;
+- advanced Btrfs/loop/QCOW2 storage lifecycle;
+- EC2/EBS;
+- speculative plugin frameworks.
 
-1. Version N+1 starts only after version N acceptance is automated.
-2. Future code may exist but current release must not depend on it.
-3. Security-sensitive behavior needs negative tests.
-4. Destructive storage operations require preflight, explicit state transitions, verification and fail-safe cleanup.
-5. `haco doctor` reports missing prerequisites by layer.
-6. New vendor-specific imports in Core require architecture review.
-7. A new abstraction must preserve a real replacement/deletion boundary, not aesthetic purity.
+Historical code for later areas may remain in the repository but must not expand the v0.1 acceptance gate.
 
-## 9. Explicit non-goals through v0.7
+## v0.1 implementation order
 
-- proprietary Hacocoon IDE/editor/chat implementation;
-- Kubernetes control plane;
-- SaaS multi-tenant scheduler/control plane;
-- organization-wide GitHub administration;
-- universal HTTPS MITM;
-- universal CLI argument firewall;
-- syscall-level DLP;
-- automatic public exposure of Session listeners;
-- plugin marketplace before a real external ecosystem exists;
-- Go `plugin.so` as the public extension boundary;
-- pretending one shared host is a strong isolation boundary for mutually distrusting human tenants.
+1. Minimal `Workspace`, `Environment`, and `ExecutionResult` concepts.
+2. Thin Incus CLI adapter.
+3. `haco create --workspace`.
+4. `haco exec`.
+5. `haco shell`.
+6. `haco delete` and cleanup.
+7. Real Incus integration acceptance.
+8. Scope freeze and v0.1 alpha tag.
+
+## Cooperation with external orchestrators
+
+### Daintree
+
+Daintree may own task/worktree/agent supervision. Hacocoon receives the resulting workspace path and executes the chosen agent/tool inside an isolated Environment.
+
+### Rookery
+
+Rookery may own workers, budgets, worktrees, and development attention queues. Hacocoon can later expose a CLI/MCP surface for secure Environment and Capability operations.
+
+### VS Code
+
+VS Code can open an ordinary repository or worktree and use Hacocoon as the underlying Environment runtime. VS Code remains a client, not a Core dependency.
+
+## Old-to-new placement
+
+| Historical idea | New placement |
+|---|---|
+| worktree management | optional WorkspaceProvider, v0.2 |
+| VS Code / code-server | Client integration, v0.3 |
+| authorization / approval | Policy + Capability, v0.4 |
+| Git push / GitHub authority | GitHub Capability, v0.5 |
+| AI agent integration | generic execution + external orchestrator integration, v0.6 |
+| model routing / task DAG / budgets | outside Hacocoon |
+| AWS / EC2 / EBS | v0.7 provider/capability work |
+| Btrfs / QCOW2 / storage mechanics | adapter detail when actually needed |
+
+## Design principles
+
+- Keep Core small.
+- Prefer clear responsibility boundaries over premature common abstractions.
+- Treat the Workspace as opaque to the runtime.
+- Keep OS/Incus/process side effects in a narrow imperative shell.
+- Human approval is a first-class security decision, not a UI patch.
+- Do not hand long-lived parent credentials to untrusted executed tools.
+- Hacocoon must remain usable from multiple clients and orchestrators.
+- Finish the current release gate before designing the next one into the implementation.
+
+## One-sentence definition
+
+> **Hacocoon is a secure workspace runtime that runs developer tools and AI agents inside isolated environments without owning the IDE, Git workflow, or AI orchestration layer.**
