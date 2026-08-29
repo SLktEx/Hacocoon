@@ -38,22 +38,28 @@ func (s *Store) Probe(ctx context.Context) (block.Capabilities, error) {
 }
 
 func (s *Store) Ensure(ctx context.Context, spec block.Spec) (block.Handle, error) {
-	if err := os.MkdirAll(filepath.Dir(spec.Path), 0o700); err != nil {
+	if err := block.PrepareBackingDirectory(spec.Path); err != nil {
+		return block.Handle{}, fmt.Errorf("prepare qcow2 backing directory: %w", err)
+	}
+	info, err := block.ValidateBackingPath(spec.Path, true)
+	if err != nil {
 		return block.Handle{}, err
 	}
-	_, err := os.Stat(spec.Path)
-	switch {
-	case errors.Is(err, os.ErrNotExist):
+	if info == nil {
 		if _, err := s.runner.Run(ctx, "qemu-img", "create", "-f", "qcow2", spec.Path, strconv.FormatInt(spec.SizeBytes, 10)); err != nil {
 			return block.Handle{}, fmt.Errorf("create qcow2 image: %w", err)
 		}
-	case err != nil:
-		return block.Handle{}, err
+		if _, err := block.ValidateBackingPath(spec.Path, false); err != nil {
+			return block.Handle{}, fmt.Errorf("validate created qcow2 image: %w", err)
+		}
 	}
 	return s.Attach(ctx, block.Handle{ID: spec.ID, Path: spec.Path, Bytes: spec.SizeBytes})
 }
 
 func (s *Store) Inspect(ctx context.Context, handle block.Handle) (block.State, error) {
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		return block.State{}, err
+	}
 	result, err := s.runner.Run(ctx, "qemu-img", "info", "--output=json", handle.Path)
 	if err != nil {
 		return block.State{}, err
@@ -62,6 +68,9 @@ func (s *Store) Inspect(ctx context.Context, handle block.Handle) (block.State, 
 }
 
 func (s *Store) Attach(ctx context.Context, handle block.Handle) (block.Handle, error) {
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		return block.Handle{}, err
+	}
 	if handle.Device != "" {
 		return handle, nil
 	}
@@ -85,7 +94,13 @@ func (s *Store) Detach(ctx context.Context, handle block.Handle) error {
 }
 
 func (s *Store) Grow(ctx context.Context, handle block.Handle, target int64) (block.Handle, error) {
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		return block.Handle{}, err
+	}
 	if err := s.Detach(ctx, handle); err != nil {
+		return block.Handle{}, err
+	}
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
 		return block.Handle{}, err
 	}
 	if _, err := s.runner.Run(ctx, "qemu-img", "resize", handle.Path, strconv.FormatInt(target, 10)); err != nil {
@@ -97,11 +112,20 @@ func (s *Store) Grow(ctx context.Context, handle block.Handle, target int64) (bl
 }
 
 func (s *Store) Shrink(ctx context.Context, handle block.Handle, target int64) (block.Handle, error) {
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		return block.Handle{}, err
+	}
 	if err := s.Detach(ctx, handle); err != nil {
 		return block.Handle{}, fmt.Errorf("detach before qcow2 shrink: %w", err)
 	}
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		return block.Handle{}, err
+	}
 	if _, err := s.runner.Run(ctx, "qemu-img", "resize", "--shrink", handle.Path, strconv.FormatInt(target, 10)); err != nil {
 		return block.Handle{}, fmt.Errorf("shrink qcow2: %w", err)
+	}
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		return block.Handle{}, err
 	}
 	if _, err := s.runner.Run(ctx, "qemu-img", "check", handle.Path); err != nil {
 		return block.Handle{}, fmt.Errorf("verify qcow2 after shrink: %w", err)
@@ -115,13 +139,25 @@ func (s *Store) Compact(ctx context.Context, handle block.Handle) error {
 	if handle.Device != "" {
 		return fmt.Errorf("qcow2 compact requires detached image")
 	}
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		return err
+	}
 	_, err := s.runner.Run(ctx, "qemu-img", "check", handle.Path)
 	return err
 }
 
 func (s *Store) Delete(ctx context.Context, handle block.Handle) error {
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
 	if err := s.Detach(ctx, handle); err != nil {
 		return fmt.Errorf("detach qcow2 NBD image before delete: %w", err)
+	}
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		return err
 	}
 	if err := os.Remove(handle.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
