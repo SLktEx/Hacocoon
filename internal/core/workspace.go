@@ -62,9 +62,7 @@ type ExecutionRequest struct {
 }
 
 type ExecutionResult struct {
-	ExitCode        int
-	Stdout          string
-	Stderr          string
-	StdoutTruncated bool
-	StderrTruncated bool
+	ExitCode int
+	Stdout   string
+	Stderr   string
 }
