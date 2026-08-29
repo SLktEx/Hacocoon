@@ -63,12 +63,18 @@ func (s *Store) Inspect(ctx context.Context, handle block.Handle) (block.State, 
 	if err != nil {
 		return block.State{}, err
 	}
-	device, _ := s.findDevice(ctx, handle.Path)
+	device, err := s.findDevice(ctx, handle.Path)
+	if err != nil {
+		return block.State{}, fmt.Errorf("inspect raw loop device: %w", err)
+	}
 	return block.State{Healthy: true, Bytes: info.Size(), Device: device}, nil
 }
 
 func (s *Store) Attach(ctx context.Context, handle block.Handle) (block.Handle, error) {
-	device, _ := s.findDevice(ctx, handle.Path)
+	device, err := s.findDevice(ctx, handle.Path)
+	if err != nil {
+		return block.Handle{}, fmt.Errorf("inspect existing raw loop device: %w", err)
+	}
 	if device != "" {
 		handle.Device = device
 		return handle, nil
@@ -84,7 +90,11 @@ func (s *Store) Attach(ctx context.Context, handle block.Handle) (block.Handle, 
 func (s *Store) Detach(ctx context.Context, handle block.Handle) error {
 	device := handle.Device
 	if device == "" {
-		device, _ = s.findDevice(ctx, handle.Path)
+		var err error
+		device, err = s.findDevice(ctx, handle.Path)
+		if err != nil {
+			return fmt.Errorf("inspect raw loop device before detach: %w", err)
+		}
 	}
 	if device == "" {
 		return nil
@@ -126,7 +136,9 @@ func (s *Store) Compact(ctx context.Context, handle block.Handle) error {
 }
 
 func (s *Store) Delete(ctx context.Context, handle block.Handle) error {
-	_ = s.Detach(ctx, handle)
+	if err := s.Detach(ctx, handle); err != nil {
+		return fmt.Errorf("detach raw image before delete: %w", err)
+	}
 	if err := os.Remove(handle.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
