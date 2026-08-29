@@ -2,9 +2,13 @@ package ec2
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 func TestCreateWorkspaceArchiveKeepsTarTargetInsidePrivateDirectory(t *testing.T) {
@@ -62,5 +66,32 @@ func TestRestoreDoesNotDeletePreexistingBackupNamedSibling(t *testing.T) {
 	}
 	if content, err := os.ReadFile(filepath.Join(workspace, "remote.txt")); err != nil || string(content) != "from-ec2\n" {
 		t.Fatalf("restored workspace missing remote content: content=%q err=%v", content, err)
+	}
+}
+
+func TestDeleteTerminatedReadWriteFailsClosedWhenStagedOutputCannotBeRecovered(t *testing.T) {
+	runner := &fakeRunner{
+		instanceState: "terminated",
+		failContains:  "s3 cp s3://hacocoon-workspaces-example/tests/demo/output.tgz",
+	}
+	runtime := newTestRuntime(runner)
+	raw, err := encodeRef(runtimeRef{
+		InstanceID:    "i-0123456789abcdef0",
+		WorkspacePath: t.TempDir(),
+		Bucket:        "hacocoon-workspaces-example",
+		Prefix:        "tests/demo",
+		ReadOnly:      false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = runtime.DeleteEnvironment(context.Background(), raw)
+	if !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("expected recovery-required failure, got %v", err)
+	}
+	joined := strings.Join(runner.calls, "\n")
+	if strings.Contains(joined, "s3 rm s3://hacocoon-workspaces-example/tests/demo --recursive") {
+		t.Fatalf("staging was deleted before terminated RW recovery succeeded:\n%s", joined)
 	}
 }
