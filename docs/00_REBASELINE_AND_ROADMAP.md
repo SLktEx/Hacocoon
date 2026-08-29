@@ -47,7 +47,7 @@ v0.4 AWS capability
 Session -> Security -> short-lived delegated AWS identity -> AWS APIs
 
 v0.7 EC2 deployment/runtime
-Hacocoon -> runtime.ec2 / host.remote-linux / storage.ebs -> remote infrastructure
+Hacocoon -> runtime.ec2 / host.remote-linux / v0.7 EBS infrastructure -> remote infrastructure
 ```
 
 Therefore AWS CLI, SDKs, Packer and Terraform integration remain v0.4. EC2 lifecycle, AMI/EBS, remote Gateway deployment and cloud-host operations are v0.7.
@@ -73,7 +73,7 @@ Existing client / IDE / agent
                        | explicit boundary
                        v
 +---------------------------------------------------------------+
-| Hacocoon Manager / Controller [TRUSTED]                       |
+| Hacocoon Manager [TRUSTED]                       |
 | Core + Modules + Security + Feature Plugins                   |
 +---------------------------+-----------------------------------+
                             |
@@ -162,7 +162,7 @@ Legend: `M` mandatory, `O` optional/experimental, `-` out of scope.
 | remote-linux host adapter | - | - | - | - | - | - | M |
 | remote Gateway integration | - | - | - | - | - | - | M |
 | runtime.ec2 | - | - | - | - | - | - | M |
-| storage.ebs | - | - | - | - | - | - | M |
+| EC2/EBS lifecycle | - | - | - | - | - | - | M |
 
 `O/M*`: QCOW2 is the target managed-image backend when the supported host can provide the required block attachment mechanism. A sparse raw-loop fallback may remain supported. The mandatory requirement is the provider-neutral managed local storage lifecycle and safe behavior, not that Core knows QCOW2.
 
@@ -170,8 +170,9 @@ Legend: `M` mandatory, `O` optional/experimental, `-` out of scope.
 
 - `SessionID` exists from v0.1.
 - Core depends on `Runtime`, not Incus.
-- Core depends on `Storage`, not Btrfs/QCOW2/EBS.
-- Storage implementations may internally compose a narrow `BlockStore` seam because local image and EBS are real replacement boundaries.
+- Core depends on `Storage`, not Btrfs/QCOW2 implementation details.
+- `storage.btrfs` may internally compose a narrow local block-image seam for QCOW2/raw because those are real v0.1 alternatives.
+- EBS package/contract shape is deliberately deferred to the v0.7 EC2 provisioning design gate; EBS-specific code must remain outside Core.
 - Feature Plugins request Security authorization; they do not own policy truth.
 - Host/Access/GUI/Web/Remote implementations do not define Session semantics.
 

@@ -14,6 +14,15 @@ Do **not** implement v0.1-v0.7 at once.
 6. Make the v0.1 acceptance suite pass.
 7. Stop at the v0.1 gate unless explicitly instructed to proceed.
 
+## Read these before changing code
+
+1. `docs/00_REBASELINE_AND_ROADMAP.md`
+2. `docs/00C_TERMINOLOGY_AND_BOUNDARIES.md`
+3. `docs/00A_PLUGIN_ARCHITECTURE.md`
+4. `docs/00B_SECURITY_ARCHITECTURE.md`
+5. `docs/01_v0.1_LOCAL_FOUNDATION.md`
+6. `docs/90_CODEX_IMPLEMENTATION_HANDOFF.md`
+
 ## The order is authoritative
 
 ```text
@@ -33,6 +42,7 @@ AWS capability access is **not** postponed to v0.7. AWS delegated credentials an
 - Core describes Hacocoon concepts and orchestration, not Incus/Btrfs/QCOW2/AWS/GitHub/VS Code/WSLg implementation details.
 - A Session is untrusted; Manager/host authority and parent credentials stay outside it.
 - Security Framework is the authorization authority. Plugins do not approve themselves.
+- Do not create or revive a `Hacocoon IAM` subsystem; use Capability Profile/Policy terminology.
 - Do not mount host HOME, `~/.ssh`, `~/.aws`, GitHub tokens, Incus sockets, or Manager state into a Session as a convenience shortcut.
 - Do not build a Hacocoon wrapper for every developer CLI. Integrate at standard provider/protocol/credential boundaries.
 - Do not build a proprietary IDE/editor/chat surface. Existing IDEs and browser clients are adapters.
