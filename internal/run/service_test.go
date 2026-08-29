@@ -5,18 +5,21 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 type fakeEnvironments struct {
-	calls      []string
-	createSpec core.EnvironmentSpec
-	execReq    core.ExecutionRequest
-	createErr  error
-	execResult core.ExecutionResult
-	execErr    error
-	deleteErr  error
+	calls            []string
+	createSpec       core.EnvironmentSpec
+	execReq          core.ExecutionRequest
+	createErr        error
+	execResult       core.ExecutionResult
+	execErr          error
+	deleteErr        error
+	deleteHadDeadline bool
+	deleteContextErr error
 }
 
 func (f *fakeEnvironments) Create(_ context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
@@ -32,8 +35,10 @@ func (f *fakeEnvironments) Exec(_ context.Context, name string, req core.Executi
 	f.execReq = req
 	return f.execResult, f.execErr
 }
-func (f *fakeEnvironments) Delete(_ context.Context, name string) error {
+func (f *fakeEnvironments) Delete(ctx context.Context, name string) error {
 	f.calls = append(f.calls, "delete:"+name)
+	_, f.deleteHadDeadline = ctx.Deadline()
+	f.deleteContextErr = ctx.Err()
 	return f.deleteErr
 }
 
@@ -65,6 +70,22 @@ func TestRunComposesCreateExecCleanup(t *testing.T) {
 	}
 	if result.Environment != "run-abc" || !result.CleanedUp || result.Execution.Stdout != "ok\n" {
 		t.Fatalf("result=%#v", result)
+	}
+}
+
+func TestRunCleanupIgnoresParentCancellationButHasDeadline(t *testing.T) {
+	env := &fakeEnvironments{}
+	service := serviceWithName(env, "run-cleanup-context")
+	service.cleanupTimeout = time.Second
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, _ = service.Run(ctx, Spec{WorkspacePath: "/work/demo", Argv: []string{"true"}})
+	if !env.deleteHadDeadline {
+		t.Fatal("cleanup context had no deadline")
+	}
+	if env.deleteContextErr != nil {
+		t.Fatalf("cleanup inherited parent cancellation: %v", env.deleteContextErr)
 	}
 }
 
