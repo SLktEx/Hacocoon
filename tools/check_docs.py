@@ -18,6 +18,9 @@ checks = [
     (r'Do not implement v0\.2-v0\.7 while finishing v0\.1', 'stale v0.1-only implementation rule'),
     (r'Stop at the v0\.1 acceptance gate', 'stale v0.1-only stop rule'),
     (r'current release specification.*currently `01_v0\.1_SECURE_WORKSPACE_RUNTIME\.md`', 'stale documentation precedence'),
+    (r'Do not invent a post-v0\.8 product direction', 'stale pre-v0.9 roadmap instruction'),
+    (r'avoid inventing post-v0\.8 product scope', 'stale pre-v0.9 handoff instruction'),
+    (r'create a post-v0\.8 product direction', 'stale pre-v0.9 stop condition'),
 ]
 
 errors = []
@@ -51,6 +54,8 @@ required_files = [
     'docs/00B_SECURITY_ARCHITECTURE.md',
     'docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md',
     'docs/08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md',
+    'docs/09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md',
+    'docs/BASE_IMAGES.md',
     'docs/IMPLEMENTATION_STATUS.md',
     'README.ja.md',
     'docs/README.ja.md',
@@ -71,6 +76,8 @@ if (root / 'docs/README.md').exists():
         errors.append('docs/README.md must link the maintained Japanese documentation entry points')
     if '08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md' not in docmap:
         errors.append('docs/README.md must point to the v0.8 Client Adapter contract')
+    if '09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md' not in docmap or 'BASE_IMAGES.md' not in docmap:
+        errors.append('docs/README.md must point to the v0.9 Base-image contract and detailed companion')
 
 v01 = (root / 'docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md').read_text()
 for required in ['haco create --workspace', 'haco exec', 'haco shell', 'haco delete', 'Incus']:
@@ -101,6 +108,14 @@ for required in ['Client Adapter', 'haco-vscode', 'Remote-SSH', 'loopback-only',
 if 'must not' not in v08 or 'Core' not in v08:
     errors.append('v0.8 must keep client-specific ownership outside Core')
 
+v09 = (root / 'docs/09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md').read_text()
+for required in ['Base Images & Custom Environments', 'immutable Base revision', 'Incus image fingerprint', 'implementation pending', 'custom', 'Environment']:
+    if required.lower() not in v09.lower():
+        errors.append(f'v0.9 missing required Base-image contract text: {required}')
+for required in ['future Environment creation only', 'must not implicitly add', 'referenced revision']:
+    if required.lower() not in v09.lower():
+        errors.append(f'v0.9 missing immutability/security/lifecycle rule: {required}')
+
 roadmap = (root / 'docs/00_REBASELINE_AND_ROADMAP.md').read_text()
 if 'Hacocoon is a **Secure Workspace Runtime**' not in roadmap:
     errors.append('roadmap missing Secure Workspace Runtime baseline')
@@ -110,6 +125,8 @@ if 'pre-1.0' not in roadmap:
     errors.append('roadmap must preserve the pre-1.0 compatibility policy')
 if 'v0.8 | Client Adapters & VS Code Integration' not in roadmap:
     errors.append('roadmap must include the explicit v0.8 Client Adapter gate')
+if 'v0.9 | Base Images & Custom Environments' not in roadmap:
+    errors.append('roadmap must include the explicit v0.9 Base Images gate')
 
 status = (root / 'docs/IMPLEMENTATION_STATUS.md').read_text()
 if 'current code reality' not in status.lower() or '`haco create --workspace`' not in status:
@@ -119,6 +136,9 @@ if 'pre-1.0' not in status or 'real AWS acceptance pending' not in status:
 for required in ['haco-vscode', 'Windows/WSL', 'real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending']:
     if required not in status:
         errors.append(f'IMPLEMENTATION_STATUS missing v0.8 client reality: {required}')
+for required in ['Base Images & Custom Environments', 'design only; implementation pending', 'haco create --base']:
+    if required.lower() not in status.lower():
+        errors.append(f'IMPLEMENTATION_STATUS missing v0.9 planned-state distinction: {required}')
 
 reference = (root / 'docs/91_IMPLEMENTATION_REFERENCE_NOTES.md').read_text()
 if 'non-normative' not in reference.lower() or 'No current architecture contract commits' not in reference:
@@ -132,12 +152,12 @@ for rel in ('README.md', 'CODEX_START_HERE.md', 'Hacocoon_v0.1-v0.7_MASTER.md'):
         errors.append(f'{rel} must make the pre-1.0 compatibility state explicit')
 
 readme = (root / 'README.md').read_text()
-for required in ['README.ja.md', 'haco-vscode open', 'VS Code', 'v0.8']:
+for required in ['README.ja.md', 'haco-vscode open', 'VS Code', 'v0.8', 'v0.9', '09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md']:
     if required not in readme:
-        errors.append(f'README.md missing v0.8 entry-point content: {required}')
+        errors.append(f'README.md missing current roadmap entry-point content: {required}')
 
 ja_readme = (root / 'README.ja.md').read_text()
-for required in ['読み方: はこーん', 'pre-1.0', 'Breaking Change', 'IMPLEMENTATION_STATUS.ja.md', 'ARCHITECTURE_GUIDE.ja.md', 'haco-vscode open', 'v0.8']:
+for required in ['読み方: はこーん', 'pre-1.0', 'Breaking Change', 'IMPLEMENTATION_STATUS.ja.md', 'ARCHITECTURE_GUIDE.ja.md', 'haco-vscode open', 'v0.8', 'v0.9']:
     if required not in ja_readme:
         errors.append(f'README.ja.md missing required Japanese entry-point content: {required}')
 
