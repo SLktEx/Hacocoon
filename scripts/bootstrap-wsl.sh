@@ -5,6 +5,7 @@ INSTALLER="${1:-}"
 VERSION="${2:-latest}"
 SKIP_INCUS="${HACO_BOOTSTRAP_SKIP_INCUS:-0}"
 GRANT_INCUS_ADMIN="${HACO_BOOTSTRAP_GRANT_INCUS_ADMIN:-0}"
+SYSTEMD_RESTART_REQUIRED=42
 
 if [ -z "$INSTALLER" ] || [ ! -f "$INSTALLER" ]; then
   printf 'haco bootstrap: install script not found: %s\n' "$INSTALLER" >&2
@@ -26,21 +27,90 @@ else
   SUDO="sudo"
 fi
 
-printf '==> Installing base dependencies\n'
+configure_wsl_systemd() {
+  tmp="$(mktemp)"
+  if [ -f /etc/wsl.conf ]; then
+    awk '
+      BEGIN {
+        in_boot = 0
+        boot_seen = 0
+        systemd_seen = 0
+      }
+      function flush_boot() {
+        if (in_boot && !systemd_seen) {
+          print "systemd=true"
+          systemd_seen = 1
+        }
+      }
+      /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+        flush_boot()
+        in_boot = ($0 ~ /^[[:space:]]*\[boot\][[:space:]]*$/)
+        if (in_boot) {
+          boot_seen = 1
+          systemd_seen = 0
+        }
+        print
+        next
+      }
+      {
+        if (in_boot && $0 ~ /^[[:space:]]*systemd[[:space:]]*=/) {
+          if (!systemd_seen) {
+            print "systemd=true"
+            systemd_seen = 1
+          }
+          next
+        }
+        print
+      }
+      END {
+        flush_boot()
+        if (!boot_seen) {
+          if (NR > 0) {
+            print ""
+          }
+          print "[boot]"
+          print "systemd=true"
+        }
+      }
+    ' /etc/wsl.conf > "$tmp"
+  else
+    printf '[boot]\nsystemd=true\n' > "$tmp"
+  fi
+  $SUDO install -m 0644 "$tmp" /etc/wsl.conf
+  rm -f "$tmp"
+}
+
+printf '==> Installing base dependencies and systemd support\n'
 $SUDO apt-get update
-$SUDO apt-get install -y ca-certificates curl tar git
+$SUDO apt-get install -y ca-certificates curl tar git systemd systemd-sysv
+
+printf '==> Enabling systemd for this WSL distribution\n'
+configure_wsl_systemd
+
+pid1="$(ps -p 1 -o comm= 2>/dev/null | tr -d '[:space:]' || true)"
+if [ "$pid1" != "systemd" ]; then
+  printf 'haco bootstrap: systemd configuration is ready; the dedicated WSL distribution must be restarted\n' >&2
+  exit "$SYSTEMD_RESTART_REQUIRED"
+fi
+
+printf '==> systemd is active as PID 1\n'
 
 if [ "$SKIP_INCUS" != "1" ]; then
   printf '==> Installing Incus\n'
   $SUDO apt-get install -y incus
 
-  if command -v systemctl >/dev/null 2>&1; then
-    if systemctl is-system-running >/dev/null 2>&1 || systemctl is-system-running 2>/dev/null | grep -Eq 'degraded|running'; then
-      $SUDO systemctl enable --now incus.service 2>/dev/null || $SUDO systemctl enable --now incus 2>/dev/null || true
-    else
-      printf 'haco bootstrap: warning: systemd is not active in this WSL distribution; Incus may not start until systemd is enabled\n' >&2
+  if ! systemctl is-system-running >/dev/null 2>&1; then
+    state="$(systemctl is-system-running 2>/dev/null || true)"
+    if [ "$state" != "degraded" ]; then
+      printf 'haco bootstrap: systemd is PID 1 but not operational (state: %s)\n' "$state" >&2
+      exit 1
     fi
   fi
+
+  $SUDO systemctl enable --now incus.service 2>/dev/null || $SUDO systemctl enable --now incus 2>/dev/null || {
+    printf 'haco bootstrap: failed to enable/start Incus with systemd\n' >&2
+    exit 1
+  }
 
   if [ "$GRANT_INCUS_ADMIN" = "1" ] && [ "$(id -u)" -ne 0 ]; then
     if getent group incus-admin >/dev/null 2>&1; then
@@ -58,7 +128,8 @@ if [ "$SKIP_INCUS" != "1" ]; then
       $SUDO incus admin init --minimal
     fi
   else
-    printf 'haco bootstrap: warning: Incus daemon is not ready yet; Hacocoon can still be installed, but local runtime use requires a working Incus daemon\n' >&2
+    printf 'haco bootstrap: Incus daemon is not ready after systemd startup\n' >&2
+    exit 1
   fi
 fi
 
