@@ -70,10 +70,16 @@ if 'v0.4 Policy/Capability boundary' not in v03:
 v07 = (root / 'docs/07_v0.7_REMOTE_AND_CLOUD_RUNTIME.md').read_text()
 if 'EC2/EBS provisioning design gate' not in v07:
     errors.append('v0.7 missing EC2/EBS provisioning design gate')
+if 'EC2 release status: experimental and disabled by default' not in v07:
+    errors.append('v0.7 must mark EC2 experimental and disabled by default')
+if 'no AWS API call' not in v07:
+    errors.append('v0.7 must require the disabled EC2 path to avoid AWS API calls')
 
 roadmap = (root / 'docs/00_REBASELINE_AND_ROADMAP.md').read_text()
 if 'Hacocoon is a **Secure Workspace Runtime**' not in roadmap:
     errors.append('roadmap missing Secure Workspace Runtime baseline')
+if 'experimental and disabled by default' not in roadmap:
+    errors.append('roadmap must preserve the v0.7 experimental EC2 default-off rule')
 
 status = (root / 'docs/IMPLEMENTATION_STATUS.md').read_text()
 if 'current code reality' not in status.lower() or '`haco create --workspace`' not in status:
