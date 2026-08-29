@@ -27,11 +27,29 @@ func (j *FileJournal) Save(_ context.Context, op Operation) error {
 		return err
 	}
 	path := filepath.Join(j.root, op.ID+".json")
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, payload, 0o600); err != nil {
+	tmp, err := os.CreateTemp(j.root, "."+op.ID+"-*.tmp")
+	if err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, path); err != nil {
+	tmpPath := tmp.Name()
+	cleanup := func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+	}
+	defer cleanup()
+	if err := tmp.Chmod(0o600); err != nil {
+		return err
+	}
+	if _, err := tmp.Write(payload); err != nil {
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
 		return err
 	}
 	return nil
