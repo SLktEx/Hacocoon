@@ -2,7 +2,7 @@
 
 **Status:** authoritative architecture baseline  
 **Date:** 2026-08-29  
-**Implementation note:** `main` has progressed through the v0.7 implementation pass; v0.8 adds the first thin client adapter for VS Code while preserving the same Core boundary. See `IMPLEMENTATION_STATUS.md` for current code reality and pending real-provider acceptance.
+**Implementation note:** `main` has progressed through the v0.8 implementation pass. The explicit v0.9 roadmap gate adds selectable immutable Base images/custom Environment starting points; its implementation is not yet present. See `IMPLEMENTATION_STATUS.md` for current code reality and pending real-provider acceptance.
 
 ## Decision
 
@@ -77,6 +77,8 @@ ApprovalRequest
 
 Concrete technologies stay behind adapters/ports. Core must not depend directly on Incus, Git, GitHub, AWS, VS Code, Daintree, Rookery, Btrfs, QCOW2, EC2, EBS, or other provider-specific concepts.
 
+The v0.9 Base concept is an Environment starting-point identity. It must not turn Core into an Incus image manager: backend-native aliases, remotes, fingerprints, and image lifecycle mechanics remain adapter details.
+
 ## Workspace and worktree boundary
 
 A Workspace is opaque to Hacocoon Core. It may be:
@@ -113,7 +115,7 @@ Hacocoon security approval covers privileged authority such as protected Git ope
 
 ## Baseline roadmap progression
 
-The 2026-08-29 rebaseline established v0.1-v0.7. The explicit v0.8 decision adds client adapters without moving client-specific behavior into Core.
+The 2026-08-29 rebaseline established v0.1-v0.7. The explicit v0.8 decision added client adapters without moving client-specific behavior into Core. The explicit v0.9 decision adds selectable immutable Base images/custom Environment starting points while keeping Incus-native image mechanics behind the Environment adapter boundary.
 
 | Version | Gate | Purpose | Repository state |
 |---|---|---|---|
@@ -125,8 +127,9 @@ The 2026-08-29 rebaseline established v0.1-v0.7. The explicit v0.8 decision adds
 | v0.6 | Agent & Orchestrator Integration | generic machine/agent integration above secure execution | implemented |
 | v0.7 | Remote / Cloud Runtime & External Capabilities | AWS capability plus remote provider work | implemented experimentally; real AWS acceptance pending |
 | v0.8 | Client Adapters & VS Code Integration | thin client adapter layer; VS Code Remote-SSH first | implementation introduced; real VS Code + Incus acceptance remains environment-dependent |
+| v0.9 | Base Images & Custom Environments | selectable logical Bases resolved to immutable Environment starting revisions | design contract established; implementation pending |
 
-These rows describe the implementation progression, **not compatibility guarantees**. Hacocoon remains pre-1.0 and may change CLI, state formats, APIs, capabilities, adapters, and configuration incompatibly.
+These rows describe roadmap/design and implementation progression, **not compatibility guarantees**. Hacocoon remains pre-1.0 and may change CLI, state formats, APIs, capabilities, adapters, and configuration incompatibly.
 
 ## v0.1 baseline gate record
 
@@ -142,7 +145,7 @@ host directory
 
 Its scope intentionally excluded policy, GitHub/AWS authority, agent orchestration, advanced storage, and cloud runtime. Those boundaries were introduced by later roadmap stages instead of being pre-built into v0.1.
 
-This section is retained as a historical design constraint. It is **not** an instruction to remove later v0.2-v0.8 functionality now present on `main`.
+This section is retained as a historical design constraint. It is **not** an instruction to remove later v0.2-v0.8 functionality now present on `main`, nor does it imply that the newly scheduled v0.9 work is already implemented.
 
 ## Cooperation with external orchestrators
 
@@ -199,6 +202,34 @@ VS Code can use Hacocoon as the underlying Environment runtime while remaining a
 
 Other IDEs should consume the same generic client/environment boundary rather than causing IDE-specific branching inside Core. Future adapters may include JetBrains, web clients, Daintree, or other tools, but those adapters are not Core concepts.
 
+## Base images and custom Environment starting points
+
+v0.9 introduces a Hacocoon-level **Base** as the selectable starting point for a newly created Environment.
+
+```text
+logical Base name
+      |
+      v
+immutable Base revision
+      |
+      v
+Environment
+```
+
+For Incus, the adapter resolves that immutable Base revision to an Incus image fingerprint internally. Mutable Incus aliases must not remain the identity of an already-created Environment.
+
+Updating `my-dev` from revision A to revision B affects only new Environments:
+
+```text
+Environment 1 -> revision A
+my-dev        -> revision B
+Environment 2 -> revision B
+```
+
+A Base controls guest filesystem/runtime contents. It does not grant host mounts, devices, privileged mode, Linux capabilities, credentials, network authority, or external-service authority. Those remain governed by the Environment / Policy / Capability boundary.
+
+See `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` for the v0.9 gate and `BASE_IMAGES.md` for the detailed companion design.
+
 ## Responsibility placement
 
 | Concern | Placement |
@@ -212,6 +243,8 @@ Other IDEs should consume the same generic client/environment boundary rather th
 | AI agent integration | generic execution + external orchestrator integration |
 | model routing / task DAG / budgets | outside Hacocoon |
 | AWS / EC2 / EBS | provider/capability adapters; EC2 remains experimental |
+| Base selection / immutable Environment starting revision | Hacocoon domain contract; provider-native image mapping stays in adapter |
+| Incus image alias/fingerprint/import mechanics | Incus adapter / explicit Incus administration |
 | Btrfs / QCOW2 / storage mechanics | provider/adapter detail only when actually required |
 
 ## Experimental EC2 rule
@@ -247,6 +280,8 @@ Breaking-change freedom should still be disciplined: document operator-visible i
 - Hacocoon must remain usable from multiple clients and orchestrators.
 - Let coding agents be permissive inside an isolated Environment without turning that into host authority.
 - Client convenience adapters must translate protocols, not absorb IDE or orchestration ownership.
+- Resolve mutable Base names to immutable revisions before Environment creation depends on them.
+- Keep provider-native image mechanics outside Core.
 - Do not create abstractions solely for hypothetical future backends.
 - Treat cleanup, retry, cancellation, concurrency, and partial failure as part of the feature.
 - Keep implementation claims separate from real-provider acceptance claims.
