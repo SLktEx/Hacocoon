@@ -1,16 +1,16 @@
 # Base Image Architecture
 
-Status: **detailed design companion for v0.9 Base Images & Custom Environments.** The minimum v0.9 roadmap/acceptance contract is defined by `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`; broader ideas in this document are not automatically required in the first v0.9 implementation slice.
+Status: **detailed design companion for v0.11 Base Images & Custom Environments.** The minimum v0.11 roadmap/acceptance contract is defined by `11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`; broader ideas in this document are not automatically required in the first v0.11 implementation slice.
 
 This document defines how Hacocoon should represent reusable Environment starting points without leaking Incus-specific image mechanics into Core.
 
-It is subordinate to `00_REBASELINE_AND_ROADMAP.md`, `00C_TERMINOLOGY_AND_BOUNDARIES.md`, `00B_SECURITY_ARCHITECTURE.md`, and the minimum v0.9 contract in `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`. If this document conflicts with those authoritative documents, they win.
+It is subordinate to `00_REBASELINE_AND_ROADMAP.md`, `00C_TERMINOLOGY_AND_BOUNDARIES.md`, `00B_SECURITY_ARCHITECTURE.md`, and the minimum v0.11 contract. If this document conflicts with those authoritative documents, they win.
 
 ## Goal
 
 For the Incus Environment implementation, users need to be able to choose a standard image or a reusable custom image when creating an Environment.
 
-Hacocoon should expose that concept as a **Base** rather than exposing Incus aliases, remotes, or fingerprints as its public architecture.
+Hacocoon exposes that concept as a **Base** rather than exposing Incus aliases, remotes, or fingerprints as its public architecture.
 
 ```text
 Official Base
@@ -24,13 +24,6 @@ Project Setup
     v
 Environment
 ```
-
-The layers have different responsibilities:
-
-- **Official Base** — a Hacocoon-maintained or recommended starting point.
-- **User Base** — a reusable user-defined starting point derived from an allowed source.
-- **Project Setup** — repository/workspace-specific setup applied after the Base is selected.
-- **Environment** — the isolated runtime created from one immutable Base revision.
 
 A running or existing Environment does not change its Base when a logical Base is updated. A different Base revision is used only by newly created Environments.
 
@@ -62,7 +55,7 @@ haco create --base my-dev --workspace <path> <environment>
 
 At Environment creation time Hacocoon resolves the logical name once and records the immutable revision.
 
-Example persisted concept:
+Conceptually:
 
 ```yaml
 base:
@@ -71,37 +64,23 @@ base:
   backend: incus
 ```
 
-For the Incus implementation, that revision ultimately maps to an immutable Incus image fingerprint. An Incus alias must not be the final identity of an already-created Environment because aliases are mutable.
-
-```text
-Hacocoon Base name
-        |
-        v
-immutable Base revision
-        |
-        v
-Incus image fingerprint
-```
+For Incus, the revision ultimately maps to an immutable image fingerprint. A mutable Incus alias must not be the final identity of an already-created Environment.
 
 ## Base types
 
 ### Official Base
 
-An Official Base is maintained or recommended by Hacocoon.
-
-Example logical name:
+An Official Base is maintained or recommended by Hacocoon, for example:
 
 ```text
 haco/ubuntu-26.04
 ```
 
-The concrete Incus source used to obtain that Base is an adapter/detail concern and is not a compatibility promise.
+The concrete Incus source used to obtain it is an adapter detail and is not a compatibility promise.
 
 ### User Base
 
-A User Base is a reusable custom starting point owned by the operator/user.
-
-Examples:
+A User Base is a reusable custom starting point owned by the operator/user, for example:
 
 ```text
 my-dev
@@ -109,13 +88,11 @@ go-dev
 cuda-dev
 ```
 
-A User Base may eventually be created from an Official Base, another User Base, a supported imported archive, or an explicitly selected existing Incus image. Supporting a source does not imply that the source is trusted.
+A User Base may eventually be derived from an Official Base, another User Base, a supported archive, or an explicitly selected existing Incus image. Supporting a source does not imply that the source is trusted.
 
 ## Project Setup
 
-Project-specific dependencies should not require rebuilding a Base for every repository revision.
-
-Conceptually:
+Project-specific dependencies should remain separate from a reusable Base.
 
 ```text
 Base
@@ -123,25 +100,17 @@ Base
         |
         v
 Project Setup
-  workspace-specific dependency/setup work
+  workspace-specific setup
         |
         v
 Environment
 ```
 
-A future project configuration may select a Base and a setup action, for example:
-
-```yaml
-base: my-dev
-setup:
-  script: .hacocoon/setup.sh
-```
-
-The exact configuration schema is intentionally not frozen by this proposal.
+The exact configuration schema is not frozen.
 
 ## Proposed CLI surface
 
-The following commands describe the intended interaction model. They are **not implementation claims** and remain pre-1.0 design surface.
+These commands describe the intended interaction model. They are **not implementation claims**.
 
 ```text
 haco image list
@@ -151,18 +120,7 @@ haco image remove <name>
 haco create --base <name> --workspace <path> <environment>
 ```
 
-Possible examples:
-
-```text
-haco image list
-haco image inspect my-dev
-haco image build my-dev
-haco create --base my-dev --workspace . dev-1
-```
-
-The minimum v0.9 implementation gate prioritizes selection, immutable revision pinning, persisted identity, list/inspect diagnostics, and safe reference semantics. Build/import/history/rollback/GC may follow once the underlying lifecycle is safe.
-
-Normal output should use Hacocoon concepts. Backend-native identifiers may appear only in an explicit diagnostic section or backend-specific administrative command.
+The minimum v0.11 gate prioritizes selection, immutable revision pinning, persisted identity, list/inspect diagnostics, and safe reference semantics. Build/import/history/rollback/GC may follow once the lifecycle is safe.
 
 ## Base selection precedence
 
@@ -175,61 +133,36 @@ CLI --base
     > Hacocoon default
 ```
 
-The resolved immutable revision is recorded when the Environment is created.
-
-Changing any default later affects only future Environment creation.
+The resolved immutable revision is recorded at creation time. Changing defaults later affects only future Environments.
 
 ## Updating a Base
 
-Updating a logical Base creates a new immutable revision rather than rewriting an existing revision.
+Updating a logical Base creates a new immutable revision rather than rewriting an existing one.
 
 ```text
-my-dev
-  revision A
-  revision B
-  revision C  <- current
+my-dev -> revision A -> Environment 1
+my-dev -> revision B -> Environment 2
+Environment 1 remains revision A
 ```
 
-Existing Environments remain attached to the revision they recorded. New Environments resolve `my-dev` to revision C.
+A future rollback should move the logical name to a previous valid revision rather than mutate revision contents.
 
-A future rollback operation should move the logical name to a previous valid revision rather than mutate revision contents.
+## Import/build trust boundary
 
-## Importing an existing Incus image
+Local archives and custom build inputs are untrusted data.
 
-Incus interoperability may justify an explicitly backend-specific administrative command, for example:
+At minimum, import/build handling must:
 
-```text
-haco image import-incus <incus-image> --as my-dev
-```
-
-Such a command should resolve the Incus source to an immutable fingerprint and register that fingerprint as a Hacocoon Base revision.
-
-After registration, normal Environment creation uses the Hacocoon name rather than the Incus alias.
-
-The exact command name is not frozen.
-
-## Importing local image files
-
-If local archive import is added, the input must be treated as hostile.
-
-At minimum, the implementation should:
-
-- validate supported formats before import;
+- validate supported formats;
 - enforce practical size/resource limits;
 - reject unsafe archive paths and traversal entries;
-- avoid following unexpected host symlinks;
-- validate metadata rather than trusting archive-provided values;
+- avoid unexpected host symlink following;
+- validate metadata instead of trusting archive-provided values;
 - calculate content identity itself;
-- avoid executing image contents directly on the host;
-- clean up partial imports after failure without deleting unrelated data.
+- avoid executing image contents directly with host authority;
+- clean partial resources without deleting unrelated data.
 
-Import is a data-ingestion operation, not a trust grant.
-
-## Build isolation
-
-Building a custom Base can execute arbitrary commands. Those commands must not run directly with Hacocoon host authority.
-
-Preferred shape:
+Preferred build shape:
 
 ```text
 Host
@@ -243,13 +176,11 @@ Host
           +-- register immutable Base revision
 ```
 
-The builder receives the minimum resources needed for the build. Host credentials are not implicitly injected.
+Host credentials are not implicitly injected.
 
 ## Security boundary
 
-A custom Base may be malicious and may contain hostile services, modified binaries, credential collectors, or deliberately malformed filesystem state.
-
-Selecting a Base must never implicitly grant additional:
+A custom Base may be malicious. Selecting a Base must never implicitly grant additional:
 
 - host mounts;
 - Incus devices;
@@ -259,70 +190,28 @@ Selecting a Base must never implicitly grant additional:
 - GitHub/AWS/cloud credentials;
 - SSH private keys;
 - registry credentials;
-- Hacocoon daemon authority.
+- Hacocoon control-plane authority.
 
-Those privileges remain governed outside the Base by the Environment/Capability/Policy boundary.
-
-A Base controls guest filesystem contents. It does **not** control the host-side security policy.
-
-## Credentials and snapshots
-
-Reusable credentials must not be baked into a Base.
-
-Any future feature that creates a Base from an existing Environment must account for runtime secrets, mounted credentials, shell history, caches, generated tokens, and other sensitive state before snapshotting.
-
-Blindly snapshotting an arbitrary Environment into a reusable Base is therefore out of scope for the first implementation.
+A Base controls guest filesystem/runtime contents. It does **not** control host-side security policy.
 
 ## Lifecycle and deletion
 
-Deleting a logical Base name and deleting its physical revisions are separate operations.
+Deleting a logical Base name and deleting physical revisions are separate operations.
 
 ```text
 remove logical name
         |
         v
-name is no longer selectable
+name no longer selectable
         |
         v
 referenced revisions remain
         |
         v
-unreferenced revisions may later be garbage-collected
+unreferenced revisions may later be GC'd
 ```
 
-A revision must not be physically removed while required by a protected reference, including a running or recoverable Environment or another retention rule.
-
-When uncertain, cleanup should prefer leaking storage over silently destroying a referenced Environment dependency.
-
-## Garbage collection
-
-Old revisions consume storage, but an old revision can still be required for reproducibility or recovery.
-
-A future GC operation may look like:
-
-```text
-haco image gc --dry-run
-haco image gc
-```
-
-GC eligibility must be derived from explicit reference tracking, not merely from whether a revision is the current logical target.
-
-## Failure states
-
-Image operations can fail because of download interruption, disk exhaustion, failed build commands, Incus restart, invalid metadata, duplicate names, or process crashes.
-
-An implementation should use explicit states such as:
-
-```text
-creating
-downloading
-building
-ready
-failed
-deleting
-```
-
-Only `ready` revisions are selectable for new Environments. Partial resources must remain identifiable enough for safe cleanup.
+A revision must not be physically removed while required by a running or recoverable Environment or another retention rule. When uncertain, cleanup should prefer retaining storage over silently destroying a dependency.
 
 ## Concurrency
 
@@ -337,34 +226,29 @@ gc               vs create --base my-dev
 update my-dev    vs create --base my-dev
 ```
 
-Environment creation must acquire/record the immutable revision before that revision can become GC-eligible. Logical-name updates and deletion should use lock-protected or transactional state transitions rather than timing assumptions.
+Environment creation must acquire/record the immutable revision before that revision can become deletion/GC eligible. Logical-name updates and deletion should use lock-protected or transactional state transitions.
 
 ## Incus adapter mapping
 
-Core/domain code should model Base identity without requiring Incus vocabulary, for example conceptually:
+Core/domain code should model Base identity without requiring Incus vocabulary, conceptually:
 
 ```go
 type BaseName string
 type BaseRevision string
 ```
 
-The Incus adapter may internally resolve that to something like:
+The Incus adapter may internally resolve that to a fingerprint. Avoid introducing public `IncusImageAlias`-style types merely because Incus is the first Environment implementation.
 
-```go
-type IncusImageRef struct {
-    Fingerprint string
-}
-```
+## Relationship to the current roadmap
 
-Avoid introducing public types such as `IncusImageAlias` into Core merely because Incus is the first Environment implementation.
+- **v0.9** supplies the implemented trusted per-agent Environment broker.
+- **v0.10** is the active VS Code Remote Agent Host Adapter integration.
+- **v0.11** is this Base Images & Custom Environments design gate.
+- **v0.12** Resource Limits must compose with Bases without allowing image metadata to raise host-selected limits.
 
-## Future Environment implementations
+The v0.11 Base implementation must use the normal Environment lifecycle and must not bypass v0.9/v0.10 ownership/security boundaries.
 
-This design deliberately does not require every Environment implementation to use an Incus-style image.
-
-A future adapter could map the same high-level Base concept to a backend-native immutable starting point, for example an AMI or another runtime image/profile. Such adapters are not committed by this document; they only explain why Core should not equate Base with an Incus image.
-
-## Initial v0.9 implementation slice
+## Initial v0.11 implementation slice
 
 Prefer a narrow first slice:
 
@@ -377,23 +261,8 @@ Prefer a narrow first slice:
 
 Custom build/import, revision history, rollback, and GC should follow only after reference tracking and failure semantics are reliable.
 
-## Non-goals for the first slice
-
-- replacing the Base of an existing Environment;
-- transparent migration of existing Environments to a newer image;
-- executing custom build steps on the host;
-- snapshotting arbitrary live Environments into reusable Bases;
-- exposing all Incus image functionality through Hacocoon;
-- freezing the proposed CLI or configuration schema before pre-1.0 validation.
-
 ## Contract summary
-
-The central contract is:
 
 > A Hacocoon Environment is created from one immutable Base revision. Updating a logical Base affects future Environment creation only.
 
-And the security contract is:
-
 > A Base defines guest filesystem/runtime contents; it does not grant host-side privileges, credentials, devices, mounts, or external authority.
-
-This gives Hacocoon selectable standard/custom starting environments while keeping Incus implementation details behind the Environment boundary and preserving room for later adapters.

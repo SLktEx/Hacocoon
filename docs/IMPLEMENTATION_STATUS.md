@@ -1,10 +1,12 @@
 # Implementation Status
 
-Status date: 2026-08-29, after the v0.10 per-agent sandbox broker implementation pass.
+Status date: 2026-08-30, after the per-agent sandbox broker implementation pass and roadmap renumbering.
 
-This file reports **current code reality**, not desired architecture and not a compatibility guarantee. Release specifications under `docs/01_...` through `docs/10_...` are versioned design references. The v0.9 Base Images & Custom Environments specification remains a design contract whose implementation is pending; v0.10 introduces an implemented broker foundation on top of the existing Environment lifecycle.
+This file reports **current code reality**, not desired architecture and not a compatibility guarantee. Versioned specifications are design/acceptance references; their existence does not imply implementation.
 
 Hacocoon is still **pre-1.0**. An implemented area does not mean its CLI/API/state/config surface is frozen, production support is guaranteed, or every real-provider/client acceptance test has passed.
+
+The current numbering keeps implemented milestones contiguous through **v0.9**. v0.10 is the active VS Code Remote Agent Host Adapter integration candidate. v0.11 Base Images and v0.12 Resource Limits remain design-only.
 
 | Area | Current repository reality | Release | Validation status |
 |---|---|---:|---|
@@ -25,17 +27,19 @@ Hacocoon is still **pre-1.0**. An implemented area does not mean its CLI/API/sta
 | Windows/WSL client bridge | when run under WSL, `haco-vscode` resolves the Windows user profile and targets the desktop-client `.ssh` configuration rather than WSL-only SSH config | v0.8 | code path implemented; real Windows/WSL acceptance pending |
 | Windows/WSL bootstrap | standalone/source bootstrap creates or reuses only a dedicated named WSL instance (`Hacocoon` by default), enforces WSL 2 for that dedicated instance, installs `systemd`/`systemd-sysv`, preserves unrelated `/etc/wsl.conf` keys while enforcing `[boot] systemd=true`, restarts only the dedicated instance when required, verifies systemd as PID 1, then starts Incus; unrelated WSL distributions/global defaults remain untouched and `incus-admin` requires explicit opt-in | v0.8 | PowerShell/shell syntax and static WSL2/systemd contract checked in CI; real Windows install/reboot/WSL2 conversion/systemd/Incus acceptance remains pending |
 | Client adapter boundary | IDE-specific launch/configuration remains outside Core; Core does not depend on VS Code, Daintree, JetBrains, or client-native configuration | v0.8 | architecture/documentation contract plus separate adapter binary |
-| Base Images & Custom Environments | explicit v0.9 roadmap contract defines logical Base names, immutable Base revisions, Incus fingerprint pinning behind the adapter, custom-image trust boundaries, and safe reference/deletion semantics | v0.9 | **design only; implementation pending** — `haco image` / `haco create --base` must not be reported as implemented yet |
-| Per-agent sandbox broker | `internal/agenthost` maps an opaque external session identity to a dedicated Environment through the existing Environment/WorkspaceLease lifecycle | v0.10 | unit coverage for dedicated allocation, idempotence, rebinding rejection, persisted restart lookup, raw-ID non-disclosure, deterministic-name collision refusal, and proof-required release |
-| Agent binding state | session-to-Environment ownership proof is stored separately in trusted `agent-bindings.json`; raw external session IDs are hashed before persistence | v0.10 | process-safe Linux file lock plus atomic/fsync-backed writes; real-host crash/fault-injection acceptance pending |
-| Agent control-plane separation | coding agents are not required to invoke `haco`; Incus/Hacocoon management authority stays on the trusted side of the Environment boundary | v0.10 | repository architecture/test contract; real-host adversarial validation pending |
-| VS Code Agent Host / AHP routing | target architecture places each independently routable top-level agent session/Agent Host in its assigned Environment | v0.10 | contract defined; real VS Code Agent Host/AHP + Incus end-to-end routing acceptance pending |
+| Per-agent sandbox broker | `internal/agenthost` maps an opaque external session identity to a dedicated Environment through the existing Environment/WorkspaceLease lifecycle | v0.9 | unit coverage for dedicated allocation, idempotence, rebinding rejection, persisted restart lookup, raw-ID non-disclosure, deterministic-name collision refusal, and proof-required release |
+| Agent binding state | session-to-Environment ownership proof is stored separately in trusted `agent-bindings.json`; raw external session IDs are hashed before persistence | v0.9 | process-safe Linux file lock plus atomic/fsync-backed writes; real-host crash/fault-injection acceptance pending |
+| Agent control-plane separation | coding agents are not required to invoke `haco`; Incus/Hacocoon management authority stays on the trusted side of the Environment boundary | v0.9 | repository architecture/test contract; real-host adversarial validation pending |
+| VS Code Agent Host / AHP routing foundation | target architecture places each independently routable top-level agent session/Agent Host in its assigned Environment | v0.9 | broker/control-plane foundation implemented; real VS Code Agent Host/AHP + Incus end-to-end routing acceptance pending |
+| VS Code Remote Agent Host Adapter | `haco-agent-host` integration is being developed in PR #111 on top of the v0.9 broker | v0.10 | **not yet on `main`**; branch/rebase/real-host acceptance remain pending |
+| Base Images & Custom Environments | roadmap contract defines logical Base names, immutable Base revisions, Incus fingerprint pinning behind the adapter, custom-image trust boundaries, and safe reference/deletion semantics | v0.11 | **design only; implementation pending** — `haco image` / `haco create --base` must not be reported as implemented yet |
+| Sandbox Resource Limits | roadmap contract defines provider-neutral CPU/memory/PID/root-storage budgets and fail-closed provider enforcement | v0.12 | **design only; implementation pending** |
 | Btrfs / raw / QCOW2 historical storage | historical local storage implementation remains in the repository | historical / provider detail | not part of the current Core Environment model and not a compatibility commitment |
-| CI | Go version matrix tests, `go vet`, race detector, docs consistency, bootstrap syntax, release packaging, and existing non-host-dependent E2Es are enabled | cross-cutting | v0.10 PR CI must pass before merge; real-provider/client acceptance remains separate |
+| CI | Go version matrix tests, `go vet`, race detector, docs consistency, bootstrap syntax, release packaging, workflow trust policy, and existing non-host-dependent E2Es are enabled | cross-cutting | real-provider/client acceptance remains separate |
 
 ## Current implementation state
 
-The implemented progression includes v0.1-v0.8 plus the v0.10 per-agent broker foundation:
+The implemented progression is now contiguous through v0.9:
 
 ```text
 Workspace
@@ -51,19 +55,17 @@ Workspace
   -> trusted external agent session -> persisted Environment binding broker
 ```
 
-The numbering is intentionally not an implementation-completeness shortcut: **v0.9 Base Images & Custom Environments remains design-only and implementation-pending**, while the independent v0.10 broker foundation is implemented as additive integration code.
-
-The v0.10 broker does not introduce an agent-visible management CLI. A trusted integration supplies an opaque session identity and Workspace; the broker selects/creates the Environment and persists ownership proof separately. A deterministic Environment name is not sufficient proof: without a matching persisted binding, Acquire refuses adoption and Release refuses deletion.
+The v0.9 broker does not introduce an agent-visible management CLI. A trusted integration supplies an opaque session identity and Workspace; the broker selects/creates the Environment and persists ownership proof separately. A deterministic Environment name is not sufficient proof: without a matching persisted binding, Acquire refuses adoption and Release refuses deletion.
 
 Parallel write-capable agent sessions still need distinct canonical Workspace paths, normally separate Git worktrees. Existing WorkspaceLease conflict prevention is not weakened for multi-agent convenience.
 
-The preferred VS Code direction is the standalone Agent Host / Agent Host Protocol architecture, with the execution host next to the assigned Workspace inside the Environment. The repository contains the session-to-Environment broker foundation, **not a claim that real VS Code Agent Host/AHP per-session routing is accepted**.
+The preferred VS Code direction is the standalone Agent Host / Agent Host Protocol architecture, with the execution host next to the assigned Workspace inside the Environment. PR #111 is the v0.10 Remote Agent Host Adapter integration candidate; it is not part of `main` until merged.
 
 The Windows/WSL bootstrap remains a host setup helper, not a new Core lifecycle. It reserves a dedicated WSL instance for Hacocoon, may convert only that Hacocoon-owned instance from WSL 1 to WSL 2, installs/enables systemd, restarts only the named instance when required, verifies systemd as PID 1, and leaves unrelated WSL distributions/global defaults untouched. `incus-admin` is never granted silently. See `WINDOWS_WSL_BOOTSTRAP.md`.
 
 The v0.7 EC2 provider remains **experimental and disabled by default**. Real AWS/EC2/SSM/EBS acceptance remains pending.
 
-Real Incus, Windows/WSL + VS Code Remote-SSH, v0.10 Agent Host/AHP routing, and cloud acceptance require suitable hosts. Unit tests, fake-provider E2Es, race checks, vet, build, script syntax, and repository CI are not substitutes for those checks.
+Real Incus, Windows/WSL + VS Code Remote-SSH, v0.9 per-agent routing, v0.10 Agent Host Adapter, and cloud acceptance require suitable hosts. Unit tests, fake-provider E2Es, race checks, vet, build, script syntax, and repository CI are not substitutes for those checks.
 
 ## v0.8 client workflow
 
@@ -96,27 +98,7 @@ For Windows host setup, the repository provides:
 
 Both paths enforce a dedicated Hacocoon WSL 2 instance with systemd as PID 1 before the local Incus path is considered ready.
 
-## v0.9 planned Base workflow
-
-The v0.9 design intends approximately:
-
-```text
-haco image list
-haco image inspect <base>
-haco create --base <base> --workspace <path> <environment>
-```
-
-This command surface is **not implemented yet and is not frozen**.
-
-```text
-my-dev -> revision A -> Environment 1
-my-dev -> revision B -> Environment 2
-Environment 1 remains on revision A
-```
-
-See `09_v0.9_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` and `BASE_IMAGES.md`.
-
-## v0.10 per-agent binding model
+## v0.9 per-agent binding model
 
 ```text
 trusted VS Code/AHP integration / trusted client
@@ -134,14 +116,46 @@ trusted VS Code/AHP integration / trusted client
 
 Release accepts a session identity, not an arbitrary Environment name. The initial ownership unit is an independently routable top-level session; hidden harness-internal subagents may share the parent's Environment unless the client exposes a separate routable lifecycle.
 
-The v0.10 path composes with v0.9 Base selection when that implementation exists; it does not bypass or redefine the Base contract.
+The v0.9 path composes with v0.11 Base selection when that implementation exists; it does not bypass or redefine the Base contract.
 
-See `10_v0.10_PER_AGENT_SANDBOX_AND_AGENT_HOST.md`.
+See `09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md`.
+
+## v0.10 active Agent Host adapter
+
+PR #111 is the active v0.10 integration candidate. It adds the client-side/trusted adapter needed to prepare a v0.9-bound Environment as a loopback-only SSH target for the VS Code Agents window while keeping private keys on the client side.
+
+This functionality must not be reported as part of `main` until the PR is rebased, renumbered consistently, merged, and its host-dependent acceptance boundary is documented.
+
+## v0.11 planned Base workflow
+
+The v0.11 design intends approximately:
+
+```text
+haco image list
+haco image inspect <base>
+haco create --base <base> --workspace <path> <environment>
+```
+
+This command surface is **not implemented yet and is not frozen**.
+
+```text
+my-dev -> revision A -> Environment 1
+my-dev -> revision B -> Environment 2
+Environment 1 remains on revision A
+```
+
+See `11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` and `BASE_IMAGES.md`.
+
+## v0.12 planned resource budgets
+
+The v0.12 design adds provider-neutral creation-time CPU, memory, PID, and root-storage budgets. Requested limits that a provider cannot enforce must fail closed rather than be silently ignored.
+
+See `12_v0.12_SANDBOX_RESOURCE_LIMITS.md`.
 
 ## Compatibility status
 
-No v0.1-v0.10 design or implementation row should be read as a promise that the current concrete interface will remain unchanged.
+No versioned design or implementation row through v0.12 should be read as a promise that the current concrete interface will remain unchanged.
 
-Until an explicit stable compatibility milestone is declared, breaking changes may modify or replace CLI commands, helper binaries, persisted state, provider interfaces, Base/image lifecycle, capability/policy schemas, client/agent integration, host bootstrap behavior, and experimental runtime behavior.
+Until an explicit stable compatibility milestone is declared, breaking changes may modify or replace CLI commands, helper binaries, persisted state, provider interfaces, Base/image lifecycle, capability/policy schemas, client/agent integration, host bootstrap behavior, resource-budget design, and experimental runtime behavior.
 
 Compatibility should not be preserved at the cost of an unsafe authority boundary, ambiguous ownership, silent data loss, or unnecessary architectural complexity. Material breaking changes should still be explicit, tested, and documented.
