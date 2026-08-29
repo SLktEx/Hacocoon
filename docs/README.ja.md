@@ -14,6 +14,7 @@ Hacocoon はまだ **pre-1.0** です。現在の architecture や実装済み r
 1. [`../README.ja.md`](../README.ja.md) — Hacocoon の目的と、`haco-vscode open .` を中心にした使い方。
 2. [`ARCHITECTURE_GUIDE.ja.md`](ARCHITECTURE_GUIDE.ja.md) — architecture、security boundary、v0.1〜v0.8 の流れ。
 3. [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) — `main` に何が実装され、何が real acceptance 待ちか。
+4. [`BASE_IMAGES.ja.md`](BASE_IMAGES.ja.md) — Incus の standard/custom image を Hacocoon の `Base` として扱う設計案。
 
 ## 正本の優先順位
 
@@ -24,7 +25,7 @@ Hacocoon はまだ **pre-1.0** です。現在の architecture や実装済み r
 3. `00B_SECURITY_ARCHITECTURE.md` — trust / security の横断ルール。
 4. `IMPLEMENTATION_STATUS.md` — 現在の code reality と未 acceptance 項目。
 5. `01_...`〜`08_...` — 各 roadmap stage の versioned design contract。
-6. `CLIENT_ACCESS.md` / `REMOTE_CLOUD_PROVISIONING.md` 等 — 個別領域の詳細 contract。
+6. `CLIENT_ACCESS.md` / `REMOTE_CLOUD_PROVISIONING.md` / `BASE_IMAGES.md` 等 — 個別領域の詳細 contract または明示的な design proposal。
 7. `00A_PLUGIN_ARCHITECTURE.md` — extension / adapter guidance。
 8. `90_CODEX_IMPLEMENTATION_HANDOFF.md` — 実装・maintenance workflow。
 9. `91_IMPLEMENTATION_REFERENCE_NOTES.md` — non-normative reference / historical notes。
@@ -43,6 +44,7 @@ Hacocoon はまだ **pre-1.0** です。現在の architecture や実装済み r
 - EC2 は引き続き experimental / disabled by default。
 - v0.8 は明示的に Client Adapter を追加し、VS Code を最初の adapter とする。
 - VS Code の editor / terminal / Git UI / AI UI は VS Code が所有し、Hacocoon Core には持ち込まない。
+- `BASE_IMAGES.md` は design proposal であり、それだけで post-v0.8 の実装順序や scope を確定しない。
 - v0.8 より後の scope は、明示的な decision なしに勝手に invent しない。
 
 ## v0.8 を読む順番
