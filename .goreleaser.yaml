@@ -31,12 +31,27 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
+  - id: haco-agent-host
+    main: ./cmd/haco-agent-host
+    binary: haco-agent-host
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
 
 archives:
   - id: haco
     ids:
       - haco
       - haco-vscode
+      - haco-agent-host
     formats:
       - tar.gz
     name_template: "haco_{{ .Os }}_{{ .Arch }}"
