@@ -39,16 +39,17 @@ func dispatch(ctx context.Context, app *composition.App, args []string) error {
 		return core.ErrInvalidArgument
 	}
 	commands := map[string]command{
-		"create":     createCommand,
-		"capability": capabilityCommand,
-		"status":     statusCommand,
-		"forward":    forwardCommand,
-		"unforward":  unforwardCommand,
-		"ssh":        sshCommand,
-		"exec":       execCommand,
-		"shell":      shellCommand,
-		"delete":     deleteCommand,
-		"doctor":     doctorCommand,
+		"create":      createCommand,
+		"capability":  capabilityCommand,
+		"status":      statusCommand,
+		"connections": connectionsCommand,
+		"forward":     forwardCommand,
+		"unforward":   unforwardCommand,
+		"ssh":         sshCommand,
+		"exec":        execCommand,
+		"shell":       shellCommand,
+		"delete":      deleteCommand,
+		"doctor":      doctorCommand,
 	}
 	run, ok := commands[args[0]]
 	if !ok {
@@ -178,6 +179,28 @@ func statusCommand(ctx context.Context, app *composition.App, args []string) err
 	return nil
 }
 
+func connectionsCommand(ctx context.Context, app *composition.App, args []string) error {
+	if len(args) < 1 || len(args) > 2 || (len(args) == 2 && args[1] != "--json") {
+		return fmt.Errorf("usage: haco connections <environment> [--json]: %w", core.ErrInvalidArgument)
+	}
+	connections, err := app.Clients.Connections(ctx, args[0])
+	if err != nil {
+		return err
+	}
+	if len(args) == 2 {
+		payload, err := json.Marshal(connections)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(payload))
+		return nil
+	}
+	for _, connection := range connections {
+		fmt.Printf("%s\t%s\t%s:%d\t->\t%d\n", connection.ID, connection.Kind, connection.Host, connection.Port, connection.TargetPort)
+	}
+	return nil
+}
+
 func forwardCommand(ctx context.Context, app *composition.App, args []string) error {
 	if len(args) != 5 || args[1] != "--host-port" || args[3] != "--target-port" {
 		return fmt.Errorf("usage: haco forward <environment> --host-port <port> --target-port <port>: %w", core.ErrInvalidArgument)
@@ -287,7 +310,7 @@ func doctorCommand(ctx context.Context, app *composition.App, args []string) err
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: haco <create|status|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
+	fmt.Fprintln(os.Stderr, "usage: haco <create|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
 }
 
 func fail(err error) {
