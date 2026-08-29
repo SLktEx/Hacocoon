@@ -5,32 +5,25 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/state"
+	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
-	"github.com/SLktEx/Hacocoon/modules/storage/btrfs"
 )
 
 type App struct {
-	Manager *core.Manager
-	Runtime core.Runtime
-	Storage core.Storage
+	Environments *workspaceapp.Service
+	Runtime      *incus.Runtime
 }
 
-func Local(ctx context.Context) (*App, error) {
+func Local(_ context.Context) (*App, error) {
 	runner := host.ExecRunner{}
 	root := envOr("HACO_ROOT", "/var/lib/hacocoon")
-	storage, err := btrfs.NewLocal(ctx, filepath.Join(root, "storage"), runner, os.Getenv("HACO_BLOCK_BACKEND"))
-	if err != nil {
-		return nil, err
-	}
 	runtime := incus.New(runner)
-	store := state.NewJSONStore(filepath.Join(root, "state", "sessions.json"))
+	store := state.NewEnvironmentJSONStore(filepath.Join(root, "state", "environments.json"))
 	return &App{
-		Manager: core.NewManager(runtime, storage, store),
-		Runtime: runtime,
-		Storage: storage,
+		Environments: workspaceapp.New(runtime, store),
+		Runtime:      runtime,
 	}, nil
 }
 
