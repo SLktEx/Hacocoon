@@ -105,7 +105,7 @@ if ([string]::IsNullOrWhiteSpace($selected) -or -not ($installed -contains $sele
 Assert-Wsl2 $selected
 
 Write-Step "Checking that '$selected' can execute Linux commands"
-& wsl.exe --distribution $selected -- sh -lc "printf hacocoon-wsl-ready"
+& wsl.exe --distribution $selected -- sh -c "printf hacocoon-wsl-ready"
 if ($LASTEXITCODE -ne 0) {
     throw "The WSL distribution '$selected' is installed but not ready. Launch it once with 'wsl -d $selected', complete first-run setup, and re-run this script."
 }
@@ -118,21 +118,18 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxRepoRoot)) {
 }
 $linuxBootstrap = "$linuxRepoRoot/scripts/bootstrap-wsl.sh"
 $linuxInstaller = "$linuxRepoRoot/scripts/install.sh"
-
-$env:HACO_BOOTSTRAP_SKIP_INCUS = if ($SkipIncus) { "1" } else { "0" }
-$env:HACO_BOOTSTRAP_GRANT_INCUS_ADMIN = if ($GrantIncusAdmin) { "1" } else { "0" }
+$skipIncusValue = if ($SkipIncus) { "1" } else { "0" }
+$grantIncusAdminValue = if ($GrantIncusAdmin) { "1" } else { "0" }
 
 if ($GrantIncusAdmin) {
     Write-Warning "Granting incus-admin gives the Linux user root-equivalent local Incus authority."
 }
 
 Write-Step "Installing Hacocoon inside '$selected'"
-$command = @"
-export HACO_BOOTSTRAP_SKIP_INCUS='$($env:HACO_BOOTSTRAP_SKIP_INCUS)'
-export HACO_BOOTSTRAP_GRANT_INCUS_ADMIN='$($env:HACO_BOOTSTRAP_GRANT_INCUS_ADMIN)'
-exec sh '$linuxBootstrap' '$linuxInstaller' '$HacocoonVersion'
-"@
-& wsl.exe --distribution $selected -- sh -lc $command
+& wsl.exe --distribution $selected -- env \
+    "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue" \
+    "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue" \
+    sh $linuxBootstrap $linuxInstaller $HacocoonVersion
 if ($LASTEXITCODE -ne 0) {
     throw "Hacocoon WSL bootstrap failed."
 }
