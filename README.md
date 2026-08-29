@@ -45,11 +45,11 @@ VS Code / Shell / coding agents / orchestrators / other clients
 
 The trusted host owns Hacocoon state, policy, credentials, and privileged capability execution. The Environment receives only the workspace and the authority it actually needs.
 
-The intended interactive-development model is simple: a normal client such as VS Code connects to the isolated Environment, and coding agents can be intentionally permissive inside that Environment. Crossing the Environment boundary still requires Hacocoon-mediated authority.
+The intended interactive-development model is simple: a normal client such as VS Code connects to an isolated Environment, and coding agents can be intentionally permissive inside that Environment. Crossing the Environment boundary still requires Hacocoon-mediated authority.
 
 ## Current state
 
-`main` contains the implementation progression through the **v0.8 roadmap**. That describes repository implementation state, not a promise of release or API stability.
+`main` contains the implementation progression through the **v0.9 broker foundation**. That describes repository implementation state, not a promise of release or API stability.
 
 | Area | Current state |
 |---|---|
@@ -68,12 +68,14 @@ The intended interactive-development model is simple: a normal client such as VS
 | Client adapters | thin adapter layer introduced without adding client-specific concepts to Core |
 | VS Code integration | `haco-vscode` prepares standard Remote-SSH access and opens `/workspace` |
 | Windows + WSL bridge | WSL execution resolves the Windows desktop client's SSH profile/configuration |
+| Per-agent sandbox broker | trusted session identity -> dedicated Environment binding implemented outside Core |
+| Agent control-plane boundary | coding agents are not required to invoke `haco` and are not given Incus/Hacocoon management authority |
 
-Real-provider/client acceptance is deliberately tracked separately. Real Incus host acceptance, real Windows/WSL + VS Code Remote-SSH acceptance, and real AWS / EC2 / SSM / EBS acceptance require suitable external environments; unit, integration, fake-provider E2E, race, vet, build, and CI results are not substitutes for those checks.
+Real-provider/client acceptance is deliberately tracked separately. Real Incus host acceptance, real Windows/WSL + VS Code Remote-SSH acceptance, real VS Code Agent Host/AHP + Incus per-session routing acceptance, and real AWS / EC2 / SSM / EBS acceptance require suitable external environments; unit, integration, fake-provider E2E, race, vet, build, and CI results are not substitutes for those checks.
 
 See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for detailed repository reality and [`docs/README.md`](docs/README.md) for documentation precedence.
 
-## VS Code: the intended interactive workflow
+## VS Code: the existing interactive workflow
 
 VS Code is the first supported convenience client, not a Core dependency.
 
@@ -145,6 +147,32 @@ When Hacocoon runs inside WSL and desktop VS Code runs on Windows, `haco-vscode`
 
 See [`docs/08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md`](docs/08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md) for the v0.8 contract.
 
+## v0.9: one Environment per routable agent session
+
+v0.9 adds a trusted integration-layer broker for agent sessions without turning the agent into a Hacocoon administrator.
+
+```text
+VS Code Agents window / trusted client
+                 |
+       trusted integration
+                 |
+       session -> Environment
+          /              \
+ Environment A        Environment B
+      |                    |
+    Incus A              Incus B
+      |                    |
+ Agent Host A          Agent Host B
+```
+
+The coding agent itself does not need to run `haco`. Hacocoon/Incus lifecycle authority stays on the trusted host side.
+
+Parallel write-capable agents should receive separate Workspace paths, normally separate Git worktrees. Existing WorkspaceLease conflict protection remains enabled; Hacocoon does not allow multiple RW sessions to share the same canonical host directory just for convenience.
+
+For VS Code, the preferred integration direction is the standalone Agent Host / Agent Host Protocol architecture, with the Agent Host running next to the assigned Workspace inside the Environment. The repository currently contains the per-session broker foundation; real Agent Host/AHP + Incus per-session routing remains an environment-dependent acceptance path.
+
+See [`docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md`](docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md).
+
 ## AI agents: permissive inside, mediated outside
 
 The motivating model is:
@@ -170,7 +198,7 @@ That does **not** grant the agent host credentials or broad external authority. 
 
 ## Low-level CLI quick start
 
-The lower-level `haco` CLI remains useful for scripting, debugging, adapters, and non-VS-Code clients.
+The lower-level `haco` CLI remains useful for humans, trusted scripting, debugging, adapters, and non-VS-Code clients.
 
 Create an Environment and execute inside it:
 
@@ -188,7 +216,7 @@ Use a read-only workspace lease when mutation is not required:
 ./bin/haco create --read-only --workspace "$PWD" review
 ```
 
-For one-shot tool or agent execution:
+For one-shot tool or agent execution from a trusted caller:
 
 ```bash
 ./bin/haco run --workspace "$PWD" -- go test ./...
@@ -199,6 +227,8 @@ Machine consumers can request JSON output:
 ```bash
 ./bin/haco run --workspace "$PWD" --json -- go test ./...
 ```
+
+The v0.9 per-agent path is different: the trusted integration allocates the Environment, and the coding agent is not expected to call this CLI.
 
 ## CLI surface
 
@@ -227,6 +257,8 @@ The first client helper includes:
 haco-vscode open
 haco-vscode delete
 ```
+
+There is intentionally no AI-facing `haco agent ...` command in v0.9.
 
 All surfaces remain pre-1.0 and may change.
 
@@ -264,6 +296,8 @@ Core rules include:
 - workspace write access is protected by persisted leases;
 - local port exposure is loopback-oriented by default;
 - provider-specific and client-specific concepts stay outside the Core domain;
+- per-agent session routing stays in a trusted integration layer outside Core;
+- agents do not receive Incus/Hacocoon sandbox-management authority merely because a sandbox was allocated for them;
 - cleanup and recovery failures are surfaced instead of silently converted into success.
 
 Security still depends on the host, provider, client, and deployment configuration. Hacocoon does not turn an incorrectly configured Incus, SSH, VS Code, or cloud environment into a safe one by itself.
@@ -298,9 +332,10 @@ Core does not own:
 - model/token budgets;
 - provider-specific storage mechanics;
 - provider-specific cloud APIs;
-- client-native SSH configuration or launch behavior.
+- client-native SSH configuration or launch behavior;
+- VS Code Agent Host/AHP protocol details.
 
-Concrete integrations such as Incus, Git/GitHub, AWS/EC2/EBS, VS Code, Daintree, or external orchestrators live at explicit boundaries around the common Workspace / Environment / Execution model.
+Concrete integrations such as Incus, Git/GitHub, AWS/EC2/EBS, VS Code, AHP, Daintree, or external orchestrators live at explicit boundaries around the common Workspace / Environment / Execution model.
 
 ## Development and testing
 
@@ -319,7 +354,7 @@ Some integration and acceptance paths require external infrastructure and are in
 
 ## Roadmap documents
 
-The v0.1-v0.8 documents are **versioned design contracts**, not promises that their public interfaces are frozen:
+The v0.1-v0.9 documents are **versioned design contracts**, not promises that their public interfaces are frozen:
 
 1. [`v0.1 Secure Workspace Runtime`](docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md)
 2. [`v0.2 Workspace Abstraction & Lease`](docs/02_v0.2_WORKSPACE_ABSTRACTION_AND_LEASE.md)
@@ -329,6 +364,7 @@ The v0.1-v0.8 documents are **versioned design contracts**, not promises that th
 6. [`v0.6 Agent & Orchestrator Integration`](docs/06_v0.6_AGENT_AND_ORCHESTRATOR_INTEGRATION.md)
 7. [`v0.7 Remote / Cloud Runtime & External Capabilities`](docs/07_v0.7_REMOTE_AND_CLOUD_RUNTIME.md)
 8. [`v0.8 Client Adapters & VS Code Integration`](docs/08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md)
+9. [`v0.9 Per-Agent Sandbox & Agent Host Integration`](docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md)
 
 For architecture and documentation rules, start with [`docs/README.md`](docs/README.md) and [`docs/00_REBASELINE_AND_ROADMAP.md`](docs/00_REBASELINE_AND_ROADMAP.md).
 
