@@ -144,7 +144,16 @@ func (r *Runtime) DeleteEnvironment(ctx context.Context, rawRef string) error {
 	if err != nil {
 		return err
 	}
-	if state != "terminated" {
+	if state == "terminated" {
+		if !ref.ReadOnly {
+			if err := r.restoreStagedOutput(ctx, ref); err != nil {
+				return errors.Join(
+					fmt.Errorf("recover terminated EC2 workspace %s from staged output: %w", ref.InstanceID, err),
+					core.ErrRecoveryRequired,
+				)
+			}
+		}
+	} else {
 		if !ref.ReadOnly {
 			if state != "running" {
 				return fmt.Errorf("EC2 environment %s state=%s cannot be synchronized safely: %w", ref.InstanceID, state, core.ErrRecoveryRequired)
@@ -189,6 +198,11 @@ func (r *Runtime) syncBack(ctx context.Context, ref runtimeRef) error {
 	if _, err := r.runSSM(ctx, ref.InstanceID, command); err != nil {
 		return fmt.Errorf("stage remote workspace changes: %w", err)
 	}
+	return r.restoreStagedOutput(ctx, ref)
+}
+
+func (r *Runtime) restoreStagedOutput(ctx context.Context, ref runtimeRef) error {
+	outputURI := s3URI(ref.Bucket, ref.Prefix+"/output.tgz")
 	downloadDir, err := os.MkdirTemp("", "haco-remote-download-*")
 	if err != nil {
 		return fmt.Errorf("create private remote workspace download directory: %w", err)
