@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -30,7 +31,7 @@ func (a *StdioApproval) Approve(ctx context.Context, req core.ApprovalRequest) (
 		return false, fmt.Errorf("approval terminal unavailable")
 	}
 	request := req.CapabilityRequest
-	if _, err := fmt.Fprintf(a.out, "Approve capability %q action=%q resource=%q environment=%q", request.Capability, request.Action, request.Resource, request.Environment); err != nil {
+	if _, err := fmt.Fprintf(a.out, "Approve capability %s action=%s resource=%s environment=%s", terminalSafe(request.Capability), terminalSafe(request.Action), terminalSafe(request.Resource), terminalSafe(request.Environment)); err != nil {
 		return false, fmt.Errorf("display approval request: %w", err)
 	}
 	keys := make([]string, 0, len(request.Attributes))
@@ -39,11 +40,11 @@ func (a *StdioApproval) Approve(ctx context.Context, req core.ApprovalRequest) (
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		if _, err := fmt.Fprintf(a.out, " %q=%q", key, request.Attributes[key]); err != nil {
+		if _, err := fmt.Fprintf(a.out, " %s=%s", terminalSafe(key), terminalSafe(request.Attributes[key])); err != nil {
 			return false, fmt.Errorf("display approval request: %w", err)
 		}
 	}
-	if _, err := fmt.Fprintf(a.out, " reason=%q? [y/N] ", req.Reason); err != nil {
+	if _, err := fmt.Fprintf(a.out, " reason=%s? [y/N] ", terminalSafe(req.Reason)); err != nil {
 		return false, fmt.Errorf("display approval request: %w", err)
 	}
 	line, err := bufio.NewReader(a.in).ReadString('\n')
@@ -57,4 +58,12 @@ func (a *StdioApproval) Approve(ctx context.Context, req core.ApprovalRequest) (
 	}
 	answer := strings.ToLower(strings.TrimSpace(line))
 	return answer == "y" || answer == "yes", nil
+}
+
+func terminalSafe(value string) string {
+	quoted := strconv.QuoteToGraphic(value)
+	if len(quoted) < 2 {
+		return quoted
+	}
+	return quoted[1 : len(quoted)-1]
 }
