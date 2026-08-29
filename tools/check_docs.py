@@ -51,6 +51,8 @@ required_files = [
     'docs/00B_SECURITY_ARCHITECTURE.md',
     'docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md',
     'docs/08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md',
+    'docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md',
+    'docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md',
     'docs/IMPLEMENTATION_STATUS.md',
     'README.ja.md',
     'docs/README.ja.md',
@@ -71,6 +73,8 @@ if (root / 'docs/README.md').exists():
         errors.append('docs/README.md must link the maintained Japanese documentation entry points')
     if '08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md' not in docmap:
         errors.append('docs/README.md must point to the v0.8 Client Adapter contract')
+    if '09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md' not in docmap:
+        errors.append('docs/README.md must point to the v0.9 per-agent sandbox contract')
 
 v01 = (root / 'docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md').read_text()
 for required in ['haco create --workspace', 'haco exec', 'haco shell', 'haco delete', 'Incus']:
@@ -101,6 +105,13 @@ for required in ['Client Adapter', 'haco-vscode', 'Remote-SSH', 'loopback-only',
 if 'must not' not in v08 or 'Core' not in v08:
     errors.append('v0.8 must keep client-specific ownership outside Core')
 
+v09 = (root / 'docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md').read_text()
+for required in ['per-session broker', 'Agent Host', 'AHP', 'must not receive', 'WorkspaceLease', 'haco-vscode', 'real VS Code Agent Host/AHP + Incus routing acceptance pending']:
+    if required not in v09:
+        errors.append(f'v0.9 missing required per-agent sandbox contract text: {required}')
+if 'agent Environment must not receive' not in v09 or '`haco` remains a human/operator interface' not in v09:
+    errors.append('v0.9 must keep Hacocoon/Incus control authority outside the coding agent')
+
 roadmap = (root / 'docs/00_REBASELINE_AND_ROADMAP.md').read_text()
 if 'Hacocoon is a **Secure Workspace Runtime**' not in roadmap:
     errors.append('roadmap missing Secure Workspace Runtime baseline')
@@ -110,6 +121,8 @@ if 'pre-1.0' not in roadmap:
     errors.append('roadmap must preserve the pre-1.0 compatibility policy')
 if 'v0.8 | Client Adapters & VS Code Integration' not in roadmap:
     errors.append('roadmap must include the explicit v0.8 Client Adapter gate')
+if 'v0.9 | Per-Agent Sandbox & Agent Host Integration' not in roadmap:
+    errors.append('roadmap must include the explicit v0.9 per-agent sandbox gate')
 
 status = (root / 'docs/IMPLEMENTATION_STATUS.md').read_text()
 if 'current code reality' not in status.lower() or '`haco create --workspace`' not in status:
@@ -119,6 +132,9 @@ if 'pre-1.0' not in status or 'real AWS acceptance pending' not in status:
 for required in ['haco-vscode', 'Windows/WSL', 'real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending']:
     if required not in status:
         errors.append(f'IMPLEMENTATION_STATUS missing v0.8 client reality: {required}')
+for required in ['Per-agent sandbox broker', 'internal/agenthost', 'does not add an AI-facing `haco agent ...` workflow', 'real VS Code Agent Host/AHP + Incus end-to-end routing acceptance pending']:
+    if required not in status:
+        errors.append(f'IMPLEMENTATION_STATUS missing v0.9 agent sandbox reality: {required}')
 
 reference = (root / 'docs/91_IMPLEMENTATION_REFERENCE_NOTES.md').read_text()
 if 'non-normative' not in reference.lower() or 'No current architecture contract commits' not in reference:
