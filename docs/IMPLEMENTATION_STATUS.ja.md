@@ -23,8 +23,9 @@ Hacocoon はまだ **pre-1.0** です。実装済みであることは interface
 | EBS replacement | adapter-owned replacement/migration。in-place shrink / automatic source deletion なし | v0.7 | fake-AWS integration pass |
 | VS Code Client Adapter | separate `haco-vscode` binary。Environment create/reuse -> existing SSH path -> adapter-owned SSH config -> standard Remote-SSH `/workspace` | v0.8 | helper unit coverage added。real VS Code + Incus acceptance pending |
 | Windows / WSL bridge | WSL 実行時に Windows user profile を解決し、desktop Client 側 `.ssh` を対象にする | v0.8 | implementation exists。real Windows/WSL acceptance pending |
+| Windows / WSL bootstrap | `scripts/bootstrap-windows.ps1` が既存 WSL を破壊せず WSL 2 を install/select し、`scripts/bootstrap-wsl.sh` へ Linux dependency setup を委譲し、Hacocoon 本体は既存 `scripts/install.sh` で install。`incus-admin` は explicit opt-in | v0.8 | PowerShell / shell syntax は CI 対象。real Windows install/reboot/WSL/Incus acceptance pending |
 | Client Adapter boundary | VS Code / Daintree / JetBrains 等の client-specific behavior を Core に入れない | v0.8 | architecture + separate binary boundary |
-| CI | Go tests、vet、race、docs consistency、host-independent E2E | cross-cutting | v0.8 PR CI pass が merge gate。real provider/client acceptance は別 |
+| CI | Go tests、vet、race、docs consistency、bootstrap syntax、release packaging、host-independent E2E | cross-cutting | v0.8 PR CI pass が merge gate。real provider/client acceptance は別 |
 
 ## v0.8 で増えたもの
 
@@ -51,6 +52,26 @@ haco-vscode delete .
 ```
 
 Private SSH key は Client 側に残し、Hacocoon の既存 SSH path には public key のみを渡します。
+
+## Windows / WSL bootstrap
+
+Windows host の初期 setup 用に次を追加しています。
+
+```powershell
+.\scripts\bootstrap-windows.ps1
+```
+
+Fresh PC では WSL 2 distribution の install まで行い、Windows reboot や Linux user の初回作成が必要ならそこで一度止まります。既存 WSL がある場合は user-owned state として扱い、unregister / reset / delete / WSL 1 conversion は自動では行いません。
+
+WSL 内では base dependency と Incus を準備し、Hacocoon binary 自体は既存 `scripts/install.sh` に委譲します。
+
+Incus administrator 権限は root 相当なので自動付与しません。明示的に許可する場合だけ:
+
+```powershell
+.\scripts\bootstrap-windows.ps1 -GrantIncusAdmin
+```
+
+を使います。詳細は [`WINDOWS_WSL_BOOTSTRAP.ja.md`](WINDOWS_WSL_BOOTSTRAP.ja.md) を参照してください。
 
 ## AI の扱い
 
@@ -108,15 +129,16 @@ export HACO_EXPERIMENTAL_EC2=1
 - race
 - vet
 - build
+- script syntax
 - repository CI
 
-Real Incus、Windows/WSL + VS Code Remote-SSH、AWS/EC2/SSM/EBS はそれぞれ対応環境で確認します。
+Real Incus、Windows/WSL install、Windows/WSL + VS Code Remote-SSH、AWS/EC2/SSM/EBS はそれぞれ対応環境で確認します。
 
 ## Compatibility status
 
 v0.1〜v0.8 のどの実装も、現在の concrete interface が変更されないという約束ではありません。
 
-Breaking Change により CLI / helper binary / state / provider / capability / client-adapter configuration 等は変更可能です。
+Breaking Change により CLI / helper binary / state / provider / capability / client-adapter configuration / host bootstrap behavior 等は変更可能です。
 
 Compatibility のために unsafe authority boundary、曖昧な ownership、silent data loss、不要な complexity を残しません。ただし material change は explicit・tested・documented にします。
 
