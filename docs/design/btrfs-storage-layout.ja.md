@@ -36,7 +36,9 @@ Incus pool: haco-<storage-id>
 
 ## Runtime の pool 選択ルール
 
-local composition は先に Hacocoon Btrfs storage を作成・確認し、その storage attachment で Incus runtime を Prepare する。Environment、Tooling Base、Seed の作成は、Host の Incus default profile pool を継承せず、Prepare 済みの pool を利用する。
+local composition は Hacocoon Btrfs storage provider を lazy に設定する。Incus rootfs を必要としないコマンドのために local application を開いただけでは、loop image の attach、Btrfs mount、Incus storage pool 作成を行わない。
+
+最初に Environment、Tooling Base builder、または Seed builder が root storage を必要とした時点で、Incus runtime が設定済み provider を解決し、sparse-raw Btrfs storage と対応する `haco-<storage-id>` Incus pool を作成・確認する。その pool を記録し、以降の Hacocoon 所有 rootfs operation でも再利用する。したがって、これらの経路は Host の Incus default profile pool を継承しない。
 
 Hacocoon local composition を通さず低レベル Incus runtime を直接利用する経路については、互換性のため従来の default-profile 挙動を残す。この互換経路は Hacocoon の通常ローカル storage architecture ではない。
 
@@ -46,4 +48,4 @@ Host Workspace は Environment へ bind mount されるため、Hacocoon Btrfs p
 
 ## 複数 pool
 
-ルールは「設定された Hacocoon storage pool ごとに 1 個の共有 Btrfs filesystem」であり、すべての Hacocoon deployment に対する hard global singleton ではない。Runtime Prepare は storage attachment の `incus_pool` を記録するため、別の storage ID は別の `haco-<storage-id>` pool へ対応でき、Host の default pool へ戻る必要はない。
+ルールは「設定された Hacocoon storage pool ごとに 1 個の共有 Btrfs filesystem」であり、すべての Hacocoon deployment に対する hard global singleton ではない。Runtime Prepare または設定済み storage provider が storage attachment の `incus_pool` を選択するため、別の storage ID は別の `haco-<storage-id>` pool へ対応でき、Host の default pool へ戻る必要はない。
