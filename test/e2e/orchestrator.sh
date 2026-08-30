@@ -48,7 +48,37 @@ case "$command_name" in
       printf '%s\n' '{"devices":{"root":{"type":"disk","path":"/","pool":"default"}}}'
       exit 0
     fi
+    if [ "${1:-}" = 'show' ] && [ "${2:-}" = 'haco-sandbox' ]; then
+      printf '%s\n' '{"config":{},"devices":{"eth0":{"type":"nic","name":"eth0","network":"haco-sandbox0","security.acls":"haco-sandbox-egress","security.acls.default.ingress.action":"reject","security.acls.default.egress.action":"reject","security.acls.default.ingress.logged":"true","security.acls.default.egress.logged":"true","security.ipv4_filtering":"true","security.ipv6_filtering":"true","security.mac_filtering":"true","security.port_isolation":"true"}}}'
+      exit 0
+    fi
     exit 2
+    ;;
+  network)
+    case "${1:-}" in
+      show)
+        [ "${2:-}" = 'haco-sandbox0' ] || exit 2
+        exit 0
+        ;;
+      get)
+        [ "${2:-}" = 'haco-sandbox0' ] || exit 2
+        case "${3:-}" in
+          ipv4.address) printf '%s\n' '10.200.0.1/24' ;;
+          ipv4.nat|ipv4.firewall|ipv4.routing) printf '%s\n' 'true' ;;
+          ipv6.address) printf '%s\n' 'none' ;;
+          *) exit 2 ;;
+        esac
+        exit 0
+        ;;
+      acl)
+        if [ "${2:-}" = 'show' ] && [ "${3:-}" = 'haco-sandbox-egress' ]; then
+          printf '%s\n' 'config: {}' 'description: ""' 'egress: []' 'ingress: []' 'name: haco-sandbox-egress'
+          exit 0
+        fi
+        exit 2
+        ;;
+      *) exit 2 ;;
+    esac
     ;;
   image)
     if [ "${1:-}" = 'info' ] && [ -n "${2:-}" ]; then
@@ -196,6 +226,7 @@ assert env['resources']['cpu']['mode'] == 'unlimited', r
 PY
 grep -Fq 'image info images:custom-moving --format json' "$HACO_FAKE_INCUS_LOG"
 grep -Fq 'init images:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb haco-base-demo' "$HACO_FAKE_INCUS_LOG"
+grep -Fq -- '--profile haco-sandbox --storage default' "$HACO_FAKE_INCUS_LOG"
 "$haco" delete base-demo
 
 # v0.12 resource budgets: CLI values become persisted provider-neutral metadata,
@@ -268,4 +299,4 @@ assert 'parameters' not in raw
 assert 'message' not in raw
 PY
 
-echo 'PASS: Hacocoon v0.6/v0.11/v0.12 orchestration, Base, and resource E2E'
+echo 'PASS: Hacocoon v0.6/v0.11/v0.12/v0.13 orchestration, Base, resource, and sandbox-network E2E'

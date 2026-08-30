@@ -46,9 +46,16 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	if err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("resolve isolated root storage: %w", err)
 	}
+	if err := p.ensureSandboxNetwork(ctx); err != nil {
+		return core.EnvironmentRuntime{}, fmt.Errorf("ensure Hacocoon sandbox network: %w", err)
+	}
 
 	ref := "haco-" + spec.Name
-	if _, err := p.runner.Run(ctx, "incus", "init", resolved.pinnedSource, ref, "--project", p.project, "--no-profiles", "--storage", rootPool); err != nil {
+	if _, err := p.runner.Run(ctx, "incus", "init", resolved.pinnedSource, ref,
+		"--project", p.project,
+		"--profile", sandboxProfile,
+		"--storage", rootPool,
+	); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}
 	cleanup := func(cause error) (core.EnvironmentRuntime, error) {
