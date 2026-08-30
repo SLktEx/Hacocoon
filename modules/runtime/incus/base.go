@@ -226,19 +226,9 @@ func (p *BaseProvider) resolveParentBase(ctx context.Context, requested core.Bas
 	if !ok {
 		return resolvedBase{}, fmt.Errorf("Base %q: %w", name, core.ErrNotFound)
 	}
-	result, err := p.runner.Run(ctx, "incus", "image", "info", source, "--format", "json")
+	fingerprint, err := p.imageFingerprint(ctx, source, "")
 	if err != nil {
 		return resolvedBase{}, fmt.Errorf("resolve Base %q from %q: %w", name, source, err)
-	}
-	var info struct {
-		Fingerprint string `json:"fingerprint"`
-	}
-	if err := json.Unmarshal([]byte(result.Stdout), &info); err != nil {
-		return resolvedBase{}, fmt.Errorf("decode immutable revision for Base %q: %w", name, core.ErrIncompatibleState)
-	}
-	fingerprint := strings.ToLower(strings.TrimSpace(info.Fingerprint))
-	if !baseFingerprintPattern.MatchString(fingerprint) {
-		return resolvedBase{}, fmt.Errorf("invalid immutable revision for Base %q: %w", name, core.ErrIncompatibleState)
 	}
 	return resolvedBase{
 		ref: core.BaseRef{
@@ -250,17 +240,11 @@ func (p *BaseProvider) resolveParentBase(ctx context.Context, requested core.Bas
 }
 
 func (p *BaseProvider) verifyEffectiveSeed(ctx context.Context, fingerprint string) error {
-	result, err := p.runner.Run(ctx, "incus", "image", "info", "local:"+fingerprint, "--project", p.project, "--format", "json")
+	resolved, err := p.imageFingerprint(ctx, "local:"+fingerprint, p.project)
 	if err != nil {
 		return err
 	}
-	var info struct {
-		Fingerprint string `json:"fingerprint"`
-	}
-	if err := json.Unmarshal([]byte(result.Stdout), &info); err != nil {
-		return core.ErrIncompatibleState
-	}
-	if strings.ToLower(strings.TrimSpace(info.Fingerprint)) != fingerprint {
+	if resolved != fingerprint {
 		return core.ErrIncompatibleState
 	}
 	return nil
