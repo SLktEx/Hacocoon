@@ -14,7 +14,7 @@ for binary in haco haco-vscode haco-agent-host; do
   chmod 0755 "$src/$binary"
 done
 tar -czf "$fixture/haco_linux_amd64.tar.gz" -C "$src" haco haco-vscode haco-agent-host
-sha256sum "$fixture/haco_linux_amd64.tar.gz" > "$fixture/checksums.txt"
+(cd "$fixture" && sha256sum haco_linux_amd64.tar.gz > checksums.txt)
 
 make_fake_curl() {
   target="$1"
