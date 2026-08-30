@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
 
-APPROVED_RUNNERS = {"ubuntu-24.04"}
+APPROVED_RUNNERS = {"ubuntu-26.04"}
 FULL_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 ACTIVE_TRUE = r'["\']?(?:1|true|yes|on)["\']?'
 PRIVILEGED_ENV_RE = re.compile(
