@@ -12,6 +12,7 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 - Milestone番号: [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md)
 - Security: [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
 - Plugin境界: [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+- Client interaction event: [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md)
 
 ## 番号ルール
 
@@ -29,6 +30,14 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 完全実装済みのproduct progressionは **v0.17まで連続**しています。
 
 Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
+
+## Client interaction境界
+
+`pkg/interaction` は capability audit stream を client-neutral な read-only event へprojectionします。stable ID、resume可能なbyte cursor、bounded batch、attention/recovery flagを提供し、raw resource、attributes、provider output、approval token、free-form audit reasonはclient schemaへ出しません。
+
+これは観測専用の境界です。approval / execution はtrusted Policy/Capability経路に残るため、browser、VS Code、code-server、JetBrains等の複数adapterが同じeventを観測しても、その観測自体がauthorizationにはなりません。
+
+詳細は [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md) を参照してください。
 
 ## Base と OCI
 

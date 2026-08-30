@@ -12,6 +12,7 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, and r
 - Milestone numbering: [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)
 - Security: [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
 - Plugin boundaries: [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+- Client interaction events: [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md)
 
 ## Source-of-truth order
 
@@ -51,6 +52,14 @@ Specifications:
 - [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md)
 - [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md) — deferred optional direction
+
+## Client interaction boundary
+
+`pkg/interaction` exposes a client-neutral, read-only event projection over the capability audit stream. Clients get stable IDs, resumable byte cursors, bounded batches, attention/recovery flags, and a deliberately minimized schema without raw resources, attributes, provider output, approval tokens, or free-form audit reasons.
+
+This boundary is observation only. Approval and execution remain inside the trusted Policy/Capability path, so browser, VS Code, code-server, JetBrains, and other adapters may observe the same event without the observation itself becoming authorization.
+
+See [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md).
 
 ## Base vs OCI CLI
 
