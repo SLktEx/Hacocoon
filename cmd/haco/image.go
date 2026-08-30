@@ -109,7 +109,12 @@ func imageSeedCommand(ctx context.Context, app *composition.App, args []string) 
 			}{Sampling: report, Recommendations: recommendations})
 		}
 		for _, recommendation := range recommendations {
-			fmt.Printf("%s@%s\t%d envs\t%.1f%%\tlast=%s\n",
+			promotion := "recommend"
+			if recommendation.AutoPromote {
+				promotion = "auto"
+			}
+			fmt.Printf("%s\t%s@%s\t%d envs\t%.1f%%\tlast=%s\n",
+				promotion,
 				recommendation.Reference,
 				recommendation.Digest,
 				recommendation.Environments,
