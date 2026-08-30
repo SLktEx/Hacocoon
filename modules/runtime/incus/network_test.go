@@ -11,7 +11,7 @@ import (
 )
 
 func sandboxProfileResult() host.Result {
-	return host.Result{Stdout: `{"config":{"environment.HTTP_PROXY":"http://10.200.0.1:18080","environment.HTTPS_PROXY":"http://10.200.0.1:18080","environment.NO_PROXY":"localhost,127.0.0.1,::1","environment.http_proxy":"http://10.200.0.1:18080","environment.https_proxy":"http://10.200.0.1:18080","environment.no_proxy":"localhost,127.0.0.1,::1"},"devices":{"eth0":{"type":"nic","name":"eth0","network":"haco-sandbox0","security.ipv4_filtering":"true","security.ipv6_filtering":"true","security.mac_filtering":"true","security.port_isolation":"true"}}}`}
+	return host.Result{Stdout: `{"config":{"environment.HTTP_PROXY":"http://10.200.0.1:18080/","environment.HTTPS_PROXY":"http://10.200.0.1:18080/","environment.NO_PROXY":"localhost,127.0.0.1,::1","environment.http_proxy":"http://10.200.0.1:18080/","environment.https_proxy":"http://10.200.0.1:18080/","environment.no_proxy":"localhost,127.0.0.1,::1"},"devices":{"eth0":{"type":"nic","name":"eth0","network":"haco-sandbox0","security.ipv4_filtering":"true","security.ipv6_filtering":"true","security.mac_filtering":"true","security.port_isolation":"true"}}}`}
 }
 
 func managedACLResult() host.Result {
@@ -28,13 +28,13 @@ func sandboxNetworkResult(args []string) (host.Result, bool) {
 	}
 	if len(args) >= 4 && args[0] == "network" && args[1] == "get" && args[2] == sandboxNetwork {
 		values := map[string]string{
-			"ipv4.address":                        "10.200.0.1/24\n",
-			"ipv4.nat":                            "true\n",
-			"ipv4.firewall":                       "true\n",
-			"ipv4.routing":                        "true\n",
-			"ipv6.address":                        "none\n",
-			"raw.dnsmasq":                         "port=0\n",
-			"security.acls":                       sandboxEgressACL + "\n",
+			"ipv4.address":                         "10.200.0.1/24\n",
+			"ipv4.nat":                             "true\n",
+			"ipv4.firewall":                        "true\n",
+			"ipv4.routing":                         "true\n",
+			"ipv6.address":                         "none\n",
+			"raw.dnsmasq":                          "port=0\n",
+			"security.acls":                        sandboxEgressACL + "\n",
 			"security.acls.default.ingress.action": "reject\n",
 			"security.acls.default.egress.action":  "reject\n",
 			"security.acls.default.ingress.logged": "true\n",

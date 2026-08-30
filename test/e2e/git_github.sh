@@ -20,6 +20,7 @@ printf 'first\n' > "$workspace/README.md"
 git -C "$workspace" add README.md
 git -C "$workspace" commit -qm first
 git -C "$workspace" remote add origin https://github.com/acme/demo.git
+git -C "$workspace" remote add upstream https://github.com/SLktEx/Hacocoon.git
 
 mkdir -p "$HACO_ROOT/state"
 python3 - "$HACO_ROOT/state/environments.json" "$workspace" <<'PY'
@@ -34,12 +35,27 @@ cat > "$HACO_ROOT/policy.json" <<'JSON'
   "rules": [
     {
       "capability": "github.git",
+      "action": "fetch",
+      "resource": "github://SLktEx/Hacocoon/fetch/upstream",
+      "environment": "demo",
+      "attributes": {
+        "organization": "SLktEx",
+        "repository": "Hacocoon",
+        "repository_identity": "*",
+        "remote": "upstream"
+      },
+      "decision": "allow",
+      "reason": "public Hacocoon fetch acceptance"
+    },
+    {
+      "capability": "github.git",
       "action": "push",
       "resource": "github://acme/demo/refs/heads/feature/e2e",
       "environment": "demo",
       "attributes": {
         "organization": "acme",
         "repository": "demo",
+        "repository_identity": "*",
         "remote": "origin",
         "source_sha": "*",
         "target_ref": "refs/heads/feature/e2e"
@@ -52,6 +68,13 @@ cat > "$HACO_ROOT/policy.json" <<'JSON'
 JSON
 
 go build -o "$haco" ./cmd/haco
+
+# A successful fetch proves the normal brokered Git user path, including policy,
+# repository pinning, sanitized Host Git execution, and remote-tracking ref
+# updates. The public project remote requires no test credentials.
+"$haco" plugin git fetch demo --remote upstream >"$root/fetch.out" 2>"$root/fetch.err"
+upstream_main="$(git -C "$workspace" rev-parse --verify refs/remotes/upstream/main^{commit})"
+[[ "$upstream_main" =~ ^[0-9a-f]{40,64}$ ]]
 
 # A repository-local URL rewrite changes the transport destination after the
 # policy layer has approved github.com/acme/demo. This was previously used by
@@ -82,4 +105,4 @@ if git --git-dir="$bare" show-ref --verify --quiet refs/heads/feature/e2e; then
   exit 1
 fi
 
-echo 'PASS: Hacocoon rejects repository-controlled Git transport overrides'
+echo 'PASS: Hacocoon brokered Git fetch + transport-override hardening E2E'
