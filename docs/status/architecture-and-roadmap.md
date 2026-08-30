@@ -2,7 +2,9 @@
 
 > **Architecture baseline · Updated 2026-08-31**
 >
-> Hacocoon is a **Secure Workspace Runtime**. Use [`../IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md) for current code reality and [`versioning-and-release-status.md`](versioning-and-release-status.md) for authoritative milestone numbering.
+> Hacocoon is a **Secure Workspace Runtime**. Use [`../IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md) for current code reality and [`versioning-and-release-status.md`](versioning-and-release-status.md) for authoritative development-checkpoint numbering/history.
+
+This document describes product boundaries and forward direction. It intentionally does **not** duplicate the current checkpoint table or the full implementation-status matrix.
 
 Hacocoon gives developer tools and coding agents broad freedom inside isolated Environments while keeping Host and external authority behind explicit trusted boundaries.
 
@@ -27,7 +29,7 @@ Client / IDE / Agent / Orchestrator
 
 On the supported local path, the Physical Host remains the authority for Incus and privileged platform operations while a persistent trusted logical `haco-host` provides the normal management entry point. `haco-host` is TCB infrastructure, not an untrusted Environment.
 
-The provider-neutral v0.7 routing seam remains, but **cloud implementation is currently deferred**. Concrete EC2/AWS/EBS code is intentionally absent from the active tree.
+The provider-neutral routing seam remains, but **cloud implementation is currently deferred**. Concrete EC2/AWS/EBS code is intentionally absent from the active tree.
 
 Container tooling is also not Core. Optional OCI plugins may provide nerdctl/Docker behavior; with `HACO_PLUGIN_OCI` unset, Core remains usable without containerd, nerdctl, Docker, or a local Registry.
 
@@ -45,40 +47,29 @@ Hacocoon does not own IDE/AI chat UX, model routing, task DAGs, Git worktree orc
 
 See [`../design/plugin-architecture.md`](../design/plugin-architecture.md) and [`../DESIGN_PRINCIPLES.md`](../DESIGN_PRINCIPLES.md).
 
-## Roadmap
+## Roadmap model
 
-| Version | Gate | Repository status |
-|---|---|---|
-| v0.1 | Secure Workspace Runtime MVP | implemented |
-| v0.2 | Workspace Abstraction & Lease | implemented |
-| v0.3 | Client & Interactive Access | implemented |
-| v0.4 | Policy & Capability Foundation | implemented |
-| v0.5 | Git / GitHub Capability | implemented |
-| v0.6 | Agent & Orchestrator Integration | implemented |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | provider routing seam retained; concrete cloud deferred |
-| v0.8 | Client Adapters & VS Code Integration | implemented |
-| v0.9 | Per-Agent Sandbox & Agent Host Integration | broker foundation implemented |
-| v0.10 | VS Code Remote Agent Host Adapter | implemented |
-| v0.11 | Base Images & Custom Environments | first slice implemented |
-| v0.12 | Sandbox Resource Limits | first slice implemented |
-| v0.13 | Managed Sandbox Network | implemented |
-| v0.14 | Git Fetch Plugin | implemented |
-| v0.15 | OCI Seed Recommendation | implemented |
-| v0.16 | OCI Image Deletion | first slice implemented |
-| v0.17 | OCI Seed Builder & Btrfs/COW | build/publish + operations-hardening repository slices / partial |
-| v0.18 | Docker Compatibility Plugin | repository implementation complete; real-host acceptance remains host-dependent |
-| v0.19 | Domain-aware Egress Authorization | repository implementation complete; real supported-Incus acceptance remains host-dependent |
-| v0.20 | Managed Btrfs Rootfs Storage | managed sparse-raw Btrfs pool and rootfs routing implemented; broader physical acceptance remains host-dependent |
-| v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` managed default implemented; real compression/performance acceptance remains host-dependent |
-| v0.22 | Interaction Notification Clients | browser, native OS, and VS Code notification clients implemented |
-| v0.23 | Real Incus E2E Acceptance | standalone Incus substrate and Hacocoon Core lifecycle exercised on GitHub-hosted Ubuntu 26.04 |
-| v0.24 | Structured Logging | shared structured logging, sanitized diagnostics, and secret redaction implemented |
-| v0.25 | Managed Btrfs Host Privilege Broker | typed root-owned helper and ordinary-user real Incus/Btrfs CLI acceptance implemented |
-| v0.26 | Trusted `haco-host` & Default WSL Entry | persistent trusted logical Host lifecycle/default entry and real Incus acceptance implemented |
+Development checkpoints are chronological progress markers, not roadmap phases that must all close before later work starts. The complete checkpoint history and current number live only in [`versioning-and-release-status.md`](versioning-and-release-status.md).
 
-The current milestone position is **v0.26**. Milestones are lightweight pre-1.0 development checkpoints, so a partial earlier gate does not block later progress.
+The roadmap is organized by architectural direction instead of copying per-checkpoint implementation status:
 
-**Local OCI Registry is not a roadmap milestone.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
+- strengthen the trusted Host/controller boundary while keeping untrusted Environments free of Host management authority;
+- make the persistent logical `haco-host` the normal local/WSL operating surface without moving raw Incus authority into it;
+- keep client integrations reusable and client-neutral, including interaction events, notification delivery, VS Code, browser, and future IDEs;
+- preserve provider-neutral Environment/Core contracts while keeping concrete cloud backends deferred until local contracts settle;
+- keep OCI/container tooling optional and separate from Core;
+- make local storage efficient and recoverable through managed Btrfs/COW without broadening ordinary CLI privileges;
+- continue tightening real-host acceptance, especially Windows/WSL, networking, storage behavior, and client integration.
+
+**Local OCI Registry is not a required roadmap gate.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
+
+## Trusted Host direction
+
+On the local Incus/WSL path, Hacocoon distinguishes the **Physical Host** from the persistent trusted logical **`haco-host`**. The Physical Host retains Incus, loop/Btrfs, and other platform authority. `haco-host` is trusted infrastructure inside the TCB, not an untrusted Environment.
+
+The implemented lifecycle/default-entry slice does not expose the raw Incus control socket. Follow-up work should move ordinary Hacocoon operations toward the logical Host through narrow controller/client contracts while preserving explicit Physical-Host recovery and bootstrap paths.
+
+See [`../design/trusted-host.md`](../design/trusted-host.md) and [`../WINDOWS_WSL_BOOTSTRAP.md`](../WINDOWS_WSL_BOOTSTRAP.md).
 
 ## Base and OCI separation
 
@@ -94,44 +85,42 @@ HACO_PLUGIN_OCI=docker   haco plugin oci ...
 
 ## OCI storage direction
 
-v0.17 repository work covers trusted Host acquisition/cache, an offline no-NIC Seed Builder, immutable Seed publication/current pointer, exact-parent resolution, explicit per-Base immutable pins, exact re-enable after deletion, conservative old-revision GC, interrupted-builder recovery, deletion-race protection, credential-free managed-Environment harvest, and normal Incus/storage-driver cloning. Authenticated/private-registry combinations, physical Btrfs COW measurement, broader real-host failure injection, and supported-host acceptance remain pending. Never share one writable `/var/lib/containerd` across Environments.
+Seed/storage work uses trusted Host acquisition/cache, offline builders, immutable publication/current pointers, exact-parent resolution, explicit immutable pins, conservative recovery/GC, credential-free managed-Environment harvest, and normal Incus/storage-driver cloning. Authenticated/private-registry combinations, physical Btrfs COW/compression measurements, broader real-host failure injection, and supported-host acceptance remain active hardening areas. Never share one writable `/var/lib/containerd` across Environments.
 
-v0.20 extends the storage boundary to all Hacocoon-owned local Incus rootfs paths. Local composition lazily ensures one sparse-raw Btrfs filesystem per configured Hacocoon storage pool and routes Base, Tooling, Seed, Environment rootfs volumes, snapshots, and clones through its `haco-<storage-id>` Incus pool rather than inheriting the Host default pool.
+Local rootfs storage routes Hacocoon-owned Base, Tooling, Seed, and Environment rootfs paths through the managed sparse-raw Btrfs pool rather than inheriting the Host default pool. Managed mounts use `compress=zstd:3`; `compress-force` is intentionally not desired state, and Hacocoon does not automatically rewrite old extents because doing so could reduce reflink/COW sharing.
 
-v0.21 standardizes managed transparent compression. Managed Btrfs mounts use `compress=zstd:3`; non-compliant managed mounts are remounted, `compress-force` is intentionally not the desired state, and Hacocoon does not automatically rewrite old extents because that could reduce reflink/COW sharing. Physical compression ratio, CPU cost, COW behavior, and compaction remain host-dependent acceptance concerns.
-
-v0.25 makes the Host privilege boundary explicit for managed Btrfs. The ordinary CLI remains non-root and translates only fixed storage operations into typed requests to the root-owned `haco-storage-helper`, which revalidates managed paths, loop backing file/inode identity, filesystem signatures, and exact mount identity. Real Ubuntu 26.04 acceptance exercises both the helper lifecycle and actual ordinary-user Hacocoon CLI against real Incus and the managed pool.
+The ordinary CLI remains non-root for managed storage. Privileged loop/Btrfs/mount work crosses the narrow typed `haco-storage-helper` boundary, which revalidates managed paths, loop backing identity, filesystem signatures, and exact mount identity.
 
 See [`../design/oci-seed-and-cow.md`](../design/oci-seed-and-cow.md), [`../design/btrfs-storage-layout.md`](../design/btrfs-storage-layout.md), [`../design/docker-compatibility-plugin.md`](../design/docker-compatibility-plugin.md), and [`../OPTIONAL_LOCAL_OCI_REGISTRY.md`](../OPTIONAL_LOCAL_OCI_REGISTRY.md).
 
-## Trusted Host direction
-
-v0.26 establishes the persistent trusted logical `haco-host` on the supported local Incus path. `haco host ensure` / `haco host shell` provide lifecycle and entry, exact ownership markers prevent accidental adoption of unrelated instances, managed storage is used, raw Incus control stays on the Physical Host, and the WSL login path enters `haco-host` by default while retaining explicit Physical Host root recovery.
-
-The current slice does not move every Git/OCI/credential/controller responsibility into `haco-host`. Those migrations remain follow-up work behind the trust boundary established here. See [`../design/trusted-host.md`](../design/trusted-host.md) and [`../WINDOWS_WSL_BOOTSTRAP.md`](../WINDOWS_WSL_BOOTSTRAP.md).
-
 ## Egress direction
 
-v0.19 records the repository-complete hostname-aware egress slice: Core authorization, the Standard HTTP/HTTPS proxy, Host-side DNS pinning and address filtering, CONNECT/SNI validation, Incus proxy-only transport enforcement, trusted source-IP Environment mapping, and `haco egress serve`. Real supported-Incus bridge/nftables/dnsmasq acceptance remains host-dependent. See [`../EGRESS_AUTHORIZATION.md`](../EGRESS_AUTHORIZATION.md).
+Hostname-aware egress keeps the authorization contract in Core and concrete default HTTP/HTTPS proxy enforcement in Standard. The Host resolves and pins public destinations only after authorization; the Incus path remains proxy-only at the lower transport layer. Real supported-Incus bridge/nftables/dnsmasq behavior remains an acceptance concern rather than a reason to duplicate status here.
+
+See [`../EGRESS_AUTHORIZATION.md`](../EGRESS_AUTHORIZATION.md).
 
 ## Client direction
 
-Clients use generic Hacocoon contracts rather than becoming Core dependencies. `pkg/clientadapter` provides Environment/access operations and composes `pkg/interaction` for client-neutral event observation. VS Code is the first convenience client; code-server, JetBrains, browser UIs, and future clients can reuse the same boundaries.
+Clients use generic Hacocoon contracts rather than becoming Core dependencies. `pkg/clientadapter` provides Environment/access operations and composes `pkg/interaction` for client-neutral event observation. Browser/native notifications and the optional VS Code notification extension consume the same minimized event boundary; observation/delivery never becomes an authorization path.
 
-v0.22 adds user-visible notification adapters on top of that client-neutral interaction stream: browser delivery, native OS notifications, and an optional VS Code notification extension. Notification observation remains separate from Policy/Capability approval or execution authority. See [`../INTERACTION_EVENTS.md`](../INTERACTION_EVENTS.md).
+VS Code is the first convenience client. code-server, JetBrains, browser UIs, and future clients should reuse the same boundaries rather than introducing client-specific authority into Core.
+
+See [`../CLIENT_ADAPTER_CONTRACT.md`](../CLIENT_ADAPTER_CONTRACT.md) and [`../INTERACTION_EVENTS.md`](../INTERACTION_EVENTS.md).
 
 ## Operational confidence direction
 
-v0.23 treats real-Incus CI acceptance as a named checkpoint. GitHub-hosted Ubuntu 26.04 proves standalone Incus system-container behavior before Hacocoon Core lifecycle E2E runs, so substrate failures can be distinguished from Core regressions.
+Real-Incus CI acceptance proves the substrate independently before Core lifecycle checks, making substrate failures distinguishable from Hacocoon regressions. Managed-storage acceptance exercises the ordinary-user CLI through the privileged helper boundary, and trusted-host acceptance verifies lifecycle/ownership/control-socket isolation.
 
-v0.24 standardizes structured logging across maintained executables with `log/slog`, stable operation context, sanitized Host-command diagnostics, and defense-in-depth secret redaction. See [`../reference/logging.md`](../reference/logging.md).
+Structured logging uses `log/slog`, stable operation context, sanitized Host-command diagnostics, and defense-in-depth secret redaction across maintained executables. See [`../reference/logging.md`](../reference/logging.md).
 
-These operational milestones do not claim universal Host support; they make support confidence and diagnosability visible in the same progression as product features.
+These operational checkpoints improve support confidence and diagnosability without claiming universal Host support. Exact current acceptance remains in [`../IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md).
 
 ## Numbering rule
 
 Minor versions are pragmatic pre-1.0 progress checkpoints. Meaningful product, implementation, operator-experience, observability, or acceptance slices may take the next minor even when follow-up work or real-host acceptance remains. Small fixes and maintenance do not automatically consume another version, but substantial support/operability checkpoints may. During pre-1.0 development, visible progression is preferred over conserving minor numbers.
 
+Published tags/releases and acceptance/support evidence are separate concepts. See [`versioning-and-release-status.md`](versioning-and-release-status.md).
+
 ## Historical note
 
-Old commits, branches, PRs, and document versions may use superseded milestone assignments or describe removed cloud implementations. Git history is the archive for those states; they do not override the current status/version authority.
+Old commits, branches, PRs, and document versions may use superseded checkpoint assignments or describe removed cloud implementations. Git history is the archive for those states; it does not override the current status/version authority.
