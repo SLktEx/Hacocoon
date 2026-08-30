@@ -1,152 +1,72 @@
-# Git / GitHub capability
+# Git / GitHub Capability Plugin
 
-Hacocoon v0.5 keeps GitHub authority on the host side. An Environment can keep using ordinary Git for local operations, while privileged pushes cross the Hacocoon Policy/Capability boundary.
+Hacocoon keeps privileged GitHub authority on the trusted Host side. Ordinary local Git remains Git's responsibility; fetch/push that need Host credentials or external authority cross the Hacocoon Policy/Capability boundary through the plugin namespace.
 
-## Brokered push
-
-Git integration is exposed under the plugin namespace rather than as a Core top-level CLI command. The current narrow privileged entry point is:
+## CLI
 
 ```bash
+haco plugin git fetch <environment>
+haco plugin git fetch <environment> --remote upstream
+
 haco plugin git push <environment> --branch feature/x
 haco plugin git push <environment> --branch main --force
 ```
 
-Optional selectors:
+Push may also select `--source <revision>` and `--remote <remote>`.
 
-```text
---source <revision>   default: HEAD
---remote <remote>     default: origin
-```
-
-This is intentionally **not** a Hacocoon wrapper for every Git command. Commit, diff, status, fetch, worktree handling, and other ordinary Git UX remain Git's responsibility. The `plugin git` namespace marks Git/GitHub integration as an extension surface while the security-sensitive authority remains inside the host-owned Policy/Capability boundary. A future transparent remote-helper/IPC path should only be added if it preserves the same security boundary without revealing credentials.
+This is intentionally not a wrapper for every Git command. `status`, `diff`, `commit`, ordinary fetches performed with Environment-owned credentials, branch/worktree management and other local Git UX remain outside Hacocoon Core.
 
 ## Trusted repository identity
 
-Before any brokered Git command, Hacocoon resolves an explicit repository boundary for the registered Workspace and pins every Git subprocess to that exact `--git-dir` and `--work-tree`. Git is therefore not allowed to discover a parent repository or follow a newly swapped `.git` pointer between validation and execution.
+Before a brokered operation, Hacocoon resolves and pins the registered Workspace repository boundary. It accepts only deliberately narrow normal-repository / standard linked-worktree layouts and rejects unsafe `.git` indirection, symlink tricks, mismatched worktree backlinks, object alternates and transport/credential/command-sensitive repository configuration.
 
-The accepted layouts are deliberately narrow:
+The canonical repository identity is hashed into a non-secret capability attribute. It is recomputed before privileged execution; a changed repository boundary makes the request stale.
 
-- a normal Workspace-local `.git/` directory;
-- a standard linked Git worktree whose `.git` file points to `<common-dir>/worktrees/<id>`, whose admin directory has a `gitdir` backlink to this exact Workspace `.git` file, and whose `commondir` resolves back to that common directory.
+## Fetch normalization and execution
 
-Arbitrary external `gitdir:` targets, symlink `.git` entries, mismatched worktree backlinks, non-standard linked-worktree admin layouts, and Git object alternates are rejected. Repository-controlled config includes, HTTP transport configuration, credential helpers, URL rewrites, hook/SSH/askpass commands, and `core.worktree` overrides are also rejected for the privileged broker path.
+For `haco plugin git fetch` Hacocoon:
 
-The canonical worktree/gitdir/commondir tuple is hashed into a non-secret `repository_identity` capability attribute. The provider recomputes that identity immediately before privileged execution and fails stale if it changed after policy evaluation. Raw host paths are not written into the capability audit for this purpose.
+1. resolves the Environment to its registered Host Workspace;
+2. validates and pins repository identity;
+3. resolves the selected remote;
+4. accepts credential-free `github.com` HTTPS/SSH remotes;
+5. normalizes organization, repository and remote name into capability-visible authority;
+6. runs policy/approval before authenticated network access;
+7. after authorization, executes fetch using the validated GitHub URL and a fixed refspec that updates only `refs/remotes/<remote>/*`.
 
-## Request normalization
+The broker does **not** trust repository-controlled `remote.<name>.fetch` for the privileged fetch path. Tags and submodules are not implicitly fetched.
 
-Before policy evaluation Hacocoon:
+## Push normalization and execution
 
-1. resolves the Environment to its registered host Workspace;
-2. validates and pins the trusted repository identity described above;
-3. reads the configured remote URL from that pinned repository;
-4. accepts only credential-free `github.com` HTTPS/SSH remotes;
-5. normalizes organization, repository, target branch/ref, and operation;
-6. resolves the requested source revision to an exact Git object SHA;
-7. for a force push, resolves the expected target SHA only from the already-fetched local `refs/remotes/<remote>/<branch>` tracking ref;
-8. records those non-secret, authority-sensitive values as auditable capability attributes.
+Push authorization includes GitHub organization/repository, target branch/ref, exact source SHA and repository identity. Approval is granted to an exact source commit rather than a moving branch name.
 
-No authenticated remote lookup is performed during this pre-policy normalization. A force push therefore requires a fetched local remote-tracking ref. If that local baseline is absent, Hacocoon fails closed and the operator must fetch/update the tracking ref before retrying.
+Force push uses `--force-with-lease`, never raw `--force`. The expected target SHA comes from the already-fetched local remote-tracking ref before policy evaluation. After authorization, Hacocoon verifies the real remote ref still matches that approved baseline before executing the force-with-lease push.
 
-Example policy:
+## Host credential provider
 
-```json
-{
-  "default": "deny",
-  "rules": [
-    {
-      "capability": "github.git",
-      "action": "push",
-      "resource": "github://acme/demo/refs/heads/feature/x",
-      "environment": "demo",
-      "attributes": {
-        "organization": "acme",
-        "repository": "demo",
-        "repository_identity": "*",
-        "remote": "origin",
-        "source_sha": "*",
-        "target_ref": "refs/heads/feature/x"
-      },
-      "decision": "allow"
-    },
-    {
-      "capability": "github.git",
-      "action": "force-push",
-      "resource": "github://acme/demo/refs/heads/main",
-      "environment": "demo",
-      "attributes": {
-        "organization": "acme",
-        "repository": "demo",
-        "repository_identity": "*",
-        "remote": "origin",
-        "source_sha": "*",
-        "target_ref": "refs/heads/main",
-        "expected_remote_sha": "*"
-      },
-      "decision": "require-approval"
-    }
-  ]
-}
-```
+Brokered Git processes run with a freshly constructed environment rather than inheriting arbitrary caller state. Global/system Git configuration and ambient credential/askpass overrides are disabled.
 
-Policy scope is exact by default. `resource` must always be present, and only the literal value `"*"` means any resource. Environment is also part of the policy scope. Every request attribute must be represented by the matching rule; use an explicit attribute value of `"*"` when the value may vary safely, such as the source commit SHA or hashed repository identity.
+For GitHub HTTPS, the plugin explicitly configures the Host-owned `gh auth git-credential` provider for the brokered operation. This lets normal `gh auth login` / `gh auth setup-git` Host configuration work for private repositories without exporting PATs or the Host credential configuration into a Sandbox.
 
-## Exact source enforcement
+For SSH remotes, the hardened broker may use Host default keys / `SSH_AUTH_SOCK` while disabling user SSH config rewrites that could redirect the validated GitHub host.
 
-Approval is not granted to a moving branch name. Hacocoon resolves the source to a SHA before policy/approval and the provider pushes that exact SHA:
+The following are never copied into the Environment, policy request or audit log:
 
-```text
-<approved SHA>:<approved refs/heads/...>
-```
+- GitHub PAT/token plaintext;
+- credential-helper response plaintext;
+- SSH private keys;
+- authorization headers.
 
-The provider revalidates the repository identity and re-reads/re-normalizes the GitHub remote immediately before the push. If the repository boundary, remote, repository, or target no longer matches the approved request, the capability is stale and the push is refused.
+## Process isolation
 
-Force pushes use `--force-with-lease`, not raw `--force`. Before policy/approval, the expected remote SHA comes from the local remote-tracking ref only. After policy/approval succeeds, the provider performs the authenticated `ls-remote`, requires the real remote ref to equal the approved local baseline, and only then executes the force-with-lease push. A stale local tracking ref or a remote change invalidates the request instead of causing pre-policy network access.
+Brokered Git starts from a minimal explicit environment and pins `--git-dir` / `--work-tree`. Caller-controlled `GIT_*`, askpass, proxy and transport-command state must not silently cross the capability boundary.
 
-## Parameters and credentials
-
-The broker currently carries the normalized remote URL as compatibility metadata, but the provider does not use that opaque value to select authority or execute the push. The provider explicitly declares that key as non-authority; execution re-resolves the remote from the Workspace. Future Git/GitHub inputs that can affect authority must be added to policy-visible attributes instead of hidden in parameters.
-
-No `GH_TOKEN`, GitHub PAT, SSH private key, credential-helper plaintext, or authorization header is copied into the Environment, Hacocoon state, policy request, or audit log.
-
-### Host Git process isolation
-
-Every Git command used by the broker/provider runs with a freshly constructed environment rather than inheriting the Hacocoon process environment. This is part of the capability trust boundary, not an optional hardening step.
-
-The brokered process starts through `/usr/bin/env -i` and `/usr/bin/git`. It sets only:
-
-```text
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-GIT_CONFIG_NOSYSTEM=1
-GIT_CONFIG_GLOBAL=/dev/null
-GIT_TERMINAL_PROMPT=0
-GIT_ASKPASS=/usr/bin/false
-SSH_ASKPASS=/usr/bin/false
-GIT_SSH_COMMAND=/usr/bin/ssh -F /dev/null -o BatchMode=yes -o ClearAllForwardings=yes -o PermitLocalCommand=no
-```
-
-and selectively carries `HOME`, `SSH_AUTH_SOCK`, `LANG`, and `LC_ALL` when present.
-
-All ambient `GIT_*` variables other than the values explicitly created above are discarded. In particular, caller-controlled `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_*`, `GIT_CONFIG_VALUE_*`, `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM`, `GIT_DIR`, `GIT_WORK_TREE`, `GIT_SSH`, `GIT_SSH_COMMAND`, and `GIT_ASKPASS` cannot flow into brokered Git. Ambient `SSH_ASKPASS`, proxy variables, and other unrelated process state are also not inherited.
-
-Global and system Git configuration are deliberately disabled. Repository-local configuration remains visible because the Workspace remote must be resolved, but transport/credential/command-sensitive local entries are rejected before authorization and again before execution.
-
-For SSH remotes, Hacocoon disables user SSH configuration with `-F /dev/null`. The host user's default SSH keys/known-hosts and `SSH_AUTH_SOCK` may still provide authentication, but `~/.ssh/config` cannot introduce `HostName`, `ProxyCommand`, or similar transport rewrites for `github.com`.
-
-For HTTPS remotes, ambient global credential helpers are intentionally not trusted because global Git configuration is outside the brokered capability boundary. A future HTTPS credential provider must be explicit host-owned provider state, not inherited Git configuration or Environment-supplied credentials.
-
-GitHub App token minting can be added behind this same provider boundary when deployment conditions make it useful; it is not required to weaken the boundary by injecting tokens into the Environment.
+Repository-local configuration is visible only where needed to identify the remote, and transport/credential/command-sensitive entries are rejected before authorization and again before execution.
 
 ## Audit
 
-Audit events include a request ID plus non-secret attributes such as:
+Audit records non-secret authority attributes such as organization, repository, hashed repository identity, remote, target ref, exact source SHA, and expected remote SHA for force-with-lease. Credential material is excluded.
 
-- organization;
-- repository;
-- hashed repository identity;
-- target ref;
-- exact source SHA;
-- remote name;
-- expected remote SHA for force-with-lease.
+## Product boundary
 
-Opaque provider-declared non-authority `Parameters` remain excluded from audit by design.
+The Git/GitHub implementation is an adapter/plugin, not Core domain behavior. Core owns generic Policy/Capability/Audit contracts; GitHub remote parsing, repository/ref authority, Host credential use and brokered Git execution belong to the Git plugin.
