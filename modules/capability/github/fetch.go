@@ -80,6 +80,13 @@ func NewUnifiedProvider(runner host.Runner, store EnvironmentStore) *UnifiedProv
 
 func (*UnifiedProvider) Capability() string { return GitHubCapability }
 
+// Preserve the existing provider's explicit contract: remote_url is transport
+// compatibility metadata only. Authority is re-derived from the pinned
+// workspace and policy-visible Attributes before either fetch or push runs.
+func (*UnifiedProvider) NonAuthorityParameters() []string {
+	return []string{"remote_url"}
+}
+
 func (p *UnifiedProvider) Execute(ctx context.Context, req core.CapabilityRequest) (core.CapabilityResult, error) {
 	if req.Action != "fetch" {
 		if p == nil || p.push == nil {
