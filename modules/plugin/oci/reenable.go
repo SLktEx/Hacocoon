@@ -97,7 +97,7 @@ func (s *Store) RemoveDeletion(_ context.Context, reference, digest string) (boo
 	if err != nil {
 		return false, err
 	}
-	key := deletionKey(reference, digest)
+	key := (Deletion{Reference: reference, Digest: digest}).Key()
 	if _, ok := state.Deletions[key]; !ok {
 		return false, nil
 	}
