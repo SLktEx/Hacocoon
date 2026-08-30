@@ -132,7 +132,7 @@ require_text("docs/README.md", [
     "haco base list", "haco plugin oci", "haco plugin oci docker prepare", "contiguous through **v0.17**",
 ])
 require_text("docs/CLIENT_ADAPTER_CONTRACT.md", [
-    "pkg/clientadapter", "public key", "private key", "loopback-only", "/workspace",
+    "pkg/clientadapter", "public-key", "private key", "loopback-only", "/workspace",
     "haco ssh", "pkg/interaction", "VS Code", "JetBrains", "code-server",
 ])
 require_text("docs/00A_PLUGIN_ARCHITECTURE.md", [
