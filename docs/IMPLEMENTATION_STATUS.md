@@ -1,6 +1,6 @@
 # Implementation Status
 
-Status date: 2026-08-30, after the v0.10 Agent Host adapter, v0.11 Base-selection, v0.12 resource-budget, and initial v0.13 OCI telemetry/lifecycle implementation passes.
+Status date: 2026-08-30, after the v0.10 Agent Host adapter, v0.11 Base-selection, v0.12 resource-budget, and v0.13 optional-OCI-plugin implementation passes.
 
 This file reports **current code reality**, not desired architecture and not a compatibility guarantee. Versioned specifications are design/acceptance references; their existence does not imply full implementation.
 
@@ -38,19 +38,22 @@ Hacocoon is still **pre-1.0**. An implemented area does not mean its CLI/API/sta
 | Resource CLI | `haco create` and `haco run` accept `--cpu`, `--memory`, `--pids`, and `--root-size` | v0.12 | parser/fake-Incus coverage |
 | Incus resource enforcement | finite CPU/memory/PID/root-disk limits are applied and read back before `start`; mismatch or failure aborts creation | v0.12 | unit/fake-Incus coverage; real enforcement pending |
 | Unsupported-provider resource behavior | providers that cannot enforce requested finite budgets reject before side effects | v0.12 | wrapped-provider coverage; real AWS pending |
-| OCI plugin namespace | OCI/containerd/nerdctl-specific management is separated from Base lifecycle under `haco plugin oci ...` | v0.13 | CLI namespace routing coverage; dynamic plugin loading is not implied |
-| OCI usage telemetry | `haco plugin oci seed sample` records latest OCI image identity snapshots per Environment; `haco plugin oci seed recommend` refreshes stale samples and ranks immutable identities over a 30-day window | v0.13 | unit coverage in `internal/seedstats`; real-host sampling acceptance pending |
-| OCI Seed auto-selection | recommendation marks the top 10% of eligible immutable identities, rounded up with minimum one, as `auto_promote=true` | v0.13 | deterministic unit coverage; Seed build consumption still pending |
-| OCI image deletion | `haco plugin oci image delete <reference[@digest]>` removes the Host Seed-cache reference and records a deletion tombstone; `--all-environments` explicitly extends deletion to managed Environments without `--force` | v0.13 | focused unit coverage; replacement Seed publish/old-Seed GC pending |
-| OCI deletion override | deletion tombstones suppress recommendation/automatic re-promotion of the exact identity until an explicit future Seed override clears/supersedes the tombstone | v0.13 | persisted state v2 and recommendation coverage |
-| OCI Seed build/publish | offline Seed Builder, Environment harvesting, immutable Seed publish, current-pointer movement, and real Btrfs COW measurement are not yet complete | v0.13 | planned / acceptance pending |
-| Local OCI Registry | Registry/proxy is optional and not required for ordinary Environment pull, telemetry, or Seed design | v0.13 | design only / optional optimization |
+| Optional OCI plugin boundary | OCI/container tooling is implemented under `modules/plugin/oci`; Core does not own OCI telemetry, Seed recommendation/deletion state, or Docker compatibility packaging | v0.13 | module boundary and focused unit coverage; real OCI-profile acceptance pending |
+| OCI plugin composition | `HACO_PLUGIN_OCI=nerdctl` or `HACO_PLUGIN_OCI=docker` explicitly enables a driver; when unset, OCI is not composed and Core does not require `containerd`, `nerdctl`, Docker CLI, or Docker Engine | v0.13 | explicit driver parsing/selection coverage; disabled composition path is structurally dependency-free |
+| OCI plugin namespace | OCI/container-specific management is separated from Base lifecycle under `haco plugin oci ...` | v0.13 | CLI namespace routing coverage; dynamic shared-object loading is not implied |
+| OCI usage telemetry | `haco plugin oci seed sample` records latest OCI image identity snapshots per Environment; `haco plugin oci seed recommend` refreshes stale samples and ranks immutable identities over a 30-day window | v0.13 | unit coverage in `modules/plugin/oci`; real-host sampling acceptance pending |
+| OCI Seed auto-selection | recommendation marks the top 10% of eligible immutable identities, rounded up with minimum one, as `auto_promote=true` | v0.13B | deterministic unit coverage; Seed build consumption still pending |
+| OCI image deletion | `haco plugin oci image delete <reference[@digest]>` removes the plugin Host Seed-cache reference where supported and records a deletion tombstone; `--all-environments` explicitly extends deletion to managed Environments without `--force` | v0.13C | focused plugin unit coverage; replacement Seed publish/old-Seed GC pending |
+| OCI deletion override | deletion tombstones suppress recommendation/automatic re-promotion of the exact identity until an explicit future Seed override clears/supersedes the tombstone | v0.13C | persisted state and recommendation coverage |
+| Docker Engine compatibility packaging | optional systemd socket/service templates live under `modules/plugin/oci/packaging/systemd`; Docker driver selection does not grant authority over an arbitrary Host Docker daemon | v0.13 | packaging foundation; Base/Seed bake-in and real lifecycle acceptance pending |
+| OCI Seed build/publish | offline Seed Builder, Environment harvesting, immutable Seed publish, current-pointer movement, and real Btrfs COW measurement are not yet complete | v0.13A | planned / acceptance pending |
+| Local OCI Registry | Registry/proxy is optional plugin infrastructure and not required for ordinary Environment pull, telemetry, or Seed design | v0.13 | design only / optional optimization |
 | Btrfs / raw / QCOW2 historical storage | historical local storage implementation remains in the repository | historical / provider detail | not part of the current Core Environment model |
-| CI | Go matrix, vet, race, docs consistency, release packaging and non-host-dependent E2Es are configured | cross-cutting | GitHub Actions is currently failing jobs before steps execute due a repository-wide Actions-side issue; real-provider acceptance remains separate |
+| CI | Go matrix, vet, race, docs consistency, release packaging and non-host-dependent E2Es are configured | cross-cutting | GitHub Actions availability is external to repository code; real-provider/profile acceptance remains separate |
 
 ## Current implementation state
 
-The stable earlier progression remains contiguous through v0.12, with partial v0.13 OCI slices now also present:
+The stable earlier progression remains contiguous through v0.12, with the optional v0.13 OCI plugin first slice now also present:
 
 ```text
 Workspace
@@ -66,22 +69,22 @@ Workspace
   -> VS Code Remote Agent Host adapter
   -> logical Base -> immutable revision -> Environment
   -> explicit ResourceBudget -> provider enforcement before Environment access
-  -> optional OCI plugin -> telemetry / recommendation / deletion state
+  -> optional OCI plugin -> explicit nerdctl/Docker driver -> telemetry / recommendation / deletion state
 ```
 
 The v0.9 broker does not introduce an agent-visible management CLI. A trusted integration supplies an opaque session identity and Workspace; the broker selects/creates the Environment and persists ownership proof separately.
 
 v0.10 is implemented through `haco-agent-host`. It prepares a v0.9-bound Environment as a managed loopback SSH target while leaving VS Code in control of the Agent Host UI/protocol.
 
-v0.11 resolves a selected logical Base once at Environment creation time, records immutable `BaseRevision`, and initializes Incus from the pinned fingerprint. Its CLI is now explicitly `haco base ...`, not the generic `haco image ...` name.
+v0.11 resolves a selected logical Base once at Environment creation time, records immutable `BaseRevision`, and initializes Incus from the pinned fingerprint. Its CLI is explicitly `haco base ...`, not the generic `haco image ...` name.
 
 v0.12 resolves every creation request to an explicit effective `ResourceBudget`. Incus finite limits are configured and verified before Environment start; unsupported finite requests fail closed.
 
-The initial v0.13 OCI slice is deliberately an optional plugin namespace. `haco plugin oci seed recommend` does not mean Seed build/publish is complete: telemetry, ranking, top-10% selection, and deletion/tombstone state exist, while Host-cache harvesting, offline builder publication, immutable Seed pointer movement, GC and real Btrfs COW acceptance remain pending.
+v0.13 is an **optional plugin**, not a Core runtime requirement. With `HACO_PLUGIN_OCI` unset, composition leaves OCI disabled and does not probe for or require `containerd`, `nerdctl`, Docker CLI, or Docker Engine. When enabled, `HACO_PLUGIN_OCI=nerdctl` and `HACO_PLUGIN_OCI=docker` select plugin inventory drivers. Telemetry, ranking, top-10% selection, deletion/tombstone state, and Docker compatibility packaging are plugin-owned; Host-cache harvesting, offline builder publication, immutable Seed pointer movement, GC and real Btrfs COW acceptance remain pending.
 
 The Windows/WSL bootstrap remains a host setup helper, not a new Core lifecycle. The v0.7 EC2 provider remains **experimental and disabled by default**. Real AWS acceptance pending.
 
-Real Incus, Windows/WSL + VS Code Remote-SSH, per-agent Agent Host routing, real Base sources, real resource enforcement, OCI Seed build/Btrfs behavior, and cloud acceptance require suitable hosts. Repository tests are not substitutes for those checks.
+Real Incus, Windows/WSL + VS Code Remote-SSH, per-agent Agent Host routing, real Base sources, real resource enforcement, optional OCI profiles, OCI Seed build/Btrfs behavior, and cloud acceptance require suitable hosts. Repository tests are not substitutes for those checks.
 
 ## v0.8 client workflow
 
@@ -145,6 +148,8 @@ See `12_v0.12_SANDBOX_RESOURCE_LIMITS.md`.
 ## v0.13 OCI plugin workflow
 
 ```text
+HACO_PLUGIN_OCI=nerdctl haco plugin oci status
+HACO_PLUGIN_OCI=docker haco plugin oci status
 haco plugin oci seed sample
 haco plugin oci seed recommend
 haco plugin oci image delete docker.io/library/node:24
@@ -153,10 +158,10 @@ haco plugin oci image delete docker.io/library/node:24 --all-environments
 
 The CLI namespace separates OCI/container-image lifecycle from Hacocoon/Incus Base-image lifecycle. The old `haco image ...` command is intentionally removed rather than kept as a pre-1.0 compatibility alias.
 
-See `13A_v0.13_OCI_SEED_AND_COW.md`, `13B_v0.13_SEED_AUTO_PROMOTION.md`, and `13C_v0.13_OCI_IMAGE_DELETION.md`.
+See `00A_PLUGIN_ARCHITECTURE.md`, `OCI_RUNTIME_AND_DOCKER_COMPAT.md`, `13A_v0.13_OCI_SEED_AND_COW.md`, `13B_v0.13_SEED_AUTO_PROMOTION.md`, and `13C_v0.13_OCI_IMAGE_DELETION.md`.
 
 ## Compatibility status
 
-Until an explicit stable compatibility milestone is declared, breaking changes may modify or replace CLI commands, helper binaries, persisted state, provider interfaces, Base/image lifecycle, capability/policy schemas, client/agent integration, host bootstrap behavior, resource-budget design, and experimental runtime behavior.
+Until an explicit stable compatibility milestone is declared, breaking changes may modify or replace CLI commands, helper binaries, persisted state, provider interfaces, Base/image lifecycle, capability/policy schemas, client/agent integration, host bootstrap behavior, resource-budget design, experimental runtime behavior, and optional plugin profiles.
 
 Compatibility should not be preserved at the cost of an unsafe authority boundary, ambiguous ownership, silent data loss, or unnecessary architectural complexity. Material breaking changes should still be explicit, tested, and documented.
