@@ -2,6 +2,8 @@
 
 Status: cross-cutting architecture reference. This is **not** a v0.1 implementation requirement.
 
+See also [`DESIGN_PRINCIPLES.md`](DESIGN_PRINCIPLES.md) for the product-level constraints this architecture must preserve.
+
 ## Goal
 
 Hacocoon keeps a small Core while concrete environment, workspace, capability, approval, storage, client, and developer-tool integrations evolve independently.
@@ -26,6 +28,18 @@ In particular, Core must not require or assume:
 - VS Code or another IDE.
 
 An Environment may contain any of those tools because a Base/Seed, operator, or optional plugin chose to provide them.
+
+## Environment backends and isolation strength
+
+Hacocoon is not defined by Incus. Incus system containers are the first concrete Environment backend, not the permanent definition of an Environment.
+
+A future backend may use a container, VM, microVM, scheduler, remote host, or another isolation mechanism. Core should depend on Environment lifecycle and capabilities rather than backend names.
+
+Different backends may provide different isolation guarantees. A lightweight container backend may share the host kernel, while a VM or microVM backend may provide a separate kernel. This difference is a backend property, not a reason to fork Core semantics.
+
+When a requested guarantee cannot be provided by the selected backend, fail explicitly rather than pretending all backends are equivalent. Do not spread `if backend == ...` conditionals through Core; introduce capability-oriented seams once multiple real implementations justify them.
+
+Environment-local privilege is also backend-scoped. An agent may be `root` inside an Environment without receiving host authority, provided the backend preserves the boundary and does not expose host credentials, control sockets, or unrelated host filesystem paths.
 
 ## Candidate seams
 
