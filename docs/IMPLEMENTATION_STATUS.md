@@ -1,10 +1,10 @@
 # Implementation Status
 
-Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, and the feature-version rebaseline through v0.18.
+Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, the feature-version rebaseline through v0.18, and Docker compatibility lifecycle integration.
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance.
 
-The fully implemented product progression is currently contiguous through **v0.16**. v0.17 has a Docker compatibility foundation but is not yet a complete gate. v0.18 is planned.
+The fully implemented product progression is currently contiguous through **v0.17**. v0.18 is planned.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
@@ -24,7 +24,7 @@ The fully implemented product progression is currently contiguous through **v0.1
 | OCI Seed auto-selection | deterministic top 10% eligible recommendations are marked `auto_promote=true`; this selects future Seed content only | v0.15 |
 | OCI image deletion | `haco plugin oci image delete <reference[@digest]>` records a deletion tombstone and can explicitly extend deletion to managed Environments | v0.16 |
 | OCI deletion override | tombstones prevent silent recommendation/auto-promotion of the deleted immutable identity | v0.16 |
-| Docker compatibility | genuine Docker CLI/on-demand Engine design and plugin-owned systemd socket/service packaging foundation exist; it is optional and not a Core runtime invariant | v0.17 |
+| Docker compatibility | `haco plugin oci docker status/prepare` validates a Base-provided genuine Docker profile, verifies pinned systemd units, refuses active vendor-daemon takeover, and enables Environment-local socket activation without making Docker a Core requirement | v0.17 |
 | OCI Seed Builder / Btrfs COW | trusted Host acquisition/cache, offline builder, immutable Seed publish/current pointer and physical COW validation remain planned | v0.18 |
 | Optional Local OCI Registry | Registry/proxy is optional and not required for ordinary direct upstream pulls or Seed construction | unversioned optional / deferred |
 
@@ -33,6 +33,12 @@ The fully implemented product progression is currently contiguous through **v0.1
 With `HACO_PLUGIN_OCI` unset, Hacocoon Core must not require or probe for containerd, nerdctl, Docker CLI, Docker Engine, or a local OCI Registry. Base identity remains a Core/provider-neutral concept under `haco base ...`; OCI workload tooling lives under `haco plugin oci ...`.
 
 The project-maintained OCI plugin profile may use containerd + nerdctl, and the Docker driver may provide genuine Docker compatibility. Neither choice defines a mandatory Hacocoon Core runtime.
+
+## Docker compatibility
+
+v0.17 is implemented at the repository gate. `HACO_PLUGIN_OCI=docker` exposes `haco plugin oci docker status <environment>` and `prepare <environment>`. `prepare` does not install packages or mount Host sockets: it requires the selected Base/Seed to provide Docker CLI, dockerd, containerd, systemd, the docker group, and the Hacocoon-pinned socket/service units. It fails closed on unit drift or an already-active vendor Docker daemon instead of silently taking it over.
+
+Real Incus/systemd acceptance remains host-dependent and is tracked separately from repository implementation status.
 
 ## OCI storage direction
 
@@ -46,4 +52,4 @@ v0.7 retains the provider-neutral Environment routing seam because that architec
 
 ## Acceptance gaps
 
-Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.17 is partial; v0.18 is planned only.
+Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.18 is planned only.
