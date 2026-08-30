@@ -63,8 +63,8 @@ func (r *SudoRunner) Run(ctx context.Context, name string, args ...string) (host
 	if r.euid() == 0 {
 		return r.direct.Run(ctx, r.helperPath, helperArgs...)
 	}
-	if _, err := os.Stat(r.sudoPath); err != nil {
-		return host.Result{ExitCode: -1}, fmt.Errorf("privileged storage operation %s requires sudo at %s: %w", op, r.sudoPath, err)
+	if err := validateTrustedExecutable(r.sudoPath); err != nil {
+		return host.Result{ExitCode: -1}, fmt.Errorf("privileged storage operation %s requires trusted sudo at %s: %w", op, r.sudoPath, err)
 	}
 	sudoArgs := append([]string{"--", r.helperPath}, helperArgs...)
 	return r.direct.Run(ctx, r.sudoPath, sudoArgs...)
