@@ -28,17 +28,37 @@ See [`design/trusted-host.md`](design/trusted-host.md) and [`design/controller-c
 
 ## Normal installer
 
-GitHub Releases publish `install-windows.ps1` as a standalone installer. A repository checkout is not required.
+GitHub Releases publish **`hacocoon-windows-installer.zip` as the normal Windows installer**. A repository checkout is not required.
 
-Run from elevated PowerShell:
+Extracting the ZIP gives:
 
-```powershell
-.\install-windows.ps1
+```text
+hacocoon-windows-installer/
+├─ install-windows.bat
+└─ install-windows.ps1
 ```
+
+Normally, right-click `install-windows.bat` and choose **Run as administrator**, or run it from an elevated Command Prompt:
+
+```bat
+install-windows.bat
+```
+
+The BAT launcher invokes only the sibling `install-windows.ps1` with:
+
+```text
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ...
+```
+
+`-ExecutionPolicy Bypass` is supplied only to that PowerShell process. The launcher never calls `Set-ExecutionPolicy` and therefore does not persistently change machine or user policy. Installer arguments and the installer exit code are forwarded unchanged.
+
+This keeps direct execution of an Internet-downloaded `.ps1` out of the normal path, where PowerShell Execution Policy and Mark-of-the-Web commonly add friction. It does **not** disable organization-managed `MachinePolicy` / `UserPolicy`, Windows reputation protection, or other endpoint policy; environments that prohibit the operation still fail closed.
+
+The standalone `install-windows.ps1` asset remains available for advanced use and compatibility. Direct PowerShell invocation remains subject to the machine's configured execution policy.
 
 The default WSL distribution is `Hacocoon`; the default base is `Ubuntu-26.04`.
 
-A fresh distribution may first require normal Linux user creation. Before Hacocoon bootstrap has completed, `wsl -d Hacocoon` still enters that base distribution for first-run setup. Re-run the installer afterwards.
+A fresh distribution may first require normal Linux user creation. Before Hacocoon bootstrap has completed, `wsl -d Hacocoon` still enters that base distribution for first-run setup. Run `install-windows.bat` as administrator again afterwards.
 
 Once bootstrap succeeds:
 
@@ -172,7 +192,13 @@ haco host shell
 
 The raw Incus socket and `/var/lib/incus` remain Physical Host authority.
 
-`-GrantIncusAdmin` is a separate explicit option for operators who intentionally want root-equivalent local Incus authority.
+Operators who intentionally want root-equivalent local Incus authority can use:
+
+```bat
+install-windows.bat -GrantIncusAdmin
+```
+
+The standalone `./install-windows.ps1 -GrantIncusAdmin` path remains available as well.
 
 ## Physical Host recovery
 
@@ -200,7 +226,15 @@ Operations requiring Physical Host root authority still need an authorized sudo 
 
 ## `-SkipIncus`
 
-When `-SkipIncus` is used, bootstrap does not claim that the trusted backend is ready, so it leaves the Physical Host login unchanged and does not configure the controller-connected automatic `haco-host` entry.
+For deployments where Incus is managed separately, use:
+
+```bat
+install-windows.bat -SkipIncus
+```
+
+The standalone `./install-windows.ps1 -SkipIncus` path remains available as well.
+
+In this mode bootstrap does not claim that the trusted backend is ready, so it leaves the Physical Host login unchanged and does not configure the controller-connected automatic `haco-host` entry.
 
 ## Workspace location
 
@@ -237,8 +271,14 @@ A repository checkout can still use:
 
 It uses checkout scripts but follows the same WSL 2, systemd, Incus, controller, and trusted-host entry contract.
 
+## Release integrity
+
+`hacocoon-windows-installer.zip` is covered by the Release SHA-256 checksum and GitHub artifact attestations. CI verifies that the ZIP contains exactly `install-windows.bat` and `install-windows.ps1` and that both members are byte-for-byte identical to their source files.
+
+The BAT launcher does not weaken the bootstrap trust boundary. The actual Hacocoon release download, checksum validation, and signed provenance verification continue to be performed fail-closed by `install-windows.ps1`.
+
 ## Acceptance boundary
 
-Repository CI and real Incus E2E can prove the controller protocol, real proxy device, client provisioning, `haco-host doctor` round trip, restart recovery, raw Incus-socket non-exposure, and that ordinary Environments do not receive the trusted endpoint.
+Repository CI and real Incus E2E can prove the controller protocol, real proxy device, client provisioning, `haco-host doctor` round trip, restart recovery, raw Incus-socket non-exposure, ordinary Environment endpoint isolation, and the BAT launcher/ZIP packaging contract.
 
-Actual Windows-host acceptance is still required for first-run Linux user setup, Windows-triggered WSL restart behavior, login-shell transition from `wsl -d Hacocoon`, Physical Host recovery from Windows, and Windows editor/orchestration integration.
+Actual Windows-host acceptance is still required for launching the BAT after downloading/extracting the ZIP in Windows, first-run Linux user setup, Windows-triggered WSL restart behavior, login-shell transition from `wsl -d Hacocoon`, Physical Host recovery from Windows, and Windows editor/orchestration integration.

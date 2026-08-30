@@ -112,6 +112,10 @@ jobs:
           [scriptblock]::Create((Get-Content -Raw "scripts/bootstrap-windows.ps1")) | Out-Null
           [scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null
 
+      - name: Validate Windows installer bundle
+        working-directory: source
+        run: python3 tools/test_windows_installer_launcher.py
+
       - name: Build authorized release artifacts
         working-directory: source
         run: goreleaser release --clean --skip=publish
@@ -134,7 +138,9 @@ jobs:
           test -f source/dist/checksums.txt
           test -f source/scripts/install.sh
           test -f source/scripts/bootstrap-wsl.sh
+          test -f source/scripts/install-windows.bat
           test -f source/scripts/install-windows.ps1
+          test -f source/tools/package_windows_installer.py
 
           rm -rf release-payload
           mkdir -m 0700 release-payload
@@ -144,6 +150,11 @@ jobs:
           cp source/scripts/install.sh release-payload/
           cp source/scripts/bootstrap-wsl.sh release-payload/
           cp source/scripts/install-windows.ps1 release-payload/
+          python3 source/tools/package_windows_installer.py release-payload/hacocoon-windows-installer.zip
+          (
+            cd release-payload
+            sha256sum hacocoon-windows-installer.zip >> checksums.txt
+          )
 
       - name: Transfer release payload to privileged publisher
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -182,10 +193,11 @@ jobs:
           shopt -s nullglob
           files=(release-payload/*)
           archives=(release-payload/haco_linux_*.tar.gz)
-          (( ${#files[@]} == 6 )) || { printf 'Unexpected release payload file count: %s\n' "${#files[@]}" >&2; exit 1; }
+          (( ${#files[@]} == 7 )) || { printf 'Unexpected release payload file count: %s\n' "${#files[@]}" >&2; exit 1; }
           (( ${#archives[@]} == 2 )) || { printf 'Unexpected Linux archive count: %s\n' "${#archives[@]}" >&2; exit 1; }
           test -f release-payload/haco_linux_amd64.tar.gz
           test -f release-payload/haco_linux_arm64.tar.gz
+          test -f release-payload/hacocoon-windows-installer.zip
           test -f release-payload/checksums.txt
           test -f release-payload/install.sh
           test -f release-payload/bootstrap-wsl.sh
@@ -283,6 +295,7 @@ jobs:
           subject-path: |
             release-payload/haco_linux_amd64.tar.gz
             release-payload/haco_linux_arm64.tar.gz
+            release-payload/hacocoon-windows-installer.zip
             release-payload/checksums.txt
             release-payload/install.sh
             release-payload/bootstrap-wsl.sh
@@ -295,6 +308,7 @@ jobs:
           subject-path: |
             release-payload/haco_linux_amd64.tar.gz
             release-payload/haco_linux_arm64.tar.gz
+            release-payload/hacocoon-windows-installer.zip
             release-payload/checksums.txt
             release-payload/install.sh
             release-payload/bootstrap-wsl.sh
@@ -329,6 +343,7 @@ jobs:
           gh release create "$RELEASE_TAG" \
             release-payload/haco_linux_amd64.tar.gz \
             release-payload/haco_linux_arm64.tar.gz \
+            release-payload/hacocoon-windows-installer.zip \
             release-payload/checksums.txt \
             release-payload/install.sh \
             release-payload/bootstrap-wsl.sh \
