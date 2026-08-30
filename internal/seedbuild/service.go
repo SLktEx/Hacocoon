@@ -241,7 +241,7 @@ func selectedImages(recommendations []ociplugin.Recommendation) ([]ImageIdentity
 }
 
 func validateImageIdentity(image ImageIdentity) error {
-	if strings.TrimSpace(image.Reference) == "" || strings.TrimSpace(image.Reference) != image.Reference || strings.ContainsAny(image.Reference, "@\t\r\n") {
+	if strings.TrimSpace(image.Reference) == "" || strings.TrimSpace(image.Reference) != image.Reference || strings.HasPrefix(image.Reference, "-") || strings.ContainsAny(image.Reference, "@\t\r\n") {
 		return fmt.Errorf("invalid Seed image reference %q: %w", image.Reference, core.ErrInvalidArgument)
 	}
 	return validateRevision(core.BaseRevision(image.Digest))
