@@ -63,28 +63,34 @@ func (b *Broker) Push(ctx context.Context, spec PushSpec) (core.CapabilityResult
 	if err != nil {
 		return core.CapabilityResult{}, err
 	}
-	if err := rejectUnsafeLocalGitConfig(ctx, b.runner, environment.Workspace.Path, spec.Remote); err != nil {
-		return core.CapabilityResult{}, err
-	}
-	targetRef, err := normalizeBranch(ctx, b.runner, environment.Workspace.Path, spec.Branch)
+	boundary, err := resolveRepositoryBoundary(environment.Workspace.Path)
 	if err != nil {
 		return core.CapabilityResult{}, err
 	}
-	remoteURL, repository, err := resolveGitHubRemote(ctx, b.runner, environment.Workspace.Path, spec.Remote)
+	runner := pinGitRepository(b.runner, boundary)
+	if err := rejectUnsafeLocalGitConfig(ctx, runner, environment.Workspace.Path, spec.Remote); err != nil {
+		return core.CapabilityResult{}, err
+	}
+	targetRef, err := normalizeBranch(ctx, runner, environment.Workspace.Path, spec.Branch)
 	if err != nil {
 		return core.CapabilityResult{}, err
 	}
-	sourceSHA, err := resolveCommit(ctx, b.runner, environment.Workspace.Path, spec.Source)
+	remoteURL, repository, err := resolveGitHubRemote(ctx, runner, environment.Workspace.Path, spec.Remote)
+	if err != nil {
+		return core.CapabilityResult{}, err
+	}
+	sourceSHA, err := resolveCommit(ctx, runner, environment.Workspace.Path, spec.Source)
 	if err != nil {
 		return core.CapabilityResult{}, err
 	}
 	action := "push"
 	attributes := map[string]string{
-		"organization": repository.Owner,
-		"repository":   repository.Name,
-		"remote":       spec.Remote,
-		"source_sha":   sourceSHA,
-		"target_ref":   targetRef,
+		"organization":        repository.Owner,
+		"repository":          repository.Name,
+		"repository_identity": boundary.Identity,
+		"remote":              spec.Remote,
+		"source_sha":          sourceSHA,
+		"target_ref":          targetRef,
 	}
 	if spec.Force {
 		action = "force-push"
@@ -92,7 +98,7 @@ func (b *Broker) Push(ctx context.Context, spec PushSpec) (core.CapabilityResult
 		// the caller's locally fetched remote-tracking ref, then let the
 		// provider verify the real remote still equals that SHA after the
 		// capability boundary has authorized network access.
-		expected, err := resolveTrackingRef(ctx, b.runner, environment.Workspace.Path, spec.Remote, targetRef)
+		expected, err := resolveTrackingRef(ctx, runner, environment.Workspace.Path, spec.Remote, targetRef)
 		if err != nil {
 			return core.CapabilityResult{}, err
 		}
@@ -136,10 +142,18 @@ func (p *Provider) Execute(ctx context.Context, req core.CapabilityRequest) (cor
 	if !safeRemoteName(remote) || !validTargetRef(targetRef) || !validObjectID(sourceSHA) {
 		return core.CapabilityResult{}, core.ErrInvalidArgument
 	}
-	if err := rejectUnsafeLocalGitConfig(ctx, p.runner, environment.Workspace.Path, remote); err != nil {
+	boundary, err := resolveRepositoryBoundary(environment.Workspace.Path)
+	if err != nil {
 		return core.CapabilityResult{}, err
 	}
-	remoteURL, repository, err := resolveGitHubRemote(ctx, p.runner, environment.Workspace.Path, remote)
+	if approvedIdentity := req.Attributes["repository_identity"]; approvedIdentity == "" || approvedIdentity != boundary.Identity {
+		return core.CapabilityResult{}, fmt.Errorf("Git repository identity changed after policy evaluation: %w", core.ErrCapabilityStale)
+	}
+	runner := pinGitRepository(p.runner, boundary)
+	if err := rejectUnsafeLocalGitConfig(ctx, runner, environment.Workspace.Path, remote); err != nil {
+		return core.CapabilityResult{}, err
+	}
+	remoteURL, repository, err := resolveGitHubRemote(ctx, runner, environment.Workspace.Path, remote)
 	if err != nil {
 		return core.CapabilityResult{}, err
 	}
@@ -149,7 +163,7 @@ func (p *Provider) Execute(ctx context.Context, req core.CapabilityRequest) (cor
 	if approvedURL := strings.TrimSpace(req.Parameters["remote_url"]); approvedURL == "" || approvedURL != remoteURL {
 		return core.CapabilityResult{}, fmt.Errorf("git remote URL changed after policy evaluation: %w", core.ErrCapabilityStale)
 	}
-	if err := ensureCommit(ctx, p.runner, environment.Workspace.Path, sourceSHA); err != nil {
+	if err := ensureCommit(ctx, runner, environment.Workspace.Path, sourceSHA); err != nil {
 		return core.CapabilityResult{}, err
 	}
 	args := []string{"-c", "core.hooksPath=/dev/null", "-C", environment.Workspace.Path, "push", "--porcelain", "--no-verify"}
@@ -158,7 +172,7 @@ func (p *Provider) Execute(ctx context.Context, req core.CapabilityRequest) (cor
 		if !validObjectID(expected) {
 			return core.CapabilityResult{}, core.ErrInvalidArgument
 		}
-		current, err := resolveRemoteRef(ctx, p.runner, environment.Workspace.Path, remoteURL, targetRef)
+		current, err := resolveRemoteRef(ctx, runner, environment.Workspace.Path, remoteURL, targetRef)
 		if err != nil {
 			return core.CapabilityResult{}, err
 		}
@@ -168,7 +182,7 @@ func (p *Provider) Execute(ctx context.Context, req core.CapabilityRequest) (cor
 		args = append(args, "--force-with-lease="+targetRef+":"+expected)
 	}
 	args = append(args, remoteURL, sourceSHA+":"+targetRef)
-	result, err := p.runner.Run(ctx, "git", args...)
+	result, err := runner.Run(ctx, "git", args...)
 	if err != nil {
 		return core.CapabilityResult{}, fmt.Errorf("brokered git push failed: %w%s", err, sanitizedGitDetail(result.Stderr))
 	}
@@ -198,8 +212,11 @@ func resolveGitHubRemote(ctx context.Context, runner host.Runner, workspace, rem
 }
 
 func rejectUnsafeLocalGitConfig(ctx context.Context, runner host.Runner, workspace, remote string) error {
-	// Git canonicalizes variable names to lower-case when reporting them.
-	pattern := `^(remote\.` + regexp.QuoteMeta(remote) + `\.(pushurl|receivepack|proxy)|url\..*\.(insteadof|pushinsteadof)|credential\..*|core\.(hookspath|sshcommand|askpass))$`
+	// Git canonicalizes variable names to lower-case when reporting them. Reject
+	// repository-controlled includes and HTTP configuration as well as direct
+	// credential/transport command hooks so the pinned repository cannot import
+	// another host-side config file or redirect trusted Git transport.
+	pattern := `^(remote\.` + regexp.QuoteMeta(remote) + `\.(pushurl|receivepack|proxy)|url\..*\.(insteadof|pushinsteadof)|credential\..*|include\..*|includeif\..*|http\..*|core\.(hookspath|sshcommand|askpass|worktree))$`
 	result, err := runner.Run(ctx, "git", "-C", workspace, "config", "--local", "--get-regexp", pattern)
 	if err != nil {
 		if result.ExitCode == 1 {
