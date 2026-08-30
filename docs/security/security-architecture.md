@@ -2,7 +2,7 @@
 
 Status: authoritative cross-cutting security baseline.
 
-See also [`DESIGN_PRINCIPLES.md`](DESIGN_PRINCIPLES.md) for the broader product and backend-isolation principles.
+See also [`../DESIGN_PRINCIPLES.md`](../DESIGN_PRINCIPLES.md) for the broader product and backend-isolation principles.
 
 ## Trust model
 
