@@ -7,6 +7,7 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, and r
 ## Start here
 
 - Current code reality: [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)
+- Design principles: [`DESIGN_PRINCIPLES.md`](DESIGN_PRINCIPLES.md)
 - Architecture / roadmap: [`00_REBASELINE_AND_ROADMAP.md`](00_REBASELINE_AND_ROADMAP.md)
 - Milestone numbering: [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)
 - Security: [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
@@ -16,9 +17,10 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, and r
 
 1. `IMPLEMENTATION_STATUS.md` for current code reality
 2. `00D_VERSIONING_AND_RELEASE_STATUS.md` for milestone numbering/status
-3. `00_REBASELINE_AND_ROADMAP.md` for product boundary and roadmap intent
-4. security/terminology docs
-5. the relevant versioned specification
+3. `DESIGN_PRINCIPLES.md` for cross-cutting product/architecture constraints
+4. `00_REBASELINE_AND_ROADMAP.md` for product boundary and roadmap intent
+5. security/terminology docs
+6. the relevant versioned specification
 
 ## Numbering rule
 
