@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -151,7 +152,7 @@ func TestImageInfoCompatRunnerExpandedConfigFallsBackOnlyWhenQueryUnsupported(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if calls != 2 || !stringsContain(result.Stdout, `"devices"`) {
+	if calls != 2 || !strings.Contains(result.Stdout, `"devices"`) {
 		t.Fatalf("calls=%d result=%#v", calls, result)
 	}
 }
@@ -171,17 +172,4 @@ func TestImageInfoCompatRunnerExpandedConfigFailsClosedOnBadAPIState(t *testing.
 			}
 		})
 	}
-}
-
-func stringsContain(value, needle string) bool {
-	return len(value) >= len(needle) && reflect.ValueOf(value).String() != "" && contains(value, needle)
-}
-
-func contains(value, needle string) bool {
-	for i := 0; i+len(needle) <= len(value); i++ {
-		if value[i:i+len(needle)] == needle {
-			return true
-		}
-	}
-	return false
 }
