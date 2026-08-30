@@ -17,6 +17,7 @@ const (
 	sandboxEgressACL       = "haco-sandbox-egress"
 	sandboxResourceProject = "default"
 	sandboxProxyRuleDesc   = "Hacocoon Standard egress proxy"
+	sandboxProfileAPIPath  = "/1.0/profiles/" + sandboxProfile + "?project=" + sandboxResourceProject
 )
 
 var sandboxNIC = map[string]string{
@@ -229,8 +230,8 @@ func (r *Runtime) ensureSandboxProfile(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	shown, err := r.runner.Run(ctx, "incus", "profile", "show", sandboxProfile, "--project", sandboxResourceProject, "--format", "json")
-	if err != nil {
+
+	if _, err := r.runner.Run(ctx, "incus", "profile", "show", sandboxProfile, "--project", sandboxResourceProject); err != nil {
 		if _, createErr := r.runner.Run(ctx, "incus", "profile", "create", sandboxProfile, "--project", sandboxResourceProject); createErr != nil {
 			return fmt.Errorf("create Hacocoon sandbox profile: %w", createErr)
 		}
@@ -250,27 +251,19 @@ func (r *Runtime) ensureSandboxProfile(ctx context.Context) error {
 		if addErr != nil || addResult.ExitCode != 0 {
 			return fmt.Errorf("configure Hacocoon sandbox profile NIC: %w", commandResultError(addResult, addErr))
 		}
-		shown, err = r.runner.Run(ctx, "incus", "profile", "show", sandboxProfile, "--project", sandboxResourceProject, "--format", "json")
-		if err != nil {
-			return fmt.Errorf("verify Hacocoon sandbox profile: %w", err)
-		}
 	}
 
-	profile, err := decodeSandboxProfile(shown.Stdout)
+	profile, err := r.readSandboxProfile(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("verify Hacocoon sandbox profile: %w", err)
 	}
 	if len(profile.Config) == 0 {
 		if err := r.setSandboxProfileConfig(ctx, expectedConfig); err != nil {
 			return err
 		}
-		shown, err = r.runner.Run(ctx, "incus", "profile", "show", sandboxProfile, "--project", sandboxResourceProject, "--format", "json")
+		profile, err = r.readSandboxProfile(ctx)
 		if err != nil {
 			return fmt.Errorf("verify migrated Hacocoon sandbox profile: %w", err)
-		}
-		profile, err = decodeSandboxProfile(shown.Stdout)
-		if err != nil {
-			return err
 		}
 	}
 	if !sameStringMap(profile.Config, expectedConfig) || len(profile.Devices) != 1 {
@@ -286,6 +279,14 @@ func (r *Runtime) ensureSandboxProfile(ctx context.Context) error {
 type sandboxProfileState struct {
 	Config  map[string]string            `json:"config"`
 	Devices map[string]map[string]string `json:"devices"`
+}
+
+func (r *Runtime) readSandboxProfile(ctx context.Context) (sandboxProfileState, error) {
+	shown, err := r.runner.Run(ctx, "incus", "query", sandboxProfileAPIPath)
+	if err != nil {
+		return sandboxProfileState{}, err
+	}
+	return decodeSandboxProfile(shown.Stdout)
 }
 
 func decodeSandboxProfile(raw string) (sandboxProfileState, error) {
