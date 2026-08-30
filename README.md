@@ -6,12 +6,12 @@
 
 Hacocoon is an OSS **secure workspace runtime** for humans, developer tools, and coding agents.
 
-It takes an existing Workspace, places it behind an isolated Environment boundary, and provides a small host-side control plane for lifecycle, execution, access, policy, approvals, capabilities, audit, client integration, and reproducible Base selection.
+It takes an existing Workspace, places it behind an isolated Environment boundary, and provides a small host-side control plane for lifecycle, execution, access, policy, approvals, capabilities, audit, client integration, reproducible Base selection, and resource budgets.
 
 > [!WARNING]
 > **Hacocoon is pre-1.0 and under active development. Breaking changes are expected.**
 >
-> CLI behavior, helper binaries, state formats, APIs, capability contracts, provider interfaces, Base/image configuration, client configuration, and roadmap numbering may still change incompatibly.
+> CLI behavior, helper binaries, state formats, APIs, capability contracts, provider interfaces, Base/image configuration, resource-budget behavior, client configuration, and roadmap numbering may still change incompatibly.
 
 ## What Hacocoon is
 
@@ -39,11 +39,11 @@ VS Code / Shell / coding agents / orchestrators / other clients
             local default       experimental only
 ```
 
-The trusted host owns Hacocoon state, policy, credentials, and privileged capability execution. The Environment receives only the Workspace and authority it actually needs.
+The trusted host owns Hacocoon state, policy, credentials, resource ceilings, and privileged capability execution. The Environment receives only the Workspace and authority it actually needs.
 
 ## Current state
 
-The implemented roadmap is now contiguous through **v0.11**.
+The implemented roadmap is now contiguous through **v0.12**.
 
 | Version | Gate | Current state |
 |---|---|---|
@@ -58,9 +58,9 @@ The implemented roadmap is now contiguous through **v0.11**.
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | broker foundation implemented |
 | v0.10 | VS Code Remote Agent Host Adapter | implemented; real Agent Host acceptance pending |
 | v0.11 | Base Images & Custom Environments | first implementation slice implemented; richer image lifecycle pending |
-| v0.12 | Sandbox Resource Limits | design only; implementation pending |
+| v0.12 | Sandbox Resource Limits | first implementation slice implemented; real Incus enforcement acceptance pending |
 
-Real-provider/client acceptance is tracked separately. Real Incus, Windows/WSL + VS Code, Agent Host/AHP routing, real Base/image sources, and AWS/EC2/SSM/EBS require suitable external environments; repository CI is not a substitute for those checks.
+Real-provider/client acceptance is tracked separately. Real Incus, Windows/WSL + VS Code, Agent Host/AHP routing, real Base/image sources, real resource enforcement, and AWS/EC2/SSM/EBS require suitable external environments; repository CI is not a substitute for those checks.
 
 See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md), [`docs/00D_VERSIONING_AND_RELEASE_STATUS.md`](docs/00D_VERSIONING_AND_RELEASE_STATUS.md), and [`docs/README.md`](docs/README.md).
 
@@ -153,7 +153,7 @@ See [`docs/10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md`](docs/10_v0.10_VSCODE_R
 
 ## v0.11: selectable Base images
 
-v0.11 now implements the first provider-neutral Base-selection slice:
+v0.11 implements the first provider-neutral Base-selection slice:
 
 ```bash
 haco image list
@@ -188,9 +188,24 @@ See [`docs/11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](docs/11_v0.11_BASE_
 
 ## v0.12: sandbox resource limits
 
-v0.12 is the next design/implementation gate. It defines provider-neutral creation-time budgets for CPU, memory, process/PID count, and Environment root storage where the selected provider can enforce it safely.
+v0.12 implements explicit creation-time resource budgets:
 
-Resource budgets limit consumption inside an Environment; they are not Capabilities and do not grant authority across the sandbox boundary. Requested limits that a provider cannot enforce must fail closed rather than be silently ignored.
+```bash
+haco create \
+  --cpu 4 \
+  --memory 8GiB \
+  --pids 1024 \
+  --root-size 40GiB \
+  --workspace . dev
+
+haco run --cpu 2 --memory 4GiB --workspace . -- go test ./...
+```
+
+The provider-neutral budget tracks CPU, memory bytes, process/PID count, and Environment root-storage bytes. Omitted dimensions are resolved by Hacocoon to an explicit `unlimited` effective value and persisted with the Environment instead of silently inheriting an unspecified provider default.
+
+For Incus, finite limits are applied and read back **before the Environment starts**. A failed apply or verification aborts creation and follows normal cleanup/recovery handling. Providers that cannot enforce a requested finite limit must fail closed rather than silently ignore it; the experimental EC2 provider currently rejects finite budgets before AWS-side creation activity.
+
+Byte-sized CLI values use explicit binary units such as `512MiB`, `8GiB`, or `40GiB` (or `unlimited`). Live resizing, aggregate host scheduling, and host Workspace quota management are not part of this first slice.
 
 See [`docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.md`](docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.md).
 
@@ -202,6 +217,7 @@ VS Code AI / Codex / Copilot / Claude / other agent
                          v
                  Incus Environment
                  broad local freedom
+                 within resource budget
                          |
               ---- trust boundary ----
                          |
@@ -211,7 +227,7 @@ VS Code AI / Codex / Copilot / Claude / other agent
               GitHub / AWS / Host / etc.
 ```
 
-Package installation, builds, tests, source edits, and destructive changes can be intentionally permissive inside a disposable Environment. That does **not** grant the agent host credentials or broad external authority.
+Package installation, builds, tests, source edits, and destructive changes can be intentionally permissive inside a disposable Environment. That does **not** grant the agent host credentials, broad external authority, or authority to raise its own host-enforced resource ceiling.
 
 ## Low-level CLI quick start
 
@@ -231,6 +247,12 @@ Base selection:
 ./bin/haco image list
 ./bin/haco image inspect haco/ubuntu-26.04
 ./bin/haco create --base haco/ubuntu-26.04 --workspace "$PWD" dev
+```
+
+Resource-limited creation:
+
+```bash
+./bin/haco create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace "$PWD" dev
 ```
 
 ## Current CLI surface
@@ -290,6 +312,7 @@ Core rules include:
 - local port exposure is loopback-oriented by default;
 - provider-specific and client-specific concepts stay outside Core;
 - custom Base/image contents do not grant host-side authority;
+- requested finite resource limits are not silently ignored;
 - cleanup and recovery failures are surfaced instead of silently converted into success.
 
 Read [`docs/00B_SECURITY_ARCHITECTURE.md`](docs/00B_SECURITY_ARCHITECTURE.md) before extending security-sensitive behavior.
@@ -305,7 +328,7 @@ export HACO_RUNTIME_PROVIDER=runtime.ec2
 export HACO_EXPERIMENTAL_EC2=1
 ```
 
-Without explicit opt-in, Hacocoon must fail before constructing the real EC2 provider or making AWS calls.
+Without explicit opt-in, Hacocoon must fail before constructing the real EC2 provider or making AWS calls. In the current v0.12 slice, a finite resource budget on EC2 is also rejected before provider creation because that path does not yet prove equivalent enforcement.
 
 ## Development and testing
 
