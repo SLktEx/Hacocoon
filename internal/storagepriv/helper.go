@@ -273,7 +273,7 @@ func (h *Helper) mountBtrfs(ctx context.Context, root, device, mountpoint string
 		return result
 	}
 
-	find := h.run(ctx, "findmnt", "-rn", "-o", "SOURCE", "--target", mountpoint)
+	find := h.run(ctx, "findmnt", "-rn", "-o", "SOURCE", "--mountpoint", mountpoint)
 	if find.ExitCode == 0 && strings.TrimSpace(find.Stdout) != "" {
 		mountedDevice := strings.TrimSpace(find.Stdout)
 		mountedID, _, err := h.validateManagedLoop(ctx, root, mountedDevice, callerUID)
@@ -310,7 +310,7 @@ func (h *Helper) unmountBtrfs(ctx context.Context, root, mountpoint string, call
 	if err != nil {
 		return helperFailure(err)
 	}
-	find := h.run(ctx, "findmnt", "-rn", "-o", "SOURCE", "--target", mountpoint)
+	find := h.run(ctx, "findmnt", "-rn", "-o", "SOURCE", "--mountpoint", mountpoint)
 	if find.ExitCode == 1 || strings.TrimSpace(find.Stdout) == "" {
 		return host.Result{ExitCode: 0}
 	}
@@ -330,7 +330,7 @@ func (h *Helper) validateManagedMount(ctx context.Context, root, mountpoint stri
 	if err != nil {
 		return "", "", err
 	}
-	find := h.run(ctx, "findmnt", "-rn", "-o", "SOURCE", "--target", mountpoint)
+	find := h.run(ctx, "findmnt", "-rn", "-o", "SOURCE", "--mountpoint", mountpoint)
 	if find.ExitCode != 0 || strings.TrimSpace(find.Stdout) == "" {
 		return "", "", fmt.Errorf("managed mountpoint %q is not mounted", mountpoint)
 	}
