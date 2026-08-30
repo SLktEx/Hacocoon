@@ -2,7 +2,7 @@
 
 [English](versioning-and-release-status.md) | **日本語**
 
-> **milestone番号の正本 · 2026-08-30更新**
+> **milestone番号の正本 · 2026-08-31更新**
 
 Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進行を表し、compatibility guarantee、release tag、production supportの証明ではありません。
 
@@ -10,12 +10,12 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 
 ## 番号付けの方針
 
-> **minor milestoneはpre-1.0の軽量な進捗checkpointであり、完成判定ではありません。**
+> **minor milestoneは惜しまず使うpre-1.0の軽量checkpointであり、完成判定ではありません。**
 
-1. 意味のあるproduct/implementationの区切りがlandしたら、follow-up slice、hardening、real-host acceptanceが残っていても次の `v0.N` を使ってよい
-2. 前のmilestoneがpartialでも、後続milestoneへ進んでよい。version順は時系列であり、過去gateがすべて完了したことを意味しない
-3. 粒度は実用優先で決める。密接な複数PRを同じmilestoneにまとめてもよく、大きめのfollow-upを次minorへ分けてもよい
-4. security/hardening、bug fix、refactor、CLI namespace整理、CI、docs、release engineering、test-only変更だけでは通常versionを消費しないが、現在のcheckpointへ含めてよい
+1. 長く残るproduct機能、implementation slice、operator-facing機能、cross-cutting infrastructureがlandしたら、follow-up、hardening、real-host acceptanceが残っていても次の `v0.N` を使ってよい
+2. 前のmilestoneがpartialでも後続milestoneへ進んでよい。version順は時系列であり、過去gateがすべて完了したことを意味しない
+3. 無関係なdurable capabilityを1つの番号へ詰め込むより、番号を進める方を優先する。密接な変更は同じmilestoneへまとめてもよい
+4. 純粋なbug fix、狭いhardening、refactor、CLI cleanup、docs、release engineering、test-only変更だけでは通常milestoneを消費しない。一方、notification、logging、privileged brokerのように長く残るoperational contractはminorを使ってよい
 5. milestoneを進める時はこのファイルと `../IMPLEMENTATION_STATUS.md` を更新し、roadmap/index summaryも矛盾しないようにする
 6. design-only specificationはfuture numberを予約できるが、実装までは **planned**
 7. historical commit/PR/branch/旧document address/過去の番号付けは現在の正本ではない
@@ -46,8 +46,11 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 | v0.19 | Domain-aware Egress Authorization | repository実装完了。real supported-Incus acceptanceはhost-dependent |
 | v0.20 | Managed Btrfs Rootfs Storage | first repository slice実装済み。real-host COW/compaction acceptanceはhost-dependent |
 | v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` default実装済み。`compress-force`は使わない。real compression/performance acceptanceはhost-dependent |
+| v0.22 | Notification Delivery & Client Adapters | browser、native OS、VS Code notification clientを実装・テスト済み |
+| v0.23 | Structured Logging & Diagnostic Safety | shared `log/slog`、structured diagnostic、secret redactionを実装済み |
+| v0.24 | Managed Host Privilege Broker for Btrfs Storage | root-owned narrow storage helper、privilege separation、real normal-user Incus/Btrfs CLI acceptanceを実装済み |
 
-現在のmilestone位置は **v0.21** です。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.24** です。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 
@@ -66,18 +69,20 @@ Document addressはsemantic nameを使うため、milestone assignmentが変わ�
 - v0.19: [`../EGRESS_AUTHORIZATION.ja.md`](../EGRESS_AUTHORIZATION.ja.md)
 - v0.20: [`../design/btrfs-storage-layout.ja.md`](../design/btrfs-storage-layout.ja.md)
 - v0.21: [`../design/btrfs-storage-layout.ja.md`](../design/btrfs-storage-layout.ja.md)
+- v0.22: [`../INTERACTION_EVENTS.ja.md`](../INTERACTION_EVENTS.ja.md)
+- v0.23: [`../reference/logging.ja.md`](../reference/logging.ja.md)
+- v0.24: [`../design/btrfs-storage-layout.ja.md`](../design/btrfs-storage-layout.ja.md)
 - Optional Local OCI Registry: [`../OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](../OPTIONAL_LOCAL_OCI_REGISTRY.ja.md)
 
 ## Acceptance
 
 - v0.7 cloud implementation: deferred
-- v0.8〜v0.13: real Windows/WSL、Agent Host、Base/resource/network acceptanceはhost-dependent
-- v0.14: private repository combinationはacceptance-sensitive
-- v0.15/v0.16: recommendation/deletion repository behaviorは実装済み
-- v0.17: Seed build/publish、explicit pin/reenable、保守的old-revision GC、中断builder recovery、deletion-race protection、managed Environment harvestまでrepository実装済み。authenticated/private-registry combination、physical Btrfs COW measurement、broader real-host failure injection、supported-host acceptanceが残る
-- v0.18: repository lifecycle/CLIは実装済み。real Incus/systemd socket activation acceptanceはhost-dependent
+- v0.8〜v0.13: real Windows/WSL、Agent Host、Base/resource/network combinationは一部host-dependent
+- v0.14〜v0.18: repository behaviorは実装済み。private repository/registry、physical COW、Docker real-host combinationはacceptance-sensitive
 - v0.19: hostname-aware proxy authorization/enforcementはrepository実装済み。real supported-Incus bridge/nftables/dnsmasq acceptanceはhost-dependent
-- v0.20: Hacocoon所有Incus rootfsはlazyなmanaged sparse-raw Btrfs poolを選択する。physical COW/compaction measurementとbroader supported-host acceptanceはhost-dependent
-- v0.21: managed Btrfs mountは `compress=zstd:3` を使い、desired stateとして `compress-force` を採用しない。既存COW/reflink sharingを壊し得る自動recompressionは行わない。real compression ratio、CPU cost、supported-host behaviorはhost-dependent
+- v0.20〜v0.21: managed Btrfs storage/compressionは実装済み。physical compression ratio、CPU cost、COW/compaction、broader supported-host behaviorは残件
+- v0.22: browser/native/VS Code notification flowはrepository/CI behavior test済み。real desktop integrationはplatform-dependent
+- v0.23: structured loggingとredactionはmaintained executable全体へ実装済み。downstream log collectionはdeployment-specific
+- v0.24: privileged storage helper lifecycleとordinary-user `haco create` / `exec` / `delete` / `run` をdisposable GitHub-hosted Ubuntu 26.04上のreal Incus + managed Btrfsでacceptance済み。ただし全supported Host構成の証明ではない
 
-> **意味のある進捗の塊がlandしたら次minorへ進めてよい。すべてのacceptanceが閉じるまで待つ必要はない。**
+> **Hacocoonの「できること」を説明するときに挙げる程度に長く残るcapabilityなら、pre-1.0 minorを惜しまず使ってよい。**
