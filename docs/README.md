@@ -36,10 +36,10 @@ Fixes, hardening, refactors, CLI namespace cleanup, CI and docs normally do not 
 | v0.14 | Git Fetch Plugin | implemented |
 | v0.15 | OCI Seed Recommendation | implemented |
 | v0.16 | OCI Image Deletion | implemented first slice |
-| v0.17 | Docker Compatibility Plugin | implemented; host acceptance separate |
-| v0.18 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.17 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.18 | Docker Compatibility Plugin | repository implemented early; host acceptance separate |
 
-The fully implemented product progression is contiguous through **v0.17**.
+The fully implemented product progression is contiguous through **v0.16** because v0.17 is still planned. The v0.18 Docker implementation has already landed and is retained under the reordered milestone.
 
 Local OCI Registry is deferred optional infrastructure, not a reserved roadmap milestone.
 
@@ -48,8 +48,8 @@ Specifications:
 - [`14_v0.14_GIT_FETCH_PLUGIN.md`](14_v0.14_GIT_FETCH_PLUGIN.md)
 - [`15_v0.15_OCI_SEED_RECOMMENDATION.md`](15_v0.15_OCI_SEED_RECOMMENDATION.md)
 - [`16_v0.16_OCI_IMAGE_DELETION.md`](16_v0.16_OCI_IMAGE_DELETION.md)
-- [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md)
-- [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md)
+- [`17_v0.17_OCI_SEED_AND_COW.md`](17_v0.17_OCI_SEED_AND_COW.md)
+- [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md) — deferred optional direction
 
 ## Base vs OCI CLI
@@ -67,11 +67,11 @@ HACO_PLUGIN_OCI=docker   haco plugin oci docker prepare <environment>
 
 `haco base` describes Hacocoon Environment starting points. `haco plugin oci` is optional developer-workload/container tooling. Core has no mandatory OCI runtime.
 
-The Docker `prepare` command validates a Base-provided compatibility profile and the pinned Hacocoon systemd units, then enables Environment-local socket activation. It does not install Docker packages or silently stop an already-active vendor daemon.
+The v0.18 Docker `prepare` command validates a Base-provided compatibility profile and the pinned Hacocoon systemd units, then enables Environment-local socket activation. It does not install Docker packages or silently stop an already-active vendor daemon.
 
 ## OCI storage direction
 
-v0.18 owns trusted Host acquisition/cache, offline immutable Seed construction/publication, and Incus/storage-driver COW. A Local Registry is not a prerequisite and normal direct upstream pulls remain valid when policy allows.
+v0.17 owns trusted Host acquisition/cache, offline immutable Seed construction/publication, and Incus/storage-driver COW. A Local Registry is not a prerequisite and normal direct upstream pulls remain valid when policy allows.
 
 ## Cloud
 
