@@ -3,7 +3,6 @@ package incus
 import (
 	"context"
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -11,42 +10,23 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
+// imageFingerprint resolves the immutable container image fingerprint behind
+// an Incus source. `incus image info` has no stable machine-readable --format
+// flag across the supported Incus releases, while `image list` exposes stable
+// CSV columns. Resolving through the list also lets us explicitly select the
+// system-container image when a remote publishes the same alias for both a
+// container and a virtual-machine image.
 func (p *BaseProvider) imageFingerprint(ctx context.Context, source, project string) (string, error) {
-	args := []string{"image", "info", source}
-	if project != "" {
-		args = append(args, "--project", project)
-	}
-	args = append(args, "--format", "json")
-
-	result, err := p.runner.Run(ctx, "incus", args...)
-	if err == nil {
-		var info struct {
-			Fingerprint string `json:"fingerprint"`
-		}
-		if decodeErr := json.Unmarshal([]byte(result.Stdout), &info); decodeErr != nil {
-			return "", fmt.Errorf("decode Incus image info for %q: %w", source, core.ErrIncompatibleState)
-		}
-		fingerprint := strings.ToLower(strings.TrimSpace(info.Fingerprint))
-		if !baseFingerprintPattern.MatchString(fingerprint) {
-			return "", fmt.Errorf("invalid Incus image fingerprint for %q: %w", source, core.ErrIncompatibleState)
-		}
-		return fingerprint, nil
-	}
-
-	if !strings.Contains(strings.ToLower(result.Stderr), "unknown flag: --format") {
-		return "", err
-	}
-
 	return p.imageFingerprintFromList(ctx, source, project)
 }
 
 func (p *BaseProvider) imageFingerprintFromList(ctx context.Context, source, project string) (string, error) {
 	remote, identifier, ok := strings.Cut(source, ":")
 	if !ok || remote == "" || identifier == "" {
-		return "", fmt.Errorf("Incus 6.0 image lookup requires a remote-qualified source %q: %w", source, core.ErrUnsupported)
+		return "", fmt.Errorf("Incus image lookup requires a remote-qualified source %q: %w", source, core.ErrUnsupported)
 	}
 
-	args := []string{"image", "list", remote + ":", identifier, "--format", "csv", "-c", "L,F"}
+	args := []string{"image", "list", remote + ":", identifier, "--format", "csv", "-c", "L,F,T"}
 	if project != "" {
 		args = append(args, "--project", project)
 	}
@@ -68,8 +48,15 @@ func (p *BaseProvider) imageFingerprintFromList(ctx context.Context, source, pro
 		if readErr != nil {
 			return "", fmt.Errorf("decode Incus image list for %q: %w", source, core.ErrIncompatibleState)
 		}
-		if len(record) != 2 {
+		if len(record) != 3 {
 			return "", fmt.Errorf("unexpected Incus image list columns for %q: %w", source, core.ErrIncompatibleState)
+		}
+
+		// The public images remote commonly publishes the same alias for a
+		// container and a VM. Hacocoon's Incus runtime is system-container-only,
+		// so a VM fingerprint must never make the Base ambiguous or be selected.
+		if strings.ToLower(strings.TrimSpace(record[2])) != "container" {
+			continue
 		}
 
 		fingerprint := strings.ToLower(strings.TrimSpace(record[1]))
@@ -86,7 +73,6 @@ func (p *BaseProvider) imageFingerprintFromList(ctx context.Context, source, pro
 					matched = true
 					break
 				}
-			}
 		}
 		if matched {
 			matches[fingerprint] = struct{}{}
@@ -94,10 +80,10 @@ func (p *BaseProvider) imageFingerprintFromList(ctx context.Context, source, pro
 	}
 
 	if len(matches) == 0 {
-		return "", fmt.Errorf("Incus image %q: %w", source, core.ErrNotFound)
+		return "", fmt.Errorf("Incus container image %q: %w", source, core.ErrNotFound)
 	}
 	if len(matches) != 1 {
-		return "", fmt.Errorf("Incus image %q resolved to multiple fingerprints: %w", source, core.ErrIncompatibleState)
+		return "", fmt.Errorf("Incus container image %q resolved to multiple fingerprints: %w", source, core.ErrIncompatibleState)
 	}
 	for fingerprint := range matches {
 		return fingerprint, nil
