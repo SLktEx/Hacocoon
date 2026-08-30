@@ -40,11 +40,11 @@ Security invariantもfeatureです。user-visible commandだけ同じでも、cr
 | Workspace leases | canonical Workspace identity、RO/RW semantics、conflicting lease refusal、`/workspace` behavior | Core/state parityをreal provider routing経由でcovered。RW/RO拒否とRO/RO共有をcluster mutation前にtest済み。real mount semanticsはuntested |
 | Whole-Environment copy | fresh trust identityを保ちながらdurable machine/root/runtime stateをCOW copy | unimplemented; #322 |
 | Resource budgets | CPU、memory、PID、root-storage semanticsを同等にenforceまたはreject | finite CPU/memory/rootはCore/provider routingを保持。finite per-Environment PIDはexplicit parity gap |
-| Client status/access | 現行status、SSH、loopback TCP/forwarding、prepare/revoke behavior | status pathは存在。persistent loopback forwarding / SSH lifecycleは未解決で、追加Kubernetes/Host machineryが必要そう |
+| Client status/access | 現行status、SSH、loopback TCP/forwarding、prepare/revoke behavior | durableなloopback-only detached `kubectl port-forward` state、list/reconcile/remove、SSH prepare/revokeをrepository test済み。real Kubernetes、Environment delete時cleanup、crash/reboot recoveryは未証明 |
 | `haco run` / ephemeral execution | 同じlifecycle、cleanup、lock/recovery behavior | Kubernetes provider経由でcreate/exec/delete cleanupとdurable marker削除をrepository integration test済み。crash/restart recoveryのreal-host acceptanceはuntested |
 | Base lifecycle | list/inspect/select/create-from-Base semantics | untested / incomplete。現在のKubernetes providerはexplicit Base selectionをreject |
-| Policy / Approval / Capability | 同じfail-closed decision、approval semantics、stale-state handling、audit | existing trusted implementationを変更せずretain。Kubernetes end-to-end interactionはuntested |
-| Git push Broker | Environmentへreusable write credentialを渡さず、repo/remote/ref/SHA bindingとstale refusalを維持 | trusted Brokerを変更せずretain。end-to-end Kubernetes parityはuntested |
+| Policy / Approval / Capability | 同じfail-closed decision、approval semantics、stale-state handling、audit | existing trusted implementationを変更せずretain。通常のKubernetes Environment push pathが同じcapability serviceを通ることをrepository integrationで確認 |
+| Git push Broker | Environmentへreusable write credentialを渡さず、repo/remote/ref/SHA bindingとstale refusalを維持 | Kubernetes-backed Environmentでexact SHA/ref binding、stale remote拒否、ambient GitHub/askpass state除外をrepository integrationで確認。real authenticated GitHub pushはuntested |
 | Git fetch | trusted Host authorityとprivate repository behavior | untested |
 | Network isolation | equivalent default isolation、DNS behavior、drift detection、bypass無し | ingress/egress default-deny manifestとprovider-routed source identityをunit-covered。real CNI enforcement、DNS、SNAT behaviorはuntested |
 | Domain-aware egress | accessを広げず同じauthorization/destination protection semantics | Policy/Approval/Brokerは再利用可能でsource identityもprovider-neutral化。proxy/listener transportは未解決。NetworkPolicyだけでは現行のhostname approval + DNS pinning + SNI validationと同義ではない |
@@ -55,7 +55,7 @@ Security invariantもfeatureです。user-visible commandだけ同じでも、cr
 | Trusted `haco-host` | 同じtrusted logical Host behaviorとEnvironmentからの分離 | 実験中はIncus版をretain。all-Kube formのparityは現在の必須条件ではない |
 | Notifications / interaction events | 同じclient-visible event semanticsとclient側にapproval authorityを持たせないこと | existing implementation retained。integrationはuntested |
 | Structured logging | 同じoperation field、redaction、trust-boundary behavior | test済みcreate/exec/delete pathではexisting Core loggingを再利用。provider-specific coverageはincomplete |
-| Failure recovery | interrupted create/delete/run、ownership drift、stale state、cleanup-required semantics | provider cleanup/ownership fail-closed unit coverage + normal `haco run` cleanup integration。crash/node-restart failure injectionはuntested |
+| Failure recovery | interrupted create/delete/run、ownership drift、stale state、cleanup-required semantics | provider cleanup/ownership fail-closed unit coverage + normal `haco run` cleanup integration。client-forward PID reuseはfail closed。crash/node-restart failure injectionはuntested |
 | Ubuntu 26.04 | project target上でreal substrateが動くこと | blocked/untested; #323 |
 
 Testが増えるほどmatrixを厳格化します。関連するreal/repository acceptanceが十分になるまで`parity proven`とは書きません。
@@ -70,6 +70,8 @@ Workspace lease ownership、RO/RW conflict rule、Environment metadata、ephemer
 
 Repository integrationでは、fake Core runtimeだけでなくKubernetes providerを実際にrouterへ接続した状態でWorkspace lease conflictとnormal ephemeral-run cleanupを通しています。conflicting Workspace requestはKubernetesに触る前に拒否されます。
 
+Security-sensitiveなGit push pathも同じです。Kubernetes-backed Environmentを通常のWorkspace service経由でpersistし、そのまま変更していないtrusted Git Brokerへ渡すintegration testを追加しました。Brokerはapproved source SHAをapproved refへexactにpushし、policy evaluation後にGitHub remote identityが変わればstaleで拒否し、ambient `GH_TOKEN`、`GITHUB_TOKEN`、caller-controlled `GIT_ASKPASS`を引き継がないことを確認しています。real authenticated-GitHub acceptanceの代わりではありませんが、runtime swap自体のためにBroker contractを弱める必要がないことは確認できました。
+
 ### Network plumbingは減らせそうやけど、security Brokerは自動では消えない
 
 Kubernetes `NetworkPolicy`はIncus-specific bridge/ACL isolation machineryのかなりの部分を置き換えられる可能性があります。`main-kube`ではexplicit default-deny policyを作り、egress source identityもIncus runtime直結ではなくEnvironment router経由へ移しました。
@@ -83,11 +85,15 @@ Kubernetes `NetworkPolicy`はIncus-specific bridge/ACL isolation machineryのか
 
 Outbound accessを広げてproxyを消すのはsimplificationではなくparity failureです。
 
-### Client loopback accessは今のところKubernetesのsimplificationになっていない
+### Client loopback accessは再現できたが、現時点ではHacocoon側machineryが増えた
 
-Incusではpersistentなloopback-only Host forwardをEnvironmentに付随するmanaged proxy deviceとして表現できます。`kubectl port-forward`は通常invoking processの終了と一緒に消えるclient processなので、現在のpersistent/reconcilable client-connection contractと同義ではありません。
+Persistent/reconcilableなclient-connection contractを再現するrepository-level candidateを実装しました。foreground `kubectl port-forward`を同等扱いせず、trusted sideでloopback-only port-forwardをdetachし、`HACO_ROOT`配下へprivate durable recordを保存します。recordにはrandom process token、PID、Linux `/proc` start-time identity、Environment ref、exact portを持たせます。
 
-Managed forwarder Pod、`hostPort`、NodePort config、Hacocoon-owned long-lived port-forward supervisorなどのKubernetes alternativeは、それぞれ別のoperational/security constraintを増やします。この領域は実装と計測が終わるまで「Kubeの方がsimple」とは扱いません。
+新しいProvider instanceからconnectionを再発見してlist/revokeでき、PID reuseやprocess identity mismatchを誤ってkillせずfail closedにします。port-forward subprocessへ渡すenvironmentも最小化し、`KUBECONFIG`等のKubernetes authority inputはtrusted sideに残しつつ、ambient GitHub token、Git askpass state、その他の不要なprocess credentialは継承しません。SSHも同じdurable forwarding pathを使い、Environment内ではmarker-scoped public keyだけを管理します。
+
+これでclient contractがKubernetesでは原理的に不可能というわけではないことは確認できました。ただし**単純化の証拠ではありません**。このsliceの前はKubernetes provider implementationが568 physical linesでしたが、durable client forwardingとprocess/state reconciliationを足した後は1,226 physical linesになりました。Incus provider baselineは3,382 linesでまだ大きいものの、Kubernetes側にはwhole-Environment clone、Base/Seed、OCI/storage semantics、real network/runtime acceptanceなど大物が残っています。したがってこの差はwinner判定ではなく、今後追跡するevidenceです。
+
+Client accessにもまだgapがあります。real `kubectl port-forward` behavior、supervisorをtrusted `haco-host` boundaryへ確実に置くこと、Environment delete時のexplicit cleanup、restart/reboot recoveryは未証明です。これらのexact parityに追加daemon/reconciliation stateが必要なら、そのcomplexityもKubernetes結果へそのまま加算します。
 
 ### Runtime/storageが最大のparity risk
 
