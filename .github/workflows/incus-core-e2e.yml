@@ -65,7 +65,7 @@ jobs:
           check-latest: true
           cache: false
       - name: Validate Core, CLI, and VS Code E2E helper syntax
-        run: bash -n tools/ci-incus.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh test/e2e/vscode.sh
+        run: bash -n tools/ci-incus.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh tools/ci-vscode-e2e.sh test/e2e/incus.sh test/e2e/vscode.sh
       - name: Prepare proven Incus substrate for Hacocoon Core
         run: bash tools/ci-incus.sh setup
       - name: Allow leased workspace owner in Incus root idmap
@@ -86,9 +86,8 @@ jobs:
         run: bash tools/ci-incus.sh core
       - name: Run linked-worktree VS Code journey through real loopback SSH
         env:
-          HACO_E2E_INCUS: "1"
           TMPDIR: ${{ runner.temp }}/haco-vscode-e2e
-        run: bash test/e2e/vscode.sh
+        run: bash tools/ci-vscode-e2e.sh
       - name: Capture Hacocoon and Incus diagnostics
         if: failure()
         run: |
