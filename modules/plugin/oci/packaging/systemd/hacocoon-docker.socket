@@ -1,5 +1,5 @@
 [Unit]
-Description=Hacocoon Docker Engine API compatibility socket
+Description=Hacocoon OCI plugin Docker Engine API compatibility socket
 Documentation=https://docs.docker.com/engine/
 
 [Socket]

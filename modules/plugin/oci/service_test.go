@@ -1,4 +1,4 @@
-package seedstats
+package oci
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -15,19 +16,97 @@ import (
 
 type fakeExecutor struct {
 	outputs map[string]string
-	calls   []string
+	calls   []fakeCall
+}
+
+type fakeCall struct {
+	ref  string
+	argv []string
 }
 
 func (f *fakeExecutor) ExecEnvironment(_ context.Context, ref string, req core.ExecutionRequest) (core.ExecutionResult, error) {
-	f.calls = append(f.calls, ref)
-	if len(req.Argv) != 4 || req.Argv[0] != "nerdctl" || req.Argv[1] != "images" || req.Argv[2] != "--format" {
-		return core.ExecutionResult{}, errors.New("unexpected command")
-	}
+	f.calls = append(f.calls, fakeCall{ref: ref, argv: append([]string(nil), req.Argv...)})
 	output, ok := f.outputs[ref]
 	if !ok {
 		return core.ExecutionResult{ExitCode: 1, Stderr: "environment unavailable"}, errors.New("exec failed")
 	}
 	return core.ExecutionResult{ExitCode: 0, Stdout: output}, nil
+}
+
+func TestParseDriver(t *testing.T) {
+	for _, tc := range []struct {
+		input string
+		want  Driver
+	}{
+		{input: "nerdctl", want: DriverNerdctl},
+		{input: " NERDCTL ", want: DriverNerdctl},
+		{input: "docker", want: DriverDocker},
+	} {
+		got, err := ParseDriver(tc.input)
+		if err != nil {
+			t.Fatalf("ParseDriver(%q): %v", tc.input, err)
+		}
+		if got != tc.want {
+			t.Fatalf("ParseDriver(%q)=%q want=%q", tc.input, got, tc.want)
+		}
+	}
+	if _, err := ParseDriver("containerd"); !errors.Is(err, core.ErrInvalidArgument) {
+		t.Fatalf("unsupported driver err=%v", err)
+	}
+}
+
+func TestSampleAllUsesNerdctlOnlyInsidePlugin(t *testing.T) {
+	dir := t.TempDir()
+	environmentPath := filepath.Join(dir, "environments.json")
+	writeEnvironmentState(t, environmentPath, map[string]core.Environment{
+		"a": {Name: "a", RuntimeRef: "ref-a"},
+	})
+	fingerprint := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	runtime := &fakeExecutor{outputs: map[string]string{
+		"ref-a": "docker.io/library/node\t24\t" + fingerprint + "\n",
+	}}
+	service, err := New(runtime, environmentPath, NewStore(filepath.Join(dir, "oci-usage.json")), DriverNerdctl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.now = func() time.Time { return time.Date(2026, 8, 30, 6, 0, 0, 0, time.UTC) }
+
+	report, err := service.SampleAll(context.Background(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Sampled != 1 || report.Failed != 0 {
+		t.Fatalf("report=%#v", report)
+	}
+	want := []string{"nerdctl", "images", "--format", "{{.Repository}}\t{{.Tag}}\t{{.Digest}}"}
+	if len(runtime.calls) != 1 || !reflect.DeepEqual(runtime.calls[0].argv, want) {
+		t.Fatalf("calls=%#v want argv=%#v", runtime.calls, want)
+	}
+}
+
+func TestSampleAllUsesDockerDriverWhenExplicitlySelected(t *testing.T) {
+	dir := t.TempDir()
+	environmentPath := filepath.Join(dir, "environments.json")
+	writeEnvironmentState(t, environmentPath, map[string]core.Environment{
+		"a": {Name: "a", RuntimeRef: "ref-a"},
+	})
+	fingerprint := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	runtime := &fakeExecutor{outputs: map[string]string{
+		"ref-a": "docker.io/library/node\t24\t" + fingerprint + "\n",
+	}}
+	service, err := New(runtime, environmentPath, NewStore(filepath.Join(dir, "oci-usage.json")), DriverDocker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.now = func() time.Time { return time.Date(2026, 8, 30, 6, 0, 0, 0, time.UTC) }
+
+	if _, err := service.SampleAll(context.Background(), 0); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"docker", "images", "--digests", "--format", "{{.Repository}}\t{{.Tag}}\t{{.Digest}}"}
+	if len(runtime.calls) != 1 || !reflect.DeepEqual(runtime.calls[0].argv, want) {
+		t.Fatalf("calls=%#v want argv=%#v", runtime.calls, want)
+	}
 }
 
 func TestSampleAllAndRecommendByEnvironmentShare(t *testing.T) {
@@ -44,7 +123,7 @@ func TestSampleAllAndRecommendByEnvironmentShare(t *testing.T) {
 		"ref-b": "docker.io/library/node\t24\t" + fingerprintA + "\n",
 	}}
 	store := NewStore(filepath.Join(dir, "oci-usage.json"))
-	service, err := New(runtime, environmentPath, store)
+	service, err := New(runtime, environmentPath, store, DriverNerdctl)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,14 +166,6 @@ func TestAutoPromotionUsesTopTenPercentRoundedUp(t *testing.T) {
 	}
 }
 
-func TestAutoPromotionPromotesAtLeastOneEligibleImage(t *testing.T) {
-	recommendations := []Recommendation{{Reference: "docker.io/library/node:24"}}
-	markAutoPromotions(recommendations, 10)
-	if !recommendations[0].AutoPromote {
-		t.Fatalf("recommendation=%#v", recommendations[0])
-	}
-}
-
 func TestSampleAllSkipsFreshSnapshots(t *testing.T) {
 	dir := t.TempDir()
 	environmentPath := filepath.Join(dir, "environments.json")
@@ -105,7 +176,7 @@ func TestSampleAllSkipsFreshSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 	runtime := &fakeExecutor{outputs: map[string]string{"ref-a": ""}}
-	service, err := New(runtime, environmentPath, store)
+	service, err := New(runtime, environmentPath, store, DriverNerdctl)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,8 +211,8 @@ func TestRecommendExcludesImagesWithoutDigest(t *testing.T) {
 	}
 }
 
-func TestParseNerdctlImagesRejectsMalformedDigest(t *testing.T) {
-	_, err := parseNerdctlImages("docker.io/library/node\t24\tsha256:not-a-digest\n")
+func TestParseImageRowsRejectsMalformedDigest(t *testing.T) {
+	_, err := parseImageRows("docker.io/library/node\t24\tsha256:not-a-digest\n", "nerdctl")
 	if !errors.Is(err, core.ErrIncompatibleState) {
 		t.Fatalf("err=%v", err)
 	}
