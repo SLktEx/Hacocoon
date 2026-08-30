@@ -83,12 +83,15 @@ type SampleReport struct {
 }
 
 type Recommendation struct {
-	Reference    string    `json:"reference"`
-	Digest       string    `json:"digest"`
-	Environments int       `json:"environments"`
-	Percent      float64   `json:"percent"`
-	LastSeen     time.Time `json:"last_seen"`
-	AutoPromote  bool      `json:"auto_promote"`
+	Reference    string     `json:"reference"`
+	Digest       string     `json:"digest"`
+	Environments int        `json:"environments"`
+	Percent      float64    `json:"percent"`
+	LastSeen     time.Time  `json:"last_seen"`
+	AutoPromote  bool       `json:"auto_promote"`
+	Pinned       bool       `json:"pinned"`
+	PinnedAt     *time.Time `json:"pinned_at,omitempty"`
+	Reenabled    bool       `json:"re_enabled"`
 }
 
 func New(runtime environmentExecutor, environmentStatePath string, store *Store, driver Driver, options ...Option) (*Service, error) {
@@ -183,13 +186,9 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 	if err != nil {
 		return nil, err
 	}
-	deletions, err := s.store.ListDeletions(ctx)
+	policy, err := s.seedSelectionPolicy(ctx)
 	if err != nil {
 		return nil, err
-	}
-	deleted := make(map[string]struct{}, len(deletions))
-	for _, deletion := range deletions {
-		deleted[deletion.Key()] = struct{}{}
 	}
 	cutoff := s.now().UTC().Add(-window)
 	type aggregate struct {
@@ -211,7 +210,7 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 				continue
 			}
 			key := image.Reference() + "@" + image.Digest
-			if _, deletedByOperator := deleted[key]; deletedByOperator {
+			if policy.isBlocked(key) {
 				continue
 			}
 			if _, ok := seen[key]; ok {
@@ -229,33 +228,40 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 			}
 		}
 	}
-	if denominator == 0 {
-		return []Recommendation{}, nil
+	result := make([]Recommendation, 0, len(aggregates)+len(policy.pins))
+	if denominator > 0 {
+		for _, aggregate := range aggregates {
+			key := aggregate.reference + "@" + aggregate.digest
+			result = append(result, Recommendation{
+				Reference:    aggregate.reference,
+				Digest:       aggregate.digest,
+				Environments: aggregate.count,
+				Percent:      float64(aggregate.count) * 100 / float64(denominator),
+				LastSeen:     aggregate.lastSeen,
+				Reenabled:    policy.isReenabled(key),
+			})
+		}
 	}
-	result := make([]Recommendation, 0, len(aggregates))
-	for _, aggregate := range aggregates {
-		result = append(result, Recommendation{
-			Reference:    aggregate.reference,
-			Digest:       aggregate.digest,
-			Environments: aggregate.count,
-			Percent:      float64(aggregate.count) * 100 / float64(denominator),
-			LastSeen:     aggregate.lastSeen,
-		})
-	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Environments != result[j].Environments {
-			return result[i].Environments > result[j].Environments
-		}
-		if !result[i].LastSeen.Equal(result[j].LastSeen) {
-			return result[i].LastSeen.After(result[j].LastSeen)
-		}
-		if result[i].Reference != result[j].Reference {
-			return result[i].Reference < result[j].Reference
-		}
-		return result[i].Digest < result[j].Digest
-	})
+	sortRecommendations(result)
 	markAutoPromotions(result, DefaultAutoPromotionPercent)
+	result = applySeedPins(result, policy)
+	sortRecommendations(result)
 	return result, nil
+}
+
+func sortRecommendations(recommendations []Recommendation) {
+	sort.Slice(recommendations, func(i, j int) bool {
+		if recommendations[i].Environments != recommendations[j].Environments {
+			return recommendations[i].Environments > recommendations[j].Environments
+		}
+		if !recommendations[i].LastSeen.Equal(recommendations[j].LastSeen) {
+			return recommendations[i].LastSeen.After(recommendations[j].LastSeen)
+		}
+		if recommendations[i].Reference != recommendations[j].Reference {
+			return recommendations[i].Reference < recommendations[j].Reference
+		}
+		return recommendations[i].Digest < recommendations[j].Digest
+	})
 }
 
 func markAutoPromotions(recommendations []Recommendation, percent int) {
