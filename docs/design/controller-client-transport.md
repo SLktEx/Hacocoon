@@ -2,7 +2,7 @@
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The local Unix-domain-socket protocol, Physical Host controller, trusted-`haco-host` endpoint projection, client-only `haco-host` CLI, typed Environment lifecycle calls, the first interactive stream, and the first general `haco env ...` controller-client namespace are implemented. Migrating the remaining `haco` operations, PTY control framing, Environment port forwarding, and any remote transport remain follow-up work.
+Status: **partial**. The local Unix-domain-socket protocol, Physical Host controller, trusted-`haco-host` endpoint projection, client-only `haco-host` CLI, guarded general `haco` provisioning, typed Environment lifecycle calls, the first interactive stream, and the first general `haco env ...` controller-client namespace are implemented. Migrating the remaining `haco` operations, PTY control framing, Environment port forwarding, and any remote transport remain follow-up work.
 
 ## Summary
 
@@ -83,11 +83,14 @@ The instance also receives:
 
 ```text
 environment.HACO_CONTROL_SOCKET=/var/lib/hacocoon-control.sock
+environment.HACO_CLIENT_MODE=controller
 ```
 
 The instance-side path intentionally lives outside `/run`: guest systemd commonly mounts runtime tmpfs state during boot, so a proxy listener that must exist independently of guest boot ordering uses a stable `/var/lib` path.
 
-`haco host ensure` verifies the trusted-host ownership marker, reconciles the exact endpoint shape, starts the instance when needed, and provisions the client-only `/usr/local/bin/haco-host` binary. Provisioning is digest-checked and requires the source binary to be an executable regular file owned by the invoking effective UID and not writable by group/other users.
+`haco host ensure` verifies the trusted-host ownership marker, reconciles the exact endpoint shape, starts the instance when needed, and provisions both `/usr/local/bin/haco-host` and the same-release general `/usr/local/bin/haco`. Provisioning is digest-checked and requires each Physical Host source binary to be an executable regular file owned by the invoking effective UID and not writable by group/other users. The installed binaries must converge to `0755 root:root`.
+
+`HACO_CLIENT_MODE=controller` is deliberately a safety/execution-context marker, not an authorization credential. When the full `haco` binary runs inside trusted `haco-host`, the marker prevents still-unmigrated commands from silently constructing guest-local Hacocoon state. Authorization and policy remain controller-side.
 
 The supported WSL bootstrap then executes `haco-host doctor` inside the real trusted instance. Bootstrap fails before changing the user's automatic login shell if the round trip cannot reach the Physical Host controller.
 
@@ -126,9 +129,11 @@ These commands are intentionally dispatched **before** `composition.Local()` is 
 
 The command either reaches the configured Hacocoon controller endpoint or fails through the controller-client transport. It does not fall back to direct local composition.
 
-The historical flat commands such as `haco create`, `haco status`, `haco exec`, `haco shell`, and `haco delete` remain compatibility/local paths in this migration slice. They are not evidence that `haco` is permanently Physical-Host-only; each remaining namespace must be classified and migrated or explicitly retained as bootstrap/recovery behavior.
+The historical flat commands such as `haco create`, `haco status`, `haco exec`, `haco shell`, and `haco delete` remain temporary compatibility/local paths on the Physical Host during migration. Inside trusted `haco-host`, controller-client mode forces those Environment aliases through the same controller client instead of letting them reach local composition.
 
-Production bootstrap does not yet install the full `haco` binary into trusted `haco-host`. Real-Incus acceptance temporarily places the test binary there only to prove that `haco env ...` operates through the projected controller endpoint. Permanent provisioning should happen after the remaining command namespaces have been classified so users cannot accidentally invoke an ambiguous legacy local path from the trusted Host.
+Any other still-unmigrated `haco` command is rejected in controller-client mode with an explicit fail-closed error. This makes permanent installation of the general binary safe without pretending that every historical namespace has already been migrated. New docs, automation, and integrations should use `haco env ...` rather than the compatibility aliases.
+
+The general `/usr/local/bin/haco` binary is now provisioned by `haco host ensure` beside `/usr/local/bin/haco-host`. The trusted instance receives an explicit controller socket and client-mode marker; it still receives no raw Incus authority or Physical Host state tree.
 
 ## `haco-host` transition surface
 
@@ -179,18 +184,22 @@ Repository and real-Incus acceptance cover:
 - interactive shell streaming;
 - trusted `haco-host` ownership reconciliation;
 - exact `haco-control` proxy reconciliation and mismatch refusal;
-- client binary provisioning and idempotency;
+- `haco-host` and general `haco` binary provisioning with digest/idempotency checks;
+- explicit controller-client mode and refusal of unexpected mode drift;
 - real trusted-instance `haco-host doctor` round trip to the Physical Host controller;
 - stopped/restarted trusted Host regaining controller access;
-- `haco env` create/list/status/exec/delete from inside the real trusted Host through the Physical Host controller;
+- production-provisioned `haco env` create/list/status/exec/delete from inside the real trusted Host through the Physical Host controller;
+- historical Environment aliases being forced through the controller in trusted client mode;
+- still-unmigrated commands failing before guest-local composition is initialized;
 - guest command exit-status/stdout/stderr propagation through the general client path;
 - absence of raw Incus control-socket exposure;
-- absence of the trusted controller endpoint on ordinary Environments.
+- absence of the trusted controller endpoint and client-mode marker on ordinary Environments.
 
 Still planned:
 
 - classify and migrate the remaining appropriate `haco` commands onto the controller client interface;
-- permanently provision `haco` into trusted `haco-host` after ambiguous legacy-local namespaces are removed or isolated;
+- remove or explicitly deprecate compatibility aliases once their replacements are established;
+- move trusted Host-local tooling into the long-term `haco-host` namespaces;
 - streamed Execution framing with explicit stdout/stderr/exit metadata;
 - PTY resize/control framing;
 - generic Environment forwarding;
