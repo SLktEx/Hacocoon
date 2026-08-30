@@ -123,6 +123,9 @@ func environmentClientList(ctx context.Context, client environmentControllerClie
 	if err != nil {
 		return err
 	}
+	if environments == nil {
+		environments = []core.Environment{}
+	}
 	if jsonOutput {
 		return json.NewEncoder(out).Encode(environments)
 	}
