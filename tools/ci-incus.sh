@@ -21,6 +21,7 @@ ci_prefix() {
 }
 
 readonly CI_PREFIX="${HACO_CI_PREFIX:-$(ci_prefix)}"
+readonly STANDALONE_NETWORK="${CI_PREFIX}n"
 readonly DIAGNOSTICS_DIR="${HACO_CI_DIAGNOSTICS_DIR:-${RUNNER_TEMP:-/tmp}/incus-diagnostics}"
 readonly CLIENT_CONF="${HACO_CI_INCUS_CONF:-${RUNNER_TEMP:-/tmp}/haco-incus-client}"
 readonly ROOT_CLIENT_CONF="/root/.config/haco-incus-ci"
@@ -158,10 +159,65 @@ setup_incus() {
   record_environment
 }
 
+docker_forward_policy() {
+  sudo iptables -w 5 -S FORWARD 2>/dev/null | awk '$1 == "-P" && $2 == "FORWARD" {print $3; exit}'
+}
+
+configure_standalone_forwarding() {
+  local policy
+
+  command -v iptables >/dev/null 2>&1 || fail "iptables is required to inspect the GitHub runner Docker forwarding policy"
+  policy="$(docker_forward_policy || true)"
+
+  if ! sudo iptables -w 5 -nL DOCKER-USER >/dev/null 2>&1; then
+    [[ "$policy" != "DROP" ]] || fail "Docker set FORWARD policy DROP but no DOCKER-USER chain is available for scoped Incus egress"
+    echo "Docker forwarding compatibility: no DOCKER-USER rule required (FORWARD policy ${policy:-unknown})"
+    return 0
+  fi
+
+  # GitHub-hosted runners start Docker before Incus. Docker consequently owns
+  # the legacy IPv4 FORWARD chain with policy DROP. Incus manages a separate
+  # nftables namespace, but an accept in that namespace cannot override a drop
+  # in Docker's chain. Follow the Incus/Docker documented coexistence pattern,
+  # scoped to this run's exact ephemeral bridge; never change global FORWARD.
+  if ! sudo iptables -w 5 -C DOCKER-USER -i "$STANDALONE_NETWORK" -j ACCEPT >/dev/null 2>&1; then
+    sudo iptables -w 5 -I DOCKER-USER 1 -i "$STANDALONE_NETWORK" -j ACCEPT
+  fi
+  if ! sudo iptables -w 5 -C DOCKER-USER -o "$STANDALONE_NETWORK" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1; then
+    sudo iptables -w 5 -I DOCKER-USER 1 -o "$STANDALONE_NETWORK" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+  fi
+
+  echo "Docker forwarding compatibility: allowed egress only for $STANDALONE_NETWORK (FORWARD policy ${policy:-unknown})"
+  sudo iptables -w 5 -S DOCKER-USER
+}
+
+cleanup_standalone_forwarding() {
+  local failed=0
+
+  command -v iptables >/dev/null 2>&1 || return 0
+  if sudo iptables -w 5 -nL DOCKER-USER >/dev/null 2>&1; then
+    while sudo iptables -w 5 -C DOCKER-USER -i "$STANDALONE_NETWORK" -j ACCEPT >/dev/null 2>&1; do
+      sudo iptables -w 5 -D DOCKER-USER -i "$STANDALONE_NETWORK" -j ACCEPT || {
+        failed=1
+        break
+      }
+    done
+    while sudo iptables -w 5 -C DOCKER-USER -o "$STANDALONE_NETWORK" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1; do
+      sudo iptables -w 5 -D DOCKER-USER -o "$STANDALONE_NETWORK" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || {
+        failed=1
+        break
+      }
+    done
+  fi
+
+  [[ "$failed" == "0" ]]
+}
+
 run_standalone_e2e() {
   require_github_hosted_runner
   export HACO_CI_PREFIX="$CI_PREFIX"
   export HACO_CI_INCUS_STANDALONE=1
+  configure_standalone_forwarding
   bash test/e2e/incus_standalone.sh
 }
 
@@ -262,6 +318,8 @@ diagnostics() {
     sysctl net.bridge.bridge-nf-call-ip6tables || true
 
     echo '=== host firewall ==='
+    sudo iptables -w 5 -S FORWARD || true
+    sudo iptables -w 5 -S DOCKER-USER || true
     sudo nft list ruleset || sudo iptables-save || true
 
     echo '=== Incus daemon journal ==='
@@ -278,9 +336,11 @@ cleanup_standalone() {
   local failed=0
   local instance network profile volume pool
   local instances=("${CI_PREFIX}a" "${CI_PREFIX}b")
-  local networks=("${CI_PREFIX}x" "${CI_PREFIX}n")
+  local networks=("${CI_PREFIX}x" "$STANDALONE_NETWORK")
   profile="${CI_PREFIX}p"
   volume="${CI_PREFIX}v"
+
+  cleanup_standalone_forwarding || failed=1
 
   for instance in "${instances[@]}"; do
     if incus info "$instance" --project default >/dev/null 2>&1; then
