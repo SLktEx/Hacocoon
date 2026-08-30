@@ -179,7 +179,10 @@ experimental providerは次で選択します。
 ```text
 HACO_RUNTIME_PROVIDER=runtime.kubernetes
 HACO_KUBERNETES_IMAGE=<systemd-capable-image>
+HACO_KUBERNETES_EXPERIMENTAL_HOSTPATH=1
 ```
+
+Workspace transportがwritable `hostPath`を使っている間、`HACO_KUBERNETES_EXPERIMENTAL_HOSTPATH=1`は意図的に必須です。指定しない場合はfail closedにして、この実験transportをdefault supported behaviorのように見せません。
 
 optional experiment setting:
 
