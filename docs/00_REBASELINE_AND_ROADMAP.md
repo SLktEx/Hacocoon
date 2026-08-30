@@ -19,7 +19,7 @@ Hacocoon runs developer tools and coding agents inside isolated Environments whi
 | Next milestone | **v0.13 Local OCI Registry** — planned, not implemented |
 | v0.13 companion | **OCI Seed & Btrfs/COW optimization** — planned second slice |
 | Default local runtime | Incus |
-| Remote runtime | EC2 — experimental and disabled by default |
+| Remote runtime | Deferred; current implementation registers Incus only |
 | Current code reality | [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) |
 | Version numbering | [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md) |
 
@@ -43,9 +43,9 @@ VS Code / Shell / coding agents / orchestrators / other clients
          Environment                    Policy/Capability
               |                                |
       Environment provider              trusted authority
-         /           \                  /       |       \
- runtime.incus   runtime.ec2        GitHub     AWS     Host
- local default  experimental
+              |                         /       |       \
+        runtime.incus               GitHub   External   Host
+        current runtime
 ```
 
 ### Hacocoon owns
@@ -68,7 +68,7 @@ VS Code / Shell / coding agents / orchestrators / other clients
 - task decomposition, retry strategy, or agent DAGs;
 - Git branch strategy or worktree orchestration as a Core concern;
 - development review/merge workflow;
-- provider-native Incus, AWS, Btrfs, OCI, or client protocol details inside Core.
+- provider-native Incus, cloud, Btrfs, OCI, or client protocol details inside Core.
 
 Thin adapters may integrate those systems without redefining Core.
 
@@ -76,7 +76,7 @@ Thin adapters may integrate those systems without redefining Core.
 
 These rules are more important than preserving accidental pre-1.0 behavior.
 
-1. **Core stays provider-neutral.** Incus, AWS, VS Code, AHP, Btrfs, OCI, and similar technologies remain behind adapters.
+1. **Core stays provider-neutral.** Incus, cloud providers, VS Code, AHP, Btrfs, OCI, and similar technologies remain behind adapters.
 2. **The coding Environment is not the control plane.** Coding agents do not gain Hacocoon/Incus administrator authority merely because an Environment was allocated.
 3. **Credentials stay on the trusted side.** Host credentials and reusable upstream credentials are not exported into arbitrary Environments.
 4. **Privileged operations are brokered.** Git push and external-service authority cross Policy/Capability boundaries.
@@ -84,7 +84,7 @@ These rules are more important than preserving accidental pre-1.0 behavior.
 6. **Mutable names resolve to immutable identity.** Base aliases and future OCI/Seed references must pin immutable revisions/digests where durable identity matters.
 7. **Explicit limits fail closed.** A provider that cannot enforce a requested finite ResourceBudget must reject the request rather than silently ignore it.
 8. **Network authority is explicit.** Managed Incus networking defaults to a Hacocoon-owned sandbox profile; higher-level domain-aware authorization remains a separate policy layer.
-9. **Real-host acceptance is separate from repository tests.** Unit tests, fake-provider E2Es, race checks, and CI do not prove real Incus/Windows/AWS behavior.
+9. **Real-host acceptance is separate from repository tests.** Unit tests, fake-provider E2Es, race checks, and CI do not prove real Incus/Windows/future-cloud behavior.
 10. **Cleanup and recovery are part of the feature.** Cancellation, retry, partial failure, and crash recovery are design requirements.
 
 ## Core vocabulary
@@ -103,11 +103,11 @@ BaseName / BaseRevision / BaseRef
 ResourceBudget
 ```
 
-Agent-session identities, VS Code/AHP types, Incus aliases, AWS identifiers, OCI registry mechanics, and storage-driver details remain integration/provider concerns.
+Agent-session identities, VS Code/AHP types, Incus aliases, cloud identifiers, OCI registry mechanics, and storage-driver details remain integration/provider concerns.
 
 ## Roadmap
 
-**Status legend:** ✅ implemented · 🧪 experimental · 🚧 planned
+**Status legend:** ✅ implemented · 🧪 experimental/historical · 🚧 planned
 
 | Version | Gate | Repository status |
 |---|---|---|
@@ -117,7 +117,7 @@ Agent-session identities, VS Code/AHP types, Incus aliases, AWS identifiers, OCI
 | v0.4 | Policy & Capability Foundation | ✅ implemented |
 | v0.5 | Git / GitHub Capability | ✅ implemented |
 | v0.6 | Agent & Orchestrator Integration | ✅ implemented |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 implemented experimentally; EC2 remains default-off |
+| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 provider-routing seam retained; prior EC2/AWS/EBS implementation deferred |
 | v0.8 | Client Adapters & VS Code Integration | ✅ implemented; real-client acceptance remains host-dependent |
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation implemented |
 | v0.10 | VS Code Remote Agent Host Adapter | ✅ implemented |
@@ -262,17 +262,19 @@ A feature can be implemented in the repository while still requiring real-host v
 | unit / adversarial tests | local logic and invariant coverage |
 | process / fake-provider E2E | executable integration without real external infrastructure |
 | repository CI | repeatable host-independent regression coverage |
-| real Incus / Windows / AWS acceptance | actual provider/client behavior on supported hosts |
+| real Incus / Windows / future cloud acceptance | actual provider/client behavior on supported hosts |
 
-Current host-dependent areas include real Incus lifecycle/network/resource enforcement, Windows/WSL + VS Code, Agent Host/AHP routing, Base/image sources, and AWS/EC2/SSM/EBS.
+Current host-dependent areas include real Incus lifecycle/network/resource enforcement, Windows/WSL + VS Code, Agent Host/AHP routing, and Base/image sources. Cloud acceptance will be defined again when a cloud adapter is reintroduced.
 
 For exact current status, always use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
 
-## Experimental EC2 rule
+## Deferred cloud runtime
 
-The EC2 Environment provider is **experimental and disabled by default**.
+The previous EC2 Environment provider was **experimental and disabled by default**. The EC2 runtime, AWS capability, EBS helper, and cloud-specific E2Es are not present in the current implementation tree.
 
-It must not become active merely because AWS credentials, environment variables, the AWS CLI, or cloud metadata are present. Enabling it requires explicit Hacocoon-owned operator opt-in, and disabled paths must fail before AWS side effects.
+This is a temporary development-focus choice while Hacocoon's local runtime and provider contracts are still changing quickly. The provider-neutral routing seam remains, and Git history plus the v0.7 design documents retain the previous implementation as reference material for a future adapter.
+
+If cloud support is restored, it must remain explicit opt-in, keep credentials and authority on the trusted side, and fail before provider side effects when required policy or enforcement cannot be satisfied.
 
 ## Historical note
 
