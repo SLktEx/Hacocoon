@@ -40,7 +40,10 @@ func ensureTrustedHostAndClient(ctx context.Context, app *composition.App) error
 	if err != nil {
 		return err
 	}
-	return app.Runtime.ProvisionTrustedHostClient(ctx, clientBinary)
+	if err := app.Runtime.ProvisionTrustedHostClient(ctx, clientBinary); err != nil {
+		return err
+	}
+	return app.Runtime.EnsureTrustedHostNerdctlShim(ctx)
 }
 
 func trustedHostClientBinary() (string, error) {
