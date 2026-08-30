@@ -138,7 +138,7 @@ func (p *SandboxProvider) addWorkspaceDevice(ctx context.Context, ref string, sp
 		deviceArgs = append(deviceArgs, "readonly=true")
 	} else {
 		uid, gid, ownerErr := workspaceOwnerIDs(spec.WorkspacePath)
-		if ownerErr == nil && uid != 0 && gid != 0 {
+		if ownerErr == nil && uid != 0 && gid != 0 && workspaceOwnerIDsMappable(uid, gid) {
 			// Keep the container unprivileged, but map only the owner identity of
 			// the explicitly leased host workspace to root inside the sandbox.
 			// This lets an agent running as container root edit an ordinary
@@ -148,8 +148,8 @@ func (p *SandboxProvider) addWorkspaceDevice(ctx context.Context, ref string, sp
 				return fmt.Errorf("map workspace owner into unprivileged environment %s: %w", ref, err)
 			}
 		} else {
-			// Preserve the existing idmapped-mount path for unusual ownership or
-			// platforms where the host owner cannot be resolved. The post-start
+			// Preserve the existing idmapped-mount path when the workspace owner
+			// is not available in root's subordinate ID ranges. The post-start
 			// write probe remains fail-closed if this is insufficient.
 			deviceArgs = append(deviceArgs, "shift=true")
 		}
