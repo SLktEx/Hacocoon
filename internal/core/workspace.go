@@ -43,14 +43,15 @@ type BaseInfo struct {
 }
 
 type WorkspaceLease struct {
-	WorkspaceID   WorkspaceID         `json:"workspace_id"`
-	SourcePath    string              `json:"source_path"`
-	EnvironmentID string              `json:"environment_id"`
-	AccessMode    WorkspaceAccessMode `json:"access_mode"`
-	Owner         string              `json:"owner"`
-	RuntimeRef    string              `json:"runtime_ref,omitempty"`
-	State         WorkspaceLeaseState `json:"state,omitempty"`
-	AcquiredAt    time.Time           `json:"acquired_at"`
+	WorkspaceID       WorkspaceID         `json:"workspace_id"`
+	SourcePath        string              `json:"source_path"`
+	EnvironmentID     string              `json:"environment_id"`
+	AccessMode        WorkspaceAccessMode `json:"access_mode"`
+	Owner             string              `json:"owner"`
+	CreateOperationID string              `json:"create_operation_id,omitempty"`
+	RuntimeRef        string              `json:"runtime_ref,omitempty"`
+	State             WorkspaceLeaseState `json:"state,omitempty"`
+	AcquiredAt        time.Time           `json:"acquired_at"`
 }
 
 // EphemeralRun is trusted host-side evidence that an Environment belongs to
@@ -81,11 +82,12 @@ type EnvironmentSpec struct {
 }
 
 type EnvironmentRuntimeSpec struct {
-	Name          string
-	WorkspacePath string
-	ReadOnly      bool
-	Base          BaseName
-	Resources     ResourceBudget
+	Name              string
+	WorkspacePath     string
+	ReadOnly          bool
+	Base              BaseName
+	Resources         ResourceBudget
+	CreateOperationID string
 }
 
 type EnvironmentRuntime struct {
