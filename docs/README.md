@@ -26,8 +26,8 @@ Hacocoon is **pre-1.0**. These documents distinguish three different things that
 | VS Code Agent Host integration | [`10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md`](10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md) |
 | Base images | [`11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md), [`BASE_IMAGES.md`](BASE_IMAGES.md) |
 | Resource limits | [`12_v0.12_SANDBOX_RESOURCE_LIMITS.md`](12_v0.12_SANDBOX_RESOURCE_LIMITS.md) |
-| Planned local OCI registry | [`13_v0.13_LOCAL_OCI_REGISTRY.md`](13_v0.13_LOCAL_OCI_REGISTRY.md) |
-| Planned OCI Seed / COW optimization | [`13A_v0.13_OCI_SEED_AND_COW.md`](13A_v0.13_OCI_SEED_AND_COW.md) |
+| Optional local OCI registry direction | [`13_v0.13_LOCAL_OCI_REGISTRY.md`](13_v0.13_LOCAL_OCI_REGISTRY.md) |
+| OCI Seed / COW and telemetry | [`13A_v0.13_OCI_SEED_AND_COW.md`](13A_v0.13_OCI_SEED_AND_COW.md), [`13B_v0.13_SEED_AUTO_PROMOTION.md`](13B_v0.13_SEED_AUTO_PROMOTION.md), [`13C_v0.13_OCI_IMAGE_DELETION.md`](13C_v0.13_OCI_IMAGE_DELETION.md) |
 
 ## Source-of-truth order
 
@@ -48,7 +48,7 @@ There is no single document that should override every other document for every 
 
 ## Current milestone status
 
-**Status legend:** ✅ implemented · 🧪 experimental · 🚧 planned
+**Status legend:** ✅ implemented · 🧪 experimental · 🚧 planned/partial
 
 | Version | Gate | State |
 |---|---|---|
@@ -64,13 +64,13 @@ There is no single document that should override every other document for every 
 | v0.10 | VS Code Remote Agent Host Adapter | ✅ implemented; real-host acceptance pending |
 | v0.11 | Base Images & Custom Environments | ✅ first implementation slice |
 | v0.12 | Sandbox Resource Limits | ✅ first implementation slice |
-| v0.13 | Local OCI Registry | 🚧 planned; not implemented on `main` |
+| v0.13 | OCI infrastructure / Seed optimization | 🚧 telemetry, recommendation and deletion slices implemented; Seed build/publish and optional Registry remain incomplete |
 
-The implemented progression is contiguous through **v0.12**. See [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for exact repository reality and acceptance gaps.
+The original release numbering documents still describe the v0.13 Local OCI Registry milestone. Current OCI Seed work has since evolved into an optional plugin/infrastructure concern; `IMPLEMENTATION_STATUS.md` is authoritative for what is already on `main`.
 
 ## Specification vs implementation
 
-A specification is a design/acceptance contract. It is **not** proof that the feature exists on `main`.
+A specification is a design/acceptance contract. It is **not** proof that every part of the feature exists on `main`.
 
 Examples:
 
@@ -80,7 +80,7 @@ Examples:
 - v0.10 `haco-agent-host` is implemented while real Agent Host acceptance remains host-dependent.
 - v0.11 Base selection and immutable pinning are implemented; custom build/import/history/GC are follow-up work.
 - v0.12 ResourceBudget enforcement is implemented for Incus; real workload enforcement remains host-dependent.
-- v0.13 Local OCI Registry and OCI Seed/COW are design documents only until implementation lands.
+- v0.13 OCI usage telemetry, top-10% Seed recommendation selection, and OCI image deletion/tombstones are implemented; Seed build/publish, cache harvesting and real Btrfs COW acceptance remain follow-up work.
 
 Do not infer tag/release readiness, compatibility, production support, or real-host acceptance from a roadmap number alone.
 
@@ -111,12 +111,12 @@ The first adapter is `haco-vscode`. VS Code owns the editor, terminal, debugger,
 Implemented first-slice commands include:
 
 ```text
-haco image list
-haco image inspect <base>
+haco base list
+haco base inspect <base>
 haco create --base <base> --workspace <path> <environment>
 ```
 
-Mutable provider sources resolve once to an immutable Base revision before Environment creation.
+`haco base` is reserved for Hacocoon Environment starting points. OCI/container images are not mixed into this namespace.
 
 ### Resource limits
 
@@ -127,10 +127,20 @@ ResourceBudget covers CPU, memory, PIDs, and root storage. Incus finite limits a
 
 ### v0.13 OCI work
 
-1. [`13_v0.13_LOCAL_OCI_REGISTRY.md`](13_v0.13_LOCAL_OCI_REGISTRY.md)
-2. [`13A_v0.13_OCI_SEED_AND_COW.md`](13A_v0.13_OCI_SEED_AND_COW.md)
+1. [`13A_v0.13_OCI_SEED_AND_COW.md`](13A_v0.13_OCI_SEED_AND_COW.md)
+2. [`13B_v0.13_SEED_AUTO_PROMOTION.md`](13B_v0.13_SEED_AUTO_PROMOTION.md)
+3. [`13C_v0.13_OCI_IMAGE_DELETION.md`](13C_v0.13_OCI_IMAGE_DELETION.md)
+4. [`13_v0.13_LOCAL_OCI_REGISTRY.md`](13_v0.13_LOCAL_OCI_REGISTRY.md) for the optional Registry direction
 
-These are **planned**. The registry/cache gateway is the first slice; OCI Seed/COW is a second optimization slice. Neither should be described as implemented until `IMPLEMENTATION_STATUS.md` says so.
+OCI-specific CLI is grouped under the plugin namespace:
+
+```text
+haco plugin oci seed sample
+haco plugin oci seed recommend
+haco plugin oci image delete <reference> [--all-environments]
+```
+
+The ambiguous pre-1.0 `haco image ...` command is intentionally not retained as an alias.
 
 ## Compatibility and breaking changes
 
