@@ -1,30 +1,45 @@
-# OCI Runtime と Docker Compatibility
+# Optional OCI Plugin と Docker Compatibility
 
 [English](OCI_RUNTIME_AND_DOCKER_COMPAT.md) | **日本語**
 
-Status: **packaging foundation は実装済み。Base/Seedへの焼き込みとreal-host acceptanceはpending。**
+Status: **optional pluginのpackaging foundationは実装済み。Base/Seedへの焼き込みとreal-host acceptanceはpending。**
 
-この資料は、Docker EngineをHacocoonの標準runtimeにせず、Docker前提のdeveloper toolingとの互換性を持たせる方法を定義します。
+この資料はproject-maintained OCI plugin profileを定義する。**Hacocoon CoreのOCI runtime dependencyを定義する資料ではない。**
 
-## 方針
+## Core rule
 
-Hacocoonの標準OCI runtimeは次です。
+Hacocoon CoreはWorkspaceとisolated Environmentを管理するためにcontainer CLI/runtimeを要求しない。`HACO_PLUGIN_OCI`未設定なら、nerdctl、Docker CLI、dockerd、Host OCI cache、Local Registryを要求してはいけない。
+
+OCI developer toolingが必要なoperatorだけprofileを明示選択する。
 
 ```text
-containerd  （常駐runtime/content service）
-    ^
-    |
-nerdctl     （通常CLI）
+HACO_PLUGIN_OCI=nerdctl
+HACO_PLUGIN_OCI=docker
 ```
 
-Docker互換は追加interfaceとして扱います。
+## Project-maintained nerdctl profile
+
+container toolingを使いたいdeployment向けの軽量profileは次の形を推奨する。
+
+```text
+containerd  (Environment-local service/content store)
+    ^
+    |
+nerdctl     (ordinary CLI)
+```
+
+これはplugin profileであり、Hacocoon Core runtime contractではない。
+
+## Docker compatibility profile
+
+一部developer toolingはgenuine Docker CLIやDocker Engine API semanticsを要求する。optional Docker profileでは次の互換経路を提供できる。
 
 ```text
 Docker CLI / Docker API client
           |
           | unix:///var/run/docker.sock
           v
-hacocoon-docker.socket
+plugin-owned hacocoon-docker.socket
           |
           | socket activation
           v
@@ -32,111 +47,77 @@ hacocoon-docker.socket
           |
           | --containerd=/run/containerd/containerd.sock
           v
-     同じ containerd
+ Environment-local containerd
 ```
 
-Docker ecosystemとの互換性のため、Hacocoonのdevelopment Base/Seedには本物のDocker CLIを入れられます。`dockerd`もEngine互換が必要なBase/Seedでは入れますが、標準の常駐runtimeにはしません。
+Rule:
 
-通常のHacocoonの資料やautomationは`nerdctl`を優先します。Docker Engineは、Docker Engine APIや`/var/run/docker.sock`を本当に要求するsoftware向けの互換経路です。
+1. Hacocoon wrapperではなくgenuine Docker CLIを使う
+2. `dockerd`はoptionalで、Docker API accessが必要になるまで通常inactive
+3. Docker互換のためだけに2個目のprivate containerdを起動しない
+4. Docker APIはdefaultでEnvironment-local Unix socketのみ
+5. Host Docker socketをHacocoon Environmentへmountしない
+6. Docker/nerdctl credentialをCore credentialとして扱わない
 
-## Runtime rule
+unitは次に置く。
 
-1. `containerd`を常駐OCI runtime serviceにする
-2. 通常のcontainer CLIは`nerdctl`
-3. `docker`はHacocoon製wrapperではなく本物のDocker CLIを使う
-4. `dockerd`は通常停止状態にする
-5. `/run/docker.sock`へのaccessでsystemdが`hacocoon-docker.service`を起動する
-6. 起動した`dockerd`は既存の`/run/containerd/containerd.sock`へ接続する
-7. Docker互換のためだけに2個目のprivate/managed containerdを起動しない
-8. Docker Engine APIは標準ではEnvironment内のUnix socketにだけ公開する
-9. HostのDocker socketをEnvironmentへmountしない
+```text
+modules/plugin/oci/packaging/systemd/
+```
 
-repositoryには`packaging/systemd/`以下にHacocoon専用unitを置きます。packageが所有する`docker.service` / `docker.socket`を上書きせず、Base作成時にvendor側のauto-startをdisableできるよう、別名にしています。
+vendor `docker.service` / `docker.socket`を上書きせずHacocoon固有unit名を使う。
 
 ## Socket activation
 
-`hacocoon-docker.socket`が`/run/docker.sock`をlistenし、最初のaccessで`hacocoon-docker.service`を起動します。
+`hacocoon-docker.socket`が`/run/docker.sock`をlistenし、最初のrequestで`hacocoon-docker.service`をactivateする。socket activation自体はidleになったdockerdを自動停止しないので、idle shutdownはfuture policyでありcurrent claimではない。
 
-service自身には`multi-user.target`から起動される`[Install]`設定を持たせません。enableするのはsocketだけです。これにより通常bootでDocker Engineが2個目の常駐control planeになるのを避けます。
+plugin socketをenableする前に、同じpathを別serviceがlistenしていないことをprovisioningで確認する。
 
-socket activationは**必要時に起動する仕組み**であって、idle時に自動停止する仕組みではありません。将来idle shutdown policyを追加することはできますが、client切断後にsystemdが自動で`dockerd`を止めるとは扱いません。
+## containerd namespaceと容量
 
-Hacocoon socketをenableする前に、Base/Seed provisioningはvendorの`docker.socket`など別processが`/run/docker.sock`をlistenしていないことを確認しなければなりません。
+Docker Engineは独自containerd namespace、nerdctlは別namespaceを使える。同じcontainerd content serviceを使えばcontent-addressed blobを共有でき、高位metadataまで同じnamespaceへ混ぜる必要はない。
 
-## containerd namespace と容量
+ただしtotal storageが完全に0重複になるとは保証しない。namespace metadata、unpacked snapshot、writable layer、build cache、Docker固有stateは追加容量を使う。
 
-Docker Engineは通常、containerd上で独自namespace（一般的には`moby`）を使います。容量削減のためだけにHacocoon/nerdctlのimage metadataまで同じnamespaceへ混ぜる必要はありません。
+Environment間の容量最適化はplanned v0.19 Seed/COWで扱う。1つのwritable `/var/lib/containerd`を複数Environmentで共有しない。
 
-同じcontainerd daemonを使えば、高位のimage/container metadataをnamespaceで分離したままでも、content-addressedなOCI blobはcontainerdのcontent storeで共有できます。
+## Base / Seed integration
 
-ただし**全byteが必ずdedupされるという意味ではありません**。namespace固有metadata、snapshot/unpack済みfilesystem、writable layer、build cache、Docker固有stateなどは追加容量を使う場合があります。そのためHacocoonは「同じcontainerd contentを共有する」と表現し、「Dockerとnerdctlでimage容量が完全に0重複になる」とは保証しません。
+選択したOCI toolingはEnvironment startごとのpackage installではなくimmutable development Base/Seedへ焼き込む方向。ただしbuild/publish pipelineはまだ完成していない。
 
-Environment間の容量削減はv0.13A Seed/COW設計を使います。immutable Seed filesystemをIncus/storage driverのclone semanticsで共有し、複数Environmentから同じwritable `/var/lib/containerd`を共有してはいけません。
+Docker-compatible Base/Seedは必要に応じて:
 
-## Base / Seedへの組み込み
-
-Docker互換はEnvironment起動時に毎回package installするのではなく、immutable development Base/Seedへ焼き込みます。
-
-この機能を有効にするBase/Seed buildは、次を満たす必要があります。
-
-1. supportedなstandalone `containerd` serviceと`nerdctl`をinstallする
-2. 本物のDocker CLIをinstallする
-3. Engine互換を提供するBase/Seedだけ`dockerd`もinstallする
-4. non-root Docker API accessが必要ならEnvironment内の`docker` groupを作る
-5. Hacocoonのsocket/service unitをinstallする
-6. vendorがauto-startする`docker.service` / `docker.socket`をdisableする
-7. `hacocoon-docker.service`ではなく`hacocoon-docker.socket`だけをenableする
-8. immutable Base/Seed publish前に`dockerd`が停止していることを確認する
-9. 起動したdaemonが`/run/containerd/containerd.sock`を使うことを確認する
-10. registry credentialやHost control socketをimageへ取り込まない
-
-現在のrepositoryには、これらのpackage/unitをofficial Hacocoon imageへ自動で焼き込むv0.11 custom Base builder / v0.13A Seed publisherがまだありません。そのため今回追加するunitは**packaging foundation**であり、現在のvanilla Ubuntu Baseから作った全Environmentですぐ`docker`が使えるというimplementation claimではありません。
+- optional profileとしてsupported containerd/nerdctlをinstall
+- genuine Docker CLIをinstall
+- Engine互換が必要な場合だけdockerdをinstall
+- plugin-owned socket/service unitをinstall
+- conflicting vendor auto-startをdisable
+- always-on dockerd serviceではなくplugin socketだけenable
+- immutable publish前にdockerdを停止
+- registry credentialやHost control socketをimageへ焼き込まない
 
 ## Security boundary
 
-Docker daemonは**そのEnvironment内部では強いauthority**を持ちます。Docker socketへaccessできるuserは、そのEnvironmentのDocker daemonと管理対象containerを実質的に制御できます。
+Docker socket accessは**そのEnvironment内ではroot-equivalent authority**。外側のsecurity boundaryはHacocoon Environmentのまま。
 
-必須rule:
-
-- `/run/docker.sock`はEnvironment-local
-- Hostの`/var/run/docker.sock`をbind mountしない
-- Host/containerd/Incus/Hacocoon control socketをDocker互換経路へ渡さない
-- 標準ではDocker APIをTCP listenしない
-- socketは`0660`、group membershipは明示的にする
-- Environment内`docker` group membershipは、そのEnvironment内ではroot-equivalent authorityとして扱う
+- Host `/var/run/docker.sock`をbind mountしない
+- Host Incus/Hacocoon/containerd control socketを互換経路へ露出しない
+- Docker APIをdefaultでTCP listenしない
 - Docker互換を理由にGitHub/cloud/registry/Host credentialを付与しない
-- 外側のsecurity boundaryはIncus Environmentのまま
 
-## Telemetryとの関係
+## Telemetry
 
-OCI Seed usage telemetryは現在、通常の`nerdctl images`をsampleします。Docker Engine互換をBaseへ焼き込んだ後は、Docker/`moby` namespaceで使われたimageもsampleするか、より低位のcontainerd viewからusageを収集する必要があります。
-
-同じimmutable digestが両方の経路に見えても、Seed recommendationでは重複countしません。Docker互換を使っただけで同じOCI contentの推薦weightが2倍になってはいけません。
+v0.15 OCI usage telemetryはoptional plugin機能。選択driver（`nerdctl`または`docker`）をinventoryし、複数CLIから同じOCI digestが見えるだけでSeed recommendation weightを二重countしない。
 
 ## Acceptance
 
-repository-levelのpackaging foundationでは次を確認対象にします。
-
-- `/run/docker.sock`を`0660`でlistenするsocket unit
-- `dockerd -H fd://`とexternal `/run/containerd/containerd.sock`を使うservice unit
-- `hacocoon-docker.service`をboot時に直接enableするtargetを持たない
-- shared contentとtotal-storage dedupを区別してdocumentする
-- Host Docker socket passthroughを禁止する
-
-Base/Seed buildができた後のreal acceptanceは次です。
+repository/local CIではplugin-owned systemd packagingをverifyする。real acceptanceではsupported Base/Incus host上で次を確認する。
 
 ```text
-boot
-  containerd: active
-  dockerd: inactive
-  hacocoon-docker.socket: active
-
-最初のDocker API request
-  -> dockerd becomes active
-  -> docker info succeeds
-  -> ordinary nerdctl still works
+boot: configured profile services。dockerdはinactive
+最初のDocker API request: plugin socketがdockerdをactivate
+docker info succeeds
+selected OCI CLIも通常利用可能
 ```
 
-supported Incus imageでこのlifecycleを検証できるまではreal-host acceptance pendingです。
-
-> **Dockerは互換interface。Hacocoonのruntimeはcontainerd + nerdctl。**
+> **Dockerとnerdctlはoptional OCI plugin profile。Hacocoon Coreはuniversal container runtimeを選ばない。**
