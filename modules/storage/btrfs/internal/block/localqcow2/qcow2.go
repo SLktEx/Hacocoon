@@ -19,10 +19,11 @@ type Store struct {
 	devRoot      string
 	sysBlockRoot string
 	procRoot     string
+	nbdLockPath  string
 }
 
 func New(runner host.Runner) *Store {
-	return &Store{runner: runner, devRoot: "/dev", sysBlockRoot: "/sys/block", procRoot: "/proc"}
+	return &Store{runner: runner, devRoot: "/dev", sysBlockRoot: "/sys/block", procRoot: "/proc", nbdLockPath: defaultNBDAllocatorLockPath}
 }
 
 func (*Store) ID() string { return "block.local-qcow2" }

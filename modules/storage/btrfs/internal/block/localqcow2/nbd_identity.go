@@ -20,9 +20,10 @@ import (
 )
 
 const (
-	nbdIdentityVersion = 1
-	nbdVerifyAttempts  = 20
-	nbdVerifyDelay     = 25 * time.Millisecond
+	nbdIdentityVersion            = 1
+	nbdVerifyAttempts             = 20
+	nbdVerifyDelay                = 25 * time.Millisecond
+	defaultNBDAllocatorLockPath   = "/run/lock/hacocoon-nbd.lock"
 )
 
 var nbdNamePattern = regexp.MustCompile(`^nbd[0-9]+$`)
@@ -76,15 +77,20 @@ func (s *Store) procRootPath() string {
 	return "/proc"
 }
 
+func (s *Store) nbdAllocatorLockPath() string {
+	if s.nbdLockPath != "" {
+		return s.nbdLockPath
+	}
+	return defaultNBDAllocatorLockPath
+}
+
 func nbdStatePath(backing string) string { return backing + ".nbd.json" }
 
-func (s *Store) withNBDAllocatorLock(backing string, fn func() error) error {
-	storageRoot := filepath.Dir(filepath.Dir(backing))
-	locks := filepath.Join(storageRoot, "locks")
-	if err := ensureTrustedNBDDirectory(locks); err != nil {
-		return err
+func (s *Store) withNBDAllocatorLock(_ string, fn func() error) error {
+	lockPath := s.nbdAllocatorLockPath()
+	if !filepath.IsAbs(lockPath) || filepath.Clean(lockPath) != lockPath {
+		return errors.Join(fmt.Errorf("global NBD allocator lock path %q is not canonical and absolute", lockPath), core.ErrIncompatibleState)
 	}
-	lockPath := filepath.Join(locks, "nbd-global.lock")
 	fd, err := syscall.Open(lockPath, syscall.O_CREAT|syscall.O_RDWR|syscall.O_CLOEXEC|syscall.O_NOFOLLOW, 0o600)
 	if err != nil {
 		return fmt.Errorf("open global NBD allocator lock: %w", err)
@@ -99,7 +105,7 @@ func (s *Store) withNBDAllocatorLock(backing string, fn func() error) error {
 	if err := syscall.Fstat(fd, &stat); err != nil {
 		return fmt.Errorf("inspect global NBD allocator lock: %w", err)
 	}
-	if stat.Uid != uint32(os.Geteuid()) || stat.Mode&syscall.S_IFMT != syscall.S_IFREG || stat.Mode&0o077 != 0 {
+	if stat.Uid != uint32(os.Geteuid()) || stat.Mode&syscall.S_IFMT != syscall.S_IFREG || stat.Nlink != 1 || stat.Mode&0o777 != 0o600 {
 		return errors.Join(fmt.Errorf("global NBD allocator lock is not trusted"), core.ErrIncompatibleState)
 	}
 	if err := syscall.Flock(fd, syscall.LOCK_EX); err != nil {
@@ -107,24 +113,6 @@ func (s *Store) withNBDAllocatorLock(backing string, fn func() error) error {
 	}
 	defer syscall.Flock(fd, syscall.LOCK_UN)
 	return fn()
-}
-
-func ensureTrustedNBDDirectory(path string) error {
-	if err := os.MkdirAll(path, 0o700); err != nil {
-		return err
-	}
-	info, err := os.Lstat(path)
-	if err != nil {
-		return err
-	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() || info.Mode().Perm()&0o022 != 0 {
-		return errors.Join(fmt.Errorf("NBD lock directory %q is not trusted", path), core.ErrIncompatibleState)
-	}
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || stat.Uid != uint32(os.Geteuid()) {
-		return errors.Join(fmt.Errorf("NBD lock directory %q has unexpected ownership", path), core.ErrIncompatibleState)
-	}
-	return nil
 }
 
 func currentBackingIdentity(path string) (backingIdentity, error) {
@@ -425,23 +413,32 @@ func (s *Store) findFreeNBDLocked() (string, error) {
 }
 
 func (s *Store) waitForNBDMatch(ctx context.Context, device, backing string) error {
+	lastReason := "NBD attachment is not yet observable"
 	for i := 0; i < nbdVerifyAttempts; i++ {
 		inspection := s.inspectNBD(device, backing)
-		if inspection.observation == nbdMatches {
+		switch inspection.observation {
+		case nbdMatches:
 			return nil
-		}
-		if inspection.observation == nbdOther || inspection.observation == nbdUncertain {
-			return errors.Join(fmt.Errorf("cannot verify NBD attachment %s -> %s: %s", device, backing, inspection.reason), core.ErrRecoveryRequired)
+		case nbdOther:
+			return errors.Join(fmt.Errorf("cannot verify NBD attachment %s -> %s: device is owned by a different backing", device, backing), core.ErrRecoveryRequired)
+		case nbdUncertain:
+			if inspection.reason != "" {
+				lastReason = inspection.reason
+			}
+		case nbdFree:
+			lastReason = "NBD device is still free"
 		}
 		if i+1 < nbdVerifyAttempts {
+			timer := time.NewTimer(nbdVerifyDelay)
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(nbdVerifyDelay):
+				timer.Stop()
+				return errors.Join(ctx.Err(), core.ErrRecoveryRequired)
+			case <-timer.C:
 			}
 		}
 	}
-	return errors.Join(fmt.Errorf("NBD attachment %s -> %s was not observable", device, backing), core.ErrRecoveryRequired)
+	return errors.Join(fmt.Errorf("NBD attachment %s -> %s was not provable after bounded observation: %s", device, backing, lastReason), core.ErrRecoveryRequired)
 }
 
 func (s *Store) waitForNBDFree(ctx context.Context, device string) error {
@@ -456,10 +453,12 @@ func (s *Store) waitForNBDFree(ctx context.Context, device string) error {
 			return errors.Join(fmt.Errorf("cannot verify NBD detach for %s: %w", device, err), core.ErrRecoveryRequired)
 		}
 		if i+1 < nbdVerifyAttempts {
+			timer := time.NewTimer(nbdVerifyDelay)
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(nbdVerifyDelay):
+				timer.Stop()
+				return errors.Join(ctx.Err(), core.ErrRecoveryRequired)
+			case <-timer.C:
 			}
 		}
 	}
