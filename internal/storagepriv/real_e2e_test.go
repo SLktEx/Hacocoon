@@ -44,7 +44,8 @@ func TestRealPrivilegedStorageHelperE2E(t *testing.T) {
 	}
 
 	const id = "helper-e2e"
-	handle, err := storage.Ensure(ctx, core.StorageSpec{ID: id, SizeBytes: 512 << 20})
+	spec := core.StorageSpec{ID: id, SizeBytes: 512 << 20}
+	handle, err := storage.Ensure(ctx, spec)
 	if err != nil {
 		t.Fatalf("ensure managed Btrfs storage through helper: %v", err)
 	}
@@ -57,6 +58,14 @@ func TestRealPrivilegedStorageHelperE2E(t *testing.T) {
 			t.Errorf("cleanup managed Btrfs storage: %v", err)
 		}
 	})
+
+	repeated, err := storage.Ensure(ctx, spec)
+	if err != nil {
+		t.Fatalf("repeat managed Btrfs ensure through helper: %v", err)
+	}
+	if repeated.ID != handle.ID || repeated.Attachment["driver"] != handle.Attachment["driver"] || repeated.Attachment["source"] != handle.Attachment["source"] || repeated.Attachment["incus_pool"] != handle.Attachment["incus_pool"] {
+		t.Fatalf("repeated ensure changed attachment: first=%#v repeated=%#v", handle, repeated)
+	}
 
 	source := handle.Attachment["source"]
 	if source != filepath.Join(root, "mounts", id) {
