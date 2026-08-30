@@ -177,12 +177,10 @@ func (p *Provider) ExecEnvironment(ctx context.Context, ref string, req core.Exe
 	if len(req.Argv) == 0 {
 		return core.ExecutionResult{}, core.ErrInvalidArgument
 	}
-	name, err := p.validateOwnedRef(ctx, ref)
-	if err != nil {
+	if _, err := p.validateOwnedRef(ctx, ref); err != nil {
 		return core.ExecutionResult{}, err
 	}
 	result, err := p.exec(ctx, ref, req.Argv)
-	_ = name
 	return core.ExecutionResult{
 		ExitCode:        result.ExitCode,
 		Stdout:          result.Stdout,
@@ -228,18 +226,14 @@ func (p *Provider) InspectEnvironment(ctx context.Context, ref string) (core.Env
 	if err := json.Unmarshal([]byte(result.Stdout), &pod); err != nil {
 		return core.EnvironmentRuntimeStatus{}, fmt.Errorf("decode Kubernetes Pod state: %w", core.ErrIncompatibleState)
 	}
-	status := core.EnvironmentRuntimeStatus{}
 	switch pod.Status.Phase {
 	case "Running":
-		status.Observed = core.ObservedRunning
-	case "Succeeded":
-		status.Observed = core.ObservedStopped
-	case "Failed":
-		status.Observed = core.ObservedError
+		return core.EnvironmentRuntimeStatus{State: core.EnvironmentRunning}, nil
+	case "Succeeded", "Failed":
+		return core.EnvironmentRuntimeStatus{State: core.EnvironmentStopped}, nil
 	default:
-		status.Observed = core.ObservedUnknown
+		return core.EnvironmentRuntimeStatus{State: core.EnvironmentUnknown}, nil
 	}
-	return status, nil
 }
 
 func (p *Provider) exec(ctx context.Context, ref string, argv []string) (host.Result, error) {
