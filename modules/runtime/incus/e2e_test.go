@@ -71,7 +71,11 @@ func TestRealIncusWorkspaceLifecycleE2E(t *testing.T) {
 	}
 
 	store := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state", "environments.json"))
-	service := workspaceapp.New(runtimeAdapter, store)
+	provider, err := NewSandboxProvider(runtimeAdapter)
+	if err != nil {
+		t.Fatalf("create production Incus sandbox provider: %v", err)
+	}
+	service := workspaceapp.New(provider, store)
 	instanceRef := "haco-demo"
 	readonlyRef := "haco-readonly"
 	defer func() {
