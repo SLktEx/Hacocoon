@@ -2,80 +2,84 @@
 
 [English](00D_VERSIONING_AND_RELEASE_STATUS.md) | **日本語**
 
-**Status:** バージョン番号・進行状況の日本語案内  
-**Date:** 2026-08-30  
-**Compatibility:** Hacocoon は pre-1.0 です。
+> **milestone番号の日本語案内 · 2026-08-30更新**
 
-> [!NOTE]
-> 厳密な正本は英語版 `00D_VERSIONING_AND_RELEASE_STATUS.md` です。
+Hacocoon は **pre-1.0** です。milestone番号はproduct/implementationの進行順を表すためのもので、compatibility guarantee、release tag、production supportの証明ではありません。
 
-## 方針
+**番号の正本は英語版 [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)**、現在の実装事実は [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) です。
 
-pre-1.0 の間は、バージョン番号をなるべく **実装された順番として読める形** に保ちます。実装の事実は `IMPLEMENTATION_STATUS.md`、roadmap の意図は `00_REBASELINE_AND_ROADMAP.md` を正本として確認します。
+## 番号付けの方針
+
+1. 実装済みmilestoneは、変更コストが低い間はなるべく連続させる
+2. design-only gateのせいで、既に実装済みの独立機能を後ろの番号へ追いやらない
+3. security/hardeningだけでは通常product versionを消費しない
+4. planned specificationが次の番号を予約しても、codeが入るまでは **planned / not implemented** と明記する
+5. release tagとroadmap milestone番号は別物
+6. repository implementationの正本は `IMPLEMENTATION_STATUS.md`
 
 ## 現在の番号
 
+**凡例:** ✅ 実装済み · 🧪 experimental · 🚧 planned
+
 | Version | Gate | `main` の状況 |
 |---|---|---|
-| v0.1 | Secure Workspace Runtime MVP | 実装済み |
-| v0.2 | Workspace Abstraction & Lease | 実装済み |
-| v0.3 | Client & Interactive Access | 実装済み |
-| v0.4 | Policy & Capability Foundation | 実装済み |
-| v0.5 | Git / GitHub Capability | 実装済み |
-| v0.6 | Agent & Orchestrator Integration | 実装済み |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | experimental 実装済み。real AWS acceptance pending |
-| v0.8 | Client Adapters & VS Code Integration | 実装済み。real client acceptance pending |
-| v0.9 | Per-Agent Sandbox & Agent Host Integration | session -> Environment broker foundation 実装済み |
-| v0.10 | VS Code Remote Agent Host Adapter | PR #137 で実装済み。real host acceptance は pending |
-| v0.11 | Base Images & Custom Environments | first slice 実装済み。Base selection / immutable revision pin / persisted identity / list・inspect を実装 |
-| v0.12 | Sandbox Resource Limits | first slice 実装済み。CPU / memory / PID / root disk の budget、Incus pre-start enforcement、persist/status を実装 |
+| v0.1 | Secure Workspace Runtime MVP | ✅ 実装済み |
+| v0.2 | Workspace Abstraction & Lease | ✅ 実装済み |
+| v0.3 | Client & Interactive Access | ✅ 実装済み |
+| v0.4 | Policy & Capability Foundation | ✅ 実装済み |
+| v0.5 | Git / GitHub Capability | ✅ 実装済み |
+| v0.6 | Agent & Orchestrator Integration | ✅ 実装済み |
+| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 experimental実装。real AWS acceptance pending |
+| v0.8 | Client Adapters & VS Code Integration | ✅ 実装済み。real client acceptance pending |
+| v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation 実装済み |
+| v0.10 | VS Code Remote Agent Host Adapter | ✅ PR #137で実装済み。real host acceptanceはpending |
+| v0.11 | Base Images & Custom Environments | ✅ first slice 実装済み。build/import/history/GCはfollow-up |
+| v0.12 | Sandbox Resource Limits | ✅ first slice 実装済み。real workload enforcementはhost-dependent |
+| v0.13 | Local OCI Registry | 🚧 planned。`main` には未実装 |
+| v0.13A | OCI Seed & Btrfs/COW Optimization | 🚧 planned second slice。`main` には未実装 |
 
-これで **v0.1〜v0.12 まで実装済み milestone が連続**します。
+**実装済みmilestoneは v0.1〜v0.12 まで連続**しています。v0.13は次のplanned milestoneであって、current implementationではありません。
 
-## v0.10 の扱い
-
-旧 PR #111 は古い security/docs baseline の integration branch だったため直接 merge せず、最新 `main` に載せ直した PR #137 で `haco-agent-host` を実装しました。
-
-real Windows/WSL + Incus + VS Code Agents window / Agent Host の acceptance は host-dependent のままです。
-
-## v0.11 の扱い
-
-first slice では次を実装しています。
+## Implemented と Planned
 
 ```text
-haco image list
-haco image inspect <base>
-haco create --base <base> --workspace <path> <environment>
+implemented on main
+v0.1 ───────────────────────────── v0.12
+                                      |
+                                      v
+                                next planned
+                                   v0.13
+                                      |
+                                      v
+                              planned second slice
+                                  v0.13A
 ```
 
-logical Base は作成時に immutable revision へ解決され、その revision が Environment metadata に保存されます。Incus の alias / remote / fingerprint の扱いは adapter 内部に閉じます。
+`13_v0.13_LOCAL_OCI_REGISTRY.md` や `13A_v0.13_OCI_SEED_AND_COW.md` が存在しても、その機能が実装済みという意味ではありません。
 
-custom build/import、revision history、rollback、GC は first slice の実装完了を意味しません。
+## 番号変更の履歴
 
-## v0.12 の扱い
-
-first slice では次を実装します。
+2026-08-30の整理で、design-onlyだったBase関連を既に実装済みだったper-agent workより前に置く一時的な番号割り当てを解消しました。
 
 ```text
-haco create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace . dev
-haco run --cpu 2 --memory 4GiB --workspace . -- go test ./...
+v0.9   Per-Agent Sandbox & Agent Host Integration    implemented
+v0.10  VS Code Remote Agent Host Adapter             implemented
+v0.11  Base Images & Custom Environments             implemented first slice
+v0.12  Sandbox Resource Limits                       implemented first slice
+v0.13  Local OCI Registry                            planned
 ```
 
-- 値の未指定は provider 任せにせず、Hacocoon の明示的な `unlimited` effective budget に解決して保存します。
-- Incus は Environment を start する前に CPU / memory / PID / root disk 制限を設定し、読み戻して検証します。
-- requested finite limit を provider が enforce できない場合は silent ignore せず fail closed します。
-- experimental EC2 は有限 budget を AWS side effect より前に `unsupported` として拒否します。
+古いcommit message、closed PR、candidate branch、過去のplanning textに旧番号が残っていても、それはhistorical recordです。
 
-real supported-Incus 上で実際に resource exhaustion が制限されることの acceptance は host-dependent のままです。
+## Acceptance watch list
 
-## 現在の acceptance watch list
-
-- v0.8: real Windows/WSL + Incus + VS Code Remote-SSH
-- v0.9/v0.10: real VS Code Agent Host/AHP routing、real Incus SSH
-- v0.11: real Incus image remote / custom Base
-- v0.12: real Incus CPU / memory / PID / root-disk enforcement
-- v0.7 EC2: real AWS acceptance。provider は experimental/default-off のまま
+- **v0.7:** real AWS/EC2/SSM/EBS。EC2はexperimental/default-off
+- **v0.8:** real Windows/WSL + Incus + VS Code Remote-SSH
+- **v0.9/v0.10:** real VS Code Agent Host/AHP routing、Incus SSH
+- **v0.11:** real Incus image source/custom Base。build/import/history/rollback/GCはfirst slice外
+- **v0.12:** real Incus CPU/memory/PID/root-storage enforcement
+- **v0.13/v0.13A:** plannedのみ。specificationの存在だけではimplementation/acceptance開始を意味しない
 
 ## 一文でいうと
 
-> **v0.1〜v0.12 の実装済み milestone を連番にし、repository implementation と real-host acceptance は `IMPLEMENTATION_STATUS.md` で分けて管理します。**
+> **番号はこのファイル、実装事実は `IMPLEMENTATION_STATUS.md`、設計意図はroadmap/specificationを見る。**
