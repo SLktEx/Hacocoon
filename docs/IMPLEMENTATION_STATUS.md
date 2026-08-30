@@ -1,121 +1,76 @@
 # Implementation Status
 
-Status date: 2026-08-30, after the v0.10 Agent Host adapter, v0.11 Base-selection, v0.12 resource-budget, and initial v0.13 OCI telemetry/lifecycle implementation passes.
+Status date: 2026-08-30, after the feature-version rebaseline through v0.19, the Base/OCI CLI namespace split, and the temporary removal of the concrete EC2/AWS/EBS implementation slice.
 
 This file reports **current code reality**, not desired architecture and not a compatibility guarantee. Versioned specifications are design/acceptance references; their existence does not imply full implementation.
 
 Hacocoon is still **pre-1.0**. An implemented area does not mean its CLI/API/state/config surface is frozen, production support is guaranteed, or every real-provider/client acceptance test has passed.
 
-| Area | Current repository reality | Release | Validation status |
+The fully implemented product progression is currently contiguous through **v0.16**. v0.17 has a Docker compatibility foundation but is not yet a complete gate. v0.18-v0.19 are planned.
+
+| Area | Current repository reality | Milestone | Validation status |
 |---|---|---:|---|
-| Secure Workspace Runtime | public Environment path supports `haco create --workspace`, `haco exec`, `haco shell`, and `haco delete` | v0.1 | unit and process-boundary integration coverage exists; supported-host real Incus acceptance remains pending |
-| Workspace model | `Workspace`, `Environment`, `ExecutionResult`, canonical external-path Workspace identity, and persisted Workspace leases are implemented | v0.1-v0.2 | unit, persistence, concurrency, and process-boundary coverage |
-| Workspace lease safety | RO/RW leases, RW conflict prevention, stale-lease recovery, and process serialization are implemented | v0.2 | unit/concurrency/integration coverage |
-| Incus Environment provider | concrete local Incus Environment implementation remains the default runtime | v0.1+ | repository coverage exists; real Incus host acceptance remains pending |
-| Client access | status, local-only port forwarding, connection listing/removal, SSH preparation/revocation, and hardened public-key handling are implemented | v0.3 | process/unit coverage; real Incus SSH acceptance host-dependent |
-| Policy / Capability | fail-closed PolicyEvaluator, allow/deny/require-approval, human security approval, request correlation, and JSONL audit are implemented | v0.4 | unit/process integration and CLI capability coverage |
-| Git / GitHub capability | host-side brokered GitHub push uses normalized repo/ref authority, exact source SHA, policy/approval, and force-with-lease semantics without exporting host credentials | v0.5 | unit, adversarial, real-git integration and CLI coverage |
-| Agent / orchestrator integration | `haco run`, stable machine JSON output, and external security event export are implemented without moving orchestration/DAG/model selection into Hacocoon | v0.6 | unit/race/process integration coverage |
-| Environment routing | provider-neutral Environment router exists; pre-v0.7 bare runtime refs remain backward-compatible as Incus refs | v0.7 | router unit coverage |
-| EC2 Environment provider | experimental S3-staged / SSM-driven EC2 Environment provider exists; EC2 is disabled by default and requires both provider selection and explicit Hacocoon-owned opt-in | v0.7 | fake-AWS coverage; real AWS acceptance pending |
-| Experimental EC2 gate | `HACO_RUNTIME_PROVIDER=runtime.ec2` does not enable EC2 alone; `HACO_EXPERIMENTAL_EC2=1` is also required | v0.7 | disabled path has fake-AWS coverage |
-| AWS capability | narrow host-side `aws.api` read capability is mediated through Policy/Approval/Audit and generic capability CLI | v0.7 | fake-AWS coverage; real AWS acceptance pending |
-| EBS replacement | adapter-owned replacement/migration flow exists for shrink-like operations; no in-place EBS shrink and no automatic source-volume deletion | v0.7 | unit/fake-AWS coverage |
-| VS Code Client Adapter | `haco-vscode` creates/reuses a matching Environment, prepares loopback SSH, writes adapter-owned SSH config, and launches standard VS Code Remote-SSH | v0.8 | helper coverage; real Windows/WSL + Incus + VS Code acceptance pending |
-| Windows/WSL client bridge | under WSL, `haco-vscode` targets the desktop client's Windows `.ssh` configuration rather than WSL-only SSH config | v0.8 | code path implemented; real acceptance pending |
-| Windows/WSL bootstrap | dedicated Hacocoon WSL instance setup with WSL2/systemd/Incus safety boundaries is implemented | v0.8 | static/syntax checks; real install/reboot acceptance pending |
-| Client adapter boundary | IDE-specific launch/configuration remains outside Core | v0.8 | architecture/documentation boundary |
-| Per-agent sandbox broker | `internal/agenthost` maps an opaque external session identity to a dedicated Environment through existing lifecycle and WorkspaceLease rules | v0.9 | unit coverage for allocation, idempotence, persisted binding proof and safe release |
-| Agent binding state | trusted `agent-bindings.json` stores hashed session-to-Environment ownership proof | v0.9 | process-safe persistence; fault-injection acceptance pending |
-| Agent control-plane separation | coding agents are not required to invoke `haco`; Incus/Hacocoon management authority stays trusted-side | v0.9 | architecture/test contract |
-| VS Code Agent Host / AHP routing foundation | independently routable top-level agent sessions can be bound to dedicated Environments | v0.9 | broker foundation; real AHP routing pending |
-| VS Code Remote Agent Host Adapter | `haco-agent-host prepare/release` uses the v0.9 broker and loopback SSH with client-side private keys | v0.10 | implementation present; real Windows/WSL + Incus + VS Code Agent Host acceptance pending |
-| Base identity model | Core exposes provider-neutral `BaseName`, `BaseRevision`, `BaseRef`, and persists the exact Base revision selected for an Environment | v0.11 | unit/routing/persistence coverage |
-| Incus Base resolution | logical Base names map to adapter-owned Incus sources and resolve to validated immutable fingerprints before creation | v0.11 | alias movement coverage; real Incus image-remote acceptance pending |
-| Base CLI | `haco base list`, `haco base inspect <base>`, and `haco create --base <base> --workspace <path> <environment>` are implemented; the old ambiguous `haco image ...` namespace is removed | v0.11 | namespace routing tests plus existing Base selection/inspect coverage |
-| Custom Base mapping | host/operator may add logical custom Base mappings through `HACO_INCUS_BASES_JSON`; the `haco/` namespace is reserved and unsafe inputs fail closed | v0.11 | adversarial coverage; custom build/import/history/rollback/GC future |
-| Resource budget model | Core exposes provider-neutral finite/unlimited CPU, memory-byte, PID, and root-byte limits; effective budgets are persisted | v0.12 | normalization/bounds/persistence coverage |
-| Resource CLI | `haco create` and `haco run` accept `--cpu`, `--memory`, `--pids`, and `--root-size` | v0.12 | parser/fake-Incus coverage |
-| Incus resource enforcement | finite CPU/memory/PID/root-disk limits are applied and read back before `start`; mismatch or failure aborts creation | v0.12 | unit/fake-Incus coverage; real enforcement pending |
-| Unsupported-provider resource behavior | providers that cannot enforce requested finite budgets reject before side effects | v0.12 | wrapped-provider coverage; real AWS pending |
-| OCI plugin namespace | OCI/containerd/nerdctl-specific management is separated from Base lifecycle under `haco plugin oci ...` | v0.13 | CLI namespace routing coverage; dynamic plugin loading is not implied |
-| OCI usage telemetry | `haco plugin oci seed sample` records latest OCI image identity snapshots per Environment; `haco plugin oci seed recommend` refreshes stale samples and ranks immutable identities over a 30-day window | v0.13 | unit coverage in `internal/seedstats`; real-host sampling acceptance pending |
-| OCI Seed auto-selection | recommendation marks the top 10% of eligible immutable identities, rounded up with minimum one, as `auto_promote=true` | v0.13 | deterministic unit coverage; Seed build consumption still pending |
-| OCI image deletion | `haco plugin oci image delete <reference[@digest]>` removes the Host Seed-cache reference and records a deletion tombstone; `--all-environments` explicitly extends deletion to managed Environments without `--force` | v0.13 | focused unit coverage; replacement Seed publish/old-Seed GC pending |
-| OCI deletion override | deletion tombstones suppress recommendation/automatic re-promotion of the exact identity until an explicit future Seed override clears/supersedes the tombstone | v0.13 | persisted state v2 and recommendation coverage |
-| OCI Seed build/publish | offline Seed Builder, Environment harvesting, immutable Seed publish, current-pointer movement, and real Btrfs COW measurement are not yet complete | v0.13 | planned / acceptance pending |
-| Local OCI Registry | Registry/proxy is optional and not required for ordinary Environment pull, telemetry, or Seed design | v0.13 | design only / optional optimization |
-| Btrfs / raw / QCOW2 historical storage | historical local storage implementation remains in the repository | historical / provider detail | not part of the current Core Environment model |
-| CI | Go matrix, vet, race, docs consistency, release packaging and non-host-dependent E2Es are configured | cross-cutting | GitHub Actions is currently failing jobs before steps execute due a repository-wide Actions-side issue; real-provider acceptance remains separate |
+| Secure Workspace Runtime | `haco create --workspace`, `haco exec`, `haco shell`, `haco run`, and `haco delete` use the Environment lifecycle | v0.1-v0.6 | unit/process coverage; real Incus acceptance pending |
+| Workspace model / leases | canonical Workspace identity, persisted RO/RW leases, conflict prevention, and stale recovery are implemented | v0.1-v0.2 | unit/persistence/concurrency coverage |
+| Incus Environment provider | Incus is the only Environment provider registered by the current build | v0.1+ | repository coverage; real supported-host acceptance pending |
+| Client access | status, loopback forwarding, SSH preparation/revocation, and hardened public-key handling are implemented | v0.3 | unit/process coverage; real SSH acceptance host-dependent |
+| Policy / Capability | fail-closed policy, approval, request correlation, and audit are implemented | v0.4 | unit/process/CLI coverage |
+| Git / GitHub push capability | host-side brokered push keeps reusable credentials on the trusted side | v0.5 | unit/adversarial/real-git coverage |
+| Agent / orchestrator integration | `haco run`, machine JSON, and external security events are implemented without moving orchestration into Core | v0.6 | unit/race/process coverage |
+| Environment routing | provider-neutral routing seam remains implemented; bare historical runtime refs still resolve through the generic contract | v0.7 | router unit coverage |
+| Remote / cloud providers | no remote/cloud Environment provider is registered or implemented in the current tree; the former EC2 runtime was removed while local/provider contracts stabilize | v0.7 historical slice | **cloud implementation is currently deferred**; history/design remain reference material |
+| AWS capability / EBS helper | the former `aws.api` capability and EBS helper were removed together with the EC2 implementation | v0.7 historical slice | deferred; not current code reality |
+| VS Code Client Adapter | `haco-vscode` prepares loopback SSH and launches standard VS Code Remote-SSH | v0.8 | helper coverage; real Windows/WSL + Incus + VS Code acceptance pending |
+| Per-agent sandbox broker | opaque external sessions map to dedicated Environments using persisted ownership proof | v0.9 | ownership/persistence/release coverage |
+| VS Code Remote Agent Host Adapter | `haco-agent-host prepare/release` uses the v0.9 broker and client-side private keys | v0.10 | implementation present; real Agent Host acceptance pending |
+| Base identity / selection | provider-neutral Base identity resolves logical names to immutable revisions; CLI is `haco base list/inspect` and `create --base` | v0.11 | unit/fake-Incus coverage; real image-source acceptance pending |
+| Resource budgets | CPU, memory, PID, and root-storage budgets are provider-neutral; Incus applies/read-backs finite limits before start | v0.12 | unit/fake-Incus coverage; real enforcement pending |
+| Unsupported-provider resource behavior | finite requests fail before side effects when a provider cannot enforce them | v0.12 | wrapped-provider coverage |
+| Managed sandbox network | managed `haco-sandbox0`, `haco-sandbox-egress`, and `haco-sandbox` are created/verified; broad/default fallback fails closed | v0.13 | unit/static coverage; real supported-Incus network acceptance pending |
+| Git fetch plugin | `haco plugin git fetch <environment>` uses trusted Host `gh auth git-credential`, fixed refspecs, and rejects repository-controlled credential/transport redefinition | v0.14 | CLI/provider/security coverage |
+| OCI plugin namespace | OCI/containerd/nerdctl lifecycle is under `haco plugin oci ...`; the namespace split itself is cross-cutting and does not consume a milestone | cross-cutting | CLI routing coverage |
+| OCI usage telemetry | `haco plugin oci seed sample` records latest OCI identity snapshots; `haco plugin oci seed recommend` ranks immutable identities over the 30-day window | v0.15 | unit/persistence/sampling coverage |
+| OCI Seed auto-selection | recommendation marks the deterministic top 10% of eligible immutable identities as `auto_promote=true` | v0.15 | deterministic unit coverage; physical Seed build pending |
+| OCI image deletion | `haco plugin oci image delete <reference[@digest]>` removes Host Seed-cache references and records tombstones; optional `--all-environments` never uses `--force` | v0.16 | deletion/tombstone/retry coverage |
+| OCI deletion override | tombstones suppress recommendation/automatic re-promotion of the exact identity until explicitly superseded | v0.16 | persisted state/recommendation coverage |
+| Docker compatibility | genuine Docker CLI/on-demand Engine design plus systemd socket/service packaging foundation exists; standard runtime remains containerd + nerdctl | v0.17 | foundation only; full plugin lifecycle/Base integration/real-host acceptance pending |
+| Optional Local OCI Registry | Registry/proxy is optional and not required for ordinary Environment pull, telemetry, or Seed construction | v0.18 | planned / design only |
+| OCI Seed Builder / COW | trusted Host acquisition, offline Seed Builder, immutable Seed publication/current pointer, conservative GC, and real Btrfs COW measurement remain incomplete | v0.19 | planned / acceptance pending |
+| CI | Go matrix, vet, race, docs consistency, release packaging, local CI runner, and non-host-dependent E2Es are configured | cross-cutting | real-provider acceptance remains separate |
 
 ## Current implementation state
 
-The stable earlier progression remains contiguous through v0.12, with partial v0.13 OCI slices now also present:
-
 ```text
-Workspace
-  -> Environment lifecycle
-  -> local Incus by default
-  -> Workspace leases and client access
-  -> Policy / Approval / Capability boundary
-  -> Git/GitHub broker
-  -> machine/orchestrator access
-  -> experimental remote EC2 provider and AWS capability
-  -> thin Client Adapter layer, starting with VS Code Remote-SSH
-  -> trusted external agent session -> persisted Environment binding broker
-  -> VS Code Remote Agent Host adapter
-  -> logical Base -> immutable revision -> Environment
-  -> explicit ResourceBudget -> provider enforcement before Environment access
-  -> optional OCI plugin -> telemetry / recommendation / deletion state
+v0.1  Secure Workspace Runtime
+  -> v0.2 Workspace Lease
+  -> v0.3 Client Access
+  -> v0.4 Policy / Capability
+  -> v0.5 GitHub push broker
+  -> v0.6 Agent / Orchestrator surface
+  -> v0.7 provider-neutral routing seam (cloud implementation deferred)
+  -> v0.8 VS Code Client Adapter
+  -> v0.9 Per-Agent binding broker
+  -> v0.10 VS Code Agent Host adapter
+  -> v0.11 immutable Base selection (`haco base`)
+  -> v0.12 ResourceBudget
+  -> v0.13 managed sandbox network
+  -> v0.14 Git fetch plugin
+  -> v0.15 OCI Seed telemetry / recommendation (`haco plugin oci`)
+  -> v0.16 OCI image deletion / tombstone (`haco plugin oci`)
+  -> v0.17 Docker compatibility foundation (partial)
+  -> v0.18 optional Local Registry (planned)
+  -> v0.19 Seed Builder / COW (planned)
 ```
 
-The v0.9 broker does not introduce an agent-visible management CLI. A trusted integration supplies an opaque session identity and Workspace; the broker selects/creates the Environment and persists ownership proof separately.
+## Cloud runtime deferral
 
-v0.10 is implemented through `haco-agent-host`. It prepares a v0.9-bound Environment as a managed loopback SSH target while leaving VS Code in control of the Agent Host UI/protocol.
+The previous v0.7 EC2 runtime, host-side AWS capability, EBS replacement helper, and cloud-specific E2Es are intentionally absent from the active implementation tree.
 
-v0.11 resolves a selected logical Base once at Environment creation time, records immutable `BaseRevision`, and initializes Incus from the pinned fingerprint. Its CLI is now explicitly `haco base ...`, not the generic `haco image ...` name.
+This is a development-focus decision, not a prohibition on future cloud providers. The provider-neutral routing boundary remains so a cloud adapter can be restored later without making cloud-specific behavior part of Core. Historical design material describes the former experimental/default-off implementation, but it is not current behavior.
 
-v0.12 resolves every creation request to an explicit effective `ResourceBudget`. Incus finite limits are configured and verified before Environment start; unsupported finite requests fail closed.
+## Important boundaries
 
-The initial v0.13 OCI slice is deliberately an optional plugin namespace. `haco plugin oci seed recommend` does not mean Seed build/publish is complete: telemetry, ranking, top-10% selection, and deletion/tombstone state exist, while Host-cache harvesting, offline builder publication, immutable Seed pointer movement, GC and real Btrfs COW acceptance remain pending.
-
-The Windows/WSL bootstrap remains a host setup helper, not a new Core lifecycle. The v0.7 EC2 provider remains **experimental and disabled by default**. Real AWS acceptance pending.
-
-Real Incus, Windows/WSL + VS Code Remote-SSH, per-agent Agent Host routing, real Base sources, real resource enforcement, OCI Seed build/Btrfs behavior, and cloud acceptance require suitable hosts. Repository tests are not substitutes for those checks.
-
-## v0.8 client workflow
-
-```bash
-haco-vscode open .
-```
-
-Cleanup:
-
-```bash
-haco-vscode delete .
-```
-
-## v0.9 per-agent binding model
-
-```text
-trusted client / VS Code integration
-       -> opaque session ID
-       -> internal/agenthost Broker
-       -> persisted ownership proof
-       -> Environment service
-       -> Incus
-```
-
-## v0.10 Agent Host adapter
-
-```text
-haco-agent-host prepare --session <opaque-id> [workspace]
-haco-agent-host release --session <opaque-id>
-```
-
-See `10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md`.
-
-## v0.11 Base workflow
+### v0.11 Base workflow
 
 ```text
 haco base list
@@ -123,26 +78,17 @@ haco base inspect <base>
 haco create --base <base> --workspace <path> <environment>
 ```
 
-```text
-my-dev -> revision A -> Environment 1
-my-dev -> revision B -> Environment 2
-Environment 1 remains recorded on revision A
-```
+A logical Base resolves once to an immutable revision at creation. Existing Environments retain the exact recorded revision when a mutable alias moves. OCI/container images deliberately do not share the `haco base` namespace.
 
-Official logical Bases are provided by the Incus adapter and operator mappings may use `HACO_INCUS_BASES_JSON`. Incus alias/remote/fingerprint vocabulary remains an adapter detail.
+### v0.13 Managed Sandbox Network
 
-See `11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` and `BASE_IMAGES.md`.
+Hacocoon owns a managed network/profile/ACL substrate and refuses silent fallback to broad/default Incus networking. Domain-aware authorization remains a higher-layer broker/proxy/plugin concern.
 
-## v0.12 resource budgets
+### v0.14 Git Fetch Plugin
 
-```text
-haco create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace . dev
-haco run --cpu 2 --memory 4GiB --workspace . -- go test ./...
-```
+Git fetch stays under `haco plugin git`. Reusable GitHub authentication remains on the trusted Host through `gh auth git-credential`; repository-controlled Git configuration cannot redefine the privileged transport path.
 
-See `12_v0.12_SANDBOX_RESOURCE_LIMITS.md`.
-
-## v0.13 OCI plugin workflow
+### v0.15 / v0.16 OCI plugin workflow
 
 ```text
 haco plugin oci seed sample
@@ -151,12 +97,20 @@ haco plugin oci image delete docker.io/library/node:24
 haco plugin oci image delete docker.io/library/node:24 --all-environments
 ```
 
-The CLI namespace separates OCI/container-image lifecycle from Hacocoon/Incus Base-image lifecycle. The old `haco image ...` command is intentionally removed rather than kept as a pre-1.0 compatibility alias.
+The old `haco image ...` command is intentionally removed. v0.15 recommendation does not mean physical Seed build/publish is complete; v0.16 tombstones override automatic re-promotion of the exact deleted identity. Physical immutable Seed publication/GC belongs to v0.19.
 
-See `13A_v0.13_OCI_SEED_AND_COW.md`, `13B_v0.13_SEED_AUTO_PROMOTION.md`, and `13C_v0.13_OCI_IMAGE_DELETION.md`.
+### v0.17 Docker compatibility
+
+The standard runtime remains containerd + nerdctl. Docker compatibility is optional and belongs behind a plugin/adapter boundary. The current systemd packaging/foundation is not yet the complete on-demand Engine/plugin lifecycle.
+
+### v0.18 / v0.19 planned OCI infrastructure
+
+A Local Registry is optional, not a prerequisite for normal `nerdctl pull` or OCI Seed. v0.19 owns trusted Host acquisition, offline Seed Builder import, immutable Seed publication, revision pinning, and storage-driver COW behavior. Sharing one writable `/var/lib/containerd` across Environments is forbidden.
+
+## Real-host acceptance
+
+Repository tests are not substitutes for real-host acceptance. Still host-dependent are real Incus lifecycle/network/resource enforcement, Windows/WSL + VS Code, Agent Host routing, real image/private-registry combinations, Docker compatibility lifecycle, and OCI Seed/Btrfs behavior. Cloud acceptance is deferred until a concrete cloud adapter returns.
 
 ## Compatibility status
 
-Until an explicit stable compatibility milestone is declared, breaking changes may modify or replace CLI commands, helper binaries, persisted state, provider interfaces, Base/image lifecycle, capability/policy schemas, client/agent integration, host bootstrap behavior, resource-budget design, and experimental runtime behavior.
-
-Compatibility should not be preserved at the cost of an unsafe authority boundary, ambiguous ownership, silent data loss, or unnecessary architectural complexity. Material breaking changes should still be explicit, tested, and documented.
+No milestone through v0.19 should be read as a promise that current CLI/API/state/config surfaces are frozen. Until an explicit stable compatibility milestone is declared, breaking changes may correct unsafe authority boundaries, ambiguous ownership, accidental provider coupling, or unnecessary complexity.

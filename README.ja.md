@@ -40,14 +40,14 @@ VS Code / Shell / Coding Agent / Orchestrator
           +----------+------------+
                      |
             Environment provider
-             /                \
-      Incus (default)      EC2 (experimental)
+                     |
+              Incus (current)
 ```
 
 > [!WARNING]
 > **Hacocoon はまだ pre-1.0 で、Breaking Change は今後も発生します。**
 >
-> Roadmap は **v0.12 まで連続して実装済み**ですが、Incus、Windows/WSL、VS Code Agent Host、Base image、resource enforcement、AWS の一部は real environment での acceptance がまだ pending です。正確な状態は [実装状況](docs/IMPLEMENTATION_STATUS.ja.md) を参照してください。
+> 現在は Core と Provider contract がまだ大きく変わる段階なので、Runtime 実装は local Incus に集中します。以前の experimental EC2/AWS/EBS 実装は current tree から外し、local foundation が十分安定して cloud acceptance を意味のある形で試せるようになるまで deferred とします。正確な状態は [実装状況](docs/IMPLEMENTATION_STATUS.ja.md) を参照してください。
 
 ## なぜ Hacocoon?
 
@@ -123,7 +123,7 @@ Workspace -> Hacocoon Environment -> loopback SSH alias -> VS Code Remote-SSH
 
 | 領域 | Hacocoon が提供するもの |
 |---|---|
-| **Isolation** | Incus を local default とした Provider-backed Environment |
+| **Isolation** | 現在は Incus を使う Provider-backed Environment |
 | **Workspace safety** | Canonical Workspace identity と persisted write lease |
 | **Execution** | `create` / `exec` / `shell` / `run` / lifecycle / recovery |
 | **Interactive access** | Loopback-oriented SSH、forwarding、VS Code Remote-SSH integration |
@@ -135,7 +135,7 @@ Workspace -> Hacocoon Environment -> loopback SSH alias -> VS Code Remote-SSH
 | **OCI tooling** | `haco plugin oci` 配下の optional containerd/nerdctl Seed telemetry / image lifecycle |
 | **Resource limits** | CPU / memory / PID / Environment root storage budget |
 | **Audit** | Lifecycle / Capability / Approval / Recovery-sensitive operation の event |
-| **Providers** | Incus が default、EC2 は explicit opt-in の experimental Provider |
+| **Providers** | 現在有効なのは Incus。将来の adapter 用 Provider seam は維持 |
 
 ## AI Agent: 中では自由、外へ出る時は仲介
 
@@ -152,7 +152,7 @@ VS Code AI / Codex / Copilot / Claude / other agent
                      Hacocoon
               Policy / Capability / Audit
                          |
-                 GitHub / AWS / Host
+             GitHub / external services / Host
 ```
 
 Agent は sandbox の中で強い権限を持てますが、**sandbox 自体を管理する authority** にはなりません。Source edit / build / test / debug のためだけに、Coding Agent 自身へ `haco` や Incus の管理 credential を渡す必要はありません。
@@ -278,7 +278,9 @@ Security-sensitive な変更の前に [Security Architecture](docs/00B_SECURITY_
 
 ## 現在の成熟度
 
-`v0.1 Runtime` → `v0.2 Workspace & Lease` → `v0.3 Access` → `v0.4 Policy & Capability` → `v0.5 Git/GitHub` → `v0.6 Agent Integration` → `v0.7 EC2` → `v0.8 VS Code` → `v0.9 Per-Agent Sandbox` → `v0.10 Agent Host Adapter` → `v0.11 Base Images` → `v0.12 Resource Limits`
+`v0.1 Runtime` → `v0.2 Workspace & Lease` → `v0.3 Access` → `v0.4 Policy & Capability` → `v0.5 Git/GitHub` → `v0.6 Agent Integration` → `v0.7 Provider Routing` → `v0.8 VS Code` → `v0.9 Per-Agent Sandbox` → `v0.10 Agent Host Adapter` → `v0.11 Base Images` → `v0.12 Resource Limits`
+
+以前の v0.7 EC2/AWS/EBS 実装は意図的に **deferred** とし、現在の implementation tree には含めません。将来 local runtime / Provider contract が落ち着いた時に戻せるよう、Git history と設計資料は参照用として残します。
 
 「実装済み」と「全 real Provider / Client で production acceptance 済み」は同義ではありません。
 
@@ -286,29 +288,78 @@ Security-sensitive な変更の前に [Security Architecture](docs/00B_SECURITY_
 - [Versioning / Release status](docs/00D_VERSIONING_AND_RELEASE_STATUS.ja.md)
 - [ドキュメント一覧](docs/README.ja.md)
 
-## CLI 一覧
+## `haco` CLI
 
-```text
-haco create
-haco base list
-haco base inspect
-haco exec
-haco shell
-haco delete
-haco status
-haco connections
-haco forward
-haco unforward
-haco ssh
-haco plugin git push
-haco plugin oci seed sample
-haco plugin oci seed recommend
-haco plugin oci image delete
-haco capability request
-haco run
-haco events
+`haco` は Host 側で動く管理 CLI です。普段使う lifecycle は小さく直接的に保ち、tool / provider 固有の操作は Core の top-level command を増やすのではなく plugin namespace の下へ分離します。
+
+Environment 内で code edit / build / test / debug をするだけなら、Coding Agent 自身に `haco` や Incus の管理 authority を持たせる必要はありません。
+
+### 普段の使い方
+
+```bash
+# Local runtime の確認
 haco doctor
 
+# One-shot: 一時 Environment を作って command 実行後に cleanup
+haco run --workspace "$PWD" -- go test ./...
+
+# Environment を残して作業する場合
+haco create --workspace "$PWD" dev
+haco exec dev -- go test ./...
+haco shell dev
+haco status dev
+haco delete dev
+```
+
+### Command map
+
+| 領域 | Command | 用途 |
+|---|---|---|
+| **Environment** | `create`, `exec`, `shell`, `status`, `delete` | Named Environment の作成と操作 |
+| **One-shot execution** | `run` | Workspace を隔離した一回限りの command lifecycle |
+| **Base selection** | `base list`, `base inspect` | Hacocoon Environment の starting point を確認 |
+| **Local access** | `connections`, `forward`, `unforward`, `ssh` | Host 管理の loopback access / port forwarding |
+| **Policy / audit** | `capability request`, `events` | Host authority boundary を明示的に越える操作と audit event の確認 |
+| **Git plugin** | `plugin git fetch`, `plugin git push` | Host-side credential を使う mediated Git operation |
+| **OCI plugin** | `plugin oci seed ...`, `plugin oci image ...` | Optional containerd/nerdctl image cache / Seed operation |
+| **Diagnostics** | `doctor` | Local runtime が利用可能か確認 |
+
+### 主な command form
+
+```text
+haco create [--read-only] [--base <base>] [resource flags] --workspace <path> <environment>
+haco exec <environment> -- <command...>
+haco shell <environment>
+haco status <environment> [--json]
+haco delete <environment>
+
+haco run [--read-only] [resource flags] --workspace <path> [--json] -- <command...>
+
+haco base list [--json]
+haco base inspect <base> [--json]
+
+haco connections <environment> [--json]
+haco forward <environment> --host-port <port> --target-port <port>
+haco unforward <environment> <connection-id>
+haco ssh <environment> --public-key <path> --host-port <port>
+
+haco plugin git fetch <environment> [--remote <remote>]
+haco plugin git push <environment> --branch <branch> [--source <ref>] [--remote <remote>] [--force]
+
+haco plugin oci seed sample [--json]
+haco plugin oci seed recommend [--json]
+haco plugin oci image delete <reference[@sha256:...]> [--all-environments] [--json]
+
+haco capability request <capability> <action> [--resource <resource>] [--environment <environment>] [--param <key=value>]...
+haco events [--json] [--since-offset <byte-offset>]
+haco doctor
+```
+
+`create` と `run` で共通する resource flag は `--cpu`、`--memory`、`--pids`、`--root-size` です。それぞれ finite value または `unlimited` を指定できます。
+
+Convenience client は Core CLI と分離します。
+
+```text
 haco-vscode open
 haco-vscode delete
 
@@ -318,16 +369,11 @@ haco-agent-host release
 
 すべて pre-1.0 の surface であり、今後変更される可能性があります。
 
-## Experimental EC2 Provider
+## Remote / Cloud Runtime
 
-EC2 Provider は **experimental / disabled by default** です。
+Remote / Cloud の Environment Provider は **いったん deferred** とします。現在の build が登録する Environment Provider は Incus のみで、以前のEC2 runtime、AWS capability、EBS helperはactive implementation treeに含まれません。
 
-```bash
-export HACO_RUNTIME_PROVIDER=runtime.ec2
-export HACO_EXPERIMENTAL_EC2=1
-```
-
-両方の explicit opt-in が必要です。Real AWS / EC2 / SSM / EBS acceptance は別途 tracking 中で、v0.12 finite ResourceBudget も equivalent enforcement が証明できていないため AWS-side creation より前に reject します。
+Hacocoon の Core、state、resource、networking、image、client contract がまだ頻繁に変わる段階で cloud-specific implementation を追従させても、real cloudで十分に試せない間はmaintenance costだけが増えるためです。Provider routing の汎用 seam は残しているので、local runtime が落ち着いた後に cloud adapter を Core へ混ぜず復活できます。
 
 ## 開発
 

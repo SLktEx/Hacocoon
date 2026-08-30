@@ -3,10 +3,10 @@
 > **Architecture baseline · Updated 2026-08-30**
 >
 > Hacocoon is a **Secure Workspace Runtime**.  
-> For what is actually present on `main`, use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).  
-> For authoritative milestone numbering, use [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md).
+> For code reality use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).  
+> For authoritative milestone numbering use [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md).
 
-Hacocoon runs developer tools and coding agents inside isolated Environments while keeping host, GitHub, cloud, network, and other privileged authority behind explicit trusted boundaries.
+Hacocoon runs developer tools and coding agents inside isolated Environments while keeping host, GitHub, network, cloud, and other privileged authority behind explicit trusted boundaries.
 
 > [!IMPORTANT]
 > Hacocoon is **pre-1.0**. Roadmap milestones describe product gates, not API stability, production support, or proof that every real-host acceptance test has passed.
@@ -15,13 +15,14 @@ Hacocoon runs developer tools and coding agents inside isolated Environments whi
 
 | Track | Status |
 |---|---|
-| Implemented milestones | **v0.1 → v0.12** contiguous on `main` |
-| Next milestone | **v0.13 Local OCI Registry** — planned, not implemented |
-| v0.13 companion | **OCI Seed & Btrfs/COW optimization** — planned second slice |
-| Default local runtime | Incus |
-| Remote runtime | EC2 — experimental and disabled by default |
-| Current code reality | [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) |
-| Version numbering | [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md) |
+| Fully implemented product progression | **v0.1 → v0.16** contiguous |
+| Partial milestone | **v0.17 Docker Compatibility Plugin** — foundation implemented |
+| Planned milestones | **v0.18 Optional Local OCI Registry**, **v0.19 OCI Seed Builder & Btrfs/COW** |
+| Current Environment runtime | Incus |
+| Remote/cloud runtime | provider seam retained; **cloud implementation deferred** |
+| Standard OCI runtime direction | containerd + nerdctl |
+| Base CLI | `haco base ...` |
+| OCI/container tooling | optional `haco plugin oci ...` surface |
 
 ## Product boundary
 
@@ -43,71 +44,51 @@ VS Code / Shell / coding agents / orchestrators / other clients
          Environment                    Policy/Capability
               |                                |
       Environment provider              trusted authority
-         /           \                  /       |       \
- runtime.incus   runtime.ec2        GitHub     AWS     Host
- local default  experimental
+              |                         /        |        \
+       runtime.incus                 GitHub     Host    external services
+       current runtime
 ```
+
+The generic provider routing seam remains so future runtimes can be added behind adapters without becoming Core vocabulary. The former EC2/AWS/EBS implementation is intentionally absent from the active tree while local/provider contracts are still changing quickly.
 
 ### Hacocoon owns
 
-- Workspace resolution and canonical identity;
-- isolated Environment lifecycle and cleanup;
-- command and interactive execution;
-- Workspace lease and ownership safety;
-- client-access primitives such as loopback forwarding and SSH preparation;
-- policy evaluation, security approval, and audit;
-- scoped privileged capabilities;
+- Workspace resolution/canonical identity and write leases;
+- isolated Environment lifecycle, execution, interactive access, and cleanup;
+- policy, approval, audit, and scoped capability boundaries;
 - trusted per-session Environment binding;
-- provider-neutral Base identity and ResourceBudget contracts;
+- provider-neutral Base and ResourceBudget contracts;
+- managed Incus sandbox-network substrate;
 - recovery behavior for authority-sensitive operations.
 
 ### Hacocoon does not own
 
-- the IDE/editor or AI chat UI;
-- model selection, model routing, or token budgets;
+- IDE/editor or AI chat UX;
+- model selection/routing/token budgets;
 - task decomposition, retry strategy, or agent DAGs;
-- Git branch strategy or worktree orchestration as a Core concern;
-- development review/merge workflow;
-- provider-native Incus, AWS, Btrfs, OCI, or client protocol details inside Core.
+- Git branch/worktree orchestration as a Core concern;
+- provider-native Incus/cloud/Btrfs/OCI/Docker/client protocol details inside Core.
 
-Thin adapters may integrate those systems without redefining Core.
+Thin adapters/plugins may integrate those systems without redefining Core.
 
 ## Architecture invariants
 
-These rules are more important than preserving accidental pre-1.0 behavior.
-
-1. **Core stays provider-neutral.** Incus, AWS, VS Code, AHP, Btrfs, OCI, and similar technologies remain behind adapters.
-2. **The coding Environment is not the control plane.** Coding agents do not gain Hacocoon/Incus administrator authority merely because an Environment was allocated.
-3. **Credentials stay on the trusted side.** Host credentials and reusable upstream credentials are not exported into arbitrary Environments.
-4. **Privileged operations are brokered.** Git push and external-service authority cross Policy/Capability boundaries.
-5. **Ownership is proven, not inferred.** Deterministic names alone are not sufficient proof for adopting or deleting agent-bound Environments.
-6. **Mutable names resolve to immutable identity.** Base aliases and future OCI/Seed references must pin immutable revisions/digests where durable identity matters.
-7. **Explicit limits fail closed.** A provider that cannot enforce a requested finite ResourceBudget must reject the request rather than silently ignore it.
-8. **Network authority is explicit.** Managed Incus networking defaults to a Hacocoon-owned sandbox profile; higher-level domain-aware authorization remains a separate policy layer.
-9. **Real-host acceptance is separate from repository tests.** Unit tests, fake-provider E2Es, race checks, and CI do not prove real Incus/Windows/AWS behavior.
-10. **Cleanup and recovery are part of the feature.** Cancellation, retry, partial failure, and crash recovery are design requirements.
-
-## Core vocabulary
-
-The intentionally small Core vocabulary includes:
-
-```text
-Workspace
-WorkspaceLease
-Environment
-Execution
-CapabilityRequest
-PolicyDecision
-ApprovalRequest
-BaseName / BaseRevision / BaseRef
-ResourceBudget
-```
-
-Agent-session identities, VS Code/AHP types, Incus aliases, AWS identifiers, OCI registry mechanics, and storage-driver details remain integration/provider concerns.
+1. **Core stays provider-neutral.** Incus, cloud providers, VS Code, AHP, Btrfs, OCI, Docker, and similar technologies remain behind adapters/plugins.
+2. **The coding Environment is not the control plane.** Coding agents do not gain Hacocoon/Incus administrator authority.
+3. **Credentials stay on the trusted side unless explicitly Environment-owned.** Reusable Host credentials are not copied into arbitrary Environments.
+4. **Privileged operations are brokered.** Git push/fetch and external-service authority cross explicit plugin/capability boundaries.
+5. **Ownership is proven, not inferred.** Deterministic names alone do not authorize adoption/deletion.
+6. **Mutable names resolve to immutable identity.** Base aliases and OCI references pin immutable revisions/digests where durable identity matters.
+7. **Explicit limits fail closed.** Unsupported finite ResourceBudget requests are rejected.
+8. **Network authority is explicit.** Hacocoon-managed Incus networking does not silently fall back to broad/default profiles.
+9. **Base and OCI namespaces stay separate.** Hacocoon Environment starting points use `haco base`; OCI/container operations use the optional `haco plugin oci` surface.
+10. **Real-host acceptance is separate from repository tests.**
+11. **Cleanup/retry/crash recovery are part of the feature.**
+12. **One independent product feature is approximately one minor milestone.** Fixes/hardening/refactors do not normally consume a version.
 
 ## Roadmap
 
-**Status legend:** ✅ implemented · 🧪 experimental · 🚧 planned
+**Status legend:** ✅ implemented · 🧪 partial/historical · 🚧 planned
 
 | Version | Gate | Repository status |
 |---|---|---|
@@ -117,199 +98,99 @@ Agent-session identities, VS Code/AHP types, Incus aliases, AWS identifiers, OCI
 | v0.4 | Policy & Capability Foundation | ✅ implemented |
 | v0.5 | Git / GitHub Capability | ✅ implemented |
 | v0.6 | Agent & Orchestrator Integration | ✅ implemented |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 implemented experimentally; EC2 remains default-off |
-| v0.8 | Client Adapters & VS Code Integration | ✅ implemented; real-client acceptance remains host-dependent |
+| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 provider routing seam retained; concrete cloud implementation deferred |
+| v0.8 | Client Adapters & VS Code Integration | ✅ implemented |
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation implemented |
 | v0.10 | VS Code Remote Agent Host Adapter | ✅ implemented |
 | v0.11 | Base Images & Custom Environments | ✅ first implementation slice |
 | v0.12 | Sandbox Resource Limits | ✅ first implementation slice |
-| v0.13 | Local OCI Registry | 🚧 planned; not implemented on `main` |
+| v0.13 | Managed Sandbox Network | ✅ implemented |
+| v0.14 | Git Fetch Plugin | ✅ implemented |
+| v0.15 | OCI Seed Recommendation | ✅ implemented |
+| v0.16 | OCI Image Deletion | ✅ first implementation slice |
+| v0.17 | Docker Compatibility Plugin | 🧪 foundation implemented; completion pending |
+| v0.18 | Optional Local OCI Registry | 🚧 planned |
+| v0.19 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
 
-The implemented progression is contiguous through **v0.12**. v0.13 is the next design/implementation milestone and must not be described as current code reality until its implementation lands.
+v0.7 keeps its number because the provider-neutral routing seam remains current. Its previous concrete cloud implementation is deferred, not silently claimed as active.
 
-### v0.9 — Per-Agent Sandbox
+### v0.13 — Managed Sandbox Network
 
-A trusted integration maps an opaque external session identity to one dedicated Environment through the normal Environment/WorkspaceLease lifecycle.
+Hacocoon creates/verifies its own Incus bridge/profile/ACL substrate and uses `haco-sandbox` for new local sandbox Environments. Drift or missing security state fails closed rather than silently falling back to Incus `default`.
 
-```text
-trusted client / integration
-        |
- opaque session identity
-        |
- persisted binding proof
-        |
- dedicated Environment
-```
+See [`13_v0.13_MANAGED_SANDBOX_NETWORK.md`](13_v0.13_MANAGED_SANDBOX_NETWORK.md).
 
-Parallel write-capable sessions should receive distinct canonical Workspace paths, normally distinct Git worktrees. Worktree creation/branch strategy remains outside Core.
+### v0.14 — Git Fetch Plugin
 
-See [`09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md`](09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md).
+`haco plugin git fetch` uses the Host's `gh auth git-credential` path without exporting reusable credentials into the Environment. Repository-controlled credential/transport configuration cannot redefine the privileged operation.
 
-### v0.10 — VS Code Remote Agent Host Adapter
+See [`14_v0.14_GIT_FETCH_PLUGIN.md`](14_v0.14_GIT_FETCH_PLUGIN.md).
 
-`haco-agent-host` connects a v0.9-bound Environment to the VS Code Agents workflow using the trusted client boundary and loopback-only SSH.
+### v0.15 — OCI Seed Recommendation
 
-```text
-VS Code Agents window
-        |
-   Remote SSH
-        |
- haco-agent-host
-        |
- bound Environment
-        |
-    /workspace
-```
+`haco plugin oci seed sample|recommend` records trusted Host-side OCI identity snapshots, recommends immutable identities, and marks the deterministic top 10% for future Seed inclusion. Physical Seed build/publish is v0.19.
 
-The client retains the private SSH key. Hacocoon owns Environment selection and safe connection preparation; VS Code owns Agent Host/AHP behavior.
+See [`15_v0.15_OCI_SEED_RECOMMENDATION.md`](15_v0.15_OCI_SEED_RECOMMENDATION.md).
 
-See [`10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md`](10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md).
+### v0.16 — OCI Image Deletion
 
-### v0.11 — Base Images & Custom Environments
+`haco plugin oci image delete` removes/tombstones selected immutable identities for future Seed selection. Optional `--all-environments` is explicit, preflighted, retry-safe, and never uses forced removal.
 
-A logical Base is resolved once to an immutable revision before Environment creation:
+See [`16_v0.16_OCI_IMAGE_DELETION.md`](16_v0.16_OCI_IMAGE_DELETION.md).
+
+### OCI CLI namespace — cross-cutting refactor
 
 ```text
-logical Base
-     |
- provider source
-     |
-resolve once
-     v
-immutable revision
-     |
- Environment
+haco base ...         # Hacocoon Environment starting points
+haco plugin oci ...   # OCI/containerd/nerdctl lifecycle
 ```
 
-The first implementation slice includes Base selection, list/inspect, immutable Incus fingerprint pinning, and persisted Base identity. Custom build/import/history/rollback/GC remain follow-up work.
+This is a boundary/refactor correction, not an independent product feature, so it does not consume another milestone.
 
-See [`11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md) and [`BASE_IMAGES.md`](BASE_IMAGES.md).
+### v0.17 — Docker Compatibility Plugin
 
-### v0.12 — Sandbox Resource Limits
+The standard runtime remains containerd + nerdctl. Docker support is an optional plugin/integration path for software that requires genuine Docker CLI/Engine APIs. The repository contains the initial systemd socket/service foundation; full plugin lifecycle and on-demand Engine integration remain follow-up.
 
-Each Environment can carry an explicit provider-neutral ResourceBudget:
+See [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md) and [`OCI_RUNTIME_AND_DOCKER_COMPAT.md`](OCI_RUNTIME_AND_DOCKER_COMPAT.md).
 
-```text
-Environment
-  +-- CPU
-  +-- memory
-  +-- PIDs
-  +-- root storage
-```
+### v0.18 — Optional Local OCI Registry
 
-For Incus, finite limits are applied and verified before `start`. Unsupported finite requests fail closed instead of being silently ignored.
+A Local Registry/proxy is optional infrastructure for repeated pull cost, rate limits, restricted-network installations, or centralized policy/audit. Normal Environment `nerdctl pull` remains direct-to-configured-upstream when policy allows.
 
-See [`12_v0.12_SANDBOX_RESOURCE_LIMITS.md`](12_v0.12_SANDBOX_RESOURCE_LIMITS.md).
+See [`18_v0.18_LOCAL_OCI_REGISTRY.md`](18_v0.18_LOCAL_OCI_REGISTRY.md).
 
-### v0.13 — Local OCI Registry
+### v0.19 — OCI Seed Builder & Btrfs/COW
 
-v0.13 is **planned, not implemented on `main`**.
+The planned Seed pipeline acquires OCI content on the trusted Host, feeds an offline builder, stops containerd cleanly, publishes an immutable Incus Seed revision, pins a manifest/current pointer, and relies on normal Incus/storage-driver cloning for COW benefits.
 
-The intended first slice adds a Hacocoon-managed local OCI registry/cache gateway so `containerd`/`nerdctl` workloads can use ordinary image references while Hacocoon mediates upstream registry access and avoids distributing reusable upstream credentials to sandboxes.
+It must never share one writable `/var/lib/containerd` across Environments.
 
-A planned second slice adds OCI Seed + storage-driver COW optimization without sharing one writable `/var/lib/containerd` across Environments.
-
-See:
-
-- [`13_v0.13_LOCAL_OCI_REGISTRY.md`](13_v0.13_LOCAL_OCI_REGISTRY.md)
-- [`13A_v0.13_OCI_SEED_AND_COW.md`](13A_v0.13_OCI_SEED_AND_COW.md)
-
-## Workspace and orchestration boundary
-
-A Workspace is opaque to Core. It may be a directory, Git repository, Git worktree, or output of an external/optional WorkspaceProvider.
-
-```text
-external orchestrator
-  -> task / branch / worktree ownership
-  -> Workspace path
-  -> Hacocoon
-  -> Environment
-```
-
-Daintree and similar orchestrators therefore sit above Hacocoon rather than inside Core.
-
-## Client adapters
-
-The first client adapter is `haco-vscode`:
-
-```text
-VS Code
-  -> haco-vscode
-  -> Hacocoon Environment + SSH access
-  -> standard Remote-SSH
-  -> /workspace
-```
-
-Other clients should consume the same generic Environment/client-access boundary. Future JetBrains, web, code-server, or other adapters must not introduce IDE-specific branching into Core.
-
-## Human-in-the-loop boundary
-
-Development approval and security approval are intentionally separate:
-
-```text
-Development approval -> Human / GitHub / external orchestrator
-Security approval    -> Hacocoon Policy/Capability
-```
-
-Hacocoon security approval protects privileged authority. It is not a general project-management or merge-review engine.
+See [`19_v0.19_OCI_SEED_AND_COW.md`](19_v0.19_OCI_SEED_AND_COW.md).
 
 ## Acceptance model
-
-A feature can be implemented in the repository while still requiring real-host validation.
 
 | Evidence | What it proves |
 |---|---|
 | unit / adversarial tests | local logic and invariant coverage |
 | process / fake-provider E2E | executable integration without real external infrastructure |
-| repository CI | repeatable host-independent regression coverage |
-| real Incus / Windows / AWS acceptance | actual provider/client behavior on supported hosts |
-
-Current host-dependent areas include real Incus lifecycle/network/resource enforcement, Windows/WSL + VS Code, Agent Host/AHP routing, Base/image sources, and AWS/EC2/SSM/EBS.
-
-For exact current status, always use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
-
-## Experimental EC2 rule
-
-The EC2 Environment provider is **experimental and disabled by default**.
-
-It must not become active merely because AWS credentials, environment variables, the AWS CLI, or cloud metadata are present. Enabling it requires explicit Hacocoon-owned operator opt-in, and disabled paths must fail before AWS side effects.
+| repository CI / local CI runner | repeatable host-independent regression coverage |
+| real Incus / Windows / external services | actual provider/client behavior on suitable hosts |
 
 ## Historical note
 
-> [!NOTE]
-> The 2026-08-29/30 rebaseline established the current product boundary and renumbered several early design gates. Historical commit messages, closed PRs, candidate branches, and superseded planning text may retain older names or version assignments. They are historical records, not current status.
+The 2026-08-30 feature-number rebaseline replaced an older grouping that put several independent networking/OCI slices under one OCI-era milestone family. Historical commits, closed PRs, and branches may retain those labels; current documentation uses v0.13-v0.19 above.
 
-The original v0.1 vertical slice was:
-
-```text
-host directory
-  -> haco create --workspace
-  -> Incus system container
-  -> haco exec / haco shell
-  -> haco delete
-```
-
-Later milestones extend that baseline; this historical record does not imply later features are absent.
+Also on 2026-08-30, the concrete EC2/AWS/EBS implementation was intentionally deferred and removed from the active tree while the provider contracts stabilize. The v0.7 provider-routing milestone remains because its generic seam is still part of current architecture.
 
 ## Pre-1.0 compatibility
 
-Breaking changes remain allowed while the architecture is being hardened. Prefer a deliberate incompatible correction over preserving behavior that:
-
-- leaks authority across a trust boundary;
-- makes ownership ambiguous;
-- creates unsafe cleanup/retry semantics;
-- pushes provider-specific concepts into Core;
-- silently weakens enforcement.
-
-Breaking-change freedom must not be used to justify unsafe authority boundaries, ambiguous ownership, or silent data loss.
+Breaking changes remain allowed when they deliberately fix unsafe authority boundaries, ambiguous ownership, accidental provider coupling, unsafe cleanup/retry behavior, or unnecessary architecture complexity.
 
 ## Further reading
 
-- **Current code reality:** [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)
-- **Version numbering:** [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)
-- **Security architecture:** [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
-- **Terminology:** [`00C_TERMINOLOGY_AND_BOUNDARIES.md`](00C_TERMINOLOGY_AND_BOUNDARIES.md)
-- **Plugin architecture:** [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
-- **Documentation map:** [`README.md`](README.md)
-
-> **Hacocoon runs developer tools and coding agents inside isolated, resource-bounded Environments without owning the IDE, Git workflow, or AI orchestration layer.**
+- [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)
+- [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)
+- [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
+- [`00C_TERMINOLOGY_AND_BOUNDARIES.md`](00C_TERMINOLOGY_AND_BOUNDARIES.md)
+- [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+- [`README.md`](README.md)
