@@ -13,7 +13,8 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、d
 - Architecture / Roadmap: [`status/architecture-and-roadmap.md`](status/architecture-and-roadmap.md)
 - Security: [`security/security-architecture.md`](security/security-architecture.md)
 - Trusted logical Host: [`design/trusted-host.ja.md`](design/trusted-host.ja.md)
-- Experimental Kubernetes Environment runtime: [`design/kubernetes-runtime.ja.md`](design/kubernetes-runtime.ja.md)
+- Kubernetes parity-only experiment: [`design/kubernetes-parity-experiment.ja.md`](design/kubernetes-parity-experiment.ja.md)
+- Experimental Kubernetes Environment runtime mechanics: [`design/kubernetes-runtime.ja.md`](design/kubernetes-runtime.ja.md)
 - Windows / WSL bootstrapとdefault `haco-host` entry: [`WINDOWS_WSL_BOOTSTRAP.ja.md`](WINDOWS_WSL_BOOTSTRAP.ja.md)
 - Core / Standard / Plugin境界: [`design/plugin-architecture.md`](design/plugin-architecture.md)
 - 用語と境界: [`reference/terminology-and-boundaries.md`](reference/terminology-and-boundaries.md)
@@ -63,7 +64,7 @@ README/indexはcheckpoint tableを意図的に複製しません。現在の `v0
 
 `haco-host` はlocal Incus integrationが提供するtrusted infrastructureで、EnvironmentでもOCI pluginの必須要件でもありません。現在のlifecycle / default-entry sliceは実装済みで、Git / OCI / credential / control-channelの全面移行はfollow-upです。
 
-`main-kube` branchにはKubernetes + Sysbox Environment providerのpartial experimentもあります。`haco-host`、Policy / Approval / Capability、credential、audit、brokered Git pushはtrusted sideへ残し、whole-Environment cloneとfinal Workspace storageをreplacement gateとして明示しています。詳細は [`design/kubernetes-runtime.ja.md`](design/kubernetes-runtime.ja.md) を参照してください。
+`main-kube` は捨ててもよいcomparison experimentで、**`main`へmergeすることを目的にしません**。検証するのは、Kubernetesで現在のIncus-backed Hacocoonの全feature/security behaviorを再現できるか、そして再現できる場合にHacocoon-owned implementation/operationが実測で単純になるか、の2点だけです。足りないbehaviorはparity gapとして記録し、Kubernetesへ合わせるためにproduct requirementを変えません。詳細は [`design/kubernetes-parity-experiment.ja.md`](design/kubernetes-parity-experiment.ja.md) を参照してください。
 
 ## 現在のcheckpoint
 
@@ -78,6 +79,7 @@ pre-1.0のcheckpoint番号は意図的に安く扱います。意味のあるpro
 現在のdesign/reference:
 
 - [`design/trusted-host.ja.md`](design/trusted-host.ja.md)
+- [`design/kubernetes-parity-experiment.ja.md`](design/kubernetes-parity-experiment.ja.md)
 - [`design/kubernetes-runtime.ja.md`](design/kubernetes-runtime.ja.md)
 - [`design/managed-sandbox-network.ja.md`](design/managed-sandbox-network.ja.md)
 - [`design/git-fetch-plugin.ja.md`](design/git-fetch-plugin.ja.md)
