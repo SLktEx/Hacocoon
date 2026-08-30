@@ -1,0 +1,297 @@
+name: kubevirt clone spike
+
+on:
+  # This workflow is intentionally a one-shot branch experiment. Normal
+  # main-kube pushes do not rerun the heavy KubeVirt stack unless this workflow
+  # itself changes.
+  push:
+    branches:
+      - main-kube
+    paths:
+      - .github/workflows/kubevirt-clone-spike.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kubevirt-clone-spike-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clone-spike:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Host virtualization diagnostics
+        run: |
+          set -euxo pipefail
+          uname -a
+          test -e /dev/kvm && ls -l /dev/kvm || true
+          grep -E 'vmx|svm' /proc/cpuinfo | head -n 1 || true
+
+      - name: Install minikube
+        run: |
+          set -euxo pipefail
+          curl -fsSLo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+          chmod +x minikube
+          sudo install minikube /usr/local/bin/minikube
+          minikube version
+
+      - name: Start Kubernetes 1.36
+        run: |
+          set -euxo pipefail
+          minikube start \
+            --driver=docker \
+            --kubernetes-version=v1.36.2 \
+            --cpus=4 \
+            --memory=6500mb \
+            --wait=all \
+            --wait-timeout=8m
+          kubectl version
+          kubectl get nodes -o wide
+          kubectl get storageclass
+
+      - name: Install KubeVirt
+        run: |
+          set -euxo pipefail
+          KUBEVIRT_VERSION="$(curl -fsSL https://storage.googleapis.com/kubevirt-prow/release/kubevirt/kubevirt/stable.txt)"
+          echo "KUBEVIRT_VERSION=${KUBEVIRT_VERSION}" >> "$GITHUB_ENV"
+          kubectl apply -f "https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-operator.yaml"
+          kubectl apply -f "https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-cr.yaml"
+          # Docker-backed minikube does not reliably expose nested KVM to its
+          # node container. Software emulation is sufficient for this storage
+          # semantics spike; performance conclusions are explicitly forbidden.
+          kubectl -n kubevirt patch kubevirt kubevirt --type=merge \
+            -p '{"spec":{"configuration":{"developerConfiguration":{"useEmulation":true}}}}'
+          kubectl -n kubevirt wait kv kubevirt --for=condition=Available --timeout=10m
+          kubectl -n kubevirt get pods -o wide
+          curl -fsSLo virtctl "https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/virtctl-${KUBEVIRT_VERSION}-linux-amd64"
+          chmod +x virtctl
+          sudo install virtctl /usr/local/bin/virtctl
+          virtctl version
+
+      - name: Install CDI
+        run: |
+          set -euxo pipefail
+          CDI_TAG="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/kubevirt/containerized-data-importer/releases/latest)"
+          CDI_VERSION="${CDI_TAG##*/}"
+          echo "CDI_VERSION=${CDI_VERSION}" >> "$GITHUB_ENV"
+          kubectl apply -f "https://github.com/kubevirt/containerized-data-importer/releases/download/${CDI_VERSION}/cdi-operator.yaml"
+          kubectl apply -f "https://github.com/kubevirt/containerized-data-importer/releases/download/${CDI_VERSION}/cdi-cr.yaml"
+          kubectl -n cdi wait --for=condition=Available --all deployment --timeout=10m
+          kubectl -n cdi get pods -o wide
+
+      - name: Import persistent Fedora root disk
+        run: |
+          set -euxo pipefail
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: cdi.kubevirt.io/v1beta1
+          kind: DataVolume
+          metadata:
+            name: source-root
+          spec:
+            source:
+              registry:
+                url: docker://quay.io/containerdisks/fedora:latest
+            storage:
+              storageClassName: standard
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 6Gi
+          EOF
+          for i in $(seq 1 180); do
+            phase="$(kubectl get dv source-root -o jsonpath='{.status.phase}' 2>/dev/null || true)"
+            echo "source-root phase=${phase}"
+            [ "$phase" = Succeeded ] && break
+            if [ "$phase" = Failed ]; then
+              kubectl describe dv source-root
+              kubectl get pods
+              exit 1
+            fi
+            sleep 5
+          done
+          test "$(kubectl get dv source-root -o jsonpath='{.status.phase}')" = Succeeded
+          kubectl get pvc source-root -o wide
+
+      - name: Boot source VM and write durable marker
+        run: |
+          set -euxo pipefail
+          ssh-keygen -q -t ed25519 -N '' -f /tmp/source_key
+          PUB="$(cat /tmp/source_key.pub)"
+          cat > /tmp/source-vm.yaml <<EOF
+          apiVersion: kubevirt.io/v1
+          kind: VirtualMachine
+          metadata:
+            name: source-vm
+          spec:
+            runStrategy: Always
+            template:
+              metadata:
+                labels:
+                  hacocoon.dev/spike: source
+              spec:
+                domain:
+                  resources:
+                    requests:
+                      memory: 1024Mi
+                  devices:
+                    disks:
+                      - name: rootdisk
+                        disk:
+                          bus: virtio
+                      - name: cloudinit
+                        disk:
+                          bus: virtio
+                terminationGracePeriodSeconds: 0
+                volumes:
+                  - name: rootdisk
+                    persistentVolumeClaim:
+                      claimName: source-root
+                  - name: cloudinit
+                    cloudInitNoCloud:
+                      userData: |-
+                        #cloud-config
+                        user: fedora
+                        ssh_authorized_keys:
+                          - ${PUB}
+          EOF
+          kubectl apply -f /tmp/source-vm.yaml
+          kubectl wait vmi/source-vm --for=condition=Ready --timeout=8m
+          for i in $(seq 1 60); do
+            if virtctl ssh --local-ssh=false -i /tmp/source_key fedora@vm/source-vm --command 'printf hacocoon-clone-marker > /var/tmp/hacocoon-clone-marker && cat /var/tmp/hacocoon-clone-marker'; then
+              exit 0
+            fi
+            sleep 5
+          done
+          kubectl describe vmi source-vm
+          exit 1
+
+      - name: Stop source at stable clone point
+        run: |
+          set -euxo pipefail
+          virtctl stop source-vm
+          for i in $(seq 1 120); do
+            if ! kubectl get vmi source-vm >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo 'source VMI did not stop' >&2
+          exit 1
+
+      - name: Clone the complete persistent root disk with CDI
+        run: |
+          set -euxo pipefail
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: cdi.kubevirt.io/v1beta1
+          kind: DataVolume
+          metadata:
+            name: clone-root
+          spec:
+            source:
+              pvc:
+                namespace: default
+                name: source-root
+            storage:
+              storageClassName: standard
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 6Gi
+          EOF
+          for i in $(seq 1 180); do
+            phase="$(kubectl get dv clone-root -o jsonpath='{.status.phase}' 2>/dev/null || true)"
+            echo "clone-root phase=${phase}"
+            [ "$phase" = Succeeded ] && break
+            if [ "$phase" = Failed ]; then
+              kubectl describe dv clone-root
+              kubectl get pods
+              exit 1
+            fi
+            sleep 5
+          done
+          test "$(kubectl get dv clone-root -o jsonpath='{.status.phase}')" = Succeeded
+
+      - name: Boot clone with fresh access key and verify durable state copied
+        run: |
+          set -euxo pipefail
+          ssh-keygen -q -t ed25519 -N '' -f /tmp/clone_key
+          PUB="$(cat /tmp/clone_key.pub)"
+          cat > /tmp/clone-vm.yaml <<EOF
+          apiVersion: kubevirt.io/v1
+          kind: VirtualMachine
+          metadata:
+            name: clone-vm
+          spec:
+            runStrategy: Always
+            template:
+              metadata:
+                labels:
+                  hacocoon.dev/spike: clone
+              spec:
+                domain:
+                  resources:
+                    requests:
+                      memory: 1024Mi
+                  devices:
+                    disks:
+                      - name: rootdisk
+                        disk:
+                          bus: virtio
+                      - name: cloudinit
+                        disk:
+                          bus: virtio
+                terminationGracePeriodSeconds: 0
+                volumes:
+                  - name: rootdisk
+                    persistentVolumeClaim:
+                      claimName: clone-root
+                  - name: cloudinit
+                    cloudInitNoCloud:
+                      userData: |-
+                        #cloud-config
+                        user: fedora
+                        ssh_authorized_keys:
+                          - ${PUB}
+          EOF
+          kubectl apply -f /tmp/clone-vm.yaml
+          kubectl wait vmi/clone-vm --for=condition=Ready --timeout=8m
+          for i in $(seq 1 60); do
+            marker="$(virtctl ssh --local-ssh=false -i /tmp/clone_key fedora@vm/clone-vm --command 'cat /var/tmp/hacocoon-clone-marker' 2>/dev/null || true)"
+            if echo "$marker" | grep -q hacocoon-clone-marker; then
+              echo 'whole-disk durable marker copied successfully'
+              break
+            fi
+            sleep 5
+          done
+          marker="$(virtctl ssh --local-ssh=false -i /tmp/clone_key fedora@vm/clone-vm --command 'cat /var/tmp/hacocoon-clone-marker')"
+          echo "$marker" | grep -q hacocoon-clone-marker
+
+          # Record machine-specific state rather than pretending the clone is
+          # trust-clean. Hacocoon would need an explicit post-clone identity
+          # regeneration/scrub phase before claiming parity.
+          SOURCE_MACHINE_ID="$(cat > /dev/null <<'EOF'
+          EOF
+          true)"
+          CLONE_MACHINE_ID="$(virtctl ssh --local-ssh=false -i /tmp/clone_key fedora@vm/clone-vm --command 'cat /etc/machine-id' | tr -d '\r\n')"
+          test -n "$CLONE_MACHINE_ID"
+          echo "clone machine-id=${CLONE_MACHINE_ID}"
+
+      - name: Record spike machinery
+        if: always()
+        run: |
+          set +e
+          echo "KubeVirt=${KUBEVIRT_VERSION:-unknown} CDI=${CDI_VERSION:-unknown}"
+          kubectl get vm,vmi,dv,pvc,pods -A -o wide
+          echo 'KubeVirt cluster components:'
+          kubectl -n kubevirt get deploy,daemonset,pods
+          echo 'CDI cluster components:'
+          kubectl -n cdi get deploy,pods
