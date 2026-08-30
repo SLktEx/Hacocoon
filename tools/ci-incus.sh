@@ -12,10 +12,21 @@ fail() {
   exit 1
 }
 
+ci_prefix() {
+  local run_id="${GITHUB_RUN_ID:-0}"
+  local attempt="${GITHUB_RUN_ATTEMPT:-0}"
+  local tail="${run_id: -6}"
+  printf 'hci-%s-%s\n' "$tail" "$attempt"
+}
+
+readonly CI_PREFIX="${HACO_CI_PREFIX:-$(ci_prefix)}"
+readonly DIAGNOSTICS_DIR="${HACO_CI_DIAGNOSTICS_DIR:-${RUNNER_TEMP:-/tmp}/incus-diagnostics}"
+
 require_github_hosted_runner() {
   [[ "${GITHUB_ACTIONS:-}" == "true" ]] || fail "Incus CI helper only runs inside GitHub Actions"
   [[ "${HACO_CI_RUNNER_ENVIRONMENT:-}" == "github-hosted" ]] || fail "Incus CI helper requires a GitHub-hosted runner"
   [[ "$(uname -s)" == "Linux" ]] || fail "Incus CI helper requires Linux"
+  [[ "$CI_PREFIX" =~ ^hci-[0-9]+-[0-9]+$ ]] || fail "unsafe Incus CI prefix: $CI_PREFIX"
 }
 
 install_zabbly_incus_lts() {
@@ -35,7 +46,7 @@ install_zabbly_incus_lts() {
 
   architecture="$(dpkg --print-architecture)"
   source_file="$(mktemp)"
-  cat >"$source_file" <<EOF
+  cat >"$source_file" <<EOF_ZABBLY
 Enabled: yes
 Types: deb
 URIs: https://pkgs.zabbly.com/incus/lts-6.0
@@ -43,7 +54,7 @@ Suites: $codename
 Components: main
 Architectures: $architecture
 Signed-By: /etc/apt/keyrings/zabbly.asc
-EOF
+EOF_ZABBLY
   sudo install -m 0644 "$source_file" /etc/apt/sources.list.d/zabbly-incus-lts-6.0.sources
   rm -f "$source_file"
 
@@ -58,14 +69,28 @@ install_incus() {
   codename="$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")"
 
   if [[ "$codename" == "noble" ]]; then
-    # Ubuntu 24.04's archive currently carries Incus 6.0.0, which predates
-    # the Linux 6.9+ idmapped-mount fix. Use the upstream 6.0 LTS packages
-    # on noble only; newer Ubuntu runners use their native package instead.
+    # Ubuntu 24.04's archive carries an old Incus 6.0 point release. Retain
+    # this compatibility path for local/manual use, but normal CI is 26.04.
     install_zabbly_incus_lts "$codename"
     return
   fi
 
   sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus
+}
+
+record_environment() {
+  echo '::group::GitHub runner / Incus environment'
+  cat /etc/os-release
+  uname -a
+  systemd --version | head -n 1 || true
+  incus version
+  incus info
+  incus storage list
+  incus network list --project default
+  ip -4 address show
+  ip -4 route show
+  sysctl net.ipv4.ip_forward || true
+  echo '::endgroup::'
 }
 
 setup_incus() {
@@ -89,14 +114,21 @@ setup_incus() {
   incus remote add "${CI_REMOTE}" https://127.0.0.1:8443 --accept-certificate
   incus remote switch "${CI_REMOTE}"
 
-  incus version
   server_version="$(incus version | awk -F': ' '$1 == "Server version" {print $2; exit}')"
   [[ -n "$server_version" ]] || fail "could not determine Incus server version"
   dpkg --compare-versions "$server_version" ge 6.0.5 || fail "Incus $server_version is too old; 6.0.5+ is required for Linux 6.9+ idmapped mounts"
   incus profile show default --project default >/dev/null
+  record_environment
 }
 
-run_e2e() {
+run_standalone_e2e() {
+  require_github_hosted_runner
+  export HACO_CI_PREFIX="$CI_PREFIX"
+  export HACO_CI_INCUS_STANDALONE=1
+  bash test/e2e/incus_standalone.sh
+}
+
+run_core_e2e() {
   require_github_hosted_runner
   export HACO_E2E_INCUS=1
 
@@ -104,28 +136,129 @@ run_e2e() {
   bash test/e2e/incus.sh
 }
 
+capture_instance_diagnostics() {
+  local project="$1"
+  local instance
+
+  while IFS= read -r instance; do
+    [[ -n "$instance" ]] || continue
+    case "$project:$instance" in
+      "default:${CI_PREFIX}"*|hacocoon:haco-*) ;;
+      *) continue ;;
+    esac
+
+    echo "--- instance $project/$instance config ---"
+    incus config show "$instance" --expanded --project "$project" || true
+    echo "--- instance $project/$instance info ---"
+    incus info "$instance" --project "$project" || true
+    echo "--- guest $project/$instance addresses/routes ---"
+    incus exec "$instance" --project "$project" -- ip address || true
+    incus exec "$instance" --project "$project" -- ip route || true
+    echo "--- guest $project/$instance systemd ---"
+    incus exec "$instance" --project "$project" -- systemctl status --no-pager || true
+    incus exec "$instance" --project "$project" -- journalctl -b --no-pager -n 250 || true
+  done < <(incus list --project "$project" --format csv -c n 2>/dev/null || true)
+}
+
 diagnostics() {
   require_github_hosted_runner
   set +e
+  mkdir -p "$DIAGNOSTICS_DIR"
 
-  echo '::group::Incus version'
-  incus version
-  echo '::endgroup::'
+  {
+    echo "diagnostics timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "CI prefix: $CI_PREFIX"
 
-  echo '::group::Incus projects and instances'
-  incus project list
-  incus list --all-projects
-  echo '::endgroup::'
+    echo '=== runner ==='
+    cat /etc/os-release
+    uname -a
+    systemd --version | head -n 3
 
-  echo '::group::Incus default-project network state'
-  incus network list --project default
-  incus network acl list --project default
-  incus profile list --project default
-  echo '::endgroup::'
+    if command -v incus >/dev/null 2>&1; then
+      echo '=== Incus info/version ==='
+      incus version
+      incus info
+      echo '=== Incus projects/instances ==='
+      incus project list
+      incus list --all-projects
+      echo '=== Incus networks ==='
+      incus network list --project default
+      while IFS= read -r network; do
+        [[ -n "$network" ]] || continue
+        echo "--- network $network ---"
+        incus network show "$network" --project default || true
+      done < <(incus network list --project default --format csv -c n 2>/dev/null || true)
+      echo '=== Incus ACLs/profiles ==='
+      incus network acl list --project default
+      incus profile list --project default
+      echo '=== Incus storage ==='
+      incus storage list
+      while IFS= read -r pool; do
+        [[ -n "$pool" ]] || continue
+        echo "--- storage $pool ---"
+        incus storage show "$pool" || true
+      done < <(incus storage list --format csv -c n 2>/dev/null || true)
+      capture_instance_diagnostics default
+      capture_instance_diagnostics hacocoon
+    else
+      echo 'incus executable is unavailable'
+    fi
 
-  echo '::group::Incus daemon journal'
-  sudo journalctl -u incus --no-pager -n 300
-  echo '::endgroup::'
+    echo '=== host networking/routing ==='
+    ip -details address show || true
+    ip route show table all || true
+    ip rule show || true
+    bridge link show || true
+    sysctl net.ipv4.ip_forward || true
+    sysctl net.bridge.bridge-nf-call-iptables || true
+    sysctl net.bridge.bridge-nf-call-ip6tables || true
+
+    echo '=== host firewall ==='
+    sudo nft list ruleset || sudo iptables-save || true
+
+    echo '=== Incus daemon journal ==='
+    sudo journalctl -u incus --no-pager -n 500 || true
+  } 2>&1 | tee "$DIAGNOSTICS_DIR/diagnostics.log"
+}
+
+default_root_pool() {
+  incus profile device get default root pool --project default 2>/dev/null || true
+}
+
+cleanup_standalone() {
+  require_github_hosted_runner
+  local failed=0
+  local instance network profile volume pool
+  local instances=("${CI_PREFIX}a" "${CI_PREFIX}b")
+  local networks=("${CI_PREFIX}x" "${CI_PREFIX}n")
+  profile="${CI_PREFIX}p"
+  volume="${CI_PREFIX}v"
+
+  for instance in "${instances[@]}"; do
+    if incus info "$instance" --project default >/dev/null 2>&1; then
+      incus delete "$instance" --project default --force || failed=1
+    fi
+  done
+
+  if incus profile show "$profile" --project default >/dev/null 2>&1; then
+    incus profile delete "$profile" --project default || failed=1
+  fi
+
+  for network in "${networks[@]}"; do
+    if incus network show "$network" --project default >/dev/null 2>&1; then
+      incus network delete "$network" --project default || failed=1
+    fi
+  done
+
+  pool="$(default_root_pool)"
+  if [[ -n "$pool" ]] && incus storage volume show "$pool" "$volume" --project default >/dev/null 2>&1; then
+    incus storage volume delete "$pool" "$volume" --project default || failed=1
+  fi
+
+  [[ "$failed" == "0" ]] || {
+    echo "ERROR: standalone Incus CI cleanup was incomplete" >&2
+    return 1
+  }
 }
 
 cleanup_project() {
@@ -151,7 +284,7 @@ cleanup_project() {
   incus project delete "$project" --force
 }
 
-cleanup() {
+cleanup_core() {
   require_github_hosted_runner
   local project
   local failed=0
@@ -175,28 +308,34 @@ cleanup() {
     incus network acl delete "$SANDBOX_ACL" --project default || failed=1
   fi
 
-  if [[ "$failed" != "0" ]]; then
-    echo "ERROR: Incus CI cleanup was incomplete" >&2
+  [[ "$failed" == "0" ]] || {
+    echo "ERROR: Hacocoon Core Incus CI cleanup was incomplete" >&2
     return 1
-  fi
+  }
 }
 
 usage() {
-  echo "usage: $0 <setup|test|diagnostics|cleanup>" >&2
+  echo "usage: $0 <setup|standalone|core|diagnostics|cleanup-standalone|cleanup-core>" >&2
 }
 
 case "${1:-}" in
   setup)
     setup_incus
     ;;
-  test)
-    run_e2e
+  standalone)
+    run_standalone_e2e
+    ;;
+  core)
+    run_core_e2e
     ;;
   diagnostics)
     diagnostics
     ;;
-  cleanup)
-    cleanup
+  cleanup-standalone)
+    cleanup_standalone
+    ;;
+  cleanup-core)
+    cleanup_core
     ;;
   *)
     usage
