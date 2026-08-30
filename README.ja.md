@@ -60,6 +60,7 @@ cd Hacocoon
 go build -o ./bin/haco ./cmd/haco
 go build -o ./bin/haco-vscode ./cmd/haco-vscode
 go build -o ./bin/haco-agent-host ./cmd/haco-agent-host
+go build -o ./bin/haco-notify ./cmd/haco-notify
 
 ./bin/haco doctor
 ./bin/haco run --workspace "$PWD" -- go test ./...
@@ -108,11 +109,13 @@ HACO_PLUGIN_OCI=docker  haco plugin oci docker status dev
 HACO_PLUGIN_OCI=docker  haco plugin oci docker prepare dev
 ```
 
-Coreはcontainerd、nerdctl、Docker、local Registryを必須にしません。OCI Seed Builder/COWはv0.17のpartial checkpoint、Docker Compatibilityはv0.18のrepository実装済みcheckpointです。Domain-aware egressはv0.19のrepository実装済みcheckpoint、Hacocoon管理Btrfs rootfs storageはv0.20のfirst-slice checkpoint、managed Btrfs `compress=zstd:3` はv0.21の実装済みcheckpointです。pre-1.0のminor versionは軽量な進捗markerとして扱い、前のcheckpointにacceptance残件があっても後続へ進めます。Local OCI Registryはdeferred/unversionedなoptional infrastructureです。
+Coreはcontainerd、nerdctl、Docker、local Registryを必須にしません。OCI Seed Builder/COWはv0.17のpartial checkpoint、Docker Compatibilityはv0.18、Domain-aware egressはv0.19、Hacocoon管理Btrfs rootfs storageはv0.20、managed Btrfs `compress=zstd:3` はv0.21です。その後、v0.22 Interaction Notification Clients、v0.23 Real Incus E2E Acceptance、v0.24 Structured Logging、v0.25 Managed Btrfs Host Privilege Brokerまで進んでいます。現在のmilestone位置は **v0.25** です。pre-1.0のminor versionはproductだけでなくoperator experience、observability、acceptanceの意味ある進捗にも使う軽量なcheckpointです。Local OCI Registryはdeferred/unversionedなoptional infrastructureです。
 
 ## Reusable client
 
 `pkg/clientadapter` はexact Environment ensure/reuse、status、`/workspace` discovery、loopback SSH/TCP connection、revoke/delete、interaction batchのclient-neutral contractを提供します。SSH private keyとIDE configはclient自身が保持し、Hacocoonが受け取るのはpublic-key materialだけです。
+
+v0.22のnotification clientは同じread-only interaction streamをbrowser、native OS、optional VS Code notificationへ接続しますが、event観測をapproval pathにはしません。
 
 詳細は [Reusable client adapter contract](docs/CLIENT_ADAPTER_CONTRACT.ja.md) と [Interaction events](docs/INTERACTION_EVENTS.ja.md) を参照してください。
 
@@ -135,7 +138,7 @@ Security-sensitiveな変更の前に [Security architecture](docs/security/secur
 
 ## 開発
 
-Hacocoonのprimary supported Host baselineは **Ubuntu 26.04+** です。GitHub-hosted Linux CIも **`ubuntu-26.04`** に明示固定し、`ubuntu-latest` や古いUbuntu世代ではなく同じbaselineを直接検証します。
+Hacocoonのprimary supported Host baselineは **Ubuntu 26.04+** です。GitHub-hosted Linux CIも **`ubuntu-26.04`** に明示固定し、`ubuntu-latest` や古いUbuntu世代ではなく同じbaselineを直接検証します。v0.23ではreal Incus substrate + Core lifecycle acceptanceを独立milestoneにし、v0.25ではordinary-user managed-Btrfs privilege pathをreal Incusで検証します。
 
 ```bash
 go test ./...
