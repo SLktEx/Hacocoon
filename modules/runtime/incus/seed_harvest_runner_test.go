@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
@@ -14,6 +15,8 @@ func TestSeedHarvestRunnerUsesOnlyMarkedManagedEnvironment(t *testing.T) {
 	ref := "private.example/app:stable@sha256:" + testFingerprintA
 	directPull := false
 	savedFrom := ""
+	quarantineSeen := false
+	seedLoadSeen := false
 	runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
 		joined := strings.Join(args, " ")
 		switch {
@@ -25,16 +28,32 @@ func TestSeedHarvestRunnerUsesOnlyMarkedManagedEnvironment(t *testing.T) {
 		case name == "incus" && strings.Contains(joined, "nerdctl save"):
 			savedFrom = args[1]
 			return host.Result{}, nil
-		case name == "incus" && len(args) >= 3 && args[0] == "file" && args[1] == "pull":
-			if err := os.WriteFile(args[3], []byte("oci-archive"), 0o600); err != nil {
+		case name == "incus" && len(args) >= 4 && args[0] == "file" && args[1] == "pull":
+			if err := os.WriteFile(args[3], []byte("environment-oci-archive"), 0o600); err != nil {
 				return host.Result{}, err
 			}
 			return host.Result{}, nil
 		case name == "incus" && strings.Contains(joined, " rm -f "):
 			return host.Result{}, nil
-		case name == "nerdctl" && len(args) >= 3 && args[2] == "load":
+		case name == "nerdctl" && len(args) == 3 && args[0] == "namespace" && args[1] == "create":
+			if !strings.HasPrefix(args[2], seedHarvestNamespacePrefix) {
+				t.Fatalf("unexpected quarantine namespace %q", args[2])
+			}
+			quarantineSeen = true
 			return host.Result{}, nil
-		case name == "nerdctl" && len(args) >= 4 && args[2] == "image" && args[3] == "inspect":
+		case name == "nerdctl" && len(args) == 3 && args[0] == "namespace" && args[1] == "remove":
+			return host.Result{}, nil
+		case name == "nerdctl" && len(args) >= 5 && args[0] == "--namespace" && args[2] == "load":
+			if args[1] == seedHostNamespace {
+				seedLoadSeen = true
+			}
+			return host.Result{}, nil
+		case name == "nerdctl" && len(args) >= 5 && args[0] == "--namespace" && args[2] == "image" && args[3] == "inspect":
+			return host.Result{}, nil
+		case name == "nerdctl" && len(args) >= 6 && args[0] == "--namespace" && args[2] == "save":
+			if err := os.WriteFile(args[4], []byte("selected-oci-archive"), 0o600); err != nil {
+				return host.Result{}, err
+			}
 			return host.Result{}, nil
 		case name == "nerdctl" && len(args) >= 3 && args[2] == "pull":
 			directPull = true
@@ -53,6 +72,9 @@ func TestSeedHarvestRunnerUsesOnlyMarkedManagedEnvironment(t *testing.T) {
 	}
 	if savedFrom != "haco-private" {
 		t.Fatalf("saved from %q, want marked Environment", savedFrom)
+	}
+	if !quarantineSeen || !seedLoadSeen {
+		t.Fatalf("quarantine=%t seed-load=%t calls=%#v", quarantineSeen, seedLoadSeen, runner.calls)
 	}
 	for _, call := range runner.calls {
 		joined := strings.Join(call.args, " ")
@@ -112,5 +134,52 @@ func TestSeedHarvestCandidatesFailClosedOnMarkedInvalidSource(t *testing.T) {
 	harvest := &seedHarvestRunner{next: runner, project: defaultProject}
 	if _, err := harvest.harvestCandidates(context.Background()); err == nil {
 		t.Fatal("expected invalid marked source to fail closed")
+	}
+}
+
+func TestSeedHarvestRunnerDoesNotHideQuarantineCleanupFailure(t *testing.T) {
+	ref := "private.example/app:stable@sha256:" + testFingerprintA
+	directPull := false
+	runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+		joined := strings.Join(args, " ")
+		switch {
+		case name == "incus" && len(args) > 0 && args[0] == "list":
+			return host.Result{Stdout: `[{"name":"haco-private","status":"Running","config":{"user.hacocoon.kind":"environment"}}]`}, nil
+		case name == "incus" && strings.Contains(joined, "nerdctl save"):
+			return host.Result{}, nil
+		case name == "incus" && len(args) >= 4 && args[0] == "file" && args[1] == "pull":
+			if err := os.WriteFile(args[3], []byte("environment-oci-archive"), 0o600); err != nil {
+				return host.Result{}, err
+			}
+			return host.Result{}, nil
+		case name == "incus" && strings.Contains(joined, " rm -f "):
+			return host.Result{}, nil
+		case name == "nerdctl" && len(args) == 3 && args[0] == "namespace" && args[1] == "create":
+			return host.Result{}, nil
+		case name == "nerdctl" && len(args) == 3 && args[0] == "namespace" && args[1] == "remove":
+			return host.Result{ExitCode: 1, Stderr: "busy"}, errors.New("namespace busy")
+		case name == "nerdctl" && len(args) >= 5 && args[0] == "--namespace" && args[2] == "load":
+			return host.Result{}, nil
+		case name == "nerdctl" && len(args) >= 5 && args[0] == "--namespace" && args[2] == "image" && args[3] == "inspect":
+			return host.Result{}, nil
+		case name == "nerdctl" && len(args) >= 6 && args[0] == "--namespace" && args[2] == "save":
+			if err := os.WriteFile(args[4], []byte("selected-oci-archive"), 0o600); err != nil {
+				return host.Result{}, err
+			}
+			return host.Result{}, nil
+		case name == "nerdctl" && len(args) >= 3 && args[2] == "pull":
+			directPull = true
+			return host.Result{}, nil
+		default:
+			return host.Result{}, errors.New("unexpected call")
+		}
+	}}
+	wrapped := WrapSeedHarvestRunner(runner)
+	_, err := wrapped.Run(context.Background(), "nerdctl", "--namespace", seedHostNamespace, "pull", ref)
+	if !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("err=%v want ErrRecoveryRequired", err)
+	}
+	if directPull {
+		t.Fatal("registry fallback must not hide ambiguous quarantine cleanup")
 	}
 }
