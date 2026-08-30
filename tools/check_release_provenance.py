@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[1]
@@ -41,7 +42,9 @@ checks = {
         'SIGNER_WORKFLOW="$REPOSITORY/.github/workflows/release.yml"',
         'SIGNER_SOURCE_REF="refs/heads/main"',
         'RELEASE_PREDICATE_TYPE="https://hacocoon.dev/attestations/release/v1"',
-        'HACO_REQUIRE_PROVENANCE',
+        'REQUIRE_PROVENANCE="${HACO_REQUIRE_PROVENANCE:-1}"',
+        "resolve_latest_version()",
+        'VERSION="$(resolve_latest_version)"',
         'gh attestation verify',
         '--repo "$REPOSITORY"',
         '--signer-workflow "$SIGNER_WORKFLOW"',
@@ -49,7 +52,9 @@ checks = {
         '--predicate-type "$RELEASE_PREDICATE_TYPE"',
         "verificationResult.statement.predicate.tag",
         '--deny-self-hosted-runners',
-        'requires an explicit release version',
+        "trusted provenance verification requires",
+        "trusted build provenance verification failed",
+        "signed release binding verification failed",
     ],
 }
 
@@ -65,6 +70,11 @@ if "\n  push:\n" in workflow:
 
 if workflow.count("actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6") < 2:
     errors.append("release workflow must create both build provenance and signed release-binding attestations")
+
+if 'HACO_REQUIRE_PROVENANCE:-0' in installer:
+    errors.append("installer provenance must fail closed by default; HACO_REQUIRE_PROVENANCE may only disable it explicitly")
+if 'if [ "$VERSION" = "latest" ]; then\n    if [ "$REQUIRE_PROVENANCE" = "1" ]' in installer:
+    errors.append("latest installs must resolve to an explicit tag instead of weakening signed release-binding verification")
 
 try:
     build = workflow.split("\n  build:\n", 1)[1].split("\n  publish:\n", 1)[0]
@@ -89,5 +99,14 @@ if errors:
     print("RELEASE PROVENANCE CONTRACT FAILED")
     print("\n".join(errors))
     sys.exit(1)
+
+regression = subprocess.run(
+    ["bash", str(root / "tools/test_install_provenance_fail_closed.sh")],
+    cwd=root,
+    check=False,
+)
+if regression.returncode != 0:
+    print("RELEASE PROVENANCE CONTRACT FAILED: installer fail-closed regression test failed", file=sys.stderr)
+    sys.exit(regression.returncode)
 
 print("RELEASE PROVENANCE CONTRACT OK")

@@ -7,7 +7,7 @@ SIGNER_SOURCE_REF="refs/heads/main"
 RELEASE_PREDICATE_TYPE="https://hacocoon.dev/attestations/release/v1"
 INSTALL_DIR="${HACO_INSTALL_DIR:-/usr/local/bin}"
 VERSION="${1:-${HACO_VERSION:-latest}}"
-REQUIRE_PROVENANCE="${HACO_REQUIRE_PROVENANCE:-0}"
+REQUIRE_PROVENANCE="${HACO_REQUIRE_PROVENANCE:-1}"
 
 die() {
   printf 'haco installer: %s\n' "$*" >&2
@@ -20,6 +20,13 @@ warn() {
 
 need() {
   command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
+validate_version() {
+  candidate="$1"
+  need grep
+  printf '%s\n' "$candidate" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$' ||
+    die "invalid version: $candidate"
 }
 
 case "$REQUIRE_PROVENANCE" in
@@ -47,45 +54,47 @@ case "$(uname -m)" in
   *) die "unsupported architecture: $(uname -m)" ;;
 esac
 
-if [ "$VERSION" != "latest" ]; then
-  need grep
-  printf '%s\n' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$' ||
-    die "invalid version: $VERSION"
+has_authenticated_gh() {
+  command -v gh >/dev/null 2>&1 &&
+    { [ -n "${GH_TOKEN:-}" ] || [ -n "${GITHUB_TOKEN:-}" ] || gh auth status >/dev/null 2>&1; }
+}
+
+resolve_latest_version() {
+  need curl
+  latest_url="$(
+    curl -fsSL --proto '=https' --tlsv1.2 \
+      -o /dev/null \
+      -w '%{url_effective}' \
+      "https://github.com/$REPOSITORY/releases/latest"
+  )" || die "failed to resolve latest release"
+  latest_tag="${latest_url##*/}"
+  validate_version "$latest_tag"
+  printf '%s\n' "$latest_tag"
+}
+
+if [ "$VERSION" = "latest" ]; then
+  VERSION="$(resolve_latest_version)"
+  printf 'Resolved latest Hacocoon release to %s.\n' "$VERSION"
+else
+  validate_version "$VERSION"
 fi
 
 archive="haco_${os}_${arch}.tar.gz"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT HUP INT TERM
 
-has_authenticated_gh() {
-  command -v gh >/dev/null 2>&1 &&
-    { [ -n "${GH_TOKEN:-}" ] || [ -n "${GITHUB_TOKEN:-}" ] || gh auth status >/dev/null 2>&1; }
-}
-
 download_with_gh() {
   tag="$1"
-  if [ "$tag" = "latest" ]; then
-    gh release download \
-      --repo "$REPOSITORY" \
-      --pattern "$archive" \
-      --pattern checksums.txt \
-      --dir "$tmpdir"
-  else
-    gh release download "$tag" \
-      --repo "$REPOSITORY" \
-      --pattern "$archive" \
-      --pattern checksums.txt \
-      --dir "$tmpdir"
-  fi
+  gh release download "$tag" \
+    --repo "$REPOSITORY" \
+    --pattern "$archive" \
+    --pattern checksums.txt \
+    --dir "$tmpdir"
 }
 
 download_with_curl() {
   tag="$1"
-  if [ "$tag" = "latest" ]; then
-    base="https://github.com/$REPOSITORY/releases/latest/download"
-  else
-    base="https://github.com/$REPOSITORY/releases/download/$tag"
-  fi
+  base="https://github.com/$REPOSITORY/releases/download/$tag"
 
   token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
   if [ -n "$token" ]; then
@@ -106,9 +115,9 @@ download_with_curl() {
 verify_provenance() {
   if ! command -v gh >/dev/null 2>&1 || ! gh attestation verify --help >/dev/null 2>&1; then
     if [ "$REQUIRE_PROVENANCE" = "1" ]; then
-      die "HACO_REQUIRE_PROVENANCE=1 requires a GitHub CLI version with 'gh attestation verify' support"
+      die "trusted provenance verification requires a GitHub CLI version with 'gh attestation verify' support"
     fi
-    warn "SHA-256 integrity verified, but provenance was not verified; install a current GitHub CLI and run 'gh attestation verify'"
+    warn "provenance verification was explicitly disabled with HACO_REQUIRE_PROVENANCE=0"
     return 0
   fi
 
@@ -120,19 +129,11 @@ verify_provenance() {
     if [ "$REQUIRE_PROVENANCE" = "1" ]; then
       die "trusted build provenance verification failed for $archive"
     fi
-    warn "SHA-256 integrity verified, but trusted build provenance verification failed for this release"
+    warn "trusted build provenance verification failed, but HACO_REQUIRE_PROVENANCE=0 explicitly allows continuing"
     return 0
   fi
 
   printf 'Verified GitHub/Sigstore provenance for %s from trusted main release workflow.\n' "$archive"
-
-  if [ "$VERSION" = "latest" ]; then
-    if [ "$REQUIRE_PROVENANCE" = "1" ]; then
-      die "HACO_REQUIRE_PROVENANCE=1 requires an explicit release version so the signed tag binding can be verified"
-    fi
-    warn "trusted workflow provenance verified, but latest mode does not pin the signed release tag; use an explicit version for tag binding"
-    return 0
-  fi
 
   binding_tags="$(
     gh attestation verify "$tmpdir/$archive" \
@@ -153,7 +154,7 @@ verify_provenance() {
   if [ "$REQUIRE_PROVENANCE" = "1" ]; then
     die "signed release binding verification failed for $VERSION"
   fi
-  warn "trusted workflow provenance verified, but signed release binding verification failed for $VERSION"
+  warn "signed release binding verification failed, but HACO_REQUIRE_PROVENANCE=0 explicitly allows continuing"
 }
 
 validate_release_archive() {
@@ -208,8 +209,10 @@ actual="$(sha256sum "$tmpdir/$archive" | awk '{print $1}')"
 printf 'Verified SHA-256 integrity for %s against checksums.txt.\n' "$archive"
 
 # checksums.txt and the archive share GitHub Release authority. The attestation
-# checks below independently bind the artifact to the trusted main workflow and,
-# for explicit versions, to the release tag authorized by that workflow.
+# checks below independently bind the artifact to the trusted main workflow and
+# to the explicit release tag authorized by that workflow. Public installs fail
+# closed by default; HACO_REQUIRE_PROVENANCE=0 is an explicit private/dev escape
+# hatch and must never be used as the documented public installation path.
 verify_provenance
 
 # Treat the archive itself as untrusted input even after integrity/provenance
