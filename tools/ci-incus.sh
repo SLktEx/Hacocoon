@@ -107,6 +107,10 @@ record_environment() {
   echo '::endgroup::'
 }
 
+root_incus() {
+  sudo env HOME=/root incus "$@"
+}
+
 setup_incus() {
   local server_version apparmor_unconfined
 
@@ -130,11 +134,14 @@ setup_incus() {
   [[ -e /proc/sys/net/bridge/bridge-nf-call-iptables ]] || fail "br_netfilter did not expose bridge netfilter sysctls"
   [[ -e /proc/sys/net/bridge/bridge-nf-call-ip6tables ]] || fail "br_netfilter did not expose IPv6 bridge netfilter sysctls"
 
-  sudo incus admin init --minimal
+  # Keep root's local-socket client state completely separate from the
+  # unprivileged runner client's TLS configuration. In particular, never let a
+  # sudo invocation create root-owned files below $HOME/.config/incus.
+  root_incus admin init --minimal
 
   incus remote generate-certificate
-  sudo incus config set core.https_address 127.0.0.1:8443
-  sudo incus config trust add-certificate "${HOME}/.config/incus/client.crt"
+  root_incus config set core.https_address 127.0.0.1:8443
+  root_incus config trust add-certificate "${HOME}/.config/incus/client.crt"
   incus remote add "${CI_REMOTE}" https://127.0.0.1:8443 --accept-certificate
   incus remote switch "${CI_REMOTE}"
 
@@ -165,7 +172,7 @@ incus_diag() {
   if incus info >/dev/null 2>&1; then
     incus "$@"
   else
-    sudo incus "$@"
+    root_incus "$@"
   fi
 }
 
