@@ -91,6 +91,10 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 		return core.EnvironmentRuntime{}, cause
 	}
 
+	if err := p.setAndVerifyConfig(ctx, ref, managedEnvironmentMarkerKey, managedEnvironmentMarkerValue); err != nil {
+		return cleanup(fmt.Errorf("mark managed Incus Environment for trusted Seed harvest: %w", err))
+	}
+
 	if resolved.usesSeed {
 		if err := p.configureNestedOCIInstance(ctx, ref); err != nil {
 			return cleanup(fmt.Errorf("configure nested OCI support for Seed environment: %w", err))
