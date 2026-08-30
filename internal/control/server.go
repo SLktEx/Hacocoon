@@ -15,6 +15,8 @@ import (
 
 var noDeadline time.Time
 
+const maxConcurrentConnections = 256
+
 type Handler func(context.Context, json.RawMessage) (any, error)
 type Stream func(context.Context, net.Conn) error
 type StreamHandler func(context.Context, json.RawMessage) (Stream, error)
@@ -23,12 +25,14 @@ type Server struct {
 	mu             sync.RWMutex
 	handlers       map[string]Handler
 	streamHandlers map[string]StreamHandler
+	connections    chan struct{}
 }
 
 func NewServer() *Server {
 	return &Server{
 		handlers:       make(map[string]Handler),
 		streamHandlers: make(map[string]StreamHandler),
+		connections:    make(chan struct{}, maxConcurrentConnections),
 	}
 }
 
@@ -80,17 +84,25 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 			}
 			return fmt.Errorf("accept control connection: %w", err)
 		}
-		go s.serveConn(ctx, conn)
+		select {
+		case s.connections <- struct{}{}:
+			go func() {
+				defer func() { <-s.connections }()
+				s.serveConn(ctx, conn)
+			}()
+		default:
+			_ = conn.Close()
+		}
 	}
 }
 
 func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
-	line, err := reader.ReadBytes('\n')
+	line, err := readEnvelopeLine(reader)
 	if err != nil {
 		if !errors.Is(err, io.EOF) {
-			_ = writeJSONLine(conn, errorEnvelope(fmt.Errorf("read request: %w", ErrProtocol)))
+			_ = writeJSONLine(conn, errorEnvelope(fmt.Errorf("read request: %w", err)))
 		}
 		return
 	}
@@ -156,6 +168,9 @@ func writeJSONLine(writer io.Writer, value any) error {
 	payload, err := json.Marshal(value)
 	if err != nil {
 		return err
+	}
+	if len(payload)+1 > maxControlEnvelopeBytes {
+		return fmt.Errorf("control envelope exceeds %d bytes: %w", maxControlEnvelopeBytes, ErrProtocol)
 	}
 	payload = append(payload, '\n')
 	_, err = writer.Write(payload)
