@@ -8,78 +8,72 @@ Use this document for **which version number belongs to which gate**. Use [`IMPL
 
 ## Numbering policy
 
-1. Implemented milestones should remain contiguous while renumbering is still cheap.
-2. A design-only gate must not force already-implemented independent work to appear later in the sequence.
-3. Security/hardening work normally does not consume a product version number by itself.
-4. A planned specification may reserve the next milestone, but it must be labeled **planned / not implemented** until code lands.
-5. Tags/releases are separate from roadmap-gate numbering.
-6. `IMPLEMENTATION_STATUS.md` remains authoritative for repository implementation reality.
+1. Prefer one independently useful product slice per milestone while renumbering remains cheap.
+2. Keep implemented milestones contiguous where practical.
+3. Security/hardening normally does not consume a product version by itself.
+4. Optional integrations remain optional; shipping a project-maintained profile does not make its tools Core dependencies.
+5. Planned specifications are labeled planned until implementation lands.
+6. Release tags and roadmap milestone numbers are separate.
 
 ## Current authoritative numbering
 
 **Status legend:** ✅ implemented · 🧪 experimental · 🚧 planned
 
-| Version | Gate | Main status | Notes |
+| Version | Gate | `main` status | Notes |
 |---|---|---|---|
-| v0.1 | Secure Workspace Runtime MVP | ✅ implemented | external Workspace → Incus Environment → exec/shell → delete |
-| v0.2 | Workspace Abstraction & Lease | ✅ implemented | canonical Workspace identity, RO/RW leases, concurrency safety |
+| v0.1 | Secure Workspace Runtime MVP | ✅ implemented | Workspace → isolated Environment → exec/shell/delete |
+| v0.2 | Workspace Abstraction & Lease | ✅ implemented | canonical identity, RO/RW leases, concurrency safety |
 | v0.3 | Client & Interactive Access | ✅ implemented | status, loopback forwarding, SSH lifecycle |
 | v0.4 | Policy & Capability Foundation | ✅ implemented | fail-closed policy, approval, audit |
-| v0.5 | Git / GitHub Capability | ✅ implemented | brokered GitHub authority without exporting host credentials |
-| v0.6 | Agent & Orchestrator Integration | ✅ implemented | `haco run`, machine output, external security events |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 implemented experimentally | EC2 stays explicit opt-in; real AWS acceptance pending |
-| v0.8 | Client Adapters & VS Code Integration | ✅ implemented | `haco-vscode`; real client acceptance pending |
-| v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation implemented | trusted session → Environment binding; real Agent Host/AHP routing acceptance pending |
-| v0.10 | VS Code Remote Agent Host Adapter | ✅ implemented | merged in PR #137; real Windows/WSL + Incus + VS Code Agents-window acceptance remains host-dependent |
-| v0.11 | Base Images & Custom Environments | ✅ implemented first slice | logical Base selection, immutable revision pinning, persisted identity, list/inspect; build/import/history/GC remain follow-up work |
-| v0.12 | Sandbox Resource Limits | ✅ implemented first slice | provider-neutral finite/unlimited budgets and Incus pre-start enforcement; real workload enforcement acceptance remains host-dependent |
-| v0.13 | Local OCI Registry | 🚧 planned | design contract exists; not implemented on `main` |
-| v0.13A | OCI Seed & Btrfs/COW Optimization | 🚧 planned second slice | companion optimization after the v0.13 registry path; not implemented on `main` |
+| v0.5 | Git / GitHub Push Capability | ✅ implemented | brokered push without exporting host credentials |
+| v0.6 | Agent & Orchestrator Integration | ✅ implemented | `haco run`, machine output, security events |
+| v0.7 | Remote / Cloud Runtime | 🧪 experimental | EC2 is explicit opt-in; real AWS acceptance pending |
+| v0.8 | Client Adapters & VS Code | ✅ implemented | `haco-vscode`; real client acceptance pending |
+| v0.9 | Per-Agent Sandbox | ✅ implemented | trusted session → dedicated Environment binding |
+| v0.10 | VS Code Remote Agent Host Adapter | ✅ implemented | `haco-agent-host`; real Agent Host acceptance pending |
+| v0.11 | Base Images & Custom Environments | ✅ first slice | logical Base → immutable revision pinning |
+| v0.12 | Sandbox Resource Limits | ✅ first slice | CPU/memory/PID/root-storage budgets |
+| v0.13 | Managed Sandbox Network | ✅ implemented | Hacocoon-managed Incus network/profile, fail-closed drift behavior |
+| v0.14 | Git Fetch Plugin | ✅ implemented | `haco plugin git fetch`; host `gh auth git-credential` for HTTPS GitHub auth |
+| v0.15 | OCI Seed Usage & Recommendation | ✅ first slice | optional OCI plugin telemetry, recommendation and top-10% selection policy |
+| v0.16 | OCI Image Deletion | ✅ first slice | optional OCI plugin deletion, immutable identity and tombstones |
+| v0.17 | Docker Compatibility | ✅ packaging foundation | optional genuine Docker CLI / on-demand Engine compatibility; Base/Seed bake and real-host acceptance pending |
+| v0.18 | Optional Local OCI Registry | 🚧 planned | optional infrastructure only; normal upstream pulls remain valid |
+| v0.19 | OCI Seed Builder & Btrfs/COW | 🚧 planned | offline builder, immutable Seed publish, normal Incus clone/COW |
 
-The implemented progression is therefore contiguous through **v0.12**. **v0.13 is the next planned milestone**, not current repository implementation.
+The implemented milestone progression is therefore contiguous through **v0.17**. v0.18 is the next planned product slice.
 
-## Implemented vs planned
+## Optional OCI boundary
 
-```text
-implemented on main
-v0.1 ───────────────────────────── v0.12
-                                      |
-                                      v
-                                next planned
-                                   v0.13
-                                      |
-                                      v
-                              planned second slice
-                                  v0.13A
-```
-
-The existence of `13_v0.13_LOCAL_OCI_REGISTRY.md` or `13A_v0.13_OCI_SEED_AND_COW.md` does not mean those features are already present.
-
-## Renumbering history
-
-The 2026-08-30 cleanup replaced a temporary ordering that placed design-only Base work ahead of already-implemented per-agent work. The current sequence is:
+OCI/container tooling is not a Hacocoon Core requirement. The optional plugin is selected explicitly:
 
 ```text
-v0.9   Per-Agent Sandbox & Agent Host Integration    implemented
-v0.10  VS Code Remote Agent Host Adapter             implemented
-v0.11  Base Images & Custom Environments             implemented first slice
-v0.12  Sandbox Resource Limits                       implemented first slice
-v0.13  Local OCI Registry                            planned
+HACO_PLUGIN_OCI=nerdctl
+HACO_PLUGIN_OCI=docker
+
+haco plugin oci status
+haco plugin oci seed sample
+haco plugin oci seed recommend
+haco plugin oci image delete <reference>
 ```
 
-Historical commit messages, closed PR titles, candidate branches, or superseded planning notes may keep older labels. They are historical records, not current numbering.
+With `HACO_PLUGIN_OCI` unset, Core must not require nerdctl, Docker CLI, dockerd, a Host OCI cache, or a Local Registry merely to manage Hacocoon Environments.
+
+`haco image list` / `haco image inspect` remain Core-facing **Base image identity** commands; workload OCI inventory/Seed operations live under `haco plugin oci`.
+
+## Historical numbering
+
+Older commits and documents may refer to Local OCI Registry as v0.13 or to Seed/COW as v0.13A/B/C. Those labels are superseded by this sequence. Historical commit messages and closed PR titles are not rewritten.
 
 ## Acceptance watch list
 
-Implementation and real-host acceptance are tracked separately.
-
-- **v0.7:** real AWS/EC2/SSM/EBS acceptance remains pending; EC2 stays experimental/default-off.
-- **v0.8:** real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending.
-- **v0.9/v0.10:** real VS Code Agent Host/AHP routing and Incus SSH acceptance remain host-dependent.
-- **v0.11:** real Incus image-source/custom-Base acceptance remains host-dependent; build/import/history/rollback/GC are not part of the first slice.
-- **v0.12:** real supported-Incus CPU/memory/PID/root-storage enforcement remains host-dependent.
-- **v0.13/v0.13A:** planned only; implementation and acceptance have not started merely because the specifications exist.
+- v0.7: real AWS/EC2/SSM/EBS acceptance pending.
+- v0.8-v0.10: real Windows/WSL + Incus + VS Code/Agent Host acceptance pending.
+- v0.11-v0.13: real supported Incus image/resource/network acceptance remains host-dependent.
+- v0.14: brokered Git fetch/push has repository tests; host credential behavior depends on configured `gh`/SSH auth.
+- v0.15-v0.17: optional OCI plugin repository logic/packaging exists; real container-tool/Base integration remains separate acceptance.
+- v0.18-v0.19: planned, not implementation claims.
 
 ## Rule of thumb
 
-> **Use this file for numbering, `IMPLEMENTATION_STATUS.md` for code reality, and the roadmap/specifications for intent.**
+> **Numbering lives here, code reality lives in `IMPLEMENTATION_STATUS.md`, and optional tooling stays outside Core.**
