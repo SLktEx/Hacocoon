@@ -60,7 +60,11 @@ func (s *Storage) Ensure(ctx context.Context, spec core.StorageSpec) (core.Stora
 		}
 		mountpoint := s.mountPath(spec.ID)
 		if err := s.fs.Ensure(ctx, blockHandle.Device, mountpoint); err != nil {
-			return err
+			cause := fmt.Errorf("ensure Btrfs filesystem for storage %s: %w", spec.ID, err)
+			if detachErr := s.block.Detach(ctx, blockHandle); detachErr != nil {
+				return errors.Join(cause, fmt.Errorf("detach managed block after filesystem ensure failure: %w", detachErr))
+			}
+			return cause
 		}
 		out = core.StorageHandle{
 			ID: spec.ID,
