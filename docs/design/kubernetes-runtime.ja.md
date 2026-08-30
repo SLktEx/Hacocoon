@@ -2,13 +2,13 @@
 
 [English](kubernetes-runtime.md) | **日本語**
 
-Status: **`main-kube` 上のpartial / experimental実装。Incus pathのsupported replacementではありません。**
+Status: **`main-kube` 上のpartial / experimental実装。parity evaluation専用であり、このbranchを`main`へmergeすることは目的にしません。**
 
 ## Summary
 
 `main-kube` 実験では、Hacocoonのtrusted security boundaryをKubernetes workloadへ移さずに、KubernetesをEnvironment providerとして追加します。通常EnvironmentはSysbox-backed Podとして動かせますが、`haco-host`、Policy / Approval / Capability、Git push Broker、credential、audit state、現在のrecovery pathはtrusted Host側の責務として残します。
 
-この実験の目的は、Hacocoonのbrokered-authority modelを弱めず、whole-Environment copy semanticsを失わずに、KubernetesへEnvironment lifecycleとnetwork plumbingの多くを任せられるかを検証することです。
+この実験の目的は、Kubernetesで現在のHacocoonの全feature/security behaviorを再現できるか、再現できる場合にHacocoon-owned implementation / operationがIncus baselineより実測で単純になるかを確認することだけです。migration、adoption、merge recommendationは行いません。評価contractは [`kubernetes-parity-experiment.ja.md`](kubernetes-parity-experiment.ja.md) を参照してください。
 
 ## Goals
 
@@ -18,12 +18,15 @@ Status: **`main-kube` 上のpartial / experimental実装。Incus pathのsupporte
 - Environment作成時からKubernetes networkをdefault denyにする。
 - namespace ownership不明、resource guarantee不足、cleanup不完全をfail closedにする。
 - Git pushなどのprivileged external operationでは既存Hacocoon Broker / Approval pathをauthoritativeな境界として維持する。
-- Environment backendの評価中も`haco-host`をtrusted infrastructureとして残す。
+- Environment runtime parityの評価中も`haco-host`をtrusted infrastructureとして残す。
+- Kubernetesが本当にHacocoon-owned complexityを消しているのか、別のglue codeやmandatory platform dependencyへ移しただけなのかを測定する。
 
 ## 現在のsliceで対象外
 
 現在のrepository sliceは次をclaimしません。
 
+- `main-kube`を`main`へmergeする意図;
+- migration / replacement decision;
 - real Kubernetes + Sysbox host acceptance;
 - 安全なmulti-node Workspace placement;
 - whole-Environment snapshot / clone support;
@@ -33,7 +36,7 @@ Status: **`main-kube` 上のpartial / experimental実装。Incus pathのsupporte
 - production-ready outbound network policy;
 - Kubernetes PVC snapshotだけでHacocoonのwhole-Environment copy requirementを満たすこと。
 
-これらはacceptanceまたはdesign gateです。現在のsecurity modelを暗黙に弱めてよいfollow-upではありません。
+これらはparity gapまたは未解決のexperiment questionです。Kubernetes側の表現が違うからという理由でHacocoon requirementを弱めません。
 
 ## Ownership / trust boundary
 
@@ -67,7 +70,7 @@ Kubernetes Environmentへ次を渡してはいけません。
 
 そのため現在のPod manifestは`automountServiceAccountToken: false`、`hostUsers: false`、`hostNetwork: false`、`hostPID: false`、`hostIPC: false`、`privileged: false`を設定します。
 
-`hostUsers: false`はKubernetes Pod user namespaceを要求します。選択したSysbox RuntimeClassはHacocoonが必要とするsystem-container behaviorを提供できる必要があります。この保証を提供できないclusterはHacocoon Kubernetes backendとしてacceptしません。
+`hostUsers: false`はKubernetes Pod user namespaceを要求します。選択したSysbox RuntimeClassはHacocoonが必要とするsystem-container behaviorを提供できる必要があります。この保証を提供できないclusterは、このexperimentではruntime parity gapです。
 
 ## Identity / ownership
 
@@ -93,26 +96,26 @@ name validationはcluster mutationより先に実行します。provider refが`
 
 現在の実験ではnamespace全体へingress / egress両方の明示的default-deny `NetworkPolicy`を作成します。KubernetesはselectするNetworkPolicyが無いPodのtrafficを許可するため、policy不在をsecure defaultとは扱いません。
 
-長期的なKubernetes方向では、通常packet isolation、DNS、選択CNIが必要policyをenforceできる範囲のapproved direct egressはcluster networking layerへ任せます。CNIと同じ仕事をするためだけにHacocoonのmandatory byte-forwarding proxyを残しません。
+実験では、選択CNIが現在のHacocoon contractと同等behaviorをenforceできる範囲で、通常packet isolation、DNS、approved direct egressをcluster networking layerへ任せても構いません。これはHacocoon-owned proxy/network plumbingをproduct semanticsを変えず消せるかの検証です。
 
 ただしprivileged-operation Brokerは消しません。Git pushなどprotected authorityが必要な操作はHacocoon Policy / Approval / Capabilityへのstructured requestのままとし、credentialはtrusted sideだけで使います。
 
-現在のsliceにはbroad egress allow policyを意図的に入れていません。将来direct outbound accessを有効化する前に必要CNI capabilityを明示し、そのcapabilityが無い・driftしている場合はfail closedにする必要があります。
+現在のsliceにはbroad egress allow policyを意図的に入れていません。将来experimental direct outbound accessを有効化する前に必要CNI capabilityを明示し、そのcapabilityが無い・driftしている場合はfail closedにする必要があります。同等のdomain-aware semanticsを再現できない場合はparity failureです。
 
 ## Workspace transport
 
 最初のlocal experimentでは明示的に選ばれたWorkspaceを`hostPath`でPodへmountします。
 
-これは**最終的なKubernetes storage/security contractではありません**。writable `hostPath`はそのhost pathへのauthorityをPodへ与え、Kubernetes Pod Security Baseline/Restrictedとも互換ではありません。またmulti-node clusterではnode placement依存を作ります。
+これは**parity-completeなKubernetes storage/security contractではありません**。writable `hostPath`はそのhost pathへのauthorityをPodへ与え、Kubernetes Pod Security Baseline/Restrictedとも互換ではありません。またmulti-node clusterではnode placement依存を作ります。
 
-したがって現在の`hostPath`はlocal proof pathとしてのみ扱います。Kubernetes backendをsupportedとみなす前に、Workspace transportは次のどちらかへ進める必要があります。
+したがって現在の`hostPath`はlocal proof pathとしてのみ扱います。Workspace parityをclaimする前に、次のどちらかが必要です。
 
 - explicit lease / blast-radius semanticsを同等に持つstorage mechanismの背後へ移す。
-- local single-node placement modelを証明・enforceし、残る`hostPath` authorityを意図的かつ限定されたものとして受け入れる。
+- local single-node placement modelを証明・enforceし、残る`hostPath` authorityがIncus baselineとbehaviorally equivalentであることを示す。
 
 Host HOME、credential store、Kubernetes config、Hacocoon state、runtime socketを便利だからという理由でmountしてはいけません。
 
-## Whole-Environment copy gate
+## Whole-Environment copy parity gate
 
 Whole-Environment copyはHacocoonのrequired propertyであり、optional optimizationではありません。
 
@@ -124,15 +127,15 @@ haco clone source target
 
 `target`は通常root filesystem pathの変更やEnvironment-local runtime dataを含むsource Environmentのdurable machine stateから開始します。一方でHacocoon identityは新規であり、credential、approval、capability lease、trusted control authorityはcopyしません。
 
-relevant stateがOCI writable root filesystemやSysbox runtime-local dataに残る構成では、Kubernetes PVC cloneや`VolumeSnapshot`だけでは不十分です。そのため、必要なEnvironment stateをHacocoon contractとして十分atomicにcaptureできるstorage layout / clone operationを実証するまで、Kubernetes backendは**Incus backendを置き換える候補としてacceptしません**。
+relevant stateがOCI writable root filesystemやSysbox runtime-local dataに残る構成では、Kubernetes PVC cloneや`VolumeSnapshot`だけでは不十分です。Hacocoon contractとして十分atomicに必要Environment stateをcaptureできるstorage layout / clone operationを実証するまで、whole-Environment copyはexplicitなparity failureです。
 
-望ましい方向は、durable Environment root stateをsnapshot-capableなCOW storage boundaryへ置き、trust stateをその外へ置くことです。具体的なCSI/Btrfs実装はこのbranchでは未決定です。
+現在のinvestigation方向はdurable Environment root stateをsnapshot-capableなCOW storage boundaryへ置き、trust stateをその外へ置くことです。具体的なCSI/Btrfs実装はこのbranchでは未決定です。GitHub issue #322で追跡します。
 
 ## Resource guarantee
 
 最初の実験ではCPU、memory、root-storage limitをKubernetes container limitsへprojectionします。
 
-portable Pod resource APIでは現在Hacocoonがmodelするper-Environment PID guaranteeと同等のものを提供できないため、finite PID budgetはcluster mutation前にrejectします。node-wide kubelet settingを同等保証として扱ってはいけません。
+portable Pod resource APIでは現在Hacocoonがmodelするper-Environment PID guaranteeと同等のものを提供できないため、finite PID budgetはcluster mutation前にrejectします。node-wide kubelet settingを同等保証として扱ってはいけません。同等mechanismが無い間はfinite PID budgetをparity gapとして記録します。
 
 ## Failure / retry / cleanup
 
@@ -164,13 +167,13 @@ Git pushでは特に次を維持します。
 - staleまたはmismatchしたstateはfail closedにする。
 - trusted Brokerがprivileged operationを構築・実行し、audit evidenceを記録する。
 
-push credentialをEnvironmentへ露出しないと成立しないKubernetes実装はこのdesignと互換ではありません。
+push credentialをEnvironmentへ露出しないと成立しないKubernetes実装はparity failureです。
 
 ## `haco-host`
 
-experimental providerは`haco-host`を置き換えません。
+Environment runtime experimentでは既存`haco-host`実装をIncus上でそのまま残します。
 
-`main-kube`では既存local Incus trusted-host lifecycleをnormal trusted logical Host / recovery pathとして残します。これによりEnvironment runtimeの検証と、将来`haco-host`自体をどこで動かすかという判断を分離できます。
+これは意図的です。この実験では「untrusted Environment runtimeをKubernetesでfull parityかつ少ないHacocoon-owned complexityで再現できるか」と、「trusted `haco-host` infrastructureをどこで動かすか」を分離します。既存Environment-facing behaviorを再現するために必要にならない限り、all-Kubernetes `haco-host`はこの実験の必須条件ではありません。
 
 ## Current configuration
 
@@ -191,17 +194,20 @@ HACO_KUBERNETES_RUNTIME_CLASS=sysbox-runc
 HACO_KUBECTL=kubectl
 ```
 
-Kubernetes Environment providerは、まだこのbackendでintegrationをverifyしていないため現在`HACO_PLUGIN_OCI` compositionをrejectします。
+Kubernetes Environment providerは、まだこのbackendで同じintegrationを再現していないため現在`HACO_PLUGIN_OCI` compositionをrejectします。このreject自体がexplicitなfeature-parity gapであり、accepted product differenceではありません。
 
-## Replacementまでのacceptance gate
+## Parity gates
 
-次をintended supported hostで実証するまで、KubernetesをIncus replacementと記述しません。
+現在のHacocoon baselineと同じtarget上で次を実証するまでfull parityとは書きません。
 
-1. `systemd`、Environment-local root、nested container-runtime workloadを含むreal Kubernetes + Sysbox lifecycle。
+1. `systemd`、Environment-local root、nested container-runtime workloadを含むreal Kubernetes + selected system-container RuntimeClass lifecycle。
 2. ServiceAccount token、Host credential、Hacocoon control socket、`haco-host` authorityがEnvironmentへ露出していないこと。
-3. ingress / egress isolationと選択CNIのfail-closed policy behavior。
+3. 現行isolation / authorization contractと同等のingress/egress behaviorとfail-closed drift behavior。
 4. credentialがEnvironment外に残り、changed stateへapprovalをreuseできないことを証明するbrokered Git push regression coverage。
-5. fresh trust identityを伴うwhole-Environment snapshot / clone。
-6. accidental multi-node `hostPath` authority / placement bugを持たないWorkspace semantics。
-7. cleanup、crash、retry、node restart、drift failure injection。
-8. 通常networkやlarge-file pathへ不要なHacocoon forwarding proxyを戻さずperformance regressionが無いことのmeasurement。
+5. fresh trust identityと同等COW semanticsを伴うwhole-Environment snapshot / clone。
+6. accidental multi-node authority changeを持たないWorkspace identity、RO/RW lease、mount、conflict semantics。
+7. current client access、Base、OCI/Docker、Git fetch、interaction、logging、resource、run/recovery、その他user-visible/runtime featureを再現するかexplicit parity gapとして記録すること。
+8. cleanup、crash、retry、node restart、drift failure injection。
+9. large-file pathを含むIncus baselineとのcomplexity / performance実測比較。
+
+これらを通っても**`main`へmergeする意味にはなりません**。結果は [`kubernetes-parity-experiment.ja.md`](kubernetes-parity-experiment.ja.md) で定義したfact classificationのどれかとして記録するだけです。
