@@ -80,9 +80,9 @@ configure_wsl_systemd() {
   rm -f "$tmp"
 }
 
-printf '==> Installing base dependencies and systemd support\n'
+printf '==> Installing base dependencies, managed Btrfs tools, and systemd support\n'
 $SUDO apt-get update
-$SUDO apt-get install -y ca-certificates curl tar git systemd systemd-sysv
+$SUDO apt-get install -y ca-certificates curl tar git systemd systemd-sysv btrfs-progs util-linux
 
 printf '==> Enabling systemd for this WSL distribution\n'
 configure_wsl_systemd
@@ -139,6 +139,7 @@ sh "$INSTALLER" "$VERSION"
 printf '==> Installed binaries\n'
 command -v haco || true
 command -v haco-vscode || true
+printf '%s\n' '/usr/local/libexec/hacocoon/haco-storage-helper'
 
 if [ "$SKIP_INCUS" != "1" ] && [ "$GRANT_INCUS_ADMIN" = "1" ] && [ "$(id -u)" -ne 0 ]; then
   printf '%s\n' 'haco bootstrap: restart the WSL shell (or use newgrp incus-admin) before relying on the new group membership.'
