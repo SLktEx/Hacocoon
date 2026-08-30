@@ -74,11 +74,11 @@ func TestRealPrivilegedStorageHelperE2E(t *testing.T) {
 		t.Fatalf("unexpected managed storage state: %#v", state)
 	}
 
-	fstype, err := direct.Run(ctx, "findmnt", "-rn", "-o", "FSTYPE", "--target", source)
+	fstype, err := direct.Run(ctx, "findmnt", "-rn", "-o", "FSTYPE", "--mountpoint", source)
 	if err != nil || strings.TrimSpace(fstype.Stdout) != "btrfs" {
 		t.Fatalf("managed mount filesystem = %q err=%v, want btrfs", strings.TrimSpace(fstype.Stdout), err)
 	}
-	options, err := direct.Run(ctx, "findmnt", "-rn", "-o", "OPTIONS", "--target", source)
+	options, err := direct.Run(ctx, "findmnt", "-rn", "-o", "OPTIONS", "--mountpoint", source)
 	if err != nil || !strings.Contains(strings.TrimSpace(options.Stdout), "compress=zstd:3") {
 		t.Fatalf("managed mount options = %q err=%v, want compress=zstd:3", strings.TrimSpace(options.Stdout), err)
 	}
@@ -99,7 +99,7 @@ func TestRealPrivilegedStorageHelperE2E(t *testing.T) {
 	if _, err := os.Lstat(backing); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("backing image remains after delete: %v", err)
 	}
-	mounted, mountErr := direct.Run(ctx, "findmnt", "-rn", "--target", source)
+	mounted, mountErr := direct.Run(ctx, "findmnt", "-rn", "--mountpoint", source)
 	if mountErr == nil || mounted.ExitCode != 1 {
 		t.Fatalf("managed mount remains after delete: result=%#v err=%v", mounted, mountErr)
 	}
