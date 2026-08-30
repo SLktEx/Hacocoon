@@ -314,8 +314,12 @@ func (p *SandboxProvider) BuildSeed(ctx context.Context, plan seedbuild.BuildPla
 	if err := p.verifyBuilderHasNoNIC(ctx, builder); err != nil {
 		return seedbuild.BuildResult{}, cleanup(err)
 	}
-	if err := p.expectGuestUnitState(ctx, builder, "basic.target", "active"); err != nil {
+	stateResult, err := p.runner.Run(ctx, "incus", "exec", builder, "--project", p.project, "--", "systemctl", "show", "-p", "ActiveState", "--value", "containerd.service")
+	if err != nil {
 		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("wait for offline Seed builder systemd: %w", err))
+	}
+	if strings.TrimSpace(stateResult.Stdout) == "" || stateResult.StdoutTruncated {
+		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("offline Seed builder returned incomplete containerd state: %w", core.ErrIncompatibleState))
 	}
 	if err := p.guestExec(ctx, builder, "systemctl", "start", "containerd.service"); err != nil {
 		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("start containerd in offline Seed builder: %w", err))
