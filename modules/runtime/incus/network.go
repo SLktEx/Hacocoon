@@ -229,7 +229,7 @@ func (r *Runtime) ensureSandboxProfile(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	shown, err := r.runner.Run(ctx, "incus", "profile", "show", sandboxProfile, "--project", sandboxResourceProject, "--format", "json")
+	shown, err := r.showProfileJSON(ctx, sandboxProfile, sandboxResourceProject)
 	if err != nil {
 		if _, createErr := r.runner.Run(ctx, "incus", "profile", "create", sandboxProfile, "--project", sandboxResourceProject); createErr != nil {
 			return fmt.Errorf("create Hacocoon sandbox profile: %w", createErr)
@@ -249,7 +249,7 @@ func (r *Runtime) ensureSandboxProfile(ctx context.Context) error {
 		if _, addErr := r.runner.Run(ctx, "incus", args...); addErr != nil {
 			return fmt.Errorf("configure Hacocoon sandbox profile NIC: %w", addErr)
 		}
-		shown, err = r.runner.Run(ctx, "incus", "profile", "show", sandboxProfile, "--project", sandboxResourceProject, "--format", "json")
+		shown, err = r.showProfileJSON(ctx, sandboxProfile, sandboxResourceProject)
 		if err != nil {
 			return fmt.Errorf("verify Hacocoon sandbox profile: %w", err)
 		}
@@ -263,7 +263,7 @@ func (r *Runtime) ensureSandboxProfile(ctx context.Context) error {
 		if err := r.setSandboxProfileConfig(ctx, expectedConfig); err != nil {
 			return err
 		}
-		shown, err = r.runner.Run(ctx, "incus", "profile", "show", sandboxProfile, "--project", sandboxResourceProject, "--format", "json")
+		shown, err = r.showProfileJSON(ctx, sandboxProfile, sandboxResourceProject)
 		if err != nil {
 			return fmt.Errorf("verify migrated Hacocoon sandbox profile: %w", err)
 		}
