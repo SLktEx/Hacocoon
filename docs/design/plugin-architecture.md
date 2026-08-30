@@ -2,7 +2,7 @@
 
 Status: cross-cutting architecture reference. This is **not** a v0.1 implementation requirement.
 
-See also [`DESIGN_PRINCIPLES.md`](DESIGN_PRINCIPLES.md) for the product-level constraints this architecture must preserve.
+See also [`../DESIGN_PRINCIPLES.md`](../DESIGN_PRINCIPLES.md) for the product-level constraints this architecture must preserve.
 
 ## Goal
 
