@@ -6,7 +6,9 @@ Hacocoon deliberately separates development progression from published software 
 
 ## Development checkpoint
 
-A **development checkpoint** is the fast-moving pre-1.0 `v0.N` sequence maintained in [`../status/versioning-and-release-status.md`](../status/versioning-and-release-status.md).
+A **development checkpoint** is the fast-moving pre-1.0 `v0.N` sequence whose machine-readable numbering and gate identity live in [`../status/checkpoints.yaml`](../status/checkpoints.yaml).
+
+[`../status/versioning-and-release-status.md`](../status/versioning-and-release-status.md) is the human-readable policy/status view, and [`../IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md) describes current code reality and acceptance gaps.
 
 It answers: **what coherent product / implementation / operator / observability / acceptance slice has landed on `main`?**
 
@@ -59,7 +61,7 @@ For a compact human-readable string that does not initialize Incus or Host state
 haco --version
 ```
 
-The checkpoint compiled into `haco` comes from a generated build input synchronized with the authoritative checkpoint documents by `tools/bump-milestone`; it is not a release SemVer constant.
+The checkpoint compiled into `haco` comes from `internal/buildinfo/checkpoint_generated.go`. That file is generated from `docs/status/checkpoints.yaml` by `tools/bump-milestone`; it is not a release SemVer constant or an independent authority.
 
 ## Advancing a checkpoint
 
@@ -69,7 +71,9 @@ Use:
 tools/bump-milestone v0.N "Gate Name"
 ```
 
-The helper requires exactly the next `v0.N`, refuses authority mismatches, updates English/Japanese current-checkpoint declarations and version tables, updates the generated build input, and then runs the documentation consistency check.
+The helper reads the current checkpoint from `docs/status/checkpoints.yaml`, requires exactly the next `v0.N`, refuses stale Markdown/build mirrors, appends the new version/gate to the YAML source, synchronizes the English/Japanese current-checkpoint declarations and version tables, updates the generated build input, and then runs the documentation consistency check.
+
+The YAML source intentionally owns only numbering, current checkpoint, and gate identity. Implementation/partial/host-dependent status remains in the human-readable status documents so acceptance evidence does not become a second version-number schema.
 
 After the mechanical bump, refine the implementation-status text and owning design/reference documentation so the new checkpoint describes actual code reality rather than only a number.
 
@@ -82,4 +86,4 @@ Every maintained PR should classify itself as exactly one of:
 - release/packaging-only work;
 - docs/test/refactor/maintenance-only work.
 
-A new-checkpoint PR updates the checkpoint authorities in the same change. Release-only work must not silently advance the development checkpoint.
+A new-checkpoint PR updates the checkpoint source and mirrors in the same change. Release-only work must not silently advance the development checkpoint.

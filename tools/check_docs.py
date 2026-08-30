@@ -3,6 +3,8 @@ from pathlib import Path
 import re
 import sys
 
+from checkpoint_source import CheckpointSourceError, parse_checkpoint_source
+
 root = Path(__file__).resolve().parents[1]
 docs_root = root / "docs"
 markdown_files = list(root.rglob("*.md"))
@@ -91,6 +93,7 @@ required = [
     "docs/design/trusted-host.md", "docs/design/trusted-host.ja.md",
     "docs/security/security-architecture.md",
     "docs/reference/terminology-and-boundaries.md",
+    "docs/reference/build-release-identity.md", "docs/reference/build-release-identity.ja.md",
     "docs/status/architecture-and-roadmap.md",
     "docs/status/versioning-and-release-status.md", "docs/status/versioning-and-release-status.ja.md",
     "docs/design/secure-workspace-runtime.md",
@@ -141,63 +144,82 @@ def extract_checkpoint(path, pattern):
     return matches[0].lower()
 
 
-def checkpoint_minor(value):
-    if value is None:
-        return None
-    match = re.fullmatch(r"v0\.(\d+)", value, flags=re.IGNORECASE)
-    return int(match.group(1)) if match else None
+# docs/status/checkpoints.yaml is the machine-readable source of truth for checkpoint
+# numbering, the current checkpoint, and gate identity. Markdown documents and the
+# generated build input are mirrors with richer human-facing status/acceptance prose.
+checkpoint_source = None
+checkpoint_source_path = root / "docs/status/checkpoints.yaml"
+try:
+    checkpoint_source = parse_checkpoint_source(checkpoint_source_path)
+except CheckpointSourceError as exc:
+    errors.append(f"docs/status/checkpoints.yaml: {exc}")
 
-
-# The numbering/status authorities must agree on the current checkpoint. The checker
-# deliberately derives this value instead of hardcoding today's v0.N, so advancing
-# the pre-1.0 sequence does not require editing the checker itself.
-checkpoint_sources = {
+checkpoint_mirrors = {
     "docs/status/versioning-and-release-status.md": r"current milestone position is \*\*(v0\.\d+)\*\*",
     "docs/status/versioning-and-release-status.ja.md": r"現在のmilestone位置は\s*\*\*(v0\.\d+)\*\*",
     "docs/IMPLEMENTATION_STATUS.md": r"current milestone position is \*\*(v0\.\d+)\*\*",
     "docs/IMPLEMENTATION_STATUS.ja.md": r"現在のmilestone位置は\s*\*\*(v0\.\d+)\*\*",
 }
-checkpoint_values = {}
-for path, pattern in checkpoint_sources.items():
+for path, pattern in checkpoint_mirrors.items():
     value = extract_checkpoint(path, pattern)
-    if value:
-        checkpoint_values[path] = value
+    if checkpoint_source is not None and value is not None and value != checkpoint_source.current.lower():
+        errors.append(
+            f"{path}: current milestone mirror {value} disagrees with "
+            f"docs/status/checkpoints.yaml current {checkpoint_source.current}"
+        )
 
-if checkpoint_values and len(set(checkpoint_values.values())) != 1:
-    rendered = ", ".join(f"{path}={value}" for path, value in checkpoint_values.items())
-    errors.append(f"current milestone mismatch: {rendered}")
-
-# The versioning tables in English and Japanese must cover the same checkpoint
-# numbers, and their newest row must equal the declared current checkpoint.
+# English/Japanese status tables must mirror the ordered version/gate mapping from
+# YAML exactly. Their third status column remains intentionally human-maintained.
 version_table_paths = [
     "docs/status/versioning-and-release-status.md",
     "docs/status/versioning-and-release-status.ja.md",
 ]
-version_sets = {}
 for path in version_table_paths:
     p = root / path
     if not p.is_file():
         continue
-    rows = re.findall(r"^\|\s*(v0\.\d+)\s*\|", p.read_text(), flags=re.IGNORECASE | re.MULTILINE)
+    rows = re.findall(
+        r"^\|\s*(v0\.\d+)\s*\|\s*([^|]+?)\s*\|",
+        p.read_text(),
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
     if not rows:
-        errors.append(f"{path}: no checkpoint rows found in authoritative version table")
+        errors.append(f"{path}: no checkpoint rows found in version table")
         continue
-    version_sets[path] = {row.lower() for row in rows}
+    if checkpoint_source is None:
+        continue
+    expected = [(item.version.lower(), item.gate) for item in checkpoint_source.milestones]
+    actual = [(version.lower(), gate.strip()) for version, gate in rows]
+    if actual != expected:
+        mismatch = None
+        for index in range(max(len(actual), len(expected))):
+            got = actual[index] if index < len(actual) else None
+            want = expected[index] if index < len(expected) else None
+            if got != want:
+                mismatch = (index + 1, got, want)
+                break
+        errors.append(
+            f"{path}: checkpoint table does not mirror docs/status/checkpoints.yaml; "
+            f"first mismatch at row {mismatch[0]}: got {mismatch[1]!r}, expected {mismatch[2]!r}"
+        )
 
-if len(version_sets) == len(version_table_paths):
-    sets = list(version_sets.values())
-    if sets[0] != sets[1]:
-        errors.append("English/Japanese authoritative version tables contain different checkpoint numbers")
-
-    if checkpoint_values:
-        current = next(iter(checkpoint_values.values()))
-        current_minor = checkpoint_minor(current)
-        for path, versions in version_sets.items():
-            minors = [checkpoint_minor(version) for version in versions]
-            if current not in versions:
-                errors.append(f"{path}: declared current milestone {current} is missing from the table")
-            elif current_minor is not None and max(minors) != current_minor:
-                errors.append(f"{path}: newest table checkpoint does not match declared current milestone {current}")
+# The build-time generated checkpoint must be a mirror of the same YAML source.
+generated_checkpoint_path = root / "internal/buildinfo/checkpoint_generated.go"
+if not generated_checkpoint_path.is_file():
+    errors.append("missing generated checkpoint input: internal/buildinfo/checkpoint_generated.go")
+elif checkpoint_source is not None:
+    generated_matches = re.findall(
+        r'const GeneratedCheckpoint = "(v0\.\d+)"',
+        generated_checkpoint_path.read_text(),
+    )
+    if len(generated_matches) != 1:
+        errors.append("internal/buildinfo/checkpoint_generated.go: expected exactly one GeneratedCheckpoint")
+    elif generated_matches[0].lower() != checkpoint_source.current.lower():
+        errors.append(
+            "internal/buildinfo/checkpoint_generated.go: generated checkpoint "
+            f"{generated_matches[0]} disagrees with docs/status/checkpoints.yaml current "
+            f"{checkpoint_source.current}"
+        )
 
 # Intro/index/roadmap documents link to the authorities instead of copying concrete
 # checkpoint numbers. This is the main drift-prevention rule for fast v0.N progress.
@@ -236,6 +258,12 @@ require_text("docs/status/versioning-and-release-status.ja.md", [
     "Interaction Notification Clients", "Real Incus E2E Acceptance", "Structured Logging",
     "Managed Btrfs Host Privilege Broker", "Trusted `haco-host` & Default WSL Entry",
     "release tagとroadmap milestone番号は別物",
+])
+require_text("docs/reference/build-release-identity.md", [
+    "status/checkpoints.yaml", "tools/bump-milestone", "machine-readable", "generated build input",
+])
+require_text("docs/reference/build-release-identity.ja.md", [
+    "status/checkpoints.yaml", "tools/bump-milestone", "machine-readable", "generated build input",
 ])
 require_text("docs/IMPLEMENTATION_STATUS.md", [
     "current code reality", "pkg/clientadapter", "haco ssh", "haco plugin oci seed build",
