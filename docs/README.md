@@ -13,6 +13,7 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, devel
 - Architecture / roadmap: [`status/architecture-and-roadmap.md`](status/architecture-and-roadmap.md)
 - Security architecture: [`security/security-architecture.md`](security/security-architecture.md)
 - Trusted logical Host: [`design/trusted-host.md`](design/trusted-host.md)
+- Experimental Kubernetes Environment runtime: [`design/kubernetes-runtime.md`](design/kubernetes-runtime.md)
 - Windows / WSL bootstrap and default `haco-host` entry: [`WINDOWS_WSL_BOOTSTRAP.md`](WINDOWS_WSL_BOOTSTRAP.md)
 - Core / Standard / Plugin boundaries: [`design/plugin-architecture.md`](design/plugin-architecture.md)
 - Canonical terminology: [`reference/terminology-and-boundaries.md`](reference/terminology-and-boundaries.md)
@@ -62,6 +63,8 @@ For outbound access, the egress request/policy/controller contract belongs to Co
 
 `haco-host` is trusted infrastructure supplied by the local Incus integration, not an Environment and not an OCI-plugin requirement. The current lifecycle/default-entry slice is implemented; broader Git/OCI/credential/control-channel migration remains follow-up work.
 
+The `main-kube` branch additionally carries a partial Kubernetes + Sysbox Environment-provider experiment. It keeps `haco-host`, Policy / Approval / Capability, credentials, audit, and brokered Git push on the trusted side; whole-Environment clone and final Workspace storage remain explicit replacement gates. See [`design/kubernetes-runtime.md`](design/kubernetes-runtime.md).
+
 ## Current checkpoint
 
 Do not infer the current checkpoint from individual feature pages, README prose, or commit messages. Use:
@@ -75,6 +78,7 @@ Pre-1.0 checkpoint numbers are deliberately cheap. Meaningful product, implement
 Current design/reference documents include:
 
 - [`design/trusted-host.md`](design/trusted-host.md)
+- [`design/kubernetes-runtime.md`](design/kubernetes-runtime.md)
 - [`design/managed-sandbox-network.md`](design/managed-sandbox-network.md)
 - [`design/git-fetch-plugin.md`](design/git-fetch-plugin.md)
 - [`design/oci-seed-recommendation.md`](design/oci-seed-recommendation.md)
