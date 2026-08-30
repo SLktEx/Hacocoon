@@ -22,8 +22,8 @@ func TestCreateToolingBuilderNetworkIsSeedScopedAndEphemeral(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(name, "haco-tooling-net-build-") {
-		t.Fatalf("network name = %q", name)
+	if !strings.HasPrefix(name, "haco-t-") || len(name) != 15 {
+		t.Fatalf("network name = %q, want 15-character haco-t-* Linux interface name", name)
 	}
 	if len(runner.calls) != 1 {
 		t.Fatalf("calls = %#v", runner.calls)
