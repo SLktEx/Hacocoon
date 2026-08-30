@@ -122,12 +122,15 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	result, err := r.aws(ctx, args...)
 	if err != nil {
 		// The request may have reached EC2 even when the caller did not observe
-		// the response. Preserve both staging and the durable operation journal;
-		// the next create attempt for the same environment will reuse this exact
-		// client token instead of launching another instance.
-		return core.EnvironmentRuntime{}, errors.Join(
-			fmt.Errorf("EC2 RunInstances outcome is unknown for create operation %s (client token %s): %w", operation.Key, operation.ClientToken, err),
-			core.ErrRecoveryRequired,
+		// the response. Preserve staging and the durable operation journal. This
+		// error is deliberately retryable: the next Create for the same
+		// environment reuses the exact client token, so retry cannot launch a
+		// second instance for the same operation.
+		return core.EnvironmentRuntime{}, fmt.Errorf(
+			"EC2 RunInstances outcome is unknown for create operation %s (client token %s); retry is idempotent: %w",
+			operation.Key,
+			operation.ClientToken,
+			err,
 		)
 	}
 	instanceID = strings.TrimSpace(result.Stdout)
