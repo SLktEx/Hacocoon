@@ -142,7 +142,7 @@ func bump(root, next, gate string) error {
 	if len(generatedRE.FindAll(generated, -1)) != 1 {
 		return fmt.Errorf("%s: expected exactly one generated checkpoint constant", generatedPath)
 	}
-	contents[generatedPath] = generatedRE.ReplaceAll(generated, []byte(`const GeneratedCheckpoint = "`+next+`"`))
+	contents[generatedPath] = generatedRE.ReplaceAll(generated, []byte("const GeneratedCheckpoint = \""+next+"\""))
 
 	for path, data := range contents {
 		if err := writeAtomic(filepath.Join(root, path), data); err != nil {
