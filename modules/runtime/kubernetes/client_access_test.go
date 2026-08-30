@@ -37,6 +37,7 @@ func TestDurableLoopbackForwardCreateListRemove(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = provider.stopClientForward(context.Background(), "haco-demo", connection.ID) })
 	if connection.Host != "127.0.0.1" || connection.Port != port || connection.TargetPort != 8080 || connection.Kind != "tcp" {
 		t.Fatalf("connection = %#v", connection)
 	}
@@ -95,6 +96,7 @@ func TestSSHAccessUsesSameDurableLoopbackForward(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = provider.stopClientForward(context.Background(), "haco-demo", connection.ID) })
 	if connection.Kind != "ssh" || connection.User != "root" || connection.TargetPort != 22 || connection.Host != "127.0.0.1" {
 		t.Fatalf("SSH connection = %#v", connection)
 	}
@@ -173,7 +175,8 @@ func newOwnedClientProvider(t *testing.T, kubectl string, extra func([]string) (
 	t.Helper()
 	namespace := namespaceState{}
 	namespace.Metadata.Name = "haco-demo"
-	namespace.Metadata.Labels = managedLabels("demo")	namespaceJSON, err := json.Marshal(namespace)
+	namespace.Metadata.Labels = managedLabels("demo")
+	namespaceJSON, err := json.Marshal(namespace)
 	if err != nil {
 		t.Fatal(err)
 	}
