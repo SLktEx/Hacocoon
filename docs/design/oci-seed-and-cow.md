@@ -1,12 +1,12 @@
 # v0.17 — OCI Seed Builder & Btrfs/COW Optimization
 
-Status: **first repository slice implemented / partial. v0.15 recommendation and v0.16 deletion policy are implemented prerequisites. Seed build/publish and exact-parent resolution now exist; real-host and physical COW acceptance remain pending.**
+Status: **repository build/publish and operations-hardening slices implemented / partial. v0.15 recommendation and v0.16 deletion policy are implemented prerequisites. Real-host, private-registry, and physical COW acceptance remain pending.**
 
-v0.17 owns the physical OCI Seed pipeline: trusted Host-side image acquisition/cache, offline Seed construction, immutable publication, revision pinning, and storage-driver COW benefits.
+v0.17 owns the physical OCI Seed pipeline: trusted Host-side image acquisition/cache, offline Seed construction, immutable publication, revision pinning, storage-driver COW benefits, and conservative lifecycle maintenance.
 
 A Local Registry is not required.
 
-The implementation originally landed while this feature was numbered v0.18. The authoritative roadmap now assigns Seed Builder/COW to v0.17; historical commits and PRs may retain the earlier number.
+The implementation originally began landing while this feature was numbered v0.18. The authoritative roadmap now assigns Seed Builder/COW to v0.17; historical commits and PRs may retain the earlier number.
 
 ## Goal
 
@@ -36,7 +36,7 @@ immutable Incus Seed revision
    Env A Env B Env C
 ```
 
-## Implemented first slice
+## Implemented first repository slice
 
 - `haco plugin oci seed build [--base <base>] [--json]`
 - `haco plugin oci seed current [--base <base>] [--json]`
@@ -51,6 +51,23 @@ immutable Incus Seed revision
 - exact-parent Seed resolution: a Seed is used only while its recorded parent Base revision still matches the currently resolved immutable parent
 - Tooling Base support for containerd + nerdctl and genuine Docker CLI/Engine compatibility without forwarding a Host Docker/containerd socket
 
+## Implemented operations-hardening slice
+
+- `haco plugin oci seed pin <reference@sha256:...> [--base <base>] [--json]`
+- `haco plugin oci seed unpin <reference@sha256:...> [--base <base>] [--json]`
+- `haco plugin oci seed pins [--base <base>] [--json]`
+- `haco plugin oci seed gc [--json]`
+- `haco plugin oci seed recover [--json]`
+- `haco plugin oci image reenable <reference@sha256:...> [--json]`
+- persistent per-Base explicit immutable pins merged with automatic recommendations
+- deletion tombstones override recommendations and existing pins until the exact immutable identity is explicitly re-enabled
+- build-time deletion state is re-checked after Seed publication so a deletion racing a long build cannot silently advance the current pointer
+- interrupted exact Hacocoon Seed/Tooling builders are reconciled before a new build while the process-safe Seed build lock is held
+- conservative old Tooling/Seed image GC is scoped to the Hacocoon Incus project and Hacocoon-owned image aliases
+- current manifest revisions/aliases, instance `volatile.base_image` dependencies, Incus `used_by` references, and externally aliased images are retained
+- malformed Incus/provider inventory fails closed before destructive image deletion
+- GC uses supported Incus image lifecycle operations and does not manipulate Incus-owned Btrfs subvolumes directly
+
 ## Mandatory isolation rule
 
 Hacocoon must never obtain storage savings by sharing one writable `/var/lib/containerd` across Environments.
@@ -60,35 +77,50 @@ Each Environment must remain independently mutable, deletable, corruptible, and 
 ## Inputs
 
 - immutable parent Base revision from the v0.11 Base model;
-- image identities selected by v0.15 recommendation/automatic-promotion policy plus explicit operator input;
+- image identities selected by v0.15 recommendation/automatic-promotion policy plus explicit operator pins;
 - v0.16 deletion tombstones/overrides;
 - trusted Host-side upstream credentials where authentication is required.
 
-Mutable OCI tags are convenience input only. Seed manifests persist immutable digests.
+Mutable OCI tags are convenience input only. Seed manifests and explicit pins persist immutable digests.
 
 ## Build lifecycle
 
-1. resolve the logical Base to an immutable Base revision;
-2. resolve the effective Seed image set from OCI recommendations;
-3. acquire selected OCI content on the trusted Host and pin digests;
-4. export/stream content into a temporary Seed Builder;
-5. create the builder from the pinned Tooling Base with no general network access and no NIC;
-6. import/unpack through supported containerd/nerdctl interfaces;
-7. verify every requested digest;
-8. stop containerd/Docker compatibility services cleanly;
-9. stop the builder;
-10. publish an immutable Incus Seed revision;
-11. persist a manifest binding parent Base revision, Tooling revision, Seed revision, and OCI digests;
-12. move the logical current-Seed pointer only after publication/validation succeeds;
-13. surface recovery-required state when publication/state persistence becomes ambiguous.
+1. acquire the process-safe Seed build lock and reconcile interrupted Hacocoon builders when the provider supports maintenance;
+2. resolve the logical Base to an immutable Base revision;
+3. resolve the effective Seed image set from OCI recommendations plus explicit per-Base pins;
+4. reject any selected immutable identity blocked by an OCI deletion tombstone;
+5. acquire selected OCI content on the trusted Host and pin digests;
+6. export/stream content into a temporary Seed Builder;
+7. create the builder from the pinned Tooling Base with no general network access and no NIC;
+8. import/unpack through supported containerd/nerdctl interfaces;
+9. verify every requested digest;
+10. stop containerd/Docker compatibility services cleanly;
+11. stop the builder;
+12. publish an immutable Incus Seed revision;
+13. re-check deletion state for the selected immutable identities;
+14. persist a manifest binding parent Base revision, Tooling revision, Seed revision, and OCI digests;
+15. move the logical current-Seed pointer only after publication/validation succeeds;
+16. surface recovery-required state when publication/state persistence or maintenance cleanup becomes ambiguous.
+
+## Pin, deletion, and re-enable precedence
+
+An explicit pin is an operator request to include one exact immutable OCI identity in future Seeds for a logical Base. It does not override an explicit deletion.
+
+A v0.16 deletion tombstone wins over both automatic recommendation and an existing pin. A tombstoned identity must be removed with `haco plugin oci image reenable <reference@sha256:...>` before it can be pinned or selected again. Re-enable is exact-identity only so a mutable tag move cannot silently re-enable another digest.
+
+## Recovery and GC
+
+`haco plugin oci seed recover` reconciles exact Hacocoon temporary Seed/Tooling builders and then performs the same conservative image-retention analysis used by `seed gc`. `seed build` invokes interrupted-builder recovery before starting another build when the configured backend supports it.
+
+An image is not deleted if Hacocoon cannot prove it is owned and unused. Current Seed/Tooling revisions, protected aliases, instance base-image fingerprints, Incus `used_by` references, and any external alias cause retention. Malformed inventory is a fail-closed error rather than permission to delete.
 
 ## Plugin boundary
 
-Seed observation/deletion/build/current remain under `haco plugin oci ...`. The physical v0.17 builder/publisher stays outside Core behind the OCI/provider adapter boundary; it does not turn containerd, nerdctl, OCI manifests, Incus images, or Btrfs subvolumes into Core vocabulary.
+Seed observation/deletion/build/current/pin/maintenance remain under `haco plugin oci ...`. The physical v0.17 builder/publisher stays outside Core behind the OCI/provider adapter boundary; it does not turn containerd, nerdctl, OCI manifests, Incus images, or Btrfs subvolumes into Core vocabulary.
 
 ## Btrfs/COW boundary
 
-Hacocoon relies on Incus/storage-driver cloning. It must not directly manipulate Incus-owned Btrfs subvolumes from Core.
+Hacocoon relies on Incus/storage-driver cloning. It must not directly manipulate Incus-owned Btrfs subvolumes from Core or from Seed GC.
 
 On Btrfs, unchanged Seed-derived blocks should be physically shared until copy-on-write. Non-COW backends may still use the same logical Seed feature but must not claim equivalent storage savings.
 
@@ -100,25 +132,27 @@ On Btrfs, unchanged Seed-derived blocks should be physically shared until copy-o
 - Seed Builder has no arbitrary upstream network path;
 - networked acquisition happens on the trusted Host side;
 - reusable upstream credentials are not embedded in the Seed;
-- a partial build never becomes current;
+- explicit OCI identities reject option-like references and require immutable `sha256` digests;
+- deletion tombstones have precedence over pins and recommendations;
+- a partial or deletion-raced build never becomes current;
 - cleanup ambiguity becomes recovery-required;
-- old Seed GC prefers retention while an active/recoverable Environment may still depend on a revision.
+- old Seed GC prefers retention whenever ownership or dependency evidence is ambiguous.
 
 ## Remaining acceptance / follow-up
 
-The first repository slice does not make v0.17 complete. Remaining work includes:
+The repository slices do not make v0.17 complete. Remaining work includes:
 
 - real supported-host Incus + containerd + nerdctl acceptance;
 - real Docker Engine compatibility acceptance for the Tooling Base path;
-- conservative old Tooling/Seed revision GC and restart/crash recovery;
-- authenticated/private-registry combinations without credential leakage;
+- authenticated/private-registry combinations without credential leakage, including credential-free harvesting from an Environment that already pulled an immutable image where supported;
 - physical Btrfs COW/block-sharing measurement;
-- broader failure-injection coverage around publish/cleanup/state persistence.
+- broader real-host failure-injection coverage around publication, restart, cleanup, and storage behavior;
+- evaluate whether an Incus/Btrfs-backed trusted acquisition/cache materially improves cache -> builder -> Seed block reuse; keep it optional unless measurement justifies it.
 
 ## Relationship to other milestones
 
 - v0.15 selects/recommends image identities through the OCI plugin.
 - v0.16 can tombstone/delete identities from future Seed selection through the OCI plugin.
 - Optional Local Registry infrastructure is not a prerequisite and has no reserved milestone.
-- v0.17 owns the actual immutable Seed build/publish/COW lifecycle.
+- v0.17 owns the actual immutable Seed build/publish/COW lifecycle and its repository-side maintenance semantics.
 - v0.18 Docker Compatibility repository integration is implemented; its CLI/Engine compatibility remains optional and outside Core.
