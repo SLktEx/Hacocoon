@@ -1,5 +1,9 @@
 # Hacocoon 管理 Btrfs ストレージレイアウト
 
+状態: **repository実装あり。physical compression/COW/compaction acceptanceはhost-dependentです。**
+
+Milestone: **v0.20 Managed Btrfs Rootfs Storage** / **v0.21 Managed Btrfs Transparent Compression**。
+
 Hacocoon のローカルストレージは、設定されたストレージ pool ごとに 1 個の sparse raw backing image を持ち、その image を Btrfs でフォーマットする。Incus は、その Btrfs filesystem の mount point を対応する Hacocoon 管理 storage pool の source として利用する。
 
 ```text
@@ -33,6 +37,14 @@ Incus pool: haco-<storage-id>
 - compaction によって未使用 extent を sparse raw backing file の hole に戻せる。
 
 隔離のためだけに Environment や Seed ごとへ別の Btrfs filesystem / sparse image を作ってはいけない。論理的な隔離は、共有 storage pool 内の Incus volume / subvolume が担当する。
+
+## 圧縮ポリシー
+
+Managed Btrfs filesystem は標準で `compress=zstd:3` を使う。`compress-force` は意図的に使わず、圧縮しにくいdataはBtrfsの通常heuristicsに任せてuncompressedのまま扱えるようにする。
+
+既にmount済みのHacocoon-managed filesystemが期待するcompression optionを持たない場合は、managed filesystemを `compress=zstd:3` でremountする。`compress-force` が付いているmountはdesired stateを満たしたものとして扱わない。
+
+compression mount optionが効くのは新しく書かれるextentです。既存dataを自動defrag/recompressするとreflink/COW sharingを減らす可能性があるため、Hacocoonは自動再圧縮しない。physical compression ratio、CPU cost、supported-host behaviorはrepository testだけで証明したことにしない。
 
 ## Runtime の pool 選択ルール
 

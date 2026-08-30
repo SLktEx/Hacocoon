@@ -14,6 +14,7 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 - Core / Standard / Plugin境界: [`design/plugin-architecture.md`](design/plugin-architecture.md)
 - 用語と境界: [`reference/terminology-and-boundaries.md`](reference/terminology-and-boundaries.md)
 - Domain-aware egress: [`EGRESS_AUTHORIZATION.ja.md`](EGRESS_AUTHORIZATION.ja.md)
+- Managed Btrfs storage: [`design/btrfs-storage-layout.ja.md`](design/btrfs-storage-layout.ja.md)
 - Reusable client adapter: [`CLIENT_ADAPTER_CONTRACT.ja.md`](CLIENT_ADAPTER_CONTRACT.ja.md)
 - Client interaction event: [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md)
 - README / docs の書き方: [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md)
@@ -61,10 +62,13 @@ docs/adr/         architecture decision record。ADR番号はidentityなので�
 | v0.14 | Git Fetch Plugin | 実装済み |
 | v0.15 | OCI Seed Recommendation | 実装済み |
 | v0.16 | OCI Image Deletion | first slice実装済み |
-| v0.17 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
+| v0.17 | OCI Seed Builder & Btrfs/COW | repository slice / partial acceptance |
 | v0.18 | Docker Compatibility Plugin | repository実装完了。real-host acceptanceは別 |
+| v0.19 | Domain-aware Egress Authorization | repository実装完了。real supported-Incus acceptanceは別 |
+| v0.20 | Managed Btrfs Rootfs Storage | first repository slice実装済み。physical COW/compaction acceptanceは別 |
+| v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` managed default実装済み。physical compression/performance acceptanceは別 |
 
-v0.17がpartialなので、完全実装済みのproduct progressionは **v0.16まで連続**しています。Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
+現在のmilestone位置は **v0.21** です。minor versionはpre-1.0の軽量な進捗checkpointとして扱い、前のmilestoneがpartialでも後続へ進めます。Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
 
 現在のdesign specification:
 
@@ -74,6 +78,8 @@ v0.17がpartialなので、完全実装済みのproduct progressionは **v0.16�
 - [`design/oci-image-deletion.ja.md`](design/oci-image-deletion.ja.md)
 - [`design/oci-seed-and-cow.ja.md`](design/oci-seed-and-cow.ja.md)
 - [`design/docker-compatibility-plugin.ja.md`](design/docker-compatibility-plugin.ja.md)
+- [`EGRESS_AUTHORIZATION.ja.md`](EGRESS_AUTHORIZATION.ja.md)
+- [`design/btrfs-storage-layout.ja.md`](design/btrfs-storage-layout.ja.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md) — deferred optional direction
 
 ## Reusable client adapter境界
@@ -112,11 +118,11 @@ provider-neutralなremote/cloud routing seamは維持しますが、concrete EC2
 
 ## Versioning
 
-独立して使える1機能 ≒ 1 minor milestone。fix / hardening / refactor / CLI namespace cleanup / CI / docsだけでは通常versionを消費しません。version mappingはstatus docや本文に書き、通常のfilenameには入れません。
+minor versionはpre-1.0の実用的な進捗checkpointです。意味のあるimplementation sliceが入ったら、follow-upやreal-host acceptanceが残っていても次minorへ進めて構いません。fix / hardening / refactor / CLI namespace cleanup / CI / docsだけでは通常versionを消費しません。version mappingはstatus docや本文に書き、通常のfilenameには入れません。
 
 ## 編集ルール
 
-[`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md) に従います。owner docを先に更新し、その後 `IMPLEMENTATION_STATUS.md`、独立した新機能がmilestoneを消費・変更する時だけ `status/versioning-and-release-status.md` を更新します。英語/日本語のcompanionは同じ変更で揃え、最後に実行します。
+[`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md) に従います。owner docを先に更新し、その後 `IMPLEMENTATION_STATUS.md`、development checkpointがmilestoneを消費・変更する時は `status/versioning-and-release-status.md` を更新します。英語/日本語のcompanionは同じ変更で揃え、最後に実行します。
 
 ```bash
 python tools/check_docs.py

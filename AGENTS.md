@@ -35,7 +35,8 @@ When behavior changes:
 
 - update the owning design/reference/security document before summary pages;
 - update `docs/IMPLEMENTATION_STATUS.md` for current repository reality;
-- update `docs/status/versioning-and-release-status.md` only when an independently useful product feature consumes or changes a milestone;
+- update `docs/status/versioning-and-release-status.md` when a meaningful development checkpoint consumes or changes a milestone;
+- treat pre-1.0 minor milestones as lightweight progress checkpoints: partial work or pending real-host acceptance in an earlier milestone does not block advancing to a later minor;
 - use `docs/reference/terminology-and-boundaries.md` for canonical vocabulary;
 - preserve `docs/security/security-architecture.md` trust-boundary rules;
 - keep English/Japanese companion documents aligned in the same change when both exist;

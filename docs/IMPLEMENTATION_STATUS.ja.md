@@ -4,7 +4,7 @@
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。v0.17 OCI Seed Builder & Btrfs/COW がpartialなfeature gateなので、完全実装済みの product progression は **v0.16まで連続**しています。一方、v0.18 Docker Compatibilityのrepository実装は番号入れ替えより先にland済みで、その実装はそのまま有効です。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.21** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|
@@ -20,7 +20,7 @@ Hacocoon は pre-1.0 です。v0.17 OCI Seed Builder & Btrfs/COW がpartialなfe
 | Base | `haco base list` / `inspect`、immutable Base revision | v0.11 |
 | Resource budget | CPU / memory / PID / root storage | v0.12 |
 | Managed Sandbox Network | `haco-sandbox0`、proxy-only ACL transport guard、`haco-sandbox` profile。DHCPを残してbridge DNSを停止し、driftはfail closed | v0.13 / cross-cutting |
-| Domain-aware egress authorization | Core `network.egress/connect`、Standard HTTP/HTTPS proxy、Host DNS pinning、private-address reject、CONNECT/SNI検証、trusted Incus source-IP mapping、`haco egress serve` を実装。real supported-Incus acceptanceはhost-dependent | cross-cutting |
+| Domain-aware egress authorization | Core `network.egress/connect`、Standard HTTP/HTTPS proxy、Host DNS pinning、private-address reject、CONNECT/SNI検証、trusted Incus source-IP mapping、`haco egress serve` を実装。real supported-Incus acceptanceはhost-dependent | v0.19 implemented |
 | Git Fetch Plugin | `haco plugin git fetch`、Host `gh auth git-credential` | v0.14 |
 | OCI plugin boundary | `HACO_PLUGIN_OCI=nerdctl|docker` の明示opt-in。未設定でもCoreは動作する | cross-cutting |
 | OCI Seed Recommendation | `haco plugin oci seed sample` / `recommend`、top 10%を `auto_promote=true` | v0.15 |
@@ -28,6 +28,8 @@ Hacocoon は pre-1.0 です。v0.17 OCI Seed Builder & Btrfs/COW がpartialなfe
 | OCI deletion override | tombstoneはrecommendationと既存pinより優先し、`haco plugin oci image reenable <reference@sha256:...>` でexact immutable identityだけ明示復活できる | v0.16 / v0.17 integration |
 | OCI Seed Builder / Btrfs COW | `haco plugin oci seed build` / `current`、Base単位の `pin` / `unpin` / `pins`、保守的な `seed gc` / `recover`、trusted Host acquisition、明示marker付きrunning managed Environmentからのcredential-free exact-image harvest、offline no-NIC build、immutable publish/current pointer、exact-parent resolution、build前のinterrupted-builder recoveryを実装。real-host/authenticated-registry/COW acceptanceはpending | v0.17 partial |
 | Docker Compatibility | `haco plugin oci docker status/prepare`。Base提供profileとpinned systemd unitを検証し、active vendor daemonを勝手に停止せずEnvironment-local socket activationだけを有効化 | v0.18 implemented |
+| Managed Btrfs rootfs storage | local compositionがstorage poolごとに1個のsparse-raw Btrfs filesystemをlazyに用意し、Hacocoon所有のBase/Tooling/Seed/Environment rootfsを対応する `haco-<storage-id>` Incus poolへ固定。Hostのdefault poolを継承しない | v0.20 first slice implemented |
+| Managed Btrfs transparent compression | managed Btrfs mountは標準で `compress=zstd:3`。非準拠managed mountはremountし、`compress-force`はdesired stateとして採用せず、既存dataの自動recompressionもしない | v0.21 implemented |
 | Optional Local OCI Registry | optional。通常pullやSeed constructionの必須経路ではない | unversioned optional / deferred |
 
 ## Domain-aware egress境界
@@ -56,13 +58,17 @@ Base lifecycle は `haco base ...`、OCI workload tooling は `haco plugin oci .
 
 ## OCI Seed / storage
 
-v0.17はbuild/publish、operations-hardeningに加え、credential-free managed-Environment harvestのrepository sliceも実装済みです。trusted Host acquisition/cache → offline no-NIC Seed Builder → immutable Seed revision/current pointer → exact-parent resolution → normal Incus/storage-driver clone の経路を維持し、複数Environmentで一つのwritable `/var/lib/containerd` を共有しません。
+v0.17はbuild/publish、operations-hardening、credential-free managed-Environment harvestのrepository sliceを実装済みです。trusted Host acquisition/cache → offline no-NIC Seed Builder → immutable Seed revision/current pointer → exact-parent resolution → normal Incus/storage-driver clone の経路を維持し、複数Environmentで一つのwritable `/var/lib/containerd` を共有しません。
 
 Base単位の明示pinはimmutable OCI identityとしてpersistします。deletion tombstoneはrecommendationと既存pinの両方より優先し、exact identityを明示reenableするまで復活しません。`seed recover` はHacocoon-owned temporary builderをreconcileしてから保守的GCを行い、`seed build` もbuild lock保持中に事前recoveryします。GCはIncus-owned Btrfs internalsを直接触らず、current/in-use/instance-base/external-aliasのimageを保持します。publish後にもdeletion stateを再確認するため、長いbuild中にoperator deleteがraceしてもcurrentへ昇格しません。
 
 exact immutable identityが明示marker付きrunning Hacocoon-managed Environmentに既に存在する場合、temporary `nerdctl save` OCI archiveだけをtrusted Host cacheへcopyし、guest archiveを削除して再利用できます。registry credential、credential-helper output、workspace data、任意のEnvironment file、live containerd stateはcopyしません。legacy/unmarked Environmentはharvest対象にせず、harvest不能時は従来のtrusted Host pullへfallbackします。
 
-Local Registryはprerequisiteではなくroadmap versionも予約しません。残件はreal supported-host Incus/containerd/Docker acceptance、Host-owned credentialを使うauthenticated/private-registry combinationのcredential leakなし検証、physical Btrfs COW measurement、broader real-host failure injectionです。
+v0.20ではSeed固有のCOWだけでなく、local rootfs全体のstorage boundaryをHacocoon管理Btrfsへ統一します。Environment、Tooling Base builder、Seed builderがroot storageを必要とした時点でlazy providerがmanaged attachmentを解決し、対応する `haco-<storage-id>` Incus poolを選びます。Base/Tooling/Seed/Environment rootfs、snapshot、cloneは同じHacocoon-managed Btrfs filesystemを使い、Host Workspaceは従来どおり外部からbind mountします。
+
+v0.21ではmanaged Btrfsのtransparent compressionを標準化します。初回mountと非準拠の既存managed mountに `compress=zstd:3` を適用し、`compress-force` はdesired stateとして使いません。既存extentの自動defrag/recompressはreflink/COW sharingを減らす可能性があるため行いません。詳細は [`design/btrfs-storage-layout.ja.md`](design/btrfs-storage-layout.ja.md) を参照してください。
+
+Local Registryはprerequisiteではなくroadmap versionも予約しません。残件はreal supported-host Incus/containerd/Docker acceptance、authenticated/private-registry combination、physical Btrfs compression ratio / CPU cost / COW measurement、compaction/sparse-hole behavior、broader real-host failure injectionです。
 
 ## Docker compatibility
 
@@ -73,3 +79,7 @@ real Incus/systemd acceptanceはrepository実装とは分離したhost-dependent
 ## Cloud
 
 v0.7 の provider-neutral routing seam は残しますが、以前の concrete EC2/AWS/EBS implementation は active tree から意図的に外しています。local/provider contract が安定するまで cloud support は deferred です。
+
+## Acceptance gaps
+
+repository testsはreal-host acceptanceの代わりではありません。real Incus network/resource behavior、Windows/WSL + VS Code、private-registry credential、Docker compatibility、managed Btrfs compression/COW/compaction、future cloud adapterはenvironment-dependentです。前のmilestoneにpartial acceptanceが残っていても、後続minor checkpointは進めて構いません。
