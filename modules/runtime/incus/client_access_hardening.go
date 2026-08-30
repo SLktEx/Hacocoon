@@ -17,8 +17,22 @@ const managedSSHProvisionScript = `
 set -eu
 export DEBIAN_FRONTEND=noninteractive
 if ! command -v sshd >/dev/null 2>&1; then
-  apt-get update
-  apt-get install -y --no-install-recommends openssh-server
+  proxy_http="${http_proxy:-${HTTP_PROXY:-}}"
+  proxy_https="${https_proxy:-${HTTPS_PROXY:-$proxy_http}}"
+  if [ -z "$proxy_http" ] || [ -z "$proxy_https" ]; then
+    echo 'managed SSH bootstrap requires the Hacocoon egress proxy environment' >&2
+    exit 125
+  fi
+  apt_get() {
+    apt-get \
+      -o Acquire::ForceIPv4=true \
+      -o Acquire::Connect::AddrConfig=false \
+      -o "Acquire::http::Proxy=$proxy_http" \
+      -o "Acquire::https::Proxy=$proxy_https" \
+      "$@"
+  }
+  apt_get update
+  apt_get install -y --no-install-recommends openssh-server
 fi
 systemctl enable --now ssh
 install -d -m 0700 /root/.ssh
