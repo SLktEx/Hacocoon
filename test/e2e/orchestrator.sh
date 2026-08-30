@@ -49,7 +49,7 @@ case "$command_name" in
       exit 0
     fi
     if [ "${1:-}" = 'show' ] && [ "${2:-}" = 'haco-sandbox' ]; then
-      printf '%s\n' '{"config":{},"devices":{"eth0":{"type":"nic","name":"eth0","network":"haco-sandbox0","security.acls":"haco-sandbox-egress","security.acls.default.ingress.action":"reject","security.acls.default.egress.action":"reject","security.acls.default.ingress.logged":"true","security.acls.default.egress.logged":"true","security.ipv4_filtering":"true","security.ipv6_filtering":"true","security.mac_filtering":"true","security.port_isolation":"true"}}}'
+      printf '%s\n' '{"config":{"environment.HTTP_PROXY":"http://10.200.0.1:18080","environment.HTTPS_PROXY":"http://10.200.0.1:18080","environment.NO_PROXY":"localhost,127.0.0.1,::1","environment.http_proxy":"http://10.200.0.1:18080","environment.https_proxy":"http://10.200.0.1:18080","environment.no_proxy":"localhost,127.0.0.1,::1"},"devices":{"eth0":{"type":"nic","name":"eth0","network":"haco-sandbox0","security.acls":"haco-sandbox-egress","security.acls.default.ingress.action":"reject","security.acls.default.egress.action":"reject","security.acls.default.ingress.logged":"true","security.acls.default.egress.logged":"true","security.ipv4_filtering":"true","security.ipv6_filtering":"true","security.mac_filtering":"true","security.port_isolation":"true"}}}'
       exit 0
     fi
     exit 2
@@ -66,13 +66,25 @@ case "$command_name" in
           ipv4.address) printf '%s\n' '10.200.0.1/24' ;;
           ipv4.nat|ipv4.firewall|ipv4.routing) printf '%s\n' 'true' ;;
           ipv6.address) printf '%s\n' 'none' ;;
+          raw.dnsmasq) printf '%s\n' 'port=0' ;;
           *) exit 2 ;;
         esac
         exit 0
         ;;
       acl)
         if [ "${2:-}" = 'show' ] && [ "${3:-}" = 'haco-sandbox-egress' ]; then
-          printf '%s\n' 'config: {}' 'description: ""' 'egress: []' 'ingress: []' 'name: haco-sandbox-egress'
+          printf '%s\n' \
+            'config: {}' \
+            'description: ""' \
+            'egress:' \
+            '- action: allow' \
+            '  state: enabled' \
+            '  destination: 10.200.0.1/32' \
+            '  protocol: tcp' \
+            '  destination_port: "18080"' \
+            '  description: Hacocoon Standard egress proxy' \
+            'ingress: []' \
+            'name: haco-sandbox-egress'
           exit 0
         fi
         exit 2
