@@ -116,6 +116,7 @@ jobs:
             grep -Fx 'haco-vscode' <<<"$listing" >/dev/null
             grep -Fx 'haco-agent-host' <<<"$listing" >/dev/null
             grep -Fx 'haco-notify' <<<"$listing" >/dev/null
+            grep -Fx 'haco-storage-helper' <<<"$listing" >/dev/null
           done
 
           grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
@@ -154,6 +155,7 @@ jobs:
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-vscode" ./cmd/haco-vscode
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-agent-host" ./cmd/haco-agent-host
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-notify" ./cmd/haco-notify
+          go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-storage-helper" ./cmd/haco-storage-helper
 
   test:
     runs-on: ubuntu-26.04
@@ -215,4 +217,6 @@ jobs:
       - name: Git/GitHub E2E
         run: bash test/e2e/git_github.sh
       - name: Orchestrator E2E
+        env:
+          HACO_STORAGE_PRIVILEGE_MODE: direct
         run: bash test/e2e/orchestrator.sh
