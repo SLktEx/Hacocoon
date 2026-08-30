@@ -1,0 +1,37 @@
+{
+  "name": "hacocoon-notifications",
+  "displayName": "Hacocoon Notifications",
+  "description": "Optional VS Code presentation for Hacocoon interaction events.",
+  "version": "0.0.1",
+  "private": true,
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": ["Other"],
+  "extensionKind": ["ui"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Hacocoon Notifications",
+      "properties": {
+        "hacocoon.notifications.endpoint": {
+          "type": "string",
+          "default": "http://127.0.0.1:18081",
+          "description": "Loopback haco-notify web endpoint."
+        },
+        "hacocoon.notifications.pollIntervalMs": {
+          "type": "number",
+          "default": 1500,
+          "minimum": 500,
+          "description": "Polling interval for Hacocoon interaction events."
+        },
+        "hacocoon.notifications.includeCompleted": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show low-priority operation-completed notifications."
+        }
+      }
+    }
+  }
+}
