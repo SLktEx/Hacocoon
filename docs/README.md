@@ -7,7 +7,8 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, devel
 ## Start here
 
 - Current code reality: [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)
-- Development-checkpoint numbering/history: [`status/versioning-and-release-status.md`](status/versioning-and-release-status.md)
+- Development-checkpoint source: [`status/checkpoints.yaml`](status/checkpoints.yaml)
+- Development-checkpoint policy/status/history: [`status/versioning-and-release-status.md`](status/versioning-and-release-status.md)
 - Design principles: [`DESIGN_PRINCIPLES.md`](DESIGN_PRINCIPLES.md)
 - Architecture / roadmap: [`status/architecture-and-roadmap.md`](status/architecture-and-roadmap.md)
 - Security architecture: [`security/security-architecture.md`](security/security-architecture.md)
@@ -40,15 +41,16 @@ Normal docs must not use milestone/version or arbitrary reading-order prefixes i
 ## Source-of-truth order
 
 1. `IMPLEMENTATION_STATUS.md` for current code reality
-2. `status/versioning-and-release-status.md` for development-checkpoint numbering/history
-3. `DESIGN_PRINCIPLES.md` for cross-cutting product/architecture constraints
-4. `status/architecture-and-roadmap.md` for product boundary and future direction
-5. `reference/terminology-and-boundaries.md` and `security/security-architecture.md`
-6. the relevant design specification under `design/`
-7. focused operational/reference documents
-8. README files and indexes
+2. `status/checkpoints.yaml` for development-checkpoint numbering, current checkpoint, and Gate identity
+3. `status/versioning-and-release-status.md` for checkpoint policy, human-readable status, and history/context
+4. `DESIGN_PRINCIPLES.md` for cross-cutting product/architecture constraints
+5. `status/architecture-and-roadmap.md` for product boundary and future direction
+6. `reference/terminology-and-boundaries.md` and `security/security-architecture.md`
+7. the relevant design specification under `design/`
+8. focused operational/reference documents
+9. README files and indexes
 
-README/index files intentionally do **not** copy the checkpoint table. The current `v0.N` value and historical mapping belong in [`status/versioning-and-release-status.md`](status/versioning-and-release-status.md); implementation detail belongs in [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
+README/index files intentionally do **not** copy the checkpoint table. The current `v0.N` value and version/Gate mapping belong in [`status/checkpoints.yaml`](status/checkpoints.yaml); human-readable status belongs in [`status/versioning-and-release-status.md`](status/versioning-and-release-status.md); implementation detail belongs in [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
 
 ## Core / Standard / Plugin rule
 
@@ -64,7 +66,8 @@ For outbound access, the egress request/policy/controller contract belongs to Co
 
 Do not infer the current checkpoint from individual feature pages, README prose, or commit messages. Use:
 
-- [`status/versioning-and-release-status.md`](status/versioning-and-release-status.md) for the authoritative current `v0.N` checkpoint and history;
+- [`status/checkpoints.yaml`](status/checkpoints.yaml) for the authoritative current `v0.N` checkpoint and ordered version/Gate mapping;
+- [`status/versioning-and-release-status.md`](status/versioning-and-release-status.md) for policy and human-readable checkpoint status/history;
 - [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for what is actually implemented and which acceptance gaps remain.
 
 Pre-1.0 checkpoint numbers are deliberately cheap. Meaningful product, implementation, operator-experience, observability, or acceptance slices may advance the next minor without waiting for every earlier real-host acceptance item. README/index pages link to the authority instead of copying the evolving table.
@@ -127,7 +130,7 @@ The provider-neutral remote/cloud routing seam remains. Concrete EC2/AWS/EBS imp
 
 ## Editing rule
 
-Follow [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md). Update the owning document first, then `IMPLEMENTATION_STATUS.md`, and update `status/versioning-and-release-status.md` whenever a development checkpoint consumes or changes a minor number. Keep English/Japanese companions aligned and run:
+Follow [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md). Update the owning document first, then `IMPLEMENTATION_STATUS.md`. When a development checkpoint consumes or changes a minor number, use `tools/bump-milestone` so `status/checkpoints.yaml`, the status mirrors, and generated build identity stay synchronized. Keep English/Japanese companions aligned and run:
 
 ```bash
 python tools/check_docs.py

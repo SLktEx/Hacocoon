@@ -52,11 +52,11 @@ func (r *Runtime) PrepareEgressProxy(ctx context.Context) (string, error) {
 	return net.JoinHostPort(gateway.String(), strconv.Itoa(sandboxEgressProxyPort)), nil
 }
 
-// ResolveEnvironment maps a proxy connection's source IP back to exactly one
-// Hacocoon-managed Incus instance. security.ipv4_filtering on the sandbox NIC
-// prevents the guest from choosing an arbitrary source address, and the
-// Environment identity is never accepted from proxy request metadata.
-func (r *Runtime) ResolveEnvironment(ctx context.Context, source net.IP) (string, error) {
+// ResolveRuntimeRef maps a proxy connection's source IP back to exactly one
+// Hacocoon-managed Incus runtime ref. security.ipv4_filtering on the sandbox
+// NIC prevents the guest from choosing an arbitrary source address. Persisted
+// Environment identity is intentionally resolved outside the Incus provider.
+func (r *Runtime) ResolveRuntimeRef(ctx context.Context, source net.IP) (string, error) {
 	if r == nil || r.runner == nil || source == nil || source.IsUnspecified() || source.IsLoopback() || source.IsMulticast() {
 		return "", core.ErrPolicyDenied
 	}
@@ -75,8 +75,19 @@ func (r *Runtime) ResolveEnvironment(ctx context.Context, source net.IP) (string
 			refs = append(refs, ref)
 		}
 	}
-	if len(refs) != 1 || !strings.HasPrefix(refs[0], "haco-") || len(refs[0]) == len("haco-") {
+	if len(refs) != 1 || validateManagedInstanceRef(refs[0]) != nil {
 		return "", core.ErrPolicyDenied
 	}
-	return strings.TrimPrefix(refs[0], "haco-"), nil
+	return refs[0], nil
+}
+
+// ResolveEnvironment is kept for compatibility with existing direct provider
+// tests/callers. New egress authorization wiring should bind ResolveRuntimeRef
+// to persisted Hacocoon Environment state before returning an identity.
+func (r *Runtime) ResolveEnvironment(ctx context.Context, source net.IP) (string, error) {
+	ref, err := r.ResolveRuntimeRef(ctx, source)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimPrefix(ref, "haco-"), nil
 }

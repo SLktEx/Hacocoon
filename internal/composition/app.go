@@ -23,8 +23,8 @@ import (
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
-	storagebtrfs "github.com/SLktEx/Hacocoon/modules/storage/btrfs"
 	"github.com/SLktEx/Hacocoon/modules/standard/egressproxy"
+	storagebtrfs "github.com/SLktEx/Hacocoon/modules/storage/btrfs"
 )
 
 const defaultLocalStorageID = "local-default"
@@ -137,6 +137,10 @@ func Local(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 	egressBroker := egressapp.NewBroker(capabilities)
+	egressSources, err := egressapp.NewPersistedSourceResolver(incusRuntime, store)
+	if err != nil {
+		return nil, err
+	}
 
 	var (
 		ociPlugin *ociplugin.Service
@@ -172,7 +176,7 @@ func Local(ctx context.Context) (*App, error) {
 		Events:        eventsapp.New(auditPath),
 		Bases:         runtime,
 		Runtime:       incusRuntime,
-		EgressProxy:   egressproxy.New(egressBroker, incusRuntime),
+		EgressProxy:   egressproxy.New(egressBroker, egressSources),
 	}, nil
 }
 
