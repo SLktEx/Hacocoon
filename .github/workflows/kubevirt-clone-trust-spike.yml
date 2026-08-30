@@ -158,7 +158,7 @@ jobs:
           virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/source-vm --command "sudo sh -ceu 'printf etc-state >/etc/hacocoon-clone-proof; install -d /usr/local/share/hacocoon /var/lib/containerd/hacocoon-spike; printf usr-state >/usr/local/share/hacocoon/clone-proof; printf runtime-state >/var/lib/containerd/hacocoon-spike/clone-proof; printf \"[Unit]\\nDescription=Hacocoon clone proof\\n[Service]\\nType=oneshot\\nExecStart=/usr/bin/true\\n[Install]\\nWantedBy=multi-user.target\\n\" >/etc/systemd/system/hacocoon-clone-proof.service; systemctl enable hacocoon-clone-proof.service; setsebool -P virt_qemu_ga_manage_ssh 1 || true'"
 
           SOURCE_MACHINE_ID="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/source-vm --command 'cat /etc/machine-id' | tr -d '\r\n')"
-          SOURCE_HOST_KEY="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/source-vm --command "sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256 | awk '{print \\\$2}'" | tr -d '\r\n')"
+          SOURCE_HOST_KEY="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/source-vm --command "sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256 | cut -d ' ' -f2" | tr -d '\r\n')"
           test -n "$SOURCE_MACHINE_ID"
           test -n "$SOURCE_HOST_KEY"
           echo "SOURCE_MACHINE_ID=$SOURCE_MACHINE_ID" >> "$GITHUB_ENV"
@@ -263,7 +263,7 @@ jobs:
 
           virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo sh -ceu 'test \"\$(cat /etc/hacocoon-clone-proof)\" = etc-state; test \"\$(cat /usr/local/share/hacocoon/clone-proof)\" = usr-state; test \"\$(cat /var/lib/containerd/hacocoon-spike/clone-proof)\" = runtime-state; test \"\$(systemctl is-enabled hacocoon-clone-proof.service)\" = enabled'"
           CLONE_MACHINE_ID="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command 'cat /etc/machine-id' | tr -d '\r\n')"
-          CLONE_HOST_KEY="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256 | awk '{print \\\$2}'" | tr -d '\r\n')"
+          CLONE_HOST_KEY="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256 | cut -d ' ' -f2" | tr -d '\r\n')"
           echo "source machine-id=$SOURCE_MACHINE_ID clone machine-id=$CLONE_MACHINE_ID"
           echo "source host-key=$SOURCE_HOST_KEY clone host-key=$CLONE_HOST_KEY"
           if [ "$CLONE_MACHINE_ID" = "$SOURCE_MACHINE_ID" ]; then echo 'machine-id copied: explicit clone scrub required'; else echo 'machine-id already differs'; fi
