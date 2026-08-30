@@ -23,10 +23,13 @@ func TestAWSReadCapabilityCrossesRealProcessBoundaryWithoutCredentialArguments(t
 	script:=`#!/bin/sh
 set -eu
 printf '%s\n' "$*" >> "$HACO_FAKE_AWS_LOG"
-printf '%s\n' '{"Account":"123456789012","Arn":"arn:aws:iam::123456789012:user/test"}'
+case " $* " in
+  *" --query Account --output text "*) printf '%s\n' '123456789012' ;;
+  *) printf '%s\n' '{"Account":"123456789012","Arn":"arn:aws:iam::123456789012:user/test"}' ;;
+esac
 `
 	if err:=os.WriteFile(filepath.Join(bin,"aws"),[]byte(script),0o755);err!=nil{t.Fatal(err)};t.Setenv("PATH",bin+string(os.PathListSeparator)+os.Getenv("PATH"));t.Setenv("HACO_FAKE_AWS_LOG",log)
 	provider:=awscapapp.NewProvider(host.ExecRunner{});sink:=&audit{};service,err:=capabilityapp.New(allowPolicy{},nil,sink,provider);if err!=nil{t.Fatal(err)};broker:=awscapapp.NewBroker(service)
-	result,err:=broker.Query(context.Background(),awscapapp.QuerySpec{Region:"ap-northeast-1",Kind:awscapapp.QueryCallerIdentity});if err!=nil{t.Fatal(err)};if !strings.Contains(result.Output,"123456789012"){t.Fatalf("output=%q",result.Output)}
-	content,err:=os.ReadFile(log);if err!=nil{t.Fatal(err)};text:=string(content);if !strings.Contains(text,"sts get-caller-identity")||strings.Contains(strings.ToUpper(text),"SECRET")||strings.Contains(strings.ToUpper(text),"TOKEN"){t.Fatalf("aws argv=%s",text)};if len(sink.events)==0||sink.events[0].Resource!="aws://ap-northeast-1/identity"{t.Fatalf("audit=%#v",sink.events)}
+	result,err:=broker.Query(context.Background(),awscapapp.QuerySpec{AccountID:"123456789012",Region:"ap-northeast-1",Kind:awscapapp.QueryCallerIdentity});if err!=nil{t.Fatal(err)};if !strings.Contains(result.Output,"123456789012"){t.Fatalf("output=%q",result.Output)}
+	content,err:=os.ReadFile(log);if err!=nil{t.Fatal(err)};text:=string(content);if strings.Count(text,"sts get-caller-identity")<2||strings.Contains(strings.ToUpper(text),"SECRET")||strings.Contains(strings.ToUpper(text),"TOKEN"){t.Fatalf("aws argv=%s",text)};if len(sink.events)==0||sink.events[0].Resource!="aws://123456789012/ap-northeast-1/identity"||sink.events[0].Attributes["aws.account_id"]!="123456789012"{t.Fatalf("audit=%#v",sink.events)}
 }
