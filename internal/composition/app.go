@@ -47,7 +47,7 @@ func Local(_ context.Context) (*App, error) {
 		Reason: "experimental EC2 is disabled; set HACO_EXPERIMENTAL_EC2=1 to opt in",
 	}
 	if strings.TrimSpace(os.Getenv("HACO_EXPERIMENTAL_EC2")) == "1" {
-		ec2Provider = ec2runtime.New(runner, ec2runtime.ConfigFromEnv())
+		ec2Provider = environmentapp.WithoutFiniteResources(ec2runtime.New(runner, ec2runtime.ConfigFromEnv()))
 	}
 	router, err := environmentapp.NewRouter(
 		envOr("HACO_RUNTIME_PROVIDER", environmentapp.ProviderIncus),
