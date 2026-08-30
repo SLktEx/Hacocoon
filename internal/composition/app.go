@@ -54,7 +54,11 @@ func Local(_ context.Context) (*App, error) {
 		if err != nil {
 			return nil, err
 		}
-		authenticated, err := ec2runtime.NewAuthenticated(ec2runtime.New(runner, ec2runtime.ConfigFromEnv()), refKey)
+		ec2Inner, err := ec2runtime.NewWithCreateJournal(runner, ec2runtime.ConfigFromEnv(), filepath.Join(stateDir, "ec2-create"))
+		if err != nil {
+			return nil, err
+		}
+		authenticated, err := ec2runtime.NewAuthenticated(ec2Inner, refKey)
 		if err != nil {
 			return nil, err
 		}
@@ -98,6 +102,7 @@ func Local(_ context.Context) (*App, error) {
 			environmentStatePath,
 			ociplugin.NewStore(filepath.Join(stateDir, "oci-usage.json")),
 			driver,
+			ociplugin.WithHostRunner(runner),
 		)
 		if err != nil {
 			return nil, err
