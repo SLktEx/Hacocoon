@@ -6,7 +6,7 @@ SIGNER_WORKFLOW="$REPOSITORY/.github/workflows/release.yml"
 SIGNER_SOURCE_REF="refs/heads/main"
 RELEASE_PREDICATE_TYPE="https://hacocoon.dev/attestations/release/v1"
 INSTALL_DIR="${HACO_INSTALL_DIR:-/usr/local/bin}"
-STORAGE_HELPER_DIR="/usr/local/libexec/hacocoon"
+STORAGE_HELPER_DIR="${HACO_STORAGE_HELPER_INSTALL_DIR:-/usr/local/libexec/hacocoon}"
 STORAGE_HELPER_PATH="$STORAGE_HELPER_DIR/haco-storage-helper"
 DEFAULT_HACO_ROOT="/var/lib/hacocoon"
 VERSION="${1:-${HACO_VERSION:-latest}}"
@@ -37,6 +37,11 @@ case "$REQUIRE_PROVENANCE" in
   *) die "HACO_REQUIRE_PROVENANCE must be 0 or 1" ;;
 esac
 
+case "$STORAGE_HELPER_DIR" in
+  /*) ;;
+  *) die "HACO_STORAGE_HELPER_INSTALL_DIR must be an absolute path" ;;
+esac
+
 need uname
 need tar
 need sha256sum
@@ -45,6 +50,7 @@ need mktemp
 need mkdir
 need cp
 need chmod
+need chown
 need id
 
 case "$(uname -s)" in
