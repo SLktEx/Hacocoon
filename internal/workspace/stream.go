@@ -14,36 +14,52 @@ type environmentStreamRuntime interface {
 	ShellEnvironmentStream(context.Context, string, io.Reader, io.Writer, io.Writer) error
 }
 
-// ShellStream opens an interactive Environment shell using caller-provided I/O.
-// It is intentionally separate from Shell so existing direct/local clients keep
-// their current stdio behavior while controller-mediated clients can bridge a
-// stream without exposing the Incus socket.
-func (s *Service) ShellStream(ctx context.Context, name string, stdin io.Reader, stdout, stderr io.Writer) (err error) {
-	if s == nil || stdin == nil || stdout == nil || stderr == nil {
-		return core.ErrInvalidArgument
-	}
-	started := time.Now()
-	ctx = logging.With(ctx, "operation", "shell_environment_stream", "environment_id", name)
-	logger := logging.FromContext(ctx).With("component", "core")
-	logger.InfoContext(ctx, "opening streamed environment shell")
-	defer func() {
-		if err != nil {
-			logger.ErrorContext(ctx, "streamed environment shell failed",
-				"duration_ms", time.Since(started).Milliseconds(),
-				"error", err,
-			)
-			return
-		}
-		logger.InfoContext(ctx, "streamed environment shell closed", "duration_ms", time.Since(started).Milliseconds())
-	}()
+type PreparedShellStream func(context.Context, io.Reader, io.Writer, io.Writer) error
 
+// PrepareShellStream resolves the Environment and provider capability before
+// the controller acknowledges a stream. The returned function owns the actual
+// long-lived interactive execution.
+func (s *Service) PrepareShellStream(ctx context.Context, name string) (PreparedShellStream, error) {
+	if s == nil {
+		return nil, core.ErrInvalidArgument
+	}
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	runtime, ok := s.runtime.(environmentStreamRuntime)
 	if !ok {
-		return fmt.Errorf("runtime does not support streamed shells: %w", core.ErrUnsupported)
+		return nil, fmt.Errorf("runtime does not support streamed shells: %w", core.ErrUnsupported)
 	}
-	return runtime.ShellEnvironmentStream(ctx, environment.RuntimeRef, stdin, stdout, stderr)
+	ref := environment.RuntimeRef
+	return func(runCtx context.Context, stdin io.Reader, stdout, stderr io.Writer) (err error) {
+		if stdin == nil || stdout == nil || stderr == nil {
+			return core.ErrInvalidArgument
+		}
+		started := time.Now()
+		runCtx = logging.With(runCtx, "operation", "shell_environment_stream", "environment_id", name)
+		logger := logging.FromContext(runCtx).With("component", "core")
+		logger.InfoContext(runCtx, "opening streamed environment shell")
+		defer func() {
+			if err != nil {
+				logger.ErrorContext(runCtx, "streamed environment shell failed",
+					"duration_ms", time.Since(started).Milliseconds(),
+					"error", err,
+				)
+				return
+			}
+			logger.InfoContext(runCtx, "streamed environment shell closed", "duration_ms", time.Since(started).Milliseconds())
+		}()
+		return runtime.ShellEnvironmentStream(runCtx, ref, stdin, stdout, stderr)
+	}, nil
+}
+
+// ShellStream opens an interactive Environment shell using caller-provided I/O.
+// It remains a convenience wrapper for non-controller callers.
+func (s *Service) ShellStream(ctx context.Context, name string, stdin io.Reader, stdout, stderr io.Writer) error {
+	prepared, err := s.PrepareShellStream(ctx, name)
+	if err != nil {
+		return err
+	}
+	return prepared(ctx, stdin, stdout, stderr)
 }
