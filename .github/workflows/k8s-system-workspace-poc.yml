@@ -133,18 +133,35 @@ jobs:
           kubectl exec haco-system-workspace -- nerdctl --version
           kubectl exec haco-system-workspace -- nerdctl info
 
-      - name: Verify nested nerdctl container can boot systemd
+      - name: Verify nested nerdctl container can boot and use systemd
         run: |
           set -euxo pipefail
-          kubectl exec haco-system-workspace -- bash -lc 'nerdctl run -d --name inner-systemd --privileged --net=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw ubuntu:26.04 bash -lc '\''apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y systemd systemd-sysv dbus && exec /sbin/init'\'''
+          kubectl exec haco-system-workspace -- bash -lc 'nerdctl run -d --name inner-systemd --privileged --net=host --tmpfs /run --tmpfs /run/lock -e container=docker -v /sys/fs/cgroup:/sys/fs/cgroup:rw ubuntu:26.04 bash -lc '\''apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y systemd systemd-sysv dbus && exec /sbin/init'\'''
+          ready=0
           for i in $(seq 1 90); do
-            if kubectl exec haco-system-workspace -- nerdctl exec inner-systemd bash -lc 'test "$(cat /proc/1/comm)" = systemd && systemctl is-system-running --wait >/dev/null 2>&1'; then
+            if kubectl exec haco-system-workspace -- nerdctl exec inner-systemd bash -lc 'test "$(cat /proc/1/comm)" = systemd'; then
+              ready=1
               break
             fi
             sleep 2
           done
+          test "$ready" = 1
           test "$(kubectl exec haco-system-workspace -- nerdctl exec inner-systemd cat /proc/1/comm)" = systemd
-          kubectl exec haco-system-workspace -- nerdctl exec inner-systemd systemctl --no-pager status
+          kubectl exec haco-system-workspace -- nerdctl exec inner-systemd bash -lc 'cat >/etc/systemd/system/haco-smoke.service <<"EOF"
+          [Unit]
+          Description=Hacocoon nested systemd smoke test
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/touch /tmp/haco-inner-systemd-ok
+          RemainAfterExit=yes
+          EOF
+          systemctl daemon-reload
+          systemctl start haco-smoke.service
+          systemctl is-active --quiet haco-smoke.service
+          test -f /tmp/haco-inner-systemd-ok'
+          kubectl exec haco-system-workspace -- nerdctl exec inner-systemd systemctl is-system-running || true
+          kubectl exec haco-system-workspace -- nerdctl exec inner-systemd systemctl --failed --no-pager || true
           kubectl exec haco-system-workspace -- nerdctl ps
 
       - name: Confirm backing storage after nested workload
