@@ -27,13 +27,18 @@ incus version >/dev/null
 
 root="$(mktemp -d)"
 haco="${HACO_E2E_HACO_BIN:-$root/haco}"
+haco_host="$(dirname "$haco")/haco-host"
 export HACO_ROOT="${HACO_E2E_SHARED_ROOT:-$root/haco-root}"
 created=0
+built_companion=0
 
 cleanup() {
   set +e
   if incus list haco-host --project hacocoon --format csv -c n 2>/dev/null | grep -Fx haco-host >/dev/null 2>&1; then
     incus delete haco-host --project hacocoon --force >/dev/null 2>&1 || true
+  fi
+  if [[ "$built_companion" == "1" ]]; then
+    rm -f -- "$haco_host"
   fi
   rm -rf "$root"
 }
@@ -43,6 +48,15 @@ if [[ -z "${HACO_E2E_HACO_BIN:-}" ]]; then
   go build -o "$haco" ./cmd/haco
 fi
 [[ -x "$haco" ]]
+
+# `haco host ensure` provisions the companion logical Host binary from beside
+# the main haco executable. Build that release-layout sibling explicitly when
+# the managed storage substrate only provided the haco binary itself.
+if [[ ! -x "$haco_host" ]]; then
+  go build -o "$haco_host" ./cmd/haco-host
+  built_companion=1
+fi
+[[ -x "$haco_host" ]]
 
 "$haco" host ensure
 created=1
