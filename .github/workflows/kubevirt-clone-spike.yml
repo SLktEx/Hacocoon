@@ -163,15 +163,32 @@ jobs:
                           - ${PUB}
           EOF
           kubectl apply -f /tmp/source-vm.yaml
+          # VM creation and VMI materialization are asynchronous. Wait for the
+          # object to exist before waiting on its Ready condition.
+          for i in $(seq 1 120); do
+            kubectl get vmi source-vm >/dev/null 2>&1 && break
+            sleep 1
+          done
+          kubectl get vmi source-vm >/dev/null
           kubectl wait vmi/source-vm --for=condition=Ready --timeout=8m
+
+          wrote_marker=0
           for i in $(seq 1 60); do
             if virtctl ssh --local-ssh=false -i /tmp/source_key fedora@vm/source-vm --command 'printf hacocoon-clone-marker > /var/tmp/hacocoon-clone-marker && cat /var/tmp/hacocoon-clone-marker'; then
-              exit 0
+              wrote_marker=1
+              break
             fi
             sleep 5
           done
-          kubectl describe vmi source-vm
-          exit 1
+          if [ "$wrote_marker" != 1 ]; then
+            kubectl describe vmi source-vm
+            exit 1
+          fi
+
+          SOURCE_MACHINE_ID="$(virtctl ssh --local-ssh=false -i /tmp/source_key fedora@vm/source-vm --command 'cat /etc/machine-id' | tr -d '\r\n')"
+          test -n "$SOURCE_MACHINE_ID"
+          echo "SOURCE_MACHINE_ID=${SOURCE_MACHINE_ID}" >> "$GITHUB_ENV"
+          echo "source machine-id=${SOURCE_MACHINE_ID}"
 
       - name: Stop source at stable clone point
         run: |
@@ -263,27 +280,43 @@ jobs:
                           - ${PUB}
           EOF
           kubectl apply -f /tmp/clone-vm.yaml
+          for i in $(seq 1 120); do
+            kubectl get vmi clone-vm >/dev/null 2>&1 && break
+            sleep 1
+          done
+          kubectl get vmi clone-vm >/dev/null
           kubectl wait vmi/clone-vm --for=condition=Ready --timeout=8m
+
+          marker_seen=0
           for i in $(seq 1 60); do
             marker="$(virtctl ssh --local-ssh=false -i /tmp/clone_key fedora@vm/clone-vm --command 'cat /var/tmp/hacocoon-clone-marker' 2>/dev/null || true)"
             if echo "$marker" | grep -q hacocoon-clone-marker; then
+              marker_seen=1
               echo 'whole-disk durable marker copied successfully'
               break
             fi
             sleep 5
           done
-          marker="$(virtctl ssh --local-ssh=false -i /tmp/clone_key fedora@vm/clone-vm --command 'cat /var/tmp/hacocoon-clone-marker')"
-          echo "$marker" | grep -q hacocoon-clone-marker
+          test "$marker_seen" = 1
 
-          # Record machine-specific state rather than pretending the clone is
-          # trust-clean. Hacocoon would need an explicit post-clone identity
-          # regeneration/scrub phase before claiming parity.
-          SOURCE_MACHINE_ID="$(cat > /dev/null <<'EOF'
-          EOF
-          true)"
           CLONE_MACHINE_ID="$(virtctl ssh --local-ssh=false -i /tmp/clone_key fedora@vm/clone-vm --command 'cat /etc/machine-id' | tr -d '\r\n')"
           test -n "$CLONE_MACHINE_ID"
           echo "clone machine-id=${CLONE_MACHINE_ID}"
+          if [ "$CLONE_MACHINE_ID" = "$SOURCE_MACHINE_ID" ]; then
+            echo 'machine-id was cloned verbatim; Hacocoon must regenerate guest identity after clone'
+          else
+            echo 'machine-id differs; guest boot path regenerated this identifier'
+          fi
+
+          # A new cloud-init access key does not prove the old key disappeared:
+          # the source authorized_keys file lives on the cloned root disk. Probe
+          # whether the old source key still authenticates and report it as
+          # explicit trust-state evidence rather than silently weakening parity.
+          if virtctl ssh --local-ssh=false -i /tmp/source_key fedora@vm/clone-vm --command 'true'; then
+            echo 'source SSH key still authenticates to clone; trust-state scrub is required'
+          else
+            echo 'source SSH key does not authenticate to clone'
+          fi
 
       - name: Record spike machinery
         if: always()
