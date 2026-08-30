@@ -116,7 +116,7 @@ func Register(server *control.Server, environments environmentService, clients c
 			return nil, control.NewStatusError("invalid_argument", "environment and argv are required")
 		}
 		result, err := environments.Exec(ctx, request.Environment, core.ExecutionRequest{Argv: request.Argv})
-		if err != nil {
+		if err != nil && result.ExitCode <= 0 {
 			return nil, translateError(err)
 		}
 		return result, nil
