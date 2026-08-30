@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"hash"
 	"io"
@@ -96,6 +97,29 @@ func digestWorkspace(ctx context.Context, root string) (string, error) {
 		return "", err
 	}
 	return workspaceDigestPrefix + hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func verifyWorkspaceBase(ctx context.Context, ref runtimeRef, stage string) error {
+	if ref.BaseDigest == "" {
+		return errors.Join(
+			fmt.Errorf("RW EC2 environment lacks a creation-time host workspace identity at %s", stage),
+			core.ErrRecoveryRequired,
+		)
+	}
+	current, err := digestWorkspace(ctx, ref.WorkspacePath)
+	if err != nil {
+		return errors.Join(
+			fmt.Errorf("identify host workspace %s: %w", stage, err),
+			core.ErrRecoveryRequired,
+		)
+	}
+	if current != ref.BaseDigest {
+		return errors.Join(
+			fmt.Errorf("host workspace changed while EC2 environment was active (%s): %w", stage, core.ErrWorkspaceBusy),
+			core.ErrRecoveryRequired,
+		)
+	}
+	return nil
 }
 
 func writeDigestField(h hash.Hash, name, value string) error {
