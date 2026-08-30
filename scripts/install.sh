@@ -248,9 +248,13 @@ install_binary() {
   if [ -d "$INSTALL_DIR" ] && [ -w "$INSTALL_DIR" ]; then
     cp "$staging/$binary" "$install_target"
     chmod 0755 "$install_target"
+    if [ "$(id -u)" -eq 0 ]; then
+      chown root:root "$install_target"
+    fi
   elif command -v sudo >/dev/null 2>&1; then
     sudo mkdir -p "$INSTALL_DIR"
     sudo cp "$staging/$binary" "$install_target"
+    sudo chown root:root "$install_target"
     sudo chmod 0755 "$install_target"
   else
     die "cannot write to $INSTALL_DIR; set HACO_INSTALL_DIR to a writable directory or install sudo"

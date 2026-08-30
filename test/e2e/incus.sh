@@ -18,12 +18,19 @@ incus version >/dev/null
 root="$(mktemp -d)"
 workspace="$root/workspace"
 haco="$root/haco"
+haco_host="$root/haco-host"
+controller="$root/haco-controller"
+controller_log="$root/controller.log"
+control_socket="$root/control.sock"
 environment="e2e-$$"
 runtime_ref="haco-$environment"
 trusted_host_ref="haco-host"
+trusted_control_socket="/var/lib/hacocoon-control.sock"
 export HACO_ROOT="$root/haco-root"
+export HACO_CONTROL_SOCKET="$control_socket"
 created=0
 trusted_host_created=0
+controller_pid=""
 
 cleanup() {
   set +e
@@ -37,6 +44,10 @@ cleanup() {
       incus delete "$trusted_host_ref" --project hacocoon --force >/dev/null 2>&1 || true
     fi
   fi
+  if [[ -n "$controller_pid" ]]; then
+    kill "$controller_pid" >/dev/null 2>&1 || true
+    wait "$controller_pid" >/dev/null 2>&1 || true
+  fi
   rm -rf "$root"
 }
 trap cleanup EXIT
@@ -45,6 +56,25 @@ mkdir -p "$workspace"
 printf 'from-host\n' > "$workspace/host.txt"
 
 go build -o "$haco" ./cmd/haco
+go build -o "$haco_host" ./cmd/haco-host
+go build -o "$controller" ./cmd/haco-controller
+
+HACO_STORAGE_PRIVILEGE_MODE=direct "$controller" >"$controller_log" 2>&1 &
+controller_pid=$!
+for _ in $(seq 1 100); do
+  [[ -S "$control_socket" ]] && break
+  if ! kill -0 "$controller_pid" >/dev/null 2>&1; then
+    cat "$controller_log" >&2 || true
+    echo "haco-controller exited before creating its Unix socket" >&2
+    exit 1
+  fi
+  sleep 0.05
+done
+[[ -S "$control_socket" ]] || {
+  cat "$controller_log" >&2 || true
+  echo "haco-controller did not create $control_socket" >&2
+  exit 1
+}
 
 "$haco" host ensure
 trusted_host_created=1
@@ -52,8 +82,44 @@ trusted_host_created=1
   echo "trusted haco-host ownership marker mismatch" >&2
   exit 1
 }
+[[ "$(incus config get "$trusted_host_ref" environment.HACO_CONTROL_SOCKET --project hacocoon)" == "$trusted_control_socket" ]] || {
+  echo "trusted haco-host control environment mismatch" >&2
+  exit 1
+}
 [[ "$(incus list "$trusted_host_ref" --project hacocoon --format csv -c s)" == "RUNNING" ]] || {
   echo "trusted haco-host is not running after first ensure" >&2
+  exit 1
+}
+
+for pair in \
+  "type=proxy" \
+  "bind=instance" \
+  "listen=unix:$trusted_control_socket" \
+  "connect=unix:$control_socket" \
+  "mode=0600" \
+  "uid=0" \
+  "gid=0"; do
+  key="${pair%%=*}"
+  want="${pair#*=}"
+  got="$(incus config device get "$trusted_host_ref" haco-control "$key" --project hacocoon)"
+  [[ "$got" == "$want" ]] || {
+    echo "trusted haco-host proxy $key mismatch: got '$got' want '$want'" >&2
+    exit 1
+  }
+done
+
+incus exec "$trusted_host_ref" --project hacocoon -- test -x /usr/local/bin/haco-host
+first_doctor="$(incus exec "$trusted_host_ref" --project hacocoon -- /usr/local/bin/haco-host doctor)"
+grep -Fq "Hacocoon logical Host client" <<<"$first_doctor" || {
+  echo "haco-host doctor did not identify the logical Host client" >&2
+  exit 1
+}
+grep -Fq "controller: $trusted_control_socket" <<<"$first_doctor" || {
+  echo "haco-host doctor did not use the projected controller socket" >&2
+  exit 1
+}
+grep -Eq '^protocol-version: [0-9]+$' <<<"$first_doctor" || {
+  echo "haco-host doctor did not complete the controller protocol round trip" >&2
   exit 1
 }
 
@@ -69,6 +135,7 @@ incus stop "$trusted_host_ref" --project hacocoon
   echo "trusted haco-host was not restarted by ensure" >&2
   exit 1
 }
+incus exec "$trusted_host_ref" --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
 
 trusted_host_config="$root/trusted-host-config"
 incus config show "$trusted_host_ref" --expanded --project hacocoon >"$trusted_host_config"
@@ -83,6 +150,15 @@ done
 
 "$haco" create --workspace "$workspace" "$environment" >/dev/null
 created=1
+
+if incus config device list "$runtime_ref" --project hacocoon | grep -Fxq haco-control; then
+  echo "ordinary Environment unexpectedly received the trusted controller proxy" >&2
+  exit 1
+fi
+if [[ "$(incus config get "$runtime_ref" environment.HACO_CONTROL_SOCKET --project hacocoon 2>/dev/null || true)" == "$trusted_control_socket" ]]; then
+  echo "ordinary Environment unexpectedly received the trusted controller endpoint" >&2
+  exit 1
+fi
 
 read_back="$("$haco" exec "$environment" -- cat /workspace/host.txt)"
 [[ "$read_back" == "from-host" ]] || {
@@ -149,4 +225,4 @@ if [[ -e "$HACO_ROOT/state/environments.json" ]] && grep -Fq "\"$environment\"" 
   exit 1
 fi
 
-echo "PASS: Hacocoon trusted host + v0.1 CLI -> Incus E2E"
+echo "PASS: trusted haco-host -> Hacocoon UDS -> Physical Host controller + Incus E2E"

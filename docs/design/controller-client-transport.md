@@ -2,128 +2,122 @@
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The repository contains the local Unix-domain-socket transport, protocol/version boundary, controller executable, typed Environment lifecycle calls, the first interactive Environment stream, and a client-only `haco-host` CLI for ordinary Environment operations. Provisioning a narrow Physical Host control endpoint into the trusted `haco-host` instance, migrating Physical-Host-authority `haco` operations, PTY resize framing, Environment port forwarding, and any remote transport remain follow-up work.
+Status: **partial**. The local Unix-domain-socket protocol, Physical Host controller, trusted-`haco-host` endpoint projection, client-only `haco-host` CLI, typed Environment lifecycle calls, and the first interactive stream are implemented. Migrating the remaining Physical-Host-authority `haco` operations, PTY control framing, Environment port forwarding, and any remote transport remain follow-up work.
 
 ## Summary
 
-Hacocoon clients must ask the trusted Host control path to perform Environment and Host-authority operations instead of receiving direct Incus authority.
+Hacocoon clients ask the trusted Physical Host controller to perform Environment and Host-authority operations instead of receiving direct Incus authority.
 
-For local communication, the default transport is a Unix domain socket:
+The local path is:
 
 ```text
-Client (`haco-host`, future adapters)
-        |
-        | Hacocoon Unix domain socket
-        v
-trusted Hacocoon controller
-        |
-        | provider/backend boundary
-        v
+trusted haco-host
+  |
+  | /var/lib/hacocoon-control.sock
+  | Incus proxy device: haco-control
+  v
+Physical Host /run/hacocoon/control.sock
+  |
+  v
+haco-controller
+  |
+  | provider/backend boundary
+  v
 Incus or another Environment backend
 ```
 
-The transport is an implementation mechanism. The controller remains the authority for policy, approval, state, privileged backend access, and operation ownership.
+The extra local hop is intentional. Policy, approval, authoritative state, logging, and provider authority stay on the controller side.
 
-## Goals
+## Trust boundary
 
-- Keep one trusted controller boundary for local client operations.
-- Avoid giving clients the Incus control socket or direct Host storage authority.
-- Use Unix domain sockets for same-Host communication instead of requiring a localhost TCP listener.
-- Support ordinary request/response operations and long-lived bidirectional streams through the same client/controller boundary.
-- Keep command semantics independent from a specific transport so another transport can be added later if a real use case requires it.
-- Preserve backend neutrality above the provider boundary.
+`haco-host` is trusted, but it still does **not** receive the raw Incus daemon socket, `/var/lib/incus`, or the Physical Host Hacocoon state directory.
 
-## Non-goals
-
-This design does not require:
-
-- SSH as the controller transport;
-- a public TCP listener;
-- TLS, mTLS, VPN integration, or named remote contexts;
-- direct routing to an Incus bridge;
-- exposing the Incus Unix socket to `haco-host` or an Environment;
-- FD passing or zero-copy optimization before profiling justifies it.
-
-## Authority and trust boundaries
-
-The controller is part of the trusted Host control path. A client connection is not authority by itself; exposed methods still have to preserve the operation's policy, approval, ownership, and lifecycle rules.
-
-Normal Environments are untrusted with respect to Host authority and must not receive the Hacocoon control socket as ambient filesystem state. `haco-host` is the separately managed trusted logical Host. The repository now has a client-only `haco-host` executable, but the real trusted instance does not yet receive the Physical Host control endpoint. That provisioning must be explicit and must not broaden socket access to ordinary Environments.
-
-The raw Incus socket remains controller/provider-side:
+Normal Environments do not receive the Hacocoon control endpoint at all.
 
 ```text
-client
-  |  Hacocoon control socket
-  v
-controller
-  |  Incus API/socket
-  v
-incusd
-  |
-  v
-Environment
+ordinary Environment       X---- no haco-control device
+trusted haco-host          -----> Hacocoon controller UDS
+Physical Host controller   -----> Incus authority
 ```
 
-A controller-mediated shell therefore does not require an SSH daemon, an Environment IP reachable by the client, or direct client access to the Incus bridge.
+The dedicated `haco-control` Incus proxy is reconciled only after the exact trusted-host ownership marker has been verified. An unexpected existing device or client endpoint configuration is rejected rather than silently replaced.
 
-## Local Unix-domain-socket transport
+## Physical Host endpoint
 
-The default local endpoint is conceptually:
+The controller listens locally at:
 
 ```text
 /run/hacocoon/control.sock
 ```
 
-The exact path may be overridden for trusted operational/testing purposes. The default socket is created with owner-only permissions (`0600`) in the current repository slice. Broader access must be an explicit deployment decision with an authorization model; it must not arise from a permissive default.
+The supported WSL bootstrap runs `haco-controller` as a Physical Host systemd service. Its runtime directory is private and the control socket is verified as root-owned mode `0600` before the trusted Host is provisioned.
 
-The local path intentionally does not create a localhost TCP listener only to resemble a possible future remote transport. A future transport may implement the same client interface separately.
+The controller does not require a localhost TCP listener. A future remote transport, if one is genuinely needed, should implement the same client boundary separately.
 
-Startup fails closed when the configured endpoint is already active or when an existing filesystem entry cannot be safely identified as a stale Unix socket. A regular file at the configured path is never removed as stale control state.
+Development and tests may override the local path with `HACO_CONTROL_SOCKET`. Root-authority trusted-host reconciliation deliberately uses the fixed Physical Host endpoint instead of trusting an inherited override.
+
+Startup and stale-socket handling fail closed when an existing path cannot be proven safe to reuse.
+
+## Trusted `haco-host` endpoint
+
+The trusted instance receives a single Incus `proxy` device named `haco-control` with the intended shape:
+
+```text
+type=proxy
+bind=instance
+listen=unix:/var/lib/hacocoon-control.sock
+connect=unix:/run/hacocoon/control.sock
+mode=0600
+uid=0
+gid=0
+```
+
+The instance also receives:
+
+```text
+environment.HACO_CONTROL_SOCKET=/var/lib/hacocoon-control.sock
+```
+
+The instance-side path intentionally lives outside `/run`: guest systemd commonly mounts runtime tmpfs state during boot, so a proxy listener that must exist independently of guest boot ordering uses a stable `/var/lib` path.
+
+`haco host ensure` verifies the trusted-host ownership marker, reconciles the exact endpoint shape, starts the instance when needed, and provisions the client-only `/usr/local/bin/haco-host` binary. Provisioning is digest-checked and requires the source binary to be an executable regular file owned by the invoking effective UID and not writable by group/other users.
+
+The supported WSL bootstrap then executes `haco-host doctor` inside the real trusted instance. Bootstrap fails before changing the user's automatic login shell if the round trip cannot reach the Physical Host controller.
 
 ## Protocol boundary
 
-The current protocol starts each connection with a versioned JSON envelope. A request identifies a method and whether it transitions into a raw bidirectional stream.
+Each connection starts with a versioned, size-bounded JSON envelope. Requests identify a method and whether the connection transitions into a bidirectional stream.
 
-Control envelopes are size-bounded. Bulk data belongs on the post-handshake stream instead of unbounded JSON metadata.
+Protocol mismatch is explicit and never falls back to direct Incus access. The controller also bounds concurrently accepted connections.
 
-The controller also bounds concurrent accepted connections so a client cannot create an unbounded goroutine count through the control endpoint.
+The typed Environment API currently includes:
 
-Protocol-version mismatch is explicit and must not silently fall back to direct Incus access.
+- create;
+- list;
+- status;
+- bounded exec;
+- interactive shell stream;
+- delete;
+- controller ping/doctor diagnostics.
 
-The typed Environment API currently exposes create, list, status, exec, shell, and delete. The client-only `haco-host` binary uses those methods and does not initialize local composition or directly import Incus authority.
+The client-only `haco-host` executable uses this API and does not initialize `composition.Local()`.
 
-## Control streams
+## Streaming
 
-Interactive and bulk operations require more than unary request/response calls. The client/controller boundary therefore supports a validated stream handshake followed by bidirectional bytes:
+The stream handshake validates the request before acknowledging success where possible, then carries bidirectional bytes over the same Unix-domain transport.
 
-```text
-request envelope
-    -> controller validates target/method
-    -> success/error response envelope
-    -> on success, bidirectional stream
-```
+The current implementation uses it for interactive Environment shell traffic and preserves client half-close semantics. Future framing may add:
 
-Validation that can be completed before opening the stream should happen before the success acknowledgement. Runtime failures after a stream has started are still part of the streamed operation and require the higher-level operation protocol to represent them.
-
-The current repository slice uses this mechanism for an interactive Environment shell. Client-side half-close is preserved so EOF on stdin does not automatically discard remaining target output. Later work may layer explicit framing over the stream for:
-
-- non-interactive Execution stdin/stdout/stderr and explicit exit metadata;
+- streamed non-interactive stdin/stdout/stderr plus exit metadata;
 - PTY resize/control events;
-- local-client-to-Environment TCP forwarding;
-- other bounded controller-mediated byte streams.
+- Environment TCP forwarding;
+- other bounded controller-mediated streams.
 
-Do not make `Session` a new public domain concept. In Hacocoon terminology, these streams carry an **Execution** or a client connection; the stream is a transport implementation detail.
+`Session` is not introduced as a new public domain concept; the stream is an implementation detail for an Execution or client connection.
 
-## Incus implementation
+## `haco-host` client commands
 
-The current Incus adapter can attach caller-provided streams to an interactive `incus exec` invocation. Incus remains the component that enters the target Environment; Hacocoon does not require an Environment SSH server for this path.
-
-Provider-specific process mechanics stay below the Environment backend boundary. Core/client contracts must not assume that every backend uses the Incus CLI, WebSockets, containers, or a shared kernel.
-
-## `haco-host` client slice
-
-The repository now builds and packages a client-only `haco-host` executable with the first everyday Environment command namespace:
+The packaged client-only binary currently exposes:
 
 ```text
 haco-host env list
@@ -135,69 +129,37 @@ haco-host env delete <environment>
 haco-host doctor
 ```
 
-This binary talks only through the controller client API. It does not call `composition.Local()` and does not require the Incus control socket.
-
-The trusted `haco-host` Incus instance lifecycle is implemented separately by the local Incus backend. The remaining integration step is to provision compatible client binaries and a narrow Hacocoon-owned controller endpoint into that trusted instance without exposing the raw Incus socket or the same endpoint to normal Environments.
-
-`env create --workspace` currently preserves the existing controller-side Workspace-path contract. Moving repository ownership or Workspace path resolution fully into the logical `haco-host` is separate architecture work and must not be implied by this transport slice.
-
-## Cancellation and cleanup
-
-Client connections are bound to the caller context. Cancelling the client operation closes the local control connection.
-
-The controller closes accepted connections after the handler/stream ends and stops accepting new work when its serving context is cancelled. Higher-level streamed operations must continue to define target-process cancellation and exit/error propagation; a closed transport must not be reported as successful completion when the target outcome is unknown.
-
-Stale socket recovery is conservative. Ambiguous filesystem or listener state fails rather than deleting an entry that cannot be proven to be the stale endpoint observed by the controller.
+`env create --workspace` still uses the controller-side Workspace path contract. Moving repository ownership or Workspace path resolution fully into the logical Host is separate architecture work.
 
 ## Performance
 
-The baseline is ordinary buffered Go forwarding over Unix domain sockets. The controller hop is retained even for local calls because authority centralization is more important than removing a same-Host IPC hop.
+The baseline is ordinary buffered Go forwarding over Unix domain sockets. The controller hop is retained even for local calls because centralized authority is more valuable than eliminating one local IPC hop.
 
-The repository includes an opt-in generated 100 GiB-class stream benchmark. It does not require a 100 GiB fixture on disk. FD passing, `splice(2)`, buffer pooling, or other reduced-copy techniques should be implemented only when measurements show a meaningful throughput, CPU, allocation, or latency problem.
+An opt-in generated 100 GiB-class benchmark exists to measure the baseline without committing a giant fixture. FD passing, `splice(2)`, buffer pooling, or other reduced-copy techniques should be added only when measurements justify them.
 
-## Current repository slice
+## Current acceptance
 
-Implemented in the current partial slice:
+Repository and real-Incus acceptance cover:
 
-- versioned controller protocol;
-- Unix-domain-socket client/server transport;
-- private default socket mode;
-- bounded control envelopes and concurrent connections;
-- structured controller errors;
-- context-bound client connection cleanup and half-close support;
-- controller executable;
-- typed Environment create/list/status/exec/delete calls;
-- stable Environment list ordering;
-- guest non-zero exec status propagation for bounded unary exec;
-- pre-validated interactive Environment shell stream;
-- Incus interactive stream bridge;
-- client-only `haco-host` Environment CLI and controller diagnostics;
-- release packaging for `haco-controller` and `haco-host`;
-- opt-in 100 GiB-class UDS baseline benchmark.
+- local request/response over UDS without TCP;
+- bounded envelopes and connection concurrency;
+- explicit protocol errors and cancellation;
+- half-close behavior;
+- typed Environment lifecycle calls through the controller;
+- interactive shell streaming;
+- trusted `haco-host` ownership reconciliation;
+- exact `haco-control` proxy reconciliation and mismatch refusal;
+- client binary provisioning and idempotency;
+- real trusted-instance `haco-host doctor` round trip to the Physical Host controller;
+- stopped/restarted trusted Host regaining controller access;
+- absence of raw Incus control-socket exposure;
+- absence of the trusted controller endpoint on ordinary Environments.
 
-Still planned/follow-up:
+Still planned:
 
-- provision the Hacocoon control endpoint and client binaries into the real trusted `haco-host` instance;
-- migrate Physical-Host-authority `haco` commands to the controller client interface where appropriate;
-- explicit streamed Execution framing with stdin/stdout/stderr and exit metadata;
+- move the appropriate Physical-Host-authority `haco` commands onto the controller client interface;
+- streamed Execution framing with explicit stdout/stderr/exit metadata;
 - PTY resize/control framing;
-- Environment TCP forwarding through the controller stream;
-- a remote transport, only if needed;
-- measured FD-passing/zero-copy optimization, only if needed.
-
-## Acceptance
-
-The local transport/client slice is acceptable when repository tests demonstrate that:
-
-- ordinary calls work over a Unix socket without a TCP listener;
-- Environment lifecycle operations can be invoked through the typed client without direct Incus access;
-- interactive bytes flow bidirectionally through the stream path;
-- stdin half-close keeps the output side readable;
-- missing/invalid targets fail before a stream success acknowledgement when they can be validated up front;
-- cancellation closes client streams;
-- control envelopes and connection concurrency are bounded;
-- stale/active/non-socket path handling fails safely;
-- protocol mismatch is explicit;
-- the 100 GiB-class benchmark can exercise the buffered baseline without committing a giant fixture.
-
-Real trusted-`haco-host` control-channel provisioning, real interactive terminal behavior, and any future remote-client acceptance remain environment-dependent and must be tracked separately from repository tests.
+- generic Environment forwarding;
+- remote transport only if a real use case requires it;
+- FD passing/zero-copy only if profiling demonstrates a worthwhile benefit.
