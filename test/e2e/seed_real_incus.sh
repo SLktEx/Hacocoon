@@ -102,27 +102,14 @@ if incus list --project hacocoon --format csv -c n | grep -E '^haco-(seed|toolin
 fi
 
 printf '%s\n' '=== create two Seed-derived Environments ==='
-if ! "$haco" create --base "$base" --workspace "$workspace_a" "$env_a"; then
-  echo "Hacocoon Environment start failed; reproducing the equivalent Incus start for diagnostics" >&2
-  probe="haco-seed-probe-$$"
-  seed_fingerprint="${seed_revision#sha256:}"
-  set +e
-  incus init "local:$seed_fingerprint" "$probe" --project hacocoon --profile haco-sandbox --storage default >&2
-  incus config device add "$probe" workspace disk "source=$workspace_a" path=/workspace shift=true --project hacocoon >&2
-  incus config show "$probe" --expanded --project hacocoon >&2
-  incus start "$probe" --project hacocoon >&2
-  incus info "$probe" --project hacocoon --show-log >&2
-  incus delete "$probe" --project hacocoon --force >/dev/null 2>&1
-  set -e
-  exit 1
-fi
+"$haco" create --base "$base" --workspace "$workspace_a" "$env_a"
 created_a=1
 "$haco" create --base "$base" --workspace "$workspace_b" "$env_b"
 created_b=1
 
 for env in "$env_a" "$env_b"; do
   "$haco" exec "$env" -- nerdctl image inspect "$identity" >/dev/null
-  result="$($haco exec "$env" -- nerdctl run --rm --net none "$image_ref" sh -c 'printf seed-runtime-ok')"
+  result="$($haco exec "$env" -- nerdctl run --rm --net none "$identity" sh -c 'printf seed-runtime-ok')"
   [[ "$result" == "seed-runtime-ok" ]] || {
     echo "Seed OCI runtime failed in $env: $result" >&2
     exit 1
@@ -169,7 +156,6 @@ if "$haco" plugin oci seed pins --base "$base" | grep -Fq "$identity"; then
   exit 1
 fi
 
-# Exercise exact tombstone/re-enable semantics only after the runtime checks.
 "$haco" plugin oci image delete "$identity" --all-environments --json | jq .
 reenable_json="$($haco plugin oci image reenable "$identity" --json)"
 printf '%s\n' "$reenable_json"
