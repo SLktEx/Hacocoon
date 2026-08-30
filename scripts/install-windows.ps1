@@ -380,7 +380,12 @@ Write-Host "Base distribution: $BaseDistro"
 Write-Host "Release: $ResolvedHacocoonVersion"
 Write-Host "Existing WSL distributions and global WSL defaults remain separate and untouched."
 Write-Host "Next: wsl -d $InstanceName"
-Write-Host "Then place a workspace in the Linux filesystem and run: haco-vscode open ."
+if ($SkipIncus) {
+    Write-Host "Because -SkipIncus was used, this opens the Physical Host; haco-host automatic entry is not configured."
+} else {
+    Write-Host "Interactive default entry opens the trusted haco-host management environment."
+    Write-Host "Physical Host recovery/debug: wsl -d $InstanceName -u root"
+}
 if (-not $SkipIncus -and -not $GrantIncusAdmin) {
-    Write-Host "Incus was installed, but incus-admin was not granted. Re-run with -GrantIncusAdmin if this user should control the local Incus daemon."
+    Write-Host "Broad incus-admin access remains ungranted; default haco-host entry uses only the narrow Hacocoon host commands configured by the bootstrap."
 }
