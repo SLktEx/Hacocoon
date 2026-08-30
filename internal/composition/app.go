@@ -9,6 +9,7 @@ import (
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	clientapp "github.com/SLktEx/Hacocoon/internal/client"
+	egressapp "github.com/SLktEx/Hacocoon/internal/egress"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
@@ -27,6 +28,7 @@ type App struct {
 	Clients      *clientapp.Service
 	Capabilities *capabilityapp.Service
 	Git          *gitcapapp.Broker
+	Egress       *egressapp.Service
 	OCI          *ociplugin.Service
 	Seeds        *seedbuildapp.Service
 	Runner       *runapp.Service
@@ -75,6 +77,7 @@ func Local(_ context.Context) (*App, error) {
 	store := state.NewEnvironmentJSONStore(environmentStatePath)
 	bindingStore := agenthostapp.NewJSONBindingStore(filepath.Join(stateDir, "agent-bindings.json"))
 	gitProvider := gitcapapp.NewUnifiedProvider(runner, store)
+	egressProvider := egressapp.NewProvider()
 	auditPath := filepath.Join(root, "audit", "capabilities.jsonl")
 	capabilities, err := capabilityapp.New(
 		capabilityapp.NewFilePolicyEvaluator(filepath.Join(root, "policy.json")),
@@ -82,6 +85,7 @@ func Local(_ context.Context) (*App, error) {
 		capabilityapp.NewJSONLAudit(auditPath),
 		capabilityapp.LocalEcho{},
 		gitProvider,
+		egressProvider,
 	)
 	if err != nil {
 		return nil, err
@@ -115,6 +119,7 @@ func Local(_ context.Context) (*App, error) {
 		Clients:      clientapp.New(runtime, store),
 		Capabilities: capabilities,
 		Git:          gitcapapp.NewBroker(runner, store, capabilities),
+		Egress:       egressapp.New(capabilities, filepath.Join(root, "run", "egress")),
 		OCI:          ociPlugin,
 		Seeds:        seeds,
 		Runner:       runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks")),
