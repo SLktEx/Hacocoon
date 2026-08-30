@@ -19,13 +19,21 @@ func NewAWSCLI(runner host.Runner, region string) *AWSCLI {
 	return &AWSCLI{runner: runner, region: strings.TrimSpace(region)}
 }
 
+type awsAttachment struct {
+	InstanceID string `json:"InstanceId"`
+	Device     string `json:"Device"`
+	State      string `json:"State"`
+}
+
 type awsVolume struct {
-	VolumeID         string `json:"VolumeId"`
-	Size             int64  `json:"Size"`
-	AvailabilityZone string `json:"AvailabilityZone"`
-	VolumeType       string `json:"VolumeType"`
-	Encrypted        bool   `json:"Encrypted"`
-	KMSKeyID         string `json:"KmsKeyId"`
+	VolumeID         string          `json:"VolumeId"`
+	Size             int64           `json:"Size"`
+	AvailabilityZone string          `json:"AvailabilityZone"`
+	VolumeType       string          `json:"VolumeType"`
+	Encrypted        bool            `json:"Encrypted"`
+	KMSKeyID         string          `json:"KmsKeyId"`
+	State            string          `json:"State"`
+	Attachments      []awsAttachment `json:"Attachments"`
 }
 
 func (a *AWSCLI) DescribeVolume(ctx context.Context, id string) (Volume, error) {
@@ -40,6 +48,14 @@ func (a *AWSCLI) DescribeVolume(ctx context.Context, id string) (Volume, error) 
 	if v.VolumeID == "" || v.Size <= 0 || v.AvailabilityZone == "" || v.VolumeType == "" {
 		return Volume{}, core.ErrIncompatibleState
 	}
+	attachments := make([]VolumeAttachment, 0, len(v.Attachments))
+	for _, attachment := range v.Attachments {
+		attachments = append(attachments, VolumeAttachment{
+			InstanceID: attachment.InstanceID,
+			Device:     attachment.Device,
+			State:      attachment.State,
+		})
+	}
 	return Volume{
 		ID:               v.VolumeID,
 		SizeGiB:          v.Size,
@@ -47,6 +63,8 @@ func (a *AWSCLI) DescribeVolume(ctx context.Context, id string) (Volume, error) 
 		Type:             v.VolumeType,
 		Encrypted:        v.Encrypted,
 		KMSKeyID:         v.KMSKeyID,
+		State:            v.State,
+		Attachments:      attachments,
 	}, nil
 }
 
