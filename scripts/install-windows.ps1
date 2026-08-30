@@ -12,6 +12,9 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $Repository = "SLktEx/Hacocoon"
+$SignerWorkflow = "$Repository/.github/workflows/release.yml"
+$SignerSourceRef = "refs/heads/main"
+$ReleasePredicateType = "https://hacocoon.dev/attestations/release/v1"
 $SystemdRestartRequired = 42
 
 function Write-Step([string]$Message) {
@@ -34,9 +37,46 @@ function Assert-Version([string]$Version) {
     if ($Version -eq "latest") {
         return
     }
+    Assert-ReleaseTag $Version
+}
+
+function Assert-ReleaseTag([string]$Version) {
     if ($Version -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$') {
         throw "Invalid Hacocoon version '$Version'."
     }
+}
+
+function Get-GhCommand {
+    $gh = Get-Command gh.exe -ErrorAction SilentlyContinue
+    if (-not $gh) {
+        $gh = Get-Command gh -ErrorAction SilentlyContinue
+    }
+    if (-not $gh) {
+        throw "Trusted public installation requires GitHub CLI with 'gh attestation verify' support."
+    }
+
+    & $gh.Source attestation verify --help *> $null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Trusted public installation requires a GitHub CLI version with 'gh attestation verify' support."
+    }
+    return $gh
+}
+
+function Resolve-ReleaseVersion([string]$Version) {
+    if ($Version -ne "latest") {
+        Assert-ReleaseTag $Version
+        return $Version
+    }
+
+    $gh = Get-GhCommand
+    $tagOutput = & $gh.Source release view --repo $Repository --json tagName --jq .tagName 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to resolve the latest Hacocoon release to an explicit tag: $($tagOutput | Out-String)"
+    }
+    $tag = ($tagOutput | Out-String).Trim()
+    Assert-ReleaseTag $tag
+    Write-Host "Resolved latest Hacocoon release to $tag."
+    return $tag
 }
 
 function Assert-NamedInstallSupported {
@@ -54,13 +94,12 @@ function Assert-SystemdSupported {
 }
 
 function Get-ReleaseBase([string]$Version) {
-    if ($Version -eq "latest") {
-        return "https://github.com/$Repository/releases/latest/download"
-    }
+    Assert-ReleaseTag $Version
     return "https://github.com/$Repository/releases/download/$Version"
 }
 
 function Download-ReleaseAsset([string]$Name, [string]$Destination, [string]$Version) {
+    Assert-ReleaseTag $Version
     $downloaded = $false
 
     $gh = Get-Command gh.exe -ErrorAction SilentlyContinue
@@ -70,11 +109,8 @@ function Download-ReleaseAsset([string]$Name, [string]$Destination, [string]$Ver
     if ($gh) {
         & $gh.Source auth status *> $null
         if ($LASTEXITCODE -eq 0) {
-            $args = @("release", "download")
-            if ($Version -ne "latest") {
-                $args += $Version
-            }
-            $args += @(
+            $args = @(
+                "release", "download", $Version,
                 "--repo", $Repository,
                 "--pattern", $Name,
                 "--dir", (Split-Path -Parent $Destination),
@@ -129,6 +165,46 @@ function Assert-Sha256([string]$Path, [string]$Expected) {
     }
 }
 
+function Assert-TrustedReleaseAsset([string]$Path, [string]$Version) {
+    Assert-ReleaseTag $Version
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Release asset does not exist for provenance verification: $Path"
+    }
+
+    $gh = Get-GhCommand
+    & $gh.Source attestation verify $Path `
+        --repo $Repository `
+        --signer-workflow $SignerWorkflow `
+        --source-ref $SignerSourceRef `
+        --deny-self-hosted-runners *> $null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Trusted build provenance verification failed for '$(Split-Path -Leaf $Path)'."
+    }
+
+    $bindingOutput = & $gh.Source attestation verify $Path `
+        --repo $Repository `
+        --signer-workflow $SignerWorkflow `
+        --source-ref $SignerSourceRef `
+        --predicate-type $ReleasePredicateType `
+        --deny-self-hosted-runners `
+        --format json 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Signed release-binding verification failed for '$(Split-Path -Leaf $Path)'."
+    }
+
+    try {
+        $records = @((($bindingOutput | Out-String) | ConvertFrom-Json))
+        $tags = @($records | ForEach-Object { $_.verificationResult.statement.predicate.tag })
+    } catch {
+        throw "Signed release-binding attestation could not be decoded for '$(Split-Path -Leaf $Path)': $($_.Exception.Message)"
+    }
+    if ($tags -notcontains $Version) {
+        throw "Signed release-binding verification failed for '$(Split-Path -Leaf $Path)': expected tag $Version."
+    }
+
+    Write-Host "Verified trusted provenance and signed release binding for $(Split-Path -Leaf $Path)."
+}
+
 function Get-InstalledDistros {
     $lines = & wsl.exe --list --quiet 2>$null
     if ($LASTEXITCODE -ne 0) {
@@ -171,6 +247,11 @@ function Assert-SystemdActive([string]$Name) {
     if ($LASTEXITCODE -ne 0 -or $pid1 -ne "systemd") {
         throw "systemd is not active as PID 1 inside dedicated WSL instance '$Name'."
     }
+}
+
+# Tests dot-source this script to exercise trust helpers without invoking WSL.
+if ($MyInvocation.InvocationName -eq '.') {
+    return
 }
 
 Assert-SafeName $InstanceName "WSL instance name"
@@ -220,6 +301,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host ""
 
+$ResolvedHacocoonVersion = Resolve-ReleaseVersion $HacocoonVersion
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("hacocoon-install-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tempRoot | Out-Null
 try {
@@ -228,12 +310,17 @@ try {
     $linuxInstallerPath = Join-Path $tempRoot "install.sh"
 
     Write-Step "Downloading Hacocoon bootstrap assets"
-    Download-ReleaseAsset "checksums.txt" $checksumsPath $HacocoonVersion
-    Download-ReleaseAsset "bootstrap-wsl.sh" $bootstrapPath $HacocoonVersion
-    Download-ReleaseAsset "install.sh" $linuxInstallerPath $HacocoonVersion
+    Download-ReleaseAsset "checksums.txt" $checksumsPath $ResolvedHacocoonVersion
+    Download-ReleaseAsset "bootstrap-wsl.sh" $bootstrapPath $ResolvedHacocoonVersion
+    Download-ReleaseAsset "install.sh" $linuxInstallerPath $ResolvedHacocoonVersion
 
     Assert-Sha256 $bootstrapPath (Get-ExpectedHash $checksumsPath "bootstrap-wsl.sh")
     Assert-Sha256 $linuxInstallerPath (Get-ExpectedHash $checksumsPath "install.sh")
+
+    Write-Step "Verifying trusted release provenance before executing bootstrap assets"
+    Assert-TrustedReleaseAsset $checksumsPath $ResolvedHacocoonVersion
+    Assert-TrustedReleaseAsset $bootstrapPath $ResolvedHacocoonVersion
+    Assert-TrustedReleaseAsset $linuxInstallerPath $ResolvedHacocoonVersion
 
     $linuxTemp = (& wsl.exe --distribution $InstanceName -- wslpath -u -a $tempRoot).Trim()
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxTemp)) {
@@ -252,7 +339,8 @@ try {
         "env",
         "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue",
         "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue",
-        "sh", "$linuxTemp/bootstrap-wsl.sh", "$linuxTemp/install.sh", $HacocoonVersion
+        "HACO_REQUIRE_PROVENANCE=1",
+        "sh", "$linuxTemp/bootstrap-wsl.sh", "$linuxTemp/install.sh", $ResolvedHacocoonVersion
     )
 
     Write-Step "Installing systemd, Incus and Hacocoon inside '$InstanceName'"
@@ -289,6 +377,7 @@ Write-Step "Hacocoon installation complete"
 Write-Host "Dedicated WSL instance: $InstanceName (WSL 2)"
 Write-Host "Init system: systemd"
 Write-Host "Base distribution: $BaseDistro"
+Write-Host "Release: $ResolvedHacocoonVersion"
 Write-Host "Existing WSL distributions and global WSL defaults remain separate and untouched."
 Write-Host "Next: wsl -d $InstanceName"
 Write-Host "Then place a workspace in the Linux filesystem and run: haco-vscode open ."

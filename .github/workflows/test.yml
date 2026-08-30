@@ -72,11 +72,13 @@ jobs:
         run: goreleaser check
       - name: Validate release and WSL shell syntax
         run: bash -n scripts/install.sh scripts/bootstrap-wsl.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
-      - name: Validate Windows installer syntax
+      - name: Validate Windows installer syntax and provenance behavior
         shell: pwsh
         run: |
           [scriptblock]::Create((Get-Content -Raw "scripts/bootstrap-windows.ps1")) | Out-Null
           [scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null
+          [scriptblock]::Create((Get-Content -Raw "tools/test_windows_installer_provenance.ps1")) | Out-Null
+          & "./tools/test_windows_installer_provenance.ps1"
       - name: Validate dedicated WSL 2 and systemd boundary
         shell: bash
         run: |
