@@ -59,6 +59,7 @@ required_files = [
     "docs/README.md",
     "docs/README.ja.md",
     "docs/00_REBASELINE_AND_ROADMAP.md",
+    "docs/00A_PLUGIN_ARCHITECTURE.md",
     "docs/00D_VERSIONING_AND_RELEASE_STATUS.md",
     "docs/00D_VERSIONING_AND_RELEASE_STATUS.ja.md",
     "docs/00C_TERMINOLOGY_AND_BOUNDARIES.md",
@@ -81,6 +82,8 @@ required_files = [
     "docs/13B_v0.13_SEED_AUTO_PROMOTION.ja.md",
     "docs/13C_v0.13_OCI_IMAGE_DELETION.md",
     "docs/13C_v0.13_OCI_IMAGE_DELETION.ja.md",
+    "docs/OCI_RUNTIME_AND_DOCKER_COMPAT.md",
+    "docs/OCI_RUNTIME_AND_DOCKER_COMPAT.ja.md",
     "docs/IMPLEMENTATION_STATUS.md",
     "docs/IMPLEMENTATION_STATUS.ja.md",
     "README.md",
@@ -132,11 +135,42 @@ versioning = require_text(
         "v0.10 | VS Code Remote Agent Host Adapter",
         "v0.11 | Base Images & Custom Environments",
         "v0.12 | Sandbox Resource Limits",
-        "v0.13 | Local OCI Registry",
-        "implemented progression is therefore contiguous through **v0.12**",
-        "v0.13 is the next planned milestone",
+        "v0.13 | Optional OCI Plugin",
+        "v0.13A | OCI Seed Build & Btrfs/COW Optimization",
+        "v0.13B | OCI Seed Automatic Promotion Policy",
+        "v0.13C | OCI Image Deletion",
+        "implemented progression is contiguous through the **v0.13 optional-plugin first slice**",
+        "Optional integrations must not be promoted into Core requirements",
+        "HACO_PLUGIN_OCI=nerdctl",
+        "HACO_PLUGIN_OCI=docker",
     ],
     "current numbering rule",
+)
+
+plugin_arch = require_text(
+    "docs/00A_PLUGIN_ARCHITECTURE.md",
+    [
+        "Core boundary",
+        "Core must not require a particular developer workload or toolchain",
+        "modules/plugin/oci",
+        "HACO_PLUGIN_OCI=nerdctl",
+        "HACO_PLUGIN_OCI=docker",
+        "haco base",
+    ],
+    "optional plugin boundary",
+)
+
+oci_runtime = require_text(
+    "docs/OCI_RUNTIME_AND_DOCKER_COMPAT.md",
+    [
+        "Hacocoon Core has no canonical OCI runtime",
+        "modules/plugin/oci",
+        "HACO_PLUGIN_OCI=nerdctl",
+        "HACO_PLUGIN_OCI=docker",
+        "haco base",
+        "modules/plugin/oci/packaging/systemd",
+    ],
+    "optional OCI runtime contract",
 )
 
 roadmap = require_text(
@@ -256,11 +290,14 @@ v12 = require_text(
 v13 = require_text(
     "docs/13_v0.13_LOCAL_OCI_REGISTRY.md",
     [
+        "Optional OCI Plugin Distribution Strategy",
         "Local OCI Registry",
+        "Hacocoon Core does not require",
         "containerd",
         "nerdctl",
+        "No silent direct-registry bypass",
     ],
-    "required v0.13 registry contract text",
+    "required v0.13 plugin distribution contract text",
 )
 
 v13a = require_text(
