@@ -109,6 +109,16 @@ jobs:
         run: |
           sudo systemctl enable --now containerd
           sudo nerdctl info >/dev/null
+      - name: Permit Seed-only bridge forwarding on hosted runner
+        run: |
+          # GitHub-hosted runners include other netfilter users (notably Docker).
+          # Incus documents that those host firewall rules can block forwarding
+          # even when an Incus managed bridge has NAT enabled. Keep the exception
+          # scoped to the short-lived Seed tooling bridge prefix rather than
+          # relaxing the runner's global FORWARD policy.
+          sudo sysctl -w net.ipv4.ip_forward=1
+          sudo iptables -I FORWARD 1 -i 'haco-t-+' -j ACCEPT
+          sudo iptables -I FORWARD 1 -o 'haco-t-+' -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
       - name: Run real Incus Seed acceptance
         run: |
           sudo --preserve-env=PATH,GOTOOLCHAIN env \
