@@ -21,6 +21,7 @@ const (
 	MethodEnvironmentExec   = "environment.exec"
 	MethodEnvironmentShell  = "environment.shell"
 	MethodEnvironmentDelete = "environment.delete"
+	MethodHostShell         = "host.shell"
 )
 
 type EnvironmentCreateRequest struct {
@@ -52,6 +53,10 @@ type environmentService interface {
 
 type clientService interface {
 	Status(context.Context, string) (core.EnvironmentStatus, error)
+}
+
+type hostService interface {
+	PrepareTrustedHostShellStream(context.Context) (func(context.Context, io.Reader, io.Writer, io.Writer) error, error)
 }
 
 func Register(server *control.Server, environments environmentService, clients clientService) error {
@@ -151,6 +156,24 @@ func Register(server *control.Server, environments environmentService, clients c
 		return err
 	}
 	return nil
+}
+
+// RegisterHost adds controller-owned trusted Host operations without widening
+// the Environment API registration surface. Bootstrap-only Host operations stay
+// local to the Physical Host CLI; only the interactive shell is a client API.
+func RegisterHost(server *control.Server, hosts hostService) error {
+	if server == nil || hosts == nil {
+		return control.ErrInvalidArgument
+	}
+	return server.RegisterStream(MethodHostShell, func(ctx context.Context, _ json.RawMessage) (control.Stream, error) {
+		prepared, err := hosts.PrepareTrustedHostShellStream(ctx)
+		if err != nil {
+			return nil, translateError(err)
+		}
+		return func(runCtx context.Context, conn net.Conn) error {
+			return prepared(runCtx, conn, conn, conn)
+		}, nil
+	})
 }
 
 func decodeEnvironmentName(payload json.RawMessage) (EnvironmentNameRequest, error) {
