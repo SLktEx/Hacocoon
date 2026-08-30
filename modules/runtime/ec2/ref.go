@@ -24,6 +24,7 @@ type runtimeRef struct {
 	Bucket        string `json:"bucket"`
 	Prefix        string `json:"prefix"`
 	ReadOnly      bool   `json:"read_only"`
+	BaseDigest    string `json:"base_digest,omitempty"`
 }
 
 func encodeRef(ref runtimeRef) (string, error) {
@@ -76,6 +77,8 @@ func validateRuntimeRef(ref runtimeRef) error {
 		return fmt.Errorf("invalid EC2 runtime bucket: %w", core.ErrIncompatibleState)
 	case !validRuntimePrefix(ref.Prefix):
 		return fmt.Errorf("invalid EC2 runtime prefix: %w", core.ErrIncompatibleState)
+	case ref.BaseDigest != "" && !validWorkspaceDigest(ref.BaseDigest):
+		return fmt.Errorf("invalid EC2 runtime workspace digest: %w", core.ErrIncompatibleState)
 	default:
 		return nil
 	}
