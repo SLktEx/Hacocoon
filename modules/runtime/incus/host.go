@@ -2,6 +2,7 @@ package incus
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -9,14 +10,18 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const (
-	trustedHostInstance = "haco-host"
-	trustedHostRoleKey  = "user.hacocoon.role"
-	trustedHostRole     = "trusted-host"
-)
+const trustedHostName = "haco-host"
+const trustedHostRoleKey = "user.hacocoon.role"
+const trustedHostRoleValue = "trusted-host"
 
-// EnsureTrustedHost reconciles the persistent trusted Hacocoon management
-// instance. The instance is infrastructure, not an untrusted Environment.
+type trustedHostListEntry struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
+// EnsureTrustedHost reconciles the persistent Hacocoon-owned trusted Host
+// instance. The instance is intentionally not a normal Environment: it has no
+// Workspace lease and does not receive the managed sandbox profile.
 func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 	if err := r.ensureProject(ctx); err != nil {
 		return fmt.Errorf("ensure Incus project for trusted host: %w", err)
@@ -26,121 +31,107 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 		return fmt.Errorf("resolve trusted host root storage: %w", err)
 	}
 
-	exists, state, err := r.trustedHostState(ctx)
+	state, exists, err := r.trustedHostState(ctx)
 	if err != nil {
 		return err
 	}
 	if exists {
-		return r.reconcileTrustedHostState(ctx, state)
+		if err := r.verifyTrustedHostOwnership(ctx); err != nil {
+			return err
+		}
+		return r.ensureTrustedHostRunning(ctx, state)
 	}
 
-	_, createErr := r.runner.Run(ctx, "incus", "init", r.image, trustedHostInstance,
+	_, initErr := r.runner.Run(ctx, "incus", "init", r.image, trustedHostName,
 		"--project", r.project,
 		"--storage", rootPool,
-		"--config", trustedHostRoleKey+"="+trustedHostRole,
+		"--config", trustedHostRoleKey+"="+trustedHostRoleValue,
 	)
-	if createErr != nil {
-		// Concurrent/bootstrap retry: never adopt by name alone. Re-inspect and
-		// accept only the exact Hacocoon infrastructure marker.
-		exists, state, inspectErr := r.trustedHostState(ctx)
-		if inspectErr != nil {
-			return errors.Join(fmt.Errorf("create trusted host: %w", createErr), inspectErr)
+	if initErr != nil {
+		// Another reconciler may have won the create race. Only adopt the result
+		// when exact Hacocoon ownership can be proven from the marker.
+		state, exists, inspectErr := r.trustedHostState(ctx)
+		if inspectErr != nil || !exists {
+			return errors.Join(fmt.Errorf("create trusted host: %w", initErr), inspectErr)
 		}
-		if !exists {
-			return fmt.Errorf("create trusted host: %w", createErr)
+		if err := r.verifyTrustedHostOwnership(ctx); err != nil {
+			return errors.Join(fmt.Errorf("create trusted host: %w", initErr), err)
 		}
-		if err := r.reconcileTrustedHostState(ctx, state); err != nil {
-			return errors.Join(fmt.Errorf("create trusted host: %w", createErr), err)
-		}
-		return nil
+		return r.ensureTrustedHostRunning(ctx, state)
 	}
 
-	if _, err := r.runner.Run(ctx, "incus", "start", trustedHostInstance, "--project", r.project); err != nil {
-		cleanupErr := r.deleteTrustedHostIfOwned(ctx)
-		return errors.Join(fmt.Errorf("start trusted host: %w", err), cleanupErr)
+	if err := r.verifyTrustedHostOwnership(ctx); err != nil {
+		return fmt.Errorf("verify newly created trusted host: %w", err)
 	}
-	return nil
+	return r.ensureTrustedHostRunning(ctx, "STOPPED")
 }
 
-// ShellTrustedHost opens an interactive login shell in the trusted management
-// instance. EnsureTrustedHost must have succeeded before this method is used.
+// ShellTrustedHost ensures the trusted host exists and then opens an
+// interactive login shell. Incus control authority stays on the Physical Host;
+// no Incus socket is mounted into haco-host.
 func (r *Runtime) ShellTrustedHost(ctx context.Context) error {
-	exists, state, err := r.trustedHostState(ctx)
-	if err != nil {
+	if err := r.EnsureTrustedHost(ctx); err != nil {
 		return err
 	}
-	if !exists {
-		return fmt.Errorf("trusted host %q is missing: %w", trustedHostInstance, core.ErrNotFound)
-	}
-	if err := r.reconcileTrustedHostState(ctx, state); err != nil {
-		return err
-	}
-	_, err = r.execInteractive(ctx, trustedHostInstance, []string{"/bin/bash", "-l"})
+	_, err := r.execInteractive(ctx, trustedHostName, []string{"/bin/bash", "-l"})
 	return err
 }
 
-type trustedHostObserved struct {
-	Status string `json:"status"`
-	Config map[string]string `json:"config"`
-}
-
-func (r *Runtime) trustedHostState(ctx context.Context) (bool, trustedHostObserved, error) {
-	result, err := r.runner.Run(ctx, "incus", "list", trustedHostInstance,
-		"--project", r.project, "--format", "json")
+func (r *Runtime) trustedHostState(ctx context.Context) (string, bool, error) {
+	result, err := r.runner.Run(ctx, "incus", "list", trustedHostName,
+		"--project", r.project,
+		"--format", "json",
+	)
 	if err != nil {
-		return false, trustedHostObserved{}, fmt.Errorf("inspect trusted host: %w", err)
+		return "", false, fmt.Errorf("inspect trusted host: %w", err)
 	}
-	trimmed := strings.TrimSpace(result.Stdout)
-	if trimmed == "" || trimmed == "[]" {
-		return false, trustedHostObserved{}, nil
+	var entries []trustedHostListEntry
+	if err := json.Unmarshal([]byte(result.Stdout), &entries); err != nil {
+		return "", false, fmt.Errorf("decode trusted host inventory: %w", err)
 	}
-	var rows []trustedHostObserved
-	if err := jsonUnmarshalStrict([]byte(trimmed), &rows); err != nil {
-		return false, trustedHostObserved{}, fmt.Errorf("decode trusted host state: %w", err)
+	var exact *trustedHostListEntry
+	for i := range entries {
+		if entries[i].Name != trustedHostName {
+			continue
+		}
+		if exact != nil {
+			return "", false, fmt.Errorf("duplicate exact trusted host inventory entries: %w", core.ErrIncompatibleState)
+		}
+		exact = &entries[i]
 	}
-	if len(rows) == 0 {
-		return false, trustedHostObserved{}, nil
+	if exact == nil {
+		return "", false, nil
 	}
-	if len(rows) != 1 {
-		return false, trustedHostObserved{}, fmt.Errorf("trusted host query returned %d instances: %w", len(rows), core.ErrIncompatibleState)
-	}
-	if rows[0].Config[trustedHostRoleKey] != trustedHostRole {
-		return false, trustedHostObserved{}, fmt.Errorf("Incus instance %q exists without exact Hacocoon trusted-host marker; refusing adoption: %w", trustedHostInstance, core.ErrIncompatibleState)
-	}
-	return true, rows[0], nil
+	return strings.ToUpper(strings.TrimSpace(exact.Status)), true, nil
 }
 
-func (r *Runtime) reconcileTrustedHostState(ctx context.Context, state trustedHostObserved) error {
-	switch strings.ToUpper(strings.TrimSpace(state.Status)) {
+func (r *Runtime) verifyTrustedHostOwnership(ctx context.Context) error {
+	result, err := r.runner.Run(ctx, "incus", "config", "get", trustedHostName, trustedHostRoleKey, "--project", r.project)
+	if err != nil {
+		return fmt.Errorf("read trusted host ownership marker: %w", err)
+	}
+	if strings.TrimSpace(result.Stdout) != trustedHostRoleValue {
+		return fmt.Errorf("Incus instance %q is not owned as the Hacocoon trusted host; refusing takeover: %w", trustedHostName, core.ErrIncompatibleState)
+	}
+	return nil
+}
+
+func (r *Runtime) ensureTrustedHostRunning(ctx context.Context, state string) error {
+	switch strings.ToUpper(strings.TrimSpace(state)) {
 	case "RUNNING":
 		return nil
 	case "STOPPED":
-		if _, err := r.runner.Run(ctx, "incus", "start", trustedHostInstance, "--project", r.project); err != nil {
-			return fmt.Errorf("start trusted host: %w", err)
+		if _, err := r.runner.Run(ctx, "incus", "start", trustedHostName, "--project", r.project); err != nil {
+			// Treat a concurrent successful start as success, but do not hide any
+			// other unexpected state.
+			observed, exists, inspectErr := r.trustedHostState(ctx)
+			if inspectErr == nil && exists && observed == "RUNNING" {
+				return nil
+			}
+			return errors.Join(fmt.Errorf("start trusted host: %w", err), inspectErr)
 		}
 		return nil
 	default:
-		return fmt.Errorf("trusted host is in unexpected state %q: %w", state.Status, core.ErrIncompatibleState)
+		return fmt.Errorf("trusted host is in unsupported Incus state %q: %w", state, core.ErrIncompatibleState)
 	}
-}
-
-func (r *Runtime) deleteTrustedHostIfOwned(ctx context.Context) error {
-	exists, _, err := r.trustedHostState(ctx)
-	if err != nil || !exists {
-		return err
-	}
-	_, err = r.runner.Run(ctx, "incus", "delete", trustedHostInstance, "--project", r.project, "--force")
-	if err != nil {
-		return fmt.Errorf("cleanup trusted host: %w", err)
-	}
-	return nil
-}
-
-func jsonUnmarshalStrict(data []byte, dst any) error {
-	decoder := json.NewDecoder(strings.NewReader(string(data)))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(dst); err != nil {
-		return err
-	}
-	return nil
 }

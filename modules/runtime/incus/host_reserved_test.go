@@ -8,13 +8,16 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-func TestCreateEnvironmentRejectsReservedHostNameBeforeProviderMutation(t *testing.T) {
+func TestCreateEnvironmentRejectsTrustedHostNameCollision(t *testing.T) {
 	runner := &fakeRunner{}
-	_, err := New(runner).CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "host", WorkspacePath: "/tmp/workspace"})
+	_, err := New(runner).CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{
+		Name:          "host",
+		WorkspacePath: "/tmp/workspace",
+	})
 	if !errors.Is(err, core.ErrInvalidArgument) {
 		t.Fatalf("error = %v", err)
 	}
 	if len(runner.calls) != 0 {
-		t.Fatalf("provider mutated before reserved-name rejection: %#v", runner.calls)
+		t.Fatalf("reserved name touched Incus: %#v", runner.calls)
 	}
 }

@@ -27,6 +27,13 @@ func (e commandExitError) Error() string { return fmt.Sprintf("command exited %d
 func (e commandExitError) ExitCode() int { return e.code }
 
 func main() {
+	if isHacocoonLogin(os.Args[0]) {
+		if err := runHacocoonLogin(os.Args[1:]); err != nil {
+			fail(err)
+		}
+		return
+	}
+
 	ctx := context.Background()
 	app, err := composition.Local(ctx)
 	if err != nil {
@@ -59,6 +66,7 @@ func dispatch(ctx context.Context, app *composition.App, args []string) error {
 		"shell":       shellCommand,
 		"delete":      deleteCommand,
 		"doctor":      doctorCommand,
+		"host":        hostCommand,
 	}
 	run, ok := commands[args[0]]
 	if !ok {
@@ -587,7 +595,7 @@ func doctorCommand(ctx context.Context, app *composition.App, args []string) err
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: haco <create|base|plugin|run|events|egress|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
+	fmt.Fprintln(os.Stderr, "usage: haco <create|base|plugin|run|events|egress|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor|host>")
 }
 
 func fail(err error) {

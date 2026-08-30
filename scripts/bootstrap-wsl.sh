@@ -5,7 +5,9 @@ INSTALLER="${1:-}"
 VERSION="${2:-latest}"
 SKIP_INCUS="${HACO_BOOTSTRAP_SKIP_INCUS:-0}"
 GRANT_INCUS_ADMIN="${HACO_BOOTSTRAP_GRANT_INCUS_ADMIN:-0}"
+LOGIN_USER="${HACO_BOOTSTRAP_LOGIN_USER:-$(id -un)}"
 SYSTEMD_RESTART_REQUIRED=42
+HACOCOON_LOGIN_SHELL="/usr/local/libexec/hacocoon-login"
 
 if [ -z "$INSTALLER" ] || [ ! -f "$INSTALLER" ]; then
   printf 'haco bootstrap: install script not found: %s\n' "$INSTALLER" >&2
@@ -80,9 +82,60 @@ configure_wsl_systemd() {
   rm -f "$tmp"
 }
 
+configure_hacocoon_login() {
+  haco_bin="$1"
+
+  if [ "$LOGIN_USER" = "root" ]; then
+    printf 'haco bootstrap: refusing to replace root login shell; configure a non-root WSL default user first\n' >&2
+    return 1
+  fi
+  case "$LOGIN_USER" in
+    ''|*[!A-Za-z0-9._-]*)
+      printf 'haco bootstrap: unsupported WSL login user name: %s\n' "$LOGIN_USER" >&2
+      return 1
+      ;;
+  esac
+  if ! id "$LOGIN_USER" >/dev/null 2>&1; then
+    printf 'haco bootstrap: WSL login user does not exist: %s\n' "$LOGIN_USER" >&2
+    return 1
+  fi
+
+  case "$haco_bin" in
+    /usr/local/bin/haco|/usr/bin/haco) ;;
+    *)
+      printf 'haco bootstrap: automatic WSL login requires a system-owned haco at /usr/local/bin/haco or /usr/bin/haco (got %s)\n' "$haco_bin" >&2
+      return 1
+      ;;
+  esac
+  owner="$($SUDO stat -Lc '%u' "$haco_bin")"
+  if [ "$owner" != "0" ]; then
+    printf 'haco bootstrap: refusing passwordless host entry through non-root-owned haco binary: %s\n' "$haco_bin" >&2
+    return 1
+  fi
+  if $SUDO find "$haco_bin" -perm /022 -print -quit | grep -q .; then
+    printf 'haco bootstrap: refusing passwordless host entry through group/world-writable haco binary: %s\n' "$haco_bin" >&2
+    return 1
+  fi
+
+  printf '==> Configuring default WSL login to enter haco-host\n'
+  $SUDO mkdir -p /usr/local/libexec
+  $SUDO ln -sfn "$haco_bin" "$HACOCOON_LOGIN_SHELL"
+  if ! grep -Fx "$HACOCOON_LOGIN_SHELL" /etc/shells >/dev/null 2>&1; then
+    printf '%s\n' "$HACOCOON_LOGIN_SHELL" | $SUDO tee -a /etc/shells >/dev/null
+  fi
+
+  sudoers_tmp="$(mktemp)"
+  printf '%s ALL=(root) NOPASSWD: %s host ensure, %s host shell\n' "$LOGIN_USER" "$haco_bin" "$haco_bin" > "$sudoers_tmp"
+  $SUDO visudo -cf "$sudoers_tmp" >/dev/null
+  $SUDO install -m 0440 "$sudoers_tmp" /etc/sudoers.d/hacocoon-login
+  rm -f "$sudoers_tmp"
+
+  $SUDO usermod -s "$HACOCOON_LOGIN_SHELL" "$LOGIN_USER"
+}
+
 printf '==> Installing base dependencies, managed Btrfs tools, and systemd support\n'
 $SUDO apt-get update
-$SUDO apt-get install -y ca-certificates curl tar git systemd systemd-sysv btrfs-progs util-linux
+$SUDO apt-get install -y ca-certificates curl tar git sudo systemd systemd-sysv btrfs-progs util-linux
 
 printf '==> Enabling systemd for this WSL distribution\n'
 configure_wsl_systemd
@@ -140,6 +193,26 @@ printf '==> Installed binaries\n'
 command -v haco || true
 command -v haco-vscode || true
 printf '%s\n' '/usr/local/libexec/hacocoon/haco-storage-helper'
+
+if [ "$SKIP_INCUS" != "1" ]; then
+  haco_bin="$(command -v haco || true)"
+  if [ -z "$haco_bin" ]; then
+    printf 'haco bootstrap: haco binary is unavailable after installation\n' >&2
+    exit 1
+  fi
+  haco_bin="$(readlink -f "$haco_bin")"
+
+  printf '==> Reconciling trusted haco-host\n'
+  $SUDO "$haco_bin" host ensure || {
+    distro="${WSL_DISTRO_NAME:-Hacocoon}"
+    printf 'haco bootstrap: failed to prepare haco-host; default WSL login was not changed\n' >&2
+    printf 'haco bootstrap: recover on the Physical Host with: wsl -d %s -u root\n' "$distro" >&2
+    exit 1
+  }
+  configure_hacocoon_login "$haco_bin"
+else
+  printf '%s\n' 'haco bootstrap: -SkipIncus leaves the Physical Host login unchanged; haco-host auto-entry requires a ready Incus backend.'
+fi
 
 if [ "$SKIP_INCUS" != "1" ] && [ "$GRANT_INCUS_ADMIN" = "1" ] && [ "$(id -u)" -ne 0 ]; then
   printf '%s\n' 'haco bootstrap: restart the WSL shell (or use newgrp incus-admin) before relying on the new group membership.'

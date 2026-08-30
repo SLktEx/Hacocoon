@@ -123,6 +123,10 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	if spec.Name == "" || spec.WorkspacePath == "" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
+	ref := "haco-" + spec.Name
+	if ref == trustedHostName {
+		return core.EnvironmentRuntime{}, fmt.Errorf("environment name %q is reserved for trusted Hacocoon infrastructure: %w", spec.Name, core.ErrInvalidArgument)
+	}
 	if err := r.ensureProject(ctx); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("ensure Incus project: %w", err)
 	}
@@ -131,7 +135,6 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return core.EnvironmentRuntime{}, fmt.Errorf("resolve isolated root storage: %w", err)
 	}
 
-	ref := "haco-" + spec.Name
 	if _, err := r.runner.Run(ctx, "incus", "init", r.image, ref, "--project", r.project, "--profile", sandboxProfile, "--storage", rootPool); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}
