@@ -12,8 +12,8 @@ import (
 // A backing image is expected at <storage-root>/images/<name>. Both the
 // storage root and image directory must be owned by the effective user and
 // must not be writable by group/other. Existing backing objects must be
-// regular files owned by the effective user and must not be group/other
-// writable. Lstat is used deliberately so symlinks fail closed.
+// single-link regular files owned by the effective user and must not be
+// group/other writable. Lstat is used deliberately so symlinks fail closed.
 func ValidateBackingPath(path string, allowMissing bool) (os.FileInfo, error) {
 	if path == "" || filepath.Clean(path) != path {
 		return nil, fmt.Errorf("invalid backing image path %q", path)
@@ -42,6 +42,13 @@ func ValidateBackingPath(path string, allowMissing bool) (os.FileInfo, error) {
 	}
 	if err := validateOwnershipAndMode(info, "backing image", path); err != nil {
 		return nil, err
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil, fmt.Errorf("inspect backing image link count for %q", path)
+	}
+	if stat.Nlink != 1 {
+		return nil, fmt.Errorf("backing image %q must not have hard links (link count %d)", path, stat.Nlink)
 	}
 	return info, nil
 }

@@ -73,6 +73,41 @@ func TestMountRejectsWrongExistingSource(t *testing.T) {
 	}
 }
 
+func TestMountUsesExactMountpointLookup(t *testing.T) {
+	runner := &filesystemRunner{fn: func(name string, args []string) (host.Result, error) {
+		if name == "findmnt" {
+			return host.Result{ExitCode: 1}, errors.New("not mounted")
+		}
+		if name == "mount" {
+			return host.Result{}, nil
+		}
+		return host.Result{}, errors.New("unexpected command")
+	}}
+	b := NewBtrfs(runner)
+	if err := b.Mount(context.Background(), "/dev/expected", "/mnt/haco"); err != nil {
+		t.Fatalf("mount failed: %v", err)
+	}
+	if len(runner.calls) == 0 || !strings.Contains(runner.calls[0], "--mountpoint /mnt/haco") || strings.Contains(runner.calls[0], "--target") {
+		t.Fatalf("mount lookup was not exact-mountpoint scoped: %v", runner.calls)
+	}
+}
+
+func TestUnmountUsesExactMountpointLookup(t *testing.T) {
+	runner := &filesystemRunner{fn: func(name string, args []string) (host.Result, error) {
+		if name == "findmnt" {
+			return host.Result{ExitCode: 1}, errors.New("not mounted")
+		}
+		return host.Result{}, errors.New("unexpected command")
+	}}
+	b := NewBtrfs(runner)
+	if err := b.Unmount(context.Background(), "/mnt/haco"); err != nil {
+		t.Fatalf("unmount probe failed: %v", err)
+	}
+	if len(runner.calls) != 1 || !strings.Contains(runner.calls[0], "--mountpoint /mnt/haco") || strings.Contains(runner.calls[0], "--target") {
+		t.Fatalf("unmount lookup was not exact-mountpoint scoped: %v", runner.calls)
+	}
+}
+
 func TestMountEnablesTransparentCompression(t *testing.T) {
 	runner := &filesystemRunner{fn: func(name string, args []string) (host.Result, error) {
 		if name == "findmnt" {

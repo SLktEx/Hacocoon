@@ -6,6 +6,9 @@ SIGNER_WORKFLOW="$REPOSITORY/.github/workflows/release.yml"
 SIGNER_SOURCE_REF="refs/heads/main"
 RELEASE_PREDICATE_TYPE="https://hacocoon.dev/attestations/release/v1"
 INSTALL_DIR="${HACO_INSTALL_DIR:-/usr/local/bin}"
+STORAGE_HELPER_DIR="${HACO_STORAGE_HELPER_INSTALL_DIR:-/usr/local/libexec/hacocoon}"
+STORAGE_HELPER_PATH="$STORAGE_HELPER_DIR/haco-storage-helper"
+DEFAULT_HACO_ROOT="/var/lib/hacocoon"
 VERSION="${1:-${HACO_VERSION:-latest}}"
 REQUIRE_PROVENANCE="${HACO_REQUIRE_PROVENANCE:-1}"
 
@@ -34,6 +37,11 @@ case "$REQUIRE_PROVENANCE" in
   *) die "HACO_REQUIRE_PROVENANCE must be 0 or 1" ;;
 esac
 
+case "$STORAGE_HELPER_DIR" in
+  /*) ;;
+  *) die "HACO_STORAGE_HELPER_INSTALL_DIR must be an absolute path" ;;
+esac
+
 need uname
 need tar
 need sha256sum
@@ -42,6 +50,8 @@ need mktemp
 need mkdir
 need cp
 need chmod
+need chown
+need id
 
 case "$(uname -s)" in
   Linux) os="linux" ;;
@@ -165,10 +175,12 @@ validate_release_archive() {
     $0 == "haco" { haco++ }
     $0 == "haco-vscode" { vscode++ }
     $0 == "haco-agent-host" { agenthost++ }
+    $0 == "haco-notify" { notify++ }
+    $0 == "haco-storage-helper" { storagehelper++ }
     { count++ }
-    END { exit !(count == 3 && haco == 1 && vscode == 1 && agenthost == 1) }
+    END { exit !(count == 5 && haco == 1 && vscode == 1 && agenthost == 1 && notify == 1 && storagehelper == 1) }
   '; then
-    die "release archive must contain exactly haco, haco-vscode, and haco-agent-host"
+    die "release archive must contain exactly haco, haco-vscode, haco-agent-host, haco-notify, and haco-storage-helper"
   fi
 
   archive_verbose="$(LC_ALL=C tar -tvzf "$archive_path")" || die "release archive entry types cannot be inspected"
@@ -177,7 +189,7 @@ validate_release_archive() {
       count++
       if (substr($1, 1, 1) != "-") bad = 1
     }
-    END { exit !(count == 3 && bad != 1) }
+    END { exit !(count == 5 && bad != 1) }
   '; then
     die "release archive contains a non-regular entry"
   fi
@@ -222,7 +234,7 @@ validate_release_archive "$tmpdir/$archive"
 staging="$tmpdir/staging"
 mkdir -m 0700 "$staging"
 tar -xzf "$tmpdir/$archive" -C "$staging"
-for binary in haco haco-vscode haco-agent-host; do
+for binary in haco haco-vscode haco-agent-host haco-notify haco-storage-helper; do
   [ -f "$staging/$binary" ] || die "release archive does not contain regular file $binary"
   [ ! -L "$staging/$binary" ] || die "release archive extracted symbolic link for $binary"
   chmod 0755 "$staging/$binary"
@@ -244,6 +256,48 @@ install_binary() {
   printf 'Installed %s to %s\n' "$binary" "$install_target"
 }
 
+install_storage_helper() {
+  if [ "$(id -u)" -eq 0 ]; then
+    mkdir -p "$STORAGE_HELPER_DIR"
+    cp "$staging/haco-storage-helper" "$STORAGE_HELPER_PATH"
+    chown root:root "$STORAGE_HELPER_PATH"
+    chmod 0755 "$STORAGE_HELPER_PATH"
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo mkdir -p "$STORAGE_HELPER_DIR"
+    sudo cp "$staging/haco-storage-helper" "$STORAGE_HELPER_PATH"
+    sudo chown root:root "$STORAGE_HELPER_PATH"
+    sudo chmod 0755 "$STORAGE_HELPER_PATH"
+  else
+    die "sudo is required to install the root-owned storage helper"
+  fi
+  printf 'Installed haco-storage-helper to %s (root-owned, no passwordless sudo rule added)\n' "$STORAGE_HELPER_PATH"
+}
+
+prepare_default_haco_root() {
+  # A custom HACO_ROOT remains operator-owned configuration. For the default
+  # location, create the directory for the invoking user on a fresh install so
+  # state and sparse backing images can remain ordinary-user-owned.
+  if [ -n "${HACO_ROOT:-}" ] || [ -e "$DEFAULT_HACO_ROOT" ]; then
+    return 0
+  fi
+  uid="$(id -u)"
+  gid="$(id -g)"
+  if [ "$uid" -eq 0 ]; then
+    mkdir -p "$DEFAULT_HACO_ROOT"
+    chmod 0700 "$DEFAULT_HACO_ROOT"
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo mkdir -p "$DEFAULT_HACO_ROOT"
+    sudo chown "$uid:$gid" "$DEFAULT_HACO_ROOT"
+    sudo chmod 0700 "$DEFAULT_HACO_ROOT"
+  else
+    die "sudo is required to prepare $DEFAULT_HACO_ROOT for the ordinary-user CLI"
+  fi
+  printf 'Prepared %s for uid %s\n' "$DEFAULT_HACO_ROOT" "$uid"
+}
+
 install_binary haco
 install_binary haco-vscode
 install_binary haco-agent-host
+install_binary haco-notify
+install_storage_helper
+prepare_default_haco_root

@@ -2,6 +2,7 @@ package composition
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
 	seedbuildapp "github.com/SLktEx/Hacocoon/internal/seedbuild"
 	"github.com/SLktEx/Hacocoon/internal/state"
+	"github.com/SLktEx/Hacocoon/internal/storagepriv"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
@@ -65,7 +67,24 @@ func Local(ctx context.Context) (*App, error) {
 		providerOptions = append(providerOptions, incus.WithSeedResolver(seedStore))
 	}
 
-	managedStorage, err := storagebtrfs.NewLocal(ctx, root, runner, strings.TrimSpace(os.Getenv("HACO_BLOCK_BACKEND")))
+	var storageRunner host.Runner = runner
+	switch mode := strings.TrimSpace(os.Getenv("HACO_STORAGE_PRIVILEGE_MODE")); mode {
+	case "", "sudo":
+		privilegedRunner, err := storagepriv.NewSudoRunner(root, runner)
+		if err != nil {
+			return nil, err
+		}
+		storageRunner = privilegedRunner
+	case "direct":
+		// Test/development escape hatch. This never grants authority: every
+		// operation runs with the caller's existing credentials and therefore
+		// fails on a normal Host when privilege is actually required.
+		storageRunner = runner
+	default:
+		return nil, fmt.Errorf("unknown HACO_STORAGE_PRIVILEGE_MODE %q", mode)
+	}
+
+	managedStorage, err := storagebtrfs.NewLocal(ctx, root, storageRunner, strings.TrimSpace(os.Getenv("HACO_BLOCK_BACKEND")))
 	if err != nil {
 		return nil, err
 	}

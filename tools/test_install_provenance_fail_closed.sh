@@ -9,11 +9,11 @@ trap 'rm -rf "$root"' EXIT
 fixture="$root/fixture"
 src="$root/src"
 mkdir -p "$fixture" "$src"
-for binary in haco haco-vscode haco-agent-host; do
+for binary in haco haco-vscode haco-agent-host haco-notify haco-storage-helper; do
   printf '#!/bin/sh\necho %s\n' "$binary" > "$src/$binary"
   chmod 0755 "$src/$binary"
 done
-tar -czf "$fixture/haco_linux_amd64.tar.gz" -C "$src" haco haco-vscode haco-agent-host
+tar -czf "$fixture/haco_linux_amd64.tar.gz" -C "$src" haco haco-vscode haco-agent-host haco-notify haco-storage-helper
 (cd "$fixture" && sha256sum haco_linux_amd64.tar.gz > checksums.txt)
 
 make_fake_curl() {
@@ -117,6 +117,21 @@ SH
   chmod +x "$target"
 }
 
+make_fake_privilege_tools() {
+  bin="$1"
+  cat > "$bin/sudo" <<'SH'
+#!/bin/sh
+set -eu
+[ "${1:-}" = "--" ] && shift
+exec "$@"
+SH
+  cat > "$bin/chown" <<'SH'
+#!/bin/sh
+exit 0
+SH
+  chmod +x "$bin/sudo" "$bin/chown"
+}
+
 run_case() {
   name="$1"
   gh_mode="$2"
@@ -128,8 +143,10 @@ run_case() {
   case_root="$root/$name"
   bin="$case_root/bin"
   install="$case_root/install"
+  helper_install="$case_root/libexec"
   mkdir -p "$bin" "$install"
   make_fake_curl "$bin/curl"
+  make_fake_privilege_tools "$bin"
   case "$gh_mode" in
     supported) make_fake_gh "$bin/gh" ;;
     unsupported) make_unsupported_gh "$bin/gh" ;;
@@ -145,6 +162,8 @@ run_case() {
     HACO_TEST_BINDING_TAG="$binding_tag" \
     HACO_TEST_LATEST_TAG="v1.2.3" \
     HACO_INSTALL_DIR="$install" \
+    HACO_STORAGE_HELPER_INSTALL_DIR="$helper_install" \
+    HACO_ROOT="$case_root/haco-root" \
     sh "$installer" "$version" >"$stdout" 2>"$stderr"
   code=$?
   set -e
@@ -155,9 +174,10 @@ run_case() {
       cat "$stderr" >&2
       exit 1
     }
-    for binary in haco haco-vscode haco-agent-host; do
+    for binary in haco haco-vscode haco-agent-host haco-notify; do
       [ -x "$install/$binary" ] || { echo "$name: missing installed $binary" >&2; exit 1; }
     done
+    [ -x "$helper_install/haco-storage-helper" ] || { echo "$name: missing installed storage helper" >&2; exit 1; }
   else
     [ "$code" -ne 0 ] || { echo "$name: expected failure" >&2; exit 1; }
     [ ! -e "$install/haco" ] || { echo "$name: installed binary after trust failure" >&2; exit 1; }
