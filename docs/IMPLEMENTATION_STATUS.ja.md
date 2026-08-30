@@ -24,7 +24,8 @@ Hacocoon は pre-1.0 です。v0.17 OCI Seed Builder & Btrfs/COW がpartialなfe
 | OCI plugin boundary | `HACO_PLUGIN_OCI=nerdctl|docker` の明示opt-in。未設定でもCoreは動作する | cross-cutting |
 | OCI Seed Recommendation | `haco plugin oci seed sample` / `recommend`、top 10%を `auto_promote=true` | v0.15 |
 | OCI Image Deletion | `haco plugin oci image delete`、deletion tombstone、optional all-environments | v0.16 |
-| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build/current`、Tooling/Seed manifest、trusted Host acquisition、offline no-NIC builder、immutable publish/current pointer、exact-parent resolutionを実装。real-host/COW acceptanceとGC/recoveryはpending | v0.17 partial |
+| OCI explicit Seed selection | `haco plugin oci seed pin/unpin/re-enable` がimmutable operator intentをtelemetryと別にpersist。pinとauto-promotionは別扱い、re-enableは既存deletion必須、さらに新しいdeletionがあれば再びdeletionが勝つ | v0.17 partial |
+| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build/current`、explicit immutable operator selection、Tooling/Seed manifest、trusted Host acquisition、offline no-NIC builder、immutable publish/current pointer、exact-parent resolutionを実装。real-host/COW acceptanceとGC/recoveryはpending | v0.17 partial |
 | Docker Compatibility | `haco plugin oci docker status/prepare`。Base提供profileとpinned systemd unitを検証し、active vendor daemonを勝手に停止せずEnvironment-local socket activationだけを有効化 | v0.18 implemented |
 | Optional Local OCI Registry | optional。通常pullやSeed constructionの必須経路ではない | unversioned optional / deferred |
 
@@ -48,7 +49,7 @@ Base lifecycle は `haco base ...`、OCI workload tooling は `haco plugin oci .
 
 ## OCI Seed / storage
 
-v0.17はfirst repository slice実装済みです。trusted Host acquisition/cache → offline no-NIC Seed Builder → immutable Seed revision/current pointer → exact-parent resolution → normal Incus/storage-driver clone まで実装されています。複数Environmentで一つのwritable `/var/lib/containerd` を共有しません。
+v0.17はfirst repository slice実装済みです。trusted Host acquisition/cache → offline no-NIC Seed Builder → immutable Seed revision/current pointer → exact-parent resolution → normal Incus/storage-driver clone まで実装されています。immutable pin/re-enable selectionはusage telemetryとは別にpersistし、pinはautomatic promotionとは別のままfuture Seed対象へ含めます。tombstone済みidentityは明示re-enableを要求し、その後さらに新しいdeletionがあれば古いre-enable/pinよりdeletionが再び優先されます。これらselection操作はnetwork/credential authorityを付与しません。複数Environmentで一つのwritable `/var/lib/containerd` を共有しません。
 
 Local Registryはprerequisiteではなくroadmap versionも予約しません。残件はold Tooling/Seed revision GC、restart/crash recovery、authenticated/private-registry combination、physical Btrfs COW measurement、broader real-host acceptanceです。
 
