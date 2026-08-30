@@ -45,7 +45,7 @@ func dispatch(ctx context.Context, app *composition.App, args []string) error {
 	commands := map[string]command{
 		"create":      createCommand,
 		"image":       imageCommand,
-		"git":         gitCommand,
+		"plugin":      pluginCommand,
 		"run":         runCommand,
 		"events":      eventsCommand,
 		"capability":  capabilityCommand,
@@ -259,9 +259,21 @@ func eventsCommandTo(ctx context.Context, app *composition.App, args []string, o
 	return err
 }
 
-func gitCommand(ctx context.Context, app *composition.App, args []string) error {
+func pluginCommand(ctx context.Context, app *composition.App, args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: haco plugin <git> ...: %w", core.ErrInvalidArgument)
+	}
+	switch args[0] {
+	case "git":
+		return gitPluginCommand(ctx, app, args[1:])
+	default:
+		return fmt.Errorf("unknown plugin %q: %w", args[0], core.ErrInvalidArgument)
+	}
+}
+
+func gitPluginCommand(ctx context.Context, app *composition.App, args []string) error {
 	if len(args) < 2 || args[0] != "push" {
-		return fmt.Errorf("usage: haco git push <environment> --branch <branch> [--source <revision>] [--remote <remote>] [--force]: %w", core.ErrInvalidArgument)
+		return fmt.Errorf("usage: haco plugin git push <environment> --branch <branch> [--source <revision>] [--remote <remote>] [--force]: %w", core.ErrInvalidArgument)
 	}
 	spec, err := parseGitPushSpec(args[1:])
 	if err != nil {
@@ -532,7 +544,7 @@ func doctorCommand(ctx context.Context, app *composition.App, args []string) err
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: haco <create|image|git|run|events|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
+	fmt.Fprintln(os.Stderr, "usage: haco <create|image|plugin|run|events|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
 }
 
 func fail(err error) {

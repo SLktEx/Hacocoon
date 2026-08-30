@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -29,5 +31,24 @@ func TestParseGitPushSpec(t *testing.T) {
 		if _, err := parseGitPushSpec(args); !errors.Is(err, core.ErrInvalidArgument) {
 			t.Fatalf("args=%v err=%v", args, err)
 		}
+	}
+}
+
+func TestGitPushLivesUnderPluginNamespace(t *testing.T) {
+	ctx := context.Background()
+
+	err := dispatch(ctx, nil, []string{"git", "push", "demo", "--branch", "feature/x"})
+	if !errors.Is(err, core.ErrInvalidArgument) || !strings.Contains(err.Error(), `unknown command "git"`) {
+		t.Fatalf("top-level git err=%v", err)
+	}
+
+	err = pluginCommand(ctx, nil, []string{"git", "push", "demo"})
+	if !errors.Is(err, core.ErrInvalidArgument) {
+		t.Fatalf("plugin git push err=%v", err)
+	}
+
+	err = pluginCommand(ctx, nil, []string{"unknown"})
+	if !errors.Is(err, core.ErrInvalidArgument) || !strings.Contains(err.Error(), `unknown plugin "unknown"`) {
+		t.Fatalf("unknown plugin err=%v", err)
 	}
 }

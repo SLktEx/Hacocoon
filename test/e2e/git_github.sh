@@ -59,7 +59,7 @@ go build -o "$haco" ./cmd/haco
 # the confused-deputy path the broker must reject.
 git -C "$workspace" config url."file://$bare".insteadOf https://github.com/acme/demo.git
 set +e
-"$haco" git push demo --branch feature/e2e >"$root/rewrite.out" 2>"$root/rewrite.err"
+"$haco" plugin git push demo --branch feature/e2e >"$root/rewrite.out" 2>"$root/rewrite.err"
 rewrite_code=$?
 set -e
 [[ "$rewrite_code" != 0 ]]
@@ -73,7 +73,7 @@ fi
 git -C "$workspace" config --unset-all url."file://$bare".insteadOf
 git -C "$workspace" config remote.origin.pushurl "file://$bare"
 set +e
-"$haco" git push demo --branch feature/e2e >"$root/pushurl.out" 2>"$root/pushurl.err"
+"$haco" plugin git push demo --branch feature/e2e >"$root/pushurl.out" 2>"$root/pushurl.err"
 pushurl_code=$?
 set -e
 [[ "$pushurl_code" != 0 ]]
