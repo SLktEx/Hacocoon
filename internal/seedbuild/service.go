@@ -72,7 +72,7 @@ func (s *Service) Build(ctx context.Context, base core.BaseName) (BuildReport, e
 	}
 	// The physical Seed cache uses containerd namespaces. The optional Docker
 	// driver intentionally does not authorize access to an arbitrary Host Docker
-	// daemon, so v0.19 Seed publication currently requires the nerdctl plugin
+	// daemon, so v0.18 Seed publication currently requires the nerdctl plugin
 	// driver and fails closed otherwise.
 	if s.stats.Driver() != ociplugin.DriverNerdctl {
 		return BuildReport{}, fmt.Errorf("OCI Seed build currently requires HACO_PLUGIN_OCI=nerdctl: %w", core.ErrUnsupported)
@@ -82,6 +82,13 @@ func (s *Service) Build(ctx context.Context, base core.BaseName) (BuildReport, e
 		return BuildReport{}, err
 	}
 	defer unlock()
+	// A process crash may have left a random Hacocoon builder or a published
+	// image whose current pointer was never committed. The maintained Incus
+	// backend can recover those artifacts safely while the global Seed build
+	// lock excludes a concurrent build.
+	if err := s.recoverLocked(ctx); err != nil {
+		return BuildReport{}, fmt.Errorf("recover interrupted Seed build before starting a new build: %w", err)
+	}
 
 	parent, err := s.backend.ResolveParentBase(ctx, base)
 	if err != nil {
@@ -100,6 +107,13 @@ func (s *Service) Build(ctx context.Context, base core.BaseName) (BuildReport, e
 	if err != nil {
 		return BuildReport{}, err
 	}
+	images, err = s.mergePinnedImages(ctx, parent.Name, images)
+	if err != nil {
+		return BuildReport{}, err
+	}
+	if err := s.validateDeletionState(ctx, images); err != nil {
+		return BuildReport{}, err
+	}
 
 	toolingRevision, reused, err := s.ensureToolingBase(ctx, parent)
 	if err != nil {
@@ -115,6 +129,16 @@ func (s *Service) Build(ctx context.Context, base core.BaseName) (BuildReport, e
 	}
 	if err := validateRevision(built.Revision); err != nil {
 		return BuildReport{}, fmt.Errorf("backend returned invalid Seed revision: %w", err)
+	}
+	// Deletion is an explicit operator override. Re-check after publication so
+	// a deletion that races a long build cannot silently become the new current
+	// Seed. The just-published unreferenced image is recovered immediately when
+	// the backend can prove it is Hacocoon-owned and unused.
+	if err := s.validateDeletionState(ctx, images); err != nil {
+		if recoveryErr := s.recoverLocked(ctx); recoveryErr != nil {
+			return BuildReport{}, errors.Join(err, recoveryErr, core.ErrRecoveryRequired)
+		}
+		return BuildReport{}, err
 	}
 
 	manifest := Manifest{
@@ -217,7 +241,7 @@ func selectedImages(recommendations []ociplugin.Recommendation) ([]ImageIdentity
 }
 
 func validateImageIdentity(image ImageIdentity) error {
-	if strings.TrimSpace(image.Reference) == "" || strings.TrimSpace(image.Reference) != image.Reference || strings.ContainsAny(image.Reference, "@\t\r\n") {
+	if strings.TrimSpace(image.Reference) == "" || strings.TrimSpace(image.Reference) != image.Reference || strings.HasPrefix(image.Reference, "-") || strings.ContainsAny(image.Reference, "@\t\r\n") {
 		return fmt.Errorf("invalid Seed image reference %q: %w", image.Reference, core.ErrInvalidArgument)
 	}
 	return validateRevision(core.BaseRevision(image.Digest))
