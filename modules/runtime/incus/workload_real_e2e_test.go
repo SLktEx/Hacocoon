@@ -36,10 +36,14 @@ func TestRealIncusNerdctlUsesHostOCIWorkloadE2E(t *testing.T) {
 	runner := e2eLoggingRunner{t: t, inner: host.ExecRunner{}}
 	project := "haco-e2e-native-" + time.Now().Format("150405.000000000")
 	project = strings.ReplaceAll(project, ".", "-")
+	otherProject := project + "-other"
 	runtimeAdapter := New(runner)
 	runtimeAdapter.project = project
 	if err := runtimeAdapter.Prepare(ctx, core.RuntimePrepareSpec{StorageAttachment: map[string]string{"incus_pool": "default"}}); err != nil {
 		t.Fatalf("prepare Incus runtime: %v", err)
+	}
+	if _, err := runner.Run(ctx, "incus", "project", "create", otherProject, "--config", "features.profiles=false"); err != nil {
+		t.Fatalf("create cross-project isolation sentinel: %v", err)
 	}
 
 	environment := "native"
@@ -53,8 +57,17 @@ func TestRealIncusNerdctlUsesHostOCIWorkloadE2E(t *testing.T) {
 		cleanupCtx := context.Background()
 		_, _ = runner.Run(cleanupCtx, "incus", "delete", workloadRef, "--project", project, "--force")
 		_, _ = runner.Run(cleanupCtx, "incus", "delete", environmentRef, "--project", project, "--force")
+		_, _ = runner.Run(cleanupCtx, "incus", "project", "delete", otherProject)
 		_, _ = runner.Run(cleanupCtx, "incus", "project", "delete", project)
 	}()
+
+	scopedWorkloads, err := runtimeAdapter.BindEnvironmentWorkloads(environment)
+	if err != nil {
+		t.Fatalf("bind Environment workload project scope: %v", err)
+	}
+	if scopedWorkloads.Project() != project {
+		t.Fatalf("bound workload project = %q, want %q", scopedWorkloads.Project(), project)
+	}
 
 	brokerPath, err := WorkloadBrokerSocketPath(environment)
 	if err != nil {
@@ -65,7 +78,7 @@ func TestRealIncusNerdctlUsesHostOCIWorkloadE2E(t *testing.T) {
 		t.Fatalf("listen on Environment workload broker: %v", err)
 	}
 	brokerServer := control.NewServer()
-	if err := controlapi.RegisterBoundEnvironmentWorkloads(brokerServer, runtimeAdapter, environment); err != nil {
+	if err := controlapi.RegisterBoundEnvironmentWorkloads(brokerServer, scopedWorkloads, environment); err != nil {
 		_ = listener.Close()
 		t.Fatalf("register Environment workload broker: %v", err)
 	}
@@ -124,10 +137,13 @@ func TestRealIncusNerdctlUsesHostOCIWorkloadE2E(t *testing.T) {
 
 	kind, err := runner.Run(ctx, "incus", "config", "get", workloadRef, workloadKindKey, "--project", project)
 	if err != nil {
-		t.Fatalf("inspect sibling OCI workload: %v", err)
+		t.Fatalf("inspect sibling OCI workload in guest project: %v", err)
 	}
 	if strings.TrimSpace(kind.Stdout) != workloadKindValue {
 		t.Fatalf("workload marker = %q, want %q", strings.TrimSpace(kind.Stdout), workloadKindValue)
+	}
+	if _, err := runner.Run(ctx, "incus", "info", workloadRef, "--project", otherProject); err == nil {
+		t.Fatalf("guest workload %s unexpectedly exists in foreign Incus project %s", workloadRef, otherProject)
 	}
 
 	ps, err := runtimeAdapter.ExecEnvironment(ctx, environmentRef, core.ExecutionRequest{Argv: []string{"nerdctl", "ps"}})
