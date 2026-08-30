@@ -60,16 +60,28 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
-	operation, err := r.createJournal.prepare(accountID, cfg, spec)
-	if err != nil {
-		return core.EnvironmentRuntime{}, err
-	}
 
+	baseBefore, err := digestWorkspace(ctx, spec.WorkspacePath)
+	if err != nil {
+		return core.EnvironmentRuntime{}, fmt.Errorf("identify host workspace before archive: %w", err)
+	}
 	archive, cleanupArchive, err := createWorkspaceArchive(ctx, r.runner, spec.WorkspacePath)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
 	defer cleanupArchive()
+	baseAfter, err := digestWorkspace(ctx, spec.WorkspacePath)
+	if err != nil {
+		return core.EnvironmentRuntime{}, fmt.Errorf("identify host workspace after archive: %w", err)
+	}
+	if baseBefore != baseAfter {
+		return core.EnvironmentRuntime{}, fmt.Errorf("host workspace changed while creating EC2 base archive: %w", core.ErrWorkspaceBusy)
+	}
+
+	operation, err := r.createJournal.prepare(accountID, cfg, spec, baseAfter)
+	if err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
 
 	prefix := cfg.WorkspacePrefix + "/" + spec.Name
 	inputURI := s3URI(cfg.WorkspaceBucket, prefix+"/input.tgz")
@@ -157,6 +169,7 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		Bucket:          cfg.WorkspaceBucket,
 		Prefix:          prefix,
 		ReadOnly:        spec.ReadOnly,
+		BaseDigest:      baseAfter,
 		CreateOperation: operation.Key,
 		ClientToken:     operation.ClientToken,
 	})
@@ -274,6 +287,25 @@ func (r *Runtime) syncBack(ctx context.Context, ref runtimeRef) error {
 	defer os.Remove(archivePath)
 	if _, err := r.aws(ctx, "s3", "cp", outputURI, archivePath, "--only-show-errors"); err != nil {
 		return fmt.Errorf("download remote workspace changes: %w", err)
+	}
+	if ref.BaseDigest == "" {
+		return errors.Join(
+			fmt.Errorf("RW EC2 environment lacks a creation-time host workspace identity"),
+			core.ErrRecoveryRequired,
+		)
+	}
+	currentDigest, err := digestWorkspace(ctx, ref.WorkspacePath)
+	if err != nil {
+		return errors.Join(
+			fmt.Errorf("identify host workspace before EC2 restore: %w", err),
+			core.ErrRecoveryRequired,
+		)
+	}
+	if currentDigest != ref.BaseDigest {
+		return errors.Join(
+			fmt.Errorf("host workspace changed while EC2 environment was active: %w", core.ErrWorkspaceBusy),
+			core.ErrRecoveryRequired,
+		)
 	}
 	if err := restoreWorkspaceArchive(ctx, r.runner, archivePath, ref.WorkspacePath); err != nil {
 		return fmt.Errorf("restore remote workspace changes: %w", err)

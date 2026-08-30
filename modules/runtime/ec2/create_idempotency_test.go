@@ -115,8 +115,8 @@ func TestCreateRetryRejectsParameterDriftBeforeAWSMutation(t *testing.T) {
 		t.Fatalf("parameter drift err=%v", err)
 	}
 	newCalls := strings.Join(runner.base.calls[before:], "\n")
-	if strings.Contains(newCalls, "tar -czf") || strings.Contains(newCalls, "s3 cp") || strings.Contains(newCalls, "ec2 run-instances") {
-		t.Fatalf("parameter drift reached side effects:\n%s", newCalls)
+	if strings.Contains(newCalls, "s3 cp") || strings.Contains(newCalls, "ec2 run-instances") {
+		t.Fatalf("parameter drift reached AWS mutation:\n%s", newCalls)
 	}
 }
 
