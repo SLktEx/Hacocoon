@@ -93,12 +93,18 @@ func (m *Manager) EnsureListener(ctx context.Context, environment string) error 
 
 // ReconcileExisting restores both the Host listener and the guest-side proxy /
 // nerdctl shim for an Environment persisted before a controller restart or an
-// upgrade to the Incus-native workload path.
+// upgrade to the Incus-native workload path. Persisted RuntimeRef may contain
+// provider-routing metadata, so the raw Incus ref is derived canonically here.
 func (m *Manager) ReconcileExisting(ctx context.Context, environment core.Environment) error {
 	if err := m.EnsureListener(ctx, environment.Name); err != nil {
 		return err
 	}
-	if err := m.runtime.EnsureEnvironmentWorkloadIntegration(ctx, environment.Name, environment.RuntimeRef); err != nil {
+	ref, err := incus.ManagedEnvironmentRef(environment.Name)
+	if err != nil {
+		_ = m.Remove(environment.Name)
+		return err
+	}
+	if err := m.runtime.EnsureEnvironmentWorkloadIntegration(ctx, environment.Name, ref); err != nil {
 		_ = m.Remove(environment.Name)
 		return err
 	}
