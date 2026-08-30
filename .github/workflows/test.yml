@@ -215,14 +215,42 @@ jobs:
           check-latest: true
           cache: false
       - name: Validate E2E shell syntax
-        run: bash -n test/e2e/*.sh
+        run: bash -n test/e2e/*.sh tools/ci-nerdctl.sh
       - name: Shipped command black-box E2E
         run: bash test/e2e/commands.sh
       - name: Capability E2E
         run: bash test/e2e/capability.sh
       - name: Git/GitHub E2E
         run: bash test/e2e/git_github.sh
+      - name: OCI plugin process matrix
+        run: bash test/e2e/plugin_oci.sh
       - name: Orchestrator E2E
         env:
           HACO_STORAGE_PRIVILEGE_MODE: direct
         run: bash test/e2e/orchestrator.sh
+
+  oci-nerdctl:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Validate nerdctl acceptance helpers
+        run: bash -n tools/ci-nerdctl.sh test/e2e/oci_nerdctl.sh
+      - name: Start preinstalled containerd
+        run: |
+          command -v containerd
+          containerd --version
+          sudo systemctl enable --now containerd
+      - name: Install pinned nerdctl
+        run: bash tools/ci-nerdctl.sh install
+      - name: Run real nerdctl/containerd CLI acceptance
+        env:
+          HACO_E2E_OCI_NERDCTL: "1"
+        run: bash test/e2e/oci_nerdctl.sh
