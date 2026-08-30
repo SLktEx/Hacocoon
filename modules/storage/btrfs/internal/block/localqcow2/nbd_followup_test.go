@@ -23,6 +23,8 @@ func TestNBDAllocatorLockIsHostGlobalAcrossStorageRoots(t *testing.T) {
 	lockPath := filepath.Join(t.TempDir(), "hacocoon-nbd.lock")
 	first.nbdLockPath = lockPath
 	second.nbdLockPath = lockPath
+	firstBacking := filepath.Join(t.TempDir(), "storage-a", "images", "a.qcow2")
+	secondBacking := filepath.Join(t.TempDir(), "storage-b", "images", "b.qcow2")
 
 	firstEntered := make(chan struct{})
 	releaseFirst := make(chan struct{})
@@ -30,16 +32,22 @@ func TestNBDAllocatorLockIsHostGlobalAcrossStorageRoots(t *testing.T) {
 	errCh := make(chan error, 2)
 
 	go func() {
-		errCh <- first.withNBDAllocatorLock(filepath.Join(t.TempDir(), "storage-a", "images", "a.qcow2"), func() error {
+		errCh <- first.withNBDAllocatorLock(firstBacking, func() error {
 			close(firstEntered)
 			<-releaseFirst
 			return nil
 		})
 	}()
-	<-firstEntered
+	select {
+	case <-firstEntered:
+	case err := <-errCh:
+		t.Fatalf("first allocator failed before entering critical section: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("first allocator did not enter critical section")
+	}
 
 	go func() {
-		errCh <- second.withNBDAllocatorLock(filepath.Join(t.TempDir(), "storage-b", "images", "b.qcow2"), func() error {
+		errCh <- second.withNBDAllocatorLock(secondBacking, func() error {
 			close(secondEntered)
 			return nil
 		})
@@ -53,12 +61,19 @@ func TestNBDAllocatorLockIsHostGlobalAcrossStorageRoots(t *testing.T) {
 	close(releaseFirst)
 	select {
 	case <-secondEntered:
+	case err := <-errCh:
+		t.Fatalf("allocator failed while handing off host-global lock: %v", err)
 	case <-time.After(time.Second):
 		t.Fatal("second storage root never acquired host-global NBD allocator lock")
 	}
 	for i := 0; i < 2; i++ {
-		if err := <-errCh; err != nil {
-			t.Fatal(err)
+		select {
+		case err := <-errCh:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("allocator goroutine did not finish")
 		}
 	}
 }
