@@ -269,7 +269,7 @@ haco connections
 haco forward
 haco unforward
 haco ssh
-haco git push
+haco plugin git push
 haco capability request
 haco run
 haco events
@@ -281,6 +281,8 @@ haco-vscode delete
 haco-agent-host prepare
 haco-agent-host release
 ```
+
+Git/GitHub integration is intentionally namespaced under `haco plugin`; privileged authority still crosses the same host-owned Policy/Capability boundary.
 
 All surfaces remain pre-1.0 and may change.
 
