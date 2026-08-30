@@ -20,17 +20,31 @@ Optional selectors:
 
 This is intentionally **not** a Hacocoon wrapper for every Git command. Commit, diff, status, fetch, worktree handling, and other ordinary Git UX remain Git's responsibility. A future transparent remote-helper/IPC path should only be added if it preserves the same security boundary without revealing credentials.
 
+## Trusted repository identity
+
+Before any brokered Git command, Hacocoon resolves an explicit repository boundary for the registered Workspace and pins every Git subprocess to that exact `--git-dir` and `--work-tree`. Git is therefore not allowed to discover a parent repository or follow a newly swapped `.git` pointer between validation and execution.
+
+The accepted layouts are deliberately narrow:
+
+- a normal Workspace-local `.git/` directory;
+- a standard linked Git worktree whose `.git` file points to `<common-dir>/worktrees/<id>`, whose admin directory has a `gitdir` backlink to this exact Workspace `.git` file, and whose `commondir` resolves back to that common directory.
+
+Arbitrary external `gitdir:` targets, symlink `.git` entries, mismatched worktree backlinks, non-standard linked-worktree admin layouts, and Git object alternates are rejected. Repository-controlled config includes, HTTP transport configuration, credential helpers, URL rewrites, hook/SSH/askpass commands, and `core.worktree` overrides are also rejected for the privileged broker path.
+
+The canonical worktree/gitdir/commondir tuple is hashed into a non-secret `repository_identity` capability attribute. The provider recomputes that identity immediately before privileged execution and fails stale if it changed after policy evaluation. Raw host paths are not written into the capability audit for this purpose.
+
 ## Request normalization
 
 Before policy evaluation Hacocoon:
 
 1. resolves the Environment to its registered host Workspace;
-2. reads the configured remote URL from the host Workspace;
-3. accepts only credential-free `github.com` HTTPS/SSH remotes;
-4. normalizes organization, repository, target branch/ref, and operation;
-5. resolves the requested source revision to an exact Git object SHA;
-6. for a force push, resolves the expected target SHA only from the already-fetched local `refs/remotes/<remote>/<branch>` tracking ref;
-7. records those non-secret, authority-sensitive values as auditable capability attributes.
+2. validates and pins the trusted repository identity described above;
+3. reads the configured remote URL from that pinned repository;
+4. accepts only credential-free `github.com` HTTPS/SSH remotes;
+5. normalizes organization, repository, target branch/ref, and operation;
+6. resolves the requested source revision to an exact Git object SHA;
+7. for a force push, resolves the expected target SHA only from the already-fetched local `refs/remotes/<remote>/<branch>` tracking ref;
+8. records those non-secret, authority-sensitive values as auditable capability attributes.
 
 No authenticated remote lookup is performed during this pre-policy normalization. A force push therefore requires a fetched local remote-tracking ref. If that local baseline is absent, Hacocoon fails closed and the operator must fetch/update the tracking ref before retrying.
 
@@ -48,6 +62,7 @@ Example policy:
       "attributes": {
         "organization": "acme",
         "repository": "demo",
+        "repository_identity": "*",
         "remote": "origin",
         "source_sha": "*",
         "target_ref": "refs/heads/feature/x"
@@ -62,6 +77,7 @@ Example policy:
       "attributes": {
         "organization": "acme",
         "repository": "demo",
+        "repository_identity": "*",
         "remote": "origin",
         "source_sha": "*",
         "target_ref": "refs/heads/main",
@@ -73,7 +89,7 @@ Example policy:
 }
 ```
 
-Policy scope is exact by default. `resource` must always be present, and only the literal value `"*"` means any resource. Environment is also part of the policy scope. Every request attribute must be represented by the matching rule; use an explicit attribute value of `"*"` when the value may vary safely, such as the source commit SHA.
+Policy scope is exact by default. `resource` must always be present, and only the literal value `"*"` means any resource. Environment is also part of the policy scope. Every request attribute must be represented by the matching rule; use an explicit attribute value of `"*"` when the value may vary safely, such as the source commit SHA or hashed repository identity.
 
 ## Exact source enforcement
 
@@ -83,7 +99,7 @@ Approval is not granted to a moving branch name. Hacocoon resolves the source to
 <approved SHA>:<approved refs/heads/...>
 ```
 
-The provider re-reads and re-normalizes the GitHub remote immediately before the push. If the remote/repository/target no longer matches the approved request, the capability is stale and the push is refused.
+The provider revalidates the repository identity and re-reads/re-normalizes the GitHub remote immediately before the push. If the repository boundary, remote, repository, or target no longer matches the approved request, the capability is stale and the push is refused.
 
 Force pushes use `--force-with-lease`, not raw `--force`. Before policy/approval, the expected remote SHA comes from the local remote-tracking ref only. After policy/approval succeeds, the provider performs the authenticated `ls-remote`, requires the real remote ref to equal the approved local baseline, and only then executes the force-with-lease push. A stale local tracking ref or a remote change invalidates the request instead of causing pre-policy network access.
 
@@ -127,6 +143,7 @@ Audit events include a request ID plus non-secret attributes such as:
 
 - organization;
 - repository;
+- hashed repository identity;
 - target ref;
 - exact source SHA;
 - remote name;
