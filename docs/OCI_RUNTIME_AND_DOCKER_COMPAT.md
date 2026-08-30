@@ -6,7 +6,7 @@ OCI/container tooling is an optional plugin/adapter concern, not a Hacocoon Core
 
 ## Maintained plugin profile
 
-The project-maintained OCI plugin profile may use:
+The project-maintained OCI plugin profile may use **containerd + nerdctl**:
 
 ```text
 containerd
