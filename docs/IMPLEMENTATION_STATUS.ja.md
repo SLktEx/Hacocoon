@@ -8,33 +8,38 @@
 
 Hacocoonはまだ **pre-1.0** です。実装済みであっても、CLI/API/state/configが固定されたこと、production support済みであること、real-provider/client acceptanceが完了したことを意味しません。
 
-現在、**実装済みmilestoneは v0.1〜v0.12 まで連続**しています。v0.13 Local OCI Registry / OCI Seed+COWはplannedであり、`main` implementationではありません。
+v0.1〜v0.12の既存gateに加え、v0.13 OCIではusage telemetry / recommendation / top-10% auto-selection / image deletion+tombstoneのsliceが実装されています。Seed build/publishとreal Btrfs acceptanceは未完です。
 
 ## 現在のrepository reality
 
 | 領域 | 現在の状態 | Release | 検証状況 |
 |---|---|---:|---|
-| Secure Workspace Runtime | `haco create --workspace` / `haco exec` / `haco shell` / `haco delete` | v0.1 | unit / process-boundary integration pass。real Incus acceptance pending |
-| Workspace model / Lease | canonical Workspace identity、RO/RW lease、RW conflict prevention、process serialization | v0.1-v0.2 | unit / persistence / concurrency / integration pass |
-| Client access | status、loopback forwarding、SSH prepare/revoke | v0.3 | unit/process pass。real Incus SSH acceptance pending |
-| Policy / Capability | fail-closed policy、approval、audit | v0.4 | unit/process + CLI E2E pass |
-| Git / GitHub Capability | host-side brokered push。host credentialをEnvironmentへexportしない | v0.5 | unit / adversarial / real-git / CLI E2E pass |
-| Agent / Orchestrator | `haco run`、stable machine JSON、security event export | v0.6 | unit/race/process + CLI E2E pass |
-| EC2 Environment / AWS | experimental / disabled by default | v0.7 | fake-AWS integration/E2E pass。real AWS acceptance pending |
-| VS Code Client Adapter | `haco-vscode` → loopback SSH → standard Remote-SSH `/workspace` | v0.8 | helper unit。real Windows/WSL + Incus + VS Code acceptance pending |
-| Per-agent sandbox broker | `internal/agenthost` がopaque session identityをdedicated Environmentへbind | v0.9 | ownership / persistence / collision / release proof unit coverage |
+| Secure Workspace Runtime | `haco create --workspace` / `haco exec` / `haco shell` / `haco delete` | v0.1 | repository coverageあり。real Incus acceptance pending |
+| Workspace model / Lease | canonical Workspace identity、RO/RW lease、RW conflict prevention、process serialization | v0.1-v0.2 | unit / persistence / concurrency coverage |
+| Client access | status、loopback forwarding、SSH prepare/revoke | v0.3 | unit/process coverage。real Incus SSH acceptance pending |
+| Policy / Capability | fail-closed policy、approval、audit | v0.4 | unit/process/CLI coverage |
+| Git / GitHub Capability | host-side brokered push。host credentialをEnvironmentへexportしない | v0.5 | unit / adversarial / real-git coverage |
+| Agent / Orchestrator | `haco run`、stable machine JSON、security event export | v0.6 | unit/race/process coverage |
+| EC2 Environment / AWS | experimental / disabled by default | v0.7 | fake-AWS coverage。real AWS acceptance pending |
+| VS Code Client Adapter | `haco-vscode` → loopback SSH → standard Remote-SSH `/workspace` | v0.8 | helper coverage。real Windows/WSL + Incus + VS Code acceptance pending |
+| Per-agent sandbox broker | `internal/agenthost` がopaque session identityをdedicated Environmentへbind | v0.9 | ownership / persistence / collision / release proof coverage |
 | Agent binding state | `agent-bindings.json` にownership proofをtrusted stateとして保存。raw session IDはhash化 | v0.9 | lock + atomic/fsync-backed writes |
-| VS Code Remote Agent Host Adapter | `haco-agent-host prepare/release`。hashed alias、loopback SSH、client-side private key、`code --agents` | v0.10 | PR #137で`main`実装済み。real Agent Host acceptance pending |
-| Base identity | `BaseName` / `BaseRevision` / `BaseRef` をprovider-neutralに保持しEnvironmentへ保存 | v0.11 | unit / routing / fake-Incus E2E |
-| Incus Base pinning | logical Base sourceをcreate時にimmutable fingerprintへ解決し、pinned fingerprintからinit | v0.11 | alias movement / malformed fingerprint / injection系unit coverage。real Incus image acceptance pending |
-| Base CLI | `haco image list` / `haco image inspect <base>` / `haco create --base <base> ...` | v0.11 | CLI parse + fake-Incus E2E。statusにpersisted Base revisionを出力 |
-| Custom Base mapping | `HACO_INCUS_BASES_JSON` でhost/operatorがlogical mappingを追加。`haco/` namespaceは予約 | v0.11 | adversarial input test。build/import/history/rollback/GCは未実装 |
-| Resource budget model | CPU / memory bytes / PID / root bytesをfiniteまたはexplicit `unlimited`としてprovider-neutralに保持 | v0.12 | normalization / bounds / invalid inputのunit coverage |
-| Resource CLI | `haco create` / `haco run` に `--cpu` / `--memory` / `--pids` / `--root-size` | v0.12 | strict parser unit + fake-Incus E2E |
-| Incus resource enforcement | finite limitを`start`前に設定してread-back verify。失敗・不一致ならcreate成功扱いにしない | v0.12 | ordering / mismatch / cleanup unit + fake-Incus E2E。real Incus enforcement pending |
-| Managed Incus sandbox network | Hacocoon-managed `haco-sandbox` profile/networkをlocal sandbox pathのdefaultとして使用し、drift/broad fallbackをfail closed | cross-cutting | unit/static integrationあり。real Incus networking acceptanceは別 |
-| Unsupported provider behavior | finite budgetをenforceできないproviderはside effect前にfail closed。experimental EC2は現在この経路 | v0.12 | wrapped providerが呼ばれないことをunit test。real AWS pending |
-| CI / release hardening | Go matrix、vet、race、docs consistency、bootstrap/release/workflow trust checks | cross-cutting | real provider/client acceptanceは別 |
+| VS Code Remote Agent Host Adapter | `haco-agent-host prepare/release`。hashed alias、loopback SSH、client-side private key、`code --agents` | v0.10 | 実装済み。real Agent Host acceptance pending |
+| Base identity | `BaseName` / `BaseRevision` / `BaseRef` をprovider-neutralに保持しEnvironmentへ保存 | v0.11 | unit / routing / fake-Incus coverage |
+| Incus Base pinning | logical Base sourceをcreate時にimmutable fingerprintへ解決し、pinned fingerprintからinit | v0.11 | alias movement等のcoverage。real Incus image acceptance pending |
+| Base CLI | `haco base list` / `haco base inspect <base>` / `haco create --base <base> ...`。曖昧な `haco image ...` は削除 | v0.11 | namespace routing +既存Base coverage |
+| Custom Base mapping | `HACO_INCUS_BASES_JSON` でlogical mappingを追加。`haco/` namespaceは予約 | v0.11 | adversarial coverage。build/import/history/rollback/GCは未実装 |
+| Resource budget model | CPU / memory bytes / PID / root bytesをfiniteまたはexplicit `unlimited`として保持 | v0.12 | normalization / bounds / persistence coverage |
+| Resource CLI | `haco create` / `haco run` に `--cpu` / `--memory` / `--pids` / `--root-size` | v0.12 | parser + fake-Incus coverage |
+| Incus resource enforcement | finite limitを`start`前に設定してread-back verify | v0.12 | unit/fake-Incus coverage。real enforcement pending |
+| OCI plugin namespace | OCI/containerd/nerdctl固有操作を `haco plugin oci ...` に分離 | v0.13 | CLI namespace routing coverage |
+| OCI usage telemetry | `haco plugin oci seed sample` / `haco plugin oci seed recommend`。Environmentごとのlatest image snapshot、6h refresh、30日ranking | v0.13 | `internal/seedstats` unit coverage。real-host acceptance pending |
+| OCI auto-selection | eligible immutable identityの上位10%を切り上げ、最低1件 `auto_promote=true` | v0.13 | deterministic unit coverage。Seed buildへの投入は未実装 |
+| OCI image deletion | `haco plugin oci image delete <reference[@digest]>`。Host cache+tombstone、`--all-environments`で全Environmentまで拡張、`--force`なし | v0.13 | focused unit coverage。replacement Seed publish/GC pending |
+| OCI deletion override | tombstoneは明示overrideまでrecommend/auto-promoteより優先 | v0.13 | persisted state/recommendation coverage |
+| OCI Seed build/publish | offline Seed Builder、Environment harvesting、immutable Seed publish、Btrfs COW実測 | v0.13 | 未完 / acceptance pending |
+| Local OCI Registry | optional optimization。Seedや通常pullの必須依存ではない | v0.13 | design only |
+| CI / release hardening | Go matrix、vet、race、docs consistency、bootstrap/release/workflow trust checksを構成 | cross-cutting | 現在GitHub Actionsはrepository-wideにstep実行前failureが発生中。real acceptanceは別 |
 
 ## 実装の流れ
 
@@ -50,15 +55,9 @@ Workspace
   -> trusted session -> Environment binding broker
   -> VS Code Remote Agent Host adapter
   -> logical Base -> immutable revision -> Environment
-  -> ResourceBudget -> provider enforcement before Environment access
-  -> managed Incus sandbox networking
+  -> ResourceBudget -> provider enforcement
+  -> optional OCI plugin -> telemetry / recommend / deletion state
 ```
-
-## v0.9 Per-Agent Sandbox
-
-Deterministic Environment nameだけではownership proofになりません。persisted bindingが一致しなければAcquire/Releaseはfail closedします。
-
-Parallel RW agentは別canonical Workspace、通常は別Git worktreeを使います。
 
 ## v0.10 Agent Host Adapter
 
@@ -67,50 +66,45 @@ haco-agent-host prepare --session <opaque-id> [workspace]
 haco-agent-host release --session <opaque-id>
 ```
 
-VS CodeがAgent Host/AHPを所有し、HacocoonはEnvironment ownershipと安全なconnection preparationを所有します。Coding agentに`haco` / Incus management authorityを渡しません。
-
-real Windows/WSL + Incus + VS Code Agents window acceptanceはhost-dependentです。
+Coding agentに`haco` / Incus management authorityを渡しません。real Windows/WSL + Incus + VS Code Agents window acceptanceはhost-dependentです。
 
 ## v0.11 Base Images
 
-実装されたfirst slice:
-
 ```text
-haco image list
-haco image inspect <base>
+haco base list
+haco base inspect <base>
 haco create --base <base> --workspace <path> <environment>
 ```
 
-logical Baseはcreate時にimmutable revisionへresolveされ、そのidentityをEnvironmentにpersistします。Custom build/import、revision history、rollback、GCはfirst sliceでは未実装です。
+logical Baseはcreate時にimmutable revisionへresolveされ、そのidentityをEnvironmentにpersistします。`haco base` はEnvironment starting point専用で、OCI/container imageは `haco plugin oci` に分離します。
 
 ## v0.12 Resource Limits
-
-実装されたfirst slice:
 
 ```bash
 haco create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace . dev
 haco run --cpu 2 --memory 4GiB --workspace . -- go test ./...
 ```
 
-未指定dimensionはprovider defaultに放置せず、Hacocoonがexplicit `unlimited` effective budgetに解決してEnvironment metadataへ保存します。
+requested finite limitをproviderがenforceできない場合はsilent ignoreせずfail closedします。
 
-Incusではfinite CPU / memory / PID / root disk limitをEnvironment start前に設定し、read-backで一致を確認します。requested finite limitをproviderがenforceできない場合はsilent ignoreせずfail closedします。
+## v0.13 OCI plugin
 
-## v0.13はplanned
+```text
+haco plugin oci seed sample
+haco plugin oci seed recommend
+haco plugin oci image delete docker.io/library/node:24
+haco plugin oci image delete docker.io/library/node:24 --all-environments
+```
 
-`13_v0.13_LOCAL_OCI_REGISTRY.md` と `13A_v0.13_OCI_SEED_AND_COW.md` はdesign contractです。
+usage telemetry、recommendation、上位10% auto-selection、manual deletion tombstoneは実装済みです。一方、Host cacheへのEnvironment image harvesting、offline Seed Builder、immutable Seed publish/current pointer、old Seed GC、real Btrfs COW acceptanceは未完です。
 
-- Local OCI Registry/cache gateway: planned
-- transparent Environment-side OCI routing: planned
-- OCI Seed + Btrfs/COW optimization: planned second slice
-
-**これらを実装済みとして扱ってはいけません。** `IMPLEMENTATION_STATUS.md` が更新されるまではcurrent code realityではありません。
+Local Registryはoptionalであり、通常のEnvironment `nerdctl pull` やSeed設計の必須依存ではありません。
 
 ## Acceptanceの境界
 
 unit test、fake-provider E2E、race、vet、build、repository CIはreal-provider/client acceptanceの代替ではありません。
 
-Real Incus、managed networking/resource enforcement、Windows/WSL + VS Code、Agent Host routing、real image sources、AWS/EC2/SSM/EBSは対応環境で別途確認が必要です。
+Real Incus、managed networking/resource enforcement、Windows/WSL + VS Code、Agent Host routing、real image sources、OCI Seed/Btrfs、AWS/EC2/SSM/EBSは対応環境で別途確認が必要です。
 
 ## Compatibility status
 
