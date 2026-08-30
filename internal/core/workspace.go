@@ -8,6 +8,8 @@ type WorkspaceAccessMode string
 
 type WorkspaceLeaseState string
 
+type EphemeralRunState string
+
 type BaseName string
 
 type BaseRevision string
@@ -19,6 +21,10 @@ const (
 	WorkspaceLeaseAcquiring       WorkspaceLeaseState = "acquiring"
 	WorkspaceLeaseActive          WorkspaceLeaseState = "active"
 	WorkspaceLeaseCleanupRequired WorkspaceLeaseState = "cleanup-required"
+
+	EphemeralRunCreating        EphemeralRunState = "creating"
+	EphemeralRunActive          EphemeralRunState = "active"
+	EphemeralRunCleanupRequired EphemeralRunState = "cleanup-required"
 )
 
 type Workspace struct {
@@ -45,6 +51,15 @@ type WorkspaceLease struct {
 	RuntimeRef    string              `json:"runtime_ref,omitempty"`
 	State         WorkspaceLeaseState `json:"state,omitempty"`
 	AcquiredAt    time.Time           `json:"acquired_at"`
+}
+
+// EphemeralRun is trusted host-side evidence that an Environment belongs to
+// haco run. Names alone are never sufficient proof because a user may create an
+// ordinary Environment whose name happens to start with "run-".
+type EphemeralRun struct {
+	EnvironmentID string            `json:"environment_id"`
+	State         EphemeralRunState `json:"state"`
+	CreatedAt     time.Time         `json:"created_at"`
 }
 
 type Environment struct {
