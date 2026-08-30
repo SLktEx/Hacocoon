@@ -2,6 +2,7 @@ package storagepriv
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -175,9 +176,19 @@ func helperFixture(t *testing.T, id string) (root, backing, mountpoint string) {
 }
 
 func loopJSON(device, backing string) host.Result {
-	data := fmt.Sprintf(`{"loopdevices":[{"name":%q,"back-file":%q}]}`, device, backing)
-	// fmt %q already JSON-quotes the string values; remove the raw-string
-	// escaping used above for readability so the helper sees valid JSON.
-	data = strings.ReplaceAll(data, `\"`, `"`)
-	return host.Result{ExitCode: 0, Stdout: data}
+	payload := struct {
+		LoopDevices []struct {
+			Name     string `json:"name"`
+			BackFile string `json:"back-file"`
+		} `json:"loopdevices"`
+	}{}
+	payload.LoopDevices = append(payload.LoopDevices, struct {
+		Name     string `json:"name"`
+		BackFile string `json:"back-file"`
+	}{Name: device, BackFile: backing})
+	data, err := json.Marshal(payload)
+	if err != nil {
+		panic(err)
+	}
+	return host.Result{ExitCode: 0, Stdout: string(data)}
 }
