@@ -1,0 +1,19 @@
+title = "Hacocoon secret scanning policy"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Zabbly Incus public package-signing key fingerprint"
+condition = "AND"
+regexTarget = "line"
+regexes = [
+  '''4EFC590696CB15B87C73A3AD82CC8797C838DCFD''',
+]
+paths = [
+  '''^scripts/bootstrap-wsl\.sh$''',
+  '''^\.github/workflows/seed-real-incus-acceptance\.yml$''',
+]
