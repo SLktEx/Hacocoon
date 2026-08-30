@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/readme/hacocoon-logo.webp" alt="Hacocoon — Secure Workspace Runtime" width="520">
+
 # Hacocoon
 
 ### Run coding agents freely inside. Keep host authority outside.
@@ -12,6 +14,10 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 </div>
+
+<p align="center">
+  <img src="docs/assets/readme/hacocoon-hero.webp" alt="Hacocoon secure workspace runtime overview: AI runs inside, authority stays outside" width="100%">
+</p>
 
 Hacocoon puts a Workspace behind an isolated execution boundary while keeping privileged authority on the trusted Host.
 
@@ -55,6 +61,10 @@ Hacocoon separates them:
 - **Use your existing UI** — VS Code is the first convenience client; Hacocoon does not require its own AI chat UI.
 
 ## Quick Start
+
+<p align="center">
+  <img src="docs/assets/readme/hacocoon-quickstart.webp" alt="Hacocoon VS Code quick start: open a workspace, create or reuse an isolated environment, connect through loopback-only Remote-SSH, and run tests" width="100%">
+</p>
 
 ### Build
 
