@@ -39,6 +39,8 @@ jobs:
         run: python3 tools/check_workflow_policy.py
       - name: Test workflow trust policy
         run: python3 tools/test_workflow_policy.py
+      - name: Test public release readiness policy
+        run: python3 tools/test_public_release_readiness.py
       - name: Validate Renovate fail-closed policy
         run: python3 tools/check_renovate_policy.py
       - name: Test Renovate policy regressions
