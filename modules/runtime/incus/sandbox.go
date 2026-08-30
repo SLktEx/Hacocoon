@@ -135,6 +135,11 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 			))
 		}
 	}
+	if resolved.usesSeed {
+		if err := p.ensureSeedEnvironmentRuntimeReady(ctx, ref); err != nil {
+			return cleanup(fmt.Errorf("prepare Seed runtime in %s: %w", ref, err))
+		}
+	}
 	base := resolved.ref
 	return core.EnvironmentRuntime{Ref: ref, Base: &base, Resources: resources}, nil
 }
