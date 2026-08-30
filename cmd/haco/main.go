@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -196,29 +197,33 @@ func parseRunSpec(args []string) (runapp.Spec, bool, error) {
 }
 
 func eventsCommand(ctx context.Context, app *composition.App, args []string) error {
+	return eventsCommandTo(ctx, app, args, os.Stdout)
+}
+
+func eventsCommandTo(ctx context.Context, app *composition.App, args []string, out io.Writer) error {
 	jsonOutput := false
 	if len(args) == 1 && args[0] == "--json" {
 		jsonOutput = true
 	} else if len(args) != 0 {
 		return fmt.Errorf("usage: haco events [--json]: %w", core.ErrInvalidArgument)
 	}
-	events, err := app.Events.List(ctx)
-	if err != nil {
-		return err
-	}
+
+	events, listErr := app.Events.List(ctx)
 	if jsonOutput {
-		encoder := json.NewEncoder(os.Stdout)
+		encoder := json.NewEncoder(out)
 		for _, event := range events {
 			if err := encoder.Encode(event); err != nil {
 				return err
 			}
 		}
-		return nil
+		return listErr
 	}
 	for _, event := range events {
-		fmt.Printf("%s\t%s\t%s\t%s\t%s\n", event.Time.UTC().Format("2006-01-02T15:04:05Z07:00"), event.Type, event.Capability, event.Action, event.Decision)
+		if _, err := fmt.Fprintf(out, "%s\t%s\t%s\t%s\t%s\n", event.Time.UTC().Format("2006-01-02T15:04:05Z07:00"), event.Type, event.Capability, event.Action, event.Decision); err != nil {
+			return err
+		}
 	}
-	return nil
+	return listErr
 }
 
 func gitCommand(ctx context.Context, app *composition.App, args []string) error {
@@ -396,7 +401,7 @@ func forwardCommand(ctx context.Context, app *composition.App, args []string) er
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s\ttcp://%s:%d\t->\t%d\n", connection.ID, connection.Host, connection.Port, connection.TargetPort)
+	fmt.Printf("%s\ttcp://%s:%d\t->\t%d\n", connection.ID, connection.Kind, connection.Host, connection.Port, connection.TargetPort)
 	return nil
 }
 
