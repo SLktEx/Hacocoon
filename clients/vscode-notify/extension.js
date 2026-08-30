@@ -38,7 +38,7 @@ function activate(context) {
 
       for (const event of batch.events || []) {
         if (!seen.includes(event.event_id)) {
-          await present(event, includeCompleted);
+          present(event, includeCompleted);
           if (event.event_id) {
             seen.push(event.event_id);
             if (seen.length > maxSeen) seen = seen.slice(-maxSeen);
@@ -57,7 +57,7 @@ function activate(context) {
       }
       if (batch.error) {
         output.appendLine(`interaction stream paused: ${batch.error.code}`);
-        await vscode.window.showWarningMessage(`Hacocoon interaction stream paused: ${batch.error.code}`);
+        void vscode.window.showWarningMessage(`Hacocoon interaction stream paused: ${batch.error.code}`);
         return;
       }
     } catch (error) {
@@ -118,27 +118,27 @@ function requestJson(url) {
   });
 }
 
-async function present(event, includeCompleted) {
+function present(event, includeCompleted) {
   const details = [event.environment, event.capability, event.action].filter(Boolean).join(' · ');
   switch (event.kind) {
     case 'approval-required':
-      await vscode.window.showWarningMessage(message('Hacocoon approval required', details));
+      void vscode.window.showWarningMessage(message('Hacocoon approval required', details));
       break;
     case 'recovery-required':
-      await vscode.window.showErrorMessage(message('Hacocoon needs recovery', details || event.code));
+      void vscode.window.showErrorMessage(message('Hacocoon needs recovery', details || event.code));
       break;
     case 'operation-failed':
-      await vscode.window.showErrorMessage(message('Hacocoon operation failed', details || event.code));
+      void vscode.window.showErrorMessage(message('Hacocoon operation failed', details || event.code));
       break;
     case 'policy-denied':
-      await vscode.window.showWarningMessage(message('Hacocoon policy denied', details || event.code));
+      void vscode.window.showWarningMessage(message('Hacocoon policy denied', details || event.code));
       break;
     case 'approval-denied':
-      await vscode.window.showWarningMessage(message('Hacocoon approval denied', details || event.code));
+      void vscode.window.showWarningMessage(message('Hacocoon approval denied', details || event.code));
       break;
     case 'operation-completed':
       if (includeCompleted) {
-        await vscode.window.showInformationMessage(message('Hacocoon operation completed', details));
+        void vscode.window.showInformationMessage(message('Hacocoon operation completed', details));
       }
       break;
   }
