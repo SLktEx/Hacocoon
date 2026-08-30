@@ -173,8 +173,21 @@ func (r *Runtime) DeleteEnvironment(ctx context.Context, rawRef string) error {
 			return fmt.Errorf("wait for EC2 termination %s: %w", ref.InstanceID, err)
 		}
 	}
-	if _, err := r.aws(ctx, "s3", "rm", "s3://"+ref.Bucket+"/"+ref.Prefix, "--recursive", "--only-show-errors"); err != nil {
+	return r.cleanupWorkspaceStaging(ctx, ref)
+}
+
+func (r *Runtime) cleanupWorkspaceStaging(ctx context.Context, ref runtimeRef) error {
+	args := []string{"s3", "rm", "s3://" + ref.Bucket + "/" + ref.Prefix, "--recursive", "--only-show-errors"}
+	if !ref.ReadOnly {
+		args = append(args, "--exclude", syncRestoredMarkerRelativeKey(ref))
+	}
+	if _, err := r.aws(ctx, args...); err != nil {
 		return fmt.Errorf("cleanup EC2 workspace staging: %w", err)
+	}
+	if !ref.ReadOnly {
+		if _, err := r.aws(ctx, "s3", "rm", s3URI(ref.Bucket, syncRestoredMarkerKey(ref)), "--only-show-errors"); err != nil {
+			return fmt.Errorf("cleanup EC2 sync-back proof: %w", err)
+		}
 	}
 	return nil
 }
@@ -251,8 +264,12 @@ func (r *Runtime) syncRestored(ctx context.Context, ref runtimeRef) (bool, error
 	return false, fmt.Errorf("inspect EC2 sync-back marker: %w", err)
 }
 
+func syncRestoredMarkerRelativeKey(ref runtimeRef) string {
+	return ".hacocoon/sync-restored-" + ref.InstanceID
+}
+
 func syncRestoredMarkerKey(ref runtimeRef) string {
-	return ref.Prefix + "/.hacocoon/sync-restored-" + ref.InstanceID
+	return ref.Prefix + "/" + syncRestoredMarkerRelativeKey(ref)
 }
 
 func s3ObjectNotFound(stderr string) bool {
