@@ -4,7 +4,7 @@
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md) です。
 
-Hacocoon は pre-1.0 です。完全実装済みの product progression は **v0.17 まで連続**しています。v0.18 OCI Seed Builder & Btrfs/COW は first repository slice実装済み / partial です。
+Hacocoon は pre-1.0 です。完全実装済みの product progression は **v0.17 まで連続**しています。v0.18 OCI Seed Builder & Btrfs/COW は複数repository slice実装済み / partial です。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|
@@ -24,7 +24,8 @@ Hacocoon は pre-1.0 です。完全実装済みの product progression は **v0
 | OCI Seed Recommendation | `haco plugin oci seed sample` / `recommend`、top 10%を `auto_promote=true` | v0.15 |
 | OCI Image Deletion | `haco plugin oci image delete`、deletion tombstone、optional all-environments | v0.16 |
 | Docker Compatibility | `haco plugin oci docker status/prepare`。Base提供profileとpinned systemd unitを検証し、active vendor daemonを勝手に停止せずEnvironment-local socket activationだけを有効化 | v0.17 |
-| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build/current`、Tooling/Seed manifest、trusted Host acquisition、offline no-NIC builder、immutable publish/current pointer、exact-parent resolutionを実装。real-host/COW acceptanceとGC/recoveryはpending | v0.18 partial |
+| OCI Seed operator selection | `haco plugin oci seed pin/unpin/re-enable`。immutable identityのoperator intentをtelemetryと分離してpersist。deletionはstrictly-laterなexplicit re-enableがある場合だけ解除され、pinとauto promotionは別概念 | v0.18 partial |
+| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build/current`、Tooling/Seed manifest、trusted Host acquisition、offline no-NIC builder、immutable publish/current pointer、exact-parent resolution、pinned-image inclusionを実装。real-host/COW acceptanceとGC/recoveryはpending | v0.18 partial |
 | Optional Local OCI Registry | optional。通常pullやSeed constructionの必須経路ではない | unversioned optional / deferred |
 
 ## Client interaction境界
@@ -45,11 +46,13 @@ v0.17のrepository gateは実装済みです。`HACO_PLUGIN_OCI=docker` で `hac
 
 real Incus/systemd acceptanceはrepository実装とは分離したhost-dependent項目です。
 
-## OCI Seed / storage
+## OCI Seed selection / storage
 
-v0.18はfirst repository slice実装済みです。trusted Host acquisition/cache → offline no-NIC Seed Builder → immutable Seed revision/current pointer → exact-parent resolution → normal Incus/storage-driver clone まで実装されています。複数Environmentで一つのwritable `/var/lib/containerd` を共有しません。
+v0.18は複数repository slice実装済みです。trusted Host acquisition/cache → offline no-NIC Seed Builder → immutable Seed revision/current pointer → exact-parent resolution → normal Incus/storage-driver clone まで実装されています。複数Environmentで一つのwritable `/var/lib/containerd` を共有しません。
 
-Local Registryはprerequisiteではなくroadmap versionも予約しません。残件はold Tooling/Seed revision GC、restart/crash recovery、authenticated/private-registry combination、physical Btrfs COW measurement、real-host acceptanceです。
+operator pinは `state/oci-selections.json` にtelemetryとは別でpersistします。pinはauto promotionを偽装せずSeed build対象へ追加します。deletion tombstoneはautomatic selectionと既存pinの両方に優先し、そのdeletionよりstrictly laterなexplicit re-enableがある場合だけ解除されます。さらに後のdeletionがあれば再びblockします。selection intentはnetwork/registry credential authorityを与えません。
+
+Local Registryはprerequisiteではなくroadmap versionも予約しません。残件はauthenticated image harvesting/private-registry validation、old Tooling/Seed revision GC、restart/crash recovery、physical Btrfs COW measurement、real-host acceptanceです。
 
 ## Cloud
 
