@@ -22,7 +22,7 @@ func main() {
 		fail(err)
 	}
 	server := control.NewServer()
-	if err := controlapi.Register(server, app.Environments); err != nil {
+	if err := controlapi.Register(server, app.Environments, app.Clients); err != nil {
 		fail(err)
 	}
 	path := control.SocketPath()
