@@ -286,29 +286,78 @@ Security-sensitive な変更の前に [Security Architecture](docs/00B_SECURITY_
 - [Versioning / Release status](docs/00D_VERSIONING_AND_RELEASE_STATUS.ja.md)
 - [ドキュメント一覧](docs/README.ja.md)
 
-## CLI 一覧
+## `haco` CLI
 
-```text
-haco create
-haco base list
-haco base inspect
-haco exec
-haco shell
-haco delete
-haco status
-haco connections
-haco forward
-haco unforward
-haco ssh
-haco plugin git push
-haco plugin oci seed sample
-haco plugin oci seed recommend
-haco plugin oci image delete
-haco capability request
-haco run
-haco events
+`haco` は Host 側で動く管理 CLI です。普段使う lifecycle は小さく直接的に保ち、tool / provider 固有の操作は Core の top-level command を増やすのではなく plugin namespace の下へ分離します。
+
+Environment 内で code edit / build / test / debug をするだけなら、Coding Agent 自身に `haco` や Incus の管理 authority を持たせる必要はありません。
+
+### 普段の使い方
+
+```bash
+# Local runtime の確認
 haco doctor
 
+# One-shot: 一時 Environment を作って command 実行後に cleanup
+haco run --workspace "$PWD" -- go test ./...
+
+# Environment を残して作業する場合
+haco create --workspace "$PWD" dev
+haco exec dev -- go test ./...
+haco shell dev
+haco status dev
+haco delete dev
+```
+
+### Command map
+
+| 領域 | Command | 用途 |
+|---|---|---|
+| **Environment** | `create`, `exec`, `shell`, `status`, `delete` | Named Environment の作成と操作 |
+| **One-shot execution** | `run` | Workspace を隔離した一回限りの command lifecycle |
+| **Base selection** | `base list`, `base inspect` | Hacocoon Environment の starting point を確認 |
+| **Local access** | `connections`, `forward`, `unforward`, `ssh` | Host 管理の loopback access / port forwarding |
+| **Policy / audit** | `capability request`, `events` | Host authority boundary を明示的に越える操作と audit event の確認 |
+| **Git plugin** | `plugin git fetch`, `plugin git push` | Host-side credential を使う mediated Git operation |
+| **OCI plugin** | `plugin oci seed ...`, `plugin oci image ...` | Optional containerd/nerdctl image cache / Seed operation |
+| **Diagnostics** | `doctor` | Local runtime が利用可能か確認 |
+
+### 主な command form
+
+```text
+haco create [--read-only] [--base <base>] [resource flags] --workspace <path> <environment>
+haco exec <environment> -- <command...>
+haco shell <environment>
+haco status <environment> [--json]
+haco delete <environment>
+
+haco run [--read-only] [resource flags] --workspace <path> [--json] -- <command...>
+
+haco base list [--json]
+haco base inspect <base> [--json]
+
+haco connections <environment> [--json]
+haco forward <environment> --host-port <port> --target-port <port>
+haco unforward <environment> <connection-id>
+haco ssh <environment> --public-key <path> --host-port <port>
+
+haco plugin git fetch <environment> [--remote <remote>]
+haco plugin git push <environment> --branch <branch> [--source <ref>] [--remote <remote>] [--force]
+
+haco plugin oci seed sample [--json]
+haco plugin oci seed recommend [--json]
+haco plugin oci image delete <reference[@sha256:...]> [--all-environments] [--json]
+
+haco capability request <capability> <action> [--resource <resource>] [--environment <environment>] [--param <key=value>]...
+haco events [--json] [--since-offset <byte-offset>]
+haco doctor
+```
+
+`create` と `run` で共通する resource flag は `--cpu`、`--memory`、`--pids`、`--root-size` です。それぞれ finite value または `unlimited` を指定できます。
+
+Convenience client は Core CLI と分離します。
+
+```text
 haco-vscode open
 haco-vscode delete
 
