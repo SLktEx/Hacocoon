@@ -19,6 +19,19 @@ import (
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 )
 
+type e2eLoggingRunner struct {
+	t     *testing.T
+	inner host.Runner
+}
+
+func (r e2eLoggingRunner) Run(ctx context.Context, name string, args ...string) (host.Result, error) {
+	result, err := r.inner.Run(ctx, name, args...)
+	if err != nil {
+		r.t.Logf("command failed: %s %s: %v\nstdout:\n%s\nstderr:\n%s", name, strings.Join(args, " "), err, result.Stdout, result.Stderr)
+	}
+	return result, err
+}
+
 func TestRealIncusWorkspaceLifecycleE2E(t *testing.T) {
 	if os.Getenv("HACO_E2E_INCUS") != "1" {
 		t.Skip("set HACO_E2E_INCUS=1 on a supported Incus host")
@@ -31,7 +44,7 @@ func TestRealIncusWorkspaceLifecycleE2E(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	runner := host.ExecRunner{}
+	runner := e2eLoggingRunner{t: t, inner: host.ExecRunner{}}
 	if result, err := runner.Run(ctx, "incus", "version"); err != nil {
 		t.Fatalf("Incus daemon is not usable: %v\n%s", err, result.Stderr)
 	}
