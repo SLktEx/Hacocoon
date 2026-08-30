@@ -193,7 +193,7 @@ func selectedImages(recommendations []ociplugin.Recommendation) ([]ImageIdentity
 	seen := map[string]struct{}{}
 	result := make([]ImageIdentity, 0)
 	for _, recommendation := range recommendations {
-		if !recommendation.AutoPromote {
+		if !recommendation.AutoPromote && !recommendation.Pinned {
 			continue
 		}
 		image := ImageIdentity{Reference: recommendation.Reference, Digest: recommendation.Digest}
