@@ -3,6 +3,7 @@ package incus
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -281,24 +282,38 @@ type sandboxProfileState struct {
 	Devices map[string]map[string]string `json:"devices"`
 }
 
-func (r *Runtime) readSandboxProfile(ctx context.Context) (sandboxProfileState, error) {
-	shown, err := r.runner.Run(ctx, "incus", "query", sandboxProfileAPIPath)
-	if err == nil {
-		return decodeSandboxProfile(shown.Stdout)
+func (r *Runtime) readProfileJSON(ctx context.Context, apiPath string, legacyArgs ...string) (string, error) {
+	shown, err := r.runner.Run(ctx, "incus", "query", apiPath)
+	if err == nil && strings.TrimSpace(shown.Stdout) != "" {
+		return shown.Stdout, nil
 	}
-	if shown.ExitCode != 2 {
-		return sandboxProfileState{}, err
+	if err != nil && shown.ExitCode != 2 {
+		return "", err
 	}
 
-	// Some legacy/fake CLI surfaces do not implement `incus query`. Preserve a
-	// narrow compatibility path, but still require machine-readable JSON and run
-	// it through the exact same drift decoder. Any other query failure stays
-	// fail-closed rather than being mistaken for a missing or healthy profile.
-	shown, legacyErr := r.runner.Run(ctx, "incus", "profile", "show", sandboxProfile, "--project", sandboxResourceProject, "--format", "json")
+	// A narrow legacy path keeps older/test CLI surfaces usable without
+	// weakening validation: the fallback must still produce machine-readable
+	// JSON and callers parse it with the same strict state checks. Malformed API
+	// output never falls back; only an unsupported query command or an empty
+	// successful response does.
+	legacy, legacyErr := r.runner.Run(ctx, "incus", legacyArgs...)
 	if legacyErr != nil {
-		return sandboxProfileState{}, errors.Join(err, legacyErr)
+		if err != nil {
+			return "", errors.Join(err, legacyErr)
+		}
+		return "", legacyErr
 	}
-	return decodeSandboxProfile(shown.Stdout)
+	return legacy.Stdout, nil
+}
+
+func (r *Runtime) readSandboxProfile(ctx context.Context) (sandboxProfileState, error) {
+	raw, err := r.readProfileJSON(ctx, sandboxProfileAPIPath,
+		"profile", "show", sandboxProfile, "--project", sandboxResourceProject, "--format", "json",
+	)
+	if err != nil {
+		return sandboxProfileState{}, err
+	}
+	return decodeSandboxProfile(raw)
 }
 
 func decodeSandboxProfile(raw string) (sandboxProfileState, error) {
