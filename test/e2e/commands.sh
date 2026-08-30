@@ -32,6 +32,20 @@ for name in haco haco-vscode haco-agent-host haco-notify haco-storage-helper; do
   test -x "$bin/$name"
 done
 
+# Build identity must be available before any Incus/runtime initialization.
+# This empty HACO_ROOT has no prepared local runtime state, so successful
+# process-level version output proves the early identity path is standalone.
+"$bin/haco" --version >"$root/haco-version-short.out" 2>"$root/haco-version-short.err"
+grep -Eq '^haco dev \(checkpoint v0\.[0-9]+, commit [^)]+\)$' "$root/haco-version-short.out"
+[[ ! -s "$root/haco-version-short.err" ]]
+
+"$bin/haco" version --json >"$root/haco-version.json" 2>"$root/haco-version-json.err"
+grep -Eq '"checkpoint":"v0\.[0-9]+"' "$root/haco-version.json"
+grep -Fq '"version":"dev"' "$root/haco-version.json"
+grep -Fq '"commit":' "$root/haco-version.json"
+grep -Fq '"build_date":"unknown"' "$root/haco-version.json"
+[[ ! -s "$root/haco-version-json.err" ]]
+
 # Main CLI: prove the final executable dispatches a successful command and
 # preserves the user-visible error contract for an unknown command.
 "$bin/haco" base list >"$root/haco-base.out" 2>"$root/haco-base.err"

@@ -17,8 +17,8 @@ import (
 
 func lockWorkspace(ctx context.Context, id core.WorkspaceID) (func(), error) {
 	dir := filepath.Join(os.TempDir(), "hacocoon-workspace-locks")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, fmt.Errorf("create workspace lock directory: %w", err)
+	if err := ensureTrustedWorkspaceLockDirectory(dir); err != nil {
+		return nil, err
 	}
 	sum := sha256.Sum256([]byte(id))
 	path := filepath.Join(dir, fmt.Sprintf("%x.lock", sum))
@@ -45,4 +45,29 @@ func lockWorkspace(ctx context.Context, id core.WorkspaceID) (func(), error) {
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
+}
+
+func ensureTrustedWorkspaceLockDirectory(dir string) error {
+	if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("create workspace lock directory: %w", err)
+	}
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return fmt.Errorf("inspect workspace lock directory: %w", err)
+	}
+	return validateTrustedWorkspaceLockDirectory(dir, info, uint32(os.Geteuid()))
+}
+
+func validateTrustedWorkspaceLockDirectory(dir string, info os.FileInfo, euid uint32) error {
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("workspace lock path %q is not a trusted directory", dir)
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || stat.Uid != euid {
+		return fmt.Errorf("workspace lock directory %q is not owned by effective uid %d", dir, euid)
+	}
+	if info.Mode().Perm() != 0o700 {
+		return fmt.Errorf("workspace lock directory %q has unsafe permissions %o", dir, info.Mode().Perm())
+	}
+	return nil
 }
