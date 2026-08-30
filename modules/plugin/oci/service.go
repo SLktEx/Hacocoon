@@ -11,12 +11,14 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
 const (
 	DefaultSampleMaxAge          = 6 * time.Hour
 	DefaultRecommendationWindow = 30 * 24 * time.Hour
 	DefaultAutoPromotionPercent = 10
+	DefaultSeedNamespace        = "hacocoon-seed"
 )
 
 type Driver string
@@ -46,7 +48,31 @@ type Service struct {
 	environmentStatePath string
 	store                *Store
 	driver               Driver
+	hostRunner           host.Runner
+	seedNamespace        string
 	now                  func() time.Time
+}
+
+type Option func(*Service) error
+
+func WithHostRunner(runner host.Runner) Option {
+	return func(service *Service) error {
+		if runner == nil {
+			return core.ErrInvalidArgument
+		}
+		service.hostRunner = runner
+		return nil
+	}
+}
+
+func WithSeedNamespace(namespace string) Option {
+	return func(service *Service) error {
+		if strings.TrimSpace(namespace) == "" || strings.TrimSpace(namespace) != namespace || hasControl(namespace) {
+			return core.ErrInvalidArgument
+		}
+		service.seedNamespace = namespace
+		return nil
+	}
 }
 
 type SampleReport struct {
@@ -65,20 +91,30 @@ type Recommendation struct {
 	AutoPromote  bool      `json:"auto_promote"`
 }
 
-func New(runtime environmentExecutor, environmentStatePath string, store *Store, driver Driver) (*Service, error) {
+func New(runtime environmentExecutor, environmentStatePath string, store *Store, driver Driver, options ...Option) (*Service, error) {
 	if runtime == nil || strings.TrimSpace(environmentStatePath) == "" || store == nil {
 		return nil, core.ErrInvalidArgument
 	}
 	if driver != DriverNerdctl && driver != DriverDocker {
 		return nil, core.ErrInvalidArgument
 	}
-	return &Service{
+	service := &Service{
 		runtime:              runtime,
 		environmentStatePath: environmentStatePath,
 		store:                store,
 		driver:               driver,
+		seedNamespace:        DefaultSeedNamespace,
 		now:                  time.Now,
-	}, nil
+	}
+	for _, option := range options {
+		if option == nil {
+			return nil, core.ErrInvalidArgument
+		}
+		if err := option(service); err != nil {
+			return nil, err
+		}
+	}
+	return service, nil
 }
 
 func (s *Service) Driver() Driver {
@@ -132,20 +168,9 @@ func (s *Service) SampleAll(ctx context.Context, maxAge time.Duration) (SampleRe
 }
 
 func (s *Service) listImages(ctx context.Context, runtimeRef string) ([]Image, error) {
-	argv := []string{"nerdctl", "images", "--format", "{{.Repository}}\t{{.Tag}}\t{{.Digest}}"}
-	if s.driver == DriverDocker {
-		argv = []string{"docker", "images", "--digests", "--format", "{{.Repository}}\t{{.Tag}}\t{{.Digest}}"}
-	}
-	result, execErr := s.runtime.ExecEnvironment(ctx, runtimeRef, core.ExecutionRequest{Argv: argv})
+	result, execErr := s.runtime.ExecEnvironment(ctx, runtimeRef, core.ExecutionRequest{Argv: imageListArgv(s.driver)})
 	if execErr != nil || result.ExitCode != 0 {
-		reason := strings.TrimSpace(result.Stderr)
-		if reason == "" && execErr != nil {
-			reason = execErr.Error()
-		}
-		if reason == "" {
-			reason = fmt.Sprintf("%s images exited %d", s.driver, result.ExitCode)
-		}
-		return nil, fmt.Errorf("%s image inventory: %s", s.driver, reason)
+		return nil, commandFailure(fmt.Sprintf("%s image inventory", s.driver), result.Stderr, execErr, result.ExitCode)
 	}
 	return parseImageRows(result.Stdout, string(s.driver))
 }
@@ -157,6 +182,14 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 	snapshots, err := s.store.List(ctx)
 	if err != nil {
 		return nil, err
+	}
+	deletions, err := s.store.ListDeletions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	deleted := make(map[string]struct{}, len(deletions))
+	for _, deletion := range deletions {
+		deleted[deletion.Key()] = struct{}{}
 	}
 	cutoff := s.now().UTC().Add(-window)
 	type aggregate struct {
@@ -178,6 +211,9 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 				continue
 			}
 			key := image.Reference() + "@" + image.Digest
+			if _, deletedByOperator := deleted[key]; deletedByOperator {
+				continue
+			}
 			if _, ok := seen[key]; ok {
 				continue
 			}
@@ -210,7 +246,7 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 		if result[i].Environments != result[j].Environments {
 			return result[i].Environments > result[j].Environments
 		}
-		if result[i].LastSeen != result[j].LastSeen {
+		if !result[i].LastSeen.Equal(result[j].LastSeen) {
 			return result[i].LastSeen.After(result[j].LastSeen)
 		}
 		if result[i].Reference != result[j].Reference {
@@ -239,6 +275,20 @@ func markAutoPromotions(recommendations []Recommendation, percent int) {
 	for i := range recommendations {
 		recommendations[i].AutoPromote = i < count
 	}
+}
+
+func imageListArgv(driver Driver) []string {
+	if driver == DriverDocker {
+		return []string{"docker", "images", "--digests", "--format", "{{.Repository}}\t{{.Tag}}\t{{.Digest}}"}
+	}
+	return []string{"nerdctl", "images", "--format", "{{.Repository}}\t{{.Tag}}\t{{.Digest}}"}
+}
+
+func imageRemoveArgv(driver Driver, reference string) []string {
+	if driver == DriverDocker {
+		return []string{"docker", "image", "rm", reference}
+	}
+	return []string{"nerdctl", "rmi", reference}
 }
 
 func readEnvironments(path string) ([]core.Environment, error) {
@@ -312,4 +362,15 @@ func parseImageRows(output, source string) ([]Image, error) {
 		return images[i].Digest < images[j].Digest
 	})
 	return images, nil
+}
+
+func commandFailure(action, stderr string, err error, exitCode int) error {
+	reason := strings.TrimSpace(stderr)
+	if reason == "" && err != nil {
+		reason = err.Error()
+	}
+	if reason == "" {
+		reason = fmt.Sprintf("exit code %d", exitCode)
+	}
+	return fmt.Errorf("%s: %s: %w", action, reason, core.ErrRuntimeUnavailable)
 }
