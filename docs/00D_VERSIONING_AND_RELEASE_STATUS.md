@@ -1,65 +1,85 @@
-# Versioning and Release Status
+# Versioning & Release Status
 
-**Status:** authoritative numbering/status note  
-**Date:** 2026-08-30  
-**Compatibility:** Hacocoon is pre-1.0; versioned design gates and concrete interfaces may still change incompatibly.
+> **Authoritative milestone numbering · Updated 2026-08-30**
 
-## Purpose
+Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progression; they are not compatibility guarantees, release tags, or proof of production support.
 
-This document is the source of truth for Hacocoon roadmap version numbers. Use it together with `00_REBASELINE_AND_ROADMAP.md` for product intent and `IMPLEMENTATION_STATUS.md` for code that is actually present on `main`.
+Use this document for **which version number belongs to which gate**. Use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for exact code reality and host-dependent acceptance.
 
 ## Numbering policy
 
-For pre-1.0 Hacocoon, version numbers primarily describe the order in which product gates become real, user-visible implementation milestones.
-
-1. implemented milestones should remain contiguous whenever renumbering is still cheap;
-2. an implementation-pending design gate must not occupy a lower number while an already-implemented independent gate is forced above it;
-3. active unmerged integration work follows the last implemented milestone;
-4. design-only gates follow active implementation work;
-5. security/hardening work normally does not consume a product version number;
-6. `IMPLEMENTATION_STATUS.md` remains authoritative for implementation reality;
-7. tags/releases remain separate from roadmap-gate numbering.
+1. Implemented milestones should remain contiguous while renumbering is still cheap.
+2. A design-only gate must not force already-implemented independent work to appear later in the sequence.
+3. Security/hardening work normally does not consume a product version number by itself.
+4. A planned specification may reserve the next milestone, but it must be labeled **planned / not implemented** until code lands.
+5. Tags/releases are separate from roadmap-gate numbering.
+6. `IMPLEMENTATION_STATUS.md` remains authoritative for repository implementation reality.
 
 ## Current authoritative numbering
 
+**Status legend:** ✅ implemented · 🧪 experimental · 🚧 planned
+
 | Version | Gate | Main status | Notes |
 |---|---|---|---|
-| v0.1 | Secure Workspace Runtime MVP | implemented | external Workspace -> Incus Environment -> exec/shell -> delete |
-| v0.2 | Workspace Abstraction & Lease | implemented | canonical Workspace identity, RO/RW leases, concurrency safety |
-| v0.3 | Client & Interactive Access | implemented | status, loopback forwarding, SSH lifecycle |
-| v0.4 | Policy & Capability Foundation | implemented | fail-closed policy, approval, audit |
-| v0.5 | Git / GitHub Capability | implemented | brokered GitHub authority without exporting host credentials |
-| v0.6 | Agent & Orchestrator Integration | implemented | `haco run`, machine output, external security events |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | implemented experimentally | EC2 remains explicit opt-in; real AWS acceptance pending |
-| v0.8 | Client Adapters & VS Code Integration | implemented | `haco-vscode`, dedicated Windows/WSL path; real client acceptance pending |
-| v0.9 | Per-Agent Sandbox & Agent Host Integration | broker foundation implemented | trusted session -> Environment binding; real Agent Host/AHP routing acceptance pending |
-| v0.10 | VS Code Remote Agent Host Adapter | implemented | merged in PR #137; real Windows/WSL + Incus + VS Code Agents-window acceptance remains host-dependent |
-| v0.11 | Base Images & Custom Environments | implemented first slice | logical Base selection, immutable revision pinning, persisted identity, list/inspect; broader build/import/GC remains future work |
-| v0.12 | Sandbox Resource Limits | implemented first slice | provider-neutral finite/unlimited budgets, strict CLI parsing, Incus pre-start enforcement, persistence/status; real Incus enforcement acceptance remains host-dependent |
+| v0.1 | Secure Workspace Runtime MVP | ✅ implemented | external Workspace → Incus Environment → exec/shell → delete |
+| v0.2 | Workspace Abstraction & Lease | ✅ implemented | canonical Workspace identity, RO/RW leases, concurrency safety |
+| v0.3 | Client & Interactive Access | ✅ implemented | status, loopback forwarding, SSH lifecycle |
+| v0.4 | Policy & Capability Foundation | ✅ implemented | fail-closed policy, approval, audit |
+| v0.5 | Git / GitHub Capability | ✅ implemented | brokered GitHub authority without exporting host credentials |
+| v0.6 | Agent & Orchestrator Integration | ✅ implemented | `haco run`, machine output, external security events |
+| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 implemented experimentally | EC2 stays explicit opt-in; real AWS acceptance pending |
+| v0.8 | Client Adapters & VS Code Integration | ✅ implemented | `haco-vscode`; real client acceptance pending |
+| v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation implemented | trusted session → Environment binding; real Agent Host/AHP routing acceptance pending |
+| v0.10 | VS Code Remote Agent Host Adapter | ✅ implemented | merged in PR #137; real Windows/WSL + Incus + VS Code Agents-window acceptance remains host-dependent |
+| v0.11 | Base Images & Custom Environments | ✅ implemented first slice | logical Base selection, immutable revision pinning, persisted identity, list/inspect; build/import/history/GC remain follow-up work |
+| v0.12 | Sandbox Resource Limits | ✅ implemented first slice | provider-neutral finite/unlimited budgets and Incus pre-start enforcement; real workload enforcement acceptance remains host-dependent |
+| v0.13 | Local OCI Registry | 🚧 planned | design contract exists; not implemented on `main` |
+| v0.13A | OCI Seed & Btrfs/COW Optimization | 🚧 planned second slice | companion optimization after the v0.13 registry path; not implemented on `main` |
 
-The implemented progression is therefore contiguous through **v0.12**.
+The implemented progression is therefore contiguous through **v0.12**. **v0.13 is the next planned milestone**, not current repository implementation.
 
-## Renumbering applied on 2026-08-30
+## Implemented vs planned
 
-The earlier assignment temporarily placed design-only Base Images before implemented per-agent work. That ordering was replaced with the current sequence:
+```text
+implemented on main
+v0.1 ───────────────────────────── v0.12
+                                      |
+                                      v
+                                next planned
+                                   v0.13
+                                      |
+                                      v
+                              planned second slice
+                                  v0.13A
+```
+
+The existence of `13_v0.13_LOCAL_OCI_REGISTRY.md` or `13A_v0.13_OCI_SEED_AND_COW.md` does not mean those features are already present.
+
+## Renumbering history
+
+The 2026-08-30 cleanup replaced a temporary ordering that placed design-only Base work ahead of already-implemented per-agent work. The current sequence is:
 
 ```text
 v0.9   Per-Agent Sandbox & Agent Host Integration    implemented
 v0.10  VS Code Remote Agent Host Adapter             implemented
 v0.11  Base Images & Custom Environments             implemented first slice
 v0.12  Sandbox Resource Limits                       implemented first slice
+v0.13  Local OCI Registry                            planned
 ```
 
-Historical commit messages, closed PR titles, and temporary candidate branch names may retain older labels as history. They are not authoritative for current numbering.
+Historical commit messages, closed PR titles, candidate branches, or superseded planning notes may keep older labels. They are historical records, not current numbering.
 
-## Current acceptance watch list
+## Acceptance watch list
 
-- v0.8: real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending.
-- v0.9/v0.10: real VS Code Agent Host/AHP routing and real Incus SSH acceptance remain host-dependent.
-- v0.11: real Incus image-remote/custom-Base acceptance remains host-dependent; custom build/import/history/rollback/GC are not part of the first implemented slice.
-- v0.12: real supported-Incus validation of CPU, memory, PID, and root-disk enforcement remains host-dependent. The experimental EC2 provider rejects finite budgets rather than silently ignoring them.
-- v0.7 EC2: real AWS acceptance remains pending and the provider stays experimental/default-off.
+Implementation and real-host acceptance are tracked separately.
 
-## One-sentence rule
+- **v0.7:** real AWS/EC2/SSM/EBS acceptance remains pending; EC2 stays experimental/default-off.
+- **v0.8:** real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending.
+- **v0.9/v0.10:** real VS Code Agent Host/AHP routing and Incus SSH acceptance remain host-dependent.
+- **v0.11:** real Incus image-source/custom-Base acceptance remains host-dependent; build/import/history/rollback/GC are not part of the first slice.
+- **v0.12:** real supported-Incus CPU/memory/PID/root-storage enforcement remains host-dependent.
+- **v0.13/v0.13A:** planned only; implementation and acceptance have not started merely because the specifications exist.
 
-> **Keep implemented Hacocoon milestones contiguous and use `IMPLEMENTATION_STATUS.md` to distinguish repository implementation from real-host/provider acceptance.**
+## Rule of thumb
+
+> **Use this file for numbering, `IMPLEMENTATION_STATUS.md` for code reality, and the roadmap/specifications for intent.**
