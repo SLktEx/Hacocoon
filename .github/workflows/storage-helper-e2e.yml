@@ -1,0 +1,47 @@
+name: storage-helper-e2e
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: storage-helper-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  managed-btrfs-helper:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    env:
+      HACO_CI_RUNNER_ENVIRONMENT: github-hosted
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Validate storage helper E2E harness
+        run: bash -n tools/ci-storage-helper.sh
+      - name: Install real Btrfs helper substrate
+        run: bash tools/ci-storage-helper.sh setup
+      - name: Run normal-user managed Btrfs helper acceptance
+        run: bash tools/ci-storage-helper.sh test
+      - name: Capture managed Btrfs helper diagnostics
+        if: failure()
+        run: bash tools/ci-storage-helper.sh diagnostics
+      - name: Clean up managed Btrfs helper resources
+        if: always()
+        run: bash tools/ci-storage-helper.sh cleanup
