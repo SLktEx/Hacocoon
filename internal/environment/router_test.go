@@ -3,6 +3,7 @@ package environment
 import (
 	"context"
 	"errors"
+	"net"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -36,6 +37,19 @@ func (f *fakeProvider) DeleteEnvironment(_ context.Context, ref string) error {
 }
 func (*fakeProvider) InspectEnvironment(context.Context, string) (core.EnvironmentRuntimeStatus, error) {
 	return core.EnvironmentRuntimeStatus{State: core.EnvironmentRunning}, nil
+}
+
+type fakeSourceProvider struct {
+	*fakeProvider
+	sourceRef string
+	sourceErr error
+}
+
+func (f *fakeSourceProvider) ResolveRuntimeRef(context.Context, net.IP) (string, error) {
+	if f.sourceErr != nil {
+		return "", f.sourceErr
+	}
+	return f.sourceRef, nil
 }
 
 func TestRouterUsesConfiguredProviderAndKeepsProviderOutOfCoreState(t *testing.T) {
@@ -94,5 +108,54 @@ func TestRouterRejectsUnknownDefaultAndMalformedWrappedRef(t *testing.T) {
 	router, _ := NewRouter(ProviderIncus, Register(ProviderIncus, &fakeProvider{}))
 	if _, err := router.ExecEnvironment(context.Background(), "haco-runtime-v1:runtime.test:not-base64%%%", core.ExecutionRequest{Argv: []string{"true"}}); !errors.Is(err, core.ErrIncompatibleState) {
 		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestRouterWrapsTrustedSourceWithProviderIdentity(t *testing.T) {
+	incus := &fakeSourceProvider{fakeProvider: &fakeProvider{}, sourceErr: core.ErrPolicyDenied}
+	alternate := &fakeSourceProvider{fakeProvider: &fakeProvider{}, sourceRef: "haco-demo"}
+	router, err := NewRouter(testProvider, Register(ProviderIncus, incus), Register(testProvider, alternate))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := router.ResolveRuntimeRef(context.Background(), net.ParseIP("10.20.30.40"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider, localRef, err := decodeRouteRef(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if provider != testProvider || localRef != "haco-demo" {
+		t.Fatalf("routed source = provider=%q ref=%q", provider, localRef)
+	}
+}
+
+func TestRouterRejectsAmbiguousRuntimeSourceAcrossProviders(t *testing.T) {
+	router, err := NewRouter(testProvider,
+		Register(ProviderIncus, &fakeSourceProvider{fakeProvider: &fakeProvider{}, sourceRef: "haco-one"}),
+		Register(testProvider, &fakeSourceProvider{fakeProvider: &fakeProvider{}, sourceRef: "haco-two"}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = router.ResolveRuntimeRef(context.Background(), net.ParseIP("10.20.30.40"))
+	if !errors.Is(err, core.ErrPolicyDenied) {
+		t.Fatalf("ambiguous source error = %v", err)
+	}
+}
+
+func TestRouterFailsClosedOnProviderSourceResolutionError(t *testing.T) {
+	boom := errors.New("provider source lookup failed")
+	router, err := NewRouter(testProvider,
+		Register(ProviderIncus, &fakeSourceProvider{fakeProvider: &fakeProvider{}, sourceErr: core.ErrPolicyDenied}),
+		Register(testProvider, &fakeSourceProvider{fakeProvider: &fakeProvider{}, sourceErr: boom}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = router.ResolveRuntimeRef(context.Background(), net.ParseIP("10.20.30.40"))
+	if !errors.Is(err, boom) {
+		t.Fatalf("source resolution error = %v", err)
 	}
 }
