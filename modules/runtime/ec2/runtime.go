@@ -38,6 +38,10 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	if r == nil || r.runner == nil || strings.TrimSpace(spec.Name) == "" || strings.TrimSpace(spec.WorkspacePath) == "" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
+	clientToken, err := clientTokenForCreateOperation(spec.CreateOperationID)
+	if err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
 	cfg, err := r.config.normalized()
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
@@ -100,16 +104,31 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	args = append(args,
 		"--iam-instance-profile", "Name="+cfg.InstanceProfile,
 		"--metadata-options", "HttpTokens=required,HttpEndpoint=enabled",
+		"--client-token", clientToken,
 		"--tag-specifications", fmt.Sprintf("ResourceType=instance,Tags=[{Key=Name,Value=hacocoon-%s},{Key=HacocoonEnvironment,Value=%s}]", spec.Name, spec.Name),
 		"--query", "Instances[0].InstanceId", "--output", "text",
 	)
-	result, err := r.aws(ctx, args...)
-	if err != nil {
-		return cleanup(fmt.Errorf("create EC2 environment: %w", err))
-	}
-	instanceID = strings.TrimSpace(result.Stdout)
-	if !validInstanceID(instanceID) {
-		return cleanup(fmt.Errorf("invalid EC2 instance id %q: %w", instanceID, core.ErrIncompatibleState))
+	result, runErr := r.aws(ctx, args...)
+	candidateID := strings.TrimSpace(result.Stdout)
+	if runErr == nil && validInstanceID(candidateID) {
+		instanceID = candidateID
+	} else {
+		// Once RunInstances was attempted, a transport/client error or malformed
+		// response does not prove that EC2 did not create the instance. Reconcile
+		// by the exact durable ClientToken; never issue a second token/request.
+		reconciledID, reconcileErr := r.reconcileRunInstances(ctx, clientToken, accountID)
+		if reconcileErr != nil {
+			cause := runErr
+			if cause == nil {
+				cause = fmt.Errorf("RunInstances returned invalid instance id %q: %w", candidateID, core.ErrIncompatibleState)
+			}
+			return core.EnvironmentRuntime{}, errors.Join(
+				fmt.Errorf("create EC2 environment outcome is ambiguous: %w", cause),
+				reconcileErr,
+				core.ErrRecoveryRequired,
+			)
+		}
+		instanceID = reconciledID
 	}
 	if _, err := r.aws(ctx, "ec2", "wait", "instance-status-ok", "--instance-ids", instanceID); err != nil {
 		return cleanup(fmt.Errorf("wait for EC2 health: %w", err))
@@ -123,7 +142,7 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return cleanup(fmt.Errorf("materialize remote workspace: %w", err))
 	}
 
-	ref, err := encodeRef(runtimeRef{AccountID: accountID, Region: cfg.Region, InstanceID: instanceID, WorkspacePath: spec.WorkspacePath, Bucket: cfg.WorkspaceBucket, Prefix: prefix, ReadOnly: spec.ReadOnly, BaseDigest: baseAfter})
+	ref, err := encodeRef(runtimeRef{AccountID: accountID, Region: cfg.Region, InstanceID: instanceID, WorkspacePath: spec.WorkspacePath, Bucket: cfg.WorkspaceBucket, Prefix: prefix, ReadOnly: spec.ReadOnly, BaseDigest: baseAfter, CreateOperationID: spec.CreateOperationID})
 	if err != nil {
 		return cleanup(err)
 	}
