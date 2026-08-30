@@ -22,6 +22,14 @@ setup_incus() {
 
   sudo env DEBIAN_FRONTEND=noninteractive apt-get update
   sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus dnsmasq-base
+
+  # Hacocoon deliberately keeps bridge IP filtering enabled. Incus 6.0
+  # requires the host's bridge netfilter hooks for that policy, while the
+  # GitHub-hosted Ubuntu image does not load br_netfilter by default.
+  sudo modprobe br_netfilter
+  [[ -e /proc/sys/net/bridge/bridge-nf-call-iptables ]] || fail "br_netfilter did not expose bridge netfilter sysctls"
+  [[ -e /proc/sys/net/bridge/bridge-nf-call-ip6tables ]] || fail "br_netfilter did not expose IPv6 bridge netfilter sysctls"
+
   sudo incus admin init --minimal
 
   incus remote generate-certificate
