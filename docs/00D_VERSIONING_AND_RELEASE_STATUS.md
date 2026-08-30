@@ -41,9 +41,9 @@ Use this document for **which version number belongs to which feature gate**. Us
 | v0.15 | OCI Seed Recommendation | ✅ implemented |
 | v0.16 | OCI Image Deletion | ✅ first slice implemented |
 | v0.17 | Docker Compatibility Plugin | ✅ repository implementation complete; real-host acceptance tracked separately |
-| v0.18 | OCI Seed Builder & Btrfs/COW | 🧪 first repository slice implemented; real-host/COW acceptance pending |
+| v0.18 | OCI Seed Builder & Btrfs/COW | 🧪 build/publish + operations-hardening repository slices implemented; real-host/private-registry/COW acceptance pending |
 
-The fully implemented product progression is contiguous through **v0.17**. v0.18 has a first repository implementation slice but is not yet a complete feature gate.
+The fully implemented product progression is contiguous through **v0.17**. v0.18 has multiple repository implementation slices but is not yet a complete feature gate.
 
 v0.7 keeps its milestone number because the provider-neutral routing seam introduced by that gate remains implemented. The previous concrete EC2/AWS/EBS slice is intentionally absent from the active tree and **cloud implementation is currently deferred** while local/provider contracts stabilize.
 
@@ -58,7 +58,7 @@ v0.14  Git Fetch Plugin                        implemented
 v0.15  OCI Seed Recommendation                 implemented
 v0.16  OCI Image Deletion                      implemented
 v0.17  Docker Compatibility Plugin             implemented
-v0.18  OCI Seed Builder & Btrfs/COW            partial / first repository slice
+v0.18  OCI Seed Builder & Btrfs/COW            partial / repository slices
 ```
 
 A short-lived intermediate rebaseline reserved v0.18 for Optional Local OCI Registry and v0.19 for Seed Builder/COW. That reservation is superseded: Local Registry infrastructure is deferred and unversioned because it is not required by the default architecture, and Seed Builder/COW therefore occupies v0.18.
@@ -87,7 +87,7 @@ The later CLI namespace cleanup that separated `haco base ...` from `haco plugin
 - **v0.14:** brokered fetch is implemented; real private-repository combinations remain acceptance-sensitive.
 - **v0.15/v0.16:** OCI plugin repository behavior is implemented.
 - **v0.17:** repository lifecycle/CLI integration is implemented; real Base + Incus/systemd socket-activation acceptance remains host-dependent.
-- **v0.18:** first repository slice is implemented; real Incus/containerd/Docker acceptance, conservative old-revision GC/crash recovery, authenticated/private-registry combinations, and physical Btrfs COW measurement remain pending.
+- **v0.18:** build/publish plus explicit pin/re-enable, conservative old-revision GC, and restart/crash recovery are implemented at the repository gate; real Incus/containerd/Docker acceptance, authenticated/private-registry combinations including credential-free Environment harvesting where supported, and physical Btrfs COW measurement remain pending.
 
 ## Rule of thumb
 
