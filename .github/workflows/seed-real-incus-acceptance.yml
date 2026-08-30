@@ -17,6 +17,7 @@ env:
   GOTOOLCHAIN: local
   NERDCTL_VERSION: 2.3.5
   NERDCTL_AMD64_SHA256: de3206aeb7cbd5f20f5fb1f55c1e3bf2db1be567812a8a3f5e65eba2488347ee
+  ZABBLY_KEY_FINGERPRINT: 4EFC590696CB15B87C73A3AD82CC8797C838DCFD
 
 jobs:
   real-incus-seed:
@@ -31,11 +32,35 @@ jobs:
           go-version: 1.27.x
           check-latest: true
           cache: false
-      - name: Install Incus and Btrfs tooling
+      - name: Configure verified Incus 7.0 LTS repository
         run: |
           sudo apt-get update
-          sudo apt-get install -y incus btrfs-progs jq
+          sudo apt-get install -y ca-certificates curl gnupg btrfs-progs jq
+          key="$(mktemp)"
+          trap 'rm -f "$key"' EXIT
+          curl --fail --silent --show-error --location \
+            --proto '=https' --tlsv1.2 \
+            https://pkgs.zabbly.com/key.asc \
+            --output "$key"
+          actual="$(gpg --show-keys --with-colons "$key" | awk -F: '$1 == "fpr" { print $10; exit }')"
+          test "$actual" = "$ZABBLY_KEY_FINGERPRINT"
+          sudo install -d -m 0755 /etc/apt/keyrings
+          sudo install -m 0644 "$key" /etc/apt/keyrings/zabbly-incus.asc
+          codename="$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")"
+          arch="$(dpkg --print-architecture)"
+          sudo tee /etc/apt/sources.list.d/zabbly-incus-lts-7.0.sources >/dev/null <<EOF
+          Enabled: yes
+          Types: deb
+          URIs: https://pkgs.zabbly.com/incus/lts-7.0
+          Suites: ${codename}
+          Components: main
+          Architectures: ${arch}
+          Signed-By: /etc/apt/keyrings/zabbly-incus.asc
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y incus
           sudo systemctl enable --now incus.service 2>/dev/null || sudo systemctl enable --now incus
+          sudo incus version
       - name: Initialize real Btrfs-backed Incus pool
         run: |
           if [[ -z "$(sudo incus storage list --format csv)" ]]; then
