@@ -20,23 +20,26 @@ const (
 )
 
 var sandboxNIC = map[string]string{
-	"type":                                 "nic",
-	"name":                                 "eth0",
-	"network":                              sandboxNetwork,
+	"type":                    "nic",
+	"name":                    "eth0",
+	"network":                 sandboxNetwork,
+	"security.ipv4_filtering": "true",
+	"security.ipv6_filtering": "true",
+	"security.mac_filtering":  "true",
+	"security.port_isolation": "true",
+}
+
+var sandboxNetworkACLPolicy = map[string]string{
 	"security.acls":                        sandboxEgressACL,
 	"security.acls.default.ingress.action": "reject",
 	"security.acls.default.egress.action":  "reject",
 	"security.acls.default.ingress.logged": "true",
 	"security.acls.default.egress.logged":  "true",
-	"security.ipv4_filtering":              "true",
-	"security.ipv6_filtering":              "true",
-	"security.mac_filtering":               "true",
-	"security.port_isolation":              "true",
 }
 
 // ensureSandboxNetwork prepares the shared Incus network substrate used by
 // Hacocoon environments. DHCP remains available on the managed bridge, but the
-// bridge DNS listener is disabled and the NIC ACL allows only the Standard
+// bridge DNS listener is disabled and the bridge ACL allows only the Standard
 // egress proxy. Hostname authorization remains in the proxy/Capability layer;
 // the IP-layer ACL is only a transport guard against broker bypass.
 func (r *Runtime) ensureSandboxNetwork(ctx context.Context) error {
@@ -47,6 +50,9 @@ func (r *Runtime) ensureSandboxNetwork(ctx context.Context) error {
 		return err
 	}
 	if err := r.ensureSandboxACL(ctx); err != nil {
+		return err
+	}
+	if err := r.ensureSandboxNetworkACLPolicy(ctx); err != nil {
 		return err
 	}
 	return r.ensureSandboxProfile(ctx)
@@ -151,6 +157,45 @@ func (r *Runtime) ensureSandboxACL(ctx context.Context) error {
 	return nil
 }
 
+// ensureSandboxNetworkACLPolicy attaches the managed ACL to the dedicated
+// bridge. Incus 6.0 exposes security.acls* as managed-network configuration,
+// rather than NIC device keys. Defaults are installed before the ACL is
+// attached so migration never opens the bridge while policy is being applied.
+func (r *Runtime) ensureSandboxNetworkACLPolicy(ctx context.Context) error {
+	keys := []string{
+		"security.acls.default.ingress.action",
+		"security.acls.default.egress.action",
+		"security.acls.default.ingress.logged",
+		"security.acls.default.egress.logged",
+		"security.acls",
+	}
+	for _, key := range keys {
+		expected := sandboxNetworkACLPolicy[key]
+		got, err := r.runner.Run(ctx, "incus", "network", "get", sandboxNetwork, key, "--project", sandboxResourceProject)
+		if err != nil {
+			return fmt.Errorf("verify Hacocoon sandbox network ACL policy %s: %w", key, err)
+		}
+		value := strings.TrimSpace(got.Stdout)
+		if value == expected {
+			continue
+		}
+		if value != "" {
+			return fmt.Errorf("Hacocoon sandbox network ACL policy %s has unmanaged value %q: %w", key, value, core.ErrIncompatibleState)
+		}
+		if _, err := r.runner.Run(ctx, "incus", "network", "set", sandboxNetwork, key+"="+expected, "--project", sandboxResourceProject); err != nil {
+			return fmt.Errorf("configure Hacocoon sandbox network ACL policy %s: %w", key, err)
+		}
+		verified, err := r.runner.Run(ctx, "incus", "network", "get", sandboxNetwork, key, "--project", sandboxResourceProject)
+		if err != nil {
+			return fmt.Errorf("verify configured Hacocoon sandbox network ACL policy %s: %w", key, err)
+		}
+		if strings.TrimSpace(verified.Stdout) != expected {
+			return fmt.Errorf("Hacocoon sandbox network ACL policy %s did not persist: %w", key, core.ErrIncompatibleState)
+		}
+	}
+	return nil
+}
+
 func emptyACL(raw string) bool {
 	ingressEmpty := false
 	egressEmpty := false
@@ -239,14 +284,17 @@ func (r *Runtime) ensureSandboxProfile(ctx context.Context) error {
 		}
 		args := []string{"profile", "device", "add", sandboxProfile, "eth0", "nic"}
 		for _, key := range []string{
-			"name", "network", "security.acls", "security.acls.default.ingress.action", "security.acls.default.egress.action",
-			"security.acls.default.ingress.logged", "security.acls.default.egress.logged", "security.ipv4_filtering",
-			"security.ipv6_filtering", "security.mac_filtering", "security.port_isolation",
+			"name", "network", "security.ipv4_filtering", "security.ipv6_filtering", "security.mac_filtering", "security.port_isolation",
 		} {
 			args = append(args, key+"="+sandboxNIC[key])
 		}
 		args = append(args, "--project", sandboxResourceProject)
-		if _, addErr := r.runner.Run(ctx, "incus", args...); addErr != nil {
+		result, addErr := r.runner.Run(ctx, "incus", args...)
+		if addErr != nil {
+			reason := strings.TrimSpace(result.Stderr)
+			if reason != "" {
+				return fmt.Errorf("configure Hacocoon sandbox profile NIC: %s: %w", reason, addErr)
+			}
 			return fmt.Errorf("configure Hacocoon sandbox profile NIC: %w", addErr)
 		}
 		shown, err = r.showProfileJSON(ctx, sandboxProfile, sandboxResourceProject)
