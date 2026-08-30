@@ -36,7 +36,9 @@ Hacocoon must not create a separate Btrfs filesystem or sparse image per Environ
 
 ## Runtime selection rule
 
-The local composition creates/ensures the Hacocoon Btrfs storage first, then prepares the Incus runtime with that storage attachment. Environment, Tooling Base, and Seed creation use the prepared pool instead of inheriting the Host's Incus default profile pool.
+The local composition configures a lazy Hacocoon Btrfs storage provider. Merely opening the local application for a command that does not need an Incus rootfs must not attach a loop image, mount Btrfs, or create an Incus storage pool.
+
+Before the first Environment, Tooling Base builder, or Seed builder needs root storage, the Incus runtime resolves the configured provider, ensures the sparse-raw Btrfs storage and its `haco-<storage-id>` Incus pool, records that pool, and reuses it for subsequent Hacocoon-owned rootfs operations. These paths therefore do not inherit the Host's Incus default profile pool.
 
 A low-level Incus runtime used directly without the Hacocoon local composition retains its legacy default-profile behavior for compatibility. That compatibility path is not the local Hacocoon storage architecture.
 
@@ -46,4 +48,4 @@ Host Workspaces remain bind-mounted into Environments and are not required to li
 
 ## Multiple pools
 
-The rule is one shared Btrfs filesystem **per configured Hacocoon storage pool**, not one hard global filesystem for every possible Hacocoon deployment. Runtime preparation records the selected `incus_pool` from the storage attachment, so another configured storage ID can map to another `haco-<storage-id>` pool without falling back to the Host default pool.
+The rule is one shared Btrfs filesystem **per configured Hacocoon storage pool**, not one hard global filesystem for every possible Hacocoon deployment. Runtime preparation or a configured storage provider selects the `incus_pool` from the storage attachment, so another configured storage ID can map to another `haco-<storage-id>` pool without falling back to the Host default pool.
