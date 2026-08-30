@@ -79,8 +79,8 @@ esac
 	first.pollAttempts = 1
 	first.pollDelay = 0
 	_, err = first.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "remote", WorkspacePath: workspace, ReadOnly: true})
-	if !errors.Is(err, core.ErrRecoveryRequired) {
-		t.Fatalf("first create err=%v", err)
+	if err == nil || errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("ambiguous idempotent create must remain safely retryable, err=%v", err)
 	}
 
 	second, err := NewWithCreateJournal(host.ExecRunner{}, testConfig(), journalDir)
