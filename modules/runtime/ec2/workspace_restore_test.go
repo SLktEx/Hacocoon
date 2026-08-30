@@ -263,3 +263,30 @@ func TestWorkspaceRestoreRejectsTrailingJournalData(t *testing.T) {
 		t.Fatalf("unsafe journal reached extraction: %d", runner.extractions)
 	}
 }
+
+func TestWorkspaceRestoreAppliesNewArchiveAfterRecoveringOlderTransaction(t *testing.T) {
+	workspace, archive := newRestoreFixture(t)
+	runner := &restoreArchiveRunner{content: "remote-old\n"}
+	err := restoreWorkspaceArchiveWithHook(context.Background(), runner, archive, workspace, func(point workspaceRestoreCrashPoint) error {
+		if point == workspaceRestoreAfterReplacementInstalled {
+			return errInjectedWorkspaceRestoreCrash
+		}
+		return nil
+	})
+	if !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("injected crash err=%v", err)
+	}
+	if err := os.WriteFile(archive, []byte("new-remote-archive"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runner.content = "remote-new\n"
+	if err := restoreWorkspaceArchive(context.Background(), runner, archive, workspace); err != nil {
+		t.Fatalf("retry with newer archive failed: %v", err)
+	}
+	if runner.extractions != 2 {
+		t.Fatalf("new archive was not applied after recovery: extractions=%d", runner.extractions)
+	}
+	if data, err := os.ReadFile(filepath.Join(workspace, "remote.txt")); err != nil || string(data) != "remote-new\n" {
+		t.Fatalf("new archive content not installed: data=%q err=%v", data, err)
+	}
+}
