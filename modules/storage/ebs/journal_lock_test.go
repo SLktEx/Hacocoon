@@ -23,6 +23,10 @@ func TestFileJournalLockIsExclusiveAcrossProcessesAndReleasedOnCrash(t *testing.
 	root := t.TempDir()
 	cmd := exec.Command(os.Args[0], "-test.run=^TestFileJournalLockHelper$")
 	cmd.Env = append(os.Environ(), "HACO_EBS_LOCK_HELPER=1", "HACO_EBS_LOCK_ROOT="+root)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -32,6 +36,8 @@ func TestFileJournalLockIsExclusiveAcrossProcessesAndReleasedOnCrash(t *testing.
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
+	defer stdin.Close()
+
 	reader := bufio.NewReader(stdout)
 	line, err := reader.ReadString('\n')
 	if err != nil {
