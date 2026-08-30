@@ -2,13 +2,13 @@
 
 > **日本語で読むためのarchitecture overview**
 >
-> 現在の実装事実は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md)、milestone番号は [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md) を参照してください。Security-sensitiveな判断では英語版authoritative documentを正本とします。
+> 現在の実装事実は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md)、milestone番号は [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md) を参照してください。
 
 ## Hacocoonとは
 
 **Hacocoonは Secure Workspace Runtime です。**
 
-人間、IDE、Shell、Coding Agent、外部OrchestratorからWorkspaceを受け取り、隔離されたEnvironmentの中で処理を実行し、Hostや外部サービスへ跨ぐauthorityをPolicy / Capability boundaryで制御します。
+人間、IDE、Shell、Coding Agent、外部OrchestratorからWorkspaceを受け取り、隔離Environmentで処理を実行し、Hostや外部serviceへ跨ぐauthorityをPolicy / Capability / Plugin boundaryで制御します。
 
 ```text
 Client / IDE / Agent / Orchestrator
@@ -25,61 +25,66 @@ Client / IDE / Agent / Orchestrator
         | Capability/Audit |
         +--------+---------+
                  |
-         Provider / Adapter
+         Provider / Plugin
                  |
-       Incus / EC2 / GitHub / AWS
+ Incus / EC2 / GitHub / AWS / OCI / Docker compat
 ```
 
 Hacocoon自身はIDE、AI chat product、Git worktree manager、Agent schedulerにはなりません。
 
 ## 現在のstatus
 
-**凡例:** ✅ 実装済み · 🧪 experimental · 🚧 planned
+**凡例:** ✅ 実装済み · 🧪 partial/experimental · 🚧 planned
 
 | Version | Gate | State |
 |---|---|---|
-| v0.1〜v0.6 | Core runtime / workspace / access / policy / Git / agent integration | ✅ 実装済み |
-| v0.7 | Remote / Cloud Runtime | 🧪 experimental実装。EC2はdefault-off |
-| v0.8 | Client Adapters & VS Code | ✅ 実装済み |
-| v0.9 | Per-Agent Sandbox | ✅ broker foundation実装済み |
-| v0.10 | VS Code Remote Agent Host Adapter | ✅ `haco-agent-host` 実装済み |
-| v0.11 | Base Images | ✅ first slice実装済み |
-| v0.12 | Sandbox Resource Limits | ✅ first slice実装済み |
-| v0.13 | Local OCI Registry | 🚧 planned。`main`には未実装 |
-| v0.13A | OCI Seed & Btrfs/COW | 🚧 planned second slice |
+| v0.1〜v0.6 | Core runtime / workspace / access / policy / Git / agent integration | ✅ |
+| v0.7 | Remote / Cloud Runtime | 🧪 experimental。EC2 default-off |
+| v0.8 | Client Adapters & VS Code | ✅ |
+| v0.9 | Per-Agent Sandbox | ✅ broker foundation |
+| v0.10 | VS Code Remote Agent Host Adapter | ✅ |
+| v0.11 | Base Images | ✅ first slice |
+| v0.12 | Sandbox Resource Limits | ✅ first slice |
+| v0.13 | Managed Sandbox Network | ✅ |
+| v0.14 | Git Fetch Plugin | ✅ |
+| v0.15 | OCI Seed Recommendation | ✅ |
+| v0.16 | OCI Image Deletion | ✅ first slice |
+| v0.17 | Docker Compatibility Plugin | 🧪 foundation |
+| v0.18 | Optional Local OCI Registry | 🚧 planned |
+| v0.19 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
 
-**実装済みmilestoneは v0.1〜v0.12 まで連続**しています。
+**完全実装済みproduct milestoneはv0.16まで連続**しています。
 
-> [!IMPORTANT]
-> Specificationがあることと、実装済みであることは別です。特にv0.13/v0.13Aはdesign contractであり、current implementationではありません。
+## Versioningの考え方
+
+Hacocoonはpre-1.0の間、**独立して価値のある1機能につきおおむね1minor milestone**とします。feature PR自身で番号を進め、security/fix/hardening/refactor/CI/docs-onlyでは通常番号を消費しません。
 
 ## 責任分界
 
 ### Hacocoonが所有するもの
 
-- Workspaceの解決・canonical identity
+- Workspace canonical identity / lease
 - isolated Environment lifecycle / cleanup
 - command / interactive execution
-- Workspace lease / ownership safety
 - client access primitives
 - Policy / Approval / Capability / Audit
 - trusted agent-session → Environment binding
-- provider-neutral Base identity
-- provider-neutral ResourceBudget
+- provider-neutral Base identity / ResourceBudget
+- managed Incus sandbox network substrate
 - authority-sensitive operationのrecovery semantics
 
 ### Hacocoon Coreが所有しないもの
 
-- VS Code / JetBrains等IDEのUX
+- VS Code / JetBrains等IDE UX
 - AI chat UI / model selection / token budget
 - Agent task DAG / retry strategy
-- Git branch strategy / worktree orchestration
-- VS Code Agent Host Protocol固有detail
-- Incus / AWS / OCI / Btrfs等provider固有mechanics
+- Git branch/worktree orchestration
+- Incus / AWS / OCI / Btrfs / Docker固有mechanics
+- GitHub credential transportの具体実装
+
+provider/client/tool固有detailはadapter/pluginへ置きます。
 
 ## Coreを小さくする
-
-Core vocabularyは意図的に小さく保ちます。
 
 ```text
 Workspace
@@ -93,219 +98,109 @@ BaseName / BaseRevision / BaseRef
 ResourceBudget
 ```
 
-Incus、AWS、GitHub、VS Code、AHP、Daintree、Btrfs、OCI registryなどはadapter/integration側に置きます。
+Incus、AWS、GitHub、VS Code、AHP、Btrfs、OCI、Docker等はCore vocabularyへ持ち込みません。
 
-## Environmentとauthorityの境界
+## Environmentとauthority
 
 ```text
 Coding Agent
      |
-     v
-Environment                <- broad local freedom
+ Environment     <- local development freedom
      |
 ----- trust boundary -----
      |
- Hacocoon
- Policy / Capability
+ Hacocoon / trusted plugins
      |
 GitHub / AWS / Host
 ```
 
-Environment内ではbuild/test/package install/source editなどを自由にできます。しかしHost authorityまで自由になるわけではありません。
+Host HOME、reusable credential、Incus socket、Hacocoon control stateをshortcutとしてEnvironmentへ渡しません。
 
-以下をshortcutとしてEnvironmentへ渡しません。
+## v0.8〜v0.12
 
-- host HOME
-- `~/.ssh`
-- `~/.aws`
-- reusable GitHub/AWS/registry credentials
-- Incus control socket
-- Hacocoon control state
+- **v0.8:** `haco-vscode` がstandard Remote-SSHを使うClient Adapter。private keyはclient-side。
+- **v0.9:** opaque session identityをpersisted proof付きdedicated Environmentへbind。deterministic nameはownership proofではない。
+- **v0.10:** `haco-agent-host` がv0.9 bindingをVS Code Agents workflowへ接続。VS CodeがAHP behaviorを所有。
+- **v0.11:** logical Baseをcreate時にimmutable revisionへpinしてEnvironment metadataへpersist。
+- **v0.12:** CPU/memory/PID/root storage ResourceBudget。unsupported finite requestはfail closed。
 
-## Workspace / Lease
-
-WorkspaceはCoreから見るとopaqueです。通常directory、Git repository、Git worktree、外部Orchestratorが作ったWorkspaceを同じcontractで扱います。
-
-Parallel RW sessionは原則として別canonical Workspace、通常は別Git worktreeを使います。worktree ownership自体はHacocoon Coreの責任ではありません。
-
-## v0.8 Client Adapter
-
-最初のadapterは `haco-vscode` です。
-
-```bash
-haco-vscode open .
-```
-
-```text
-Workspace
-  -> Environment create/reuse
-  -> loopback-only SSH
-  -> client-side SSH config
-  -> VS Code Remote-SSH
-  -> /workspace
-```
-
-Private SSH keyはclient側に残します。VS Codeのeditor / terminal / Git UI / AI UIはVS Code側の責任です。
-
-## v0.9 Per-Agent Sandbox
-
-```text
-trusted client
-     |
-opaque session identity
-     |
-persisted binding proof
-     |
-dedicated Environment
-```
-
-重要なrule:
-
-- raw session IDをruntime nameやownership proofにしない
-- exact reacquireのみidempotent
-- Workspace/access-mode rebindはfail closed
-- releaseはpersisted ownership proofを要求
-- deterministic Environment nameだけでadopt/deleteしない
-- Coding agent自身にHacocoon/Incus管理authorityを渡さない
-
-## v0.10 VS Code Remote Agent Host Adapter
-
-`haco-agent-host` は `main` に実装済みです。
-
-```text
-VS Code Agents window
-        |
-    Remote SSH
-        |
-  haco-agent-host
-        |
- v0.9-bound Environment
-        |
-    /workspace
-```
-
-Clientがprivate keyを保持し、HacocoonはEnvironment選択と安全なconnection preparationを所有します。VS CodeがAgent Host/AHP behaviorを所有します。
-
-## v0.11 Base Images
-
-```text
-logical Base
-    |
-provider source
-    |
-resolve once
-    v
-immutable revision
-    |
-Environment
-```
-
-first sliceでは次を実装済みです。
-
-```text
-haco image list
-haco image inspect <base>
-haco create --base <base> --workspace <path> <environment>
-```
-
-Mutable alias/sourceをcreate時にimmutable revisionへ解決し、Environment metadataにpersistします。Custom build/import/history/rollback/GCはfollow-upです。
-
-## v0.12 ResourceBudget
-
-```text
-Environment
-  +-- CPU
-  +-- memory
-  +-- PID/process
-  +-- root storage
-```
-
-ResourceBudgetはCapabilityとは別です。
-
-```text
-ResourceBudget -> Environment内部の消費上限
-Capability     -> Environment境界を跨ぐauthority
-```
-
-Incusではfinite limitを`start`前に設定し、read-back verificationします。requested finite limitをenforceできないproviderはfail closedします。
-
-## Managed Incus Network
-
-Local Incus EnvironmentはHacocoon-managed sandbox network/profileを使い、broad/default networkingへsilent fallbackしない方向です。
+## v0.13 Managed Sandbox Network
 
 ```text
 Environment
     |
-managed haco-sandbox network/profile
+haco-sandbox profile
     |
-default-deny transport boundary
-    |
-higher-level policy / broker
+haco-sandbox0 + default-deny ACL substrate
 ```
 
-IP/CIDR levelのtransport guardと、hostname/domain-aware authorizationは別レイヤです。Domain-aware egressは上位broker/policyで扱います。
+managed network/profile/ACLをHacocoonが作成・検証し、drift時にIncus `default` へsilent fallbackしません。IP/CIDR transport guardとdomain-aware authorizationは別layerです。
 
-## v0.13 Local OCI Registry — planned
+See [`13_v0.13_MANAGED_SANDBOX_NETWORK.ja.md`](13_v0.13_MANAGED_SANDBOX_NETWORK.ja.md).
 
-v0.13は **未実装** です。
+## v0.14 Git Fetch Plugin
 
-目的は、Environment内のordinary `nerdctl pull` / `containerd` image resolutionをHacocoon Local OCI Registry/cache gatewayへtransparentに寄せることです。
+`haco plugin git fetch` はHost側の `gh auth git-credential` を使い、reusable credentialをEnvironmentへcopyしません。repository-controlled credential helper/transport rewriteをprivileged pathで拒否します。
+
+See [`14_v0.14_GIT_FETCH_PLUGIN.ja.md`](14_v0.14_GIT_FETCH_PLUGIN.ja.md).
+
+## v0.15 OCI Seed Recommendation
+
+`haco image seed sample|recommend` でEnvironmentごとのlatest OCI identity snapshotをtrusted Hostへ保存し、immutable digest付きcandidateをrecommendします。deterministic top 10%をfuture Seedのauto-promotion対象にします。
+
+physical Seed build/publishはまだv0.19です。
+
+See [`15_v0.15_OCI_SEED_RECOMMENDATION.ja.md`](15_v0.15_OCI_SEED_RECOMMENDATION.ja.md).
+
+## v0.16 OCI Image Deletion
+
+`haco image delete` はHost Seed cacheからexact immutable identityを安全に削除し、tombstoneでv0.15のautomatic re-promotionを抑止します。`--all-environments` はexplicitで、forced removalはしません。
+
+See [`16_v0.16_OCI_IMAGE_DELETION.ja.md`](16_v0.16_OCI_IMAGE_DELETION.ja.md).
+
+## v0.17 Docker Compatibility Plugin
+
+標準runtimeは**containerd + nerdctl**です。DockerはDocker CLI/Engine APIを要求するtool向けのoptional compatibility pluginです。
+
+現在はsystemd socket/service packaging foundationまで。`dockerd`をHacocoon標準の常駐runtimeにはしません。
+
+See [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.ja.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.ja.md) と [`OCI_RUNTIME_AND_DOCKER_COMPAT.ja.md`](OCI_RUNTIME_AND_DOCKER_COMPAT.ja.md).
+
+## v0.18 Optional Local OCI Registry — planned
+
+Local Registry/proxyは必須infraではありません。normal `nerdctl pull` はnetwork policyが許せばconfigured upstreamへ直接行けます。rate limit、repeated pull cost、restricted network、central policy pointが必要なinstallationだけoptionalに利用します。
+
+See [`18_v0.18_LOCAL_OCI_REGISTRY.ja.md`](18_v0.18_LOCAL_OCI_REGISTRY.ja.md).
+
+## v0.19 OCI Seed Builder & COW — planned
 
 ```text
-Environment containerd
-       |
-       v
-Hacocoon Local Registry
-       |
- trusted upstream path
-       |
- allowed OCI registry
+trusted Host acquisition
+      |
+OCI export/stream
+      v
+Offline Seed Builder
+      |
+immutable Incus Seed
+      |
+Incus clone / Btrfs COW
+      v
+independent Environments
 ```
 
-Reusable upstream credentialはtrusted sideに残し、local registryが必要なmodeではdirect registry fallbackを許可しません。
+Seed Builderはgeneral networkなし、preferably NICなし。複数Environmentで同じwritable `/var/lib/containerd` を共有してはいけません。Btrfs/COWはIncus/storage driverのnormal clone semanticsへ任せます。
 
-## v0.13A OCI Seed & COW — planned
-
-Local Registryの次のoptimization sliceです。
-
-```text
-pinned Base
-   |
-Seed Builder
-   |
-OCI images by immutable digest
-   |
-publish immutable Incus Seed
-   |
-normal Incus clone
-   +---- Env A
-   +---- Env B
-   +---- Env C
-```
-
-**1つのwritable `/var/lib/containerd` を複数Environmentで共有してはいけません。** 各Environmentは独立したlogical containerd stateを持ち、Btrfs/COWのphysical block sharingはIncus/storage driverに任せます。
+See [`19_v0.19_OCI_SEED_AND_COW.ja.md`](19_v0.19_OCI_SEED_AND_COW.ja.md).
 
 ## Windows + WSL
 
-Hacocoon/IncusがWSL、desktop VS CodeがWindowsの場合、HostとClientのfilesystem/SSH contextは別です。
+Hacocoon/IncusがWSL、desktop VS CodeがWindowsの場合はHost/Client filesystemとSSH contextを分離します。dedicated WSL2 + systemdを使い、unrelated distribution/global defaultsを勝手に変更しません。
 
-Hacocoonはdedicated WSL 2 instanceを使い、systemdをPID 1としてIncusを動かします。Unrelated WSL distribution/global defaultを勝手に変更せず、`incus-admin`はexplicit opt-inのままです。
+## Orchestrator boundary
 
-## Orchestrator
-
-```text
-Daintree / other orchestrator
-  -> task / branch / worktree / agent ownership
-  -> Workspace
-  -> Hacocoon
-  -> Environment
-```
-
-Task decomposition、parallelism、retry、model selection、development reviewはOrchestrator側です。
+Task decomposition、parallelism、branch/worktree ownership、retry、model selection、development reviewはexternal Orchestrator側です。HacocoonへはWorkspaceとして渡します。
 
 ## Approval boundary
-
-Development approvalとSecurity approvalは分けます。
 
 ```text
 Development approval -> Human / GitHub / Orchestrator
@@ -314,50 +209,31 @@ Security approval    -> Hacocoon Policy / Capability
 
 ## EC2
 
-v0.7 EC2 providerは **experimental / disabled by default** です。
-
-```bash
-export HACO_RUNTIME_PROVIDER=runtime.ec2
-export HACO_EXPERIMENTAL_EC2=1
-```
-
-Real AWS acceptanceはrepository/fake-AWS testとは別に扱います。
+v0.7 EC2 providerは **experimental / disabled by default**。real AWS acceptanceはfake-AWS/repository testと分離します。
 
 ## Acceptanceの読み方
 
 | Evidence | 意味 |
 |---|---|
 | unit / adversarial test | logic/invariant coverage |
-| process / fake-provider E2E | external infraなしのexecutable integration |
-| repository CI | host-independent regression |
+| process / fake-provider E2E | external infraなしのintegration |
+| repository/local CI | host-independent regression |
 | real Incus / Windows / AWS | actual provider/client acceptance |
-
-実装済みでもreal-host acceptance pendingの領域があります。詳細は `IMPLEMENTATION_STATUS.ja.md` を参照してください。
 
 ## Breaking Change
 
-Hacocoonはpre-1.0です。Compatibilityよりarchitectureの小ささ、安全性、責任分界を優先するため、rename / delete / replace / CLI redesign / state change / adapter redesignが起こり得ます。
-
-ただしsecurity boundary regression、silent data loss、unsafe destructive operationは許容しません。
+Hacocoonはpre-1.0です。Compatibilityよりarchitectureの小ささ、安全性、責任分界を優先できます。ただしsecurity regression、silent data loss、unsafe destructive operationは許容しません。
 
 ## 次に読む資料
 
-日本語:
-
-- [`../README.ja.md`](../README.ja.md)
 - [`README.ja.md`](README.ja.md)
 - [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md)
 - [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md)
-- [`09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md`](09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md)
-- [`10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md`](10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md)
-- [`BASE_IMAGES.ja.md`](BASE_IMAGES.ja.md)
-- [`12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md`](12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md)
-- [`13A_v0.13_OCI_SEED_AND_COW.ja.md`](13A_v0.13_OCI_SEED_AND_COW.ja.md)
-
-英語の正本:
-
 - [`00_REBASELINE_AND_ROADMAP.md`](00_REBASELINE_AND_ROADMAP.md)
-- [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)
-- [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
-- [`00C_TERMINOLOGY_AND_BOUNDARIES.md`](00C_TERMINOLOGY_AND_BOUNDARIES.md)
-- [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)
+- [`13_v0.13_MANAGED_SANDBOX_NETWORK.ja.md`](13_v0.13_MANAGED_SANDBOX_NETWORK.ja.md)
+- [`14_v0.14_GIT_FETCH_PLUGIN.ja.md`](14_v0.14_GIT_FETCH_PLUGIN.ja.md)
+- [`15_v0.15_OCI_SEED_RECOMMENDATION.ja.md`](15_v0.15_OCI_SEED_RECOMMENDATION.ja.md)
+- [`16_v0.16_OCI_IMAGE_DELETION.ja.md`](16_v0.16_OCI_IMAGE_DELETION.ja.md)
+- [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.ja.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.ja.md)
+- [`18_v0.18_LOCAL_OCI_REGISTRY.ja.md`](18_v0.18_LOCAL_OCI_REGISTRY.ja.md)
+- [`19_v0.19_OCI_SEED_AND_COW.ja.md`](19_v0.19_OCI_SEED_AND_COW.ja.md)
