@@ -19,17 +19,28 @@ import (
 const providerID = "runtime.ec2"
 
 type Runtime struct {
-	runner       host.Runner
-	config       Config
-	stdin        io.Reader
-	stdout       io.Writer
-	stderr       io.Writer
-	pollAttempts int
-	pollDelay    time.Duration
+	runner        host.Runner
+	config        Config
+	createJournal *createJournal
+	stdin         io.Reader
+	stdout        io.Writer
+	stderr        io.Writer
+	pollAttempts  int
+	pollDelay     time.Duration
 }
 
 func New(runner host.Runner, config Config) *Runtime {
 	return &Runtime{runner: runner, config: config, stdin: os.Stdin, stdout: os.Stdout, stderr: os.Stderr, pollAttempts: 24, pollDelay: 5 * time.Second}
+}
+
+func NewWithCreateJournal(runner host.Runner, config Config, journalDir string) (*Runtime, error) {
+	journal, err := newCreateJournal(journalDir)
+	if err != nil {
+		return nil, err
+	}
+	runtime := New(runner, config)
+	runtime.createJournal = journal
+	return runtime, nil
 }
 
 func (*Runtime) ID() string { return providerID }
@@ -38,11 +49,18 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	if r == nil || r.runner == nil || strings.TrimSpace(spec.Name) == "" || strings.TrimSpace(spec.WorkspacePath) == "" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
+	if r.createJournal == nil {
+		return core.EnvironmentRuntime{}, fmt.Errorf("EC2 creation requires a durable create journal: %w", core.ErrRuntimeUnavailable)
+	}
 	cfg, err := r.config.normalized()
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
 	accountID, err := r.resolveAccountID(ctx)
+	if err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
+	operation, err := r.createJournal.prepare(accountID, cfg, spec)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
@@ -56,7 +74,7 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	prefix := cfg.WorkspacePrefix + "/" + spec.Name
 	inputURI := s3URI(cfg.WorkspaceBucket, prefix+"/input.tgz")
 	if _, err := r.aws(ctx, "s3", "cp", archive, inputURI, "--only-show-errors"); err != nil {
-		return core.EnvironmentRuntime{}, fmt.Errorf("stage workspace: %w", err)
+		return core.EnvironmentRuntime{}, fmt.Errorf("stage workspace for EC2 create operation %s: %w", operation.Key, err)
 	}
 	staged := true
 	var instanceID string
@@ -81,6 +99,14 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 				cleanupErrs = append(cleanupErrs, fmt.Errorf("remove staged workspace: %w", err))
 			}
 		}
+		if len(cleanupErrs) == 0 {
+			if err := r.createJournal.complete(operation.Key, operation.ClientToken); err != nil {
+				cleanupErrs = append(cleanupErrs, errors.Join(
+					fmt.Errorf("complete failed EC2 create operation %s: %w", operation.Key, err),
+					core.ErrRecoveryRequired,
+				))
+			}
+		}
 		return core.EnvironmentRuntime{}, errors.Join(append([]error{cause}, cleanupErrs...)...)
 	}
 
@@ -90,11 +116,19 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		"--iam-instance-profile", "Name="+cfg.InstanceProfile,
 		"--metadata-options", "HttpTokens=required,HttpEndpoint=enabled",
 		"--tag-specifications", fmt.Sprintf("ResourceType=instance,Tags=[{Key=Name,Value=hacocoon-%s},{Key=HacocoonEnvironment,Value=%s}]", spec.Name, spec.Name),
+		"--client-token", operation.ClientToken,
 		"--query", "Instances[0].InstanceId", "--output", "text",
 	)
 	result, err := r.aws(ctx, args...)
 	if err != nil {
-		return cleanup(fmt.Errorf("create EC2 environment: %w", err))
+		// The request may have reached EC2 even when the caller did not observe
+		// the response. Preserve both staging and the durable operation journal;
+		// the next create attempt for the same environment will reuse this exact
+		// client token instead of launching another instance.
+		return core.EnvironmentRuntime{}, errors.Join(
+			fmt.Errorf("EC2 RunInstances outcome is unknown for create operation %s (client token %s): %w", operation.Key, operation.ClientToken, err),
+			core.ErrRecoveryRequired,
+		)
 	}
 	instanceID = strings.TrimSpace(result.Stdout)
 	if !validInstanceID(instanceID) {
@@ -112,7 +146,17 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return cleanup(fmt.Errorf("materialize remote workspace: %w", err))
 	}
 
-	ref, err := encodeRef(runtimeRef{AccountID: accountID, Region: cfg.Region, InstanceID: instanceID, WorkspacePath: spec.WorkspacePath, Bucket: cfg.WorkspaceBucket, Prefix: prefix, ReadOnly: spec.ReadOnly})
+	ref, err := encodeRef(runtimeRef{
+		AccountID:       accountID,
+		Region:          cfg.Region,
+		InstanceID:      instanceID,
+		WorkspacePath:   spec.WorkspacePath,
+		Bucket:          cfg.WorkspaceBucket,
+		Prefix:          prefix,
+		ReadOnly:        spec.ReadOnly,
+		CreateOperation: operation.Key,
+		ClientToken:     operation.ClientToken,
+	})
 	if err != nil {
 		return cleanup(err)
 	}
@@ -182,6 +226,12 @@ func (r *Runtime) DeleteEnvironment(ctx context.Context, rawRef string) error {
 	}
 	if _, err := r.aws(ctx, "s3", "rm", "s3://"+ref.Bucket+"/"+ref.Prefix, "--recursive", "--only-show-errors"); err != nil {
 		return fmt.Errorf("cleanup EC2 workspace staging: %w", err)
+	}
+	if err := r.createJournal.complete(ref.CreateOperation, ref.ClientToken); err != nil {
+		return errors.Join(
+			fmt.Errorf("complete EC2 create operation after delete: %w", err),
+			core.ErrRecoveryRequired,
+		)
 	}
 	return nil
 }
