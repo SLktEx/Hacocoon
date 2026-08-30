@@ -11,7 +11,6 @@ import (
 
 const (
 	ProviderIncus = "runtime.incus"
-	ProviderEC2   = "runtime.ec2"
 	refPrefix     = "haco-runtime-v1:"
 )
 

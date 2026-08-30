@@ -4,10 +4,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
-	awscapapp "github.com/SLktEx/Hacocoon/internal/awscap"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	clientapp "github.com/SLktEx/Hacocoon/internal/client"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
@@ -18,7 +16,6 @@ import (
 	seedstatsapp "github.com/SLktEx/Hacocoon/internal/seedstats"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
-	ec2runtime "github.com/SLktEx/Hacocoon/modules/runtime/ec2"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
 )
 
@@ -45,29 +42,9 @@ func Local(_ context.Context) (*App, error) {
 		return nil, err
 	}
 
-	var ec2Provider environmentapp.Provider = environmentapp.DisabledProvider{
-		ID:     environmentapp.ProviderEC2,
-		Reason: "experimental EC2 is disabled; set HACO_EXPERIMENTAL_EC2=1 to opt in",
-	}
-	if strings.TrimSpace(os.Getenv("HACO_EXPERIMENTAL_EC2")) == "1" {
-		refKey, err := ec2runtime.LoadOrCreateRefKey(filepath.Join(stateDir, "ec2-ref.key"))
-		if err != nil {
-			return nil, err
-		}
-		ec2Inner, err := ec2runtime.NewWithCreateJournal(runner, ec2runtime.ConfigFromEnv(), filepath.Join(stateDir, "ec2-create"))
-		if err != nil {
-			return nil, err
-		}
-		authenticated, err := ec2runtime.NewAuthenticated(ec2Inner, refKey)
-		if err != nil {
-			return nil, err
-		}
-		ec2Provider = environmentapp.WithoutFiniteResources(authenticated)
-	}
 	router, err := environmentapp.NewRouter(
 		envOr("HACO_RUNTIME_PROVIDER", environmentapp.ProviderIncus),
 		environmentapp.Register(environmentapp.ProviderIncus, incusProvider),
-		environmentapp.Register(environmentapp.ProviderEC2, ec2Provider),
 	)
 	if err != nil {
 		return nil, err
@@ -85,7 +62,6 @@ func Local(_ context.Context) (*App, error) {
 		capabilityapp.NewJSONLAudit(auditPath),
 		capabilityapp.LocalEcho{},
 		gitProvider,
-		awscapapp.NewProvider(runner),
 	)
 	if err != nil {
 		return nil, err
