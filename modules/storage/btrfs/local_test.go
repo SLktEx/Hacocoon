@@ -31,12 +31,12 @@ func TestChooseBlockBackendDefaultsToRaw(t *testing.T) {
 	}
 }
 
-func TestChooseBlockBackendRejectsRemovedQcow2(t *testing.T) {
+func TestChooseBlockBackendRejectsUnknownBackend(t *testing.T) {
 	runner := &localBackendRunner{}
-	if _, err := chooseBlockBackend(context.Background(), runner, "qcow2"); err == nil {
-		t.Fatal("expected removed qcow2 backend to be rejected")
+	if _, err := chooseBlockBackend(context.Background(), runner, "unknown"); err == nil {
+		t.Fatal("expected unknown backend to be rejected")
 	}
 	if len(runner.calls) != 0 {
-		t.Fatalf("removed backend request unexpectedly probed host tools: %v", runner.calls)
+		t.Fatalf("unknown backend request unexpectedly probed host tools: %v", runner.calls)
 	}
 }
