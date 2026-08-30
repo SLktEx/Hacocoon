@@ -73,7 +73,7 @@ diagnostics() {
   echo '::endgroup::'
 
   echo '::group::test root'
-  find "$TEST_ROOT" -maxdepth 3 -ls
+  find "$TEST_ROOT" -maxdepth 6 -ls
   echo '::endgroup::'
 }
 
@@ -85,13 +85,13 @@ cleanup() {
   while IFS= read -r target; do
     [[ -n "$target" ]] || continue
     case "$target" in
-      "$TEST_ROOT"/mounts/*) sudo umount -- "$target" || failed=1 ;;
+      "$TEST_ROOT"/*) sudo umount -- "$target" || failed=1 ;;
     esac
   done < <(findmnt -rn -o TARGET 2>/dev/null || true)
 
   while read -r device backing; do
     [[ -n "${device:-}" && -n "${backing:-}" ]] || continue
-    if [[ "$device" =~ ^/dev/loop[0-9]+$ && "$backing" == "$TEST_ROOT"/images/*.raw ]]; then
+    if [[ "$device" =~ ^/dev/loop[0-9]+$ && "$backing" == "$TEST_ROOT"/* ]]; then
       sudo losetup -d "$device" || failed=1
     fi
   done < <(sudo losetup --list --noheadings --output NAME,BACK-FILE 2>/dev/null || true)
