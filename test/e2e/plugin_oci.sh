@@ -206,7 +206,7 @@ python3 - "$docker_status_json" <<'PY'
 import json,sys
 row=json.loads(sys.argv[1])
 assert row['environment'] == 'oci-demo', row
-assert row['docker_cli'] and row['dockerd'] and row['containerd'] and row['systemd'] and row['docker_group'], row
+assert row['docker_cli'] and row['docker_daemon'] and row['containerd'] and row['systemd'] and row['docker_group'], row
 assert row['ready'] is False, row
 PY
 set +e
