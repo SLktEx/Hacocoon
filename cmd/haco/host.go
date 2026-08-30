@@ -4,11 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/composition"
+	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
+
+const trustedHostClientBinaryEnv = "HACO_TRUSTED_HOST_CLIENT_BINARY"
 
 func hostCommand(ctx context.Context, app *composition.App, args []string) error {
 	if len(args) != 1 {
@@ -16,9 +20,9 @@ func hostCommand(ctx context.Context, app *composition.App, args []string) error
 	}
 	switch args[0] {
 	case "ensure":
-		return app.Runtime.EnsureTrustedHost(ctx)
+		return ensureTrustedHostReady(ctx, app)
 	case "shell":
-		if err := app.Runtime.EnsureTrustedHost(ctx); err != nil {
+		if err := ensureTrustedHostReady(ctx, app); err != nil {
 			return err
 		}
 		fmt.Fprintln(os.Stderr, trustedHostLoginWarning())
@@ -26,6 +30,42 @@ func hostCommand(ctx context.Context, app *composition.App, args []string) error
 	default:
 		return fmt.Errorf("unknown host command %q: %w", args[0], core.ErrInvalidArgument)
 	}
+}
+
+func ensureTrustedHostReady(ctx context.Context, app *composition.App) error {
+	if app == nil || app.Runtime == nil {
+		return core.ErrInvalidArgument
+	}
+	clientBinary, err := trustedHostClientBinaryPath()
+	if err != nil {
+		return err
+	}
+	return app.Runtime.ProvisionTrustedHostClient(ctx, clientBinary, control.SocketPath())
+}
+
+func trustedHostClientBinaryPath() (string, error) {
+	candidate := strings.TrimSpace(os.Getenv(trustedHostClientBinaryEnv))
+	if candidate == "" {
+		executable, err := os.Executable()
+		if err != nil {
+			return "", fmt.Errorf("resolve haco executable: %w", err)
+		}
+		if resolved, err := filepath.EvalSymlinks(executable); err == nil {
+			executable = resolved
+		}
+		candidate = filepath.Join(filepath.Dir(executable), "haco-host")
+	}
+	if !filepath.IsAbs(candidate) {
+		return "", fmt.Errorf("%s must be an absolute path: %w", trustedHostClientBinaryEnv, core.ErrInvalidArgument)
+	}
+	info, err := os.Lstat(candidate)
+	if err != nil {
+		return "", fmt.Errorf("trusted host client binary %q is unavailable: %w", candidate, err)
+	}
+	if !info.Mode().IsRegular() || info.Mode().Perm()&0o022 != 0 {
+		return "", fmt.Errorf("trusted host client binary %q must be a non-writable regular file: %w", candidate, core.ErrIncompatibleState)
+	}
+	return candidate, nil
 }
 
 func trustedHostLoginWarning() string {
