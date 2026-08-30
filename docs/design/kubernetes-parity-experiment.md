@@ -40,11 +40,11 @@ The table is a working checklist. `untested` means no parity claim is made yet.
 | Workspace leases | canonical Workspace identity, RO/RW semantics, conflicting lease refusal, `/workspace` behavior | Core/state parity covered through real provider routing; RW/RO rejection and RO/RO sharing tested before cluster mutation; real mount semantics untested |
 | Whole-Environment copy | copy durable machine/root/runtime state with fresh trust identity and COW behavior | unimplemented; #322 |
 | Resource budgets | CPU, memory, PID, root-storage semantics are enforced or explicitly rejected identically | finite CPU/memory/root values survive Core/provider routing; finite per-Environment PID remains an explicit parity gap |
-| Client status/access | existing status, SSH, loopback TCP/forwarding, preparation/revocation behavior | status path exists; persistent loopback forwarding/SSH lifecycle unresolved and likely requires extra Kubernetes/host machinery |
+| Client status/access | existing status, SSH, loopback TCP/forwarding, preparation/revocation behavior | durable loopback-only detached `kubectl port-forward` state, list/reconcile/remove, and SSH prepare/revoke are repository-tested; real Kubernetes behavior, delete-time cleanup and crash/reboot recovery remain unproven |
 | `haco run` / ephemeral execution | same lifecycle, cleanup, lock/recovery behavior | repository integration proves create/exec/delete cleanup and durable marker removal through Kubernetes provider; crash/restart recovery real-host acceptance untested |
 | Base lifecycle | list/inspect/select/create-from-Base semantics | untested / incomplete; current Kubernetes provider rejects explicit Base selection |
-| Policy / Approval / Capability | same fail-closed decisions, approval semantics, stale-state handling, audit | existing trusted implementation retained unchanged; Kubernetes end-to-end interaction untested |
-| Git push Broker | no reusable write credential in Environment; exact repo/remote/ref/SHA binding; stale-state refusal | trusted Broker retained unchanged; end-to-end Kubernetes parity untested |
+| Policy / Approval / Capability | same fail-closed decisions, approval semantics, stale-state handling, audit | existing trusted implementation retained unchanged; normal Kubernetes Environment push path now crosses the same capability service in repository integration |
+| Git push Broker | no reusable write credential in Environment; exact repo/remote/ref/SHA binding; stale-state refusal | repository integration proves exact SHA/ref push binding, stale remote refusal and ambient GitHub/askpass state exclusion for a Kubernetes-backed Environment; real authenticated GitHub push untested |
 | Git fetch | trusted Host authority and private-repository behavior | untested |
 | Network isolation | equivalent default isolation, DNS behavior, drift detection, no accidental bypass | ingress/egress default-deny manifest and provider-routed source identity are unit-covered; real CNI enforcement, DNS and SNAT behavior untested |
 | Domain-aware egress | same authorization semantics and destination protections without silently broadening access | Policy/Approval/Broker remains reusable and source identity is provider-neutral; proxy/listener transport remains unresolved; NetworkPolicy alone is not equivalent to current hostname approval + DNS pinning + SNI validation semantics |
@@ -55,7 +55,7 @@ The table is a working checklist. `untested` means no parity claim is made yet.
 | Trusted `haco-host` | same logical trusted Host behavior and isolation from Environment | retained on Incus during experiment; parity of an all-Kube form is not currently required |
 | Notifications / interaction events | same client-visible event semantics and no approval authority in clients | existing implementation retained; integration untested |
 | Structured logging | same operation fields, redaction, trust-boundary behavior | existing Core logging reused for tested create/exec/delete paths; provider-specific coverage incomplete |
-| Failure recovery | interrupted create/delete/run, ownership drift, stale state, cleanup-required semantics | provider cleanup/ownership fail-closed unit coverage plus normal `haco run` cleanup integration; crash/node-restart failure injection untested |
+| Failure recovery | interrupted create/delete/run, ownership drift, stale state, cleanup-required semantics | provider cleanup/ownership fail-closed unit coverage plus normal `haco run` cleanup integration; client-forward PID reuse fails closed; crash/node-restart failure injection untested |
 | Ubuntu 26.04 | real substrate works on the project target | blocked/untested; #323 |
 
 The matrix should become stricter as tests land. A feature may only move to `parity proven` after the relevant real or repository-level acceptance is strong enough to support that claim.
@@ -70,6 +70,8 @@ Workspace lease ownership, RO/RW conflict rules, Environment metadata, ephemeral
 
 Repository integration now exercises Workspace lease conflict behavior and normal ephemeral-run cleanup through the Kubernetes provider rather than only through fake Core runtimes. A conflicting Workspace request is rejected before Kubernetes is touched.
 
+The same is now true for the security-sensitive Git push path. A Kubernetes-backed Environment is persisted through the normal Workspace service and then passed to the unchanged trusted Git Broker. Repository tests prove that the Broker still pushes the exact approved source SHA to the approved ref, fails stale if the GitHub remote identity changes after policy evaluation, and does not inherit ambient `GH_TOKEN`, `GITHUB_TOKEN`, or caller-controlled `GIT_ASKPASS` state. This does not yet replace real authenticated-GitHub acceptance, but it demonstrates that the runtime swap itself does not require weakening the Broker contract.
+
 ### Network plumbing can shrink, but the security Broker is not automatically removable
 
 Kubernetes `NetworkPolicy` can plausibly replace a meaningful part of the Incus-specific bridge/ACL isolation machinery. `main-kube` now creates explicit default-deny policies and routes provider-trusted source identity through the Environment router rather than coupling egress identity directly to Incus.
@@ -83,11 +85,15 @@ Therefore the parity experiment must distinguish:
 
 Deleting the proxy by broadening outbound access is a parity failure, not simplification.
 
-### Client loopback access is not yet a Kubernetes simplification
+### Client loopback access can be reproduced, but currently costs more Hacocoon machinery
 
-Incus can represent a persistent loopback-only host forward as a managed proxy device attached to the Environment. `kubectl port-forward` is a client process whose lifetime normally ends with the invoking process, so it is not equivalent to the current persistent/reconcilable client-connection contract.
+A repository-level parity candidate now exists for the persistent/reconcilable client-connection contract. Instead of treating a foreground `kubectl port-forward` command as equivalent, the Kubernetes provider starts a detached loopback-only port-forward on the trusted side and writes a private durable record under `HACO_ROOT`. The record includes a random process token, PID, Linux `/proc` start-time identity, Environment ref and exact ports.
 
-Potential Kubernetes alternatives such as a managed forwarder Pod, `hostPort`, NodePort configuration, or a Hacocoon-owned long-lived port-forward supervisor add different operational/security constraints. This area must be implemented and measured before claiming simpler client access.
+The provider can rediscover the connection after a fresh Provider instance is constructed, list it, revoke it, and refuse to signal a reused or identity-mismatched PID. The port-forward subprocess receives a deliberately minimized environment containing Kubernetes authority inputs such as `KUBECONFIG` but not ambient GitHub tokens, Git askpass state, or unrelated process credentials. SSH uses the same durable forwarding path and manages only a marker-scoped public key inside the Environment.
+
+This proves the client contract is not fundamentally impossible on Kubernetes, but it is **not evidence of simplification**. Before this slice, the Kubernetes provider implementation measured 568 physical lines. After adding durable client forwarding and its process/state reconciliation, the provider implementation measures 1,226 physical lines. The Incus provider baseline is still larger at 3,382 lines, but Kubernetes still lacks major parity areas such as whole-Environment clone, Base/Seed, OCI/storage semantics, and real network/runtime acceptance. The line-count delta is therefore evidence to track, not a winner.
+
+There are also remaining client-access acceptance gaps: real `kubectl port-forward` behavior, placement of the supervisor in the trusted `haco-host` boundary, explicit cleanup during Environment deletion, and restart/reboot recovery have not yet been proven. If making those exact requires more daemons or reconciliation state, that cost belongs in the Kubernetes result.
 
 ### Runtime/storage remain the largest parity risks
 
