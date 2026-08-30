@@ -69,20 +69,22 @@ func Local(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	storageHandle, err := managedStorage.Ensure(ctx, core.StorageSpec{
-		ID:        defaultLocalStorageID,
-		SizeBytes: defaultLocalStorageBytes,
-	})
-	if err != nil {
-		return nil, err
-	}
 
 	var runtimeRunner host.Runner = runner
 	if ociDriver == ociplugin.DriverNerdctl {
 		runtimeRunner = incus.WrapSeedHarvestRunner(runner)
 	}
 	incusRuntime := incus.New(runtimeRunner)
-	if err := incusRuntime.Prepare(ctx, core.RuntimePrepareSpec{StorageAttachment: storageHandle.Attachment}); err != nil {
+	if err := incusRuntime.ConfigureStorageProvider(func(storageCtx context.Context) (map[string]string, error) {
+		handle, err := managedStorage.Ensure(storageCtx, core.StorageSpec{
+			ID:        defaultLocalStorageID,
+			SizeBytes: defaultLocalStorageBytes,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return handle.Attachment, nil
+	}); err != nil {
 		return nil, err
 	}
 	incusProvider, err := incus.NewSandboxProvider(incusRuntime, providerOptions...)
