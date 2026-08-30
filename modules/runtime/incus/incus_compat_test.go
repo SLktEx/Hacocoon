@@ -34,17 +34,15 @@ func TestDefaultRootPoolFallsBackToRawQuery(t *testing.T) {
 	}
 }
 
-func TestShowProfileJSONFallsBackToRawQuery(t *testing.T) {
-	unsupportedFormat := errors.New("unknown flag: --format")
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		switch {
-		case reflect.DeepEqual(args, []string{"profile", "show", sandboxProfile, "--project", sandboxResourceProject, "--format", "json"}):
-			return host.Result{ExitCode: 1, Stderr: "Error: unknown flag: --format"}, unsupportedFormat
-		case reflect.DeepEqual(args, []string{"query", "/1.0/profiles/haco-sandbox?project=default"}):
-			return sandboxProfileResult(), nil
-		default:
-			return host.Result{}, errors.New("unexpected Incus call")
+func TestShowProfileJSONUsesRawQuery(t *testing.T) {
+	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, args []string) (host.Result, error) {
+		if call != 0 {
+			t.Fatalf("unexpected call %d: %#v", call, args)
 		}
+		if !reflect.DeepEqual(args, []string{"query", "/1.0/profiles/haco-sandbox?project=default"}) {
+			t.Fatalf("args = %#v", args)
+		}
+		return sandboxProfileResult(), nil
 	}}
 
 	result, err := New(runner).showProfileJSON(context.Background(), sandboxProfile, sandboxResourceProject)
@@ -54,7 +52,7 @@ func TestShowProfileJSONFallsBackToRawQuery(t *testing.T) {
 	if result.Stdout != sandboxProfileResult().Stdout {
 		t.Fatalf("profile JSON = %q", result.Stdout)
 	}
-	if len(runner.calls) != 2 {
+	if len(runner.calls) != 1 {
 		t.Fatalf("calls = %#v", runner.calls)
 	}
 }
