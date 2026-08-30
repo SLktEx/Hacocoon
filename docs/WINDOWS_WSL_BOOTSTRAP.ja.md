@@ -1,38 +1,36 @@
 # Windows / WSL セットアップ
 
-Windows で Hacocoon の local runtime を使う場合、**普段使いの WSL を再利用せず、Hacocoon 専用の WSL 2 distribution を1個作り、systemd を PID 1 として動かす**のを標準にします。
+Windows では、**普段使いのWSLを再利用せず、Hacocoon専用のWSL 2 distributionを1個作り、systemdをPID 1として動かす**のをsupported pathにします。
 
-この専用 distribution 自体が **Physical Host** です。通常の install が完了した後は、`wsl -d Hacocoon` でその Physical Host shell に留まらず、永続的な trusted Incus instance `haco-host` へそのまま入ります。
+この専用distribution自体が **Physical Host** です。Incus、managed Btrfs primitive、Hacocoon controllerはここが所有します。Bootstrap成功後、通常のinteractive entryは永続的なtrusted `haco-host`へ直接入ります。
 
 ```text
-Windows desktop
+Windows
   |
-  +-- 普段使いの Ubuntu / Debian 等      <- 触らない
+  +-- 普段使いのWSL distribution             <- 触らない
   |
-  +-- WSL 2: Hacocoon                    <- Physical Host / substrate
-        |- systemd (PID 1)
-        |- Hacocoon + Incus
-        |- loop / Btrfs storage primitives
-        |
-        `- Incus: haco-host               <- TRUSTED / 普段入る Host
-             |
-             +-- 将来の Git / OCI / external tooling
-             `-- operator shell
+  `-- WSL 2: Hacocoon                        <- Physical Host
+       |- systemd (PID 1)
+       |- Incus
+       |- loop / Btrfs primitives
+       |- haco-controller
+       |    `- /run/hacocoon/control.sock
+       |
+       `- Incus: haco-host                   <- TRUSTED / 普段入るHost
+            |- /usr/local/bin/haco-host
+            `- /var/lib/hacocoon-control.sock
+                 `- 専用Incus proxy -> controller
 
-        Incus: managed Environments       <- UNTRUSTED agent workloads
-
-Windows VS Code / external orchestrator
-  -> stable Hacocoon client surface
-  -> target Environment
+       Incus: managed Environments            <- UNTRUSTED
 ```
 
-現在の `haco-host` 実装範囲は [`design/trusted-host.ja.md`](design/trusted-host.ja.md) にまとめています。
+詳細は [`design/trusted-host.ja.md`](design/trusted-host.ja.md) と [`design/controller-client-transport.ja.md`](design/controller-client-transport.ja.md) を参照してください。
 
-## 普通に使うインストーラー
+## 普通に使うinstaller
 
-GitHub Release に `install-windows.ps1` を standalone installer として載せます。**Hacocoon repository を先に clone する必要はありません。**
+GitHub Releaseの`install-windows.ps1`をstandalone installerとして使います。Repository cloneは不要です。
 
-管理者 PowerShell から:
+管理者PowerShellから:
 
 ```powershell
 .\install-windows.ps1
@@ -40,43 +38,23 @@ GitHub Release に `install-windows.ps1` を standalone installer として載�
 
 を実行します。
 
-標準の専用 WSL distribution 名は `Hacocoon`、標準 base distribution は `Ubuntu-26.04` です。
+標準distribution名は`Hacocoon`、標準baseは`Ubuntu-26.04`です。
 
-Fresh PC では Windows reboot や新規 distribution の初回 Linux user 作成が必要な場合があります。Hacocoon bootstrap が完了する前の:
+Fresh distributionでは最初に通常のLinux user作成が必要な場合があります。Hacocoon bootstrap完了前の`wsl -d Hacocoon`は、そのfirst-run setupのため通常のbase distributionへ入ります。User setup後にinstallerを再実行します。
 
-```powershell
-wsl -d Hacocoon
-```
-
-は通常の base distribution に入り、Linux user の初期設定を行えます。初期設定後に `install-windows.ps1` をもう一度実行してください。
-
-Bootstrap 完了後は同じ:
+Bootstrap成功後は:
 
 ```powershell
 wsl -d Hacocoon
 ```
 
-が通常の Hacocoon entry point になり、そのまま `haco-host` へ入ります。
+でtrusted `haco-host`へ入ります。
 
-## WSL 2 は必須で、installer が保証する
+## WSL 2 と systemd
 
-現在の `wsl --install` では新規 distribution は通常 WSL 2 で作られますが、Hacocoon はその default だけには依存しません。
+InstallerはHacocoon専用distributionだけをWSL 2であると検証し、必要なら`wsl --set-version Hacocoon 2`を使います。Global WSL defaultや無関係なdistributionは変更しません。
 
-Installer は専用 instance を `wsl --list --verbose` で確認し、もし **Hacocoon専用instanceだけ** が WSL 1 なら:
-
-```powershell
-wsl --set-version Hacocoon 2
-```
-
-で WSL 2 に変換します。
-
-`wsl --set-default-version` は実行しません。普段使いの Ubuntu / Debian / Arch 等を WSL 2 に勝手に変換することも、global WSL default を変更することもありません。
-
-## systemd も必須で、installer が保証する
-
-Hacocoon の標準 local Incus path では、専用 Physical Host 内で **systemd が PID 1 として動いていること**を前提にします。
-
-Linux bootstrap は必要な systemd package を入れ、既存 `/etc/wsl.conf` の他設定を残しながら:
+Linux bootstrapは既存`/etc/wsl.conf`の他設定を残しつつ:
 
 ```ini
 [boot]
@@ -85,29 +63,39 @@ systemd=true
 
 を保証します。
 
-まだ PID 1 が systemd でなければ Windows 側は **Hacocoon専用distributionだけ** を:
+まだsystemdがPID 1でなければ、Windows installerは`wsl --terminate Hacocoon`でHacocoon専用distributionだけをrestartします。`wsl --shutdown`は使いません。
 
-```powershell
-wsl --terminate Hacocoon
+## Incus と managed storage
+
+`-SkipIncus`でない限り、bootstrapはIncusをinstall/startし、必要ならminimal initします。
+
+Default local storageはHacocoon-managed sparse-raw Btrfsで、`compress=zstd:3`を使います。`compress-force`やautomatic defrag/recompressionはreflink/COW sharingを壊し得るので行いません。
+
+## Physical Host controller service
+
+Release install後、bootstrapは`haco-controller`が`/usr/local/bin`または`/usr/bin`のroot-ownedかつgroup/world writableでないsystem binaryであることを検証します。
+
+そのうえでPhysical Hostに:
+
+```text
+haco-controller.service
 ```
 
-で停止して bootstrap を再実行します。
+をinstallし、current releaseでrestartします。
 
-他の distribution まで止める `wsl --shutdown` はこの path では使いません。
+Controllerはlocalhost TCPを開かず、次のUnix socketだけでlistenします。
 
-必要な systemd support がない古い WSL は明示的に失敗し、必要なら利用者に `wsl --update` を案内します。Hacocoon が勝手に WSL 自体を update することはしません。
+```text
+/run/hacocoon/control.sock
+```
 
-## Managed storage filesystem
+次へ進む前に、このpathが`root:root` mode `0600`のUnix socketであることをbootstrapが確認します。
 
-Windows / WSL の supported path では Hacocoon-managed local storage に Btrfs を使います。Default local backend は sparse raw filesystem を作成し、`compress=zstd:3` で mount します。
+Upgrade時にserviceをrestartするのは、install直後のreleaseとdaemon processのversionを一致させるためです。
 
-`compress-force` は意図的に使いません。また自動 defrag / recompress は reflink / COW sharing を壊す可能性があるため行いません。
+## Trusted `haco-host` reconcile
 
-`haco host ensure` が最初の managed rootfs pool 作成になる場合があるので、WSL bootstrap は `btrfs-progs` も install します。
-
-## Trusted `haco-host` bootstrap
-
-Incus と Hacocoon release の準備後、bootstrap は Physical Host authority で:
+Controller active後、Physical Host authorityで:
 
 ```text
 haco host ensure
@@ -115,71 +103,102 @@ haco host ensure
 
 を実行します。
 
-この operation は:
+このoperationは次をreconcileします。
 
-- `haco-host` という Incus instance をちょうど1個 reconcile する
-- rootfs を Hacocoon が選んだ managed Incus storage pool に置く
-- `user.hacocoon.role=trusted-host` を ownership marker として付ける
-- 同じ名前の既存 instance に marker がなければ takeover せず fail closed する
-- owned instance が stopped なら start する
-- 未知の state は推測せず失敗する
+- `haco-host`というIncus instanceをちょうど1個
+- `user.hacocoon.role=trusted-host` ownership marker
+- Hacocoon-managed root storage
+- owned stopped instanceのautomatic restart
+- `environment.HACO_CONTROL_SOCKET=/var/lib/hacocoon-control.sock`
+- 専用`haco-control` proxy
+- trusted instance内のclient-only `/usr/local/bin/haco-host`
 
-という動作をします。
+Proxyは意図的に狭くします。
 
-通常 Environment 名 `host` は provider-local では同じ `haco-host` に衝突するため、Incus adapter 側で予約します。
+```text
+type=proxy
+bind=instance
+listen=unix:/var/lib/hacocoon-control.sock
+connect=unix:/run/hacocoon/control.sock
+mode=0600
+uid=0
+gid=0
+```
 
-通常 WSL user の login shell を変更するのは、この reconcile が成功した**後だけ**です。Trusted Host bootstrap が失敗した場合は Physical Host shell をそのまま recovery 用に残し、壊れた automatic entry loop にはしません。
+既存instance、endpoint variable、proxy shapeが期待と違う場合、silent repurposeせずfail closedします。
+
+Client binaryはSHA-256とfinal root ownership/modeを確認してprovisionします。
+
+## Bootstrapでround tripまで証明する
+
+`haco host ensure`後、bootstrapは実際のtrusted instance内で:
+
+```text
+/usr/local/bin/haco-host doctor
+```
+
+を実行します。
+
+これにより実path:
+
+```text
+haco-host CLI
+  -> /var/lib/hacocoon-control.sock
+  -> Incus haco-control proxy
+  -> /run/hacocoon/control.sock
+  -> Physical Host haco-controller
+```
+
+が通ることを確認します。
+
+失敗した場合はnormal userのlogin shellを変更する前にbootstrapを止め、Physical Host recovery pathを表示します。
+
+Raw Incus daemon socketを`haco-host`へmount/proxyすることはありません。
 
 ## `wsl -d Hacocoon` が `haco-host` に入る仕組み
 
-Installer は root-owned の `/usr/local/libexec/hacocoon-login` entry を作り、system-owned `haco` binary を専用 executable name で参照させ、その path を通常 non-root WSL user の login shell に設定します。
+Controller / trusted Host acceptance成功後、bootstrapはroot-owned `/usr/local/libexec/hacocoon-login`を作り、通常non-root WSL userのlogin shellにします。
 
-`haco` binary はこの invocation mode を判定し、command なしの interactive WSL launch なら:
+Interactive no-command entryでは:
 
 ```text
 sudo -n <system-owned-haco> host shell
 ```
 
-へ delegate します。
+へdelegateします。
 
-`haco host shell` は trusted Host を reconcile し、privileged-environment warning を表示してから `haco-host` 内の `/bin/bash -l` に入ります。
+`haco host shell`はtrusted Hostとclient binaryを再reconcileし、privileged-management warningを表示してから`haco-host`内の`/bin/bash -l`へ入ります。
 
-Explicit shell argument や non-interactive login-shell use は Physical Host 側の `/bin/bash` に残します。また WSL の explicit command execution は default interactive shell entry と分離できるので automation output に login warning を混ぜません。
+Explicit / non-interactive WSL commandはPhysical Host側のままで、interactive warningを混ぜません。
 
 ## Automatic entry の privilege boundary
 
-Automatic entry のためだけに `incus-admin` を付与しません。
+Automatic entryのために通常WSL userへ`incus-admin`を付与しません。
 
-代わりに、通常 WSL user が passwordless sudo できるのは system-owned binary に対する次の exact command だけです。
+Passwordless sudoを許可するのはsystem-owned binaryに対するexactな:
 
 ```text
 haco host ensure
 haco host shell
 ```
 
-この sudoers rule を入れる前に、`haco` executable が `/usr/local/bin/haco` または `/usr/bin/haco` にあり、root-owned で、group/world writable でないことを確認します。生成した sudoers file は install 前に `visudo` で検証します。
+だけです。
 
-Incus daemon socket や `/var/lib/incus` を `haco-host` に mount しません。
+Raw Incus socketと`/var/lib/incus`はPhysical Host authorityに残します。
 
-専用 Physical Host user に raw Incus admin authority を意図的に与えたい場合だけ、従来通り:
+Physical Host userへroot-equivalentなIncus authorityを意図的に与える場合だけ`-GrantIncusAdmin`を使います。
 
-```powershell
-.\install-windows.ps1 -GrantIncusAdmin
-```
+## Physical Host recovery
 
-を使います。`incus-admin` は実質 root 相当なので opt-in のままです。
-
-## Physical Host へ直接入る escape hatch
-
-通常の interactive use:
+通常利用:
 
 ```powershell
 wsl -d Hacocoon
 ```
 
-は `haco-host` に入ります。
+は`haco-host`へ入ります。
 
-Bootstrap / repair / host-only operation のために Physical Host は明示的に到達可能なまま残します。Root account の login shell は `hacocoon-login` に変更しないため、主な recovery path は:
+Root accountのshellは変更しないため、Physical Hostへ直接戻るrecovery pathは:
 
 ```powershell
 wsl -d Hacocoon -u root
@@ -187,83 +206,55 @@ wsl -d Hacocoon -u root
 
 です。
 
-Explicit command は default interactive entry を通さず Physical Host 側で実行できます。例えば:
+Explicit commandもPhysical Hostへ向けられます。例えば:
 
 ```powershell
-wsl -d Hacocoon -- haco host ensure
+wsl -d Hacocoon -- haco status
 ```
 
-です。Physical Host root authority が必要な command は、root escape hatch または明示的に許可された sudo rule を使って実行してください。
-
-Automatic entry に失敗した場合は、別shellに黙ってfallbackして成功したふりをせず、Physical Host recovery command を明示します。
+Physical Host root authorityが必要なoperationはauthorized sudo pathまたはroot recovery shellを使います。
 
 ## `-SkipIncus`
 
-Incus を別手段で管理する場合の:
+`-SkipIncus`ではtrusted backend readyをHacocoonが保証できないため、Physical Host loginを変更せず、controller-connected automatic `haco-host` entryも設定しません。
 
-```powershell
-.\install-windows.ps1 -SkipIncus
-```
+## Workspace location
 
-は引き続き利用できます。
+Default interactive entryとWorkspace ownershipは別architecture seamです。
 
-ただしこの mode では Hacocoon が trusted Host backend ready を保証できないため、default Physical Host login shell は変更せず、automatic `haco-host` entry も設定しません。
+Repository/workspace ownershipをlogical Hostへ完全移行することは、このbootstrapだけで実現済みとは扱いません。それまではPhysical Host pathをexplicit commandで扱えます。VS Code / external orchestratorも`haco-host`をmandatory SSH jump hostとせず、Hacocoonのclient/control surfaceからtarget Environmentへ接続する方針です。
 
-## Workspace / repository の置き場所
+## Installerの処理順
 
-Default interactive entry と Workspace location は別の設計課題です。
+Supported pathは次の順で進みます。
 
-WSL の通常体験では、今後 Hacocoon-managed storage と `haco-host` を中心に repository/workspace を扱う方向を優先します。ただし Core に「repository は永久に `haco-host` にある」と焼き込まず、将来 Physical Host や external Workspace provider に置ける seam は残します。
+1. named WSL distributionとreleaseを検証
+2. Hacocoon専用distributionだけを作成/再利用
+3. そのdistributionだけWSL 2を保証
+4. systemdを有効化し、必要ならそのdistributionだけrestart
+5. skip指定がなければIncusをinstall/start
+6. Btrfs toolとHacocoon release binaryをinstall
+7. Physical Hostの`haco-controller.service`をinstall/restart
+8. root-only controller Unix socketを検証
+9. trusted `haco-host`、narrow proxy、client binaryをreconcile
+10. `haco-host doctor`からPhysical Host controllerへの疎通を証明
+11. narrow automatic-entry sudo ruleをinstall
+12. 通常non-root userのlogin shellを`hacocoon-login`へ変更
 
-今回の login-shell 変更だけでは、`haco-host` rootfs 内の任意 path が sibling Environment へ自動 mount できるようにはなりません。Workspace-location migration が入るまでは、既存 Physical Host Workspace path を Windows から explicit command で操作できます。例えば:
+Global WSL default、`.wslconfig`、無関係なdistribution、root userのlogin shellは変更しません。
 
-```powershell
-wsl -d Hacocoon -- sh -lc 'cd ~/src/my-repo && haco-vscode open .'
-```
+## Checkout版
 
-VS Code や external orchestrator は `haco-host` を SSH jump host として前提にせず、Hacocoon の stable client/control surface から対象 Environment へ接続する方針を維持します。
-
-## standalone installer / bootstrap がすること
-
-Relevant な処理順は次です。
-
-1. instance 名 / base distribution / Hacocoon version を検証
-2. Hacocoon専用 named WSL だけを作成または再利用
-3. その distribution だけ WSL 2 を保証
-4. systemd support を install し `systemd=true` を保証
-5. 必要ならその distribution だけ restart
-6. `-SkipIncus` でない限り Incus を install / start
-7. Btrfs userspace tool と Hacocoon release を install
-8. trusted `haco-host` を reconcile
-9. narrow automatic-entry sudo rule を install
-10. 通常 non-root user の login shell を `hacocoon-login` に変更
-
-Global WSL default、`.wslconfig`、無関係な distribution、root user の login shell は変更しません。
-
-## Hacocoon開発者向けのcheckout版
-
-Repository checkout 内には引き続き:
+Repository checkoutでは引き続き:
 
 ```powershell
 .\scripts\bootstrap-windows.ps1
 ```
 
-があります。
+を使えます。Checkout scriptを使いますが、同じWSL 2 / systemd / Incus / controller / trusted-host entry contractに従います。
 
-Checkout 内の `bootstrap-wsl.sh` / `install.sh` を使いますが、standalone installer と同じ WSL 2 / systemd / Incus / trusted-host entry contract に合わせます。
+## Acceptance boundary
 
-## Acceptance の扱い
+Repository CIとreal Incus E2Eではcontroller protocol、実proxy device、client provisioning、`haco-host doctor` round trip、restart recovery、raw Incus socket非露出、通常Environmentにtrusted endpointがないことを確認できます。
 
-Repository CI では Go test、shell / PowerShell syntax、WSL 2 / systemd policy、installer / release integrity、Windows kernel がなくても確認できる trusted-host reconciliation を検証します。
-
-次は real Windows host 上での acceptance が必要です。
-
-- 初回 Linux user setup
-- WSL restart behavior
-- real managed Btrfs creation
-- real `haco-host` image acquisition / start
-- `wsl -d Hacocoon` から `haco-host` への login-shell transition
-- Physical Host root recovery
-- Default entry変更後の Windows VS Code / orchestrator integration
-
-Repository CI だけでこれらの Windows-host-dependent behavior を実機確認済みとは扱いません。
+一方、Windows側からのfirst-run Linux user setup、WSL restart behavior、`wsl -d Hacocoon`からのlogin-shell transition、WindowsからのPhysical Host recovery、Windows editor/orchestrator integrationはreal Windows + WSL acceptanceが必要です。
