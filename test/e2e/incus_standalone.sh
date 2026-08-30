@@ -115,10 +115,22 @@ echo "bridge gateway: $gateway"
 
 # DHCP/default route plus actual reachability of the managed bridge gateway.
 incus exec "$first" -- timeout 5 bash -c "exec 3<>/dev/tcp/$gateway/53"
-# NAT/routing to the public Internet without depending on ICMP.
-incus exec "$first" -- timeout 8 bash -c 'exec 3<>/dev/tcp/1.1.1.1/443'
-# DNS resolution through the network-provided resolver.
+# DNS resolution through the network-provided resolver is a distinct check.
 incus exec "$first" -- getent ahostsv4 example.com >/dev/null
+# GitHub-hosted runners can block selected public IP literals independently of
+# general Internet access (1.1.1.1 is one observed example). Verify real
+# hostname-based IPv4 egress to GitHub instead of baking a third-party IP
+# policy into the substrate acceptance test.
+external_ip="$(incus exec "$first" -- getent ahostsv4 github.com | awk '$2 == "STREAM" {print $1; exit}')"
+[[ -n "$external_ip" ]] || {
+  echo "guest DNS resolved no IPv4 STREAM address for github.com" >&2
+  exit 1
+}
+echo "public egress target: github.com ($external_ip):443"
+if ! incus exec "$first" -- timeout 5 bash -c "exec 3<>/dev/tcp/$external_ip/443"; then
+  echo "guest cannot reach github.com IPv4 $external_ip:443 through Incus NAT" >&2
+  exit 1
+fi
 # Managed-network hostname resolution and peer-to-peer traffic.
 incus exec "$first" -- getent ahostsv4 "$second" >/dev/null
 incus exec "$first" -- ping -c 1 -W 3 "$second" >/dev/null
