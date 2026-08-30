@@ -23,6 +23,7 @@ func (l *eventLog) add(event string) {
 type fakeBlock struct {
 	log       *eventLog
 	shrinkErr error
+	detachErr error
 }
 
 func (*fakeBlock) ID() string { return "block.fake" }
@@ -42,7 +43,7 @@ func (f *fakeBlock) Attach(context.Context, block.Handle) (block.Handle, error) 
 }
 func (f *fakeBlock) Detach(context.Context, block.Handle) error {
 	f.log.add("block.detach")
-	return nil
+	return f.detachErr
 }
 func (f *fakeBlock) Grow(context.Context, block.Handle, int64) (block.Handle, error) {
 	f.log.add("block.grow")
@@ -68,13 +69,14 @@ type fakeFS struct {
 	log       *eventLog
 	state     FilesystemState
 	min       int64
+	ensureErr error
 	shrinkErr error
 }
 
 func (*fakeFS) Probe(context.Context) error { return nil }
 func (f *fakeFS) Ensure(context.Context, string, string) error {
 	f.log.add("fs.ensure")
-	return nil
+	return f.ensureErr
 }
 func (f *fakeFS) Inspect(context.Context, string) (FilesystemState, error) { return f.state, nil }
 func (f *fakeFS) Grow(context.Context, string) error {
@@ -107,6 +109,35 @@ func TestStorageUsesCanonicalID(t *testing.T) {
 	storage := New(t.TempDir(), &fakeBlock{}, &fakeFS{})
 	if got := storage.ID(); got != "storage.btrfs" {
 		t.Fatalf("unexpected storage module ID %q", got)
+	}
+}
+
+func TestEnsureDetachesBlockWhenFilesystemEnsureFails(t *testing.T) {
+	log := &eventLog{}
+	fsErr := errors.New("forced filesystem ensure failure")
+	storage := New(t.TempDir(), &fakeBlock{log: log}, &fakeFS{log: log, ensureErr: fsErr})
+	if _, err := storage.Ensure(context.Background(), core.StorageSpec{ID: "local-default", SizeBytes: 1}); !errors.Is(err, fsErr) {
+		t.Fatalf("expected filesystem failure, got %v", err)
+	}
+	want := []string{"block.ensure", "fs.ensure", "block.detach"}
+	if len(log.events) != len(want) {
+		t.Fatalf("unexpected ensure recovery events: got %v want %v", log.events, want)
+	}
+	for i := range want {
+		if log.events[i] != want[i] {
+			t.Fatalf("unexpected ensure recovery order: got %v want %v", log.events, want)
+		}
+	}
+}
+
+func TestEnsurePreservesFilesystemAndDetachFailures(t *testing.T) {
+	log := &eventLog{}
+	fsErr := errors.New("forced filesystem ensure failure")
+	detachErr := errors.New("forced detach failure")
+	storage := New(t.TempDir(), &fakeBlock{log: log, detachErr: detachErr}, &fakeFS{log: log, ensureErr: fsErr})
+	_, err := storage.Ensure(context.Background(), core.StorageSpec{ID: "local-default", SizeBytes: 1})
+	if !errors.Is(err, fsErr) || !errors.Is(err, detachErr) {
+		t.Fatalf("joined ensure recovery error = %v, want both causes", err)
 	}
 }
 
