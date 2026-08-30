@@ -65,7 +65,7 @@ func TestCreateEnvironmentUsesIsolatedProfileAndShiftedWritableWorkspace(t *test
 		{name: "incus", args: []string{"project", "show", defaultProject}},
 		{name: "incus", args: []string{"project", "create", defaultProject, "--config", "features.profiles=false"}},
 		{name: "incus", args: []string{"profile", "show", "default", "--project", "default", "--format", "json"}},
-		{name: "incus", args: []string{"init", defaultImage, "haco-demo", "--project", defaultProject, "--no-profiles", "--storage", "default"}},
+		{name: "incus", args: []string{"init", defaultImage, "haco-demo", "--project", defaultProject, "--profile", sandboxProfile, "--storage", "default"}},
 		{name: "incus", args: []string{"config", "device", "add", "haco-demo", "workspace", "disk", "source=/tmp/work space", "path=/workspace", "shift=true", "--project", defaultProject}},
 		{name: "incus", args: []string{"start", "haco-demo", "--project", defaultProject}},
 		{name: "incus", args: []string{"exec", "haco-demo", "--project", defaultProject, "--", "test", "-w", "/workspace"}},
