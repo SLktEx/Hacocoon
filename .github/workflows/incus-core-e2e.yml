@@ -80,12 +80,12 @@ jobs:
           fi
       - name: Install real Btrfs privilege helper
         run: bash tools/ci-storage-helper.sh setup
+      - name: Run Hacocoon egress policy against real Incus
+        run: bash tools/ci-incus-core.sh egress
       - name: Run Hacocoon Core and shipped CLI lifecycle against real Incus
         env:
           TMPDIR: ${{ runner.temp }}/haco-storage-helper-e2e
         run: bash tools/ci-incus.sh core
-      - name: Run Hacocoon egress policy against real Incus
-        run: bash tools/ci-incus-core.sh egress
       - name: Capture Hacocoon and Incus diagnostics
         if: failure()
         run: |
