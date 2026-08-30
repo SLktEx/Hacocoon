@@ -202,10 +202,6 @@ func (p *SandboxProvider) BuildToolingBase(ctx context.Context, parent core.Base
 			return seedbuild.BuildResult{}, cleanup(fmt.Errorf("verify tooling command %q: %w", command[0], err))
 		}
 	}
-	// Exercise the real Docker Engine API once while the trusted tooling builder
-	// is networked. This proves socket activation reaches the instance-local
-	// dockerd/containerd pair instead of publishing a CLI-only compatibility
-	// image that fails later in an Environment.
 	if err := p.guestExec(ctx, builder, "docker", "info", "--format", "{{.ServerVersion}}"); err != nil {
 		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("verify Docker Engine socket activation in tooling Base: %w", err))
 	}
@@ -226,10 +222,6 @@ func (p *SandboxProvider) BuildToolingBase(ctx context.Context, parent core.Base
 		}
 	}
 
-	// The networked phase is only for public tooling acquisition. Remove the NIC
-	// and its short-lived trusted bridge before publishing so the resulting image
-	// does not encode any builder network. Seed construction itself starts from
-	// this image with no NIC.
 	if _, err := p.runner.Run(ctx, "incus", "config", "device", "remove", builder, "eth0", "--project", p.project); err != nil {
 		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("remove tooling builder network: %w", err))
 	}
@@ -520,39 +512,12 @@ func (p *SandboxProvider) expectGuestUnitFileState(ctx context.Context, builder,
 }
 
 func (p *SandboxProvider) verifySeedImageSet(ctx context.Context, builder string, images []seedbuild.ImageIdentity) error {
-	if len(images) == 0 {
-		return nil
-	}
-	args := []string{"exec", builder, "--project", p.project, "--", "nerdctl", "images", "--format", "{{.Repository}}\t{{.Tag}}\t{{.Digest}}"}
-	result, err := p.runner.Run(ctx, "incus", args...)
-	if err != nil || result.ExitCode != 0 {
-		return fmt.Errorf("list imported Seed images: %w", commandResultError(result, err))
-	}
-	available := map[string]struct{}{}
-	for _, raw := range strings.Split(result.Stdout, "\n") {
-		line := strings.TrimSpace(raw)
-		if line == "" {
-			continue
-		}
-		parts := strings.Split(line, "\t")
-		if len(parts) != 3 {
-			return fmt.Errorf("unexpected nerdctl image row in Seed builder: %w", core.ErrIncompatibleState)
-		}
-		repository := strings.TrimSpace(parts[0])
-		tag := strings.TrimSpace(parts[1])
-		digest := strings.ToLower(strings.TrimSpace(parts[2]))
-		if repository == "<none>" || digest == "" || digest == "<none>" {
-			continue
-		}
-		reference := repository
-		if tag != "" && tag != "<none>" {
-			reference += ":" + tag
-		}
-		available[reference+"@"+digest] = struct{}{}
-	}
 	for _, image := range images {
-		if _, ok := available[image.String()]; !ok {
-			return fmt.Errorf("Seed image %s missing after offline import: %w", image.String(), core.ErrIncompatibleState)
+		identity := image.String()
+		args := []string{"exec", builder, "--project", p.project, "--", "nerdctl", "image", "inspect", identity}
+		result, err := p.runner.Run(ctx, "incus", args...)
+		if err != nil || result.ExitCode != 0 {
+			return fmt.Errorf("verify imported Seed image %s: %w", identity, commandResultError(result, err))
 		}
 	}
 	return nil
