@@ -24,6 +24,22 @@ s.close()
 PY
 }
 
+wait_tcp() {
+  local host="$1" port="$2"
+  for ((attempt=0; attempt<80; attempt++)); do
+    if python3 - "$host" "$port" <<'PY' >/dev/null 2>&1
+import socket,sys
+s=socket.create_connection((sys.argv[1],int(sys.argv[2])),0.25)
+s.close()
+PY
+    then
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
 root="$(mktemp -d)"
 workspace="$root/workspace"
 haco="${HACO_E2E_HACO_BIN:-$root/haco}"
@@ -33,9 +49,24 @@ forward_port="$(free_port)"
 export HACO_ROOT="${HACO_E2E_SHARED_ROOT:-$root/haco-root}"
 created=0
 forwarded=0
+egress_pid=""
+policy_had_original=0
+
+restore_policy() {
+  if [[ "$policy_had_original" == "1" ]]; then
+    cp "$root/policy.before" "$HACO_ROOT/policy.json"
+  else
+    rm -f "$HACO_ROOT/policy.json"
+  fi
+}
 
 cleanup() {
   set +e
+  if [[ -n "$egress_pid" ]] && kill -0 "$egress_pid" >/dev/null 2>&1; then
+    kill -TERM "$egress_pid" >/dev/null 2>&1 || true
+    wait "$egress_pid" >/dev/null 2>&1 || true
+  fi
+  restore_policy >/dev/null 2>&1 || true
   if [[ "$forwarded" == "1" ]]; then
     "$haco" unforward "$environment" "tcp-$forward_port-22" >/dev/null 2>&1 || true
   fi
@@ -46,13 +77,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$workspace"
+mkdir -p "$workspace" "$HACO_ROOT"
 printf 'client-e2e\n' > "$workspace/probe.txt"
 ssh-keygen -q -t ed25519 -N '' -f "$root/id_ed25519"
 if [[ -z "${HACO_E2E_HACO_BIN:-}" ]]; then
   go build -o "$haco" ./cmd/haco
 fi
 [[ -x "$haco" ]]
+if [[ -e "$HACO_ROOT/policy.json" ]]; then
+  cp "$HACO_ROOT/policy.json" "$root/policy.before"
+  policy_had_original=1
+fi
 
 "$haco" create --workspace "$workspace" "$environment" >/dev/null
 created=1
@@ -61,8 +96,59 @@ status_json="$("$haco" status "$environment" --json)"
 printf '%s' "$status_json" | grep -q '"state":"running"'
 printf '%s' "$status_json" | grep -Fq "$workspace"
 
+# Base images are allowed to omit sshd. The production SSH path installs it on
+# demand, so when that path is needed the E2E must honor the sandbox network
+# boundary instead of granting direct guest Internet access. Discover the
+# image's configured APT origins, authorize only those origins for this
+# Environment, and let the real haco egress proxy carry the package traffic.
+if ! "$haco" exec "$environment" -- sh -c 'command -v sshd >/dev/null 2>&1'; then
+  "$haco" exec "$environment" -- sh -c \
+    "grep -RhoE 'https?://[^[:space:]]+' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null || true" \
+    >"$root/apt-uris"
+  python3 - "$root/apt-uris" "$HACO_ROOT/policy.json" "$environment" <<'PY'
+import json,sys,urllib.parse
+source_path,policy_path,environment=sys.argv[1:]
+rules=[]; seen=set()
+for raw in open(source_path):
+    raw=raw.strip().rstrip(',')
+    if not raw: continue
+    parsed=urllib.parse.urlsplit(raw)
+    if parsed.scheme not in {'http','https'} or not parsed.hostname: continue
+    port=parsed.port or (443 if parsed.scheme == 'https' else 80)
+    key=(parsed.scheme,parsed.hostname,port)
+    if key in seen: continue
+    seen.add(key)
+    rules.append({
+        'capability':'network.egress', 'action':'connect',
+        'resource':parsed.hostname, 'environment':environment,
+        'attributes':{'protocol':parsed.scheme,'port':str(port)},
+        'decision':'allow', 'reason':'SSH bootstrap package origin',
+    })
+assert rules, 'no APT HTTP(S) origins discovered in Environment'
+with open(policy_path,'w') as f: json.dump({'default':'deny','rules':rules},f)
+PY
+  bridge_cidr="$(incus network get haco-sandbox0 ipv4.address --project default)"
+  bridge_ip="${bridge_cidr%/*}"
+  "$haco" egress serve >"$root/ssh-egress.out" 2>"$root/ssh-egress.err" &
+  egress_pid=$!
+  wait_tcp "$bridge_ip" 18080 || {
+    echo 'temporary SSH bootstrap egress proxy did not start' >&2
+    cat "$root/ssh-egress.err" >&2 || true
+    exit 1
+  }
+fi
+
 ssh_command="$("$haco" ssh "$environment" --public-key "$root/id_ed25519.pub" --host-port "$ssh_port")"
 [[ "$ssh_command" == "ssh -p $ssh_port root@127.0.0.1" ]]
+
+# Once sshd exists, remove the temporary package-acquisition authority. Client
+# access itself does not require any external network privilege.
+if [[ -n "$egress_pid" ]]; then
+  kill -TERM "$egress_pid"
+  wait "$egress_pid" >/dev/null 2>&1 || true
+  egress_pid=""
+  restore_policy
+fi
 
 connections_json="$("$haco" connections "$environment" --json)"
 python3 - "$connections_json" "$ssh_port" <<'PY'
