@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -64,11 +65,33 @@ func TestSampleAllAndRecommendByEnvironmentShare(t *testing.T) {
 	if len(recommendations) != 2 {
 		t.Fatalf("recommendations=%#v", recommendations)
 	}
-	if recommendations[0].Reference != "docker.io/library/node:24" || recommendations[0].Digest != fingerprintA || recommendations[0].Environments != 2 || recommendations[0].Percent != 100 {
+	if recommendations[0].Reference != "docker.io/library/node:24" || recommendations[0].Digest != fingerprintA || recommendations[0].Environments != 2 || recommendations[0].Percent != 100 || !recommendations[0].AutoPromote {
 		t.Fatalf("node recommendation=%#v", recommendations[0])
 	}
-	if recommendations[1].Reference != "docker.io/library/postgres:18" || recommendations[1].Environments != 1 || recommendations[1].Percent != 50 {
+	if recommendations[1].Reference != "docker.io/library/postgres:18" || recommendations[1].Environments != 1 || recommendations[1].Percent != 50 || recommendations[1].AutoPromote {
 		t.Fatalf("postgres recommendation=%#v", recommendations[1])
+	}
+}
+
+func TestAutoPromotionUsesTopTenPercentRoundedUp(t *testing.T) {
+	recommendations := make([]Recommendation, 11)
+	for i := range recommendations {
+		recommendations[i].Reference = fmt.Sprintf("example.invalid/image-%02d:latest", i)
+	}
+	markAutoPromotions(recommendations, 10)
+	for i, recommendation := range recommendations {
+		want := i < 2
+		if recommendation.AutoPromote != want {
+			t.Fatalf("recommendation %d auto=%v want=%v", i, recommendation.AutoPromote, want)
+		}
+	}
+}
+
+func TestAutoPromotionPromotesAtLeastOneEligibleImage(t *testing.T) {
+	recommendations := []Recommendation{{Reference: "docker.io/library/node:24"}}
+	markAutoPromotions(recommendations, 10)
+	if !recommendations[0].AutoPromote {
+		t.Fatalf("recommendation=%#v", recommendations[0])
 	}
 }
 
