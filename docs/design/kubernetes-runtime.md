@@ -2,13 +2,13 @@
 
 [**日本語**](kubernetes-runtime.ja.md) | English
 
-Status: **partial experimental implementation on `main-kube`; not a supported replacement for the Incus path.**
+Status: **partial experimental implementation on `main-kube`; parity evaluation only. This branch is not intended to merge into `main`.**
 
 ## Summary
 
 The `main-kube` experiment adds Kubernetes as an Environment provider without moving Hacocoon's trusted security boundary into Kubernetes workloads. Ordinary Environments may run as Sysbox-backed Pods while `haco-host`, Policy / Approval / Capability, Git push brokering, credentials, audit state, and the current recovery path remain trusted Host responsibilities.
 
-The experiment exists to determine whether Kubernetes can replace most Environment lifecycle and network plumbing without weakening Hacocoon's brokered-authority model or losing whole-Environment copy semantics.
+The experiment exists only to determine whether Kubernetes can reproduce the complete current Hacocoon feature/security behavior and, if it can, whether the Hacocoon-owned implementation and operation are measurably simpler than the Incus baseline. It does not make a migration, adoption, or merge recommendation. See [`kubernetes-parity-experiment.md`](kubernetes-parity-experiment.md) for the evaluation contract.
 
 ## Goals
 
@@ -18,12 +18,15 @@ The experiment exists to determine whether Kubernetes can replace most Environme
 - Make Kubernetes networking default deny at Environment creation time.
 - Fail closed on namespace ownership ambiguity, unsupported resource guarantees, or incomplete cleanup.
 - Keep the existing Hacocoon Broker / Approval path authoritative for privileged external operations such as Git push.
-- Preserve `haco-host` as trusted infrastructure while the Environment backend is evaluated independently.
+- Preserve `haco-host` as trusted infrastructure while Environment-runtime parity is evaluated independently.
+- Measure whether Kubernetes actually removes Hacocoon-owned complexity instead of merely moving it into different glue code or mandatory platform dependencies.
 
 ## Non-goals of the current slice
 
 The current repository slice does not claim:
 
+- any intent to merge `main-kube` into `main`;
+- any migration or replacement decision;
 - real Kubernetes + Sysbox host acceptance;
 - safe multi-node Workspace placement;
 - whole-Environment snapshot or clone support;
@@ -33,7 +36,7 @@ The current repository slice does not claim:
 - production-ready outbound network policy;
 - that a Kubernetes PVC snapshot alone satisfies Hacocoon's whole-Environment copy requirement.
 
-These are acceptance or design gates, not implied follow-ups that may silently weaken the current security model.
+These are parity gaps or open experiment questions. The current Hacocoon requirement is not weakened merely because Kubernetes expresses the mechanism differently.
 
 ## Ownership and trust boundary
 
@@ -67,7 +70,7 @@ A Kubernetes Environment must not receive:
 
 The current Pod manifest therefore sets `automountServiceAccountToken: false`, `hostUsers: false`, `hostNetwork: false`, `hostPID: false`, `hostIPC: false`, and `privileged: false`.
 
-`hostUsers: false` requests a Kubernetes Pod user namespace. The selected Sysbox RuntimeClass is expected to support the system-container behavior required by Hacocoon. A cluster that cannot provide these guarantees is not an accepted Hacocoon Kubernetes backend.
+`hostUsers: false` requests a Kubernetes Pod user namespace. The selected Sysbox RuntimeClass is expected to support the system-container behavior required by Hacocoon. A cluster that cannot provide these guarantees has a runtime parity gap for this experiment.
 
 ## Identity and ownership
 
@@ -93,26 +96,26 @@ Name validation occurs before cluster mutation. Provider refs are not accepted m
 
 The current experiment creates an explicit namespace-wide default-deny `NetworkPolicy` for both ingress and egress. Kubernetes otherwise permits traffic when no selecting NetworkPolicy isolates a Pod, so absence of a policy is not treated as a secure default.
 
-The long-term Kubernetes direction is to let the cluster networking layer own ordinary packet isolation, DNS, and approved direct egress where the selected CNI can enforce the required policy. Hacocoon should not retain a mandatory byte-forwarding proxy merely to duplicate CNI behavior.
+For the experiment, ordinary packet isolation, DNS, and approved direct egress may be delegated to the cluster networking layer where the selected CNI can enforce behavior equivalent to the current Hacocoon contract. This is specifically tested to see whether Hacocoon-owned proxy/network plumbing can disappear without changing semantics.
 
 This does **not** remove the privileged-operation Broker. Git push and other operations that require protected authority remain structured requests through Hacocoon Policy / Approval / Capability and execute with credentials only on the trusted side.
 
-The current slice intentionally has no broad egress allow policy. A future egress implementation must define the exact CNI capability required before enabling direct outbound access and must fail closed when that capability is unavailable or drifted.
+The current slice intentionally has no broad egress allow policy. A future experimental egress implementation must define the exact CNI capability required before enabling direct outbound access and must fail closed when that capability is unavailable or drifted. If equivalent domain-aware semantics cannot be reproduced, that is a parity failure.
 
 ## Workspace transport
 
 The first local experiment mounts the explicitly selected Workspace into the Pod with `hostPath`.
 
-This is **not the final Kubernetes storage/security contract**. A writable `hostPath` gives the Pod authority over that exact host path and is not compatible with Kubernetes Pod Security Baseline/Restricted policy. It also creates node-placement coupling on a multi-node cluster.
+This is **not a parity-complete Kubernetes storage/security contract**. A writable `hostPath` gives the Pod authority over that exact host path and is not compatible with Kubernetes Pod Security Baseline/Restricted policy. It also creates node-placement coupling on a multi-node cluster.
 
-The experiment therefore treats `hostPath` only as a local proof path. Before the Kubernetes backend can be considered supported, Workspace transport must either:
+The experiment therefore treats `hostPath` only as a local proof path. Before Workspace parity can be claimed, the experiment must either:
 
 - move behind a storage mechanism with equivalent explicit lease/blast-radius semantics; or
-- prove and enforce a local single-node placement model whose remaining `hostPath` authority is intentionally accepted and bounded.
+- prove and enforce a local single-node placement model whose remaining `hostPath` authority is intentionally accepted and behaviorally equivalent to the Incus baseline.
 
 Hacocoon must not mount Host HOME, credential stores, Kubernetes configuration, Hacocoon state, or runtime sockets as a convenience workaround.
 
-## Whole-Environment copy gate
+## Whole-Environment copy parity gate
 
 Whole-Environment copy is a required Hacocoon property, not an optional optimization.
 
@@ -124,15 +127,15 @@ haco clone source target
 
 where `target` begins from the source Environment's durable machine state, including changes under normal root filesystem paths and Environment-local runtime data, while receiving a fresh Hacocoon identity and no copied credentials, approvals, capability leases, or trusted control authority.
 
-A Kubernetes PVC clone or `VolumeSnapshot` is insufficient by itself when relevant state still lives in the OCI writable root filesystem or Sysbox runtime-local data. The Kubernetes backend is therefore **not eligible to replace the Incus backend** until it demonstrates a storage layout and clone operation that captures the required Environment state atomically enough for Hacocoon's contract.
+A Kubernetes PVC clone or `VolumeSnapshot` is insufficient by itself when relevant state still lives in the OCI writable root filesystem or Sysbox runtime-local data. Until the experiment demonstrates a storage layout and clone operation that captures the required Environment state atomically enough for the same contract, whole-Environment copy remains an explicit parity failure.
 
-The preferred direction is to make durable Environment root state live on a snapshot-capable COW storage boundary and keep trust state outside it. The exact CSI/Btrfs implementation remains undecided in this branch.
+The current investigation direction is to make durable Environment root state live on a snapshot-capable COW storage boundary and keep trust state outside it. The exact CSI/Btrfs implementation remains undecided in this branch. See GitHub issue #322.
 
 ## Resource guarantees
 
 CPU, memory, and root-storage limits are projected into Kubernetes container limits in the initial experiment.
 
-A finite per-Environment PID budget is rejected before cluster mutation because the portable Pod resource API does not provide the same per-Environment PID guarantee currently modeled by Hacocoon. The provider must not pretend that a node-wide kubelet setting is equivalent.
+A finite per-Environment PID budget is rejected before cluster mutation because the portable Pod resource API does not provide the same per-Environment PID guarantee currently modeled by Hacocoon. The provider must not pretend that a node-wide kubelet setting is equivalent. Until an equivalent mechanism exists, finite PID budgets are a recorded parity gap.
 
 ## Failure, retry, and cleanup
 
@@ -164,13 +167,13 @@ For Git push in particular:
 - stale or mismatched state must fail closed;
 - the trusted Broker constructs and executes the privileged operation and records audit evidence.
 
-Any Kubernetes implementation that requires exposing the push credential to the Environment is incompatible with this design.
+Any Kubernetes implementation that requires exposing the push credential to the Environment fails parity.
 
 ## `haco-host`
 
-The experimental provider does not replace `haco-host`.
+The Environment-runtime experiment keeps the existing `haco-host` implementation unchanged on Incus.
 
-On `main-kube`, the existing local Incus trusted-host lifecycle remains the normal trusted logical Host and recovery path. This deliberately allows the Environment runtime question to be tested independently from a later decision about how `haco-host` itself should be hosted.
+This is deliberate: the experiment isolates the question "can Kubernetes reproduce the untrusted Environment runtime with full parity and less Hacocoon-owned complexity?" from the separate question of how trusted `haco-host` infrastructure might be hosted. An all-Kubernetes `haco-host` is not required for this experiment unless it becomes necessary to reproduce an existing Environment-facing behavior.
 
 ## Current configuration
 
@@ -191,17 +194,20 @@ HACO_KUBERNETES_RUNTIME_CLASS=sysbox-runc
 HACO_KUBECTL=kubectl
 ```
 
-The Kubernetes Environment provider currently rejects `HACO_PLUGIN_OCI` composition because that integration has not yet been verified on this backend.
+The Kubernetes Environment provider currently rejects `HACO_PLUGIN_OCI` composition because that integration has not yet been reproduced on this backend. That rejection is an explicit feature-parity gap, not an accepted product difference.
 
-## Acceptance gates before replacement
+## Parity gates
 
-Do not describe Kubernetes as a replacement for Incus until all of these are demonstrated on the intended supported host:
+Full parity cannot be claimed until all of these are demonstrated on the same target used by the current Hacocoon baseline:
 
-1. real Kubernetes + Sysbox lifecycle with `systemd`, Environment-local root, and nested container-runtime workloads;
+1. real Kubernetes + selected system-container RuntimeClass lifecycle with `systemd`, Environment-local root, and nested container-runtime workloads;
 2. no ServiceAccount token, Host credential, Hacocoon control socket, or `haco-host` authority exposed to the Environment;
-3. effective ingress/egress isolation and the selected CNI's fail-closed policy behavior;
+3. ingress/egress behavior equivalent to the current isolation and authorization contract, with fail-closed drift behavior;
 4. brokered Git push regression coverage proving credentials remain outside the Environment and approvals cannot be reused for changed state;
-5. whole-Environment snapshot/clone with fresh trust identity;
-6. Workspace semantics without an accidental multi-node `hostPath` authority/placement bug;
-7. cleanup, crash, retry, node restart, and drift failure injection;
-8. performance measurements showing that ordinary network and large-file paths do not regress by reintroducing an unnecessary Hacocoon forwarding proxy.
+5. whole-Environment snapshot/clone with fresh trust identity and equivalent COW semantics;
+6. Workspace identity, RO/RW lease, mount, and conflict semantics without accidental multi-node authority changes;
+7. current client access, Base, OCI/Docker, Git fetch, interaction, logging, resource, run/recovery, and other user-visible/runtime features reproduced or explicitly marked as parity gaps;
+8. cleanup, crash, retry, node restart, and drift failure injection;
+9. measured complexity and performance comparison against the Incus baseline, including large-file paths.
+
+Passing these gates still does **not** imply a merge into `main`. The result is only one of the factual classifications defined in [`kubernetes-parity-experiment.md`](kubernetes-parity-experiment.md).
