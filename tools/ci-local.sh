@@ -180,13 +180,14 @@ run_release_config() {
 
 run_test() {
   check_go
+  need node
   section "test"
   go test -count=1 -shuffle=on ./...
   go vet ./...
-  if command -v node >/dev/null 2>&1; then
-    section "VS Code notification extension syntax"
-    node --check clients/vscode-notify/extension.js
-  fi
+  section "notification clients"
+  node --check pkg/interactionhttp/web/app.js
+  node --check clients/vscode-notify/extension.js
+  node --test test/js/notification_clients.test.js
 }
 
 run_race() {
