@@ -1,0 +1,39 @@
+name: incus-smoke
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: incus-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  standalone-incus:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    env:
+      HACO_CI_RUNNER_ENVIRONMENT: github-hosted
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate helper syntax
+        run: bash -n tools/ci-incus-smoke.sh
+      - name: Install and initialize Incus
+        run: bash tools/ci-incus-smoke.sh setup
+      - name: Run standalone Incus system-container smoke
+        run: bash tools/ci-incus-smoke.sh smoke
+      - name: Capture Incus diagnostics
+        if: failure()
+        run: bash tools/ci-incus-smoke.sh diagnostics
+      - name: Clean up Incus smoke resources
+        if: always()
+        run: bash tools/ci-incus-smoke.sh cleanup

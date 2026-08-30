@@ -11,7 +11,9 @@ The current public-repository operating model is intentionally **solo-maintainer
 
 This contribution boundary is the primary reason anonymous fork code cannot currently enter Hacocoon's upstream PR CI at all. It must be re-audited before external Pull Requests or another write-capable collaborator are enabled.
 
-Pull-request CI remains deliberately hardened as defense in depth and for owner/collaborator branches. It is constrained to disposable GitHub-hosted runners with read-only repository authority, no repository/environment secrets, no persistent cache bridge, and no real privileged Incus or EC2 execution.
+Pull-request CI remains deliberately hardened as defense in depth and for owner/collaborator branches. It is constrained to disposable GitHub-hosted runners with read-only repository authority, no repository/environment secrets, and no persistent cache bridge. Experimental EC2 execution and Hacocoon's real privileged integration suites remain disabled in normal PR CI.
+
+One narrower exception exists for the standalone Incus substrate smoke test in `tools/ci-incus-smoke.sh`. That test runs only on a disposable GitHub-hosted Ubuntu 26.04 runner, installs the native container-only Incus packages, initializes the runner-local daemon, launches one fixed-name system container, verifies systemd and `incus exec`, and deletes that exact test instance. It does not run Hacocoon binaries, expose repository credentials or secrets, attach a self-hosted runner, exercise EC2, or enable `HACO_E2E_INCUS`. The helper verifies its GitHub-hosted-runner preconditions before privileged setup, diagnostics are captured on failure, cleanup is attempted with an exact instance name on every run, and the runner is discarded after the job.
 
 `tools/check_workflow_policy.py` encodes defense-in-depth invariants for every file under `.github/workflows/`. It currently requires:
 
@@ -25,7 +27,9 @@ Pull-request CI remains deliberately hardened as defense in depth and for owner/
 - no `actions/cache` use in untrusted PR workflows;
 - no cross-run/external artifact downloads from PR workflows;
 - `actions/setup-go` caching disabled in PR workflows;
-- real Incus E2E and experimental EC2 disabled in normal PR CI.
+- no direct `HACO_E2E_INCUS=1` or experimental EC2 enablement in normal PR CI.
+
+The direct Incus environment-variable ban is intentionally retained: the standalone substrate smoke is not permission to turn normal PR CI into a Hacocoon privileged integration environment. Real Hacocoon/Incus acceptance remains a separately reviewed path.
 
 `tools/check_public_release_readiness.py` additionally validates the live repository assumptions used by the current solo-maintainer model, including contribution-closed PR policy, absence of non-owner direct collaborators, protected `main`, protected release tags, and zero repository self-hosted runners.
 
