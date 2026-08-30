@@ -10,6 +10,7 @@ import (
 )
 
 const compatImageFingerprint = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+const compatVMFingerprint = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 
 func TestResolveParentBaseFallsBackToIncus6ImageList(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, args []string) (host.Result, error) {
@@ -18,8 +19,9 @@ func TestResolveParentBaseFallsBackToIncus6ImageList(t *testing.T) {
 			assertStringSlice(t, args, []string{"image", "info", "images:ubuntu/26.04", "--format", "json"})
 			return host.Result{ExitCode: 1, Stderr: "Error: unknown flag: --format\n"}, errors.New("exit status 1")
 		case 1:
-			assertStringSlice(t, args, []string{"image", "list", "images:", "ubuntu/26.04", "--format", "csv", "-c", "L,F"})
-			return host.Result{Stdout: "\"ubuntu/26.04\nubuntu/latest\"," + compatImageFingerprint + "\n"}, nil
+			assertStringSlice(t, args, []string{"image", "list", "images:", "ubuntu/26.04", "--format", "csv", "-c", "L,F,t"})
+			return host.Result{Stdout: "\"ubuntu/26.04\nubuntu/latest\"," + compatImageFingerprint + ",CONTAINER\n" +
+				"ubuntu/26.04," + compatVMFingerprint + ",VIRTUAL-MACHINE\n"}, nil
 		default:
 			t.Fatalf("unexpected call %d: %#v", call, args)
 			return host.Result{}, nil
@@ -47,8 +49,8 @@ func TestImageFingerprintFallbackMatchesFingerprintPrefix(t *testing.T) {
 		if call == 0 {
 			return host.Result{ExitCode: 1, Stderr: "Error: unknown flag: --format\n"}, errors.New("exit status 1")
 		}
-		assertStringSlice(t, args, []string{"image", "list", "local:", compatImageFingerprint, "--format", "csv", "-c", "L,F", "--project", "hacocoon"})
-		return host.Result{Stdout: "," + compatImageFingerprint + "\n"}, nil
+		assertStringSlice(t, args, []string{"image", "list", "local:", compatImageFingerprint, "--format", "csv", "-c", "L,F,t", "--project", "hacocoon"})
+		return host.Result{Stdout: "," + compatImageFingerprint + ",CONTAINER\n"}, nil
 	}}
 	provider, err := NewBaseProvider(New(runner))
 	if err != nil {
@@ -61,6 +63,24 @@ func TestImageFingerprintFallbackMatchesFingerprintPrefix(t *testing.T) {
 	}
 	if got != compatImageFingerprint {
 		t.Fatalf("fingerprint = %q", got)
+	}
+}
+
+func TestImageFingerprintFallbackRejectsVMOnlyMatch(t *testing.T) {
+	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, _ []string) (host.Result, error) {
+		if call == 0 {
+			return host.Result{ExitCode: 1, Stderr: "Error: unknown flag: --format\n"}, errors.New("exit status 1")
+		}
+		return host.Result{Stdout: "ubuntu/26.04," + compatVMFingerprint + ",VIRTUAL-MACHINE\n"}, nil
+	}}
+	provider, err := NewBaseProvider(New(runner))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = provider.imageFingerprint(context.Background(), "images:ubuntu/26.04", "")
+	if !errors.Is(err, core.ErrNotFound) {
+		t.Fatalf("error = %v", err)
 	}
 }
 
