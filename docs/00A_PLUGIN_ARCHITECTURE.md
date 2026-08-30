@@ -67,7 +67,8 @@ v0.1-v0.6
 
 v0.7
   provider-neutral routing seam
-  previous EC2/AWS/EBS implementation deferred; current build registers Incus only
+  cloud implementation deferred
+  previous EC2/AWS/EBS implementation retained only in Git history/design
 
 v0.8-v0.12
   client adapters, per-agent binding, Agent Host, Bases and resource budgets
