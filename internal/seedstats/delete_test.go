@@ -51,7 +51,7 @@ func (f *deleteHostRunner) Run(_ context.Context, name string, args ...string) (
 	return host.Result{ExitCode: 1, Stderr: "unexpected command"}, errors.New("unexpected command")
 }
 
-func TestDeleteImageRemovesHostAndAllEnvironmentsAndSuppressesOldTelemetry(t *testing.T) {
+func TestDeleteImageRemovesHostAndAllEnvironmentsAndSuppressesAutoPromotion(t *testing.T) {
 	dir := t.TempDir()
 	environmentPath := filepath.Join(dir, "environments.json")
 	writeDeleteEnvironmentState(t, environmentPath, map[string]core.Environment{
@@ -99,9 +99,12 @@ func TestDeleteImageRemovesHostAndAllEnvironmentsAndSuppressesOldTelemetry(t *te
 		t.Fatal(err)
 	}
 	if len(recommendations) != 0 {
-		t.Fatalf("stale recommendation survived deletion: %#v", recommendations)
+		t.Fatalf("deleted image survived recommendation: %#v", recommendations)
 	}
 
+	// Runtime use after deletion is allowed, but manual deletion is an explicit
+	// Seed-selection override. A later sample must not silently auto-promote the
+	// exact deleted identity again.
 	newSample := deletedAt.Add(time.Hour)
 	if err := store.Put(context.Background(), Snapshot{
 		Environment: "a",
@@ -115,8 +118,8 @@ func TestDeleteImageRemovesHostAndAllEnvironmentsAndSuppressesOldTelemetry(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(recommendations) != 1 || !recommendations[0].AutoPromote {
-		t.Fatalf("new use should re-qualify image: %#v", recommendations)
+	if len(recommendations) != 0 {
+		t.Fatalf("manual deletion must override automatic promotion: %#v", recommendations)
 	}
 }
 
@@ -151,6 +154,43 @@ func TestDeleteImageRefusesMovedTag(t *testing.T) {
 	}
 	if len(runtime.rmi) != 0 || len(hostRunner.rmi) != 0 {
 		t.Fatalf("moved tag must not be deleted: env=%#v host=%#v", runtime.rmi, hostRunner.rmi)
+	}
+}
+
+func TestExplicitDigestDoesNotDeleteMovedTag(t *testing.T) {
+	dir := t.TempDir()
+	environmentPath := filepath.Join(dir, "environments.json")
+	writeDeleteEnvironmentState(t, environmentPath, map[string]core.Environment{
+		"a": {Name: "a", RuntimeRef: "ref-a"},
+	})
+	oldDigest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	newDigest := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	runtime := &deleteExecutor{images: map[string]string{
+		"ref-a": "docker.io/library/node\t24\t" + newDigest + "\n",
+	}}
+	hostRunner := &deleteHostRunner{images: "docker.io/library/node\t24\t" + newDigest + "\n"}
+	store := NewStore(filepath.Join(dir, "oci-usage.json"))
+	service, err := New(runtime, environmentPath, store, WithHostRunner(hostRunner))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := service.DeleteImage(context.Background(), "docker.io/library/node:24@"+oldDigest, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.HostCache != "not-present" || len(report.RemovedEnvironments) != 0 || !reflect.DeepEqual(report.SkippedEnvironments, []string{"a"}) {
+		t.Fatalf("report=%#v", report)
+	}
+	if len(runtime.rmi) != 0 || len(hostRunner.rmi) != 0 {
+		t.Fatalf("explicit old digest must not delete moved tag: env=%#v host=%#v", runtime.rmi, hostRunner.rmi)
+	}
+	deletions, err := store.ListDeletions(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(deletions) != 1 || deletions[0].Digest != oldDigest {
+		t.Fatalf("deletions=%#v", deletions)
 	}
 }
 
