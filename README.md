@@ -38,14 +38,14 @@ VS Code / Shell / Coding Agent / Orchestrator
           +----------+------------+
                      |
             Environment provider
-             /                \
-      Incus (default)      EC2 (experimental)
+                     |
+             Incus (current)
 ```
 
 > [!WARNING]
 > **Hacocoon is pre-1.0 and under active development. Breaking changes are expected.**
 >
-> The roadmap is implemented contiguously through **v0.12**, but real-provider/client acceptance remains pending for several Incus, Windows/WSL, VS Code Agent Host, Base-image, resource-enforcement, and AWS paths. See [Implementation status](docs/IMPLEMENTATION_STATUS.md).
+> The current runtime implementation intentionally focuses on local Incus while the Core and provider contracts continue to change. The previous experimental EC2/AWS/EBS implementation has been removed from the active tree and is deferred until the local foundation is stable enough for meaningful cloud acceptance testing. See [Implementation status](docs/IMPLEMENTATION_STATUS.md).
 
 ## Why Hacocoon?
 
@@ -119,7 +119,7 @@ Cleanup:
 
 | Area | Hacocoon provides |
 |---|---|
-| **Isolation** | Provider-backed Environments with Incus as the local default |
+| **Isolation** | Provider-backed Environments with Incus as the current runtime |
 | **Workspace safety** | Canonical Workspace identity and persisted write leases |
 | **Execution** | `create`, `exec`, `shell`, `run`, lifecycle and recovery operations |
 | **Interactive access** | Loopback-oriented SSH, forwarding, and VS Code Remote-SSH integration |
@@ -131,7 +131,7 @@ Cleanup:
 | **OCI tooling** | Optional containerd/nerdctl Seed telemetry and image lifecycle under `haco plugin oci` |
 | **Resource limits** | CPU, memory, PID, and Environment root-storage budgets |
 | **Audit** | Events for lifecycle, capability, approval, and recovery-sensitive operations |
-| **Providers** | Incus by default; EC2 behind explicit experimental opt-in |
+| **Providers** | Incus is active today; the provider seam remains for future adapters |
 
 ## AI agents: permissive inside, mediated outside
 
@@ -148,7 +148,7 @@ VS Code AI / Codex / Copilot / Claude / other agent
                      Hacocoon
               Policy / Capability / Audit
                          |
-                 GitHub / AWS / Host
+            GitHub / external services / Host
 ```
 
 An agent can be powerful inside the sandbox without becoming the authority that manages the sandbox. Coding agents do **not** need Hacocoon or Incus management credentials merely to edit, build, test, or debug a project.
@@ -276,7 +276,9 @@ Read [Security Architecture](docs/00B_SECURITY_ARCHITECTURE.md) before changing 
 
 ## Current maturity
 
-`v0.1 Runtime` → `v0.2 Workspace & Lease` → `v0.3 Access` → `v0.4 Policy & Capability` → `v0.5 Git/GitHub` → `v0.6 Agent Integration` → `v0.7 EC2` → `v0.8 VS Code` → `v0.9 Per-Agent Sandbox` → `v0.10 Agent Host Adapter` → `v0.11 Base Images` → `v0.12 Resource Limits`
+`v0.1 Runtime` → `v0.2 Workspace & Lease` → `v0.3 Access` → `v0.4 Policy & Capability` → `v0.5 Git/GitHub` → `v0.6 Agent Integration` → `v0.7 Provider Routing` → `v0.8 VS Code` → `v0.9 Per-Agent Sandbox` → `v0.10 Agent Host Adapter` → `v0.11 Base Images` → `v0.12 Resource Limits`
+
+The earlier v0.7 EC2/AWS/EBS implementation is intentionally **deferred** and is not part of the current implementation tree. Its Git history and design documents remain available as reference for a future reintroduction after the local runtime/provider contracts settle.
 
 Implemented does not automatically mean production-accepted on every real Provider or Client. Authoritative status:
 
@@ -365,16 +367,11 @@ haco-agent-host release
 
 All surfaces remain pre-1.0 and may change.
 
-## Experimental EC2 provider
+## Remote / cloud runtimes
 
-The EC2 Provider is **experimental and disabled by default**.
+Remote/cloud Environment providers are **deferred for now**. The current build registers only the Incus Environment provider; the previous EC2 runtime, AWS capability, and EBS helper are not present in the active implementation tree.
 
-```bash
-export HACO_RUNTIME_PROVIDER=runtime.ec2
-export HACO_EXPERIMENTAL_EC2=1
-```
-
-Both settings are required. Real AWS / EC2 / SSM / EBS acceptance remains tracked separately, and finite v0.12 resource budgets are currently rejected before AWS-side creation because equivalent enforcement has not yet been proven.
+This is intentional: while Hacocoon's Core, state, resource, networking, image, and client contracts are still changing quickly, keeping cloud-specific code synchronized without regular real-cloud acceptance does not provide useful validation. The generic provider routing seam remains so a cloud adapter can be reintroduced later without making cloud behavior part of Core.
 
 ## Development
 
