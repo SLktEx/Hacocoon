@@ -52,6 +52,7 @@ func NewBaseProvider(runtime *Runtime, options ...BaseProviderOption) (*BaseProv
 	if runtime == nil {
 		return nil, core.ErrInvalidArgument
 	}
+	runtime.runner = wrapImageInfoCompatRunner(runtime.runner)
 	sources := map[core.BaseName]string{
 		defaultBaseName:                    "images:ubuntu/26.04",
 		core.BaseName("haco/ubuntu-24.04"): "images:ubuntu/24.04",
