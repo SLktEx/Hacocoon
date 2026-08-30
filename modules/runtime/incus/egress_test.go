@@ -10,6 +10,22 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
+func TestResolveRuntimeRefUsesIncusRuntimeState(t *testing.T) {
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if len(args) >= 2 && args[0] == "list" && args[1] == "ipv4=10.200.0.23" {
+			return host.Result{Stdout: "haco-demo\n"}, nil
+		}
+		return host.Result{}, nil
+	}}
+	got, err := New(runner).ResolveRuntimeRef(context.Background(), net.ParseIP("10.200.0.23"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "haco-demo" {
+		t.Fatalf("runtime ref = %q, want haco-demo", got)
+	}
+}
+
 func TestResolveEnvironmentUsesIncusRuntimeState(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if len(args) >= 2 && args[0] == "list" && args[1] == "ipv4=10.200.0.23" {
