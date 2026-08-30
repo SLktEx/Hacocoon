@@ -5,6 +5,8 @@ readonly SANDBOX_PROFILE="haco-sandbox"
 readonly SANDBOX_NETWORK="haco-sandbox0"
 readonly SANDBOX_ACL="haco-sandbox-egress"
 readonly CI_REMOTE="haco-ci"
+readonly CLIENT_CONF="${HACO_CI_INCUS_CONF:-${RUNNER_TEMP:-/tmp}/haco-incus-client}"
+export INCUS_CONF="$CLIENT_CONF"
 
 fail() {
   echo "ERROR: $*" >&2
@@ -72,12 +74,13 @@ setup() {
 
   sudo incus admin init --minimal
 
-  # Run Hacocoon as the ordinary runner user, not root. Give that user a
-  # runner-local TLS client trusted by the disposable daemon rather than
-  # exposing Incus' root-owned Unix socket.
+  # Run Hacocoon as the ordinary runner user, not root. Keep the TLS client in
+  # the same runner-local INCUS_CONF used by tools/ci-incus.sh so independent
+  # workflow steps do not fall back to Incus' root-owned local Unix socket.
+  install -d -m 0700 "$CLIENT_CONF"
   incus remote generate-certificate
   sudo incus config set core.https_address 127.0.0.1:8443
-  sudo incus config trust add-certificate "${HOME}/.config/incus/client.crt"
+  sudo incus config trust add-certificate "$CLIENT_CONF/client.crt"
   incus remote add "$CI_REMOTE" https://127.0.0.1:8443 --accept-certificate
   incus remote switch "$CI_REMOTE"
 
@@ -92,6 +95,13 @@ run_test() {
   require_github_hosted_runner
   export HACO_E2E_INCUS=1
   go test -count=1 -run '^TestRealIncusWorkspaceLifecycleE2E$' ./modules/runtime/incus
+}
+
+run_egress_test() {
+  require_github_hosted_runner
+  [[ -s "$CLIENT_CONF/config.yml" ]] || fail "trusted Incus TLS client is missing at $CLIENT_CONF; run tools/ci-incus.sh setup first"
+  export HACO_E2E_INCUS=1
+  go test -count=1 -run '^TestRealIncusEgressProxyE2E$' ./modules/runtime/incus
 }
 
 diagnostics() {
@@ -175,7 +185,8 @@ cleanup() {
 case "${1:-}" in
   setup) setup ;;
   test) run_test ;;
+  egress) run_egress_test ;;
   diagnostics) diagnostics ;;
   cleanup) cleanup ;;
-  *) echo "usage: $0 <setup|test|diagnostics|cleanup>" >&2; exit 2 ;;
+  *) echo "usage: $0 <setup|test|egress|diagnostics|cleanup>" >&2; exit 2 ;;
 esac

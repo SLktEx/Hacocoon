@@ -160,17 +160,27 @@ case "$command_name" in
     echo "STOPPED" > "$state/instance-$instance"
     ;;
   config)
-    [ "${1:-}" = "device" ] && [ "${2:-}" = "add" ] || exit 2
+    [ "${1:-}" = "device" ] || exit 2
+    action="${2:-}"
     instance="${3:-}"
-    shift 5
-    source_path=""
-    for arg in "$@"; do
-      case "$arg" in
-        source=*) source_path="${arg#source=}" ;;
-      esac
-    done
-    [ -n "$source_path" ] || exit 2
-    printf '%s\n' "$source_path" > "$state/workspace-$instance"
+    case "$action" in
+      override)
+        [ "${4:-}" = "eth0" ] || exit 2
+        [ -f "$state/instance-$instance" ] || exit 1
+        ;;
+      add)
+        shift 5
+        source_path=""
+        for arg in "$@"; do
+          case "$arg" in
+            source=*) source_path="${arg#source=}" ;;
+          esac
+        done
+        [ -n "$source_path" ] || exit 2
+        printf '%s\n' "$source_path" > "$state/workspace-$instance"
+        ;;
+      *) exit 2 ;;
+    esac
     ;;
   start)
     instance="${1:-}"

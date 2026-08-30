@@ -26,6 +26,47 @@ func TestResolveRuntimeRefUsesIncusRuntimeState(t *testing.T) {
 	}
 }
 
+func TestResolveRuntimeRefFallsBackToFullIncusState(t *testing.T) {
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if len(args) >= 2 && args[0] == "list" && args[1] == "ipv4=10.200.0.23" {
+			return host.Result{}, nil
+		}
+		if len(args) >= 5 && args[0] == "list" && args[1] == "--project" && args[3] == "--format" && args[4] == "json" {
+			return host.Result{Stdout: `[{"name":"haco-demo","state":{"network":{"eth0":{"addresses":[{"family":"inet","address":"10.200.0.23"}]}}}}]`}, nil
+		}
+		return host.Result{}, nil
+	}}
+	got, err := New(runner).ResolveRuntimeRef(context.Background(), net.ParseIP("10.200.0.23"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "haco-demo" {
+		t.Fatalf("runtime ref = %q, want haco-demo", got)
+	}
+	if len(runner.calls) != 2 {
+		t.Fatalf("calls = %#v, want filtered list plus JSON fallback", runner.calls)
+	}
+}
+
+func TestResolveRuntimeRefFallbackFailsClosedOnAmbiguousAddress(t *testing.T) {
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if len(args) >= 2 && args[0] == "list" && args[1] == "ipv4=10.200.0.23" {
+			return host.Result{}, nil
+		}
+		if len(args) >= 5 && args[0] == "list" && args[1] == "--project" && args[3] == "--format" && args[4] == "json" {
+			return host.Result{Stdout: `[
+				{"name":"haco-a","state":{"network":{"eth0":{"addresses":[{"family":"inet","address":"10.200.0.23"}]}}}},
+				{"name":"haco-b","state":{"network":{"eth0":{"addresses":[{"family":"inet","address":"10.200.0.23"}]}}}}
+			]`}, nil
+		}
+		return host.Result{}, nil
+	}}
+	_, err := New(runner).ResolveRuntimeRef(context.Background(), net.ParseIP("10.200.0.23"))
+	if !errors.Is(err, core.ErrPolicyDenied) {
+		t.Fatalf("error = %v, want ErrPolicyDenied", err)
+	}
+}
+
 func TestResolveEnvironmentUsesIncusRuntimeState(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if len(args) >= 2 && args[0] == "list" && args[1] == "ipv4=10.200.0.23" {

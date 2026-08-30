@@ -65,7 +65,7 @@ jobs:
           check-latest: true
           cache: false
       - name: Validate Core and CLI E2E helper syntax
-        run: bash -n tools/ci-incus.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh
+        run: bash -n tools/ci-incus.sh tools/ci-incus-core.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh
       - name: Prepare proven Incus substrate for Hacocoon Core
         run: bash tools/ci-incus.sh setup
       - name: Allow leased workspace owner in Incus root idmap
@@ -80,6 +80,8 @@ jobs:
           fi
       - name: Install real Btrfs privilege helper
         run: bash tools/ci-storage-helper.sh setup
+      - name: Run Hacocoon egress policy against real Incus
+        run: bash tools/ci-incus-core.sh egress
       - name: Run Hacocoon Core and shipped CLI lifecycle against real Incus
         env:
           TMPDIR: ${{ runner.temp }}/haco-storage-helper-e2e
@@ -88,6 +90,7 @@ jobs:
         if: failure()
         run: |
           bash tools/ci-incus.sh diagnostics
+          bash tools/ci-incus-core.sh diagnostics
           bash tools/ci-storage-helper.sh diagnostics
       - name: Delete CI-owned Incus projects and pools
         if: always()
