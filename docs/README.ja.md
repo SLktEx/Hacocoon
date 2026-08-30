@@ -66,12 +66,16 @@ docs/adr/         architecture decision record。ADR番号はidentityなので�
 | v0.17 | OCI Seed Builder & Btrfs/COW | repository slice / partial acceptance |
 | v0.18 | Docker Compatibility Plugin | repository実装完了。real-host acceptanceは別 |
 | v0.19 | Domain-aware Egress Authorization | repository実装完了。real supported-Incus acceptanceは別 |
-| v0.20 | Managed Btrfs Rootfs Storage | first repository slice実装済み。physical COW/compaction acceptanceは別 |
-| v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` managed default実装済み。physical compression/performance acceptanceは別 |
+| v0.20 | Managed Btrfs Rootfs Storage | managed sparse-raw Btrfs pool/rootfs routing実装済み |
+| v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` managed default実装済み |
+| v0.22 | Interaction Notification Clients | browser/native OS/VS Code client実装済み |
+| v0.23 | Real Incus E2E Acceptance | phased standalone Incus + Core lifecycle acceptance実装済み |
+| v0.24 | Structured Logging | shared logging/redaction foundation実装済み |
+| v0.25 | Managed Btrfs Host Privilege Broker | typed helper + ordinary-user real CLI acceptance実装済み |
 
-現在のmilestone位置は **v0.21** です。minor versionはpre-1.0の軽量な進捗checkpointとして扱い、前のmilestoneがpartialでも後続へ進めます。Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
+現在のmilestone位置は **v0.25** です。minor versionはpre-1.0の軽量な進捗checkpointとして扱い、前のmilestoneがpartialでも後続へ進めます。productだけでなくoperator experience、observability、acceptanceの意味ある進捗にもminorを使ってよい方針です。Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
 
-現在のdesign specification:
+現在のdesign/reference:
 
 - [`design/managed-sandbox-network.ja.md`](design/managed-sandbox-network.ja.md)
 - [`design/git-fetch-plugin.ja.md`](design/git-fetch-plugin.ja.md)
@@ -80,6 +84,8 @@ docs/adr/         architecture decision record。ADR番号はidentityなので�
 - [`design/oci-seed-and-cow.ja.md`](design/oci-seed-and-cow.ja.md)
 - [`design/docker-compatibility-plugin.ja.md`](design/docker-compatibility-plugin.ja.md)
 - [`EGRESS_AUTHORIZATION.ja.md`](EGRESS_AUTHORIZATION.ja.md)
+- [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md)
+- [`reference/logging.ja.md`](reference/logging.ja.md)
 - [`design/btrfs-storage-layout.ja.md`](design/btrfs-storage-layout.ja.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md) — deferred optional direction
 
@@ -95,7 +101,7 @@ private keyとIDE configはclient自身が保持し、Hacocoonが受け取るの
 
 `pkg/interaction` はcapability audit streamをclient-neutralなread-only eventへprojectionします。stable ID、resume可能なbyte cursor、bounded batch、attention/recovery flagを提供し、raw resource、authority attributes、provider output、approval token、free-form audit reasonはclient schemaへ出しません。
 
-eventの観測自体はCapabilityを承認・実行しません。詳細は [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md) を参照してください。
+eventの観測自体はCapabilityを承認・実行しません。v0.22ではこのstream上にbrowser、native OS、optional VS Code notification adapterを追加しましたが、このauthority boundaryは変わりません。詳細は [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md) を参照してください。
 
 ## Base と OCI
 
@@ -119,7 +125,7 @@ provider-neutralなremote/cloud routing seamは維持しますが、concrete EC2
 
 ## Versioning
 
-minor versionはpre-1.0の実用的な進捗checkpointです。意味のあるimplementation sliceが入ったら、follow-upやreal-host acceptanceが残っていても次minorへ進めて構いません。fix / hardening / refactor / CLI namespace cleanup / CI / docsだけでは通常versionを消費しません。version mappingはstatus docや本文に書き、通常のfilenameには入れません。
+minor versionはpre-1.0の実用的な進捗checkpointです。意味のあるproduct、implementation、operator experience、observability、acceptanceのsliceが入ったら、follow-upやreal-host acceptanceが残っていても次minorへ進めて構いません。小さなfix / maintenance / docsだけで自動的にversionを消費するわけではありませんが、support/operability上の大きなcheckpointならminorを使って構いません。pre-1.0では番号を節約するより進捗を見える化します。version mappingはstatus docや本文に書き、通常のfilenameには入れません。
 
 ## 編集ルール
 
