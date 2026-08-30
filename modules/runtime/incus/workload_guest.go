@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 const (
