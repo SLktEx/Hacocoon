@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/logging"
 )
 
 const defaultCleanupTimeout = 30 * time.Second
@@ -54,7 +55,25 @@ func NewWithProvider(runtime environmentRuntime, store environmentStore, provide
 	}
 }
 
-func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
+func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (environment core.Environment, err error) {
+	started := time.Now()
+	ctx = logging.With(ctx, "operation", "create_environment", "environment_id", spec.Name)
+	logger := logging.FromContext(ctx).With("component", "core")
+	logger.InfoContext(ctx, "creating environment")
+	defer func() {
+		if err != nil {
+			logger.ErrorContext(ctx, "environment creation failed",
+				"duration_ms", time.Since(started).Milliseconds(),
+				"error", err,
+			)
+			return
+		}
+		logger.InfoContext(ctx, "environment created",
+			"duration_ms", time.Since(started).Milliseconds(),
+			"runtime_ref", environment.RuntimeRef,
+		)
+	}()
+
 	name, err := validateEnvironmentName(spec.Name)
 	if err != nil {
 		return core.Environment{}, err
@@ -144,7 +163,7 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 		)
 	}
 
-	environment := core.Environment{
+	environment = core.Environment{
 		Name:       name,
 		Workspace:  workspace,
 		AccessMode: mode,
@@ -172,7 +191,23 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 	return environment, nil
 }
 
-func (s *Service) Exec(ctx context.Context, name string, req core.ExecutionRequest) (core.ExecutionResult, error) {
+func (s *Service) Exec(ctx context.Context, name string, req core.ExecutionRequest) (result core.ExecutionResult, err error) {
+	started := time.Now()
+	ctx = logging.With(ctx, "operation", "exec_environment", "environment_id", name)
+	logger := logging.FromContext(ctx).With("component", "core")
+	logger.InfoContext(ctx, "executing environment command")
+	defer func() {
+		attrs := []any{
+			"duration_ms", time.Since(started).Milliseconds(),
+			"exit_code", result.ExitCode,
+		}
+		if err != nil {
+			logger.ErrorContext(ctx, "environment command failed", append(attrs, "error", err)...)
+			return
+		}
+		logger.InfoContext(ctx, "environment command completed", attrs...)
+	}()
+
 	if len(req.Argv) == 0 {
 		return core.ExecutionResult{}, core.ErrInvalidArgument
 	}
@@ -183,7 +218,22 @@ func (s *Service) Exec(ctx context.Context, name string, req core.ExecutionReque
 	return s.runtime.ExecEnvironment(ctx, environment.RuntimeRef, req)
 }
 
-func (s *Service) Shell(ctx context.Context, name string) error {
+func (s *Service) Shell(ctx context.Context, name string) (err error) {
+	started := time.Now()
+	ctx = logging.With(ctx, "operation", "shell_environment", "environment_id", name)
+	logger := logging.FromContext(ctx).With("component", "core")
+	logger.InfoContext(ctx, "opening environment shell")
+	defer func() {
+		if err != nil {
+			logger.ErrorContext(ctx, "environment shell failed",
+				"duration_ms", time.Since(started).Milliseconds(),
+				"error", err,
+			)
+			return
+		}
+		logger.InfoContext(ctx, "environment shell closed", "duration_ms", time.Since(started).Milliseconds())
+	}()
+
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err != nil {
 		return err
@@ -191,7 +241,22 @@ func (s *Service) Shell(ctx context.Context, name string) error {
 	return s.runtime.ShellEnvironment(ctx, environment.RuntimeRef)
 }
 
-func (s *Service) Delete(ctx context.Context, name string) error {
+func (s *Service) Delete(ctx context.Context, name string) (err error) {
+	started := time.Now()
+	ctx = logging.With(ctx, "operation", "delete_environment", "environment_id", name)
+	logger := logging.FromContext(ctx).With("component", "core")
+	logger.InfoContext(ctx, "deleting environment")
+	defer func() {
+		if err != nil {
+			logger.ErrorContext(ctx, "environment deletion failed",
+				"duration_ms", time.Since(started).Milliseconds(),
+				"error", err,
+			)
+			return
+		}
+		logger.InfoContext(ctx, "environment deleted", "duration_ms", time.Since(started).Milliseconds())
+	}()
+
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err == nil {
 		if err := s.runtime.DeleteEnvironment(ctx, environment.RuntimeRef); err != nil && !isNotFound(err) {

@@ -21,6 +21,7 @@ Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.21** です。mil
 | Resource budget | CPU / memory / PID / root storage | v0.12 |
 | Managed Sandbox Network | `haco-sandbox0`、proxy-only ACL transport guard、`haco-sandbox` profile。DHCPを残してbridge DNSを停止し、driftはfail closed | v0.13 / cross-cutting |
 | Domain-aware egress authorization | Core `network.egress/connect`、Standard HTTP/HTTPS proxy、Host DNS pinning、private-address reject、CONNECT/SNI検証、trusted Incus source-IP mapping、`haco egress serve` を実装。real supported-Incus acceptanceはhost-dependent | v0.19 implemented |
+| Structured logging | shared `log/slog` foundation、INFO-default text/JSON output、Environment lifecycleのoperation field、sanitize済みDEBUG Host-command trace、egress authorization trace、defense-in-depth secret redactionをmaintained executable全体へ実装 | cross-cutting infrastructure |
 | Git Fetch Plugin | `haco plugin git fetch`、Host `gh auth git-credential` | v0.14 |
 | OCI plugin boundary | `HACO_PLUGIN_OCI=nerdctl|docker` の明示opt-in。未設定でもCoreは動作する | cross-cutting |
 | OCI Seed Recommendation | `haco plugin oci seed sample` / `recommend`、top 10%を `auto_promote=true` | v0.15 |
@@ -37,6 +38,12 @@ Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.21** です。mil
 ordinary HTTP/HTTPS egressはDNS-to-IP ACL近似ではなくStandard proxyでenforceします。Incus NICはdefault denyを維持し、managed bridge gatewayのStandard proxy portへのTCPだけをallowします。bridgeはDHCPを残しつつ `raw.dnsmasq=port=0` でDNS listenerを停止し、unmanaged DNS/ACL configはfail closedです。
 
 managed profileがEnvironmentへHTTP(S) proxy discoveryを提供します。proxyはtrusted Incus source-IP stateからEnvironment identityを導出し、hostname / port / protocolごとに既存Policy / Approval / Capability / audit経路を通し、authorization後だけHost DNSを解決してpublic answer setをconnection単位でpinします。HTTPS CONNECTはTLS bytesをupstreamへ流す前にClientHello SNIとauthorized hostnameの一致を検証します。`haco egress serve` はtrusted Host foregroundの起動経路なので、現在のstdio approval providerをそのまま使えます。詳細は [`EGRESS_AUTHORIZATION.ja.md`](EGRESS_AUTHORIZATION.ja.md) を参照してください。
+
+## Structured logging
+
+maintained executableは `HACO_LOG_LEVEL` / `HACO_LOG_FORMAT` から1つのshared `log/slog` rootをconfigureします。defaultはINFO/textで、JSONへ切り替えてもstdoutのcommand resultは変えません。Environment create/exec/shell/deleteは `operation`、`environment_id`、duration、result/error fieldをcontext経由で持ち回ります。trusted Host runnerはsanitize済みcommand metadataをDEBUGで追加し、Incus/network/storage/Git/OCIをcomponent分類しますが、subprocess stdout/stderrを自動logしません。egress authorizationもnormalized target/protocolとrequest correlationをDEBUGで記録します。
+
+shared handlerはpassword/token/API key、authorization/cookie、credential-bearing URL、secret assignmentのknown patternをDEBUGを含めてdefense-in-depthでredactします。ただしcall site側でもarbitrary header、environment、config object、private key、request body、untrusted outputを渡してはいけません。ERRORはoperation/reporting boundaryが所有し、下位Host/provider layerは重複ERRORではなくDEBUG diagnosticを使います。詳細は [`reference/logging.ja.md`](reference/logging.ja.md) を参照してください。
 
 ## Client adapter境界
 

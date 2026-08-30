@@ -6,12 +6,14 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/logging"
 )
 
 const (
-	Capability = "network.egress"
+	Capability    = "network.egress"
 	ActionConnect = "connect"
 )
 
@@ -30,7 +32,24 @@ func NewBroker(capabilities capabilityRequester) *Broker {
 // Authorize sends one normalized hostname-scoped connection through the
 // existing Policy / Approval / Capability boundary. It intentionally returns a
 // connection-scoped grant instead of a reusable IP authorization.
-func (b *Broker) Authorize(ctx context.Context, request core.EgressRequest) (core.EgressGrant, error) {
+func (b *Broker) Authorize(ctx context.Context, request core.EgressRequest) (grant core.EgressGrant, err error) {
+	started := time.Now()
+	ctx = logging.With(ctx, "operation", "authorize_egress", "environment_id", request.Environment)
+	logger := logging.FromContext(ctx).With("component", "network")
+	defer func() {
+		if err != nil {
+			logger.DebugContext(ctx, "egress authorization failed",
+				"duration_ms", time.Since(started).Milliseconds(),
+				"error", err,
+			)
+			return
+		}
+		logger.DebugContext(ctx, "egress authorized",
+			"duration_ms", time.Since(started).Milliseconds(),
+			"request_id", grant.RequestID,
+		)
+	}()
+
 	if b == nil || b.capabilities == nil {
 		return core.EgressGrant{}, fmt.Errorf("egress capability boundary unavailable: %w", core.ErrPolicyDenied)
 	}
@@ -38,6 +57,11 @@ func (b *Broker) Authorize(ctx context.Context, request core.EgressRequest) (cor
 	if err != nil {
 		return core.EgressGrant{}, err
 	}
+	logger.DebugContext(ctx, "authorizing egress",
+		"protocol", normalized.Protocol,
+		"target_host", normalized.Host,
+		"target_port", normalized.Port,
+	)
 	result, err := b.capabilities.Request(ctx, core.CapabilityRequest{
 		Capability:  Capability,
 		Action:      ActionConnect,

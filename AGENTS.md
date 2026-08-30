@@ -12,7 +12,8 @@ Before changing code or documentation, read:
 2. `docs/IMPLEMENTATION_STATUS.md` for current repository reality.
 3. `docs/DOCUMENTATION_STYLE_GUIDE.md` before changing README files or documentation.
 4. The relevant semantic design document under `docs/design/` for the subsystem being changed.
-5. `.github/security/ADVERSARIAL_AUDIT.md` for security-sensitive changes.
+5. `docs/reference/logging.md` before adding or changing logs.
+6. `.github/security/ADVERSARIAL_AUDIT.md` for security-sensitive changes.
 
 Do not add tool-specific handoff files, generated master documents, migration scratch notes, or duplicate "start here" documents to the repository root. Git history is the archive for obsolete implementation notes.
 
@@ -24,6 +25,17 @@ Do not add tool-specific handoff files, generated master documents, migration sc
 - Optional integrations must remain optional. Core must not gain mandatory dependencies merely because one maintained plugin uses them.
 - Do not give untrusted workloads Hacocoon/Incus management authority, reusable Host credentials, Host control sockets, or protected Hacocoon state.
 - Hacocoon is pre-1.0. Prefer deletion, replacement, and clear ownership over preserving accidental compatibility.
+
+## Logging
+
+Follow `docs/reference/logging.md` for every logging change.
+
+- Use the shared structured logger and stable fields instead of package-local global loggers or ad-hoc `log.Printf` diagnostics.
+- Keep DEBUG subject to the same secret/redaction rules as every other level.
+- Never log raw credentials, authorization/cookie headers, private keys, complete process environments, arbitrary config objects, or raw subprocess output merely for convenience.
+- Log a failed operation as ERROR at the boundary that owns the operation; lower layers should normally return/wrap the error and use DEBUG diagnostics rather than duplicating ERROR entries.
+- Preserve stdout for command results and machine-readable output; application logs belong on stderr.
+- Add focused regression coverage when introducing a new redaction rule, structured field contract, format, or failure boundary.
 
 ## Documentation
 
