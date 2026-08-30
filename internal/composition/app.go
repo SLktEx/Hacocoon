@@ -36,6 +36,7 @@ type App struct {
 func Local(_ context.Context) (*App, error) {
 	runner := host.ExecRunner{}
 	root := envOr("HACO_ROOT", "/var/lib/hacocoon")
+	stateDir := filepath.Join(root, "state")
 	incusRuntime := incus.New(runner)
 	incusProvider, err := incus.NewSandboxProvider(incusRuntime)
 	if err != nil {
@@ -47,7 +48,15 @@ func Local(_ context.Context) (*App, error) {
 		Reason: "experimental EC2 is disabled; set HACO_EXPERIMENTAL_EC2=1 to opt in",
 	}
 	if strings.TrimSpace(os.Getenv("HACO_EXPERIMENTAL_EC2")) == "1" {
-		ec2Provider = environmentapp.WithoutFiniteResources(ec2runtime.New(runner, ec2runtime.ConfigFromEnv()))
+		refKey, err := ec2runtime.LoadOrCreateRefKey(filepath.Join(stateDir, "ec2-ref.key"))
+		if err != nil {
+			return nil, err
+		}
+		authenticated, err := ec2runtime.NewAuthenticated(ec2runtime.New(runner, ec2runtime.ConfigFromEnv()), refKey)
+		if err != nil {
+			return nil, err
+		}
+		ec2Provider = environmentapp.WithoutFiniteResources(authenticated)
 	}
 	router, err := environmentapp.NewRouter(
 		envOr("HACO_RUNTIME_PROVIDER", environmentapp.ProviderIncus),
@@ -59,7 +68,6 @@ func Local(_ context.Context) (*App, error) {
 	}
 	runtime := environmentapp.NewBaseRouter(router)
 
-	stateDir := filepath.Join(root, "state")
 	store := state.NewEnvironmentJSONStore(filepath.Join(stateDir, "environments.json"))
 	bindingStore := agenthostapp.NewJSONBindingStore(filepath.Join(stateDir, "agent-bindings.json"))
 	gitProvider := gitcapapp.NewProvider(runner, store)
