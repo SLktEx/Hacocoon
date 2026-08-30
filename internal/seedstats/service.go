@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	DefaultSampleMaxAge       = 6 * time.Hour
+	DefaultSampleMaxAge          = 6 * time.Hour
 	DefaultRecommendationWindow = 30 * 24 * time.Hour
+	DefaultAutoPromotionPercent = 10
 )
 
 type environmentExecutor interface {
@@ -42,6 +43,7 @@ type Recommendation struct {
 	Environments int       `json:"environments"`
 	Percent      float64   `json:"percent"`
 	LastSeen     time.Time `json:"last_seen"`
+	AutoPromote  bool      `json:"auto_promote"`
 }
 
 func New(runtime environmentExecutor, environmentStatePath string, store *Store) (*Service, error) {
@@ -140,7 +142,7 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 		for _, image := range snapshot.Images {
 			// A Seed recommendation must have immutable identity. Images whose
 			// digest could not be observed are kept in telemetry but are not
-			// eligible for automatic recommendation output.
+			// eligible for recommendation or automatic promotion.
 			if image.Digest == "" {
 				continue
 			}
@@ -185,7 +187,31 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 		}
 		return result[i].Digest < result[j].Digest
 	})
+	markAutoPromotions(result, DefaultAutoPromotionPercent)
 	return result, nil
+}
+
+// markAutoPromotions marks the top ceil(percent%) of ranked recommendations.
+// If at least one eligible recommendation exists, at least one is promoted.
+// This only selects content for the next Seed build; it does not mutate an
+// existing Seed or Environment.
+func markAutoPromotions(recommendations []Recommendation, percent int) {
+	if len(recommendations) == 0 || percent <= 0 {
+		return
+	}
+	if percent > 100 {
+		percent = 100
+	}
+	count := (len(recommendations)*percent + 99) / 100
+	if count < 1 {
+		count = 1
+	}
+	if count > len(recommendations) {
+		count = len(recommendations)
+	}
+	for i := range recommendations {
+		recommendations[i].AutoPromote = i < count
+	}
 }
 
 func readEnvironments(path string) ([]core.Environment, error) {
