@@ -42,10 +42,10 @@ Hacocoon は **pre-1.0** です。milestone番号はproduct/implementationの進
 | v0.14 | Git Fetch Plugin | ✅ 実装済み |
 | v0.15 | OCI Seed Recommendation | ✅ 実装済み |
 | v0.16 | OCI Image Deletion | ✅ first slice実装済み |
-| v0.17 | Docker Compatibility Plugin | ✅ repository実装完了。real-host acceptanceは別管理 |
-| v0.18 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
+| v0.17 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
+| v0.18 | Docker Compatibility Plugin | ✅ repository実装完了。real-host acceptanceは別管理 |
 
-**完全に実装済みのproduct progressionはv0.17まで連続**しています。v0.18はplannedです。
+v0.17がまだplannedなので、**連続して完全実装済みのproduct progressionはv0.16まで**です。v0.18 Dockerのrepository実装は、このfeatureがまだv0.17と呼ばれていた時点で先にlandしており、実装を残したまま正本上v0.18へ付け替えます。
 
 v0.7は、そのgateで導入したprovider-neutral routing seam自体が現在も実装されているため番号を維持します。以前のconcrete EC2/AWS/EBS sliceはactive treeから意図的に外しており、local/provider contractが安定するまで **cloud implementationは現在deferred** です。
 
@@ -59,15 +59,17 @@ v0.13  Managed Sandbox Network                 implemented
 v0.14  Git Fetch Plugin                        implemented
 v0.15  OCI Seed Recommendation                 implemented
 v0.16  OCI Image Deletion                      implemented
-v0.17  Docker Compatibility Plugin             implemented
-v0.18  OCI Seed Builder & Btrfs/COW            planned
+v0.17  OCI Seed Builder & Btrfs/COW            planned
+v0.18  Docker Compatibility Plugin             repository implemented early
 ```
 
-短期間だけv0.18をOptional Local OCI Registry、v0.19をSeed Builder/COWとして予約した整理もありましたが、これはsupersededです。Local Registryは標準architectureの必須要件ではないためdeferred/unversionedとし、Seed Builder/COWをv0.18へ繰り上げます。
+短期間だけv0.18をOptional Local OCI Registry、v0.19をSeed Builder/COWとして予約した整理もありましたが、これはsupersededです。Local Registryは標準architectureの必須要件ではないためdeferred/unversionedです。
 
-古いOCI milestone名や枝番はhistorical recordとしてのみ扱います。
+その後、Docker Compatibilityをv0.17、Seed Builder/COWをv0.18とする順番になり、その番号のままDocker lifecycle implementationがlandしました。現在の正本ではphysical Environment/Base/Seed pipelineをv0.17、Docker compatibility layerをv0.18へ入れ替えます。すでにlandしたDocker実装は削除・rollbackせず、そのままv0.18の実装として扱います。
 
-その後の `haco base ...` と `haco plugin oci ...` のCLI namespace分離はboundary/refactor修正なので、追加のproduct milestoneは消費しません。
+古いcommit/PR/branchには旧milestone名が残る場合がありますが、historical recordとしてのみ扱います。
+
+`haco base ...` と `haco plugin oci ...` のCLI namespace分離はboundary/refactor修正なので、追加のproduct milestoneは消費しません。
 
 ## Specification map
 
@@ -75,8 +77,8 @@ v0.18  OCI Seed Builder & Btrfs/COW            planned
 - [`14_v0.14_GIT_FETCH_PLUGIN.md`](14_v0.14_GIT_FETCH_PLUGIN.md)
 - [`15_v0.15_OCI_SEED_RECOMMENDATION.md`](15_v0.15_OCI_SEED_RECOMMENDATION.md)
 - [`16_v0.16_OCI_IMAGE_DELETION.md`](16_v0.16_OCI_IMAGE_DELETION.md)
-- [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md)
-- [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md)
+- [`17_v0.17_OCI_SEED_AND_COW.md`](17_v0.17_OCI_SEED_AND_COW.md)
+- [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md) — deferred optional infrastructure。milestone予約なし
 
 ## Acceptance watch list
@@ -87,9 +89,9 @@ v0.18  OCI Seed Builder & Btrfs/COW            planned
 - **v0.11/v0.12:** real Base/image・resource enforcement pending
 - **v0.13:** real supported-Incus network/profile/ACL pending
 - **v0.14:** brokered fetch実装済み。real private-repository combinationは別途acceptance
-- **v0.15/v0.16:** OCI plugin repository behavior実装済み。physical Seed publication/GCはv0.18
-- **v0.17:** repository lifecycle/CLI integration実装済み。real Base + Incus/systemd socket activationはhost-dependent acceptance
-- **v0.18:** planned
+- **v0.15/v0.16:** OCI plugin repository behavior実装済み。physical Seed publication/GCはv0.17
+- **v0.17:** planned。physical Seed build/publishとCOW validationは未実装
+- **v0.18:** repository lifecycle/CLI integration実装済み。real Base + Incus/systemd socket activationはhost-dependent acceptance
 
 ## 一文でいうと
 
