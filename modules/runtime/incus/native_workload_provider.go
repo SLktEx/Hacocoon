@@ -55,10 +55,10 @@ func (p *NativeWorkloadProvider) CreateEnvironment(ctx context.Context, spec cor
 	}
 }
 
-// DeleteEnvironment removes all Hacocoon-owned sibling OCI workloads before
-// deleting their system-container parent Environment. This makes Environment
-// deletion the same lifecycle boundary users had with nested containerd: no
-// child workload may be orphaned on the Physical Host.
+// DeleteEnvironment removes sibling OCI workloads only when this Environment
+// actually carries the scoped workload proxy device. Legacy/source-tree test
+// Environments can intentionally lack that integration and must retain the old
+// deletion path unchanged.
 func (p *NativeWorkloadProvider) DeleteEnvironment(ctx context.Context, ref string) error {
 	if p == nil || p.SandboxProvider == nil || p.Runtime == nil {
 		return core.ErrRuntimeUnavailable
@@ -71,18 +71,50 @@ func (p *NativeWorkloadProvider) DeleteEnvironment(ctx context.Context, ref stri
 	if err != nil || canonical != ref {
 		return core.ErrInvalidArgument
 	}
-	workloads, err := p.Runtime.ListWorkloads(ctx, environment)
-	if err != nil && !errors.Is(err, core.ErrNotFound) {
-		return fmt.Errorf("list OCI workloads before deleting Environment %s: %w", ref, err)
+
+	integrated, err := p.hasNativeWorkloadIntegration(ctx, environment, ref)
+	if err != nil {
+		return err
 	}
-	var cleanupErrors []error
-	for _, workload := range workloads {
-		if deleteErr := p.Runtime.DeleteWorkload(ctx, environment, workload.Name); deleteErr != nil && !errors.Is(deleteErr, core.ErrNotFound) {
-			cleanupErrors = append(cleanupErrors, fmt.Errorf("delete workload %s: %w", workload.Name, deleteErr))
+	if integrated {
+		workloads, err := p.Runtime.ListWorkloads(ctx, environment)
+		if err != nil && !errors.Is(err, core.ErrNotFound) {
+			return fmt.Errorf("list OCI workloads before deleting Environment %s: %w", ref, err)
+		}
+		var cleanupErrors []error
+		for _, workload := range workloads {
+			if deleteErr := p.Runtime.DeleteWorkload(ctx, environment, workload.Name); deleteErr != nil && !errors.Is(deleteErr, core.ErrNotFound) {
+				cleanupErrors = append(cleanupErrors, fmt.Errorf("delete workload %s: %w", workload.Name, deleteErr))
+			}
+		}
+		if len(cleanupErrors) > 0 {
+			return errors.Join(append(cleanupErrors, core.ErrRecoveryRequired)...)
 		}
 	}
-	if len(cleanupErrors) > 0 {
-		return errors.Join(append(cleanupErrors, core.ErrRecoveryRequired)...)
-	}
 	return p.SandboxProvider.DeleteEnvironment(ctx, ref)
+}
+
+func (p *NativeWorkloadProvider) hasNativeWorkloadIntegration(ctx context.Context, environment, ref string) (bool, error) {
+	result, err := p.runner.Run(ctx, "incus", "config", "device", "list", ref, "--project", p.project)
+	if err != nil {
+		return false, fmt.Errorf("inspect Environment workload integration: %w", err)
+	}
+	found := false
+	for _, name := range strings.Fields(result.Stdout) {
+		if name == environmentWorkloadDevice {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return false, nil
+	}
+	hostSocket, err := WorkloadBrokerSocketPath(environment)
+	if err != nil {
+		return false, err
+	}
+	if err := p.Runtime.verifyEnvironmentWorkloadDevice(ctx, ref, hostSocket); err != nil {
+		return false, fmt.Errorf("verify Environment workload integration before delete: %w", err)
+	}
+	return true, nil
 }
