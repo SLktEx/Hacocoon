@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -20,6 +22,41 @@ func TestHostCommandRejectsUnknownSubcommandBeforeAppAccess(t *testing.T) {
 	err := hostCommand(context.Background(), nil, []string{"unknown"})
 	if !errors.Is(err, core.ErrInvalidArgument) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestTrustedHostClientBinaryPathAcceptsExplicitSafeRegularFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "haco-host")
+	if err := os.WriteFile(path, []byte("client"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(trustedHostClientBinaryEnv, path)
+	got, err := trustedHostClientBinaryPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != path {
+		t.Fatalf("path = %q, want %q", got, path)
+	}
+}
+
+func TestTrustedHostClientBinaryPathRejectsRelativeOverride(t *testing.T) {
+	t.Setenv(trustedHostClientBinaryEnv, "haco-host")
+	_, err := trustedHostClientBinaryPath()
+	if !errors.Is(err, core.ErrInvalidArgument) {
+		t.Fatalf("error = %v, want ErrInvalidArgument", err)
+	}
+}
+
+func TestTrustedHostClientBinaryPathRejectsWritableBinary(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "haco-host")
+	if err := os.WriteFile(path, []byte("client"), 0o777); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(trustedHostClientBinaryEnv, path)
+	_, err := trustedHostClientBinaryPath()
+	if !errors.Is(err, core.ErrIncompatibleState) {
+		t.Fatalf("error = %v, want ErrIncompatibleState", err)
 	}
 }
 
