@@ -11,7 +11,17 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 - Architecture / Roadmap: [`00_REBASELINE_AND_ROADMAP.md`](00_REBASELINE_AND_ROADMAP.md)
 - Milestone番号: [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md)
 - Security: [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
-- Plugin境界: [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+- Core / Standard / Plugin境界: [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+
+## Core / Standard / Pluginのルール
+
+Hacocoonでは、product semanticsとdefault implementation、optional integrationを分けます。
+
+- **Core**: Environment、Policy / Approval / Capability、境界制御に必要な安定contractを定義する。
+- **Standard**: 通常配布で多くの利用者が使うproject-maintainedなdefault implementation。現在のIncus backendや、将来のdefault egress proxy/enforcerなど。Core contractを満たす交換可能な実装であり、Coreそのものではない。
+- **Plugin**: 無くても一般的なHacocoonとして成立するoptional / specialized integration。nerdctl / Docker / OCI toolingなど。
+
+外向き通信では、egress request / policy / controller contractはCore、具体的なdefault proxy / enforcement implementationはStandardに置きます。この分類はarchitecture intentであり、現在のv0.13はdefault-deny network substrateまでです。domain-awareなallow / approval enforcementが実装済みという意味ではありません。
 
 ## 番号ルール
 
