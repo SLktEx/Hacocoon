@@ -4,82 +4,89 @@
 
 Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progression; they are not compatibility guarantees, release tags, or proof of production support.
 
-Use this document for **which version number belongs to which gate**. Use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for exact code reality and host-dependent acceptance.
+Use this document for **which version number belongs to which feature gate**. Use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for exact code reality and host-dependent acceptance.
 
 ## Numbering policy
 
-1. Implemented milestones should remain contiguous while renumbering is still cheap.
-2. A design-only gate must not force already-implemented independent work to appear later in the sequence.
-3. Security/hardening work normally does not consume a product version number by itself.
-4. A planned specification may reserve the next milestone, but it must be labeled **planned / not implemented** until code lands.
-5. Tags/releases are separate from roadmap-gate numbering.
-6. `IMPLEMENTATION_STATUS.md` remains authoritative for repository implementation reality.
+> **One independently useful product feature is approximately one minor milestone.**
+
+1. A new independently useful feature normally consumes the next `v0.N` milestone.
+2. Multiple PRs that are slices of one coherent feature may share that milestone.
+3. Security/hardening, bug fixes, refactors, CI, docs, release engineering, and test-only work normally do not consume a product version by themselves.
+4. The feature implementation PR must update this file and `IMPLEMENTATION_STATUS.md`; do not defer the version bump to later cleanup.
+5. Design-only specifications may reserve future numbers but remain **planned** until implementation lands.
+6. Historical commit messages, PR titles, candidate branches, and superseded filenames are not authoritative numbering.
+7. Tags/releases are separate from roadmap milestone numbering.
 
 ## Current authoritative numbering
 
-**Status legend:** ✅ implemented · 🧪 experimental · 🚧 planned
+**Status legend:** ✅ implemented · 🧪 partial/experimental · 🚧 planned
 
-| Version | Gate | Main status | Notes |
-|---|---|---|---|
-| v0.1 | Secure Workspace Runtime MVP | ✅ implemented | external Workspace → Incus Environment → exec/shell → delete |
-| v0.2 | Workspace Abstraction & Lease | ✅ implemented | canonical Workspace identity, RO/RW leases, concurrency safety |
-| v0.3 | Client & Interactive Access | ✅ implemented | status, loopback forwarding, SSH lifecycle |
-| v0.4 | Policy & Capability Foundation | ✅ implemented | fail-closed policy, approval, audit |
-| v0.5 | Git / GitHub Capability | ✅ implemented | brokered GitHub authority without exporting host credentials |
-| v0.6 | Agent & Orchestrator Integration | ✅ implemented | `haco run`, machine output, external security events |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 implemented experimentally | EC2 stays explicit opt-in; real AWS acceptance pending |
-| v0.8 | Client Adapters & VS Code Integration | ✅ implemented | `haco-vscode`; real client acceptance pending |
-| v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation implemented | trusted session → Environment binding; real Agent Host/AHP routing acceptance pending |
-| v0.10 | VS Code Remote Agent Host Adapter | ✅ implemented | merged in PR #137; real Windows/WSL + Incus + VS Code Agents-window acceptance remains host-dependent |
-| v0.11 | Base Images & Custom Environments | ✅ implemented first slice | logical Base selection, immutable revision pinning, persisted identity, list/inspect; build/import/history/GC remain follow-up work |
-| v0.12 | Sandbox Resource Limits | ✅ implemented first slice | provider-neutral finite/unlimited budgets and Incus pre-start enforcement; real workload enforcement acceptance remains host-dependent |
-| v0.13 | Local OCI Registry | 🚧 planned | design contract exists; not implemented on `main` |
-| v0.13A | OCI Seed & Btrfs/COW Optimization | 🚧 planned second slice | companion optimization after the v0.13 registry path; not implemented on `main` |
+| Version | Gate | `main` status |
+|---|---|---|
+| v0.1 | Secure Workspace Runtime MVP | ✅ implemented |
+| v0.2 | Workspace Abstraction & Lease | ✅ implemented |
+| v0.3 | Client & Interactive Access | ✅ implemented |
+| v0.4 | Policy & Capability Foundation | ✅ implemented |
+| v0.5 | Git / GitHub Capability | ✅ implemented |
+| v0.6 | Agent & Orchestrator Integration | ✅ implemented |
+| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 experimental implementation; EC2 remains default-off |
+| v0.8 | Client Adapters & VS Code Integration | ✅ implemented |
+| v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation implemented |
+| v0.10 | VS Code Remote Agent Host Adapter | ✅ implemented |
+| v0.11 | Base Images & Custom Environments | ✅ first slice implemented |
+| v0.12 | Sandbox Resource Limits | ✅ first slice implemented |
+| v0.13 | Managed Sandbox Network | ✅ implemented |
+| v0.14 | Git Fetch Plugin | ✅ implemented |
+| v0.15 | OCI Seed Recommendation | ✅ implemented |
+| v0.16 | OCI Image Deletion | ✅ first slice implemented |
+| v0.17 | Docker Compatibility Plugin | 🧪 foundation implemented; full plugin integration pending |
+| v0.18 | Optional Local OCI Registry | 🚧 planned |
+| v0.19 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
 
-The implemented progression is therefore contiguous through **v0.12**. **v0.13 is the next planned milestone**, not current repository implementation.
+The fully implemented product progression is contiguous through **v0.16**. v0.17 has a foundation but is not a complete feature gate. v0.18 and v0.19 remain planned.
 
-## Implemented vs planned
+## v0.12 → v0.19 rebaseline
 
-```text
-implemented on main
-v0.1 ───────────────────────────── v0.12
-                                      |
-                                      v
-                                next planned
-                                   v0.13
-                                      |
-                                      v
-                              planned second slice
-                                  v0.13A
-```
-
-The existence of `13_v0.13_LOCAL_OCI_REGISTRY.md` or `13A_v0.13_OCI_SEED_AND_COW.md` does not mean those features are already present.
-
-## Renumbering history
-
-The 2026-08-30 cleanup replaced a temporary ordering that placed design-only Base work ahead of already-implemented per-agent work. The current sequence is:
+Independent work had accumulated under `v0.13` and `v0.13A/B/C`, which no longer matched the original one-feature-per-version intent. The authoritative replacement is:
 
 ```text
-v0.9   Per-Agent Sandbox & Agent Host Integration    implemented
-v0.10  VS Code Remote Agent Host Adapter             implemented
-v0.11  Base Images & Custom Environments             implemented first slice
-v0.12  Sandbox Resource Limits                       implemented first slice
-v0.13  Local OCI Registry                            planned
+v0.12  Sandbox Resource Limits                 implemented
+v0.13  Managed Sandbox Network                 implemented
+v0.14  Git Fetch Plugin                        implemented
+v0.15  OCI Seed Recommendation                 implemented
+v0.16  OCI Image Deletion                      implemented
+v0.17  Docker Compatibility Plugin             partial/foundation
+v0.18  Optional Local OCI Registry             planned
+v0.19  OCI Seed Builder & Btrfs/COW            planned
 ```
 
-Historical commit messages, closed PR titles, candidate branches, or superseded planning notes may keep older labels. They are historical records, not current numbering.
+Old `v0.13` Local Registry and `v0.13A/B/C` assignments are historical only.
+
+## Specification map
+
+- [`13_v0.13_MANAGED_SANDBOX_NETWORK.md`](13_v0.13_MANAGED_SANDBOX_NETWORK.md)
+- [`14_v0.14_GIT_FETCH_PLUGIN.md`](14_v0.14_GIT_FETCH_PLUGIN.md)
+- [`15_v0.15_OCI_SEED_RECOMMENDATION.md`](15_v0.15_OCI_SEED_RECOMMENDATION.md)
+- [`16_v0.16_OCI_IMAGE_DELETION.md`](16_v0.16_OCI_IMAGE_DELETION.md)
+- [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md)
+- [`18_v0.18_LOCAL_OCI_REGISTRY.md`](18_v0.18_LOCAL_OCI_REGISTRY.md)
+- [`19_v0.19_OCI_SEED_AND_COW.md`](19_v0.19_OCI_SEED_AND_COW.md)
 
 ## Acceptance watch list
 
-Implementation and real-host acceptance are tracked separately.
-
-- **v0.7:** real AWS/EC2/SSM/EBS acceptance remains pending; EC2 stays experimental/default-off.
-- **v0.8:** real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending.
-- **v0.9/v0.10:** real VS Code Agent Host/AHP routing and Incus SSH acceptance remain host-dependent.
-- **v0.11:** real Incus image-source/custom-Base acceptance remains host-dependent; build/import/history/rollback/GC are not part of the first slice.
-- **v0.12:** real supported-Incus CPU/memory/PID/root-storage enforcement remains host-dependent.
-- **v0.13/v0.13A:** planned only; implementation and acceptance have not started merely because the specifications exist.
+- **v0.7:** real AWS/EC2/SSM/EBS acceptance remains pending.
+- **v0.8:** real Windows/WSL + Incus + VS Code acceptance remains pending.
+- **v0.9/v0.10:** real Agent Host/AHP routing remains host-dependent.
+- **v0.11/v0.12:** real Base/image and resource-enforcement acceptance remains host-dependent.
+- **v0.13:** real supported-Incus network/profile/ACL acceptance remains host-dependent.
+- **v0.14:** brokered fetch is implemented; real private-repository combinations remain acceptance-sensitive.
+- **v0.15/v0.16:** repository behavior is implemented; physical Seed publication/GC belongs to v0.19.
+- **v0.17:** do not claim complete until plugin lifecycle/integration is landed and validated.
+- **v0.18/v0.19:** planned only.
 
 ## Rule of thumb
 
-> **Use this file for numbering, `IMPLEMENTATION_STATUS.md` for code reality, and the roadmap/specifications for intent.**
+> **New independent feature? Take the next minor number in the same PR. Fix/hardening/refactor? Keep the current product number.**
+
+Use this file for numbering, `IMPLEMENTATION_STATUS.md` for code reality, and roadmap/specifications for intent.
