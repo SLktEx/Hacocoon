@@ -48,6 +48,7 @@ func dispatch(ctx context.Context, app *composition.App, args []string) error {
 		"plugin":      pluginCommand,
 		"run":         runCommand,
 		"events":      eventsCommand,
+		"network":     networkCommand,
 		"capability":  capabilityCommand,
 		"status":      statusCommand,
 		"connections": connectionsCommand,
@@ -586,7 +587,7 @@ func doctorCommand(ctx context.Context, app *composition.App, args []string) err
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: haco <create|base|plugin|run|events|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
+	fmt.Fprintln(os.Stderr, "usage: haco <create|base|plugin|run|events|network|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
 }
 
 func fail(err error) {
