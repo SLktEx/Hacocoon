@@ -71,10 +71,7 @@ func (h *Helper) Execute(ctx context.Context, args []string) host.Result {
 		if len(opArgs) != 1 {
 			return helperFailure(fmt.Errorf("loop-attach requires one backing path"))
 		}
-		if _, err := validateManagedBacking(root, opArgs[0], callerUID); err != nil {
-			return helperFailure(err)
-		}
-		return h.run(ctx, "losetup", "--find", "--show", "--nooverlap", opArgs[0])
+		return h.attachLoop(ctx, root, opArgs[0], callerUID)
 	case "loop-detach":
 		if len(opArgs) != 1 {
 			return helperFailure(fmt.Errorf("loop-detach requires one loop device"))
@@ -197,6 +194,32 @@ func (h *Helper) run(ctx context.Context, tool string, args ...string) host.Resu
 	return result
 }
 
+func (h *Helper) attachLoop(ctx context.Context, root, backing string, callerUID uint32) host.Result {
+	if _, err := validateManagedBacking(root, backing, callerUID); err != nil {
+		return helperFailure(err)
+	}
+	attached := h.run(ctx, "losetup", "--find", "--show", "--nooverlap", backing)
+	if attached.ExitCode != 0 {
+		return attached
+	}
+	device := strings.TrimSpace(attached.Stdout)
+	if !loopDevicePattern.MatchString(device) {
+		return helperFailure(fmt.Errorf("losetup returned invalid loop device %q", device))
+	}
+	_, actualBacking, err := h.validateManagedLoop(ctx, root, device, callerUID)
+	if err == nil && actualBacking == backing {
+		return attached
+	}
+	if err == nil {
+		err = fmt.Errorf("loop device %s is backed by %q, expected %q", device, actualBacking, backing)
+	}
+	cleanup := h.run(ctx, "losetup", "-d", device)
+	if cleanup.ExitCode != 0 {
+		return helperFailure(fmt.Errorf("attached loop %s failed identity validation: %v; cleanup failed with exit %d: %s", device, err, cleanup.ExitCode, strings.TrimSpace(cleanup.Stderr)))
+	}
+	return helperFailure(fmt.Errorf("attached loop %s failed identity validation and was detached: %w", device, err))
+}
+
 func (h *Helper) formatBtrfs(ctx context.Context, root, device string, callerUID uint32) host.Result {
 	if _, _, err := h.validateManagedLoop(ctx, root, device, callerUID); err != nil {
 		return helperFailure(err)
@@ -208,7 +231,8 @@ func (h *Helper) formatBtrfs(ctx context.Context, root, device string, callerUID
 	case probe.ExitCode != 2:
 		return probe
 	}
-	// Re-validate the loop mapping immediately before the destructive operation.
+	// Re-validate both the managed path and backing inode immediately before the
+	// destructive operation. A replaced pathname or reused loop device fails closed.
 	if _, _, err := h.validateManagedLoop(ctx, root, device, callerUID); err != nil {
 		return helperFailure(err)
 	}
@@ -236,7 +260,17 @@ func (h *Helper) mountBtrfs(ctx context.Context, root, device, mountpoint string
 		if mountedID != mountID || mountedDevice != device {
 			return helperFailure(fmt.Errorf("refuse remount: %s is not mounted from %s", mountpoint, device))
 		}
-		return h.run(ctx, "mount", device, mountpoint, "-o", "remount,compress=zstd:3")
+		result := h.run(ctx, "mount", device, mountpoint, "-o", "remount,compress=zstd:3")
+		if result.ExitCode != 0 {
+			return result
+		}
+		if _, mountedDevice, err := h.validateManagedMount(ctx, root, mountpoint, callerUID); err != nil || mountedDevice != device {
+			if err == nil {
+				err = fmt.Errorf("remounted source changed from %s to %s", device, mountedDevice)
+			}
+			return helperFailure(fmt.Errorf("remount postcondition failed: %w", err))
+		}
+		return result
 	}
 
 	find := h.run(ctx, "findmnt", "-rn", "-o", "SOURCE", "--target", mountpoint)
@@ -251,7 +285,24 @@ func (h *Helper) mountBtrfs(ctx context.Context, root, device, mountpoint string
 	if find.ExitCode != 1 {
 		return find
 	}
-	return h.run(ctx, "mount", device, mountpoint, "-o", "compress=zstd:3")
+	if err := validateCallerDirectory(mountpoint, callerUID, "Hacocoon mountpoint"); err != nil {
+		return helperFailure(err)
+	}
+	result := h.run(ctx, "mount", device, mountpoint, "-o", "compress=zstd:3")
+	if result.ExitCode != 0 {
+		return result
+	}
+	if _, mountedDevice, err := h.validateManagedMount(ctx, root, mountpoint, callerUID); err != nil || mountedDevice != device {
+		if err == nil {
+			err = fmt.Errorf("mounted source changed from %s to %s", device, mountedDevice)
+		}
+		cleanup := h.run(ctx, "umount", mountpoint)
+		if cleanup.ExitCode != 0 {
+			return helperFailure(fmt.Errorf("mount postcondition failed: %v; cleanup failed with exit %d: %s", err, cleanup.ExitCode, strings.TrimSpace(cleanup.Stderr)))
+		}
+		return helperFailure(fmt.Errorf("mount postcondition failed and mount was removed: %w", err))
+	}
+	return result
 }
 
 func (h *Helper) unmountBtrfs(ctx context.Context, root, mountpoint string, callerUID uint32) host.Result {
@@ -298,14 +349,15 @@ func (h *Helper) validateManagedLoop(ctx context.Context, root, device string, c
 	if !loopDevicePattern.MatchString(device) {
 		return "", "", fmt.Errorf("invalid loop device %q", device)
 	}
-	result := h.run(ctx, "losetup", "--json", "--list", "--output", "NAME,BACK-FILE", device)
+	result := h.run(ctx, "losetup", "--json", "--list", "--output", "NAME,BACK-FILE,BACK-INO", device)
 	if result.ExitCode != 0 {
 		return "", "", fmt.Errorf("inspect loop device %s: %s", device, strings.TrimSpace(result.Stderr))
 	}
 	var listing struct {
 		LoopDevices []struct {
-			Name     string `json:"name"`
-			BackFile string `json:"back-file"`
+			Name      string          `json:"name"`
+			BackFile  string          `json:"back-file"`
+			BackInode json.RawMessage `json:"back-ino"`
 		} `json:"loopdevices"`
 	}
 	if err := json.Unmarshal([]byte(result.Stdout), &listing); err != nil {
@@ -314,12 +366,43 @@ func (h *Helper) validateManagedLoop(ctx context.Context, root, device string, c
 	if len(listing.LoopDevices) != 1 || listing.LoopDevices[0].Name != device || listing.LoopDevices[0].BackFile == "" {
 		return "", "", fmt.Errorf("loop device %s has no unique backing file", device)
 	}
-	backing := filepath.Clean(listing.LoopDevices[0].BackFile)
+	listedBacking := listing.LoopDevices[0].BackFile
+	backing := filepath.Clean(listedBacking)
+	if backing != listedBacking {
+		return "", "", fmt.Errorf("loop device %s reported non-canonical backing path %q", device, listedBacking)
+	}
 	id, err := validateManagedBacking(root, backing, callerUID)
 	if err != nil {
 		return "", "", fmt.Errorf("loop device %s is not Hacocoon-managed: %w", device, err)
 	}
+	info, err := os.Lstat(backing)
+	if err != nil {
+		return "", "", fmt.Errorf("reinspect backing image %q: %w", backing, err)
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return "", "", fmt.Errorf("inspect backing image inode for %q", backing)
+	}
+	loopInode, err := parseLoopBackingInode(listing.LoopDevices[0].BackInode)
+	if err != nil {
+		return "", "", fmt.Errorf("decode loop backing inode for %s: %w", device, err)
+	}
+	if stat.Ino != loopInode {
+		return "", "", fmt.Errorf("loop device %s backing inode %d does not match current managed file inode %d", device, loopInode, stat.Ino)
+	}
 	return id, backing, nil
+}
+
+func parseLoopBackingInode(raw json.RawMessage) (uint64, error) {
+	text := strings.TrimSpace(string(raw))
+	if len(text) >= 2 && text[0] == '"' && text[len(text)-1] == '"' {
+		text = text[1 : len(text)-1]
+	}
+	value, err := strconv.ParseUint(text, 10, 64)
+	if err != nil || value == 0 {
+		return 0, fmt.Errorf("invalid BACK-INO value %q", text)
+	}
+	return value, nil
 }
 
 func validateManagedRoot(root string, callerUID uint32) error {
