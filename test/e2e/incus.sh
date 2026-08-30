@@ -41,6 +41,25 @@ go build -o "$haco" ./cmd/haco
 "$haco" create --workspace "$workspace" "$environment" >/dev/null
 created=1
 
+status_output="$("$haco" status "$environment")"
+grep -Fq "state: running" <<<"$status_output" || {
+  echo "Hacocoon status did not report running state" >&2
+  printf '%s\n' "$status_output" >&2
+  exit 1
+}
+grep -Fq "runtime: $runtime_ref" <<<"$status_output" || {
+  echo "Hacocoon status did not report expected Incus runtime ref" >&2
+  printf '%s\n' "$status_output" >&2
+  exit 1
+}
+
+pid1="$("$haco" exec "$environment" -- cat /proc/1/comm)"
+[[ "$pid1" == "systemd" ]] || {
+  echo "expected systemd as PID 1, got $pid1" >&2
+  exit 1
+}
+"$haco" exec "$environment" -- systemctl is-active --quiet systemd-journald.service
+
 read_back="$("$haco" exec "$environment" -- cat /workspace/host.txt)"
 [[ "$read_back" == "from-host" ]] || {
   echo "workspace host->environment read mismatch: $read_back" >&2
@@ -74,6 +93,13 @@ grep -q "stderr-ok" "$stderr_file" || {
 
 printf 'exit\n' | "$haco" shell "$environment" >/dev/null
 
+status_output="$("$haco" status "$environment")"
+grep -Fq "state: running" <<<"$status_output" || {
+  echo "Hacocoon status changed unexpectedly after exec/shell" >&2
+  printf '%s\n' "$status_output" >&2
+  exit 1
+}
+
 config_file="$root/incus-config"
 incus config show "$runtime_ref" --expanded --project hacocoon >"$config_file"
 grep -Fq "$workspace" "$config_file" || {
@@ -106,4 +132,4 @@ if [[ -e "$HACO_ROOT/state/environments.json" ]] && grep -Fq "\"$environment\"" 
   exit 1
 fi
 
-echo "PASS: Hacocoon v0.1 CLI -> Incus workspace E2E"
+echo "PASS: Hacocoon Core CLI -> real Incus lifecycle E2E"
