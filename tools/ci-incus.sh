@@ -152,7 +152,9 @@ cleanup_project() {
   done < <(incus list --project "$project" --format csv -c n 2>/dev/null || true)
 
   [[ "$unexpected" == "0" ]] || return 1
-  incus project delete "$project" --force
+  # Incus 6.0 confirms destructive force deletion interactively even in CI.
+  # The exact project name and instance prefix were validated above.
+  printf 'yes\n' | incus project delete "$project" --force
 }
 
 cleanup() {
