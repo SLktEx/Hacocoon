@@ -59,7 +59,9 @@ EOF_ZABBLY
   rm -f "$source_file"
 
   sudo env DEBIAN_FRONTEND=noninteractive apt-get update
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus-base
+  # Managed Incus bridges require the dnsmasq executable. Keep dependencies
+  # explicit because CI intentionally disables apt Recommends.
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus-base dnsmasq-base
 }
 
 install_incus() {
@@ -75,14 +77,16 @@ install_incus() {
     return
   fi
 
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus
+  # dnsmasq-base is only Recommended by the Ubuntu Incus package, but
+  # `incus admin init --minimal` creates a managed bridge and needs it.
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus dnsmasq-base
 }
 
 record_environment() {
   echo '::group::GitHub runner / Incus environment'
   cat /etc/os-release
   uname -a
-  systemd --version | head -n 1 || true
+  systemctl --version | head -n 1 || true
   incus version
   incus info
   incus storage list
@@ -136,6 +140,14 @@ run_core_e2e() {
   bash test/e2e/incus.sh
 }
 
+incus_diag() {
+  if incus info >/dev/null 2>&1; then
+    incus "$@"
+  else
+    sudo incus "$@"
+  fi
+}
+
 capture_instance_diagnostics() {
   local project="$1"
   local instance
@@ -148,16 +160,16 @@ capture_instance_diagnostics() {
     esac
 
     echo "--- instance $project/$instance config ---"
-    incus config show "$instance" --expanded --project "$project" || true
+    incus_diag config show "$instance" --expanded --project "$project" || true
     echo "--- instance $project/$instance info ---"
-    incus info "$instance" --project "$project" || true
+    incus_diag info "$instance" --project "$project" || true
     echo "--- guest $project/$instance addresses/routes ---"
-    incus exec "$instance" --project "$project" -- ip address || true
-    incus exec "$instance" --project "$project" -- ip route || true
+    incus_diag exec "$instance" --project "$project" -- ip address || true
+    incus_diag exec "$instance" --project "$project" -- ip route || true
     echo "--- guest $project/$instance systemd ---"
-    incus exec "$instance" --project "$project" -- systemctl status --no-pager || true
-    incus exec "$instance" --project "$project" -- journalctl -b --no-pager -n 250 || true
-  done < <(incus list --project "$project" --format csv -c n 2>/dev/null || true)
+    incus_diag exec "$instance" --project "$project" -- systemctl status --no-pager || true
+    incus_diag exec "$instance" --project "$project" -- journalctl -b --no-pager -n 250 || true
+  done < <(incus_diag list --project "$project" --format csv -c n 2>/dev/null || true)
 }
 
 diagnostics() {
@@ -172,32 +184,32 @@ diagnostics() {
     echo '=== runner ==='
     cat /etc/os-release
     uname -a
-    systemd --version | head -n 3
+    systemctl --version | head -n 3
 
     if command -v incus >/dev/null 2>&1; then
       echo '=== Incus info/version ==='
-      incus version
-      incus info
+      incus_diag version
+      incus_diag info
       echo '=== Incus projects/instances ==='
-      incus project list
-      incus list --all-projects
+      incus_diag project list
+      incus_diag list --all-projects
       echo '=== Incus networks ==='
-      incus network list --project default
+      incus_diag network list --project default
       while IFS= read -r network; do
         [[ -n "$network" ]] || continue
         echo "--- network $network ---"
-        incus network show "$network" --project default || true
-      done < <(incus network list --project default --format csv -c n 2>/dev/null || true)
+        incus_diag network show "$network" --project default || true
+      done < <(incus_diag network list --project default --format csv -c n 2>/dev/null || true)
       echo '=== Incus ACLs/profiles ==='
-      incus network acl list --project default
-      incus profile list --project default
+      incus_diag network acl list --project default
+      incus_diag profile list --project default
       echo '=== Incus storage ==='
-      incus storage list
+      incus_diag storage list
       while IFS= read -r pool; do
         [[ -n "$pool" ]] || continue
         echo "--- storage $pool ---"
-        incus storage show "$pool" || true
-      done < <(incus storage list --format csv -c n 2>/dev/null || true)
+        incus_diag storage show "$pool" || true
+      done < <(incus_diag storage list --format csv -c n 2>/dev/null || true)
       capture_instance_diagnostics default
       capture_instance_diagnostics hacocoon
     else
