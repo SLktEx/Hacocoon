@@ -94,6 +94,7 @@ func (p *BaseProvider) imageFingerprintFromList(ctx context.Context, source, pro
 					matched = true
 					break
 				}
+			}
 		}
 		if matched {
 			matches[fingerprint] = struct{}{}
