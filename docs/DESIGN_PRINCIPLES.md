@@ -134,15 +134,80 @@ Fast creation, low idle cost, copy-on-write storage, reusable immutable Bases/Se
 
 Security mechanisms should protect the boundary without unnecessarily preventing the agent from acting like a normal developer inside it.
 
-## 11. Core stays small; integrations stay optional
+## 11. Separate Core, Standard, and Plugin responsibilities
 
-Core owns the generic Environment lifecycle and the policy/capability boundaries required to operate it safely.
+"Most users need it" does not by itself make a component Core.
 
-Developer workloads and integrations such as GitHub, containerd, nerdctl, Docker, OCI registries, cloud CLIs, VS Code, or other IDEs do not become Core requirements merely because Hacocoon supports them.
+### Core
 
-Use adapters/plugins and ordinary package boundaries. Generalize only when a second implementation, a stable test seam, or a concrete replacement need justifies the abstraction.
+Core owns the stable contracts and control logic that define Hacocoon's product and security semantics:
 
-## 12. Portability is a design constraint
+- generic Environment lifecycle and Execution;
+- Policy / Approval / Capability semantics;
+- request models and controller contracts for crossing the Environment boundary;
+- provider-facing contracts used to enforce those decisions;
+- state and audit semantics that must remain consistent across implementations.
+
+Core defines **what must be controlled**, not which implementation technology performs that control.
+
+### Standard
+
+Standard components are project-maintained default implementations expected to ship with and serve most normal Hacocoon installations. They are replaceable implementations of Core contracts, not permanent Core semantics.
+
+Examples may include:
+
+- the current Incus Environment backend;
+- a future project-maintained default egress proxy/enforcer;
+- default notification or interaction adapters shipped for normal installations.
+
+A Standard component may be enabled by default without making its implementation technology a permanent Core dependency.
+
+### Plugin
+
+Plugins are optional integrations, alternative implementations, or workload-specific features whose absence still leaves a generally useful Hacocoon installation.
+
+GitHub, containerd, nerdctl, Docker, OCI registries, cloud CLIs, specific IDEs, and specialized enterprise proxies do not become Core requirements merely because Hacocoon supports them.
+
+Use this practical test:
+
+> Would the normal Hacocoon distribution still be complete and generally useful without this component?
+
+If yes, it is usually Plugin territory. If users normally need one implementation but it should remain replaceable, it is Standard. If removing or changing the contract would change Hacocoon's product or security semantics, that contract belongs in Core.
+
+nerdctl / Docker / OCI tooling are Plugins. The current Incus backend is Standard.
+
+## 12. Egress contracts are Core; the default implementation is Standard
+
+Hacocoon gives agents broad freedom inside an Environment while allowing humans to control outbound access according to configured Policy.
+
+Conceptually:
+
+```text
+untrusted Environment
+       |
+       | EgressRequest(destination, protocol, port, metadata)
+       v
+Core Policy / Approval / EgressController
+       |
+       | allow / deny / require-approval
+       v
+EgressProvider contract
+       |
+       v
+Standard or alternative enforcement implementation
+```
+
+`EgressRequest`, policy decisions, approval binding, and the `EgressController` / `EgressProvider` contracts are Core concerns.
+
+Concrete enforcement mechanisms such as HTTP CONNECT, SOCKS, DNS-aware proxies, nftables, Incus ACL manipulation, or Kubernetes NetworkPolicy are not Core.
+
+The project-maintained default proxy/enforcer used by normal Hacocoon installations belongs in Standard. Specialized enterprise proxies and alternative enforcement mechanisms may be Plugins or provider-specific adapters.
+
+The current v0.13 Managed Sandbox Network implements only the default-deny substrate. Documenting this architecture does not imply that domain-aware allow/approval enforcement is already implemented.
+
+Operations such as Git that cannot express authority safely as a generic network destination may use specialized Capabilities containing organization, repository, branch/ref, operation, or other authority-sensitive attributes while reusing the same Core Policy / Approval semantics.
+
+## 13. Portability is a design constraint
 
 An Environment should remain conceptually usable from different clients and on different backends.
 
@@ -156,10 +221,11 @@ Do not make VS Code, Incus, a specific container runtime, or a specific cloud pr
 | Workspace | only explicitly selected data is mounted; writable mode permits destructive edits |
 | Host credentials / control sockets | not ambiently exposed to the Environment |
 | Privileged external operations | mediated through explicit policy/capability boundaries |
+| Outbound network | authorized through Core policy/approval semantics; concrete enforcement is delegated to Standard/provider/plugin implementations |
 | Environment isolation | provided by the selected backend and its documented guarantees |
 | Host kernel / trusted runtime daemon / Hacocoon host process | trusted computing base |
 | Kernel exploit / container escape defense | not guaranteed by the container backend; use a stronger backend when required |
 
 The intended default is therefore:
 
-> Give the agent broad freedom inside a cheap Environment, keep host authority outside it, and let the backend define how strong the isolation boundary is.
+> Give the agent broad freedom inside a cheap Environment, keep authority crossing the boundary under human Policy, and delegate concrete enforcement to replaceable Standard, provider, or Plugin implementations.

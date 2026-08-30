@@ -134,15 +134,80 @@ Hacocoonは、隔離Environmentを特別に危険な作業だけでなく普段�
 
 Security mechanismは境界を守るべきですが、Environment内でagentが普通のdeveloperのように動くことまで不必要に妨げるべきではありません。
 
-## 11. Coreは小さく、integrationはoptionalにする
+## 11. Core / Standard / Pluginを分ける
 
-Coreが所有するのはgenericなEnvironment lifecycleと、それを安全に扱うためのpolicy/capability boundaryです。
+「多くの利用者が使う」ことと「Coreである」ことは同じではありません。
 
-GitHub、containerd、nerdctl、Docker、OCI registry、cloud CLI、VS Code、その他IDEなどは、Hacocoonが対応しているという理由だけでCore requirementにはしません。
+### Core
 
-Adapter/pluginと通常のpackage boundaryを使います。Second implementation、安定したtest seam、具体的なreplacement requirementが出てからgeneralizeします。
+Coreが所有するのは、Hacocoonの意味やsecurity contractそのものを決める安定した契約と制御です。
 
-## 12. Portabilityを設計上の制約にする
+- genericなEnvironment lifecycle / Execution
+- Policy / Approval / Capabilityの意味
+- Environment境界を越えるrequest modelとcontroller contract
+- provider/backendがそのdecisionを実行するためのcontract
+- 実装が変わっても一貫していなければならないstate / audit semantics
+
+Coreは「何を制御するか」を定義し、「どの具体技術で制御するか」は定義しません。
+
+### Standard
+
+Standardは、通常のHacocoon配布物として公式に提供し、多くの利用者がそのまま使うことを想定するdefault implementationです。ただし、Hacocoonの意味そのものではなく、Core contractを満たす交換可能な実装です。
+
+たとえば次のようなものをStandardに置けます。
+
+- 現在のIncus Environment backend
+- 将来実装するproject-maintainedなdefault egress proxy / enforcer
+- 通常配布するdefault notification / interaction adapter
+
+Standardはdefaultで有効でも構いませんが、Coreがその実装技術へ恒久的に依存してはいけません。
+
+### Plugin
+
+Pluginは、なくても一般的なHacocoonとして成立するoptional integration、代替実装、特定workload向け機能です。
+
+GitHub、containerd、nerdctl、Docker、OCI registry、cloud CLI、特定IDE、特殊なenterprise proxyなどは、Hacocoonが対応しているという理由だけでCore requirementにはしません。
+
+実用上の判定基準は次です。
+
+> そのcomponentを外しても、通常配布のHacocoonは一般用途として成立するか？
+
+成立するなら通常はPluginです。一般利用で1つの実装がほぼ必要だが差し替え可能であるべきならStandardです。削除や変更によってHacocoonのproduct semantics / security contractそのものが変わる契約はCoreです。
+
+nerdctl / Docker / OCI toolingはPluginです。現在のIncus backendはStandardです。
+
+## 12. Egress制御の契約はCore、default実装はStandard
+
+Environmentの中ではagentに広い自由を与えますが、Environmentの外へ出る通信は人間が設定したPolicyで制御できることをHacocoonのproduct semanticsに含めます。
+
+概念的には次の形です。
+
+```text
+untrusted Environment
+       |
+       | EgressRequest(destination, protocol, port, metadata)
+       v
+Core Policy / Approval / EgressController
+       |
+       | allow / deny / require-approval
+       v
+EgressProvider contract
+       |
+       v
+Standard or alternative enforcement implementation
+```
+
+`EgressRequest`、Policy decision、Approvalとのbinding、`EgressController` / `EgressProvider`の契約はCoreです。
+
+一方で、HTTP CONNECT、SOCKS、DNS-aware proxy、nftables、Incus ACL操作、Kubernetes NetworkPolicyなどの具体的なenforcement mechanismはCoreではありません。
+
+通常のHacocoon配布物で利用するproject-maintainedなdefault proxy/enforcerはStandardに置きます。特殊なenterprise proxyや別方式のenforcerはPluginまたはprovider-specific adapterにできます。
+
+現在のv0.13 Managed Sandbox Networkはdefault-deny substrateまでであり、この設計原則を記載したことだけでdomain-aware allow/approval enforcementが実装済みになったとは扱いません。
+
+Gitのように一般network destinationだけではauthorityを十分に表現できない操作は、org / repository / branch/ref / operationなどを含むspecialized Capabilityとして扱えます。特殊化してもPolicy / ApprovalのCore semanticsは共有します。
+
+## 13. Portabilityを設計上の制約にする
 
 Environmentは、異なるclientや異なるbackendから概念的に同じように利用できる状態を保ちます。
 
@@ -156,10 +221,11 @@ VS Code、Incus、特定container runtime、特定cloud providerをEnvironment�
 | Workspace | 明示的に選んだdataだけをmount。writable modeでは破壊的変更も可能 |
 | Host credential / control socket | Environmentへambientに露出しない |
 | Privileged external operation | 明示的なpolicy/capability boundaryで仲介する |
+| Outbound network | Coreのpolicy/approval semanticsでauthorizationし、具体的なenforcementはStandard/provider/plugin実装へ委ねる |
 | Environment isolation | 選択したbackendと、そのbackendが文書化した保証が提供する |
 | Host kernel / trusted runtime daemon / Hacocoon host process | trusted computing base |
 | Kernel exploit / container escape defense | container backendでは保証しない。必要ならより強いbackendを使う |
 
 Hacocoonのdefaultな方向性を一文で表すと、次の通りです。
 
-> 安価なEnvironmentの中ではagentに広い自由を与え、host authorityは外側に残し、isolation boundaryの強さはbackendに委ねる。
+> 安価なEnvironmentの中ではagentに広い自由を与え、外へ出るauthorityは人間のPolicyで制御し、具体的な実装方式は交換可能なStandard / Provider / Pluginへ委ねる。
