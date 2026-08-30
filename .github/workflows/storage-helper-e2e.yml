@@ -73,22 +73,19 @@ jobs:
         run: bash tools/ci-storage-cli.sh test
       - name: Run haco-host trusted management CLI acceptance
         env:
-          HACO_E2E_INCUS: "1"
           HACO_E2E_HACO_BIN: ${{ runner.temp }}/haco-storage-cli-bin
           HACO_E2E_SHARED_ROOT: ${{ runner.temp }}/haco-storage-cli-e2e
-        run: bash test/e2e/host.sh
+        run: bash test/e2e/host.sh --managed-ci
       - name: Run SSH and local-forward client access CLI acceptance
         env:
-          HACO_E2E_INCUS: "1"
           HACO_E2E_HACO_BIN: ${{ runner.temp }}/haco-storage-cli-bin
           HACO_E2E_SHARED_ROOT: ${{ runner.temp }}/haco-storage-cli-e2e
-        run: bash test/e2e/client_access.sh
+        run: bash test/e2e/client_access.sh --managed-ci
       - name: Run doctor and policy egress CLI acceptance
         env:
-          HACO_E2E_INCUS: "1"
           HACO_E2E_HACO_BIN: ${{ runner.temp }}/haco-storage-cli-bin
           HACO_E2E_SHARED_ROOT: ${{ runner.temp }}/haco-storage-cli-e2e
-        run: bash test/e2e/egress.sh
+        run: bash test/e2e/egress.sh --managed-ci
       - name: Capture storage CLI diagnostics
         if: failure()
         run: |
