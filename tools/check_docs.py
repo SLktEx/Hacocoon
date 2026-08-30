@@ -4,7 +4,7 @@ import re
 import sys
 
 root = Path(__file__).resolve().parents[1]
-files = [p for p in root.rglob("*.md") if p.name != "Hacocoon_v0.1-v0.7_MASTER.md"]
+files = list(root.rglob("*.md"))
 
 errors = []
 checks = [
@@ -41,8 +41,23 @@ for rel in superseded:
     if (root / rel).exists():
         errors.append(f"superseded documentation file still exists: {rel}")
 
+obsolete_artifacts = [
+    "CODEX_START_HERE.md",
+    "Hacocoon_v0.1-v0.7_MASTER.md",
+    "REFACTOR_NOTES.md",
+    ".github/AGENTS.md",
+    "docs/90_CODEX_IMPLEMENTATION_HANDOFF.md",
+    "docs/91_IMPLEMENTATION_REFERENCE_NOTES.md",
+    "docs/REMOTE_CLOUD_PROVISIONING.md",
+    "docs/IMPLEMENTATION_STATUS_TEMPLATE.md",
+    "tools/build_master.py",
+]
+for rel in obsolete_artifacts:
+    if (root / rel).exists():
+        errors.append(f"obsolete repository artifact still exists: {rel}")
+
 required = [
-    "README.md", "README.ja.md", "CODEX_START_HERE.md",
+    "README.md", "README.ja.md", "AGENTS.md",
     "docs/README.md", "docs/README.ja.md",
     "docs/00A_PLUGIN_ARCHITECTURE.md",
     "docs/00_REBASELINE_AND_ROADMAP.md",
@@ -71,6 +86,10 @@ def require_text(path, items):
         if item.lower() not in lower:
             errors.append(f"{path} missing required text: {item}")
 
+require_text("AGENTS.md", [
+    "docs/README.md", ".github/security/ADVERSARIAL_AUDIT.md",
+    "Do not add tool-specific handoff files", "bash tools/ci-local.sh",
+])
 require_text("docs/00D_VERSIONING_AND_RELEASE_STATUS.md", [
     "One independently useful product feature",
     "v0.13 | Managed Sandbox Network",
