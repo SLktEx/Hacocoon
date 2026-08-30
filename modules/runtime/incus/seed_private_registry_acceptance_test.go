@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -56,8 +55,11 @@ func TestPrivateRegistryHostAcquisitionAcceptance(t *testing.T) {
 	server := newAcceptanceRegistryServer(t, username, password, image)
 	defer server.Close()
 
-	hostport := strings.TrimPrefix(server.URL, "https://")
-	configureAcceptanceRegistryTrust(t, server, hostport, username, password)
+	// nerdctl intentionally treats loopback registries as HTTP. This acceptance
+	// test isolates the Host-owned authentication boundary; production registry
+	// TLS trust configuration is deployment-specific and is not asserted here.
+	hostport := strings.TrimPrefix(server.URL, "http://")
+	configureAcceptanceRegistryCredentials(t, hostport, username, password)
 
 	runtime := New(host.ExecRunner{})
 	provider, err := NewSandboxProvider(runtime)
@@ -92,8 +94,8 @@ func TestPrivateRegistryHostAcquisitionAcceptance(t *testing.T) {
 	badImage := buildAcceptanceRegistryImage(t, "host-acquisition-auth-failure")
 	badServer := newAcceptanceRegistryServer(t, username, password+"-different", badImage)
 	defer badServer.Close()
-	badHostport := strings.TrimPrefix(badServer.URL, "https://")
-	configureAcceptanceRegistryTrust(t, badServer, badHostport, username, "definitely-wrong")
+	badHostport := strings.TrimPrefix(badServer.URL, "http://")
+	configureAcceptanceRegistryCredentials(t, badHostport, username, "definitely-wrong")
 	badIdentity := seedbuild.ImageIdentity{
 		Reference: badHostport + "/hacocoon/private:stable",
 		Digest:    badImage.manifestDigest,
@@ -202,7 +204,7 @@ func newAcceptanceRegistryServer(t *testing.T, username, password string, image 
 			http.NotFound(w, r)
 		}
 	})
-	return httptest.NewTLSServer(handler)
+	return httptest.NewServer(handler)
 }
 
 func serveAcceptanceRegistryObject(w http.ResponseWriter, r *http.Request, mediaType, digest string, body []byte) {
@@ -215,13 +217,8 @@ func serveAcceptanceRegistryObject(w http.ResponseWriter, r *http.Request, media
 	}
 }
 
-func configureAcceptanceRegistryTrust(t *testing.T, server *httptest.Server, hostport, username, password string) {
+func configureAcceptanceRegistryCredentials(t *testing.T, hostport, username, password string) {
 	t.Helper()
-	certPath := filepath.Join(t.TempDir(), "registry-ca.pem")
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
-	if err := os.WriteFile(certPath, certPEM, 0o600); err != nil {
-		t.Fatal(err)
-	}
 	dockerConfig := t.TempDir()
 	auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
 	config, err := json.Marshal(map[string]any{
@@ -235,6 +232,5 @@ func configureAcceptanceRegistryTrust(t *testing.T, server *httptest.Server, hos
 	if err := os.WriteFile(filepath.Join(dockerConfig, "config.json"), config, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("SSL_CERT_FILE", certPath)
 	t.Setenv("DOCKER_CONFIG", dockerConfig)
 }
