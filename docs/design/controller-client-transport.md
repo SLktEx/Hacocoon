@@ -2,7 +2,7 @@
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The local Unix-domain-socket protocol, Physical Host controller, trusted-`haco-host` endpoint projection, client-only `haco-host` CLI, typed Environment lifecycle calls, and the first interactive stream are implemented. Migrating the remaining Physical-Host-authority `haco` operations, PTY control framing, Environment port forwarding, and any remote transport remain follow-up work.
+Status: **partial**. The local Unix-domain-socket protocol, Physical Host controller, trusted-`haco-host` endpoint projection, client-only `haco-host` CLI, typed Environment lifecycle calls, the first interactive stream, and the first general `haco env ...` controller-client namespace are implemented. Migrating the remaining `haco` operations, PTY control framing, Environment port forwarding, and any remote transport remain follow-up work.
 
 ## Summary
 
@@ -11,19 +11,26 @@ Hacocoon clients ask the trusted Physical Host controller to perform Environment
 The local path is:
 
 ```text
+client (`haco`, `haco-host`, future adapters)
+  |
+  | Hacocoon Unix-domain endpoint
+  v
+Physical Host haco-controller
+  |
+  | provider/backend boundary
+  v
+Incus or another Environment backend
+```
+
+Inside trusted `haco-host`, the client endpoint is projected as:
+
+```text
 trusted haco-host
   |
   | /var/lib/hacocoon-control.sock
   | Incus proxy device: haco-control
   v
 Physical Host /run/hacocoon/control.sock
-  |
-  v
-haco-controller
-  |
-  | provider/backend boundary
-  v
-Incus or another Environment backend
 ```
 
 The extra local hop is intentional. Policy, approval, authoritative state, logging, and provider authority stay on the controller side.
@@ -100,22 +107,30 @@ The typed Environment API currently includes:
 - delete;
 - controller ping/doctor diagnostics.
 
-The client-only `haco-host` executable uses this API and does not initialize `composition.Local()`.
+Both the client-only `haco-host` executable and the controller-backed `haco env ...` namespace use this API without direct Incus authority.
 
-## Streaming
+## General `haco` client namespace
 
-The stream handshake validates the request before acknowledging success where possible, then carries bidirectional bytes over the same Unix-domain transport.
+`haco` is the general Hacocoon client. The first migrated namespace is:
 
-The current implementation uses it for interactive Environment shell traffic and preserves client half-close semantics. Future framing may add:
+```text
+haco env list
+haco env create --workspace <path> <environment>
+haco env status <environment>
+haco env exec <environment> -- <command...>
+haco env shell <environment>
+haco env delete <environment>
+```
 
-- streamed non-interactive stdin/stdout/stderr plus exit metadata;
-- PTY resize/control events;
-- Environment TCP forwarding;
-- other bounded controller-mediated streams.
+These commands are intentionally dispatched **before** `composition.Local()` is initialized. A `haco env ...` invocation therefore cannot silently become a guest-local Incus operation when the same binary is executed inside trusted `haco-host`.
 
-`Session` is not introduced as a new public domain concept; the stream is an implementation detail for an Execution or client connection.
+The command either reaches the configured Hacocoon controller endpoint or fails through the controller-client transport. It does not fall back to direct local composition.
 
-## `haco-host` client commands
+The historical flat commands such as `haco create`, `haco status`, `haco exec`, `haco shell`, and `haco delete` remain compatibility/local paths in this migration slice. They are not evidence that `haco` is permanently Physical-Host-only; each remaining namespace must be classified and migrated or explicitly retained as bootstrap/recovery behavior.
+
+Production bootstrap does not yet install the full `haco` binary into trusted `haco-host`. Real-Incus acceptance temporarily places the test binary there only to prove that `haco env ...` operates through the projected controller endpoint. Permanent provisioning should happen after the remaining command namespaces have been classified so users cannot accidentally invoke an ambiguous legacy local path from the trusted Host.
+
+## `haco-host` transition surface
 
 The packaged client-only binary currently exposes:
 
@@ -129,7 +144,22 @@ haco-host env delete <environment>
 haco-host doctor
 ```
 
+The `haco-host env ...` surface remains useful during migration, but ordinary Environment lifecycle belongs to general `haco` UX. Long-term `haco-host` commands should focus on operations whose execution domain is the trusted logical Host itself, such as trusted tooling, credential brokering, OCI/runtime administration, and Windows/WSL integration.
+
 `env create --workspace` still uses the controller-side Workspace path contract. Moving repository ownership or Workspace path resolution fully into the logical Host is separate architecture work.
+
+## Streaming
+
+The stream handshake validates the request before acknowledging success where possible, then carries bidirectional bytes over the same Unix-domain transport.
+
+The current implementation uses it for interactive Environment shell traffic and preserves client half-close semantics. Future framing may add:
+
+- streamed non-interactive stdin/stdout/stderr plus exit metadata;
+- PTY resize/control events;
+- Environment TCP forwarding;
+- other bounded controller-mediated streams.
+
+`Session` is not introduced as a new public domain concept; the stream is an implementation detail for an Execution or client connection.
 
 ## Performance
 
@@ -152,12 +182,15 @@ Repository and real-Incus acceptance cover:
 - client binary provisioning and idempotency;
 - real trusted-instance `haco-host doctor` round trip to the Physical Host controller;
 - stopped/restarted trusted Host regaining controller access;
+- `haco env` create/list/status/exec/delete from inside the real trusted Host through the Physical Host controller;
+- guest command exit-status/stdout/stderr propagation through the general client path;
 - absence of raw Incus control-socket exposure;
 - absence of the trusted controller endpoint on ordinary Environments.
 
 Still planned:
 
-- move the appropriate Physical-Host-authority `haco` commands onto the controller client interface;
+- classify and migrate the remaining appropriate `haco` commands onto the controller client interface;
+- permanently provision `haco` into trusted `haco-host` after ambiguous legacy-local namespaces are removed or isolated;
 - streamed Execution framing with explicit stdout/stderr/exit metadata;
 - PTY resize/control framing;
 - generic Environment forwarding;
