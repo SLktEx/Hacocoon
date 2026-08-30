@@ -11,15 +11,15 @@ import (
 )
 
 type fakeEnvironments struct {
-	calls            []string
-	createSpec       core.EnvironmentSpec
-	execReq          core.ExecutionRequest
-	createErr        error
-	execResult       core.ExecutionResult
-	execErr          error
-	deleteErr        error
+	calls             []string
+	createSpec        core.EnvironmentSpec
+	execReq           core.ExecutionRequest
+	createErr         error
+	execResult        core.ExecutionResult
+	execErr           error
+	deleteErr         error
 	deleteHadDeadline bool
-	deleteContextErr error
+	deleteContextErr  error
 }
 
 func (f *fakeEnvironments) Create(_ context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
@@ -70,6 +70,43 @@ func TestRunComposesCreateExecCleanup(t *testing.T) {
 	}
 	if result.Environment != "run-abc" || !result.CleanedUp || result.Execution.Stdout != "ok\n" {
 		t.Fatalf("result=%#v", result)
+	}
+	if result.Execution.StdoutTruncated || result.Execution.StderrTruncated || result.Execution.StdoutBytes != 3 || result.Execution.StderrBytes != 0 {
+		t.Fatalf("unexpected output metadata: %#v", result.Execution)
+	}
+}
+
+func TestRunExposesHostTruncationMetadata(t *testing.T) {
+	stdout := "abcdefgh\n[haco: output truncated; total-bytes=200]\n"
+	stderr := "warn\n[haco: output truncated; total-bytes=99]\n"
+	env := &fakeEnvironments{execResult: core.ExecutionResult{Stdout: stdout, Stderr: stderr, ExitCode: 0}}
+	result, err := serviceWithName(env, "run-truncated").Run(context.Background(), Spec{WorkspacePath: "/work/demo", Argv: []string{"noisy-agent"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Execution.StdoutTruncated || !result.Execution.StderrTruncated {
+		t.Fatalf("truncation metadata=%#v", result.Execution)
+	}
+	if result.Execution.StdoutBytes != 200 || result.Execution.StderrBytes != 99 {
+		t.Fatalf("byte metadata=%#v", result.Execution)
+	}
+	if result.Execution.Stdout != stdout || result.Execution.Stderr != stderr {
+		t.Fatalf("visible truncation markers were lost: %#v", result.Execution)
+	}
+}
+
+func TestRunPrefersExplicitRuntimeByteMetadata(t *testing.T) {
+	env := &fakeEnvironments{execResult: core.ExecutionResult{
+		Stdout:          "prefix",
+		StdoutTruncated: true,
+		StdoutBytes:     12345,
+	}}
+	result, err := serviceWithName(env, "run-explicit").Run(context.Background(), Spec{WorkspacePath: "/work/demo", Argv: []string{"agent"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Execution.StdoutTruncated || result.Execution.StdoutBytes != 12345 {
+		t.Fatalf("metadata=%#v", result.Execution)
 	}
 }
 
