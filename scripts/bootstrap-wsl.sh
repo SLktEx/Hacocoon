@@ -6,6 +6,8 @@ VERSION="${2:-latest}"
 SKIP_INCUS="${HACO_BOOTSTRAP_SKIP_INCUS:-0}"
 GRANT_INCUS_ADMIN="${HACO_BOOTSTRAP_GRANT_INCUS_ADMIN:-0}"
 SYSTEMD_RESTART_REQUIRED=42
+ZABBLY_INCUS_REPOSITORY="${HACO_BOOTSTRAP_INCUS_REPOSITORY:-lts-7.0}"
+ZABBLY_KEY_FINGERPRINT="4EFC590696CB15B87C73A3AD82CC8797C838DCFD"
 
 if [ -z "$INSTALLER" ] || [ ! -f "$INSTALLER" ]; then
   printf 'haco bootstrap: install script not found: %s\n' "$INSTALLER" >&2
@@ -80,9 +82,56 @@ configure_wsl_systemd() {
   rm -f "$tmp"
 }
 
+configure_zabbly_incus_repository() {
+  case "$ZABBLY_INCUS_REPOSITORY" in
+    lts-7.0|stable)
+      ;;
+    *)
+      printf 'haco bootstrap: unsupported Incus repository %s (expected lts-7.0 or stable)\n' "$ZABBLY_INCUS_REPOSITORY" >&2
+      exit 1
+      ;;
+  esac
+
+  key="$(mktemp)"
+  curl --fail --silent --show-error --location \
+    --proto '=https' --tlsv1.2 \
+    https://pkgs.zabbly.com/key.asc \
+    --output "$key"
+  actual_fingerprint="$(gpg --show-keys --with-colons "$key" 2>/dev/null | awk -F: '$1 == "fpr" { print $10; exit }')"
+  if [ "$actual_fingerprint" != "$ZABBLY_KEY_FINGERPRINT" ]; then
+    rm -f "$key"
+    printf 'haco bootstrap: Zabbly repository signing-key fingerprint mismatch\n' >&2
+    exit 1
+  fi
+
+  $SUDO install -d -m 0755 /etc/apt/keyrings
+  $SUDO install -m 0644 "$key" /etc/apt/keyrings/zabbly-incus.asc
+  rm -f "$key"
+
+  codename="$(. /etc/os-release && printf '%s' "${VERSION_CODENAME:-}")"
+  architecture="$(dpkg --print-architecture)"
+  if [ -z "$codename" ] || [ -z "$architecture" ]; then
+    printf 'haco bootstrap: could not determine apt distribution codename/architecture for Incus\n' >&2
+    exit 1
+  fi
+
+  source_tmp="$(mktemp)"
+  cat >"$source_tmp" <<EOF
+Enabled: yes
+Types: deb
+URIs: https://pkgs.zabbly.com/incus/$ZABBLY_INCUS_REPOSITORY
+Suites: $codename
+Components: main
+Architectures: $architecture
+Signed-By: /etc/apt/keyrings/zabbly-incus.asc
+EOF
+  $SUDO install -m 0644 "$source_tmp" /etc/apt/sources.list.d/zabbly-incus-hacocoon.sources
+  rm -f "$source_tmp"
+}
+
 printf '==> Installing base dependencies and systemd support\n'
 $SUDO apt-get update
-$SUDO apt-get install -y ca-certificates curl tar git systemd systemd-sysv
+$SUDO apt-get install -y ca-certificates curl gnupg tar git systemd systemd-sysv
 
 printf '==> Enabling systemd for this WSL distribution\n'
 configure_wsl_systemd
@@ -96,6 +145,10 @@ fi
 printf '==> systemd is active as PID 1\n'
 
 if [ "$SKIP_INCUS" != "1" ]; then
+  printf '==> Configuring verified Incus %s repository\n' "$ZABBLY_INCUS_REPOSITORY"
+  configure_zabbly_incus_repository
+  $SUDO apt-get update
+
   printf '==> Installing Incus\n'
   $SUDO apt-get install -y incus
 
