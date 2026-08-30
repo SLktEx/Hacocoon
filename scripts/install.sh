@@ -173,14 +173,16 @@ validate_release_archive() {
   archive_names="$(tar -tzf "$archive_path")" || die "release archive cannot be listed safely"
   if ! printf '%s\n' "$archive_names" | awk '
     $0 == "haco" { haco++ }
+    $0 == "haco-controller" { controller++ }
+    $0 == "haco-host" { hacohost++ }
     $0 == "haco-vscode" { vscode++ }
     $0 == "haco-agent-host" { agenthost++ }
     $0 == "haco-notify" { notify++ }
     $0 == "haco-storage-helper" { storagehelper++ }
     { count++ }
-    END { exit !(count == 5 && haco == 1 && vscode == 1 && agenthost == 1 && notify == 1 && storagehelper == 1) }
+    END { exit !(count == 7 && haco == 1 && controller == 1 && hacohost == 1 && vscode == 1 && agenthost == 1 && notify == 1 && storagehelper == 1) }
   '; then
-    die "release archive must contain exactly haco, haco-vscode, haco-agent-host, haco-notify, and haco-storage-helper"
+    die "release archive must contain exactly haco, haco-controller, haco-host, haco-vscode, haco-agent-host, haco-notify, and haco-storage-helper"
   fi
 
   archive_verbose="$(LC_ALL=C tar -tvzf "$archive_path")" || die "release archive entry types cannot be inspected"
@@ -189,7 +191,7 @@ validate_release_archive() {
       count++
       if (substr($1, 1, 1) != "-") bad = 1
     }
-    END { exit !(count == 5 && bad != 1) }
+    END { exit !(count == 7 && bad != 1) }
   '; then
     die "release archive contains a non-regular entry"
   fi
@@ -234,7 +236,7 @@ validate_release_archive "$tmpdir/$archive"
 staging="$tmpdir/staging"
 mkdir -m 0700 "$staging"
 tar -xzf "$tmpdir/$archive" -C "$staging"
-for binary in haco haco-vscode haco-agent-host haco-notify haco-storage-helper; do
+for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper; do
   [ -f "$staging/$binary" ] || die "release archive does not contain regular file $binary"
   [ ! -L "$staging/$binary" ] || die "release archive extracted symbolic link for $binary"
   chmod 0755 "$staging/$binary"
@@ -296,6 +298,8 @@ prepare_default_haco_root() {
 }
 
 install_binary haco
+install_binary haco-controller
+install_binary haco-host
 install_binary haco-vscode
 install_binary haco-agent-host
 install_binary haco-notify

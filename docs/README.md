@@ -18,6 +18,7 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, devel
 - Logging policy: [`reference/logging.md`](reference/logging.md)
 - Domain-aware egress: [`EGRESS_AUTHORIZATION.md`](EGRESS_AUTHORIZATION.md)
 - Managed Btrfs storage: [`design/btrfs-storage-layout.md`](design/btrfs-storage-layout.md)
+- Controller/client transport: [`design/controller-client-transport.md`](design/controller-client-transport.md)
 - Reusable client adapters: [`CLIENT_ADAPTER_CONTRACT.md`](CLIENT_ADAPTER_CONTRACT.md)
 - Client interaction events and notification delivery: [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md)
 - Documentation style: [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md)
@@ -81,6 +82,7 @@ Current design/reference documents include:
 - [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md)
 - [`reference/logging.md`](reference/logging.md)
 - [`design/btrfs-storage-layout.md`](design/btrfs-storage-layout.md)
+- [`design/controller-client-transport.md`](design/controller-client-transport.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md) — deferred optional direction
 
 ## Trusted Host / WSL entry
