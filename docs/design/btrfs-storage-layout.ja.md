@@ -1,6 +1,6 @@
 # Hacocoon 管理 Btrfs ストレージレイアウト
 
-状態: **repository実装あり。GitHub-hosted上のnormal-user helper acceptanceを自動化済み。physical compression/COW/compaction acceptanceはhost-dependentです。**
+状態: **repository実装あり。GitHub-hosted上のnormal-user helperとreal CLI acceptanceを自動化済み。physical compression/COW/compaction acceptanceはhost-dependentです。**
 
 Milestone: **v0.20 Managed Btrfs Rootfs Storage** / **v0.21 Managed Btrfs Transparent Compression**。
 
@@ -58,7 +58,7 @@ Hacocoon local composition を通さず低レベル Incus runtime を直接利�
 
 通常の `haco` process は非rootのまま動かす。sparse backing file の作成・size変更、state/lock file、その他 Host 特権を必要としない処理はordinary-user process側に残し、Host権限が必要な固定storage operationだけを専用の `haco-storage-helper` へ委譲する。
 
-release installerはhelperを通常PATH外の `/usr/local/libexec/hacocoon/haco-storage-helper` へ置き、root所有・group/other非writableにする。委譲前にHacocoonはhelper本体と固定 `/usr/bin/sudo` を、root所有・実行可能・non-symlink fileかつroot所有で書き換え不能なparent directory配下か検証する。Hacocoonは**passwordless sudo ruleをinstallしない**。sudoがpromptするか、既存credential cacheを使うか、拒否するかはHost/operator policyであり、CLI全体をrootへ昇格させる設計ではない。
+release installerはhelperを通常PATH外の `/usr/local/libexec/hacocoon/haco-storage-helper` へ置き、root所有・group/other非writableにする。委譲前にHacocoonはhelper本体について、root所有・実行可能なregular non-symlink fileで、root所有かつ書き換え不能なparent directory配下であることを要求する。`/usr/bin/sudo` のような固定OS toolはdistribution上symlinkである場合があるためcanonical targetへ解決し、そのtargetとparent chainがroot所有・非writableであることを検証する。Hacocoonは**passwordless sudo ruleをinstallしない**。sudoがpromptするか、既存credential cacheを使うか、拒否するかはHost/operator policyであり、CLI全体をrootへ昇格させる設計ではない。
 
 helperは任意のexecutable/argv forwarding APIではなくtyped operationだけを公開する。権限範囲はHacocoon-managed storage objectと固定command shapeに限定し、loop discovery/attach/detach/rescan、filesystem type probe、Btrfs format、mount/remount/unmount、usage/resize/minimum-size/balance、trimのみを扱う。任意shell execution、任意mount option、任意block device format、任意loop device、任意Host path、任意Btrfs subcommandは提供しない。
 
@@ -76,7 +76,7 @@ storage lifecycleのserializationは引き続きordinary storage layerのper-sto
 
 `HACO_STORAGE_PRIVILEGE_MODE=direct` はfake/test/development environment専用で、callerが元々持っている権限のままcommandを直接実行するだけです。権限を付与する仕組みではなく、通常のmanaged Btrfs operationで使うprivileged shortcutではない。
 
-repository CIにはdisposableなGitHub-hosted Ubuntu 26.04 acceptanceがあり、Go test processをordinary runner userのまま実行し、installed root-owned helperを経由してreal sparse image作成、loop attach、Btrfs format、`compress=zstd:3` mount、inspect、unmount、loop detach、backing image deleteまでを確認する。このacceptanceはそのhosted environment上でnormal-user privilege boundaryが機能することを示すが、physical compression ratio、COW効率、compaction効果、すべてのsupported Host configurationまで証明するものではない。
+repository CIはdisposableなGitHub-hosted Ubuntu 26.04上で二段のacceptanceを順番に実行する。第一段ではGo test processをordinary runner userのまま実行し、installed root-owned helperを経由してreal sparse image作成、loop attach、Btrfs format、`compress=zstd:3` mount、inspect、idempotent reuse、unmount、loop detach、backing image deleteまでを確認する。第二段ではfresh runnerで同じhelper境界とreal Incusを組み合わせ、actual ordinary-user `haco` binaryを実行してlazyな `haco-local-default` pool作成、`haco create` / `exec` / `delete`、`haco run` によるmanaged pool再利用、ephemeral cleanup、pool/mount/loopのexact cleanupまで確認する。これらはそのhosted environment上で通常local CLI compositionが機能することを示すが、physical compression ratio、COW効率、compaction効果、すべてのsupported Host configurationまで証明するものではない。
 
 ## Workspace の境界
 
