@@ -94,6 +94,12 @@ run_test() {
   go test -count=1 -run '^TestRealIncusWorkspaceLifecycleE2E$' ./modules/runtime/incus
 }
 
+run_egress_test() {
+  require_github_hosted_runner
+  export HACO_E2E_INCUS=1
+  go test -count=1 -run '^TestRealIncusEgressProxyE2E$' ./modules/runtime/incus
+}
+
 diagnostics() {
   require_github_hosted_runner
   set +e
@@ -175,7 +181,8 @@ cleanup() {
 case "${1:-}" in
   setup) setup ;;
   test) run_test ;;
+  egress) run_egress_test ;;
   diagnostics) diagnostics ;;
   cleanup) cleanup ;;
-  *) echo "usage: $0 <setup|test|diagnostics|cleanup>" >&2; exit 2 ;;
+  *) echo "usage: $0 <setup|test|egress|diagnostics|cleanup>" >&2; exit 2 ;;
 esac
