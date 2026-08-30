@@ -1,10 +1,10 @@
 # Implementation Status
 
-Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, the feature-version rebaseline through v0.18, Docker compatibility lifecycle integration, the first OCI Seed Builder repository slice, and the client-neutral interaction-event contract.
+Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, the feature-version rebaseline through v0.18, Docker compatibility lifecycle integration, the OCI Seed Builder repository slices, and the client-neutral interaction-event contract.
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance.
 
-The fully implemented product progression is currently contiguous through **v0.17**. v0.18 has a first repository implementation slice but is not yet a complete feature gate.
+The fully implemented product progression is currently contiguous through **v0.17**. v0.18 has repository implementation slices but is not yet a complete feature gate.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
@@ -24,9 +24,9 @@ The fully implemented product progression is currently contiguous through **v0.1
 | OCI usage telemetry | `haco plugin oci seed sample` records Environment image identity snapshots; `haco plugin oci seed recommend` ranks immutable identities over the recommendation window | v0.15 |
 | OCI Seed auto-selection | deterministic top 10% eligible recommendations are marked `auto_promote=true`; this selects future Seed content only | v0.15 |
 | OCI image deletion | `haco plugin oci image delete <reference[@digest]>` records a deletion tombstone and can explicitly extend deletion to managed Environments | v0.16 |
-| OCI deletion override | tombstones prevent silent recommendation/auto-promotion of the deleted immutable identity | v0.16 |
+| OCI deletion override | tombstones prevent silent recommendation/auto-promotion of the deleted immutable identity; exact immutable `image reenable` is required to remove a tombstone | v0.16 / v0.18 integration |
 | Docker compatibility | `haco plugin oci docker status/prepare` validates a Base-provided genuine Docker profile, verifies pinned systemd units, refuses active vendor-daemon takeover, and enables Environment-local socket activation without making Docker a Core requirement | v0.17 |
-| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build` and `haco plugin oci seed current`, persisted Tooling/Seed manifests, trusted Host acquisition, offline no-NIC Seed build, immutable publication/current pointer, and exact-parent Seed resolution are implemented; real-host/COW acceptance and GC/recovery remain pending | v0.18 partial |
+| OCI Seed Builder / Btrfs COW | `seed build/current`, per-Base `pin/unpin/pins`, exact immutable `image reenable`, conservative `seed gc/recover`, trusted Host acquisition, offline no-NIC build, immutable publication/current pointer, exact-parent resolution, and pre-build interrupted-builder recovery are implemented; real-host/private-registry/COW acceptance remains pending | v0.18 partial |
 | Optional Local OCI Registry | Registry/proxy is optional and not required for ordinary direct upstream pulls or Seed construction | unversioned optional / deferred |
 
 ## Client interaction boundary
@@ -49,7 +49,9 @@ Real Incus/systemd acceptance remains host-dependent and is tracked separately f
 
 ## OCI storage direction
 
-v0.18 has a first repository slice. The implemented path is trusted Host acquisition/cache -> offline no-NIC Seed Builder -> immutable Seed revision/current pointer -> exact-parent resolution -> normal Incus/storage-driver clone. One writable `/var/lib/containerd` must never be shared across Environments.
+v0.18 now has the initial build/publish slice plus an operations-hardening slice. The implemented path is trusted Host acquisition/cache -> offline no-NIC Seed Builder -> immutable Seed revision/current pointer -> exact-parent resolution -> normal Incus/storage-driver clone. One writable `/var/lib/containerd` must never be shared across Environments.
+
+Explicit per-Base pins are persisted as immutable OCI identities. Deletion tombstones override both recommendations and existing pins until the exact immutable identity is explicitly re-enabled. `seed recover` reconciles exact Hacocoon temporary builders and then performs conservative GC; `seed build` invokes recovery before a new build while holding the Seed build lock. GC never manipulates Incus-owned Btrfs internals and retains current, in-use, instance-base, or externally aliased images.
 
 Local Registry is not a prerequisite and has no reserved milestone. See [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
 
@@ -59,4 +61,4 @@ v0.7 retains the provider-neutral Environment routing seam because that architec
 
 ## Acceptance gaps
 
-Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.18 additionally still needs conservative old Tooling/Seed revision GC, restart/crash recovery, authenticated/private-registry combinations, and physical Btrfs COW measurement.
+Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.18 additionally still needs authenticated/private-registry combinations including credential-free Environment harvesting where supported, physical Btrfs COW measurement, and broader real-host failure-injection coverage.
