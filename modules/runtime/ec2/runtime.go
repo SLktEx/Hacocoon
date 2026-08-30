@@ -251,19 +251,7 @@ func (r *Runtime) runSSM(ctx context.Context, instanceID, command string) (core.
 	if commandID == "" || unsafeToken(commandID) {
 		return core.ExecutionResult{}, fmt.Errorf("invalid SSM command id: %w", core.ErrIncompatibleState)
 	}
-	_, _ = r.aws(ctx, "ssm", "wait", "command-executed", "--command-id", commandID, "--instance-id", instanceID)
-	got, err := r.aws(ctx, "ssm", "get-command-invocation", "--command-id", commandID, "--instance-id", instanceID, "--output", "json")
-	if err != nil {
-		return core.ExecutionResult{}, err
-	}
-	var invocation commandInvocation
-	if err := json.Unmarshal([]byte(got.Stdout), &invocation); err != nil {
-		return core.ExecutionResult{}, fmt.Errorf("decode SSM invocation: %w", err)
-	}
-	if invocation.ResponseCode < 0 {
-		return core.ExecutionResult{}, fmt.Errorf("SSM command status %s: %w", invocation.Status, core.ErrRuntimeUnavailable)
-	}
-	return core.ExecutionResult{ExitCode: invocation.ResponseCode, Stdout: invocation.Stdout, Stderr: invocation.Stderr}, nil
+	return r.reconcileSSMCommand(ctx, instanceID, commandID)
 }
 
 func (r *Runtime) instanceState(ctx context.Context, instanceID string) (string, error) {
