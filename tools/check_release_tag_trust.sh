@@ -56,11 +56,19 @@ if ! git -C "$repo_dir" fetch --no-tags --force "$remote" \
   echo "Refusing release: unable to fetch ${remote}/${default_branch}" >&2
   exit 1
 fi
-
-if ! git -C "$repo_dir" merge-base --is-ancestor "$tag_commit" "$remote_tracking_ref"; then
-  echo "Refusing release: tag $tag resolves to $tag_commit, which is outside trusted ${remote}/${default_branch} history" >&2
+if ! trusted_head="$(git -C "$repo_dir" rev-parse --verify "${remote_tracking_ref}^{commit}")"; then
+  echo "Refusing release: unable to resolve trusted ${remote}/${default_branch} HEAD" >&2
   exit 1
 fi
 
-printf 'release tag trust: OK (%s -> %s on %s/%s)\n' \
-  "$tag" "$tag_commit" "$remote" "$default_branch"
+# Official releases intentionally support only the current trusted default-
+# branch HEAD. Allowing any ancestor would let ordinary write authority create
+# a fresh version tag on an older vulnerable commit and obtain valid release
+# provenance for a rollback release.
+if [[ "$tag_commit" != "$trusted_head" ]]; then
+  echo "Refusing release: tag $tag resolves to $tag_commit, but trusted ${remote}/${default_branch} HEAD is $trusted_head" >&2
+  exit 1
+fi
+
+printf 'release tag trust: OK (%s -> current %s/%s HEAD %s)\n' \
+  "$tag" "$remote" "$default_branch" "$tag_commit"
