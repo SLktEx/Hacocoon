@@ -2,7 +2,6 @@ package incus
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,12 +18,15 @@ const defaultProject = "hacocoon"
 
 const defaultImage = "images:ubuntu/26.04"
 
+const defaultRootPoolName = "haco-local-default"
+
 const defaultCleanupTimeout = 30 * time.Second
 
 type Runtime struct {
 	runner         host.Runner
 	project        string
 	image          string
+	rootPool       string
 	stdin          io.Reader
 	stdout         io.Writer
 	stderr         io.Writer
@@ -36,6 +38,7 @@ func New(runner host.Runner) *Runtime {
 		runner:         runner,
 		project:        defaultProject,
 		image:          defaultImage,
+		rootPool:       defaultRootPoolName,
 		stdin:          os.Stdin,
 		stdout:         os.Stdout,
 		stderr:         os.Stderr,
@@ -60,8 +63,14 @@ func (r *Runtime) Prepare(ctx context.Context, spec core.RuntimePrepareSpec) err
 	if err := r.ensureSandboxNetwork(ctx); err != nil {
 		return fmt.Errorf("ensure Hacocoon sandbox network: %w", err)
 	}
-	_, err := r.ensureStoragePool(ctx, spec.StorageAttachment)
-	return err
+	pool, err := r.ensureStoragePool(ctx, spec.StorageAttachment)
+	if err != nil {
+		return err
+	}
+	if pool != "" {
+		r.rootPool = pool
+	}
+	return nil
 }
 
 func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (core.RuntimeSession, error) {
@@ -312,23 +321,18 @@ func (r *Runtime) ensureProject(ctx context.Context) error {
 	return err
 }
 
+// defaultRootPool returns the Hacocoon-managed root pool selected during
+// Prepare. It deliberately never falls back to the host's Incus default
+// profile: all Hacocoon-owned rootfs data must stay inside Hacocoon storage.
 func (r *Runtime) defaultRootPool(ctx context.Context) (string, error) {
-	result, err := r.runner.Run(ctx, "incus", "profile", "show", "default", "--project", "default", "--format", "json")
-	if err != nil {
-		return "", err
+	pool := strings.TrimSpace(r.rootPool)
+	if pool == "" {
+		return "", fmt.Errorf("Hacocoon root storage pool is not configured: %w", core.ErrIncompatibleState)
 	}
-	var profile struct {
-		Devices map[string]map[string]string `json:"devices"`
+	if _, err := r.runner.Run(ctx, "incus", "storage", "show", pool, "--project", r.project); err != nil {
+		return "", fmt.Errorf("Hacocoon root storage pool %q is unavailable: %w", pool, err)
 	}
-	if err := json.Unmarshal([]byte(result.Stdout), &profile); err != nil {
-		return "", fmt.Errorf("decode default profile: %w", err)
-	}
-	for _, device := range profile.Devices {
-		if device["type"] == "disk" && device["path"] == "/" && device["pool"] != "" {
-			return device["pool"], nil
-		}
-	}
-	return "", fmt.Errorf("default profile has no root disk pool: %w", core.ErrUnsupported)
+	return pool, nil
 }
 
 func (r *Runtime) ensureStoragePool(ctx context.Context, attachment map[string]string) (string, error) {
