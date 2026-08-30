@@ -65,7 +65,11 @@ install_incus() {
     return
   fi
 
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus
+  # Keep CI container-only: the native `incus` metapackage also installs the
+  # VM stack on Ubuntu 26.04. incus-base is sufficient for system containers,
+  # while dnsmasq-base is an optional/recommended dependency required by
+  # `incus admin init --minimal` to create the default bridge.
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus-base dnsmasq-base
 }
 
 setup_incus() {
