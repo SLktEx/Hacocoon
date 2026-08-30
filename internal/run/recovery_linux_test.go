@@ -98,9 +98,13 @@ func TestEphemeralOwnershipLockHelper(t *testing.T) {
 	select {}
 }
 
-func TestTerminationSignalCancelsRunContext(t *testing.T) {
-	cmd := exec.Command(os.Args[0], "-test.run=TestTerminationSignalHelper")
-	cmd.Env = append(os.Environ(), "HACO_TEST_RUN_SIGNAL_HELPER=1")
+func TestSIGTERMDuringServiceRunPerformsBoundedCleanup(t *testing.T) {
+	cleanupPath := filepath.Join(t.TempDir(), "cleanup-proof")
+	cmd := exec.Command(os.Args[0], "-test.run=TestSIGTERMServiceRunHelper")
+	cmd.Env = append(os.Environ(),
+		"HACO_TEST_RUN_SIGNAL_HELPER=1",
+		"HACO_TEST_RUN_SIGNAL_CLEANUP="+cleanupPath,
+	)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -119,28 +123,56 @@ func TestTerminationSignalCancelsRunContext(t *testing.T) {
 
 	scanner := bufio.NewScanner(stdout)
 	if !scanner.Scan() || scanner.Text() != "ready" {
-		t.Fatalf("signal helper not ready: text=%q err=%v", scanner.Text(), scanner.Err())
+		t.Fatalf("service helper not ready: text=%q err=%v", scanner.Text(), scanner.Err())
 	}
 	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
 		t.Fatal(err)
 	}
 	if err := cmd.Wait(); err != nil {
-		t.Fatalf("SIGTERM was not converted to context cancellation: %v", err)
+		t.Fatalf("SIGTERM run helper failed: %v", err)
 	}
 	waited = true
+	if contents, err := os.ReadFile(cleanupPath); err != nil || string(contents) != "cleaned" {
+		t.Fatalf("cleanup proof=%q err=%v", contents, err)
+	}
 }
 
-func TestTerminationSignalHelper(t *testing.T) {
+func TestSIGTERMServiceRunHelper(t *testing.T) {
 	if os.Getenv("HACO_TEST_RUN_SIGNAL_HELPER") != "1" {
 		return
 	}
-	ctx, stop := withTerminationSignals(context.Background())
-	defer stop()
-	fmt.Println("ready")
-	<-ctx.Done()
-	if !errors.Is(ctx.Err(), context.Canceled) {
-		fmt.Fprintf(os.Stderr, "context err=%v\n", ctx.Err())
+	env := &signalCleanupEnvironment{cleanupPath: os.Getenv("HACO_TEST_RUN_SIGNAL_CLEANUP")}
+	service := New(env)
+	service.newName = func() (string, error) { return "run-signal-helper", nil }
+	service.cleanupTimeout = time.Second
+	result, err := service.Run(context.Background(), Spec{WorkspacePath: "/work/helper", Argv: []string{"block"}})
+	if !errors.Is(err, context.Canceled) || !result.CleanedUp {
+		fmt.Fprintf(os.Stderr, "result=%#v err=%v\n", result, err)
 		os.Exit(3)
 	}
 	os.Exit(0)
+}
+
+type signalCleanupEnvironment struct {
+	cleanupPath string
+}
+
+func (*signalCleanupEnvironment) Create(_ context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
+	return core.Environment{Name: spec.Name}, nil
+}
+
+func (*signalCleanupEnvironment) Exec(ctx context.Context, _ string, _ core.ExecutionRequest) (core.ExecutionResult, error) {
+	fmt.Println("ready")
+	<-ctx.Done()
+	return core.ExecutionResult{}, ctx.Err()
+}
+
+func (e *signalCleanupEnvironment) Delete(ctx context.Context, _ string) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("cleanup inherited signal cancellation: %w", ctx.Err())
+	}
+	if _, ok := ctx.Deadline(); !ok {
+		return errors.New("cleanup context has no deadline")
+	}
+	return os.WriteFile(e.cleanupPath, []byte("cleaned"), 0o600)
 }
