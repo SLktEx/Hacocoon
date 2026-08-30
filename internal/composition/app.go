@@ -9,6 +9,7 @@ import (
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	clientapp "github.com/SLktEx/Hacocoon/internal/client"
+	egressapp "github.com/SLktEx/Hacocoon/internal/egress"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
@@ -19,20 +20,22 @@ import (
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
+	"github.com/SLktEx/Hacocoon/modules/standard/egressproxy"
 )
 
 type App struct {
 	Environments *workspaceapp.Service
-	AgentHosts   *agenthostapp.Broker
-	Clients      *clientapp.Service
-	Capabilities *capabilityapp.Service
-	Git          *gitcapapp.Broker
-	OCI          *ociplugin.Service
-	Seeds        *seedbuildapp.Service
-	Runner       *runapp.Service
-	Events       *eventsapp.Service
-	Bases        *environmentapp.BaseRouter
-	Runtime      *incus.Runtime
+	AgentHosts    *agenthostapp.Broker
+	Clients       *clientapp.Service
+	Capabilities  *capabilityapp.Service
+	Git           *gitcapapp.Broker
+	OCI           *ociplugin.Service
+	Seeds         *seedbuildapp.Service
+	Runner        *runapp.Service
+	Events        *eventsapp.Service
+	Bases         *environmentapp.BaseRouter
+	Runtime       *incus.Runtime
+	EgressProxy   *egressproxy.Proxy
 }
 
 func Local(_ context.Context) (*App, error) {
@@ -85,11 +88,13 @@ func Local(_ context.Context) (*App, error) {
 		capabilityapp.NewStdioApproval(os.Stdin, os.Stderr),
 		capabilityapp.NewJSONLAudit(auditPath),
 		capabilityapp.LocalEcho{},
+		egressapp.Provider{},
 		gitProvider,
 	)
 	if err != nil {
 		return nil, err
 	}
+	egressBroker := egressapp.NewBroker(capabilities)
 
 	var (
 		ociPlugin *ociplugin.Service
@@ -115,16 +120,17 @@ func Local(_ context.Context) (*App, error) {
 	environments := workspaceapp.New(runtime, store)
 	return &App{
 		Environments: environments,
-		AgentHosts:   agenthostapp.New(environments, store, bindingStore),
-		Clients:      clientapp.New(runtime, store),
-		Capabilities: capabilities,
-		Git:          gitcapapp.NewBroker(runner, store, capabilities),
-		OCI:          ociPlugin,
-		Seeds:        seeds,
-		Runner:       runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks")),
-		Events:       eventsapp.New(auditPath),
-		Bases:        runtime,
-		Runtime:      incusRuntime,
+		AgentHosts:    agenthostapp.New(environments, store, bindingStore),
+		Clients:       clientapp.New(runtime, store),
+		Capabilities:  capabilities,
+		Git:           gitcapapp.NewBroker(runner, store, capabilities),
+		OCI:           ociPlugin,
+		Seeds:         seeds,
+		Runner:        runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks")),
+		Events:        eventsapp.New(auditPath),
+		Bases:         runtime,
+		Runtime:       incusRuntime,
+		EgressProxy:   egressproxy.New(egressBroker, incusRuntime),
 	}, nil
 }
 
