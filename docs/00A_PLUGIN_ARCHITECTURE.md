@@ -99,10 +99,14 @@ v0.16
   OCI image deletion
 
 v0.17
-  optional Docker compatibility plugin foundation
+  OCI Seed Builder and storage-driver COW lifecycle
 
-v0.18+
-  optional Local OCI Registry and later Seed/COW work remain outside Core
+v0.18
+  optional Docker compatibility plugin completion
+  current repository already contains early Docker foundation code
+
+unversioned / deferred
+  optional Local OCI Registry remains outside Core
 ```
 
 The first Incus implementation does not by itself require a generalized `EnvironmentProvider` framework. The second real environment backend is the natural point to validate that seam.
