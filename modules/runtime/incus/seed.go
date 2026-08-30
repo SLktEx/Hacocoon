@@ -314,6 +314,12 @@ func (p *SandboxProvider) BuildSeed(ctx context.Context, plan seedbuild.BuildPla
 	if err := p.verifyBuilderHasNoNIC(ctx, builder); err != nil {
 		return seedbuild.BuildResult{}, cleanup(err)
 	}
+	if err := p.expectGuestUnitState(ctx, builder, "basic.target", "active"); err != nil {
+		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("wait for offline Seed builder systemd: %w", err))
+	}
+	if err := p.guestExec(ctx, builder, "systemctl", "start", "containerd.service"); err != nil {
+		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("start containerd in offline Seed builder: %w", err))
+	}
 	if err := p.expectGuestUnitState(ctx, builder, "containerd.service", "active"); err != nil {
 		return seedbuild.BuildResult{}, cleanup(err)
 	}
