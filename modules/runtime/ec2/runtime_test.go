@@ -90,7 +90,13 @@ func testConfig() Config {
 }
 
 func testRuntimeRef(instanceID, workspace, bucket, prefix string, readOnly bool) runtimeRef {
-	return runtimeRef{AccountID: testAWSAccountID, Region: "ap-northeast-1", InstanceID: instanceID, WorkspacePath: workspace, Bucket: bucket, Prefix: prefix, ReadOnly: readOnly}
+	ref := runtimeRef{AccountID: testAWSAccountID, Region: "ap-northeast-1", InstanceID: instanceID, WorkspacePath: workspace, Bucket: bucket, Prefix: prefix, ReadOnly: readOnly}
+	if !readOnly {
+		if digest, err := digestWorkspace(context.Background(), workspace); err == nil {
+			ref.BaseDigest = digest
+		}
+	}
+	return ref
 }
 
 func newTestRuntime(runner host.Runner) *Runtime {
@@ -118,7 +124,7 @@ func TestCreateStagesWorkspaceAndCreatesSSMManagedInstance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ref.AccountID != testAWSAccountID || ref.Region != "ap-northeast-1" || ref.InstanceID != "i-0123456789abcdef0" || ref.WorkspacePath != workspace || ref.ReadOnly {
+	if ref.AccountID != testAWSAccountID || ref.Region != "ap-northeast-1" || ref.InstanceID != "i-0123456789abcdef0" || ref.WorkspacePath != workspace || ref.ReadOnly || !validWorkspaceDigest(ref.BaseDigest) {
 		t.Fatalf("ref=%#v", ref)
 	}
 	joined := strings.Join(runner.calls, "\n")
