@@ -1,0 +1,127 @@
+name: seed-real-incus-acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - test/240-real-incus-seed-main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seed-real-incus-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+  NERDCTL_VERSION: 2.3.5
+  NERDCTL_AMD64_SHA256: de3206aeb7cbd5f20f5fb1f55c1e3bf2db1be567812a8a3f5e65eba2488347ee
+  ZABBLY_KEY_FINGERPRINT: 4EFC590696CB15B87C73A3AD82CC8797C838DCFD
+
+jobs:
+  real-incus-seed:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Configure verified Incus 7.0 LTS repository
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl gnupg btrfs-progs jq
+          key="$(mktemp)"
+          trap 'rm -f "$key"' EXIT
+          curl --fail --silent --show-error --location \
+            --proto '=https' --tlsv1.2 \
+            https://pkgs.zabbly.com/key.asc \
+            --output "$key"
+          actual="$(gpg --show-keys --with-colons "$key" | awk -F: '$1 == "fpr" { print $10; exit }')"
+          test "$actual" = "$ZABBLY_KEY_FINGERPRINT"
+          sudo install -d -m 0755 /etc/apt/keyrings
+          sudo install -m 0644 "$key" /etc/apt/keyrings/zabbly-incus.asc
+          codename="$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")"
+          arch="$(dpkg --print-architecture)"
+          sudo tee /etc/apt/sources.list.d/zabbly-incus-lts-7.0.sources >/dev/null <<EOF
+          Enabled: yes
+          Types: deb
+          URIs: https://pkgs.zabbly.com/incus/lts-7.0
+          Suites: ${codename}
+          Components: main
+          Architectures: ${arch}
+          Signed-By: /etc/apt/keyrings/zabbly-incus.asc
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y incus
+          sudo systemctl enable --now incus.service 2>/dev/null || sudo systemctl enable --now incus
+          sudo incus version
+      - name: Initialize real Btrfs-backed Incus pool
+        run: |
+          if [[ -z "$(sudo incus storage list --format csv)" ]]; then
+            sudo incus admin init --preseed <<'EOF'
+          config: {}
+          networks: []
+          storage_pools:
+          - config:
+              size: 18GiB
+            description: Hacocoon acceptance Btrfs loop pool
+            name: default
+            driver: btrfs
+          profiles:
+          - config: {}
+            description: Default Incus profile
+            devices:
+              root:
+                path: /
+                pool: default
+                type: disk
+            name: default
+          projects: []
+          cluster: null
+          EOF
+          fi
+          sudo incus storage show default
+          sudo incus storage list --format csv
+      - name: Configure public Incus image remote
+        run: |
+          if ! sudo incus remote list --format csv | cut -d, -f1 | grep -Fxq images; then
+            sudo incus remote add images https://images.linuxcontainers.org --protocol=simplestreams --public
+          fi
+          sudo incus remote list --format csv
+          sudo incus image info images:ubuntu/26.04 >/dev/null
+      - name: Prepare sandbox bridge netfilter
+        run: |
+          sudo modprobe br_netfilter
+          test -e /proc/sys/net/bridge/bridge-nf-call-iptables
+          test -e /proc/sys/net/bridge/bridge-nf-call-ip6tables
+      - name: Install pinned nerdctl
+        run: |
+          archive="/tmp/nerdctl-${NERDCTL_VERSION}-linux-amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            --proto '=https' --tlsv1.2 \
+            "https://github.com/containerd/nerdctl/releases/download/v${NERDCTL_VERSION}/nerdctl-${NERDCTL_VERSION}-linux-amd64.tar.gz" \
+            --output "$archive"
+          printf '%s  %s\n' "$NERDCTL_AMD64_SHA256" "$archive" | sha256sum --check --strict
+          sudo tar -xzf "$archive" -C /usr/local/bin nerdctl
+          nerdctl --version
+      - name: Ensure Host containerd is active
+        run: |
+          sudo systemctl enable --now containerd
+          sudo nerdctl info >/dev/null
+      - name: Permit Seed-only bridge forwarding on hosted runner
+        run: |
+          sudo sysctl -w net.ipv4.ip_forward=1
+          sudo iptables -I FORWARD 1 -i 'haco-t-+' -j ACCEPT
+          sudo iptables -I FORWARD 1 -o 'haco-t-+' -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+      - name: Run real Incus Seed acceptance
+        run: |
+          sudo --preserve-env=PATH,GOTOOLCHAIN env \
+            HACO_E2E_INCUS_SEED=1 \
+            HACO_NERDCTL_BINARY=/usr/local/bin/nerdctl \
+            bash test/e2e/seed_real_incus.sh
