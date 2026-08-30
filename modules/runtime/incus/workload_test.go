@@ -11,6 +11,9 @@ import (
 
 func TestCreateWorkloadLaunchesIncusOCIWithoutNestedRuntime(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if len(args) >= 2 && args[0] == "remote" && args[1] == "list" {
+			return host.Result{Stdout: "oci-docker,oci\n"}, nil
+		}
 		if len(args) >= 6 && args[0] == "list" && args[1] == "haco-demo" && args[4] == "--format" {
 			return host.Result{Stdout: "haco-demo\n"}, nil
 		}
