@@ -98,6 +98,7 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 
 func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
+	ctx = withPeerIP(ctx, conn.RemoteAddr())
 	reader := bufio.NewReader(conn)
 	line, err := readEnvelopeLine(reader)
 	if err != nil {
