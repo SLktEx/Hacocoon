@@ -34,7 +34,10 @@ func (r *Runtime) sandboxProxyURL(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return "http://" + net.JoinHostPort(gateway.String(), strconv.Itoa(sandboxEgressProxyPort)), nil
+	// Keep the URI path explicit. Ubuntu 26.04 APT can otherwise treat a bare
+	// numeric proxy authority such as 10.0.0.1:18080 as a hostname during
+	// Acquire setup when DNS is deliberately disabled inside the sandbox.
+	return "http://" + net.JoinHostPort(gateway.String(), strconv.Itoa(sandboxEgressProxyPort)) + "/", nil
 }
 
 // PrepareEgressProxy verifies the managed fail-closed network substrate and
