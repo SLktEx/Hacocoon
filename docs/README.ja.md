@@ -13,6 +13,7 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 - Security: [`security/security-architecture.md`](security/security-architecture.md)
 - Core / Standard / Plugin境界: [`design/plugin-architecture.md`](design/plugin-architecture.md)
 - 用語と境界: [`reference/terminology-and-boundaries.md`](reference/terminology-and-boundaries.md)
+- Domain-aware egress: [`EGRESS_AUTHORIZATION.ja.md`](EGRESS_AUTHORIZATION.ja.md)
 - Reusable client adapter: [`CLIENT_ADAPTER_CONTRACT.ja.md`](CLIENT_ADAPTER_CONTRACT.ja.md)
 - Client interaction event: [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md)
 - README / docs の書き方: [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md)
@@ -45,10 +46,10 @@ docs/adr/         architecture decision record。ADR番号はidentityなので�
 ## Core / Standard / Plugin
 
 - **Core**: Environment、Policy / Approval / Capability、interaction、境界制御に必要な安定contractを定義する。
-- **Standard**: 通常配布で多くの利用者が使うproject-maintainedな交換可能default implementation。現在のIncus backendや将来のdefault egress proxy/enforcerなど。
+- **Standard**: 通常配布で多くの利用者が使うproject-maintainedな交換可能default implementation。現在のIncus backendとdefault hostname-aware HTTP/HTTPS egress proxy/enforcerを含む。
 - **Plugin**: 無くても一般的なHacocoonとして成立するoptional / specialized integration。nerdctl / Docker / OCI toolingなど。
 
-外向き通信ではegress request / policy / controller contractはCore、具体的なdefault proxy / enforcement implementationはStandardに置きます。現在のmanaged sandbox networkはdefault-deny substrateであり、domain-aware egress authorizationが完成済みという意味ではありません。
+外向き通信ではegress request / policy / controller contractはCore、具体的なdefault proxy / enforcement implementationはStandardに置きます。Incus adapterがproxy-onlyなlower-layer transport guard、bridge DNS disablement、trusted source mappingを提供します。repository実装は完了しており、real supported-Incus acceptanceはhost-dependentです。
 
 ## 現在のfeature gate
 

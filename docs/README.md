@@ -13,6 +13,7 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, and r
 - Security architecture: [`security/security-architecture.md`](security/security-architecture.md)
 - Core / Standard / Plugin boundaries: [`design/plugin-architecture.md`](design/plugin-architecture.md)
 - Canonical terminology: [`reference/terminology-and-boundaries.md`](reference/terminology-and-boundaries.md)
+- Domain-aware egress: [`EGRESS_AUTHORIZATION.md`](EGRESS_AUTHORIZATION.md)
 - Reusable client adapters: [`CLIENT_ADAPTER_CONTRACT.md`](CLIENT_ADAPTER_CONTRACT.md)
 - Client interaction events: [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md)
 - Documentation style: [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md)
@@ -45,10 +46,10 @@ Normal docs must not use milestone/version or arbitrary reading-order prefixes i
 ## Core / Standard / Plugin rule
 
 - **Core** defines stable Environment, Policy / Approval / Capability, interaction, and boundary-control contracts.
-- **Standard** provides project-maintained, replaceable default implementations expected in normal installations, such as the current Incus backend and a future default egress proxy/enforcer.
+- **Standard** provides project-maintained, replaceable default implementations expected in normal installations, including the current Incus backend and the default hostname-aware HTTP/HTTPS egress proxy/enforcer.
 - **Plugin** contains optional or specialized integrations whose absence still leaves a generally useful Hacocoon installation, including nerdctl / Docker / OCI tooling.
 
-For outbound access, the egress request/policy/controller contract belongs to Core while a concrete default proxy/enforcement implementation belongs to Standard. The managed sandbox network currently provides the default-deny substrate; it does not by itself mean domain-aware egress authorization is complete.
+For outbound access, the egress request/policy/controller contract belongs to Core while the concrete default proxy/enforcement implementation belongs to Standard. The Incus adapter supplies the proxy-only lower-layer transport guard, bridge DNS disablement and trusted source mapping; repository implementation is complete while real supported-Incus acceptance remains host-dependent.
 
 ## Current feature gates
 
