@@ -175,8 +175,12 @@ jobs:
           cache: false
       - run: go test -count=1 -shuffle=on ./...
       - run: go vet ./...
-      - name: Validate VS Code notification extension syntax
-        run: node --check clients/vscode-notify/extension.js
+      - name: Test Browser and VS Code notification clients
+        if: matrix.go-version == '1.27.x'
+        run: |
+          node --check pkg/interactionhttp/web/app.js
+          node --check clients/vscode-notify/extension.js
+          node --test test/js/notification_clients.test.js
 
   race:
     runs-on: ubuntu-26.04
