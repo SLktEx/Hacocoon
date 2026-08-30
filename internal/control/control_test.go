@@ -38,13 +38,15 @@ func TestCallOverUnixSocket(t *testing.T) {
 
 func TestOpenStreamPreservesBufferedBytes(t *testing.T) {
 	client, cancel := startTestServer(t, func(server *Server) {
-		if err := server.RegisterStream("upper", func(_ context.Context, _ json.RawMessage, conn net.Conn) error {
-			buffer := make([]byte, 5)
-			if _, err := io.ReadFull(conn, buffer); err != nil {
+		if err := server.RegisterStream("upper", func(_ context.Context, _ json.RawMessage) (Stream, error) {
+			return func(_ context.Context, conn net.Conn) error {
+				buffer := make([]byte, 5)
+				if _, err := io.ReadFull(conn, buffer); err != nil {
+					return err
+				}
+				_, err := conn.Write([]byte(strings.ToUpper(string(buffer))))
 				return err
-			}
-			_, err := conn.Write([]byte(strings.ToUpper(string(buffer))))
-			return err
+			}, nil
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -65,6 +67,23 @@ func TestOpenStreamPreservesBufferedBytes(t *testing.T) {
 	}
 	if string(response) != "HELLO" {
 		t.Fatalf("stream response = %q, want HELLO", response)
+	}
+}
+
+func TestStreamValidationErrorIsReturnedBeforeAck(t *testing.T) {
+	client, cancel := startTestServer(t, func(server *Server) {
+		if err := server.RegisterStream("denied", func(context.Context, json.RawMessage) (Stream, error) {
+			return nil, NewStatusError("denied", "stream refused")
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	defer cancel()
+
+	_, err := client.OpenStream(context.Background(), "denied", nil)
+	var status *StatusError
+	if !errors.As(err, &status) || status.Code != "denied" {
+		t.Fatalf("error = %v, want denied StatusError", err)
 	}
 }
 
