@@ -56,9 +56,8 @@ func (p *NativeWorkloadProvider) CreateEnvironment(ctx context.Context, spec cor
 }
 
 // DeleteEnvironment removes sibling OCI workloads only when this Environment
-// actually carries the scoped workload proxy device. Legacy/source-tree test
-// Environments can intentionally lack that integration and must retain the old
-// deletion path unchanged.
+// actually carries the scoped workload proxy device. Legacy/source-tree paths
+// without the packaged companion keep the previous deletion behavior intact.
 func (p *NativeWorkloadProvider) DeleteEnvironment(ctx context.Context, ref string) error {
 	if p == nil || p.SandboxProvider == nil || p.Runtime == nil {
 		return core.ErrRuntimeUnavailable
@@ -70,6 +69,14 @@ func (p *NativeWorkloadProvider) DeleteEnvironment(ctx context.Context, ref stri
 	canonical, err := ManagedEnvironmentRef(environment)
 	if err != nil || canonical != ref {
 		return core.ErrInvalidArgument
+	}
+
+	_, _, nativeAvailable, err := workloadShimSource()
+	if err != nil {
+		return fmt.Errorf("resolve native workload companion before deleting Environment %s: %w", ref, err)
+	}
+	if !nativeAvailable {
+		return p.SandboxProvider.DeleteEnvironment(ctx, ref)
 	}
 
 	integrated, err := p.hasNativeWorkloadIntegration(ctx, environment, ref)
