@@ -47,11 +47,22 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return core.EnvironmentRuntime{}, err
 	}
 
+	baseBefore, err := digestWorkspace(ctx, spec.WorkspacePath)
+	if err != nil {
+		return core.EnvironmentRuntime{}, fmt.Errorf("identify host workspace before EC2 archive: %w", err)
+	}
 	archive, cleanupArchive, err := createWorkspaceArchive(ctx, r.runner, spec.WorkspacePath)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
 	defer cleanupArchive()
+	baseAfter, err := digestWorkspace(ctx, spec.WorkspacePath)
+	if err != nil {
+		return core.EnvironmentRuntime{}, fmt.Errorf("identify host workspace after EC2 archive: %w", err)
+	}
+	if baseBefore != baseAfter {
+		return core.EnvironmentRuntime{}, fmt.Errorf("host workspace changed while creating EC2 base archive: %w", core.ErrWorkspaceBusy)
+	}
 
 	prefix := cfg.WorkspacePrefix + "/" + spec.Name
 	inputURI := s3URI(cfg.WorkspaceBucket, prefix+"/input.tgz")
@@ -112,7 +123,7 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return cleanup(fmt.Errorf("materialize remote workspace: %w", err))
 	}
 
-	ref, err := encodeRef(runtimeRef{AccountID: accountID, Region: cfg.Region, InstanceID: instanceID, WorkspacePath: spec.WorkspacePath, Bucket: cfg.WorkspaceBucket, Prefix: prefix, ReadOnly: spec.ReadOnly})
+	ref, err := encodeRef(runtimeRef{AccountID: accountID, Region: cfg.Region, InstanceID: instanceID, WorkspacePath: spec.WorkspacePath, Bucket: cfg.WorkspaceBucket, Prefix: prefix, ReadOnly: spec.ReadOnly, BaseDigest: baseAfter})
 	if err != nil {
 		return cleanup(err)
 	}
@@ -207,6 +218,9 @@ func (r *Runtime) InspectEnvironment(ctx context.Context, rawRef string) (core.E
 }
 
 func (r *Runtime) syncBack(ctx context.Context, ref runtimeRef) error {
+	if err := verifyWorkspaceBase(ctx, ref, "before remote sync-back"); err != nil {
+		return err
+	}
 	outputURI := s3URI(ref.Bucket, ref.Prefix+"/output.tgz")
 	command := "set -eu; tar -czf /tmp/haco-output.tgz -C /workspace .; aws s3 cp /tmp/haco-output.tgz " + shellQuote(outputURI) + " --only-show-errors; rm -f /tmp/haco-output.tgz"
 	if _, err := r.runSSM(ctx, ref.InstanceID, command); err != nil {
@@ -221,6 +235,9 @@ func (r *Runtime) syncBack(ctx context.Context, ref runtimeRef) error {
 	defer os.Remove(archivePath)
 	if _, err := r.aws(ctx, "s3", "cp", outputURI, archivePath, "--only-show-errors"); err != nil {
 		return fmt.Errorf("download remote workspace changes: %w", err)
+	}
+	if err := verifyWorkspaceBase(ctx, ref, "immediately before host restore"); err != nil {
+		return err
 	}
 	if err := restoreWorkspaceArchive(ctx, r.runner, archivePath, ref.WorkspacePath); err != nil {
 		return fmt.Errorf("restore remote workspace changes: %w", err)
