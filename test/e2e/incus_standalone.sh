@@ -6,7 +6,7 @@ if [[ "${HACO_CI_INCUS_STANDALONE:-}" != "1" ]]; then
   exit 0
 fi
 
-for command in incus awk grep cut timeout getent ip; do
+for command in incus awk grep timeout ip; do
   command -v "$command" >/dev/null 2>&1 || {
     echo "missing required command: $command" >&2
     exit 1
@@ -60,7 +60,7 @@ wait_for_guest() {
       # vendor user-namespace restriction is left enabled. That failure leaves
       # systemd helpers stuck in sd-mkuserns and prevents DHCP. Detect a
       # sustained stall rather than waiting the full timeout.
-      if [[ "$state" == "initializing" ]] && incus exec "$instance" -- sh -c "ps -eo comm= | grep -Fxq '(sd-mkuserns)'" >/dev/null 2>&1; then
+      if [[ "$state" == "initializing" ]] && incus exec "$instance" -- sh -c 'ps -eo comm= | grep -Fxq sd-mkuserns' >/dev/null 2>&1; then
         stuck_samples=$((stuck_samples + 1))
         if (( stuck_samples >= 10 )); then
           echo "guest $instance is persistently stuck in sd-mkuserns; check host Incus/AppArmor compatibility" >&2
@@ -83,7 +83,9 @@ wait_for_ipv4() {
   local device="$2"
   local attempt address
   for attempt in $(seq 1 30); do
-    address="$(incus exec "$instance" -- sh -c "ip -4 -o addr show dev '$device' scope global | awk '{print \\$4}' | cut -d/ -f1" 2>/dev/null || true)"
+    # Parse on the host so shell positional parameters in awk are never
+    # accidentally expanded by the host shell before incus exec runs.
+    address="$(incus exec "$instance" -- ip -4 -o addr show dev "$device" scope global 2>/dev/null | awk '{split($4, parts, "/"); print parts[1]; exit}' || true)"
     if [[ -n "$address" ]]; then
       printf '%s\n' "$address"
       return 0
@@ -104,7 +106,7 @@ incus exec "$first" -- sh -c 'printf standalone-exec-ok >/root/incus-ci-exec'
 
 first_ip="$(wait_for_ipv4 "$first" eth0)"
 second_ip="$(wait_for_ipv4 "$second" eth0)"
-gateway="$(incus exec "$first" -- sh -c "ip -4 route show default | awk '{print \\$3; exit}'")"
+gateway="$(incus exec "$first" -- ip -4 route show default | awk '{print $3; exit}')"
 [[ -n "$gateway" ]]
 echo "primary network: $primary_network"
 echo "first IPv4: $first_ip"
