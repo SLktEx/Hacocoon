@@ -99,6 +99,7 @@ require_text("docs/00D_VERSIONING_AND_RELEASE_STATUS.md", [
     "v0.17 | Docker Compatibility Plugin",
     "contiguous through **v0.17**",
     "v0.18 | OCI Seed Builder & Btrfs/COW",
+    "first repository slice",
     "Local Registry infrastructure is deferred and unversioned",
     "cloud implementation is currently deferred",
 ])
@@ -106,6 +107,7 @@ require_text("docs/IMPLEMENTATION_STATUS.md", [
     "current code reality", "contiguous through **v0.17**",
     "Managed sandbox network", "haco plugin git fetch",
     "haco plugin oci seed sample", "haco plugin oci seed recommend",
+    "haco plugin oci seed build", "haco plugin oci seed current",
     "auto_promote", "haco plugin oci image delete", "Docker compatibility",
     "haco plugin oci docker status", "prepare <environment>",
     "v0.18", "Optional Local OCI Registry", "unversioned optional",
@@ -116,7 +118,7 @@ require_text("docs/00_REBASELINE_AND_ROADMAP.md", [
     "v0.13 | Managed Sandbox Network", "v0.14 | Git Fetch Plugin",
     "v0.15 | OCI Seed Recommendation", "v0.16 | OCI Image Deletion",
     "v0.17 | Docker Compatibility Plugin", "contiguous through **v0.17**",
-    "v0.18 | OCI Seed Builder & Btrfs/COW",
+    "v0.18 | OCI Seed Builder & Btrfs/COW", "first repository slice",
     "Local OCI Registry is not a roadmap milestone",
     "cloud implementation is currently deferred", "Historical note",
 ])
@@ -144,7 +146,11 @@ require_text("docs/17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md", [
     "Docker Compatibility Plugin", "on-demand", "repository implementation complete",
     "haco plugin oci docker status", "haco plugin oci docker prepare", "fail closed",
 ])
-require_text("docs/18_v0.18_OCI_SEED_AND_COW.md", ["OCI Seed Builder", "planned", "Offline Seed Builder", "/var/lib/containerd", "Btrfs/COW", "Local Registry is not required"])
+require_text("docs/18_v0.18_OCI_SEED_AND_COW.md", [
+    "OCI Seed Builder", "first repository slice", "haco plugin oci seed build",
+    "haco plugin oci seed current", "Offline Seed Builder", "/var/lib/containerd",
+    "Btrfs/COW", "Local Registry is not required",
+])
 require_text("docs/OPTIONAL_LOCAL_OCI_REGISTRY.md", ["Optional Local OCI Registry", "deferred optional infrastructure", "not a roadmap milestone", "not required"])
 require_text("README.md", ["pre-1.0", "haco base list", "haco plugin oci"])
 require_text("README.ja.md", ["読み方: はこーん", "pre-1.0", "haco base list", "haco plugin oci"])

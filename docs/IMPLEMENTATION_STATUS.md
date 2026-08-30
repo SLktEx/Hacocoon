@@ -1,10 +1,10 @@
 # Implementation Status
 
-Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, the feature-version rebaseline through v0.18, and Docker compatibility lifecycle integration.
+Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, the feature-version rebaseline through v0.18, Docker compatibility lifecycle integration, and the first OCI Seed Builder repository slice.
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance.
 
-The fully implemented product progression is currently contiguous through **v0.17**. v0.18 is planned.
+The fully implemented product progression is currently contiguous through **v0.17**. v0.18 has a first repository implementation slice but is not yet a complete feature gate.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
@@ -25,7 +25,7 @@ The fully implemented product progression is currently contiguous through **v0.1
 | OCI image deletion | `haco plugin oci image delete <reference[@digest]>` records a deletion tombstone and can explicitly extend deletion to managed Environments | v0.16 |
 | OCI deletion override | tombstones prevent silent recommendation/auto-promotion of the deleted immutable identity | v0.16 |
 | Docker compatibility | `haco plugin oci docker status/prepare` validates a Base-provided genuine Docker profile, verifies pinned systemd units, refuses active vendor-daemon takeover, and enables Environment-local socket activation without making Docker a Core requirement | v0.17 |
-| OCI Seed Builder / Btrfs COW | trusted Host acquisition/cache, offline builder, immutable Seed publish/current pointer and physical COW validation remain planned | v0.18 |
+| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build` and `haco plugin oci seed current`, persisted Tooling/Seed manifests, trusted Host acquisition, offline no-NIC Seed build, immutable publication/current pointer, and exact-parent Seed resolution are implemented; real-host/COW acceptance and GC/recovery remain pending | v0.18 partial |
 | Optional Local OCI Registry | Registry/proxy is optional and not required for ordinary direct upstream pulls or Seed construction | unversioned optional / deferred |
 
 ## Core/plugin boundary
@@ -42,7 +42,7 @@ Real Incus/systemd acceptance remains host-dependent and is tracked separately f
 
 ## OCI storage direction
 
-Physical Seed publication/COW belongs to v0.18. The intended path is trusted Host acquisition/cache -> offline Seed Builder -> immutable Seed revision -> normal Incus/storage-driver clone. One writable `/var/lib/containerd` must never be shared across Environments.
+v0.18 has a first repository slice. The implemented path is trusted Host acquisition/cache -> offline no-NIC Seed Builder -> immutable Seed revision/current pointer -> exact-parent resolution -> normal Incus/storage-driver clone. One writable `/var/lib/containerd` must never be shared across Environments.
 
 Local Registry is not a prerequisite and has no reserved milestone. See [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
 
@@ -52,4 +52,4 @@ v0.7 retains the provider-neutral Environment routing seam because that architec
 
 ## Acceptance gaps
 
-Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.18 is planned only.
+Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.18 additionally still needs conservative old Tooling/Seed revision GC, restart/crash recovery, authenticated/private-registry combinations, and physical Btrfs COW measurement.

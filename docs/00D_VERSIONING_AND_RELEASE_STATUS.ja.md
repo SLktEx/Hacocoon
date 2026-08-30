@@ -43,9 +43,9 @@ Hacocoon は **pre-1.0** です。milestone番号はproduct/implementationの進
 | v0.15 | OCI Seed Recommendation | ✅ 実装済み |
 | v0.16 | OCI Image Deletion | ✅ first slice実装済み |
 | v0.17 | Docker Compatibility Plugin | ✅ repository実装完了。real-host acceptanceは別管理 |
-| v0.18 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
+| v0.18 | OCI Seed Builder & Btrfs/COW | 🧪 first repository slice実装済み。real-host/COW acceptanceはpending |
 
-**完全に実装済みのproduct progressionはv0.17まで連続**しています。v0.18はplannedです。
+**完全に実装済みのproduct progressionはv0.17まで連続**しています。v0.18はfirst repository sliceまで実装済みですが、feature gateとしては未完了です。
 
 v0.7は、そのgateで導入したprovider-neutral routing seam自体が現在も実装されているため番号を維持します。以前のconcrete EC2/AWS/EBS sliceはactive treeから意図的に外しており、local/provider contractが安定するまで **cloud implementationは現在deferred** です。
 
@@ -60,7 +60,7 @@ v0.14  Git Fetch Plugin                        implemented
 v0.15  OCI Seed Recommendation                 implemented
 v0.16  OCI Image Deletion                      implemented
 v0.17  Docker Compatibility Plugin             implemented
-v0.18  OCI Seed Builder & Btrfs/COW            planned
+v0.18  OCI Seed Builder & Btrfs/COW            partial / first repository slice
 ```
 
 短期間だけv0.18をOptional Local OCI Registry、v0.19をSeed Builder/COWとして予約した整理もありましたが、これはsupersededです。Local Registryは標準architectureの必須要件ではないためdeferred/unversionedとし、Seed Builder/COWをv0.18へ繰り上げます。
@@ -87,9 +87,9 @@ v0.18  OCI Seed Builder & Btrfs/COW            planned
 - **v0.11/v0.12:** real Base/image・resource enforcement pending
 - **v0.13:** real supported-Incus network/profile/ACL pending
 - **v0.14:** brokered fetch実装済み。real private-repository combinationは別途acceptance
-- **v0.15/v0.16:** OCI plugin repository behavior実装済み。physical Seed publication/GCはv0.18
+- **v0.15/v0.16:** OCI plugin repository behavior実装済み
 - **v0.17:** repository lifecycle/CLI integration実装済み。real Base + Incus/systemd socket activationはhost-dependent acceptance
-- **v0.18:** planned
+- **v0.18:** first repository slice実装済み。real Incus/containerd/Docker acceptance、old revision GC/crash recovery、authenticated/private-registry combination、physical Btrfs COW measurementがpending
 
 ## 一文でいうと
 

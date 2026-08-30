@@ -20,22 +20,40 @@ const (
 
 var baseFingerprintPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
+type SeedResolver interface {
+	CurrentSeed(context.Context, core.BaseRef) (core.BaseRevision, bool, error)
+}
+
+type BaseProviderOption func(*BaseProvider) error
+
+func WithSeedResolver(resolver SeedResolver) BaseProviderOption {
+	return func(provider *BaseProvider) error {
+		if resolver == nil {
+			return core.ErrInvalidArgument
+		}
+		provider.seedResolver = resolver
+		return nil
+	}
+}
+
 type BaseProvider struct {
 	*Runtime
-	sources map[core.BaseName]string
+	sources      map[core.BaseName]string
+	seedResolver SeedResolver
 }
 
 type resolvedBase struct {
 	ref          core.BaseRef
 	pinnedSource string
+	usesSeed     bool
 }
 
-func NewBaseProvider(runtime *Runtime) (*BaseProvider, error) {
+func NewBaseProvider(runtime *Runtime, options ...BaseProviderOption) (*BaseProvider, error) {
 	if runtime == nil {
 		return nil, core.ErrInvalidArgument
 	}
 	sources := map[core.BaseName]string{
-		defaultBaseName:                   "images:ubuntu/26.04",
+		defaultBaseName:                    "images:ubuntu/26.04",
 		core.BaseName("haco/ubuntu-24.04"): "images:ubuntu/24.04",
 	}
 	custom, err := customBaseSourcesFromEnv()
@@ -48,7 +66,16 @@ func NewBaseProvider(runtime *Runtime) (*BaseProvider, error) {
 		}
 		sources[name] = source
 	}
-	return &BaseProvider{Runtime: runtime, sources: sources}, nil
+	provider := &BaseProvider{Runtime: runtime, sources: sources}
+	for _, option := range options {
+		if option == nil {
+			return nil, core.ErrInvalidArgument
+		}
+		if err := option(provider); err != nil {
+			return nil, err
+		}
+	}
+	return provider, nil
 }
 
 func customBaseSourcesFromEnv() (map[core.BaseName]string, error) {
@@ -145,7 +172,46 @@ func (p *BaseProvider) InspectBase(ctx context.Context, name core.BaseName) (cor
 	return core.BaseInfo{Name: resolved.ref.Name, Revision: resolved.ref.Revision}, nil
 }
 
+// resolveBase returns the effective immutable starting point for a new
+// Environment. When a current Seed exists for the exact parent Base revision,
+// the Seed revision becomes the effective Base revision. Existing Environment
+// metadata therefore remains pinned even if the current Seed pointer advances.
 func (p *BaseProvider) resolveBase(ctx context.Context, requested core.BaseName) (resolvedBase, error) {
+	parent, err := p.resolveParentBase(ctx, requested)
+	if err != nil {
+		return resolvedBase{}, err
+	}
+	if p.seedResolver == nil {
+		return parent, nil
+	}
+	seedRevision, ok, err := p.seedResolver.CurrentSeed(ctx, parent.ref)
+	if err != nil {
+		return resolvedBase{}, fmt.Errorf("resolve current Seed for Base %q: %w", parent.ref.Name, err)
+	}
+	if !ok {
+		return parent, nil
+	}
+	fingerprint, err := baseRevisionFingerprint(seedRevision)
+	if err != nil {
+		return resolvedBase{}, fmt.Errorf("current Seed for Base %q has invalid revision: %w", parent.ref.Name, err)
+	}
+	if err := p.verifyEffectiveSeed(ctx, fingerprint); err != nil {
+		return resolvedBase{}, fmt.Errorf("verify current Seed for Base %q: %w", parent.ref.Name, err)
+	}
+	return resolvedBase{
+		ref: core.BaseRef{
+			Name:     parent.ref.Name,
+			Revision: seedRevision,
+		},
+		pinnedSource: "local:" + fingerprint,
+		usesSeed:     true,
+	}, nil
+}
+
+// resolveParentBase deliberately bypasses the current Seed pointer. The Seed
+// builder uses this path so rebuilding never recursively treats the previous
+// Seed as the parent Base.
+func (p *BaseProvider) resolveParentBase(ctx context.Context, requested core.BaseName) (resolvedBase, error) {
 	if p == nil {
 		return resolvedBase{}, core.ErrRuntimeUnavailable
 	}
@@ -181,6 +247,35 @@ func (p *BaseProvider) resolveBase(ctx context.Context, requested core.BaseName)
 		},
 		pinnedSource: pinImageSource(source, fingerprint),
 	}, nil
+}
+
+func (p *BaseProvider) verifyEffectiveSeed(ctx context.Context, fingerprint string) error {
+	result, err := p.runner.Run(ctx, "incus", "image", "info", "local:"+fingerprint, "--project", p.project, "--format", "json")
+	if err != nil {
+		return err
+	}
+	var info struct {
+		Fingerprint string `json:"fingerprint"`
+	}
+	if err := json.Unmarshal([]byte(result.Stdout), &info); err != nil {
+		return core.ErrIncompatibleState
+	}
+	if strings.ToLower(strings.TrimSpace(info.Fingerprint)) != fingerprint {
+		return core.ErrIncompatibleState
+	}
+	return nil
+}
+
+func baseRevisionFingerprint(revision core.BaseRevision) (string, error) {
+	value := string(revision)
+	if !strings.HasPrefix(value, "sha256:") {
+		return "", core.ErrIncompatibleState
+	}
+	fingerprint := strings.TrimPrefix(value, "sha256:")
+	if !baseFingerprintPattern.MatchString(fingerprint) {
+		return "", core.ErrIncompatibleState
+	}
+	return fingerprint, nil
 }
 
 func pinImageSource(source, fingerprint string) string {
