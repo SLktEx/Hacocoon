@@ -315,6 +315,9 @@ func (r *Runtime) ensureProject(ctx context.Context) error {
 func (r *Runtime) defaultRootPool(ctx context.Context) (string, error) {
 	result, err := r.runner.Run(ctx, "incus", "profile", "show", "default", "--project", "default", "--format", "json")
 	if err != nil {
+		result, err = r.runner.Run(ctx, "incus", "query", "/1.0/profiles/default?project=default")
+	}
+	if err != nil {
 		return "", err
 	}
 	var profile struct {
