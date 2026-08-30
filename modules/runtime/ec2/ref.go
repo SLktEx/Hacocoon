@@ -22,15 +22,16 @@ var (
 )
 
 type runtimeRef struct {
-	Version       int    `json:"version"`
-	AccountID     string `json:"account_id"`
-	Region        string `json:"region"`
-	InstanceID    string `json:"instance_id"`
-	WorkspacePath string `json:"workspace_path"`
-	Bucket        string `json:"bucket"`
-	Prefix        string `json:"prefix"`
-	ReadOnly      bool   `json:"read_only"`
-	BaseDigest    string `json:"base_digest,omitempty"`
+	Version           int    `json:"version"`
+	AccountID         string `json:"account_id"`
+	Region            string `json:"region"`
+	InstanceID        string `json:"instance_id"`
+	WorkspacePath     string `json:"workspace_path"`
+	Bucket            string `json:"bucket"`
+	Prefix            string `json:"prefix"`
+	ReadOnly          bool   `json:"read_only"`
+	BaseDigest        string `json:"base_digest,omitempty"`
+	CreateOperationID string `json:"create_operation_id,omitempty"`
 }
 
 func encodeRef(ref runtimeRef) (string, error) {
@@ -98,6 +99,8 @@ func validateRuntimeRef(ref runtimeRef) error {
 		return fmt.Errorf("invalid EC2 runtime prefix: %w", core.ErrIncompatibleState)
 	case ref.BaseDigest != "" && !validWorkspaceDigest(ref.BaseDigest):
 		return fmt.Errorf("invalid EC2 runtime workspace digest: %w", core.ErrIncompatibleState)
+	case ref.CreateOperationID != "" && !createOperationIDPattern.MatchString(ref.CreateOperationID):
+		return fmt.Errorf("invalid EC2 runtime create operation identity: %w", core.ErrIncompatibleState)
 	default:
 		return nil
 	}
