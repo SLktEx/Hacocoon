@@ -14,7 +14,9 @@ import (
 func TestEC2RuntimeCrossesRealAWSCLIProcessBoundary(t *testing.T) {
 	root := t.TempDir()
 	bin := filepath.Join(root, "bin")
-	if err := os.Mkdir(bin, 0o755); err != nil { t.Fatal(err) }
+	if err := os.Mkdir(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	logPath := filepath.Join(root, "aws.log")
 	counter := filepath.Join(root, "counter")
 	script := `#!/bin/sh
@@ -22,6 +24,7 @@ set -eu
 printf '%s\n' "$*" >> "$HACO_FAKE_AWS_LOG"
 args="$*"
 case "$args" in
+  *" sts get-caller-identity "*) printf '%s\n' '123456789012' ;;
   *" ssm send-command "*)
     n=0; [ -f "$HACO_FAKE_AWS_COUNTER" ] && n="$(cat "$HACO_FAKE_AWS_COUNTER")"
     n=$((n+1)); printf '%s' "$n" > "$HACO_FAKE_AWS_COUNTER"
@@ -47,26 +50,49 @@ case "$args" in
 esac
 `
 	aws := filepath.Join(bin, "aws")
-	if err := os.WriteFile(aws, []byte(script), 0o755); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(aws, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HACO_FAKE_AWS_LOG", logPath)
 	t.Setenv("HACO_FAKE_AWS_COUNTER", counter)
 
 	workspace := filepath.Join(root, "workspace")
-	if err := os.Mkdir(workspace, 0o755); err != nil { t.Fatal(err) }
-	if err := os.WriteFile(filepath.Join(workspace, "host.txt"), []byte("from-host\n"), 0o644); err != nil { t.Fatal(err) }
+	if err := os.Mkdir(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workspace, "host.txt"), []byte("from-host\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	runtime := newTestRuntime(host.ExecRunner{})
 	created, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "remote", WorkspacePath: workspace, ReadOnly: true})
-	if err != nil { t.Fatal(err) }
-	result, err := runtime.ExecEnvironment(context.Background(), created.Ref, core.ExecutionRequest{Argv: []string{"sh", "-c", "printf ok"}})
-	if err != nil || result.ExitCode != 17 || result.Stdout != "remote-out\n" || result.Stderr != "remote-err\n" { t.Fatalf("result=%#v err=%v", result, err) }
-	if err := runtime.DeleteEnvironment(context.Background(), created.Ref); err != nil { t.Fatal(err) }
-
-	content, err := os.ReadFile(logPath); if err != nil { t.Fatal(err) }
-	log := string(content)
-	for _, want := range []string{"ec2 run-instances", "--metadata-options HttpTokens=required,HttpEndpoint=enabled", "ec2 wait instance-status-ok", "ssm describe-instance-information", "ssm send-command", "ssm get-command-invocation", "ec2 terminate-instances", "s3 rm"} {
-		if !strings.Contains(log, want) { t.Fatalf("missing %q in:\n%s", want, log) }
+	if err != nil {
+		t.Fatal(err)
 	}
-	if strings.Contains(strings.ToUpper(log), "AWS_SECRET_ACCESS_KEY") || strings.Contains(strings.ToUpper(log), "AWS_SESSION_TOKEN") { t.Fatalf("credentials appeared in process argv:\n%s", log) }
+	ref, err := decodeRef(created.Ref)
+	if err != nil || ref.AccountID != testAWSAccountID || ref.Region != "ap-northeast-1" {
+		t.Fatalf("ref=%#v err=%v", ref, err)
+	}
+	result, err := runtime.ExecEnvironment(context.Background(), created.Ref, core.ExecutionRequest{Argv: []string{"sh", "-c", "printf ok"}})
+	if err != nil || result.ExitCode != 17 || result.Stdout != "remote-out\n" || result.Stderr != "remote-err\n" {
+		t.Fatalf("result=%#v err=%v", result, err)
+	}
+	if err := runtime.DeleteEnvironment(context.Background(), created.Ref); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := string(content)
+	for _, want := range []string{"sts get-caller-identity --query Account --output text", "ec2 run-instances", "--metadata-options HttpTokens=required,HttpEndpoint=enabled", "ec2 wait instance-status-ok", "ssm describe-instance-information", "ssm send-command", "ssm get-command-invocation", "ec2 terminate-instances", "s3 rm"} {
+		if !strings.Contains(log, want) {
+			t.Fatalf("missing %q in:\n%s", want, log)
+		}
+	}
+	if strings.Contains(strings.ToUpper(log), "AWS_SECRET_ACCESS_KEY") || strings.Contains(strings.ToUpper(log), "AWS_SESSION_TOKEN") {
+		t.Fatalf("credentials appeared in process argv:\n%s", log)
+	}
 }

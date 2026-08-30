@@ -42,6 +42,10 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
+	accountID, err := r.resolveAccountID(ctx)
+	if err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
 
 	archive, cleanupArchive, err := createWorkspaceArchive(ctx, r.runner, spec.WorkspacePath)
 	if err != nil {
@@ -59,6 +63,14 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	cleanup := func(cause error) (core.EnvironmentRuntime, error) {
 		cleanupCtx := context.WithoutCancel(ctx)
 		var cleanupErrs []error
+		currentAccount, authorityErr := r.resolveAccountID(cleanupCtx)
+		if authorityErr != nil || currentAccount != accountID {
+			cleanupErrs = append(cleanupErrs, errors.Join(
+				fmt.Errorf("refusing partial EC2 cleanup because AWS account identity changed or is unavailable (expected %s, observed %q): %w", accountID, currentAccount, authorityErr),
+				core.ErrRecoveryRequired,
+			))
+			return core.EnvironmentRuntime{}, errors.Join(append([]error{cause}, cleanupErrs...)...)
+		}
 		if instanceID != "" {
 			if _, err := r.aws(cleanupCtx, "ec2", "terminate-instances", "--instance-ids", instanceID); err != nil {
 				cleanupErrs = append(cleanupErrs, fmt.Errorf("terminate partial EC2 instance %s: %w", instanceID, err))
@@ -100,7 +112,7 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return cleanup(fmt.Errorf("materialize remote workspace: %w", err))
 	}
 
-	ref, err := encodeRef(runtimeRef{InstanceID: instanceID, WorkspacePath: spec.WorkspacePath, Bucket: cfg.WorkspaceBucket, Prefix: prefix, ReadOnly: spec.ReadOnly})
+	ref, err := encodeRef(runtimeRef{AccountID: accountID, Region: cfg.Region, InstanceID: instanceID, WorkspacePath: spec.WorkspacePath, Bucket: cfg.WorkspaceBucket, Prefix: prefix, ReadOnly: spec.ReadOnly})
 	if err != nil {
 		return cleanup(err)
 	}
@@ -116,6 +128,9 @@ func (r *Runtime) ExecEnvironment(ctx context.Context, rawRef string, req core.E
 	if err != nil {
 		return core.ExecutionResult{}, err
 	}
+	if err := r.authorizeRuntimeRef(ctx, ref); err != nil {
+		return core.ExecutionResult{}, err
+	}
 	command := "cd /workspace && exec " + shellJoin(req.Argv)
 	return r.runSSM(ctx, ref.InstanceID, command)
 }
@@ -125,11 +140,10 @@ func (r *Runtime) ShellEnvironment(ctx context.Context, rawRef string) error {
 	if err != nil {
 		return err
 	}
-	cfg, err := r.config.normalized()
-	if err != nil {
+	if err := r.authorizeRuntimeRef(ctx, ref); err != nil {
 		return err
 	}
-	args := []string{"--region", cfg.Region, "--no-cli-pager", "ssm", "start-session", "--target", ref.InstanceID, "--document-name", "AWS-StartInteractiveCommand", "--parameters", `command=cd /workspace && exec /bin/bash`}
+	args := []string{"--region", ref.Region, "--no-cli-pager", "ssm", "start-session", "--target", ref.InstanceID, "--document-name", "AWS-StartInteractiveCommand", "--parameters", `command=cd /workspace && exec /bin/bash`}
 	cmd := exec.CommandContext(ctx, "aws", args...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = r.stdin, r.stdout, r.stderr
 	return cmd.Run()
@@ -138,6 +152,9 @@ func (r *Runtime) ShellEnvironment(ctx context.Context, rawRef string) error {
 func (r *Runtime) DeleteEnvironment(ctx context.Context, rawRef string) error {
 	ref, err := decodeRef(rawRef)
 	if err != nil {
+		return err
+	}
+	if err := r.authorizeRuntimeRef(ctx, ref); err != nil {
 		return err
 	}
 	state, err := r.instanceState(ctx, ref.InstanceID)
@@ -172,6 +189,9 @@ func (r *Runtime) DeleteEnvironment(ctx context.Context, rawRef string) error {
 func (r *Runtime) InspectEnvironment(ctx context.Context, rawRef string) (core.EnvironmentRuntimeStatus, error) {
 	ref, err := decodeRef(rawRef)
 	if err != nil {
+		return core.EnvironmentRuntimeStatus{}, err
+	}
+	if err := r.authorizeRuntimeRef(ctx, ref); err != nil {
 		return core.EnvironmentRuntimeStatus{}, err
 	}
 	state, err := r.instanceState(ctx, ref.InstanceID)
