@@ -26,6 +26,8 @@ stale_claims = [
     (r"\|\s*v0\.(?:13|18)\s*\|\s*(?:Optional )?Local OCI Registry\s*\|", "stale Local Registry milestone assignment"),
     (r"\|\s*v0\.19\s*\|\s*OCI Seed Builder", "stale Seed Builder milestone assignment"),
     (r"implemented milestones are contiguous through \*\*v0\.12\*\*", "stale milestone ceiling"),
+    (r"current milestone position is \*\*v0\.(?:21|25)\*\*", "stale current milestone ceiling"),
+    (r"現在のmilestone位置は \*\*v0\.(?:21|25)\*\*", "stale Japanese current milestone ceiling"),
     (r"EC2 remains experimental and disabled by default", "stale active EC2 claim"),
     (r"\|\s*EC2 Environment provider\s*\|\s*experimental", "stale active EC2 provider claim"),
 ]
@@ -87,6 +89,7 @@ required = [
     "docs/CLIENT_ADAPTER_CONTRACT.md", "docs/CLIENT_ADAPTER_CONTRACT.ja.md",
     "docs/EGRESS_AUTHORIZATION.md", "docs/EGRESS_AUTHORIZATION.ja.md",
     "docs/design/plugin-architecture.md",
+    "docs/design/trusted-host.md", "docs/design/trusted-host.ja.md",
     "docs/security/security-architecture.md",
     "docs/reference/terminology-and-boundaries.md",
     "docs/status/architecture-and-roadmap.md",
@@ -139,28 +142,37 @@ require_text("docs/status/versioning-and-release-status.md", [
     "Minor milestones are lightweight pre-1.0 progress checkpoints", "v0.17 | OCI Seed Builder & Btrfs/COW",
     "v0.18 | Docker Compatibility Plugin", "v0.19 | Domain-aware Egress Authorization",
     "v0.20 | Managed Btrfs Rootfs Storage", "v0.21 | Managed Btrfs Transparent Compression",
-    "current milestone position is **v0.21**", "Local Registry infrastructure is deferred and unversioned",
-    "cloud implementation is currently deferred",
+    "v0.22 | Interaction Notification Clients", "v0.23 | Real Incus E2E Acceptance",
+    "v0.24 | Structured Logging", "v0.25 | Managed Btrfs Host Privilege Broker",
+    "v0.26 | Trusted `haco-host` & Default WSL Entry", "current milestone position is **v0.26**",
+    "Local Registry infrastructure is deferred and unversioned", "cloud implementation is currently deferred",
 ])
 require_text("docs/IMPLEMENTATION_STATUS.md", [
-    "current code reality", "current milestone position is **v0.21**", "pkg/clientadapter", "haco ssh",
-    "haco plugin oci seed build", "haco plugin oci seed current",
-    "v0.17 partial", "v0.18 implemented", "v0.19 implemented", "v0.20 first slice implemented", "v0.21 implemented",
-    "haco plugin oci docker status", "HACO_PLUGIN_OCI=nerdctl|docker",
-    "design/btrfs-storage-layout.md", "compress=zstd:3", "cloud implementation is currently deferred",
+    "current code reality", "current milestone position is **v0.26**", "pkg/clientadapter", "haco ssh",
+    "haco plugin oci seed build", "v0.17 partial", "v0.18 implemented", "v0.19 implemented",
+    "v0.20 implemented", "v0.21 implemented", "v0.22 implemented", "v0.23 implemented",
+    "v0.24 implemented", "v0.25 implemented", "v0.26 implemented", "haco-notify", "haco-storage-helper",
+    "haco host ensure", "HACO_PLUGIN_OCI=nerdctl|docker", "design/btrfs-storage-layout.md",
+    "design/trusted-host.md", "compress=zstd:3", "cloud implementation is currently deferred",
 ])
 require_text("docs/status/architecture-and-roadmap.md", [
     "Hacocoon is a **Secure Workspace Runtime**", "Core", "Standard", "Plugin",
     "v0.17 | OCI Seed Builder & Btrfs/COW", "v0.18 | Docker Compatibility Plugin",
     "v0.19 | Domain-aware Egress Authorization", "v0.20 | Managed Btrfs Rootfs Storage",
-    "v0.21 | Managed Btrfs Transparent Compression", "current milestone position is **v0.21**",
-    "Local OCI Registry is not a roadmap milestone",
+    "v0.21 | Managed Btrfs Transparent Compression", "v0.22 | Interaction Notification Clients",
+    "v0.23 | Real Incus E2E Acceptance", "v0.24 | Structured Logging",
+    "v0.25 | Managed Btrfs Host Privilege Broker", "v0.26 | Trusted `haco-host` & Default WSL Entry",
+    "current milestone position is **v0.26**", "Local OCI Registry is not a roadmap milestone",
 ])
 require_text("docs/README.md", [
     "Documentation layout", "Source-of-truth order", "CLIENT_ADAPTER_CONTRACT.md",
-    "pkg/clientadapter", "design/oci-seed-and-cow.md", "design/docker-compatibility-plugin.md",
-    "EGRESS_AUTHORIZATION.md", "design/btrfs-storage-layout.md", "current milestone position is **v0.21**",
-    "v0.21 | Managed Btrfs Transparent Compression", "Core", "Standard", "Plugin",
+    "pkg/clientadapter", "design/trusted-host.md", "design/oci-seed-and-cow.md",
+    "design/docker-compatibility-plugin.md", "EGRESS_AUTHORIZATION.md", "INTERACTION_EVENTS.md",
+    "reference/logging.md", "design/btrfs-storage-layout.md", "current milestone position is **v0.26**",
+    "v0.26 | Trusted `haco-host` & Default WSL Entry", "Core", "Standard", "Plugin",
+])
+require_text("docs/design/trusted-host.md", [
+    "haco-host", "Physical Host", "haco host ensure", "haco host shell",
 ])
 require_text("docs/CLIENT_ADAPTER_CONTRACT.md", [
     "pkg/clientadapter", "public-key", "private key", "loopback-only", "/workspace",
@@ -184,9 +196,10 @@ require_text("docs/EGRESS_AUTHORIZATION.md", [
 require_text("docs/design/btrfs-storage-layout.md", [
     "Hacocoon-managed Btrfs storage layout", "v0.21 Managed Btrfs Transparent Compression",
     "sparse raw", "haco-<storage-id>", "Environment rootfs", "compress=zstd:3", "compress-force",
+    "haco-storage-helper",
 ])
-require_text("README.md", ["pre-1.0", "haco base list", "haco plugin oci", "pkg/clientadapter", "v0.21"])
-require_text("README.ja.md", ["読み方: はこーん", "pre-1.0", "haco base list", "haco plugin oci", "pkg/clientadapter", "v0.21"])
+require_text("README.md", ["pre-1.0", "haco base list", "haco plugin oci", "pkg/clientadapter", "haco-notify", "haco-host", "v0.26"])
+require_text("README.ja.md", ["読み方: はこーん", "pre-1.0", "haco base list", "haco plugin oci", "pkg/clientadapter", "haco-notify", "haco-host", "v0.26"])
 
 if errors:
     print("DOC CONSISTENCY FAILED")

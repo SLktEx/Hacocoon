@@ -55,7 +55,7 @@ docs/adr/         architecture decision record。ADR番号はidentityなので�
 
 外向き通信ではegress request / policy / controller contractはCore、具体的なdefault proxy / enforcement implementationはStandardに置きます。Incus adapterがproxy-onlyなlower-layer transport guard、bridge DNS disablement、trusted source mappingを提供します。repository実装は完了しており、real supported-Incus acceptanceはhost-dependentです。
 
-`haco-host` はlocal Incus integrationが提供するtrusted infrastructureで、EnvironmentでもOCI pluginの必須要件でもありません。現在のsliceはlifecycle / default-entryまでで、Git / OCI / credential / control-channelの全面移行はfollow-upです。
+`haco-host` はlocal Incus integrationが提供するtrusted infrastructureで、EnvironmentでもOCI pluginの必須要件でもありません。v0.26はlifecycle / default-entryまでで、Git / OCI / credential / control-channelの全面移行はfollow-upです。
 
 ## 現在のfeature gate
 
@@ -70,12 +70,17 @@ docs/adr/         architecture decision record。ADR番号はidentityなので�
 | v0.17 | OCI Seed Builder & Btrfs/COW | repository slice / partial acceptance |
 | v0.18 | Docker Compatibility Plugin | repository実装完了。real-host acceptanceは別 |
 | v0.19 | Domain-aware Egress Authorization | repository実装完了。real supported-Incus acceptanceは別 |
-| v0.20 | Managed Btrfs Rootfs Storage | first repository slice実装済み。physical COW/compaction acceptanceは別 |
-| v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` managed default実装済み。physical compression/performance acceptanceは別 |
+| v0.20 | Managed Btrfs Rootfs Storage | managed sparse-raw Btrfs pool/rootfs routing実装済み |
+| v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` managed default実装済み |
+| v0.22 | Interaction Notification Clients | browser/native OS/VS Code client実装済み |
+| v0.23 | Real Incus E2E Acceptance | phased standalone Incus + Core lifecycle acceptance実装済み |
+| v0.24 | Structured Logging | shared logging/redaction foundation実装済み |
+| v0.25 | Managed Btrfs Host Privilege Broker | typed helper + ordinary-user real CLI acceptance実装済み |
+| v0.26 | Trusted `haco-host` & Default WSL Entry | trusted Host lifecycle/default-entry + real Incus acceptance実装済み |
 
-現在のmilestone位置は **v0.21** です。minor versionはpre-1.0の軽量な進捗checkpointとして扱い、前のmilestoneがpartialでも後続へ進めます。Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。Trusted `haco-host` / WSL entryはcross-cutting architectureとして扱い、この変更だけで新しいproduct milestoneは消費しません。
+現在のmilestone位置は **v0.26** です。minor versionはpre-1.0の軽量な進捗checkpointとして扱い、前のmilestoneがpartialでも後続へ進めます。productだけでなくoperator experience、observability、acceptanceの意味ある進捗にもminorを使ってよい方針です。Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
 
-現在のdesign specification:
+現在のdesign/reference:
 
 - [`design/trusted-host.ja.md`](design/trusted-host.ja.md)
 - [`design/managed-sandbox-network.ja.md`](design/managed-sandbox-network.ja.md)
@@ -85,6 +90,8 @@ docs/adr/         architecture decision record。ADR番号はidentityなので�
 - [`design/oci-seed-and-cow.ja.md`](design/oci-seed-and-cow.ja.md)
 - [`design/docker-compatibility-plugin.ja.md`](design/docker-compatibility-plugin.ja.md)
 - [`EGRESS_AUTHORIZATION.ja.md`](EGRESS_AUTHORIZATION.ja.md)
+- [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md)
+- [`reference/logging.ja.md`](reference/logging.ja.md)
 - [`design/btrfs-storage-layout.ja.md`](design/btrfs-storage-layout.ja.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md) — deferred optional direction
 
@@ -92,7 +99,7 @@ docs/adr/         architecture decision record。ADR番号はidentityなので�
 
 Supported local Incus pathでは、実際のLinux/WSL substrateである **Physical Host** と、永続的なtrusted logical **`haco-host`** を分けます。Physical HostにはIncus、loop/Btrfs、その他platform authorityを残し、`haco-host` はTCBの一部として扱います。通常のuntrusted Environmentとは別物です。
 
-現在のrepository sliceでは `haco host ensure` / `haco host shell`、exact ownership marker、name collision拒否、managed storage配置、専用WSL login entryを実装しました。Windows install完了後は `wsl -d Hacocoon` を「Hacocoon Hostを開く」入口として扱えます。Raw Incus controlは `haco-host` にmountせず、Physical Hostのroot shellを明示的なrecovery pathとして残します。詳細は [`design/trusted-host.ja.md`](design/trusted-host.ja.md) と [`WINDOWS_WSL_BOOTSTRAP.ja.md`](WINDOWS_WSL_BOOTSTRAP.ja.md) を参照してください。
+v0.26では `haco host ensure` / `haco host shell`、exact ownership marker、name collision拒否、managed storage配置、専用WSL login entryを実装しました。Windows install完了後は `wsl -d Hacocoon` を「Hacocoon Hostを開く」入口として扱えます。Raw Incus controlは `haco-host` にmountせず、Physical Hostのroot shellを明示的なrecovery pathとして残します。詳細は [`design/trusted-host.ja.md`](design/trusted-host.ja.md) と [`WINDOWS_WSL_BOOTSTRAP.ja.md`](WINDOWS_WSL_BOOTSTRAP.ja.md) を参照してください。
 
 ## Reusable client adapter境界
 
@@ -106,7 +113,7 @@ private keyとIDE configはclient自身が保持し、Hacocoonが受け取るの
 
 `pkg/interaction` はcapability audit streamをclient-neutralなread-only eventへprojectionします。stable ID、resume可能なbyte cursor、bounded batch、attention/recovery flagを提供し、raw resource、authority attributes、provider output、approval token、free-form audit reasonはclient schemaへ出しません。
 
-eventの観測自体はCapabilityを承認・実行しません。詳細は [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md) を参照してください。
+eventの観測自体はCapabilityを承認・実行しません。v0.22ではこのstream上にbrowser、native OS、optional VS Code notification adapterを追加しましたが、このauthority boundaryは変わりません。詳細は [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md) を参照してください。
 
 ## Base と OCI
 
@@ -130,7 +137,7 @@ provider-neutralなremote/cloud routing seamは維持しますが、concrete EC2
 
 ## Versioning
 
-minor versionはpre-1.0の実用的な進捗checkpointです。意味のあるimplementation sliceが入ったら、follow-upやreal-host acceptanceが残っていても次minorへ進めて構いません。fix / hardening / refactor / CLI namespace cleanup / CI / docsだけでは通常versionを消費しません。version mappingはstatus docや本文に書き、通常のfilenameには入れません。
+minor versionはpre-1.0の実用的な進捗checkpointです。意味のあるproduct、implementation、operator experience、observability、acceptanceのsliceが入ったら、follow-upやreal-host acceptanceが残っていても次minorへ進めて構いません。小さなfix / maintenance / docsだけで自動的にversionを消費するわけではありませんが、support/operability上の大きなcheckpointならminorを使って構いません。pre-1.0では番号を節約するより進捗を見える化します。version mappingはstatus docや本文に書き、通常のfilenameには入れません。
 
 ## 編集ルール
 
