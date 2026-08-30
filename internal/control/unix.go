@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -42,7 +43,7 @@ func ListenUnix(path string, mode fs.FileMode) (net.Listener, error) {
 		return nil, ErrInvalidArgument
 	}
 	if mode == 0 {
-		mode = 0o660
+		mode = 0o600
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("create control socket directory: %w", err)
@@ -63,20 +64,38 @@ func ListenUnix(path string, mode fs.FileMode) (net.Listener, error) {
 }
 
 func removeStaleSocket(path string) error {
-	info, err := os.Lstat(path)
+	before, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("inspect control socket %q: %w", path, err)
 	}
-	if info.Mode()&os.ModeSocket == 0 {
+	if before.Mode()&os.ModeSocket == 0 {
 		return fmt.Errorf("control socket path %q exists and is not a socket: %w", path, ErrAlreadyRunning)
 	}
+
 	conn, dialErr := net.DialTimeout("unix", path, 50*time.Millisecond)
 	if dialErr == nil {
 		_ = conn.Close()
 		return fmt.Errorf("control socket %q is active: %w", path, ErrAlreadyRunning)
+	}
+	if errors.Is(dialErr, os.ErrNotExist) {
+		return nil
+	}
+	if !errors.Is(dialErr, syscall.ECONNREFUSED) {
+		return fmt.Errorf("cannot prove control socket %q is stale: %v: %w", path, dialErr, ErrAlreadyRunning)
+	}
+
+	after, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("recheck control socket %q: %w", path, err)
+	}
+	if after.Mode()&os.ModeSocket == 0 || !os.SameFile(before, after) {
+		return fmt.Errorf("control socket path %q changed during stale check: %w", path, ErrAlreadyRunning)
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("remove stale control socket %q: %w", path, err)
