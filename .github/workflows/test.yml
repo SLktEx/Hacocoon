@@ -113,6 +113,7 @@ jobs:
             grep -Fx 'haco' <<<"$listing" >/dev/null
             grep -Fx 'haco-vscode' <<<"$listing" >/dev/null
             grep -Fx 'haco-agent-host' <<<"$listing" >/dev/null
+            grep -Fx 'haco-notify' <<<"$listing" >/dev/null
           done
 
           grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
@@ -141,6 +142,8 @@ jobs:
           cache: false
       - run: go test -count=1 -shuffle=on ./...
       - run: go vet ./...
+      - name: Validate VS Code notification extension syntax
+        run: node --check clients/vscode-notify/extension.js
 
   race:
     runs-on: ubuntu-26.04
