@@ -19,6 +19,40 @@ import (
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 )
 
+type e2eLoggingRunner struct {
+	t     *testing.T
+	inner host.Runner
+}
+
+func (r e2eLoggingRunner) Run(ctx context.Context, name string, args ...string) (host.Result, error) {
+	result, err := r.inner.Run(ctx, name, args...)
+	if err != nil {
+		r.t.Logf("command failed: %s %s: %v\nstdout:\n%s\nstderr:\n%s", name, strings.Join(args, " "), err, result.Stdout, result.Stderr)
+		r.logFailedIncusStart(ctx, name, args)
+	}
+	return result, err
+}
+
+func (r e2eLoggingRunner) logFailedIncusStart(ctx context.Context, name string, args []string) {
+	if name != "incus" || len(args) < 1 || args[0] != "start" || len(args) < 2 {
+		return
+	}
+	ref := args[1]
+	project := ""
+	for i := 2; i+1 < len(args); i++ {
+		if args[i] == "--project" {
+			project = args[i+1]
+			break
+		}
+	}
+	infoArgs := []string{"info", "--show-log", ref}
+	if project != "" {
+		infoArgs = append(infoArgs, "--project", project)
+	}
+	info, infoErr := r.inner.Run(ctx, "incus", infoArgs...)
+	r.t.Logf("failed Incus start diagnostics: incus %s: %v\nstdout:\n%s\nstderr:\n%s", strings.Join(infoArgs, " "), infoErr, info.Stdout, info.Stderr)
+}
+
 func TestRealIncusWorkspaceLifecycleE2E(t *testing.T) {
 	if os.Getenv("HACO_E2E_INCUS") != "1" {
 		t.Skip("set HACO_E2E_INCUS=1 on a supported Incus host")
@@ -31,7 +65,7 @@ func TestRealIncusWorkspaceLifecycleE2E(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	runner := host.ExecRunner{}
+	runner := e2eLoggingRunner{t: t, inner: host.ExecRunner{}}
 	if result, err := runner.Run(ctx, "incus", "version"); err != nil {
 		t.Fatalf("Incus daemon is not usable: %v\n%s", err, result.Stderr)
 	}
@@ -45,6 +79,10 @@ func TestRealIncusWorkspaceLifecycleE2E(t *testing.T) {
 	runtimeAdapter.stdout = &shellStdout
 	runtimeAdapter.stderr = &shellStderr
 
+	if err := runtimeAdapter.Prepare(ctx, core.RuntimePrepareSpec{StorageAttachment: map[string]string{"incus_pool": "default"}}); err != nil {
+		t.Fatalf("prepare Incus runtime: %v", err)
+	}
+
 	workspaceDir := filepath.Join(t.TempDir(), "workspace")
 	if err := os.Mkdir(workspaceDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -52,9 +90,22 @@ func TestRealIncusWorkspaceLifecycleE2E(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(workspaceDir, "host.txt"), []byte("from-host\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	uid, gid, ownerErr := workspaceOwnerIDs(workspaceDir)
+	if ownerErr == nil {
+		t.Logf("workspace ownership: uid=%d gid=%d", uid, gid)
+	}
+	for _, path := range []string{"/etc/subuid", "/etc/subgid"} {
+		if content, readErr := os.ReadFile(path); readErr == nil {
+			t.Logf("%s:\n%s", path, content)
+		}
+	}
 
 	store := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state", "environments.json"))
-	service := workspaceapp.New(runtimeAdapter, store)
+	provider, err := NewSandboxProvider(runtimeAdapter)
+	if err != nil {
+		t.Fatalf("create production Incus sandbox provider: %v", err)
+	}
+	service := workspaceapp.New(provider, store)
 	instanceRef := "haco-demo"
 	readonlyRef := "haco-readonly"
 	defer func() {
