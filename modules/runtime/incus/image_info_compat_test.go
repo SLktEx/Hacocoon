@@ -173,3 +173,21 @@ func TestImageInfoCompatRunnerExpandedConfigFailsClosedOnBadAPIState(t *testing.
 		})
 	}
 }
+
+func TestImageInfoCompatRunnerPreservesGuestSystemctlShowStderr(t *testing.T) {
+	processErr := errors.New("exit status 1")
+	next := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+		if name != "incus" || !reflect.DeepEqual(args, []string{"exec", "builder", "--project", "hacocoon", "--", "systemctl", "show", "-p", "ActiveState", "--value", "containerd.service"}) {
+			t.Fatalf("unexpected call: %s %#v", name, args)
+		}
+		return host.Result{ExitCode: 1, Stderr: "System has not been booted with systemd"}, processErr
+	}}
+
+	_, err := wrapImageInfoCompatRunner(next).Run(context.Background(), "incus", "exec", "builder", "--project", "hacocoon", "--", "systemctl", "show", "-p", "ActiveState", "--value", "containerd.service")
+	if !errors.Is(err, processErr) {
+		t.Fatalf("err=%v want wrapped process error", err)
+	}
+	if !strings.Contains(err.Error(), "System has not been booted with systemd") {
+		t.Fatalf("err=%v missing stderr", err)
+	}
+}
