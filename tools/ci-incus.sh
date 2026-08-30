@@ -5,6 +5,7 @@ readonly CI_REMOTE="haco-ci"
 readonly SANDBOX_PROFILE="haco-sandbox"
 readonly SANDBOX_NETWORK="haco-sandbox0"
 readonly SANDBOX_ACL="haco-sandbox-egress"
+readonly ZABBLY_SIGNING_FPR="4EFC590696CB15B87C73A3AD""82CC8797C838DCFD"
 
 fail() {
   echo "ERROR: $*" >&2
@@ -17,11 +18,45 @@ require_github_hosted_runner() {
   [[ "$(uname -s)" == "Linux" ]] || fail "Incus CI helper requires Linux"
 }
 
-setup_incus() {
-  require_github_hosted_runner
+install_incus_lts() {
+  local key_file source_file fingerprint codename architecture
 
   sudo env DEBIAN_FRONTEND=noninteractive apt-get update
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus dnsmasq-base
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends ca-certificates curl gnupg
+
+  key_file="$(mktemp)"
+  curl -fsSL https://pkgs.zabbly.com/key.asc -o "$key_file"
+  fingerprint="$(gpg --batch --show-keys --with-colons --fingerprint "$key_file" | awk -F: '$1 == "fpr" {print $10; exit}')"
+  [[ "$fingerprint" == "$ZABBLY_SIGNING_FPR" ]] || fail "unexpected Zabbly signing fingerprint: $fingerprint"
+
+  sudo install -d -m 0755 /etc/apt/keyrings
+  sudo install -m 0644 "$key_file" /etc/apt/keyrings/zabbly.asc
+  rm -f "$key_file"
+
+  codename="$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")"
+  architecture="$(dpkg --print-architecture)"
+  source_file="$(mktemp)"
+  cat >"$source_file" <<EOF
+Enabled: yes
+Types: deb
+URIs: https://pkgs.zabbly.com/incus/lts-6.0
+Suites: $codename
+Components: main
+Architectures: $architecture
+Signed-By: /etc/apt/keyrings/zabbly.asc
+EOF
+  sudo install -m 0644 "$source_file" /etc/apt/sources.list.d/zabbly-incus-lts-6.0.sources
+  rm -f "$source_file"
+
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get update
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus-base
+}
+
+setup_incus() {
+  local server_version
+
+  require_github_hosted_runner
+  install_incus_lts
 
   # Hacocoon deliberately keeps bridge IP filtering enabled. Incus 6.0
   # requires the host's bridge netfilter hooks for that policy, while the
@@ -39,6 +74,10 @@ setup_incus() {
   incus remote switch "${CI_REMOTE}"
 
   incus version
+  server_version="$(incus version | awk -F': ' '$1 == "Server version" {print $2; exit}')"
+  [[ -n "$server_version" ]] || fail "could not determine Incus server version"
+  dpkg --compare-versions "$server_version" ge 6.0.5 || fail "Incus $server_version is too old; 6.0.5+ is required for Linux 6.9+ idmapped mounts"
+  dpkg --compare-versions "$server_version" lt 6.1 || fail "expected Incus 6.0 LTS, got $server_version"
   incus profile show default --project default >/dev/null
 }
 
