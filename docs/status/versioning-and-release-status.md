@@ -1,10 +1,10 @@
 # Versioning and release status
 
-> **Authoritative milestone numbering · Updated 2026-08-31**
+> **Human-readable checkpoint policy/status view · Updated 2026-08-31**
 
 Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progression; they are not compatibility guarantees, release tags, or proof of production support.
 
-Use this document for **which version number belongs to which development checkpoint**. Use [`../IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md) for exact code reality and host-dependent acceptance.
+[`checkpoints.yaml`](checkpoints.yaml) is the machine-readable source of truth for **checkpoint numbering, the current checkpoint, and Gate identity**. This document explains the numbering policy and carries human-maintained implementation/acceptance status. Use [`../IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md) for exact code reality and host-dependent acceptance.
 
 ## Numbering policy
 
@@ -14,12 +14,12 @@ Use this document for **which version number belongs to which development checkp
 2. A partial earlier milestone does not block later milestones. Version order is chronology, not a claim that every previous gate is complete.
 3. Granularity is intentionally pragmatic and intentionally aggressive during pre-1.0 development. Closely related work may share a milestone, while a substantial follow-up may take the next minor number.
 4. Security/hardening, bug fixes, refactors, CLI namespace cleanup, CI, docs, release engineering, and test-only changes do not automatically consume a milestone, but they may do so when they create a meaningful support, operability, or acceptance checkpoint.
-5. Milestone changes update this file and `../IMPLEMENTATION_STATUS.md`; relevant roadmap/index summaries should remain aligned.
+5. Milestone changes go through `tools/bump-milestone`, which updates `checkpoints.yaml`, this human-readable table/current declaration, the Japanese mirror, `../IMPLEMENTATION_STATUS.md`, and generated build identity together.
 6. Design-only specifications may reserve future numbers but remain **planned** until implementation lands.
 7. Historical commit messages, PR titles, candidate branches, old document addresses, and superseded numbering are not authoritative.
 8. Tags/releases are separate from roadmap milestone numbering.
 
-## Current authoritative numbering
+## Current checkpoint status
 
 **Status legend:** ✅ implemented · 🧪 partial / foundation · 🚧 planned/deferred
 
@@ -52,7 +52,7 @@ Use this document for **which version number belongs to which development checkp
 | v0.25 | Managed Btrfs Host Privilege Broker | ✅ root-owned typed storage helper and ordinary-user real Incus/Btrfs CLI acceptance implemented |
 | v0.26 | Trusted `haco-host` & Default WSL Entry | ✅ persistent trusted logical Host lifecycle, ownership/collision checks, managed-storage placement, default WSL entry, recovery path, and real Incus acceptance implemented |
 
-The current milestone position is **v0.26**. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.26**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

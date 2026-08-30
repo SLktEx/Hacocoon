@@ -2,11 +2,11 @@
 
 [English](versioning-and-release-status.md) | **日本語**
 
-> **milestone番号の正本 · 2026-08-31更新**
+> **人間向けcheckpoint policy/status view · 2026-08-31更新**
 
 Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進行を表し、compatibility guarantee、release tag、production supportの証明ではありません。
 
-現在のcode realityとhost-dependent acceptanceは [`../IMPLEMENTATION_STATUS.ja.md`](../IMPLEMENTATION_STATUS.ja.md) を参照してください。
+[`checkpoints.yaml`](checkpoints.yaml) が **checkpoint番号・current checkpoint・Gate identity** のmachine-readable正本です。このdocumentは番号付けpolicyと人間が管理するimplementation/acceptance statusを説明します。現在のcode realityとhost-dependent acceptanceは [`../IMPLEMENTATION_STATUS.ja.md`](../IMPLEMENTATION_STATUS.ja.md) を参照してください。
 
 ## 番号付けの方針
 
@@ -16,12 +16,12 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 2. 前のmilestoneがpartialでも、後続milestoneへ進んでよい。version順は時系列であり、過去gateがすべて完了したことを意味しない
 3. 粒度は実用優先で決め、pre-1.0では意図的に細かく進めてよい。密接な複数PRを同じmilestoneにまとめてもよく、大きめのfollow-upを次minorへ分けてもよい
 4. security/hardening、bug fix、refactor、CLI namespace整理、CI、docs、release engineering、test-only変更は自動的にversionを消費するわけではないが、support、operability、acceptance上の意味あるcheckpointになる場合はminorを使ってよい
-5. milestoneを進める時はこのファイルと `../IMPLEMENTATION_STATUS.md` を更新し、roadmap/index summaryも矛盾しないようにする
+5. milestone更新は `tools/bump-milestone` を通し、`checkpoints.yaml`、このhuman-readable table/current宣言、英語mirror、`../IMPLEMENTATION_STATUS.md`、generated build identityをまとめて同期する
 6. design-only specificationはfuture numberを予約できるが、実装までは **planned**
 7. historical commit/PR/branch/旧document address/過去の番号付けは現在の正本ではない
 8. release tagとroadmap milestone番号は別物
 
-## 現在の番号
+## 現在のcheckpoint status
 
 | Version | Gate | `main` の状態 |
 |---|---|---|
@@ -52,7 +52,7 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 | v0.25 | Managed Btrfs Host Privilege Broker | root-owned typed storage helperとordinary-user real Incus/Btrfs CLI acceptanceを実装済み |
 | v0.26 | Trusted `haco-host` & Default WSL Entry | persistent trusted logical Host lifecycle、ownership/collision check、managed-storage配置、default WSL entry、recovery path、real Incus acceptanceを実装済み |
 
-現在のmilestone位置は **v0.26** です。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.26** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

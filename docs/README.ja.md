@@ -7,7 +7,8 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、d
 ## まず読む
 
 - 現在の実装: [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md)
-- Development checkpoint番号/履歴: [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md)
+- Development checkpoint正本: [`status/checkpoints.yaml`](status/checkpoints.yaml)
+- Development checkpoint policy/status/履歴: [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md)
 - 設計原則: [`DESIGN_PRINCIPLES.ja.md`](DESIGN_PRINCIPLES.ja.md)
 - Architecture / Roadmap: [`status/architecture-and-roadmap.md`](status/architecture-and-roadmap.md)
 - Security: [`security/security-architecture.md`](security/security-architecture.md)
@@ -40,15 +41,16 @@ docs/adr/         architecture decision record。ADR番号はidentityなので�
 ## 正本の優先順
 
 1. `IMPLEMENTATION_STATUS.md` — 現在のcode reality
-2. `status/versioning-and-release-status.md` — development checkpoint番号/履歴
-3. `DESIGN_PRINCIPLES.md` — cross-cuttingなproduct / architecture constraint
-4. `status/architecture-and-roadmap.md` — product boundaryとfuture direction
-5. `reference/terminology-and-boundaries.md` / `security/security-architecture.md`
-6. `design/` 配下の該当feature specification
-7. 個別のoperational/reference doc
-8. README / index
+2. `status/checkpoints.yaml` — development checkpoint番号・current checkpoint・Gate identity
+3. `status/versioning-and-release-status.md` — checkpoint policy・人間向けstatus・履歴/context
+4. `DESIGN_PRINCIPLES.md` — cross-cuttingなproduct / architecture constraint
+5. `status/architecture-and-roadmap.md` — product boundaryとfuture direction
+6. `reference/terminology-and-boundaries.md` / `security/security-architecture.md`
+7. `design/` 配下の該当feature specification
+8. 個別のoperational/reference doc
+9. README / index
 
-README/indexはcheckpoint tableを意図的に複製しません。現在の `v0.N` とhistorical mappingは [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) を正本とし、実装詳細は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) に置きます。
+README/indexはcheckpoint tableを意図的に複製しません。現在の `v0.N` とversion/Gate mappingは [`status/checkpoints.yaml`](status/checkpoints.yaml)、人間向けstatusは [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md)、実装詳細は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) に置きます。
 
 ## Core / Standard / Plugin
 
@@ -62,9 +64,10 @@ README/indexはcheckpoint tableを意図的に複製しません。現在の `v0
 
 ## 現在のcheckpoint
 
-個別feature page、README本文、commit messageから現在のcheckpointを推測しません。次を正本として使います。
+個別feature page、README本文、commit messageから現在のcheckpointを推測しません。次を使います。
 
-- [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) — authoritativeな現在の `v0.N` と履歴
+- [`status/checkpoints.yaml`](status/checkpoints.yaml) — authoritativeな現在の `v0.N` とordered version/Gate mapping
+- [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) — policyと人間向けcheckpoint status/履歴
 - [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) — 実際に何が実装済みか、どのacceptance gapが残るか
 
 pre-1.0のcheckpoint番号は意図的に安く扱います。意味のあるproduct、implementation、operator experience、observability、acceptanceのsliceは、前のreal-host acceptanceが残っていても次minorへ進めて構いません。README/indexは変化するtableを複製せず正本へlinkします。
@@ -127,7 +130,7 @@ provider-neutralなremote/cloud routing seamは維持しますが、concrete EC2
 
 ## 編集ルール
 
-[`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md) に従います。owner docを先に更新し、その後 `IMPLEMENTATION_STATUS.md`、development checkpointがminor番号を消費・変更する時は `status/versioning-and-release-status.md` を更新します。英語/日本語のcompanionは同じ変更で揃え、最後に実行します。
+[`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md) に従います。owner docを先に更新し、その後 `IMPLEMENTATION_STATUS.md` を更新します。development checkpointがminor番号を消費・変更する時は `tools/bump-milestone` を使い、`status/checkpoints.yaml`、status mirror、generated build identityを同期します。英語/日本語のcompanionは同じ変更で揃え、最後に実行します。
 
 ```bash
 python tools/check_docs.py

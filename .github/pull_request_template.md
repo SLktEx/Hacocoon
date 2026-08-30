@@ -14,7 +14,8 @@
 If **New development checkpoint** is selected:
 
 - [ ] I used or followed `tools/bump-milestone v0.N "Gate Name"`.
-- [ ] `docs/status/versioning-and-release-status.md` and `.ja.md` are synchronized.
+- [ ] `docs/status/checkpoints.yaml` contains the new current checkpoint and Gate identity.
+- [ ] `docs/status/versioning-and-release-status.md` and `.ja.md` mirror the YAML numbering/Gate and describe status.
 - [ ] `docs/IMPLEMENTATION_STATUS.md` and `.ja.md` describe the new code reality / acceptance status.
 - [ ] The owning design/reference documentation is updated.
 
