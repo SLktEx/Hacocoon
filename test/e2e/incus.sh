@@ -24,16 +24,23 @@ controller_log="$root/controller.log"
 control_socket="$root/control.sock"
 environment="e2e-$$"
 runtime_ref="haco-$environment"
+client_environment="client-e2e-$$"
+client_runtime_ref="haco-$client_environment"
 trusted_host_ref="haco-host"
 trusted_control_socket="/var/lib/hacocoon-control.sock"
+guest_haco="/usr/local/bin/haco-client-e2e"
 export HACO_ROOT="$root/haco-root"
 export HACO_CONTROL_SOCKET="$control_socket"
 created=0
+client_created=0
 trusted_host_created=0
 controller_pid=""
 
 cleanup() {
   set +e
+  if [[ "$client_created" == "1" ]]; then
+    incus delete "$client_runtime_ref" --project hacocoon --force >/dev/null 2>&1 || true
+  fi
   if [[ "$created" == "1" ]]; then
     "$haco" delete "$environment" >/dev/null 2>&1 || \
       incus delete "$runtime_ref" --project hacocoon --force >/dev/null 2>&1 || true
@@ -148,6 +155,70 @@ for forbidden in \
   fi
 done
 
+# Test-only provisioning proves that the general `haco env` namespace is a
+# controller client even inside trusted haco-host. Production provisioning of
+# `haco` remains a later migration step until the remaining legacy namespaces
+# have been classified.
+incus file push "$haco" "$trusted_host_ref$guest_haco" --project hacocoon --uid 0 --gid 0 --mode 0755
+incus exec "$trusted_host_ref" --project hacocoon -- test -x "$guest_haco"
+[[ "$(incus exec "$trusted_host_ref" --project hacocoon -- "$guest_haco" env list --json)" == "[]" ]] || {
+  echo "trusted-host haco env list did not use the empty controller state" >&2
+  exit 1
+}
+
+incus exec "$trusted_host_ref" --project hacocoon -- \
+  "$guest_haco" env create --workspace "$workspace" "$client_environment" >/dev/null
+client_created=1
+
+client_list="$(incus exec "$trusted_host_ref" --project hacocoon -- "$guest_haco" env list --json)"
+grep -Fq "\"name\":\"$client_environment\"" <<<"$client_list" || {
+  echo "trusted-host haco env list did not include controller-created Environment" >&2
+  exit 1
+}
+client_status="$(incus exec "$trusted_host_ref" --project hacocoon -- "$guest_haco" env status "$client_environment" --json)"
+grep -Fq "\"name\":\"$client_environment\"" <<<"$client_status" || {
+  echo "trusted-host haco env status returned wrong Environment" >&2
+  exit 1
+}
+grep -Fq '"state":"running"' <<<"$client_status" || {
+  echo "trusted-host haco env status did not report running state" >&2
+  exit 1
+}
+
+client_read="$(incus exec "$trusted_host_ref" --project hacocoon -- "$guest_haco" env exec "$client_environment" -- cat /workspace/host.txt)"
+[[ "$client_read" == "from-host" ]] || {
+  echo "trusted-host haco env exec read mismatch: $client_read" >&2
+  exit 1
+}
+
+client_stdout="$root/client-stdout"
+client_stderr="$root/client-stderr"
+set +e
+incus exec "$trusted_host_ref" --project hacocoon -- \
+  "$guest_haco" env exec "$client_environment" -- sh -c "printf 'client-out'; printf 'client-err' >&2; exit 19" \
+  >"$client_stdout" 2>"$client_stderr"
+client_exit=$?
+set -e
+[[ "$client_exit" == "19" ]] || {
+  echo "trusted-host haco env exec expected exit 19, got $client_exit" >&2
+  exit 1
+}
+[[ "$(cat "$client_stdout")" == "client-out" ]] || {
+  echo "trusted-host haco env exec stdout mismatch" >&2
+  exit 1
+}
+grep -q "client-err" "$client_stderr" || {
+  echo "trusted-host haco env exec stderr mismatch" >&2
+  exit 1
+}
+
+incus exec "$trusted_host_ref" --project hacocoon -- "$guest_haco" env delete "$client_environment"
+client_created=0
+if incus info "$client_runtime_ref" --project hacocoon >/dev/null 2>&1; then
+  echo "controller-created client Environment remained after trusted-host haco env delete" >&2
+  exit 1
+fi
+
 "$haco" create --workspace "$workspace" "$environment" >/dev/null
 created=1
 
@@ -225,4 +296,4 @@ if [[ -e "$HACO_ROOT/state/environments.json" ]] && grep -Fq "\"$environment\"" 
   exit 1
 fi
 
-echo "PASS: trusted haco-host -> Hacocoon UDS -> Physical Host controller + Incus E2E"
+echo "PASS: trusted haco general client -> Hacocoon UDS -> Physical Host controller + Incus E2E"
