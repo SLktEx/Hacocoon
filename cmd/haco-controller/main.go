@@ -11,6 +11,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/logging"
+	"github.com/SLktEx/Hacocoon/internal/workloadbroker"
 )
 
 func main() {
@@ -21,10 +22,26 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	server := control.NewServer()
-	if err := controlapi.Register(server, app.Environments, app.Clients); err != nil {
+	brokers, err := workloadbroker.New(app.Runtime, app.Runtime)
+	if err != nil {
 		fail(err)
 	}
+	defer brokers.Close()
+	environments, err := workloadbroker.NewEnvironmentService(app.Environments, brokers)
+	if err != nil {
+		fail(err)
+	}
+	if err := environments.Reconcile(ctx); err != nil {
+		fail(err)
+	}
+
+	server := control.NewServer()
+	if err := controlapi.Register(server, environments, app.Clients); err != nil {
+		fail(err)
+	}
+	// The full controller socket is exposed only to the trusted haco-host path.
+	// Environment guests receive separate identity-bound workload sockets below
+	// this API surface and therefore cannot call Environment lifecycle methods.
 	if err := controlapi.RegisterWorkloads(server, app.Runtime); err != nil {
 		fail(err)
 	}
