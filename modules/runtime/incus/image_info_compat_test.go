@@ -10,20 +10,16 @@ import (
 )
 
 const compatImageFingerprint = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+const compatVMFingerprint = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 
-func TestResolveParentBaseFallsBackToIncus6ImageList(t *testing.T) {
+func TestResolveParentBaseSelectsContainerWhenAliasAlsoHasVM(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, args []string) (host.Result, error) {
-		switch call {
-		case 0:
-			assertStringSlice(t, args, []string{"image", "info", "images:ubuntu/26.04", "--format", "json"})
-			return host.Result{ExitCode: 1, Stderr: "Error: unknown flag: --format\n"}, errors.New("exit status 1")
-		case 1:
-			assertStringSlice(t, args, []string{"image", "list", "images:", "ubuntu/26.04", "--format", "csv", "-c", "L,F"})
-			return host.Result{Stdout: "\"ubuntu/26.04\nubuntu/latest\"," + compatImageFingerprint + "\n"}, nil
-		default:
+		if call != 0 {
 			t.Fatalf("unexpected call %d: %#v", call, args)
-			return host.Result{}, nil
 		}
+		assertStringSlice(t, args, []string{"image", "list", "images:", "ubuntu/26.04", "--format", "csv", "-c", "L,F,T"})
+		return host.Result{Stdout: "\"ubuntu/26.04\nubuntu/latest\"," + compatImageFingerprint + ",CONTAINER\n" +
+			"ubuntu/26.04," + compatVMFingerprint + ",VIRTUAL-MACHINE\n"}, nil
 	}}
 	provider, err := NewBaseProvider(New(runner))
 	if err != nil {
@@ -40,15 +36,18 @@ func TestResolveParentBaseFallsBackToIncus6ImageList(t *testing.T) {
 	if resolved.pinnedSource != "images:"+compatImageFingerprint {
 		t.Fatalf("pinned source = %q", resolved.pinnedSource)
 	}
+	if len(runner.calls) != 1 {
+		t.Fatalf("calls = %#v", runner.calls)
+	}
 }
 
-func TestImageFingerprintFallbackMatchesFingerprintPrefix(t *testing.T) {
+func TestImageFingerprintMatchesContainerFingerprintPrefix(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, args []string) (host.Result, error) {
-		if call == 0 {
-			return host.Result{ExitCode: 1, Stderr: "Error: unknown flag: --format\n"}, errors.New("exit status 1")
+		if call != 0 {
+			t.Fatalf("unexpected call %d: %#v", call, args)
 		}
-		assertStringSlice(t, args, []string{"image", "list", "local:", compatImageFingerprint, "--format", "csv", "-c", "L,F", "--project", "hacocoon"})
-		return host.Result{Stdout: "," + compatImageFingerprint + "\n"}, nil
+		assertStringSlice(t, args, []string{"image", "list", "local:", compatImageFingerprint, "--format", "csv", "-c", "L,F,T", "--project", "hacocoon"})
+		return host.Result{Stdout: "," + compatImageFingerprint + ",CONTAINER\n"}, nil
 	}}
 	provider, err := NewBaseProvider(New(runner))
 	if err != nil {
@@ -64,7 +63,22 @@ func TestImageFingerprintFallbackMatchesFingerprintPrefix(t *testing.T) {
 	}
 }
 
-func TestImageFingerprintDoesNotFallbackForUnrelatedFailure(t *testing.T) {
+func TestImageFingerprintIgnoresVMOnlyMatch(t *testing.T) {
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, _ []string) (host.Result, error) {
+		return host.Result{Stdout: "ubuntu/26.04," + compatVMFingerprint + ",VIRTUAL-MACHINE\n"}, nil
+	}}
+	provider, err := NewBaseProvider(New(runner))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = provider.imageFingerprint(context.Background(), "images:ubuntu/26.04", "")
+	if !errors.Is(err, core.ErrNotFound) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestImageFingerprintPropagatesListFailure(t *testing.T) {
 	permissionErr := errors.New("permission denied")
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, _ []string) (host.Result, error) {
 		return host.Result{ExitCode: 1, Stderr: "Error: permission denied\n"}, permissionErr
@@ -79,7 +93,7 @@ func TestImageFingerprintDoesNotFallbackForUnrelatedFailure(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 	if len(runner.calls) != 1 {
-		t.Fatalf("unexpected fallback calls: %#v", runner.calls)
+		t.Fatalf("unexpected calls: %#v", runner.calls)
 	}
 }
 
