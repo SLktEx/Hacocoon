@@ -4,11 +4,11 @@ Hacocoon v0.5 keeps GitHub authority on the host side. An Environment can keep u
 
 ## Brokered push
 
-The current narrow privileged entry point is:
+Git integration is exposed under the plugin namespace rather than as a Core top-level CLI command. The current narrow privileged entry point is:
 
 ```bash
-haco git push <environment> --branch feature/x
-haco git push <environment> --branch main --force
+haco plugin git push <environment> --branch feature/x
+haco plugin git push <environment> --branch main --force
 ```
 
 Optional selectors:
@@ -18,7 +18,7 @@ Optional selectors:
 --remote <remote>     default: origin
 ```
 
-This is intentionally **not** a Hacocoon wrapper for every Git command. Commit, diff, status, fetch, worktree handling, and other ordinary Git UX remain Git's responsibility. A future transparent remote-helper/IPC path should only be added if it preserves the same security boundary without revealing credentials.
+This is intentionally **not** a Hacocoon wrapper for every Git command. Commit, diff, status, fetch, worktree handling, and other ordinary Git UX remain Git's responsibility. The `plugin git` namespace marks Git/GitHub integration as an extension surface while the security-sensitive authority remains inside the host-owned Policy/Capability boundary. A future transparent remote-helper/IPC path should only be added if it preserves the same security boundary without revealing credentials.
 
 ## Trusted repository identity
 

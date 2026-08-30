@@ -267,7 +267,7 @@ haco connections
 haco forward
 haco unforward
 haco ssh
-haco git push
+haco plugin git push
 haco capability request
 haco run
 haco events
@@ -279,6 +279,8 @@ haco-vscode delete
 haco-agent-host prepare
 haco-agent-host release
 ```
+
+Git / GitHub integration は Core の top-level command ではなく `haco plugin` namespace に置きます。特権操作そのものはこれまで通り Host 側の Policy / Capability boundary を通ります。
 
 ## EC2
 
