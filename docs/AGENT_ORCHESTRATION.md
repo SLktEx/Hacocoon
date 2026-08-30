@@ -75,7 +75,43 @@ Security-sensitive authority remains in the v0.4+ Policy/Capability boundary. Ex
 haco events --json
 ```
 
-The JSON form is JSON Lines: one event per line. Events include the capability `request_id` for correlation plus safe policy attributes, decisions, approval decisions, and completion state. Capability `Parameters` are not present because they are intentionally excluded from the audit source.
+The JSON form is JSON Lines: one event per line. Events include the capability `request_id` for correlation plus safe policy attributes, decisions, approval decisions, completion state, and a `next_offset` byte cursor. Capability `Parameters` are not present because they are intentionally excluded from the audit source.
+
+`haco events` streams records one at a time instead of first loading the entire audit history into memory. A full read still performs O(N) I/O, but memory use is bounded by one audit record plus the caller/output buffers.
+
+### Incremental consumption
+
+A polling orchestrator should persist `next_offset` from the **last event it successfully consumed** and pass that value back on the next read:
+
+```bash
+haco events --json --since-offset 12345
+```
+
+Only complete records beginning at that byte offset are decoded and emitted. For example:
+
+```text
+poll 1: offset 0
+  event A -> next_offset 812
+  event B -> next_offset 1537
+  persist 1537
+
+new audit records are appended
+
+poll 2: --since-offset 1537
+  event C -> next_offset 2274
+  persist 2274
+```
+
+Cursor rules are intentionally strict:
+
+- `0` means start at the beginning of the current audit file;
+- a cursor must point to a JSONL record boundary;
+- a cursor beyond the current file size is rejected because the file may have been truncated or rotated;
+- if output/consumer handling fails while delivering an event, do not advance past that undelivered event;
+- appending records to the same audit file preserves existing cursors;
+- raw byte offsets identify positions only within the **current audit file generation**. If an external process rotates or replaces the audit file, reset the cursor to `0` explicitly. A replacement file that happens to be at least as large as the old cursor cannot be distinguished reliably using a raw offset alone.
+
+Audit corruption remains fail-closed. Hacocoon emits only trustworthy records before the first malformed/incomplete record and then returns an error. The corruption byte offset is absolute within the audit file. When reading from a non-zero cursor, the reported corruption line number is relative to that resumed stream.
 
 The event surface is observational. It does not turn Hacocoon into a development-review or orchestration engine.
 
