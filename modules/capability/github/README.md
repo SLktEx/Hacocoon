@@ -6,6 +6,8 @@ It is an adapter/plugin, not a Core domain dependency. Core owns only generic ca
 
 The sandbox does not receive GitHub credentials from this plugin. Host-side brokered Git keeps global/system Git configuration disabled and explicitly installs only `gh auth git-credential` as the HTTPS credential provider for `github.com`. Operators who normally use `gh auth login` / `gh auth setup-git` can therefore access private repositories without copying PATs or the complete host credential-helper configuration into the sandbox or repository.
 
+Headless hosts such as GitHub Actions may instead provide `HACO_GITHUB_TOKEN` to the Hacocoon host process. The isolated Git runner accepts only that explicit Hacocoon credential input, maps it to `GH_TOKEN` inside the trusted brokered Git process for `gh auth git-credential`, and continues to discard ambient `GH_TOKEN` / `GITHUB_TOKEN`. The token is not copied into the Environment, Hacocoon state, policy requests, or audit records.
+
 `fetch` runs only after the capability service evaluates the GitHub repository, remote, and repository identity. Execution uses the validated GitHub URL plus a fixed refspec rather than repository-controlled `remote.<name>.fetch`, and updates only `refs/remotes/<remote>/*`. Tags and submodules are not fetched automatically.
 
 CLI:
