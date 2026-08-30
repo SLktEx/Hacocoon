@@ -2,7 +2,7 @@
 
 [English](OCI_RUNTIME_AND_DOCKER_COMPAT.md) | **日本語**
 
-Status: **v0.17 repository integration実装済み。real-host acceptanceは環境依存で別途。**
+Status: **v0.18 repository integrationはroadmap順より先に実装済み。real-host acceptanceは環境依存で別途。**
 
 OCI/container toolingはHacocoon Coreのruntime必須要件ではなく、optionalなplugin/adapter concernです。
 
@@ -24,9 +24,9 @@ existing containerd where supported
 
 genuine Docker CLIを使い、Engine APIが必要な時だけdockerdをon-demandで起動します。Docker互換のためだけに別のHacocoon-managed containerdを立ち上げません。
 
-## v0.17 plugin boundary
+## v0.18 plugin boundary
 
-Docker/containerd/nerdctl固有の処理は `modules/plugin/oci` のplugin/adapter境界に置きます。v0.17ではsystemd socket/service packagingに加えてEnvironment-local lifecycleのinspection/preparationを実装しています。
+Docker/containerd/nerdctl固有の処理は `modules/plugin/oci` のplugin/adapter境界に置きます。repositoryにはsystemd socket/service packagingに加えてEnvironment-local lifecycleのinspection/preparationが実装済みです。
 
 ```text
 HACO_PLUGIN_OCI=docker haco plugin oci docker status <environment>
@@ -34,6 +34,8 @@ HACO_PLUGIN_OCI=docker haco plugin oci docker prepare <environment>
 ```
 
 `status` はDockerを起動しません。`prepare` はBase/Seed側にgenuine Docker CLI、dockerd、containerd、systemd、docker group、Hacocoon-pinned unitがあることを要求します。unitを検証してからsocket activationを有効化し、package installはせず、既にactiveなvendor Docker daemon/socketを勝手に停止しません。
+
+このcodeはDocker Compatibilityがv0.17と呼ばれていた時点でlandしました。現在の正本ではv0.18へ付け替えますが、runtime behaviorをrollbackしません。
 
 - Host Docker socketをEnvironmentへmountしない
 - Host containerd / Incus / Hacocoon control socketを渡さない
@@ -46,10 +48,10 @@ HACO_PLUGIN_OCI=docker haco plugin oci docker prepare <environment>
 
 Dockerとnerdctlが同一containerdのcontent-addressed blobを共有できる場合はありますが、snapshot / unpacked filesystem / writable layer / build cacheまで完全dedupされる保証はありません。
 
-Environment間の容量削減はv0.18 OCI Seed Builder & Btrfs/COWで扱います。trusted Host acquisition/cacheからoffline immutable Seedを作り、通常のIncus/storage-driver cloneで複製し、各Environmentはprivate writable stateを持ちます。writable `/var/lib/containerd` を共有しません。
+Environment間の容量削減はv0.17 OCI Seed Builder & Btrfs/COWで扱います。trusted Host acquisition/cacheからoffline immutable Seedを作り、通常のIncus/storage-driver cloneで複製し、各Environmentはprivate writable stateを持ちます。writable `/var/lib/containerd` を共有しません。
 
 ## Registry
 
 Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。network policyとcredentialが許せばdirect upstream pullが通常経路として使え、Seed constructionの必須条件でもありません。
 
-See [`18_v0.18_OCI_SEED_AND_COW.ja.md`](18_v0.18_OCI_SEED_AND_COW.ja.md) and [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md).
+See [`17_v0.17_OCI_SEED_AND_COW.ja.md`](17_v0.17_OCI_SEED_AND_COW.ja.md), [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md), and [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md).

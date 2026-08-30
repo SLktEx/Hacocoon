@@ -193,10 +193,15 @@ v0.16
   OCI image deletion
 
 v0.17
-  optional Docker compatibility plugin foundation
+  OCI Seed Builder and storage-driver COW lifecycle
+  first repository slice implemented; real-host/COW acceptance pending
 
-v0.18+
-  optional Local OCI Registry and later Seed/COW work remain outside Core
+v0.18
+  optional Docker compatibility plugin
+  repository implementation complete; real-host acceptance pending
+
+unversioned / deferred
+  optional Local OCI Registry remains outside Core
 ```
 
 The Core/Standard/Plugin classification is cross-cutting architecture and does not consume a milestone by itself. A future independently useful domain-aware egress feature should receive its own milestone when implementation work begins; this document does not mark that feature implemented.

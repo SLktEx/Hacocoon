@@ -12,6 +12,7 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, and r
 - Milestone numbering: [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)
 - Security: [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
 - Core / Standard / Plugin boundaries: [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+- Reusable client adapters: [`CLIENT_ADAPTER_CONTRACT.md`](CLIENT_ADAPTER_CONTRACT.md)
 - Client interaction events: [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md)
 
 ## Core / Standard / Plugin rule
@@ -47,10 +48,10 @@ Fixes, hardening, refactors, CLI namespace cleanup, CI and docs normally do not 
 | v0.14 | Git Fetch Plugin | implemented |
 | v0.15 | OCI Seed Recommendation | implemented |
 | v0.16 | OCI Image Deletion | implemented first slice |
-| v0.17 | Docker Compatibility Plugin | implemented; host acceptance separate |
-| v0.18 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
+| v0.17 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
+| v0.18 | Docker Compatibility Plugin | implemented; host acceptance separate |
 
-The fully implemented product progression is contiguous through **v0.17**. v0.18 has a first repository implementation slice; real-host/COW acceptance remains pending.
+The fully implemented product progression is contiguous through **v0.16** because v0.17 is still partial. The v0.18 Docker repository implementation landed early under the previous numbering and remains implemented.
 
 Local OCI Registry is deferred optional infrastructure, not a reserved roadmap milestone.
 
@@ -59,9 +60,19 @@ Specifications:
 - [`14_v0.14_GIT_FETCH_PLUGIN.md`](14_v0.14_GIT_FETCH_PLUGIN.md)
 - [`15_v0.15_OCI_SEED_RECOMMENDATION.md`](15_v0.15_OCI_SEED_RECOMMENDATION.md)
 - [`16_v0.16_OCI_IMAGE_DELETION.md`](16_v0.16_OCI_IMAGE_DELETION.md)
-- [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md)
-- [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md)
+- [`17_v0.17_OCI_SEED_AND_COW.md`](17_v0.17_OCI_SEED_AND_COW.md)
+- [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md) — deferred optional direction
+
+## Reusable client adapter boundary
+
+`pkg/clientadapter` exposes a VS Code-independent client contract for exact Environment ensure/reuse, state inspection, `/workspace` discovery, loopback SSH/TCP connections, revoke/delete, and `pkg/interaction` batches.
+
+The client keeps its private key and IDE configuration. Hacocoon receives only SSH public-key material, revalidates returned connections as loopback-only, and refuses to silently reuse an Environment with a different canonical Workspace or access mode.
+
+The ordinary `haco create` + `haco ssh` + `ssh` flow is the non-VS-Code proof path; code-server, JetBrains, and future clients can build adapters on the same contract without Core conditionals.
+
+See [`CLIENT_ADAPTER_CONTRACT.md`](CLIENT_ADAPTER_CONTRACT.md).
 
 ## Client interaction boundary
 
@@ -92,7 +103,9 @@ The Docker `prepare` command validates a Base-provided compatibility profile and
 
 ## OCI storage direction
 
-v0.18 has a first repository slice for trusted Host acquisition/cache, offline no-NIC immutable Seed construction/publication, current-Seed resolution, and normal Incus/storage-driver cloning. Physical Btrfs COW measurement and broader real-host acceptance remain pending. A Local Registry is not a prerequisite and normal direct upstream pulls remain valid when policy allows.
+v0.17 has a first repository slice for trusted Host acquisition/cache, offline no-NIC immutable Seed construction/publication, current-Seed resolution, and normal Incus/storage-driver cloning. Physical Btrfs COW measurement and broader real-host acceptance remain pending. A Local Registry is not a prerequisite and normal direct upstream pulls remain valid when policy allows.
+
+Docker compatibility is v0.18. Its repository implementation is already present; real Base + Incus/systemd acceptance remains separate.
 
 ## Cloud
 
