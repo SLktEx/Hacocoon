@@ -202,11 +202,11 @@ go build -o "$haco" ./cmd/haco
 
 # v0.11 Base catalog: public names stay provider-neutral and inspect resolves
 # the current logical source to an immutable revision.
-"$haco" image list > "$root/bases.txt"
+"$haco" base list > "$root/bases.txt"
 grep -Fxq 'haco/ubuntu-24.04' "$root/bases.txt"
 grep -Fxq 'haco/ubuntu-26.04' "$root/bases.txt"
 grep -Fxq 'my-dev' "$root/bases.txt"
-base_info="$($haco image inspect my-dev --json)"
+base_info="$($haco base inspect my-dev --json)"
 python3 - "$base_info" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])
