@@ -16,6 +16,7 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 - Logging policy: [`reference/logging.ja.md`](reference/logging.ja.md)
 - Domain-aware egress: [`EGRESS_AUTHORIZATION.ja.md`](EGRESS_AUTHORIZATION.ja.md)
 - Managed Btrfs storage: [`design/btrfs-storage-layout.ja.md`](design/btrfs-storage-layout.ja.md)
+- Controller/client transport: [`design/controller-client-transport.ja.md`](design/controller-client-transport.ja.md)
 - Reusable client adapter: [`CLIENT_ADAPTER_CONTRACT.ja.md`](CLIENT_ADAPTER_CONTRACT.ja.md)
 - Client interaction event: [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md)
 - README / docs の書き方: [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md)
@@ -81,6 +82,7 @@ docs/adr/         architecture decision record。ADR番号はidentityなので�
 - [`design/docker-compatibility-plugin.ja.md`](design/docker-compatibility-plugin.ja.md)
 - [`EGRESS_AUTHORIZATION.ja.md`](EGRESS_AUTHORIZATION.ja.md)
 - [`design/btrfs-storage-layout.ja.md`](design/btrfs-storage-layout.ja.md)
+- [`design/controller-client-transport.ja.md`](design/controller-client-transport.ja.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md) — deferred optional direction
 
 ## Reusable client adapter境界
