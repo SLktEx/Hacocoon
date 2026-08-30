@@ -2,100 +2,103 @@
 
 日本語 | [**English**](controller-client-transport.md)
 
-Status: **partial**。リポジトリにはローカル Unix domain socket transport、protocol/version 境界、controller executable、typed Environment lifecycle call、最初の interactive Environment stream、通常の Environment 操作用 client-only `haco-host` CLI が実装されている。trusted `haco-host` instance への狭い Physical Host control endpoint のprovisioning、Physical Host authority を必要とする `haco` operation の移行、PTY resize framing、Environment port forwarding、remote transport は follow-up とする。
+Status: **partial**。ローカル Unix domain socket transport、protocol/version 境界、Physical Host controller executable、typed Environment lifecycle call、interactive Environment stream、client-only `haco-host` CLI、実trusted `haco-host` への最初のcontrol-channel provisioningまで実装済み。Physical Host authority を必要とする `haco` operation のclient化、PTY resize framing、Environment port forwarding、remote transportはfollow-upとする。
 
 ## Summary
 
-Hacocoon の Client は Incus authority を直接受け取らず、trusted Host control path に Environment / Host-authority operation を要求する。
+HacocoonのClientはIncus authorityを直接受け取らず、trusted Physical Host controllerへEnvironment / Host-authority operationを要求する。
 
-ローカル通信の既定 transport は Unix domain socket とする。
+ローカル通信の既定transportはUnix domain socketとする。
 
 ```text
-Client (`haco-host`, future adapters)
+client (`haco-host`, future adapters)
         |
         | Hacocoon Unix domain socket
         v
-trusted Hacocoon controller
+Physical Host Hacocoon controller
         |
         | provider/backend boundary
         v
 Incus or another Environment backend
 ```
 
-transport は実装上の仕組みであり、Policy、Approval、state、privileged backend access、operation ownership の authority は controller に残る。
+transportは実装上の仕組みであり、Policy、Approval、state、privileged backend access、operation ownershipのauthorityはcontrollerに残す。
 
 ## Goals
 
-- ローカル Client operation に対して trusted controller boundary を1つ維持する。
-- Client に Incus control socket や Physical Host storage authority を渡さない。
-- 同一 Host 内通信では localhost TCP listener を必須にせず Unix domain socket を使う。
-- 同じ client/controller boundary で通常の request/response と長時間の bidirectional stream を扱えるようにする。
-- 実際に必要になった場合だけ別 transport を追加できるよう、command semantics を transport 固有にしない。
-- provider boundary より上を backend-neutral に保つ。
+- ローカルClient operationに対してtrusted controller boundaryを1つ維持する。
+- ClientへIncus control socketやPhysical Host storage authorityを渡さない。
+- 同一Host内通信ではlocalhost TCP listenerを必須にせずUnix domain socketを使う。
+- 同じclient/controller boundaryで通常のrequest/responseと長時間のbidirectional streamを扱う。
+- 必要になった場合だけ別transportを追加できるようcommand semanticsをtransport固有にしない。
+- provider boundaryより上をbackend-neutralに保つ。
 
 ## Non-goals
 
 この設計では次を必須にしない。
 
-- controller transport としての SSH。
+- controller transportとしてのSSH。
 - public TCP listener。
 - TLS、mTLS、VPN integration、named remote context。
-- Incus bridge への直接 routing。
-- `haco-host` や通常の Environment への Incus Unix socket 公開。
-- profiling で必要性が示される前の FD passing / zero-copy 最適化。
+- Incus bridgeへの直接routing。
+- `haco-host`や通常EnvironmentへのIncus Unix socket公開。
+- profilingで必要性が示される前のFD passing / zero-copy最適化。
 
 ## Authority and trust boundaries
 
-controller は trusted Host control path の一部である。Client が socket に接続したこと自体を operation authority とみなしてはならず、公開する method は各 operation の Policy、Approval、ownership、lifecycle rule を維持する必要がある。
+controllerはtrusted Physical Host control pathの一部である。Clientがsocketへ接続できたこと自体をoperation authorityとはみなさず、公開methodは各operationのPolicy、Approval、ownership、lifecycle ruleを維持する。
 
-通常の Environment は Host authority に対して untrusted であり、Hacocoon control socket を ambient filesystem state として渡してはならない。`haco-host` は別途管理される trusted logical Host である。リポジトリには client-only `haco-host` executable が実装済みだが、実際の trusted instance にはまだ Physical Host control endpoint を渡していない。そのprovisioningは明示的に行い、通常の Environment へ socket access を広げてはならない。
+通常EnvironmentはHost authorityに対してuntrustedであり、Hacocoon control socketをambient filesystem stateとして渡さない。`haco-host`は別途管理するtrusted logical Hostで、Hacocoon-ownedの狭いendpointだけを受け取る。
 
-raw Incus socket は controller/provider 側に残す。
+Local Incus backendの現在のprovisioning pathは次の通り。
 
 ```text
-client
-  |  Hacocoon control socket
-  v
-controller
-  |  Incus API/socket
-  v
-incusd
-  |
-  v
-Environment
+trusted haco-host instance
+  /run/hacocoon/control.sock
+          |
+          | Incus proxy device
+          | unix <-> unix, bind=instance
+          v
+Physical Host Hacocoon control socket
+          |
+     haco-controller
+          |
+          | Incus API/socket stays here
+          v
+        incusd
 ```
 
-そのため controller-mediated shell は、Environment 側 SSH daemon、Client から到達可能な Environment IP、Client から Incus bridge への直接到達性を必要としない。
+このproxyはPhysical Host socketそのもの、`/run/incus`、`/var/lib/incus`、広いPhysical Host directoryを`haco-host`へmountしない。通常Environmentにはこのproxy deviceを付与しない。
+
+trusted-host reconcilerはprovisioning前に`haco-host` ownership markerを確認する。既存`haco-control` proxyのsecurity-relevant field（`listen`、`connect`、`bind`、`uid`、`gid`、`mode`）が期待値と違う場合は、暗黙に上書きせずfail closedする。
 
 ## Local Unix-domain-socket transport
 
-既定ローカル endpoint は概念上次の path とする。
+Physical Host側の既定endpointは次のpath。
 
 ```text
 /run/hacocoon/control.sock
 ```
 
-trusted な運用・テスト用途では path を上書きできる。現在の repository slice では既定 socket を owner-only (`0600`) で作成する。より広い access が必要な場合は authorization model を伴う明示的な deployment decision とし、permissive default にしない。
+trustedな運用・テスト用途ではpathを上書きできる。controllerは既定socketをowner-only (`0600`) で作成する。より広いaccessはauthorization modelを伴う明示的なdeployment decisionとし、permissive defaultにはしない。
 
-将来 remote transport を追加できるようにする目的だけで localhost TCP listener を作らない。remote transport が必要になった場合は、同じ client interface の別実装として追加する。
+将来remote transportを追加できるようにする目的だけでlocalhost TCP listenerを作らない。remote transportが必要になった場合は同じclient interfaceの別実装として追加する。
 
-configured endpoint が既に active な場合、または既存 filesystem entry が stale Unix socket であると安全に確認できない場合、startup は fail closed する。configured path に regular file が存在する場合、それを stale control state として削除してはならない。
+configured endpointが既にactiveな場合、または既存filesystem entryをstale Unix socketだと安全に確認できない場合、startupはfail closedする。regular fileをstale control stateとして削除しない。
 
 ## Protocol boundary
 
-現在の protocol は各 connection の先頭に versioned JSON envelope を置く。request は method と、成功後に raw bidirectional stream へ遷移するかどうかを指定する。
+現在のprotocolは各connection先頭にversioned JSON envelopeを置く。requestはmethodと、成功後にraw bidirectional streamへ遷移するかを指定する。
 
-control envelope には size limit を設ける。bulk data は unbounded JSON metadata ではなく handshake 後の stream を流す。
+control envelopeにはsize limitを設ける。bulk dataはunbounded JSON metadataではなくhandshake後のstreamへ流す。controllerはaccepted connection数にも上限を設け、control endpointから無制限にgoroutineを増やせないようにする。
 
-controller は accepted connection 数にも上限を設け、control endpoint から無制限に goroutine を増やせないようにする。
+protocol version mismatchは明示的なerrorとし、Incus direct accessへsilent fallbackしない。
 
-protocol version mismatch は明示的な error とし、Incus direct access へ silent fallback してはならない。
-
-現在の typed Environment API は create、list、status、exec、shell、delete を公開する。client-only `haco-host` binary はこれらを利用し、local composition を初期化せず、Incus authority を直接importしない。
+現在のtyped Environment APIはcreate、list、status、exec、shell、deleteを公開する。client-only `haco-host` binaryはこれらを利用し、local compositionを初期化せずIncus authorityを直接importしない。
 
 ## Control streams
 
-interactive operation や bulk operation には unary request/response 以上の通信が必要になる。そのため client/controller boundary は、validate された stream handshake と、その後の bidirectional bytes を扱う。
+interactive operationやbulk operationにはunary request/response以上の通信が必要になる。そのためclient/controller boundaryはvalidate済みstream handshakeと、その後のbidirectional bytesを扱う。
 
 ```text
 request envelope
@@ -104,26 +107,26 @@ request envelope
     -> on success, bidirectional stream
 ```
 
-stream 開始前に検証可能な内容は success acknowledgement より前に検証する。stream 開始後の runtime failure は streamed operation の一部であり、より上位の operation protocol で表現する必要がある。
+stream開始前に検証可能な内容はsuccess acknowledgementより前に検証する。stream開始後のruntime failureはstreamed operationの一部であり、より上位のoperation protocolで表現する必要がある。
 
-現在の repository slice では interactive Environment shell にこの仕組みを利用する。Client 側の half-close を維持し、stdin EOF だけで残りの target output を捨てない。今後、stream 上に明示的な framing を追加して次を扱える。
+現在はinteractive Environment shellにこの仕組みを使う。Client側half-closeを維持し、stdin EOFだけで残りのtarget outputを捨てない。今後stream上に明示的なframingを追加して次を扱える。
 
-- non-interactive Execution の stdin/stdout/stderr と明示的な exit metadata。
+- non-interactive Executionのstdin/stdout/stderrと明示的なexit metadata。
 - PTY resize/control event。
-- local Client から Environment への TCP forwarding。
-- その他の bounded controller-mediated byte stream。
+- local ClientからEnvironmentへのTCP forwarding。
+- その他のbounded controller-mediated byte stream。
 
-`Session` を新しい public domain concept にしない。Hacocoon の用語では、これらの stream が運ぶのは **Execution** または Client connection であり、stream は transport implementation detail である。
+`Session`を新しいpublic domain conceptにはしない。Hacocoonの用語ではstreamが運ぶのは**Execution**またはClient connectionであり、streamはtransport implementation detailである。
 
 ## Incus implementation
 
-現在の Incus adapter は caller-provided stream を interactive `incus exec` に接続できる。target Environment に入る responsibility は Incus に残り、この経路のために Environment SSH server を必須にしない。
+Incus adapterはcaller-provided streamをinteractive `incus exec`へ接続できる。target Environmentへ入るresponsibilityはIncusに残り、この経路のためにEnvironment SSH serverを必須にしない。
 
-provider-specific な process mechanics は Environment backend boundary より下に置く。Core/Client contract は、すべての backend が Incus CLI、WebSocket、container、shared kernel を使うと仮定してはならない。
+provider-specificなprocess mechanicsはEnvironment backend boundaryより下へ置く。Core/Client contractは、すべてのbackendがIncus CLI、WebSocket、container、shared kernelを使うと仮定しない。
 
-## `haco-host` client slice
+## `haco-host` clientとprovisioning
 
-リポジトリは client-only `haco-host` executable をbuild/packageし、最初の日常 Environment command namespace を提供する。
+リポジトリはclient-only `haco-host` executableをbuild/packageし、最初の日常Environment command namespaceを提供する。
 
 ```text
 haco-host env list
@@ -135,69 +138,80 @@ haco-host env delete <environment>
 haco-host doctor
 ```
 
-このbinaryは controller client API 経由だけで通信する。`composition.Local()` を呼ばず、Incus control socket を必要としない。
+このbinaryはcontroller client API経由だけで通信する。`composition.Local()`を呼ばず、Incus control socketを必要としない。
 
-trusted `haco-host` Incus instance lifecycle は local Incus backend 側ですでに別途実装されている。残るintegrationは、compatibleなclient binaryと狭いHacocoon-owned controller endpointをそのtrusted instanceへprovisionし、raw Incus socketや同じendpointを通常のEnvironmentへ露出させないことである。
+`haco host ensure`はtrusted Incus instanceだけでなくclient pathまでreconcileする。compatibleな`haco-host` binaryを解決し、trusted instanceの`/usr/local/bin/haco-host`へinstallし、狭いIncus Unix proxyを作成またはexact validationし、最後にinstance内の`haco-host doctor`が成功することを確認してから成功扱いにする。
 
-`env create --workspace` は現在、既存のcontroller-side Workspace path contractを維持する。repository ownershipやWorkspace path resolutionをlogical `haco-host`側へ完全移行することは別architecture workであり、このtransport sliceだけで実現済みとは扱わない。
+supported WSL bootstrapはPhysical Host上で`haco-controller`をsystemd serviceとしてenable/startし、controllerが応答することを確認した後に`haco-host`をreconcileし、最後にdefault interactive WSL entryを変更する。
+
+現在のprovisioningでtrusted instanceへ入れるのはclient-only `haco-host` binaryだけ。既存`haco` executableにはdirect local-composition pathが残るため、Physical Host authority operationのcontroller-client移行前にguestへ入れるとguest-local stateへ誤って向く可能性がある。
+
+`env create --workspace`は現在のcontroller-side Workspace path contractを維持する。repository ownershipやWorkspace path resolutionをlogical `haco-host`側へ完全移行することは別architecture workである。
 
 ## Cancellation and cleanup
 
-Client connection は caller context に紐付ける。Client operation が cancel された場合、local control connection を閉じる。
+Client connectionはcaller contextに紐付ける。Client operationがcancelされた場合、local control connectionを閉じる。
 
-controller は handler/stream 終了後に accepted connection を閉じ、serve context が cancel された場合は新しい work の受付を停止する。より上位の streamed operation は target process cancellation と exit/error propagation を引き続き定義する必要があり、transport close を target outcome 不明のまま success として扱ってはならない。
+controllerはhandler/stream終了後にaccepted connectionを閉じ、serve contextがcancelされた場合は新しいworkの受付を停止する。より上位のstreamed operationはtarget process cancellationとexit/error propagationを引き続き定義する必要があり、transport closeをtarget outcome不明のままsuccessとして扱わない。
 
-stale socket recovery は conservative に行う。filesystem/listener state が曖昧な場合、controller が確認した stale endpoint だと証明できない entry を削除せず失敗する。
+stale socket recoveryはconservativeに行う。filesystem/listener stateが曖昧な場合、controllerが確認したstale endpointだと証明できないentryを削除せず失敗する。
 
 ## Performance
 
-baseline は Unix domain socket 上の通常の Go buffered forwarding とする。local call でも controller hop は維持する。同一 Host IPC hop を1つ削ることより、authority を controller に集約することを優先する。
+baselineはUnix domain socket上の通常のGo buffered forwardingとする。local callでもcontroller hopは維持し、同一Host IPC hopを1つ削ることよりauthority集約を優先する。
 
-リポジトリには opt-in の generated 100 GiB-class stream benchmark を含める。100 GiB の fixture を disk に保存する必要はない。FD passing、`splice(2)`、buffer pooling、その他の reduced-copy technique は、throughput、CPU、allocation、latency の問題が計測で示された場合だけ実装する。
+リポジトリにはopt-in generated 100 GiB-class stream benchmarkを含める。100 GiB fixtureをdiskに保存する必要はない。FD passing、`splice(2)`、buffer poolingなどはthroughput、CPU、allocation、latencyの問題が計測で示された場合だけ実装する。
 
 ## Current repository slice
 
-現在の partial slice で実装済み:
+実装済み:
 
 - versioned controller protocol。
 - Unix-domain-socket client/server transport。
 - private default socket mode。
-- bounded control envelope と concurrent connection。
+- bounded control envelopeとconcurrent connection。
 - structured controller error。
-- context-bound client connection cleanup と half-close support。
-- controller executable。
+- context-bound client connection cleanupとhalf-close support。
+- `haco-controller` executable。
 - typed Environment create/list/status/exec/delete call。
 - stable Environment list ordering。
 - bounded unary execでguestのnon-zero exit statusを保持。
 - pre-validated interactive Environment shell stream。
 - Incus interactive stream bridge。
-- client-only `haco-host` Environment CLI と controller diagnostics。
-- `haco-controller` / `haco-host` のrelease packaging。
+- client-only `haco-host` Environment CLIとcontroller diagnostics。
+- `haco-controller` / `haco-host`のrelease packaging。
+- trusted `haco-host`へのclient binary provisioning。
+- trusted-host専用Incus Unix proxy。
+- WSL bootstrapでのPhysical Host controller systemd serviceとreadiness check。
+- real Ubuntu 26.04 + Incus + managed Btrfsでのtrusted-host control path acceptance。
 - opt-in 100 GiB-class UDS baseline benchmark。
 
 planned/follow-up:
 
-- 実際のtrusted `haco-host` instanceへHacocoon control endpointとclient binaryをprovision。
 - 必要なPhysical Host authority `haco` commandをcontroller client interfaceへ移行。
-- stdin/stdout/stderrとexit metadataを持つ明示的な streamed Execution framing。
+- user-facingな`haco` / `haco-host` responsibility splitを完了。
+- stdin/stdout/stderrとexit metadataを持つ明示的なstreamed Execution framing。
 - PTY resize/control framing。
-- controller stream を通した Environment TCP forwarding。
-- 必要になった場合のみ remote transport。
-- 計測で必要と分かった場合のみ FD passing / zero-copy 最適化。
+- controller streamを通したEnvironment TCP forwarding。
+- 必要になった場合のみremote transport。
+- 計測で必要と分かった場合のみFD passing / zero-copy最適化。
 
 ## Acceptance
 
-ローカル transport/client slice は、repository test で次を確認できれば acceptance とする。
+Repository testとreal Incus acceptanceでは次を確認する。
 
-- TCP listener なしで通常 call が Unix socket 上で動く。
-- direct Incus accessなしでtyped clientからEnvironment lifecycle operationを呼べる。
-- interactive bytes が stream path を双方向に流れる。
+- TCP listenerなしで通常callがUnix socket上で動く。
+- direct Incus accessなしでclientからEnvironment create/list/status/exec/deleteを呼べる。
+- trusted `haco-host` instanceから専用Unix proxy経由でPhysical Host controllerへ到達できる。
+- 通常Environmentにはtrusted control proxyが付かない。
+- trusted instanceに`/run/incus`や`/var/lib/incus`を公開しない。
+- interactive bytesがstream pathを双方向に流れる。
 - stdin half-close後もoutput sideをreadできる。
-- missing/invalid target を事前検証できる場合、stream success acknowledgement より前に失敗する。
-- cancellation で Client stream が閉じる。
-- control envelope と connection concurrency が bounded である。
-- stale/active/non-socket path を安全に扱う。
-- protocol mismatch が明示的である。
-- 巨大 fixture をcommitせず、100 GiB-class benchmark で buffered baseline を測れる。
+- missing/invalid targetを事前検証できる場合、stream success acknowledgementより前に失敗する。
+- cancellationでClient streamが閉じる。
+- control envelopeとconnection concurrencyがboundedである。
+- stale/active/non-socket pathを安全に扱う。
+- protocol mismatchが明示的である。
+- 巨大fixtureをcommitせず100 GiB-class benchmarkでbuffered baselineを測れる。
 
-実trusted `haco-host`へのcontrol-channel provisioning、real interactive terminal behavior、将来のremote Client acceptanceは environment-dependent であり、repository testとは別に追跡する。
+GitHub-hosted acceptanceでLinux/Incus上のcontrol-channel mechanismは実証する。実Windows terminalからWSL default loginへ入る挙動、より完全なinteractive PTY behavior、将来のremote Client transportは引き続き別のenvironment-dependent acceptanceとする。
