@@ -50,7 +50,10 @@ func TestTrustedHostClientBinaryPathRejectsRelativeOverride(t *testing.T) {
 
 func TestTrustedHostClientBinaryPathRejectsWritableBinary(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "haco-host")
-	if err := os.WriteFile(path, []byte("client"), 0o777); err != nil {
+	if err := os.WriteFile(path, []byte("client"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o777); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv(trustedHostClientBinaryEnv, path)
