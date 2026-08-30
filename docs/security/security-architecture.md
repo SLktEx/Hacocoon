@@ -2,13 +2,13 @@
 
 Status: authoritative cross-cutting security baseline.
 
-See also [`../DESIGN_PRINCIPLES.md`](../DESIGN_PRINCIPLES.md) for the broader product and backend-isolation principles.
+See also [`../DESIGN_PRINCIPLES.md`](../DESIGN_PRINCIPLES.md) for the broader product and backend-isolation principles and [`../design/trusted-host.md`](../design/trusted-host.md) for the current `haco-host` slice.
 
 ## Trust model
 
 Commands, developer tools, and coding agents executed inside a Hacocoon Environment are **untrusted with respect to host authority**.
 
-The host-side Hacocoon control path owns environment lifecycle, policy decisions, capability mediation, and privileged credentials. Convenience must not collapse that boundary.
+The trusted Hacocoon control path owns environment lifecycle, policy decisions, capability mediation, and privileged credentials. On local Incus deployments this path now distinguishes the **Physical Host** from the persistent trusted logical **`haco-host`**. Convenience must not collapse either boundary into an ordinary Environment.
 
 ```text
 untrusted workspace process
@@ -19,7 +19,7 @@ untrusted workspace process
       /      |       \
  policy   approval   capability
       \      |       /
-       privileged host/service action
+       trusted host/service action
 ```
 
 ## Trusted computing base and non-goals
@@ -28,13 +28,26 @@ Hacocoon does not promise that every Environment backend has VM-equivalent isola
 
 For the Incus system-container backend, the following are part of the trusted computing base:
 
-- the host Linux kernel;
+- the Physical Host Linux kernel;
 - the Incus daemon/runtime control plane;
-- the trusted Hacocoon host process and its policy/capability state.
+- the trusted Hacocoon Physical Host process and its policy/capability state;
+- the persistent `haco-host` instance when that trusted logical Host is provisioned.
 
-A successful kernel exploit, Incus/container escape, or compromise of the trusted Hacocoon host control plane is outside the containment guarantee of that backend. This limitation is intentional and must be documented rather than hidden behind a generic "sandbox" claim.
+`haco-host` is therefore not a sandbox. Compromise of it may compromise Hacocoon-managed credentials, external-service authority, or other trusted capabilities as those features move into it. On WSL, future Windows interop or Windows filesystem mounts can extend that authority outside the Linux/Incus boundary and must remain restricted to trusted infrastructure.
+
+A successful kernel exploit, Incus/container escape, compromise of the Physical Host Hacocoon control plane, or compromise of `haco-host` is outside the containment guarantee of the Incus backend. This limitation is intentional and must be documented rather than hidden behind a generic "sandbox" claim.
 
 Backends with a stronger isolation model, such as a VM or microVM, may reduce this shared-kernel trust without changing Core semantics. Isolation strength is a backend guarantee.
+
+## `haco-host` does not get raw Incus authority
+
+Being trusted does not mean every control primitive should be mounted into `haco-host`.
+
+The current local Incus design keeps the Incus daemon socket and `/var/lib/incus` on the Physical Host. `haco host ensure` and `haco host shell` are executed with Physical Host authority and use Incus from there. `haco-host` itself does not need the raw Incus socket to provide its interactive Host UX.
+
+If an existing Incus instance already occupies the literal `haco-host` name, Hacocoon reuses it only when the Hacocoon ownership marker matches exactly. Otherwise reconciliation fails closed rather than taking over an unrelated instance. The ordinary Environment name `host` is reserved by the Incus adapter because it would collide with that provider-local infrastructure name.
+
+On the supported WSL bootstrap path, the normal non-root WSL user may receive passwordless sudo permission for the exact system-owned `haco host ensure` and `haco host shell` commands so the default interactive WSL entry can reach the trusted Host. This narrow rule is not equivalent to automatically granting `incus-admin`, and the root user's normal Physical Host shell remains an explicit recovery path.
 
 ## Environment-local root is allowed
 
@@ -42,7 +55,7 @@ Hacocoon may deliberately give the coding agent `root` inside an Environment whe
 
 The security objective is not to prevent the agent from administering or destroying its own Environment. The objective is to prevent Environment-local authority from silently becoming host authority.
 
-Therefore Environment-local root must not imply ambient access to host credentials, host control sockets, unrelated host filesystems, unrestricted devices, or privileged runtime configuration.
+Therefore Environment-local root must not imply ambient access to host credentials, host control sockets, unrelated host filesystems, unrestricted devices, `haco-host`, or privileged runtime configuration.
 
 ## v0.1 security baseline
 
@@ -61,6 +74,8 @@ v0.1 does **not** need the full Policy/Capability engine.
 A read-write Workspace is intentionally writable by the Environment. Hacocoon does not promise to protect writable Workspace contents from the coding agent itself.
 
 Containment means that the agent's ordinary authority should stop at the explicitly selected Workspace, Environment resources, and explicitly granted capabilities. Use read-only access, version control, snapshots, or higher-level recovery/review mechanisms when the Workspace itself must be protected from destructive edits.
+
+The long-term repository/Workspace location is intentionally not part of the `haco-host` trust definition. A local implementation may prefer `haco-host` storage for convenience while WSL integration evolves, but Core must not assume that every repository permanently lives there.
 
 ## Capability model (v0.4+)
 
@@ -95,6 +110,8 @@ Long-lived parent credentials should not become files or environment variables b
 
 Where possible, later capability adapters should use provider-native short-lived credentials or a brokered operation with narrow scope, short lifetime, and audit records.
 
+Moving a credential-using operation into trusted `haco-host` does not make credential handling automatically safe. Reusable credentials still must not be copied into ordinary Environments, Seeds, logs, or broad workspace state.
+
 ## Fail closed
 
-Failure to evaluate policy, obtain required approval, acquire a scoped credential, or verify a backend security guarantee must deny the privileged operation. Cleanup failures must be surfaced rather than hidden.
+Failure to evaluate policy, obtain required approval, acquire a scoped credential, verify trusted-host ownership, or verify a backend security guarantee must deny the privileged operation. Cleanup failures must be surfaced rather than hidden.

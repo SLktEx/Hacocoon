@@ -11,6 +11,8 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 - Architecture / Roadmap: [`status/architecture-and-roadmap.md`](status/architecture-and-roadmap.md)
 - Milestone番号: [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md)
 - Security: [`security/security-architecture.md`](security/security-architecture.md)
+- Trusted logical Host: [`design/trusted-host.ja.md`](design/trusted-host.ja.md)
+- Windows / WSL bootstrapとdefault `haco-host` entry: [`WINDOWS_WSL_BOOTSTRAP.ja.md`](WINDOWS_WSL_BOOTSTRAP.ja.md)
 - Core / Standard / Plugin境界: [`design/plugin-architecture.md`](design/plugin-architecture.md)
 - 用語と境界: [`reference/terminology-and-boundaries.md`](reference/terminology-and-boundaries.md)
 - Logging policy: [`reference/logging.ja.md`](reference/logging.ja.md)
@@ -53,6 +55,8 @@ docs/adr/         architecture decision record。ADR番号はidentityなので�
 
 外向き通信ではegress request / policy / controller contractはCore、具体的なdefault proxy / enforcement implementationはStandardに置きます。Incus adapterがproxy-onlyなlower-layer transport guard、bridge DNS disablement、trusted source mappingを提供します。repository実装は完了しており、real supported-Incus acceptanceはhost-dependentです。
 
+`haco-host` はlocal Incus integrationが提供するtrusted infrastructureで、EnvironmentでもOCI pluginの必須要件でもありません。現在のsliceはlifecycle / default-entryまでで、Git / OCI / credential / control-channelの全面移行はfollow-upです。
+
 ## 現在のfeature gate
 
 番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
@@ -69,10 +73,11 @@ docs/adr/         architecture decision record。ADR番号はidentityなので�
 | v0.20 | Managed Btrfs Rootfs Storage | first repository slice実装済み。physical COW/compaction acceptanceは別 |
 | v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` managed default実装済み。physical compression/performance acceptanceは別 |
 
-現在のmilestone位置は **v0.21** です。minor versionはpre-1.0の軽量な進捗checkpointとして扱い、前のmilestoneがpartialでも後続へ進めます。Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
+現在のmilestone位置は **v0.21** です。minor versionはpre-1.0の軽量な進捗checkpointとして扱い、前のmilestoneがpartialでも後続へ進めます。Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。Trusted `haco-host` / WSL entryはcross-cutting architectureとして扱い、この変更だけで新しいproduct milestoneは消費しません。
 
 現在のdesign specification:
 
+- [`design/trusted-host.ja.md`](design/trusted-host.ja.md)
 - [`design/managed-sandbox-network.ja.md`](design/managed-sandbox-network.ja.md)
 - [`design/git-fetch-plugin.ja.md`](design/git-fetch-plugin.ja.md)
 - [`design/oci-seed-recommendation.ja.md`](design/oci-seed-recommendation.ja.md)
@@ -82,6 +87,12 @@ docs/adr/         architecture decision record。ADR番号はidentityなので�
 - [`EGRESS_AUTHORIZATION.ja.md`](EGRESS_AUTHORIZATION.ja.md)
 - [`design/btrfs-storage-layout.ja.md`](design/btrfs-storage-layout.ja.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md) — deferred optional direction
+
+## Trusted Host / WSL entry
+
+Supported local Incus pathでは、実際のLinux/WSL substrateである **Physical Host** と、永続的なtrusted logical **`haco-host`** を分けます。Physical HostにはIncus、loop/Btrfs、その他platform authorityを残し、`haco-host` はTCBの一部として扱います。通常のuntrusted Environmentとは別物です。
+
+現在のrepository sliceでは `haco host ensure` / `haco host shell`、exact ownership marker、name collision拒否、managed storage配置、専用WSL login entryを実装しました。Windows install完了後は `wsl -d Hacocoon` を「Hacocoon Hostを開く」入口として扱えます。Raw Incus controlは `haco-host` にmountせず、Physical Hostのroot shellを明示的なrecovery pathとして残します。詳細は [`design/trusted-host.ja.md`](design/trusted-host.ja.md) と [`WINDOWS_WSL_BOOTSTRAP.ja.md`](WINDOWS_WSL_BOOTSTRAP.ja.md) を参照してください。
 
 ## Reusable client adapter境界
 

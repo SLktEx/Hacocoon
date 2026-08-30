@@ -11,6 +11,8 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, and r
 - Architecture / roadmap: [`status/architecture-and-roadmap.md`](status/architecture-and-roadmap.md)
 - Milestone numbering: [`status/versioning-and-release-status.md`](status/versioning-and-release-status.md)
 - Security architecture: [`security/security-architecture.md`](security/security-architecture.md)
+- Trusted logical Host: [`design/trusted-host.md`](design/trusted-host.md)
+- Windows / WSL bootstrap and default `haco-host` entry: [`WINDOWS_WSL_BOOTSTRAP.md`](WINDOWS_WSL_BOOTSTRAP.md)
 - Core / Standard / Plugin boundaries: [`design/plugin-architecture.md`](design/plugin-architecture.md)
 - Canonical terminology: [`reference/terminology-and-boundaries.md`](reference/terminology-and-boundaries.md)
 - Logging policy: [`reference/logging.md`](reference/logging.md)
@@ -53,6 +55,8 @@ Normal docs must not use milestone/version or arbitrary reading-order prefixes i
 
 For outbound access, the egress request/policy/controller contract belongs to Core while the concrete default proxy/enforcement implementation belongs to Standard. The Incus adapter supplies the proxy-only lower-layer transport guard, bridge DNS disablement and trusted source mapping; repository implementation is complete while real supported-Incus acceptance remains host-dependent.
 
+`haco-host` is trusted infrastructure supplied by the local Incus integration, not an Environment and not an OCI-plugin requirement. The current slice provides lifecycle/default-entry behavior; the broader Git/OCI/credential/control-channel migration remains follow-up work.
+
 ## Current feature gates
 
 The authoritative table lives in [`status/versioning-and-release-status.md`](status/versioning-and-release-status.md). Current late-stage gates are:
@@ -69,10 +73,11 @@ The authoritative table lives in [`status/versioning-and-release-status.md`](sta
 | v0.20 | Managed Btrfs Rootfs Storage | first repository slice implemented; physical COW/compaction acceptance separate |
 | v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` managed default implemented; physical compression/performance acceptance separate |
 
-The current milestone position is **v0.21**. Minor versions are lightweight pre-1.0 progress checkpoints, so a partial earlier milestone does not block later checkpoints. Local OCI Registry is deferred optional infrastructure and does not reserve a milestone.
+The current milestone position is **v0.21**. Minor versions are lightweight pre-1.0 progress checkpoints, so a partial earlier milestone does not block later checkpoints. Local OCI Registry is deferred optional infrastructure and does not reserve a milestone. The trusted `haco-host` / WSL-entry work is cross-cutting architecture and does not consume a new product milestone by itself.
 
 Current design documents:
 
+- [`design/trusted-host.md`](design/trusted-host.md)
 - [`design/managed-sandbox-network.md`](design/managed-sandbox-network.md)
 - [`design/git-fetch-plugin.md`](design/git-fetch-plugin.md)
 - [`design/oci-seed-recommendation.md`](design/oci-seed-recommendation.md)
@@ -82,6 +87,12 @@ Current design documents:
 - [`EGRESS_AUTHORIZATION.md`](EGRESS_AUTHORIZATION.md)
 - [`design/btrfs-storage-layout.md`](design/btrfs-storage-layout.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md) — deferred optional direction
+
+## Trusted Host / WSL entry
+
+On the supported local Incus path, Hacocoon distinguishes the actual Linux/WSL **Physical Host** from the persistent trusted logical **`haco-host`**. The Physical Host retains Incus, loop/Btrfs, and other platform authority. `haco-host` is part of the TCB and must not be confused with an untrusted Environment.
+
+The current repository slice adds `haco host ensure` / `haco host shell`, exact ownership marking, collision refusal, managed-storage placement, and a dedicated WSL login entry so a completed Windows install can treat `wsl -d Hacocoon` as “open my Hacocoon Host.” Raw Incus control is not mounted into `haco-host`; the root Physical Host shell remains the explicit recovery path. See [`design/trusted-host.md`](design/trusted-host.md) and [`WINDOWS_WSL_BOOTSTRAP.md`](WINDOWS_WSL_BOOTSTRAP.md).
 
 ## Reusable client adapter boundary
 
