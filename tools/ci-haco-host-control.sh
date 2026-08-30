@@ -121,7 +121,11 @@ rows = json.loads(sys.argv[1])
 assert rows == [], rows
 PY
 
-  "$HACO_BIN" create --base haco/ubuntu-26.04 --workspace "$WORKSPACE" "$ENV_NAME"
+  incus exec "$TRUSTED_HOST" --project "$PROJECT" -- \
+    /usr/local/bin/haco-host env create \
+    --base haco/ubuntu-26.04 \
+    --workspace "$WORKSPACE" \
+    "$ENV_NAME"
 
   guest_status="$(incus exec "$TRUSTED_HOST" --project "$PROJECT" -- /usr/local/bin/haco-host env status "$ENV_NAME" --json)"
   python3 - "$guest_status" <<'PY'
@@ -198,8 +202,8 @@ remove_owned_pool() {
 
 cleanup() {
   require_runner
+  local device backing failed=0
   set +e
-  failed=0
   stop_controller
 
   if incus project show "$PROJECT" >/dev/null 2>&1; then
@@ -210,8 +214,12 @@ cleanup() {
         incus image delete "$fingerprint" --project "$PROJECT" || { failed=1; break; }
       done < <(incus image list --project "$PROJECT" --format csv -c f 2>/dev/null | sort -u)
     fi
-    [[ "$failed" == "0" ]] && remove_owned_pool "$PROJECT" || true
-    [[ "$failed" == "0" ]] && printf 'yes\n' | incus project delete "$PROJECT" --force || true
+    if [[ "$failed" == "0" ]]; then
+      remove_owned_pool "$PROJECT" || failed=1
+    fi
+    if [[ "$failed" == "0" ]]; then
+      printf 'yes\n' | incus project delete "$PROJECT" --force || failed=1
+    fi
   fi
 
   if incus storage show "$POOL" --project default >/dev/null 2>&1; then
@@ -219,18 +227,35 @@ cleanup() {
   fi
 
   if findmnt -rn --mountpoint "$MOUNTPOINT" >/dev/null 2>&1; then
-    sudo -- "$HELPER_PATH" --root "$ROOT" unmount-btrfs "$MOUNTPOINT" || failed=1
+    if [[ -x "$HELPER_PATH" ]]; then
+      sudo -- "$HELPER_PATH" --root "$ROOT" unmount-btrfs "$MOUNTPOINT" || failed=1
+    else
+      echo "ERROR: storage helper missing while managed mount still exists" >&2
+      failed=1
+    fi
   fi
+
   while read -r device backing; do
-    [[ -n "$device" ]] || continue
-    if [[ "$backing" == "$BACKING" ]]; then
-      sudo -- "$HELPER_PATH" --root "$ROOT" detach-loop "$device" "$BACKING" || failed=1
+    [[ -n "${device:-}" && -n "${backing:-}" ]] || continue
+    [[ "$backing" == "$BACKING" ]] || continue
+    if [[ ! "$device" =~ ^/dev/loop[0-9]+$ ]]; then
+      echo "ERROR: refusing unexpected loop device '$device' for '$backing'" >&2
+      failed=1
+      continue
+    fi
+    if [[ -x "$HELPER_PATH" ]]; then
+      sudo -- "$HELPER_PATH" --root "$ROOT" loop-detach "$device" || failed=1
+    else
+      echo "ERROR: storage helper missing while managed loop still exists" >&2
+      failed=1
     fi
   done < <(sudo losetup --list --noheadings --output NAME,BACK-FILE 2>/dev/null || true)
-  [[ -e "$BACKING" ]] && sudo -- "$HELPER_PATH" --root "$ROOT" remove-backing "$BACKING" || true
 
-  rm -rf -- "$ROOT" "$WORKSPACE"
-  [[ "$failed" == "0" ]]
+  if [[ "$failed" == "0" ]]; then
+    rm -rf -- "$ROOT" "$WORKSPACE"
+  fi
+
+  [[ "$failed" == "0" ]] || fail "trusted Host control E2E cleanup was incomplete"
 }
 
 case "${1:-}" in
