@@ -19,11 +19,11 @@ import (
 const proxyPort = 3128
 const maxUnixSocketPath = 100
 
-func (s *Service) Serve(ctx context.Context, environment, runtimeRef string, ready func(string) error) error {
-	if s == nil || s.capabilities == nil || strings.TrimSpace(environment) == "" || strings.TrimSpace(runtimeRef) == "" || ready == nil {
+func (s *Service) Serve(ctx context.Context, environment core.Environment, ready func(string) error) error {
+	if s == nil || s.capabilities == nil || ready == nil {
 		return core.ErrInvalidArgument
 	}
-	socketPath, err := s.socketPath(environment, runtimeRef)
+	socketPath, err := s.socketPath(environment)
 	if err != nil {
 		return err
 	}
@@ -41,7 +41,7 @@ func (s *Service) Serve(ctx context.Context, environment, runtimeRef string, rea
 		return err
 	}
 
-	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { s.serveHTTP(environment, w, r) }), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 64 << 10}
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { s.serveHTTP(environment.Name, w, r) }), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 64 << 10}
 	done := make(chan struct{})
 	go func() {
 		select {
@@ -58,11 +58,11 @@ func (s *Service) Serve(ctx context.Context, environment, runtimeRef string, rea
 	return err
 }
 
-func (s *Service) socketPath(environment, runtimeRef string) (string, error) {
+func (s *Service) socketPath(environment core.Environment) (string, error) {
 	if !filepath.IsAbs(s.socketDir) || filepath.Clean(s.socketDir) != s.socketDir {
 		return "", core.ErrInvalidArgument
 	}
-	name, err := stableSocketName(environment, runtimeRef)
+	name, err := stableSocketName(environment)
 	if err != nil {
 		return "", err
 	}
@@ -93,7 +93,11 @@ func listenUnix(path string) (net.Listener, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	_ = os.Chmod(path, 0o600)
+	if err := os.Chmod(path, 0o600); err != nil {
+		_ = listener.Close()
+		_ = os.Remove(path)
+		return nil, nil, err
+	}
 	created, statErr := os.Lstat(path)
 	if statErr != nil {
 		_ = listener.Close()
