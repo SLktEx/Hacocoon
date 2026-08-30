@@ -48,6 +48,8 @@ mv "$tmp" "$file"
 trap - EXIT
 `
 
+const maxSSHProvisionDiagnosticBytes = 4096
+
 func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSHAccessRequest) (core.ClientConnection, error) {
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return core.ClientConnection{}, err
@@ -61,11 +63,16 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 	}
 
 	marker := "haco:" + id
-	if _, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", managedSSHProvisionScript, "haco-ssh", req.PublicKey, marker); err != nil {
+	result, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", managedSSHProvisionScript, "haco-ssh", req.PublicKey, marker)
+	if err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cleanupTimeout)
 		defer cancel()
 		cleanupErr := r.RemoveClientConnection(cleanupCtx, ref, id)
-		return core.ClientConnection{}, errors.Join(fmt.Errorf("prepare SSH in %s: %w", ref, err), cleanupErr)
+		provisionErr := fmt.Errorf("prepare SSH in %s: %w", ref, err)
+		if detail := boundedSSHProvisionDiagnostic(result.Stderr); detail != "" {
+			provisionErr = fmt.Errorf("prepare SSH in %s: %s: %w", ref, detail, err)
+		}
+		return core.ClientConnection{}, errors.Join(provisionErr, cleanupErr)
 	}
 
 	return core.ClientConnection{
@@ -77,6 +84,17 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 		User:       "root",
 		Command:    fmt.Sprintf("ssh -p %d root@127.0.0.1", req.HostPort),
 	}, nil
+}
+
+func boundedSSHProvisionDiagnostic(raw string) string {
+	detail := strings.TrimSpace(raw)
+	if len(detail) <= maxSSHProvisionDiagnosticBytes {
+		return detail
+	}
+	// Keep the tail because apt and systemd put their actionable failure summary
+	// at the end. The bound prevents an upstream package manager failure from
+	// turning one CLI error into an unbounded log sink.
+	return "..." + detail[len(detail)-maxSSHProvisionDiagnosticBytes:]
 }
 
 func (r *Runtime) RevokeSSHAccess(ctx context.Context, ref, connectionID string) error {
