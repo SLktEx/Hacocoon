@@ -141,16 +141,14 @@ func nativeCommand(ctx context.Context, args []string) error {
 	for {
 		batch, batchErr := reader.Batch(ctx, state.Offset, interaction.DefaultBatchSize)
 		for _, event := range batch.Events {
-			if state.hasSeen(event.EventID) {
-				state.Offset = event.NextOffset
-				continue
-			}
-			title, body, show := notificationText(event, *includeCompleted)
-			if show {
-				if err := presenter.Notify(ctx, title, body); err != nil {
-					return err
+			if !state.hasSeen(event.EventID) {
+				title, body, show := notificationText(event, *includeCompleted)
+				if show {
+					if err := presenter.Notify(ctx, title, body); err != nil {
+						return err
+					}
+					state.remember(event.EventID)
 				}
-				state.remember(event.EventID)
 			}
 			state.Offset = event.NextOffset
 			if err := saveState(*statePath, state); err != nil {
