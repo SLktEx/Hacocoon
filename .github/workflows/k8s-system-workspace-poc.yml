@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
 jobs:
   privileged-system-workspace:
     runs-on: ubuntu-26.04
