@@ -172,6 +172,8 @@ Documentation uses semantic paths: feature addresses do not contain release/mile
 
 ## Development
 
+The primary supported Host baseline is **Ubuntu 26.04+**. GitHub-hosted Linux CI is pinned explicitly to **`ubuntu-26.04`** so CI exercises that baseline rather than a floating `ubuntu-latest` image or an older Ubuntu generation.
+
 ```bash
 go test ./...
 go test -race ./...
