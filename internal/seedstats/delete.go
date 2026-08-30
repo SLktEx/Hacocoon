@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
-	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
 type DeleteReport struct {
@@ -22,8 +21,8 @@ type DeleteReport struct {
 }
 
 type deleteTarget struct {
-	Reference                 string
-	Digest                    string
+	Reference                   string
+	Digest                      string
 	RequireReferenceDigestMatch bool
 }
 
@@ -286,5 +285,3 @@ func appendUnique(values []string, value string) []string {
 	}
 	return append(values, value)
 }
-
-var _ host.Runner = host.ExecRunner{}
