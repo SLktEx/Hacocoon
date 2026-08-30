@@ -71,11 +71,12 @@ cd Hacocoon
 go build -o ./bin/haco ./cmd/haco
 go build -o ./bin/haco-vscode ./cmd/haco-vscode
 go build -o ./bin/haco-agent-host ./cmd/haco-agent-host
+go build -o ./bin/haco-notify ./cmd/haco-notify
 
 ./bin/haco doctor
 ```
 
-For Windows + WSL host setup, see [Windows / WSL bootstrap](docs/WINDOWS_WSL_BOOTSTRAP.md).
+For Windows + WSL host setup, see [Windows / WSL bootstrap](docs/WINDOWS_WSL_BOOTSTRAP.md). On the supported local path, normal interactive WSL entry opens the persistent trusted `haco-host`; Physical Host root remains the explicit recovery path.
 
 ### Run in an isolated Workspace
 
@@ -134,17 +135,19 @@ HACO_PLUGIN_OCI=docker  haco plugin oci docker status dev
 HACO_PLUGIN_OCI=docker  haco plugin oci docker prepare dev
 ```
 
-Core does not require containerd, nerdctl, Docker, or a local Registry. OCI Seed Builder/COW remains a partial v0.17 checkpoint and Docker Compatibility is repository-implemented at v0.18. Domain-aware egress is the repository-complete v0.19 checkpoint, Hacocoon-managed Btrfs rootfs storage is the first-slice v0.20 checkpoint, and managed Btrfs `compress=zstd:3` is the implemented v0.21 checkpoint. Pre-1.0 minor versions are lightweight progress markers, so incomplete acceptance in an earlier checkpoint does not block later ones. The Local OCI Registry direction remains deferred/unversioned optional infrastructure.
+Core does not require containerd, nerdctl, Docker, or a local Registry. OCI Seed Builder/COW remains a partial v0.17 checkpoint; Docker Compatibility is v0.18, domain-aware egress v0.19, managed Btrfs rootfs storage v0.20, and managed `compress=zstd:3` v0.21. The later checkpoints are v0.22 Interaction Notification Clients, v0.23 Real Incus E2E Acceptance, v0.24 Structured Logging, v0.25 Managed Btrfs Host Privilege Broker, and v0.26 Trusted `haco-host` & Default WSL Entry. The current milestone position is **v0.26**. Pre-1.0 minors are intentionally lightweight and may represent meaningful product, operator, observability, or acceptance progress. The Local OCI Registry direction remains deferred/unversioned optional infrastructure.
 
 ## Reusable clients
 
 `pkg/clientadapter` provides a client-neutral contract for exact Environment ensure/reuse, status, `/workspace` discovery, loopback SSH/TCP connections, revoke/delete, and interaction batches. The client keeps its SSH private key and IDE configuration; Hacocoon receives only public-key material.
 
+The v0.22 notification clients consume the same read-only interaction stream for browser, native OS, and optional VS Code notifications without turning observation into an approval path.
+
 See [Reusable client adapter contract](docs/CLIENT_ADAPTER_CONTRACT.md) and [Interaction events](docs/INTERACTION_EVENTS.md).
 
 ## Security model
 
-The trusted Host owns Hacocoon state, Policy, credentials, resource ceilings, and privileged Capability execution. Coding agents do not need Hacocoon or Incus management authority merely to edit, build, test, or debug code inside an Environment.
+The trusted Host owns Hacocoon state, Policy, credentials, resource ceilings, and privileged Capability execution. Coding agents do not need Hacocoon or Incus management authority merely to edit, build, test, or debug code inside an Environment. On the local Incus path, the persistent `haco-host` is part of the TCB and remains distinct from untrusted Environments; raw Incus control stays on the Physical Host.
 
 Key rules include:
 
@@ -155,7 +158,7 @@ Key rules include:
 - custom Base contents do not grant Host-side authority;
 - cleanup and recovery ambiguity is surfaced rather than converted into success.
 
-Read [Security architecture](docs/security/security-architecture.md) and the [adversarial audit guide](.github/security/ADVERSARIAL_AUDIT.md) before changing security-sensitive behavior.
+Read [Security architecture](docs/security/security-architecture.md), [Trusted logical Host](docs/design/trusted-host.md), and the [adversarial audit guide](.github/security/ADVERSARIAL_AUDIT.md) before changing security-sensitive behavior.
 
 ## Documentation
 
@@ -164,6 +167,7 @@ Read [Security architecture](docs/security/security-architecture.md) and the [ad
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 - [Architecture and roadmap](docs/status/architecture-and-roadmap.md)
 - [Versioning and release status](docs/status/versioning-and-release-status.md)
+- [Trusted logical Host](docs/design/trusted-host.md)
 - [Canonical terminology](docs/reference/terminology-and-boundaries.md)
 - [Windows / WSL bootstrap](docs/WINDOWS_WSL_BOOTSTRAP.md)
 - [Release security](docs/RELEASE_SECURITY.md)
@@ -172,7 +176,7 @@ Documentation uses semantic paths: feature addresses do not contain release/mile
 
 ## Development
 
-The primary supported Host baseline is **Ubuntu 26.04+**. GitHub-hosted Linux CI is pinned explicitly to **`ubuntu-26.04`** so CI exercises that baseline rather than a floating `ubuntu-latest` image or an older Ubuntu generation.
+The primary supported Host baseline is **Ubuntu 26.04+**. GitHub-hosted Linux CI is pinned explicitly to **`ubuntu-26.04`** so CI exercises that baseline rather than a floating `ubuntu-latest` image or an older Ubuntu generation. v0.23 additionally makes real Incus substrate + Core lifecycle acceptance a named milestone, v0.25 proves the ordinary-user managed-Btrfs privilege path on real Incus, and v0.26 covers trusted-host lifecycle/control-socket isolation on real Incus.
 
 ```bash
 go test ./...
