@@ -8,6 +8,9 @@ GRANT_INCUS_ADMIN="${HACO_BOOTSTRAP_GRANT_INCUS_ADMIN:-0}"
 LOGIN_USER="${HACO_BOOTSTRAP_LOGIN_USER:-$(id -un)}"
 SYSTEMD_RESTART_REQUIRED=42
 HACOCOON_LOGIN_SHELL="/usr/local/libexec/hacocoon-login"
+HACOCOON_CONTROLLER_UNIT="/etc/systemd/system/hacocoon-controller.service"
+HACOCOON_CONTROL_SOCKET="/run/hacocoon/control.sock"
+DEFAULT_HACO_ROOT="/var/lib/hacocoon"
 
 if [ -z "$INSTALLER" ] || [ ! -f "$INSTALLER" ]; then
   printf 'haco bootstrap: install script not found: %s\n' "$INSTALLER" >&2
@@ -80,6 +83,81 @@ configure_wsl_systemd() {
   fi
   $SUDO install -m 0644 "$tmp" /etc/wsl.conf
   rm -f "$tmp"
+}
+
+validate_system_binary() {
+  binary="$1"
+  label="$2"
+  case "$binary" in
+    /usr/local/bin/*|/usr/bin/*) ;;
+    *)
+      printf 'haco bootstrap: %s must be installed under /usr/local/bin or /usr/bin (got %s)\n' "$label" "$binary" >&2
+      return 1
+      ;;
+  esac
+  owner="$($SUDO stat -Lc '%u' "$binary")"
+  if [ "$owner" != "0" ]; then
+    printf 'haco bootstrap: refusing trusted use of non-root-owned %s: %s\n' "$label" "$binary" >&2
+    return 1
+  fi
+  if $SUDO find "$binary" -perm /022 -print -quit | grep -q .; then
+    printf 'haco bootstrap: refusing trusted use of group/world-writable %s: %s\n' "$label" "$binary" >&2
+    return 1
+  fi
+}
+
+configure_hacocoon_controller() {
+  controller_bin="$1"
+  client_bin="$2"
+
+  validate_system_binary "$controller_bin" "haco-controller"
+  validate_system_binary "$client_bin" "haco-host"
+
+  if [ -n "${HACO_ROOT:-}" ] && [ "$HACO_ROOT" != "$DEFAULT_HACO_ROOT" ]; then
+    printf 'haco bootstrap: automatic controller service currently requires HACO_ROOT=%s (got %s)\n' "$DEFAULT_HACO_ROOT" "$HACO_ROOT" >&2
+    return 1
+  fi
+
+  printf '==> Configuring Physical Host Hacocoon controller service\n'
+  unit_tmp="$(mktemp)"
+  cat > "$unit_tmp" <<EOF
+[Unit]
+Description=Hacocoon Physical Host Controller
+Requires=incus.service
+After=incus.service
+
+[Service]
+Type=simple
+ExecStart=$controller_bin
+Environment=HACO_ROOT=$DEFAULT_HACO_ROOT
+Environment=HACO_STORAGE_PRIVILEGE_MODE=direct
+RuntimeDirectory=hacocoon
+RuntimeDirectoryMode=0755
+Restart=on-failure
+RestartSec=1s
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  $SUDO install -m 0644 "$unit_tmp" "$HACOCOON_CONTROLLER_UNIT"
+  rm -f "$unit_tmp"
+  $SUDO systemctl daemon-reload
+  $SUDO systemctl enable --now hacocoon-controller.service
+
+  attempts=0
+  while [ "$attempts" -lt 50 ]; do
+    if $SUDO test -S "$HACOCOON_CONTROL_SOCKET" && $SUDO "$client_bin" doctor >/dev/null 2>&1; then
+      printf '==> Hacocoon controller is responding on %s\n' "$HACOCOON_CONTROL_SOCKET"
+      return 0
+    fi
+    attempts=$((attempts + 1))
+    sleep 0.1
+  done
+
+  printf 'haco bootstrap: Physical Host controller did not become ready\n' >&2
+  $SUDO systemctl status hacocoon-controller.service --no-pager >&2 || true
+  $SUDO journalctl -u hacocoon-controller.service -n 50 --no-pager >&2 || true
+  return 1
 }
 
 configure_hacocoon_login() {
@@ -191,18 +269,26 @@ sh "$INSTALLER" "$VERSION"
 
 printf '==> Installed binaries\n'
 command -v haco || true
+command -v haco-controller || true
+command -v haco-host || true
 command -v haco-vscode || true
 printf '%s\n' '/usr/local/libexec/hacocoon/haco-storage-helper'
 
 if [ "$SKIP_INCUS" != "1" ]; then
   haco_bin="$(command -v haco || true)"
-  if [ -z "$haco_bin" ]; then
-    printf 'haco bootstrap: haco binary is unavailable after installation\n' >&2
+  controller_bin="$(command -v haco-controller || true)"
+  client_bin="$(command -v haco-host || true)"
+  if [ -z "$haco_bin" ] || [ -z "$controller_bin" ] || [ -z "$client_bin" ]; then
+    printf 'haco bootstrap: required Hacocoon binaries are unavailable after installation\n' >&2
     exit 1
   fi
   haco_bin="$(readlink -f "$haco_bin")"
+  controller_bin="$(readlink -f "$controller_bin")"
+  client_bin="$(readlink -f "$client_bin")"
 
-  printf '==> Reconciling trusted haco-host\n'
+  configure_hacocoon_controller "$controller_bin" "$client_bin"
+
+  printf '==> Reconciling trusted haco-host and its client control channel\n'
   $SUDO "$haco_bin" host ensure || {
     distro="${WSL_DISTRO_NAME:-Hacocoon}"
     printf 'haco bootstrap: failed to prepare haco-host; default WSL login was not changed\n' >&2
