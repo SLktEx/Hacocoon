@@ -65,6 +65,7 @@ required = [
     "docs/00D_VERSIONING_AND_RELEASE_STATUS.ja.md",
     "docs/IMPLEMENTATION_STATUS.md", "docs/IMPLEMENTATION_STATUS.ja.md",
     "docs/ARCHITECTURE_GUIDE.ja.md",
+    "docs/CLIENT_ADAPTER_CONTRACT.md", "docs/CLIENT_ADAPTER_CONTRACT.ja.md",
     "docs/OCI_RUNTIME_AND_DOCKER_COMPAT.md", "docs/OCI_RUNTIME_AND_DOCKER_COMPAT.ja.md",
     "docs/13_v0.13_MANAGED_SANDBOX_NETWORK.md", "docs/13_v0.13_MANAGED_SANDBOX_NETWORK.ja.md",
     "docs/14_v0.14_GIT_FETCH_PLUGIN.md", "docs/14_v0.14_GIT_FETCH_PLUGIN.ja.md",
@@ -110,7 +111,7 @@ require_text("docs/IMPLEMENTATION_STATUS.md", [
     "haco plugin oci seed build", "haco plugin oci seed current",
     "auto_promote", "haco plugin oci image delete", "Docker compatibility",
     "haco plugin oci docker status", "prepare <environment>",
-    "v0.18", "Optional Local OCI Registry", "unversioned optional",
+    "pkg/clientadapter", "haco ssh", "v0.18", "Optional Local OCI Registry", "unversioned optional",
     "cloud implementation is currently deferred", "HACO_PLUGIN_OCI=nerdctl|docker",
 ])
 require_text("docs/00_REBASELINE_AND_ROADMAP.md", [
@@ -127,8 +128,12 @@ require_text("docs/README.md", [
     "13_v0.13_MANAGED_SANDBOX_NETWORK.md", "14_v0.14_GIT_FETCH_PLUGIN.md",
     "15_v0.15_OCI_SEED_RECOMMENDATION.md", "16_v0.16_OCI_IMAGE_DELETION.md",
     "17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md", "18_v0.18_OCI_SEED_AND_COW.md",
-    "OPTIONAL_LOCAL_OCI_REGISTRY.md", "haco base list", "haco plugin oci",
-    "haco plugin oci docker prepare", "contiguous through **v0.17**",
+    "OPTIONAL_LOCAL_OCI_REGISTRY.md", "CLIENT_ADAPTER_CONTRACT.md", "pkg/clientadapter",
+    "haco base list", "haco plugin oci", "haco plugin oci docker prepare", "contiguous through **v0.17**",
+])
+require_text("docs/CLIENT_ADAPTER_CONTRACT.md", [
+    "pkg/clientadapter", "public-key", "private key", "loopback-only", "/workspace",
+    "haco ssh", "pkg/interaction", "VS Code", "JetBrains", "code-server",
 ])
 require_text("docs/00A_PLUGIN_ARCHITECTURE.md", [
     "HACO_PLUGIN_OCI=nerdctl", "HACO_PLUGIN_OCI=docker", "unset HACO_PLUGIN_OCI",

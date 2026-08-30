@@ -12,6 +12,7 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, and r
 - Milestone numbering: [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)
 - Security: [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
 - Core / Standard / Plugin boundaries: [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+- Reusable client adapters: [`CLIENT_ADAPTER_CONTRACT.md`](CLIENT_ADAPTER_CONTRACT.md)
 - Client interaction events: [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md)
 
 ## Core / Standard / Plugin rule
@@ -62,6 +63,16 @@ Specifications:
 - [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md)
 - [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md) — deferred optional direction
+
+## Reusable client adapter boundary
+
+`pkg/clientadapter` exposes a VS Code-independent client contract for exact Environment ensure/reuse, state inspection, `/workspace` discovery, loopback SSH/TCP connections, revoke/delete, and `pkg/interaction` batches.
+
+The client keeps its private key and IDE configuration. Hacocoon receives only SSH public-key material, revalidates returned connections as loopback-only, and refuses to silently reuse an Environment with a different canonical Workspace or access mode.
+
+The ordinary `haco create` + `haco ssh` + `ssh` flow is the non-VS-Code proof path; code-server, JetBrains, and future clients can build adapters on the same contract without Core conditionals.
+
+See [`CLIENT_ADAPTER_CONTRACT.md`](CLIENT_ADAPTER_CONTRACT.md).
 
 ## Client interaction boundary
 
