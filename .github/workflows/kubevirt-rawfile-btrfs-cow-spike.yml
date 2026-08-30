@@ -1,7 +1,6 @@
 name: kubevirt rawfile btrfs cow spike
 
 on:
-  # Disposable main-kube experiment. Keep this isolated from normal CI.
   push:
     branches:
       - main-kube
@@ -59,21 +58,46 @@ jobs:
       - name: Install OpenEBS RawFile with Btrfs COW storage class
         run: |
           set -euxo pipefail
+          cat >/tmp/rawfile-values.yaml <<'EOF'
+          analytics:
+            enabled: false
+          logLevel: DEBUG
+          node:
+            defaultPool: haco
+            storagePools:
+              haco:
+                path: /var/local/openebs/rawfile/haco-pool
+            metadataDirPath: /var/local/openebs/rawfile/haco-pool/.meta
+          storageClasses:
+            - name: rawfile-btrfs-cow
+              enabled: true
+              volumeBindingMode: WaitForFirstConsumer
+              isDefault: false
+              allowVolumeExpansion: true
+              reclaimPolicy: Delete
+              fsType: ext4
+              thinProvision: true
+              mountOptions: []
+              formatOptions: []
+              copyOnWrite: true
+              freezeFs: false
+              storagePool: haco
+          snapshotClasses:
+            - name: rawfile-btrfs-cow
+              enabled: true
+              deletionPolicy: Delete
+              isDefault: false
+          capabilities:
+            snapshots:
+              enabled: true
+          EOF
+
           helm repo add rawfile-localpv https://openebs.github.io/rawfile-localpv
           helm repo update rawfile-localpv
           helm install rawfile-localpv rawfile-localpv/rawfile-localpv \
             --namespace openebs \
             --create-namespace \
-            --set analytics.enabled=false \
-            --set logLevel=DEBUG \
-            --set node.defaultPool=haco \
-            --set node.storagePools.haco.path=/var/local/openebs/rawfile/haco-pool \
-            --set node.metadataDirPath=/var/local/openebs/rawfile/haco-pool/.meta \
-            --set storageClasses[0].name=rawfile-btrfs-cow \
-            --set storageClasses[0].thinProvision=true \
-            --set storageClasses[0].copyOnWrite=true \
-            --set storageClasses[0].storagePool=haco \
-            --set snapshotClasses[0].name=rawfile-btrfs-cow
+            --values /tmp/rawfile-values.yaml
 
           kubectl -n openebs wait --for=condition=Ready pod --all --timeout=8m
           kubectl get csidriver
