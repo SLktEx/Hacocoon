@@ -33,3 +33,5 @@ jobs:
         run: go test ./...
       - name: Documentation consistency
         run: python3 tools/check_docs.py
+      - name: Parity complexity evidence
+        run: python3 tools/kube_parity_metrics.py
