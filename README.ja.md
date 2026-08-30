@@ -6,7 +6,7 @@
 
 Hacocoon は、人間・開発ツール・コーディングエージェント向けの OSS **Secure Workspace Runtime（安全なワークスペース実行基盤）**です。
 
-既存の Workspace を隔離された Environment に置き、Environment lifecycle、実行、接続、Policy、承認、Capability、監査を Host 側で管理します。
+既存の Workspace を隔離された Environment に置き、Environment lifecycle、実行、接続、Policy、承認、Capability、監査、Client Adapter、再現可能な Base 選択を Host 側で管理します。
 
 > [!WARNING]
 > **Hacocoon はまだ pre-1.0 で、Breaking Change は今後も発生します。**
@@ -16,31 +16,26 @@ Hacocoon は、人間・開発ツール・コーディングエージェント�
 ## いちばんやりたい使い方
 
 ```text
-VS Code
-  |
-  | haco-vscode
-  v
-Hacocoon
-  |
-  | loopback-only SSH
-  v
-Incus Environment
-  |
+VS Code / Coding Agent
+        |
+ optional adapter
+        v
+    Hacocoon
+        |
+  Environment
+        |
   +-- /workspace
   +-- Terminal
   +-- Build / Test / Debug
-  +-- VS Code 上の AI / Coding Agent
 ```
 
-**AI 専用 UI を Hacocoon に作りません。** VS Code にある Copilot / Codex / Claude 等の UI や拡張をそのまま使います。
-
-AI は隔離 Environment の中ではかなり自由に動かせます。一方、GitHub、AWS、Host credential など Environment の外の authority は Hacocoon の Policy / Capability / Audit を通します。
+**AI 専用 UI を Hacocoon に作りません。** VS Code など既存 client の UI を使い、Hacocoon は Environment と外部 authority の境界を担当します。
 
 ```text
 Coding Agent
     |
     v
-Incus Environment       <- YOLO zone
+Environment             <- broad local freedom
     |
 ---- trust boundary ----
     |
@@ -52,7 +47,7 @@ GitHub / AWS / Host
 
 ## 現在のバージョン
 
-実装済み milestone は **v0.1〜v0.9 まで連番**に整理しています。
+実装済み milestone は **v0.1〜v0.11 まで連番**です。
 
 | Version | Gate | 状態 |
 |---|---|---|
@@ -62,14 +57,12 @@ GitHub / AWS / Host
 | v0.4 | Policy & Capability Foundation | 実装済み |
 | v0.5 | Git / GitHub Capability | 実装済み |
 | v0.6 | Agent & Orchestrator Integration | 実装済み |
-| v0.7 | Remote / Cloud Runtime | experimental 実装済み |
-| v0.8 | Client Adapters & VS Code | 実装済み |
+| v0.7 | Remote / Cloud Runtime | experimental 実装済み。real AWS acceptance pending |
+| v0.8 | Client Adapters & VS Code | 実装済み。real client acceptance pending |
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | broker foundation 実装済み |
-| v0.10 | VS Code Remote Agent Host Adapter | PR #111 で実装中。まだ `main` ではない |
-| v0.11 | Base Images & Custom Environments | 設計のみ |
-| v0.12 | Sandbox Resource Limits | 設計のみ |
-
-以前は design-only v0.9 の後に implemented v0.10 が来るなど番号が飛び飛びでしたが、pre-1.0 のうちに **実装済み → 実装中 → 設計待ち** の順へ整理しました。
+| v0.10 | VS Code Remote Agent Host Adapter | 実装済み。real Agent Host acceptance pending |
+| v0.11 | Base Images & Custom Environments | first slice 実装済み。build/import/GC 等は今後 |
+| v0.12 | Sandbox Resource Limits | design-only / implementation pending |
 
 詳しくは [`docs/00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](docs/00D_VERSIONING_AND_RELEASE_STATUS.ja.md) と [`docs/IMPLEMENTATION_STATUS.ja.md`](docs/IMPLEMENTATION_STATUS.ja.md) を参照してください。
 
@@ -83,27 +76,25 @@ cd Hacocoon
 
 go build -o ./bin/haco ./cmd/haco
 go build -o ./bin/haco-vscode ./cmd/haco-vscode
+go build -o ./bin/haco-agent-host ./cmd/haco-agent-host
 ./bin/haco doctor
 ```
 
-開きたい Workspace から:
+通常の Remote-SSH adapter:
 
 ```bash
 ./bin/haco-vscode open .
 ```
 
-概念的には次を自動化します。
-
 ```text
 Workspace を認識
   -> Environment を作成または再利用
-  -> SSH public key を設定
-  -> localhost の SSH connection を用意
-  -> Hacocoon 専用 SSH config を生成
+  -> loopback-only SSH を準備
+  -> adapter-owned SSH config を生成
   -> VS Code Remote-SSH で /workspace を開く
 ```
 
-Private key は Client 側に残り、Environment に渡しません。
+Private SSH key は Client 側に残り、Environment に渡しません。
 
 終了して Environment を捨てる場合:
 
@@ -125,8 +116,6 @@ trusted client / integration
  persisted ownership proof
         |
  Environment
-        |
- Incus
 ```
 
 Coding agent 自身に `haco` / Incus 管理 authority を渡しません。Deterministic な Environment 名だけでも ownership proof にはせず、persisted binding が一致しなければ Acquire / Release は fail closed します。
@@ -137,7 +126,12 @@ Parallel RW agent は原則として別 Git worktree / 別 canonical Workspace �
 
 ## v0.10: VS Code Remote Agent Host Adapter
 
-v0.10 は PR #111 の active integration candidate です。まだ `main` implementation claim ではありません。
+v0.10 は `haco-agent-host` として実装済みです。
+
+```bash
+haco-agent-host prepare --session <opaque-id> [workspace]
+haco-agent-host release --session <opaque-id>
+```
 
 ```text
 VS Code Agents window
@@ -146,25 +140,36 @@ VS Code Agents window
         |
 Hacocoon-managed loopback SSH alias
         |
+ haco-agent-host
+        |
 v0.9 bound Environment
         |
- /workspace + Agent Host
+ /workspace
 ```
 
-Hacocoon は Environment と安全な接続準備を所有し、VS Code が Agent Host / Agent Host Protocol を所有します。
+Hacocoon は Environment と安全な接続準備を所有し、VS Code が Agent Host / Agent Host Protocol を所有します。SSH private key は client 側に保持します。
+
+正本は [`docs/10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md`](docs/10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md) です。
 
 ## v0.11: Base Images & Custom Environments
 
-v0.11 はまだ設計段階です。
+v0.11 の first slice は実装済みです。
+
+```bash
+haco image list
+haco image inspect <base>
+haco create --base <base> --workspace <path> <environment>
+```
 
 ```text
 logical Base
+   -> provider-owned source
+   -> create 時に一度だけ resolve
    -> immutable Base revision
-   -> provider-native starting point
-   -> Environment
+   -> Environment に persist
 ```
 
-logical Base の更新で既存 Environment を silent retarget しません。
+Incus provider では mutable alias/source を immutable fingerprint に解決してから `incus init` します。そのため logical Base が後で動いても、既存 Environment の記録は変わりません。
 
 ```text
 my-dev -> revision A -> Environment 1
@@ -172,23 +177,17 @@ my-dev -> revision B -> Environment 2
 Environment 1 は revision A のまま
 ```
 
-Custom Base の中身や metadata だけで Host mount、privileged mode、device、credential、external authority を増やすことも禁止します。
+Host/operator の custom logical mapping は現在 `HACO_INCUS_BASES_JSON` で追加できます。`haco/` namespace は予約です。
 
-想定 CLI は次のような形ですが、**まだ実装済みではありません**。
-
-```text
-haco image list
-haco image inspect <base>
-haco create --base <base> --workspace <path> <environment>
-```
+Custom Base build/import、revision history、rollback、physical deletion、GC は first slice では未実装です。
 
 正本は [`docs/11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](docs/11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md)、詳しい日本語設計は [`docs/BASE_IMAGES.ja.md`](docs/BASE_IMAGES.ja.md) です。
 
 ## v0.12: Sandbox Resource Limits
 
-v0.12 は design-only です。
+v0.12 は次の design/implementation gate です。
 
-予定する resource budget:
+予定する provider-neutral resource budget:
 
 - CPU
 - memory
@@ -222,7 +221,7 @@ Daintree / Orchestrator
   -> isolated Environment
 ```
 
-Task 分解、worktree、Agent 選択、retry、budget、development review は Orchestrator 側の責任です。
+Task 分解、worktree、Agent 選択、retry、model budget、development review は Orchestrator 側の責任です。
 
 ## 低レベル CLI
 
@@ -234,13 +233,18 @@ haco status dev
 haco delete dev
 
 haco run --workspace "$PWD" -- go test ./...
-haco run --workspace "$PWD" --json -- go test ./...
+
+haco image list
+haco image inspect haco/ubuntu-26.04
+haco create --base haco/ubuntu-26.04 --workspace "$PWD" dev
 ```
 
 現在の主な command:
 
 ```text
 haco create
+haco image list
+haco image inspect
 haco exec
 haco shell
 haco delete
@@ -257,6 +261,9 @@ haco doctor
 
 haco-vscode open
 haco-vscode delete
+
+haco-agent-host prepare
+haco-agent-host release
 ```
 
 ## EC2
@@ -278,10 +285,11 @@ go test -race ./...
 go vet ./...
 go build ./cmd/haco
 go build ./cmd/haco-vscode
+go build ./cmd/haco-agent-host
 python tools/check_docs.py
 ```
 
-Real Incus、Windows/WSL + VS Code、Agent Host/AHP、Base/image lifecycle、AWS/EC2/SSM/EBS、resource enforcement の acceptance は、実際の対応環境で実行していない限り pass と扱いません。
+Real Incus、Windows/WSL + VS Code、Agent Host/AHP、v0.11 real Base/image sources、AWS/EC2/SSM/EBS、v0.12 resource enforcement の acceptance は、実際の対応環境で実行していない限り pass と扱いません。
 
 資料の優先順位は [`docs/README.ja.md`](docs/README.ja.md)、詳しい architecture は [`docs/ARCHITECTURE_GUIDE.ja.md`](docs/ARCHITECTURE_GUIDE.ja.md) を参照してください。
 

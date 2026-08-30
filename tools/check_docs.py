@@ -60,6 +60,8 @@ required_files = [
     'docs/08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md',
     'docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md',
     'docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md',
+    'docs/10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md',
+    'docs/10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md',
     'docs/11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md',
     'docs/BASE_IMAGES.md',
     'docs/BASE_IMAGES.ja.md',
@@ -75,7 +77,7 @@ for rel in required_files:
     if not (root / rel).exists():
         errors.append(f'missing required documentation: {rel}')
 
-# Documentation map must expose the current source-of-truth and renumbered gates.
+# Documentation map must expose the current source-of-truth and current gates.
 docmap = (root / 'docs/README.md').read_text()
 for required in [
     'Source-of-truth order',
@@ -84,23 +86,25 @@ for required in [
     'IMPLEMENTATION_STATUS.md',
     '00D_VERSIONING_AND_RELEASE_STATUS.md',
     '09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md',
+    '10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md',
     '11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md',
     '12_v0.12_SANDBOX_RESOURCE_LIMITS.md',
-    'PR #111',
+    'haco-agent-host',
+    'haco image list',
 ]:
     if required not in docmap:
         errors.append(f'docs/README.md missing current documentation-map content: {required}')
 
-# The authoritative numbering must keep implemented milestones contiguous through v0.9.
+# The authoritative numbering must keep implemented milestones contiguous through v0.11.
 versioning = (root / 'docs/00D_VERSIONING_AND_RELEASE_STATUS.md').read_text()
 numbering_required = [
     'v0.8 | Client Adapters & VS Code Integration | implemented',
     'v0.9 | Per-Agent Sandbox & Agent Host Integration | broker foundation implemented',
-    'v0.10 | VS Code Remote Agent Host Adapter | active integration candidate',
-    'v0.11 | Base Images & Custom Environments | design contract only',
+    'v0.10 | VS Code Remote Agent Host Adapter | implemented',
+    'v0.11 | Base Images & Custom Environments | implemented first slice',
     'v0.12 | Sandbox Resource Limits | design contract only',
-    'implemented progression is therefore contiguous through **v0.9**',
-    'PR #111',
+    'implemented progression is therefore contiguous through **v0.11**',
+    'PR #137',
 ]
 for required in numbering_required:
     if required.lower() not in versioning.lower():
@@ -128,10 +132,14 @@ for required in [
     'internal/agenthost',
     'agent-bindings.json',
     'v0.10 |',
-    'not yet on `main`',
+    'haco-agent-host',
+    'PR #137',
     'v0.11 |',
-    'design only; implementation pending',
+    'haco image list',
+    'haco create --base',
+    'HACO_INCUS_BASES_JSON',
     'v0.12 |',
+    'design only; implementation pending',
     'real AWS acceptance pending',
 ]:
     if required.lower() not in status.lower():
@@ -152,8 +160,22 @@ for required in ['Per-Agent Sandbox', 'per-session broker', 'Agent Host', 'AHP',
     if required.lower() not in v09.lower():
         errors.append(f'v0.9 missing required per-agent contract text: {required}')
 
+v10 = (root / 'docs/10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md').read_text()
+for required in ['VS Code Remote Agent Host Adapter', 'haco-agent-host', 'loopback', 'opaque session', 'private key', 'code --agents', 'PR #137']:
+    if required.lower() not in v10.lower():
+        errors.append(f'v0.10 missing required Agent Host adapter content: {required}')
+
 v11 = (root / 'docs/11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md').read_text()
-for required in ['Base Images & Custom Environments', 'immutable Base revision', 'Incus image fingerprint', 'implementation not yet introduced', 'referenced revision']:
+for required in [
+    'Base Images & Custom Environments',
+    'first implementation slice',
+    'immutable Base revision',
+    'Incus image fingerprint',
+    'haco image list',
+    'haco create --base',
+    'HACO_INCUS_BASES_JSON',
+    'referenced Base revision',
+]:
     if required.lower() not in v11.lower():
         errors.append(f'v0.11 missing required Base-image contract text: {required}')
 
@@ -174,8 +196,11 @@ for required in [
     'v0.9',
     '09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md',
     'v0.10',
-    'PR #111',
+    '10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md',
+    'haco-agent-host',
     'v0.11',
+    'haco image list',
+    'haco create --base',
     '11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md',
     'v0.12',
     '12_v0.12_SANDBOX_RESOURCE_LIMITS.md',
@@ -184,7 +209,19 @@ for required in [
         errors.append(f'README.md missing current roadmap entry-point content: {required}')
 
 ja_readme = (root / 'README.ja.md').read_text()
-for required in ['読み方: はこーん', 'pre-1.0', 'Breaking Change', 'IMPLEMENTATION_STATUS.ja.md', 'haco-vscode open', 'v0.9', 'v0.10', 'v0.11', 'v0.12']:
+for required in [
+    '読み方: はこーん',
+    'pre-1.0',
+    'Breaking Change',
+    'IMPLEMENTATION_STATUS.ja.md',
+    'haco-vscode open',
+    'v0.9',
+    'v0.10',
+    'haco-agent-host',
+    'v0.11',
+    'haco image list',
+    'v0.12',
+]:
     if required not in ja_readme:
         errors.append(f'README.ja.md missing required Japanese entry-point content: {required}')
 

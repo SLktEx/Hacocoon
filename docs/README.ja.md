@@ -15,9 +15,10 @@ Hacocoon はまだ **pre-1.0** です。version number、spec、実装済みと�
 2. [`ARCHITECTURE_GUIDE.ja.md`](ARCHITECTURE_GUIDE.ja.md) — architecture / security boundary の説明。
 3. [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) — `main` に実際に何が入っているか。
 4. [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md) — 現在の番号割り当て。
-5. [`09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md`](09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md) — 実装済み per-agent Environment broker。
-6. [`BASE_IMAGES.ja.md`](BASE_IMAGES.ja.md) — v0.11 Base Images の詳細設計。
-7. [`12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md`](12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md) — Resource Limits の設計。
+5. [`09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md`](09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md) — per-agent Environment broker。
+6. [`10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md`](10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md) — VS Code Agent Host bridge。
+7. [`BASE_IMAGES.ja.md`](BASE_IMAGES.ja.md) — v0.11 Base Images。
+8. [`12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md`](12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md) — Resource Limits の設計。
 
 ## 正本の優先順位
 
@@ -47,26 +48,24 @@ v0.6   Agent & Orchestrator Integration            implemented
 v0.7   Remote / Cloud Runtime                      experimental implementation
 v0.8   Client Adapters & VS Code                   implemented
 v0.9   Per-Agent Sandbox & Agent Host Integration  broker foundation implemented
-v0.10  VS Code Remote Agent Host Adapter           PR #111 active integration
-v0.11  Base Images & Custom Environments           design only
+v0.10  VS Code Remote Agent Host Adapter           implemented
+v0.11  Base Images & Custom Environments           first slice implemented
 v0.12  Sandbox Resource Limits                     design only
 ```
 
-これで **v0.1〜v0.9 まで実装済み milestone が連番**になりました。v0.10 が次の active implementation、v0.11 / v0.12 は design-only です。
-
-以前の `v0.9 Base / v0.10 Per-Agent / v0.11 Resource Limits / v0.12 Agent Host Adapter` という並びは、実装順が飛び飛びで読みづらかったため pre-1.0 のうちに整理しました。
+これで **v0.1〜v0.11 まで実装済み milestone が連番**です。v0.12 が次の design/implementation gate です。
 
 詳細は [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md) を参照してください。
 
 ## Specification と Implementation は別
 
-`v0.x` の specification があることと、その機能が `main` に実装済みであることは別です。
+`v0.x` の specification があることと、その機能が real provider / real client で acceptance 済みであることは別です。
 
 - v0.7 EC2: code はあるが real AWS acceptance pending。
 - v0.8 `haco-vscode`: code はあるが real Windows/WSL + Incus + VS Code acceptance pending。
 - v0.9 per-agent broker: broker foundation 実装済み。real Agent Host/AHP routing acceptance pending。
-- v0.10 Agent Host Adapter: PR #111 の active integration。merge 前は `main` 実装と扱わない。
-- v0.11 Base Images: **design only / implementation pending**。
+- v0.10 `haco-agent-host`: `main` 実装済み。real VS Code Agent Host acceptance pending。
+- v0.11 Base selection: first slice 実装済み。real Incus image source acceptance と build/import/history/GC は別。
 - v0.12 Resource Limits: **design only / implementation pending**。
 
 実装の事実は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) を見てください。
@@ -100,15 +99,18 @@ trusted VS Code / client
  persisted binding proof
         |
  Environment
-        |
- Incus
 ```
 
 Coding agent 自身に `haco` / Incus 管理 authority を渡す設計ではありません。Parallel RW agent は原則として別 worktree / 別 canonical Workspace を使います。
 
 ## v0.10: VS Code Remote Agent Host Adapter
 
-v0.10 は PR #111 の active integration candidate です。まだ `main` implementation claim ではありません。
+`haco-agent-host` が v0.9 bound Environment を VS Code Agents window 用の loopback-only SSH target として準備します。
+
+```bash
+haco-agent-host prepare --session <opaque-id> [workspace]
+haco-agent-host release --session <opaque-id>
+```
 
 ```text
 VS Code Agents window
@@ -117,25 +119,36 @@ VS Code Agents window
         |
 Hacocoon-managed loopback SSH alias
         |
-v0.9 bound Environment
+ haco-agent-host
         |
- /workspace
+v0.9 bound Environment
 ```
 
-Hacocoon は Environment と安全な接続準備を所有し、VS Code が Agent Host / Agent Host Protocol を所有します。
+Hacocoon は Environment と安全な接続準備を所有し、VS Code が Agent Host / Agent Host Protocol を所有します。Private SSH key は client 側に保持します。
 
 ## v0.11: Base Images & Custom Environments
 
-v0.11 はまだ設計段階です。
+first slice では次を実装しています。
+
+```bash
+haco image list
+haco image inspect <base>
+haco create --base <base> --workspace <path> <environment>
+```
 
 ```text
 logical Base
+   -> provider-owned mutable source
+   -> create 時に一度だけ resolve
    -> immutable Base revision
-   -> provider-native starting point
-   -> Environment
+   -> Environment に persist
 ```
 
-Incus alias / remote / fingerprint は adapter detail であり、Core の public identity にしません。logical Base の更新は新規 Environment だけに反映し、既存 Environment を silent retarget しません。
+Incus alias / remote / fingerprint は adapter detail です。mutable alias/source は create 時に immutable fingerprint へ解決し、その pinned fingerprint から Environment を作ります。
+
+logical Base が後で動いても既存 Environment の `BaseRevision` は変わりません。
+
+Custom mapping は現在 `HACO_INCUS_BASES_JSON` で追加でき、`haco/` namespace は予約です。build/import/history/rollback/deletion/GC は first slice では未実装です。
 
 ## v0.12: Sandbox Resource Limits
 
@@ -177,9 +190,9 @@ export HACO_EXPERIMENTAL_EC2=1
 ## ドキュメント更新ルール
 
 1. product boundary / roadmap を変えるなら authoritative English doc を先に更新する。
-2. version number を変更するなら `00D_VERSIONING_AND_RELEASE_STATUS.md` を更新する。
+2. version number/status を変更するなら `00D_VERSIONING_AND_RELEASE_STATUS.md` を更新する。
 3. code reality が変わったら `IMPLEMENTATION_STATUS.md` / `.ja.md` を更新する。
-4. versioned filename、heading、本文、index、docs check、PR metadata、日本語 companion を一緒に揃える。
+4. versioned filename、heading、本文、index、docs check、日本語 companion を一緒に揃える。
 5. implementation claim と real-provider/client acceptance claim を混ぜない。
 6. EC2 の experimental/default-off rule を維持する。
 7. `python tools/check_docs.py` を実行する。

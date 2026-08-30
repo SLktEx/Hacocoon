@@ -42,6 +42,7 @@ func dispatch(ctx context.Context, app *composition.App, args []string) error {
 	}
 	commands := map[string]command{
 		"create":      createCommand,
+		"image":       imageCommand,
 		"git":         gitCommand,
 		"run":         runCommand,
 		"events":      eventsCommand,
@@ -78,18 +79,32 @@ func createCommand(ctx context.Context, app *composition.App, args []string) err
 }
 
 func parseCreateSpec(args []string) (core.EnvironmentSpec, error) {
+	usageError := func() error {
+		return fmt.Errorf("usage: haco create [--read-only] [--base <base>] --workspace <path> <environment>: %w", core.ErrInvalidArgument)
+	}
 	if len(args) < 3 {
-		return core.EnvironmentSpec{}, fmt.Errorf("usage: haco create [--read-only] --workspace <path> <environment>: %w", core.ErrInvalidArgument)
+		return core.EnvironmentSpec{}, usageError()
 	}
 	spec := core.EnvironmentSpec{AccessMode: core.WorkspaceReadWrite}
+	readOnlySeen := false
 	for len(args) > 1 {
 		switch args[0] {
 		case "--read-only":
+			if readOnlySeen {
+				return core.EnvironmentSpec{}, usageError()
+			}
+			readOnlySeen = true
 			spec.AccessMode = core.WorkspaceReadOnly
 			args = args[1:]
+		case "--base":
+			if len(args) < 3 || spec.Base != "" {
+				return core.EnvironmentSpec{}, usageError()
+			}
+			spec.Base = core.BaseName(args[1])
+			args = args[2:]
 		case "--workspace":
 			if len(args) < 3 || spec.WorkspacePath != "" {
-				return core.EnvironmentSpec{}, fmt.Errorf("usage: haco create [--read-only] --workspace <path> <environment>: %w", core.ErrInvalidArgument)
+				return core.EnvironmentSpec{}, usageError()
 			}
 			spec.WorkspacePath = args[1]
 			args = args[2:]
@@ -100,7 +115,7 @@ func parseCreateSpec(args []string) (core.EnvironmentSpec, error) {
 		}
 	}
 	if len(args) != 1 || spec.WorkspacePath == "" {
-		return core.EnvironmentSpec{}, fmt.Errorf("usage: haco create [--read-only] --workspace <path> <environment>: %w", core.ErrInvalidArgument)
+		return core.EnvironmentSpec{}, usageError()
 	}
 	spec.Name = args[0]
 	return spec, nil
@@ -337,6 +352,9 @@ func statusCommand(ctx context.Context, app *composition.App, args []string) err
 	fmt.Printf("name: %s\nstate: %s\nruntime: %s\nworkspace: %s\naccess: %s\n",
 		status.Environment.Name, status.State, status.Environment.RuntimeRef,
 		status.Environment.Workspace.Path, status.Environment.AccessMode)
+	if status.Environment.Base != nil {
+		fmt.Printf("base: %s\nbase-revision: %s\n", status.Environment.Base.Name, status.Environment.Base.Revision)
+	}
 	return nil
 }
 
@@ -471,7 +489,7 @@ func doctorCommand(ctx context.Context, app *composition.App, args []string) err
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: haco <create|git|run|events|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
+	fmt.Fprintln(os.Stderr, "usage: haco <create|image|git|run|events|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
 }
 
 func fail(err error) {

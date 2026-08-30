@@ -7,23 +7,11 @@
 **Compatibility:** Hacocoon は pre-1.0 です。
 
 > [!NOTE]
-> 厳密な正本は英語版 `00D_VERSIONING_AND_RELEASE_STATUS.md` です。この日本語版は同じ判断を読みやすく説明します。
+> 厳密な正本は英語版 `00D_VERSIONING_AND_RELEASE_STATUS.md` です。
 
 ## 方針
 
-pre-1.0 の間は、バージョン番号をなるべく **実装された順番として読める形** に保ちます。
-
-ルールは次です。
-
-1. 実装済み milestone は可能な限り連番にする。
-2. 未実装の design gate が、独立して既に実装された機能より若い番号を占有しないようにする。
-3. 次に merge される active implementation を、最後の実装済み milestone の次へ置く。
-4. design-only gate はその後ろへ送る。
-5. Security / hardening だけの変更は通常 product version を消費しない。
-6. 実装の事実は `IMPLEMENTATION_STATUS.md` が正本。
-7. roadmap の番号と tag/release は別物として扱う。
-
-これは以前の「`main` に design 番号が入ったら原則固定」というルールを置き換えます。pre-1.0 の今は、偶然できた分かりにくい番号を守るより、読みやすさを優先します。
+pre-1.0 の間は、バージョン番号をなるべく **実装された順番として読める形** に保ちます。実装の事実は `IMPLEMENTATION_STATUS.md`、roadmap の意図は `00_REBASELINE_AND_ROADMAP.md` を正本として確認します。
 
 ## 現在の番号
 
@@ -38,51 +26,39 @@ pre-1.0 の間は、バージョン番号をなるべく **実装された順番
 | v0.7 | Remote / Cloud Runtime & External Capabilities | experimental 実装済み。real AWS acceptance pending |
 | v0.8 | Client Adapters & VS Code Integration | 実装済み。real client acceptance pending |
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | session -> Environment broker foundation 実装済み |
-| v0.10 | VS Code Remote Agent Host Adapter | PR #111 の active integration。まだ `main` 実装とは扱わない |
-| v0.11 | Base Images & Custom Environments | 設計のみ。実装 pending |
+| v0.10 | VS Code Remote Agent Host Adapter | PR #137 で実装済み。real host acceptance は pending |
+| v0.11 | Base Images & Custom Environments | first slice 実装済み。Base selection / immutable revision pin / persisted identity / list・inspect を実装 |
 | v0.12 | Sandbox Resource Limits | 設計のみ。実装 pending |
 
-これで **v0.1〜v0.9 まで実装済み milestone が連続**します。v0.10 が次の実装中 gate、v0.11 / v0.12 は design-only としてその後ろです。
+これで **v0.1〜v0.11 まで実装済み milestone が連続**します。次の design/implementation gate は v0.12 です。
 
-## 2026-08-30 の整理
+## v0.10 の扱い
 
-変更前:
+旧 PR #111 は古い security/docs baseline の integration branch だったため直接 merge せず、最新 `main` に載せ直した PR #137 で `haco-agent-host` を実装しました。
 
-```text
-v0.9   Base Images & Custom Environments             design only
-v0.10  Per-Agent Sandbox & Agent Host Integration    implemented
-v0.11  Sandbox Resource Limits                       design only
-v0.12  VS Code Remote Agent Host Adapter             active PR
-```
+real Windows/WSL + Incus + VS Code Agents window / Agent Host の acceptance は host-dependent のままです。
 
-変更後:
+## v0.11 の扱い
+
+first slice では次を実装します。
 
 ```text
-v0.9   Per-Agent Sandbox & Agent Host Integration    implemented
-v0.10  VS Code Remote Agent Host Adapter             active PR
-v0.11  Base Images & Custom Environments             design only
-v0.12  Sandbox Resource Limits                       design only
+haco image list
+haco image inspect <base>
+haco create --base <base> --workspace <path> <environment>
 ```
 
-これは roadmap / documentation の番号整理です。Git history を書き換えたり、新しい実装が完了したと主張したりはしません。
+logical Base は作成時に immutable revision へ解決され、その revision が Environment metadata に保存されます。Incus の alias / remote / fingerprint の扱いは adapter 内部に閉じます。
 
-## 移行ルール
+custom build/import、revision history、rollback、GC は first slice の実装完了を意味しません。
 
-maintained docs では次のように読み替えます。
+## 現在の acceptance watch list
 
-- 旧 `v0.10 Per-Agent Sandbox` → **v0.9**
-- PR #111 / 旧 `v0.12 Agent Host Adapter` → **v0.10**
-- 旧 `v0.9 Base Images` → **v0.11**
-- 旧 `v0.11 Resource Limits` → **v0.12**
-
-過去の commit message、closed PR title、既に作られた一時的な candidate branch 名は履歴として旧番号が残る場合があります。現在の番号の正本にはしません。
-
-## 現在の watch list
-
-- PR #111: Agent Host adapter — 現在の番号では **v0.10**。real Windows/WSL + Incus + VS Code Agents-window acceptance は host-dependent。
-- PR #113: patched Go toolchain hardening — roadmap version 不要。
-- PR #114: Incus delete/absence verification hardening — roadmap version 不要。
+- v0.8: real Windows/WSL + Incus + VS Code Remote-SSH
+- v0.9/v0.10: real VS Code Agent Host/AHP routing、real Incus SSH
+- v0.11: real Incus image remote / custom Base
+- v0.7 EC2: real AWS acceptance。provider は experimental/default-off のまま
 
 ## 一文でいうと
 
-> **実装済みを連番にし、その次に実装中、その後ろに design-only を置く。実装の事実そのものは `IMPLEMENTATION_STATUS.md` で管理する。**
+> **実装済みを連番にし、その次に active implementation、その後ろに design-only を置く。実装の事実そのものは `IMPLEMENTATION_STATUS.md` で管理する。**

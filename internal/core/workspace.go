@@ -8,6 +8,10 @@ type WorkspaceAccessMode string
 
 type WorkspaceLeaseState string
 
+type BaseName string
+
+type BaseRevision string
+
 const (
 	WorkspaceReadOnly  WorkspaceAccessMode = "ro"
 	WorkspaceReadWrite WorkspaceAccessMode = "rw"
@@ -20,6 +24,16 @@ const (
 type Workspace struct {
 	ID   WorkspaceID `json:"id"`
 	Path string      `json:"path"`
+}
+
+type BaseRef struct {
+	Name     BaseName     `json:"name"`
+	Revision BaseRevision `json:"revision"`
+}
+
+type BaseInfo struct {
+	Name     BaseName     `json:"name"`
+	Revision BaseRevision `json:"revision,omitempty"`
 }
 
 type WorkspaceLease struct {
@@ -37,6 +51,7 @@ type Environment struct {
 	Name       string              `json:"name"`
 	Workspace  Workspace           `json:"workspace"`
 	AccessMode WorkspaceAccessMode `json:"access_mode"`
+	Base       *BaseRef            `json:"base,omitempty"`
 	RuntimeRef string              `json:"runtime_ref"`
 	CreatedAt  time.Time           `json:"created_at"`
 }
@@ -45,16 +60,19 @@ type EnvironmentSpec struct {
 	Name          string
 	WorkspacePath string
 	AccessMode    WorkspaceAccessMode
+	Base          BaseName
 }
 
 type EnvironmentRuntimeSpec struct {
 	Name          string
 	WorkspacePath string
 	ReadOnly      bool
+	Base          BaseName
 }
 
 type EnvironmentRuntime struct {
-	Ref string
+	Ref  string
+	Base *BaseRef
 }
 
 type ExecutionRequest struct {

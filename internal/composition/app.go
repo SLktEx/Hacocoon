@@ -29,6 +29,7 @@ type App struct {
 	Git          *gitcapapp.Broker
 	Runner       *runapp.Service
 	Events       *eventsapp.Service
+	Bases        *environmentapp.BaseRouter
 	Runtime      *incus.Runtime
 }
 
@@ -36,6 +37,10 @@ func Local(_ context.Context) (*App, error) {
 	runner := host.ExecRunner{}
 	root := envOr("HACO_ROOT", "/var/lib/hacocoon")
 	incusRuntime := incus.New(runner)
+	incusProvider, err := incus.NewBaseProvider(incusRuntime)
+	if err != nil {
+		return nil, err
+	}
 
 	var ec2Provider environmentapp.Provider = environmentapp.DisabledProvider{
 		ID:     environmentapp.ProviderEC2,
@@ -44,14 +49,15 @@ func Local(_ context.Context) (*App, error) {
 	if strings.TrimSpace(os.Getenv("HACO_EXPERIMENTAL_EC2")) == "1" {
 		ec2Provider = ec2runtime.New(runner, ec2runtime.ConfigFromEnv())
 	}
-	runtime, err := environmentapp.NewRouter(
+	router, err := environmentapp.NewRouter(
 		envOr("HACO_RUNTIME_PROVIDER", environmentapp.ProviderIncus),
-		environmentapp.Register(environmentapp.ProviderIncus, incusRuntime),
+		environmentapp.Register(environmentapp.ProviderIncus, incusProvider),
 		environmentapp.Register(environmentapp.ProviderEC2, ec2Provider),
 	)
 	if err != nil {
 		return nil, err
 	}
+	runtime := environmentapp.NewBaseRouter(router)
 
 	store := state.NewEnvironmentJSONStore(filepath.Join(root, "state", "environments.json"))
 	bindingStore := agenthostapp.NewJSONBindingStore(filepath.Join(root, "state", "agent-bindings.json"))
@@ -77,6 +83,7 @@ func Local(_ context.Context) (*App, error) {
 		Git:          gitcapapp.NewBroker(runner, store, capabilities),
 		Runner:       runapp.New(environments),
 		Events:       eventsapp.New(auditPath),
+		Bases:        runtime,
 		Runtime:      incusRuntime,
 	}, nil
 }

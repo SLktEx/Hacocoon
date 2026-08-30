@@ -26,8 +26,6 @@ When documents appear to disagree, use this order:
 
 ## Current documentation state
 
-The current authoritative numbering is:
-
 | Version | Gate | State |
 |---|---|---|
 | v0.1 | Secure Workspace Runtime MVP | implemented |
@@ -39,13 +37,11 @@ The current authoritative numbering is:
 | v0.7 | Remote / Cloud Runtime & External Capabilities | experimentally implemented; real AWS acceptance pending |
 | v0.8 | Client Adapters & VS Code Integration | implemented; real client acceptance pending |
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | broker foundation implemented |
-| v0.10 | VS Code Remote Agent Host Adapter | active integration candidate in PR #111; not on `main` yet |
-| v0.11 | Base Images & Custom Environments | design contract only |
+| v0.10 | VS Code Remote Agent Host Adapter | implemented; real host acceptance pending |
+| v0.11 | Base Images & Custom Environments | first implementation slice present; broader build/import/GC pending |
 | v0.12 | Sandbox Resource Limits | design contract only |
 
-The implemented progression is therefore contiguous through **v0.9**. This replaces the older ordering where design-only v0.9 sat in front of implemented v0.10.
-
-See `00D_VERSIONING_AND_RELEASE_STATUS.md` for the renumbering policy and migration mapping.
+The implemented progression is contiguous through **v0.11**. See `00D_VERSIONING_AND_RELEASE_STATUS.md` for the numbering policy and `IMPLEMENTATION_STATUS.md` for exact code/acceptance reality.
 
 ## Specification vs implementation
 
@@ -56,11 +52,11 @@ Examples:
 - v0.7 EC2 code can exist while real AWS acceptance remains pending.
 - v0.8 `haco-vscode` can exist while real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending.
 - v0.9 contains the persisted per-session Environment broker while real Agent Host/AHP routing acceptance remains host-dependent.
-- v0.10 may be an active PR without being part of `main` yet.
-- v0.11 can define immutable Base revisions before `haco image` exists.
+- v0.10 `haco-agent-host` is implemented while real VS Code Agent Host acceptance remains host-dependent.
+- v0.11 Base selection/pinning can be implemented while image build/import/history/GC remains future work.
 - v0.12 can define provider-neutral resource budgets before resource enforcement is implemented.
 
-Do not infer release/tag readiness, production support, or implementation presence from a roadmap document or version number alone.
+Do not infer release/tag readiness, production support, or real-host acceptance from a roadmap version alone.
 
 ## v0.8 reading path
 
@@ -93,9 +89,13 @@ trusted client / integration
 
 The coding agent is deliberately absent from the Hacocoon management path. A deterministic Environment name alone is not enough to authorize adoption or deletion.
 
-## v0.10 integration path — VS Code Remote Agent Host Adapter
+## v0.10 reading path — VS Code Remote Agent Host Adapter
 
-v0.10 is the active integration candidate in PR #111 and is **not current `main` code reality until merged**.
+1. `10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md`
+2. `10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md`
+3. `09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md`
+4. `CLIENT_ACCESS.md`
+5. `IMPLEMENTATION_STATUS.md`
 
 ```text
 VS Code Agents window
@@ -104,12 +104,14 @@ VS Code Agents window
         |
 Hacocoon-managed loopback alias
         |
+  haco-agent-host
+        |
  v0.9-bound Environment
         |
     /workspace
 ```
 
-Hacocoon prepares the trusted Environment and SSH access; VS Code continues to own the Agent Host and Agent Host Protocol.
+Hacocoon prepares the trusted Environment and SSH access; VS Code continues to own the Agent Host and Agent Host Protocol. Real Windows/WSL + Incus + VS Code acceptance remains host-dependent.
 
 ## v0.11 reading path — Base Images
 
@@ -124,13 +126,27 @@ Hacocoon prepares the trusted Environment and SSH access; VS Code continues to o
 logical Base name
         |
         v
+mutable provider source
+        |
+ resolve once at create
+        v
 immutable Base revision
         |
         v
 Environment
 ```
 
-For Incus, provider-native aliases/remotes/fingerprints remain adapter details. v0.11 is implementation-pending until code actually lands.
+Implemented first-slice commands:
+
+```text
+haco image list
+haco image inspect <base>
+haco create --base <base> --workspace <path> <environment>
+```
+
+For Incus, provider-native aliases/remotes/fingerprints remain adapter details. Existing Environment metadata records the resolved immutable revision so moving a logical source later affects future creation only.
+
+Custom Base build/import, revision history, rollback, and garbage collection remain outside the first implemented slice.
 
 ## v0.12 reading path — Sandbox Resource Limits
 
@@ -153,7 +169,7 @@ Prefer an explicit incompatible correction over preserving accidental compatibil
 ## Editing rule
 
 1. update the authoritative document first;
-2. update `00D_VERSIONING_AND_RELEASE_STATUS.md` when numbering changes;
+2. update `00D_VERSIONING_AND_RELEASE_STATUS.md` when numbering/status changes;
 3. update `IMPLEMENTATION_STATUS.md` when code reality changes;
 4. update entry points/handoffs when summaries become stale;
 5. keep implementation claims distinct from real-provider/client acceptance claims;
