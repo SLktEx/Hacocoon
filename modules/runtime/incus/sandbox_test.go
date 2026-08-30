@@ -18,7 +18,10 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 		if len(args) >= 2 && args[0] == "image" && args[1] == "info" {
 			return host.Result{Stdout: `{"fingerprint":"` + sandboxTestFingerprint + `"}`}, nil
 		}
-		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
+		if result, ok := sandboxNetworkResult(args); ok {
+			return result, nil
+		}
+		if len(args) >= 3 && args[0] == "profile" && args[1] == "show" && args[2] == "default" {
 			return rootProfileResult(), nil
 		}
 		if len(args) >= 4 && args[0] == "config" && args[1] == "set" {
@@ -58,10 +61,14 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	}
 	start := -1
 	resourceOps := 0
+	seenManagedProfile := false
 	for i, call := range runner.calls {
 		joined := strings.Join(call.args, " ")
 		if len(call.args) > 0 && call.args[0] == "start" {
 			start = i
+		}
+		if strings.Contains(joined, "--profile "+sandboxProfile) {
+			seenManagedProfile = true
 		}
 		if strings.Contains(joined, "limits.cpu=4") || strings.Contains(joined, "limits.memory=8589934592B") || strings.Contains(joined, "limits.processes=1024") || strings.Contains(joined, "size=42949672960B") {
 			resourceOps++
@@ -73,6 +80,9 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	if start < 0 {
 		t.Fatal("start call missing")
 	}
+	if !seenManagedProfile {
+		t.Fatalf("managed sandbox profile missing from init: %#v", runner.calls)
+	}
 	if resourceOps != 4 {
 		t.Fatalf("resource set operations = %d, calls=%#v", resourceOps, runner.calls)
 	}
@@ -83,7 +93,10 @@ func TestSandboxProviderVerificationFailureCleansUpWithoutStart(t *testing.T) {
 		if len(args) >= 2 && args[0] == "image" && args[1] == "info" {
 			return host.Result{Stdout: `{"fingerprint":"` + sandboxTestFingerprint + `"}`}, nil
 		}
-		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
+		if result, ok := sandboxNetworkResult(args); ok {
+			return result, nil
+		}
+		if len(args) >= 3 && args[0] == "profile" && args[1] == "show" && args[2] == "default" {
 			return rootProfileResult(), nil
 		}
 		if len(args) >= 4 && args[0] == "config" && args[1] == "get" && args[3] == "limits.cpu" {
