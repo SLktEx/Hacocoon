@@ -10,7 +10,7 @@ Hacocoon Core has no canonical OCI runtime and does not require `containerd`, `n
 
 A valid Core installation may run without any OCI tooling. Core still owns Environment lifecycle, isolation, execution, connection management, policy/approval boundaries, and events.
 
-OCI/container-specific behavior belongs to `modules/plugin/oci` and is explicitly enabled:
+OCI/container-specific behavior belongs to `modules/plugin/oci` behind the **plugin/adapter** boundary and is explicitly enabled:
 
 ```text
 HACO_PLUGIN_OCI=nerdctl
