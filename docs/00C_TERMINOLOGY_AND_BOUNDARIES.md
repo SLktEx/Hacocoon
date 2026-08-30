@@ -2,9 +2,13 @@
 
 Status: authoritative terminology.
 
+See [`DESIGN_PRINCIPLES.md`](DESIGN_PRINCIPLES.md) for the design constraints attached to these boundaries.
+
 ## Workspace
 
 User-selected files made available to an Environment. A Workspace may happen to be a Git repository or worktree, but Core treats it as opaque data plus access metadata.
+
+A read-write Workspace is working data and may be modified or deleted by code running inside the Environment. The Workspace boundary limits what host data is intentionally exposed; it does not imply that writable Workspace contents are protected from the agent.
 
 ## WorkspaceLease
 
@@ -12,7 +16,17 @@ A lifecycle-bound association between one Workspace and one Environment, includi
 
 ## Environment
 
-An isolated place in which commands run. Incus system containers are the first Environment implementation. EC2 or other runtimes may be added later behind the same conceptual boundary.
+An isolated place in which commands run. The definition does not require a specific isolation technology or security strength.
+
+Incus system containers are the first Environment implementation. Other implementations may use Incus VMs, microVMs, Kubernetes/scheduler-backed workloads, remote hosts, or another backend while preserving the same conceptual Environment boundary.
+
+An Environment may grant strong local privileges, including `root`, without granting host authority. The selected backend is responsible for the isolation guarantees it claims to provide.
+
+## Environment backend
+
+The concrete mechanism that realizes an Environment and its isolation boundary.
+
+Backend-specific properties include shared-kernel versus separate-kernel isolation, lifecycle mechanics, storage/network attachment, supported resource controls, and other guarantees. These properties must not silently become universal Core assumptions.
 
 ## Execution
 
@@ -32,7 +46,9 @@ A v0.2+ seam that produces or resolves a Workspace. The direct external-path beh
 
 ## EnvironmentProvider
 
-The conceptual boundary for creating, inspecting, and destroying Environments. Incus is the first implementation. v0.1 may use a concrete Incus adapter without prematurely generalizing a provider framework; a formal provider interface should be justified by testing or another implementation.
+The conceptual boundary for creating, inspecting, connecting to, executing inside, and destroying Environments. Incus is the first implementation. v0.1 may use a concrete Incus adapter without prematurely generalizing a provider framework; a formal provider interface should be justified by testing or another real implementation.
+
+When generalized, the provider boundary should expose capabilities/guarantees rather than force Core to branch on backend names.
 
 ## CapabilityRequest
 
@@ -45,6 +61,12 @@ The result of evaluating a CapabilityRequest: `allow`, `deny`, or `require-appro
 ## ApprovalRequest
 
 A durable request for human authorization of a privileged action. Introduced in v0.4.
+
+## Trusted computing base (TCB)
+
+The components that must remain trusted for a selected backend's containment guarantee to hold.
+
+For the Incus system-container backend this includes at least the host Linux kernel, Incus daemon/control plane, and trusted Hacocoon host process. A stronger backend may move or reduce parts of this trust boundary, but Core must not claim a stronger guarantee than the backend actually provides.
 
 ## Historical Session terminology
 
