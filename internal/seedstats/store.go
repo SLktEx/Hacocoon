@@ -16,7 +16,10 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const usageStateVersion = 1
+const (
+	legacyUsageStateVersion = 1
+	usageStateVersion       = 2
+)
 
 var digestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
@@ -39,9 +42,22 @@ type Snapshot struct {
 	Images      []Image   `json:"images"`
 }
 
+// Deletion is a trusted-side tombstone for one immutable OCI image identity.
+// Snapshots at or before DeletedAt no longer make the image eligible for Seed
+// recommendation. A genuinely new observation after DeletedAt may make it
+// eligible again, which avoids turning image deletion into a permanent denylist.
+type Deletion struct {
+	Reference string    `json:"reference"`
+	Digest    string    `json:"digest"`
+	DeletedAt time.Time `json:"deleted_at"`
+}
+
+func (d Deletion) Key() string { return d.Reference + "@" + d.Digest }
+
 type usageFileState struct {
 	Version   int                 `json:"version"`
 	Snapshots map[string]Snapshot `json:"snapshots"`
+	Deletions map[string]Deletion `json:"deletions,omitempty"`
 }
 
 type Store struct {
@@ -118,10 +134,60 @@ func (s *Store) Put(_ context.Context, snapshot Snapshot) error {
 	return s.write(state)
 }
 
+func (s *Store) PutDeletion(_ context.Context, deletion Deletion) error {
+	if s == nil {
+		return core.ErrInvalidArgument
+	}
+	if err := validateDeletion(deletion); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	unlock, err := lockStateFile(s.path)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	state, err := s.read()
+	if err != nil {
+		return err
+	}
+	state.Deletions[deletion.Key()] = deletion
+	return s.write(state)
+}
+
+func (s *Store) ListDeletions(context.Context) ([]Deletion, error) {
+	if s == nil {
+		return nil, core.ErrInvalidArgument
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	unlock, err := lockStateFile(s.path)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	state, err := s.read()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]Deletion, 0, len(state.Deletions))
+	for _, deletion := range state.Deletions {
+		result = append(result, deletion)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].DeletedAt != result[j].DeletedAt {
+			return result[i].DeletedAt.Before(result[j].DeletedAt)
+		}
+		return result[i].Key() < result[j].Key()
+	})
+	return result, nil
+}
+
 func (s *Store) read() (usageFileState, error) {
 	contents, err := os.ReadFile(s.path)
 	if errors.Is(err, os.ErrNotExist) {
-		return usageFileState{Version: usageStateVersion, Snapshots: map[string]Snapshot{}}, nil
+		return usageFileState{Version: usageStateVersion, Snapshots: map[string]Snapshot{}, Deletions: map[string]Deletion{}}, nil
 	}
 	if err != nil {
 		return usageFileState{}, fmt.Errorf("read seed usage state: %w", err)
@@ -130,11 +196,16 @@ func (s *Store) read() (usageFileState, error) {
 	if err := json.Unmarshal(contents, &state); err != nil {
 		return usageFileState{}, fmt.Errorf("decode seed usage state: %w", err)
 	}
-	if state.Version != usageStateVersion {
+	switch state.Version {
+	case legacyUsageStateVersion, usageStateVersion:
+	default:
 		return usageFileState{}, fmt.Errorf("seed usage state version %d is unsupported: %w", state.Version, core.ErrIncompatibleState)
 	}
 	if state.Snapshots == nil {
 		state.Snapshots = map[string]Snapshot{}
+	}
+	if state.Deletions == nil {
+		state.Deletions = map[string]Deletion{}
 	}
 	for environment, snapshot := range state.Snapshots {
 		if snapshot.Environment == "" {
@@ -145,6 +216,15 @@ func (s *Store) read() (usageFileState, error) {
 		}
 		state.Snapshots[environment] = snapshot
 	}
+	for key, deletion := range state.Deletions {
+		if err := validateDeletion(deletion); err != nil {
+			return usageFileState{}, err
+		}
+		if key != deletion.Key() {
+			return usageFileState{}, fmt.Errorf("seed deletion key %q does not match identity %q: %w", key, deletion.Key(), core.ErrIncompatibleState)
+		}
+	}
+	state.Version = usageStateVersion
 	return state, nil
 }
 
@@ -154,6 +234,12 @@ func (s *Store) write(state usageFileState) error {
 		return fmt.Errorf("create seed usage state directory: %w", err)
 	}
 	state.Version = usageStateVersion
+	if state.Snapshots == nil {
+		state.Snapshots = map[string]Snapshot{}
+	}
+	if state.Deletions == nil {
+		state.Deletions = map[string]Deletion{}
+	}
 	payload, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode seed usage state: %w", err)
@@ -202,6 +288,23 @@ func validateSnapshot(snapshot Snapshot) error {
 		if err := validateImage(image); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func validateDeletion(deletion Deletion) error {
+	if err := validateReference(deletion.Reference); err != nil {
+		return err
+	}
+	if !digestPattern.MatchString(deletion.Digest) || deletion.DeletedAt.IsZero() {
+		return fmt.Errorf("invalid OCI deletion identity %q@%q: %w", deletion.Reference, deletion.Digest, core.ErrInvalidArgument)
+	}
+	return nil
+}
+
+func validateReference(reference string) error {
+	if reference == "" || strings.TrimSpace(reference) != reference || hasControl(reference) || strings.ContainsAny(reference, "\t\r\n") || strings.Contains(reference, "@") {
+		return fmt.Errorf("invalid OCI image reference %q: %w", reference, core.ErrInvalidArgument)
 	}
 	return nil
 }
