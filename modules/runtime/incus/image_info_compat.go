@@ -7,14 +7,21 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
-// imageInfoCompatRunner centralizes the narrow Incus CLI compatibility paths
-// needed by Hacocoon. The historical name is retained because image-info
-// compatibility was the first responsibility of this wrapper.
+const (
+	guestSystemctlSettleTimeout  = 30 * time.Second
+	guestSystemctlRetryInterval = 100 * time.Millisecond
+)
+
+// imageInfoCompatRunner centralizes the narrow Incus CLI compatibility and
+// guest-readiness paths needed by Hacocoon. The historical name is retained
+// because image-info compatibility was the first responsibility of this
+// wrapper.
 //
 // Two exact machine-readable surfaces are handled here:
 //   - `incus image info ... --format json`: prefer the modern CLI and fall back
@@ -24,10 +31,11 @@ import (
 //     shape from `expanded_devices`; fall back to the CLI only when `query` is
 //     unsupported (exit 2) or returns an empty successful response.
 //
-// The wrapper also preserves stderr for the exact guest `systemctl show`
-// inspection used by Seed acceptance. host.ExecRunner returns a process error
-// separately from captured stderr; retaining both makes real-host failures
-// diagnosable without weakening any state checks or adding timing guesses.
+// Exact guest `systemctl show -p ActiveState` inspections are also allowed to
+// cross the short Incus boot boundary. They retry only while the system bus is
+// not created yet or while systemd reports a transitional unit state. Unknown
+// errors and settled states are returned immediately, so readiness polling
+// cannot hide a failed/missing unit.
 //
 // Malformed, ambiguous, or truncated machine-readable state always fails
 // closed; it never causes a compatibility fallback.
@@ -52,15 +60,11 @@ func (r *imageInfoCompatRunner) Run(ctx context.Context, name string, args ...st
 	if apiPath, ok := expandedConfigShowAPIPath(name, args); ok {
 		return r.runExpandedConfigShow(ctx, name, apiPath, args)
 	}
+	if guestSystemctlActiveStateCandidate(name, args) {
+		return r.runGuestSystemctlActiveState(ctx, name, args)
+	}
 	if !legacyImageInfoCandidate(name, args) {
-		result, err := r.next.Run(ctx, name, args...)
-		if err != nil && guestSystemctlShowCandidate(name, args) {
-			reason := strings.TrimSpace(result.Stderr)
-			if reason != "" {
-				return result, fmt.Errorf("guest systemctl show failed: %s: %w", reason, err)
-			}
-		}
-		return result, err
+		return r.next.Run(ctx, name, args...)
 	}
 
 	result, err := r.next.Run(ctx, name, args...)
@@ -136,6 +140,67 @@ func (r *imageInfoCompatRunner) runExpandedConfigShow(ctx context.Context, name,
 	return legacyResult, nil
 }
 
+func (r *imageInfoCompatRunner) runGuestSystemctlActiveState(ctx context.Context, name string, args []string) (host.Result, error) {
+	waitCtx, cancel := context.WithTimeout(ctx, guestSystemctlSettleTimeout)
+	defer cancel()
+
+	var lastResult host.Result
+	var lastErr error
+	for {
+		result, err := r.next.Run(waitCtx, name, args...)
+		lastResult, lastErr = result, err
+		state := strings.TrimSpace(result.Stdout)
+
+		if err == nil {
+			if !transitionalSystemdUnitState(state) {
+				return result, nil
+			}
+		} else if !guestSystemdBusNotReady(result.Stderr) {
+			return result, enrichGuestSystemctlError(result, err)
+		}
+
+		timer := time.NewTimer(guestSystemctlRetryInterval)
+		select {
+		case <-waitCtx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			if lastErr != nil {
+				return lastResult, errors.Join(enrichGuestSystemctlError(lastResult, lastErr), waitCtx.Err(), core.ErrRuntimeUnavailable)
+			}
+			return lastResult, errors.Join(
+				fmt.Errorf("guest systemd unit remained in transitional state %q", strings.TrimSpace(lastResult.Stdout)),
+				waitCtx.Err(),
+				core.ErrRuntimeUnavailable,
+			)
+		case <-timer.C:
+		}
+	}
+}
+
+func enrichGuestSystemctlError(result host.Result, err error) error {
+	reason := strings.TrimSpace(result.Stderr)
+	if reason != "" {
+		return fmt.Errorf("guest systemctl show failed: %s: %w", reason, err)
+	}
+	return err
+}
+
+func guestSystemdBusNotReady(stderr string) bool {
+	reason := strings.ToLower(strings.TrimSpace(stderr))
+	return strings.Contains(reason, "failed to connect to system scope bus") && strings.Contains(reason, "no such file or directory") ||
+		strings.Contains(reason, "failed to connect to bus") && strings.Contains(reason, "no such file or directory")
+}
+
+func transitionalSystemdUnitState(state string) bool {
+	switch state {
+	case "activating", "deactivating", "reloading":
+		return true
+	default:
+		return false
+	}
+}
+
 func expandedConfigShowAPIPath(name string, args []string) (string, bool) {
 	if name != "incus" || len(args) != 8 {
 		return "", false
@@ -149,8 +214,8 @@ func expandedConfigShowAPIPath(name string, args []string) (string, bool) {
 	return "/1.0/instances/" + url.PathEscape(args[2]) + "?project=" + url.QueryEscape(args[4]), true
 }
 
-func guestSystemctlShowCandidate(name string, args []string) bool {
-	if name != "incus" || len(args) < 9 || args[0] != "exec" || strings.TrimSpace(args[1]) == "" {
+func guestSystemctlActiveStateCandidate(name string, args []string) bool {
+	if name != "incus" || len(args) < 11 || args[0] != "exec" || strings.TrimSpace(args[1]) == "" {
 		return false
 	}
 	separator := -1
@@ -160,10 +225,15 @@ func guestSystemctlShowCandidate(name string, args []string) bool {
 			break
 		}
 	}
-	if separator < 0 || len(args) <= separator+3 {
+	if separator < 0 || len(args) != separator+7 {
 		return false
 	}
-	return args[separator+1] == "systemctl" && args[separator+2] == "show" && args[separator+3] == "-p"
+	return args[separator+1] == "systemctl" &&
+		args[separator+2] == "show" &&
+		args[separator+3] == "-p" &&
+		args[separator+4] == "ActiveState" &&
+		args[separator+5] == "--value" &&
+		strings.TrimSpace(args[separator+6]) != ""
 }
 
 func legacyImageInfoCandidate(name string, args []string) bool {
