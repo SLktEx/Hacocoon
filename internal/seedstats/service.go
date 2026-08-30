@@ -164,9 +164,9 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 	if err != nil {
 		return nil, err
 	}
-	deletedAt := make(map[string]time.Time, len(deletions))
+	deleted := make(map[string]struct{}, len(deletions))
 	for _, deletion := range deletions {
-		deletedAt[deletion.Key()] = deletion.DeletedAt
+		deleted[deletion.Key()] = struct{}{}
 	}
 	cutoff := s.now().UTC().Add(-window)
 	type aggregate struct {
@@ -191,11 +191,11 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 				continue
 			}
 			key := image.Reference() + "@" + image.Digest
-			// Deleting an image invalidates observations made at or before the
-			// deletion. A new sample after deletion can make it eligible again,
-			// which prevents stale telemetry from immediately undoing deletion
-			// without permanently banning an image that is genuinely reused.
-			if deletionTime, ok := deletedAt[key]; ok && !snapshot.SampledAt.After(deletionTime) {
+			// A manual image deletion is an explicit Seed-selection override.
+			// The Environment may still pull/run the image normally, but usage
+			// sampling must not silently undo the operator's deletion decision.
+			// A future explicit pin/override can deliberately clear this state.
+			if _, ok := deleted[key]; ok {
 				continue
 			}
 			if _, ok := seen[key]; ok {
