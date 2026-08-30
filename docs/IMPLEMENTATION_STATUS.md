@@ -4,7 +4,7 @@ Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, the featu
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance.
 
-The fully implemented product progression is currently contiguous through **v0.17**. v0.18 is planned.
+The fully implemented product progression is currently contiguous through **v0.16** because v0.17 OCI Seed Builder & Btrfs/COW is still planned. The v0.18 Docker Compatibility repository implementation has already landed ahead of roadmap order and remains implemented code.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
@@ -24,8 +24,8 @@ The fully implemented product progression is currently contiguous through **v0.1
 | OCI Seed auto-selection | deterministic top 10% eligible recommendations are marked `auto_promote=true`; this selects future Seed content only | v0.15 |
 | OCI image deletion | `haco plugin oci image delete <reference[@digest]>` records a deletion tombstone and can explicitly extend deletion to managed Environments | v0.16 |
 | OCI deletion override | tombstones prevent silent recommendation/auto-promotion of the deleted immutable identity | v0.16 |
-| Docker compatibility | `haco plugin oci docker status/prepare` validates a Base-provided genuine Docker profile, verifies pinned systemd units, refuses active vendor-daemon takeover, and enables Environment-local socket activation without making Docker a Core requirement | v0.17 |
-| OCI Seed Builder / Btrfs COW | trusted Host acquisition/cache, offline builder, immutable Seed publish/current pointer and physical COW validation remain planned | v0.18 |
+| OCI Seed Builder / Btrfs COW | trusted Host acquisition/cache, offline builder, immutable Seed publish/current pointer and physical COW validation remain planned | v0.17 |
+| Docker compatibility | `haco plugin oci docker status/prepare` validates a Base-provided genuine Docker profile, verifies pinned systemd units, refuses active vendor-daemon takeover, and enables Environment-local socket activation without making Docker a Core requirement | v0.18 implemented early |
 | Optional Local OCI Registry | Registry/proxy is optional and not required for ordinary direct upstream pulls or Seed construction | unversioned optional / deferred |
 
 ## Core/plugin boundary
@@ -34,17 +34,17 @@ With `HACO_PLUGIN_OCI` unset, Hacocoon Core must not require or probe for contai
 
 The project-maintained OCI plugin profile may use containerd + nerdctl, and the Docker driver may provide genuine Docker compatibility. Neither choice defines a mandatory Hacocoon Core runtime.
 
-## Docker compatibility
+## OCI Seed Builder / storage direction
 
-v0.17 is implemented at the repository gate. `HACO_PLUGIN_OCI=docker` exposes `haco plugin oci docker status <environment>` and `prepare <environment>`. `prepare` does not install packages or mount Host sockets: it requires the selected Base/Seed to provide Docker CLI, dockerd, containerd, systemd, the docker group, and the Hacocoon-pinned socket/service units. It fails closed on unit drift or an already-active vendor Docker daemon instead of silently taking it over.
-
-Real Incus/systemd acceptance remains host-dependent and is tracked separately from repository implementation status.
-
-## OCI storage direction
-
-Physical Seed publication/COW belongs to v0.18. The intended path is trusted Host acquisition/cache -> offline Seed Builder -> immutable Seed revision -> normal Incus/storage-driver clone. One writable `/var/lib/containerd` must never be shared across Environments.
+Physical Seed publication/COW belongs to v0.17. The intended path is trusted Host acquisition/cache -> offline Seed Builder -> immutable Seed revision -> normal Incus/storage-driver clone. One writable `/var/lib/containerd` must never be shared across Environments.
 
 Local Registry is not a prerequisite and has no reserved milestone. See [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
+
+## Docker compatibility
+
+v0.18 is implemented at the repository gate, even though that code originally landed while the feature was numbered v0.17. `HACO_PLUGIN_OCI=docker` exposes `haco plugin oci docker status <environment>` and `prepare <environment>`. `prepare` does not install packages or mount Host sockets: it requires the selected Base/Seed to provide Docker CLI, dockerd, containerd, systemd, the docker group, and the Hacocoon-pinned socket/service units. It fails closed on unit drift or an already-active vendor Docker daemon instead of silently taking it over.
+
+Real Incus/systemd acceptance remains host-dependent and is tracked separately from repository implementation status.
 
 ## Cloud status
 
@@ -52,4 +52,4 @@ v0.7 retains the provider-neutral Environment routing seam because that architec
 
 ## Acceptance gaps
 
-Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.18 is planned only.
+Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.17 Seed Builder/COW is planned; v0.18 Docker repository integration is implemented but still needs real-host acceptance.
