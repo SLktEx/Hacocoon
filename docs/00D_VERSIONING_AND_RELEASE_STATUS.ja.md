@@ -19,7 +19,7 @@ Hacocoon は **pre-1.0** です。milestone番号はproduct/implementationの進
 
 ## 現在の番号
 
-**凡例:** ✅ 実装済み · 🧪 experimental · 🚧 planned
+**凡例:** ✅ 実装済み · 🧪 experimental/historical · 🚧 planned
 
 | Version | Gate | `main` の状況 |
 |---|---|---|
@@ -29,7 +29,7 @@ Hacocoon は **pre-1.0** です。milestone番号はproduct/implementationの進
 | v0.4 | Policy & Capability Foundation | ✅ 実装済み |
 | v0.5 | Git / GitHub Capability | ✅ 実装済み |
 | v0.6 | Agent & Orchestrator Integration | ✅ 実装済み |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 experimental実装。real AWS acceptance pending |
+| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 provider routing seamは維持。以前のEC2/AWS/EBS実装はdeferred |
 | v0.8 | Client Adapters & VS Code Integration | ✅ 実装済み。real client acceptance pending |
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation 実装済み |
 | v0.10 | VS Code Remote Agent Host Adapter | ✅ PR #137で実装済み。real host acceptanceはpending |
@@ -39,6 +39,8 @@ Hacocoon は **pre-1.0** です。milestone番号はproduct/implementationの進
 | v0.13A | OCI Seed & Btrfs/COW Optimization | 🚧 planned second slice。`main` には未実装 |
 
 **実装済みmilestoneは v0.1〜v0.12 まで連続**しています。v0.13は次のplanned milestoneであって、current implementationではありません。
+
+v0.7で導入したprovider-neutral routing seam自体は残っているため、後続milestoneの番号は変更しません。EC2/AWS/EBSのconcrete implementationを一旦外すことと、milestone番号を消すことは分けて扱います。
 
 ## Implemented と Planned
 
@@ -73,7 +75,7 @@ v0.13  Local OCI Registry                            planned
 
 ## Acceptance watch list
 
-- **v0.7:** real AWS/EC2/SSM/EBS。EC2はexperimental/default-off
+- **v0.7:** cloud implementationは現在deferred。以前のEC2 providerはexperimental/default-offで、real AWS acceptance pendingだった。cloud adapterを復活させた時点でacceptanceを改めて定義する
 - **v0.8:** real Windows/WSL + Incus + VS Code Remote-SSH
 - **v0.9/v0.10:** real VS Code Agent Host/AHP routing、Incus SSH
 - **v0.11:** real Incus image source/custom Base。build/import/history/rollback/GCはfirst slice外

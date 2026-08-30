@@ -17,7 +17,7 @@ Use this document for **which version number belongs to which gate**. Use [`IMPL
 
 ## Current authoritative numbering
 
-**Status legend:** ✅ implemented · 🧪 experimental · 🚧 planned
+**Status legend:** ✅ implemented · 🧪 experimental/historical · 🚧 planned
 
 | Version | Gate | Main status | Notes |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Use this document for **which version number belongs to which gate**. Use [`IMPL
 | v0.4 | Policy & Capability Foundation | ✅ implemented | fail-closed policy, approval, audit |
 | v0.5 | Git / GitHub Capability | ✅ implemented | brokered GitHub authority without exporting host credentials |
 | v0.6 | Agent & Orchestrator Integration | ✅ implemented | `haco run`, machine output, external security events |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 implemented experimentally | EC2 stays explicit opt-in; real AWS acceptance pending |
+| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 routing seam retained; cloud implementation deferred | previous EC2/AWS/EBS implementation remains in Git history/design; current build registers Incus only |
 | v0.8 | Client Adapters & VS Code Integration | ✅ implemented | `haco-vscode`; real client acceptance pending |
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation implemented | trusted session → Environment binding; real Agent Host/AHP routing acceptance pending |
 | v0.10 | VS Code Remote Agent Host Adapter | ✅ implemented | merged in PR #137; real Windows/WSL + Incus + VS Code Agents-window acceptance remains host-dependent |
@@ -37,6 +37,8 @@ Use this document for **which version number belongs to which gate**. Use [`IMPL
 | v0.13A | OCI Seed & Btrfs/COW Optimization | 🚧 planned second slice | companion optimization after the v0.13 registry path; not implemented on `main` |
 
 The implemented progression is therefore contiguous through **v0.12**. **v0.13 is the next planned milestone**, not current repository implementation.
+
+v0.7 remains part of the numbering because the provider-neutral routing seam introduced by that gate is still present. Deferring the concrete EC2/AWS/EBS implementation does not renumber later milestones.
 
 ## Implemented vs planned
 
@@ -73,7 +75,7 @@ Historical commit messages, closed PR titles, candidate branches, or superseded 
 
 Implementation and real-host acceptance are tracked separately.
 
-- **v0.7:** real AWS/EC2/SSM/EBS acceptance remains pending; EC2 stays experimental/default-off.
+- **v0.7:** cloud implementation is currently deferred. The previous EC2 provider was experimental/default-off and had real AWS acceptance pending; cloud acceptance will be redefined when an adapter is restored.
 - **v0.8:** real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending.
 - **v0.9/v0.10:** real VS Code Agent Host/AHP routing and Incus SSH acceptance remain host-dependent.
 - **v0.11:** real Incus image-source/custom-Base acceptance remains host-dependent; build/import/history/rollback/GC are not part of the first slice.
