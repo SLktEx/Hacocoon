@@ -10,32 +10,32 @@ import (
 )
 
 const (
-	sandboxProfile       = "haco-sandbox"
-	sandboxNetwork       = "haco-sandbox0"
-	sandboxEgressACL     = "haco-sandbox-egress"
+	sandboxProfile         = "haco-sandbox"
+	sandboxNetwork         = "haco-sandbox0"
+	sandboxEgressACL       = "haco-sandbox-egress"
 	sandboxResourceProject = "default"
 )
 
 var sandboxNIC = map[string]string{
-	"type":                                "nic",
-	"name":                                "eth0",
-	"network":                             sandboxNetwork,
-	"security.acls":                       sandboxEgressACL,
+	"type":                                  "nic",
+	"name":                                  "eth0",
+	"network":                               sandboxNetwork,
+	"security.acls":                         sandboxEgressACL,
 	"security.acls.default.ingress.action": "reject",
 	"security.acls.default.egress.action":  "reject",
 	"security.acls.default.ingress.logged": "true",
 	"security.acls.default.egress.logged":  "true",
-	"security.ipv4_filtering":             "true",
-	"security.ipv6_filtering":             "true",
-	"security.mac_filtering":              "true",
-	"security.port_isolation":             "true",
+	"security.ipv4_filtering":               "true",
+	"security.ipv6_filtering":               "true",
+	"security.mac_filtering":                "true",
+	"security.port_isolation":               "true",
 }
 
 // ensureSandboxNetwork prepares the shared Incus network substrate used by
-// Hacocoon environments. The bridge provides DHCP/DNS reachability while the
-// empty ACL attached directly to each sandbox NIC makes unmatched ingress and
-// egress fail closed. Domain-aware egress authorization is intentionally kept
-// above this IP-layer substrate rather than approximated with DNS-to-IP ACLs.
+// Hacocoon environments. The bridge provides DHCP but its DNS listener is
+// disabled; the empty ACL attached directly to each sandbox NIC makes unmatched
+// ingress and egress fail closed. Domain-aware egress authorization is handled
+// by the host broker rather than approximated with DNS-to-IP ACLs.
 func (r *Runtime) ensureSandboxNetwork(ctx context.Context) error {
 	if r == nil || r.runner == nil {
 		return core.ErrInvalidArgument
@@ -82,7 +82,7 @@ func (r *Runtime) ensureSandboxBridge(ctx context.Context) error {
 			return fmt.Errorf("Hacocoon sandbox network %s has unsafe value %q: %w", key, strings.TrimSpace(got.Stdout), core.ErrIncompatibleState)
 		}
 	}
-	return nil
+	return r.ensureSandboxDNSDisabled(ctx)
 }
 
 func (r *Runtime) ensureSandboxACL(ctx context.Context) error {
