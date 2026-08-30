@@ -212,6 +212,8 @@ jobs:
           cache: false
       - name: Validate E2E shell syntax
         run: bash -n test/e2e/*.sh
+      - name: Shipped command black-box E2E
+        run: bash test/e2e/commands.sh
       - name: Capability E2E
         run: bash test/e2e/capability.sh
       - name: Git/GitHub E2E

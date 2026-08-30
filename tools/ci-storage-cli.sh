@@ -69,6 +69,25 @@ assert_managed_storage() {
   ' || fail "managed sparse backing image is not attached to a real loop device with BACK-INO"
 }
 
+assert_instance_boundary() {
+  local config_file="$CLI_ROOT/incus-config"
+  incus config show "$INSTANCE" --expanded --project "$PROJECT" >"$config_file"
+  grep -Fq "$WORKSPACE" "$config_file" || fail "requested workspace is not mounted in Incus config"
+
+  local forbidden
+  for forbidden in \
+    "${HOME:-}/.ssh" \
+    "${HOME:-}/.aws" \
+    "${HOME:-}/.config/gh" \
+    "/var/lib/incus/unix.socket" \
+    "/var/lib/incus/unix.socket.user"; do
+    [[ "$forbidden" == "/.ssh" || "$forbidden" == "/.aws" || "$forbidden" == "/.config/gh" ]] && continue
+    if grep -Fq "$forbidden" "$config_file"; then
+      fail "unexpected credential/authority exposure in Incus config: $forbidden"
+    fi
+  done
+}
+
 run_test() {
   require_github_hosted_runner
   [[ "$(id -u)" != "0" ]] || fail "storage CLI acceptance must execute haco as the ordinary runner user"
@@ -94,13 +113,32 @@ PY
   [[ "$instance_row" == "$INSTANCE,RUNNING" ]] || fail "real Incus instance did not reach RUNNING: $instance_row"
   incus storage show "$POOL" --project "$PROJECT" >/dev/null
   assert_managed_storage
+  assert_instance_boundary
 
-  "$HACO_BIN" exec "$ENV_NAME" -- sh -c 'test -w /workspace && test "$(cat /workspace/host.txt)" = host-visible && printf "from-environment\n" > /workspace/from-environment.txt'
+  read_back="$("$HACO_BIN" exec "$ENV_NAME" -- cat /workspace/host.txt)"
+  [[ "$read_back" == "host-visible" ]] || fail "workspace host->environment read mismatch: $read_back"
+
+  "$HACO_BIN" exec "$ENV_NAME" -- sh -c 'test -w /workspace && printf "from-environment\n" > /workspace/from-environment.txt'
   [[ "$(cat "$WORKSPACE/from-environment.txt")" == "from-environment" ]] || fail "named Environment did not write through the real workspace mount"
+
+  stdout_file="$CLI_ROOT/exec-stdout"
+  stderr_file="$CLI_ROOT/exec-stderr"
+  set +e
+  "$HACO_BIN" exec "$ENV_NAME" -- sh -c "printf 'stdout-ok'; printf 'stderr-ok' >&2; exit 17" >"$stdout_file" 2>"$stderr_file"
+  remote_exit=$?
+  set -e
+  [[ "$remote_exit" == "17" ]] || fail "expected remote exit 17, got $remote_exit"
+  [[ "$(cat "$stdout_file")" == "stdout-ok" ]] || fail "stdout propagation mismatch"
+  grep -Fq 'stderr-ok' "$stderr_file" || fail "stderr propagation mismatch"
+
+  printf 'exit\n' | "$HACO_BIN" shell "$ENV_NAME" >/dev/null
 
   "$HACO_BIN" delete "$ENV_NAME"
   if incus list "$INSTANCE" --project "$PROJECT" --format csv -c n | grep -Fx "$INSTANCE" >/dev/null 2>&1; then
     fail "named Environment instance remained after haco delete"
+  fi
+  if [[ -e "$HACO_ROOT/state/environments.json" ]] && grep -Fq "\"$ENV_NAME\"" "$HACO_ROOT/state/environments.json"; then
+    fail "named Environment metadata remained after haco delete"
   fi
 
   # Reuse the already-provisioned managed pool through the normal ephemeral CLI

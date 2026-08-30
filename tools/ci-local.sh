@@ -202,6 +202,8 @@ run_e2e() {
   check_go
   section "e2e: shell syntax"
   bash -n test/e2e/*.sh
+  section "e2e: shipped commands"
+  bash test/e2e/commands.sh
   section "e2e: capability"
   bash test/e2e/capability.sh
   section "e2e: git/github"
