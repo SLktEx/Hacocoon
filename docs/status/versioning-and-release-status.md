@@ -1,6 +1,6 @@
 # Versioning and release status
 
-> **Authoritative milestone numbering · Updated 2026-08-30**
+> **Authoritative milestone numbering · Updated 2026-08-31**
 
 Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progression; they are not compatibility guarantees, release tags, or proof of production support.
 
@@ -10,10 +10,10 @@ Use this document for **which version number belongs to which development checkp
 
 > **Minor milestones are lightweight pre-1.0 progress checkpoints, not completeness gates.**
 
-1. A coherent product or implementation step may consume the next `v0.N` milestone even when follow-up slices, hardening, or real-host acceptance remain.
+1. A coherent product, implementation, operator-experience, observability, or acceptance step may consume the next `v0.N` milestone even when follow-up slices, hardening, or real-host acceptance remain.
 2. A partial earlier milestone does not block later milestones. Version order is chronology, not a claim that every previous gate is complete.
-3. Granularity is intentionally pragmatic. Closely related work may share a milestone, while a substantial follow-up may take the next minor number.
-4. Security/hardening, bug fixes, refactors, CLI namespace cleanup, CI, docs, release engineering, and test-only work normally do not consume a product version by themselves, but they may ship inside the current checkpoint.
+3. Granularity is intentionally pragmatic and intentionally aggressive during pre-1.0 development. Closely related work may share a milestone, while a substantial follow-up may take the next minor number.
+4. Security/hardening, bug fixes, refactors, CLI namespace cleanup, CI, docs, release engineering, and test-only changes do not automatically consume a milestone, but they may do so when they create a meaningful support, operability, or acceptance checkpoint.
 5. Milestone changes update this file and `../IMPLEMENTATION_STATUS.md`; relevant roadmap/index summaries should remain aligned.
 6. Design-only specifications may reserve future numbers but remain **planned** until implementation lands.
 7. Historical commit messages, PR titles, candidate branches, old document addresses, and superseded numbering are not authoritative.
@@ -44,10 +44,14 @@ Use this document for **which version number belongs to which development checkp
 | v0.17 | OCI Seed Builder & Btrfs/COW | 🧪 repository build/publish and operations-hardening slices implemented; real-host/private-registry/COW acceptance remains |
 | v0.18 | Docker Compatibility Plugin | ✅ repository implementation complete; real-host acceptance tracked separately |
 | v0.19 | Domain-aware Egress Authorization | ✅ repository implementation complete; real supported-Incus acceptance remains host-dependent |
-| v0.20 | Managed Btrfs Rootfs Storage | ✅ first repository slice implemented; real-host COW/compaction acceptance remains host-dependent |
+| v0.20 | Managed Btrfs Rootfs Storage | ✅ managed sparse-raw Btrfs pool and Incus rootfs routing implemented; broader physical COW/compaction acceptance remains host-dependent |
 | v0.21 | Managed Btrfs Transparent Compression | ✅ `compress=zstd:3` default implemented without `compress-force`; real compression/performance acceptance remains host-dependent |
+| v0.22 | Interaction Notification Clients | ✅ browser, native OS, and VS Code notification clients implemented with replay/dedup behavior tests |
+| v0.23 | Real Incus E2E Acceptance | ✅ standalone Incus substrate and Hacocoon Core lifecycle are exercised on GitHub-hosted Ubuntu 26.04 with phased gating |
+| v0.24 | Structured Logging | ✅ shared `log/slog` foundation, operation context, sanitized DEBUG tracing, and secret redaction implemented across maintained executables |
+| v0.25 | Managed Btrfs Host Privilege Broker | ✅ root-owned typed storage helper and ordinary-user real Incus/Btrfs CLI acceptance implemented |
 
-The current milestone position is **v0.21**. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.25**. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 
@@ -57,7 +61,7 @@ v0.7 keeps its number because its provider-neutral routing seam remains useful. 
 
 Document addresses are semantic and do not change when milestone assignments change.
 
-| Gate | Design document |
+| Gate | Design/reference document |
 |---|---|
 | v0.13 Managed Sandbox Network | [`../design/managed-sandbox-network.md`](../design/managed-sandbox-network.md) |
 | v0.14 Git Fetch Plugin | [`../design/git-fetch-plugin.md`](../design/git-fetch-plugin.md) |
@@ -68,7 +72,12 @@ Document addresses are semantic and do not change when milestone assignments cha
 | v0.19 Domain-aware Egress Authorization | [`../EGRESS_AUTHORIZATION.md`](../EGRESS_AUTHORIZATION.md) |
 | v0.20 Managed Btrfs Rootfs Storage | [`../design/btrfs-storage-layout.md`](../design/btrfs-storage-layout.md) |
 | v0.21 Managed Btrfs Transparent Compression | [`../design/btrfs-storage-layout.md`](../design/btrfs-storage-layout.md) |
+| v0.22 Interaction Notification Clients | [`../INTERACTION_EVENTS.md`](../INTERACTION_EVENTS.md) |
+| v0.24 Structured Logging | [`../reference/logging.md`](../reference/logging.md) |
+| v0.25 Managed Btrfs Host Privilege Broker | [`../design/btrfs-storage-layout.md`](../design/btrfs-storage-layout.md) |
 | Optional Local OCI Registry | [`../OPTIONAL_LOCAL_OCI_REGISTRY.md`](../OPTIONAL_LOCAL_OCI_REGISTRY.md) |
+
+v0.23 is an acceptance checkpoint rather than a new architecture contract. Its executable specification lives in the GitHub Actions/CI harness and its support boundary is summarized in `IMPLEMENTATION_STATUS.md`.
 
 ## Acceptance watch list
 
@@ -84,7 +93,11 @@ Document addresses are semantic and do not change when milestone assignments cha
 - **v0.19:** hostname-aware proxy authorization/enforcement is implemented in the repository; real supported-Incus bridge/nftables/dnsmasq acceptance remains host-dependent.
 - **v0.20:** Hacocoon-owned Incus rootfs paths select the lazy managed sparse-raw Btrfs pool; physical COW/compaction measurements and broader supported-host acceptance remain host-dependent.
 - **v0.21:** managed Btrfs mounts use `compress=zstd:3`, remount non-compliant managed mounts, reject `compress-force` as the desired state, and avoid automatic recompression that could damage reflink/COW sharing. Real compression ratio, CPU cost, and supported-host behavior remain host-dependent.
+- **v0.22:** browser/native/VS Code notification delivery and replay/dedup behavior are repository-tested; desktop/session-specific delivery still depends on the actual client environment.
+- **v0.23:** GitHub-hosted Ubuntu 26.04 proves standalone Incus system-container behavior before Core lifecycle E2E; this narrows the CI support gap but does not prove every supported Host/WSL configuration.
+- **v0.24:** maintained executables share structured logging and redaction behavior; logging policy remains defense in depth and does not make unsafe call-site data safe to emit.
+- **v0.25:** real helper lifecycle and ordinary-user `haco create`/`exec`/`delete`/`run` are exercised against real Incus and managed Btrfs; broader physical-storage and Windows/WSL acceptance remains.
 
 ## Rule of thumb
 
-> **When a meaningful chunk of product progress lands, taking the next minor number is fine. Do not wait for every acceptance item to close before advancing.**
+> **When a meaningful chunk of product, operator, observability, or acceptance progress lands, taking the next minor number is fine. During pre-1.0 development, prefer visible checkpoints over conserving version numbers.**
