@@ -49,7 +49,7 @@ Optional diagnostic commands are allowed only when they directly support this pa
 - AI-specific agent management.
 - Daintree/Rookery-specific integration.
 - VS Code extension, Web UI, browser notifications.
-- Advanced Btrfs lifecycle, loop-image shrink, QCOW2, storage compaction.
+- Advanced Btrfs lifecycle, loop-image shrink, storage compaction.
 - A general plugin marketplace/framework.
 
 These exclusions define what was required to prove v0.1. Later roadmap stages may implement these concerns without retroactively expanding the v0.1 gate.
