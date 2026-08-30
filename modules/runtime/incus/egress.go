@@ -13,6 +13,7 @@ import (
 )
 
 const sandboxEgressProxyPort = egressproxy.DefaultPort
+const runtimeProviderID = "runtime.incus"
 
 func (r *Runtime) sandboxGateway(ctx context.Context) (netip.Addr, error) {
 	if r == nil || r.runner == nil {
@@ -54,6 +55,10 @@ func (r *Runtime) PrepareEgressProxy(ctx context.Context) (string, error) {
 	}
 	return net.JoinHostPort(gateway.String(), strconv.Itoa(sandboxEgressProxyPort)), nil
 }
+
+// RuntimeProviderID binds provider-local source evidence to the routed
+// Environment runtime ref persisted by the provider router.
+func (r *Runtime) RuntimeProviderID() string { return runtimeProviderID }
 
 // ResolveRuntimeRef maps a proxy connection's source IP back to exactly one
 // Hacocoon-managed Incus runtime ref. security.ipv4_filtering on the sandbox
