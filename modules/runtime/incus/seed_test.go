@@ -13,8 +13,8 @@ import (
 
 func TestVerifyBuilderHasNoNIC(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 3 && args[0] == "config" && args[1] == "show" {
-			return host.Result{Stdout: `{"devices":{"root":{"type":"disk","path":"/"}}}`}, nil
+		if len(args) == 2 && args[0] == "query" && args[1] == "/1.0/instances/builder?project=hacocoon" {
+			return host.Result{Stdout: `{"expanded_devices":{"root":{"type":"disk","path":"/"}}}`}, nil
 		}
 		return host.Result{}, errors.New("unexpected call")
 	}}
@@ -29,8 +29,8 @@ func TestVerifyBuilderHasNoNIC(t *testing.T) {
 
 func TestVerifyBuilderHasNoNICFailsClosed(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 3 && args[0] == "config" && args[1] == "show" {
-			return host.Result{Stdout: `{"devices":{"eth0":{"type":"nic","network":"unexpected"}}}`}, nil
+		if len(args) == 2 && args[0] == "query" && args[1] == "/1.0/instances/builder?project=hacocoon" {
+			return host.Result{Stdout: `{"expanded_devices":{"eth0":{"type":"nic","network":"unexpected"}}}`}, nil
 		}
 		return host.Result{}, errors.New("unexpected call")
 	}}
