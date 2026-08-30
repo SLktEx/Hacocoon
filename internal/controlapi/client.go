@@ -38,6 +38,24 @@ func (c *Client) Ping(ctx context.Context) (PingResponse, error) {
 	return response, err
 }
 
+func (c *Client) CreateEnvironment(ctx context.Context, request EnvironmentCreateRequest) (core.Environment, error) {
+	var response core.Environment
+	err := c.wire.Call(ctx, MethodEnvironmentCreate, request, &response)
+	return response, err
+}
+
+func (c *Client) ListEnvironments(ctx context.Context) ([]core.Environment, error) {
+	var response []core.Environment
+	err := c.wire.Call(ctx, MethodEnvironmentList, nil, &response)
+	return response, err
+}
+
+func (c *Client) EnvironmentStatus(ctx context.Context, environment string) (core.EnvironmentStatus, error) {
+	var response core.EnvironmentStatus
+	err := c.wire.Call(ctx, MethodEnvironmentStatus, EnvironmentNameRequest{Environment: environment}, &response)
+	return response, err
+}
+
 func (c *Client) ExecEnvironment(ctx context.Context, environment string, argv []string) (core.ExecutionResult, error) {
 	var response core.ExecutionResult
 	err := c.wire.Call(ctx, MethodEnvironmentExec, EnvironmentExecRequest{
@@ -49,4 +67,8 @@ func (c *Client) ExecEnvironment(ctx context.Context, environment string, argv [
 
 func (c *Client) OpenEnvironmentShell(ctx context.Context, environment string) (net.Conn, error) {
 	return c.wire.OpenStream(ctx, MethodEnvironmentShell, EnvironmentShellRequest{Environment: environment})
+}
+
+func (c *Client) DeleteEnvironment(ctx context.Context, environment string) error {
+	return c.wire.Call(ctx, MethodEnvironmentDelete, EnvironmentNameRequest{Environment: environment}, nil)
 }
