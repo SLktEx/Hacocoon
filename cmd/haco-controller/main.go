@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +10,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/composition"
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
+	"github.com/SLktEx/Hacocoon/internal/logging"
 )
 
 func main() {
@@ -26,18 +26,20 @@ func main() {
 		fail(err)
 	}
 	path := control.SocketPath()
-	listener, err := control.ListenUnix(path, 0o660)
+	listener, err := control.ListenUnix(path, 0o600)
 	if err != nil {
 		fail(err)
 	}
 	defer listener.Close()
-	fmt.Fprintf(os.Stderr, "haco-controller: listening on %s\n", path)
+
+	logger := logging.Root().With("component", "control")
+	logger.InfoContext(ctx, "controller listening", "socket_path", path)
 	if err := server.Serve(ctx, listener); err != nil && !errors.Is(err, context.Canceled) {
 		fail(err)
 	}
 }
 
 func fail(err error) {
-	fmt.Fprintln(os.Stderr, "haco-controller:", err)
+	logging.Root().Error("controller failed", "component", "control", "error", err)
 	os.Exit(1)
 }
