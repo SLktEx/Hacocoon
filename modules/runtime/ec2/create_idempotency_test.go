@@ -13,8 +13,8 @@ import (
 )
 
 type ambiguousCreateRunner struct {
-	base        fakeRunner
-	runAttempts int
+	base         fakeRunner
+	runAttempts  int
 	clientTokens []string
 }
 
@@ -50,8 +50,8 @@ func TestCreateRetryAfterAmbiguousRunInstancesReusesPersistedClientToken(t *test
 	first.pollAttempts = 1
 	first.pollDelay = 0
 	_, err = first.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: workspace, ReadOnly: true})
-	if !errors.Is(err, core.ErrRecoveryRequired) {
-		t.Fatalf("first create err=%v, want recovery-required", err)
+	if err == nil || errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("ambiguous idempotent create must be retryable, err=%v", err)
 	}
 	if runner.runAttempts != 1 || len(runner.clientTokens) != 1 {
 		t.Fatalf("first attempt runAttempts=%d tokens=%v", runner.runAttempts, runner.clientTokens)
@@ -99,8 +99,8 @@ func TestCreateRetryRejectsParameterDriftBeforeAWSMutation(t *testing.T) {
 	first.pollAttempts = 1
 	first.pollDelay = 0
 	_, err = first.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: workspace, ReadOnly: true})
-	if !errors.Is(err, core.ErrRecoveryRequired) {
-		t.Fatalf("first create err=%v", err)
+	if err == nil || errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("first create should be safely retryable, err=%v", err)
 	}
 	before := len(runner.base.calls)
 
