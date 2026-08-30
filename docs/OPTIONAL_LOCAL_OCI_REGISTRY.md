@@ -42,4 +42,4 @@ This does **not** reserve a product milestone. If a future implementation become
 
 ## Relationship to OCI Seed
 
-OCI Seed does not depend on a Local Registry. The v0.18 Seed Builder remains offline and receives OCI content from the trusted Host rather than pulling from a registry itself.
+OCI Seed does not depend on a Local Registry. The v0.17 Seed Builder remains offline and receives OCI content from the trusted Host rather than pulling from a registry itself.
