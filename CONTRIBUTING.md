@@ -14,7 +14,7 @@ External users are welcome to:
 
 Do not interpret public visibility as an open-PR policy. The contribution boundary will be revisited when Hacocoon is ready to add another trusted maintainer or accept external Pull Requests safely.
 
-Before changing code, read `CODEX_START_HERE.md`, `docs/README.md`, `docs/IMPLEMENTATION_STATUS.md`, and the versioned specification/design document relevant to the subsystem you are changing.
+Before changing code, read `AGENTS.md`, `docs/README.md`, `docs/IMPLEMENTATION_STATUS.md`, and the versioned specification/design document relevant to the subsystem you are changing.
 
 Hacocoon is still **pre-1.0**. Breaking changes are allowed when they make the system smaller, safer, or more coherent. Existing behavior on `main` is not automatically a permanent compatibility contract.
 
@@ -23,7 +23,7 @@ Hacocoon is still **pre-1.0**. Breaking changes are allowed when they make the s
 A change should answer these questions:
 
 1. Is this a stable Hacocoon concept, or a concrete provider/tool detail?
-2. Does it fit an existing v0.1-v0.7 architecture boundary, or is it genuinely new post-v0.7 product scope that needs a design decision first?
+2. Does it fit the current architecture boundary, or is it genuinely new product scope that needs a design decision first?
 3. Can the implementation be deleted/replaced without rewriting Core?
 4. Does the change preserve the trust boundary between the untrusted Environment workload and host/external-service authority?
 5. Does any long-lived parent credential, host HOME, Incus control socket, or Hacocoon control state enter the Environment? If yes, redesign it.
@@ -37,9 +37,9 @@ A change should answer these questions:
 
 Prefer the current vocabulary: Workspace, WorkspaceLease, Environment, Execution, CapabilityRequest, PolicyDecision, and ApprovalRequest.
 
-Historical `Session`, Runtime/Storage-centric, and plugin-heavy code may remain as migration inventory, but new public APIs and architecture should not deepen those old couplings.
+Historical `Session`, Runtime/Storage-centric, and plugin-heavy code may remain only where current implementation value justifies it. New public APIs and architecture should not deepen old couplings.
 
-Provider-specific concepts stay outside Core. Incus, Git/GitHub, AWS/EC2/EBS, IDE brands, Btrfs/QCOW2, and orchestrator-specific models belong behind their respective boundaries.
+Provider-specific concepts stay outside Core. Incus, Git/GitHub, IDE brands, storage backends, OCI tooling, and future cloud-provider models belong behind their respective boundaries.
 
 ## Compatibility rule
 
@@ -94,4 +94,4 @@ bash tools/ci-local.sh e2e
 
 The local run uses the `go` binary currently on `PATH`; GitHub Actions still exercises the supported Go-version matrix separately. `release-config` requires the same local tooling used by that CI job, including GoReleaser, PowerShell, and `systemd-analyze`. It refuses to invoke `goreleaser release --clean` when `dist/` already exists so local artifacts are not silently deleted.
 
-Run relevant provider-backed coverage as well. Do not claim real Incus or real AWS acceptance unless those provider-backed tests actually ran.
+Run relevant provider-backed coverage as well. Do not claim real Incus or other environment-dependent acceptance unless those provider-backed tests actually ran.
