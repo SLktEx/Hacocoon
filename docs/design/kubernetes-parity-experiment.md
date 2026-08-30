@@ -35,30 +35,63 @@ The table is a working checklist. `untested` means no parity claim is made yet.
 
 | Area | Baseline behavior to reproduce | `main-kube` status |
 |---|---|---|
-| Environment lifecycle | create, inspect/status, exec, interactive shell, delete, exact ownership, collision refusal | partial unit-level implementation |
-| `systemd` / sudo / root | PID 1 systemd and Environment-local root behavior without Host root authority | partial; real runtime untested |
-| Workspace leases | canonical Workspace identity, RO/RW semantics, conflicting lease refusal, `/workspace` behavior | untested / incomplete |
+| Environment lifecycle | create, inspect/status, exec, interactive shell, delete, exact ownership, collision refusal | repository integration covered for create/exec/delete and ownership; inspect/shell unit-covered; real runtime untested |
+| `systemd` / sudo / root | PID 1 systemd and Environment-local root behavior without Host root authority | manifest + PID 1 verification implemented; real runtime untested |
+| Workspace leases | canonical Workspace identity, RO/RW semantics, conflicting lease refusal, `/workspace` behavior | Core/state parity covered through real provider routing; RW/RO rejection and RO/RO sharing tested before cluster mutation; real mount semantics untested |
 | Whole-Environment copy | copy durable machine/root/runtime state with fresh trust identity and COW behavior | unimplemented; #322 |
-| Resource budgets | CPU, memory, PID, root-storage semantics are enforced or explicitly rejected identically | partial; PID parity gap currently known |
-| Client status/access | existing status, SSH, loopback TCP/forwarding, preparation/revocation behavior | untested / incomplete |
-| `haco run` / ephemeral execution | same lifecycle, cleanup, lock/recovery behavior | untested |
-| Base lifecycle | list/inspect/select/create-from-Base semantics | untested / incomplete |
-| Policy / Approval / Capability | same fail-closed decisions, approval semantics, stale-state handling, audit | existing trusted implementation retained; Kube interaction untested |
-| Git push Broker | no reusable write credential in Environment; exact repo/remote/ref/SHA binding; stale-state refusal | trusted Broker retained; end-to-end parity untested |
+| Resource budgets | CPU, memory, PID, root-storage semantics are enforced or explicitly rejected identically | finite CPU/memory/root values survive Core/provider routing; finite per-Environment PID remains an explicit parity gap |
+| Client status/access | existing status, SSH, loopback TCP/forwarding, preparation/revocation behavior | status path exists; persistent loopback forwarding/SSH lifecycle unresolved and likely requires extra Kubernetes/host machinery |
+| `haco run` / ephemeral execution | same lifecycle, cleanup, lock/recovery behavior | repository integration proves create/exec/delete cleanup and durable marker removal through Kubernetes provider; crash/restart recovery real-host acceptance untested |
+| Base lifecycle | list/inspect/select/create-from-Base semantics | untested / incomplete; current Kubernetes provider rejects explicit Base selection |
+| Policy / Approval / Capability | same fail-closed decisions, approval semantics, stale-state handling, audit | existing trusted implementation retained unchanged; Kubernetes end-to-end interaction untested |
+| Git push Broker | no reusable write credential in Environment; exact repo/remote/ref/SHA binding; stale-state refusal | trusted Broker retained unchanged; end-to-end Kubernetes parity untested |
 | Git fetch | trusted Host authority and private-repository behavior | untested |
-| Network isolation | equivalent default isolation, DNS behavior, drift detection, no accidental bypass | partial manifest only; real CNI behavior untested |
-| Domain-aware egress | same authorization semantics and destination protections without silently broadening access | untested / redesign required |
+| Network isolation | equivalent default isolation, DNS behavior, drift detection, no accidental bypass | ingress/egress default-deny manifest and provider-routed source identity are unit-covered; real CNI enforcement, DNS and SNAT behavior untested |
+| Domain-aware egress | same authorization semantics and destination protections without silently broadening access | Policy/Approval/Broker remains reusable and source identity is provider-neutral; proxy/listener transport remains unresolved; NetworkPolicy alone is not equivalent to current hostname approval + DNS pinning + SNI validation semantics |
 | OCI / nested runtime | Environment-local container runtime behavior and isolation | untested; current composition rejects OCI plugin |
 | Docker compatibility | same Docker status/prepare behavior where supported | untested |
 | Seed / image behavior | same Base/Seed semantics, credential separation, immutable identity and recovery | untested |
 | Btrfs/COW storage | equivalent capacity behavior, compression intent, COW and recovery properties where observable | untested / storage design open |
 | Trusted `haco-host` | same logical trusted Host behavior and isolation from Environment | retained on Incus during experiment; parity of an all-Kube form is not currently required |
 | Notifications / interaction events | same client-visible event semantics and no approval authority in clients | existing implementation retained; integration untested |
-| Structured logging | same operation fields, redaction, trust-boundary behavior | untested |
-| Failure recovery | interrupted create/delete/run, ownership drift, stale state, cleanup-required semantics | partial unit coverage only |
+| Structured logging | same operation fields, redaction, trust-boundary behavior | existing Core logging reused for tested create/exec/delete paths; provider-specific coverage incomplete |
+| Failure recovery | interrupted create/delete/run, ownership drift, stale state, cleanup-required semantics | provider cleanup/ownership fail-closed unit coverage plus normal `haco run` cleanup integration; crash/node-restart failure injection untested |
 | Ubuntu 26.04 | real substrate works on the project target | blocked/untested; #323 |
 
 The matrix should become stricter as tests land. A feature may only move to `parity proven` after the relevant real or repository-level acceptance is strong enough to support that claim.
+
+## First findings
+
+The experiment already separates several kinds of complexity that looked similar at the architecture-diagram level.
+
+### Core behavior that carries over cheaply
+
+Workspace lease ownership, RO/RW conflict rules, Environment metadata, ephemeral `haco run` lifecycle, cleanup markers, Policy / Approval / Capability, brokered Git authority, audit state, and client-neutral interaction semantics are not Incus features. They sit above the provider seam and can be reused with little or no Kubernetes-specific code.
+
+Repository integration now exercises Workspace lease conflict behavior and normal ephemeral-run cleanup through the Kubernetes provider rather than only through fake Core runtimes. A conflicting Workspace request is rejected before Kubernetes is touched.
+
+### Network plumbing can shrink, but the security Broker is not automatically removable
+
+Kubernetes `NetworkPolicy` can plausibly replace a meaningful part of the Incus-specific bridge/ACL isolation machinery. `main-kube` now creates explicit default-deny policies and routes provider-trusted source identity through the Environment router rather than coupling egress identity directly to Incus.
+
+However, the current domain-aware egress feature is stronger than a static packet allowlist. It combines Hacocoon Policy / Approval, Host-side DNS resolution and public-address validation, per-connection DNS pinning, HTTPS CONNECT/SNI validation, and audit. Standard `NetworkPolicy` does not reproduce those semantics by itself.
+
+Therefore the parity experiment must distinguish:
+
+- **Incus-specific network transport/proxy plumbing**, which Kubernetes/CNI may remove; from
+- **Hacocoon's authorization/enforcement proxy semantics**, which remain required unless an alternative reproduces the same behavior with less machinery.
+
+Deleting the proxy by broadening outbound access is a parity failure, not simplification.
+
+### Client loopback access is not yet a Kubernetes simplification
+
+Incus can represent a persistent loopback-only host forward as a managed proxy device attached to the Environment. `kubectl port-forward` is a client process whose lifetime normally ends with the invoking process, so it is not equivalent to the current persistent/reconcilable client-connection contract.
+
+Potential Kubernetes alternatives such as a managed forwarder Pod, `hostPort`, NodePort configuration, or a Hacocoon-owned long-lived port-forward supervisor add different operational/security constraints. This area must be implemented and measured before claiming simpler client access.
+
+### Runtime/storage remain the largest parity risks
+
+Whole-Environment COW clone, immutable Base identity, nested runtime state, Btrfs/storage behavior, and Ubuntu 26.04 system-container compatibility are still open. These are precisely the areas where Incus currently supplies high-level machine/container semantics rather than merely orchestration.
 
 ## Simplicity comparison
 
