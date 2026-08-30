@@ -13,6 +13,7 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 - Security: [`security/security-architecture.md`](security/security-architecture.md)
 - Core / Standard / Plugin境界: [`design/plugin-architecture.md`](design/plugin-architecture.md)
 - 用語と境界: [`reference/terminology-and-boundaries.md`](reference/terminology-and-boundaries.md)
+- Logging policy: [`reference/logging.ja.md`](reference/logging.ja.md)
 - Domain-aware egress: [`EGRESS_AUTHORIZATION.ja.md`](EGRESS_AUTHORIZATION.ja.md)
 - Managed Btrfs storage: [`design/btrfs-storage-layout.ja.md`](design/btrfs-storage-layout.ja.md)
 - Reusable client adapter: [`CLIENT_ADAPTER_CONTRACT.ja.md`](CLIENT_ADAPTER_CONTRACT.ja.md)
