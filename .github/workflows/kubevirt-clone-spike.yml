@@ -83,7 +83,33 @@ jobs:
           echo "CDI_VERSION=${CDI_VERSION}" >> "$GITHUB_ENV"
           kubectl apply -f "https://github.com/kubevirt/containerized-data-importer/releases/download/${CDI_VERSION}/cdi-operator.yaml"
           kubectl apply -f "https://github.com/kubevirt/containerized-data-importer/releases/download/${CDI_VERSION}/cdi-cr.yaml"
-          kubectl -n cdi wait --for=condition=Available --all deployment --timeout=10m
+
+          # The operator becomes Available before it has created and brought up
+          # the DataVolume admission webhook. Waiting on --all deployment at
+          # that instant is therefore racy: only the operator may exist yet.
+          for i in $(seq 1 120); do
+            ready=1
+            for deployment in cdi-operator cdi-apiserver cdi-deployment cdi-uploadproxy; do
+              kubectl -n cdi get deployment "$deployment" >/dev/null 2>&1 || ready=0
+            done
+            [ "$ready" = 1 ] && break
+            sleep 2
+          done
+          for deployment in cdi-operator cdi-apiserver cdi-deployment cdi-uploadproxy; do
+            kubectl -n cdi get deployment "$deployment" >/dev/null
+            kubectl -n cdi rollout status deployment/"$deployment" --timeout=10m
+          done
+
+          # DataVolume creation calls the cdi-api mutation webhook. Prove the
+          # Service actually has a ready backend before submitting a DV.
+          CDI_API_ENDPOINT=""
+          for i in $(seq 1 120); do
+            CDI_API_ENDPOINT="$(kubectl -n cdi get endpoints cdi-api -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null || true)"
+            [ -n "$CDI_API_ENDPOINT" ] && break
+            sleep 2
+          done
+          test -n "$CDI_API_ENDPOINT"
+          echo "cdi-api ready endpoint=${CDI_API_ENDPOINT}"
           kubectl -n cdi get pods -o wide
 
       - name: Import persistent Fedora root disk
