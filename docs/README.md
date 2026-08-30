@@ -39,9 +39,9 @@ When documents appear to disagree, use this order:
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | broker foundation implemented |
 | v0.10 | VS Code Remote Agent Host Adapter | implemented; real host acceptance pending |
 | v0.11 | Base Images & Custom Environments | first implementation slice present; broader build/import/GC pending |
-| v0.12 | Sandbox Resource Limits | design contract only |
+| v0.12 | Sandbox Resource Limits | first implementation slice present; real Incus enforcement acceptance pending |
 
-The implemented progression is contiguous through **v0.11**. See `00D_VERSIONING_AND_RELEASE_STATUS.md` for the numbering policy and `IMPLEMENTATION_STATUS.md` for exact code/acceptance reality.
+The implemented progression is contiguous through **v0.12**. See `00D_VERSIONING_AND_RELEASE_STATUS.md` for numbering and `IMPLEMENTATION_STATUS.md` for exact repository/acceptance reality.
 
 ## Specification vs implementation
 
@@ -53,8 +53,8 @@ Examples:
 - v0.8 `haco-vscode` can exist while real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending.
 - v0.9 contains the persisted per-session Environment broker while real Agent Host/AHP routing acceptance remains host-dependent.
 - v0.10 `haco-agent-host` is implemented while real VS Code Agent Host acceptance remains host-dependent.
-- v0.11 Base selection/pinning can be implemented while image build/import/history/GC remains future work.
-- v0.12 can define provider-neutral resource budgets before resource enforcement is implemented.
+- v0.11 Base selection/pinning is implemented while image build/import/history/GC remains future work.
+- v0.12 ResourceBudget enforcement is implemented for the Incus adapter while real supported-Incus workload enforcement acceptance remains host-dependent; experimental EC2 rejects finite budgets rather than silently ignoring them.
 
 Do not infer release/tag readiness, production support, or real-host acceptance from a roadmap version alone.
 
@@ -158,7 +158,16 @@ Custom Base build/import, revision history, rollback, and garbage collection rem
 6. `00B_SECURITY_ARCHITECTURE.md`
 7. `IMPLEMENTATION_STATUS.md`
 
-Resource budgets bound CPU, memory, PIDs, and safely enforceable root storage **inside** an Environment. They remain separate from Capabilities, which mediate authority crossing the Environment boundary.
+Implemented first-slice interaction:
+
+```text
+haco create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace . dev
+haco run --cpu 2 --memory 4GiB --workspace . -- go test ./...
+```
+
+Resource budgets bound CPU, memory, PIDs, and Environment root storage **inside** an Environment. Omitted dimensions become explicit persisted `unlimited` values. For Incus, finite settings are applied and read back before `start`; unsupported providers must fail closed for finite requests. Resource budgets remain separate from Capabilities, which mediate authority crossing the Environment boundary.
+
+Real supported-Incus acceptance must still prove that those settings constrain real workloads and cannot be raised through ordinary Environment access.
 
 ## Compatibility and breaking changes
 
