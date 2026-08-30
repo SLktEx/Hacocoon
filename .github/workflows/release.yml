@@ -32,7 +32,7 @@ jobs:
           persist-credentials: false
           path: control
 
-      - name: Authorize requested release from trusted main
+      - name: Authorize requested release from current trusted main HEAD
         id: trust
         shell: bash
         env:
@@ -56,10 +56,14 @@ jobs:
 
           bash control/tools/check_release_tag_trust.sh "$REQUESTED_TAG" origin "$DEFAULT_BRANCH"
           release_sha="$(git -C control rev-parse --verify "refs/tags/${REQUESTED_TAG}^{commit}")"
+          if [[ "$release_sha" != "$GITHUB_SHA" ]]; then
+            echo "Refusing release: tag must resolve to the dispatcher/current trusted main HEAD ($GITHUB_SHA), got $release_sha" >&2
+            exit 1
+          fi
 
           printf 'release_tag=%s\n' "$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
           printf 'release_sha=%s\n' "$release_sha" >> "$GITHUB_OUTPUT"
-          printf 'Authorized %s at %s using trusted control plane %s\n' "$REQUESTED_TAG" "$release_sha" "$GITHUB_SHA"
+          printf 'Authorized %s at current trusted main HEAD %s\n' "$REQUESTED_TAG" "$release_sha"
 
       - name: Checkout authorized release source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -152,6 +156,7 @@ jobs:
 
   publish:
     needs: build
+    environment: release
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -162,6 +167,7 @@ jobs:
     env:
       RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
       RELEASE_SHA: ${{ needs.build.outputs.release_sha }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
       - name: Download payload from this workflow run
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -185,19 +191,38 @@ jobs:
           test -f release-payload/bootstrap-wsl.sh
           test -f release-payload/install-windows.ps1
 
-      - name: Revalidate release tag immediately before signing and publication
+      - name: Revalidate release authorization immediately before signing and publication
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
+          if [[ -z "$DEFAULT_BRANCH" ]]; then
+            echo "Refusing release: default branch is unavailable at publish time" >&2
+            exit 1
+          fi
           if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
             echo "Refusing release: invalid release tag output: $RELEASE_TAG" >&2
             exit 1
           fi
           if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo "Refusing release: invalid release SHA output: $RELEASE_SHA" >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_SHA" != "$GITHUB_SHA" ]]; then
+            echo "Refusing release: authorized release SHA no longer matches trusted dispatcher SHA ($GITHUB_SHA)" >&2
+            exit 1
+          fi
+
+          branch_json="$(gh api "repos/$GITHUB_REPOSITORY/branches/$DEFAULT_BRANCH")"
+          current_main_sha="$(jq -r '.commit.sha' <<<"$branch_json")"
+          if [[ ! "$current_main_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Refusing release: current trusted default-branch HEAD is invalid" >&2
+            exit 1
+          fi
+          if [[ "$current_main_sha" != "$RELEASE_SHA" ]]; then
+            echo "Refusing release: trusted default branch moved after release authorization ($RELEASE_SHA -> $current_main_sha)" >&2
             exit 1
           fi
 
@@ -226,7 +251,7 @@ jobs:
             exit 1
           fi
 
-          printf 'Release tag still binds %s -> %s\n' "$RELEASE_TAG" "$RELEASE_SHA"
+          printf 'Release authorization remains current: %s -> %s on %s HEAD.\n' "$RELEASE_TAG" "$RELEASE_SHA" "$DEFAULT_BRANCH"
 
       - name: Create signed release binding predicate
         if: ${{ !github.event.repository.private }}
@@ -244,6 +269,7 @@ jobs:
               "commit": os.environ["RELEASE_SHA"],
               "controlRef": os.environ["CONTROL_REF"],
               "controlSha": os.environ["CONTROL_SHA"],
+              "authorizationEnvironment": "release",
           }
           with open("release-binding.json", "w", encoding="utf-8") as handle:
               json.dump(predicate, handle, sort_keys=True, separators=(",", ":"))
