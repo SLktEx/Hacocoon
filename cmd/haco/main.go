@@ -261,11 +261,13 @@ func eventsCommandTo(ctx context.Context, app *composition.App, args []string, o
 
 func pluginCommand(ctx context.Context, app *composition.App, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: haco plugin <git> ...: %w", core.ErrInvalidArgument)
+		return fmt.Errorf("usage: haco plugin <git|oci> ...: %w", core.ErrInvalidArgument)
 	}
 	switch args[0] {
 	case "git":
 		return gitPluginCommand(ctx, app, args[1:])
+	case "oci":
+		return ociPluginCommand(ctx, app, args[1:])
 	default:
 		return fmt.Errorf("unknown plugin %q: %w", args[0], core.ErrInvalidArgument)
 	}
