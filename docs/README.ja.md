@@ -23,10 +23,11 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 | v0.15 | OCI Seed Recommendation | 実装済み |
 | v0.16 | OCI Image Deletion | first slice実装済み |
 | v0.17 | Docker Compatibility Plugin | foundation / partial |
-| v0.18 | Optional Local OCI Registry | planned |
-| v0.19 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.18 | OCI Seed Builder & Btrfs/COW | planned |
 
 完全実装済みのproduct progressionは **v0.16まで連続**しています。
+
+Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
 
 ## Base と OCI
 
@@ -39,6 +40,13 @@ HACO_PLUGIN_OCI=docker   haco plugin oci ...
 ```
 
 BaseはEnvironmentのstarting identity、OCIはoptionalなdeveloper workload toolingです。Coreはcontainerd / nerdctl / Dockerを必須にしません。
+
+## OCI storage
+
+v0.18はtrusted Host acquisition/cache、offline immutable Seed build/publish、Incus/storage-driver COWを担当します。Local Registryはprerequisiteではなく、policyが許せばnormal direct upstream pullを使えます。
+
+- [`18_v0.18_OCI_SEED_AND_COW.ja.md`](18_v0.18_OCI_SEED_AND_COW.ja.md)
+- [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md)
 
 ## Cloud
 

@@ -35,10 +35,11 @@ Fixes, hardening, refactors, CLI namespace cleanup, CI and docs normally do not 
 | v0.15 | OCI Seed Recommendation | implemented |
 | v0.16 | OCI Image Deletion | implemented first slice |
 | v0.17 | Docker Compatibility Plugin | foundation / partial |
-| v0.18 | Optional Local OCI Registry | planned |
-| v0.19 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.18 | OCI Seed Builder & Btrfs/COW | planned |
 
 The fully implemented product progression is contiguous through **v0.16**.
+
+Local OCI Registry is deferred optional infrastructure, not a reserved roadmap milestone.
 
 Specifications:
 - [`13_v0.13_MANAGED_SANDBOX_NETWORK.md`](13_v0.13_MANAGED_SANDBOX_NETWORK.md)
@@ -46,8 +47,8 @@ Specifications:
 - [`15_v0.15_OCI_SEED_RECOMMENDATION.md`](15_v0.15_OCI_SEED_RECOMMENDATION.md)
 - [`16_v0.16_OCI_IMAGE_DELETION.md`](16_v0.16_OCI_IMAGE_DELETION.md)
 - [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md)
-- [`18_v0.18_LOCAL_OCI_REGISTRY.md`](18_v0.18_LOCAL_OCI_REGISTRY.md)
-- [`19_v0.19_OCI_SEED_AND_COW.md`](19_v0.19_OCI_SEED_AND_COW.md)
+- [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md)
+- [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md) — deferred optional direction
 
 ## Base vs OCI CLI
 
@@ -61,6 +62,10 @@ HACO_PLUGIN_OCI=nerdctl  haco plugin oci image delete <reference>
 ```
 
 `haco base` describes Hacocoon Environment starting points. `haco plugin oci` is optional developer-workload/container tooling. Core has no mandatory OCI runtime.
+
+## OCI storage direction
+
+v0.18 owns trusted Host acquisition/cache, offline immutable Seed construction/publication, and Incus/storage-driver COW. A Local Registry is not a prerequisite and normal direct upstream pulls remain valid when policy allows.
 
 ## Cloud
 

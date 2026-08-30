@@ -43,14 +43,13 @@ Hacocoon は **pre-1.0** です。milestone番号はproduct/implementationの進
 | v0.15 | OCI Seed Recommendation | ✅ 実装済み |
 | v0.16 | OCI Image Deletion | ✅ first slice実装済み |
 | v0.17 | Docker Compatibility Plugin | 🧪 foundation実装済み。full plugin integrationはpending |
-| v0.18 | Optional Local OCI Registry | 🚧 planned |
-| v0.19 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
+| v0.18 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
 
-**完全に実装済みのproduct progressionはv0.16まで連続**しています。v0.17はfoundation段階、v0.18/v0.19はplannedです。
+**完全に実装済みのproduct progressionはv0.16まで連続**しています。v0.17はfoundation段階、v0.18はplannedです。
 
 v0.7は、そのgateで導入したprovider-neutral routing seam自体が現在も実装されているため番号を維持します。以前のconcrete EC2/AWS/EBS sliceはactive treeから意図的に外しており、local/provider contractが安定するまで **cloud implementationは現在deferred** です。
 
-## v0.12 → v0.19 再整理
+## v0.12 → v0.18 再整理
 
 一つのOCI milestoneと枝番の下に独立機能が増え、元々の「1機能1versionくらい」という方針とずれたため、次のように正式に振り直します。
 
@@ -61,9 +60,10 @@ v0.14  Git Fetch Plugin                        implemented
 v0.15  OCI Seed Recommendation                 implemented
 v0.16  OCI Image Deletion                      implemented
 v0.17  Docker Compatibility Plugin             partial/foundation
-v0.18  Optional Local OCI Registry             planned
-v0.19  OCI Seed Builder & Btrfs/COW            planned
+v0.18  OCI Seed Builder & Btrfs/COW            planned
 ```
+
+短期間だけv0.18をOptional Local OCI Registry、v0.19をSeed Builder/COWとして予約した整理もありましたが、これはsupersededです。Local Registryは標準architectureの必須要件ではないためdeferred/unversionedとし、Seed Builder/COWをv0.18へ繰り上げます。
 
 古いOCI milestone名や枝番はhistorical recordとしてのみ扱います。
 
@@ -76,8 +76,8 @@ v0.19  OCI Seed Builder & Btrfs/COW            planned
 - [`15_v0.15_OCI_SEED_RECOMMENDATION.md`](15_v0.15_OCI_SEED_RECOMMENDATION.md)
 - [`16_v0.16_OCI_IMAGE_DELETION.md`](16_v0.16_OCI_IMAGE_DELETION.md)
 - [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md)
-- [`18_v0.18_LOCAL_OCI_REGISTRY.md`](18_v0.18_LOCAL_OCI_REGISTRY.md)
-- [`19_v0.19_OCI_SEED_AND_COW.md`](19_v0.19_OCI_SEED_AND_COW.md)
+- [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md)
+- [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md) — deferred optional infrastructure。milestone予約なし
 
 ## Acceptance watch list
 
@@ -87,9 +87,9 @@ v0.19  OCI Seed Builder & Btrfs/COW            planned
 - **v0.11/v0.12:** real Base/image・resource enforcement pending
 - **v0.13:** real supported-Incus network/profile/ACL pending
 - **v0.14:** brokered fetch実装済み。real private-repository combinationは別途acceptance
-- **v0.15/v0.16:** OCI plugin repository behavior実装済み。physical Seed publication/GCはv0.19
+- **v0.15/v0.16:** OCI plugin repository behavior実装済み。physical Seed publication/GCはv0.18
 - **v0.17:** plugin lifecycle/integration完了まではcomplete扱いしない
-- **v0.18/v0.19:** planned
+- **v0.18:** planned
 
 ## 一文でいうと
 

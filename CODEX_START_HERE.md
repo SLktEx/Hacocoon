@@ -8,8 +8,8 @@ Hacocoon is pre-1.0. Breaking changes are acceptable when they simplify the syst
 
 - Fully implemented product milestones: **v0.1 → v0.16**
 - v0.17 Docker Compatibility Plugin: foundation / partial
-- v0.18 Optional Local OCI Registry: planned
-- v0.19 OCI Seed Builder & Btrfs/COW: planned
+- v0.18 OCI Seed Builder & Btrfs/COW: planned
+- Optional Local OCI Registry: deferred/unversioned; not required by normal pulls or Seed construction
 - v0.7 provider-neutral routing remains; concrete cloud implementation is currently deferred
 
 Read, in order:
@@ -33,9 +33,10 @@ v0.14 Git Fetch Plugin                     implemented
 v0.15 OCI Seed Recommendation              implemented
 v0.16 OCI Image Deletion                   implemented first slice
 v0.17 Docker Compatibility Plugin          foundation / partial
-v0.18 Optional Local OCI Registry          planned
-v0.19 OCI Seed Builder & Btrfs/COW         planned
+v0.18 OCI Seed Builder & Btrfs/COW         planned
 ```
+
+Local Registry is deliberately outside the numbered roadmap until/unless a measured need justifies it as an independently useful product feature.
 
 ## Hard boundaries
 
@@ -48,8 +49,8 @@ v0.19 OCI Seed Builder & Btrfs/COW         planned
 - With `HACO_PLUGIN_OCI` unset, Core must not require containerd, nerdctl, Docker CLI, Docker Engine, or a local Registry.
 - The maintained OCI plugin may use containerd + nerdctl; Core has no mandatory OCI runtime.
 - Docker compatibility is optional and Environment-local; never mount the Host Docker socket.
-- Local Registry is optional, not a prerequisite for ordinary pulls or Seed construction.
-- Seed construction must not share one writable `/var/lib/containerd` across Environments.
+- Local Registry is optional/deferred, not a prerequisite for ordinary pulls or Seed construction.
+- v0.18 Seed construction uses trusted Host acquisition/cache and must not share one writable `/var/lib/containerd` across Environments.
 - Requested security/resource controls that cannot be enforced fail closed.
 - Managed sandbox networking must not silently fall back to broad/default Incus networking.
 - Real-host acceptance is distinct from repository tests.

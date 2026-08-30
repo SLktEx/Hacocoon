@@ -36,10 +36,11 @@ v0.7のprovider-neutral routing seamは維持していますが、concrete EC2/A
 | v0.15 | OCI Seed Recommendation | 実装済み |
 | v0.16 | OCI Image Deletion | first slice実装済み |
 | v0.17 | Docker Compatibility Plugin | foundation / partial |
-| v0.18 | Optional Local OCI Registry | planned |
-| v0.19 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.18 | OCI Seed Builder & Btrfs/COW | planned |
 
 完全実装済みのproduct progressionは **v0.16まで連続**しています。
+
+Local OCI Registryはroadmap milestoneを予約せず、deferredなoptional infrastructureとして扱います。
 
 ## Coreを小さくする
 
@@ -67,8 +68,10 @@ project-maintained OCI plugin profileではcontainerd + nerdctlを使えます�
 - v0.14: `haco plugin git fetch` はHost側 `gh auth git-credential` を使い、credentialをSandboxへ渡さない。
 - v0.15: OCI usage telemetry / recommendation / top 10% auto promotion。
 - v0.16: immutable image identityのdeletion tombstone。
-- v0.18: Local Registryはoptional。
-- v0.19: Host acquisition → offline Seed Builder → immutable Seed → normal Incus/Btrfs COW。writable `/var/lib/containerd` は共有しない。
+- v0.18: trusted Host acquisition/cache → offline Seed Builder → immutable Seed → normal Incus/Btrfs COW。writable `/var/lib/containerd` は共有しない。
+- Optional Local Registry: normal pullやSeed constructionのprerequisiteではなく、実測上必要な場合だけ将来再検討。
+
+See [`18_v0.18_OCI_SEED_AND_COW.ja.md`](18_v0.18_OCI_SEED_AND_COW.ja.md) and [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md).
 
 ## Client interaction
 

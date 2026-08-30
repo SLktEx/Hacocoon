@@ -4,7 +4,7 @@
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md) です。
 
-Hacocoon は pre-1.0 です。完全実装済みの product progression は **v0.16 まで連続**しています。v0.17 Docker Compatibility Plugin は foundation 段階、v0.18 / v0.19 は planned です。
+Hacocoon は pre-1.0 です。完全実装済みの product progression は **v0.16 まで連続**しています。v0.17 Docker Compatibility Plugin は foundation 段階、v0.18 OCI Seed Builder & Btrfs/COW は planned です。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|
@@ -23,14 +23,16 @@ Hacocoon は pre-1.0 です。完全実装済みの product progression は **v0
 | OCI Seed Recommendation | `haco plugin oci seed sample` / `recommend`、top 10%を `auto_promote=true` | v0.15 |
 | OCI Image Deletion | `haco plugin oci image delete`、deletion tombstone、optional all-environments | v0.16 |
 | Docker Compatibility | genuine Docker CLI / on-demand Engine のplugin-owned foundation | v0.17 |
-| Optional Local OCI Registry | optional。通常pullの必須経路ではない | v0.18 planned |
-| OCI Seed Builder / Btrfs COW | Host取得 → offline builder → immutable Seed → COW | v0.19 planned |
+| OCI Seed Builder / Btrfs COW | trusted Host取得/cache → offline builder → immutable Seed → COW | v0.18 planned |
+| Optional Local OCI Registry | optional。通常pullやSeed constructionの必須経路ではない | unversioned optional / deferred |
 
 ## Core と OCI plugin
 
 containerd / nerdctl / Docker は Hacocoon Core の必須要件ではありません。project-maintained OCI plugin profile が必要に応じて containerd + nerdctl や Docker compatibility を提供します。
 
 Base lifecycle は `haco base ...`、OCI workload tooling は `haco plugin oci ...` に分離します。
+
+physical Seed build/publishはv0.18です。Local Registryはそのprerequisiteではなくroadmap versionも予約しません。必要性が実測できた場合だけ将来optional infrastructureとして再検討します。
 
 ## Cloud
 

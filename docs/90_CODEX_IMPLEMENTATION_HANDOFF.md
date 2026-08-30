@@ -2,7 +2,7 @@
 
 > Maintenance guide for the current pre-1.0 architecture.
 
-Fully implemented product milestones are contiguous through **v0.16**. v0.17 Docker Compatibility Plugin is a partial foundation. v0.18 Optional Local OCI Registry and v0.19 OCI Seed Builder & Btrfs/COW are planned.
+Fully implemented product milestones are contiguous through **v0.16**. v0.17 Docker Compatibility Plugin is a partial foundation. v0.18 OCI Seed Builder & Btrfs/COW is planned. Local OCI Registry is deferred optional infrastructure and has no reserved milestone.
 
 Use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for current repository reality and [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md) for numbering.
 
@@ -21,7 +21,7 @@ Per-agent binding                -> trusted integration outside Core
 Base identity / haco base        -> provider-neutral contract
 ResourceBudget                   -> provider-neutral contract
 Policy / Approval / Audit        -> trusted boundary
-Git push/fetch                    -> Git/GitHub plugin/capability boundary
+Git push/fetch                   -> Git/GitHub plugin/capability boundary
 OCI/container lifecycle          -> optional haco plugin oci boundary
 Docker compatibility             -> optional OCI plugin, Environment-local
 Local Registry / Seed mechanics  -> optional plugin/host infrastructure
@@ -37,8 +37,8 @@ Cloud provider implementation    -> deferred; v0.7 routing seam retained
 - With `HACO_PLUGIN_OCI` unset, Core must not require containerd, nerdctl, Docker, or a Registry.
 - The maintained OCI plugin may use containerd + nerdctl; this is not a Core invariant.
 - Docker compatibility uses genuine Docker CLI and optional/on-demand Engine; never mount the Host Docker socket.
-- Local Registry is optional.
-- Seed build uses trusted Host acquisition and an offline builder; never share one writable `/var/lib/containerd` between Environments.
+- Local Registry is optional/deferred and is not a prerequisite for normal pulls or Seed construction.
+- v0.18 Seed build uses trusted Host acquisition/cache and an offline builder; never share one writable `/var/lib/containerd` between Environments.
 - Managed network drift and unenforceable finite security/resource controls fail closed.
 - Concrete EC2/AWS/EBS support is currently deferred; do not silently restore it while local/provider contracts are changing.
 
@@ -59,8 +59,11 @@ Read `16_v0.16_OCI_IMAGE_DELETION.md`. Deletion records an immutable-identity to
 ### v0.17 — Docker Compatibility Plugin
 Read `17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`. Foundation only; keep it optional and outside Core.
 
-### v0.18 / v0.19
-Local Registry is optional and planned. Seed Builder/COW is planned and must use immutable Seed publication rather than writable containerd sharing.
+### v0.18 — OCI Seed Builder & Btrfs/COW
+Read `18_v0.18_OCI_SEED_AND_COW.md`. Seed Builder/COW is planned and must use trusted Host acquisition/cache plus immutable Seed publication rather than writable containerd sharing.
+
+### Optional Local OCI Registry
+Read `OPTIONAL_LOCAL_OCI_REGISTRY.md`. Registry/proxy is deferred and unversioned; reconsider it only if measured/policy needs justify a separate future feature.
 
 ## Validation
 
