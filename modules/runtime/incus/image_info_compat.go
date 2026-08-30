@@ -46,7 +46,10 @@ func (p *BaseProvider) imageFingerprintFromList(ctx context.Context, source, pro
 		return "", fmt.Errorf("Incus 6.0 image lookup requires a remote-qualified source %q: %w", source, core.ErrUnsupported)
 	}
 
-	args := []string{"image", "list", remote + ":", identifier, "--format", "csv", "-c", "L,F"}
+	// Incus image aliases can resolve to both a container and a VM image. Hacocoon
+	// currently supports system containers only, so include the image type and
+	// deliberately ignore virtual-machine rows when resolving the immutable base.
+	args := []string{"image", "list", remote + ":", identifier, "--format", "csv", "-c", "L,F,t"}
 	if project != "" {
 		args = append(args, "--project", project)
 	}
@@ -68,8 +71,13 @@ func (p *BaseProvider) imageFingerprintFromList(ctx context.Context, source, pro
 		if readErr != nil {
 			return "", fmt.Errorf("decode Incus image list for %q: %w", source, core.ErrIncompatibleState)
 		}
-		if len(record) != 2 {
+		if len(record) != 3 {
 			return "", fmt.Errorf("unexpected Incus image list columns for %q: %w", source, core.ErrIncompatibleState)
+		}
+
+		imageType := strings.ToLower(strings.TrimSpace(record[2]))
+		if imageType != "" && imageType != "container" {
+			continue
 		}
 
 		fingerprint := strings.ToLower(strings.TrimSpace(record[1]))
@@ -86,7 +94,6 @@ func (p *BaseProvider) imageFingerprintFromList(ctx context.Context, source, pro
 					matched = true
 					break
 				}
-			}
 		}
 		if matched {
 			matches[fingerprint] = struct{}{}
@@ -94,10 +101,10 @@ func (p *BaseProvider) imageFingerprintFromList(ctx context.Context, source, pro
 	}
 
 	if len(matches) == 0 {
-		return "", fmt.Errorf("Incus image %q: %w", source, core.ErrNotFound)
+		return "", fmt.Errorf("Incus container image %q: %w", source, core.ErrNotFound)
 	}
 	if len(matches) != 1 {
-		return "", fmt.Errorf("Incus image %q resolved to multiple fingerprints: %w", source, core.ErrIncompatibleState)
+		return "", fmt.Errorf("Incus container image %q resolved to multiple fingerprints: %w", source, core.ErrIncompatibleState)
 	}
 	for fingerprint := range matches {
 		return fingerprint, nil
