@@ -20,14 +20,22 @@ workspace="$root/workspace"
 haco="$root/haco"
 environment="e2e-$$"
 runtime_ref="haco-$environment"
+trusted_host_ref="haco-host"
 export HACO_ROOT="$root/haco-root"
 created=0
+trusted_host_created=0
 
 cleanup() {
   set +e
   if [[ "$created" == "1" ]]; then
     "$haco" delete "$environment" >/dev/null 2>&1 || \
       incus delete "$runtime_ref" --project hacocoon --force >/dev/null 2>&1 || true
+  fi
+  if [[ "$trusted_host_created" == "1" ]]; then
+    marker="$(incus config get "$trusted_host_ref" user.hacocoon.role --project hacocoon 2>/dev/null || true)"
+    if [[ "$marker" == "trusted-host" ]]; then
+      incus delete "$trusted_host_ref" --project hacocoon --force >/dev/null 2>&1 || true
+    fi
   fi
   rm -rf "$root"
 }
@@ -37,6 +45,41 @@ mkdir -p "$workspace"
 printf 'from-host\n' > "$workspace/host.txt"
 
 go build -o "$haco" ./cmd/haco
+
+"$haco" host ensure
+trusted_host_created=1
+[[ "$(incus config get "$trusted_host_ref" user.hacocoon.role --project hacocoon)" == "trusted-host" ]] || {
+  echo "trusted haco-host ownership marker mismatch" >&2
+  exit 1
+}
+[[ "$(incus list "$trusted_host_ref" --project hacocoon --format csv -c s)" == "RUNNING" ]] || {
+  echo "trusted haco-host is not running after first ensure" >&2
+  exit 1
+}
+
+# Re-entry must be idempotent and a stopped trusted host must be restarted.
+"$haco" host ensure
+incus stop "$trusted_host_ref" --project hacocoon
+[[ "$(incus list "$trusted_host_ref" --project hacocoon --format csv -c s)" == "STOPPED" ]] || {
+  echo "trusted haco-host did not stop for restart acceptance" >&2
+  exit 1
+}
+"$haco" host ensure
+[[ "$(incus list "$trusted_host_ref" --project hacocoon --format csv -c s)" == "RUNNING" ]] || {
+  echo "trusted haco-host was not restarted by ensure" >&2
+  exit 1
+}
+
+trusted_host_config="$root/trusted-host-config"
+incus config show "$trusted_host_ref" --expanded --project hacocoon >"$trusted_host_config"
+for forbidden in \
+  "/var/lib/incus/unix.socket" \
+  "/var/lib/incus/unix.socket.user"; do
+  if grep -Fq "$forbidden" "$trusted_host_config"; then
+    echo "trusted haco-host unexpectedly exposes Incus control socket: $forbidden" >&2
+    exit 1
+  fi
+done
 
 "$haco" create --workspace "$workspace" "$environment" >/dev/null
 created=1
@@ -106,4 +149,4 @@ if [[ -e "$HACO_ROOT/state/environments.json" ]] && grep -Fq "\"$environment\"" 
   exit 1
 fi
 
-echo "PASS: Hacocoon v0.1 CLI -> Incus workspace E2E"
+echo "PASS: Hacocoon trusted host + v0.1 CLI -> Incus E2E"
