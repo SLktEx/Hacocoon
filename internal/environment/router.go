@@ -3,7 +3,10 @@ package environment
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"net"
+	"sort"
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -44,6 +47,13 @@ type SSHProvider interface {
 type SSHAccessProvider interface {
 	PrepareSSHAccess(context.Context, string, core.SSHAccessRequest) (core.ClientConnection, error)
 	RevokeSSHAccess(context.Context, string, string) error
+}
+
+// RuntimeSourceProvider resolves provider-trusted network source evidence back
+// to a provider-local runtime ref. The Router wraps the returned ref with the
+// provider identity before persisted Environment state is consulted.
+type RuntimeSourceProvider interface {
+	ResolveRuntimeRef(context.Context, net.IP) (string, error)
 }
 
 type Registration struct {
@@ -210,6 +220,46 @@ func (r *Router) ListClientConnections(ctx context.Context, rawRef string) ([]co
 		return nil, fmt.Errorf("environment provider %q connections: %w", id, core.ErrUnsupported)
 	}
 	return connections.ListClientConnections(ctx, ref)
+}
+
+// ResolveRuntimeRef fans trusted source evidence out only to providers that
+// explicitly implement source resolution. Exactly one provider must claim the
+// source. Provider-local refs are immediately wrapped with provider identity so
+// persisted Environment matching cannot confuse identical local refs from two
+// different runtimes.
+func (r *Router) ResolveRuntimeRef(ctx context.Context, source net.IP) (string, error) {
+	if r == nil || source == nil || source.IsUnspecified() || source.IsLoopback() || source.IsMulticast() {
+		return "", core.ErrPolicyDenied
+	}
+	ids := make([]string, 0, len(r.providers))
+	for id := range r.providers {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	matches := make([]string, 0, 1)
+	for _, id := range ids {
+		provider := r.providers[id]
+		resolver, ok := provider.(RuntimeSourceProvider)
+		if !ok {
+			continue
+		}
+		localRef, err := resolver.ResolveRuntimeRef(ctx, source)
+		if err != nil {
+			if errors.Is(err, core.ErrPolicyDenied) || errors.Is(err, core.ErrNotFound) {
+				continue
+			}
+			return "", fmt.Errorf("environment provider %q source resolution: %w", id, err)
+		}
+		if strings.TrimSpace(localRef) == "" {
+			return "", fmt.Errorf("environment provider %q returned empty source runtime ref: %w", id, core.ErrIncompatibleState)
+		}
+		matches = append(matches, encodeRouteRef(id, localRef))
+	}
+	if len(matches) != 1 {
+		return "", core.ErrPolicyDenied
+	}
+	return matches[0], nil
 }
 
 func (r *Router) resolve(rawRef string) (Provider, string, error) {
