@@ -11,7 +11,18 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 - Architecture / Roadmap: [`00_REBASELINE_AND_ROADMAP.md`](00_REBASELINE_AND_ROADMAP.md)
 - Milestone番号: [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md)
 - Security: [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
-- Plugin境界: [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+- Core / Standard / Plugin境界: [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+- Client interaction event: [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md)
+
+## Core / Standard / Pluginのルール
+
+Hacocoonでは、product semanticsとdefault implementation、optional integrationを分けます。
+
+- **Core**: Environment、Policy / Approval / Capability、境界制御に必要な安定contractを定義する。
+- **Standard**: 通常配布で多くの利用者が使うproject-maintainedなdefault implementation。現在のIncus backendや、将来のdefault egress proxy/enforcerなど。Core contractを満たす交換可能な実装であり、Coreそのものではない。
+- **Plugin**: 無くても一般的なHacocoonとして成立するoptional / specialized integration。nerdctl / Docker / OCI toolingなど。
+
+外向き通信では、egress request / policy / controller contractはCore、具体的なdefault proxy / enforcement implementationはStandardに置きます。この分類はarchitecture intentであり、現在のv0.13はdefault-deny network substrateまでです。domain-awareなallow / approval enforcementが実装済みという意味ではありません。
 
 ## 番号ルール
 
@@ -24,11 +35,19 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 | v0.15 | OCI Seed Recommendation | 実装済み |
 | v0.16 | OCI Image Deletion | first slice実装済み |
 | v0.17 | Docker Compatibility Plugin | 実装済み。host acceptanceは別 |
-| v0.18 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.18 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
 
-完全実装済みのproduct progressionは **v0.17まで連続**しています。
+完全実装済みのproduct progressionは **v0.17まで連続**しています。v0.18はfirst repository sliceまで実装済みで、real-host/COW acceptanceが残っています。
 
 Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
+
+## Client interaction境界
+
+`pkg/interaction` は capability audit stream を client-neutral な read-only event へprojectionします。stable ID、resume可能なbyte cursor、bounded batch、attention/recovery flagを提供し、raw resource、attributes、provider output、approval token、free-form audit reasonはclient schemaへ出しません。
+
+これは観測専用の境界です。approval / execution はtrusted Policy/Capability経路に残るため、browser、VS Code、code-server、JetBrains等の複数adapterが同じeventを観測しても、その観測自体がauthorizationにはなりません。
+
+詳細は [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md) を参照してください。
 
 ## Base と OCI
 
@@ -36,7 +55,11 @@ Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestone�
 haco base list
 haco base inspect <base>
 
-HACO_PLUGIN_OCI=nerdctl  haco plugin oci ...
+HACO_PLUGIN_OCI=nerdctl  haco plugin oci seed sample
+HACO_PLUGIN_OCI=nerdctl  haco plugin oci seed recommend
+HACO_PLUGIN_OCI=nerdctl  haco plugin oci seed build
+HACO_PLUGIN_OCI=nerdctl  haco plugin oci seed current
+HACO_PLUGIN_OCI=nerdctl  haco plugin oci image delete <reference>
 HACO_PLUGIN_OCI=docker   haco plugin oci docker status <environment>
 HACO_PLUGIN_OCI=docker   haco plugin oci docker prepare <environment>
 ```
@@ -47,7 +70,7 @@ Dockerの `prepare` はBase提供のcompatibility profileとHacocoon-pinned syst
 
 ## OCI storage
 
-v0.18はtrusted Host acquisition/cache、offline immutable Seed build/publish、Incus/storage-driver COWを担当します。Local Registryはprerequisiteではなく、policyが許せばnormal direct upstream pullを使えます。
+v0.18はtrusted Host acquisition/cache、offline no-NIC immutable Seed build/publish、current-Seed resolution、normal Incus/storage-driver cloneのfirst repository sliceを実装済みです。physical Btrfs COW measurementとbroader real-host acceptanceはpendingです。Local Registryはprerequisiteではなく、policyが許せばnormal direct upstream pullを使えます。
 
 - [`18_v0.18_OCI_SEED_AND_COW.ja.md`](18_v0.18_OCI_SEED_AND_COW.ja.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md)
