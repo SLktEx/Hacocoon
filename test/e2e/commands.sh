@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for command in go grep mktemp sleep; do
+for command in go grep mktemp script sleep; do
   command -v "$command" >/dev/null 2>&1 || {
     echo "missing required command: $command" >&2
     exit 1
@@ -31,6 +31,7 @@ for name in haco haco-vscode haco-agent-host haco-notify haco-storage-helper; do
   go build -o "$bin/$name" "./cmd/$name"
   test -x "$bin/$name"
 done
+ln -s "$bin/haco" "$bin/hacocoon-login"
 
 # Main CLI: prove the final executable dispatches a successful command and
 # preserves the user-visible error contract for an unknown command.
@@ -47,6 +48,56 @@ set -e
 [[ ! -s "$root/haco-invalid.out" ]]
 grep -Fq 'usage: haco <' "$root/haco-invalid.err"
 grep -Fq 'unknown command "definitely-not-a-command"' "$root/haco-invalid.err"
+
+# Doctor: both the healthy and unavailable runtime contracts are process-level
+# behavior. A PATH-local Incus shim keeps these fast and deterministic.
+mkdir -p "$root/doctor-ok" "$root/doctor-down"
+cat >"$root/doctor-ok/incus" <<'SH'
+#!/bin/sh
+if [ "${1:-}" = version ]; then
+  printf '%s\n' '6.12-e2e'
+  exit 0
+fi
+exit 2
+SH
+cat >"$root/doctor-down/incus" <<'SH'
+#!/bin/sh
+exit 127
+SH
+chmod +x "$root/doctor-ok/incus" "$root/doctor-down/incus"
+PATH="$root/doctor-ok:$PATH" "$bin/haco" doctor >"$root/doctor-ok.out" 2>"$root/doctor-ok.err"
+grep -Fq 'Hacocoon Secure Workspace Runtime' "$root/doctor-ok.out"
+grep -Fq 'Incus available: true' "$root/doctor-ok.out"
+grep -Fq '6.12-e2e' "$root/doctor-ok.out"
+set +e
+PATH="$root/doctor-down:$PATH" "$bin/haco" doctor >"$root/doctor-down.out" 2>"$root/doctor-down.err"
+doctor_down_code=$?
+set -e
+[[ "$doctor_down_code" != "0" ]]
+grep -Fq 'Incus available: false' "$root/doctor-down.out"
+grep -Fq 'runtime unavailable' "$root/doctor-down.err"
+
+# Dedicated WSL login entrypoint: explicit commands and non-interactive stdin
+# must stay on the Physical Host even though argv[0] is hacocoon-login.
+explicit_output="$("$bin/hacocoon-login" -lc 'printf physical-host-explicit')"
+[[ "$explicit_output" == 'physical-host-explicit' ]]
+stdin_output="$(printf 'printf physical-host-stdin\n' | "$bin/hacocoon-login")"
+[[ "$stdin_output" == 'physical-host-stdin' ]]
+
+# Interactive login must dispatch through passwordless sudo to the privileged
+# haco-host shell. A pseudo-terminal makes the real argv[0]/stdio branch run;
+# the local sudo shim records the exact handoff without requiring real Incus.
+login_bin="$root/login-bin"
+mkdir -p "$login_bin"
+cat >"$login_bin/sudo" <<'SH'
+#!/bin/sh
+printf '%s\n' "$*" >"$HACO_LOGIN_CAPTURE"
+SH
+chmod +x "$login_bin/sudo"
+PATH="$login_bin:$PATH" HACO_LOGIN_CAPTURE="$root/login.capture" \
+  script -q -e -c "$bin/hacocoon-login" /dev/null >/dev/null
+[[ -s "$root/login.capture" ]]
+grep -Fxq -- "-n $bin/haco host shell" "$root/login.capture"
 
 # Agent Host: release is intentionally idempotent, so a never-created session
 # gives us a deterministic successful process-level path without real Incus.
