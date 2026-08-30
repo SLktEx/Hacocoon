@@ -118,6 +118,9 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 		releaseErr := releaseLease()
 		return core.Environment{}, errors.Join(fmt.Errorf("create environment %q: %w", name, err), releaseErr)
 	}
+	if created.Resources == (core.ResourceBudget{}) && !core.ResourceBudgetHasFinite(resources) {
+		created.Resources = resources
+	}
 	if created.Resources != resources {
 		cleanupErr := s.deleteRuntimeForCleanup(ctx, created.Ref)
 		return core.Environment{}, errors.Join(
