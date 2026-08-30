@@ -39,10 +39,17 @@ func ociPluginCommand(ctx context.Context, app *composition.App, args []string) 
 }
 
 func ociImageCommand(ctx context.Context, app *composition.App, args []string) error {
-	if len(args) == 0 || args[0] != "delete" {
-		return fmt.Errorf("usage: haco plugin oci image delete <reference[@sha256:...]> [--all-environments] [--json]: %w", core.ErrInvalidArgument)
+	if len(args) == 0 {
+		return fmt.Errorf("usage: haco plugin oci image <delete|reenable> ...: %w", core.ErrInvalidArgument)
 	}
-	return ociImageDeleteCommand(ctx, app, args[1:])
+	switch args[0] {
+	case "delete":
+		return ociImageDeleteCommand(ctx, app, args[1:])
+	case "reenable":
+		return ociImageReenableCommand(ctx, app, args[1:])
+	default:
+		return fmt.Errorf("unknown OCI image command %q: %w", args[0], core.ErrInvalidArgument)
+	}
 }
 
 func ociImageDeleteCommand(ctx context.Context, app *composition.App, args []string) error {
@@ -103,7 +110,7 @@ func printOCIImageDeleteReport(report ociplugin.DeleteReport) {
 
 func ociSeedCommand(ctx context.Context, app *composition.App, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: haco plugin oci seed <sample|recommend|build|current> ...: %w", core.ErrInvalidArgument)
+		return fmt.Errorf("usage: haco plugin oci seed <sample|recommend|build|current|pin|unpin|pins|gc|recover> ...: %w", core.ErrInvalidArgument)
 	}
 
 	switch args[0] {
@@ -193,6 +200,16 @@ func ociSeedCommand(ctx context.Context, app *composition.App, args []string) er
 		}
 		printOCISeedManifest(manifest)
 		return nil
+	case "pin":
+		return ociSeedPinCommand(ctx, app, args[1:], false)
+	case "unpin":
+		return ociSeedPinCommand(ctx, app, args[1:], true)
+	case "pins":
+		return ociSeedPinsCommand(ctx, app, args[1:])
+	case "gc":
+		return ociSeedMaintenanceCommand(ctx, app, args[1:], false)
+	case "recover":
+		return ociSeedMaintenanceCommand(ctx, app, args[1:], true)
 	default:
 		return fmt.Errorf("unknown OCI seed command %q: %w", args[0], core.ErrInvalidArgument)
 	}
