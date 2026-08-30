@@ -55,10 +55,44 @@ jobs:
           test "$FSTYPE" = btrfs
           minikube ssh -- 'findmnt -n -o OPTIONS -T /var/local/openebs/rawfile/haco-pool' | grep -q 'compress=zstd'
 
+      - name: Build RawFile with snapshot-restore COW probe fix
+        run: |
+          set -euxo pipefail
+          # Pin the upstream source used to diagnose the restore bug. The stock
+          # implementation passes the destination disk *file* to a helper that
+          # expects a destination directory, causing its COW probe to construct
+          # disk.img/.cow_test_clone and fall back to --reflink=never.
+          RAWFILE_SHA=22a2884d9931b1af17698fb6f254f742db8b5909
+          git clone --filter=blob:none https://github.com/openebs/rawfile-localpv.git /tmp/rawfile-localpv
+          git -C /tmp/rawfile-localpv checkout "$RAWFILE_SHA"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/rawfile-localpv/rawfile/utils/snapshot_manager.py')
+          text = p.read_text()
+          old = 'is_cow_supported(Path(os.path.dirname(snap_path)), destination)'
+          new = 'is_cow_supported(Path(os.path.dirname(snap_path)), destination.parent)'
+          assert old in text, 'upstream restore probe changed; re-evaluate the experiment'
+          p.write_text(text.replace(old, new, 1))
+          PY
+          git -C /tmp/rawfile-localpv diff --check
+          git -C /tmp/rawfile-localpv diff -- rawfile/utils/snapshot_manager.py
+          docker build \
+            --build-arg IMAGE_TAG=haco-cowfix \
+            --build-arg PROVISIONER_VERSION=haco-cowfix \
+            -t rawfile-localpv:haco-cowfix \
+            /tmp/rawfile-localpv
+          minikube image load rawfile-localpv:haco-cowfix
+          minikube image ls | grep -q 'rawfile-localpv:haco-cowfix'
+
       - name: Install OpenEBS RawFile with Btrfs COW storage class
         run: |
           set -euxo pipefail
           cat >/tmp/rawfile-values.yaml <<'EOF'
+          image:
+            registry: ""
+            repository: rawfile-localpv
+            tag: haco-cowfix
+            pullPolicy: Never
           analytics:
             enabled: false
           logLevel: DEBUG
@@ -100,6 +134,7 @@ jobs:
             --values /tmp/rawfile-values.yaml
 
           kubectl -n openebs wait --for=condition=Ready pod --all --timeout=8m
+          kubectl -n openebs get pods -o jsonpath='{range .items[*].spec.containers[*]}{.name}{"="}{.image}{"\n"}{end}' | grep 'rawfile-localpv:haco-cowfix'
           kubectl get csidriver
           kubectl get storageclass rawfile-btrfs-cow -o yaml
           kubectl get volumesnapshotclass rawfile-btrfs-cow -o yaml
@@ -211,49 +246,57 @@ jobs:
           apiVersion: v1
           kind: Pod
           metadata:
-            name: cow-verify
+            name: cow-clone-consumer
           spec:
             restartPolicy: Never
             containers:
-              - name: verifier
+              - name: consumer
                 image: busybox:1.37
-                command: ["sh", "-c", "sleep 900"]
+                command: ["sh", "-c", "true"]
                 volumeDevices:
-                  - name: source
-                    devicePath: /dev/haco-source
                   - name: clone
                     devicePath: /dev/haco-clone
             volumes:
-              - name: source
-                persistentVolumeClaim:
-                  claimName: cow-source
               - name: clone
                 persistentVolumeClaim:
                   claimName: cow-clone
           EOF
-          kubectl wait --for=condition=Ready pod/cow-verify --timeout=8m
+          kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/cow-clone-consumer --timeout=8m
           CLONE_END_NS="$(date +%s%N)"
-          echo "snapshot restore + attach elapsed_ms=$(( (CLONE_END_NS - CLONE_START_NS) / 1000000 ))"
+          echo "snapshot restore + first attach elapsed_ms=$(( (CLONE_END_NS - CLONE_START_NS) / 1000000 ))"
 
           CLONE_PV="$(kubectl get pvc cow-clone -o jsonpath='{.spec.volumeName}')"
           CLONE_HANDLE="$(kubectl get pv "$CLONE_PV" -o jsonpath='{.spec.csi.volumeHandle}')"
           test -n "$CLONE_HANDLE"
+          echo "CLONE_HANDLE=$CLONE_HANDLE" >> "$GITHUB_ENV"
           echo "clone handle=$CLONE_HANDLE"
+
+          # Wait for the completed consumer's loop device to be detached before
+          # manipulating backing files directly. This avoids kubectl exec transport
+          # noise and isolates the storage semantics under test.
+          for i in $(seq 1 60); do
+            attached="$(minikube ssh -- "sudo losetup -j /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img" | tr -d '\r')"
+            [ -z "$attached" ] && break
+            sleep 1
+          done
+          test -z "$(minikube ssh -- "sudo losetup -j /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img" | tr -d '\r')"
 
           echo 'Btrfs extent accounting immediately after snapshot restore:'
           minikube ssh -- "sudo btrfs filesystem du -s /var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/disk.img /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img"
-          minikube ssh -- "sudo filefrag -v /var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/disk.img /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img || true"
-          minikube ssh -- 'sudo btrfs filesystem usage --raw /var/local/openebs/rawfile/haco-pool'
+          minikube ssh -- "sudo filefrag -v /var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/disk.img /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img"
+          # A restored clone must contain shared extents. This is the hard COW
+          # assertion that the stock 0.15.0 path failed in the previous run.
+          minikube ssh -- "sudo filefrag -v /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img" | grep -q shared
 
-          BEFORE_SOURCE_HASH="$(kubectl exec cow-verify -- sh -c 'dd if=/dev/haco-source bs=1M count=64 2>/dev/null | sha256sum' | awk '{print $1}')"
-          BEFORE_CLONE_HASH="$(kubectl exec cow-verify -- sh -c 'dd if=/dev/haco-clone bs=1M count=64 2>/dev/null | sha256sum' | awk '{print $1}')"
+          BEFORE_SOURCE_HASH="$(minikube ssh -- "sudo dd if=/var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/disk.img bs=1M count=64 2>/dev/null | sha256sum" | awk '{print $1}' | tr -d '\r')"
+          BEFORE_CLONE_HASH="$(minikube ssh -- "sudo dd if=/var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img bs=1M count=64 2>/dev/null | sha256sum" | awk '{print $1}' | tr -d '\r')"
           echo "before source=$BEFORE_SOURCE_HASH clone=$BEFORE_CLONE_HASH expected=$SOURCE_HASH"
           test "$BEFORE_SOURCE_HASH" = "$SOURCE_HASH"
           test "$BEFORE_CLONE_HASH" = "$SOURCE_HASH"
 
-          kubectl exec cow-verify -- sh -c 'dd if=/dev/zero of=/dev/haco-clone bs=1M count=8 conv=notrunc,fsync'
-          AFTER_SOURCE_HASH="$(kubectl exec cow-verify -- sh -c 'dd if=/dev/haco-source bs=1M count=64 2>/dev/null | sha256sum' | awk '{print $1}')"
-          AFTER_CLONE_HASH="$(kubectl exec cow-verify -- sh -c 'dd if=/dev/haco-clone bs=1M count=64 2>/dev/null | sha256sum' | awk '{print $1}')"
+          minikube ssh -- "sudo dd if=/dev/zero of=/var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img bs=1M count=8 conv=notrunc,fsync"
+          AFTER_SOURCE_HASH="$(minikube ssh -- "sudo dd if=/var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/disk.img bs=1M count=64 2>/dev/null | sha256sum" | awk '{print $1}' | tr -d '\r')"
+          AFTER_CLONE_HASH="$(minikube ssh -- "sudo dd if=/var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img bs=1M count=64 2>/dev/null | sha256sum" | awk '{print $1}' | tr -d '\r')"
           echo "after source=$AFTER_SOURCE_HASH clone=$AFTER_CLONE_HASH"
           test "$AFTER_SOURCE_HASH" = "$SOURCE_HASH"
           test "$AFTER_CLONE_HASH" != "$SOURCE_HASH"
@@ -261,6 +304,13 @@ jobs:
           echo 'Btrfs extent accounting after clone-only write:'
           minikube ssh -- "sudo btrfs filesystem du -s /var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/disk.img /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img"
           minikube ssh -- 'sudo btrfs filesystem usage --raw /var/local/openebs/rawfile/haco-pool'
+
+          DRIVER_LOG="$(kubectl -n openebs logs -l app.kubernetes.io/name=rawfile-localpv -c csi-driver --prefix --tail=2000 2>/dev/null || true)"
+          echo "$DRIVER_LOG" | grep -F -- '--reflink=always' | tail -n 10
+          if echo "$DRIVER_LOG" | grep -F -- '--reflink=never' | grep -F "$CLONE_HANDLE"; then
+            echo 'ERROR: snapshot restore fell back to a full byte copy' >&2
+            exit 1
+          fi
 
       - name: Record driver evidence
         if: always()
