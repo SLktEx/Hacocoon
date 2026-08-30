@@ -19,7 +19,38 @@ env:
   GOTOOLCHAIN: local
 
 jobs:
+  incus-standalone:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      HACO_CI_RUNNER_ENVIRONMENT: github-hosted
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate standalone Incus E2E helpers
+        run: bash -n tools/ci-incus.sh test/e2e/incus_standalone.sh
+      - name: Install and initialize Incus substrate
+        run: bash tools/ci-incus.sh setup
+      - name: Verify standalone Incus system containers
+        run: bash tools/ci-incus.sh standalone
+      - name: Capture standalone Incus diagnostics
+        if: failure()
+        run: bash tools/ci-incus.sh diagnostics
+      - name: Upload standalone Incus diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: incus-standalone-diagnostics
+          path: ${{ runner.temp }}/incus-diagnostics/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Clean up standalone Incus resources
+        if: always()
+        run: bash tools/ci-incus.sh cleanup-standalone
+
   incus-core-e2e:
+    needs: incus-standalone
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
