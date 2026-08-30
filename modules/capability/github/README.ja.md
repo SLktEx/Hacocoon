@@ -6,6 +6,8 @@
 
 この plugin は Sandbox に GitHub credential を渡しません。Host 側の brokered Git は global/system Git config を無効化したまま、`github.com` の HTTPS credential provider として `gh auth git-credential` だけを明示的に設定します。そのため普段 Host で `gh auth login` / `gh auth setup-git` を利用している場合も、PAT や credential helper 設定全体を Sandbox や repository に公開せず private repository を扱えます。
 
+GitHub Actions などの headless Host では、代わりに Hacocoon Host process へ `HACO_GITHUB_TOKEN` を渡せます。isolated Git runner が受け付ける token 入力はこの明示的な Hacocoon 用 credential だけで、trusted brokered Git process 内では `gh auth git-credential` が利用できるよう `GH_TOKEN` に変換します。ambient な `GH_TOKEN` / `GITHUB_TOKEN` は従来どおり破棄します。token は Environment、Hacocoon state、policy request、audit record にはコピーしません。
+
 `fetch` は capability service が GitHub repository、remote、repository identity を評価した後にだけ実行されます。実行時は repository-controlled `remote.<name>.fetch` を使わず、検証済みの GitHub URL と固定 refspec を使って `refs/remotes/<remote>/*` だけを更新します。tag と submodule は自動取得しません。
 
 CLI:
