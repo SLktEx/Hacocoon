@@ -159,7 +159,7 @@ func Local(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 	egressBroker := egressapp.NewBroker(capabilities)
-	egressSources, err := egressapp.NewPersistedSourceResolver(incusRuntime, store)
+	egressSources, err := egressapp.NewPersistedSourceResolver(runtime, store)
 	if err != nil {
 		return nil, err
 	}
