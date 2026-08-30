@@ -133,7 +133,11 @@ func Local(ctx context.Context) (*App, error) {
 		if err != nil {
 			return nil, err
 		}
-		registrations = append(registrations, environmentapp.Register(kuberuntime.ProviderID, kubeProvider))
+		kubeBaseProvider, err := kuberuntime.NewBaseProvider(kubeProvider)
+		if err != nil {
+			return nil, err
+		}
+		registrations = append(registrations, environmentapp.Register(kuberuntime.ProviderID, kubeBaseProvider))
 	}
 
 	router, err := environmentapp.NewRouter(selectedRuntimeProvider, registrations...)
