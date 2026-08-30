@@ -135,6 +135,8 @@ Security-sensitiveな変更の前に [Security architecture](docs/security/secur
 
 ## 開発
 
+Hacocoonのprimary supported Host baselineは **Ubuntu 26.04+** です。GitHub-hosted Linux CIも **`ubuntu-26.04`** に明示固定し、`ubuntu-latest` や古いUbuntu世代ではなく同じbaselineを直接検証します。
+
 ```bash
 go test ./...
 go test -race ./...
