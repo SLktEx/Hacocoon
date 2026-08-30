@@ -1,4 +1,4 @@
-package seedstats
+package oci
 
 import (
 	"context"
@@ -42,10 +42,9 @@ type Snapshot struct {
 	Images      []Image   `json:"images"`
 }
 
-// Deletion is a trusted-side tombstone for one immutable OCI image identity.
-// Snapshots at or before DeletedAt no longer make the image eligible for Seed
-// recommendation. A genuinely new observation after DeletedAt may make it
-// eligible again, which avoids turning image deletion into a permanent denylist.
+// Deletion is a plugin-owned trusted-side tombstone for one immutable OCI
+// image identity. It prevents stale observations from immediately undoing an
+// explicit Seed-selection deletion decision.
 type Deletion struct {
 	Reference string    `json:"reference"`
 	Digest    string    `json:"digest"`
@@ -84,7 +83,7 @@ func (s *Store) Get(_ context.Context, environment string) (Snapshot, error) {
 	}
 	snapshot, ok := state.Snapshots[environment]
 	if !ok {
-		return Snapshot{}, fmt.Errorf("seed usage snapshot %q: %w", environment, core.ErrNotFound)
+		return Snapshot{}, fmt.Errorf("OCI plugin usage snapshot %q: %w", environment, core.ErrNotFound)
 	}
 	return snapshot, nil
 }
@@ -176,7 +175,7 @@ func (s *Store) ListDeletions(context.Context) ([]Deletion, error) {
 		result = append(result, deletion)
 	}
 	sort.Slice(result, func(i, j int) bool {
-		if result[i].DeletedAt != result[j].DeletedAt {
+		if !result[i].DeletedAt.Equal(result[j].DeletedAt) {
 			return result[i].DeletedAt.Before(result[j].DeletedAt)
 		}
 		return result[i].Key() < result[j].Key()
@@ -190,16 +189,16 @@ func (s *Store) read() (usageFileState, error) {
 		return usageFileState{Version: usageStateVersion, Snapshots: map[string]Snapshot{}, Deletions: map[string]Deletion{}}, nil
 	}
 	if err != nil {
-		return usageFileState{}, fmt.Errorf("read seed usage state: %w", err)
+		return usageFileState{}, fmt.Errorf("read OCI plugin usage state: %w", err)
 	}
 	var state usageFileState
 	if err := json.Unmarshal(contents, &state); err != nil {
-		return usageFileState{}, fmt.Errorf("decode seed usage state: %w", err)
+		return usageFileState{}, fmt.Errorf("decode OCI plugin usage state: %w", err)
 	}
 	switch state.Version {
 	case legacyUsageStateVersion, usageStateVersion:
 	default:
-		return usageFileState{}, fmt.Errorf("seed usage state version %d is unsupported: %w", state.Version, core.ErrIncompatibleState)
+		return usageFileState{}, fmt.Errorf("OCI plugin usage state version %d is unsupported: %w", state.Version, core.ErrIncompatibleState)
 	}
 	if state.Snapshots == nil {
 		state.Snapshots = map[string]Snapshot{}
@@ -221,7 +220,7 @@ func (s *Store) read() (usageFileState, error) {
 			return usageFileState{}, err
 		}
 		if key != deletion.Key() {
-			return usageFileState{}, fmt.Errorf("seed deletion key %q does not match identity %q: %w", key, deletion.Key(), core.ErrIncompatibleState)
+			return usageFileState{}, fmt.Errorf("OCI plugin deletion key %q does not match identity %q: %w", key, deletion.Key(), core.ErrIncompatibleState)
 		}
 	}
 	state.Version = usageStateVersion
@@ -231,7 +230,7 @@ func (s *Store) read() (usageFileState, error) {
 func (s *Store) write(state usageFileState) error {
 	dir := filepath.Dir(s.path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("create seed usage state directory: %w", err)
+		return fmt.Errorf("create OCI plugin usage state directory: %w", err)
 	}
 	state.Version = usageStateVersion
 	if state.Snapshots == nil {
@@ -242,11 +241,11 @@ func (s *Store) write(state usageFileState) error {
 	}
 	payload, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
-		return fmt.Errorf("encode seed usage state: %w", err)
+		return fmt.Errorf("encode OCI plugin usage state: %w", err)
 	}
 	tmp, err := os.CreateTemp(dir, ".oci-usage-*.tmp")
 	if err != nil {
-		return fmt.Errorf("create temporary seed usage state: %w", err)
+		return fmt.Errorf("create temporary OCI plugin usage state: %w", err)
 	}
 	tmpName := tmp.Name()
 	cleanup := func() {
@@ -255,23 +254,23 @@ func (s *Store) write(state usageFileState) error {
 	}
 	if err := tmp.Chmod(0o600); err != nil {
 		cleanup()
-		return fmt.Errorf("secure temporary seed usage state: %w", err)
+		return fmt.Errorf("secure temporary OCI plugin usage state: %w", err)
 	}
 	if _, err := tmp.Write(payload); err != nil {
 		cleanup()
-		return fmt.Errorf("write temporary seed usage state: %w", err)
+		return fmt.Errorf("write temporary OCI plugin usage state: %w", err)
 	}
 	if err := tmp.Sync(); err != nil {
 		cleanup()
-		return fmt.Errorf("sync temporary seed usage state: %w", err)
+		return fmt.Errorf("sync temporary OCI plugin usage state: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
 		_ = os.Remove(tmpName)
-		return fmt.Errorf("close temporary seed usage state: %w", err)
+		return fmt.Errorf("close temporary OCI plugin usage state: %w", err)
 	}
 	if err := os.Rename(tmpName, s.path); err != nil {
 		_ = os.Remove(tmpName)
-		return fmt.Errorf("commit seed usage state: %w", err)
+		return fmt.Errorf("commit OCI plugin usage state: %w", err)
 	}
 	if directory, err := os.Open(dir); err == nil {
 		_ = directory.Sync()
@@ -297,7 +296,7 @@ func validateDeletion(deletion Deletion) error {
 		return err
 	}
 	if !digestPattern.MatchString(deletion.Digest) || deletion.DeletedAt.IsZero() {
-		return fmt.Errorf("invalid OCI deletion identity %q@%q: %w", deletion.Reference, deletion.Digest, core.ErrInvalidArgument)
+		return fmt.Errorf("invalid OCI plugin deletion identity %q@%q: %w", deletion.Reference, deletion.Digest, core.ErrInvalidArgument)
 	}
 	return nil
 }

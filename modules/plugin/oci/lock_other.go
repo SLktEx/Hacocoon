@@ -1,6 +1,6 @@
 //go:build !linux
 
-package seedstats
+package oci
 
 func lockStateFile(string) (func(), error) {
 	return func() {}, nil

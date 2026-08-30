@@ -1,4 +1,4 @@
-package seedstats
+package oci
 
 import (
 	"context"
@@ -15,16 +15,17 @@ import (
 )
 
 type deleteExecutor struct {
+	driver Driver
 	images map[string]string
 	rmi    []string
 }
 
 func (f *deleteExecutor) ExecEnvironment(_ context.Context, ref string, req core.ExecutionRequest) (core.ExecutionResult, error) {
-	if reflect.DeepEqual(req.Argv, imageListArgv()) {
+	if reflect.DeepEqual(req.Argv, imageListArgv(f.driver)) {
 		return core.ExecutionResult{ExitCode: 0, Stdout: f.images[ref]}, nil
 	}
-	if len(req.Argv) == 3 && req.Argv[0] == "nerdctl" && req.Argv[1] == "rmi" {
-		f.rmi = append(f.rmi, ref+":"+req.Argv[2])
+	if reflect.DeepEqual(req.Argv, imageRemoveArgv(f.driver, "docker.io/library/node:24")) {
+		f.rmi = append(f.rmi, ref+":"+req.Argv[len(req.Argv)-1])
 		f.images[ref] = ""
 		return core.ExecutionResult{ExitCode: 0}, nil
 	}
@@ -51,7 +52,7 @@ func (f *deleteHostRunner) Run(_ context.Context, name string, args ...string) (
 	return host.Result{ExitCode: 1, Stderr: "unexpected command"}, errors.New("unexpected command")
 }
 
-func TestDeleteImageRemovesHostAndAllEnvironmentsAndSuppressesAutoPromotion(t *testing.T) {
+func TestDeleteImageRemovesNerdctlHostAndAllEnvironmentsAndSuppressesAutoPromotion(t *testing.T) {
 	dir := t.TempDir()
 	environmentPath := filepath.Join(dir, "environments.json")
 	writeDeleteEnvironmentState(t, environmentPath, map[string]core.Environment{
@@ -71,9 +72,9 @@ func TestDeleteImageRemovesHostAndAllEnvironmentsAndSuppressesAutoPromotion(t *t
 			t.Fatal(err)
 		}
 	}
-	runtime := &deleteExecutor{images: map[string]string{"ref-a": row, "ref-b": row}}
+	runtime := &deleteExecutor{driver: DriverNerdctl, images: map[string]string{"ref-a": row, "ref-b": row}}
 	hostRunner := &deleteHostRunner{images: row}
-	service, err := New(runtime, environmentPath, store, WithHostRunner(hostRunner))
+	service, err := New(runtime, environmentPath, store, DriverNerdctl, WithHostRunner(hostRunner))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,9 +103,6 @@ func TestDeleteImageRemovesHostAndAllEnvironmentsAndSuppressesAutoPromotion(t *t
 		t.Fatalf("deleted image survived recommendation: %#v", recommendations)
 	}
 
-	// Runtime use after deletion is allowed, but manual deletion is an explicit
-	// Seed-selection override. A later sample must not silently auto-promote the
-	// exact deleted identity again.
 	newSample := deletedAt.Add(time.Hour)
 	if err := store.Put(context.Background(), Snapshot{
 		Environment: "a",
@@ -120,6 +118,45 @@ func TestDeleteImageRemovesHostAndAllEnvironmentsAndSuppressesAutoPromotion(t *t
 	}
 	if len(recommendations) != 0 {
 		t.Fatalf("manual deletion must override automatic promotion: %#v", recommendations)
+	}
+}
+
+func TestDeleteImageDockerDriverDoesNotTouchHostDaemon(t *testing.T) {
+	dir := t.TempDir()
+	environmentPath := filepath.Join(dir, "environments.json")
+	writeDeleteEnvironmentState(t, environmentPath, map[string]core.Environment{
+		"a": {Name: "a", RuntimeRef: "ref-a"},
+	})
+	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	row := "docker.io/library/node\t24\t" + digest + "\n"
+	store := NewStore(filepath.Join(dir, "oci-usage.json"))
+	if err := store.Put(context.Background(), Snapshot{
+		Environment: "a",
+		SampledAt:   time.Now().UTC(),
+		Images:      []Image{{Repository: "docker.io/library/node", Tag: "24", Digest: digest}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &deleteExecutor{driver: DriverDocker, images: map[string]string{"ref-a": row}}
+	hostRunner := &deleteHostRunner{images: row}
+	service, err := New(runtime, environmentPath, store, DriverDocker, WithHostRunner(hostRunner))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := service.DeleteImage(context.Background(), "docker.io/library/node:24", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.HostCache != "not-configured" {
+		t.Fatalf("Docker profile must not infer Host Seed cache authority: %#v", report)
+	}
+	if len(hostRunner.rmi) != 0 {
+		t.Fatalf("Docker driver touched nerdctl Host cache: %#v", hostRunner.rmi)
+	}
+	want := []string{"ref-a:docker.io/library/node:24"}
+	if !reflect.DeepEqual(runtime.rmi, want) {
+		t.Fatalf("runtime rmi=%#v want=%#v", runtime.rmi, want)
 	}
 }
 
@@ -139,11 +176,11 @@ func TestDeleteImageRefusesMovedTag(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	runtime := &deleteExecutor{images: map[string]string{
+	runtime := &deleteExecutor{driver: DriverNerdctl, images: map[string]string{
 		"ref-a": "docker.io/library/node\t24\t" + newDigest + "\n",
 	}}
 	hostRunner := &deleteHostRunner{}
-	service, err := New(runtime, environmentPath, store, WithHostRunner(hostRunner))
+	service, err := New(runtime, environmentPath, store, DriverNerdctl, WithHostRunner(hostRunner))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,12 +202,12 @@ func TestExplicitDigestDoesNotDeleteMovedTag(t *testing.T) {
 	})
 	oldDigest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	newDigest := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	runtime := &deleteExecutor{images: map[string]string{
+	runtime := &deleteExecutor{driver: DriverNerdctl, images: map[string]string{
 		"ref-a": "docker.io/library/node\t24\t" + newDigest + "\n",
 	}}
 	hostRunner := &deleteHostRunner{images: "docker.io/library/node\t24\t" + newDigest + "\n"}
 	store := NewStore(filepath.Join(dir, "oci-usage.json"))
-	service, err := New(runtime, environmentPath, store, WithHostRunner(hostRunner))
+	service, err := New(runtime, environmentPath, store, DriverNerdctl, WithHostRunner(hostRunner))
 	if err != nil {
 		t.Fatal(err)
 	}

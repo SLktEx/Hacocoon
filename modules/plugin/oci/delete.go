@@ -1,4 +1,4 @@
-package seedstats
+package oci
 
 import (
 	"context"
@@ -26,14 +26,13 @@ type deleteTarget struct {
 	RequireReferenceDigestMatch bool
 }
 
-// DeleteImage removes one immutable image identity from the Host Seed cache and
-// records a Seed-deletion tombstone. Published Seed revisions are immutable, so
-// the tombstone means the next Seed build must omit the image and publish a new
-// revision. With allEnvironments, Hacocoon also removes the exact image from all
-// managed Environments after re-validating that each mutable tag still points to
-// the resolved digest. nerdctl --force is deliberately not used.
+// DeleteImage records an OCI-plugin Seed-selection tombstone and optionally
+// removes the exact image identity from managed Environments. Host Seed-cache
+// removal is supported only by the project-maintained nerdctl namespace
+// profile; Docker driver selection never authorizes access to an arbitrary Host
+// Docker daemon.
 func (s *Service) DeleteImage(ctx context.Context, raw string, allEnvironments bool) (DeleteReport, error) {
-	if s == nil || s.store == nil || s.runtime == nil || s.hostRunner == nil {
+	if s == nil || s.store == nil || s.runtime == nil {
 		return DeleteReport{}, core.ErrRuntimeUnavailable
 	}
 	target, err := s.resolveDeleteTarget(ctx, raw)
@@ -43,7 +42,7 @@ func (s *Service) DeleteImage(ctx context.Context, raw string, allEnvironments b
 	report := DeleteReport{
 		Reference: target.Reference,
 		Digest:    target.Digest,
-		HostCache: "not-present",
+		HostCache: "not-configured",
 	}
 
 	var environments []core.Environment
@@ -70,13 +69,17 @@ func (s *Service) DeleteImage(ctx context.Context, raw string, allEnvironments b
 		}
 		if len(report.Failures) > 0 {
 			sort.Strings(report.SkippedEnvironments)
-			return report, fmt.Errorf("preflight OCI image deletion from all Environments: %w", core.ErrIncompatibleState)
+			return report, fmt.Errorf("preflight OCI plugin image deletion from all Environments: %w", core.ErrIncompatibleState)
 		}
 	}
 
-	hostPresent, err := s.hostHasTarget(ctx, target)
-	if err != nil {
-		return report, err
+	hostPresent := false
+	if s.hostRunner != nil && s.driver == DriverNerdctl {
+		report.HostCache = "not-present"
+		hostPresent, err = s.hostHasTarget(ctx, target)
+		if err != nil {
+			return report, err
+		}
 	}
 
 	if allEnvironments {
@@ -101,7 +104,7 @@ func (s *Service) DeleteImage(ctx context.Context, raw string, allEnvironments b
 		if len(report.Failures) > 0 {
 			sort.Strings(report.RemovedEnvironments)
 			sort.Strings(report.SkippedEnvironments)
-			return report, fmt.Errorf("OCI image deletion completed only for some Environments: %w", core.ErrRecoveryRequired)
+			return report, fmt.Errorf("OCI plugin image deletion completed only for some Environments: %w", core.ErrRecoveryRequired)
 		}
 	}
 
@@ -121,7 +124,7 @@ func (s *Service) DeleteImage(ctx context.Context, raw string, allEnvironments b
 	deletion := Deletion{Reference: target.Reference, Digest: target.Digest, DeletedAt: s.now().UTC()}
 	if err := s.store.PutDeletion(ctx, deletion); err != nil {
 		if report.HostCache == "removed" || len(report.RemovedEnvironments) > 0 {
-			return report, errors.Join(fmt.Errorf("persist Seed deletion tombstone: %w", err), core.ErrRecoveryRequired)
+			return report, errors.Join(fmt.Errorf("persist OCI plugin Seed deletion tombstone: %w", err), core.ErrRecoveryRequired)
 		}
 		return report, err
 	}
@@ -174,11 +177,11 @@ func (s *Service) resolveDeleteTarget(ctx context.Context, raw string) (deleteTa
 }
 
 func (s *Service) environmentHasTarget(ctx context.Context, environment core.Environment, target deleteTarget) (bool, error) {
-	result, err := s.runtime.ExecEnvironment(ctx, environment.RuntimeRef, core.ExecutionRequest{Argv: imageListArgv()})
+	result, err := s.runtime.ExecEnvironment(ctx, environment.RuntimeRef, core.ExecutionRequest{Argv: imageListArgv(s.driver)})
 	if err != nil || result.ExitCode != 0 {
-		return false, commandFailure("list Environment OCI images", result.Stderr, err, result.ExitCode)
+		return false, commandFailure("list Environment OCI plugin images", result.Stderr, err, result.ExitCode)
 	}
-	images, err := parseNerdctlImages(result.Stdout)
+	images, err := parseImageRows(result.Stdout, string(s.driver))
 	if err != nil {
 		return false, err
 	}
@@ -190,25 +193,29 @@ func (s *Service) removeEnvironmentTarget(ctx context.Context, environment core.
 	if err != nil || !present {
 		return false, err
 	}
-	result, execErr := s.runtime.ExecEnvironment(ctx, environment.RuntimeRef, core.ExecutionRequest{Argv: []string{"nerdctl", "rmi", target.Reference}})
+	result, execErr := s.runtime.ExecEnvironment(ctx, environment.RuntimeRef, core.ExecutionRequest{Argv: imageRemoveArgv(s.driver, target.Reference)})
 	if execErr != nil || result.ExitCode != 0 {
 		if looksNotFound(result.Stderr) {
 			return false, nil
 		}
-		return false, commandFailure("remove Environment OCI image", result.Stderr, execErr, result.ExitCode)
+		return false, commandFailure("remove Environment OCI plugin image", result.Stderr, execErr, result.ExitCode)
 	}
 	return true, nil
 }
 
 func (s *Service) hostHasTarget(ctx context.Context, target deleteTarget) (bool, error) {
-	result, err := s.hostRunner.Run(ctx, "nerdctl", append([]string{"--namespace", s.seedNamespace}, imageListArgv()[1:]...)...)
+	if s.hostRunner == nil || s.driver != DriverNerdctl {
+		return false, nil
+	}
+	list := imageListArgv(DriverNerdctl)
+	result, err := s.hostRunner.Run(ctx, "nerdctl", append([]string{"--namespace", s.seedNamespace}, list[1:]...)...)
 	if err != nil || result.ExitCode != 0 {
 		if looksNamespaceNotFound(result.Stderr) {
 			return false, nil
 		}
-		return false, commandFailure("list Host Seed-cache OCI images", result.Stderr, err, result.ExitCode)
+		return false, commandFailure("list OCI plugin Host Seed-cache images", result.Stderr, err, result.ExitCode)
 	}
-	images, err := parseNerdctlImages(result.Stdout)
+	images, err := parseImageRows(result.Stdout, "nerdctl")
 	if err != nil {
 		return false, err
 	}
@@ -216,6 +223,9 @@ func (s *Service) hostHasTarget(ctx context.Context, target deleteTarget) (bool,
 }
 
 func (s *Service) removeHostTarget(ctx context.Context, target deleteTarget) (bool, error) {
+	if s.hostRunner == nil || s.driver != DriverNerdctl {
+		return false, nil
+	}
 	present, err := s.hostHasTarget(ctx, target)
 	if err != nil || !present {
 		return false, err
@@ -225,13 +235,9 @@ func (s *Service) removeHostTarget(ctx context.Context, target deleteTarget) (bo
 		if looksNotFound(result.Stderr) {
 			return false, nil
 		}
-		return false, commandFailure("remove Host Seed-cache OCI image", result.Stderr, runErr, result.ExitCode)
+		return false, commandFailure("remove OCI plugin Host Seed-cache image", result.Stderr, runErr, result.ExitCode)
 	}
 	return true, nil
-}
-
-func imageListArgv() []string {
-	return []string{"nerdctl", "images", "--format", "{{.Repository}}\t{{.Tag}}\t{{.Digest}}"}
 }
 
 func targetPresent(images []Image, target deleteTarget) (bool, error) {
@@ -247,17 +253,6 @@ func targetPresent(images []Image, target deleteTarget) (bool, error) {
 		}
 	}
 	return false, nil
-}
-
-func commandFailure(action, stderr string, err error, exitCode int) error {
-	reason := strings.TrimSpace(stderr)
-	if reason == "" && err != nil {
-		reason = err.Error()
-	}
-	if reason == "" {
-		reason = fmt.Sprintf("exit code %d", exitCode)
-	}
-	return fmt.Errorf("%s: %s: %w", action, reason, core.ErrRuntimeUnavailable)
 }
 
 func looksNotFound(stderr string) bool {

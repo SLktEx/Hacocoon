@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
@@ -13,9 +14,9 @@ import (
 	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
-	seedstatsapp "github.com/SLktEx/Hacocoon/internal/seedstats"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
+	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
 )
 
@@ -25,10 +26,10 @@ type App struct {
 	Clients      *clientapp.Service
 	Capabilities *capabilityapp.Service
 	Git          *gitcapapp.Broker
+	OCI          *ociplugin.Service
 	Runner       *runapp.Service
 	Events       *eventsapp.Service
 	Bases        *environmentapp.BaseRouter
-	SeedStats    *seedstatsapp.Service
 	Runtime      *incus.Runtime
 }
 
@@ -66,14 +67,25 @@ func Local(_ context.Context) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	seedStats, err := seedstatsapp.New(
-		runtime,
-		environmentStatePath,
-		seedstatsapp.NewStore(filepath.Join(stateDir, "oci-usage.json")),
-	)
-	if err != nil {
-		return nil, err
+
+	var ociPlugin *ociplugin.Service
+	if configuredDriver := strings.TrimSpace(os.Getenv("HACO_PLUGIN_OCI")); configuredDriver != "" {
+		driver, err := ociplugin.ParseDriver(configuredDriver)
+		if err != nil {
+			return nil, err
+		}
+		ociPlugin, err = ociplugin.New(
+			runtime,
+			environmentStatePath,
+			ociplugin.NewStore(filepath.Join(stateDir, "oci-usage.json")),
+			driver,
+			ociplugin.WithHostRunner(runner),
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	environments := workspaceapp.New(runtime, store)
 	return &App{
 		Environments: environments,
@@ -81,10 +93,10 @@ func Local(_ context.Context) (*App, error) {
 		Clients:      clientapp.New(runtime, store),
 		Capabilities: capabilities,
 		Git:          gitcapapp.NewBroker(runner, store, capabilities),
+		OCI:          ociPlugin,
 		Runner:       runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks")),
 		Events:       eventsapp.New(auditPath),
 		Bases:        runtime,
-		SeedStats:    seedStats,
 		Runtime:      incusRuntime,
 	}, nil
 }

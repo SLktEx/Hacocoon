@@ -4,9 +4,28 @@ Status: cross-cutting architecture reference. This is **not** a v0.1 implementat
 
 ## Goal
 
-Hacocoon keeps a small Core while concrete environment, workspace, capability, approval, storage, and client integrations evolve independently.
+Hacocoon keeps a small Core while concrete environment, workspace, capability, approval, storage, client, and developer-tool integrations evolve independently.
 
-Use ordinary Go package boundaries and ports/adapters first. A dynamic plugin framework is added only if deployment or third-party extension needs justify it.
+Use ordinary Go package boundaries and ports/adapters first. A dynamic plugin framework is added only if deployment or third-party extension needs justify it. The CLI `haco plugin ...` namespace is the user-facing boundary for optional integrations; it does not imply that every plugin must be a dynamically loaded shared object.
+
+## Core boundary
+
+Core owns only the behavior needed to create, isolate, connect to, execute inside, and tear down Hacocoon Environments, plus the generic policy/approval/event boundaries required to do that safely.
+
+Core must not require a particular developer workload or toolchain inside an Environment.
+
+In particular, Core must not require or assume:
+
+- containerd;
+- nerdctl;
+- Docker CLI or Docker Engine;
+- an OCI registry;
+- OCI image telemetry/Seed promotion;
+- Git or GitHub;
+- cloud-provider CLIs;
+- VS Code or another IDE.
+
+An Environment may contain any of those tools because a Base/Seed, operator, or optional plugin chose to provide them.
 
 ## Candidate seams
 
@@ -20,11 +39,36 @@ CapabilityProvider
 PolicyEvaluator
 ApprovalProvider
 EventSink
+Plugin
 ```
 
 Promote a seam into a Go interface when a second implementation, a stable test boundary, or a real replacement requirement makes it useful.
 
-Core domain values must not import Incus, Git, GitHub, AWS, VS Code, Daintree, Rookery, storage-backend, or cloud-provider implementation packages.
+Core domain values must not import Incus, Git, GitHub, AWS, VS Code, Daintree, Rookery, OCI/container tooling, storage-backend, or cloud-provider implementation packages.
+
+## Optional OCI plugin
+
+Container tooling is an optional developer-workload integration implemented under `modules/plugin/oci`.
+
+The OCI plugin may provide profiles backed by `nerdctl` or the genuine Docker CLI, OCI usage telemetry, Seed recommendations, local-registry helpers, and Docker Engine compatibility packaging. Those are plugin responsibilities even when a project-maintained development profile enables them for convenience.
+
+The plugin is opt-in at host composition time:
+
+```text
+HACO_PLUGIN_OCI=nerdctl   # use nerdctl for OCI inventory
+HACO_PLUGIN_OCI=docker    # use Docker CLI for OCI inventory
+unset HACO_PLUGIN_OCI     # no OCI plugin; Core still works
+```
+
+The absence of the plugin must not make `haco create`, `haco run`, `haco exec`, connection management, policy, approvals, or Environment lifecycle unavailable merely because `nerdctl`, Docker, or containerd is missing.
+
+Plugin-owned CLI functionality lives under:
+
+```text
+haco plugin oci ...
+```
+
+Core Base inspection remains under `haco base ...` because that command describes Hacocoon Environment Bases, not OCI workload images.
 
 ## Release placement
 
@@ -44,21 +88,32 @@ v0.4+
 v0.5
   GitHub capability adapter
 
-v0.7+
-  AWS capability adapter
-  experimental EC2 Environment implementation, disabled by default
-  storage adapters only where required by an Environment implementation
+v0.7
+  provider-neutral remote/cloud routing seam
+  concrete EC2/AWS/EBS implementation is currently deferred
+
+v0.15
+  OCI usage telemetry and Seed recommendation
+
+v0.16
+  OCI image deletion
+
+v0.17
+  optional Docker compatibility plugin foundation
+
+v0.18+
+  optional Local OCI Registry and later Seed/COW work remain outside Core
 ```
 
 The first Incus implementation does not by itself require a generalized `EnvironmentProvider` framework. The second real environment backend is the natural point to validate that seam.
 
-The EC2 provider is not part of the normal provider set in v0.7. Composition/registration must require an explicit host/operator experimental opt-in. With that gate disabled, EC2 provider construction must not trigger AWS credential lookup, network activity, or AWS API calls.
+The provider-neutral v0.7 seam remains part of the architecture, but the concrete EC2/AWS/EBS implementation is intentionally absent from the active tree until the local/provider contracts are stable enough for meaningful cloud acceptance.
 
 ## Do not over-generalize v0.1
 
 v0.1 should not create interfaces merely because the roadmap names future providers. Start with the smallest concrete Incus/external-path vertical slice.
 
-Advanced storage code already present in the repository is historical implementation inventory, not proof that storage belongs in Core or in the v0.1 architecture.
+Advanced storage or OCI code present in the repository is optional implementation inventory, not proof that storage or container tooling belongs in Core or in the v0.1 architecture.
 
 ## Workspace ownership rule
 
