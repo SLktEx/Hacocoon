@@ -17,19 +17,23 @@ import (
 const maxRuntimeRefLength = 4096
 
 var (
-	ec2InstanceIDPattern = regexp.MustCompile(`^i-[0-9a-f]{8,17}$`)
-	awsAccountIDPattern  = regexp.MustCompile(`^[0-9]{12}$`)
+	ec2InstanceIDPattern      = regexp.MustCompile(`^i-[0-9a-f]{8,17}$`)
+	awsAccountIDPattern       = regexp.MustCompile(`^[0-9]{12}$`)
+	createOperationKeyPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	createClientTokenPattern  = regexp.MustCompile(`^[0-9a-f]{48}$`)
 )
 
 type runtimeRef struct {
-	Version       int    `json:"version"`
-	AccountID     string `json:"account_id"`
-	Region        string `json:"region"`
-	InstanceID    string `json:"instance_id"`
-	WorkspacePath string `json:"workspace_path"`
-	Bucket        string `json:"bucket"`
-	Prefix        string `json:"prefix"`
-	ReadOnly      bool   `json:"read_only"`
+	Version         int    `json:"version"`
+	AccountID       string `json:"account_id"`
+	Region          string `json:"region"`
+	InstanceID      string `json:"instance_id"`
+	WorkspacePath   string `json:"workspace_path"`
+	Bucket          string `json:"bucket"`
+	Prefix          string `json:"prefix"`
+	ReadOnly        bool   `json:"read_only"`
+	CreateOperation string `json:"create_operation,omitempty"`
+	ClientToken     string `json:"client_token,omitempty"`
 }
 
 func encodeRef(ref runtimeRef) (string, error) {
@@ -95,6 +99,12 @@ func validateRuntimeRef(ref runtimeRef) error {
 		return fmt.Errorf("invalid EC2 runtime bucket: %w", core.ErrIncompatibleState)
 	case !validRuntimePrefix(ref.Prefix):
 		return fmt.Errorf("invalid EC2 runtime prefix: %w", core.ErrIncompatibleState)
+	case (ref.CreateOperation == "") != (ref.ClientToken == ""):
+		return fmt.Errorf("incomplete EC2 create-operation identity: %w", core.ErrIncompatibleState)
+	case ref.CreateOperation != "" && !createOperationKeyPattern.MatchString(ref.CreateOperation):
+		return fmt.Errorf("invalid EC2 create-operation key: %w", core.ErrIncompatibleState)
+	case ref.ClientToken != "" && !createClientTokenPattern.MatchString(ref.ClientToken):
+		return fmt.Errorf("invalid EC2 create client token: %w", core.ErrIncompatibleState)
 	default:
 		return nil
 	}
