@@ -24,7 +24,8 @@ Hacocoon は pre-1.0 です。v0.17 OCI Seed Builder & Btrfs/COW がpartialなfe
 | OCI plugin boundary | `HACO_PLUGIN_OCI=nerdctl|docker` の明示opt-in。未設定でもCoreは動作する | cross-cutting |
 | OCI Seed Recommendation | `haco plugin oci seed sample` / `recommend`、top 10%を `auto_promote=true` | v0.15 |
 | OCI Image Deletion | `haco plugin oci image delete`、deletion tombstone、optional all-environments | v0.16 |
-| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build/current`、Tooling/Seed manifest、trusted Host acquisition、offline no-NIC builder、immutable publish/current pointer、exact-parent resolutionを実装。real-host/COW acceptanceとGC/recoveryはpending | v0.17 partial |
+| OCI deletion override | tombstoneはrecommendationと既存pinより優先し、`haco plugin oci image reenable <reference@sha256:...>` でexact immutable identityだけ明示復活できる | v0.16 / v0.17 integration |
+| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build` / `current`、Base単位の `pin` / `unpin` / `pins`、保守的な `seed gc` / `recover`、trusted Host acquisition、offline no-NIC build、immutable publish/current pointer、exact-parent resolution、build前のinterrupted-builder recoveryを実装。real-host/private-registry/COW acceptanceはpending | v0.17 partial |
 | Docker Compatibility | `haco plugin oci docker status/prepare`。Base提供profileとpinned systemd unitを検証し、active vendor daemonを勝手に停止せずEnvironment-local socket activationだけを有効化 | v0.18 implemented |
 | Optional Local OCI Registry | optional。通常pullやSeed constructionの必須経路ではない | unversioned optional / deferred |
 
@@ -48,9 +49,11 @@ Base lifecycle は `haco base ...`、OCI workload tooling は `haco plugin oci .
 
 ## OCI Seed / storage
 
-v0.17はfirst repository slice実装済みです。trusted Host acquisition/cache → offline no-NIC Seed Builder → immutable Seed revision/current pointer → exact-parent resolution → normal Incus/storage-driver clone まで実装されています。複数Environmentで一つのwritable `/var/lib/containerd` を共有しません。
+v0.17はfirst repository sliceのbuild/publishに加え、operations-hardening sliceもrepository実装済みです。trusted Host acquisition/cache → offline no-NIC Seed Builder → immutable Seed revision/current pointer → exact-parent resolution → normal Incus/storage-driver clone の経路を維持し、複数Environmentで一つのwritable `/var/lib/containerd` を共有しません。
 
-Local Registryはprerequisiteではなくroadmap versionも予約しません。残件はold Tooling/Seed revision GC、restart/crash recovery、authenticated/private-registry combination、physical Btrfs COW measurement、broader real-host acceptanceです。
+Base単位の明示pinはimmutable OCI identityとしてpersistします。deletion tombstoneはrecommendationと既存pinの両方より優先し、exact identityを明示reenableするまで復活しません。`seed recover` はHacocoon-owned temporary builderをreconcileしてから保守的GCを行い、`seed build` もbuild lock保持中に事前recoveryします。GCはIncus-owned Btrfs internalsを直接触らず、current/in-use/instance-base/external-aliasのimageを保持します。publish後にもdeletion stateを再確認するため、長いbuild中にoperator deleteがraceしてもcurrentへ昇格しません。
+
+Local Registryはprerequisiteではなくroadmap versionも予約しません。残件はreal supported-host Incus/containerd/Docker acceptance、credential-free Environment harvestingを含むauthenticated/private-registry combination、physical Btrfs COW measurement、broader real-host failure injectionです。
 
 ## Docker compatibility
 

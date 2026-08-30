@@ -63,10 +63,10 @@ See [`../design/plugin-architecture.md`](../design/plugin-architecture.md) and [
 | v0.14 | Git Fetch Plugin | implemented |
 | v0.15 | OCI Seed Recommendation | implemented |
 | v0.16 | OCI Image Deletion | first slice implemented |
-| v0.17 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
+| v0.17 | OCI Seed Builder & Btrfs/COW | build/publish + operations-hardening repository slices / partial |
 | v0.18 | Docker Compatibility Plugin | repository implementation complete; real-host acceptance remains host-dependent |
 
-Fully implemented product milestones are contiguous through **v0.16** because v0.17 remains partial. v0.18 has a complete repository implementation even though the preceding Seed/COW gate still has lifecycle/acceptance work.
+Fully implemented product milestones are contiguous through **v0.16** because v0.17 remains partial. v0.18 has a complete repository implementation even though the preceding Seed/COW gate still has acceptance work.
 
 **Local OCI Registry is not a roadmap milestone.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
 
@@ -84,7 +84,7 @@ HACO_PLUGIN_OCI=docker   haco plugin oci ...
 
 ## OCI storage direction
 
-v0.17 has a **first repository slice** implementing trusted Host acquisition/cache, an offline no-NIC Seed Builder, immutable Seed publication/current pointer, exact-parent resolution, and normal Incus/storage-driver cloning. Physical Btrfs COW measurement, conservative old-revision GC/recovery, authenticated/private-registry combinations, and broader real-host acceptance remain pending. Never share one writable `/var/lib/containerd` across Environments.
+v0.17 repository work now covers trusted Host acquisition/cache, an offline no-NIC Seed Builder, immutable Seed publication/current pointer, exact-parent resolution, explicit per-Base immutable pins, exact re-enable after deletion, conservative old-revision GC, interrupted-builder recovery, deletion-race protection, and normal Incus/storage-driver cloning. Physical Btrfs COW measurement, authenticated/private-registry combinations including credential-free Environment harvesting where supported, broader real-host failure injection, and supported-host acceptance remain pending. Never share one writable `/var/lib/containerd` across Environments.
 
 See [`../design/oci-seed-and-cow.md`](../design/oci-seed-and-cow.md), [`../design/docker-compatibility-plugin.md`](../design/docker-compatibility-plugin.md), and [`../OPTIONAL_LOCAL_OCI_REGISTRY.md`](../OPTIONAL_LOCAL_OCI_REGISTRY.md).
 

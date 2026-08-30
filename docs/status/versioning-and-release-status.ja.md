@@ -40,10 +40,10 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 | v0.14 | Git Fetch Plugin | 実装済み |
 | v0.15 | OCI Seed Recommendation | 実装済み |
 | v0.16 | OCI Image Deletion | first slice実装済み |
-| v0.17 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
+| v0.17 | OCI Seed Builder & Btrfs/COW | repository build/publish + operations-hardening slice実装済み。real-host/private-registry/COW acceptanceはpending |
 | v0.18 | Docker Compatibility Plugin | repository実装完了、real-host acceptanceは別 |
 
-v0.17がpartialなfeature gateなので、完全実装済みのproduct progressionは **v0.16まで連続**しています。v0.18はrepository実装済みでも、前のv0.17 gateにacceptance/lifecycle残件があります。
+v0.17がpartialなfeature gateなので、完全実装済みのproduct progressionは **v0.16まで連続**しています。v0.18はrepository実装済みでも、前のv0.17 gateにacceptance残件があります。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 
@@ -67,7 +67,7 @@ Document addressはsemantic nameを使うため、milestone assignmentが変わ�
 - v0.8〜v0.13: real Windows/WSL、Agent Host、Base/resource/network acceptanceはhost-dependent
 - v0.14: private repository combinationはacceptance-sensitive
 - v0.15/v0.16: recommendation/deletion repository behaviorは実装済み
-- v0.17: Seed build/current、trusted Host acquisition、no-NIC builder、immutable publish/current pointer、exact-parent resolutionは実装済み。old-revision GC/recovery、private registry combination、physical Btrfs COW measurement、broader real-host acceptanceが残る
+- v0.17: Seed build/publishに加え、explicit pin/reenable、保守的old-revision GC、中断builder recovery、deletion-race protectionまでrepository実装済み。credential-free Environment harvestを含むprivate-registry combination、physical Btrfs COW measurement、broader real-host failure injection、supported-host acceptanceが残る
 - v0.18: repository lifecycle/CLIは実装済み。real Incus/systemd socket activation acceptanceはhost-dependent
 
 > **独立した新機能ならそのPRで次minorを取る。fix/hardening/refactorならproduct versionは進めない。**
