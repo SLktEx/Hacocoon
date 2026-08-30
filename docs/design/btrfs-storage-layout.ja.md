@@ -1,6 +1,6 @@
 # Hacocoon 管理 Btrfs ストレージレイアウト
 
-状態: **repository実装あり。physical compression/COW/compaction acceptanceはhost-dependentです。**
+状態: **repository実装あり。GitHub-hosted上のnormal-user helper acceptanceを自動化済み。physical compression/COW/compaction acceptanceはhost-dependentです。**
 
 Milestone: **v0.20 Managed Btrfs Rootfs Storage** / **v0.21 Managed Btrfs Transparent Compression**。
 
@@ -53,6 +53,30 @@ local composition は Hacocoon Btrfs storage provider を lazy に設定する�
 最初に Environment、Tooling Base builder、または Seed builder が root storage を必要とした時点で、Incus runtime が設定済み provider を解決し、sparse-raw Btrfs storage と対応する `haco-<storage-id>` Incus pool を作成・確認する。その pool を記録し、以降の Hacocoon 所有 rootfs operation でも再利用する。したがって、これらの経路は Host の Incus default profile pool を継承しない。
 
 Hacocoon local composition を通さず低レベル Incus runtime を直接利用する経路については、互換性のため従来の default-profile 挙動を残す。この互換経路は Hacocoon の通常ローカル storage architecture ではない。
+
+## Host 特権境界
+
+通常の `haco` process は非rootのまま動かす。sparse backing file の作成・size変更、state/lock file、その他 Host 特権を必要としない処理はordinary-user process側に残し、Host権限が必要な固定storage operationだけを専用の `haco-storage-helper` へ委譲する。
+
+release installerはhelperを通常PATH外の `/usr/local/libexec/hacocoon/haco-storage-helper` へ置き、root所有・group/other非writableにする。委譲前にHacocoonはhelper本体と固定 `/usr/bin/sudo` を、root所有・実行可能・non-symlink fileかつroot所有で書き換え不能なparent directory配下か検証する。Hacocoonは**passwordless sudo ruleをinstallしない**。sudoがpromptするか、既存credential cacheを使うか、拒否するかはHost/operator policyであり、CLI全体をrootへ昇格させる設計ではない。
+
+helperは任意のexecutable/argv forwarding APIではなくtyped operationだけを公開する。権限範囲はHacocoon-managed storage objectと固定command shapeに限定し、loop discovery/attach/detach/rescan、filesystem type probe、Btrfs format、mount/remount/unmount、usage/resize/minimum-size/balance、trimのみを扱う。任意shell execution、任意mount option、任意block device format、任意loop device、任意Host path、任意Btrfs subcommandは提供しない。
+
+すべてのprivileged requestはcaller-side validationを信用せずroot helper内でも再検証する。特に次を保証する。
+
+- `HACO_ROOT`、`images`、`mounts` はcanonicalなreal directoryで、ordinary-user ownershipが必要な箇所はinvoking UID所有かつgroup/other非writableであること。
+- backing imageは正確に `<HACO_ROOT>/images/<storage-id>.raw` のregular fileで、invoking UID所有、non-symlink、group/other非writable、hard link数が1であること。
+- loop deviceは `/dev/loopN` だけを許可し、期待するmanaged `BACK-FILE` に加えて、現在のmanaged raw file inodeと同じ `BACK-INO` を報告すること。
+- 新規attachしたloopは直後に再検証し、path/inode identityが一致しなければ即detachすること。
+- `mkfs.btrfs` はhelper自身の `blkid` が明示的なno-signature stateを返した場合だけ許可し、format直前にもloop identityを再検証すること。
+- mountpointは正確に `<HACO_ROOT>/mounts/<storage-id>` に制限し、loopとmountpointのstorage identity一致を要求すること。新規mount後にもsourceを再検証し、postconditionが崩れていれば即unmountすること。
+- mount optionは `compress=zstd:3`、balance filterは固定のtargeted filter、resize targetは検証済みの正整数または `max` だけを許可すること。
+
+storage lifecycleのserializationは引き続きordinary storage layerのper-storage leaseが担当する。helper側validationはdirect invocation、stale state、partial failure、confused-deputyに対する独立したdefense-in-depthです。cleanupもfail closedで、loop detachに失敗した場合はbacking imageを削除せず、mount/loop identityが曖昧なら破壊的targetを推測せず拒否する。
+
+`HACO_STORAGE_PRIVILEGE_MODE=direct` はfake/test/development environment専用で、callerが元々持っている権限のままcommandを直接実行するだけです。権限を付与する仕組みではなく、通常のmanaged Btrfs operationで使うprivileged shortcutではない。
+
+repository CIにはdisposableなGitHub-hosted Ubuntu 26.04 acceptanceがあり、Go test processをordinary runner userのまま実行し、installed root-owned helperを経由してreal sparse image作成、loop attach、Btrfs format、`compress=zstd:3` mount、inspect、unmount、loop detach、backing image deleteまでを確認する。このacceptanceはそのhosted environment上でnormal-user privilege boundaryが機能することを示すが、physical compression ratio、COW効率、compaction効果、すべてのsupported Host configurationまで証明するものではない。
 
 ## Workspace の境界
 
