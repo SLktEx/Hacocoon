@@ -93,8 +93,9 @@ wait_for_guest() {
 wait_for_ipv4() {
   local instance="$1"
   local device="$2"
+  local max_attempts="${3:-30}"
   local attempt address
-  for attempt in $(seq 1 30); do
+  for attempt in $(seq 1 "$max_attempts"); do
     # Parse on the host so shell positional parameters in awk are never
     # accidentally expanded by the host shell before incus exec runs.
     address="$(incus exec "$instance" -- ip -4 -o addr show dev "$device" scope global 2>/dev/null | awk '{split($4, parts, "/"); print parts[1]; exit}' || true)"
@@ -104,7 +105,7 @@ wait_for_ipv4() {
     fi
     sleep 1
   done
-  echo "guest $instance did not receive IPv4 on $device within 30s" >&2
+  echo "guest $instance did not receive IPv4 on $device within ${max_attempts}s" >&2
   return 1
 }
 
@@ -186,13 +187,37 @@ ip link show "$primary_network" >/dev/null
 end_phase
 
 phase "hot NIC attach and detach"
-# Safe hot attach/detach coverage on an independent CI-owned managed bridge.
+# Incus hot-plugs the device into a running container, but the Ubuntu image's
+# generated netplan only matches the boot-time eth0. Prepare systemd-networkd
+# to manage a future eth1 so this test exercises a usable hot-added NIC rather
+# than incorrectly treating guest netplan policy as part of Incus hotplug.
+incus exec "$first" -- bash -c "cat >/etc/systemd/network/20-incus-ci-eth1.network <<'NETWORK'
+[Match]
+Name=eth1
+
+[Network]
+DHCP=ipv4
+IPv6AcceptRA=no
+
+[DHCPv4]
+UseDNS=no
+UseRoutes=no
+NETWORK
+networkctl reload"
+
 incus config device add "$first" ci-aux nic name=eth1 network="$aux_network"
-aux_ip="$(wait_for_ipv4 "$first" eth1)"
+aux_ip="$(wait_for_ipv4 "$first" eth1 10)"
 [[ -n "$aux_ip" ]]
+aux_cidr="$(incus network get "$aux_network" ipv4.address)"
+aux_gateway="${aux_cidr%%/*}"
+[[ -n "$aux_gateway" ]]
 echo "aux IPv4: $aux_ip"
+echo "aux bridge gateway: $aux_gateway"
+incus exec "$first" -- ping -I eth1 -c 1 -W 3 "$aux_gateway" >/dev/null
+[[ "$(incus exec "$first" -- ip -4 route show default | awk '{print $3; exit}')" == "$gateway" ]]
+
 incus config device remove "$first" ci-aux
-for _ in $(seq 1 20); do
+for _ in $(seq 1 10); do
   if ! incus exec "$first" -- ip link show eth1 >/dev/null 2>&1; then
     break
   fi
@@ -202,6 +227,7 @@ if incus exec "$first" -- ip link show eth1 >/dev/null 2>&1; then
   echo "hot-detached eth1 still exists" >&2
   exit 1
 fi
+incus exec "$first" -- sh -c 'rm -f /etc/systemd/network/20-incus-ci-eth1.network; networkctl reload'
 end_phase
 
 phase "systemd service lifecycle"
