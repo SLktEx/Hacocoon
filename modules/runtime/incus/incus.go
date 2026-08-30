@@ -313,14 +313,16 @@ func (r *Runtime) ensureProject(ctx context.Context) error {
 }
 
 func (r *Runtime) defaultRootPool(ctx context.Context) (string, error) {
-	result, err := r.runner.Run(ctx, "incus", "profile", "show", "default", "--project", "default", "--format", "json")
+	raw, err := r.readProfileJSON(ctx, "/1.0/profiles/default?project=default",
+		"profile", "show", "default", "--project", "default", "--format", "json",
+	)
 	if err != nil {
 		return "", err
 	}
 	var profile struct {
 		Devices map[string]map[string]string `json:"devices"`
 	}
-	if err := json.Unmarshal([]byte(result.Stdout), &profile); err != nil {
+	if err := json.Unmarshal([]byte(raw), &profile); err != nil {
 		return "", fmt.Errorf("decode default profile: %w", err)
 	}
 	for _, device := range profile.Devices {
