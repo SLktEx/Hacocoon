@@ -23,6 +23,11 @@ checks = [
     (r"active PR #111;\s*not yet on `main`|v0\.10 is the trusted adapter layer currently developed in PR #111", "stale PR #111 status"),
 ]
 
+historical_labels = {
+    "superseded v0.13 OCI filename",
+    "superseded v0.13 lettered milestone",
+}
+
 errors = []
 for p in files:
     text = p.read_text()
@@ -30,8 +35,13 @@ for p in files:
         for m in re.finditer(pat, text, flags=re.IGNORECASE):
             line = text[: m.start()].count("\n") + 1
             snippet = text.splitlines()[line - 1]
+            lowered_snippet = snippet.lower()
             if label == "legacy Hacocoon IAM term" and any(
-                word in snippet.lower() for word in ("historical", "legacy", "do not")
+                word in lowered_snippet for word in ("historical", "legacy", "do not")
+            ):
+                continue
+            if label in historical_labels and any(
+                word in lowered_snippet for word in ("historical", "superseded", "old ")
             ):
                 continue
             errors.append(f"{p.relative_to(root)}:{line}: {label}: {snippet.strip()}")
@@ -113,7 +123,7 @@ def require_text(path, required_items, label):
     return text
 
 
-versioning = require_text(
+require_text(
     "docs/00D_VERSIONING_AND_RELEASE_STATUS.md",
     [
         "One independently useful product feature",
@@ -130,7 +140,7 @@ versioning = require_text(
     "current numbering rule",
 )
 
-status = require_text(
+require_text(
     "docs/IMPLEMENTATION_STATUS.md",
     [
         "current code reality",
@@ -147,7 +157,7 @@ status = require_text(
     "current reality",
 )
 
-roadmap = require_text(
+require_text(
     "docs/00_REBASELINE_AND_ROADMAP.md",
     [
         "Hacocoon is a **Secure Workspace Runtime**",
@@ -164,7 +174,7 @@ roadmap = require_text(
     "current roadmap contract",
 )
 
-docmap = require_text(
+require_text(
     "docs/README.md",
     [
         "Source-of-truth order",
@@ -203,7 +213,7 @@ require_text(
 )
 require_text(
     "docs/17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md",
-    ["Docker Compatibility Plugin", "containerd + nerdctl", "on-demand", "not yet a complete"],
+    ["Docker Compatibility Plugin", "containerd + nerdctl", "on-demand", "not yet sufficient"],
     "v0.17 contract",
 )
 require_text(
