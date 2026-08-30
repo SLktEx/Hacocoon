@@ -89,9 +89,6 @@ func translatePrivilegedCommand(name string, args []string) (string, []string, b
 			return "", nil, false, fmt.Errorf("unsupported privileged losetup arguments: %q", args)
 		}
 	case "blkid":
-		if len(args) == 6 && args[0] == "-o" && args[1] == "value" && args[2] == "-s" && args[3] == "TYPE" {
-			return "fs-type", []string{args[4], args[5]}, true, fmt.Errorf("invalid blkid command shape")
-		}
 		if len(args) == 5 && args[0] == "-o" && args[1] == "value" && args[2] == "-s" && args[3] == "TYPE" {
 			return "fs-type", []string{args[4]}, true, nil
 		}
