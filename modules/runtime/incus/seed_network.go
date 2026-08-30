@@ -2,6 +2,8 @@ package incus
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -19,7 +21,7 @@ func (p *SandboxProvider) createToolingBuilderNetwork(ctx context.Context) (stri
 		return "", nil, core.ErrInvalidArgument
 	}
 
-	name, err := newSeedBuilderName("tooling-net")
+	name, err := newToolingNetworkName()
 	if err != nil {
 		return "", nil, err
 	}
@@ -49,4 +51,15 @@ func (p *SandboxProvider) createToolingBuilderNetwork(ctx context.Context) (stri
 		return errors.Join(cause, cleanupErr, core.ErrRecoveryRequired)
 	}
 	return name, cleanup, nil
+}
+
+// Linux interface names are limited to 15 characters. Incus uses the managed
+// network name for the bridge interface, so keep this Seed-only resource at
+// exactly 15 characters while retaining 32 bits of random identity.
+func newToolingNetworkName() (string, error) {
+	var random [4]byte
+	if _, err := rand.Read(random[:]); err != nil {
+		return "", fmt.Errorf("generate tooling network identity: %w", err)
+	}
+	return "haco-t-" + hex.EncodeToString(random[:]), nil
 }
