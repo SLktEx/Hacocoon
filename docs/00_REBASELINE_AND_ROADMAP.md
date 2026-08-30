@@ -56,9 +56,9 @@ Hacocoon does not own IDE/AI chat UX, model routing, task DAGs, Git worktree orc
 | v0.15 | OCI Seed Recommendation | implemented |
 | v0.16 | OCI Image Deletion | first slice implemented |
 | v0.17 | Docker Compatibility Plugin | implemented; real-host acceptance remains host-dependent |
-| v0.18 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.18 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
 
-Fully implemented product milestones are contiguous through **v0.17**. v0.18 is planned.
+Fully implemented product milestones are contiguous through **v0.17**. v0.18 has a first repository implementation slice; real-host/COW acceptance remains pending.
 
 **Local OCI Registry is not a roadmap milestone.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
 
@@ -82,7 +82,7 @@ v0.17 adds the explicit lifecycle commands `haco plugin oci docker status <envir
 
 ## OCI storage direction
 
-Normal upstream pull is allowed by policy. Local Registry is optional/deferred and is not required for Seed construction. v0.18 uses trusted Host acquisition/cache, an offline Seed Builder, immutable Seed publication, and normal Incus/storage-driver COW. Never share one writable `/var/lib/containerd` across Environments.
+Normal upstream pull is allowed by policy. Local Registry is optional/deferred and is not required for Seed construction. v0.18 now has a first repository slice for trusted Host acquisition/cache, an offline no-NIC Seed Builder, immutable Seed publication/current pointers, and exact-parent Seed resolution. Physical Btrfs COW measurement and broader real-host acceptance remain pending. Never share one writable `/var/lib/containerd` across Environments.
 
 See [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md) and [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
 

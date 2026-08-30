@@ -17,8 +17,8 @@ type SandboxProvider struct {
 	*BaseProvider
 }
 
-func NewSandboxProvider(runtime *Runtime) (*SandboxProvider, error) {
-	base, err := NewBaseProvider(runtime)
+func NewSandboxProvider(runtime *Runtime, options ...BaseProviderOption) (*SandboxProvider, error) {
+	base, err := NewBaseProvider(runtime, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +89,12 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 			)
 		}
 		return core.EnvironmentRuntime{}, cause
+	}
+
+	if resolved.usesSeed {
+		if err := p.configureNestedOCIInstance(ctx, ref); err != nil {
+			return cleanup(fmt.Errorf("configure nested OCI support for Seed environment: %w", err))
+		}
 	}
 
 	if err := p.applyResourceBudget(ctx, ref, resources); err != nil {

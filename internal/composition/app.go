@@ -14,6 +14,7 @@ import (
 	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
+	seedbuildapp "github.com/SLktEx/Hacocoon/internal/seedbuild"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
@@ -27,6 +28,7 @@ type App struct {
 	Capabilities *capabilityapp.Service
 	Git          *gitcapapp.Broker
 	OCI          *ociplugin.Service
+	Seeds        *seedbuildapp.Service
 	Runner       *runapp.Service
 	Events       *eventsapp.Service
 	Bases        *environmentapp.BaseRouter
@@ -37,8 +39,25 @@ func Local(_ context.Context) (*App, error) {
 	runner := host.ExecRunner{}
 	root := envOr("HACO_ROOT", "/var/lib/hacocoon")
 	stateDir := filepath.Join(root, "state")
+
+	configuredDriver := strings.TrimSpace(os.Getenv("HACO_PLUGIN_OCI"))
+	var (
+		ociDriver ociplugin.Driver
+		seedStore *seedbuildapp.Store
+	)
+	providerOptions := []incus.BaseProviderOption{}
+	if configuredDriver != "" {
+		driver, err := ociplugin.ParseDriver(configuredDriver)
+		if err != nil {
+			return nil, err
+		}
+		ociDriver = driver
+		seedStore = seedbuildapp.NewStore(filepath.Join(stateDir, "seeds.json"))
+		providerOptions = append(providerOptions, incus.WithSeedResolver(seedStore))
+	}
+
 	incusRuntime := incus.New(runner)
-	incusProvider, err := incus.NewSandboxProvider(incusRuntime)
+	incusProvider, err := incus.NewSandboxProvider(incusRuntime, providerOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -68,19 +87,22 @@ func Local(_ context.Context) (*App, error) {
 		return nil, err
 	}
 
-	var ociPlugin *ociplugin.Service
-	if configuredDriver := strings.TrimSpace(os.Getenv("HACO_PLUGIN_OCI")); configuredDriver != "" {
-		driver, err := ociplugin.ParseDriver(configuredDriver)
-		if err != nil {
-			return nil, err
-		}
+	var (
+		ociPlugin *ociplugin.Service
+		seeds     *seedbuildapp.Service
+	)
+	if configuredDriver != "" {
 		ociPlugin, err = ociplugin.New(
 			runtime,
 			environmentStatePath,
 			ociplugin.NewStore(filepath.Join(stateDir, "oci-usage.json")),
-			driver,
+			ociDriver,
 			ociplugin.WithHostRunner(runner),
 		)
+		if err != nil {
+			return nil, err
+		}
+		seeds, err = seedbuildapp.New(incusProvider, ociPlugin, seedStore)
 		if err != nil {
 			return nil, err
 		}
@@ -94,6 +116,7 @@ func Local(_ context.Context) (*App, error) {
 		Capabilities: capabilities,
 		Git:          gitcapapp.NewBroker(runner, store, capabilities),
 		OCI:          ociPlugin,
+		Seeds:        seeds,
 		Runner:       runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks")),
 		Events:       eventsapp.New(auditPath),
 		Bases:        runtime,
