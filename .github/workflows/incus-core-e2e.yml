@@ -65,7 +65,7 @@ jobs:
           check-latest: true
           cache: false
       - name: Validate Core and CLI E2E helper syntax
-        run: bash -n tools/ci-incus.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh
+        run: bash -n tools/ci-incus.sh tools/ci-incus-native-workload.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh
       - name: Prepare proven Incus substrate for Hacocoon Core
         run: bash tools/ci-incus.sh setup
       - name: Allow leased workspace owner in Incus root idmap
@@ -79,13 +79,7 @@ jobs:
             printf 'root:%s:1\n' "$gid" | sudo tee -a /etc/subgid >/dev/null
           fi
       - name: Verify guest workloads stay in their Incus Project
-        env:
-          HACO_E2E_INCUS: "1"
-          HACO_WORKLOAD_SHIM_BINARY: ${{ runner.temp }}/haco-host-incus-native-e2e
-          HACO_CONTROL_SOCKET: ${{ runner.temp }}/haco-native-e2e/control.sock
-        run: |
-          go build -trimpath -o "$HACO_WORKLOAD_SHIM_BINARY" ./cmd/haco-host
-          go test -count=1 -run '^TestRealIncusNerdctlUsesHostOCIWorkloadE2E$' ./modules/runtime/incus
+        run: bash tools/ci-incus-native-workload.sh
       - name: Install real Btrfs privilege helper
         run: bash tools/ci-storage-helper.sh setup
       - name: Run Hacocoon Core and shipped CLI lifecycle against real Incus
