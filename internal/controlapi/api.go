@@ -58,12 +58,14 @@ func Register(server *control.Server, environments environmentService) error {
 	}); err != nil {
 		return err
 	}
-	if err := server.RegisterStream(MethodEnvironmentShell, func(ctx context.Context, payload json.RawMessage, conn net.Conn) error {
+	if err := server.RegisterStream(MethodEnvironmentShell, func(_ context.Context, payload json.RawMessage) (control.Stream, error) {
 		var request EnvironmentShellRequest
 		if err := json.Unmarshal(payload, &request); err != nil || strings.TrimSpace(request.Environment) == "" {
-			return control.NewStatusError("invalid_argument", "environment is required")
+			return nil, control.NewStatusError("invalid_argument", "environment is required")
 		}
-		return environments.ShellStream(ctx, request.Environment, conn, conn, conn)
+		return func(ctx context.Context, conn net.Conn) error {
+			return environments.ShellStream(ctx, request.Environment, conn, conn, conn)
+		}, nil
 	}); err != nil {
 		return err
 	}
