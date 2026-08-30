@@ -49,6 +49,12 @@ trap - EXIT
 `
 
 func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSHAccessRequest) (core.ClientConnection, error) {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return core.ClientConnection{}, err
+	}
+	if req.HostPort < 1 || req.HostPort > 65535 {
+		return core.ClientConnection{}, core.ErrInvalidArgument
+	}
 	id := fmt.Sprintf("ssh-%d", req.HostPort)
 	if err := r.addLoopbackProxy(ctx, ref, id, req.HostPort, 22); err != nil {
 		return core.ClientConnection{}, err
@@ -74,6 +80,9 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 }
 
 func (r *Runtime) RevokeSSHAccess(ctx context.Context, ref, connectionID string) error {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return err
+	}
 	if !strings.HasPrefix(connectionID, "ssh-") {
 		return fmt.Errorf("SSH connection id %q: %w", connectionID, core.ErrInvalidArgument)
 	}
@@ -88,6 +97,9 @@ func (r *Runtime) RevokeSSHAccess(ctx context.Context, ref, connectionID string)
 }
 
 func (r *Runtime) ListClientConnections(ctx context.Context, ref string) ([]core.ClientConnection, error) {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return nil, err
+	}
 	result, err := r.runner.Run(ctx, "incus", "config", "show", ref, "--project", r.project, "--format", "json")
 	if err != nil {
 		return nil, err

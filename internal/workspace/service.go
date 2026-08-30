@@ -208,6 +208,9 @@ func (s *Service) Exec(ctx context.Context, name string, req core.ExecutionReque
 		logger.InfoContext(ctx, "environment command completed", attrs...)
 	}()
 
+	if _, err := validateEnvironmentName(name); err != nil {
+		return core.ExecutionResult{}, err
+	}
 	if len(req.Argv) == 0 {
 		return core.ExecutionResult{}, core.ErrInvalidArgument
 	}
@@ -234,6 +237,9 @@ func (s *Service) Shell(ctx context.Context, name string) (err error) {
 		logger.InfoContext(ctx, "environment shell closed", "duration_ms", time.Since(started).Milliseconds())
 	}()
 
+	if _, err := validateEnvironmentName(name); err != nil {
+		return err
+	}
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err != nil {
 		return err
@@ -257,6 +263,9 @@ func (s *Service) Delete(ctx context.Context, name string) (err error) {
 		logger.InfoContext(ctx, "environment deleted", "duration_ms", time.Since(started).Milliseconds())
 	}()
 
+	if _, err := validateEnvironmentName(name); err != nil {
+		return err
+	}
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err == nil {
 		if err := s.runtime.DeleteEnvironment(ctx, environment.RuntimeRef); err != nil && !isNotFound(err) {

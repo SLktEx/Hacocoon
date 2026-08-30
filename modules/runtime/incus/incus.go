@@ -109,6 +109,9 @@ func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (cor
 		return core.RuntimeSession{}, err
 	}
 	name := "haco-" + string(spec.ID)
+	if err := validateManagedInstanceRef(name); err != nil {
+		return core.RuntimeSession{}, err
+	}
 	args := []string{"launch", r.image, name, "--project", r.project, "--profile", sandboxProfile}
 	if pool != "" {
 		args = append(args, "--storage", pool)
@@ -126,6 +129,9 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	ref := "haco-" + spec.Name
 	if ref == trustedHostName {
 		return core.EnvironmentRuntime{}, fmt.Errorf("environment name %q is reserved for trusted Hacocoon infrastructure: %w", spec.Name, core.ErrInvalidArgument)
+	}
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return core.EnvironmentRuntime{}, err
 	}
 	if err := r.ensureProject(ctx); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("ensure Incus project: %w", err)
@@ -205,6 +211,9 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 }
 
 func (r *Runtime) ExecEnvironment(ctx context.Context, ref string, req core.ExecutionRequest) (core.ExecutionResult, error) {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return core.ExecutionResult{}, err
+	}
 	if len(req.Argv) == 0 {
 		return core.ExecutionResult{}, core.ErrInvalidArgument
 	}
@@ -218,11 +227,17 @@ func (r *Runtime) ExecEnvironment(ctx context.Context, ref string, req core.Exec
 }
 
 func (r *Runtime) ShellEnvironment(ctx context.Context, ref string) error {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return err
+	}
 	_, err := r.execInteractive(ctx, ref, []string{"/bin/bash"})
 	return err
 }
 
 func (r *Runtime) DeleteEnvironment(ctx context.Context, ref string) error {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return err
+	}
 	_, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
 	if err == nil {
 		return nil
@@ -254,6 +269,9 @@ func (r *Runtime) environmentExists(ctx context.Context, ref string) (bool, erro
 }
 
 func (r *Runtime) InspectEnvironment(ctx context.Context, ref string) (core.EnvironmentRuntimeStatus, error) {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return core.EnvironmentRuntimeStatus{}, err
+	}
 	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "s")
 	if err != nil {
 		return core.EnvironmentRuntimeStatus{}, err
@@ -270,6 +288,9 @@ func (r *Runtime) InspectEnvironment(ctx context.Context, ref string) (core.Envi
 }
 
 func (r *Runtime) ForwardLocalPort(ctx context.Context, ref string, req core.LocalPortRequest) (core.ClientConnection, error) {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return core.ClientConnection{}, err
+	}
 	id := fmt.Sprintf("tcp-%d-%d", req.HostPort, req.TargetPort)
 	if err := r.addLoopbackProxy(ctx, ref, id, req.HostPort, req.TargetPort); err != nil {
 		return core.ClientConnection{}, err
@@ -278,6 +299,9 @@ func (r *Runtime) ForwardLocalPort(ctx context.Context, ref string, req core.Loc
 }
 
 func (r *Runtime) RemoveClientConnection(ctx context.Context, ref, connectionID string) error {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return err
+	}
 	_, err := r.runner.Run(ctx, "incus", "config", "device", "remove", ref, "haco-"+connectionID, "--project", r.project)
 	return err
 }
@@ -298,21 +322,33 @@ func (r *Runtime) addLoopbackProxy(ctx context.Context, ref, id string, hostPort
 }
 
 func (r *Runtime) Start(ctx context.Context, ref string) error {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return err
+	}
 	_, err := r.runner.Run(ctx, "incus", "start", ref, "--project", r.project)
 	return err
 }
 
 func (r *Runtime) Stop(ctx context.Context, ref string) error {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return err
+	}
 	_, err := r.runner.Run(ctx, "incus", "stop", ref, "--project", r.project)
 	return err
 }
 
 func (r *Runtime) Delete(ctx context.Context, ref string) error {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return err
+	}
 	_, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
 	return err
 }
 
 func (r *Runtime) Exec(ctx context.Context, ref string, req core.ExecRequest) (core.ExecResult, error) {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return core.ExecResult{}, err
+	}
 	if len(req.Argv) == 0 {
 		return core.ExecResult{}, core.ErrInvalidArgument
 	}
@@ -325,6 +361,9 @@ func (r *Runtime) Exec(ctx context.Context, ref string, req core.ExecRequest) (c
 }
 
 func (r *Runtime) Inspect(ctx context.Context, ref string) (core.RuntimeState, error) {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return core.RuntimeState{}, err
+	}
 	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "s")
 	if err != nil {
 		return core.RuntimeState{}, err
