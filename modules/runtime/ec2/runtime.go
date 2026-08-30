@@ -18,6 +18,8 @@ import (
 
 const providerID = "runtime.ec2"
 
+const syncRestoredMetadataKey = "hacocoon-sync-restored"
+
 type Runtime struct {
 	runner       host.Runner
 	config       Config
@@ -144,8 +146,16 @@ func (r *Runtime) DeleteEnvironment(ctx context.Context, rawRef string) error {
 	if err != nil {
 		return err
 	}
-	if state != "terminated" {
-		if !ref.ReadOnly {
+
+	if !ref.ReadOnly {
+		syncRestored, markerErr := r.syncRestored(ctx, ref)
+		if markerErr != nil {
+			return errors.Join(markerErr, core.ErrRecoveryRequired)
+		}
+		if state == "terminated" && !syncRestored {
+			return fmt.Errorf("RW EC2 environment %s terminated without durable sync-back proof; retaining staging: %w", ref.InstanceID, core.ErrRecoveryRequired)
+		}
+		if state != "terminated" && !syncRestored {
 			if state != "running" {
 				return fmt.Errorf("EC2 environment %s state=%s cannot be synchronized safely: %w", ref.InstanceID, state, core.ErrRecoveryRequired)
 			}
@@ -153,6 +163,9 @@ func (r *Runtime) DeleteEnvironment(ctx context.Context, rawRef string) error {
 				return err
 			}
 		}
+	}
+
+	if state != "terminated" {
 		if _, err := r.aws(ctx, "ec2", "terminate-instances", "--instance-ids", ref.InstanceID); err != nil {
 			return fmt.Errorf("terminate EC2 environment %s: %w", ref.InstanceID, err)
 		}
@@ -202,7 +215,49 @@ func (r *Runtime) syncBack(ctx context.Context, ref runtimeRef) error {
 	if err := restoreWorkspaceArchive(ctx, r.runner, archivePath, ref.WorkspacePath); err != nil {
 		return fmt.Errorf("restore remote workspace changes: %w", err)
 	}
+	if err := r.markSyncRestored(ctx, ref); err != nil {
+		return errors.Join(fmt.Errorf("persist EC2 sync-back proof after host restore: %w", err), core.ErrRecoveryRequired)
+	}
 	return nil
+}
+
+func (r *Runtime) markSyncRestored(ctx context.Context, ref runtimeRef) error {
+	_, err := r.aws(ctx,
+		"s3api", "put-object",
+		"--bucket", ref.Bucket,
+		"--key", syncRestoredMarkerKey(ref),
+		"--metadata", syncRestoredMetadataKey+"=true",
+	)
+	return err
+}
+
+func (r *Runtime) syncRestored(ctx context.Context, ref runtimeRef) (bool, error) {
+	result, err := r.aws(ctx,
+		"s3api", "head-object",
+		"--bucket", ref.Bucket,
+		"--key", syncRestoredMarkerKey(ref),
+		"--query", "Metadata."+syncRestoredMetadataKey,
+		"--output", "text",
+	)
+	if err == nil {
+		return strings.EqualFold(strings.TrimSpace(result.Stdout), "true"), nil
+	}
+	if result.StderrTruncated {
+		return false, fmt.Errorf("inspect EC2 sync-back marker returned truncated error output: %w", err)
+	}
+	if s3ObjectNotFound(result.Stderr) {
+		return false, nil
+	}
+	return false, fmt.Errorf("inspect EC2 sync-back marker: %w", err)
+}
+
+func syncRestoredMarkerKey(ref runtimeRef) string {
+	return ref.Prefix + "/.hacocoon/sync-restored-" + ref.InstanceID
+}
+
+func s3ObjectNotFound(stderr string) bool {
+	stderr = strings.ToLower(stderr)
+	return strings.Contains(stderr, "nosuchkey") || strings.Contains(stderr, "not found") || strings.Contains(stderr, "(404)") || strings.Contains(stderr, "status code: 404")
 }
 
 func (r *Runtime) waitSSM(ctx context.Context, instanceID string) error {
