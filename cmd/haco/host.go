@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/composition"
@@ -14,11 +15,14 @@ func hostCommand(ctx context.Context, app *composition.App, args []string) error
 	if len(args) != 1 {
 		return fmt.Errorf("usage: haco host <ensure|shell>: %w", core.ErrInvalidArgument)
 	}
+	if app == nil || app.Runtime == nil {
+		return core.ErrInvalidArgument
+	}
 	switch args[0] {
 	case "ensure":
-		return app.Runtime.EnsureTrustedHost(ctx)
+		return ensureTrustedHostAndClient(ctx, app)
 	case "shell":
-		if err := app.Runtime.EnsureTrustedHost(ctx); err != nil {
+		if err := ensureTrustedHostAndClient(ctx, app); err != nil {
 			return err
 		}
 		fmt.Fprintln(os.Stderr, trustedHostLoginWarning())
@@ -26,6 +30,33 @@ func hostCommand(ctx context.Context, app *composition.App, args []string) error
 	default:
 		return fmt.Errorf("unknown host command %q: %w", args[0], core.ErrInvalidArgument)
 	}
+}
+
+func ensureTrustedHostAndClient(ctx context.Context, app *composition.App) error {
+	if err := app.Runtime.EnsureTrustedHost(ctx); err != nil {
+		return err
+	}
+	clientBinary, err := trustedHostClientBinary()
+	if err != nil {
+		return err
+	}
+	return app.Runtime.ProvisionTrustedHostClient(ctx, clientBinary)
+}
+
+func trustedHostClientBinary() (string, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve haco executable: %w", err)
+	}
+	if resolved, resolveErr := filepath.EvalSymlinks(executable); resolveErr == nil {
+		executable = resolved
+	}
+	candidate := filepath.Join(filepath.Dir(executable), "haco-host")
+	resolved, err := filepath.EvalSymlinks(candidate)
+	if err != nil {
+		return "", fmt.Errorf("resolve companion haco-host binary %q: %w", candidate, err)
+	}
+	return resolved, nil
 }
 
 func trustedHostLoginWarning() string {

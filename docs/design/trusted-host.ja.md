@@ -6,87 +6,154 @@ Status: partial.
 
 `haco-host` は Hacocoon が管理する永続的な trusted logical Host です。Local Incus backend では `haco-host` という名前の Incus system instance として実装し、通常の untrusted Environment とは明確に分離します。
 
-Hacocoon process、Incus daemon、loop device、storage mount を実際に動かす Linux / WSL distribution は **Physical Host** と呼びます。Physical Host は platform primitive の authority を持ち続けます。`haco-host` は user が普段入る host-like な場所であり、今後の slice では developer tooling や external-service operation の標準実行場所にもしていきます。
+Hacocoon controller、Incus daemon、loop device、storage mount を実際に動かす Linux / WSL distribution は **Physical Host** です。Physical Host は platform primitive の authority を持ち続けます。`haco-host` は user が普段入る host-like な場所であり、今後の developer / external-service tooling の標準実行場所です。
 
 ```text
 Physical Host / WSL
-  |- Hacocoon process
+  |- haco-controller
   |- Incus daemon
   |- loop / Btrfs platform primitives
-  `- haco-host                  TRUSTED
-       |
-       `- normal interactive Host UX
+  `- haco-host                         TRUSTED
+       |- client-only haco-host CLI
+       `- Hacocoon controller UDS only
 
-Managed Environments            UNTRUSTED
+Managed Environments                   UNTRUSTED
 ```
 
 `haco-host` は trusted computing base の一部です。Environment ではなく、agent sandbox として扱ってはいけません。
 
 ## 現在実装済みの slice
 
-現在の Incus implementation には次が入っています。
+現在は次を実装しています。
 
-- `haco host ensure`: 永続的な `haco-host` を1個 reconcile する
-- `haco host shell`: instance を running にしたうえで interactive login shell に入る
-- `user.hacocoon.role=trusted-host` という Incus ownership marker
-- Hacocoon が選択した managed Incus storage pool 上への rootfs 配置
-- infrastructure instance と衝突しないよう Incus backend で Environment 名 `host` を予約
-- reconcile 成功後、通常の WSL interactive entry を `haco-host` に向ける WSL bootstrap
+- `haco host ensure`: 永続的な `haco-host` を1個reconcile
+- `haco host shell`: instanceをrunningにしてinteractive login shellへ入る
+- `user.hacocoon.role=trusted-host` ownership marker
+- Hacocoon-managed Incus storage上へのrootfs配置
+- provider-local collisionを避けるためEnvironment名`host`を予約
+- Physical Host上の`haco-controller` Unix-domain endpoint
+- trusted instanceだけに付与する専用`haco-control` proxy
+- digest / ownershipを検証したclient-only `/usr/local/bin/haco-host` provisioning
+- `haco-host doctor`を確認してからdefault interactive entryを有効化するsupported WSL bootstrap
 
-#275 全体はまだ未完です。この slice では Git/GitHub、OCI/containerd、cloud credentials、一般的な external tooling、Windows mount、WSL interop はまだ `haco-host` へ移していません。また #276/#277 で必要になる Physical Host controller API もまだ実装していません。
+Trusted Host全体はまだpartialです。Git/GitHub、OCI/containerd、cloud credentials、一般的なexternal tooling、Windows mount、WSL interopはまだすべて移行済みではなく、`haco`と`haco-host`の責務分割も完了していません。
 
 ## Trust と authority
 
-Incus control authority は Physical Host に残します。
+Incus control authorityとauthoritative Hacocoon stateはPhysical Hostに残します。
 
-`haco-host` に入るためだけに Incus daemon socket、`/var/lib/incus`、Physical Host 上の Hacocoon state directory、または同等の raw provider-control capability を渡してはいけません。
+`haco-host`には次を渡しません。
+
+- `/var/lib/incus/unix.socket`
+- `/var/lib/incus/unix.socket.user`
+- `/var/lib/incus`
+- Physical HostのHacocoon state directory
+- raw provider-control socketのmount
+
+代わりに1本だけ狭いcontroller pathを渡します。
 
 ```text
-operator
-   |
-   | haco host shell
-   v
-Physical Host haco
-   |
-   | Incus control
-   v
-Incus daemon
-   |
-   v
-haco-host
+haco-host process
+  |
+  | unix:/var/lib/hacocoon-control.sock
+  v
+Incus proxy device: haco-control
+  |
+  | unix:/run/hacocoon/control.sock
+  v
+Physical Host haco-controller
+  |
+  v
+policy / state / provider authority
 ```
 
-Environment から `haco-host` へ直接アクセスさせません。将来 Environment から privileged operation を要求する場合も、ambient な trusted Host access にせず Hacocoon の policy / capability / approval boundary を通します。
+通常のEnvironmentにはこのproxyもenvironment variableも渡しません。
+
+Environmentからprivileged operationを要求する場合も、ambientなtrusted Host accessにせずHacocoonのpolicy / capability / approval boundaryを通します。
 
 ## Ownership と name collision
 
-Incus instance 名 `haco-host` は infrastructure-owned です。
+Incus instance名`haco-host`はinfrastructure-ownedです。
 
-作成時に `incus init` と同時に Hacocoon ownership marker を付与します。既存 instance を再利用する場合はその marker が完全一致することを要求します。無関係な instance や古い instance が `haco-host` を占有している場合、Hacocoon は takeover、start、delete、設定変更をせず fail closed します。
+作成時に`incus init`と同時にownership markerを設定します。既存instanceを再利用する場合はexact markerを要求します。無関係なinstanceが`haco-host`を占有している場合、takeover、start、delete、device変更をせずfail closedします。
 
-通常の Environment 名 `host` も provider-local では `haco-host` になるため、Incus adapter は Incus に触る前にその Environment 名を拒否します。
+通常のEnvironment名`host`もprovider-localでは`haco-host`になるため、Incus mutation前に拒否します。
 
-複数の `ensure` が同時に走って create race になった場合、負けた側は exact ownership marker を確認できたときだけ winner の instance を再利用できます。未知の Incus state は推測せず incompatible state として失敗します。
+Concurrent create / device reconciliation raceは、最終的なowned stateが期待値へ完全一致した場合だけ受け入れます。
+
+## Controller endpoint
+
+Physical Host controllerは次を使います。
+
+```text
+/run/hacocoon/control.sock
+```
+
+Supported WSL bootstrapでは`haco-controller`をsystemdで常駐させ、socketが`root:root` mode `0600`であることを検証します。
+
+Trusted instanceにはexactに次のproxyを設定します。
+
+```text
+device: haco-control
+type=proxy
+bind=instance
+listen=unix:/var/lib/hacocoon-control.sock
+connect=unix:/run/hacocoon/control.sock
+mode=0600
+uid=0
+gid=0
+```
+
+さらに次を設定します。
+
+```text
+environment.HACO_CONTROL_SOCKET=/var/lib/hacocoon-control.sock
+```
+
+既存endpointのtarget、mode、owner、bind方向、socket pathが異なる場合はincompatible stateとして拒否し、silent repurposeしません。
+
+Instance側socketを`/run`配下に置かないのは、guest runtime tmpfs initializationによってIncus proxy listenerが隠れるboot-order依存を避けるためです。
+
+## Client provisioning
+
+`haco host ensure`はreleaseのclient-only `haco-host` binaryも次へprovisionします。
+
+```text
+/usr/local/bin/haco-host
+```
+
+Physical Host側sourceはregular executable、invoking effective UID所有、group/other writableではないことを要求します。SHA-256とfinal `0755 root:root` metadataを比較して、必要な場合だけpushします。
+
+これによりrepeated ensureをidempotentにし、trusted instance内の任意の既存binaryをそのまま信頼しません。
 
 ## Storage
 
-`haco-host` は通常の Hacocoon Incus storage integration が選択した root storage pool を使います。Default local backend では rootfs が Hacocoon の sparse-raw Btrfs-backed Incus pool に入り、将来の `/var/lib/containerd` や repository data などを unmanaged な Physical Host filesystem location に依存させずに済みます。
+`haco-host`は通常のHacocoon Incus storage integrationが選んだroot storage poolを使います。Default local backendではHacocoonのsparse-raw Btrfs-backed Incus poolにrootfsを置きます。
 
-ただし同じ Btrfs 上にあるだけで、将来の `haco-host` data が Seed / Environment と自動的に物理 COW share されるとはみなしません。そのような claim は別途 measurement が必要です。
+ただし、同じBtrfs上にあるだけで将来の`haco-host` dataがSeed / Environmentと物理的にCOW shareされるとはみなしません。そのclaimはmeasurement依存です。
 
-## WSL の default entry
+## WSL default entry
 
-Supported Windows installer が正常完了すると、専用 WSL distribution の通常 non-root user の login shell を `hacocoon-login` という専用 entry に変更します。
+Supported installer成功後、通常non-root WSL userのlogin shellを専用`hacocoon-login` entryに変更します。
 
-この entry は別 executable name で起動した同じ trusted `haco` binary です。Command なしの interactive launch では次へ delegate します。
+Interactive no-command launchでは次へdelegateします。
 
 ```text
 sudo -n <system-owned-haco> host shell
 ```
 
-Installer が passwordless sudo を許可するのは、その WSL user に対する exact な `haco host ensure` と `haco host shell` だけです。`incus-admin` は引き続き default では付与せず、Incus socket も `haco-host` へ公開しません。
+Narrow sudo ruleが許可するのはexactな`haco host ensure`と`haco host shell`だけです。`incus-admin`はdefaultで付与しません。
 
-そのため通常 UX は次になります。
+Login shellを変更する前にbootstrapは次をすべて確認します。
+
+1. Incusがactive
+2. `haco-controller`がroot-owned system binary
+3. current releaseで`haco-controller.service`をrestart
+4. `/run/hacocoon/control.sock`がroot-owned mode `0600` Unix socket
+5. `haco host ensure`でtrusted Host、proxy、client binaryがreconcile
+6. 実trusted instance内の`haco-host doctor`が成功
+
+すべて成功した後だけ通常entryは次になります。
 
 ```powershell
 wsl -d Hacocoon
@@ -98,36 +165,36 @@ Physical Host login entry
     -> haco-host
 ```
 
-明示的な WSL command は Physical Host command のままです。また root account の login shell は変更しません。したがって緊急時には例えば次で Physical Host へ直接入れます。
+Explicit WSL commandはPhysical Host commandのままです。root accountのshellは変更せず、次のrecovery pathを維持します。
 
 ```powershell
 wsl -d Hacocoon -u root
 ```
 
-Installer は `haco host ensure` が成功した後にだけ通常 user の login shell を変更します。Bootstrap に失敗した場合、壊れた自動 entry loop に入れず Physical Host recovery path を残します。
-
-`-SkipIncus` を使った場合は backend ready を Hacocoon が保証できないため、自動 `haco-host` entry は設定しません。
+`-SkipIncus`ではcontroller / trusted Host automatic entryを設定しません。
 
 ## Interactive warning
 
-`haco host shell` は `haco-host` へ入る直前に短い privileged-environment warning を表示します。Japanese locale では日本語、その他では英語を出します。
+`haco host shell`は`haco-host`へ入る前に短いprivileged-management warningを表示します。Japanese localeでは日本語、その他では英語です。
 
-Warning を出すのは interactive Host-shell path だけで、non-interactive WSL command の output には混ぜません。
+Warningはinteractive Host-shell pathだけに出し、non-interactive WSL commandのoutputには混ぜません。
 
 ## 今後の follow-up
 
-次はこの slice の範囲外です。
+別workとして残るもの:
 
-- Git/GitHub や selected external-service tooling の標準実行場所を `haco-host` にする
-- Host OCI store / containerd を `haco-host` 内で動かす
-- reusable credential を通常 Environment に渡さない explicit credential injection / broker
-- trusted Host だけに optional WSL / Windows interop を与える
-- Incus socket を渡さず `haco-host` 内から Physical-Host-authority の `haco` operation を実行するための Physical Host controller / control channel
-- `haco` と `haco-host` の CLI responsibility split を完了する
-- repository を永久に `haco-host` 固定と Core に仮定させず、長期的な Workspace / repository location seam を実装する
+- Git/GitHubやselected external-service toolingの標準実行場所を`haco-host`にする
+- Host OCI store / containerdを`haco-host`内で動かす
+- reusable credentialを通常Environmentへ置かないcredential broker
+- trusted Hostだけにoptional WSL / Windows interopを付与
+- 適切なPhysical-Host-authority `haco` commandをcontroller client pathへ移行
+- `haco` / `haco-host` CLI responsibility splitを完了
+- Coreがrepositoryを永久に`haco-host`へ固定すると仮定しないWorkspace / repository location seam
 
 ## Acceptance boundary
 
-Repository test では ownership reconciliation、name collision refusal、stopped/running state、create race、CLI routing、locale warning、login-mode identification を確認します。CI では bootstrap shell syntax も検証します。
+Repository testではownership reconciliation、collision refusal、state recovery、exact controller proxy validation、client provisioning / idempotency、CLI routing、warning、login-mode identificationを確認します。
 
-ただし、実際の Windows terminal から WSL distribution を起動し、instance 作成、login shell 変更、`haco-host` entry まで成功することは repository CI だけでは証明できません。Real Windows + WSL 2 + systemd + Incus acceptance が完了するまでは host-dependent path を実機確認済みとは扱いません。
+Real Incus E2Eではtrusted instance作成、controller endpoint投影、client install、`haco-host doctor`からPhysical Host controllerへのround trip、restart recovery、raw Incus socket非露出、通常Environmentにtrusted endpointが存在しないことを確認します。
+
+実Windows terminal起動、WSL distribution restart、login-shell transition、Windows integrationはReal Windows + WSL acceptanceが完了するまでhost-verifiedとは扱いません。
