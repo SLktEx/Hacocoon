@@ -223,6 +223,8 @@ func TestReplacementMigratesVerifiesAndPromotesWithoutDeletingSource(t *testing.
 		"attach:vol-target:/dev/sdg",
 		"in-use:vol-target",
 		"describe:vol-target",
+		"describe:vol-target",
+		"describe:vol-target",
 		"detach:vol-source",
 		"available:vol-source",
 		"describe:vol-target",
