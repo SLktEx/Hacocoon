@@ -12,8 +12,8 @@ import (
 // RegisterBoundEnvironmentWorkloads exposes only the OCI workload methods safe
 // for one untrusted Environment. The Environment identity is supplied by the
 // Physical Host when it creates this dedicated Unix listener; request payloads
-// can never select another Environment. Registry pulls are deliberately not
-// exposed here because private registry authentication belongs to haco-host.
+// can never select another Environment. Private registry authentication remains
+// a haco-host responsibility; guest requests are restricted to oci-docker.
 func RegisterBoundEnvironmentWorkloads(server *control.Server, workloads workloadService, environment string) error {
 	if server == nil || workloads == nil || strings.TrimSpace(environment) == "" || strings.ContainsAny(environment, "/\\\x00\r\n") {
 		return control.ErrInvalidArgument
@@ -76,6 +76,21 @@ func RegisterBoundEnvironmentWorkloads(server *control.Server, workloads workloa
 			return nil, control.NewStatusError("invalid_argument", "name is required")
 		}
 		if err := workloads.DeleteWorkload(ctx, environment, request.Name); err != nil {
+			return nil, translateError(err)
+		}
+		return nil, nil
+	}); err != nil {
+		return err
+	}
+	if err := server.Register(MethodWorkloadPull, func(ctx context.Context, payload json.RawMessage) (any, error) {
+		var request WorkloadPullRequest
+		if err := json.Unmarshal(payload, &request); err != nil || strings.TrimSpace(request.Image) == "" {
+			return nil, control.NewStatusError("invalid_argument", "image is required")
+		}
+		if !strings.HasPrefix(request.Image, "oci-docker:") {
+			return nil, control.NewStatusError("policy_denied", "Environment image pull requires the public oci-docker remote")
+		}
+		if err := workloads.PullWorkloadImage(ctx, request.Image); err != nil {
 			return nil, translateError(err)
 		}
 		return nil, nil
