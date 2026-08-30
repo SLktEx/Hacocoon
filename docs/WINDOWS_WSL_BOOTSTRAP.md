@@ -1,159 +1,182 @@
 # Windows / WSL installation
 
-Hacocoon uses a **dedicated WSL 2 distribution with systemd** on Windows instead of reusing a normal Ubuntu/Debian development distribution.
+Hacocoon uses a **dedicated WSL 2 distribution with systemd** on Windows instead of reusing a normal development distribution.
 
-The dedicated distribution is the **Physical Host**. After a normal installation, its default interactive entry immediately enters the persistent trusted `haco-host` Incus instance so users normally do not need to work in the Physical Host shell.
+That distribution is the **Physical Host**. It owns Incus, managed Btrfs primitives, and the Hacocoon controller. After bootstrap succeeds, normal interactive entry goes directly into the persistent trusted `haco-host` instance.
 
 ```text
-Windows desktop
+Windows
   |
-  +-- normal user WSL distributions      <- untouched
+  +-- normal WSL distributions                 <- untouched
   |
-  +-- WSL 2 distribution: Hacocoon       <- Physical Host / substrate
-        |- systemd (PID 1)
-        |- Hacocoon + Incus
-        |- loop / Btrfs storage primitives
-        |
-        `- Incus: haco-host               <- TRUSTED default interactive Host
-             |
-             +-- future Git / OCI / external tooling
-             `-- operator shell
+  `-- WSL 2: Hacocoon                          <- Physical Host
+       |- systemd (PID 1)
+       |- Incus
+       |- loop / Btrfs primitives
+       |- haco-controller
+       |    `- /run/hacocoon/control.sock
+       |
+       `- Incus: haco-host                     <- TRUSTED default Host
+            |- /usr/local/bin/haco-host
+            `- /var/lib/hacocoon-control.sock
+                 `- dedicated Incus proxy to controller
 
-        Incus: managed Environments       <- UNTRUSTED agent workloads
-
-Windows VS Code / external orchestrators
-  -> stable Hacocoon client surface
-  -> target Environment
+       Incus: managed Environments              <- UNTRUSTED
 ```
 
-The current `haco-host` implementation slice is documented in [`design/trusted-host.md`](design/trusted-host.md).
+See [`design/trusted-host.md`](design/trusted-host.md) and [`design/controller-client-transport.md`](design/controller-client-transport.md).
 
 ## Normal installer
 
-GitHub Releases publish `install-windows.ps1` as a standalone installer. You do **not** need to clone the Hacocoon repository first.
+GitHub Releases publish `install-windows.ps1` as a standalone installer. A repository checkout is not required.
 
-Run it from an elevated PowerShell:
+Run from elevated PowerShell:
 
 ```powershell
 .\install-windows.ps1
 ```
 
-The default dedicated WSL distribution name is `Hacocoon`; the default base distribution is `Ubuntu-26.04`.
+The default WSL distribution is `Hacocoon`; the default base is `Ubuntu-26.04`.
 
-On a fresh PC, Windows may require a reboot or the new Linux distribution may require its normal first-run user creation. Before Hacocoon bootstrap has completed, launching:
+A fresh distribution may first require normal Linux user creation. Before Hacocoon bootstrap has completed, `wsl -d Hacocoon` still enters that base distribution for first-run setup. Re-run the installer afterwards.
 
-```powershell
-wsl -d Hacocoon
-```
-
-still enters the base distribution normally so that initial Linux user setup can finish. Re-run `install-windows.ps1` after that setup.
-
-Once bootstrap succeeds, the same command becomes the normal Hacocoon entry point:
+Once bootstrap succeeds:
 
 ```powershell
 wsl -d Hacocoon
 ```
 
-and enters `haco-host`.
+enters trusted `haco-host`.
 
-## WSL 2 is required and enforced
+## WSL 2 and systemd
 
-Modern `wsl --install` normally creates WSL 2 distributions, but Hacocoon does not rely only on that default.
+The installer verifies that only the dedicated Hacocoon distribution is WSL 2 and uses `wsl --set-version Hacocoon 2` when necessary. It does not change the global WSL default or unrelated distributions.
 
-The installer checks the dedicated instance with `wsl --list --verbose`. If **that Hacocoon-owned instance only** is WSL 1, it runs:
-
-```powershell
-wsl --set-version Hacocoon 2
-```
-
-It does not run `wsl --set-default-version`, does not convert unrelated distributions, and does not change the user's global WSL defaults.
-
-## systemd is required and enforced
-
-The supported local Incus path requires **systemd as PID 1** inside the dedicated Physical Host distribution.
-
-The Linux bootstrap installs the required systemd packages and preserves unrelated `/etc/wsl.conf` settings while ensuring:
+The Linux bootstrap preserves unrelated `/etc/wsl.conf` settings while ensuring:
 
 ```ini
 [boot]
 systemd=true
 ```
 
-If PID 1 is not yet systemd, the Windows installer terminates only the Hacocoon distribution with:
+If systemd is not yet PID 1, the Windows installer terminates only the Hacocoon distribution with `wsl --terminate Hacocoon` and retries. It does not use `wsl --shutdown`.
 
-```powershell
-wsl --terminate Hacocoon
+## Incus and managed storage
+
+Unless `-SkipIncus` is selected, bootstrap installs/starts Incus and initializes it minimally when required.
+
+The default local storage backend is Hacocoon-managed sparse-raw Btrfs mounted with `compress=zstd:3`. `compress-force` and automatic defrag/recompression are intentionally avoided because they can damage useful reflink/COW sharing.
+
+## Physical Host controller service
+
+After installing the release, bootstrap validates that `haco-controller` is a root-owned, non-group/world-writable system binary at `/usr/local/bin` or `/usr/bin`.
+
+It then installs and restarts:
+
+```text
+haco-controller.service
 ```
 
-and retries bootstrap after restart. Hacocoon never uses `wsl --shutdown` as part of this path because that would affect unrelated WSL distributions.
+on the Physical Host. The unit uses a private systemd runtime directory and the controller listens only on:
 
-An old WSL version without the required systemd support fails with a clear request to run `wsl --update`; Hacocoon does not silently update WSL itself.
+```text
+/run/hacocoon/control.sock
+```
 
-## Managed storage filesystem
+Before continuing, bootstrap requires that path to be a Unix socket owned by `root:root` with mode `0600`.
 
-The supported WSL path uses Hacocoon-managed Btrfs storage. The default local backend creates a sparse raw filesystem and mounts it with `compress=zstd:3`.
+The supported local path does not open a localhost TCP listener.
 
-`compress-force` is intentionally not used. Hacocoon also does not automatically defragment/recompress existing data because doing so can break reflink/COW sharing.
+Restarting the service during bootstrap is intentional: after an upgrade, the controller process must run the same release that was just installed instead of retaining an old binary in memory.
 
-The bootstrap installs `btrfs-progs` because `haco host ensure` may be the first operation that causes the managed local rootfs pool to be created.
+## Trusted `haco-host` reconciliation
 
-## Trusted `haco-host` bootstrap
-
-After Incus and the Hacocoon release are ready, the bootstrap runs:
+With the controller active, bootstrap runs Physical-Host-authority:
 
 ```text
 haco host ensure
 ```
 
-with Physical Host authority.
+That operation reconciles:
 
-That operation:
+- exactly one Incus instance named `haco-host`;
+- `user.hacocoon.role=trusted-host` ownership;
+- Hacocoon-managed root storage;
+- automatic restart of an owned stopped instance;
+- `environment.HACO_CONTROL_SOCKET=/var/lib/hacocoon-control.sock`;
+- the dedicated `haco-control` proxy;
+- client-only `/usr/local/bin/haco-host` inside the trusted instance.
 
-- reconciles exactly one Incus instance named `haco-host`;
-- stores its rootfs on the Hacocoon-selected managed Incus storage pool;
-- creates it with `user.hacocoon.role=trusted-host`;
-- refuses to take over an existing `haco-host` without that exact ownership marker;
-- starts a stopped owned instance;
-- fails closed on unexpected state.
+The proxy is intentionally narrow:
 
-The ordinary Environment name `host` is reserved by the Incus adapter because it would otherwise map to the same provider-local instance name.
+```text
+type=proxy
+bind=instance
+listen=unix:/var/lib/hacocoon-control.sock
+connect=unix:/run/hacocoon/control.sock
+mode=0600
+uid=0
+gid=0
+```
 
-The bootstrap changes the normal WSL user's login shell **only after** this reconciliation succeeds. A failed trusted-host bootstrap therefore leaves the normal Physical Host shell available for repair rather than trapping the user in a broken automatic login path.
+An unexpected existing instance, endpoint variable, or proxy shape is rejected instead of silently repurposed.
+
+The client binary is compared by SHA-256 and final root ownership/mode before provisioning is considered complete.
+
+## Bootstrap proves the round trip
+
+After `haco host ensure`, bootstrap executes inside the actual trusted instance:
+
+```text
+/usr/local/bin/haco-host doctor
+```
+
+This must complete the real path:
+
+```text
+haco-host CLI
+  -> /var/lib/hacocoon-control.sock
+  -> Incus haco-control proxy
+  -> /run/hacocoon/control.sock
+  -> Physical Host haco-controller
+```
+
+If this fails, bootstrap stops before changing the normal user's login shell and prints the Physical Host recovery path.
+
+The raw Incus daemon socket is never mounted or proxied into `haco-host`.
 
 ## Why `wsl -d Hacocoon` enters `haco-host`
 
-The installer creates a root-owned `/usr/local/libexec/hacocoon-login` entry that points at the installed `haco` binary under a dedicated executable name, then makes that the normal non-root WSL user's login shell.
+After controller/Host acceptance succeeds, bootstrap creates root-owned `/usr/local/libexec/hacocoon-login` and makes it the normal non-root WSL user's login shell.
 
-The `haco` binary detects this invocation mode. For an interactive no-command WSL launch it delegates to:
+For interactive no-command entry, that invocation delegates to:
 
 ```text
 sudo -n <system-owned-haco> host shell
 ```
 
-`haco host shell` reconciles the trusted Host, prints the privileged-environment warning, and enters `/bin/bash -l` inside `haco-host`.
+`haco host shell` re-reconciles the trusted Host and client binary, prints the privileged-management warning, then enters `/bin/bash -l` inside `haco-host`.
 
-Explicit shell arguments or non-interactive login-shell use stay on `/bin/bash` on the Physical Host. More importantly, WSL explicit command execution does not require the default login shell, so automation remains able to target the substrate directly.
+Explicit/non-interactive WSL commands remain on the Physical Host and do not receive the interactive warning.
 
-## Privilege boundary for automatic entry
+## Automatic-entry privilege boundary
 
-The installer does **not** grant `incus-admin` merely to make automatic entry work.
+Automatic entry does not require `incus-admin` for the normal WSL user.
 
-Instead, the normal WSL user receives passwordless sudo permission for only these exact system-owned commands:
+The installer grants passwordless sudo only for the exact system-owned commands:
 
 ```text
 haco host ensure
 haco host shell
 ```
 
-Before installing that sudoers rule, bootstrap requires the `haco` executable to be in `/usr/local/bin/haco` or `/usr/bin/haco`, owned by root, and not group/world writable. The generated sudoers file is validated with `visudo` before installation.
+The raw Incus socket and `/var/lib/incus` remain Physical Host authority.
 
-The Incus daemon socket and `/var/lib/incus` are not mounted into `haco-host`.
+`-GrantIncusAdmin` is a separate explicit option for operators who intentionally want root-equivalent local Incus authority.
 
-`-GrantIncusAdmin` remains an explicit separate option for operators who intentionally want the dedicated Physical Host user to have raw Incus administrative authority. `incus-admin` is effectively root-equivalent local authority and remains opt-in.
+## Physical Host recovery
 
-## Physical Host escape hatch
-
-Normal interactive use:
+Normal use:
 
 ```powershell
 wsl -d Hacocoon
@@ -161,81 +184,61 @@ wsl -d Hacocoon
 
 enters `haco-host`.
 
-The Physical Host remains explicitly reachable for bootstrap, repair, and host-only commands. The root account's shell is never replaced by the Hacocoon login entry, so the primary recovery path is:
+The root account's shell is never replaced. Direct Physical Host recovery remains:
 
 ```powershell
 wsl -d Hacocoon -u root
 ```
 
-Explicit commands can also be run against the Physical Host instead of the default interactive Host entry. For example:
+Explicit commands can also target the Physical Host, for example:
 
 ```powershell
-wsl -d Hacocoon -- haco host ensure
+wsl -d Hacocoon -- haco status
 ```
 
-Commands that need Physical Host root authority must still be invoked with the appropriate privilege, for example through the root escape hatch or an explicitly authorized sudo rule.
-
-If automatic entry fails, the diagnostic names the Physical Host recovery command instead of silently opening a different shell and pretending bootstrap succeeded.
+Operations requiring Physical Host root authority still need an authorized sudo path or the root recovery shell.
 
 ## `-SkipIncus`
 
-`-SkipIncus` continues to support deployments where Incus is managed separately, but Hacocoon cannot prove that the trusted Host backend is ready in that mode.
+When `-SkipIncus` is used, bootstrap does not claim that the trusted backend is ready, so it leaves the Physical Host login unchanged and does not configure the controller-connected automatic `haco-host` entry.
 
-Therefore `-SkipIncus` leaves the default Physical Host login shell unchanged and does not configure automatic `haco-host` entry. Once an external Incus setup is ready, the trusted-host entry can be configured by a future explicit reconciliation path.
+## Workspace location
 
-## Workspace and repository location
+Default interactive entry and Workspace ownership are separate architecture seams.
 
-The default interactive entry and Workspace location are separate design concerns.
+Moving repository/workspace ownership fully into the logical Host is not implied by this bootstrap. Until that work lands, Physical Host paths can still be targeted explicitly, and VS Code/external orchestration should use Hacocoon's client/control surface rather than treating `haco-host` as a mandatory SSH jump host.
 
-The long-term direction is to prefer Hacocoon-managed storage associated with `haco-host` for the normal WSL repository/workspace experience while keeping the location abstract enough that a future Physical Host or external Workspace provider remains possible. That relocation is part of the broader trusted-host/workspace work and is **not** completed merely by changing the WSL login shell.
+## Installer sequence
 
-Until the workspace-location migration lands, do not infer that an arbitrary path inside the `haco-host` rootfs is automatically mountable into a sibling Environment. Existing Physical Host Workspace paths can still be operated non-interactively from Windows, for example:
+The supported path now performs, in order:
 
-```powershell
-wsl -d Hacocoon -- sh -lc 'cd ~/src/my-repo && haco-vscode open .'
-```
+1. validate the named WSL distribution and release;
+2. create/reuse only the Hacocoon distribution;
+3. enforce WSL 2 for that distribution;
+4. enable systemd and restart only that distribution when required;
+5. install/start Incus unless skipped;
+6. install Btrfs tools and Hacocoon release binaries;
+7. install/restart the Physical Host `haco-controller.service`;
+8. verify the root-only controller Unix socket;
+9. reconcile trusted `haco-host`, its narrow proxy, and client binary;
+10. prove `haco-host doctor` reaches the Physical Host controller;
+11. install the narrow automatic-entry sudo rule;
+12. switch the normal non-root user's login shell to `hacocoon-login`.
 
-VS Code and external orchestration should continue to target Hacocoon's client/control surface and the requested Environment rather than using `haco-host` as an SSH jump host.
-
-## Installer responsibilities
-
-The standalone installer/bootstrap path now performs the following relevant steps:
-
-1. validate the instance name, base distribution, and Hacocoon version;
-2. create or reuse only the named Hacocoon WSL distribution;
-3. enforce WSL 2 for that distribution only;
-4. install systemd support and ensure `systemd=true`;
-5. restart only that distribution when required;
-6. install Incus unless explicitly skipped;
-7. install Btrfs userspace tools and the Hacocoon release;
-8. reconcile the trusted `haco-host`;
-9. install the narrow automatic-entry sudo rule;
-10. set the normal non-root user's login shell to `hacocoon-login`.
-
-The installer does not change the global WSL default distribution, `.wslconfig`, unrelated distributions, or the root user's login shell.
+Global WSL defaults, `.wslconfig`, unrelated distributions, and the root user's login shell are not modified.
 
 ## Checkout/developer bootstrap
 
-A repository checkout still provides:
+A repository checkout can still use:
 
 ```powershell
 .\scripts\bootstrap-windows.ps1
 ```
 
-It uses the checkout's `bootstrap-wsl.sh` / `install.sh` but follows the same WSL 2, systemd, Incus, and trusted-host entry contract as the standalone installer.
+It uses checkout scripts but follows the same WSL 2, systemd, Incus, controller, and trusted-host entry contract.
 
 ## Acceptance boundary
 
-Repository CI verifies Go tests, shell/PowerShell syntax, WSL 2/systemd policy constraints, installer/release integrity contracts, and trusted-host reconciliation behavior that can be exercised without a Windows kernel.
+Repository CI and real Incus E2E can prove the controller protocol, real proxy device, client provisioning, `haco-host doctor` round trip, restart recovery, raw Incus-socket non-exposure, and that ordinary Environments do not receive the trusted endpoint.
 
-Real-host acceptance still requires an actual Windows machine with WSL 2 + systemd + Incus to prove:
-
-- first-run Linux user setup;
-- WSL restart behavior;
-- real managed Btrfs creation;
-- real `haco-host` image acquisition/start;
-- login-shell transition from `wsl -d Hacocoon` into `haco-host`;
-- Physical Host root recovery;
-- Windows VS Code / orchestration integration after the default-entry change.
-
-Do not treat repository CI alone as proof of those Windows-host-dependent behaviors.
+Actual Windows-host acceptance is still required for first-run Linux user setup, Windows-triggered WSL restart behavior, login-shell transition from `wsl -d Hacocoon`, Physical Host recovery from Windows, and Windows editor/orchestration integration.
