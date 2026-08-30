@@ -1,0 +1,252 @@
+name: kubevirt rawfile btrfs cow spike
+
+on:
+  # Disposable main-kube experiment. Keep this isolated from normal CI.
+  push:
+    branches:
+      - main-kube
+    paths:
+      - .github/workflows/kubevirt-rawfile-btrfs-cow-spike.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kubevirt-rawfile-btrfs-cow-spike-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rawfile-btrfs-cow:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install minikube
+        run: |
+          set -euxo pipefail
+          curl -fsSLo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+          chmod +x minikube
+          sudo install minikube /usr/local/bin/minikube
+          minikube version
+          helm version
+
+      - name: Start Kubernetes 1.36
+        run: |
+          set -euxo pipefail
+          minikube start \
+            --driver=docker \
+            --kubernetes-version=v1.36.2 \
+            --cpus=3 \
+            --memory=5000mb \
+            --wait=all \
+            --wait-timeout=8m
+          kubectl version
+          kubectl get nodes -o wide
+
+      - name: Create Btrfs loopback pool inside the Kubernetes node
+        run: |
+          set -euxo pipefail
+          minikube ssh -- 'sudo apt-get update && sudo apt-get install -y btrfs-progs e2fsprogs'
+          minikube ssh -- 'set -eux; sudo truncate -s 6G /var/lib/hacocoon-rawfile-btrfs.img; sudo mkfs.btrfs -f /var/lib/hacocoon-rawfile-btrfs.img; sudo mkdir -p /var/local/openebs/rawfile/haco-pool; sudo mount -o loop,compress=zstd /var/lib/hacocoon-rawfile-btrfs.img /var/local/openebs/rawfile/haco-pool; findmnt -T /var/local/openebs/rawfile/haco-pool -o TARGET,SOURCE,FSTYPE,OPTIONS; sudo btrfs filesystem usage --raw /var/local/openebs/rawfile/haco-pool'
+          FSTYPE="$(minikube ssh -- 'findmnt -n -o FSTYPE -T /var/local/openebs/rawfile/haco-pool' | tr -d '\r')"
+          test "$FSTYPE" = btrfs
+          minikube ssh -- 'findmnt -n -o OPTIONS -T /var/local/openebs/rawfile/haco-pool' | grep -q 'compress=zstd'
+
+      - name: Install OpenEBS RawFile with Btrfs COW storage class
+        run: |
+          set -euxo pipefail
+          helm repo add rawfile-localpv https://openebs.github.io/rawfile-localpv
+          helm repo update rawfile-localpv
+          helm install rawfile-localpv rawfile-localpv/rawfile-localpv \
+            --namespace openebs \
+            --create-namespace \
+            --set analytics.enabled=false \
+            --set logLevel=DEBUG \
+            --set node.defaultPool=haco \
+            --set node.storagePools.haco.path=/var/local/openebs/rawfile/haco-pool \
+            --set node.metadataDirPath=/var/local/openebs/rawfile/haco-pool/.meta \
+            --set storageClasses[0].name=rawfile-btrfs-cow \
+            --set storageClasses[0].thinProvision=true \
+            --set storageClasses[0].copyOnWrite=true \
+            --set storageClasses[0].storagePool=haco \
+            --set snapshotClasses[0].name=rawfile-btrfs-cow
+
+          kubectl -n openebs wait --for=condition=Ready pod --all --timeout=8m
+          kubectl get csidriver
+          kubectl get storageclass rawfile-btrfs-cow -o yaml
+          kubectl get volumesnapshotclass rawfile-btrfs-cow -o yaml
+          test "$(kubectl get storageclass rawfile-btrfs-cow -o jsonpath='{.provisioner}')" = rawfile.csi.openebs.io
+          test "$(kubectl get storageclass rawfile-btrfs-cow -o jsonpath='{.parameters.copyOnWrite}')" = true
+          test "$(kubectl get storageclass rawfile-btrfs-cow -o jsonpath='{.parameters.thinProvision}')" = true
+
+      - name: Create and seed source block volume
+        run: |
+          set -euxo pipefail
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: cow-source
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            volumeMode: Block
+            storageClassName: rawfile-btrfs-cow
+            resources:
+              requests:
+                storage: 1Gi
+          ---
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: cow-source-writer
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: writer
+                image: busybox:1.37
+                command:
+                  - sh
+                  - -ceu
+                  - |
+                    dd if=/dev/urandom of=/dev/haco-source bs=1M count=64 conv=fsync
+                    dd if=/dev/haco-source bs=1M count=64 2>/dev/null | sha256sum
+                volumeDevices:
+                  - name: source
+                    devicePath: /dev/haco-source
+            volumes:
+              - name: source
+                persistentVolumeClaim:
+                  claimName: cow-source
+          EOF
+          kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/cow-source-writer --timeout=8m
+          SOURCE_HASH="$(kubectl logs cow-source-writer | tail -n 1 | awk '{print $1}')"
+          test -n "$SOURCE_HASH"
+          echo "SOURCE_HASH=$SOURCE_HASH" >> "$GITHUB_ENV"
+          echo "source hash=$SOURCE_HASH"
+
+          SOURCE_PV="$(kubectl get pvc cow-source -o jsonpath='{.spec.volumeName}')"
+          SOURCE_HANDLE="$(kubectl get pv "$SOURCE_PV" -o jsonpath='{.spec.csi.volumeHandle}')"
+          test -n "$SOURCE_HANDLE"
+          echo "SOURCE_HANDLE=$SOURCE_HANDLE" >> "$GITHUB_ENV"
+          echo "source handle=$SOURCE_HANDLE"
+          minikube ssh -- "sudo btrfs filesystem du -s /var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/disk.img"
+          minikube ssh -- 'sudo btrfs filesystem usage --raw /var/local/openebs/rawfile/haco-pool'
+
+      - name: Snapshot source volume
+        run: |
+          set -euxo pipefail
+          SNAP_START_NS="$(date +%s%N)"
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: snapshot.storage.k8s.io/v1
+          kind: VolumeSnapshot
+          metadata:
+            name: cow-source-snapshot
+          spec:
+            volumeSnapshotClassName: rawfile-btrfs-cow
+            source:
+              persistentVolumeClaimName: cow-source
+          EOF
+          for i in $(seq 1 180); do
+            READY="$(kubectl get volumesnapshot cow-source-snapshot -o jsonpath='{.status.readyToUse}' 2>/dev/null || true)"
+            [ "$READY" = true ] && break
+            sleep 2
+          done
+          test "$(kubectl get volumesnapshot cow-source-snapshot -o jsonpath='{.status.readyToUse}')" = true
+          SNAP_END_NS="$(date +%s%N)"
+          echo "snapshot elapsed_ms=$(( (SNAP_END_NS - SNAP_START_NS) / 1000000 ))"
+          kubectl get volumesnapshot cow-source-snapshot -o yaml
+          minikube ssh -- "sudo find /var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/snapshots -maxdepth 2 -type f -name '*.img' -print -exec btrfs filesystem du -s {} \;"
+
+      - name: Restore clone from snapshot and prove independent writable COW state
+        run: |
+          set -euxo pipefail
+          CLONE_START_NS="$(date +%s%N)"
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: cow-clone
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            volumeMode: Block
+            storageClassName: rawfile-btrfs-cow
+            dataSource:
+              name: cow-source-snapshot
+              kind: VolumeSnapshot
+              apiGroup: snapshot.storage.k8s.io
+            resources:
+              requests:
+                storage: 1Gi
+          ---
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: cow-verify
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: verifier
+                image: busybox:1.37
+                command: ["sh", "-c", "sleep 900"]
+                volumeDevices:
+                  - name: source
+                    devicePath: /dev/haco-source
+                  - name: clone
+                    devicePath: /dev/haco-clone
+            volumes:
+              - name: source
+                persistentVolumeClaim:
+                  claimName: cow-source
+              - name: clone
+                persistentVolumeClaim:
+                  claimName: cow-clone
+          EOF
+          kubectl wait --for=condition=Ready pod/cow-verify --timeout=8m
+          CLONE_END_NS="$(date +%s%N)"
+          echo "snapshot restore + attach elapsed_ms=$(( (CLONE_END_NS - CLONE_START_NS) / 1000000 ))"
+
+          CLONE_PV="$(kubectl get pvc cow-clone -o jsonpath='{.spec.volumeName}')"
+          CLONE_HANDLE="$(kubectl get pv "$CLONE_PV" -o jsonpath='{.spec.csi.volumeHandle}')"
+          test -n "$CLONE_HANDLE"
+          echo "clone handle=$CLONE_HANDLE"
+
+          echo 'Btrfs extent accounting immediately after snapshot restore:'
+          minikube ssh -- "sudo btrfs filesystem du -s /var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/disk.img /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img"
+          minikube ssh -- "sudo filefrag -v /var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/disk.img /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img || true"
+          minikube ssh -- 'sudo btrfs filesystem usage --raw /var/local/openebs/rawfile/haco-pool'
+
+          BEFORE_SOURCE_HASH="$(kubectl exec cow-verify -- sh -c 'dd if=/dev/haco-source bs=1M count=64 2>/dev/null | sha256sum' | awk '{print $1}')"
+          BEFORE_CLONE_HASH="$(kubectl exec cow-verify -- sh -c 'dd if=/dev/haco-clone bs=1M count=64 2>/dev/null | sha256sum' | awk '{print $1}')"
+          echo "before source=$BEFORE_SOURCE_HASH clone=$BEFORE_CLONE_HASH expected=$SOURCE_HASH"
+          test "$BEFORE_SOURCE_HASH" = "$SOURCE_HASH"
+          test "$BEFORE_CLONE_HASH" = "$SOURCE_HASH"
+
+          kubectl exec cow-verify -- sh -c 'dd if=/dev/zero of=/dev/haco-clone bs=1M count=8 conv=notrunc,fsync'
+          AFTER_SOURCE_HASH="$(kubectl exec cow-verify -- sh -c 'dd if=/dev/haco-source bs=1M count=64 2>/dev/null | sha256sum' | awk '{print $1}')"
+          AFTER_CLONE_HASH="$(kubectl exec cow-verify -- sh -c 'dd if=/dev/haco-clone bs=1M count=64 2>/dev/null | sha256sum' | awk '{print $1}')"
+          echo "after source=$AFTER_SOURCE_HASH clone=$AFTER_CLONE_HASH"
+          test "$AFTER_SOURCE_HASH" = "$SOURCE_HASH"
+          test "$AFTER_CLONE_HASH" != "$SOURCE_HASH"
+
+          echo 'Btrfs extent accounting after clone-only write:'
+          minikube ssh -- "sudo btrfs filesystem du -s /var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/disk.img /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img"
+          minikube ssh -- 'sudo btrfs filesystem usage --raw /var/local/openebs/rawfile/haco-pool'
+
+      - name: Record driver evidence
+        if: always()
+        run: |
+          set +e
+          kubectl get pvc,pv,pods -o wide
+          kubectl get volumesnapshot,volumesnapshotcontent -o wide
+          kubectl -n openebs get pods -o wide
+          echo 'RawFile logs mentioning snapshots / reflinks / clone:'
+          for pod in $(kubectl -n openebs get pods -o name); do
+            kubectl -n openebs logs "$pod" --all-containers=true --prefix --tail=1000 2>/dev/null | grep -Ei 'snapshot|reflink|clone|copy.on.write|copy_on_write' || true
+          done
+          minikube ssh -- 'findmnt -T /var/local/openebs/rawfile/haco-pool -o TARGET,SOURCE,FSTYPE,OPTIONS; sudo btrfs filesystem usage --raw /var/local/openebs/rawfile/haco-pool'
