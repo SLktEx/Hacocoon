@@ -129,6 +129,7 @@ run_installer() {
   mkdir -p "$install_dir"
   HACO_TEST_ARCHIVE="$fixture" \
   HACO_INSTALL_DIR="$install_dir" \
+  HACO_REQUIRE_PROVENANCE=0 \
   GH_TOKEN= \
   GITHUB_TOKEN= \
   PATH="$root/bin:$PATH" \
