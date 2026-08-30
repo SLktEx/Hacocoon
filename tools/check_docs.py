@@ -85,6 +85,7 @@ required = [
     "docs/DESIGN_PRINCIPLES.md", "docs/DESIGN_PRINCIPLES.ja.md",
     "docs/IMPLEMENTATION_STATUS.md", "docs/IMPLEMENTATION_STATUS.ja.md",
     "docs/CLIENT_ADAPTER_CONTRACT.md", "docs/CLIENT_ADAPTER_CONTRACT.ja.md",
+    "docs/EGRESS_AUTHORIZATION.md", "docs/EGRESS_AUTHORIZATION.ja.md",
     "docs/design/plugin-architecture.md",
     "docs/security/security-architecture.md",
     "docs/reference/terminology-and-boundaries.md",
@@ -108,6 +109,7 @@ required = [
     "docs/design/oci-image-deletion.md", "docs/design/oci-image-deletion.ja.md",
     "docs/design/oci-seed-and-cow.md", "docs/design/oci-seed-and-cow.ja.md",
     "docs/design/docker-compatibility-plugin.md", "docs/design/docker-compatibility-plugin.ja.md",
+    "docs/design/btrfs-storage-layout.md", "docs/design/btrfs-storage-layout.ja.md",
     "docs/OPTIONAL_LOCAL_OCI_REGISTRY.md", "docs/OPTIONAL_LOCAL_OCI_REGISTRY.ja.md",
 ]
 for rel in required:
@@ -134,26 +136,31 @@ require_text("docs/DOCUMENTATION_STYLE_GUIDE.md", [
     "reference/terminology-and-boundaries.md", "security/security-architecture.md",
 ])
 require_text("docs/status/versioning-and-release-status.md", [
-    "One independently useful product feature", "v0.17 | OCI Seed Builder & Btrfs/COW",
-    "v0.18 | Docker Compatibility Plugin", "contiguous through **v0.16**",
-    "Local Registry infrastructure is deferred and unversioned",
+    "Minor milestones are lightweight pre-1.0 progress checkpoints", "v0.17 | OCI Seed Builder & Btrfs/COW",
+    "v0.18 | Docker Compatibility Plugin", "v0.19 | Domain-aware Egress Authorization",
+    "v0.20 | Managed Btrfs Rootfs Storage", "v0.21 | Managed Btrfs Transparent Compression",
+    "current milestone position is **v0.21**", "Local Registry infrastructure is deferred and unversioned",
     "cloud implementation is currently deferred",
 ])
 require_text("docs/IMPLEMENTATION_STATUS.md", [
-    "current code reality", "contiguous through **v0.16**", "pkg/clientadapter", "haco ssh",
+    "current code reality", "current milestone position is **v0.21**", "pkg/clientadapter", "haco ssh",
     "haco plugin oci seed build", "haco plugin oci seed current",
-    "v0.17 partial", "v0.18 implemented", "haco plugin oci docker status",
-    "HACO_PLUGIN_OCI=nerdctl|docker", "cloud implementation is currently deferred",
+    "v0.17 partial", "v0.18 implemented", "v0.19 implemented", "v0.20 first slice implemented", "v0.21 implemented",
+    "haco plugin oci docker status", "HACO_PLUGIN_OCI=nerdctl|docker",
+    "design/btrfs-storage-layout.md", "compress=zstd:3", "cloud implementation is currently deferred",
 ])
 require_text("docs/status/architecture-and-roadmap.md", [
     "Hacocoon is a **Secure Workspace Runtime**", "Core", "Standard", "Plugin",
     "v0.17 | OCI Seed Builder & Btrfs/COW", "v0.18 | Docker Compatibility Plugin",
-    "contiguous through **v0.16**", "Local OCI Registry is not a roadmap milestone",
+    "v0.19 | Domain-aware Egress Authorization", "v0.20 | Managed Btrfs Rootfs Storage",
+    "v0.21 | Managed Btrfs Transparent Compression", "current milestone position is **v0.21**",
+    "Local OCI Registry is not a roadmap milestone",
 ])
 require_text("docs/README.md", [
     "Documentation layout", "Source-of-truth order", "CLIENT_ADAPTER_CONTRACT.md",
     "pkg/clientadapter", "design/oci-seed-and-cow.md", "design/docker-compatibility-plugin.md",
-    "contiguous through **v0.16**", "Core", "Standard", "Plugin",
+    "EGRESS_AUTHORIZATION.md", "design/btrfs-storage-layout.md", "current milestone position is **v0.21**",
+    "v0.21 | Managed Btrfs Transparent Compression", "Core", "Standard", "Plugin",
 ])
 require_text("docs/CLIENT_ADAPTER_CONTRACT.md", [
     "pkg/clientadapter", "public-key", "private key", "loopback-only", "/workspace",
@@ -171,8 +178,15 @@ require_text("docs/design/docker-compatibility-plugin.md", [
     "Docker Compatibility Plugin", "haco plugin oci docker status",
     "haco plugin oci docker prepare", "fail closed",
 ])
-require_text("README.md", ["pre-1.0", "haco base list", "haco plugin oci", "pkg/clientadapter"])
-require_text("README.ja.md", ["読み方: はこーん", "pre-1.0", "haco base list", "haco plugin oci", "pkg/clientadapter"])
+require_text("docs/EGRESS_AUTHORIZATION.md", [
+    "Domain-aware egress authorization", "network.egress/connect", "haco egress serve", "SNI",
+])
+require_text("docs/design/btrfs-storage-layout.md", [
+    "Hacocoon-managed Btrfs storage layout", "v0.21 Managed Btrfs Transparent Compression",
+    "sparse raw", "haco-<storage-id>", "Environment rootfs", "compress=zstd:3", "compress-force",
+])
+require_text("README.md", ["pre-1.0", "haco base list", "haco plugin oci", "pkg/clientadapter", "v0.21"])
+require_text("README.ja.md", ["読み方: はこーん", "pre-1.0", "haco base list", "haco plugin oci", "pkg/clientadapter", "v0.21"])
 
 if errors:
     print("DOC CONSISTENCY FAILED")

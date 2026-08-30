@@ -1,5 +1,9 @@
 # Hacocoon-managed Btrfs storage layout
 
+Status: **repository implementation present; physical compression/COW/compaction acceptance remains host-dependent.**
+
+Milestones: **v0.20 Managed Btrfs Rootfs Storage** and **v0.21 Managed Btrfs Transparent Compression**.
+
 Hacocoon local storage uses one sparse raw backing image per configured storage pool and formats that image as Btrfs. Incus uses the mounted Btrfs filesystem as the source for the corresponding Hacocoon-managed storage pool.
 
 ```text
@@ -33,6 +37,14 @@ The storage boundary is deliberate. Base, Tooling, Seed, and Environment rootfs 
 - compaction can return unused extents to the sparse raw backing file.
 
 Hacocoon must not create a separate Btrfs filesystem or sparse image per Environment or Seed merely for isolation. Incus volumes/subvolumes provide the logical isolation inside a shared storage pool.
+
+## Compression policy
+
+Managed Btrfs filesystems use `compress=zstd:3` by default. Hacocoon deliberately does **not** use `compress-force`; normal Btrfs compression heuristics may leave incompressible data uncompressed rather than repeatedly spending CPU on forced attempts.
+
+When Hacocoon finds an already-mounted managed filesystem without the expected compression option, it remounts that managed filesystem with `compress=zstd:3`. A `compress-force` mount is not considered compliant with the managed desired state.
+
+The compression mount option affects newly written extents. Hacocoon does not automatically defragment or recompress existing data because rewriting extents can reduce existing reflink/COW sharing. Physical compression ratio, CPU cost, and supported-host behavior remain acceptance concerns rather than repository-only claims.
 
 ## Runtime selection rule
 

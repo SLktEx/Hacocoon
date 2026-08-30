@@ -14,6 +14,7 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, and r
 - Core / Standard / Plugin boundaries: [`design/plugin-architecture.md`](design/plugin-architecture.md)
 - Canonical terminology: [`reference/terminology-and-boundaries.md`](reference/terminology-and-boundaries.md)
 - Domain-aware egress: [`EGRESS_AUTHORIZATION.md`](EGRESS_AUTHORIZATION.md)
+- Managed Btrfs storage: [`design/btrfs-storage-layout.md`](design/btrfs-storage-layout.md)
 - Reusable client adapters: [`CLIENT_ADAPTER_CONTRACT.md`](CLIENT_ADAPTER_CONTRACT.md)
 - Client interaction events: [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md)
 - Documentation style: [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md)
@@ -61,10 +62,13 @@ The authoritative table lives in [`status/versioning-and-release-status.md`](sta
 | v0.14 | Git Fetch Plugin | implemented |
 | v0.15 | OCI Seed Recommendation | implemented |
 | v0.16 | OCI Image Deletion | first slice implemented |
-| v0.17 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
+| v0.17 | OCI Seed Builder & Btrfs/COW | repository slices / partial acceptance |
 | v0.18 | Docker Compatibility Plugin | repository implementation complete; real-host acceptance separate |
+| v0.19 | Domain-aware Egress Authorization | repository implementation complete; real supported-Incus acceptance separate |
+| v0.20 | Managed Btrfs Rootfs Storage | first repository slice implemented; physical COW/compaction acceptance separate |
+| v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` managed default implemented; physical compression/performance acceptance separate |
 
-The fully implemented product progression is contiguous through **v0.16** because v0.17 remains partial. Local OCI Registry is deferred optional infrastructure and does not reserve a milestone.
+The current milestone position is **v0.21**. Minor versions are lightweight pre-1.0 progress checkpoints, so a partial earlier milestone does not block later checkpoints. Local OCI Registry is deferred optional infrastructure and does not reserve a milestone.
 
 Current design documents:
 
@@ -74,6 +78,8 @@ Current design documents:
 - [`design/oci-image-deletion.md`](design/oci-image-deletion.md)
 - [`design/oci-seed-and-cow.md`](design/oci-seed-and-cow.md)
 - [`design/docker-compatibility-plugin.md`](design/docker-compatibility-plugin.md)
+- [`EGRESS_AUTHORIZATION.md`](EGRESS_AUTHORIZATION.md)
+- [`design/btrfs-storage-layout.md`](design/btrfs-storage-layout.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md) — deferred optional direction
 
 ## Reusable client adapter boundary
@@ -112,13 +118,13 @@ The provider-neutral remote/cloud routing seam remains. Concrete EC2/AWS/EBS imp
 
 ## Numbering rule
 
-> One independently useful product feature is approximately one minor milestone.
+> Minor versions are pragmatic pre-1.0 progress checkpoints.
 
-Fixes, hardening, refactors, CLI namespace cleanup, CI and docs normally do not consume another product version. Version mapping belongs in status documents and page bodies, never in normal documentation filenames.
+Meaningful implementation slices may take the next minor even when follow-up work or real-host acceptance remains. Fixes, hardening, refactors, CLI namespace cleanup, CI and docs normally do not consume another product version by themselves. Version mapping belongs in status documents and page bodies, never in normal documentation filenames.
 
 ## Editing rule
 
-Follow [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md). Update the owning document first, then `IMPLEMENTATION_STATUS.md`, and—only when a new independent feature consumes or changes a milestone—`status/versioning-and-release-status.md`. Keep English/Japanese companions aligned and run:
+Follow [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md). Update the owning document first, then `IMPLEMENTATION_STATUS.md`, and update `status/versioning-and-release-status.md` whenever a development checkpoint consumes or changes a milestone. Keep English/Japanese companions aligned and run:
 
 ```bash
 python tools/check_docs.py

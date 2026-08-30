@@ -108,7 +108,7 @@ Hacocoon separates product contracts from default implementations and optional i
 | Layer | Role | Examples |
 |---|---|---|
 | **Core** | Stable product semantics and security boundaries | Environment, Workspace lease, Policy, Capability, interaction contracts |
-| **Standard** | Project-maintained replaceable defaults used by normal installations | current Incus backend; future default egress enforcement |
+| **Standard** | Project-maintained replaceable defaults used by normal installations | current Incus backend; hostname-aware egress enforcement |
 | **Plugin** | Optional/specialized integrations | Git helpers, nerdctl/Docker/OCI tooling |
 
 See [Adapter and extension architecture](docs/design/plugin-architecture.md) and [Design principles](docs/DESIGN_PRINCIPLES.md).
@@ -134,7 +134,7 @@ HACO_PLUGIN_OCI=docker  haco plugin oci docker status dev
 HACO_PLUGIN_OCI=docker  haco plugin oci docker prepare dev
 ```
 
-Core does not require containerd, nerdctl, Docker, or a local Registry. OCI Seed Builder/COW is currently the partial v0.17 gate; Docker Compatibility is the repository-implemented v0.18 gate. The Local OCI Registry direction remains deferred/unversioned optional infrastructure.
+Core does not require containerd, nerdctl, Docker, or a local Registry. OCI Seed Builder/COW remains a partial v0.17 checkpoint and Docker Compatibility is repository-implemented at v0.18. Domain-aware egress is the repository-complete v0.19 checkpoint, Hacocoon-managed Btrfs rootfs storage is the first-slice v0.20 checkpoint, and managed Btrfs `compress=zstd:3` is the implemented v0.21 checkpoint. Pre-1.0 minor versions are lightweight progress markers, so incomplete acceptance in an earlier checkpoint does not block later ones. The Local OCI Registry direction remains deferred/unversioned optional infrastructure.
 
 ## Reusable clients
 

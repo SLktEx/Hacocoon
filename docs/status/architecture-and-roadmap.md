@@ -38,7 +38,7 @@ Hacocoon does not own IDE/AI chat UX, model routing, task DAGs, Git worktree orc
 ## Core, Standard, Plugin
 
 - **Core** owns stable product semantics and security boundaries.
-- **Standard** contains project-maintained, replaceable default implementations used by normal installations, such as the current Incus backend and future default egress enforcement.
+- **Standard** contains project-maintained, replaceable default implementations used by normal installations, including the current Incus backend and hostname-aware egress enforcement.
 - **Plugin** contains optional or specialized integrations, including nerdctl/Docker/OCI tooling.
 
 See [`../design/plugin-architecture.md`](../design/plugin-architecture.md) and [`../DESIGN_PRINCIPLES.md`](../DESIGN_PRINCIPLES.md).
@@ -65,8 +65,11 @@ See [`../design/plugin-architecture.md`](../design/plugin-architecture.md) and [
 | v0.16 | OCI Image Deletion | first slice implemented |
 | v0.17 | OCI Seed Builder & Btrfs/COW | build/publish + operations-hardening repository slices / partial |
 | v0.18 | Docker Compatibility Plugin | repository implementation complete; real-host acceptance remains host-dependent |
+| v0.19 | Domain-aware Egress Authorization | repository implementation complete; real supported-Incus acceptance remains host-dependent |
+| v0.20 | Managed Btrfs Rootfs Storage | first repository slice implemented; physical COW/compaction acceptance remains host-dependent |
+| v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` managed default implemented; real compression/performance acceptance remains host-dependent |
 
-Fully implemented product milestones are contiguous through **v0.16** because v0.17 remains partial. v0.18 has a complete repository implementation even though the preceding Seed/COW gate still has acceptance work.
+The current milestone position is **v0.21**. Milestones are lightweight pre-1.0 development checkpoints, so a partial earlier gate does not block later progress.
 
 **Local OCI Registry is not a roadmap milestone.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
 
@@ -84,9 +87,17 @@ HACO_PLUGIN_OCI=docker   haco plugin oci ...
 
 ## OCI storage direction
 
-v0.17 repository work now covers trusted Host acquisition/cache, an offline no-NIC Seed Builder, immutable Seed publication/current pointer, exact-parent resolution, explicit per-Base immutable pins, exact re-enable after deletion, conservative old-revision GC, interrupted-builder recovery, deletion-race protection, and normal Incus/storage-driver cloning. Physical Btrfs COW measurement, authenticated/private-registry combinations including credential-free Environment harvesting where supported, broader real-host failure injection, and supported-host acceptance remain pending. Never share one writable `/var/lib/containerd` across Environments.
+v0.17 repository work covers trusted Host acquisition/cache, an offline no-NIC Seed Builder, immutable Seed publication/current pointer, exact-parent resolution, explicit per-Base immutable pins, exact re-enable after deletion, conservative old-revision GC, interrupted-builder recovery, deletion-race protection, credential-free managed-Environment harvest, and normal Incus/storage-driver cloning. Authenticated/private-registry combinations, physical Btrfs COW measurement, broader real-host failure injection, and supported-host acceptance remain pending. Never share one writable `/var/lib/containerd` across Environments.
 
-See [`../design/oci-seed-and-cow.md`](../design/oci-seed-and-cow.md), [`../design/docker-compatibility-plugin.md`](../design/docker-compatibility-plugin.md), and [`../OPTIONAL_LOCAL_OCI_REGISTRY.md`](../OPTIONAL_LOCAL_OCI_REGISTRY.md).
+v0.20 extends the storage boundary to all Hacocoon-owned local Incus rootfs paths. Local composition lazily ensures one sparse-raw Btrfs filesystem per configured Hacocoon storage pool and routes Base, Tooling, Seed, Environment rootfs volumes, snapshots, and clones through its `haco-<storage-id>` Incus pool rather than inheriting the Host default pool.
+
+v0.21 standardizes managed transparent compression. Managed Btrfs mounts use `compress=zstd:3`; non-compliant managed mounts are remounted, `compress-force` is intentionally not the desired state, and Hacocoon does not automatically rewrite old extents because that could reduce reflink/COW sharing. Physical compression ratio, CPU cost, COW behavior, and compaction remain host-dependent acceptance concerns.
+
+See [`../design/oci-seed-and-cow.md`](../design/oci-seed-and-cow.md), [`../design/btrfs-storage-layout.md`](../design/btrfs-storage-layout.md), [`../design/docker-compatibility-plugin.md`](../design/docker-compatibility-plugin.md), and [`../OPTIONAL_LOCAL_OCI_REGISTRY.md`](../OPTIONAL_LOCAL_OCI_REGISTRY.md).
+
+## Egress direction
+
+v0.19 records the repository-complete hostname-aware egress slice: Core authorization, the Standard HTTP/HTTPS proxy, Host-side DNS pinning and address filtering, CONNECT/SNI validation, Incus proxy-only transport enforcement, trusted source-IP Environment mapping, and `haco egress serve`. Real supported-Incus bridge/nftables/dnsmasq acceptance remains host-dependent. See [`../EGRESS_AUTHORIZATION.md`](../EGRESS_AUTHORIZATION.md).
 
 ## Client direction
 
@@ -94,7 +105,7 @@ Clients use generic Hacocoon contracts rather than becoming Core dependencies. `
 
 ## Numbering rule
 
-One independently useful product feature is approximately one minor milestone. Security fixes, bug fixes, hardening, refactors, CLI namespace cleanup, CI, docs, release engineering, and test-only work normally do not consume another product version.
+Minor versions are pragmatic pre-1.0 progress checkpoints. Meaningful implementation slices may take the next minor even when follow-up work or real-host acceptance remains. Security fixes, bug fixes, hardening, refactors, CLI namespace cleanup, CI, docs, release engineering, and test-only work normally do not consume another product version by themselves.
 
 ## Historical note
 

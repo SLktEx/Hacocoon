@@ -1,10 +1,10 @@
 # Implementation Status
 
-Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, the feature-version rebaseline through v0.18, Docker compatibility lifecycle integration, the OCI Seed Builder repository slices including credential-free managed-Environment harvest, the client-neutral interaction-event contract, the reusable client-adapter contract, and domain-aware Standard egress enforcement.
+Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, Docker compatibility lifecycle integration, the OCI Seed Builder repository slices including credential-free managed-Environment harvest, the client-neutral interaction-event contract, the reusable client-adapter contract, domain-aware Standard egress enforcement, Hacocoon-managed Btrfs rootfs pool integration, and default managed Btrfs `zstd:3` compression.
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance.
 
-The fully implemented product progression is currently contiguous through **v0.16** because v0.17 remains a partial feature gate. v0.18 Docker Compatibility has a complete repository implementation that landed before the final numbering reorder.
+The current milestone position is **v0.21**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.21.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
@@ -20,7 +20,7 @@ The fully implemented product progression is currently contiguous through **v0.1
 | Base lifecycle | provider-neutral Base identity and `haco base list` / `haco base inspect` / `create --base` are implemented | v0.11 |
 | Resource budgets | CPU, memory, PID and root-storage budgets are modeled and Incus finite limits are enforced or rejected | v0.12 |
 | Managed sandbox network | managed `haco-sandbox0`, proxy-only ACL transport guard and `haco-sandbox` profile are created/verified; bridge DNS is disabled while DHCP remains; drift fails closed | v0.13 / cross-cutting |
-| Domain-aware egress authorization | Core `network.egress/connect` authority, Standard HTTP/HTTPS proxy, Host-side DNS pinning, private-address rejection, CONNECT/SNI validation, trusted Incus source-IP mapping and `haco egress serve` are implemented; real supported-Incus acceptance remains host-dependent | cross-cutting |
+| Domain-aware egress authorization | Core `network.egress/connect` authority, Standard HTTP/HTTPS proxy, Host-side DNS pinning, private-address rejection, CONNECT/SNI validation, trusted Incus source-IP mapping and `haco egress serve` are implemented; real supported-Incus acceptance remains host-dependent | v0.19 implemented |
 | Git fetch plugin | `haco plugin git fetch <environment>` uses trusted Host Git/GitHub authority including `gh auth git-credential` for HTTPS private repositories | v0.14 |
 | OCI plugin boundary | containerd/nerdctl/Docker-dependent behavior lives under optional `modules/plugin/oci`; `HACO_PLUGIN_OCI=nerdctl|docker` opts in, and Core remains valid when unset | cross-cutting |
 | OCI usage telemetry | `haco plugin oci seed sample` records Environment image identity snapshots; `haco plugin oci seed recommend` ranks immutable identities over the recommendation window | v0.15 |
@@ -29,11 +29,13 @@ The fully implemented product progression is currently contiguous through **v0.1
 | OCI deletion override | tombstones prevent silent recommendation/auto-promotion of the deleted immutable identity; `haco plugin oci image reenable <reference@sha256:...>` removes only the exact immutable tombstone | v0.16 / v0.17 integration |
 | OCI Seed Builder / Btrfs COW | `haco plugin oci seed build` / `haco plugin oci seed current`, per-Base `haco plugin oci seed pin` / `unpin` / `pins`, conservative `haco plugin oci seed gc` / `recover`, trusted Host acquisition, credential-free exact-image harvest from explicitly marked running managed Environments, offline no-NIC build, immutable publication/current pointer, exact-parent resolution, and pre-build interrupted-builder recovery are implemented; real-host/authenticated-registry/COW acceptance remains pending | v0.17 partial |
 | Docker compatibility | `haco plugin oci docker status/prepare` validates a Base-provided genuine Docker profile, verifies pinned systemd units, refuses active vendor-daemon takeover, and enables Environment-local socket activation without making Docker a Core requirement | v0.18 implemented |
+| Managed Btrfs rootfs storage | local composition lazily provisions one sparse-raw Btrfs filesystem per configured Hacocoon storage pool and pins Hacocoon-owned Incus Base/Tooling/Seed/Environment rootfs paths to the corresponding `haco-<storage-id>` pool instead of inheriting the Host default pool | v0.20 first slice implemented |
+| Managed Btrfs transparent compression | managed Btrfs mounts default to `compress=zstd:3`; non-compliant managed mounts are remounted, `compress-force` is not accepted as desired state, and existing data is not automatically recompressed | v0.21 implemented |
 | Optional Local OCI Registry | Registry/proxy is optional and not required for ordinary direct upstream pulls or Seed construction | unversioned optional / deferred |
 
 ## Domain-aware egress boundary
 
-Ordinary HTTP/HTTPS egress is now enforced through the Standard proxy rather than by DNS-to-IP ACL approximation. The Incus NIC remains default deny and allows only TCP to the managed bridge gateway on the Standard proxy port. The bridge keeps DHCP but disables its dnsmasq DNS listener with `raw.dnsmasq=port=0`; unmanaged DNS or ACL configuration fails closed.
+Ordinary HTTP/HTTPS egress is enforced through the Standard proxy rather than by DNS-to-IP ACL approximation. The Incus NIC remains default deny and allows only TCP to the managed bridge gateway on the Standard proxy port. The bridge keeps DHCP but disables its dnsmasq DNS listener with `raw.dnsmasq=port=0`; unmanaged DNS or ACL configuration fails closed.
 
 The managed profile provides HTTP(S) proxy discovery to Hacocoon Environments. The proxy derives Environment identity from trusted Incus source-IP state, routes each hostname/port/protocol request through the existing Policy / Approval / Capability / audit path, resolves DNS only on the Host after authorization, pins the public answer set per connection, and validates HTTPS CONNECT against ClientHello SNI before forwarding TLS bytes. `haco egress serve` is the foreground trusted-Host launch path so the current stdio approval provider remains usable. See [`EGRESS_AUTHORIZATION.md`](EGRESS_AUTHORIZATION.md).
 
@@ -63,7 +65,11 @@ Explicit per-Base pins are persisted as immutable OCI identities. Deletion tombs
 
 For an exact immutable identity already present in an explicitly marked running Hacocoon-managed Environment, Seed acquisition can copy a temporary `nerdctl save` OCI archive into the trusted Host cache and then delete the guest archive. It does not copy registry credentials, credential-helper output, workspace data, arbitrary Environment files, or live containerd state. Legacy/unmarked Environments are not inspected; failed or unavailable harvest falls back to the existing trusted Host pull path.
 
-Local Registry is not a prerequisite and has no reserved milestone. Remaining v0.17 work includes real supported-host Incus/containerd/Docker acceptance, authenticated/private-registry combinations using Host-owned credentials without leakage, physical Btrfs COW measurement, and broader real-host failure injection.
+v0.20 generalizes the local rootfs storage boundary beyond Seed-specific COW work. The local application configures a lazy Hacocoon Btrfs provider; before an Environment, Tooling Base builder, or Seed builder needs root storage, Incus resolves the managed attachment and selects the corresponding `haco-<storage-id>` pool. Base, Tooling, Seed, Environment rootfs volumes, snapshots, and clones therefore share the configured Hacocoon-managed Btrfs filesystem while Host Workspaces remain bind-mounted outside it.
+
+v0.21 makes transparent compression the managed default: `compress=zstd:3` is applied on initial mount and to non-compliant already-mounted managed filesystems. `compress-force` is intentionally not the desired state, and Hacocoon does not automatically defragment/recompress old extents because doing so can reduce reflink/COW sharing. See [`design/btrfs-storage-layout.md`](design/btrfs-storage-layout.md).
+
+Local Registry is not a prerequisite and has no reserved milestone. Remaining storage acceptance includes authenticated/private-registry combinations using Host-owned credentials without leakage, physical Btrfs compression ratio and CPU-cost measurement, COW/compaction/sparse-hole behavior, broader failure injection, and supported-host verification.
 
 ## Docker compatibility
 
@@ -77,4 +83,4 @@ v0.7 retains the provider-neutral Environment routing seam because that architec
 
 ## Acceptance gaps
 
-Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior—including the proxy-only bridge ACL and dnsmasq DNS disablement—Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.17 additionally still needs authenticated/private-registry combinations using Host-owned credentials, physical Btrfs COW measurement, and broader real-host failure-injection coverage.
+Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior—including the proxy-only bridge ACL and dnsmasq DNS disablement—Windows/WSL + VS Code, private-registry credentials, Docker compatibility, managed Btrfs compression/COW/compaction behavior, and future cloud adapters remain environment-dependent. Partial acceptance in an earlier milestone does not prevent later minor checkpoints from advancing.

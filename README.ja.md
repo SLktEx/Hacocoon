@@ -88,7 +88,7 @@ VS Codeは最初のconvenience clientであり、Core dependencyではありま�
 | Layer | 役割 | 例 |
 |---|---|---|
 | **Core** | 安定したproduct semantics / security boundary | Environment、Workspace lease、Policy、Capability、interaction contract |
-| **Standard** | 通常配布で使うproject-maintainedな交換可能default | 現在のIncus backend、将来のdefault egress enforcement |
+| **Standard** | 通常配布で使うproject-maintainedな交換可能default | 現在のIncus backend、hostname-aware egress enforcement |
 | **Plugin** | optional / specialized integration | Git helper、nerdctl / Docker / OCI tooling |
 
 詳細は [Adapter and extension architecture](docs/design/plugin-architecture.md) と [設計原則](docs/DESIGN_PRINCIPLES.ja.md) を参照してください。
@@ -108,7 +108,7 @@ HACO_PLUGIN_OCI=docker  haco plugin oci docker status dev
 HACO_PLUGIN_OCI=docker  haco plugin oci docker prepare dev
 ```
 
-Coreはcontainerd、nerdctl、Docker、local Registryを必須にしません。OCI Seed Builder/COWはv0.17のpartial gate、Docker Compatibilityはv0.18のrepository実装済みgateです。Local OCI Registryはdeferred/unversionedなoptional infrastructureです。
+Coreはcontainerd、nerdctl、Docker、local Registryを必須にしません。OCI Seed Builder/COWはv0.17のpartial checkpoint、Docker Compatibilityはv0.18のrepository実装済みcheckpointです。Domain-aware egressはv0.19のrepository実装済みcheckpoint、Hacocoon管理Btrfs rootfs storageはv0.20のfirst-slice checkpoint、managed Btrfs `compress=zstd:3` はv0.21の実装済みcheckpointです。pre-1.0のminor versionは軽量な進捗markerとして扱い、前のcheckpointにacceptance残件があっても後続へ進めます。Local OCI Registryはdeferred/unversionedなoptional infrastructureです。
 
 ## Reusable client
 
