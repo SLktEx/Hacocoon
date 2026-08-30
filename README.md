@@ -24,7 +24,7 @@ Hacocoon puts a Workspace behind an isolated execution boundary while keeping pr
 > [!WARNING]
 > **Hacocoon is pre-1.0 and under active development. Breaking changes are expected.**
 >
-> Incus is the active Environment backend today. The provider seam remains generic, while the previous concrete EC2/AWS/EBS implementation is deferred. See [Implementation status](docs/IMPLEMENTATION_STATUS.md) for current repository reality and real-host acceptance gaps.
+> Incus is the active Environment backend today. The provider seam remains generic, while the previous concrete EC2/AWS/EBS implementation is deferred. See [Implementation status](docs/IMPLEMENTATION_STATUS.md) for current repository reality and real-host acceptance gaps, and [Versioning and release status](docs/status/versioning-and-release-status.md) for the authoritative fast-moving development checkpoint.
 
 ## Why Hacocoon?
 
@@ -135,13 +135,13 @@ HACO_PLUGIN_OCI=docker  haco plugin oci docker status dev
 HACO_PLUGIN_OCI=docker  haco plugin oci docker prepare dev
 ```
 
-Core does not require containerd, nerdctl, Docker, or a local Registry. OCI Seed Builder/COW remains a partial v0.17 checkpoint; Docker Compatibility is v0.18, domain-aware egress v0.19, managed Btrfs rootfs storage v0.20, and managed `compress=zstd:3` v0.21. The later checkpoints are v0.22 Interaction Notification Clients, v0.23 Real Incus E2E Acceptance, v0.24 Structured Logging, v0.25 Managed Btrfs Host Privilege Broker, and v0.26 Trusted `haco-host` & Default WSL Entry. The current milestone position is **v0.26**. Pre-1.0 minors are intentionally lightweight and may represent meaningful product, operator, observability, or acceptance progress. The Local OCI Registry direction remains deferred/unversioned optional infrastructure.
+Core does not require containerd, nerdctl, Docker, or a local Registry. Current implementation reality lives in [Implementation status](docs/IMPLEMENTATION_STATUS.md); the intentionally fast-moving pre-1.0 checkpoint number and history live in [Versioning and release status](docs/status/versioning-and-release-status.md). README deliberately does not duplicate the checkpoint table. The Local OCI Registry direction remains deferred/unversioned optional infrastructure.
 
 ## Reusable clients
 
 `pkg/clientadapter` provides a client-neutral contract for exact Environment ensure/reuse, status, `/workspace` discovery, loopback SSH/TCP connections, revoke/delete, and interaction batches. The client keeps its SSH private key and IDE configuration; Hacocoon receives only public-key material.
 
-The v0.22 notification clients consume the same read-only interaction stream for browser, native OS, and optional VS Code notifications without turning observation into an approval path.
+Notification clients consume the same read-only interaction stream for browser, native OS, and optional VS Code notifications without turning observation into an approval path.
 
 See [Reusable client adapter contract](docs/CLIENT_ADAPTER_CONTRACT.md) and [Interaction events](docs/INTERACTION_EVENTS.md).
 
@@ -176,7 +176,7 @@ Documentation uses semantic paths: feature addresses do not contain release/mile
 
 ## Development
 
-The primary supported Host baseline is **Ubuntu 26.04+**. GitHub-hosted Linux CI is pinned explicitly to **`ubuntu-26.04`** so CI exercises that baseline rather than a floating `ubuntu-latest` image or an older Ubuntu generation. v0.23 additionally makes real Incus substrate + Core lifecycle acceptance a named milestone, v0.25 proves the ordinary-user managed-Btrfs privilege path on real Incus, and v0.26 covers trusted-host lifecycle/control-socket isolation on real Incus.
+The primary supported Host baseline is **Ubuntu 26.04+**. GitHub-hosted Linux CI is pinned explicitly to **`ubuntu-26.04`** so CI exercises that baseline rather than a floating `ubuntu-latest` image or an older Ubuntu generation. Real Incus, managed-storage privilege, and trusted-host acceptance are tracked in the implementation/status authorities instead of being copied into this introduction.
 
 ```bash
 go test ./...
