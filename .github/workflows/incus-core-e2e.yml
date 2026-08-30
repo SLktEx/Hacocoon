@@ -52,7 +52,7 @@ jobs:
   incus-core-e2e:
     needs: incus-standalone
     runs-on: ubuntu-26.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       HACO_CI_RUNNER_ENVIRONMENT: github-hosted
     steps:
@@ -64,8 +64,8 @@ jobs:
           go-version: 1.27.x
           check-latest: true
           cache: false
-      - name: Validate Core and CLI E2E helper syntax
-        run: bash -n tools/ci-incus.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh
+      - name: Validate Core, CLI, and VS Code E2E helper syntax
+        run: bash -n tools/ci-incus.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh test/e2e/vscode.sh
       - name: Prepare proven Incus substrate for Hacocoon Core
         run: bash tools/ci-incus.sh setup
       - name: Allow leased workspace owner in Incus root idmap
@@ -84,11 +84,24 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}/haco-storage-helper-e2e
         run: bash tools/ci-incus.sh core
+      - name: Run linked-worktree VS Code journey through real loopback SSH
+        env:
+          HACO_E2E_INCUS: "1"
+          TMPDIR: ${{ runner.temp }}/haco-vscode-e2e
+        run: bash test/e2e/vscode.sh
       - name: Capture Hacocoon and Incus diagnostics
         if: failure()
         run: |
           bash tools/ci-incus.sh diagnostics
           bash tools/ci-storage-helper.sh diagnostics
+      - name: Upload composed user-journey diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: incus-vscode-user-journey-diagnostics
+          path: ${{ runner.temp }}/incus-diagnostics/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Delete CI-owned Incus projects and pools
         if: always()
         run: bash tools/ci-incus-project-cleanup.sh
@@ -98,3 +111,28 @@ jobs:
       - name: Clean up storage helper resources
         if: always()
         run: bash tools/ci-storage-helper.sh cleanup
+
+  windows-wsl-acceptance:
+    runs-on: windows-2025
+    timeout-minutes: 35
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate optional Windows/WSL acceptance helper
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'test/e2e/windows_wsl.ps1'),
+            [ref]$null,
+            [ref]$errors
+          )
+          if ($errors.Count -ne 0) {
+            $errors | Format-List | Out-String | Write-Error
+            exit 1
+          }
+      - name: Attempt real Windows -> WSL2 -> Ubuntu 26.04 -> systemd -> Incus acceptance
+        shell: pwsh
+        run: ./test/e2e/windows_wsl.ps1
