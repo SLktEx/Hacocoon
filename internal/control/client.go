@@ -134,7 +134,7 @@ func marshalPayload(value any) (json.RawMessage, error) {
 
 func readResponse(conn net.Conn) (responseEnvelope, *bufio.Reader, error) {
 	reader := bufio.NewReader(conn)
-	line, err := reader.ReadBytes('\n')
+	line, err := readEnvelopeLine(reader)
 	if err != nil {
 		return responseEnvelope{}, nil, fmt.Errorf("read control response: %w", err)
 	}
