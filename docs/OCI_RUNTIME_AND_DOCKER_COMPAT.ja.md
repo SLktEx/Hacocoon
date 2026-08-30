@@ -38,8 +38,10 @@ Docker/containerd/nerdctl固有の処理は `modules/plugin/oci` のplugin/adapt
 
 Dockerとnerdctlが同一containerdのcontent-addressed blobを共有できる場合はありますが、snapshot / unpacked filesystem / writable layer / build cacheまで完全dedupされる保証はありません。
 
-Environment間の容量削減はv0.19 OCI Seed Builder & Btrfs/COWで扱います。immutable Seedを通常のIncus/storage-driver cloneで複製し、各Environmentはprivate writable stateを持ちます。writable `/var/lib/containerd` を共有しません。
+Environment間の容量削減はv0.18 OCI Seed Builder & Btrfs/COWで扱います。trusted Host acquisition/cacheからoffline immutable Seedを作り、通常のIncus/storage-driver cloneで複製し、各Environmentはprivate writable stateを持ちます。writable `/var/lib/containerd` を共有しません。
 
 ## Registry
 
-v0.18 Local OCI Registryはoptionalです。network policyとcredentialが許せばdirect upstream pullが通常経路として使え、Seed constructionの必須条件ではありません。
+Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。network policyとcredentialが許せばdirect upstream pullが通常経路として使え、Seed constructionの必須条件でもありません。
+
+See [`18_v0.18_OCI_SEED_AND_COW.ja.md`](18_v0.18_OCI_SEED_AND_COW.ja.md) and [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md).

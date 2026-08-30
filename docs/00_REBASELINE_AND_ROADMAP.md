@@ -56,10 +56,11 @@ Hacocoon does not own IDE/AI chat UX, model routing, task DAGs, Git worktree orc
 | v0.15 | OCI Seed Recommendation | implemented |
 | v0.16 | OCI Image Deletion | first slice implemented |
 | v0.17 | Docker Compatibility Plugin | foundation / partial |
-| v0.18 | Optional Local OCI Registry | planned |
-| v0.19 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.18 | OCI Seed Builder & Btrfs/COW | planned |
 
-Fully implemented product milestones are contiguous through **v0.16**. v0.17 remains partial; v0.18 and v0.19 are planned.
+Fully implemented product milestones are contiguous through **v0.16**. v0.17 remains partial; v0.18 is planned.
+
+**Local OCI Registry is not a roadmap milestone.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
 
 ## Numbering rule
 
@@ -79,7 +80,9 @@ HACO_PLUGIN_OCI=docker   haco plugin oci ...
 
 ## OCI storage direction
 
-Normal upstream pull is allowed by policy; v0.18 Local Registry is optional. v0.19 uses trusted Host acquisition, an offline Seed Builder, immutable Seed publication, and normal Incus/storage-driver COW. Never share one writable `/var/lib/containerd` across Environments.
+Normal upstream pull is allowed by policy. Local Registry is optional/deferred and is not required for Seed construction. v0.18 uses trusted Host acquisition/cache, an offline Seed Builder, immutable Seed publication, and normal Incus/storage-driver COW. Never share one writable `/var/lib/containerd` across Environments.
+
+See [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md) and [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
 
 ## Client interaction direction
 
@@ -87,4 +90,6 @@ Browser/Web interaction and notification work belongs at a client/adapter bounda
 
 ## Historical note
 
-Older commits, branches, PRs, and superseded documents may describe active EC2/AWS/EBS support or place Local Registry / Seed / deletion work under v0.13 letter-suffixed milestones. Those are historical records, not the current architecture or numbering.
+Older commits, branches, PRs, and superseded documents may describe active EC2/AWS/EBS support or place Local Registry / Seed / deletion work under older milestone assignments. Those are historical records, not the current architecture or numbering.
+
+A short-lived 2026-08-30 rebaseline reserved v0.18 for Optional Local OCI Registry and v0.19 for OCI Seed Builder/COW. That reservation is superseded: Registry is deferred/unversioned and Seed Builder/COW is v0.18.

@@ -1,10 +1,10 @@
 # Implementation Status
 
-Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, and the feature-version rebaseline through v0.19.
+Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, and the feature-version rebaseline through v0.18.
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance.
 
-The fully implemented product progression is currently contiguous through **v0.16**. v0.17 has a Docker compatibility foundation but is not yet a complete gate. v0.18 and v0.19 are planned.
+The fully implemented product progression is currently contiguous through **v0.16**. v0.17 has a Docker compatibility foundation but is not yet a complete gate. v0.18 is planned.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
@@ -25,8 +25,8 @@ The fully implemented product progression is currently contiguous through **v0.1
 | OCI image deletion | `haco plugin oci image delete <reference[@digest]>` records a deletion tombstone and can explicitly extend deletion to managed Environments | v0.16 |
 | OCI deletion override | tombstones prevent silent recommendation/auto-promotion of the deleted immutable identity | v0.16 |
 | Docker compatibility | genuine Docker CLI/on-demand Engine design and plugin-owned systemd socket/service packaging foundation exist; it is optional and not a Core runtime invariant | v0.17 |
-| Optional Local OCI Registry | Registry/proxy remains optional; ordinary direct upstream pulls are allowed by policy | v0.18 |
-| OCI Seed Builder / Btrfs COW | Host acquisition, offline builder, immutable Seed publish/current pointer and physical COW validation remain planned | v0.19 |
+| OCI Seed Builder / Btrfs COW | trusted Host acquisition/cache, offline builder, immutable Seed publish/current pointer and physical COW validation remain planned | v0.18 |
+| Optional Local OCI Registry | Registry/proxy is optional and not required for ordinary direct upstream pulls or Seed construction | unversioned optional / deferred |
 
 ## Core/plugin boundary
 
@@ -34,10 +34,16 @@ With `HACO_PLUGIN_OCI` unset, Hacocoon Core must not require or probe for contai
 
 The project-maintained OCI plugin profile may use containerd + nerdctl, and the Docker driver may provide genuine Docker compatibility. Neither choice defines a mandatory Hacocoon Core runtime.
 
+## OCI storage direction
+
+Physical Seed publication/COW belongs to v0.18. The intended path is trusted Host acquisition/cache -> offline Seed Builder -> immutable Seed revision -> normal Incus/storage-driver clone. One writable `/var/lib/containerd` must never be shared across Environments.
+
+Local Registry is not a prerequisite and has no reserved milestone. See [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
+
 ## Cloud status
 
 v0.7 retains the provider-neutral Environment routing seam because that architecture remains useful. The former concrete EC2/AWS/EBS implementation was intentionally removed while the local/provider contracts are still moving. **Cloud implementation is currently deferred** and must not be described as active or accepted.
 
 ## Acceptance gaps
 
-Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.17 is partial; v0.18 and v0.19 are planned only.
+Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.17 is partial; v0.18 is planned only.

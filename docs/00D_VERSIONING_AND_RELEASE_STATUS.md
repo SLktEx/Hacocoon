@@ -41,14 +41,13 @@ Use this document for **which version number belongs to which feature gate**. Us
 | v0.15 | OCI Seed Recommendation | ✅ implemented |
 | v0.16 | OCI Image Deletion | ✅ first slice implemented |
 | v0.17 | Docker Compatibility Plugin | 🧪 foundation implemented; full plugin integration pending |
-| v0.18 | Optional Local OCI Registry | 🚧 planned |
-| v0.19 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
+| v0.18 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
 
-The fully implemented product progression is contiguous through **v0.16**. v0.17 has a foundation but is not a complete feature gate. v0.18 and v0.19 remain planned.
+The fully implemented product progression is contiguous through **v0.16**. v0.17 has a foundation but is not a complete feature gate. v0.18 remains planned.
 
 v0.7 keeps its milestone number because the provider-neutral routing seam introduced by that gate remains implemented. The previous concrete EC2/AWS/EBS slice is intentionally absent from the active tree and **cloud implementation is currently deferred** while local/provider contracts stabilize.
 
-## v0.12 → v0.19 rebaseline
+## v0.12 → v0.18 rebaseline
 
 Independent work had accumulated under one OCI milestone and letter-suffixed sub-milestones, which no longer matched the original one-feature-per-version intent. The authoritative replacement is:
 
@@ -59,9 +58,10 @@ v0.14  Git Fetch Plugin                        implemented
 v0.15  OCI Seed Recommendation                 implemented
 v0.16  OCI Image Deletion                      implemented
 v0.17  Docker Compatibility Plugin             partial/foundation
-v0.18  Optional Local OCI Registry             planned
-v0.19  OCI Seed Builder & Btrfs/COW            planned
+v0.18  OCI Seed Builder & Btrfs/COW            planned
 ```
+
+A short-lived intermediate rebaseline reserved v0.18 for Optional Local OCI Registry and v0.19 for Seed Builder/COW. That reservation is superseded: Local Registry infrastructure is deferred and unversioned because it is not required by the default architecture, and Seed Builder/COW therefore occupies v0.18.
 
 Historical commits, closed PRs, and old branches may retain superseded OCI milestone labels. They are historical records only.
 
@@ -74,8 +74,8 @@ The later CLI namespace cleanup that separated `haco base ...` from `haco plugin
 - [`15_v0.15_OCI_SEED_RECOMMENDATION.md`](15_v0.15_OCI_SEED_RECOMMENDATION.md)
 - [`16_v0.16_OCI_IMAGE_DELETION.md`](16_v0.16_OCI_IMAGE_DELETION.md)
 - [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md)
-- [`18_v0.18_LOCAL_OCI_REGISTRY.md`](18_v0.18_LOCAL_OCI_REGISTRY.md)
-- [`19_v0.19_OCI_SEED_AND_COW.md`](19_v0.19_OCI_SEED_AND_COW.md)
+- [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md)
+- [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md) — deferred optional infrastructure, not a reserved milestone
 
 ## Acceptance watch list
 
@@ -85,9 +85,9 @@ The later CLI namespace cleanup that separated `haco base ...` from `haco plugin
 - **v0.11/v0.12:** real Base/image and resource-enforcement acceptance remains host-dependent.
 - **v0.13:** real supported-Incus network/profile/ACL acceptance remains host-dependent.
 - **v0.14:** brokered fetch is implemented; real private-repository combinations remain acceptance-sensitive.
-- **v0.15/v0.16:** OCI plugin repository behavior is implemented; physical Seed publication/GC belongs to v0.19.
+- **v0.15/v0.16:** OCI plugin repository behavior is implemented; physical Seed publication/GC belongs to v0.18.
 - **v0.17:** do not claim complete until plugin lifecycle/integration is landed and validated.
-- **v0.18/v0.19:** planned only.
+- **v0.18:** planned only.
 
 ## Rule of thumb
 

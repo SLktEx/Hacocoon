@@ -47,10 +47,10 @@ Rules:
 
 Docker and nerdctl can use different containerd namespaces while sharing content-addressed blobs where supported, but complete byte deduplication is not guaranteed because snapshots, unpacked filesystems, writable layers, namespace metadata, and build caches differ.
 
-Cross-Environment savings belong to **v0.19 OCI Seed Builder & Btrfs/COW**. The intended path is immutable Seed filesystem -> normal Incus/storage-driver clone -> Environment-private writable state. Never share one writable `/var/lib/containerd` among Environments.
+Cross-Environment savings belong to **v0.18 OCI Seed Builder & Btrfs/COW**. The intended path is trusted Host acquisition/cache -> offline immutable Seed build -> normal Incus/storage-driver clone -> Environment-private writable state. Never share one writable `/var/lib/containerd` among Environments.
 
 ## Registry
 
-v0.18 Local OCI Registry is optional. Ordinary direct upstream pulls remain valid when network policy and credentials allow them; Seed construction does not require a Hacocoon-managed registry.
+A Local OCI Registry is deferred optional infrastructure and has no reserved roadmap milestone. Ordinary direct upstream pulls remain valid when network policy and credentials allow them; Seed construction does not require a Hacocoon-managed registry.
 
-See [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md) and [`19_v0.19_OCI_SEED_AND_COW.md`](19_v0.19_OCI_SEED_AND_COW.md).
+See [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md), [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md), and [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
