@@ -13,7 +13,8 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, devel
 - Architecture / roadmap: [`status/architecture-and-roadmap.md`](status/architecture-and-roadmap.md)
 - Security architecture: [`security/security-architecture.md`](security/security-architecture.md)
 - Trusted logical Host: [`design/trusted-host.md`](design/trusted-host.md)
-- Experimental Kubernetes Environment runtime: [`design/kubernetes-runtime.md`](design/kubernetes-runtime.md)
+- Kubernetes parity-only experiment: [`design/kubernetes-parity-experiment.md`](design/kubernetes-parity-experiment.md)
+- Experimental Kubernetes Environment runtime mechanics: [`design/kubernetes-runtime.md`](design/kubernetes-runtime.md)
 - Windows / WSL bootstrap and default `haco-host` entry: [`WINDOWS_WSL_BOOTSTRAP.md`](WINDOWS_WSL_BOOTSTRAP.md)
 - Core / Standard / Plugin boundaries: [`design/plugin-architecture.md`](design/plugin-architecture.md)
 - Canonical terminology: [`reference/terminology-and-boundaries.md`](reference/terminology-and-boundaries.md)
@@ -63,7 +64,7 @@ For outbound access, the egress request/policy/controller contract belongs to Co
 
 `haco-host` is trusted infrastructure supplied by the local Incus integration, not an Environment and not an OCI-plugin requirement. The current lifecycle/default-entry slice is implemented; broader Git/OCI/credential/control-channel migration remains follow-up work.
 
-The `main-kube` branch additionally carries a partial Kubernetes + Sysbox Environment-provider experiment. It keeps `haco-host`, Policy / Approval / Capability, credentials, audit, and brokered Git push on the trusted side; whole-Environment clone and final Workspace storage remain explicit replacement gates. See [`design/kubernetes-runtime.md`](design/kubernetes-runtime.md).
+The `main-kube` branch is a disposable comparison experiment and is **not intended to merge into `main`**. It asks only whether Kubernetes can reproduce the complete Incus-backed Hacocoon feature/security behavior and, if so, whether the Hacocoon-owned implementation and operation are measurably simpler. Missing behavior is recorded as a parity gap; product requirements are not changed to make Kubernetes fit. See [`design/kubernetes-parity-experiment.md`](design/kubernetes-parity-experiment.md).
 
 ## Current checkpoint
 
@@ -78,6 +79,7 @@ Pre-1.0 checkpoint numbers are deliberately cheap. Meaningful product, implement
 Current design/reference documents include:
 
 - [`design/trusted-host.md`](design/trusted-host.md)
+- [`design/kubernetes-parity-experiment.md`](design/kubernetes-parity-experiment.md)
 - [`design/kubernetes-runtime.md`](design/kubernetes-runtime.md)
 - [`design/managed-sandbox-network.md`](design/managed-sandbox-network.md)
 - [`design/git-fetch-plugin.md`](design/git-fetch-plugin.md)
