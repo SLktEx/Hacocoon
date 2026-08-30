@@ -2,15 +2,19 @@ package events
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
+
+const maxAuditRecordBytes = 1024 * 1024
 
 type Event struct {
 	RequestID   string              `json:"request_id,omitempty"`
@@ -26,6 +30,7 @@ type Event struct {
 	Approved    *bool               `json:"approved,omitempty"`
 	Success     *bool               `json:"success,omitempty"`
 	Reason      string              `json:"reason,omitempty"`
+	NextOffset  int64               `json:"next_offset"`
 }
 
 type CorruptionKind string
@@ -37,9 +42,10 @@ const (
 )
 
 // AuditCorruptionError reports the first audit record that cannot be trusted.
-// List returns only the valid prefix before this position; records at and after
-// the corruption are deliberately not exposed because their ordering/history
-// can no longer be established from the JSONL stream.
+// ByteOffset is always the absolute byte offset in the audit file. Line is
+// one-based relative to the requested stream offset; for List (offset zero) it
+// is therefore the absolute file line. Records at and after the corruption are
+// deliberately not exposed.
 type AuditCorruptionError struct {
 	Line       int
 	ByteOffset int64
@@ -70,39 +76,75 @@ type Service struct {
 
 func New(path string) *Service { return &Service{path: path} }
 
-func (s *Service) List(ctx context.Context) ([]Event, error) {
-	if s == nil || s.path == "" {
-		return nil, core.ErrInvalidArgument
+// Stream reads complete JSONL records beginning at offset and emits them one at
+// a time. The returned offset is the next safe record boundary after the last
+// successfully emitted event. Memory use is bounded by one audit record plus
+// the caller's own callback state.
+func (s *Service) Stream(ctx context.Context, offset int64, emit func(Event) error) (int64, error) {
+	if s == nil || s.path == "" || offset < 0 || emit == nil {
+		return offset, core.ErrInvalidArgument
 	}
 	file, err := os.Open(s.path)
 	if errors.Is(err, os.ErrNotExist) {
-		return []Event{}, nil
+		if offset == 0 {
+			return 0, nil
+		}
+		return offset, fmt.Errorf("event offset %d cannot be resumed because the audit file is missing: %w", offset, core.ErrInvalidArgument)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("open capability audit: %w", err)
+		return offset, fmt.Errorf("open capability audit: %w", err)
 	}
 	defer file.Close()
 
-	var events []Event
+	info, err := file.Stat()
+	if err != nil {
+		return offset, fmt.Errorf("stat capability audit: %w", err)
+	}
+	if offset > info.Size() {
+		return offset, fmt.Errorf("event offset %d exceeds current audit size %d (log may have been truncated or rotated): %w", offset, info.Size(), core.ErrInvalidArgument)
+	}
+	if offset > 0 && offset < info.Size() {
+		var previous [1]byte
+		if _, err := file.ReadAt(previous[:], offset-1); err != nil {
+			return offset, fmt.Errorf("validate event offset %d: %w", offset, err)
+		}
+		if previous[0] != '\n' {
+			return offset, fmt.Errorf("event offset %d is not a JSONL record boundary: %w", offset, core.ErrInvalidArgument)
+		}
+	}
+	if _, err := file.Seek(offset, io.SeekStart); err != nil {
+		return offset, fmt.Errorf("seek capability audit to %d: %w", offset, err)
+	}
+
 	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	scanner.Buffer(make([]byte, 64*1024), maxAuditRecordBytes+2)
+	scanner.Split(scanJSONLRecord)
+	currentOffset := offset
 	line := 0
-	var byteOffset int64
 	for scanner.Scan() {
 		line++
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return currentOffset, ctx.Err()
 		default:
 		}
 
-		recordOffset := byteOffset
-		record := scanner.Bytes()
-		byteOffset += int64(len(record)) + 1
+		rawRecord := scanner.Bytes()
+		recordOffset := currentOffset
+		currentOffset += int64(len(rawRecord))
+		record := bytes.TrimSuffix(rawRecord, []byte{'\n'})
+		if len(record) > maxAuditRecordBytes {
+			return recordOffset, &AuditCorruptionError{
+				Line:       line,
+				ByteOffset: recordOffset,
+				Kind:       CorruptionReadError,
+				Err:        fmt.Errorf("audit record exceeds %d bytes", maxAuditRecordBytes),
+			}
+		}
 
 		var audit core.CapabilityAuditEvent
 		if err := json.Unmarshal(record, &audit); err != nil {
-			return events, &AuditCorruptionError{
+			return recordOffset, &AuditCorruptionError{
 				Line:       line,
 				ByteOffset: recordOffset,
 				Kind:       CorruptionMalformedJSON,
@@ -110,14 +152,14 @@ func (s *Service) List(ctx context.Context) ([]Event, error) {
 			}
 		}
 		if audit.Time.IsZero() || audit.Type == "" {
-			return events, &AuditCorruptionError{
+			return recordOffset, &AuditCorruptionError{
 				Line:       line,
 				ByteOffset: recordOffset,
 				Kind:       CorruptionIncomplete,
 				Err:        errors.New("required time/type field is missing"),
 			}
 		}
-		events = append(events, Event{
+		event := Event{
 			RequestID:   audit.RequestID,
 			Time:        audit.Time,
 			Source:      "capability",
@@ -131,17 +173,43 @@ func (s *Service) List(ctx context.Context) ([]Event, error) {
 			Approved:    audit.Approved,
 			Success:     audit.Success,
 			Reason:      audit.Reason,
-		})
+			NextOffset:  currentOffset,
+		}
+		if err := emit(event); err != nil {
+			return recordOffset, err
+		}
 	}
 	if err := scanner.Err(); err != nil {
-		return events, &AuditCorruptionError{
+		return currentOffset, &AuditCorruptionError{
 			Line:       line + 1,
-			ByteOffset: byteOffset,
+			ByteOffset: currentOffset,
 			Kind:       CorruptionReadError,
 			Err:        err,
 		}
 	}
-	return events, nil
+	return currentOffset, nil
+}
+
+func (s *Service) List(ctx context.Context) ([]Event, error) {
+	var events []Event
+	_, err := s.Stream(ctx, 0, func(event Event) error {
+		events = append(events, event)
+		return nil
+	})
+	if events == nil {
+		events = []Event{}
+	}
+	return events, err
+}
+
+func scanJSONLRecord(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		return i + 1, data[:i+1], nil
+	}
+	if atEOF && len(data) > 0 {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
 }
 
 func clone(values map[string]string) map[string]string {
