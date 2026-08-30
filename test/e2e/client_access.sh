@@ -72,7 +72,13 @@ restore_policy() {
 }
 
 cleanup() {
+  local code=$?
   set +e
+  if [[ "$code" != "0" && -f "$root/ssh-egress.err" ]]; then
+    echo '::group::SSH bootstrap egress stderr' >&2
+    cat "$root/ssh-egress.err" >&2 || true
+    echo '::endgroup::' >&2
+  fi
   if [[ -n "$egress_pid" ]] && kill -0 "$egress_pid" >/dev/null 2>&1; then
     kill -TERM "$egress_pid" >/dev/null 2>&1 || true
     wait "$egress_pid" >/dev/null 2>&1 || true
@@ -125,6 +131,17 @@ if ! "$haco" exec "$environment" -- sh -c 'command -v sshd >/dev/null 2>&1'; the
     exit 1
   }
 
+  # Prove that the exact source-evidence query used by the production egress
+  # resolver maps the guest's observed IPv4 address to one managed runtime ref.
+  guest_ips="$("$haco" exec "$environment" -- hostname -I)"
+  guest_ip="${guest_ips%% *}"
+  [[ -n "$guest_ip" ]]
+  source_ref="$(incus list "ipv4=$guest_ip" --project hacocoon --format csv -c n)"
+  if [[ "$source_ref" != "haco-$environment" ]]; then
+    echo "egress source lookup for $guest_ip resolved to: ${source_ref:-<none>}" >&2
+    exit 1
+  fi
+
   cat >"$HACO_ROOT/policy.json" <<'JSON'
 {
   "default": "allow",
@@ -138,6 +155,16 @@ JSON
     cat "$root/ssh-egress.err" >&2 || true
     exit 1
   }
+
+  # A raw HTTP proxy probe makes the proxy's own status/body visible before APT
+  # turns a 403/502 into a generic "repository has no Release file" message.
+  proxy_probe="$("$haco" exec "$environment" -- bash -c \
+    "exec 3<>/dev/tcp/$bridge_ip/18080; printf 'GET http://archive.ubuntu.com/ubuntu/dists/resolute/InRelease HTTP/1.1\\r\\nHost: archive.ubuntu.com\\r\\nConnection: close\\r\\n\\r\\n' >&3; cat <&3")"
+  if ! printf '%s' "$proxy_probe" | head -n 1 | grep -Eq '^HTTP/1\.[01] (200|301|302|307|308) '; then
+    echo 'SSH bootstrap proxy probe failed:' >&2
+    printf '%s\n' "$proxy_probe" >&2
+    exit 1
+  fi
 fi
 
 ssh_command="$("$haco" ssh "$environment" --public-key "$root/id_ed25519.pub" --host-port "$ssh_port")"
