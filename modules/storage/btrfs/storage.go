@@ -256,11 +256,7 @@ func (s *Storage) blockHandle(id string) block.Handle {
 }
 
 func (s *Storage) imagePath(id string) string {
-	ext := ".raw"
-	if s.block.ID() == "block.local-qcow2" {
-		ext = ".qcow2"
-	}
-	return filepath.Join(s.rootDir, "images", id+ext)
+	return filepath.Join(s.rootDir, "images", id+".raw")
 }
 
 func (s *Storage) mountPath(id string) string {
