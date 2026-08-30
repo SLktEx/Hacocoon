@@ -2,7 +2,7 @@
 
 Status: authoritative terminology.
 
-See [`DESIGN_PRINCIPLES.md`](DESIGN_PRINCIPLES.md) for the design constraints attached to these boundaries.
+See [`../DESIGN_PRINCIPLES.md`](../DESIGN_PRINCIPLES.md) for the design constraints attached to these boundaries.
 
 ## Workspace
 
