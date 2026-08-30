@@ -11,6 +11,8 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
+const defaultCompressionOption = "compress=zstd:3"
+
 type FilesystemState struct {
 	Healthy      bool
 	LogicalBytes int64
@@ -135,12 +137,25 @@ func (b *Btrfs) Mount(ctx context.Context, device, mountpoint string) error {
 		if source != device {
 			return fmt.Errorf("mountpoint %s is already backed by %s, expected %s", mountpoint, source, device)
 		}
+
+		options, optionsErr := b.runner.Run(ctx, "findmnt", "-rn", "-o", "OPTIONS", "--target", mountpoint)
+		if optionsErr != nil {
+			return fmt.Errorf("inspect mount options for %s: %w", mountpoint, optionsErr)
+		}
+		if hasExpectedCompression(options.Stdout) {
+			return nil
+		}
+
+		_, err = b.runner.Run(ctx, "mount", device, mountpoint, "-o", "remount,"+defaultCompressionOption)
+		if err != nil {
+			return fmt.Errorf("remount %s with %s: %w", mountpoint, defaultCompressionOption, err)
+		}
 		return nil
 	}
 	if err != nil && mounted.ExitCode != 1 {
 		return fmt.Errorf("inspect mountpoint %s before mount: %w", mountpoint, err)
 	}
-	_, err = b.runner.Run(ctx, "mount", device, mountpoint)
+	_, err = b.runner.Run(ctx, "mount", device, mountpoint, "-o", defaultCompressionOption)
 	return err
 }
 
@@ -156,6 +171,20 @@ func (b *Btrfs) Verify(ctx context.Context, mountpoint string, expected int64) e
 		return fmt.Errorf("btrfs verification failed: logical size %d exceeds target %d", state.LogicalBytes, expected)
 	}
 	return nil
+}
+
+func hasExpectedCompression(options string) bool {
+	hasExpected := false
+	for _, option := range strings.Split(strings.TrimSpace(options), ",") {
+		option = strings.TrimSpace(option)
+		if option == "compress-force" || strings.HasPrefix(option, "compress-force=") {
+			return false
+		}
+		if option == "compress=zstd" || option == defaultCompressionOption {
+			hasExpected = true
+		}
+	}
+	return hasExpected
 }
 
 func parseFirstInt(input, pattern string) int64 {
