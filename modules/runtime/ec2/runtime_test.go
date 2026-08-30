@@ -13,7 +13,10 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
-const testAWSAccountID = "123456789012"
+const (
+	testAWSAccountID      = "123456789012"
+	testCreateOperationID = "0123456789abcdef0123456789abcdef"
+)
 
 type fakeRunner struct {
 	calls             []string
@@ -113,7 +116,7 @@ func TestCreateStagesWorkspaceAndCreatesSSMManagedInstance(t *testing.T) {
 	}
 	runner := &fakeRunner{}
 	runtime := newTestRuntime(runner)
-	created, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: workspace})
+	created, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: workspace, CreateOperationID: testCreateOperationID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,11 +127,11 @@ func TestCreateStagesWorkspaceAndCreatesSSMManagedInstance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ref.AccountID != testAWSAccountID || ref.Region != "ap-northeast-1" || ref.InstanceID != "i-0123456789abcdef0" || ref.WorkspacePath != workspace || ref.ReadOnly || !validWorkspaceDigest(ref.BaseDigest) {
+	if ref.AccountID != testAWSAccountID || ref.Region != "ap-northeast-1" || ref.InstanceID != "i-0123456789abcdef0" || ref.WorkspacePath != workspace || ref.ReadOnly || !validWorkspaceDigest(ref.BaseDigest) || ref.CreateOperationID != testCreateOperationID {
 		t.Fatalf("ref=%#v", ref)
 	}
 	joined := strings.Join(runner.calls, "\n")
-	for _, want := range []string{"sts get-caller-identity --query Account --output text", "tar -czf", "s3 cp", "ec2 run-instances", "--metadata-options HttpTokens=required,HttpEndpoint=enabled", "ec2 wait instance-status-ok", "ssm describe-instance-information", "ssm send-command"} {
+	for _, want := range []string{"sts get-caller-identity --query Account --output text", "tar -czf", "s3 cp", "ec2 run-instances", "--client-token haco-" + testCreateOperationID, "--metadata-options HttpTokens=required,HttpEndpoint=enabled", "ec2 wait instance-status-ok", "ssm describe-instance-information", "ssm send-command"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q in calls:\n%s", want, joined)
 		}
@@ -144,7 +147,7 @@ func TestCreateStagesWorkspaceAndCreatesSSMManagedInstance(t *testing.T) {
 func TestCreateRefusesUnprovableAWSAccountBeforeSideEffects(t *testing.T) {
 	runner := &fakeRunner{failContains: "sts get-caller-identity"}
 	runtime := newTestRuntime(runner)
-	_, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: t.TempDir()})
+	_, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: t.TempDir(), CreateOperationID: testCreateOperationID})
 	if err == nil {
 		t.Fatal("expected failure")
 	}
@@ -157,7 +160,7 @@ func TestCreateRefusesUnprovableAWSAccountBeforeSideEffects(t *testing.T) {
 func TestCreateReadOnlyUsesReadOnlyBindMount(t *testing.T) {
 	runner := &fakeRunner{}
 	runtime := newTestRuntime(runner)
-	created, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: t.TempDir(), ReadOnly: true})
+	created, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: t.TempDir(), ReadOnly: true, CreateOperationID: testCreateOperationID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +173,7 @@ func TestCreateReadOnlyUsesReadOnlyBindMount(t *testing.T) {
 func TestCreateFailureCleansInstanceAndStaging(t *testing.T) {
 	runner := &fakeRunner{failContains: "ssm describe-instance-information"}
 	runtime := newTestRuntime(runner)
-	_, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: t.TempDir()})
+	_, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: t.TempDir(), CreateOperationID: testCreateOperationID})
 	if err == nil {
 		t.Fatal("expected failure")
 	}
