@@ -61,14 +61,28 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	}
 	start := -1
 	resourceOps := 0
-	seenManagedProfile := false
+	seenNoProfiles := false
+	seenDirectNIC := false
+	seenProxyConfig := false
 	for i, call := range runner.calls {
 		joined := strings.Join(call.args, " ")
 		if len(call.args) > 0 && call.args[0] == "start" {
 			start = i
 		}
 		if strings.Contains(joined, "--profile "+sandboxProfile) {
-			seenManagedProfile = true
+			t.Fatalf("sandbox Environment still depends on inherited profile: %#v", call)
+		}
+		if strings.Contains(joined, "--no-profiles") {
+			seenNoProfiles = true
+		}
+		if strings.Contains(joined, "config device add haco-demo eth0 nic") && strings.Contains(joined, "network="+sandboxNetwork) {
+			seenDirectNIC = true
+			if start >= 0 {
+				t.Fatalf("sandbox NIC was added after start: %#v", call)
+			}
+		}
+		if strings.Contains(joined, "--config environment.HTTP_PROXY=") && strings.Contains(joined, "--config environment.HTTPS_PROXY=") {
+			seenProxyConfig = true
 		}
 		if strings.Contains(joined, "limits.cpu=4") || strings.Contains(joined, "limits.memory=8589934592B") || strings.Contains(joined, "limits.processes=1024") || strings.Contains(joined, "size=42949672960B") {
 			resourceOps++
@@ -80,8 +94,8 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	if start < 0 {
 		t.Fatal("start call missing")
 	}
-	if !seenManagedProfile {
-		t.Fatalf("managed sandbox profile missing from init: %#v", runner.calls)
+	if !seenNoProfiles || !seenDirectNIC || !seenProxyConfig {
+		t.Fatalf("instance-local sandbox materialization incomplete: noProfiles=%v directNIC=%v proxyConfig=%v calls=%#v", seenNoProfiles, seenDirectNIC, seenProxyConfig, runner.calls)
 	}
 	if resourceOps != 4 {
 		t.Fatalf("resource set operations = %d, calls=%#v", resourceOps, runner.calls)
