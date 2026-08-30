@@ -13,6 +13,7 @@ Hacocoon は pre-1.0 です。完全実装済みの product progression は **v0
 | Policy / Capability | fail-closed policy、approval、audit | v0.4 |
 | Git push | trusted Host がbrokerし、reusable Host credentialをEnvironmentへ渡さない | v0.5 |
 | Agent integration | `haco run`、machine output、events。orchestrationはCore外 | v0.6 |
+| Client-neutral interaction events | public `pkg/interaction` がcapability auditを最小化済みeventへprojectionし、stable ID、resume cursor、bounded batch、recovery/attention flag、public corruption errorを提供。観測はcapabilityを承認・実行しない | v0.6 / cross-cutting |
 | Environment routing | provider-neutral seamは維持。**具体的なcloud implementationは現在deferred**で、EC2/AWS/EBS実装はactive treeにない | v0.7 |
 | VS Code / Agent Host | `haco-vscode`、per-agent binding、`haco-agent-host` | v0.8-v0.10 |
 | Base | `haco base list` / `inspect`、immutable Base revision | v0.11 |
@@ -25,6 +26,12 @@ Hacocoon は pre-1.0 です。完全実装済みの product progression は **v0
 | Docker Compatibility | `haco plugin oci docker status/prepare`。Base提供profileとpinned systemd unitを検証し、active vendor daemonを勝手に停止せずEnvironment-local socket activationだけを有効化 | v0.17 |
 | OCI Seed Builder / Btrfs COW | `haco plugin oci seed build/current`、Tooling/Seed manifest、trusted Host acquisition、offline no-NIC builder、immutable publish/current pointer、exact-parent resolutionを実装。real-host/COW acceptanceとGC/recoveryはpending | v0.18 partial |
 | Optional Local OCI Registry | optional。通常pullやSeed constructionの必須経路ではない | unversioned optional / deferred |
+
+## Client interaction境界
+
+`pkg/interaction` が reusable なclient-facing event contractです。既存のtrusted capability audit streamを読み、schema/event/request identity、UTC時刻、event kind、Environment/capability/action、attention/recovery flag、closed failure code、次回resume cursorだけを公開します。
+
+raw capability resource、authority attributes、opaque parameters、provider output、approval token、credential、free-form audit reasonはclient schemaへ出しません。browser、VS Code、code-server、JetBrains等のadapterは独立にeventを観測・dedupできますが、eventを読むこと自体には副作用がなく、trusted Policy/Capability approval / execution boundaryの代わりにはなりません。詳細は [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md) を参照してください。
 
 ## Core と OCI plugin
 

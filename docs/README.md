@@ -12,6 +12,7 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, and r
 - Milestone numbering: [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)
 - Security: [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
 - Core / Standard / Plugin boundaries: [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+- Client interaction events: [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md)
 
 ## Core / Standard / Plugin rule
 
@@ -47,9 +48,9 @@ Fixes, hardening, refactors, CLI namespace cleanup, CI and docs normally do not 
 | v0.15 | OCI Seed Recommendation | implemented |
 | v0.16 | OCI Image Deletion | implemented first slice |
 | v0.17 | Docker Compatibility Plugin | implemented; host acceptance separate |
-| v0.18 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.18 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
 
-The fully implemented product progression is contiguous through **v0.17**.
+The fully implemented product progression is contiguous through **v0.17**. v0.18 has a first repository implementation slice; real-host/COW acceptance remains pending.
 
 Local OCI Registry is deferred optional infrastructure, not a reserved roadmap milestone.
 
@@ -62,6 +63,14 @@ Specifications:
 - [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md) — deferred optional direction
 
+## Client interaction boundary
+
+`pkg/interaction` exposes a client-neutral, read-only event projection over the capability audit stream. Clients get stable IDs, resumable byte cursors, bounded batches, attention/recovery flags, and a deliberately minimized schema without raw resources, attributes, provider output, approval tokens, or free-form audit reasons.
+
+This boundary is observation only. Approval and execution remain inside the trusted Policy/Capability path, so browser, VS Code, code-server, JetBrains, and other adapters may observe the same event without the observation itself becoming authorization.
+
+See [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md).
+
 ## Base vs OCI CLI
 
 ```text
@@ -70,6 +79,8 @@ haco base inspect <base>
 
 HACO_PLUGIN_OCI=nerdctl  haco plugin oci seed sample
 HACO_PLUGIN_OCI=nerdctl  haco plugin oci seed recommend
+HACO_PLUGIN_OCI=nerdctl  haco plugin oci seed build
+HACO_PLUGIN_OCI=nerdctl  haco plugin oci seed current
 HACO_PLUGIN_OCI=nerdctl  haco plugin oci image delete <reference>
 HACO_PLUGIN_OCI=docker   haco plugin oci docker status <environment>
 HACO_PLUGIN_OCI=docker   haco plugin oci docker prepare <environment>
@@ -81,7 +92,7 @@ The Docker `prepare` command validates a Base-provided compatibility profile and
 
 ## OCI storage direction
 
-v0.18 owns trusted Host acquisition/cache, offline immutable Seed construction/publication, and Incus/storage-driver COW. A Local Registry is not a prerequisite and normal direct upstream pulls remain valid when policy allows.
+v0.18 has a first repository slice for trusted Host acquisition/cache, offline no-NIC immutable Seed construction/publication, current-Seed resolution, and normal Incus/storage-driver cloning. Physical Btrfs COW measurement and broader real-host acceptance remain pending. A Local Registry is not a prerequisite and normal direct upstream pulls remain valid when policy allows.
 
 ## Cloud
 
