@@ -45,6 +45,20 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
+  - id: haco-notify
+    main: ./cmd/haco-notify
+    binary: haco-notify
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
 
 archives:
   - id: haco
@@ -52,6 +66,7 @@ archives:
       - haco
       - haco-vscode
       - haco-agent-host
+      - haco-notify
     formats:
       - tar.gz
     name_template: "haco_{{ .Os }}_{{ .Arch }}"
