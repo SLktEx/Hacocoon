@@ -254,7 +254,7 @@ end_phase
 phase "custom volume restart persistence"
 # A custom storage volume must remain writable and persistent across restart.
 incus storage volume create "$pool" "$volume"
-incus storage volume attach "$pool" "$volume" "$first" /mnt/ci-volume
+incus storage volume attach "$pool" "$volume" "$first" ci-volume /mnt/ci-volume
 incus exec "$first" -- sh -c 'printf persistent-volume >/mnt/ci-volume/value'
 incus restart "$first"
 wait_for_guest "$first"
