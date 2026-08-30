@@ -29,10 +29,11 @@ func TestNBDAllocatorLockIsHostGlobalAcrossStorageRoots(t *testing.T) {
 	firstEntered := make(chan struct{})
 	releaseFirst := make(chan struct{})
 	secondEntered := make(chan struct{})
-	errCh := make(chan error, 2)
+	firstErr := make(chan error, 1)
+	secondErr := make(chan error, 1)
 
 	go func() {
-		errCh <- first.withNBDAllocatorLock(firstBacking, func() error {
+		firstErr <- first.withNBDAllocatorLock(firstBacking, func() error {
 			close(firstEntered)
 			<-releaseFirst
 			return nil
@@ -40,14 +41,14 @@ func TestNBDAllocatorLockIsHostGlobalAcrossStorageRoots(t *testing.T) {
 	}()
 	select {
 	case <-firstEntered:
-	case err := <-errCh:
+	case err := <-firstErr:
 		t.Fatalf("first allocator failed before entering critical section: %v", err)
 	case <-time.After(time.Second):
 		t.Fatal("first allocator did not enter critical section")
 	}
 
 	go func() {
-		errCh <- second.withNBDAllocatorLock(secondBacking, func() error {
+		secondErr <- second.withNBDAllocatorLock(secondBacking, func() error {
 			close(secondEntered)
 			return nil
 		})
@@ -56,25 +57,35 @@ func TestNBDAllocatorLockIsHostGlobalAcrossStorageRoots(t *testing.T) {
 	select {
 	case <-secondEntered:
 		t.Fatal("second storage root entered the host-global NBD critical section concurrently")
+	case err := <-secondErr:
+		t.Fatalf("second allocator failed while first held host-global lock: %v", err)
 	case <-time.After(50 * time.Millisecond):
 	}
+
 	close(releaseFirst)
 	select {
 	case <-secondEntered:
-	case err := <-errCh:
-		t.Fatalf("allocator failed while handing off host-global lock: %v", err)
+	case err := <-secondErr:
+		t.Fatalf("second allocator failed before entering critical section: %v", err)
 	case <-time.After(time.Second):
 		t.Fatal("second storage root never acquired host-global NBD allocator lock")
 	}
-	for i := 0; i < 2; i++ {
-		select {
-		case err := <-errCh:
-			if err != nil {
-				t.Fatal(err)
-			}
-		case <-time.After(time.Second):
-			t.Fatal("allocator goroutine did not finish")
+
+	select {
+	case err := <-firstErr:
+		if err != nil {
+			t.Fatalf("first allocator failed: %v", err)
 		}
+	case <-time.After(time.Second):
+		t.Fatal("first allocator goroutine did not finish")
+	}
+	select {
+	case err := <-secondErr:
+		if err != nil {
+			t.Fatalf("second allocator failed: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("second allocator goroutine did not finish")
 	}
 }
 
@@ -164,5 +175,48 @@ func TestWaitForNBDMatchDifferentBackingFailsImmediately(t *testing.T) {
 	err := fixture.store().waitForNBDMatch(context.Background(), device, backing)
 	if !errors.Is(err, core.ErrRecoveryRequired) || !strings.Contains(err.Error(), "different backing") {
 		t.Fatalf("different backing err=%v", err)
+	}
+}
+
+func TestInspectNBDProvenNonQemuOwnerIsOther(t *testing.T) {
+	fixture := newFakeNBDFixture(t, 1)
+	backing := createQCOW2Fixture(t, filepath.Join(t.TempDir(), "storage"), "demo")
+	device := filepath.Join(fixture.devRoot, "nbd0")
+	pid := 9003
+	if err := os.WriteFile(filepath.Join(fixture.sysBlockRoot, "nbd0", "pid"), []byte(fmt.Sprintf("%d\n", pid)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	procDir := filepath.Join(fixture.procRoot, fmt.Sprintf("%d", pid))
+	if err := os.MkdirAll(procDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cmdline := []byte("/usr/bin/other-process\x00--connect=" + device + "\x00" + backing + "\x00")
+	if err := os.WriteFile(filepath.Join(procDir, "cmdline"), cmdline, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := fixture.store().inspectNBD(device, backing); got.observation != nbdOther {
+		t.Fatalf("non-qemu owner observation=%v reason=%q, want nbdOther", got.observation, got.reason)
+	}
+}
+
+func TestInspectNBDQemuBoundToDifferentDeviceIsOther(t *testing.T) {
+	fixture := newFakeNBDFixture(t, 2)
+	backing := createQCOW2Fixture(t, filepath.Join(t.TempDir(), "storage"), "demo")
+	device := filepath.Join(fixture.devRoot, "nbd0")
+	otherDevice := filepath.Join(fixture.devRoot, "nbd1")
+	pid := 9004
+	if err := os.WriteFile(filepath.Join(fixture.sysBlockRoot, "nbd0", "pid"), []byte(fmt.Sprintf("%d\n", pid)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	procDir := filepath.Join(fixture.procRoot, fmt.Sprintf("%d", pid))
+	if err := os.MkdirAll(procDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cmdline := []byte("/usr/bin/qemu-nbd\x00--connect=" + otherDevice + "\x00" + backing + "\x00")
+	if err := os.WriteFile(filepath.Join(procDir, "cmdline"), cmdline, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := fixture.store().inspectNBD(device, backing); got.observation != nbdOther {
+		t.Fatalf("wrong-device qemu owner observation=%v reason=%q, want nbdOther", got.observation, got.reason)
 	}
 }
