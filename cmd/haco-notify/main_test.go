@@ -192,7 +192,7 @@ func TestRunNativeCommitsTrustworthyPrefixThenStopsOnCorruption(t *testing.T) {
 
 func TestRunNativeRejectsInvalidDependencies(t *testing.T) {
 	reader := &scriptedReader{}
-	notifier := &recordingNotifier{}
+	presenter := &recordingNotifier{}
 	for _, test := range []struct {
 		name      string
 		reader    batchReader
@@ -200,10 +200,10 @@ func TestRunNativeRejectsInvalidDependencies(t *testing.T) {
 		statePath string
 		poll      time.Duration
 	}{
-		{name: "nil reader", notifier: notifier, statePath: "state.json", poll: time.Second},
+		{name: "nil reader", notifier: presenter, statePath: "state.json", poll: time.Second},
 		{name: "nil notifier", reader: reader, statePath: "state.json", poll: time.Second},
-		{name: "empty state path", reader: reader, notifier: notifier, poll: time.Second},
-		{name: "poll too short", reader: reader, notifier: notifier, statePath: "state.json", poll: 100 * time.Millisecond},
+		{name: "empty state path", reader: reader, notifier: presenter, poll: time.Second},
+		{name: "poll too short", reader: reader, notifier: presenter, statePath: "state.json", poll: 100 * time.Millisecond},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if err := runNative(context.Background(), test.reader, test.notifier, test.statePath, test.poll, true, false); !errors.Is(err, interaction.ErrInvalidArgument) {
