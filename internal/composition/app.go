@@ -59,8 +59,9 @@ func Local(_ context.Context) (*App, error) {
 	}
 	runtime := environmentapp.NewBaseRouter(router)
 
-	store := state.NewEnvironmentJSONStore(filepath.Join(root, "state", "environments.json"))
-	bindingStore := agenthostapp.NewJSONBindingStore(filepath.Join(root, "state", "agent-bindings.json"))
+	stateDir := filepath.Join(root, "state")
+	store := state.NewEnvironmentJSONStore(filepath.Join(stateDir, "environments.json"))
+	bindingStore := agenthostapp.NewJSONBindingStore(filepath.Join(stateDir, "agent-bindings.json"))
 	gitProvider := gitcapapp.NewProvider(runner, store)
 	auditPath := filepath.Join(root, "audit", "capabilities.jsonl")
 	capabilities, err := capabilityapp.New(
@@ -81,7 +82,7 @@ func Local(_ context.Context) (*App, error) {
 		Clients:      clientapp.New(runtime, store),
 		Capabilities: capabilities,
 		Git:          gitcapapp.NewBroker(runner, store, capabilities),
-		Runner:       runapp.New(environments),
+		Runner:       runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks")),
 		Events:       eventsapp.New(auditPath),
 		Bases:        runtime,
 		Runtime:      incusRuntime,
