@@ -176,5 +176,8 @@ func helperFixture(t *testing.T, id string) (root, backing, mountpoint string) {
 
 func loopJSON(device, backing string) host.Result {
 	data := fmt.Sprintf(`{"loopdevices":[{"name":%q,"back-file":%q}]}`, device, backing)
+	// fmt %q already JSON-quotes the string values; remove the raw-string
+	// escaping used above for readability so the helper sees valid JSON.
+	data = strings.ReplaceAll(data, `\"`, `"`)
 	return host.Result{ExitCode: 0, Stdout: data}
 }
