@@ -122,7 +122,7 @@ validate_release_artifacts() {
 
   grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
   grep -q 'haco_linux_arm64.tar.gz' dist/checksums.txt
-  grep -q 'install.sh' dist/checks.txt 2>/dev/null || grep -q 'install.sh' dist/checksums.txt
+  grep -q 'install.sh' dist/checksums.txt
   grep -q 'bootstrap-wsl.sh' dist/checksums.txt
   grep -q 'install-windows.ps1' dist/checksums.txt
 }
