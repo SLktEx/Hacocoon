@@ -59,6 +59,29 @@ grep -Fxq 'haco/ubuntu-24.04' "$root/haco-base.out"
 grep -Fxq 'haco/ubuntu-26.04' "$root/haco-base.out"
 [[ ! -s "$root/haco-base.err" ]]
 
+# The first-class `haco env` client and trusted-host controller mode must never
+# fall back to guest-local composition when the controller path is unavailable.
+client_mode_root="$root/client-mode-root"
+missing_control="$root/missing-control.sock"
+set +e
+HACO_ROOT="$client_mode_root" HACO_CONTROL_SOCKET="$missing_control" \
+  "$bin/haco" env list >"$root/env-client.out" 2>"$root/env-client.err"
+env_client_code=$?
+set -e
+[[ "$env_client_code" == "1" ]]
+[[ ! -s "$root/env-client.out" ]]
+[[ ! -e "$client_mode_root/state" ]]
+
+set +e
+HACO_ROOT="$client_mode_root" HACO_CLIENT_MODE=controller HACO_CONTROL_SOCKET="$missing_control" \
+  "$bin/haco" base list >"$root/client-mode.out" 2>"$root/client-mode.err"
+client_mode_code=$?
+set -e
+[[ "$client_mode_code" == "1" ]]
+[[ ! -s "$root/client-mode.out" ]]
+grep -Fq 'refusing local composition fallback' "$root/client-mode.err"
+[[ ! -e "$client_mode_root/state" ]]
+
 set +e
 "$bin/haco" definitely-not-a-command >"$root/haco-invalid.out" 2>"$root/haco-invalid.err"
 haco_invalid_code=$?
