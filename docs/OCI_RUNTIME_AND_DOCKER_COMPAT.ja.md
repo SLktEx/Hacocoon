@@ -2,7 +2,7 @@
 
 [English](OCI_RUNTIME_AND_DOCKER_COMPAT.md) | **日本語**
 
-Status: **v0.17 packaging foundationは実装済み。complete plugin integrationとreal-host acceptanceはpending。**
+Status: **v0.17 repository integration実装済み。real-host acceptanceは環境依存で別途。**
 
 OCI/container toolingはHacocoon Coreのruntime必須要件ではなく、optionalなplugin/adapter concernです。
 
@@ -26,13 +26,21 @@ genuine Docker CLIを使い、Engine APIが必要な時だけdockerdをon-demand
 
 ## v0.17 plugin boundary
 
-Docker/containerd/nerdctl固有の処理は `modules/plugin/oci` のplugin/adapter境界に置きます。現在あるsystemd socket/service packagingはfoundationであり、v0.17 completeではありません。
+Docker/containerd/nerdctl固有の処理は `modules/plugin/oci` のplugin/adapter境界に置きます。v0.17ではsystemd socket/service packagingに加えてEnvironment-local lifecycleのinspection/preparationを実装しています。
 
-- Host Docker socketをEnvironmentへmountしない。
-- Host containerd / Incus / Hacocoon control socketを渡さない。
-- TCP Docker API listenerをdefaultで開かない。
-- `HACO_PLUGIN_OCI=docker` はplugin driver選択であり、Host Docker daemon authorityを与えない。
-- OCI操作は `haco plugin oci ...`、Base identityは `haco base ...`。
+```text
+HACO_PLUGIN_OCI=docker haco plugin oci docker status <environment>
+HACO_PLUGIN_OCI=docker haco plugin oci docker prepare <environment>
+```
+
+`status` はDockerを起動しません。`prepare` はBase/Seed側にgenuine Docker CLI、dockerd、containerd、systemd、docker group、Hacocoon-pinned unitがあることを要求します。unitを検証してからsocket activationを有効化し、package installはせず、既にactiveなvendor Docker daemon/socketを勝手に停止しません。
+
+- Host Docker socketをEnvironmentへmountしない
+- Host containerd / Incus / Hacocoon control socketを渡さない
+- TCP Docker API listenerをdefaultで開かない
+- `HACO_PLUGIN_OCI=docker` はplugin driver選択であり、Host Docker daemon authorityを与えない
+- `hacocoon-docker.service` がinactiveでも、`/run/docker.sock` 利用時にon-demand起動する設計なので正常
+- OCI操作は `haco plugin oci ...`、Base identityは `haco base ...`
 
 ## Storage
 
