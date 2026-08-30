@@ -11,7 +11,17 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, and r
 - Architecture / roadmap: [`00_REBASELINE_AND_ROADMAP.md`](00_REBASELINE_AND_ROADMAP.md)
 - Milestone numbering: [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)
 - Security: [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
-- Plugin boundaries: [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+- Core / Standard / Plugin boundaries: [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+
+## Core / Standard / Plugin rule
+
+Hacocoon separates product semantics from default implementations and optional integrations:
+
+- **Core** defines stable Environment, Policy / Approval / Capability, and boundary-control contracts.
+- **Standard** provides project-maintained, replaceable default implementations expected in normal installations, such as the current Incus backend and the future default egress proxy/enforcer.
+- **Plugin** contains optional or specialized integrations whose absence still leaves a generally useful Hacocoon installation, including nerdctl / Docker / OCI tooling.
+
+For outbound access, the egress request/policy/controller contract belongs to Core while the concrete default proxy/enforcement implementation belongs to Standard. This classification is architecture intent; v0.13 currently provides the default-deny network substrate, not completed domain-aware egress authorization.
 
 ## Source-of-truth order
 
