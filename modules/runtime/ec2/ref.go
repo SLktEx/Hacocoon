@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -15,10 +16,15 @@ import (
 
 const maxRuntimeRefLength = 4096
 
-var ec2InstanceIDPattern = regexp.MustCompile(`^i-[0-9a-f]{8,17}$`)
+var (
+	ec2InstanceIDPattern = regexp.MustCompile(`^i-[0-9a-f]{8,17}$`)
+	awsAccountIDPattern  = regexp.MustCompile(`^[0-9]{12}$`)
+)
 
 type runtimeRef struct {
 	Version       int    `json:"version"`
+	AccountID     string `json:"account_id"`
+	Region        string `json:"region"`
 	InstanceID    string `json:"instance_id"`
 	WorkspacePath string `json:"workspace_path"`
 	Bucket        string `json:"bucket"`
@@ -27,19 +33,28 @@ type runtimeRef struct {
 }
 
 func encodeRef(ref runtimeRef) (string, error) {
-	ref.Version = 1
+	ref.Version = 2
 	payload, err := json.Marshal(ref)
 	if err != nil {
 		return "", err
 	}
-	return "ec2v1." + base64.RawURLEncoding.EncodeToString(payload), nil
+	return "ec2v2." + base64.RawURLEncoding.EncodeToString(payload), nil
 }
 
 func decodeRef(raw string) (runtimeRef, error) {
-	if len(raw) == 0 || len(raw) > maxRuntimeRefLength || !strings.HasPrefix(raw, "ec2v1.") {
+	if len(raw) == 0 || len(raw) > maxRuntimeRefLength {
 		return runtimeRef{}, fmt.Errorf("EC2 runtime ref: %w", core.ErrIncompatibleState)
 	}
-	encoded := strings.TrimPrefix(raw, "ec2v1.")
+	if strings.HasPrefix(raw, "ec2v1.") {
+		return runtimeRef{}, errors.Join(
+			fmt.Errorf("legacy EC2 runtime ref lacks pinned AWS account/region authority: %w", core.ErrIncompatibleState),
+			core.ErrRecoveryRequired,
+		)
+	}
+	if !strings.HasPrefix(raw, "ec2v2.") {
+		return runtimeRef{}, fmt.Errorf("EC2 runtime ref: %w", core.ErrIncompatibleState)
+	}
+	encoded := strings.TrimPrefix(raw, "ec2v2.")
 	if encoded == "" {
 		return runtimeRef{}, fmt.Errorf("EC2 runtime ref payload: %w", core.ErrIncompatibleState)
 	}
@@ -66,8 +81,12 @@ func decodeRef(raw string) (runtimeRef, error) {
 
 func validateRuntimeRef(ref runtimeRef) error {
 	switch {
-	case ref.Version != 1:
+	case ref.Version != 2:
 		return fmt.Errorf("invalid EC2 runtime ref version: %w", core.ErrIncompatibleState)
+	case !awsAccountIDPattern.MatchString(ref.AccountID):
+		return fmt.Errorf("invalid EC2 runtime AWS account id: %w", core.ErrIncompatibleState)
+	case !regionPattern.MatchString(ref.Region):
+		return fmt.Errorf("invalid EC2 runtime AWS region: %w", core.ErrIncompatibleState)
 	case !ec2InstanceIDPattern.MatchString(ref.InstanceID):
 		return fmt.Errorf("invalid EC2 runtime instance id: %w", core.ErrIncompatibleState)
 	case !validRuntimeWorkspacePath(ref.WorkspacePath):
