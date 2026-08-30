@@ -246,8 +246,9 @@ func (r *Runtime) ensureSandboxProfile(ctx context.Context) error {
 			args = append(args, key+"="+sandboxNIC[key])
 		}
 		args = append(args, "--project", sandboxResourceProject)
-		if _, addErr := r.runner.Run(ctx, "incus", args...); addErr != nil {
-			return fmt.Errorf("configure Hacocoon sandbox profile NIC: %w", addErr)
+		addResult, addErr := r.runner.Run(ctx, "incus", args...)
+		if addErr != nil || addResult.ExitCode != 0 {
+			return fmt.Errorf("configure Hacocoon sandbox profile NIC: %w", commandResultError(addResult, addErr))
 		}
 		shown, err = r.runner.Run(ctx, "incus", "profile", "show", sandboxProfile, "--project", sandboxResourceProject, "--format", "json")
 		if err != nil {
