@@ -18,6 +18,7 @@ fail() {
   exit 1
 }
 
+mkdir -p "${TMPDIR:-/tmp}"
 root="$(mktemp -d)"
 repo="$root/repo"
 worktrees="$root/worktrees"
@@ -31,7 +32,6 @@ runtime_ref="haco-$environment"
 managed_config="$client_home/.ssh/hacocoon/$environment.conf"
 open_one="$root/open-one.txt"
 open_two="$root/open-two.txt"
-created=0
 
 export HACO_ROOT="$root/haco-root"
 
@@ -75,7 +75,6 @@ HOME="$client_home" "$haco_vscode" open \
   --name "$environment" \
   --identity "$identity" \
   "$worktree" >"$open_one"
-created=1
 
 grep -Fq "environment: $environment" "$open_one" || fail "haco-vscode did not report the expected Environment"
 grep -Fq "workspace: /workspace" "$open_one" || fail "haco-vscode did not report /workspace"
@@ -136,7 +135,6 @@ second_port="$(awk '$1 == "Port" {print $2; exit}' "$managed_config")"
 "${ssh_cmd[@]}" 'test -f /workspace/from-environment.txt' || fail "reconnected SSH client lost the selected workspace"
 
 HOME="$client_home" "$haco_vscode" delete --name "$environment"
-created=0
 [[ ! -e "$managed_config" ]] || fail "adapter-owned SSH config remained after delete"
 if incus info "$runtime_ref" --project hacocoon >/dev/null 2>&1; then
   fail "Environment remained after haco-vscode delete"
