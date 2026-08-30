@@ -64,6 +64,7 @@ func TestCreateEnvironmentUsesIsolatedProfileAndShiftedWritableWorkspace(t *test
 	want := []runnerCall{
 		{name: "incus", args: []string{"project", "show", defaultProject}},
 		{name: "incus", args: []string{"project", "create", defaultProject, "--config", "features.profiles=false"}},
+		{name: "incus", args: []string{"query", "/1.0/profiles/default?project=default"}},
 		{name: "incus", args: []string{"profile", "show", "default", "--project", "default", "--format", "json"}},
 		{name: "incus", args: []string{"init", defaultImage, "haco-demo", "--project", defaultProject, "--profile", sandboxProfile, "--storage", "default"}},
 		{name: "incus", args: []string{"config", "device", "add", "haco-demo", "workspace", "disk", "source=/tmp/work space", "path=/workspace", "shift=true", "--project", defaultProject}},
@@ -115,14 +116,14 @@ func TestCreateEnvironmentReadOnlyDoesNotRequestShiftOrWriteProbe(t *testing.T) 
 
 func TestCreateEnvironmentCleansUpAfterWorkspaceMountFailureWithDetachedContext(t *testing.T) {
 	mountErr := errors.New("mount denied")
-	runner := &fakeRunner{run: func(ctx context.Context, call int, _ string, args []string) (host.Result, error) {
+	runner := &fakeRunner{run: func(ctx context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
 			return rootProfileResult(), nil
 		}
-		if call == 3 {
+		if len(args) >= 3 && args[0] == "config" && args[1] == "device" && args[2] == "add" {
 			return host.Result{}, mountErr
 		}
-		if call == 4 && ctx.Err() != nil {
+		if len(args) >= 1 && args[0] == "delete" && ctx.Err() != nil {
 			t.Fatalf("cleanup context is canceled: %v", ctx.Err())
 		}
 		return host.Result{}, nil
@@ -141,14 +142,14 @@ func TestCreateEnvironmentCleansUpAfterWorkspaceMountFailureWithDetachedContext(
 
 func TestCreateEnvironmentCleanupIsBoundedAndSignalsRecovery(t *testing.T) {
 	mountErr := errors.New("mount denied")
-	runner := &fakeRunner{run: func(ctx context.Context, call int, _ string, args []string) (host.Result, error) {
+	runner := &fakeRunner{run: func(ctx context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
 			return rootProfileResult(), nil
 		}
-		if call == 3 {
+		if len(args) >= 3 && args[0] == "config" && args[1] == "device" && args[2] == "add" {
 			return host.Result{}, mountErr
 		}
-		if call == 4 {
+		if len(args) >= 1 && args[0] == "delete" {
 			<-ctx.Done()
 			return host.Result{}, ctx.Err()
 		}
@@ -169,11 +170,11 @@ func TestCreateEnvironmentCleanupIsBoundedAndSignalsRecovery(t *testing.T) {
 
 func TestCreateEnvironmentRejectsUnwritableRWWorkspace(t *testing.T) {
 	writeErr := errors.New("permission denied")
-	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, args []string) (host.Result, error) {
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
 			return rootProfileResult(), nil
 		}
-		if call == 5 {
+		if len(args) >= 1 && args[0] == "exec" {
 			return host.Result{ExitCode: 1, Stderr: "permission denied"}, writeErr
 		}
 		return host.Result{}, nil
