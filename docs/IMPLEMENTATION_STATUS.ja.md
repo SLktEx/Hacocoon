@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | **日本語**
 
-> 現在の `main` の code reality を示す companion です。番号の正本は [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md) です。
+> 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
 Hacocoon は pre-1.0 です。v0.17 OCI Seed Builder & Btrfs/COW がpartialなfeature gateなので、完全実装済みの product progression は **v0.16まで連続**しています。一方、v0.18 Docker Compatibilityのrepository実装は番号入れ替えより先にland済みで、その実装はそのまま有効です。
 
