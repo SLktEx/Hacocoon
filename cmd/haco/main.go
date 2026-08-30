@@ -80,7 +80,7 @@ func createCommand(ctx context.Context, app *composition.App, args []string) err
 
 func parseCreateSpec(args []string) (core.EnvironmentSpec, error) {
 	usageError := func() error {
-		return fmt.Errorf("usage: haco create [--read-only] [--base <base>] --workspace <path> <environment>: %w", core.ErrInvalidArgument)
+		return fmt.Errorf("usage: haco create [--read-only] [--base <base>] [--cpu <n|unlimited>] [--memory <size|unlimited>] [--pids <n|unlimited>] [--root-size <size|unlimited>] --workspace <path> <environment>: %w", core.ErrInvalidArgument)
 	}
 	if len(args) < 3 {
 		return core.EnvironmentSpec{}, usageError()
@@ -101,6 +101,14 @@ func parseCreateSpec(args []string) (core.EnvironmentSpec, error) {
 				return core.EnvironmentSpec{}, usageError()
 			}
 			spec.Base = core.BaseName(args[1])
+			args = args[2:]
+		case "--cpu", "--memory", "--pids", "--root-size":
+			if len(args) < 3 {
+				return core.EnvironmentSpec{}, usageError()
+			}
+			if err := setResourceOption(&spec.Resources, args[0], args[1]); err != nil {
+				return core.EnvironmentSpec{}, err
+			}
 			args = args[2:]
 		case "--workspace":
 			if len(args) < 3 || spec.WorkspacePath != "" {
@@ -159,7 +167,7 @@ func parseRunSpec(args []string) (runapp.Spec, bool, error) {
 		}
 	}
 	if separator < 0 || separator == len(args)-1 {
-		return runapp.Spec{}, false, fmt.Errorf("usage: haco run [--read-only] --workspace <path> [--json] -- <command...>: %w", core.ErrInvalidArgument)
+		return runapp.Spec{}, false, fmt.Errorf("usage: haco run [--read-only] [--cpu <n|unlimited>] [--memory <size|unlimited>] [--pids <n|unlimited>] [--root-size <size|unlimited>] --workspace <path> [--json] -- <command...>: %w", core.ErrInvalidArgument)
 	}
 	options := args[:separator]
 	for len(options) > 0 {
@@ -171,6 +179,14 @@ func parseRunSpec(args []string) (runapp.Spec, bool, error) {
 			readOnlySeen = true
 			spec.AccessMode = core.WorkspaceReadOnly
 			options = options[1:]
+		case "--cpu", "--memory", "--pids", "--root-size":
+			if len(options) < 2 {
+				return runapp.Spec{}, false, core.ErrInvalidArgument
+			}
+			if err := setResourceOption(&spec.Resources, options[0], options[1]); err != nil {
+				return runapp.Spec{}, false, err
+			}
+			options = options[2:]
 		case "--workspace":
 			if len(options) < 2 || workspaceSeen {
 				return runapp.Spec{}, false, core.ErrInvalidArgument
@@ -355,6 +371,11 @@ func statusCommand(ctx context.Context, app *composition.App, args []string) err
 	if status.Environment.Base != nil {
 		fmt.Printf("base: %s\nbase-revision: %s\n", status.Environment.Base.Name, status.Environment.Base.Revision)
 	}
+	fmt.Printf("cpu: %s\nmemory-bytes: %s\npids: %s\nroot-bytes: %s\n",
+		resourceLimitText(status.Environment.Resources.CPU),
+		resourceLimitText(status.Environment.Resources.MemoryBytes),
+		resourceLimitText(status.Environment.Resources.PIDs),
+		resourceLimitText(status.Environment.Resources.RootBytes))
 	return nil
 }
 
@@ -396,7 +417,7 @@ func forwardCommand(ctx context.Context, app *composition.App, args []string) er
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s\ttcp://%s:%d\t->\t%d\n", connection.ID, connection.Host, connection.Port, connection.TargetPort)
+	fmt.Printf("%s\ttcp://%s:%d\t->\t%d\n", connection.ID, connection.Kind, connection.Host, connection.Port, connection.TargetPort)
 	return nil
 }
 
