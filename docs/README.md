@@ -13,6 +13,7 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, and r
 - Security architecture: [`security/security-architecture.md`](security/security-architecture.md)
 - Core / Standard / Plugin boundaries: [`design/plugin-architecture.md`](design/plugin-architecture.md)
 - Canonical terminology: [`reference/terminology-and-boundaries.md`](reference/terminology-and-boundaries.md)
+- Logging policy: [`reference/logging.md`](reference/logging.md)
 - Domain-aware egress: [`EGRESS_AUTHORIZATION.md`](EGRESS_AUTHORIZATION.md)
 - Managed Btrfs storage: [`design/btrfs-storage-layout.md`](design/btrfs-storage-layout.md)
 - Reusable client adapters: [`CLIENT_ADAPTER_CONTRACT.md`](CLIENT_ADAPTER_CONTRACT.md)
