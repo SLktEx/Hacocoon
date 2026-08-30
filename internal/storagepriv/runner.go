@@ -99,7 +99,7 @@ func translatePrivilegedCommand(name string, args []string) (string, []string, b
 		}
 		return "", nil, false, fmt.Errorf("unsupported privileged mkfs.btrfs arguments: %q", args)
 	case "mount":
-		if len(args) == 4 && args[2] == "-o" {
+		if len(args) == 4 && args[2] == "-o" && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
 			switch args[3] {
 			case "compress=zstd:3":
 				return "mount-btrfs", []string{args[0], args[1]}, true, nil
@@ -109,7 +109,7 @@ func translatePrivilegedCommand(name string, args []string) (string, []string, b
 		}
 		return "", nil, false, fmt.Errorf("unsupported privileged mount arguments: %q", args)
 	case "umount":
-		if len(args) == 1 {
+		if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
 			return "unmount-btrfs", []string{args[0]}, true, nil
 		}
 		return "", nil, false, fmt.Errorf("unsupported privileged umount arguments: %q", args)
@@ -135,7 +135,7 @@ func translatePrivilegedCommand(name string, args []string) (string, []string, b
 			return "", nil, false, fmt.Errorf("unsupported privileged btrfs arguments: %q", args)
 		}
 	case "fstrim":
-		if len(args) == 1 {
+		if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
 			return "trim", []string{args[0]}, true, nil
 		}
 		return "", nil, false, fmt.Errorf("unsupported privileged fstrim arguments: %q", args)
