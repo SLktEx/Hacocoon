@@ -98,6 +98,45 @@ func (j *FileJournal) Load(ctx context.Context, id string) (Operation, bool, err
 	return op, true, nil
 }
 
+func (j *FileJournal) List(ctx context.Context) ([]Operation, error) {
+	if j == nil || strings.TrimSpace(j.root) == "" || strings.TrimSpace(j.root) != j.root {
+		return nil, core.ErrInvalidArgument
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(j.root)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		id := strings.TrimSuffix(entry.Name(), ".json")
+		if !journalID.MatchString(id) {
+			return nil, fmt.Errorf("unexpected EBS journal filename %q: %w", entry.Name(), core.ErrIncompatibleState)
+		}
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	operations := make([]Operation, 0, len(ids))
+	for _, id := range ids {
+		op, found, err := j.Load(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			operations = append(operations, op)
+		}
+	}
+	return operations, nil
+}
+
 func (j *FileJournal) Delete(ctx context.Context, id string) error {
 	if j == nil || !journalID.MatchString(id) {
 		return fmt.Errorf("invalid EBS journal id: %w", core.ErrInvalidArgument)
@@ -147,10 +186,7 @@ func (j *FileJournal) Lock(ctx context.Context, keys ...string) (func() error, e
 	}
 	sort.Strings(ordered)
 
-	type heldLock struct {
-		file *os.File
-		key  string
-	}
+	type heldLock struct{ file *os.File }
 	held := make([]heldLock, 0, len(ordered))
 	releaseHeld := func() error {
 		var errs []error
@@ -194,7 +230,7 @@ func (j *FileJournal) Lock(ctx context.Context, keys ...string) (func() error, e
 			_ = releaseHeld()
 			return nil, fmt.Errorf("EBS replacement lock %q: %w", key, core.ErrStorageBusy)
 		}
-		held = append(held, heldLock{file: file, key: key})
+		held = append(held, heldLock{file: file})
 	}
 
 	var once sync.Once
