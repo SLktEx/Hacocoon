@@ -82,7 +82,8 @@ func TestRealIncusEgressProxyE2E(t *testing.T) {
 	defer func() {
 		cleanupCtx := context.Background()
 		_, _ = runner.Run(cleanupCtx, "incus", "delete", instanceRef, "--project", project, "--force")
-		_, _ = runner.Run(cleanupCtx, "incus", "project", "delete", project)
+		deleteProject := fmt.Sprintf("printf 'yes\\n' | incus project delete %s --force", project)
+		_, _ = runner.Run(cleanupCtx, "sh", "-c", deleteProject)
 	}()
 
 	environment, err := service.Create(ctx, core.EnvironmentSpec{Name: "egress", WorkspacePath: workspaceDir})
@@ -178,6 +179,7 @@ func TestRealIncusEgressProxyE2E(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse proxy address %q: %v", proxyAddress, err)
 	}
+	waitForRealEgressRoute(t, ctx, service, proxyHost)
 
 	// The managed Incus ACL must reject raw bypass even though the fake upstream
 	// is locally reachable from the Physical Host.
@@ -244,6 +246,23 @@ func TestRealIncusEgressProxyE2E(t *testing.T) {
 	if err := service.Delete(ctx, "egress"); err != nil {
 		t.Fatalf("delete egress environment: %v", err)
 	}
+}
+
+func waitForRealEgressRoute(t *testing.T, ctx context.Context, service *workspaceapp.Service, proxyHost string) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	var last core.ExecutionResult
+	var lastErr error
+	for time.Now().Before(deadline) {
+		last, lastErr = service.Exec(ctx, "egress", core.ExecutionRequest{Argv: []string{"sh", "-c", "ip -4 route get " + proxyHost}})
+		if lastErr == nil && last.ExitCode == 0 {
+			t.Logf("Environment IPv4 route ready: %s", strings.TrimSpace(last.Stdout))
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	diagnostics, _ := service.Exec(ctx, "egress", core.ExecutionRequest{Argv: []string{"sh", "-c", "ip -4 address show; echo ROUTES; ip -4 route show"}})
+	t.Fatalf("Environment never gained a route to egress proxy %s: last=%#v err=%v diagnostics:\n%s\n%s", proxyHost, last, lastErr, diagnostics.Stdout, diagnostics.Stderr)
 }
 
 func executeRealEgressHTTP(t *testing.T, ctx context.Context, service *workspaceapp.Service, proxyHost, proxyPort string, upstreamPort int) string {
