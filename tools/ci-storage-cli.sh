@@ -192,7 +192,9 @@ delete_owned_instances() {
   while IFS= read -r instance; do
     [[ -n "$instance" ]] || continue
     case "$instance" in
-      "$INSTANCE"|haco-run-*) incus delete "$instance" --project "$PROJECT" --force || return 1 ;;
+      "$INSTANCE"|haco-run-*|haco-client-e2e-*|haco-egress-e2e-*|haco-host)
+        incus delete "$instance" --project "$PROJECT" --force || return 1
+        ;;
       *)
         echo "ERROR: refusing to delete unexpected instance '$instance' from project '$PROJECT'" >&2
         unexpected=1

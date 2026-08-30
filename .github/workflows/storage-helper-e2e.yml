@@ -49,7 +49,7 @@ jobs:
   managed-btrfs-cli:
     needs: managed-btrfs-helper
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       HACO_CI_RUNNER_ENVIRONMENT: github-hosted
     steps:
@@ -61,16 +61,34 @@ jobs:
           go-version: 1.27.x
           check-latest: true
           cache: false
-      - name: Validate real storage CLI E2E helpers
-        run: bash -n tools/ci-incus-core.sh tools/ci-storage-helper.sh tools/ci-storage-cli.sh
+      - name: Validate real storage and CLI E2E helpers
+        run: bash -n tools/ci-incus-core.sh tools/ci-storage-helper.sh tools/ci-storage-cli.sh test/e2e/host.sh test/e2e/client_access.sh test/e2e/egress.sh
       - name: Prepare real Incus substrate
         run: bash tools/ci-incus-core.sh setup
       - name: Install real Btrfs privilege helper
         run: bash tools/ci-storage-helper.sh setup
       - name: Prepare normal-user haco CLI acceptance
         run: bash tools/ci-storage-cli.sh setup
-      - name: Run normal haco create and run against managed Btrfs
+      - name: Run base haco lifecycle against managed Btrfs
         run: bash tools/ci-storage-cli.sh test
+      - name: Run haco-host trusted management CLI acceptance
+        env:
+          HACO_E2E_INCUS: "1"
+          HACO_E2E_HACO_BIN: ${{ runner.temp }}/haco-storage-cli-bin
+          HACO_E2E_SHARED_ROOT: ${{ runner.temp }}/haco-storage-cli-e2e
+        run: bash test/e2e/host.sh
+      - name: Run SSH and local-forward client access CLI acceptance
+        env:
+          HACO_E2E_INCUS: "1"
+          HACO_E2E_HACO_BIN: ${{ runner.temp }}/haco-storage-cli-bin
+          HACO_E2E_SHARED_ROOT: ${{ runner.temp }}/haco-storage-cli-e2e
+        run: bash test/e2e/client_access.sh
+      - name: Run doctor and policy egress CLI acceptance
+        env:
+          HACO_E2E_INCUS: "1"
+          HACO_E2E_HACO_BIN: ${{ runner.temp }}/haco-storage-cli-bin
+          HACO_E2E_SHARED_ROOT: ${{ runner.temp }}/haco-storage-cli-e2e
+        run: bash test/e2e/egress.sh
       - name: Capture storage CLI diagnostics
         if: failure()
         run: |
