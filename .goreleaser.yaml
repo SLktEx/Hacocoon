@@ -17,6 +17,20 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
+  - id: haco-controller
+    main: ./cmd/haco-controller
+    binary: haco-controller
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
   - id: haco-vscode
     main: ./cmd/haco-vscode
     binary: haco-vscode
@@ -64,6 +78,7 @@ archives:
   - id: haco
     ids:
       - haco
+      - haco-controller
       - haco-vscode
       - haco-agent-host
       - haco-notify
