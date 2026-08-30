@@ -16,7 +16,11 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w
+      - >-
+        -s -w
+        -X github.com/SLktEx/Hacocoon/internal/buildinfo.SoftwareVersion={{ .Version }}
+        -X github.com/SLktEx/Hacocoon/internal/buildinfo.Commit={{ .Commit }}
+        -X github.com/SLktEx/Hacocoon/internal/buildinfo.BuildDate={{ .Date }}
   - id: haco-vscode
     main: ./cmd/haco-vscode
     binary: haco-vscode
