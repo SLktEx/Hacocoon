@@ -51,15 +51,15 @@ func openOrCreateOwnedLockFile(path string) (*os.File, error) {
 		return nil, err
 	}
 	file := os.NewFile(uintptr(fd), path)
-	if err := verifyOwnedRegularFile(file); err != nil {
-		_ = file.Close()
-		return nil, err
-	}
 	if created {
 		if err := file.Chmod(0o600); err != nil {
 			_ = file.Close()
 			return nil, err
 		}
+	}
+	if err := verifyOwnedRegularFile(file); err != nil {
+		_ = file.Close()
+		return nil, err
 	}
 	return file, nil
 }
