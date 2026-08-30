@@ -83,6 +83,8 @@ def regular(tf, name, payload=b"binary\n"):
     tf.addfile(info, io.BytesIO(payload))
 
 def expected_others(tf):
+    regular(tf, "haco-controller", b"controller-safe\n")
+    regular(tf, "haco-host", b"haco-host-safe\n")
     regular(tf, "haco-vscode", b"vscode-safe\n")
     regular(tf, "haco-agent-host", b"agent-host-safe\n")
     regular(tf, "haco-notify", b"notify-safe\n")
@@ -155,6 +157,8 @@ valid="$root/valid.tar.gz"
 make_archive valid "$valid"
 run_installer "$valid" "$root/install-valid" "$root/helper-valid"
 grep -Fx 'haco-safe' "$root/install-valid/haco" >/dev/null
+grep -Fx 'controller-safe' "$root/install-valid/haco-controller" >/dev/null
+grep -Fx 'haco-host-safe' "$root/install-valid/haco-host" >/dev/null
 grep -Fx 'vscode-safe' "$root/install-valid/haco-vscode" >/dev/null
 grep -Fx 'agent-host-safe' "$root/install-valid/haco-agent-host" >/dev/null
 grep -Fx 'notify-safe' "$root/install-valid/haco-notify" >/dev/null
@@ -171,7 +175,7 @@ for kind in traversal absolute symlink hardlink fifo device extra; do
     cat "$root/$kind.out" >&2
     exit 1
   fi
-  for binary in haco haco-vscode haco-agent-host haco-notify; do
+  for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
     if [ -e "$install_dir/$binary" ]; then
       echo "installer wrote $binary for rejected $kind archive" >&2
       exit 1
