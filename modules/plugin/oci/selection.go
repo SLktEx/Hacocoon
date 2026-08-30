@@ -148,15 +148,16 @@ func (s *Service) ReenableSeedImage(ctx context.Context, raw string) (SeedSelect
 }
 
 func (s *Service) seedSelection(ctx context.Context, identity immutableImageIdentity) (SeedSelection, error) {
+	// Read permissive operator state first and destructive tombstones last. If a
+	// concurrent mutation lands between the two files, a new deletion is seen
+	// immediately while a new re-enable is deferred to the next read. That makes
+	// the cross-file snapshot fail closed without pretending the files are one
+	// atomic transaction.
+	state, err := s.store.readSeedSelectionsLocked()
+	if err != nil {
+		return SeedSelection{}, err
+	}
 	deletions, err := s.store.ListDeletions(ctx)
-	if err != nil {
-		return SeedSelection{}, err
-	}
-	pins, err := s.store.listSeedPins(ctx)
-	if err != nil {
-		return SeedSelection{}, err
-	}
-	reenables, err := s.store.listSeedReenables(ctx)
 	if err != nil {
 		return SeedSelection{}, err
 	}
@@ -168,22 +169,16 @@ func (s *Service) seedSelection(ctx context.Context, identity immutableImageIden
 			break
 		}
 	}
-	for _, pin := range pins {
-		if pin.Key() == identity.Key() {
-			t := pin.PinnedAt
-			selection.Pinned = true
-			selection.PinnedAt = &t
-			break
-		}
+	if pin, ok := state.Pins[identity.Key()]; ok {
+		t := pin.PinnedAt
+		selection.Pinned = true
+		selection.PinnedAt = &t
 	}
-	for _, override := range reenables {
-		if override.Key() == identity.Key() {
-			t := override.ReenabledAt
-			selection.ReenabledAt = &t
-			if selection.DeletedAt != nil && t.After(*selection.DeletedAt) {
-				selection.Reenabled = true
-			}
-			break
+	if override, ok := state.Reenables[identity.Key()]; ok {
+		t := override.ReenabledAt
+		selection.ReenabledAt = &t
+		if selection.DeletedAt != nil && t.After(*selection.DeletedAt) {
+			selection.Reenabled = true
 		}
 	}
 	selection.Deleted = selection.DeletedAt != nil && !selection.Reenabled
@@ -191,32 +186,26 @@ func (s *Service) seedSelection(ctx context.Context, identity immutableImageIden
 }
 
 func (s *Service) seedSelectionPolicy(ctx context.Context) (seedSelectionPolicy, error) {
+	// As above, read allow-like state first and deny-like state last so a
+	// concurrent cross-file update can only make this snapshot stricter.
+	state, err := s.store.readSeedSelectionsLocked()
+	if err != nil {
+		return seedSelectionPolicy{}, err
+	}
 	deletions, err := s.store.ListDeletions(ctx)
 	if err != nil {
 		return seedSelectionPolicy{}, err
 	}
-	pins, err := s.store.listSeedPins(ctx)
-	if err != nil {
-		return seedSelectionPolicy{}, err
-	}
-	reenables, err := s.store.listSeedReenables(ctx)
-	if err != nil {
-		return seedSelectionPolicy{}, err
-	}
-	reenableByKey := make(map[string]SeedReenable, len(reenables))
-	for _, override := range reenables {
-		reenableByKey[override.Key()] = override
-	}
 	policy := seedSelectionPolicy{
 		blocked:   map[string]struct{}{},
 		reenabled: map[string]struct{}{},
-		pins:      make(map[string]SeedPin, len(pins)),
+		pins:      make(map[string]SeedPin, len(state.Pins)),
 	}
-	for _, pin := range pins {
-		policy.pins[pin.Key()] = pin
+	for key, pin := range state.Pins {
+		policy.pins[key] = pin
 	}
 	for _, deletion := range deletions {
-		if override, ok := reenableByKey[deletion.Key()]; ok && override.ReenabledAt.After(deletion.DeletedAt) {
+		if override, ok := state.Reenables[deletion.Key()]; ok && override.ReenabledAt.After(deletion.DeletedAt) {
 			policy.reenabled[deletion.Key()] = struct{}{}
 			continue
 		}
@@ -371,6 +360,9 @@ func (s *Store) listSeedReenables(context.Context) ([]SeedReenable, error) {
 }
 
 func (s *Store) readSeedSelectionsLocked() (seedSelectionFileState, error) {
+	if s == nil {
+		return seedSelectionFileState{}, core.ErrInvalidArgument
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	path := s.selectionPath()
@@ -386,7 +378,7 @@ func (s *Store) readSeedSelectionsLocked() (seedSelectionFileState, error) {
 }
 
 func (s *Store) mutateSeedSelections(mutate func(*seedSelectionFileState) error) error {
-	if mutate == nil {
+	if s == nil || mutate == nil {
 		return core.ErrInvalidArgument
 	}
 	s.mu.Lock()
