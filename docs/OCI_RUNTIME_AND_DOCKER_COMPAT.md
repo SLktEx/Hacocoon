@@ -1,21 +1,21 @@
 # OCI Runtime and Docker Compatibility
 
-Status: **packaging foundation implemented; Base/Seed bake-in and real-host acceptance remain pending.**
+Status: **v0.17 packaging foundation implemented; complete plugin integration and real-host acceptance remain pending.**
 
-This document defines how Hacocoon supports Docker-oriented developer tooling without making Docker Engine the canonical runtime.
+See [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md) for the milestone contract and [`19_v0.19_OCI_SEED_AND_COW.md`](19_v0.19_OCI_SEED_AND_COW.md) for cross-Environment Seed/COW storage optimization.
 
 ## Decision
 
-Hacocoon's canonical OCI runtime is:
+Hacocoon's standard OCI runtime inside development Environments is:
 
 ```text
-containerd  (always-on runtime/content service)
+containerd  (long-lived runtime/content service)
     ^
     |
 nerdctl     (normal CLI)
 ```
 
-Docker compatibility is an additional interface:
+Docker compatibility is optional and additive:
 
 ```text
 Docker CLI / Docker API client
@@ -28,100 +28,93 @@ hacocoon-docker.socket
           v
        dockerd
           |
-          | --containerd=/run/containerd/containerd.sock
+          | existing containerd where supported
           v
-     same containerd
+     containerd
 ```
 
-The genuine Docker CLI may be installed in Hacocoon development Bases/Seeds for ecosystem compatibility. `dockerd` may also be installed, but it must not be the default always-on runtime.
+The genuine Docker CLI may be present for ecosystem compatibility. `dockerd` must not become the canonical or always-on Hacocoon runtime merely because some packages expect the Docker Engine API.
 
-Normal Hacocoon documentation and automation should prefer `nerdctl`. Docker Engine exists for software that actually requires the Docker Engine API or `/var/run/docker.sock`.
+## v0.17 plugin boundary
 
-## Runtime rules
+Docker/containerd/nerdctl-specific lifecycle belongs outside Hacocoon Core behind the plugin/adapter boundary.
 
-1. `containerd` is the long-lived OCI runtime service.
-2. `nerdctl` is the normal container CLI.
-3. the genuine `docker` CLI is a compatibility tool, not a wrapper implemented by Hacocoon;
-4. `dockerd` is stopped by default;
-5. access to `/run/docker.sock` activates `hacocoon-docker.service` through systemd;
-6. activated `dockerd` connects to the already-running `/run/containerd/containerd.sock`;
-7. Hacocoon must not start a second private/managed containerd merely for Docker compatibility;
-8. the Docker Engine API is exposed only through the Environment-local Unix socket by default;
-9. Hacocoon must never mount a Host Docker socket into an Environment.
+Required direction:
 
-The repository ships unit templates under `packaging/systemd/`. They intentionally use Hacocoon-specific unit names so Base provisioning can disable vendor `docker.service` / `docker.socket` without replacing package-owned files.
+1. `containerd` remains the standard long-lived OCI service.
+2. `nerdctl` remains the normal container CLI.
+3. use the genuine `docker` CLI rather than a Hacocoon imitation;
+4. keep `dockerd` stopped unless Docker Engine compatibility is actually needed;
+5. use Environment-local socket activation/on-demand startup where supported;
+6. do not start a second Hacocoon-managed containerd merely for Docker compatibility;
+7. never mount the Host Docker socket into an Environment;
+8. never turn Docker compatibility into GitHub/cloud/registry/Host authority.
+
+The repository currently contains the design plus Hacocoon-specific systemd socket/service packaging foundation. That is intentionally classified as a **partial v0.17 feature**, not a complete plugin implementation.
 
 ## Socket activation
 
-`hacocoon-docker.socket` owns `/run/docker.sock` and starts `hacocoon-docker.service` on first access.
+`hacocoon-docker.socket` owns the Environment-local `/run/docker.sock` and activates `hacocoon-docker.service` when a client actually requests the Docker Engine API.
 
-The service is deliberately not installable into `multi-user.target`; only the socket is enabled. This prevents an ordinary boot from turning Docker Engine into a second always-running control plane.
+The service itself should not be enabled as a normal boot target. Socket activation is an on-demand **start** mechanism; it does not imply automatic idle shutdown after clients disconnect.
 
-Socket activation is an **on-demand start mechanism**, not an idle shutdown mechanism. A future lifecycle policy may stop an idle daemon, but Hacocoon must not claim that systemd automatically stops `dockerd` after clients disconnect.
-
-Before enabling the Hacocoon socket, Base/Seed provisioning must ensure that no vendor `docker.socket` or other process is already listening on `/run/docker.sock`.
-
-## containerd namespaces and storage
-
-Docker Engine normally owns its own containerd namespace (commonly `moby`). Hacocoon/nerdctl metadata does not need to share that namespace merely to save image-content space.
-
-When both clients use the same containerd daemon, content-addressed OCI blobs can be shared by the daemon's content store even when higher-level image/container metadata is isolated by namespace.
-
-This does **not** mean every byte is guaranteed to be deduplicated. Namespace-specific metadata, snapshots/unpacked filesystem state, writable layers, build cache, and Docker-owned state can consume additional storage. Hacocoon should therefore describe this optimization as **shared containerd content**, not as zero-cost duplicate images.
-
-For cross-Environment savings, the v0.13A Seed/COW design remains authoritative: immutable Seed filesystem state is cloned through Incus/storage-driver semantics. Multiple Environments must never share one writable `/var/lib/containerd`.
-
-## Base and Seed integration
-
-Docker compatibility belongs in immutable development Bases/Seeds, not in per-Environment startup package installation.
-
-A Base/Seed integration that enables this feature must:
-
-1. install a supported standalone `containerd` service and `nerdctl`;
-2. install the genuine Docker CLI;
-3. install `dockerd` only when Engine compatibility is part of that Base/Seed contract;
-4. create the Environment-local `docker` group when non-root Docker API access is desired;
-5. install the Hacocoon socket/service units;
-6. disable vendor auto-started `docker.service` and `docker.socket` units;
-7. enable `hacocoon-docker.socket`, not `hacocoon-docker.service`;
-8. verify that `dockerd` is stopped before the immutable Base/Seed is published;
-9. verify that `/run/containerd/containerd.sock` is the containerd endpoint used by the activated daemon;
-10. verify that no registry credentials or Host control sockets are captured in the image.
-
-The current repository does not yet have the v0.11 custom Base builder / v0.13A Seed publisher needed to bake these packages and units into official Hacocoon images automatically. The shipped units are therefore a packaging foundation, not a claim that `docker` already works in every Environment created from the current vanilla Ubuntu Bases.
+Before enabling the Hacocoon socket, provisioning must ensure vendor `docker.socket` or another process is not already listening on the same path.
 
 ## Security boundary
 
-A Docker daemon is a high-authority service **inside its Environment**. Access to the Docker socket effectively grants control over that Environment's Docker daemon and the containers it manages.
+A Docker daemon is high-authority **inside its Environment**. Access to that Environment's Docker socket is effectively root-equivalent for Docker-managed workloads there.
 
 Required rules:
 
 - `/run/docker.sock` is Environment-local;
 - no Host `/var/run/docker.sock` bind mount;
-- no Host/containerd/Incus/Hacocoon control socket is forwarded through Docker compatibility;
+- no Host/containerd/Incus/Hacocoon control socket passthrough;
 - no TCP Docker API listener by default;
-- socket mode is `0660` and group membership is explicit;
-- membership in the Environment's `docker` group must be treated as root-equivalent authority within that Environment;
-- Docker compatibility does not grant GitHub, cloud, registry, or Host credentials;
-- the Incus Environment boundary remains the outer security boundary.
+- socket/group membership is explicit;
+- Docker compatibility does not provide reusable Host credentials;
+- the Incus Environment remains the outer security boundary.
 
-## Telemetry interaction
+## containerd namespaces and storage
 
-OCI Seed usage telemetry currently samples ordinary `nerdctl images` output. Once Docker Engine compatibility is baked into Environments, Seed telemetry must account for images used through the Docker/moby namespace as well, or collect usage through a lower-level containerd view.
+Docker and nerdctl may use different containerd namespaces while still sharing content-addressed blobs in one daemon's content store. This can reduce duplicate content, but it is **not** a promise of zero duplicate storage: namespace metadata, snapshots, unpacked filesystems, writable layers, and build caches may still differ.
 
-When the same immutable digest is visible through both paths, telemetry should deduplicate it before calculating Seed recommendations. Docker compatibility must not cause the same OCI content to receive double recommendation weight.
+Hacocoon should therefore describe this as **shared containerd content where supported**, not total image-store deduplication.
 
-## Acceptance
+## v0.19 cross-Environment storage
 
-Repository-level acceptance for the packaging foundation requires:
+Cross-Environment storage savings belong to **v0.19 OCI Seed Builder & Btrfs/COW**, not to Docker compatibility itself.
 
-- a socket unit listening on `/run/docker.sock` with `0660` permissions;
-- a service unit using `dockerd -H fd://` and the external `/run/containerd/containerd.sock`;
-- no boot target that directly enables `hacocoon-docker.service`;
-- documentation that distinguishes shared content from total-storage deduplication;
-- documentation that forbids Host Docker socket passthrough.
+Required shape:
 
-Real Base/Seed acceptance will additionally require a Hacocoon-built image where:
+```text
+immutable Seed filesystem
+        |
+   Incus/storage clone
+        +--------+--------+
+        |        |        |
+ independent   independent
+ containerd    containerd
+ state A       state B
+```
+
+Hacocoon must never save space by sharing one writable `/var/lib/containerd` across Environments.
+
+When Btrfs is the active Incus storage backend, unchanged Seed-derived blocks may be shared through normal copy-on-write semantics. Hacocoon Core does not directly manage hidden Btrfs subvolume paths.
+
+## OCI plugin interaction
+
+Base-image lifecycle and OCI/container-image lifecycle are separate CLI surfaces:
+
+```text
+haco base ...                    Hacocoon Environment starting points
+haco plugin oci ...              OCI/containerd/nerdctl operations
+```
+
+v0.15 recommendation currently samples OCI usage through the optional OCI plugin. Once Docker Engine compatibility is fully integrated, telemetry should also account for Docker/moby-namespace image usage without double-counting the same immutable digest.
+
+## Completion criteria
+
+v0.17 should not be called complete until supported-host integration proves at least:
 
 ```text
 boot
@@ -135,6 +128,6 @@ first Docker API request
   -> ordinary nerdctl still works
 ```
 
-Real-host acceptance remains pending until the Base/Seed build path exists and exercises this lifecycle on supported Incus images.
+The packaging foundation exists today; full plugin lifecycle, image/Base integration, and real-host validation remain follow-up work.
 
-> **Docker is a compatibility interface. containerd + nerdctl remains the Hacocoon runtime.**
+> **Docker is an optional compatibility plugin. containerd + nerdctl remains the standard Hacocoon OCI runtime.**
