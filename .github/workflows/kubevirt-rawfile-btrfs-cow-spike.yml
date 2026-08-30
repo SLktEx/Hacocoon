@@ -88,11 +88,6 @@ jobs:
         run: |
           set -euxo pipefail
           cat >/tmp/rawfile-values.yaml <<'EOF'
-          image:
-            registry: ""
-            repository: rawfile-localpv
-            tag: haco-cowfix
-            pullPolicy: Never
           analytics:
             enabled: false
           logLevel: DEBUG
@@ -133,8 +128,17 @@ jobs:
             --create-namespace \
             --values /tmp/rawfile-values.yaml
 
+          # Let the stock chart create the exact current workload shape first.
+          # Then replace only the RawFile CSI implementation container with the
+          # locally built one-line diagnostic fix. This avoids the chart's image
+          # registry fallback while leaving all sidecar versions untouched.
+          kubectl -n openebs rollout status daemonset/rawfile-localpv-node --timeout=8m
+          kubectl -n openebs set image daemonset/rawfile-localpv-node \
+            csi-driver=rawfile-localpv:haco-cowfix
+          kubectl -n openebs rollout status daemonset/rawfile-localpv-node --timeout=8m
           kubectl -n openebs wait --for=condition=Ready pod --all --timeout=8m
-          kubectl -n openebs get pods -o jsonpath='{range .items[*].spec.containers[*]}{.name}{"="}{.image}{"\n"}{end}' | grep 'rawfile-localpv:haco-cowfix'
+          test "$(kubectl -n openebs get daemonset rawfile-localpv-node -o jsonpath='{.spec.template.spec.containers[?(@.name=="csi-driver")].image}')" = rawfile-localpv:haco-cowfix
+
           kubectl get csidriver
           kubectl get storageclass rawfile-btrfs-cow -o yaml
           kubectl get volumesnapshotclass rawfile-btrfs-cow -o yaml
