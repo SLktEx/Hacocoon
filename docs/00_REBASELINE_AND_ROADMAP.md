@@ -55,10 +55,10 @@ Hacocoon does not own IDE/AI chat UX, model routing, task DAGs, Git worktree orc
 | v0.14 | Git Fetch Plugin | implemented |
 | v0.15 | OCI Seed Recommendation | implemented |
 | v0.16 | OCI Image Deletion | first slice implemented |
-| v0.17 | OCI Seed Builder & Btrfs/COW | planned |
-| v0.18 | Docker Compatibility Plugin | repository implemented early; real-host acceptance remains host-dependent |
+| v0.17 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
+| v0.18 | Docker Compatibility Plugin | repository implementation complete; real-host acceptance remains host-dependent |
 
-Fully implemented product milestones are contiguous through **v0.16** because v0.17 remains planned. The v0.18 Docker repository implementation landed early under the previous numbering and is retained.
+Fully implemented product milestones are contiguous through **v0.16** because v0.17 remains partial. The v0.18 Docker repository implementation landed early under the previous numbering and is retained.
 
 **Local OCI Registry is not a roadmap milestone.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
 
@@ -82,7 +82,7 @@ The Docker lifecycle commands are assigned to v0.18: `haco plugin oci docker sta
 
 ## OCI storage direction
 
-Normal upstream pull is allowed by policy. Local Registry is optional/deferred and is not required for Seed construction. v0.17 uses trusted Host acquisition/cache, an offline Seed Builder, immutable Seed publication, and normal Incus/storage-driver COW. Never share one writable `/var/lib/containerd` across Environments.
+Normal upstream pull is allowed by policy. Local Registry is optional/deferred and is not required for Seed construction. v0.17 has a **first repository slice** implementing trusted Host acquisition/cache, an offline no-NIC Seed Builder, immutable Seed publication/current pointer, exact-parent resolution, and normal Incus/storage-driver cloning. Physical Btrfs COW measurement, conservative old-revision GC/recovery, authenticated/private-registry combinations, and broader real-host acceptance remain pending. Never share one writable `/var/lib/containerd` across Environments.
 
 See [`17_v0.17_OCI_SEED_AND_COW.md`](17_v0.17_OCI_SEED_AND_COW.md), [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md), and [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
 
@@ -96,4 +96,4 @@ Older commits, branches, PRs, and superseded documents may describe active EC2/A
 
 A short-lived 2026-08-30 rebaseline reserved v0.18 for Optional Local OCI Registry and v0.19 for OCI Seed Builder/COW. That reservation is superseded: Registry is deferred/unversioned.
 
-A subsequent ordering placed Docker Compatibility at v0.17 and Seed Builder/COW at v0.18, and the Docker repository implementation landed under that number. The authoritative order is now v0.17 Seed Builder/COW followed by v0.18 Docker Compatibility; the already-landed Docker implementation remains intact and is reclassified rather than rolled back.
+A subsequent ordering placed Docker Compatibility at v0.17 and Seed Builder/COW at v0.18, and both repository implementations began landing under that numbering. The authoritative order is now v0.17 Seed Builder/COW followed by v0.18 Docker Compatibility; the already-landed code remains intact and is reclassified rather than rolled back.
