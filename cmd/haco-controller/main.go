@@ -39,9 +39,12 @@ func main() {
 	if err := controlapi.Register(server, environments, app.Clients); err != nil {
 		fail(err)
 	}
+	if err := controlapi.RegisterHost(server, app.Runtime); err != nil {
+		fail(err)
+	}
 	// The full controller socket is exposed only to the trusted haco-host path.
-	// Environment guests receive separate identity-bound workload sockets below
-	// this API surface and therefore cannot call Environment lifecycle methods.
+	// Environment guests receive separate identity- and Project-bound workload
+	// sockets and therefore cannot call Environment lifecycle or Host methods.
 	if err := controlapi.RegisterWorkloads(server, app.Runtime); err != nil {
 		fail(err)
 	}
