@@ -2,11 +2,13 @@ package ec2
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -32,12 +34,22 @@ type runtimeRef struct {
 	Bucket          string `json:"bucket"`
 	Prefix          string `json:"prefix"`
 	ReadOnly        bool   `json:"read_only"`
+	BaseDigest      string `json:"base_digest,omitempty"`
 	CreateOperation string `json:"create_operation,omitempty"`
 	ClientToken     string `json:"client_token,omitempty"`
 }
 
 func encodeRef(ref runtimeRef) (string, error) {
 	ref.Version = 2
+	if ref.BaseDigest == "" && !ref.ReadOnly && validRuntimeWorkspacePath(ref.WorkspacePath) {
+		if info, statErr := os.Stat(ref.WorkspacePath); statErr == nil && info.IsDir() {
+			digest, err := digestWorkspace(context.Background(), ref.WorkspacePath)
+			if err != nil {
+				return "", fmt.Errorf("identify EC2 runtime workspace while encoding ref: %w", err)
+			}
+			ref.BaseDigest = digest
+		}
+	}
 	payload, err := json.Marshal(ref)
 	if err != nil {
 		return "", err
@@ -99,6 +111,8 @@ func validateRuntimeRef(ref runtimeRef) error {
 		return fmt.Errorf("invalid EC2 runtime bucket: %w", core.ErrIncompatibleState)
 	case !validRuntimePrefix(ref.Prefix):
 		return fmt.Errorf("invalid EC2 runtime prefix: %w", core.ErrIncompatibleState)
+	case ref.BaseDigest != "" && !validWorkspaceDigest(ref.BaseDigest):
+		return fmt.Errorf("invalid EC2 runtime workspace digest: %w", core.ErrIncompatibleState)
 	case (ref.CreateOperation == "") != (ref.ClientToken == ""):
 		return fmt.Errorf("incomplete EC2 create-operation identity: %w", core.ErrIncompatibleState)
 	case ref.CreateOperation != "" && !createOperationKeyPattern.MatchString(ref.CreateOperation):

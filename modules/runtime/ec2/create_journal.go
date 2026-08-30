@@ -2,7 +2,6 @@ package ec2
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -74,13 +73,9 @@ func newCreateJournal(dir string) (*createJournal, error) {
 	return &createJournal{dir: dir}, nil
 }
 
-func (j *createJournal) prepare(accountID string, cfg Config, spec core.EnvironmentRuntimeSpec) (createOperation, error) {
+func (j *createJournal) prepare(accountID string, cfg Config, spec core.EnvironmentRuntimeSpec, workspaceDigest string) (createOperation, error) {
 	if j == nil || strings.TrimSpace(j.dir) == "" {
 		return createOperation{}, fmt.Errorf("EC2 create journal is not configured: %w", core.ErrRuntimeUnavailable)
-	}
-	workspaceDigest, err := digestWorkspace(context.Background(), spec.WorkspacePath)
-	if err != nil {
-		return createOperation{}, fmt.Errorf("identify EC2 create workspace: %w", err)
 	}
 	key := createOperationKey(accountID, cfg.Region, spec.Name)
 	fingerprint, err := createRequestFingerprint(accountID, cfg, spec, workspaceDigest)
