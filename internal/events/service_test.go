@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -43,10 +44,78 @@ func TestListRejectsMalformedOrIncompleteAudit(t *testing.T) {
 		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		_, err := New(path).List(context.Background())
-		if err == nil {
-			t.Fatalf("content=%q unexpectedly accepted", content)
+		events, err := New(path).List(context.Background())
+		if err == nil || len(events) != 0 {
+			t.Fatalf("content=%q events=%#v err=%v", content, events, err)
 		}
+		var corruption *AuditCorruptionError
+		if !errors.As(err, &corruption) || corruption.Line != 1 || corruption.ByteOffset != 0 {
+			t.Fatalf("content=%q corruption=%#v err=%v", content, corruption, err)
+		}
+	}
+}
+
+func TestListReturnsTrustworthyPrefixAndStopsAtFirstMalformedRecord(t *testing.T) {
+	first := `{"time":"2026-08-29T08:00:00Z","request_id":"req-before","type":"requested","capability":"github.git"}`
+	malformed := `{"time":"2026-08-29T08:00:01Z","type":`
+	after := `{"time":"2026-08-29T08:00:02Z","request_id":"req-after","type":"completed"}`
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	content := first + "\n" + malformed + "\n" + after + "\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	events, err := New(path).List(context.Background())
+	if len(events) != 1 || events[0].RequestID != "req-before" {
+		t.Fatalf("events=%#v", events)
+	}
+	var corruption *AuditCorruptionError
+	if !errors.As(err, &corruption) {
+		t.Fatalf("expected AuditCorruptionError, got %v", err)
+	}
+	if corruption.Line != 2 || corruption.ByteOffset != int64(len(first)+1) || corruption.Kind != CorruptionMalformedJSON {
+		t.Fatalf("corruption=%#v", corruption)
+	}
+	for _, event := range events {
+		if event.RequestID == "req-after" {
+			t.Fatalf("record after corruption must not be exposed: %#v", events)
+		}
+	}
+}
+
+func TestListReturnsTrustworthyPrefixOnIncompleteRecord(t *testing.T) {
+	first := `{"time":"2026-08-29T08:00:00Z","request_id":"req-before","type":"requested"}`
+	incomplete := `{"request_id":"broken","type":"completed"}`
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	if err := os.WriteFile(path, []byte(first+"\n"+incomplete+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	events, err := New(path).List(context.Background())
+	if len(events) != 1 || events[0].RequestID != "req-before" {
+		t.Fatalf("events=%#v", events)
+	}
+	var corruption *AuditCorruptionError
+	if !errors.As(err, &corruption) || corruption.Kind != CorruptionIncomplete || corruption.Line != 2 || corruption.ByteOffset != int64(len(first)+1) {
+		t.Fatalf("corruption=%#v err=%v", corruption, err)
+	}
+}
+
+func TestListReturnsTrustworthyPrefixOnOversizedRecord(t *testing.T) {
+	first := `{"time":"2026-08-29T08:00:00Z","request_id":"req-before","type":"requested"}`
+	oversized := strings.Repeat("x", 1024*1024+1)
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	if err := os.WriteFile(path, []byte(first+"\n"+oversized+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	events, err := New(path).List(context.Background())
+	if len(events) != 1 || events[0].RequestID != "req-before" {
+		t.Fatalf("events=%#v", events)
+	}
+	var corruption *AuditCorruptionError
+	if !errors.As(err, &corruption) || corruption.Kind != CorruptionReadError || corruption.Line != 2 || corruption.ByteOffset != int64(len(first)+1) {
+		t.Fatalf("corruption=%#v err=%v", corruption, err)
 	}
 }
 
