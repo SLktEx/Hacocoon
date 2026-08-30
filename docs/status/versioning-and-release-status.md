@@ -40,10 +40,10 @@ Use this document for **which version number belongs to which feature gate**. Us
 | v0.14 | Git Fetch Plugin | ✅ implemented |
 | v0.15 | OCI Seed Recommendation | ✅ implemented |
 | v0.16 | OCI Image Deletion | ✅ first slice implemented |
-| v0.17 | OCI Seed Builder & Btrfs/COW | 🧪 first repository slice implemented; real-host/COW acceptance and lifecycle follow-up remain |
+| v0.17 | OCI Seed Builder & Btrfs/COW | 🧪 repository build/publish and operations-hardening slices implemented; real-host/private-registry/COW acceptance remains |
 | v0.18 | Docker Compatibility Plugin | ✅ repository implementation complete; real-host acceptance tracked separately |
 
-The fully implemented product progression is contiguous through **v0.16** because v0.17 remains a partial feature gate. v0.18 has a complete repository implementation even though the preceding v0.17 gate still has acceptance/lifecycle work.
+The fully implemented product progression is contiguous through **v0.16** because v0.17 remains a partial feature gate. v0.18 has a complete repository implementation even though the preceding v0.17 gate still has acceptance work.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 
@@ -72,7 +72,7 @@ Document addresses are semantic and do not change when milestone assignments cha
 - **v0.13:** real supported-Incus network/profile/ACL acceptance remains host-dependent.
 - **v0.14:** brokered fetch is implemented; real private-repository combinations remain acceptance-sensitive.
 - **v0.15/v0.16:** OCI plugin recommendation/deletion behavior is implemented.
-- **v0.17:** first repository slice includes `haco plugin oci seed build/current`, trusted Host acquisition, no-NIC Seed build, immutable publication/current pointer, and exact-parent resolution. Old-revision GC/recovery, authenticated/private-registry combinations, physical Btrfs COW measurement, and broader real-host acceptance remain.
+- **v0.17:** repository build/publish plus explicit pin/re-enable, conservative old-revision GC, interrupted-builder recovery, and deletion-race protection are implemented. Authenticated/private-registry combinations including credential-free Environment harvesting where supported, physical Btrfs COW measurement, broader real-host failure injection, and supported-host acceptance remain.
 - **v0.18:** repository lifecycle/CLI integration is implemented; real Base + Incus/systemd socket-activation acceptance remains host-dependent.
 
 ## Rule of thumb
