@@ -6,16 +6,18 @@ Status: partial.
 
 `haco-host` is Hacocoon's persistent trusted logical Host. On the local Incus backend it is an Incus system instance named `haco-host`, distinct from ordinary untrusted Environments.
 
-The actual Linux or WSL distribution that runs the Hacocoon process, Incus daemon, loop devices, and storage mounts is the **Physical Host**. The Physical Host remains the authority for platform primitives. `haco-host` provides the normal host-like place users enter and, as later slices land, the preferred place for developer tooling and external-service operations.
+The actual Linux or WSL distribution that runs the Physical Host controller, Incus daemon, loop devices, and storage mounts is the **Physical Host**. It remains the authority for platform primitives. `haco-host` is the normal host-like place users enter and, as later slices land, the preferred place for developer tooling and external-service operations.
 
 ```text
 Physical Host / WSL
-  |- Hacocoon process
+  |- haco-controller
   |- Incus daemon
   |- loop / Btrfs platform primitives
   `- haco-host                  TRUSTED
-       |
-       `- normal interactive Host UX
+       |- client-only haco-host CLI
+       `- /run/hacocoon/control.sock
+            |
+            `- narrow Incus Unix proxy -> Physical Host controller
 
 Managed Environments            UNTRUSTED
 ```
@@ -24,110 +26,125 @@ Managed Environments            UNTRUSTED
 
 ## Implemented repository slice
 
-The current Incus implementation provides:
+The current local Incus implementation provides:
 
-- `haco host ensure`, which reconciles one persistent `haco-host`;
-- `haco host shell`, which ensures the instance is running and enters an interactive login shell;
-- an Incus ownership marker, `user.hacocoon.role=trusted-host`, that must match before an existing `haco-host` is reused;
+- `haco host ensure`, which reconciles one persistent `haco-host` and its client control path;
+- `haco host shell`, which ensures that path is ready and enters an interactive login shell;
+- an Incus ownership marker, `user.hacocoon.role=trusted-host`;
 - rootfs placement on Hacocoon's selected managed Incus storage pool;
-- the Environment name `host` reserved in the Incus backend so an Environment cannot collide with the infrastructure instance;
-- WSL bootstrap support that makes the normal interactive WSL entry open `haco-host` after successful reconciliation.
+- the Environment name `host` reserved so an Environment cannot collide with the infrastructure instance;
+- client-only `/usr/local/bin/haco-host` provisioning into the trusted instance;
+- a trusted-host-only Incus `proxy` device that presents `/run/hacocoon/control.sock` in the instance and connects it to the Physical Host Hacocoon controller socket;
+- exact validation of existing proxy configuration, failing closed on mismatches;
+- guest-side `haco-host doctor` verification before `haco host ensure` succeeds;
+- WSL bootstrap support that starts the Physical Host `haco-controller` systemd service, verifies readiness, reconciles `haco-host`, and only then makes normal interactive WSL entry open `haco-host`;
+- real Ubuntu 26.04 + Incus + managed-Btrfs CI acceptance of the trusted-host control path.
 
-The broader #275 design is not complete yet. In particular, this slice does **not** yet move Git/GitHub, OCI/containerd, cloud credentials, general external tooling, Windows mounts, or WSL interop into `haco-host`, and it does not implement the future Physical Host controller API used by #276/#277.
+The broader #275 design is still partial. Git/GitHub, OCI/containerd, cloud credentials, general external tooling, Windows mounts, and WSL interop have not yet been moved into `haco-host`. Physical-Host-authority `haco` commands also still need migration to the controller-client interface before the current `haco` binary can safely be provisioned inside the trusted instance.
 
 ## Trust and authority
 
-The Physical Host keeps Incus control authority.
+The Physical Host keeps Incus and platform control authority.
 
-`haco-host` does not receive the Incus daemon socket, `/var/lib/incus`, the Hacocoon Physical Host state directory, or an equivalent raw provider-control capability merely so a user can enter it.
+`haco-host` does not receive the Incus daemon socket, `/var/lib/incus`, the Physical Host Hacocoon state directory, or a broad Physical Host filesystem mount. It receives only the Hacocoon-owned client endpoint required for the operations exposed by the controller API.
 
 ```text
-operator
+haco-host client
    |
-   | haco host shell
+   | /run/hacocoon/control.sock
    v
-Physical Host haco
-   |
-   | Incus control
-   v
-Incus daemon
+Incus unix proxy (bind=instance)
    |
    v
-haco-host
+Physical Host haco-controller
+   |
+   | Incus API/socket remains here
+   v
+incusd
 ```
 
-An Environment must not get direct access to `haco-host`. Future Environment-initiated privileged operations remain subject to the Hacocoon policy/capability/approval boundary rather than becoming an ambient path to the trusted Host.
+Ordinary Environments do not receive the `haco-control` proxy device or the Physical Host controller socket path.
+
+The trusted-host reconciler verifies the exact ownership marker before provisioning. An existing `haco-control` proxy is reused only when `listen`, `connect`, `bind`, `uid`, `gid`, and `mode` match the Hacocoon-managed configuration. Unexpected configuration is incompatible state rather than something to take over silently.
 
 ## Ownership and collision handling
 
 The literal Incus instance name `haco-host` is infrastructure-owned.
 
-Creation writes the Hacocoon ownership marker as part of `incus init`. Reconciliation of an existing instance requires that exact marker. If an unrelated or legacy instance already occupies `haco-host`, Hacocoon fails closed instead of taking it over, starting it, deleting it, or modifying it.
+Creation writes the Hacocoon ownership marker as part of `incus init`. Reconciliation of an existing instance requires that exact marker. If an unrelated or legacy instance already occupies `haco-host`, Hacocoon fails closed instead of taking it over, starting it, deleting it, or provisioning the client channel into it.
 
-The ordinary Environment name `host` would map to the same provider-local `haco-host` name, so the Incus adapter rejects that Environment name before touching Incus.
+The ordinary Environment name `host` would map to the same provider-local name, so the Incus adapter rejects it before touching Incus.
 
-Concurrent `ensure` calls may race. If one creator wins, the loser may reuse the result only after the exact ownership marker is verified. Unexpected Incus states fail as incompatible state rather than being guessed through.
+Concurrent `ensure` calls may race. If one creator wins, the loser may reuse the result only after exact ownership is verified. Unexpected Incus states fail as incompatible state instead of being guessed through.
 
 ## Storage
 
-`haco-host` uses the root storage pool selected by the normal Hacocoon Incus storage integration. On the default local backend this keeps the instance rootfs in Hacocoon's sparse-raw Btrfs-backed Incus pool rather than making `/var/lib/containerd`, repository data, or other future Host state depend on an unmanaged Physical Host filesystem location.
+`haco-host` uses the root storage pool selected by the normal Hacocoon Incus storage integration. On the default local backend this places the instance rootfs in Hacocoon's sparse-raw Btrfs-backed Incus pool rather than making future Host state depend on an unmanaged Physical Host filesystem location.
 
-This placement does not by itself make all future `haco-host` data COW-shared with Seeds or Environments. Any such physical-sharing claim requires separate measurement.
+This placement does not by itself imply that future `haco-host` data is physically COW-shared with Seeds or Environments. Such claims require separate measurement.
 
-## WSL default entry
+## Client provisioning
 
-After the supported Windows installer finishes successfully, the dedicated WSL distribution's normal non-root user has a dedicated login shell entry named `hacocoon-login`.
+`haco host ensure` resolves a compatible client-only `haco-host` binary. A test/development override may select another absolute file, but the reconciler rejects missing, non-regular, or group/world-writable candidates.
 
-That entry is the same trusted `haco` binary invoked under a distinct executable name. On an interactive no-command launch it delegates to:
+The binary is installed in the trusted instance as:
 
 ```text
-sudo -n <system-owned-haco> host shell
+/usr/local/bin/haco-host
 ```
 
-The installer grants that WSL user passwordless sudo authority only for the exact `haco host ensure` and `haco host shell` commands. It does not grant `incus-admin` by default and does not expose the Incus socket to `haco-host`.
+The current slice intentionally does **not** install the ordinary `haco` binary inside the instance. That binary still contains direct local-composition paths. Provisioning it before its Physical-Host-authority commands are migrated to the controller-client interface could accidentally target guest-local state or a guest-local Incus installation.
 
-Therefore the normal UX is:
+The trusted `haco-host` CLI currently exposes Environment create/list/status/exec/shell/delete plus `doctor`, all through the Physical Host controller.
 
-```powershell
+## WSL default entry and controller service
+
+The supported WSL bootstrap installs the release, then configures `haco-controller` as a Physical Host systemd service. The service uses the managed Hacocoon root and owns the local controller socket under `/run/hacocoon`.
+
+Bootstrap verifies both the socket and a real `haco-host doctor` request before it proceeds. It then runs `haco host ensure`, which provisions the trusted instance client and verifies a second doctor request from inside the instance.
+
+Only after those checks succeed does bootstrap change the dedicated WSL distribution's normal non-root user's login shell to the `hacocoon-login` entry.
+
+Interactive no-command launch therefore becomes:
+
+```text
 wsl -d Hacocoon
+  -> hacocoon-login
+  -> sudo -n <system-owned-haco> host shell
+  -> verified haco-host
 ```
 
-```text
-Physical Host login entry
-    -> haco host shell
-    -> haco-host
-```
+The installer grants passwordless sudo only for the exact `haco host ensure` and `haco host shell` commands. It does not grant `incus-admin` by default.
 
-Explicit WSL commands remain Physical Host commands, and the root account keeps its normal shell. This preserves an emergency path such as:
+Explicit WSL commands remain Physical Host commands, and root keeps its normal shell, preserving recovery such as:
 
 ```powershell
 wsl -d Hacocoon -u root
 ```
 
-The installer changes the normal user's login shell only after `haco host ensure` succeeds. A failed bootstrap therefore leaves a Physical Host recovery path instead of redirecting the user into a broken automatic entry loop.
-
-When `-SkipIncus` is selected, automatic `haco-host` entry is not configured because Hacocoon cannot prove that the required backend is ready.
+`-SkipIncus` leaves the Physical Host login unchanged because Hacocoon cannot guarantee the required backend/controller path in that mode.
 
 ## Interactive warning
 
-`haco host shell` prints a short privileged-environment warning before entering `haco-host`. Japanese locale settings receive the Japanese wording; other locales receive the English wording.
-
-The warning is emitted only on the interactive Host-shell path. Non-interactive WSL commands are not decorated with it.
+`haco host shell` prints a short privileged-environment warning before entering `haco-host`. Japanese locale settings receive Japanese wording; other locales receive English wording. Non-interactive WSL commands are not decorated with this message.
 
 ## Planned follow-up
 
-The following remain separate follow-up work:
+The following remain separate work:
 
 - make `haco-host` the default home for Git/GitHub and selected external-service tooling;
 - run the Host OCI store/containerd inside `haco-host`;
 - add explicit credential injection/brokering without putting reusable credentials in ordinary Environments;
 - add optional WSL/Windows interop only for the trusted Host;
-- implement the Physical Host controller/control-channel model required for invoking Physical-Host-authority `haco` operations from inside `haco-host` without an Incus socket;
+- migrate Physical-Host-authority `haco` operations to the controller-client interface and then provision the appropriate `haco` client UX inside `haco-host`;
 - complete the `haco` versus `haco-host` CLI responsibility split;
-- decide and implement the long-term Workspace/repository location seam without making Core assume that repositories permanently live in `haco-host`.
+- decide and implement the long-term Workspace/repository location seam without making Core assume that repositories permanently live in `haco-host`;
+- add PTY resize framing and generic Environment port forwarding to the controller stream layer.
 
 ## Acceptance boundary
 
-Repository tests cover ownership reconciliation, collision refusal, stopped/running state handling, create races, CLI routing, locale warning selection, and login-mode identification. CI also validates the bootstrap shell syntax.
+Repository tests cover ownership reconciliation, collision refusal, stopped/running state handling, create races, client-binary validation, proxy creation/reuse/mismatch refusal, CLI routing, locale warning selection, and login-mode identification.
 
-This is not proof that a real Windows WSL installation successfully creates the instance, changes the login shell, or enters it through a Windows terminal. Real Windows + WSL 2 + systemd + Incus acceptance remains required before claiming that host-dependent path as verified.
+GitHub-hosted Ubuntu 26.04 acceptance with real Incus and managed Btrfs proves that the trusted instance can receive the client-only binary, connect through the dedicated Unix proxy, run `doctor`, and perform Environment lifecycle/exec operations through the Physical Host controller while ordinary Environments do not receive that channel.
+
+This is still not proof of the complete Windows user journey. Real Windows terminal -> WSL 2 -> systemd -> default `haco-host` login behavior remains host-dependent acceptance.
