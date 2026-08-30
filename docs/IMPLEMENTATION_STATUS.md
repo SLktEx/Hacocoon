@@ -4,7 +4,7 @@ Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, and the f
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance.
 
-The fully implemented product progression is currently contiguous through **v0.16**. v0.17 has a Docker compatibility foundation but is not yet a complete gate. v0.18 is planned.
+The fully implemented product progression is currently contiguous through **v0.16**. v0.17 OCI Seed Builder & Btrfs/COW is planned. v0.18 Docker Compatibility has a foundation already present in the repository, but the complete gate remains pending and depends on the v0.17 Seed/Base pipeline.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
@@ -24,8 +24,8 @@ The fully implemented product progression is currently contiguous through **v0.1
 | OCI Seed auto-selection | deterministic top 10% eligible recommendations are marked `auto_promote=true`; this selects future Seed content only | v0.15 |
 | OCI image deletion | `haco plugin oci image delete <reference[@digest]>` records a deletion tombstone and can explicitly extend deletion to managed Environments | v0.16 |
 | OCI deletion override | tombstones prevent silent recommendation/auto-promotion of the deleted immutable identity | v0.16 |
-| Docker compatibility | genuine Docker CLI/on-demand Engine design and plugin-owned systemd socket/service packaging foundation exist; it is optional and not a Core runtime invariant | v0.17 |
-| OCI Seed Builder / Btrfs COW | trusted Host acquisition/cache, offline builder, immutable Seed publish/current pointer and physical COW validation remain planned | v0.18 |
+| OCI Seed Builder / Btrfs COW | trusted Host acquisition/cache, offline builder, immutable Seed publish/current pointer and physical COW validation remain planned | v0.17 |
+| Docker compatibility | genuine Docker CLI/on-demand Engine design and plugin-owned systemd socket/service packaging foundation exist; it is optional and not a Core runtime invariant; full lifecycle/Base integration remains pending | v0.18 |
 | Optional Local OCI Registry | Registry/proxy is optional and not required for ordinary direct upstream pulls or Seed construction | unversioned optional / deferred |
 
 ## Core/plugin boundary
@@ -36,9 +36,13 @@ The project-maintained OCI plugin profile may use containerd + nerdctl, and the 
 
 ## OCI storage direction
 
-Physical Seed publication/COW belongs to v0.18. The intended path is trusted Host acquisition/cache -> offline Seed Builder -> immutable Seed revision -> normal Incus/storage-driver clone. One writable `/var/lib/containerd` must never be shared across Environments.
+Physical Seed publication/COW belongs to v0.17. The intended path is trusted Host acquisition/cache -> offline Seed Builder -> immutable Seed revision -> normal Incus/storage-driver clone. One writable `/var/lib/containerd` must never be shared across Environments.
 
 Local Registry is not a prerequisite and has no reserved milestone. See [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
+
+## Docker compatibility ordering
+
+The Docker CLI/Engine adapter code and plugin-owned systemd packaging already exist as early v0.18 foundation work. Completing v0.18 requires the Environment/Base provisioning path established by v0.17 plus Docker-specific lifecycle integration and supported-host acceptance.
 
 ## Cloud status
 
@@ -46,4 +50,4 @@ v0.7 retains the provider-neutral Environment routing seam because that architec
 
 ## Acceptance gaps
 
-Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.17 is partial; v0.18 is planned only.
+Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.17 is planned; v0.18 is partial/foundation only.
