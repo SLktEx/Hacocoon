@@ -1,0 +1,166 @@
+name: k8s-system-workspace-poc
+
+on:
+  push:
+    branches:
+      - experiment/k8s-system-workspace-poc
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  privileged-system-workspace:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 25
+    steps:
+      - name: Record runner environment
+        run: |
+          set -euxo pipefail
+          uname -a
+          cat /etc/os-release
+          docker version
+
+      - name: Create compressed Btrfs backing store
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y btrfs-progs
+          truncate -s 12G "$RUNNER_TEMP/haco-k8s-btrfs.img"
+          sudo mkfs.btrfs -f "$RUNNER_TEMP/haco-k8s-btrfs.img"
+          sudo mkdir -p /mnt/haco-k8s
+          sudo mount -o loop,compress=zstd:3 "$RUNNER_TEMP/haco-k8s-btrfs.img" /mnt/haco-k8s
+          test "$(findmnt -T /mnt/haco-k8s -n -o FSTYPE)" = btrfs
+          findmnt -T /mnt/haco-k8s -n -o OPTIONS | grep -q 'compress=zstd'
+
+      - name: Install single-node Kubernetes with all k3s data on Btrfs
+        run: |
+          set -euxo pipefail
+          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='server --disable=traefik --write-kubeconfig-mode=644 --data-dir=/mnt/haco-k8s/k3s' sh -
+          for i in $(seq 1 60); do
+            if kubectl get node >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          kubectl get nodes -o wide
+          sudo k3s --version
+          test "$(findmnt -T /mnt/haco-k8s/k3s -n -o FSTYPE)" = btrfs
+          test "$(findmnt -T /mnt/haco-k8s/k3s/agent/containerd -n -o FSTYPE)" = btrfs
+
+      - name: Build systemd workspace image with sudo and nerdctl
+        run: |
+          set -euxo pipefail
+          cat > "$RUNNER_TEMP/Dockerfile.haco-system" <<'EOF'
+          FROM ubuntu:26.04
+          ENV DEBIAN_FRONTEND=noninteractive container=docker
+          RUN apt-get update \
+              && apt-get install -y --no-install-recommends systemd systemd-sysv dbus sudo ca-certificates curl tar iproute2 \
+              && rm -rf /var/lib/apt/lists/*
+          ARG NERDCTL_VERSION=2.3.4
+          RUN curl -fsSL "https://github.com/containerd/nerdctl/releases/download/v${NERDCTL_VERSION}/nerdctl-full-${NERDCTL_VERSION}-linux-amd64.tar.gz" \
+              | tar -C /usr/local -xz
+          RUN useradd -m -s /bin/bash dev \
+              && echo 'dev ALL=(ALL) NOPASSWD:ALL' >/etc/sudoers.d/dev \
+              && chmod 0440 /etc/sudoers.d/dev
+          RUN cat > /etc/systemd/system/containerd.service <<'UNIT'
+          [Unit]
+          Description=containerd for Hacocoon PoC
+          After=network.target
+
+          [Service]
+          ExecStart=/usr/local/bin/containerd
+          Delegate=yes
+          KillMode=process
+          Restart=always
+          RestartSec=2
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+          RUN systemctl enable containerd.service
+          STOPSIGNAL SIGRTMIN+3
+          CMD ["/sbin/init"]
+          EOF
+          docker build -f "$RUNNER_TEMP/Dockerfile.haco-system" -t haco-system-workspace-poc:local "$RUNNER_TEMP"
+          docker save haco-system-workspace-poc:local | sudo k3s ctr images import -
+
+      - name: Start privileged Kubernetes workspace
+        run: |
+          set -euxo pipefail
+          cat > "$RUNNER_TEMP/workspace.yaml" <<'EOF'
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: haco-system-workspace
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: workspace
+                image: haco-system-workspace-poc:local
+                imagePullPolicy: Never
+                command: ["/sbin/init"]
+                securityContext:
+                  privileged: true
+                volumeMounts:
+                  - name: cgroup
+                    mountPath: /sys/fs/cgroup
+                  - name: run
+                    mountPath: /run
+            volumes:
+              - name: cgroup
+                hostPath:
+                  path: /sys/fs/cgroup
+                  type: Directory
+              - name: run
+                emptyDir:
+                  medium: Memory
+          EOF
+          kubectl apply -f "$RUNNER_TEMP/workspace.yaml"
+          kubectl wait --for=condition=Ready pod/haco-system-workspace --timeout=180s
+          kubectl get pod haco-system-workspace -o wide
+
+      - name: Verify outer systemd and sudo
+        run: |
+          set -euxo pipefail
+          test "$(kubectl exec haco-system-workspace -- cat /proc/1/comm)" = systemd
+          kubectl exec haco-system-workspace -- systemctl --no-pager status containerd
+          test "$(kubectl exec haco-system-workspace -- systemctl is-active containerd)" = active
+          test "$(kubectl exec haco-system-workspace -- su - dev -c 'sudo -n id -u')" = 0
+          kubectl exec haco-system-workspace -- nerdctl --version
+          kubectl exec haco-system-workspace -- nerdctl info
+
+      - name: Verify nested nerdctl container can boot systemd
+        run: |
+          set -euxo pipefail
+          kubectl exec haco-system-workspace -- bash -lc 'nerdctl run -d --name inner-systemd --privileged --net=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw ubuntu:26.04 bash -lc '\''apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y systemd systemd-sysv dbus && exec /sbin/init'\'''
+          for i in $(seq 1 90); do
+            if kubectl exec haco-system-workspace -- nerdctl exec inner-systemd bash -lc 'test "$(cat /proc/1/comm)" = systemd && systemctl is-system-running --wait >/dev/null 2>&1'; then
+              break
+            fi
+            sleep 2
+          done
+          test "$(kubectl exec haco-system-workspace -- nerdctl exec inner-systemd cat /proc/1/comm)" = systemd
+          kubectl exec haco-system-workspace -- nerdctl exec inner-systemd systemctl --no-pager status
+          kubectl exec haco-system-workspace -- nerdctl ps
+
+      - name: Confirm backing storage after nested workload
+        run: |
+          set -euxo pipefail
+          test "$(findmnt -T /mnt/haco-k8s/k3s/agent/containerd -n -o FSTYPE)" = btrfs
+          sudo btrfs filesystem usage /mnt/haco-k8s
+          sudo btrfs filesystem df /mnt/haco-k8s
+
+      - name: Diagnostics
+        if: failure()
+        run: |
+          set +e
+          kubectl get pods -A -o wide
+          kubectl describe pod haco-system-workspace
+          kubectl logs haco-system-workspace
+          kubectl exec haco-system-workspace -- journalctl --no-pager -b
+          kubectl exec haco-system-workspace -- nerdctl ps -a
+          kubectl exec haco-system-workspace -- nerdctl logs inner-systemd
+          sudo journalctl -u k3s --no-pager -n 300
+          findmnt
+          sudo btrfs filesystem show
