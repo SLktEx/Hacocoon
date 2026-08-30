@@ -129,9 +129,24 @@ EOF
   rm -f "$source_tmp"
 }
 
+ensure_bridge_netfilter() {
+  if [ ! -e /proc/sys/net/bridge/bridge-nf-call-iptables ] || [ ! -e /proc/sys/net/bridge/bridge-nf-call-ip6tables ]; then
+    printf '==> Loading bridge netfilter required by the Hacocoon sandbox\n'
+    $SUDO modprobe br_netfilter || {
+      printf 'haco bootstrap: failed to load br_netfilter required by Incus bridge filtering\n' >&2
+      exit 1
+    }
+  fi
+
+  if [ ! -e /proc/sys/net/bridge/bridge-nf-call-iptables ] || [ ! -e /proc/sys/net/bridge/bridge-nf-call-ip6tables ]; then
+    printf 'haco bootstrap: bridge netfilter hooks are unavailable after loading br_netfilter\n' >&2
+    exit 1
+  fi
+}
+
 printf '==> Installing base dependencies and systemd support\n'
 $SUDO apt-get update
-$SUDO apt-get install -y ca-certificates curl gnupg tar git systemd systemd-sysv
+$SUDO apt-get install -y ca-certificates curl gnupg kmod tar git systemd systemd-sysv
 
 printf '==> Enabling systemd for this WSL distribution\n'
 configure_wsl_systemd
@@ -151,6 +166,8 @@ if [ "$SKIP_INCUS" != "1" ]; then
 
   printf '==> Installing Incus\n'
   $SUDO apt-get install -y incus
+
+  ensure_bridge_netfilter
 
   if ! systemctl is-system-running >/dev/null 2>&1; then
     state="$(systemctl is-system-running 2>/dev/null || true)"
