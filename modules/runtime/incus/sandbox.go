@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -51,11 +52,25 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	}
 
 	ref := "haco-" + spec.Name
-	if _, err := p.runner.Run(ctx, "incus", "init", resolved.pinnedSource, ref,
+	profileConfig, err := p.sandboxProfileConfig(ctx)
+	if err != nil {
+		return core.EnvironmentRuntime{}, fmt.Errorf("resolve Hacocoon sandbox proxy configuration: %w", err)
+	}
+	initArgs := []string{
+		"init", resolved.pinnedSource, ref,
 		"--project", p.project,
-		"--profile", sandboxProfile,
+		"--no-profiles",
 		"--storage", rootPool,
-	); err != nil {
+	}
+	configKeys := make([]string, 0, len(profileConfig))
+	for key := range profileConfig {
+		configKeys = append(configKeys, key)
+	}
+	sort.Strings(configKeys)
+	for _, key := range configKeys {
+		initArgs = append(initArgs, "--config", key+"="+profileConfig[key])
+	}
+	if _, err := p.runner.Run(ctx, "incus", initArgs...); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}
 	cleanup := func(cause error) (core.EnvironmentRuntime, error) {
@@ -89,6 +104,13 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 			)
 		}
 		return core.EnvironmentRuntime{}, cause
+	}
+
+	// Environment networking is an authorization boundary. Do not rely on a
+	// profile inherited across Incus project boundaries: materialize the managed
+	// NIC directly on the instance before it can start.
+	if err := p.addSandboxNIC(ctx, ref); err != nil {
+		return cleanup(fmt.Errorf("materialize sandbox NIC in %s: %w", ref, err))
 	}
 
 	if err := p.setAndVerifyConfig(ctx, ref, managedEnvironmentMarkerKey, managedEnvironmentMarkerValue); err != nil {
@@ -126,6 +148,30 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	}
 	base := resolved.ref
 	return core.EnvironmentRuntime{Ref: ref, Base: &base, Resources: resources}, nil
+}
+
+func (p *SandboxProvider) addSandboxNIC(ctx context.Context, ref string) error {
+	args := []string{"config", "device", "add", ref, "eth0", "nic"}
+	for _, key := range []string{
+		"name",
+		"network",
+		"security.ipv4_filtering",
+		"security.ipv6_filtering",
+		"security.mac_filtering",
+		"security.port_isolation",
+	} {
+		args = append(args, key+"="+sandboxNIC[key])
+	}
+	args = append(args, "--project", p.project)
+	result, err := p.runner.Run(ctx, "incus", args...)
+	if err != nil {
+		reason := strings.TrimSpace(result.Stderr)
+		if reason != "" {
+			return fmt.Errorf("add managed sandbox NIC: %s: %w", reason, err)
+		}
+		return fmt.Errorf("add managed sandbox NIC: %w", err)
+	}
+	return nil
 }
 
 func (p *SandboxProvider) addWorkspaceDevice(ctx context.Context, ref string, spec core.EnvironmentRuntimeSpec) error {
