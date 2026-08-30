@@ -25,7 +25,7 @@ The fully implemented product progression is currently contiguous through **v0.1
 | OCI image deletion | `haco plugin oci image delete <reference[@digest]>` records a deletion tombstone and can explicitly extend deletion to managed Environments | v0.16 |
 | OCI deletion override | tombstones prevent silent recommendation/auto-promotion of the deleted immutable identity | v0.16 |
 | Docker compatibility | `haco plugin oci docker status/prepare` validates a Base-provided genuine Docker profile, verifies pinned systemd units, refuses active vendor-daemon takeover, and enables Environment-local socket activation without making Docker a Core requirement | v0.17 |
-| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build/current`, persisted Tooling/Seed manifests, trusted Host acquisition, offline no-NIC Seed build, immutable publication/current pointer, and exact-parent Seed resolution are implemented; real-host/COW acceptance and GC/recovery remain pending | v0.18 partial |
+| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build` and `haco plugin oci seed current`, persisted Tooling/Seed manifests, trusted Host acquisition, offline no-NIC Seed build, immutable publication/current pointer, and exact-parent Seed resolution are implemented; real-host/COW acceptance and GC/recovery remain pending | v0.18 partial |
 | Optional Local OCI Registry | Registry/proxy is optional and not required for ordinary direct upstream pulls or Seed construction | unversioned optional / deferred |
 
 ## Core/plugin boundary
