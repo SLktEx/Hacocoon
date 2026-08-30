@@ -42,6 +42,9 @@ func (r *Runtime) CreateWorkload(ctx context.Context, spec core.WorkloadSpec) (c
 	if err := validateWorkloadSpec(spec); err != nil {
 		return core.Workload{}, err
 	}
+	if err := r.ensureOCIImageRemote(ctx, spec.Image); err != nil {
+		return core.Workload{}, err
+	}
 	if err := r.verifyManagedEnvironment(ctx, spec.Environment); err != nil {
 		return core.Workload{}, err
 	}
@@ -181,11 +184,14 @@ func (r *Runtime) DeleteWorkload(ctx context.Context, environment, name string) 
 }
 
 // PullWorkloadImage explicitly warms the local Incus image store. The source
-// must be an Incus image reference (for example oci-docker:library/postgres:18
-// or an operator-configured private OCI remote). Credential transport is kept
-// out of this method so reusable registry credentials never enter Incus state.
+// must be an Incus OCI image reference. The default Docker Hub remote is
+// reconciled automatically; other private/public remotes must be configured by
+// the Hacocoon registry boundary. Reusable credentials are never stored here.
 func (r *Runtime) PullWorkloadImage(ctx context.Context, image string) error {
 	if err := validateWorkloadImage(image); err != nil {
+		return err
+	}
+	if err := r.ensureOCIImageRemote(ctx, image); err != nil {
 		return err
 	}
 	if err := r.ensureProject(ctx); err != nil {
@@ -237,17 +243,20 @@ func (r *Runtime) verifyWorkload(ctx context.Context, environment, name string) 
 	if !exists {
 		return "", fmt.Errorf("OCI workload %q does not exist: %w", name, core.ErrNotFound)
 	}
-	checks := map[string]string{
-		workloadKindKey:        workloadKindValue,
-		workloadEnvironmentKey: environment,
-		workloadNameKey:        name,
+	checks := []struct {
+		key   string
+		value string
+	}{
+		{workloadKindKey, workloadKindValue},
+		{workloadEnvironmentKey, environment},
+		{workloadNameKey, name},
 	}
-	for key, expected := range checks {
-		result, err := r.runner.Run(ctx, "incus", "config", "get", ref, key, "--project", r.project)
+	for _, check := range checks {
+		result, err := r.runner.Run(ctx, "incus", "config", "get", ref, check.key, "--project", r.project)
 		if err != nil {
-			return "", fmt.Errorf("verify OCI workload ownership %s: %w", key, err)
+			return "", fmt.Errorf("verify OCI workload ownership %s: %w", check.key, err)
 		}
-		if strings.TrimSpace(result.Stdout) != expected {
+		if strings.TrimSpace(result.Stdout) != check.value {
 			return "", fmt.Errorf("OCI workload %q ownership metadata drifted: %w", ref, core.ErrIncompatibleState)
 		}
 	}
