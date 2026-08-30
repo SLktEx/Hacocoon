@@ -70,7 +70,7 @@ grep -Fq 'unknown command "definitely-not-a-command"' "$root/vscode.err"
 "$bin/haco-notify" web --listen 127.0.0.1:0 >"$root/notify.out" 2>"$root/notify.err" &
 notify_pid=$!
 notify_ready=0
-for _ in $(seq 1 50); do
+for ((attempt = 0; attempt < 50; attempt++)); do
   if grep -Fq 'Hacocoon browser notifications: http://127.0.0.1:0/' "$root/notify.out"; then
     notify_ready=1
     break
