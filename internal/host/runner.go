@@ -5,8 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/SLktEx/Hacocoon/internal/logging"
 )
 
 const DefaultCaptureLimit = 4 << 20
@@ -37,6 +41,13 @@ type ExecRunner struct {
 }
 
 func (r ExecRunner) Run(ctx context.Context, name string, args ...string) (Result, error) {
+	started := time.Now()
+	logger := logging.FromContext(ctx).With(
+		"component", commandComponent(name, args),
+		"command", filepath.Base(name),
+	)
+	logger.DebugContext(ctx, "executing host command", "args", logging.SanitizeArgs(args))
+
 	limit := r.MaxOutputBytes
 	if limit <= 0 {
 		limit = DefaultCaptureLimit
@@ -58,15 +69,54 @@ func (r ExecRunner) Run(ctx context.Context, name string, args ...string) (Resul
 		StderrBytes:     stderr.TotalBytes(),
 	}
 	if err == nil {
+		logger.DebugContext(ctx, "host command completed",
+			"duration_ms", time.Since(started).Milliseconds(),
+			"exit_code", 0,
+		)
 		return result, nil
 	}
 	var exit *exec.ExitError
 	if errors.As(err, &exit) {
 		result.ExitCode = exit.ExitCode()
+		logger.DebugContext(ctx, "host command failed",
+			"duration_ms", time.Since(started).Milliseconds(),
+			"exit_code", result.ExitCode,
+			"error", err,
+		)
 		return result, err
 	}
 	result.ExitCode = -1
+	logger.DebugContext(ctx, "host command failed",
+		"duration_ms", time.Since(started).Milliseconds(),
+		"exit_code", result.ExitCode,
+		"error", err,
+	)
 	return result, err
+}
+
+func commandComponent(name string, args []string) string {
+	switch strings.ToLower(filepath.Base(name)) {
+	case "incus", "lxc":
+		if len(args) > 0 {
+			switch args[0] {
+			case "network":
+				return "network"
+			case "storage":
+				return "storage"
+			}
+		}
+		return "incus"
+	case "git":
+		return "git"
+	case "nerdctl", "docker", "containerd", "ctr":
+		return "oci"
+	case "btrfs", "mount", "umount", "losetup", "truncate", "fallocate":
+		return "storage"
+	case "ip", "iptables", "ip6tables", "nft":
+		return "network"
+	default:
+		return "host"
+	}
 }
 
 // DecodeCapturedOutput removes the trusted runner's truncation marker and
