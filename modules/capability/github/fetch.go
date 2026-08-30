@@ -46,11 +46,12 @@ func (b *Broker) Fetch(ctx context.Context, spec FetchSpec) (core.CapabilityResu
 	if err != nil {
 		return core.CapabilityResult{}, err
 	}
+	resource := repository.Resource("fetch/" + spec.Remote)
 
 	return b.capabilities.Request(ctx, core.CapabilityRequest{
 		Capability:  GitHubCapability,
 		Action:      "fetch",
-		Resource:    repository.Resource("*"),
+		Resource:    resource,
 		Environment: environment.Name,
 		Attributes: map[string]string{
 			"organization":        repository.Owner,
@@ -122,7 +123,7 @@ func (p *UnifiedProvider) Execute(ctx context.Context, req core.CapabilityReques
 	if err != nil {
 		return core.CapabilityResult{}, err
 	}
-	if req.Resource != repository.Resource("*") || req.Attributes["organization"] != repository.Owner || req.Attributes["repository"] != repository.Name {
+	if req.Resource != repository.Resource("fetch/"+remote) || req.Attributes["organization"] != repository.Owner || req.Attributes["repository"] != repository.Name {
 		return core.CapabilityResult{}, fmt.Errorf("git remote changed after policy evaluation: %w", core.ErrCapabilityStale)
 	}
 	if approvedURL := strings.TrimSpace(req.Parameters["remote_url"]); approvedURL == "" || approvedURL != remoteURL {
