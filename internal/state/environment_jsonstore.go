@@ -12,12 +12,14 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const environmentStateVersion = 2
+const environmentStateVersion = 3
+const previousEnvironmentStateVersion = 2
 
 type environmentFileState struct {
-	Version      int                            `json:"version"`
-	Environments map[string]core.Environment    `json:"environments"`
-	Leases       map[string]core.WorkspaceLease `json:"workspace_leases,omitempty"`
+	Version       int                          `json:"version"`
+	Environments  map[string]core.Environment `json:"environments"`
+	Leases        map[string]core.WorkspaceLease `json:"workspace_leases,omitempty"`
+	EphemeralRuns map[string]core.EphemeralRun   `json:"ephemeral_runs,omitempty"`
 }
 
 type EnvironmentJSONStore struct {
@@ -203,11 +205,87 @@ func (s *EnvironmentJSONStore) DeleteWorkspaceLease(_ context.Context, environme
 	return s.writeEnvironments(data)
 }
 
+func (s *EnvironmentJSONStore) ListEphemeralRuns(_ context.Context) ([]core.EphemeralRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	unlock, err := lockEnvironmentState(s.path)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+
+	data, err := s.readEnvironments()
+	if err != nil {
+		return nil, err
+	}
+	runs := make([]core.EphemeralRun, 0, len(data.EphemeralRuns))
+	for _, run := range data.EphemeralRuns {
+		runs = append(runs, run)
+	}
+	return runs, nil
+}
+
+func (s *EnvironmentJSONStore) PutEphemeralRun(_ context.Context, run core.EphemeralRun) error {
+	if err := validateEphemeralRun(run); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	unlock, err := lockEnvironmentState(s.path)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	data, err := s.readEnvironments()
+	if err != nil {
+		return err
+	}
+	data.EphemeralRuns[run.EnvironmentID] = run
+	return s.writeEnvironments(data)
+}
+
+func (s *EnvironmentJSONStore) DeleteEphemeralRun(_ context.Context, environmentID string) error {
+	if environmentID == "" {
+		return core.ErrInvalidArgument
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	unlock, err := lockEnvironmentState(s.path)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	data, err := s.readEnvironments()
+	if err != nil {
+		return err
+	}
+	if _, ok := data.EphemeralRuns[environmentID]; !ok {
+		return nil
+	}
+	delete(data.EphemeralRuns, environmentID)
+	return s.writeEnvironments(data)
+}
+
+func validateEphemeralRun(run core.EphemeralRun) error {
+	if run.EnvironmentID == "" || run.CreatedAt.IsZero() {
+		return core.ErrInvalidArgument
+	}
+	switch run.State {
+	case core.EphemeralRunCreating, core.EphemeralRunActive, core.EphemeralRunCleanupRequired:
+		return nil
+	default:
+		return fmt.Errorf("ephemeral run %q has invalid state %q: %w", run.EnvironmentID, run.State, core.ErrInvalidArgument)
+	}
+}
+
 func newEnvironmentFileState() environmentFileState {
 	return environmentFileState{
-		Version:      environmentStateVersion,
-		Environments: map[string]core.Environment{},
-		Leases:       map[string]core.WorkspaceLease{},
+		Version:       environmentStateVersion,
+		Environments:  map[string]core.Environment{},
+		Leases:        map[string]core.WorkspaceLease{},
+		EphemeralRuns: map[string]core.EphemeralRun{},
 	}
 }
 
@@ -230,6 +308,9 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 	if data.Leases == nil {
 		data.Leases = map[string]core.WorkspaceLease{}
 	}
+	if data.EphemeralRuns == nil {
+		data.EphemeralRuns = map[string]core.EphemeralRun{}
+	}
 	if err := normalizeEnvironmentState(&data); err != nil {
 		return environmentFileState{}, err
 	}
@@ -237,7 +318,7 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 }
 
 func normalizeEnvironmentState(data *environmentFileState) error {
-	if data.Version != 0 && data.Version != environmentStateVersion {
+	if data.Version != 0 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
 		return fmt.Errorf("environment state version %d is unsupported (want %d): %w", data.Version, environmentStateVersion, core.ErrIncompatibleState)
 	}
 
@@ -276,6 +357,16 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 			}
 		}
 		data.Leases[environmentID] = lease
+	}
+
+	for environmentID, run := range data.EphemeralRuns {
+		if run.EnvironmentID == "" {
+			run.EnvironmentID = environmentID
+		}
+		if run.State == "" {
+			run.State = core.EphemeralRunCleanupRequired
+		}
+		data.EphemeralRuns[environmentID] = run
 	}
 	data.Version = environmentStateVersion
 	return nil
