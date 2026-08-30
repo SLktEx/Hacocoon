@@ -44,6 +44,7 @@ type createFingerprintInput struct {
 	Region           string   `json:"region"`
 	Name             string   `json:"name"`
 	WorkspacePath    string   `json:"workspace_path"`
+	WorkspaceDigest  string   `json:"workspace_digest"`
 	ReadOnly         bool     `json:"read_only"`
 	ImageID          string   `json:"image_id"`
 	InstanceType     string   `json:"instance_type"`
@@ -72,12 +73,15 @@ func newCreateJournal(dir string) (*createJournal, error) {
 	return &createJournal{dir: dir}, nil
 }
 
-func (j *createJournal) prepare(accountID string, cfg Config, spec core.EnvironmentRuntimeSpec) (createOperation, error) {
+func (j *createJournal) prepare(accountID string, cfg Config, spec core.EnvironmentRuntimeSpec, workspaceDigest string) (createOperation, error) {
 	if j == nil || strings.TrimSpace(j.dir) == "" {
 		return createOperation{}, fmt.Errorf("EC2 create journal is not configured: %w", core.ErrRuntimeUnavailable)
 	}
+	if !validWorkspaceDigest(workspaceDigest) {
+		return createOperation{}, fmt.Errorf("invalid EC2 create workspace identity: %w", core.ErrIncompatibleState)
+	}
 	key := createOperationKey(accountID, cfg.Region, spec.Name)
-	fingerprint, err := createRequestFingerprint(accountID, cfg, spec)
+	fingerprint, err := createRequestFingerprint(accountID, cfg, spec, workspaceDigest)
 	if err != nil {
 		return createOperation{}, err
 	}
@@ -199,7 +203,7 @@ func (j *createJournal) read(path string) (createJournalRecord, error) {
 func matchCreateOperation(record createJournalRecord, key, fingerprint string) (createOperation, error) {
 	if record.Key != key || record.Fingerprint != fingerprint {
 		return createOperation{}, errors.Join(
-			fmt.Errorf("EC2 create operation already exists with different authority or parameters"),
+			fmt.Errorf("EC2 create operation already exists with different authority, workspace identity, or parameters"),
 			core.ErrRecoveryRequired,
 		)
 	}
@@ -211,12 +215,13 @@ func createOperationKey(accountID, region, name string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func createRequestFingerprint(accountID string, cfg Config, spec core.EnvironmentRuntimeSpec) (string, error) {
+func createRequestFingerprint(accountID string, cfg Config, spec core.EnvironmentRuntimeSpec, workspaceDigest string) (string, error) {
 	payload, err := json.Marshal(createFingerprintInput{
 		AccountID:        accountID,
 		Region:           cfg.Region,
 		Name:             spec.Name,
 		WorkspacePath:    spec.WorkspacePath,
+		WorkspaceDigest:  workspaceDigest,
 		ReadOnly:         spec.ReadOnly,
 		ImageID:          cfg.ImageID,
 		InstanceType:     cfg.InstanceType,
