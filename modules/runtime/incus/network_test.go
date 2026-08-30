@@ -11,7 +11,7 @@ import (
 )
 
 func sandboxProfileResult() host.Result {
-	return host.Result{Stdout: `{"config":{"environment.HTTP_PROXY":"http://10.200.0.1:18080","environment.HTTPS_PROXY":"http://10.200.0.1:18080","environment.NO_PROXY":"localhost,127.0.0.1,::1","environment.http_proxy":"http://10.200.0.1:18080","environment.https_proxy":"http://10.200.0.1:18080","environment.no_proxy":"localhost,127.0.0.1,::1"},"devices":{"eth0":{"type":"nic","name":"eth0","network":"haco-sandbox0","security.acls":"haco-sandbox-egress","security.acls.default.ingress.action":"reject","security.acls.default.egress.action":"reject","security.acls.default.ingress.logged":"true","security.acls.default.egress.logged":"true","security.ipv4_filtering":"true","security.ipv6_filtering":"true","security.mac_filtering":"true","security.port_isolation":"true"}}}`}
+	return host.Result{Stdout: `{"config":{"environment.HTTP_PROXY":"http://10.200.0.1:18080","environment.HTTPS_PROXY":"http://10.200.0.1:18080","environment.NO_PROXY":"localhost,127.0.0.1,::1","environment.http_proxy":"http://10.200.0.1:18080","environment.https_proxy":"http://10.200.0.1:18080","environment.no_proxy":"localhost,127.0.0.1,::1"},"devices":{"eth0":{"type":"nic","name":"eth0","network":"haco-sandbox0","security.ipv4_filtering":"true","security.ipv6_filtering":"true","security.mac_filtering":"true","security.port_isolation":"true"}}}`}
 }
 
 func managedACLResult() host.Result {
@@ -28,12 +28,17 @@ func sandboxNetworkResult(args []string) (host.Result, bool) {
 	}
 	if len(args) >= 4 && args[0] == "network" && args[1] == "get" && args[2] == sandboxNetwork {
 		values := map[string]string{
-			"ipv4.address":  "10.200.0.1/24\n",
-			"ipv4.nat":      "true\n",
-			"ipv4.firewall": "true\n",
-			"ipv4.routing":  "true\n",
-			"ipv6.address":  "none\n",
-			"raw.dnsmasq":   "port=0\n",
+			"ipv4.address":                        "10.200.0.1/24\n",
+			"ipv4.nat":                            "true\n",
+			"ipv4.firewall":                       "true\n",
+			"ipv4.routing":                        "true\n",
+			"ipv6.address":                        "none\n",
+			"raw.dnsmasq":                         "port=0\n",
+			"security.acls":                       sandboxEgressACL + "\n",
+			"security.acls.default.ingress.action": "reject\n",
+			"security.acls.default.egress.action":  "reject\n",
+			"security.acls.default.ingress.logged": "true\n",
+			"security.acls.default.egress.logged":  "true\n",
 		}
 		return host.Result{Stdout: values[args[3]]}, true
 	}
@@ -59,6 +64,7 @@ func TestEnsureSandboxNetworkAcceptsManagedProxyOnlySubstrate(t *testing.T) {
 
 	seenACL := false
 	seenDNS := false
+	seenNetworkACL := false
 	for _, call := range runner.calls {
 		joined := strings.Join(call.args, " ")
 		if strings.Contains(joined, "network acl show "+sandboxEgressACL) {
@@ -67,8 +73,11 @@ func TestEnsureSandboxNetworkAcceptsManagedProxyOnlySubstrate(t *testing.T) {
 		if strings.Contains(joined, "network get "+sandboxNetwork+" raw.dnsmasq") {
 			seenDNS = true
 		}
+		if strings.Contains(joined, "network get "+sandboxNetwork+" security.acls") {
+			seenNetworkACL = true
+		}
 	}
-	if !seenACL || !seenDNS {
+	if !seenACL || !seenDNS || !seenNetworkACL {
 		t.Fatalf("sandbox network verification incomplete: %#v", runner.calls)
 	}
 }
@@ -107,6 +116,42 @@ func TestEnsureSandboxNetworkMigratesLegacyEmptyACLAndDisablesDNS(t *testing.T) 
 	}
 	if !dnsDisabled || !ruleAdded {
 		t.Fatalf("legacy network was not migrated: dns=%t rule=%t calls=%#v", dnsDisabled, ruleAdded, runner.calls)
+	}
+}
+
+func TestEnsureSandboxNetworkMigratesMissingBridgeACLPolicy(t *testing.T) {
+	values := map[string]string{}
+	for key, value := range sandboxNetworkACLPolicy {
+		values[key] = ""
+		_ = value
+	}
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if len(args) >= 4 && args[0] == "network" && args[1] == "get" && args[2] == sandboxNetwork {
+			if _, ok := values[args[3]]; ok {
+				return host.Result{Stdout: values[args[3]] + "\n"}, nil
+			}
+		}
+		if len(args) >= 4 && args[0] == "network" && args[1] == "set" && args[2] == sandboxNetwork {
+			parts := strings.SplitN(args[3], "=", 2)
+			if len(parts) == 2 {
+				if _, ok := values[parts[0]]; ok {
+					values[parts[0]] = parts[1]
+					return host.Result{}, nil
+				}
+			}
+		}
+		if result, ok := sandboxNetworkResult(args); ok {
+			return result, nil
+		}
+		return host.Result{}, nil
+	}}
+	if err := New(runner).ensureSandboxNetwork(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for key, expected := range sandboxNetworkACLPolicy {
+		if values[key] != expected {
+			t.Fatalf("%s = %q, want %q", key, values[key], expected)
+		}
 	}
 }
 
