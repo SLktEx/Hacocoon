@@ -10,8 +10,11 @@ errors = []
 checks = [
     (r"13_v0\.13_LOCAL_OCI_REGISTRY|13A_v0\.13_OCI_SEED_AND_COW|13B_v0\.13_SEED_AUTO_PROMOTION|13C_v0\.13_OCI_IMAGE_DELETION", "superseded v0.13 OCI filename"),
     (r"18_v0\.18_LOCAL_OCI_REGISTRY|19_v0\.19_OCI_SEED_AND_COW", "superseded OCI roadmap filename"),
+    (r"17_v0\.17_DOCKER_COMPATIBILITY_PLUGIN|18_v0\.18_OCI_SEED_AND_COW", "superseded v0.17/v0.18 ordering filename"),
     (r"\|\s*v0\.(?:13|18)\s*\|\s*(?:Optional )?Local OCI Registry\s*\|", "stale Local Registry milestone assignment"),
     (r"\|\s*v0\.19\s*\|\s*OCI Seed Builder", "stale Seed Builder milestone assignment"),
+    (r"\|\s*v0\.17\s*\|\s*Docker Compatibility Plugin\s*\|", "stale Docker compatibility milestone assignment"),
+    (r"\|\s*v0\.18\s*\|\s*OCI Seed Builder", "stale Seed Builder milestone assignment"),
     (r"implemented milestones are contiguous through \*\*v0\.12\*\*", "stale milestone ceiling"),
     (r"v0\.13 Local OCI Registry is planned", "stale next milestone"),
     (r"EC2 remains experimental and disabled by default", "stale active EC2 claim"),
@@ -32,8 +35,12 @@ superseded = [
     "docs/13B_v0.13_SEED_AUTO_PROMOTION.ja.md",
     "docs/13C_v0.13_OCI_IMAGE_DELETION.md",
     "docs/13C_v0.13_OCI_IMAGE_DELETION.ja.md",
+    "docs/17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md",
+    "docs/17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.ja.md",
     "docs/18_v0.18_LOCAL_OCI_REGISTRY.md",
     "docs/18_v0.18_LOCAL_OCI_REGISTRY.ja.md",
+    "docs/18_v0.18_OCI_SEED_AND_COW.md",
+    "docs/18_v0.18_OCI_SEED_AND_COW.ja.md",
     "docs/19_v0.19_OCI_SEED_AND_COW.md",
     "docs/19_v0.19_OCI_SEED_AND_COW.ja.md",
 ]
@@ -70,8 +77,8 @@ required = [
     "docs/14_v0.14_GIT_FETCH_PLUGIN.md", "docs/14_v0.14_GIT_FETCH_PLUGIN.ja.md",
     "docs/15_v0.15_OCI_SEED_RECOMMENDATION.md", "docs/15_v0.15_OCI_SEED_RECOMMENDATION.ja.md",
     "docs/16_v0.16_OCI_IMAGE_DELETION.md", "docs/16_v0.16_OCI_IMAGE_DELETION.ja.md",
-    "docs/17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md", "docs/17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.ja.md",
-    "docs/18_v0.18_OCI_SEED_AND_COW.md", "docs/18_v0.18_OCI_SEED_AND_COW.ja.md",
+    "docs/17_v0.17_OCI_SEED_AND_COW.md", "docs/17_v0.17_OCI_SEED_AND_COW.ja.md",
+    "docs/18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md", "docs/18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md",
     "docs/OPTIONAL_LOCAL_OCI_REGISTRY.md", "docs/OPTIONAL_LOCAL_OCI_REGISTRY.ja.md",
 ]
 for rel in required:
@@ -96,8 +103,8 @@ require_text("docs/00D_VERSIONING_AND_RELEASE_STATUS.md", [
     "v0.14 | Git Fetch Plugin",
     "v0.15 | OCI Seed Recommendation",
     "v0.16 | OCI Image Deletion",
-    "v0.17 | Docker Compatibility Plugin",
-    "v0.18 | OCI Seed Builder & Btrfs/COW",
+    "v0.17 | OCI Seed Builder & Btrfs/COW",
+    "v0.18 | Docker Compatibility Plugin",
     "Local Registry infrastructure is deferred and unversioned",
     "cloud implementation is currently deferred",
 ])
@@ -106,14 +113,14 @@ require_text("docs/IMPLEMENTATION_STATUS.md", [
     "Managed sandbox network", "haco plugin git fetch",
     "haco plugin oci seed sample", "haco plugin oci seed recommend",
     "auto_promote", "haco plugin oci image delete", "Docker compatibility",
-    "v0.18", "Optional Local OCI Registry", "unversioned optional",
+    "v0.17", "v0.18", "Optional Local OCI Registry", "unversioned optional",
     "cloud implementation is currently deferred", "HACO_PLUGIN_OCI=nerdctl|docker",
 ])
 require_text("docs/00_REBASELINE_AND_ROADMAP.md", [
     "Hacocoon is a **Secure Workspace Runtime**",
     "v0.13 | Managed Sandbox Network", "v0.14 | Git Fetch Plugin",
     "v0.15 | OCI Seed Recommendation", "v0.16 | OCI Image Deletion",
-    "v0.17 | Docker Compatibility Plugin", "v0.18 | OCI Seed Builder & Btrfs/COW",
+    "v0.17 | OCI Seed Builder & Btrfs/COW", "v0.18 | Docker Compatibility Plugin",
     "Local OCI Registry is not a roadmap milestone",
     "cloud implementation is currently deferred", "Historical note",
 ])
@@ -121,7 +128,7 @@ require_text("docs/README.md", [
     "Source-of-truth order", "Numbering rule",
     "13_v0.13_MANAGED_SANDBOX_NETWORK.md", "14_v0.14_GIT_FETCH_PLUGIN.md",
     "15_v0.15_OCI_SEED_RECOMMENDATION.md", "16_v0.16_OCI_IMAGE_DELETION.md",
-    "17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md", "18_v0.18_OCI_SEED_AND_COW.md",
+    "17_v0.17_OCI_SEED_AND_COW.md", "18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md",
     "OPTIONAL_LOCAL_OCI_REGISTRY.md", "haco base list", "haco plugin oci",
     "contiguous through **v0.16**",
 ])
@@ -135,10 +142,10 @@ require_text("docs/OCI_RUNTIME_AND_DOCKER_COMPAT.md", [
 ])
 require_text("docs/13_v0.13_MANAGED_SANDBOX_NETWORK.md", ["Managed Sandbox Network", "haco-sandbox0", "fail closed"])
 require_text("docs/14_v0.14_GIT_FETCH_PLUGIN.md", ["Git Fetch Plugin", "haco plugin git fetch", "gh auth git-credential"])
-require_text("docs/15_v0.15_OCI_SEED_RECOMMENDATION.md", ["OCI Seed Recommendation", "haco plugin oci seed recommend", "top **10%**", "auto_promote", "v0.18"])
-require_text("docs/16_v0.16_OCI_IMAGE_DELETION.md", ["OCI Image Deletion", "haco plugin oci image delete", "tombstone", "v0.18"])
-require_text("docs/17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md", ["Docker Compatibility Plugin", "on-demand", "not yet a complete"])
-require_text("docs/18_v0.18_OCI_SEED_AND_COW.md", ["OCI Seed Builder", "planned", "Offline Seed Builder", "/var/lib/containerd", "Btrfs/COW", "Local Registry is not required"])
+require_text("docs/15_v0.15_OCI_SEED_RECOMMENDATION.md", ["OCI Seed Recommendation", "haco plugin oci seed recommend", "top **10%**", "auto_promote", "v0.17"])
+require_text("docs/16_v0.16_OCI_IMAGE_DELETION.md", ["OCI Image Deletion", "haco plugin oci image delete", "tombstone", "v0.17"])
+require_text("docs/17_v0.17_OCI_SEED_AND_COW.md", ["OCI Seed Builder", "planned", "Offline Seed Builder", "/var/lib/containerd", "Btrfs/COW", "Local Registry is not required"])
+require_text("docs/18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md", ["Docker Compatibility Plugin", "on-demand", "not yet a complete"])
 require_text("docs/OPTIONAL_LOCAL_OCI_REGISTRY.md", ["Optional Local OCI Registry", "deferred optional infrastructure", "not a roadmap milestone", "not required"])
 require_text("README.md", ["pre-1.0", "haco base list", "haco plugin oci"])
 require_text("README.ja.md", ["読み方: はこーん", "pre-1.0", "haco base list", "haco plugin oci"])
