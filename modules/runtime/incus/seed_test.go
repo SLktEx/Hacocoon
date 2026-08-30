@@ -3,6 +3,7 @@ package incus
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -13,8 +14,8 @@ import (
 
 func TestVerifyBuilderHasNoNIC(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 3 && args[0] == "config" && args[1] == "show" {
-			return host.Result{Stdout: `{"devices":{"root":{"type":"disk","path":"/"}}}`}, nil
+		if len(args) == 2 && args[0] == "query" && args[1] == "/1.0/instances/builder?project=hacocoon" {
+			return host.Result{Stdout: `{"expanded_devices":{"root":{"type":"disk","path":"/"}}}`}, nil
 		}
 		return host.Result{}, errors.New("unexpected call")
 	}}
@@ -29,8 +30,8 @@ func TestVerifyBuilderHasNoNIC(t *testing.T) {
 
 func TestVerifyBuilderHasNoNICFailsClosed(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 3 && args[0] == "config" && args[1] == "show" {
-			return host.Result{Stdout: `{"devices":{"eth0":{"type":"nic","network":"unexpected"}}}`}, nil
+		if len(args) == 2 && args[0] == "query" && args[1] == "/1.0/instances/builder?project=hacocoon" {
+			return host.Result{Stdout: `{"expanded_devices":{"eth0":{"type":"nic","network":"unexpected"}}}`}, nil
 		}
 		return host.Result{}, errors.New("unexpected call")
 	}}
@@ -40,25 +41,41 @@ func TestVerifyBuilderHasNoNICFailsClosed(t *testing.T) {
 	}
 }
 
-func TestVerifySeedImageSetRequiresExactDigest(t *testing.T) {
+func TestVerifySeedImageSetInspectsExactIdentity(t *testing.T) {
 	want := seedbuild.ImageIdentity{
 		Reference: "docker.io/library/node:24",
 		Digest:    "sha256:" + testFingerprintA,
 	}
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 6 && args[0] == "exec" && strings.Contains(strings.Join(args, " "), "nerdctl images") {
-			return host.Result{Stdout: "docker.io/library/node\t24\tsha256:" + testFingerprintA + "\n"}, nil
+	wantArgs := []string{
+		"exec", "builder", "--project", "hacocoon", "--",
+		"nerdctl", "image", "inspect", want.String(),
+	}
+	runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+		if name != "incus" || !reflect.DeepEqual(args, wantArgs) {
+			t.Fatalf("unexpected call: %s %#v", name, args)
 		}
-		return host.Result{}, errors.New("unexpected call")
+		return host.Result{Stdout: `[{"Id":"` + testFingerprintA + `"}]`}, nil
 	}}
 	provider, _ := NewSandboxProvider(New(runner))
 	if err := provider.verifySeedImageSet(context.Background(), "builder", []seedbuild.ImageIdentity{want}); err != nil {
 		t.Fatal(err)
 	}
+}
 
-	want.Digest = "sha256:" + testFingerprintB
-	if err := provider.verifySeedImageSet(context.Background(), "builder", []seedbuild.ImageIdentity{want}); !errors.Is(err, core.ErrIncompatibleState) {
-		t.Fatalf("err=%v want ErrIncompatibleState", err)
+func TestVerifySeedImageSetFailsWhenExactIdentityIsMissing(t *testing.T) {
+	want := seedbuild.ImageIdentity{
+		Reference: "docker.io/library/node:24",
+		Digest:    "sha256:" + testFingerprintB,
+	}
+	runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+		if name != "incus" || !strings.Contains(strings.Join(args, " "), "nerdctl image inspect "+want.String()) {
+			t.Fatalf("unexpected call: %s %#v", name, args)
+		}
+		return host.Result{ExitCode: 1, Stderr: "no such image"}, errors.New("exit status 1")
+	}}
+	provider, _ := NewSandboxProvider(New(runner))
+	if err := provider.verifySeedImageSet(context.Background(), "builder", []seedbuild.ImageIdentity{want}); err == nil {
+		t.Fatal("expected exact identity verification failure")
 	}
 }
 
