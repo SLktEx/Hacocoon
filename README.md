@@ -284,29 +284,78 @@ Implemented does not automatically mean production-accepted on every real Provid
 - [Versioning and release status](docs/00D_VERSIONING_AND_RELEASE_STATUS.md)
 - [Documentation index](docs/README.md)
 
-## CLI at a glance
+## `haco` CLI
 
-```text
-haco create
-haco base list
-haco base inspect
-haco exec
-haco shell
-haco delete
-haco status
-haco connections
-haco forward
-haco unforward
-haco ssh
-haco plugin git push
-haco plugin oci seed sample
-haco plugin oci seed recommend
-haco plugin oci image delete
-haco capability request
-haco run
-haco events
+`haco` is the Host-side manager CLI. The common lifecycle stays small and direct; tool- or provider-specific behavior belongs under plugin namespaces instead of growing the Core command surface.
+
+A coding agent working inside an Environment does not need `haco` or Incus management authority just to edit, build, test, or debug code.
+
+### Everyday workflow
+
+```bash
+# Check the local runtime
 haco doctor
 
+# One-shot: create an ephemeral Environment, run a command, clean up
+haco run --workspace "$PWD" -- go test ./...
+
+# Or keep an Environment around while you work
+haco create --workspace "$PWD" dev
+haco exec dev -- go test ./...
+haco shell dev
+haco status dev
+haco delete dev
+```
+
+### Command map
+
+| Area | Commands | What they are for |
+|---|---|---|
+| **Environment** | `create`, `exec`, `shell`, `status`, `delete` | Create and operate persistent named Environments |
+| **One-shot execution** | `run` | Run one command in an isolated Workspace lifecycle |
+| **Base selection** | `base list`, `base inspect` | Inspect Hacocoon Environment starting points |
+| **Local access** | `connections`, `forward`, `unforward`, `ssh` | Host-controlled loopback access and port forwarding |
+| **Policy / audit** | `capability request`, `events` | Cross the Host authority boundary explicitly and inspect audit events |
+| **Git plugin** | `plugin git fetch`, `plugin git push` | Host-mediated Git operations using Host-side credentials |
+| **OCI plugin** | `plugin oci seed ...`, `plugin oci image ...` | Optional containerd/nerdctl image-cache and Seed operations |
+| **Diagnostics** | `doctor` | Check whether the local runtime is usable |
+
+### Useful forms
+
+```text
+haco create [--read-only] [--base <base>] [resource flags] --workspace <path> <environment>
+haco exec <environment> -- <command...>
+haco shell <environment>
+haco status <environment> [--json]
+haco delete <environment>
+
+haco run [--read-only] [resource flags] --workspace <path> [--json] -- <command...>
+
+haco base list [--json]
+haco base inspect <base> [--json]
+
+haco connections <environment> [--json]
+haco forward <environment> --host-port <port> --target-port <port>
+haco unforward <environment> <connection-id>
+haco ssh <environment> --public-key <path> --host-port <port>
+
+haco plugin git fetch <environment> [--remote <remote>]
+haco plugin git push <environment> --branch <branch> [--source <ref>] [--remote <remote>] [--force]
+
+haco plugin oci seed sample [--json]
+haco plugin oci seed recommend [--json]
+haco plugin oci image delete <reference[@sha256:...]> [--all-environments] [--json]
+
+haco capability request <capability> <action> [--resource <resource>] [--environment <environment>] [--param <key=value>]...
+haco events [--json] [--since-offset <byte-offset>]
+haco doctor
+```
+
+Resource flags shared by `create` and `run` are `--cpu`, `--memory`, `--pids`, and `--root-size`; each accepts a finite value or `unlimited`.
+
+Convenience clients stay separate from Core:
+
+```text
 haco-vscode open
 haco-vscode delete
 
