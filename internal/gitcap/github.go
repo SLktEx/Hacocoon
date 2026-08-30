@@ -88,12 +88,13 @@ func (b *Broker) Push(ctx context.Context, spec PushSpec) (core.CapabilityResult
 	}
 	if spec.Force {
 		action = "force-push"
-		expected, err := resolveRemoteRef(ctx, b.runner, environment.Workspace.Path, remoteURL, targetRef)
+		// Do not contact the remote before policy/approval. Bind the request to
+		// the caller's locally fetched remote-tracking ref, then let the
+		// provider verify the real remote still equals that SHA after the
+		// capability boundary has authorized network access.
+		expected, err := resolveTrackingRef(ctx, b.runner, environment.Workspace.Path, spec.Remote, targetRef)
 		if err != nil {
 			return core.CapabilityResult{}, err
-		}
-		if expected == "" {
-			return core.CapabilityResult{}, fmt.Errorf("force target %s does not exist: %w", targetRef, core.ErrInvalidArgument)
 		}
 		attributes["expected_remote_sha"] = expected
 	}
@@ -275,6 +276,23 @@ func ensureCommit(ctx context.Context, runner host.Runner, workspace, sha string
 		return fmt.Errorf("approved source object is unavailable: %w", core.ErrCapabilityStale)
 	}
 	return nil
+}
+
+func resolveTrackingRef(ctx context.Context, runner host.Runner, workspace, remote, targetRef string) (string, error) {
+	if !safeRemoteName(remote) || !validTargetRef(targetRef) {
+		return "", core.ErrInvalidArgument
+	}
+	branch := strings.TrimPrefix(targetRef, "refs/heads/")
+	trackingRef := "refs/remotes/" + remote + "/" + branch
+	result, err := runner.Run(ctx, "git", "-C", workspace, "rev-parse", "--verify", trackingRef+"^{commit}")
+	if err != nil {
+		return "", fmt.Errorf("force push requires fetched local tracking ref %s: %v: %w", trackingRef, err, core.ErrInvalidArgument)
+	}
+	sha := strings.ToLower(strings.TrimSpace(result.Stdout))
+	if !validObjectID(sha) {
+		return "", fmt.Errorf("local tracking ref %s returned invalid object id: %w", trackingRef, core.ErrInvalidArgument)
+	}
+	return sha, nil
 }
 
 func resolveRemoteRef(ctx context.Context, runner host.Runner, workspace, remoteURL, targetRef string) (string, error) {
