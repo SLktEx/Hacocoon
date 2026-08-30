@@ -25,6 +25,7 @@ func sandboxNetworkResult(args []string) (host.Result, bool) {
 			"ipv4.firewall": "true\n",
 			"ipv4.routing":  "true\n",
 			"ipv6.address":  "none\n",
+			"raw.dnsmasq":   sandboxDNSDisabledConfig + "\n",
 		}
 		return host.Result{Stdout: values[args[3]]}, true
 	}
