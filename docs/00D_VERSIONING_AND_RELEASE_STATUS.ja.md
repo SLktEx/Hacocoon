@@ -6,16 +6,16 @@
 
 Hacocoon は **pre-1.0** です。milestone番号はproduct/implementationの進行順を表すためのもので、compatibility guarantee、release tag、production supportの証明ではありません。
 
-**番号の正本は英語版 [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)**、現在の実装事実は [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) です。
+番号の正本は英語版 [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)、現在の実装事実は [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) です。
 
 ## 番号付けの方針
 
-1. 実装済みmilestoneは、変更コストが低い間はなるべく連続させる
-2. design-only gateのせいで、既に実装済みの独立機能を後ろの番号へ追いやらない
+1. できるだけ **独立して価値のある1機能を1 milestone** として扱う
+2. 実装済みmilestoneは、変更コストが低い間はなるべく連続させる
 3. security/hardeningだけでは通常product versionを消費しない
-4. planned specificationが次の番号を予約しても、codeが入るまでは **planned / not implemented** と明記する
-5. release tagとroadmap milestone番号は別物
-6. repository implementationの正本は `IMPLEMENTATION_STATUS.md`
+4. optional integrationは、project推奨構成を提供してもCore dependencyにはしない
+5. planned specificationは実装されるまでplannedと明記する
+6. release tagとroadmap milestone番号は別物
 
 ## 現在の番号
 
@@ -27,59 +27,66 @@ Hacocoon は **pre-1.0** です。milestone番号はproduct/implementationの進
 | v0.2 | Workspace Abstraction & Lease | ✅ 実装済み |
 | v0.3 | Client & Interactive Access | ✅ 実装済み |
 | v0.4 | Policy & Capability Foundation | ✅ 実装済み |
-| v0.5 | Git / GitHub Capability | ✅ 実装済み |
+| v0.5 | Git / GitHub Push Capability | ✅ 実装済み |
 | v0.6 | Agent & Orchestrator Integration | ✅ 実装済み |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 experimental実装。real AWS acceptance pending |
-| v0.8 | Client Adapters & VS Code Integration | ✅ 実装済み。real client acceptance pending |
-| v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation 実装済み |
-| v0.10 | VS Code Remote Agent Host Adapter | ✅ PR #137で実装済み。real host acceptanceはpending |
-| v0.11 | Base Images & Custom Environments | ✅ first slice 実装済み。build/import/history/GCはfollow-up |
-| v0.12 | Sandbox Resource Limits | ✅ first slice 実装済み。real workload enforcementはhost-dependent |
-| v0.13 | Local OCI Registry | 🚧 planned。`main` には未実装 |
-| v0.13A | OCI Seed & Btrfs/COW Optimization | 🚧 planned second slice。`main` には未実装 |
+| v0.7 | Remote / Cloud Runtime | 🧪 experimental。EC2は明示opt-in |
+| v0.8 | Client Adapters & VS Code | ✅ 実装済み |
+| v0.9 | Per-Agent Sandbox | ✅ 実装済み |
+| v0.10 | VS Code Remote Agent Host Adapter | ✅ 実装済み |
+| v0.11 | Base Images & Custom Environments | ✅ first slice |
+| v0.12 | Sandbox Resource Limits | ✅ first slice |
+| v0.13 | Managed Sandbox Network | ✅ 実装済み |
+| v0.14 | Git Fetch Plugin | ✅ `haco plugin git fetch` 実装済み |
+| v0.15 | OCI Seed Usage & Recommendation | ✅ optional OCI pluginのfirst slice実装済み |
+| v0.16 | OCI Image Deletion | ✅ optional OCI pluginのfirst slice実装済み |
+| v0.17 | Docker Compatibility | ✅ packaging foundation実装済み。Base/Seed組み込みとreal-host acceptanceはpending |
+| v0.18 | Optional Local OCI Registry | 🚧 planned。標準必須インフラにはしない |
+| v0.19 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
 
-**実装済みmilestoneは v0.1〜v0.12 まで連続**しています。v0.13は次のplanned milestoneであって、current implementationではありません。
+**実装済みmilestoneは v0.1〜v0.17 まで連続**しています。次のplanned product sliceは v0.18 です。
 
-## Implemented と Planned
+## OCI / Docker / nerdctl の境界
 
-```text
-implemented on main
-v0.1 ───────────────────────────── v0.12
-                                      |
-                                      v
-                                next planned
-                                   v0.13
-                                      |
-                                      v
-                              planned second slice
-                                  v0.13A
-```
-
-`13_v0.13_LOCAL_OCI_REGISTRY.md` や `13A_v0.13_OCI_SEED_AND_COW.md` が存在しても、その機能が実装済みという意味ではありません。
-
-## 番号変更の履歴
-
-2026-08-30の整理で、design-onlyだったBase関連を既に実装済みだったper-agent workより前に置く一時的な番号割り当てを解消しました。
+OCI/container toolingはHacocoon Coreの必須要件ではありません。必要なinstallationだけ明示的にpluginを有効化します。
 
 ```text
-v0.9   Per-Agent Sandbox & Agent Host Integration    implemented
-v0.10  VS Code Remote Agent Host Adapter             implemented
-v0.11  Base Images & Custom Environments             implemented first slice
-v0.12  Sandbox Resource Limits                       implemented first slice
-v0.13  Local OCI Registry                            planned
+HACO_PLUGIN_OCI=nerdctl
+HACO_PLUGIN_OCI=docker
+
+haco plugin oci status
+haco plugin oci seed sample
+haco plugin oci seed recommend
+haco plugin oci image delete <reference>
 ```
 
-古いcommit message、closed PR、candidate branch、過去のplanning textに旧番号が残っていても、それはhistorical recordです。
+`HACO_PLUGIN_OCI` 未設定なら、Environment管理のためだけにnerdctl、Docker CLI、dockerd、Host OCI cache、Local Registryを要求しません。
+
+`haco image list` / `haco image inspect` はHacocoonの **Base identity** を扱うCore-facing commandとして残します。workload OCI imageのtelemetry/Seed/deletionは `haco plugin oci` 配下です。
+
+## Git Fetch
+
+GitHub向けのprivileged fetch/pushはCore commandではなくplugin namespaceです。
+
+```text
+haco plugin git fetch <environment>
+haco plugin git push <environment> --branch <branch>
+```
+
+HTTPS GitHub認証ではHost側の `gh auth git-credential` をbroker経路から明示利用でき、credentialそのものをSandboxへコピーしません。
+
+## 旧番号について
+
+過去のcommitや資料にある「v0.13 Local OCI Registry」「v0.13A/B/C Seed関連」は旧番号です。historical commit messageやclosed PR titleは履歴として残しますが、現在の番号はこのファイルを正本とします。
 
 ## Acceptance watch list
 
-- **v0.7:** real AWS/EC2/SSM/EBS。EC2はexperimental/default-off
-- **v0.8:** real Windows/WSL + Incus + VS Code Remote-SSH
-- **v0.9/v0.10:** real VS Code Agent Host/AHP routing、Incus SSH
-- **v0.11:** real Incus image source/custom Base。build/import/history/rollback/GCはfirst slice外
-- **v0.12:** real Incus CPU/memory/PID/root-storage enforcement
-- **v0.13/v0.13A:** plannedのみ。specificationの存在だけではimplementation/acceptance開始を意味しない
+- **v0.7:** real AWS/EC2/SSM/EBS
+- **v0.8〜v0.10:** real Windows/WSL + Incus + VS Code / Agent Host
+- **v0.11〜v0.13:** real Incus image/resource/network
+- **v0.14:** Host `gh` / SSH credentialを含む実環境Git acceptance
+- **v0.15〜v0.17:** optional OCI pluginのreal container-tool/Base integration
+- **v0.18〜v0.19:** plannedのみ
 
 ## 一文でいうと
 
-> **番号はこのファイル、実装事実は `IMPLEMENTATION_STATUS.md`、設計意図はroadmap/specificationを見る。**
+> **番号はこのファイル、実装事実は `IMPLEMENTATION_STATUS.md`、OCI/Docker/nerdctlは必要な人だけ使うoptional plugin。**
