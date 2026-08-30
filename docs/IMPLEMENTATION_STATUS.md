@@ -1,12 +1,12 @@
 # Implementation Status
 
-Status date: 2026-08-30, after the v0.10 Agent Host adapter merge and v0.11 Base-selection implementation pass.
+Status date: 2026-08-30, after the v0.10 Agent Host adapter, v0.11 Base-selection, and v0.12 resource-budget implementation passes.
 
 This file reports **current code reality**, not desired architecture and not a compatibility guarantee. Versioned specifications are design/acceptance references; their existence does not imply implementation.
 
 Hacocoon is still **pre-1.0**. An implemented area does not mean its CLI/API/state/config surface is frozen, production support is guaranteed, or every real-provider/client acceptance test has passed.
 
-The current numbering keeps implemented milestones contiguous through **v0.11**. v0.12 Sandbox Resource Limits remains design-only.
+The current numbering keeps implemented milestones contiguous through **v0.12**.
 
 | Area | Current repository reality | Release | Validation status |
 |---|---|---:|---|
@@ -36,13 +36,16 @@ The current numbering keeps implemented milestones contiguous through **v0.11**.
 | Incus Base resolution | logical Base names map to adapter-owned Incus sources; creation resolves the mutable source to a validated immutable fingerprint and initializes from the pinned fingerprint | v0.11 | unit tests prove alias movement cannot retarget the previously resolved revision; real Incus image-remote acceptance pending |
 | Base CLI | `haco image list`, `haco image inspect <base>`, and `haco create --base <base> --workspace <path> <environment>` are implemented; `status --json` exposes persisted Base metadata | v0.11 | unit and fake-Incus E2E cover selection, inspect, pinning, and persisted revision |
 | Custom Base mapping | host/operator may add logical custom Base mappings through `HACO_INCUS_BASES_JSON`; the `haco/` namespace is reserved and unsafe Base/source/fingerprint inputs fail closed | v0.11 | adversarial unit coverage; custom build/import/history/rollback/GC remain future work |
-| Sandbox Resource Limits | roadmap contract defines provider-neutral CPU/memory/PID/root-storage budgets and fail-closed provider enforcement | v0.12 | **design only; implementation pending** |
+| Resource budget model | Core exposes provider-neutral finite/unlimited CPU, memory-byte, PID, and root-byte limits; omission resolves to an explicit unlimited effective budget and the effective budget is persisted on Environment metadata | v0.12 | unit coverage for normalization, bounds, invalid modes/values, and persistence boundary |
+| Resource CLI | `haco create` and `haco run` accept `--cpu`, `--memory`, `--pids`, and `--root-size`; byte values use strict `B`/`KiB`/`MiB`/`GiB`/`TiB` units or `unlimited` | v0.12 | parser unit coverage plus fake-Incus CLI E2E |
+| Incus resource enforcement | finite CPU/memory/PID/root-disk limits are applied and read back before `start`; a mismatch or apply/verify failure aborts creation and enters normal cleanup/recovery handling | v0.12 | unit tests cover ordering, verification mismatch, and cleanup; fake-Incus E2E covers persisted values and provider-native commands; real Incus enforcement pending |
+| Unsupported-provider resource behavior | finite resource requests to providers that do not implement them fail closed before provider side effects; experimental EC2 is wrapped by this boundary | v0.12 | unit test proves wrapped provider create is not called for finite budgets; real AWS remains experimental/pending |
 | Btrfs / raw / QCOW2 historical storage | historical local storage implementation remains in the repository | historical / provider detail | not part of the current Core Environment model and not a compatibility commitment |
 | CI | Go version matrix tests, `go vet`, race detector, docs consistency, bootstrap syntax, release packaging, workflow trust policy, and existing non-host-dependent E2Es are enabled | cross-cutting | real-provider/client acceptance remains separate |
 
 ## Current implementation state
 
-The implemented progression is now contiguous through v0.11:
+The implemented progression is now contiguous through v0.12:
 
 ```text
 Workspace
@@ -58,23 +61,26 @@ Workspace
   -> trusted external agent session -> persisted Environment binding broker
   -> VS Code Remote Agent Host adapter
   -> logical Base -> immutable revision -> Environment
+  -> explicit ResourceBudget -> provider enforcement before Environment access
 ```
 
 The v0.9 broker does not introduce an agent-visible management CLI. A trusted integration supplies an opaque session identity and Workspace; the broker selects/creates the Environment and persists ownership proof separately. A deterministic Environment name is not sufficient proof: without a matching persisted binding, Acquire refuses adoption and Release refuses deletion.
 
 Parallel write-capable agent sessions still need distinct canonical Workspace paths, normally separate Git worktrees. Existing WorkspaceLease conflict prevention is not weakened for multi-agent convenience.
 
-v0.10 is now implemented through `haco-agent-host`. It prepares a v0.9-bound Environment as a managed loopback SSH target for the VS Code Agents window, keeps the private key on the client side, and leaves VS Code in control of the Agent Host UI/protocol. Real-host Agent Host/AHP acceptance remains pending.
+v0.10 is implemented through `haco-agent-host`. It prepares a v0.9-bound Environment as a managed loopback SSH target for the VS Code Agents window, keeps the private key on the client side, and leaves VS Code in control of the Agent Host UI/protocol. Real-host Agent Host/AHP acceptance remains pending.
 
-v0.11 now resolves a selected logical Base once at Environment creation time, records the immutable `BaseRevision`, and initializes Incus from the pinned fingerprint rather than the mutable alias. Changing a logical Base source later affects future Environment creation only; it does not rewrite persisted Base identity for an existing Environment.
+v0.11 resolves a selected logical Base once at Environment creation time, records the immutable `BaseRevision`, and initializes Incus from the pinned fingerprint rather than the mutable alias. Changing a logical Base source later affects future Environment creation only; it does not rewrite persisted Base identity for an existing Environment.
 
 The first v0.11 slice deliberately does not claim custom image build/import, revision history, rollback, or garbage collection. Those operations need explicit reference/deletion safety before they should be added.
+
+v0.12 resolves every creation request to an explicit effective `ResourceBudget`. Omitted dimensions become explicit `unlimited`; finite dimensions are bounded and persisted. For Incus, finite limits are configured and verified before the Environment starts. A provider that cannot enforce a requested finite limit must reject the request rather than silently ignore it. The experimental EC2 path currently takes that fail-closed route for finite budgets.
 
 The Windows/WSL bootstrap remains a host setup helper, not a new Core lifecycle. It reserves a dedicated WSL instance for Hacocoon, may convert only that Hacocoon-owned instance from WSL 1 to WSL 2, installs/enables systemd, restarts only the named instance when required, verifies systemd as PID 1, and leaves unrelated WSL distributions/global defaults untouched. `incus-admin` is never granted silently. See `WINDOWS_WSL_BOOTSTRAP.md`.
 
 The v0.7 EC2 provider remains **experimental and disabled by default**. Real AWS/EC2/SSM/EBS acceptance remains pending.
 
-Real Incus, Windows/WSL + VS Code Remote-SSH, v0.9/v0.10 per-agent Agent Host routing, v0.11 real image sources, and cloud acceptance require suitable hosts. Unit tests, fake-provider E2Es, race checks, vet, build, script syntax, and repository CI are not substitutes for those checks.
+Real Incus, Windows/WSL + VS Code Remote-SSH, v0.9/v0.10 per-agent Agent Host routing, v0.11 real image sources, v0.12 real resource enforcement, and cloud acceptance require suitable hosts. Unit tests, fake-provider E2Es, race checks, vet, build, script syntax, and repository CI are not substitutes for those checks.
 
 ## v0.8 client workflow
 
@@ -143,9 +149,14 @@ For the first implementation slice, official logical Bases are provided by the I
 
 See `11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` and `BASE_IMAGES.md`.
 
-## v0.12 planned resource budgets
+## v0.12 resource budgets
 
-The v0.12 design adds provider-neutral creation-time CPU, memory, PID, and root-storage budgets. Requested limits that a provider cannot enforce must fail closed rather than be silently ignored.
+```text
+haco create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace . dev
+haco run --cpu 2 --memory 4GiB --workspace . -- go test ./...
+```
+
+The first slice supports creation-time CPU, memory, PID, and root-disk budgets. It does not add live resizing, aggregate host scheduling, or Workspace quota management. `status` and `status --json` expose the persisted effective budget using provider-neutral fields.
 
 See `12_v0.12_SANDBOX_RESOURCE_LIMITS.md`.
 
