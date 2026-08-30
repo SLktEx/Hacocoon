@@ -57,6 +57,9 @@ func (r *Runtime) Prepare(ctx context.Context, spec core.RuntimePrepareSpec) err
 	if err := r.ensureProject(ctx); err != nil {
 		return err
 	}
+	if err := r.ensureSandboxNetwork(ctx); err != nil {
+		return fmt.Errorf("ensure Hacocoon sandbox network: %w", err)
+	}
 	_, err := r.ensureStoragePool(ctx, spec.StorageAttachment)
 	return err
 }
@@ -65,12 +68,15 @@ func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (cor
 	if err := r.ensureProject(ctx); err != nil {
 		return core.RuntimeSession{}, err
 	}
+	if err := r.ensureSandboxNetwork(ctx); err != nil {
+		return core.RuntimeSession{}, fmt.Errorf("ensure Hacocoon sandbox network: %w", err)
+	}
 	pool, err := r.ensureStoragePool(ctx, spec.StorageAttachment)
 	if err != nil {
 		return core.RuntimeSession{}, err
 	}
 	name := "haco-" + string(spec.ID)
-	args := []string{"launch", r.image, name, "--project", r.project}
+	args := []string{"launch", r.image, name, "--project", r.project, "--profile", sandboxProfile}
 	if pool != "" {
 		args = append(args, "--storage", pool)
 	}
@@ -93,7 +99,7 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	}
 
 	ref := "haco-" + spec.Name
-	if _, err := r.runner.Run(ctx, "incus", "init", r.image, ref, "--project", r.project, "--no-profiles", "--storage", rootPool); err != nil {
+	if _, err := r.runner.Run(ctx, "incus", "init", r.image, ref, "--project", r.project, "--profile", sandboxProfile, "--storage", rootPool); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}
 	cleanup := func(cause error) (core.EnvironmentRuntime, error) {
