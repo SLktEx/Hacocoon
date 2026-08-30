@@ -22,6 +22,9 @@ ci_prefix() {
 
 readonly CI_PREFIX="${HACO_CI_PREFIX:-$(ci_prefix)}"
 readonly DIAGNOSTICS_DIR="${HACO_CI_DIAGNOSTICS_DIR:-${RUNNER_TEMP:-/tmp}/incus-diagnostics}"
+readonly CLIENT_CONF="${HACO_CI_INCUS_CONF:-${RUNNER_TEMP:-/tmp}/haco-incus-client}"
+readonly ROOT_CLIENT_CONF="/root/.config/haco-incus-ci"
+export INCUS_CONF="$CLIENT_CONF"
 
 require_github_hosted_runner() {
   [[ "${GITHUB_ACTIONS:-}" == "true" ]] || fail "Incus CI helper only runs inside GitHub Actions"
@@ -108,7 +111,7 @@ record_environment() {
 }
 
 root_incus() {
-  sudo env HOME=/root incus "$@"
+  sudo env HOME=/root INCUS_CONF="$ROOT_CLIENT_CONF" incus "$@"
 }
 
 setup_incus() {
@@ -134,16 +137,18 @@ setup_incus() {
   [[ -e /proc/sys/net/bridge/bridge-nf-call-iptables ]] || fail "br_netfilter did not expose bridge netfilter sysctls"
   [[ -e /proc/sys/net/bridge/bridge-nf-call-ip6tables ]] || fail "br_netfilter did not expose IPv6 bridge netfilter sysctls"
 
-  # Keep root's local-socket client state completely separate from the
-  # unprivileged runner client's TLS configuration. In particular, never let a
-  # sudo invocation create root-owned files below $HOME/.config/incus.
+  # INCUS_CONF is the upstream-supported client configuration override. Keep
+  # the unprivileged TLS client entirely under RUNNER_TEMP and the root
+  # local-socket client under /root so neither can create files in the other's
+  # configuration directory or touch unrelated runner state.
+  install -d -m 0700 "$CLIENT_CONF"
   root_incus admin init --minimal
 
   incus remote generate-certificate
   root_incus config set core.https_address 127.0.0.1:8443
-  root_incus config trust add-certificate "${HOME}/.config/incus/client.crt"
-  incus remote add "${CI_REMOTE}" https://127.0.0.1:8443 --accept-certificate
-  incus remote switch "${CI_REMOTE}"
+  root_incus config trust add-certificate "$CLIENT_CONF/client.crt"
+  incus remote add "$CI_REMOTE" https://127.0.0.1:8443 --accept-certificate
+  incus remote switch "$CI_REMOTE"
 
   server_version="$(incus version | awk -F': ' '$1 == "Server version" {print $2; exit}')"
   [[ -n "$server_version" ]] || fail "could not determine Incus server version"
