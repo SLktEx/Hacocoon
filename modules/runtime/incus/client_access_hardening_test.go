@@ -73,6 +73,20 @@ func TestPrepareSSHAccessPreservesBoundedProvisioningStderr(t *testing.T) {
 	}
 }
 
+func TestManagedSSHProvisionPinsAPTToManagedIPv4Proxy(t *testing.T) {
+	for _, want := range []string{
+		`Acquire::ForceIPv4=true`,
+		`Acquire::Connect::AddrConfig=false`,
+		`Acquire::http::Proxy=$proxy_http`,
+		`Acquire::https::Proxy=$proxy_https`,
+		`managed SSH bootstrap requires the Hacocoon egress proxy environment`,
+	} {
+		if !strings.Contains(managedSSHProvisionScript, want) {
+			t.Fatalf("managed SSH provisioning script missing %q", want)
+		}
+	}
+}
+
 func TestPrepareSSHAccessUsesConnectionScopedManagedKey(t *testing.T) {
 	runner := &fakeRunner{}
 	key := "ssh-ed25519 AAAATEST"
