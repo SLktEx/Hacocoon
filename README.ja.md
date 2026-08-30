@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/readme/hacocoon-logo.webp" alt="Hacocoon — Secure Workspace Runtime" width="520">
+
 # Hacocoon
 
 **読み方: はこーん**
@@ -14,6 +16,10 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 </div>
+
+<p align="center">
+  <img src="docs/assets/readme/hacocoon-hero.webp" alt="Hacocoon の Secure Workspace Runtime 全体像。AI は中で自由に、Host authority は外で守る" width="100%">
+</p>
 
 Hacocoon は Workspace を隔離された実行境界の中に置き、特権 authority を trusted Host 側に残します。
 
@@ -59,6 +65,10 @@ Hacocoon はそこを分離します。
 - **既存 UI を使う** — 最初の convenience client は VS Code。Hacocoon 専用 AI UI は必須ではありません。
 
 ## Quick Start
+
+<p align="center">
+  <img src="docs/assets/readme/hacocoon-quickstart.webp" alt="Hacocoon の VS Code Quick Start。Workspace を開き、隔離 Environment を作成または再利用し、loopback-only Remote-SSH で接続して test を実行する" width="100%">
+</p>
 
 ### Build
 
