@@ -91,9 +91,9 @@ cleanup() {
 
   while read -r device backing; do
     [[ -n "${device:-}" && -n "${backing:-}" ]] || continue
-    case "$device:$backing" in
-      /dev/loop[0-9]*:"$TEST_ROOT"/images/*.raw) sudo losetup -d -- "$device" || failed=1 ;;
-    esac
+    if [[ "$device" =~ ^/dev/loop[0-9]+$ && "$backing" == "$TEST_ROOT"/images/*.raw ]]; then
+      sudo losetup -d "$device" || failed=1
+    fi
   done < <(sudo losetup --list --noheadings --output NAME,BACK-FILE 2>/dev/null || true)
 
   sudo rm -f -- "$HELPER_PATH"
