@@ -66,12 +66,16 @@ The authoritative table lives in [`status/versioning-and-release-status.md`](sta
 | v0.17 | OCI Seed Builder & Btrfs/COW | repository slices / partial acceptance |
 | v0.18 | Docker Compatibility Plugin | repository implementation complete; real-host acceptance separate |
 | v0.19 | Domain-aware Egress Authorization | repository implementation complete; real supported-Incus acceptance separate |
-| v0.20 | Managed Btrfs Rootfs Storage | first repository slice implemented; physical COW/compaction acceptance separate |
-| v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` managed default implemented; physical compression/performance acceptance separate |
+| v0.20 | Managed Btrfs Rootfs Storage | managed sparse-raw Btrfs pool/rootfs routing implemented |
+| v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` managed default implemented |
+| v0.22 | Interaction Notification Clients | browser/native OS/VS Code clients implemented |
+| v0.23 | Real Incus E2E Acceptance | phased standalone Incus + Core lifecycle acceptance implemented |
+| v0.24 | Structured Logging | shared logging/redaction foundation implemented |
+| v0.25 | Managed Btrfs Host Privilege Broker | typed helper + ordinary-user real CLI acceptance implemented |
 
-The current milestone position is **v0.21**. Minor versions are lightweight pre-1.0 progress checkpoints, so a partial earlier milestone does not block later checkpoints. Local OCI Registry is deferred optional infrastructure and does not reserve a milestone.
+The current milestone position is **v0.25**. Minor versions are lightweight pre-1.0 progress checkpoints, so a partial earlier milestone does not block later checkpoints. Product, operator, observability, and acceptance progress may each consume a minor when the checkpoint is meaningful. Local OCI Registry is deferred optional infrastructure and does not reserve a milestone.
 
-Current design documents:
+Current design/reference documents:
 
 - [`design/managed-sandbox-network.md`](design/managed-sandbox-network.md)
 - [`design/git-fetch-plugin.md`](design/git-fetch-plugin.md)
@@ -80,6 +84,8 @@ Current design documents:
 - [`design/oci-seed-and-cow.md`](design/oci-seed-and-cow.md)
 - [`design/docker-compatibility-plugin.md`](design/docker-compatibility-plugin.md)
 - [`EGRESS_AUTHORIZATION.md`](EGRESS_AUTHORIZATION.md)
+- [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md)
+- [`reference/logging.md`](reference/logging.md)
 - [`design/btrfs-storage-layout.md`](design/btrfs-storage-layout.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md) — deferred optional direction
 
@@ -95,7 +101,7 @@ See [`CLIENT_ADAPTER_CONTRACT.md`](CLIENT_ADAPTER_CONTRACT.md).
 
 `pkg/interaction` exposes a client-neutral, read-only event projection over the capability audit stream. Clients get stable IDs, resumable byte cursors, bounded batches, attention/recovery flags, and a deliberately minimized schema without raw resources, authority attributes, provider output, approval tokens, or free-form audit reasons.
 
-Observation never authorizes or executes a Capability. See [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md).
+Observation never authorizes or executes a Capability. v0.22 adds browser, native OS, and optional VS Code notification adapters on top of this stream without changing that authority boundary. See [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md).
 
 ## Base vs OCI CLI
 
@@ -121,7 +127,7 @@ The provider-neutral remote/cloud routing seam remains. Concrete EC2/AWS/EBS imp
 
 > Minor versions are pragmatic pre-1.0 progress checkpoints.
 
-Meaningful implementation slices may take the next minor even when follow-up work or real-host acceptance remains. Fixes, hardening, refactors, CLI namespace cleanup, CI and docs normally do not consume another product version by themselves. Version mapping belongs in status documents and page bodies, never in normal documentation filenames.
+Meaningful product, implementation, operator-experience, observability, and acceptance slices may take the next minor even when follow-up work or real-host acceptance remains. Small fixes, maintenance, and docs do not automatically consume another version, but substantial support/operability checkpoints may. During pre-1.0 development, prefer visible checkpoints over conserving minor numbers. Version mapping belongs in status documents and page bodies, never in normal documentation filenames.
 
 ## Editing rule
 
