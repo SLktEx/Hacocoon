@@ -11,15 +11,16 @@ import (
 )
 
 type fakeEnvironments struct {
-	calls             []string
-	createSpec        core.EnvironmentSpec
-	execReq           core.ExecutionRequest
-	createErr         error
-	execResult        core.ExecutionResult
-	execErr           error
-	deleteErr         error
-	deleteHadDeadline bool
-	deleteContextErr  error
+	calls                []string
+	createSpec           core.EnvironmentSpec
+	execReq              core.ExecutionRequest
+	createErr            error
+	execResult           core.ExecutionResult
+	execErr              error
+	deleteErr            error
+	deleteWaitForContext bool
+	deleteHadDeadline    bool
+	deleteContextErr     error
 }
 
 func (f *fakeEnvironments) Create(_ context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
@@ -38,6 +39,11 @@ func (f *fakeEnvironments) Exec(_ context.Context, name string, req core.Executi
 func (f *fakeEnvironments) Delete(ctx context.Context, name string) error {
 	f.calls = append(f.calls, "delete:"+name)
 	_, f.deleteHadDeadline = ctx.Deadline()
+	if f.deleteWaitForContext {
+		<-ctx.Done()
+		f.deleteContextErr = ctx.Err()
+		return ctx.Err()
+	}
 	f.deleteContextErr = ctx.Err()
 	return f.deleteErr
 }
@@ -123,6 +129,29 @@ func TestRunCleanupIgnoresParentCancellationButHasDeadline(t *testing.T) {
 	}
 	if env.deleteContextErr != nil {
 		t.Fatalf("cleanup inherited parent cancellation: %v", env.deleteContextErr)
+	}
+}
+
+func TestRunCleanupReturnsWhenDeleteBlocksUntilDeadline(t *testing.T) {
+	env := &fakeEnvironments{deleteWaitForContext: true}
+	service := serviceWithName(env, "run-blocked-cleanup")
+	service.cleanupTimeout = 25 * time.Millisecond
+
+	started := time.Now()
+	result, err := service.Run(context.Background(), Spec{WorkspacePath: "/work/demo", Argv: []string{"true"}})
+	elapsed := time.Since(started)
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected cleanup deadline error, got result=%#v err=%v", result, err)
+	}
+	if result.CleanedUp {
+		t.Fatalf("blocked cleanup reported success: %#v", result)
+	}
+	if !env.deleteHadDeadline || !errors.Is(env.deleteContextErr, context.DeadlineExceeded) {
+		t.Fatalf("delete deadline state: hadDeadline=%t contextErr=%v", env.deleteHadDeadline, env.deleteContextErr)
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("cleanup timeout was not bounded: elapsed=%s", elapsed)
 	}
 }
 
