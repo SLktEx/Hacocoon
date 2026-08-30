@@ -1,5 +1,5 @@
 [Unit]
-Description=Hacocoon Docker Engine compatibility daemon
+Description=Hacocoon OCI plugin Docker Engine compatibility daemon
 Documentation=https://docs.docker.com/engine/
 Requires=hacocoon-docker.socket containerd.service
 After=hacocoon-docker.socket containerd.service network-online.target

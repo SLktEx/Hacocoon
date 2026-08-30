@@ -1,4 +1,4 @@
-package seedstats
+package oci
 
 import (
 	"context"
@@ -21,6 +21,24 @@ const (
 	DefaultSeedNamespace        = "hacocoon-seed"
 )
 
+type Driver string
+
+const (
+	DriverNerdctl Driver = "nerdctl"
+	DriverDocker  Driver = "docker"
+)
+
+func ParseDriver(value string) (Driver, error) {
+	switch Driver(strings.ToLower(strings.TrimSpace(value))) {
+	case DriverNerdctl:
+		return DriverNerdctl, nil
+	case DriverDocker:
+		return DriverDocker, nil
+	default:
+		return "", fmt.Errorf("unsupported OCI plugin driver %q: %w", value, core.ErrInvalidArgument)
+	}
+}
+
 type environmentExecutor interface {
 	ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error)
 }
@@ -29,6 +47,7 @@ type Service struct {
 	runtime              environmentExecutor
 	environmentStatePath string
 	store                *Store
+	driver               Driver
 	hostRunner           host.Runner
 	seedNamespace        string
 	now                  func() time.Time
@@ -72,14 +91,18 @@ type Recommendation struct {
 	AutoPromote  bool      `json:"auto_promote"`
 }
 
-func New(runtime environmentExecutor, environmentStatePath string, store *Store, options ...Option) (*Service, error) {
+func New(runtime environmentExecutor, environmentStatePath string, store *Store, driver Driver, options ...Option) (*Service, error) {
 	if runtime == nil || strings.TrimSpace(environmentStatePath) == "" || store == nil {
+		return nil, core.ErrInvalidArgument
+	}
+	if driver != DriverNerdctl && driver != DriverDocker {
 		return nil, core.ErrInvalidArgument
 	}
 	service := &Service{
 		runtime:              runtime,
 		environmentStatePath: environmentStatePath,
 		store:                store,
+		driver:               driver,
 		seedNamespace:        DefaultSeedNamespace,
 		now:                  time.Now,
 	}
@@ -94,9 +117,16 @@ func New(runtime environmentExecutor, environmentStatePath string, store *Store,
 	return service, nil
 }
 
+func (s *Service) Driver() Driver {
+	if s == nil {
+		return ""
+	}
+	return s.driver
+}
+
 // SampleAll opportunistically records OCI image usage from Hacocoon-managed
-// Environments. A positive maxAge skips snapshots that are still fresh. A zero
-// maxAge forces a new sample attempt for every known Environment.
+// Environments. The concrete container CLI belongs to this optional plugin;
+// Hacocoon Core does not require nerdctl, Docker, or containerd.
 func (s *Service) SampleAll(ctx context.Context, maxAge time.Duration) (SampleReport, error) {
 	if s == nil || s.runtime == nil || s.store == nil {
 		return SampleReport{}, core.ErrInvalidArgument
@@ -120,25 +150,10 @@ func (s *Service) SampleAll(ctx context.Context, maxAge time.Duration) (SampleRe
 			}
 		}
 
-		result, execErr := s.runtime.ExecEnvironment(ctx, environment.RuntimeRef, core.ExecutionRequest{Argv: []string{
-			"nerdctl", "images", "--format", "{{.Repository}}\t{{.Tag}}\t{{.Digest}}",
-		}})
-		if execErr != nil || result.ExitCode != 0 {
+		images, sampleErr := s.listImages(ctx, environment.RuntimeRef)
+		if sampleErr != nil {
 			report.Failed++
-			reason := strings.TrimSpace(result.Stderr)
-			if reason == "" && execErr != nil {
-				reason = execErr.Error()
-			}
-			if reason == "" {
-				reason = fmt.Sprintf("nerdctl images exited %d", result.ExitCode)
-			}
-			report.Failures[environment.Name] = reason
-			continue
-		}
-		images, parseErr := parseNerdctlImages(result.Stdout)
-		if parseErr != nil {
-			report.Failed++
-			report.Failures[environment.Name] = parseErr.Error()
+			report.Failures[environment.Name] = sampleErr.Error()
 			continue
 		}
 		if err := s.store.Put(ctx, Snapshot{Environment: environment.Name, SampledAt: now, Images: images}); err != nil {
@@ -150,6 +165,14 @@ func (s *Service) SampleAll(ctx context.Context, maxAge time.Duration) (SampleRe
 		report.Failures = nil
 	}
 	return report, nil
+}
+
+func (s *Service) listImages(ctx context.Context, runtimeRef string) ([]Image, error) {
+	result, execErr := s.runtime.ExecEnvironment(ctx, runtimeRef, core.ExecutionRequest{Argv: imageListArgv(s.driver)})
+	if execErr != nil || result.ExitCode != 0 {
+		return nil, commandFailure(fmt.Sprintf("%s image inventory", s.driver), result.Stderr, execErr, result.ExitCode)
+	}
+	return parseImageRows(result.Stdout, string(s.driver))
 }
 
 func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recommendation, error) {
@@ -184,18 +207,11 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 		denominator++
 		seen := map[string]struct{}{}
 		for _, image := range snapshot.Images {
-			// A Seed recommendation must have immutable identity. Images whose
-			// digest could not be observed are kept in telemetry but are not
-			// eligible for recommendation or automatic promotion.
 			if image.Digest == "" {
 				continue
 			}
 			key := image.Reference() + "@" + image.Digest
-			// A manual image deletion is an explicit Seed-selection override.
-			// The Environment may still pull/run the image normally, but usage
-			// sampling must not silently undo the operator's deletion decision.
-			// A future explicit pin/override can deliberately clear this state.
-			if _, ok := deleted[key]; ok {
+			if _, deletedByOperator := deleted[key]; deletedByOperator {
 				continue
 			}
 			if _, ok := seen[key]; ok {
@@ -230,7 +246,7 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 		if result[i].Environments != result[j].Environments {
 			return result[i].Environments > result[j].Environments
 		}
-		if result[i].LastSeen != result[j].LastSeen {
+		if !result[i].LastSeen.Equal(result[j].LastSeen) {
 			return result[i].LastSeen.After(result[j].LastSeen)
 		}
 		if result[i].Reference != result[j].Reference {
@@ -242,10 +258,6 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 	return result, nil
 }
 
-// markAutoPromotions marks the top ceil(percent%) of ranked recommendations.
-// If at least one eligible recommendation exists, at least one is promoted.
-// This only selects content for the next Seed build; it does not mutate an
-// existing Seed or Environment.
 func markAutoPromotions(recommendations []Recommendation, percent int) {
 	if len(recommendations) == 0 || percent <= 0 {
 		return
@@ -265,19 +277,33 @@ func markAutoPromotions(recommendations []Recommendation, percent int) {
 	}
 }
 
+func imageListArgv(driver Driver) []string {
+	if driver == DriverDocker {
+		return []string{"docker", "images", "--digests", "--format", "{{.Repository}}\t{{.Tag}}\t{{.Digest}}"}
+	}
+	return []string{"nerdctl", "images", "--format", "{{.Repository}}\t{{.Tag}}\t{{.Digest}}"}
+}
+
+func imageRemoveArgv(driver Driver, reference string) []string {
+	if driver == DriverDocker {
+		return []string{"docker", "image", "rm", reference}
+	}
+	return []string{"nerdctl", "rmi", reference}
+}
+
 func readEnvironments(path string) ([]core.Environment, error) {
 	contents, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return []core.Environment{}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("read environment state for seed telemetry: %w", err)
+		return nil, fmt.Errorf("read Environment state for OCI plugin: %w", err)
 	}
 	var state struct {
 		Environments map[string]core.Environment `json:"environments"`
 	}
 	if err := json.Unmarshal(contents, &state); err != nil {
-		return nil, fmt.Errorf("decode environment state for seed telemetry: %w", err)
+		return nil, fmt.Errorf("decode Environment state for OCI plugin: %w", err)
 	}
 	result := make([]core.Environment, 0, len(state.Environments))
 	for name, environment := range state.Environments {
@@ -285,7 +311,7 @@ func readEnvironments(path string) ([]core.Environment, error) {
 			environment.Name = name
 		}
 		if strings.TrimSpace(environment.Name) == "" || strings.TrimSpace(environment.RuntimeRef) == "" {
-			return nil, fmt.Errorf("invalid Environment metadata while collecting seed telemetry: %w", core.ErrIncompatibleState)
+			return nil, fmt.Errorf("invalid Environment metadata while collecting OCI plugin telemetry: %w", core.ErrIncompatibleState)
 		}
 		result = append(result, environment)
 	}
@@ -293,7 +319,7 @@ func readEnvironments(path string) ([]core.Environment, error) {
 	return result, nil
 }
 
-func parseNerdctlImages(output string) ([]Image, error) {
+func parseImageRows(output, source string) ([]Image, error) {
 	seen := map[string]struct{}{}
 	images := make([]Image, 0)
 	for _, rawLine := range strings.Split(output, "\n") {
@@ -303,7 +329,7 @@ func parseNerdctlImages(output string) ([]Image, error) {
 		}
 		parts := strings.Split(line, "\t")
 		if len(parts) != 3 {
-			return nil, fmt.Errorf("unexpected nerdctl image row: %w", core.ErrIncompatibleState)
+			return nil, fmt.Errorf("unexpected %s image row: %w", source, core.ErrIncompatibleState)
 		}
 		image := Image{
 			Repository: strings.TrimSpace(parts[0]),
@@ -336,4 +362,15 @@ func parseNerdctlImages(output string) ([]Image, error) {
 		return images[i].Digest < images[j].Digest
 	})
 	return images, nil
+}
+
+func commandFailure(action, stderr string, err error, exitCode int) error {
+	reason := strings.TrimSpace(stderr)
+	if reason == "" && err != nil {
+		reason = err.Error()
+	}
+	if reason == "" {
+		reason = fmt.Sprintf("exit code %d", exitCode)
+	}
+	return fmt.Errorf("%s: %s: %w", action, reason, core.ErrRuntimeUnavailable)
 }
