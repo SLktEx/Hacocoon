@@ -24,7 +24,7 @@ HacocoonはWorkspaceを隔離された実行境界の中に置き、特権author
 > [!WARNING]
 > **Hacocoonはまだpre-1.0で、Breaking Changeは今後も発生します。**
 >
-> 現在のEnvironment backendはIncusです。Provider seamはgenericなまま維持し、以前のconcrete EC2/AWS/EBS implementationはdeferredです。現在のrepository realityとreal-host acceptance gapは [実装状況](docs/IMPLEMENTATION_STATUS.ja.md) を参照してください。
+> 現在のEnvironment backendはIncusです。Provider seamはgenericなまま維持し、以前のconcrete EC2/AWS/EBS implementationはdeferredです。現在のrepository realityとreal-host acceptance gapは [実装状況](docs/IMPLEMENTATION_STATUS.ja.md)、authoritativeなfast-moving development checkpointは [Versioning / Release status](docs/status/versioning-and-release-status.ja.md) を参照してください。
 
 ## なぜHacocoon?
 
@@ -109,13 +109,13 @@ HACO_PLUGIN_OCI=docker  haco plugin oci docker status dev
 HACO_PLUGIN_OCI=docker  haco plugin oci docker prepare dev
 ```
 
-Coreはcontainerd、nerdctl、Docker、local Registryを必須にしません。OCI Seed Builder/COWはv0.17のpartial checkpoint、Docker Compatibilityはv0.18、Domain-aware egressはv0.19、Hacocoon管理Btrfs rootfs storageはv0.20、managed Btrfs `compress=zstd:3` はv0.21です。その後、v0.22 Interaction Notification Clients、v0.23 Real Incus E2E Acceptance、v0.24 Structured Logging、v0.25 Managed Btrfs Host Privilege Broker、v0.26 Trusted `haco-host` & Default WSL Entryまで進んでいます。現在のmilestone位置は **v0.26** です。pre-1.0のminor versionはproductだけでなくoperator experience、observability、acceptanceの意味ある進捗にも使う軽量なcheckpointです。Local OCI Registryはdeferred/unversionedなoptional infrastructureです。
+Coreはcontainerd、nerdctl、Docker、local Registryを必須にしません。現在の実装realityは [実装状況](docs/IMPLEMENTATION_STATUS.ja.md)、意図的に速く進めるpre-1.0 checkpoint番号と履歴は [Versioning / Release status](docs/status/versioning-and-release-status.ja.md) を正本とします。READMEにはcheckpoint tableを複製しません。Local OCI Registryはdeferred/unversionedなoptional infrastructureです。
 
 ## Reusable client
 
 `pkg/clientadapter` はexact Environment ensure/reuse、status、`/workspace` discovery、loopback SSH/TCP connection、revoke/delete、interaction batchのclient-neutral contractを提供します。SSH private keyとIDE configはclient自身が保持し、Hacocoonが受け取るのはpublic-key materialだけです。
 
-v0.22のnotification clientは同じread-only interaction streamをbrowser、native OS、optional VS Code notificationへ接続しますが、event観測をapproval pathにはしません。
+notification clientは同じread-only interaction streamをbrowser、native OS、optional VS Code notificationへ接続しますが、event観測をapproval pathにはしません。
 
 詳細は [Reusable client adapter contract](docs/CLIENT_ADAPTER_CONTRACT.ja.md) と [Interaction events](docs/INTERACTION_EVENTS.ja.md) を参照してください。
 
@@ -139,7 +139,7 @@ Security-sensitiveな変更の前に [Security architecture](docs/security/secur
 
 ## 開発
 
-Hacocoonのprimary supported Host baselineは **Ubuntu 26.04+** です。GitHub-hosted Linux CIも **`ubuntu-26.04`** に明示固定し、`ubuntu-latest` や古いUbuntu世代ではなく同じbaselineを直接検証します。v0.23ではreal Incus substrate + Core lifecycle acceptanceを独立milestoneにし、v0.25ではordinary-user managed-Btrfs privilege path、v0.26ではtrusted-host lifecycle/control-socket isolationをreal Incusで検証します。
+Hacocoonのprimary supported Host baselineは **Ubuntu 26.04+** です。GitHub-hosted Linux CIも **`ubuntu-26.04`** に明示固定し、`ubuntu-latest` や古いUbuntu世代ではなく同じbaselineを直接検証します。real Incus、managed-storage privilege、trusted-host acceptanceの詳細はintroへ複製せず、implementation/statusの正本で追跡します。
 
 ```bash
 go test ./...
