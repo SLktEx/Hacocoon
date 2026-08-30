@@ -27,6 +27,18 @@ create ephemeral Environment
 
 Cleanup is attempted after execution even when the command fails. A cleanup failure is surfaced rather than hidden.
 
+### Output memory boundary
+
+Hacocoon treats child process output as untrusted input. The shared host process runner retains at most **4 MiB of stdout and 4 MiB of stderr per subprocess** by default. Output beyond those limits is consumed and discarded so a noisy or malicious child cannot make the trusted Hacocoon process retain an unbounded `bytes.Buffer`.
+
+Reaching the capture limit does not terminate the child and does not change its exit code. A truncated stream ends with an explicit marker such as:
+
+```text
+[haco: output truncated; total-bytes=7340032]
+```
+
+Machine clients should also inspect the structured truncation fields described below. The hard host-runner limit applies to control subprocesses as well as agent execution; if a structured control command unexpectedly exceeds the limit, downstream parsing should fail rather than allowing unbounded host memory growth.
+
 For machine clients:
 
 ```bash
@@ -41,11 +53,17 @@ The JSON result has a stable shape:
   "execution": {
     "exit_code": 0,
     "stdout": "...",
-    "stderr": "..."
+    "stderr": "...",
+    "stdout_truncated": false,
+    "stderr_truncated": false,
+    "stdout_bytes": 123,
+    "stderr_bytes": 0
   },
   "cleaned_up": true
 }
 ```
+
+`stdout_bytes` and `stderr_bytes` are the observed stream sizes before truncation. When a `*_truncated` field is true, the corresponding string contains only the retained prefix plus the visible truncation marker; callers must not interpret it as complete command output.
 
 A non-zero command result remains a non-zero `haco` process result. Infrastructure and cleanup failures are not converted into successful command results.
 
