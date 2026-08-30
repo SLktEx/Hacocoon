@@ -54,8 +54,13 @@ func Local(ctx context.Context) (*App, error) {
 	selectedRuntimeProvider := envOr("HACO_RUNTIME_PROVIDER", environmentapp.ProviderIncus)
 
 	configuredDriver := strings.TrimSpace(os.Getenv("HACO_PLUGIN_OCI"))
-	if selectedRuntimeProvider == kuberuntime.ProviderID && configuredDriver != "" {
-		return nil, fmt.Errorf("OCI plugin composition has not been verified with the Kubernetes Environment provider: %w", core.ErrUnsupported)
+	if selectedRuntimeProvider == kuberuntime.ProviderID {
+		if configuredDriver != "" {
+			return nil, fmt.Errorf("OCI plugin composition has not been verified with the Kubernetes Environment provider: %w", core.ErrUnsupported)
+		}
+		if strings.TrimSpace(os.Getenv("HACO_KUBERNETES_EXPERIMENTAL_HOSTPATH")) != "1" {
+			return nil, fmt.Errorf("Kubernetes Environment Workspace transport currently requires explicit HACO_KUBERNETES_EXPERIMENTAL_HOSTPATH=1 opt-in: %w", core.ErrUnsupported)
+		}
 	}
 	var (
 		ociDriver ociplugin.Driver
