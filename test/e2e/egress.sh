@@ -1,10 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${HACO_E2E_INCUS:-}" != "1" ]]; then
+if [[ "${1:-}" == "--managed-ci" ]]; then
+  shift
+  [[ "${GITHUB_ACTIONS:-}" == "true" && "${HACO_CI_RUNNER_ENVIRONMENT:-}" == "github-hosted" ]] || {
+    echo 'managed egress E2E requires the GitHub-hosted CI substrate' >&2
+    exit 2
+  }
+  [[ -n "${HACO_E2E_HACO_BIN:-}" && -n "${HACO_E2E_SHARED_ROOT:-}" ]] || {
+    echo 'managed egress E2E requires the prebuilt haco binary and shared root' >&2
+    exit 2
+  }
+elif [[ "${HACO_E2E_INCUS:-}" != "1" ]]; then
   echo "SKIP: set HACO_E2E_INCUS=1 on a supported Incus host"
   exit 0
 fi
+[[ "$#" == "0" ]] || { echo "usage: $0 [--managed-ci]" >&2; exit 2; }
 
 for command in go incus grep mktemp python3 sudo; do
   command -v "$command" >/dev/null 2>&1 || {
