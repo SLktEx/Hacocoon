@@ -76,8 +76,8 @@ run_systemd() {
   (
     trap 'rm -rf -- "$verify_root"' EXIT
     mkdir -p "$verify_root/etc/systemd/system" "$verify_root/usr/bin" "$verify_root/bin"
-    cp packaging/systemd/hacocoon-docker.service "$verify_root/etc/systemd/system/"
-    cp packaging/systemd/hacocoon-docker.socket "$verify_root/etc/systemd/system/"
+    cp modules/plugin/oci/packaging/systemd/hacocoon-docker.service "$verify_root/etc/systemd/system/"
+    cp modules/plugin/oci/packaging/systemd/hacocoon-docker.socket "$verify_root/etc/systemd/system/"
 
     local target
     for target in sysinit.target basic.target sockets.target network-online.target shutdown.target; do
