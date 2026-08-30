@@ -23,10 +23,10 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 | v0.14 | Git Fetch Plugin | 実装済み |
 | v0.15 | OCI Seed Recommendation | 実装済み |
 | v0.16 | OCI Image Deletion | first slice実装済み |
-| v0.17 | Docker Compatibility Plugin | 実装済み。host acceptanceは別 |
-| v0.18 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.17 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.18 | Docker Compatibility Plugin | repository先行実装済み。host acceptanceは別 |
 
-完全実装済みのproduct progressionは **v0.17まで連続**しています。
+v0.17がまだplannedなので、完全実装済みのproduct progressionは **v0.16まで連続**しています。v0.18 Dockerの実装はすでにland済みで、入れ替え後のmilestoneへそのまま付け替えます。
 
 Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
 
@@ -43,13 +43,14 @@ HACO_PLUGIN_OCI=docker   haco plugin oci docker prepare <environment>
 
 BaseはEnvironmentのstarting identity、OCIはoptionalなdeveloper workload toolingです。Coreはcontainerd / nerdctl / Dockerを必須にしません。
 
-Dockerの `prepare` はBase提供のcompatibility profileとHacocoon-pinned systemd unitを検証し、Environment-local socket activationだけを有効化します。Docker packageのinstallや、activeなvendor daemonのsilent stopは行いません。
+v0.18 Dockerの `prepare` はBase提供のcompatibility profileとHacocoon-pinned systemd unitを検証し、Environment-local socket activationだけを有効化します。Docker packageのinstallや、activeなvendor daemonのsilent stopは行いません。
 
 ## OCI storage
 
-v0.18はtrusted Host acquisition/cache、offline immutable Seed build/publish、Incus/storage-driver COWを担当します。Local Registryはprerequisiteではなく、policyが許せばnormal direct upstream pullを使えます。
+v0.17はtrusted Host acquisition/cache、offline immutable Seed build/publish、Incus/storage-driver COWを担当します。Local Registryはprerequisiteではなく、policyが許せばnormal direct upstream pullを使えます。
 
-- [`18_v0.18_OCI_SEED_AND_COW.ja.md`](18_v0.18_OCI_SEED_AND_COW.ja.md)
+- [`17_v0.17_OCI_SEED_AND_COW.ja.md`](17_v0.17_OCI_SEED_AND_COW.ja.md)
+- [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md)
 
 ## Cloud
