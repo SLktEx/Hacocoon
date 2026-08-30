@@ -1,69 +1,95 @@
-# Architecture Rebaseline and Roadmap
+# Architecture & Roadmap
 
-**Status:** authoritative architecture baseline  
-**Date:** 2026-08-30  
-**Implementation note:** `main` has implemented milestones continuously through v0.9. v0.10 is the active VS Code Remote Agent Host Adapter integration candidate. v0.11 Base Images & Custom Environments and v0.12 Sandbox Resource Limits remain design-only. See `IMPLEMENTATION_STATUS.md` for current code reality and pending real-provider/client acceptance.
+> **Architecture baseline · Updated 2026-08-30**
+>
+> Hacocoon is a **Secure Workspace Runtime**.  
+> For what is actually present on `main`, use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).  
+> For authoritative milestone numbering, use [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md).
 
-## Decision
+Hacocoon runs developer tools and coding agents inside isolated Environments while keeping host, GitHub, cloud, network, and other privileged authority behind explicit trusted boundaries.
 
-Hacocoon is a **Secure Workspace Runtime**.
+> [!IMPORTANT]
+> Hacocoon is **pre-1.0**. Roadmap milestones describe product gates, not API stability, production support, or proof that every real-host acceptance test has passed.
 
-It receives a Workspace from a human, IDE, shell, or external orchestrator; places that Workspace inside an isolated Environment; executes tools there; and mediates privileged capabilities such as GitHub or cloud access without handing broad parent authority to the Environment.
+## Project status at a glance
 
-It is **not** the owner of IDE workflow, Git branch/worktree orchestration, AI task DAGs, model routing, retry strategy, model budgets, or AI chat UX.
+| Track | Status |
+|---|---|
+| Implemented milestones | **v0.1 → v0.12** contiguous on `main` |
+| Next milestone | **v0.13 Local OCI Registry** — planned, not implemented |
+| v0.13 companion | **OCI Seed & Btrfs/COW optimization** — planned second slice |
+| Default local runtime | Incus |
+| Remote runtime | EC2 — experimental and disabled by default |
+| Current code reality | [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) |
+| Version numbering | [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md) |
+
+## Product boundary
 
 ```text
 VS Code / Shell / coding agents / orchestrators / other clients
                               |
-                    optional Client Adapter
+                     optional Client Adapter
                               |
-                         Workspace
+                          Workspace
                               v
                     +-------------------+
                     |     Hacocoon      |
                     | Secure Workspace  |
-                    | Runtime           |
+                    |      Runtime      |
                     +---------+---------+
                               |
               +---------------+----------------+
               |                                |
          Environment                    Policy/Capability
-              |
-      Environment provider
-         /           \
- runtime.incus   runtime.ec2
+              |                                |
+      Environment provider              trusted authority
+         /           \                  /       |       \
+ runtime.incus   runtime.ec2        GitHub     AWS     Host
  local default  experimental
 ```
 
-## Hacocoon responsibilities
+### Hacocoon owns
 
-Hacocoon owns:
-
-- accepting/resolving a Workspace;
-- binding a Workspace to an isolated Environment;
-- Environment lifecycle and cleanup;
+- Workspace resolution and canonical identity;
+- isolated Environment lifecycle and cleanup;
 - command and interactive execution;
-- Workspace lease/ownership safety;
-- policy evaluation and security approval;
-- scoped external-service capabilities;
-- stable conceptual boundaries that clients and orchestrators can call;
-- audit/recovery behavior for authority-sensitive operations.
+- Workspace lease and ownership safety;
+- client-access primitives such as loopback forwarding and SSH preparation;
+- policy evaluation, security approval, and audit;
+- scoped privileged capabilities;
+- trusted per-session Environment binding;
+- provider-neutral Base identity and ResourceBudget contracts;
+- recovery behavior for authority-sensitive operations.
 
-Hacocoon does not own:
+### Hacocoon does not own
 
-- Codex vs Claude selection;
-- task decomposition or agent DAGs;
-- model/token budgets;
-- development-review queues;
-- branch strategy or worktree orchestration as a Core concern;
-- a proprietary IDE/editor/chat UI;
-- cloud/provider/storage logic inside Core.
+- the IDE/editor or AI chat UI;
+- model selection, model routing, or token budgets;
+- task decomposition, retry strategy, or agent DAGs;
+- Git branch strategy or worktree orchestration as a Core concern;
+- development review/merge workflow;
+- provider-native Incus, AWS, Btrfs, OCI, or client protocol details inside Core.
 
-Thin client adapters and trusted agent-session integration may live around Hacocoon without changing that ownership. They translate client/session identity and generic Environment/client-access information without turning IDE, agent, or protocol concepts into Core concepts.
+Thin adapters may integrate those systems without redefining Core.
 
-## Core concepts
+## Architecture invariants
 
-The Core vocabulary is intentionally small:
+These rules are more important than preserving accidental pre-1.0 behavior.
+
+1. **Core stays provider-neutral.** Incus, AWS, VS Code, AHP, Btrfs, OCI, and similar technologies remain behind adapters.
+2. **The coding Environment is not the control plane.** Coding agents do not gain Hacocoon/Incus administrator authority merely because an Environment was allocated.
+3. **Credentials stay on the trusted side.** Host credentials and reusable upstream credentials are not exported into arbitrary Environments.
+4. **Privileged operations are brokered.** Git push and external-service authority cross Policy/Capability boundaries.
+5. **Ownership is proven, not inferred.** Deterministic names alone are not sufficient proof for adopting or deleting agent-bound Environments.
+6. **Mutable names resolve to immutable identity.** Base aliases and future OCI/Seed references must pin immutable revisions/digests where durable identity matters.
+7. **Explicit limits fail closed.** A provider that cannot enforce a requested finite ResourceBudget must reject the request rather than silently ignore it.
+8. **Network authority is explicit.** Managed Incus networking defaults to a Hacocoon-owned sandbox profile; higher-level domain-aware authorization remains a separate policy layer.
+9. **Real-host acceptance is separate from repository tests.** Unit tests, fake-provider E2Es, race checks, and CI do not prove real Incus/Windows/AWS behavior.
+10. **Cleanup and recovery are part of the feature.** Cancellation, retry, partial failure, and crash recovery are design requirements.
+
+## Core vocabulary
+
+The intentionally small Core vocabulary includes:
 
 ```text
 Workspace
@@ -73,112 +99,138 @@ Execution
 CapabilityRequest
 PolicyDecision
 ApprovalRequest
+BaseName / BaseRevision / BaseRef
+ResourceBudget
 ```
 
-Concrete technologies stay behind adapters/ports. Core must not depend directly on Incus, Git, GitHub, AWS, VS Code, AHP, Daintree, Rookery, Btrfs, QCOW2, EC2, EBS, or other provider-specific concepts.
+Agent-session identities, VS Code/AHP types, Incus aliases, AWS identifiers, OCI registry mechanics, and storage-driver details remain integration/provider concerns.
 
-The v0.9 agent-session identity is an integration-layer concern. It does not add `Agent`, `VS Code Session`, or AHP to Core vocabulary.
+## Roadmap
 
-The v0.11 Base concept is an Environment starting-point identity. It must not turn Core into an Incus image manager: backend-native aliases, remotes, fingerprints, and image lifecycle mechanics remain adapter details.
+**Status legend:** ✅ implemented · 🧪 experimental · 🚧 planned
 
-The v0.12 ResourceBudget concept describes a provider-neutral Environment resource ceiling. It must not expose Incus-native resource keys as Core/public architecture, and it remains distinct from Capability authority.
+| Version | Gate | Repository status |
+|---|---|---|
+| v0.1 | Secure Workspace Runtime MVP | ✅ implemented |
+| v0.2 | Workspace Abstraction & Lease | ✅ implemented |
+| v0.3 | Client & Interactive Access | ✅ implemented |
+| v0.4 | Policy & Capability Foundation | ✅ implemented |
+| v0.5 | Git / GitHub Capability | ✅ implemented |
+| v0.6 | Agent & Orchestrator Integration | ✅ implemented |
+| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 implemented experimentally; EC2 remains default-off |
+| v0.8 | Client Adapters & VS Code Integration | ✅ implemented; real-client acceptance remains host-dependent |
+| v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation implemented |
+| v0.10 | VS Code Remote Agent Host Adapter | ✅ implemented |
+| v0.11 | Base Images & Custom Environments | ✅ first implementation slice |
+| v0.12 | Sandbox Resource Limits | ✅ first implementation slice |
+| v0.13 | Local OCI Registry | 🚧 planned; not implemented on `main` |
 
-## Workspace and worktree boundary
+The implemented progression is contiguous through **v0.12**. v0.13 is the next design/implementation milestone and must not be described as current code reality until its implementation lands.
 
-A Workspace is opaque to Hacocoon Core. It may be:
+### v0.9 — Per-Agent Sandbox
 
-- an ordinary directory;
-- a Git repository;
-- a Git worktree produced by an external tool;
-- a workspace produced by an optional Hacocoon WorkspaceProvider.
-
-External ownership:
+A trusted integration maps an opaque external session identity to one dedicated Environment through the normal Environment/WorkspaceLease lifecycle.
 
 ```text
-external orchestrator -> create/select workspace -> path -> Hacocoon
+trusted client / integration
+        |
+ opaque session identity
+        |
+ persisted binding proof
+        |
+ dedicated Environment
 ```
 
-Standalone ownership:
+Parallel write-capable sessions should receive distinct canonical Workspace paths, normally distinct Git worktrees. Worktree creation/branch strategy remains outside Core.
+
+See [`09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md`](09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md).
+
+### v0.10 — VS Code Remote Agent Host Adapter
+
+`haco-agent-host` connects a v0.9-bound Environment to the VS Code Agents workflow using the trusted client boundary and loopback-only SSH.
 
 ```text
-Human/CLI -> optional WorkspaceProvider -> Workspace -> Hacocoon
+VS Code Agents window
+        |
+   Remote SSH
+        |
+ haco-agent-host
+        |
+ bound Environment
+        |
+    /workspace
 ```
 
-Both paths converge on the same Workspace/Environment runtime path.
+The client retains the private SSH key. Hacocoon owns Environment selection and safe connection preparation; VS Code owns Agent Host/AHP behavior.
 
-Parallel write-capable agent sessions should receive distinct canonical Workspace paths, normally distinct Git worktrees. Existing WorkspaceLease rules continue to reject conflicting read/write use of one canonical Workspace. Git worktrees isolate code changes; the Environment/Incus boundary provides OS/runtime isolation.
+See [`10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md`](10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md).
 
-## Human-in-the-loop split
+### v0.11 — Base Images & Custom Environments
 
-There are two different approval responsibilities:
+A logical Base is resolved once to an immutable revision before Environment creation:
 
 ```text
-Development approval -> Human / GitHub / external orchestrator
-Security approval    -> Hacocoon Policy/Capability boundary
+logical Base
+     |
+ provider source
+     |
+resolve once
+     v
+immutable revision
+     |
+ Environment
 ```
 
-Hacocoon security approval covers privileged authority such as protected Git operations, sensitive exposure, AWS/API access, or runtime privilege changes. It is not a general development workflow engine.
+The first implementation slice includes Base selection, list/inspect, immutable Incus fingerprint pinning, and persisted Base identity. Custom build/import/history/rollback/GC remain follow-up work.
 
-## Baseline roadmap progression
+See [`11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md) and [`BASE_IMAGES.md`](BASE_IMAGES.md).
 
-The 2026-08-29 rebaseline established v0.1-v0.7. v0.8 added client adapters. The 2026-08-30 numbering cleanup keeps the already-implemented per-agent broker as v0.9, puts the active Remote Agent Host Adapter integration at v0.10, and moves implementation-pending Base Images and Resource Limits to v0.11 and v0.12.
+### v0.12 — Sandbox Resource Limits
 
-| Version | Gate | Purpose | Repository state |
-|---|---|---|---|
-| v0.1 | Secure Workspace Runtime MVP | external path -> Incus -> exec/shell -> delete | implemented; real Incus acceptance remains environment-dependent |
-| v0.2 | Workspace Abstraction & Lease | formal workspace identity/leases and concurrency safety | implemented |
-| v0.3 | Client & Interactive Access | status/SSH/ports/client integration without IDE ownership | implemented |
-| v0.4 | Policy & Capability Foundation | allow/deny/require-approval and audit boundary | implemented |
-| v0.5 | Git / GitHub Capability | scoped Git/GitHub authority without broad ambient credentials | implemented |
-| v0.6 | Agent & Orchestrator Integration | generic machine/agent integration above secure execution | implemented |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | AWS capability plus remote provider work | implemented experimentally; real AWS acceptance pending |
-| v0.8 | Client Adapters & VS Code Integration | thin client adapter layer; VS Code Remote-SSH first | implemented; real VS Code + Incus acceptance remains environment-dependent |
-| v0.9 | Per-Agent Sandbox & Agent Host Integration | bind independently routable coding-agent sessions to dedicated Environments without giving agents Hacocoon/Incus control authority | broker foundation implemented; real VS Code Agent Host/AHP + Incus routing acceptance pending |
-| v0.10 | VS Code Remote Agent Host Adapter | connect the VS Code Agents window to the v0.9-bound Environment through the trusted client adapter boundary | active PR #111; not yet on `main` |
-| v0.11 | Base Images & Custom Environments | selectable logical Bases resolved to immutable Environment starting revisions | design contract established; implementation pending |
-| v0.12 | Sandbox Resource Limits | explicit host-enforced CPU/memory/PID/root-storage budgets for each Environment | design contract established; implementation pending |
-
-These rows describe roadmap/design and implementation progression, **not compatibility guarantees**. Hacocoon remains pre-1.0 and may change CLI, state formats, APIs, capabilities, adapters, and configuration incompatibly.
-
-## v0.1 baseline gate record
-
-v0.1 established the first vertical slice:
+Each Environment can carry an explicit provider-neutral ResourceBudget:
 
 ```text
-host directory
-  -> haco create --workspace
-  -> Incus system container
-  -> haco exec / haco shell
-  -> haco delete
+Environment
+  +-- CPU
+  +-- memory
+  +-- PIDs
+  +-- root storage
 ```
 
-Its scope intentionally excluded policy, GitHub/AWS authority, agent orchestration, advanced storage, and cloud runtime. Those boundaries were introduced by later roadmap stages instead of being pre-built into v0.1.
+For Incus, finite limits are applied and verified before `start`. Unsupported finite requests fail closed instead of being silently ignored.
 
-This section is retained as a historical design constraint. It is **not** an instruction to remove later functionality or design contracts now present in the repository.
+See [`12_v0.12_SANDBOX_RESOURCE_LIMITS.md`](12_v0.12_SANDBOX_RESOURCE_LIMITS.md).
 
-## Cooperation with external orchestrators
+### v0.13 — Local OCI Registry
 
-External orchestrators may own tasks, worktrees, workers, budgets, retries, and development review. Hacocoon receives the resulting Workspace and provides the secure Environment and Capability boundary underneath them.
+v0.13 is **planned, not implemented on `main`**.
 
-Daintree and similar tools therefore sit above Hacocoon rather than inside Core:
+The intended first slice adds a Hacocoon-managed local OCI registry/cache gateway so `containerd`/`nerdctl` workloads can use ordinary image references while Hacocoon mediates upstream registry access and avoids distributing reusable upstream credentials to sandboxes.
+
+A planned second slice adds OCI Seed + storage-driver COW optimization without sharing one writable `/var/lib/containerd` across Environments.
+
+See:
+
+- [`13_v0.13_LOCAL_OCI_REGISTRY.md`](13_v0.13_LOCAL_OCI_REGISTRY.md)
+- [`13A_v0.13_OCI_SEED_AND_COW.md`](13A_v0.13_OCI_SEED_AND_COW.md)
+
+## Workspace and orchestration boundary
+
+A Workspace is opaque to Core. It may be a directory, Git repository, Git worktree, or output of an external/optional WorkspaceProvider.
 
 ```text
-Daintree / other orchestrator
-          |
-   task + worktree ownership
-          |
-       Workspace
-          |
-      Hacocoon
-          |
-      Environment
+external orchestrator
+  -> task / branch / worktree ownership
+  -> Workspace path
+  -> Hacocoon
+  -> Environment
 ```
+
+Daintree and similar orchestrators therefore sit above Hacocoon rather than inside Core.
 
 ## Client adapters
 
-A Client Adapter is a thin integration layer outside Core. It may create/select an Environment, request standard access such as loopback SSH, translate connection information into client configuration, and launch/reconnect the client.
-
-The first adapter is `haco-vscode`.
+The first client adapter is `haco-vscode`:
 
 ```text
 VS Code
@@ -188,190 +240,76 @@ VS Code
   -> /workspace
 ```
 
-The adapter does not implement an editor, terminal, debugger, Git UI, or AI chat surface. Those remain VS Code responsibilities.
+Other clients should consume the same generic Environment/client-access boundary. Future JetBrains, web, code-server, or other adapters must not introduce IDE-specific branching into Core.
 
-The intended AI workflow is permissive inside the isolated Environment while keeping external authority mediated:
+## Human-in-the-loop boundary
 
-```text
-VS Code AI / coding agent
-        |
-   Incus Environment
-    broad local freedom
-        |
---- Hacocoon boundary ---
-        |
-Policy / Capability / Audit
-        |
-GitHub / AWS / Host
-```
-
-### VS Code and other IDEs
-
-VS Code can use Hacocoon as the underlying Environment runtime while remaining a client, not a Core dependency. `haco-vscode` is a convenience adapter around standard Remote-SSH.
-
-Other IDEs should consume the same generic client/environment boundary rather than causing IDE-specific branching inside Core. Future adapters may include JetBrains, web clients, Daintree, or other tools, but those adapters are not Core concepts.
-
-## Per-agent sandbox integration
-
-v0.9 introduces a trusted integration-layer broker that maps an opaque external session identity to one Environment while reusing the normal Environment/WorkspaceLease lifecycle.
+Development approval and security approval are intentionally separate:
 
 ```text
-VS Code Agents window / trusted client
-              |
-      trusted integration
-              |
-       session broker
-          /       \
- Environment A   Environment B
-     |                |
-   Incus A          Incus B
+Development approval -> Human / GitHub / external orchestrator
+Security approval    -> Hacocoon Policy/Capability
 ```
 
-The coding agent is intentionally absent from the management path. It is not expected to invoke `haco`, and must not receive Incus administrator authority, Hacocoon state/control access, or broad host credentials merely because an Environment was allocated for it.
+Hacocoon security approval protects privileged authority. It is not a general project-management or merge-review engine.
 
-Session-to-Environment binding is persisted in trusted control-plane state. A deterministic Environment name alone is not ownership proof: the broker refuses to adopt or release an Environment without a matching persisted binding.
+## Acceptance model
 
-For VS Code, the preferred direction is to place the Agent Host next to the assigned Workspace inside the Environment and keep Agent Host Protocol details at the client-integration boundary. AHP-specific types/versioning remain outside Core.
+A feature can be implemented in the repository while still requiring real-host validation.
 
-See `09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md` for the detailed contract.
-
-## VS Code Remote Agent Host Adapter
-
-v0.10 is the trusted adapter layer currently developed in PR #111.
-
-Its intended flow is:
-
-```text
-VS Code Agents window
-      |
-standard Remote SSH
-      |
-Hacocoon-managed loopback alias
-      |
-v0.9-bound Environment
-      |
-/workspace + Agent Host
-```
-
-The client retains the SSH private key. Hacocoon receives only the public key through the existing hardened SSH-access boundary. VS Code owns Agent Host/AHP behavior; Hacocoon owns Environment selection and safe connection preparation.
-
-This gate is **not implemented on `main` until PR #111 is merged**. Real Windows/WSL + Incus + current VS Code Agents-window acceptance remains environment-dependent.
-
-## Base images and custom Environment starting points
-
-v0.11 introduces a Hacocoon-level **Base** as the selectable starting point for a newly created Environment.
-
-```text
-logical Base name
-      |
-      v
-immutable Base revision
-      |
-      v
-Environment
-```
-
-For Incus, the adapter resolves that immutable Base revision to an Incus image fingerprint internally. Mutable Incus aliases must not remain the identity of an already-created Environment.
-
-Updating `my-dev` from revision A to revision B affects only new Environments:
-
-```text
-Environment 1 -> revision A
-my-dev        -> revision B
-Environment 2 -> revision B
-```
-
-A Base controls guest filesystem/runtime contents. It does not grant host mounts, devices, privileged mode, Linux capabilities, credentials, network authority, or external-service authority. Those remain governed by the Environment / Policy / Capability boundary.
-
-v0.11 composes with the implemented v0.9 per-agent broker and the v0.10 adapter when those paths request Environment creation; Base selection must still resolve through the normal immutable-revision contract.
-
-See `11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` for the v0.11 gate and `BASE_IMAGES.md` for the detailed companion design.
-
-## Sandbox resource limits
-
-v0.12 gives each Environment an explicit resource budget.
-
-```text
-Environment
-  +-- CPU ceiling
-  +-- memory ceiling
-  +-- process/PID ceiling
-  +-- root-storage ceiling where safely enforceable
-```
-
-The resource budget describes how much capacity an Environment may consume; it is not a Hacocoon Capability and does not grant external authority.
-
-For Incus, provider-neutral resource concepts are mapped to Incus-native controls inside the adapter. If a caller explicitly requests a limit the selected provider cannot enforce, creation must fail closed rather than silently ignore it.
-
-The effective creation-time budget is persisted with the Environment. Changing defaults later affects only future Environment creation. The first gate prefers creation-time budgets and does not require arbitrary live resize or aggregate host scheduling.
-
-v0.12 composes with v0.11 Bases and v0.9/v0.10 agent integration. A Base must not raise resource limits, and an agent must not gain control-plane authority to raise its own host-enforced limits.
-
-See `12_v0.12_SANDBOX_RESOURCE_LIMITS.md` for the detailed contract.
-
-## Responsibility placement
-
-| Concern | Placement |
+| Evidence | What it proves |
 |---|---|
-| worktree management | outside Core; optional WorkspaceProvider boundary |
-| VS Code / code-server / IDE access | client integration / Client Adapter |
-| client-native SSH configuration and launch | adapter-owned, outside Core |
-| per-agent session -> Environment binding | trusted integration layer outside Core |
-| VS Code Agent Host / AHP details | client integration boundary outside Core |
-| AI chat UI / model selection | IDE/agent/orchestrator, outside Hacocoon |
-| authorization / approval | Policy + Capability |
-| Git push / GitHub authority | Git/GitHub capability boundary |
-| AI agent integration | generic execution + external/trusted integration |
-| model routing / task DAG / budgets | outside Hacocoon |
-| AWS / EC2 / EBS | provider/capability adapters; EC2 remains experimental |
-| Base selection / immutable Environment starting revision | Hacocoon domain contract; provider-native image mapping stays in adapter |
-| Incus image alias/fingerprint/import mechanics | Incus adapter / explicit Incus administration |
-| per-Environment CPU/memory/PID/root-storage budget | Hacocoon Environment contract; provider-native enforcement stays in adapter |
-| aggregate host scheduling/admission | future separate concern; not v0.12 Core scheduler ownership |
-| Btrfs / QCOW2 / storage mechanics | provider/adapter detail only when actually required |
+| unit / adversarial tests | local logic and invariant coverage |
+| process / fake-provider E2E | executable integration without real external infrastructure |
+| repository CI | repeatable host-independent regression coverage |
+| real Incus / Windows / AWS acceptance | actual provider/client behavior on supported hosts |
+
+Current host-dependent areas include real Incus lifecycle/network/resource enforcement, Windows/WSL + VS Code, Agent Host/AHP routing, Base/image sources, and AWS/EC2/SSM/EBS.
+
+For exact current status, always use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
 
 ## Experimental EC2 rule
 
 The EC2 Environment provider is **experimental and disabled by default**.
 
-It must never become active merely because AWS credentials, AWS environment variables, the AWS CLI, or cloud metadata are present. Enabling it requires explicit Hacocoon-owned operator opt-in. Disabling the experimental gate must fail closed before real provider initialization or AWS activity while preserving recoverable remote state.
+It must not become active merely because AWS credentials, environment variables, the AWS CLI, or cloud metadata are present. Enabling it requires explicit Hacocoon-owned operator opt-in, and disabled paths must fail before AWS side effects.
 
-See `07_v0.7_REMOTE_AND_CLOUD_RUNTIME.md` and `REMOTE_CLOUD_PROVISIONING.md` for the detailed contract.
+## Historical note
 
-## Pre-1.0 compatibility rule
+> [!NOTE]
+> The 2026-08-29/30 rebaseline established the current product boundary and renumbered several early design gates. Historical commit messages, closed PRs, candidate branches, and superseded planning text may retain older names or version assignments. They are historical records, not current status.
 
-Breaking changes remain allowed while the architecture is being hardened.
+The original v0.1 vertical slice was:
 
-Prefer a deliberate incompatible correction over preserving accidental behavior when the old behavior:
+```text
+host directory
+  -> haco create --workspace
+  -> Incus system container
+  -> haco exec / haco shell
+  -> haco delete
+```
+
+Later milestones extend that baseline; this historical record does not imply later features are absent.
+
+## Pre-1.0 compatibility
+
+Breaking changes remain allowed while the architecture is being hardened. Prefer a deliberate incompatible correction over preserving behavior that:
 
 - leaks authority across a trust boundary;
 - makes ownership ambiguous;
 - creates unsafe cleanup/retry semantics;
-- forces provider-specific concepts into Core;
-- preserves unnecessary complexity only for compatibility.
+- pushes provider-specific concepts into Core;
+- silently weakens enforcement.
 
-Breaking-change freedom should still be disciplined: document operator-visible impact, preserve data/recovery where possible, update tests, and provide migration guidance when a supported migration exists.
+Breaking-change freedom must not be used to justify unsafe authority boundaries, ambiguous ownership, or silent data loss.
 
-## Design principles
+## Further reading
 
-- Keep Core small.
-- Prefer clear responsibility boundaries over premature common abstractions.
-- Treat the Workspace as opaque to the runtime.
-- Keep OS/Incus/process side effects in a narrow imperative shell/adaptor layer.
-- Human approval is a first-class security decision, not a UI patch.
-- Do not hand long-lived parent credentials to untrusted executed tools.
-- Hacocoon must remain usable from multiple clients and orchestrators.
-- Let coding agents be permissive inside an isolated Environment without turning that into host authority.
-- Bound permissive Environment execution with explicit host-enforced resource budgets.
-- Client convenience adapters must translate protocols, not absorb IDE or orchestration ownership.
-- Resolve mutable Base names to immutable revisions before Environment creation depends on them.
-- Keep provider-native image mechanics outside Core.
-- Keep provider-native resource controls outside Core while preserving provider-neutral effective limits.
-- Keep agent-session routing outside Core and require persisted proof before destructive agent-session cleanup.
-- Do not create abstractions solely for hypothetical future backends.
-- Treat cleanup, retry, cancellation, concurrency, and partial failure as part of the feature.
-- Keep implementation claims separate from real-provider/client acceptance claims.
+- **Current code reality:** [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)
+- **Version numbering:** [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)
+- **Security architecture:** [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
+- **Terminology:** [`00C_TERMINOLOGY_AND_BOUNDARIES.md`](00C_TERMINOLOGY_AND_BOUNDARIES.md)
+- **Plugin architecture:** [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+- **Documentation map:** [`README.md`](README.md)
 
-## One-sentence definition
-
-> **Hacocoon is a secure workspace runtime that runs developer tools and AI agents inside isolated, resource-bounded environments without owning the IDE, Git workflow, or AI orchestration layer.**
+> **Hacocoon runs developer tools and coding agents inside isolated, resource-bounded Environments without owning the IDE, Git workflow, or AI orchestration layer.**
