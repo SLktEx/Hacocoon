@@ -180,8 +180,6 @@ jobs:
   incus-e2e:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-    env:
-      HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -192,12 +190,20 @@ jobs:
           check-latest: true
           cache: false
       - name: Install and initialize Incus
+        env:
+          HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: bash tools/ci-incus.sh setup
       - name: Run real Incus system-container E2E
+        env:
+          HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: bash tools/ci-incus.sh test
       - name: Capture Incus diagnostics
         if: failure()
+        env:
+          HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: bash tools/ci-incus.sh diagnostics
       - name: Clean up Incus test resources
         if: always()
+        env:
+          HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: bash tools/ci-incus.sh cleanup
