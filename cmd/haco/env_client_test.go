@@ -113,16 +113,16 @@ func TestEnvironmentClientCreatePreservesRequestContract(t *testing.T) {
 	if request.Base != core.BaseName("haco/ubuntu-26.04") {
 		t.Fatalf("base = %q", request.Base)
 	}
-	if request.Resources.CPU == nil || request.Resources.CPU.Value != 2 {
+	if request.Resources.CPU.Mode != core.ResourceLimitFinite || request.Resources.CPU.Value != 2 {
 		t.Fatalf("cpu = %+v", request.Resources.CPU)
 	}
-	if request.Resources.MemoryBytes == nil || request.Resources.MemoryBytes.Value != 1024*1024*1024 {
+	if request.Resources.MemoryBytes.Mode != core.ResourceLimitFinite || request.Resources.MemoryBytes.Value != 1024*1024*1024 {
 		t.Fatalf("memory = %+v", request.Resources.MemoryBytes)
 	}
-	if request.Resources.PIDs == nil || request.Resources.PIDs.Value != 128 {
+	if request.Resources.PIDs.Mode != core.ResourceLimitFinite || request.Resources.PIDs.Value != 128 {
 		t.Fatalf("pids = %+v", request.Resources.PIDs)
 	}
-	if request.Resources.RootBytes == nil || request.Resources.RootBytes.Value != 8*1024*1024*1024 {
+	if request.Resources.RootBytes.Mode != core.ResourceLimitFinite || request.Resources.RootBytes.Value != 8*1024*1024*1024 {
 		t.Fatalf("root = %+v", request.Resources.RootBytes)
 	}
 	if out.String() != "demo\t/work/demo\tro\n" {
