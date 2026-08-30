@@ -417,7 +417,7 @@ func forwardCommand(ctx context.Context, app *composition.App, args []string) er
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s\ttcp://%s:%d\t->\t%d\n", connection.ID, connection.Kind, connection.Host, connection.Port, connection.TargetPort)
+	fmt.Printf("%s\ttcp://%s:%d\t->\t%d\n", connection.ID, connection.Host, connection.Port, connection.TargetPort)
 	return nil
 }
 
