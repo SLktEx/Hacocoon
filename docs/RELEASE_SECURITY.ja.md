@@ -2,67 +2,88 @@
 
 日本語 | [**English**](RELEASE_SECURITY.md)
 
-Hacocoon のリリース検証は、整合性・公開許可・provenance を別々の層として扱います。それぞれ守る対象が異なります。
+Hacocoon の release verification は、整合性・source authorization・権限分離・provenance を別々の層として扱います。
 
-## 1. SHA-256 による整合性確認
+現在の repository model は意図的に **solo maintainer / external contribution closed** です。external Pull Request は無効で、trusted repository write authority は repository owner だけが持ちます。詳細は [Public repository セキュリティチェックリスト](PUBLIC_RELEASE_CHECKLIST.ja.md) を参照してください。
 
-GoReleaser は `checksums.txt` を公開し、`scripts/install.sh` は展開・インストール前に対象アーカイブの SHA-256 が一致することを確認します。
+## 1. SHA-256 による整合性
 
-これは通信途中の破損や取り違えを検出できます。一方、アーカイブと `checksums.txt` は同じ GitHub Release の権限で公開されるため、publisher の真正性を独立して証明するものではありません。
+GoReleaser は `checksums.txt` を公開し、`scripts/install.sh` は archive を展開・install する前に SHA-256 を検証します。
 
-## 2. 公式リリースの許可境界
+これは通信途中の破損や取り違えを検出します。ただし artifact と checksum は同じ release authority が公開するため、publisher の真正性を独立して証明するものではありません。
 
-release workflow は、`v*` tag の push では起動しません。tag が指す commit 自身に「この tag を公式リリースしてよいか」を判断する workflow や trust checker を差し替えさせないためです。
+## 2. 公式 release の source authorization
 
-`.github/workflows/release.yml` は `release` という `repository_dispatch` event で起動します。GitHub の `repository_dispatch` は repository の default branch 上の workflow を実行します。trusted control-plane は dispatcher の `GITHUB_SHA` を checkout し、その trusted な `tools/check_release_tag_trust.sh` で要求された tag を検証します。
+release workflow は `v*` tag push から直接起動しません。
 
-公式リリースの tag は、単に trusted `main` 履歴内にあるだけでは不十分で、**remote default branch の現在 HEAD と完全一致**する必要があります。さらに解決した release SHA は dispatcher の `GITHUB_SHA` と一致しなければなりません。これにより、write 権限を持つ actor が古い脆弱な `main` commit に新しい version tag を付けて、正しい provenance 付きの rollback release を作る経路を拒否します。
+`.github/workflows/release.yml` は trusted default branch 上の `repository_dispatch` event で起動し、trusted control-plane checkout が `tools/check_release_tag_trust.sh` で要求された tag を検証します。
 
-その後にだけ、2 回目の checkout でリリース対象をその exact SHA から取得します。
+official release tag は **remote default branch の現在 HEAD** と一致しなければなりません。さらに release SHA は dispatcher の `GITHUB_SHA` と一致する必要があります。
+
+これにより次を拒否します。
+
+- trusted `main` に入っていない detached commit
+- 古い `main` commit に新しい version tag を付ける historical rollback release
+
+authorization 後にだけ build job が exact approved release SHA を checkout します。
 
 ```text
 repository_dispatch(release, tag=vX.Y.Z)
        |
        v
-trusted current main の workflow + trust checker
+trusted current-main workflow + trust checker
        |
-       +--> tag -> remote main の現在 HEAD を必須化
+       +--> tag -> current remote main HEAD を必須化
        +--> release SHA == dispatcher GITHUB_SHA を必須化
        |
        v
-許可された exact commit を checkout
+exact authorized release commit を checkout
        |
        v
-read-only build job
-  test / vet / package
+read-only build / test / package
        |
        v
-同一 workflow run の artifact
+same-run release payload
        |
        v
 GitHub Environment: release
-  必須の人手承認（repository setting）
        |
        v
-最小権限の publish job
-  main HEAD が今も同じ commit か確認
-  tag を再解決して同じ commit か確認
-  公開物を attest
+最小権限の publisher
+  main + tag identity を再検証
+  exact payload を attest
   GitHub Release を publish
 ```
 
-`publish` job は `release` という専用 GitHub Environment を参照します。ただし、**YAML に `environment: release` と書くだけでは human approval の security boundary にはなりません。** Public 化前後の GitHub repository settings で、この Environment に required reviewer を設定し、利用できる場合は prevent self-review も有効にしてください。reviewer 集合は通常の repository write actor より狭くする必要があります。
+署名・publication の直前にも publisher は次を確認します。
 
-GitHub の現在の仕様では、Free / Pro / Team の required Environment reviewers は public repository でのみ利用できます。したがって、private repository の現状では `release` Environment 名が workflow に存在するだけで human authorization 要件を満たしたとは扱いません。Public 化後、最初の公式 public release より前に Environment protection を設定・再確認することが publication checklist の必須条件です。
+1. current default-branch HEAD が authorized release SHA とまだ一致する
+2. annotated tag を peel した release tag が同じ SHA とまだ一致する
 
-署名・公開の直前にも publisher が GitHub API を使い、次の 2 点を再確認します。
+build 後にどちらかの identity が変わった場合は fail closed します。
 
-1. default branch の現在 HEAD が、build 時に許可した release SHA とまだ一致していること
-2. release tag を annotated tag まで peel した結果が、同じ release SHA とまだ一致していること
+## 3. Solo-maintainer authorization model
 
-build 後に `main` が進んだ場合、tag が動いた場合、または identity が変わった場合は fail closed とし、新しい current HEAD から release request をやり直します。
+`publish` job は `release` GitHub Environment を参照しますが、現在の repository では **independent Environment reviewer を必須にしません**。
 
-release を要求する例です。
+trusted maintainer が 1 人しかいないため、独立した承認を行える 2 人目の人間が存在しません。required reviewer を必須化すると release operation が deadlock するか bypass が必要になり、どちらも実質的な trust boundary にはなりません。
+
+現在は次を組み合わせて authorization boundary を作ります。
+
+- external Pull Request creation は disabled (`collaborators_only`)
+- owner 以外の direct collaborator は存在しない
+- `main` は protected で、required CI を通る PR 経由の変更だけを受ける
+- release tag は作成後に move / delete できない
+- release tag は current trusted `main` HEAD と一致するときだけ accepted
+- build/test execution と write-capable publisher を分離
+- publication 直前に tag / main identity を再検証
+- published artifact に attestation を付与
+
+`release` Environment 自体は名前付き privilege boundary と、将来 protection を追加する場所として維持します。
+
+2 人目の trusted maintainer、または別の write-capable collaborator を追加する場合は、その multi-maintainer model を同等に trusted と扱う前に independent required reviewer を追加し、利用可能なら prevent self-review を有効化します。
+
+release request の例:
 
 ```bash
 gh api --method POST repos/SLktEx/Hacocoon/dispatches \
@@ -70,24 +91,22 @@ gh api --method POST repos/SLktEx/Hacocoon/dispatches \
   -F 'client_payload[tag]=v0.8.0'
 ```
 
-repository dispatch を送れることと、公式 release を publish できることは別の権限です。privileged publisher の別系統の human authorization boundary が server-side の `release` Environment approval です。
+現在の solo-maintainer model では dispatch authority と最終的な human authority は同じ trusted owner に属します。それでも workflow は publication credential を持つコード量を最小化します。
 
-この workflow 側の対策だけで GitHub repository 設定の代わりにはなりません。Public 化前には `main` の保護、release tag の作成・更新・削除制限、write/bypass actor の最小化、`release` Environment reviewer の設定、public fork 用 runner policy が別途必要です。
+## 4. GitHub / Sigstore attestation
 
-## 3. GitHub / Sigstore attestation
+Public Hacocoon では privileged publisher が exact release payload に 2 種類の attestation を生成します。
 
-Public Hacocoon では、publish job が公開対象そのものに 2 種類の attestation を生成します。
+1. standard GitHub/Sigstore build provenance: artifact digest を期待する repository/workflow execution と結び付ける
+2. Hacocoon release-binding attestation (`https://hacocoon.dev/attestations/release/v1`): release tag、release commit SHA、trusted control ref/SHA、`release` Environment identity を記録する
 
-1. standard GitHub/Sigstore build provenance: trusted `main` から実行された期待する Hacocoon release workflow が artifact を署名したことを検証するもの
-2. Hacocoon release-binding attestation (`https://hacocoon.dev/attestations/release/v1`): trusted release control-plane が許可した release tag、release commit SHA、control ref、control SHA、期待する `release` authorization Environment 名を署名するもの
+build job は `contents: read` のみです。publication に必要な write / OIDC / attestation 権限は publisher だけが持ちます。publisher は repository source を checkout せず、repository の test/build script も実行しません。
 
-build job の権限は `contents: read` のみです。publish job だけが `contents: write`、`id-token: write`、`attestations: write`、`artifact-metadata: write` を持ちます。publish job は repository source を checkout せず、repository の test/build script も実行しません。Environment protection は privileged publish job が runner に送られる前に通過する必要があります。
+trusted Action は immutable full commit SHA pin を維持します。
 
-`actions/attest`、`actions/upload-artifact`、`actions/download-artifact` は full commit SHA に pin します。
+### Archive verification
 
-### アーカイブを検証する
-
-まず trusted `main` の release workflow による provenance を確認します。
+current GitHub CLI を使います。
 
 ```bash
 gh attestation verify ./haco_linux_amd64.tar.gz \
@@ -97,7 +116,7 @@ gh attestation verify ./haco_linux_amd64.tar.gz \
   --deny-self-hosted-runners
 ```
 
-明示的な version を確認するときは、signed release binding も確認できます。
+明示的な release binding も確認できます。
 
 ```bash
 gh attestation verify ./haco_linux_amd64.tar.gz \
@@ -110,39 +129,21 @@ gh attestation verify ./haco_linux_amd64.tar.gz \
   --jq '.[].verificationResult.statement.predicate'
 ```
 
-predicate には trusted release control-plane が選んだ `tag`、`commit`、control identity、期待する authorization Environment が記録されます。
+### Installer behavior
 
-### installer の挙動
+Linux installer は SHA-256 integrity と trusted GitHub/Sigstore provenance を標準で必須にします。`latest` は明示的な version tag に解決した後、release binding を検証してから install します。
 
-Linux installer は SHA-256 の一致に加えて、**trusted GitHub/Sigstore provenance を標準で必須**とします。`latest` は最初に明示的な `vX.Y.Z` tag へ解決し、その tag に対して trusted release workflow、`refs/heads/main`、signed release-binding predicate を検証してからインストールします。
+`HACO_REQUIRE_PROVENANCE=0` は private/development 用の明示的な escape hatch です。
 
-`HACO_REQUIRE_PROVENANCE=0` は private/development 用の明示的な escape hatch としてのみ残しています。public install の標準 trust model ではありません。
+Windows installer も `latest` を解決し、downloaded release input を trusted provenance で検証し、Linux installer を provenance verification 有効のまま呼び出します。
 
-Windows installer も `latest` を明示 tag に解決し、`checksums.txt`、`bootstrap-wsl.sh`、`install.sh` をそれぞれ trusted provenance と signed release binding で検証してから downloaded script を実行します。Linux installer を呼ぶ際も `HACO_REQUIRE_PROVENANCE=1` を強制します。
+## 5. Immutable Releases
 
-## private repository の制約
+Artifact provenance は差し替えを検出可能にします。GitHub Immutable Releases はさらに、published release asset と関連 tag の supported mutation を server-side で防ぎます。
 
-GitHub artifact attestation は public repository では現在の GitHub plan で利用できます。private / internal repository で利用するには GitHub Enterprise Cloud が必要です。
+official release を stable distribution channel として扱う前に release immutability を有効化してください。
 
-Hacocoon が private の間は、SHA-256 を publisher authenticity と誤認させず、public 用 attestation を skip します。repository を public にすると 2 種類の attestation は必須になり、生成に失敗した場合は publication まで進みません。
-
-human approval にも同じ publication boundary があります。GitHub Free / Pro / Team では required Environment reviewers は public repository でのみ利用できます。Public 化後、最初の公式 public release の前に `release` Environment の required reviewer を設定・検証してください。
-
-## Immutable Releases
-
-Artifact provenance は asset の差し替えを検出可能にします。GitHub Immutable Releases はさらに、公開済み release asset と関連 tag の変更・削除を server-side で防ぎます。
-
-最初の public release 前に次を有効にしてください。
-
-```text
-Repository Settings
-  -> Releases
-  -> Enable release immutability
-```
-
-この設定には repository administration 権限が必要で、長期 admin token を release workflow に持たせて自動化はしません。workflow は全 asset と attestation の準備後に populated draft を publish する構成です。
-
-Immutable Releases が有効なら、新しい GitHub CLI で release-level attestation も検証できます。
+有効化後は current GitHub CLI で release-level attestation も確認できます。
 
 ```bash
 gh release verify v0.8.0 --repo SLktEx/Hacocoon
@@ -155,10 +156,11 @@ gh release verify-asset v0.8.0 ./haco_linux_amd64.tar.gz --repo SLktEx/Hacocoon
 |---|---|
 | `checksums.txt` | 同じ release authority を基準にした転送・ファイル整合性 |
 | current-main tag authorization | detached commit と historical-main rollback release の拒否 |
-| `release` Environment required reviewer | 通常の repository write / dispatch authority と human publication approval の分離 |
-| publish 前の main/tag 再検証 | build と publish の間の default branch / tag 差し替え検出 |
-| standard artifact attestation | artifact digest と期待 repository/workflow・trusted-main 実行の紐付け |
-| release-binding attestation | 許可済み release tag / commit / control identity / expected authorization Environment の署名 |
-| Immutable Release | 対応範囲で公開後の release/tag 変更を server-side で防止 |
+| contribution-closed solo-maintainer policy | trusted repository write authority を owner に限定 |
+| build/publish job split | release write authority を持つコード量を最小化 |
+| publish 前の main/tag 再検証 | build と publication の間の default branch / tag movement を検出 |
+| standard artifact attestation | artifact digest と期待 repository/workflow execution の紐付け |
+| release-binding attestation | release tag / commit / control identity / release Environment identity の署名 |
+| Immutable Release | supported path での公開後 release/tag mutation を防止 |
 
-これらは相互補完です。protected `main`、release tag 制限、安全な fork-PR 設定、runner isolation の代わりにはなりません。
+これらは相互補完です。external PR の有効化、別 write-capable actor の追加、self-hosted runner の追加前には trust model を再監査します。

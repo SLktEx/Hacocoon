@@ -11,10 +11,12 @@ def valid_snapshot():
         "repository": {
             "private": False,
             "default_branch": "main",
+            "pull_request_creation_policy": "collaborators_only",
             "owner": {"type": "User", "login": "SLktEx"},
         },
+        "collaborators": [{"login": "SLktEx"}],
         "main_ruleset": {
-            "name": "protect-main",
+            "name": "Protect main",
             "enforcement": "active",
             "target": "branch",
             "bypass_actors": [],
@@ -25,10 +27,10 @@ def valid_snapshot():
                 {
                     "type": "pull_request",
                     "parameters": {
-                        "required_approving_review_count": 1,
+                        "required_approving_review_count": 0,
                         "dismiss_stale_reviews_on_push": True,
                         "require_code_owner_review": False,
-                        "require_last_push_approval": True,
+                        "require_last_push_approval": False,
                         "required_review_thread_resolution": True,
                     },
                 },
@@ -44,30 +46,18 @@ def valid_snapshot():
             ],
         },
         "tag_ruleset": {
-            "name": "protect-release-tags",
+            "name": "Protect release tags",
             "enforcement": "active",
             "target": "tag",
-            "bypass_actors": [
-                {"actor_type": "RepositoryRole", "actor_id": 5, "bypass_mode": "always"}
-            ],
+            "bypass_actors": [],
             "conditions": {"ref_name": {"include": ["refs/tags/v*"], "exclude": []}},
             "rules": [
-                {"type": "creation"},
                 {"type": "deletion"},
+                {"type": "update"},
                 {"type": "non_fast_forward"},
             ],
         },
-        "release_environment": {
-            "name": "release",
-            "protection_rules": [
-                {
-                    "type": "required_reviewers",
-                    "prevent_self_review": True,
-                    "reviewers": [{"type": "User", "reviewer": {"login": "trusted-reviewer"}}],
-                }
-            ],
-        },
-        "fork_policy": {"approval_policy": "all_external_contributors"},
+        "release_environment": {"name": "release", "protection_rules": []},
         "runners": {"total_count": 0, "runners": []},
         "org_runner_groups": None,
     }
@@ -84,13 +74,28 @@ class PublicReleaseReadinessTests(unittest.TestCase):
         errors, _ = messages(snapshot)
         self.assertTrue(any(needle in error for error in errors), errors)
 
-    def test_valid_snapshot_passes(self):
+    def test_solo_maintainer_snapshot_passes(self):
         errors, warnings = messages(valid_snapshot())
         self.assertEqual(errors, [])
-        self.assertTrue(any("CODEOWNER" in warning for warning in warnings))
+        self.assertTrue(any("solo-maintainer" in warning for warning in warnings))
+        self.assertTrue(any("gitleaks" in warning for warning in warnings))
+        self.assertTrue(any("tag creation" in warning for warning in warnings))
+        self.assertTrue(any("no independent reviewer" in warning for warning in warnings))
 
     def test_private_repository_fails(self):
         self.assert_rejected(lambda s: s["repository"].update(private=True), "must be public")
+
+    def test_external_pull_requests_must_remain_disabled(self):
+        self.assert_rejected(
+            lambda s: s["repository"].update(pull_request_creation_policy="all"),
+            "external pull requests must remain disabled",
+        )
+
+    def test_non_owner_direct_collaborator_fails(self):
+        self.assert_rejected(
+            lambda s: s["collaborators"].append({"login": "other-maintainer"}),
+            "no non-owner direct collaborators",
+        )
 
     def test_main_bypass_fails(self):
         self.assert_rejected(
@@ -101,6 +106,17 @@ class PublicReleaseReadinessTests(unittest.TestCase):
             ),
             "must not have bypass actors",
         )
+
+    def test_zero_approvals_is_allowed_for_solo_maintainer(self):
+        errors, _ = messages(valid_snapshot())
+        self.assertFalse(any("approving review" in error for error in errors), errors)
+
+    def test_latest_push_approval_must_be_disabled_for_solo_maintainer(self):
+        def mutate(s):
+            rule = next(r for r in s["main_ruleset"]["rules"] if r["type"] == "pull_request")
+            rule["parameters"]["require_last_push_approval"] = True
+
+        self.assert_rejected(mutate, "must disable approval of the most recent push")
 
     def test_missing_force_push_rule_fails(self):
         self.assert_rejected(
@@ -121,42 +137,41 @@ class PublicReleaseReadinessTests(unittest.TestCase):
 
         self.assert_rejected(mutate, "race")
 
-    def test_tag_creation_restriction_is_required(self):
+    def test_gitleaks_is_recommended_not_mandatory(self):
+        errors, warnings = messages(valid_snapshot())
+        self.assertEqual(errors, [])
+        self.assertTrue(any("gitleaks" in warning for warning in warnings))
+
+    def test_tag_update_protection_is_required(self):
         self.assert_rejected(
             lambda s: s["tag_ruleset"].update(
-                rules=[r for r in s["tag_ruleset"]["rules"] if r["type"] != "creation"]
+                rules=[r for r in s["tag_ruleset"]["rules"] if r["type"] != "update"]
             ),
-            "creation",
+            "update",
         )
 
-    def test_tag_bypass_must_be_minimal(self):
-        def mutate(s):
-            s["tag_ruleset"]["bypass_actors"].append(
-                {"actor_type": "RepositoryRole", "actor_id": 4, "bypass_mode": "always"}
-            )
+    def test_tag_creation_restriction_is_not_required_in_solo_mode(self):
+        errors, warnings = messages(valid_snapshot())
+        self.assertEqual(errors, [])
+        self.assertTrue(any("tag creation" in warning for warning in warnings))
 
-        self.assert_rejected(mutate, "exactly one")
-
-    def test_release_environment_requires_reviewer(self):
+    def test_tag_bypass_fails_in_solo_mode(self):
         self.assert_rejected(
-            lambda s: s["release_environment"]["protection_rules"][0].update(reviewers=[]),
-            "at least one required reviewer",
+            lambda s: s["tag_ruleset"].update(
+                bypass_actors=[
+                    {"actor_type": "RepositoryRole", "actor_id": 5, "bypass_mode": "always"}
+                ]
+            ),
+            "must not have bypass actors",
         )
 
-    def test_release_environment_prevents_self_review(self):
+    def test_release_environment_requires_identity_but_not_second_reviewer(self):
+        errors, warnings = messages(valid_snapshot())
+        self.assertEqual(errors, [])
+        self.assertTrue(any("no independent reviewer" in warning for warning in warnings))
         self.assert_rejected(
-            lambda s: s["release_environment"]["protection_rules"][0].update(
-                prevent_self_review=False
-            ),
-            "prevent self-review",
-        )
-
-    def test_all_external_contributors_approval_is_required(self):
-        self.assert_rejected(
-            lambda s: s["fork_policy"].update(
-                approval_policy="first_time_contributors_new_to_github"
-            ),
-            "all external contributors",
+            lambda s: s["release_environment"].update(name="other"),
+            "unexpected identity",
         )
 
     def test_repository_self_hosted_runner_fails(self):

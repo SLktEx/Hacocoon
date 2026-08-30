@@ -2,29 +2,36 @@
 
 [**日本語**](RELEASE_SECURITY.ja.md) | English
 
-Hacocoon release verification has distinct integrity, authorization, and provenance layers. They protect against different failures and should not be confused.
+Hacocoon release verification has separate integrity, source-authorization, privilege-separation, and provenance layers. They protect against different failures.
+
+The current repository model is deliberately **solo-maintainer and contribution-closed**. External pull requests are disabled and the repository owner is the only trusted write authority. See [Public repository security checklist](PUBLIC_RELEASE_CHECKLIST.md).
 
 ## 1. SHA-256 integrity
 
-GoReleaser publishes `checksums.txt`, and `scripts/install.sh` verifies the selected archive against it before extracting or installing binaries.
+GoReleaser publishes `checksums.txt`, and `scripts/install.sh` verifies the selected archive before extracting or installing binaries.
 
-This detects corruption and mismatched downloads. It does **not** independently authenticate the publisher because the archive and `checksums.txt` are assets of the same GitHub Release. An authority able to replace both could make a malicious archive match a malicious checksum file.
+This detects corruption and mismatched downloads. It does **not** independently authenticate the publisher because the artifact and its checksum are published by the same release authority.
 
-## 2. Official release authorization
+## 2. Official release source authorization
 
-The release workflow is **not** triggered by a pushed `v*` tag. A tag-controlled commit must never be able to replace the workflow or trust checker which decides whether that tag may publish an official release.
+The release workflow is not triggered directly by a pushed `v*` tag.
 
-`.github/workflows/release.yml` is triggered with the `release` `repository_dispatch` event. GitHub runs `repository_dispatch` workflows from the repository default branch. The trusted control-plane checkout is pinned to the dispatcher `GITHUB_SHA` and validates the requested tag with the trusted `tools/check_release_tag_trust.sh`.
+`.github/workflows/release.yml` runs from the trusted default branch through a `repository_dispatch` event. The trusted control-plane checkout validates the requested tag with `tools/check_release_tag_trust.sh`.
 
-An official release tag must resolve to the **current remote default-branch HEAD**, not merely to any commit in trusted `main` history. The resolved release SHA must also equal the dispatcher `GITHUB_SHA`. This deliberately rejects historical rollback releases: a write-capable account cannot mint a new version tag on an older vulnerable `main` commit and obtain valid official provenance for it.
+An official release tag must resolve to the **current remote default-branch HEAD**. The resolved release SHA must also equal the dispatcher `GITHUB_SHA`.
 
-Only after that authorization does a second checkout load the release source by the exact authorized SHA.
+This rejects both:
+
+- detached commits that never entered trusted `main`; and
+- historical-main rollback releases under a fresh version tag.
+
+Only after authorization does the build job checkout the exact approved release SHA.
 
 ```text
 repository_dispatch(release, tag=vX.Y.Z)
        |
        v
-trusted current main workflow + trust checker
+trusted current-main workflow + trust checker
        |
        +--> require tag -> current remote main HEAD
        +--> require release SHA == dispatcher GITHUB_SHA
@@ -33,36 +40,50 @@ trusted current main workflow + trust checker
 checkout exact authorized release commit
        |
        v
-read-only build job
-  test / vet / package
+read-only build / test / package
        |
        v
-same-run workflow artifact
+same-run release payload
        |
        v
 GitHub Environment: release
-  required human approval (repository setting)
        |
        v
-minimal privileged publish job
-  require main HEAD is still the same commit
-  re-resolve tag and require same commit
+minimal privileged publisher
+  revalidate main + tag identity
   attest exact payload
   publish GitHub Release
 ```
 
-The `publish` job references the dedicated GitHub Environment named `release`. **The environment reference in YAML is not sufficient by itself.** Before public release, configure that environment in GitHub repository settings with required reviewer protection and prevent self-review where supported. The reviewer set is part of the release trust root and should be narrower than ordinary repository write access.
+Immediately before signing and publication, the publisher re-checks that:
 
-GitHub documents that required reviewers are available for public repositories on current Free, Pro, and Team plans; they are not available for private repositories on those plans. Therefore Hacocoon must not treat the current private-repository workflow as satisfying the human authorization requirement merely because it names the `release` environment. The public-launch checklist must configure and verify the environment protection after public conversion and before any official public release.
+1. current default-branch HEAD still equals the authorized release SHA; and
+2. the release tag, after peeling annotated tags, still resolves to the same SHA.
 
-Immediately before signing and publication, the publisher also queries the GitHub API and requires both of these facts to remain true:
+If either identity changed after the build, publication fails closed.
 
-1. the current default-branch HEAD still equals the authorized release SHA;
-2. the release tag still resolves, after peeling annotated tags, to that same SHA.
+## 3. Solo-maintainer authorization model
 
-If `main` advances, the tag moves, or either identity changes after the build, the release fails closed and must be requested again from the new current HEAD.
+The `publish` job references the GitHub Environment named `release`, but the current repository does **not** require an independent Environment reviewer.
 
-To request a release, an authorized maintainer/automation can send a repository dispatch whose payload contains the release tag, for example:
+With one trusted maintainer there is no second human capable of supplying an independent approval. Requiring one would deadlock release operations or force a bypass, neither of which creates a real trust boundary.
+
+The current authorization boundary instead relies on all of these together:
+
+- external pull-request creation remains disabled (`collaborators_only`);
+- there are no non-owner direct collaborators;
+- `main` is protected and changes require required CI through a PR;
+- release tags cannot be moved or deleted after creation;
+- a release tag is accepted only at current trusted `main` HEAD;
+- build/test execution is separated from the write-capable publisher;
+- publication revalidates tag/main identity;
+- published artifacts are attested.
+
+The `release` Environment remains a named privilege boundary and a future protection point.
+
+If a second trusted maintainer or any other write-capable collaborator is added, add an independent required reviewer and prevent self-review where supported **before** treating the new multi-maintainer model as equally trusted.
+
+To request a release:
 
 ```bash
 gh api --method POST repos/SLktEx/Hacocoon/dispatches \
@@ -70,24 +91,22 @@ gh api --method POST repos/SLktEx/Hacocoon/dispatches \
   -F 'client_payload[tag]=v0.8.0'
 ```
 
-Dispatch authority is **not** publication authority. The server-side `release` Environment approval is the separate human authorization boundary for the privileged publisher.
+In the current solo-maintainer model, dispatch authority and final human authority belong to the same trusted owner. The workflow still minimizes the amount of code that receives publication credentials.
 
-This workflow-level design does not replace GitHub repository controls. Before public release, protect `main`, restrict release-tag creation/update/deletion, minimize write/bypass actors, configure the `release` Environment reviewers, and enable the documented public-fork runner policy.
-
-## 3. GitHub/Sigstore attestations
+## 4. GitHub/Sigstore attestations
 
 For a public Hacocoon repository, the privileged publisher creates two attestations for the exact release payload:
 
-1. standard GitHub/Sigstore build provenance proving the artifact was signed by the expected Hacocoon release workflow running from trusted `main`;
-2. a Hacocoon release-binding attestation (`https://hacocoon.dev/attestations/release/v1`) containing the authorized release tag, release commit SHA, trusted control ref, trusted control SHA, and the expected `release` authorization environment name.
+1. standard GitHub/Sigstore build provenance tying artifact digest to the expected repository/workflow;
+2. a Hacocoon release-binding attestation (`https://hacocoon.dev/attestations/release/v1`) recording release tag, release commit SHA, trusted control ref/SHA, and the `release` Environment identity.
 
-The build job has only `contents: read`. The publisher alone receives `contents: write`, `id-token: write`, `attestations: write`, and `artifact-metadata: write`. The publisher does not checkout repository source or execute repository tests/build scripts. Environment protection must pass before the privileged publish job is sent to a runner.
+The build job has only `contents: read`. The publisher alone receives the write/OIDC/attestation permissions needed for publication. The publisher does not checkout repository source or execute repository tests/build scripts.
 
-`actions/attest`, `actions/upload-artifact`, and `actions/download-artifact` are pinned to full commit SHAs.
+Trusted Actions remain pinned to immutable full commit SHAs.
 
 ### Verify an archive
 
-Use a current GitHub CLI. First verify that the artifact was attested by the trusted release workflow running from `main`:
+Use a current GitHub CLI:
 
 ```bash
 gh attestation verify ./haco_linux_amd64.tar.gz \
@@ -97,7 +116,7 @@ gh attestation verify ./haco_linux_amd64.tar.gz \
   --deny-self-hosted-runners
 ```
 
-For an explicit version, also inspect the signed release binding:
+For an explicit release binding:
 
 ```bash
 gh attestation verify ./haco_linux_amd64.tar.gz \
@@ -110,39 +129,21 @@ gh attestation verify ./haco_linux_amd64.tar.gz \
   --jq '.[].verificationResult.statement.predicate'
 ```
 
-The predicate records the signed `tag`, `commit`, trusted control identity, and expected authorization environment selected by the trusted release control plane.
-
 ### Installer behavior
 
-The Linux installer always requires SHA-256 integrity **and trusted GitHub/Sigstore provenance by default**. `latest` is first resolved to an explicit `vX.Y.Z` release tag, then the archive is verified against the trusted release workflow, `refs/heads/main`, and the signed release-binding predicate for that resolved tag before installation.
+The Linux installer requires SHA-256 integrity and trusted GitHub/Sigstore provenance by default. `latest` is first resolved to an explicit version tag and the release binding is verified before installation.
 
-`HACO_REQUIRE_PROVENANCE=0` exists only as an explicit private/development escape hatch. It is not the supported public-install trust model.
+`HACO_REQUIRE_PROVENANCE=0` is only an explicit private/development escape hatch.
 
-The Windows installer resolves `latest` to an explicit tag, verifies `checksums.txt`, `bootstrap-wsl.sh`, and `install.sh` independently against trusted provenance and the signed release binding before executing either downloaded script, and invokes the Linux installer with `HACO_REQUIRE_PROVENANCE=1`.
+The Windows installer resolves `latest`, verifies downloaded release inputs against trusted provenance, and invokes the Linux installer with provenance verification enabled.
 
-## Private repository limitation
+## 5. Immutable Releases
 
-GitHub artifact attestations are available for public repositories on current GitHub plans. Private/internal repository attestations require GitHub Enterprise Cloud.
+Artifact provenance makes replacement detectable. GitHub Immutable Releases add a server-side control that prevents supported mutation of published release assets and associated tags.
 
-While Hacocoon remains private, the workflow skips public artifact attestation rather than presenting SHA-256 as publisher authentication. Once the repository is public, both attestation steps are mandatory and publication stops if they fail.
+Enable release immutability before relying on official releases as a stable distribution channel.
 
-The same publication boundary applies to human approval: on GitHub Free, Pro, and Team, required Environment reviewers are public-repository-only. Configure and verify required reviewers on the `release` Environment after public conversion and before publishing any official public release.
-
-## Immutable Releases
-
-Artifact provenance makes asset replacement detectable. GitHub Immutable Releases add a server-side control that prevents published release assets and their associated tags from being changed or deleted.
-
-Enable this repository setting before the first public release:
-
-```text
-Repository Settings
-  -> Releases
-  -> Enable release immutability
-```
-
-This requires repository administration authority and is intentionally not automated with a long-lived admin token in the release workflow. The workflow creates a populated draft first and publishes it only after all assets and attestations are ready.
-
-When release immutability is enabled, a current GitHub CLI can also verify GitHub's release-level attestation:
+When enabled, a current GitHub CLI can also verify release-level attestations:
 
 ```bash
 gh release verify v0.8.0 --repo SLktEx/Hacocoon
@@ -155,10 +156,11 @@ gh release verify-asset v0.8.0 ./haco_linux_amd64.tar.gz --repo SLktEx/Hacocoon
 |---|---|
 | `checksums.txt` | transport/file integrity relative to the same release authority |
 | current-main tag authorization | rejects detached commits and historical-main rollback releases |
-| `release` Environment required reviewer | separates human publication approval from ordinary repository write/dispatch authority |
+| contribution-closed solo-maintainer policy | keeps trusted repository write authority with the owner |
+| build/publish job split | minimizes code executing with release write authority |
 | pre-publish main/tag revalidation | detects default-branch or tag movement between build and publication |
-| standard artifact attestation | binds artifact digest to expected repository/workflow and trusted-main workflow execution |
-| release-binding attestation | signs the authorized release tag, commit identity, control identity, and expected authorization environment |
+| standard artifact attestation | binds artifact digest to expected repository/workflow execution |
+| release-binding attestation | signs release tag, commit, control identity, and release Environment identity |
 | Immutable Release | prevents supported post-publication release/tag mutation server-side |
 
-These layers are complementary. None replaces protected `main`, restricted release tags, safe fork-PR settings, or runner isolation.
+These layers are complementary. Re-audit the model before enabling external PRs, adding another write-capable actor, or attaching self-hosted runners.

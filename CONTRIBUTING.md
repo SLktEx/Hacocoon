@@ -2,6 +2,18 @@
 
 Hacocoon optimizes for replacement, deletion, clear responsibility boundaries, operational simplicity, and explicit security boundaries.
 
+## Current contribution policy
+
+Hacocoon is public, but external Pull Requests are intentionally **not accepted yet**. The upstream repository currently uses a solo-maintainer trust model and keeps Pull Request creation limited to collaborators.
+
+External users are welcome to:
+
+- read and fork the repository;
+- open Issues for bugs, security-relevant design concerns, questions, and proposals;
+- experiment in their own forks.
+
+Do not interpret public visibility as an open-PR policy. The contribution boundary will be revisited when Hacocoon is ready to add another trusted maintainer or accept external Pull Requests safely.
+
 Before changing code, read `CODEX_START_HERE.md`, `docs/README.md`, `docs/IMPLEMENTATION_STATUS.md`, and the versioned specification/design document relevant to the subsystem you are changing.
 
 Hacocoon is still **pre-1.0**. Breaking changes are allowed when they make the system smaller, safer, or more coherent. Existing behavior on `main` is not automatically a permanent compatibility contract.
