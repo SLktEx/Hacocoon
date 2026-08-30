@@ -44,7 +44,7 @@ func dispatch(ctx context.Context, app *composition.App, args []string) error {
 	}
 	commands := map[string]command{
 		"create":      createCommand,
-		"image":       imageCommand,
+		"base":        baseCommand,
 		"plugin":      pluginCommand,
 		"run":         runCommand,
 		"events":      eventsCommand,
@@ -261,11 +261,13 @@ func eventsCommandTo(ctx context.Context, app *composition.App, args []string, o
 
 func pluginCommand(ctx context.Context, app *composition.App, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: haco plugin <git> ...: %w", core.ErrInvalidArgument)
+		return fmt.Errorf("usage: haco plugin <git|oci> ...: %w", core.ErrInvalidArgument)
 	}
 	switch args[0] {
 	case "git":
 		return gitPluginCommand(ctx, app, args[1:])
+	case "oci":
+		return ociPluginCommand(ctx, app, args[1:])
 	default:
 		return fmt.Errorf("unknown plugin %q: %w", args[0], core.ErrInvalidArgument)
 	}
@@ -584,7 +586,7 @@ func doctorCommand(ctx context.Context, app *composition.App, args []string) err
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: haco <create|image|plugin|run|events|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
+	fmt.Fprintln(os.Stderr, "usage: haco <create|base|plugin|run|events|status|connections|forward|unforward|ssh|capability|exec|shell|delete|doctor>")
 }
 
 func fail(err error) {

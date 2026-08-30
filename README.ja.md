@@ -132,6 +132,7 @@ Workspace -> Hacocoon Environment -> loopback SSH alias -> VS Code Remote-SSH
 | **Capabilities** | Sandbox に広い Host credential を渡さず narrow privileged operation を実行 |
 | **Git / GitHub** | Privileged Git push を plugin capability として提供 |
 | **Base images** | Provider-neutral logical Base を immutable revision に解決 |
+| **OCI tooling** | `haco plugin oci` 配下の optional containerd/nerdctl Seed telemetry / image lifecycle |
 | **Resource limits** | CPU / memory / PID / Environment root storage budget |
 | **Audit** | Lifecycle / Capability / Approval / Recovery-sensitive operation の event |
 | **Providers** | Incus が default、EC2 は explicit opt-in の experimental Provider |
@@ -181,10 +182,12 @@ SSH private key は Client 側に保持します。Hacocoon は Environment allo
 Environment 作成時に logical Base を選択できます。
 
 ```bash
-haco image list
-haco image inspect haco/ubuntu-26.04
+haco base list
+haco base inspect haco/ubuntu-26.04
 haco create --base haco/ubuntu-26.04 --workspace "$PWD" dev
 ```
+
+`haco base` は Hacocoon Environment の starting point 専用です。OCI/container image はここに混ぜず、`haco plugin oci` 配下に置きます。
 
 Incus Provider では mutable source を validated immutable fingerprint に解決してから作成し、その revision を Environment に保存します。
 
@@ -196,6 +199,18 @@ Environment 1 は revision A のまま
 
 - **v0.11**: [Base Images & Custom Environments](docs/11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md)
 - 詳細: [Base Images](docs/BASE_IMAGES.ja.md)
+
+## OCI plugin
+
+OCI/containerd/nerdctl 固有の操作は optional OCI plugin surface にまとめます。
+
+```bash
+haco plugin oci seed sample
+haco plugin oci seed recommend
+haco plugin oci image delete docker.io/library/node:24
+```
+
+これで container image lifecycle と Hacocoon/Incus Base image lifecycle を混同しません。
 
 ## Resource Budget
 
@@ -275,8 +290,8 @@ Security-sensitive な変更の前に [Security Architecture](docs/00B_SECURITY_
 
 ```text
 haco create
-haco image list
-haco image inspect
+haco base list
+haco base inspect
 haco exec
 haco shell
 haco delete
@@ -286,6 +301,9 @@ haco forward
 haco unforward
 haco ssh
 haco plugin git push
+haco plugin oci seed sample
+haco plugin oci seed recommend
+haco plugin oci image delete
 haco capability request
 haco run
 haco events

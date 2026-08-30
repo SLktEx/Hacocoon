@@ -128,6 +128,7 @@ Cleanup:
 | **Capabilities** | Narrow privileged operations instead of broad sandbox-owned Host credentials |
 | **Git / GitHub** | Privileged Git push exposed as a plugin capability |
 | **Base images** | Provider-neutral logical Base selection resolved to immutable revisions |
+| **OCI tooling** | Optional containerd/nerdctl Seed telemetry and image lifecycle under `haco plugin oci` |
 | **Resource limits** | CPU, memory, PID, and Environment root-storage budgets |
 | **Audit** | Events for lifecycle, capability, approval, and recovery-sensitive operations |
 | **Providers** | Incus by default; EC2 behind explicit experimental opt-in |
@@ -179,10 +180,12 @@ The client keeps the SSH private key. Hacocoon owns Environment allocation and s
 Choose a logical Base when creating an Environment:
 
 ```bash
-haco image list
-haco image inspect haco/ubuntu-26.04
+haco base list
+haco base inspect haco/ubuntu-26.04
 haco create --base haco/ubuntu-26.04 --workspace "$PWD" dev
 ```
+
+`haco base` is for Hacocoon Environment starting points. OCI/container images are deliberately kept out of that namespace and live under `haco plugin oci`.
 
 For Incus, Hacocoon resolves a mutable source to a validated immutable fingerprint before creation and persists that revision on the Environment.
 
@@ -194,6 +197,18 @@ Environment 1 remains recorded on revision A
 
 - **v0.11**: [Base Images & Custom Environments](docs/11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md)
 - More details: [Base Images](docs/BASE_IMAGES.md)
+
+## OCI plugin
+
+OCI/containerd/nerdctl-specific operations are grouped under the optional OCI plugin surface:
+
+```bash
+haco plugin oci seed sample
+haco plugin oci seed recommend
+haco plugin oci image delete docker.io/library/node:24
+```
+
+This keeps container-image lifecycle separate from Hacocoon/Incus Base-image lifecycle.
 
 ## Resource budgets
 
@@ -273,8 +288,8 @@ Implemented does not automatically mean production-accepted on every real Provid
 
 ```text
 haco create
-haco image list
-haco image inspect
+haco base list
+haco base inspect
 haco exec
 haco shell
 haco delete
@@ -284,6 +299,9 @@ haco forward
 haco unforward
 haco ssh
 haco plugin git push
+haco plugin oci seed sample
+haco plugin oci seed recommend
+haco plugin oci image delete
 haco capability request
 haco run
 haco events

@@ -15,7 +15,6 @@ checks = [
     (r"Runtime/Storage seams|Security and Feature Plugin boundaries", "pre-rebaseline ADR terminology"),
     (r"\bDirectoryWorkspace\b", "redundant workspace-provider name"),
     (r"Status:\s*\*\*current implementation gate\*\*", "stale v0.1-as-current status"),
-    # Current-status contradictions that previously survived ordinary docs checks.
     (r"v0\.10 is the active VS Code Remote Agent Host Adapter integration candidate", "stale v0.10 unmerged status"),
     (r"v0\.11 Base Images & Custom Environments and v0\.12 Sandbox Resource Limits remain design-only", "stale v0.11/v0.12 design-only status"),
     (r"active PR #111;\s*not yet on `main`", "stale PR #111 current-status claim"),
@@ -78,6 +77,10 @@ required_files = [
     "docs/13_v0.13_LOCAL_OCI_REGISTRY.md",
     "docs/13A_v0.13_OCI_SEED_AND_COW.md",
     "docs/13A_v0.13_OCI_SEED_AND_COW.ja.md",
+    "docs/13B_v0.13_SEED_AUTO_PROMOTION.md",
+    "docs/13B_v0.13_SEED_AUTO_PROMOTION.ja.md",
+    "docs/13C_v0.13_OCI_IMAGE_DELETION.md",
+    "docs/13C_v0.13_OCI_IMAGE_DELETION.ja.md",
     "docs/IMPLEMENTATION_STATUS.md",
     "docs/IMPLEMENTATION_STATUS.ja.md",
     "README.md",
@@ -98,7 +101,6 @@ def require_text(path, required_items, label):
     return text
 
 
-# Documentation map must expose the current source-of-truth and current gates.
 docmap = require_text(
     "docs/README.md",
     [
@@ -115,15 +117,13 @@ docmap = require_text(
         "13_v0.13_LOCAL_OCI_REGISTRY.md",
         "13A_v0.13_OCI_SEED_AND_COW.md",
         "haco-agent-host",
-        "haco image list",
+        "haco base list",
+        "haco plugin oci",
         "v0.13",
-        "planned",
     ],
     "current documentation-map content",
 )
 
-# The authoritative numbering must keep implementation contiguous through v0.12
-# while reserving v0.13 explicitly as planned.
 versioning = require_text(
     "docs/00D_VERSIONING_AND_RELEASE_STATUS.md",
     [
@@ -135,8 +135,6 @@ versioning = require_text(
         "v0.13 | Local OCI Registry",
         "implemented progression is therefore contiguous through **v0.12**",
         "v0.13 is the next planned milestone",
-        "not implemented on `main`",
-        "PR #137",
     ],
     "current numbering rule",
 )
@@ -152,8 +150,6 @@ roadmap = require_text(
         "v0.10 | VS Code Remote Agent Host Adapter",
         "v0.11 | Base Images & Custom Environments",
         "v0.12 | Sandbox Resource Limits",
-        "v0.13 | Local OCI Registry",
-        "planned; not implemented on `main`",
         "experimental and disabled by default",
         "Historical note",
         "pre-1.0",
@@ -172,21 +168,20 @@ status = require_text(
         "agent-bindings.json",
         "v0.10 |",
         "haco-agent-host",
-        "PR #137",
         "v0.11 |",
-        "haco image list",
+        "haco base list",
         "haco create --base",
         "HACO_INCUS_BASES_JSON",
         "v0.12 |",
         "Resource budget model",
         "--cpu",
         "Incus resource enforcement",
+        "haco plugin oci seed recommend",
+        "haco plugin oci image delete",
         "real AWS acceptance pending",
     ],
     "current reality",
 )
-if "contiguous through **v0.13**" in status.lower():
-    errors.append("IMPLEMENTATION_STATUS must not claim v0.13 is implemented before code lands")
 
 v01 = require_text(
     "docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md",
@@ -223,7 +218,6 @@ v10 = require_text(
         "opaque session",
         "private key",
         "code --agents",
-        "PR #137",
     ],
     "required Agent Host adapter content",
 )
@@ -235,7 +229,7 @@ v11 = require_text(
         "first implementation slice",
         "immutable Base revision",
         "Incus image fingerprint",
-        "haco image list",
+        "haco base list",
         "haco create --base",
         "HACO_INCUS_BASES_JSON",
         "referenced Base revision",
@@ -263,26 +257,36 @@ v13 = require_text(
     "docs/13_v0.13_LOCAL_OCI_REGISTRY.md",
     [
         "Local OCI Registry",
-        "planned",
-        "not yet implemented on `main`",
         "containerd",
         "nerdctl",
-        "No silent direct-registry bypass",
     ],
-    "required planned v0.13 registry contract text",
+    "required v0.13 registry contract text",
 )
 
 v13a = require_text(
     "docs/13A_v0.13_OCI_SEED_AND_COW.md",
     [
         "OCI Seed",
-        "planned second slice",
-        "not yet implemented on `main`",
+        "usage telemetry/recommendation first slice implemented",
+        "Seed build/publish remains planned",
+        "haco plugin oci seed recommend",
         "Local Registry",
         "Btrfs",
         "/var/lib/containerd",
     ],
-    "required planned v0.13A contract text",
+    "required v0.13A contract text",
+)
+
+v13b = require_text(
+    "docs/13B_v0.13_SEED_AUTO_PROMOTION.md",
+    ["top **10%**", "auto_promote", "haco plugin oci seed recommend"],
+    "required v0.13B auto-promotion contract text",
+)
+
+v13c = require_text(
+    "docs/13C_v0.13_OCI_IMAGE_DELETION.md",
+    ["haco plugin oci image delete", "--all-environments", "deletion tombstone", "nerdctl rmi"],
+    "required v0.13C deletion contract text",
 )
 
 reference = (root / "docs/91_IMPLEMENTATION_REFERENCE_NOTES.md").read_text()
@@ -301,8 +305,9 @@ readme = require_text(
         "10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md",
         "haco-agent-host",
         "v0.11",
-        "haco image list",
+        "haco base list",
         "haco create --base",
+        "haco plugin oci",
         "11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md",
         "v0.12",
         "12_v0.12_SANDBOX_RESOURCE_LIMITS.md",
@@ -322,7 +327,8 @@ ja_readme = require_text(
         "v0.10",
         "haco-agent-host",
         "v0.11",
-        "haco image list",
+        "haco base list",
+        "haco plugin oci",
         "v0.12",
     ],
     "required Japanese entry-point content",

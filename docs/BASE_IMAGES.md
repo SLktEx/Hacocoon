@@ -36,10 +36,12 @@ BaseRef{Name, Revision}
 Current commands:
 
 ```text
-haco image list [--json]
-haco image inspect <base> [--json]
+haco base list [--json]
+haco base inspect <base> [--json]
 haco create --base <base> --workspace <path> <environment>
 ```
+
+`haco base` is deliberately reserved for Hacocoon Environment starting points. OCI/container images belong to the separate optional `haco plugin oci ...` namespace.
 
 At Environment creation time Hacocoon resolves the selected logical name once and persists the immutable `BaseRef` on the Environment.
 

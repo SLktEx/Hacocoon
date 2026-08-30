@@ -29,10 +29,12 @@ BaseRef{Name, Revision}
 現在の CLI:
 
 ```text
-haco image list [--json]
-haco image inspect <base> [--json]
+haco base list [--json]
+haco base inspect <base> [--json]
 haco create --base <base> --workspace <path> <environment>
 ```
+
+`haco base` は Hacocoon Environment の starting point 専用とする。OCI/container image の操作は optional な `haco plugin oci ...` namespace に分離する。
 
 Environment 作成時に logical Base を一度だけ解決し、immutable `BaseRef` を Environment metadata に保存します。
 
