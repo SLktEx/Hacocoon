@@ -52,11 +52,11 @@ func (r *Runtime) PrepareEgressProxy(ctx context.Context) (string, error) {
 	return net.JoinHostPort(gateway.String(), strconv.Itoa(sandboxEgressProxyPort)), nil
 }
 
-// ResolveEnvironment maps a proxy connection's source IP back to exactly one
-// Hacocoon-managed Incus instance. security.ipv4_filtering on the sandbox NIC
-// prevents the guest from choosing an arbitrary source address, and the
-// Environment identity is never accepted from proxy request metadata.
-func (r *Runtime) ResolveEnvironment(ctx context.Context, source net.IP) (string, error) {
+// ResolveSourceIP maps a proxy connection's source IP to exactly one
+// provider-local Incus runtime reference. This method deliberately does not
+// assign Hacocoon Environment authority; the Environment adapter must bind this
+// runtime ref to persisted managed Environment state before policy evaluation.
+func (r *Runtime) ResolveSourceIP(ctx context.Context, source net.IP) (string, error) {
 	if r == nil || r.runner == nil || source == nil || source.IsUnspecified() || source.IsLoopback() || source.IsMulticast() {
 		return "", core.ErrPolicyDenied
 	}
@@ -71,12 +71,20 @@ func (r *Runtime) ResolveEnvironment(ctx context.Context, source net.IP) (string
 	var refs []string
 	for _, line := range strings.Split(result.Stdout, "\n") {
 		ref := strings.TrimSpace(line)
-		if ref != "" {
-			refs = append(refs, ref)
+		if ref == "" {
+			continue
 		}
+		if strings.ContainsAny(ref, "\r\n\x00") {
+			return "", fmt.Errorf("Incus source lookup returned an invalid runtime ref: %w", core.ErrIncompatibleState)
+		}
+		refs = append(refs, ref)
 	}
-	if len(refs) != 1 || !strings.HasPrefix(refs[0], "haco-") || len(refs[0]) == len("haco-") {
-		return "", core.ErrPolicyDenied
+	switch len(refs) {
+	case 0:
+		return "", core.ErrNotFound
+	case 1:
+		return refs[0], nil
+	default:
+		return "", fmt.Errorf("egress source %s maps to multiple Incus runtimes: %w", ip, core.ErrIncompatibleState)
 	}
-	return strings.TrimPrefix(refs[0], "haco-"), nil
 }

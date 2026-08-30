@@ -95,6 +95,10 @@ func Local(_ context.Context) (*App, error) {
 		return nil, err
 	}
 	egressBroker := egressapp.NewBroker(capabilities)
+	egressSources, err := environmentapp.NewEgressSourceResolver(router, store)
+	if err != nil {
+		return nil, err
+	}
 
 	var (
 		ociPlugin *ociplugin.Service
@@ -130,7 +134,7 @@ func Local(_ context.Context) (*App, error) {
 		Events:        eventsapp.New(auditPath),
 		Bases:         runtime,
 		Runtime:       incusRuntime,
-		EgressProxy:   egressproxy.New(egressBroker, incusRuntime),
+		EgressProxy:   egressproxy.New(egressBroker, egressSources),
 	}, nil
 }
 
