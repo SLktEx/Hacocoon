@@ -73,7 +73,7 @@ jobs:
       - name: Validate GoReleaser configuration
         run: goreleaser check
       - name: Validate release and WSL shell syntax
-        run: bash -n scripts/install.sh scripts/bootstrap-wsl.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
+        run: bash -n scripts/install.sh scripts/bootstrap-wsl.sh tools/ci-local.sh tools/ci-incus.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
       - name: Validate Windows installer syntax and provenance behavior
         shell: pwsh
         run: |
@@ -176,3 +176,28 @@ jobs:
         run: bash test/e2e/git_github.sh
       - name: Orchestrator E2E
         run: bash test/e2e/orchestrator.sh
+
+  incus-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Install and initialize Incus
+        run: bash tools/ci-incus.sh setup
+      - name: Run real Incus system-container E2E
+        run: bash tools/ci-incus.sh test
+      - name: Capture Incus diagnostics
+        if: failure()
+        run: bash tools/ci-incus.sh diagnostics
+      - name: Clean up Incus test resources
+        if: always()
+        run: bash tools/ci-incus.sh cleanup
