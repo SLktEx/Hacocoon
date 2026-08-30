@@ -2,60 +2,39 @@
 
 [English](OCI_RUNTIME_AND_DOCKER_COMPAT.md) | **日本語**
 
-Status: **OCI plugin境界とdriver選択は実装済み。Base/Seedへの焼き込みとreal-host acceptanceはpending。**
+Status: **plugin境界/driver compositionは実装済み。v0.17 Docker Engine/Base統合とreal-host acceptanceはpending。**
 
-この資料は、Hacocoon Coreとは独立した**任意のdeveloper-tooling plugin**としてOCI/Docker周りを定義します。
+Docker milestoneは [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.ja.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.ja.md)、Environment間のSeed/COWは [`19_v0.19_OCI_SEED_AND_COW.ja.md`](19_v0.19_OCI_SEED_AND_COW.ja.md) を参照してください。
 
 ## Coreの方針
 
-Hacocoon Coreには標準OCI runtimeを持たせません。
+Hacocoon Coreにはcanonical OCI runtimeを持たせません。Coreは`containerd`、`nerdctl`、Docker CLI、Docker Engineを必須にしません。
 
-Coreは次を必須要件にしません。
+OCI toolingが一切ないinstallationでもEnvironment lifecycle、隔離、実行、connection、policy/approval、eventは成立しなければなりません。
 
-- `containerd`
-- `nerdctl`
-- Docker CLI
-- Docker Engine / `dockerd`
-- OCI registry
-- OCI image telemetry / Seed promotion
-
-これらが一切入っていない環境でも、Environmentの作成・隔離・接続・実行・削除、policy/approval、eventなどのCore機能は成立しなければなりません。
-
-OCI機能は`modules/plugin/oci`に置き、明示的に有効化します。
+OCI/container固有機能は`modules/plugin/oci`に置き、明示的にenableします。
 
 ```text
 HACO_PLUGIN_OCI=nerdctl
 HACO_PLUGIN_OCI=docker
 ```
 
-`HACO_PLUGIN_OCI`が未設定ならOCI pluginはcompositionされず、Coreはcontainer CLIの存在確認すらしません。
+`HACO_PLUGIN_OCI`未設定ならOCI pluginはcompositionされず、Coreはcontainer toolingをprobe・要求しません。
 
-plugin側のCLIは次に置きます。
+## Project-maintained OCI profile
 
-```text
-haco plugin oci status
-haco plugin oci seed sample
-haco plugin oci seed recommend
-```
-
-`haco base`はHacocoon EnvironmentのBaseを扱うCore commandなので残します。OCI workload imageの管理commandではありません。
-
-## Hacocoonが用意するOCI profile
-
-OCI pluginを使う場合、Hacocoon projectが主に想定するprofileは次です。
+OCI workflowを使う利用者向けにHacocoon projectが主に想定するprofileは:
 
 ```text
-containerd  （Environment内のruntime/content service）
+containerd  （Environment-local runtime/content service）
     ^
     |
 nerdctl     （このprofileの通常CLI）
 ```
 
-ただしこれは**plugin/profileの選択**であって、Hacocoon Coreの不変条件ではありません。
+です。これは**profile選択**でありCore invariantではありません。別のBase/Seedは別のOCI stack、またはOCI toolingなしを選べます。
 
-利用者のBase/Seedは別のOCI stackを選んでもよく、OCI stack自体を持たなくても構いません。
-
-Docker ecosystemとの互換性が欲しいprofileでは、本物のDocker CLIも追加できます。Docker Engine APIまで必要なsoftware向けには、さらにoptionalなsocket activation経路を使えます。
+Docker互換が必要なprofileでは追加で:
 
 ```text
 Docker CLI / Docker API client
@@ -68,124 +47,89 @@ hacocoon-docker.socket
           v
        dockerd
           |
-          | --containerd=/run/containerd/containerd.sock
+          | existing Environment-local containerd where supported
           v
-     same containerd
+     containerd
 ```
 
-これらのunitはCoreの`packaging/`ではなく、`modules/plugin/oci/packaging/systemd/`に置きます。
+という経路を使えます。
 
 ## Plugin driver選択
 
-現在の`HACO_PLUGIN_OCI`は、OCI Seed telemetryでimage inventoryを取るCLI driverを選びます。
+`HACO_PLUGIN_OCI`はoptional pluginのOCI inventory driverを選びます。
 
-- `nerdctl`: Environment内で`nerdctl images ...`を実行
-- `docker`: Environment内で本物の`docker images --digests ...`を実行
+- `nerdctl`: managed Environment内で`nerdctl images ...`
+- `docker`: 本物のDocker CLIでinventory
 
-driverを選んでも、Hacocoon Coreがそのbinaryをinstallするわけではありません。必要なtoolはBase/Seedまたはoperatorが提供します。
+driver選択はbinary install、registry credential付与、任意のHost Docker daemon authorityを意味しません。
 
-## Docker compatibility rule
+Base lifecycleとOCI workload-image lifecycleは分離します。
 
-OCI pluginのDocker Engine compatibility profileを使う場合だけ、次を適用します。
+```text
+haco base ...                    Environment starting point
+haco plugin oci ...              optional OCI/container operation
+```
 
-1. そのprofileでは`containerd`を常駐OCI serviceとして使う
-2. `docker`はHacocoon製wrapperではなく本物のDocker CLIを使う
-3. `dockerd`は通常停止状態にする
-4. `/run/docker.sock`へのaccessで`hacocoon-docker.service`を起動する
-5. 起動した`dockerd`は`/run/containerd/containerd.sock`へ接続する
-6. Docker互換のためだけに2個目のprivate containerdを起動しない
-7. Docker APIはEnvironment-local Unix socketだけに公開するのを標準とする
-8. HostのDocker socketをEnvironmentへmountしない
+## v0.15 / v0.16 plugin ownership
 
-`hacocoon-docker.service`自身はboot targetから直接enableしません。enableするのはsocketだけです。
+OCI Seed telemetry/recommendationとOCI deletion/tombstone stateは`modules/plugin/oci`所有です。
 
-socket activationは必要時にdaemonを起動する仕組みであり、client切断後に自動停止する仕組みではありません。
+- v0.15: future Seed候補となるimmutable OCI identityを選ぶ
+- v0.16: explicit deletion/tombstoneを扱う
+- v0.19: physical immutable Seed build/publish/GCとCOWを扱う
 
-## containerd namespace と容量
+plugin無効時はoptional OCI commandが使えないだけで、Core Environment lifecycleはvalidなままです。
 
-project-maintained profileでDocker Engineとnerdctlが同じcontainerd daemonを使う場合、Dockerは`moby`など別namespaceを使って構いません。
+## v0.17 Docker compatibility rule
 
-高位のmetadataを分離したままでも、content-addressedなOCI blobはcontainerd content storeで共有できます。
+Docker Engine compatibilityを提供するBase/Seedでは:
 
-ただし全byteの完全dedupを保証するものではありません。namespace固有metadata、unpack済みsnapshot、writable layer、build cache、Docker固有stateなどは追加容量を使います。
+1. Hacocoon製imitate CLIではなく本物のDocker CLIを使う
+2. Engine APIが必要になるまで`dockerd`を停止
+3. `/run/docker.sock`はEnvironment-local
+4. supportedな場合はsocket activation/on-demand startup
+5. compatibilityのためだけに2個目のHacocoon-managed containerdを起動しない
+6. Host Docker socketをEnvironmentへmountしない
+7. Docker互換からGitHub/cloud/registry/Host authorityを得られない
 
-Environment間の容量削減はSeed/COW側の責務です。複数Environmentで1つのwritable `/var/lib/containerd`を共有してはいけません。
+plugin-owned unitは次に置きます。
 
-## Base / Seedへの組み込み
+```text
+modules/plugin/oci/packaging/systemd/
+```
 
-OCI対応Base/Seedが、どのplugin profileを提供するかを決めます。Environment起動時にCoreが毎回package installする設計にはしません。
-
-`nerdctl` profileでは例えば次を焼き込めます。
-
-- standalone `containerd`
-- `nerdctl`
-- 必要なら本物のDocker CLI
-
-Docker Engine compatibility profileではさらに次を追加できます。
-
-- `dockerd`
-- 必要ならEnvironment-local `docker` group
-- `modules/plugin/oci/packaging/systemd/hacocoon-docker.socket`
-- `modules/plugin/oci/packaging/systemd/hacocoon-docker.service`
-
-provisioningではvendorのDocker auto-startと競合しないようにし、`hacocoon-docker.socket`だけをenableします。immutable Base/Seed publish前に`dockerd`が停止していること、registry credentialやHost control socketをimageへ取り込んでいないことも確認します。
+serviceを通常boot targetとしてenableせず、socketでon-demand startします。socket activationはidle shutdownを意味しません。
 
 ## Security boundary
 
-Docker daemonは**そのEnvironment内部では強いauthority**を持ちます。Docker socketへaccessできるuserは、そのEnvironment内ではroot-equivalentとして扱います。
-
-必須rule:
+Docker daemonはそのEnvironment内部では強いauthorityを持ちます。
 
 - `/run/docker.sock`はEnvironment-local
-- Hostの`/var/run/docker.sock`をbind mountしない
-- Host側のcontainerd / Incus / Hacocoon control socketを渡さない
-- 標準ではDocker APIをTCP listenしない
-- socketは`0660`、group membershipは明示的にする
-- OCI pluginを有効にしてもGitHub/cloud/registry/Host credentialを自動付与しない
-- 外側のsecurity boundaryはHacocoon Environmentのまま
+- Host Docker/containerd/Incus/Hacocoon control socket passthrough禁止
+- 標準ではTCP Docker API listenなし
+- socket/group membershipは明示
+- OCI plugin enablementでreusable Host credentialを付与しない
+- 外側のsecurity boundaryはHacocoon Environment
 
-## Telemetry / Seed recommendation
+## Storage
 
-OCI Seed usage telemetryはplugin側の責務です。選択されたdriverがworkload image usageをsampleし、CoreのEnvironment stateとは別のplugin stateへ保存します。
+project-maintained profileでは、Dockerとnerdctlが異なるcontainerd namespaceを使いつつcontent-addressed blobを共有できる場合があります。ただしmetadata、snapshot、unpack済みfilesystem、writable layer、build cacheまで完全dedupされる保証はありません。
 
-同じimmutable digestが複数経路で見えても、Seed recommendationで二重countしてはいけません。
+Environment間の容量削減はv0.19の責務です。一つのwritable `/var/lib/containerd`を複数Environmentで共有してはいけません。
 
 ## Acceptance
 
-Core acceptanceでは、まず次を確認します。
+Core acceptanceにはplugin-disabled caseを含めます。
 
 ```text
 HACO_PLUGIN_OCI unset
+containerd absent
 nerdctl absent
 Docker absent
-containerd absent
 
--> OCI pluginなしでもCore compositionが成立する
+-> Core Environment lifecycleが成立
 ```
 
-plugin acceptanceではdriverごとに確認します。
+plugin側では明示driver選択を検証し、full v0.17ではsupported Base/Seed上のEnvironment-local on-demand Docker Engine lifecycleを追加検証します。
 
-```text
-HACO_PLUGIN_OCI=nerdctl
-  -> haco plugin oci status が nerdctl を返す
-  -> Seed sample は nerdctl だけを使う
-
-HACO_PLUGIN_OCI=docker
-  -> haco plugin oci status が docker を返す
-  -> Seed sample は Docker CLI だけを使う
-```
-
-Docker Engine compatibility profileのreal acceptanceは、Base/Seed build path完成後に次を確認します。
-
-```text
-boot
-  containerd: active
-  dockerd: inactive
-  hacocoon-docker.socket: active
-
-最初のDocker API request
-  -> dockerd becomes active
-  -> docker info succeeds
-```
-
-> **OCI toolingはoptional。`containerd + nerdctl`はHacocoonが用意するplugin profileであって、Core要件ではありません。**
+> **OCI toolingはoptional。`containerd + nerdctl`はproject-maintained profileであってHacocoon Core要件ではありません。**

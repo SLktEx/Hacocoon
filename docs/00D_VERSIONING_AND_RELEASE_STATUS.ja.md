@@ -4,24 +4,27 @@
 
 > **milestone番号の日本語案内 · 2026-08-30更新**
 
-Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進行順を表すもので、compatibility guarantee、release tag、production supportの証明ではありません。
+Hacocoon は **pre-1.0** です。milestone番号はproduct/implementationの進行を表し、compatibility guarantee、release tag、production supportの証明ではありません。
 
-**番号の正本は英語版 [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)**、現在の実装事実は [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) です。
+番号の正本は英語版 [`00D_VERSIONING_AND_RELEASE_STATUS.md`](00D_VERSIONING_AND_RELEASE_STATUS.md)、実装事実の正本は [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) です。
 
 ## 番号付けの方針
 
-1. 実装済みmilestoneは、変更コストが低い間はなるべく連続させる
-2. design-only gateのせいで、既に実装済みの独立機能を後ろの番号へ追いやらない
-3. security/hardeningだけでは通常product versionを消費しない
-4. projectが便利なprofileを提供しても、optional integrationをCore必須要件へ昇格させない
-5. release tagとroadmap milestone番号は別物
-6. repository implementationの正本は`IMPLEMENTATION_STATUS.md`
+> **独立して価値のある1機能につき、おおむね1つのminor milestoneを使う。**
+
+1. 独立した新機能は通常、次の `v0.N` を使う
+2. 同じ1機能を完成させる複数PRは同じmilestoneにまとめてよい
+3. security/hardening、bug fix、refactor、CLI namespace整理、CI、docs、release engineering、test-only変更だけでは通常versionを消費しない
+4. feature implementation PR自身でこのファイルと `IMPLEMENTATION_STATUS.md` を更新し、後日の整理へ先送りしない
+5. design-only specificationはfuture numberを予約できるが、実装されるまでは **planned**
+6. historical commit/PR/branch/旧filenameは現在番号の正本ではない
+7. release tagとroadmap milestone番号は別物
 
 ## 現在の番号
 
-**凡例:** ✅ 実装済み · 🧪 historical/deferred · 🚧 planned
+**凡例:** ✅ 実装済み · 🧪 partial/experimental/historical · 🚧 planned
 
-| Version | Gate | 状況 |
+| Version | Gate | `main` の状況 |
 |---|---|---|
 | v0.1 | Secure Workspace Runtime MVP | ✅ 実装済み |
 | v0.2 | Workspace Abstraction & Lease | ✅ 実装済み |
@@ -29,49 +32,65 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 | v0.4 | Policy & Capability Foundation | ✅ 実装済み |
 | v0.5 | Git / GitHub Capability | ✅ 実装済み |
 | v0.6 | Agent & Orchestrator Integration | ✅ 実装済み |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 provider seamは維持。EC2/AWS/EBS実装はdeferred |
-| v0.8 | Client Adapters & VS Code Integration | ✅ 実装済み。real client acceptance pending |
+| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 provider routing seamは維持。concrete EC2/AWS/EBS実装はdeferred |
+| v0.8 | Client Adapters & VS Code Integration | ✅ 実装済み |
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation実装済み |
-| v0.10 | VS Code Remote Agent Host Adapter | ✅ 実装済み。real host acceptance pending |
+| v0.10 | VS Code Remote Agent Host Adapter | ✅ 実装済み |
 | v0.11 | Base Images & Custom Environments | ✅ first slice実装済み |
 | v0.12 | Sandbox Resource Limits | ✅ first slice実装済み |
-| v0.13 | Optional OCI Plugin | ✅ first slice実装。opt-in nerdctl/Docker driver、telemetry、Seed recommendation foundation |
-| v0.13A | OCI Seed Build & Btrfs/COW Optimization | 🚧 follow-up planned。Seed build/publishとreal storage acceptanceはpending |
-| v0.13B | OCI Seed Automatic Promotion Policy | ✅ selection policy実装。Seed Builderでのconsumeはpending |
-| v0.13C | OCI Image Deletion | ✅ first slice実装。plugin-owned deletion/tombstone、replacement Seed publish/GCはpending |
+| v0.13 | Managed Sandbox Network | ✅ 実装済み |
+| v0.14 | Git Fetch Plugin | ✅ 実装済み |
+| v0.15 | OCI Seed Recommendation | ✅ 実装済み |
+| v0.16 | OCI Image Deletion | ✅ first slice実装済み |
+| v0.17 | Docker Compatibility Plugin | 🧪 foundation実装済み。full plugin integrationはpending |
+| v0.18 | Optional Local OCI Registry | 🚧 planned |
+| v0.19 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
 
-現在の実装progressionは **v0.13 optional-plugin first sliceまで連続**しています。v0.7はcloud-specific実装をdeferしてもprovider-neutral seamが残るため、その番号を維持します。
+**完全に実装済みのproduct progressionはv0.16まで連続**しています。v0.17はfoundation段階、v0.18/v0.19はplannedです。
 
-## Core / optional boundary
+v0.7は、そのgateで導入したprovider-neutral routing seam自体が現在も実装されているため番号を維持します。以前のconcrete EC2/AWS/EBS sliceはactive treeから意図的に外しており、local/provider contractが安定するまで **cloud implementationは現在deferred** です。
 
-OCI specificationが存在しても、OCI toolingがCore機能になるわけではありません。
+## v0.12 → v0.19 再整理
 
-`HACO_PLUGIN_OCI`未設定なら、Hacocoonは`containerd` / `nerdctl` / Docker CLI / Docker Engineを要求しません。
+一つのOCI milestoneと枝番の下に独立機能が増え、元々の「1機能1versionくらい」という方針とずれたため、次のように正式に振り直します。
 
 ```text
-HACO_PLUGIN_OCI=nerdctl
-HACO_PLUGIN_OCI=docker
-
-haco plugin oci status
-haco plugin oci seed sample
-haco plugin oci seed recommend
-haco plugin oci image delete <reference[@digest]>
+v0.12  Sandbox Resource Limits                 implemented
+v0.13  Managed Sandbox Network                 implemented
+v0.14  Git Fetch Plugin                        implemented
+v0.15  OCI Seed Recommendation                 implemented
+v0.16  OCI Image Deletion                      implemented
+v0.17  Docker Compatibility Plugin             partial/foundation
+v0.18  Optional Local OCI Registry             planned
+v0.19  OCI Seed Builder & Btrfs/COW            planned
 ```
 
-project-maintainedな`containerd + nerdctl`構成はoptional profile。本物のDocker CLI / Docker Engine compatibilityもoptionalです。
+古いOCI milestone名や枝番はhistorical recordとしてのみ扱います。
+
+その後の `haco base ...` と `haco plugin oci ...` のCLI namespace分離はboundary/refactor修正なので、追加のproduct milestoneは消費しません。
+
+## Specification map
+
+- [`13_v0.13_MANAGED_SANDBOX_NETWORK.md`](13_v0.13_MANAGED_SANDBOX_NETWORK.md)
+- [`14_v0.14_GIT_FETCH_PLUGIN.md`](14_v0.14_GIT_FETCH_PLUGIN.md)
+- [`15_v0.15_OCI_SEED_RECOMMENDATION.md`](15_v0.15_OCI_SEED_RECOMMENDATION.md)
+- [`16_v0.16_OCI_IMAGE_DELETION.md`](16_v0.16_OCI_IMAGE_DELETION.md)
+- [`17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md`](17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md)
+- [`18_v0.18_LOCAL_OCI_REGISTRY.md`](18_v0.18_LOCAL_OCI_REGISTRY.md)
+- [`19_v0.19_OCI_SEED_AND_COW.md`](19_v0.19_OCI_SEED_AND_COW.md)
 
 ## Acceptance watch list
 
-- **v0.7:** cloud implementationは現在deferred。以前のEC2 providerはexperimental/default-offでreal AWS acceptance pendingだった。cloud adapter復活時にacceptanceを再定義する
-- **v0.8:** real Windows/WSL + Incus + VS Code Remote-SSH
-- **v0.9/v0.10:** real VS Code Agent Host/AHP routing、Incus SSH
-- **v0.11:** real Incus image source/custom Base。build/import/history/rollback/GCはfollow-up
-- **v0.12:** real Incus CPU/memory/PID/root-storage enforcement
-- **v0.13:** plugin境界・driver selection・telemetry・recommendation・deletion logicはrepository実装済み。real OCI profile/container-tool acceptanceはpending
-- **v0.13A:** Seed build/publishとreal Btrfs/COW acceptanceはplanned
-- **v0.13B:** selection policyは実装済み。future Seed Builderでのconsumeはplanned
-- **v0.13C:** deletion/tombstoneは実装済み。replacement Seed publishとold-Seed GCはpending
+- **v0.7:** cloud implementationは現在deferred。concrete cloud adapterを戻す時にacceptanceを再定義する
+- **v0.8:** real Windows/WSL + Incus + VS Code pending
+- **v0.9/v0.10:** real Agent Host/AHP routing pending
+- **v0.11/v0.12:** real Base/image・resource enforcement pending
+- **v0.13:** real supported-Incus network/profile/ACL pending
+- **v0.14:** brokered fetch実装済み。real private-repository combinationは別途acceptance
+- **v0.15/v0.16:** OCI plugin repository behavior実装済み。physical Seed publication/GCはv0.19
+- **v0.17:** plugin lifecycle/integration完了まではcomplete扱いしない
+- **v0.18/v0.19:** planned
 
 ## 一文でいうと
 
-> **番号はこのファイル、実装事実は`IMPLEMENTATION_STATUS.md`、設計意図はroadmap/specificationを見る。便利なprofileを同梱してもoptional toolingはoptionalのまま。**
+> **独立した新機能ならそのPRで次minorを取る。fix/hardening/refactorならproduct versionは進めない。**

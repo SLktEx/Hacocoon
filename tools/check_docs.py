@@ -9,17 +9,17 @@ files = [p for p in root.rglob("*.md") if p.name != "Hacocoon_v0.1-v0.7_MASTER.m
 checks = [
     (r"v0\.1 Local Foundation|v0\.2 Developer Workspace|v0\.3 Security Framework|v0\.4 External Capabilities|v0\.5 Local GUI|v0\.6 Local Web", "old release ordering"),
     (r"01_v0\.1_LOCAL_FOUNDATION|02_v0\.2_DEVELOPER_WORKSPACE|03_v0\.3_SECURITY_FRAMEWORK_AND_GIT|04_v0\.4_EXTERNAL_CAPABILITIES|05_v0\.5_LOCAL_GUI_AND_IDE|06_v0\.6_LOCAL_WEB_AND_INTERACTION|07_v0\.7_REMOTE_AND_EC2", "superseded release filename"),
-    (r"11_v0\.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER|#\s*v0\.11\s+VS Code Remote Agent Host Adapter", "stale v0.11 Agent Host adapter assignment"),
+    (r"11_v0\.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER|#\s*v0\.11\s+VS Code Remote Agent Host Adapter", "stale v0.11 Agent Host assignment"),
+    (r"13_v0\.13_LOCAL_OCI_REGISTRY|13A_v0\.13_OCI_SEED_AND_COW|13B_v0\.13_SEED_AUTO_PROMOTION|13C_v0\.13_OCI_IMAGE_DELETION", "superseded v0.13 OCI filename"),
+    (r"\|\s*v0\.13\s*\|\s*Local OCI Registry\s*\|", "stale Local Registry milestone assignment"),
+    (r"implemented milestones are contiguous through \*\*v0\.12\*\*", "stale implemented-milestone ceiling"),
+    (r"v0\.13 Local OCI Registry is planned", "stale next-milestone claim"),
     (r"\bHacocoon IAM\b", "legacy Hacocoon IAM term"),
     (r"Manager/Session trust boundary|Manager / Session trust boundary", "legacy Manager/Session architecture boundary"),
     (r"Runtime/Storage seams|Security and Feature Plugin boundaries", "pre-rebaseline ADR terminology"),
     (r"\bDirectoryWorkspace\b", "redundant workspace-provider name"),
     (r"Status:\s*\*\*current implementation gate\*\*", "stale v0.1-as-current status"),
-    (r"v0\.10 is the active VS Code Remote Agent Host Adapter integration candidate", "stale v0.10 unmerged status"),
-    (r"v0\.11 Base Images & Custom Environments and v0\.12 Sandbox Resource Limits remain design-only", "stale v0.11/v0.12 design-only status"),
-    (r"active PR #111;\s*not yet on `main`", "stale PR #111 current-status claim"),
-    (r"v0\.10 is the trusted adapter layer currently developed in PR #111", "stale PR #111 current-status claim"),
-    (r"This gate is \*\*not implemented on `main` until PR #111 is merged\*\*", "stale v0.10 not-implemented claim"),
+    (r"active PR #111;\s*not yet on `main`|v0\.10 is the trusted adapter layer currently developed in PR #111", "stale PR #111 status"),
 ]
 
 errors = []
@@ -50,6 +50,13 @@ superseded_files = [
     "docs/11_v0.11_SANDBOX_RESOURCE_LIMITS.ja.md",
     "docs/11_v0.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md",
     "docs/11_v0.11_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md",
+    "docs/13_v0.13_LOCAL_OCI_REGISTRY.md",
+    "docs/13A_v0.13_OCI_SEED_AND_COW.md",
+    "docs/13A_v0.13_OCI_SEED_AND_COW.ja.md",
+    "docs/13B_v0.13_SEED_AUTO_PROMOTION.md",
+    "docs/13B_v0.13_SEED_AUTO_PROMOTION.ja.md",
+    "docs/13C_v0.13_OCI_IMAGE_DELETION.md",
+    "docs/13C_v0.13_OCI_IMAGE_DELETION.ja.md",
 ]
 for rel in superseded_files:
     if (root / rel).exists():
@@ -59,7 +66,6 @@ required_files = [
     "docs/README.md",
     "docs/README.ja.md",
     "docs/00_REBASELINE_AND_ROADMAP.md",
-    "docs/00A_PLUGIN_ARCHITECTURE.md",
     "docs/00D_VERSIONING_AND_RELEASE_STATUS.md",
     "docs/00D_VERSIONING_AND_RELEASE_STATUS.ja.md",
     "docs/00C_TERMINOLOGY_AND_BOUNDARIES.md",
@@ -67,27 +73,30 @@ required_files = [
     "docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md",
     "docs/08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md",
     "docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md",
-    "docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md",
     "docs/10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md",
-    "docs/10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md",
     "docs/11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md",
-    "docs/BASE_IMAGES.md",
-    "docs/BASE_IMAGES.ja.md",
     "docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.md",
-    "docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md",
-    "docs/13_v0.13_LOCAL_OCI_REGISTRY.md",
-    "docs/13A_v0.13_OCI_SEED_AND_COW.md",
-    "docs/13A_v0.13_OCI_SEED_AND_COW.ja.md",
-    "docs/13B_v0.13_SEED_AUTO_PROMOTION.md",
-    "docs/13B_v0.13_SEED_AUTO_PROMOTION.ja.md",
-    "docs/13C_v0.13_OCI_IMAGE_DELETION.md",
-    "docs/13C_v0.13_OCI_IMAGE_DELETION.ja.md",
+    "docs/13_v0.13_MANAGED_SANDBOX_NETWORK.md",
+    "docs/13_v0.13_MANAGED_SANDBOX_NETWORK.ja.md",
+    "docs/14_v0.14_GIT_FETCH_PLUGIN.md",
+    "docs/14_v0.14_GIT_FETCH_PLUGIN.ja.md",
+    "docs/15_v0.15_OCI_SEED_RECOMMENDATION.md",
+    "docs/15_v0.15_OCI_SEED_RECOMMENDATION.ja.md",
+    "docs/16_v0.16_OCI_IMAGE_DELETION.md",
+    "docs/16_v0.16_OCI_IMAGE_DELETION.ja.md",
+    "docs/17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md",
+    "docs/17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.ja.md",
+    "docs/18_v0.18_LOCAL_OCI_REGISTRY.md",
+    "docs/18_v0.18_LOCAL_OCI_REGISTRY.ja.md",
+    "docs/19_v0.19_OCI_SEED_AND_COW.md",
+    "docs/19_v0.19_OCI_SEED_AND_COW.ja.md",
     "docs/OCI_RUNTIME_AND_DOCKER_COMPAT.md",
     "docs/OCI_RUNTIME_AND_DOCKER_COMPAT.ja.md",
     "docs/IMPLEMENTATION_STATUS.md",
     "docs/IMPLEMENTATION_STATUS.ja.md",
     "README.md",
     "README.ja.md",
+    "CODEX_START_HERE.md",
     "docs/ARCHITECTURE_GUIDE.ja.md",
 ]
 for rel in required_files:
@@ -104,168 +113,125 @@ def require_text(path, required_items, label):
     return text
 
 
-require_text(
-    "docs/README.md",
-    [
-        "Source-of-truth order",
-        "Specification vs implementation",
-        "pre-1.0",
-        "Current code reality",
-        "IMPLEMENTATION_STATUS.md",
-        "00D_VERSIONING_AND_RELEASE_STATUS.md",
-        "09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md",
-        "10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md",
-        "11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md",
-        "12_v0.12_SANDBOX_RESOURCE_LIMITS.md",
-        "13_v0.13_LOCAL_OCI_REGISTRY.md",
-        "13A_v0.13_OCI_SEED_AND_COW.md",
-        "haco-agent-host",
-        "haco base list",
-        "haco plugin oci",
-        "v0.13",
-    ],
-    "current documentation-map content",
-)
-
-require_text(
+versioning = require_text(
     "docs/00D_VERSIONING_AND_RELEASE_STATUS.md",
     [
-        "v0.7 | Remote / Cloud Runtime & External Capabilities",
-        "cloud implementation deferred",
-        "v0.8 | Client Adapters & VS Code Integration",
-        "v0.9 | Per-Agent Sandbox & Agent Host Integration",
-        "v0.10 | VS Code Remote Agent Host Adapter",
-        "v0.11 | Base Images & Custom Environments",
-        "v0.12 | Sandbox Resource Limits",
-        "v0.13 | Optional OCI Plugin",
-        "v0.13A | OCI Seed Build & Btrfs/COW Optimization",
-        "v0.13B | OCI Seed Automatic Promotion Policy",
-        "v0.13C | OCI Image Deletion",
-        "v0.13 optional-plugin first slice",
-        "HACO_PLUGIN_OCI=nerdctl",
-        "HACO_PLUGIN_OCI=docker",
+        "One independently useful product feature",
+        "v0.13 | Managed Sandbox Network",
+        "v0.14 | Git Fetch Plugin",
+        "v0.15 | OCI Seed Recommendation",
+        "v0.16 | OCI Image Deletion",
+        "v0.17 | Docker Compatibility Plugin",
+        "v0.18 | Optional Local OCI Registry",
+        "v0.19 | OCI Seed Builder & Btrfs/COW",
+        "contiguous through **v0.16**",
+        "same PR",
+        "cloud implementation is currently deferred",
     ],
     "current numbering rule",
 )
 
-require_text(
-    "docs/00A_PLUGIN_ARCHITECTURE.md",
-    [
-        "Core boundary",
-        "Core must not require a particular developer workload or toolchain",
-        "modules/plugin/oci",
-        "HACO_PLUGIN_OCI=nerdctl",
-        "HACO_PLUGIN_OCI=docker",
-        "cloud implementation deferred",
-        "haco base",
-    ],
-    "optional plugin boundary",
-)
-
-require_text(
-    "docs/OCI_RUNTIME_AND_DOCKER_COMPAT.md",
-    [
-        "Hacocoon Core has no canonical OCI runtime",
-        "modules/plugin/oci",
-        "HACO_PLUGIN_OCI=nerdctl",
-        "HACO_PLUGIN_OCI=docker",
-        "haco base",
-        "modules/plugin/oci/packaging/systemd",
-    ],
-    "optional OCI runtime contract",
-)
-
-require_text(
-    "docs/00_REBASELINE_AND_ROADMAP.md",
-    [
-        "Hacocoon is a **Secure Workspace Runtime**",
-        "Project status at a glance",
-        "Current code reality",
-        "IMPLEMENTATION_STATUS.md",
-        "v0.9 | Per-Agent Sandbox & Agent Host Integration",
-        "v0.10 | VS Code Remote Agent Host Adapter",
-        "v0.11 | Base Images & Custom Environments",
-        "v0.12 | Sandbox Resource Limits",
-        "Historical note",
-        "pre-1.0",
-    ],
-    "current contract text",
-)
-
-require_text(
+status = require_text(
     "docs/IMPLEMENTATION_STATUS.md",
     [
         "current code reality",
-        "`haco create --workspace`",
-        "Per-agent sandbox broker",
-        "internal/agenthost",
-        "agent-bindings.json",
-        "haco-agent-host",
-        "haco base list",
-        "haco create --base",
-        "HACO_INCUS_BASES_JSON",
-        "Resource budget",
-        "--cpu",
-        "Optional OCI plugin boundary",
-        "modules/plugin/oci",
-        "HACO_PLUGIN_OCI=nerdctl",
-        "HACO_PLUGIN_OCI=docker",
+        "contiguous through **v0.16**",
+        "Managed sandbox network",
+        "haco plugin git fetch",
+        "haco plugin oci seed sample",
         "haco plugin oci seed recommend",
+        "auto_promote",
         "haco plugin oci image delete",
-        "real AWS acceptance pending",
+        "Docker compatibility",
+        "v0.18",
+        "v0.19",
+        "cloud implementation is currently deferred",
     ],
     "current reality",
 )
 
+roadmap = require_text(
+    "docs/00_REBASELINE_AND_ROADMAP.md",
+    [
+        "Hacocoon is a **Secure Workspace Runtime**",
+        "v0.13 | Managed Sandbox Network",
+        "v0.14 | Git Fetch Plugin",
+        "v0.15 | OCI Seed Recommendation",
+        "v0.16 | OCI Image Deletion",
+        "v0.17 | Docker Compatibility Plugin",
+        "v0.18 | Optional Local OCI Registry",
+        "v0.19 | OCI Seed Builder & Btrfs/COW",
+        "cloud implementation deferred",
+        "Historical note",
+    ],
+    "current roadmap contract",
+)
+
+docmap = require_text(
+    "docs/README.md",
+    [
+        "Source-of-truth order",
+        "Numbering rule",
+        "13_v0.13_MANAGED_SANDBOX_NETWORK.md",
+        "14_v0.14_GIT_FETCH_PLUGIN.md",
+        "15_v0.15_OCI_SEED_RECOMMENDATION.md",
+        "16_v0.16_OCI_IMAGE_DELETION.md",
+        "17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md",
+        "18_v0.18_LOCAL_OCI_REGISTRY.md",
+        "19_v0.19_OCI_SEED_AND_COW.md",
+        "haco base list",
+        "haco plugin oci",
+        "contiguous through **v0.16**",
+    ],
+    "documentation map",
+)
+
 require_text(
-    "docs/01_v0.1_SECURE_WORKSPACE_RUNTIME.md",
-    ["haco create --workspace", "haco exec", "haco shell", "haco delete", "Incus"],
-    "required runtime gate text",
+    "docs/13_v0.13_MANAGED_SANDBOX_NETWORK.md",
+    ["Managed Sandbox Network", "haco-sandbox0", "haco-sandbox", "fail closed"],
+    "v0.13 contract",
 )
 require_text(
-    "docs/08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md",
-    ["Client Adapter", "haco-vscode", "Remote-SSH", "loopback-only", "Windows + WSL"],
-    "required client-adapter contract text",
+    "docs/14_v0.14_GIT_FETCH_PLUGIN.md",
+    ["Git Fetch Plugin", "haco plugin git fetch", "gh auth git-credential", "credentials remain"],
+    "v0.14 contract",
 )
 require_text(
-    "docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md",
-    ["Per-Agent Sandbox", "per-session broker", "Agent Host", "AHP", "WorkspaceLease", "persisted binding proof", "v0.11 Base Images"],
-    "required per-agent contract text",
+    "docs/15_v0.15_OCI_SEED_RECOMMENDATION.md",
+    ["OCI Seed Recommendation", "haco plugin oci seed recommend", "6 hours", "30 days", "top **10%**", "auto_promote"],
+    "v0.15 contract",
 )
 require_text(
-    "docs/10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md",
-    ["VS Code Remote Agent Host Adapter", "haco-agent-host", "loopback", "opaque session", "private key", "code --agents"],
-    "required Agent Host adapter content",
+    "docs/16_v0.16_OCI_IMAGE_DELETION.md",
+    ["OCI Image Deletion", "haco plugin oci image delete", "tombstone", "recovery-required"],
+    "v0.16 contract",
 )
 require_text(
-    "docs/11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md",
-    ["Base Images & Custom Environments", "first implementation slice", "immutable Base revision", "Incus image fingerprint", "haco base list", "haco create --base", "HACO_INCUS_BASES_JSON", "referenced Base revision"],
-    "required Base-image contract text",
+    "docs/17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md",
+    ["Docker Compatibility Plugin", "containerd + nerdctl", "on-demand", "not yet a complete"],
+    "v0.17 contract",
 )
 require_text(
-    "docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.md",
-    ["Sandbox Resource Limits", "ResourceBudget", "CPU", "memory", "process/PID", "root-storage", "fail closed", "v0.11 Bases", "v0.9 agent-session binding"],
-    "required resource-budget contract text",
+    "docs/18_v0.18_LOCAL_OCI_REGISTRY.md",
+    ["Optional Local OCI Registry", "planned", "direct", "not required"],
+    "v0.18 contract",
 )
 require_text(
-    "docs/13_v0.13_LOCAL_OCI_REGISTRY.md",
-    ["Local OCI Registry", "containerd", "nerdctl"],
-    "required v0.13 distribution contract text",
+    "docs/19_v0.19_OCI_SEED_AND_COW.md",
+    ["OCI Seed Builder", "planned", "Offline Seed Builder", "/var/lib/containerd", "Btrfs/COW"],
+    "v0.19 contract",
 )
+
 require_text(
-    "docs/13A_v0.13_OCI_SEED_AND_COW.md",
-    ["OCI Seed", "usage telemetry/recommendation first slice implemented", "Seed build/publish remains planned", "haco plugin oci seed recommend", "Local Registry", "Btrfs", "/var/lib/containerd"],
-    "required v0.13A contract text",
+    "docs/OCI_RUNTIME_AND_DOCKER_COMPAT.md",
+    ["v0.17", "plugin/adapter", "containerd + nerdctl", "v0.19", "Environment-local"],
+    "Docker compatibility boundary",
 )
+
 require_text(
-    "docs/13B_v0.13_SEED_AUTO_PROMOTION.md",
-    ["top **10%**", "auto_promote", "haco plugin oci seed recommend"],
-    "required v0.13B contract text",
-)
-require_text(
-    "docs/13C_v0.13_OCI_IMAGE_DELETION.md",
-    ["haco plugin oci image delete", "--all-environments", "deletion tombstone", "nerdctl rmi"],
-    "required v0.13C contract text",
+    "docs/ARCHITECTURE_GUIDE.ja.md",
+    ["v0.13 | Managed Sandbox Network", "v0.14 | Git Fetch Plugin", "v0.15 | OCI Seed Recommendation", "v0.16 | OCI Image Deletion", "v0.17 | Docker Compatibility Plugin", "v0.18 | Optional Local OCI Registry", "v0.19 | OCI Seed Builder & Btrfs/COW"],
+    "Japanese architecture milestone map",
 )
 
 reference = (root / "docs/91_IMPLEMENTATION_REFERENCE_NOTES.md").read_text()
@@ -274,13 +240,22 @@ if "non-normative" not in reference.lower() or "No current architecture contract
 
 require_text(
     "README.md",
-    ["docs/README.md", "pre-1.0", "haco-vscode open", "v0.9", "haco-agent-host", "v0.11", "haco base list", "haco create --base", "haco plugin oci", "v0.12"],
-    "current roadmap entry-point content",
+    [
+        "docs/README.md",
+        "pre-1.0",
+        "haco-vscode open",
+        "haco base list",
+        "haco plugin oci",
+        "11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md",
+        "12_v0.12_SANDBOX_RESOURCE_LIMITS.md",
+    ],
+    "top-level README baseline",
 )
+
 require_text(
     "README.ja.md",
-    ["読み方: はこーん", "pre-1.0", "Breaking Change", "IMPLEMENTATION_STATUS.ja.md", "haco-vscode open", "v0.9", "haco-agent-host", "v0.11", "haco base list", "haco plugin oci", "v0.12"],
-    "required Japanese entry-point content",
+    ["読み方: はこーん", "pre-1.0", "Breaking Change", "IMPLEMENTATION_STATUS.ja.md", "haco base list", "haco plugin oci"],
+    "Japanese README baseline",
 )
 
 if errors:
