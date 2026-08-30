@@ -87,6 +87,35 @@ func TestStreamValidationErrorIsReturnedBeforeAck(t *testing.T) {
 	}
 }
 
+func TestOpenStreamClosesOnContextCancellation(t *testing.T) {
+	client, cancelServer := startTestServer(t, func(server *Server) {
+		if err := server.RegisterStream("wait", func(_ context.Context, _ json.RawMessage) (Stream, error) {
+			return func(_ context.Context, conn net.Conn) error {
+				buffer := make([]byte, 1)
+				_, err := conn.Read(buffer)
+				return err
+			}, nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	defer cancelServer()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	stream, err := client.OpenStream(ctx, "wait", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	if err := stream.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	buffer := make([]byte, 1)
+	if _, err := stream.Read(buffer); err == nil {
+		t.Fatal("stream remained open after context cancellation")
+	}
+}
+
 func TestStatusErrorRoundTrip(t *testing.T) {
 	client, cancel := startTestServer(t, func(server *Server) {
 		if err := server.Register("fail", func(context.Context, json.RawMessage) (any, error) {
