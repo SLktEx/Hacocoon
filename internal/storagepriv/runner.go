@@ -43,7 +43,7 @@ func NewSudoRunner(root string, direct host.Runner) (*SudoRunner, error) {
 		helperPath:     helperPath,
 		sudoPath:       defaultSudoPath,
 		euid:           os.Geteuid,
-		validateHelper: validateTrustedExecutable,
+		validateHelper: validateTrustedHelperExecutable,
 	}, nil
 }
 
@@ -144,33 +144,70 @@ func translatePrivilegedCommand(name string, args []string) (string, []string, b
 	}
 }
 
+// validateTrustedExecutable is for fixed OS-provided executables. Distribution
+// paths such as /usr/bin/sudo may be symlinks; resolve them first and validate
+// the canonical target and its parent chain as root-owned and non-writable.
 func validateTrustedExecutable(path string) error {
-	if path == "" || !filepath.IsAbs(path) || filepath.Clean(path) != path {
-		return fmt.Errorf("helper path must be absolute and clean: %q", path)
+	if err := validateExecutablePathSyntax(path); err != nil {
+		return err
 	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return err
+	}
+	if !filepath.IsAbs(resolved) || filepath.Clean(resolved) != resolved {
+		return fmt.Errorf("resolved executable path must be absolute and clean: %q", resolved)
+	}
+	return validateRootOwnedExecutable(resolved, false)
+}
+
+// validateTrustedHelperExecutable is intentionally stricter than the OS-tool
+// validator: Hacocoon's installed privileged helper must itself not be a
+// symlink, even when the host distribution uses symlinks for system tools.
+func validateTrustedHelperExecutable(path string) error {
+	if err := validateExecutablePathSyntax(path); err != nil {
+		return err
+	}
+	return validateRootOwnedExecutable(path, true)
+}
+
+func validateExecutablePathSyntax(path string) error {
+	if path == "" || !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		return fmt.Errorf("executable path must be absolute and clean: %q", path)
+	}
+	return nil
+}
+
+func validateRootOwnedExecutable(path string, rejectSymlink bool) error {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return err
 	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-		return fmt.Errorf("helper %q must be a regular non-symlink file", path)
+	if rejectSymlink && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("executable %q must not be a symbolic link", path)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("executable %q must be a regular file", path)
 	}
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok || stat.Uid != 0 {
-		return fmt.Errorf("helper %q must be owned by root", path)
+		return fmt.Errorf("executable %q must be owned by root", path)
 	}
 	if info.Mode().Perm()&0o022 != 0 || info.Mode().Perm()&0o111 == 0 {
-		return fmt.Errorf("helper %q must be executable and not group/other writable", path)
+		return fmt.Errorf("executable %q must be executable and not group/other writable", path)
 	}
+	return validateRootOwnedParentChain(filepath.Dir(path))
+}
 
-	for dir := filepath.Dir(path); ; dir = filepath.Dir(dir) {
+func validateRootOwnedParentChain(path string) error {
+	for dir := path; ; dir = filepath.Dir(dir) {
 		dirInfo, err := os.Lstat(dir)
 		if err != nil {
 			return err
 		}
 		dirStat, ok := dirInfo.Sys().(*syscall.Stat_t)
 		if dirInfo.Mode()&os.ModeSymlink != 0 || !dirInfo.IsDir() || !ok || dirStat.Uid != 0 || dirInfo.Mode().Perm()&0o022 != 0 {
-			return fmt.Errorf("helper parent %q must be a root-owned non-writable real directory", dir)
+			return fmt.Errorf("executable parent %q must be a root-owned non-writable real directory", dir)
 		}
 		if dir == string(filepath.Separator) {
 			break
