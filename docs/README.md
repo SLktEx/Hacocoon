@@ -2,14 +2,14 @@
 
 [**日本語**](README.ja.md) | English
 
-Hacocoon is pre-1.0. Keep architecture intent, current repository reality, and real-host acceptance separate.
+Hacocoon is pre-1.0. Keep architecture intent, current repository reality, development-checkpoint numbering, published releases, and real-host acceptance separate.
 
 ## Start here
 
 - Current code reality: [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)
+- Development-checkpoint numbering/history: [`status/versioning-and-release-status.md`](status/versioning-and-release-status.md)
 - Design principles: [`DESIGN_PRINCIPLES.md`](DESIGN_PRINCIPLES.md)
 - Architecture / roadmap: [`status/architecture-and-roadmap.md`](status/architecture-and-roadmap.md)
-- Milestone numbering: [`status/versioning-and-release-status.md`](status/versioning-and-release-status.md)
 - Security architecture: [`security/security-architecture.md`](security/security-architecture.md)
 - Trusted logical Host: [`design/trusted-host.md`](design/trusted-host.md)
 - Windows / WSL bootstrap and default `haco-host` entry: [`WINDOWS_WSL_BOOTSTRAP.md`](WINDOWS_WSL_BOOTSTRAP.md)
@@ -19,7 +19,7 @@ Hacocoon is pre-1.0. Keep architecture intent, current repository reality, and r
 - Domain-aware egress: [`EGRESS_AUTHORIZATION.md`](EGRESS_AUTHORIZATION.md)
 - Managed Btrfs storage: [`design/btrfs-storage-layout.md`](design/btrfs-storage-layout.md)
 - Reusable client adapters: [`CLIENT_ADAPTER_CONTRACT.md`](CLIENT_ADAPTER_CONTRACT.md)
-- Client interaction events: [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md)
+- Client interaction events and notification delivery: [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md)
 - Documentation style: [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md)
 
 ## Documentation layout
@@ -39,13 +39,15 @@ Normal docs must not use milestone/version or arbitrary reading-order prefixes i
 ## Source-of-truth order
 
 1. `IMPLEMENTATION_STATUS.md` for current code reality
-2. `status/versioning-and-release-status.md` for milestone numbering/status
+2. `status/versioning-and-release-status.md` for development-checkpoint numbering/history
 3. `DESIGN_PRINCIPLES.md` for cross-cutting product/architecture constraints
-4. `status/architecture-and-roadmap.md` for product boundary and roadmap intent
+4. `status/architecture-and-roadmap.md` for product boundary and future direction
 5. `reference/terminology-and-boundaries.md` and `security/security-architecture.md`
 6. the relevant design specification under `design/`
 7. focused operational/reference documents
 8. README files and indexes
+
+README/index files intentionally do **not** copy the checkpoint table. The current `v0.N` value and historical mapping belong in [`status/versioning-and-release-status.md`](status/versioning-and-release-status.md); implementation detail belongs in [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
 
 ## Core / Standard / Plugin rule
 
@@ -55,32 +57,18 @@ Normal docs must not use milestone/version or arbitrary reading-order prefixes i
 
 For outbound access, the egress request/policy/controller contract belongs to Core while the concrete default proxy/enforcement implementation belongs to Standard. The Incus adapter supplies the proxy-only lower-layer transport guard, bridge DNS disablement and trusted source mapping; repository implementation is complete while real supported-Incus acceptance remains host-dependent.
 
-`haco-host` is trusted infrastructure supplied by the local Incus integration, not an Environment and not an OCI-plugin requirement. v0.26 provides lifecycle/default-entry behavior; the broader Git/OCI/credential/control-channel migration remains follow-up work.
+`haco-host` is trusted infrastructure supplied by the local Incus integration, not an Environment and not an OCI-plugin requirement. The current lifecycle/default-entry slice is implemented; broader Git/OCI/credential/control-channel migration remains follow-up work.
 
-## Current feature gates
+## Current checkpoint
 
-The authoritative table lives in [`status/versioning-and-release-status.md`](status/versioning-and-release-status.md). Current late-stage gates are:
+Do not infer the current checkpoint from individual feature pages, README prose, or commit messages. Use:
 
-| Version | Gate | State |
-|---|---|---|
-| v0.13 | Managed Sandbox Network | implemented |
-| v0.14 | Git Fetch Plugin | implemented |
-| v0.15 | OCI Seed Recommendation | implemented |
-| v0.16 | OCI Image Deletion | first slice implemented |
-| v0.17 | OCI Seed Builder & Btrfs/COW | repository slices / partial acceptance |
-| v0.18 | Docker Compatibility Plugin | repository implementation complete; real-host acceptance separate |
-| v0.19 | Domain-aware Egress Authorization | repository implementation complete; real supported-Incus acceptance separate |
-| v0.20 | Managed Btrfs Rootfs Storage | managed sparse-raw Btrfs pool/rootfs routing implemented |
-| v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` managed default implemented |
-| v0.22 | Interaction Notification Clients | browser/native OS/VS Code clients implemented |
-| v0.23 | Real Incus E2E Acceptance | phased standalone Incus + Core lifecycle acceptance implemented |
-| v0.24 | Structured Logging | shared logging/redaction foundation implemented |
-| v0.25 | Managed Btrfs Host Privilege Broker | typed helper + ordinary-user real CLI acceptance implemented |
-| v0.26 | Trusted `haco-host` & Default WSL Entry | trusted Host lifecycle/default-entry + real Incus acceptance implemented |
+- [`status/versioning-and-release-status.md`](status/versioning-and-release-status.md) for the authoritative current `v0.N` checkpoint and history;
+- [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for what is actually implemented and which acceptance gaps remain.
 
-The current milestone position is **v0.26**. Minor versions are lightweight pre-1.0 progress checkpoints, so a partial earlier milestone does not block later checkpoints. Product, operator, observability, and acceptance progress may each consume a minor when the checkpoint is meaningful. Local OCI Registry is deferred optional infrastructure and does not reserve a milestone.
+Pre-1.0 checkpoint numbers are deliberately cheap. Meaningful product, implementation, operator-experience, observability, or acceptance slices may advance the next minor without waiting for every earlier real-host acceptance item. README/index pages link to the authority instead of copying the evolving table.
 
-Current design/reference documents:
+Current design/reference documents include:
 
 - [`design/trusted-host.md`](design/trusted-host.md)
 - [`design/managed-sandbox-network.md`](design/managed-sandbox-network.md)
@@ -99,7 +87,7 @@ Current design/reference documents:
 
 On the supported local Incus path, Hacocoon distinguishes the actual Linux/WSL **Physical Host** from the persistent trusted logical **`haco-host`**. The Physical Host retains Incus, loop/Btrfs, and other platform authority. `haco-host` is part of the TCB and must not be confused with an untrusted Environment.
 
-v0.26 adds `haco host ensure` / `haco host shell`, exact ownership marking, collision refusal, managed-storage placement, and a dedicated WSL login entry so a completed Windows install can treat `wsl -d Hacocoon` as “open my Hacocoon Host.” Raw Incus control is not mounted into `haco-host`; the root Physical Host shell remains the explicit recovery path. See [`design/trusted-host.md`](design/trusted-host.md) and [`WINDOWS_WSL_BOOTSTRAP.md`](WINDOWS_WSL_BOOTSTRAP.md).
+The current repository slice provides `haco host ensure` / `haco host shell`, exact ownership marking, collision refusal, managed-storage placement, and a dedicated WSL login entry so a completed Windows install can treat `wsl -d Hacocoon` as “open my Hacocoon Host.” Raw Incus control is not mounted into `haco-host`; the root Physical Host shell remains the explicit recovery path. See [`design/trusted-host.md`](design/trusted-host.md) and [`WINDOWS_WSL_BOOTSTRAP.md`](WINDOWS_WSL_BOOTSTRAP.md).
 
 ## Reusable client adapter boundary
 
@@ -109,11 +97,11 @@ The client keeps its private key and IDE configuration. Hacocoon receives only S
 
 See [`CLIENT_ADAPTER_CONTRACT.md`](CLIENT_ADAPTER_CONTRACT.md).
 
-## Client interaction boundary
+## Client interaction and notification delivery
 
 `pkg/interaction` exposes a client-neutral, read-only event projection over the capability audit stream. Clients get stable IDs, resumable byte cursors, bounded batches, attention/recovery flags, and a deliberately minimized schema without raw resources, authority attributes, provider output, approval tokens, or free-form audit reasons.
 
-Observation never authorizes or executes a Capability. v0.22 adds browser, native OS, and optional VS Code notification adapters on top of this stream without changing that authority boundary. See [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md).
+`haco-notify` and the optional VS Code notification extension consume this client-safe stream. Observation or notification never authorizes or executes a Capability. See [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md).
 
 ## Base vs OCI CLI
 
@@ -135,15 +123,9 @@ HACO_PLUGIN_OCI=docker   haco plugin oci docker prepare <environment>
 
 The provider-neutral remote/cloud routing seam remains. Concrete EC2/AWS/EBS implementation has been removed from the active tree and cloud implementation is currently deferred. See [`design/remote-and-cloud-runtime.md`](design/remote-and-cloud-runtime.md).
 
-## Numbering rule
-
-> Minor versions are pragmatic pre-1.0 progress checkpoints.
-
-Meaningful product, implementation, operator-experience, observability, and acceptance slices may take the next minor even when follow-up work or real-host acceptance remains. Small fixes, maintenance, and docs do not automatically consume another version, but substantial support/operability checkpoints may. During pre-1.0 development, prefer visible checkpoints over conserving minor numbers. Version mapping belongs in status documents and page bodies, never in normal documentation filenames.
-
 ## Editing rule
 
-Follow [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md). Update the owning document first, then `IMPLEMENTATION_STATUS.md`, and update `status/versioning-and-release-status.md` whenever a development checkpoint consumes or changes a milestone. Keep English/Japanese companions aligned and run:
+Follow [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md). Update the owning document first, then `IMPLEMENTATION_STATUS.md`, and update `status/versioning-and-release-status.md` whenever a development checkpoint consumes or changes a minor number. Keep English/Japanese companions aligned and run:
 
 ```bash
 python tools/check_docs.py
