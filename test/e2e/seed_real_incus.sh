@@ -85,7 +85,7 @@ seed_revision="$(jq -r '.seed_revision' <<<"$build_json")"
 }
 current_json="$($haco plugin oci seed current --base "$base" --json)"
 printf '%s\n' "$current_json"
-[[ "$(jq -r '.revision' <<<"$current_json")" == "$seed_revision" ]] || {
+[[ "$(jq -r '.seed_revision' <<<"$current_json")" == "$seed_revision" ]] || {
   echo "current Seed pointer does not match the successfully published Seed" >&2
   exit 1
 }
@@ -167,7 +167,7 @@ printf '%s\n' "$reenable_json"
 
 printf '%s\n' '=== final current Seed remains immutable ==='
 final_current="$($haco plugin oci seed current --base "$base" --json)"
-[[ "$(jq -r '.revision' <<<"$final_current")" == "$seed_revision" ]] || {
+[[ "$(jq -r '.seed_revision' <<<"$final_current")" == "$seed_revision" ]] || {
   echo "maintenance unexpectedly changed the current Seed revision" >&2
   exit 1
 }
