@@ -1,0 +1,14 @@
+[Unit]
+Description=Hacocoon Docker Engine API compatibility socket
+Documentation=https://docs.docker.com/engine/
+
+[Socket]
+ListenStream=/run/docker.sock
+SocketMode=0660
+SocketUser=root
+SocketGroup=docker
+RemoveOnStop=true
+Service=hacocoon-docker.service
+
+[Install]
+WantedBy=sockets.target
