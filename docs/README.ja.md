@@ -12,6 +12,7 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 - Milestone番号: [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md)
 - Security: [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md)
 - Core / Standard / Plugin境界: [`00A_PLUGIN_ARCHITECTURE.md`](00A_PLUGIN_ARCHITECTURE.md)
+- Reusable client adapter: [`CLIENT_ADAPTER_CONTRACT.ja.md`](CLIENT_ADAPTER_CONTRACT.ja.md)
 - Client interaction event: [`INTERACTION_EVENTS.ja.md`](INTERACTION_EVENTS.ja.md)
 
 ## Core / Standard / Pluginのルール
@@ -40,6 +41,16 @@ Hacocoonでは、product semanticsとdefault implementation、optional integrati
 完全実装済みのproduct progressionは **v0.17まで連続**しています。v0.18はfirst repository sliceまで実装済みで、real-host/COW acceptanceが残っています。
 
 Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
+
+## Reusable client adapter境界
+
+`pkg/clientadapter` はVS Codeに依存しないclient contractとして、exact Environment ensure/reuse、state、`/workspace` discovery、loopback SSH/TCP、revoke/delete、`pkg/interaction` batchを公開します。
+
+private keyとIDE configはclientが保持します。Hacocoonへ渡すのはSSH public-key materialだけです。返されたconnectionはloopback-onlyか再検証し、canonical Workspaceやaccess modeが異なるEnvironmentをsilentに再利用しません。
+
+通常の `haco create` + `haco ssh` + `ssh` がnon-VS-Code proof pathです。code-server、JetBrains、将来clientもCoreにclient固有conditionalを増やさず同じcontract上へadapterを作れます。
+
+詳細は [`CLIENT_ADAPTER_CONTRACT.ja.md`](CLIENT_ADAPTER_CONTRACT.ja.md) を参照してください。
 
 ## Client interaction境界
 
