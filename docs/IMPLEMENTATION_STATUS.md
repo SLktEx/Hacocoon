@@ -1,19 +1,19 @@
 # Implementation Status
 
-Status date: 2026-08-30, after the v0.10 Agent Host adapter, v0.11 Base-selection, and v0.12 resource-budget implementation passes.
+Status date: 2026-08-30, after the v0.10 Agent Host adapter, v0.11 Base-selection, v0.12 resource-budget, and v0.13 optional-OCI-plugin implementation passes.
 
-This file reports **current code reality**, not desired architecture and not a compatibility guarantee. Versioned specifications are design/acceptance references; their existence does not imply implementation.
+This file reports **current code reality**, not desired architecture and not a compatibility guarantee. Versioned specifications are design/acceptance references; their existence does not imply full real-host acceptance.
 
 Hacocoon is still **pre-1.0**. An implemented area does not mean its CLI/API/state/config surface is frozen, production support is guaranteed, or every real-provider/client acceptance test has passed.
 
-The current numbering keeps implemented milestones contiguous through **v0.12**.
+The current numbering keeps implemented milestones contiguous through the **v0.13 optional OCI plugin first slice**.
 
 | Area | Current repository reality | Release | Validation status |
 |---|---|---:|---|
 | Secure Workspace Runtime | public Environment path supports `haco create --workspace`, `haco exec`, `haco shell`, and `haco delete` | v0.1 | unit and process-boundary integration pass; supported-host real Incus acceptance remains pending |
 | Workspace model | `Workspace`, `Environment`, `ExecutionResult`, canonical external-path Workspace identity, and persisted Workspace leases are implemented | v0.1-v0.2 | unit, persistence, concurrency, and process-boundary tests pass |
 | Workspace lease safety | RO/RW leases, RW conflict prevention, stale-lease recovery, and process serialization are implemented | v0.2 | unit/concurrency/integration tests pass |
-| Incus Environment provider | concrete local Incus Environment implementation remains the default runtime | v0.1+ | unit/process tests pass; real Incus host acceptance remains pending |
+| Incus Environment provider | concrete local Incus Environment implementation remains the default runtime/provider for Hacocoon Environments | v0.1+ | unit/process tests pass; real Incus host acceptance remains pending |
 | Client access | status, local-only port forwarding, connection listing/removal, SSH preparation/revocation, and hardened public-key handling are implemented | v0.3 | unit/process integration pass; real Incus SSH acceptance remains host-dependent |
 | Policy / Capability | fail-closed PolicyEvaluator, allow/deny/require-approval, human security approval, request correlation, and JSONL audit are implemented | v0.4 | unit/process integration and actual CLI capability E2E pass |
 | Git / GitHub capability | host-side brokered GitHub push uses normalized repo/ref authority, exact source SHA, policy/approval, and force-with-lease semantics without exporting host credentials | v0.5 | unit, adversarial tests, real-git integration, and actual CLI E2E pass |
@@ -40,12 +40,20 @@ The current numbering keeps implemented milestones contiguous through **v0.12**.
 | Resource CLI | `haco create` and `haco run` accept `--cpu`, `--memory`, `--pids`, and `--root-size`; byte values use strict `B`/`KiB`/`MiB`/`GiB`/`TiB` units or `unlimited` | v0.12 | parser unit coverage plus fake-Incus CLI E2E |
 | Incus resource enforcement | finite CPU/memory/PID/root-disk limits are applied and read back before `start`; a mismatch or apply/verify failure aborts creation and enters normal cleanup/recovery handling | v0.12 | unit tests cover ordering, verification mismatch, and cleanup; fake-Incus E2E covers persisted values and provider-native commands; real Incus enforcement pending |
 | Unsupported-provider resource behavior | finite resource requests to providers that do not implement them fail closed before provider side effects; experimental EC2 is wrapped by this boundary | v0.12 | unit test proves wrapped provider create is not called for finite budgets; real AWS remains experimental/pending |
+| Optional OCI plugin boundary | `modules/plugin/oci` owns OCI image inventory, usage telemetry, recommendation state, and runtime-specific integration; Core no longer owns `internal/seedstats` or assumes a container CLI | v0.13 | repository module boundary implemented; real OCI-profile acceptance remains pending |
+| OCI plugin composition | OCI integration is absent by default; `HACO_PLUGIN_OCI=nerdctl` or `HACO_PLUGIN_OCI=docker` explicitly selects a driver | v0.13 | driver parsing/tests cover both selections; disabled Core path must not require container tooling |
+| nerdctl inventory driver | optional plugin may inventory workload images with `nerdctl images --format ...` | v0.13 | unit test verifies nerdctl is invoked only when explicitly selected |
+| Docker inventory driver | optional plugin may inventory workload images with genuine `docker images --digests --format ...` | v0.13 | unit test verifies Docker CLI is invoked only when explicitly selected |
+| OCI plugin CLI | `haco plugin oci status`, `haco plugin oci seed sample`, and `haco plugin oci seed recommend` are implemented; old `haco image seed ...` is removed | v0.13 | CLI wiring implemented; repository/real-host execution validation pending |
+| OCI Seed recommendation | latest snapshot per Environment, six-hour freshness guard, thirty-day recommendation window, immutable-digest filtering, deterministic ranking, and top-10% auto-promotion selection are plugin-owned | v0.13/v0.13B | unit coverage migrated to `modules/plugin/oci`; Seed build consumption remains planned |
+| Docker Engine compatibility packaging | systemd socket/service templates are plugin-owned under `modules/plugin/oci/packaging/systemd`; Core packaging does not own Docker units | v0.13 | packaging foundation only; Base/Seed bake-in and real lifecycle acceptance pending |
+| OCI Seed build/publish | immutable Seed construction, Host-side acquisition, offline builder, and real Btrfs/COW validation remain follow-up plugin work | v0.13A | planned; not yet complete end-to-end |
 | Btrfs / raw / QCOW2 historical storage | historical local storage implementation remains in the repository | historical / provider detail | not part of the current Core Environment model and not a compatibility commitment |
-| CI | Go version matrix tests, `go vet`, race detector, docs consistency, bootstrap syntax, release packaging, workflow trust policy, and existing non-host-dependent E2Es are enabled | cross-cutting | real-provider/client acceptance remains separate |
+| CI | Go version matrix tests, `go vet`, race detector, docs consistency, bootstrap syntax, release packaging, workflow trust policy, and existing non-host-dependent E2Es are enabled | cross-cutting | real-provider/client/profile acceptance remains separate |
 
 ## Current implementation state
 
-The implemented progression is now contiguous through v0.12:
+The implemented progression is now contiguous through the v0.13 optional-plugin first slice:
 
 ```text
 Workspace
@@ -62,6 +70,7 @@ Workspace
   -> VS Code Remote Agent Host adapter
   -> logical Base -> immutable revision -> Environment
   -> explicit ResourceBudget -> provider enforcement before Environment access
+  -> optional OCI plugin -> explicitly selected nerdctl/Docker inventory + Seed recommendation
 ```
 
 The v0.9 broker does not introduce an agent-visible management CLI. A trusted integration supplies an opaque session identity and Workspace; the broker selects/creates the Environment and persists ownership proof separately. A deterministic Environment name is not sufficient proof: without a matching persisted binding, Acquire refuses adoption and Release refuses deletion.
@@ -76,11 +85,15 @@ The first v0.11 slice deliberately does not claim custom image build/import, rev
 
 v0.12 resolves every creation request to an explicit effective `ResourceBudget`. Omitted dimensions become explicit `unlimited`; finite dimensions are bounded and persisted. For Incus, finite limits are configured and verified before the Environment starts. A provider that cannot enforce a requested finite limit must reject the request rather than silently ignore it. The experimental EC2 path currently takes that fail-closed route for finite budgets.
 
+v0.13 is an **optional plugin**, not a new Core runtime. With `HACO_PLUGIN_OCI` unset, composition leaves the OCI plugin nil and Core does not require `nerdctl`, Docker, or containerd. When explicitly enabled, the plugin owns OCI workload inventory and Seed telemetry/recommendation. The project-maintained `containerd + nerdctl` arrangement and Docker compatibility are optional profiles, not Hacocoon Core invariants.
+
+The Docker compatibility unit templates moved from Core-level packaging into `modules/plugin/oci/packaging/systemd/`. They remain a packaging foundation only; they do not imply that every Base/Seed contains Docker or that `dockerd` runs by default.
+
 The Windows/WSL bootstrap remains a host setup helper, not a new Core lifecycle. It reserves a dedicated WSL instance for Hacocoon, may convert only that Hacocoon-owned instance from WSL 1 to WSL 2, installs/enables systemd, restarts only the named instance when required, verifies systemd as PID 1, and leaves unrelated WSL distributions/global defaults untouched. `incus-admin` is never granted silently. See `WINDOWS_WSL_BOOTSTRAP.md`.
 
 The v0.7 EC2 provider remains **experimental and disabled by default**. Real AWS/EC2/SSM/EBS acceptance remains pending.
 
-Real Incus, Windows/WSL + VS Code Remote-SSH, v0.9/v0.10 per-agent Agent Host routing, v0.11 real image sources, v0.12 real resource enforcement, and cloud acceptance require suitable hosts. Unit tests, fake-provider E2Es, race checks, vet, build, script syntax, and repository CI are not substitutes for those checks.
+Real Incus, Windows/WSL + VS Code Remote-SSH, v0.9/v0.10 per-agent Agent Host routing, v0.11 real image sources, v0.12 real resource enforcement, optional v0.13 OCI profiles, Seed build/COW, and cloud acceptance require suitable hosts. Unit tests, fake-provider E2Es, race checks, vet, build, script syntax, and repository CI are not substitutes for those checks.
 
 ## v0.8 client workflow
 
@@ -160,10 +173,33 @@ The first slice supports creation-time CPU, memory, PID, and root-disk budgets. 
 
 See `12_v0.12_SANDBOX_RESOURCE_LIMITS.md`.
 
+## v0.13 optional OCI plugin
+
+Disabled/default:
+
+```text
+unset HACO_PLUGIN_OCI
+# Core runs without OCI plugin or container-tool requirement
+```
+
+Explicit profiles:
+
+```text
+HACO_PLUGIN_OCI=nerdctl haco plugin oci status
+HACO_PLUGIN_OCI=docker  haco plugin oci status
+
+haco plugin oci seed sample
+haco plugin oci seed recommend
+```
+
+`haco image list|inspect` remains the Core Base-image namespace. OCI workload/Seed operations live under `haco plugin oci ...`.
+
+See `00A_PLUGIN_ARCHITECTURE.md`, `OCI_RUNTIME_AND_DOCKER_COMPAT.md`, and `13A_v0.13_OCI_SEED_AND_COW.md`.
+
 ## Compatibility status
 
-No versioned design or implementation row through v0.12 should be read as a promise that the current concrete interface will remain unchanged.
+No versioned design or implementation row through the current v0.13 first slice should be read as a promise that the current concrete interface will remain unchanged.
 
-Until an explicit stable compatibility milestone is declared, breaking changes may modify or replace CLI commands, helper binaries, persisted state, provider interfaces, Base/image lifecycle, capability/policy schemas, client/agent integration, host bootstrap behavior, resource-budget design, and experimental runtime behavior.
+Until an explicit stable compatibility milestone is declared, breaking changes may modify or replace CLI commands, helper binaries, persisted state, provider interfaces, Base/image lifecycle, capability/policy schemas, client/agent integration, host bootstrap behavior, resource-budget design, optional plugin boundaries, and experimental runtime behavior.
 
-Compatibility should not be preserved at the cost of an unsafe authority boundary, ambiguous ownership, silent data loss, or unnecessary architectural complexity. Material breaking changes should still be explicit, tested, and documented.
+Compatibility should not be preserved at the cost of an unsafe authority boundary, ambiguous ownership, silent data loss, making an optional tool a Core dependency, or unnecessary architectural complexity. Material breaking changes should still be explicit, tested, and documented.
