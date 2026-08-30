@@ -21,11 +21,9 @@ setup_incus() {
   require_github_hosted_runner
 
   sudo env DEBIAN_FRONTEND=noninteractive apt-get update
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus dnsmasq-base
   sudo incus admin init --minimal
 
-  # Keep the test process unprivileged. The disposable runner gets a loopback-only
-  # TLS client instead of granting the job access to the root-owned Incus socket.
   incus remote generate-certificate
   sudo incus config set core.https_address 127.0.0.1:8443
   sudo incus config trust add-certificate "${HOME}/.config/incus/client.crt"
@@ -104,8 +102,6 @@ cleanup() {
     esac
   done < <(incus project list --format csv -c n 2>/dev/null || true)
 
-  # These are the only shared default-project resources Hacocoon's Incus adapter
-  # creates during this acceptance path. Delete exact names only.
   if incus profile show "$SANDBOX_PROFILE" --project default >/dev/null 2>&1; then
     incus profile delete "$SANDBOX_PROFILE" --project default || failed=1
   fi
