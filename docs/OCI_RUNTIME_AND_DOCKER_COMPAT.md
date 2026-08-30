@@ -1,6 +1,6 @@
 # OCI Runtime and Docker Compatibility
 
-Status: **v0.17 packaging foundation implemented; complete plugin integration and real-host acceptance remain pending.**
+Status: **v0.17 repository integration implemented; real-host acceptance remains environment-dependent.**
 
 OCI/container tooling is an optional plugin/adapter concern, not a Hacocoon Core runtime requirement.
 
@@ -33,7 +33,14 @@ Use the genuine Docker CLI. Do not make `dockerd` always-on merely because some 
 
 ## v0.17 plugin boundary
 
-Docker/containerd/nerdctl-specific behavior belongs behind the optional plugin/adapter boundary under `modules/plugin/oci`. The current repository contains the Docker compatibility design and Hacocoon-specific systemd socket/service packaging foundation. This is **not yet a complete v0.17 feature**.
+Docker/containerd/nerdctl-specific behavior belongs behind the optional plugin/adapter boundary under `modules/plugin/oci`. v0.17 now includes plugin-owned systemd socket/service packaging plus Environment lifecycle inspection/preparation:
+
+```text
+HACO_PLUGIN_OCI=docker haco plugin oci docker status <environment>
+HACO_PLUGIN_OCI=docker haco plugin oci docker prepare <environment>
+```
+
+`status` does not start Docker. `prepare` requires a Base/Seed that already contains the genuine Docker CLI, dockerd, containerd, systemd, the docker group, and the Hacocoon-pinned unit files. It verifies the units before enabling socket activation, never installs packages, and refuses to silently stop an already-active vendor Docker daemon/socket.
 
 Rules:
 
@@ -41,6 +48,7 @@ Rules:
 - Never mount the Host Docker socket or Host containerd/Incus/Hacocoon control sockets.
 - Do not expose a TCP Docker API listener by default.
 - Selecting `HACO_PLUGIN_OCI=docker` selects the plugin inventory/compatibility driver; it does not authorize an arbitrary Host Docker daemon.
+- `hacocoon-docker.service` may remain inactive until `/run/docker.sock` is used; that is the intended on-demand state.
 - OCI plugin state and commands live under `haco plugin oci ...`; Base identity remains under `haco base ...`.
 
 ## Storage
