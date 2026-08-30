@@ -29,7 +29,10 @@ Before policy evaluation Hacocoon:
 3. accepts only credential-free `github.com` HTTPS/SSH remotes;
 4. normalizes organization, repository, target branch/ref, and operation;
 5. resolves the requested source revision to an exact Git object SHA;
-6. records those non-secret, authority-sensitive values as auditable capability attributes.
+6. for a force push, resolves the expected target SHA only from the already-fetched local `refs/remotes/<remote>/<branch>` tracking ref;
+7. records those non-secret, authority-sensitive values as auditable capability attributes.
+
+No authenticated remote lookup is performed during this pre-policy normalization. A force push therefore requires a fetched local remote-tracking ref. If that local baseline is absent, Hacocoon fails closed and the operator must fetch/update the tracking ref before retrying.
 
 Example policy:
 
@@ -82,7 +85,7 @@ Approval is not granted to a moving branch name. Hacocoon resolves the source to
 
 The provider re-reads and re-normalizes the GitHub remote immediately before the push. If the remote/repository/target no longer matches the approved request, the capability is stale and the push is refused.
 
-Force pushes use `--force-with-lease`, not raw `--force`. The remote ref SHA observed before approval becomes an approval attribute and is checked again before execution. A changed remote ref invalidates the request.
+Force pushes use `--force-with-lease`, not raw `--force`. Before policy/approval, the expected remote SHA comes from the local remote-tracking ref only. After policy/approval succeeds, the provider performs the authenticated `ls-remote`, requires the real remote ref to equal the approved local baseline, and only then executes the force-with-lease push. A stale local tracking ref or a remote change invalidates the request instead of causing pre-policy network access.
 
 ## Parameters and credentials
 
