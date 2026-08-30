@@ -1,32 +1,62 @@
 package host
 
 import (
-	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
+	"strconv"
+	"strings"
 )
 
+const DefaultCaptureLimit = 4 << 20
+
+const truncationMarkerPrefix = "\n[haco: output truncated; total-bytes="
+const truncationMarkerSuffix = "]\n"
+
 type Result struct {
-	Stdout   string
-	Stderr   string
-	ExitCode int
+	Stdout          string
+	Stderr          string
+	ExitCode        int
+	StdoutTruncated bool
+	StderrTruncated bool
+	StdoutBytes     int64
+	StderrBytes     int64
 }
 
 type Runner interface {
 	Run(context.Context, string, ...string) (Result, error)
 }
 
-type ExecRunner struct{}
+type ExecRunner struct {
+	// MaxOutputBytes is the maximum number of child-output bytes retained
+	// independently for stdout and stderr. Zero uses DefaultCaptureLimit. The
+	// child continues to run after the limit is reached; excess output is
+	// discarded rather than back-pressuring or terminating the process.
+	MaxOutputBytes int
+}
 
-func (ExecRunner) Run(ctx context.Context, name string, args ...string) (Result, error) {
+func (r ExecRunner) Run(ctx context.Context, name string, args ...string) (Result, error) {
+	limit := r.MaxOutputBytes
+	if limit <= 0 {
+		limit = DefaultCaptureLimit
+	}
+
 	cmd := exec.CommandContext(ctx, name, args...)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	stdout := newBoundedBuffer(limit)
+	stderr := newBoundedBuffer(limit)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	err := cmd.Run()
-	result := Result{Stdout: stdout.String(), Stderr: stderr.String(), ExitCode: 0}
+	result := Result{
+		Stdout:          stdout.Output(),
+		Stderr:          stderr.Output(),
+		ExitCode:        0,
+		StdoutTruncated: stdout.Truncated(),
+		StderrTruncated: stderr.Truncated(),
+		StdoutBytes:     stdout.TotalBytes(),
+		StderrBytes:     stderr.TotalBytes(),
+	}
 	if err == nil {
 		return result, nil
 	}
@@ -38,3 +68,63 @@ func (ExecRunner) Run(ctx context.Context, name string, args ...string) (Result,
 	result.ExitCode = -1
 	return result, err
 }
+
+// DecodeCapturedOutput removes the trusted runner's truncation marker and
+// returns the total number of bytes observed on that stream. Callers that only
+// need to display output may keep the marker; machine-oriented callers can use
+// this helper to expose structured truncation metadata.
+func DecodeCapturedOutput(output string) (clean string, truncated bool, totalBytes int64) {
+	markerStart := strings.LastIndex(output, truncationMarkerPrefix)
+	if markerStart < 0 || !strings.HasSuffix(output, truncationMarkerSuffix) {
+		return output, false, int64(len(output))
+	}
+	rawTotal := strings.TrimSuffix(output[markerStart+len(truncationMarkerPrefix):], truncationMarkerSuffix)
+	total, err := strconv.ParseInt(rawTotal, 10, 64)
+	if err != nil || total <= int64(markerStart) {
+		return output, false, int64(len(output))
+	}
+	return output[:markerStart], true, total
+}
+
+type boundedBuffer struct {
+	buf       []byte
+	limit     int
+	total     int64
+	truncated bool
+}
+
+func newBoundedBuffer(limit int) *boundedBuffer {
+	if limit < 0 {
+		limit = 0
+	}
+	return &boundedBuffer{buf: make([]byte, 0, min(limit, 64*1024)), limit: limit}
+}
+
+func (b *boundedBuffer) Write(p []byte) (int, error) {
+	b.total += int64(len(p))
+	remaining := b.limit - len(b.buf)
+	if remaining > 0 {
+		keep := len(p)
+		if keep > remaining {
+			keep = remaining
+		}
+		b.buf = append(b.buf, p[:keep]...)
+	}
+	if b.total > int64(b.limit) {
+		b.truncated = true
+	}
+	// Always report the full write so noisy untrusted children cannot turn the
+	// memory bound into a broken-pipe/control-flow change.
+	return len(p), nil
+}
+
+func (b *boundedBuffer) Output() string {
+	output := string(b.buf)
+	if !b.truncated {
+		return output
+	}
+	return output + fmt.Sprintf("%s%d%s", truncationMarkerPrefix, b.total, truncationMarkerSuffix)
+}
+
+func (b *boundedBuffer) Truncated() bool   { return b.truncated }
+func (b *boundedBuffer) TotalBytes() int64 { return b.total }
