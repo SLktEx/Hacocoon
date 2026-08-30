@@ -39,6 +39,8 @@ checks = {
         "predicate-path: release-binding.json",
         "release-payload/haco_linux_amd64.tar.gz",
         "release-payload/haco_linux_arm64.tar.gz",
+        "release-payload/hacocoon-windows-installer.zip",
+        "python3 source/tools/package_windows_installer.py",
         "release-payload/checksums.txt",
         "--draft",
         "gh release edit",
@@ -131,5 +133,14 @@ regression = subprocess.run(
 if regression.returncode != 0:
     print("RELEASE PROVENANCE CONTRACT FAILED: installer fail-closed regression test failed", file=sys.stderr)
     sys.exit(regression.returncode)
+
+windows_launcher = subprocess.run(
+    [sys.executable, str(root / "tools/test_windows_installer_launcher.py")],
+    cwd=root,
+    check=False,
+)
+if windows_launcher.returncode != 0:
+    print("RELEASE PROVENANCE CONTRACT FAILED: Windows installer launcher regression test failed", file=sys.stderr)
+    sys.exit(windows_launcher.returncode)
 
 print("RELEASE PROVENANCE CONTRACT OK")

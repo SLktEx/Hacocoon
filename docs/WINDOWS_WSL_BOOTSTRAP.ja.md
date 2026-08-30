@@ -28,19 +28,39 @@ Windows
 
 ## 普通に使うinstaller
 
-GitHub Releaseの`install-windows.ps1`をstandalone installerとして使います。Repository cloneは不要です。
+GitHub Releaseでは **`hacocoon-windows-installer.zip` を通常のWindows installer** として配布します。Repository cloneは不要です。
 
-管理者PowerShellから:
+ZIPを展開すると:
 
-```powershell
-.\install-windows.ps1
+```text
+hacocoon-windows-installer/
+├─ install-windows.bat
+└─ install-windows.ps1
+```
+
+が入っています。通常は `install-windows.bat` を右クリックして **「管理者として実行」** するか、管理者Command Promptから:
+
+```bat
+install-windows.bat
 ```
 
 を実行します。
 
+BAT launcherは同じdirectoryの`install-windows.ps1`だけを:
+
+```text
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ...
+```
+
+で起動します。`-ExecutionPolicy Bypass`はそのPowerShell processだけに指定し、`Set-ExecutionPolicy`でmachine/userの恒久設定を変更しません。Installer引数とexit codeもそのまま転送します。
+
+これはinternet由来の`.ps1`を直接起動するとExecution Policy / Mark-of-the-Webで引っかかりやすい問題を通常導線から外すためのlauncherです。組織管理の`MachinePolicy` / `UserPolicy`、Windowsのreputation protection、その他endpoint policyを無効化する仕組みではありません。それらで禁止されている環境ではfail closedします。
+
+`install-windows.ps1` standalone assetも高度な利用・互換用としてReleaseに残します。PowerShellから直接実行する場合は、その端末のExecution Policyに従ってください。
+
 標準distribution名は`Hacocoon`、標準baseは`Ubuntu-26.04`です。
 
-Fresh distributionでは最初に通常のLinux user作成が必要な場合があります。Hacocoon bootstrap完了前の`wsl -d Hacocoon`は、そのfirst-run setupのため通常のbase distributionへ入ります。User setup後にinstallerを再実行します。
+Fresh distributionでは最初に通常のLinux user作成が必要な場合があります。Hacocoon bootstrap完了前の`wsl -d Hacocoon`は、そのfirst-run setupのため通常のbase distributionへ入ります。User setup後に`install-windows.bat`をもう一度管理者として実行します。
 
 Bootstrap成功後は:
 
@@ -186,7 +206,13 @@ haco host shell
 
 Raw Incus socketと`/var/lib/incus`はPhysical Host authorityに残します。
 
-Physical Host userへroot-equivalentなIncus authorityを意図的に与える場合だけ`-GrantIncusAdmin`を使います。
+Physical Host userへroot-equivalentなIncus authorityを意図的に与える場合だけ:
+
+```bat
+install-windows.bat -GrantIncusAdmin
+```
+
+を使います。PS1 standaloneを直接使う場合は`./install-windows.ps1 -GrantIncusAdmin`でも同じです。
 
 ## Physical Host recovery
 
@@ -216,7 +242,15 @@ Physical Host root authorityが必要なoperationはauthorized sudo pathまた�
 
 ## `-SkipIncus`
 
-`-SkipIncus`ではtrusted backend readyをHacocoonが保証できないため、Physical Host loginを変更せず、controller-connected automatic `haco-host` entryも設定しません。
+Incusを別手段で管理する場合は:
+
+```bat
+install-windows.bat -SkipIncus
+```
+
+を使えます。PS1 standaloneの`./install-windows.ps1 -SkipIncus`も引き続き利用できます。
+
+このmodeではtrusted backend readyをHacocoonが保証できないため、Physical Host loginを変更せず、controller-connected automatic `haco-host` entryも設定しません。
 
 ## Workspace location
 
@@ -253,8 +287,14 @@ Repository checkoutでは引き続き:
 
 を使えます。Checkout scriptを使いますが、同じWSL 2 / systemd / Incus / controller / trusted-host entry contractに従います。
 
+## Release integrity
+
+`hacocoon-windows-installer.zip`はRelease payloadの一部としてSHA-256 checksumとGitHub artifact attestationの対象にします。ZIPの中身はCIで`install-windows.bat`と`install-windows.ps1`の2ファイルだけであることと、sourceとbyte-for-byte一致することを検証します。
+
+BAT launcher自体はbootstrapのpolicy boundaryを弱めません。実際のHacocoon release download / checksum / signed provenance verificationは引き続き`install-windows.ps1`がfail closedで行います。
+
 ## Acceptance boundary
 
-Repository CIとreal Incus E2Eではcontroller protocol、実proxy device、client provisioning、`haco-host doctor` round trip、restart recovery、raw Incus socket非露出、通常Environmentにtrusted endpointがないことを確認できます。
+Repository CIとreal Incus E2Eではcontroller protocol、実proxy device、client provisioning、`haco-host doctor` round trip、restart recovery、raw Incus socket非露出、通常Environmentにtrusted endpointがないことに加えて、BAT launcher / ZIP packaging contractを確認できます。
 
-一方、Windows側からのfirst-run Linux user setup、WSL restart behavior、`wsl -d Hacocoon`からのlogin-shell transition、WindowsからのPhysical Host recovery、Windows editor/orchestrator integrationはreal Windows + WSL acceptanceが必要です。
+一方、browser downloadしたZIPをWindowsで展開した後のBAT起動、first-run Linux user setup、WSL restart behavior、`wsl -d Hacocoon`からのlogin-shell transition、WindowsからのPhysical Host recovery、Windows editor/orchestrator integrationはreal Windows + WSL acceptanceが必要です。
