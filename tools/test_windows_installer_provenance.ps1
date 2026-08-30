@@ -106,3 +106,7 @@ try {
     $env:HACO_TEST_LATEST_TAG = $oldLatest
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
+
+# Expected negative native-command cases leave $LASTEXITCODE non-zero even
+# though Assert-Throws handled them successfully. Do not leak that into CI.
+exit 0
