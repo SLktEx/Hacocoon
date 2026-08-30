@@ -21,6 +21,25 @@ func (r *Runtime) ShellEnvironmentStream(ctx context.Context, ref string, stdin 
 	return err
 }
 
+// PrepareTrustedHostShellStream reconciles the trusted logical Host before the
+// controller acknowledges an interactive stream. The returned function owns
+// only the long-lived shell I/O; Incus authority remains in the controller.
+func (r *Runtime) PrepareTrustedHostShellStream(ctx context.Context) (func(context.Context, io.Reader, io.Writer, io.Writer) error, error) {
+	if r == nil {
+		return nil, core.ErrInvalidArgument
+	}
+	if err := r.EnsureTrustedHost(ctx); err != nil {
+		return nil, err
+	}
+	return func(runCtx context.Context, stdin io.Reader, stdout, stderr io.Writer) error {
+		if stdin == nil || stdout == nil || stderr == nil {
+			return core.ErrInvalidArgument
+		}
+		_, err := r.execInteractiveStream(runCtx, trustedHostName, []string{"/bin/bash", "-l"}, stdin, stdout, stderr)
+		return err
+	}, nil
+}
+
 func (r *Runtime) execInteractiveStream(ctx context.Context, ref string, argv []string, stdin io.Reader, stdout, stderr io.Writer) (core.ExecResult, error) {
 	if len(argv) == 0 {
 		return core.ExecResult{}, core.ErrInvalidArgument

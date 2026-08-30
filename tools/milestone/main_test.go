@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -125,6 +126,23 @@ func TestBumpRejectsGateTableDrift(t *testing.T) {
 
 	if err := bump(root, "v0.3", "Gate"); err == nil || !strings.Contains(err.Error(), "expected v0.2 / \"Second Gate\"") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRepositoryBumpMilestoneBlackBox(t *testing.T) {
+	root, err := findRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 is required for repository black-box milestone test")
+	}
+	cmd := exec.Command(python, filepath.Join(root, "tools/test_bump_milestone.py"))
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("black-box milestone workflow failed: %v\n%s", err, output)
 	}
 }
 

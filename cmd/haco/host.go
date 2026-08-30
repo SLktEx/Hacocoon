@@ -15,18 +15,15 @@ func hostCommand(ctx context.Context, app *composition.App, args []string) error
 	if len(args) != 1 {
 		return fmt.Errorf("usage: haco host <ensure|shell>: %w", core.ErrInvalidArgument)
 	}
+	if args[0] == "shell" {
+		return fmt.Errorf("haco host shell must use the controller client path: %w", core.ErrIncompatibleState)
+	}
 	if app == nil || app.Runtime == nil {
 		return core.ErrInvalidArgument
 	}
 	switch args[0] {
 	case "ensure":
 		return ensureTrustedHostAndClient(ctx, app)
-	case "shell":
-		if err := ensureTrustedHostAndClient(ctx, app); err != nil {
-			return err
-		}
-		fmt.Fprintln(os.Stderr, trustedHostLoginWarning())
-		return app.Runtime.ShellTrustedHost(ctx)
 	default:
 		return fmt.Errorf("unknown host command %q: %w", args[0], core.ErrInvalidArgument)
 	}
@@ -40,21 +37,37 @@ func ensureTrustedHostAndClient(ctx context.Context, app *composition.App) error
 	if err != nil {
 		return err
 	}
-	return app.Runtime.ProvisionTrustedHostClient(ctx, clientBinary)
+	if err := app.Runtime.ProvisionTrustedHostClient(ctx, clientBinary); err != nil {
+		return err
+	}
+	generalClientBinary, err := trustedHostGeneralClientBinary()
+	if err != nil {
+		return err
+	}
+	return app.Runtime.ProvisionTrustedHostGeneralClient(ctx, generalClientBinary)
 }
 
 func trustedHostClientBinary() (string, error) {
-	executable, err := os.Executable()
+	executable, err := trustedHostGeneralClientBinary()
 	if err != nil {
-		return "", fmt.Errorf("resolve haco executable: %w", err)
-	}
-	if resolved, resolveErr := filepath.EvalSymlinks(executable); resolveErr == nil {
-		executable = resolved
+		return "", err
 	}
 	candidate := filepath.Join(filepath.Dir(executable), "haco-host")
 	resolved, err := filepath.EvalSymlinks(candidate)
 	if err != nil {
 		return "", fmt.Errorf("resolve companion haco-host binary %q: %w", candidate, err)
+	}
+	return resolved, nil
+}
+
+func trustedHostGeneralClientBinary() (string, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve haco executable: %w", err)
+	}
+	resolved, err := filepath.EvalSymlinks(executable)
+	if err != nil {
+		return "", fmt.Errorf("resolve haco executable %q: %w", executable, err)
 	}
 	return resolved, nil
 }
