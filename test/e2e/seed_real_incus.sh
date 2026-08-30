@@ -64,7 +64,7 @@ parent_revision="$(jq -r '.revision' <<<"$parent_json")"
 
 printf '%s\n' '=== trusted Host OCI identity ==='
 nerdctl pull "$image_ref" >/dev/null
-digest="$(nerdctl images --format '{{.Repository}}\t{{.Tag}}\t{{.Digest}}' | awk -F '\t' -v repo='docker.io/library/busybox' -v tag='1.36' '$1 == repo && $2 == tag { print $3; exit }')"
+digest="$(nerdctl images --format '{{.Digest}}' "$image_ref" | awk 'NF { print $1; exit }')"
 [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
   echo "failed to resolve busybox immutable digest from nerdctl" >&2
   nerdctl images --format '{{.Repository}}\t{{.Tag}}\t{{.Digest}}' >&2 || true
