@@ -95,15 +95,15 @@ for required in [
     if required not in docmap:
         errors.append(f'docs/README.md missing current documentation-map content: {required}')
 
-# The authoritative numbering must keep implemented milestones contiguous through v0.11.
+# The authoritative numbering must keep implemented milestones contiguous through v0.12.
 versioning = (root / 'docs/00D_VERSIONING_AND_RELEASE_STATUS.md').read_text()
 numbering_required = [
     'v0.8 | Client Adapters & VS Code Integration | implemented',
     'v0.9 | Per-Agent Sandbox & Agent Host Integration | broker foundation implemented',
     'v0.10 | VS Code Remote Agent Host Adapter | implemented',
     'v0.11 | Base Images & Custom Environments | implemented first slice',
-    'v0.12 | Sandbox Resource Limits | design contract only',
-    'implemented progression is therefore contiguous through **v0.11**',
+    'v0.12 | Sandbox Resource Limits | implemented first slice',
+    'implemented progression is therefore contiguous through **v0.12**',
     'PR #137',
 ]
 for required in numbering_required:
@@ -139,7 +139,9 @@ for required in [
     'haco create --base',
     'HACO_INCUS_BASES_JSON',
     'v0.12 |',
-    'design only; implementation pending',
+    'Resource budget model',
+    '--cpu',
+    'Incus resource enforcement',
     'real AWS acceptance pending',
 ]:
     if required.lower() not in status.lower():

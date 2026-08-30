@@ -28,9 +28,9 @@ pre-1.0 の間は、バージョン番号をなるべく **実装された順番
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | session -> Environment broker foundation 実装済み |
 | v0.10 | VS Code Remote Agent Host Adapter | PR #137 で実装済み。real host acceptance は pending |
 | v0.11 | Base Images & Custom Environments | first slice 実装済み。Base selection / immutable revision pin / persisted identity / list・inspect を実装 |
-| v0.12 | Sandbox Resource Limits | 設計のみ。実装 pending |
+| v0.12 | Sandbox Resource Limits | first slice 実装済み。CPU / memory / PID / root disk の budget、Incus pre-start enforcement、persist/status を実装 |
 
-これで **v0.1〜v0.11 まで実装済み milestone が連続**します。次の design/implementation gate は v0.12 です。
+これで **v0.1〜v0.12 まで実装済み milestone が連続**します。
 
 ## v0.10 の扱い
 
@@ -40,7 +40,7 @@ real Windows/WSL + Incus + VS Code Agents window / Agent Host の acceptance は
 
 ## v0.11 の扱い
 
-first slice では次を実装します。
+first slice では次を実装しています。
 
 ```text
 haco image list
@@ -52,13 +52,30 @@ logical Base は作成時に immutable revision へ解決され、その revisio
 
 custom build/import、revision history、rollback、GC は first slice の実装完了を意味しません。
 
+## v0.12 の扱い
+
+first slice では次を実装します。
+
+```text
+haco create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace . dev
+haco run --cpu 2 --memory 4GiB --workspace . -- go test ./...
+```
+
+- 値の未指定は provider 任せにせず、Hacocoon の明示的な `unlimited` effective budget に解決して保存します。
+- Incus は Environment を start する前に CPU / memory / PID / root disk 制限を設定し、読み戻して検証します。
+- requested finite limit を provider が enforce できない場合は silent ignore せず fail closed します。
+- experimental EC2 は有限 budget を AWS side effect より前に `unsupported` として拒否します。
+
+real supported-Incus 上で実際に resource exhaustion が制限されることの acceptance は host-dependent のままです。
+
 ## 現在の acceptance watch list
 
 - v0.8: real Windows/WSL + Incus + VS Code Remote-SSH
 - v0.9/v0.10: real VS Code Agent Host/AHP routing、real Incus SSH
 - v0.11: real Incus image remote / custom Base
+- v0.12: real Incus CPU / memory / PID / root-disk enforcement
 - v0.7 EC2: real AWS acceptance。provider は experimental/default-off のまま
 
 ## 一文でいうと
 
-> **実装済みを連番にし、その次に active implementation、その後ろに design-only を置く。実装の事実そのものは `IMPLEMENTATION_STATUS.md` で管理する。**
+> **v0.1〜v0.12 の実装済み milestone を連番にし、repository implementation と real-host acceptance は `IMPLEMENTATION_STATUS.md` で分けて管理します。**

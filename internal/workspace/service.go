@@ -63,6 +63,10 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 	if err != nil {
 		return core.Environment{}, err
 	}
+	resources, err := core.ResolveResourceBudget(spec.Resources)
+	if err != nil {
+		return core.Environment{}, err
+	}
 	workspace, err := s.provider.Resolve(ctx, WorkspaceRequest{Path: spec.WorkspacePath})
 	if err != nil {
 		return core.Environment{}, err
@@ -105,6 +109,7 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 		WorkspacePath: workspace.Path,
 		ReadOnly:      mode == core.WorkspaceReadOnly,
 		Base:          spec.Base,
+		Resources:     resources,
 	})
 	if err != nil {
 		if errors.Is(err, core.ErrRecoveryRequired) {
@@ -112,6 +117,17 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 		}
 		releaseErr := releaseLease()
 		return core.Environment{}, errors.Join(fmt.Errorf("create environment %q: %w", name, err), releaseErr)
+	}
+	if created.Resources == (core.ResourceBudget{}) && !core.ResourceBudgetHasFinite(resources) {
+		created.Resources = resources
+	}
+	if created.Resources != resources {
+		cleanupErr := s.deleteRuntimeForCleanup(ctx, created.Ref)
+		return core.Environment{}, errors.Join(
+			fmt.Errorf("provider returned resource budget different from requested effective budget: %w", core.ErrIncompatibleState),
+			cleanupErr,
+			releaseLease(),
+		)
 	}
 
 	lease.RuntimeRef = created.Ref
@@ -133,6 +149,7 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 		Workspace:  workspace,
 		AccessMode: mode,
 		Base:       created.Base,
+		Resources:  resources,
 		RuntimeRef: created.Ref,
 		CreatedAt:  s.now().UTC(),
 	}

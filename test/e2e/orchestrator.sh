@@ -25,6 +25,12 @@ state="$HACO_FAKE_INCUS_STATE"
 printf '%s\n' "$*" >> "$HACO_FAKE_INCUS_LOG"
 command_name="${1:-}"
 [ "$#" -gt 0 ] && shift
+config_file() {
+  instance="$1"
+  key="$2"
+  safe_key="$(printf '%s' "$key" | sed 's/[^A-Za-z0-9_-]/_/g')"
+  printf '%s/config-%s-%s' "$state" "$instance" "$safe_key"
+}
 case "$command_name" in
   version)
     echo '6.12-fake'
@@ -61,17 +67,49 @@ case "$command_name" in
     echo 'STOPPED' > "$state/instance-$instance"
     ;;
   config)
-    if [ "${1:-}" = 'device' ] && [ "${2:-}" = 'add' ]; then
-      instance="${3:-}"
-      shift 4
-      source_path=''
-      for arg in "$@"; do
-        case "$arg" in source=*) source_path="${arg#source=}" ;; esac
-      done
-      [ -n "$source_path" ] || exit 2
-      printf '%s\n' "$source_path" > "$state/workspace-$instance"
-      exit 0
-    fi
+    case "${1:-}" in
+      set)
+        instance="${2:-}"; assignment="${3:-}"
+        key="${assignment%%=*}"; value="${assignment#*=}"
+        [ -n "$instance" ] && [ -n "$key" ] && [ "$assignment" != "$key" ] || exit 2
+        printf '%s\n' "$value" > "$(config_file "$instance" "$key")"
+        exit 0
+        ;;
+      get)
+        instance="${2:-}"; key="${3:-}"
+        file="$(config_file "$instance" "$key")"
+        [ -f "$file" ] && cat "$file"
+        exit 0
+        ;;
+      device)
+        case "${2:-}" in
+          add)
+            instance="${3:-}"
+            shift 4
+            source_path=''
+            for arg in "$@"; do
+              case "$arg" in source=*) source_path="${arg#source=}" ;; esac
+            done
+            [ -n "$source_path" ] || exit 2
+            printf '%s\n' "$source_path" > "$state/workspace-$instance"
+            exit 0
+            ;;
+          set)
+            instance="${3:-}"; device="${4:-}"; assignment="${5:-}"
+            key="${assignment%%=*}"; value="${assignment#*=}"
+            [ -n "$instance" ] && [ -n "$device" ] && [ -n "$key" ] && [ "$assignment" != "$key" ] || exit 2
+            printf '%s\n' "$value" > "$(config_file "$instance" "$device.$key")"
+            exit 0
+            ;;
+          get)
+            instance="${3:-}"; device="${4:-}"; key="${5:-}"
+            file="$(config_file "$instance" "$device.$key")"
+            [ -f "$file" ] && cat "$file"
+            exit 0
+            ;;
+        esac
+        ;;
+    esac
     exit 2
     ;;
   start)
@@ -94,7 +132,7 @@ case "$command_name" in
     ;;
   delete)
     instance="${1:-}"
-    rm -f "$state/instance-$instance" "$state/workspace-$instance"
+    rm -f "$state/instance-$instance" "$state/workspace-$instance" "$state"/config-"$instance"-* 2>/dev/null || true
     ;;
   exec)
     instance="${1:-}"
@@ -154,12 +192,34 @@ r=json.loads(sys.argv[1])
 env=r['environment']
 assert env['base']['name'] == 'my-dev', r
 assert env['base']['revision'] == 'sha256:' + ('b' * 64), r
+assert env['resources']['cpu']['mode'] == 'unlimited', r
 PY
 grep -Fq 'image info images:custom-moving --format json' "$HACO_FAKE_INCUS_LOG"
 grep -Fq 'init images:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb haco-base-demo' "$HACO_FAKE_INCUS_LOG"
 "$haco" delete base-demo
 
-json="$($haco run --workspace "$workspace" --json -- sh -c "printf 'agent-ok\\n'; printf 'from-run\\n' > /workspace/result.txt")"
+# v0.12 resource budgets: CLI values become persisted provider-neutral metadata,
+# while the Incus adapter applies and verifies provider-native limits before start.
+"$haco" create --cpu 2 --memory 512MiB --pids 64 --root-size 8GiB --workspace "$workspace" resource-demo >/dev/null
+resource_status="$($haco status resource-demo --json)"
+python3 - "$resource_status" <<'PY'
+import json,sys
+r=json.loads(sys.argv[1])['environment']['resources']
+assert r['cpu'] == {'mode':'finite','value':2}, r
+assert r['memory_bytes'] == {'mode':'finite','value':512 * 1024 * 1024}, r
+assert r['pids'] == {'mode':'finite','value':64}, r
+assert r['root_bytes'] == {'mode':'finite','value':8 * 1024 * 1024 * 1024}, r
+PY
+grep -Fq 'config set haco-resource-demo limits.cpu=2 --project hacocoon' "$HACO_FAKE_INCUS_LOG"
+grep -Fq 'config set haco-resource-demo limits.memory=536870912B --project hacocoon' "$HACO_FAKE_INCUS_LOG"
+grep -Fq 'config set haco-resource-demo limits.processes=64 --project hacocoon' "$HACO_FAKE_INCUS_LOG"
+grep -Fq 'config device set haco-resource-demo root size=8589934592B --project hacocoon' "$HACO_FAKE_INCUS_LOG"
+last_limit_line="$(grep -n 'config device get haco-resource-demo root size --project hacocoon' "$HACO_FAKE_INCUS_LOG" | tail -1 | cut -d: -f1)"
+start_line="$(grep -n '^start haco-resource-demo --project hacocoon$' "$HACO_FAKE_INCUS_LOG" | tail -1 | cut -d: -f1)"
+[[ -n "$last_limit_line" && -n "$start_line" && "$last_limit_line" -lt "$start_line" ]]
+"$haco" delete resource-demo
+
+json="$($haco run --cpu 1 --memory 256MiB --pids 32 --workspace "$workspace" --json -- sh -c "printf 'agent-ok\\n'; printf 'from-run\\n' > /workspace/result.txt")"
 python3 - "$json" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])
@@ -173,6 +233,9 @@ PY
 run_name="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["environment"])' "$json")"
 grep -Fq "image info images:ubuntu/26.04 --format json" "$HACO_FAKE_INCUS_LOG"
 grep -Fq "init images:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa haco-$run_name" "$HACO_FAKE_INCUS_LOG"
+grep -Fq "config set haco-$run_name limits.cpu=1 --project hacocoon" "$HACO_FAKE_INCUS_LOG"
+grep -Fq "config set haco-$run_name limits.memory=268435456B --project hacocoon" "$HACO_FAKE_INCUS_LOG"
+grep -Fq "config set haco-$run_name limits.processes=32 --project hacocoon" "$HACO_FAKE_INCUS_LOG"
 grep -Fq "delete haco-$run_name" "$HACO_FAKE_INCUS_LOG"
 [[ ! -e "$state/instance-haco-$run_name" ]]
 
@@ -205,4 +268,4 @@ assert 'parameters' not in raw
 assert 'message' not in raw
 PY
 
-echo 'PASS: Hacocoon v0.6/v0.11 orchestration and Base E2E'
+echo 'PASS: Hacocoon v0.6/v0.11/v0.12 orchestration, Base, and resource E2E'

@@ -52,6 +52,7 @@ type Environment struct {
 	Workspace  Workspace           `json:"workspace"`
 	AccessMode WorkspaceAccessMode `json:"access_mode"`
 	Base       *BaseRef            `json:"base,omitempty"`
+	Resources  ResourceBudget      `json:"resources"`
 	RuntimeRef string              `json:"runtime_ref"`
 	CreatedAt  time.Time           `json:"created_at"`
 }
@@ -61,6 +62,7 @@ type EnvironmentSpec struct {
 	WorkspacePath string
 	AccessMode    WorkspaceAccessMode
 	Base          BaseName
+	Resources     ResourceBudget
 }
 
 type EnvironmentRuntimeSpec struct {
@@ -68,11 +70,13 @@ type EnvironmentRuntimeSpec struct {
 	WorkspacePath string
 	ReadOnly      bool
 	Base          BaseName
+	Resources     ResourceBudget
 }
 
 type EnvironmentRuntime struct {
-	Ref  string
-	Base *BaseRef
+	Ref       string
+	Base      *BaseRef
+	Resources ResourceBudget
 }
 
 type ExecutionRequest struct {

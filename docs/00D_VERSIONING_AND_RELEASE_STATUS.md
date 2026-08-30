@@ -35,9 +35,9 @@ For pre-1.0 Hacocoon, version numbers primarily describe the order in which prod
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | broker foundation implemented | trusted session -> Environment binding; real Agent Host/AHP routing acceptance pending |
 | v0.10 | VS Code Remote Agent Host Adapter | implemented | merged in PR #137; real Windows/WSL + Incus + VS Code Agents-window acceptance remains host-dependent |
 | v0.11 | Base Images & Custom Environments | implemented first slice | logical Base selection, immutable revision pinning, persisted identity, list/inspect; broader build/import/GC remains future work |
-| v0.12 | Sandbox Resource Limits | design contract only | CPU/memory/PID/root-storage budget contract; implementation pending |
+| v0.12 | Sandbox Resource Limits | implemented first slice | provider-neutral finite/unlimited budgets, strict CLI parsing, Incus pre-start enforcement, persistence/status; real Incus enforcement acceptance remains host-dependent |
 
-The implemented progression is therefore contiguous through **v0.11**. v0.12 is the next design/implementation gate.
+The implemented progression is therefore contiguous through **v0.12**.
 
 ## Renumbering applied on 2026-08-30
 
@@ -47,7 +47,7 @@ The earlier assignment temporarily placed design-only Base Images before impleme
 v0.9   Per-Agent Sandbox & Agent Host Integration    implemented
 v0.10  VS Code Remote Agent Host Adapter             implemented
 v0.11  Base Images & Custom Environments             implemented first slice
-v0.12  Sandbox Resource Limits                       design only
+v0.12  Sandbox Resource Limits                       implemented first slice
 ```
 
 Historical commit messages, closed PR titles, and temporary candidate branch names may retain older labels as history. They are not authoritative for current numbering.
@@ -57,8 +57,9 @@ Historical commit messages, closed PR titles, and temporary candidate branch nam
 - v0.8: real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending.
 - v0.9/v0.10: real VS Code Agent Host/AHP routing and real Incus SSH acceptance remain host-dependent.
 - v0.11: real Incus image-remote/custom-Base acceptance remains host-dependent; custom build/import/history/rollback/GC are not part of the first implemented slice.
+- v0.12: real supported-Incus validation of CPU, memory, PID, and root-disk enforcement remains host-dependent. The experimental EC2 provider rejects finite budgets rather than silently ignoring them.
 - v0.7 EC2: real AWS acceptance remains pending and the provider stays experimental/default-off.
 
 ## One-sentence rule
 
-> **Keep implemented Hacocoon milestones contiguous, put active implementation next, and keep design-only gates behind them while `IMPLEMENTATION_STATUS.md` separately records actual code and real-host acceptance.**
+> **Keep implemented Hacocoon milestones contiguous and use `IMPLEMENTATION_STATUS.md` to distinguish repository implementation from real-host/provider acceptance.**

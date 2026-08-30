@@ -16,6 +16,7 @@ const defaultCleanupTimeout = 30 * time.Second
 type Spec struct {
 	WorkspacePath string                   `json:"workspace_path"`
 	AccessMode    core.WorkspaceAccessMode `json:"access_mode"`
+	Resources     core.ResourceBudget      `json:"resources"`
 	Argv          []string                 `json:"argv"`
 }
 
@@ -63,6 +64,7 @@ func (s *Service) Run(ctx context.Context, spec Spec) (Result, error) {
 		Name:          name,
 		WorkspacePath: spec.WorkspacePath,
 		AccessMode:    spec.AccessMode,
+		Resources:     spec.Resources,
 	})
 	if err != nil {
 		return Result{Environment: name}, fmt.Errorf("create ephemeral environment: %w", err)
