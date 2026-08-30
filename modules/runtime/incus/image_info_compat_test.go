@@ -180,14 +180,40 @@ func TestImageInfoCompatRunnerPreservesGuestSystemctlShowStderr(t *testing.T) {
 		if name != "incus" || !reflect.DeepEqual(args, []string{"exec", "builder", "--project", "hacocoon", "--", "systemctl", "show", "-p", "ActiveState", "--value", "containerd.service"}) {
 			t.Fatalf("unexpected call: %s %#v", name, args)
 		}
-		return host.Result{ExitCode: 1, Stderr: "System has not been booted with systemd"}, processErr
+		return host.Result{ExitCode: 1, Stderr: "Unit containerd.service could not be found"}, processErr
 	}}
 
 	_, err := wrapImageInfoCompatRunner(next).Run(context.Background(), "incus", "exec", "builder", "--project", "hacocoon", "--", "systemctl", "show", "-p", "ActiveState", "--value", "containerd.service")
 	if !errors.Is(err, processErr) {
 		t.Fatalf("err=%v want wrapped process error", err)
 	}
-	if !strings.Contains(err.Error(), "System has not been booted with systemd") {
+	if !strings.Contains(err.Error(), "Unit containerd.service could not be found") {
 		t.Fatalf("err=%v missing stderr", err)
+	}
+}
+
+func TestImageInfoCompatRunnerWaitsForGuestSystemdAndUnitSettlement(t *testing.T) {
+	calls := 0
+	next := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+		calls++
+		if name != "incus" || !reflect.DeepEqual(args, []string{"exec", "builder", "--project", "hacocoon", "--", "systemctl", "show", "-p", "ActiveState", "--value", "containerd.service"}) {
+			t.Fatalf("unexpected call: %s %#v", name, args)
+		}
+		switch calls {
+		case 1:
+			return host.Result{ExitCode: 1, Stderr: "Failed to connect to system scope bus via local transport: No such file or directory"}, errors.New("exit status 1")
+		case 2:
+			return host.Result{Stdout: "activating\n"}, nil
+		default:
+			return host.Result{Stdout: "active\n"}, nil
+		}
+	}}
+
+	result, err := wrapImageInfoCompatRunner(next).Run(context.Background(), "incus", "exec", "builder", "--project", "hacocoon", "--", "systemctl", "show", "-p", "ActiveState", "--value", "containerd.service")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 3 || strings.TrimSpace(result.Stdout) != "active" {
+		t.Fatalf("calls=%d result=%#v", calls, result)
 	}
 }
