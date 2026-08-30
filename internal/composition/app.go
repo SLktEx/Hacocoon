@@ -15,6 +15,7 @@ import (
 	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
+	seedstatsapp "github.com/SLktEx/Hacocoon/internal/seedstats"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	ec2runtime "github.com/SLktEx/Hacocoon/modules/runtime/ec2"
@@ -30,6 +31,7 @@ type App struct {
 	Runner       *runapp.Service
 	Events       *eventsapp.Service
 	Bases        *environmentapp.BaseRouter
+	SeedStats    *seedstatsapp.Service
 	Runtime      *incus.Runtime
 }
 
@@ -68,7 +70,8 @@ func Local(_ context.Context) (*App, error) {
 	}
 	runtime := environmentapp.NewBaseRouter(router)
 
-	store := state.NewEnvironmentJSONStore(filepath.Join(stateDir, "environments.json"))
+	environmentStatePath := filepath.Join(stateDir, "environments.json")
+	store := state.NewEnvironmentJSONStore(environmentStatePath)
 	bindingStore := agenthostapp.NewJSONBindingStore(filepath.Join(stateDir, "agent-bindings.json"))
 	gitProvider := gitcapapp.NewUnifiedProvider(runner, store)
 	auditPath := filepath.Join(root, "audit", "capabilities.jsonl")
@@ -83,6 +86,14 @@ func Local(_ context.Context) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	seedStats, err := seedstatsapp.New(
+		runtime,
+		environmentStatePath,
+		seedstatsapp.NewStore(filepath.Join(stateDir, "oci-usage.json")),
+	)
+	if err != nil {
+		return nil, err
+	}
 	environments := workspaceapp.New(runtime, store)
 	return &App{
 		Environments: environments,
@@ -93,6 +104,7 @@ func Local(_ context.Context) (*App, error) {
 		Runner:       runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks")),
 		Events:       eventsapp.New(auditPath),
 		Bases:        runtime,
+		SeedStats:    seedStats,
 		Runtime:      incusRuntime,
 	}, nil
 }
