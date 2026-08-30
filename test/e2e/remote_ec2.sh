@@ -22,6 +22,7 @@ set -eu
 printf '%s\n' "$*" >> "$HACO_FAKE_AWS_LOG"
 args="$*"
 case "$args" in
+  *" sts get-caller-identity "*) echo '123456789012' ;;
   *" ssm send-command "*)
     n=0; [ -f "$HACO_FAKE_AWS_COUNTER" ] && n="$(cat "$HACO_FAKE_AWS_COUNTER")"
     n=$((n+1)); printf '%s' "$n" > "$HACO_FAKE_AWS_COUNTER"
@@ -83,6 +84,6 @@ set -e
 grep -Fqi 'unsupported' "$root/forward.err"
 "$haco" delete remote
 if "$haco" status remote --json >/dev/null 2>&1; then echo 'deleted environment still visible' >&2; exit 1; fi
-for want in 'ec2 run-instances' 'HttpTokens=required,HttpEndpoint=enabled' 'ssm describe-instance-information' 'ssm send-command' 'ssm start-session' 'ec2 terminate-instances' 's3 rm'; do grep -Fq "$want" "$HACO_FAKE_AWS_LOG" || { echo "missing $want" >&2; cat "$HACO_FAKE_AWS_LOG" >&2; exit 1; }; done
+for want in 'sts get-caller-identity --query Account --output text' 'ec2 run-instances' 'HttpTokens=required,HttpEndpoint=enabled' 'ssm describe-instance-information' 'ssm send-command' 'ssm start-session' 'ec2 terminate-instances' 's3 rm'; do grep -Fq "$want" "$HACO_FAKE_AWS_LOG" || { echo "missing $want" >&2; cat "$HACO_FAKE_AWS_LOG" >&2; exit 1; }; done
 if grep -Eqi 'AWS_SECRET_ACCESS_KEY|AWS_SESSION_TOKEN' "$HACO_FAKE_AWS_LOG"; then echo 'credential material leaked into aws argv' >&2; exit 1; fi
 echo 'PASS: Hacocoon v0.7 remote EC2 process E2E'
