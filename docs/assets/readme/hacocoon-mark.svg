@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="260" viewBox="0 0 1040 260" role="img" aria-labelledby="title desc">
+<title id="title">Hacocoon</title>
+<desc id="desc">Hacocoon Secure Workspace Runtime logo</desc>
+<defs>
+  <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+    <stop offset="0" stop-color="#2563eb"/>
+    <stop offset=".5" stop-color="#06b6d4"/>
+    <stop offset="1" stop-color="#7c3aed"/>
+  </linearGradient>
+  <linearGradient id="g2" x1="0" x2="1">
+    <stop offset="0" stop-color="#0f172a"/>
+    <stop offset="1" stop-color="#334155"/>
+  </linearGradient>
+</defs>
+<rect width="1040" height="260" rx="36" fill="#ffffff"/>
+<g transform="translate(34,22)">
+  <ellipse cx="105" cy="205" rx="70" ry="14" fill="#c7d2fe" opacity=".55"/>
+  <path d="M105 8 C37 34 23 105 43 164 C61 216 116 231 151 198 C191 161 194 91 160 44 C142 20 123 9 105 8Z"
+        fill="none" stroke="url(#g1)" stroke-width="22" stroke-linecap="round"/>
+  <path d="M49 48 C91 18 149 28 173 82 C194 131 169 190 118 213"
+        fill="none" stroke="#14b8a6" stroke-width="18" stroke-linecap="round" opacity=".9"/>
+  <g transform="translate(61,78)">
+    <path d="M44 0 88 23 88 75 44 98 0 75 0 23Z" fill="#eff6ff" stroke="#60a5fa" stroke-width="6"/>
+    <path d="M44 0v98M0 23l44 24 44-24" fill="none" stroke="#93c5fd" stroke-width="5"/>
+    <path d="M22 55l12 11-12 11M44 78h18" fill="none" stroke="#1d4ed8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(30,-28)">
+      <rect x="0" y="17" width="28" height="26" rx="5" fill="#14b8a6"/>
+      <path d="M6 17V9a8 8 0 0 1 16 0v8" fill="none" stroke="#0f766e" stroke-width="4"/>
+    </g>
+  </g>
+</g>
+<g transform="translate(250,62)">
+  <text x="0" y="82" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="92" font-weight="800" letter-spacing="-4" fill="url(#g2)">Haco</text>
+  <text x="212" y="82" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="92" font-weight="800" letter-spacing="-4" fill="url(#g1)">coon</text>
+  <line x1="4" y1="116" x2="70" y2="116" stroke="#14b8a6" stroke-width="7" stroke-linecap="round"/>
+  <text x="88" y="126" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="28" font-weight="650" letter-spacing="4" fill="#334155">SECURE WORKSPACE RUNTIME</text>
+</g>
+</svg>
