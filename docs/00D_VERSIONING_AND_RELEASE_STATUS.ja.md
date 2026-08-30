@@ -42,10 +42,10 @@ Hacocoon は **pre-1.0** です。milestone番号はproduct/implementationの進
 | v0.14 | Git Fetch Plugin | ✅ 実装済み |
 | v0.15 | OCI Seed Recommendation | ✅ 実装済み |
 | v0.16 | OCI Image Deletion | ✅ first slice実装済み |
-| v0.17 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
+| v0.17 | OCI Seed Builder & Btrfs/COW | 🧪 build/publishとoperations-hardeningのrepository slice実装済み。real-host/private-registry/COW acceptanceはpending |
 | v0.18 | Docker Compatibility Plugin | ✅ repository実装完了。real-host acceptanceは別管理 |
 
-v0.17がまだplannedなので、**連続して完全実装済みのproduct progressionはv0.16まで**です。v0.18 Dockerのrepository実装は、このfeatureがまだv0.17と呼ばれていた時点で先にlandしており、実装を残したまま正本上v0.18へ付け替えます。
+v0.17がpartialなfeature gateなので、**連続して完全実装済みのproduct progressionはv0.16まで**です。v0.17には複数のrepository implementation sliceがあり、v0.18 Dockerのrepository gateも実装済みです。両方とも一時的に逆のv0.17/v0.18番号でlandしたcodeを、rollbackせず正本の番号へ再分類しています。
 
 v0.7は、そのgateで導入したprovider-neutral routing seam自体が現在も実装されているため番号を維持します。以前のconcrete EC2/AWS/EBS sliceはactive treeから意図的に外しており、local/provider contractが安定するまで **cloud implementationは現在deferred** です。
 
@@ -59,13 +59,13 @@ v0.13  Managed Sandbox Network                 implemented
 v0.14  Git Fetch Plugin                        implemented
 v0.15  OCI Seed Recommendation                 implemented
 v0.16  OCI Image Deletion                      implemented
-v0.17  OCI Seed Builder & Btrfs/COW            planned
-v0.18  Docker Compatibility Plugin             repository implemented early
+v0.17  OCI Seed Builder & Btrfs/COW            partial / repository slices
+v0.18  Docker Compatibility Plugin             repository implemented
 ```
 
 短期間だけv0.18をOptional Local OCI Registry、v0.19をSeed Builder/COWとして予約した整理もありましたが、これはsupersededです。Local Registryは標準architectureの必須要件ではないためdeferred/unversionedです。
 
-その後、Docker Compatibilityをv0.17、Seed Builder/COWをv0.18とする順番になり、その番号のままDocker lifecycle implementationがlandしました。現在の正本ではphysical Environment/Base/Seed pipelineをv0.17、Docker compatibility layerをv0.18へ入れ替えます。すでにlandしたDocker実装は削除・rollbackせず、そのままv0.18の実装として扱います。
+その後、Docker Compatibilityをv0.17、Seed Builder/COWをv0.18とする順番になり、その番号のままDocker lifecycle implementationとSeed Builderのfirst repository sliceがlandしました。現在の正本ではphysical Environment/Base/Seed pipelineをv0.17、Docker compatibility layerをv0.18へ入れ替えます。すでにlandした実装は削除・rollbackしません。
 
 古いcommit/PR/branchには旧milestone名が残る場合がありますが、historical recordとしてのみ扱います。
 
@@ -89,8 +89,8 @@ v0.18  Docker Compatibility Plugin             repository implemented early
 - **v0.11/v0.12:** real Base/image・resource enforcement pending
 - **v0.13:** real supported-Incus network/profile/ACL pending
 - **v0.14:** brokered fetch実装済み。real private-repository combinationは別途acceptance
-- **v0.15/v0.16:** OCI plugin repository behavior実装済み。physical Seed publication/GCはv0.17
-- **v0.17:** planned。physical Seed build/publishとCOW validationは未実装
+- **v0.15/v0.16:** OCI plugin recommendation/deletion behavior実装済み
+- **v0.17:** repositoryのbuild/publish、explicit pin/re-enable、conservative old-revision GC、interrupted-builder recovery、deletion-race protectionは実装済み。real supported-host Incus/containerd/Docker acceptance、credential-free Environment harvestingを含むauthenticated/private-registry combinations、physical Btrfs COW measurement、broader real-host failure injectionがpending
 - **v0.18:** repository lifecycle/CLI integration実装済み。real Base + Incus/systemd socket activationはhost-dependent acceptance
 
 ## 一文でいうと
