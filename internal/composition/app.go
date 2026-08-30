@@ -70,7 +70,7 @@ func Local(_ context.Context) (*App, error) {
 
 	store := state.NewEnvironmentJSONStore(filepath.Join(stateDir, "environments.json"))
 	bindingStore := agenthostapp.NewJSONBindingStore(filepath.Join(stateDir, "agent-bindings.json"))
-	gitProvider := gitcapapp.NewProvider(runner, store)
+	gitProvider := gitcapapp.NewUnifiedProvider(runner, store)
 	auditPath := filepath.Join(root, "audit", "capabilities.jsonl")
 	capabilities, err := capabilityapp.New(
 		capabilityapp.NewFilePolicyEvaluator(filepath.Join(root, "policy.json")),

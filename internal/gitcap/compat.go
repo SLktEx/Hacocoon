@@ -9,10 +9,13 @@ const GitHubCapability = githubplugin.GitHubCapability
 
 type EnvironmentStore = githubplugin.EnvironmentStore
 type PushSpec = githubplugin.PushSpec
+type FetchSpec = githubplugin.FetchSpec
 type Broker = githubplugin.Broker
 type Provider = githubplugin.Provider
+type UnifiedProvider = githubplugin.UnifiedProvider
 type GitHubRepository = githubplugin.GitHubRepository
 
 var NewBroker = githubplugin.NewBroker
 var NewProvider = githubplugin.NewProvider
+var NewUnifiedProvider = githubplugin.NewUnifiedProvider
 var ParseGitHubRemote = githubplugin.ParseGitHubRemote
