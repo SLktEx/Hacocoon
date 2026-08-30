@@ -16,7 +16,7 @@ func ociPluginCommand(ctx context.Context, app *composition.App, args []string) 
 		return fmt.Errorf("OCI plugin is disabled; set HACO_PLUGIN_OCI=nerdctl or HACO_PLUGIN_OCI=docker: %w", core.ErrRuntimeUnavailable)
 	}
 	if len(args) == 0 {
-		return fmt.Errorf("usage: haco plugin oci <status|seed> ...: %w", core.ErrInvalidArgument)
+		return fmt.Errorf("usage: haco plugin oci <status|image|seed> ...: %w", core.ErrInvalidArgument)
 	}
 	switch args[0] {
 	case "status":
@@ -25,10 +25,75 @@ func ociPluginCommand(ctx context.Context, app *composition.App, args []string) 
 		}
 		fmt.Printf("driver: %s\n", app.OCI.Driver())
 		return nil
+	case "image":
+		return ociImageCommand(ctx, app, args[1:])
 	case "seed":
 		return ociSeedCommand(ctx, app, args[1:])
 	default:
 		return fmt.Errorf("unknown OCI plugin command %q: %w", args[0], core.ErrInvalidArgument)
+	}
+}
+
+func ociImageCommand(ctx context.Context, app *composition.App, args []string) error {
+	if len(args) == 0 || args[0] != "delete" {
+		return fmt.Errorf("usage: haco plugin oci image delete <reference[@sha256:...]> [--all-environments] [--json]: %w", core.ErrInvalidArgument)
+	}
+	return ociImageDeleteCommand(ctx, app, args[1:])
+}
+
+func ociImageDeleteCommand(ctx context.Context, app *composition.App, args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: haco plugin oci image delete <reference[@sha256:...]> [--all-environments] [--json]: %w", core.ErrInvalidArgument)
+	}
+	target := args[0]
+	allEnvironments := false
+	jsonOutput := false
+	for _, arg := range args[1:] {
+		switch arg {
+		case "--all-environments":
+			if allEnvironments {
+				return core.ErrInvalidArgument
+			}
+			allEnvironments = true
+		case "--json":
+			if jsonOutput {
+				return core.ErrInvalidArgument
+			}
+			jsonOutput = true
+		default:
+			return fmt.Errorf("unknown OCI image delete option %q: %w", arg, core.ErrInvalidArgument)
+		}
+	}
+
+	report, deleteErr := app.OCI.DeleteImage(ctx, target, allEnvironments)
+	if jsonOutput {
+		if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
+			return err
+		}
+	} else {
+		printOCIImageDeleteReport(report)
+	}
+	return deleteErr
+}
+
+func printOCIImageDeleteReport(report ociplugin.DeleteReport) {
+	if report.Reference != "" {
+		fmt.Printf("image: %s@%s\n", report.Reference, report.Digest)
+	}
+	if report.HostCache != "" {
+		fmt.Printf("host-cache: %s\n", report.HostCache)
+	}
+	if report.SeedRebuildRequired {
+		fmt.Println("seed: rebuild-required")
+	}
+	for _, environment := range report.RemovedEnvironments {
+		fmt.Printf("environment: %s\tremoved\n", environment)
+	}
+	for _, environment := range report.SkippedEnvironments {
+		fmt.Printf("environment: %s\tnot-present\n", environment)
+	}
+	for environment, reason := range report.Failures {
+		fmt.Fprintf(os.Stderr, "environment: %s\tfailed\t%s\n", environment, reason)
 	}
 }
 
