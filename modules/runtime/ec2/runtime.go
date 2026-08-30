@@ -485,44 +485,6 @@ func createWorkspaceArchive(ctx context.Context, runner host.Runner, workspace s
 	return path, cleanup, nil
 }
 
-func restoreWorkspaceArchive(ctx context.Context, runner host.Runner, archive, workspace string) error {
-	parent := filepath.Dir(workspace)
-	extracted, err := os.MkdirTemp(parent, ".haco-restore-*")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(extracted)
-	if _, err := runner.Run(ctx, "tar", "-xzf", archive, "-C", extracted); err != nil {
-		return err
-	}
-
-	backupDir, err := os.MkdirTemp(parent, ".haco-backup-*")
-	if err != nil {
-		return fmt.Errorf("create workspace backup directory: %w", err)
-	}
-	backup := filepath.Join(backupDir, "workspace")
-	if err := os.Rename(workspace, backup); err != nil {
-		_ = os.Remove(backupDir)
-		return err
-	}
-	if err := os.Rename(extracted, workspace); err != nil {
-		rollbackErr := os.Rename(backup, workspace)
-		if rollbackErr == nil {
-			_ = os.Remove(backupDir)
-			return err
-		}
-		return errors.Join(
-			err,
-			fmt.Errorf("restore original workspace from %s: %w", backup, rollbackErr),
-			core.ErrRecoveryRequired,
-		)
-	}
-	if err := os.RemoveAll(backupDir); err != nil {
-		return fmt.Errorf("remove workspace backup %s: %w", backupDir, err)
-	}
-	return nil
-}
-
 func bootstrapCommand(inputURI string, readOnly bool) string {
 	cmd := "set -eu; rm -rf /opt/hacocoon/workspace /workspace; mkdir -p /opt/hacocoon/workspace /workspace; aws s3 cp " + shellQuote(inputURI) + " /tmp/haco-workspace.tgz --only-show-errors; tar -xzf /tmp/haco-workspace.tgz -C /opt/hacocoon/workspace; rm -f /tmp/haco-workspace.tgz; mount --bind /opt/hacocoon/workspace /workspace"
 	if readOnly {
