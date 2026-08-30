@@ -38,7 +38,7 @@ jobs:
           sudo systemctl enable --now incus.service 2>/dev/null || sudo systemctl enable --now incus
       - name: Initialize real Btrfs-backed Incus pool
         run: |
-          if ! sudo incus storage list --format csv -c n | grep -q .; then
+          if [[ -z "$(sudo incus storage list --format csv)" ]]; then
             sudo incus admin init --preseed <<'EOF'
           config: {}
           networks: []
@@ -62,8 +62,14 @@ jobs:
           EOF
           fi
           sudo incus storage show default
-          test "$(sudo incus storage get default driver 2>/dev/null || true)" = "" || true
           sudo incus storage list --format csv
+      - name: Configure public Incus image remote
+        run: |
+          if ! sudo incus remote list --format csv | cut -d, -f1 | grep -Fxq images; then
+            sudo incus remote add images https://images.linuxcontainers.org --protocol=simplestreams --public
+          fi
+          sudo incus remote list --format csv
+          sudo incus image info images:ubuntu/24.04 >/dev/null
       - name: Install pinned nerdctl
         run: |
           archive="/tmp/nerdctl-${NERDCTL_VERSION}-linux-amd64.tar.gz"
