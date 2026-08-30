@@ -22,7 +22,7 @@ func TestPlanSeedMaintenanceProtectsCurrentAndInstanceBases(t *testing.T) {
 			{Fingerprint: instanceBase, Aliases: []seedMaintenanceAlias{{Name: "hacocoon-seed-haco-ubuntu-26-04-2"}}},
 			{Fingerprint: unused, Aliases: []seedMaintenanceAlias{{Name: "hacocoon-seed-haco-ubuntu-26-04-3"}}},
 		},
-		seedbuild.MaintenanceProtection{Revisions: []core.BaseRevision{"sha256:" + current}},
+		seedbuild.MaintenanceProtection{Revisions: []core.BaseRevision{core.BaseRevision("sha256:" + current)}},
 		true,
 	)
 	if err != nil {
