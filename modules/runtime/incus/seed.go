@@ -87,9 +87,6 @@ func (p *SandboxProvider) BuildToolingBase(ctx context.Context, parent core.Base
 	if err := p.ensureProject(ctx); err != nil {
 		return seedbuild.BuildResult{}, fmt.Errorf("ensure Incus project for tooling build: %w", err)
 	}
-	if err := p.ensureSandboxNetwork(ctx); err != nil {
-		return seedbuild.BuildResult{}, fmt.Errorf("ensure Incus builder network: %w", err)
-	}
 	rootPool, err := p.defaultRootPool(ctx)
 	if err != nil {
 		return seedbuild.BuildResult{}, fmt.Errorf("resolve tooling builder storage: %w", err)
@@ -111,6 +108,17 @@ func (p *SandboxProvider) BuildToolingBase(ctx context.Context, parent core.Base
 	if err != nil {
 		return seedbuild.BuildResult{}, err
 	}
+
+	toolingNetwork, cleanupToolingNetwork, err := p.createToolingBuilderNetwork(ctx)
+	if err != nil {
+		return seedbuild.BuildResult{}, err
+	}
+	toolingNetworkCleanupNeeded := true
+	defer func() {
+		if toolingNetworkCleanupNeeded {
+			_ = cleanupToolingNetwork(nil)
+		}
+	}()
 
 	builder, err := newSeedBuilderName("tooling")
 	if err != nil {
@@ -135,7 +143,7 @@ func (p *SandboxProvider) BuildToolingBase(ctx context.Context, parent core.Base
 		return seedbuild.BuildResult{}, cleanup(err)
 	}
 	if _, err := p.runner.Run(ctx, "incus", "config", "device", "add", builder, "eth0", "nic",
-		"network="+sandboxNetwork,
+		"network="+toolingNetwork,
 		"name=eth0",
 		"--project", p.project,
 	); err != nil {
@@ -210,11 +218,16 @@ func (p *SandboxProvider) BuildToolingBase(ctx context.Context, parent core.Base
 	}
 
 	// The networked phase is only for public tooling acquisition. Remove the NIC
-	// before publishing so the resulting image does not encode a builder network
-	// device. Seed construction itself starts from this image with no NIC.
+	// and its short-lived trusted bridge before publishing so the resulting image
+	// does not encode any builder network. Seed construction itself starts from
+	// this image with no NIC.
 	if _, err := p.runner.Run(ctx, "incus", "config", "device", "remove", builder, "eth0", "--project", p.project); err != nil {
 		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("remove tooling builder network: %w", err))
 	}
+	if err := cleanupToolingNetwork(nil); err != nil {
+		return seedbuild.BuildResult{}, cleanup(err)
+	}
+	toolingNetworkCleanupNeeded = false
 	if err := p.guestExec(ctx, builder, "systemctl", "stop", "hacocoon-docker.service", "hacocoon-docker.socket", "containerd.service"); err != nil {
 		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("quiesce tooling Base services: %w", err))
 	}
