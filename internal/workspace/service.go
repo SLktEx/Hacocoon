@@ -2,6 +2,8 @@ package workspace
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -13,7 +15,10 @@ import (
 
 const defaultCleanupTimeout = 30 * time.Second
 
-var environmentNamePattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,55}[a-z0-9])?$`)
+var (
+	environmentNamePattern  = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,55}[a-z0-9])?$`)
+	createOperationIDPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
+)
 
 type environmentRuntime interface {
 	CreateEnvironment(context.Context, core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error)
@@ -33,11 +38,12 @@ type environmentStore interface {
 }
 
 type Service struct {
-	runtime        environmentRuntime
-	store          environmentStore
-	provider       WorkspaceProvider
-	now            func() time.Time
-	cleanupTimeout time.Duration
+	runtime              environmentRuntime
+	store                environmentStore
+	provider             WorkspaceProvider
+	now                  func() time.Time
+	newCreateOperationID func() (string, error)
+	cleanupTimeout       time.Duration
 }
 
 func New(runtime environmentRuntime, store environmentStore) *Service {
@@ -46,11 +52,12 @@ func New(runtime environmentRuntime, store environmentStore) *Service {
 
 func NewWithProvider(runtime environmentRuntime, store environmentStore, provider WorkspaceProvider) *Service {
 	return &Service{
-		runtime:        runtime,
-		store:          store,
-		provider:       provider,
-		now:            time.Now,
-		cleanupTimeout: defaultCleanupTimeout,
+		runtime:              runtime,
+		store:                store,
+		provider:             provider,
+		now:                  time.Now,
+		newCreateOperationID: randomCreateOperationID,
+		cleanupTimeout:       defaultCleanupTimeout,
 	}
 }
 
@@ -82,17 +89,9 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 		return core.Environment{}, err
 	}
 
-	lease := core.WorkspaceLease{
-		WorkspaceID:   workspace.ID,
-		SourcePath:    workspace.Path,
-		EnvironmentID: name,
-		AccessMode:    mode,
-		Owner:         name,
-		State:         core.WorkspaceLeaseAcquiring,
-		AcquiredAt:    s.now().UTC(),
-	}
-	if err := s.store.AcquireWorkspaceLease(ctx, lease); err != nil {
-		return core.Environment{}, fmt.Errorf("acquire workspace lease: %w", err)
+	lease, err := s.prepareCreateLease(ctx, name, workspace, mode)
+	if err != nil {
+		return core.Environment{}, err
 	}
 	releaseLease := func() error {
 		cleanupCtx, cancel := s.newCleanupContext(ctx)
@@ -105,14 +104,18 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 	}
 
 	created, err := s.runtime.CreateEnvironment(ctx, core.EnvironmentRuntimeSpec{
-		Name:          name,
-		WorkspacePath: workspace.Path,
-		ReadOnly:      mode == core.WorkspaceReadOnly,
-		Base:          spec.Base,
-		Resources:     resources,
+		Name:              name,
+		WorkspacePath:     workspace.Path,
+		ReadOnly:          mode == core.WorkspaceReadOnly,
+		Base:              spec.Base,
+		Resources:         resources,
+		CreateOperationID: lease.CreateOperationID,
 	})
 	if err != nil {
 		if errors.Is(err, core.ErrRecoveryRequired) {
+			// Keep the acquiring lease and its durable CreateOperationID. A retry
+			// must reuse the same remote idempotency identity rather than mint a
+			// second cloud resource after an ambiguous response.
 			return core.Environment{}, fmt.Errorf("create environment %q: %w", name, err)
 		}
 		releaseErr := releaseLease()
@@ -170,6 +173,54 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.E
 		)
 	}
 	return environment, nil
+}
+
+func (s *Service) prepareCreateLease(ctx context.Context, name string, workspace core.Workspace, mode core.WorkspaceAccessMode) (core.WorkspaceLease, error) {
+	existing, err := s.store.GetWorkspaceLease(ctx, name)
+	if err == nil {
+		if existing.State != core.WorkspaceLeaseAcquiring || existing.RuntimeRef != "" {
+			return core.WorkspaceLease{}, fmt.Errorf("workspace lease for environment %q is not resumable: %w", name, core.ErrAlreadyExists)
+		}
+		if existing.EnvironmentID != name || existing.Owner != name || existing.WorkspaceID != workspace.ID || existing.SourcePath != workspace.Path || existing.AccessMode != mode {
+			return core.WorkspaceLease{}, fmt.Errorf("workspace lease for environment %q does not match retry request: %w", name, core.ErrWorkspaceBusy)
+		}
+		if !validCreateOperationID(existing.CreateOperationID) {
+			return core.WorkspaceLease{}, errors.Join(
+				fmt.Errorf("acquiring workspace lease for environment %q lacks a trustworthy create operation identity", name),
+				core.ErrRecoveryRequired,
+			)
+		}
+		return existing, nil
+	}
+	if !isNotFound(err) {
+		return core.WorkspaceLease{}, err
+	}
+
+	newID := s.newCreateOperationID
+	if newID == nil {
+		newID = randomCreateOperationID
+	}
+	operationID, err := newID()
+	if err != nil {
+		return core.WorkspaceLease{}, fmt.Errorf("allocate create operation identity: %w", err)
+	}
+	if !validCreateOperationID(operationID) {
+		return core.WorkspaceLease{}, fmt.Errorf("invalid generated create operation identity: %w", core.ErrIncompatibleState)
+	}
+	lease := core.WorkspaceLease{
+		WorkspaceID:       workspace.ID,
+		SourcePath:        workspace.Path,
+		EnvironmentID:     name,
+		AccessMode:        mode,
+		Owner:             name,
+		CreateOperationID: operationID,
+		State:             core.WorkspaceLeaseAcquiring,
+		AcquiredAt:        s.now().UTC(),
+	}
+	if err := s.store.AcquireWorkspaceLease(ctx, lease); err != nil {
+		return core.WorkspaceLease{}, fmt.Errorf("acquire workspace lease: %w", err)
+	}
+	return lease, nil
 }
 
 func (s *Service) Exec(ctx context.Context, name string, req core.ExecutionRequest) (core.ExecutionResult, error) {
@@ -259,6 +310,16 @@ func normalizeAccessMode(mode core.WorkspaceAccessMode) (core.WorkspaceAccessMod
 		return "", fmt.Errorf("workspace access mode %q: %w", mode, core.ErrInvalidArgument)
 	}
 }
+
+func randomCreateOperationID() (string, error) {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(raw[:]), nil
+}
+
+func validCreateOperationID(value string) bool { return createOperationIDPattern.MatchString(value) }
 
 func isNotFound(err error) bool {
 	return errors.Is(err, core.ErrNotFound) || os.IsNotExist(err)
