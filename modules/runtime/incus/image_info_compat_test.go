@@ -100,3 +100,88 @@ func TestImageInfoCompatRunnerRejectsMalformedOrTruncatedLegacyOutput(t *testing
 		})
 	}
 }
+
+func TestImageInfoCompatRunnerUsesInstanceAPIForExpandedConfig(t *testing.T) {
+	calls := 0
+	next := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+		calls++
+		if name != "incus" || !reflect.DeepEqual(args, []string{"query", "/1.0/instances/builder?project=hacocoon"}) {
+			t.Fatalf("unexpected call: %s %#v", name, args)
+		}
+		return host.Result{Stdout: `{"expanded_devices":{"root":{"type":"disk","path":"/"}}}`}, nil
+	}}
+
+	result, err := wrapImageInfoCompatRunner(next).Run(context.Background(), "incus", "config", "show", "builder", "--project", "hacocoon", "--expanded", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("calls=%d want=1", calls)
+	}
+	var decoded struct {
+		Devices map[string]map[string]string `json:"devices"`
+	}
+	if err := json.Unmarshal([]byte(result.Stdout), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Devices["root"]["type"] != "disk" {
+		t.Fatalf("devices=%#v", decoded.Devices)
+	}
+}
+
+func TestImageInfoCompatRunnerExpandedConfigFallsBackOnlyWhenQueryUnsupported(t *testing.T) {
+	calls := 0
+	next := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+		calls++
+		if name != "incus" {
+			t.Fatalf("unexpected command: %s", name)
+		}
+		switch {
+		case reflect.DeepEqual(args, []string{"query", "/1.0/instances/builder?project=hacocoon"}):
+			return host.Result{ExitCode: 2, Stderr: "unknown command query"}, errors.New("exit status 2")
+		case reflect.DeepEqual(args, []string{"config", "show", "builder", "--project", "hacocoon", "--expanded", "--format", "json"}):
+			return host.Result{Stdout: `{"devices":{"root":{"type":"disk","path":"/"}}}`}, nil
+		default:
+			t.Fatalf("unexpected args: %#v", args)
+			return host.Result{}, nil
+		}
+	}}
+
+	result, err := wrapImageInfoCompatRunner(next).Run(context.Background(), "incus", "config", "show", "builder", "--project", "hacocoon", "--expanded", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 || !stringsContain(result.Stdout, `"devices"`) {
+		t.Fatalf("calls=%d result=%#v", calls, result)
+	}
+}
+
+func TestImageInfoCompatRunnerExpandedConfigFailsClosedOnBadAPIState(t *testing.T) {
+	for _, raw := range []string{`{}`, `{"expanded_devices":`, `{"devices":{}}`} {
+		t.Run(raw, func(t *testing.T) {
+			next := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+				if !reflect.DeepEqual(args, []string{"query", "/1.0/instances/builder?project=hacocoon"}) {
+					t.Fatalf("unexpected args: %#v", args)
+				}
+				return host.Result{Stdout: raw}, nil
+			}}
+			_, err := wrapImageInfoCompatRunner(next).Run(context.Background(), "incus", "config", "show", "builder", "--project", "hacocoon", "--expanded", "--format", "json")
+			if !errors.Is(err, core.ErrIncompatibleState) {
+				t.Fatalf("err=%v want ErrIncompatibleState", err)
+			}
+		})
+	}
+}
+
+func stringsContain(value, needle string) bool {
+	return len(value) >= len(needle) && reflect.ValueOf(value).String() != "" && contains(value, needle)
+}
+
+func contains(value, needle string) bool {
+	for i := 0; i+len(needle) <= len(value); i++ {
+		if value[i:i+len(needle)] == needle {
+			return true
+		}
+	}
+	return false
+}
