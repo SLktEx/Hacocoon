@@ -55,10 +55,10 @@ Hacocoon does not own IDE/AI chat UX, model routing, task DAGs, Git worktree orc
 | v0.14 | Git Fetch Plugin | implemented |
 | v0.15 | OCI Seed Recommendation | implemented |
 | v0.16 | OCI Image Deletion | first slice implemented |
-| v0.17 | Docker Compatibility Plugin | foundation / partial |
+| v0.17 | Docker Compatibility Plugin | implemented; real-host acceptance remains host-dependent |
 | v0.18 | OCI Seed Builder & Btrfs/COW | planned |
 
-Fully implemented product milestones are contiguous through **v0.16**. v0.17 remains partial; v0.18 is planned.
+Fully implemented product milestones are contiguous through **v0.17**. v0.18 is planned.
 
 **Local OCI Registry is not a roadmap milestone.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
 
@@ -76,7 +76,9 @@ HACO_PLUGIN_OCI=nerdctl  haco plugin oci ...
 HACO_PLUGIN_OCI=docker   haco plugin oci ...
 ```
 
-`haco base` describes Environment starting identity. OCI/container lifecycle is an optional plugin responsibility. The project-maintained plugin profile may use containerd + nerdctl, and Docker compatibility may use genuine Docker CLI plus on-demand Engine; neither is a Core invariant.
+`haco base` describes Environment starting identity. OCI/container lifecycle is an optional plugin responsibility. The project-maintained plugin profile may use containerd + nerdctl, and Docker compatibility may use genuine Docker CLI plus Environment-local socket-activated Engine; neither is a Core invariant.
+
+v0.17 adds the explicit lifecycle commands `haco plugin oci docker status <environment>` and `prepare <environment>`. `prepare` validates the Base-provided Docker compatibility profile and pinned systemd units, does not install packages, and refuses to silently stop an already-active vendor Docker daemon.
 
 ## OCI storage direction
 

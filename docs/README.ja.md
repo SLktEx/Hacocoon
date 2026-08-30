@@ -23,10 +23,10 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 | v0.14 | Git Fetch Plugin | 実装済み |
 | v0.15 | OCI Seed Recommendation | 実装済み |
 | v0.16 | OCI Image Deletion | first slice実装済み |
-| v0.17 | Docker Compatibility Plugin | foundation / partial |
+| v0.17 | Docker Compatibility Plugin | 実装済み。host acceptanceは別 |
 | v0.18 | OCI Seed Builder & Btrfs/COW | planned |
 
-完全実装済みのproduct progressionは **v0.16まで連続**しています。
+完全実装済みのproduct progressionは **v0.17まで連続**しています。
 
 Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
 
@@ -37,10 +37,13 @@ haco base list
 haco base inspect <base>
 
 HACO_PLUGIN_OCI=nerdctl  haco plugin oci ...
-HACO_PLUGIN_OCI=docker   haco plugin oci ...
+HACO_PLUGIN_OCI=docker   haco plugin oci docker status <environment>
+HACO_PLUGIN_OCI=docker   haco plugin oci docker prepare <environment>
 ```
 
 BaseはEnvironmentのstarting identity、OCIはoptionalなdeveloper workload toolingです。Coreはcontainerd / nerdctl / Dockerを必須にしません。
+
+Dockerの `prepare` はBase提供のcompatibility profileとHacocoon-pinned systemd unitを検証し、Environment-local socket activationだけを有効化します。Docker packageのinstallや、activeなvendor daemonのsilent stopは行いません。
 
 ## OCI storage
 

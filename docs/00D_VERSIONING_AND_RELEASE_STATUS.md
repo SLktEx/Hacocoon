@@ -40,10 +40,10 @@ Use this document for **which version number belongs to which feature gate**. Us
 | v0.14 | Git Fetch Plugin | ✅ implemented |
 | v0.15 | OCI Seed Recommendation | ✅ implemented |
 | v0.16 | OCI Image Deletion | ✅ first slice implemented |
-| v0.17 | Docker Compatibility Plugin | 🧪 foundation implemented; full plugin integration pending |
+| v0.17 | Docker Compatibility Plugin | ✅ repository implementation complete; real-host acceptance tracked separately |
 | v0.18 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
 
-The fully implemented product progression is contiguous through **v0.16**. v0.17 has a foundation but is not a complete feature gate. v0.18 remains planned.
+The fully implemented product progression is contiguous through **v0.17**. v0.18 remains planned.
 
 v0.7 keeps its milestone number because the provider-neutral routing seam introduced by that gate remains implemented. The previous concrete EC2/AWS/EBS slice is intentionally absent from the active tree and **cloud implementation is currently deferred** while local/provider contracts stabilize.
 
@@ -57,7 +57,7 @@ v0.13  Managed Sandbox Network                 implemented
 v0.14  Git Fetch Plugin                        implemented
 v0.15  OCI Seed Recommendation                 implemented
 v0.16  OCI Image Deletion                      implemented
-v0.17  Docker Compatibility Plugin             partial/foundation
+v0.17  Docker Compatibility Plugin             implemented
 v0.18  OCI Seed Builder & Btrfs/COW            planned
 ```
 
@@ -86,7 +86,7 @@ The later CLI namespace cleanup that separated `haco base ...` from `haco plugin
 - **v0.13:** real supported-Incus network/profile/ACL acceptance remains host-dependent.
 - **v0.14:** brokered fetch is implemented; real private-repository combinations remain acceptance-sensitive.
 - **v0.15/v0.16:** OCI plugin repository behavior is implemented; physical Seed publication/GC belongs to v0.18.
-- **v0.17:** do not claim complete until plugin lifecycle/integration is landed and validated.
+- **v0.17:** repository lifecycle/CLI integration is implemented; real Base + Incus/systemd socket-activation acceptance remains host-dependent.
 - **v0.18:** planned only.
 
 ## Rule of thumb
