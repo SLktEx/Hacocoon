@@ -42,10 +42,10 @@ Hacocoon は **pre-1.0** です。milestone番号はproduct/implementationの進
 | v0.14 | Git Fetch Plugin | ✅ 実装済み |
 | v0.15 | OCI Seed Recommendation | ✅ 実装済み |
 | v0.16 | OCI Image Deletion | ✅ first slice実装済み |
-| v0.17 | Docker Compatibility Plugin | 🧪 foundation実装済み。full plugin integrationはpending |
+| v0.17 | Docker Compatibility Plugin | ✅ repository実装完了。real-host acceptanceは別管理 |
 | v0.18 | OCI Seed Builder & Btrfs/COW | 🚧 planned |
 
-**完全に実装済みのproduct progressionはv0.16まで連続**しています。v0.17はfoundation段階、v0.18はplannedです。
+**完全に実装済みのproduct progressionはv0.17まで連続**しています。v0.18はplannedです。
 
 v0.7は、そのgateで導入したprovider-neutral routing seam自体が現在も実装されているため番号を維持します。以前のconcrete EC2/AWS/EBS sliceはactive treeから意図的に外しており、local/provider contractが安定するまで **cloud implementationは現在deferred** です。
 
@@ -59,7 +59,7 @@ v0.13  Managed Sandbox Network                 implemented
 v0.14  Git Fetch Plugin                        implemented
 v0.15  OCI Seed Recommendation                 implemented
 v0.16  OCI Image Deletion                      implemented
-v0.17  Docker Compatibility Plugin             partial/foundation
+v0.17  Docker Compatibility Plugin             implemented
 v0.18  OCI Seed Builder & Btrfs/COW            planned
 ```
 
@@ -88,7 +88,7 @@ v0.18  OCI Seed Builder & Btrfs/COW            planned
 - **v0.13:** real supported-Incus network/profile/ACL pending
 - **v0.14:** brokered fetch実装済み。real private-repository combinationは別途acceptance
 - **v0.15/v0.16:** OCI plugin repository behavior実装済み。physical Seed publication/GCはv0.18
-- **v0.17:** plugin lifecycle/integration完了まではcomplete扱いしない
+- **v0.17:** repository lifecycle/CLI integration実装済み。real Base + Incus/systemd socket activationはhost-dependent acceptance
 - **v0.18:** planned
 
 ## 一文でいうと
