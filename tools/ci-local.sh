@@ -38,6 +38,7 @@ run_docs() {
   need python3
   section "docs"
   python3 tools/check_docs.py
+  python3 tools/test_check_docs.py
 }
 
 run_workflow_policy() {

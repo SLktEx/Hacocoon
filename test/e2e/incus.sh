@@ -67,7 +67,7 @@ go build -o "$haco" ./cmd/haco
 go build -o "$haco_host" ./cmd/haco-host
 go build -o "$controller" ./cmd/haco-controller
 
-HACO_STORAGE_PRIVILEGE_MODE=direct "$controller" >"$controller_log" 2>&1 &
+"$controller" >"$controller_log" 2>&1 &
 controller_pid=$!
 for _ in $(seq 1 100); do
   [[ -S "$control_socket" ]] && break
@@ -140,6 +140,21 @@ grep -Fq "controller: $trusted_control_socket" <<<"$first_doctor" || {
 }
 grep -Eq '^protocol-version: [0-9]+$' <<<"$first_doctor" || {
   echo "haco-host doctor did not complete the controller protocol round trip" >&2
+  exit 1
+}
+
+host_shell_stdout="$root/host-shell-stdout"
+host_shell_stderr="$root/host-shell-stderr"
+printf 'echo host-shell-controller-ok\nexit\n' | "$haco" host shell >"$host_shell_stdout" 2>"$host_shell_stderr"
+grep -Fq "host-shell-controller-ok" "$host_shell_stdout" || {
+  echo "haco host shell did not round-trip through the controller" >&2
+  cat "$host_shell_stdout" >&2 || true
+  cat "$host_shell_stderr" >&2 || true
+  exit 1
+}
+grep -Fq "haco-host" "$host_shell_stderr" || {
+  echo "haco host shell did not emit the privileged Host warning" >&2
+  cat "$host_shell_stderr" >&2 || true
   exit 1
 }
 
@@ -351,4 +366,4 @@ if [[ -e "$HACO_ROOT/state/environments.json" ]] && grep -Fq "\"$environment\"" 
   exit 1
 fi
 
-echo "PASS: provisioned trusted haco general client -> Hacocoon UDS -> Physical Host controller + Incus E2E"
+echo "PASS: provisioned trusted haco general client + haco host shell -> Hacocoon UDS -> Physical Host controller + Incus E2E"

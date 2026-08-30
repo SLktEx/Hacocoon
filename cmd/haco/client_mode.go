@@ -19,7 +19,7 @@ const (
 // binary installed in trusted haco-host. It is not an authorization token: the
 // Physical Host controller remains responsible for policy and authority.
 func init() {
-	if isHacocoonLogin(os.Args[0]) || isVersionInvocation(os.Args[1:]) {
+	if isHacocoonLogin(os.Args[0]) || isVersionInvocation(os.Args[1:]) || isHelpInvocation(os.Args[1:]) {
 		return
 	}
 	handled, err := handleControllerClientModeArgs(
@@ -63,6 +63,12 @@ func handleControllerClientModeArgs(
 		// explicit trusted-host client context above.
 		return false, nil
 	}
+	if len(args) > 1 && args[0] == "host" && args[1] == "shell" {
+		// host_client.go owns the controller-backed interactive Host session.
+		// Other host subcommands, notably host ensure, remain Physical Host-local
+		// and must continue through the classification error path below.
+		return false, nil
+	}
 	if factory == nil || stdin == nil || stdout == nil || stderr == nil {
 		return true, core.ErrInvalidArgument
 	}
@@ -78,7 +84,27 @@ func handleControllerClientModeArgs(
 	if len(args) > 0 {
 		command = args[0]
 	}
-	return true, fmt.Errorf("command %q is not available in controller-client mode; refusing local composition fallback: %w", command, core.ErrUnsupported)
+	return true, controllerClientModeCommandError(command)
+}
+
+func controllerClientModeCommandError(command string) error {
+	classification, ok := hacoCommandClassification(command)
+	if !ok {
+		return fmt.Errorf("command %q is not available in controller-client mode; refusing local composition fallback: %w", command, core.ErrUnsupported)
+	}
+	switch classification.Domain {
+	case commandDomainGeneral:
+		return fmt.Errorf("command %q is a general haco client operation but its controller migration is not implemented yet (%s); refusing local composition fallback: %w", command, classification.State, core.ErrUnsupported)
+	case commandDomainPhysicalHost:
+		return fmt.Errorf("command %q is classified as Physical Host-local (%s) and is unavailable inside controller-client mode: %w", command, classification.State, core.ErrUnsupported)
+	case commandDomainTrustedHost:
+		return fmt.Errorf("command %q is classified as trusted haco-host-local (%s); the replacement surface is not implemented yet, so refusing local composition fallback: %w", command, classification.State, core.ErrUnsupported)
+	case commandDomainCompatibility:
+		if classification.Replacement != "" {
+			return fmt.Errorf("command %q is a temporary compatibility alias; use %s: %w", command, classification.Replacement, core.ErrUnsupported)
+		}
+	}
+	return fmt.Errorf("command %q is not available in controller-client mode; refusing local composition fallback: %w", command, core.ErrUnsupported)
 }
 
 func controllerClientMode() (bool, error) {

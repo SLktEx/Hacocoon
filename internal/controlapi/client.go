@@ -72,3 +72,7 @@ func (c *Client) OpenEnvironmentShell(ctx context.Context, environment string) (
 func (c *Client) DeleteEnvironment(ctx context.Context, environment string) error {
 	return c.wire.Call(ctx, MethodEnvironmentDelete, EnvironmentNameRequest{Environment: environment}, nil)
 }
+
+func (c *Client) OpenTrustedHostShell(ctx context.Context) (net.Conn, error) {
+	return c.wire.OpenStream(ctx, MethodHostShell, struct{}{})
+}
