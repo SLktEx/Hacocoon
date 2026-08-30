@@ -11,9 +11,11 @@ The current public-repository operating model is intentionally **solo-maintainer
 
 This contribution boundary is the primary reason anonymous fork code cannot currently enter Hacocoon's upstream PR CI at all. It must be re-audited before external Pull Requests or another write-capable collaborator are enabled.
 
-Pull-request CI remains deliberately hardened as defense in depth and for owner/collaborator branches. It is constrained to disposable GitHub-hosted runners with read-only repository authority, no repository/environment secrets, and no persistent cache bridge. Experimental EC2 execution and Hacocoon's real privileged integration suites remain disabled in normal PR CI.
+Pull-request CI remains deliberately hardened as defense in depth and for owner/collaborator branches. It is constrained to disposable GitHub-hosted runners with read-only repository authority, no repository/environment secrets, and no persistent cache bridge. Experimental EC2 execution remains disabled. Privileged Incus checks live only in the dedicated, explicitly reviewed workflows described below rather than in the normal `test.yml` job set.
 
-One narrower exception exists for the standalone Incus substrate smoke test in `tools/ci-incus-smoke.sh`. That test runs only on a disposable GitHub-hosted Ubuntu 26.04 runner, installs the native container-only Incus packages, initializes the runner-local daemon, launches one fixed-name system container, verifies systemd and `incus exec`, and deletes that exact test instance. It does not run Hacocoon binaries, expose repository credentials or secrets, attach a self-hosted runner, exercise EC2, or enable `HACO_E2E_INCUS`. The helper verifies its GitHub-hosted-runner preconditions before privileged setup, diagnostics are captured on failure, cleanup is attempted with an exact instance name on every run, and the runner is discarded after the job.
+The standalone Incus substrate smoke test in `tools/ci-incus-smoke.sh` runs only on a disposable GitHub-hosted Ubuntu 26.04 runner. It installs the native container-only Incus packages, initializes the runner-local daemon, launches one fixed-name system container, verifies systemd and `incus exec`, and deletes that exact test instance. It does not run Hacocoon binaries, expose repository credentials or secrets, attach a self-hosted runner, exercise EC2, or enable `HACO_E2E_INCUS`. The helper verifies its GitHub-hosted-runner preconditions before privileged setup, diagnostics are captured on failure, cleanup is attempted with an exact instance name on every run, and the runner is discarded after the job.
+
+The Hacocoon Core lifecycle E2E in `tools/ci-incus-core.sh` is a second narrow exception built on that proven substrate. It uses the same disposable Ubuntu 26.04 runner and native container-only Incus packages, then creates a runner-local TLS client so Hacocoon itself runs as the ordinary runner user rather than as root. The privileged setup grants root's subordinate-ID configuration only the single runner UID and GID needed to map the explicitly leased workspace into an unprivileged system container, and loads `br_netfilter` because the Hacocoon sandbox intentionally keeps bridge filtering enabled. The test enables `HACO_E2E_INCUS` only inside the reviewed helper, executes only `TestRealIncusWorkspaceLifecycleE2E`, and does not run the local CLI composition or managed Btrfs storage path. Cleanup is restricted to `haco-e2e-*` projects whose instances have the expected `haco-*` prefix plus the fixed Hacocoon sandbox profile/network/ACL. No repository secrets, write token, self-hosted runner, VM/KVM path, Seed/OCI plugin, or EC2 authority is exposed.
 
 `tools/check_workflow_policy.py` encodes defense-in-depth invariants for every file under `.github/workflows/`. It currently requires:
 
@@ -27,9 +29,9 @@ One narrower exception exists for the standalone Incus substrate smoke test in `
 - no `actions/cache` use in untrusted PR workflows;
 - no cross-run/external artifact downloads from PR workflows;
 - `actions/setup-go` caching disabled in PR workflows;
-- no direct `HACO_E2E_INCUS=1` or experimental EC2 enablement in normal PR CI.
+- no direct `HACO_E2E_INCUS=1` or experimental EC2 enablement in workflow YAML.
 
-The direct Incus environment-variable ban is intentionally retained: the standalone substrate smoke is not permission to turn normal PR CI into a Hacocoon privileged integration environment. Real Hacocoon/Incus acceptance remains a separately reviewed path.
+The direct Incus environment-variable ban is intentionally retained: dedicated helpers may opt into a narrowly reviewed real-Incus test, but workflow YAML itself must not turn arbitrary jobs into privileged Hacocoon integration environments.
 
 `tools/check_public_release_readiness.py` additionally validates the live repository assumptions used by the current solo-maintainer model, including contribution-closed PR policy, absence of non-owner direct collaborators, protected `main`, protected release tags, and zero repository self-hosted runners.
 
