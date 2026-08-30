@@ -1,6 +1,6 @@
 # v0.17 — OCI Seed Builder & Btrfs/COW Optimization
 
-[English](17_v0.17_OCI_SEED_AND_COW.md) | **日本語**
+[English](oci-seed-and-cow.md) | **日本語**
 
 Status: **first repository slice実装済み / partial。v0.15 recommendationとv0.16 deletion policyは実装済みprerequisiteです。Seed build/publishとexact-parent resolutionは実装され、real-host / physical COW acceptanceが残っています。**
 

@@ -1,6 +1,6 @@
 # Base Image Architecture — 日本語ガイド
 
-Status: **v0.11 first slice は実装済み。この文書には今後の Base lifecycle 構想も含みます。** 現在の最小 contract は [`11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`](11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md)、実装事実は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) を参照してください。
+Status: **v0.11 first slice は実装済み。この文書には今後の Base lifecycle 構想も含みます。** 現在の最小 contract は [`design/base-images-and-custom-environments.md`](design/base-images-and-custom-environments.md)、実装事実は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) を参照してください。
 
 ## 何をする機能か
 
@@ -112,42 +112,15 @@ Custom Base build/import は **first slice では未実装**です。
 
 追加するときは build/import input を hostile data/code として扱い、archive traversal、unsafe symlink、malformed metadata、resource exhaustion、partial cleanup、credential capture を明示的に防ぎます。
 
-推奨する将来形:
-
-```text
-Host
-  |
-  +-- Hacocoon / Incus authority
-  |
-  +-- isolated builder Environment
-          |
-          +-- build/import
-          +-- immutable image
-          +-- Base revision registration
-```
-
-Host credential は暗黙に注入しません。
-
 ## History / Rollback / Delete / GC も今後
 
 これらも **first slice では未実装**です。
 
-logical name の remove と physical revision deletion は分離します。
-
-```text
-logical name remove
-    -> 新規選択不可
-    -> referenced revision は保持
-    -> 安全を証明できる未参照 revision だけ将来 GC
-```
-
-running/recoverable Environment が参照する revision は物理削除してはいけません。安全を証明できなければ、Environment を壊すより storage を残す方を選びます。
-
-将来は `create vs update`、`create vs remove`、`gc vs create`、`build vs build` の race を意図的に扱う必要があります。
+logical name の remove と physical revision deletion は分離します。running/recoverable Environment が参照する revision は物理削除してはいけません。安全を証明できなければ、Environment を壊すより storage を残す方を選びます。
 
 ## Selection precedence
 
-今の first slice は explicit `--base` と Hacocoon default を実装しています。project/user default を将来追加する場合は次の deterministic precedence を維持します。
+今の first slice は explicit `--base` と Hacocoon default を実装しています。project/user default を将来追加する場合は deterministic precedence を維持します。
 
 ```text
 CLI --base

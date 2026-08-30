@@ -1,6 +1,6 @@
 # Base Image Architecture
 
-Status: **v0.11 first slice implemented; this document also describes future Base lifecycle work.** The minimum current contract is `11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md`, and `IMPLEMENTATION_STATUS.md` is authoritative for code reality.
+Status: **v0.11 first slice implemented; this document also describes future Base lifecycle work.** The minimum current contract is [`design/base-images-and-custom-environments.md`](design/base-images-and-custom-environments.md), and `IMPLEMENTATION_STATUS.md` is authoritative for code reality.
 
 This document describes reusable Environment starting points without leaking Incus-specific image mechanics into Core.
 

@@ -10,15 +10,17 @@ Before changing code or documentation, read:
 
 1. `docs/README.md` for documentation ownership and source-of-truth order.
 2. `docs/IMPLEMENTATION_STATUS.md` for current repository reality.
-3. The relevant architecture or versioned specification for the subsystem being changed.
-4. `.github/security/ADVERSARIAL_AUDIT.md` for security-sensitive changes.
+3. `docs/DOCUMENTATION_STYLE_GUIDE.md` before changing README files or documentation.
+4. The relevant semantic design document under `docs/design/` for the subsystem being changed.
+5. `.github/security/ADVERSARIAL_AUDIT.md` for security-sensitive changes.
 
 Do not add tool-specific handoff files, generated master documents, migration scratch notes, or duplicate "start here" documents to the repository root. Git history is the archive for obsolete implementation notes.
 
 ## Architecture
 
-- Keep Workspace, Environment, Execution, Policy/Capability, provider, client, and plugin responsibilities separated.
+- Keep Workspace, Environment, Execution, Policy/Capability, provider, client, Standard-component, and plugin responsibilities separated.
 - Provider-specific behavior belongs behind provider/adapter boundaries, not in Core conditionals.
+- Standard implementations may be shipped and enabled by default while remaining replaceable implementations of Core contracts.
 - Optional integrations must remain optional. Core must not gain mandatory dependencies merely because one maintained plugin uses them.
 - Do not give untrusted workloads Hacocoon/Incus management authority, reusable Host credentials, Host control sockets, or protected Hacocoon state.
 - Hacocoon is pre-1.0. Prefer deletion, replacement, and clear ownership over preserving accidental compatibility.
@@ -27,13 +29,22 @@ Do not add tool-specific handoff files, generated master documents, migration sc
 
 `docs/README.md` defines the authoritative documentation order. Avoid creating another index that duplicates it.
 
+Long-lived documentation addresses are semantic. Normal documentation filenames must not encode a product version, milestone, or arbitrary reading order. Put feature contracts under `docs/design/`, security architecture under `docs/security/`, terminology/reference material under `docs/reference/`, and roadmap/version authority under `docs/status/`. ADR sequence numbers under `docs/adr/` are the intentional exception because the number is part of ADR identity.
+
 When behavior changes:
 
-- update the owning specification and `docs/IMPLEMENTATION_STATUS.md`;
-- update `docs/00D_VERSIONING_AND_RELEASE_STATUS.md` only when an independently useful product feature consumes a new milestone;
-- keep English/Japanese companion documents aligned when both exist;
-- describe current behavior as current, and historical behavior as historical or recoverable from Git history;
-- do not keep stale implementation snapshots solely for handoff convenience.
+- update the owning design/reference/security document before summary pages;
+- update `docs/IMPLEMENTATION_STATUS.md` for current repository reality;
+- update `docs/status/versioning-and-release-status.md` only when an independently useful product feature consumes or changes a milestone;
+- use `docs/reference/terminology-and-boundaries.md` for canonical vocabulary;
+- preserve `docs/security/security-architecture.md` trust-boundary rules;
+- keep English/Japanese companion documents aligned in the same change when both exist;
+- use explicit `implemented`, `partial`, `planned`, `deferred`, or `historical` wording;
+- keep repository implementation claims separate from real-host/provider acceptance;
+- treat README files as entry points and routing pages, not competing sources of truth;
+- describe historical behavior as historical or recoverable from Git history rather than retaining stale duplicate snapshots.
+
+When moving a document, update every inbound relative link in the same change. Prefer repository-relative Markdown links and current copy-pasteable commands.
 
 Run `python tools/check_docs.py` after documentation changes.
 
