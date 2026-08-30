@@ -85,7 +85,6 @@ func parseNerdctlNamespace(args []string) (string, []string, error) {
 				args = args[1:]
 				continue
 			}
-			// containerd socket selection has no safe meaning for the Incus shim.
 			return "", nil, fmt.Errorf("nerdctl containerd address flags are not supported by the Incus shim: %w", core.ErrUnsupported)
 		default:
 			if namespace != "" && strings.TrimSpace(namespace) != namespace {
@@ -200,9 +199,6 @@ func nerdctlExecCommand(ctx context.Context, client controllerClient, environmen
 	for len(args) > 0 {
 		switch args[0] {
 		case "-i", "--interactive", "-t", "--tty", "-it", "-ti":
-			// The current controller transport captures exec output rather than
-			// exposing a PTY. Accept the common flags so scripts do not need to
-			// special-case Hacocoon, but keep the execution non-interactive.
 			args = args[1:]
 		default:
 			goto parsed
@@ -293,12 +289,11 @@ func nerdctlImageToIncus(image string) (string, error) {
 	if strings.HasPrefix(image, "docker.io/") {
 		image = strings.TrimPrefix(image, "docker.io/")
 	}
-	first := image
 	if slash := strings.IndexByte(image, '/'); slash >= 0 {
-		first = image[:slash]
-	}
-	if first == "localhost" || strings.Contains(first, ".") || strings.Contains(first, ":") {
-		return "", fmt.Errorf("registry %q needs an Incus OCI remote; use <remote>::<image> after haco registry login/configuration: %w", first, core.ErrUnsupported)
+		first := image[:slash]
+		if first == "localhost" || strings.Contains(first, ".") || strings.Contains(first, ":") {
+			return "", fmt.Errorf("registry %q needs an Incus OCI remote; use <remote>::<image> after haco registry login/configuration: %w", first, core.ErrUnsupported)
+		}
 	}
 	if !strings.Contains(image, "/") {
 		image = "library/" + image
