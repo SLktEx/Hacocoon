@@ -40,21 +40,37 @@ func ensureTrustedHostAndClient(ctx context.Context, app *composition.App) error
 	if err != nil {
 		return err
 	}
-	return app.Runtime.ProvisionTrustedHostClient(ctx, clientBinary)
+	if err := app.Runtime.ProvisionTrustedHostClient(ctx, clientBinary); err != nil {
+		return err
+	}
+	generalClientBinary, err := trustedHostGeneralClientBinary()
+	if err != nil {
+		return err
+	}
+	return app.Runtime.ProvisionTrustedHostGeneralClient(ctx, generalClientBinary)
 }
 
 func trustedHostClientBinary() (string, error) {
-	executable, err := os.Executable()
+	executable, err := trustedHostGeneralClientBinary()
 	if err != nil {
-		return "", fmt.Errorf("resolve haco executable: %w", err)
-	}
-	if resolved, resolveErr := filepath.EvalSymlinks(executable); resolveErr == nil {
-		executable = resolved
+		return "", err
 	}
 	candidate := filepath.Join(filepath.Dir(executable), "haco-host")
 	resolved, err := filepath.EvalSymlinks(candidate)
 	if err != nil {
 		return "", fmt.Errorf("resolve companion haco-host binary %q: %w", candidate, err)
+	}
+	return resolved, nil
+}
+
+func trustedHostGeneralClientBinary() (string, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve haco executable: %w", err)
+	}
+	resolved, err := filepath.EvalSymlinks(executable)
+	if err != nil {
+		return "", fmt.Errorf("resolve haco executable %q: %w", executable, err)
 	}
 	return resolved, nil
 }

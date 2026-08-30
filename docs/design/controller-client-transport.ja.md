@@ -2,7 +2,7 @@
 
 日本語 | [**English**](controller-client-transport.md)
 
-Status: **partial**。Local Unix domain socket protocol、Physical Host controller、trusted `haco-host`への専用endpoint投影、client-only `haco-host` CLI、typed Environment lifecycle call、最初のinteractive stream、そしてgeneral clientとしての最初の`haco env ...` namespaceは実装済みです。残る`haco` operationの移行、PTY control framing、Environment port forwarding、remote transportはfollow-upです。
+Status: **partial**。Local Unix domain socket protocol、Physical Host controller、trusted `haco-host`への専用endpoint投影、client-only `haco-host` CLI、guard付きgeneral `haco` provisioning、typed Environment lifecycle call、最初のinteractive stream、そしてgeneral clientとしての最初の`haco env ...` namespaceは実装済みです。残る`haco` operationの移行、PTY control framing、Environment port forwarding、remote transportはfollow-upです。
 
 ## 概要
 
@@ -83,11 +83,14 @@ gid=0
 
 ```text
 environment.HACO_CONTROL_SOCKET=/var/lib/hacocoon-control.sock
+environment.HACO_CLIENT_MODE=controller
 ```
 
 Instance側socketを`/run`配下に置かないのは意図的です。Guest systemdはboot時にruntime tmpfsをmountするため、guest boot orderingから独立して存在させたいproxy listenerはstableな`/var/lib` pathに置きます。
 
-`haco host ensure`はownership markerを検証し、endpoint shapeを完全一致でreconcileし、必要ならinstanceをstartし、client-only `/usr/local/bin/haco-host` binaryをprovisionします。Client binaryはSHA-256で検証し、sourceはinvoking effective UID所有のregular executableかつgroup/other writableでないことを要求します。
+`haco host ensure`はownership markerを検証し、endpoint shapeを完全一致でreconcileし、必要ならinstanceをstartし、`/usr/local/bin/haco-host`と同じreleaseのgeneral `/usr/local/bin/haco`の両方をprovisionします。各client binaryはSHA-256で検証し、Physical Host側sourceはinvoking effective UID所有のregular executableかつgroup/other writableでないことを要求します。Install後は`0755 root:root`へ収束させます。
+
+`HACO_CLIENT_MODE=controller`はauthorization credentialではなく、意図的なsafety / execution-context markerです。Full `haco` binaryをtrusted `haco-host`内で実行したとき、未移行commandがguest-local Hacocoon stateをsilentに構築することを防ぎます。Authorizationとpolicyは引き続きcontroller側がauthorityです。
 
 Supported WSL bootstrapはその後、実際のtrusted instance内で`haco-host doctor`を実行します。Physical Host controllerへのround tripが成功しない場合、normal userのautomatic login shellを変更する前にbootstrapを失敗させます。
 
@@ -111,7 +114,7 @@ Client-only `haco-host` executableとcontroller-backed `haco env ...` namespace�
 
 ## General `haco` client namespace
 
-`haco`はgeneral Hacocoon clientです。最初に移行するnamespaceは次です。
+`haco`はgeneral Hacocoon clientです。最初に移行したnamespaceは次です。
 
 ```text
 haco env list
@@ -126,9 +129,11 @@ haco env delete <environment>
 
 Commandはconfigured Hacocoon controller endpointへ到達するか、controller-client transportとして明示的に失敗します。Direct local compositionへのfallbackはしません。
 
-既存のflat commandである`haco create`、`haco status`、`haco exec`、`haco shell`、`haco delete`は、この最初のmigration sliceではcompatibility/local pathとして残します。これらが残っていることは`haco`を永久にPhysical-Host-onlyとする根拠ではなく、残るnamespaceは順次classifyしてcontroller clientへ移行するか、bootstrap/recovery operationとして明示的に残します。
+既存のflat commandである`haco create`、`haco status`、`haco exec`、`haco shell`、`haco delete`は、migration中のPhysical Host向けtemporary compatibility/local pathとして残します。ただしtrusted `haco-host`内ではcontroller-client modeにより、これらEnvironment aliasも同じcontroller clientへ強制的にrouteし、local compositionへ落としません。
 
-Production bootstrapはまだfull `haco` binaryをtrusted `haco-host`へinstallしません。Real Incus acceptanceではtest binaryだけを一時的に配置し、`haco env ...`が投影済みcontroller endpoint経由で動作することを証明します。Permanent provisioningは、残るlegacy local namespaceの分類が終わり、trusted Host内で誤操作し得る曖昧さを除いてから行います。
+それ以外の未移行`haco` commandはcontroller-client modeでは明示的なfail-closed errorで拒否します。これにより、すべてのhistorical namespaceを既に移行済みと見せかけずにgeneral binaryをpermanent installできます。新しいdocs、automation、integrationはcompatibility aliasではなく`haco env ...`を利用します。
+
+General `/usr/local/bin/haco`は`haco host ensure`によって`/usr/local/bin/haco-host`の隣へprovisionされます。Trusted instanceに渡すのは明示的なcontroller socketとclient-mode markerだけで、raw Incus authorityやPhysical Host state treeは渡しません。
 
 ## `haco-host` transition surface
 
@@ -179,18 +184,22 @@ Repository testとreal Incus acceptanceでは次を確認します。
 - interactive shell streaming
 - trusted `haco-host` ownership reconciliation
 - exact `haco-control` proxy reconciliationとmismatch refusal
-- client binary provisioningとidempotency
+- `haco-host`とgeneral `haco` binary provisioningのdigest / idempotency検証
+- explicit controller-client modeと想定外mode driftの拒否
 - 実trusted instanceの`haco-host doctor`からPhysical Host controllerへのround trip
 - stopped/restarted trusted Hostでのcontroller再疎通
-- 実trusted Host内の`haco env`からcreate/list/status/exec/deleteをPhysical Host controller経由で実行できること
+- production provision済み`haco env`からcreate/list/status/exec/deleteをPhysical Host controller経由で実行できること
+- trusted client modeではhistorical Environment aliasもcontrollerへ強制routeされること
+- 未移行commandがguest-local composition初期化前にfail closedすること
 - general client pathでguest commandのexit status/stdout/stderrが保持されること
 - raw Incus control socket非露出
-- 通常Environmentにtrusted controller endpointが存在しないこと
+- 通常Environmentにtrusted controller endpointとclient-mode markerが存在しないこと
 
 今後のfollow-up:
 
 - 残る`haco` commandをclassifyし、適切なものをcontroller client interfaceへ移行
-- legacy local namespaceの曖昧さを除いた後、trusted `haco-host`へ`haco`をpermanent provision
+- replacementが確立したcompatibility aliasをremoveまたは明示deprecate
+- trusted Host-local toolingをlong-termの`haco-host` namespaceへ移行
 - stdout/stderr/exit metadataを持つstreamed Execution framing
 - PTY resize/control framing
 - generic Environment forwarding
