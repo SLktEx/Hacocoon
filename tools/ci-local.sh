@@ -204,13 +204,15 @@ run_e2e() {
   need bash
   check_go
   section "e2e: shell syntax"
-  bash -n test/e2e/*.sh
+  bash -n test/e2e/*.sh tools/ci-nerdctl.sh
   section "e2e: shipped commands"
   bash test/e2e/commands.sh
   section "e2e: capability"
   bash test/e2e/capability.sh
   section "e2e: git/github"
   bash test/e2e/git_github.sh
+  section "e2e: OCI plugin matrix"
+  bash test/e2e/plugin_oci.sh
   section "e2e: orchestrator"
   HACO_STORAGE_PRIVILEGE_MODE=direct bash test/e2e/orchestrator.sh
 }

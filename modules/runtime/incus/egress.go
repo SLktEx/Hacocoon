@@ -13,6 +13,7 @@ import (
 )
 
 const sandboxEgressProxyPort = egressproxy.DefaultPort
+const runtimeProviderID = "runtime.incus"
 
 func (r *Runtime) sandboxGateway(ctx context.Context) (netip.Addr, error) {
 	if r == nil || r.runner == nil {
@@ -34,7 +35,10 @@ func (r *Runtime) sandboxProxyURL(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return "http://" + net.JoinHostPort(gateway.String(), strconv.Itoa(sandboxEgressProxyPort)), nil
+	// Keep the URI path explicit. Ubuntu 26.04 APT can otherwise treat a bare
+	// numeric proxy authority such as 10.0.0.1:18080 as a hostname during
+	// Acquire setup when DNS is deliberately disabled inside the sandbox.
+	return "http://" + net.JoinHostPort(gateway.String(), strconv.Itoa(sandboxEgressProxyPort)) + "/", nil
 }
 
 // PrepareEgressProxy verifies the managed fail-closed network substrate and
@@ -51,6 +55,10 @@ func (r *Runtime) PrepareEgressProxy(ctx context.Context) (string, error) {
 	}
 	return net.JoinHostPort(gateway.String(), strconv.Itoa(sandboxEgressProxyPort)), nil
 }
+
+// RuntimeProviderID binds provider-local source evidence to the routed
+// Environment runtime ref persisted by the provider router.
+func (r *Runtime) RuntimeProviderID() string { return runtimeProviderID }
 
 // ResolveRuntimeRef maps a proxy connection's source IP back to exactly one
 // Hacocoon-managed Incus runtime ref. security.ipv4_filtering on the sandbox
