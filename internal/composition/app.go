@@ -23,6 +23,7 @@ import (
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
+	kuberuntime "github.com/SLktEx/Hacocoon/modules/runtime/kubernetes"
 	"github.com/SLktEx/Hacocoon/modules/standard/egressproxy"
 	storagebtrfs "github.com/SLktEx/Hacocoon/modules/storage/btrfs"
 )
@@ -50,8 +51,12 @@ func Local(ctx context.Context) (*App, error) {
 	runner := host.ExecRunner{}
 	root := envOr("HACO_ROOT", "/var/lib/hacocoon")
 	stateDir := filepath.Join(root, "state")
+	selectedRuntimeProvider := envOr("HACO_RUNTIME_PROVIDER", environmentapp.ProviderIncus)
 
 	configuredDriver := strings.TrimSpace(os.Getenv("HACO_PLUGIN_OCI"))
+	if selectedRuntimeProvider == kuberuntime.ProviderID && configuredDriver != "" {
+		return nil, fmt.Errorf("OCI plugin composition has not been verified with the Kubernetes Environment provider: %w", core.ErrUnsupported)
+	}
 	var (
 		ociDriver ociplugin.Driver
 		seedStore *seedbuildapp.Store
@@ -111,10 +116,22 @@ func Local(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 
-	router, err := environmentapp.NewRouter(
-		envOr("HACO_RUNTIME_PROVIDER", environmentapp.ProviderIncus),
+	registrations := []environmentapp.Registration{
 		environmentapp.Register(environmentapp.ProviderIncus, incusProvider),
-	)
+	}
+	if selectedRuntimeProvider == kuberuntime.ProviderID {
+		kubeProvider, err := kuberuntime.New(runner, kuberuntime.Config{
+			Image:        strings.TrimSpace(os.Getenv("HACO_KUBERNETES_IMAGE")),
+			RuntimeClass: strings.TrimSpace(os.Getenv("HACO_KUBERNETES_RUNTIME_CLASS")),
+			Kubectl:      strings.TrimSpace(os.Getenv("HACO_KUBECTL")),
+		})
+		if err != nil {
+			return nil, err
+		}
+		registrations = append(registrations, environmentapp.Register(kuberuntime.ProviderID, kubeProvider))
+	}
+
+	router, err := environmentapp.NewRouter(selectedRuntimeProvider, registrations...)
 	if err != nil {
 		return nil, err
 	}
