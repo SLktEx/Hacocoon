@@ -105,19 +105,8 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 		return cleanup(err)
 	}
 
-	deviceArgs := []string{
-		"config", "device", "add", ref, "workspace", "disk",
-		"source=" + spec.WorkspacePath,
-		"path=/workspace",
-	}
-	if spec.ReadOnly {
-		deviceArgs = append(deviceArgs, "readonly=true")
-	} else {
-		deviceArgs = append(deviceArgs, "shift=true")
-	}
-	deviceArgs = append(deviceArgs, "--project", p.project)
-	if _, err := p.runner.Run(ctx, "incus", deviceArgs...); err != nil {
-		return cleanup(fmt.Errorf("mount workspace in %s: %w", ref, err))
+	if err := p.addWorkspaceDevice(ctx, ref, spec); err != nil {
+		return cleanup(err)
 	}
 	if _, err := p.runner.Run(ctx, "incus", "start", ref, "--project", p.project); err != nil {
 		return cleanup(fmt.Errorf("start Incus environment %s: %w", ref, err))
@@ -137,6 +126,39 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	}
 	base := resolved.ref
 	return core.EnvironmentRuntime{Ref: ref, Base: &base, Resources: resources}, nil
+}
+
+func (p *SandboxProvider) addWorkspaceDevice(ctx context.Context, ref string, spec core.EnvironmentRuntimeSpec) error {
+	deviceArgs := []string{
+		"config", "device", "add", ref, "workspace", "disk",
+		"source=" + spec.WorkspacePath,
+		"path=/workspace",
+	}
+	if spec.ReadOnly {
+		deviceArgs = append(deviceArgs, "readonly=true")
+	} else {
+		uid, gid, ownerErr := workspaceOwnerIDs(spec.WorkspacePath)
+		if ownerErr == nil && uid != 0 && gid != 0 {
+			// Keep the container unprivileged, but map only the owner identity of
+			// the explicitly leased host workspace to root inside the sandbox.
+			// This lets an agent running as container root edit an ordinary
+			// user-owned checkout without granting a broad host UID/GID range.
+			idmap := fmt.Sprintf("uid %d 0\ngid %d 0", uid, gid)
+			if err := p.setAndVerifyConfig(ctx, ref, "raw.idmap", idmap); err != nil {
+				return fmt.Errorf("map workspace owner into unprivileged environment %s: %w", ref, err)
+			}
+		} else {
+			// Preserve the existing idmapped-mount path for unusual ownership or
+			// platforms where the host owner cannot be resolved. The post-start
+			// write probe remains fail-closed if this is insufficient.
+			deviceArgs = append(deviceArgs, "shift=true")
+		}
+	}
+	deviceArgs = append(deviceArgs, "--project", p.project)
+	if _, err := p.runner.Run(ctx, "incus", deviceArgs...); err != nil {
+		return fmt.Errorf("mount workspace in %s: %w", ref, err)
+	}
+	return nil
 }
 
 func (p *SandboxProvider) applyResourceBudget(ctx context.Context, ref string, budget core.ResourceBudget) error {
