@@ -6,6 +6,7 @@ readonly SANDBOX_PROFILE="haco-sandbox"
 readonly SANDBOX_NETWORK="haco-sandbox0"
 readonly SANDBOX_ACL="haco-sandbox-egress"
 readonly ZABBLY_SIGNING_FPR="4EFC590696CB15B87C73A3AD""82CC8797C838DCFD"
+readonly INCUS_LTS_SERIES="7.0"
 
 fail() {
   echo "ERROR: $*" >&2
@@ -29,11 +30,23 @@ require_github_hosted_runner() {
   [[ "$CI_PREFIX" =~ ^hci-[0-9]+-[0-9]+$ ]] || fail "unsafe Incus CI prefix: $CI_PREFIX"
 }
 
+ensure_repo_tools() {
+  local missing=0
+  for command in curl gpg; do
+    command -v "$command" >/dev/null 2>&1 || missing=1
+  done
+  [[ -r /etc/ssl/certs/ca-certificates.crt ]] || missing=1
+  if [[ "$missing" == "1" ]]; then
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get update
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends ca-certificates curl gnupg
+  fi
+}
+
 install_zabbly_incus_lts() {
   local codename="$1"
   local key_file source_file fingerprint architecture
 
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends ca-certificates curl gnupg
+  ensure_repo_tools
 
   key_file="$(mktemp)"
   curl -fsSL https://pkgs.zabbly.com/key.asc -o "$key_file"
@@ -49,59 +62,66 @@ install_zabbly_incus_lts() {
   cat >"$source_file" <<EOF_ZABBLY
 Enabled: yes
 Types: deb
-URIs: https://pkgs.zabbly.com/incus/lts-6.0
+URIs: https://pkgs.zabbly.com/incus/lts-${INCUS_LTS_SERIES}
 Suites: $codename
 Components: main
 Architectures: $architecture
 Signed-By: /etc/apt/keyrings/zabbly.asc
 EOF_ZABBLY
-  sudo install -m 0644 "$source_file" /etc/apt/sources.list.d/zabbly-incus-lts-6.0.sources
+  sudo install -m 0644 "$source_file" "/etc/apt/sources.list.d/zabbly-incus-lts-${INCUS_LTS_SERIES}.sources"
   rm -f "$source_file"
 
   sudo env DEBIAN_FRONTEND=noninteractive apt-get update
-  # Managed Incus bridges require the dnsmasq executable. Keep dependencies
-  # explicit because CI intentionally disables apt Recommends.
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus-base dnsmasq-base
+  # Hacocoon's Incus substrate is system-container-only. The Zabbly
+  # container-only package includes the client, dnsmasq, AppArmor policy and
+  # host compatibility sysctls without pulling the QEMU/VM dependency stack.
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus-base
 }
 
 install_incus() {
-  local codename
+  local codename version_id
 
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get update
   codename="$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")"
+  version_id="$(. /etc/os-release && printf '%s' "$VERSION_ID")"
+  [[ "$version_id" == "26.04" ]] || fail "real Incus CI requires the supported Ubuntu 26.04 host, got $version_id"
 
-  if [[ "$codename" == "noble" ]]; then
-    # Ubuntu 24.04's archive carries an old Incus 6.0 point release. Retain
-    # this compatibility path for local/manual use, but normal CI is 26.04.
-    install_zabbly_incus_lts "$codename"
-    return
-  fi
-
-  # dnsmasq-base is only Recommended by the Ubuntu Incus package, but
-  # `incus admin init --minimal` creates a managed bridge and needs it.
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus dnsmasq-base
+  install_zabbly_incus_lts "$codename"
 }
 
 record_environment() {
+  local pool
   echo '::group::GitHub runner / Incus environment'
-  cat /etc/os-release
+  grep -E '^(PRETTY_NAME|VERSION_ID|VERSION_CODENAME)=' /etc/os-release || true
   uname -a
   systemctl --version | head -n 1 || true
   incus version
-  incus info
+  dpkg-query -W -f='${Package}\t${Version}\n' incus-base incus-client apparmor libapparmor1 2>/dev/null || true
+  sysctl kernel.apparmor_restrict_unprivileged_unconfined 2>/dev/null || true
+  sysctl kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || true
   incus storage list
+  pool="$(incus profile device get default root pool --project default 2>/dev/null || true)"
+  [[ -z "$pool" ]] || incus storage show "$pool"
   incus network list --project default
-  ip -4 address show
   ip -4 route show
   sysctl net.ipv4.ip_forward || true
   echo '::endgroup::'
 }
 
 setup_incus() {
-  local server_version
+  local server_version apparmor_unconfined
 
   require_github_hosted_runner
   install_incus
+
+  # Ubuntu enables an AppArmor user-namespace restriction that conflicts with
+  # Incus AppArmor namespacing. The upstream Zabbly package ships its supported
+  # compatibility setting in 50-incus.conf. Do not weaken an instance profile
+  # or set an ad-hoc test override: require the vendor package configuration to
+  # have been applied on the disposable runner.
+  if [[ -r /proc/sys/kernel/apparmor_restrict_unprivileged_unconfined ]]; then
+    apparmor_unconfined="$(sysctl -n kernel.apparmor_restrict_unprivileged_unconfined)"
+    [[ "$apparmor_unconfined" == "0" ]] || fail "Incus vendor AppArmor compatibility sysctl was not applied (kernel.apparmor_restrict_unprivileged_unconfined=$apparmor_unconfined)"
+  fi
 
   # Hacocoon deliberately keeps bridge IP filtering enabled. Incus requires
   # the host's bridge netfilter hooks for that policy, while GitHub-hosted
@@ -120,7 +140,8 @@ setup_incus() {
 
   server_version="$(incus version | awk -F': ' '$1 == "Server version" {print $2; exit}')"
   [[ -n "$server_version" ]] || fail "could not determine Incus server version"
-  dpkg --compare-versions "$server_version" ge 6.0.5 || fail "Incus $server_version is too old; 6.0.5+ is required for Linux 6.9+ idmapped mounts"
+  dpkg --compare-versions "$server_version" ge 7.0.1 || fail "Incus $server_version is too old; 7.0.1+ LTS is required on Ubuntu 26.04"
+  dpkg --compare-versions "$server_version" lt 7.1 || fail "expected Incus 7.0 LTS, got $server_version"
   incus profile show default --project default >/dev/null
   record_environment
 }
@@ -185,6 +206,9 @@ diagnostics() {
     cat /etc/os-release
     uname -a
     systemctl --version | head -n 3
+    dpkg-query -W -f='${Package}\t${Version}\n' incus-base incus-client apparmor libapparmor1 2>/dev/null || true
+    sysctl kernel.apparmor_restrict_unprivileged_unconfined 2>/dev/null || true
+    sysctl kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || true
 
     if command -v incus >/dev/null 2>&1; then
       echo '=== Incus info/version ==='
