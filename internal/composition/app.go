@@ -90,6 +90,7 @@ func Local(_ context.Context) (*App, error) {
 		runtime,
 		environmentStatePath,
 		seedstatsapp.NewStore(filepath.Join(stateDir, "oci-usage.json")),
+		seedstatsapp.WithHostRunner(runner),
 	)
 	if err != nil {
 		return nil, err

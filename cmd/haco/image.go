@@ -13,13 +13,15 @@ import (
 
 func imageCommand(ctx context.Context, app *composition.App, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: haco image <list|inspect|seed> ...: %w", core.ErrInvalidArgument)
+		return fmt.Errorf("usage: haco image <list|inspect|delete|seed> ...: %w", core.ErrInvalidArgument)
 	}
 	switch args[0] {
 	case "list":
 		return imageListCommand(ctx, app, args[1:])
 	case "inspect":
 		return imageInspectCommand(ctx, app, args[1:])
+	case "delete":
+		return imageDeleteCommand(ctx, app, args[1:])
 	case "seed":
 		return imageSeedCommand(ctx, app, args[1:])
 	default:
@@ -63,6 +65,65 @@ func imageInspectCommand(ctx context.Context, app *composition.App, args []strin
 	}
 	fmt.Printf("name: %s\nrevision: %s\n", info.Name, info.Revision)
 	return nil
+}
+
+func imageDeleteCommand(ctx context.Context, app *composition.App, args []string) error {
+	if app == nil || app.SeedStats == nil {
+		return core.ErrRuntimeUnavailable
+	}
+	if len(args) == 0 {
+		return fmt.Errorf("usage: haco image delete <reference[@sha256:...]> [--all-environments] [--json]: %w", core.ErrInvalidArgument)
+	}
+	target := args[0]
+	allEnvironments := false
+	jsonOutput := false
+	for _, arg := range args[1:] {
+		switch arg {
+		case "--all-environments":
+			if allEnvironments {
+				return core.ErrInvalidArgument
+			}
+			allEnvironments = true
+		case "--json":
+			if jsonOutput {
+				return core.ErrInvalidArgument
+			}
+			jsonOutput = true
+		default:
+			return fmt.Errorf("unknown image delete option %q: %w", arg, core.ErrInvalidArgument)
+		}
+	}
+
+	report, deleteErr := app.SeedStats.DeleteImage(ctx, target, allEnvironments)
+	if jsonOutput {
+		if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
+			return err
+		}
+	} else {
+		printImageDeleteReport(report)
+	}
+	return deleteErr
+}
+
+func printImageDeleteReport(report seedstatsapp.DeleteReport) {
+	if report.Reference != "" {
+		fmt.Printf("image: %s@%s\n", report.Reference, report.Digest)
+	}
+	if report.HostCache != "" {
+		fmt.Printf("host-cache: %s\n", report.HostCache)
+	}
+	if report.SeedRebuildRequired {
+		fmt.Println("seed: rebuild-required")
+	}
+	for _, environment := range report.RemovedEnvironments {
+		fmt.Printf("environment: %s\tremoved\n", environment)
+	}
+	for _, environment := range report.SkippedEnvironments {
+		fmt.Printf("environment: %s\tnot-present\n", environment)
+	}
+	for environment, reason := range report.Failures {
+		fmt.Fprintf(os.Stderr, "environment: %s\tfailed\t%s\n", environment, reason)
+	}
 }
 
 func imageSeedCommand(ctx context.Context, app *composition.App, args []string) error {

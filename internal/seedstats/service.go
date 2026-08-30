@@ -11,12 +11,14 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
 const (
 	DefaultSampleMaxAge          = 6 * time.Hour
 	DefaultRecommendationWindow = 30 * 24 * time.Hour
 	DefaultAutoPromotionPercent = 10
+	DefaultSeedNamespace        = "hacocoon-seed"
 )
 
 type environmentExecutor interface {
@@ -27,7 +29,31 @@ type Service struct {
 	runtime              environmentExecutor
 	environmentStatePath string
 	store                *Store
+	hostRunner           host.Runner
+	seedNamespace        string
 	now                  func() time.Time
+}
+
+type Option func(*Service) error
+
+func WithHostRunner(runner host.Runner) Option {
+	return func(service *Service) error {
+		if runner == nil {
+			return core.ErrInvalidArgument
+		}
+		service.hostRunner = runner
+		return nil
+	}
+}
+
+func WithSeedNamespace(namespace string) Option {
+	return func(service *Service) error {
+		if strings.TrimSpace(namespace) == "" || strings.TrimSpace(namespace) != namespace || hasControl(namespace) {
+			return core.ErrInvalidArgument
+		}
+		service.seedNamespace = namespace
+		return nil
+	}
 }
 
 type SampleReport struct {
@@ -46,16 +72,26 @@ type Recommendation struct {
 	AutoPromote  bool      `json:"auto_promote"`
 }
 
-func New(runtime environmentExecutor, environmentStatePath string, store *Store) (*Service, error) {
+func New(runtime environmentExecutor, environmentStatePath string, store *Store, options ...Option) (*Service, error) {
 	if runtime == nil || strings.TrimSpace(environmentStatePath) == "" || store == nil {
 		return nil, core.ErrInvalidArgument
 	}
-	return &Service{
+	service := &Service{
 		runtime:              runtime,
 		environmentStatePath: environmentStatePath,
 		store:                store,
+		seedNamespace:        DefaultSeedNamespace,
 		now:                  time.Now,
-	}, nil
+	}
+	for _, option := range options {
+		if option == nil {
+			return nil, core.ErrInvalidArgument
+		}
+		if err := option(service); err != nil {
+			return nil, err
+		}
+	}
+	return service, nil
 }
 
 // SampleAll opportunistically records OCI image usage from Hacocoon-managed
@@ -124,6 +160,14 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 	if err != nil {
 		return nil, err
 	}
+	deletions, err := s.store.ListDeletions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	deleted := make(map[string]struct{}, len(deletions))
+	for _, deletion := range deletions {
+		deleted[deletion.Key()] = struct{}{}
+	}
 	cutoff := s.now().UTC().Add(-window)
 	type aggregate struct {
 		reference string
@@ -147,6 +191,13 @@ func (s *Service) Recommend(ctx context.Context, window time.Duration) ([]Recomm
 				continue
 			}
 			key := image.Reference() + "@" + image.Digest
+			// A manual image deletion is an explicit Seed-selection override.
+			// The Environment may still pull/run the image normally, but usage
+			// sampling must not silently undo the operator's deletion decision.
+			// A future explicit pin/override can deliberately clear this state.
+			if _, ok := deleted[key]; ok {
+				continue
+			}
 			if _, ok := seen[key]; ok {
 				continue
 			}
