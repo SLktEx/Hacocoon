@@ -116,7 +116,7 @@ func (b *Btrfs) Shrink(ctx context.Context, mountpoint string, target int64) err
 }
 
 func (b *Btrfs) Unmount(ctx context.Context, mountpoint string) error {
-	mounted, err := b.runner.Run(ctx, "findmnt", "-rn", "--target", mountpoint)
+	mounted, err := b.runner.Run(ctx, "findmnt", "-rn", "--mountpoint", mountpoint)
 	if err != nil {
 		if mounted.ExitCode == 1 {
 			return nil
@@ -131,14 +131,14 @@ func (b *Btrfs) Unmount(ctx context.Context, mountpoint string) error {
 }
 
 func (b *Btrfs) Mount(ctx context.Context, device, mountpoint string) error {
-	mounted, err := b.runner.Run(ctx, "findmnt", "-rn", "-o", "SOURCE", "--target", mountpoint)
+	mounted, err := b.runner.Run(ctx, "findmnt", "-rn", "-o", "SOURCE", "--mountpoint", mountpoint)
 	if err == nil && strings.TrimSpace(mounted.Stdout) != "" {
 		source := strings.TrimSpace(mounted.Stdout)
 		if source != device {
 			return fmt.Errorf("mountpoint %s is already backed by %s, expected %s", mountpoint, source, device)
 		}
 
-		options, optionsErr := b.runner.Run(ctx, "findmnt", "-rn", "-o", "OPTIONS", "--target", mountpoint)
+		options, optionsErr := b.runner.Run(ctx, "findmnt", "-rn", "-o", "OPTIONS", "--mountpoint", mountpoint)
 		if optionsErr != nil {
 			return fmt.Errorf("inspect mount options for %s: %w", mountpoint, optionsErr)
 		}
