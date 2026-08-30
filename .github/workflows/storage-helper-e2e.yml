@@ -64,7 +64,10 @@ jobs:
       - name: Validate real storage CLI E2E helpers
         run: bash -n tools/ci-incus-core.sh tools/ci-storage-helper.sh tools/ci-storage-cli.sh
       - name: Prepare real Incus substrate
-        run: bash tools/ci-incus-core.sh setup
+        run: |
+          printf 'INCUS_CONF=%s/haco-incus-client\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'HACO_CI_INCUS_CONF=%s/haco-incus-client\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          bash tools/ci-incus-core.sh setup
       - name: Install real Btrfs privilege helper
         run: bash tools/ci-storage-helper.sh setup
       - name: Prepare normal-user haco CLI acceptance
