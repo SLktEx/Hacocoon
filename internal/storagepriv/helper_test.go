@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/host"
@@ -67,6 +68,39 @@ func TestHelperRejectsHardlinkedBackingBeforeLoopAttach(t *testing.T) {
 	}
 }
 
+func TestHelperDetachesNewLoopWhenBackingInodeDoesNotMatch(t *testing.T) {
+	root, backing, _ := helperFixture(t, "local-default")
+	inode := backingInode(t, backing)
+	runner := &fakeHelperRunner{run: func(name string, args []string) (host.Result, error) {
+		if name != "losetup" {
+			return host.Result{ExitCode: 0}, nil
+		}
+		switch {
+		case len(args) == 5 && args[0] == "--find":
+			return host.Result{ExitCode: 0, Stdout: "/dev/loop7\n"}, nil
+		case len(args) == 6 && args[0] == "--json":
+			return loopJSONWithInode("/dev/loop7", backing, inode+1), nil
+		case len(args) == 2 && args[0] == "-d" && args[1] == "/dev/loop7":
+			return host.Result{ExitCode: 0}, nil
+		default:
+			return host.Result{ExitCode: 2, Stderr: "unexpected losetup arguments"}, errors.New("unexpected losetup arguments")
+		}
+	}}
+	result := testHelper(runner).Execute(context.Background(), []string{"--root", root, "loop-attach", backing})
+	if result.ExitCode != helperValidationExit || !strings.Contains(result.Stderr, "backing inode") || !strings.Contains(result.Stderr, "was detached") {
+		t.Fatalf("result = %#v", result)
+	}
+	foundDetach := false
+	for _, call := range runner.calls {
+		if call.name == "losetup" && fmt.Sprint(call.args) == fmt.Sprint([]string{"-d", "/dev/loop7"}) {
+			foundDetach = true
+		}
+	}
+	if !foundDetach {
+		t.Fatalf("new loop was not detached after identity failure: %#v", runner.calls)
+	}
+}
+
 func TestHelperRefusesFormattingExistingFilesystem(t *testing.T) {
 	root, backing, _ := helperFixture(t, "local-default")
 	runner := &fakeHelperRunner{run: func(name string, args []string) (host.Result, error) {
@@ -88,13 +122,18 @@ func TestHelperRefusesFormattingExistingFilesystem(t *testing.T) {
 
 func TestHelperMountsOnlyMatchingManagedLoopAndMountpoint(t *testing.T) {
 	root, backing, mountpoint := helperFixture(t, "local-default")
+	mounted := false
 	runner := &fakeHelperRunner{run: func(name string, args []string) (host.Result, error) {
 		switch name {
 		case "losetup":
 			return loopJSON("/dev/loop7", backing), nil
 		case "findmnt":
+			if mounted {
+				return host.Result{ExitCode: 0, Stdout: "/dev/loop7\n"}, nil
+			}
 			return host.Result{ExitCode: 1}, errors.New("not mounted")
 		case "mount":
+			mounted = true
 			return host.Result{ExitCode: 0}, nil
 		default:
 			return host.Result{ExitCode: 0}, nil
@@ -104,9 +143,14 @@ func TestHelperMountsOnlyMatchingManagedLoopAndMountpoint(t *testing.T) {
 	if result.ExitCode != 0 {
 		t.Fatalf("mount result = %#v", result)
 	}
-	last := runner.calls[len(runner.calls)-1]
-	if last.name != "mount" || fmt.Sprint(last.args) != fmt.Sprint([]string{"/dev/loop7", mountpoint, "-o", "compress=zstd:3"}) {
-		t.Fatalf("mount call = %#v", last)
+	foundMount := false
+	for _, call := range runner.calls {
+		if call.name == "mount" && fmt.Sprint(call.args) == fmt.Sprint([]string{"/dev/loop7", mountpoint, "-o", "compress=zstd:3"}) {
+			foundMount = true
+		}
+	}
+	if !foundMount {
+		t.Fatalf("mount call missing: %#v", runner.calls)
 	}
 }
 
@@ -175,20 +219,51 @@ func helperFixture(t *testing.T, id string) (root, backing, mountpoint string) {
 	return root, backing, mountpoint
 }
 
+func backingInode(t *testing.T, backing string) uint64 {
+	t.Helper()
+	info, err := os.Lstat(backing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		t.Fatalf("backing file has no syscall.Stat_t: %#v", info.Sys())
+	}
+	return stat.Ino
+}
+
 func loopJSON(device, backing string) host.Result {
+	return loopJSONWithInode(device, backing, mustBackingInode(backing))
+}
+
+func loopJSONWithInode(device, backing string, inode uint64) host.Result {
 	payload := struct {
 		LoopDevices []struct {
-			Name     string `json:"name"`
-			BackFile string `json:"back-file"`
+			Name      string `json:"name"`
+			BackFile  string `json:"back-file"`
+			BackInode uint64 `json:"back-ino"`
 		} `json:"loopdevices"`
 	}{}
 	payload.LoopDevices = append(payload.LoopDevices, struct {
-		Name     string `json:"name"`
-		BackFile string `json:"back-file"`
-	}{Name: device, BackFile: backing})
+		Name      string `json:"name"`
+		BackFile  string `json:"back-file"`
+		BackInode uint64 `json:"back-ino"`
+	}{Name: device, BackFile: backing, BackInode: inode})
 	data, err := json.Marshal(payload)
 	if err != nil {
 		panic(err)
 	}
 	return host.Result{ExitCode: 0, Stdout: string(data)}
+}
+
+func mustBackingInode(backing string) uint64 {
+	info, err := os.Lstat(backing)
+	if err != nil {
+		panic(err)
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		panic("backing file has no syscall.Stat_t")
+	}
+	return stat.Ino
 }
