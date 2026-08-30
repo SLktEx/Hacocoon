@@ -26,8 +26,8 @@ Hacocoon は **pre-1.0** です。ドキュメントでは、混同しやすい�
 | VS Code Agent Host | [`10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md`](10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md) |
 | Base Image | [`BASE_IMAGES.ja.md`](BASE_IMAGES.ja.md) |
 | Resource Limit | [`12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md`](12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md) |
-| planned Local OCI Registry | [`13_v0.13_LOCAL_OCI_REGISTRY.md`](13_v0.13_LOCAL_OCI_REGISTRY.md) |
-| planned OCI Seed / COW | [`13A_v0.13_OCI_SEED_AND_COW.ja.md`](13A_v0.13_OCI_SEED_AND_COW.ja.md) |
+| OCI Seed / 利用統計 / COW | [`13A_v0.13_OCI_SEED_AND_COW.ja.md`](13A_v0.13_OCI_SEED_AND_COW.ja.md), [`13B_v0.13_SEED_AUTO_PROMOTION.ja.md`](13B_v0.13_SEED_AUTO_PROMOTION.ja.md), [`13C_v0.13_OCI_IMAGE_DELETION.ja.md`](13C_v0.13_OCI_IMAGE_DELETION.ja.md) |
+| optional Local OCI Registry | [`13_v0.13_LOCAL_OCI_REGISTRY.md`](13_v0.13_LOCAL_OCI_REGISTRY.md) |
 
 ## 正本の使い分け
 
@@ -48,29 +48,11 @@ READMEやindexは入口です。**現在の実装事実を上書きする正本�
 
 ## 現在のmilestone
 
-**凡例:** ✅ 実装済み · 🧪 experimental · 🚧 planned
-
-| Version | Gate | State |
-|---|---|---|
-| v0.1 | Secure Workspace Runtime MVP | ✅ 実装済み |
-| v0.2 | Workspace Abstraction & Lease | ✅ 実装済み |
-| v0.3 | Client & Interactive Access | ✅ 実装済み |
-| v0.4 | Policy & Capability Foundation | ✅ 実装済み |
-| v0.5 | Git / GitHub Capability | ✅ 実装済み |
-| v0.6 | Agent & Orchestrator Integration | ✅ 実装済み |
-| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 experimental実装。real AWS acceptance pending |
-| v0.8 | Client Adapters & VS Code Integration | ✅ 実装済み。real-client acceptance pending |
-| v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation 実装済み |
-| v0.10 | VS Code Remote Agent Host Adapter | ✅ 実装済み。real-host acceptance pending |
-| v0.11 | Base Images & Custom Environments | ✅ first slice 実装済み |
-| v0.12 | Sandbox Resource Limits | ✅ first slice 実装済み |
-| v0.13 | Local OCI Registry | 🚧 planned。`main` には未実装 |
-
-**実装済みmilestoneは v0.1〜v0.12 まで連続**しています。正確な実装/acceptance状況は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) を見てください。
+v0.1〜v0.12 の既存gateに加え、v0.13 OCIでは利用統計・recommendation・上位10%自動選択・OCI image削除/tombstoneのsliceが実装済みです。Seed build/publish、Environmentからのimage harvesting、real Btrfs COW acceptance、optional Registryは未完です。
 
 ## Specification と Implementation は別
 
-versioned specification が存在することは、その機能が `main` に実装済みという意味ではありません。
+versioned specification が存在することは、その機能が全部 `main` に実装済みという意味ではありません。
 
 - v0.7 EC2: experimental実装済み。real AWS acceptance pending
 - v0.8 `haco-vscode`: 実装済み。real Windows/WSL + Incus + VS Code acceptance pending
@@ -78,48 +60,29 @@ versioned specification が存在することは、その機能が `main` に実
 - v0.10 `haco-agent-host`: 実装済み。real Agent Host acceptanceはhost-dependent
 - v0.11 Base selection/pinning: 実装済み。custom build/import/history/GCはfollow-up
 - v0.12 ResourceBudget: Incus adapterで実装済み。real workload enforcementはhost-dependent
-- v0.13 Local OCI Registry / OCI Seed+COW: **planned design。未実装**
+- v0.13 OCI: telemetry/recommend/deleteは実装済み、Seed build/publishはplanned
 
-roadmap番号だけからrelease readiness、compatibility、production support、real-host acceptanceを推測しないでください。
-
-## 代表的な読み方
-
-### VS Code / Client Access
-
-1. `08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md`
-2. `CLIENT_ACCESS.md`
-3. `IMPLEMENTATION_STATUS.ja.md`
-
-最初のadapterは `haco-vscode` です。editor / terminal / debugger / Git UI / AI UI はVS Code側、Environmentとauthority boundaryはHacocoon側です。
-
-### Per-Agent Sandbox / Agent Host
-
-1. `09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md`
-2. `10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md`
-3. `IMPLEMENTATION_STATUS.ja.md`
-
-Coding agent自身をHacocoon management pathに置きません。`haco-agent-host` がtrusted sideからloopback-only accessを準備します。
-
-### Base Image
+## Base Image
 
 ```text
-haco image list
-haco image inspect <base>
+haco base list
+haco base inspect <base>
 haco create --base <base> --workspace <path> <environment>
 ```
 
-mutable provider sourceはEnvironment作成前にimmutable Base revisionへ解決します。
+`haco base` はHacocoon/Incus Environmentのstarting point専用です。OCI/container imageはこのnamespaceに混ぜません。
 
-### Resource Limit
+## v0.13 OCI plugin
 
-ResourceBudgetはCPU / memory / PID / root storageを扱います。Incusではfinite limitを`start`前に設定・検証し、enforceできないrequested finite limitはfail closedします。
+OCI/containerd/nerdctl固有の操作はoptional plugin namespaceにまとめます。
 
-### v0.13 OCI
+```text
+haco plugin oci seed sample
+haco plugin oci seed recommend
+haco plugin oci image delete <reference> [--all-environments]
+```
 
-1. `13_v0.13_LOCAL_OCI_REGISTRY.md`
-2. `13A_v0.13_OCI_SEED_AND_COW.ja.md`
-
-Local Registry/cache gatewayがfirst slice、OCI Seed/COWがsecond sliceです。**`IMPLEMENTATION_STATUS.md` が実装済みと示すまではplanned扱い**です。
+曖昧だったpre-1.0の `haco image ...` はcompatibility aliasとして残しません。
 
 ## Breaking Change
 
