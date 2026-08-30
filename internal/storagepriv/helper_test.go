@@ -76,9 +76,9 @@ func TestHelperDetachesNewLoopWhenBackingInodeDoesNotMatch(t *testing.T) {
 			return host.Result{ExitCode: 0}, nil
 		}
 		switch {
-		case len(args) == 5 && args[0] == "--find":
+		case len(args) == 4 && args[0] == "--find":
 			return host.Result{ExitCode: 0, Stdout: "/dev/loop7\n"}, nil
-		case len(args) == 6 && args[0] == "--json":
+		case len(args) == 5 && args[0] == "--json":
 			return loopJSONWithInode("/dev/loop7", backing, inode+1), nil
 		case len(args) == 2 && args[0] == "-d" && args[1] == "/dev/loop7":
 			return host.Result{ExitCode: 0}, nil
