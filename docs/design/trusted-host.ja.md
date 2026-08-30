@@ -14,7 +14,8 @@ Physical Host / WSL
   |- Incus daemon
   |- loop / Btrfs platform primitives
   `- haco-host                         TRUSTED
-       |- client-only haco-host CLI
+       |- haco-host CLI
+       |- guard付きgeneral haco client
        `- Hacocoon controller UDS only
 
 Managed Environments                   UNTRUSTED
@@ -33,7 +34,9 @@ Managed Environments                   UNTRUSTED
 - provider-local collisionを避けるためEnvironment名`host`を予約
 - Physical Host上の`haco-controller` Unix-domain endpoint
 - trusted instanceだけに付与する専用`haco-control` proxy
-- digest / ownershipを検証したclient-only `/usr/local/bin/haco-host` provisioning
+- digest / ownershipを検証した`/usr/local/bin/haco-host` provisioning
+- 同じsource / digest / metadata基準を使うsame-release `/usr/local/bin/haco` provisioning
+- 未移行`haco` commandがguest-local compositionへsilentに落ちることを防ぐ`environment.HACO_CLIENT_MODE=controller`
 - `haco-host doctor`を確認してからdefault interactive entryを有効化するsupported WSL bootstrap
 
 Trusted Host全体はまだpartialです。Git/GitHub、OCI/containerd、cloud credentials、一般的なexternal tooling、Windows mount、WSL interopはまだすべて移行済みではなく、`haco`と`haco-host`の責務分割も完了していません。
@@ -67,7 +70,7 @@ Physical Host haco-controller
 policy / state / provider authority
 ```
 
-通常のEnvironmentにはこのproxyもenvironment variableも渡しません。
+通常のEnvironmentにはこのproxy、control-socket environment variable、trusted controller-client mode markerのいずれも渡しません。
 
 Environmentからprivileged operationを要求する場合も、ambientなtrusted Host accessにせずHacocoonのpolicy / capability / approval boundaryを通します。
 
@@ -108,23 +111,31 @@ gid=0
 
 ```text
 environment.HACO_CONTROL_SOCKET=/var/lib/hacocoon-control.sock
+environment.HACO_CLIENT_MODE=controller
 ```
 
 既存endpointのtarget、mode、owner、bind方向、socket pathが異なる場合はincompatible stateとして拒否し、silent repurposeしません。
+
+Client modeも想定外のnon-empty値ならincompatible stateとして拒否します。Trusted instanceに既に別のexecution-context policyがある場合、それをsilent overwriteしません。
 
 Instance側socketを`/run`配下に置かないのは、guest runtime tmpfs initializationによってIncus proxy listenerが隠れるboot-order依存を避けるためです。
 
 ## Client provisioning
 
-`haco host ensure`はreleaseのclient-only `haco-host` binaryも次へprovisionします。
+`haco host ensure`はreleaseのclient binaryを2本ともprovisionします。
 
 ```text
 /usr/local/bin/haco-host
+/usr/local/bin/haco
 ```
 
 Physical Host側sourceはregular executable、invoking effective UID所有、group/other writableではないことを要求します。SHA-256とfinal `0755 root:root` metadataを比較して、必要な場合だけpushします。
 
 これによりrepeated ensureをidempotentにし、trusted instance内の任意の既存binaryをそのまま信頼しません。
+
+General `haco` binaryは`HACO_CLIENT_MODE=controller`で意図的にguardします。First-class `haco env ...` namespaceは常にcontroller pathを使います。Historical flat Environment aliasもこのmodeではcontrollerへ強制routeし、それ以外の未移行commandは`composition.Local()`がguest-local stateを初期化する前にfail closedします。
+
+このmode markerはauthorization credentialではありません。`haco-host`自体がtrustedであり、policy、state、provider operationのauthorityは引き続きPhysical Host controllerです。
 
 ## Storage
 
@@ -150,7 +161,7 @@ Login shellを変更する前にbootstrapは次をすべて確認します。
 2. `haco-controller`がroot-owned system binary
 3. current releaseで`haco-controller.service`をrestart
 4. `/run/hacocoon/control.sock`がroot-owned mode `0600` Unix socket
-5. `haco host ensure`でtrusted Host、proxy、client binaryがreconcile
+5. `haco host ensure`でtrusted Host、proxy、client mode、2本のclient binaryがreconcile
 6. 実trusted instance内の`haco-host doctor`が成功
 
 すべて成功した後だけ通常entryは次になります。
@@ -187,14 +198,15 @@ Warningはinteractive Host-shell pathだけに出し、non-interactive WSL comma
 - Host OCI store / containerdを`haco-host`内で動かす
 - reusable credentialを通常Environmentへ置かないcredential broker
 - trusted Hostだけにoptional WSL / Windows interopを付与
-- 適切なPhysical-Host-authority `haco` commandをcontroller client pathへ移行
+- 残る適切な`haco` commandをclassifyしてcontroller client pathへ移行
+- trusted Host-local operationをlong-termの`haco-host` namespaceへ移しtemporary ambiguityをなくす
 - `haco` / `haco-host` CLI responsibility splitを完了
 - Coreがrepositoryを永久に`haco-host`へ固定すると仮定しないWorkspace / repository location seam
 
 ## Acceptance boundary
 
-Repository testではownership reconciliation、collision refusal、state recovery、exact controller proxy validation、client provisioning / idempotency、CLI routing、warning、login-mode identificationを確認します。
+Repository testではownership reconciliation、collision refusal、state recovery、exact controller proxy validation、2本のclient binary provisioning / idempotency、client-mode drift refusal、CLI routing、local fallbackのfail-closed、warning、login-mode identificationを確認します。
 
-Real Incus E2Eではtrusted instance作成、controller endpoint投影、client install、`haco-host doctor`からPhysical Host controllerへのround trip、restart recovery、raw Incus socket非露出、通常Environmentにtrusted endpointが存在しないことを確認します。
+Real Incus E2Eではtrusted instance作成、controller endpoint投影、2本のclient binaryのproduction install、general client digest一致、`haco-host doctor`と`haco env ...`からPhysical Host controllerへのround trip、restart recovery、historical Environment aliasのcontroller routing、guest-local state作成前の未移行command拒否、raw Incus socket非露出、通常Environmentにtrusted endpoint / client-mode markerが存在しないことを確認します。
 
 実Windows terminal起動、WSL distribution restart、login-shell transition、Windows integrationはReal Windows + WSL acceptanceが完了するまでhost-verifiedとは扱いません。
