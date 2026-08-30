@@ -18,10 +18,10 @@ require_github_hosted_runner() {
   [[ "$(uname -s)" == "Linux" ]] || fail "Incus CI helper requires Linux"
 }
 
-install_incus_lts() {
-  local key_file source_file fingerprint codename architecture
+install_zabbly_incus_lts() {
+  local codename="$1"
+  local key_file source_file fingerprint architecture
 
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get update
   sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends ca-certificates curl gnupg
 
   key_file="$(mktemp)"
@@ -33,7 +33,6 @@ install_incus_lts() {
   sudo install -m 0644 "$key_file" /etc/apt/keyrings/zabbly.asc
   rm -f "$key_file"
 
-  codename="$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")"
   architecture="$(dpkg --print-architecture)"
   source_file="$(mktemp)"
   cat >"$source_file" <<EOF
@@ -52,15 +51,32 @@ EOF
   sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus-base
 }
 
+install_incus() {
+  local codename
+
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get update
+  codename="$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")"
+
+  if [[ "$codename" == "noble" ]]; then
+    # Ubuntu 24.04's archive currently carries Incus 6.0.0, which predates
+    # the Linux 6.9+ idmapped-mount fix. Use the upstream 6.0 LTS packages
+    # on noble only; newer Ubuntu runners use their native package instead.
+    install_zabbly_incus_lts "$codename"
+    return
+  fi
+
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus
+}
+
 setup_incus() {
   local server_version
 
   require_github_hosted_runner
-  install_incus_lts
+  install_incus
 
-  # Hacocoon deliberately keeps bridge IP filtering enabled. Incus 6.0
-  # requires the host's bridge netfilter hooks for that policy, while the
-  # GitHub-hosted Ubuntu image does not load br_netfilter by default.
+  # Hacocoon deliberately keeps bridge IP filtering enabled. Incus requires
+  # the host's bridge netfilter hooks for that policy, while GitHub-hosted
+  # Ubuntu images do not necessarily load br_netfilter by default.
   sudo modprobe br_netfilter
   [[ -e /proc/sys/net/bridge/bridge-nf-call-iptables ]] || fail "br_netfilter did not expose bridge netfilter sysctls"
   [[ -e /proc/sys/net/bridge/bridge-nf-call-ip6tables ]] || fail "br_netfilter did not expose IPv6 bridge netfilter sysctls"
@@ -77,7 +93,6 @@ setup_incus() {
   server_version="$(incus version | awk -F': ' '$1 == "Server version" {print $2; exit}')"
   [[ -n "$server_version" ]] || fail "could not determine Incus server version"
   dpkg --compare-versions "$server_version" ge 6.0.5 || fail "Incus $server_version is too old; 6.0.5+ is required for Linux 6.9+ idmapped mounts"
-  dpkg --compare-versions "$server_version" lt 6.1 || fail "expected Incus 6.0 LTS, got $server_version"
   incus profile show default --project default >/dev/null
 }
 
