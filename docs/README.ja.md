@@ -1,189 +1,138 @@
-# Hacocoon ドキュメント案内
+# Hacocoon ドキュメント
 
 [English](README.md) | **日本語**
 
-このファイルは Hacocoon の資料を、**現在の `main` の実装状況・roadmap・バージョン番号**に合わせて読むための案内です。
+Hacocoon は **pre-1.0** です。ドキュメントでは、混同しやすい次の3つを明確に分けます。
 
-> [!NOTE]
-> 日本語資料は読みやすさのための companion です。厳密な設計上の正本は英語版 authoritative document です。
+- **architecture intent** — Hacocoon が何を所有し、どこに境界を置くか
+- **repository reality** — 現在の `main` に実際に何が入っているか
+- **acceptance** — real Incus / Windows / AWS 環境で何が確認済みか
 
-Hacocoon はまだ **pre-1.0** です。version number、spec、実装済みという表現は、API / CLI / state / provider / client adapter / Base / agent integration / resource budget の互換性保証や release readiness を意味しません。
+> [!TIP]
+> **「いま `main` で何が使える？」だけ知りたい場合は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) から読んでください。**
 
-## まず日本語で読むなら
+## まずここから
 
-1. [`../README.ja.md`](../README.ja.md) — プロジェクト全体の入口。
-2. [`ARCHITECTURE_GUIDE.ja.md`](ARCHITECTURE_GUIDE.ja.md) — architecture / security boundary の説明。
-3. [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) — `main` に実際に何が入っているか。
-4. [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md) — 現在の番号割り当て。
-5. [`09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md`](09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md) — per-agent Environment broker。
-6. [`10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md`](10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md) — VS Code Agent Host bridge。
-7. [`BASE_IMAGES.ja.md`](BASE_IMAGES.ja.md) — v0.11 Base Images。
-8. [`12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md`](12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md) — v0.12 Resource Limits。
+| 知りたいこと | 読む資料 |
+|---|---|
+| Hacocoon 全体像 | [`../README.ja.md`](../README.ja.md) |
+| 現在の実装状況 | [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) |
+| architecture / roadmap | [`00_REBASELINE_AND_ROADMAP.md`](00_REBASELINE_AND_ROADMAP.md) |
+| version番号 | [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md) |
+| security boundary | [`00B_SECURITY_ARCHITECTURE.md`](00B_SECURITY_ARCHITECTURE.md) |
+| 用語・責務境界 | [`00C_TERMINOLOGY_AND_BOUNDARIES.md`](00C_TERMINOLOGY_AND_BOUNDARIES.md) |
+| VS Code / client接続 | [`CLIENT_ACCESS.md`](CLIENT_ACCESS.md), [`08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md`](08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md) |
+| agentごとのsandbox | [`09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md`](09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md) |
+| VS Code Agent Host | [`10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md`](10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md) |
+| Base Image | [`BASE_IMAGES.ja.md`](BASE_IMAGES.ja.md) |
+| Resource Limit | [`12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md`](12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md) |
+| planned Local OCI Registry | [`13_v0.13_LOCAL_OCI_REGISTRY.md`](13_v0.13_LOCAL_OCI_REGISTRY.md) |
+| planned OCI Seed / COW | [`13A_v0.13_OCI_SEED_AND_COW.ja.md`](13A_v0.13_OCI_SEED_AND_COW.ja.md) |
 
-## 正本の優先順位
+## 正本の使い分け
 
-資料同士が矛盾して見える場合、英語版は次の順番で優先します。
+資料が食い違って見える場合は、**質問ごとに正本を選びます**。
 
-1. `00_REBASELINE_AND_ROADMAP.md` — product boundary と roadmap progression。
-2. `00D_VERSIONING_AND_RELEASE_STATUS.md` — version number の割り当て。
-3. `00C_TERMINOLOGY_AND_BOUNDARIES.md` — architecture vocabulary。
-4. `00B_SECURITY_ARCHITECTURE.md` — trust / security の横断ルール。
-5. `IMPLEMENTATION_STATUS.md` — **現在の code reality**。
-6. 各 versioned specification。
-7. `CLIENT_ACCESS.md` / `REMOTE_CLOUD_PROVISIONING.md` / `BASE_IMAGES.md` 等の詳細資料。
-8. `00A_PLUGIN_ARCHITECTURE.md`。
-9. `90_CODEX_IMPLEMENTATION_HANDOFF.md`。
-10. `91_IMPLEMENTATION_REFERENCE_NOTES.md`。
-11. `adr/` 配下。
+1. **現在のcode reality:** `IMPLEMENTATION_STATUS.md`
+2. **milestone番号・status:** `00D_VERSIONING_AND_RELEASE_STATUS.md`
+3. **product boundary / roadmap:** `00_REBASELINE_AND_ROADMAP.md`
+4. **canonical terminology:** `00C_TERMINOLOGY_AND_BOUNDARIES.md`
+5. **security rule:** `00B_SECURITY_ARCHITECTURE.md`
+6. **feature contract:** 各versioned specification
+7. **detail / operation:** `CLIENT_ACCESS.md`, `REMOTE_CLOUD_PROVISIONING.md`, `BASE_IMAGES.md` など
+8. **plugin / adapter guidance:** `00A_PLUGIN_ARCHITECTURE.md`
+9. **implementation workflow:** `90_CODEX_IMPLEMENTATION_HANDOFF.md`
+10. **historical / non-normative:** `91_IMPLEMENTATION_REFERENCE_NOTES.md`, `adr/`
 
-## 現在のバージョン整理
+READMEやindexは入口です。**現在の実装事実を上書きする正本ではありません。**
 
-```text
-v0.1   Secure Workspace Runtime MVP                implemented
-v0.2   Workspace Abstraction & Lease               implemented
-v0.3   Client & Interactive Access                 implemented
-v0.4   Policy & Capability Foundation              implemented
-v0.5   Git / GitHub Capability                     implemented
-v0.6   Agent & Orchestrator Integration            implemented
-v0.7   Remote / Cloud Runtime                      experimental implementation
-v0.8   Client Adapters & VS Code                   implemented
-v0.9   Per-Agent Sandbox & Agent Host Integration  broker foundation implemented
-v0.10  VS Code Remote Agent Host Adapter           implemented
-v0.11  Base Images & Custom Environments           first slice implemented
-v0.12  Sandbox Resource Limits                     first slice implemented
-```
+## 現在のmilestone
 
-これで **v0.1〜v0.12 まで実装済み milestone が連番**です。real provider / real client acceptance は実装有無とは別に管理します。
+**凡例:** ✅ 実装済み · 🧪 experimental · 🚧 planned
 
-詳細は [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md) を参照してください。
+| Version | Gate | State |
+|---|---|---|
+| v0.1 | Secure Workspace Runtime MVP | ✅ 実装済み |
+| v0.2 | Workspace Abstraction & Lease | ✅ 実装済み |
+| v0.3 | Client & Interactive Access | ✅ 実装済み |
+| v0.4 | Policy & Capability Foundation | ✅ 実装済み |
+| v0.5 | Git / GitHub Capability | ✅ 実装済み |
+| v0.6 | Agent & Orchestrator Integration | ✅ 実装済み |
+| v0.7 | Remote / Cloud Runtime & External Capabilities | 🧪 experimental実装。real AWS acceptance pending |
+| v0.8 | Client Adapters & VS Code Integration | ✅ 実装済み。real-client acceptance pending |
+| v0.9 | Per-Agent Sandbox & Agent Host Integration | ✅ broker foundation 実装済み |
+| v0.10 | VS Code Remote Agent Host Adapter | ✅ 実装済み。real-host acceptance pending |
+| v0.11 | Base Images & Custom Environments | ✅ first slice 実装済み |
+| v0.12 | Sandbox Resource Limits | ✅ first slice 実装済み |
+| v0.13 | Local OCI Registry | 🚧 planned。`main` には未実装 |
+
+**実装済みmilestoneは v0.1〜v0.12 まで連続**しています。正確な実装/acceptance状況は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) を見てください。
 
 ## Specification と Implementation は別
 
-`v0.x` の specification があることと、その機能が real provider / real client で acceptance 済みであることは別です。
+versioned specification が存在することは、その機能が `main` に実装済みという意味ではありません。
 
-- v0.7 EC2: code はあるが real AWS acceptance pending。
-- v0.8 `haco-vscode`: code はあるが real Windows/WSL + Incus + VS Code acceptance pending。
-- v0.9 per-agent broker: broker foundation 実装済み。real Agent Host/AHP routing acceptance pending。
-- v0.10 `haco-agent-host`: `main` 実装済み。real VS Code Agent Host acceptance pending。
-- v0.11 Base selection: first slice 実装済み。real Incus image source acceptance と build/import/history/GC は別。
-- v0.12 Resource Limits: first slice 実装済み。real supported-Incus resource enforcement acceptance は別。
+- v0.7 EC2: experimental実装済み。real AWS acceptance pending
+- v0.8 `haco-vscode`: 実装済み。real Windows/WSL + Incus + VS Code acceptance pending
+- v0.9: persisted per-session Environment broker 実装済み。real Agent Host/AHP routingはhost-dependent
+- v0.10 `haco-agent-host`: 実装済み。real Agent Host acceptanceはhost-dependent
+- v0.11 Base selection/pinning: 実装済み。custom build/import/history/GCはfollow-up
+- v0.12 ResourceBudget: Incus adapterで実装済み。real workload enforcementはhost-dependent
+- v0.13 Local OCI Registry / OCI Seed+COW: **planned design。未実装**
 
-実装の事実は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) を見てください。
+roadmap番号だけからrelease readiness、compatibility、production support、real-host acceptanceを推測しないでください。
 
-## v0.8: VS Code Client Adapter
+## 代表的な読み方
 
-```bash
-haco-vscode open .
-```
+### VS Code / Client Access
+
+1. `08_v0.8_CLIENT_ADAPTERS_AND_VSCODE_INTEGRATION.md`
+2. `CLIENT_ACCESS.md`
+3. `IMPLEMENTATION_STATUS.ja.md`
+
+最初のadapterは `haco-vscode` です。editor / terminal / debugger / Git UI / AI UI はVS Code側、Environmentとauthority boundaryはHacocoon側です。
+
+### Per-Agent Sandbox / Agent Host
+
+1. `09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md`
+2. `10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md`
+3. `IMPLEMENTATION_STATUS.ja.md`
+
+Coding agent自身をHacocoon management pathに置きません。`haco-agent-host` がtrusted sideからloopback-only accessを準備します。
+
+### Base Image
 
 ```text
-Workspace
-  -> Hacocoon Environment
-  -> loopback-only SSH
-  -> adapter-owned SSH entry
-  -> VS Code Remote-SSH
-  -> /workspace
-```
-
-VS Code の editor / terminal / Git UI / AI UI は VS Code が所有します。Hacocoon Core に IDE 固有ロジックは持ち込みません。
-
-## v0.9: Per-Agent Sandbox
-
-```text
-trusted VS Code / client
-        |
- opaque session ID
-        |
- internal/agenthost broker
-        |
- persisted binding proof
-        |
- Environment
-```
-
-Coding agent 自身に `haco` / Incus 管理 authority を渡す設計ではありません。Parallel RW agent は原則として別 worktree / 別 canonical Workspace を使います。
-
-## v0.10: VS Code Remote Agent Host Adapter
-
-`haco-agent-host` が v0.9 bound Environment を VS Code Agents window 用の loopback-only SSH target として準備します。
-
-```bash
-haco-agent-host prepare --session <opaque-id> [workspace]
-haco-agent-host release --session <opaque-id>
-```
-
-Hacocoon は Environment と安全な接続準備を所有し、VS Code が Agent Host / Agent Host Protocol を所有します。Private SSH key は client 側に保持します。
-
-## v0.11: Base Images & Custom Environments
-
-first slice では次を実装しています。
-
-```bash
 haco image list
 haco image inspect <base>
 haco create --base <base> --workspace <path> <environment>
 ```
 
-```text
-logical Base
-   -> provider-owned mutable source
-   -> create 時に一度だけ resolve
-   -> immutable Base revision
-   -> Environment に persist
-```
+mutable provider sourceはEnvironment作成前にimmutable Base revisionへ解決します。
 
-Incus alias / remote / fingerprint は adapter detail です。mutable alias/source は create 時に immutable fingerprint へ解決し、その pinned fingerprint から Environment を作ります。
+### Resource Limit
 
-logical Base が後で動いても既存 Environment の `BaseRevision` は変わりません。Custom mapping は現在 `HACO_INCUS_BASES_JSON` で追加でき、`haco/` namespace は予約です。build/import/history/rollback/deletion/GC は first slice では未実装です。
+ResourceBudgetはCPU / memory / PID / root storageを扱います。Incusではfinite limitを`start`前に設定・検証し、enforceできないrequested finite limitはfail closedします。
 
-## v0.12: Sandbox Resource Limits
+### v0.13 OCI
 
-v0.12 first slice では creation-time ResourceBudget を実装しています。
+1. `13_v0.13_LOCAL_OCI_REGISTRY.md`
+2. `13A_v0.13_OCI_SEED_AND_COW.ja.md`
 
-```bash
-haco create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace . dev
-haco run --cpu 2 --memory 4GiB --workspace . -- go test ./...
-```
+Local Registry/cache gatewayがfirst slice、OCI Seed/COWがsecond sliceです。**`IMPLEMENTATION_STATUS.md` が実装済みと示すまではplanned扱い**です。
 
-provider-neutral な CPU / memory bytes / process/PID count / root bytes を finite または `unlimited` として Environment に保存します。未指定 dimension も provider 任せにはせず、Hacocoon が explicit `unlimited` effective value に解決します。
+## Breaking Change
 
-Incus では finite limit を Environment の `start` 前に適用し、read-back で一致を確認します。適用・検証できなければ constrained creation を成功扱いしません。
+Hacocoonはpre-1.0で、security / ownership boundaryを明確にするためのBreaking Changeを許容します。
 
-```text
-ResourceBudget  -> Environment 内部の消費量を制限
-Capability      -> Environment 境界を越える authority を制御
-```
-
-requested finite limit を provider が enforce できない場合は silent ignore せず fail closed します。experimental EC2 は現在 finite budget を provider/AWS side effect 前に `unsupported` として拒否します。
-
-live resize、aggregate host scheduling、Workspace quota は first slice の対象外です。real Incus 上のCPU/memory/PID/root-size enforcement acceptance は対応hostで別途必要です。
-
-## Windows / WSL
-
-Hacocoon は専用 `Hacocoon` WSL 2 instance を使い、systemd を PID 1 として Incus を動かす方向です。
-
-普段使いの WSL distribution や global default を勝手に変更せず、`incus-admin` は explicit opt-in のままです。
-
-Real Windows + WSL 2 + systemd + Incus + VS Code の end-to-end acceptance は対応 host で別途必要です。
-
-## EC2
-
-v0.7 EC2 provider は **experimental / disabled by default** です。
-
-```bash
-export HACO_RUNTIME_PROVIDER=runtime.ec2
-export HACO_EXPERIMENTAL_EC2=1
-```
-
-両方の explicit opt-in が必要です。v0.12 first slice の finite ResourceBudget はEC2 provider side effectより前に拒否します。
+accidental compatibilityを守るためにsecurity boundaryを弱めるより、明示的に互換性を壊して正す方を優先します。
 
 ## ドキュメント更新ルール
 
-1. product boundary / roadmap を変えるなら authoritative English doc を先に更新する。
-2. version number/status を変更するなら `00D_VERSIONING_AND_RELEASE_STATUS.md` を更新する。
-3. code reality が変わったら `IMPLEMENTATION_STATUS.md` / `.ja.md` を更新する。
-4. versioned filename、heading、本文、index、docs check、日本語 companion を一緒に揃える。
-5. implementation claim と real-provider/client acceptance claim を混ぜない。
-6. EC2 の experimental/default-off rule を維持する。
-7. `python tools/check_docs.py` を実行する。
-8. pre-1.0 の breaking change freedom を security boundary の弱体化に使わない。
+1. その事実を所有するauthoritative documentを先に更新する
+2. code realityが変わったら `IMPLEMENTATION_STATUS.md` を更新する
+3. numbering/statusが変わったら `00D_VERSIONING_AND_RELEASE_STATUS.md` を更新する
+4. English authoritative doc → Japanese companion の順で揃える
+5. implementation claim と real-host acceptance claim を混ぜない
+6. experimental/default-off boundaryを明記する
+7. `python tools/check_docs.py` を実行する
