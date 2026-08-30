@@ -108,6 +108,9 @@ func TestOpenStreamClosesOnContextCancellation(t *testing.T) {
 	}
 	cancel()
 	if err := stream.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
 		t.Fatal(err)
 	}
 	buffer := make([]byte, 1)
