@@ -72,11 +72,47 @@ install_incus() {
   sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus-base dnsmasq-base
 }
 
+root_subid_contains() {
+  local file="$1"
+  local id="$2"
+
+  [[ -r "$file" ]] || return 1
+  awk -F: -v id="$id" '
+    $1 == "root" && id >= $2 && id - $2 < $3 { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' "$file"
+}
+
+allow_root_subid() {
+  local file="$1"
+  local id="$2"
+
+  [[ "$id" != "0" ]] || return 0
+  if root_subid_contains "$file" "$id"; then
+    return 0
+  fi
+
+  printf 'root:%s:1\n' "$id" | sudo tee -a "$file" >/dev/null
+}
+
+configure_workspace_owner_idmap() {
+  local uid gid
+  uid="$(id -u)"
+  gid="$(id -g)"
+
+  # Hacocoon keeps the container unprivileged and maps only the owner of the
+  # leased host workspace to container root. Incus requires that host identity
+  # to be present in root's subordinate ID ranges before raw.idmap can start.
+  allow_root_subid /etc/subuid "$uid"
+  allow_root_subid /etc/subgid "$gid"
+}
+
 setup_incus() {
   local server_version
 
   require_github_hosted_runner
   install_incus
+  configure_workspace_owner_idmap
 
   # Hacocoon deliberately keeps bridge IP filtering enabled. Incus requires
   # the host's bridge netfilter hooks for that policy, while GitHub-hosted
