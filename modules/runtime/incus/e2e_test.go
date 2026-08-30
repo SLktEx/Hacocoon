@@ -79,7 +79,7 @@ func TestRealIncusWorkspaceLifecycleE2E(t *testing.T) {
 	runtimeAdapter.stdout = &shellStdout
 	runtimeAdapter.stderr = &shellStderr
 
-	if err := runtimeAdapter.Prepare(ctx, core.RuntimePrepareSpec{}); err != nil {
+	if err := runtimeAdapter.Prepare(ctx, core.RuntimePrepareSpec{StorageAttachment: map[string]string{"incus_pool": "default"}}); err != nil {
 		t.Fatalf("prepare Incus runtime: %v", err)
 	}
 
