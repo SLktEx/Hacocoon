@@ -21,6 +21,21 @@ func (f fakeReader) Batch(context.Context, int64, int) (interaction.Batch, error
 	return f.batch, f.err
 }
 
+type recordingReader struct {
+	batch  interaction.Batch
+	err    error
+	offset int64
+	limit  int
+	calls  int
+}
+
+func (r *recordingReader) Batch(_ context.Context, offset int64, limit int) (interaction.Batch, error) {
+	r.calls++
+	r.offset = offset
+	r.limit = limit
+	return r.batch, r.err
+}
+
 func TestEventsReturnsOnlyPublicInteractionFields(t *testing.T) {
 	handler, err := NewHandler(fakeReader{batch: interaction.Batch{
 		SchemaVersion: interaction.SchemaVersion,
@@ -62,6 +77,29 @@ func TestEventsReturnsOnlyPublicInteractionFields(t *testing.T) {
 	}
 }
 
+func TestEventsForwardsResumeCursorAndBoundedLimit(t *testing.T) {
+	reader := &recordingReader{batch: interaction.Batch{SchemaVersion: interaction.SchemaVersion, NextOffset: 99}}
+	handler, err := NewHandler(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/events?offset=17&limit=23", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if reader.calls != 1 || reader.offset != 17 || reader.limit != 23 {
+		t.Fatalf("reader did not receive resume query: calls=%d offset=%d limit=%d", reader.calls, reader.offset, reader.limit)
+	}
+	var response batchResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Events == nil || len(response.Events) != 0 || response.NextOffset != 99 {
+		t.Fatalf("empty event batch was not stable JSON: %+v", response)
+	}
+}
+
 func TestEventsPreservesTrustworthyPrefixOnCorruption(t *testing.T) {
 	corruption := &interaction.CorruptionError{Line: 3, ByteOffset: 91, Kind: interaction.CorruptionMalformedJSON}
 	handler, err := NewHandler(fakeReader{
@@ -80,8 +118,11 @@ func TestEventsPreservesTrustworthyPrefixOnCorruption(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 		t.Fatal(err)
 	}
-	if len(response.Events) != 1 || response.Error == nil || response.Error.Code != "source-corruption" {
+	if len(response.Events) != 1 || response.NextOffset != 80 || response.Error == nil || response.Error.Code != "source-corruption" {
 		t.Fatalf("unexpected response: %+v", response)
+	}
+	if response.Error.Line != 3 || response.Error.ByteOffset != 91 || response.Error.Kind != interaction.CorruptionMalformedJSON {
+		t.Fatalf("corruption metadata was not minimized/stable: %+v", response.Error)
 	}
 }
 
@@ -95,6 +136,45 @@ func TestEventsRejectsBadArguments(t *testing.T) {
 		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, target, nil))
 		if recorder.Code != http.StatusBadRequest {
 			t.Fatalf("%s: status = %d", target, recorder.Code)
+		}
+	}
+}
+
+func TestEventsRejectMutationWithoutCallingReader(t *testing.T) {
+	reader := &recordingReader{}
+	handler, err := NewHandler(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(method, "/api/v1/events", strings.NewReader("{}")))
+		if recorder.Code != http.StatusMethodNotAllowed || recorder.Header().Get("Allow") != "GET" {
+			t.Fatalf("%s: status=%d allow=%q", method, recorder.Code, recorder.Header().Get("Allow"))
+		}
+	}
+	if reader.calls != 0 {
+		t.Fatalf("mutation requests reached interaction reader: %d", reader.calls)
+	}
+}
+
+func TestBridgeSetsBrowserSecurityHeadersAndNoCORS(t *testing.T) {
+	handler, err := NewHandler(fakeReader{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range []string{"/", "/api/v1/events"} {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, target, nil))
+		if recorder.Header().Get("Cache-Control") != "no-store" || recorder.Header().Get("X-Content-Type-Options") != "nosniff" || recorder.Header().Get("Referrer-Policy") != "no-referrer" {
+			t.Fatalf("%s: required browser hardening headers missing: %v", target, recorder.Header())
+		}
+		csp := recorder.Header().Get("Content-Security-Policy")
+		if !strings.Contains(csp, "connect-src 'self'") || !strings.Contains(csp, "frame-ancestors 'none'") {
+			t.Fatalf("%s: unexpected CSP: %q", target, csp)
+		}
+		if origin := recorder.Header().Get("Access-Control-Allow-Origin"); origin != "" {
+			t.Fatalf("%s: bridge unexpectedly enabled CORS for %q", target, origin)
 		}
 	}
 }
