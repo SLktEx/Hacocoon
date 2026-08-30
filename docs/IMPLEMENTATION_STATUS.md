@@ -1,169 +1,99 @@
 # Implementation Status
 
-Status date: 2026-08-30, after the v0.10 Agent Host adapter, v0.11 Base-selection, and v0.12 resource-budget implementation passes.
+Status date: 2026-08-30, after the v0.13-v0.16 feature rebaseline and the initial v0.17 Docker compatibility foundation.
 
-This file reports **current code reality**, not desired architecture and not a compatibility guarantee. Versioned specifications are design/acceptance references; their existence does not imply implementation.
+This file reports **current code reality**, not desired architecture and not a compatibility guarantee. Hacocoon is still **pre-1.0**.
 
-Hacocoon is still **pre-1.0**. An implemented area does not mean its CLI/API/state/config surface is frozen, production support is guaranteed, or every real-provider/client acceptance test has passed.
+The fully implemented product progression is currently contiguous through **v0.16**. v0.17 has a foundation but is not yet a complete feature gate. v0.18-v0.19 are planned.
 
-The current numbering keeps implemented milestones contiguous through **v0.12**.
-
-| Area | Current repository reality | Release | Validation status |
+| Area | Current repository reality | Milestone | Validation status |
 |---|---|---:|---|
-| Secure Workspace Runtime | public Environment path supports `haco create --workspace`, `haco exec`, `haco shell`, and `haco delete` | v0.1 | unit and process-boundary integration pass; supported-host real Incus acceptance remains pending |
-| Workspace model | `Workspace`, `Environment`, `ExecutionResult`, canonical external-path Workspace identity, and persisted Workspace leases are implemented | v0.1-v0.2 | unit, persistence, concurrency, and process-boundary tests pass |
-| Workspace lease safety | RO/RW leases, RW conflict prevention, stale-lease recovery, and process serialization are implemented | v0.2 | unit/concurrency/integration tests pass |
-| Incus Environment provider | concrete local Incus Environment implementation remains the default runtime | v0.1+ | unit/process tests pass; real Incus host acceptance remains pending |
-| Client access | status, local-only port forwarding, connection listing/removal, SSH preparation/revocation, and hardened public-key handling are implemented | v0.3 | unit/process integration pass; real Incus SSH acceptance remains host-dependent |
-| Policy / Capability | fail-closed PolicyEvaluator, allow/deny/require-approval, human security approval, request correlation, and JSONL audit are implemented | v0.4 | unit/process integration and actual CLI capability E2E pass |
-| Git / GitHub capability | host-side brokered GitHub push uses normalized repo/ref authority, exact source SHA, policy/approval, and force-with-lease semantics without exporting host credentials | v0.5 | unit, adversarial tests, real-git integration, and actual CLI E2E pass |
-| Agent / orchestrator integration | `haco run`, stable machine JSON output, and external security event export are implemented without moving orchestration/DAG/model selection into Hacocoon | v0.6 | unit/race/process integration and actual CLI E2E pass |
-| Environment routing | provider-neutral Environment router exists; pre-v0.7 bare runtime refs remain backward-compatible as Incus refs | v0.7 | router unit tests pass |
-| EC2 Environment provider | experimental S3-staged / SSM-driven EC2 Environment provider exists; EC2 is disabled by default and requires both provider selection and explicit Hacocoon-owned opt-in | v0.7 | unit, fake-`aws` process integration, and actual `haco` fake-AWS E2E pass; real AWS acceptance pending |
-| Experimental EC2 gate | `HACO_RUNTIME_PROVIDER=runtime.ec2` does not enable EC2 alone; `HACO_EXPERIMENTAL_EC2=1` is also required, and disabled paths fail before AWS activity | v0.7 | actual binary E2E verifies zero fake-AWS calls on the disabled path |
-| AWS capability | narrow host-side `aws.api` read capability is mediated through the existing Policy/Approval/Audit path and generic capability CLI | v0.7 | unit/process integration and fake-AWS CLI E2E pass; real AWS acceptance pending |
-| EBS replacement | adapter-owned replacement/migration flow exists for shrink-like operations; no in-place EBS shrink and no automatic source-volume deletion | v0.7 | unit and fake-AWS process integration cover preflight, migration, verification, cleanup, and recovery-required transitions |
-| VS Code Client Adapter | separate `haco-vscode` binary creates/reuses a matching Environment, prepares existing loopback SSH access, writes isolated adapter-owned SSH host configuration, and launches standard VS Code Remote-SSH to `/workspace` | v0.8 | helper unit coverage added; real Windows/WSL + Incus + VS Code Remote-SSH acceptance remains pending |
-| Windows/WSL client bridge | when run under WSL, `haco-vscode` resolves the Windows user profile and targets the desktop-client `.ssh` configuration rather than WSL-only SSH config | v0.8 | code path implemented; real Windows/WSL acceptance pending |
-| Windows/WSL bootstrap | standalone/source bootstrap creates or reuses only a dedicated named WSL instance (`Hacocoon` by default), enforces WSL 2 for that dedicated instance, installs `systemd`/`systemd-sysv`, preserves unrelated `/etc/wsl.conf` keys while enforcing `[boot] systemd=true`, restarts only the dedicated instance when required, verifies systemd as PID 1, then starts Incus; unrelated WSL distributions/global defaults remain untouched and `incus-admin` requires explicit opt-in | v0.8 | PowerShell/shell syntax and static WSL2/systemd contract checked in CI; real Windows install/reboot/WSL2 conversion/systemd/Incus acceptance remains pending |
-| Client adapter boundary | IDE-specific launch/configuration remains outside Core; Core does not depend on VS Code, Daintree, JetBrains, or client-native configuration | v0.8 | architecture/documentation contract plus separate adapter binary |
-| Per-agent sandbox broker | `internal/agenthost` maps an opaque external session identity to a dedicated Environment through the existing Environment/WorkspaceLease lifecycle | v0.9 | unit coverage for dedicated allocation, idempotence, rebinding rejection, persisted restart lookup, raw-ID non-disclosure, deterministic-name collision refusal, and proof-required release |
-| Agent binding state | session-to-Environment ownership proof is stored separately in trusted `agent-bindings.json`; raw external session IDs are hashed before persistence | v0.9 | process-safe Linux file lock plus atomic/fsync-backed writes; real-host crash/fault-injection acceptance pending |
-| Agent control-plane separation | coding agents are not required to invoke `haco`; Incus/Hacocoon management authority stays on the trusted side of the Environment boundary | v0.9 | repository architecture/test contract; real-host adversarial validation pending |
-| VS Code Agent Host / AHP routing foundation | target architecture places each independently routable top-level agent session/Agent Host in its assigned Environment | v0.9 | broker/control-plane foundation implemented; real VS Code Agent Host/AHP + Incus end-to-end routing acceptance pending |
-| VS Code Remote Agent Host Adapter | `haco-agent-host prepare/release` uses the v0.9 broker, hashed session-derived SSH aliases, loopback-only SSH access, client-side private keys, managed SSH config fragments, and optional `code --agents` launch | v0.10 | implemented on `main` via PR #137; unit/release CI pass; real Windows/WSL + Incus + VS Code Agent Host acceptance remains pending |
-| Base identity model | Core exposes provider-neutral `BaseName`, `BaseRevision`, `BaseRef`, and persists the exact Base revision selected for an Environment | v0.11 | unit/routing/persistence-oriented coverage; concrete compatibility remains pre-1.0 |
-| Incus Base resolution | logical Base names map to adapter-owned Incus sources; creation resolves the mutable source to a validated immutable fingerprint and initializes from the pinned fingerprint | v0.11 | unit tests prove alias movement cannot retarget the previously resolved revision; real Incus image-remote acceptance pending |
-| Base CLI | `haco image list`, `haco image inspect <base>`, and `haco create --base <base> --workspace <path> <environment>` are implemented; `status --json` exposes persisted Base metadata | v0.11 | unit and fake-Incus E2E cover selection, inspect, pinning, and persisted revision |
-| Custom Base mapping | host/operator may add logical custom Base mappings through `HACO_INCUS_BASES_JSON`; the `haco/` namespace is reserved and unsafe Base/source/fingerprint inputs fail closed | v0.11 | adversarial unit coverage; custom build/import/history/rollback/GC remain future work |
-| Resource budget model | Core exposes provider-neutral finite/unlimited CPU, memory-byte, PID, and root-byte limits; omission resolves to an explicit unlimited effective budget and the effective budget is persisted on Environment metadata | v0.12 | unit coverage for normalization, bounds, invalid modes/values, and persistence boundary |
-| Resource CLI | `haco create` and `haco run` accept `--cpu`, `--memory`, `--pids`, and `--root-size`; byte values use strict `B`/`KiB`/`MiB`/`GiB`/`TiB` units or `unlimited` | v0.12 | parser unit coverage plus fake-Incus CLI E2E |
-| Incus resource enforcement | finite CPU/memory/PID/root-disk limits are applied and read back before `start`; a mismatch or apply/verify failure aborts creation and enters normal cleanup/recovery handling | v0.12 | unit tests cover ordering, verification mismatch, and cleanup; fake-Incus E2E covers persisted values and provider-native commands; real Incus enforcement pending |
-| Unsupported-provider resource behavior | finite resource requests to providers that do not implement them fail closed before provider side effects; experimental EC2 is wrapped by this boundary | v0.12 | unit test proves wrapped provider create is not called for finite budgets; real AWS remains experimental/pending |
-| Btrfs / raw / QCOW2 historical storage | historical local storage implementation remains in the repository | historical / provider detail | not part of the current Core Environment model and not a compatibility commitment |
-| CI | Go version matrix tests, `go vet`, race detector, docs consistency, bootstrap syntax, release packaging, workflow trust policy, and existing non-host-dependent E2Es are enabled | cross-cutting | real-provider/client acceptance remains separate |
+| Secure Workspace Runtime | `haco create --workspace`, `haco exec`, `haco shell`, `haco delete` over the Environment service | v0.1 | unit/process coverage; real Incus acceptance host-dependent |
+| Workspace model / leases | canonical Workspace identity, RO/RW leases, conflict prevention, stale recovery, process serialization | v0.1-v0.2 | unit/persistence/concurrency/process coverage |
+| Client access | status, loopback forwarding, SSH preparation/revocation | v0.3 | unit/process coverage; real Incus SSH acceptance pending |
+| Policy / Capability | fail-closed policy, approval, request correlation, audit | v0.4 | unit/process/CLI E2E |
+| Git / GitHub push capability | brokered push/force-with-lease without exporting reusable host credentials | v0.5 | unit/adversarial/real-git/CLI E2E |
+| Agent / orchestrator integration | `haco run`, stable machine JSON, external security events | v0.6 | unit/race/process/CLI E2E |
+| EC2 / AWS path | experimental EC2 Environment provider, AWS capability, EBS replacement/recovery | v0.7 | fake-AWS/process/E2E; real AWS acceptance pending |
+| VS Code Client Adapter | `haco-vscode` + standard Remote-SSH; Windows/WSL bridge/bootstrap | v0.8 | helper/static coverage; real Windows/WSL acceptance pending |
+| Per-agent sandbox broker | opaque session identity → persisted dedicated Environment binding | v0.9 | ownership/persistence/collision/release-proof tests |
+| VS Code Remote Agent Host Adapter | `haco-agent-host prepare/release`, hashed aliases, loopback SSH, client-side private key, optional `code --agents` | v0.10 | implemented via PR #137; real Agent Host acceptance pending |
+| Base identity / selection | provider-neutral Base identity, immutable Incus fingerprint pinning, `haco image list/inspect`, `create --base` | v0.11 | unit/routing/fake-Incus E2E; real image-source acceptance pending |
+| Resource budgets | CPU/memory/PID/root finite-or-unlimited model, CLI flags, Incus pre-start apply/read-back | v0.12 | unit/fake-Incus E2E; real enforcement pending |
+| Managed sandbox network | managed `haco-sandbox0` bridge, `haco-sandbox-egress` ACL substrate, `haco-sandbox` profile; drift/broad fallback fail closed | v0.13 | unit/static coverage; real Incus network acceptance pending |
+| Git fetch plugin | `haco plugin git fetch`; host `gh auth git-credential`; fixed refspec; hostile repository Git config rejected | v0.14 | CLI/provider/security coverage; real private-repo combinations acceptance-sensitive |
+| OCI Seed telemetry | latest image snapshot per Environment, 6h freshness guard, 30d window, immutable recommendation identity | v0.15 | repository tests cover persistence/sampling/recommendation |
+| OCI Seed automatic promotion | deterministic top-10% `auto_promote` selection, minimum one eligible candidate | v0.15 | deterministic candidate-count/ranking tests |
+| OCI image deletion | `haco image delete`, immutable target revalidation, Host cache deletion, tombstones, optional `--all-environments`, no forced removal | v0.16 | focused deletion/tombstone/retry tests |
+| Docker compatibility | Docker compatibility design plus systemd socket/service packaging foundation | v0.17 | partial foundation only; full plugin lifecycle/integration pending |
+| Optional Local OCI Registry | optional registry/proxy remains a design choice; normal direct upstream pulls remain valid | v0.18 | planned; not implemented as a feature gate |
+| OCI Seed Builder / COW | offline builder, immutable Seed publication, current-Seed pointer, Incus/Btrfs COW integration | v0.19 | planned; physical build/publish not implemented |
+| CI / release hardening | Go tests/vet/race, docs checks, bootstrap/release/workflow trust checks, maintained local CI runner | cross-cutting | repository checks; real-provider acceptance separate |
 
-## Current implementation state
-
-The implemented progression is now contiguous through v0.12:
+## Current implementation progression
 
 ```text
-Workspace
-  -> Environment lifecycle
-  -> local Incus by default
-  -> Workspace leases and client access
-  -> Policy / Approval / Capability boundary
-  -> Git/GitHub broker
-  -> machine/orchestrator access
-  -> experimental remote EC2 provider and AWS capability
-  -> thin Client Adapter layer, starting with VS Code Remote-SSH
-  -> dedicated Windows/WSL 2 + systemd bootstrap helper outside Core
-  -> trusted external agent session -> persisted Environment binding broker
-  -> VS Code Remote Agent Host adapter
-  -> logical Base -> immutable revision -> Environment
-  -> explicit ResourceBudget -> provider enforcement before Environment access
+v0.1  secure workspace runtime
+  -> v0.2 workspace leases
+  -> v0.3 client access
+  -> v0.4 policy/capability
+  -> v0.5 GitHub push broker
+  -> v0.6 agent/orchestrator surface
+  -> v0.7 experimental remote/cloud runtime
+  -> v0.8 VS Code client adapter
+  -> v0.9 per-agent binding broker
+  -> v0.10 VS Code Agent Host adapter
+  -> v0.11 immutable Base selection
+  -> v0.12 ResourceBudget
+  -> v0.13 managed sandbox networking
+  -> v0.14 Git fetch plugin
+  -> v0.15 OCI Seed recommendation
+  -> v0.16 OCI image deletion
+  -> v0.17 Docker compatibility foundation (partial)
+  -> v0.18 optional Local Registry (planned)
+  -> v0.19 Seed Builder/COW (planned)
 ```
 
-The v0.9 broker does not introduce an agent-visible management CLI. A trusted integration supplies an opaque session identity and Workspace; the broker selects/creates the Environment and persists ownership proof separately. A deterministic Environment name is not sufficient proof: without a matching persisted binding, Acquire refuses adoption and Release refuses deletion.
+## Important boundaries
 
-Parallel write-capable agent sessions still need distinct canonical Workspace paths, normally separate Git worktrees. Existing WorkspaceLease conflict prevention is not weakened for multi-agent convenience.
+### v0.9 / v0.10 agent ownership
 
-v0.10 is implemented through `haco-agent-host`. It prepares a v0.9-bound Environment as a managed loopback SSH target for the VS Code Agents window, keeps the private key on the client side, and leaves VS Code in control of the Agent Host UI/protocol. Real-host Agent Host/AHP acceptance remains pending.
+A deterministic Environment name is not ownership proof. `internal/agenthost` requires a matching persisted binding for acquire/release. Parallel write-capable sessions still need distinct canonical Workspaces, normally Git worktrees.
 
-v0.11 resolves a selected logical Base once at Environment creation time, records the immutable `BaseRevision`, and initializes Incus from the pinned fingerprint rather than the mutable alias. Changing a logical Base source later affects future Environment creation only; it does not rewrite persisted Base identity for an existing Environment.
+### v0.11 Bases
 
-The first v0.11 slice deliberately does not claim custom image build/import, revision history, rollback, or garbage collection. Those operations need explicit reference/deletion safety before they should be added.
+A logical Base resolves once at create time to an immutable revision. Existing Environments retain their exact persisted revision when an alias moves. Custom build/import/history/rollback/GC are separate follow-up capabilities.
 
-v0.12 resolves every creation request to an explicit effective `ResourceBudget`. Omitted dimensions become explicit `unlimited`; finite dimensions are bounded and persisted. For Incus, finite limits are configured and verified before the Environment starts. A provider that cannot enforce a requested finite limit must reject the request rather than silently ignore it. The experimental EC2 path currently takes that fail-closed route for finite budgets.
+### v0.12 ResourceBudget
 
-The Windows/WSL bootstrap remains a host setup helper, not a new Core lifecycle. It reserves a dedicated WSL instance for Hacocoon, may convert only that Hacocoon-owned instance from WSL 1 to WSL 2, installs/enables systemd, restarts only the named instance when required, verifies systemd as PID 1, and leaves unrelated WSL distributions/global defaults untouched. `incus-admin` is never granted silently. See `WINDOWS_WSL_BOOTSTRAP.md`.
+Omitted dimensions resolve to explicit `unlimited`; finite requests are bounded and persisted. Incus applies and reads back finite limits before start. Unsupported providers fail before side effects rather than silently ignoring a requested finite limit.
 
-The v0.7 EC2 provider remains **experimental and disabled by default**. Real AWS/EC2/SSM/EBS acceptance remains pending.
+### v0.13 network
 
-Real Incus, Windows/WSL + VS Code Remote-SSH, v0.9/v0.10 per-agent Agent Host routing, v0.11 real image sources, v0.12 real resource enforcement, and cloud acceptance require suitable hosts. Unit tests, fake-provider E2Es, race checks, vet, build, script syntax, and repository CI are not substitutes for those checks.
+Hacocoon owns a managed sandbox network/profile substrate and refuses silent fallback to broad/default Incus networking. Domain-aware authorization is not provided by Incus ACLs and remains a higher-layer broker/proxy/plugin concern.
 
-## v0.8 client workflow
+### v0.14 Git fetch
 
-```bash
-haco-vscode open .
-```
+Git fetch stays under `haco plugin git`. Reusable GitHub authentication remains on the trusted Host through `gh auth git-credential`; repository-controlled Git configuration is not allowed to redefine the privileged transport path.
 
-Conceptually:
+### v0.15 / v0.16 OCI selection state
 
-```text
-local Workspace
-  -> create/reuse Hacocoon Environment
-  -> prepare loopback-only SSH
-  -> create adapter-owned SSH host entry
-  -> code --remote ssh-remote+<alias> /workspace
-```
+`haco image seed sample|recommend` observes immutable OCI identities and marks the top 10% for automatic future Seed inclusion. `haco image delete` can tombstone an exact identity so normal telemetry cannot silently re-promote it. These features do **not** imply that physical Seed build/publish exists yet.
 
-Cleanup:
+### v0.17 Docker compatibility
 
-```bash
-haco-vscode delete .
-```
+The standard runtime direction remains containerd + nerdctl. Docker compatibility is optional and belongs behind a plugin/adapter boundary. The current repository has the systemd packaging/foundation, but full on-demand Engine/plugin lifecycle is not yet complete.
 
-## v0.9 per-agent binding model
+### v0.18 / v0.19 planned OCI infrastructure
 
-```text
-trusted VS Code/AHP integration / trusted client
-                 |
-          opaque session ID
-                 |
-       internal/agenthost Broker
-                 |
-       persisted ownership proof
-                 |
-       existing Environment service
-                 |
-              Incus
-```
+A Local Registry is optional, not a prerequisite for ordinary `nerdctl pull` or OCI Seed. v0.19 will own trusted Host acquisition, offline Seed Builder import, immutable Incus Seed publication, revision pinning, and storage-driver COW behavior. Sharing one writable `/var/lib/containerd` across Environments is forbidden.
 
-Release accepts a session identity, not an arbitrary Environment name. The initial ownership unit is an independently routable top-level session; hidden harness-internal subagents may share the parent's Environment unless the client exposes a separate routable lifecycle.
+## Real-host acceptance
 
-## v0.10 Agent Host adapter
+Unit tests, fake-provider E2Es, race checks, vet, build, script syntax, and repository CI are not substitutes for real-host acceptance.
 
-```text
-haco-agent-host prepare --session <opaque-id> [workspace]
-haco-agent-host release --session <opaque-id>
-```
-
-See `10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md`.
-
-## v0.11 Base workflow
-
-```text
-haco image list
-haco image inspect <base>
-haco create --base <base> --workspace <path> <environment>
-```
-
-```text
-my-dev -> revision A -> Environment 1
-my-dev -> revision B -> Environment 2
-Environment 1 remains recorded on revision A
-```
-
-For the first implementation slice, official logical Bases are provided by the Incus adapter and host/operator custom mappings may be supplied with `HACO_INCUS_BASES_JSON`. Incus alias/remote/fingerprint vocabulary remains an adapter detail rather than a Core architecture contract.
-
-See `11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md` and `BASE_IMAGES.md`.
-
-## v0.12 resource budgets
-
-```text
-haco create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace . dev
-haco run --cpu 2 --memory 4GiB --workspace . -- go test ./...
-```
-
-The first slice supports creation-time CPU, memory, PID, and root-disk budgets. It does not add live resizing, aggregate host scheduling, or Workspace quota management. `status` and `status --json` expose the persisted effective budget using provider-neutral fields.
-
-See `12_v0.12_SANDBOX_RESOURCE_LIMITS.md`.
+Still host-dependent include real Incus lifecycle/network/resource enforcement, Windows/WSL + VS Code, Agent Host routing, real image sources, private-registry combinations, and AWS/EC2/SSM/EBS.
 
 ## Compatibility status
 
-No versioned design or implementation row through v0.12 should be read as a promise that the current concrete interface will remain unchanged.
-
-Until an explicit stable compatibility milestone is declared, breaking changes may modify or replace CLI commands, helper binaries, persisted state, provider interfaces, Base/image lifecycle, capability/policy schemas, client/agent integration, host bootstrap behavior, resource-budget design, and experimental runtime behavior.
-
-Compatibility should not be preserved at the cost of an unsafe authority boundary, ambiguous ownership, silent data loss, or unnecessary architectural complexity. Material breaking changes should still be explicit, tested, and documented.
+No milestone through v0.19 should be read as a promise that current CLI/API/state/config surfaces are frozen. Until an explicit stable compatibility milestone is declared, breaking changes may correct unsafe authority boundaries, ambiguous ownership, accidental provider coupling, or unnecessary complexity.
