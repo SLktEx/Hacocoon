@@ -30,6 +30,7 @@ func (c *Client) Call(ctx context.Context, method string, request, response any)
 	if err != nil {
 		return err
 	}
+	conn = bindContext(ctx, conn)
 	defer conn.Close()
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := conn.SetDeadline(deadline); err != nil {
@@ -68,6 +69,7 @@ func (c *Client) OpenStream(ctx context.Context, method string, request any) (ne
 	if err != nil {
 		return nil, err
 	}
+	conn = bindContext(ctx, conn)
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := conn.SetDeadline(deadline); err != nil {
 			conn.Close()
@@ -96,6 +98,27 @@ func (c *Client) OpenStream(ctx context.Context, method string, request any) (ne
 		_ = conn.SetDeadline(noDeadline)
 	}
 	return &bufferedConn{Conn: conn, reader: reader}, nil
+}
+
+type contextConn struct {
+	net.Conn
+	stop func() bool
+}
+
+func bindContext(ctx context.Context, conn net.Conn) net.Conn {
+	if ctx == nil || ctx.Done() == nil {
+		return conn
+	}
+	bound := &contextConn{Conn: conn}
+	bound.stop = context.AfterFunc(ctx, func() { _ = conn.Close() })
+	return bound
+}
+
+func (c *contextConn) Close() error {
+	if c.stop != nil {
+		c.stop()
+	}
+	return c.Conn.Close()
 }
 
 func marshalPayload(value any) (json.RawMessage, error) {
