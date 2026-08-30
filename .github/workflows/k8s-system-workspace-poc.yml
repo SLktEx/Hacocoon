@@ -49,12 +49,12 @@ jobs:
           kubectl get nodes -o wide
           sudo k3s --version
           test "$(findmnt -T /mnt/haco-k8s/k3s -n -o FSTYPE)" = btrfs
-          test "$(findmnt -T /mnt/haco-k8s/k3s/agent/containerd -n -o FSTYPE)" = btrfs
 
       - name: Build systemd workspace image with sudo and nerdctl
         run: |
           set -euxo pipefail
-          cat > "$RUNNER_TEMP/Dockerfile.haco-system" <<'EOF'
+          mkdir -p "$RUNNER_TEMP/haco-system-build"
+          cat > "$RUNNER_TEMP/haco-system-build/Dockerfile" <<'EOF'
           FROM ubuntu:26.04
           ENV DEBIAN_FRONTEND=noninteractive container=docker
           RUN apt-get update \
@@ -85,7 +85,7 @@ jobs:
           STOPSIGNAL SIGRTMIN+3
           CMD ["/sbin/init"]
           EOF
-          docker build -f "$RUNNER_TEMP/Dockerfile.haco-system" -t haco-system-workspace-poc:local "$RUNNER_TEMP"
+          docker build -t haco-system-workspace-poc:local "$RUNNER_TEMP/haco-system-build"
           docker save haco-system-workspace-poc:local | sudo k3s ctr images import -
 
       - name: Start privileged Kubernetes workspace
@@ -151,6 +151,7 @@ jobs:
         run: |
           set -euxo pipefail
           test "$(findmnt -T /mnt/haco-k8s/k3s/agent/containerd -n -o FSTYPE)" = btrfs
+          sudo find /mnt/haco-k8s/k3s/agent/containerd -maxdepth 3 -type d | head -100
           sudo btrfs filesystem usage /mnt/haco-k8s
           sudo btrfs filesystem df /mnt/haco-k8s
 
