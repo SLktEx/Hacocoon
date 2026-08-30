@@ -10,8 +10,13 @@ done
 
 root="$(mktemp -d)"
 notify_pid=""
+controller_pid=""
 cleanup() {
   set +e
+  if [[ -n "$controller_pid" ]] && kill -0 "$controller_pid" >/dev/null 2>&1; then
+    kill -TERM "$controller_pid" >/dev/null 2>&1 || true
+    wait "$controller_pid" >/dev/null 2>&1 || true
+  fi
   if [[ -n "$notify_pid" ]] && kill -0 "$notify_pid" >/dev/null 2>&1; then
     kill -TERM "$notify_pid" >/dev/null 2>&1 || true
     wait "$notify_pid" >/dev/null 2>&1 || true
@@ -27,7 +32,7 @@ export HACO_ROOT="$root/haco-root"
 export HACO_STORAGE_PRIVILEGE_MODE=direct
 unset WSL_DISTRO_NAME || true
 
-for name in haco haco-vscode haco-agent-host haco-notify haco-storage-helper; do
+for name in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper; do
   go build -o "$bin/$name" "./cmd/$name"
   test -x "$bin/$name"
 done
@@ -48,6 +53,40 @@ set -e
 [[ ! -s "$root/haco-invalid.out" ]]
 grep -Fq 'usage: haco <' "$root/haco-invalid.err"
 grep -Fq 'unknown command "definitely-not-a-command"' "$root/haco-invalid.err"
+
+# Controller + logical Host: exercise the newly shipped Unix-socket control
+# plane as two real processes. Listing an empty Environment state is a useful
+# success path that does not need privileged Incus.
+export HACO_CONTROL_SOCKET="$root/control.sock"
+"$bin/haco-controller" >"$root/controller.out" 2>"$root/controller.err" &
+controller_pid=$!
+controller_ready=0
+for ((attempt = 0; attempt < 50; attempt++)); do
+  if [[ -S "$HACO_CONTROL_SOCKET" ]]; then
+    controller_ready=1
+    break
+  fi
+  if ! kill -0 "$controller_pid" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.1
+done
+[[ "$controller_ready" == "1" ]] || {
+  echo 'haco-controller did not create its Unix socket' >&2
+  cat "$root/controller.err" >&2 || true
+  exit 1
+}
+[[ "$(stat -c '%a' "$HACO_CONTROL_SOCKET")" == "600" ]]
+"$bin/haco-host" doctor >"$root/host-doctor.out" 2>"$root/host-doctor.err"
+grep -Fq 'Hacocoon logical Host client' "$root/host-doctor.out"
+grep -Fq "$HACO_CONTROL_SOCKET" "$root/host-doctor.out"
+host_list_json="$("$bin/haco-host" env list --json)"
+[[ "$host_list_json" == '[]' ]]
+kill -TERM "$controller_pid"
+wait "$controller_pid"
+controller_pid=""
+[[ ! -e "$HACO_CONTROL_SOCKET" ]]
+unset HACO_CONTROL_SOCKET
 
 # Doctor: both the healthy and unavailable runtime contracts are process-level
 # behavior. A PATH-local Incus shim keeps these fast and deterministic.
