@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -46,6 +47,30 @@ func TestPrepareSSHAccessRollsBackProxyWhenProvisioningFails(t *testing.T) {
 		t.Fatalf("calls = %#v", runner.calls)
 	}
 	assertRunnerCall(t, runner.calls[2], "incus", "config", "device", "remove", "haco-demo", "haco-ssh-2222", "--project", defaultProject)
+}
+
+func TestPrepareSSHAccessPreservesBoundedProvisioningStderr(t *testing.T) {
+	provisionErr := errors.New("exit status 100")
+	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, _ []string) (host.Result, error) {
+		if call == 1 {
+			return host.Result{Stderr: "apt bootstrap failed\n"}, provisionErr
+		}
+		return host.Result{}, nil
+	}}
+
+	_, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: "ssh-ed25519 AAAA", HostPort: 2222})
+	if !errors.Is(err, provisionErr) {
+		t.Fatalf("error = %v", err)
+	}
+	if !strings.Contains(err.Error(), "apt bootstrap failed") {
+		t.Fatalf("diagnostic missing from error: %v", err)
+	}
+
+	oversized := strings.Repeat("x", maxSSHProvisionDiagnosticBytes+32)
+	got := boundedSSHProvisionDiagnostic(oversized)
+	if len(got) != maxSSHProvisionDiagnosticBytes+3 || !strings.HasPrefix(got, "...") {
+		t.Fatalf("bounded diagnostic length/prefix = %d %q", len(got), got[:min(len(got), 3)])
+	}
 }
 
 func TestPrepareSSHAccessUsesConnectionScopedManagedKey(t *testing.T) {
