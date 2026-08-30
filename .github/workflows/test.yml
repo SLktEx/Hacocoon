@@ -73,7 +73,7 @@ jobs:
       - name: Validate GoReleaser configuration
         run: goreleaser check
       - name: Validate release and WSL shell syntax
-        run: bash -n scripts/install.sh scripts/bootstrap-wsl.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
+        run: bash -n scripts/install.sh scripts/bootstrap-wsl.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
       - name: Validate Windows installer syntax and provenance behavior
         shell: pwsh
         run: |
@@ -96,6 +96,8 @@ jobs:
           grep -q 'ps -p 1 -o comm=' scripts/bootstrap-wsl.sh
           ! grep -q -- '--set-default-version' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
           ! grep -q -- '--shutdown' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
+      - name: Validate Docker compatibility systemd units
+        run: bash tools/ci-local.sh systemd
       - name: Dry-run release packaging
         run: goreleaser release --snapshot --clean --skip=publish
       - name: Validate release artifacts

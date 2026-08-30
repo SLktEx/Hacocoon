@@ -62,14 +62,24 @@ At minimum consider:
 
 As applicable, add positive tests, negative/security tests, cleanup/retry tests, concurrency/race coverage, no-secret logging checks, and regression tests for retained behavior.
 
-Run the maintained baseline:
+Run the maintained local CI entry point:
 
 ```bash
-go test ./...
-go test -race ./...
-go vet ./...
-go build ./cmd/haco
-python tools/check_docs.py
+bash tools/ci-local.sh
 ```
 
-Run relevant integration/E2E coverage as well. Do not claim real Incus or real AWS acceptance unless those provider-backed tests actually ran.
+It mirrors the jobs in `.github/workflows/test.yml` and can also run one job at a time:
+
+```bash
+bash tools/ci-local.sh docs
+bash tools/ci-local.sh workflow-policy
+bash tools/ci-local.sh release-config
+bash tools/ci-local.sh systemd
+bash tools/ci-local.sh test
+bash tools/ci-local.sh race
+bash tools/ci-local.sh e2e
+```
+
+The local run uses the `go` binary currently on `PATH`; GitHub Actions still exercises the supported Go-version matrix separately. `release-config` requires the same local tooling used by that CI job, including GoReleaser, PowerShell, and `systemd-analyze`. It refuses to invoke `goreleaser release --clean` when `dist/` already exists so local artifacts are not silently deleted.
+
+Run relevant provider-backed coverage as well. Do not claim real Incus or real AWS acceptance unless those provider-backed tests actually ran.
