@@ -251,9 +251,9 @@ func TestEnsureSandboxNetworkCreatesMissingResources(t *testing.T) {
 				found = true
 				break
 			}
+		}
 		if !found {
 			t.Fatalf("missing call containing %q: %#v", want, runner.calls)
 		}
 	}
-}
 }
