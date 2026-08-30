@@ -17,23 +17,23 @@ cat > "$HACO_ROOT/policy.json" <<'JSON'
     {
       "capability":"aws.api",
       "action":"sts.get-caller-identity",
-      "resource":"aws://ap-northeast-1/identity",
+      "resource":"aws://123456789012/ap-northeast-1/identity",
       "decision":"allow",
-      "reason":"read caller identity"
+      "reason":"read caller identity in the explicitly authorized account"
     }
   ]
 }
 JSON
 haco="$root/haco"; go build -o "$haco" ./cmd/haco
-"$haco" capability request aws.api sts.get-caller-identity --resource aws://ap-northeast-1/identity > "$root/whoami.json"
+"$haco" capability request aws.api sts.get-caller-identity --resource aws://123456789012/ap-northeast-1/identity > "$root/whoami.json"
 grep -Fq '123456789012' "$root/whoami.json"
 set +e
-"$haco" capability request aws.api ec2.describe-instance --resource aws://ap-northeast-1/ec2/instance/i-0123456789abcdef0 >"$root/denied.out" 2>"$root/denied.err"
+"$haco" capability request aws.api ec2.describe-instance --resource aws://123456789012/ap-northeast-1/ec2/instance/i-0123456789abcdef0 >"$root/denied.out" 2>"$root/denied.err"
 code=$?
 set -e
 [[ "$code" != 0 ]]
 [[ ! -s "$root/denied.out" ]]
 if grep -Fq 'describe-instances' "$HACO_FAKE_AWS_LOG"; then echo 'policy-denied AWS call reached provider' >&2; exit 1; fi
 audit="$HACO_ROOT/audit/capabilities.jsonl"; [[ -f "$audit" ]]
-grep -Fq '"capability":"aws.api"' "$audit"; grep -Fq 'aws://ap-northeast-1/identity' "$audit"; if grep -Eqi 'AWS_SECRET_ACCESS_KEY|AWS_SESSION_TOKEN' "$HACO_FAKE_AWS_LOG" "$audit"; then echo 'credential material leaked' >&2; exit 1; fi
+grep -Fq '"capability":"aws.api"' "$audit"; grep -Fq 'aws://123456789012/ap-northeast-1/identity' "$audit"; if grep -Eqi 'AWS_SECRET_ACCESS_KEY|AWS_SESSION_TOKEN' "$HACO_FAKE_AWS_LOG" "$audit"; then echo 'credential material leaked' >&2; exit 1; fi
 echo 'PASS: Hacocoon v0.7 AWS capability E2E'
