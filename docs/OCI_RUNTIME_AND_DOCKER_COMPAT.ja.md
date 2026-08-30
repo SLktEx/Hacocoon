@@ -54,4 +54,4 @@ Environment間の容量削減はv0.17 OCI Seed Builder & Btrfs/COWで扱いま�
 
 Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。network policyとcredentialが許せばdirect upstream pullが通常経路として使え、Seed constructionの必須条件でもありません。
 
-See [`17_v0.17_OCI_SEED_AND_COW.ja.md`](17_v0.17_OCI_SEED_AND_COW.ja.md), [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md), and [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md).
+See [`design/oci-seed-and-cow.ja.md`](design/oci-seed-and-cow.ja.md), [`design/docker-compatibility-plugin.ja.md`](design/docker-compatibility-plugin.ja.md), and [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md).

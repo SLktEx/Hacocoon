@@ -1,6 +1,6 @@
 # v0.10 VS Code Remote Agent Host Adapter
 
-[English](10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md) | **日本語**
+[English](vscode-remote-agent-host-adapter.md) | **日本語**
 
 **Status:** PR #137 で `main` に実装済み。  
 **Compatibility:** pre-1.0 のため helper CLI / integration detail は Breaking Change の対象です。  

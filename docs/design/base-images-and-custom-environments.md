@@ -252,6 +252,6 @@ v0.12 Resource Budgets must compose with v0.11 so a custom Base cannot raise or 
 
 ## Detailed companion
 
-See [`BASE_IMAGES.md`](BASE_IMAGES.md) for the broader design and future lifecycle work.
+See [`../BASE_IMAGES.md`](../BASE_IMAGES.md) for the broader design and future lifecycle work.
 
 > **v0.11 now gives Environment creation a provider-neutral logical Base that is resolved once to an immutable revision and persisted; mutable Incus image names remain adapter details.**

@@ -2,7 +2,7 @@
 
 > **日本語で読むための architecture overview**
 >
-> 実装事実は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md)、milestone番号は [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md) を参照してください。
+> 実装事実は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md)、milestone番号は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) を参照してください。
 
 ## Hacocoonとは
 
@@ -35,10 +35,10 @@ v0.7のprovider-neutral routing seamは維持していますが、concrete EC2/A
 | v0.14 | Git Fetch Plugin | 実装済み |
 | v0.15 | OCI Seed Recommendation | 実装済み |
 | v0.16 | OCI Image Deletion | first slice実装済み |
-| v0.17 | OCI Seed Builder & Btrfs/COW | planned |
-| v0.18 | Docker Compatibility Plugin | repository先行実装済み。real-host acceptanceは別 |
+| v0.17 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
+| v0.18 | Docker Compatibility Plugin | repository実装完了。real-host acceptanceは別 |
 
-v0.17がまだplannedなので、完全実装済みのproduct progressionは **v0.16まで連続**しています。v0.18 Dockerは旧番号v0.17の時点で先にland済みです。
+v0.17がpartialなので、完全実装済みのproduct progressionは **v0.16まで連続**しています。v0.18 Dockerはrepository gate実装済みです。
 
 Local OCI Registryはroadmap milestoneを予約せず、deferredなoptional infrastructureとして扱います。
 
@@ -66,18 +66,20 @@ project-maintained OCI plugin profileではcontainerd + nerdctlを使えます�
 ## Network / Git / OCI Seed
 
 - v0.13: `haco-sandbox0` / ACL / profileをHacocoonが管理・検証し、drift時はfail closed。
-- v0.14: `haco plugin git fetch` はHost側 `gh auth git-credential` を使い、credentialをSandboxへ渡さない。
+- v0.14: `haco plugin git fetch` はHost側 `gh auth git-credential` を使い、credentialをEnvironmentへ渡さない。
 - v0.15: OCI usage telemetry / recommendation / top 10% auto promotion。
 - v0.16: immutable image identityのdeletion tombstone。
-- v0.17: trusted Host acquisition/cache → offline Seed Builder → immutable Seed → normal Incus/Btrfs COW。writable `/var/lib/containerd` は共有しない。現在planned。
-- v0.18: Docker compatibility lifecycle/status、pinned unit検証、Environment-local socket activation。repository実装は先行land済み。
+- v0.17: trusted Host acquisition/cache → offline Seed Builder → immutable Seed → normal Incus/Btrfs COW。writable `/var/lib/containerd` は共有しない。first repository slice実装済みで、real-host/COW acceptanceとGC/recoveryはpending。
+- v0.18: Docker compatibility lifecycle/status、pinned unit検証、Environment-local socket activation。repository実装済み。
 - Optional Local Registry: normal pullやSeed constructionのprerequisiteではなく、実測上必要な場合だけ将来再検討。
 
-See [`17_v0.17_OCI_SEED_AND_COW.ja.md`](17_v0.17_OCI_SEED_AND_COW.ja.md), [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md), and [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md).
+See [`design/oci-seed-and-cow.ja.md`](design/oci-seed-and-cow.ja.md), [`design/docker-compatibility-plugin.ja.md`](design/docker-compatibility-plugin.ja.md), and [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md).
 
 ## Client interaction
 
 Browser/Web interaction・notificationはclient/adapter層に置きます。VS Code extensionはoptionalなIDE-native UXであり、Core dependencyにはしません。
+
+`pkg/clientadapter` はVS Codeに依存しないreusable client contractで、通常の `haco ssh` がnon-VS-Code proof pathです。
 
 ## Versioning
 

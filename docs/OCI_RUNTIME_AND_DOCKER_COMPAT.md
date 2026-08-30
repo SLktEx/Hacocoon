@@ -63,4 +63,4 @@ Cross-Environment savings belong to **v0.17 OCI Seed Builder & Btrfs/COW**. The 
 
 A Local OCI Registry is deferred optional infrastructure and has no reserved roadmap milestone. Ordinary direct upstream pulls remain valid when network policy and credentials allow them; Seed construction does not require a Hacocoon-managed registry.
 
-See [`17_v0.17_OCI_SEED_AND_COW.md`](17_v0.17_OCI_SEED_AND_COW.md), [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md), and [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
+See [`design/oci-seed-and-cow.md`](design/oci-seed-and-cow.md), [`design/docker-compatibility-plugin.md`](design/docker-compatibility-plugin.md), and [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).

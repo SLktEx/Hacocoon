@@ -1,6 +1,6 @@
 # v0.18 — Docker Compatibility Plugin
 
-[English](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md) | **日本語**
+[English](docker-compatibility-plugin.md) | **日本語**
 
 Status: **milestone順より先にrepository実装完了。real-host acceptanceは環境依存で別途。**
 

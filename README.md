@@ -8,7 +8,7 @@
 
 **An open-source secure workspace runtime for humans, developer tools, and coding agents.**
 
-[日本語](README.ja.md) · [Documentation](docs/README.md) · [Security](docs/00B_SECURITY_ARCHITECTURE.md) · [Implementation status](docs/IMPLEMENTATION_STATUS.md) · [Roadmap](docs/00_REBASELINE_AND_ROADMAP.md)
+[日本語](README.ja.md) · [Documentation](docs/README.md) · [Security](docs/security/security-architecture.md) · [Implementation status](docs/IMPLEMENTATION_STATUS.md) · [Roadmap](docs/status/architecture-and-roadmap.md)
 
 [![CI](https://github.com/SLktEx/Hacocoon/actions/workflows/test.yml/badge.svg)](https://github.com/SLktEx/Hacocoon/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
@@ -19,9 +19,14 @@
   <img src="docs/assets/readme/hacocoon-hero.webp" alt="Hacocoon secure workspace runtime overview: AI runs inside, authority stays outside" width="100%">
 </p>
 
-Hacocoon puts a Workspace behind an isolated execution boundary while keeping privileged authority on the trusted Host.
+Hacocoon puts a Workspace behind an isolated execution boundary while keeping privileged authority on the trusted Host. Coding agents can install packages, edit files, build, test, debug, and make destructive changes inside a disposable Environment without automatically receiving Host credentials, Incus management authority, unrestricted external access, or permission to raise their own resource limits.
 
-Coding agents can install packages, edit files, build, test, debug, and make destructive changes inside a disposable Environment without automatically receiving Host credentials, Incus management authority, unrestricted external access, or permission to raise their own resource limits.
+> [!WARNING]
+> **Hacocoon is pre-1.0 and under active development. Breaking changes are expected.**
+>
+> Incus is the active Environment backend today. The provider seam remains generic, while the previous concrete EC2/AWS/EBS implementation is deferred. See [Implementation status](docs/IMPLEMENTATION_STATUS.md) for current repository reality and real-host acceptance gaps.
+
+## Why Hacocoon?
 
 ```text
 VS Code / Shell / Coding Agent / Orchestrator
@@ -42,25 +47,16 @@ VS Code / Shell / Coding Agent / Orchestrator
              Incus (current)
 ```
 
-> [!WARNING]
-> **Hacocoon is pre-1.0 and under active development. Breaking changes are expected.**
->
-> The current runtime implementation intentionally focuses on local Incus while the Core and provider contracts continue to change. The previous experimental EC2/AWS/EBS implementation has been removed from the active tree and is deferred until the local foundation is stable enough for meaningful cloud acceptance testing. See [Implementation status](docs/IMPLEMENTATION_STATUS.md).
+Hacocoon separates **freedom inside a development Environment** from **authority over the Host and external services**:
 
-## Why Hacocoon?
+- broad local freedom for build/test/debug work;
+- fail-closed Host-side Policy and narrow Capabilities for privileged operations;
+- Host-owned long-lived credentials instead of mounting them into arbitrary Environments;
+- persisted Workspace write leases and Provider-enforced resource ceilings;
+- loopback-oriented client access and reusable client adapters;
+- client-neutral interaction events without making observation an authorization path.
 
-Coding agents are most useful when they can actually work. The problem is that **freedom inside a development environment** and **authority over the Host** are not the same thing.
-
-Hacocoon separates them:
-
-- **Broad local freedom** — tools and agents can work normally inside an isolated Environment.
-- **Narrow external authority** — privileged Host and external actions cross explicit Capability / Policy boundaries.
-- **Host-owned credentials** — long-lived credentials do not need to be mounted into the Environment for convenience.
-- **Auditable approvals** — sensitive actions leave Host-side decision and event records.
-- **Resource ceilings** — CPU, memory, PID, and root-storage budgets can be enforced by the Provider.
-- **Use your existing UI** — VS Code is the first convenience client; Hacocoon does not require its own AI chat UI.
-
-## Quick Start
+## Quick start
 
 <p align="center">
   <img src="docs/assets/readme/hacocoon-quickstart.webp" alt="Hacocoon VS Code quick start: open a workspace, create or reuse an isolated environment, connect through loopback-only Remote-SSH, and run tests" width="100%">
@@ -79,105 +75,47 @@ go build -o ./bin/haco-agent-host ./cmd/haco-agent-host
 ./bin/haco doctor
 ```
 
-For Windows + WSL host setup, start with [Windows / WSL bootstrap](docs/WINDOWS_WSL_BOOTSTRAP.md).
+For Windows + WSL host setup, see [Windows / WSL bootstrap](docs/WINDOWS_WSL_BOOTSTRAP.md).
 
-### Run a command in an isolated Workspace
+### Run in an isolated Workspace
 
 ```bash
 ./bin/haco run --workspace "$PWD" -- go test ./...
 ```
 
-Or manage an Environment explicitly:
+Or keep a named Environment:
 
 ```bash
 ./bin/haco create --workspace "$PWD" dev
-./bin/haco exec dev -- uname -a
+./bin/haco exec dev -- go test ./...
 ./bin/haco shell dev
 ./bin/haco status dev
 ./bin/haco delete dev
 ```
 
-### Open it in VS Code
+### Open in VS Code
 
 ```bash
 ./bin/haco-vscode open .
 ```
 
-Hacocoon creates or reuses the Environment, prepares loopback-oriented SSH access, writes adapter-owned SSH configuration, and opens `/workspace` through normal VS Code Remote-SSH.
+Hacocoon creates or reuses the Environment, prepares loopback-oriented SSH access, and opens `/workspace` through normal VS Code Remote-SSH. VS Code is the first convenience client, not a Core dependency.
 
-```text
-Workspace -> Hacocoon Environment -> loopback SSH alias -> VS Code Remote-SSH
-```
+## Core, Standard, and Plugin
 
-Cleanup:
+Hacocoon separates product contracts from default implementations and optional integrations.
 
-```bash
-./bin/haco-vscode delete .
-```
+| Layer | Role | Examples |
+|---|---|---|
+| **Core** | Stable product semantics and security boundaries | Environment, Workspace lease, Policy, Capability, interaction contracts |
+| **Standard** | Project-maintained replaceable defaults used by normal installations | current Incus backend; future default egress enforcement |
+| **Plugin** | Optional/specialized integrations | Git helpers, nerdctl/Docker/OCI tooling |
 
-## What you get
+See [Adapter and extension architecture](docs/design/plugin-architecture.md) and [Design principles](docs/DESIGN_PRINCIPLES.md).
 
-| Area | Hacocoon provides |
-|---|---|
-| **Isolation** | Provider-backed Environments with Incus as the current runtime |
-| **Workspace safety** | Canonical Workspace identity and persisted write leases |
-| **Execution** | `create`, `exec`, `shell`, `run`, lifecycle and recovery operations |
-| **Interactive access** | Loopback-oriented SSH, forwarding, and VS Code Remote-SSH integration |
-| **Agent isolation** | Per-agent Environment broker with persisted ownership proof |
-| **Policy** | Fail-closed Host-side policy and explicit approval decisions |
-| **Capabilities** | Narrow privileged operations instead of broad sandbox-owned Host credentials |
-| **Git / GitHub** | Privileged Git push exposed as a plugin capability |
-| **Base images** | Provider-neutral logical Base selection resolved to immutable revisions |
-| **OCI tooling** | Optional containerd/nerdctl Seed telemetry and image lifecycle under `haco plugin oci` |
-| **Resource limits** | CPU, memory, PID, and Environment root-storage budgets |
-| **Audit** | Events for lifecycle, capability, approval, and recovery-sensitive operations |
-| **Providers** | Incus is active today; the provider seam remains for future adapters |
+## Bases and optional OCI tooling
 
-## AI agents: permissive inside, mediated outside
-
-```text
-VS Code AI / Codex / Copilot / Claude / other agent
-                         |
-                         v
-                 Incus Environment
-                  broad local freedom
-               within ResourceBudget
-                         |
-              ---- trust boundary ----
-                         |
-                     Hacocoon
-              Policy / Capability / Audit
-                         |
-            GitHub / external services / Host
-```
-
-An agent can be powerful inside the sandbox without becoming the authority that manages the sandbox. Coding agents do **not** need Hacocoon or Incus management credentials merely to edit, build, test, or debug a project.
-
-## VS Code and per-agent sandboxes
-
-VS Code is the first supported convenience client, not a Core dependency.
-
-For normal interactive development:
-
-```bash
-haco-vscode open .
-```
-
-For a trusted integration that maps an opaque external agent session to its own Environment:
-
-```bash
-haco-agent-host prepare --session <opaque-id> [workspace]
-haco-agent-host release --session <opaque-id>
-```
-
-The client keeps the SSH private key. Hacocoon owns Environment allocation and safe connection preparation; the external client owns its Agent Host behavior.
-
-- **v0.9**: [Per-Agent Sandbox & Agent Host](docs/09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.md)
-- **v0.10**: [VS Code Remote Agent Host Adapter](docs/10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.md)
-
-## Base images
-
-Choose a logical Base when creating an Environment:
+Hacocoon Environment starting points use the provider-neutral Base namespace:
 
 ```bash
 haco base list
@@ -185,193 +123,52 @@ haco base inspect haco/ubuntu-26.04
 haco create --base haco/ubuntu-26.04 --workspace "$PWD" dev
 ```
 
-`haco base` is for Hacocoon Environment starting points. OCI/container images are deliberately kept out of that namespace and live under `haco plugin oci`.
-
-For Incus, Hacocoon resolves a mutable source to a validated immutable fingerprint before creation and persists that revision on the Environment.
-
-```text
-my-dev -> revision A -> Environment 1
-my-dev -> revision B -> Environment 2
-Environment 1 remains recorded on revision A
-```
-
-- **v0.11**: [Base Images & Custom Environments](docs/11_v0.11_BASE_IMAGES_AND_CUSTOM_ENVIRONMENTS.md)
-- More details: [Base Images](docs/BASE_IMAGES.md)
-
-## OCI plugin
-
-OCI/containerd/nerdctl-specific operations are grouped under the optional OCI plugin surface:
+Container tooling remains optional and separate:
 
 ```bash
-haco plugin oci seed sample
-haco plugin oci seed recommend
-haco plugin oci image delete docker.io/library/node:24
+HACO_PLUGIN_OCI=nerdctl haco plugin oci seed sample
+HACO_PLUGIN_OCI=nerdctl haco plugin oci seed recommend
+HACO_PLUGIN_OCI=nerdctl haco plugin oci seed build
+HACO_PLUGIN_OCI=nerdctl haco plugin oci seed current
+HACO_PLUGIN_OCI=docker  haco plugin oci docker status dev
+HACO_PLUGIN_OCI=docker  haco plugin oci docker prepare dev
 ```
 
-This keeps container-image lifecycle separate from Hacocoon/Incus Base-image lifecycle.
+Core does not require containerd, nerdctl, Docker, or a local Registry. OCI Seed Builder/COW is currently the partial v0.17 gate; Docker Compatibility is the repository-implemented v0.18 gate. The Local OCI Registry direction remains deferred/unversioned optional infrastructure.
 
-## Resource budgets
+## Reusable clients
 
-```bash
-haco create \
-  --cpu 4 \
-  --memory 8GiB \
-  --pids 1024 \
-  --root-size 40GiB \
-  --workspace . dev
+`pkg/clientadapter` provides a client-neutral contract for exact Environment ensure/reuse, status, `/workspace` discovery, loopback SSH/TCP connections, revoke/delete, and interaction batches. The client keeps its SSH private key and IDE configuration; Hacocoon receives only public-key material.
 
-haco run --cpu 2 --memory 4GiB --workspace . -- go test ./...
-```
-
-Finite limits must be enforced or rejected. A Provider is not allowed to silently ignore a requested finite budget.
-
-- **v0.12**: [Sandbox Resource Limits](docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.md)
-
-## Privileged Git push is a plugin
-
-Git push deliberately sits outside the Core CLI surface:
-
-```bash
-haco plugin git push ...
-```
-
-The plugin still crosses the Host-owned Policy / Capability boundary. It does not make the operation trusted by default and does not hand Host credentials to the Environment.
-
-## What Hacocoon is not
-
-Hacocoon deliberately does **not** try to be an IDE, AI chat UI, Git worktree manager, agent scheduler, DAG engine, model router, retry engine, development-review queue, or model-budget manager.
-
-Those tools can sit above Hacocoon and use it as an execution and security boundary.
-
-```text
-Daintree / other orchestrator
-          |
- task / worktree / agent ownership
-          |
-       Workspace
-          |
-      Hacocoon
-          |
-      Environment
-```
+See [Reusable client adapter contract](docs/CLIENT_ADAPTER_CONTRACT.md) and [Interaction events](docs/INTERACTION_EVENTS.md).
 
 ## Security model
 
-The trusted Host owns Hacocoon state, Policy, credentials, resource ceilings, and privileged Capability execution.
+The trusted Host owns Hacocoon state, Policy, credentials, resource ceilings, and privileged Capability execution. Coding agents do not need Hacocoon or Incus management authority merely to edit, build, test, or debug code inside an Environment.
 
-Core rules include:
+Key rules include:
 
 - long-lived Host credentials are not mounted into Environments for convenience;
-- privileged external actions go through narrow Capabilities;
-- Policy evaluation fails closed;
-- Capability requests and decisions are auditable;
-- Workspace write access is protected by persisted leases;
-- local exposure is loopback-oriented by default;
-- Provider-specific and Client-specific concepts stay outside Core;
+- privileged external actions cross narrow Policy / Capability boundaries;
+- requested finite resource limits are enforced or rejected, not silently ignored;
+- local client exposure is loopback-oriented by default;
 - custom Base contents do not grant Host-side authority;
-- requested finite resource limits are not silently ignored;
-- cleanup and recovery failures are surfaced instead of converted into success.
+- cleanup and recovery ambiguity is surfaced rather than converted into success.
 
-Read [Security Architecture](docs/00B_SECURITY_ARCHITECTURE.md) before changing security-sensitive behavior.
+Read [Security architecture](docs/security/security-architecture.md) and the [adversarial audit guide](.github/security/ADVERSARIAL_AUDIT.md) before changing security-sensitive behavior.
 
-## Current maturity
+## Documentation
 
-`v0.1 Runtime` → `v0.2 Workspace & Lease` → `v0.3 Access` → `v0.4 Policy & Capability` → `v0.5 Git/GitHub` → `v0.6 Agent Integration` → `v0.7 Provider Routing` → `v0.8 VS Code` → `v0.9 Per-Agent Sandbox` → `v0.10 Agent Host Adapter` → `v0.11 Base Images` → `v0.12 Resource Limits`
-
-The earlier v0.7 EC2/AWS/EBS implementation is intentionally **deferred** and is not part of the current implementation tree. Its Git history and design documents remain available as reference for a future reintroduction after the local runtime/provider contracts settle.
-
-Implemented does not automatically mean production-accepted on every real Provider or Client. Authoritative status:
-
-- [Implementation status](docs/IMPLEMENTATION_STATUS.md)
-- [Versioning and release status](docs/00D_VERSIONING_AND_RELEASE_STATUS.md)
 - [Documentation index](docs/README.md)
+- [Documentation style guide](docs/DOCUMENTATION_STYLE_GUIDE.md)
+- [Implementation status](docs/IMPLEMENTATION_STATUS.md)
+- [Architecture and roadmap](docs/status/architecture-and-roadmap.md)
+- [Versioning and release status](docs/status/versioning-and-release-status.md)
+- [Canonical terminology](docs/reference/terminology-and-boundaries.md)
+- [Windows / WSL bootstrap](docs/WINDOWS_WSL_BOOTSTRAP.md)
+- [Release security](docs/RELEASE_SECURITY.md)
 
-## `haco` CLI
-
-`haco` is the Host-side manager CLI. The common lifecycle stays small and direct; tool- or provider-specific behavior belongs under plugin namespaces instead of growing the Core command surface.
-
-A coding agent working inside an Environment does not need `haco` or Incus management authority just to edit, build, test, or debug code.
-
-### Everyday workflow
-
-```bash
-# Check the local runtime
-haco doctor
-
-# One-shot: create an ephemeral Environment, run a command, clean up
-haco run --workspace "$PWD" -- go test ./...
-
-# Or keep an Environment around while you work
-haco create --workspace "$PWD" dev
-haco exec dev -- go test ./...
-haco shell dev
-haco status dev
-haco delete dev
-```
-
-### Command map
-
-| Area | Commands | What they are for |
-|---|---|---|
-| **Environment** | `create`, `exec`, `shell`, `status`, `delete` | Create and operate persistent named Environments |
-| **One-shot execution** | `run` | Run one command in an isolated Workspace lifecycle |
-| **Base selection** | `base list`, `base inspect` | Inspect Hacocoon Environment starting points |
-| **Local access** | `connections`, `forward`, `unforward`, `ssh` | Host-controlled loopback access and port forwarding |
-| **Policy / audit** | `capability request`, `events` | Cross the Host authority boundary explicitly and inspect audit events |
-| **Git plugin** | `plugin git fetch`, `plugin git push` | Host-mediated Git operations using Host-side credentials |
-| **OCI plugin** | `plugin oci seed ...`, `plugin oci image ...` | Optional containerd/nerdctl image-cache and Seed operations |
-| **Diagnostics** | `doctor` | Check whether the local runtime is usable |
-
-### Useful forms
-
-```text
-haco create [--read-only] [--base <base>] [resource flags] --workspace <path> <environment>
-haco exec <environment> -- <command...>
-haco shell <environment>
-haco status <environment> [--json]
-haco delete <environment>
-
-haco run [--read-only] [resource flags] --workspace <path> [--json] -- <command...>
-
-haco base list [--json]
-haco base inspect <base> [--json]
-
-haco connections <environment> [--json]
-haco forward <environment> --host-port <port> --target-port <port>
-haco unforward <environment> <connection-id>
-haco ssh <environment> --public-key <path> --host-port <port>
-
-haco plugin git fetch <environment> [--remote <remote>]
-haco plugin git push <environment> --branch <branch> [--source <ref>] [--remote <remote>] [--force]
-
-haco plugin oci seed sample [--json]
-haco plugin oci seed recommend [--json]
-haco plugin oci image delete <reference[@sha256:...]> [--all-environments] [--json]
-
-haco capability request <capability> <action> [--resource <resource>] [--environment <environment>] [--param <key=value>]...
-haco events [--json] [--since-offset <byte-offset>]
-haco doctor
-```
-
-Resource flags shared by `create` and `run` are `--cpu`, `--memory`, `--pids`, and `--root-size`; each accepts a finite value or `unlimited`.
-
-Convenience clients stay separate from Core:
-
-```text
-haco-vscode open
-haco-vscode delete
-
-haco-agent-host prepare
-haco-agent-host release
-```
-
-All surfaces remain pre-1.0 and may change.
-
-## Remote / cloud runtimes
-
-Remote/cloud Environment providers are **deferred for now**. The current build registers only the Incus Environment provider; the previous EC2 runtime, AWS capability, and EBS helper are not present in the active implementation tree.
-
-This is intentional: while Hacocoon's Core, state, resource, networking, image, and client contracts are still changing quickly, keeping cloud-specific code synchronized without regular real-cloud acceptance does not provide useful validation. The generic provider routing seam remains so a cloud adapter can be reintroduced later without making cloud behavior part of Core.
+Documentation uses semantic paths: feature addresses do not contain release/milestone numbers. ADR sequence numbers are the deliberate exception.
 
 ## Development
 
@@ -379,25 +176,15 @@ This is intentional: while Hacocoon's Core, state, resource, networking, image, 
 go test ./...
 go test -race ./...
 go vet ./...
-go build ./cmd/haco
-go build ./cmd/haco-vscode
-go build ./cmd/haco-agent-host
 python tools/check_docs.py
 ```
 
-## Documentation
+For the maintained local CI entry point:
 
-- [Documentation index](docs/README.md)
-- [Architecture guide](docs/ARCHITECTURE_GUIDE.md)
-- [Security architecture](docs/00B_SECURITY_ARCHITECTURE.md)
-- [Windows / WSL bootstrap](docs/WINDOWS_WSL_BOOTSTRAP.md)
-- [Implementation status](docs/IMPLEMENTATION_STATUS.md)
-- [Release security](docs/RELEASE_SECURITY.md)
+```bash
+bash tools/ci-local.sh
+```
 
 ## License
 
 Hacocoon is licensed under the [Apache License 2.0](LICENSE).
-
-## Compatibility policy
-
-Until Hacocoon reaches a stable compatibility milestone, assume that **breaking changes can happen between any revisions**.
