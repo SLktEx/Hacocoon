@@ -87,7 +87,7 @@ import json, sys
 row = json.loads(sys.argv[1])
 env = row["environment"]
 assert env["name"] == "storage-cli-e2e", row
-assert env["state"] == "running", row
+assert row["state"] == "running", row
 PY
 
   instance_row="$(incus list "$INSTANCE" --project "$PROJECT" --format csv -c n,s)"
