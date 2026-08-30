@@ -25,6 +25,9 @@ func main() {
 	if err := controlapi.Register(server, app.Environments, app.Clients); err != nil {
 		fail(err)
 	}
+	if err := controlapi.RegisterHost(server, app.Runtime); err != nil {
+		fail(err)
+	}
 	path := control.SocketPath()
 	listener, err := control.ListenUnix(path, 0o600)
 	if err != nil {

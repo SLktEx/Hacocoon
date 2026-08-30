@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -50,6 +51,39 @@ func TestControllerClientModeLeavesFirstClassEnvNamespaceToEnvClient(t *testing.
 		bytes.NewBuffer(nil), bytes.NewBuffer(nil), bytes.NewBuffer(nil),
 	)
 	if err != nil || handled {
+		t.Fatalf("handled=%t err=%v", handled, err)
+	}
+}
+
+func TestControllerClientModeLeavesHostShellToHostClient(t *testing.T) {
+	t.Setenv(controllerClientModeEnv, controllerClientModeValue)
+	t.Setenv("HACO_CONTROL_SOCKET", "/tmp/hacocoon-control-test.sock")
+	factoryCalls := 0
+	handled, err := handleControllerClientModeArgs(
+		context.Background(), []string{"host", "shell"},
+		func() (environmentControllerClient, error) {
+			factoryCalls++
+			return &fakeEnvironmentController{}, nil
+		},
+		bytes.NewBuffer(nil), bytes.NewBuffer(nil), bytes.NewBuffer(nil),
+	)
+	if err != nil || handled {
+		t.Fatalf("handled=%t err=%v", handled, err)
+	}
+	if factoryCalls != 0 {
+		t.Fatalf("controller factory calls = %d, want 0", factoryCalls)
+	}
+}
+
+func TestControllerClientModeRefusesHostEnsureLocalFallback(t *testing.T) {
+	t.Setenv(controllerClientModeEnv, controllerClientModeValue)
+	t.Setenv("HACO_CONTROL_SOCKET", "/tmp/hacocoon-control-test.sock")
+	handled, err := handleControllerClientModeArgs(
+		context.Background(), []string{"host", "ensure"},
+		func() (environmentControllerClient, error) { return &fakeEnvironmentController{}, nil },
+		bytes.NewBuffer(nil), bytes.NewBuffer(nil), bytes.NewBuffer(nil),
+	)
+	if !handled || !errors.Is(err, core.ErrUnsupported) || !strings.Contains(err.Error(), "Physical Host-local") {
 		t.Fatalf("handled=%t err=%v", handled, err)
 	}
 }
