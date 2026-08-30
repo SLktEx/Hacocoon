@@ -130,11 +130,20 @@ func TestDeleteFailsClosedBeforeTerminateWhenSyncCannotBeProven(t *testing.T) {
 	if strings.Contains(strings.Join(runner.calls, "\n"), "terminate-instances") { t.Fatalf("instance terminated before workspace recovery: %v", runner.calls) }
 }
 
-func TestDeleteRetryAfterTerminationOnlyCleansStaging(t *testing.T) {
+func TestDeleteTerminatedReadWriteRetainsStagingAndRequiresRecovery(t *testing.T) {
 	runner := &fakeRunner{instanceState: "terminated"}; runtime := newTestRuntime(runner)
-	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: t.TempDir(), Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo"})
+	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: t.TempDir(), Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo", ReadOnly: false})
+	err := runtime.DeleteEnvironment(context.Background(), raw); if !errors.Is(err, core.ErrRecoveryRequired) { t.Fatalf("err=%v", err) }
+	joined := strings.Join(runner.calls, "\n")
+	if strings.Contains(joined, "ssm send-command") || strings.Contains(joined, "terminate-instances") || strings.Contains(joined, "s3 rm s3://hacocoon-workspaces-example/tests/demo --recursive") { t.Fatalf("terminated RW recovery destroyed evidence:\n%s", joined) }
+}
+
+func TestDeleteTerminatedReadOnlyCleansStaging(t *testing.T) {
+	runner := &fakeRunner{instanceState: "terminated"}; runtime := newTestRuntime(runner)
+	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: t.TempDir(), Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo", ReadOnly: true})
 	if err := runtime.DeleteEnvironment(context.Background(), raw); err != nil { t.Fatal(err) }
-	joined := strings.Join(runner.calls, "\n"); if strings.Contains(joined, "ssm send-command") || strings.Contains(joined, "terminate-instances") || !strings.Contains(joined, "s3 rm s3://hacocoon-workspaces-example/tests/demo --recursive") { t.Fatalf("retry flow:\n%s", joined) }
+	joined := strings.Join(runner.calls, "\n")
+	if strings.Contains(joined, "ssm send-command") || strings.Contains(joined, "terminate-instances") || !strings.Contains(joined, "s3 rm s3://hacocoon-workspaces-example/tests/demo --recursive") { t.Fatalf("terminated RO cleanup flow:\n%s", joined) }
 }
 
 func TestInspectMapsEC2State(t *testing.T) {
