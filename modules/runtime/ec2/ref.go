@@ -2,10 +2,12 @@ package ec2
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -29,6 +31,15 @@ type runtimeRef struct {
 
 func encodeRef(ref runtimeRef) (string, error) {
 	ref.Version = 1
+	if ref.BaseDigest == "" && !ref.ReadOnly && validRuntimeWorkspacePath(ref.WorkspacePath) {
+		if info, statErr := os.Stat(ref.WorkspacePath); statErr == nil && info.IsDir() {
+			digest, err := digestWorkspace(context.Background(), ref.WorkspacePath)
+			if err != nil {
+				return "", fmt.Errorf("identify EC2 runtime workspace while encoding ref: %w", err)
+			}
+			ref.BaseDigest = digest
+		}
+	}
 	payload, err := json.Marshal(ref)
 	if err != nil {
 		return "", err
