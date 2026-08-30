@@ -6,12 +6,12 @@
 
 Hacocoon は、人間・開発ツール・コーディングエージェント向けの OSS **Secure Workspace Runtime（安全なワークスペース実行基盤）**です。
 
-既存の Workspace を隔離された Environment に置き、Environment lifecycle、実行、接続、Policy、承認、Capability、監査、Client Adapter、再現可能な Base 選択を Host 側で管理します。
+既存の Workspace を隔離された Environment に置き、Environment lifecycle、実行、接続、Policy、承認、Capability、監査、Client Adapter、再現可能な Base 選択、Resource Budget を Host 側で管理します。
 
 > [!WARNING]
 > **Hacocoon はまだ pre-1.0 で、Breaking Change は今後も発生します。**
 >
-> CLI、補助バイナリ、state format、API、Capability、Provider、Client Adapter、Base/image 設定、roadmap 番号は互換性なく変わる可能性があります。
+> CLI、補助バイナリ、state format、API、Capability、Provider、Client Adapter、Base/image 設定、Resource Budget、roadmap 番号は互換性なく変わる可能性があります。
 
 ## いちばんやりたい使い方
 
@@ -23,19 +23,21 @@ VS Code / Coding Agent
     Hacocoon
         |
   Environment
+  resource budget
         |
   +-- /workspace
   +-- Terminal
   +-- Build / Test / Debug
 ```
 
-**AI 専用 UI を Hacocoon に作りません。** VS Code など既存 client の UI を使い、Hacocoon は Environment と外部 authority の境界を担当します。
+**AI 専用 UI を Hacocoon に作りません。** VS Code など既存 client の UI を使い、Hacocoon は Environment と外部 authority、host resource ceiling の境界を担当します。
 
 ```text
 Coding Agent
     |
     v
 Environment             <- broad local freedom
+within ResourceBudget
     |
 ---- trust boundary ----
     |
@@ -47,7 +49,7 @@ GitHub / AWS / Host
 
 ## 現在のバージョン
 
-実装済み milestone は **v0.1〜v0.11 まで連番**です。
+実装済み milestone は **v0.1〜v0.12 まで連番**です。
 
 | Version | Gate | 状態 |
 |---|---|---|
@@ -62,7 +64,7 @@ GitHub / AWS / Host
 | v0.9 | Per-Agent Sandbox & Agent Host Integration | broker foundation 実装済み |
 | v0.10 | VS Code Remote Agent Host Adapter | 実装済み。real Agent Host acceptance pending |
 | v0.11 | Base Images & Custom Environments | first slice 実装済み。build/import/GC 等は今後 |
-| v0.12 | Sandbox Resource Limits | design-only / implementation pending |
+| v0.12 | Sandbox Resource Limits | first slice 実装済み。real Incus enforcement acceptance pending |
 
 詳しくは [`docs/00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](docs/00D_VERSIONING_AND_RELEASE_STATUS.ja.md) と [`docs/IMPLEMENTATION_STATUS.ja.md`](docs/IMPLEMENTATION_STATUS.ja.md) を参照してください。
 
@@ -185,23 +187,33 @@ Custom Base build/import、revision history、rollback、physical deletion、GC 
 
 ## v0.12: Sandbox Resource Limits
 
-v0.12 は次の design/implementation gate です。
+v0.12 の first slice は実装済みです。
 
-予定する provider-neutral resource budget:
+```bash
+haco create \
+  --cpu 4 \
+  --memory 8GiB \
+  --pids 1024 \
+  --root-size 40GiB \
+  --workspace . dev
 
-- CPU
-- memory
-- process / PID count
-- Environment root storage size（安全に enforce できる場合）
+haco run --cpu 2 --memory 4GiB --workspace . -- go test ./...
+```
+
+provider-neutral ResourceBudget として CPU、memory bytes、process/PID count、Environment root storage bytes を保持します。各dimensionは finite または `unlimited` で、未指定の場合も provider default に放置せず Hacocoon が explicit `unlimited` effective value に解決して Environment metadata に保存します。
+
+Incus provider では有限値を **Environment start 前** に設定し、read-backして一致を検証します。適用・検証に失敗した場合は constrained Environment の作成成功として扱わず、既存の cleanup/recovery semantics に従います。
 
 ```text
 ResourceBudget  -> Environment 内部の消費量を制限
 Capability      -> Environment 境界を越える authority を制御
 ```
 
-requested limit を provider が enforce できない場合は silent ignore せず fail closed します。
+requested finite limit を provider が enforce できない場合は silent ignore せず fail closed します。experimental EC2 は現時点では finite budget を AWS side effect 前に `unsupported` として拒否します。
 
-詳しくは [`docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md`](docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md) を参照してください。
+byte size は `512MiB` / `8GiB` / `40GiB` のように明示 unit を使います。live resize、aggregate host scheduling、Workspace quota は first slice の対象外です。
+
+詳しくは [`docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md`](docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md) と英語正本 [`docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.md`](docs/12_v0.12_SANDBOX_RESOURCE_LIMITS.md) を参照してください。
 
 ## Windows + WSL
 
@@ -237,6 +249,8 @@ haco run --workspace "$PWD" -- go test ./...
 haco image list
 haco image inspect haco/ubuntu-26.04
 haco create --base haco/ubuntu-26.04 --workspace "$PWD" dev
+
+haco create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace "$PWD" limited-dev
 ```
 
 現在の主な command:
@@ -275,7 +289,7 @@ export HACO_RUNTIME_PROVIDER=runtime.ec2
 export HACO_EXPERIMENTAL_EC2=1
 ```
 
-両方の explicit opt-in が必要です。Real AWS / EC2 / SSM / EBS acceptance は pending です。
+両方の explicit opt-in が必要です。Real AWS / EC2 / SSM / EBS acceptance は pending です。v0.12 first slice では finite ResourceBudget もprovider side effect前に拒否します。
 
 ## 開発とテスト
 
@@ -289,7 +303,7 @@ go build ./cmd/haco-agent-host
 python tools/check_docs.py
 ```
 
-Real Incus、Windows/WSL + VS Code、Agent Host/AHP、v0.11 real Base/image sources、AWS/EC2/SSM/EBS、v0.12 resource enforcement の acceptance は、実際の対応環境で実行していない限り pass と扱いません。
+Real Incus、Windows/WSL + VS Code、Agent Host/AHP、v0.11 real Base/image sources、AWS/EC2/SSM/EBS、v0.12 real resource enforcement の acceptance は、実際の対応環境で実行していない限り pass と扱いません。
 
 資料の優先順位は [`docs/README.ja.md`](docs/README.ja.md)、詳しい architecture は [`docs/ARCHITECTURE_GUIDE.ja.md`](docs/ARCHITECTURE_GUIDE.ja.md) を参照してください。
 
