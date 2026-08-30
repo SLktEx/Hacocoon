@@ -85,7 +85,13 @@ func restoreWorkspaceArchiveWithHook(ctx context.Context, runner host.Runner, ar
 		if err := reconcileWorkspaceRestore(journalPath, journal, hook); err != nil {
 			return err
 		}
-		return nil
+		archiveDigest, err := sha256File(archive)
+		if err != nil {
+			return fmt.Errorf("hash current remote workspace archive after recovery: %w", err)
+		}
+		if archiveDigest == journal.ArchiveSHA256 {
+			return nil
+		}
 	}
 
 	return beginWorkspaceRestore(ctx, runner, archive, workspace, journalPath, hook)
@@ -127,6 +133,9 @@ func beginWorkspaceRestore(ctx context.Context, runner host.Runner, archive, wor
 	}
 	if err := syncWorkspaceTree(replacement); err != nil {
 		return fmt.Errorf("sync extracted workspace: %w", err)
+	}
+	if err := syncDirectory(txnDir); err != nil {
+		return fmt.Errorf("sync workspace restore transaction directory: %w", err)
 	}
 	replacementID, err := identifyWorkspaceDirectory(replacement)
 	if err != nil {
