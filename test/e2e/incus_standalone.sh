@@ -35,7 +35,6 @@ pool="$(incus profile device get default root pool --project default)"
 
 echo "standalone prefix: $prefix"
 echo "default storage pool: $pool"
-incus info
 incus storage show "$pool"
 
 incus network create "$primary_network" ipv4.address=auto ipv4.nat=true ipv6.address=none
@@ -49,17 +48,32 @@ incus launch images:ubuntu/26.04 "$second" --profile "$profile"
 
 wait_for_guest() {
   local instance="$1"
-  local attempt state
+  local attempt state stuck_samples=0
   for attempt in $(seq 1 60); do
     if incus exec "$instance" -- sh -c 'test "$(cat /proc/1/comm)" = systemd' >/dev/null 2>&1; then
       state="$(incus exec "$instance" -- systemctl is-system-running 2>/dev/null || true)"
       case "$state" in
         running|degraded) return 0 ;;
       esac
+
+      # Ubuntu 26.04 hosts can break Incus AppArmor namespacing when the host
+      # vendor user-namespace restriction is left enabled. That failure leaves
+      # systemd helpers stuck in sd-mkuserns and prevents DHCP. Detect a
+      # sustained stall rather than waiting the full timeout.
+      if [[ "$state" == "initializing" ]] && incus exec "$instance" -- sh -c "ps -eo comm= | grep -Fxq '(sd-mkuserns)'" >/dev/null 2>&1; then
+        stuck_samples=$((stuck_samples + 1))
+        if (( stuck_samples >= 10 )); then
+          echo "guest $instance is persistently stuck in sd-mkuserns; check host Incus/AppArmor compatibility" >&2
+          incus exec "$instance" -- systemctl status --no-pager || true
+          return 1
+        fi
+      else
+        stuck_samples=0
+      fi
     fi
-    sleep 2
+    sleep 1
   done
-  echo "guest $instance did not reach usable systemd state" >&2
+  echo "guest $instance did not reach usable systemd state within 60s" >&2
   incus exec "$instance" -- systemctl status --no-pager || true
   return 1
 }
@@ -68,7 +82,7 @@ wait_for_ipv4() {
   local instance="$1"
   local device="$2"
   local attempt address
-  for attempt in $(seq 1 60); do
+  for attempt in $(seq 1 30); do
     address="$(incus exec "$instance" -- sh -c "ip -4 -o addr show dev '$device' scope global | awk '{print \\$4}' | cut -d/ -f1" 2>/dev/null || true)"
     if [[ -n "$address" ]]; then
       printf '%s\n' "$address"
@@ -76,7 +90,7 @@ wait_for_ipv4() {
     fi
     sleep 1
   done
-  echo "guest $instance did not receive IPv4 on $device" >&2
+  echo "guest $instance did not receive IPv4 on $device within 30s" >&2
   return 1
 }
 
