@@ -8,14 +8,23 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/composition"
 	"github.com/SLktEx/Hacocoon/internal/core"
-	seedstatsapp "github.com/SLktEx/Hacocoon/internal/seedstats"
+	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 )
 
 func ociPluginCommand(ctx context.Context, app *composition.App, args []string) error {
+	if app == nil || app.OCI == nil {
+		return fmt.Errorf("OCI plugin is disabled; set HACO_PLUGIN_OCI=nerdctl or HACO_PLUGIN_OCI=docker: %w", core.ErrRuntimeUnavailable)
+	}
 	if len(args) == 0 {
-		return fmt.Errorf("usage: haco plugin oci <image|seed> ...: %w", core.ErrInvalidArgument)
+		return fmt.Errorf("usage: haco plugin oci <status|image|seed> ...: %w", core.ErrInvalidArgument)
 	}
 	switch args[0] {
+	case "status":
+		if len(args) != 1 {
+			return fmt.Errorf("usage: haco plugin oci status: %w", core.ErrInvalidArgument)
+		}
+		fmt.Printf("driver: %s\n", app.OCI.Driver())
+		return nil
 	case "image":
 		return ociImageCommand(ctx, app, args[1:])
 	case "seed":
@@ -26,21 +35,13 @@ func ociPluginCommand(ctx context.Context, app *composition.App, args []string) 
 }
 
 func ociImageCommand(ctx context.Context, app *composition.App, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: haco plugin oci image <delete> ...: %w", core.ErrInvalidArgument)
+	if len(args) == 0 || args[0] != "delete" {
+		return fmt.Errorf("usage: haco plugin oci image delete <reference[@sha256:...]> [--all-environments] [--json]: %w", core.ErrInvalidArgument)
 	}
-	switch args[0] {
-	case "delete":
-		return ociImageDeleteCommand(ctx, app, args[1:])
-	default:
-		return fmt.Errorf("unknown OCI image command %q: %w", args[0], core.ErrInvalidArgument)
-	}
+	return ociImageDeleteCommand(ctx, app, args[1:])
 }
 
 func ociImageDeleteCommand(ctx context.Context, app *composition.App, args []string) error {
-	if app == nil || app.SeedStats == nil {
-		return core.ErrRuntimeUnavailable
-	}
 	if len(args) == 0 {
 		return fmt.Errorf("usage: haco plugin oci image delete <reference[@sha256:...]> [--all-environments] [--json]: %w", core.ErrInvalidArgument)
 	}
@@ -64,7 +65,7 @@ func ociImageDeleteCommand(ctx context.Context, app *composition.App, args []str
 		}
 	}
 
-	report, deleteErr := app.SeedStats.DeleteImage(ctx, target, allEnvironments)
+	report, deleteErr := app.OCI.DeleteImage(ctx, target, allEnvironments)
 	if jsonOutput {
 		if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
 			return err
@@ -75,7 +76,7 @@ func ociImageDeleteCommand(ctx context.Context, app *composition.App, args []str
 	return deleteErr
 }
 
-func printOCIImageDeleteReport(report seedstatsapp.DeleteReport) {
+func printOCIImageDeleteReport(report ociplugin.DeleteReport) {
 	if report.Reference != "" {
 		fmt.Printf("image: %s@%s\n", report.Reference, report.Digest)
 	}
@@ -97,9 +98,6 @@ func printOCIImageDeleteReport(report seedstatsapp.DeleteReport) {
 }
 
 func ociSeedCommand(ctx context.Context, app *composition.App, args []string) error {
-	if app == nil || app.SeedStats == nil {
-		return core.ErrRuntimeUnavailable
-	}
 	if len(args) == 0 {
 		return fmt.Errorf("usage: haco plugin oci seed <sample|recommend> [--json]: %w", core.ErrInvalidArgument)
 	}
@@ -112,31 +110,31 @@ func ociSeedCommand(ctx context.Context, app *composition.App, args []string) er
 
 	switch args[0] {
 	case "sample":
-		report, err := app.SeedStats.SampleAll(ctx, 0)
+		report, err := app.OCI.SampleAll(ctx, 0)
 		if err != nil {
 			return err
 		}
 		if jsonOutput {
 			return json.NewEncoder(os.Stdout).Encode(report)
 		}
-		printOCISeedSampleReport(report)
+		printOCISampleReport(report)
 		return nil
 	case "recommend":
-		report, err := app.SeedStats.SampleAll(ctx, seedstatsapp.DefaultSampleMaxAge)
+		report, err := app.OCI.SampleAll(ctx, ociplugin.DefaultSampleMaxAge)
 		if err != nil {
 			return err
 		}
 		if !jsonOutput {
-			printOCISeedSampleWarnings(report)
+			printOCISampleWarnings(report)
 		}
-		recommendations, err := app.SeedStats.Recommend(ctx, seedstatsapp.DefaultRecommendationWindow)
+		recommendations, err := app.OCI.Recommend(ctx, ociplugin.DefaultRecommendationWindow)
 		if err != nil {
 			return err
 		}
 		if jsonOutput {
 			return json.NewEncoder(os.Stdout).Encode(struct {
-				Sampling        seedstatsapp.SampleReport      `json:"sampling"`
-				Recommendations []seedstatsapp.Recommendation `json:"recommendations"`
+				Sampling        ociplugin.SampleReport      `json:"sampling"`
+				Recommendations []ociplugin.Recommendation `json:"recommendations"`
 			}{Sampling: report, Recommendations: recommendations})
 		}
 		for _, recommendation := range recommendations {
@@ -159,13 +157,13 @@ func ociSeedCommand(ctx context.Context, app *composition.App, args []string) er
 	}
 }
 
-func printOCISeedSampleReport(report seedstatsapp.SampleReport) {
+func printOCISampleReport(report ociplugin.SampleReport) {
 	fmt.Printf("sampled: %d\nfresh: %d\nfailed: %d\n", report.Sampled, report.Fresh, report.Failed)
-	printOCISeedSampleWarnings(report)
+	printOCISampleWarnings(report)
 }
 
-func printOCISeedSampleWarnings(report seedstatsapp.SampleReport) {
+func printOCISampleWarnings(report ociplugin.SampleReport) {
 	for environment, reason := range report.Failures {
-		fmt.Fprintf(os.Stderr, "seed telemetry: %s: %s\n", environment, reason)
+		fmt.Fprintf(os.Stderr, "OCI plugin telemetry: %s: %s\n", environment, reason)
 	}
 }
