@@ -13,7 +13,7 @@ import (
 
 const (
 	workloadBrokerRoot              = "/run/hacocoon/workloads"
-	environmentWorkloadSocket       = "/run/hacocoon/workload.sock"
+	environmentWorkloadSocket       = "/run/hacocoon-workload.sock"
 	environmentWorkloadDevice       = "haco-workload"
 	environmentNerdctlBinaryPath    = "/usr/local/libexec/nerdctl"
 	environmentNerdctlLauncherPath  = "/usr/local/bin/nerdctl"
