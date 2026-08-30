@@ -18,6 +18,78 @@ export HACO_FAKE_INCUS_LOG="$root/incus.log"
 export HACO_INCUS_BASES_JSON='{"my-dev":"images:custom-moving"}'
 export PATH="$bin:$PATH"
 
+# The orchestration E2E already models Incus rather than requiring a privileged
+# daemon. Model the local sparse-raw block/Btrfs boundary as well so the test can
+# verify managed-pool selection without requiring loop/mount privileges on the
+# GitHub-hosted runner.
+cat > "$bin/losetup" <<'SH'
+#!/bin/sh
+set -u
+state="$HACO_FAKE_INCUS_STATE"
+case "${1:-}" in
+  --version)
+    echo 'losetup fake'
+    ;;
+  -j)
+    path="${2:-}"
+    if [ -f "$state/loop-path" ] && [ "$(cat "$state/loop-path")" = "$path" ]; then
+      printf '/dev/loop-haco: []: (%s)\n' "$path"
+    fi
+    ;;
+  --find)
+    [ "${2:-}" = '--show' ] || exit 2
+    path="${3:-}"
+    [ -n "$path" ] || exit 2
+    printf '%s\n' "$path" > "$state/loop-path"
+    printf '%s\n' '/dev/loop-haco'
+    ;;
+  -c)
+    exit 0
+    ;;
+  -d)
+    rm -f "$state/loop-path"
+    ;;
+  *) exit 2 ;;
+esac
+SH
+
+cat > "$bin/blkid" <<'SH'
+#!/bin/sh
+set -u
+state="$HACO_FAKE_INCUS_STATE"
+if [ -f "$state/btrfs-formatted" ]; then
+  printf '%s\n' 'btrfs'
+  exit 0
+fi
+exit 2
+SH
+
+cat > "$bin/mkfs.btrfs" <<'SH'
+#!/bin/sh
+set -u
+: > "$HACO_FAKE_INCUS_STATE/btrfs-formatted"
+SH
+
+cat > "$bin/findmnt" <<'SH'
+#!/bin/sh
+set -u
+state="$HACO_FAKE_INCUS_STATE"
+if [ -f "$state/mount-device" ]; then
+  cat "$state/mount-device"
+  exit 0
+fi
+exit 1
+SH
+
+cat > "$bin/mount" <<'SH'
+#!/bin/sh
+set -u
+[ "$#" -ge 2 ] || exit 2
+printf '%s\n' "$1" > "$HACO_FAKE_INCUS_STATE/mount-device"
+SH
+
+chmod +x "$bin/losetup" "$bin/blkid" "$bin/mkfs.btrfs" "$bin/findmnt" "$bin/mount"
+
 cat > "$bin/incus" <<'SH'
 #!/bin/sh
 set -u
@@ -40,6 +112,17 @@ case "$command_name" in
     case "$action" in
       show) [ -f "$state/project-$project" ] ;;
       create) : > "$state/project-$project" ;;
+      *) exit 2 ;;
+    esac
+    ;;
+  storage)
+    action="${1:-}"; pool="${2:-}"
+    case "$action" in
+      show) [ -f "$state/storage-$pool" ] ;;
+      create)
+        [ -n "$pool" ] || exit 2
+        : > "$state/storage-$pool"
+        ;;
       *) exit 2 ;;
     esac
     ;;
@@ -237,8 +320,13 @@ assert env['base']['revision'] == 'sha256:' + ('b' * 64), r
 assert env['resources']['cpu']['mode'] == 'unlimited', r
 PY
 grep -Fq 'image info images:custom-moving --format json' "$HACO_FAKE_INCUS_LOG"
+grep -Fq 'storage create haco-local-default btrfs source=' "$HACO_FAKE_INCUS_LOG"
 grep -Fq 'init images:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb haco-base-demo' "$HACO_FAKE_INCUS_LOG"
-grep -Fq -- '--profile haco-sandbox --storage default' "$HACO_FAKE_INCUS_LOG"
+grep -Fq -- '--profile haco-sandbox --storage haco-local-default' "$HACO_FAKE_INCUS_LOG"
+if grep -Fq 'profile show default --project default --format json' "$HACO_FAKE_INCUS_LOG"; then
+  echo 'managed local orchestration unexpectedly consulted the Incus default root pool' >&2
+  exit 1
+fi
 "$haco" delete base-demo
 
 # v0.12 resource budgets: CLI values become persisted provider-neutral metadata,
@@ -311,4 +399,4 @@ assert 'parameters' not in raw
 assert 'message' not in raw
 PY
 
-echo 'PASS: Hacocoon v0.6/v0.11/v0.12/v0.13 orchestration, Base, resource, and sandbox-network E2E'
+echo 'PASS: Hacocoon v0.6/v0.11/v0.12/v0.13 orchestration, Base, resource, storage, and sandbox-network E2E'
