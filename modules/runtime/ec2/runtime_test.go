@@ -94,7 +94,14 @@ func testRuntimeRef(instanceID, workspace, bucket, prefix string, readOnly bool)
 }
 
 func newTestRuntime(runner host.Runner) *Runtime {
-	runtime := New(runner, testConfig())
+	journalDir, err := os.MkdirTemp("", "haco-ec2-create-test-*")
+	if err != nil {
+		panic(err)
+	}
+	runtime, err := NewWithCreateJournal(runner, testConfig(), journalDir)
+	if err != nil {
+		panic(err)
+	}
 	runtime.pollAttempts = 1
 	runtime.pollDelay = 0
 	return runtime
