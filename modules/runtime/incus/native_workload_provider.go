@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -52,4 +53,36 @@ func (p *NativeWorkloadProvider) CreateEnvironment(ctx context.Context, spec cor
 			core.ErrRecoveryRequired,
 		)
 	}
+}
+
+// DeleteEnvironment removes all Hacocoon-owned sibling OCI workloads before
+// deleting their system-container parent Environment. This makes Environment
+// deletion the same lifecycle boundary users had with nested containerd: no
+// child workload may be orphaned on the Physical Host.
+func (p *NativeWorkloadProvider) DeleteEnvironment(ctx context.Context, ref string) error {
+	if p == nil || p.SandboxProvider == nil || p.Runtime == nil {
+		return core.ErrRuntimeUnavailable
+	}
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return err
+	}
+	environment := strings.TrimPrefix(ref, "haco-")
+	canonical, err := ManagedEnvironmentRef(environment)
+	if err != nil || canonical != ref {
+		return core.ErrInvalidArgument
+	}
+	workloads, err := p.Runtime.ListWorkloads(ctx, environment)
+	if err != nil && !errors.Is(err, core.ErrNotFound) {
+		return fmt.Errorf("list OCI workloads before deleting Environment %s: %w", ref, err)
+	}
+	var cleanupErrors []error
+	for _, workload := range workloads {
+		if deleteErr := p.Runtime.DeleteWorkload(ctx, environment, workload.Name); deleteErr != nil && !errors.Is(deleteErr, core.ErrNotFound) {
+			cleanupErrors = append(cleanupErrors, fmt.Errorf("delete workload %s: %w", workload.Name, deleteErr))
+		}
+	}
+	if len(cleanupErrors) > 0 {
+		return errors.Join(append(cleanupErrors, core.ErrRecoveryRequired)...)
+	}
+	return p.SandboxProvider.DeleteEnvironment(ctx, ref)
 }
