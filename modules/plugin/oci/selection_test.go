@@ -90,15 +90,10 @@ func TestPinDeletedSeedImageRequiresExplicitReenable(t *testing.T) {
 	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	identity := "docker.io/library/node:24@" + digest
 	deletedAt := time.Date(2026, 8, 30, 9, 0, 0, 0, time.UTC)
-	if err := store.PutDeletion(context.Background(), Deletion{
-		Reference: "docker.io/library/node:24",
-		Digest:    digest,
-		DeletedAt: deletedAt,
-	}); err != nil {
+	if err := store.PutDeletion(context.Background(), Deletion{Reference: "docker.io/library/node:24", Digest: digest, DeletedAt: deletedAt}); err != nil {
 		t.Fatal(err)
 	}
 	service.now = func() time.Time { return deletedAt.Add(time.Minute) }
-
 	selection, err := service.PinSeedImage(context.Background(), identity, false)
 	if !errors.Is(err, core.ErrInvalidArgument) || !selection.Deleted || selection.Pinned {
 		t.Fatalf("selection=%#v err=%v", selection, err)
@@ -110,7 +105,6 @@ func TestPinDeletedSeedImageRequiresExplicitReenable(t *testing.T) {
 	if !selection.Pinned || !selection.Reenabled || selection.Deleted || selection.ReenabledAt == nil {
 		t.Fatalf("selection=%#v", selection)
 	}
-
 	recommendations, err := service.Recommend(context.Background(), 24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -125,18 +119,13 @@ func TestReenableRestoresDeletedObservedImageWithoutPinning(t *testing.T) {
 	digest := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	identity := "docker.io/library/postgres:18@" + digest
 	deletedAt := time.Date(2026, 8, 30, 9, 0, 0, 0, time.UTC)
-	if err := store.Put(context.Background(), Snapshot{
-		Environment: "a",
-		SampledAt:   deletedAt,
-		Images:      []Image{{Repository: "docker.io/library/postgres", Tag: "18", Digest: digest}},
-	}); err != nil {
+	if err := store.Put(context.Background(), Snapshot{Environment: "a", SampledAt: deletedAt, Images: []Image{{Repository: "docker.io/library/postgres", Tag: "18", Digest: digest}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.PutDeletion(context.Background(), Deletion{Reference: "docker.io/library/postgres:18", Digest: digest, DeletedAt: deletedAt}); err != nil {
 		t.Fatal(err)
 	}
 	service.now = func() time.Time { return deletedAt.Add(time.Minute) }
-
 	before, err := service.Recommend(context.Background(), 24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -177,7 +166,6 @@ func TestLaterDeletionSupersedesReenableAndExistingPin(t *testing.T) {
 		t.Fatal(err)
 	}
 	service.now = func() time.Time { return t3.Add(time.Minute) }
-
 	selection, err := service.seedSelection(context.Background(), immutableImageIdentity{Reference: "example.invalid/app:stable", Digest: digest})
 	if err != nil {
 		t.Fatal(err)
@@ -215,6 +203,15 @@ func TestUnpinDoesNotEraseReenableDecision(t *testing.T) {
 	}
 }
 
+func TestPinReenableRequiresExistingDeletionTombstone(t *testing.T) {
+	service, _ := newSelectionService(t)
+	service.now = func() time.Time { return time.Date(2026, 8, 30, 9, 0, 0, 0, time.UTC) }
+	_, err := service.PinSeedImage(context.Background(), "example.invalid/app:latest@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", true)
+	if !errors.Is(err, core.ErrNotFound) {
+		t.Fatalf("err=%v", err)
+	}
+}
+
 func TestReenableRequiresExistingDeletionTombstone(t *testing.T) {
 	service, _ := newSelectionService(t)
 	service.now = func() time.Time { return time.Date(2026, 8, 30, 9, 0, 0, 0, time.UTC) }
@@ -227,16 +224,7 @@ func TestReenableRequiresExistingDeletionTombstone(t *testing.T) {
 func TestSeedSelectionStateRejectsTamperedKey(t *testing.T) {
 	service, store := newSelectionService(t)
 	path := store.selectionPath()
-	if err := writeSeedSelectionFile(path, seedSelectionFileState{
-		Version: seedSelectionStateVersion,
-		Pins: map[string]SeedPin{
-			"wrong@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
-				Reference: "example.invalid/app:latest",
-				Digest:    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-				PinnedAt:  time.Date(2026, 8, 30, 9, 0, 0, 0, time.UTC),
-			},
-		},
-	}); err != nil {
+	if err := writeSeedSelectionFile(path, seedSelectionFileState{Version: seedSelectionStateVersion, Pins: map[string]SeedPin{"wrong@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {Reference: "example.invalid/app:latest", Digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", PinnedAt: time.Date(2026, 8, 30, 9, 0, 0, 0, time.UTC)}}}); err != nil {
 		t.Fatal(err)
 	}
 	_, err := service.Recommend(context.Background(), 24*time.Hour)
