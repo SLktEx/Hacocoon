@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -83,5 +84,65 @@ func TestEnvironmentJSONStoreReadsLegacyMetadataButRefusesToEnableLeases(t *test
 	})
 	if !errors.Is(err, core.ErrIncompatibleState) {
 		t.Fatalf("legacy state lease error = %v", err)
+	}
+}
+
+func TestEnvironmentJSONStoreEphemeralRunRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state", "environments.json")
+	store := NewEnvironmentJSONStore(path)
+	ctx := context.Background()
+	run := core.EphemeralRun{
+		EnvironmentID: "run-deadbeef",
+		State:         core.EphemeralRunActive,
+		CreatedAt:     time.Date(2026, 8, 30, 4, 0, 0, 0, time.UTC),
+	}
+	if err := store.PutEphemeralRun(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := store.ListEphemeralRuns(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 || runs[0] != run {
+		t.Fatalf("runs=%#v", runs)
+	}
+	if err := store.DeleteEphemeralRun(ctx, run.EnvironmentID); err != nil {
+		t.Fatal(err)
+	}
+	runs, err = store.ListEphemeralRuns(ctx)
+	if err != nil || len(runs) != 0 {
+		t.Fatalf("runs after delete=%#v err=%v", runs, err)
+	}
+}
+
+func TestEnvironmentJSONStoreMigratesVersion2WhenWritingEphemeralMarker(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "environments.json")
+	if err := os.WriteFile(path, []byte(`{"version":2,"environments":{},"workspace_leases":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store := NewEnvironmentJSONStore(path)
+	if err := store.PutEphemeralRun(context.Background(), core.EphemeralRun{
+		EnvironmentID: "run-migrate",
+		State:         core.EphemeralRunCreating,
+		CreatedAt:     time.Date(2026, 8, 30, 4, 1, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var persisted struct {
+		Version       int                          `json:"version"`
+		EphemeralRuns map[string]core.EphemeralRun `json:"ephemeral_runs"`
+	}
+	if err := json.Unmarshal(contents, &persisted); err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Version != environmentStateVersion {
+		t.Fatalf("version=%d", persisted.Version)
+	}
+	if persisted.EphemeralRuns["run-migrate"].EnvironmentID != "run-migrate" {
+		t.Fatalf("state=%s", contents)
 	}
 }

@@ -27,6 +27,34 @@ create ephemeral Environment
 
 Cleanup is attempted after execution even when the command fails. A cleanup failure is surfaced rather than hidden.
 
+### Ephemeral-run recovery
+
+`haco run` is designed to remain recoverable when its caller is interrupted or the Hacocoon process dies unexpectedly.
+
+Before creating the Environment, Hacocoon persists an explicit `ephemeral_runs` lifecycle marker in its protected Environment state and acquires a per-run host ownership lock. The ownership lock is held for the entire live run.
+
+On Linux, the ownership lock is an exclusive `flock`. The kernel releases that lock automatically when the owning process exits, including after `SIGKILL` or a crash. A later `haco run` reconciles persisted markers before starting new work:
+
+```text
+persisted ephemeral marker
+        +
+non-blocking ownership lock can be acquired
+        -> previous owner is gone
+        -> bounded Environment cleanup
+        -> remove marker only after cleanup succeeds
+```
+
+The deletion rule is deliberately strict:
+
+- an Environment name beginning with `run-` is **not** deletion authority;
+- a persisted ephemeral marker by itself is not enough while another process still holds the ownership lock;
+- a live owner's lock causes reconciliation to skip that run without touching its Environment or lease;
+- cleanup failure keeps the marker as `cleanup-required` and surfaces recovery-required state instead of pretending cleanup succeeded;
+- state version 2 is migrated to version 3 when the new ephemeral marker state is written;
+- crash-safe ownership recovery is Linux-specific. Hacocoon fails closed rather than substituting PID guessing or another weaker ownership proof on unsupported platforms.
+
+`SIGINT` and `SIGTERM` cancel the execution context for the running agent. Cleanup then uses a separate Hacocoon-owned context that deliberately ignores the signal cancellation but retains the normal cleanup timeout. This gives graceful termination a bounded cleanup opportunity while the durable marker/lock design covers abrupt termination where in-process cleanup cannot run.
+
 ### Output memory boundary
 
 Hacocoon treats child process output as untrusted input. The shared host process runner retains at most **4 MiB of stdout and 4 MiB of stderr per subprocess** by default. Output beyond those limits is consumed and discarded so a noisy or malicious child cannot make the trusted Hacocoon process retain an unbounded `bytes.Buffer`.
