@@ -1,0 +1,9 @@
+html { color-scheme: light dark; font-family: system-ui, sans-serif; }
+body { margin: 0; }
+main { max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem; }
+h1 { margin-bottom: .25rem; }
+.controls { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin: 1.5rem 0; }
+button { padding: .55rem .8rem; }
+#status { font-family: ui-monospace, monospace; }
+#events { padding-left: 1.5rem; }
+#events li { padding: .3rem 0; }

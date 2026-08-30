@@ -117,6 +117,7 @@ validate_release_artifacts() {
     grep -Fx 'haco' <<<"$listing" >/dev/null
     grep -Fx 'haco-vscode' <<<"$listing" >/dev/null
     grep -Fx 'haco-agent-host' <<<"$listing" >/dev/null
+    grep -Fx 'haco-notify' <<<"$listing" >/dev/null
   done
 
   grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
@@ -182,6 +183,10 @@ run_test() {
   section "test"
   go test -count=1 -shuffle=on ./...
   go vet ./...
+  if command -v node >/dev/null 2>&1; then
+    section "VS Code notification extension syntax"
+    node --check clients/vscode-notify/extension.js
+  fi
 }
 
 run_race() {

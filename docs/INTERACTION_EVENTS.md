@@ -73,6 +73,38 @@ A browser client should build body text from `capability`, `action`, and `enviro
 
 Browser Notification permission, service-worker behavior, and UI presentation stay client-owned and outside Hacocoon Core.
 
+## Reference notification adapters
+
+`haco-notify` is a presentation-only helper. It never submits approvals or executes capabilities.
+
+### Browser
+
+Run the loopback-only reference client on the trusted Host:
+
+```bash
+haco-notify web --listen 127.0.0.1:18081
+```
+
+Then open `http://127.0.0.1:18081/` and grant Browser Notification permission. The page uses a same-origin, read-only `/api/v1/events` endpoint backed by `pkg/interaction`, stores the committed cursor and recent stable event IDs in browser local storage, and uses a service worker for notification presentation. The HTTP bridge rejects non-loopback listen addresses and does not enable CORS.
+
+### Native OS notifications
+
+Run:
+
+```bash
+haco-notify native
+```
+
+On WSL the first maintained path uses `powershell.exe` to surface Windows toast notifications. On a Linux desktop, `notify-send` is used when available. The adapter stores its cursor and recent stable event IDs in a mode-0600 state file. `operation-completed` remains opt-in through `--include-completed`.
+
+Native notification text is constructed only from the minimized public interaction fields. Windows notification strings are transferred to PowerShell as encoded data rather than interpolated into executable script text.
+
+### VS Code
+
+The optional VS Code presentation client lives at [`../clients/vscode-notify/README.md`](../clients/vscode-notify/README.md). It reads the same loopback `/api/v1/events` bridge, persists cursor/dedup state through VS Code `globalState`, and shows normal VS Code notifications.
+
+The extension is not required by `haco-vscode` and does not replace standard Remote-SSH. It is a UI-side observer only; displaying or clicking a notification is not an approval.
+
 ## Root selection
 
 `interaction.NewDefaultReader()` follows the same root convention as the local Hacocoon composition: `HACO_ROOT` when set, otherwise `/var/lib/hacocoon`. `NewReader(root)` is available for explicitly scoped adapters and tests.

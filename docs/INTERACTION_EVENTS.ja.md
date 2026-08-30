@@ -71,6 +71,36 @@ body は `capability`、`action`、`environment` のみから構成し、隠さ�
 
 Browser Notification permission、service worker、UI presentation は client 側の責務で、Hacocoon Core には入りません。
 
+## Reference notification adapter
+
+`haco-notify` は表示専用helperです。approvalを送信したりcapabilityを実行したりしません。
+
+### Browser
+
+trusted Host側でloopback限定clientを起動します。
+
+```bash
+haco-notify web --listen 127.0.0.1:18081
+```
+
+その後 `http://127.0.0.1:18081/` を開いてBrowser Notification permissionを許可します。pageは `pkg/interaction` を読むsame-origin/read-onlyの `/api/v1/events` をpollし、commit済みcursorと最近のstable event IDをbrowser local storageへ保存し、service workerから通知を表示します。HTTP bridgeはnon-loopback listenを拒否し、CORSも有効化しません。
+
+### Native OS notification
+
+```bash
+haco-notify native
+```
+
+WSLでは最初のmaintained pathとして `powershell.exe` 経由でWindows toastを表示します。Linux desktopでは利用可能なら `notify-send` を使います。adapterはcursorと最近のstable event IDをmode 0600のstate fileへ保存します。`operation-completed` は `--include-completed` を指定した場合だけ通知します。
+
+native通知文は最小化済みpublic interaction fieldだけから生成します。Windows向け文字列はPowerShell scriptへ直接interpolateせずencoded dataとして渡します。
+
+### VS Code
+
+optionalなVS Code presentation clientは [`../clients/vscode-notify/README.md`](../clients/vscode-notify/README.md) にあります。同じloopback `/api/v1/events` bridgeを読み、cursor/dedup stateはVS Code `globalState`へ保存し、通常のVS Code notification UIへ表示します。
+
+このextensionは `haco-vscode` の必須要件ではなく、標準Remote-SSHを置き換えません。UI側のobserverにすぎず、通知を表示・clickすること自体はapprovalではありません。
+
 ## Root
 
 `interaction.NewDefaultReader()` は local Hacocoon と同じ root 規則を使います。`HACO_ROOT` があればそれを、なければ `/var/lib/hacocoon` を使います。明示的な adapter/test では `NewReader(root)` を利用できます。
