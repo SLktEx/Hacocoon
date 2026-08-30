@@ -18,7 +18,7 @@ Hacocoon はまだ **pre-1.0** です。version number、spec、実装済みと�
 5. [`09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md`](09_v0.9_PER_AGENT_SANDBOX_AND_AGENT_HOST.ja.md) — per-agent Environment broker。
 6. [`10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md`](10_v0.10_VSCODE_REMOTE_AGENT_HOST_ADAPTER.ja.md) — VS Code Agent Host bridge。
 7. [`BASE_IMAGES.ja.md`](BASE_IMAGES.ja.md) — v0.11 Base Images。
-8. [`12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md`](12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md) — Resource Limits の設計。
+8. [`12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md`](12_v0.12_SANDBOX_RESOURCE_LIMITS.ja.md) — v0.12 Resource Limits。
 
 ## 正本の優先順位
 
@@ -50,10 +50,10 @@ v0.8   Client Adapters & VS Code                   implemented
 v0.9   Per-Agent Sandbox & Agent Host Integration  broker foundation implemented
 v0.10  VS Code Remote Agent Host Adapter           implemented
 v0.11  Base Images & Custom Environments           first slice implemented
-v0.12  Sandbox Resource Limits                     design only
+v0.12  Sandbox Resource Limits                     first slice implemented
 ```
 
-これで **v0.1〜v0.11 まで実装済み milestone が連番**です。v0.12 が次の design/implementation gate です。
+これで **v0.1〜v0.12 まで実装済み milestone が連番**です。real provider / real client acceptance は実装有無とは別に管理します。
 
 詳細は [`00D_VERSIONING_AND_RELEASE_STATUS.ja.md`](00D_VERSIONING_AND_RELEASE_STATUS.ja.md) を参照してください。
 
@@ -66,7 +66,7 @@ v0.12  Sandbox Resource Limits                     design only
 - v0.9 per-agent broker: broker foundation 実装済み。real Agent Host/AHP routing acceptance pending。
 - v0.10 `haco-agent-host`: `main` 実装済み。real VS Code Agent Host acceptance pending。
 - v0.11 Base selection: first slice 実装済み。real Incus image source acceptance と build/import/history/GC は別。
-- v0.12 Resource Limits: **design only / implementation pending**。
+- v0.12 Resource Limits: first slice 実装済み。real supported-Incus resource enforcement acceptance は別。
 
 実装の事実は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) を見てください。
 
@@ -112,18 +112,6 @@ haco-agent-host prepare --session <opaque-id> [workspace]
 haco-agent-host release --session <opaque-id>
 ```
 
-```text
-VS Code Agents window
-        |
-   Remote SSH
-        |
-Hacocoon-managed loopback SSH alias
-        |
- haco-agent-host
-        |
-v0.9 bound Environment
-```
-
 Hacocoon は Environment と安全な接続準備を所有し、VS Code が Agent Host / Agent Host Protocol を所有します。Private SSH key は client 側に保持します。
 
 ## v0.11: Base Images & Custom Environments
@@ -146,27 +134,29 @@ logical Base
 
 Incus alias / remote / fingerprint は adapter detail です。mutable alias/source は create 時に immutable fingerprint へ解決し、その pinned fingerprint から Environment を作ります。
 
-logical Base が後で動いても既存 Environment の `BaseRevision` は変わりません。
-
-Custom mapping は現在 `HACO_INCUS_BASES_JSON` で追加でき、`haco/` namespace は予約です。build/import/history/rollback/deletion/GC は first slice では未実装です。
+logical Base が後で動いても既存 Environment の `BaseRevision` は変わりません。Custom mapping は現在 `HACO_INCUS_BASES_JSON` で追加でき、`haco/` namespace は予約です。build/import/history/rollback/deletion/GC は first slice では未実装です。
 
 ## v0.12: Sandbox Resource Limits
 
-v0.12 は **設計のみ**です。
+v0.12 first slice では creation-time ResourceBudget を実装しています。
 
-予定している resource budget:
+```bash
+haco create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace . dev
+haco run --cpu 2 --memory 4GiB --workspace . -- go test ./...
+```
 
-- CPU
-- memory
-- process / PID count
-- Environment root storage size（安全に enforce できる provider の場合）
+provider-neutral な CPU / memory bytes / process/PID count / root bytes を finite または `unlimited` として Environment に保存します。未指定 dimension も provider 任せにはせず、Hacocoon が explicit `unlimited` effective value に解決します。
+
+Incus では finite limit を Environment の `start` 前に適用し、read-back で一致を確認します。適用・検証できなければ constrained creation を成功扱いしません。
 
 ```text
 ResourceBudget  -> Environment 内部の消費量を制限
 Capability      -> Environment 境界を越える authority を制御
 ```
 
-requested limit を provider が enforce できない場合は silent ignore せず fail closed する contract です。
+requested finite limit を provider が enforce できない場合は silent ignore せず fail closed します。experimental EC2 は現在 finite budget を provider/AWS side effect 前に `unsupported` として拒否します。
+
+live resize、aggregate host scheduling、Workspace quota は first slice の対象外です。real Incus 上のCPU/memory/PID/root-size enforcement acceptance は対応hostで別途必要です。
 
 ## Windows / WSL
 
@@ -185,7 +175,7 @@ export HACO_RUNTIME_PROVIDER=runtime.ec2
 export HACO_EXPERIMENTAL_EC2=1
 ```
 
-両方の explicit opt-in が必要です。
+両方の explicit opt-in が必要です。v0.12 first slice の finite ResourceBudget はEC2 provider side effectより前に拒否します。
 
 ## ドキュメント更新ルール
 
