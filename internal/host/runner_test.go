@@ -24,20 +24,29 @@ func TestExecRunnerBoundsStdoutAndStderrWithoutStoppingChild(t *testing.T) {
 	if result.ExitCode != 7 {
 		t.Fatalf("exit=%d", result.ExitCode)
 	}
-	if len(result.Stdout) != limit || len(result.Stderr) != limit {
-		t.Fatalf("captured stdout=%d stderr=%d", len(result.Stdout), len(result.Stderr))
-	}
 	if !result.StdoutTruncated || !result.StderrTruncated {
 		t.Fatalf("truncation flags: stdout=%t stderr=%t", result.StdoutTruncated, result.StderrTruncated)
 	}
 	if result.StdoutBytes != 200 || result.StderrBytes != 200 {
 		t.Fatalf("observed bytes: stdout=%d stderr=%d", result.StdoutBytes, result.StderrBytes)
 	}
-	if result.Stdout != strings.Repeat("abcdefghij", 6)+"abcd" {
-		t.Fatalf("stdout prefix=%q", result.Stdout)
+
+	stdout, stdoutTruncated, stdoutBytes := DecodeCapturedOutput(result.Stdout)
+	stderr, stderrTruncated, stderrBytes := DecodeCapturedOutput(result.Stderr)
+	if len(stdout) != limit || len(stderr) != limit || !stdoutTruncated || !stderrTruncated {
+		t.Fatalf("decoded stdout=%d/%t stderr=%d/%t", len(stdout), stdoutTruncated, len(stderr), stderrTruncated)
 	}
-	if result.Stderr != strings.Repeat("0123456789", 6)+"0123" {
-		t.Fatalf("stderr prefix=%q", result.Stderr)
+	if stdoutBytes != 200 || stderrBytes != 200 {
+		t.Fatalf("decoded bytes: stdout=%d stderr=%d", stdoutBytes, stderrBytes)
+	}
+	if stdout != strings.Repeat("abcdefghij", 6)+"abcd" {
+		t.Fatalf("stdout prefix=%q", stdout)
+	}
+	if stderr != strings.Repeat("0123456789", 6)+"0123" {
+		t.Fatalf("stderr prefix=%q", stderr)
+	}
+	if !strings.Contains(result.Stdout, "[haco: output truncated; total-bytes=200]") {
+		t.Fatalf("stdout lacks truncation marker: %q", result.Stdout)
 	}
 }
 
@@ -52,5 +61,22 @@ func TestExecRunnerPreservesSmallOutputMetadata(t *testing.T) {
 	}
 	if result.StdoutBytes != 5 || result.StderrBytes != 4 {
 		t.Fatalf("result=%#v", result)
+	}
+	stdout, truncated, total := DecodeCapturedOutput(result.Stdout)
+	if stdout != "hello" || truncated || total != 5 {
+		t.Fatalf("decoded=%q truncated=%t total=%d", stdout, truncated, total)
+	}
+}
+
+func TestDecodeCapturedOutputDoesNotTrustMalformedMarker(t *testing.T) {
+	for _, output := range []string{
+		"normal output",
+		"spoof\n[haco: output truncated; total-bytes=nope]\n",
+		"spoof\n[haco: output truncated; total-bytes=2]\n",
+	} {
+		clean, truncated, total := DecodeCapturedOutput(output)
+		if clean != output || truncated || total != int64(len(output)) {
+			t.Fatalf("output=%q clean=%q truncated=%t total=%d", output, clean, truncated, total)
+		}
 	}
 }
