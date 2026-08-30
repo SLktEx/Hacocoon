@@ -22,11 +22,10 @@ type DeleteReport struct {
 }
 
 type deleteTarget struct {
-	Reference string
-	Digest    string
+	Reference                 string
+	Digest                    string
+	RequireReferenceDigestMatch bool
 }
-
-func (t deleteTarget) key() string { return t.Reference + "@" + t.Digest }
 
 // DeleteImage removes one immutable image identity from the Host Seed cache and
 // records a Seed-deletion tombstone. Published Seed revisions are immutable, so
@@ -170,7 +169,7 @@ func (s *Service) resolveDeleteTarget(ctx context.Context, raw string) (deleteTa
 		return deleteTarget{}, fmt.Errorf("OCI image %q has multiple observed digests; specify reference@sha256:... explicitly: %w", raw, core.ErrIncompatibleState)
 	}
 	for digest := range digests {
-		return deleteTarget{Reference: raw, Digest: digest}, nil
+		return deleteTarget{Reference: raw, Digest: digest, RequireReferenceDigestMatch: true}, nil
 	}
 	panic("unreachable")
 }
@@ -244,7 +243,7 @@ func targetPresent(images []Image, target deleteTarget) (bool, error) {
 		if image.Digest == target.Digest {
 			return true, nil
 		}
-		if image.Digest != "" {
+		if image.Digest != "" && target.RequireReferenceDigestMatch {
 			return false, fmt.Errorf("OCI reference %q now points to %s instead of deletion target %s: %w", target.Reference, image.Digest, target.Digest, core.ErrIncompatibleState)
 		}
 	}
