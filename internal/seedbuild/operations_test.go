@@ -147,3 +147,10 @@ func TestMaintenanceUsesCurrentManifestProtectionAndRecoveryMode(t *testing.T) {
 		t.Fatalf("protection=%#v", protection)
 	}
 }
+
+func TestSelectedImagesRejectsOptionLikeReference(t *testing.T) {
+	_, err := selectedImages([]ociplugin.Recommendation{{Reference: "--namespace", Digest: fpA, AutoPromote: true}})
+	if !errors.Is(err, core.ErrInvalidArgument) {
+		t.Fatalf("err=%v want ErrInvalidArgument", err)
+	}
+}
