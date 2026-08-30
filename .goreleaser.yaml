@@ -59,6 +59,20 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
+  - id: haco-storage-helper
+    main: ./cmd/haco-storage-helper
+    binary: haco-storage-helper
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
 
 archives:
   - id: haco
@@ -67,6 +81,7 @@ archives:
       - haco-vscode
       - haco-agent-host
       - haco-notify
+      - haco-storage-helper
     formats:
       - tar.gz
     name_template: "haco_{{ .Os }}_{{ .Arch }}"
