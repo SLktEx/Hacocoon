@@ -1,68 +1,58 @@
-# Public repository 公開チェックリスト
+# Public repository セキュリティチェックリスト
 
 [English](PUBLIC_RELEASE_CHECKLIST.md) | **日本語**
 
-これは Hacocoon を private repository から public repository へ切り替えるための **fail-closed な公開手順**です。単なる作業メモではなく、release trust boundary の一部として扱います。
+Hacocoon は public repository ですが、現在の運用方針は意図的に **solo maintainer / external contribution closed** です。
 
-以下の必須項目がすべて完了し、live public repository に対して `tools/check_public_release_readiness.py` が `PUBLIC RELEASE READINESS OK` を返すまでは、**公式 public release を公開してはいけません**。
-
-## なぜ Public 化の途中で Actions を無効化するのか
-
-現在の GitHub Free では、この private repository のままでは必要な repository ruleset と Environment required reviewer を最終設定できません。そのため「public にした後でしか設定できない security control」があります。
-
-public 化直後、server-side protection の設定が終わる前に external fork workflow が動ける時間を作らないため、次の順序を必須にします。
-
-1. private のまま code-side hardening をすべて merge する。
-2. 通常 CI と secret scan が green であることを確認する。
-3. **repository の GitHub Actions を無効化する**。
-4. repository を public に変更する。
-5. Actions を無効のまま、以下の server-side control をすべて設定・検証する。
-6. readiness checker を実行する。
-7. checker が PASS した後でだけ Actions を再有効化する。
-
-変換途中では external contribution の承認・merge、公式 release 作成、Actions 再有効化を行いません。
-
-## 1. private のまま満たす事前条件
-
-visibility を変える前に確認します。
-
-- [ ] `main` CI が green。
-- [ ] complete reachable Git history に対する `secret-scan / gitleaks` が green。
-- [ ] 既知の未解決 Critical / High public-release code blocker がない。
-- [ ] `.github/CODEOWNERS` が workflow、release config、installer、policy checker、この checklist を cover している。
-- [ ] `.github/workflows/release.yml` の privileged `publish` job が専用 `release` Environment を使っている。
-- [ ] 公式 release tag は current trusted `main` HEAD と一致するときだけ許可される。
-- [ ] Linux / Windows public installer が provenance failure で fail closed する。
-- [ ] Public 化の直前に GitHub Actions を無効化した。
-
-## 2. Actions を無効のまま Public 化する
-
-repository visibility を public に変更します。この時点では Actions を再有効化しません。
-
-Public 化を契機に意図しない workflow run が開始されていないことも確認します。
-
-## 3. `protect-main` repository ruleset
-
-次の exact name で active ruleset を 1 個だけ作ります。
+目標は「public OSS なら誰でも PR を送れるようにする」ことではありません。現在の trust boundary は次です。
 
 ```text
-protect-main
+誰でも read / fork / Issue 作成はできる
+        |
+        X  upstream への external PR は受け付けない
+        |
+trusted write authority は repository owner だけ
+        |
+protected main + required CI
+        |
+trusted release workflow
 ```
 
-default branch (`main` / `~DEFAULT_BRANCH`) を対象にし、最低限以下を必須にします。
+`tools/check_public_release_readiness.py` は、この **現在の運用モデルそのもの** を検証します。maintainer / contribution model を変更する場合は、checker を弱める前に threat model を更新してください。
 
-- [ ] enforcement: `active`
-- [ ] target: branch
+## 1. Contribution boundary
+
+現在の必須条件:
+
+- [ ] repository は public
+- [ ] `pull_request_creation_policy = collaborators_only`
+- [ ] owner 以外の direct collaborator が存在しない
+- [ ] external user は upstream repository に Pull Request を作成できない
+- [ ] bug report / discussion 用の Issue は public のままでよい
+
+これは、external fork PR を受け入れる前提だった以前の public-launch 設計より意図的に閉じた構成です。
+
+external PR を有効化する前には、fork workflow approval、token permission、secret、runner 選択、workflow file 変更、review ownership を含む security review をやり直します。
+
+## 2. `Protect main` ruleset
+
+active branch ruleset の exact name:
+
+```text
+Protect main
+```
+
+default branch を対象にし、最低限次を enforce します。
+
+- [ ] enforcement が active
 - [ ] bypass actor なし
 - [ ] branch deletion を禁止
 - [ ] non-fast-forward / force push を禁止
-- [ ] merge 前に Pull Request を必須化
-- [ ] approving review を最低 1 件必須化
-- [ ] commit が追加されたら stale approval を無効化
-- [ ] latest reviewable push の承認を必須化
-- [ ] review thread の全解決を必須化
+- [ ] `main` への変更は Pull Request 経由
+- [ ] new push 後に stale review state を無効化
+- [ ] solo-maintainer の間は `require_last_push_approval = false`
+- [ ] review thread の解決を必須化
 - [ ] latest base branch に対する required status checks を必須化
-- [ ] 下記の現在の Hacocoon CI context をすべて required にする
 
 Required status contexts:
 
@@ -74,19 +64,29 @@ test (1.26.x)
 test (1.27.x)
 race
 e2e
-gitleaks
 ```
 
-`require_code_owner_review` は、owner が作った変更を承認できる **2 人目の trusted reviewer** が存在するようになった時点で有効化するのを推奨します。1 人運用の状態で mandatory CODEOWNER review を有効化すると self-approval できず repository が詰む可能性があります。
+`gitleaks` も required status にすることを強く推奨します。required status に含めない場合でも dedicated secret-scan workflow 自体は維持します。
 
-一方、Public 化して external PR を受け入れる運用で「approval 1 件必須・bypass なし」を成立させるには、独立した trusted reviewer が最低 1 人必要です。
+### approving review が 0 でもよい理由
 
-## 4. `protect-release-tags` repository ruleset
+現在 Hacocoon の trusted maintainer は 1 人です。independent approving review を必須化すると、2 人目の trusted maintainer または bypass を追加しない限り通常の maintenance ができなくなります。
 
-次の exact name で active ruleset を作ります。
+そのため `required_approving_review_count = 0` は **solo-maintainer 専用の明示的な例外**です。一般的な推奨値ではありません。同じ理由で `require_last_push_approval` も `false` のままにします。GitHub では latest-push approval は「最後に push した本人以外」の承認が必要なため、1 人運用で有効にすると自分で作った PR を merge できなくなります。
+
+この例外を許容する条件は次の両方です。
+
+- external PR creation が disabled のまま
+- owner 以外の direct collaborator が存在しない
+
+どちらかが変わったら、人手 review と latest-push approval semantics を新しい trusted actor を追加する前に再設計します。
+
+## 3. `Protect release tags` ruleset
+
+active tag ruleset の exact name:
 
 ```text
-protect-release-tags
+Protect release tags
 ```
 
 対象:
@@ -95,72 +95,62 @@ protect-release-tags
 refs/tags/v*
 ```
 
-必須条件:
+現在の必須 protection:
 
-- [ ] enforcement: `active`
-- [ ] target: tag
-- [ ] tag creation を restrict
+- [ ] enforcement が active
+- [ ] bypass actor なし
 - [ ] tag deletion を禁止
-- [ ] non-fast-forward tag update / tag movement を禁止
-- [ ] 公式 release tag の作成を許可する bypass actor は、明示レビュー済みの **exactly one actor** に限定
-- [ ] 通常の write collaborator に release-tag bypass を付けない
+- [ ] tag update / movement を禁止
+- [ ] non-fast-forward movement を禁止
 
-readiness checker は bypass actor type として `RepositoryRole` / `Integration` / `Team` を 1 個だけ許可し、実際の actor type を warning で表示します。personal repository の間は、最小の現実的な authority として repository administrator / owner role を使い、organization 移行や dedicated release integration 導入時には再設計してください。
+現在は owner 以外に repository write authority を持つ collaborator がいないため、tag creation 自体は別ルールで restrict していません。
 
-## 5. `release` GitHub Environment
+ただし、**tag を作れることは release authority ではありません**。release workflow は要求された tag が current trusted `main` HEAD と一致することを別途必須化し、publication 直前にも tag / main identity を再検証します。
 
-exact name:
+write-capable collaborator や release bot を追加する場合は、その actor を trusted にする前に tag creation authority を再設計します。
+
+## 4. `release` GitHub Environment
+
+privileged publish job は引き続き次の Environment を使用します。
 
 ```text
 release
 ```
 
-server-side protection:
+現在は single-maintainer repository のため required reviewer は必須にしません。独立した trust decision を行える 2 人目の人間がいないためです。
 
-- [ ] required reviewer を最低 1 人設定
-- [ ] prevent self-review を有効化
-- [ ] reviewer set を通常の repository write actor より狭くする
-- [ ] 通常 release workflow に secret が不要なら Environment secret を置かない
+Environment は privilege boundary の名前付き領域、および将来 protection を追加する場所として維持します。
 
-workflow YAML に `environment: release` と書くだけでは不十分です。server-side required reviewer が `repository_dispatch` authority と official publication authority を分離する human authorization boundary です。
+2 人目の trusted maintainer を追加した時点で、independent required reviewer と、利用可能なら prevent self-review を設定します。
 
-## 6. external contributor は毎回 workflow approval 必須
+## 5. Self-hosted runner
 
-fork pull-request workflow setting を次にします。
+現在の policy:
 
-```text
-approval_policy = all_external_contributors
-```
+- [ ] repository self-hosted runner count は exact `0`
+- [ ] normal CI は approved GitHub-hosted runner のみ
+- [ ] SSH / AWS / GitHub credential、Incus / Docker / containerd authority、internal-network access 等を持つ persistent host を repository workflow から選択できない
+- [ ] organization-owned repository に移行する場合は visible runner group を再監査
 
-first-time contributor だけを対象にする設定は使いません。一度 harmless contribution が受け入れられたことを理由に、将来の attacker-controlled workflow を恒久的に自動許可しないためです。
+privileged Incus / cloud E2E を動かすためだけに self-hosted runner を通常 CI へ追加しません。将来必要になった場合は別の trusted execution boundary を設計します。
 
-## 7. Public fork PR が self-hosted runner に到達できないことを証明
+## 6. Release workflow trust
 
-public repository では次を必須にします。
+official release では次を維持します。
 
-- [ ] repository self-hosted runner count が exact `0`
-- [ ] SSH / AWS / GitHub credential、Incus / Docker / containerd socket、internal network 等の authority を持つ persistent runner を fork PR から選択不能
-- [ ] 将来 organization-owned repository になった場合、別途 adversarial audit した設計へ切り替えない限り、Hacocoon から visible な organization runner group が `0`
+- [ ] `repository_dispatch` が default branch 上の trusted workflow を実行
+- [ ] requested release tag は current `main` HEAD と一致必須
+- [ ] build/test job は repository read-only
+- [ ] publish job は別 job かつ最小権限
+- [ ] publish 直前に current main / tag identity を再検証
+- [ ] release payload に GitHub/Sigstore attestation を付与
+- [ ] trusted workflow の Action は immutable commit SHA pin を維持
 
-Actions 再有効化後、harmless external fork PR から次を試します。
+詳細は [Release security](RELEASE_SECURITY.ja.md) を参照してください。
 
-```yaml
-runs-on: self-hosted
-```
+## 7. Live readiness check
 
-さらに既知の custom self-hosted label も指定し、どちらも persistent/private runner で job が start しないことを確認します。
-
-`tools/check_workflow_policy.py` は defense in depth です。attacker-controlled PR job は policy job と並列に schedule され得るため、server-side runner isolation の代わりにはなりません。
-
-## 8. Immutable Releases
-
-最初の official public release 前に GitHub Immutable Releases を有効化し、公開済み asset / release tag の supported mutation path からの差し替え・削除を防ぎます。
-
-provenance / release binding は `RELEASE_SECURITY.ja.md` を参照してください。
-
-## 9. live fail-closed checker
-
-ruleset、Environment protection、fork workflow policy、self-hosted runner inventory を読み取れる認証済み GitHub CLI で実行します。
+ruleset、collaborator、Environment、runner inventory を読める認証済み GitHub CLI で実行します。
 
 ```bash
 python3 tools/check_public_release_readiness.py --repo SLktEx/Hacocoon
@@ -172,22 +162,18 @@ python3 tools/check_public_release_readiness.py --repo SLktEx/Hacocoon
 PUBLIC RELEASE READINESS OK
 ```
 
-API permission が足りず確認できない場合は success ではなく `UNVERIFIED` です。設定が欠ける・弱い場合は failure です。
+warning は solo-maintainer として意図的に受け入れている tradeoff、または defense in depth の推奨項目を示します。API permission 不足は success ではなく `UNVERIFIED` です。
 
-checker は `protect-main` / `protect-release-tags` / `release` という exact name を要求します。似た名前の無関係な設定が偶然 security gate を満たすことを防ぐためです。
+## 8. 再監査が必要になる変更
 
-## 10. Actions を再有効化して adversarial validation
+次のいずれかを行う前に現在の policy を再評価します。
 
-live checker が PASS した後だけ次へ進みます。
+- external Pull Request を有効化
+- owner 以外の direct collaborator を追加
+- 2 人目の trusted maintainer に write authority を付与
+- bot / app に広い write / release authority を付与
+- self-hosted runner / runner group を追加
+- repository を organization へ移行
+- release trigger / publisher authority model を変更
 
-1. GitHub Actions を再有効化する。
-2. required CI job が GitHub-hosted `ubuntu-24.04` runner で動くことを確認する。
-3. harmless external fork PR を作り、workflow approval が要求されることを確認する。
-4. `self-hosted` / custom runner label を harmless に指定し、persistent/private runner が開始しないことを確認する。
-5. `tools/check_public_release_readiness.py` を再実行する。
-6. exact public configuration に対して adversarial security audit を再実行する。
-7. live evidence を記録してから public-launch blocker issue を close する。
-
-## 公開判断
-
-server-side control の設定中に **Actions disabled の public repository** として存在することは許容します。ただし、この checklist と live readiness checker を通過するまでは **official public release 禁止**です。
+public であること自体が trust boundary ではありません。**trusted history を誰が変更できるか、untrusted code がどこで実行できるか**が trust boundary です。

@@ -9,9 +9,11 @@ from pathlib import Path
 from typing import Any
 
 API_VERSION = "2026-03-10"
-MAIN_RULESET_NAME = "protect-main"
-TAG_RULESET_NAME = "protect-release-tags"
+MAIN_RULESET_NAME = "Protect main"
+TAG_RULESET_NAME = "Protect release tags"
 RELEASE_ENVIRONMENT = "release"
+REQUIRED_PR_CREATION_POLICY = "collaborators_only"
+
 REQUIRED_STATUS_CONTEXTS = {
     "docs",
     "workflow-policy",
@@ -20,8 +22,8 @@ REQUIRED_STATUS_CONTEXTS = {
     "test (1.27.x)",
     "race",
     "e2e",
-    "gitleaks",
 }
+RECOMMENDED_STATUS_CONTEXTS = {"gitleaks"}
 
 
 def gh_api(path: str) -> Any:
@@ -71,6 +73,44 @@ def ref_matches(ruleset: dict[str, Any], expected: str, default_branch: str) -> 
     return bool(includes & accepted) and not bool(excludes & accepted)
 
 
+def validate_repository_policy(repository: dict[str, Any]) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    if repository.get("private") is not False:
+        errors.append("repository must be public before public-release readiness can pass")
+
+    policy = repository.get("pull_request_creation_policy")
+    if policy != REQUIRED_PR_CREATION_POLICY:
+        errors.append(
+            "external pull requests must remain disabled: "
+            f"pull_request_creation_policy must be {REQUIRED_PR_CREATION_POLICY!r}, got {policy!r}"
+        )
+
+    return errors, warnings
+
+
+def validate_collaborators(collaborators: Any, owner_login: str) -> tuple[list[str], list[str]]:
+    if not isinstance(collaborators, list):
+        return ["direct collaborator inventory is incomplete or malformed"], []
+
+    non_owner: list[str] = []
+    for item in collaborators:
+        if not isinstance(item, dict):
+            return ["direct collaborator inventory is incomplete or malformed"], []
+        login = item.get("login")
+        if isinstance(login, str) and login != owner_login:
+            non_owner.append(login)
+
+    if non_owner:
+        return [
+            "solo-maintainer public policy requires no non-owner direct collaborators; found: "
+            + ", ".join(sorted(non_owner))
+        ], []
+
+    return [], []
+
+
 def validate_main_ruleset(ruleset: dict[str, Any], default_branch: str) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -91,12 +131,23 @@ def validate_main_ruleset(ruleset: dict[str, Any], default_branch: str) -> tuple
 
     pr = rules.get("pull_request") or {}
     params = pr.get("parameters") or {}
-    if int(params.get("required_approving_review_count") or 0) < 1:
-        errors.append(f"{MAIN_RULESET_NAME} must require at least one approving review")
+    review_count = int(params.get("required_approving_review_count") or 0)
+    if review_count < 0:
+        errors.append(f"{MAIN_RULESET_NAME} approving review count is invalid")
+    elif review_count == 0:
+        warnings.append(
+            f"{MAIN_RULESET_NAME} requires no independent approval; this is intentional only "
+            "for the solo-maintainer / external-PR-disabled policy"
+        )
+
     if params.get("dismiss_stale_reviews_on_push") is not True:
         errors.append(f"{MAIN_RULESET_NAME} must dismiss stale approvals after new pushes")
-    if params.get("require_last_push_approval") is not True:
-        errors.append(f"{MAIN_RULESET_NAME} must require approval of the most recent push")
+    last_push_approval = params.get("require_last_push_approval")
+    if last_push_approval is not False:
+        errors.append(
+            f"{MAIN_RULESET_NAME} must disable approval of the most recent push in solo-maintainer mode; "
+            "enabling it makes self-authored maintenance unmergeable without a second trusted actor"
+        )
     if params.get("required_review_thread_resolution") is not True:
         errors.append(f"{MAIN_RULESET_NAME} must require review-thread resolution")
     if params.get("require_code_owner_review") is not True:
@@ -108,6 +159,7 @@ def validate_main_ruleset(ruleset: dict[str, Any], default_branch: str) -> tuple
     status_params = status.get("parameters") or {}
     if status_params.get("strict_required_status_checks_policy") is not True:
         errors.append(f"{MAIN_RULESET_NAME} must require status checks against the latest base branch")
+
     contexts = {
         item.get("context")
         for item in status_params.get("required_status_checks") or []
@@ -116,6 +168,13 @@ def validate_main_ruleset(ruleset: dict[str, Any], default_branch: str) -> tuple
     missing = sorted(REQUIRED_STATUS_CONTEXTS - contexts)
     if missing:
         errors.append(f"{MAIN_RULESET_NAME} missing required status checks: {', '.join(missing)}")
+
+    recommended_missing = sorted(RECOMMENDED_STATUS_CONTEXTS - contexts)
+    if recommended_missing:
+        warnings.append(
+            f"{MAIN_RULESET_NAME} does not require recommended checks: "
+            + ", ".join(recommended_missing)
+        )
 
     return errors, warnings
 
@@ -128,31 +187,23 @@ def validate_tag_ruleset(ruleset: dict[str, Any]) -> tuple[list[str], list[str]]
         errors.append(f"{TAG_RULESET_NAME} must be active")
     if ruleset.get("target") != "tag":
         errors.append(f"{TAG_RULESET_NAME} must target tags")
+
     includes, excludes = _ref_condition(ruleset)
     if "refs/tags/v*" not in includes or "refs/tags/v*" in excludes:
         errors.append(f"{TAG_RULESET_NAME} must include refs/tags/v* and not exclude it")
 
+    if ruleset.get("bypass_actors"):
+        errors.append(f"{TAG_RULESET_NAME} must not have bypass actors in solo-maintainer mode")
+
     rules = rules_by_type(ruleset)
-    for required in ("creation", "deletion", "non_fast_forward"):
+    for required in ("deletion", "update", "non_fast_forward"):
         if required not in rules:
             errors.append(f"{TAG_RULESET_NAME} missing required rule: {required}")
 
-    bypass = ruleset.get("bypass_actors") or []
-    if not bypass:
-        errors.append(
-            f"{TAG_RULESET_NAME} must define an explicit minimal bypass actor allowed to create release tags"
-        )
-    elif len(bypass) != 1:
-        errors.append(f"{TAG_RULESET_NAME} must have exactly one reviewed release-tag bypass actor")
-    else:
-        actor = bypass[0]
-        if actor.get("bypass_mode") != "always":
-            errors.append(f"{TAG_RULESET_NAME} release-tag bypass actor must use bypass_mode=always")
-        actor_type = actor.get("actor_type")
-        if actor_type not in {"RepositoryRole", "Integration", "Team"}:
-            errors.append(f"{TAG_RULESET_NAME} has unsupported bypass actor type: {actor_type!r}")
+    if "creation" not in rules:
         warnings.append(
-            f"{TAG_RULESET_NAME} allows one bypass actor ({actor_type}); verify it is the intended release authority"
+            f"{TAG_RULESET_NAME} does not restrict tag creation; this is accepted only because "
+            "the repository has no non-owner collaborators and release trust requires current main HEAD"
         )
 
     return errors, warnings
@@ -161,27 +212,27 @@ def validate_tag_ruleset(ruleset: dict[str, Any]) -> tuple[list[str], list[str]]
 def validate_release_environment(environment: dict[str, Any]) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
+
+    if environment.get("name") != RELEASE_ENVIRONMENT:
+        errors.append(f"{RELEASE_ENVIRONMENT} Environment is missing or has unexpected identity")
+        return errors, warnings
+
     protection_rules = environment.get("protection_rules") or []
     reviewer_rule = next(
-        (rule for rule in protection_rules if isinstance(rule, dict) and rule.get("type") == "required_reviewers"),
+        (
+            rule
+            for rule in protection_rules
+            if isinstance(rule, dict) and rule.get("type") == "required_reviewers"
+        ),
         None,
     )
     if reviewer_rule is None:
-        errors.append(f"{RELEASE_ENVIRONMENT} Environment must require reviewers")
-        return errors, warnings
+        warnings.append(
+            f"{RELEASE_ENVIRONMENT} Environment has no independent reviewer; accepted for the "
+            "solo-maintainer policy and must be revisited when a second trusted maintainer exists"
+        )
 
-    reviewers = reviewer_rule.get("reviewers") or []
-    if not reviewers:
-        errors.append(f"{RELEASE_ENVIRONMENT} Environment must have at least one required reviewer")
-    if reviewer_rule.get("prevent_self_review") is not True:
-        errors.append(f"{RELEASE_ENVIRONMENT} Environment must prevent self-review")
     return errors, warnings
-
-
-def validate_fork_policy(policy: dict[str, Any]) -> tuple[list[str], list[str]]:
-    if policy.get("approval_policy") != "all_external_contributors":
-        return ["fork pull-request workflows must require approval for all external contributors"], []
-    return [], []
 
 
 def validate_runners(runners: dict[str, Any]) -> tuple[list[str], list[str]]:
@@ -218,7 +269,9 @@ def validate_org_runner_groups(groups: Any, owner_type: str) -> tuple[list[str],
             f"organization runner-group visibility response is incomplete: total_count={total}, returned={len(entries)}"
         ], []
     if entries:
-        names = ", ".join(str(item.get("name", "<unnamed>")) for item in entries if isinstance(item, dict))
+        names = ", ".join(
+            str(item.get("name", "<unnamed>")) for item in entries if isinstance(item, dict)
+        )
         return [
             f"no organization self-hosted runner group may be visible to this public repository; found: {names}"
         ], []
@@ -237,7 +290,9 @@ def find_named_ruleset(summaries: Any, name: str) -> dict[str, Any]:
 def load_live_snapshot(repo: str) -> dict[str, Any]:
     repository = gh_api(f"repos/{repo}")
     if repository.get("private") is not False:
-        raise RuntimeError("repository is not public; server-side public-release protections cannot yet be verified")
+        raise RuntimeError(
+            "repository is not public; server-side public-release protections cannot yet be verified"
+        )
 
     default_branch = repository.get("default_branch")
     owner = repository.get("owner") or {}
@@ -257,10 +312,10 @@ def load_live_snapshot(repo: str) -> dict[str, Any]:
 
     snapshot: dict[str, Any] = {
         "repository": repository,
+        "collaborators": gh_api(f"repos/{repo}/collaborators?affiliation=direct&per_page=100"),
         "main_ruleset": gh_api(f"repos/{repo}/rulesets/{main_summary['id']}"),
         "tag_ruleset": gh_api(f"repos/{repo}/rulesets/{tag_summary['id']}"),
         "release_environment": gh_api(f"repos/{repo}/environments/{RELEASE_ENVIRONMENT}"),
-        "fork_policy": gh_api(f"repos/{repo}/actions/permissions/fork-pr-contributor-approval"),
         "runners": gh_api(f"repos/{repo}/actions/runners?per_page=100"),
         "org_runner_groups": None,
     }
@@ -275,33 +330,39 @@ def load_live_snapshot(repo: str) -> dict[str, Any]:
 def validate_snapshot(snapshot: dict[str, Any]) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
+
     repository = snapshot.get("repository")
     if not isinstance(repository, dict):
         return ["repository metadata missing from readiness snapshot"], []
 
-    if repository.get("private") is not False:
-        errors.append("repository must be public before public-release readiness can pass")
     default_branch = repository.get("default_branch")
     if not isinstance(default_branch, str) or not default_branch:
         errors.append("repository default branch is unavailable")
         default_branch = "main"
 
-    owner_type = ((repository.get("owner") or {}).get("type"))
+    owner = repository.get("owner") or {}
+    owner_type = owner.get("type")
+    owner_login = owner.get("login")
     if owner_type not in {"User", "Organization"}:
         errors.append("repository owner type is unavailable or unsupported")
         owner_type = "User"
+    if not isinstance(owner_login, str) or not owner_login:
+        errors.append("repository owner login is unavailable")
+        owner_login = "<unknown>"
 
     validators = [
+        validate_repository_policy(repository),
+        validate_collaborators(snapshot.get("collaborators"), owner_login),
         validate_main_ruleset(snapshot.get("main_ruleset") or {}, default_branch),
         validate_tag_ruleset(snapshot.get("tag_ruleset") or {}),
         validate_release_environment(snapshot.get("release_environment") or {}),
-        validate_fork_policy(snapshot.get("fork_policy") or {}),
         validate_runners(snapshot.get("runners") or {}),
         validate_org_runner_groups(snapshot.get("org_runner_groups"), owner_type),
     ]
     for validation_errors, validation_warnings in validators:
         errors.extend(validation_errors)
         warnings.extend(validation_warnings)
+
     return errors, warnings
 
 
