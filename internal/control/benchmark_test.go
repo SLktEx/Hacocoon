@@ -86,6 +86,5 @@ func benchmarkUnixSink(b *testing.B, bytes int64) {
 type zeroReader struct{}
 
 func (zeroReader) Read(p []byte) (int, error) {
-	clear(p)
 	return len(p), nil
 }
