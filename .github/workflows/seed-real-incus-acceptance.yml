@@ -95,6 +95,15 @@ jobs:
           fi
           sudo incus remote list --format csv
           sudo incus image info images:ubuntu/26.04 >/dev/null
+      - name: Prepare sandbox bridge netfilter
+        run: |
+          # Hacocoon's fail-closed sandbox NIC enables IPv4/IPv6 bridge
+          # filtering. GitHub-hosted Ubuntu does not guarantee br_netfilter is
+          # loaded before a job, so establish the same host prerequisite used
+          # by the standalone real Incus Core E2E.
+          sudo modprobe br_netfilter
+          test -e /proc/sys/net/bridge/bridge-nf-call-iptables
+          test -e /proc/sys/net/bridge/bridge-nf-call-ip6tables
       - name: Install pinned nerdctl
         run: |
           archive="/tmp/nerdctl-${NERDCTL_VERSION}-linux-amd64.tar.gz"
