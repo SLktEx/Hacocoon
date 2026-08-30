@@ -6,7 +6,9 @@ Hacocoonでは、developmentの進行、配布binaryのsoftware identity、Host/
 
 ## Development checkpoint
 
-**Development checkpoint** は [`../status/versioning-and-release-status.ja.md`](../status/versioning-and-release-status.ja.md) で管理する、pre-1.0の高速な `v0.N` sequenceです。
+**Development checkpoint** は pre-1.0 の高速な `v0.N` sequenceです。番号・current checkpoint・Gate identityのmachine-readable正本は [`../status/checkpoints.yaml`](../status/checkpoints.yaml) です。
+
+[`../status/versioning-and-release-status.ja.md`](../status/versioning-and-release-status.ja.md) は人間向けのpolicy/status view、[`../IMPLEMENTATION_STATUS.ja.md`](../IMPLEMENTATION_STATUS.ja.md) はcurrent code realityとacceptance gapの正本です。
 
 これは **`main` にどのproduct / implementation / operator / observability / acceptance sliceまでlandしたか** を表します。
 
@@ -59,7 +61,7 @@ IncusやHost stateを初期化せずcompactに確認する場合:
 haco --version
 ```
 
-`haco` にcompileされるcheckpointはrelease SemVerの定数ではありません。`tools/bump-milestone` がcheckpoint正本と同期するgenerated build inputを更新します。
+`haco` にcompileされるcheckpointはrelease SemVerの定数ではありません。`internal/buildinfo/checkpoint_generated.go` は `tools/bump-milestone` が `docs/status/checkpoints.yaml` から同期するgenerated build inputで、独立したauthorityではありません。
 
 ## Checkpointを進める
 
@@ -67,7 +69,9 @@ haco --version
 tools/bump-milestone v0.N "Gate Name"
 ```
 
-helperは必ず次の `v0.N` だけを受け付け、authority mismatchを拒否し、英日current-checkpoint宣言・version table・generated build inputを同時更新した後にdocumentation consistency checkを実行します。
+helperは `docs/status/checkpoints.yaml` からcurrent checkpointを読み、必ず次の `v0.N` だけを受け付けます。staleなMarkdown/build mirrorを拒否し、新しいversion/GateをYAMLへ追加してから、英日current-checkpoint宣言・version table・generated build inputを同期し、documentation consistency checkを実行します。
+
+YAMLが持つのは番号・current checkpoint・Gate identityだけです。implemented / partial / host-dependentの状態は人間向けstatus documentに残し、acceptance evidenceまでversion-number schemaへ押し込みません。
 
 機械的なbump後は、`IMPLEMENTATION_STATUS` とowner design/reference docの内容を実際のcode realityに合わせて仕上げます。
 
@@ -80,4 +84,4 @@ maintained PRは必ず次のどれか1つに分類します。
 - release / packaging only
 - docs / test / refactor / maintenance only
 
-new-checkpoint PRではcheckpoint authorityを同じ変更内で更新します。release-only変更だけを理由にdevelopment checkpointを暗黙に進めません。
+new-checkpoint PRではcheckpoint sourceとmirrorを同じ変更内で更新します。release-only変更だけを理由にdevelopment checkpointを暗黙に進めません。

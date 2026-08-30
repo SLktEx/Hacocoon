@@ -7,18 +7,67 @@ import (
 	"testing"
 )
 
-func TestBumpAdvancesAllAuthoritiesAndGeneratedInput(t *testing.T) {
-	root := t.TempDir()
-	writeFixture(t, root, "docs/status/versioning-and-release-status.md", "# Versioning\n| Version | Gate | status |\n|---|---|---|\n| v0.26 | Old Gate | ✅ implemented |\n\nThe current milestone position is **v0.26**.\n")
-	writeFixture(t, root, "docs/status/versioning-and-release-status.ja.md", "# バージョン\n| Version | Gate | status |\n|---|---|---|\n| v0.26 | Old Gate | 実装済み |\n\n現在のmilestone位置は **v0.26** です。\n")
-	writeFixture(t, root, "docs/IMPLEMENTATION_STATUS.md", "The current milestone position is **v0.26**.\n")
-	writeFixture(t, root, "docs/IMPLEMENTATION_STATUS.ja.md", "現在のmilestone位置は **v0.26** です。\n")
-	writeFixture(t, root, "internal/buildinfo/checkpoint_generated.go", "// Code generated.\npackage buildinfo\n\nconst GeneratedCheckpoint = \"v0.26\"\n")
+func TestParseCheckpointSource(t *testing.T) {
+	source, err := parseCheckpointSource([]byte(`# checkpoint source
+schema: 1
+current: "v0.2"
+milestones:
+  "v0.1": "First Gate"
+  "v0.2": "Second Gate"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source.Current != "v0.2" || len(source.Milestones) != 2 || source.Milestones[1].Gate != "Second Gate" {
+		t.Fatalf("unexpected source: %#v", source)
+	}
+}
 
-	if err := bump(root, "v0.27", "Build Identity"); err != nil {
+func TestParseCheckpointSourceRejectsInvalidSequence(t *testing.T) {
+	cases := map[string]string{
+		"duplicate": `schema: 1
+current: "v0.1"
+milestones:
+  "v0.1": "One"
+  "v0.1": "Again"
+`,
+		"gap": `schema: 1
+current: "v0.3"
+milestones:
+  "v0.1": "One"
+  "v0.3": "Three"
+`,
+		"stale current": `schema: 1
+current: "v0.1"
+milestones:
+  "v0.1": "One"
+  "v0.2": "Two"
+`,
+		"unsupported yaml": `schema: 1
+current: "v0.1"
+milestones:
+  - version: "v0.1"
+    gate: "One"
+`,
+	}
+	for name, input := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := parseCheckpointSource([]byte(input)); err == nil {
+				t.Fatal("expected error")
+			}
+		})
+	}
+}
+
+func TestBumpAdvancesYAMLAndAllMirrors(t *testing.T) {
+	root := t.TempDir()
+	writeBumpFixture(t, root)
+
+	if err := bump(root, "v0.3", "Build Identity"); err != nil {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
+		checkpointSourcePath,
 		"docs/status/versioning-and-release-status.md",
 		"docs/status/versioning-and-release-status.ja.md",
 		"docs/IMPLEMENTATION_STATUS.md",
@@ -29,42 +78,73 @@ func TestBumpAdvancesAllAuthoritiesAndGeneratedInput(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(data), "v0.27") {
+		if !strings.Contains(string(data), "v0.3") {
 			t.Fatalf("%s was not advanced: %s", rel, data)
 		}
 	}
 	for _, rel := range []string{"docs/status/versioning-and-release-status.md", "docs/status/versioning-and-release-status.ja.md"} {
 		data, _ := os.ReadFile(filepath.Join(root, rel))
-		if !strings.Contains(string(data), "| v0.27 | Build Identity |") {
+		if !strings.Contains(string(data), "| v0.3 | Build Identity |") {
 			t.Fatalf("%s missing new table row: %s", rel, data)
 		}
+	}
+
+	sourceData, _ := os.ReadFile(filepath.Join(root, checkpointSourcePath))
+	source, err := parseCheckpointSource(sourceData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source.Current != "v0.3" || source.Milestones[2].Gate != "Build Identity" {
+		t.Fatalf("unexpected updated source: %#v", source)
 	}
 }
 
 func TestBumpRejectsSkippedCheckpoint(t *testing.T) {
 	root := t.TempDir()
-	writeFixture(t, root, "docs/status/versioning-and-release-status.md", "| v0.26 | Old | ok |\nThe current milestone position is **v0.26**.\n")
-	writeFixture(t, root, "docs/status/versioning-and-release-status.ja.md", "| v0.26 | Old | ok |\n現在のmilestone位置は **v0.26** です。\n")
-	writeFixture(t, root, "docs/IMPLEMENTATION_STATUS.md", "The current milestone position is **v0.26**.\n")
-	writeFixture(t, root, "docs/IMPLEMENTATION_STATUS.ja.md", "現在のmilestone位置は **v0.26** です。\n")
-	writeFixture(t, root, "internal/buildinfo/checkpoint_generated.go", "package buildinfo\nconst GeneratedCheckpoint = \"v0.26\"\n")
+	writeBumpFixture(t, root)
 
-	if err := bump(root, "v0.28", "Skipped"); err == nil || !strings.Contains(err.Error(), "next checkpoint must be v0.27") {
+	if err := bump(root, "v0.4", "Skipped"); err == nil || !strings.Contains(err.Error(), "next checkpoint must be v0.3") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestBumpRejectsAuthorityMismatch(t *testing.T) {
+func TestBumpRejectsMirrorMismatch(t *testing.T) {
 	root := t.TempDir()
-	writeFixture(t, root, "docs/status/versioning-and-release-status.md", "| v0.26 | Old | ok |\nThe current milestone position is **v0.26**.\n")
-	writeFixture(t, root, "docs/status/versioning-and-release-status.ja.md", "| v0.25 | Old | ok |\n現在のmilestone位置は **v0.25** です。\n")
-	writeFixture(t, root, "docs/IMPLEMENTATION_STATUS.md", "The current milestone position is **v0.26**.\n")
-	writeFixture(t, root, "docs/IMPLEMENTATION_STATUS.ja.md", "現在のmilestone位置は **v0.26** です。\n")
-	writeFixture(t, root, "internal/buildinfo/checkpoint_generated.go", "package buildinfo\nconst GeneratedCheckpoint = \"v0.26\"\n")
+	writeBumpFixture(t, root)
+	writeFixture(t, root, "docs/IMPLEMENTATION_STATUS.ja.md", "現在のmilestone位置は **v0.1** です。\n")
 
-	if err := bump(root, "v0.27", "Gate"); err == nil || !strings.Contains(err.Error(), "authorities disagree") {
+	if err := bump(root, "v0.3", "Gate"); err == nil || !strings.Contains(err.Error(), "disagrees with") {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+func TestBumpRejectsGateTableDrift(t *testing.T) {
+	root := t.TempDir()
+	writeBumpFixture(t, root)
+	writeFixture(t, root, "docs/status/versioning-and-release-status.ja.md", versionTable("Wrong Gate")+"\n現在のmilestone位置は **v0.2** です。\n")
+
+	if err := bump(root, "v0.3", "Gate"); err == nil || !strings.Contains(err.Error(), "expected v0.2 / \"Second Gate\"") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func writeBumpFixture(t *testing.T, root string) {
+	t.Helper()
+	writeFixture(t, root, checkpointSourcePath, `schema: 1
+current: "v0.2"
+milestones:
+  "v0.1": "First Gate"
+  "v0.2": "Second Gate"
+`)
+	writeFixture(t, root, "docs/status/versioning-and-release-status.md", versionTable("Second Gate")+"\nThe current milestone position is **v0.2**.\n")
+	writeFixture(t, root, "docs/status/versioning-and-release-status.ja.md", versionTable("Second Gate")+"\n現在のmilestone位置は **v0.2** です。\n")
+	writeFixture(t, root, "docs/IMPLEMENTATION_STATUS.md", "The current milestone position is **v0.2**.\n")
+	writeFixture(t, root, "docs/IMPLEMENTATION_STATUS.ja.md", "現在のmilestone位置は **v0.2** です。\n")
+	writeFixture(t, root, "internal/buildinfo/checkpoint_generated.go", "// Code generated from docs/status/checkpoints.yaml by tools/bump-milestone; DO NOT EDIT.\npackage buildinfo\n\nconst GeneratedCheckpoint = \"v0.2\"\n")
+}
+
+func versionTable(secondGate string) string {
+	return "| Version | Gate | status |\n|---|---|---|\n| v0.1 | First Gate | ok |\n| v0.2 | " + secondGate + " | ok |\n"
 }
 
 func writeFixture(t *testing.T, root, rel, content string) {

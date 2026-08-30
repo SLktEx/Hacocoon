@@ -14,7 +14,7 @@ External users are welcome to:
 
 Do not interpret public visibility as an open-PR policy. The contribution boundary will be revisited when Hacocoon is ready to add another trusted maintainer or accept external Pull Requests safely.
 
-Before changing code, read `AGENTS.md`, `docs/README.md`, `docs/IMPLEMENTATION_STATUS.md`, and the specification/design document relevant to the subsystem you are changing. For version/build work, also read `docs/reference/build-release-identity.md`.
+Before changing code, read `AGENTS.md`, `docs/README.md`, `docs/IMPLEMENTATION_STATUS.md`, and the specification/design document relevant to the subsystem you are changing. For version/build work, also read `docs/reference/build-release-identity.md` and `docs/status/checkpoints.yaml`.
 
 Hacocoon is still **pre-1.0**. Breaking changes are allowed when they make the system smaller, safer, or more coherent. Existing behavior on `main` is not automatically a permanent compatibility contract.
 
@@ -27,7 +27,7 @@ Every maintained Pull Request should select exactly one classification in `.gith
 - release/packaging-only work;
 - docs/test/refactor/maintenance-only work.
 
-Development checkpoint, published software version/tag, and acceptance/support status are separate identities. A release-only change must not silently advance the development checkpoint. When a meaningful new checkpoint is intended, use `tools/bump-milestone v0.N "Gate Name"`, then refine the implementation-status and owning design/reference documentation in the same PR.
+Development checkpoint, published software version/tag, and acceptance/support status are separate identities. `docs/status/checkpoints.yaml` is the machine-readable source for checkpoint numbering/current/Gate identity; the status Markdown documents are human-readable mirrors with acceptance detail. A release-only change must not silently advance the development checkpoint. When a meaningful new checkpoint is intended, use `tools/bump-milestone v0.N "Gate Name"`, then refine the implementation-status and owning design/reference documentation in the same PR.
 
 ## Design checks
 
