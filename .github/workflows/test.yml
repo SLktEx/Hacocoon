@@ -73,7 +73,7 @@ jobs:
       - name: Validate GoReleaser configuration
         run: goreleaser check
       - name: Validate release and WSL shell syntax
-        run: bash -n scripts/install.sh scripts/bootstrap-wsl.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
+        run: bash -n scripts/install.sh scripts/bootstrap-wsl.sh tools/ci-local.sh tools/ci-incus.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
       - name: Validate Windows installer syntax and provenance behavior
         shell: pwsh
         run: |
@@ -212,3 +212,77 @@ jobs:
         run: bash test/e2e/git_github.sh
       - name: Orchestrator E2E
         run: bash test/e2e/orchestrator.sh
+
+  incus-standalone:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install and initialize Incus substrate
+        env:
+          HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash tools/ci-incus.sh setup
+      - name: Verify standalone Incus system containers
+        env:
+          HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash tools/ci-incus.sh standalone
+      - name: Capture standalone Incus diagnostics
+        if: failure()
+        env:
+          HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash tools/ci-incus.sh diagnostics
+      - name: Upload standalone Incus diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: incus-standalone-diagnostics
+          path: ${{ runner.temp }}/incus-diagnostics/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Clean up standalone Incus resources
+        if: always()
+        env:
+          HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash tools/ci-incus.sh cleanup-standalone
+
+  haco-core-e2e:
+    needs: incus-standalone
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Install and initialize proven Incus substrate
+        env:
+          HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash tools/ci-incus.sh setup
+      - name: Run Hacocoon Core lifecycle against real Incus
+        env:
+          HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash tools/ci-incus.sh core
+      - name: Capture Hacocoon Core Incus diagnostics
+        if: failure()
+        env:
+          HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash tools/ci-incus.sh diagnostics
+      - name: Upload Hacocoon Core Incus diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: haco-core-incus-diagnostics
+          path: ${{ runner.temp }}/incus-diagnostics/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Clean up Hacocoon Core Incus resources
+        if: always()
+        env:
+          HACO_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash tools/ci-incus.sh cleanup-core

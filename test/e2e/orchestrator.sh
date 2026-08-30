@@ -132,7 +132,7 @@ case "$command_name" in
       exit 0
     fi
     if [ "${1:-}" = 'show' ] && [ "${2:-}" = 'haco-sandbox' ]; then
-      printf '%s\n' '{"config":{"environment.HTTP_PROXY":"http://10.200.0.1:18080","environment.HTTPS_PROXY":"http://10.200.0.1:18080","environment.NO_PROXY":"localhost,127.0.0.1,::1","environment.http_proxy":"http://10.200.0.1:18080","environment.https_proxy":"http://10.200.0.1:18080","environment.no_proxy":"localhost,127.0.0.1,::1"},"devices":{"eth0":{"type":"nic","name":"eth0","network":"haco-sandbox0","security.acls":"haco-sandbox-egress","security.acls.default.ingress.action":"reject","security.acls.default.egress.action":"reject","security.acls.default.ingress.logged":"true","security.acls.default.egress.logged":"true","security.ipv4_filtering":"true","security.ipv6_filtering":"true","security.mac_filtering":"true","security.port_isolation":"true"}}}'
+      printf '%s\n' '{"config":{"environment.HTTP_PROXY":"http://10.200.0.1:18080","environment.HTTPS_PROXY":"http://10.200.0.1:18080","environment.NO_PROXY":"localhost,127.0.0.1,::1","environment.http_proxy":"http://10.200.0.1:18080","environment.https_proxy":"http://10.200.0.1:18080","environment.no_proxy":"localhost,127.0.0.1,::1"},"devices":{"eth0":{"type":"nic","name":"eth0","network":"haco-sandbox0","security.ipv4_filtering":"true","security.ipv6_filtering":"true","security.mac_filtering":"true","security.port_isolation":"true"}}}'
       exit 0
     fi
     exit 2
@@ -150,6 +150,9 @@ case "$command_name" in
           ipv4.nat|ipv4.firewall|ipv4.routing) printf '%s\n' 'true' ;;
           ipv6.address) printf '%s\n' 'none' ;;
           raw.dnsmasq) printf '%s\n' 'port=0' ;;
+          security.acls) printf '%s\n' 'haco-sandbox-egress' ;;
+          security.acls.default.ingress.action|security.acls.default.egress.action) printf '%s\n' 'reject' ;;
+          security.acls.default.ingress.logged|security.acls.default.egress.logged) printf '%s\n' 'true' ;;
           *) exit 2 ;;
         esac
         exit 0
