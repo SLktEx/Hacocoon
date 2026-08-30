@@ -11,6 +11,12 @@ import (
 const (
 	brokeredEnvPath = "/usr/bin/env"
 	brokeredGitPath = "/usr/bin/git"
+
+	// Keep HTTPS GitHub authentication host-owned without trusting the host's
+	// complete ~/.gitconfig. The command is constant and Git only invokes it
+	// when github.com asks for HTTPS credentials. gh reads the host user's auth
+	// state via HOME, which is intentionally forwarded below.
+	brokeredGitHubCredentialHelper = "!gh auth git-credential"
 )
 
 type isolatedGitRunner struct {
@@ -52,7 +58,19 @@ func (r isolatedGitRunner) Run(ctx context.Context, name string, args ...string)
 			env = append(env, key+"="+value)
 		}
 	}
+
+	// Do not re-enable ~/.gitconfig just to obtain credentials. Instead clear
+	// every inherited/repository helper in the trusted command line config and
+	// install the single host-owned gh provider for github.com HTTPS remotes.
+	// This preserves the transport/config isolation while supporting the same
+	// account the operator configured with `gh auth setup-git`.
+	gitArgs := []string{
+		"-c", "credential.helper=",
+		"-c", "credential.https://github.com.helper=" + brokeredGitHubCredentialHelper,
+	}
+	gitArgs = append(gitArgs, args...)
+
 	env = append(env, brokeredGitPath)
-	env = append(env, args...)
+	env = append(env, gitArgs...)
 	return r.base.Run(ctx, brokeredEnvPath, env...)
 }
