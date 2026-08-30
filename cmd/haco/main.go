@@ -272,18 +272,58 @@ func pluginCommand(ctx context.Context, app *composition.App, args []string) err
 }
 
 func gitPluginCommand(ctx context.Context, app *composition.App, args []string) error {
-	if len(args) < 2 || args[0] != "push" {
-		return fmt.Errorf("usage: haco plugin git push <environment> --branch <branch> [--source <revision>] [--remote <remote>] [--force]: %w", core.ErrInvalidArgument)
+	if len(args) < 2 {
+		return fmt.Errorf("usage: haco plugin git <fetch|push> ...: %w", core.ErrInvalidArgument)
 	}
-	spec, err := parseGitPushSpec(args[1:])
-	if err != nil {
+
+	switch args[0] {
+	case "fetch":
+		spec, err := parseGitFetchSpec(args[1:])
+		if err != nil {
+			return err
+		}
+		result, err := app.Git.Fetch(ctx, spec)
+		if result.Output != "" {
+			fmt.Println(result.Output)
+		}
 		return err
+	case "push":
+		spec, err := parseGitPushSpec(args[1:])
+		if err != nil {
+			return err
+		}
+		result, err := app.Git.Push(ctx, spec)
+		if result.Output != "" {
+			fmt.Println(result.Output)
+		}
+		return err
+	default:
+		return fmt.Errorf("usage: haco plugin git <fetch|push> ...: %w", core.ErrInvalidArgument)
 	}
-	result, err := app.Git.Push(ctx, spec)
-	if result.Output != "" {
-		fmt.Println(result.Output)
+}
+
+func parseGitFetchSpec(args []string) (gitcapapp.FetchSpec, error) {
+	if len(args) < 1 {
+		return gitcapapp.FetchSpec{}, core.ErrInvalidArgument
 	}
-	return err
+	spec := gitcapapp.FetchSpec{Environment: args[0], Remote: "origin"}
+	args = args[1:]
+	seenRemote := false
+	for len(args) > 0 {
+		switch args[0] {
+		case "--remote":
+			if len(args) < 2 || seenRemote {
+				return gitcapapp.FetchSpec{}, core.ErrInvalidArgument
+			}
+			spec.Remote, seenRemote, args = args[1], true, args[2:]
+		default:
+			return gitcapapp.FetchSpec{}, fmt.Errorf("unknown git fetch option %q: %w", args[0], core.ErrInvalidArgument)
+		}
+	}
+	if strings.TrimSpace(spec.Environment) == "" || strings.TrimSpace(spec.Remote) == "" {
+		return gitcapapp.FetchSpec{}, core.ErrInvalidArgument
+	}
+	return spec, nil
 }
 
 func parseGitPushSpec(args []string) (gitcapapp.PushSpec, error) {
