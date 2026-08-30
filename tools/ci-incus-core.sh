@@ -102,7 +102,7 @@ run_test() {
 
   export HACO_E2E_INCUS=1
   export HACO_WORKLOAD_SHIM_BINARY="$shim"
-  go test -count=1 -run '^TestRealIncusWorkspaceLifecycleE2E$' ./modules/runtime/incus
+  go test -count=1 -run '^TestRealIncus(WorkspaceLifecycle|NerdctlUsesHostOCIWorkload)E2E$' ./modules/runtime/incus
 }
 
 diagnostics() {
