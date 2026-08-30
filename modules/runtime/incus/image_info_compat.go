@@ -24,6 +24,11 @@ import (
 //     shape from `expanded_devices`; fall back to the CLI only when `query` is
 //     unsupported (exit 2) or returns an empty successful response.
 //
+// The wrapper also preserves stderr for the exact guest `systemctl show`
+// inspection used by Seed acceptance. host.ExecRunner returns a process error
+// separately from captured stderr; retaining both makes real-host failures
+// diagnosable without weakening any state checks or adding timing guesses.
+//
 // Malformed, ambiguous, or truncated machine-readable state always fails
 // closed; it never causes a compatibility fallback.
 type imageInfoCompatRunner struct {
@@ -48,7 +53,14 @@ func (r *imageInfoCompatRunner) Run(ctx context.Context, name string, args ...st
 		return r.runExpandedConfigShow(ctx, name, apiPath, args)
 	}
 	if !legacyImageInfoCandidate(name, args) {
-		return r.next.Run(ctx, name, args...)
+		result, err := r.next.Run(ctx, name, args...)
+		if err != nil && guestSystemctlShowCandidate(name, args) {
+			reason := strings.TrimSpace(result.Stderr)
+			if reason != "" {
+				return result, fmt.Errorf("guest systemctl show failed: %s: %w", reason, err)
+			}
+		}
+		return result, err
 	}
 
 	result, err := r.next.Run(ctx, name, args...)
@@ -135,6 +147,23 @@ func expandedConfigShowAPIPath(name string, args []string) (string, bool) {
 		return "", false
 	}
 	return "/1.0/instances/" + url.PathEscape(args[2]) + "?project=" + url.QueryEscape(args[4]), true
+}
+
+func guestSystemctlShowCandidate(name string, args []string) bool {
+	if name != "incus" || len(args) < 9 || args[0] != "exec" || strings.TrimSpace(args[1]) == "" {
+		return false
+	}
+	separator := -1
+	for i, arg := range args {
+		if arg == "--" {
+			separator = i
+			break
+		}
+	}
+	if separator < 0 || len(args) <= separator+3 {
+		return false
+	}
+	return args[separator+1] == "systemctl" && args[separator+2] == "show" && args[separator+3] == "-p"
 }
 
 func legacyImageInfoCandidate(name string, args []string) bool {
