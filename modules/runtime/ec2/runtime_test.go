@@ -78,6 +78,7 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) (host.R
 			if strings.HasPrefix(arg, "s3://") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "s3://") {
 				_ = os.WriteFile(args[i+1], []byte("remote-archive"), 0o600)
 			}
+		}
 		return host.Result{}, nil
 	default:
 		return host.Result{}, nil
