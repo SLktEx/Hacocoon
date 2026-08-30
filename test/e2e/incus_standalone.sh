@@ -26,6 +26,15 @@ first="${prefix}a"
 second="${prefix}b"
 volume="${prefix}v"
 snapshot="baseline"
+dns_domain="incus"
+
+phase() {
+  echo "::group::standalone Incus: $*"
+}
+
+end_phase() {
+  echo "::endgroup::"
+}
 
 pool="$(incus profile device get default root pool --project default)"
 [[ -n "$pool" ]] || {
@@ -37,8 +46,11 @@ echo "standalone prefix: $prefix"
 echo "default storage pool: $pool"
 incus storage show "$pool"
 
-incus network create "$primary_network" ipv4.address=auto ipv4.nat=true ipv6.address=none
-incus network create "$aux_network" ipv4.address=auto ipv4.nat=false ipv6.address=none
+# Make the managed-network DNS contract explicit instead of relying on a guest
+# resolver's short-name search-domain behavior. Incus' managed bridge DNS uses
+# the instance name under dns.domain; the default domain is "incus".
+incus network create "$primary_network" ipv4.address=auto ipv4.nat=true ipv6.address=none dns.domain="$dns_domain" dns.mode=managed
+incus network create "$aux_network" ipv4.address=auto ipv4.nat=false ipv6.address=none dns.domain="$dns_domain" dns.mode=managed
 incus profile create "$profile"
 incus profile device add "$profile" root disk path=/ pool="$pool"
 incus profile device add "$profile" eth0 nic name=eth0 network="$primary_network"
@@ -96,6 +108,26 @@ wait_for_ipv4() {
   return 1
 }
 
+wait_for_managed_dns() {
+  local source_instance="$1"
+  local fqdn="$2"
+  local expected_ip="$3"
+  local attempt resolved_ip
+  for attempt in $(seq 1 10); do
+    resolved_ip="$(incus exec "$source_instance" -- getent ahostsv4 "$fqdn" 2>/dev/null | awk '$2 == "STREAM" {print $1; exit}' || true)"
+    if [[ "$resolved_ip" == "$expected_ip" ]]; then
+      printf '%s\n' "$resolved_ip"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "managed DNS did not resolve $fqdn to expected IPv4 $expected_ip" >&2
+  echo "resolver state for $source_instance:" >&2
+  incus exec "$source_instance" -- resolvectl status >&2 || true
+  return 1
+}
+
+phase "boot and addressing"
 wait_for_guest "$first"
 wait_for_guest "$second"
 
@@ -112,10 +144,13 @@ echo "primary network: $primary_network"
 echo "first IPv4: $first_ip"
 echo "second IPv4: $second_ip"
 echo "bridge gateway: $gateway"
+end_phase
 
+phase "managed network, DNS and public egress"
 # DHCP/default route plus actual reachability of the managed bridge gateway.
 incus exec "$first" -- timeout 5 bash -c "exec 3<>/dev/tcp/$gateway/53"
-# DNS resolution through the network-provided resolver is a distinct check.
+# Recursive DNS resolution through the network-provided resolver is a distinct
+# check from Incus' authoritative managed instance records.
 incus exec "$first" -- getent ahostsv4 example.com >/dev/null
 # GitHub-hosted runners can block selected public IP literals independently of
 # general Internet access (1.1.1.1 is one observed example). Verify real
@@ -131,17 +166,26 @@ if ! incus exec "$first" -- timeout 5 bash -c "exec 3<>/dev/tcp/$external_ip/443
   echo "guest cannot reach github.com IPv4 $external_ip:443 through Incus NAT" >&2
   exit 1
 fi
-# Managed-network hostname resolution and peer-to-peer traffic.
-incus exec "$first" -- getent ahostsv4 "$second" >/dev/null
-incus exec "$first" -- ping -c 1 -W 3 "$second" >/dev/null
+
+# Managed-network authoritative DNS uses the explicit network domain. Do not
+# make substrate acceptance depend on whether a particular guest resolver
+# expands an unqualified short name with a search suffix.
+peer_fqdn="${second}.${dns_domain}"
+peer_dns_ip="$(wait_for_managed_dns "$first" "$peer_fqdn" "$second_ip")"
+echo "managed DNS peer: $peer_fqdn -> $peer_dns_ip"
+incus exec "$first" -- ping -c 1 -W 3 "$peer_fqdn" >/dev/null
 
 incus network show "$primary_network"
 incus network show "$aux_network"
 [[ "$(incus network get "$primary_network" ipv4.nat)" == "true" ]]
 [[ "$(incus network get "$primary_network" ipv6.address)" == "none" ]]
+[[ "$(incus network get "$primary_network" dns.domain)" == "$dns_domain" ]]
+[[ "$(incus network get "$primary_network" dns.mode)" == "managed" ]]
 [[ "$(sysctl -n net.ipv4.ip_forward)" == "1" ]]
 ip link show "$primary_network" >/dev/null
+end_phase
 
+phase "hot NIC attach and detach"
 # Safe hot attach/detach coverage on an independent CI-owned managed bridge.
 incus config device add "$first" ci-aux nic name=eth1 network="$aux_network"
 aux_ip="$(wait_for_ipv4 "$first" eth1)"
@@ -158,7 +202,9 @@ if incus exec "$first" -- ip link show eth1 >/dev/null 2>&1; then
   echo "hot-detached eth1 still exists" >&2
   exit 1
 fi
+end_phase
 
+phase "systemd service lifecycle"
 # PID 1 and an ordinary systemd service must behave like a system container.
 [[ "$(incus exec "$first" -- cat /proc/1/comm)" == "systemd" ]]
 incus exec "$first" -- bash -c "cat >/etc/systemd/system/incus-ci.service <<'UNIT'
@@ -177,7 +223,9 @@ incus exec "$first" -- systemctl is-active --quiet incus-ci.service
 incus exec "$first" -- systemctl restart incus-ci.service
 incus exec "$first" -- systemctl status incus-ci.service --no-pager
 incus exec "$first" -- journalctl -u incus-ci.service --no-pager -n 50
+end_phase
 
+phase "custom volume restart persistence"
 # A custom storage volume must remain writable and persistent across restart.
 incus storage volume create "$pool" "$volume"
 incus storage volume attach "$pool" "$volume" "$first" /mnt/ci-volume
@@ -186,7 +234,9 @@ incus restart "$first"
 wait_for_guest "$first"
 [[ "$(incus exec "$first" -- cat /mnt/ci-volume/value)" == "persistent-volume" ]]
 incus exec "$first" -- systemctl is-active --quiet incus-ci.service
+end_phase
 
+phase "snapshot restore"
 # Rootfs snapshot/restore should restore guest filesystem state.
 incus exec "$first" -- sh -c 'printf before-snapshot >/root/snapshot-state'
 incus snapshot create "$first" "$snapshot"
@@ -198,7 +248,9 @@ incus start "$first"
 wait_for_guest "$first"
 [[ "$(incus exec "$first" -- cat /root/snapshot-state)" == "before-snapshot" ]]
 [[ "$(incus exec "$first" -- cat /mnt/ci-volume/value)" == "persistent-volume" ]]
+end_phase
 
+phase "explicit instance lifecycle and delete"
 # Explicit lifecycle coverage after restore.
 incus restart "$first"
 wait_for_guest "$first"
@@ -215,5 +267,6 @@ if incus info "$first" >/dev/null 2>&1 || incus info "$second" >/dev/null 2>&1; 
   echo "standalone instance remained after delete" >&2
   exit 1
 fi
+end_phase
 
 echo "PASS: standalone Incus daemon/container/systemd/network/storage lifecycle"
