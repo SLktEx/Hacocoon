@@ -188,6 +188,15 @@ func (p *SandboxProvider) BuildToolingBase(ctx context.Context, parent core.Base
 	if err := p.guestExec(ctx, builder, "systemctl", "restart", "containerd.service"); err != nil {
 		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("start containerd in tooling Base: %w", err))
 	}
+	if err := p.guestExec(ctx, builder, "systemctl", "start", "hacocoon-docker.socket"); err != nil {
+		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("start Hacocoon Docker compatibility socket: %w", err))
+	}
+	if err := p.expectGuestUnitState(ctx, builder, "hacocoon-docker.socket", "active"); err != nil {
+		return seedbuild.BuildResult{}, cleanup(err)
+	}
+	if err := p.expectGuestUnitState(ctx, builder, "hacocoon-docker.service", "inactive"); err != nil {
+		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("Docker compatibility service started before socket use: %w", err))
+	}
 	for _, command := range [][]string{{"nerdctl", "--version"}, {"docker", "--version"}} {
 		if err := p.guestExec(ctx, builder, command...); err != nil {
 			return seedbuild.BuildResult{}, cleanup(fmt.Errorf("verify tooling command %q: %w", command[0], err))
