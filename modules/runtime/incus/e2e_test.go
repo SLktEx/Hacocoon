@@ -45,6 +45,10 @@ func TestRealIncusWorkspaceLifecycleE2E(t *testing.T) {
 	runtimeAdapter.stdout = &shellStdout
 	runtimeAdapter.stderr = &shellStderr
 
+	if err := runtimeAdapter.Prepare(ctx, core.RuntimePrepareSpec{}); err != nil {
+		t.Fatalf("prepare Incus runtime: %v", err)
+	}
+
 	workspaceDir := filepath.Join(t.TempDir(), "workspace")
 	if err := os.Mkdir(workspaceDir, 0o755); err != nil {
 		t.Fatal(err)
