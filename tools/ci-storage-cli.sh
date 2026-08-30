@@ -197,7 +197,9 @@ cleanup() {
       delete_project_images || failed=1
     fi
     if [[ "$failed" == "0" ]]; then
-      delete_owned_pool "$PROJECT" || true
+      delete_owned_pool "$PROJECT" || failed=1
+    fi
+    if [[ "$failed" == "0" ]]; then
       printf 'yes\n' | incus project delete "$PROJECT" --force || failed=1
     fi
   fi
