@@ -81,7 +81,7 @@ function validateEndpoint(value) {
     throw new Error('Hacocoon notification endpoint must use HTTP(S)');
   }
   const host = url.hostname.toLowerCase();
-  if (host !== 'localhost' && host !== '127.0.0.1' && host !== '::1') {
+  if (host !== 'localhost' && host !== '127.0.0.1' && host !== '[::1]') {
     throw new Error('Hacocoon notification endpoint must be loopback-only');
   }
   return url;
