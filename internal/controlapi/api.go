@@ -30,7 +30,7 @@ type EnvironmentShellRequest struct {
 
 type environmentService interface {
 	Exec(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error)
-	ShellStream(context.Context, string, io.Reader, io.Writer, io.Writer) error
+	PrepareShellStream(context.Context, string) (func(context.Context, io.Reader, io.Writer, io.Writer) error, error)
 }
 
 func Register(server *control.Server, environments environmentService) error {
@@ -58,13 +58,17 @@ func Register(server *control.Server, environments environmentService) error {
 	}); err != nil {
 		return err
 	}
-	if err := server.RegisterStream(MethodEnvironmentShell, func(_ context.Context, payload json.RawMessage) (control.Stream, error) {
+	if err := server.RegisterStream(MethodEnvironmentShell, func(ctx context.Context, payload json.RawMessage) (control.Stream, error) {
 		var request EnvironmentShellRequest
 		if err := json.Unmarshal(payload, &request); err != nil || strings.TrimSpace(request.Environment) == "" {
 			return nil, control.NewStatusError("invalid_argument", "environment is required")
 		}
-		return func(ctx context.Context, conn net.Conn) error {
-			return environments.ShellStream(ctx, request.Environment, conn, conn, conn)
+		prepared, err := environments.PrepareShellStream(ctx, request.Environment)
+		if err != nil {
+			return nil, translateError(err)
+		}
+		return func(runCtx context.Context, conn net.Conn) error {
+			return prepared(runCtx, conn, conn, conn)
 		}, nil
 	}); err != nil {
 		return err
