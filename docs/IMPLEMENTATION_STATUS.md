@@ -1,6 +1,6 @@
 # Implementation Status
 
-Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, the feature-version rebaseline through v0.18, Docker compatibility lifecycle integration, the first OCI Seed Builder repository slice, the client-neutral interaction-event contract, and the reusable client-adapter contract.
+Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, the feature-version rebaseline through v0.18, Docker compatibility lifecycle integration, the first OCI Seed Builder repository slice, explicit Seed pin/re-enable selection, the client-neutral interaction-event contract, and the reusable client-adapter contract.
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance.
 
@@ -26,7 +26,8 @@ The fully implemented product progression is currently contiguous through **v0.1
 | OCI Seed auto-selection | deterministic top 10% eligible recommendations are marked `auto_promote=true`; this selects future Seed content only | v0.15 |
 | OCI image deletion | `haco plugin oci image delete <reference[@digest]>` records a deletion tombstone and can explicitly extend deletion to managed Environments | v0.16 |
 | OCI deletion override | tombstones prevent silent recommendation/auto-promotion of the deleted immutable identity | v0.16 |
-| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build` and `haco plugin oci seed current`, persisted Tooling/Seed manifests, trusted Host acquisition, offline no-NIC Seed build, immutable publication/current pointer, and exact-parent Seed resolution are implemented; real-host/COW acceptance and GC/recovery remain pending | v0.17 partial |
+| OCI explicit Seed selection | `haco plugin oci seed pin/unpin/re-enable` persists immutable operator intent separately from telemetry; pin and auto-promotion remain distinct, re-enable requires prior deletion, and any later deletion wins again | v0.17 partial |
+| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build/current`, explicit immutable operator selection, persisted Tooling/Seed manifests, trusted Host acquisition, offline no-NIC Seed build, immutable publication/current pointer, and exact-parent Seed resolution are implemented; real-host/COW acceptance and GC/recovery remain pending | v0.17 partial |
 | Docker compatibility | `haco plugin oci docker status/prepare` validates a Base-provided genuine Docker profile, verifies pinned systemd units, refuses active vendor-daemon takeover, and enables Environment-local socket activation without making Docker a Core requirement | v0.18 implemented |
 | Optional Local OCI Registry | Registry/proxy is optional and not required for ordinary direct upstream pulls or Seed construction | unversioned optional / deferred |
 
@@ -50,7 +51,7 @@ The project-maintained OCI plugin profile may use containerd + nerdctl, and the 
 
 ## OCI Seed / storage
 
-v0.17 has a first repository slice. The implemented path is trusted Host acquisition/cache -> offline no-NIC Seed Builder -> immutable Seed revision/current pointer -> exact-parent resolution -> normal Incus/storage-driver clone. One writable `/var/lib/containerd` must never be shared across Environments.
+v0.17 has a first repository slice. The implemented path is trusted Host acquisition/cache -> offline no-NIC Seed Builder -> immutable Seed revision/current pointer -> exact-parent resolution -> normal Incus/storage-driver clone. Explicit immutable pin/re-enable selection is now persisted separately from usage telemetry: pin forces future Seed selection without pretending to be automatic promotion, tombstoned identities require explicit re-enable, and a later deletion suppresses an older re-enable/pin again. These selection actions grant no network or credential authority. One writable `/var/lib/containerd` must never be shared across Environments.
 
 Local Registry is not a prerequisite and has no reserved milestone. Remaining v0.17 work includes conservative old Tooling/Seed revision GC, restart/crash recovery, authenticated/private-registry combinations, physical Btrfs COW measurement, and broader real-host acceptance.
 
