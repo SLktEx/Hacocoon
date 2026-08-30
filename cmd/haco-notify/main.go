@@ -29,6 +29,10 @@ type notifier interface {
 	Notify(context.Context, string, string) error
 }
 
+type batchReader interface {
+	Batch(context.Context, int64, int) (interaction.Batch, error)
+}
+
 type commandNotifier struct {
 	command func(context.Context, string, string) *exec.Cmd
 }
@@ -133,7 +137,14 @@ func nativeCommand(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	state, err := loadState(*statePath)
+	return runNative(ctx, reader, presenter, *statePath, *poll, *once, *includeCompleted)
+}
+
+func runNative(ctx context.Context, reader batchReader, presenter notifier, statePath string, poll time.Duration, once, includeCompleted bool) error {
+	if reader == nil || presenter == nil || statePath == "" || poll < 250*time.Millisecond {
+		return interaction.ErrInvalidArgument
+	}
+	state, err := loadState(statePath)
 	if err != nil {
 		return err
 	}
@@ -142,7 +153,7 @@ func nativeCommand(ctx context.Context, args []string) error {
 		batch, batchErr := reader.Batch(ctx, state.Offset, interaction.DefaultBatchSize)
 		for _, event := range batch.Events {
 			if !state.hasSeen(event.EventID) {
-				title, body, show := notificationText(event, *includeCompleted)
+				title, body, show := notificationText(event, includeCompleted)
 				if show {
 					if err := presenter.Notify(ctx, title, body); err != nil {
 						return err
@@ -151,23 +162,23 @@ func nativeCommand(ctx context.Context, args []string) error {
 				}
 			}
 			state.Offset = event.NextOffset
-			if err := saveState(*statePath, state); err != nil {
+			if err := saveState(statePath, state); err != nil {
 				return err
 			}
 		}
 		if batch.NextOffset > state.Offset {
 			state.Offset = batch.NextOffset
-			if err := saveState(*statePath, state); err != nil {
+			if err := saveState(statePath, state); err != nil {
 				return err
 			}
 		}
 		if batchErr != nil {
 			return batchErr
 		}
-		if *once {
+		if once {
 			return nil
 		}
-		timer := time.NewTimer(*poll)
+		timer := time.NewTimer(poll)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
