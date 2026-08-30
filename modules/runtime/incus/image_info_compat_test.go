@@ -19,7 +19,7 @@ func TestResolveParentBaseFallsBackToIncus6ImageList(t *testing.T) {
 			return host.Result{ExitCode: 1, Stderr: "Error: unknown flag: --format\n"}, errors.New("exit status 1")
 		case 1:
 			assertStringSlice(t, args, []string{"image", "list", "images:", "ubuntu/26.04", "--format", "csv", "-c", "L,F"})
-			return host.Result{Stdout: "\"ubuntu/26.04\\nubuntu/latest\"," + compatImageFingerprint + "\n"}, nil
+			return host.Result{Stdout: "\"ubuntu/26.04\nubuntu/latest\"," + compatImageFingerprint + "\n"}, nil
 		default:
 			t.Fatalf("unexpected call %d: %#v", call, args)
 			return host.Result{}, nil
