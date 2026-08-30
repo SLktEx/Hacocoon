@@ -231,7 +231,8 @@ incus exec "$first" -- sh -c 'rm -f /etc/systemd/network/20-incus-ci-eth1.networ
 end_phase
 
 phase "systemd service lifecycle"
-# PID 1 and an ordinary systemd service must behave like a system container.
+# PID 1 and an ordinary enabled systemd service must behave like a system
+# container both immediately and after the later container restart.
 [[ "$(incus exec "$first" -- cat /proc/1/comm)" == "systemd" ]]
 incus exec "$first" -- bash -c "cat >/etc/systemd/system/incus-ci.service <<'UNIT'
 [Unit]
@@ -242,9 +243,13 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=/bin/sh -c 'printf started >/run/incus-ci-service'
 ExecReload=/bin/sh -c 'printf reloaded >/run/incus-ci-service'
+
+[Install]
+WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
-systemctl start incus-ci.service"
+systemctl enable --now incus-ci.service"
+incus exec "$first" -- systemctl is-enabled --quiet incus-ci.service
 incus exec "$first" -- systemctl is-active --quiet incus-ci.service
 incus exec "$first" -- systemctl restart incus-ci.service
 incus exec "$first" -- systemctl status incus-ci.service --no-pager
@@ -259,7 +264,9 @@ incus exec "$first" -- sh -c 'printf persistent-volume >/mnt/ci-volume/value'
 incus restart "$first"
 wait_for_guest "$first"
 [[ "$(incus exec "$first" -- cat /mnt/ci-volume/value)" == "persistent-volume" ]]
+incus exec "$first" -- systemctl is-enabled --quiet incus-ci.service
 incus exec "$first" -- systemctl is-active --quiet incus-ci.service
+echo "custom volume and enabled service persisted across restart"
 end_phase
 
 phase "snapshot restore"
