@@ -16,7 +16,8 @@ import (
 var noDeadline time.Time
 
 type Handler func(context.Context, json.RawMessage) (any, error)
-type StreamHandler func(context.Context, json.RawMessage, net.Conn) error
+type Stream func(context.Context, net.Conn) error
+type StreamHandler func(context.Context, json.RawMessage) (Stream, error)
 
 type Server struct {
 	mu             sync.RWMutex
@@ -115,10 +116,19 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "not_found", Message: "stream method not found"}))
 			return
 		}
+		stream, err := handler(ctx, request.Payload)
+		if err != nil {
+			_ = writeJSONLine(conn, errorEnvelope(err))
+			return
+		}
+		if stream == nil {
+			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "internal", Message: "stream handler returned no stream"}))
+			return
+		}
 		if err := writeJSONLine(conn, responseEnvelope{Version: ProtocolVersion}); err != nil {
 			return
 		}
-		_ = handler(ctx, request.Payload, &bufferedConn{Conn: conn, reader: reader})
+		_ = stream(ctx, &bufferedConn{Conn: conn, reader: reader})
 		return
 	}
 
