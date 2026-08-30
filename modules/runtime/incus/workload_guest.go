@@ -31,14 +31,27 @@ var legacyOCIUnits = []string{
 }
 
 // WorkloadBrokerSocketPath returns the Physical-Host Unix socket dedicated to
-// one Environment. The path itself is part of the authority boundary: the
-// guest receives only a proxy to this socket, never the Incus daemon socket or
-// the full Hacocoon controller socket.
+// one Environment. Production defaults to /run/hacocoon/workloads. When the
+// controller socket is explicitly relocated (for example by an unprivileged
+// E2E controller), keep its narrow workload listeners in a sibling workloads
+// directory. The guest never receives this derivation authority; it only sees
+// the projected fixed Environment socket.
 func WorkloadBrokerSocketPath(environment string) (string, error) {
 	if err := validateWorkloadToken("environment", environment); err != nil {
 		return "", err
 	}
-	return filepath.Join(workloadBrokerRoot, environment+".sock"), nil
+	root := workloadBrokerRoot
+	if controlSocket := strings.TrimSpace(os.Getenv("HACO_CONTROL_SOCKET")); controlSocket != "" {
+		if strings.ContainsAny(controlSocket, "\x00\r\n") {
+			return "", core.ErrInvalidArgument
+		}
+		controlSocket = filepath.Clean(controlSocket)
+		if !filepath.IsAbs(controlSocket) {
+			return "", fmt.Errorf("HACO_CONTROL_SOCKET must be absolute for workload broker projection: %w", core.ErrInvalidArgument)
+		}
+		root = filepath.Join(filepath.Dir(controlSocket), "workloads")
+	}
+	return filepath.Join(root, environment+".sock"), nil
 }
 
 // EnsureEnvironmentWorkloadIntegration installs/reconciles the Incus-native
