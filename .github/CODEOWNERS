@@ -1,0 +1,26 @@
+# Hacocoon security trust roots.
+# Server-side ruleset enforcement is configured separately; this file records
+# who must own review of trust-boundary changes once CODEOWNER review is enabled.
+
+/.github/workflows/ @SLktEx
+/.github/CODEOWNERS @SLktEx
+/renovate.json @SLktEx
+/.goreleaser.yaml @SLktEx
+
+/tools/check_workflow_policy.py @SLktEx
+/tools/test_workflow_policy.py @SLktEx
+/tools/check_release_provenance.py @SLktEx
+/tools/check_release_tag_trust.sh @SLktEx
+/tools/test_release_tag_trust.sh @SLktEx
+/tools/check_public_release_readiness.py @SLktEx
+/tools/test_public_release_readiness.py @SLktEx
+
+/scripts/install.sh @SLktEx
+/scripts/install-windows.ps1 @SLktEx
+/scripts/bootstrap-wsl.sh @SLktEx
+/scripts/bootstrap-windows.ps1 @SLktEx
+
+/docs/RELEASE_SECURITY.md @SLktEx
+/docs/RELEASE_SECURITY.ja.md @SLktEx
+/docs/PUBLIC_RELEASE_CHECKLIST.md @SLktEx
+/docs/PUBLIC_RELEASE_CHECKLIST.ja.md @SLktEx
