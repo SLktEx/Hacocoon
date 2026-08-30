@@ -37,7 +37,7 @@ func Local(_ context.Context) (*App, error) {
 	runner := host.ExecRunner{}
 	root := envOr("HACO_ROOT", "/var/lib/hacocoon")
 	incusRuntime := incus.New(runner)
-	incusProvider, err := incus.NewBaseProvider(incusRuntime)
+	incusProvider, err := incus.NewSandboxProvider(incusRuntime)
 	if err != nil {
 		return nil, err
 	}
