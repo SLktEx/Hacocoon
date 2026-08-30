@@ -2,6 +2,7 @@ package controlapi
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strings"
 
@@ -22,6 +23,27 @@ func NewClient(path string) (*Client, error) {
 		return nil, control.ErrInvalidArgument
 	}
 	wire, err := control.NewClient(control.UnixDialer(path))
+	if err != nil {
+		return nil, err
+	}
+	return &Client{wire: wire}, nil
+}
+
+// NewTCPClient is intended for the Environment-scoped workload broker only.
+// The server derives Environment authority from the transport peer IP and does
+// not trust Environment identity carried in requests.
+func NewTCPClient(address string) (*Client, error) {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return nil, control.ErrInvalidArgument
+	}
+	if _, _, err := net.SplitHostPort(address); err != nil {
+		return nil, fmt.Errorf("invalid workload broker address %q: %w", address, control.ErrInvalidArgument)
+	}
+	wire, err := control.NewClient(func(ctx context.Context) (net.Conn, error) {
+		var dialer net.Dialer
+		return dialer.DialContext(ctx, "tcp", address)
+	})
 	if err != nil {
 		return nil, err
 	}
