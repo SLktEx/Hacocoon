@@ -20,10 +20,10 @@ import (
 )
 
 const (
-	nbdIdentityVersion            = 1
-	nbdVerifyAttempts             = 20
-	nbdVerifyDelay                = 25 * time.Millisecond
-	defaultNBDAllocatorLockPath   = "/run/lock/hacocoon-nbd.lock"
+	nbdIdentityVersion          = 1
+	nbdVerifyAttempts           = 20
+	nbdVerifyDelay              = 25 * time.Millisecond
+	defaultNBDAllocatorLockPath = "/run/lock/hacocoon-nbd.lock"
 )
 
 var nbdNamePattern = regexp.MustCompile(`^nbd[0-9]+$`)
@@ -153,11 +153,11 @@ func (s *Store) inspectNBD(device, backing string) nbdInspection {
 	}
 	args := splitProcCmdline(cmdline)
 	if len(args) == 0 || filepath.Base(args[0]) != "qemu-nbd" {
-		return nbdInspection{observation: nbdUncertain, pid: pid, reason: "active NBD owner is not provably qemu-nbd"}
+		return nbdInspection{observation: nbdOther, pid: pid, reason: "active NBD owner is not qemu-nbd"}
 	}
 	connectArg := "--connect=" + device
 	if !containsExact(args[1:], connectArg) {
-		return nbdInspection{observation: nbdUncertain, pid: pid, reason: "qemu-nbd command line does not bind the expected device"}
+		return nbdInspection{observation: nbdOther, pid: pid, reason: "qemu-nbd command line binds a different device"}
 	}
 	if backing == "" {
 		return nbdInspection{observation: nbdOther, pid: pid}
