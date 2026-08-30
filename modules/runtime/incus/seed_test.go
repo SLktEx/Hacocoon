@@ -3,6 +3,7 @@ package incus
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -40,25 +41,41 @@ func TestVerifyBuilderHasNoNICFailsClosed(t *testing.T) {
 	}
 }
 
-func TestVerifySeedImageSetRequiresExactDigest(t *testing.T) {
+func TestVerifySeedImageSetInspectsExactIdentity(t *testing.T) {
 	want := seedbuild.ImageIdentity{
 		Reference: "docker.io/library/node:24",
 		Digest:    "sha256:" + testFingerprintA,
 	}
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 6 && args[0] == "exec" && strings.Contains(strings.Join(args, " "), "nerdctl images") {
-			return host.Result{Stdout: "docker.io/library/node\t24\tsha256:" + testFingerprintA + "\n"}, nil
+	wantArgs := []string{
+		"exec", "builder", "--project", "hacocoon", "--",
+		"nerdctl", "image", "inspect", want.String(),
+	}
+	runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+		if name != "incus" || !reflect.DeepEqual(args, wantArgs) {
+			t.Fatalf("unexpected call: %s %#v", name, args)
 		}
-		return host.Result{}, errors.New("unexpected call")
+		return host.Result{Stdout: `[{"Id":"` + testFingerprintA + `"}]`}, nil
 	}}
 	provider, _ := NewSandboxProvider(New(runner))
 	if err := provider.verifySeedImageSet(context.Background(), "builder", []seedbuild.ImageIdentity{want}); err != nil {
 		t.Fatal(err)
 	}
+}
 
-	want.Digest = "sha256:" + testFingerprintB
-	if err := provider.verifySeedImageSet(context.Background(), "builder", []seedbuild.ImageIdentity{want}); !errors.Is(err, core.ErrIncompatibleState) {
-		t.Fatalf("err=%v want ErrIncompatibleState", err)
+func TestVerifySeedImageSetFailsWhenExactIdentityIsMissing(t *testing.T) {
+	want := seedbuild.ImageIdentity{
+		Reference: "docker.io/library/node:24",
+		Digest:    "sha256:" + testFingerprintB,
+	}
+	runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+		if name != "incus" || !strings.Contains(strings.Join(args, " "), "nerdctl image inspect "+want.String()) {
+			t.Fatalf("unexpected call: %s %#v", name, args)
+		}
+		return host.Result{ExitCode: 1, Stderr: "no such image"}, errors.New("exit status 1")
+	}}
+	provider, _ := NewSandboxProvider(New(runner))
+	if err := provider.verifySeedImageSet(context.Background(), "builder", []seedbuild.ImageIdentity{want}); err == nil {
+		t.Fatal("expected exact identity verification failure")
 	}
 }
 
