@@ -245,25 +245,91 @@ func (r *Runtime) runSSM(ctx context.Context, instanceID, command string) (core.
 	}
 	sent, err := r.aws(ctx, "ssm", "send-command", "--instance-ids", instanceID, "--document-name", "AWS-RunShellScript", "--parameters", string(params), "--query", "Command.CommandId", "--output", "text")
 	if err != nil {
-		return core.ExecutionResult{}, err
+		return core.ExecutionResult{}, errors.Join(
+			fmt.Errorf("send SSM command; remote execution outcome may be unknown: %w", err),
+			core.ErrRecoveryRequired,
+		)
 	}
 	commandID := strings.TrimSpace(sent.Stdout)
 	if commandID == "" || unsafeToken(commandID) {
-		return core.ExecutionResult{}, fmt.Errorf("invalid SSM command id: %w", core.ErrIncompatibleState)
+		return core.ExecutionResult{}, errors.Join(
+			fmt.Errorf("SSM command was accepted but returned invalid command id %q: %w", commandID, core.ErrIncompatibleState),
+			core.ErrRecoveryRequired,
+		)
 	}
+
+	// The waiter is only an optimization. Failure does not prove that the
+	// command did not execute, so always reconcile the same CommandId rather
+	// than sending a second command.
 	_, _ = r.aws(ctx, "ssm", "wait", "command-executed", "--command-id", commandID, "--instance-id", instanceID)
-	got, err := r.aws(ctx, "ssm", "get-command-invocation", "--command-id", commandID, "--instance-id", instanceID, "--output", "json")
+	result, err := r.observeSSMInvocation(ctx, commandID, instanceID)
 	if err != nil {
-		return core.ExecutionResult{}, err
+		return result, errors.Join(
+			fmt.Errorf("SSM command %s execution outcome is unknown: %w", commandID, err),
+			core.ErrRecoveryRequired,
+		)
 	}
-	var invocation commandInvocation
-	if err := json.Unmarshal([]byte(got.Stdout), &invocation); err != nil {
-		return core.ExecutionResult{}, fmt.Errorf("decode SSM invocation: %w", err)
+	return result, nil
+}
+
+func (r *Runtime) observeSSMInvocation(ctx context.Context, commandID, instanceID string) (core.ExecutionResult, error) {
+	attempts := r.pollAttempts
+	if attempts <= 0 {
+		attempts = 1
 	}
-	if invocation.ResponseCode < 0 {
-		return core.ExecutionResult{}, fmt.Errorf("SSM command status %s: %w", invocation.Status, core.ErrRuntimeUnavailable)
+	var lastErr error
+	for i := 0; i < attempts; i++ {
+		got, err := r.aws(ctx, "ssm", "get-command-invocation", "--command-id", commandID, "--instance-id", instanceID, "--output", "json")
+		if err != nil {
+			lastErr = fmt.Errorf("read SSM command invocation: %w", err)
+		} else {
+			var invocation commandInvocation
+			if err := json.Unmarshal([]byte(got.Stdout), &invocation); err != nil {
+				lastErr = fmt.Errorf("decode SSM invocation: %w", err)
+			} else {
+				status := strings.TrimSpace(invocation.Status)
+				switch status {
+				case "Success", "Failed", "TimedOut", "Cancelled":
+					if invocation.ResponseCode >= 0 {
+						return core.ExecutionResult{ExitCode: invocation.ResponseCode, Stdout: invocation.Stdout, Stderr: invocation.Stderr}, nil
+					}
+					lastErr = fmt.Errorf("terminal SSM command status %s has unknown response code %d", status, invocation.ResponseCode)
+				case "Pending", "InProgress", "Delayed", "Cancelling":
+					lastErr = fmt.Errorf("SSM command status %s is not terminal", status)
+				default:
+					lastErr = fmt.Errorf("unrecognized SSM command status %q", status)
+				}
+			}
+		}
+		if i+1 < attempts {
+			if err := r.waitPollRetry(ctx); err != nil {
+				return core.ExecutionResult{}, err
+			}
+		}
 	}
-	return core.ExecutionResult{ExitCode: invocation.ResponseCode, Stdout: invocation.Stdout, Stderr: invocation.Stderr}, nil
+	if lastErr == nil {
+		lastErr = core.ErrRuntimeUnavailable
+	}
+	return core.ExecutionResult{}, lastErr
+}
+
+func (r *Runtime) waitPollRetry(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	if r.pollDelay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(r.pollDelay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (r *Runtime) instanceState(ctx context.Context, instanceID string) (string, error) {
