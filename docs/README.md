@@ -34,10 +34,10 @@ Fixes, hardening, refactors, CLI namespace cleanup, CI and docs normally do not 
 | v0.14 | Git Fetch Plugin | implemented |
 | v0.15 | OCI Seed Recommendation | implemented |
 | v0.16 | OCI Image Deletion | implemented first slice |
-| v0.17 | Docker Compatibility Plugin | foundation / partial |
+| v0.17 | Docker Compatibility Plugin | implemented; host acceptance separate |
 | v0.18 | OCI Seed Builder & Btrfs/COW | planned |
 
-The fully implemented product progression is contiguous through **v0.16**.
+The fully implemented product progression is contiguous through **v0.17**.
 
 Local OCI Registry is deferred optional infrastructure, not a reserved roadmap milestone.
 
@@ -59,9 +59,13 @@ haco base inspect <base>
 HACO_PLUGIN_OCI=nerdctl  haco plugin oci seed sample
 HACO_PLUGIN_OCI=nerdctl  haco plugin oci seed recommend
 HACO_PLUGIN_OCI=nerdctl  haco plugin oci image delete <reference>
+HACO_PLUGIN_OCI=docker   haco plugin oci docker status <environment>
+HACO_PLUGIN_OCI=docker   haco plugin oci docker prepare <environment>
 ```
 
 `haco base` describes Hacocoon Environment starting points. `haco plugin oci` is optional developer-workload/container tooling. Core has no mandatory OCI runtime.
+
+The Docker `prepare` command validates a Base-provided compatibility profile and the pinned Hacocoon systemd units, then enables Environment-local socket activation. It does not install Docker packages or silently stop an already-active vendor daemon.
 
 ## OCI storage direction
 
