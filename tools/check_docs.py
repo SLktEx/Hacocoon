@@ -78,15 +78,17 @@ require_text("docs/00D_VERSIONING_AND_RELEASE_STATUS.md", [
     "v0.15 | OCI Seed Recommendation",
     "v0.16 | OCI Image Deletion",
     "v0.17 | Docker Compatibility Plugin",
+    "contiguous through **v0.17**",
     "v0.18 | OCI Seed Builder & Btrfs/COW",
     "Local Registry infrastructure is deferred and unversioned",
     "cloud implementation is currently deferred",
 ])
 require_text("docs/IMPLEMENTATION_STATUS.md", [
-    "current code reality", "contiguous through **v0.16**",
+    "current code reality", "contiguous through **v0.17**",
     "Managed sandbox network", "haco plugin git fetch",
     "haco plugin oci seed sample", "haco plugin oci seed recommend",
     "auto_promote", "haco plugin oci image delete", "Docker compatibility",
+    "haco plugin oci docker status", "prepare <environment>",
     "v0.18", "Optional Local OCI Registry", "unversioned optional",
     "cloud implementation is currently deferred", "HACO_PLUGIN_OCI=nerdctl|docker",
 ])
@@ -94,7 +96,8 @@ require_text("docs/00_REBASELINE_AND_ROADMAP.md", [
     "Hacocoon is a **Secure Workspace Runtime**",
     "v0.13 | Managed Sandbox Network", "v0.14 | Git Fetch Plugin",
     "v0.15 | OCI Seed Recommendation", "v0.16 | OCI Image Deletion",
-    "v0.17 | Docker Compatibility Plugin", "v0.18 | OCI Seed Builder & Btrfs/COW",
+    "v0.17 | Docker Compatibility Plugin", "contiguous through **v0.17**",
+    "v0.18 | OCI Seed Builder & Btrfs/COW",
     "Local OCI Registry is not a roadmap milestone",
     "cloud implementation is currently deferred", "Historical note",
 ])
@@ -104,7 +107,7 @@ require_text("docs/README.md", [
     "15_v0.15_OCI_SEED_RECOMMENDATION.md", "16_v0.16_OCI_IMAGE_DELETION.md",
     "17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md", "18_v0.18_OCI_SEED_AND_COW.md",
     "OPTIONAL_LOCAL_OCI_REGISTRY.md", "haco base list", "haco plugin oci",
-    "contiguous through **v0.16**",
+    "haco plugin oci docker prepare", "contiguous through **v0.17**",
 ])
 require_text("docs/00A_PLUGIN_ARCHITECTURE.md", [
     "HACO_PLUGIN_OCI=nerdctl", "HACO_PLUGIN_OCI=docker", "unset HACO_PLUGIN_OCI",
@@ -112,13 +115,16 @@ require_text("docs/00A_PLUGIN_ARCHITECTURE.md", [
 ])
 require_text("docs/OCI_RUNTIME_AND_DOCKER_COMPAT.md", [
     "v0.17", "plugin/adapter", "containerd + nerdctl", "v0.18", "Environment-local",
-    "not a Core invariant", "Local OCI Registry",
+    "not a Core invariant", "Local OCI Registry", "haco plugin oci docker prepare",
 ])
 require_text("docs/13_v0.13_MANAGED_SANDBOX_NETWORK.md", ["Managed Sandbox Network", "haco-sandbox0", "fail closed"])
 require_text("docs/14_v0.14_GIT_FETCH_PLUGIN.md", ["Git Fetch Plugin", "haco plugin git fetch", "gh auth git-credential"])
 require_text("docs/15_v0.15_OCI_SEED_RECOMMENDATION.md", ["OCI Seed Recommendation", "haco plugin oci seed recommend", "top **10%**", "auto_promote", "v0.18"])
 require_text("docs/16_v0.16_OCI_IMAGE_DELETION.md", ["OCI Image Deletion", "haco plugin oci image delete", "tombstone", "v0.18"])
-require_text("docs/17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md", ["Docker Compatibility Plugin", "on-demand", "not yet a complete"])
+require_text("docs/17_v0.17_DOCKER_COMPATIBILITY_PLUGIN.md", [
+    "Docker Compatibility Plugin", "on-demand", "repository implementation complete",
+    "haco plugin oci docker status", "haco plugin oci docker prepare", "fail closed",
+])
 require_text("docs/18_v0.18_OCI_SEED_AND_COW.md", ["OCI Seed Builder", "planned", "Offline Seed Builder", "/var/lib/containerd", "Btrfs/COW", "Local Registry is not required"])
 require_text("docs/OPTIONAL_LOCAL_OCI_REGISTRY.md", ["Optional Local OCI Registry", "deferred optional infrastructure", "not a roadmap milestone", "not required"])
 require_text("README.md", ["pre-1.0", "haco base list", "haco plugin oci"])
