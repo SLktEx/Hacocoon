@@ -56,7 +56,11 @@ func Local(_ context.Context) (*App, error) {
 		providerOptions = append(providerOptions, incus.WithSeedResolver(seedStore))
 	}
 
-	incusRuntime := incus.New(runner)
+	var runtimeRunner host.Runner = runner
+	if ociDriver == ociplugin.DriverNerdctl {
+		runtimeRunner = incus.WrapSeedHarvestRunner(runner)
+	}
+	incusRuntime := incus.New(runtimeRunner)
 	incusProvider, err := incus.NewSandboxProvider(incusRuntime, providerOptions...)
 	if err != nil {
 		return nil, err

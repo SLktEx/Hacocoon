@@ -1,6 +1,6 @@
 # Implementation Status
 
-Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, the feature-version rebaseline through v0.18, Docker compatibility lifecycle integration, the OCI Seed Builder repository slices, the client-neutral interaction-event contract, and the reusable client-adapter contract.
+Status date: 2026-08-30, after cloud deferral, the Base/OCI CLI split, the feature-version rebaseline through v0.18, Docker compatibility lifecycle integration, the OCI Seed Builder repository slices including credential-free managed-Environment harvest, the client-neutral interaction-event contract, and the reusable client-adapter contract.
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance.
 
@@ -26,7 +26,7 @@ The fully implemented product progression is currently contiguous through **v0.1
 | OCI Seed auto-selection | deterministic top 10% eligible recommendations are marked `auto_promote=true`; this selects future Seed content only | v0.15 |
 | OCI image deletion | `haco plugin oci image delete <reference[@digest]>` records a deletion tombstone and can explicitly extend deletion to managed Environments | v0.16 |
 | OCI deletion override | tombstones prevent silent recommendation/auto-promotion of the deleted immutable identity; `haco plugin oci image reenable <reference@sha256:...>` removes only the exact immutable tombstone | v0.16 / v0.17 integration |
-| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build` / `haco plugin oci seed current`, per-Base `haco plugin oci seed pin` / `unpin` / `pins`, conservative `haco plugin oci seed gc` / `recover`, trusted Host acquisition, offline no-NIC build, immutable publication/current pointer, exact-parent resolution, and pre-build interrupted-builder recovery are implemented; real-host/private-registry/COW acceptance remains pending | v0.17 partial |
+| OCI Seed Builder / Btrfs COW | `haco plugin oci seed build` / `haco plugin oci seed current`, per-Base `haco plugin oci seed pin` / `unpin` / `pins`, conservative `haco plugin oci seed gc` / `recover`, trusted Host acquisition, credential-free exact-image harvest from explicitly marked running managed Environments, offline no-NIC build, immutable publication/current pointer, exact-parent resolution, and pre-build interrupted-builder recovery are implemented; real-host/authenticated-registry/COW acceptance remains pending | v0.17 partial |
 | Docker compatibility | `haco plugin oci docker status/prepare` validates a Base-provided genuine Docker profile, verifies pinned systemd units, refuses active vendor-daemon takeover, and enables Environment-local socket activation without making Docker a Core requirement | v0.18 implemented |
 | Optional Local OCI Registry | Registry/proxy is optional and not required for ordinary direct upstream pulls or Seed construction | unversioned optional / deferred |
 
@@ -50,11 +50,13 @@ The project-maintained OCI plugin profile may use containerd + nerdctl, and the 
 
 ## OCI Seed / storage
 
-v0.17 has a first repository slice for build/publish plus an operations-hardening slice. The implemented path is trusted Host acquisition/cache -> offline no-NIC Seed Builder -> immutable Seed revision/current pointer -> exact-parent resolution -> normal Incus/storage-driver clone. One writable `/var/lib/containerd` must never be shared across Environments.
+v0.17 has repository slices for build/publish, operations hardening, and credential-free managed-Environment harvest. The implemented path is trusted Host acquisition/cache -> offline no-NIC Seed Builder -> immutable Seed revision/current pointer -> exact-parent resolution -> normal Incus/storage-driver clone. One writable `/var/lib/containerd` must never be shared across Environments.
 
 Explicit per-Base pins are persisted as immutable OCI identities. Deletion tombstones override recommendations and existing pins until the exact immutable identity is explicitly re-enabled. `haco plugin oci seed recover` reconciles exact Hacocoon temporary builders and then performs conservative GC; `haco plugin oci seed build` invokes recovery before a new build while holding the Seed build lock. GC does not manipulate Incus-owned Btrfs internals and retains current, in-use, instance-base, or externally aliased images. Deletion state is re-checked after publication so an operator deletion racing a long build cannot silently become current.
 
-Local Registry is not a prerequisite and has no reserved milestone. Remaining v0.17 work is real supported-host Incus/containerd/Docker acceptance, authenticated/private-registry combinations including credential-free Environment harvesting where supported, physical Btrfs COW measurement, and broader real-host failure injection.
+For an exact immutable identity already present in an explicitly marked running Hacocoon-managed Environment, Seed acquisition can copy a temporary `nerdctl save` OCI archive into the trusted Host cache and then delete the guest archive. It does not copy registry credentials, credential-helper output, workspace data, arbitrary Environment files, or live containerd state. Legacy/unmarked Environments are not inspected; failed or unavailable harvest falls back to the existing trusted Host pull path.
+
+Local Registry is not a prerequisite and has no reserved milestone. Remaining v0.17 work includes real supported-host Incus/containerd/Docker acceptance, authenticated/private-registry combinations using Host-owned credentials without leakage, physical Btrfs COW measurement, and broader real-host failure injection.
 
 ## Docker compatibility
 
@@ -68,4 +70,4 @@ v0.7 retains the provider-neutral Environment routing seam because that architec
 
 ## Acceptance gaps
 
-Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.17 additionally still needs authenticated/private-registry combinations including credential-free Environment harvesting where supported, physical Btrfs COW measurement, and broader real-host failure-injection coverage.
+Repository tests do not substitute for real-host acceptance. Real Incus networking/resource behavior, Windows/WSL + VS Code, private-registry credentials, Docker compatibility, and future cloud adapters remain environment-dependent. v0.17 additionally still needs authenticated/private-registry combinations using Host-owned credentials, physical Btrfs COW measurement, and broader real-host failure-injection coverage.
