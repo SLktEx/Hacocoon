@@ -22,10 +22,10 @@ Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、r
 | v0.14 | Git Fetch Plugin | 実装済み |
 | v0.15 | OCI Seed Recommendation | 実装済み |
 | v0.16 | OCI Image Deletion | first slice実装済み |
-| v0.17 | Docker Compatibility Plugin | foundation / partial |
-| v0.18 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.17 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.18 | Docker Compatibility Plugin | foundation / partial |
 
-完全実装済みのproduct progressionは **v0.16まで連続**しています。
+完全実装済みのproduct progressionは **v0.16まで連続**しています。次に実装するgateはv0.17で、v0.18はfoundation codeが一部先行実装済みです。
 
 Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
 
@@ -43,10 +43,13 @@ BaseはEnvironmentのstarting identity、OCIはoptionalなdeveloper workload too
 
 ## OCI storage
 
-v0.18はtrusted Host acquisition/cache、offline immutable Seed build/publish、Incus/storage-driver COWを担当します。Local Registryはprerequisiteではなく、policyが許せばnormal direct upstream pullを使えます。
+v0.17はtrusted Host acquisition/cache、offline immutable Seed build/publish、Incus/storage-driver COWを担当します。Local Registryはprerequisiteではなく、policyが許せばnormal direct upstream pullを使えます。
 
-- [`18_v0.18_OCI_SEED_AND_COW.ja.md`](18_v0.18_OCI_SEED_AND_COW.ja.md)
+- [`17_v0.17_OCI_SEED_AND_COW.ja.md`](17_v0.17_OCI_SEED_AND_COW.ja.md)
+- [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md)
+
+Docker compatibilityはv0.18です。Docker CLI/Engineとsystemd packagingのfoundationは先行実装済みですが、completeなEnvironment/Base lifecycle integrationはv0.17のSeed/Base pipelineの後に仕上げます。
 
 ## Cloud
 
