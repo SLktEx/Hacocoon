@@ -3,10 +3,16 @@ package host
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
+	"strconv"
+	"strings"
 )
 
 const DefaultCaptureLimit = 4 << 20
+
+const truncationMarkerPrefix = "\n[haco: output truncated; total-bytes="
+const truncationMarkerSuffix = "]\n"
 
 type Result struct {
 	Stdout          string
@@ -23,10 +29,10 @@ type Runner interface {
 }
 
 type ExecRunner struct {
-	// MaxOutputBytes is the maximum number of bytes retained independently for
-	// stdout and stderr. Zero uses DefaultCaptureLimit. The child continues to
-	// run after the limit is reached; excess output is discarded rather than
-	// back-pressuring or terminating the process.
+	// MaxOutputBytes is the maximum number of child-output bytes retained
+	// independently for stdout and stderr. Zero uses DefaultCaptureLimit. The
+	// child continues to run after the limit is reached; excess output is
+	// discarded rather than back-pressuring or terminating the process.
 	MaxOutputBytes int
 }
 
@@ -43,8 +49,8 @@ func (r ExecRunner) Run(ctx context.Context, name string, args ...string) (Resul
 	cmd.Stderr = stderr
 	err := cmd.Run()
 	result := Result{
-		Stdout:          stdout.String(),
-		Stderr:          stderr.String(),
+		Stdout:          stdout.Output(),
+		Stderr:          stderr.Output(),
 		ExitCode:        0,
 		StdoutTruncated: stdout.Truncated(),
 		StderrTruncated: stderr.Truncated(),
@@ -61,6 +67,23 @@ func (r ExecRunner) Run(ctx context.Context, name string, args ...string) (Resul
 	}
 	result.ExitCode = -1
 	return result, err
+}
+
+// DecodeCapturedOutput removes the trusted runner's truncation marker and
+// returns the total number of bytes observed on that stream. Callers that only
+// need to display output may keep the marker; machine-oriented callers can use
+// this helper to expose structured truncation metadata.
+func DecodeCapturedOutput(output string) (clean string, truncated bool, totalBytes int64) {
+	markerStart := strings.LastIndex(output, truncationMarkerPrefix)
+	if markerStart < 0 || !strings.HasSuffix(output, truncationMarkerSuffix) {
+		return output, false, int64(len(output))
+	}
+	rawTotal := strings.TrimSuffix(output[markerStart+len(truncationMarkerPrefix):], truncationMarkerSuffix)
+	total, err := strconv.ParseInt(rawTotal, 10, 64)
+	if err != nil || total <= int64(markerStart) {
+		return output, false, int64(len(output))
+	}
+	return output[:markerStart], true, total
 }
 
 type boundedBuffer struct {
@@ -95,6 +118,13 @@ func (b *boundedBuffer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func (b *boundedBuffer) String() string    { return string(b.buf) }
+func (b *boundedBuffer) Output() string {
+	output := string(b.buf)
+	if !b.truncated {
+		return output
+	}
+	return output + fmt.Sprintf("%s%d%s", truncationMarkerPrefix, b.total, truncationMarkerSuffix)
+}
+
 func (b *boundedBuffer) Truncated() bool   { return b.truncated }
 func (b *boundedBuffer) TotalBytes() int64 { return b.total }
