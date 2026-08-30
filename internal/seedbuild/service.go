@@ -72,7 +72,7 @@ func (s *Service) Build(ctx context.Context, base core.BaseName) (BuildReport, e
 	}
 	// The physical Seed cache uses containerd namespaces. The optional Docker
 	// driver intentionally does not authorize access to an arbitrary Host Docker
-	// daemon, so v0.19 Seed publication currently requires the nerdctl plugin
+	// daemon, so v0.17 Seed publication currently requires the nerdctl plugin
 	// driver and fails closed otherwise.
 	if s.stats.Driver() != ociplugin.DriverNerdctl {
 		return BuildReport{}, fmt.Errorf("OCI Seed build currently requires HACO_PLUGIN_OCI=nerdctl: %w", core.ErrUnsupported)
@@ -193,7 +193,7 @@ func selectedImages(recommendations []ociplugin.Recommendation) ([]ImageIdentity
 	seen := map[string]struct{}{}
 	result := make([]ImageIdentity, 0)
 	for _, recommendation := range recommendations {
-		if !recommendation.AutoPromote {
+		if !recommendation.AutoPromote && !recommendation.Pinned {
 			continue
 		}
 		image := ImageIdentity{Reference: recommendation.Reference, Digest: recommendation.Digest}

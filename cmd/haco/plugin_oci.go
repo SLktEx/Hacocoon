@@ -103,7 +103,7 @@ func printOCIImageDeleteReport(report ociplugin.DeleteReport) {
 
 func ociSeedCommand(ctx context.Context, app *composition.App, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: haco plugin oci seed <sample|recommend|build|current> ...: %w", core.ErrInvalidArgument)
+		return fmt.Errorf("usage: haco plugin oci seed <sample|recommend|pin|unpin|re-enable|build|current> ...: %w", core.ErrInvalidArgument)
 	}
 
 	switch args[0] {
@@ -139,25 +139,77 @@ func ociSeedCommand(ctx context.Context, app *composition.App, args []string) er
 		}
 		if jsonOutput {
 			return json.NewEncoder(os.Stdout).Encode(struct {
-				Sampling        ociplugin.SampleReport      `json:"sampling"`
+				Sampling        ociplugin.SampleReport     `json:"sampling"`
 				Recommendations []ociplugin.Recommendation `json:"recommendations"`
 			}{Sampling: report, Recommendations: recommendations})
 		}
 		for _, recommendation := range recommendations {
 			promotion := "recommend"
-			if recommendation.AutoPromote {
+			switch {
+			case recommendation.Pinned && recommendation.AutoPromote:
+				promotion = "pin+auto"
+			case recommendation.Pinned:
+				promotion = "pin"
+			case recommendation.AutoPromote:
 				promotion = "auto"
 			}
-			fmt.Printf("%s\t%s@%s\t%d envs\t%.1f%%\tlast=%s\n",
+			lastSeen := "never"
+			if !recommendation.LastSeen.IsZero() {
+				lastSeen = recommendation.LastSeen.UTC().Format("2006-01-02T15:04:05Z")
+			}
+			fmt.Printf("%s\t%s@%s\t%d envs\t%.1f%%\tlast=%s\tre-enabled=%t\n",
 				promotion,
 				recommendation.Reference,
 				recommendation.Digest,
 				recommendation.Environments,
 				recommendation.Percent,
-				recommendation.LastSeen.UTC().Format("2006-01-02T15:04:05Z"),
+				lastSeen,
+				recommendation.Reenabled,
 			)
 		}
 		return nil
+	case "pin":
+		target, reenable, jsonOutput, err := parseOCISeedSelectionOptions(args[1:], true)
+		if err != nil {
+			return err
+		}
+		selection, selectionErr := app.OCI.PinSeedImage(ctx, target, reenable)
+		if jsonOutput {
+			if err := json.NewEncoder(os.Stdout).Encode(selection); err != nil {
+				return err
+			}
+		} else {
+			printOCISeedSelection(selection)
+		}
+		return selectionErr
+	case "unpin":
+		target, _, jsonOutput, err := parseOCISeedSelectionOptions(args[1:], false)
+		if err != nil {
+			return err
+		}
+		selection, selectionErr := app.OCI.UnpinSeedImage(ctx, target)
+		if jsonOutput {
+			if err := json.NewEncoder(os.Stdout).Encode(selection); err != nil {
+				return err
+			}
+		} else {
+			printOCISeedSelection(selection)
+		}
+		return selectionErr
+	case "re-enable":
+		target, _, jsonOutput, err := parseOCISeedSelectionOptions(args[1:], false)
+		if err != nil {
+			return err
+		}
+		selection, selectionErr := app.OCI.ReenableSeedImage(ctx, target)
+		if jsonOutput {
+			if err := json.NewEncoder(os.Stdout).Encode(selection); err != nil {
+				return err
+			}
+		} else {
+			printOCISeedSelection(selection)
+		}
+		return selectionErr
 	case "build":
 		if app.Seeds == nil {
 			return fmt.Errorf("OCI Seed builder is unavailable for the configured plugin: %w", core.ErrRuntimeUnavailable)
@@ -208,6 +260,32 @@ func parseOCISeedJSONOnly(args []string) (bool, error) {
 	return false, fmt.Errorf("OCI seed command accepts only [--json]: %w", core.ErrInvalidArgument)
 }
 
+func parseOCISeedSelectionOptions(args []string, allowReenable bool) (string, bool, bool, error) {
+	if len(args) == 0 || strings.TrimSpace(args[0]) == "" || strings.HasPrefix(args[0], "--") {
+		return "", false, false, fmt.Errorf("OCI seed selection requires <reference@sha256:...>: %w", core.ErrInvalidArgument)
+	}
+	target := args[0]
+	reenable := false
+	jsonOutput := false
+	for _, arg := range args[1:] {
+		switch arg {
+		case "--re-enable":
+			if !allowReenable || reenable {
+				return "", false, false, fmt.Errorf("invalid --re-enable option: %w", core.ErrInvalidArgument)
+			}
+			reenable = true
+		case "--json":
+			if jsonOutput {
+				return "", false, false, fmt.Errorf("duplicate --json: %w", core.ErrInvalidArgument)
+			}
+			jsonOutput = true
+		default:
+			return "", false, false, fmt.Errorf("unknown OCI seed selection option %q: %w", arg, core.ErrInvalidArgument)
+		}
+	}
+	return target, reenable, jsonOutput, nil
+}
+
 func parseOCISeedBaseOptions(args []string) (core.BaseName, bool, error) {
 	var base core.BaseName
 	jsonOutput := false
@@ -250,6 +328,24 @@ func validOCISeedBaseName(value string) bool {
 		}
 	}
 	return true
+}
+
+func printOCISeedSelection(selection ociplugin.SeedSelection) {
+	if selection.Reference != "" {
+		fmt.Printf("image: %s@%s\n", selection.Reference, selection.Digest)
+	}
+	fmt.Printf("pinned: %t\n", selection.Pinned)
+	if selection.PinnedAt != nil {
+		fmt.Printf("pinned-at: %s\n", selection.PinnedAt.UTC().Format("2006-01-02T15:04:05Z"))
+	}
+	fmt.Printf("re-enabled: %t\n", selection.Reenabled)
+	if selection.ReenabledAt != nil {
+		fmt.Printf("re-enabled-at: %s\n", selection.ReenabledAt.UTC().Format("2006-01-02T15:04:05Z"))
+	}
+	fmt.Printf("deleted: %t\n", selection.Deleted)
+	if selection.DeletedAt != nil {
+		fmt.Printf("deleted-at: %s\n", selection.DeletedAt.UTC().Format("2006-01-02T15:04:05Z"))
+	}
 }
 
 func printOCISeedBuildReport(report seedbuildapp.BuildReport) {
