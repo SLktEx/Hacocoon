@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[1]
@@ -98,5 +99,14 @@ if errors:
     print("RELEASE PROVENANCE CONTRACT FAILED")
     print("\n".join(errors))
     sys.exit(1)
+
+regression = subprocess.run(
+    ["bash", str(root / "tools/test_install_provenance_fail_closed.sh")],
+    cwd=root,
+    check=False,
+)
+if regression.returncode != 0:
+    print("RELEASE PROVENANCE CONTRACT FAILED: installer fail-closed regression test failed", file=sys.stderr)
+    sys.exit(regression.returncode)
 
 print("RELEASE PROVENANCE CONTRACT OK")
