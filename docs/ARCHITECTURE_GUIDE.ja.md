@@ -35,10 +35,10 @@ v0.7のprovider-neutral routing seamは維持していますが、concrete EC2/A
 | v0.14 | Git Fetch Plugin | 実装済み |
 | v0.15 | OCI Seed Recommendation | 実装済み |
 | v0.16 | OCI Image Deletion | first slice実装済み |
-| v0.17 | Docker Compatibility Plugin | repository実装済み。real-host acceptanceは別 |
-| v0.18 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.17 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.18 | Docker Compatibility Plugin | repository先行実装済み。real-host acceptanceは別 |
 
-完全実装済みのproduct progressionは **v0.17まで連続**しています。
+v0.17がまだplannedなので、完全実装済みのproduct progressionは **v0.16まで連続**しています。v0.18 Dockerは旧番号v0.17の時点で先にland済みです。
 
 Local OCI Registryはroadmap milestoneを予約せず、deferredなoptional infrastructureとして扱います。
 
@@ -61,7 +61,7 @@ HACO_PLUGIN_OCI=docker   haco plugin oci docker prepare <environment>
 
 BaseはEnvironmentのstarting identity、OCIはdeveloper workload toolingです。`HACO_PLUGIN_OCI`未設定でもCoreはcontainerd / nerdctl / Dockerを要求しません。
 
-project-maintained OCI plugin profileではcontainerd + nerdctlを使えます。Docker互換はgenuine Docker CLIとEnvironment-local/on-demand Engineをoptionalに提供します。Host Docker socketは渡しません。`docker prepare` はBase側のDocker profileとpinned systemd unitを検証してsocket activationだけを有効化し、package installやactive vendor daemonのsilent stopは行いません。
+project-maintained OCI plugin profileではcontainerd + nerdctlを使えます。Docker互換はgenuine Docker CLIとEnvironment-local/on-demand Engineをoptionalに提供します。Host Docker socketは渡しません。v0.18の `docker prepare` はBase側のDocker profileとpinned systemd unitを検証してsocket activationだけを有効化し、package installやactive vendor daemonのsilent stopは行いません。
 
 ## Network / Git / OCI Seed
 
@@ -69,11 +69,11 @@ project-maintained OCI plugin profileではcontainerd + nerdctlを使えます�
 - v0.14: `haco plugin git fetch` はHost側 `gh auth git-credential` を使い、credentialをSandboxへ渡さない。
 - v0.15: OCI usage telemetry / recommendation / top 10% auto promotion。
 - v0.16: immutable image identityのdeletion tombstone。
-- v0.17: Docker compatibility lifecycle/status、pinned unit検証、Environment-local socket activation。
-- v0.18: trusted Host acquisition/cache → offline Seed Builder → immutable Seed → normal Incus/Btrfs COW。writable `/var/lib/containerd` は共有しない。
+- v0.17: trusted Host acquisition/cache → offline Seed Builder → immutable Seed → normal Incus/Btrfs COW。writable `/var/lib/containerd` は共有しない。現在planned。
+- v0.18: Docker compatibility lifecycle/status、pinned unit検証、Environment-local socket activation。repository実装は先行land済み。
 - Optional Local Registry: normal pullやSeed constructionのprerequisiteではなく、実測上必要な場合だけ将来再検討。
 
-See [`18_v0.18_OCI_SEED_AND_COW.ja.md`](18_v0.18_OCI_SEED_AND_COW.ja.md) and [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md).
+See [`17_v0.17_OCI_SEED_AND_COW.ja.md`](17_v0.17_OCI_SEED_AND_COW.ja.md), [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md), and [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md).
 
 ## Client interaction
 

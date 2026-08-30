@@ -35,10 +35,10 @@ Hacocoonでは、product semanticsとdefault implementation、optional integrati
 | v0.14 | Git Fetch Plugin | 実装済み |
 | v0.15 | OCI Seed Recommendation | 実装済み |
 | v0.16 | OCI Image Deletion | first slice実装済み |
-| v0.17 | Docker Compatibility Plugin | 実装済み。host acceptanceは別 |
-| v0.18 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
+| v0.17 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
+| v0.18 | Docker Compatibility Plugin | 実装済み。host acceptanceは別 |
 
-完全実装済みのproduct progressionは **v0.17まで連続**しています。v0.18はfirst repository sliceまで実装済みで、real-host/COW acceptanceが残っています。
+v0.17がpartialなため、完全実装済みのproduct progressionは **v0.16まで連続**しています。v0.18 Dockerのrepository実装は以前の番号付けで先にland済みで、そのまま有効です。
 
 Local OCI Registryはdeferredなoptional infrastructureで、roadmap milestoneを予約しません。
 
@@ -81,10 +81,13 @@ Dockerの `prepare` はBase提供のcompatibility profileとHacocoon-pinned syst
 
 ## OCI storage
 
-v0.18はtrusted Host acquisition/cache、offline no-NIC immutable Seed build/publish、current-Seed resolution、normal Incus/storage-driver cloneのfirst repository sliceを実装済みです。physical Btrfs COW measurementとbroader real-host acceptanceはpendingです。Local Registryはprerequisiteではなく、policyが許せばnormal direct upstream pullを使えます。
+v0.17はtrusted Host acquisition/cache、offline no-NIC immutable Seed build/publish、current-Seed resolution、normal Incus/storage-driver cloneのfirst repository sliceを実装済みです。physical Btrfs COW measurementとbroader real-host acceptanceはpendingです。Local Registryはprerequisiteではなく、policyが許せばnormal direct upstream pullを使えます。
 
-- [`18_v0.18_OCI_SEED_AND_COW.ja.md`](18_v0.18_OCI_SEED_AND_COW.ja.md)
+- [`17_v0.17_OCI_SEED_AND_COW.ja.md`](17_v0.17_OCI_SEED_AND_COW.ja.md)
+- [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.ja.md)
 - [`OPTIONAL_LOCAL_OCI_REGISTRY.ja.md`](OPTIONAL_LOCAL_OCI_REGISTRY.ja.md)
+
+Docker Compatibilityはv0.18です。repository実装は既に存在し、real Base + Incus/systemd acceptanceは別途です。
 
 ## Cloud
 

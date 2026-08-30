@@ -55,10 +55,10 @@ Hacocoon does not own IDE/AI chat UX, model routing, task DAGs, Git worktree orc
 | v0.14 | Git Fetch Plugin | implemented |
 | v0.15 | OCI Seed Recommendation | implemented |
 | v0.16 | OCI Image Deletion | first slice implemented |
-| v0.17 | Docker Compatibility Plugin | implemented; real-host acceptance remains host-dependent |
-| v0.18 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
+| v0.17 | OCI Seed Builder & Btrfs/COW | first repository slice / partial |
+| v0.18 | Docker Compatibility Plugin | repository implementation complete; real-host acceptance remains host-dependent |
 
-Fully implemented product milestones are contiguous through **v0.17**. v0.18 has a first repository implementation slice; real-host/COW acceptance remains pending.
+Fully implemented product milestones are contiguous through **v0.16** because v0.17 remains partial. The v0.18 Docker repository implementation landed early under the previous numbering and is retained.
 
 **Local OCI Registry is not a roadmap milestone.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
 
@@ -78,13 +78,13 @@ HACO_PLUGIN_OCI=docker   haco plugin oci ...
 
 `haco base` describes Environment starting identity. OCI/container lifecycle is an optional plugin responsibility. The project-maintained plugin profile may use containerd + nerdctl, and Docker compatibility may use genuine Docker CLI plus Environment-local socket-activated Engine; neither is a Core invariant.
 
-v0.17 adds the explicit lifecycle commands `haco plugin oci docker status <environment>` and `prepare <environment>`. `prepare` validates the Base-provided Docker compatibility profile and pinned systemd units, does not install packages, and refuses to silently stop an already-active vendor Docker daemon.
+The Docker lifecycle commands are assigned to v0.18: `haco plugin oci docker status <environment>` and `prepare <environment>`. `prepare` validates the Base-provided Docker compatibility profile and pinned systemd units, does not install packages, and refuses to silently stop an already-active vendor Docker daemon. Their code landed before this roadmap reorder while Docker Compatibility was numbered v0.17.
 
 ## OCI storage direction
 
-Normal upstream pull is allowed by policy. Local Registry is optional/deferred and is not required for Seed construction. v0.18 now has a first repository slice for trusted Host acquisition/cache, an offline no-NIC Seed Builder, immutable Seed publication/current pointers, and exact-parent Seed resolution. Physical Btrfs COW measurement and broader real-host acceptance remain pending. Never share one writable `/var/lib/containerd` across Environments.
+Normal upstream pull is allowed by policy. Local Registry is optional/deferred and is not required for Seed construction. v0.17 has a **first repository slice** implementing trusted Host acquisition/cache, an offline no-NIC Seed Builder, immutable Seed publication/current pointer, exact-parent resolution, and normal Incus/storage-driver cloning. Physical Btrfs COW measurement, conservative old-revision GC/recovery, authenticated/private-registry combinations, and broader real-host acceptance remain pending. Never share one writable `/var/lib/containerd` across Environments.
 
-See [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md) and [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
+See [`17_v0.17_OCI_SEED_AND_COW.md`](17_v0.17_OCI_SEED_AND_COW.md), [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md), and [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
 
 ## Client interaction direction
 
@@ -94,4 +94,6 @@ Browser/Web interaction and notification work belongs at a client/adapter bounda
 
 Older commits, branches, PRs, and superseded documents may describe active EC2/AWS/EBS support or place Local Registry / Seed / deletion work under older milestone assignments. Those are historical records, not the current architecture or numbering.
 
-A short-lived 2026-08-30 rebaseline reserved v0.18 for Optional Local OCI Registry and v0.19 for OCI Seed Builder/COW. That reservation is superseded: Registry is deferred/unversioned and Seed Builder/COW is v0.18.
+A short-lived 2026-08-30 rebaseline reserved v0.18 for Optional Local OCI Registry and v0.19 for OCI Seed Builder/COW. That reservation is superseded: Registry is deferred/unversioned.
+
+A subsequent ordering placed Docker Compatibility at v0.17 and Seed Builder/COW at v0.18, and both repository implementations began landing under that numbering. The authoritative order is now v0.17 Seed Builder/COW followed by v0.18 Docker Compatibility; the already-landed code remains intact and is reclassified rather than rolled back.
