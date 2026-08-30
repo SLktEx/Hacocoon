@@ -144,6 +144,10 @@ func (s *Service) Run(ctx context.Context, spec Spec) (Result, error) {
 	if s == nil || s.environments == nil || spec.WorkspacePath == "" || len(spec.Argv) == 0 {
 		return Result{}, core.ErrInvalidArgument
 	}
+	runCtx, stopSignals := withTerminationSignals(ctx)
+	defer stopSignals()
+	ctx = runCtx
+
 	if err := s.Reconcile(ctx); err != nil {
 		return Result{}, fmt.Errorf("reconcile abandoned ephemeral runs: %w", err)
 	}
