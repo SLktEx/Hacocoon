@@ -98,6 +98,14 @@ wsl --update
 
 を明示的に実行してもらいます。Hacocoon が勝手に WSL 自体を update することはしません。
 
+## Managed storage filesystem
+
+Windows / WSL の supported path では、Hacocoon-managed local storage に Btrfs を使います。Managed Btrfs filesystem は標準で `compress=zstd:3` を付けて mount します。`compress-force` は意図的に使わず、圧縮しにくいdataはBtrfsの通常heuristicsに任せてuncompressedのまま扱えるようにします。
+
+ZFS は supported WSL baseline の必須要件にしません。ZFSのためのcustom WSL kernel / module stackをHacocoonが要求・管理することもありません。Native Linux向けの別storage backendは将来独立に検討できますが、WSL pathはBtrfs-firstのままです。
+
+Mount optionの変更は新しく書かれるextentに効きます。既存dataを自動defrag/recompressするとCOW/reflinkの共有extentを減らす可能性があるため、Hacocoonは自動再圧縮を行いません。
+
 ## standalone installer がすること
 
 Installer は次を行います。
