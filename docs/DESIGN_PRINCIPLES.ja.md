@@ -1,6 +1,6 @@
 # Hacocoon 設計原則
 
-English | [**日本語**](DESIGN_PRINCIPLES.ja.md)
+[English](DESIGN_PRINCIPLES.md) | **日本語**
 
 Status: authoritative cross-cutting design principles.
 
