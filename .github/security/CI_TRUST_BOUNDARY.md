@@ -11,7 +11,9 @@ The current public-repository operating model is intentionally **solo-maintainer
 
 This contribution boundary is the primary reason anonymous fork code cannot currently enter Hacocoon's upstream PR CI at all. It must be re-audited before external Pull Requests or another write-capable collaborator are enabled.
 
-Pull-request CI remains deliberately hardened as defense in depth and for owner/collaborator branches. It is constrained to disposable GitHub-hosted runners with read-only repository authority, no repository/environment secrets, no persistent cache bridge, and no real privileged Incus or EC2 execution.
+Pull-request CI remains deliberately hardened as defense in depth and for owner/collaborator branches. It is constrained to disposable GitHub-hosted runners with read-only repository authority, no repository/environment secrets, and no persistent cache bridge. Real Incus **system-container** acceptance may run on those disposable GitHub-hosted Linux runners through the guarded `tools/ci-incus.sh` path. Experimental EC2 execution remains disabled in normal PR CI.
+
+The Incus CI path does not attach a self-hosted runner, expose Host credentials to an Environment, or hand the test process the root-owned Incus Unix socket. The helper verifies that it is running in GitHub Actions on a `github-hosted` Linux runner, installs the Ubuntu-packaged Incus daemon, initializes only the disposable runner, and gives the unprivileged test process a loopback-only TLS client for that daemon. `HACO_E2E_INCUS=1` is enabled inside that guarded helper only after those checks. The workflow always attempts exact-name cleanup and captures daemon diagnostics on failure; the runner itself is discarded after the job.
 
 `tools/check_workflow_policy.py` encodes defense-in-depth invariants for every file under `.github/workflows/`. It currently requires:
 
@@ -25,7 +27,10 @@ Pull-request CI remains deliberately hardened as defense in depth and for owner/
 - no `actions/cache` use in untrusted PR workflows;
 - no cross-run/external artifact downloads from PR workflows;
 - `actions/setup-go` caching disabled in PR workflows;
-- real Incus E2E and experimental EC2 disabled in normal PR CI.
+- no direct `HACO_E2E_INCUS=1` enablement in workflow YAML; real Incus acceptance must use the guarded repository helper;
+- experimental EC2 disabled in normal PR CI.
+
+The direct Incus environment-variable ban is intentionally retained: adding another privileged-looking workflow stanza must not silently become a second acceptance path. The reviewed helper is the single place that establishes the disposable-runner preconditions and enables real Incus tests.
 
 `tools/check_public_release_readiness.py` additionally validates the live repository assumptions used by the current solo-maintainer model, including contribution-closed PR policy, absence of non-owner direct collaborators, protected `main`, protected release tags, and zero repository self-hosted runners.
 
