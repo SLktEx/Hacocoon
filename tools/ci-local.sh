@@ -115,6 +115,8 @@ validate_release_artifacts() {
   for archive in dist/haco_linux_amd64.tar.gz dist/haco_linux_arm64.tar.gz; do
     listing="$(tar -tzf "$archive")"
     grep -Fx 'haco' <<<"$listing" >/dev/null
+    grep -Fx 'haco-controller' <<<"$listing" >/dev/null
+    grep -Fx 'haco-host' <<<"$listing" >/dev/null
     grep -Fx 'haco-vscode' <<<"$listing" >/dev/null
     grep -Fx 'haco-agent-host' <<<"$listing" >/dev/null
     grep -Fx 'haco-notify' <<<"$listing" >/dev/null
