@@ -43,11 +43,11 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return core.EnvironmentRuntime{}, err
 	}
 
-	archive, err := createWorkspaceArchive(ctx, r.runner, spec.WorkspacePath)
+	archive, cleanupArchive, err := createWorkspaceArchive(ctx, r.runner, spec.WorkspacePath)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
-	defer os.Remove(archive)
+	defer cleanupArchive()
 
 	prefix := cfg.WorkspacePrefix + "/" + spec.Name
 	inputURI := s3URI(cfg.WorkspaceBucket, prefix+"/input.tgz")
@@ -284,19 +284,31 @@ func (r *Runtime) aws(ctx context.Context, args ...string) (host.Result, error) 
 	return r.runner.Run(ctx, "aws", all...)
 }
 
-func createWorkspaceArchive(ctx context.Context, runner host.Runner, workspace string) (string, error) {
-	archive, err := os.CreateTemp("", "haco-workspace-*.tgz")
+func createWorkspaceArchive(ctx context.Context, runner host.Runner, workspace string) (string, func(), error) {
+	dir, err := os.MkdirTemp("", "haco-workspace-*")
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	path := archive.Name()
-	_ = archive.Close()
-	_ = os.Remove(path)
+	cleanup := func() { _ = os.RemoveAll(dir) }
+	path := filepath.Join(dir, "workspace.tgz")
 	if _, err := runner.Run(ctx, "tar", "-czf", path, "-C", workspace, "."); err != nil {
-		_ = os.Remove(path)
-		return "", fmt.Errorf("archive workspace: %w", err)
+		cleanup()
+		return "", nil, fmt.Errorf("archive workspace: %w", err)
 	}
-	return path, nil
+	if err := os.Chmod(path, 0o600); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("secure workspace archive: %w", err)
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("inspect workspace archive: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 {
+		cleanup()
+		return "", nil, fmt.Errorf("workspace archive mode %s: %w", info.Mode(), core.ErrIncompatibleState)
+	}
+	return path, cleanup, nil
 }
 
 func restoreWorkspaceArchive(ctx context.Context, runner host.Runner, archive, workspace string) error {
