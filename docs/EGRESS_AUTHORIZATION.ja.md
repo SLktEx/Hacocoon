@@ -6,14 +6,15 @@ Hacocoonの外向き通信は、sandboxが要求したhostnameそのものをaut
 
 ## 境界
 
-egress request / authorization contractはCore、project-maintainedなHTTP/HTTPS enforcement proxyはStandard、Incus固有のbridge / ACL / profile / source identity plumbingはIncus adapterの責務です。
+egress request / authorization contractはCore、project-maintainedなHTTP/HTTPS enforcement proxyはStandardです。Incus固有のbridge / ACL / profile / source-runtime lookupはIncus adapter、provider-local runtime identityをpersist済みHacocoon Environment identityへbindする処理はEnvironment layerの責務です。
 
 ```text
 sandbox
   -> Incus NIC default deny
   -> bridge gateway:18080だけtransport allow
   -> Standard egress proxy
-  -> trusted source-IP -> Environment resolution
+  -> trusted source-IP -> provider runtime ref
+  -> persisted Environment binding
   -> network.egress/connect Capability
   -> Policy: allow / require-approval / deny
   -> Host DNS resolution + pinned public address
@@ -42,7 +43,7 @@ proxyはapproval tokenを発行せず、approvalをIP allowlistとしてcacheし
 - managed ACLのordinary outbound allowは、Hacocoon bridge gatewayのStandard proxy port (`18080`) へのTCP 1本だけ。旧v0.13のempty ACLはこのruleへmigrationし、それ以外のunmanaged ruleはfail closed。
 - managed bridgeの `raw.dnsmasq` がemptyなら `port=0` へmigrationする。他のoperator/custom値が入っている場合は勝手に上書きせずreject。
 - managed `haco-sandbox` profileがupper/lowercaseの `HTTP_PROXY` / `HTTPS_PROXY` とlocal-only `NO_PROXY` を注入する。env varを無視するmalicious processでも、NIC ACLより下のdirect trafficは通らない。
-- proxyはconnection source IPをtrusted Incus runtime stateへ問い合わせてEnvironment identityを導出する。exactly oneの `haco-*` instanceに一致しないsourceはdeny。
+- proxyはconnection source IPをtrusted Incus runtime stateへ問い合わせてexactly oneのprovider-local runtime refへresolveし、そのprovider/runtime refがexactly oneのpersist済みmanaged Hacocoon Environmentに属する場合だけEnvironment-scoped policy authorityを与える。missing / orphan / ambiguous / unpersisted matchはdeny。
 - `haco egress serve` はmanaged networkをverifyしてHacocoon bridge gatewayだけでlistenする。trusted Host foregroundで動かすため、既存の同期stdio `require-approval` providerをそのまま利用できる。
 - brokerはrestartをまたぐauthority cacheを持たない。停止・restart中はACLが許可する唯一のtransportにlistenerがいないためfail closed。
 
@@ -83,4 +84,4 @@ Git pushは引き続きGit pluginの別privileged operationです。ordinary pus
 
 ## Acceptance boundary
 
-repository testsはallow / deny / require-approval、direct-IP reject、shared-IP / alternate-hostname耐性、mixed/private DNS、SNI mismatch、legacy network migration、unmanaged DNS/ACL drift、trusted source-IP mappingをcoverします。real supported-Incusのbridge / nftables / dnsmasq動作はhost acceptanceとして別に確認します。
+repository testsはallow / deny / require-approval、direct-IP reject、shared-IP / alternate-hostname耐性、mixed/private DNS、SNI mismatch、legacy network migration、unmanaged DNS/ACL drift、trusted source-IP lookup、orphan rejectを含むpersisted Environment bindingをcoverします。real supported-Incusのbridge / nftables / dnsmasq動作はhost acceptanceとして別に確認します。

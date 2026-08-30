@@ -6,14 +6,15 @@ Hacocoon authorizes outbound access by the hostname a sandbox asks to reach. Res
 
 ## Boundary
 
-The egress request/authorization contract belongs to Core. The project-maintained HTTP/HTTPS enforcement proxy is a Standard implementation. Incus-specific bridge, ACL, profile and source-identity plumbing stays in the Incus adapter.
+The egress request/authorization contract belongs to Core. The project-maintained HTTP/HTTPS enforcement proxy is a Standard implementation. Incus-specific bridge, ACL, profile and source-runtime lookup stay in the Incus adapter; binding that provider-local runtime identity to persisted Hacocoon Environment identity stays in the Environment layer.
 
 ```text
 sandbox
   -> Incus NIC default deny
   -> only 10.x bridge-gateway:18080 is transport-allowed
   -> Standard egress proxy
-  -> trusted source-IP -> Environment resolution
+  -> trusted source-IP -> provider runtime ref
+  -> persisted Environment binding
   -> network.egress/connect Capability
   -> Policy: allow / require-approval / deny
   -> Host DNS resolution + pinned public address
@@ -42,7 +43,7 @@ The proxy is not an approval-token issuer and does not cache approval as an IP a
 - The managed ACL contains exactly one ordinary outbound allow rule: TCP to the Hacocoon bridge gateway on the Standard proxy port (`18080`). An empty legacy v0.13 ACL is migrated to that rule; unmanaged ACL rules fail closed.
 - Existing managed bridges with an empty `raw.dnsmasq` value are migrated to `port=0`; any other operator/custom value is rejected rather than overwritten.
 - The managed `haco-sandbox` profile injects uppercase and lowercase `HTTP_PROXY` / `HTTPS_PROXY` values that point to the bridge proxy and local-only `NO_PROXY` values. Direct traffic still cannot bypass the proxy because the NIC ACL remains authoritative below those convenience environment variables.
-- The proxy derives Environment identity from the connection source IP by querying trusted Incus runtime state. It requires exactly one `haco-*` instance match; missing, ambiguous or unmanaged matches are denied.
+- The proxy resolves the connection source IP through trusted Incus runtime state to exactly one provider-local runtime ref, then requires that exact provider/runtime ref to belong to exactly one persisted managed Hacocoon Environment before assigning Environment-scoped policy authority. Missing, orphaned, ambiguous or unpersisted matches are denied.
 - `haco egress serve` verifies the managed network and listens only on the Hacocoon bridge gateway. It runs in the trusted Host foreground so the existing synchronous stdio `require-approval` provider remains usable.
 - The broker is intentionally stateless across restart. If it is absent or restarting, the only ACL-allowed transport has no listener and outbound access fails closed.
 
@@ -83,4 +84,4 @@ Git push remains a separate privileged operation through the Git plugin and must
 
 ## Acceptance boundary
 
-Repository tests cover allow/deny/require-approval integration, direct-IP rejection, shared-IP/alternate-hostname resistance, mixed/private DNS answers, SNI mismatch, legacy network migration, unmanaged DNS/ACL drift and trusted source-IP mapping. Real supported-Incus bridge/nftables/dnsmasq behavior remains a host acceptance concern and must not be inferred solely from unit/static tests.
+Repository tests cover allow/deny/require-approval integration, direct-IP rejection, shared-IP/alternate-hostname resistance, mixed/private DNS answers, SNI mismatch, legacy network migration, unmanaged DNS/ACL drift, trusted source-IP lookup and persisted Environment binding including orphan rejection. Real supported-Incus bridge/nftables/dnsmasq behavior remains a host acceptance concern and must not be inferred solely from unit/static tests.
