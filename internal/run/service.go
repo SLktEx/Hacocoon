@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
 const defaultCleanupTimeout = 30 * time.Second
@@ -20,9 +21,13 @@ type Spec struct {
 }
 
 type ExecutionResult struct {
-	ExitCode int    `json:"exit_code"`
-	Stdout   string `json:"stdout"`
-	Stderr   string `json:"stderr"`
+	ExitCode        int    `json:"exit_code"`
+	Stdout          string `json:"stdout"`
+	Stderr          string `json:"stderr"`
+	StdoutTruncated bool   `json:"stdout_truncated"`
+	StderrTruncated bool   `json:"stderr_truncated"`
+	StdoutBytes     int64  `json:"stdout_bytes"`
+	StderrBytes     int64  `json:"stderr_bytes"`
 }
 
 type Result struct {
@@ -38,15 +43,15 @@ type environmentLifecycle interface {
 }
 
 type Service struct {
-	environments  environmentLifecycle
-	newName       func() (string, error)
+	environments   environmentLifecycle
+	newName        func() (string, error)
 	cleanupTimeout time.Duration
 }
 
 func New(environments environmentLifecycle) *Service {
 	return &Service{
-		environments:  environments,
-		newName:       randomEnvironmentName,
+		environments:   environments,
+		newName:        randomEnvironmentName,
 		cleanupTimeout: defaultCleanupTimeout,
 	}
 }
@@ -70,7 +75,17 @@ func (s *Service) Run(ctx context.Context, spec Spec) (Result, error) {
 
 	result := Result{Environment: environment.Name}
 	execution, execErr := s.environments.Exec(ctx, environment.Name, core.ExecutionRequest{Argv: append([]string(nil), spec.Argv...)})
-	result.Execution = ExecutionResult{ExitCode: execution.ExitCode, Stdout: execution.Stdout, Stderr: execution.Stderr}
+	_, stdoutMarker, stdoutMarkerBytes := host.DecodeCapturedOutput(execution.Stdout)
+	_, stderrMarker, stderrMarkerBytes := host.DecodeCapturedOutput(execution.Stderr)
+	result.Execution = ExecutionResult{
+		ExitCode:        execution.ExitCode,
+		Stdout:          execution.Stdout,
+		Stderr:          execution.Stderr,
+		StdoutTruncated: execution.StdoutTruncated || stdoutMarker,
+		StderrTruncated: execution.StderrTruncated || stderrMarker,
+		StdoutBytes:     outputByteCount(execution.StdoutBytes, stdoutMarkerBytes),
+		StderrBytes:     outputByteCount(execution.StderrBytes, stderrMarkerBytes),
+	}
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.cleanupTimeout)
 	cleanupErr := s.environments.Delete(cleanupCtx, environment.Name)
 	cancel()
@@ -86,6 +101,13 @@ func (s *Service) Run(ctx context.Context, spec Spec) (Result, error) {
 		return result, fmt.Errorf("cleanup ephemeral environment %q: %w", environment.Name, cleanupErr)
 	}
 	return result, nil
+}
+
+func outputByteCount(explicit, decoded int64) int64 {
+	if explicit > 0 {
+		return explicit
+	}
+	return decoded
 }
 
 func randomEnvironmentName() (string, error) {
