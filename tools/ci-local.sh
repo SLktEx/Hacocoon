@@ -118,6 +118,7 @@ validate_release_artifacts() {
     grep -Fx 'haco-vscode' <<<"$listing" >/dev/null
     grep -Fx 'haco-agent-host' <<<"$listing" >/dev/null
     grep -Fx 'haco-notify' <<<"$listing" >/dev/null
+    grep -Fx 'haco-storage-helper' <<<"$listing" >/dev/null
   done
 
   grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
@@ -206,7 +207,7 @@ run_e2e() {
   section "e2e: git/github"
   bash test/e2e/git_github.sh
   section "e2e: orchestrator"
-  bash test/e2e/orchestrator.sh
+  HACO_STORAGE_PRIVILEGE_MODE=direct bash test/e2e/orchestrator.sh
 }
 
 run_all() {
