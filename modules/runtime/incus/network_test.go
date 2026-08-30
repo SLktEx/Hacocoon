@@ -41,6 +41,9 @@ func sandboxNetworkResult(args []string) (host.Result, bool) {
 		return managedACLResult(), true
 	}
 	if len(args) >= 3 && args[0] == "profile" && args[1] == "show" && args[2] == sandboxProfile {
+		return host.Result{}, true
+	}
+	if len(args) == 2 && args[0] == "query" && args[1] == sandboxProfileAPIPath {
 		return sandboxProfileResult(), true
 	}
 	return host.Result{}, false
@@ -59,6 +62,8 @@ func TestEnsureSandboxNetworkAcceptsManagedProxyOnlySubstrate(t *testing.T) {
 
 	seenACL := false
 	seenDNS := false
+	seenProfileQuery := false
+	seenProfileJSONFlag := false
 	for _, call := range runner.calls {
 		joined := strings.Join(call.args, " ")
 		if strings.Contains(joined, "network acl show "+sandboxEgressACL) {
@@ -67,9 +72,15 @@ func TestEnsureSandboxNetworkAcceptsManagedProxyOnlySubstrate(t *testing.T) {
 		if strings.Contains(joined, "network get "+sandboxNetwork+" raw.dnsmasq") {
 			seenDNS = true
 		}
+		if joined == "query "+sandboxProfileAPIPath {
+			seenProfileQuery = true
+		}
+		if strings.Contains(joined, "profile show "+sandboxProfile) && strings.Contains(joined, "--format json") {
+			seenProfileJSONFlag = true
+		}
 	}
-	if !seenACL || !seenDNS {
-		t.Fatalf("sandbox network verification incomplete: %#v", runner.calls)
+	if !seenACL || !seenDNS || !seenProfileQuery || seenProfileJSONFlag {
+		t.Fatalf("sandbox network verification incomplete or used unsupported profile JSON CLI: %#v", runner.calls)
 	}
 }
 
@@ -127,7 +138,7 @@ func TestEnsureSandboxNetworkRejectsUnmanagedDNSConfig(t *testing.T) {
 
 func TestEnsureSandboxNetworkRejectsProfileDrift(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 3 && args[0] == "profile" && args[1] == "show" && args[2] == sandboxProfile {
+		if len(args) == 2 && args[0] == "query" && args[1] == sandboxProfileAPIPath {
 			return host.Result{Stdout: `{"config":{"security.privileged":"true"},"devices":{}}`}, nil
 		}
 		if result, ok := sandboxNetworkResult(args); ok {
@@ -137,6 +148,29 @@ func TestEnsureSandboxNetworkRejectsProfileDrift(t *testing.T) {
 	}}
 	if err := New(runner).ensureSandboxNetwork(context.Background()); !errors.Is(err, core.ErrIncompatibleState) {
 		t.Fatalf("error = %v, want ErrIncompatibleState", err)
+	}
+}
+
+func TestEnsureSandboxNetworkDoesNotTreatProfileQueryFailureAsMissing(t *testing.T) {
+	queryErr := errors.New("query unavailable")
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if len(args) == 2 && args[0] == "query" && args[1] == sandboxProfileAPIPath {
+			return host.Result{}, queryErr
+		}
+		if result, ok := sandboxNetworkResult(args); ok {
+			return result, nil
+		}
+		return host.Result{}, nil
+	}}
+
+	err := New(runner).ensureSandboxNetwork(context.Background())
+	if !errors.Is(err, queryErr) {
+		t.Fatalf("error = %v, want query failure", err)
+	}
+	for _, call := range runner.calls {
+		if len(call.args) >= 2 && call.args[0] == "profile" && call.args[1] == "create" {
+			t.Fatalf("profile query failure was misclassified as missing: %#v", runner.calls)
+		}
 	}
 }
 
@@ -198,6 +232,7 @@ func TestEnsureSandboxNetworkCreatesMissingResources(t *testing.T) {
 		"network acl rule add " + sandboxEgressACL + " egress",
 		"profile create " + sandboxProfile,
 		"profile device add " + sandboxProfile + " eth0 nic",
+		"query " + sandboxProfileAPIPath,
 	}
 	for _, want := range wantFragments {
 		found := false
