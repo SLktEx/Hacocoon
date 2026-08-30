@@ -40,10 +40,10 @@ Use this document for **which version number belongs to which feature gate**. Us
 | v0.14 | Git Fetch Plugin | ✅ implemented |
 | v0.15 | OCI Seed Recommendation | ✅ implemented |
 | v0.16 | OCI Image Deletion | ✅ first slice implemented |
-| v0.17 | OCI Seed Builder & Btrfs/COW | 🧪 first repository slice implemented; real-host/COW acceptance pending |
+| v0.17 | OCI Seed Builder & Btrfs/COW | 🧪 build/publish and operations-hardening repository slices implemented; real-host/private-registry/COW acceptance pending |
 | v0.18 | Docker Compatibility Plugin | ✅ repository implementation complete; real-host acceptance tracked separately |
 
-The fully implemented product progression is contiguous through **v0.16** because v0.17 remains a partial feature gate. v0.17 now has a first repository implementation slice, while the v0.18 Docker repository gate is implemented. Both code slices originally landed under the opposite v0.17/v0.18 labels; the authoritative numbering reclassifies them without rollback.
+The fully implemented product progression is contiguous through **v0.16** because v0.17 remains a partial feature gate. v0.17 has multiple repository implementation slices, while the v0.18 Docker repository gate is implemented. Both code slices originally landed under the opposite v0.17/v0.18 labels; the authoritative numbering reclassifies them without rollback.
 
 v0.7 keeps its milestone number because the provider-neutral routing seam introduced by that gate remains implemented. The previous concrete EC2/AWS/EBS slice is intentionally absent from the active tree and **cloud implementation is currently deferred** while local/provider contracts stabilize.
 
@@ -57,13 +57,13 @@ v0.13  Managed Sandbox Network                 implemented
 v0.14  Git Fetch Plugin                        implemented
 v0.15  OCI Seed Recommendation                 implemented
 v0.16  OCI Image Deletion                      implemented
-v0.17  OCI Seed Builder & Btrfs/COW            partial / first repository slice
+v0.17  OCI Seed Builder & Btrfs/COW            partial / repository slices
 v0.18  Docker Compatibility Plugin             repository implemented
 ```
 
 A short-lived intermediate rebaseline reserved v0.18 for Optional Local OCI Registry and v0.19 for Seed Builder/COW. That reservation is superseded: Local Registry infrastructure is deferred and unversioned because it is not required by the default architecture.
 
-A later ordering placed Docker Compatibility at v0.17 and Seed Builder/COW at v0.18. Docker lifecycle integration and the first Seed Builder slice landed under that ordering. The authoritative order is now reversed so the physical Environment/Base/Seed pipeline is v0.17 and the Docker compatibility layer is v0.18. This reclassification does not discard or roll back either implementation.
+A later ordering placed Docker Compatibility at v0.17 and Seed Builder/COW at v0.18. Docker lifecycle integration and the first repository slice of Seed Builder landed under that ordering. The authoritative order is now reversed so the physical Environment/Base/Seed pipeline is v0.17 and the Docker compatibility layer is v0.18. This reclassification does not discard or roll back either implementation.
 
 Historical commits, closed PRs, and old branches may retain superseded OCI milestone labels. They are historical records only.
 
@@ -88,7 +88,7 @@ The CLI namespace cleanup that separated `haco base ...` from `haco plugin oci .
 - **v0.13:** real supported-Incus network/profile/ACL acceptance remains host-dependent.
 - **v0.14:** brokered fetch is implemented; real private-repository combinations remain acceptance-sensitive.
 - **v0.15/v0.16:** OCI plugin recommendation/deletion behavior is implemented.
-- **v0.17:** first repository slice is implemented, including `haco plugin oci seed build/current`, trusted Host acquisition, no-NIC Seed build, immutable publication/current pointer, and exact-parent resolution. Real supported-host acceptance, old-revision GC/recovery, authenticated/private-registry combinations, and physical Btrfs COW measurement remain pending.
+- **v0.17:** repository build/publish plus explicit pin/re-enable, conservative old-revision GC, interrupted-builder recovery, and deletion-race protection are implemented. Real supported-host Incus/containerd/Docker acceptance, authenticated/private-registry combinations including credential-free Environment harvesting where supported, physical Btrfs COW measurement, and broader real-host failure injection remain pending.
 - **v0.18:** repository lifecycle/CLI integration is implemented; real Base + Incus/systemd socket-activation acceptance remains host-dependent.
 
 ## Rule of thumb
