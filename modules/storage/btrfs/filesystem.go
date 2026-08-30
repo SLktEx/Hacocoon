@@ -146,7 +146,7 @@ func (b *Btrfs) Mount(ctx context.Context, device, mountpoint string) error {
 			return nil
 		}
 
-		_, err = b.runner.Run(ctx, "mount", "-o", "remount,"+defaultCompressionOption, device, mountpoint)
+		_, err = b.runner.Run(ctx, "mount", device, mountpoint, "-o", "remount,"+defaultCompressionOption)
 		if err != nil {
 			return fmt.Errorf("remount %s with %s: %w", mountpoint, defaultCompressionOption, err)
 		}
@@ -155,7 +155,7 @@ func (b *Btrfs) Mount(ctx context.Context, device, mountpoint string) error {
 	if err != nil && mounted.ExitCode != 1 {
 		return fmt.Errorf("inspect mountpoint %s before mount: %w", mountpoint, err)
 	}
-	_, err = b.runner.Run(ctx, "mount", "-o", defaultCompressionOption, device, mountpoint)
+	_, err = b.runner.Run(ctx, "mount", device, mountpoint, "-o", defaultCompressionOption)
 	return err
 }
 
