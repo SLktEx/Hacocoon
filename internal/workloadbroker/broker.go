@@ -45,13 +45,19 @@ func New(runtime *incus.Runtime, workloads workloadService) (*Manager, error) {
 }
 
 // EnsureListener creates one Host-owned Unix socket whose handlers are bound to
-// exactly one Environment. A guest cannot select another Environment in the
-// request payload because the server closure itself carries the identity.
+// exactly one Environment and the Incus Project selected by the Physical Host.
+// A guest can select neither another Environment nor another Project: both
+// identities are captured before the listener starts, and the scope revalidates
+// the actual managed Environment before every workload operation.
 func (m *Manager) EnsureListener(ctx context.Context, environment string) error {
 	if m == nil || m.runtime == nil || m.workloads == nil {
 		return core.ErrInvalidArgument
 	}
 	path, err := incus.WorkloadBrokerSocketPath(environment)
+	if err != nil {
+		return err
+	}
+	scoped, err := m.runtime.BindEnvironmentWorkloads(environment)
 	if err != nil {
 		return err
 	}
@@ -66,7 +72,7 @@ func (m *Manager) EnsureListener(ctx context.Context, environment string) error 
 		return err
 	}
 	server := control.NewServer()
-	if err := controlapi.RegisterBoundEnvironmentWorkloads(server, m.workloads, environment); err != nil {
+	if err := controlapi.RegisterBoundEnvironmentWorkloads(server, scoped, environment); err != nil {
 		_ = listener.Close()
 		return err
 	}
@@ -84,6 +90,7 @@ func (m *Manager) EnsureListener(ctx context.Context, environment string) error 
 			logging.Root().ErrorContext(ctx, "Environment workload broker stopped",
 				"component", "control",
 				"environment_id", environment,
+				"incus_project", scoped.Project(),
 				"error", serveErr,
 			)
 		}
