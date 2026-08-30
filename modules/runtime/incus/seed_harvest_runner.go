@@ -20,6 +20,7 @@ import (
 const (
 	managedEnvironmentMarkerKey   = "user.hacocoon.kind"
 	managedEnvironmentMarkerValue = "environment"
+	seedHarvestNamespacePrefix    = "hacocoon-harvest-"
 )
 
 type seedHarvestRunner struct {
@@ -49,6 +50,11 @@ func (r *seedHarvestRunner) Run(ctx context.Context, name string, args ...string
 	harvestErr := r.harvest(ctx, ref)
 	if harvestErr == nil {
 		return host.Result{}, nil
+	}
+	// A failed cleanup of the Host-side quarantine namespace is ambiguous trusted
+	// state. Do not hide it behind a successful registry fallback.
+	if errors.Is(harvestErr, core.ErrRecoveryRequired) {
+		return host.Result{ExitCode: -1}, harvestErr
 	}
 	result, pullErr := r.next.Run(ctx, name, args...)
 	if pullErr != nil {
@@ -94,6 +100,8 @@ func (r *seedHarvestRunner) harvest(ctx context.Context, ref string) error {
 	for _, instance := range instances {
 		if err := r.harvestFromEnvironment(ctx, instance, ref); err == nil {
 			return nil
+		} else if errors.Is(err, core.ErrRecoveryRequired) {
+			return fmt.Errorf("%s: %w", instance, err)
 		} else {
 			failures = append(failures, fmt.Errorf("%s: %w", instance, err))
 		}
@@ -130,7 +138,7 @@ func (r *seedHarvestRunner) harvestCandidates(ctx context.Context) ([]string, er
 	return candidates, nil
 }
 
-func (r *seedHarvestRunner) harvestFromEnvironment(ctx context.Context, environment, ref string) error {
+func (r *seedHarvestRunner) harvestFromEnvironment(ctx context.Context, environment, ref string) (retErr error) {
 	token, err := randomHarvestToken()
 	if err != nil {
 		return err
@@ -144,7 +152,8 @@ func (r *seedHarvestRunner) harvestFromEnvironment(ctx context.Context, environm
 	if err := os.Chmod(dir, 0o700); err != nil {
 		return err
 	}
-	hostArchive := filepath.Join(dir, "image.tar")
+	untrustedArchive := filepath.Join(dir, "environment.tar")
+	selectedArchive := filepath.Join(dir, "selected.tar")
 
 	saveArgs := []string{"exec", environment, "--project", r.project, "--", "nerdctl", "save", "-o", guestArchive, ref}
 	result, err := r.next.Run(ctx, "incus", saveArgs...)
@@ -153,23 +162,60 @@ func (r *seedHarvestRunner) harvestFromEnvironment(ctx context.Context, environm
 		return fmt.Errorf("save exact OCI content inside Environment: %w", commandResultError(result, err))
 	}
 
-	pullResult, pullErr := r.next.Run(ctx, "incus", "file", "pull", environment+guestArchive, hostArchive, "--project", r.project)
+	pullResult, pullErr := r.next.Run(ctx, "incus", "file", "pull", environment+guestArchive, untrustedArchive, "--project", r.project)
 	r.cleanupGuestArchive(environment, guestArchive)
 	if pullErr != nil || pullResult.ExitCode != 0 {
 		return fmt.Errorf("copy OCI archive from managed Environment: %w", commandResultError(pullResult, pullErr))
 	}
-	info, err := os.Lstat(hostArchive)
-	if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
-		return fmt.Errorf("managed Environment Seed harvest produced invalid archive: %w", core.ErrIncompatibleState)
+	if err := validateHarvestArchive(untrustedArchive); err != nil {
+		return err
 	}
 
-	loadResult, loadErr := r.next.Run(ctx, "nerdctl", "--namespace", seedHostNamespace, "load", "-i", hostArchive)
-	if loadErr != nil || loadResult.ExitCode != 0 {
-		return fmt.Errorf("load harvested OCI archive into trusted Host cache: %w", commandResultError(loadResult, loadErr))
+	// The Environment is untrusted and may race the guest temporary archive.
+	// Import its bytes only into a random quarantine namespace, then re-export
+	// exactly the requested immutable identity before touching the Seed namespace.
+	quarantineNamespace := seedHarvestNamespacePrefix + token
+	createResult, createErr := r.next.Run(ctx, "nerdctl", "namespace", "create", quarantineNamespace)
+	if createErr != nil || createResult.ExitCode != 0 {
+		return fmt.Errorf("create Seed harvest quarantine namespace: %w", commandResultError(createResult, createErr))
 	}
-	inspectResult, inspectErr := r.next.Run(ctx, "nerdctl", "--namespace", seedHostNamespace, "image", "inspect", ref)
+	defer func() {
+		if cleanupErr := r.cleanupHarvestNamespace(quarantineNamespace); cleanupErr != nil {
+			retErr = errors.Join(retErr, cleanupErr)
+		}
+	}()
+
+	loadResult, loadErr := r.next.Run(ctx, "nerdctl", "--namespace", quarantineNamespace, "load", "-i", untrustedArchive)
+	if loadErr != nil || loadResult.ExitCode != 0 {
+		return fmt.Errorf("load Environment OCI archive into quarantine namespace: %w", commandResultError(loadResult, loadErr))
+	}
+	inspectResult, inspectErr := r.next.Run(ctx, "nerdctl", "--namespace", quarantineNamespace, "image", "inspect", ref)
 	if inspectErr != nil || inspectResult.ExitCode != 0 {
-		return fmt.Errorf("verify harvested immutable OCI identity on trusted Host: %w", commandResultError(inspectResult, inspectErr))
+		return fmt.Errorf("verify harvested immutable OCI identity in quarantine namespace: %w", commandResultError(inspectResult, inspectErr))
+	}
+	saveResult, saveErr := r.next.Run(ctx, "nerdctl", "--namespace", quarantineNamespace, "save", "-o", selectedArchive, ref)
+	if saveErr != nil || saveResult.ExitCode != 0 {
+		return fmt.Errorf("re-export exact harvested OCI identity from quarantine namespace: %w", commandResultError(saveResult, saveErr))
+	}
+	if err := validateHarvestArchive(selectedArchive); err != nil {
+		return fmt.Errorf("validate re-exported harvested OCI archive: %w", err)
+	}
+
+	seedLoadResult, seedLoadErr := r.next.Run(ctx, "nerdctl", "--namespace", seedHostNamespace, "load", "-i", selectedArchive)
+	if seedLoadErr != nil || seedLoadResult.ExitCode != 0 {
+		return fmt.Errorf("load exact harvested OCI identity into trusted Host cache: %w", commandResultError(seedLoadResult, seedLoadErr))
+	}
+	seedInspectResult, seedInspectErr := r.next.Run(ctx, "nerdctl", "--namespace", seedHostNamespace, "image", "inspect", ref)
+	if seedInspectErr != nil || seedInspectResult.ExitCode != 0 {
+		return fmt.Errorf("verify harvested immutable OCI identity on trusted Host: %w", commandResultError(seedInspectResult, seedInspectErr))
+	}
+	return nil
+}
+
+func validateHarvestArchive(path string) error {
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+		return fmt.Errorf("Seed harvest produced invalid OCI archive: %w", core.ErrIncompatibleState)
 	}
 	return nil
 }
@@ -178,6 +224,19 @@ func (r *seedHarvestRunner) cleanupGuestArchive(environment, path string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_, _ = r.next.Run(ctx, "incus", "exec", environment, "--project", r.project, "--", "rm", "-f", path)
+}
+
+func (r *seedHarvestRunner) cleanupHarvestNamespace(namespace string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	result, err := r.next.Run(ctx, "nerdctl", "namespace", "remove", namespace)
+	if err == nil && result.ExitCode == 0 {
+		return nil
+	}
+	return errors.Join(
+		fmt.Errorf("cleanup Seed harvest quarantine namespace %q: %w", namespace, commandResultError(result, err)),
+		core.ErrRecoveryRequired,
+	)
 }
 
 func randomHarvestToken() (string, error) {
