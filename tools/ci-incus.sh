@@ -118,21 +118,22 @@ cleanup_project() {
   local instance
   local unexpected=0
 
+  # Force project deletion is safe only after proving every instance in this
+  # exact CI-owned project has a Hacocoon test name. The force flag also
+  # removes project-scoped cached images/volumes left by a failed init.
   while IFS= read -r instance; do
     [[ -n "$instance" ]] || continue
     case "$instance" in
-      haco-*)
-        incus delete "$instance" --project "$project" --force || return 1
-        ;;
+      haco-*) ;;
       *)
-        echo "ERROR: refusing to delete unexpected instance '$instance' from CI-owned project '$project'" >&2
+        echo "ERROR: refusing to force-delete CI-owned project '$project' with unexpected instance '$instance'" >&2
         unexpected=1
         ;;
     esac
   done < <(incus list --project "$project" --format csv -c n 2>/dev/null || true)
 
   [[ "$unexpected" == "0" ]] || return 1
-  incus project delete "$project"
+  incus project delete "$project" --force
 }
 
 cleanup() {
