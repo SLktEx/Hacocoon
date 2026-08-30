@@ -107,15 +107,23 @@ status_json="$("$haco" status "$environment" --json)"
 printf '%s' "$status_json" | grep -q '"state":"running"'
 printf '%s' "$status_json" | grep -Fq "$workspace"
 
-# Base images may omit sshd. Package acquisition is setup for this client-path
-# acceptance, not the behavior under test. Keep it inside Hacocoon's real
-# egress boundary, but make the proxy explicit to APT so this setup does not
-# depend on APT's handling of inherited process environment. The separate
-# egress E2E owns precise allow/deny policy behavior.
+# Stock Bases may omit sshd. In that case exercise the production bootstrap
+# path itself: temporarily authorize package egress, start the real managed
+# proxy, and let `haco ssh` install openssh-server using the proxy environment
+# injected by the managed Incus profile. The dedicated egress E2E owns narrow
+# hostname allow/deny semantics; this block proves the SSH composition works.
+needs_ssh_bootstrap=0
 if ! "$haco" exec "$environment" -- sh -c 'command -v sshd >/dev/null 2>&1'; then
+  needs_ssh_bootstrap=1
   bridge_cidr="$(incus network get haco-sandbox0 ipv4.address --project default)"
   bridge_ip="${bridge_cidr%/*}"
   [[ -n "$bridge_ip" && "$bridge_ip" != "$bridge_cidr" ]]
+
+  proxy_value="$("$haco" exec "$environment" -- sh -c 'printf %s "${http_proxy:-}"')"
+  [[ "$proxy_value" == "http://$bridge_ip:18080/" ]] || {
+    echo "unexpected sandbox proxy URI: $proxy_value" >&2
+    exit 1
+  }
 
   cat >"$HACO_ROOT/policy.json" <<'JSON'
 {
@@ -130,26 +138,21 @@ JSON
     cat "$root/ssh-egress.err" >&2 || true
     exit 1
   }
+fi
 
-  proxy="http://$bridge_ip:18080"
-  "$haco" exec "$environment" -- env \
-    DEBIAN_FRONTEND=noninteractive \
-    "http_proxy=$proxy" "https_proxy=$proxy" \
-    "HTTP_PROXY=$proxy" "HTTPS_PROXY=$proxy" \
-    sh -ceu 'apt-get update && apt-get install -y --no-install-recommends openssh-server'
+ssh_command="$("$haco" ssh "$environment" --public-key "$root/id_ed25519.pub" --host-port "$ssh_port")"
+[[ "$ssh_command" == "ssh -p $ssh_port root@127.0.0.1" ]]
+
+if [[ "$needs_ssh_bootstrap" == "1" ]]; then
   "$haco" exec "$environment" -- sh -c 'command -v sshd >/dev/null 2>&1'
-
   kill -TERM "$egress_pid"
   wait "$egress_pid" >/dev/null 2>&1 || true
   egress_pid=""
   restore_policy
 fi
 
-# From here onward there is no external-network authority. The actual client
-# commands must succeed using only the running Environment and loopback proxies.
-ssh_command="$("$haco" ssh "$environment" --public-key "$root/id_ed25519.pub" --host-port "$ssh_port")"
-[[ "$ssh_command" == "ssh -p $ssh_port root@127.0.0.1" ]]
-
+# From here onward there is no external-network authority. Client commands use
+# only the running Environment and loopback-only Incus proxy devices.
 connections_json="$("$haco" connections "$environment" --json)"
 python3 - "$connections_json" "$ssh_port" <<'PY'
 import json,sys
