@@ -20,12 +20,13 @@ git -C "$work" add history.txt
 git -C "$work" commit -m A >/dev/null
 printf 'B\n' >>"$work/history.txt"
 git -C "$work" commit -am B >/dev/null
+historical_commit="$(git -C "$work" rev-parse HEAD)"
 printf 'C\n' >>"$work/history.txt"
 git -C "$work" commit -am C >/dev/null
 main_commit="$(git -C "$work" rev-parse HEAD)"
 git -C "$work" push -u origin main >/dev/null
 
-# Lightweight and annotated release tags on trusted main history must pass.
+# Lightweight and annotated release tags on the current trusted main HEAD pass.
 git -C "$work" tag v1.0.0 "$main_commit"
 (
   cd "$work"
@@ -37,6 +38,17 @@ git -C "$work" tag -a v1.0.1 -m v1.0.1 "$main_commit"
   cd "$work"
   bash "$checker" v1.0.1 origin main
 )
+
+# A new release tag on an older commit in otherwise trusted main history must
+# fail. This blocks write-authority rollback releases with valid provenance.
+git -C "$work" tag v0.9.0 "$historical_commit"
+if (
+  cd "$work"
+  bash "$checker" v0.9.0 origin main
+); then
+  echo "expected historical-main rollback tag to be rejected" >&2
+  exit 1
+fi
 
 # The repository_dispatch workflow checks the trusted control repository out
 # below the workspace root. When invoked from a non-repository parent, the
