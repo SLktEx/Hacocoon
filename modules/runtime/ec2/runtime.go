@@ -144,6 +144,9 @@ func (r *Runtime) DeleteEnvironment(ctx context.Context, rawRef string) error {
 	if err != nil {
 		return err
 	}
+	if state == "terminated" && !ref.ReadOnly {
+		return fmt.Errorf("RW EC2 environment %s terminated before sync-back could be proven; retaining staging: %w", ref.InstanceID, core.ErrRecoveryRequired)
+	}
 	if state != "terminated" {
 		if !ref.ReadOnly {
 			if state != "running" {
