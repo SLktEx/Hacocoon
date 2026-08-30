@@ -27,19 +27,19 @@ Client / IDE / Agent / Orchestrator
                  |
          Provider / Adapter
                  |
-       Incus / EC2 / GitHub / AWS
+      Incus / GitHub / External
 ```
 
 Hacocoon自身はIDE、AI chat product、Git worktree manager、Agent schedulerにはなりません。
 
 ## 現在のstatus
 
-**凡例:** ✅ 実装済み · 🧪 experimental · 🚧 planned
+**凡例:** ✅ 実装済み · 🧪 experimental/historical · 🚧 planned
 
 | Version | Gate | State |
 |---|---|---|
 | v0.1〜v0.6 | Core runtime / workspace / access / policy / Git / agent integration | ✅ 実装済み |
-| v0.7 | Remote / Cloud Runtime | 🧪 experimental実装。EC2はdefault-off |
+| v0.7 | Remote / Cloud Runtime | 🧪 provider routing seamは維持。以前のEC2/AWS/EBS実装はdeferred |
 | v0.8 | Client Adapters & VS Code | ✅ 実装済み |
 | v0.9 | Per-Agent Sandbox | ✅ broker foundation実装済み |
 | v0.10 | VS Code Remote Agent Host Adapter | ✅ `haco-agent-host` 実装済み |
@@ -75,7 +75,7 @@ Hacocoon自身はIDE、AI chat product、Git worktree manager、Agent scheduler�
 - Agent task DAG / retry strategy
 - Git branch strategy / worktree orchestration
 - VS Code Agent Host Protocol固有detail
-- Incus / AWS / OCI / Btrfs等provider固有mechanics
+- Incus / cloud / OCI / Btrfs等provider固有mechanics
 
 ## Coreを小さくする
 
@@ -93,7 +93,7 @@ BaseName / BaseRevision / BaseRef
 ResourceBudget
 ```
 
-Incus、AWS、GitHub、VS Code、AHP、Daintree、Btrfs、OCI registryなどはadapter/integration側に置きます。
+Incus、cloud provider、GitHub、VS Code、AHP、Daintree、Btrfs、OCI registryなどはadapter/integration側に置きます。
 
 ## Environmentとauthorityの境界
 
@@ -108,7 +108,7 @@ Environment                <- broad local freedom
  Hacocoon
  Policy / Capability
      |
-GitHub / AWS / Host
+GitHub / External / Host
 ```
 
 Environment内ではbuild/test/package install/source editなどを自由にできます。しかしHost authorityまで自由になるわけではありません。
@@ -118,7 +118,7 @@ Environment内ではbuild/test/package install/source editなどを自由にで�
 - host HOME
 - `~/.ssh`
 - `~/.aws`
-- reusable GitHub/AWS/registry credentials
+- reusable GitHub/cloud/registry credentials
 - Incus control socket
 - Hacocoon control state
 
@@ -312,16 +312,18 @@ Development approval -> Human / GitHub / Orchestrator
 Security approval    -> Hacocoon Policy / Capability
 ```
 
-## EC2
+## Cloud Runtime
 
-v0.7 EC2 providerは **experimental / disabled by default** です。
+Remote / Cloud Runtimeは現在 **deferred** です。Current buildが登録するEnvironment ProviderはIncusのみで、以前のEC2 runtime、AWS capability、EBS helperはactive implementation treeにありません。
+
+以前のv0.7 EC2 providerは **experimental / disabled by default** でした。歴史的には次のexplicit opt-inを使っていましたが、現在のsupported runtime configurationではありません。
 
 ```bash
 export HACO_RUNTIME_PROVIDER=runtime.ec2
 export HACO_EXPERIMENTAL_EC2=1
 ```
 
-Real AWS acceptanceはrepository/fake-AWS testとは別に扱います。
+Provider-neutral routing seamとGit history / v0.7 design contractは残しています。Local側のcontractが安定した後にcloud adapterを復活させる場合も、explicit opt-in、trusted-side credential、provider side effect前のfail-closedを維持します。
 
 ## Acceptanceの読み方
 
@@ -330,9 +332,9 @@ Real AWS acceptanceはrepository/fake-AWS testとは別に扱います。
 | unit / adversarial test | logic/invariant coverage |
 | process / fake-provider E2E | external infraなしのexecutable integration |
 | repository CI | host-independent regression |
-| real Incus / Windows / AWS | actual provider/client acceptance |
+| real Incus / Windows / future cloud | actual provider/client acceptance |
 
-実装済みでもreal-host acceptance pendingの領域があります。詳細は `IMPLEMENTATION_STATUS.ja.md` を参照してください。
+実装済みでもreal-host acceptance pendingの領域があります。Cloud acceptanceはadapter再導入時に改めて定義します。詳細は `IMPLEMENTATION_STATUS.ja.md` を参照してください。
 
 ## Breaking Change
 
