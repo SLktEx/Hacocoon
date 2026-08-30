@@ -87,7 +87,7 @@ func TestMountEnablesTransparentCompression(t *testing.T) {
 	if err := b.Mount(context.Background(), "/dev/expected", "/mnt/haco"); err != nil {
 		t.Fatalf("mount failed: %v", err)
 	}
-	want := "mount -o compress=zstd:3 /dev/expected /mnt/haco"
+	want := "mount /dev/expected /mnt/haco -o compress=zstd:3"
 	for _, call := range runner.calls {
 		if call == want {
 			return
@@ -140,7 +140,7 @@ func TestMountRemountsExistingSourceWithoutCompression(t *testing.T) {
 	if err := b.Mount(context.Background(), "/dev/expected", "/mnt/haco"); err != nil {
 		t.Fatalf("remount failed: %v", err)
 	}
-	want := "mount -o remount,compress=zstd:3 /dev/expected /mnt/haco"
+	want := "mount /dev/expected /mnt/haco -o remount,compress=zstd:3"
 	for _, call := range runner.calls {
 		if call == want {
 			return
@@ -168,7 +168,7 @@ func TestMountReplacesCompressForce(t *testing.T) {
 	if err := b.Mount(context.Background(), "/dev/expected", "/mnt/haco"); err != nil {
 		t.Fatalf("remount failed: %v", err)
 	}
-	want := "mount -o remount,compress=zstd:3 /dev/expected /mnt/haco"
+	want := "mount /dev/expected /mnt/haco -o remount,compress=zstd:3"
 	for _, call := range runner.calls {
 		if call == want {
 			return
