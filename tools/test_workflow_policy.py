@@ -40,9 +40,30 @@ jobs:
 """
         self.assertEqual(messages(workflow), [])
 
+    def test_accepts_safe_inline_yaml_forms(self) -> None:
+        workflow = f"""name: test
+"on": [pull_request]
+permissions: {{contents: read, id-token: none}}
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@{SHA}
+        with: {{persist-credentials: false}}
+      - uses: actions/setup-go@{SHA}
+        with: {{cache: false}}
+"""
+        self.assertEqual(messages(workflow), [])
+
     def test_rejects_pull_request_target(self) -> None:
         self.assert_rejected(
             "on:\n  pull_request_target:\njobs:\n  test:\n    runs-on: ubuntu-24.04\n",
+            "pull_request_target",
+        )
+
+    def test_rejects_inline_pull_request_target(self) -> None:
+        self.assert_rejected(
+            "on: [pull_request_target]\njobs:\n  test:\n    runs-on: ubuntu-24.04\n",
             "pull_request_target",
         )
 
@@ -58,6 +79,18 @@ jobs:
             "must be read/none",
         )
 
+    def test_rejects_inline_write_permission_in_pr(self) -> None:
+        self.assert_rejected(
+            "on: [pull_request]\npermissions: {contents: write}\njobs:\n  test:\n    runs-on: ubuntu-24.04\n",
+            "must be read/none",
+        )
+
+    def test_rejects_write_all_permission_in_pr(self) -> None:
+        self.assert_rejected(
+            "on: pull_request\npermissions: write-all\njobs:\n  test:\n    runs-on: ubuntu-24.04\n",
+            "must be read-only",
+        )
+
     def test_rejects_oidc_write_in_pr(self) -> None:
         self.assert_rejected(
             "on:\n  pull_request:\npermissions:\n  contents: read\n  id-token: write\njobs:\n  test:\n    runs-on: ubuntu-24.04\n",
@@ -67,6 +100,24 @@ jobs:
     def test_rejects_self_hosted_runner(self) -> None:
         self.assert_rejected(
             "on:\n  pull_request:\njobs:\n  test:\n    runs-on: self-hosted\n",
+            "not approved",
+        )
+
+    def test_rejects_block_sequence_self_hosted_runner(self) -> None:
+        self.assert_rejected(
+            "on: [pull_request]\njobs:\n  test:\n    runs-on:\n      - self-hosted\n      - linux\n",
+            "not approved",
+        )
+
+    def test_rejects_inline_sequence_self_hosted_runner(self) -> None:
+        self.assert_rejected(
+            "on: [pull_request]\njobs:\n  test:\n    runs-on: [self-hosted, linux]\n",
+            "not approved",
+        )
+
+    def test_rejects_runner_expression(self) -> None:
+        self.assert_rejected(
+            "on: [pull_request]\njobs:\n  test:\n    runs-on: ${{ matrix.runner }}\n",
             "not approved",
         )
 
@@ -88,9 +139,21 @@ jobs:
             "full commit SHA",
         )
 
+    def test_rejects_job_level_reusable_workflow(self) -> None:
+        self.assert_rejected(
+            f"on: [pull_request]\njobs:\n  delegated:\n    uses: vendor/repo/.github/workflows/ci.yml@{SHA}\n",
+            "reusable workflow jobs are not permitted",
+        )
+
     def test_rejects_cross_run_artifact_download(self) -> None:
         self.assert_rejected(
             f"on:\n  pull_request:\njobs:\n  test:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/download-artifact@{SHA}\n        with:\n          run-id: 123\n",
+            "cross-run/external artifact",
+        )
+
+    def test_rejects_inline_cross_run_artifact_download(self) -> None:
+        self.assert_rejected(
+            f"on: [pull_request]\njobs:\n  test:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/download-artifact@{SHA}\n        with: {{repository: attacker/repo}}\n",
             "cross-run/external artifact",
         )
 
@@ -110,6 +173,18 @@ jobs:
         self.assert_rejected(
             "on:\n  pull_request:\njobs:\n  test:\n    runs-on: ubuntu-24.04\n    env:\n      TOKEN: ${{ secrets.RELEASE_TOKEN }}\n",
             "secrets are not permitted",
+        )
+
+    def test_rejects_yaml_merge_alias(self) -> None:
+        self.assert_rejected(
+            "on: [pull_request]\ndefaults: &dangerous\n  runs-on: self-hosted\njobs:\n  test:\n    <<: *dangerous\n",
+            "YAML merge keys are not permitted",
+        )
+
+    def test_rejects_duplicate_security_key(self) -> None:
+        self.assert_rejected(
+            "on: [pull_request]\njobs:\n  test:\n    runs-on: ubuntu-24.04\n    runs-on: self-hosted\n",
+            "duplicate YAML key",
         )
 
 
