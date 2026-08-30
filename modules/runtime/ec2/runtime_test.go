@@ -19,6 +19,7 @@ type fakeRunner struct {
 	invocation        string
 	instanceState     string
 	lastSSMParameters string
+	syncRestored      bool
 }
 
 func (f *fakeRunner) Run(_ context.Context, name string, args ...string) (host.Result, error) {
@@ -29,10 +30,14 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) (host.R
 	}
 	if name == "tar" {
 		if len(args) >= 2 && args[0] == "-czf" {
-			if err := os.WriteFile(args[1], []byte("archive"), 0o600); err != nil { return host.Result{}, err }
+			if err := os.WriteFile(args[1], []byte("archive"), 0o600); err != nil {
+				return host.Result{}, err
+			}
 		}
 		if len(args) >= 4 && args[0] == "-xzf" && args[2] == "-C" {
-			if err := os.WriteFile(filepath.Join(args[3], "remote.txt"), []byte("from-ec2\n"), 0o644); err != nil { return host.Result{}, err }
+			if err := os.WriteFile(filepath.Join(args[3], "remote.txt"), []byte("from-ec2\n"), 0o644); err != nil {
+				return host.Result{}, err
+			}
 		}
 		return host.Result{}, nil
 	}
@@ -42,16 +47,37 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) (host.R
 	case strings.Contains(call, " ssm describe-instance-information "):
 		return host.Result{Stdout: "Online\n"}, nil
 	case strings.Contains(call, " ssm send-command "):
-		for i, arg := range args { if arg == "--parameters" && i+1 < len(args) { f.lastSSMParameters = args[i+1] } }
+		for i, arg := range args {
+			if arg == "--parameters" && i+1 < len(args) {
+				f.lastSSMParameters = args[i+1]
+			}
+		}
 		return host.Result{Stdout: "11111111-1111-1111-1111-111111111111\n"}, nil
 	case strings.Contains(call, " ssm get-command-invocation "):
 		payload := f.invocation
-		if payload == "" { payload = `{"Status":"Success","ResponseCode":0,"StandardOutputContent":"","StandardErrorContent":""}` }
+		if payload == "" {
+			payload = `{"Status":"Success","ResponseCode":0,"StandardOutputContent":"","StandardErrorContent":""}`
+		}
 		return host.Result{Stdout: payload}, nil
 	case strings.Contains(call, " ec2 describe-instances "):
-		state := f.instanceState; if state == "" { state = "running" }; return host.Result{Stdout: state + "\n"}, nil
+		state := f.instanceState
+		if state == "" {
+			state = "running"
+		}
+		return host.Result{Stdout: state + "\n"}, nil
+	case strings.Contains(call, " s3api head-object "):
+		if f.syncRestored {
+			return host.Result{Stdout: "true\n"}, nil
+		}
+		return host.Result{ExitCode: 255, Stderr: "An error occurred (404) when calling the HeadObject operation: Not Found\n"}, errors.New("exit status 255")
+	case strings.Contains(call, " s3api put-object "):
+		f.syncRestored = true
+		return host.Result{}, nil
 	case strings.Contains(call, " s3 cp s3://"):
-		for i, arg := range args { if strings.HasPrefix(arg, "s3://") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "s3://") { _ = os.WriteFile(args[i+1], []byte("remote-archive"), 0o600) } }
+		for i, arg := range args {
+			if strings.HasPrefix(arg, "s3://") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "s3://") {
+				_ = os.WriteFile(args[i+1], []byte("remote-archive"), 0o600)
+			}
 		return host.Result{}, nil
 	default:
 		return host.Result{}, nil
@@ -62,93 +88,272 @@ func testConfig() Config {
 	return Config{Region: "ap-northeast-1", ImageID: "ami-0123456789abcdef0", InstanceType: "t3.large", SubnetID: "subnet-0123456789abcdef0", SecurityGroupIDs: []string{"sg-0123456789abcdef0"}, InstanceProfile: "hacocoon-remote", WorkspaceBucket: "hacocoon-workspaces-example", WorkspacePrefix: "tests"}
 }
 
-func newTestRuntime(runner host.Runner) *Runtime { runtime := New(runner, testConfig()); runtime.pollAttempts = 1; runtime.pollDelay = 0; return runtime }
+func newTestRuntime(runner host.Runner) *Runtime {
+	runtime := New(runner, testConfig())
+	runtime.pollAttempts = 1
+	runtime.pollDelay = 0
+	return runtime
+}
 
 func TestCreateStagesWorkspaceAndCreatesSSMManagedInstance(t *testing.T) {
-	workspace := t.TempDir(); if err := os.WriteFile(filepath.Join(workspace, "host.txt"), []byte("hello\n"), 0o644); err != nil { t.Fatal(err) }
-	runner := &fakeRunner{}; runtime := newTestRuntime(runner)
-	created, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: workspace}); if err != nil { t.Fatal(err) }
-	if !strings.HasPrefix(created.Ref, "ec2v1.") { t.Fatalf("created=%#v", created) }
-	ref, err := decodeRef(created.Ref); if err != nil { t.Fatal(err) }
-	if ref.InstanceID != "i-0123456789abcdef0" || ref.WorkspacePath != workspace || ref.ReadOnly { t.Fatalf("ref=%#v", ref) }
+	workspace := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workspace, "host.txt"), []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runner := &fakeRunner{}
+	runtime := newTestRuntime(runner)
+	created, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(created.Ref, "ec2v1.") {
+		t.Fatalf("created=%#v", created)
+	}
+	ref, err := decodeRef(created.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref.InstanceID != "i-0123456789abcdef0" || ref.WorkspacePath != workspace || ref.ReadOnly {
+		t.Fatalf("ref=%#v", ref)
+	}
 	joined := strings.Join(runner.calls, "\n")
-	for _, want := range []string{"tar -czf", "s3 cp", "ec2 run-instances", "--metadata-options HttpTokens=required,HttpEndpoint=enabled", "ec2 wait instance-status-ok", "ssm describe-instance-information", "ssm send-command"} { if !strings.Contains(joined, want) { t.Fatalf("missing %q in calls:\n%s", want, joined) } }
-	if !strings.Contains(runner.lastSSMParameters, "mount --bind") || strings.Contains(runner.lastSSMParameters, "remount,bind,ro") { t.Fatalf("bootstrap params=%s", runner.lastSSMParameters) }
-	if strings.Contains(joined, "AWS_SECRET_ACCESS_KEY") || strings.Contains(joined, "AWS_SESSION_TOKEN") { t.Fatalf("credential material appeared in argv:\n%s", joined) }
+	for _, want := range []string{"tar -czf", "s3 cp", "ec2 run-instances", "--metadata-options HttpTokens=required,HttpEndpoint=enabled", "ec2 wait instance-status-ok", "ssm describe-instance-information", "ssm send-command"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("missing %q in calls:\n%s", want, joined)
+		}
+	}
+	if !strings.Contains(runner.lastSSMParameters, "mount --bind") || strings.Contains(runner.lastSSMParameters, "remount,bind,ro") {
+		t.Fatalf("bootstrap params=%s", runner.lastSSMParameters)
+	}
+	if strings.Contains(joined, "AWS_SECRET_ACCESS_KEY") || strings.Contains(joined, "AWS_SESSION_TOKEN") {
+		t.Fatalf("credential material appeared in argv:\n%s", joined)
+	}
 }
 
 func TestCreateReadOnlyUsesReadOnlyBindMount(t *testing.T) {
-	runner := &fakeRunner{}; runtime := newTestRuntime(runner)
-	created, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: t.TempDir(), ReadOnly: true}); if err != nil { t.Fatal(err) }
-	ref, _ := decodeRef(created.Ref); if !ref.ReadOnly || !strings.Contains(runner.lastSSMParameters, "remount,bind,ro") { t.Fatalf("ref=%#v params=%s", ref, runner.lastSSMParameters) }
+	runner := &fakeRunner{}
+	runtime := newTestRuntime(runner)
+	created, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: t.TempDir(), ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, _ := decodeRef(created.Ref)
+	if !ref.ReadOnly || !strings.Contains(runner.lastSSMParameters, "remount,bind,ro") {
+		t.Fatalf("ref=%#v params=%s", ref, runner.lastSSMParameters)
+	}
 }
 
 func TestCreateFailureCleansInstanceAndStaging(t *testing.T) {
-	runner := &fakeRunner{failContains: "ssm describe-instance-information"}; runtime := newTestRuntime(runner)
-	_, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: t.TempDir()}); if err == nil { t.Fatal("expected failure") }
-	joined := strings.Join(runner.calls, "\n"); if !strings.Contains(joined, "ec2 terminate-instances --instance-ids i-0123456789abcdef0") || !strings.Contains(joined, "s3 rm s3://hacocoon-workspaces-example/tests/demo --recursive") { t.Fatalf("partial cleanup missing:\n%s", joined) }
+	runner := &fakeRunner{failContains: "ssm describe-instance-information"}
+	runtime := newTestRuntime(runner)
+	_, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: t.TempDir()})
+	if err == nil {
+		t.Fatal("expected failure")
+	}
+	joined := strings.Join(runner.calls, "\n")
+	if !strings.Contains(joined, "ec2 terminate-instances --instance-ids i-0123456789abcdef0") || !strings.Contains(joined, "s3 rm s3://hacocoon-workspaces-example/tests/demo --recursive") {
+		t.Fatalf("partial cleanup missing:\n%s", joined)
+	}
 }
 
 func TestExecUsesSSMAndPreservesArgvMeaning(t *testing.T) {
-	runner := &fakeRunner{invocation: `{"Status":"Failed","ResponseCode":17,"StandardOutputContent":"out\n","StandardErrorContent":"err\n"}`}; runtime := newTestRuntime(runner)
+	runner := &fakeRunner{invocation: `{"Status":"Failed","ResponseCode":17,"StandardOutputContent":"out\n","StandardErrorContent":"err\n"}`}
+	runtime := newTestRuntime(runner)
 	ref, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: "/tmp/work", Bucket: "bucket-example", Prefix: "p", ReadOnly: true})
 	result, err := runtime.ExecEnvironment(context.Background(), ref, core.ExecutionRequest{Argv: []string{"printf", "%s", "hello world; $(touch nope)", "it's-safe"}})
-	if err != nil || result.ExitCode != 17 || result.Stdout != "out\n" || result.Stderr != "err\n" { t.Fatalf("result=%#v err=%v", result, err) }
-	for _, want := range []string{`'hello world; $(touch nope)'`, `'it'\\''s-safe'`} { if !strings.Contains(runner.lastSSMParameters, want) { t.Fatalf("missing shell quote %q in %s", want, runner.lastSSMParameters) } }
+	if err != nil || result.ExitCode != 17 || result.Stdout != "out\n" || result.Stderr != "err\n" {
+		t.Fatalf("result=%#v err=%v", result, err)
+	}
+	for _, want := range []string{`'hello world; $(touch nope)'`, `'it'\\''s-safe'`} {
+		if !strings.Contains(runner.lastSSMParameters, want) {
+			t.Fatalf("missing shell quote %q in %s", want, runner.lastSSMParameters)
+		}
+	}
 }
 
 func TestDeleteReadWriteSynchronizesBeforeTerminate(t *testing.T) {
-	workspace := t.TempDir(); if err := os.WriteFile(filepath.Join(workspace, "old.txt"), []byte("old\n"), 0o644); err != nil { t.Fatal(err) }
-	runner := &fakeRunner{}; runtime := newTestRuntime(runner)
+	workspace := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workspace, "old.txt"), []byte("old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runner := &fakeRunner{}
+	runtime := newTestRuntime(runner)
 	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: workspace, Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo", ReadOnly: false})
-	if err := runtime.DeleteEnvironment(context.Background(), raw); err != nil { t.Fatal(err) }
-	if _, err := os.Stat(filepath.Join(workspace, "old.txt")); !os.IsNotExist(err) { t.Fatalf("old workspace file survived atomic restore: %v", err) }
-	if content, err := os.ReadFile(filepath.Join(workspace, "remote.txt")); err != nil || string(content) != "from-ec2\n" { t.Fatalf("content=%q err=%v", content, err) }
-	joined := strings.Join(runner.calls, "\n"); syncAt := strings.Index(joined, "s3 cp /tmp/haco-output.tgz"); terminateAt := strings.Index(joined, "ec2 terminate-instances"); if syncAt < 0 || terminateAt < 0 || syncAt > terminateAt { t.Fatalf("sync must precede terminate:\n%s", joined) }
+	if err := runtime.DeleteEnvironment(context.Background(), raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(workspace, "old.txt")); !os.IsNotExist(err) {
+		t.Fatalf("old workspace file survived atomic restore: %v", err)
+	}
+	if content, err := os.ReadFile(filepath.Join(workspace, "remote.txt")); err != nil || string(content) != "from-ec2\n" {
+		t.Fatalf("content=%q err=%v", content, err)
+	}
+	joined := strings.Join(runner.calls, "\n")
+	syncAt := strings.Index(joined, "s3 cp /tmp/haco-output.tgz")
+	markerAt := strings.Index(joined, "s3api put-object")
+	terminateAt := strings.Index(joined, "ec2 terminate-instances")
+	if syncAt < 0 || markerAt < 0 || terminateAt < 0 || syncAt > markerAt || markerAt > terminateAt {
+		t.Fatalf("sync proof must be persisted after sync and before terminate:\n%s", joined)
+	}
+	if !runner.syncRestored {
+		t.Fatal("sync completion marker was not persisted")
+	}
 }
 
 func TestDeletePreservesUnrelatedLegacyBackupPath(t *testing.T) {
 	parent := t.TempDir()
 	workspace := filepath.Join(parent, "workspace")
-	if err := os.Mkdir(workspace, 0o700); err != nil { t.Fatal(err) }
+	if err := os.Mkdir(workspace, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	legacyBackup := workspace + ".haco-backup"
-	if err := os.Mkdir(legacyBackup, 0o700); err != nil { t.Fatal(err) }
-	if err := os.WriteFile(filepath.Join(legacyBackup, "keep.txt"), []byte("keep\n"), 0o600); err != nil { t.Fatal(err) }
+	if err := os.Mkdir(legacyBackup, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacyBackup, "keep.txt"), []byte("keep\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
-	runner := &fakeRunner{}; runtime := newTestRuntime(runner)
+	runner := &fakeRunner{}
+	runtime := newTestRuntime(runner)
 	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: workspace, Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo", ReadOnly: false})
-	if err := runtime.DeleteEnvironment(context.Background(), raw); err != nil { t.Fatal(err) }
+	if err := runtime.DeleteEnvironment(context.Background(), raw); err != nil {
+		t.Fatal(err)
+	}
 	if content, err := os.ReadFile(filepath.Join(legacyBackup, "keep.txt")); err != nil || string(content) != "keep\n" {
 		t.Fatalf("unrelated backup was modified: content=%q err=%v", content, err)
 	}
 }
 
 func TestDeleteFailsClosedBeforeTerminateWhenSyncCannotBeProven(t *testing.T) {
-	runner := &fakeRunner{instanceState: "stopped"}; runtime := newTestRuntime(runner)
+	runner := &fakeRunner{instanceState: "stopped"}
+	runtime := newTestRuntime(runner)
 	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: t.TempDir(), Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo"})
-	err := runtime.DeleteEnvironment(context.Background(), raw); if !errors.Is(err, core.ErrRecoveryRequired) { t.Fatalf("err=%v", err) }
-	if strings.Contains(strings.Join(runner.calls, "\n"), "terminate-instances") { t.Fatalf("instance terminated before workspace recovery: %v", runner.calls) }
+	err := runtime.DeleteEnvironment(context.Background(), raw)
+	if !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("err=%v", err)
+	}
+	if strings.Contains(strings.Join(runner.calls, "\n"), "terminate-instances") {
+		t.Fatalf("instance terminated before workspace recovery: %v", runner.calls)
+	}
 }
 
-func TestDeleteRetryAfterTerminationOnlyCleansStaging(t *testing.T) {
-	runner := &fakeRunner{instanceState: "terminated"}; runtime := newTestRuntime(runner)
+func TestDeleteTerminatedReadWriteWithoutSyncProofRequiresRecovery(t *testing.T) {
+	runner := &fakeRunner{instanceState: "terminated"}
+	runtime := newTestRuntime(runner)
 	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: t.TempDir(), Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo"})
-	if err := runtime.DeleteEnvironment(context.Background(), raw); err != nil { t.Fatal(err) }
-	joined := strings.Join(runner.calls, "\n"); if strings.Contains(joined, "ssm send-command") || strings.Contains(joined, "terminate-instances") || !strings.Contains(joined, "s3 rm s3://hacocoon-workspaces-example/tests/demo --recursive") { t.Fatalf("retry flow:\n%s", joined) }
+	err := runtime.DeleteEnvironment(context.Background(), raw)
+	if !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("err=%v", err)
+	}
+	joined := strings.Join(runner.calls, "\n")
+	if strings.Contains(joined, "ssm send-command") || strings.Contains(joined, "terminate-instances") || strings.Contains(joined, "s3 rm s3://hacocoon-workspaces-example/tests/demo --recursive") {
+		t.Fatalf("terminated RW environment destroyed recovery evidence:\n%s", joined)
+	}
+}
+
+func TestDeleteRetryAfterProvenSyncAndTerminationOnlyCleansStaging(t *testing.T) {
+	runner := &fakeRunner{instanceState: "terminated", syncRestored: true}
+	runtime := newTestRuntime(runner)
+	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: t.TempDir(), Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo"})
+	if err := runtime.DeleteEnvironment(context.Background(), raw); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(runner.calls, "\n")
+	if strings.Contains(joined, "ssm send-command") || strings.Contains(joined, "terminate-instances") || !strings.Contains(joined, "s3 rm s3://hacocoon-workspaces-example/tests/demo --recursive") {
+		t.Fatalf("proven retry flow:\n%s", joined)
+	}
+}
+
+func TestDeleteRunningWithExistingSyncProofSkipsDuplicateSync(t *testing.T) {
+	runner := &fakeRunner{instanceState: "running", syncRestored: true}
+	runtime := newTestRuntime(runner)
+	workspace := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workspace, "keep.txt"), []byte("local-after-sync\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: workspace, Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo"})
+	if err := runtime.DeleteEnvironment(context.Background(), raw); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(runner.calls, "\n")
+	if strings.Contains(joined, "ssm send-command") || !strings.Contains(joined, "terminate-instances") {
+		t.Fatalf("durable sync proof was not used for resume:\n%s", joined)
+	}
+	if content, err := os.ReadFile(filepath.Join(workspace, "keep.txt")); err != nil || string(content) != "local-after-sync\n" {
+		t.Fatalf("workspace was unexpectedly restored again: content=%q err=%v", content, err)
+	}
+}
+
+func TestDeleteSyncProofFailureRetainsInstanceAndStaging(t *testing.T) {
+	workspace := t.TempDir()
+	runner := &fakeRunner{failContains: "s3api put-object"}
+	runtime := newTestRuntime(runner)
+	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: workspace, Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo"})
+	err := runtime.DeleteEnvironment(context.Background(), raw)
+	if !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("err=%v", err)
+	}
+	joined := strings.Join(runner.calls, "\n")
+	if strings.Contains(joined, "terminate-instances") || strings.Contains(joined, "s3 rm s3://hacocoon-workspaces-example/tests/demo --recursive") {
+		t.Fatalf("runtime/staging removed without durable sync proof:\n%s", joined)
+	}
+}
+
+func TestDeleteAmbiguousSyncProofObservationFailsClosed(t *testing.T) {
+	runner := &fakeRunner{failContains: "s3api head-object"}
+	runtime := newTestRuntime(runner)
+	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: t.TempDir(), Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo"})
+	err := runtime.DeleteEnvironment(context.Background(), raw)
+	if !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("err=%v", err)
+	}
+	joined := strings.Join(runner.calls, "\n")
+	if strings.Contains(joined, "ssm send-command") || strings.Contains(joined, "terminate-instances") || strings.Contains(joined, "s3 rm ") {
+		t.Fatalf("ambiguous marker observation caused mutation:\n%s", joined)
+	}
+}
+
+func TestDeleteTerminatedReadOnlyStillCleansStaging(t *testing.T) {
+	runner := &fakeRunner{instanceState: "terminated"}
+	runtime := newTestRuntime(runner)
+	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: t.TempDir(), Bucket: "hacocoon-workspaces-example", Prefix: "tests/demo", ReadOnly: true})
+	if err := runtime.DeleteEnvironment(context.Background(), raw); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(runner.calls, "\n")
+	if strings.Contains(joined, "s3api head-object") || !strings.Contains(joined, "s3 rm s3://hacocoon-workspaces-example/tests/demo --recursive") {
+		t.Fatalf("read-only terminated cleanup:\n%s", joined)
+	}
 }
 
 func TestInspectMapsEC2State(t *testing.T) {
-	runner := &fakeRunner{instanceState: "running"}; runtime := newTestRuntime(runner)
+	runner := &fakeRunner{instanceState: "running"}
+	runtime := newTestRuntime(runner)
 	raw, _ := encodeRef(runtimeRef{InstanceID: "i-0123456789abcdef0", WorkspacePath: "/tmp/work", Bucket: "bucket-example", Prefix: "p", ReadOnly: true})
-	status, err := runtime.InspectEnvironment(context.Background(), raw); if err != nil || status.State != core.EnvironmentRunning { t.Fatalf("status=%#v err=%v", status, err) }
+	status, err := runtime.InspectEnvironment(context.Background(), raw)
+	if err != nil || status.State != core.EnvironmentRunning {
+		t.Fatalf("status=%#v err=%v", status, err)
+	}
 }
 
 func TestConfigFailsClosedWhenRemoteOwnershipIsIncomplete(t *testing.T) {
 	cases := []Config{{}, func() Config { c := testConfig(); c.InstanceProfile = ""; return c }(), func() Config { c := testConfig(); c.WorkspaceBucket = "Bad_Bucket"; return c }()}
-	for _, cfg := range cases { if _, err := cfg.normalized(); !errors.Is(err, core.ErrRuntimeUnavailable) { t.Fatalf("config=%#v err=%v", cfg, err) } }
+	for _, cfg := range cases {
+		if _, err := cfg.normalized(); !errors.Is(err, core.ErrRuntimeUnavailable) {
+			t.Fatalf("config=%#v err=%v", cfg, err)
+		}
+	}
 }
 
 func TestWaitSSMHonorsContext(t *testing.T) {
-	runner := &fakeRunner{failContains: "describe-instance-information"}; runtime := newTestRuntime(runner); runtime.pollAttempts = 2; runtime.pollDelay = time.Hour
-	ctx, cancel := context.WithCancel(context.Background()); cancel(); if err := runtime.waitSSM(ctx, "i-0123456789abcdef0"); !errors.Is(err, context.Canceled) { t.Fatalf("err=%v", err) }
+	runner := &fakeRunner{failContains: "describe-instance-information"}
+	runtime := newTestRuntime(runner)
+	runtime.pollAttempts = 2
+	runtime.pollDelay = time.Hour
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := runtime.waitSSM(ctx, "i-0123456789abcdef0"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err=%v", err)
+	}
 }
