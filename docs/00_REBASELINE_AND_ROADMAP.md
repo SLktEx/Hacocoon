@@ -55,10 +55,10 @@ Hacocoon does not own IDE/AI chat UX, model routing, task DAGs, Git worktree orc
 | v0.14 | Git Fetch Plugin | implemented |
 | v0.15 | OCI Seed Recommendation | implemented |
 | v0.16 | OCI Image Deletion | first slice implemented |
-| v0.17 | Docker Compatibility Plugin | foundation / partial |
-| v0.18 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.17 | OCI Seed Builder & Btrfs/COW | planned |
+| v0.18 | Docker Compatibility Plugin | foundation / partial |
 
-Fully implemented product milestones are contiguous through **v0.16**. v0.17 remains partial; v0.18 is planned.
+Fully implemented product milestones are contiguous through **v0.16**. v0.17 is the next planned gate. v0.18 has some foundation code already landed early but remains incomplete.
 
 **Local OCI Registry is not a roadmap milestone.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
 
@@ -80,9 +80,11 @@ HACO_PLUGIN_OCI=docker   haco plugin oci ...
 
 ## OCI storage direction
 
-Normal upstream pull is allowed by policy. Local Registry is optional/deferred and is not required for Seed construction. v0.18 uses trusted Host acquisition/cache, an offline Seed Builder, immutable Seed publication, and normal Incus/storage-driver COW. Never share one writable `/var/lib/containerd` across Environments.
+Normal upstream pull is allowed by policy. Local Registry is optional/deferred and is not required for Seed construction. v0.17 uses trusted Host acquisition/cache, an offline Seed Builder, immutable Seed publication, and normal Incus/storage-driver COW. Never share one writable `/var/lib/containerd` across Environments.
 
-See [`18_v0.18_OCI_SEED_AND_COW.md`](18_v0.18_OCI_SEED_AND_COW.md) and [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
+Docker compatibility follows as v0.18 because completing Environment-local Docker CLI/Engine provisioning depends on the Seed/Base lifecycle established by v0.17. The existing Docker adapter and systemd packaging code are treated as early v0.18 foundation work.
+
+See [`17_v0.17_OCI_SEED_AND_COW.md`](17_v0.17_OCI_SEED_AND_COW.md), [`18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md`](18_v0.18_DOCKER_COMPATIBILITY_PLUGIN.md), and [`OPTIONAL_LOCAL_OCI_REGISTRY.md`](OPTIONAL_LOCAL_OCI_REGISTRY.md).
 
 ## Client interaction direction
 
@@ -92,4 +94,4 @@ Browser/Web interaction and notification work belongs at a client/adapter bounda
 
 Older commits, branches, PRs, and superseded documents may describe active EC2/AWS/EBS support or place Local Registry / Seed / deletion work under older milestone assignments. Those are historical records, not the current architecture or numbering.
 
-A short-lived 2026-08-30 rebaseline reserved v0.18 for Optional Local OCI Registry and v0.19 for OCI Seed Builder/COW. That reservation is superseded: Registry is deferred/unversioned and Seed Builder/COW is v0.18.
+A short-lived 2026-08-30 rebaseline reserved v0.18 for Optional Local OCI Registry and v0.19 for OCI Seed Builder/COW. That reservation is superseded: Registry is deferred/unversioned. A subsequent ordering placed Docker Compatibility at v0.17 and Seed Builder/COW at v0.18; that ordering is also superseded because the Seed/Base pipeline is the prerequisite. The authoritative order is now v0.17 Seed Builder/COW, then v0.18 Docker Compatibility.
