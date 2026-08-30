@@ -283,8 +283,20 @@ type sandboxProfileState struct {
 
 func (r *Runtime) readSandboxProfile(ctx context.Context) (sandboxProfileState, error) {
 	shown, err := r.runner.Run(ctx, "incus", "query", sandboxProfileAPIPath)
-	if err != nil {
+	if err == nil {
+		return decodeSandboxProfile(shown.Stdout)
+	}
+	if shown.ExitCode != 2 {
 		return sandboxProfileState{}, err
+	}
+
+	// Some legacy/fake CLI surfaces do not implement `incus query`. Preserve a
+	// narrow compatibility path, but still require machine-readable JSON and run
+	// it through the exact same drift decoder. Any other query failure stays
+	// fail-closed rather than being mistaken for a missing or healthy profile.
+	shown, legacyErr := r.runner.Run(ctx, "incus", "profile", "show", sandboxProfile, "--project", sandboxResourceProject, "--format", "json")
+	if legacyErr != nil {
+		return sandboxProfileState{}, errors.Join(err, legacyErr)
 	}
 	return decodeSandboxProfile(shown.Stdout)
 }
