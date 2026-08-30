@@ -36,4 +36,4 @@ OCI Distribution-compatible implementationを優先し、public exposeをdefault
 
 ## OCI Seedとの関係
 
-OCI SeedはLocal Registryに依存しません。v0.18 Seed Builderはofflineのまま、trusted HostからOCI contentを受け取ります。
+OCI SeedはLocal Registryに依存しません。v0.17 Seed Builderはofflineのまま、trusted HostからOCI contentを受け取ります。
