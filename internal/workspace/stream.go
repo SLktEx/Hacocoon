@@ -14,12 +14,10 @@ type environmentStreamRuntime interface {
 	ShellEnvironmentStream(context.Context, string, io.Reader, io.Writer, io.Writer) error
 }
 
-type PreparedShellStream func(context.Context, io.Reader, io.Writer, io.Writer) error
-
 // PrepareShellStream resolves the Environment and provider capability before
 // the controller acknowledges a stream. The returned function owns the actual
 // long-lived interactive execution.
-func (s *Service) PrepareShellStream(ctx context.Context, name string) (PreparedShellStream, error) {
+func (s *Service) PrepareShellStream(ctx context.Context, name string) (func(context.Context, io.Reader, io.Writer, io.Writer) error, error) {
 	if s == nil {
 		return nil, core.ErrInvalidArgument
 	}
