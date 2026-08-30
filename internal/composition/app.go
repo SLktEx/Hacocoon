@@ -9,6 +9,7 @@ import (
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	clientapp "github.com/SLktEx/Hacocoon/internal/client"
+	"github.com/SLktEx/Hacocoon/internal/core"
 	egressapp "github.com/SLktEx/Hacocoon/internal/egress"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
@@ -20,8 +21,13 @@ import (
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
+	storagebtrfs "github.com/SLktEx/Hacocoon/modules/storage/btrfs"
 	"github.com/SLktEx/Hacocoon/modules/standard/egressproxy"
 )
+
+const defaultLocalStorageID = "local-default"
+
+const defaultLocalStorageBytes int64 = 128 << 30
 
 type App struct {
 	Environments *workspaceapp.Service
@@ -38,7 +44,7 @@ type App struct {
 	EgressProxy   *egressproxy.Proxy
 }
 
-func Local(_ context.Context) (*App, error) {
+func Local(ctx context.Context) (*App, error) {
 	runner := host.ExecRunner{}
 	root := envOr("HACO_ROOT", "/var/lib/hacocoon")
 	stateDir := filepath.Join(root, "state")
@@ -59,11 +65,26 @@ func Local(_ context.Context) (*App, error) {
 		providerOptions = append(providerOptions, incus.WithSeedResolver(seedStore))
 	}
 
+	managedStorage, err := storagebtrfs.NewLocal(ctx, root, runner, strings.TrimSpace(os.Getenv("HACO_BLOCK_BACKEND")))
+	if err != nil {
+		return nil, err
+	}
+	storageHandle, err := managedStorage.Ensure(ctx, core.StorageSpec{
+		ID:        defaultLocalStorageID,
+		SizeBytes: defaultLocalStorageBytes,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	var runtimeRunner host.Runner = runner
 	if ociDriver == ociplugin.DriverNerdctl {
 		runtimeRunner = incus.WrapSeedHarvestRunner(runner)
 	}
 	incusRuntime := incus.New(runtimeRunner)
+	if err := incusRuntime.Prepare(ctx, core.RuntimePrepareSpec{StorageAttachment: storageHandle.Attachment}); err != nil {
+		return nil, err
+	}
 	incusProvider, err := incus.NewSandboxProvider(incusRuntime, providerOptions...)
 	if err != nil {
 		return nil, err
