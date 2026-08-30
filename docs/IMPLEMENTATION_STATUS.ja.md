@@ -4,7 +4,7 @@
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.21** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.21** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|
@@ -29,7 +29,7 @@ Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.21** です。mil
 | OCI deletion override | tombstoneはrecommendationと既存pinより優先し、`haco plugin oci image reenable <reference@sha256:...>` でexact immutable identityだけ明示復活できる | v0.16 / v0.17 integration |
 | OCI Seed Builder / Btrfs COW | `haco plugin oci seed build` / `current`、Base単位の `pin` / `unpin` / `pins`、保守的な `seed gc` / `recover`、trusted Host acquisition、明示marker付きrunning managed Environmentからのcredential-free exact-image harvest、offline no-NIC build、immutable publish/current pointer、exact-parent resolution、build前のinterrupted-builder recoveryを実装。real-host/authenticated-registry/COW acceptanceはpending | v0.17 partial |
 | Docker Compatibility | `haco plugin oci docker status/prepare`。Base提供profileとpinned systemd unitを検証し、active vendor daemonを勝手に停止せずEnvironment-local socket activationだけを有効化 | v0.18 implemented |
-| Managed Btrfs rootfs storage | local compositionがstorage poolごとに1個のsparse-raw Btrfs filesystemをlazyに用意し、Hacocoon所有のBase/Tooling/Seed/Environment rootfsを対応する `haco-<storage-id>` Incus poolへ固定。Hostのdefault poolを継承しない | v0.20 first slice implemented |
+| Managed Btrfs rootfs storage | local compositionがstorage poolごとに1個のsparse-raw Btrfs filesystemをlazyに用意し、Hacocoon所有のBase/Tooling/Seed/Environment rootfsを対応する `haco-<storage-id>` Incus poolへ固定。通常CLIは非rootのまま、root-owned `haco-storage-helper` にtypedなloop/Btrfs/mount operationだけを委譲し、managed path、loop backing file/inode、mount identityをhelper側で再検証する。disposable GitHub-hosted上のnormal-user helper lifecycle acceptanceを自動化 | v0.20 first slice implemented / host-helper acceptance |
 | Managed Btrfs transparent compression | managed Btrfs mountは標準で `compress=zstd:3`。非準拠managed mountはremountし、`compress-force`はdesired stateとして採用せず、既存dataの自動recompressionもしない | v0.21 implemented |
 | Optional Local OCI Registry | optional。通常pullやSeed constructionの必須経路ではない | unversioned optional / deferred |
 
@@ -73,9 +73,11 @@ exact immutable identityが明示marker付きrunning Hacocoon-managed Environmen
 
 v0.20ではSeed固有のCOWだけでなく、local rootfs全体のstorage boundaryをHacocoon管理Btrfsへ統一します。Environment、Tooling Base builder、Seed builderがroot storageを必要とした時点でlazy providerがmanaged attachmentを解決し、対応する `haco-<storage-id>` Incus poolを選びます。Base/Tooling/Seed/Environment rootfs、snapshot、cloneは同じHacocoon-managed Btrfs filesystemを使い、Host Workspaceは従来どおり外部からbind mountします。
 
+通常のlocal compositionは、managed Btrfsのために `haco` process全体をrootで動かす必要がありません。sparse file/state処理はinvoking userのまま行い、必要なHost特権だけをroot-owned `haco-storage-helper` のtyped requestへ変換します。helperは任意command/path/device/mount optionを拒否し、caller-owned managed directory/image、hardlink/symlink state、loop `BACK-FILE` / `BACK-INO`、format前filesystem signature、mount identity/postconditionを再検証します。Hacocoonはpasswordless sudo ruleをinstallしません。専用のGitHub-hosted Ubuntu 26.04 acceptanceではGo test processをordinary runner userで動かしたまま、disposable sparse Btrfs imageを使ってreal helper lifecycleを実行します。
+
 v0.21ではmanaged Btrfsのtransparent compressionを標準化します。初回mountと非準拠の既存managed mountに `compress=zstd:3` を適用し、`compress-force` はdesired stateとして使いません。既存extentの自動defrag/recompressはreflink/COW sharingを減らす可能性があるため行いません。詳細は [`design/btrfs-storage-layout.ja.md`](design/btrfs-storage-layout.ja.md) を参照してください。
 
-Local Registryはprerequisiteではなくroadmap versionも予約しません。残件はreal supported-host Incus/containerd/Docker acceptance、authenticated/private-registry combination、physical Btrfs compression ratio / CPU cost / COW measurement、compaction/sparse-hole behavior、broader real-host failure injectionです。
+Local Registryはprerequisiteではなくroadmap versionも予約しません。残件はauthenticated/private-registry combination、physical Btrfs compression ratio / CPU cost / COW measurement、compaction/sparse-hole behavior、broader real-host failure injection、Windows/WSL behavior、そして自動化済みGitHub-hosted helper lifecycle以外のsupported-host verificationです。
 
 ## Docker compatibility
 
@@ -89,4 +91,4 @@ v0.7 の provider-neutral routing seam は残しますが、以前の concrete E
 
 ## Acceptance gaps
 
-repository testsはreal-host acceptanceの代わりではありません。real Incus network/resource behavior、Windows/WSL + VS Code、private-registry credential、Docker compatibility、managed Btrfs compression/COW/compaction、future cloud adapterはenvironment-dependentです。前のmilestoneにpartial acceptanceが残っていても、後続minor checkpointは進めて構いません。
+repository testsはreal-host acceptanceの代わりではありません。real Incus network/resource behavior、Windows/WSL + VS Code、private-registry credential、Docker compatibility、physical managed-Btrfs compression/COW/compaction behavior、broader storage failure injection、future cloud adapterはenvironment-dependentです。専用GitHub-hosted storage-helper acceptanceがcoverするのはordinary-userからのprivileged loop/Btrfs/mount lifecycleです。前のmilestoneにpartial acceptanceが残っていても、後続minor checkpointは進めて構いません。
