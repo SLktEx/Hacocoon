@@ -70,6 +70,8 @@ jobs:
         run: bash tools/ci-incus-core.sh setup
       - name: Run Hacocoon Core lifecycle against real Incus
         run: bash tools/ci-incus-core.sh test
+      - name: Run Hacocoon egress policy against real Incus
+        run: bash tools/ci-incus-core.sh egress
       - name: Capture Hacocoon and Incus diagnostics
         if: failure()
         run: bash tools/ci-incus-core.sh diagnostics
