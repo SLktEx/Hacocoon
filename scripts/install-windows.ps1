@@ -80,9 +80,9 @@ function Resolve-ReleaseVersion([string]$Version) {
 }
 
 function Assert-NamedInstallSupported {
-    $helpText = (& wsl.exe --help 2>&1 | Out-String)
-    if ($LASTEXITCODE -ne 0 -or $helpText -notmatch '(?m)--name\b') {
-        throw "This WSL installation does not support named distribution installation. Update WSL explicitly with 'wsl --update', then run the Hacocoon installer again."
+    $null = (& wsl.exe --version 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "This WSL installation is too old for named distribution installation. Update WSL explicitly with 'wsl --update', then run the Hacocoon installer again."
     }
 }
 
@@ -210,21 +210,26 @@ function Get-InstalledDistros {
     if ($LASTEXITCODE -ne 0) {
         return @()
     }
-    return @($lines | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" })
+    return @($lines | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ -ne "" })
 }
 
 function Get-WslGeneration([string]$Name) {
-    $lines = & wsl.exe --list --verbose 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Unable to inspect WSL distributions."
-    }
     $escaped = [regex]::Escape($Name)
-    foreach ($line in $lines) {
-        if ($line -match "^\s*\*?\s*$escaped\s+.*\s+([12])\s*$") {
-            return [int]$Matches[1]
+    $lastOutput = ""
+    for ($attempt = 0; $attempt -lt 20; $attempt++) {
+        $lines = & wsl.exe --list --verbose 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $lastOutput = ($lines | Out-String)
+            foreach ($line in $lines) {
+                $normalized = ($line -replace "`0", "").Trim()
+                if ($normalized -match "^\*?\s*$escaped\s+.*\s+([12])\s*$") {
+                    return [int]$Matches[1]
+                }
+            }
         }
+        Start-Sleep -Milliseconds 250
     }
-    throw "Unable to determine the WSL version for '$Name'."
+    throw "Unable to determine the WSL version for '$Name' after waiting for WSL state to settle. Last output: $lastOutput"
 }
 
 function Ensure-Wsl2([string]$Name) {
@@ -243,7 +248,7 @@ function Ensure-Wsl2([string]$Name) {
 }
 
 function Assert-SystemdActive([string]$Name) {
-    $pid1 = (& wsl.exe --distribution $Name -- sh -c "ps -p 1 -o comm=").Trim()
+    $pid1 = (& wsl.exe --distribution $Name --exec sh -c "ps -p 1 -o comm=").Trim()
     if ($LASTEXITCODE -ne 0 -or $pid1 -ne "systemd") {
         throw "systemd is not active as PID 1 inside dedicated WSL instance '$Name'."
     }
@@ -277,7 +282,7 @@ if (-not ($installed -contains $InstanceName)) {
     }
     & wsl.exe @installArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "Failed to create dedicated WSL instance '$InstanceName' from '$BaseDistro'. Run 'wsl --list --online' to inspect available base distributions."
+        throw "Failed to create dedicated WSL instance '$InstanceName' from '$BaseDistro'. If WSL rejects '--name', update WSL explicitly with 'wsl --update'. Run 'wsl --list --online' to inspect available base distributions."
     }
 
     Ensure-Wsl2 $InstanceName
@@ -295,7 +300,7 @@ Assert-SystemdSupported
 Ensure-Wsl2 $InstanceName
 
 Write-Step "Checking dedicated WSL 2 instance '$InstanceName'"
-& wsl.exe --distribution $InstanceName -- sh -c "printf hacocoon-wsl-ready"
+& wsl.exe --distribution $InstanceName --exec sh -c "printf hacocoon-wsl-ready"
 if ($LASTEXITCODE -ne 0) {
     throw "Dedicated WSL instance '$InstanceName' exists but is not ready. Launch it once with 'wsl -d $InstanceName', complete first-run setup, and run this installer again."
 }
@@ -322,7 +327,7 @@ try {
     Assert-TrustedReleaseAsset $bootstrapPath $ResolvedHacocoonVersion
     Assert-TrustedReleaseAsset $linuxInstallerPath $ResolvedHacocoonVersion
 
-    $linuxTemp = (& wsl.exe --distribution $InstanceName -- wslpath -u -a $tempRoot).Trim()
+    $linuxTemp = (& wsl.exe --distribution $InstanceName --exec wslpath -u -a $tempRoot).Trim()
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxTemp)) {
         throw "Failed to translate the temporary installer path into the dedicated WSL instance."
     }
@@ -335,7 +340,7 @@ try {
 
     $wslArgs = @(
         "--distribution", $InstanceName,
-        "--",
+        "--exec",
         "env",
         "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue",
         "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue",
