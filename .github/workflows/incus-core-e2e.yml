@@ -65,7 +65,7 @@ jobs:
           check-latest: true
           cache: false
       - name: Validate Core and CLI E2E helper syntax
-        run: bash -n tools/ci-incus.sh tools/ci-incus-core.sh tools/ci-incus-native-workload.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh
+        run: bash -n tools/ci-incus.sh tools/ci-incus-core.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh
       - name: Prepare proven Incus substrate for Hacocoon Core
         run: bash tools/ci-incus.sh setup
       - name: Allow leased workspace owner in Incus root idmap
@@ -78,8 +78,6 @@ jobs:
           if ! awk -F: -v id="$gid" '$1 == "root" && id >= $2 && id - $2 < $3 { found=1 } END { exit found ? 0 : 1 }' /etc/subgid; then
             printf 'root:%s:1\n' "$gid" | sudo tee -a /etc/subgid >/dev/null
           fi
-      - name: Verify guest workloads stay in their Incus Project
-        run: bash tools/ci-incus-native-workload.sh
       - name: Install real Btrfs privilege helper
         run: bash tools/ci-storage-helper.sh setup
       - name: Run Hacocoon egress policy against real Incus

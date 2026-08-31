@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -26,12 +25,6 @@ type controllerClient interface {
 	ExecEnvironment(context.Context, string, []string) (core.ExecutionResult, error)
 	OpenEnvironmentShell(context.Context, string) (net.Conn, error)
 	DeleteEnvironment(context.Context, string) error
-	CreateWorkload(context.Context, core.WorkloadSpec) (core.Workload, error)
-	ListWorkloads(context.Context, string) ([]core.Workload, error)
-	ExecWorkload(context.Context, string, string, []string) (core.ExecutionResult, error)
-	StopWorkload(context.Context, string, string) error
-	DeleteWorkload(context.Context, string, string) error
-	PullWorkloadImage(context.Context, string) error
 }
 
 type commandExitError struct{ code int }
@@ -47,12 +40,7 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	if filepath.Base(os.Args[0]) == "nerdctl" {
-		err = nerdctlCommand(ctx, client, os.Args[1:])
-	} else {
-		err = dispatch(ctx, client, os.Args[1:])
-	}
-	if err != nil {
+	if err := dispatch(ctx, client, os.Args[1:]); err != nil {
 		fail(err)
 	}
 }
@@ -65,8 +53,6 @@ func dispatch(ctx context.Context, client controllerClient, args []string) error
 	switch args[0] {
 	case "env":
 		return envCommand(ctx, client, args[1:])
-	case "nerdctl":
-		return nerdctlCommand(ctx, client, args[1:])
 	case "doctor":
 		return doctorCommand(ctx, client, args[1:])
 	default:
@@ -279,7 +265,7 @@ func doctorCommand(ctx context.Context, client controllerClient, args []string) 
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: haco-host <env|nerdctl|doctor>")
+	fmt.Fprintln(os.Stderr, "usage: haco-host <env|doctor>")
 }
 
 func fail(err error) {
