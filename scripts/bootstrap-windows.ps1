@@ -135,7 +135,6 @@ $linuxRepoRoot = (& wsl.exe --distribution $InstanceName --exec wslpath -u -a $r
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxRepoRoot)) {
     throw "Failed to translate the Hacocoon repository path into the dedicated WSL instance."
 }
-$linuxBootstrap = "$linuxRepoRoot/scripts/bootstrap-linux.sh"
 $linuxInstaller = "$linuxRepoRoot/scripts/install.sh"
 $skipIncusValue = if ($SkipIncus) { "1" } else { "0" }
 $grantIncusAdminValue = if ($GrantIncusAdmin) { "1" } else { "0" }
@@ -150,14 +149,14 @@ $wslArgs = @(
     "env",
     "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue",
     "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue",
-    "sh", $linuxBootstrap, $linuxInstaller, $HacocoonVersion
+    "sh", $linuxInstaller, $HacocoonVersion
 )
 
-Write-Step "Running shared Linux host bootstrap inside dedicated WSL instance '$InstanceName'"
+Write-Step "Running shared Linux installer inside dedicated WSL instance '$InstanceName'"
 & wsl.exe @wslArgs
-$bootstrapExit = $LASTEXITCODE
+$installerExit = $LASTEXITCODE
 
-if ($bootstrapExit -eq $SystemdRestartRequired) {
+if ($installerExit -eq $SystemdRestartRequired) {
     Write-Step "Restarting dedicated WSL instance '$InstanceName' to activate systemd"
     & wsl.exe --terminate $InstanceName
     if ($LASTEXITCODE -ne 0) {
@@ -166,14 +165,14 @@ if ($bootstrapExit -eq $SystemdRestartRequired) {
     Start-Sleep -Milliseconds 750
 
     & wsl.exe @wslArgs
-    $bootstrapExit = $LASTEXITCODE
+    $installerExit = $LASTEXITCODE
 }
 
-if ($bootstrapExit -eq $SystemdRestartRequired) {
+if ($installerExit -eq $SystemdRestartRequired) {
     throw "systemd still requires a restart after the dedicated WSL instance was restarted."
 }
-if ($bootstrapExit -ne 0) {
-    throw "Hacocoon Linux host bootstrap failed inside WSL."
+if ($installerExit -ne 0) {
+    throw "Hacocoon Linux installation failed inside WSL."
 }
 
 Assert-SystemdActive $InstanceName
@@ -192,5 +191,5 @@ if ($SkipIncus) {
     Write-Host "Physical Host recovery/debug: wsl -d $InstanceName -u root"
 }
 if (-not $SkipIncus -and -not $GrantIncusAdmin) {
-    Write-Host "Broad incus-admin access remains ungranted; default haco-host entry uses only the narrow Hacocoon host commands configured by the bootstrap."
+    Write-Host "Broad incus-admin access remains ungranted; default haco-host entry uses only the narrow Hacocoon host commands configured by the installer."
 }
