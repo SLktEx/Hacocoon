@@ -23,6 +23,33 @@ if ! command -v sshd >/dev/null 2>&1; then
     echo 'managed SSH bootstrap requires the Hacocoon egress proxy environment' >&2
     exit 125
   fi
+  case "$proxy_http" in
+    http://*) ;;
+    *)
+      echo 'managed SSH bootstrap requires an HTTP Hacocoon egress proxy' >&2
+      exit 125
+      ;;
+  esac
+  proxy_authority="${proxy_http#http://}"
+  proxy_authority="${proxy_authority%%/*}"
+  proxy_host="${proxy_authority%%:*}"
+  if [ -z "$proxy_host" ] || [ "$proxy_host" = "$proxy_authority" ]; then
+    echo 'managed SSH bootstrap received an invalid Hacocoon egress proxy address' >&2
+    exit 125
+  fi
+  if ! command -v ip >/dev/null 2>&1; then
+    echo 'managed SSH bootstrap requires iproute2 to verify sandbox readiness' >&2
+    exit 127
+  fi
+  route_attempts=0
+  until ip -4 route get "$proxy_host" >/dev/null 2>&1; do
+    route_attempts=$((route_attempts + 1))
+    if [ "$route_attempts" -ge 60 ]; then
+      echo "managed SSH bootstrap timed out waiting for IPv4 route to Hacocoon egress proxy $proxy_host" >&2
+      exit 75
+    fi
+    sleep 0.5
+  done
   apt_get() {
     apt-get \
       -o Acquire::ForceIPv4=true \
