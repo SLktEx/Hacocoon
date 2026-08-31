@@ -163,6 +163,12 @@ try {
         "GITHUB_RUN_ID=$RunId GITHUB_RUN_ATTEMPT=$RunAttempt; " +
         "bash -n tools/ci-incus.sh test/e2e/incus_standalone.sh; " +
         "bash tools/ci-incus.sh setup; " +
+        # Native GitHub Linux images already carry iptables because Docker is
+        # preinstalled. Fresh Ubuntu WSL does not. Install only this inspection
+        # client after Incus setup so the shared helper can verify that WSL has
+        # no Docker FORWARD/DOCKER-USER policy to compensate for; this does not
+        # install or emulate Docker and does not change Hacocoon's nftables path.
+        "if ! command -v iptables >/dev/null 2>&1; then apt-get install -y --no-install-recommends iptables; fi; " +
         "bash tools/ci-incus.sh standalone"
     Invoke-WslChecked @("--distribution", $Distro, "--user", "root", "--", "bash", "-lc", $Run)
 
