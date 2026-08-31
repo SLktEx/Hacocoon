@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -36,6 +37,15 @@ type checkpointSource struct {
 	Milestones []milestone
 }
 
+type fileUpdate struct {
+	Path     string
+	Original []byte
+	Updated  []byte
+	Mode     os.FileMode
+}
+
+type writeFileFunc func(path string, data []byte, mode os.FileMode) error
+
 var authorities = []authority{
 	{"docs/status/versioning-and-release-status.md", regexp.MustCompile(`current milestone position is \*\*(v0\.\d+)\*\*`)},
 	{"docs/status/versioning-and-release-status.ja.md", regexp.MustCompile(`現在のmilestone位置は\s*\*\*(v0\.\d+)\*\*`)},
@@ -52,18 +62,23 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	if err := bump(root, os.Args[1], os.Args[2]); err != nil {
+	if err := bumpWithValidation(root, os.Args[1], os.Args[2], func() error {
+		return runDocsCheck(root)
+	}); err != nil {
 		fail(err)
 	}
 	fmt.Printf("checkpoint advanced to %s\n", os.Args[1])
+}
 
+func runDocsCheck(root string) error {
 	cmd := exec.Command("python3", "tools/check_docs.py")
 	cmd.Dir = root
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		fail(fmt.Errorf("documentation check failed after checkpoint update: %w", err))
+		return fmt.Errorf("documentation check failed after checkpoint update: %w", err)
 	}
+	return nil
 }
 
 func fail(err error) {
@@ -90,40 +105,52 @@ func findRoot() (string, error) {
 }
 
 func bump(root, next, gate string) error {
+	return bumpWithValidation(root, next, gate, nil)
+}
+
+func bumpWithValidation(root, next, gate string, validate func() error) error {
+	updates, err := planBump(root, next, gate)
+	if err != nil {
+		return err
+	}
+	return applyUpdates(updates, writeAtomicMode, validate)
+}
+
+func planBump(root, next, gate string) ([]fileUpdate, error) {
 	gate = strings.TrimSpace(gate)
 	if gate == "" || strings.ContainsAny(gate, "\r\n|") {
-		return errors.New("gate name must be non-empty and must not contain newlines or '|'")
+		return nil, errors.New("gate name must be non-empty and must not contain newlines or '|'")
 	}
 	nextMinor, err := parseCheckpoint(next)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	sourcePath := filepath.Join(root, checkpointSourcePath)
 	sourceData, err := os.ReadFile(sourcePath)
 	if err != nil {
-		return fmt.Errorf("read %s: %w", checkpointSourcePath, err)
+		return nil, fmt.Errorf("read %s: %w", checkpointSourcePath, err)
 	}
 	source, err := parseCheckpointSource(sourceData)
 	if err != nil {
-		return fmt.Errorf("%s: %w", checkpointSourcePath, err)
+		return nil, fmt.Errorf("%s: %w", checkpointSourcePath, err)
 	}
 	if err := validateMirrors(root, source); err != nil {
-		return err
+		return nil, err
 	}
 	currentMinor, err := parseCheckpoint(source.Current)
 	if err != nil {
-		return fmt.Errorf("invalid current checkpoint %q: %w", source.Current, err)
+		return nil, fmt.Errorf("invalid current checkpoint %q: %w", source.Current, err)
 	}
 	if nextMinor != currentMinor+1 {
-		return fmt.Errorf("next checkpoint must be v0.%d; got %s", currentMinor+1, next)
+		return nil, fmt.Errorf("next checkpoint must be v0.%d; got %s", currentMinor+1, next)
 	}
 
 	contents := map[string][]byte{}
 	for _, a := range authorities {
 		data, err := os.ReadFile(filepath.Join(root, a.path))
 		if err != nil {
-			return fmt.Errorf("read %s: %w", a.path, err)
+			return nil, fmt.Errorf("read %s: %w", a.path, err)
 		}
 		data = a.current.ReplaceAllFunc(data, func(match []byte) []byte {
 			return bytes.Replace(match, []byte(source.Current), []byte(next), 1)
@@ -136,7 +163,7 @@ func bump(root, next, gate string) error {
 		rowRE := regexp.MustCompile(`(?m)^\|\s*` + regexp.QuoteMeta(source.Current) + `\s*\|[^\n]*$`)
 		loc := rowRE.FindIndex(data)
 		if loc == nil {
-			return fmt.Errorf("%s: current checkpoint row %s not found", path, source.Current)
+			return nil, fmt.Errorf("%s: current checkpoint row %s not found", path, source.Current)
 		}
 		state := "✅ implemented"
 		if strings.HasSuffix(path, ".ja.md") {
@@ -154,20 +181,70 @@ func bump(root, next, gate string) error {
 	generatedPath := "internal/buildinfo/checkpoint_generated.go"
 	generated, err := os.ReadFile(filepath.Join(root, generatedPath))
 	if err != nil {
-		return fmt.Errorf("read %s: %w", generatedPath, err)
+		return nil, fmt.Errorf("read %s: %w", generatedPath, err)
 	}
 	generatedRE := regexp.MustCompile(`const GeneratedCheckpoint = "v0\.\d+"`)
 	if len(generatedRE.FindAll(generated, -1)) != 1 {
-		return fmt.Errorf("%s: expected exactly one generated checkpoint constant", generatedPath)
+		return nil, fmt.Errorf("%s: expected exactly one generated checkpoint constant", generatedPath)
 	}
 	contents[generatedPath] = generatedRE.ReplaceAll(generated, []byte("const GeneratedCheckpoint = \""+next+"\""))
 
-	for path, data := range contents {
-		if err := writeAtomic(filepath.Join(root, path), data); err != nil {
-			return fmt.Errorf("write %s: %w", path, err)
+	paths := make([]string, 0, len(contents))
+	for path := range contents {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	updates := make([]fileUpdate, 0, len(paths))
+	for _, path := range paths {
+		fullPath := filepath.Join(root, path)
+		original, err := os.ReadFile(fullPath)
+		if err != nil {
+			return nil, fmt.Errorf("read original %s: %w", path, err)
+		}
+		info, err := os.Stat(fullPath)
+		if err != nil {
+			return nil, fmt.Errorf("stat %s: %w", path, err)
+		}
+		updates = append(updates, fileUpdate{
+			Path:     fullPath,
+			Original: original,
+			Updated:  contents[path],
+			Mode:     info.Mode(),
+		})
+	}
+	return updates, nil
+}
+
+func applyUpdates(updates []fileUpdate, write writeFileFunc, validate func() error) error {
+	applied := make([]fileUpdate, 0, len(updates))
+	for _, update := range updates {
+		if err := write(update.Path, update.Updated, update.Mode); err != nil {
+			primary := fmt.Errorf("write %s: %w", update.Path, err)
+			return rollbackUpdates(primary, applied, write)
+		}
+		applied = append(applied, update)
+	}
+	if validate != nil {
+		if err := validate(); err != nil {
+			return rollbackUpdates(err, applied, write)
 		}
 	}
 	return nil
+}
+
+func rollbackUpdates(primary error, applied []fileUpdate, write writeFileFunc) error {
+	var rollbackErrors []error
+	for i := len(applied) - 1; i >= 0; i-- {
+		update := applied[i]
+		if err := write(update.Path, update.Original, update.Mode); err != nil {
+			rollbackErrors = append(rollbackErrors, fmt.Errorf("restore %s: %w", update.Path, err))
+		}
+	}
+	if len(rollbackErrors) == 0 {
+		return primary
+	}
+	return errors.Join(primary, fmt.Errorf("rollback failed: %w", errors.Join(rollbackErrors...)))
 }
 
 func parseCheckpointSource(data []byte) (checkpointSource, error) {
@@ -344,11 +421,7 @@ func parseCheckpoint(value string) (int, error) {
 	return minor, nil
 }
 
-func writeAtomic(path string, data []byte) error {
-	info, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
+func writeAtomicMode(path string, data []byte, mode os.FileMode) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".bump-milestone-*")
 	if err != nil {
 		return err
@@ -359,7 +432,7 @@ func writeAtomic(path string, data []byte) error {
 		tmp.Close()
 		return err
 	}
-	if err := tmp.Chmod(info.Mode()); err != nil {
+	if err := tmp.Chmod(mode); err != nil {
 		tmp.Close()
 		return err
 	}

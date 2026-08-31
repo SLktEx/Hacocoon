@@ -7,7 +7,6 @@ exactly the same wrapper maintainers use. The real checkout is never mutated.
 
 from pathlib import Path
 import json
-import re
 import shutil
 import subprocess
 import sys
@@ -69,6 +68,9 @@ class BumpMilestoneBlackBoxTest(unittest.TestCase):
     def tearDown(self):
         self.tempdir.cleanup()
 
+    def mirror_bytes(self):
+        return {relative: (self.repo / relative).read_bytes() for relative in MIRROR_PATHS}
+
     def test_real_wrapper_advances_all_mirrors_and_runtime_identity(self):
         result = run(self.repo, "tools/bump-milestone", self.next, self.gate)
         output = result.stdout + result.stderr
@@ -110,18 +112,43 @@ class BumpMilestoneBlackBoxTest(unittest.TestCase):
         self.assertEqual(identity["checkpoint"], self.next)
 
     def test_skipped_checkpoint_is_rejected_without_mutation(self):
-        before = {relative: (self.repo / relative).read_bytes() for relative in MIRROR_PATHS}
+        before = self.mirror_bytes()
 
         result = run(self.repo, "tools/bump-milestone", self.skipped, self.gate)
         output = result.stdout + result.stderr
         self.assertNotEqual(result.returncode, 0, output)
         self.assertIn(f"next checkpoint must be {self.next}", output)
 
-        after = {relative: (self.repo / relative).read_bytes() for relative in MIRROR_PATHS}
-        self.assertEqual(before, after)
+        self.assertEqual(before, self.mirror_bytes())
 
         checker = run(self.repo, sys.executable, "tools/check_docs.py")
         self.assertEqual(checker.returncode, 0, checker.stdout + checker.stderr)
+
+    def test_checker_failure_rolls_back_every_mirror(self):
+        before = self.mirror_bytes()
+        checker_path = self.repo / "tools/check_docs.py"
+        original_checker = checker_path.read_text()
+        try:
+            checker_path.write_text(
+                "#!/usr/bin/env python3\n"
+                "import sys\n"
+                "print('INTENTIONAL CHECKER FAILURE', file=sys.stderr)\n"
+                "raise SystemExit(23)\n"
+            )
+            result = run(self.repo, "tools/bump-milestone", self.next, self.gate)
+        finally:
+            checker_path.write_text(original_checker)
+
+        output = result.stdout + result.stderr
+        self.assertNotEqual(result.returncode, 0, output)
+        self.assertIn("INTENTIONAL CHECKER FAILURE", output)
+        self.assertIn("documentation check failed after checkpoint update", output)
+        self.assertNotIn(f"checkpoint advanced to {self.next}", output)
+        self.assertEqual(before, self.mirror_bytes())
+
+        checker = run(self.repo, sys.executable, "tools/check_docs.py")
+        self.assertEqual(checker.returncode, 0, checker.stdout + checker.stderr)
+        self.assertIn("DOC CONSISTENCY OK", checker.stdout)
 
 
 if __name__ == "__main__":
