@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/test/e2e/controller.sh"
+trap haco_stop_test_controller EXIT
+
 readonly HELPER_PATH="/usr/local/libexec/hacocoon/haco-storage-helper"
 readonly CLI_ROOT="${RUNNER_TEMP:-}/haco-storage-cli-e2e"
 readonly WORKSPACE="${RUNNER_TEMP:-}/haco-storage-cli-workspace"
 readonly RUN_WORKSPACE="${RUNNER_TEMP:-}/haco-storage-cli-run-workspace"
 readonly HACO_BIN="${RUNNER_TEMP:-}/haco-storage-cli-bin"
+readonly CONTROLLER_BIN="${RUNNER_TEMP:-}/haco-storage-controller-bin"
 readonly PROJECT="hacocoon"
 readonly POOL="haco-local-default"
 readonly ENV_NAME="storage-cli-e2e"
@@ -39,12 +43,14 @@ setup() {
   incus version >/dev/null || fail "Incus client is not ready"
 
   rm -rf -- "$CLI_ROOT" "$WORKSPACE" "$RUN_WORKSPACE"
-  rm -f -- "$HACO_BIN"
+  rm -f -- "$HACO_BIN" "$CONTROLLER_BIN"
   mkdir -m 0700 "$CLI_ROOT" "$WORKSPACE" "$RUN_WORKSPACE"
   printf 'host-visible\n' > "$WORKSPACE/host.txt"
 
   go build -trimpath -o "$HACO_BIN" ./cmd/haco
+  go build -trimpath -o "$CONTROLLER_BIN" ./cmd/haco-controller
   [[ -x "$HACO_BIN" ]] || fail "haco CLI build failed"
+  [[ -x "$CONTROLLER_BIN" ]] || fail "haco-controller build failed"
 }
 
 assert_managed_storage() {
@@ -92,6 +98,7 @@ run_test() {
   require_github_hosted_runner
   [[ "$(id -u)" != "0" ]] || fail "storage CLI acceptance must execute haco as the ordinary runner user"
   [[ -x "$HACO_BIN" ]] || fail "haco CLI test binary is missing"
+  [[ -x "$CONTROLLER_BIN" ]] || fail "haco-controller test binary is missing"
   [[ -x "$HELPER_PATH" ]] || fail "storage helper is missing"
 
   export HACO_ROOT="$CLI_ROOT"
@@ -141,8 +148,16 @@ PY
     fail "named Environment metadata remained after haco delete"
   fi
 
-  # Reuse the already-provisioned managed pool through the normal ephemeral CLI
-  # path. This is the real composition-level idempotency check for lazy storage.
+  # General `haco run` is controller-backed even on the Physical Host. Start
+  # the real controller after the named Environment path has completed, then
+  # prove it reuses the already-provisioned managed pool through the same
+  # ordinary-user privilege broker.
+  haco_start_test_controller \
+    "$CONTROLLER_BIN" \
+    "$CLI_ROOT/control.sock" \
+    "$CLI_ROOT/controller.out" \
+    "$CLI_ROOT/controller.err"
+
   run_json="$("$HACO_BIN" run --workspace "$RUN_WORKSPACE" --json -- sh -c 'printf "run-ok\n"; printf "from-run\n" > /workspace/from-run.txt')"
   python3 - "$run_json" <<'PY'
 import json, sys
@@ -158,6 +173,7 @@ PY
   fi
   incus storage show "$POOL" --project "$PROJECT" >/dev/null
   assert_managed_storage
+  haco_stop_test_controller
 }
 
 diagnostics() {
@@ -228,6 +244,7 @@ cleanup() {
   require_github_hosted_runner
   local device backing failed=0
   set +e
+  haco_stop_test_controller
 
   if incus project show "$PROJECT" >/dev/null 2>&1; then
     delete_owned_instances || failed=1
@@ -276,7 +293,7 @@ cleanup() {
   if [[ "$failed" == "0" ]]; then
     rm -rf -- "$CLI_ROOT" "$WORKSPACE" "$RUN_WORKSPACE"
   fi
-  rm -f -- "$HACO_BIN"
+  rm -f -- "$HACO_BIN" "$CONTROLLER_BIN"
 
   [[ "$failed" == "0" ]] || fail "storage CLI E2E cleanup was incomplete"
 }

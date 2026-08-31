@@ -8,10 +8,13 @@ for command in go grep mktemp sleep; do
   }
 done
 
+source "$(dirname "$0")/controller.sh"
+
 root="$(mktemp -d)"
 notify_pid=""
 cleanup() {
   set +e
+  haco_stop_test_controller
   if [[ -n "$notify_pid" ]] && kill -0 "$notify_pid" >/dev/null 2>&1; then
     kill -TERM "$notify_pid" >/dev/null 2>&1 || true
     wait "$notify_pid" >/dev/null 2>&1 || true
@@ -27,7 +30,7 @@ export HACO_ROOT="$root/haco-root"
 export HACO_STORAGE_PRIVILEGE_MODE=direct
 unset WSL_DISTRO_NAME || true
 
-for name in haco haco-vscode haco-agent-host haco-notify haco-storage-helper; do
+for name in haco haco-controller haco-vscode haco-agent-host haco-notify haco-storage-helper; do
   go build -o "$bin/$name" "./cmd/$name"
   test -x "$bin/$name"
 done
@@ -46,8 +49,15 @@ grep -Fq '"commit":' "$root/haco-version.json"
 grep -Fq '"build_date":"unknown"' "$root/haco-version.json"
 [[ ! -s "$root/haco-version-json.err" ]]
 
-# Main CLI: prove the final executable dispatches a successful command and
-# preserves the user-visible error contract for an unknown command.
+# General haco commands are real controller clients on both the Physical Host
+# and trusted haco-host. Start the shipped controller and prove the final
+# executable reaches it without falling back to local CLI composition.
+haco_start_test_controller \
+  "$bin/haco-controller" \
+  "$root/control.sock" \
+  "$root/controller.out" \
+  "$root/controller.err"
+
 "$bin/haco" base list >"$root/haco-base.out" 2>"$root/haco-base.err"
 grep -Fxq 'haco/ubuntu-24.04' "$root/haco-base.out"
 grep -Fxq 'haco/ubuntu-26.04' "$root/haco-base.out"
@@ -73,7 +83,7 @@ client_mode_code=$?
 set -e
 [[ "$client_mode_code" == "1" ]]
 [[ ! -s "$root/client-mode.out" ]]
-grep -Fq 'refusing local composition fallback' "$root/client-mode.err"
+grep -Fq 'control endpoint unavailable' "$root/client-mode.err"
 [[ ! -e "$client_mode_root/state" ]]
 
 set +e

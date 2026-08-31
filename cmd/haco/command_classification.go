@@ -5,9 +5,9 @@ import "sort"
 type commandDomain string
 
 const (
-	commandDomainGeneral      commandDomain = "general-controller-client"
-	commandDomainPhysicalHost commandDomain = "physical-host-local"
-	commandDomainTrustedHost  commandDomain = "trusted-haco-host-local"
+	commandDomainGeneral       commandDomain = "general-controller-client"
+	commandDomainPhysicalHost  commandDomain = "physical-host-local"
+	commandDomainTrustedHost   commandDomain = "trusted-haco-host-local"
 	commandDomainCompatibility commandDomain = "temporary-compatibility"
 )
 
@@ -31,22 +31,22 @@ var hacoCommandClassifications = map[string]commandClassification{
 	"base": {
 		Name:   "base",
 		Domain: commandDomainGeneral,
-		State:  "controller migration pending (#333)",
+		State:  "implemented over the controller client (#333)",
 	},
 	"run": {
 		Name:   "run",
 		Domain: commandDomainGeneral,
-		State:  "controller migration pending (#333)",
+		State:  "implemented over the controller client (#333)",
 	},
 	"events": {
 		Name:   "events",
 		Domain: commandDomainGeneral,
-		State:  "controller migration pending (#333)",
+		State:  "implemented as a controller event stream (#333)",
 	},
 	"capability": {
 		Name:   "capability",
 		Domain: commandDomainGeneral,
-		State:  "controller migration pending (#333)",
+		State:  "implemented over the controller client (#333)",
 	},
 	"connections": {
 		Name:   "connections",

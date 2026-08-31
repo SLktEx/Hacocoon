@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for command in go grep mktemp; do
+for command in go grep mktemp sleep; do
   command -v "$command" >/dev/null 2>&1 || {
     echo "missing required command: $command" >&2
     exit 1
   }
 done
 
+source "$(dirname "$0")/controller.sh"
+
 root="$(mktemp -d)"
-trap 'rm -rf "$root"' EXIT
+cleanup() {
+  set +e
+  haco_stop_test_controller
+  rm -rf "$root"
+}
+trap cleanup EXIT
 export HACO_ROOT="$root/haco-root"
 haco="$root/haco"
+controller="$root/haco-controller"
 mkdir -p "$HACO_ROOT"
 cat > "$HACO_ROOT/policy.json" <<'JSON'
 {
@@ -24,10 +32,18 @@ cat > "$HACO_ROOT/policy.json" <<'JSON'
 JSON
 
 go build -o "$haco" ./cmd/haco
+go build -o "$controller" ./cmd/haco-controller
+haco_start_test_controller \
+  "$controller" \
+  "$root/control.sock" \
+  "$root/controller.out" \
+  "$root/controller.err"
 
 safe_output="$("$haco" capability request local.echo echo --resource safe --param message=hello)"
 [[ "$safe_output" == "hello" ]]
 
+# Approval is collected by the client terminal, transferred as a boolean over
+# the bidirectional controller stream, then audited/executed by the controller.
 approved_output="$(printf 'yes\n' | "$haco" capability request local.echo echo --resource sensitive --param message=approved-secret 2>"$root/approval.err")"
 [[ "$approved_output" == "approved-secret" ]]
 grep -Fq '[y/N]' "$root/approval.err"

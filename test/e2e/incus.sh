@@ -164,6 +164,13 @@ grep -Fq "haco-host" "$host_shell_stderr" || {
   echo "trusted-host haco env list did not use the empty controller state" >&2
   exit 1
 }
+physical_base_list="$("$haco" base list --json)"
+trusted_base_list="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_general_haco" base list --json)"
+[[ "$trusted_base_list" == "$physical_base_list" ]] || {
+  echo "trusted-host haco base list did not use the Physical Host controller view" >&2
+  printf 'physical: %s\ntrusted: %s\n' "$physical_base_list" "$trusted_base_list" >&2
+  exit 1
+}
 
 # Still-unmigrated commands must fail before guest-local composition can be
 # initialized. The mode marker is a safety guard; authorization remains on the
@@ -171,7 +178,7 @@ grep -Fq "haco-host" "$host_shell_stderr" || {
 unmigrated_stdout="$root/unmigrated-stdout"
 unmigrated_stderr="$root/unmigrated-stderr"
 set +e
-incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_general_haco" base list >"$unmigrated_stdout" 2>"$unmigrated_stderr"
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_general_haco" connections >"$unmigrated_stdout" 2>"$unmigrated_stderr"
 unmigrated_exit=$?
 set -e
 [[ "$unmigrated_exit" != "0" ]] || {
