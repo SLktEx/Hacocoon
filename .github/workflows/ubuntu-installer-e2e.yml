@@ -1,0 +1,134 @@
+name: ubuntu-installer-e2e
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - ".goreleaser.yaml"
+      - "scripts/install-ubuntu.sh"
+      - "scripts/install.sh"
+      - "tools/package_installers.py"
+      - ".github/workflows/ubuntu-installer-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ubuntu-installer-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ubuntu-user-path:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      GOTOOLCHAIN: local
+      HACO_E2E_VERSION: v0.0.0-e2e
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.0
+          check-latest: false
+          cache: false
+
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: v2.17.1
+          install-only: true
+
+      - name: Record native Ubuntu substrate
+        shell: bash
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          printf 'Ubuntu: %s %s\n' "$ID" "$VERSION_ID"
+          printf 'PID 1: %s\n' "$(ps -p 1 -o comm= | tr -d '[:space:]')"
+          uname -a
+          id
+          sudo -n true
+
+      - name: Build release-equivalent candidate artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # release.yml runs the same command from an authorized release tag.
+          # This temporary tag never leaves the ephemeral Actions checkout.
+          git tag "$HACO_E2E_VERSION" "$GITHUB_SHA"
+          goreleaser release --clean --skip=publish
+
+          test -f dist/haco_linux_amd64.tar.gz
+          test -f dist/haco_linux_arm64.tar.gz
+          test -f dist/checksums.txt
+
+      - name: Build and extract release-equivalent Ubuntu package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_out="$RUNNER_TEMP/installer-payload"
+          package_root="$RUNNER_TEMP/hacocoon-ubuntu-amd64"
+          rm -rf "$package_out" "$package_root"
+          mkdir -p "$package_root"
+
+          # release.yml invokes this same packager over GoReleaser dist/.
+          python3 ./tools/package_installers.py \
+            --dist ./dist \
+            --output "$package_out" \
+            --version "$HACO_E2E_VERSION" \
+            --arch amd64
+
+          tar -xzf "$package_out/hacocoon-ubuntu-amd64.tar.gz" -C "$package_root"
+          test -x "$package_root/install-ubuntu.sh"
+          test -x "$package_root/install.sh"
+          test -f "$package_root/haco_linux_amd64.tar.gz"
+          test -f "$package_root/checksums.txt"
+          test -f "$package_root/VERSION"
+          test ! -e "$package_root/haco_linux_arm64.tar.gz"
+          printf 'HACO_E2E_PACKAGE_ROOT=%s\n' "$package_root" >> "$GITHUB_ENV"
+
+      - name: Execute packaged native Ubuntu installer unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$HACO_E2E_PACKAGE_ROOT"
+          ./install-ubuntu.sh
+
+      - name: Assert Hacocoon is usable through native Ubuntu user path
+        shell: bash
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          test "$ID" = ubuntu
+          dpkg --compare-versions "$VERSION_ID" ge 26.04
+          test "$(ps -p 1 -o comm= | tr -d '[:space:]')" = systemd
+          command -v haco
+          command -v incus
+          haco version
+          haco doctor
+          sudo systemctl is-active --quiet haco-controller.service
+          sudo test -S /run/hacocoon/control.sock
+          sudo haco host ensure
+          sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
+          test "$(getent passwd "$(id -un)" | cut -d: -f7)" != /usr/local/libexec/hacocoon-login
+
+      - name: Collect diagnostics
+        if: failure()
+        shell: bash
+        continue-on-error: true
+        run: |
+          haco version || true
+          haco doctor || true
+          systemctl --no-pager --failed || true
+          sudo systemctl status haco-controller.service --no-pager || true
+          sudo incus list --all-projects || true

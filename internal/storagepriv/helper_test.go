@@ -184,14 +184,84 @@ func TestHelperRejectsArbitraryOperation(t *testing.T) {
 	}
 }
 
+func TestHelperCallerUIDHonorsDirectSudoInvocation(t *testing.T) {
+	h := NewHelper(&fakeHelperRunner{})
+	h.euid = func() int { return 0 }
+	h.executable = func() (string, error) { return "/trusted/haco-storage-helper", nil }
+	h.getenv = func(name string) string {
+		switch name {
+		case "SUDO_UID":
+			return "1001"
+		case "SUDO_COMMAND":
+			return "/trusted/haco-storage-helper --root /tmp/haco loop-find /tmp/haco/images/local.raw"
+		default:
+			return ""
+		}
+	}
+	uid, err := h.callerUID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uid != 1001 {
+		t.Fatalf("caller uid = %d, want 1001", uid)
+	}
+}
+
+func TestHelperCallerUIDIgnoresInheritedOuterSudoContextWhenAlreadyRoot(t *testing.T) {
+	h := NewHelper(&fakeHelperRunner{})
+	h.euid = func() int { return 0 }
+	h.executable = func() (string, error) { return "/usr/local/libexec/hacocoon/haco-storage-helper", nil }
+	h.getenv = func(name string) string {
+		switch name {
+		case "SUDO_UID":
+			return "1001"
+		case "SUDO_COMMAND":
+			return "/usr/local/bin/haco host ensure"
+		default:
+			return ""
+		}
+	}
+	uid, err := h.callerUID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uid != 0 {
+		t.Fatalf("caller uid = %d, want root for direct helper call", uid)
+	}
+}
+
+func TestHelperCallerUIDRejectsMalformedUIDForDirectSudoInvocation(t *testing.T) {
+	h := NewHelper(&fakeHelperRunner{})
+	h.euid = func() int { return 0 }
+	h.executable = func() (string, error) { return "/trusted/haco-storage-helper", nil }
+	h.getenv = func(name string) string {
+		switch name {
+		case "SUDO_UID":
+			return "not-a-uid"
+		case "SUDO_COMMAND":
+			return "/trusted/haco-storage-helper --root /tmp/haco loop-find /tmp/haco/images/local.raw"
+		default:
+			return ""
+		}
+	}
+	if _, err := h.callerUID(); err == nil || !strings.Contains(err.Error(), "invalid SUDO_UID") {
+		t.Fatalf("callerUID error = %v", err)
+	}
+}
+
 func testHelper(runner host.Runner) *Helper {
 	h := NewHelper(runner)
 	h.euid = func() int { return 0 }
+	h.executable = func() (string, error) { return "/trusted/haco-storage-helper", nil }
 	h.getenv = func(name string) string {
-		if name == "SUDO_UID" {
+		switch name {
+		case "SUDO_UID":
 			return strconv.Itoa(os.Geteuid())
+		case "SUDO_COMMAND":
+			return "/trusted/haco-storage-helper --root /tmp/haco loop-attach /tmp/haco/images/local.raw"
+		default:
+			return ""
 		}
-		return ""
 	}
 	h.resolveTool = func(name string) (string, error) { return name, nil }
 	return h

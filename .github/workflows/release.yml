@@ -41,30 +41,15 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-
-          if [[ -z "$DEFAULT_BRANCH" ]]; then
-            echo "Refusing release: default branch is unavailable" >&2
-            exit 1
-          fi
-          if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
-            echo "Refusing release: repository_dispatch must execute from trusted default branch" >&2
-            exit 1
-          fi
-          if [[ "$GITHUB_SHA" != "$(git -C control rev-parse HEAD)" ]]; then
-            echo "Refusing release: checked-out control plane does not match dispatcher SHA" >&2
-            exit 1
-          fi
+          [[ -n "$DEFAULT_BRANCH" ]] || { echo "Refusing release: default branch is unavailable" >&2; exit 1; }
+          [[ "$GITHUB_REF" == "refs/heads/$DEFAULT_BRANCH" ]] || { echo "Refusing release: dispatch must execute from trusted default branch" >&2; exit 1; }
+          [[ "$GITHUB_SHA" == "$(git -C control rev-parse HEAD)" ]] || { echo "Refusing release: checked-out control plane does not match dispatcher SHA" >&2; exit 1; }
 
           bash control/tools/check_release_tag_trust.sh "$REQUESTED_TAG" origin "$DEFAULT_BRANCH"
           release_sha="$(git -C control rev-parse --verify "refs/tags/${REQUESTED_TAG}^{commit}")"
-          if [[ "$release_sha" != "$GITHUB_SHA" ]]; then
-            echo "Refusing release: tag must resolve to the dispatcher/current trusted main HEAD ($GITHUB_SHA), got $release_sha" >&2
-            exit 1
-          fi
-
+          [[ "$release_sha" == "$GITHUB_SHA" ]] || { echo "Refusing release: tag must resolve to current trusted main HEAD" >&2; exit 1; }
           printf 'release_tag=%s\n' "$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
           printf 'release_sha=%s\n' "$release_sha" >> "$GITHUB_OUTPUT"
-          printf 'Authorized %s at current trusted main HEAD %s\n' "$REQUESTED_TAG" "$release_sha"
 
       - name: Checkout authorized release source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -88,13 +73,6 @@ jobs:
           version: v2.17.1
           install-only: true
 
-      - name: Record release toolchain versions
-        shell: bash
-        run: |
-          set -euo pipefail
-          go version
-          goreleaser --version
-
       - name: Test authorized source
         working-directory: source
         run: go test -count=1 ./...
@@ -103,60 +81,56 @@ jobs:
         working-directory: source
         run: go vet ./...
 
-      - name: Validate Linux installers
+      - name: Validate installer scripts
         working-directory: source
-        run: bash -n scripts/install.sh scripts/bootstrap-wsl.sh
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -n scripts/install.sh
+          sh -n scripts/install-ubuntu.sh
+          python3 -m py_compile tools/package_installers.py
 
-      - name: Validate Windows installers
+      - name: Validate Windows installer syntax
         working-directory: source
         shell: pwsh
-        run: |
-          [scriptblock]::Create((Get-Content -Raw "scripts/bootstrap-windows.ps1")) | Out-Null
-          [scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null
-
-      - name: Validate Windows installer bundle
-        working-directory: source
-        run: python3 tools/test_windows_installer_launcher.py
+        run: '[scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null'
 
       - name: Build authorized release artifacts
         working-directory: source
         run: goreleaser release --clean --skip=publish
 
-      - name: Stage exact release payload
+      - name: Stage architecture-specific installer bundles
         shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.trust.outputs.release_tag }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
-
-          archives=(source/dist/haco_linux_*.tar.gz)
-          if (( ${#archives[@]} != 2 )); then
-            echo "Expected exactly two Linux archives, found ${#archives[@]}" >&2
-            printf '  %s\n' "${archives[@]}" >&2
-            exit 1
-          fi
-
           test -f source/dist/haco_linux_amd64.tar.gz
           test -f source/dist/haco_linux_arm64.tar.gz
           test -f source/dist/checksums.txt
           test -f source/scripts/install.sh
-          test -f source/scripts/bootstrap-wsl.sh
+          test -f source/scripts/install-ubuntu.sh
           test -f source/scripts/install-windows.bat
           test -f source/scripts/install-windows.ps1
-          test -f source/tools/package_windows_installer.py
+          test -f source/tools/package_installers.py
 
           rm -rf release-payload
           mkdir -m 0700 release-payload
-          cp source/dist/haco_linux_amd64.tar.gz release-payload/
-          cp source/dist/haco_linux_arm64.tar.gz release-payload/
-          cp source/dist/checksums.txt release-payload/
-          cp source/scripts/install.sh release-payload/
-          cp source/scripts/bootstrap-wsl.sh release-payload/
-          cp source/scripts/install-windows.ps1 release-payload/
-          python3 source/tools/package_windows_installer.py release-payload/hacocoon-windows-installer.zip
-          (
-            cd release-payload
-            sha256sum hacocoon-windows-installer.zip >> checksums.txt
-          )
+          python3 source/tools/package_installers.py \
+            --dist source/dist \
+            --output release-payload \
+            --version "$RELEASE_TAG"
+
+          files=(release-payload/*)
+          (( ${#files[@]} == 7 )) || { printf 'Unexpected release payload file count: %s\n' "${#files[@]}" >&2; exit 1; }
+          test -f release-payload/haco_linux_amd64.tar.gz
+          test -f release-payload/haco_linux_arm64.tar.gz
+          test -f release-payload/hacocoon-windows-amd64.zip
+          test -f release-payload/hacocoon-windows-arm64.zip
+          test -f release-payload/hacocoon-ubuntu-amd64.tar.gz
+          test -f release-payload/hacocoon-ubuntu-arm64.tar.gz
+          test -f release-payload/checksums.txt
+          (cd release-payload && sha256sum -c checksums.txt)
 
       - name: Transfer release payload to privileged publisher
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -192,18 +166,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          shopt -s nullglob
           files=(release-payload/*)
-          archives=(release-payload/haco_linux_*.tar.gz)
           (( ${#files[@]} == 7 )) || { printf 'Unexpected release payload file count: %s\n' "${#files[@]}" >&2; exit 1; }
-          (( ${#archives[@]} == 2 )) || { printf 'Unexpected Linux archive count: %s\n' "${#archives[@]}" >&2; exit 1; }
-          test -f release-payload/haco_linux_amd64.tar.gz
-          test -f release-payload/haco_linux_arm64.tar.gz
-          test -f release-payload/hacocoon-windows-installer.zip
-          test -f release-payload/checksums.txt
-          test -f release-payload/install.sh
-          test -f release-payload/bootstrap-wsl.sh
-          test -f release-payload/install-windows.ps1
+          for path in \
+            haco_linux_amd64.tar.gz \
+            haco_linux_arm64.tar.gz \
+            hacocoon-windows-amd64.zip \
+            hacocoon-windows-arm64.zip \
+            hacocoon-ubuntu-amd64.tar.gz \
+            hacocoon-ubuntu-arm64.tar.gz \
+            checksums.txt; do
+            test -f "release-payload/$path"
+          done
+          (cd release-payload && sha256sum -c checksums.txt)
 
       - name: Revalidate release authorization immediately before signing and publication
         shell: bash
@@ -211,61 +186,26 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          [[ -n "$DEFAULT_BRANCH" ]] || { echo "Refusing release: default branch is unavailable" >&2; exit 1; }
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "Refusing release: invalid release tag" >&2; exit 1; }
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Refusing release: invalid release SHA" >&2; exit 1; }
+          [[ "$RELEASE_SHA" == "$GITHUB_SHA" ]] || { echo "Refusing release: release SHA no longer matches dispatcher SHA" >&2; exit 1; }
 
-          if [[ -z "$DEFAULT_BRANCH" ]]; then
-            echo "Refusing release: default branch is unavailable at publish time" >&2
-            exit 1
-          fi
-          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Refusing release: invalid release tag output: $RELEASE_TAG" >&2
-            exit 1
-          fi
-          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Refusing release: invalid release SHA output: $RELEASE_SHA" >&2
-            exit 1
-          fi
-          if [[ "$RELEASE_SHA" != "$GITHUB_SHA" ]]; then
-            echo "Refusing release: authorized release SHA no longer matches trusted dispatcher SHA ($GITHUB_SHA)" >&2
-            exit 1
-          fi
-
-          branch_json="$(gh api "repos/$GITHUB_REPOSITORY/branches/$DEFAULT_BRANCH")"
-          current_main_sha="$(jq -r '.commit.sha' <<<"$branch_json")"
-          if [[ ! "$current_main_sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Refusing release: current trusted default-branch HEAD is invalid" >&2
-            exit 1
-          fi
-          if [[ "$current_main_sha" != "$RELEASE_SHA" ]]; then
-            echo "Refusing release: trusted default branch moved after release authorization ($RELEASE_SHA -> $current_main_sha)" >&2
-            exit 1
-          fi
+          current_main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/$DEFAULT_BRANCH" --jq .commit.sha)"
+          [[ "$current_main_sha" == "$RELEASE_SHA" ]] || { echo "Refusing release: trusted default branch moved after authorization" >&2; exit 1; }
 
           ref_json="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG")"
           object_type="$(jq -r '.object.type' <<<"$ref_json")"
           object_sha="$(jq -r '.object.sha' <<<"$ref_json")"
-
           depth=0
           while [[ "$object_type" == "tag" ]]; do
             depth=$((depth + 1))
-            if (( depth > 8 )); then
-              echo "Refusing release: annotated tag chain is unexpectedly deep" >&2
-              exit 1
-            fi
+            (( depth <= 8 )) || { echo "Refusing release: annotated tag chain is unexpectedly deep" >&2; exit 1; }
             tag_json="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$object_sha")"
             object_type="$(jq -r '.object.type' <<<"$tag_json")"
             object_sha="$(jq -r '.object.sha' <<<"$tag_json")"
           done
-
-          if [[ "$object_type" != "commit" ]]; then
-            echo "Refusing release: tag does not resolve to a commit" >&2
-            exit 1
-          fi
-          if [[ "$object_sha" != "$RELEASE_SHA" ]]; then
-            echo "Refusing release: tag moved after build ($RELEASE_SHA -> $object_sha)" >&2
-            exit 1
-          fi
-
-          printf 'Release authorization remains current: %s -> %s on %s HEAD.\n' "$RELEASE_TAG" "$RELEASE_SHA" "$DEFAULT_BRANCH"
+          [[ "$object_type" == "commit" && "$object_sha" == "$RELEASE_SHA" ]] || { echo "Refusing release: tag moved after build" >&2; exit 1; }
 
       - name: Create signed release binding predicate
         if: ${{ !github.event.repository.private }}
@@ -275,9 +215,7 @@ jobs:
           CONTROL_SHA: ${{ github.sha }}
         run: |
           python3 - <<'PY'
-          import json
-          import os
-
+          import json, os
           predicate = {
               "tag": os.environ["RELEASE_TAG"],
               "commit": os.environ["RELEASE_SHA"],
@@ -297,11 +235,11 @@ jobs:
           subject-path: |
             release-payload/haco_linux_amd64.tar.gz
             release-payload/haco_linux_arm64.tar.gz
-            release-payload/hacocoon-windows-installer.zip
+            release-payload/hacocoon-windows-amd64.zip
+            release-payload/hacocoon-windows-arm64.zip
+            release-payload/hacocoon-ubuntu-amd64.tar.gz
+            release-payload/hacocoon-ubuntu-arm64.tar.gz
             release-payload/checksums.txt
-            release-payload/install.sh
-            release-payload/bootstrap-wsl.sh
-            release-payload/install-windows.ps1
 
       - name: Attest public release tag and commit binding
         if: ${{ !github.event.repository.private }}
@@ -310,19 +248,18 @@ jobs:
           subject-path: |
             release-payload/haco_linux_amd64.tar.gz
             release-payload/haco_linux_arm64.tar.gz
-            release-payload/hacocoon-windows-installer.zip
+            release-payload/hacocoon-windows-amd64.zip
+            release-payload/hacocoon-windows-arm64.zip
+            release-payload/hacocoon-ubuntu-amd64.tar.gz
+            release-payload/hacocoon-ubuntu-arm64.tar.gz
             release-payload/checksums.txt
-            release-payload/install.sh
-            release-payload/bootstrap-wsl.sh
-            release-payload/install-windows.ps1
           predicate-type: https://hacocoon.dev/attestations/release/v1
           predicate-path: release-binding.json
 
       - name: Explain private repository provenance limitation
         if: ${{ github.event.repository.private }}
         shell: bash
-        run: |
-          echo "::notice::GitHub artifact attestations are skipped while Hacocoon is private. Public releases will fail closed if provenance generation fails."
+        run: echo "::notice::GitHub artifact attestations are skipped while Hacocoon is private."
 
       - name: Create populated draft release and publish
         shell: bash
@@ -330,28 +267,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
-          args=(
-            --repo "$GITHUB_REPOSITORY"
-            --verify-tag
-            --generate-notes
-            --title "Hacocoon $RELEASE_TAG"
-            --draft
-          )
-          if [[ "$RELEASE_TAG" == *-* ]]; then
-            args+=(--prerelease)
-          fi
+          args=(--repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --title "Hacocoon $RELEASE_TAG" --draft)
+          [[ "$RELEASE_TAG" != *-* ]] || args+=(--prerelease)
 
           gh release create "$RELEASE_TAG" \
             release-payload/haco_linux_amd64.tar.gz \
             release-payload/haco_linux_arm64.tar.gz \
-            release-payload/hacocoon-windows-installer.zip \
+            release-payload/hacocoon-windows-amd64.zip \
+            release-payload/hacocoon-windows-arm64.zip \
+            release-payload/hacocoon-ubuntu-amd64.tar.gz \
+            release-payload/hacocoon-ubuntu-arm64.tar.gz \
             release-payload/checksums.txt \
-            release-payload/install.sh \
-            release-payload/bootstrap-wsl.sh \
-            release-payload/install-windows.ps1 \
             "${args[@]}"
-
-          gh release edit "$RELEASE_TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --draft=false
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false

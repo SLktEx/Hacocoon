@@ -8,6 +8,16 @@ workflow = (root / ".github/workflows/release.yml").read_text(encoding="utf-8")
 installer = (root / "scripts/install.sh").read_text(encoding="utf-8")
 tag_checker = (root / "tools/check_release_tag_trust.sh").read_text(encoding="utf-8")
 
+required_release_artifacts = (
+    "release-payload/haco_linux_amd64.tar.gz",
+    "release-payload/haco_linux_arm64.tar.gz",
+    "release-payload/hacocoon-windows-amd64.zip",
+    "release-payload/hacocoon-windows-arm64.zip",
+    "release-payload/hacocoon-ubuntu-amd64.tar.gz",
+    "release-payload/hacocoon-ubuntu-arm64.tar.gz",
+    "release-payload/checksums.txt",
+)
+
 checks = {
     "release workflow": [
         "repository_dispatch:",
@@ -21,7 +31,6 @@ checks = {
         "path: control",
         "bash control/tools/check_release_tag_trust.sh",
         "release_sha=",
-        "tag must resolve to the dispatcher/current trusted main HEAD",
         "ref: ${{ steps.trust.outputs.release_sha }}",
         "path: source",
         "contents: write",
@@ -32,17 +41,13 @@ checks = {
         "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
         "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6",
         'gh api "repos/$GITHUB_REPOSITORY/branches/$DEFAULT_BRANCH"',
-        "trusted default branch moved after release authorization",
+        "trusted default branch moved after authorization",
         "gh api \"repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG\"",
         "tag moved after build",
         "https://hacocoon.dev/attestations/release/v1",
         '"authorizationEnvironment": "release"',
         "predicate-path: release-binding.json",
-        "release-payload/haco_linux_amd64.tar.gz",
-        "release-payload/haco_linux_arm64.tar.gz",
-        "release-payload/hacocoon-windows-installer.zip",
-        "python3 source/tools/package_windows_installer.py",
-        "release-payload/checksums.txt",
+        "python3 source/tools/package_installers.py",
         "--draft",
         "gh release edit",
         "--draft=false",
@@ -57,6 +62,7 @@ checks = {
         'SIGNER_SOURCE_REF="refs/heads/main"',
         'RELEASE_PREDICATE_TYPE="https://hacocoon.dev/attestations/release/v1"',
         'REQUIRE_PROVENANCE="${HACO_REQUIRE_PROVENANCE:-1}"',
+        'BUNDLE_ROOT="${HACO_BUNDLE_ROOT:-$SCRIPT_DIR}"',
         "resolve_latest_version()",
         'VERSION="$(resolve_latest_version)"',
         'gh attestation verify',
@@ -69,6 +75,7 @@ checks = {
         "trusted provenance verification requires",
         "trusted build provenance verification failed",
         "signed release binding verification failed",
+        'Using bundled %s',
     ],
 }
 
@@ -84,16 +91,27 @@ for label, needles in checks.items():
         if needle not in text:
             errors.append(f"{label} missing required provenance/authorization contract: {needle}")
 
+for artifact in required_release_artifacts:
+    if workflow.count(artifact) < 2:
+        errors.append(f"release workflow must stage/attest/publish architecture-specific artifact: {artifact}")
+
+for obsolete in (
+    "release-payload/hacocoon-windows-installer.zip",
+    "release-payload/install.sh",
+    "release-payload/install-windows.ps1",
+    "package_windows_installer.py",
+):
+    if obsolete in workflow:
+        errors.append(f"release workflow retains obsolete standalone/single-package artifact: {obsolete}")
+
 if "\n  push:\n" in workflow:
     errors.append("release workflow must not be triggered by tag push; authorization must come from default-branch repository_dispatch")
-
 if workflow.count("actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6") < 2:
     errors.append("release workflow must create both build provenance and signed release-binding attestations")
-
 if 'HACO_REQUIRE_PROVENANCE:-0' in installer:
-    errors.append("installer provenance must fail closed by default; HACO_REQUIRE_PROVENANCE may only disable it explicitly")
-if 'if [ "$VERSION" = "latest" ]; then\n    if [ "$REQUIRE_PROVENANCE" = "1" ]' in installer:
-    errors.append("latest installs must resolve to an explicit tag instead of weakening signed release-binding verification")
+    errors.append("installer provenance must fail closed by default")
+if "WSL_DISTRO_NAME" in installer or "systemd=true" in installer or "hacocoon-login" in installer:
+    errors.append("common install.sh must not absorb WSL pre/post behavior")
 if "merge-base --is-ancestor" in tag_checker:
     errors.append("official release authorization must require current default-branch HEAD, not any historical ancestor")
 
@@ -112,13 +130,9 @@ except IndexError:
     source_checkout = ""
 
 if source_checkout and "fetch-depth: 0" not in source_checkout:
-    errors.append(
-        "authorized release source checkout must fetch full history so GoReleaser can resolve prior release history"
-    )
+    errors.append("authorized release source checkout must fetch full history")
 if source_checkout and "fetch-tags: true" not in source_checkout:
-    errors.append(
-        "authorized release source checkout must fetch tags so GoReleaser can resolve the requested release tag"
-    )
+    errors.append("authorized release source checkout must fetch tags")
 
 bat_eol = subprocess.run(
     ["git", "ls-files", "--eol", "scripts/install-windows.bat"],
@@ -130,24 +144,18 @@ bat_eol = subprocess.run(
 )
 if bat_eol.returncode != 0 or "i/lf" not in bat_eol.stdout:
     detail = bat_eol.stderr.strip() or bat_eol.stdout.strip() or "no EOL metadata returned"
-    errors.append(
-        "scripts/install-windows.bat must be LF-normalized in the Git index so eol=crlf does not dirty Linux release checkouts: "
-        + detail
-    )
+    errors.append("scripts/install-windows.bat must remain LF-normalized in the Git index: " + detail)
 
 for forbidden in ("contents: write", "id-token: write", "attestations: write", "artifact-metadata: write"):
     if forbidden in build:
         errors.append(f"read-only build job must not receive privileged permission: {forbidden}")
-
 if "environment: release" in build:
-    errors.append("release approval environment belongs only on privileged publish job; read-only build should complete before approval")
+    errors.append("release approval environment belongs only on privileged publish job")
 if publish and "environment: release" not in publish:
     errors.append("privileged publisher must be protected by the dedicated release environment")
-
 for forbidden in ("actions/checkout@", "go test", "go vet", "goreleaser release", "source/"):
     if forbidden in publish:
         errors.append(f"privileged publish job must not checkout or execute repository build source: {forbidden}")
-
 if publish and "artifact-metadata: write" not in publish:
     errors.append("privileged publisher must scope artifact-metadata: write locally for actions/attest")
 
@@ -156,22 +164,13 @@ if errors:
     print("\n".join(errors))
     sys.exit(1)
 
-regression = subprocess.run(
-    ["bash", str(root / "tools/test_install_provenance_fail_closed.sh")],
-    cwd=root,
-    check=False,
-)
-if regression.returncode != 0:
-    print("RELEASE PROVENANCE CONTRACT FAILED: installer fail-closed regression test failed", file=sys.stderr)
-    sys.exit(regression.returncode)
-
-windows_launcher = subprocess.run(
-    [sys.executable, str(root / "tools/test_windows_installer_launcher.py")],
-    cwd=root,
-    check=False,
-)
-if windows_launcher.returncode != 0:
-    print("RELEASE PROVENANCE CONTRACT FAILED: Windows installer launcher regression test failed", file=sys.stderr)
-    sys.exit(windows_launcher.returncode)
+for command, label in (
+    (["bash", str(root / "tools/test_install_provenance_fail_closed.sh")], "installer fail-closed regression"),
+    ([sys.executable, str(root / "tools/test_installer_packages.py")], "installer package regression"),
+):
+    regression = subprocess.run(command, cwd=root, check=False)
+    if regression.returncode != 0:
+        print(f"RELEASE PROVENANCE CONTRACT FAILED: {label} failed", file=sys.stderr)
+        sys.exit(regression.returncode)
 
 print("RELEASE PROVENANCE CONTRACT OK")

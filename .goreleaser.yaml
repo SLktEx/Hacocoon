@@ -8,13 +8,9 @@ builds:
     binary: haco
     env:
       - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-    flags:
-      - -trimpath
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
     ldflags:
       - >-
         -s -w
@@ -24,87 +20,51 @@ builds:
   - id: haco-controller
     main: ./cmd/haco-controller
     binary: haco-controller
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-    flags:
-      - -trimpath
-    ldflags:
-      - -s -w
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
   - id: haco-host
     main: ./cmd/haco-host
     binary: haco-host
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-    flags:
-      - -trimpath
-    ldflags:
-      - -s -w
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
   - id: haco-vscode
     main: ./cmd/haco-vscode
     binary: haco-vscode
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-    flags:
-      - -trimpath
-    ldflags:
-      - -s -w
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
   - id: haco-agent-host
     main: ./cmd/haco-agent-host
     binary: haco-agent-host
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-    flags:
-      - -trimpath
-    ldflags:
-      - -s -w
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
   - id: haco-notify
     main: ./cmd/haco-notify
     binary: haco-notify
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-    flags:
-      - -trimpath
-    ldflags:
-      - -s -w
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
   - id: haco-storage-helper
     main: ./cmd/haco-storage-helper
     binary: haco-storage-helper
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-    flags:
-      - -trimpath
-    ldflags:
-      - -s -w
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
 
 archives:
   - id: haco
@@ -116,20 +76,12 @@ archives:
       - haco-agent-host
       - haco-notify
       - haco-storage-helper
-    formats:
-      - tar.gz
+    formats: [tar.gz]
     name_template: "haco_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: checksums.txt
   algorithm: sha256
-  extra_files:
-    - glob: ./scripts/install.sh
-      name_template: install.sh
-    - glob: ./scripts/bootstrap-wsl.sh
-      name_template: bootstrap-wsl.sh
-    - glob: ./scripts/install-windows.ps1
-      name_template: install-windows.ps1
 
 changelog:
   disable: true
