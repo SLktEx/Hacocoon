@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -129,6 +130,69 @@ func TestBumpRejectsGateTableDrift(t *testing.T) {
 	}
 }
 
+func TestApplyUpdatesRollsBackMidTransactionWriteFailure(t *testing.T) {
+	updates := transactionUpdates()
+	state := transactionState()
+	write := func(path string, data []byte, mode os.FileMode) error {
+		if path == "b" && string(data) == "new-b" {
+			return errors.New("write boom")
+		}
+		state[path] = string(data)
+		return nil
+	}
+
+	err := applyUpdates(updates, write, nil)
+	if err == nil || !strings.Contains(err.Error(), "write b: write boom") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if state["a"] != "old-a" || state["b"] != "old-b" {
+		t.Fatalf("transaction was not rolled back: %#v", state)
+	}
+}
+
+func TestApplyUpdatesRollsBackValidationFailure(t *testing.T) {
+	updates := transactionUpdates()
+	state := transactionState()
+	write := func(path string, data []byte, mode os.FileMode) error {
+		state[path] = string(data)
+		return nil
+	}
+
+	err := applyUpdates(updates, write, func() error { return errors.New("validator boom") })
+	if err == nil || !strings.Contains(err.Error(), "validator boom") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if state["a"] != "old-a" || state["b"] != "old-b" {
+		t.Fatalf("validation failure was not rolled back: %#v", state)
+	}
+}
+
+func TestApplyUpdatesReportsRollbackFailure(t *testing.T) {
+	updates := transactionUpdates()
+	state := transactionState()
+	write := func(path string, data []byte, mode os.FileMode) error {
+		if path == "b" && string(data) == "new-b" {
+			return errors.New("write boom")
+		}
+		if path == "a" && string(data) == "old-a" {
+			return errors.New("rollback boom")
+		}
+		state[path] = string(data)
+		return nil
+	}
+
+	err := applyUpdates(updates, write, nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "write boom") || !strings.Contains(err.Error(), "rollback failed") || !strings.Contains(err.Error(), "rollback boom") {
+		t.Fatalf("primary or rollback error missing: %v", err)
+	}
+	if state["a"] != "new-a" {
+		t.Fatalf("failed rollback should leave simulated write visible: %#v", state)
+	}
+}
+
 func TestRepositoryBumpMilestoneBlackBox(t *testing.T) {
 	root, err := findRoot()
 	if err != nil {
@@ -144,6 +208,17 @@ func TestRepositoryBumpMilestoneBlackBox(t *testing.T) {
 	if err != nil {
 		t.Fatalf("black-box milestone workflow failed: %v\n%s", err, output)
 	}
+}
+
+func transactionUpdates() []fileUpdate {
+	return []fileUpdate{
+		{Path: "a", Original: []byte("old-a"), Updated: []byte("new-a"), Mode: 0o644},
+		{Path: "b", Original: []byte("old-b"), Updated: []byte("new-b"), Mode: 0o644},
+	}
+}
+
+func transactionState() map[string]string {
+	return map[string]string{"a": "old-a", "b": "old-b"}
 }
 
 func writeBumpFixture(t *testing.T, root string) {
