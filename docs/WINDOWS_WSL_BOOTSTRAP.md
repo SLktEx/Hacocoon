@@ -1,6 +1,6 @@
 # Windows / WSL installation
 
-Hacocoon uses a **dedicated WSL 2 distribution with systemd** on Windows instead of reusing a normal development distribution.
+Hacocoon uses a **dedicated Ubuntu 26.04 WSL 2 distribution with systemd** on Windows instead of reusing a normal development distribution.
 
 That distribution is the **Physical Host**. It owns Incus, managed Btrfs primitives, and the Hacocoon controller. After installation succeeds, normal interactive entry goes directly into the persistent trusted `haco-host` instance.
 
@@ -26,19 +26,38 @@ Windows
 
 See [`design/trusted-host.md`](design/trusted-host.md) and [`design/controller-client-transport.md`](design/controller-client-transport.md).
 
-## One Linux installer path
+## Pre / main / post installation model
 
-Linux and WSL use the same `scripts/install.sh` implementation for Host setup and Hacocoon installation.
+WSL Ubuntu and native Ubuntu deliberately share only the work that is actually common.
 
 ```text
-native Linux ---------------------> install.sh
-                                      |
-Windows -> install-windows.ps1 -> WSL -> install.sh
+Windows / WSL
+  install-windows.ps1 pre
+        |
+        v
+     install.sh              <- Ubuntu-common main
+        |
+        v
+  install-windows.ps1 post
+
+native Ubuntu
+  install-ubuntu.sh pre
+        |
+        v
+     install.sh              <- same Ubuntu-common main
+        |
+        v
+  install-ubuntu.sh post
 ```
 
-`install.sh` detects WSL. Common work such as dependency preparation, Incus setup, release verification, binary installation, controller setup, `haco-host` reconciliation, and the controller round-trip is shared. Only WSL-specific behavior is conditional: `/etc/wsl.conf` systemd activation, the restart-required exit code, and default WSL entry into `haco-host`.
+The split is intentional:
 
-Native Linux does not modify the user's login shell. It uses the same Host bootstrap and then leaves `haco host shell` as an explicit operation.
+- **WSL pre** owns WSL installation, WSL 2, Ubuntu baseline validation, systemd configuration in `/etc/wsl.conf`, and the targeted WSL restart needed to activate systemd.
+- **Ubuntu-common main** in `install.sh` owns Ubuntu packages, GitHub CLI trust bootstrap, Incus, release download and verification, Hacocoon binaries, controller service, `haco-host` reconciliation, and the controller round trip.
+- **WSL post** owns the WSL login-shell integration and optional `incus-admin` grant for the normal WSL user.
+- **native Ubuntu pre/post** stay in `install-ubuntu.sh`; native Ubuntu never receives WSL-specific configuration or login-shell replacement.
+
+`install.sh` does not detect WSL and does not edit `/etc/wsl.conf`.
 
 ## Normal Windows installer
 
@@ -53,7 +72,7 @@ hacocoon-windows-installer/
 └─ install.sh
 ```
 
-The ZIP therefore already carries the Linux installer that PowerShell will execute inside the dedicated WSL distribution. The normal Windows path does not download another copy of the installer script during installation. `install.sh` downloads only the selected Hacocoon release archive and its verification inputs.
+The ZIP already carries the shared Ubuntu installer that PowerShell executes inside the dedicated WSL distribution. The normal Windows path therefore does **not** download another copy of `install.sh` during installation. `install.sh` downloads only the selected Hacocoon Linux release archive and the verification material needed for that archive.
 
 Normally, right-click `install-windows.bat` and choose **Run as administrator**, or run it from an elevated Command Prompt:
 
@@ -61,21 +80,19 @@ Normally, right-click `install-windows.bat` and choose **Run as administrator**,
 install-windows.bat
 ```
 
-The BAT launcher invokes only the sibling `install-windows.ps1` with:
+The BAT launcher invokes only the sibling `install-windows.ps1` with a process-local execution-policy bypass. It never changes the machine or user PowerShell policy.
 
-```text
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ...
+The default WSL distribution is `Hacocoon`; the supported base is `Ubuntu-26.04`.
+
+## First run and Ubuntu user setup
+
+On a fresh machine the first installer run creates the dedicated WSL distribution and then stops before Hacocoon setup so normal Ubuntu first-run user creation can occur.
+
+```powershell
+wsl -d Hacocoon
 ```
 
-`-ExecutionPolicy Bypass` is supplied only to that PowerShell process. The launcher never calls `Set-ExecutionPolicy` and therefore does not persistently change machine or user policy. Installer arguments and the installer exit code are forwarded unchanged.
-
-This keeps direct execution of an Internet-downloaded `.ps1` out of the normal path, where PowerShell Execution Policy and Mark-of-the-Web commonly add friction. It does **not** disable organization-managed `MachinePolicy` / `UserPolicy`, Windows reputation protection, or other endpoint policy; environments that prohibit the operation still fail closed.
-
-The standalone `install-windows.ps1` asset remains available for advanced use and compatibility. When its sibling `install.sh` is unavailable, it resolves the requested release, downloads `install.sh`, and verifies the standalone asset before execution. Direct PowerShell invocation remains subject to the machine's configured execution policy.
-
-The default WSL distribution is `Hacocoon`; the default base is `Ubuntu-26.04`.
-
-A fresh distribution may first require normal Linux user creation. Before Hacocoon installation has completed, `wsl -d Hacocoon` still enters that base distribution for first-run setup. Run `install-windows.bat` as administrator again afterwards.
+Complete normal Ubuntu user setup, exit the distribution, then run `install-windows.bat` again. The second run performs WSL pre, the shared `install.sh`, and WSL post.
 
 Once installation succeeds:
 
@@ -85,137 +102,66 @@ wsl -d Hacocoon
 
 enters trusted `haco-host`.
 
-## WSL 2 and systemd
+## WSL pre: WSL 2 and systemd
 
-The installer verifies that only the dedicated Hacocoon distribution is WSL 2 and uses `wsl --set-version Hacocoon 2` when necessary. It does not change the global WSL default or unrelated distributions.
+The Windows installer verifies that only the dedicated Hacocoon distribution is WSL 2 and uses `wsl --set-version Hacocoon 2` when necessary. It does not change the global WSL default or unrelated distributions.
 
-The shared Linux installer preserves unrelated `/etc/wsl.conf` settings while ensuring:
+PowerShell preserves unrelated `/etc/wsl.conf` settings while ensuring:
 
 ```ini
 [boot]
 systemd=true
 ```
 
-If systemd is not yet PID 1, the Windows installer terminates only the Hacocoon distribution with `wsl --terminate Hacocoon` and retries. It does not use `wsl --shutdown`.
-
-## Incus and managed storage
-
-Unless `-SkipIncus` is selected, installation installs/starts Incus and initializes it minimally when required.
-
-The default local storage backend is Hacocoon-managed sparse-raw Btrfs mounted with `compress=zstd:3`. `compress-force` and automatic defrag/recompression are intentionally avoided because they can damage useful reflink/COW sharing.
-
-## Physical Host controller service
-
-After installing the release, `install.sh` validates that `haco-controller` is a root-owned, non-group/world-writable system binary at `/usr/local/bin` or `/usr/bin`.
-
-It then installs and restarts:
+When activation requires a restart, PowerShell terminates only the Hacocoon distribution with:
 
 ```text
-haco-controller.service
+wsl --terminate Hacocoon
 ```
 
-on the Physical Host. The unit uses a private systemd runtime directory and the controller listens only on:
+It does not use `wsl --shutdown`.
 
-```text
-/run/hacocoon/control.sock
-```
+Before calling the shared installer, WSL pre requires Ubuntu 26.04 or newer and requires systemd to be active as PID 1.
 
-Before continuing, installation requires that path to be a Unix socket owned by `root:root` with mode `0600`.
+## Ubuntu-common main: `install.sh`
 
-The supported local path does not open a localhost TCP listener.
+The shared installer is the same script used by native Ubuntu. It:
 
-Restarting the service during installation is intentional: after an upgrade, the controller process must run the same release that was just installed instead of retaining an old binary in memory.
+1. validates Ubuntu 26.04+ and active systemd;
+2. installs common host dependencies;
+3. ensures an attestation-capable GitHub CLI using GitHub CLI's signed APT repository when necessary;
+4. installs and starts Incus unless explicitly skipped;
+5. resolves the requested Hacocoon release;
+6. downloads the matching Linux archive and `checksums.txt`;
+7. verifies SHA-256, GitHub/Sigstore build provenance, and the signed release/tag binding;
+8. installs the Hacocoon binaries and root-owned storage helper;
+9. installs/restarts `haco-controller.service`;
+10. requires the controller socket to be `root:root` mode `0600`;
+11. reconciles the trusted `haco-host` instance;
+12. proves the real `haco-host -> controller` round trip with `haco-host doctor`.
 
-## Trusted `haco-host` reconciliation
+Public installation does not require a GitHub login. When `gh` is unauthenticated, `install.sh` retrieves public attestation bundles through GitHub's public API and verifies them locally with `gh attestation verify --bundle` while retaining the repository, workflow, source-ref, self-hosted-runner, and release-binding constraints.
 
-With the controller active, installation runs Physical-Host-authority:
+## WSL post: trusted default entry
 
-```text
-haco host ensure
-```
+After the common main phase succeeds, PowerShell performs only WSL-specific integration.
 
-That operation reconciles:
-
-- exactly one Incus instance named `haco-host`;
-- `user.hacocoon.role=trusted-host` ownership;
-- Hacocoon-managed root storage;
-- automatic restart of an owned stopped instance;
-- `environment.HACO_CONTROL_SOCKET=/var/lib/hacocoon-control.sock`;
-- the dedicated `haco-control` proxy;
-- client-only `/usr/local/bin/haco-host` inside the trusted instance.
-
-The proxy is intentionally narrow:
-
-```text
-type=proxy
-bind=instance
-listen=unix:/var/lib/hacocoon-control.sock
-connect=unix:/run/hacocoon/control.sock
-mode=0600
-uid=0
-gid=0
-```
-
-An unexpected existing instance, endpoint variable, or proxy shape is rejected instead of silently repurposed.
-
-The client binary is compared by SHA-256 and final root ownership/mode before provisioning is considered complete.
-
-## Installation proves the round trip
-
-After `haco host ensure`, `install.sh` executes inside the actual trusted instance:
-
-```text
-/usr/local/bin/haco-host doctor
-```
-
-This must complete the real path:
-
-```text
-haco-host CLI
-  -> /var/lib/hacocoon-control.sock
-  -> Incus haco-control proxy
-  -> /run/hacocoon/control.sock
-  -> Physical Host haco-controller
-```
-
-If this fails, installation stops before changing the normal WSL user's login shell and prints the Physical Host recovery path.
-
-The raw Incus daemon socket is never mounted or proxied into `haco-host`.
-
-## Why `wsl -d Hacocoon` enters `haco-host`
-
-After controller/Host acceptance succeeds, the WSL branch of `install.sh` creates root-owned `/usr/local/libexec/hacocoon-login` and makes it the normal non-root WSL user's login shell.
-
-For interactive no-command entry, that invocation delegates to:
-
-```text
-sudo -n <system-owned-haco> host shell
-```
-
-`haco host shell` re-reconciles the trusted Host and client binary, prints the privileged-management warning, then enters `/bin/bash -l` inside `haco-host`.
-
-Explicit/non-interactive WSL commands remain on the Physical Host and do not receive the interactive warning.
-
-## Automatic-entry privilege boundary
-
-Automatic entry does not require `incus-admin` for the normal WSL user.
-
-The installer grants passwordless sudo only for the exact system-owned commands:
+It verifies the installed system `haco` binary is root-owned and not group/world writable, installs `/usr/local/libexec/hacocoon-login`, adds only the narrow passwordless sudo commands:
 
 ```text
 haco host ensure
 haco host shell
 ```
 
-The raw Incus socket and `/var/lib/incus` remain Physical Host authority.
+and changes only the normal non-root WSL user's login shell to the Hacocoon entry point.
+
+The raw Incus socket and `/var/lib/incus` remain Physical Host authority. Automatic entry does not require `incus-admin`.
 
 Operators who intentionally want root-equivalent local Incus authority can use:
 
 ```bat
 install-windows.bat -GrantIncusAdmin
 ```
-
-The standalone `./install-windows.ps1 -GrantIncusAdmin` path remains available as well.
 
 ## Physical Host recovery
 
@@ -233,72 +179,42 @@ The root account's shell is never replaced. Direct Physical Host recovery remain
 wsl -d Hacocoon -u root
 ```
 
-Explicit commands can also target the Physical Host, for example:
-
-```powershell
-wsl -d Hacocoon -- haco status
-```
-
-Operations requiring Physical Host root authority still need an authorized sudo path or the root recovery shell.
+Explicit non-interactive commands can also target the Physical Host.
 
 ## `-SkipIncus`
 
-For deployments where Incus is managed separately, use:
+For deployments where Incus is managed separately:
 
 ```bat
 install-windows.bat -SkipIncus
 ```
 
-The standalone `./install-windows.ps1 -SkipIncus` path remains available as well.
+In this mode the common main phase installs Hacocoon binaries but does not claim the trusted Incus backend is ready, and WSL post leaves automatic `haco-host` entry unconfigured.
 
-In this mode installation does not claim that the trusted backend is ready, so it leaves the Physical Host login unchanged and does not configure the controller-connected automatic `haco-host` entry.
+## Developer checkout wrapper
 
-## Workspace location
-
-Default interactive entry and Workspace ownership are separate architecture seams.
-
-Moving repository/workspace ownership fully into the logical Host is not implied by this installer. Until that work lands, Physical Host paths can still be targeted explicitly, and VS Code/external orchestration should use Hacocoon's client/control surface rather than treating `haco-host` as a mandatory SSH jump host.
-
-## Installer sequence
-
-The supported Windows path now performs, in order:
-
-1. validate the named WSL distribution and requested release;
-2. create/reuse only the Hacocoon distribution;
-3. enforce WSL 2 for that distribution;
-4. invoke the same `install.sh` used by native Linux;
-5. enable systemd and restart only that distribution when required;
-6. install/start Incus unless skipped;
-7. verify and install the Hacocoon release binaries;
-8. install/restart the Physical Host `haco-controller.service`;
-9. verify the root-only controller Unix socket;
-10. reconcile trusted `haco-host`, its narrow proxy, and client binary;
-11. prove `haco-host doctor` reaches the Physical Host controller;
-12. install the narrow automatic-entry sudo rule;
-13. switch the normal non-root WSL user's login shell to `hacocoon-login`.
-
-Global WSL defaults, `.wslconfig`, unrelated distributions, and the root user's login shell are not modified.
-
-## Checkout/developer bootstrap
-
-A repository checkout can still use:
+A source checkout can still use:
 
 ```powershell
 .\scripts\bootstrap-windows.ps1
 ```
 
-It is only the Windows/WSL wrapper for a source checkout and invokes the same `scripts/install.sh` used by native Linux and the packaged installer.
+This is now only a thin compatibility/developer wrapper around `scripts/install-windows.ps1`; it contains no second implementation of the installation lifecycle.
 
 ## Release integrity
 
-`hacocoon-windows-installer.zip` is covered by the Release SHA-256 checksum and GitHub artifact attestations. CI verifies that the ZIP contains exactly `install-windows.bat`, `install-windows.ps1`, and `install.sh`, and that all three members are byte-for-byte identical to their source files.
+`hacocoon-windows-installer.zip` is covered by the Release checksum and GitHub artifact attestations. CI verifies that it contains exactly `install-windows.bat`, `install-windows.ps1`, and `install.sh`, byte-for-byte matching the source files used for packaging.
 
-The normal ZIP path executes its bundled `install.sh`; it does not fetch a second installer script from the Release. The shared Linux installer resolves `latest` to an explicit tag, downloads the selected Linux archive and `checksums.txt`, and verifies SHA-256 plus trusted GitHub/Sigstore provenance and signed release binding before installing binaries.
+The package is the installer unit. The bundled `install.sh` is not fetched again from the Release during the Windows flow.
 
-The standalone `install-windows.ps1` compatibility path additionally verifies a separately downloaded `install.sh` before executing it when no sibling installer is present.
+## E2E acceptance boundary
 
-## Acceptance boundary
+The Windows installer E2E evaluates the actual candidate user path:
 
-Repository CI and real Incus E2E can prove the controller protocol, real proxy device, client provisioning, `haco-host doctor` round trip, restart recovery, raw Incus-socket non-exposure, ordinary Environment endpoint isolation, and the BAT launcher/ZIP packaging contract.
+1. build and extract the candidate Windows installer ZIP;
+2. run the packaged `install-windows.bat` to create the dedicated WSL distribution;
+3. emulate completion of normal Ubuntu first-user setup;
+4. run the **same packaged BAT** again;
+5. require systemd, Incus, `haco-controller.service`, trusted `haco-host`, the controller round trip, and the WSL login integration to be ready.
 
-The Windows all-scripts E2E builds the candidate ZIP from the pull request, extracts it, and executes the packaged BAT/PowerShell path before exercising the shared `install.sh` directly inside WSL. Release publication itself remains a separate post-merge gate because a pull request does not publish a new public Release.
+Direct execution of internal `install.sh` or `install-windows.ps1` is not used as an E2E success substitute. Release-page publication itself remains a post-merge/release concern rather than a pull-request prerequisite.
