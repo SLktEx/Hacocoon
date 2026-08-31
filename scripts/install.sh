@@ -70,14 +70,14 @@ case "$(uname -m)" in
   *) die "unsupported architecture: $(uname -m)" ;;
 esac
 
-assert_ubuntu() {
+assert_ubuntu() (
   [ -r /etc/os-release ] || die "/etc/os-release is unavailable"
   . /etc/os-release
   [ "${ID:-}" = "ubuntu" ] || die "Hacocoon host installation currently supports Ubuntu only (got ${ID:-unknown})"
   need dpkg
   dpkg --compare-versions "${VERSION_ID:-0}" ge 26.04 ||
     die "Hacocoon host installation requires Ubuntu 26.04 or newer (got ${VERSION_ID:-unknown})"
-}
+)
 
 prepare_privilege() {
   if [ "$(id -u)" -eq 0 ]; then
