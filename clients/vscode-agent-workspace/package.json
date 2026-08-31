@@ -1,0 +1,64 @@
+{
+  "name": "hacocoon-agent-workspaces",
+  "displayName": "Hacocoon Agent Workspaces",
+  "description": "Create isolated Hacocoon worktrees and Environments for VS Code coding-agent sessions.",
+  "version": "0.0.1",
+  "private": true,
+  "engines": {
+    "vscode": "^1.102.0"
+  },
+  "categories": ["Other"],
+  "extensionKind": ["ui"],
+  "activationEvents": [
+    "onCommand:hacocoon.newAgentWorkspace",
+    "onCommand:hacocoon.releaseAgentWorkspace"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "hacocoon.newAgentWorkspace",
+        "title": "Hacocoon: New Agent Workspace"
+      },
+      {
+        "command": "hacocoon.releaseAgentWorkspace",
+        "title": "Hacocoon: Release Agent Workspace"
+      }
+    ],
+    "configuration": {
+      "title": "Hacocoon Agent Workspaces",
+      "properties": {
+        "hacocoon.agentWorkspace.gitExecutable": {
+          "type": "string",
+          "default": "git",
+          "scope": "machine",
+          "description": "Git executable inside the Hacocoon execution host. Commands are executed without a shell."
+        },
+        "hacocoon.agentWorkspace.adapterExecutable": {
+          "type": "string",
+          "default": "haco-agent-host",
+          "scope": "machine",
+          "description": "haco-agent-host executable inside the Hacocoon execution host."
+        },
+        "hacocoon.agentWorkspace.worktreeRoot": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Absolute Linux root for VS Code-created linked worktrees. Empty uses a .hacocoon-worktrees directory beside the repository."
+        },
+        "hacocoon.agentWorkspace.wslDistro": {
+          "type": "string",
+          "default": "Hacocoon",
+          "scope": "machine",
+          "description": "WSL distribution used from Windows to run Git and haco-agent-host."
+        },
+        "hacocoon.agentWorkspace.repositoryPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Optional absolute Linux repository path inside the configured WSL distribution. If empty, a matching Remote-WSL workspace path is reused or VS Code prompts for a path."
+        }
+      }
+    }
+  }
+}
