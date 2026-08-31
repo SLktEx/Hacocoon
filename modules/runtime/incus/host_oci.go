@@ -47,7 +47,7 @@ func (r *TrustedHostOCIRunner) Run(ctx context.Context, name string, args ...str
 	}
 	switch name {
 	case "incus":
-		return r.physical.Run(ctx, name, args...)
+		return r.physical.Run(ctx, name, currentServerIncusArgs(args)...)
 	case "nerdctl":
 		if err := r.ensureReady(ctx); err != nil {
 			return host.Result{ExitCode: -1}, err
@@ -66,6 +66,46 @@ func (r *TrustedHostOCIRunner) Run(ctx context.Context, name string, args ...str
 	default:
 		return host.Result{ExitCode: -1}, fmt.Errorf("trusted haco-host runner refuses Physical Host command %q: %w", name, core.ErrUnsupported)
 	}
+}
+
+// currentServerIncusArgs translates historical `local:` image references into
+// references to the Incus server selected by the current client. Incus remote
+// names are client-local configuration: an isolated TLS client may call the
+// same server `haco-ci`, so hard-coding `local:` can accidentally address a
+// different daemon or an undefined remote. Only image-source argument slots are
+// rewritten; guest command arguments after `incus exec --` are never touched.
+func currentServerIncusArgs(args []string) []string {
+	result := append([]string(nil), args...)
+	stripLocal := func(index int) {
+		if index < 0 || index >= len(result) {
+			return
+		}
+		if strings.HasPrefix(result[index], "local:") && len(result[index]) > len("local:") {
+			result[index] = strings.TrimPrefix(result[index], "local:")
+		}
+	}
+	if len(result) == 0 {
+		return result
+	}
+	switch result[0] {
+	case "init", "launch":
+		stripLocal(1)
+	case "image":
+		if len(result) < 3 {
+			return result
+		}
+		switch result[1] {
+		case "info":
+			stripLocal(2)
+		case "list":
+			if result[2] == "local:" {
+				result = append(result[:2], result[3:]...)
+			} else {
+				stripLocal(2)
+			}
+		}
+	}
+	return result
 }
 
 // MaterializeNerdctlBinary makes the verified haco-host nerdctl client
