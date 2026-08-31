@@ -95,6 +95,27 @@ assert_systemd_active() {
   printf '==> systemd is active as PID 1\n'
 }
 
+wait_for_systemd_operational() {
+  attempts=0
+  state=""
+  while [ "$attempts" -lt 80 ]; do
+    state="$(systemctl is-system-running 2>/dev/null || true)"
+    case "$state" in
+      running|degraded)
+        return 0
+        ;;
+      starting|initializing)
+        attempts=$((attempts + 1))
+        sleep 0.25
+        ;;
+      *)
+        die "systemd entered a non-operational state after package installation (state: ${state:-unknown})"
+        ;;
+    esac
+  done
+  die "systemd did not finish starting after package installation (state: ${state:-unknown})"
+}
+
 has_gh_attestation_verify() {
   command -v gh >/dev/null 2>&1 && gh attestation verify --help >/dev/null 2>&1
 }
@@ -188,11 +209,7 @@ prepare_ubuntu_main() {
 
   printf '==> Installing Incus\n'
   $SUDO apt-get install -y incus
-
-  if ! systemctl is-system-running >/dev/null 2>&1; then
-    state="$(systemctl is-system-running 2>/dev/null || true)"
-    [ "$state" = "degraded" ] || die "systemd is PID 1 but not operational (state: $state)"
-  fi
+  wait_for_systemd_operational
 
   $SUDO systemctl enable --now incus.service 2>/dev/null ||
     $SUDO systemctl enable --now incus 2>/dev/null ||
