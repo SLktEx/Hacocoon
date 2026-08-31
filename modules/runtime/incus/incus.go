@@ -177,6 +177,14 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return core.EnvironmentRuntime{}, cause
 	}
 
+	// Profiles are intentionally shared from the default project, but the
+	// network device is an authority boundary and must not rely solely on
+	// cross-project profile expansion. Copy the inherited NIC into the instance
+	// and pin every security-sensitive property before the environment starts.
+	if err := r.materializeSandboxNIC(ctx, ref); err != nil {
+		return cleanup(fmt.Errorf("materialize sandbox NIC in %s: %w", ref, err))
+	}
+
 	deviceArgs := []string{
 		"config", "device", "add", ref, "workspace", "disk",
 		"source=" + spec.WorkspacePath,
@@ -377,6 +385,30 @@ func (r *Runtime) Inspect(ctx context.Context, ref string) (core.RuntimeState, e
 		state = core.ObservedUnknown
 	}
 	return core.RuntimeState{Observed: state}, nil
+}
+
+func (r *Runtime) materializeSandboxNIC(ctx context.Context, ref string) error {
+	args := []string{"config", "device", "override", ref, "eth0"}
+	for _, key := range []string{
+		"name",
+		"network",
+		"security.ipv4_filtering",
+		"security.ipv6_filtering",
+		"security.mac_filtering",
+		"security.port_isolation",
+	} {
+		args = append(args, key+"="+sandboxNIC[key])
+	}
+	args = append(args, "--project", r.project)
+	result, err := r.runner.Run(ctx, "incus", args...)
+	if err != nil {
+		reason := strings.TrimSpace(result.Stderr)
+		if reason != "" {
+			return fmt.Errorf("pin inherited sandbox NIC: %s: %w", reason, err)
+		}
+		return fmt.Errorf("pin inherited sandbox NIC: %w", err)
+	}
+	return nil
 }
 
 func (r *Runtime) ensureProject(ctx context.Context) error {

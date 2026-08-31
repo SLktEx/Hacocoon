@@ -66,6 +66,7 @@ func TestCreateEnvironmentUsesIsolatedProfileAndShiftedWritableWorkspace(t *test
 		{name: "incus", args: []string{"project", "create", defaultProject, "--config", "features.profiles=false"}},
 		{name: "incus", args: []string{"profile", "show", "default", "--project", "default", "--format", "json"}},
 		{name: "incus", args: []string{"init", defaultImage, "haco-demo", "--project", defaultProject, "--profile", sandboxProfile, "--storage", "default"}},
+		{name: "incus", args: []string{"config", "device", "override", "haco-demo", "eth0", "name=eth0", "network=" + sandboxNetwork, "security.ipv4_filtering=true", "security.ipv6_filtering=true", "security.mac_filtering=true", "security.port_isolation=true", "--project", defaultProject}},
 		{name: "incus", args: []string{"config", "device", "add", "haco-demo", "workspace", "disk", "source=/tmp/work space", "path=/workspace", "shift=true", "--project", defaultProject}},
 		{name: "incus", args: []string{"start", "haco-demo", "--project", defaultProject}},
 		{name: "incus", args: []string{"exec", "haco-demo", "--project", defaultProject, "--", "test", "-w", "/workspace"}},
@@ -113,16 +114,35 @@ func TestCreateEnvironmentReadOnlyDoesNotRequestShiftOrWriteProbe(t *testing.T) 
 	}
 }
 
+func TestCreateEnvironmentCleansUpAfterNICMaterializationFailure(t *testing.T) {
+	nicErr := errors.New("NIC override failed")
+	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, args []string) (host.Result, error) {
+		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
+			return rootProfileResult(), nil
+		}
+		if call == 3 {
+			return host.Result{Stderr: "bad inherited device"}, nicErr
+		}
+		return host.Result{}, nil
+	}}
+	_, err := New(runner).CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/tmp/workspace"})
+	if !errors.Is(err, nicErr) || !strings.Contains(err.Error(), "bad inherited device") {
+		t.Fatalf("error = %v", err)
+	}
+	last := runner.calls[len(runner.calls)-1]
+	assertRunnerCall(t, last, "incus", "delete", "haco-demo", "--project", defaultProject, "--force")
+}
+
 func TestCreateEnvironmentCleansUpAfterWorkspaceMountFailureWithDetachedContext(t *testing.T) {
 	mountErr := errors.New("mount denied")
 	runner := &fakeRunner{run: func(ctx context.Context, call int, _ string, args []string) (host.Result, error) {
 		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
 			return rootProfileResult(), nil
 		}
-		if call == 3 {
+		if call == 4 {
 			return host.Result{}, mountErr
 		}
-		if call == 4 && ctx.Err() != nil {
+		if call == 5 && ctx.Err() != nil {
 			t.Fatalf("cleanup context is canceled: %v", ctx.Err())
 		}
 		return host.Result{}, nil
@@ -145,10 +165,10 @@ func TestCreateEnvironmentCleanupIsBoundedAndSignalsRecovery(t *testing.T) {
 		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
 			return rootProfileResult(), nil
 		}
-		if call == 3 {
+		if call == 4 {
 			return host.Result{}, mountErr
 		}
-		if call == 4 {
+		if call == 5 {
 			<-ctx.Done()
 			return host.Result{}, ctx.Err()
 		}
@@ -173,7 +193,7 @@ func TestCreateEnvironmentRejectsUnwritableRWWorkspace(t *testing.T) {
 		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
 			return rootProfileResult(), nil
 		}
-		if call == 5 {
+		if call == 6 {
 			return host.Result{ExitCode: 1, Stderr: "permission denied"}, writeErr
 		}
 		return host.Result{}, nil
@@ -209,7 +229,7 @@ func TestDeleteEnvironmentTreatsConfirmedAbsenceAsCoreNotFound(t *testing.T) {
 	}}
 	err := New(runner).DeleteEnvironment(context.Background(), "haco-demo")
 	if !errors.Is(err, core.ErrNotFound) {
-		t.Fatalf("error = %v", err)
+		t.Fatalf("error = %v, want ErrNotFound", err)
 	}
 	assertRunnerCall(t, runner.calls[1], "incus", "list", "haco-demo", "--project", defaultProject, "--format", "csv", "-c", "n")
 }
