@@ -64,8 +64,8 @@ jobs:
           go-version: 1.27.x
           check-latest: true
           cache: false
-      - name: Validate Core, CLI, and VS Code E2E helper syntax
-        run: bash -n tools/ci-incus.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh tools/ci-vscode-e2e.sh test/e2e/incus.sh test/e2e/vscode.sh
+      - name: Validate Core E2E helper syntax
+        run: bash -n tools/ci-incus.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh
       - name: Prepare proven Incus substrate for Hacocoon Core
         run: bash tools/ci-incus.sh setup
       - name: Allow leased workspace owner in Incus root idmap
@@ -84,16 +84,70 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}/haco-storage-helper-e2e
         run: bash tools/ci-incus.sh core
-      - name: Run linked-worktree VS Code journey through real loopback SSH
-        env:
-          TMPDIR: ${{ runner.temp }}/haco-vscode-e2e
-        run: bash tools/ci-vscode-e2e.sh
       - name: Capture Hacocoon and Incus diagnostics
         if: failure()
         run: |
           bash tools/ci-incus.sh diagnostics
           bash tools/ci-storage-helper.sh diagnostics
-      - name: Upload composed user-journey diagnostics
+      - name: Upload Core diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: incus-core-diagnostics
+          path: ${{ runner.temp }}/incus-diagnostics/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Delete CI-owned Incus projects and pools
+        if: always()
+        run: bash tools/ci-incus-project-cleanup.sh
+      - name: Clean up Hacocoon Core E2E resources
+        if: always()
+        run: bash tools/ci-incus.sh cleanup-core
+      - name: Clean up storage helper resources
+        if: always()
+        run: bash tools/ci-storage-helper.sh cleanup
+
+  incus-vscode-e2e:
+    needs: incus-standalone
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      HACO_CI_RUNNER_ENVIRONMENT: github-hosted
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Validate VS Code user-journey E2E helpers
+        run: bash -n tools/ci-incus.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh tools/ci-vscode-e2e.sh test/e2e/vscode.sh
+      - name: Prepare fresh real Incus substrate
+        run: bash tools/ci-incus.sh setup
+      - name: Allow linked-worktree owner in Incus root idmap
+        run: |
+          uid="$(id -u)"
+          gid="$(id -g)"
+          if ! awk -F: -v id="$uid" '$1 == "root" && id >= $2 && id - $2 < $3 { found=1 } END { exit found ? 0 : 1 }' /etc/subuid; then
+            printf 'root:%s:1\n' "$uid" | sudo tee -a /etc/subuid >/dev/null
+          fi
+          if ! awk -F: -v id="$gid" '$1 == "root" && id >= $2 && id - $2 < $3 { found=1 } END { exit found ? 0 : 1 }' /etc/subgid; then
+            printf 'root:%s:1\n' "$gid" | sudo tee -a /etc/subgid >/dev/null
+          fi
+      - name: Install real Btrfs privilege helper
+        run: bash tools/ci-storage-helper.sh setup
+      - name: Run linked-worktree VS Code journey through real loopback SSH
+        env:
+          TMPDIR: ${{ runner.temp }}/haco-vscode-e2e
+        run: bash tools/ci-vscode-e2e.sh
+      - name: Capture VS Code user-journey diagnostics
+        if: failure()
+        run: |
+          bash tools/ci-incus.sh diagnostics
+          bash tools/ci-storage-helper.sh diagnostics
+      - name: Upload VS Code user-journey diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -104,7 +158,7 @@ jobs:
       - name: Delete CI-owned Incus projects and pools
         if: always()
         run: bash tools/ci-incus-project-cleanup.sh
-      - name: Clean up Hacocoon Core E2E resources
+      - name: Clean up Hacocoon sandbox resources
         if: always()
         run: bash tools/ci-incus.sh cleanup-core
       - name: Clean up storage helper resources
