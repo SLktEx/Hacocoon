@@ -14,10 +14,13 @@
 /tools/test_release_tag_trust.sh @SLktEx
 /tools/check_public_release_readiness.py @SLktEx
 /tools/test_public_release_readiness.py @SLktEx
+/tools/package_installers.py @SLktEx
+/tools/test_installer_packages.py @SLktEx
 
 /scripts/install.sh @SLktEx
+/scripts/install-ubuntu.sh @SLktEx
+/scripts/install-windows.bat @SLktEx
 /scripts/install-windows.ps1 @SLktEx
-/scripts/bootstrap-windows.ps1 @SLktEx
 
 /docs/RELEASE_SECURITY.md @SLktEx
 /docs/RELEASE_SECURITY.ja.md @SLktEx
