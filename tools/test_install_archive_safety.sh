@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 installer="$repo_root/scripts/install.sh"
 root="$(mktemp -d)"
 outside="/tmp/hacocoon-installer-escape-$$"
@@ -75,10 +75,10 @@ import tarfile
 
 kind, path, outside_name = sys.argv[1:]
 
-def regular(tf, name, payload=b"binary\n"):
+def regular(tf, name, payload=b"binary\n", mode=0o755):
     info = tarfile.TarInfo(name)
     info.type = tarfile.REGTYPE
-    info.mode = 0o755
+    info.mode = mode
     info.size = len(payload)
     tf.addfile(info, io.BytesIO(payload))
 
@@ -94,6 +94,11 @@ with tarfile.open(path, "w:gz", format=tarfile.USTAR_FORMAT) as tf:
     if kind == "valid":
         regular(tf, "haco", b"haco-safe\n")
         expected_others(tf)
+    elif kind == "valid-docs":
+        regular(tf, "haco", b"haco-safe\n")
+        expected_others(tf)
+        regular(tf, "README.md", b"readme\n", mode=0o644)
+        regular(tf, "LICENSE", b"license\n", mode=0o644)
     elif kind == "traversal":
         regular(tf, "../../" + outside_name, b"OVERWRITE\n")
         expected_others(tf)
@@ -164,6 +169,12 @@ grep -Fx 'vscode-safe' "$root/install-valid/haco-vscode" >/dev/null
 grep -Fx 'agent-host-safe' "$root/install-valid/haco-agent-host" >/dev/null
 grep -Fx 'notify-safe' "$root/install-valid/haco-notify" >/dev/null
 grep -Fx 'storage-helper-safe' "$root/helper-valid/haco-storage-helper" >/dev/null
+
+valid_docs="$root/valid-docs.tar.gz"
+make_archive valid-docs "$valid_docs"
+run_installer "$valid_docs" "$root/install-valid-docs" "$root/helper-valid-docs"
+grep -Fx 'haco-safe' "$root/install-valid-docs/haco" >/dev/null
+grep -Fx 'storage-helper-safe' "$root/helper-valid-docs/haco-storage-helper" >/dev/null
 
 printf 'sentinel\n' >"$outside"
 for kind in traversal absolute symlink hardlink fifo device extra; do
