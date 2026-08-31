@@ -32,7 +32,7 @@ func TestBaseProviderUsesCurrentSeedForExactParentRevision(t *testing.T) {
 	seedRevision := core.BaseRevision("sha256:" + testFingerprintB)
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		switch {
-		case reflect.DeepEqual(args, []string{"image", "info", "images:ubuntu/26.04", "--format", "json"}):
+		case reflect.DeepEqual(args, []string{"image", "info", "images:ubuntu/26.04/cloud", "--format", "json"}):
 			return host.Result{Stdout: `{"fingerprint":"` + testFingerprintA + `"}`}, nil
 		case reflect.DeepEqual(args, []string{"image", "info", "local:" + testFingerprintB, "--project", defaultProject, "--format", "json"}):
 			return host.Result{Stdout: `{"fingerprint":"` + testFingerprintB + `"}`}, nil
@@ -59,7 +59,7 @@ func TestBaseProviderUsesCurrentSeedForExactParentRevision(t *testing.T) {
 func TestBaseProviderIgnoresSeedForMovedParentRevision(t *testing.T) {
 	oldParent := core.BaseRef{Name: defaultBaseName, Revision: core.BaseRevision("sha256:" + testFingerprintA)}
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if reflect.DeepEqual(args, []string{"image", "info", "images:ubuntu/26.04", "--format", "json"}) {
+		if reflect.DeepEqual(args, []string{"image", "info", "images:ubuntu/26.04/cloud", "--format", "json"}) {
 			return host.Result{Stdout: `{"fingerprint":"` + testFingerprintB + `"}`}, nil
 		}
 		return host.Result{}, errors.New("unexpected call")
@@ -86,7 +86,7 @@ func TestBaseProviderIgnoresSeedForMovedParentRevision(t *testing.T) {
 func TestBaseProviderFailsClosedWhenCurrentSeedImageIsMissing(t *testing.T) {
 	parent := core.BaseRef{Name: defaultBaseName, Revision: core.BaseRevision("sha256:" + testFingerprintA)}
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if reflect.DeepEqual(args, []string{"image", "info", "images:ubuntu/26.04", "--format", "json"}) {
+		if reflect.DeepEqual(args, []string{"image", "info", "images:ubuntu/26.04/cloud", "--format", "json"}) {
 			return host.Result{Stdout: `{"fingerprint":"` + testFingerprintA + `"}`}, nil
 		}
 		if len(args) >= 3 && args[0] == "image" && args[1] == "info" && args[2] == "local:"+testFingerprintB {
