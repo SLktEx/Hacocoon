@@ -52,16 +52,20 @@ jobs:
           fi
       - name: Install real Btrfs privilege helper
         run: bash tools/ci-storage-helper.sh setup
-      - name: Permit only Hacocoon trusted-build bridge forwarding on hosted runner
+      - name: Permit only CI-owned Incus bridge forwarding on hosted runner
         run: |
-          # Docker owns the legacy FORWARD chain on GitHub-hosted runners. Keep
-          # compatibility exceptions scoped to Hacocoon's trusted Host/Seed
-          # bridge name prefixes instead of changing the global FORWARD policy.
+          # GitHub-hosted runners start Docker with the legacy IPv4 FORWARD
+          # policy set to DROP. Incus manages its own nftables rules, but an
+          # accept there cannot override Docker's later drop. The proven CI
+          # substrate creates incusbr0 on this disposable runner, and haco-host
+          # inherits that bridge from the default Incus profile. Keep this
+          # compatibility exception scoped to incusbr0 plus Hacocoon's
+          # short-lived tooling bridges; never relax the global FORWARD policy.
           if sudo iptables -w 5 -nL DOCKER-USER >/dev/null 2>&1; then
+            sudo iptables -w 5 -I DOCKER-USER 1 -i incusbr0 -j ACCEPT
+            sudo iptables -w 5 -I DOCKER-USER 1 -o incusbr0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
             sudo iptables -w 5 -I DOCKER-USER 1 -i 'haco-t-+' -j ACCEPT
             sudo iptables -w 5 -I DOCKER-USER 1 -o 'haco-t-+' -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-            sudo iptables -w 5 -I DOCKER-USER 1 -i 'haco-host+' -j ACCEPT
-            sudo iptables -w 5 -I DOCKER-USER 1 -o 'haco-host+' -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
           fi
       - name: Run real trusted haco-host Seed acceptance
         env:
