@@ -78,6 +78,10 @@ archives:
       - haco-storage-helper
     formats: [tar.gz]
     name_template: "haco_{{ .Os }}_{{ .Arch }}"
+    # GoReleaser otherwise adds README/LICENSE files by default. The Hacocoon
+    # release archive is intentionally a strict seven-binary payload.
+    files:
+      - none*
 
 checksum:
   name_template: checksums.txt
