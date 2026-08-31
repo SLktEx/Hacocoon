@@ -130,7 +130,7 @@ func (r *Runtime) EnsureTrustedHostOCI(ctx context.Context) error {
 	if err := r.EnsureTrustedHost(ctx); err != nil {
 		return err
 	}
-	if ok := r.trustedHostOCIReady(ctx); ok {
+	if r.trustedHostOCIReady(ctx) {
 		return nil
 	}
 
@@ -182,7 +182,11 @@ func (r *Runtime) installTrustedHostNerdctl(ctx context.Context) error {
 		"--proto", "=https", "--tlsv1.2", url, "--output", archive); err != nil {
 		return fmt.Errorf("download pinned haco-host nerdctl: %w", err)
 	}
-	defer func() { _ = r.trustedHostExec(context.Background(), "rm", "-f", archive) }()
+	defer func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), defaultCleanupTimeout)
+		defer cancel()
+		_ = r.trustedHostExec(cleanupCtx, "rm", "-f", archive)
+	}()
 
 	hash, hashErr := r.runner.Run(ctx, "incus", "exec", trustedHostName, "--project", r.project,
 		"--", "sha256sum", archive)
@@ -283,33 +287,42 @@ func (r *TrustedHostOCIRunner) cleanupGuestTransfer(path string) {
 }
 
 func trustedHostSaveOutput(args []string) (string, bool, error) {
-	if len(args) == 0 || args[0] != "save" {
+	start, ok := nerdctlVerbIndex(args)
+	if !ok || args[start] != "save" {
 		return "", false, nil
 	}
-	value, ok := flagValue(args, "-o")
-	if !ok {
+	value, found := flagValue(args[start:], "-o")
+	if !found {
 		return "", false, fmt.Errorf("trusted haco-host nerdctl save requires -o staging path: %w", core.ErrInvalidArgument)
 	}
 	return value, true, nil
 }
 
 func trustedHostLoadInput(args []string) (string, bool, error) {
+	start, ok := nerdctlVerbIndex(args)
+	if !ok || args[start] != "load" {
+		return "", false, nil
+	}
+	value, found := flagValue(args[start:], "-i")
+	if !found {
+		return "", false, fmt.Errorf("trusted haco-host nerdctl load requires -i staging path: %w", core.ErrInvalidArgument)
+	}
+	return value, true, nil
+}
+
+func nerdctlVerbIndex(args []string) (int, bool) {
 	start := 0
-	for start < len(args) && strings.HasPrefix(args[start], "-") {
-		if args[start] == "--namespace" && start+1 < len(args) {
+	for start < len(args) {
+		if args[start] == "--namespace" {
+			if start+1 >= len(args) || args[start+1] == "" || strings.HasPrefix(args[start+1], "-") {
+				return 0, false
+			}
 			start += 2
 			continue
 		}
 		break
 	}
-	if start >= len(args) || args[start] != "load" {
-		return "", false, nil
-	}
-	value, ok := flagValue(args[start:], "-i")
-	if !ok {
-		return "", false, fmt.Errorf("trusted haco-host nerdctl load requires -i staging path: %w", core.ErrInvalidArgument)
-	}
-	return value, true, nil
+	return start, start < len(args)
 }
 
 func flagValue(args []string, flag string) (string, bool) {
