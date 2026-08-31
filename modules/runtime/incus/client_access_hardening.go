@@ -2,7 +2,6 @@ package incus
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -100,24 +99,39 @@ func (r *Runtime) ListClientConnections(ctx context.Context, ref string) ([]core
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return nil, err
 	}
-	result, err := r.runner.Run(ctx, "incus", "config", "show", ref, "--project", r.project, "--format", "json")
+
+	// `incus config show` intentionally emits YAML and does not support a
+	// --format flag. Reconcile only Hacocoon-owned devices through the stable
+	// device list/get CLI instead of depending on an unsupported JSON shortcut.
+	listed, err := r.runner.Run(ctx, "incus", "config", "device", "list", ref, "--project", r.project)
 	if err != nil {
-		return nil, err
-	}
-	var config struct {
-		Devices map[string]map[string]string `json:"devices"`
-	}
-	if err := json.Unmarshal([]byte(result.Stdout), &config); err != nil {
-		return nil, fmt.Errorf("decode Incus client devices: %w", err)
+		return nil, fmt.Errorf("list Incus client devices: %w", err)
 	}
 
 	connections := make([]core.ClientConnection, 0)
-	for deviceName, device := range config.Devices {
-		if device["type"] != "proxy" || !strings.HasPrefix(deviceName, "haco-") {
+	for _, deviceName := range strings.Fields(listed.Stdout) {
+		if !strings.HasPrefix(deviceName, "haco-") {
 			continue
 		}
+
+		deviceType, err := r.deviceValue(ctx, ref, deviceName, "type")
+		if err != nil {
+			return nil, fmt.Errorf("reconcile client device %q type: %w", deviceName, err)
+		}
+		if deviceType != "proxy" {
+			continue
+		}
+		listen, err := r.deviceValue(ctx, ref, deviceName, "listen")
+		if err != nil {
+			return nil, fmt.Errorf("reconcile client device %q listen: %w", deviceName, err)
+		}
+		connect, err := r.deviceValue(ctx, ref, deviceName, "connect")
+		if err != nil {
+			return nil, fmt.Errorf("reconcile client device %q connect: %w", deviceName, err)
+		}
+
 		id := strings.TrimPrefix(deviceName, "haco-")
-		connection, err := clientConnectionFromProxy(id, device["listen"], device["connect"])
+		connection, err := clientConnectionFromProxy(id, listen, connect)
 		if err != nil {
 			return nil, fmt.Errorf("reconcile client device %q: %w", deviceName, err)
 		}
@@ -125,6 +139,14 @@ func (r *Runtime) ListClientConnections(ctx context.Context, ref string) ([]core
 	}
 	sort.Slice(connections, func(i, j int) bool { return connections[i].ID < connections[j].ID })
 	return connections, nil
+}
+
+func (r *Runtime) deviceValue(ctx context.Context, ref, deviceName, key string) (string, error) {
+	result, err := r.runner.Run(ctx, "incus", "config", "device", "get", ref, deviceName, key, "--project", r.project)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(result.Stdout), nil
 }
 
 func clientConnectionFromProxy(id, listen, connect string) (core.ClientConnection, error) {
