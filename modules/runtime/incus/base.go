@@ -52,9 +52,13 @@ func NewBaseProvider(runtime *Runtime, options ...BaseProviderOption) (*BaseProv
 	if runtime == nil {
 		return nil, core.ErrInvalidArgument
 	}
+	// Hacocoon's official development Bases use the Incus cloud variants.
+	// Besides cloud-init support, these variants carry the OpenSSH server needed
+	// for loopback-only client connections such as VS Code Remote SSH. SSH
+	// preparation must not punch through sandbox egress merely to install sshd.
 	sources := map[core.BaseName]string{
-		defaultBaseName:                    "images:ubuntu/26.04",
-		core.BaseName("haco/ubuntu-24.04"): "images:ubuntu/24.04",
+		defaultBaseName:                    "images:ubuntu/26.04/cloud",
+		core.BaseName("haco/ubuntu-24.04"): "images:ubuntu/24.04/cloud",
 	}
 	custom, err := customBaseSourcesFromEnv()
 	if err != nil {
