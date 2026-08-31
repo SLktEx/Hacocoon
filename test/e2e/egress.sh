@@ -81,6 +81,20 @@ wait_environment_route() {
   return 1
 }
 
+require_response_contains() {
+  local label="$1" response="$2" needle="$3"
+  if printf '%s' "$response" | grep -Fq "$needle"; then
+    return 0
+  fi
+  echo "$label response missing $needle:" >&2
+  printf '%s\n' "$response" >&2
+  if [[ -f "$HACO_ROOT/audit/capabilities.jsonl" ]]; then
+    echo 'capability audit:' >&2
+    cat "$HACO_ROOT/audit/capabilities.jsonl" >&2 || true
+  fi
+  return 1
+}
+
 cleanup() {
   local code=$?
   set +e
@@ -93,6 +107,11 @@ cleanup() {
     cat "$root/http.out" >&2 2>/dev/null || true
     cat "$root/http.err" >&2 2>/dev/null || true
     echo '::endgroup::' >&2
+    if [[ -f "$HACO_ROOT/audit/capabilities.jsonl" ]]; then
+      echo '::group::capability audit' >&2
+      cat "$HACO_ROOT/audit/capabilities.jsonl" >&2 || true
+      echo '::endgroup::' >&2
+    fi
   fi
   if [[ -n "$eg_pid" ]] && kill -0 "$eg_pid" >/dev/null 2>&1; then
     kill -TERM "$eg_pid" >/dev/null 2>&1 || true
@@ -175,6 +194,7 @@ cat >"$HACO_ROOT/policy.json" <<JSON
   ]
 }
 JSON
+chmod 0600 "$HACO_ROOT/policy.json"
 
 "$haco" create --base haco/ubuntu-26.04 --workspace "$workspace" "$environment" >/dev/null
 created=1
@@ -195,32 +215,32 @@ wait_environment_route "$bridge_ip"
 
 proxy_request() {
   local hostname="$1"
-  "$haco" exec "$environment" -- bash -c \
+  "$haco" exec "$environment" -- timeout 10 bash -lc \
     "exec 3<>/dev/tcp/$bridge_ip/18080; printf 'GET http://$hostname:$target_port/index.txt HTTP/1.1\\r\\nHost: $hostname:$target_port\\r\\nConnection: close\\r\\n\\r\\n' >&3; cat <&3"
 }
 
 proxy_connect() {
   local hostname="$1"
-  "$haco" exec "$environment" -- bash -c \
+  "$haco" exec "$environment" -- timeout 10 bash -lc \
     "exec 3<>/dev/tcp/$bridge_ip/18080; printf 'CONNECT $hostname:$target_port HTTP/1.1\\r\\nHost: $hostname:$target_port\\r\\nConnection: close\\r\\n\\r\\n' >&3; IFS= read -r line <&3; printf '%s\\n' \"\$line\"; if [[ \"\$line\" == *'200 Connection Established'* ]]; then printf '\\x00' >&3; fi"
 }
 
 allowed_response="$(proxy_request "$allowed_host")"
-printf '%s' "$allowed_response" | grep -Fq '200 OK'
-printf '%s' "$allowed_response" | grep -Fq 'proxy-round-trip-ok'
+require_response_contains 'allowed HTTP' "$allowed_response" '200 OK'
+require_response_contains 'allowed HTTP' "$allowed_response" 'proxy-round-trip-ok'
 
 denied_response="$(proxy_request "$denied_host")"
-printf '%s' "$denied_response" | grep -Fq '403 Forbidden'
-printf '%s' "$denied_response" | grep -Fq 'egress denied'
+require_response_contains 'denied HTTP' "$denied_response" '403 Forbidden'
+require_response_contains 'denied HTTP' "$denied_response" 'egress denied'
 
 # CONNECT is part of the Standard proxy contract. The E2E checks the real
 # process-level authorization/upgrade boundary; TLS ClientHello/SNI forwarding
 # remains covered by the focused proxy tests.
 allowed_connect="$(proxy_connect "$allowed_host")"
-printf '%s' "$allowed_connect" | grep -Fq '200 Connection Established'
+require_response_contains 'allowed CONNECT' "$allowed_connect" '200 Connection Established'
 
 denied_connect="$(proxy_connect "$denied_host")"
-printf '%s' "$denied_connect" | grep -Fq '403 Forbidden'
+require_response_contains 'denied CONNECT' "$denied_connect" '403 Forbidden'
 
 # Policy decisions must remain externally auditable through the production
 # capability audit sink.
