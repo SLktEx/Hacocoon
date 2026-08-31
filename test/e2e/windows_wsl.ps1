@@ -58,7 +58,9 @@ try {
         Write-Host (Get-WslText @("--list", "--online"))
     }
 
-    $help = Get-WslText @("--help")
+    # Current Store WSL prints valid help but may return -1 on Windows Server
+    # hosted runners. Treat the help text itself as the capability contract.
+    $help = Normalize-WslText ((& wsl.exe --help 2>&1 | Out-String))
     if ($help -notmatch '(?m)--name\b') {
         throw "GitHub-hosted Windows runner does not expose the named WSL install contract required by Hacocoon"
     }
