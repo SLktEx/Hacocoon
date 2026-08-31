@@ -36,6 +36,8 @@ jobs:
           go-version: 1.27.x
           check-latest: true
           cache: false
+      - name: Validate Seed acceptance unit boundary
+        run: go test -count=1 ./modules/runtime/incus
       - name: Validate Seed acceptance shell syntax
         run: bash -n test/e2e/seed_haco_host_real.sh
       - name: Prepare proven Incus substrate
