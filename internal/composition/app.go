@@ -110,14 +110,10 @@ func Local(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	nativeProvider, err := incus.NewNativeWorkloadProvider(incusProvider)
-	if err != nil {
-		return nil, err
-	}
 
 	router, err := environmentapp.NewRouter(
 		envOr("HACO_RUNTIME_PROVIDER", environmentapp.ProviderIncus),
-		environmentapp.Register(environmentapp.ProviderIncus, nativeProvider),
+		environmentapp.Register(environmentapp.ProviderIncus, incusProvider),
 	)
 	if err != nil {
 		return nil, err
@@ -161,9 +157,6 @@ func Local(ctx context.Context) (*App, error) {
 		if err != nil {
 			return nil, err
 		}
-		// Seed construction intentionally keeps the legacy provider in this
-		// migration slice. Runtime Environments use nativeProvider, while the
-		// existing offline Seed builder remains available as a fallback.
 		seeds, err = seedbuildapp.New(incusProvider, ociPlugin, seedStore)
 		if err != nil {
 			return nil, err

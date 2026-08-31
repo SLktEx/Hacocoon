@@ -15,19 +15,3 @@ func validateManagedInstanceRef(ref string) error {
 	}
 	return nil
 }
-
-// ManagedEnvironmentRef returns the provider-local Incus identity for a
-// logical Environment name. Persisted Environment state can wrap this value in
-// provider routing metadata, so callers that already know they are targeting
-// the local Incus provider should derive the canonical ref here instead of
-// decoding persistence internals.
-func ManagedEnvironmentRef(environment string) (string, error) {
-	if err := validateWorkloadToken("environment", environment); err != nil {
-		return "", err
-	}
-	ref := "haco-" + environment
-	if err := validateManagedInstanceRef(ref); err != nil {
-		return "", err
-	}
-	return ref, nil
-}

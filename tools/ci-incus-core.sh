@@ -84,11 +84,6 @@ setup() {
   incus remote add "$CI_REMOTE" https://127.0.0.1:8443 --accept-certificate
   incus remote switch "$CI_REMOTE"
 
-  # Production packages create /run/hacocoon for the controller. CI runs the
-  # controller pieces as the ordinary runner user, so create only the narrow
-  # per-Environment workload socket directory needed by the scoped broker.
-  sudo install -d -m 0755 -o "$(id -u)" -g "$(id -g)" /run/hacocoon /run/hacocoon/workloads
-
   incus version
   server_version="$(incus version | awk -F': ' '$1 == "Server version" {print $2; exit}')"
   [[ -n "$server_version" ]] || fail "could not determine Incus server version"
@@ -98,14 +93,8 @@ setup() {
 
 run_test() {
   require_github_hosted_runner
-  local shim
-  shim="${RUNNER_TEMP:-/tmp}/haco-host-incus-e2e"
-  go build -trimpath -o "$shim" ./cmd/haco-host
-  chmod 0755 "$shim"
-
   export HACO_E2E_INCUS=1
-  export HACO_WORKLOAD_SHIM_BINARY="$shim"
-  go test -count=1 -run '^TestRealIncus(WorkspaceLifecycle|NerdctlUsesHostOCIWorkload)E2E$' ./modules/runtime/incus
+  go test -count=1 -run '^TestRealIncusWorkspaceLifecycleE2E$' ./modules/runtime/incus
 }
 
 run_egress_test() {
@@ -179,8 +168,6 @@ cleanup() {
       haco-e2e-*) cleanup_project "$project" || failed=1 ;;
     esac
   done < <(incus project list --format csv -c n 2>/dev/null || true)
-
-  rm -f /run/hacocoon/workloads/*.sock 2>/dev/null || true
 
   if incus profile show "$SANDBOX_PROFILE" --project default >/dev/null 2>&1; then
     incus profile delete "$SANDBOX_PROFILE" --project default || failed=1
