@@ -1,0 +1,434 @@
+name: kubevirt rawfile whole env clone spike
+
+on:
+  push:
+    branches:
+      - main-kube
+    paths:
+      - .github/workflows/kubevirt-rawfile-whole-env-clone-spike.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kubevirt-rawfile-whole-env-clone-spike-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  whole-env-clone:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Start Kubernetes 1.36
+        run: |
+          set -euxo pipefail
+          curl -fsSLo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+          chmod +x minikube
+          sudo install minikube /usr/local/bin/minikube
+          minikube start --driver=docker --kubernetes-version=v1.36.2 --cpus=4 --memory=6500mb --wait=all --wait-timeout=8m
+          kubectl get nodes -o wide
+
+      - name: Create Btrfs RawFile pool
+        run: |
+          set -euxo pipefail
+          minikube ssh -- 'sudo apt-get update && sudo apt-get install -y btrfs-progs e2fsprogs'
+          minikube ssh -- 'set -eux; sudo truncate -s 12G /var/lib/hacocoon-rawfile-btrfs.img; sudo mkfs.btrfs -f /var/lib/hacocoon-rawfile-btrfs.img; sudo mkdir -p /var/local/openebs/rawfile/haco-pool; sudo mount -o loop,compress=zstd /var/lib/hacocoon-rawfile-btrfs.img /var/local/openebs/rawfile/haco-pool; findmnt -T /var/local/openebs/rawfile/haco-pool -o TARGET,SOURCE,FSTYPE,OPTIONS'
+          test "$(minikube ssh -- 'findmnt -n -o FSTYPE -T /var/local/openebs/rawfile/haco-pool' | tr -d '\r')" = btrfs
+          minikube ssh -- 'findmnt -n -o OPTIONS -T /var/local/openebs/rawfile/haco-pool' | grep -q 'compress=zstd'
+
+      - name: Build patched RawFile COW driver
+        run: |
+          set -euxo pipefail
+          RAWFILE_SHA=22a2884d9931b1af17698fb6f254f742db8b5909
+          git clone --filter=blob:none https://github.com/openebs/rawfile-localpv.git /tmp/rawfile-localpv
+          git -C /tmp/rawfile-localpv checkout "$RAWFILE_SHA"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/rawfile-localpv/rawfile/utils/snapshot_manager.py')
+          text = p.read_text()
+          old = 'is_cow_supported(Path(os.path.dirname(snap_path)), destination)'
+          new = 'is_cow_supported(Path(os.path.dirname(snap_path)), destination.parent)'
+          assert old in text, 'upstream restore probe changed; re-evaluate the experiment'
+          p.write_text(text.replace(old, new, 1))
+          PY
+          git -C /tmp/rawfile-localpv diff --check
+          docker build \
+            --build-arg IMAGE_TAG=haco-cowfix \
+            --build-arg PROVISIONER_VERSION=haco-cowfix \
+            -t rawfile-localpv:haco-cowfix \
+            /tmp/rawfile-localpv
+          minikube image load rawfile-localpv:haco-cowfix
+
+      - name: Install OpenEBS RawFile
+        run: |
+          set -euxo pipefail
+          cat >/tmp/rawfile-values.yaml <<'EOF'
+          analytics:
+            enabled: false
+          logLevel: DEBUG
+          node:
+            defaultPool: haco
+            storagePools:
+              haco:
+                path: /var/local/openebs/rawfile/haco-pool
+            metadataDirPath: /var/local/openebs/rawfile/haco-pool/.meta
+          storageClasses:
+            - name: rawfile-btrfs-cow
+              enabled: true
+              volumeBindingMode: WaitForFirstConsumer
+              isDefault: false
+              allowVolumeExpansion: true
+              reclaimPolicy: Delete
+              fsType: ext4
+              thinProvision: true
+              mountOptions: []
+              formatOptions: []
+              copyOnWrite: true
+              freezeFs: false
+              storagePool: haco
+          snapshotClasses:
+            - name: rawfile-btrfs-cow
+              enabled: true
+              deletionPolicy: Delete
+              isDefault: false
+          capabilities:
+            snapshots:
+              enabled: true
+          EOF
+          helm repo add rawfile-localpv https://openebs.github.io/rawfile-localpv
+          helm repo update rawfile-localpv
+          helm install rawfile-localpv rawfile-localpv/rawfile-localpv --namespace openebs --create-namespace --values /tmp/rawfile-values.yaml
+          kubectl -n openebs rollout status daemonset/rawfile-localpv-node --timeout=8m
+          kubectl -n openebs set image daemonset/rawfile-localpv-node csi-driver=rawfile-localpv:haco-cowfix
+          kubectl -n openebs rollout status daemonset/rawfile-localpv-node --timeout=8m
+          kubectl -n openebs wait --for=condition=Ready pod --all --timeout=8m
+          test "$(kubectl get storageclass rawfile-btrfs-cow -o jsonpath='{.provisioner}')" = rawfile.csi.openebs.io
+          test "$(kubectl get storageclass rawfile-btrfs-cow -o jsonpath='{.parameters.copyOnWrite}')" = true
+
+      - name: Install KubeVirt
+        run: |
+          set -euxo pipefail
+          KUBEVIRT_VERSION="$(curl -fsSL https://storage.googleapis.com/kubevirt-prow/release/kubevirt/kubevirt/stable.txt)"
+          echo "KUBEVIRT_VERSION=${KUBEVIRT_VERSION}" >> "$GITHUB_ENV"
+          kubectl apply -f "https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-operator.yaml"
+          kubectl apply -f "https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-cr.yaml"
+          kubectl -n kubevirt patch kubevirt kubevirt --type=merge -p '{"spec":{"configuration":{"developerConfiguration":{"useEmulation":true}}}}'
+          kubectl -n kubevirt wait kv kubevirt --for=condition=Available --timeout=10m
+          curl -fsSLo virtctl "https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/virtctl-${KUBEVIRT_VERSION}-linux-amd64"
+          chmod +x virtctl
+          sudo install virtctl /usr/local/bin/virtctl
+
+      - name: Install CDI
+        run: |
+          set -euxo pipefail
+          CDI_TAG="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/kubevirt/containerized-data-importer/releases/latest)"
+          CDI_VERSION="${CDI_TAG##*/}"
+          echo "CDI_VERSION=${CDI_VERSION}" >> "$GITHUB_ENV"
+          kubectl apply -f "https://github.com/kubevirt/containerized-data-importer/releases/download/${CDI_VERSION}/cdi-operator.yaml"
+          kubectl apply -f "https://github.com/kubevirt/containerized-data-importer/releases/download/${CDI_VERSION}/cdi-cr.yaml"
+          for deployment in cdi-operator cdi-apiserver cdi-deployment cdi-uploadproxy; do
+            for i in $(seq 1 120); do kubectl -n cdi get deployment "$deployment" >/dev/null 2>&1 && break; sleep 2; done
+            kubectl -n cdi rollout status deployment/"$deployment" --timeout=10m
+          done
+          for i in $(seq 1 120); do
+            endpoint="$(kubectl -n cdi get endpoints cdi-api -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null || true)"
+            [ -n "$endpoint" ] && break
+            sleep 2
+          done
+          test -n "$endpoint"
+
+      - name: Import Fedora root disk directly onto RawFile Btrfs
+        run: |
+          set -euxo pipefail
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: cdi.kubevirt.io/v1beta1
+          kind: DataVolume
+          metadata:
+            name: source-root
+          spec:
+            source:
+              registry:
+                url: docker://quay.io/containerdisks/fedora:latest
+            storage:
+              storageClassName: rawfile-btrfs-cow
+              accessModes: [ReadWriteOnce]
+              volumeMode: Block
+              resources:
+                requests:
+                  storage: 6Gi
+          EOF
+          for i in $(seq 1 180); do
+            phase="$(kubectl get dv source-root -o jsonpath='{.status.phase}' 2>/dev/null || true)"
+            echo "source-root phase=${phase}"
+            [ "$phase" = Succeeded ] && break
+            [ "$phase" = Failed ] && exit 1
+            sleep 5
+          done
+          test "$(kubectl get dv source-root -o jsonpath='{.status.phase}')" = Succeeded
+          SOURCE_PV="$(kubectl get pvc source-root -o jsonpath='{.spec.volumeName}')"
+          SOURCE_HANDLE="$(kubectl get pv "$SOURCE_PV" -o jsonpath='{.spec.csi.volumeHandle}')"
+          test -n "$SOURCE_HANDLE"
+          echo "SOURCE_HANDLE=$SOURCE_HANDLE" >> "$GITHUB_ENV"
+          minikube ssh -- "sudo btrfs filesystem du -s /var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/disk.img"
+
+      - name: Boot source and create whole-machine state
+        run: |
+          set -euxo pipefail
+          ssh-keygen -q -t ed25519 -N '' -f /tmp/source_key
+          SOURCE_PUB="$(cat /tmp/source_key.pub)"
+          cat >/tmp/source-vm.yaml <<EOF
+          apiVersion: kubevirt.io/v1
+          kind: VirtualMachine
+          metadata:
+            name: source-vm
+          spec:
+            runStrategy: Always
+            template:
+              metadata:
+                labels:
+                  hacocoon.dev/spike: whole-env-source
+              spec:
+                domain:
+                  resources:
+                    requests:
+                      memory: 1024Mi
+                  devices:
+                    disks:
+                      - name: rootdisk
+                        disk:
+                          bus: virtio
+                      - name: cloudinit
+                        disk:
+                          bus: virtio
+                terminationGracePeriodSeconds: 0
+                volumes:
+                  - name: rootdisk
+                    persistentVolumeClaim:
+                      claimName: source-root
+                  - name: cloudinit
+                    cloudInitNoCloud:
+                      userData: |-
+                        #cloud-config
+                        user: fedora
+                        ssh_authorized_keys:
+                          - ${SOURCE_PUB}
+          EOF
+          kubectl apply -f /tmp/source-vm.yaml
+          for i in $(seq 1 120); do kubectl get vmi source-vm >/dev/null 2>&1 && break; sleep 1; done
+          kubectl wait vmi/source-vm --for=condition=Ready --timeout=8m
+          SSH_OPTS=(-t '-o StrictHostKeyChecking=no' -t '-o UserKnownHostsFile=/dev/null' -t '-o BatchMode=yes' -t '-o ConnectTimeout=5')
+          for i in $(seq 1 60); do
+            virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/source-vm --command 'true' && break
+            sleep 3
+          done
+          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/source-vm --command 'true'
+          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/source-vm --command "sudo sh -ceu 'printf etc-state >/etc/hacocoon-clone-proof; install -d /usr/local/share/hacocoon /var/lib/containerd/hacocoon-spike; printf usr-state >/usr/local/share/hacocoon/clone-proof; printf runtime-state >/var/lib/containerd/hacocoon-spike/clone-proof; printf \"[Unit]\\nDescription=Hacocoon whole env proof\\n[Service]\\nType=oneshot\\nExecStart=/usr/bin/true\\n[Install]\\nWantedBy=multi-user.target\\n\" >/etc/systemd/system/hacocoon-clone-proof.service; systemctl enable hacocoon-clone-proof.service; setsebool -P virt_qemu_ga_manage_ssh 1 || true'"
+          SOURCE_MACHINE_ID="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/source-vm --command 'cat /etc/machine-id' | tr -d '\r\n')"
+          SOURCE_HOST_KEY="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/source-vm --command "sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256 | cut -d ' ' -f2" | tr -d '\r\n')"
+          test -n "$SOURCE_MACHINE_ID"
+          test -n "$SOURCE_HOST_KEY"
+          echo "SOURCE_MACHINE_ID=$SOURCE_MACHINE_ID" >> "$GITHUB_ENV"
+          echo "SOURCE_HOST_KEY=$SOURCE_HOST_KEY" >> "$GITHUB_ENV"
+
+      - name: Quiesce source and create CSI snapshot
+        run: |
+          set -euxo pipefail
+          virtctl stop source-vm
+          for i in $(seq 1 120); do ! kubectl get vmi source-vm >/dev/null 2>&1 && break; sleep 2; done
+          ! kubectl get vmi source-vm >/dev/null 2>&1
+          SNAP_START_NS="$(date +%s%N)"
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: snapshot.storage.k8s.io/v1
+          kind: VolumeSnapshot
+          metadata:
+            name: source-root-snapshot
+          spec:
+            volumeSnapshotClassName: rawfile-btrfs-cow
+            source:
+              persistentVolumeClaimName: source-root
+          EOF
+          for i in $(seq 1 180); do
+            ready="$(kubectl get volumesnapshot source-root-snapshot -o jsonpath='{.status.readyToUse}' 2>/dev/null || true)"
+            [ "$ready" = true ] && break
+            sleep 2
+          done
+          test "$(kubectl get volumesnapshot source-root-snapshot -o jsonpath='{.status.readyToUse}')" = true
+          SNAP_END_NS="$(date +%s%N)"
+          echo "whole-root snapshot elapsed_ms=$(( (SNAP_END_NS - SNAP_START_NS) / 1000000 ))"
+
+      - name: Restore whole root disk as Btrfs COW clone
+        run: |
+          set -euxo pipefail
+          CLONE_START_NS="$(date +%s%N)"
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: clone-root
+          spec:
+            accessModes: [ReadWriteOnce]
+            volumeMode: Block
+            storageClassName: rawfile-btrfs-cow
+            dataSource:
+              name: source-root-snapshot
+              kind: VolumeSnapshot
+              apiGroup: snapshot.storage.k8s.io
+            resources:
+              requests:
+                storage: 6Gi
+          ---
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: clone-bind-probe
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: probe
+                image: busybox:1.37
+                command: ["sh", "-c", "true"]
+                volumeDevices:
+                  - name: root
+                    devicePath: /dev/root-clone
+            volumes:
+              - name: root
+                persistentVolumeClaim:
+                  claimName: clone-root
+          EOF
+          kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/clone-bind-probe --timeout=8m
+          CLONE_END_NS="$(date +%s%N)"
+          echo "whole-root restore + bind elapsed_ms=$(( (CLONE_END_NS - CLONE_START_NS) / 1000000 ))"
+          CLONE_PV="$(kubectl get pvc clone-root -o jsonpath='{.spec.volumeName}')"
+          CLONE_HANDLE="$(kubectl get pv "$CLONE_PV" -o jsonpath='{.spec.csi.volumeHandle}')"
+          test -n "$CLONE_HANDLE"
+          echo "CLONE_HANDLE=$CLONE_HANDLE" >> "$GITHUB_ENV"
+          for i in $(seq 1 60); do
+            attached="$(minikube ssh -- "sudo losetup -j /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img" | tr -d '\r')"
+            [ -z "$attached" ] && break
+            sleep 1
+          done
+          minikube ssh -- "sudo filefrag -v /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img" | grep -q shared
+          minikube ssh -- "sudo btrfs filesystem du -s /var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/disk.img /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img"
+          kubectl delete pod clone-bind-probe --wait=true
+
+      - name: Boot clone with fresh authorization and reset machine trust
+        run: |
+          set -euxo pipefail
+          ssh-keygen -q -t ed25519 -N '' -f /tmp/clone_key
+          kubectl create secret generic clone-access-key --from-file=key1=/tmp/clone_key.pub
+          cat >/tmp/clone-vm.yaml <<'EOF'
+          apiVersion: kubevirt.io/v1
+          kind: VirtualMachine
+          metadata:
+            name: clone-vm
+          spec:
+            runStrategy: Always
+            template:
+              metadata:
+                labels:
+                  hacocoon.dev/spike: whole-env-clone
+              spec:
+                domain:
+                  resources:
+                    requests:
+                      memory: 1024Mi
+                  devices:
+                    disks:
+                      - name: rootdisk
+                        disk:
+                          bus: virtio
+                terminationGracePeriodSeconds: 0
+                accessCredentials:
+                  - sshPublicKey:
+                      source:
+                        secret:
+                          secretName: clone-access-key
+                      propagationMethod:
+                        qemuGuestAgent:
+                          users: [fedora]
+                volumes:
+                  - name: rootdisk
+                    persistentVolumeClaim:
+                      claimName: clone-root
+          EOF
+          kubectl apply -f /tmp/clone-vm.yaml
+          for i in $(seq 1 120); do kubectl get vmi clone-vm >/dev/null 2>&1 && break; sleep 1; done
+          kubectl wait vmi/clone-vm --for=condition=Ready --timeout=8m
+          for i in $(seq 1 120); do
+            kubectl get vmi clone-vm -o json | jq -e '.status.conditions[]? | select(.type=="AgentConnected" and .status=="True")' >/dev/null && break
+            sleep 2
+          done
+          kubectl get vmi clone-vm -o json | jq -e '.status.conditions[]? | select(.type=="AgentConnected" and .status=="True")'
+          SSH_OPTS=(-t '-o StrictHostKeyChecking=no' -t '-o UserKnownHostsFile=/dev/null' -t '-o BatchMode=yes' -t '-o ConnectTimeout=5')
+          for i in $(seq 1 60); do
+            virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command 'true' && break
+            sleep 3
+          done
+          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command 'true'
+          if virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/clone-vm --command 'true'; then
+            echo 'ERROR: source key authenticates to clone' >&2
+            exit 1
+          fi
+          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo sh -ceu 'test \"\$(cat /etc/hacocoon-clone-proof)\" = etc-state; test \"\$(cat /usr/local/share/hacocoon/clone-proof)\" = usr-state; test \"\$(cat /var/lib/containerd/hacocoon-spike/clone-proof)\" = runtime-state; test \"\$(systemctl is-enabled hacocoon-clone-proof.service)\" = enabled; test ! -e /var/run/secrets/kubernetes.io/serviceaccount/token; test -z \"\${KUBECONFIG:-}\"'"
+          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo sh -ceu 'rm -f /etc/machine-id /var/lib/dbus/machine-id; systemd-machine-id-setup; rm -f /etc/ssh/ssh_host_*; ssh-keygen -A'"
+          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command 'sudo systemctl reboot' || true
+          fresh_after_reboot=0
+          for i in $(seq 1 80); do
+            if virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command 'true'; then fresh_after_reboot=1; break; fi
+            sleep 3
+          done
+          test "$fresh_after_reboot" = 1
+          CLONE_MACHINE_ID="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command 'cat /etc/machine-id' | tr -d '\r\n')"
+          CLONE_HOST_KEY="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256 | cut -d ' ' -f2" | tr -d '\r\n')"
+          test -n "$CLONE_MACHINE_ID"
+          test -n "$CLONE_HOST_KEY"
+          test "$CLONE_MACHINE_ID" != "$SOURCE_MACHINE_ID"
+          test "$CLONE_HOST_KEY" != "$SOURCE_HOST_KEY"
+          if virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/clone-vm --command 'true'; then
+            echo 'ERROR: source key authenticates after clone trust reset' >&2
+            exit 1
+          fi
+          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo sh -ceu 'test \"\$(cat /etc/hacocoon-clone-proof)\" = etc-state; test \"\$(cat /usr/local/share/hacocoon/clone-proof)\" = usr-state; test \"\$(cat /var/lib/containerd/hacocoon-spike/clone-proof)\" = runtime-state; test \"\$(systemctl is-enabled hacocoon-clone-proof.service)\" = enabled'"
+
+      - name: Prove clone writes are COW and source trust is unchanged
+        run: |
+          set -euxo pipefail
+          SSH_OPTS=(-t '-o StrictHostKeyChecking=no' -t '-o UserKnownHostsFile=/dev/null' -t '-o BatchMode=yes' -t '-o ConnectTimeout=5')
+          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo sh -ceu 'printf clone-only >/etc/hacocoon-clone-only'"
+          virtctl stop clone-vm
+          for i in $(seq 1 120); do ! kubectl get vmi clone-vm >/dev/null 2>&1 && break; sleep 2; done
+          minikube ssh -- "sudo filefrag -v /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img" | grep -q shared
+          minikube ssh -- "sudo btrfs filesystem du -s /var/local/openebs/rawfile/haco-pool/${SOURCE_HANDLE}/disk.img /var/local/openebs/rawfile/haco-pool/${CLONE_HANDLE}/disk.img"
+
+          virtctl start source-vm
+          for i in $(seq 1 120); do kubectl get vmi source-vm >/dev/null 2>&1 && break; sleep 1; done
+          kubectl wait vmi/source-vm --for=condition=Ready --timeout=8m
+          source_ready=0
+          for i in $(seq 1 60); do
+            if virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/source-vm --command 'true'; then source_ready=1; break; fi
+            sleep 3
+          done
+          test "$source_ready" = 1
+          if virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/source-vm --command 'true'; then
+            echo 'ERROR: clone key authenticates to source' >&2
+            exit 1
+          fi
+          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/source-vm --command "sudo sh -ceu 'test ! -e /etc/hacocoon-clone-only; test \"\$(cat /etc/machine-id)\" = \"$SOURCE_MACHINE_ID\"'"
+          CURRENT_SOURCE_HOST_KEY="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/source-vm --command "sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256 | cut -d ' ' -f2" | tr -d '\r\n')"
+          test "$CURRENT_SOURCE_HOST_KEY" = "$SOURCE_HOST_KEY"
+          echo 'whole environment clone is COW-independent and trust-independent'
+
+      - name: Record integrated evidence
+        if: always()
+        run: |
+          set +e
+          echo "KubeVirt=${KUBEVIRT_VERSION:-unknown} CDI=${CDI_VERSION:-unknown}"
+          kubectl get vm,vmi,dv,pvc,pv,volumesnapshot,pods -A -o wide
+          kubectl -n openebs logs -l app.kubernetes.io/name=rawfile-localpv --all-containers=true --tail=500 2>/dev/null | grep -Ei 'snapshot|clone|cow|reflink|copy' || true
+          kubectl logs -n default -l kubevirt.io=virt-launcher --all-containers=true --tail=500 2>/dev/null | grep -Ei 'access credential|authorized|guest agent|ssh' || true
+          minikube ssh -- 'sudo btrfs filesystem usage --raw /var/local/openebs/rawfile/haco-pool' 2>/dev/null || true
