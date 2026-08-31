@@ -13,6 +13,7 @@ checks = {
         "repository_dispatch:",
         "types: [release]",
         "permissions:\n  contents: read",
+        'PYTHONDONTWRITEBYTECODE: "1"',
         "build:",
         "publish:",
         "environment: release",
@@ -110,9 +111,28 @@ except IndexError:
     errors.append("release workflow must contain the authorized release source checkout")
     source_checkout = ""
 
+if source_checkout and "fetch-depth: 0" not in source_checkout:
+    errors.append(
+        "authorized release source checkout must fetch full history so GoReleaser can resolve prior release history"
+    )
 if source_checkout and "fetch-tags: true" not in source_checkout:
     errors.append(
         "authorized release source checkout must fetch tags so GoReleaser can resolve the requested release tag"
+    )
+
+bat_eol = subprocess.run(
+    ["git", "ls-files", "--eol", "scripts/install-windows.bat"],
+    cwd=root,
+    check=False,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+)
+if bat_eol.returncode != 0 or "i/lf" not in bat_eol.stdout:
+    detail = bat_eol.stderr.strip() or bat_eol.stdout.strip() or "no EOL metadata returned"
+    errors.append(
+        "scripts/install-windows.bat must be LF-normalized in the Git index so eol=crlf does not dirty Linux release checkouts: "
+        + detail
     )
 
 for forbidden in ("contents: write", "id-token: write", "attestations: write", "artifact-metadata: write"):
