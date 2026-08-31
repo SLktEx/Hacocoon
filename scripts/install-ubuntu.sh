@@ -2,7 +2,7 @@
 set -eu
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-VERSION="${1:-${HACO_VERSION:-latest}}"
+HACO_REQUESTED_VERSION="${1:-${HACO_VERSION:-latest}}"
 
 fail() {
   printf 'haco ubuntu installer: %s\n' "$*" >&2
@@ -37,12 +37,12 @@ if [ "$(id -u)" -ne 0 ]; then
   sudo -v || fail "sudo authorization is required"
 fi
 
-if [ "$VERSION" = "latest" ] && [ -s "$SCRIPT_DIR/VERSION" ]; then
-  VERSION="$(tr -d '\r\n' < "$SCRIPT_DIR/VERSION")"
+if [ "$HACO_REQUESTED_VERSION" = "latest" ] && [ -s "$SCRIPT_DIR/VERSION" ]; then
+  HACO_REQUESTED_VERSION="$(tr -d '\r\n' < "$SCRIPT_DIR/VERSION")"
 fi
 
 # main: the same Ubuntu installation logic used inside WSL.
-HACO_BUNDLE_ROOT="$SCRIPT_DIR" sh "$SCRIPT_DIR/install.sh" "$VERSION"
+HACO_BUNDLE_ROOT="$SCRIPT_DIR" sh "$SCRIPT_DIR/install.sh" "$HACO_REQUESTED_VERSION"
 
 # post: native Ubuntu deliberately keeps the user's login shell unchanged.
 printf '%s\n' 'Hacocoon native Ubuntu setup complete.'
