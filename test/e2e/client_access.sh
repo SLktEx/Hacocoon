@@ -114,11 +114,11 @@ printf '%s' "$status_json" | grep -q '"state":"running"'
 printf '%s' "$status_json" | grep -Fq "$workspace"
 
 # Stock Bases may omit sshd. In that case exercise the production bootstrap
-# path itself: temporarily authorize package egress, start the real managed
-# proxy, and let `haco ssh` install openssh-server using the proxy environment
-# injected by the managed Incus profile. The dedicated real-Incus egress E2E
-# owns source-resolution and policy semantics; this block proves the CLI
-# composition can actually consume that proxy for SSH provisioning.
+# path itself immediately after create: temporarily authorize package egress,
+# start the real managed proxy, and let `haco ssh` wait for sandbox routing and
+# install openssh-server through the proxy environment injected by the managed
+# Incus profile. The dedicated real-Incus egress E2E owns source-resolution and
+# policy semantics; this block proves the actual user-facing SSH composition.
 needs_ssh_bootstrap=0
 if ! "$haco" exec "$environment" -- sh -c 'command -v sshd >/dev/null 2>&1'; then
   needs_ssh_bootstrap=1
@@ -145,28 +145,6 @@ JSON
     cat "$root/ssh-egress.err" >&2 || true
     exit 1
   }
-
-  # Probe the production proxy directly before APT can collapse a 403/502 into
-  # a generic repository error. Keep stdout/stderr separate so the HTTP status
-  # line remains machine-checkable while Hacocoon diagnostics stay visible.
-  set +e
-  "$haco" exec "$environment" -- bash -c \
-    "exec 3<>/dev/tcp/$bridge_ip/18080; printf 'GET http://archive.ubuntu.com/ubuntu/dists/resolute/InRelease HTTP/1.1\\r\\nHost: archive.ubuntu.com\\r\\nConnection: close\\r\\n\\r\\n' >&3; cat <&3" \
-    >"$root/proxy-probe.out" 2>"$root/proxy-probe.err"
-  proxy_probe_code=$?
-  set -e
-  if [[ "$proxy_probe_code" != "0" ]]; then
-    echo "SSH bootstrap proxy probe command failed with exit $proxy_probe_code:" >&2
-    cat "$root/proxy-probe.out" >&2 || true
-    cat "$root/proxy-probe.err" >&2 || true
-    exit 1
-  fi
-  if ! head -n 1 "$root/proxy-probe.out" | grep -Eq '^HTTP/1\.[01] (200|301|302|307|308) '; then
-    echo 'SSH bootstrap proxy probe failed:' >&2
-    cat "$root/proxy-probe.out" >&2 || true
-    cat "$root/proxy-probe.err" >&2 || true
-    exit 1
-  fi
 fi
 
 ssh_command="$("$haco" ssh "$environment" --public-key "$root/id_ed25519.pub" --host-port "$ssh_port")"
