@@ -54,6 +54,19 @@ function selectOwnedRecordByBranch(records, branch) {
   return matches[0];
 }
 
+function redactToolErrorMessage(value) {
+  let message = String(value || 'Hacocoon agent workspace operation failed');
+  message = message.replace(/--session(?:=|\s+)[^\s]+/gi, '--session <redacted>');
+  message = message.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, '<redacted-session>');
+  return message;
+}
+
+function modelSafeError(error) {
+  const safe = new Error(redactToolErrorMessage(error && error.message));
+  safe.name = error && error.name ? String(error.name) : 'Error';
+  return safe;
+}
+
 function toolResultEnvelope(action, record, extra = {}) {
   const result = {
     action,
@@ -73,6 +86,8 @@ module.exports = {
   safeWorkspaceRecord,
   safeWorkspaceRecords,
   selectOwnedRecordByBranch,
+  redactToolErrorMessage,
+  modelSafeError,
   toolResultEnvelope,
   listToolResult
 };
