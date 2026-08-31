@@ -12,21 +12,42 @@ import (
 )
 
 func hostCommand(ctx context.Context, app *composition.App, args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("usage: haco host <ensure|shell>: %w", core.ErrInvalidArgument)
+	if len(args) == 0 {
+		return fmt.Errorf("usage: haco host <ensure [--oci]|shell>: %w", core.ErrInvalidArgument)
 	}
 	if args[0] == "shell" {
+		if len(args) != 1 {
+			return fmt.Errorf("usage: haco host shell: %w", core.ErrInvalidArgument)
+		}
 		return fmt.Errorf("haco host shell must use the controller client path: %w", core.ErrIncompatibleState)
+	}
+	if args[0] != "ensure" {
+		return fmt.Errorf("unknown host command %q: %w", args[0], core.ErrInvalidArgument)
+	}
+	withOCI, err := parseHostEnsureArgs(args[1:])
+	if err != nil {
+		return err
 	}
 	if app == nil || app.Runtime == nil {
 		return core.ErrInvalidArgument
 	}
-	switch args[0] {
-	case "ensure":
-		return ensureTrustedHostAndClient(ctx, app)
-	default:
-		return fmt.Errorf("unknown host command %q: %w", args[0], core.ErrInvalidArgument)
+	if err := ensureTrustedHostAndClient(ctx, app); err != nil {
+		return err
 	}
+	if withOCI {
+		return app.Runtime.EnsureTrustedHostOCI(ctx)
+	}
+	return nil
+}
+
+func parseHostEnsureArgs(args []string) (bool, error) {
+	if len(args) == 0 {
+		return false, nil
+	}
+	if len(args) == 1 && args[0] == "--oci" {
+		return true, nil
+	}
+	return false, fmt.Errorf("usage: haco host ensure [--oci]: %w", core.ErrInvalidArgument)
 }
 
 func ensureTrustedHostAndClient(ctx context.Context, app *composition.App) error {
