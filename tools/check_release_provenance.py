@@ -104,6 +104,17 @@ except IndexError:
     build = ""
     publish = ""
 
+try:
+    source_checkout = workflow.split("      - name: Checkout authorized release source\n", 1)[1].split("\n      - ", 1)[0]
+except IndexError:
+    errors.append("release workflow must contain the authorized release source checkout")
+    source_checkout = ""
+
+if source_checkout and "fetch-tags: true" not in source_checkout:
+    errors.append(
+        "authorized release source checkout must fetch tags so GoReleaser can resolve the requested release tag"
+    )
+
 for forbidden in ("contents: write", "id-token: write", "attestations: write", "artifact-metadata: write"):
     if forbidden in build:
         errors.append(f"read-only build job must not receive privileged permission: {forbidden}")
