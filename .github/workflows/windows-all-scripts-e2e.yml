@@ -168,12 +168,40 @@ jobs:
           $ErrorActionPreference = "Stop"
           $instance = "Hacocoon"
           $loginUser = "haco-e2e"
-          $pid1 = (& wsl.exe --distribution $instance --user root --exec sh -c 'ps -p 1 -o comm=' | Out-String).Trim()
-          if ($pid1 -ne "systemd") { throw "systemd is not PID 1." }
-          & wsl.exe --distribution $instance --user root --exec sh -eu -c '. /etc/os-release; [ "$ID" = ubuntu ]; dpkg --compare-versions "$VERSION_ID" ge 26.04; command -v haco; command -v incus; haco version; haco doctor; systemctl is-active --quiet haco-controller.service; test -S /run/hacocoon/control.sock; incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null'
-          if ($LASTEXITCODE -ne 0) { throw "Installed Hacocoon user acceptance failed." }
-          $shell = (& wsl.exe --distribution $instance --user root --exec sh -c "getent passwd '$loginUser' | cut -d: -f7" | Out-String).Trim()
+
+          $pid1 = (& wsl.exe --distribution $instance --user root --exec ps -p 1 -o comm= | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $pid1 -ne "systemd") { throw "systemd is not PID 1." }
+
+          $osRelease = (& wsl.exe --distribution $instance --user root --exec cat /etc/os-release | Out-String)
+          if ($LASTEXITCODE -ne 0 -or $osRelease -notmatch '(?m)^ID=ubuntu$') { throw "Installed WSL distribution is not Ubuntu." }
+          $versionMatch = [regex]::Match($osRelease, '(?m)^VERSION_ID="?([^"\r\n]+)"?$')
+          if (-not $versionMatch.Success) { throw "Unable to read installed Ubuntu VERSION_ID." }
+          if ([version]$versionMatch.Groups[1].Value -lt [version]'26.4') { throw "Installed Ubuntu is older than 26.04." }
+
+          & wsl.exe --distribution $instance --user $loginUser --exec test -x /usr/local/bin/haco
+          if ($LASTEXITCODE -ne 0) { throw "haco is not executable for the normal WSL user." }
+          & wsl.exe --distribution $instance --user root --exec test -x /usr/bin/incus
+          if ($LASTEXITCODE -ne 0) { throw "incus is unavailable." }
+
+          & wsl.exe --distribution $instance --user $loginUser --exec /usr/local/bin/haco version
+          if ($LASTEXITCODE -ne 0) { throw "haco version failed." }
+          & wsl.exe --distribution $instance --user $loginUser --exec /usr/local/bin/haco doctor
+          if ($LASTEXITCODE -ne 0) { throw "haco doctor failed." }
+          & wsl.exe --distribution $instance --user root --exec systemctl is-active --quiet haco-controller.service
+          if ($LASTEXITCODE -ne 0) { throw "haco-controller is not active." }
+          & wsl.exe --distribution $instance --user root --exec test -S /run/hacocoon/control.sock
+          if ($LASTEXITCODE -ne 0) { throw "controller socket is unavailable." }
+          & wsl.exe --distribution $instance --user root --exec incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor
+          if ($LASTEXITCODE -ne 0) { throw "trusted haco-host doctor failed." }
+
+          $passwd = (& wsl.exe --distribution $instance --user root --exec getent passwd $loginUser | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0) { throw "Unable to inspect normal WSL user." }
+          $fields = $passwd -split ':'
+          $shell = if ($fields.Count -ge 7) { $fields[6].Trim() } else { "" }
           if ($shell -ne "/usr/local/libexec/hacocoon-login") { throw "WSL post-install login integration is incomplete: $shell" }
+
+          & wsl.exe --distribution $instance --user $loginUser --exec sudo -n /usr/local/bin/haco host ensure
+          if ($LASTEXITCODE -ne 0) { throw "Installed narrow sudo rule does not permit haco host ensure." }
 
       - name: Collect diagnostics
         if: failure()
