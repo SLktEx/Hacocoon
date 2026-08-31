@@ -6,6 +6,7 @@ import gzip
 import hashlib
 import io
 from pathlib import Path
+import shutil
 import tarfile
 import zipfile
 
@@ -101,21 +102,23 @@ def main() -> int:
     if not checksums.is_file():
         raise FileNotFoundError(f"missing GoReleaser checksums: {checksums}")
 
-    package_paths: list[Path] = []
+    release_files: list[Path] = []
     for arch in ("amd64", "arm64"):
         archive = dist / f"haco_linux_{arch}.tar.gz"
         if not archive.is_file():
             raise FileNotFoundError(f"missing release archive: {archive}")
         checksum_line = archive_checksum_line(checksums, archive.name)
 
+        raw_archive = output / archive.name
+        shutil.copyfile(archive, raw_archive)
         windows = output / f"hacocoon-windows-{arch}.zip"
         ubuntu = output / f"hacocoon-ubuntu-{arch}.tar.gz"
         package_windows(windows, archive, checksum_line, args.version)
         package_ubuntu(ubuntu, archive, checksum_line, args.version)
-        package_paths.extend((windows, ubuntu))
+        release_files.extend((raw_archive, windows, ubuntu))
 
     (output / "checksums.txt").write_text(
-        "".join(f"{sha256(path)}  {path.name}\n" for path in sorted(package_paths)),
+        "".join(f"{sha256(path)}  {path.name}\n" for path in sorted(release_files)),
         encoding="utf-8",
         newline="\n",
     )
