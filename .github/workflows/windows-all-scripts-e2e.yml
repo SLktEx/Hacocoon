@@ -1,161 +1,176 @@
-name: windows-all-scripts-e2e
+name: windows-installer-e2e
 
 on:
   pull_request:
     branches:
       - main
     paths:
-      - "scripts/**"
-      - "tools/package_windows_installer.py"
+      - "cmd/**"
+      - "internal/**"
+      - "scripts/install-windows.bat"
+      - "scripts/install-windows.ps1"
+      - "scripts/install.sh"
+      - "tools/package_installers.py"
       - ".github/workflows/windows-all-scripts-e2e.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
-  attestations: read
 
 concurrency:
-  group: windows-all-scripts-e2e-${{ github.event.pull_request.number || github.ref }}
+  group: windows-installer-e2e-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  windows-all-scripts:
+  windows-user-path:
     runs-on: windows-latest
     timeout-minutes: 45
     env:
-      GH_TOKEN: ${{ github.token }}
+      GOTOOLCHAIN: local
       HACO_E2E_WSL: HacocoonE2E
       HACO_E2E_LOGIN_USER: haco-e2e
       HACO_BOOTSTRAP_LOGIN_USER: haco-e2e
-      WSLENV: HACO_BOOTSTRAP_LOGIN_USER
+      HACO_REQUIRE_PROVENANCE: "0"
+      HACO_E2E_VERSION: v0.0.0-e2e
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Build candidate Windows installer ZIP
-        id: package
-        shell: pwsh
-        run: |
-          $packageRoot = Join-Path $env:RUNNER_TEMP "hacocoon-windows-installer"
-          $zip = Join-Path $env:RUNNER_TEMP "hacocoon-windows-installer.zip"
-          Remove-Item -LiteralPath $packageRoot -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
-          python ./tools/package_windows_installer.py $zip
-          if ($LASTEXITCODE -ne 0) { throw "Failed to package candidate Windows installer." }
-          Expand-Archive -LiteralPath $zip -DestinationPath $packageRoot
-          @("install-windows.bat", "install-windows.ps1", "install.sh") | ForEach-Object {
-            if (-not (Test-Path -LiteralPath (Join-Path $packageRoot $_) -PathType Leaf)) {
-              throw "Candidate Windows installer is missing $_."
-            }
-          }
-          "package_root=$packageRoot" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
 
       - name: Record Windows and WSL substrate
-        id: substrate
         shell: pwsh
-        continue-on-error: true
         run: |
-          $ErrorActionPreference = "Continue"
-          Write-Host "Windows:"
-          Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, OsBuildNumber
-          Write-Host "Identity:"
-          whoami
           $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
           $principal = [Security.Principal.WindowsPrincipal]::new($identity)
           Write-Host "Administrator: $($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
-          Write-Host "WSL version:"
           wsl.exe --version
-          Write-Host "WSL status:"
           wsl.exe --status
-          Write-Host "Installed distributions:"
           wsl.exe --list --verbose
-          Write-Host "Online distributions:"
-          wsl.exe --list --online
 
-      - name: Execute packaged install-windows.bat
-        id: install_bat
+      - name: Build candidate linux/amd64 release archive
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $env:CGO_ENABLED = "0"
+          $env:GOOS = "linux"
+          $env:GOARCH = "amd64"
+          $stage = Join-Path $env:RUNNER_TEMP "haco-linux-amd64"
+          $dist = Join-Path $env:RUNNER_TEMP "haco-dist"
+          Remove-Item $stage,$dist -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $stage,$dist | Out-Null
+
+          $commands = [ordered]@{
+            "haco" = "./cmd/haco"
+            "haco-controller" = "./cmd/haco-controller"
+            "haco-host" = "./cmd/haco-host"
+            "haco-vscode" = "./cmd/haco-vscode"
+            "haco-agent-host" = "./cmd/haco-agent-host"
+            "haco-notify" = "./cmd/haco-notify"
+            "haco-storage-helper" = "./cmd/haco-storage-helper"
+          }
+          foreach ($entry in $commands.GetEnumerator()) {
+            go build -trimpath -ldflags="-s -w" -o (Join-Path $stage $entry.Key) $entry.Value
+            if ($LASTEXITCODE -ne 0) { throw "Failed to build $($entry.Key)." }
+          }
+
+          $archive = Join-Path $dist "haco_linux_amd64.tar.gz"
+          tar.exe -czf $archive -C $stage @($commands.Keys)
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create candidate Linux archive." }
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
+          "$hash  haco_linux_amd64.tar.gz" | Set-Content -LiteralPath (Join-Path $dist "checksums.txt") -Encoding ascii
+          "HACO_E2E_DIST=$dist" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build and extract exact candidate Windows package
+        shell: pwsh
+        run: |
+          $packageOut = Join-Path $env:RUNNER_TEMP "installer-payload"
+          $packageRoot = Join-Path $env:RUNNER_TEMP "hacocoon-windows-amd64"
+          python ./tools/package_installers.py --dist $env:HACO_E2E_DIST --output $packageOut --version $env:HACO_E2E_VERSION
+          if ($LASTEXITCODE -ne 0) { throw "Failed to build installer package." }
+
+          $zip = Join-Path $packageOut "hacocoon-windows-amd64.zip"
+          Expand-Archive -LiteralPath $zip -DestinationPath $packageRoot
+          $expected = @(
+            "install-windows.bat",
+            "install-windows.ps1",
+            "install.sh",
+            "haco_linux_amd64.tar.gz",
+            "checksums.txt",
+            "VERSION"
+          )
+          foreach ($name in $expected) {
+            if (-not (Test-Path -LiteralPath (Join-Path $packageRoot $name) -PathType Leaf)) {
+              throw "Candidate package is missing $name."
+            }
+          }
+          if (Test-Path -LiteralPath (Join-Path $packageRoot "haco_linux_arm64.tar.gz")) {
+            throw "amd64 package contains arm64 payload."
+          }
+          "HACO_E2E_PACKAGE_ROOT=$packageRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: User path phase 1 - run packaged BAT to create WSL
         shell: cmd
-        continue-on-error: true
-        working-directory: ${{ steps.package.outputs.package_root }}
+        working-directory: ${{ env.HACO_E2E_PACKAGE_ROOT }}
         run: install-windows.bat -InstanceName %HACO_E2E_WSL% -BaseDistro Ubuntu-26.04 -WebDownload
 
-      - name: Prepare normal non-root WSL login user fixture
-        id: login_user
+      - name: Emulate Ubuntu first-launch user creation
         shell: pwsh
-        continue-on-error: true
         run: |
           $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
           if (-not ($installed -contains $env:HACO_E2E_WSL)) {
-            throw "Packaged BAT did not create $env:HACO_E2E_WSL."
+            throw "Packaged installer did not create $env:HACO_E2E_WSL."
           }
+
           & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -eu -c "id '$env:HACO_E2E_LOGIN_USER' >/dev/null 2>&1 || useradd -m -s /bin/bash '$env:HACO_E2E_LOGIN_USER'"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Failed to create ordinary WSL login user fixture."
-          }
-          & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec id $env:HACO_E2E_LOGIN_USER
-          if ($LASTEXITCODE -ne 0) {
-            throw "Ordinary WSL login user fixture is unavailable."
-          }
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create ordinary Ubuntu user fixture." }
 
-      - name: Execute packaged install-windows.ps1
-        id: install_ps1
+          # A real first-launch Ubuntu user can authenticate sudo interactively.
+          # CI has no password prompt, so grant only the concrete commands used by
+          # the common installer; broad NOPASSWD: ALL is intentionally avoided.
+          $sudoers = @"
+$env:HACO_E2E_LOGIN_USER ALL=(root) NOPASSWD: /usr/bin/apt-get *, /usr/bin/install *, /usr/bin/mkdir *, /usr/bin/tee *, /usr/bin/chmod *, /usr/sbin/usermod *, /usr/bin/systemctl *, /usr/bin/incus *, /usr/bin/stat *, /usr/bin/find *, /usr/bin/chown *, /usr/bin/cp *
+"@
+          $sudoers | & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -eu -c 'cat > /etc/sudoers.d/hacocoon-e2e-bootstrap && chmod 0440 /etc/sudoers.d/hacocoon-e2e-bootstrap && visudo -cf /etc/sudoers.d/hacocoon-e2e-bootstrap >/dev/null'
+          if ($LASTEXITCODE -ne 0) { throw "Failed to prepare noninteractive sudo fixture." }
+
+      - name: User path phase 2 - run the same packaged BAT to completion
+        shell: cmd
+        working-directory: ${{ env.HACO_E2E_PACKAGE_ROOT }}
+        run: install-windows.bat -InstanceName %HACO_E2E_WSL% -BaseDistro Ubuntu-26.04 -WebDownload
+
+      - name: Assert usable Hacocoon through the WSL user path
         shell: pwsh
-        continue-on-error: true
-        working-directory: ${{ steps.package.outputs.package_root }}
         run: |
-          & ./install-windows.ps1 `
-            -InstanceName $env:HACO_E2E_WSL `
-            -BaseDistro Ubuntu-26.04 `
-            -HacocoonVersion latest `
-            -WebDownload
-
-      - name: Execute bootstrap-windows.ps1
-        id: bootstrap_windows
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          & ./scripts/bootstrap-windows.ps1 `
-            -InstanceName $env:HACO_E2E_WSL `
-            -BaseDistro Ubuntu-26.04 `
-            -HacocoonVersion latest `
-            -WebDownload
-
-      - name: Execute install.sh directly inside WSL
-        id: linux_installer
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          $linuxRoot = (& wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec wslpath -u -a $env:GITHUB_WORKSPACE | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxRoot)) {
-            throw "Unable to translate the checkout path into $env:HACO_E2E_WSL."
+          $details = (& wsl.exe --list --verbose | Out-String)
+          Write-Host $details
+          if ($details -notmatch "(?m)^\s*\*?\s*$([regex]::Escape($env:HACO_E2E_WSL))\s+.*\s+2\s*$") {
+            throw "Dedicated Hacocoon distribution is not WSL 2."
           }
 
-          & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec `
-            env "HACO_BOOTSTRAP_LOGIN_USER=$env:HACO_E2E_LOGIN_USER" `
-            sh "$linuxRoot/scripts/install.sh" latest
-          if ($LASTEXITCODE -eq 42) {
-            wsl.exe --terminate $env:HACO_E2E_WSL
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to restart WSL after systemd configuration."
-            }
-            Start-Sleep -Seconds 1
-            & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec `
-              env "HACO_BOOTSTRAP_LOGIN_USER=$env:HACO_E2E_LOGIN_USER" `
-              sh "$linuxRoot/scripts/install.sh" latest
-          }
-          if ($LASTEXITCODE -ne 0) {
-            throw "install.sh failed with exit code $LASTEXITCODE."
+          $pid1 = (& wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -c 'ps -p 1 -o comm=' | Out-String).Trim()
+          if ($pid1 -ne "systemd") { throw "systemd is not PID 1." }
+
+          & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -eu -c '. /etc/os-release; [ "$ID" = ubuntu ]; dpkg --compare-versions "$VERSION_ID" ge 26.04; command -v haco; command -v incus; systemctl is-active --quiet haco-controller.service; test -S /run/hacocoon/control.sock; incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null'
+          if ($LASTEXITCODE -ne 0) { throw "Installed Hacocoon host acceptance failed." }
+
+          $shell = (& wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -c "getent passwd '$env:HACO_E2E_LOGIN_USER' | cut -d: -f7" | Out-String).Trim()
+          if ($shell -ne "/usr/local/libexec/hacocoon-login") {
+            throw "WSL post-install login integration is incomplete: $shell"
           }
 
-      - name: Collect post-run diagnostics
-        if: always()
+      - name: Collect diagnostics
+        if: failure()
         shell: pwsh
         continue-on-error: true
         run: |
           wsl.exe --list --verbose
-          wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -lc 'printf "PID1: "; ps -p 1 -o comm=; printf "Kernel: "; uname -a; command -v haco || true; command -v incus || true; systemctl --no-pager --failed || true; incus version || true; haco doctor || true'
-          wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec getent passwd $env:HACO_E2E_LOGIN_USER
+          wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true'
 
       - name: Remove E2E WSL distribution
         if: always()
@@ -166,23 +181,4 @@ jobs:
           if ($installed -contains $env:HACO_E2E_WSL) {
             wsl.exe --terminate $env:HACO_E2E_WSL 2>$null
             wsl.exe --unregister $env:HACO_E2E_WSL
-          }
-
-      - name: Require every candidate installer path to execute successfully
-        if: always()
-        shell: pwsh
-        run: |
-          $results = [ordered]@{
-            package = "${{ steps.package.outcome }}"
-            substrate = "${{ steps.substrate.outcome }}"
-            install_windows_bat = "${{ steps.install_bat.outcome }}"
-            login_user = "${{ steps.login_user.outcome }}"
-            install_windows_ps1 = "${{ steps.install_ps1.outcome }}"
-            bootstrap_windows_ps1 = "${{ steps.bootstrap_windows.outcome }}"
-            install_sh = "${{ steps.linux_installer.outcome }}"
-          }
-          $results.GetEnumerator() | ForEach-Object { Write-Host "$($_.Key): $($_.Value)" }
-          $failed = @($results.GetEnumerator() | Where-Object { $_.Value -ne "success" })
-          if ($failed.Count -gt 0) {
-            throw "One or more candidate Windows/WSL installer executions failed."
           }
