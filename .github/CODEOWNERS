@@ -19,9 +19,9 @@
 
 /scripts/install.sh @SLktEx
 /scripts/install-ubuntu.sh @SLktEx
-/scripts/install-windows.bat @SLktEx
 /scripts/install-windows.ps1 @SLktEx
 
+/docs/INSTALLER_ARCHITECTURE.md @SLktEx
 /docs/RELEASE_SECURITY.md @SLktEx
 /docs/RELEASE_SECURITY.ja.md @SLktEx
 /docs/PUBLIC_RELEASE_CHECKLIST.md @SLktEx
