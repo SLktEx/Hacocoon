@@ -57,8 +57,9 @@ type ApprovalRequestPayload struct {
 }
 
 type responseStatus struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code     string `json:"code"`
+	Message  string `json:"message"`
+	ExitCode int    `json:"exit_code,omitempty"`
 }
 
 type eventStreamFrame struct {
@@ -151,8 +152,10 @@ func RegisterGeneral(server *control.Server, bases baseService, runner runServic
 		}
 		result, err := runner.Run(ctx, request)
 		if err != nil {
-			// Preserve the result whenever the run reached execution/cleanup. The
-			// current CLI prints captured output before returning the error.
+			// Preserve both the partial result and the original process exit code.
+			// run errors may be joined with cleanup/recovery failures, so the status
+			// message remains intact while ExitCode lets the CLI retain historical
+			// process semantics across the controller boundary.
 			return runResponse{Result: result, Error: statusFromError(err)}, nil
 		}
 		return runResponse{Result: result}, nil
@@ -288,9 +291,15 @@ func statusFromError(err error) *responseStatus {
 		return nil
 	}
 	translated := translateError(err)
-	var status *control.StatusError
-	if errors.As(translated, &status) {
-		return &responseStatus{Code: status.Code, Message: status.Message}
+	status := &responseStatus{Code: "internal", Message: translated.Error()}
+	var typed *control.StatusError
+	if errors.As(translated, &typed) {
+		status.Code = typed.Code
+		status.Message = typed.Message
 	}
-	return &responseStatus{Code: "internal", Message: translated.Error()}
+	var exitCoder interface{ ExitCode() int }
+	if errors.As(err, &exitCoder) && exitCoder.ExitCode() > 0 {
+		status.ExitCode = exitCoder.ExitCode()
+	}
+	return status
 }
