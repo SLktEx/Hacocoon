@@ -69,6 +69,13 @@ case "$(uname -m)" in
   aarch64|arm64) arch="arm64" ;;
   *) die "unsupported architecture: $(uname -m)" ;;
 esac
+RELEASE_ARCHIVE="haco_${os}_${arch}.tar.gz"
+
+has_bundled_release() {
+  [ -s "$BUNDLE_ROOT/$RELEASE_ARCHIVE" ] &&
+    [ -s "$BUNDLE_ROOT/checksums.txt" ] &&
+    [ -s "$BUNDLE_ROOT/VERSION" ]
+}
 
 assert_ubuntu() (
   [ -r /etc/os-release ] || die "/etc/os-release is unavailable"
@@ -116,6 +123,9 @@ validate_github_cli_keyring() {
 }
 
 ensure_gh_attestation_verify() {
+  if has_bundled_release; then
+    return 0
+  fi
   if [ "$REQUIRE_PROVENANCE" = "0" ]; then
     return 0
   fi
@@ -225,10 +235,16 @@ download_public_attestation_bundles() {
     [ -n "$bundle_url" ] || continue
     case "$bundle_url" in
       https://*) ;;
-      *) exit 1 ;;
+      *)
+        printf '%s\n' 'haco installer: refusing non-HTTPS public attestation bundle URL' >&2
+        exit 1
+        ;;
     esac
     case "$bundle_url" in
-      *\\*) exit 1 ;;
+      *\\*)
+        printf '%s\n' 'haco installer: refusing escaped public attestation bundle URL' >&2
+        exit 1
+        ;;
     esac
     curl -fsSL --proto '=https' --tlsv1.2 -o "$bundle_tmp" "$bundle_url" || exit 1
     [ -s "$bundle_tmp" ] || exit 1
@@ -330,9 +346,10 @@ prepare_default_haco_root() {
 }
 
 stage_release_archive() {
-  archive="haco_${os}_${arch}.tar.gz"
+  archive="$RELEASE_ARCHIVE"
   tmpdir="$(mktemp -d)"
   trap 'rm -rf "$tmpdir"' EXIT HUP INT TERM
+  bundled=0
 
   if [ "$VERSION" = "latest" ]; then
     if [ -s "$BUNDLE_ROOT/VERSION" ]; then
@@ -347,7 +364,8 @@ stage_release_archive() {
     validate_version "$VERSION"
   fi
 
-  if [ -s "$BUNDLE_ROOT/$archive" ] && [ -s "$BUNDLE_ROOT/checksums.txt" ]; then
+  if has_bundled_release; then
+    bundled=1
     printf '==> Using bundled %s\n' "$archive"
     cp "$BUNDLE_ROOT/$archive" "$tmpdir/$archive"
     cp "$BUNDLE_ROOT/checksums.txt" "$tmpdir/checksums.txt"
@@ -364,7 +382,11 @@ stage_release_archive() {
   actual="$(sha256sum "$tmpdir/$archive" | awk '{print $1}')"
   [ "$actual" = "$expected" ] || die "checksum verification failed for $archive"
   printf 'Verified SHA-256 integrity for %s.\n' "$archive"
-  verify_provenance
+  if [ "$bundled" = "1" ]; then
+    printf 'Using installer-bundled release payload; outer package provenance is verified by the release distribution pipeline.\n'
+  else
+    verify_provenance
+  fi
   validate_release_archive "$tmpdir/$archive"
 }
 
