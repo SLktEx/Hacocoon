@@ -8,15 +8,13 @@ for command in go grep mktemp script sleep; do
   }
 done
 
+source "$(dirname "$0")/controller.sh"
+
 root="$(mktemp -d)"
 notify_pid=""
-controller_pid=""
 cleanup() {
   set +e
-  if [[ -n "$controller_pid" ]] && kill -0 "$controller_pid" >/dev/null 2>&1; then
-    kill -TERM "$controller_pid" >/dev/null 2>&1 || true
-    wait "$controller_pid" >/dev/null 2>&1 || true
-  fi
+  haco_stop_test_controller
   if [[ -n "$notify_pid" ]] && kill -0 "$notify_pid" >/dev/null 2>&1; then
     kill -TERM "$notify_pid" >/dev/null 2>&1 || true
     wait "$notify_pid" >/dev/null 2>&1 || true
@@ -52,8 +50,15 @@ grep -Fq '"commit":' "$root/haco-version.json"
 grep -Fq '"build_date":"unknown"' "$root/haco-version.json"
 [[ ! -s "$root/haco-version-json.err" ]]
 
-# Main CLI: prove the final executable dispatches a successful command and
-# preserves the user-visible error contract for an unknown command.
+# General haco commands are real controller clients on both the Physical Host
+# and trusted haco-host. Start the shipped controller and prove the final
+# executable reaches it without falling back to local CLI composition.
+haco_start_test_controller \
+  "$bin/haco-controller" \
+  "$root/control.sock" \
+  "$root/controller.out" \
+  "$root/controller.err"
+
 "$bin/haco" base list >"$root/haco-base.out" 2>"$root/haco-base.err"
 grep -Fxq 'haco/ubuntu-24.04' "$root/haco-base.out"
 grep -Fxq 'haco/ubuntu-26.04' "$root/haco-base.out"
@@ -79,7 +84,7 @@ client_mode_code=$?
 set -e
 [[ "$client_mode_code" == "1" ]]
 [[ ! -s "$root/client-mode.out" ]]
-grep -Fq 'refusing local composition fallback' "$root/client-mode.err"
+grep -Fq 'control endpoint unavailable' "$root/client-mode.err"
 [[ ! -e "$client_mode_root/state" ]]
 
 set +e
@@ -91,37 +96,15 @@ set -e
 grep -Fq 'usage: haco <' "$root/haco-invalid.err"
 grep -Fq 'unknown command "definitely-not-a-command"' "$root/haco-invalid.err"
 
-# Controller + logical Host: exercise the newly shipped Unix-socket control
-# plane as two real processes. Listing an empty Environment state is a useful
-# success path that does not need privileged Incus.
-export HACO_CONTROL_SOCKET="$root/control.sock"
-"$bin/haco-controller" >"$root/controller.out" 2>"$root/controller.err" &
-controller_pid=$!
-controller_ready=0
-for ((attempt = 0; attempt < 50; attempt++)); do
-  if [[ -S "$HACO_CONTROL_SOCKET" ]]; then
-    controller_ready=1
-    break
-  fi
-  if ! kill -0 "$controller_pid" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 0.1
-done
-[[ "$controller_ready" == "1" ]] || {
-  echo 'haco-controller did not create its Unix socket' >&2
-  cat "$root/controller.err" >&2 || true
-  exit 1
-}
+# Logical Host: use the same real controller process and prove haco-host reaches
+# it over the Unix socket without a second bespoke controller harness.
 [[ "$(stat -c '%a' "$HACO_CONTROL_SOCKET")" == "600" ]]
 "$bin/haco-host" doctor >"$root/host-doctor.out" 2>"$root/host-doctor.err"
 grep -Fq 'Hacocoon logical Host client' "$root/host-doctor.out"
 grep -Fq "$HACO_CONTROL_SOCKET" "$root/host-doctor.out"
 host_list_json="$("$bin/haco-host" env list --json)"
 [[ "$host_list_json" == '[]' ]]
-kill -TERM "$controller_pid"
-wait "$controller_pid"
-controller_pid=""
+haco_stop_test_controller
 [[ ! -e "$HACO_CONTROL_SOCKET" ]]
 unset HACO_CONTROL_SOCKET
 
