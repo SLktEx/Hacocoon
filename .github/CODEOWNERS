@@ -14,8 +14,11 @@
 /tools/test_release_tag_trust.sh @SLktEx
 /tools/check_public_release_readiness.py @SLktEx
 /tools/test_public_release_readiness.py @SLktEx
+/tools/package_windows_installer.py @SLktEx
+/tools/package_ubuntu_installer.py @SLktEx
 
 /scripts/install.sh @SLktEx
+/scripts/install-ubuntu.sh @SLktEx
 /scripts/install-windows.ps1 @SLktEx
 /scripts/bootstrap-windows.ps1 @SLktEx
 
