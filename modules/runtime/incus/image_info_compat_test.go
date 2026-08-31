@@ -16,12 +16,12 @@ func TestResolveParentBaseFallsBackToIncus6ImageList(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, args []string) (host.Result, error) {
 		switch call {
 		case 0:
-			assertStringSlice(t, args, []string{"image", "info", "images:ubuntu/26.04", "--format", "json"})
+			assertStringSlice(t, args, []string{"image", "info", "images:ubuntu/26.04/cloud", "--format", "json"})
 			return host.Result{ExitCode: 1, Stderr: "Error: unknown flag: --format\n"}, errors.New("exit status 1")
 		case 1:
-			assertStringSlice(t, args, []string{"image", "list", "images:", "ubuntu/26.04", "--format", "csv", "-c", "L,F,t"})
-			return host.Result{Stdout: "\"ubuntu/26.04\nubuntu/latest\"," + compatImageFingerprint + ",CONTAINER\n" +
-				"ubuntu/26.04," + compatVMFingerprint + ",VIRTUAL-MACHINE\n"}, nil
+			assertStringSlice(t, args, []string{"image", "list", "images:", "ubuntu/26.04/cloud", "--format", "csv", "-c", "L,F,t"})
+			return host.Result{Stdout: "\"ubuntu/26.04/cloud\nubuntu/latest/cloud\"," + compatImageFingerprint + ",CONTAINER\n" +
+				"ubuntu/26.04/cloud," + compatVMFingerprint + ",VIRTUAL-MACHINE\n"}, nil
 		default:
 			t.Fatalf("unexpected call %d: %#v", call, args)
 			return host.Result{}, nil
@@ -71,14 +71,14 @@ func TestImageFingerprintFallbackRejectsVMOnlyMatch(t *testing.T) {
 		if call == 0 {
 			return host.Result{ExitCode: 1, Stderr: "Error: unknown flag: --format\n"}, errors.New("exit status 1")
 		}
-		return host.Result{Stdout: "ubuntu/26.04," + compatVMFingerprint + ",VIRTUAL-MACHINE\n"}, nil
+		return host.Result{Stdout: "ubuntu/26.04/cloud," + compatVMFingerprint + ",VIRTUAL-MACHINE\n"}, nil
 	}}
 	provider, err := NewBaseProvider(New(runner))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = provider.imageFingerprint(context.Background(), "images:ubuntu/26.04", "")
+	_, err = provider.imageFingerprint(context.Background(), "images:ubuntu/26.04/cloud", "")
 	if !errors.Is(err, core.ErrNotFound) {
 		t.Fatalf("error = %v", err)
 	}
@@ -94,7 +94,7 @@ func TestImageFingerprintDoesNotFallbackForUnrelatedFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = provider.imageFingerprint(context.Background(), "images:ubuntu/26.04", "")
+	_, err = provider.imageFingerprint(context.Background(), "images:ubuntu/26.04/cloud", "")
 	if !errors.Is(err, permissionErr) {
 		t.Fatalf("error = %v", err)
 	}
