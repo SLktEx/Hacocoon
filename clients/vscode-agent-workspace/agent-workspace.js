@@ -85,7 +85,7 @@ function validateDescriptor(input) {
   } catch (error) {
     throw new Error(`invalid Hacocoon folder URI: ${error.message}`);
   }
-  if (folder.protocol !== 'vscode-remote:' || !folder.host.startsWith('ssh-remote+haco-agent-') || folder.pathname !== '/workspace') {
+  if (folder.protocol !== 'vscode-remote:' || folder.host !== `ssh-remote+${descriptor.ssh_alias}` || folder.pathname !== '/workspace') {
     throw new Error('unexpected Hacocoon remote folder URI');
   }
   return descriptor;
