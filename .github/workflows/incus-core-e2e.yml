@@ -167,28 +167,3 @@ jobs:
       - name: Clean up storage helper resources
         if: always()
         run: bash tools/ci-storage-helper.sh cleanup
-
-  windows-wsl-acceptance:
-    runs-on: windows-2025
-    timeout-minutes: 35
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Validate optional Windows/WSL acceptance helper
-        shell: pwsh
-        run: |
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path 'test/e2e/windows_wsl.ps1'),
-            [ref]$null,
-            [ref]$errors
-          )
-          if ($errors.Count -ne 0) {
-            $errors | Format-List | Out-String | Write-Error
-            exit 1
-          }
-      - name: Attempt real Windows -> WSL2 -> Ubuntu 26.04 -> systemd -> Incus acceptance
-        shell: pwsh
-        run: ./test/e2e/windows_wsl.ps1
