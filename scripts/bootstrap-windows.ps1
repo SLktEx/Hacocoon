@@ -135,7 +135,7 @@ $linuxRepoRoot = (& wsl.exe --distribution $InstanceName --exec wslpath -u -a $r
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxRepoRoot)) {
     throw "Failed to translate the Hacocoon repository path into the dedicated WSL instance."
 }
-$linuxBootstrap = "$linuxRepoRoot/scripts/bootstrap-wsl.sh"
+$linuxBootstrap = "$linuxRepoRoot/scripts/bootstrap-linux.sh"
 $linuxInstaller = "$linuxRepoRoot/scripts/install.sh"
 $skipIncusValue = if ($SkipIncus) { "1" } else { "0" }
 $grantIncusAdminValue = if ($GrantIncusAdmin) { "1" } else { "0" }
@@ -153,7 +153,7 @@ $wslArgs = @(
     "sh", $linuxBootstrap, $linuxInstaller, $HacocoonVersion
 )
 
-Write-Step "Installing systemd, Incus and Hacocoon inside dedicated WSL instance '$InstanceName'"
+Write-Step "Running shared Linux host bootstrap inside dedicated WSL instance '$InstanceName'"
 & wsl.exe @wslArgs
 $bootstrapExit = $LASTEXITCODE
 
@@ -173,7 +173,7 @@ if ($bootstrapExit -eq $SystemdRestartRequired) {
     throw "systemd still requires a restart after the dedicated WSL instance was restarted."
 }
 if ($bootstrapExit -ne 0) {
-    throw "Hacocoon WSL bootstrap failed."
+    throw "Hacocoon Linux host bootstrap failed inside WSL."
 }
 
 Assert-SystemdActive $InstanceName
