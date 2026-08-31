@@ -13,6 +13,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 TAR_MTIME = 0
+SUPPORTED_ARCHES = ("amd64", "arm64")
 
 
 def sha256(path: Path) -> str:
@@ -93,7 +94,18 @@ def main() -> int:
     parser.add_argument("--dist", type=Path, required=True, help="GoReleaser dist directory")
     parser.add_argument("--output", type=Path, required=True, help="output directory")
     parser.add_argument("--version", required=True, help="release tag embedded in packages")
+    parser.add_argument(
+        "--arch",
+        action="append",
+        choices=SUPPORTED_ARCHES,
+        dest="arches",
+        help="architecture to package; repeat for multiple architectures (default: all)",
+    )
     args = parser.parse_args()
+
+    arches = tuple(args.arches) if args.arches else SUPPORTED_ARCHES
+    if len(set(arches)) != len(arches):
+        raise ValueError("architecture arguments must not be duplicated")
 
     dist = args.dist.resolve()
     output = args.output.resolve()
@@ -103,7 +115,7 @@ def main() -> int:
         raise FileNotFoundError(f"missing GoReleaser checksums: {checksums}")
 
     release_files: list[Path] = []
-    for arch in ("amd64", "arm64"):
+    for arch in arches:
         archive = dist / f"haco_linux_{arch}.tar.gz"
         if not archive.is_file():
             raise FileNotFoundError(f"missing release archive: {archive}")
