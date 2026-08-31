@@ -75,8 +75,8 @@ jobs:
           install-only: true
       - name: Validate GoReleaser configuration
         run: goreleaser check
-      - name: Validate release and WSL shell syntax
-        run: bash -n scripts/install.sh scripts/bootstrap-wsl.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
+      - name: Validate release and Linux host shell syntax
+        run: bash -n scripts/install.sh scripts/bootstrap-linux.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
       - name: Validate Windows installer syntax and provenance behavior
         shell: pwsh
         run: |
@@ -94,9 +94,9 @@ jobs:
           grep -q -- '--set-version' scripts/bootstrap-windows.ps1
           grep -q -- '--terminate' scripts/install-windows.ps1
           grep -q -- '--terminate' scripts/bootstrap-windows.ps1
-          grep -q 'systemd=true' scripts/bootstrap-wsl.sh
-          grep -q 'systemd-sysv' scripts/bootstrap-wsl.sh
-          grep -q 'ps -p 1 -o comm=' scripts/bootstrap-wsl.sh
+          grep -q 'systemd=true' scripts/bootstrap-linux.sh
+          grep -q 'systemd-sysv' scripts/bootstrap-linux.sh
+          grep -q 'ps -p 1 -o comm=' scripts/bootstrap-linux.sh
           ! grep -q -- '--set-default-version' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
           ! grep -q -- '--shutdown' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
       - name: Validate Docker compatibility systemd units
@@ -127,7 +127,7 @@ jobs:
           grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
           grep -q 'haco_linux_arm64.tar.gz' dist/checksums.txt
           grep -q 'install.sh' dist/checksums.txt
-          grep -q 'bootstrap-wsl.sh' dist/checksums.txt
+          grep -q 'bootstrap-linux.sh' dist/checksums.txt
           grep -q 'install-windows.ps1' dist/checksums.txt
 
   build:
