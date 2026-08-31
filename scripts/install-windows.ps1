@@ -52,12 +52,12 @@ function Get-GhCommand {
         $gh = Get-Command gh -ErrorAction SilentlyContinue
     }
     if (-not $gh) {
-        throw "Trusted public installation requires GitHub CLI with 'gh attestation verify' support."
+        throw "Trusted standalone installation requires GitHub CLI with 'gh attestation verify' support. The normal ZIP installer does not require GitHub CLI on Windows."
     }
 
     & $gh.Source attestation verify --help *> $null
     if ($LASTEXITCODE -ne 0) {
-        throw "Trusted public installation requires a GitHub CLI version with 'gh attestation verify' support."
+        throw "Trusted standalone installation requires a GitHub CLI version with 'gh attestation verify' support. The normal ZIP installer does not require GitHub CLI on Windows."
     }
     return $gh
 }
@@ -306,30 +306,42 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host ""
 
-$ResolvedHacocoonVersion = Resolve-ReleaseVersion $HacocoonVersion
-$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("hacocoon-install-" + [guid]::NewGuid().ToString("N"))
-New-Item -ItemType Directory -Path $tempRoot | Out-Null
-try {
-    $checksumsPath = Join-Path $tempRoot "checksums.txt"
-    $bootstrapPath = Join-Path $tempRoot "bootstrap-wsl.sh"
-    $linuxInstallerPath = Join-Path $tempRoot "install.sh"
+$assetRoot = $PSScriptRoot
+$bootstrapPath = Join-Path $assetRoot "bootstrap-linux.sh"
+$linuxInstallerPath = Join-Path $assetRoot "install.sh"
+$tempRoot = $null
+$ResolvedHacocoonVersion = $HacocoonVersion
 
-    Write-Step "Downloading Hacocoon bootstrap assets"
+if ((Test-Path -LiteralPath $bootstrapPath -PathType Leaf) -and (Test-Path -LiteralPath $linuxInstallerPath -PathType Leaf)) {
+    Write-Step "Using Linux bootstrap assets bundled with the Windows installer"
+} else {
+    Write-Step "Bundled Linux bootstrap assets are unavailable; using standalone release-asset fallback"
+    $ResolvedHacocoonVersion = Resolve-ReleaseVersion $HacocoonVersion
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("hacocoon-install-" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $tempRoot | Out-Null
+    $assetRoot = $tempRoot
+    $checksumsPath = Join-Path $assetRoot "checksums.txt"
+    $bootstrapPath = Join-Path $assetRoot "bootstrap-linux.sh"
+    $linuxInstallerPath = Join-Path $assetRoot "install.sh"
+
+    Write-Step "Downloading standalone Hacocoon bootstrap assets"
     Download-ReleaseAsset "checksums.txt" $checksumsPath $ResolvedHacocoonVersion
-    Download-ReleaseAsset "bootstrap-wsl.sh" $bootstrapPath $ResolvedHacocoonVersion
+    Download-ReleaseAsset "bootstrap-linux.sh" $bootstrapPath $ResolvedHacocoonVersion
     Download-ReleaseAsset "install.sh" $linuxInstallerPath $ResolvedHacocoonVersion
 
-    Assert-Sha256 $bootstrapPath (Get-ExpectedHash $checksumsPath "bootstrap-wsl.sh")
+    Assert-Sha256 $bootstrapPath (Get-ExpectedHash $checksumsPath "bootstrap-linux.sh")
     Assert-Sha256 $linuxInstallerPath (Get-ExpectedHash $checksumsPath "install.sh")
 
-    Write-Step "Verifying trusted release provenance before executing bootstrap assets"
+    Write-Step "Verifying trusted release provenance before executing standalone bootstrap assets"
     Assert-TrustedReleaseAsset $checksumsPath $ResolvedHacocoonVersion
     Assert-TrustedReleaseAsset $bootstrapPath $ResolvedHacocoonVersion
     Assert-TrustedReleaseAsset $linuxInstallerPath $ResolvedHacocoonVersion
+}
 
-    $linuxTemp = (& wsl.exe --distribution $InstanceName --exec wslpath -u -a $tempRoot).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxTemp)) {
-        throw "Failed to translate the temporary installer path into the dedicated WSL instance."
+try {
+    $linuxAssetRoot = (& wsl.exe --distribution $InstanceName --exec wslpath -u -a $assetRoot).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxAssetRoot)) {
+        throw "Failed to translate the installer asset path into the dedicated WSL instance."
     }
 
     $skipIncusValue = if ($SkipIncus) { "1" } else { "0" }
@@ -345,10 +357,10 @@ try {
         "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue",
         "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue",
         "HACO_REQUIRE_PROVENANCE=1",
-        "sh", "$linuxTemp/bootstrap-wsl.sh", "$linuxTemp/install.sh", $ResolvedHacocoonVersion
+        "sh", "$linuxAssetRoot/bootstrap-linux.sh", "$linuxAssetRoot/install.sh", $ResolvedHacocoonVersion
     )
 
-    Write-Step "Installing systemd, Incus and Hacocoon inside '$InstanceName'"
+    Write-Step "Running shared Linux host bootstrap inside '$InstanceName'"
     & wsl.exe @wslArgs
     $bootstrapExit = $LASTEXITCODE
 
@@ -368,13 +380,15 @@ try {
         throw "systemd still requires a restart after the dedicated WSL instance was restarted."
     }
     if ($bootstrapExit -ne 0) {
-        throw "Hacocoon WSL installation failed."
+        throw "Hacocoon Linux host bootstrap failed inside WSL."
     }
 
     Assert-SystemdActive $InstanceName
 }
 finally {
-    Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    if ($null -ne $tempRoot) {
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 Write-Host ""
@@ -382,7 +396,11 @@ Write-Step "Hacocoon installation complete"
 Write-Host "Dedicated WSL instance: $InstanceName (WSL 2)"
 Write-Host "Init system: systemd"
 Write-Host "Base distribution: $BaseDistro"
-Write-Host "Release: $ResolvedHacocoonVersion"
+if ($ResolvedHacocoonVersion -eq "latest") {
+    Write-Host "Release: latest (resolved and verified by the shared Linux installer)"
+} else {
+    Write-Host "Release: $ResolvedHacocoonVersion"
+}
 Write-Host "Existing WSL distributions and global WSL defaults remain separate and untouched."
 Write-Host "Next: wsl -d $InstanceName"
 if ($SkipIncus) {
