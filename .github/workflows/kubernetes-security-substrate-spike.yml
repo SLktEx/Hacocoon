@@ -1,0 +1,237 @@
+name: kubernetes security substrate spike
+
+on:
+  push:
+    branches:
+      - main-kube
+    paths:
+      - .github/workflows/kubernetes-security-substrate-spike.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kubernetes-security-substrate-spike-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security-substrate:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Start Kubernetes with NetworkPolicy enforcement
+        run: |
+          set -euxo pipefail
+          curl -fsSLo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+          chmod +x minikube
+          sudo install minikube /usr/local/bin/minikube
+          minikube start \
+            --driver=docker \
+            --kubernetes-version=v1.36.2 \
+            --cni=calico \
+            --cpus=3 \
+            --memory=5000mb \
+            --wait=all \
+            --wait-timeout=8m
+          kubectl get nodes -o wide
+          kubectl -n kube-system get pods -o wide
+
+      - name: Create trusted and untrusted identities
+        run: |
+          set -euxo pipefail
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: haco-system
+            labels:
+              hacocoon.dev/trust: trusted
+          ---
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: haco-env-test
+            labels:
+              hacocoon.dev/trust: untrusted
+          ---
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: haco-controller
+            namespace: haco-system
+          automountServiceAccountToken: false
+          ---
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: haco-environment
+            namespace: haco-env-test
+          automountServiceAccountToken: false
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata:
+            name: haco-runtime-controller
+            namespace: haco-env-test
+          rules:
+            - apiGroups: ["kubevirt.io"]
+              resources: ["virtualmachines", "virtualmachineinstances"]
+              verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+            - apiGroups: [""]
+              resources: ["persistentvolumeclaims"]
+              verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+            - apiGroups: ["snapshot.storage.k8s.io"]
+              resources: ["volumesnapshots"]
+              verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+            - apiGroups: [""]
+              resources: ["secrets"]
+              verbs: ["create", "update", "patch", "delete"]
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            name: haco-runtime-controller
+            namespace: haco-env-test
+          subjects:
+            - kind: ServiceAccount
+              name: haco-controller
+              namespace: haco-system
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: haco-runtime-controller
+          EOF
+
+      - name: Prove controller RBAC is narrow
+        run: |
+          set -euxo pipefail
+          CONTROLLER='system:serviceaccount:haco-system:haco-controller'
+          test "$(kubectl auth can-i --as="$CONTROLLER" create virtualmachines.kubevirt.io -n haco-env-test)" = yes
+          test "$(kubectl auth can-i --as="$CONTROLLER" delete virtualmachines.kubevirt.io -n haco-env-test)" = yes
+          test "$(kubectl auth can-i --as="$CONTROLLER" create persistentvolumeclaims -n haco-env-test)" = yes
+          test "$(kubectl auth can-i --as="$CONTROLLER" create volumesnapshots.snapshot.storage.k8s.io -n haco-env-test)" = yes
+          test "$(kubectl auth can-i --as="$CONTROLLER" create secrets -n haco-env-test)" = yes
+
+          test "$(kubectl auth can-i --as="$CONTROLLER" get secrets -n haco-env-test)" = no
+          test "$(kubectl auth can-i --as="$CONTROLLER" list secrets -n haco-env-test)" = no
+          test "$(kubectl auth can-i --as="$CONTROLLER" create virtualmachines.kubevirt.io -n default)" = no
+          test "$(kubectl auth can-i --as="$CONTROLLER" get nodes)" = no
+          test "$(kubectl auth can-i --as="$CONTROLLER" create clusterroles.rbac.authorization.k8s.io)" = no
+          test "$(kubectl auth can-i --as="$CONTROLLER" create rolebindings.rbac.authorization.k8s.io -n haco-env-test)" = no
+
+      - name: Prove Environment has no Kubernetes authority or token
+        run: |
+          set -euxo pipefail
+          ENVIRONMENT='system:serviceaccount:haco-env-test:haco-environment'
+          for check in \
+            'get pods' \
+            'list secrets' \
+            'create secrets' \
+            'create persistentvolumeclaims' \
+            'create virtualmachines.kubevirt.io' \
+            'delete virtualmachines.kubevirt.io' \
+            'create rolebindings.rbac.authorization.k8s.io'; do
+            verb="${check%% *}"
+            resource="${check#* }"
+            result="$(kubectl auth can-i --as="$ENVIRONMENT" "$verb" "$resource" -n haco-env-test)"
+            echo "$verb $resource => $result"
+            test "$result" = no
+          done
+          test "$(kubectl auth can-i --as="$ENVIRONMENT" get nodes)" = no
+
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: untrusted-proof
+            namespace: haco-env-test
+            labels:
+              app: untrusted-proof
+          spec:
+            serviceAccountName: haco-environment
+            automountServiceAccountToken: false
+            restartPolicy: Never
+            containers:
+              - name: proof
+                image: busybox:1.37
+                command: ["sh", "-c", "sleep 600"]
+          EOF
+          kubectl -n haco-env-test wait --for=condition=Ready pod/untrusted-proof --timeout=5m
+          kubectl -n haco-env-test exec untrusted-proof -- sh -ceu '
+            test ! -e /var/run/secrets/kubernetes.io/serviceaccount/token
+            test -z "${KUBERNETES_SERVICE_HOST:-}"
+            test -z "${KUBERNETES_SERVICE_PORT:-}"
+          '
+
+      - name: Prove default-deny egress substrate
+        run: |
+          set -euxo pipefail
+          kubectl create namespace haco-egress-target
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: target
+            namespace: haco-egress-target
+            labels:
+              app: target
+          spec:
+            containers:
+              - name: target
+                image: busybox:1.37
+                command: ["sh", "-c", "mkdir -p /www; echo reachable >/www/index.html; httpd -f -p 8080 -h /www"]
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: target
+            namespace: haco-egress-target
+          spec:
+            selector:
+              app: target
+            ports:
+              - port: 8080
+                targetPort: 8080
+          EOF
+          kubectl -n haco-egress-target wait --for=condition=Ready pod/target --timeout=5m
+          TARGET_IP="$(kubectl -n haco-egress-target get service target -o jsonpath='{.spec.clusterIP}')"
+          test -n "$TARGET_IP"
+          kubectl -n haco-env-test exec untrusted-proof -- wget -q -T 5 -O- "http://${TARGET_IP}:8080" | grep -q reachable
+
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: default-deny-egress
+            namespace: haco-env-test
+          spec:
+            podSelector: {}
+            policyTypes:
+              - Egress
+            egress: []
+          EOF
+
+          blocked=0
+          for i in $(seq 1 20); do
+            if ! kubectl -n haco-env-test exec untrusted-proof -- wget -q -T 2 -O- "http://${TARGET_IP}:8080" >/dev/null 2>&1; then
+              blocked=1
+              break
+            fi
+            sleep 1
+          done
+          test "$blocked" = 1
+          echo 'default-deny egress is enforced by the Kubernetes CNI'
+
+      - name: Record security evidence
+        if: always()
+        run: |
+          set +e
+          kubectl get namespaces,serviceaccounts,roles,rolebindings,networkpolicies -A
+          kubectl auth can-i --as=system:serviceaccount:haco-system:haco-controller --list -n haco-env-test || true
+          kubectl auth can-i --as=system:serviceaccount:haco-env-test:haco-environment --list -n haco-env-test || true
+          kubectl get pods -A -o wide
