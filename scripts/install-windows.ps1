@@ -35,6 +35,33 @@ function Assert-ReleaseTag([string]$Version) {
     }
 }
 
+function Invoke-WslCapture([string[]]$Arguments) {
+    $stderrPath = [IO.Path]::GetTempFileName()
+    $previousPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell can promote native stderr to an ErrorRecord while
+        # $ErrorActionPreference is Stop. WSL may emit advisory systemd/session
+        # warnings even when the requested command succeeds, so let the native
+        # process finish and make the decision from its exit code.
+        $ErrorActionPreference = "Continue"
+        $stdout = @(& wsl.exe @Arguments 2> $stderrPath)
+        $exitCode = $LASTEXITCODE
+        $stderr = if (Test-Path -LiteralPath $stderrPath) {
+            Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
+        } else {
+            ""
+        }
+    } finally {
+        $ErrorActionPreference = $previousPreference
+        Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
+    }
+    return [pscustomobject]@{
+        ExitCode = $exitCode
+        Stdout = (($stdout | Out-String).Trim())
+        Stderr = ([string]$stderr).Trim()
+    }
+}
+
 function Get-InstalledDistros {
     $lines = & wsl.exe --list --quiet 2>$null
     if ($LASTEXITCODE -ne 0) { return @() }
@@ -77,25 +104,27 @@ function Assert-WslSupported {
 function Get-WslLoginUser([string]$Name) {
     $candidate = $env:HACO_BOOTSTRAP_LOGIN_USER
     if ([string]::IsNullOrWhiteSpace($candidate)) {
-        $candidate = (& wsl.exe --distribution $Name --exec id -un | Out-String).Trim()
-        if ($LASTEXITCODE -ne 0) {
+        $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "id", "-un")
+        if ($probe.ExitCode -ne 0) {
             throw "Unable to determine the default Linux user in '$Name'."
         }
+        $candidate = $probe.Stdout
     }
     Assert-SafeName $candidate "WSL login user"
     if ($candidate -eq "root") {
         throw "The dedicated WSL instance still defaults to root. Launch it once with 'wsl -d $Name' and complete normal Ubuntu user setup."
     }
-    & wsl.exe --distribution $Name --user root --exec id $candidate *> $null
-    if ($LASTEXITCODE -ne 0) {
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "id", $candidate)
+    if ($probe.ExitCode -ne 0) {
         throw "WSL login user '$candidate' does not exist in '$Name'."
     }
     return $candidate
 }
 
 function Assert-UbuntuBaseline([string]$Name) {
-    $os = (& wsl.exe --distribution $Name --exec sh -c '. /etc/os-release; printf "%s|%s" "$ID" "$VERSION_ID"' | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or $os -notmatch '^ubuntu\|(.+)$') {
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "sh", "-c", '. /etc/os-release; printf "%s|%s" "$ID" "$VERSION_ID"')
+    $os = $probe.Stdout
+    if ($probe.ExitCode -ne 0 -or $os -notmatch '^ubuntu\|(.+)$') {
         throw "The dedicated WSL instance must be Ubuntu 26.04 or newer (got '$os')."
     }
     try { $version = [version]$Matches[1] } catch { throw "Unable to parse Ubuntu version '$($Matches[1])'." }
@@ -105,15 +134,16 @@ function Assert-UbuntuBaseline([string]$Name) {
 }
 
 function Assert-SystemdActive([string]$Name) {
-    $pid1 = (& wsl.exe --distribution $Name --exec sh -c 'ps -p 1 -o comm=' | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or $pid1 -ne "systemd") {
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "sh", "-c", 'ps -p 1 -o comm=')
+    $pid1 = $probe.Stdout
+    if ($probe.ExitCode -ne 0 -or $pid1 -ne "systemd") {
         throw "systemd is not active as PID 1 inside '$Name'."
     }
 }
 
 function Enable-WslSystemd([string]$Name) {
-    $pid1 = (& wsl.exe --distribution $Name --exec sh -c 'ps -p 1 -o comm=' | Out-String).Trim()
-    if ($LASTEXITCODE -eq 0 -and $pid1 -eq "systemd") { return }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "sh", "-c", 'ps -p 1 -o comm=')
+    if ($probe.ExitCode -eq 0 -and $probe.Stdout -eq "systemd") { return }
 
     Write-Step "Enabling systemd in '$Name'"
     $script = @'
@@ -158,8 +188,8 @@ rm -f "$tmp"
     & wsl.exe --terminate $Name
     if ($LASTEXITCODE -ne 0) { throw "Failed to restart '$Name' after enabling systemd." }
     Start-Sleep -Milliseconds 750
-    & wsl.exe --distribution $Name --exec true
-    if ($LASTEXITCODE -ne 0) { throw "Failed to start '$Name' after enabling systemd." }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "true")
+    if ($probe.ExitCode -ne 0) { throw "Failed to start '$Name' after enabling systemd." }
     Assert-SystemdActive $Name
 }
 
@@ -180,7 +210,11 @@ function Get-BundledVersion {
 }
 
 function Get-WslArch([string]$Name) {
-    $machine = (& wsl.exe --distribution $Name --exec uname -m | Out-String).Trim()
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "uname", "-m")
+    if ($probe.ExitCode -ne 0) {
+        throw "Unable to determine WSL architecture for '$Name'."
+    }
+    $machine = $probe.Stdout
     switch ($machine) {
         { $_ -in @("x86_64", "amd64") } { return "amd64" }
         { $_ -in @("aarch64", "arm64") } { return "arm64" }
@@ -190,38 +224,39 @@ function Get-WslArch([string]$Name) {
 
 function Configure-WslPost([string]$Name, [string]$LoginUser) {
     Write-Step "Configuring WSL login to enter trusted haco-host"
-    $haco = (& wsl.exe --distribution $Name --user $LoginUser --exec sh -c 'command -v haco' | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or $haco -notin @('/usr/local/bin/haco', '/usr/bin/haco')) {
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sh", "-c", 'command -v haco')
+    $haco = $probe.Stdout
+    if ($probe.ExitCode -ne 0 -or $haco -notin @('/usr/local/bin/haco', '/usr/bin/haco')) {
         throw "Installed system haco binary is unavailable for WSL post-install setup."
     }
 
-    $owner = (& wsl.exe --distribution $Name --user root --exec stat -Lc '%u' $haco | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or $owner -ne '0') {
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "stat", "-Lc", "%u", $haco)
+    if ($probe.ExitCode -ne 0 -or $probe.Stdout -ne '0') {
         throw "Refusing WSL login integration through a non-root-owned haco binary."
     }
-    $writable = (& wsl.exe --distribution $Name --user root --exec find $haco -perm /022 -print -quit | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or -not [string]::IsNullOrWhiteSpace($writable)) {
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "find", $haco, "-perm", "/022", "-print", "-quit")
+    if ($probe.ExitCode -ne 0 -or -not [string]::IsNullOrWhiteSpace($probe.Stdout)) {
         throw "Refusing WSL login integration through a group/world-writable haco binary."
     }
 
-    & wsl.exe --distribution $Name --user root --exec mkdir -p /usr/local/libexec
-    if ($LASTEXITCODE -ne 0) { throw "Failed to prepare WSL login integration directory." }
-    & wsl.exe --distribution $Name --user root --exec ln -sfn $haco $LoginShell
-    if ($LASTEXITCODE -ne 0) { throw "Failed to install Hacocoon WSL login shell." }
-    & wsl.exe --distribution $Name --user root --exec sh -c "grep -Fx '$LoginShell' /etc/shells >/dev/null 2>&1 || printf '%s\n' '$LoginShell' >> /etc/shells"
-    if ($LASTEXITCODE -ne 0) { throw "Failed to register Hacocoon WSL login shell." }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "mkdir", "-p", "/usr/local/libexec")
+    if ($probe.ExitCode -ne 0) { throw "Failed to prepare WSL login integration directory." }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "ln", "-sfn", $haco, $LoginShell)
+    if ($probe.ExitCode -ne 0) { throw "Failed to install Hacocoon WSL login shell." }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sh", "-c", "grep -Fx '$LoginShell' /etc/shells >/dev/null 2>&1 || printf '%s\n' '$LoginShell' >> /etc/shells")
+    if ($probe.ExitCode -ne 0) { throw "Failed to register Hacocoon WSL login shell." }
 
     $sudoers = "$LoginUser ALL=(root) NOPASSWD: $haco host ensure, $haco host shell`n"
     $sudoersBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($sudoers))
-    & wsl.exe --distribution $Name --user root --exec sh -eu -c "printf '%s' '$sudoersBase64' | base64 -d > /etc/sudoers.d/hacocoon-login && chmod 0440 /etc/sudoers.d/hacocoon-login && visudo -cf /etc/sudoers.d/hacocoon-login >/dev/null"
-    if ($LASTEXITCODE -ne 0) { throw "Failed to install the narrow Hacocoon WSL sudo rule." }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sh", "-eu", "-c", "printf '%s' '$sudoersBase64' | base64 -d > /etc/sudoers.d/hacocoon-login && chmod 0440 /etc/sudoers.d/hacocoon-login && visudo -cf /etc/sudoers.d/hacocoon-login >/dev/null")
+    if ($probe.ExitCode -ne 0) { throw "Failed to install the narrow Hacocoon WSL sudo rule." }
 
-    & wsl.exe --distribution $Name --user root --exec usermod -s $LoginShell $LoginUser
-    if ($LASTEXITCODE -ne 0) { throw "Failed to configure Hacocoon WSL login shell for '$LoginUser'." }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "usermod", "-s", $LoginShell, $LoginUser)
+    if ($probe.ExitCode -ne 0) { throw "Failed to configure Hacocoon WSL login shell for '$LoginUser'." }
 
-    $actualShell = (& wsl.exe --distribution $Name --user root --exec sh -c "getent passwd '$LoginUser' | cut -d: -f7" | Out-String).Trim()
-    if ($actualShell -ne $LoginShell) {
-        throw "WSL post-install validation failed: '$LoginUser' shell is '$actualShell'."
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sh", "-c", "getent passwd '$LoginUser' | cut -d: -f7")
+    if ($probe.ExitCode -ne 0 -or $probe.Stdout -ne $LoginShell) {
+        throw "WSL post-install validation failed: '$LoginUser' shell is '$($probe.Stdout)'."
     }
 }
 
@@ -255,8 +290,8 @@ if (-not ($installed -contains $InstanceName)) {
 }
 
 Ensure-Wsl2 $InstanceName
-& wsl.exe --distribution $InstanceName --exec true
-if ($LASTEXITCODE -ne 0) {
+$probe = Invoke-WslCapture @("--distribution", $InstanceName, "--exec", "true")
+if ($probe.ExitCode -ne 0) {
     throw "'$InstanceName' exists but is not ready. Launch it once and complete Ubuntu user setup."
 }
 
@@ -275,8 +310,9 @@ foreach ($required in @($installerPath, $archivePath, $checksumsPath)) {
     }
 }
 $resolvedVersion = Get-BundledVersion
-$linuxAssetRoot = (& wsl.exe --distribution $InstanceName --user root --exec wslpath -u -a $PSScriptRoot | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxAssetRoot)) {
+$probe = Invoke-WslCapture @("--distribution", $InstanceName, "--user", "root", "--exec", "wslpath", "-u", "-a", $PSScriptRoot)
+$linuxAssetRoot = $probe.Stdout
+if ($probe.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($linuxAssetRoot)) {
     throw "Failed to translate the installer package path into WSL."
 }
 
@@ -299,8 +335,8 @@ Assert-SystemdActive $InstanceName
 # post
 if (-not $SkipIncus) {
     Configure-WslPost $InstanceName $loginUser
-    & wsl.exe --distribution $InstanceName --user root --exec incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor *> $null
-    if ($LASTEXITCODE -ne 0) { throw "WSL post-install haco-host acceptance failed." }
+    $probe = Invoke-WslCapture @("--distribution", $InstanceName, "--user", "root", "--exec", "incus", "exec", "haco-host", "--project", "hacocoon", "--", "/usr/local/bin/haco-host", "doctor")
+    if ($probe.ExitCode -ne 0) { throw "WSL post-install haco-host acceptance failed." }
 }
 
 Write-Host ""
