@@ -76,7 +76,6 @@ jobs:
           sudo systemctl is-active --quiet haco-controller.service
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
           sudo haco host ensure
-          sudo haco host shell --help >/dev/null 2>&1 || true
 
       - name: Collect native Ubuntu diagnostics
         if: always()
