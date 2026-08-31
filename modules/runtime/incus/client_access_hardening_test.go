@@ -137,5 +137,15 @@ func TestListClientConnectionsReconcilesManagedProxyDevices(t *testing.T) {
 	if !reflect.DeepEqual(connections, want) {
 		t.Fatalf("connections = %#v want %#v", connections, want)
 	}
-	assertRunnerCall(t, runner.calls[0], "incus", "config", "show", "haco-demo", "--project", defaultProject, "--format", "json")
+	assertRunnerCall(t, runner.calls[0], "incus", "query", "/1.0/instances/haco-demo?project="+defaultProject)
+}
+
+func TestListClientConnectionsRejectsMalformedAPIResponse(t *testing.T) {
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, _ []string) (host.Result, error) {
+		return host.Result{Stdout: `not-json`}, nil
+	}}
+	_, err := New(runner).ListClientConnections(context.Background(), "haco-demo")
+	if err == nil || !strings.Contains(err.Error(), "decode Incus client devices") {
+		t.Fatalf("error = %v", err)
+	}
 }
