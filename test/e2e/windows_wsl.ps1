@@ -81,7 +81,16 @@ try {
     Invoke-WslChecked @("--install", "Ubuntu-26.04", "--name", $Distro, "--no-launch", "--web-download")
     $Created = $true
 
-    Invoke-WslChecked @("--set-version", $Distro, "2")
+    # Fresh installs inherit the runner's default WSL version. Assert that the
+    # created distro really is WSL2 instead of running --set-version again:
+    # Store WSL on Windows Server 2025 may return WSL_E_VM_MODE_INVALID_STATE
+    # when asked to convert a distro that is already stopped on version 2.
+    $installed = Get-WslText @("--list", "--verbose")
+    Write-Host $installed
+    $distroLine = @($installed -split "`r?`n" | Where-Object { $_ -match "(?:^|\s)$([regex]::Escape($Distro))\s+" }) | Select-Object -First 1
+    if (-not $distroLine -or $distroLine -notmatch '\s2\s*$') {
+        throw "fresh named distro is not WSL2: $distroLine"
+    }
 
     Write-Host "==> Initializing distro non-interactively for CI"
     Invoke-WslChecked @(
