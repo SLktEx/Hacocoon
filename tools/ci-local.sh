@@ -58,9 +58,9 @@ validate_wsl_boundary() {
   grep -q -- '--set-version' scripts/bootstrap-windows.ps1
   grep -q -- '--terminate' scripts/install-windows.ps1
   grep -q -- '--terminate' scripts/bootstrap-windows.ps1
-  grep -q 'systemd=true' scripts/bootstrap-linux.sh
-  grep -q 'systemd-sysv' scripts/bootstrap-linux.sh
-  grep -q 'ps -p 1 -o comm=' scripts/bootstrap-linux.sh
+  grep -q 'systemd=true' scripts/install.sh
+  grep -q 'systemd-sysv' scripts/install.sh
+  grep -q 'ps -p 1 -o comm=' scripts/install.sh
   ! grep -q -- '--set-default-version' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
   ! grep -q -- '--shutdown' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
 }
@@ -127,7 +127,6 @@ validate_release_artifacts() {
   grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
   grep -q 'haco_linux_arm64.tar.gz' dist/checksums.txt
   grep -q 'install.sh' dist/checksums.txt
-  grep -q 'bootstrap-linux.sh' dist/checksums.txt
   grep -q 'install-windows.ps1' dist/checksums.txt
 }
 
@@ -152,7 +151,6 @@ run_release_config() {
   section "release-config: shell syntax"
   bash -n \
     scripts/install.sh \
-    scripts/bootstrap-linux.sh \
     tools/ci-local.sh \
     tools/check_release_tag_trust.sh \
     tools/test_release_tag_trust.sh \
