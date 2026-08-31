@@ -62,6 +62,8 @@ jobs:
         run: python3 tools/check_release_provenance.py
       - name: Test installer archive safety
         run: bash tools/test_install_archive_safety.sh
+      - name: Test installer provenance fail-closed behavior
+        run: bash tools/test_install_provenance_fail_closed.sh
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.x
@@ -75,8 +77,12 @@ jobs:
           install-only: true
       - name: Validate GoReleaser configuration
         run: goreleaser check
-      - name: Validate unified Linux installer shell syntax
-        run: bash -n scripts/install.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
+      - name: Validate Ubuntu installer shell syntax
+        run: bash -n scripts/install.sh scripts/install-ubuntu.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh tools/test_install_provenance_fail_closed.sh
+      - name: Validate installer package layouts
+        run: |
+          python3 tools/test_windows_installer_launcher.py
+          python3 tools/test_ubuntu_installer_launcher.py
       - name: Validate Windows installer syntax and provenance behavior
         shell: pwsh
         run: |
@@ -84,19 +90,21 @@ jobs:
           [scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null
           [scriptblock]::Create((Get-Content -Raw "tools/test_windows_installer_provenance.ps1")) | Out-Null
           & "./tools/test_windows_installer_provenance.ps1"
-      - name: Validate dedicated WSL 2 and systemd boundary
+      - name: Validate dedicated WSL pre and post boundary
         shell: bash
         run: |
           set -euo pipefail
           grep -q -- '--name' scripts/install-windows.ps1
-          grep -q 'Hacocoon' scripts/install-windows.ps1
+          grep -q 'Ubuntu-26.04' scripts/install-windows.ps1
           grep -q -- '--set-version' scripts/install-windows.ps1
-          grep -q -- '--set-version' scripts/bootstrap-windows.ps1
           grep -q -- '--terminate' scripts/install-windows.ps1
-          grep -q -- '--terminate' scripts/bootstrap-windows.ps1
-          grep -q 'systemd=true' scripts/install.sh
-          grep -q 'systemd-sysv' scripts/install.sh
-          grep -q 'ps -p 1 -o comm=' scripts/install.sh
+          grep -q 'systemd=true' scripts/install-windows.ps1
+          grep -q 'install.sh' scripts/install-windows.ps1
+          grep -q 'hacocoon-login' scripts/install-windows.ps1
+          grep -q 'install-windows.ps1' scripts/bootstrap-windows.ps1
+          ! grep -q 'WSL_DISTRO_NAME' scripts/install.sh
+          ! grep -q '/etc/wsl.conf' scripts/install.sh
+          ! grep -q 'hacocoon-login' scripts/install.sh
           ! grep -q -- '--set-default-version' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
           ! grep -q -- '--shutdown' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
       - name: Validate Docker compatibility systemd units
@@ -127,6 +135,7 @@ jobs:
           grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
           grep -q 'haco_linux_arm64.tar.gz' dist/checksums.txt
           grep -q 'install.sh' dist/checksums.txt
+          grep -q 'install-ubuntu.sh' dist/checksums.txt
           grep -q 'install-windows.ps1' dist/checksums.txt
 
   build:
