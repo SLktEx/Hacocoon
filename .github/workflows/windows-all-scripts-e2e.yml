@@ -130,10 +130,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Failed to set the normal WSL default user fixture." }
 
           # The hosted runner cannot answer an interactive sudo password prompt.
-          # Give the fixture user only the command families exercised by the normal
-          # installer, without passing any test-only argument or environment to it.
+          # Give the fixture user only the exact command families exercised by
+          # the normal installer. No installer argument or environment is changed.
           $sudoers = @(
-            "Cmnd_Alias HACO_BOOTSTRAP = /usr/bin/apt-get, /usr/bin/install, /usr/bin/mkdir, /usr/bin/tee, /usr/bin/chmod, /usr/sbin/usermod, /usr/bin/systemctl, /usr/bin/incus, /usr/bin/stat, /usr/bin/find, /usr/bin/chown, /usr/bin/cp, /usr/bin/test",
+            "Cmnd_Alias HACO_BOOTSTRAP = /usr/bin/apt-get, /usr/bin/install, /usr/bin/mkdir, /usr/bin/tee, /usr/bin/chmod, /usr/sbin/usermod, /usr/bin/systemctl, /usr/bin/incus, /usr/bin/stat, /usr/bin/find, /usr/bin/chown, /usr/bin/cp, /usr/bin/test, /usr/local/bin/haco host ensure",
             "$loginUser ALL=(root) NOPASSWD: HACO_BOOTSTRAP"
           ) -join "`n"
           $sudoers += "`n"
