@@ -1,5 +1,6 @@
 'use strict';
 
+const os = require('node:os');
 const vscode = require('vscode');
 const agent = require('./agent-workspace');
 
@@ -8,20 +9,85 @@ function getConfig() {
   return {
     gitExecutable: config.get('gitExecutable', 'git'),
     adapterExecutable: config.get('adapterExecutable', 'haco-agent-host'),
-    worktreeRoot: config.get('worktreeRoot', '')
+    worktreeRoot: config.get('worktreeRoot', ''),
+    wslDistro: config.get('wslDistro', 'Hacocoon'),
+    repositoryPath: config.get('repositoryPath', '')
   };
 }
 
-function currentWorkspacePath() {
+function wslDistroFromURI(uri) {
+  if (!uri || uri.scheme !== 'vscode-remote') return '';
+  const authority = String(uri.authority || '');
+  if (!authority.startsWith('wsl+')) return '';
+  return authority.slice(4);
+}
+
+function validateDistroName(value) {
+  const distro = String(value || '').trim();
+  if (!distro || distro.length > 128 || /[\u0000-\u001f\u007f]/.test(distro)) {
+    throw new Error('invalid WSL distribution name');
+  }
+  return distro;
+}
+
+async function resolveExecutionContext(config) {
   const folders = vscode.workspace.workspaceFolders || [];
-  if (folders.length === 0) return '';
-  return folders[0].uri.fsPath;
+  const folder = folders[0];
+
+  if (process.platform === 'win32') {
+    const distro = validateDistroName(config.wslDistro || 'Hacocoon');
+    const remoteDistro = folder ? wslDistroFromURI(folder.uri) : '';
+    let workspacePath = '';
+
+    if (folder && remoteDistro && remoteDistro.toLowerCase() === distro.toLowerCase()) {
+      workspacePath = folder.uri.path;
+    } else if (String(config.repositoryPath || '').trim()) {
+      workspacePath = String(config.repositoryPath).trim();
+    } else {
+      workspacePath = await vscode.window.showInputBox({
+        title: 'Hacocoon repository path',
+        prompt: `Absolute Linux repository path inside WSL distro ${distro}`,
+        placeHolder: '/home/user/repos/project',
+        ignoreFocusOut: true
+      }) || '';
+    }
+
+    if (!workspacePath || !workspacePath.startsWith('/')) {
+      throw new Error(`an absolute Linux repository path inside WSL distro ${distro} is required`);
+    }
+    return {
+      workspacePath,
+      runnerConfig: { executable: 'wsl.exe', args: ['-d', distro, '--'] },
+      execution: { kind: 'wsl', distro }
+    };
+  }
+
+  if (!folder || folder.uri.scheme !== 'file') {
+    throw new Error('open a local Git workspace, or use Windows with the configured Hacocoon WSL distro');
+  }
+  return {
+    workspacePath: folder.uri.fsPath,
+    runnerConfig: {},
+    execution: { kind: 'local', platform: os.platform() }
+  };
+}
+
+function runnerConfigForRecord(record) {
+  const execution = record && record.execution;
+  if (execution && execution.kind === 'wsl') {
+    const distro = validateDistroName(execution.distro);
+    return { executable: 'wsl.exe', args: ['-d', distro, '--'] };
+  }
+  return {};
 }
 
 async function newAgentWorkspace(context, output) {
-  const cwd = currentWorkspacePath();
-  if (!cwd) {
-    void vscode.window.showErrorMessage('Hacocoon: open a Git workspace before creating an agent workspace.');
+  const config = getConfig();
+  let executionContext;
+  try {
+    executionContext = await resolveExecutionContext(config);
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Hacocoon: ${error.message}`);
     return;
   }
 
@@ -33,7 +99,6 @@ async function newAgentWorkspace(context, output) {
   });
   if (!branch) return;
 
-  const config = getConfig();
   await vscode.window.withProgress({
     location: vscode.ProgressLocation.Notification,
     title: 'Creating Hacocoon agent workspace',
@@ -41,12 +106,15 @@ async function newAgentWorkspace(context, output) {
   }, async () => {
     try {
       const record = await agent.createAgentWorkspace({
-        cwd,
+        workspacePath: executionContext.workspacePath,
         branch,
         configuredRoot: config.worktreeRoot,
         gitExecutable: config.gitExecutable,
-        adapterExecutable: config.adapterExecutable
+        adapterExecutable: config.adapterExecutable,
+        runnerConfig: executionContext.runnerConfig
       });
+      record.execution = executionContext.execution;
+
       const records = agent.normalizeRecords(context.globalState.get(agent.stateKey, []));
       records.push(record);
       await context.globalState.update(agent.stateKey, records);
@@ -67,12 +135,10 @@ async function newAgentWorkspace(context, output) {
 
 function recordLabel(record) {
   const state = record.released ? 'released' : record.environment;
-  return {
-    label: record.branch,
-    description: state,
-    detail: record.worktreePath,
-    record
-  };
+  const location = record.execution && record.execution.kind === 'wsl'
+    ? `${record.worktreePath} · WSL ${record.execution.distro}`
+    : record.worktreePath;
+  return { label: record.branch, description: state, detail: location, record };
 }
 
 async function releaseAgentWorkspace(context, output) {
@@ -97,15 +163,18 @@ async function releaseAgentWorkspace(context, output) {
     cancellable: false
   }, async () => {
     let result;
+    const runnerConfig = runnerConfigForRecord(selected.record);
     try {
       if (selected.record.released) {
         result = await agent.removeOwnedWorktree(selected.record, {
-          gitExecutable: config.gitExecutable
+          gitExecutable: config.gitExecutable,
+          runnerConfig
         });
       } else {
         result = await agent.releaseAgentWorkspace(selected.record, {
           gitExecutable: config.gitExecutable,
-          adapterExecutable: config.adapterExecutable
+          adapterExecutable: config.adapterExecutable,
+          runnerConfig
         });
       }
     } catch (error) {
@@ -143,4 +212,12 @@ function activate(context) {
 
 function deactivate() {}
 
-module.exports = { activate, deactivate, currentWorkspacePath, recordLabel };
+module.exports = {
+  activate,
+  deactivate,
+  wslDistroFromURI,
+  validateDistroName,
+  resolveExecutionContext,
+  runnerConfigForRecord,
+  recordLabel
+};
