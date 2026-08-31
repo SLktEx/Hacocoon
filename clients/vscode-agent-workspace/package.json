@@ -8,7 +8,7 @@
     "vscode": "^1.102.0"
   },
   "categories": ["Other"],
-  "extensionKind": ["workspace"],
+  "extensionKind": ["ui"],
   "activationEvents": [
     "onCommand:hacocoon.newAgentWorkspace",
     "onCommand:hacocoon.releaseAgentWorkspace"
@@ -31,17 +31,32 @@
         "hacocoon.agentWorkspace.gitExecutable": {
           "type": "string",
           "default": "git",
-          "description": "Git executable on the VS Code extension host. Commands are executed without a shell."
+          "scope": "machine",
+          "description": "Git executable inside the Hacocoon execution host. Commands are executed without a shell."
         },
         "hacocoon.agentWorkspace.adapterExecutable": {
           "type": "string",
           "default": "haco-agent-host",
-          "description": "haco-agent-host executable on the VS Code extension host. Use a trusted wrapper executable when Hacocoon is reached through WSL or another client bridge."
+          "scope": "machine",
+          "description": "haco-agent-host executable inside the Hacocoon execution host."
         },
         "hacocoon.agentWorkspace.worktreeRoot": {
           "type": "string",
           "default": "",
-          "description": "Root for VS Code-created linked worktrees. Empty uses a .hacocoon-worktrees directory beside the repository. ~/ is expanded on the extension host."
+          "scope": "machine",
+          "description": "Absolute Linux root for VS Code-created linked worktrees. Empty uses a .hacocoon-worktrees directory beside the repository."
+        },
+        "hacocoon.agentWorkspace.wslDistro": {
+          "type": "string",
+          "default": "Hacocoon",
+          "scope": "machine",
+          "description": "WSL distribution used from Windows to run Git and haco-agent-host."
+        },
+        "hacocoon.agentWorkspace.repositoryPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Optional absolute Linux repository path inside the configured WSL distribution. If empty, a matching Remote-WSL workspace path is reused or VS Code prompts for a path."
         }
       }
     }
