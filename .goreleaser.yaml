@@ -126,6 +126,8 @@ checksum:
   extra_files:
     - glob: ./scripts/install.sh
       name_template: install.sh
+    - glob: ./scripts/install-ubuntu.sh
+      name_template: install-ubuntu.sh
     - glob: ./scripts/install-windows.ps1
       name_template: install-windows.ps1
 
