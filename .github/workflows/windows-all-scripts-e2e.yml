@@ -55,8 +55,13 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           wsl.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "WSL version query failed." }
           wsl.exe --status
-          wsl.exe --list --verbose
+          if ($LASTEXITCODE -ne 0) { throw "WSL status query failed." }
+          # A fresh supported Windows host can legitimately have zero installed
+          # distributions. Record the list without treating that state as failure.
+          & wsl.exe --list --verbose 2>&1 | ForEach-Object { Write-Host $_ }
+          $global:LASTEXITCODE = 0
 
       - name: Build release-equivalent candidate artifacts
         shell: pwsh
@@ -157,8 +162,12 @@ jobs:
         shell: pwsh
         continue-on-error: true
         run: |
-          wsl.exe --list --verbose
-          wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; haco version || true; haco doctor || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true'
+          & wsl.exe --list --verbose 2>&1 | ForEach-Object { Write-Host $_ }
+          $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
+          if ($installed -contains $env:HACO_E2E_WSL) {
+            wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; haco version || true; haco doctor || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true'
+          }
+          $global:LASTEXITCODE = 0
 
       - name: Remove E2E WSL distribution
         if: always()
