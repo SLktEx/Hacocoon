@@ -89,11 +89,10 @@ func Local(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 
-	var runtimeRunner host.Runner = runner
-	if ociDriver == ociplugin.DriverNerdctl {
-		runtimeRunner = incus.WrapSeedHarvestRunner(runner)
-	}
-	incusRuntime := incus.New(runtimeRunner)
+	// Incus/platform authority always remains on the Physical Host. Optional OCI
+	// tooling is composed separately below through the persistent trusted
+	// haco-host instance.
+	incusRuntime := incus.New(runner)
 	if err := incusRuntime.ConfigureStorageProvider(func(storageCtx context.Context) (map[string]string, error) {
 		handle, err := managedStorage.Ensure(storageCtx, core.StorageSpec{
 			ID:        defaultLocalStorageID,
@@ -147,17 +146,23 @@ func Local(ctx context.Context) (*App, error) {
 		seeds     *seedbuildapp.Service
 	)
 	if configuredDriver != "" {
+		trustedOCIRunner := incus.NewTrustedHostOCIRunner(incusRuntime)
+		seedRunner := incus.WrapSeedHarvestRunner(trustedOCIRunner)
+		seedProvider, cloneErr := incus.CloneSandboxProviderWithRunner(incusProvider, seedRunner)
+		if cloneErr != nil {
+			return nil, cloneErr
+		}
 		ociPlugin, err = ociplugin.New(
 			runtime,
 			environmentStatePath,
 			ociplugin.NewStore(filepath.Join(stateDir, "oci-usage.json")),
 			ociDriver,
-			ociplugin.WithHostRunner(runner),
+			ociplugin.WithHostRunner(trustedOCIRunner),
 		)
 		if err != nil {
 			return nil, err
 		}
-		seeds, err = seedbuildapp.New(incusProvider, ociPlugin, seedStore)
+		seeds, err = seedbuildapp.New(seedProvider, ociPlugin, seedStore)
 		if err != nil {
 			return nil, err
 		}
