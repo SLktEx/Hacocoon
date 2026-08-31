@@ -23,6 +23,7 @@ type Helper struct {
 	runner      host.Runner
 	euid        func() int
 	getenv      func(string) string
+	executable  func() (string, error)
 	resolveTool func(string) (string, error)
 }
 
@@ -31,6 +32,7 @@ func NewHelper(runner host.Runner) *Helper {
 		runner:      runner,
 		euid:        os.Geteuid,
 		getenv:      os.Getenv,
+		executable:  os.Executable,
 		resolveTool: resolveSystemTool,
 	}
 }
@@ -168,18 +170,47 @@ func (h *Helper) Execute(ctx context.Context, args []string) host.Result {
 }
 
 func (h *Helper) callerUID() (uint32, error) {
-	raw := strings.TrimSpace(h.getenv("SUDO_UID"))
-	if raw == "" {
-		if h.euid() == 0 {
-			return 0, nil
-		}
-		return 0, fmt.Errorf("SUDO_UID is required for a non-root storage caller")
+	if h.euid() != 0 {
+		return 0, fmt.Errorf("storage helper must run with effective uid 0")
 	}
-	value, err := strconv.ParseUint(raw, 10, 32)
+
+	rawUID := strings.TrimSpace(h.getenv("SUDO_UID"))
+	if rawUID == "" {
+		return 0, nil
+	}
+
+	// SUDO_UID is inherited by descendants of an outer `sudo haco ...` call.
+	// Only treat it as the storage caller when sudo itself directly launched
+	// this helper. If an already-root Hacocoon process invokes the helper
+	// directly, stale outer sudo metadata must not change the root-owned trust
+	// boundary used by that process.
+	executable, err := h.executable()
 	if err != nil {
-		return 0, fmt.Errorf("invalid SUDO_UID %q", raw)
+		return 0, fmt.Errorf("resolve storage helper executable: %w", err)
+	}
+	sudoCommand := strings.TrimSpace(h.getenv("SUDO_COMMAND"))
+	if !sudoCommandRunsExecutable(sudoCommand, executable) {
+		return 0, nil
+	}
+
+	value, err := strconv.ParseUint(rawUID, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid SUDO_UID %q", rawUID)
 	}
 	return uint32(value), nil
+}
+
+func sudoCommandRunsExecutable(command, executable string) bool {
+	command = strings.TrimSpace(command)
+	executable = strings.TrimSpace(executable)
+	if command == "" || executable == "" {
+		return false
+	}
+	first := command
+	if cut := strings.IndexAny(first, " \t"); cut >= 0 {
+		first = first[:cut]
+	}
+	return first == executable
 }
 
 func (h *Helper) run(ctx context.Context, tool string, args ...string) host.Result {
