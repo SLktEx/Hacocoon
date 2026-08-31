@@ -68,6 +68,19 @@ created=0
 ip_added=0
 policy_had_original=0
 
+wait_environment_route() {
+  local host="$1"
+  for ((attempt = 0; attempt < 60; attempt++)); do
+    if "$haco" exec "$environment" -- sh -c "ip -4 route get '$host' >/dev/null 2>&1" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "Environment never gained an IPv4 route to egress proxy $host" >&2
+  "$haco" exec "$environment" -- sh -c 'ip -4 address show; echo ROUTES; ip -4 route show' >&2 || true
+  return 1
+}
+
 cleanup() {
   local code=$?
   set +e
@@ -174,6 +187,11 @@ bridge_ip="${bridge_cidr%/*}"
 "$haco" egress serve >"$root/egress.out" 2>"$root/egress.err" &
 eg_pid=$!
 wait_tcp "$bridge_ip" 18080 || { echo 'haco egress serve did not open the managed proxy listener' >&2; exit 1; }
+
+# Incus can report the instance running before DHCP has installed the guest
+# route. Match the production real-egress acceptance and wait for that route
+# instead of weakening the managed ACL or racing the first proxy request.
+wait_environment_route "$bridge_ip"
 
 proxy_request() {
   local hostname="$1"
