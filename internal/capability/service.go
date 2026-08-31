@@ -70,12 +70,38 @@ func New(policy PolicyEvaluator, approval ApprovalProvider, audit AuditSink, pro
 	}, nil
 }
 
+type approvalFunc func(context.Context, core.ApprovalRequest) (bool, error)
+
+func (f approvalFunc) Approve(ctx context.Context, request core.ApprovalRequest) (bool, error) {
+	return f(ctx, request)
+}
+
 func (s *Service) Request(ctx context.Context, req core.CapabilityRequest) (core.CapabilityResult, error) {
+	return s.request(ctx, req, s.approval)
+}
+
+// RequestWithApproval preserves controller authority while allowing one
+// controller session to supply the interactive approval terminal. Policy,
+// auditing and provider execution still happen inside this Service; only the
+// human yes/no decision is collected through the caller-provided callback.
+func (s *Service) RequestWithApproval(
+	ctx context.Context,
+	req core.CapabilityRequest,
+	approve func(context.Context, core.ApprovalRequest) (bool, error),
+) (core.CapabilityResult, error) {
+	var provider ApprovalProvider
+	if approve != nil {
+		provider = approvalFunc(approve)
+	}
+	return s.request(ctx, req, provider)
+}
+
+func (s *Service) request(ctx context.Context, req core.CapabilityRequest, approval ApprovalProvider) (core.CapabilityResult, error) {
 	req = normalizeRequest(req)
 	if err := validateRequest(req); err != nil {
 		return core.CapabilityResult{}, err
 	}
-	if s.policy == nil || s.audit == nil {
+	if s == nil || s.policy == nil || s.audit == nil {
 		return core.CapabilityResult{}, fmt.Errorf("capability boundary is incomplete: %w", core.ErrPolicyDenied)
 	}
 	provider, ok := s.providers[req.Capability]
@@ -112,10 +138,10 @@ func (s *Service) Request(ctx context.Context, req core.CapabilityRequest) (core
 	case core.PolicyDeny:
 		return baseResult, fmt.Errorf("%s: %w", evaluation.Reason, core.ErrPolicyDenied)
 	case core.PolicyRequireApproval:
-		if s.approval == nil {
+		if approval == nil {
 			return baseResult, fmt.Errorf("approval provider unavailable: %w", core.ErrApprovalDenied)
 		}
-		approved, approvalErr := s.approval.Approve(ctx, core.ApprovalRequest{CapabilityRequest: req, Reason: evaluation.Reason})
+		approved, approvalErr := approval.Approve(ctx, core.ApprovalRequest{CapabilityRequest: req, Reason: evaluation.Reason})
 		if approvalErr != nil {
 			falseValue := false
 			_ = s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "approval-decision", Approved: &falseValue, Reason: "approval-provider-failed"})

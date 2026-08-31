@@ -55,6 +55,21 @@ func TestControllerClientModeLeavesFirstClassEnvNamespaceToEnvClient(t *testing.
 	}
 }
 
+func TestControllerClientModeLeavesMigratedGeneralCommandsToGeneralClient(t *testing.T) {
+	t.Setenv(controllerClientModeEnv, controllerClientModeValue)
+	t.Setenv("HACO_CONTROL_SOCKET", "/tmp/hacocoon-control-test.sock")
+	for _, args := range [][]string{{"base", "list"}, {"run"}, {"events"}, {"capability", "request"}} {
+		handled, err := handleControllerClientModeArgs(
+			context.Background(), args,
+			func() (environmentControllerClient, error) { return &fakeEnvironmentController{}, nil },
+			bytes.NewBuffer(nil), bytes.NewBuffer(nil), bytes.NewBuffer(nil),
+		)
+		if err != nil || handled {
+			t.Fatalf("args=%v handled=%t err=%v", args, handled, err)
+		}
+	}
+}
+
 func TestControllerClientModeLeavesHostShellToHostClient(t *testing.T) {
 	t.Setenv(controllerClientModeEnv, controllerClientModeValue)
 	t.Setenv("HACO_CONTROL_SOCKET", "/tmp/hacocoon-control-test.sock")
@@ -118,7 +133,7 @@ func TestControllerClientModeRefusesUnmigratedLocalCommand(t *testing.T) {
 	t.Setenv("HACO_CONTROL_SOCKET", "/tmp/hacocoon-control-test.sock")
 	factoryCalls := 0
 	handled, err := handleControllerClientModeArgs(
-		context.Background(), []string{"base", "list"},
+		context.Background(), []string{"connections", "demo"},
 		func() (environmentControllerClient, error) {
 			factoryCalls++
 			return &fakeEnvironmentController{}, nil
