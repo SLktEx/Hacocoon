@@ -23,6 +23,25 @@ func TestHostCommandRejectsUnknownSubcommandBeforeAppAccess(t *testing.T) {
 	}
 }
 
+func TestParseHostEnsureArgsKeepsOCIOptional(t *testing.T) {
+	withOCI, err := parseHostEnsureArgs(nil)
+	if err != nil || withOCI {
+		t.Fatalf("default withOCI=%v err=%v", withOCI, err)
+	}
+	withOCI, err = parseHostEnsureArgs([]string{"--oci"})
+	if err != nil || !withOCI {
+		t.Fatalf("--oci withOCI=%v err=%v", withOCI, err)
+	}
+}
+
+func TestParseHostEnsureArgsRejectsUnknownFlags(t *testing.T) {
+	for _, args := range [][]string{{"--unknown"}, {"--oci", "extra"}} {
+		if _, err := parseHostEnsureArgs(args); !errors.Is(err, core.ErrInvalidArgument) {
+			t.Fatalf("args=%#v err=%v", args, err)
+		}
+	}
+}
+
 func TestTrustedHostWarningUsesJapaneseLocale(t *testing.T) {
 	t.Setenv("LC_ALL", "ja_JP.UTF-8")
 	warning := trustedHostLoginWarning()
