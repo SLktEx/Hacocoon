@@ -80,8 +80,24 @@ func TestRevokeSSHAccessRemovesManagedKeyBeforeProxy(t *testing.T) {
 }
 
 func TestListClientConnectionsReconcilesManagedProxyDevices(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, _ []string) (host.Result, error) {
-		return host.Result{Stdout: `{"devices":{"haco-ssh-2222":{"type":"proxy","listen":"tcp:127.0.0.1:2222","connect":"tcp:127.0.0.1:22"},"haco-tcp-8080-3000":{"type":"proxy","listen":"tcp:127.0.0.1:8080","connect":"tcp:127.0.0.1:3000"},"foreign":{"type":"proxy","listen":"tcp:0.0.0.0:9000","connect":"tcp:127.0.0.1:9000"}}}`}, nil
+	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, _ []string) (host.Result, error) {
+		switch call {
+		case 0:
+			return host.Result{Stdout: "haco-tcp-8080-3000\nforeign\nhaco-ssh-2222\n"}, nil
+		case 1, 4:
+			return host.Result{Stdout: "proxy\n"}, nil
+		case 2:
+			return host.Result{Stdout: "tcp:127.0.0.1:8080\n"}, nil
+		case 3:
+			return host.Result{Stdout: "tcp:127.0.0.1:3000\n"}, nil
+		case 5:
+			return host.Result{Stdout: "tcp:127.0.0.1:2222\n"}, nil
+		case 6:
+			return host.Result{Stdout: "tcp:127.0.0.1:22\n"}, nil
+		default:
+			t.Fatalf("unexpected runner call %d", call)
+			return host.Result{}, nil
+		}
 	}}
 
 	connections, err := New(runner).ListClientConnections(context.Background(), "haco-demo")
@@ -95,5 +111,12 @@ func TestListClientConnectionsReconcilesManagedProxyDevices(t *testing.T) {
 	if !reflect.DeepEqual(connections, want) {
 		t.Fatalf("connections = %#v want %#v", connections, want)
 	}
-	assertRunnerCall(t, runner.calls[0], "incus", "config", "show", "haco-demo", "--project", defaultProject, "--format", "json")
+
+	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "list", "haco-demo", "--project", defaultProject)
+	assertRunnerCall(t, runner.calls[1], "incus", "config", "device", "get", "haco-demo", "haco-tcp-8080-3000", "type", "--project", defaultProject)
+	assertRunnerCall(t, runner.calls[2], "incus", "config", "device", "get", "haco-demo", "haco-tcp-8080-3000", "listen", "--project", defaultProject)
+	assertRunnerCall(t, runner.calls[3], "incus", "config", "device", "get", "haco-demo", "haco-tcp-8080-3000", "connect", "--project", defaultProject)
+	assertRunnerCall(t, runner.calls[4], "incus", "config", "device", "get", "haco-demo", "haco-ssh-2222", "type", "--project", defaultProject)
+	assertRunnerCall(t, runner.calls[5], "incus", "config", "device", "get", "haco-demo", "haco-ssh-2222", "listen", "--project", defaultProject)
+	assertRunnerCall(t, runner.calls[6], "incus", "config", "device", "get", "haco-demo", "haco-ssh-2222", "connect", "--project", defaultProject)
 }
