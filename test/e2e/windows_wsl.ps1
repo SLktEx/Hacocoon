@@ -133,10 +133,19 @@ try {
         throw "expected Ubuntu 26.04 inside WSL, got '$version'"
     }
 
-    $LinuxRepo = Get-WslValue @("--distribution", $Distro, "--user", "root", "--", "wslpath", "-u", "-a", $Repo)
-    if ([string]::IsNullOrWhiteSpace($LinuxRepo)) {
-        throw "failed to translate repository path into WSL"
+    # GitHub-hosted Windows runners use WSL's default DrvFS automount. Avoid
+    # passing a backslash-heavy Windows path through a Linux command argument:
+    # wslpath can receive D:\a\repo as D:arepo at this boundary. Build the
+    # canonical /mnt/<drive>/... path on the Windows side, then assert it exists.
+    $repoRoot = [System.IO.Path]::GetPathRoot($Repo)
+    if ($repoRoot -notmatch '^([A-Za-z]):\\$') {
+        throw "expected the GitHub checkout on a drive-letter path, got '$Repo'"
     }
+    $drive = $Matches[1].ToLowerInvariant()
+    $relativeRepo = $Repo.Substring($repoRoot.Length).Replace('\', '/')
+    $LinuxRepo = "/mnt/$drive/$relativeRepo"
+    Invoke-WslChecked @("--distribution", $Distro, "--user", "root", "--", "test", "-d", $LinuxRepo)
+    Write-Host "WSL checkout path: $LinuxRepo"
 
     Write-Host "==> Running the same real-Incus substrate verification inside WSL2"
     $Run = "mkdir -p /tmp/hacocoon-runner; cd '$LinuxRepo'; " +
