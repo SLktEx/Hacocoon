@@ -84,12 +84,12 @@ jobs:
         shell: pwsh
         continue-on-error: true
         run: |
-          $linuxRoot = (& wsl.exe --distribution $env:HACO_E2E_WSL --user root -- wslpath -u -a $env:GITHUB_WORKSPACE | Out-String).Trim()
+          $linuxRoot = (& wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec wslpath -u -a $env:GITHUB_WORKSPACE | Out-String).Trim()
           if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxRoot)) {
             throw "Unable to translate the checkout path into $env:HACO_E2E_WSL."
           }
 
-          & wsl.exe --distribution $env:HACO_E2E_WSL --user root -- `
+          & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec `
             env HACO_BOOTSTRAP_LOGIN_USER=root `
             sh "$linuxRoot/scripts/bootstrap-wsl.sh" "$linuxRoot/scripts/install.sh" latest
           if ($LASTEXITCODE -eq 42) {
@@ -98,7 +98,7 @@ jobs:
               throw "Failed to restart WSL after systemd configuration."
             }
             Start-Sleep -Seconds 1
-            & wsl.exe --distribution $env:HACO_E2E_WSL --user root -- `
+            & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec `
               env HACO_BOOTSTRAP_LOGIN_USER=root `
               sh "$linuxRoot/scripts/bootstrap-wsl.sh" "$linuxRoot/scripts/install.sh" latest
           }
@@ -106,7 +106,7 @@ jobs:
             throw "bootstrap-wsl.sh failed with exit code $LASTEXITCODE."
           }
 
-          & wsl.exe --distribution $env:HACO_E2E_WSL --user root -- `
+          & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec `
             sh "$linuxRoot/scripts/install.sh" latest
           if ($LASTEXITCODE -ne 0) {
             throw "install.sh failed with exit code $LASTEXITCODE."
@@ -118,14 +118,14 @@ jobs:
         continue-on-error: true
         run: |
           wsl.exe --list --verbose
-          wsl.exe --distribution $env:HACO_E2E_WSL --user root -- sh -lc 'printf "PID1: "; ps -p 1 -o comm=; printf "Kernel: "; uname -a; command -v haco || true; command -v incus || true; systemctl --no-pager --failed || true; incus version || true; haco doctor || true'
+          wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -lc 'printf "PID1: "; ps -p 1 -o comm=; printf "Kernel: "; uname -a; command -v haco || true; command -v incus || true; systemctl --no-pager --failed || true; incus version || true; haco doctor || true'
 
       - name: Remove E2E WSL distribution
         if: always()
         shell: pwsh
         continue-on-error: true
         run: |
-          $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+          $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
           if ($installed -contains $env:HACO_E2E_WSL) {
             wsl.exe --terminate $env:HACO_E2E_WSL 2>$null
             wsl.exe --unregister $env:HACO_E2E_WSL
