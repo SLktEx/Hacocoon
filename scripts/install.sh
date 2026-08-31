@@ -293,20 +293,22 @@ validate_release_archive() {
   archive_path="$1"
   archive_names="$(tar -tzf "$archive_path")" || die "release archive cannot be listed safely"
   if ! printf '%s\n' "$archive_names" | awk '
-    $0 == "haco" { haco++ }
-    $0 == "haco-controller" { controller++ }
-    $0 == "haco-host" { hacohost++ }
-    $0 == "haco-vscode" { vscode++ }
-    $0 == "haco-agent-host" { agenthost++ }
-    $0 == "haco-notify" { notify++ }
-    $0 == "haco-storage-helper" { storagehelper++ }
-    { count++ }
-    END { exit !(count == 7 && haco == 1 && controller == 1 && hacohost == 1 && vscode == 1 && agenthost == 1 && notify == 1 && storagehelper == 1) }
+    $0 == "haco" { haco++; next }
+    $0 == "haco-controller" { controller++; next }
+    $0 == "haco-host" { hacohost++; next }
+    $0 == "haco-vscode" { vscode++; next }
+    $0 == "haco-agent-host" { agenthost++; next }
+    $0 == "haco-notify" { notify++; next }
+    $0 == "haco-storage-helper" { storagehelper++; next }
+    $0 ~ /^README[^/]*$/ { next }
+    $0 ~ /^LICENSE[^/]*$/ { next }
+    { bad=1 }
+    END { exit !(bad != 1 && haco == 1 && controller == 1 && hacohost == 1 && vscode == 1 && agenthost == 1 && notify == 1 && storagehelper == 1) }
   '; then
-    die "release archive must contain exactly the seven Hacocoon release binaries"
+    die "release archive must contain each Hacocoon release binary exactly once; only root README/LICENSE files are allowed in addition"
   fi
   archive_verbose="$(LC_ALL=C tar -tvzf "$archive_path")" || die "release archive entry types cannot be inspected"
-  printf '%s\n' "$archive_verbose" | awk 'NF { count++; if (substr($1,1,1) != "-") bad=1 } END { exit !(count == 7 && bad != 1) }' ||
+  printf '%s\n' "$archive_verbose" | awk 'NF && substr($1,1,1) != "-" { bad=1 } END { exit (bad == 1) }' ||
     die "release archive contains a non-regular entry"
 }
 
