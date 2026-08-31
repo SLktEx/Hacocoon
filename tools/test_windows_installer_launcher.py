@@ -7,6 +7,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 launcher_path = ROOT / "scripts" / "install-windows.bat"
 installer_path = ROOT / "scripts" / "install-windows.ps1"
+linux_bootstrap_path = ROOT / "scripts" / "bootstrap-linux.sh"
+linux_installer_path = ROOT / "scripts" / "install.sh"
 launcher = launcher_path.read_text(encoding="utf-8").lower()
 
 required = (
@@ -27,8 +29,9 @@ for forbidden in ("set-executionpolicy", "-executionpolicy unrestricted"):
     if forbidden in launcher:
         raise SystemExit(f"Windows batch launcher contains forbidden policy mutation: {forbidden}")
 
-if not installer_path.is_file():
-    raise SystemExit("install-windows.ps1 is missing")
+for required_path in (installer_path, linux_bootstrap_path, linux_installer_path):
+    if not required_path.is_file():
+        raise SystemExit(f"required Windows installer bundle member is missing: {required_path.name}")
 
 with tempfile.TemporaryDirectory() as temp:
     archive_path = Path(temp) / "hacocoon-windows-installer.zip"
@@ -39,12 +42,22 @@ with tempfile.TemporaryDirectory() as temp:
     )
     with zipfile.ZipFile(archive_path) as archive:
         names = archive.namelist()
-        expected = ["install-windows.bat", "install-windows.ps1"]
+        expected = [
+            "install-windows.bat",
+            "install-windows.ps1",
+            "bootstrap-linux.sh",
+            "install.sh",
+        ]
         if names != expected:
             raise SystemExit(f"unexpected Windows installer ZIP contents: {names!r}")
-        if archive.read("install-windows.bat") != launcher_path.read_bytes():
-            raise SystemExit("packaged install-windows.bat differs from source")
-        if archive.read("install-windows.ps1") != installer_path.read_bytes():
-            raise SystemExit("packaged install-windows.ps1 differs from source")
+        expected_sources = {
+            "install-windows.bat": launcher_path,
+            "install-windows.ps1": installer_path,
+            "bootstrap-linux.sh": linux_bootstrap_path,
+            "install.sh": linux_installer_path,
+        }
+        for name, source in expected_sources.items():
+            if archive.read(name) != source.read_bytes():
+                raise SystemExit(f"packaged {name} differs from source")
 
 print("WINDOWS INSTALLER LAUNCHER OK")
