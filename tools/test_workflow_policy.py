@@ -97,11 +97,11 @@ jobs:
             "id-token",
         )
 
-    def test_rejects_ubuntu_24_04_runner(self) -> None:
-        self.assert_rejected(
-            "on:\n  pull_request:\njobs:\n  test:\n    runs-on: ubuntu-24.04\n",
-            "not approved",
-        )
+    def test_accepts_other_static_runners(self) -> None:
+        for runner in ("ubuntu-24.04", "windows-latest", "macos-latest"):
+            with self.subTest(runner=runner):
+                workflow = f"on:\n  pull_request:\njobs:\n  test:\n    runs-on: {runner}\n"
+                self.assertEqual(messages(workflow), [])
 
     def test_rejects_self_hosted_runner(self) -> None:
         self.assert_rejected(
