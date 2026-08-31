@@ -27,6 +27,7 @@ jobs:
           persist-credentials: false
       - name: Configure runner-scoped Hacocoon paths
         run: |
+          mkdir -p "$RUNNER_TEMP/haco-storage-helper-e2e"
           printf 'INCUS_CONF=%s/haco-incus-client\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'HACO_CI_INCUS_CONF=%s/haco-incus-client\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'TMPDIR=%s/haco-storage-helper-e2e\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
