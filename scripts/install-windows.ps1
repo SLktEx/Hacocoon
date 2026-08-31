@@ -92,6 +92,25 @@ function Invoke-WslCaptureWithInput([string[]]$Arguments, [string]$InputText) {
     return New-WslCaptureResult $exitCode $stdout $stderr
 }
 
+function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [switch]$Append) {
+    # Windows PowerShell's pipeline can translate newlines when feeding a native
+    # process. Encode the exact UTF-8 bytes first, then decode inside WSL. The
+    # shell program is fixed; file content and destination never become shell
+    # syntax, so this avoids both CRLF corruption and quoting ambiguity.
+    $normalized = ($Content -replace "`r`n", "`n") -replace "`r", "`n"
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
+    $script = if ($Append) {
+        'base64 -d | tee -a "$1" >/dev/null'
+    } else {
+        'base64 -d | tee "$1" >/dev/null'
+    }
+    return Invoke-WslCaptureWithInput @(
+        "--distribution", $Name,
+        "--user", "root",
+        "--exec", "sh", "-eu", "-c", $script, "sh", $Path
+    ) ($encoded + "`n")
+}
+
 function Get-InstalledDistros {
     $lines = & wsl.exe --list --quiet 2>$null
     if ($LASTEXITCODE -ne 0) { return @() }
@@ -299,17 +318,17 @@ function Configure-WslPost([string]$Name, [string]$LoginUser) {
 
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "grep", "-Fx", $LoginShell, "/etc/shells")
     if ($probe.ExitCode -eq 1) {
-        $probe = Invoke-WslCaptureWithInput @("--distribution", $Name, "--user", "root", "--exec", "tee", "-a", "/etc/shells") ($LoginShell + "`n")
+        $probe = Write-WslUtf8File $Name "/etc/shells" ($LoginShell + "`n") -Append
     }
-    if ($probe.ExitCode -ne 0) { throw "Failed to register Hacocoon WSL login shell." }
+    if ($probe.ExitCode -ne 0) { throw "Failed to register Hacocoon WSL login shell: $($probe.Stderr)" }
 
     $sudoers = "$LoginUser ALL=(root) NOPASSWD: $haco host ensure, $haco host shell`n"
-    $probe = Invoke-WslCaptureWithInput @("--distribution", $Name, "--user", "root", "--exec", "tee", "/etc/sudoers.d/hacocoon-login") $sudoers
-    if ($probe.ExitCode -ne 0) { throw "Failed to write the narrow Hacocoon WSL sudo rule." }
+    $probe = Write-WslUtf8File $Name "/etc/sudoers.d/hacocoon-login" $sudoers
+    if ($probe.ExitCode -ne 0) { throw "Failed to write the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "chmod", "0440", "/etc/sudoers.d/hacocoon-login")
-    if ($probe.ExitCode -ne 0) { throw "Failed to protect the narrow Hacocoon WSL sudo rule." }
+    if ($probe.ExitCode -ne 0) { throw "Failed to protect the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "visudo", "-cf", "/etc/sudoers.d/hacocoon-login")
-    if ($probe.ExitCode -ne 0) { throw "Failed to validate the narrow Hacocoon WSL sudo rule." }
+    if ($probe.ExitCode -ne 0) { throw "Failed to validate the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
 
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "usermod", "-s", $LoginShell, $LoginUser)
     if ($probe.ExitCode -ne 0) { throw "Failed to configure Hacocoon WSL login shell for '$LoginUser'." }
