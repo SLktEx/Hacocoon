@@ -51,7 +51,7 @@ jobs:
 
   release-config:
     runs-on: ubuntu-26.04
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -62,6 +62,8 @@ jobs:
         run: python3 tools/check_release_provenance.py
       - name: Test installer archive safety
         run: bash tools/test_install_archive_safety.sh
+      - name: Test architecture-specific installer packaging
+        run: python3 tools/test_installer_packages.py
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.x
@@ -75,30 +77,29 @@ jobs:
           install-only: true
       - name: Validate GoReleaser configuration
         run: goreleaser check
-      - name: Validate unified Linux installer shell syntax
-        run: bash -n scripts/install.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
-      - name: Validate Windows installer syntax and provenance behavior
+      - name: Validate installer and CI shell syntax
+        run: bash -n scripts/install.sh scripts/install-ubuntu.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
+      - name: Validate Windows installer syntax
         shell: pwsh
-        run: |
-          [scriptblock]::Create((Get-Content -Raw "scripts/bootstrap-windows.ps1")) | Out-Null
-          [scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null
-          [scriptblock]::Create((Get-Content -Raw "tools/test_windows_installer_provenance.ps1")) | Out-Null
-          & "./tools/test_windows_installer_provenance.ps1"
-      - name: Validate dedicated WSL 2 and systemd boundary
+        run: '[scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null'
+      - name: Validate pre/main/post installer boundary
         shell: bash
         run: |
           set -euo pipefail
           grep -q -- '--name' scripts/install-windows.ps1
-          grep -q 'Hacocoon' scripts/install-windows.ps1
           grep -q -- '--set-version' scripts/install-windows.ps1
-          grep -q -- '--set-version' scripts/bootstrap-windows.ps1
           grep -q -- '--terminate' scripts/install-windows.ps1
-          grep -q -- '--terminate' scripts/bootstrap-windows.ps1
-          grep -q 'systemd=true' scripts/install.sh
-          grep -q 'systemd-sysv' scripts/install.sh
-          grep -q 'ps -p 1 -o comm=' scripts/install.sh
-          ! grep -q -- '--set-default-version' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
-          ! grep -q -- '--shutdown' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
+          grep -q 'systemd=true' scripts/install-windows.ps1
+          grep -q 'Running common Ubuntu install.sh' scripts/install-windows.ps1
+          grep -q 'HACO_BUNDLE_ROOT' scripts/install-windows.ps1
+          grep -q 'this package is for native Ubuntu' scripts/install-ubuntu.sh
+          grep -q 'HACO_BUNDLE_ROOT' scripts/install-ubuntu.sh
+          grep -q 'Hacocoon common Ubuntu installation complete' scripts/install.sh
+          ! grep -q 'WSL_DISTRO_NAME' scripts/install.sh
+          ! grep -q 'systemd=true' scripts/install.sh
+          ! grep -q 'hacocoon-login' scripts/install.sh
+          ! grep -q -- '--set-default-version' scripts/install-windows.ps1
+          ! grep -q -- '--shutdown' scripts/install-windows.ps1
       - name: Validate Docker compatibility systemd units
         run: bash tools/ci-local.sh systemd
       - name: Dry-run release packaging on main
@@ -112,7 +113,6 @@ jobs:
           test -f dist/haco_linux_amd64.tar.gz
           test -f dist/haco_linux_arm64.tar.gz
           test -f dist/checksums.txt
-
           for archive in dist/haco_linux_amd64.tar.gz dist/haco_linux_arm64.tar.gz; do
             listing="$(tar -tzf "$archive")"
             grep -Fx 'haco' <<<"$listing" >/dev/null
@@ -123,11 +123,14 @@ jobs:
             grep -Fx 'haco-notify' <<<"$listing" >/dev/null
             grep -Fx 'haco-storage-helper' <<<"$listing" >/dev/null
           done
-
-          grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
-          grep -q 'haco_linux_arm64.tar.gz' dist/checksums.txt
-          grep -q 'install.sh' dist/checksums.txt
-          grep -q 'install-windows.ps1' dist/checksums.txt
+          rm -rf release-payload-test
+          python3 tools/package_installers.py --dist dist --output release-payload-test --version v0.0.0-test
+          (cd release-payload-test && sha256sum -c checksums.txt)
+          for path in \
+            hacocoon-windows-amd64.zip hacocoon-windows-arm64.zip \
+            hacocoon-ubuntu-amd64.tar.gz hacocoon-ubuntu-arm64.tar.gz; do
+            test -f "release-payload-test/$path"
+          done
 
   build:
     runs-on: ubuntu-26.04
