@@ -17,7 +17,7 @@
 
 /scripts/install.sh @SLktEx
 /scripts/install-windows.ps1 @SLktEx
-/scripts/bootstrap-wsl.sh @SLktEx
+/scripts/bootstrap-linux.sh @SLktEx
 /scripts/bootstrap-windows.ps1 @SLktEx
 
 /docs/RELEASE_SECURITY.md @SLktEx
