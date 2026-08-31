@@ -1,0 +1,92 @@
+name: ubuntu-installer-e2e
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "scripts/install-ubuntu.sh"
+      - "scripts/install.sh"
+      - "tools/package_ubuntu_installer.py"
+      - "tools/test_ubuntu_installer_launcher.py"
+      - ".github/workflows/ubuntu-installer-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ubuntu-installer-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-ubuntu-installer:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build candidate native Ubuntu installer package
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/hacocoon-ubuntu-installer.tar.gz"
+          package_root="$RUNNER_TEMP/hacocoon-ubuntu-installer"
+          rm -rf "$package_root" "$archive"
+          python3 tools/package_ubuntu_installer.py "$archive"
+          mkdir -p "$package_root"
+          tar -xzf "$archive" -C "$package_root"
+          test -x "$package_root/install-ubuntu.sh"
+          test -x "$package_root/install.sh"
+          printf 'package_root=%s\n' "$package_root" >> "$GITHUB_OUTPUT"
+
+      - name: Record native Ubuntu substrate
+        shell: bash
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          printf 'ID=%s VERSION_ID=%s\n' "$ID" "$VERSION_ID"
+          printf 'PID1=%s\n' "$(ps -p 1 -o comm= | tr -d '[:space:]')"
+          uname -a
+          id
+          sudo -n true
+
+      - name: Execute packaged native Ubuntu installer
+        id: install
+        working-directory: ${{ steps.package.outputs.package_root }}
+        shell: bash
+        env:
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+          HACO_REQUIRE_PROVENANCE: "1"
+        run: |
+          set -euo pipefail
+          ./install-ubuntu.sh latest
+
+      - name: Accept installed native Ubuntu Hacocoon user path
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v haco
+          command -v incus
+          systemctl is-active --quiet incus.service || systemctl is-active --quiet incus
+          sudo systemctl is-active --quiet haco-controller.service
+          sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
+          sudo haco host ensure
+          sudo haco host shell --help >/dev/null 2>&1 || true
+
+      - name: Collect native Ubuntu diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ps -p 1 -o pid,comm,args
+          command -v haco
+          haco doctor
+          sudo systemctl --no-pager --failed
+          sudo systemctl status haco-controller.service --no-pager
+          sudo incus version
+          sudo incus list --all-projects
