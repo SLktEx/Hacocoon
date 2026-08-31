@@ -14,7 +14,16 @@ set -euo pipefail
   exit 1
 }
 
-# Keep the privileged integration opt-in out of workflow YAML. This helper is
-# the narrow reviewed boundary, matching the existing tools/ci-incus.sh model.
+# Keep both privileged integration opt-in and Incus client authority behind the
+# reviewed helper. tools/ci-incus.sh creates this TLS-only client under
+# RUNNER_TEMP. The VS Code E2E deliberately changes HOME to isolate client-side
+# SSH configuration, so INCUS_CONF must remain explicit instead of following
+# that temporary HOME.
 export HACO_E2E_INCUS=1
+export INCUS_CONF="${HACO_CI_INCUS_CONF:-${RUNNER_TEMP:-/tmp}/haco-incus-client}"
+[[ -r "$INCUS_CONF/config.yml" ]] || {
+  echo "ERROR: reviewed Incus TLS client configuration is missing: $INCUS_CONF/config.yml" >&2
+  exit 1
+}
+
 exec bash test/e2e/vscode.sh
