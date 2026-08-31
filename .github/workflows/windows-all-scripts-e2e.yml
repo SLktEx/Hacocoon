@@ -23,9 +23,8 @@ jobs:
     timeout-minutes: 45
     env:
       GOTOOLCHAIN: local
-      HACO_E2E_WSL: HacocoonE2E
+      HACO_E2E_WSL: Hacocoon
       HACO_E2E_LOGIN_USER: haco-e2e
-      HACO_BOOTSTRAP_LOGIN_USER: haco-e2e
       HACO_REQUIRE_PROVENANCE: "0"
       HACO_E2E_VERSION: v0.0.0-e2e
     steps:
@@ -110,37 +109,55 @@ jobs:
           }
           "HACO_E2E_PACKAGE_ROOT=$packageRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: User path phase 1 - run packaged BAT to create WSL
+      - name: User path phase 1 - run packaged BAT with default options
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           Push-Location $env:HACO_E2E_PACKAGE_ROOT
           try {
-            & cmd.exe /d /c "install-windows.bat -InstanceName $env:HACO_E2E_WSL -BaseDistro Ubuntu-26.04 -WebDownload"
+            & cmd.exe /d /c "install-windows.bat"
             if ($LASTEXITCODE -ne 0) { throw "Packaged BAT phase 1 failed with exit code $LASTEXITCODE." }
           } finally {
             Pop-Location
           }
 
-      - name: Emulate Ubuntu first-launch user creation
+      - name: Emulate normal Ubuntu first-launch user creation
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
-          if (-not ($installed -contains $env:HACO_E2E_WSL)) { throw "Packaged installer did not create the dedicated WSL distribution." }
-          & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -eu -c "id '$env:HACO_E2E_LOGIN_USER' >/dev/null 2>&1 || useradd -m -s /bin/bash '$env:HACO_E2E_LOGIN_USER'"
+          if (-not ($installed -contains $env:HACO_E2E_WSL)) { throw "Packaged installer did not create the default Hacocoon WSL distribution." }
+
+          & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -eu -c "id '$env:HACO_E2E_LOGIN_USER' >/dev/null 2>&1 || useradd -m -s /bin/bash -G sudo '$env:HACO_E2E_LOGIN_USER'"
           if ($LASTEXITCODE -ne 0) { throw "Failed to create ordinary Ubuntu user fixture." }
+
+          # The real Ubuntu first-launch flow makes the newly-created account the
+          # distribution default. Reproduce that state instead of injecting the
+          # installer-only HACO_BOOTSTRAP_LOGIN_USER override.
+          & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -eu -c "printf '\n[user]\ndefault=%s\n' '$env:HACO_E2E_LOGIN_USER' >> /etc/wsl.conf"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to set the normal WSL default user fixture." }
+
+          # CI cannot answer an interactive sudo password prompt. Keep the fixture
+          # limited to the exact host-setup commands exercised by the installer.
           $sudoers = "$env:HACO_E2E_LOGIN_USER ALL=(root) NOPASSWD: /usr/bin/apt-get *, /usr/bin/install *, /usr/bin/mkdir *, /usr/bin/tee *, /usr/bin/chmod *, /usr/sbin/usermod *, /usr/bin/systemctl *, /usr/bin/incus *, /usr/bin/stat *, /usr/bin/find *, /usr/bin/chown *, /usr/bin/cp *"
           $sudoers | & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -eu -c 'cat > /etc/sudoers.d/hacocoon-e2e-bootstrap && chmod 0440 /etc/sudoers.d/hacocoon-e2e-bootstrap && visudo -cf /etc/sudoers.d/hacocoon-e2e-bootstrap >/dev/null'
           if ($LASTEXITCODE -ne 0) { throw "Failed to prepare noninteractive sudo fixture." }
 
-      - name: User path phase 2 - run the same packaged BAT to completion
+          & wsl.exe --terminate $env:HACO_E2E_WSL
+          if ($LASTEXITCODE -ne 0) { throw "Failed to restart WSL after normal first-launch fixture setup." }
+          Start-Sleep -Milliseconds 750
+          $defaultUser = (& wsl.exe --distribution $env:HACO_E2E_WSL --exec id -un | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $defaultUser -ne $env:HACO_E2E_LOGIN_USER) {
+            throw "Normal WSL default user setup failed: got '$defaultUser'."
+          }
+
+      - name: User path phase 2 - run the same packaged BAT with default options
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           Push-Location $env:HACO_E2E_PACKAGE_ROOT
           try {
-            & cmd.exe /d /c "install-windows.bat -InstanceName $env:HACO_E2E_WSL -BaseDistro Ubuntu-26.04 -WebDownload"
+            & cmd.exe /d /c "install-windows.bat"
             if ($LASTEXITCODE -ne 0) { throw "Packaged BAT phase 2 failed with exit code $LASTEXITCODE." }
           } finally {
             Pop-Location
