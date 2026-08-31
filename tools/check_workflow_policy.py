@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
 
-APPROVED_RUNNERS = {"ubuntu-26.04", "windows-latest"}
 FULL_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 ACTIVE_TRUE = r'["\']?(?:1|true|yes|on)["\']?'
 PRIVILEGED_ENV_RE = re.compile(
@@ -413,6 +412,41 @@ def _check_permissions(path: Path, root: YAMLNode, violations: list[Violation]) 
         )
 
 
+def _check_runner(path: Path, node: YAMLNode, violations: list[Violation]) -> None:
+    try:
+        value = _materialize(node)
+    except ValueError as exc:
+        violations.append(Violation(path, node.line, f"runner declaration is ambiguous: {exc}"))
+        return
+
+    if isinstance(value, str):
+        if value == "self-hosted" or "${{" in value:
+            violations.append(
+                Violation(
+                    path,
+                    node.line,
+                    f"runner {value!r} is not approved; self-hosted or dynamic runners are not permitted",
+                )
+            )
+        return
+
+    if isinstance(value, list):
+        if not all(isinstance(item, str) for item in value):
+            violations.append(Violation(path, node.line, "runner declaration is ambiguous"))
+            return
+        if "self-hosted" in value or any("${{" in item for item in value):
+            violations.append(
+                Violation(
+                    path,
+                    node.line,
+                    f"runner {value!r} is not approved; self-hosted or dynamic runners are not permitted",
+                )
+            )
+        return
+
+    violations.append(Violation(path, node.line, f"runner declaration is ambiguous: {value!r}"))
+
+
 def check_text(path: Path, text: str) -> list[Violation]:
     violations: list[Violation] = []
     try:
@@ -458,21 +492,8 @@ def check_text(path: Path, text: str) -> list[Violation]:
             )
 
     for node in _walk(root):
-        if node.key != "runs-on":
-            continue
-        try:
-            value = _materialize(node)
-        except ValueError as exc:
-            violations.append(Violation(path, node.line, f"runner declaration is ambiguous: {exc}"))
-            continue
-        if not isinstance(value, str) or value not in APPROVED_RUNNERS:
-            violations.append(
-                Violation(
-                    path,
-                    node.line,
-                    f"runner {value!r} is not approved; allowed: {', '.join(sorted(APPROVED_RUNNERS))}",
-                )
-            )
+        if node.key == "runs-on":
+            _check_runner(path, node, violations)
 
     if is_pr:
         _check_permissions(path, root, violations)
