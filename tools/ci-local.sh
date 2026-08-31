@@ -15,18 +15,9 @@ GoReleaser --clean would otherwise delete an existing local directory.
 USAGE
 }
 
-fail() {
-  printf 'local CI: %s\n' "$*" >&2
-  exit 2
-}
-
-need() {
-  command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"
-}
-
-section() {
-  printf '\n==> %s\n' "$*"
-}
+fail() { printf 'local CI: %s\n' "$*" >&2; exit 2; }
+need() { command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"; }
+section() { printf '\n==> %s\n' "$*"; }
 
 check_go() {
   need go
@@ -51,18 +42,21 @@ run_workflow_policy() {
   python3 tools/test_renovate_policy.py
 }
 
-validate_wsl_boundary() {
+validate_install_boundary() {
   grep -q -- '--name' scripts/install-windows.ps1
-  grep -q 'Hacocoon' scripts/install-windows.ps1
   grep -q -- '--set-version' scripts/install-windows.ps1
-  grep -q -- '--set-version' scripts/bootstrap-windows.ps1
   grep -q -- '--terminate' scripts/install-windows.ps1
-  grep -q -- '--terminate' scripts/bootstrap-windows.ps1
-  grep -q 'systemd=true' scripts/install.sh
-  grep -q 'systemd-sysv' scripts/install.sh
-  grep -q 'ps -p 1 -o comm=' scripts/install.sh
-  ! grep -q -- '--set-default-version' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
-  ! grep -q -- '--shutdown' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
+  grep -q 'systemd=true' scripts/install-windows.ps1
+  grep -q 'Running common Ubuntu install.sh' scripts/install-windows.ps1
+  grep -q 'HACO_BUNDLE_ROOT' scripts/install-windows.ps1
+  grep -q 'this package is for native Ubuntu' scripts/install-ubuntu.sh
+  grep -q 'HACO_BUNDLE_ROOT' scripts/install-ubuntu.sh
+  grep -q 'Hacocoon common Ubuntu installation complete' scripts/install.sh
+  ! grep -q 'WSL_DISTRO_NAME' scripts/install.sh
+  ! grep -q 'systemd=true' scripts/install.sh
+  ! grep -q 'hacocoon-login' scripts/install.sh
+  ! grep -q -- '--set-default-version' scripts/install-windows.ps1
+  ! grep -q -- '--shutdown' scripts/install-windows.ps1
 }
 
 run_systemd() {
@@ -70,7 +64,6 @@ run_systemd() {
   need cp
   need mktemp
   need systemd-analyze
-
   section "systemd packaging"
   local verify_root
   verify_root="$(mktemp -d)"
@@ -79,7 +72,6 @@ run_systemd() {
     mkdir -p "$verify_root/etc/systemd/system" "$verify_root/usr/bin" "$verify_root/bin"
     cp modules/plugin/oci/packaging/systemd/hacocoon-docker.service "$verify_root/etc/systemd/system/"
     cp modules/plugin/oci/packaging/systemd/hacocoon-docker.socket "$verify_root/etc/systemd/system/"
-
     local target
     for target in sysinit.target basic.target sockets.target network-online.target shutdown.target; do
       cat >"$verify_root/etc/systemd/system/$target" <<EOF
@@ -92,7 +84,6 @@ EOF
 [Unit]
 Description=local CI containerd stub
 DefaultDependencies=no
-
 [Service]
 ExecStart=/usr/bin/containerd
 EOF
@@ -100,10 +91,7 @@ EOF
     printf '#!/bin/sh\nexit 0\n' >"$verify_root/usr/bin/containerd"
     printf '#!/bin/sh\nexit 0\n' >"$verify_root/bin/kill"
     chmod 0755 "$verify_root/usr/bin/dockerd" "$verify_root/usr/bin/containerd" "$verify_root/bin/kill"
-
-    systemd-analyze verify --root="$verify_root" \
-      hacocoon-docker.socket \
-      hacocoon-docker.service
+    systemd-analyze verify --root="$verify_root" hacocoon-docker.socket hacocoon-docker.service
   )
 }
 
@@ -115,19 +103,21 @@ validate_release_artifacts() {
   local archive listing
   for archive in dist/haco_linux_amd64.tar.gz dist/haco_linux_arm64.tar.gz; do
     listing="$(tar -tzf "$archive")"
-    grep -Fx 'haco' <<<"$listing" >/dev/null
-    grep -Fx 'haco-controller' <<<"$listing" >/dev/null
-    grep -Fx 'haco-host' <<<"$listing" >/dev/null
-    grep -Fx 'haco-vscode' <<<"$listing" >/dev/null
-    grep -Fx 'haco-agent-host' <<<"$listing" >/dev/null
-    grep -Fx 'haco-notify' <<<"$listing" >/dev/null
-    grep -Fx 'haco-storage-helper' <<<"$listing" >/dev/null
+    for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper; do
+      grep -Fx "$binary" <<<"$listing" >/dev/null
+    done
   done
 
-  grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
-  grep -q 'haco_linux_arm64.tar.gz' dist/checksums.txt
-  grep -q 'install.sh' dist/checksums.txt
-  grep -q 'install-windows.ps1' dist/checksums.txt
+  rm -rf release-payload-test
+  python3 tools/package_installers.py --dist dist --output release-payload-test --version v0.0.0-test
+  (
+    cd release-payload-test
+    sha256sum -c checksums.txt
+    test -f hacocoon-windows-amd64.zip
+    test -f hacocoon-windows-arm64.zip
+    test -f hacocoon-ubuntu-amd64.tar.gz
+    test -f hacocoon-ubuntu-arm64.tar.gz
+  )
 }
 
 run_release_config() {
@@ -140,35 +130,26 @@ run_release_config() {
   need tar
   check_go
 
-  section "release-config: trust and provenance"
+  section "release-config: trust, provenance, and package contracts"
   bash tools/test_release_tag_trust.sh
   python3 tools/check_release_provenance.py
   bash tools/test_install_archive_safety.sh
+  python3 tools/test_installer_packages.py
 
   section "release-config: GoReleaser config"
   goreleaser check
 
   section "release-config: shell syntax"
-  bash -n \
-    scripts/install.sh \
-    tools/ci-local.sh \
-    tools/check_release_tag_trust.sh \
-    tools/test_release_tag_trust.sh \
-    tools/test_install_archive_safety.sh
+  bash -n scripts/install.sh scripts/install-ubuntu.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
 
-  section "release-config: Windows installer syntax and provenance"
+  section "release-config: Windows installer syntax"
   pwsh -NoLogo -NoProfile -NonInteractive -Command '
     $ErrorActionPreference = "Stop"
-    [scriptblock]::Create((Get-Content -Raw "scripts/bootstrap-windows.ps1")) | Out-Null
     [scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null
-    [scriptblock]::Create((Get-Content -Raw "tools/test_windows_installer_provenance.ps1")) | Out-Null
-    & "./tools/test_windows_installer_provenance.ps1"
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   '
 
-  section "release-config: WSL boundary"
-  validate_wsl_boundary
-
+  section "release-config: pre/main/post boundary"
+  validate_install_boundary
   run_systemd
 
   if [[ -e dist ]]; then
@@ -222,11 +203,7 @@ run_all() {
   run_e2e
 }
 
-if (( $# > 1 )); then
-  usage >&2
-  exit 2
-fi
-
+if (( $# > 1 )); then usage >&2; exit 2; fi
 case "${1:-all}" in
   all) run_all ;;
   docs) run_docs ;;
