@@ -5,6 +5,7 @@ REPOSITORY="SLktEx/Hacocoon"
 SIGNER_WORKFLOW="$REPOSITORY/.github/workflows/release.yml"
 SIGNER_SOURCE_REF="refs/heads/main"
 RELEASE_PREDICATE_TYPE="https://hacocoon.dev/attestations/release/v1"
+GITHUB_API_VERSION="2026-03-10"
 INSTALL_DIR="${HACO_INSTALL_DIR:-/usr/local/bin}"
 STORAGE_HELPER_DIR="${HACO_STORAGE_HELPER_INSTALL_DIR:-/usr/local/libexec/hacocoon}"
 STORAGE_HELPER_PATH="$STORAGE_HELPER_DIR/haco-storage-helper"
@@ -122,6 +123,79 @@ download_with_curl() {
   fi
 }
 
+download_public_attestation_bundles() {
+  digest="$1"
+  metadata="$tmpdir/attestations.json"
+  bundle_path="$tmpdir/attestations.jsonl"
+  bundle_tmp="$tmpdir/attestation-bundle.json"
+  api_url="https://api.github.com/repos/$REPOSITORY/attestations/sha256:$digest?per_page=100"
+
+  need curl
+  need grep
+  need sed
+  need cat
+
+  # GitHub's public attestation REST endpoint is intentionally usable without
+  # authentication for public repositories. The returned bundle URL is only a
+  # transport locator: the bundle is still cryptographically verified below.
+  if ! curl -fsSL --proto '=https' --tlsv1.2 \
+    -H 'Accept: application/vnd.github+json' \
+    -H "X-GitHub-Api-Version: $GITHUB_API_VERSION" \
+    -o "$metadata" "$api_url"; then
+    printf 'haco installer: failed to fetch public attestation metadata from GitHub\n' >&2
+    return 1
+  fi
+
+  bundle_urls="$(
+    grep -oE '"bundle_url"[[:space:]]*:[[:space:]]*"[^"]+"' "$metadata" 2>/dev/null |
+      sed -E 's/^"bundle_url"[[:space:]]*:[[:space:]]*"//; s/"$//' || true
+  )"
+  if [ -z "$bundle_urls" ]; then
+    printf 'haco installer: GitHub returned no public attestation bundles for sha256:%s\n' "$digest" >&2
+    return 1
+  fi
+
+  : > "$bundle_path"
+  if ! printf '%s\n' "$bundle_urls" | while IFS= read -r bundle_url; do
+    [ -n "$bundle_url" ] || continue
+    case "$bundle_url" in
+      https://*) ;;
+      *)
+        printf 'haco installer: refusing non-HTTPS public attestation bundle URL\n' >&2
+        exit 1
+        ;;
+    esac
+    case "$bundle_url" in
+      *\\*)
+        # Do not guess at JSON string unescaping in a security-sensitive path.
+        # GitHub currently returns ordinary HTTPS URLs. Unexpected escaping is
+        # rejected and therefore fails closed.
+        printf 'haco installer: refusing unexpectedly escaped attestation bundle URL\n' >&2
+        exit 1
+        ;;
+    esac
+
+    if ! curl -fsSL --proto '=https' --tlsv1.2 -o "$bundle_tmp" "$bundle_url"; then
+      printf 'haco installer: failed to download a public attestation bundle\n' >&2
+      exit 1
+    fi
+    [ -s "$bundle_tmp" ] || {
+      printf 'haco installer: downloaded an empty public attestation bundle\n' >&2
+      exit 1
+    }
+    cat "$bundle_tmp" >> "$bundle_path"
+    printf '\n' >> "$bundle_path"
+  done; then
+    return 1
+  fi
+
+  [ -s "$bundle_path" ] || {
+    printf 'haco installer: no usable public attestation bundles were downloaded\n' >&2
+    return 1
+  }
+  printf '%s\n' "$bundle_path"
+}
+
 verify_provenance() {
   if ! command -v gh >/dev/null 2>&1 || ! gh attestation verify --help >/dev/null 2>&1; then
     if [ "$REQUIRE_PROVENANCE" = "1" ]; then
@@ -131,30 +205,71 @@ verify_provenance() {
     return 0
   fi
 
-  if ! gh attestation verify "$tmpdir/$archive" \
-    --repo "$REPOSITORY" \
-    --signer-workflow "$SIGNER_WORKFLOW" \
-    --source-ref "$SIGNER_SOURCE_REF" \
-    --deny-self-hosted-runners >/dev/null; then
-    if [ "$REQUIRE_PROVENANCE" = "1" ]; then
-      die "trusted build provenance verification failed for $archive"
+  bundle_path=""
+  if ! has_authenticated_gh; then
+    bundle_path="$(download_public_attestation_bundles "$actual")" || {
+      if [ "$REQUIRE_PROVENANCE" = "1" ]; then
+        die "trusted provenance verification could not obtain public attestation bundles"
+      fi
+      warn "public attestation bundle retrieval failed, but HACO_REQUIRE_PROVENANCE=0 explicitly allows continuing"
+      return 0
+    }
+    printf 'Downloaded public GitHub attestation bundles without requiring a GitHub login.\n'
+  fi
+
+  if [ -n "$bundle_path" ]; then
+    if ! gh attestation verify "$tmpdir/$archive" \
+      --repo "$REPOSITORY" \
+      --bundle "$bundle_path" \
+      --signer-workflow "$SIGNER_WORKFLOW" \
+      --source-ref "$SIGNER_SOURCE_REF" \
+      --deny-self-hosted-runners >/dev/null; then
+      if [ "$REQUIRE_PROVENANCE" = "1" ]; then
+        die "trusted build provenance verification failed for $archive"
+      fi
+      warn "trusted build provenance verification failed, but HACO_REQUIRE_PROVENANCE=0 explicitly allows continuing"
+      return 0
     fi
-    warn "trusted build provenance verification failed, but HACO_REQUIRE_PROVENANCE=0 explicitly allows continuing"
-    return 0
+  else
+    if ! gh attestation verify "$tmpdir/$archive" \
+      --repo "$REPOSITORY" \
+      --signer-workflow "$SIGNER_WORKFLOW" \
+      --source-ref "$SIGNER_SOURCE_REF" \
+      --deny-self-hosted-runners >/dev/null; then
+      if [ "$REQUIRE_PROVENANCE" = "1" ]; then
+        die "trusted build provenance verification failed for $archive"
+      fi
+      warn "trusted build provenance verification failed, but HACO_REQUIRE_PROVENANCE=0 explicitly allows continuing"
+      return 0
+    fi
   fi
 
   printf 'Verified GitHub/Sigstore provenance for %s from trusted main release workflow.\n' "$archive"
 
-  binding_tags="$(
-    gh attestation verify "$tmpdir/$archive" \
-      --repo "$REPOSITORY" \
-      --signer-workflow "$SIGNER_WORKFLOW" \
-      --source-ref "$SIGNER_SOURCE_REF" \
-      --predicate-type "$RELEASE_PREDICATE_TYPE" \
-      --deny-self-hosted-runners \
-      --format json \
-      --jq '.[].verificationResult.statement.predicate.tag' 2>/dev/null || true
-  )"
+  if [ -n "$bundle_path" ]; then
+    binding_tags="$(
+      gh attestation verify "$tmpdir/$archive" \
+        --repo "$REPOSITORY" \
+        --bundle "$bundle_path" \
+        --signer-workflow "$SIGNER_WORKFLOW" \
+        --source-ref "$SIGNER_SOURCE_REF" \
+        --predicate-type "$RELEASE_PREDICATE_TYPE" \
+        --deny-self-hosted-runners \
+        --format json \
+        --jq '.[].verificationResult.statement.predicate.tag' 2>/dev/null || true
+    )"
+  else
+    binding_tags="$(
+      gh attestation verify "$tmpdir/$archive" \
+        --repo "$REPOSITORY" \
+        --signer-workflow "$SIGNER_WORKFLOW" \
+        --source-ref "$SIGNER_SOURCE_REF" \
+        --predicate-type "$RELEASE_PREDICATE_TYPE" \
+        --deny-self-hosted-runners \
+        --format json \
+        --jq '.[].verificationResult.statement.predicate.tag' 2>/dev/null || true
+    )"
+  fi
 
   if printf '%s\n' "$binding_tags" | grep -Fx "$VERSION" >/dev/null 2>&1; then
     printf 'Verified signed release binding for %s.\n' "$VERSION"
