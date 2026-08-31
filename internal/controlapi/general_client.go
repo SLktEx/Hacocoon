@@ -41,6 +41,9 @@ func (c *Client) RequestCapability(
 	request core.CapabilityRequest,
 	approve func(context.Context, core.ApprovalRequest) (bool, error),
 ) (core.CapabilityResult, error) {
+	if approve == nil {
+		return core.CapabilityResult{}, control.ErrInvalidArgument
+	}
 	conn, err := c.wire.OpenStream(ctx, MethodCapabilityRequest, capabilityPayload(request))
 	if err != nil {
 		return core.CapabilityResult{}, err
@@ -62,23 +65,20 @@ func (c *Client) RequestCapability(
 			if frame.Approval == nil || frame.Result != nil || frame.Error != nil {
 				return core.CapabilityResult{}, fmt.Errorf("invalid capability approval frame: %w", control.ErrProtocol)
 			}
-			approved := false
-			if approve != nil {
-				approved, err = approve(ctx, frame.Approval.coreRequest())
-				if err != nil {
-					return core.CapabilityResult{}, err
-				}
+			approved, err := approve(ctx, frame.Approval.coreRequest())
+			if err != nil {
+				return core.CapabilityResult{}, err
 			}
 			if err := encoder.Encode(capabilityClientFrame{Type: capabilityFrameApprovalResponse, Approved: approved}); err != nil {
 				return core.CapabilityResult{}, err
 			}
 		case capabilityFrameResult:
-			if frame.Approval != nil || frame.Result == nil {
+			if frame.Result == nil || frame.Approval != nil {
 				return core.CapabilityResult{}, fmt.Errorf("invalid capability result frame: %w", control.ErrProtocol)
 			}
 			return *frame.Result, responseError(frame.Error)
 		default:
-			return core.CapabilityResult{}, fmt.Errorf("unknown capability frame %q: %w", frame.Type, control.ErrProtocol)
+			return core.CapabilityResult{}, fmt.Errorf("unexpected capability server frame %q: %w", frame.Type, control.ErrProtocol)
 		}
 	}
 }
@@ -107,7 +107,7 @@ func (c *Client) StreamEvents(ctx context.Context, sinceOffset int64, emit func(
 			return nextOffset, fmt.Errorf("events stream returned negative offset: %w", control.ErrProtocol)
 		}
 		if frame.Error != nil {
-			return frame.NextOffset, control.NewStatusError(frame.Error.Code, frame.Error.Message)
+			return frame.NextOffset, responseError(frame.Error)
 		}
 		if frame.Event != nil {
 			if frame.Done {
@@ -132,9 +132,22 @@ func (c *Client) StreamEvents(ctx context.Context, sinceOffset int64, emit func(
 	}
 }
 
+type responseExitError struct {
+	err      error
+	exitCode int
+}
+
+func (e *responseExitError) Error() string { return e.err.Error() }
+func (e *responseExitError) Unwrap() error { return e.err }
+func (e *responseExitError) ExitCode() int { return e.exitCode }
+
 func responseError(status *responseStatus) error {
 	if status == nil {
 		return nil
 	}
-	return control.NewStatusError(status.Code, status.Message)
+	err := control.NewStatusError(status.Code, status.Message)
+	if status.ExitCode > 0 {
+		return &responseExitError{err: err, exitCode: status.ExitCode}
+	}
+	return err
 }
