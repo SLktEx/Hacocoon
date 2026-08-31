@@ -62,12 +62,22 @@ jobs:
           check-latest: true
           cache: false
       - name: Validate real storage CLI E2E helpers
-        run: bash -n tools/ci-incus-core.sh tools/ci-storage-helper.sh tools/ci-storage-cli.sh test/e2e/egress.sh
-      - name: Prepare real Incus substrate
+        run: bash -n tools/ci-incus.sh tools/ci-storage-helper.sh tools/ci-storage-cli.sh test/e2e/egress.sh
+      - name: Prepare supported Incus 7 LTS substrate
         run: |
           printf 'INCUS_CONF=%s/haco-incus-client\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'HACO_CI_INCUS_CONF=%s/haco-incus-client\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
-          bash tools/ci-incus-core.sh setup
+          bash tools/ci-incus.sh setup
+      - name: Allow leased workspace owner in Incus root idmap
+        run: |
+          uid="$(id -u)"
+          gid="$(id -g)"
+          if ! awk -F: -v id="$uid" '$1 == "root" && id >= $2 && id - $2 < $3 { found=1 } END { exit found ? 0 : 1 }' /etc/subuid; then
+            printf 'root:%s:1\n' "$uid" | sudo tee -a /etc/subuid >/dev/null
+          fi
+          if ! awk -F: -v id="$gid" '$1 == "root" && id >= $2 && id - $2 < $3 { found=1 } END { exit found ? 0 : 1 }' /etc/subgid; then
+            printf 'root:%s:1\n' "$gid" | sudo tee -a /etc/subgid >/dev/null
+          fi
       - name: Install real Btrfs privilege helper
         run: bash tools/ci-storage-helper.sh setup
       - name: Prepare normal-user haco CLI acceptance
@@ -83,14 +93,14 @@ jobs:
         if: failure()
         run: |
           bash tools/ci-storage-cli.sh diagnostics
-          bash tools/ci-incus-core.sh diagnostics
+          bash tools/ci-incus.sh diagnostics
           bash tools/ci-storage-helper.sh diagnostics
       - name: Clean up storage CLI resources
         if: always()
         run: bash tools/ci-storage-cli.sh cleanup
       - name: Clean up Incus resources
         if: always()
-        run: bash tools/ci-incus-core.sh cleanup
+        run: bash tools/ci-incus.sh cleanup-core
       - name: Clean up storage helper resources
         if: always()
         run: bash tools/ci-storage-helper.sh cleanup
