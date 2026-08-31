@@ -327,10 +327,10 @@ function Configure-WslPost([string]$Name, [string]$LoginUser) {
     if ($probe.ExitCode -ne 0) { throw "Failed to write the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "chmod", "0440", "/etc/sudoers.d/hacocoon-login")
     if ($probe.ExitCode -ne 0) { throw "Failed to protect the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "visudo", "-cf", "/etc/sudoers.d/hacocoon-login")
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", "/etc/sudoers.d/hacocoon-login")
     if ($probe.ExitCode -ne 0) { throw "Failed to validate the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
 
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "usermod", "-s", $LoginShell, $LoginUser)
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/usermod", "-s", $LoginShell, $LoginUser)
     if ($probe.ExitCode -ne 0) { throw "Failed to configure Hacocoon WSL login shell for '$LoginUser'." }
 
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "getent", "passwd", $LoginUser)
