@@ -172,7 +172,7 @@ jobs:
           $pid1 = (& wsl.exe --distribution $instance --user root --exec ps -p 1 -o comm= | Out-String).Trim()
           if ($LASTEXITCODE -ne 0 -or $pid1 -ne "systemd") { throw "systemd is not PID 1." }
 
-          $osRelease = (& wsl.exe --distribution $instance --user root --exec cat /etc/os-release | Out-String)
+          $osRelease = (& wsl.exe --distribution $instance --user root --exec cat /etc/os-release | Out-String) -replace "`r", ""
           if ($LASTEXITCODE -ne 0 -or $osRelease -notmatch '(?m)^ID=ubuntu$') { throw "Installed WSL distribution is not Ubuntu." }
           $versionMatch = [regex]::Match($osRelease, '(?m)^VERSION_ID="?([^"\r\n]+)"?$')
           if (-not $versionMatch.Success) { throw "Unable to read installed Ubuntu VERSION_ID." }
