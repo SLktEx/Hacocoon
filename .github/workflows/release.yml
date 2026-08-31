@@ -103,9 +103,9 @@ jobs:
         working-directory: source
         run: go vet ./...
 
-      - name: Validate Linux installers
+      - name: Validate Linux installer
         working-directory: source
-        run: bash -n scripts/install.sh scripts/bootstrap-linux.sh
+        run: bash -n scripts/install.sh
 
       - name: Validate Windows installers
         working-directory: source
@@ -139,7 +139,6 @@ jobs:
           test -f source/dist/haco_linux_arm64.tar.gz
           test -f source/dist/checksums.txt
           test -f source/scripts/install.sh
-          test -f source/scripts/bootstrap-linux.sh
           test -f source/scripts/install-windows.bat
           test -f source/scripts/install-windows.ps1
           test -f source/tools/package_windows_installer.py
@@ -150,7 +149,6 @@ jobs:
           cp source/dist/haco_linux_arm64.tar.gz release-payload/
           cp source/dist/checksums.txt release-payload/
           cp source/scripts/install.sh release-payload/
-          cp source/scripts/bootstrap-linux.sh release-payload/
           cp source/scripts/install-windows.ps1 release-payload/
           python3 source/tools/package_windows_installer.py release-payload/hacocoon-windows-installer.zip
           (
@@ -195,14 +193,13 @@ jobs:
           shopt -s nullglob
           files=(release-payload/*)
           archives=(release-payload/haco_linux_*.tar.gz)
-          (( ${#files[@]} == 7 )) || { printf 'Unexpected release payload file count: %s\n' "${#files[@]}" >&2; exit 1; }
+          (( ${#files[@]} == 6 )) || { printf 'Unexpected release payload file count: %s\n' "${#files[@]}" >&2; exit 1; }
           (( ${#archives[@]} == 2 )) || { printf 'Unexpected Linux archive count: %s\n' "${#archives[@]}" >&2; exit 1; }
           test -f release-payload/haco_linux_amd64.tar.gz
           test -f release-payload/haco_linux_arm64.tar.gz
           test -f release-payload/hacocoon-windows-installer.zip
           test -f release-payload/checksums.txt
           test -f release-payload/install.sh
-          test -f release-payload/bootstrap-linux.sh
           test -f release-payload/install-windows.ps1
 
       - name: Revalidate release authorization immediately before signing and publication
@@ -300,7 +297,6 @@ jobs:
             release-payload/hacocoon-windows-installer.zip
             release-payload/checksums.txt
             release-payload/install.sh
-            release-payload/bootstrap-linux.sh
             release-payload/install-windows.ps1
 
       - name: Attest public release tag and commit binding
@@ -313,7 +309,6 @@ jobs:
             release-payload/hacocoon-windows-installer.zip
             release-payload/checksums.txt
             release-payload/install.sh
-            release-payload/bootstrap-linux.sh
             release-payload/install-windows.ps1
           predicate-type: https://hacocoon.dev/attestations/release/v1
           predicate-path: release-binding.json
@@ -348,7 +343,6 @@ jobs:
             release-payload/hacocoon-windows-installer.zip \
             release-payload/checksums.txt \
             release-payload/install.sh \
-            release-payload/bootstrap-linux.sh \
             release-payload/install-windows.ps1 \
             "${args[@]}"
 
