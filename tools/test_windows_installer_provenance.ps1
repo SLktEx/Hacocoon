@@ -7,7 +7,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("hacocoon-windows-provenance-test-" + [guid]::NewGuid().ToString("N"))
 $bin = Join-Path $tempRoot "bin"
 New-Item -ItemType Directory -Path $bin | Out-Null
-$asset = Join-Path $tempRoot "bootstrap-wsl.sh"
+$asset = Join-Path $tempRoot "bootstrap-linux.sh"
 Set-Content -LiteralPath $asset -Value "echo fixture" -NoNewline
 
 $ghPath = Join-Path $bin "gh"
