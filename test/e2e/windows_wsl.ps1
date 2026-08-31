@@ -116,13 +116,19 @@ try {
     Invoke-WslChecked @("--terminate", $Distro)
     Start-Sleep -Seconds 2
 
-    $pid1 = Get-WslValue @("--distribution", $Distro, "--user", "root", "--", "sh", "-lc", "ps -p 1 -o comm=")
+    # Avoid a shell wrapper for scalar probes. Besides being simpler, this
+    # prevents Windows/WSL argument quoting from eating Linux '$VAR' expansion.
+    $pid1 = Get-WslValue @("--distribution", $Distro, "--user", "root", "--", "ps", "-p", "1", "-o", "comm=")
     if ($pid1 -ne "systemd") {
         throw "systemd is not PID 1 inside the GitHub-hosted WSL2 distro (got '$pid1')"
     }
 
-    $versionCommand = '. /etc/os-release; printf "%s\\n" "$VERSION_ID"'
-    $version = Get-WslValue @("--distribution", $Distro, "--user", "root", "--", "sh", "-lc", $versionCommand)
+    $osRelease = Get-WslText @("--distribution", $Distro, "--user", "root", "--", "cat", "/etc/os-release")
+    $versionMatch = [regex]::Match($osRelease, '(?m)^VERSION_ID="?([^"\r\n]+)"?\s*$')
+    if (-not $versionMatch.Success) {
+        throw "could not determine Ubuntu version inside WSL: $osRelease"
+    }
+    $version = $versionMatch.Groups[1].Value
     if ($version -ne "26.04") {
         throw "expected Ubuntu 26.04 inside WSL, got '$version'"
     }
