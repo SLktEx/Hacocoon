@@ -41,7 +41,10 @@ checks = {
         "release-payload/haco_linux_amd64.tar.gz",
         "release-payload/haco_linux_arm64.tar.gz",
         "release-payload/hacocoon-windows-installer.zip",
+        "release-payload/hacocoon-ubuntu-installer.tar.gz",
+        "release-payload/install-ubuntu.sh",
         "python3 source/tools/package_windows_installer.py",
+        "python3 source/tools/package_ubuntu_installer.py",
         "release-payload/checksums.txt",
         "--draft",
         "gh release edit",
@@ -173,5 +176,14 @@ windows_launcher = subprocess.run(
 if windows_launcher.returncode != 0:
     print("RELEASE PROVENANCE CONTRACT FAILED: Windows installer launcher regression test failed", file=sys.stderr)
     sys.exit(windows_launcher.returncode)
+
+ubuntu_launcher = subprocess.run(
+    [sys.executable, str(root / "tools/test_ubuntu_installer_launcher.py")],
+    cwd=root,
+    check=False,
+)
+if ubuntu_launcher.returncode != 0:
+    print("RELEASE PROVENANCE CONTRACT FAILED: Ubuntu installer package regression test failed", file=sys.stderr)
+    sys.exit(ubuntu_launcher.returncode)
 
 print("RELEASE PROVENANCE CONTRACT OK")
