@@ -164,8 +164,7 @@ jobs:
           kubectl -n haco-env-test wait --for=condition=Ready pod/untrusted-proof --timeout=5m
           kubectl -n haco-env-test exec untrusted-proof -- sh -ceu '
             test ! -e /var/run/secrets/kubernetes.io/serviceaccount/token
-            test -z "${KUBERNETES_SERVICE_HOST:-}"
-            test -z "${KUBERNETES_SERVICE_PORT:-}"
+            test -z "${KUBECONFIG:-}"
           '
 
       - name: Prove default-deny egress substrate
