@@ -2,7 +2,7 @@
   "name": "hacocoon-agent-workspaces",
   "displayName": "Hacocoon Agent Workspaces",
   "description": "Create isolated Hacocoon worktrees and Environments for VS Code coding-agent sessions.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "engines": {
     "vscode": "^1.102.0"
@@ -11,7 +11,10 @@
   "extensionKind": ["ui"],
   "activationEvents": [
     "onCommand:hacocoon.newAgentWorkspace",
-    "onCommand:hacocoon.releaseAgentWorkspace"
+    "onCommand:hacocoon.releaseAgentWorkspace",
+    "onLanguageModelTool:hacocoon_createAgentWorkspace",
+    "onLanguageModelTool:hacocoon_listAgentWorkspaces",
+    "onLanguageModelTool:hacocoon_releaseAgentWorkspace"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -23,6 +26,57 @@
       {
         "command": "hacocoon.releaseAgentWorkspace",
         "title": "Hacocoon: Release Agent Workspace"
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "hacocoon_createAgentWorkspace",
+        "displayName": "Create Hacocoon Agent Workspace",
+        "modelDescription": "Create a new linked Git worktree and isolated Hacocoon Environment for an independently writable coding-agent task. Use this when another agent needs its own OS/runtime-isolated workspace. This provisions the workspace only; it does not copy model-provider credentials or start a native VS Code Agent Host session.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "branch": {
+              "type": "string",
+              "description": "New Git branch name for the isolated agent workspace."
+            },
+            "open": {
+              "type": "boolean",
+              "description": "Open the resulting Hacocoon Remote-SSH workspace in a new VS Code window. Defaults to false for batch orchestration."
+            }
+          },
+          "required": ["branch"],
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "hacocoon_listAgentWorkspaces",
+        "displayName": "List Hacocoon Agent Workspaces",
+        "modelDescription": "List Hacocoon agent workspaces created by this VS Code extension. Returns safe orchestration metadata only and omits internal session identities and credentials.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "hacocoon_releaseAgentWorkspace",
+        "displayName": "Release Hacocoon Agent Workspace",
+        "modelDescription": "Release one VS Code-owned Hacocoon agent workspace by exact Git branch name. The Environment is released first; dirty worktrees are preserved and Git branches are never deleted automatically.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "branch": {
+              "type": "string",
+              "description": "Exact Git branch name of the VS Code-owned Hacocoon agent workspace to release."
+            }
+          },
+          "required": ["branch"],
+          "additionalProperties": false
+        }
       }
     ],
     "configuration": {

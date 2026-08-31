@@ -3,6 +3,7 @@
 const os = require('node:os');
 const vscode = require('vscode');
 const agent = require('./agent-workspace');
+const tools = require('./tool-contract');
 
 function getConfig() {
   const config = vscode.workspace.getConfiguration('hacocoon.agentWorkspace');
@@ -81,16 +82,93 @@ function runnerConfigForRecord(record) {
   return {};
 }
 
-async function newAgentWorkspace(context, output) {
+function storedRecords(context) {
+  return agent.normalizeRecords(context.globalState.get(agent.stateKey, []));
+}
+
+async function storeRecords(context, records) {
+  await context.globalState.update(agent.stateKey, records);
+}
+
+async function provisionAgentWorkspace(context, output, branch, { openFolder = false, notify = false } = {}) {
   const config = getConfig();
-  let executionContext;
+  const safeBranch = tools.normalizeToolBranch(branch);
+  const executionContext = await resolveExecutionContext(config);
+  const record = await agent.createAgentWorkspace({
+    workspacePath: executionContext.workspacePath,
+    branch: safeBranch,
+    configuredRoot: config.worktreeRoot,
+    gitExecutable: config.gitExecutable,
+    adapterExecutable: config.adapterExecutable,
+    runnerConfig: executionContext.runnerConfig
+  });
+  record.execution = executionContext.execution;
+
+  const records = storedRecords(context);
+  records.push(record);
+  await storeRecords(context, records);
+  output.appendLine(`created ${record.environment} for ${record.branch} at ${record.worktreePath}`);
+
+  if (openFolder) {
+    const folderUri = vscode.Uri.parse(record.folderUri, true);
+    await vscode.commands.executeCommand('vscode.openFolder', folderUri, { forceNewWindow: true });
+  }
+  if (notify) {
+    void vscode.window.showInformationMessage(
+      `Hacocoon agent workspace ready: ${record.branch}. Start Copilot, Claude, Codex, or another Agent Host from the Agents window.`
+    );
+  }
+  return record;
+}
+
+async function releaseWorkspaceRecord(context, output, record, { notify = false } = {}) {
+  const records = storedRecords(context);
+  const config = getConfig();
+  const runnerConfig = runnerConfigForRecord(record);
+  let result;
   try {
-    executionContext = await resolveExecutionContext(config);
+    if (record.released) {
+      result = await agent.removeOwnedWorktree(record, {
+        gitExecutable: config.gitExecutable,
+        runnerConfig
+      });
+    } else {
+      result = await agent.releaseAgentWorkspace(record, {
+        gitExecutable: config.gitExecutable,
+        adapterExecutable: config.adapterExecutable,
+        runnerConfig
+      });
+    }
   } catch (error) {
-    void vscode.window.showErrorMessage(`Hacocoon: ${error.message}`);
-    return;
+    const next = error.releasedRecord || record;
+    const updated = records.map((item) => item.id === next.id ? next : item);
+    await storeRecords(context, updated);
+    output.appendLine(`release failed: ${error.message}`);
+    throw error;
   }
 
+  if (result.reason === 'dirty') {
+    const updated = records.map((item) => item.id === result.record.id ? result.record : item);
+    await storeRecords(context, updated);
+    output.appendLine(`released ${result.record.environment}; kept dirty worktree ${result.record.worktreePath}`);
+    if (notify) {
+      void vscode.window.showWarningMessage(
+        `Hacocoon Environment released, but the worktree was kept because it has uncommitted changes: ${result.record.worktreePath}`
+      );
+    }
+    return result;
+  }
+
+  const remaining = records.filter((item) => item.id !== result.record.id);
+  await storeRecords(context, remaining);
+  output.appendLine(`released ${result.record.environment}; removed worktree ${result.record.worktreePath}`);
+  if (notify) {
+    void vscode.window.showInformationMessage(`Hacocoon agent workspace released: ${result.record.branch}`);
+  }
+  return result;
+}
+
+async function newAgentWorkspace(context, output) {
   const branch = await vscode.window.showInputBox({
     title: 'Hacocoon: New Agent Workspace',
     prompt: 'New Git branch for this agent',
@@ -105,26 +183,7 @@ async function newAgentWorkspace(context, output) {
     cancellable: false
   }, async () => {
     try {
-      const record = await agent.createAgentWorkspace({
-        workspacePath: executionContext.workspacePath,
-        branch,
-        configuredRoot: config.worktreeRoot,
-        gitExecutable: config.gitExecutable,
-        adapterExecutable: config.adapterExecutable,
-        runnerConfig: executionContext.runnerConfig
-      });
-      record.execution = executionContext.execution;
-
-      const records = agent.normalizeRecords(context.globalState.get(agent.stateKey, []));
-      records.push(record);
-      await context.globalState.update(agent.stateKey, records);
-      output.appendLine(`created ${record.environment} for ${record.branch} at ${record.worktreePath}`);
-
-      const folderUri = vscode.Uri.parse(record.folderUri, true);
-      await vscode.commands.executeCommand('vscode.openFolder', folderUri, { forceNewWindow: true });
-      void vscode.window.showInformationMessage(
-        `Hacocoon agent workspace ready: ${record.branch}. Start Copilot, Claude, or Codex from the Agents window.`
-      );
+      await provisionAgentWorkspace(context, output, branch, { openFolder: true, notify: true });
     } catch (error) {
       output.appendLine(`create failed: ${error.message}`);
       if (error.cleanupError) output.appendLine(`cleanup failed: ${error.cleanupError.message}`);
@@ -142,7 +201,7 @@ function recordLabel(record) {
 }
 
 async function releaseAgentWorkspace(context, output) {
-  const records = agent.normalizeRecords(context.globalState.get(agent.stateKey, []));
+  const records = storedRecords(context);
   if (records.length === 0) {
     void vscode.window.showInformationMessage('Hacocoon: no VS Code-created agent workspaces are recorded.');
     return;
@@ -156,51 +215,96 @@ async function releaseAgentWorkspace(context, output) {
   });
   if (!selected) return;
 
-  const config = getConfig();
   await vscode.window.withProgress({
     location: vscode.ProgressLocation.Notification,
     title: `Releasing Hacocoon agent workspace ${selected.record.branch}`,
     cancellable: false
   }, async () => {
-    let result;
-    const runnerConfig = runnerConfigForRecord(selected.record);
     try {
-      if (selected.record.released) {
-        result = await agent.removeOwnedWorktree(selected.record, {
-          gitExecutable: config.gitExecutable,
-          runnerConfig
-        });
-      } else {
-        result = await agent.releaseAgentWorkspace(selected.record, {
-          gitExecutable: config.gitExecutable,
-          adapterExecutable: config.adapterExecutable,
-          runnerConfig
-        });
-      }
+      await releaseWorkspaceRecord(context, output, selected.record, { notify: true });
     } catch (error) {
-      const next = error.releasedRecord || selected.record;
-      const updated = records.map((record) => record.id === next.id ? next : record);
-      await context.globalState.update(agent.stateKey, updated);
-      output.appendLine(`release failed: ${error.message}`);
       void vscode.window.showErrorMessage(`Hacocoon agent workspace release failed: ${error.message}`);
-      return;
     }
-
-    if (result.reason === 'dirty') {
-      const updated = records.map((record) => record.id === result.record.id ? result.record : record);
-      await context.globalState.update(agent.stateKey, updated);
-      output.appendLine(`released ${result.record.environment}; kept dirty worktree ${result.record.worktreePath}`);
-      void vscode.window.showWarningMessage(
-        `Hacocoon Environment released, but the worktree was kept because it has uncommitted changes: ${result.record.worktreePath}`
-      );
-      return;
-    }
-
-    const remaining = records.filter((record) => record.id !== result.record.id);
-    await context.globalState.update(agent.stateKey, remaining);
-    output.appendLine(`released ${result.record.environment}; removed worktree ${result.record.worktreePath}`);
-    void vscode.window.showInformationMessage(`Hacocoon agent workspace released: ${result.record.branch}`);
   });
+}
+
+function textToolResult(text) {
+  return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(text)]);
+}
+
+function createWorkspaceTool(context, output) {
+  return {
+    prepareInvocation(options) {
+      const branch = tools.normalizeToolBranch(options && options.input && options.input.branch);
+      return {
+        invocationMessage: `Creating isolated Hacocoon workspace for ${branch}`,
+        confirmationMessages: {
+          title: 'Create Hacocoon agent workspace?',
+          message: `Create a linked Git worktree and isolated Hacocoon Environment for ${branch}. Provider credentials are not copied into the Environment.`
+        }
+      };
+    },
+    async invoke(options) {
+      try {
+        const input = options && options.input ? options.input : {};
+        const branch = tools.normalizeToolBranch(input.branch);
+        const openFolder = tools.normalizeOpenFlag(input.open);
+        const record = await provisionAgentWorkspace(context, output, branch, { openFolder, notify: false });
+        return textToolResult(tools.toolResultEnvelope('create', record, {
+          opened: openFolder,
+          nativeAgentSessionStarted: false
+        }));
+      } catch (error) {
+        throw tools.modelSafeError(error);
+      }
+    }
+  };
+}
+
+function listWorkspacesTool(context) {
+  return {
+    async invoke() {
+      return textToolResult(tools.listToolResult(storedRecords(context)));
+    }
+  };
+}
+
+function releaseWorkspaceTool(context, output) {
+  return {
+    prepareInvocation(options) {
+      const branch = tools.normalizeToolBranch(options && options.input && options.input.branch);
+      return {
+        invocationMessage: `Releasing Hacocoon workspace for ${branch}`,
+        confirmationMessages: {
+          title: 'Release Hacocoon agent workspace?',
+          message: `Release the Hacocoon Environment for ${branch}. A dirty worktree is preserved and the Git branch is never deleted automatically.`
+        }
+      };
+    },
+    async invoke(options) {
+      try {
+        const branch = tools.normalizeToolBranch(options && options.input && options.input.branch);
+        const record = tools.selectOwnedRecordByBranch(storedRecords(context), branch);
+        const result = await releaseWorkspaceRecord(context, output, record, { notify: false });
+        return textToolResult(tools.toolResultEnvelope('release', result.record, {
+          worktreeRemoved: Boolean(result.removed),
+          reason: result.reason
+        }));
+      } catch (error) {
+        throw tools.modelSafeError(error);
+      }
+    }
+  };
+}
+
+function registerLanguageModelTools(context, output) {
+  if (!vscode.lm || typeof vscode.lm.registerTool !== 'function') {
+    output.appendLine('VS Code Language Model Tool API is unavailable; Hacocoon agent tools were not registered.');
+    return;
+  }
+  context.subscriptions.push(vscode.lm.registerTool('hacocoon_createAgentWorkspace', createWorkspaceTool(context, output)));
+  context.subscriptions.push(vscode.lm.registerTool('hacocoon_listAgentWorkspaces', listWorkspacesTool(context)));
+  context.subscriptions.push(vscode.lm.registerTool('hacocoon_releaseAgentWorkspace', releaseWorkspaceTool(context, output)));
 }
 
 function activate(context) {
@@ -208,6 +312,7 @@ function activate(context) {
   context.subscriptions.push(output);
   context.subscriptions.push(vscode.commands.registerCommand('hacocoon.newAgentWorkspace', () => newAgentWorkspace(context, output)));
   context.subscriptions.push(vscode.commands.registerCommand('hacocoon.releaseAgentWorkspace', () => releaseAgentWorkspace(context, output)));
+  registerLanguageModelTools(context, output);
 }
 
 function deactivate() {}
@@ -219,5 +324,12 @@ module.exports = {
   validateDistroName,
   resolveExecutionContext,
   runnerConfigForRecord,
-  recordLabel
+  storedRecords,
+  provisionAgentWorkspace,
+  releaseWorkspaceRecord,
+  recordLabel,
+  createWorkspaceTool,
+  listWorkspacesTool,
+  releaseWorkspaceTool,
+  registerLanguageModelTools
 };

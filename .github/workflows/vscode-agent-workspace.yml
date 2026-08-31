@@ -26,7 +26,10 @@ jobs:
       - name: Check VS Code agent workspace client syntax
         run: |
           node --check clients/vscode-agent-workspace/agent-workspace.js
+          node --check clients/vscode-agent-workspace/tool-contract.js
           node --check clients/vscode-agent-workspace/extension.js
           node --check test/js/agent_workspace_client.test.js
+          node --check test/js/agent_workspace_tools.test.js
+          node --check test/js/agent_workspace_tool_security.test.js
       - name: Test VS Code agent workspace client
-        run: node --test test/js/agent_workspace_client.test.js
+        run: node --test test/js/agent_workspace_client.test.js test/js/agent_workspace_tools.test.js test/js/agent_workspace_tool_security.test.js
