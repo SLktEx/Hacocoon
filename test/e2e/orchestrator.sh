@@ -221,15 +221,28 @@ case "$command_name" in
       device)
         case "${2:-}" in
           add)
-            instance="${3:-}"
-            shift 4
-            source_path=''
-            for arg in "$@"; do
-              case "$arg" in source=*) source_path="${arg#source=}" ;; esac
-            done
-            [ -n "$source_path" ] || exit 2
-            printf '%s\n' "$source_path" > "$state/workspace-$instance"
-            exit 0
+            instance="${3:-}"; device="${4:-}"; kind="${5:-}"
+            case "$device:$kind" in
+              eth0:nic)
+                network=''
+                for arg in "$@"; do
+                  case "$arg" in network=*) network="${arg#network=}" ;; esac
+                done
+                [ "$network" = 'haco-sandbox0' ] || exit 2
+                : > "$state/nic-$instance"
+                exit 0
+                ;;
+              workspace:disk)
+                source_path=''
+                for arg in "$@"; do
+                  case "$arg" in source=*) source_path="${arg#source=}" ;; esac
+                done
+                [ -n "$source_path" ] || exit 2
+                printf '%s\n' "$source_path" > "$state/workspace-$instance"
+                exit 0
+                ;;
+              *) exit 2 ;;
+            esac
             ;;
           set)
             instance="${3:-}"; device="${4:-}"; assignment="${5:-}"
@@ -269,7 +282,7 @@ case "$command_name" in
     ;;
   delete)
     instance="${1:-}"
-    rm -f "$state/instance-$instance" "$state/workspace-$instance" "$state"/config-"$instance"-* 2>/dev/null || true
+    rm -f "$state/instance-$instance" "$state/workspace-$instance" "$state/nic-$instance" "$state"/config-"$instance"-* 2>/dev/null || true
     ;;
   exec)
     instance="${1:-}"
@@ -334,7 +347,12 @@ PY
 grep -Fq 'image info images:custom-moving --format json' "$HACO_FAKE_INCUS_LOG"
 grep -Fq 'storage create haco-local-default btrfs source=' "$HACO_FAKE_INCUS_LOG"
 grep -Fq 'init images:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb haco-base-demo' "$HACO_FAKE_INCUS_LOG"
-grep -Fq -- '--profile haco-sandbox --storage haco-local-default' "$HACO_FAKE_INCUS_LOG"
+grep -Fq -- '--no-profiles --storage haco-local-default' "$HACO_FAKE_INCUS_LOG"
+grep -Fq 'config device add haco-base-demo eth0 nic name=eth0 network=haco-sandbox0' "$HACO_FAKE_INCUS_LOG"
+if grep -Fq -- '--profile haco-sandbox' "$HACO_FAKE_INCUS_LOG"; then
+  echo 'managed local orchestration unexpectedly inherited the sandbox profile' >&2
+  exit 1
+fi
 if grep -Fq 'profile show default --project default --format json' "$HACO_FAKE_INCUS_LOG"; then
   echo 'managed local orchestration unexpectedly consulted the Incus default root pool' >&2
   exit 1
