@@ -342,14 +342,41 @@ install_storage_helper() {
 }
 
 prepare_default_haco_root() {
-  if [ -n "${HACO_ROOT:-}" ] || [ -e "$DEFAULT_HACO_ROOT" ]; then
+  if [ -n "${HACO_ROOT:-}" ]; then
     return 0
   fi
-  uid="$(id -u)"
-  gid="$(id -g)"
-  $SUDO mkdir -p "$DEFAULT_HACO_ROOT"
-  $SUDO chown "$uid:$gid" "$DEFAULT_HACO_ROOT"
-  $SUDO chmod 0700 "$DEFAULT_HACO_ROOT"
+
+  if [ "$BINARIES_ONLY" = "1" ]; then
+    if [ -e "$DEFAULT_HACO_ROOT" ]; then
+      return 0
+    fi
+    uid="$(id -u)"
+    gid="$(id -g)"
+    $SUDO mkdir -p "$DEFAULT_HACO_ROOT"
+    $SUDO chown "$uid:$gid" "$DEFAULT_HACO_ROOT"
+    $SUDO chmod 0700 "$DEFAULT_HACO_ROOT"
+    return 0
+  fi
+
+  # Full Physical Host setup immediately reconciles haco-host through sudo and
+  # the system controller also runs as root with this same state root. Keep the
+  # default Physical Host state directory under that root authority. An empty
+  # directory left by an older installer can be adopted safely; populated
+  # non-root state is never silently taken over.
+  if [ -e "$DEFAULT_HACO_ROOT" ]; then
+    [ -d "$DEFAULT_HACO_ROOT" ] && [ ! -L "$DEFAULT_HACO_ROOT" ] ||
+      die "$DEFAULT_HACO_ROOT must be a real directory"
+    owner="$($SUDO stat -Lc '%u' "$DEFAULT_HACO_ROOT")"
+    if [ "$owner" != "0" ]; then
+      if $SUDO find "$DEFAULT_HACO_ROOT" -mindepth 1 -print -quit | grep -q .; then
+        die "refusing to take over populated non-root Hacocoon state at $DEFAULT_HACO_ROOT"
+      fi
+      $SUDO chown root:root "$DEFAULT_HACO_ROOT"
+    fi
+    $SUDO chmod 0700 "$DEFAULT_HACO_ROOT"
+  else
+    $SUDO install -d -o root -g root -m 0700 "$DEFAULT_HACO_ROOT"
+  fi
 }
 
 stage_release_archive() {
