@@ -70,6 +70,7 @@ jobs:
         with:
           ref: ${{ steps.trust.outputs.release_sha }}
           fetch-depth: 1
+          fetch-tags: true
           persist-credentials: false
           path: source
 
