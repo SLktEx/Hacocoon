@@ -80,7 +80,7 @@ func TestManagedSSHProvisionPinsAPTToManagedIPv4Proxy(t *testing.T) {
 		`Acquire::http::Proxy=$proxy_http`,
 		`Acquire::https::Proxy=$proxy_https`,
 		`ip -4 route get "$proxy_host"`,
-		`route_attempts -ge 60`,
+		`"$route_attempts" -ge 60`,
 		`managed SSH bootstrap timed out waiting for IPv4 route to Hacocoon egress proxy`,
 		`managed SSH bootstrap requires the Hacocoon egress proxy environment`,
 	} {
