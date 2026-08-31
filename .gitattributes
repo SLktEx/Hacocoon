@@ -1,0 +1,6 @@
+# Shell scripts are executed inside Linux/WSL even when checked out on Windows.
+*.sh text eol=lf
+
+# Keep Windows-native scripts in their native line-ending convention.
+*.bat text eol=crlf
+*.ps1 text eol=crlf

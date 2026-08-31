@@ -11,7 +11,7 @@ $asset = Join-Path $tempRoot "bootstrap-wsl.sh"
 Set-Content -LiteralPath $asset -Value "echo fixture" -NoNewline
 
 $ghPath = Join-Path $bin "gh"
-@'
+$ghScript = @'
 #!/bin/sh
 set -eu
 if [ "${1:-}" = "attestation" ] && [ "${2:-}" = "verify" ] && [ "${3:-}" = "--help" ]; then
@@ -48,7 +48,11 @@ if [ "${1:-}" = "attestation" ] && [ "${2:-}" = "verify" ]; then
   exit 0
 fi
 exit 73
-'@ | Set-Content -LiteralPath $ghPath -NoNewline
+'@
+# PowerShell source files intentionally use CRLF on Windows. This fixture is a
+# Unix executable, so normalize the embedded script before writing its shebang.
+$ghScript = $ghScript -replace "`r`n", "`n"
+[System.IO.File]::WriteAllText($ghPath, $ghScript, [System.Text.UTF8Encoding]::new($false))
 & chmod +x $ghPath
 if ($LASTEXITCODE -ne 0) {
     throw "failed to make fake gh executable"
