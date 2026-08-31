@@ -44,6 +44,60 @@ func TestPersistedSourceResolverRequiresPersistedRuntimeBinding(t *testing.T) {
 	}
 }
 
+func TestPersistedSourceResolverMatchesRoutedIncusRuntimeBinding(t *testing.T) {
+	resolver, err := NewPersistedSourceResolver(
+		fakeRuntimeSourceResolver{ref: "haco-demo"},
+		fakeEnvironmentLister{environments: []core.Environment{{
+			Name:       "demo",
+			RuntimeRef: "haco-runtime-v1:runtime.incus:aGFjby1kZW1v",
+		}}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := resolver.ResolveEnvironment(context.Background(), net.ParseIP("10.200.0.23"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "demo" {
+		t.Fatalf("environment = %q, want demo", got)
+	}
+}
+
+func TestPersistedSourceResolverRejectsDifferentRoutedProvider(t *testing.T) {
+	resolver, err := NewPersistedSourceResolver(
+		fakeRuntimeSourceResolver{ref: "haco-demo"},
+		fakeEnvironmentLister{environments: []core.Environment{{
+			Name:       "demo",
+			RuntimeRef: "haco-runtime-v1:runtime.other:aGFjby1kZW1v",
+		}}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = resolver.ResolveEnvironment(context.Background(), net.ParseIP("10.200.0.23"))
+	if !errors.Is(err, core.ErrPolicyDenied) {
+		t.Fatalf("error = %v, want ErrPolicyDenied", err)
+	}
+}
+
+func TestPersistedSourceResolverRejectsMalformedRoutedRuntimeBinding(t *testing.T) {
+	resolver, err := NewPersistedSourceResolver(
+		fakeRuntimeSourceResolver{ref: "haco-demo"},
+		fakeEnvironmentLister{environments: []core.Environment{{
+			Name:       "demo",
+			RuntimeRef: "haco-runtime-v1:runtime.incus:not-base64!",
+		}}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = resolver.ResolveEnvironment(context.Background(), net.ParseIP("10.200.0.23"))
+	if !errors.Is(err, core.ErrPolicyDenied) {
+		t.Fatalf("error = %v, want ErrPolicyDenied", err)
+	}
+}
+
 func TestPersistedSourceResolverRejectsOrphanRuntime(t *testing.T) {
 	resolver, err := NewPersistedSourceResolver(
 		fakeRuntimeSourceResolver{ref: "haco-orphan"},
