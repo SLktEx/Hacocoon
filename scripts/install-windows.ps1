@@ -212,7 +212,8 @@ function Configure-WslPost([string]$Name, [string]$LoginUser) {
     if ($LASTEXITCODE -ne 0) { throw "Failed to register Hacocoon WSL login shell." }
 
     $sudoers = "$LoginUser ALL=(root) NOPASSWD: $haco host ensure, $haco host shell`n"
-    $sudoers | & wsl.exe --distribution $Name --user root --exec sh -c 'cat > /etc/sudoers.d/hacocoon-login && chmod 0440 /etc/sudoers.d/hacocoon-login && visudo -cf /etc/sudoers.d/hacocoon-login >/dev/null'
+    $sudoersBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($sudoers))
+    & wsl.exe --distribution $Name --user root --exec sh -eu -c "printf '%s' '$sudoersBase64' | base64 -d > /etc/sudoers.d/hacocoon-login && chmod 0440 /etc/sudoers.d/hacocoon-login && visudo -cf /etc/sudoers.d/hacocoon-login >/dev/null"
     if ($LASTEXITCODE -ne 0) { throw "Failed to install the narrow Hacocoon WSL sudo rule." }
 
     & wsl.exe --distribution $Name --user root --exec usermod -s $LoginShell $LoginUser
