@@ -118,6 +118,7 @@ func validateBaseName(name core.BaseName) error {
 			if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.') {
 				return fmt.Errorf("invalid Base name %q: %w", value, core.ErrInvalidArgument)
 			}
+		}
 	}
 	return nil
 }
