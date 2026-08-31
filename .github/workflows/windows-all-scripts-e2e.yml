@@ -7,6 +7,7 @@ on:
     paths:
       - "cmd/**"
       - "internal/**"
+      - ".goreleaser.yaml"
       - "scripts/install-windows.bat"
       - "scripts/install-windows.ps1"
       - "scripts/install.sh"
@@ -30,18 +31,29 @@ jobs:
       HACO_E2E_WSL: HacocoonE2E
       HACO_E2E_LOGIN_USER: haco-e2e
       HACO_BOOTSTRAP_LOGIN_USER: haco-e2e
+      # Candidate artifacts are built locally and therefore do not have the
+      # publication attestations created by release.yml. Release provenance is
+      # a separate release gate; this E2E exercises install -> usable Hacocoon.
       HACO_REQUIRE_PROVENANCE: "0"
       HACO_E2E_VERSION: v0.0.0-e2e
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.27.x
-          check-latest: true
+          go-version: 1.27.0
+          check-latest: false
           cache: false
+
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: v2.17.1
+          install-only: true
 
       - name: Record Windows and WSL substrate
         shell: pwsh
@@ -53,49 +65,51 @@ jobs:
           wsl.exe --status
           wsl.exe --list --verbose
 
-      - name: Build candidate linux/amd64 release archive
+      - name: Build release-equivalent candidate artifacts
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $env:CGO_ENABLED = "0"
-          $env:GOOS = "linux"
-          $env:GOARCH = "amd64"
-          $stage = Join-Path $env:RUNNER_TEMP "haco-linux-amd64"
-          $dist = Join-Path $env:RUNNER_TEMP "haco-dist"
-          Remove-Item $stage,$dist -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Path $stage,$dist | Out-Null
 
-          $commands = [ordered]@{
-            "haco" = "./cmd/haco"
-            "haco-controller" = "./cmd/haco-controller"
-            "haco-host" = "./cmd/haco-host"
-            "haco-vscode" = "./cmd/haco-vscode"
-            "haco-agent-host" = "./cmd/haco-agent-host"
-            "haco-notify" = "./cmd/haco-notify"
-            "haco-storage-helper" = "./cmd/haco-storage-helper"
-          }
-          foreach ($entry in $commands.GetEnumerator()) {
-            go build -trimpath -ldflags="-s -w" -o (Join-Path $stage $entry.Key) $entry.Value
-            if ($LASTEXITCODE -ne 0) { throw "Failed to build $($entry.Key)." }
+          # release.yml runs the same GoReleaser command from an authorized tag.
+          # This tag exists only in the ephemeral checkout and is never pushed.
+          git tag $env:HACO_E2E_VERSION $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create local E2E release tag." }
+
+          goreleaser release --clean --skip=publish
+          if ($LASTEXITCODE -ne 0) { throw "GoReleaser candidate build failed." }
+
+          foreach ($path in @(
+            "dist/haco_linux_amd64.tar.gz",
+            "dist/haco_linux_arm64.tar.gz",
+            "dist/checksums.txt"
+          )) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Release-equivalent build is missing $path."
+            }
           }
 
-          $archive = Join-Path $dist "haco_linux_amd64.tar.gz"
-          tar.exe -czf $archive -C $stage @($commands.Keys)
-          if ($LASTEXITCODE -ne 0) { throw "Failed to create candidate Linux archive." }
-          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
-          "$hash  haco_linux_amd64.tar.gz" | Set-Content -LiteralPath (Join-Path $dist "checksums.txt") -Encoding ascii
-          "HACO_E2E_DIST=$dist" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Build and extract exact candidate Windows package
+      - name: Build and extract release-equivalent Windows package
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           $packageOut = Join-Path $env:RUNNER_TEMP "installer-payload"
           $packageRoot = Join-Path $env:RUNNER_TEMP "hacocoon-windows-amd64"
-          python ./tools/package_installers.py --dist $env:HACO_E2E_DIST --output $packageOut --version $env:HACO_E2E_VERSION --arch amd64
-          if ($LASTEXITCODE -ne 0) { throw "Failed to build installer package." }
+          Remove-Item $packageOut,$packageRoot -Recurse -Force -ErrorAction SilentlyContinue
+
+          # release.yml invokes this same packager over GoReleaser dist/.
+          python ./tools/package_installers.py `
+            --dist ./dist `
+            --output $packageOut `
+            --version $env:HACO_E2E_VERSION `
+            --arch amd64
+          if ($LASTEXITCODE -ne 0) { throw "Failed to build candidate installer package." }
 
           $zip = Join-Path $packageOut "hacocoon-windows-amd64.zip"
+          if (-not (Test-Path -LiteralPath $zip -PathType Leaf)) {
+            throw "Release-equivalent Windows ZIP was not produced."
+          }
           Expand-Archive -LiteralPath $zip -DestinationPath $packageRoot
+
           $expected = @(
             "install-windows.bat",
             "install-windows.ps1",
@@ -141,7 +155,7 @@ $env:HACO_E2E_LOGIN_USER ALL=(root) NOPASSWD: /usr/bin/apt-get *, /usr/bin/insta
         shell: cmd
         run: cd /d "%HACO_E2E_PACKAGE_ROOT%" && install-windows.bat -InstanceName %HACO_E2E_WSL% -BaseDistro Ubuntu-26.04 -WebDownload
 
-      - name: Assert usable Hacocoon through the WSL user path
+      - name: Assert Hacocoon is usable through the WSL user path
         shell: pwsh
         run: |
           $details = (& wsl.exe --list --verbose | Out-String)
@@ -153,8 +167,8 @@ $env:HACO_E2E_LOGIN_USER ALL=(root) NOPASSWD: /usr/bin/apt-get *, /usr/bin/insta
           $pid1 = (& wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -c 'ps -p 1 -o comm=' | Out-String).Trim()
           if ($pid1 -ne "systemd") { throw "systemd is not PID 1." }
 
-          & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -eu -c '. /etc/os-release; [ "$ID" = ubuntu ]; dpkg --compare-versions "$VERSION_ID" ge 26.04; command -v haco; command -v incus; systemctl is-active --quiet haco-controller.service; test -S /run/hacocoon/control.sock; incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null'
-          if ($LASTEXITCODE -ne 0) { throw "Installed Hacocoon host acceptance failed." }
+          & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -eu -c '. /etc/os-release; [ "$ID" = ubuntu ]; dpkg --compare-versions "$VERSION_ID" ge 26.04; command -v haco; command -v incus; haco version; haco doctor; systemctl is-active --quiet haco-controller.service; test -S /run/hacocoon/control.sock; incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null'
+          if ($LASTEXITCODE -ne 0) { throw "Installed Hacocoon user acceptance failed." }
 
           $shell = (& wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -c "getent passwd '$env:HACO_E2E_LOGIN_USER' | cut -d: -f7" | Out-String).Trim()
           if ($shell -ne "/usr/local/libexec/hacocoon-login") {
@@ -167,7 +181,7 @@ $env:HACO_E2E_LOGIN_USER ALL=(root) NOPASSWD: /usr/bin/apt-get *, /usr/bin/insta
         continue-on-error: true
         run: |
           wsl.exe --list --verbose
-          wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true'
+          wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; haco version || true; haco doctor || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true'
 
       - name: Remove E2E WSL distribution
         if: always()
