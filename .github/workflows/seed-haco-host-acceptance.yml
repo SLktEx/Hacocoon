@@ -1,0 +1,76 @@
+name: seed-haco-host-acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - test/240-haco-host-seed-acceptance
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seed-haco-host-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+  HACO_CI_RUNNER_ENVIRONMENT: github-hosted
+  INCUS_CONF: ${{ runner.temp }}/haco-incus-client
+  TMPDIR: ${{ runner.temp }}/haco-storage-helper-e2e
+
+jobs:
+  real-haco-host-seed:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Validate Seed acceptance shell syntax
+        run: bash -n test/e2e/seed_haco_host_real.sh
+      - name: Prepare proven Incus substrate
+        run: bash tools/ci-incus.sh setup
+      - name: Allow leased workspace owner in Incus root idmap
+        run: |
+          uid="$(id -u)"
+          gid="$(id -g)"
+          if ! awk -F: -v id="$uid" '$1 == "root" && id >= $2 && id - $2 < $3 { found=1 } END { exit found ? 0 : 1 }' /etc/subuid; then
+            printf 'root:%s:1\n' "$uid" | sudo tee -a /etc/subuid >/dev/null
+          fi
+          if ! awk -F: -v id="$gid" '$1 == "root" && id >= $2 && id - $2 < $3 { found=1 } END { exit found ? 0 : 1 }' /etc/subgid; then
+            printf 'root:%s:1\n' "$gid" | sudo tee -a /etc/subgid >/dev/null
+          fi
+      - name: Install real Btrfs privilege helper
+        run: bash tools/ci-storage-helper.sh setup
+      - name: Permit only Hacocoon trusted-build bridge forwarding on hosted runner
+        run: |
+          # Docker owns the legacy FORWARD chain on GitHub-hosted runners. Keep
+          # compatibility exceptions scoped to Hacocoon's trusted Host/Seed
+          # bridge name prefixes instead of changing the global FORWARD policy.
+          if sudo iptables -w 5 -nL DOCKER-USER >/dev/null 2>&1; then
+            sudo iptables -w 5 -I DOCKER-USER 1 -i 'haco-t-+' -j ACCEPT
+            sudo iptables -w 5 -I DOCKER-USER 1 -o 'haco-t-+' -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+            sudo iptables -w 5 -I DOCKER-USER 1 -i 'haco-host+' -j ACCEPT
+            sudo iptables -w 5 -I DOCKER-USER 1 -o 'haco-host+' -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+          fi
+      - name: Run real trusted haco-host Seed acceptance
+        env:
+          HACO_E2E_HACO_HOST_SEED: "1"
+        run: bash test/e2e/seed_haco_host_real.sh
+      - name: Capture Hacocoon and Incus diagnostics
+        if: failure()
+        run: |
+          bash tools/ci-incus.sh diagnostics
+          bash tools/ci-storage-helper.sh diagnostics
+      - name: Delete CI-owned Incus projects and pools
+        if: always()
+        run: bash tools/ci-incus-project-cleanup.sh
+      - name: Clean up storage helper resources
+        if: always()
+        run: bash tools/ci-storage-helper.sh cleanup
