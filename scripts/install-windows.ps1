@@ -307,34 +307,29 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 
 $assetRoot = $PSScriptRoot
-$bootstrapPath = Join-Path $assetRoot "bootstrap-linux.sh"
 $linuxInstallerPath = Join-Path $assetRoot "install.sh"
 $tempRoot = $null
 $ResolvedHacocoonVersion = $HacocoonVersion
 
-if ((Test-Path -LiteralPath $bootstrapPath -PathType Leaf) -and (Test-Path -LiteralPath $linuxInstallerPath -PathType Leaf)) {
-    Write-Step "Using Linux bootstrap assets bundled with the Windows installer"
+if (Test-Path -LiteralPath $linuxInstallerPath -PathType Leaf) {
+    Write-Step "Using shared Linux installer bundled with the Windows installer"
 } else {
-    Write-Step "Bundled Linux bootstrap assets are unavailable; using standalone release-asset fallback"
+    Write-Step "Bundled Linux installer is unavailable; using standalone release-asset fallback"
     $ResolvedHacocoonVersion = Resolve-ReleaseVersion $HacocoonVersion
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("hacocoon-install-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
     $assetRoot = $tempRoot
     $checksumsPath = Join-Path $assetRoot "checksums.txt"
-    $bootstrapPath = Join-Path $assetRoot "bootstrap-linux.sh"
     $linuxInstallerPath = Join-Path $assetRoot "install.sh"
 
-    Write-Step "Downloading standalone Hacocoon bootstrap assets"
+    Write-Step "Downloading standalone Hacocoon Linux installer"
     Download-ReleaseAsset "checksums.txt" $checksumsPath $ResolvedHacocoonVersion
-    Download-ReleaseAsset "bootstrap-linux.sh" $bootstrapPath $ResolvedHacocoonVersion
     Download-ReleaseAsset "install.sh" $linuxInstallerPath $ResolvedHacocoonVersion
 
-    Assert-Sha256 $bootstrapPath (Get-ExpectedHash $checksumsPath "bootstrap-linux.sh")
     Assert-Sha256 $linuxInstallerPath (Get-ExpectedHash $checksumsPath "install.sh")
 
-    Write-Step "Verifying trusted release provenance before executing standalone bootstrap assets"
+    Write-Step "Verifying trusted release provenance before executing standalone Linux installer"
     Assert-TrustedReleaseAsset $checksumsPath $ResolvedHacocoonVersion
-    Assert-TrustedReleaseAsset $bootstrapPath $ResolvedHacocoonVersion
     Assert-TrustedReleaseAsset $linuxInstallerPath $ResolvedHacocoonVersion
 }
 
@@ -357,14 +352,14 @@ try {
         "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue",
         "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue",
         "HACO_REQUIRE_PROVENANCE=1",
-        "sh", "$linuxAssetRoot/bootstrap-linux.sh", "$linuxAssetRoot/install.sh", $ResolvedHacocoonVersion
+        "sh", "$linuxAssetRoot/install.sh", $ResolvedHacocoonVersion
     )
 
-    Write-Step "Running shared Linux host bootstrap inside '$InstanceName'"
+    Write-Step "Running shared Linux installer inside '$InstanceName'"
     & wsl.exe @wslArgs
-    $bootstrapExit = $LASTEXITCODE
+    $installerExit = $LASTEXITCODE
 
-    if ($bootstrapExit -eq $SystemdRestartRequired) {
+    if ($installerExit -eq $SystemdRestartRequired) {
         Write-Step "Restarting dedicated WSL instance '$InstanceName' to activate systemd"
         & wsl.exe --terminate $InstanceName
         if ($LASTEXITCODE -ne 0) {
@@ -373,14 +368,14 @@ try {
         Start-Sleep -Milliseconds 750
 
         & wsl.exe @wslArgs
-        $bootstrapExit = $LASTEXITCODE
+        $installerExit = $LASTEXITCODE
     }
 
-    if ($bootstrapExit -eq $SystemdRestartRequired) {
+    if ($installerExit -eq $SystemdRestartRequired) {
         throw "systemd still requires a restart after the dedicated WSL instance was restarted."
     }
-    if ($bootstrapExit -ne 0) {
-        throw "Hacocoon Linux host bootstrap failed inside WSL."
+    if ($installerExit -ne 0) {
+        throw "Hacocoon Linux installation failed inside WSL."
     }
 
     Assert-SystemdActive $InstanceName
@@ -410,5 +405,5 @@ if ($SkipIncus) {
     Write-Host "Physical Host recovery/debug: wsl -d $InstanceName -u root"
 }
 if (-not $SkipIncus -and -not $GrantIncusAdmin) {
-    Write-Host "Broad incus-admin access remains ungranted; default haco-host entry uses only the narrow Hacocoon host commands configured by the bootstrap."
+    Write-Host "Broad incus-admin access remains ungranted; default haco-host entry uses only the narrow Hacocoon host commands configured by the installer."
 }
