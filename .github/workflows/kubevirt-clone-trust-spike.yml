@@ -197,7 +197,7 @@ jobs:
           done
           test "$(kubectl get dv clone-root -o jsonpath='{.status.phase}')" = Succeeded
 
-      - name: Boot clone with qemu guest-agent managed fresh key
+      - name: Boot clone, reset trust identity, and verify isolation
         run: |
           set -euxo pipefail
           ssh-keygen -q -t ed25519 -N '' -f /tmp/clone_key
@@ -261,13 +261,38 @@ jobs:
           fi
           echo 'fresh clone key works and source key was revoked'
 
-          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo sh -ceu 'test \"\$(cat /etc/hacocoon-clone-proof)\" = etc-state; test \"\$(cat /usr/local/share/hacocoon/clone-proof)\" = usr-state; test \"\$(cat /var/lib/containerd/hacocoon-spike/clone-proof)\" = runtime-state; test \"\$(systemctl is-enabled hacocoon-clone-proof.service)\" = enabled'"
+          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo sh -ceu 'test \"\$(cat /etc/hacocoon-clone-proof)\" = etc-state; test \"\$(cat /usr/local/share/hacocoon/clone-proof)\" = usr-state; test \"\$(cat /var/lib/containerd/hacocoon-spike/clone-proof)\" = runtime-state; test \"\$(systemctl is-enabled hacocoon-clone-proof.service)\" = enabled; test ! -e /var/run/secrets/kubernetes.io/serviceaccount/token; test -z \"\${KUBECONFIG:-}\"'"
+
+          PRE_SCRUB_MACHINE_ID="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command 'cat /etc/machine-id' | tr -d '\r\n')"
+          PRE_SCRUB_HOST_KEY="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256 | cut -d ' ' -f2" | tr -d '\r\n')"
+          echo "pre-scrub clone machine-id=$PRE_SCRUB_MACHINE_ID host-key=$PRE_SCRUB_HOST_KEY"
+
+          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo sh -ceu 'rm -f /etc/machine-id /var/lib/dbus/machine-id; systemd-machine-id-setup; rm -f /etc/ssh/ssh_host_*; ssh-keygen -A'"
+          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command 'sudo systemctl reboot' || true
+
+          fresh_key_after_reboot=0
+          for i in $(seq 1 80); do
+            if virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command 'true'; then fresh_key_after_reboot=1; break; fi
+            sleep 3
+          done
+          test "$fresh_key_after_reboot" = 1
+
+          if virtctl ssh "${SSH_OPTS[@]}" -i /tmp/source_key fedora@vm/clone-vm --command 'true'; then
+            echo 'ERROR: source SSH key authenticates after trust reset and reboot' >&2
+            exit 1
+          fi
+
           CLONE_MACHINE_ID="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command 'cat /etc/machine-id' | tr -d '\r\n')"
           CLONE_HOST_KEY="$(virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256 | cut -d ' ' -f2" | tr -d '\r\n')"
+          test -n "$CLONE_MACHINE_ID"
+          test -n "$CLONE_HOST_KEY"
           echo "source machine-id=$SOURCE_MACHINE_ID clone machine-id=$CLONE_MACHINE_ID"
           echo "source host-key=$SOURCE_HOST_KEY clone host-key=$CLONE_HOST_KEY"
-          if [ "$CLONE_MACHINE_ID" = "$SOURCE_MACHINE_ID" ]; then echo 'machine-id copied: explicit clone scrub required'; else echo 'machine-id already differs'; fi
-          if [ "$CLONE_HOST_KEY" = "$SOURCE_HOST_KEY" ]; then echo 'SSH host key copied: explicit clone scrub required'; else echo 'SSH host key already differs'; fi
+          test "$CLONE_MACHINE_ID" != "$SOURCE_MACHINE_ID"
+          test "$CLONE_HOST_KEY" != "$SOURCE_HOST_KEY"
+
+          virtctl ssh "${SSH_OPTS[@]}" -i /tmp/clone_key fedora@vm/clone-vm --command "sudo sh -ceu 'test \"\$(cat /etc/hacocoon-clone-proof)\" = etc-state; test \"\$(cat /usr/local/share/hacocoon/clone-proof)\" = usr-state; test \"\$(cat /var/lib/containerd/hacocoon-spike/clone-proof)\" = runtime-state; test \"\$(systemctl is-enabled hacocoon-clone-proof.service)\" = enabled; test ! -e /var/run/secrets/kubernetes.io/serviceaccount/token; test -z \"\${KUBECONFIG:-}\"'"
+          echo 'clone kept machine state while receiving fresh SSH authorization, machine-id, and SSH host keys'
 
       - name: Record trust evidence
         if: always()
