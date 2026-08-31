@@ -85,6 +85,48 @@ set -e
 grep -Fq 'usage: haco <' "$root/haco-invalid.err"
 grep -Fq 'unknown command "definitely-not-a-command"' "$root/haco-invalid.err"
 
+# Doctor is a first-line operator command, so exercise the final process for
+# both a healthy probe and a deterministic unavailable runtime without Incus.
+mkdir -p "$root/doctor-ok" "$root/doctor-down"
+cat >"$root/doctor-ok/incus" <<'SH'
+#!/bin/sh
+if [ "${1:-}" = version ]; then
+  printf '%s\n' '6.12-e2e'
+  exit 0
+fi
+exit 2
+SH
+cat >"$root/doctor-down/incus" <<'SH'
+#!/bin/sh
+exit 127
+SH
+chmod +x "$root/doctor-ok/incus" "$root/doctor-down/incus"
+
+PATH="$root/doctor-ok:$PATH" "$bin/haco" doctor >"$root/doctor-ok.out" 2>"$root/doctor-ok.err"
+grep -Fq 'Hacocoon Secure Workspace Runtime' "$root/doctor-ok.out"
+grep -Fq 'Incus available: true' "$root/doctor-ok.out"
+grep -Fq '6.12-e2e' "$root/doctor-ok.out"
+[[ ! -s "$root/doctor-ok.err" ]]
+
+set +e
+PATH="$root/doctor-down:$PATH" "$bin/haco" doctor >"$root/doctor-down.out" 2>"$root/doctor-down.err"
+doctor_down_code=$?
+set -e
+[[ "$doctor_down_code" != "0" ]]
+grep -Fq 'Incus available: false' "$root/doctor-down.out"
+grep -Fq 'runtime unavailable' "$root/doctor-down.err"
+
+# `egress serve` must fail closed before opening a proxy listener when the
+# runtime cannot prepare the managed network boundary. Keep this fast path
+# deterministic; the successful server lifecycle is covered on real Incus.
+set +e
+PATH="$root/doctor-down:$PATH" "$bin/haco" egress serve >"$root/egress-down.out" 2>"$root/egress-down.err"
+egress_down_code=$?
+set -e
+[[ "$egress_down_code" != "0" ]]
+[[ ! -s "$root/egress-down.out" ]]
+[[ -s "$root/egress-down.err" ]]
+
 # Agent Host: release is intentionally idempotent, so a never-created session
 # gives us a deterministic successful process-level path without real Incus.
 "$bin/haco-agent-host" release --session e2e-never-created >"$root/agent.out" 2>"$root/agent.err"
