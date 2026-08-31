@@ -10,6 +10,11 @@ SYSTEMD_RESTART_REQUIRED=42
 HACOCOON_LOGIN_SHELL="/usr/local/libexec/hacocoon-login"
 HACOCOON_CONTROLLER_SERVICE="haco-controller.service"
 HACOCOON_CONTROLLER_SOCKET="/run/hacocoon/control.sock"
+GITHUB_CLI_KEYRING_URL="https://cli.github.com/packages/githubcli-archive-keyring.gpg"
+GITHUB_CLI_OLD_KEY_FINGERPRINT_TEXT="2C61 0620 1985 B60E 6C7A C873 23F3 D4EA 7571 6059"
+GITHUB_CLI_CURRENT_KEY_FINGERPRINT_TEXT="7F38 BBB5 9D06 4DBC B3D8 4D72 5612 B364 6231 3325"
+GITHUB_CLI_KEYRING_PATH="/etc/apt/keyrings/githubcli-archive-keyring.gpg"
+GITHUB_CLI_SOURCE_PATH="/etc/apt/sources.list.d/github-cli.list"
 
 if [ -z "$INSTALLER" ] || [ ! -f "$INSTALLER" ]; then
   printf 'haco bootstrap: install script not found: %s\n' "$INSTALLER" >&2
@@ -82,6 +87,96 @@ configure_wsl_systemd() {
   fi
   $SUDO install -m 0644 "$tmp" /etc/wsl.conf
   rm -f "$tmp"
+}
+
+has_gh_attestation_verify() {
+  command -v gh >/dev/null 2>&1 && gh attestation verify --help >/dev/null 2>&1
+}
+
+validate_github_cli_keyring() {
+  keyring="$1"
+  old_fingerprint="$(printf '%s' "$GITHUB_CLI_OLD_KEY_FINGERPRINT_TEXT" | tr -d ' ')"
+  current_fingerprint="$(printf '%s' "$GITHUB_CLI_CURRENT_KEY_FINGERPRINT_TEXT" | tr -d ' ')"
+  primary_fingerprints="$(
+    gpg --batch --show-keys --with-colons --fingerprint "$keyring" 2>/dev/null | awk -F: '
+      $1 == "pub" { want_primary = 1; next }
+      want_primary && $1 == "fpr" { print $10; want_primary = 0 }
+    '
+  )"
+
+  [ -n "$primary_fingerprints" ] || {
+    printf 'haco bootstrap: downloaded GitHub CLI package keyring contains no primary signing keys\n' >&2
+    return 1
+  }
+
+  current_seen=0
+  for fingerprint in $primary_fingerprints; do
+    case "$fingerprint" in
+      "$old_fingerprint") ;;
+      "$current_fingerprint") current_seen=1 ;;
+      *)
+        printf 'haco bootstrap: GitHub CLI package keyring contains an untrusted primary key: %s\n' "$fingerprint" >&2
+        return 1
+        ;;
+    esac
+  done
+
+  if [ "$current_seen" != "1" ]; then
+    printf 'haco bootstrap: GitHub CLI package keyring does not contain the pinned current signing key\n' >&2
+    return 1
+  fi
+}
+
+ensure_gh_attestation_verify() {
+  if has_gh_attestation_verify; then
+    return 0
+  fi
+
+  printf '==> Installing attestation-capable GitHub CLI from the official signed repository\n'
+  command -v curl >/dev/null 2>&1 || {
+    printf 'haco bootstrap: curl is required to bootstrap GitHub CLI provenance verification\n' >&2
+    return 1
+  }
+  command -v gpg >/dev/null 2>&1 || {
+    printf 'haco bootstrap: gpg is required to authenticate the GitHub CLI package keyring\n' >&2
+    return 1
+  }
+  command -v dpkg >/dev/null 2>&1 || {
+    printf 'haco bootstrap: dpkg is required to configure the GitHub CLI package repository\n' >&2
+    return 1
+  }
+
+  keyring_tmp="$(mktemp)"
+  if ! curl -fsSL --proto '=https' --tlsv1.2 -o "$keyring_tmp" "$GITHUB_CLI_KEYRING_URL"; then
+    rm -f "$keyring_tmp"
+    printf 'haco bootstrap: failed to download the official GitHub CLI package keyring\n' >&2
+    return 1
+  fi
+
+  if ! validate_github_cli_keyring "$keyring_tmp"; then
+    rm -f "$keyring_tmp"
+    printf 'haco bootstrap: refusing to trust changed GitHub CLI signing material\n' >&2
+    return 1
+  fi
+
+  $SUDO mkdir -p -m 0755 /etc/apt/keyrings /etc/apt/sources.list.d
+  $SUDO install -o root -g root -m 0644 "$keyring_tmp" "$GITHUB_CLI_KEYRING_PATH"
+  rm -f "$keyring_tmp"
+
+  architecture="$(dpkg --print-architecture)"
+  printf 'deb [arch=%s signed-by=%s] https://cli.github.com/packages stable main\n' \
+    "$architecture" "$GITHUB_CLI_KEYRING_PATH" | $SUDO tee "$GITHUB_CLI_SOURCE_PATH" >/dev/null
+  $SUDO chmod 0644 "$GITHUB_CLI_SOURCE_PATH"
+
+  $SUDO apt-get update
+  $SUDO apt-get install -y gh
+
+  if ! has_gh_attestation_verify; then
+    printf 'haco bootstrap: installed GitHub CLI still lacks gh attestation verify; refusing to disable provenance verification\n' >&2
+    return 1
+  fi
+
+  gh --version | head -n 1
 }
 
 configure_hacocoon_controller() {
@@ -211,7 +306,9 @@ configure_hacocoon_login() {
 
 printf '==> Installing base dependencies, managed Btrfs tools, and systemd support\n'
 $SUDO apt-get update
-$SUDO apt-get install -y ca-certificates curl tar git sudo systemd systemd-sysv btrfs-progs util-linux
+$SUDO apt-get install -y ca-certificates curl tar git sudo systemd systemd-sysv btrfs-progs util-linux gnupg
+
+ensure_gh_attestation_verify
 
 printf '==> Enabling systemd for this WSL distribution\n'
 configure_wsl_systemd
