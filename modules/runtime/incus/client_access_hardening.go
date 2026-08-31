@@ -14,10 +14,9 @@ import (
 
 const managedSSHProvisionScript = `
 set -eu
-export DEBIAN_FRONTEND=noninteractive
 if ! command -v sshd >/dev/null 2>&1; then
-  apt-get update
-  apt-get install -y --no-install-recommends openssh-server
+  printf '%s\n' 'Hacocoon SSH access requires a Base with openssh-server preinstalled' >&2
+  exit 127
 fi
 systemctl enable --now ssh
 install -d -m 0700 /root/.ssh
@@ -60,11 +59,19 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 	}
 
 	marker := "haco:" + id
-	if _, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", managedSSHProvisionScript, "haco-ssh", req.PublicKey, marker); err != nil {
+	result, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", managedSSHProvisionScript, "haco-ssh", req.PublicKey, marker)
+	if err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cleanupTimeout)
 		defer cancel()
 		cleanupErr := r.RemoveClientConnection(cleanupCtx, ref, id)
-		return core.ClientConnection{}, errors.Join(fmt.Errorf("prepare SSH in %s: %w", ref, err), cleanupErr)
+		prepareErr := fmt.Errorf("prepare SSH in %s: %w", ref, err)
+		if result.ExitCode == 127 {
+			prepareErr = errors.Join(
+				fmt.Errorf("prepare SSH in %s: Base does not provide openssh-server", ref),
+				core.ErrUnsupported,
+			)
+		}
+		return core.ClientConnection{}, errors.Join(prepareErr, cleanupErr)
 	}
 
 	return core.ClientConnection{
