@@ -26,6 +26,20 @@ function Get-WslText {
     return $text
 }
 
+function Get-WslValue {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+    # Store WSL can emit a host-side user-session warning on stderr even when
+    # the requested root command succeeds. Get-WslText intentionally keeps
+    # stderr for diagnostics, so scalar probes consume only the final non-empty
+    # command-output line rather than mistaking that warning for the value.
+    $text = Get-WslText $Arguments
+    $lines = @($text -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if ($lines.Count -eq 0) {
+        return ""
+    }
+    return $lines[-1]
+}
+
 function Invoke-WslChecked {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
     & wsl.exe @Arguments
@@ -102,18 +116,18 @@ try {
     Invoke-WslChecked @("--terminate", $Distro)
     Start-Sleep -Seconds 2
 
-    $pid1 = Get-WslText @("--distribution", $Distro, "--user", "root", "--", "sh", "-lc", "ps -p 1 -o comm=")
+    $pid1 = Get-WslValue @("--distribution", $Distro, "--user", "root", "--", "sh", "-lc", "ps -p 1 -o comm=")
     if ($pid1 -ne "systemd") {
         throw "systemd is not PID 1 inside the GitHub-hosted WSL2 distro (got '$pid1')"
     }
 
-    $versionCommand = '. /etc/os-release; printf "%s" "$VERSION_ID"'
-    $version = Get-WslText @("--distribution", $Distro, "--user", "root", "--", "sh", "-lc", $versionCommand)
+    $versionCommand = '. /etc/os-release; printf "%s\\n" "$VERSION_ID"'
+    $version = Get-WslValue @("--distribution", $Distro, "--user", "root", "--", "sh", "-lc", $versionCommand)
     if ($version -ne "26.04") {
         throw "expected Ubuntu 26.04 inside WSL, got '$version'"
     }
 
-    $LinuxRepo = Get-WslText @("--distribution", $Distro, "--user", "root", "--", "wslpath", "-u", "-a", $Repo)
+    $LinuxRepo = Get-WslValue @("--distribution", $Distro, "--user", "root", "--", "wslpath", "-u", "-a", $Repo)
     if ([string]::IsNullOrWhiteSpace($LinuxRepo)) {
         throw "failed to translate repository path into WSL"
     }
