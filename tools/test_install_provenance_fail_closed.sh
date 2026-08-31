@@ -16,6 +16,7 @@ done
 tar -czf "$fixture/haco_linux_amd64.tar.gz" -C "$src" \
   haco haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper
 (cd "$fixture" && sha256sum haco_linux_amd64.tar.gz > checksums.txt)
+printf '{}\n' > "$fixture/attestation-bundle.json"
 
 make_fake_curl() {
   target="$1"
@@ -50,6 +51,26 @@ case "$url" in
     printf 'https://github.com/SLktEx/Hacocoon/releases/tag/%s' "${HACO_TEST_LATEST_TAG:-v1.2.3}"
     exit 0
     ;;
+  https://api.github.com/repos/SLktEx/Hacocoon/attestations/sha256:*)
+    [ -n "$output" ] || exit 90
+    case "${HACO_TEST_PROVENANCE_MODE:-ok}" in
+      no-bundle)
+        printf '{"attestations":[]}\n' > "$output"
+        ;;
+      nonhttps-bundle)
+        printf '{"attestations":[{"bundle_url":"http://attestations.example.invalid/bundle.json"}]}\n' > "$output"
+        ;;
+      *)
+        printf '{"attestations":[{"bundle_url":"https://attestations.example.invalid/bundle.json"}]}\n' > "$output"
+        ;;
+    esac
+    exit 0
+    ;;
+  https://attestations.example.invalid/bundle.json)
+    [ -n "$output" ] || exit 90
+    cp "$HACO_TEST_FIXTURE/attestation-bundle.json" "$output"
+    exit 0
+    ;;
 esac
 [ -n "$output" ] || exit 90
 name="${url##*/}"
@@ -64,7 +85,8 @@ make_fake_gh() {
 #!/bin/sh
 set -eu
 if [ "${1:-}" = "auth" ] && [ "${2:-}" = "status" ]; then
-  exit 0
+  [ "${HACO_TEST_GH_AUTH:-0}" = "1" ]
+  exit $?
 fi
 if [ "${1:-}" = "release" ] && [ "${2:-}" = "download" ]; then
   dir=""
@@ -91,9 +113,26 @@ if [ "${1:-}" = "attestation" ] && [ "${2:-}" = "verify" ]; then
       ;;
   esac
   predicate=0
-  for arg in "$@"; do
-    [ "$arg" = "--predicate-type" ] && predicate=1
+  bundle=""
+  shift 2
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --predicate-type)
+        predicate=1
+        shift 2
+        ;;
+      --bundle)
+        bundle="$2"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
   done
+  if [ "${HACO_TEST_GH_AUTH:-0}" != "1" ]; then
+    [ -n "$bundle" ] && [ -s "$bundle" ] || exit 93
+  fi
   if [ "$predicate" = "1" ]; then
     case "${HACO_TEST_PROVENANCE_MODE:-ok}" in
       binding-empty)
@@ -158,6 +197,9 @@ run_case() {
   stderr="$case_root/stderr"
   set +e
   PATH="$bin:$PATH" \
+    GH_TOKEN="" \
+    GITHUB_TOKEN="" \
+    HACO_TEST_GH_AUTH="0" \
     HACO_TEST_FIXTURE="$fixture" \
     HACO_TEST_PROVENANCE_MODE="$provenance_mode" \
     HACO_TEST_BINDING_TAG="$binding_tag" \
@@ -189,10 +231,17 @@ run_case() {
 }
 
 run_case valid-explicit supported v1.2.3 ok v1.2.3 success
+grep -Fq 'Downloaded public GitHub attestation bundles without requiring a GitHub login.' "$root/valid-explicit/stdout"
 grep -Fq 'Verified signed release binding for v1.2.3.' "$root/valid-explicit/stdout"
 
 run_case missing-attestation-tool unsupported v1.2.3 ok v1.2.3 fail
 grep -Fq "trusted provenance verification requires a GitHub CLI version with 'gh attestation verify' support" "$root/missing-attestation-tool/stderr"
+
+run_case missing-public-bundle supported v1.2.3 no-bundle v1.2.3 fail
+grep -Fq 'trusted provenance verification could not obtain public attestation bundles' "$root/missing-public-bundle/stderr"
+
+run_case nonhttps-public-bundle supported v1.2.3 nonhttps-bundle v1.2.3 fail
+grep -Fq 'refusing non-HTTPS public attestation bundle URL' "$root/nonhttps-public-bundle/stderr"
 
 run_case invalid-build-provenance supported v1.2.3 generic-fail v1.2.3 fail
 grep -Fq 'trusted build provenance verification failed' "$root/invalid-build-provenance/stderr"
@@ -204,4 +253,4 @@ run_case latest-resolves-before-verify supported latest ok v1.2.3 success
 grep -Fq 'Resolved latest Hacocoon release to v1.2.3.' "$root/latest-resolves-before-verify/stdout"
 grep -Fq 'Verified signed release binding for v1.2.3.' "$root/latest-resolves-before-verify/stdout"
 
-echo 'PASS: installer provenance fails closed and latest is bound to an explicit tag'
+echo 'PASS: installer provenance fails closed, supports anonymous public bundles, and binds latest to an explicit tag'
