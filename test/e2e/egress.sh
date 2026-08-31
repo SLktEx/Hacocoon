@@ -48,6 +48,19 @@ PY
   return 1
 }
 
+wait_guest_route() {
+  local environment="$1" destination="$2"
+  for ((attempt=0; attempt<60; attempt++)); do
+    if "$haco" exec "$environment" -- ip -4 route get "$destination" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "Environment never gained an IPv4 route to egress proxy $destination" >&2
+  "$haco" exec "$environment" -- sh -c 'ip -4 address show; echo ROUTES; ip -4 route show' >&2 || true
+  return 1
+}
+
 root="$(mktemp -d)"
 workspace="$root/workspace"
 serve_dir="$root/upstream"
@@ -156,6 +169,7 @@ bridge_ip="${bridge_cidr%/*}"
 "$haco" egress serve >"$root/egress.out" 2>"$root/egress.err" &
 eg_pid=$!
 wait_tcp "$bridge_ip" 18080 || { echo 'haco egress serve did not open the managed proxy listener' >&2; exit 1; }
+wait_guest_route "$environment" "$bridge_ip"
 
 proxy_request() {
   local hostname="$1"
