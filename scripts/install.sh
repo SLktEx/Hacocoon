@@ -15,9 +15,6 @@ REQUIRE_PROVENANCE="${HACO_REQUIRE_PROVENANCE:-1}"
 BINARIES_ONLY="${HACO_INSTALL_BINARIES_ONLY:-0}"
 SKIP_INCUS="${HACO_BOOTSTRAP_SKIP_INCUS:-0}"
 GRANT_INCUS_ADMIN="${HACO_BOOTSTRAP_GRANT_INCUS_ADMIN:-0}"
-LOGIN_USER="${HACO_BOOTSTRAP_LOGIN_USER:-$(id -un)}"
-SYSTEMD_RESTART_REQUIRED=42
-HACOCOON_LOGIN_SHELL="/usr/local/libexec/hacocoon-login"
 HACOCOON_CONTROLLER_SERVICE="haco-controller.service"
 HACOCOON_CONTROLLER_SOCKET="/run/hacocoon/control.sock"
 GITHUB_CLI_KEYRING_URL="https://cli.github.com/packages/githubcli-archive-keyring.gpg"
@@ -63,7 +60,7 @@ need uname
 need id
 case "$(uname -s)" in
   Linux) os="linux" ;;
-  *) die "unsupported operating system: $(uname -s) (Hacocoon releases currently target Linux only)" ;;
+  *) die "unsupported operating system: $(uname -s)" ;;
 esac
 
 case "$(uname -m)" in
@@ -72,77 +69,30 @@ case "$(uname -m)" in
   *) die "unsupported architecture: $(uname -m)" ;;
 esac
 
-IS_WSL=0
-if [ -n "${WSL_DISTRO_NAME:-}" ]; then
-  IS_WSL=1
-else
-  kernel_release="$(uname -r 2>/dev/null || true)"
-  case "$kernel_release" in
-    *[Mm]icrosoft*|*[Ww][Ss][Ll]*) IS_WSL=1 ;;
-  esac
-fi
-
 SUDO=""
 prepare_privilege() {
   if [ "$(id -u)" -eq 0 ]; then
     SUDO=""
     return 0
   fi
-  command -v sudo >/dev/null 2>&1 || die "sudo is required for Linux host setup"
+  command -v sudo >/dev/null 2>&1 || die "sudo is required for Ubuntu host installation"
   SUDO="sudo"
 }
 
-configure_wsl_systemd() {
-  tmp="$(mktemp)"
-  if [ -f /etc/wsl.conf ]; then
-    awk '
-      BEGIN {
-        in_boot = 0
-        boot_seen = 0
-        systemd_seen = 0
-      }
-      function flush_boot() {
-        if (in_boot && !systemd_seen) {
-          print "systemd=true"
-          systemd_seen = 1
-        }
-      }
-      /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
-        flush_boot()
-        in_boot = ($0 ~ /^[[:space:]]*\[boot\][[:space:]]*$/)
-        if (in_boot) {
-          boot_seen = 1
-          systemd_seen = 0
-        }
-        print
-        next
-      }
-      {
-        if (in_boot && $0 ~ /^[[:space:]]*systemd[[:space:]]*=/) {
-          if (!systemd_seen) {
-            print "systemd=true"
-            systemd_seen = 1
-          }
-          next
-        }
-        print
-      }
-      END {
-        flush_boot()
-        if (!boot_seen) {
-          if (NR > 0) {
-            print ""
-          }
-          print "[boot]"
-          print "systemd=true"
-        }
-      }
-    ' /etc/wsl.conf > "$tmp"
-  else
-    printf '[boot]\nsystemd=true\n' > "$tmp"
-  fi
-  $SUDO install -m 0644 "$tmp" /etc/wsl.conf
-  rm -f "$tmp"
+assert_supported_ubuntu() {
+  [ -r /etc/os-release ] || die "/etc/os-release is required to verify the supported Ubuntu host"
+  . /etc/os-release
+  [ "${ID:-}" = "ubuntu" ] || die "install.sh supports Ubuntu only (found ${ID:-unknown})"
+  need dpkg
+  dpkg --compare-versions "${VERSION_ID:-0}" ge 26.04 ||
+    die "Ubuntu 26.04 or newer is required (found ${VERSION_ID:-unknown})"
+}
+
+assert_systemd_active() {
+  pid1="$(ps -p 1 -o comm= 2>/dev/null | tr -d '[:space:]' || true)"
+  [ "$pid1" = "systemd" ] ||
+    die "systemd must already be active as PID 1 before install.sh; run the environment-specific pre installer first"
+  printf '==> systemd is active as PID 1\n'
 }
 
 has_gh_attestation_verify() {
@@ -177,10 +127,10 @@ validate_github_cli_keyring() {
     esac
   done
 
-  if [ "$current_seen" != "1" ]; then
+  [ "$current_seen" = "1" ] || {
     printf 'haco installer: GitHub CLI package keyring does not contain the pinned current signing key\n' >&2
     return 1
-  fi
+  }
 }
 
 ensure_gh_attestation_verify() {
@@ -215,34 +165,22 @@ ensure_gh_attestation_verify() {
   $SUDO apt-get update
   $SUDO apt-get install -y gh
 
-  has_gh_attestation_verify || die "installed GitHub CLI still lacks gh attestation verify; refusing to disable provenance verification"
+  has_gh_attestation_verify ||
+    die "installed GitHub CLI still lacks gh attestation verify; refusing to disable provenance verification"
   gh --version | head -n 1
 }
 
-prepare_linux_host() {
-  command -v apt-get >/dev/null 2>&1 || die "automatic Linux host setup currently supports apt-based distributions only"
+prepare_ubuntu_main() {
+  assert_supported_ubuntu
   prepare_privilege
+  command -v apt-get >/dev/null 2>&1 || die "apt-get is required on the supported Ubuntu host"
 
-  printf '==> Installing Linux host dependencies, managed Btrfs tools, and systemd support\n'
+  printf '==> Installing shared Ubuntu host dependencies\n'
   $SUDO apt-get update
   $SUDO apt-get install -y ca-certificates curl tar git sudo systemd systemd-sysv btrfs-progs util-linux gnupg coreutils findutils grep sed
 
   ensure_gh_attestation_verify
-
-  if [ "$IS_WSL" = "1" ]; then
-    printf '==> Enabling systemd for this WSL distribution\n'
-    configure_wsl_systemd
-  fi
-
-  pid1="$(ps -p 1 -o comm= 2>/dev/null | tr -d '[:space:]' || true)"
-  if [ "$pid1" != "systemd" ]; then
-    if [ "$IS_WSL" = "1" ]; then
-      printf 'haco installer: systemd configuration is ready; the dedicated WSL distribution must be restarted\n' >&2
-      exit "$SYSTEMD_RESTART_REQUIRED"
-    fi
-    die "systemd must be active as PID 1 on the Linux Physical Host"
-  fi
-  printf '==> systemd is active as PID 1\n'
+  assert_systemd_active
 
   if [ "$SKIP_INCUS" = "1" ]; then
     return 0
@@ -256,12 +194,13 @@ prepare_linux_host() {
     [ "$state" = "degraded" ] || die "systemd is PID 1 but not operational (state: $state)"
   fi
 
-  $SUDO systemctl enable --now incus.service 2>/dev/null || $SUDO systemctl enable --now incus 2>/dev/null ||
+  $SUDO systemctl enable --now incus.service 2>/dev/null ||
+    $SUDO systemctl enable --now incus 2>/dev/null ||
     die "failed to enable/start Incus with systemd"
 
   if [ "$GRANT_INCUS_ADMIN" = "1" ] && [ "$(id -u)" -ne 0 ]; then
     if getent group incus-admin >/dev/null 2>&1; then
-      printf '==> Granting current Linux user incus-admin access\n'
+      printf '==> Granting current Ubuntu user incus-admin access\n'
       warn "incus-admin is root-equivalent local authority"
       $SUDO usermod -aG incus-admin "$(id -un)"
     else
@@ -371,7 +310,10 @@ download_public_attestation_bundles() {
     return 1
   fi
 
-  [ -s "$bundle_path" ] || { printf 'haco installer: no usable public attestation bundles were downloaded\n' >&2; return 1; }
+  [ -s "$bundle_path" ] || {
+    printf 'haco installer: no usable public attestation bundles were downloaded\n' >&2
+    return 1
+  }
   printf '%s\n' "$bundle_path"
 }
 
@@ -398,8 +340,10 @@ verify_provenance() {
 
   if [ -n "$bundle_path" ]; then
     if ! gh attestation verify "$tmpdir/$archive" \
-      --repo "$REPOSITORY" --bundle "$bundle_path" \
-      --signer-workflow "$SIGNER_WORKFLOW" --source-ref "$SIGNER_SOURCE_REF" \
+      --repo "$REPOSITORY" \
+      --bundle "$bundle_path" \
+      --signer-workflow "$SIGNER_WORKFLOW" \
+      --source-ref "$SIGNER_SOURCE_REF" \
       --deny-self-hosted-runners >/dev/null; then
       [ "$REQUIRE_PROVENANCE" = "0" ] || die "trusted build provenance verification failed for $archive"
       warn "trusted build provenance verification failed, but HACO_REQUIRE_PROVENANCE=0 explicitly allows continuing"
@@ -407,8 +351,10 @@ verify_provenance() {
     fi
   else
     if ! gh attestation verify "$tmpdir/$archive" \
-      --repo "$REPOSITORY" --signer-workflow "$SIGNER_WORKFLOW" \
-      --source-ref "$SIGNER_SOURCE_REF" --deny-self-hosted-runners >/dev/null; then
+      --repo "$REPOSITORY" \
+      --signer-workflow "$SIGNER_WORKFLOW" \
+      --source-ref "$SIGNER_SOURCE_REF" \
+      --deny-self-hosted-runners >/dev/null; then
       [ "$REQUIRE_PROVENANCE" = "0" ] || die "trusted build provenance verification failed for $archive"
       warn "trusted build provenance verification failed, but HACO_REQUIRE_PROVENANCE=0 explicitly allows continuing"
       return 0
@@ -419,17 +365,24 @@ verify_provenance() {
   if [ -n "$bundle_path" ]; then
     binding_tags="$(
       gh attestation verify "$tmpdir/$archive" \
-        --repo "$REPOSITORY" --bundle "$bundle_path" \
-        --signer-workflow "$SIGNER_WORKFLOW" --source-ref "$SIGNER_SOURCE_REF" \
-        --predicate-type "$RELEASE_PREDICATE_TYPE" --deny-self-hosted-runners \
-        --format json --jq '.[].verificationResult.statement.predicate.tag' 2>/dev/null || true
+        --repo "$REPOSITORY" \
+        --bundle "$bundle_path" \
+        --signer-workflow "$SIGNER_WORKFLOW" \
+        --source-ref "$SIGNER_SOURCE_REF" \
+        --predicate-type "$RELEASE_PREDICATE_TYPE" \
+        --deny-self-hosted-runners \
+        --format json \
+        --jq '.[].verificationResult.statement.predicate.tag' 2>/dev/null || true
     )"
   else
     binding_tags="$(
       gh attestation verify "$tmpdir/$archive" \
-        --repo "$REPOSITORY" --signer-workflow "$SIGNER_WORKFLOW" \
-        --source-ref "$SIGNER_SOURCE_REF" --predicate-type "$RELEASE_PREDICATE_TYPE" \
-        --deny-self-hosted-runners --format json \
+        --repo "$REPOSITORY" \
+        --signer-workflow "$SIGNER_WORKFLOW" \
+        --source-ref "$SIGNER_SOURCE_REF" \
+        --predicate-type "$RELEASE_PREDICATE_TYPE" \
+        --deny-self-hosted-runners \
+        --format json \
         --jq '.[].verificationResult.statement.predicate.tag' 2>/dev/null || true
     )"
   fi
@@ -474,7 +427,9 @@ install_binary() {
   if [ -d "$INSTALL_DIR" ] && [ -w "$INSTALL_DIR" ]; then
     cp "$staging/$binary" "$install_target"
     chmod 0755 "$install_target"
-    if [ "$(id -u)" -eq 0 ]; then chown root:root "$install_target"; fi
+    if [ "$(id -u)" -eq 0 ]; then
+      chown root:root "$install_target"
+    fi
   elif command -v sudo >/dev/null 2>&1; then
     sudo mkdir -p "$INSTALL_DIR"
     sudo cp "$staging/$binary" "$install_target"
@@ -504,7 +459,9 @@ install_storage_helper() {
 }
 
 prepare_default_haco_root() {
-  if [ -n "${HACO_ROOT:-}" ] || [ -e "$DEFAULT_HACO_ROOT" ]; then return 0; fi
+  if [ -n "${HACO_ROOT:-}" ] || [ -e "$DEFAULT_HACO_ROOT" ]; then
+    return 0
+  fi
   uid="$(id -u)"
   gid="$(id -g)"
   if [ "$uid" -eq 0 ]; then
@@ -584,6 +541,7 @@ configure_hacocoon_controller() {
     /usr/local/bin/haco-controller|/usr/bin/haco-controller) ;;
     *) die "controller service requires a system-owned haco-controller at /usr/local/bin or /usr/bin (got $controller_bin)" ;;
   esac
+
   owner="$($SUDO stat -Lc '%u' "$controller_bin")"
   [ "$owner" = "0" ] || die "refusing controller service through non-root-owned binary: $controller_bin"
   if $SUDO find "$controller_bin" -perm /022 -print -quit | grep -q .; then
@@ -613,13 +571,16 @@ WantedBy=multi-user.target
 EOF_UNIT
   $SUDO install -o root -g root -m 0644 "$unit_tmp" "/etc/systemd/system/$HACOCOON_CONTROLLER_SERVICE"
   rm -f "$unit_tmp"
+
   $SUDO systemctl daemon-reload
   $SUDO systemctl enable "$HACOCOON_CONTROLLER_SERVICE" >/dev/null
   $SUDO systemctl restart "$HACOCOON_CONTROLLER_SERVICE"
 
   attempts=0
   while [ "$attempts" -lt 100 ]; do
-    if $SUDO test -S "$HACOCOON_CONTROLLER_SOCKET"; then break; fi
+    if $SUDO test -S "$HACOCOON_CONTROLLER_SOCKET"; then
+      break
+    fi
     if ! $SUDO systemctl is-active --quiet "$HACOCOON_CONTROLLER_SERVICE"; then
       $SUDO systemctl status "$HACOCOON_CONTROLLER_SERVICE" --no-pager >&2 || true
       die "Physical Host controller service exited before creating its socket"
@@ -627,99 +588,49 @@ EOF_UNIT
     attempts=$((attempts + 1))
     sleep 0.05
   done
+
   if ! $SUDO test -S "$HACOCOON_CONTROLLER_SOCKET"; then
     $SUDO systemctl status "$HACOCOON_CONTROLLER_SERVICE" --no-pager >&2 || true
     die "controller did not create $HACOCOON_CONTROLLER_SOCKET"
   fi
+
   socket_state="$($SUDO stat -Lc '%u:%g:%a' "$HACOCOON_CONTROLLER_SOCKET")"
-  [ "$socket_state" = "0:0:600" ] || die "unsafe controller socket ownership/mode: $socket_state (want 0:0:600)"
-}
-
-configure_hacocoon_wsl_login() {
-  haco_bin="$1"
-  [ "$LOGIN_USER" != "root" ] || die "refusing to replace root login shell; configure a non-root WSL default user first"
-  case "$LOGIN_USER" in
-    ''|*[!A-Za-z0-9._-]*) die "unsupported WSL login user name: $LOGIN_USER" ;;
-  esac
-  id "$LOGIN_USER" >/dev/null 2>&1 || die "WSL login user does not exist: $LOGIN_USER"
-
-  case "$haco_bin" in
-    /usr/local/bin/haco|/usr/bin/haco) ;;
-    *) die "automatic WSL login requires a system-owned haco at /usr/local/bin/haco or /usr/bin/haco (got $haco_bin)" ;;
-  esac
-  owner="$($SUDO stat -Lc '%u' "$haco_bin")"
-  [ "$owner" = "0" ] || die "refusing passwordless host entry through non-root-owned haco binary: $haco_bin"
-  if $SUDO find "$haco_bin" -perm /022 -print -quit | grep -q .; then
-    die "refusing passwordless host entry through group/world-writable haco binary: $haco_bin"
-  fi
-
-  printf '==> Configuring default WSL login to enter haco-host\n'
-  $SUDO mkdir -p /usr/local/libexec
-  $SUDO ln -sfn "$haco_bin" "$HACOCOON_LOGIN_SHELL"
-  if ! grep -Fx "$HACOCOON_LOGIN_SHELL" /etc/shells >/dev/null 2>&1; then
-    printf '%s\n' "$HACOCOON_LOGIN_SHELL" | $SUDO tee -a /etc/shells >/dev/null
-  fi
-
-  sudoers_tmp="$(mktemp)"
-  printf '%s ALL=(root) NOPASSWD: %s host ensure, %s host shell\n' "$LOGIN_USER" "$haco_bin" "$haco_bin" > "$sudoers_tmp"
-  $SUDO visudo -cf "$sudoers_tmp" >/dev/null
-  $SUDO install -m 0440 "$sudoers_tmp" /etc/sudoers.d/hacocoon-login
-  rm -f "$sudoers_tmp"
-  $SUDO usermod -s "$HACOCOON_LOGIN_SHELL" "$LOGIN_USER"
-}
-
-recovery_hint() {
-  if [ "$IS_WSL" = "1" ]; then
-    distro="${WSL_DISTRO_NAME:-Hacocoon}"
-    printf 'haco installer: recover on the Physical Host with: wsl -d %s -u root\n' "$distro" >&2
-  else
-    printf 'haco installer: recover on the Physical Host with a root shell or sudo.\n' >&2
-  fi
+  [ "$socket_state" = "0:0:600" ] ||
+    die "unsafe controller socket ownership/mode: $socket_state (want 0:0:600)"
 }
 
 if [ "$BINARIES_ONLY" != "1" ]; then
-  prepare_linux_host
+  prepare_ubuntu_main
 fi
 
 printf '==> Installing Hacocoon release\n'
 install_release_binaries
 
 if [ "$BINARIES_ONLY" = "1" ]; then
-  printf '%s\n' 'Hacocoon release binaries installed; host bootstrap was explicitly skipped.'
+  printf '%s\n' 'Hacocoon release binaries installed; shared Ubuntu host setup was explicitly skipped.'
   exit 0
 fi
 
 if [ "$SKIP_INCUS" = "1" ]; then
-  if [ "$IS_WSL" = "1" ]; then
-    printf '%s\n' 'haco installer: -SkipIncus leaves the Physical Host login unchanged; haco-host auto-entry requires a ready Incus backend.'
-  else
-    printf '%s\n' 'haco installer: -SkipIncus skips trusted haco-host reconciliation.'
-  fi
+  printf '%s\n' 'haco installer: Incus and trusted haco-host reconciliation were explicitly skipped.'
   exit 0
 fi
 
 haco_bin="$(command -v haco || true)"
 controller_bin="$(command -v haco-controller || true)"
-[ -n "$haco_bin" ] && [ -n "$controller_bin" ] || die "haco or haco-controller binary is unavailable after installation"
+[ -n "$haco_bin" ] && [ -n "$controller_bin" ] ||
+  die "haco or haco-controller binary is unavailable after installation"
 haco_bin="$(readlink -f "$haco_bin")"
 controller_bin="$(readlink -f "$controller_bin")"
 
-configure_hacocoon_controller "$controller_bin" || { recovery_hint; exit 1; }
+configure_hacocoon_controller "$controller_bin"
 printf '==> Reconciling trusted haco-host and controller endpoint\n'
-$SUDO "$haco_bin" host ensure || { printf 'haco installer: failed to prepare haco-host\n' >&2; recovery_hint; exit 1; }
+$SUDO "$haco_bin" host ensure || die "failed to prepare haco-host"
 printf '==> Verifying trusted haco-host controller round trip\n'
-$SUDO incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null || {
-  printf 'haco installer: haco-host cannot reach the Physical Host controller\n' >&2
-  recovery_hint
-  exit 1
-}
+$SUDO incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null ||
+  die "haco-host cannot reach the Physical Host controller"
 
-if [ "$IS_WSL" = "1" ]; then
-  configure_hacocoon_wsl_login "$haco_bin"
-else
-  printf '%s\n' 'haco installer: native Linux login shell is unchanged; use haco host shell explicitly when entering the trusted Host.'
-fi
-
+printf '%s\n' 'Shared Ubuntu Hacocoon installation completed successfully.'
 if [ "$GRANT_INCUS_ADMIN" = "1" ] && [ "$(id -u)" -ne 0 ]; then
-  printf '%s\n' 'haco installer: start a new login session (or use newgrp incus-admin) before relying on the new group membership.'
+  printf '%s\n' 'Start a new login session (or use newgrp incus-admin) before relying on the new group membership.'
 fi
