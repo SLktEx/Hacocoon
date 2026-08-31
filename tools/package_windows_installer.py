@@ -9,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MEMBERS = (
     (ROOT / "scripts" / "install-windows.bat", "install-windows.bat"),
     (ROOT / "scripts" / "install-windows.ps1", "install-windows.ps1"),
+    (ROOT / "scripts" / "bootstrap-linux.sh", "bootstrap-linux.sh"),
+    (ROOT / "scripts" / "install.sh", "install.sh"),
 )
 ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 
