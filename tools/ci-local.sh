@@ -53,14 +53,16 @@ run_workflow_policy() {
 
 validate_wsl_boundary() {
   grep -q -- '--name' scripts/install-windows.ps1
-  grep -q 'Hacocoon' scripts/install-windows.ps1
+  grep -q 'Ubuntu-26.04' scripts/install-windows.ps1
   grep -q -- '--set-version' scripts/install-windows.ps1
-  grep -q -- '--set-version' scripts/bootstrap-windows.ps1
   grep -q -- '--terminate' scripts/install-windows.ps1
-  grep -q -- '--terminate' scripts/bootstrap-windows.ps1
-  grep -q 'systemd=true' scripts/install.sh
-  grep -q 'systemd-sysv' scripts/install.sh
-  grep -q 'ps -p 1 -o comm=' scripts/install.sh
+  grep -q 'systemd=true' scripts/install-windows.ps1
+  grep -q 'install.sh' scripts/install-windows.ps1
+  grep -q 'hacocoon-login' scripts/install-windows.ps1
+  grep -q 'install-windows.ps1' scripts/bootstrap-windows.ps1
+  ! grep -q 'WSL_DISTRO_NAME' scripts/install.sh
+  ! grep -q '/etc/wsl.conf' scripts/install.sh
+  ! grep -q 'hacocoon-login' scripts/install.sh
   ! grep -q -- '--set-default-version' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
   ! grep -q -- '--shutdown' scripts/install-windows.ps1 scripts/bootstrap-windows.ps1
 }
@@ -127,6 +129,7 @@ validate_release_artifacts() {
   grep -q 'haco_linux_amd64.tar.gz' dist/checksums.txt
   grep -q 'haco_linux_arm64.tar.gz' dist/checksums.txt
   grep -q 'install.sh' dist/checksums.txt
+  grep -q 'install-ubuntu.sh' dist/checksums.txt
   grep -q 'install-windows.ps1' dist/checksums.txt
 }
 
@@ -144,6 +147,7 @@ run_release_config() {
   bash tools/test_release_tag_trust.sh
   python3 tools/check_release_provenance.py
   bash tools/test_install_archive_safety.sh
+  bash tools/test_install_provenance_fail_closed.sh
 
   section "release-config: GoReleaser config"
   goreleaser check
@@ -151,19 +155,22 @@ run_release_config() {
   section "release-config: shell syntax"
   bash -n \
     scripts/install.sh \
+    scripts/install-ubuntu.sh \
     tools/ci-local.sh \
     tools/check_release_tag_trust.sh \
     tools/test_release_tag_trust.sh \
-    tools/test_install_archive_safety.sh
+    tools/test_install_archive_safety.sh \
+    tools/test_install_provenance_fail_closed.sh
 
-  section "release-config: Windows installer syntax and provenance"
+  section "release-config: installer package layouts"
+  python3 tools/test_windows_installer_launcher.py
+  python3 tools/test_ubuntu_installer_launcher.py
+
+  section "release-config: Windows installer syntax"
   pwsh -NoLogo -NoProfile -NonInteractive -Command '
     $ErrorActionPreference = "Stop"
     [scriptblock]::Create((Get-Content -Raw "scripts/bootstrap-windows.ps1")) | Out-Null
     [scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null
-    [scriptblock]::Create((Get-Content -Raw "tools/test_windows_installer_provenance.ps1")) | Out-Null
-    & "./tools/test_windows_installer_provenance.ps1"
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   '
 
   section "release-config: WSL boundary"
