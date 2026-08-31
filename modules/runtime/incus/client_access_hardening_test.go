@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -41,6 +42,29 @@ func TestPrepareSSHAccessRollsBackProxyWhenProvisioningFails(t *testing.T) {
 	_, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: "ssh-ed25519 AAAA", HostPort: 2222})
 	if !errors.Is(err, provisionErr) {
 		t.Fatalf("error = %v", err)
+	}
+	if len(runner.calls) != 3 {
+		t.Fatalf("calls = %#v", runner.calls)
+	}
+	assertRunnerCall(t, runner.calls[2], "incus", "config", "device", "remove", "haco-demo", "haco-ssh-2222", "--project", defaultProject)
+}
+
+func TestPrepareSSHAccessRequiresSSHReadyBaseWithoutPackageInstall(t *testing.T) {
+	provisionErr := errors.New("exit status 127")
+	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, args []string) (host.Result, error) {
+		if call == 1 {
+			joined := strings.Join(args, " ")
+			if strings.Contains(joined, "apt-get") {
+				t.Fatalf("SSH provisioning must not install packages through sandbox egress: %q", joined)
+			}
+			return host.Result{ExitCode: 127}, provisionErr
+		}
+		return host.Result{}, nil
+	}}
+
+	_, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: "ssh-ed25519 AAAA", HostPort: 2222})
+	if !errors.Is(err, core.ErrUnsupported) {
+		t.Fatalf("error = %v want ErrUnsupported", err)
 	}
 	if len(runner.calls) != 3 {
 		t.Fatalf("calls = %#v", runner.calls)
