@@ -118,7 +118,6 @@ func validateBaseName(name core.BaseName) error {
 			if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.') {
 				return fmt.Errorf("invalid Base name %q: %w", value, core.ErrInvalidArgument)
 			}
-		}
 	}
 	return nil
 }
@@ -203,7 +202,10 @@ func (p *BaseProvider) resolveBase(ctx context.Context, requested core.BaseName)
 			Name:     parent.ref.Name,
 			Revision: seedRevision,
 		},
-		pinnedSource: "local:" + fingerprint,
+		// A Seed is local to the Incus server Hacocoon is currently connected
+		// to. Do not hard-code the client-side remote name "local": CI and
+		// remote management clients may name that same server differently.
+		pinnedSource: fingerprint,
 		usesSeed:     true,
 	}, nil
 }
@@ -240,7 +242,10 @@ func (p *BaseProvider) resolveParentBase(ctx context.Context, requested core.Bas
 }
 
 func (p *BaseProvider) verifyEffectiveSeed(ctx context.Context, fingerprint string) error {
-	resolved, err := p.imageFingerprint(ctx, "local:"+fingerprint, p.project)
+	// The immutable Seed lives on the current Incus server. Leaving the remote
+	// unqualified makes this work with the default local client as well as an
+	// isolated TLS client whose current remote has another name.
+	resolved, err := p.imageFingerprint(ctx, fingerprint, p.project)
 	if err != nil {
 		return err
 	}
