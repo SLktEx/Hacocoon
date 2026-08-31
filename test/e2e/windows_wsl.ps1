@@ -96,7 +96,8 @@ try {
         throw "systemd is not PID 1 inside the GitHub-hosted WSL2 distro (got '$pid1')"
     }
 
-    $version = Get-WslText @("--distribution", $Distro, "--user", "root", "--", "sh", "-lc", ". /etc/os-release; printf '%s' \"`$VERSION_ID\"")
+    $versionCommand = '. /etc/os-release; printf "%s" "$VERSION_ID"'
+    $version = Get-WslText @("--distribution", $Distro, "--user", "root", "--", "sh", "-lc", $versionCommand)
     if ($version -ne "26.04") {
         throw "expected Ubuntu 26.04 inside WSL, got '$version'"
     }
