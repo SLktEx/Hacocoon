@@ -129,11 +129,16 @@ jobs:
           & wsl.exe --distribution $instance --user root --exec sh -eu -c "printf '\n[user]\ndefault=%s\n' '$loginUser' >> /etc/wsl.conf"
           if ($LASTEXITCODE -ne 0) { throw "Failed to set the normal WSL default user fixture." }
 
-          # The GitHub-hosted runner cannot answer an interactive sudo password
-          # prompt. This models the privilege already available to a real Ubuntu
-          # user without changing any installer argument or installer environment.
-          $sudoers = "$loginUser ALL=(root) NOPASSWD: /usr/bin/apt-get *, /usr/bin/install *, /usr/bin/mkdir *, /usr/bin/tee *, /usr/bin/chmod *, /usr/sbin/usermod *, /usr/bin/systemctl *, /usr/bin/incus *, /usr/bin/stat *, /usr/bin/find *, /usr/bin/chown *, /usr/bin/cp *"
-          $sudoers | & wsl.exe --distribution $instance --user root --exec sh -eu -c 'cat > /etc/sudoers.d/hacocoon-e2e-bootstrap && chmod 0440 /etc/sudoers.d/hacocoon-e2e-bootstrap && visudo -cf /etc/sudoers.d/hacocoon-e2e-bootstrap >/dev/null'
+          # The hosted runner cannot answer an interactive sudo password prompt.
+          # Give the fixture user only the command families exercised by the normal
+          # installer, without passing any test-only argument or environment to it.
+          $sudoers = @(
+            "Cmnd_Alias HACO_BOOTSTRAP = /usr/bin/apt-get, /usr/bin/install, /usr/bin/mkdir, /usr/bin/tee, /usr/bin/chmod, /usr/sbin/usermod, /usr/bin/systemctl, /usr/bin/incus, /usr/bin/stat, /usr/bin/find, /usr/bin/chown, /usr/bin/cp, /usr/bin/test",
+            "$loginUser ALL=(root) NOPASSWD: HACO_BOOTSTRAP"
+          ) -join "`n"
+          $sudoers += "`n"
+          $sudoersBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($sudoers))
+          & wsl.exe --distribution $instance --user root --exec sh -eu -c "printf '%s' '$sudoersBase64' | base64 -d > /etc/sudoers.d/hacocoon-e2e-bootstrap && chmod 0440 /etc/sudoers.d/hacocoon-e2e-bootstrap && visudo -cf /etc/sudoers.d/hacocoon-e2e-bootstrap >/dev/null"
           if ($LASTEXITCODE -ne 0) { throw "Failed to prepare noninteractive sudo fixture." }
 
           & wsl.exe --terminate $instance
