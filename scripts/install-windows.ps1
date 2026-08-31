@@ -11,11 +11,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$Repository = "SLktEx/Hacocoon"
-$SignerWorkflow = "$Repository/.github/workflows/release.yml"
-$SignerSourceRef = "refs/heads/main"
-$ReleasePredicateType = "https://hacocoon.dev/attestations/release/v1"
-$SystemdRestartRequired = 42
+$LoginShell = "/usr/local/libexec/hacocoon-login"
 
 function Write-Step([string]$Message) {
     Write-Host "==> $Message"
@@ -29,15 +25,8 @@ function Test-Administrator {
 
 function Assert-SafeName([string]$Value, [string]$Label) {
     if ($Value -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
-        throw "$Label '$Value' contains unsupported characters. Use letters, digits, '.', '_' or '-'."
+        throw "$Label '$Value' contains unsupported characters."
     }
-}
-
-function Assert-Version([string]$Version) {
-    if ($Version -eq "latest") {
-        return
-    }
-    Assert-ReleaseTag $Version
 }
 
 function Assert-ReleaseTag([string]$Version) {
@@ -46,180 +35,17 @@ function Assert-ReleaseTag([string]$Version) {
     }
 }
 
-function Get-GhCommand {
-    $gh = Get-Command gh.exe -ErrorAction SilentlyContinue
-    if (-not $gh) {
-        $gh = Get-Command gh -ErrorAction SilentlyContinue
-    }
-    if (-not $gh) {
-        throw "Trusted standalone installation requires GitHub CLI with 'gh attestation verify' support. The normal ZIP installer does not require GitHub CLI on Windows."
-    }
-
-    & $gh.Source attestation verify --help *> $null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Trusted standalone installation requires a GitHub CLI version with 'gh attestation verify' support. The normal ZIP installer does not require GitHub CLI on Windows."
-    }
-    return $gh
-}
-
-function Resolve-ReleaseVersion([string]$Version) {
-    if ($Version -ne "latest") {
-        Assert-ReleaseTag $Version
-        return $Version
-    }
-
-    $gh = Get-GhCommand
-    $tagOutput = & $gh.Source release view --repo $Repository --json tagName --jq .tagName 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to resolve the latest Hacocoon release to an explicit tag: $($tagOutput | Out-String)"
-    }
-    $tag = ($tagOutput | Out-String).Trim()
-    Assert-ReleaseTag $tag
-    Write-Host "Resolved latest Hacocoon release to $tag."
-    return $tag
-}
-
-function Assert-NamedInstallSupported {
-    $null = (& wsl.exe --version 2>&1 | Out-String)
-    if ($LASTEXITCODE -ne 0) {
-        throw "This WSL installation is too old for named distribution installation. Update WSL explicitly with 'wsl --update', then run the Hacocoon installer again."
-    }
-}
-
-function Assert-SystemdSupported {
-    $null = (& wsl.exe --version 2>&1 | Out-String)
-    if ($LASTEXITCODE -ne 0) {
-        throw "This WSL installation is too old for supported systemd integration. Update WSL explicitly with 'wsl --update', then run the Hacocoon installer again."
-    }
-}
-
-function Get-ReleaseBase([string]$Version) {
-    Assert-ReleaseTag $Version
-    return "https://github.com/$Repository/releases/download/$Version"
-}
-
-function Download-ReleaseAsset([string]$Name, [string]$Destination, [string]$Version) {
-    Assert-ReleaseTag $Version
-    $downloaded = $false
-
-    $gh = Get-Command gh.exe -ErrorAction SilentlyContinue
-    if (-not $gh) {
-        $gh = Get-Command gh -ErrorAction SilentlyContinue
-    }
-    if ($gh) {
-        & $gh.Source auth status *> $null
-        if ($LASTEXITCODE -eq 0) {
-            $args = @(
-                "release", "download", $Version,
-                "--repo", $Repository,
-                "--pattern", $Name,
-                "--dir", (Split-Path -Parent $Destination),
-                "--clobber"
-            )
-            & $gh.Source @args
-            if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $Destination)) {
-                $downloaded = $true
-            }
-        }
-    }
-
-    if (-not $downloaded) {
-        $headers = @{}
-        $token = if ($env:GH_TOKEN) {
-            $env:GH_TOKEN
-        } elseif ($env:GITHUB_TOKEN) {
-            $env:GITHUB_TOKEN
-        } else {
-            $null
-        }
-        if ($token) {
-            $headers["Authorization"] = "Bearer $token"
-        }
-
-        $uri = "$(Get-ReleaseBase $Version)/$Name"
-        try {
-            Invoke-WebRequest -UseBasicParsing -Uri $uri -OutFile $Destination -Headers $headers
-        } catch {
-            throw "Failed to download '$Name'. Public releases need network access; private releases require an authenticated gh CLI or GH_TOKEN/GITHUB_TOKEN. $($_.Exception.Message)"
-        }
-    }
-
-    if (-not (Test-Path -LiteralPath $Destination)) {
-        throw "Failed to download release asset '$Name'."
-    }
-}
-
-function Get-ExpectedHash([string]$ChecksumsPath, [string]$Name) {
-    foreach ($line in Get-Content -LiteralPath $ChecksumsPath) {
-        if ($line -match '^([0-9a-fA-F]{64})\s+\*?(.+)$' -and $Matches[2] -eq $Name) {
-            return $Matches[1].ToLowerInvariant()
-        }
-    }
-    throw "Checksum for '$Name' was not found in checksums.txt."
-}
-
-function Assert-Sha256([string]$Path, [string]$Expected) {
-    $actual = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($actual -ne $Expected.ToLowerInvariant()) {
-        throw "Checksum verification failed for '$(Split-Path -Leaf $Path)'."
-    }
-}
-
-function Assert-TrustedReleaseAsset([string]$Path, [string]$Version) {
-    Assert-ReleaseTag $Version
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        throw "Release asset does not exist for provenance verification: $Path"
-    }
-
-    $gh = Get-GhCommand
-    & $gh.Source attestation verify $Path `
-        --repo $Repository `
-        --signer-workflow $SignerWorkflow `
-        --source-ref $SignerSourceRef `
-        --deny-self-hosted-runners *> $null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Trusted build provenance verification failed for '$(Split-Path -Leaf $Path)'."
-    }
-
-    $bindingOutput = & $gh.Source attestation verify $Path `
-        --repo $Repository `
-        --signer-workflow $SignerWorkflow `
-        --source-ref $SignerSourceRef `
-        --predicate-type $ReleasePredicateType `
-        --deny-self-hosted-runners `
-        --format json 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Signed release-binding verification failed for '$(Split-Path -Leaf $Path)'."
-    }
-
-    try {
-        $records = @((($bindingOutput | Out-String) | ConvertFrom-Json))
-        $tags = @($records | ForEach-Object { $_.verificationResult.statement.predicate.tag })
-    } catch {
-        throw "Signed release-binding attestation could not be decoded for '$(Split-Path -Leaf $Path)': $($_.Exception.Message)"
-    }
-    if ($tags -notcontains $Version) {
-        throw "Signed release-binding verification failed for '$(Split-Path -Leaf $Path)': expected tag $Version."
-    }
-
-    Write-Host "Verified trusted provenance and signed release binding for $(Split-Path -Leaf $Path)."
-}
-
 function Get-InstalledDistros {
     $lines = & wsl.exe --list --quiet 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        return @()
-    }
-    return @($lines | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ -ne "" })
+    if ($LASTEXITCODE -ne 0) { return @() }
+    return @($lines | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
 }
 
 function Get-WslGeneration([string]$Name) {
     $escaped = [regex]::Escape($Name)
-    $lastOutput = ""
     for ($attempt = 0; $attempt -lt 20; $attempt++) {
         $lines = & wsl.exe --list --verbose 2>$null
         if ($LASTEXITCODE -eq 0) {
-            $lastOutput = ($lines | Out-String)
             foreach ($line in $lines) {
                 $normalized = ($line -replace "`0", "").Trim()
                 if ($normalized -match "^\*?\s*$escaped\s+.*\s+([12])\s*$") {
@@ -229,181 +55,262 @@ function Get-WslGeneration([string]$Name) {
         }
         Start-Sleep -Milliseconds 250
     }
-    throw "Unable to determine the WSL version for '$Name' after waiting for WSL state to settle. Last output: $lastOutput"
+    throw "Unable to determine WSL generation for '$Name'."
 }
 
 function Ensure-Wsl2([string]$Name) {
-    if ((Get-WslGeneration $Name) -eq 2) {
-        return
-    }
-
-    Write-Step "Converting dedicated WSL instance '$Name' to WSL 2"
+    if ((Get-WslGeneration $Name) -eq 2) { return }
+    Write-Step "Converting '$Name' to WSL 2"
     & wsl.exe --set-version $Name 2
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to convert dedicated WSL instance '$Name' to WSL 2."
+    if ($LASTEXITCODE -ne 0 -or (Get-WslGeneration $Name) -ne 2) {
+        throw "Failed to convert '$Name' to WSL 2."
     }
-    if ((Get-WslGeneration $Name) -ne 2) {
-        throw "Dedicated WSL instance '$Name' is not running as WSL 2 after conversion."
+}
+
+function Assert-WslSupported {
+    $null = (& wsl.exe --version 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "This WSL installation is too old. Update WSL with 'wsl --update'."
+    }
+}
+
+function Get-WslLoginUser([string]$Name) {
+    $candidate = $env:HACO_BOOTSTRAP_LOGIN_USER
+    if ([string]::IsNullOrWhiteSpace($candidate)) {
+        $candidate = (& wsl.exe --distribution $Name --exec id -un | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0) {
+            throw "Unable to determine the default Linux user in '$Name'."
+        }
+    }
+    Assert-SafeName $candidate "WSL login user"
+    if ($candidate -eq "root") {
+        throw "The dedicated WSL instance still defaults to root. Launch it once with 'wsl -d $Name' and complete normal Ubuntu user setup."
+    }
+    & wsl.exe --distribution $Name --user root --exec id $candidate *> $null
+    if ($LASTEXITCODE -ne 0) {
+        throw "WSL login user '$candidate' does not exist in '$Name'."
+    }
+    return $candidate
+}
+
+function Assert-UbuntuBaseline([string]$Name) {
+    $os = (& wsl.exe --distribution $Name --exec sh -c '. /etc/os-release; printf "%s|%s" "$ID" "$VERSION_ID"' | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $os -notmatch '^ubuntu\|(.+)$') {
+        throw "The dedicated WSL instance must be Ubuntu 26.04 or newer (got '$os')."
+    }
+    try { $version = [version]$Matches[1] } catch { throw "Unable to parse Ubuntu version '$($Matches[1])'." }
+    if ($version -lt [version]'26.4') {
+        throw "Hacocoon requires Ubuntu 26.04 or newer (got $version)."
     }
 }
 
 function Assert-SystemdActive([string]$Name) {
-    $pid1 = (& wsl.exe --distribution $Name --exec sh -c "ps -p 1 -o comm=").Trim()
+    $pid1 = (& wsl.exe --distribution $Name --exec sh -c 'ps -p 1 -o comm=' | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or $pid1 -ne "systemd") {
-        throw "systemd is not active as PID 1 inside dedicated WSL instance '$Name'."
+        throw "systemd is not active as PID 1 inside '$Name'."
     }
 }
 
-# Tests dot-source this script to exercise trust helpers without invoking WSL.
-if ($MyInvocation.InvocationName -eq '.') {
-    return
+function Enable-WslSystemd([string]$Name) {
+    $pid1 = (& wsl.exe --distribution $Name --exec sh -c 'ps -p 1 -o comm=' | Out-String).Trim()
+    if ($LASTEXITCODE -eq 0 -and $pid1 -eq "systemd") { return }
+
+    Write-Step "Enabling systemd in '$Name'"
+    $script = @'
+set -eu
+tmp="$(mktemp)"
+if [ -f /etc/wsl.conf ]; then
+  awk '
+    BEGIN { in_boot=0; boot_seen=0; systemd_seen=0 }
+    function flush_boot() { if (in_boot && !systemd_seen) { print "systemd=true"; systemd_seen=1 } }
+    /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+      flush_boot()
+      in_boot = ($0 ~ /^[[:space:]]*\[boot\][[:space:]]*$/)
+      if (in_boot) { boot_seen=1; systemd_seen=0 }
+      print
+      next
+    }
+    {
+      if (in_boot && $0 ~ /^[[:space:]]*systemd[[:space:]]*=/) {
+        if (!systemd_seen) { print "systemd=true"; systemd_seen=1 }
+        next
+      }
+      print
+    }
+    END {
+      flush_boot()
+      if (!boot_seen) {
+        if (NR > 0) print ""
+        print "[boot]"
+        print "systemd=true"
+      }
+    }
+  ' /etc/wsl.conf > "$tmp"
+else
+  printf '[boot]\nsystemd=true\n' > "$tmp"
+fi
+install -o root -g root -m 0644 "$tmp" /etc/wsl.conf
+rm -f "$tmp"
+'@
+    $script | & wsl.exe --distribution $Name --user root --exec sh -s
+    if ($LASTEXITCODE -ne 0) { throw "Failed to configure systemd in '$Name'." }
+
+    & wsl.exe --terminate $Name
+    if ($LASTEXITCODE -ne 0) { throw "Failed to restart '$Name' after enabling systemd." }
+    Start-Sleep -Milliseconds 750
+    & wsl.exe --distribution $Name --exec true
+    if ($LASTEXITCODE -ne 0) { throw "Failed to start '$Name' after enabling systemd." }
+    Assert-SystemdActive $Name
+}
+
+function Get-BundledVersion {
+    $versionPath = Join-Path $PSScriptRoot "VERSION"
+    if (-not (Test-Path -LiteralPath $versionPath -PathType Leaf)) {
+        if ($HacocoonVersion -eq "latest") { return "latest" }
+        Assert-ReleaseTag $HacocoonVersion
+        return $HacocoonVersion
+    }
+
+    $bundled = (Get-Content -LiteralPath $versionPath -Raw).Trim()
+    Assert-ReleaseTag $bundled
+    if ($HacocoonVersion -ne "latest" -and $HacocoonVersion -ne $bundled) {
+        throw "This installer contains $bundled but '$HacocoonVersion' was requested. Download the matching installer package instead."
+    }
+    return $bundled
+}
+
+function Get-WslArch([string]$Name) {
+    $machine = (& wsl.exe --distribution $Name --exec uname -m | Out-String).Trim()
+    switch ($machine) {
+        { $_ -in @("x86_64", "amd64") } { return "amd64" }
+        { $_ -in @("aarch64", "arm64") } { return "arm64" }
+        default { throw "Unsupported WSL architecture '$machine'." }
+    }
+}
+
+function Configure-WslPost([string]$Name, [string]$LoginUser) {
+    Write-Step "Configuring WSL login to enter trusted haco-host"
+    $haco = (& wsl.exe --distribution $Name --user $LoginUser --exec sh -c 'command -v haco' | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $haco -notin @('/usr/local/bin/haco', '/usr/bin/haco')) {
+        throw "Installed system haco binary is unavailable for WSL post-install setup."
+    }
+
+    $owner = (& wsl.exe --distribution $Name --user root --exec stat -Lc '%u' $haco | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $owner -ne '0') {
+        throw "Refusing WSL login integration through a non-root-owned haco binary."
+    }
+    $writable = (& wsl.exe --distribution $Name --user root --exec find $haco -perm /022 -print -quit | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not [string]::IsNullOrWhiteSpace($writable)) {
+        throw "Refusing WSL login integration through a group/world-writable haco binary."
+    }
+
+    & wsl.exe --distribution $Name --user root --exec mkdir -p /usr/local/libexec
+    if ($LASTEXITCODE -ne 0) { throw "Failed to prepare WSL login integration directory." }
+    & wsl.exe --distribution $Name --user root --exec ln -sfn $haco $LoginShell
+    if ($LASTEXITCODE -ne 0) { throw "Failed to install Hacocoon WSL login shell." }
+    & wsl.exe --distribution $Name --user root --exec sh -c "grep -Fx '$LoginShell' /etc/shells >/dev/null 2>&1 || printf '%s\n' '$LoginShell' >> /etc/shells"
+    if ($LASTEXITCODE -ne 0) { throw "Failed to register Hacocoon WSL login shell." }
+
+    $sudoers = "$LoginUser ALL=(root) NOPASSWD: $haco host ensure, $haco host shell`n"
+    $sudoers | & wsl.exe --distribution $Name --user root --exec sh -c 'cat > /etc/sudoers.d/hacocoon-login && chmod 0440 /etc/sudoers.d/hacocoon-login && visudo -cf /etc/sudoers.d/hacocoon-login >/dev/null'
+    if ($LASTEXITCODE -ne 0) { throw "Failed to install the narrow Hacocoon WSL sudo rule." }
+
+    & wsl.exe --distribution $Name --user root --exec usermod -s $LoginShell $LoginUser
+    if ($LASTEXITCODE -ne 0) { throw "Failed to configure Hacocoon WSL login shell for '$LoginUser'." }
+
+    $actualShell = (& wsl.exe --distribution $Name --user root --exec sh -c "getent passwd '$LoginUser' | cut -d: -f7" | Out-String).Trim()
+    if ($actualShell -ne $LoginShell) {
+        throw "WSL post-install validation failed: '$LoginUser' shell is '$actualShell'."
+    }
 }
 
 Assert-SafeName $InstanceName "WSL instance name"
 Assert-SafeName $BaseDistro "WSL base distribution"
-Assert-Version $HacocoonVersion
+if ($HacocoonVersion -ne "latest") { Assert-ReleaseTag $HacocoonVersion }
 
 if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
-    throw "wsl.exe is not available. This installer requires a supported Windows 10/11 installation."
+    throw "wsl.exe is unavailable. This installer requires Windows with current WSL."
 }
+Assert-WslSupported
 
 $installed = @(Get-InstalledDistros)
 if (-not ($installed -contains $InstanceName)) {
-    Assert-NamedInstallSupported
-    Assert-SystemdSupported
     if (-not (Test-Administrator)) {
-        throw "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell. Re-run this installer as Administrator."
+        throw "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell."
     }
-
-    Write-Step "Creating dedicated WSL 2 instance '$InstanceName' from '$BaseDistro'"
-    $installArgs = @("--install", $BaseDistro, "--name", $InstanceName, "--no-launch")
-    if ($WebDownload) {
-        $installArgs += "--web-download"
-    }
-    & wsl.exe @installArgs
+    Write-Step "Creating dedicated WSL instance '$InstanceName' from '$BaseDistro'"
+    $args = @("--install", $BaseDistro, "--name", $InstanceName, "--no-launch")
+    if ($WebDownload) { $args += "--web-download" }
+    & wsl.exe @args
     if ($LASTEXITCODE -ne 0) {
-        throw "Failed to create dedicated WSL instance '$InstanceName' from '$BaseDistro'. If WSL rejects '--name', update WSL explicitly with 'wsl --update'. Run 'wsl --list --online' to inspect available base distributions."
+        throw "Failed to create '$InstanceName'. Update WSL with 'wsl --update' if named installation is unsupported."
     }
-
     Ensure-Wsl2 $InstanceName
-
     Write-Host ""
-    Write-Host "Dedicated Hacocoon WSL 2 instance '$InstanceName' was installed."
-    Write-Host "Existing WSL distributions and global WSL defaults were not modified."
-    Write-Host "Windows or the new instance may require a reboot or first-launch Linux user setup."
+    Write-Host "Dedicated Hacocoon WSL instance '$InstanceName' was created."
     Write-Host "Launch it once with: wsl -d $InstanceName"
-    Write-Host "Complete the Linux user setup if prompted, then run this installer again."
+    Write-Host "Complete normal Ubuntu user setup, then run this installer again."
     exit 0
 }
 
-Assert-SystemdSupported
 Ensure-Wsl2 $InstanceName
-
-Write-Step "Checking dedicated WSL 2 instance '$InstanceName'"
-& wsl.exe --distribution $InstanceName --exec sh -c "printf hacocoon-wsl-ready"
+& wsl.exe --distribution $InstanceName --exec true
 if ($LASTEXITCODE -ne 0) {
-    throw "Dedicated WSL instance '$InstanceName' exists but is not ready. Launch it once with 'wsl -d $InstanceName', complete first-run setup, and run this installer again."
-}
-Write-Host ""
-
-$assetRoot = $PSScriptRoot
-$linuxInstallerPath = Join-Path $assetRoot "install.sh"
-$tempRoot = $null
-$ResolvedHacocoonVersion = $HacocoonVersion
-
-if (Test-Path -LiteralPath $linuxInstallerPath -PathType Leaf) {
-    Write-Step "Using shared Linux installer bundled with the Windows installer"
-} else {
-    Write-Step "Bundled Linux installer is unavailable; using standalone release-asset fallback"
-    $ResolvedHacocoonVersion = Resolve-ReleaseVersion $HacocoonVersion
-    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("hacocoon-install-" + [guid]::NewGuid().ToString("N"))
-    New-Item -ItemType Directory -Path $tempRoot | Out-Null
-    $assetRoot = $tempRoot
-    $checksumsPath = Join-Path $assetRoot "checksums.txt"
-    $linuxInstallerPath = Join-Path $assetRoot "install.sh"
-
-    Write-Step "Downloading standalone Hacocoon Linux installer"
-    Download-ReleaseAsset "checksums.txt" $checksumsPath $ResolvedHacocoonVersion
-    Download-ReleaseAsset "install.sh" $linuxInstallerPath $ResolvedHacocoonVersion
-
-    Assert-Sha256 $linuxInstallerPath (Get-ExpectedHash $checksumsPath "install.sh")
-
-    Write-Step "Verifying trusted release provenance before executing standalone Linux installer"
-    Assert-TrustedReleaseAsset $checksumsPath $ResolvedHacocoonVersion
-    Assert-TrustedReleaseAsset $linuxInstallerPath $ResolvedHacocoonVersion
+    throw "'$InstanceName' exists but is not ready. Launch it once and complete Ubuntu user setup."
 }
 
-try {
-    $linuxAssetRoot = (& wsl.exe --distribution $InstanceName --exec wslpath -u -a $assetRoot).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxAssetRoot)) {
-        throw "Failed to translate the installer asset path into the dedicated WSL instance."
+# pre
+$loginUser = Get-WslLoginUser $InstanceName
+Assert-UbuntuBaseline $InstanceName
+Enable-WslSystemd $InstanceName
+$arch = Get-WslArch $InstanceName
+$archiveName = "haco_linux_$arch.tar.gz"
+$archivePath = Join-Path $PSScriptRoot $archiveName
+$installerPath = Join-Path $PSScriptRoot "install.sh"
+$checksumsPath = Join-Path $PSScriptRoot "checksums.txt"
+foreach ($required in @($installerPath, $archivePath, $checksumsPath)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw "Installer package is incomplete: missing $(Split-Path -Leaf $required). Download the $arch package."
     }
-
-    $skipIncusValue = if ($SkipIncus) { "1" } else { "0" }
-    $grantIncusAdminValue = if ($GrantIncusAdmin) { "1" } else { "0" }
-    if ($GrantIncusAdmin) {
-        Write-Warning "Granting incus-admin gives the Linux user root-equivalent local Incus authority."
-    }
-
-    $wslArgs = @(
-        "--distribution", $InstanceName,
-        "--exec",
-        "env",
-        "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue",
-        "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue",
-        "HACO_REQUIRE_PROVENANCE=1",
-        "sh", "$linuxAssetRoot/install.sh", $ResolvedHacocoonVersion
-    )
-
-    Write-Step "Running shared Linux installer inside '$InstanceName'"
-    & wsl.exe @wslArgs
-    $installerExit = $LASTEXITCODE
-
-    if ($installerExit -eq $SystemdRestartRequired) {
-        Write-Step "Restarting dedicated WSL instance '$InstanceName' to activate systemd"
-        & wsl.exe --terminate $InstanceName
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to terminate dedicated WSL instance '$InstanceName' for systemd activation."
-        }
-        Start-Sleep -Milliseconds 750
-
-        & wsl.exe @wslArgs
-        $installerExit = $LASTEXITCODE
-    }
-
-    if ($installerExit -eq $SystemdRestartRequired) {
-        throw "systemd still requires a restart after the dedicated WSL instance was restarted."
-    }
-    if ($installerExit -ne 0) {
-        throw "Hacocoon Linux installation failed inside WSL."
-    }
-
-    Assert-SystemdActive $InstanceName
 }
-finally {
-    if ($null -ne $tempRoot) {
-        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
-    }
+$resolvedVersion = Get-BundledVersion
+$linuxAssetRoot = (& wsl.exe --distribution $InstanceName --user root --exec wslpath -u -a $PSScriptRoot | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($linuxAssetRoot)) {
+    throw "Failed to translate the installer package path into WSL."
+}
+
+# main
+$skipIncusValue = if ($SkipIncus) { "1" } else { "0" }
+$grantIncusAdminValue = if ($GrantIncusAdmin) { "1" } else { "0" }
+$requireProvenance = if ($env:HACO_REQUIRE_PROVENANCE) { $env:HACO_REQUIRE_PROVENANCE } else { "1" }
+Write-Step "Running common Ubuntu install.sh inside '$InstanceName'"
+& wsl.exe --distribution $InstanceName --user $loginUser --exec env `
+    "HACO_BUNDLE_ROOT=$linuxAssetRoot" `
+    "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue" `
+    "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue" `
+    "HACO_REQUIRE_PROVENANCE=$requireProvenance" `
+    sh "$linuxAssetRoot/install.sh" $resolvedVersion
+if ($LASTEXITCODE -ne 0) {
+    throw "Common Hacocoon Ubuntu installation failed inside WSL."
+}
+Assert-SystemdActive $InstanceName
+
+# post
+if (-not $SkipIncus) {
+    Configure-WslPost $InstanceName $loginUser
+    & wsl.exe --distribution $InstanceName --user root --exec incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor *> $null
+    if ($LASTEXITCODE -ne 0) { throw "WSL post-install haco-host acceptance failed." }
 }
 
 Write-Host ""
-Write-Step "Hacocoon installation complete"
-Write-Host "Dedicated WSL instance: $InstanceName (WSL 2)"
-Write-Host "Init system: systemd"
-Write-Host "Base distribution: $BaseDistro"
-if ($ResolvedHacocoonVersion -eq "latest") {
-    Write-Host "Release: latest (resolved and verified by the shared Linux installer)"
-} else {
-    Write-Host "Release: $ResolvedHacocoonVersion"
-}
-Write-Host "Existing WSL distributions and global WSL defaults remain separate and untouched."
-Write-Host "Next: wsl -d $InstanceName"
+Write-Step "Hacocoon WSL installation complete"
+Write-Host "Instance: $InstanceName"
+Write-Host "Ubuntu user: $loginUser"
+Write-Host "Architecture: $arch"
+Write-Host "Release: $resolvedVersion"
 if ($SkipIncus) {
-    Write-Host "Because -SkipIncus was used, this opens the Physical Host; haco-host automatic entry is not configured."
+    Write-Host "-SkipIncus was used; automatic haco-host entry was not configured."
 } else {
-    Write-Host "Interactive default entry opens the trusted haco-host management environment."
-    Write-Host "Physical Host recovery/debug: wsl -d $InstanceName -u root"
-}
-if (-not $SkipIncus -and -not $GrantIncusAdmin) {
-    Write-Host "Broad incus-admin access remains ungranted; default haco-host entry uses only the narrow Hacocoon host commands configured by the installer."
+    Write-Host "Next: wsl -d $InstanceName"
+    Write-Host "Physical Host recovery: wsl -d $InstanceName -u root"
 }
