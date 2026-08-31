@@ -57,10 +57,10 @@ func handleControllerClientModeArgs(
 	if strings.TrimSpace(os.Getenv("HACO_CONTROL_SOCKET")) == "" {
 		return true, fmt.Errorf("%s=%s requires HACO_CONTROL_SOCKET: %w", controllerClientModeEnv, controllerClientModeValue, core.ErrInvalidArgument)
 	}
-	if len(args) > 0 && args[0] == "env" {
-		// env_client.go owns the first-class controller namespace. Returning here
-		// keeps initialization-order independent while still validating the
-		// explicit trusted-host client context above.
+	if len(args) > 0 && (args[0] == "env" || isGeneralControllerCommand(args[0])) {
+		// env_client.go and general_client.go own the first-class controller
+		// namespaces. Returning here keeps initialization-order independent while
+		// still validating the explicit trusted-host client context above.
 		return false, nil
 	}
 	if len(args) > 1 && args[0] == "host" && args[1] == "shell" {
