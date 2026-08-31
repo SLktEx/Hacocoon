@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -159,9 +160,10 @@ func (r *Runtime) ListClientConnections(ctx context.Context, ref string) ([]core
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return nil, err
 	}
-	result, err := r.runner.Run(ctx, "incus", "config", "show", ref, "--project", r.project, "--format", "json")
+	endpoint := "/1.0/instances/" + ref + "?project=" + url.QueryEscape(r.project)
+	result, err := r.runner.Run(ctx, "incus", "query", endpoint)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query Incus client devices for %s: %w", ref, err)
 	}
 	var config struct {
 		Devices map[string]map[string]string `json:"devices"`
