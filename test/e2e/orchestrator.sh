@@ -1,16 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for command in go python3 mktemp grep sed; do
+for command in go python3 mktemp grep sed sleep; do
   command -v "$command" >/dev/null 2>&1 || { echo "missing required command: $command" >&2; exit 1; }
 done
 
+source "$(dirname "$0")/controller.sh"
+
 root="$(mktemp -d)"
-trap 'rm -rf "$root"' EXIT
+cleanup() {
+  set +e
+  haco_stop_test_controller
+  rm -rf "$root"
+}
+trap cleanup EXIT
 bin="$root/bin"
 state="$root/incus-state"
 workspace="$root/workspace"
 haco="$root/haco"
+controller="$root/haco-controller"
 mkdir -p "$bin" "$state" "$workspace"
 export HACO_ROOT="$root/haco-root"
 export HACO_FAKE_INCUS_STATE="$state"
@@ -319,6 +327,12 @@ SH
 chmod +x "$bin/incus"
 
 go build -o "$haco" ./cmd/haco
+go build -o "$controller" ./cmd/haco-controller
+haco_start_test_controller \
+  "$controller" \
+  "$root/control.sock" \
+  "$root/controller.out" \
+  "$root/controller.err"
 
 # v0.11 Base catalog: public names stay provider-neutral and inspect resolves
 # the current logical source to an immutable revision.
