@@ -17,8 +17,49 @@ const managedSSHProvisionScript = `
 set -eu
 export DEBIAN_FRONTEND=noninteractive
 if ! command -v sshd >/dev/null 2>&1; then
-  apt-get update
-  apt-get install -y --no-install-recommends openssh-server
+  proxy_http="${http_proxy:-${HTTP_PROXY:-}}"
+  proxy_https="${https_proxy:-${HTTPS_PROXY:-$proxy_http}}"
+  if [ -z "$proxy_http" ] || [ -z "$proxy_https" ]; then
+    echo 'managed SSH bootstrap requires the Hacocoon egress proxy environment' >&2
+    exit 125
+  fi
+  case "$proxy_http" in
+    http://*) ;;
+    *)
+      echo 'managed SSH bootstrap requires an HTTP Hacocoon egress proxy' >&2
+      exit 125
+      ;;
+  esac
+  proxy_authority="${proxy_http#http://}"
+  proxy_authority="${proxy_authority%%/*}"
+  proxy_host="${proxy_authority%%:*}"
+  if [ -z "$proxy_host" ] || [ "$proxy_host" = "$proxy_authority" ]; then
+    echo 'managed SSH bootstrap received an invalid Hacocoon egress proxy address' >&2
+    exit 125
+  fi
+  if ! command -v ip >/dev/null 2>&1; then
+    echo 'managed SSH bootstrap requires iproute2 to verify sandbox readiness' >&2
+    exit 127
+  fi
+  route_attempts=0
+  until ip -4 route get "$proxy_host" >/dev/null 2>&1; do
+    route_attempts=$((route_attempts + 1))
+    if [ "$route_attempts" -ge 60 ]; then
+      echo "managed SSH bootstrap timed out waiting for IPv4 route to Hacocoon egress proxy $proxy_host" >&2
+      exit 75
+    fi
+    sleep 0.5
+  done
+  apt_get() {
+    apt-get \
+      -o Acquire::ForceIPv4=true \
+      -o Acquire::Connect::AddrConfig=false \
+      -o "Acquire::http::Proxy=$proxy_http" \
+      -o "Acquire::https::Proxy=$proxy_https" \
+      "$@"
+  }
+  apt_get update
+  apt_get install -y --no-install-recommends openssh-server
 fi
 systemctl enable --now ssh
 install -d -m 0700 /root/.ssh
@@ -48,6 +89,8 @@ mv "$tmp" "$file"
 trap - EXIT
 `
 
+const maxSSHProvisionDiagnosticBytes = 4096
+
 func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSHAccessRequest) (core.ClientConnection, error) {
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return core.ClientConnection{}, err
@@ -61,11 +104,16 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 	}
 
 	marker := "haco:" + id
-	if _, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", managedSSHProvisionScript, "haco-ssh", req.PublicKey, marker); err != nil {
+	result, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", managedSSHProvisionScript, "haco-ssh", req.PublicKey, marker)
+	if err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cleanupTimeout)
 		defer cancel()
 		cleanupErr := r.RemoveClientConnection(cleanupCtx, ref, id)
-		return core.ClientConnection{}, errors.Join(fmt.Errorf("prepare SSH in %s: %w", ref, err), cleanupErr)
+		provisionErr := fmt.Errorf("prepare SSH in %s: %w", ref, err)
+		if detail := boundedSSHProvisionDiagnostic(result.Stderr); detail != "" {
+			provisionErr = fmt.Errorf("prepare SSH in %s: %s: %w", ref, detail, err)
+		}
+		return core.ClientConnection{}, errors.Join(provisionErr, cleanupErr)
 	}
 
 	return core.ClientConnection{
@@ -77,6 +125,17 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 		User:       "root",
 		Command:    fmt.Sprintf("ssh -p %d root@127.0.0.1", req.HostPort),
 	}, nil
+}
+
+func boundedSSHProvisionDiagnostic(raw string) string {
+	detail := strings.TrimSpace(raw)
+	if len(detail) <= maxSSHProvisionDiagnosticBytes {
+		return detail
+	}
+	// Keep the tail because apt and systemd put their actionable failure summary
+	// at the end. The bound prevents an upstream package manager failure from
+	// turning one CLI error into an unbounded log sink.
+	return "..." + detail[len(detail)-maxSSHProvisionDiagnosticBytes:]
 }
 
 func (r *Runtime) RevokeSSHAccess(ctx context.Context, ref, connectionID string) error {
