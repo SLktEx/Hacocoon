@@ -12,7 +12,7 @@ function Normalize-WslText([string]$Text) {
     if ($null -eq $Text) {
         return ""
     }
-    return $Text.Replace([char]0, '').Trim()
+    return (($Text -replace "`0", "").Trim())
 }
 
 function Get-WslText {
