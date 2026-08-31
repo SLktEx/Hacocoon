@@ -27,9 +27,6 @@ jobs:
     timeout-minutes: 30
     env:
       GOTOOLCHAIN: local
-      # Candidate artifacts are local and unsigned. Release provenance and
-      # publication are separate gates; this E2E tests install -> usable Hacocoon.
-      HACO_REQUIRE_PROVENANCE: "0"
       HACO_E2E_VERSION: v0.0.0-e2e
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -100,7 +97,7 @@ jobs:
           test ! -e "$package_root/haco_linux_arm64.tar.gz"
           printf 'HACO_E2E_PACKAGE_ROOT=%s\n' "$package_root" >> "$GITHUB_ENV"
 
-      - name: Execute packaged native Ubuntu installer
+      - name: Execute packaged native Ubuntu installer unchanged
         shell: bash
         run: |
           set -euo pipefail
