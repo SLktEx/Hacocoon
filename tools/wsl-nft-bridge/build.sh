@@ -19,6 +19,7 @@ if [[ -z "$kernel_tag" ]]; then
 fi
 
 src_dir="$work_root/$kernel_tag"
+config_path="Microsoft/config-wsl"
 mkdir -p "$work_root" "$out_dir"
 
 if [[ ! -d "$src_dir/.git" ]]; then
@@ -30,28 +31,46 @@ if [[ ! -d "$src_dir/.git" ]]; then
     "$src_dir"
 fi
 
-if ! grep -q '^CONFIG_NF_TABLES=y$' "$src_dir/Microsoft/config-wsl"; then
+if ! grep -q '^CONFIG_NF_TABLES=y$' "$src_dir/$config_path"; then
   echo "Target WSL config does not provide CONFIG_NF_TABLES=y" >&2
   exit 3
 fi
-if ! grep -q '^CONFIG_NETFILTER_FAMILY_BRIDGE=y$' "$src_dir/Microsoft/config-wsl"; then
+if ! grep -q '^CONFIG_NETFILTER_FAMILY_BRIDGE=y$' "$src_dir/$config_path"; then
   echo "Target WSL config does not provide CONFIG_NETFILTER_FAMILY_BRIDGE=y" >&2
   exit 3
 fi
-if grep -q '^CONFIG_NF_TABLES_BRIDGE=[ym]$' "$src_dir/Microsoft/config-wsl"; then
+if grep -q '^CONFIG_NF_TABLES_BRIDGE=[ym]$' "$src_dir/$config_path"; then
   echo "Target kernel already enables CONFIG_NF_TABLES_BRIDGE; shim is unnecessary" >&2
   exit 4
 fi
 
 jobs="${HACO_WSL_KERNEL_JOBS:-$(nproc)}"
 
+# Microsoft sometimes carries config-wsl forward across a stable kernel bump.
+# Resolve any newly introduced Kconfig symbols to their defaults before the
+# build. Without this, Kbuild can enter an interactive oldconfig prompt in CI.
+echo "Finalizing Microsoft WSL config for $kernel_tag"
+make -s -C "$src_dir" KCONFIG_CONFIG="$config_path" olddefconfig
+
+# Re-check the resolved config: fail closed if the bridge support appeared or
+# if prerequisites disappeared while defaults were applied.
+if ! grep -q '^CONFIG_NF_TABLES=y$' "$src_dir/$config_path" || \
+   ! grep -q '^CONFIG_NETFILTER_FAMILY_BRIDGE=y$' "$src_dir/$config_path"; then
+  echo "Resolved target config lost required nftables/bridge prerequisites" >&2
+  exit 3
+fi
+if grep -q '^CONFIG_NF_TABLES_BRIDGE=[ym]$' "$src_dir/$config_path"; then
+  echo "Resolved target kernel already enables CONFIG_NF_TABLES_BRIDGE; shim is unnecessary" >&2
+  exit 4
+fi
+
 echo "Building exact Microsoft WSL kernel tree for module symbol versions: $kernel_tag"
-make -C "$src_dir" -j"$jobs" KCONFIG_CONFIG=Microsoft/config-wsl
+make -C "$src_dir" -j"$jobs" KCONFIG_CONFIG="$config_path"
 
 echo "Building Hacocoon bridge nftables compatibility shim"
-make -C "$src_dir" M="$script_dir" modules
+make -C "$src_dir" KCONFIG_CONFIG="$config_path" M="$script_dir" modules
 
-kernel_release="$(make -s -C "$src_dir" KCONFIG_CONFIG=Microsoft/config-wsl kernelrelease)"
+kernel_release="$(make -s -C "$src_dir" KCONFIG_CONFIG="$config_path" kernelrelease)"
 module_path="$script_dir/haco_nft_bridge.ko"
 if [[ ! -s "$module_path" ]]; then
   echo "Expected kernel module was not produced: $module_path" >&2
