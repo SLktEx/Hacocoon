@@ -147,9 +147,20 @@ try {
     Invoke-WslChecked @("--distribution", $Distro, "--user", "root", "--", "test", "-d", $LinuxRepo)
     Write-Host "WSL checkout path: $LinuxRepo"
 
+    # wsl.exe does not inherit arbitrary Windows environment variables into the
+    # Linux process. Pass the numeric GitHub run identity explicitly so the
+    # existing Incus helper derives the same safe per-run resource prefix it
+    # uses on native Linux runners.
+    $RunId = $env:GITHUB_RUN_ID
+    $RunAttempt = $env:GITHUB_RUN_ATTEMPT
+    if ($RunId -notmatch '^\d+$' -or $RunAttempt -notmatch '^\d+$') {
+        throw "GitHub Actions did not provide a numeric run identity (run_id='$RunId', attempt='$RunAttempt')"
+    }
+
     Write-Host "==> Running the same real-Incus substrate verification inside WSL2"
     $Run = "mkdir -p /tmp/hacocoon-runner; cd '$LinuxRepo'; " +
-        "export GITHUB_ACTIONS=true HACO_CI_RUNNER_ENVIRONMENT=github-hosted RUNNER_TEMP=/tmp/hacocoon-runner; " +
+        "export GITHUB_ACTIONS=true HACO_CI_RUNNER_ENVIRONMENT=github-hosted RUNNER_TEMP=/tmp/hacocoon-runner " +
+        "GITHUB_RUN_ID=$RunId GITHUB_RUN_ATTEMPT=$RunAttempt; " +
         "bash -n tools/ci-incus.sh test/e2e/incus_standalone.sh; " +
         "bash tools/ci-incus.sh setup; " +
         "bash tools/ci-incus.sh standalone"
