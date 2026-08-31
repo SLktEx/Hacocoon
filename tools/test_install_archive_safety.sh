@@ -146,6 +146,7 @@ run_installer() {
   HACO_INSTALL_DIR="$install_dir" \
   HACO_STORAGE_HELPER_INSTALL_DIR="$helper_dir" \
   HACO_ROOT="$root/haco-root" \
+  HACO_INSTALL_BINARIES_ONLY=1 \
   HACO_REQUIRE_PROVENANCE=0 \
   GH_TOKEN= \
   GITHUB_TOKEN= \
