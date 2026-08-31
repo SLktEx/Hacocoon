@@ -7,7 +7,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("hacocoon-windows-provenance-test-" + [guid]::NewGuid().ToString("N"))
 $bin = Join-Path $tempRoot "bin"
 New-Item -ItemType Directory -Path $bin | Out-Null
-$asset = Join-Path $tempRoot "bootstrap-linux.sh"
+$asset = Join-Path $tempRoot "install.sh"
 Set-Content -LiteralPath $asset -Value "echo fixture" -NoNewline
 
 $ghPath = Join-Path $bin "gh"
@@ -102,7 +102,7 @@ try {
     $env:HACO_TEST_PROVENANCE_MODE = "help-fail"
     Assert-Throws { Get-GhCommand | Out-Null } "gh attestation verify"
 
-    Write-Host "PASS: Windows installer fails closed on bootstrap provenance"
+    Write-Host "PASS: Windows installer fails closed on standalone installer provenance"
 } finally {
     $env:PATH = $oldPath
     $env:HACO_TEST_PROVENANCE_MODE = $oldMode
