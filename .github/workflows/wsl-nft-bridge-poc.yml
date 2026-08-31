@@ -1,0 +1,55 @@
+name: wsl-nft-bridge-poc
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - tools/wsl-nft-bridge/**
+      - .github/workflows/wsl-nft-bridge-poc.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wsl-nft-bridge-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-module:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      WSL_KERNEL_TAG: linux-msft-wsl-6.18.40.1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install WSL kernel build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc \
+            bison \
+            build-essential \
+            cpio \
+            dwarves \
+            flex \
+            kmod \
+            libelf-dev \
+            libssl-dev \
+            rsync
+
+      - name: Build exact-kernel compatibility module
+        run: tools/wsl-nft-bridge/build.sh "$WSL_KERNEL_TAG"
+
+      - name: Validate module metadata
+        run: |
+          set -euo pipefail
+          module=tools/wsl-nft-bridge/out/haco_nft_bridge.ko
+          test -s "$module"
+          test "$(modinfo -F vermagic "$module" | awk '{print $1}')" = \
+            "$(cat tools/wsl-nft-bridge/out/kernel-release.txt)"
+          modinfo "$module"
