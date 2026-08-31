@@ -1,0 +1,129 @@
+name: ubuntu-installer-e2e
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "scripts/install-ubuntu.sh"
+      - "scripts/install.sh"
+      - "tools/package_installers.py"
+      - ".github/workflows/ubuntu-installer-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ubuntu-installer-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ubuntu-user-path:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      GOTOOLCHAIN: local
+      HACO_REQUIRE_PROVENANCE: "0"
+      HACO_E2E_VERSION: v0.0.0-e2e
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+
+      - name: Record native Ubuntu substrate
+        shell: bash
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          printf 'Ubuntu: %s %s\n' "$ID" "$VERSION_ID"
+          printf 'PID 1: %s\n' "$(ps -p 1 -o comm= | tr -d '[:space:]')"
+          uname -a
+          id
+          sudo -n true
+
+      - name: Build candidate linux/amd64 release archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/haco-linux-amd64"
+          dist="$RUNNER_TEMP/haco-dist"
+          rm -rf "$stage" "$dist"
+          mkdir -p "$stage" "$dist"
+
+          export CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+          go build -trimpath -ldflags='-s -w' -o "$stage/haco" ./cmd/haco
+          go build -trimpath -ldflags='-s -w' -o "$stage/haco-controller" ./cmd/haco-controller
+          go build -trimpath -ldflags='-s -w' -o "$stage/haco-host" ./cmd/haco-host
+          go build -trimpath -ldflags='-s -w' -o "$stage/haco-vscode" ./cmd/haco-vscode
+          go build -trimpath -ldflags='-s -w' -o "$stage/haco-agent-host" ./cmd/haco-agent-host
+          go build -trimpath -ldflags='-s -w' -o "$stage/haco-notify" ./cmd/haco-notify
+          go build -trimpath -ldflags='-s -w' -o "$stage/haco-storage-helper" ./cmd/haco-storage-helper
+
+          tar -czf "$dist/haco_linux_amd64.tar.gz" -C "$stage" \
+            haco haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper
+          (cd "$dist" && sha256sum haco_linux_amd64.tar.gz > checksums.txt)
+          printf 'HACO_E2E_DIST=%s\n' "$dist" >> "$GITHUB_ENV"
+
+      - name: Build and extract exact candidate Ubuntu package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_out="$RUNNER_TEMP/installer-payload"
+          package_root="$RUNNER_TEMP/hacocoon-ubuntu-amd64"
+          rm -rf "$package_out" "$package_root"
+          mkdir -p "$package_root"
+          python3 ./tools/package_installers.py \
+            --dist "$HACO_E2E_DIST" \
+            --output "$package_out" \
+            --version "$HACO_E2E_VERSION" \
+            --arch amd64
+          tar -xzf "$package_out/hacocoon-ubuntu-amd64.tar.gz" -C "$package_root"
+          test -x "$package_root/install-ubuntu.sh"
+          test -x "$package_root/install.sh"
+          test -f "$package_root/haco_linux_amd64.tar.gz"
+          test -f "$package_root/checksums.txt"
+          test -f "$package_root/VERSION"
+          test ! -e "$package_root/haco_linux_arm64.tar.gz"
+          printf 'HACO_E2E_PACKAGE_ROOT=%s\n' "$package_root" >> "$GITHUB_ENV"
+
+      - name: Execute packaged native Ubuntu installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$HACO_E2E_PACKAGE_ROOT"
+          ./install-ubuntu.sh
+
+      - name: Assert usable Hacocoon through native Ubuntu user path
+        shell: bash
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          test "$ID" = ubuntu
+          dpkg --compare-versions "$VERSION_ID" ge 26.04
+          test "$(ps -p 1 -o comm= | tr -d '[:space:]')" = systemd
+          command -v haco
+          command -v incus
+          sudo systemctl is-active --quiet haco-controller.service
+          sudo test -S /run/hacocoon/control.sock
+          sudo haco host ensure
+          sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
+          test "$(getent passwd "$(id -un)" | cut -d: -f7)" != /usr/local/libexec/hacocoon-login
+
+      - name: Collect diagnostics
+        if: failure()
+        shell: bash
+        continue-on-error: true
+        run: |
+          systemctl --no-pager --failed || true
+          sudo systemctl status haco-controller.service --no-pager || true
+          sudo incus list --all-projects || true
+          haco doctor || true
