@@ -91,7 +91,7 @@ jobs:
         run: |
           $packageOut = Join-Path $env:RUNNER_TEMP "installer-payload"
           $packageRoot = Join-Path $env:RUNNER_TEMP "hacocoon-windows-amd64"
-          python ./tools/package_installers.py --dist $env:HACO_E2E_DIST --output $packageOut --version $env:HACO_E2E_VERSION
+          python ./tools/package_installers.py --dist $env:HACO_E2E_DIST --output $packageOut --version $env:HACO_E2E_VERSION --arch amd64
           if ($LASTEXITCODE -ne 0) { throw "Failed to build installer package." }
 
           $zip = Join-Path $packageOut "hacocoon-windows-amd64.zip"
@@ -116,8 +116,7 @@ jobs:
 
       - name: User path phase 1 - run packaged BAT to create WSL
         shell: cmd
-        working-directory: ${{ env.HACO_E2E_PACKAGE_ROOT }}
-        run: install-windows.bat -InstanceName %HACO_E2E_WSL% -BaseDistro Ubuntu-26.04 -WebDownload
+        run: cd /d "%HACO_E2E_PACKAGE_ROOT%" && install-windows.bat -InstanceName %HACO_E2E_WSL% -BaseDistro Ubuntu-26.04 -WebDownload
 
       - name: Emulate Ubuntu first-launch user creation
         shell: pwsh
@@ -130,9 +129,8 @@ jobs:
           & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec sh -eu -c "id '$env:HACO_E2E_LOGIN_USER' >/dev/null 2>&1 || useradd -m -s /bin/bash '$env:HACO_E2E_LOGIN_USER'"
           if ($LASTEXITCODE -ne 0) { throw "Failed to create ordinary Ubuntu user fixture." }
 
-          # A real first-launch Ubuntu user can authenticate sudo interactively.
-          # CI has no password prompt, so grant only the concrete commands used by
-          # the common installer; broad NOPASSWD: ALL is intentionally avoided.
+          # A real first-launch Ubuntu user authenticates sudo interactively. CI has
+          # no password prompt, so allow only commands the common installer needs.
           $sudoers = @"
 $env:HACO_E2E_LOGIN_USER ALL=(root) NOPASSWD: /usr/bin/apt-get *, /usr/bin/install *, /usr/bin/mkdir *, /usr/bin/tee *, /usr/bin/chmod *, /usr/sbin/usermod *, /usr/bin/systemctl *, /usr/bin/incus *, /usr/bin/stat *, /usr/bin/find *, /usr/bin/chown *, /usr/bin/cp *
 "@
@@ -141,8 +139,7 @@ $env:HACO_E2E_LOGIN_USER ALL=(root) NOPASSWD: /usr/bin/apt-get *, /usr/bin/insta
 
       - name: User path phase 2 - run the same packaged BAT to completion
         shell: cmd
-        working-directory: ${{ env.HACO_E2E_PACKAGE_ROOT }}
-        run: install-windows.bat -InstanceName %HACO_E2E_WSL% -BaseDistro Ubuntu-26.04 -WebDownload
+        run: cd /d "%HACO_E2E_PACKAGE_ROOT%" && install-windows.bat -InstanceName %HACO_E2E_WSL% -BaseDistro Ubuntu-26.04 -WebDownload
 
       - name: Assert usable Hacocoon through the WSL user path
         shell: pwsh
