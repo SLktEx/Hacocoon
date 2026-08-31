@@ -315,16 +315,21 @@ validate_release_archive() {
 install_binary() {
   binary="$1"
   target="$INSTALL_DIR/$binary"
-  if [ -d "$INSTALL_DIR" ] && [ -w "$INSTALL_DIR" ]; then
-    cp "$staging/$binary" "$target"
-    chmod 0755 "$target"
-    [ "$(id -u)" -ne 0 ] || chown root:root "$target"
-  else
-    $SUDO mkdir -p "$INSTALL_DIR"
-    $SUDO cp "$staging/$binary" "$target"
-    $SUDO chown root:root "$target"
-    $SUDO chmod 0755 "$target"
-  fi
+  case "$INSTALL_DIR" in
+    /usr/local/bin|/usr/bin)
+      $SUDO install -o root -g root -m 0755 "$staging/$binary" "$target"
+      ;;
+    *)
+      if [ -d "$INSTALL_DIR" ] && [ -w "$INSTALL_DIR" ]; then
+        cp "$staging/$binary" "$target"
+        chmod 0755 "$target"
+      else
+        $SUDO mkdir -p "$INSTALL_DIR"
+        $SUDO cp "$staging/$binary" "$target"
+        $SUDO chmod 0755 "$target"
+      fi
+      ;;
+  esac
   printf 'Installed %s to %s\n' "$binary" "$target"
 }
 
