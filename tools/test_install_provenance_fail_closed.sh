@@ -204,6 +204,7 @@ run_case() {
     HACO_TEST_PROVENANCE_MODE="$provenance_mode" \
     HACO_TEST_BINDING_TAG="$binding_tag" \
     HACO_TEST_LATEST_TAG="v1.2.3" \
+    HACO_INSTALL_BINARIES_ONLY="1" \
     HACO_INSTALL_DIR="$install" \
     HACO_STORAGE_HELPER_INSTALL_DIR="$helper_install" \
     HACO_ROOT="$case_root/haco-root" \
