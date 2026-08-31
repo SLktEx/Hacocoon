@@ -38,6 +38,9 @@ function Assert-ReleaseTag([string]$Version) {
 function Invoke-WslCapture([string[]]$Arguments) {
     $stderrPath = [IO.Path]::GetTempFileName()
     $previousPreference = $ErrorActionPreference
+    $stdout = @()
+    $stderr = ""
+    $exitCode = 1
     try {
         # Windows PowerShell can promote native stderr to an ErrorRecord while
         # $ErrorActionPreference is Stop. WSL may emit advisory systemd/session
@@ -46,19 +49,19 @@ function Invoke-WslCapture([string[]]$Arguments) {
         $ErrorActionPreference = "Continue"
         $stdout = @(& wsl.exe @Arguments 2> $stderrPath)
         $exitCode = $LASTEXITCODE
-        $stderr = if (Test-Path -LiteralPath $stderrPath) {
-            Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
-        } else {
-            ""
+        if (Test-Path -LiteralPath $stderrPath) {
+            $stderr = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
         }
     } finally {
         $ErrorActionPreference = $previousPreference
         Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
     }
+    $stdoutText = if ($stdout.Count -eq 0) { "" } else { ($stdout -join [Environment]::NewLine).Trim() }
+    $stderrText = if ($null -eq $stderr) { "" } else { ([string]$stderr).Trim() }
     return [pscustomobject]@{
         ExitCode = $exitCode
-        Stdout = (($stdout | Out-String).Trim())
-        Stderr = ([string]$stderr).Trim()
+        Stdout = $stdoutText
+        Stderr = $stderrText
     }
 }
 
