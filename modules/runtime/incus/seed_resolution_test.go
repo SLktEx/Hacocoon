@@ -34,7 +34,7 @@ func TestBaseProviderUsesCurrentSeedForExactParentRevision(t *testing.T) {
 		switch {
 		case reflect.DeepEqual(args, []string{"image", "info", "images:ubuntu/26.04", "--format", "json"}):
 			return host.Result{Stdout: `{"fingerprint":"` + testFingerprintA + `"}`}, nil
-		case reflect.DeepEqual(args, []string{"image", "info", "local:" + testFingerprintB, "--project", defaultProject, "--format", "json"}):
+		case reflect.DeepEqual(args, []string{"image", "info", testFingerprintB, "--project", defaultProject, "--format", "json"}):
 			return host.Result{Stdout: `{"fingerprint":"` + testFingerprintB + `"}`}, nil
 		default:
 			return host.Result{}, errors.New("unexpected call")
@@ -53,6 +53,9 @@ func TestBaseProviderUsesCurrentSeedForExactParentRevision(t *testing.T) {
 	}
 	if resolved.ref.Revision != seedRevision {
 		t.Fatalf("revision=%q want=%q", resolved.ref.Revision, seedRevision)
+	}
+	if resolved.pinnedSource != testFingerprintB {
+		t.Fatalf("pinnedSource=%q want current-server fingerprint %q", resolved.pinnedSource, testFingerprintB)
 	}
 }
 
@@ -89,7 +92,7 @@ func TestBaseProviderFailsClosedWhenCurrentSeedImageIsMissing(t *testing.T) {
 		if reflect.DeepEqual(args, []string{"image", "info", "images:ubuntu/26.04", "--format", "json"}) {
 			return host.Result{Stdout: `{"fingerprint":"` + testFingerprintA + `"}`}, nil
 		}
-		if len(args) >= 3 && args[0] == "image" && args[1] == "info" && args[2] == "local:"+testFingerprintB {
+		if len(args) >= 3 && args[0] == "image" && args[1] == "info" && args[2] == testFingerprintB {
 			return host.Result{}, errors.New("not found")
 		}
 		return host.Result{}, errors.New("unexpected call")
