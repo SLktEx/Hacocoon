@@ -44,20 +44,33 @@ cleanup() {
 }
 trap cleanup EXIT
 
-bridge_chain_works() {
+# A bridge table alone is not enough: CONFIG_NF_TABLES_BRIDGE supplies the
+# default filter chain type and bridge hooks. Also add representative rules
+# copied from the shapes Incus uses for MAC/IP anti-spoofing so the probe does
+# not declare success on a chain implementation that cannot host them.
+bridge_filter_works() {
   cleanup
   nft add table bridge "$probe_table" || return 1
-  nft "add chain bridge $probe_table haco_input { type filter hook input priority 0; policy accept; }" || return 1
+  nft "add chain bridge $probe_table haco_input { type filter hook input priority -200; policy accept; }" || return 1
+
+  nft "add rule bridge $probe_table haco_input iifname \"haco-probe0\" ether saddr != 02:00:00:00:00:01 drop" || return 1
+  nft "add rule bridge $probe_table haco_input iifname \"haco-probe0\" ether type arp arp saddr ether != 02:00:00:00:00:01 drop" || return 1
+  nft "add rule bridge $probe_table haco_input iifname \"haco-probe0\" ether type arp arp saddr ip != 192.0.2.10 drop" || return 1
+  nft "add rule bridge $probe_table haco_input iifname \"haco-probe0\" ether type ip ip saddr != 192.0.2.10 drop" || return 1
+  nft "add rule bridge $probe_table haco_input iifname \"haco-probe0\" ether type ip6 ip6 saddr != 2001:db8::10 drop" || return 1
+  nft "add rule bridge $probe_table haco_input iifname \"haco-probe0\" ether type ip6 icmpv6 type 134 drop" || return 1
+  nft "add rule bridge $probe_table haco_input iifname \"haco-probe0\" ether type != { arp, ip, ip6 } drop" || return 1
+
   cleanup
   return 0
 }
 
-if bridge_chain_works; then
-  echo "PASS: nftables bridge filter base chains already work; no shim is required."
+if bridge_filter_works; then
+  echo "PASS: nftables bridge filter hooks and Incus-style anti-spoofing rules already work; no shim is required."
   exit 0
 fi
 
-echo "bridge filter base-chain probe failed on the running kernel"
+echo "bridge filter/Incus-rule probe failed on the running kernel"
 
 if [[ -z "$module_path" ]]; then
   echo "NEEDS_SHIM: retry with --module /path/to/haco_nft_bridge.ko to test the compatibility shim." >&2
@@ -78,11 +91,11 @@ if ! grep -q '^haco_nft_bridge ' /proc/modules; then
   insmod "$module_path"
 fi
 
-if ! bridge_chain_works; then
-  echo "FAIL: shim loaded but nftables bridge filter base-chain creation still fails." >&2
+if ! bridge_filter_works; then
+  echo "FAIL: shim loaded but nftables bridge filter/Incus anti-spoofing rule creation still fails." >&2
   dmesg | tail -n 80 >&2 || true
   exit 12
 fi
 
-echo "PASS: shim restored nftables bridge filter base-chain support on $release"
-echo "The module is intentionally left loaded for Incus anti-spoofing testing."
+echo "PASS: shim restored nftables bridge filter support needed by Incus anti-spoofing on $release"
+echo "The module is intentionally left loaded for the real Incus/Hacocoon validation."
