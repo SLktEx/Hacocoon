@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	environmentroute "github.com/SLktEx/Hacocoon/internal/environment"
 )
 
 // RuntimeSourceResolver resolves trusted provider/runtime evidence for a
@@ -69,7 +70,8 @@ func (r *PersistedSourceResolver) ResolveEnvironment(ctx context.Context, source
 }
 
 func matchesPersistedRuntimeRef(environment core.Environment, runtimeRef string) bool {
-	if environment.RuntimeRef == runtimeRef {
+	provider, providerRef, err := environmentroute.DecodePersistedRuntimeRef(environment.RuntimeRef)
+	if err == nil && provider == environmentroute.ProviderIncus && providerRef == runtimeRef {
 		return true
 	}
 	// Pre-v0.7 Environment state could persist the logical Environment name as
