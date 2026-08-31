@@ -20,12 +20,21 @@ function descriptor() {
   };
 }
 
-test('descriptor validation accepts only Hacocoon Remote-SSH workspaces', () => {
+test('extension manifest registers create/release commands as a workspace extension', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../clients/vscode-agent-workspace/package.json'), 'utf8'));
+  assert.deepEqual(manifest.extensionKind, ['workspace']);
+  const commands = new Map(manifest.contributes.commands.map((entry) => [entry.command, entry.title]));
+  assert.equal(commands.get('hacocoon.newAgentWorkspace'), 'Hacocoon: New Agent Workspace');
+  assert.equal(commands.get('hacocoon.releaseAgentWorkspace'), 'Hacocoon: Release Agent Workspace');
+});
+
+test('descriptor validation accepts only the exact Hacocoon Remote-SSH alias and workspace', () => {
   assert.equal(agent.validateDescriptor(JSON.stringify(descriptor())).environment, descriptor().environment);
   assert.throws(() => agent.validateDescriptor({ ...descriptor(), remote_workspace: '/root' }), /unexpected Hacocoon remote workspace/);
   assert.throws(() => agent.validateDescriptor({ ...descriptor(), ssh_alias: 'prod-server' }), /SSH alias/);
   assert.throws(() => agent.validateDescriptor({ ...descriptor(), folder_uri: 'file:///workspace' }), /remote folder URI/);
   assert.throws(() => agent.validateDescriptor({ ...descriptor(), folder_uri: 'vscode-remote://ssh-remote+prod/workspace' }), /remote folder URI/);
+  assert.throws(() => agent.validateDescriptor({ ...descriptor(), folder_uri: 'vscode-remote://ssh-remote+haco-agent-deadbeef/workspace' }), /remote folder URI/);
 });
 
 test('command arguments are arrays and preserve untrusted values without shell interpolation', () => {
