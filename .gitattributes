@@ -1,0 +1,4 @@
+# Shell scripts are executed both natively on Linux and through WSL from a
+# Windows checkout. Keep their interpreter-visible line endings stable even
+# when Git for Windows has core.autocrlf enabled.
+*.sh text eol=lf
