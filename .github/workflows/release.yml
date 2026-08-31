@@ -103,9 +103,9 @@ jobs:
         working-directory: source
         run: go vet ./...
 
-      - name: Validate Linux installer
+      - name: Validate Ubuntu installers
         working-directory: source
-        run: bash -n scripts/install.sh
+        run: bash -n scripts/install.sh scripts/install-ubuntu.sh
 
       - name: Validate Windows installers
         working-directory: source
@@ -114,9 +114,11 @@ jobs:
           [scriptblock]::Create((Get-Content -Raw "scripts/bootstrap-windows.ps1")) | Out-Null
           [scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null
 
-      - name: Validate Windows installer bundle
+      - name: Validate installer bundles
         working-directory: source
-        run: python3 tools/test_windows_installer_launcher.py
+        run: |
+          python3 tools/test_windows_installer_launcher.py
+          python3 tools/test_ubuntu_installer_launcher.py
 
       - name: Build authorized release artifacts
         working-directory: source
@@ -139,9 +141,11 @@ jobs:
           test -f source/dist/haco_linux_arm64.tar.gz
           test -f source/dist/checksums.txt
           test -f source/scripts/install.sh
+          test -f source/scripts/install-ubuntu.sh
           test -f source/scripts/install-windows.bat
           test -f source/scripts/install-windows.ps1
           test -f source/tools/package_windows_installer.py
+          test -f source/tools/package_ubuntu_installer.py
 
           rm -rf release-payload
           mkdir -m 0700 release-payload
@@ -149,11 +153,13 @@ jobs:
           cp source/dist/haco_linux_arm64.tar.gz release-payload/
           cp source/dist/checksums.txt release-payload/
           cp source/scripts/install.sh release-payload/
+          cp source/scripts/install-ubuntu.sh release-payload/
           cp source/scripts/install-windows.ps1 release-payload/
           python3 source/tools/package_windows_installer.py release-payload/hacocoon-windows-installer.zip
+          python3 source/tools/package_ubuntu_installer.py release-payload/hacocoon-ubuntu-installer.tar.gz
           (
             cd release-payload
-            sha256sum hacocoon-windows-installer.zip >> checksums.txt
+            sha256sum hacocoon-windows-installer.zip hacocoon-ubuntu-installer.tar.gz >> checksums.txt
           )
 
       - name: Transfer release payload to privileged publisher
@@ -193,13 +199,15 @@ jobs:
           shopt -s nullglob
           files=(release-payload/*)
           archives=(release-payload/haco_linux_*.tar.gz)
-          (( ${#files[@]} == 6 )) || { printf 'Unexpected release payload file count: %s\n' "${#files[@]}" >&2; exit 1; }
+          (( ${#files[@]} == 8 )) || { printf 'Unexpected release payload file count: %s\n' "${#files[@]}" >&2; exit 1; }
           (( ${#archives[@]} == 2 )) || { printf 'Unexpected Linux archive count: %s\n' "${#archives[@]}" >&2; exit 1; }
           test -f release-payload/haco_linux_amd64.tar.gz
           test -f release-payload/haco_linux_arm64.tar.gz
           test -f release-payload/hacocoon-windows-installer.zip
+          test -f release-payload/hacocoon-ubuntu-installer.tar.gz
           test -f release-payload/checksums.txt
           test -f release-payload/install.sh
+          test -f release-payload/install-ubuntu.sh
           test -f release-payload/install-windows.ps1
 
       - name: Revalidate release authorization immediately before signing and publication
@@ -295,8 +303,10 @@ jobs:
             release-payload/haco_linux_amd64.tar.gz
             release-payload/haco_linux_arm64.tar.gz
             release-payload/hacocoon-windows-installer.zip
+            release-payload/hacocoon-ubuntu-installer.tar.gz
             release-payload/checksums.txt
             release-payload/install.sh
+            release-payload/install-ubuntu.sh
             release-payload/install-windows.ps1
 
       - name: Attest public release tag and commit binding
@@ -307,8 +317,10 @@ jobs:
             release-payload/haco_linux_amd64.tar.gz
             release-payload/haco_linux_arm64.tar.gz
             release-payload/hacocoon-windows-installer.zip
+            release-payload/hacocoon-ubuntu-installer.tar.gz
             release-payload/checksums.txt
             release-payload/install.sh
+            release-payload/install-ubuntu.sh
             release-payload/install-windows.ps1
           predicate-type: https://hacocoon.dev/attestations/release/v1
           predicate-path: release-binding.json
@@ -341,8 +353,10 @@ jobs:
             release-payload/haco_linux_amd64.tar.gz \
             release-payload/haco_linux_arm64.tar.gz \
             release-payload/hacocoon-windows-installer.zip \
+            release-payload/hacocoon-ubuntu-installer.tar.gz \
             release-payload/checksums.txt \
             release-payload/install.sh \
+            release-payload/install-ubuntu.sh \
             release-payload/install-windows.ps1 \
             "${args[@]}"
 
