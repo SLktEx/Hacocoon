@@ -89,7 +89,7 @@ func TestHandleGeneralControllerBaseList(t *testing.T) {
 	}
 }
 
-func TestHandleGeneralControllerRunPreservesOutputAndFailure(t *testing.T) {
+func TestHandleGeneralControllerRunPreservesRecoveryFailure(t *testing.T) {
 	client := &fakeGeneralController{
 		runResult: runapp.Result{Execution: runapp.ExecutionResult{ExitCode: 7, Stdout: "out\n", Stderr: "err\n"}},
 		runErr:    core.ErrRecoveryRequired,
@@ -106,6 +106,30 @@ func TestHandleGeneralControllerRunPreservesOutputAndFailure(t *testing.T) {
 	}
 	if stdout.String() != "out\n" || stderr.String() != "err\n" {
 		t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
+func TestHandleGeneralControllerRunPreservesGuestExitAfterCleanup(t *testing.T) {
+	client := &fakeGeneralController{
+		runResult: runapp.Result{
+			Execution: runapp.ExecutionResult{ExitCode: 17, Stderr: "guest failed\n"},
+			CleanedUp: true,
+		},
+		runErr: errors.New("exit status 17"),
+	}
+	var stdout, stderr bytes.Buffer
+	handled, err := handleGeneralControllerArgs(context.Background(), []string{"run", "--workspace", "/work", "--", "false"}, func() (generalControllerClient, error) {
+		return client, nil
+	}, &bytes.Buffer{}, &stdout, &stderr)
+	if !handled {
+		t.Fatal("run was not handled by the general controller client")
+	}
+	var exitCoder interface{ ExitCode() int }
+	if !errors.As(err, &exitCoder) || exitCoder.ExitCode() != 17 {
+		t.Fatalf("error = %v, want command exit 17", err)
+	}
+	if stderr.String() != "guest failed\n" {
+		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 
