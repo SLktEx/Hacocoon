@@ -245,14 +245,18 @@ function createWorkspaceTool(context, output) {
       };
     },
     async invoke(options) {
-      const input = options && options.input ? options.input : {};
-      const branch = tools.normalizeToolBranch(input.branch);
-      const openFolder = tools.normalizeOpenFlag(input.open);
-      const record = await provisionAgentWorkspace(context, output, branch, { openFolder, notify: false });
-      return textToolResult(tools.toolResultEnvelope('create', record, {
-        opened: openFolder,
-        nativeAgentSessionStarted: false
-      }));
+      try {
+        const input = options && options.input ? options.input : {};
+        const branch = tools.normalizeToolBranch(input.branch);
+        const openFolder = tools.normalizeOpenFlag(input.open);
+        const record = await provisionAgentWorkspace(context, output, branch, { openFolder, notify: false });
+        return textToolResult(tools.toolResultEnvelope('create', record, {
+          opened: openFolder,
+          nativeAgentSessionStarted: false
+        }));
+      } catch (error) {
+        throw tools.modelSafeError(error);
+      }
     }
   };
 }
@@ -278,13 +282,17 @@ function releaseWorkspaceTool(context, output) {
       };
     },
     async invoke(options) {
-      const branch = tools.normalizeToolBranch(options && options.input && options.input.branch);
-      const record = tools.selectOwnedRecordByBranch(storedRecords(context), branch);
-      const result = await releaseWorkspaceRecord(context, output, record, { notify: false });
-      return textToolResult(tools.toolResultEnvelope('release', result.record, {
-        worktreeRemoved: Boolean(result.removed),
-        reason: result.reason
-      }));
+      try {
+        const branch = tools.normalizeToolBranch(options && options.input && options.input.branch);
+        const record = tools.selectOwnedRecordByBranch(storedRecords(context), branch);
+        const result = await releaseWorkspaceRecord(context, output, record, { notify: false });
+        return textToolResult(tools.toolResultEnvelope('release', result.record, {
+          worktreeRemoved: Boolean(result.removed),
+          reason: result.reason
+        }));
+      } catch (error) {
+        throw tools.modelSafeError(error);
+      }
     }
   };
 }
