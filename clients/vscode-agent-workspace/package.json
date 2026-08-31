@@ -1,0 +1,49 @@
+{
+  "name": "hacocoon-agent-workspaces",
+  "displayName": "Hacocoon Agent Workspaces",
+  "description": "Create isolated Hacocoon worktrees and Environments for VS Code coding-agent sessions.",
+  "version": "0.0.1",
+  "private": true,
+  "engines": {
+    "vscode": "^1.102.0"
+  },
+  "categories": ["Other"],
+  "extensionKind": ["workspace"],
+  "activationEvents": [
+    "onCommand:hacocoon.newAgentWorkspace",
+    "onCommand:hacocoon.releaseAgentWorkspace"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "hacocoon.newAgentWorkspace",
+        "title": "Hacocoon: New Agent Workspace"
+      },
+      {
+        "command": "hacocoon.releaseAgentWorkspace",
+        "title": "Hacocoon: Release Agent Workspace"
+      }
+    ],
+    "configuration": {
+      "title": "Hacocoon Agent Workspaces",
+      "properties": {
+        "hacocoon.agentWorkspace.gitExecutable": {
+          "type": "string",
+          "default": "git",
+          "description": "Git executable on the VS Code extension host. Commands are executed without a shell."
+        },
+        "hacocoon.agentWorkspace.adapterExecutable": {
+          "type": "string",
+          "default": "haco-agent-host",
+          "description": "haco-agent-host executable on the VS Code extension host. Use a trusted wrapper executable when Hacocoon is reached through WSL or another client bridge."
+        },
+        "hacocoon.agentWorkspace.worktreeRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Root for VS Code-created linked worktrees. Empty uses a .hacocoon-worktrees directory beside the repository. ~/ is expanded on the extension host."
+        }
+      }
+    }
+  }
+}
