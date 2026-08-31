@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,11 @@ import (
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
 )
+
+type fakeProcessExitError struct{ code int }
+
+func (e fakeProcessExitError) Error() string { return fmt.Sprintf("exit status %d", e.code) }
+func (e fakeProcessExitError) ExitCode() int { return e.code }
 
 type fakeGeneralController struct {
 	bases              []core.BaseInfo
@@ -115,7 +121,7 @@ func TestHandleGeneralControllerRunPreservesGuestExitAfterCleanup(t *testing.T) 
 			Execution: runapp.ExecutionResult{ExitCode: 17, Stderr: "guest failed\n"},
 			CleanedUp: true,
 		},
-		runErr: errors.New("exit status 17"),
+		runErr: fakeProcessExitError{code: 17},
 	}
 	var stdout, stderr bytes.Buffer
 	handled, err := handleGeneralControllerArgs(context.Background(), []string{"run", "--workspace", "/work", "--", "false"}, func() (generalControllerClient, error) {
