@@ -41,15 +41,29 @@ func (p *BaseProvider) imageFingerprint(ctx context.Context, source, project str
 }
 
 func (p *BaseProvider) imageFingerprintFromList(ctx context.Context, source, project string) (string, error) {
-	remote, identifier, ok := strings.Cut(source, ":")
-	if !ok || remote == "" || identifier == "" {
-		return "", fmt.Errorf("Incus 6.0 image lookup requires a remote-qualified source %q: %w", source, core.ErrUnsupported)
+	remote, identifier, qualified := strings.Cut(source, ":")
+	args := []string{"image", "list"}
+	if qualified {
+		if remote == "" || identifier == "" {
+			return "", fmt.Errorf("invalid Incus image source %q: %w", source, core.ErrUnsupported)
+		}
+		args = append(args, remote+":", identifier)
+	} else {
+		// Incus client remote names are local client configuration. A Seed lives
+		// on the server the caller is already connected to, so current-server
+		// references intentionally stay unqualified. Incus 6.0 can still resolve
+		// those references through image list by using the identifier as a filter.
+		identifier = strings.TrimSpace(source)
+		if identifier == "" {
+			return "", fmt.Errorf("invalid Incus image source %q: %w", source, core.ErrUnsupported)
+		}
+		args = append(args, identifier)
 	}
 
 	// Incus image aliases can resolve to both a container and a VM image. Hacocoon
 	// currently supports system containers only, so include the image type and
 	// deliberately ignore virtual-machine rows when resolving the immutable base.
-	args := []string{"image", "list", remote + ":", identifier, "--format", "csv", "-c", "L,F,t"}
+	args = append(args, "--format", "csv", "-c", "L,F,t")
 	if project != "" {
 		args = append(args, "--project", project)
 	}
