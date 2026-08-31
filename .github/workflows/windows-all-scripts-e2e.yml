@@ -44,7 +44,7 @@ jobs:
           python ./tools/package_windows_installer.py $zip
           if ($LASTEXITCODE -ne 0) { throw "Failed to package candidate Windows installer." }
           Expand-Archive -LiteralPath $zip -DestinationPath $packageRoot
-          @("install-windows.bat", "install-windows.ps1", "bootstrap-linux.sh", "install.sh") | ForEach-Object {
+          @("install-windows.bat", "install-windows.ps1", "install.sh") | ForEach-Object {
             if (-not (Test-Path -LiteralPath (Join-Path $packageRoot $_) -PathType Leaf)) {
               throw "Candidate Windows installer is missing $_."
             }
@@ -121,8 +121,8 @@ jobs:
             -HacocoonVersion latest `
             -WebDownload
 
-      - name: Execute shared bootstrap-linux.sh and install.sh directly inside WSL
-        id: wsl_scripts
+      - name: Execute install.sh directly inside WSL
+        id: linux_installer
         shell: pwsh
         continue-on-error: true
         run: |
@@ -133,7 +133,7 @@ jobs:
 
           & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec `
             env "HACO_BOOTSTRAP_LOGIN_USER=$env:HACO_E2E_LOGIN_USER" `
-            sh "$linuxRoot/scripts/bootstrap-linux.sh" "$linuxRoot/scripts/install.sh" latest
+            sh "$linuxRoot/scripts/install.sh" latest
           if ($LASTEXITCODE -eq 42) {
             wsl.exe --terminate $env:HACO_E2E_WSL
             if ($LASTEXITCODE -ne 0) {
@@ -142,14 +142,8 @@ jobs:
             Start-Sleep -Seconds 1
             & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec `
               env "HACO_BOOTSTRAP_LOGIN_USER=$env:HACO_E2E_LOGIN_USER" `
-              sh "$linuxRoot/scripts/bootstrap-linux.sh" "$linuxRoot/scripts/install.sh" latest
+              sh "$linuxRoot/scripts/install.sh" latest
           }
-          if ($LASTEXITCODE -ne 0) {
-            throw "bootstrap-linux.sh failed with exit code $LASTEXITCODE."
-          }
-
-          & wsl.exe --distribution $env:HACO_E2E_WSL --user root --exec `
-            sh "$linuxRoot/scripts/install.sh" latest
           if ($LASTEXITCODE -ne 0) {
             throw "install.sh failed with exit code $LASTEXITCODE."
           }
@@ -174,7 +168,7 @@ jobs:
             wsl.exe --unregister $env:HACO_E2E_WSL
           }
 
-      - name: Require every candidate script path to execute successfully
+      - name: Require every candidate installer path to execute successfully
         if: always()
         shell: pwsh
         run: |
@@ -185,7 +179,7 @@ jobs:
             login_user = "${{ steps.login_user.outcome }}"
             install_windows_ps1 = "${{ steps.install_ps1.outcome }}"
             bootstrap_windows_ps1 = "${{ steps.bootstrap_windows.outcome }}"
-            bootstrap_linux_and_install_sh = "${{ steps.wsl_scripts.outcome }}"
+            install_sh = "${{ steps.linux_installer.outcome }}"
           }
           $results.GetEnumerator() | ForEach-Object { Write-Host "$($_.Key): $($_.Value)" }
           $failed = @($results.GetEnumerator() | Where-Object { $_.Value -ne "success" })
