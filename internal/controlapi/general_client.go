@@ -41,9 +41,6 @@ func (c *Client) RequestCapability(
 	request core.CapabilityRequest,
 	approve func(context.Context, core.ApprovalRequest) (bool, error),
 ) (core.CapabilityResult, error) {
-	if approve == nil {
-		return core.CapabilityResult{}, control.ErrInvalidArgument
-	}
 	conn, err := c.wire.OpenStream(ctx, MethodCapabilityRequest, capabilityPayload(request))
 	if err != nil {
 		return core.CapabilityResult{}, err
@@ -65,10 +62,16 @@ func (c *Client) RequestCapability(
 			if frame.Approval == nil || frame.Result != nil || frame.Error != nil {
 				return core.CapabilityResult{}, fmt.Errorf("invalid capability approval frame: %w", control.ErrProtocol)
 			}
-			approved, err := approve(ctx, frame.Approval.coreRequest())
-			if err != nil {
-				return core.CapabilityResult{}, err
+			approved := false
+			if approve != nil {
+				approved, err = approve(ctx, frame.Approval.coreRequest())
+				if err != nil {
+					return core.CapabilityResult{}, err
+				}
 			}
+			// A client without an approval terminal explicitly responds false.
+			// This lets the controller audit an ordinary denial instead of turning
+			// a missing UI callback into a transport failure.
 			if err := encoder.Encode(capabilityClientFrame{Type: capabilityFrameApprovalResponse, Approved: approved}); err != nil {
 				return core.CapabilityResult{}, err
 			}
