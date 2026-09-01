@@ -73,6 +73,8 @@ table inet hacocoon_sandbox {
 	}
 	chain forward {
 		type filter hook forward priority -200; policy accept;
+		iifname "hbr*" ip daddr 255.255.255.255 udp sport 68 udp dport 67 accept
+		oifname "hbr*" udp sport 67 udp dport 68 accept
 		iifname "hbr*" drop
 		oifname "hbr*" drop
 	}
