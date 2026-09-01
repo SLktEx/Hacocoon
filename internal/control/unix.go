@@ -14,24 +14,13 @@ import (
 	"time"
 )
 
-const DefaultSocketPath = "/run/hacocoon/client.sock"
-const DefaultPrivilegedSocketPath = "/run/hacocoon/control.sock"
+const DefaultSocketPath = "/run/hacocoon/control.sock"
 
 func SocketPath() string {
 	if path := strings.TrimSpace(os.Getenv("HACO_CONTROL_SOCKET")); path != "" {
 		return path
 	}
 	return DefaultSocketPath
-}
-
-// PrivilegedSocketPath is the Physical Host endpoint projected into trusted
-// haco-host. Development/test overrides deliberately collapse the client and
-// privileged endpoints back to one caller-owned socket.
-func PrivilegedSocketPath() string {
-	if path := strings.TrimSpace(os.Getenv("HACO_CONTROL_SOCKET")); path != "" {
-		return path
-	}
-	return DefaultPrivilegedSocketPath
 }
 
 func UnixDialer(path string) Dialer {
