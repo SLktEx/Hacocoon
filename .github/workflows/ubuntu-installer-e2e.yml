@@ -115,27 +115,36 @@ jobs:
           test "$(ps -p 1 -o comm= | tr -d '[:space:]')" = systemd
           command -v haco
           command -v incus
-          command -v sg
           haco version
 
+          login_user="$(id -un)"
+          primary_gid="$(id -g "$login_user")"
           access_gid="$(getent group hacocoon | cut -d: -f3)"
           test -n "$access_gid"
-          id -nG "$(id -un)" | tr ' ' '\n' | grep -Fx hacocoon
+          id -nG "$login_user" | tr ' ' '\n' | grep -Fx hacocoon
           test "$(sudo stat -Lc '%u:%g:%a' /run/hacocoon/control.sock)" = "0:$access_gid:660"
-          sg hacocoon -c '/usr/local/bin/haco doctor'
+
+          # Re-enter the installed user through sudo/initgroups instead of sg.
+          # A real re-login keeps the user's primary GID and adds hacocoon as a
+          # supplementary group; sg/newgrp would incorrectly make hacocoon the
+          # primary GID and change ownership of newly-created workspaces.
+          test "$(sudo -u "$login_user" -- id -g)" = "$primary_gid"
+          sudo -u "$login_user" -- id -nG | tr ' ' '\n' | grep -Fx hacocoon
+          sudo -u "$login_user" -- /usr/local/bin/haco doctor
 
           sudo systemctl is-active --quiet haco-controller.service
           sudo test -S /run/hacocoon/control.sock
           sudo haco host ensure
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
-          test "$(getent passwd "$(id -un)" | cut -d: -f7)" != /usr/local/libexec/hacocoon-login
+          test "$(getent passwd "$login_user" | cut -d: -f7)" != /usr/local/libexec/hacocoon-login
 
       - name: Exercise installed Hacocoon user journey
         shell: bash
         run: |
           set -euo pipefail
+          login_user="$(id -un)"
           journey="$GITHUB_WORKSPACE/tools/installer-user-journey-e2e.sh"
-          sg hacocoon -c "HACO_BIN=/usr/local/bin/haco bash '$journey'"
+          sudo -u "$login_user" -- env HACO_BIN=/usr/local/bin/haco bash "$journey"
 
       - name: Collect diagnostics
         if: failure()
@@ -147,6 +156,7 @@ jobs:
           sudo haco env list || true
           getent group hacocoon || true
           id || true
+          sudo -u "$(id -un)" -- id || true
           sudo stat -Lc '%U:%G:%a %n' /run/hacocoon/control.sock || true
           systemctl --no-pager --failed || true
           sudo systemctl status haco-controller.service --no-pager || true
