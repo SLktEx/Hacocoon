@@ -217,8 +217,13 @@ func (r *Runtime) ensureEnvironmentBridge(ctx context.Context, ref string) (neti
 	bridge := environmentBridgeName(ref)
 	show, err := r.runner.Run(ctx, "incus", "network", "show", bridge, "--project", sandboxBridgeResourceProject)
 	if err != nil {
+		// Keep Incus' network-level IPv4 firewall enabled so its managed bridge
+		// installs the DHCP/checksum plumbing required by dnsmasq. This does not
+		// enable NIC-level security.* filtering (which can require nft bridge
+		// family support on WSL); Hacocoon's earlier inet hooks remain the
+		// authority for spoofing, host exposure and forwarding policy.
 		if _, createErr := r.runner.Run(ctx, "incus", "network", "create", bridge,
-			"ipv4.address=auto", "ipv4.nat=false", "ipv4.firewall=false", "ipv4.routing=true",
+			"ipv4.address=auto", "ipv4.nat=false", "ipv4.firewall=true", "ipv4.dhcp=true", "ipv4.routing=true",
 			"ipv6.address=none", "raw.dnsmasq=port=0", "--project", sandboxBridgeResourceProject,
 		); createErr != nil {
 			return netip.Prefix{}, fmt.Errorf("create dedicated Environment bridge %s: %w", bridge, createErr)
@@ -227,7 +232,7 @@ func (r *Runtime) ensureEnvironmentBridge(ctx context.Context, ref string) (neti
 		return netip.Prefix{}, fmt.Errorf("dedicated Environment bridge %s is unmanaged: %w", bridge, core.ErrIncompatibleState)
 	}
 	checks := map[string]string{
-		"ipv4.nat": "false", "ipv4.firewall": "false", "ipv4.routing": "true",
+		"ipv4.nat": "false", "ipv4.firewall": "true", "ipv4.dhcp": "true", "ipv4.routing": "true",
 		"ipv6.address": "none", "raw.dnsmasq": "port=0",
 	}
 	for key, want := range checks {
