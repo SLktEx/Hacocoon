@@ -247,12 +247,19 @@ case "$command_name" in
         esac
         ;;
       create)
-        case "$name" in hbr*) : > "$state/network-$name" ;; *) exit 2 ;; esac
+        case "$name" in hbr*) ;; *) exit 2 ;; esac
+        : > "$state/network-$name"
+        for arg in "$@"; do
+          case "$arg" in
+            user.hacocoon.owner=*) printf '%s\n' "${arg#user.hacocoon.owner=}" > "$state/network-owner-$name" ;;
+          esac
+        done
         ;;
       get)
         case "$name" in hbr*) ;; *) exit 2 ;; esac
         [ -f "$state/network-$name" ] || exit 1
         case "${3:-}" in
+          user.hacocoon.owner) [ -f "$state/network-owner-$name" ] && cat "$state/network-owner-$name" || exit 2 ;;
           ipv4.address) printf '%s\n' '10.240.0.1/24' ;;
           ipv4.nat) printf '%s\n' 'false' ;;
           ipv4.firewall|ipv4.dhcp|ipv4.routing) printf '%s\n' 'true' ;;
@@ -262,7 +269,7 @@ case "$command_name" in
         esac
         ;;
       delete)
-        case "$name" in hbr*) rm -f "$state/network-$name"; exit 0 ;; *) exit 2 ;; esac
+        case "$name" in hbr*) rm -f "$state/network-$name" "$state/network-owner-$name"; exit 0 ;; *) exit 2 ;; esac
         ;;
       *) exit 2 ;;
     esac
@@ -420,6 +427,7 @@ bridge_line="$(grep -F 'network create hbr' "$HACO_FAKE_INCUS_LOG" | head -1)"
 [[ "$bridge_line" == *'ipv4.nat=false'* ]]
 [[ "$bridge_line" == *'ipv4.firewall=true'* ]]
 [[ "$bridge_line" == *'ipv4.dhcp=true'* ]]
+[[ "$bridge_line" == *'user.hacocoon.owner=environment-network-v1'* ]]
 nic_line="$(grep -F 'config device add haco-base-demo eth0 nic ' "$HACO_FAKE_INCUS_LOG" | tail -1)"
 [[ "$nic_line" == *'network=hbr'* ]]
 [[ "$nic_line" == *'hwaddr=02:'* ]]
