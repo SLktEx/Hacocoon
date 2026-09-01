@@ -58,6 +58,8 @@ func TestVerifyRoutedSandboxFirewall(t *testing.T) {
 	}
 	chain forward {
 		type filter hook forward priority -200; policy accept;
+		iifname "hbr*" ip daddr 255.255.255.255 udp sport 68 udp dport 67 accept
+		oifname "hbr*" udp sport 67 udp dport 68 accept
 		iifname "hbr*" drop
 		oifname "hbr*" drop
 	}
@@ -69,6 +71,8 @@ func TestVerifyRoutedSandboxFirewall(t *testing.T) {
 		strings.Replace(managed, `oifname "hbr*" drop`, "", 1),
 		strings.Replace(managed, `iifname "hbr*" ct state established,related accept`, "", 1),
 		strings.Replace(managed, `iifname "hbr*" udp sport 68 udp dport 67 accept`, `iifname "hbr*" udp accept`, 1),
+		strings.Replace(managed, `iifname "hbr*" ip daddr 255.255.255.255 udp sport 68 udp dport 67 accept`, `iifname "hbr*" udp accept`, 1),
+		strings.Replace(managed, `oifname "hbr*" udp sport 67 udp dport 68 accept`, `oifname "hbr*" udp accept`, 1),
 	} {
 		if err := verifyRoutedSandboxFirewall(unsafe); !errors.Is(err, core.ErrIncompatibleState) {
 			t.Fatalf("unsafe firewall error = %v, want ErrIncompatibleState\n%s", err, unsafe)
