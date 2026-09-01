@@ -121,6 +121,10 @@ func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
 	created = true
 	commands := [][]string{
 		{"add", "chain", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "input", "{", "type", "filter", "hook", "input", "priority", "-200", ";", "policy", "accept", ";", "}"},
+		// Physical Host initiated traffic may receive replies from an Environment,
+		// while Environment initiated connections to arbitrary host services remain
+		// NEW and continue to the explicit exceptions or final drop below.
+		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "input", "iifname", "\"" + sandboxRoutedHostPrefix + "*\"", "ct", "state", "established,related", "accept"},
 		// DHCP is the only pre-address host service available on an Environment
 		// bridge. The per-Environment prerouting guard has already pinned the
 		// Ethernet source identity before this input-chain exception is reached.
@@ -152,6 +156,7 @@ func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
 func verifyRoutedSandboxFirewall(raw string) error {
 	expected := map[string][]string{
 		"input": {
+			"iifname \"" + sandboxRoutedHostPrefix + "*\" ct state established,related accept",
 			"iifname \"" + sandboxRoutedHostPrefix + "*\" udp sport 68 udp dport 67 accept",
 			"iifname \"" + sandboxRoutedHostPrefix + "*\" ip daddr " + sandboxRoutedProxyIPv4 + " tcp dport " + fmt.Sprintf("%d", sandboxEgressProxyPort) + " accept",
 			"iifname \"" + sandboxRoutedHostPrefix + "*\" drop",
