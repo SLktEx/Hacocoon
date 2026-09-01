@@ -157,6 +157,41 @@ ensure_gh_attestation_verify() {
   has_gh_attestation_verify || die "installed GitHub CLI still lacks gh attestation verify"
 }
 
+root_subid_contains() {
+  file="$1"
+  id_value="$2"
+  $SUDO test -r "$file" || return 1
+  $SUDO awk -F: -v id="$id_value" '
+    $1 == "root" && id >= $2 && id - $2 < $3 { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' "$file"
+}
+
+allow_root_subid() {
+  file="$1"
+  id_value="$2"
+  [ "$id_value" != "0" ] || return 0
+  root_subid_contains "$file" "$id_value" && return 0
+  $SUDO test -f "$file" || die "$file is unavailable for Incus subordinate-ID configuration"
+  printf 'root:%s:1\n' "$id_value" | $SUDO tee -a "$file" >/dev/null
+  root_subid_contains "$file" "$id_value" || die "failed to authorize subordinate ID $id_value in $file"
+}
+
+configure_workspace_owner_idmap() {
+  workspace_uid="$(id -u)"
+  workspace_gid="$(id -g)"
+  case "$workspace_uid:$workspace_gid" in
+    *[!0-9:]*) die "installer user identity is not numeric: $workspace_uid:$workspace_gid" ;;
+  esac
+
+  # Hacocoon keeps Environments unprivileged. Incus must nevertheless be able
+  # to map the one host UID/GID that owns the ordinary user's leased workspace
+  # to container root. Delegate only those exact IDs; do not grant a broad host
+  # range. The same identity is the only local user allowed onto client.sock.
+  allow_root_subid /etc/subuid "$workspace_uid"
+  allow_root_subid /etc/subgid "$workspace_gid"
+}
+
 prepare_ubuntu_host() {
   assert_ubuntu
   prepare_privilege
@@ -175,6 +210,8 @@ prepare_ubuntu_host() {
 
   printf '==> Installing and starting Incus\n'
   $SUDO apt-get install -y incus
+  printf '==> Authorizing the local Hacocoon workspace owner for Incus idmap\n'
+  configure_workspace_owner_idmap
   $SUDO systemctl enable --now incus.service 2>/dev/null || $SUDO systemctl enable --now incus 2>/dev/null ||
     die "failed to enable/start Incus with systemd"
 
