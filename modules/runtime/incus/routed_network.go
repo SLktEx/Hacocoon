@@ -294,10 +294,24 @@ func (r *Runtime) verifyRoutedSandboxAntiSpoof(ctx context.Context, ref string) 
 	if err != nil {
 		return fmt.Errorf("verify routed sandbox host route: %w", err)
 	}
-	if !strings.Contains(routes.Stdout, parsed.String()+" dev "+iface) {
-		return fmt.Errorf("routed sandbox address %s does not route through %s: %w", parsed, iface, core.ErrIncompatibleState)
+	if !hasExactRoutedSandboxHostRoute(routes.Stdout, parsed) {
+		return fmt.Errorf("routed sandbox address %s has no exact host route on %s (routes=%q): %w", parsed, iface, strings.TrimSpace(routes.Stdout), core.ErrIncompatibleState)
 	}
 	return nil
+}
+
+func hasExactRoutedSandboxHostRoute(raw string, address netip.Addr) bool {
+	for _, line := range strings.Split(raw, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		destination := fields[0]
+		if destination == address.String() || destination == address.String()+"/32" {
+			return true
+		}
+	}
+	return false
 }
 
 func routedSandboxHostInterface(ref string) string {
