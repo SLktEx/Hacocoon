@@ -59,13 +59,17 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	if created.Resources != budget {
 		t.Fatalf("resources = %#v, want %#v", created.Resources, budget)
 	}
+
+	bridge := environmentBridgeName("haco-demo")
+	mac := environmentBridgeMAC("haco-demo")
 	start := -1
 	resourceOps := 0
 	seenNoProfiles := false
+	seenDedicatedBridge := false
 	seenDirectNIC := false
 	seenProxyConfig := false
-	seenAntiSpoofProbe := false
-	seenSourceGuard := false
+	seenMACGuard := false
+	seenIPGuard := false
 	for i, call := range runner.calls {
 		joined := strings.Join(call.args, " ")
 		if len(call.args) > 0 && call.args[0] == "start" {
@@ -77,13 +81,21 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 		if strings.Contains(joined, "--no-profiles") {
 			seenNoProfiles = true
 		}
-		if strings.Contains(joined, "config device add haco-demo eth0 nic") {
-			if !strings.Contains(joined, "nictype=routed") || !strings.Contains(joined, "ipv4.host_address="+sandboxRoutedGatewayIPv4) {
-				t.Fatalf("sandbox NIC is not routed: %#v", call)
+		if strings.Contains(joined, "network show "+bridge) || strings.Contains(joined, "network create "+bridge) {
+			seenDedicatedBridge = true
+			if start >= 0 {
+				t.Fatalf("dedicated Environment bridge materialized after start: %#v", call)
 			}
-			for _, forbidden := range []string{"network=", "security.ipv4_filtering", "security.ipv6_filtering", "security.mac_filtering", "security.port_isolation"} {
+		}
+		if strings.Contains(joined, "config device add haco-demo eth0 nic") {
+			for _, required := range []string{"network=" + bridge, "hwaddr=" + mac, "security.port_isolation=true"} {
+				if !strings.Contains(joined, required) {
+					t.Fatalf("sandbox NIC missing %q: %#v", required, call)
+				}
+			}
+			for _, forbidden := range []string{"nictype=routed", "ipv4.host_address=", "security.ipv4_filtering", "security.ipv6_filtering", "security.mac_filtering"} {
 				if strings.Contains(joined, forbidden) {
-					t.Fatalf("routed sandbox NIC retained bridged-only key %q: %#v", forbidden, call)
+					t.Fatalf("dedicated bridge NIC retained WSL-incompatible/obsolete key %q: %#v", forbidden, call)
 				}
 			}
 			seenDirectNIC = true
@@ -91,17 +103,19 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 				t.Fatalf("sandbox NIC was added after start: %#v", call)
 			}
 		}
-		if strings.Contains(joined, "nft add rule "+sandboxRoutedFirewallFamily+" "+routedSandboxGuardTable("haco-demo")) && strings.Contains(joined, "ip saddr !=") {
-			seenSourceGuard = true
+		if strings.Contains(joined, "nft add rule "+sandboxRoutedFirewallFamily+" "+routedSandboxGuardTable("haco-demo")) {
+			if strings.Contains(joined, "ether saddr != "+mac) {
+				seenMACGuard = true
+			}
+			if strings.Contains(joined, "ip saddr != 10.240.0.0/24") {
+				seenIPGuard = true
+			}
 			if start >= 0 {
 				t.Fatalf("source guard was installed after start: %#v", call)
 			}
 		}
 		if strings.Contains(joined, "--config environment.HTTP_PROXY=") && strings.Contains(joined, "--config environment.HTTPS_PROXY=") {
 			seenProxyConfig = true
-		}
-		if len(call.args) == 1 && strings.Contains(call.args[0], "/rp_filter") {
-			seenAntiSpoofProbe = true
 		}
 		if strings.Contains(joined, "limits.cpu=4") || strings.Contains(joined, "limits.memory=8589934592B") || strings.Contains(joined, "limits.processes=1024") || strings.Contains(joined, "size=42949672960B") {
 			resourceOps++
@@ -113,8 +127,8 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	if start < 0 {
 		t.Fatal("start call missing")
 	}
-	if !seenNoProfiles || !seenDirectNIC || !seenProxyConfig || !seenAntiSpoofProbe || !seenSourceGuard {
-		t.Fatalf("instance-local routed sandbox materialization incomplete: noProfiles=%v directNIC=%v proxyConfig=%v antiSpoof=%v sourceGuard=%v calls=%#v", seenNoProfiles, seenDirectNIC, seenProxyConfig, seenAntiSpoofProbe, seenSourceGuard, runner.calls)
+	if !seenNoProfiles || !seenDedicatedBridge || !seenDirectNIC || !seenProxyConfig || !seenMACGuard || !seenIPGuard {
+		t.Fatalf("Environment-dedicated bridge materialization incomplete: noProfiles=%v bridge=%v directNIC=%v proxyConfig=%v macGuard=%v ipGuard=%v calls=%#v", seenNoProfiles, seenDedicatedBridge, seenDirectNIC, seenProxyConfig, seenMACGuard, seenIPGuard, runner.calls)
 	}
 	if resourceOps != 4 {
 		t.Fatalf("resource set operations = %d, calls=%#v", resourceOps, runner.calls)
