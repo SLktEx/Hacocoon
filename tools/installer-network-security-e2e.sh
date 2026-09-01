@@ -35,6 +35,7 @@ command -v "$haco_bin" >/dev/null 2>&1 || fail "haco is unavailable"
 command -v incus >/dev/null 2>&1 || fail "incus is unavailable"
 command -v nft >/dev/null 2>&1 || fail "nft is unavailable"
 command -v ping >/dev/null 2>&1 || fail "ping is unavailable for Physical Host reachability acceptance"
+command -v python3 >/dev/null 2>&1 || fail "python3 is unavailable for Incus runtime-state inspection"
 mkdir -p "$workspace/a" "$workspace/b"
 printf 'network-security\n' > "$workspace/probe.txt"
 
@@ -71,17 +72,49 @@ assert_guard() {
 
 environment_ipv4() {
   local ref="$1"
+  local bridge="$2"
   local address=""
+  local state_json=""
   local attempt
-  for attempt in $(seq 1 20); do
-    address="$(incus exec "$ref" --project "$project" -- sh -c 'ip -4 -o addr show dev eth0 | awk "{print \$4}" | cut -d/ -f1 | head -n1' 2>/dev/null || true)"
-    address="$(printf '%s' "$address" | tr -d '[:space:]')"
+
+  # Incus runtime state is the same authoritative source used by the egress
+  # identity resolver. Avoid depending on the guest image having ip/awk/cut
+  # installed, and allow enough time for systemd-networkd + DHCP on a fresh
+  # managed bridge to settle on slower WSL/GitHub-hosted runners.
+  for attempt in $(seq 1 60); do
+    state_json="$(incus list "$ref" --project "$project" --format json 2>/dev/null || true)"
+    address="$(printf '%s' "$state_json" | python3 -c '
+import json, sys
+try:
+    rows = json.load(sys.stdin)
+except Exception:
+    rows = []
+for row in rows:
+    network = ((row.get("state") or {}).get("network") or {})
+    ordered = []
+    if "eth0" in network:
+        ordered.append(network["eth0"])
+    ordered.extend(v for k, v in network.items() if k != "eth0")
+    for iface in ordered:
+        for item in (iface.get("addresses") or []):
+            address = item.get("address", "")
+            if item.get("family") == "inet" and address and not address.startswith("127.") and not address.startswith("169.254."):
+                print(address)
+                raise SystemExit(0)
+' 2>/dev/null || true)"
+    address="$(printf '%s' "$address" | head -n1 | tr -d '[:space:]')"
     if [[ "$address" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
       printf '%s\n' "$address"
       return 0
     fi
-    sleep 0.25
+    sleep 0.5
   done
+
+  printf 'installer network security: IPv4 diagnostics for %s on %s\n' "$ref" "$bridge" >&2
+  incus list "$ref" --project "$project" --format json >&2 || true
+  incus exec "$ref" --project "$project" -- sh -c 'command -v ip >/dev/null 2>&1 && ip -4 -o addr show || true' >&2 || true
+  incus network show "$bridge" --project "$network_project" >&2 || true
+  incus network list-leases "$bridge" --project "$network_project" >&2 || true
   return 1
 }
 
@@ -123,8 +156,8 @@ guard_b="$(assert_guard "$bridge_b" "$mac_b")"
 [[ "$guard_a" != "$guard_b" ]] || fail "two Environments unexpectedly share anti-spoofing table $guard_a"
 
 printf '==> Network security: Physical Host can initiate traffic to each Environment\n'
-ip_a="$(environment_ipv4 "$ref_a")" || fail "unable to resolve IPv4 address for $env_a"
-ip_b="$(environment_ipv4 "$ref_b")" || fail "unable to resolve IPv4 address for $env_b"
+ip_a="$(environment_ipv4 "$ref_a" "$bridge_a")" || fail "unable to resolve IPv4 address for $env_a"
+ip_b="$(environment_ipv4 "$ref_b" "$bridge_b")" || fail "unable to resolve IPv4 address for $env_b"
 ping -4 -n -c 1 -W 3 "$ip_a" >/dev/null || fail "Physical Host cannot reach $env_a at $ip_a"
 ping -4 -n -c 1 -W 3 "$ip_b" >/dev/null || fail "Physical Host cannot reach $env_b at $ip_b"
 
