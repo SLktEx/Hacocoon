@@ -17,6 +17,7 @@ SKIP_INCUS="${HACO_BOOTSTRAP_SKIP_INCUS:-0}"
 GRANT_INCUS_ADMIN="${HACO_BOOTSTRAP_GRANT_INCUS_ADMIN:-0}"
 HACOCOON_CONTROLLER_SERVICE="haco-controller.service"
 HACOCOON_CONTROLLER_SOCKET="/run/hacocoon/control.sock"
+HACOCOON_ACCESS_GROUP="hacocoon"
 GITHUB_CLI_KEYRING_URL="https://cli.github.com/packages/githubcli-archive-keyring.gpg"
 GITHUB_CLI_OLD_KEY_FINGERPRINT_TEXT="2C61 0620 1985 B60E 6C7A C873 23F3 D4EA 7571 6059"
 GITHUB_CLI_CURRENT_KEY_FINGERPRINT_TEXT="7F38 BBB5 9D06 4DBC B3D8 4D72 5612 B364 6231 3325"
@@ -187,7 +188,7 @@ configure_workspace_owner_idmap() {
   # Hacocoon keeps Environments unprivileged. Incus must nevertheless be able
   # to map the one host UID/GID that owns the ordinary user's leased workspace
   # to container root. Delegate only those exact IDs; do not grant a broad host
-  # range. The same identity is the only local user allowed onto client.sock.
+  # range.
   allow_root_subid /etc/subuid "$workspace_uid"
   allow_root_subid /etc/subgid "$workspace_gid"
 }
@@ -513,6 +514,36 @@ install_release_binaries() {
   prepare_default_haco_root
 }
 
+resolve_hacocoon_access_user() {
+  if [ "$(id -u)" -ne 0 ]; then
+    id -un
+    return 0
+  fi
+  case "${SUDO_USER:-}" in
+    ""|root) return 1 ;;
+    *) printf '%s\n' "$SUDO_USER" ;;
+  esac
+}
+
+configure_hacocoon_access_group() {
+  if ! getent group "$HACOCOON_ACCESS_GROUP" >/dev/null 2>&1; then
+    $SUDO /usr/sbin/groupadd --system "$HACOCOON_ACCESS_GROUP"
+  fi
+
+  HACOCOON_ACCESS_GID="$(getent group "$HACOCOON_ACCESS_GROUP" | awk -F: '{print $3; exit}')"
+  case "$HACOCOON_ACCESS_GID" in
+    ""|*[!0-9]*) die "unable to resolve numeric gid for $HACOCOON_ACCESS_GROUP group" ;;
+    0) die "$HACOCOON_ACCESS_GROUP group must not use gid 0" ;;
+  esac
+
+  HACOCOON_ACCESS_USER="$(resolve_hacocoon_access_user || true)"
+  if [ -n "$HACOCOON_ACCESS_USER" ]; then
+    getent passwd "$HACOCOON_ACCESS_USER" >/dev/null 2>&1 ||
+      die "installer access user does not exist: $HACOCOON_ACCESS_USER"
+    $SUDO /usr/sbin/usermod -aG "$HACOCOON_ACCESS_GROUP" "$HACOCOON_ACCESS_USER"
+  fi
+}
+
 configure_hacocoon_controller() {
   controller_bin="$1"
   case "$controller_bin" in
@@ -525,14 +556,7 @@ configure_hacocoon_controller() {
     die "refusing controller service through group/world-writable binary: $controller_bin"
   fi
 
-  # Bind the ordinary Physical Host client endpoint to the identity that ran
-  # the installer. The controller itself remains root and keeps a separate
-  # root-only privileged socket for trusted haco-host projection.
-  client_uid="$(id -u)"
-  client_gid="$(id -g)"
-  case "$client_uid:$client_gid" in
-    *[!0-9:]*) die "installer user identity is not numeric: $client_uid:$client_gid" ;;
-  esac
+  configure_hacocoon_access_group
 
   unit_tmp="$(mktemp)"
   cat > "$unit_tmp" <<EOF_UNIT
@@ -547,11 +571,10 @@ ExecStart=$controller_bin
 Restart=on-failure
 RestartSec=1s
 RuntimeDirectory=hacocoon
-RuntimeDirectoryMode=0700
+RuntimeDirectoryMode=0755
 UMask=0077
 Environment=HACO_ROOT=/var/lib/hacocoon
-Environment=HACO_CONTROL_CLIENT_UID=$client_uid
-Environment=HACO_CONTROL_CLIENT_GID=$client_gid
+Environment=HACO_CONTROL_GROUP_GID=$HACOCOON_ACCESS_GID
 
 [Install]
 WantedBy=multi-user.target
@@ -573,7 +596,9 @@ EOF_UNIT
   done
   $SUDO test -S "$HACOCOON_CONTROLLER_SOCKET" || die "controller did not create $HACOCOON_CONTROLLER_SOCKET"
   socket_state="$($SUDO stat -Lc '%u:%g:%a' "$HACOCOON_CONTROLLER_SOCKET")"
-  [ "$socket_state" = "0:0:600" ] || die "unsafe controller socket ownership/mode: $socket_state (want 0:0:600)"
+  expected_socket_state="0:$HACOCOON_ACCESS_GID:660"
+  [ "$socket_state" = "$expected_socket_state" ] ||
+    die "unsafe controller socket ownership/mode: $socket_state (want $expected_socket_state)"
 }
 
 assert_ubuntu
@@ -608,6 +633,11 @@ printf '==> Verifying trusted haco-host controller round trip\n'
 $SUDO incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null ||
   die "haco-host cannot reach the Physical Host controller"
 
+if [ -n "${HACOCOON_ACCESS_USER:-}" ]; then
+  warn "membership in $HACOCOON_ACCESS_GROUP grants authority to control Hacocoon environments; treat it as a privileged local group"
+  printf 'haco installer: added %s to %s; start a new login session (or run newgrp %s) before using haco without sudo.\n' \
+    "$HACOCOON_ACCESS_USER" "$HACOCOON_ACCESS_GROUP" "$HACOCOON_ACCESS_GROUP"
+fi
 if [ "$GRANT_INCUS_ADMIN" = "1" ] && [ "$(id -u)" -ne 0 ]; then
   printf '%s\n' 'haco installer: start a new login session (or use newgrp incus-admin) before relying on the new group membership.'
 fi
