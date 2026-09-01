@@ -26,6 +26,20 @@ Do not add tool-specific handoff files, generated master documents, migration sc
 - Do not give untrusted workloads Hacocoon/Incus management authority, reusable Host credentials, Host control sockets, or protected Hacocoon state.
 - Hacocoon is pre-1.0. Prefer deletion, replacement, and clear ownership over preserving accidental compatibility.
 
+## Mistake-proofing and lifecycle changes
+
+Prefer repository structure that makes an unsafe state unrepresentable over review instructions that ask contributors to remember the right sequence.
+
+- Environment/Workspace lifecycle mutations must use the canonical lifecycle transition API. Do not reconstruct create/delete by independently calling low-level Environment metadata and Workspace-lease mutations from orchestration code.
+- After a provider resource is created, durably record its exact ownership identity before performing another fallible validation or persistence step.
+- Do not release ownership/leases merely because cleanup was attempted. Release only after the owned provider resource is positively known to be absent; ambiguous cleanup must fail closed as recovery-required.
+- Platform implementations may use different mechanisms, but Linux/WSL/other supported platforms must satisfy the same security and lifecycle invariants. Never absorb a platform difference by silently disabling an isolation or anti-spoofing guarantee.
+- When E2E/manual use finds a deterministic bug, keep the user-contract E2E when applicable and add a regression at the lowest faithful unit/component/integration layer.
+- Changes to trust boundaries, lifecycle ownership, Environment networking, or replacement of a canonical implementation require an ADR when a future contributor/AI could otherwise reasonably reintroduce a rejected design.
+- Migration-only names/helpers must be clearly marked and removed when no longer needed; do not copy a migration shim as the canonical pattern.
+
+For Environment lifecycle ownership rationale and rejected alternatives, see `docs/adr/0002-environment-lifecycle-ownership.md`.
+
 ## Logging
 
 Follow `docs/reference/logging.md` for every logging change.
