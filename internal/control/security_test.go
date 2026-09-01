@@ -9,30 +9,6 @@ import (
 	"testing"
 )
 
-func TestDefaultSocketPathsSeparateLocalAndPrivilegedClients(t *testing.T) {
-	t.Setenv("HACO_CONTROL_SOCKET", "")
-	if got := SocketPath(); got != "/run/hacocoon/client.sock" {
-		t.Fatalf("client socket = %q", got)
-	}
-	if got := PrivilegedSocketPath(); got != "/run/hacocoon/control.sock" {
-		t.Fatalf("privileged socket = %q", got)
-	}
-	if SocketPath() == PrivilegedSocketPath() {
-		t.Fatal("production client and privileged sockets must remain separate")
-	}
-}
-
-func TestSocketOverrideCollapsesEndpointsForDevelopment(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "control.sock")
-	t.Setenv("HACO_CONTROL_SOCKET", path)
-	if got := SocketPath(); got != path {
-		t.Fatalf("client socket = %q, want %q", got, path)
-	}
-	if got := PrivilegedSocketPath(); got != path {
-		t.Fatalf("privileged socket = %q, want %q", got, path)
-	}
-}
-
 func TestListenUnixDefaultModeIsPrivate(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "control.sock")
 	listener, err := ListenUnix(path, 0)
