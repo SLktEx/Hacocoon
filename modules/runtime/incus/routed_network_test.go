@@ -71,6 +71,27 @@ func TestPrefixesOverlap(t *testing.T) {
 	}
 }
 
+func TestHasExactRoutedSandboxHostRoute(t *testing.T) {
+	address := netip.MustParseAddr("198.18.48.105")
+	cases := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{name: "iproute2 omits dev after filtering", raw: "198.18.48.105 scope link src 169.254.254.1\n", want: true},
+		{name: "explicit host prefix", raw: "198.18.48.105/32 scope link\n", want: true},
+		{name: "different host route", raw: "198.18.48.106 scope link\n", want: false},
+		{name: "broader route is not accepted", raw: "198.18.0.0/15 scope link\n", want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := hasExactRoutedSandboxHostRoute(tc.raw, address); got != tc.want {
+				t.Fatalf("hasExactRoutedSandboxHostRoute(%q, %s) = %v, want %v", tc.raw, address, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestVerifyRoutedSandboxFirewall(t *testing.T) {
 	managed := `table inet hacocoon_sandbox {
 	chain input {
