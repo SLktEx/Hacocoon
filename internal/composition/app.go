@@ -93,6 +93,10 @@ func Local(ctx context.Context) (*App, error) {
 	if ociDriver == ociplugin.DriverNerdctl {
 		runtimeRunner = incus.WrapSeedHarvestRunner(runner)
 	}
+	// Environment bridge ownership is enforced at the production Incus command
+	// boundary so future call sites cannot silently adopt/delete a same-named
+	// unmanaged bridge even if they bypass a higher-level network helper.
+	runtimeRunner = incus.WrapEnvironmentNetworkOwnershipRunner(runtimeRunner)
 	incusRuntime := incus.New(runtimeRunner)
 	if err := incusRuntime.ConfigureStorageProvider(func(storageCtx context.Context) (map[string]string, error) {
 		handle, err := managedStorage.Ensure(storageCtx, core.StorageSpec{
