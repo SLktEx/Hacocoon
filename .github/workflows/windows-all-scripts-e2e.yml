@@ -11,6 +11,7 @@ on:
       - "scripts/install-windows.ps1"
       - "scripts/install.sh"
       - "tools/package_installers.py"
+      - "tools/installer-user-journey-e2e.sh"
       - ".github/workflows/windows-all-scripts-e2e.yml"
   workflow_dispatch:
 
@@ -20,7 +21,7 @@ permissions:
 jobs:
   windows-user-path:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 55
     steps:
       - name: Checkout candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -203,6 +204,20 @@ jobs:
           & wsl.exe --distribution $instance --user $loginUser --exec sudo -n /usr/local/bin/haco host ensure
           if ($LASTEXITCODE -ne 0) { throw "Installed narrow sudo rule does not permit haco host ensure." }
 
+      - name: Exercise installed Hacocoon user journey through WSL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $instance = "Hacocoon"
+          $loginUser = "haco-e2e"
+          $scriptWindows = Join-Path $env:GITHUB_WORKSPACE "tools\installer-user-journey-e2e.sh"
+          $scriptLinux = (& wsl.exe --distribution $instance --user $loginUser --exec wslpath -u -a $scriptWindows | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($scriptLinux)) {
+            throw "Failed to translate the installed user-journey script path into WSL."
+          }
+          & wsl.exe --distribution $instance --user $loginUser --exec env HACO_BIN=/usr/local/bin/haco bash $scriptLinux
+          if ($LASTEXITCODE -ne 0) { throw "Installed Hacocoon WSL user journey failed." }
+
       - name: Collect diagnostics
         if: failure()
         shell: pwsh
@@ -212,7 +227,7 @@ jobs:
           & wsl.exe --list --verbose 2>&1 | ForEach-Object { Write-Host $_ }
           $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
           if ($installed -contains $instance) {
-            wsl.exe --distribution $instance --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; haco version || true; haco doctor || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true'
+            wsl.exe --distribution $instance --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; haco version || true; haco doctor || true; haco env list || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true'
           }
           $global:LASTEXITCODE = 0
 
