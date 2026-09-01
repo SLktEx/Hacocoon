@@ -51,6 +51,7 @@ func TestVerifyRoutedSandboxFirewall(t *testing.T) {
 	managed := `table inet hacocoon_sandbox {
 	chain input {
 		type filter hook input priority -200; policy accept;
+		iifname "hbr*" ct state established,related accept
 		iifname "hbr*" udp sport 68 udp dport 67 accept
 		iifname "hbr*" ip daddr 169.254.254.1 tcp dport 18080 accept
 		iifname "hbr*" drop
@@ -66,6 +67,7 @@ func TestVerifyRoutedSandboxFirewall(t *testing.T) {
 	}
 	for _, unsafe := range []string{
 		strings.Replace(managed, `oifname "hbr*" drop`, "", 1),
+		strings.Replace(managed, `iifname "hbr*" ct state established,related accept`, "", 1),
 		strings.Replace(managed, `iifname "hbr*" udp sport 68 udp dport 67 accept`, `iifname "hbr*" udp accept`, 1),
 	} {
 		if err := verifyRoutedSandboxFirewall(unsafe); !errors.Is(err, core.ErrIncompatibleState) {
