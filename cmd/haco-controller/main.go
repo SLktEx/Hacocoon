@@ -7,15 +7,20 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/SLktEx/Hacocoon/internal/composition"
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/logging"
+)
+
+const (
+	controlClientUIDEnv = "HACO_CONTROL_CLIENT_UID"
+	controlClientGIDEnv = "HACO_CONTROL_CLIENT_GID"
 )
 
 func main() {
@@ -57,6 +62,8 @@ func main() {
 }
 
 func controllerListeners(clientPath, privilegedPath string) ([]net.Listener, error) {
+	// Development and test overrides intentionally use one caller-owned private
+	// socket. Production uses distinct local-client and privileged endpoints.
 	if clientPath == privilegedPath {
 		listener, err := control.ListenUnix(clientPath, 0o600)
 		if err != nil {
@@ -71,20 +78,19 @@ func controllerListeners(clientPath, privilegedPath string) ([]net.Listener, err
 		return nil, fmt.Errorf("production controller sockets require root authority")
 	}
 
-	sudoGroup, err := user.LookupGroup("sudo")
+	clientUID, clientGID, err := productionClientOwner()
 	if err != nil {
-		return nil, fmt.Errorf("resolve sudo group for local controller clients: %w", err)
-	}
-	sudoGID, err := strconv.Atoi(sudoGroup.Gid)
-	if err != nil || sudoGID < 0 {
-		return nil, fmt.Errorf("invalid sudo group gid %q", sudoGroup.Gid)
+		return nil, err
 	}
 
+	// The runtime directory itself carries no client authority. It only permits
+	// pathname traversal so the explicitly-owned 0600 client socket can be
+	// reached. The privileged socket remains root-owned 0600.
 	runtimeDir := filepath.Dir(privilegedPath)
-	if err := os.Chown(runtimeDir, 0, sudoGID); err != nil {
-		return nil, fmt.Errorf("set controller runtime directory group: %w", err)
+	if err := os.Chown(runtimeDir, 0, 0); err != nil {
+		return nil, fmt.Errorf("set controller runtime directory owner: %w", err)
 	}
-	if err := os.Chmod(runtimeDir, 0o710); err != nil {
+	if err := os.Chmod(runtimeDir, 0o711); err != nil {
 		return nil, fmt.Errorf("set controller runtime directory permissions: %w", err)
 	}
 
@@ -92,22 +98,46 @@ func controllerListeners(clientPath, privilegedPath string) ([]net.Listener, err
 	if err != nil {
 		return nil, err
 	}
-	client, err := control.ListenUnix(clientPath, 0o660)
+	client, err := control.ListenUnix(clientPath, 0o600)
 	if err != nil {
 		_ = privileged.Close()
 		return nil, err
 	}
-	if err := os.Chown(clientPath, 0, sudoGID); err != nil {
+	if err := os.Chown(clientPath, clientUID, clientGID); err != nil {
 		_ = client.Close()
 		_ = privileged.Close()
-		return nil, fmt.Errorf("set local client socket group: %w", err)
+		return nil, fmt.Errorf("set local client socket owner: %w", err)
 	}
-	if err := os.Chmod(clientPath, 0o660); err != nil {
+	if err := os.Chmod(clientPath, 0o600); err != nil {
 		_ = client.Close()
 		_ = privileged.Close()
 		return nil, fmt.Errorf("set local client socket permissions: %w", err)
 	}
 	return []net.Listener{privileged, client}, nil
+}
+
+func productionClientOwner() (int, int, error) {
+	uid, err := parseIDEnv(controlClientUIDEnv)
+	if err != nil {
+		return 0, 0, err
+	}
+	gid, err := parseIDEnv(controlClientGIDEnv)
+	if err != nil {
+		return 0, 0, err
+	}
+	return uid, gid, nil
+}
+
+func parseIDEnv(name string) (int, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return 0, fmt.Errorf("%s is required for the production local-client socket", name)
+	}
+	parsed, err := strconv.ParseUint(value, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be an unsigned numeric id: %w", name, err)
+	}
+	return int(parsed), nil
 }
 
 func serveAll(ctx context.Context, server *control.Server, listeners []net.Listener) error {
