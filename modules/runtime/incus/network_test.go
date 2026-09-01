@@ -21,6 +21,7 @@ func managedRoutedFirewallResult() host.Result {
 	return host.Result{Stdout: `table inet hacocoon_sandbox {
 	chain input {
 		type filter hook input priority -200; policy accept;
+		iifname "hbr*" ct state established,related accept
 		iifname "hbr*" udp sport 68 udp dport 67 accept
 		iifname "hbr*" ip daddr 169.254.254.1 tcp dport 18080 accept
 		iifname "hbr*" drop
