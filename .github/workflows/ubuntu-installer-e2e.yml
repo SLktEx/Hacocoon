@@ -115,8 +115,15 @@ jobs:
           test "$(ps -p 1 -o comm= | tr -d '[:space:]')" = systemd
           command -v haco
           command -v incus
+          command -v sg
           haco version
-          haco doctor
+
+          access_gid="$(getent group hacocoon | cut -d: -f3)"
+          test -n "$access_gid"
+          id -nG "$(id -un)" | tr ' ' '\n' | grep -Fx hacocoon
+          test "$(sudo stat -Lc '%u:%g:%a' /run/hacocoon/control.sock)" = "0:$access_gid:660"
+          sg hacocoon -c '/usr/local/bin/haco doctor'
+
           sudo systemctl is-active --quiet haco-controller.service
           sudo test -S /run/hacocoon/control.sock
           sudo haco host ensure
@@ -127,7 +134,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          HACO_BIN=/usr/local/bin/haco bash ./tools/installer-user-journey-e2e.sh
+          journey="$GITHUB_WORKSPACE/tools/installer-user-journey-e2e.sh"
+          sg hacocoon -c "HACO_BIN=/usr/local/bin/haco bash '$journey'"
 
       - name: Collect diagnostics
         if: failure()
@@ -135,8 +143,11 @@ jobs:
         continue-on-error: true
         run: |
           haco version || true
-          haco doctor || true
-          haco env list || true
+          sudo haco doctor || true
+          sudo haco env list || true
+          getent group hacocoon || true
+          id || true
+          sudo stat -Lc '%U:%G:%a %n' /run/hacocoon/control.sock || true
           systemctl --no-pager --failed || true
           sudo systemctl status haco-controller.service --no-pager || true
           sudo incus list --all-projects || true
