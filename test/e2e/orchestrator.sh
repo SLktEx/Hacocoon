@@ -254,8 +254,8 @@ case "$command_name" in
         [ -f "$state/network-$name" ] || exit 1
         case "${3:-}" in
           ipv4.address) printf '%s\n' '10.240.0.1/24' ;;
-          ipv4.nat|ipv4.firewall) printf '%s\n' 'false' ;;
-          ipv4.routing) printf '%s\n' 'true' ;;
+          ipv4.nat) printf '%s\n' 'false' ;;
+          ipv4.firewall|ipv4.dhcp|ipv4.routing) printf '%s\n' 'true' ;;
           ipv6.address) printf '%s\n' 'none' ;;
           raw.dnsmasq) printf '%s\n' 'port=0' ;;
           *) exit 2 ;;
@@ -417,6 +417,9 @@ grep -Fq 'init images:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 grep -Fq -- '--no-profiles --storage haco-local-default' "$HACO_FAKE_INCUS_LOG"
 bridge_line="$(grep -F 'network create hbr' "$HACO_FAKE_INCUS_LOG" | head -1)"
 [ -n "$bridge_line" ]
+[[ "$bridge_line" == *'ipv4.nat=false'* ]]
+[[ "$bridge_line" == *'ipv4.firewall=true'* ]]
+[[ "$bridge_line" == *'ipv4.dhcp=true'* ]]
 nic_line="$(grep -F 'config device add haco-base-demo eth0 nic ' "$HACO_FAKE_INCUS_LOG" | tail -1)"
 [[ "$nic_line" == *'network=hbr'* ]]
 [[ "$nic_line" == *'hwaddr=02:'* ]]
