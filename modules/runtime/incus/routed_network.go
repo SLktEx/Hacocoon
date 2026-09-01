@@ -14,36 +14,31 @@ import (
 )
 
 const (
-	// Keep the stable egress proxy endpoint separate from the point-to-point
-	// routed gateway. Reusing one address for both made guests treat the proxy
-	// address as directly on-link instead of routing it through the host.
+	// The Standard egress proxy keeps one stable host-owned address while each
+	// Environment receives a dedicated managed bridge. Guests reach this address
+	// through their bridge gateway, but forwarding anywhere else is denied.
 	sandboxRoutedProxyIPv4      = "169.254.254.1"
-	sandboxRoutedGatewayIPv4    = "169.254.254.254"
-	// sandboxRoutedHostIPv4 remains the compatibility name used by the legacy
-	// bridge helpers while they are being retired. It denotes the proxy address,
-	// not the routed NIC gateway.
+	sandboxRoutedGatewayIPv4    = "169.254.254.254" // compatibility only
 	sandboxRoutedHostIPv4       = sandboxRoutedProxyIPv4
-	sandboxRoutedGuestPool      = "198.18.0.0/15"
-	sandboxRoutedHostPrefix     = "haco"
+	sandboxRoutedGuestPool      = "198.18.0.0/15" // compatibility/test helper pool
+	sandboxRoutedHostPrefix     = "hbr"
 	sandboxRoutedFirewallFamily = "inet"
 	sandboxRoutedFirewallTable  = "hacocoon_sandbox"
 	sandboxRoutedGuardPrefix    = "haco_guard_"
+	sandboxBridgeResourceProject = "default"
 )
 
 var sandboxRoutedPool = netip.MustParsePrefix(sandboxRoutedGuestPool)
 
-// ensureRoutedSandboxHost prepares the host-side substrate used by every
-// Hacocoon Environment. Environments use point-to-point routed NICs rather than
-// sharing an Ethernet bridge. This keeps the Linux and WSL networking model the
-// same and avoids any dependency on nftables' bridge family.
+// ensureRoutedSandboxHost prepares host state shared by all Environment
+// bridges. The name is retained while the migration lands, but the data plane
+// is deliberately bridged: every Environment gets its own L2 segment on both
+// native Linux and WSL.
 func (r *Runtime) ensureRoutedSandboxHost(ctx context.Context) error {
 	if r == nil || r.runner == nil {
 		return core.ErrInvalidArgument
 	}
 	if err := r.ensureRoutedProxyAddress(ctx); err != nil {
-		return err
-	}
-	if err := r.ensureRoutedPoolAvailable(ctx); err != nil {
 		return err
 	}
 	return r.ensureRoutedSandboxFirewall(ctx)
@@ -63,7 +58,7 @@ func nftTableMissing(result host.Result) bool {
 func (r *Runtime) ensureRoutedProxyAddress(ctx context.Context) error {
 	result, err := r.runner.Run(ctx, "ip", "-o", "-4", "address", "show")
 	if err != nil {
-		return fmt.Errorf("inspect Hacocoon routed proxy address: %w", err)
+		return fmt.Errorf("inspect Hacocoon proxy address: %w", err)
 	}
 	loopbackFound := false
 	for _, line := range strings.Split(result.Stdout, "\n") {
@@ -84,62 +79,30 @@ func (r *Runtime) ensureRoutedProxyAddress(ctx context.Context) error {
 				loopbackFound = true
 				continue
 			}
-			return fmt.Errorf("Hacocoon routed proxy address %s is already owned by unmanaged interface %s: %w", sandboxRoutedProxyIPv4, iface, core.ErrIncompatibleState)
+			return fmt.Errorf("Hacocoon proxy address %s is already owned by unmanaged interface %s: %w", sandboxRoutedProxyIPv4, iface, core.ErrIncompatibleState)
 		}
 	}
 	if !loopbackFound {
 		if _, addErr := r.runRoutedPrivileged(ctx, "ip", "address", "add", sandboxRoutedProxyIPv4+"/32", "dev", "lo"); addErr != nil {
-			// A concurrent Environment creator can win the add race. Re-read the
-			// authoritative host state before treating the mutation as failed.
 			verified, verifyErr := r.runner.Run(ctx, "ip", "-o", "-4", "address", "show", "dev", "lo")
 			if verifyErr != nil || !strings.Contains(verified.Stdout, sandboxRoutedProxyIPv4+"/32") {
-				return fmt.Errorf("install Hacocoon routed proxy address: %w", addErr)
+				return fmt.Errorf("install Hacocoon proxy address: %w", addErr)
 			}
 		}
 	}
 	verified, err := r.runner.Run(ctx, "ip", "-o", "-4", "address", "show", "dev", "lo")
 	if err != nil || !strings.Contains(verified.Stdout, sandboxRoutedProxyIPv4+"/32") {
 		if err != nil {
-			return fmt.Errorf("verify Hacocoon routed proxy address: %w", err)
+			return fmt.Errorf("verify Hacocoon proxy address: %w", err)
 		}
-		return fmt.Errorf("Hacocoon routed proxy address did not persist: %w", core.ErrIncompatibleState)
+		return fmt.Errorf("Hacocoon proxy address did not persist: %w", core.ErrIncompatibleState)
 	}
 	return nil
 }
 
 func (r *Runtime) ensureRoutedPoolAvailable(ctx context.Context) error {
-	result, err := r.runner.Run(ctx, "ip", "-4", "route", "show")
-	if err != nil {
-		return fmt.Errorf("inspect routes before reserving Hacocoon sandbox pool: %w", err)
-	}
-	for _, line := range strings.Split(result.Stdout, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 0 || fields[0] == "default" {
-			continue
-		}
-		var prefix netip.Prefix
-		if strings.Contains(fields[0], "/") {
-			parsed, parseErr := netip.ParsePrefix(fields[0])
-			if parseErr != nil || !parsed.Addr().Is4() {
-				continue
-			}
-			prefix = parsed
-		} else {
-			addr, parseErr := netip.ParseAddr(fields[0])
-			if parseErr != nil || !addr.Is4() {
-				continue
-			}
-			prefix = netip.PrefixFrom(addr, 32)
-		}
-		if !prefixesOverlap(prefix, sandboxRoutedPool) {
-			continue
-		}
-		iface := routeDevice(fields)
-		if strings.HasPrefix(iface, sandboxRoutedHostPrefix) && prefix.Bits() == 32 {
-			continue
-		}
-		return fmt.Errorf("host route %q overlaps reserved Hacocoon sandbox pool %s: %w", strings.TrimSpace(line), sandboxRoutedGuestPool, core.ErrIncompatibleState)
-	}
+	// Retained for callers/tests from the routed migration. Dedicated managed
+	// bridges use Incus-selected non-overlapping subnets instead of this pool.
 	return nil
 }
 
@@ -169,13 +132,11 @@ func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
 		}
 	}
 	if _, err := r.runRoutedPrivileged(ctx, "nft", "add", "table", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable); err != nil {
-		// Another concurrent creator may have won the race. Verify rather than
-		// weakening or replacing an existing ruleset.
 		shown, showErr := r.runRoutedPrivileged(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable)
 		if showErr == nil {
 			return verifyRoutedSandboxFirewall(shown.Stdout)
 		}
-		return fmt.Errorf("create Hacocoon routed firewall table: %w", err)
+		return fmt.Errorf("create Hacocoon sandbox firewall table: %w", err)
 	}
 	created = true
 
@@ -190,13 +151,13 @@ func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
 	for _, args := range commands {
 		if _, err := r.runRoutedPrivileged(ctx, "nft", args...); err != nil {
 			rollback()
-			return fmt.Errorf("configure Hacocoon routed firewall: %w", err)
+			return fmt.Errorf("configure Hacocoon sandbox firewall: %w", err)
 		}
 	}
 	shown, err = r.runRoutedPrivileged(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable)
 	if err != nil {
 		rollback()
-		return fmt.Errorf("verify Hacocoon routed firewall: %w", err)
+		return fmt.Errorf("verify Hacocoon sandbox firewall: %w", err)
 	}
 	if err := verifyRoutedSandboxFirewall(shown.Stdout); err != nil {
 		rollback()
@@ -227,10 +188,10 @@ func verifyRoutedSandboxFirewall(raw string) error {
 		case strings.HasPrefix(trimmed, "chain forward ") || trimmed == "chain forward {":
 			chain = "forward"
 		case strings.HasPrefix(trimmed, "chain "):
-			return fmt.Errorf("Hacocoon routed firewall contains unmanaged chain %q: %w", trimmed, core.ErrIncompatibleState)
+			return fmt.Errorf("Hacocoon sandbox firewall contains unmanaged chain %q: %w", trimmed, core.ErrIncompatibleState)
 		case strings.HasPrefix(trimmed, "type filter hook "):
 			if chain == "" || !strings.Contains(trimmed, "hook "+chain) || !strings.Contains(trimmed, "policy accept") {
-				return fmt.Errorf("Hacocoon routed firewall chain %q has unsafe hook %q: %w", chain, trimmed, core.ErrIncompatibleState)
+				return fmt.Errorf("Hacocoon sandbox firewall chain %q has unsafe hook %q: %w", chain, trimmed, core.ErrIncompatibleState)
 			}
 			seenHooks[chain] = true
 		case chain != "" && trimmed != "" && trimmed != "}" && !strings.HasPrefix(trimmed, "table "):
@@ -239,44 +200,98 @@ func verifyRoutedSandboxFirewall(raw string) error {
 	}
 	for _, name := range []string{"input", "forward"} {
 		if !seenHooks[name] {
-			return fmt.Errorf("Hacocoon routed firewall is missing %s hook: %w", name, core.ErrIncompatibleState)
+			return fmt.Errorf("Hacocoon sandbox firewall is missing %s hook: %w", name, core.ErrIncompatibleState)
 		}
 		want := expectedRules[name]
 		got := seenRules[name]
 		if len(got) != len(want) {
-			return fmt.Errorf("Hacocoon routed firewall %s rules = %q, want %q: %w", name, got, want, core.ErrIncompatibleState)
+			return fmt.Errorf("Hacocoon sandbox firewall %s rules = %q, want %q: %w", name, got, want, core.ErrIncompatibleState)
 		}
 		for i := range want {
 			if got[i] != want[i] {
-				return fmt.Errorf("Hacocoon routed firewall %s rule %d = %q, want %q: %w", name, i, got[i], want[i], core.ErrIncompatibleState)
+				return fmt.Errorf("Hacocoon sandbox firewall %s rule %d = %q, want %q: %w", name, i, got[i], want[i], core.ErrIncompatibleState)
 			}
 		}
 	}
 	return nil
 }
 
-// ensureRoutedSandboxSourceGuard creates a per-Environment prerouting filter
-// before the Environment starts. The exact host-side veth may only carry the
-// IPv4 address allocated to that Environment. This is the authoritative
-// anti-spoofing boundary on both native Ubuntu and WSL and does not depend on
-// nftables' bridge family or on a kernel-specific rp_filter mode.
-func (r *Runtime) ensureRoutedSandboxSourceGuard(ctx context.Context, ref, address string) error {
-	parsed, err := netip.ParseAddr(strings.TrimSpace(address))
-	if err != nil || !parsed.Is4() || !sandboxRoutedPool.Contains(parsed) {
-		return fmt.Errorf("invalid routed sandbox source guard address %q: %w", address, core.ErrInvalidArgument)
+func environmentBridgeName(ref string) string {
+	return routedSandboxHostInterface(ref)
+}
+
+func environmentBridgeMAC(ref string) string {
+	sum := sha256.Sum256([]byte("mac:" + ref))
+	// Locally administered unicast MAC.
+	return fmt.Sprintf("02:%02x:%02x:%02x:%02x:%02x", sum[0], sum[1], sum[2], sum[3], sum[4])
+}
+
+func (r *Runtime) ensureEnvironmentBridge(ctx context.Context, ref string) (netip.Prefix, error) {
+	bridge := environmentBridgeName(ref)
+	show, err := r.runner.Run(ctx, "incus", "network", "show", bridge, "--project", sandboxBridgeResourceProject)
+	if err != nil {
+		if _, createErr := r.runner.Run(ctx, "incus", "network", "create", bridge,
+			"ipv4.address=auto",
+			"ipv4.nat=false",
+			"ipv4.firewall=false",
+			"ipv4.routing=true",
+			"ipv6.address=none",
+			"raw.dnsmasq=port=0",
+			"--project", sandboxBridgeResourceProject,
+		); createErr != nil {
+			return netip.Prefix{}, fmt.Errorf("create dedicated Environment bridge %s: %w", bridge, createErr)
+		}
+	} else if strings.Contains(strings.ToLower(show.Stdout), "managed: false") {
+		return netip.Prefix{}, fmt.Errorf("dedicated Environment bridge %s is unmanaged: %w", bridge, core.ErrIncompatibleState)
 	}
-	iface := routedSandboxHostInterface(ref)
+
+	expected := map[string]string{
+		"ipv4.nat":      "false",
+		"ipv4.firewall": "false",
+		"ipv4.routing":  "true",
+		"ipv6.address":  "none",
+		"raw.dnsmasq":   "port=0",
+	}
+	for key, want := range expected {
+		got, getErr := r.runner.Run(ctx, "incus", "network", "get", bridge, key, "--project", sandboxBridgeResourceProject)
+		if getErr != nil {
+			return netip.Prefix{}, fmt.Errorf("verify Environment bridge %s %s: %w", bridge, key, getErr)
+		}
+		if strings.TrimSpace(got.Stdout) != want {
+			return netip.Prefix{}, fmt.Errorf("Environment bridge %s %s=%q, want %q: %w", bridge, key, strings.TrimSpace(got.Stdout), want, core.ErrIncompatibleState)
+		}
+	}
+	address, getErr := r.runner.Run(ctx, "incus", "network", "get", bridge, "ipv4.address", "--project", sandboxBridgeResourceProject)
+	if getErr != nil {
+		return netip.Prefix{}, fmt.Errorf("resolve Environment bridge %s IPv4 subnet: %w", bridge, getErr)
+	}
+	prefix, parseErr := netip.ParsePrefix(strings.TrimSpace(address.Stdout))
+	if parseErr != nil || !prefix.Addr().Is4() {
+		return netip.Prefix{}, fmt.Errorf("Environment bridge %s has invalid IPv4 subnet %q: %w", bridge, strings.TrimSpace(address.Stdout), core.ErrIncompatibleState)
+	}
+	return prefix.Masked(), nil
+}
+
+// ensureRoutedSandboxSourceGuard now protects a dedicated Environment bridge.
+// The bridge itself removes cross-Environment L2 reachability. An inet-family
+// prerouting guard additionally rejects MAC spoofing and any source outside the
+// Incus-assigned bridge subnet, avoiding CONFIG_NF_TABLES_BRIDGE entirely.
+func (r *Runtime) ensureRoutedSandboxSourceGuard(ctx context.Context, ref, subnet string) error {
+	prefix, err := netip.ParsePrefix(strings.TrimSpace(subnet))
+	if err != nil || !prefix.Addr().Is4() {
+		return fmt.Errorf("invalid Environment bridge source guard subnet %q: %w", subnet, core.ErrInvalidArgument)
+	}
+	iface := environmentBridgeName(ref)
 	table := routedSandboxGuardTable(ref)
+	mac := environmentBridgeMAC(ref)
 
 	shown, listErr := r.runRoutedPrivileged(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, table)
 	if listErr == nil {
-		// The instance name is unique, so a pre-existing deterministic table is
-		// stale state from an interrupted lifecycle. Replace it before start.
 		if _, err := r.runRoutedPrivileged(ctx, "nft", "delete", "table", sandboxRoutedFirewallFamily, table); err != nil {
-			return fmt.Errorf("replace stale routed sandbox source guard %s: %w", table, err)
+			return fmt.Errorf("replace stale Environment source guard %s: %w", table, err)
 		}
 	} else if !nftTableMissing(shown) {
-		return fmt.Errorf("inspect routed sandbox source guard %s: %w", table, listErr)
+		return fmt.Errorf("inspect Environment source guard %s: %w", table, listErr)
 	}
 
 	created := false
@@ -286,32 +301,33 @@ func (r *Runtime) ensureRoutedSandboxSourceGuard(ctx context.Context, ref, addre
 		}
 	}
 	if _, err := r.runRoutedPrivileged(ctx, "nft", "add", "table", sandboxRoutedFirewallFamily, table); err != nil {
-		return fmt.Errorf("create routed sandbox source guard %s: %w", table, err)
+		return fmt.Errorf("create Environment source guard %s: %w", table, err)
 	}
 	created = true
 	commands := [][]string{
 		{"add", "chain", sandboxRoutedFirewallFamily, table, "prerouting", "{", "type", "filter", "hook", "prerouting", "priority", "-300", ";", "policy", "accept", ";", "}"},
-		{"add", "rule", sandboxRoutedFirewallFamily, table, "prerouting", "iifname", "\"" + iface + "\"", "ip", "saddr", "!=", parsed.String(), "drop"},
+		{"add", "rule", sandboxRoutedFirewallFamily, table, "prerouting", "iifname", "\"" + iface + "\"", "ether", "saddr", "!=", mac, "drop"},
+		{"add", "rule", sandboxRoutedFirewallFamily, table, "prerouting", "iifname", "\"" + iface + "\"", "ip", "saddr", "!=", prefix.String(), "drop"},
 	}
 	for _, args := range commands {
 		if _, err := r.runRoutedPrivileged(ctx, "nft", args...); err != nil {
 			rollback()
-			return fmt.Errorf("configure routed sandbox source guard %s: %w", table, err)
+			return fmt.Errorf("configure Environment source guard %s: %w", table, err)
 		}
 	}
 	return nil
 }
 
-func (r *Runtime) verifyRoutedSandboxSourceGuard(ctx context.Context, ref string, address netip.Addr) error {
+func (r *Runtime) verifyRoutedSandboxSourceGuard(ctx context.Context, ref string, prefix netip.Prefix) error {
 	table := routedSandboxGuardTable(ref)
 	shown, err := r.runRoutedPrivileged(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, table)
 	if err != nil {
-		return fmt.Errorf("inspect routed sandbox source guard %s: %w", table, err)
+		return fmt.Errorf("inspect Environment source guard %s: %w", table, err)
 	}
-	return verifyRoutedSandboxSourceGuard(shown.Stdout, routedSandboxHostInterface(ref), address.String())
+	return verifyRoutedSandboxSourceGuard(shown.Stdout, environmentBridgeName(ref), prefix.String())
 }
 
-func verifyRoutedSandboxSourceGuard(raw, iface, address string) error {
+func verifyRoutedSandboxSourceGuard(raw, iface, subnet string) error {
 	chain := ""
 	seenHook := false
 	var rules []string
@@ -321,34 +337,49 @@ func verifyRoutedSandboxSourceGuard(raw, iface, address string) error {
 		case strings.HasPrefix(trimmed, "chain prerouting ") || trimmed == "chain prerouting {":
 			chain = "prerouting"
 		case strings.HasPrefix(trimmed, "chain "):
-			return fmt.Errorf("routed source guard contains unmanaged chain %q: %w", trimmed, core.ErrIncompatibleState)
+			return fmt.Errorf("Environment source guard contains unmanaged chain %q: %w", trimmed, core.ErrIncompatibleState)
 		case strings.HasPrefix(trimmed, "type filter hook "):
 			if chain != "prerouting" || !strings.Contains(trimmed, "hook prerouting") || !strings.Contains(trimmed, "policy accept") || (!strings.Contains(trimmed, "priority -300") && !strings.Contains(trimmed, "priority raw")) {
-				return fmt.Errorf("routed source guard has unsafe hook %q: %w", trimmed, core.ErrIncompatibleState)
+				return fmt.Errorf("Environment source guard has unsafe hook %q: %w", trimmed, core.ErrIncompatibleState)
 			}
 			seenHook = true
 		case chain == "prerouting" && trimmed != "" && trimmed != "}" && !strings.HasPrefix(trimmed, "table "):
 			rules = append(rules, trimmed)
 		}
 	}
-	want := "iifname \"" + iface + "\" ip saddr != " + address + " drop"
-	if !seenHook || len(rules) != 1 || rules[0] != want {
-		return fmt.Errorf("routed source guard rules = %q hook=%t, want %q: %w", rules, seenHook, want, core.ErrIncompatibleState)
+	wantMAC := "iifname \"" + iface + "\" ether saddr != " + environmentBridgeMACFromInterface(iface) + " drop"
+	wantIP := "iifname \"" + iface + "\" ip saddr != " + subnet + " drop"
+	if !seenHook || len(rules) != 2 || rules[0] != wantMAC || rules[1] != wantIP {
+		return fmt.Errorf("Environment source guard rules = %q hook=%t, want %q then %q: %w", rules, seenHook, wantMAC, wantIP, core.ErrIncompatibleState)
 	}
 	return nil
+}
+
+func environmentBridgeMACFromInterface(iface string) string {
+	// Interface names are a deterministic hash of the Environment ref, but the
+	// verifier does not have the ref. Derive a stable locally-administered MAC
+	// from the bridge identity itself; addRoutedSandboxNIC uses the same helper.
+	sum := sha256.Sum256([]byte("bridge-mac:" + iface))
+	return fmt.Sprintf("02:%02x:%02x:%02x:%02x:%02x", sum[0], sum[1], sum[2], sum[3], sum[4])
 }
 
 func (r *Runtime) removeRoutedSandboxSourceGuard(ctx context.Context, ref string) error {
 	table := routedSandboxGuardTable(ref)
 	shown, err := r.runRoutedPrivileged(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, table)
-	if err != nil {
-		if nftTableMissing(shown) {
-			return nil
+	if err == nil {
+		if _, deleteErr := r.runRoutedPrivileged(ctx, "nft", "delete", "table", sandboxRoutedFirewallFamily, table); deleteErr != nil {
+			return fmt.Errorf("delete Environment source guard %s: %w", table, deleteErr)
 		}
-		return fmt.Errorf("inspect routed sandbox source guard %s before cleanup: %w", table, err)
+	} else if !nftTableMissing(shown) {
+		return fmt.Errorf("inspect Environment source guard %s before cleanup: %w", table, err)
 	}
-	if _, err := r.runRoutedPrivileged(ctx, "nft", "delete", "table", sandboxRoutedFirewallFamily, table); err != nil {
-		return fmt.Errorf("delete routed sandbox source guard %s: %w", table, err)
+
+	bridge := environmentBridgeName(ref)
+	if _, err := r.runner.Run(ctx, "incus", "network", "delete", bridge, "--project", sandboxBridgeResourceProject); err != nil {
+		show, showErr := r.runner.Run(ctx, "incus", "network", "show", bridge, "--project", sandboxBridgeResourceProject)
+		if showErr == nil || strings.TrimSpace(show.Stdout) != "" {
+			return fmt.Errorf("delete dedicated Environment bridge %s: %w", bridge, err)
+		}
 	}
 	return nil
 }
@@ -357,73 +388,56 @@ func (r *Runtime) addRoutedSandboxNIC(ctx context.Context, ref string) error {
 	if err := r.ensureRoutedSandboxHost(ctx); err != nil {
 		return err
 	}
-	address, err := r.allocateRoutedSandboxIPv4(ctx, ref)
+	prefix, err := r.ensureEnvironmentBridge(ctx, ref)
 	if err != nil {
 		return err
 	}
-	iface := routedSandboxHostInterface(ref)
+	iface := environmentBridgeName(ref)
+	mac := environmentBridgeMACFromInterface(iface)
 	args := []string{
 		"config", "device", "add", ref, "eth0", "nic",
 		"name=eth0",
-		"nictype=routed",
-		"host_name=" + iface,
-		"ipv4.address=" + address,
-		"ipv4.host_address=" + sandboxRoutedGatewayIPv4,
-		"ipv4.gateway=auto",
-		"ipv4.neighbor_probe=false",
-		"ipv6.gateway=none",
+		"network=" + iface,
+		"hwaddr=" + mac,
+		"security.port_isolation=true",
 		"--project", r.project,
 	}
 	result, err := r.runner.Run(ctx, "incus", args...)
 	if err != nil {
 		reason := strings.TrimSpace(result.Stderr)
 		if reason != "" {
-			return fmt.Errorf("add routed sandbox NIC: %s: %w", reason, err)
+			return fmt.Errorf("add dedicated-bridge sandbox NIC: %s: %w", reason, err)
 		}
-		return fmt.Errorf("add routed sandbox NIC: %w", err)
+		return fmt.Errorf("add dedicated-bridge sandbox NIC: %w", err)
 	}
-	if err := r.ensureRoutedSandboxSourceGuard(ctx, ref, address); err != nil {
-		return fmt.Errorf("install routed sandbox anti-spoofing guard for %s: %w", ref, err)
+	if err := r.ensureRoutedSandboxSourceGuard(ctx, ref, prefix.String()); err != nil {
+		return fmt.Errorf("install Environment anti-spoofing guard for %s: %w", ref, err)
 	}
 	return nil
 }
 
 func (r *Runtime) verifyRoutedSandboxAntiSpoof(ctx context.Context, ref string) error {
-	address, err := r.runner.Run(ctx, "incus", "config", "device", "get", ref, "eth0", "ipv4.address", "--project", r.project)
+	bridge := environmentBridgeName(ref)
+	configured, err := r.runner.Run(ctx, "incus", "config", "device", "get", ref, "eth0", "network", "--project", r.project)
 	if err != nil {
-		return fmt.Errorf("verify routed sandbox IPv4 identity: %w", err)
+		return fmt.Errorf("verify dedicated Environment bridge binding: %w", err)
 	}
-	parsed, parseErr := netip.ParseAddr(strings.TrimSpace(address.Stdout))
-	if parseErr != nil || !sandboxRoutedPool.Contains(parsed) {
-		return fmt.Errorf("routed sandbox IPv4 address %q is outside managed pool %s: %w", strings.TrimSpace(address.Stdout), sandboxRoutedGuestPool, core.ErrIncompatibleState)
+	if strings.TrimSpace(configured.Stdout) != bridge {
+		return fmt.Errorf("Environment NIC network=%q, want %s: %w", strings.TrimSpace(configured.Stdout), bridge, core.ErrIncompatibleState)
 	}
-	gateway, err := r.runner.Run(ctx, "incus", "config", "device", "get", ref, "eth0", "ipv4.host_address", "--project", r.project)
+	mac, err := r.runner.Run(ctx, "incus", "config", "device", "get", ref, "eth0", "hwaddr", "--project", r.project)
 	if err != nil {
-		return fmt.Errorf("verify routed sandbox gateway identity: %w", err)
+		return fmt.Errorf("verify Environment MAC identity: %w", err)
 	}
-	if strings.TrimSpace(gateway.Stdout) != sandboxRoutedGatewayIPv4 {
-		return fmt.Errorf("routed sandbox gateway = %q, want %s: %w", strings.TrimSpace(gateway.Stdout), sandboxRoutedGatewayIPv4, core.ErrIncompatibleState)
+	if strings.ToLower(strings.TrimSpace(mac.Stdout)) != environmentBridgeMACFromInterface(bridge) {
+		return fmt.Errorf("Environment NIC MAC=%q is not managed identity: %w", strings.TrimSpace(mac.Stdout), core.ErrIncompatibleState)
 	}
-	if err := r.verifyRoutedSandboxSourceGuard(ctx, ref, parsed); err != nil {
-		return fmt.Errorf("verify exact routed sandbox source identity: %w", err)
-	}
-
-	iface := routedSandboxHostInterface(ref)
-	rpFilter, err := r.runner.Run(ctx, "cat", "/proc/sys/net/ipv4/conf/"+iface+"/rp_filter")
+	prefix, err := r.ensureEnvironmentBridge(ctx, ref)
 	if err != nil {
-		return fmt.Errorf("verify routed sandbox rp_filter on %s: %w", iface, err)
+		return err
 	}
-	mode := strings.TrimSpace(rpFilter.Stdout)
-	if mode != "1" && mode != "2" {
-		return fmt.Errorf("routed sandbox interface %s has rp_filter=%q, want strict/loose mode 1 or 2 in addition to exact nft source guard: %w", iface, mode, core.ErrIncompatibleState)
-	}
-
-	routes, err := r.runner.Run(ctx, "ip", "-4", "route", "show", "dev", iface)
-	if err != nil {
-		return fmt.Errorf("verify routed sandbox host route: %w", err)
-	}
-	if !hasExactRoutedSandboxHostRoute(routes.Stdout, parsed) {
-		return fmt.Errorf("routed sandbox address %s has no exact host route on %s (routes=%q): %w", parsed, iface, strings.TrimSpace(routes.Stdout), core.ErrIncompatibleState)
+	if err := r.verifyRoutedSandboxSourceGuard(ctx, ref, prefix); err != nil {
+		return fmt.Errorf("verify Environment source identity guard: %w", err)
 	}
 	return nil
 }
@@ -444,8 +458,8 @@ func hasExactRoutedSandboxHostRoute(raw string, address netip.Addr) bool {
 
 func routedSandboxHostInterface(ref string) string {
 	sum := sha256.Sum256([]byte(ref))
-	value := binary.BigEndian.Uint64(sum[:8]) & 0xffffffffff
-	return fmt.Sprintf("%s%010x", sandboxRoutedHostPrefix, value)
+	value := binary.BigEndian.Uint64(sum[:8]) & 0xffffffffffff
+	return fmt.Sprintf("%s%012x", sandboxRoutedHostPrefix, value)
 }
 
 func routedSandboxGuardTable(ref string) string {
@@ -454,10 +468,12 @@ func routedSandboxGuardTable(ref string) string {
 	return fmt.Sprintf("%s%010x", sandboxRoutedGuardPrefix, value)
 }
 
+// Compatibility helpers retained while routed-network-specific tests and old
+// migrations are removed. They no longer drive Environment networking.
 func (r *Runtime) allocateRoutedSandboxIPv4(ctx context.Context, ref string) (string, error) {
 	result, err := r.runner.Run(ctx, "incus", "list", "--project", r.project, "--format", "json")
 	if err != nil {
-		return "", fmt.Errorf("inspect routed sandbox address allocations: %w", err)
+		return "", fmt.Errorf("inspect compatibility address allocations: %w", err)
 	}
 	var instances []struct {
 		Name            string                       `json:"name"`
@@ -465,7 +481,7 @@ func (r *Runtime) allocateRoutedSandboxIPv4(ctx context.Context, ref string) (st
 		ExpandedDevices map[string]map[string]string `json:"expanded_devices"`
 	}
 	if err := json.Unmarshal([]byte(result.Stdout), &instances); err != nil {
-		return "", fmt.Errorf("decode routed sandbox address allocations: %w", err)
+		return "", fmt.Errorf("decode compatibility address allocations: %w", err)
 	}
 	used := map[string]struct{}{}
 	for _, instance := range instances {
@@ -476,14 +492,10 @@ func (r *Runtime) allocateRoutedSandboxIPv4(ctx context.Context, ref string) (st
 		if len(device) == 0 {
 			device = instance.ExpandedDevices["eth0"]
 		}
-		if device["nictype"] != "routed" {
-			continue
-		}
 		if address := strings.TrimSpace(device["ipv4.address"]); address != "" {
 			used[address] = struct{}{}
 		}
 	}
-
 	sum := sha256.Sum256([]byte(ref))
 	start := binary.BigEndian.Uint32(sum[:4]) % 131072
 	for probe := uint32(0); probe < 131072; probe++ {
@@ -492,7 +504,7 @@ func (r *Runtime) allocateRoutedSandboxIPv4(ctx context.Context, ref string) (st
 			return candidate, nil
 		}
 	}
-	return "", fmt.Errorf("Hacocoon routed sandbox address pool %s is exhausted: %w", sandboxRoutedGuestPool, core.ErrIncompatibleState)
+	return "", fmt.Errorf("compatibility address pool %s is exhausted: %w", sandboxRoutedGuestPool, core.ErrIncompatibleState)
 }
 
 func routedSandboxIPv4At(offset uint32) string {
