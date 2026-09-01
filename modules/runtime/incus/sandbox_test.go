@@ -64,6 +64,7 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	seenNoProfiles := false
 	seenDirectNIC := false
 	seenProxyConfig := false
+	seenAntiSpoofProbe := false
 	for i, call := range runner.calls {
 		joined := strings.Join(call.args, " ")
 		if len(call.args) > 0 && call.args[0] == "start" {
@@ -75,7 +76,15 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 		if strings.Contains(joined, "--no-profiles") {
 			seenNoProfiles = true
 		}
-		if strings.Contains(joined, "config device add haco-demo eth0 nic") && strings.Contains(joined, "network="+sandboxNetwork) {
+		if strings.Contains(joined, "config device add haco-demo eth0 nic") {
+			if !strings.Contains(joined, "nictype=routed") || !strings.Contains(joined, "ipv4.host_address="+sandboxRoutedHostIPv4) {
+				t.Fatalf("sandbox NIC is not routed: %#v", call)
+			}
+			for _, forbidden := range []string{"network=", "security.ipv4_filtering", "security.ipv6_filtering", "security.mac_filtering", "security.port_isolation"} {
+				if strings.Contains(joined, forbidden) {
+					t.Fatalf("routed sandbox NIC retained bridged-only key %q: %#v", forbidden, call)
+				}
+			}
 			seenDirectNIC = true
 			if start >= 0 {
 				t.Fatalf("sandbox NIC was added after start: %#v", call)
@@ -83,6 +92,9 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 		}
 		if strings.Contains(joined, "--config environment.HTTP_PROXY=") && strings.Contains(joined, "--config environment.HTTPS_PROXY=") {
 			seenProxyConfig = true
+		}
+		if len(call.args) == 1 && strings.Contains(call.args[0], "/rp_filter") {
+			seenAntiSpoofProbe = true
 		}
 		if strings.Contains(joined, "limits.cpu=4") || strings.Contains(joined, "limits.memory=8589934592B") || strings.Contains(joined, "limits.processes=1024") || strings.Contains(joined, "size=42949672960B") {
 			resourceOps++
@@ -94,8 +106,8 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	if start < 0 {
 		t.Fatal("start call missing")
 	}
-	if !seenNoProfiles || !seenDirectNIC || !seenProxyConfig {
-		t.Fatalf("instance-local sandbox materialization incomplete: noProfiles=%v directNIC=%v proxyConfig=%v calls=%#v", seenNoProfiles, seenDirectNIC, seenProxyConfig, runner.calls)
+	if !seenNoProfiles || !seenDirectNIC || !seenProxyConfig || !seenAntiSpoofProbe {
+		t.Fatalf("instance-local routed sandbox materialization incomplete: noProfiles=%v directNIC=%v proxyConfig=%v antiSpoof=%v calls=%#v", seenNoProfiles, seenDirectNIC, seenProxyConfig, seenAntiSpoofProbe, runner.calls)
 	}
 	if resourceOps != 4 {
 		t.Fatalf("resource set operations = %d, calls=%#v", resourceOps, runner.calls)
