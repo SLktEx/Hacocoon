@@ -70,7 +70,8 @@ func sandboxNetworkResult(args []string) (host.Result, bool) {
 		values := map[string]string{
 			"ipv4.address":  "10.240.0.1/24\n",
 			"ipv4.nat":      "false\n",
-			"ipv4.firewall": "false\n",
+			"ipv4.firewall": "true\n",
+			"ipv4.dhcp":     "true\n",
 			"ipv4.routing":  "true\n",
 			"ipv6.address":  "none\n",
 			"raw.dnsmasq":   "port=0\n",
