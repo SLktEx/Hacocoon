@@ -12,6 +12,7 @@ on:
       - "scripts/install.sh"
       - "tools/package_installers.py"
       - "tools/installer-user-journey-e2e.sh"
+      - "tools/installer-network-security-e2e.sh"
       - ".github/workflows/windows-all-scripts-e2e.yml"
   workflow_dispatch:
 
@@ -228,6 +229,19 @@ jobs:
           & wsl.exe --distribution $instance --user $loginUser --exec env HACO_BIN=/usr/local/bin/haco bash $scriptLinux
           if ($LASTEXITCODE -ne 0) { throw "Installed Hacocoon WSL user journey failed." }
 
+      - name: Verify installed network isolation and spoofing guards through WSL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $instance = "Hacocoon"
+          $scriptWindows = Join-Path $env:GITHUB_WORKSPACE "tools\installer-network-security-e2e.sh"
+          $scriptLinux = (& wsl.exe --distribution $instance --user root --exec wslpath -u -a $scriptWindows | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($scriptLinux)) {
+            throw "Failed to translate the network-security script path into WSL."
+          }
+          & wsl.exe --distribution $instance --user root --exec env HACO_BIN=/usr/local/bin/haco bash $scriptLinux
+          if ($LASTEXITCODE -ne 0) { throw "Installed Hacocoon WSL network-security acceptance failed." }
+
       - name: Collect diagnostics
         if: failure()
         shell: pwsh
@@ -237,7 +251,7 @@ jobs:
           & wsl.exe --list --verbose 2>&1 | ForEach-Object { Write-Host $_ }
           $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
           if ($installed -contains $instance) {
-            wsl.exe --distribution $instance --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; getent group hacocoon || true; stat -Lc "%U:%G:%a %n" /run/hacocoon/control.sock || true; haco version || true; haco doctor || true; haco env list || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true'
+            wsl.exe --distribution $instance --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; command -v nft || true; getent group hacocoon || true; stat -Lc "%U:%G:%a %n" /run/hacocoon/control.sock || true; haco version || true; haco doctor || true; haco env list || true; nft list ruleset || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true; incus network list --project default || true'
           }
           $global:LASTEXITCODE = 0
 
