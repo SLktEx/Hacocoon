@@ -12,10 +12,25 @@ ref_a="haco-$env_a"
 ref_b="haco-$env_b"
 created_a=0
 created_b=0
+docker_compat_bridges=()
 
 fail() {
   printf 'installer network security: %s\n' "$*" >&2
   exit 1
+}
+
+cleanup_docker_forwarding() {
+  local bridge
+  command -v iptables >/dev/null 2>&1 || return 0
+  iptables -w 5 -nL DOCKER-USER >/dev/null 2>&1 || return 0
+  for bridge in "${docker_compat_bridges[@]}"; do
+    while iptables -w 5 -C DOCKER-USER -i "$bridge" -j ACCEPT >/dev/null 2>&1; do
+      iptables -w 5 -D DOCKER-USER -i "$bridge" -j ACCEPT >/dev/null 2>&1 || break
+    done
+    while iptables -w 5 -C DOCKER-USER -o "$bridge" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1; do
+      iptables -w 5 -D DOCKER-USER -o "$bridge" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1 || break
+    done
+  done
 }
 
 cleanup() {
@@ -26,6 +41,7 @@ cleanup() {
   if [[ "$created_b" == "1" ]]; then
     "$haco_bin" env delete "$env_b" >/dev/null 2>&1 || true
   fi
+  cleanup_docker_forwarding
   rm -rf "$workspace"
 }
 trap cleanup EXIT
@@ -68,6 +84,35 @@ assert_guard() {
     fail "guard $table has unexpected accept rules for $bridge: ${accepts:-<none>}"
   fi
   printf '%s\n' "$table"
+}
+
+docker_forward_policy() {
+  iptables -w 5 -S FORWARD 2>/dev/null | awk '$1 == "-P" && $2 == "FORWARD" {print $3; exit}'
+}
+
+configure_docker_forwarding() {
+  local bridge="$1"
+  local policy
+
+  # GitHub-hosted Ubuntu starts Docker before the packaged installer runs.
+  # Docker can therefore own the legacy IPv4 FORWARD chain with policy DROP,
+  # which also catches bridged DHCP when br_netfilter is active. Incus and
+  # Hacocoon use separate nftables chains, and an accept there cannot override
+  # a later Docker drop. Follow the Incus/Docker coexistence pattern, scoped to
+  # only the exact ephemeral Environment bridge. Hacocoon's earlier-priority
+  # inet forward chain still drops every non-DHCP Environment forwarding path.
+  command -v iptables >/dev/null 2>&1 || return 0
+  policy="$(docker_forward_policy || true)"
+  [[ "$policy" == "DROP" ]] || return 0
+  iptables -w 5 -nL DOCKER-USER >/dev/null 2>&1 || fail "Docker FORWARD policy is DROP but DOCKER-USER is unavailable"
+
+  if ! iptables -w 5 -C DOCKER-USER -i "$bridge" -j ACCEPT >/dev/null 2>&1; then
+    iptables -w 5 -I DOCKER-USER 1 -i "$bridge" -j ACCEPT
+  fi
+  if ! iptables -w 5 -C DOCKER-USER -o "$bridge" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1; then
+    iptables -w 5 -I DOCKER-USER 1 -o "$bridge" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+  fi
+  docker_compat_bridges+=("$bridge")
 }
 
 environment_ipv4() {
@@ -149,12 +194,17 @@ host_firewall="$(nft list table inet hacocoon_sandbox)"
 printf '%s\n' "$host_firewall" | grep -Fq 'iifname "hbr*" ct state established,related accept' || fail "host firewall does not allow replies to Physical Host initiated traffic"
 printf '%s\n' "$host_firewall" | grep -Fq 'iifname "hbr*" udp sport 68 udp dport 67 accept' || fail "host firewall lacks narrow DHCP input exception"
 printf '%s\n' "$host_firewall" | grep -Fq 'iifname "hbr*" ip daddr 169.254.254.1 tcp dport 18080 accept' || fail "host firewall lacks Standard egress proxy exception"
-printf '%s\n' "$host_firewall" | grep -Fq 'iifname "hbr*" drop' || fail "host firewall does not reject other Environment input"
-printf '%s\n' "$host_firewall" | grep -Fq 'oifname "hbr*" drop' || fail "host firewall does not reject forwarding into Environment bridges"
+printf '%s\n' "$host_firewall" | grep -Fq 'iifname "hbr*" ip saddr 0.0.0.0 udp sport 68 udp dport 67 accept' || fail "host firewall lacks narrow DHCP forward bootstrap"
+printf '%s\n' "$host_firewall" | grep -Fq 'oifname "hbr*" udp sport 67 udp dport 68 accept' || fail "host firewall lacks narrow DHCP forward reply"
+printf '%s\n' "$host_firewall" | grep -Fq 'iifname "hbr*" drop' || fail "host firewall does not reject other Environment input/forwarding"
+printf '%s\n' "$host_firewall" | grep -Fq 'oifname "hbr*" drop' || fail "host firewall does not reject other forwarding into Environment bridges"
 
 guard_a="$(assert_guard "$bridge_a" "$mac_a")"
 guard_b="$(assert_guard "$bridge_b" "$mac_b")"
 [[ "$guard_a" != "$guard_b" ]] || fail "two Environments unexpectedly share anti-spoofing table $guard_a"
+
+configure_docker_forwarding "$bridge_a"
+configure_docker_forwarding "$bridge_b"
 
 printf '==> Network security: Physical Host can initiate traffic to each Environment\n'
 ip_a="$(environment_ipv4 "$ref_a" "$bridge_a")" || fail "unable to resolve IPv4 address for $env_a"
@@ -182,5 +232,8 @@ fi
 if nft list table inet "$guard_b" >/dev/null 2>&1; then
   fail "deleted Environment anti-spoofing guard $guard_b still exists"
 fi
+
+cleanup_docker_forwarding
+docker_compat_bridges=()
 
 printf 'installer network security: PASS\n'
