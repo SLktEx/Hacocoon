@@ -51,7 +51,7 @@ func (r *Runtime) ensureRoutedProxyAddress(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("inspect Hacocoon routed proxy address: %w", err)
 	}
-	found := false
+	loopbackFound := false
 	for _, line := range strings.Split(result.Stdout, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 4 {
@@ -66,13 +66,20 @@ func (r *Runtime) ensureRoutedProxyAddress(ctx context.Context) error {
 			if parseErr != nil || prefix.Addr().String() != sandboxRoutedHostIPv4 {
 				continue
 			}
-			if iface != "lo" {
-				return fmt.Errorf("Hacocoon routed proxy address %s is already owned by interface %s: %w", sandboxRoutedHostIPv4, iface, core.ErrIncompatibleState)
+			switch {
+			case iface == "lo":
+				loopbackFound = true
+			case strings.HasPrefix(iface, sandboxRoutedHostPrefix):
+				// Incus' routed NIC assigns ipv4.host_address to the host-side
+				// veth as well as using it as the guest gateway. The same /32 on
+				// a Hacocoon-managed point-to-point interface is therefore
+				// expected and does not widen the trusted host surface.
+			default:
+				return fmt.Errorf("Hacocoon routed proxy address %s is already owned by unmanaged interface %s: %w", sandboxRoutedHostIPv4, iface, core.ErrIncompatibleState)
 			}
-			found = true
 		}
 	}
-	if !found {
+	if !loopbackFound {
 		if _, addErr := r.runRoutedPrivileged(ctx, "ip", "address", "add", sandboxRoutedHostIPv4+"/32", "dev", "lo"); addErr != nil {
 			// A concurrent Environment creator can win the add race. Re-read the
 			// authoritative host state before treating the mutation as failed.
