@@ -11,6 +11,7 @@ on:
       - "scripts/install-ubuntu.sh"
       - "scripts/install.sh"
       - "tools/package_installers.py"
+      - "tools/installer-user-journey-e2e.sh"
       - ".github/workflows/ubuntu-installer-e2e.yml"
   workflow_dispatch:
 
@@ -24,7 +25,7 @@ concurrency:
 jobs:
   ubuntu-user-path:
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       GOTOOLCHAIN: local
       HACO_E2E_VERSION: v0.0.0-e2e
@@ -122,6 +123,12 @@ jobs:
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
           test "$(getent passwd "$(id -un)" | cut -d: -f7)" != /usr/local/libexec/hacocoon-login
 
+      - name: Exercise installed Hacocoon user journey
+        shell: bash
+        run: |
+          set -euo pipefail
+          HACO_BIN=/usr/local/bin/haco bash ./tools/installer-user-journey-e2e.sh
+
       - name: Collect diagnostics
         if: failure()
         shell: bash
@@ -129,6 +136,7 @@ jobs:
         run: |
           haco version || true
           haco doctor || true
+          haco env list || true
           systemctl --no-pager --failed || true
           sudo systemctl status haco-controller.service --no-pager || true
           sudo incus list --all-projects || true
