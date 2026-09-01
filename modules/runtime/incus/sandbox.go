@@ -78,6 +78,9 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 		defer cancel()
 		_, cleanupErr := p.runner.Run(cleanupCtx, "incus", "delete", ref, "--project", p.project, "--force")
 		if cleanupErr == nil {
+			if guardErr := p.removeRoutedSandboxSourceGuard(cleanupCtx, ref); guardErr != nil {
+				return core.EnvironmentRuntime{}, errors.Join(cause, fmt.Errorf("cleanup routed source guard for %s: %w", ref, guardErr), core.ErrRecoveryRequired)
+			}
 			return core.EnvironmentRuntime{}, cause
 		}
 		if cleanupCtx.Err() != nil {
@@ -103,13 +106,16 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 				core.ErrRecoveryRequired,
 			)
 		}
+		if guardErr := p.removeRoutedSandboxSourceGuard(cleanupCtx, ref); guardErr != nil {
+			return core.EnvironmentRuntime{}, errors.Join(cause, fmt.Errorf("cleanup routed source guard for absent %s: %w", ref, guardErr), core.ErrRecoveryRequired)
+		}
 		return core.EnvironmentRuntime{}, cause
 	}
 
 	// Environment networking is an authorization boundary. Each Environment
 	// receives its own point-to-point routed veth and never joins a shared L2.
-	// The host-side strict reverse-path check is verified after start before the
-	// Environment is returned to the caller.
+	// An exact inet/nft source guard is installed before start; rp_filter is
+	// retained as defense-in-depth and verified after start.
 	if err := p.addSandboxNIC(ctx, ref); err != nil {
 		return cleanup(fmt.Errorf("materialize sandbox NIC in %s: %w", ref, err))
 	}
@@ -160,6 +166,27 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 
 func (p *SandboxProvider) addSandboxNIC(ctx context.Context, ref string) error {
 	return p.addRoutedSandboxNIC(ctx, ref)
+}
+
+// DeleteEnvironment removes the Incus instance before dropping its source
+// identity guard. The guard therefore remains fail-closed for as long as a
+// guest could still be running on the host-side veth.
+func (p *SandboxProvider) DeleteEnvironment(ctx context.Context, ref string) error {
+	if p == nil || p.Runtime == nil {
+		return core.ErrInvalidArgument
+	}
+	deleteErr := p.Runtime.DeleteEnvironment(ctx, ref)
+	if deleteErr != nil && !errors.Is(deleteErr, core.ErrNotFound) {
+		return deleteErr
+	}
+	guardErr := p.removeRoutedSandboxSourceGuard(ctx, ref)
+	if guardErr != nil {
+		if deleteErr != nil {
+			return errors.Join(deleteErr, fmt.Errorf("cleanup routed source guard for %s: %w", ref, guardErr), core.ErrRecoveryRequired)
+		}
+		return errors.Join(fmt.Errorf("cleanup routed source guard for %s: %w", ref, guardErr), core.ErrRecoveryRequired)
+	}
+	return deleteErr
 }
 
 func (p *SandboxProvider) addWorkspaceDevice(ctx context.Context, ref string, spec core.EnvironmentRuntimeSpec) error {
