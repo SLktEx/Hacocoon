@@ -52,7 +52,7 @@ case "$*" in
       [ -f "$file" ] || continue
       iface="${file##*/route-}"
       address="$(/usr/bin/cat "$file")"
-      printf '%s dev %s scope link\n' "$address" "$iface"
+      printf '%s dev %s scope link src 169.254.254.254\n' "$address" "$iface"
     done
     ;;
   '-4 route show dev '*)
@@ -61,7 +61,7 @@ case "$*" in
     file="$state/route-$iface"
     [ -f "$file" ] || exit 0
     address="$(/usr/bin/cat "$file")"
-    printf '%s dev %s scope link\n' "$address" "$iface"
+    printf '%s dev %s scope link src 169.254.254.254\n' "$address" "$iface"
     ;;
   'address add 169.254.254.1/32 dev lo')
     exit 0
@@ -73,9 +73,14 @@ SH
 cat > "$bin/nft" <<'SH'
 #!/bin/sh
 set -eu
-case "$*" in
-  'list table inet hacocoon_sandbox')
-    cat <<'EOF'
+state="$HACO_FAKE_INCUS_STATE"
+command_name="${1:-}"
+case "$command_name" in
+  list)
+    [ "${2:-}" = table ] && [ "${3:-}" = inet ] || exit 2
+    table="${4:-}"
+    if [ "$table" = hacocoon_sandbox ]; then
+      cat <<'EOF'
 table inet hacocoon_sandbox {
 	chain input {
 		type filter hook input priority -200; policy accept;
@@ -89,6 +94,68 @@ table inet hacocoon_sandbox {
 	}
 }
 EOF
+      exit 0
+    fi
+    case "$table" in
+      haco_guard_*)
+        guard="$state/nft-$table"
+        if [ ! -f "$guard" ]; then
+          echo 'Error: No such file or directory' >&2
+          exit 1
+        fi
+        iface="$(sed -n '1p' "$guard")"
+        address="$(sed -n '2p' "$guard")"
+        cat <<EOF
+table inet $table {
+	chain prerouting {
+		type filter hook prerouting priority raw; policy accept;
+		iifname "$iface" ip saddr != $address drop
+	}
+}
+EOF
+        exit 0
+        ;;
+    esac
+    exit 2
+    ;;
+  add)
+    kind="${2:-}"
+    case "$kind" in
+      table)
+        [ "${3:-}" = inet ] || exit 2
+        table="${4:-}"
+        case "$table" in
+          haco_guard_*) : > "$state/nft-$table"; exit 0 ;;
+        esac
+        ;;
+      chain)
+        [ "${3:-}" = inet ] || exit 2
+        table="${4:-}"
+        case "$table" in haco_guard_*) exit 0 ;; esac
+        ;;
+      rule)
+        [ "${3:-}" = inet ] || exit 2
+        table="${4:-}"
+        case "$table" in
+          haco_guard_*)
+            [ "${5:-}" = prerouting ] && [ "${6:-}" = iifname ] && [ "${8:-}" = ip ] && [ "${9:-}" = saddr ] && [ "${10:-}" = '!=' ] && [ "${12:-}" = drop ] || exit 2
+            iface="$(printf '%s' "${7:-}" | tr -d '"')"
+            address="${11:-}"
+            printf '%s\n%s\n' "$iface" "$address" > "$state/nft-$table"
+            exit 0
+            ;;
+        esac
+        ;;
+    esac
+    exit 2
+    ;;
+  delete)
+    [ "${2:-}" = table ] && [ "${3:-}" = inet ] || exit 2
+    table="${4:-}"
+    case "$table" in
+      haco_guard_*) rm -f "$state/nft-$table"; exit 0 ;;
+    esac
+    exit 2
     ;;
   *) exit 2 ;;
 esac
@@ -325,7 +392,7 @@ case "$command_name" in
                 [ "$nictype" = 'routed' ] || exit 2
                 [ -z "$network" ] || exit 2
                 [ -n "$host_name" ] && [ -n "$address" ] || exit 2
-                [ "$host_address" = '169.254.254.1' ] || exit 2
+                [ "$host_address" = '169.254.254.254' ] || exit 2
                 printf '%s\n' "$host_name" > "$state/host-iface-$instance"
                 printf '%s\n' "$address" > "$state/address-$instance"
                 printf '%s\n' "$address" > "$state/route-$host_name"
@@ -355,6 +422,10 @@ case "$command_name" in
             instance="${3:-}"; device="${4:-}"; key="${5:-}"
             if [ "$device:$key" = 'eth0:ipv4.address' ] && [ -f "$state/address-$instance" ]; then
               cat "$state/address-$instance"
+              exit 0
+            fi
+            if [ "$device:$key" = 'eth0:ipv4.host_address' ] && [ -f "$state/nic-$instance" ]; then
+              printf '%s\n' '169.254.254.254'
               exit 0
             fi
             file="$(config_file "$instance" "$device.$key")"
@@ -470,7 +541,7 @@ grep -Fq 'init images:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 grep -Fq -- '--no-profiles --storage haco-local-default' "$HACO_FAKE_INCUS_LOG"
 routed_nic_line="$(grep -F 'config device add haco-base-demo eth0 nic ' "$HACO_FAKE_INCUS_LOG" | tail -1)"
 [[ "$routed_nic_line" == *'nictype=routed'* ]]
-[[ "$routed_nic_line" == *'ipv4.host_address=169.254.254.1'* ]]
+[[ "$routed_nic_line" == *'ipv4.host_address=169.254.254.254'* ]]
 [[ "$routed_nic_line" != *'network='* ]]
 [[ "$routed_nic_line" != *'security.ipv4_filtering'* ]]
 if grep -Fq -- '--profile haco-sandbox' "$HACO_FAKE_INCUS_LOG"; then
