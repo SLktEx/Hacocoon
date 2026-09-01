@@ -28,6 +28,18 @@ func TestRoutedSandboxHostInterfaceIsDeterministicAndLinuxSafe(t *testing.T) {
 	}
 }
 
+func TestRoutedSandboxGuardTableIsDeterministic(t *testing.T) {
+	first := routedSandboxGuardTable("haco-alpha")
+	again := routedSandboxGuardTable("haco-alpha")
+	other := routedSandboxGuardTable("haco-beta")
+	if first != again || first == other || !strings.HasPrefix(first, sandboxRoutedGuardPrefix) {
+		t.Fatalf("unexpected guard names: first=%q again=%q other=%q", first, again, other)
+	}
+	if strings.TrimPrefix(first, sandboxRoutedGuardPrefix) != strings.TrimPrefix(routedSandboxHostInterface("haco-alpha"), sandboxRoutedHostPrefix) {
+		t.Fatalf("guard/interface identity suffixes differ: table=%q iface=%q", first, routedSandboxHostInterface("haco-alpha"))
+	}
+}
+
 func TestRoutedSandboxIPv4PoolBoundaries(t *testing.T) {
 	cases := []struct {
 		offset uint32
@@ -78,7 +90,7 @@ func TestHasExactRoutedSandboxHostRoute(t *testing.T) {
 		raw  string
 		want bool
 	}{
-		{name: "iproute2 omits dev after filtering", raw: "198.18.48.105 scope link src 169.254.254.1\n", want: true},
+		{name: "iproute2 omits dev after filtering", raw: "198.18.48.105 scope link src 169.254.254.254\n", want: true},
 		{name: "explicit host prefix", raw: "198.18.48.105/32 scope link\n", want: true},
 		{name: "different host route", raw: "198.18.48.106 scope link\n", want: false},
 		{name: "broader route is not accepted", raw: "198.18.0.0/15 scope link\n", want: false},
@@ -86,7 +98,7 @@ func TestHasExactRoutedSandboxHostRoute(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := hasExactRoutedSandboxHostRoute(tc.raw, address); got != tc.want {
-				t.Fatalf("hasExactRoutedSandboxHostRoute(%q, %s) = %v, want %v", tc.raw, address, got, tc.want)
+				t.Fatalf("hasExactRoutedSandboxHostRoute(%q, %s) = %v, want %v", tc.raw, address, tc.want, got)
 			}
 		})
 	}
@@ -113,5 +125,28 @@ func TestVerifyRoutedSandboxFirewall(t *testing.T) {
 	err := verifyRoutedSandboxFirewall(unsafe)
 	if !errors.Is(err, core.ErrIncompatibleState) {
 		t.Fatalf("missing isolation rule error = %v, want ErrIncompatibleState", err)
+	}
+}
+
+func TestVerifyRoutedSandboxSourceGuard(t *testing.T) {
+	iface := "haco0123456789"
+	address := "198.18.12.34"
+	managed := `table inet haco_guard_0123456789 {
+	chain prerouting {
+		type filter hook prerouting priority raw; policy accept;
+		iifname "haco0123456789" ip saddr != 198.18.12.34 drop
+	}
+}`
+	if err := verifyRoutedSandboxSourceGuard(managed, iface, address); err != nil {
+		t.Fatalf("managed source guard rejected: %v", err)
+	}
+	for _, unsafe := range []string{
+		strings.Replace(managed, address, "198.18.12.35", 1),
+		strings.Replace(managed, "drop", "accept", 1),
+		strings.Replace(managed, "\t}\n}", "\t\tiifname \"haco0123456789\" accept\n\t}\n}", 1),
+	} {
+		if err := verifyRoutedSandboxSourceGuard(unsafe, iface, address); !errors.Is(err, core.ErrIncompatibleState) {
+			t.Fatalf("unsafe source guard error = %v, want ErrIncompatibleState\n%s", err, unsafe)
+		}
 	}
 }
