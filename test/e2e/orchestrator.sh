@@ -26,6 +26,86 @@ export HACO_FAKE_INCUS_LOG="$root/incus.log"
 export HACO_INCUS_BASES_JSON='{"my-dev":"images:custom-moving"}'
 export PATH="$bin:$PATH"
 
+# Model the routed Host authority without mutating the GitHub runner network.
+# The production code uses sudo -n for the fixed ip/nft mutations so the fake
+# sudo wrapper deliberately only strips those transport arguments and then
+# resolves the command from this test-local PATH.
+cat > "$bin/sudo" <<'SH'
+#!/bin/sh
+set -eu
+[ "${1:-}" = '-n' ] && shift
+[ "${1:-}" = '--' ] && shift
+[ "$#" -gt 0 ] || exit 2
+exec "$@"
+SH
+
+cat > "$bin/ip" <<'SH'
+#!/bin/sh
+set -eu
+state="$HACO_FAKE_INCUS_STATE"
+case "$*" in
+  '-o -4 address show'|'-o -4 address show dev lo')
+    printf '%s\n' '1: lo    inet 169.254.254.1/32 scope host lo'
+    ;;
+  '-4 route show')
+    for file in "$state"/route-haco*; do
+      [ -f "$file" ] || continue
+      iface="${file##*/route-}"
+      address="$(/usr/bin/cat "$file")"
+      printf '%s dev %s scope link\n' "$address" "$iface"
+    done
+    ;;
+  '-4 route show dev '*)
+    iface="${5:-}"
+    [ -n "$iface" ] || exit 2
+    file="$state/route-$iface"
+    [ -f "$file" ] || exit 0
+    address="$(/usr/bin/cat "$file")"
+    printf '%s dev %s scope link\n' "$address" "$iface"
+    ;;
+  'address add 169.254.254.1/32 dev lo')
+    exit 0
+    ;;
+  *) exit 2 ;;
+esac
+SH
+
+cat > "$bin/nft" <<'SH'
+#!/bin/sh
+set -eu
+case "$*" in
+  'list table inet hacocoon_sandbox')
+    cat <<'EOF'
+table inet hacocoon_sandbox {
+	chain input {
+		type filter hook input priority -200; policy accept;
+		iifname "haco*" ip daddr 169.254.254.1 tcp dport 18080 accept
+		iifname "haco*" drop
+	}
+	chain forward {
+		type filter hook forward priority -200; policy accept;
+		iifname "haco*" drop
+		oifname "haco*" drop
+	}
+}
+EOF
+    ;;
+  *) exit 2 ;;
+esac
+SH
+
+cat > "$bin/cat" <<'SH'
+#!/bin/sh
+set -eu
+case "${1:-}" in
+  /proc/sys/net/ipv4/conf/haco*/rp_filter)
+    printf '%s\n' '1'
+    ;;
+  *) exec /usr/bin/cat "$@" ;;
+esac
+SH
+chmod +x "$bin/sudo" "$bin/ip" "$bin/nft" "$bin/cat"
+
 # The orchestration E2E already models Incus rather than requiring a privileged
 # daemon. Model the local sparse-raw block/Btrfs boundary as well so the test can
 # verify managed-pool selection without requiring loop/mount privileges on the
@@ -140,7 +220,7 @@ case "$command_name" in
       exit 0
     fi
     if [ "${1:-}" = 'show' ] && [ "${2:-}" = 'haco-sandbox' ]; then
-      printf '%s\n' '{"config":{"environment.HTTP_PROXY":"http://10.200.0.1:18080","environment.HTTPS_PROXY":"http://10.200.0.1:18080","environment.NO_PROXY":"localhost,127.0.0.1,::1","environment.http_proxy":"http://10.200.0.1:18080","environment.https_proxy":"http://10.200.0.1:18080","environment.no_proxy":"localhost,127.0.0.1,::1"},"devices":{"eth0":{"type":"nic","name":"eth0","network":"haco-sandbox0","security.ipv4_filtering":"true","security.ipv6_filtering":"true","security.mac_filtering":"true","security.port_isolation":"true"}}}'
+      printf '%s\n' '{"config":{"environment.HTTP_PROXY":"http://169.254.254.1:18080","environment.HTTPS_PROXY":"http://169.254.254.1:18080","environment.NO_PROXY":"localhost,127.0.0.1,::1","environment.http_proxy":"http://169.254.254.1:18080","environment.https_proxy":"http://169.254.254.1:18080","environment.no_proxy":"localhost,127.0.0.1,::1"},"devices":{"eth0":{"type":"nic","name":"eth0","network":"haco-sandbox0","security.ipv4_filtering":"true","security.ipv6_filtering":"true","security.mac_filtering":"true","security.port_isolation":"true"}}}'
       exit 0
     fi
     exit 2
@@ -182,7 +262,7 @@ case "$command_name" in
             'egress:' \
             '- action: allow' \
             '  state: enabled' \
-            '  destination: 10.200.0.1/32' \
+            '  destination: 169.254.254.1/32' \
             '  protocol: tcp' \
             '  destination_port: "18080"' \
             '  description: Hacocoon Standard egress proxy' \
@@ -232,11 +312,23 @@ case "$command_name" in
             instance="${3:-}"; device="${4:-}"; kind="${5:-}"
             case "$device:$kind" in
               eth0:nic)
-                network=''
+                nictype=''; host_name=''; address=''; host_address=''; network=''
                 for arg in "$@"; do
-                  case "$arg" in network=*) network="${arg#network=}" ;; esac
+                  case "$arg" in
+                    nictype=*) nictype="${arg#nictype=}" ;;
+                    host_name=*) host_name="${arg#host_name=}" ;;
+                    ipv4.address=*) address="${arg#ipv4.address=}" ;;
+                    ipv4.host_address=*) host_address="${arg#ipv4.host_address=}" ;;
+                    network=*) network="${arg#network=}" ;;
+                  esac
                 done
-                [ "$network" = 'haco-sandbox0' ] || exit 2
+                [ "$nictype" = 'routed' ] || exit 2
+                [ -z "$network" ] || exit 2
+                [ -n "$host_name" ] && [ -n "$address" ] || exit 2
+                [ "$host_address" = '169.254.254.1' ] || exit 2
+                printf '%s\n' "$host_name" > "$state/host-iface-$instance"
+                printf '%s\n' "$address" > "$state/address-$instance"
+                printf '%s\n' "$address" > "$state/route-$host_name"
                 : > "$state/nic-$instance"
                 exit 0
                 ;;
@@ -261,6 +353,10 @@ case "$command_name" in
             ;;
           get)
             instance="${3:-}"; device="${4:-}"; key="${5:-}"
+            if [ "$device:$key" = 'eth0:ipv4.address' ] && [ -f "$state/address-$instance" ]; then
+              cat "$state/address-$instance"
+              exit 0
+            fi
             file="$(config_file "$instance" "$device.$key")"
             [ -f "$file" ] && cat "$file"
             exit 0
@@ -275,6 +371,12 @@ case "$command_name" in
     echo 'RUNNING' > "$state/instance-$instance"
     ;;
   list)
+    # Address allocation asks for the authoritative JSON instance list before
+    # the new NIC is attached. This fake orchestrator is intentionally serial,
+    # so no live routed allocations remain between scenarios.
+    case " $* " in
+      *' --format json '*) printf '%s\n' '[]'; exit 0 ;;
+    esac
     instance="${1:-}"
     [ -f "$state/instance-$instance" ] || exit 0
     column=''
@@ -290,7 +392,11 @@ case "$command_name" in
     ;;
   delete)
     instance="${1:-}"
-    rm -f "$state/instance-$instance" "$state/workspace-$instance" "$state/nic-$instance" "$state"/config-"$instance"-* 2>/dev/null || true
+    if [ -f "$state/host-iface-$instance" ]; then
+      host_name="$(cat "$state/host-iface-$instance")"
+      rm -f "$state/route-$host_name"
+    fi
+    rm -f "$state/instance-$instance" "$state/workspace-$instance" "$state/nic-$instance" "$state/host-iface-$instance" "$state/address-$instance" "$state"/config-"$instance"-* 2>/dev/null || true
     ;;
   exec)
     instance="${1:-}"
@@ -362,7 +468,11 @@ grep -Fq 'image info images:custom-moving --format json' "$HACO_FAKE_INCUS_LOG"
 grep -Fq 'storage create haco-local-default btrfs source=' "$HACO_FAKE_INCUS_LOG"
 grep -Fq 'init images:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb haco-base-demo' "$HACO_FAKE_INCUS_LOG"
 grep -Fq -- '--no-profiles --storage haco-local-default' "$HACO_FAKE_INCUS_LOG"
-grep -Fq 'config device add haco-base-demo eth0 nic name=eth0 network=haco-sandbox0' "$HACO_FAKE_INCUS_LOG"
+routed_nic_line="$(grep -F 'config device add haco-base-demo eth0 nic ' "$HACO_FAKE_INCUS_LOG" | tail -1)"
+[[ "$routed_nic_line" == *'nictype=routed'* ]]
+[[ "$routed_nic_line" == *'ipv4.host_address=169.254.254.1'* ]]
+[[ "$routed_nic_line" != *'network='* ]]
+[[ "$routed_nic_line" != *'security.ipv4_filtering'* ]]
 if grep -Fq -- '--profile haco-sandbox' "$HACO_FAKE_INCUS_LOG"; then
   echo 'managed local orchestration unexpectedly inherited the sandbox profile' >&2
   exit 1
@@ -443,4 +553,4 @@ assert 'parameters' not in raw
 assert 'message' not in raw
 PY
 
-echo 'PASS: Hacocoon v0.6/v0.11/v0.12/v0.13 orchestration, Base, resource, storage, and sandbox-network E2E'
+echo 'PASS: Hacocoon v0.6/v0.11/v0.12/v0.13 orchestration, Base, resource, storage, and routed-sandbox E2E'
