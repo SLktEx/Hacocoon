@@ -12,7 +12,7 @@ ref_a="haco-$env_a"
 ref_b="haco-$env_b"
 created_a=0
 created_b=0
-docker_compat_bridges=()
+docker_compat_ifaces=()
 
 fail() {
   printf 'installer network security: %s\n' "$*" >&2
@@ -20,15 +20,15 @@ fail() {
 }
 
 cleanup_docker_forwarding() {
-  local bridge
+  local iface
   command -v iptables >/dev/null 2>&1 || return 0
   iptables -w 5 -nL DOCKER-USER >/dev/null 2>&1 || return 0
-  for bridge in "${docker_compat_bridges[@]}"; do
-    while iptables -w 5 -C DOCKER-USER -i "$bridge" -j ACCEPT >/dev/null 2>&1; do
-      iptables -w 5 -D DOCKER-USER -i "$bridge" -j ACCEPT >/dev/null 2>&1 || break
+  for iface in "${docker_compat_ifaces[@]}"; do
+    while iptables -w 5 -C DOCKER-USER -i "$iface" -j ACCEPT >/dev/null 2>&1; do
+      iptables -w 5 -D DOCKER-USER -i "$iface" -j ACCEPT >/dev/null 2>&1 || break
     done
-    while iptables -w 5 -C DOCKER-USER -o "$bridge" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1; do
-      iptables -w 5 -D DOCKER-USER -o "$bridge" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1 || break
+    while iptables -w 5 -C DOCKER-USER -o "$iface" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1; do
+      iptables -w 5 -D DOCKER-USER -o "$iface" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1 || break
     done
   done
 }
@@ -91,28 +91,28 @@ docker_forward_policy() {
 }
 
 configure_docker_forwarding() {
-  local bridge="$1"
+  local iface="$1"
   local policy
 
   # GitHub-hosted Ubuntu starts Docker before the packaged installer runs.
   # Docker can therefore own the legacy IPv4 FORWARD chain with policy DROP,
   # which also catches bridged DHCP when br_netfilter is active. Incus and
   # Hacocoon use separate nftables chains, and an accept there cannot override
-  # a later Docker drop. Follow the Incus/Docker coexistence pattern, scoped to
-  # only the exact ephemeral Environment bridge. Hacocoon's earlier-priority
-  # inet forward chain still drops every non-DHCP Environment forwarding path.
+  # a later Docker drop. Add scoped coexistence rules for both the managed
+  # bridge and the Incus host-side veth so this E2E can identify which interface
+  # the bridged packet actually exposes to Docker's legacy FORWARD chain.
   command -v iptables >/dev/null 2>&1 || return 0
   policy="$(docker_forward_policy || true)"
   [[ "$policy" == "DROP" ]] || return 0
   iptables -w 5 -nL DOCKER-USER >/dev/null 2>&1 || fail "Docker FORWARD policy is DROP but DOCKER-USER is unavailable"
 
-  if ! iptables -w 5 -C DOCKER-USER -i "$bridge" -j ACCEPT >/dev/null 2>&1; then
-    iptables -w 5 -I DOCKER-USER 1 -i "$bridge" -j ACCEPT
+  if ! iptables -w 5 -C DOCKER-USER -i "$iface" -j ACCEPT >/dev/null 2>&1; then
+    iptables -w 5 -I DOCKER-USER 1 -i "$iface" -j ACCEPT
   fi
-  if ! iptables -w 5 -C DOCKER-USER -o "$bridge" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1; then
-    iptables -w 5 -I DOCKER-USER 1 -o "$bridge" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+  if ! iptables -w 5 -C DOCKER-USER -o "$iface" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1; then
+    iptables -w 5 -I DOCKER-USER 1 -o "$iface" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
   fi
-  docker_compat_bridges+=("$bridge")
+  docker_compat_ifaces+=("$iface")
 }
 
 environment_ipv4() {
@@ -156,6 +156,11 @@ for row in rows:
   done
 
   printf 'installer network security: IPv4 diagnostics for %s on %s\n' "$ref" "$bridge" >&2
+  if command -v iptables >/dev/null 2>&1; then
+    printf '%s\n' '--- live Docker FORWARD / DOCKER-USER counters ---' >&2
+    iptables -w 5 -v -nL FORWARD >&2 || true
+    iptables -w 5 -v -nL DOCKER-USER >&2 || true
+  fi
   incus list "$ref" --project "$project" --format json >&2 || true
   incus exec "$ref" --project "$project" -- sh -c 'command -v ip >/dev/null 2>&1 && ip -4 -o addr show || true' >&2 || true
   incus network show "$bridge" --project "$network_project" >&2 || true
@@ -173,11 +178,15 @@ bridge_a="$(incus config device get "$ref_a" eth0 network --project "$project")"
 bridge_b="$(incus config device get "$ref_b" eth0 network --project "$project")"
 mac_a="$(incus config device get "$ref_a" eth0 hwaddr --project "$project" | tr '[:upper:]' '[:lower:]')"
 mac_b="$(incus config device get "$ref_b" eth0 hwaddr --project "$project" | tr '[:upper:]' '[:lower:]')"
+host_veth_a="$(incus config get "$ref_a" volatile.eth0.host_name --project "$project" | tr -d '[:space:]')"
+host_veth_b="$(incus config get "$ref_b" volatile.eth0.host_name --project "$project" | tr -d '[:space:]')"
 
 [[ "$bridge_a" == hbr* && "$bridge_b" == hbr* ]] || fail "Environment NICs are not bound to Hacocoon dedicated bridges: $bridge_a / $bridge_b"
 [[ "$bridge_a" != "$bridge_b" ]] || fail "two Environments unexpectedly share bridge $bridge_a"
 [[ "$mac_a" == 02:* && "$mac_b" == 02:* ]] || fail "Environment MAC identities are not managed local-unicast addresses: $mac_a / $mac_b"
 [[ "$mac_a" != "$mac_b" ]] || fail "two Environments unexpectedly share managed MAC $mac_a"
+[[ -n "$host_veth_a" && -n "$host_veth_b" ]] || fail "Incus did not expose host-side Environment veth names"
+[[ "$host_veth_a" != "$host_veth_b" ]] || fail "two Environments unexpectedly share host veth $host_veth_a"
 
 for bridge in "$bridge_a" "$bridge_b"; do
   incus network show "$bridge" --project "$network_project" >/dev/null || fail "dedicated bridge $bridge is missing"
@@ -205,6 +214,12 @@ guard_b="$(assert_guard "$bridge_b" "$mac_b")"
 
 configure_docker_forwarding "$bridge_a"
 configure_docker_forwarding "$bridge_b"
+configure_docker_forwarding "$host_veth_a"
+configure_docker_forwarding "$host_veth_b"
+if command -v iptables >/dev/null 2>&1 && [[ "$(docker_forward_policy || true)" == "DROP" ]]; then
+  printf '==> Network security: Docker coexistence interfaces %s/%s via %s/%s\n' "$bridge_a" "$bridge_b" "$host_veth_a" "$host_veth_b"
+  iptables -w 5 -v -nL DOCKER-USER || true
+fi
 
 printf '==> Network security: Physical Host can initiate traffic to each Environment\n'
 ip_a="$(environment_ipv4 "$ref_a" "$bridge_a")" || fail "unable to resolve IPv4 address for $env_a"
@@ -234,6 +249,6 @@ if nft list table inet "$guard_b" >/dev/null 2>&1; then
 fi
 
 cleanup_docker_forwarding
-docker_compat_bridges=()
+docker_compat_ifaces=()
 
 printf 'installer network security: PASS\n'
