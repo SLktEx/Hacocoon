@@ -2,30 +2,34 @@ package main
 
 import "testing"
 
-func TestProductionClientOwnerRequiresBothNumericIDs(t *testing.T) {
-	t.Setenv(controlClientUIDEnv, "1001")
-	t.Setenv(controlClientGIDEnv, "1002")
-	uid, gid, err := productionClientOwner()
+func TestProductionControlGroupGIDAcceptsNumericNonRootGroup(t *testing.T) {
+	t.Setenv(controlGroupGIDEnv, "1002")
+	gid, err := productionControlGroupGID()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if uid != 1001 || gid != 1002 {
-		t.Fatalf("owner = %d:%d, want 1001:1002", uid, gid)
+	if gid != 1002 {
+		t.Fatalf("gid = %d, want 1002", gid)
 	}
 }
 
-func TestProductionClientOwnerFailsClosedWithoutIdentity(t *testing.T) {
-	t.Setenv(controlClientUIDEnv, "")
-	t.Setenv(controlClientGIDEnv, "")
-	if _, _, err := productionClientOwner(); err == nil {
-		t.Fatal("production client owner unexpectedly accepted missing identity")
+func TestProductionControlGroupGIDFailsClosedWhenMissing(t *testing.T) {
+	t.Setenv(controlGroupGIDEnv, "")
+	if _, err := productionControlGroupGID(); err == nil {
+		t.Fatal("production control group unexpectedly accepted missing gid")
 	}
 }
 
-func TestProductionClientOwnerRejectsNonNumericIdentity(t *testing.T) {
-	t.Setenv(controlClientUIDEnv, "runner")
-	t.Setenv(controlClientGIDEnv, "1001")
-	if _, _, err := productionClientOwner(); err == nil {
-		t.Fatal("production client owner unexpectedly accepted a non-numeric uid")
+func TestProductionControlGroupGIDRejectsNonNumericValue(t *testing.T) {
+	t.Setenv(controlGroupGIDEnv, "hacocoon")
+	if _, err := productionControlGroupGID(); err == nil {
+		t.Fatal("production control group unexpectedly accepted a non-numeric gid")
+	}
+}
+
+func TestProductionControlGroupGIDRejectsRootGroup(t *testing.T) {
+	t.Setenv(controlGroupGIDEnv, "0")
+	if _, err := productionControlGroupGID(); err == nil {
+		t.Fatal("production control group unexpectedly accepted gid 0")
 	}
 }
