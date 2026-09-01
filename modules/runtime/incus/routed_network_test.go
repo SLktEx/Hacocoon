@@ -51,6 +51,7 @@ func TestVerifyRoutedSandboxFirewall(t *testing.T) {
 	managed := `table inet hacocoon_sandbox {
 	chain input {
 		type filter hook input priority -200; policy accept;
+		iifname "hbr*" udp sport 68 udp dport 67 accept
 		iifname "hbr*" ip daddr 169.254.254.1 tcp dport 18080 accept
 		iifname "hbr*" drop
 	}
@@ -63,9 +64,13 @@ func TestVerifyRoutedSandboxFirewall(t *testing.T) {
 	if err := verifyRoutedSandboxFirewall(managed); err != nil {
 		t.Fatalf("managed Environment bridge firewall rejected: %v", err)
 	}
-	unsafe := strings.Replace(managed, `oifname "hbr*" drop`, "", 1)
-	if err := verifyRoutedSandboxFirewall(unsafe); !errors.Is(err, core.ErrIncompatibleState) {
-		t.Fatalf("missing isolation rule error = %v, want ErrIncompatibleState", err)
+	for _, unsafe := range []string{
+		strings.Replace(managed, `oifname "hbr*" drop`, "", 1),
+		strings.Replace(managed, `iifname "hbr*" udp sport 68 udp dport 67 accept`, `iifname "hbr*" udp accept`, 1),
+	} {
+		if err := verifyRoutedSandboxFirewall(unsafe); !errors.Is(err, core.ErrIncompatibleState) {
+			t.Fatalf("unsafe firewall error = %v, want ErrIncompatibleState\n%s", err, unsafe)
+		}
 	}
 }
 
@@ -77,6 +82,7 @@ func TestVerifyEnvironmentSourceGuard(t *testing.T) {
 	chain prerouting {
 		type filter hook prerouting priority raw; policy accept;
 		iifname "` + iface + `" ether saddr != ` + mac + ` drop
+		iifname "` + iface + `" ip saddr 0.0.0.0 udp sport 68 udp dport 67 accept
 		iifname "` + iface + `" ip saddr != ` + subnet + ` drop
 	}
 }`
@@ -86,6 +92,7 @@ func TestVerifyEnvironmentSourceGuard(t *testing.T) {
 	for _, unsafe := range []string{
 		strings.Replace(managed, mac, "02:00:00:00:00:01", 1),
 		strings.Replace(managed, subnet, "10.241.0.0/24", 1),
+		strings.Replace(managed, "ip saddr 0.0.0.0 udp sport 68 udp dport 67 accept", "ip saddr 0.0.0.0 accept", 1),
 		strings.Replace(managed, "drop", "accept", 1),
 	} {
 		if err := verifyRoutedSandboxSourceGuard(unsafe, iface, subnet); !errors.Is(err, core.ErrIncompatibleState) {
