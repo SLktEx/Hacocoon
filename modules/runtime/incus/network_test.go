@@ -21,6 +21,7 @@ func managedRoutedFirewallResult() host.Result {
 	return host.Result{Stdout: `table inet hacocoon_sandbox {
 	chain input {
 		type filter hook input priority -200; policy accept;
+		iifname "hbr*" udp sport 68 udp dport 67 accept
 		iifname "hbr*" ip daddr 169.254.254.1 tcp dport 18080 accept
 		iifname "hbr*" drop
 	}
@@ -33,9 +34,16 @@ func managedRoutedFirewallResult() host.Result {
 }
 
 func managedRoutedSourceGuardResult(table string) host.Result {
-	iface := environmentBridgeName("haco-demo")
-	mac := environmentBridgeMAC("haco-demo")
-	return host.Result{Stdout: "table inet " + table + " {\n\tchain prerouting {\n\t\ttype filter hook prerouting priority raw; policy accept;\n\t\tiifname \"" + iface + "\" ether saddr != " + mac + " drop\n\t\tiifname \"" + iface + "\" ip saddr != 10.240.0.0/24 drop\n\t}\n}"}
+	ref := "haco-demo"
+	for _, candidate := range []string{"haco-demo", "haco-harvest"} {
+		if routedSandboxGuardTable(candidate) == table {
+			ref = candidate
+			break
+		}
+	}
+	iface := environmentBridgeName(ref)
+	mac := environmentBridgeMAC(ref)
+	return host.Result{Stdout: "table inet " + table + " {\n\tchain prerouting {\n\t\ttype filter hook prerouting priority raw; policy accept;\n\t\tiifname \"" + iface + "\" ether saddr != " + mac + " drop\n\t\tiifname \"" + iface + "\" ip saddr 0.0.0.0 udp sport 68 udp dport 67 accept\n\t\tiifname \"" + iface + "\" ip saddr != 10.240.0.0/24 drop\n\t}\n}"}
 }
 
 // sandboxNetworkResult is the common fake substrate used by Incus provider
