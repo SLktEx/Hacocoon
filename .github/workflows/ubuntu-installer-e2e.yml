@@ -12,6 +12,7 @@ on:
       - "scripts/install.sh"
       - "tools/package_installers.py"
       - "tools/installer-user-journey-e2e.sh"
+      - "tools/installer-network-security-e2e.sh"
       - ".github/workflows/ubuntu-installer-e2e.yml"
   workflow_dispatch:
 
@@ -146,6 +147,12 @@ jobs:
           journey="$GITHUB_WORKSPACE/tools/installer-user-journey-e2e.sh"
           sudo -u "$login_user" -- env HACO_BIN=/usr/local/bin/haco bash "$journey"
 
+      - name: Verify installed network isolation and spoofing guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo env HACO_BIN=/usr/local/bin/haco bash "$GITHUB_WORKSPACE/tools/installer-network-security-e2e.sh"
+
       - name: Collect diagnostics
         if: failure()
         shell: bash
@@ -158,6 +165,8 @@ jobs:
           id || true
           sudo -u "$(id -un)" -- id || true
           sudo stat -Lc '%U:%G:%a %n' /run/hacocoon/control.sock || true
+          sudo nft list ruleset || true
           systemctl --no-pager --failed || true
           sudo systemctl status haco-controller.service --no-pager || true
           sudo incus list --all-projects || true
+          sudo incus network list --project default || true
