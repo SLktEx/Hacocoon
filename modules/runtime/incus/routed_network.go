@@ -13,15 +13,15 @@ import (
 )
 
 const (
-	sandboxRoutedProxyIPv4        = "169.254.254.1"
-	sandboxRoutedGatewayIPv4      = "169.254.254.254" // compatibility constant
-	sandboxRoutedHostIPv4         = sandboxRoutedProxyIPv4
-	sandboxRoutedGuestPool        = "198.18.0.0/15" // compatibility constant
-	sandboxRoutedHostPrefix       = "hbr"
-	sandboxRoutedFirewallFamily   = "inet"
-	sandboxRoutedFirewallTable    = "hacocoon_sandbox"
-	sandboxRoutedGuardPrefix      = "haco_guard_"
-	sandboxBridgeResourceProject  = "default"
+	sandboxRoutedProxyIPv4       = "169.254.254.1"
+	sandboxRoutedGatewayIPv4     = "169.254.254.254" // compatibility constant
+	sandboxRoutedHostIPv4        = sandboxRoutedProxyIPv4
+	sandboxRoutedGuestPool       = "198.18.0.0/15" // compatibility constant
+	sandboxRoutedHostPrefix      = "hbr"
+	sandboxRoutedFirewallFamily  = "inet"
+	sandboxRoutedFirewallTable   = "hacocoon_sandbox"
+	sandboxRoutedGuardPrefix     = "haco_guard_"
+	sandboxBridgeResourceProject = "default"
 )
 
 var sandboxRoutedPool = netip.MustParsePrefix(sandboxRoutedGuestPool)
@@ -121,6 +121,10 @@ func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
 	created = true
 	commands := [][]string{
 		{"add", "chain", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "input", "{", "type", "filter", "hook", "input", "priority", "-200", ";", "policy", "accept", ";", "}"},
+		// DHCP is the only pre-address host service available on an Environment
+		// bridge. The per-Environment prerouting guard has already pinned the
+		// Ethernet source identity before this input-chain exception is reached.
+		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "input", "iifname", "\"" + sandboxRoutedHostPrefix + "*\"", "udp", "sport", "68", "udp", "dport", "67", "accept"},
 		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "input", "iifname", "\"" + sandboxRoutedHostPrefix + "*\"", "ip", "daddr", sandboxRoutedProxyIPv4, "tcp", "dport", fmt.Sprintf("%d", sandboxEgressProxyPort), "accept"},
 		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "input", "iifname", "\"" + sandboxRoutedHostPrefix + "*\"", "drop"},
 		{"add", "chain", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "forward", "{", "type", "filter", "hook", "forward", "priority", "-200", ";", "policy", "accept", ";", "}"},
@@ -148,6 +152,7 @@ func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
 func verifyRoutedSandboxFirewall(raw string) error {
 	expected := map[string][]string{
 		"input": {
+			"iifname \"" + sandboxRoutedHostPrefix + "*\" udp sport 68 udp dport 67 accept",
 			"iifname \"" + sandboxRoutedHostPrefix + "*\" ip daddr " + sandboxRoutedProxyIPv4 + " tcp dport " + fmt.Sprintf("%d", sandboxEgressProxyPort) + " accept",
 			"iifname \"" + sandboxRoutedHostPrefix + "*\" drop",
 		},
@@ -269,6 +274,10 @@ func (r *Runtime) ensureRoutedSandboxSourceGuard(ctx context.Context, ref, subne
 	commands := [][]string{
 		{"add", "chain", sandboxRoutedFirewallFamily, table, "prerouting", "{", "type", "filter", "hook", "prerouting", "priority", "-300", ";", "policy", "accept", ";", "}"},
 		{"add", "rule", sandboxRoutedFirewallFamily, table, "prerouting", "iifname", "\"" + iface + "\"", "ether", "saddr", "!=", mac, "drop"},
+		// A DHCP client has no IPv4 identity yet. Permit only the bootstrap
+		// tuple after the MAC check, then enforce the assigned bridge subnet for
+		// every other IPv4 packet.
+		{"add", "rule", sandboxRoutedFirewallFamily, table, "prerouting", "iifname", "\"" + iface + "\"", "ip", "saddr", "0.0.0.0", "udp", "sport", "68", "udp", "dport", "67", "accept"},
 		{"add", "rule", sandboxRoutedFirewallFamily, table, "prerouting", "iifname", "\"" + iface + "\"", "ip", "saddr", "!=", prefix.String(), "drop"},
 	}
 	for _, args := range commands {
@@ -309,9 +318,10 @@ func verifyRoutedSandboxSourceGuard(raw, iface, subnet string) error {
 		}
 	}
 	wantMAC := "iifname \"" + iface + "\" ether saddr != " + environmentBridgeMACFromInterface(iface) + " drop"
+	wantDHCP := "iifname \"" + iface + "\" ip saddr 0.0.0.0 udp sport 68 udp dport 67 accept"
 	wantIP := "iifname \"" + iface + "\" ip saddr != " + subnet + " drop"
-	if !seenHook || len(rules) != 2 || rules[0] != wantMAC || rules[1] != wantIP {
-		return fmt.Errorf("Environment source guard rules=%q hook=%t, want %q then %q: %w", rules, seenHook, wantMAC, wantIP, core.ErrIncompatibleState)
+	if !seenHook || len(rules) != 3 || rules[0] != wantMAC || rules[1] != wantDHCP || rules[2] != wantIP {
+		return fmt.Errorf("Environment source guard rules=%q hook=%t, want %q then %q then %q: %w", rules, seenHook, wantMAC, wantDHCP, wantIP, core.ErrIncompatibleState)
 	}
 	return nil
 }
