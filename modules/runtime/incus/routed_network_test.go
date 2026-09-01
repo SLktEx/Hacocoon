@@ -2,29 +2,39 @@ package incus
 
 import (
 	"errors"
-	"net/netip"
 	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-func TestRoutedSandboxHostInterfaceIsDeterministicAndLinuxSafe(t *testing.T) {
-	first := routedSandboxHostInterface("haco-alpha")
-	again := routedSandboxHostInterface("haco-alpha")
-	other := routedSandboxHostInterface("haco-beta")
-
+func TestEnvironmentBridgeNameIsDeterministicAndLinuxSafe(t *testing.T) {
+	first := environmentBridgeName("haco-alpha")
+	again := environmentBridgeName("haco-alpha")
+	other := environmentBridgeName("haco-beta")
 	if first != again {
-		t.Fatalf("host interface is not deterministic: %q != %q", first, again)
+		t.Fatalf("bridge name is not deterministic: %q != %q", first, again)
 	}
 	if first == other {
-		t.Fatalf("different refs unexpectedly share host interface %q", first)
+		t.Fatalf("different refs unexpectedly share bridge %q", first)
 	}
 	if !strings.HasPrefix(first, sandboxRoutedHostPrefix) {
-		t.Fatalf("host interface %q does not use Hacocoon prefix %q", first, sandboxRoutedHostPrefix)
+		t.Fatalf("bridge %q does not use Hacocoon prefix %q", first, sandboxRoutedHostPrefix)
 	}
 	if len(first) > 15 {
-		t.Fatalf("host interface %q exceeds Linux IFNAMSIZ payload limit", first)
+		t.Fatalf("bridge %q exceeds Linux IFNAMSIZ payload limit", first)
+	}
+}
+
+func TestEnvironmentBridgeMACIsDeterministicLocalUnicast(t *testing.T) {
+	first := environmentBridgeMAC("haco-alpha")
+	again := environmentBridgeMAC("haco-alpha")
+	other := environmentBridgeMAC("haco-beta")
+	if first != again || first == other {
+		t.Fatalf("unexpected Environment MAC identities: first=%q again=%q other=%q", first, again, other)
+	}
+	if !strings.HasPrefix(first, "02:") {
+		t.Fatalf("Environment MAC %q is not locally administered unicast", first)
 	}
 }
 
@@ -35,117 +45,50 @@ func TestRoutedSandboxGuardTableIsDeterministic(t *testing.T) {
 	if first != again || first == other || !strings.HasPrefix(first, sandboxRoutedGuardPrefix) {
 		t.Fatalf("unexpected guard names: first=%q again=%q other=%q", first, again, other)
 	}
-	if strings.TrimPrefix(first, sandboxRoutedGuardPrefix) != strings.TrimPrefix(routedSandboxHostInterface("haco-alpha"), sandboxRoutedHostPrefix) {
-		t.Fatalf("guard/interface identity suffixes differ: table=%q iface=%q", first, routedSandboxHostInterface("haco-alpha"))
-	}
-}
-
-func TestRoutedSandboxIPv4PoolBoundaries(t *testing.T) {
-	cases := []struct {
-		offset uint32
-		want   string
-	}{
-		{offset: 0, want: "198.18.0.0"},
-		{offset: 65535, want: "198.18.255.255"},
-		{offset: 65536, want: "198.19.0.0"},
-		{offset: 131071, want: "198.19.255.255"},
-	}
-	for _, tc := range cases {
-		got := routedSandboxIPv4At(tc.offset)
-		if got != tc.want {
-			t.Fatalf("routedSandboxIPv4At(%d) = %q, want %q", tc.offset, got, tc.want)
-		}
-		address, err := netip.ParseAddr(got)
-		if err != nil {
-			t.Fatalf("parse allocated address %q: %v", got, err)
-		}
-		if !sandboxRoutedPool.Contains(address) {
-			t.Fatalf("allocated address %s is outside %s", address, sandboxRoutedPool)
-		}
-	}
-}
-
-func TestPrefixesOverlap(t *testing.T) {
-	cases := []struct {
-		a, b string
-		want bool
-	}{
-		{"198.18.0.0/15", "198.18.1.2/32", true},
-		{"198.18.1.2/32", "198.18.0.0/15", true},
-		{"198.18.0.0/16", "198.19.0.0/16", false},
-		{"10.0.0.0/8", "198.18.0.0/15", false},
-	}
-	for _, tc := range cases {
-		got := prefixesOverlap(netip.MustParsePrefix(tc.a), netip.MustParsePrefix(tc.b))
-		if got != tc.want {
-			t.Fatalf("prefixesOverlap(%s, %s) = %v, want %v", tc.a, tc.b, got, tc.want)
-		}
-	}
-}
-
-func TestHasExactRoutedSandboxHostRoute(t *testing.T) {
-	address := netip.MustParseAddr("198.18.48.105")
-	cases := []struct {
-		name string
-		raw  string
-		want bool
-	}{
-		{name: "iproute2 omits dev after filtering", raw: "198.18.48.105 scope link src 169.254.254.254\n", want: true},
-		{name: "explicit host prefix", raw: "198.18.48.105/32 scope link\n", want: true},
-		{name: "different host route", raw: "198.18.48.106 scope link\n", want: false},
-		{name: "broader route is not accepted", raw: "198.18.0.0/15 scope link\n", want: false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := hasExactRoutedSandboxHostRoute(tc.raw, address); got != tc.want {
-				t.Fatalf("hasExactRoutedSandboxHostRoute(%q, %s) = %v, want %v", tc.raw, address, tc.want, got)
-			}
-		})
-	}
 }
 
 func TestVerifyRoutedSandboxFirewall(t *testing.T) {
 	managed := `table inet hacocoon_sandbox {
 	chain input {
 		type filter hook input priority -200; policy accept;
-		iifname "haco*" ip daddr 169.254.254.1 tcp dport 18080 accept
-		iifname "haco*" drop
+		iifname "hbr*" ip daddr 169.254.254.1 tcp dport 18080 accept
+		iifname "hbr*" drop
 	}
 	chain forward {
 		type filter hook forward priority -200; policy accept;
-		iifname "haco*" drop
-		oifname "haco*" drop
+		iifname "hbr*" drop
+		oifname "hbr*" drop
 	}
 }`
 	if err := verifyRoutedSandboxFirewall(managed); err != nil {
-		t.Fatalf("managed routed firewall rejected: %v", err)
+		t.Fatalf("managed Environment bridge firewall rejected: %v", err)
 	}
-
-	unsafe := strings.Replace(managed, `oifname "haco*" drop`, "", 1)
-	err := verifyRoutedSandboxFirewall(unsafe)
-	if !errors.Is(err, core.ErrIncompatibleState) {
+	unsafe := strings.Replace(managed, `oifname "hbr*" drop`, "", 1)
+	if err := verifyRoutedSandboxFirewall(unsafe); !errors.Is(err, core.ErrIncompatibleState) {
 		t.Fatalf("missing isolation rule error = %v, want ErrIncompatibleState", err)
 	}
 }
 
-func TestVerifyRoutedSandboxSourceGuard(t *testing.T) {
-	iface := "haco0123456789"
-	address := "198.18.12.34"
-	managed := `table inet haco_guard_0123456789 {
+func TestVerifyEnvironmentSourceGuard(t *testing.T) {
+	iface := environmentBridgeName("haco-alpha")
+	mac := environmentBridgeMAC("haco-alpha")
+	subnet := "10.240.0.0/24"
+	managed := `table inet haco_guard_example {
 	chain prerouting {
 		type filter hook prerouting priority raw; policy accept;
-		iifname "haco0123456789" ip saddr != 198.18.12.34 drop
+		iifname "` + iface + `" ether saddr != ` + mac + ` drop
+		iifname "` + iface + `" ip saddr != ` + subnet + ` drop
 	}
 }`
-	if err := verifyRoutedSandboxSourceGuard(managed, iface, address); err != nil {
-		t.Fatalf("managed source guard rejected: %v", err)
+	if err := verifyRoutedSandboxSourceGuard(managed, iface, subnet); err != nil {
+		t.Fatalf("managed Environment source guard rejected: %v", err)
 	}
 	for _, unsafe := range []string{
-		strings.Replace(managed, address, "198.18.12.35", 1),
+		strings.Replace(managed, mac, "02:00:00:00:00:01", 1),
+		strings.Replace(managed, subnet, "10.241.0.0/24", 1),
 		strings.Replace(managed, "drop", "accept", 1),
-		strings.Replace(managed, "\t}\n}", "\t\tiifname \"haco0123456789\" accept\n\t}\n}", 1),
 	} {
-		if err := verifyRoutedSandboxSourceGuard(unsafe, iface, address); !errors.Is(err, core.ErrIncompatibleState) {
+		if err := verifyRoutedSandboxSourceGuard(unsafe, iface, subnet); !errors.Is(err, core.ErrIncompatibleState) {
 			t.Fatalf("unsafe source guard error = %v, want ErrIncompatibleState\n%s", err, unsafe)
 		}
 	}
