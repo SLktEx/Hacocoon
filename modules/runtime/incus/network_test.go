@@ -33,12 +33,8 @@ func managedRoutedFirewallResult() host.Result {
 }
 
 func managedRoutedSourceGuardResult(table string) host.Result {
-	suffix := strings.TrimPrefix(table, sandboxRoutedGuardPrefix)
-	iface := sandboxRoutedHostPrefix + "00" + suffix
-	if len(iface) > 15 {
-		iface = iface[:15]
-	}
-	mac := environmentBridgeMACFromInterface(iface)
+	iface := environmentBridgeName("haco-demo")
+	mac := environmentBridgeMAC("haco-demo")
 	return host.Result{Stdout: "table inet " + table + " {\n\tchain prerouting {\n\t\ttype filter hook prerouting priority raw; policy accept;\n\t\tiifname \"" + iface + "\" ether saddr != " + mac + " drop\n\t\tiifname \"" + iface + "\" ip saddr != 10.240.0.0/24 drop\n\t}\n}"}
 }
 
@@ -79,7 +75,7 @@ func sandboxNetworkResult(args []string) (host.Result, bool) {
 		case "network":
 			return host.Result{Stdout: bridge + "\n"}, true
 		case "hwaddr":
-			return host.Result{Stdout: environmentBridgeMACFromInterface(bridge) + "\n"}, true
+			return host.Result{Stdout: environmentBridgeMAC(ref) + "\n"}, true
 		}
 	}
 	if len(args) >= 5 && args[0] == "list" && args[1] == "--project" && args[3] == "--format" && args[4] == "json" {
