@@ -130,8 +130,12 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	if err := p.addWorkspaceDevice(ctx, ref, spec); err != nil {
 		return cleanup(err)
 	}
-	if _, err := p.runner.Run(ctx, "incus", "start", ref, "--project", p.project); err != nil {
-		return cleanup(fmt.Errorf("start Incus environment %s: %w", ref, err))
+	if result, err := p.runner.Run(ctx, "incus", "start", ref, "--project", p.project); err != nil {
+		reason := strings.TrimSpace(result.Stderr)
+		if reason == "" {
+			reason = err.Error()
+		}
+		return cleanup(fmt.Errorf("start Incus environment %s: %s: %w", ref, reason, err))
 	}
 	if !spec.ReadOnly {
 		result, err := p.runner.Run(ctx, "incus", "exec", ref, "--project", p.project, "--", "test", "-w", "/workspace")
