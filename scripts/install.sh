@@ -463,6 +463,15 @@ configure_hacocoon_controller() {
     die "refusing controller service through group/world-writable binary: $controller_bin"
   fi
 
+  # Bind the ordinary Physical Host client endpoint to the identity that ran
+  # the installer. The controller itself remains root and keeps a separate
+  # root-only privileged socket for trusted haco-host projection.
+  client_uid="$(id -u)"
+  client_gid="$(id -g)"
+  case "$client_uid:$client_gid" in
+    *[!0-9:]*) die "installer user identity is not numeric: $client_uid:$client_gid" ;;
+  esac
+
   unit_tmp="$(mktemp)"
   cat > "$unit_tmp" <<EOF_UNIT
 [Unit]
@@ -479,6 +488,8 @@ RuntimeDirectory=hacocoon
 RuntimeDirectoryMode=0700
 UMask=0077
 Environment=HACO_ROOT=/var/lib/hacocoon
+Environment=HACO_CONTROL_CLIENT_UID=$client_uid
+Environment=HACO_CONTROL_CLIENT_GID=$client_gid
 
 [Install]
 WantedBy=multi-user.target
