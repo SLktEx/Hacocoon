@@ -14,11 +14,20 @@ import (
 )
 
 const (
-	sandboxRoutedHostIPv4       = "169.254.254.1"
+	// Keep the stable egress proxy endpoint separate from the point-to-point
+	// routed gateway. Reusing one address for both made guests treat the proxy
+	// address as directly on-link instead of routing it through the host.
+	sandboxRoutedProxyIPv4      = "169.254.254.1"
+	sandboxRoutedGatewayIPv4    = "169.254.254.254"
+	// sandboxRoutedHostIPv4 remains the compatibility name used by the legacy
+	// bridge helpers while they are being retired. It denotes the proxy address,
+	// not the routed NIC gateway.
+	sandboxRoutedHostIPv4       = sandboxRoutedProxyIPv4
 	sandboxRoutedGuestPool      = "198.18.0.0/15"
 	sandboxRoutedHostPrefix     = "haco"
 	sandboxRoutedFirewallFamily = "inet"
 	sandboxRoutedFirewallTable  = "hacocoon_sandbox"
+	sandboxRoutedGuardPrefix    = "haco_guard_"
 )
 
 var sandboxRoutedPool = netip.MustParsePrefix(sandboxRoutedGuestPool)
@@ -46,6 +55,11 @@ func (r *Runtime) runRoutedPrivileged(ctx context.Context, command string, args 
 	return r.runner.Run(ctx, "sudo", sudoArgs...)
 }
 
+func nftTableMissing(result host.Result) bool {
+	reason := strings.ToLower(result.Stderr)
+	return strings.Contains(reason, "no such file") || strings.Contains(reason, "not found")
+}
+
 func (r *Runtime) ensureRoutedProxyAddress(ctx context.Context) error {
 	result, err := r.runner.Run(ctx, "ip", "-o", "-4", "address", "show")
 	if err != nil {
@@ -63,34 +77,28 @@ func (r *Runtime) ensureRoutedProxyAddress(ctx context.Context) error {
 				continue
 			}
 			prefix, parseErr := netip.ParsePrefix(fields[i+1])
-			if parseErr != nil || prefix.Addr().String() != sandboxRoutedHostIPv4 {
+			if parseErr != nil || prefix.Addr().String() != sandboxRoutedProxyIPv4 {
 				continue
 			}
-			switch {
-			case iface == "lo":
+			if iface == "lo" {
 				loopbackFound = true
-			case strings.HasPrefix(iface, sandboxRoutedHostPrefix):
-				// Incus' routed NIC assigns ipv4.host_address to the host-side
-				// veth as well as using it as the guest gateway. The same /32 on
-				// a Hacocoon-managed point-to-point interface is therefore
-				// expected and does not widen the trusted host surface.
-			default:
-				return fmt.Errorf("Hacocoon routed proxy address %s is already owned by unmanaged interface %s: %w", sandboxRoutedHostIPv4, iface, core.ErrIncompatibleState)
+				continue
 			}
+			return fmt.Errorf("Hacocoon routed proxy address %s is already owned by unmanaged interface %s: %w", sandboxRoutedProxyIPv4, iface, core.ErrIncompatibleState)
 		}
 	}
 	if !loopbackFound {
-		if _, addErr := r.runRoutedPrivileged(ctx, "ip", "address", "add", sandboxRoutedHostIPv4+"/32", "dev", "lo"); addErr != nil {
+		if _, addErr := r.runRoutedPrivileged(ctx, "ip", "address", "add", sandboxRoutedProxyIPv4+"/32", "dev", "lo"); addErr != nil {
 			// A concurrent Environment creator can win the add race. Re-read the
 			// authoritative host state before treating the mutation as failed.
 			verified, verifyErr := r.runner.Run(ctx, "ip", "-o", "-4", "address", "show", "dev", "lo")
-			if verifyErr != nil || !strings.Contains(verified.Stdout, sandboxRoutedHostIPv4+"/32") {
+			if verifyErr != nil || !strings.Contains(verified.Stdout, sandboxRoutedProxyIPv4+"/32") {
 				return fmt.Errorf("install Hacocoon routed proxy address: %w", addErr)
 			}
 		}
 	}
 	verified, err := r.runner.Run(ctx, "ip", "-o", "-4", "address", "show", "dev", "lo")
-	if err != nil || !strings.Contains(verified.Stdout, sandboxRoutedHostIPv4+"/32") {
+	if err != nil || !strings.Contains(verified.Stdout, sandboxRoutedProxyIPv4+"/32") {
 		if err != nil {
 			return fmt.Errorf("verify Hacocoon routed proxy address: %w", err)
 		}
@@ -173,7 +181,7 @@ func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
 
 	commands := [][]string{
 		{"add", "chain", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "input", "{", "type", "filter", "hook", "input", "priority", "-200", ";", "policy", "accept", ";", "}"},
-		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "input", "iifname", "\"" + sandboxRoutedHostPrefix + "*\"", "ip", "daddr", sandboxRoutedHostIPv4, "tcp", "dport", fmt.Sprintf("%d", sandboxEgressProxyPort), "accept"},
+		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "input", "iifname", "\"" + sandboxRoutedHostPrefix + "*\"", "ip", "daddr", sandboxRoutedProxyIPv4, "tcp", "dport", fmt.Sprintf("%d", sandboxEgressProxyPort), "accept"},
 		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "input", "iifname", "\"" + sandboxRoutedHostPrefix + "*\"", "drop"},
 		{"add", "chain", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "forward", "{", "type", "filter", "hook", "forward", "priority", "-200", ";", "policy", "accept", ";", "}"},
 		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "forward", "iifname", "\"" + sandboxRoutedHostPrefix + "*\"", "drop"},
@@ -200,7 +208,7 @@ func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
 func verifyRoutedSandboxFirewall(raw string) error {
 	expectedRules := map[string][]string{
 		"input": {
-			"iifname \"" + sandboxRoutedHostPrefix + "*\" ip daddr " + sandboxRoutedHostIPv4 + " tcp dport " + fmt.Sprintf("%d", sandboxEgressProxyPort) + " accept",
+			"iifname \"" + sandboxRoutedHostPrefix + "*\" ip daddr " + sandboxRoutedProxyIPv4 + " tcp dport " + fmt.Sprintf("%d", sandboxEgressProxyPort) + " accept",
 			"iifname \"" + sandboxRoutedHostPrefix + "*\" drop",
 		},
 		"forward": {
@@ -247,6 +255,104 @@ func verifyRoutedSandboxFirewall(raw string) error {
 	return nil
 }
 
+// ensureRoutedSandboxSourceGuard creates a per-Environment prerouting filter
+// before the Environment starts. The exact host-side veth may only carry the
+// IPv4 address allocated to that Environment. This is the authoritative
+// anti-spoofing boundary on both native Ubuntu and WSL and does not depend on
+// nftables' bridge family or on a kernel-specific rp_filter mode.
+func (r *Runtime) ensureRoutedSandboxSourceGuard(ctx context.Context, ref, address string) error {
+	parsed, err := netip.ParseAddr(strings.TrimSpace(address))
+	if err != nil || !parsed.Is4() || !sandboxRoutedPool.Contains(parsed) {
+		return fmt.Errorf("invalid routed sandbox source guard address %q: %w", address, core.ErrInvalidArgument)
+	}
+	iface := routedSandboxHostInterface(ref)
+	table := routedSandboxGuardTable(ref)
+
+	shown, listErr := r.runRoutedPrivileged(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, table)
+	if listErr == nil {
+		// The instance name is unique, so a pre-existing deterministic table is
+		// stale state from an interrupted lifecycle. Replace it before start.
+		if _, err := r.runRoutedPrivileged(ctx, "nft", "delete", "table", sandboxRoutedFirewallFamily, table); err != nil {
+			return fmt.Errorf("replace stale routed sandbox source guard %s: %w", table, err)
+		}
+	} else if !nftTableMissing(shown) {
+		return fmt.Errorf("inspect routed sandbox source guard %s: %w", table, listErr)
+	}
+
+	created := false
+	rollback := func() {
+		if created {
+			_, _ = r.runRoutedPrivileged(context.WithoutCancel(ctx), "nft", "delete", "table", sandboxRoutedFirewallFamily, table)
+		}
+	}
+	if _, err := r.runRoutedPrivileged(ctx, "nft", "add", "table", sandboxRoutedFirewallFamily, table); err != nil {
+		return fmt.Errorf("create routed sandbox source guard %s: %w", table, err)
+	}
+	created = true
+	commands := [][]string{
+		{"add", "chain", sandboxRoutedFirewallFamily, table, "prerouting", "{", "type", "filter", "hook", "prerouting", "priority", "-300", ";", "policy", "accept", ";", "}"},
+		{"add", "rule", sandboxRoutedFirewallFamily, table, "prerouting", "iifname", "\"" + iface + "\"", "ip", "saddr", "!=", parsed.String(), "drop"},
+	}
+	for _, args := range commands {
+		if _, err := r.runRoutedPrivileged(ctx, "nft", args...); err != nil {
+			rollback()
+			return fmt.Errorf("configure routed sandbox source guard %s: %w", table, err)
+		}
+	}
+	return nil
+}
+
+func (r *Runtime) verifyRoutedSandboxSourceGuard(ctx context.Context, ref string, address netip.Addr) error {
+	table := routedSandboxGuardTable(ref)
+	shown, err := r.runRoutedPrivileged(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, table)
+	if err != nil {
+		return fmt.Errorf("inspect routed sandbox source guard %s: %w", table, err)
+	}
+	return verifyRoutedSandboxSourceGuard(shown.Stdout, routedSandboxHostInterface(ref), address.String())
+}
+
+func verifyRoutedSandboxSourceGuard(raw, iface, address string) error {
+	chain := ""
+	seenHook := false
+	var rules []string
+	for _, line := range strings.Split(raw, "\n") {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(trimmed, "chain prerouting ") || trimmed == "chain prerouting {":
+			chain = "prerouting"
+		case strings.HasPrefix(trimmed, "chain "):
+			return fmt.Errorf("routed source guard contains unmanaged chain %q: %w", trimmed, core.ErrIncompatibleState)
+		case strings.HasPrefix(trimmed, "type filter hook "):
+			if chain != "prerouting" || !strings.Contains(trimmed, "hook prerouting") || !strings.Contains(trimmed, "policy accept") || (!strings.Contains(trimmed, "priority -300") && !strings.Contains(trimmed, "priority raw")) {
+				return fmt.Errorf("routed source guard has unsafe hook %q: %w", trimmed, core.ErrIncompatibleState)
+			}
+			seenHook = true
+		case chain == "prerouting" && trimmed != "" && trimmed != "}" && !strings.HasPrefix(trimmed, "table "):
+			rules = append(rules, trimmed)
+		}
+	}
+	want := "iifname \"" + iface + "\" ip saddr != " + address + " drop"
+	if !seenHook || len(rules) != 1 || rules[0] != want {
+		return fmt.Errorf("routed source guard rules = %q hook=%t, want %q: %w", rules, seenHook, want, core.ErrIncompatibleState)
+	}
+	return nil
+}
+
+func (r *Runtime) removeRoutedSandboxSourceGuard(ctx context.Context, ref string) error {
+	table := routedSandboxGuardTable(ref)
+	shown, err := r.runRoutedPrivileged(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, table)
+	if err != nil {
+		if nftTableMissing(shown) {
+			return nil
+		}
+		return fmt.Errorf("inspect routed sandbox source guard %s before cleanup: %w", table, err)
+	}
+	if _, err := r.runRoutedPrivileged(ctx, "nft", "delete", "table", sandboxRoutedFirewallFamily, table); err != nil {
+		return fmt.Errorf("delete routed sandbox source guard %s: %w", table, err)
+	}
+	return nil
+}
+
 func (r *Runtime) addRoutedSandboxNIC(ctx context.Context, ref string) error {
 	if err := r.ensureRoutedSandboxHost(ctx); err != nil {
 		return err
@@ -262,7 +368,7 @@ func (r *Runtime) addRoutedSandboxNIC(ctx context.Context, ref string) error {
 		"nictype=routed",
 		"host_name=" + iface,
 		"ipv4.address=" + address,
-		"ipv4.host_address=" + sandboxRoutedHostIPv4,
+		"ipv4.host_address=" + sandboxRoutedGatewayIPv4,
 		"ipv4.gateway=auto",
 		"ipv4.neighbor_probe=false",
 		"ipv6.gateway=none",
@@ -276,19 +382,13 @@ func (r *Runtime) addRoutedSandboxNIC(ctx context.Context, ref string) error {
 		}
 		return fmt.Errorf("add routed sandbox NIC: %w", err)
 	}
+	if err := r.ensureRoutedSandboxSourceGuard(ctx, ref, address); err != nil {
+		return fmt.Errorf("install routed sandbox anti-spoofing guard for %s: %w", ref, err)
+	}
 	return nil
 }
 
 func (r *Runtime) verifyRoutedSandboxAntiSpoof(ctx context.Context, ref string) error {
-	iface := routedSandboxHostInterface(ref)
-	rpFilter, err := r.runner.Run(ctx, "cat", "/proc/sys/net/ipv4/conf/"+iface+"/rp_filter")
-	if err != nil {
-		return fmt.Errorf("verify routed sandbox rp_filter on %s: %w", iface, err)
-	}
-	if strings.TrimSpace(rpFilter.Stdout) != "1" {
-		return fmt.Errorf("routed sandbox interface %s has rp_filter=%q, want strict mode 1: %w", iface, strings.TrimSpace(rpFilter.Stdout), core.ErrIncompatibleState)
-	}
-
 	address, err := r.runner.Run(ctx, "incus", "config", "device", "get", ref, "eth0", "ipv4.address", "--project", r.project)
 	if err != nil {
 		return fmt.Errorf("verify routed sandbox IPv4 identity: %w", err)
@@ -297,6 +397,27 @@ func (r *Runtime) verifyRoutedSandboxAntiSpoof(ctx context.Context, ref string) 
 	if parseErr != nil || !sandboxRoutedPool.Contains(parsed) {
 		return fmt.Errorf("routed sandbox IPv4 address %q is outside managed pool %s: %w", strings.TrimSpace(address.Stdout), sandboxRoutedGuestPool, core.ErrIncompatibleState)
 	}
+	gateway, err := r.runner.Run(ctx, "incus", "config", "device", "get", ref, "eth0", "ipv4.host_address", "--project", r.project)
+	if err != nil {
+		return fmt.Errorf("verify routed sandbox gateway identity: %w", err)
+	}
+	if strings.TrimSpace(gateway.Stdout) != sandboxRoutedGatewayIPv4 {
+		return fmt.Errorf("routed sandbox gateway = %q, want %s: %w", strings.TrimSpace(gateway.Stdout), sandboxRoutedGatewayIPv4, core.ErrIncompatibleState)
+	}
+	if err := r.verifyRoutedSandboxSourceGuard(ctx, ref, parsed); err != nil {
+		return fmt.Errorf("verify exact routed sandbox source identity: %w", err)
+	}
+
+	iface := routedSandboxHostInterface(ref)
+	rpFilter, err := r.runner.Run(ctx, "cat", "/proc/sys/net/ipv4/conf/"+iface+"/rp_filter")
+	if err != nil {
+		return fmt.Errorf("verify routed sandbox rp_filter on %s: %w", iface, err)
+	}
+	mode := strings.TrimSpace(rpFilter.Stdout)
+	if mode != "1" && mode != "2" {
+		return fmt.Errorf("routed sandbox interface %s has rp_filter=%q, want strict/loose mode 1 or 2 in addition to exact nft source guard: %w", iface, mode, core.ErrIncompatibleState)
+	}
+
 	routes, err := r.runner.Run(ctx, "ip", "-4", "route", "show", "dev", iface)
 	if err != nil {
 		return fmt.Errorf("verify routed sandbox host route: %w", err)
@@ -325,6 +446,12 @@ func routedSandboxHostInterface(ref string) string {
 	sum := sha256.Sum256([]byte(ref))
 	value := binary.BigEndian.Uint64(sum[:8]) & 0xffffffffff
 	return fmt.Sprintf("%s%010x", sandboxRoutedHostPrefix, value)
+}
+
+func routedSandboxGuardTable(ref string) string {
+	sum := sha256.Sum256([]byte(ref))
+	value := binary.BigEndian.Uint64(sum[:8]) & 0xffffffffff
+	return fmt.Sprintf("%s%010x", sandboxRoutedGuardPrefix, value)
 }
 
 func (r *Runtime) allocateRoutedSandboxIPv4(ctx context.Context, ref string) (string, error) {
