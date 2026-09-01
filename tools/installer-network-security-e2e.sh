@@ -55,14 +55,15 @@ find_guard_table() {
 assert_guard() {
   local bridge="$1"
   local mac="$2"
-  local table raw
+  local table raw accepts
   table="$(find_guard_table "$bridge" "$mac")" || fail "no anti-spoofing guard found for bridge $bridge / MAC $mac"
   raw="$(nft list table inet "$table")"
   printf '%s\n' "$raw" | grep -Fq "iifname \"$bridge\" ether saddr != $mac drop" || fail "MAC spoofing guard is missing for $bridge"
   printf '%s\n' "$raw" | grep -Fq "iifname \"$bridge\" ip saddr 0.0.0.0 udp sport 68 udp dport 67 accept" || fail "narrow DHCP bootstrap exception is missing for $bridge"
   printf '%s\n' "$raw" | grep -F "iifname \"$bridge\" ip saddr != " | grep -Fq ' drop' || fail "IPv4 source-subnet guard is missing for $bridge"
-  if printf '%s\n' "$raw" | grep -F "iifname \"$bridge\"" | grep -Eq '(^|[[:space:]])accept$' | grep -vF 'ip saddr 0.0.0.0 udp sport 68 udp dport 67 accept' >/dev/null 2>&1; then
-    fail "guard $table contains an unexpected broad accept for $bridge"
+  accepts="$(printf '%s\n' "$raw" | grep -F "iifname \"$bridge\"" | grep -E '(^|[[:space:]])accept$' || true)"
+  if [[ "$accepts" != "iifname \"$bridge\" ip saddr 0.0.0.0 udp sport 68 udp dport 67 accept" ]]; then
+    fail "guard $table has unexpected accept rules for $bridge: ${accepts:-<none>}"
   fi
   printf '%s\n' "$table"
 }
