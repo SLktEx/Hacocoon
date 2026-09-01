@@ -34,6 +34,7 @@ trap cleanup EXIT
 command -v "$haco_bin" >/dev/null 2>&1 || fail "haco is unavailable"
 command -v incus >/dev/null 2>&1 || fail "incus is unavailable"
 command -v nft >/dev/null 2>&1 || fail "nft is unavailable"
+command -v ping >/dev/null 2>&1 || fail "ping is unavailable for Physical Host reachability acceptance"
 mkdir -p "$workspace/a" "$workspace/b"
 printf 'network-security\n' > "$workspace/probe.txt"
 
@@ -68,6 +69,22 @@ assert_guard() {
   printf '%s\n' "$table"
 }
 
+environment_ipv4() {
+  local ref="$1"
+  local address=""
+  local attempt
+  for attempt in $(seq 1 20); do
+    address="$(incus exec "$ref" --project "$project" -- sh -c 'ip -4 -o addr show dev eth0 | awk "{print \$4}" | cut -d/ -f1 | head -n1' 2>/dev/null || true)"
+    address="$(printf '%s' "$address" | tr -d '[:space:]')"
+    if [[ "$address" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      printf '%s\n' "$address"
+      return 0
+    fi
+    sleep 0.25
+  done
+  return 1
+}
+
 printf '==> Network security: create two isolated Environments\n'
 "$haco_bin" env create --read-only --workspace "$workspace/a" "$env_a" >/dev/null
 created_a=1
@@ -95,6 +112,7 @@ done
 
 printf '==> Network security: verify host and per-Environment fail-closed policy\n'
 host_firewall="$(nft list table inet hacocoon_sandbox)"
+printf '%s\n' "$host_firewall" | grep -Fq 'iifname "hbr*" ct state established,related accept' || fail "host firewall does not allow replies to Physical Host initiated traffic"
 printf '%s\n' "$host_firewall" | grep -Fq 'iifname "hbr*" udp sport 68 udp dport 67 accept' || fail "host firewall lacks narrow DHCP input exception"
 printf '%s\n' "$host_firewall" | grep -Fq 'iifname "hbr*" ip daddr 169.254.254.1 tcp dport 18080 accept' || fail "host firewall lacks Standard egress proxy exception"
 printf '%s\n' "$host_firewall" | grep -Fq 'iifname "hbr*" drop' || fail "host firewall does not reject other Environment input"
@@ -103,6 +121,12 @@ printf '%s\n' "$host_firewall" | grep -Fq 'oifname "hbr*" drop' || fail "host fi
 guard_a="$(assert_guard "$bridge_a" "$mac_a")"
 guard_b="$(assert_guard "$bridge_b" "$mac_b")"
 [[ "$guard_a" != "$guard_b" ]] || fail "two Environments unexpectedly share anti-spoofing table $guard_a"
+
+printf '==> Network security: Physical Host can initiate traffic to each Environment\n'
+ip_a="$(environment_ipv4 "$ref_a")" || fail "unable to resolve IPv4 address for $env_a"
+ip_b="$(environment_ipv4 "$ref_b")" || fail "unable to resolve IPv4 address for $env_b"
+ping -4 -n -c 1 -W 3 "$ip_a" >/dev/null || fail "Physical Host cannot reach $env_a at $ip_a"
+ping -4 -n -c 1 -W 3 "$ip_b" >/dev/null || fail "Physical Host cannot reach $env_b at $ip_b"
 
 printf '==> Network security: deletion removes only that Environment network authority\n'
 "$haco_bin" env delete "$env_a"
