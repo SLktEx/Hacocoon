@@ -109,7 +109,7 @@ func TestResolveEnvironmentRejectsUnmanagedInstanceName(t *testing.T) {
 	}
 }
 
-func TestPrepareEgressProxyReturnsManagedBridgeAddress(t *testing.T) {
+func TestPrepareEgressProxyReturnsRoutedHostAddress(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if result, ok := sandboxNetworkResult(args); ok {
 			return result, nil
@@ -120,7 +120,7 @@ func TestPrepareEgressProxyReturnsManagedBridgeAddress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if address != "10.200.0.1:18080" {
+	if address != sandboxRoutedHostIPv4+":18080" {
 		t.Fatalf("address = %q", address)
 	}
 }
