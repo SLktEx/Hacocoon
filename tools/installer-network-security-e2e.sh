@@ -160,12 +160,11 @@ classify_dhcp_failure() {
   local bridge="$2"
   local guard="$3"
   local address
+  local bridge_nf=""
 
   # This path is diagnostic-only and still exits the acceptance test as a
-  # failure. Remove one Hacocoon policy layer at a time on the disposable CI
-  # Environment to identify whether native Linux DHCP is blocked by the
-  # per-Environment source guard, the shared host firewall, or Incus/host
-  # networking below both. Cleanup tolerates already-removed nft tables.
+  # failure. Remove one layer at a time on the disposable CI Environment so
+  # the next production change is based on the observed packet boundary.
   printf '==> DHCP diagnostic: remove only per-Environment guard %s\n' "$guard" >&2
   nft delete table inet "$guard" || die "failed to remove diagnostic guard $guard"
   request_dhcp "$ref"
@@ -180,8 +179,29 @@ classify_dhcp_failure() {
     die "DHCP classification: shared Hacocoon inet firewall blocks native Linux DHCP (lease $address appeared only after removing hacocoon_sandbox)"
   fi
 
+  # Hacocoon no longer uses Incus NIC-level bridge-family anti-spoofing, but
+  # the installer still enables legacy bridge netfilter globally. Test whether
+  # that compatibility hook is what diverts DHCP away from the bridge-local
+  # dnsmasq path on native Ubuntu.
+  bridge_nf="$(sysctl -n net.bridge.bridge-nf-call-iptables 2>/dev/null || true)"
+  if [[ "$bridge_nf" == "1" ]]; then
+    printf '==> DHCP diagnostic: disable legacy bridge-nf-call-iptables\n' >&2
+    sysctl -w net.bridge.bridge-nf-call-iptables=0 >&2
+    request_dhcp "$ref"
+    if address="$(poll_environment_ipv4 "$ref" 20)"; then
+      die "DHCP classification: legacy br_netfilter IPv4 hook blocks native Linux DHCP (lease $address appeared after bridge-nf-call-iptables=0)"
+    fi
+  fi
+
+  printf '==> DHCP diagnostic: bridge netfilter change did not restore DHCP; disable NIC port isolation\n' >&2
+  incus config device set "$ref" eth0 security.port_isolation=false --project "$project" || die "failed to disable diagnostic port isolation"
+  request_dhcp "$ref"
+  if address="$(poll_environment_ipv4 "$ref" 20)"; then
+    die "DHCP classification: security.port_isolation blocks native Linux DHCP on the dedicated bridge (lease $address appeared after disabling it)"
+  fi
+
   print_dhcp_diagnostics "$ref" "$bridge"
-  die "DHCP classification: native Linux DHCP still fails with both Hacocoon inet policy layers removed; investigate Incus dnsmasq/bridge host path"
+  die "DHCP classification: native Linux DHCP still fails without Hacocoon inet policy, bridge-nf IPv4 filtering, or port isolation; investigate Incus bridge/dnsmasq path"
 }
 
 printf '==> Network security: create two isolated Environments\n'
