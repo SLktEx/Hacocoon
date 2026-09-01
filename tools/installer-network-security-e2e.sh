@@ -137,7 +137,8 @@ mac_b="$(incus config device get "$ref_b" eth0 hwaddr --project "$project" | tr 
 for bridge in "$bridge_a" "$bridge_b"; do
   incus network show "$bridge" --project "$network_project" >/dev/null || fail "dedicated bridge $bridge is missing"
   [[ "$(incus network get "$bridge" ipv4.nat --project "$network_project")" == "false" ]] || fail "$bridge unexpectedly enables NAT"
-  [[ "$(incus network get "$bridge" ipv4.firewall --project "$network_project")" == "false" ]] || fail "$bridge unexpectedly delegates spoofing policy to Incus bridge firewall"
+  [[ "$(incus network get "$bridge" ipv4.firewall --project "$network_project")" == "true" ]] || fail "$bridge does not retain Incus DHCP/checksum plumbing"
+  [[ "$(incus network get "$bridge" ipv4.dhcp --project "$network_project")" == "true" ]] || fail "$bridge does not provide managed DHCP"
   [[ "$(incus network get "$bridge" ipv4.routing --project "$network_project")" == "true" ]] || fail "$bridge does not provide the managed host route"
   [[ "$(incus network get "$bridge" ipv6.address --project "$network_project")" == "none" ]] || fail "$bridge unexpectedly enables IPv6"
   [[ "$(incus network get "$bridge" raw.dnsmasq --project "$network_project")" == "port=0" ]] || fail "$bridge DNS listener is not disabled"
