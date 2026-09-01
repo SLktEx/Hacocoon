@@ -192,13 +192,36 @@ configure_workspace_owner_idmap() {
   allow_root_subid /etc/subgid "$workspace_gid"
 }
 
+bridge_netfilter_ready() {
+  [ -e /proc/sys/net/bridge/bridge-nf-call-iptables ] &&
+    [ -e /proc/sys/net/bridge/bridge-nf-call-ip6tables ]
+}
+
+ensure_bridge_netfilter() {
+  need modprobe
+  if ! bridge_netfilter_ready; then
+    $SUDO modprobe br_netfilter ||
+      die "br_netfilter is required for Hacocoon sandbox IP/MAC filtering but this kernel cannot load it"
+  fi
+  bridge_netfilter_ready ||
+    die "br_netfilter loaded without exposing the required bridge netfilter hooks"
+
+  # Persist only when br_netfilter is a loadable module. If it is built into
+  # the kernel, the hooks above are already permanent and modules-load would be
+  # unnecessary noise on boot.
+  if command -v modinfo >/dev/null 2>&1 && modinfo br_netfilter >/dev/null 2>&1; then
+    printf 'br_netfilter\n' | $SUDO tee /etc/modules-load.d/hacocoon.conf >/dev/null
+    $SUDO chmod 0644 /etc/modules-load.d/hacocoon.conf
+  fi
+}
+
 prepare_ubuntu_host() {
   assert_ubuntu
   prepare_privilege
 
   printf '==> Installing common Ubuntu host dependencies\n'
   $SUDO apt-get update
-  $SUDO apt-get install -y ca-certificates curl tar git sudo systemd systemd-sysv btrfs-progs util-linux gnupg coreutils findutils grep sed
+  $SUDO apt-get install -y ca-certificates curl tar git sudo systemd systemd-sysv btrfs-progs util-linux kmod gnupg coreutils findutils grep sed
   ensure_gh_attestation_verify
 
   pid1="$(ps -p 1 -o comm= 2>/dev/null | tr -d '[:space:]' || true)"
@@ -212,6 +235,8 @@ prepare_ubuntu_host() {
   $SUDO apt-get install -y incus
   printf '==> Authorizing the local Hacocoon workspace owner for Incus idmap\n'
   configure_workspace_owner_idmap
+  printf '==> Preparing bridge netfilter for Hacocoon sandbox filtering\n'
+  ensure_bridge_netfilter
   $SUDO systemctl enable --now incus.service 2>/dev/null || $SUDO systemctl enable --now incus 2>/dev/null ||
     die "failed to enable/start Incus with systemd"
 
