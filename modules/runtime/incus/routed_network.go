@@ -132,6 +132,12 @@ func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
 		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "input", "iifname", "\"" + sandboxRoutedHostPrefix + "*\"", "ip", "daddr", sandboxRoutedProxyIPv4, "tcp", "dport", fmt.Sprintf("%d", sandboxEgressProxyPort), "accept"},
 		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "input", "iifname", "\"" + sandboxRoutedHostPrefix + "*\"", "drop"},
 		{"add", "chain", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "forward", "{", "type", "filter", "hook", "forward", "priority", "-200", ";", "policy", "accept", ";", "}"},
+		// With br_netfilter enabled, DHCP broadcast traffic can also traverse the
+		// IPv4 FORWARD hook before reaching the managed bridge's local dnsmasq.
+		// Permit only the DHCP client/server tuple, then keep the fail-closed
+		// forwarding boundary for every other Environment packet.
+		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "forward", "iifname", "\"" + sandboxRoutedHostPrefix + "*\"", "ip", "daddr", "255.255.255.255", "udp", "sport", "68", "udp", "dport", "67", "accept"},
+		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "forward", "oifname", "\"" + sandboxRoutedHostPrefix + "*\"", "udp", "sport", "67", "udp", "dport", "68", "accept"},
 		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "forward", "iifname", "\"" + sandboxRoutedHostPrefix + "*\"", "drop"},
 		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "forward", "oifname", "\"" + sandboxRoutedHostPrefix + "*\"", "drop"},
 	}
@@ -162,6 +168,8 @@ func verifyRoutedSandboxFirewall(raw string) error {
 			"iifname \"" + sandboxRoutedHostPrefix + "*\" drop",
 		},
 		"forward": {
+			"iifname \"" + sandboxRoutedHostPrefix + "*\" ip daddr 255.255.255.255 udp sport 68 udp dport 67 accept",
+			"oifname \"" + sandboxRoutedHostPrefix + "*\" udp sport 67 udp dport 68 accept",
 			"iifname \"" + sandboxRoutedHostPrefix + "*\" drop",
 			"oifname \"" + sandboxRoutedHostPrefix + "*\" drop",
 		},
