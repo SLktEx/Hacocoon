@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
 const (
@@ -39,6 +40,12 @@ func (r *Runtime) ensureRoutedSandboxHost(ctx context.Context) error {
 	return r.ensureRoutedSandboxFirewall(ctx)
 }
 
+func (r *Runtime) runRoutedPrivileged(ctx context.Context, command string, args ...string) (host.Result, error) {
+	sudoArgs := []string{"-n", "--", command}
+	sudoArgs = append(sudoArgs, args...)
+	return r.runner.Run(ctx, "sudo", sudoArgs...)
+}
+
 func (r *Runtime) ensureRoutedProxyAddress(ctx context.Context) error {
 	result, err := r.runner.Run(ctx, "ip", "-o", "-4", "address", "show")
 	if err != nil {
@@ -66,8 +73,13 @@ func (r *Runtime) ensureRoutedProxyAddress(ctx context.Context) error {
 		}
 	}
 	if !found {
-		if _, err := r.runner.Run(ctx, "ip", "address", "add", sandboxRoutedHostIPv4+"/32", "dev", "lo"); err != nil {
-			return fmt.Errorf("install Hacocoon routed proxy address: %w", err)
+		if _, addErr := r.runRoutedPrivileged(ctx, "ip", "address", "add", sandboxRoutedHostIPv4+"/32", "dev", "lo"); addErr != nil {
+			// A concurrent Environment creator can win the add race. Re-read the
+			// authoritative host state before treating the mutation as failed.
+			verified, verifyErr := r.runner.Run(ctx, "ip", "-o", "-4", "address", "show", "dev", "lo")
+			if verifyErr != nil || !strings.Contains(verified.Stdout, sandboxRoutedHostIPv4+"/32") {
+				return fmt.Errorf("install Hacocoon routed proxy address: %w", addErr)
+			}
 		}
 	}
 	verified, err := r.runner.Run(ctx, "ip", "-o", "-4", "address", "show", "dev", "lo")
@@ -130,7 +142,7 @@ func prefixesOverlap(a, b netip.Prefix) bool {
 }
 
 func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
-	shown, err := r.runner.Run(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable)
+	shown, err := r.runRoutedPrivileged(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable)
 	if err == nil {
 		return verifyRoutedSandboxFirewall(shown.Stdout)
 	}
@@ -138,13 +150,13 @@ func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
 	created := false
 	rollback := func() {
 		if created {
-			_, _ = r.runner.Run(context.WithoutCancel(ctx), "nft", "delete", "table", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable)
+			_, _ = r.runRoutedPrivileged(context.WithoutCancel(ctx), "nft", "delete", "table", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable)
 		}
 	}
-	if _, err := r.runner.Run(ctx, "nft", "add", "table", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable); err != nil {
+	if _, err := r.runRoutedPrivileged(ctx, "nft", "add", "table", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable); err != nil {
 		// Another concurrent creator may have won the race. Verify rather than
 		// weakening or replacing an existing ruleset.
-		shown, showErr := r.runner.Run(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable)
+		shown, showErr := r.runRoutedPrivileged(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable)
 		if showErr == nil {
 			return verifyRoutedSandboxFirewall(shown.Stdout)
 		}
@@ -161,12 +173,12 @@ func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
 		{"add", "rule", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable, "forward", "oifname", "\"" + sandboxRoutedHostPrefix + "*\"", "drop"},
 	}
 	for _, args := range commands {
-		if _, err := r.runner.Run(ctx, "nft", args...); err != nil {
+		if _, err := r.runRoutedPrivileged(ctx, "nft", args...); err != nil {
 			rollback()
 			return fmt.Errorf("configure Hacocoon routed firewall: %w", err)
 		}
 	}
-	shown, err = r.runner.Run(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable)
+	shown, err = r.runRoutedPrivileged(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, sandboxRoutedFirewallTable)
 	if err != nil {
 		rollback()
 		return fmt.Errorf("verify Hacocoon routed firewall: %w", err)
@@ -179,17 +191,50 @@ func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
 }
 
 func verifyRoutedSandboxFirewall(raw string) error {
-	required := []string{
-		"hook input",
-		"iifname \"" + sandboxRoutedHostPrefix + "*\" ip daddr " + sandboxRoutedHostIPv4,
-		"tcp dport " + fmt.Sprintf("%d", sandboxEgressProxyPort) + " accept",
-		"iifname \"" + sandboxRoutedHostPrefix + "*\" drop",
-		"hook forward",
-		"oifname \"" + sandboxRoutedHostPrefix + "*\" drop",
+	expectedRules := map[string][]string{
+		"input": {
+			"iifname \"" + sandboxRoutedHostPrefix + "*\" ip daddr " + sandboxRoutedHostIPv4 + " tcp dport " + fmt.Sprintf("%d", sandboxEgressProxyPort) + " accept",
+			"iifname \"" + sandboxRoutedHostPrefix + "*\" drop",
+		},
+		"forward": {
+			"iifname \"" + sandboxRoutedHostPrefix + "*\" drop",
+			"oifname \"" + sandboxRoutedHostPrefix + "*\" drop",
+		},
 	}
-	for _, fragment := range required {
-		if !strings.Contains(raw, fragment) {
-			return fmt.Errorf("Hacocoon routed firewall is missing managed rule %q: %w", fragment, core.ErrIncompatibleState)
+	seenRules := map[string][]string{"input": {}, "forward": {}}
+	seenHooks := map[string]bool{}
+	chain := ""
+	for _, line := range strings.Split(raw, "\n") {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(trimmed, "chain input ") || trimmed == "chain input {":
+			chain = "input"
+		case strings.HasPrefix(trimmed, "chain forward ") || trimmed == "chain forward {":
+			chain = "forward"
+		case strings.HasPrefix(trimmed, "chain "):
+			return fmt.Errorf("Hacocoon routed firewall contains unmanaged chain %q: %w", trimmed, core.ErrIncompatibleState)
+		case strings.HasPrefix(trimmed, "type filter hook "):
+			if chain == "" || !strings.Contains(trimmed, "hook "+chain) || !strings.Contains(trimmed, "policy accept") {
+				return fmt.Errorf("Hacocoon routed firewall chain %q has unsafe hook %q: %w", chain, trimmed, core.ErrIncompatibleState)
+			}
+			seenHooks[chain] = true
+		case chain != "" && trimmed != "" && trimmed != "}" && !strings.HasPrefix(trimmed, "table "):
+			seenRules[chain] = append(seenRules[chain], trimmed)
+		}
+	}
+	for _, name := range []string{"input", "forward"} {
+		if !seenHooks[name] {
+			return fmt.Errorf("Hacocoon routed firewall is missing %s hook: %w", name, core.ErrIncompatibleState)
+		}
+		want := expectedRules[name]
+		got := seenRules[name]
+		if len(got) != len(want) {
+			return fmt.Errorf("Hacocoon routed firewall %s rules = %q, want %q: %w", name, got, want, core.ErrIncompatibleState)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				return fmt.Errorf("Hacocoon routed firewall %s rule %d = %q, want %q: %w", name, i, got[i], want[i], core.ErrIncompatibleState)
+			}
 		}
 	}
 	return nil
@@ -245,11 +290,11 @@ func (r *Runtime) verifyRoutedSandboxAntiSpoof(ctx context.Context, ref string) 
 	if parseErr != nil || !sandboxRoutedPool.Contains(parsed) {
 		return fmt.Errorf("routed sandbox IPv4 address %q is outside managed pool %s: %w", strings.TrimSpace(address.Stdout), sandboxRoutedGuestPool, core.ErrIncompatibleState)
 	}
-	route, err := r.runner.Run(ctx, "ip", "-4", "route", "get", parsed.String())
+	routes, err := r.runner.Run(ctx, "ip", "-4", "route", "show", "dev", iface)
 	if err != nil {
 		return fmt.Errorf("verify routed sandbox host route: %w", err)
 	}
-	if !strings.Contains(route.Stdout, "dev "+iface) {
+	if !strings.Contains(routes.Stdout, parsed.String()+" dev "+iface) {
 		return fmt.Errorf("routed sandbox address %s does not route through %s: %w", parsed, iface, core.ErrIncompatibleState)
 	}
 	return nil
