@@ -19,15 +19,14 @@ func (r *Runtime) sandboxGateway(ctx context.Context) (netip.Addr, error) {
 	if r == nil || r.runner == nil {
 		return netip.Addr{}, core.ErrInvalidArgument
 	}
-	result, err := r.runner.Run(ctx, "incus", "network", "get", sandboxNetwork, "ipv4.address", "--project", sandboxResourceProject)
-	if err != nil {
-		return netip.Addr{}, fmt.Errorf("read Hacocoon sandbox gateway: %w", err)
+	if err := r.ensureRoutedSandboxHost(ctx); err != nil {
+		return netip.Addr{}, err
 	}
-	prefix, err := netip.ParsePrefix(strings.TrimSpace(result.Stdout))
-	if err != nil || !prefix.Addr().Is4() || prefix.Addr().IsUnspecified() {
-		return netip.Addr{}, fmt.Errorf("invalid Hacocoon sandbox IPv4 address %q: %w", strings.TrimSpace(result.Stdout), core.ErrIncompatibleState)
+	address, err := netip.ParseAddr(sandboxRoutedHostIPv4)
+	if err != nil || !address.Is4() || address.IsUnspecified() {
+		return netip.Addr{}, fmt.Errorf("invalid Hacocoon routed host IPv4 address %q: %w", sandboxRoutedHostIPv4, core.ErrIncompatibleState)
 	}
-	return prefix.Addr(), nil
+	return address, nil
 }
 
 func (r *Runtime) sandboxProxyURL(ctx context.Context) (string, error) {
@@ -38,13 +37,13 @@ func (r *Runtime) sandboxProxyURL(ctx context.Context) (string, error) {
 	return "http://" + net.JoinHostPort(gateway.String(), strconv.Itoa(sandboxEgressProxyPort)), nil
 }
 
-// PrepareEgressProxy verifies the managed fail-closed network substrate and
+// PrepareEgressProxy verifies the managed fail-closed routed substrate and
 // returns the only address on which the Standard egress proxy is expected to
-// listen. The address is derived from the Hacocoon-owned bridge, not from a
-// caller-supplied host interface.
+// listen. The address is Hacocoon-owned loopback state reachable from each
+// point-to-point routed NIC, rather than a shared Ethernet bridge.
 func (r *Runtime) PrepareEgressProxy(ctx context.Context) (string, error) {
-	if err := r.ensureSandboxNetwork(ctx); err != nil {
-		return "", fmt.Errorf("ensure Hacocoon egress network: %w", err)
+	if err := r.ensureRoutedSandboxHost(ctx); err != nil {
+		return "", fmt.Errorf("ensure Hacocoon routed egress network: %w", err)
 	}
 	gateway, err := r.sandboxGateway(ctx)
 	if err != nil {
@@ -54,9 +53,11 @@ func (r *Runtime) PrepareEgressProxy(ctx context.Context) (string, error) {
 }
 
 // ResolveRuntimeRef maps a proxy connection's source IP back to exactly one
-// Hacocoon-managed Incus runtime ref. security.ipv4_filtering on the sandbox
-// NIC prevents the guest from choosing an arbitrary source address. Persisted
-// Environment identity is intentionally resolved outside the Incus provider.
+// Hacocoon-managed Incus runtime ref. Routed NICs remove the shared-L2 attack
+// surface, while the verified strict host-side rp_filter prevents a guest from
+// using a source address that is not routed to its own point-to-point veth.
+// Persisted Environment identity is intentionally resolved outside the Incus
+// provider.
 func (r *Runtime) ResolveRuntimeRef(ctx context.Context, source net.IP) (string, error) {
 	if r == nil || r.runner == nil || source == nil || source.IsUnspecified() || source.IsLoopback() || source.IsMulticast() {
 		return "", core.ErrPolicyDenied
@@ -69,8 +70,9 @@ func (r *Runtime) ResolveRuntimeRef(ctx context.Context, source net.IP) (string,
 	// Prefer Incus' native address shorthand because it avoids fetching state
 	// for every instance on the hot egress path. Incus 7 can transiently return
 	// an empty shorthand-filter result while a freshly-started instance already
-	// has its DHCP address in runtime state, so zero matches fall back to the
-	// authoritative JSON state below. Ambiguous results always fail closed.
+	// has its static routed address in runtime state, so zero matches fall back
+	// to the authoritative JSON state below. Ambiguous results always fail
+	// closed.
 	result, err := r.runner.Run(ctx, "incus", "list", "ipv4="+ip, "--project", r.project, "--format", "csv", "-c", "n")
 	if err != nil {
 		return "", fmt.Errorf("resolve egress source %s: %w", ip, err)
