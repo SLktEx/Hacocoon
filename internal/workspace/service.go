@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -23,14 +24,19 @@ type environmentRuntime interface {
 	DeleteEnvironment(context.Context, string) error
 }
 
+// environmentStore exposes lifecycle transitions rather than independent
+// Environment/Workspace-lease mutations. The production store implements each
+// transition atomically, so callers cannot publish an active lease before its
+// ready Environment metadata, or remove one side of the aggregate while the
+// other remains durable.
 type environmentStore interface {
 	GetEnvironment(context.Context, string) (core.Environment, error)
-	PutEnvironment(context.Context, core.Environment) error
-	DeleteEnvironment(context.Context, string) error
-	AcquireWorkspaceLease(context.Context, core.WorkspaceLease) error
 	GetWorkspaceLease(context.Context, string) (core.WorkspaceLease, error)
-	PutWorkspaceLease(context.Context, core.WorkspaceLease) error
-	DeleteWorkspaceLease(context.Context, string) error
+	BeginEnvironmentCreate(context.Context, core.WorkspaceLease) error
+	RecordEnvironmentRuntime(context.Context, core.WorkspaceLease) error
+	CommitEnvironmentCreate(context.Context, core.Environment, core.WorkspaceLease) error
+	MarkEnvironmentRecoveryRequired(context.Context, core.WorkspaceLease) error
+	FinalizeEnvironmentDelete(context.Context, string) error
 }
 
 type Service struct {
@@ -110,17 +116,8 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 		State:         core.WorkspaceLeaseAcquiring,
 		AcquiredAt:    s.now().UTC(),
 	}
-	if err := s.store.AcquireWorkspaceLease(ctx, lease); err != nil {
-		return core.Environment{}, fmt.Errorf("acquire workspace lease: %w", err)
-	}
-	releaseLease := func() error {
-		cleanupCtx, cancel := s.newCleanupContext(ctx)
-		defer cancel()
-		err := s.store.DeleteWorkspaceLease(cleanupCtx, name)
-		if isNotFound(err) {
-			return nil
-		}
-		return err
+	if err := s.store.BeginEnvironmentCreate(ctx, lease); err != nil {
+		return core.Environment{}, fmt.Errorf("begin environment create: %w", err)
 	}
 
 	created, err := s.runtime.CreateEnvironment(ctx, core.EnvironmentRuntimeSpec{
@@ -132,34 +129,40 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 	})
 	if err != nil {
 		if errors.Is(err, core.ErrRecoveryRequired) {
-			return core.Environment{}, fmt.Errorf("create environment %q: %w", name, err)
+			lease.State = core.WorkspaceLeaseCleanupRequired
+			markErr := s.markEnvironmentRecovery(ctx, lease)
+			return core.Environment{}, errors.Join(fmt.Errorf("create environment %q: %w", name, err), markErr, core.ErrRecoveryRequired)
 		}
-		releaseErr := releaseLease()
+		releaseErr := s.finalizeEnvironmentForCleanup(ctx, name)
 		return core.Environment{}, errors.Join(fmt.Errorf("create environment %q: %w", name, err), releaseErr)
 	}
+	if strings.TrimSpace(created.Ref) == "" {
+		lease.State = core.WorkspaceLeaseCleanupRequired
+		markErr := s.markEnvironmentRecovery(ctx, lease)
+		return core.Environment{}, errors.Join(
+			fmt.Errorf("provider created environment %q without a durable runtime reference: %w", name, core.ErrIncompatibleState),
+			markErr,
+			core.ErrRecoveryRequired,
+		)
+	}
+
+	// Record provider ownership before performing any further validation or
+	// persistence. If the process stops after this point, recovery has an exact
+	// runtime reference and the Workspace remains conservatively reserved.
+	lease.RuntimeRef = created.Ref
+	lease.State = core.WorkspaceLeaseAcquiring
+	if err := s.store.RecordEnvironmentRuntime(ctx, lease); err != nil {
+		return core.Environment{}, s.failCreatedEnvironment(ctx, lease, fmt.Errorf("record environment runtime ownership: %w", err))
+	}
+
 	if created.Resources == (core.ResourceBudget{}) && !core.ResourceBudgetHasFinite(resources) {
 		created.Resources = resources
 	}
 	if created.Resources != resources {
-		cleanupErr := s.deleteRuntimeForCleanup(ctx, created.Ref)
-		return core.Environment{}, errors.Join(
+		return core.Environment{}, s.failCreatedEnvironment(
+			ctx,
+			lease,
 			fmt.Errorf("provider returned resource budget different from requested effective budget: %w", core.ErrIncompatibleState),
-			cleanupErr,
-			releaseLease(),
-		)
-	}
-
-	lease.RuntimeRef = created.Ref
-	lease.State = core.WorkspaceLeaseActive
-	if err := s.store.PutWorkspaceLease(ctx, lease); err != nil {
-		cleanupErr := s.deleteRuntimeForCleanup(ctx, created.Ref)
-		if cleanupErr == nil {
-			return core.Environment{}, errors.Join(fmt.Errorf("persist runtime reference in workspace lease: %w", err), releaseLease())
-		}
-		return core.Environment{}, errors.Join(
-			fmt.Errorf("persist runtime reference in workspace lease: %w", err),
-			cleanupErr,
-			core.ErrRecoveryRequired,
 		)
 	}
 
@@ -172,21 +175,9 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 		RuntimeRef: created.Ref,
 		CreatedAt:  s.now().UTC(),
 	}
-	if err := s.store.PutEnvironment(ctx, environment); err != nil {
-		cleanupErr := s.deleteRuntimeForCleanup(ctx, created.Ref)
-		if cleanupErr == nil {
-			return core.Environment{}, errors.Join(fmt.Errorf("persist environment: %w", err), releaseLease())
-		}
-		lease.State = core.WorkspaceLeaseCleanupRequired
-		markCtx, cancel := s.newCleanupContext(ctx)
-		markErr := s.store.PutWorkspaceLease(markCtx, lease)
-		cancel()
-		return core.Environment{}, errors.Join(
-			fmt.Errorf("persist environment: %w", err),
-			cleanupErr,
-			markErr,
-			core.ErrRecoveryRequired,
-		)
+	lease.State = core.WorkspaceLeaseActive
+	if err := s.store.CommitEnvironmentCreate(ctx, environment, lease); err != nil {
+		return core.Environment{}, s.failCreatedEnvironment(ctx, lease, fmt.Errorf("commit ready environment: %w", err))
 	}
 	return environment, nil
 }
@@ -271,11 +262,8 @@ func (s *Service) Delete(ctx context.Context, name string) (err error) {
 		if err := s.runtime.DeleteEnvironment(ctx, environment.RuntimeRef); err != nil && !isNotFound(err) {
 			return fmt.Errorf("delete runtime %q: %w", environment.RuntimeRef, err)
 		}
-		if err := s.store.DeleteEnvironment(ctx, name); err != nil && !isNotFound(err) {
-			return fmt.Errorf("delete environment metadata %q: %w", name, err)
-		}
-		if err := s.store.DeleteWorkspaceLease(ctx, name); err != nil && !isNotFound(err) {
-			return fmt.Errorf("release workspace lease for %q: %w", name, err)
+		if err := s.store.FinalizeEnvironmentDelete(ctx, name); err != nil {
+			return fmt.Errorf("finalize environment deletion %q: %w", name, err)
 		}
 		return nil
 	}
@@ -296,10 +284,23 @@ func (s *Service) Delete(ctx context.Context, name string) (err error) {
 	if err := s.runtime.DeleteEnvironment(ctx, lease.RuntimeRef); err != nil && !isNotFound(err) {
 		return fmt.Errorf("recover runtime %q: %w", lease.RuntimeRef, err)
 	}
-	if err := s.store.DeleteWorkspaceLease(ctx, name); err != nil && !isNotFound(err) {
-		return fmt.Errorf("release recovered workspace lease for %q: %w", name, err)
+	if err := s.store.FinalizeEnvironmentDelete(ctx, name); err != nil {
+		return fmt.Errorf("finalize recovered environment deletion %q: %w", name, err)
 	}
 	return nil
+}
+
+// failCreatedEnvironment is the single cleanup policy for a provider runtime
+// that has already been created and durably associated with the Environment.
+// Successful provider cleanup permits the lifecycle reservation to be removed;
+// uncertain cleanup preserves ownership and explicitly marks recovery required.
+func (s *Service) failCreatedEnvironment(parent context.Context, lease core.WorkspaceLease, cause error) error {
+	cleanupErr := s.deleteRuntimeForCleanup(parent, lease.RuntimeRef)
+	if cleanupErr == nil {
+		return errors.Join(cause, s.finalizeEnvironmentForCleanup(parent, lease.EnvironmentID))
+	}
+	lease.State = core.WorkspaceLeaseCleanupRequired
+	return errors.Join(cause, cleanupErr, s.markEnvironmentRecovery(parent, lease), core.ErrRecoveryRequired)
 }
 
 func (s *Service) deleteRuntimeForCleanup(parent context.Context, ref string) error {
@@ -309,6 +310,18 @@ func (s *Service) deleteRuntimeForCleanup(parent context.Context, ref string) er
 		return fmt.Errorf("cleanup runtime %q: %w", ref, err)
 	}
 	return nil
+}
+
+func (s *Service) finalizeEnvironmentForCleanup(parent context.Context, environmentID string) error {
+	cleanupCtx, cancel := s.newCleanupContext(parent)
+	defer cancel()
+	return s.store.FinalizeEnvironmentDelete(cleanupCtx, environmentID)
+}
+
+func (s *Service) markEnvironmentRecovery(parent context.Context, lease core.WorkspaceLease) error {
+	cleanupCtx, cancel := s.newCleanupContext(parent)
+	defer cancel()
+	return s.store.MarkEnvironmentRecoveryRequired(cleanupCtx, lease)
 }
 
 func (s *Service) newCleanupContext(parent context.Context) (context.Context, context.CancelFunc) {
