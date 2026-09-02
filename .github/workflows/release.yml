@@ -81,14 +81,19 @@ jobs:
         working-directory: source
         run: go vet ./...
 
-      - name: Validate installer scripts
+      - name: Validate installer scripts without mutating source
         working-directory: source
         shell: bash
         run: |
           set -euo pipefail
           sh -n scripts/install.sh
           sh -n scripts/install-ubuntu.sh
-          python3 -m py_compile tools/package_installers.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("tools/package_installers.py")
+          compile(path.read_text(encoding="utf-8"), str(path), "exec")
+          PY
+          [[ -z "$(git status --porcelain)" ]] || { echo "Refusing release: validation mutated authorized source" >&2; git status --short >&2; exit 1; }
 
       - name: Validate Windows installer syntax
         working-directory: source
