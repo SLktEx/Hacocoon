@@ -120,23 +120,49 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 		return core.Environment{}, fmt.Errorf("begin environment create: %w", err)
 	}
 
-	created, err := s.runtime.CreateEnvironment(ctx, core.EnvironmentRuntimeSpec{
+	created, createErr := s.runtime.CreateEnvironment(ctx, core.EnvironmentRuntimeSpec{
 		Name:          name,
 		WorkspacePath: workspace.Path,
 		ReadOnly:      mode == core.WorkspaceReadOnly,
 		Base:          spec.Base,
 		Resources:     resources,
 	})
-	if err != nil {
-		if errors.Is(err, core.ErrRecoveryRequired) {
+
+	// A non-empty provider reference is ownership evidence even when the
+	// provider also returns an error. Persist that identity before interpreting
+	// the error or attempting cleanup so a crash cannot turn a known runtime
+	// into an anonymous resource that later retries might forget or duplicate.
+	if ref := strings.TrimSpace(created.Ref); ref != "" {
+		lease.RuntimeRef = ref
+		lease.State = core.WorkspaceLeaseAcquiring
+		if recordErr := s.store.RecordEnvironmentRuntime(ctx, lease); recordErr != nil {
+			cause := fmt.Errorf("record environment runtime ownership: %w", recordErr)
+			if createErr != nil {
+				cause = errors.Join(fmt.Errorf("create environment %q: %w", name, createErr), cause)
+			}
+			return core.Environment{}, s.failCreatedEnvironment(ctx, lease, cause)
+		}
+		created.Ref = ref
+	}
+
+	if createErr != nil {
+		if lease.RuntimeRef != "" {
+			if errors.Is(createErr, core.ErrRecoveryRequired) {
+				lease.State = core.WorkspaceLeaseCleanupRequired
+				markErr := s.markEnvironmentRecovery(ctx, lease)
+				return core.Environment{}, errors.Join(fmt.Errorf("create environment %q: %w", name, createErr), markErr, core.ErrRecoveryRequired)
+			}
+			return core.Environment{}, s.failCreatedEnvironment(ctx, lease, fmt.Errorf("create environment %q: %w", name, createErr))
+		}
+		if errors.Is(createErr, core.ErrRecoveryRequired) {
 			lease.State = core.WorkspaceLeaseCleanupRequired
 			markErr := s.markEnvironmentRecovery(ctx, lease)
-			return core.Environment{}, errors.Join(fmt.Errorf("create environment %q: %w", name, err), markErr, core.ErrRecoveryRequired)
+			return core.Environment{}, errors.Join(fmt.Errorf("create environment %q: %w", name, createErr), markErr, core.ErrRecoveryRequired)
 		}
 		releaseErr := s.finalizeEnvironmentForCleanup(ctx, name)
-		return core.Environment{}, errors.Join(fmt.Errorf("create environment %q: %w", name, err), releaseErr)
+		return core.Environment{}, errors.Join(fmt.Errorf("create environment %q: %w", name, createErr), releaseErr)
 	}
-	if strings.TrimSpace(created.Ref) == "" {
+	if lease.RuntimeRef == "" {
 		lease.State = core.WorkspaceLeaseCleanupRequired
 		markErr := s.markEnvironmentRecovery(ctx, lease)
 		return core.Environment{}, errors.Join(
@@ -144,15 +170,6 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 			markErr,
 			core.ErrRecoveryRequired,
 		)
-	}
-
-	// Record provider ownership before performing any further validation or
-	// persistence. If the process stops after this point, recovery has an exact
-	// runtime reference and the Workspace remains conservatively reserved.
-	lease.RuntimeRef = created.Ref
-	lease.State = core.WorkspaceLeaseAcquiring
-	if err := s.store.RecordEnvironmentRuntime(ctx, lease); err != nil {
-		return core.Environment{}, s.failCreatedEnvironment(ctx, lease, fmt.Errorf("record environment runtime ownership: %w", err))
 	}
 
 	if created.Resources == (core.ResourceBudget{}) && !core.ResourceBudgetHasFinite(resources) {

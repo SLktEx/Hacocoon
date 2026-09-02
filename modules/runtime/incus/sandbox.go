@@ -79,12 +79,12 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 		_, cleanupErr := p.runner.Run(cleanupCtx, "incus", "delete", ref, "--project", p.project, "--force")
 		if cleanupErr == nil {
 			if guardErr := p.removeRoutedSandboxSourceGuard(cleanupCtx, ref); guardErr != nil {
-				return core.EnvironmentRuntime{}, errors.Join(cause, fmt.Errorf("cleanup routed source guard for %s: %w", ref, guardErr), core.ErrRecoveryRequired)
+				return core.EnvironmentRuntime{Ref: ref}, errors.Join(cause, fmt.Errorf("cleanup routed source guard for %s: %w", ref, guardErr), core.ErrRecoveryRequired)
 			}
 			return core.EnvironmentRuntime{}, cause
 		}
 		if cleanupCtx.Err() != nil {
-			return core.EnvironmentRuntime{}, errors.Join(
+			return core.EnvironmentRuntime{Ref: ref}, errors.Join(
 				cause,
 				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
 				core.ErrRecoveryRequired,
@@ -92,7 +92,7 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 		}
 		exists, inspectErr := p.environmentExists(cleanupCtx, ref)
 		if inspectErr != nil {
-			return core.EnvironmentRuntime{}, errors.Join(
+			return core.EnvironmentRuntime{Ref: ref}, errors.Join(
 				cause,
 				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
 				fmt.Errorf("confirm Incus cleanup state for %s: %w", ref, inspectErr),
@@ -100,14 +100,14 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 			)
 		}
 		if exists {
-			return core.EnvironmentRuntime{}, errors.Join(
+			return core.EnvironmentRuntime{Ref: ref}, errors.Join(
 				cause,
 				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
 				core.ErrRecoveryRequired,
 			)
 		}
 		if guardErr := p.removeRoutedSandboxSourceGuard(cleanupCtx, ref); guardErr != nil {
-			return core.EnvironmentRuntime{}, errors.Join(cause, fmt.Errorf("cleanup routed source guard for absent %s: %w", ref, guardErr), core.ErrRecoveryRequired)
+			return core.EnvironmentRuntime{Ref: ref}, errors.Join(cause, fmt.Errorf("cleanup routed source guard for absent %s: %w", ref, guardErr), core.ErrRecoveryRequired)
 		}
 		return core.EnvironmentRuntime{}, cause
 	}

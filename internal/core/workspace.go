@@ -88,6 +88,11 @@ type EnvironmentRuntimeSpec struct {
 	Resources     ResourceBudget
 }
 
+// EnvironmentRuntime is both a successful provider result and an ownership
+// evidence carrier. If Ref is non-empty, callers must treat it as the exact
+// managed runtime identity even when CreateEnvironment returns an error. A
+// provider should return a known Ref with ErrRecoveryRequired whenever cleanup
+// is ambiguous so higher layers can durably retain and later recover ownership.
 type EnvironmentRuntime struct {
 	Ref       string
 	Base      *BaseRef
