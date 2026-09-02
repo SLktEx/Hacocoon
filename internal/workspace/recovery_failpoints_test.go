@@ -113,7 +113,7 @@ func (r *failpointRuntime) inject(point semanticFailpoint) error {
 func (r *failpointRuntime) CreateEnvironment(_ context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
 	ref := "haco-" + spec.Name
 	r.refs[ref] = true
-	return core.EnvironmentRuntime{Ref: ref, Base: spec.Base, Resources: spec.Resources}, nil
+	return core.EnvironmentRuntime{Ref: ref, Resources: spec.Resources}, nil
 }
 
 func (*failpointRuntime) ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error) {
