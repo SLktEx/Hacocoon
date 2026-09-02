@@ -17,6 +17,7 @@ SKIP_INCUS="${HACO_BOOTSTRAP_SKIP_INCUS:-0}"
 GRANT_INCUS_ADMIN="${HACO_BOOTSTRAP_GRANT_INCUS_ADMIN:-0}"
 HACOCOON_CONTROLLER_SERVICE="haco-controller.service"
 HACOCOON_CONTROLLER_SOCKET="/run/hacocoon/control.sock"
+HACOCOON_ACCESS_GROUP="hacocoon"
 GITHUB_CLI_KEYRING_URL="https://cli.github.com/packages/githubcli-archive-keyring.gpg"
 GITHUB_CLI_OLD_KEY_FINGERPRINT_TEXT="2C61 0620 1985 B60E 6C7A C873 23F3 D4EA 7571 6059"
 GITHUB_CLI_CURRENT_KEY_FINGERPRINT_TEXT="7F38 BBB5 9D06 4DBC B3D8 4D72 5612 B364 6231 3325"
@@ -119,7 +120,7 @@ validate_github_cli_keyring() {
       *) die "GitHub CLI package keyring contains an untrusted primary key: $fingerprint" ;;
     esac
   done
-  [ "$current_seen" = "1" ] || die "GitHub CLI package keyring does not contain the pinned current signing key"
+  [ "$current_seen" = "1" ] || die "downloaded GitHub CLI package keyring does not contain the pinned current signing key"
 }
 
 ensure_gh_attestation_verify() {
@@ -157,13 +158,99 @@ ensure_gh_attestation_verify() {
   has_gh_attestation_verify || die "installed GitHub CLI still lacks gh attestation verify"
 }
 
+root_subid_contains() {
+  file="$1"
+  id_value="$2"
+  $SUDO test -r "$file" || return 1
+  $SUDO awk -F: -v id="$id_value" '
+    $1 == "root" && id >= $2 && id - $2 < $3 { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' "$file"
+}
+
+allow_root_subid() {
+  file="$1"
+  id_value="$2"
+  [ "$id_value" != "0" ] || return 0
+  root_subid_contains "$file" "$id_value" && return 0
+  $SUDO test -f "$file" || die "$file is unavailable for Incus subordinate-ID configuration"
+  printf 'root:%s:1\n' "$id_value" | $SUDO tee -a "$file" >/dev/null
+  root_subid_contains "$file" "$id_value" || die "failed to authorize subordinate ID $id_value in $file"
+}
+
+configure_workspace_owner_idmap() {
+  workspace_uid="$(id -u)"
+  workspace_gid="$(id -g)"
+  case "$workspace_uid:$workspace_gid" in
+    *[!0-9:]*) die "installer user identity is not numeric: $workspace_uid:$workspace_gid" ;;
+  esac
+
+  # Hacocoon keeps Environments unprivileged. Incus must nevertheless be able
+  # to map the one host UID/GID that owns the ordinary user's leased workspace
+  # to container root. Delegate only those exact IDs; do not grant a broad host
+  # range.
+  allow_root_subid /etc/subuid "$workspace_uid"
+  allow_root_subid /etc/subgid "$workspace_gid"
+}
+
+bridge_netfilter_ready() {
+  [ -e /proc/sys/net/bridge/bridge-nf-call-iptables ] &&
+    [ -e /proc/sys/net/bridge/bridge-nf-call-ip6tables ]
+}
+
+ensure_bridge_netfilter() {
+  need modprobe
+  if ! bridge_netfilter_ready; then
+    $SUDO modprobe br_netfilter ||
+      die "br_netfilter is required for Hacocoon sandbox IP/MAC filtering but this kernel cannot load it"
+  fi
+  bridge_netfilter_ready ||
+    die "br_netfilter loaded without exposing the required bridge netfilter hooks"
+
+  # Persist only when br_netfilter is a loadable module. If it is built into
+  # the kernel, the hooks above are already permanent and modules-load would be
+  # unnecessary noise on boot.
+  if command -v modinfo >/dev/null 2>&1 && modinfo br_netfilter >/dev/null 2>&1; then
+    printf 'br_netfilter\n' | $SUDO tee /etc/modules-load.d/hacocoon.conf >/dev/null
+    $SUDO chmod 0644 /etc/modules-load.d/hacocoon.conf
+  fi
+}
+
+ensure_incus_userns_compatibility() {
+  apparmor_userns_path="/proc/sys/kernel/apparmor_restrict_unprivileged_unconfined"
+  apparmor_userns_conf="/etc/sysctl.d/90-hacocoon-incus-userns.conf"
+
+  # Ubuntu adds an AppArmor restriction for unprivileged user namespaces that
+  # is stricter than upstream AppArmor. systemd 259 uses a user namespace for
+  # service sandboxing inside Ubuntu 26.04 Incus containers; with the Ubuntu
+  # restriction enabled those services can remain stuck before networkd starts,
+  # leaving otherwise healthy Incus bridges without a guest DHCPv4 client.
+  # Incus upstream recommends restoring normal AppArmor behavior on Ubuntu
+  # container hosts. This does not disable Hacocoon's AppArmor or nftables
+  # isolation policy; it only removes Ubuntu's host-global extra userns gate.
+  if [ ! -e "$apparmor_userns_path" ]; then
+    return 0
+  fi
+
+  need sysctl
+  printf '%s\n' \
+    '# Required for systemd user-namespace sandboxing inside Incus containers.' \
+    'kernel.apparmor_restrict_unprivileged_unconfined = 0' |
+    $SUDO tee "$apparmor_userns_conf" >/dev/null
+  $SUDO chmod 0644 "$apparmor_userns_conf"
+  $SUDO sysctl -q -w kernel.apparmor_restrict_unprivileged_unconfined=0 ||
+    die "failed to allow systemd user-namespace sandboxing inside Incus containers"
+  [ "$($SUDO cat "$apparmor_userns_path")" = "0" ] ||
+    die "Ubuntu AppArmor user-namespace restriction remained enabled after configuration"
+}
+
 prepare_ubuntu_host() {
   assert_ubuntu
   prepare_privilege
 
   printf '==> Installing common Ubuntu host dependencies\n'
   $SUDO apt-get update
-  $SUDO apt-get install -y ca-certificates curl tar git sudo systemd systemd-sysv btrfs-progs util-linux gnupg coreutils findutils grep sed
+  $SUDO apt-get install -y ca-certificates curl tar git sudo systemd systemd-sysv btrfs-progs util-linux kmod procps gnupg coreutils findutils grep sed
   ensure_gh_attestation_verify
 
   pid1="$(ps -p 1 -o comm= 2>/dev/null | tr -d '[:space:]' || true)"
@@ -175,6 +262,12 @@ prepare_ubuntu_host() {
 
   printf '==> Installing and starting Incus\n'
   $SUDO apt-get install -y incus
+  printf '==> Authorizing the local Hacocoon workspace owner for Incus idmap\n'
+  configure_workspace_owner_idmap
+  printf '==> Preparing bridge netfilter for Hacocoon sandbox filtering\n'
+  ensure_bridge_netfilter
+  printf '==> Preparing Ubuntu AppArmor user namespaces for Incus system services\n'
+  ensure_incus_userns_compatibility
   $SUDO systemctl enable --now incus.service 2>/dev/null || $SUDO systemctl enable --now incus 2>/dev/null ||
     die "failed to enable/start Incus with systemd"
 
@@ -451,6 +544,36 @@ install_release_binaries() {
   prepare_default_haco_root
 }
 
+resolve_hacocoon_access_user() {
+  if [ "$(id -u)" -ne 0 ]; then
+    id -un
+    return 0
+  fi
+  case "${SUDO_USER:-}" in
+    ""|root) return 1 ;;
+    *) printf '%s\n' "$SUDO_USER" ;;
+  esac
+}
+
+configure_hacocoon_access_group() {
+  if ! getent group "$HACOCOON_ACCESS_GROUP" >/dev/null 2>&1; then
+    $SUDO /usr/sbin/groupadd --system "$HACOCOON_ACCESS_GROUP"
+  fi
+
+  HACOCOON_ACCESS_GID="$(getent group "$HACOCOON_ACCESS_GROUP" | awk -F: '{print $3; exit}')"
+  case "$HACOCOON_ACCESS_GID" in
+    ""|*[!0-9]*) die "unable to resolve numeric gid for $HACOCOON_ACCESS_GROUP group" ;;
+    0) die "$HACOCOON_ACCESS_GROUP group must not use gid 0" ;;
+  esac
+
+  HACOCOON_ACCESS_USER="$(resolve_hacocoon_access_user || true)"
+  if [ -n "$HACOCOON_ACCESS_USER" ]; then
+    getent passwd "$HACOCOON_ACCESS_USER" >/dev/null 2>&1 ||
+      die "installer access user does not exist: $HACOCOON_ACCESS_USER"
+    $SUDO /usr/sbin/usermod -aG "$HACOCOON_ACCESS_GROUP" "$HACOCOON_ACCESS_USER"
+  fi
+}
+
 configure_hacocoon_controller() {
   controller_bin="$1"
   case "$controller_bin" in
@@ -462,6 +585,8 @@ configure_hacocoon_controller() {
   if $SUDO find "$controller_bin" -perm /022 -print -quit | grep -q .; then
     die "refusing controller service through group/world-writable binary: $controller_bin"
   fi
+
+  configure_hacocoon_access_group
 
   unit_tmp="$(mktemp)"
   cat > "$unit_tmp" <<EOF_UNIT
@@ -476,9 +601,10 @@ ExecStart=$controller_bin
 Restart=on-failure
 RestartSec=1s
 RuntimeDirectory=hacocoon
-RuntimeDirectoryMode=0700
+RuntimeDirectoryMode=0755
 UMask=0077
 Environment=HACO_ROOT=/var/lib/hacocoon
+Environment=HACO_CONTROL_GROUP_GID=$HACOCOON_ACCESS_GID
 
 [Install]
 WantedBy=multi-user.target
@@ -500,7 +626,9 @@ EOF_UNIT
   done
   $SUDO test -S "$HACOCOON_CONTROLLER_SOCKET" || die "controller did not create $HACOCOON_CONTROLLER_SOCKET"
   socket_state="$($SUDO stat -Lc '%u:%g:%a' "$HACOCOON_CONTROLLER_SOCKET")"
-  [ "$socket_state" = "0:0:600" ] || die "unsafe controller socket ownership/mode: $socket_state (want 0:0:600)"
+  expected_socket_state="0:$HACOCOON_ACCESS_GID:660"
+  [ "$socket_state" = "$expected_socket_state" ] ||
+    die "unsafe controller socket ownership/mode: $socket_state (want $expected_socket_state)"
 }
 
 assert_ubuntu
@@ -535,6 +663,11 @@ printf '==> Verifying trusted haco-host controller round trip\n'
 $SUDO incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null ||
   die "haco-host cannot reach the Physical Host controller"
 
+if [ -n "${HACOCOON_ACCESS_USER:-}" ]; then
+  warn "membership in $HACOCOON_ACCESS_GROUP grants authority to control Hacocoon environments; treat it as a privileged local group"
+  printf 'haco installer: added %s to %s; start a new login session (or run newgrp %s) before using haco without sudo.\n' \
+    "$HACOCOON_ACCESS_USER" "$HACOCOON_ACCESS_GROUP" "$HACOCOON_ACCESS_GROUP"
+fi
 if [ "$GRANT_INCUS_ADMIN" = "1" ] && [ "$(id -u)" -ne 0 ]; then
   printf '%s\n' 'haco installer: start a new login session (or use newgrp incus-admin) before relying on the new group membership.'
 fi

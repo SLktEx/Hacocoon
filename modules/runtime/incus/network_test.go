@@ -2,39 +2,110 @@ package incus
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 
-	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
 func sandboxProfileResult() host.Result {
-	return host.Result{Stdout: `{"config":{"environment.HTTP_PROXY":"http://10.200.0.1:18080","environment.HTTPS_PROXY":"http://10.200.0.1:18080","environment.NO_PROXY":"localhost,127.0.0.1,::1","environment.http_proxy":"http://10.200.0.1:18080","environment.https_proxy":"http://10.200.0.1:18080","environment.no_proxy":"localhost,127.0.0.1,::1"},"devices":{"eth0":{"type":"nic","name":"eth0","network":"haco-sandbox0","security.ipv4_filtering":"true","security.ipv6_filtering":"true","security.mac_filtering":"true","security.port_isolation":"true"}}}`}
+	proxy := "http://" + sandboxRoutedProxyIPv4 + ":18080"
+	return host.Result{Stdout: `{"config":{"environment.HTTP_PROXY":"` + proxy + `","environment.HTTPS_PROXY":"` + proxy + `","environment.NO_PROXY":"localhost,127.0.0.1,::1","environment.http_proxy":"` + proxy + `","environment.https_proxy":"` + proxy + `","environment.no_proxy":"localhost,127.0.0.1,::1"},"devices":{"eth0":{"type":"nic","name":"eth0","network":"haco-sandbox0","security.ipv4_filtering":"true","security.ipv6_filtering":"true","security.mac_filtering":"true","security.port_isolation":"true"}}}`}
 }
 
 func managedACLResult() host.Result {
-	return host.Result{Stdout: "config: {}\ndescription: \"\"\negress:\n- action: allow\n  description: Hacocoon Standard egress proxy\n  destination: 10.200.0.1/32\n  destination_port: \"18080\"\n  protocol: tcp\n  state: enabled\ningress: []\nname: " + sandboxEgressACL + "\n"}
+	return host.Result{Stdout: "config: {}\ndescription: \"\"\negress:\n- action: allow\n  description: Hacocoon Standard egress proxy\n  destination: " + sandboxRoutedProxyIPv4 + "/32\n  destination_port: \"18080\"\n  protocol: tcp\n  state: enabled\ningress: []\nname: " + sandboxEgressACL + "\n"}
 }
 
-func emptyACLResult() host.Result {
-	return host.Result{Stdout: "config: {}\ndescription: \"\"\negress: []\ningress: []\nname: " + sandboxEgressACL + "\n"}
+func managedRoutedFirewallResult() host.Result {
+	return host.Result{Stdout: `table inet hacocoon_sandbox {
+	chain input {
+		type filter hook input priority -200; policy accept;
+		iifname "hbr*" ct state established,related accept
+		iifname "hbr*" udp sport 68 udp dport 67 accept
+		iifname "hbr*" ip daddr 169.254.254.1 tcp dport 18080 accept
+		iifname "hbr*" drop
+	}
+	chain forward {
+		type filter hook forward priority -200; policy accept;
+		iifname "hbr*" ip daddr 255.255.255.255 udp sport 68 udp dport 67 accept
+		oifname "hbr*" udp sport 67 udp dport 68 accept
+		iifname "hbr*" drop
+		oifname "hbr*" drop
+	}
+}`}
 }
 
+func managedRoutedSourceGuardResult(table string) host.Result {
+	ref := "haco-demo"
+	for _, candidate := range []string{"haco-demo", "haco-harvest"} {
+		if routedSandboxGuardTable(candidate) == table {
+			ref = candidate
+			break
+		}
+	}
+	iface := environmentBridgeName(ref)
+	mac := environmentBridgeMAC(ref)
+	return host.Result{Stdout: "table inet " + table + " {\n\tchain prerouting {\n\t\ttype filter hook prerouting priority raw; policy accept;\n\t\tiifname \"" + iface + "\" ether saddr != " + mac + " drop\n\t\tiifname \"" + iface + "\" ip saddr 0.0.0.0 udp sport 68 udp dport 67 accept\n\t\tiifname \"" + iface + "\" ip saddr != 10.240.0.0/24 drop\n\t}\n}"}
+}
+
+// sandboxNetworkResult is the common fake substrate used by Incus provider
+// tests. It supports the Environment-dedicated bridge path plus the legacy
+// shared bridge helpers still exercised by migration tests.
 func sandboxNetworkResult(args []string) (host.Result, bool) {
+	if len(args) >= 4 && args[0] == "-o" && args[1] == "-4" && args[2] == "address" && args[3] == "show" {
+		return host.Result{Stdout: "1: lo    inet " + sandboxRoutedProxyIPv4 + "/32 scope host lo\n"}, true
+	}
+	if len(args) >= 7 && args[0] == "-n" && args[1] == "--" && args[2] == "nft" && args[3] == "list" && args[4] == "table" && args[5] == sandboxRoutedFirewallFamily {
+		if args[6] == sandboxRoutedFirewallTable {
+			return managedRoutedFirewallResult(), true
+		}
+		if strings.HasPrefix(args[6], sandboxRoutedGuardPrefix) {
+			return managedRoutedSourceGuardResult(args[6]), true
+		}
+	}
+
+	if len(args) >= 3 && args[0] == "network" && args[1] == "show" && strings.HasPrefix(args[2], sandboxRoutedHostPrefix) {
+		return host.Result{Stdout: "managed: true\n"}, true
+	}
+	if len(args) >= 4 && args[0] == "network" && args[1] == "get" && strings.HasPrefix(args[2], sandboxRoutedHostPrefix) {
+		values := map[string]string{
+			"ipv4.address":  "10.240.0.1/24\n",
+			"ipv4.nat":      "false\n",
+			"ipv4.firewall": "true\n",
+			"ipv4.dhcp":     "true\n",
+			"ipv4.routing":  "true\n",
+			"ipv6.address":  "none\n",
+			"raw.dnsmasq":   "port=0\n",
+		}
+		return host.Result{Stdout: values[args[3]]}, true
+	}
+	if len(args) >= 6 && args[0] == "config" && args[1] == "device" && args[2] == "get" && args[4] == "eth0" {
+		ref := args[3]
+		bridge := environmentBridgeName(ref)
+		switch args[5] {
+		case "network":
+			return host.Result{Stdout: bridge + "\n"}, true
+		case "hwaddr":
+			return host.Result{Stdout: environmentBridgeMAC(ref) + "\n"}, true
+		}
+	}
+	if len(args) >= 5 && args[0] == "list" && args[1] == "--project" && args[3] == "--format" && args[4] == "json" {
+		return host.Result{Stdout: "[]"}, true
+	}
+
 	if len(args) >= 3 && args[0] == "network" && args[1] == "show" && args[2] == sandboxNetwork {
 		return host.Result{}, true
 	}
 	if len(args) >= 4 && args[0] == "network" && args[1] == "get" && args[2] == sandboxNetwork {
 		values := map[string]string{
-			"ipv4.address":                        "10.200.0.1/24\n",
-			"ipv4.nat":                            "true\n",
-			"ipv4.firewall":                       "true\n",
-			"ipv4.routing":                        "true\n",
-			"ipv6.address":                        "none\n",
-			"raw.dnsmasq":                         "port=0\n",
-			"security.acls":                       sandboxEgressACL + "\n",
+			"ipv4.address":                         "10.200.0.1/24\n",
+			"ipv4.nat":                             "true\n",
+			"ipv4.firewall":                        "true\n",
+			"ipv4.routing":                         "true\n",
+			"ipv6.address":                         "none\n",
+			"raw.dnsmasq":                          "port=0\n",
+			"security.acls":                        sandboxEgressACL + "\n",
 			"security.acls.default.ingress.action": "reject\n",
 			"security.acls.default.egress.action":  "reject\n",
 			"security.acls.default.ingress.logged": "true\n",
@@ -51,7 +122,7 @@ func sandboxNetworkResult(args []string) (host.Result, bool) {
 	return host.Result{}, false
 }
 
-func TestEnsureSandboxNetworkAcceptsManagedProxyOnlySubstrate(t *testing.T) {
+func TestEnsureSandboxNetworkStillValidatesLegacySubstrateDuringMigration(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if result, ok := sandboxNetworkResult(args); ok {
 			return result, nil
@@ -62,198 +133,18 @@ func TestEnsureSandboxNetworkAcceptsManagedProxyOnlySubstrate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	seenACL := false
-	seenDNS := false
-	seenNetworkACL := false
+	seenBridge := false
+	seenRoutedFirewall := false
 	for _, call := range runner.calls {
 		joined := strings.Join(call.args, " ")
-		if strings.Contains(joined, "network acl show "+sandboxEgressACL) {
-			seenACL = true
+		if strings.Contains(joined, "network show "+sandboxNetwork) {
+			seenBridge = true
 		}
-		if strings.Contains(joined, "network get "+sandboxNetwork+" raw.dnsmasq") {
-			seenDNS = true
-		}
-		if strings.Contains(joined, "network get "+sandboxNetwork+" security.acls") {
-			seenNetworkACL = true
+		if strings.Contains(joined, "nft list table "+sandboxRoutedFirewallFamily+" "+sandboxRoutedFirewallTable) {
+			seenRoutedFirewall = true
 		}
 	}
-	if !seenACL || !seenDNS || !seenNetworkACL {
-		t.Fatalf("sandbox network verification incomplete: %#v", runner.calls)
-	}
-}
-
-func TestEnsureSandboxNetworkMigratesLegacyEmptyACLAndDisablesDNS(t *testing.T) {
-	dnsDisabled := false
-	ruleAdded := false
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 4 && args[0] == "network" && args[1] == "get" && args[2] == sandboxNetwork && args[3] == "raw.dnsmasq" {
-			if dnsDisabled {
-				return host.Result{Stdout: "port=0\n"}, nil
-			}
-			return host.Result{}, nil
-		}
-		if len(args) >= 4 && args[0] == "network" && args[1] == "set" && args[2] == sandboxNetwork && args[3] == "raw.dnsmasq=port=0" {
-			dnsDisabled = true
-			return host.Result{}, nil
-		}
-		if len(args) >= 5 && args[0] == "network" && args[1] == "acl" && args[2] == "rule" && args[3] == "add" {
-			ruleAdded = true
-			return host.Result{}, nil
-		}
-		if len(args) >= 4 && args[0] == "network" && args[1] == "acl" && args[2] == "show" && args[3] == sandboxEgressACL {
-			if ruleAdded {
-				return managedACLResult(), nil
-			}
-			return emptyACLResult(), nil
-		}
-		if result, ok := sandboxNetworkResult(args); ok {
-			return result, nil
-		}
-		return host.Result{}, nil
-	}}
-	if err := New(runner).ensureSandboxNetwork(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if !dnsDisabled || !ruleAdded {
-		t.Fatalf("legacy network was not migrated: dns=%t rule=%t calls=%#v", dnsDisabled, ruleAdded, runner.calls)
-	}
-}
-
-func TestEnsureSandboxNetworkMigratesMissingBridgeACLPolicy(t *testing.T) {
-	values := map[string]string{}
-	for key, value := range sandboxNetworkACLPolicy {
-		values[key] = ""
-		_ = value
-	}
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 4 && args[0] == "network" && args[1] == "get" && args[2] == sandboxNetwork {
-			if _, ok := values[args[3]]; ok {
-				return host.Result{Stdout: values[args[3]] + "\n"}, nil
-			}
-		}
-		if len(args) >= 4 && args[0] == "network" && args[1] == "set" && args[2] == sandboxNetwork {
-			parts := strings.SplitN(args[3], "=", 2)
-			if len(parts) == 2 {
-				if _, ok := values[parts[0]]; ok {
-					values[parts[0]] = parts[1]
-					return host.Result{}, nil
-				}
-			}
-		}
-		if result, ok := sandboxNetworkResult(args); ok {
-			return result, nil
-		}
-		return host.Result{}, nil
-	}}
-	if err := New(runner).ensureSandboxNetwork(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	for key, expected := range sandboxNetworkACLPolicy {
-		if values[key] != expected {
-			t.Fatalf("%s = %q, want %q", key, values[key], expected)
-		}
-	}
-}
-
-func TestEnsureSandboxNetworkRejectsUnmanagedDNSConfig(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 4 && args[0] == "network" && args[1] == "get" && args[2] == sandboxNetwork && args[3] == "raw.dnsmasq" {
-			return host.Result{Stdout: "server=8.8.8.8\n"}, nil
-		}
-		if result, ok := sandboxNetworkResult(args); ok {
-			return result, nil
-		}
-		return host.Result{}, nil
-	}}
-	if err := New(runner).ensureSandboxNetwork(context.Background()); !errors.Is(err, core.ErrIncompatibleState) {
-		t.Fatalf("error = %v, want ErrIncompatibleState", err)
-	}
-}
-
-func TestEnsureSandboxNetworkRejectsProfileDrift(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 3 && args[0] == "profile" && args[1] == "show" && args[2] == sandboxProfile {
-			return host.Result{Stdout: `{"config":{"security.privileged":"true"},"devices":{}}`}, nil
-		}
-		if result, ok := sandboxNetworkResult(args); ok {
-			return result, nil
-		}
-		return host.Result{}, nil
-	}}
-	if err := New(runner).ensureSandboxNetwork(context.Background()); !errors.Is(err, core.ErrIncompatibleState) {
-		t.Fatalf("error = %v, want ErrIncompatibleState", err)
-	}
-}
-
-func TestEnsureSandboxNetworkRejectsBroadACLRules(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 4 && args[0] == "network" && args[1] == "acl" && args[2] == "show" && args[3] == sandboxEgressACL {
-			return host.Result{Stdout: "egress:\n- action: allow\n  destination: 0.0.0.0/0\n  destination_port: \"18080\"\n  protocol: tcp\n  state: enabled\ningress: []\n"}, nil
-		}
-		if result, ok := sandboxNetworkResult(args); ok {
-			return result, nil
-		}
-		return host.Result{}, nil
-	}}
-	if err := New(runner).ensureSandboxNetwork(context.Background()); !errors.Is(err, core.ErrIncompatibleState) {
-		t.Fatalf("error = %v, want ErrIncompatibleState", err)
-	}
-}
-
-func TestEnsureSandboxNetworkCreatesMissingResources(t *testing.T) {
-	missingNetwork := true
-	missingACL := true
-	missingProfile := true
-	ruleAdded := false
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 3 && args[0] == "network" && args[1] == "show" && args[2] == sandboxNetwork && missingNetwork {
-			missingNetwork = false
-			return host.Result{}, errors.New("missing")
-		}
-		if len(args) >= 4 && args[0] == "network" && args[1] == "acl" && args[2] == "show" && args[3] == sandboxEgressACL {
-			if missingACL {
-				missingACL = false
-				return host.Result{}, errors.New("missing")
-			}
-			if ruleAdded {
-				return managedACLResult(), nil
-			}
-			return emptyACLResult(), nil
-		}
-		if len(args) >= 5 && args[0] == "network" && args[1] == "acl" && args[2] == "rule" && args[3] == "add" {
-			ruleAdded = true
-			return host.Result{}, nil
-		}
-		if len(args) >= 3 && args[0] == "profile" && args[1] == "show" && args[2] == sandboxProfile && missingProfile {
-			missingProfile = false
-			return host.Result{}, errors.New("missing")
-		}
-		if result, ok := sandboxNetworkResult(args); ok {
-			return result, nil
-		}
-		return host.Result{}, nil
-	}}
-	if err := New(runner).ensureSandboxNetwork(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-
-	wantFragments := []string{
-		"network create " + sandboxNetwork,
-		"network acl create " + sandboxEgressACL,
-		"network acl rule add " + sandboxEgressACL + " egress",
-		"profile create " + sandboxProfile,
-		"profile device add " + sandboxProfile + " eth0 nic",
-	}
-	for _, want := range wantFragments {
-		found := false
-		for _, call := range runner.calls {
-			if strings.Contains(strings.Join(call.args, " "), want) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Fatalf("missing call containing %q: %#v", want, runner.calls)
-		}
+	if !seenBridge || !seenRoutedFirewall {
+		t.Fatalf("migration validation incomplete: bridge=%t routedFirewall=%t calls=%#v", seenBridge, seenRoutedFirewall, runner.calls)
 	}
 }

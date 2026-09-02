@@ -11,6 +11,9 @@ on:
       - "scripts/install-ubuntu.sh"
       - "scripts/install.sh"
       - "tools/package_installers.py"
+      - "tools/installer-user-journey-e2e.sh"
+      - "tools/installer-network-security-e2e.sh"
+      - "tools/installer-dhcp-diagnostics.sh"
       - ".github/workflows/ubuntu-installer-e2e.yml"
   workflow_dispatch:
 
@@ -24,7 +27,7 @@ concurrency:
 jobs:
   ubuntu-user-path:
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       GOTOOLCHAIN: local
       HACO_E2E_VERSION: v0.0.0-e2e
@@ -115,12 +118,51 @@ jobs:
           command -v haco
           command -v incus
           haco version
-          haco doctor
+
+          # Ubuntu's extra AppArmor user-namespace gate can leave systemd 259
+          # services inside Incus containers stuck before networkd starts. The
+          # packaged installer must persist and apply the Incus compatibility
+          # setting before any Hacocoon system container is created.
+          apparmor_userns=/proc/sys/kernel/apparmor_restrict_unprivileged_unconfined
+          if test -e "$apparmor_userns"; then
+            test "$(cat "$apparmor_userns")" = 0
+            grep -Fx 'kernel.apparmor_restrict_unprivileged_unconfined = 0' /etc/sysctl.d/90-hacocoon-incus-userns.conf
+          fi
+
+          login_user="$(id -un)"
+          primary_gid="$(id -g "$login_user")"
+          access_gid="$(getent group hacocoon | cut -d: -f3)"
+          test -n "$access_gid"
+          id -nG "$login_user" | tr ' ' '\n' | grep -Fx hacocoon
+          test "$(sudo stat -Lc '%u:%g:%a' /run/hacocoon/control.sock)" = "0:$access_gid:660"
+
+          # Re-enter the installed user through sudo/initgroups instead of sg.
+          # A real re-login keeps the user's primary GID and adds hacocoon as a
+          # supplementary group; sg/newgrp would incorrectly make hacocoon the
+          # primary GID and change ownership of newly-created workspaces.
+          test "$(sudo -u "$login_user" -- id -g)" = "$primary_gid"
+          sudo -u "$login_user" -- id -nG | tr ' ' '\n' | grep -Fx hacocoon
+          sudo -u "$login_user" -- /usr/local/bin/haco doctor
+
           sudo systemctl is-active --quiet haco-controller.service
           sudo test -S /run/hacocoon/control.sock
           sudo haco host ensure
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
-          test "$(getent passwd "$(id -un)" | cut -d: -f7)" != /usr/local/libexec/hacocoon-login
+          test "$(getent passwd "$login_user" | cut -d: -f7)" != /usr/local/libexec/hacocoon-login
+
+      - name: Exercise installed Hacocoon user journey
+        shell: bash
+        run: |
+          set -euo pipefail
+          login_user="$(id -un)"
+          journey="$GITHUB_WORKSPACE/tools/installer-user-journey-e2e.sh"
+          sudo -u "$login_user" -- env HACO_BIN=/usr/local/bin/haco bash "$journey"
+
+      - name: Verify installed network isolation and spoofing guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo env HACO_BIN=/usr/local/bin/haco bash "$GITHUB_WORKSPACE/tools/installer-network-security-e2e.sh"
 
       - name: Collect diagnostics
         if: failure()
@@ -128,7 +170,15 @@ jobs:
         continue-on-error: true
         run: |
           haco version || true
-          haco doctor || true
+          sudo haco doctor || true
+          sudo haco env list || true
+          getent group hacocoon || true
+          id || true
+          sudo -u "$(id -un)" -- id || true
+          sudo stat -Lc '%U:%G:%a %n' /run/hacocoon/control.sock || true
+          sudo env HACO_BIN=/usr/local/bin/haco bash "$GITHUB_WORKSPACE/tools/installer-dhcp-diagnostics.sh" || true
+          sudo nft list ruleset || true
           systemctl --no-pager --failed || true
           sudo systemctl status haco-controller.service --no-pager || true
           sudo incus list --all-projects || true
+          sudo incus network list --project default || true
