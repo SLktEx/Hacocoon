@@ -120,7 +120,7 @@ validate_github_cli_keyring() {
       *) die "GitHub CLI package keyring contains an untrusted primary key: $fingerprint" ;;
     esac
   done
-  [ "$current_seen" = "1" ] || die "GitHub CLI package keyring does not contain the pinned current signing key"
+  [ "$current_seen" = "1" ] || die "downloaded GitHub CLI package keyring does not contain the pinned current signing key"
 }
 
 ensure_gh_attestation_verify() {
@@ -216,13 +216,41 @@ ensure_bridge_netfilter() {
   fi
 }
 
+ensure_incus_userns_compatibility() {
+  apparmor_userns_path="/proc/sys/kernel/apparmor_restrict_unprivileged_unconfined"
+  apparmor_userns_conf="/etc/sysctl.d/90-hacocoon-incus-userns.conf"
+
+  # Ubuntu adds an AppArmor restriction for unprivileged user namespaces that
+  # is stricter than upstream AppArmor. systemd 259 uses a user namespace for
+  # service sandboxing inside Ubuntu 26.04 Incus containers; with the Ubuntu
+  # restriction enabled those services can remain stuck before networkd starts,
+  # leaving otherwise healthy Incus bridges without a guest DHCPv4 client.
+  # Incus upstream recommends restoring normal AppArmor behavior on Ubuntu
+  # container hosts. This does not disable Hacocoon's AppArmor or nftables
+  # isolation policy; it only removes Ubuntu's host-global extra userns gate.
+  if [ ! -e "$apparmor_userns_path" ]; then
+    return 0
+  fi
+
+  need sysctl
+  printf '%s\n' \
+    '# Required for systemd user-namespace sandboxing inside Incus containers.' \
+    'kernel.apparmor_restrict_unprivileged_unconfined = 0' |
+    $SUDO tee "$apparmor_userns_conf" >/dev/null
+  $SUDO chmod 0644 "$apparmor_userns_conf"
+  $SUDO sysctl -q -w kernel.apparmor_restrict_unprivileged_unconfined=0 ||
+    die "failed to allow systemd user-namespace sandboxing inside Incus containers"
+  [ "$($SUDO cat "$apparmor_userns_path")" = "0" ] ||
+    die "Ubuntu AppArmor user-namespace restriction remained enabled after configuration"
+}
+
 prepare_ubuntu_host() {
   assert_ubuntu
   prepare_privilege
 
   printf '==> Installing common Ubuntu host dependencies\n'
   $SUDO apt-get update
-  $SUDO apt-get install -y ca-certificates curl tar git sudo systemd systemd-sysv btrfs-progs util-linux kmod gnupg coreutils findutils grep sed
+  $SUDO apt-get install -y ca-certificates curl tar git sudo systemd systemd-sysv btrfs-progs util-linux kmod procps gnupg coreutils findutils grep sed
   ensure_gh_attestation_verify
 
   pid1="$(ps -p 1 -o comm= 2>/dev/null | tr -d '[:space:]' || true)"
@@ -238,6 +266,8 @@ prepare_ubuntu_host() {
   configure_workspace_owner_idmap
   printf '==> Preparing bridge netfilter for Hacocoon sandbox filtering\n'
   ensure_bridge_netfilter
+  printf '==> Preparing Ubuntu AppArmor user namespaces for Incus system services\n'
+  ensure_incus_userns_compatibility
   $SUDO systemctl enable --now incus.service 2>/dev/null || $SUDO systemctl enable --now incus 2>/dev/null ||
     die "failed to enable/start Incus with systemd"
 
