@@ -1,19 +1,24 @@
-name: release
+name: release-v0.26.0-repair
 
 on:
-  repository_dispatch:
-    types: [release]
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/release-v0.26.0-repair.yml
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.event.client_payload.tag }}
+  group: release-v0.26.0-repair
   cancel-in-progress: false
 
 env:
   GOTOOLCHAIN: local
   PYTHONDONTWRITEBYTECODE: "1"
+  RELEASE_TAG: v0.26.0
+  RELEASE_SHA: 2c445c28a8d6d9fd1dce24df19037db881569b35
 
 jobs:
   build:
@@ -21,40 +26,48 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-    outputs:
-      release_tag: ${{ steps.trust.outputs.release_tag }}
-      release_sha: ${{ steps.trust.outputs.release_sha }}
     steps:
-      - name: Checkout trusted release control plane
+      - name: Checkout trusted repair control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
           path: control
 
-      - name: Authorize requested release from current trusted main HEAD
-        id: trust
+      - name: Authorize one-shot v0.26.0 repair
         shell: bash
         env:
-          REQUESTED_TAG: ${{ github.event.client_payload.tag }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          [[ -n "$DEFAULT_BRANCH" ]] || { echo "Refusing release: default branch is unavailable" >&2; exit 1; }
-          [[ "$GITHUB_REF" == "refs/heads/$DEFAULT_BRANCH" ]] || { echo "Refusing release: dispatch must execute from trusted default branch" >&2; exit 1; }
-          [[ "$GITHUB_SHA" == "$(git -C control rev-parse HEAD)" ]] || { echo "Refusing release: checked-out control plane does not match dispatcher SHA" >&2; exit 1; }
+          [[ -n "$DEFAULT_BRANCH" ]] || { echo "Refusing repair: default branch is unavailable" >&2; exit 1; }
+          [[ "$GITHUB_REF" == "refs/heads/$DEFAULT_BRANCH" ]] || { echo "Refusing repair: workflow must execute from trusted default branch" >&2; exit 1; }
+          [[ "$GITHUB_SHA" == "$(git -C control rev-parse HEAD)" ]] || { echo "Refusing repair: checked-out control plane does not match workflow SHA" >&2; exit 1; }
 
-          bash control/tools/check_release_tag_trust.sh "$REQUESTED_TAG" origin "$DEFAULT_BRANCH"
-          release_sha="$(git -C control rev-parse --verify "refs/tags/${REQUESTED_TAG}^{commit}")"
-          [[ "$release_sha" == "$GITHUB_SHA" ]] || { echo "Refusing release: tag must resolve to current trusted main HEAD" >&2; exit 1; }
-          printf 'release_tag=%s\n' "$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
-          printf 'release_sha=%s\n' "$release_sha" >> "$GITHUB_OUTPUT"
+          current_main_sha="$(git -C control rev-parse "origin/$DEFAULT_BRANCH")"
+          [[ "$current_main_sha" == "$GITHUB_SHA" ]] || { echo "Refusing repair: trusted default branch moved before authorization" >&2; exit 1; }
 
-      - name: Checkout authorized release source
+          tag_sha="$(git -C control rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")"
+          [[ "$tag_sha" == "$RELEASE_SHA" ]] || { echo "Refusing repair: $RELEASE_TAG no longer resolves to pinned release SHA" >&2; exit 1; }
+          git -C control merge-base --is-ancestor "$RELEASE_SHA" "$GITHUB_SHA" || { echo "Refusing repair: pinned release SHA is not an ancestor of current main" >&2; exit 1; }
+
+          actual="$(git -C control diff --name-only "$RELEASE_SHA" "$GITHUB_SHA" | sort)"
+          expected="$(printf '%s\n' \
+            .github/workflows/release-v0.26.0-bootstrap.yml \
+            .github/workflows/release-v0.26.0-repair.yml \
+            .github/workflows/release.yml | sort)"
+          [[ "$actual" == "$expected" ]] || {
+            echo "Refusing repair: changes since $RELEASE_TAG are not limited to the release-control repair" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+
+      - name: Checkout immutable v0.26.0 source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ steps.trust.outputs.release_sha }}
+          ref: ${{ env.RELEASE_SHA }}
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
@@ -73,15 +86,15 @@ jobs:
           version: v2.17.1
           install-only: true
 
-      - name: Test authorized source
+      - name: Test immutable release source
         working-directory: source
         run: go test -count=1 ./...
 
-      - name: Vet authorized source
+      - name: Vet immutable release source
         working-directory: source
         run: go vet ./...
 
-      - name: Validate installer scripts without mutating source
+      - name: Validate release source without mutating it
         working-directory: source
         shell: bash
         run: |
@@ -93,21 +106,19 @@ jobs:
           path = Path("tools/package_installers.py")
           compile(path.read_text(encoding="utf-8"), str(path), "exec")
           PY
-          [[ -z "$(git status --porcelain)" ]] || { echo "Refusing release: validation mutated authorized source" >&2; git status --short >&2; exit 1; }
+          [[ -z "$(git status --porcelain)" ]] || { echo "Refusing repair: validation mutated immutable release source" >&2; git status --short >&2; exit 1; }
 
       - name: Validate Windows installer syntax
         working-directory: source
         shell: pwsh
         run: '[scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null'
 
-      - name: Build authorized release artifacts
+      - name: Build v0.26.0 artifacts from pinned source
         working-directory: source
         run: goreleaser release --clean --skip=publish
 
       - name: Stage architecture-specific installer bundles
         shell: bash
-        env:
-          RELEASE_TAG: ${{ steps.trust.outputs.release_tag }}
         run: |
           set -euo pipefail
           test -f source/dist/haco_linux_amd64.tar.gz
@@ -128,19 +139,22 @@ jobs:
 
           files=(release-payload/*)
           (( ${#files[@]} == 7 )) || { printf 'Unexpected release payload file count: %s\n' "${#files[@]}" >&2; exit 1; }
-          test -f release-payload/haco_linux_amd64.tar.gz
-          test -f release-payload/haco_linux_arm64.tar.gz
-          test -f release-payload/hacocoon-windows-amd64.zip
-          test -f release-payload/hacocoon-windows-arm64.zip
-          test -f release-payload/hacocoon-ubuntu-amd64.tar.gz
-          test -f release-payload/hacocoon-ubuntu-arm64.tar.gz
-          test -f release-payload/checksums.txt
+          for path in \
+            haco_linux_amd64.tar.gz \
+            haco_linux_arm64.tar.gz \
+            hacocoon-windows-amd64.zip \
+            hacocoon-windows-arm64.zip \
+            hacocoon-ubuntu-amd64.tar.gz \
+            hacocoon-ubuntu-arm64.tar.gz \
+            checksums.txt; do
+            test -f "release-payload/$path"
+          done
           (cd release-payload && sha256sum -c checksums.txt)
 
-      - name: Transfer release payload to privileged publisher
+      - name: Transfer repaired release payload to privileged publisher
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-payload
+          name: release-v0.26.0-repair-payload
           path: release-payload/
           if-no-files-found: error
           compression-level: 0
@@ -156,63 +170,47 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-    env:
-      RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
-      RELEASE_SHA: ${{ needs.build.outputs.release_sha }}
-      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
-      - name: Download payload from this workflow run
+      - name: Checkout trusted repair control plane for revalidation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+          path: control
+
+      - name: Download repaired payload
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: release-payload
+          name: release-v0.26.0-repair-payload
           path: release-payload
 
-      - name: Validate publisher input
-        shell: bash
-        run: |
-          set -euo pipefail
-          files=(release-payload/*)
-          (( ${#files[@]} == 7 )) || { printf 'Unexpected release payload file count: %s\n' "${#files[@]}" >&2; exit 1; }
-          for path in \
-            haco_linux_amd64.tar.gz \
-            haco_linux_arm64.tar.gz \
-            hacocoon-windows-amd64.zip \
-            hacocoon-windows-arm64.zip \
-            hacocoon-ubuntu-amd64.tar.gz \
-            hacocoon-ubuntu-arm64.tar.gz \
-            checksums.txt; do
-            test -f "release-payload/$path"
-          done
-          (cd release-payload && sha256sum -c checksums.txt)
-
-      - name: Revalidate release authorization immediately before signing and publication
+      - name: Revalidate one-shot repair before signing and publication
         shell: bash
         env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          [[ -n "$DEFAULT_BRANCH" ]] || { echo "Refusing release: default branch is unavailable" >&2; exit 1; }
-          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "Refusing release: invalid release tag" >&2; exit 1; }
-          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Refusing release: invalid release SHA" >&2; exit 1; }
-          [[ "$RELEASE_SHA" == "$GITHUB_SHA" ]] || { echo "Refusing release: release SHA no longer matches dispatcher SHA" >&2; exit 1; }
-
           current_main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/$DEFAULT_BRANCH" --jq .commit.sha)"
-          [[ "$current_main_sha" == "$RELEASE_SHA" ]] || { echo "Refusing release: trusted default branch moved after authorization" >&2; exit 1; }
+          [[ "$current_main_sha" == "$GITHUB_SHA" ]] || { echo "Refusing repair publication: main moved after build" >&2; exit 1; }
 
-          ref_json="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG")"
-          object_type="$(jq -r '.object.type' <<<"$ref_json")"
-          object_sha="$(jq -r '.object.sha' <<<"$ref_json")"
-          depth=0
-          while [[ "$object_type" == "tag" ]]; do
-            depth=$((depth + 1))
-            (( depth <= 8 )) || { echo "Refusing release: annotated tag chain is unexpectedly deep" >&2; exit 1; }
-            tag_json="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$object_sha")"
-            object_type="$(jq -r '.object.type' <<<"$tag_json")"
-            object_sha="$(jq -r '.object.sha' <<<"$tag_json")"
-          done
-          [[ "$object_type" == "commit" && "$object_sha" == "$RELEASE_SHA" ]] || { echo "Refusing release: tag moved after build" >&2; exit 1; }
+          tag_sha="$(git -C control rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")"
+          [[ "$tag_sha" == "$RELEASE_SHA" ]] || { echo "Refusing repair publication: release tag no longer matches pinned source" >&2; exit 1; }
 
-      - name: Create signed release binding predicate
+          actual="$(git -C control diff --name-only "$RELEASE_SHA" "$GITHUB_SHA" | sort)"
+          expected="$(printf '%s\n' \
+            .github/workflows/release-v0.26.0-bootstrap.yml \
+            .github/workflows/release-v0.26.0-repair.yml \
+            .github/workflows/release.yml | sort)"
+          [[ "$actual" == "$expected" ]] || { echo "Refusing repair publication: trusted repair diff changed" >&2; exit 1; }
+
+          files=(release-payload/*)
+          (( ${#files[@]} == 7 )) || { echo "Unexpected repaired payload file count" >&2; exit 1; }
+          (cd release-payload && sha256sum -c checksums.txt)
+
+      - name: Create signed repair release binding predicate
         if: ${{ !github.event.repository.private }}
         shell: bash
         env:
@@ -227,13 +225,14 @@ jobs:
               "controlRef": os.environ["CONTROL_REF"],
               "controlSha": os.environ["CONTROL_SHA"],
               "authorizationEnvironment": "release",
+              "repair": "validation-created-pycache",
           }
           with open("release-binding.json", "w", encoding="utf-8") as handle:
               json.dump(predicate, handle, sort_keys=True, separators=(",", ":"))
               handle.write("\n")
           PY
 
-      - name: Attest public release payload provenance
+      - name: Attest repaired public release payload provenance
         if: ${{ !github.event.repository.private }}
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
@@ -246,7 +245,7 @@ jobs:
             release-payload/hacocoon-ubuntu-arm64.tar.gz
             release-payload/checksums.txt
 
-      - name: Attest public release tag and commit binding
+      - name: Attest repaired public release tag and control binding
         if: ${{ !github.event.repository.private }}
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
@@ -261,19 +260,13 @@ jobs:
           predicate-type: https://hacocoon.dev/attestations/release/v1
           predicate-path: release-binding.json
 
-      - name: Explain private repository provenance limitation
-        if: ${{ github.event.repository.private }}
-        shell: bash
-        run: echo "::notice::GitHub artifact attestations are skipped while Hacocoon is private."
-
-      - name: Create populated draft release and publish
+      - name: Publish repaired immutable v0.26.0 release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          args=(--repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --title "Hacocoon $RELEASE_TAG" --draft)
-          [[ "$RELEASE_TAG" != *-* ]] || args+=(--prerelease)
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && { echo "Refusing repair: $RELEASE_TAG release already exists" >&2; exit 1; }
 
           gh release create "$RELEASE_TAG" \
             release-payload/haco_linux_amd64.tar.gz \
@@ -283,5 +276,9 @@ jobs:
             release-payload/hacocoon-ubuntu-amd64.tar.gz \
             release-payload/hacocoon-ubuntu-arm64.tar.gz \
             release-payload/checksums.txt \
-            "${args[@]}"
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --generate-notes \
+            --title "Hacocoon $RELEASE_TAG" \
+            --draft
           gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false
