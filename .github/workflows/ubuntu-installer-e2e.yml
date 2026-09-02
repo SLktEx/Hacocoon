@@ -119,6 +119,16 @@ jobs:
           command -v incus
           haco version
 
+          # Ubuntu's extra AppArmor user-namespace gate can leave systemd 259
+          # services inside Incus containers stuck before networkd starts. The
+          # packaged installer must persist and apply the Incus compatibility
+          # setting before any Hacocoon system container is created.
+          apparmor_userns=/proc/sys/kernel/apparmor_restrict_unprivileged_unconfined
+          if test -e "$apparmor_userns"; then
+            test "$(cat "$apparmor_userns")" = 0
+            grep -Fx 'kernel.apparmor_restrict_unprivileged_unconfined = 0' /etc/sysctl.d/90-hacocoon-incus-userns.conf
+          fi
+
           login_user="$(id -un)"
           primary_gid="$(id -g "$login_user")"
           access_gid="$(getent group hacocoon | cut -d: -f3)"
