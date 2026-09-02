@@ -10,6 +10,7 @@ ref="haco-$name"
 created=0
 standalone_refs=()
 original_bridge_nf_ipv4=""
+original_apparmor_userns=""
 
 cleanup() {
   set +e
@@ -22,6 +23,9 @@ cleanup() {
   fi
   if [[ -n "$original_bridge_nf_ipv4" ]] && [[ -e /proc/sys/net/bridge/bridge-nf-call-iptables ]]; then
     sysctl -q -w "net.bridge.bridge-nf-call-iptables=$original_bridge_nf_ipv4" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$original_apparmor_userns" ]] && [[ -e /proc/sys/kernel/apparmor_restrict_unprivileged_unconfined ]]; then
+    sysctl -q -w "kernel.apparmor_restrict_unprivileged_unconfined=$original_apparmor_userns" >/dev/null 2>&1 || true
   fi
   rm -rf "$workspace"
 }
@@ -76,16 +80,20 @@ for row in rows:
 standalone_incus_probe() {
   local label="$1"
   local bridge_nf_value="$2"
-  local fingerprint="$3"
-  local root_pool="$4"
+  local apparmor_userns_value="$3"
+  local fingerprint="$4"
+  local root_pool="$5"
   local standalone="incus-dhcp-${label}-${RANDOM}-$$"
   local capture="/tmp/${standalone}.tcpdump"
   local capture_pid=""
   local ip=""
 
-  printf '\n=== Standalone Incus DHCP probe: %s (bridge-nf-call-iptables=%s) ===\n' "$label" "$bridge_nf_value"
+  printf '\n=== Standalone Incus DHCP probe: %s (bridge-nf=%s, apparmor-userns=%s) ===\n' "$label" "$bridge_nf_value" "$apparmor_userns_value"
   if [[ -e /proc/sys/net/bridge/bridge-nf-call-iptables ]]; then
     sysctl -w "net.bridge.bridge-nf-call-iptables=$bridge_nf_value" || true
+  fi
+  if [[ "$apparmor_userns_value" != "keep" ]] && [[ -e /proc/sys/kernel/apparmor_restrict_unprivileged_unconfined ]]; then
+    sysctl -w "kernel.apparmor_restrict_unprivileged_unconfined=$apparmor_userns_value" || true
   fi
 
   # Use the exact image and storage already proven usable by Hacocoon, but do
@@ -115,9 +123,9 @@ standalone_incus_probe() {
 
   ip="$(instance_ipv4 "$standalone" | tr -d '[:space:]')"
   if [[ -n "$ip" ]]; then
-    printf 'STANDALONE_RESULT label=%s bridge_nf=%s ipv4=%s\n' "$label" "$bridge_nf_value" "$ip"
+    printf 'STANDALONE_RESULT label=%s bridge_nf=%s apparmor_userns=%s ipv4=%s\n' "$label" "$bridge_nf_value" "$apparmor_userns_value" "$ip"
   else
-    printf 'STANDALONE_RESULT label=%s bridge_nf=%s ipv4=<none>\n' "$label" "$bridge_nf_value"
+    printf 'STANDALONE_RESULT label=%s bridge_nf=%s apparmor_userns=%s ipv4=<none>\n' "$label" "$bridge_nf_value" "$apparmor_userns_value"
   fi
   incus list "$standalone" --project "$project" --format json || true
   print_guest_network_state "$standalone"
@@ -151,6 +159,11 @@ printf 'Environment: %s\nbridge: %s\nhost-veth: %s\nbase-image: %s\nroot-pool: %
 if [[ -e /proc/sys/net/bridge/bridge-nf-call-iptables ]]; then
   original_bridge_nf_ipv4="$(cat /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null || true)"
 fi
+if [[ -e /proc/sys/kernel/apparmor_restrict_unprivileged_unconfined ]]; then
+  original_apparmor_userns="$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_unconfined 2>/dev/null || true)"
+fi
+printf 'host sysctls: bridge-nf-call-iptables=%s apparmor_restrict_unprivileged_unconfined=%s\n' \
+  "${original_bridge_nf_ipv4:-<unavailable>}" "${original_apparmor_userns:-<unavailable>}"
 
 printf '%s\n' '--- instance config/state ---'
 incus config show "$ref" --project "$project" --expanded || true
@@ -200,8 +213,12 @@ if [[ -n "$bridge" ]]; then
 fi
 
 if [[ -n "$fingerprint" && -n "$root_pool" ]]; then
-  standalone_incus_probe "brnf-on" 1 "$fingerprint" "$root_pool"
-  standalone_incus_probe "brnf-off" 0 "$fingerprint" "$root_pool"
+  if [[ -n "$original_apparmor_userns" ]]; then
+    sysctl -q -w "kernel.apparmor_restrict_unprivileged_unconfined=$original_apparmor_userns" || true
+  fi
+  standalone_incus_probe "baseline-brnf-on" 1 keep "$fingerprint" "$root_pool"
+  standalone_incus_probe "baseline-brnf-off" 0 keep "$fingerprint" "$root_pool"
+  standalone_incus_probe "apparmor-userns-off" 1 0 "$fingerprint" "$root_pool"
 else
   printf '%s\n' 'standalone Incus probes skipped: could not resolve image fingerprint/root pool'
 fi
