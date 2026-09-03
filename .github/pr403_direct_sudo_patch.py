@@ -1,5 +1,4 @@
 from pathlib import Path
-import re
 
 installer_path = Path("scripts/install-windows.ps1")
 installer = installer_path.read_text(encoding="utf-8")
@@ -21,9 +20,9 @@ replacement = r'''function Get-SudoersPolicyFiles([string]$Name) {
     return $policies
 }
 
-function Remove-HacocoonBootstrapSudoRule([string]$Name) {
-    $markerStart = "# BEGIN HACOCOON BOOTSTRAP"
-    $markerEnd = "# END HACOCOON BOOTSTRAP"
+function Remove-HacocoonSudoPolicyBlock([string]$Name, [string]$MarkerName) {
+    $markerStart = "# BEGIN HACOCOON $MarkerName"
+    $markerEnd = "# END HACOCOON $MarkerName"
     $script = @'
 set -eu
 policy="$1"
@@ -58,32 +57,71 @@ install -o root -g root -m 0440 "$tmp" "$policy"
             "--exec", "sh", "-s", "--", $policy, $markerStart, $markerEnd
         ) $script
         if ($probe.ExitCode -ne 0) {
-            throw "Failed to remove Hacocoon bootstrap sudo block from '$policy': $($probe.Stderr)"
+            throw "Failed to remove Hacocoon sudo block '$MarkerName' from '$policy': $($probe.Stderr)"
         }
     }
 }
 
-function Add-HacocoonBootstrapSudoRule([string]$Name, [string]$LoginUser) {
-    $markerStart = "# BEGIN HACOCOON BOOTSTRAP"
-    $markerEnd = "# END HACOCOON BOOTSTRAP"
-    $rule = "`n$markerStart`n$LoginUser ALL=(ALL:ALL) NOPASSWD: ALL`n$markerEnd`n"
-    $policies = @(Get-SudoersPolicyFiles $Name)
+function Remove-LegacyHacocoonSudoDropIn([string]$Name, [string]$RulePath) {
+    $script = @'
+set -eu
+rule_path="$1"
+rm -f "$rule_path"
+include_line="@include $rule_path"
+for policy in /etc/sudoers-rs /etc/sudoers; do
+  [ -f "$policy" ] || continue
+  grep -Fxq "$include_line" "$policy" || continue
+  tmp="$(mktemp)"
+  trap 'rm -f "$tmp"' EXIT
+  awk -v include_line="$include_line" '$0 != include_line { print }' "$policy" > "$tmp"
+  install -o root -g root -m 0440 "$tmp" "$policy"
+  rm -f "$tmp"
+  trap - EXIT
+done
+'@
+    $probe = Invoke-WslCaptureWithInput @(
+        "--distribution", $Name,
+        "--user", "root",
+        "--exec", "sh", "-s", "--", $RulePath
+    ) $script
+    if ($probe.ExitCode -ne 0) {
+        throw "Failed to remove legacy Hacocoon sudo drop-in '$RulePath': $($probe.Stderr)"
+    }
+}
 
-    # Recover safely from a previously interrupted installer before granting
-    # the temporary broad bootstrap capability again.
-    Remove-HacocoonBootstrapSudoRule $Name
+function Set-HacocoonSudoPolicyBlock([string]$Name, [string]$MarkerName, [string]$Rule) {
+    $policies = @(Get-SudoersPolicyFiles $Name)
+    Remove-HacocoonSudoPolicyBlock $Name $MarkerName
+    $markerStart = "# BEGIN HACOCOON $MarkerName"
+    $markerEnd = "# END HACOCOON $MarkerName"
+    $block = "`n$markerStart`n$Rule`n$markerEnd`n"
 
     foreach ($policy in $policies) {
-        $probe = Write-WslUtf8File $Name $policy $rule -Append
+        $probe = Write-WslUtf8File $Name $policy $block -Append
         if ($probe.ExitCode -ne 0) {
-            throw "Failed to append temporary bootstrap sudo rule to '$policy': $($probe.Stderr)"
+            throw "Failed to append Hacocoon sudo block '$MarkerName' to '$policy': $($probe.Stderr)"
         }
         $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $policy)
         if ($probe.ExitCode -ne 0) {
-            throw "Sudo policy '$policy' rejected the temporary Hacocoon bootstrap rule: $($probe.Stderr)"
+            throw "Sudo policy '$policy' rejected Hacocoon sudo block '$MarkerName': $($probe.Stderr)"
         }
     }
     return ($policies -join ", ")
+}
+
+function Add-HacocoonBootstrapSudoRule([string]$Name, [string]$LoginUser) {
+    Remove-LegacyHacocoonSudoDropIn $Name "/etc/sudoers.d/hacocoon-bootstrap"
+    return Set-HacocoonSudoPolicyBlock $Name "BOOTSTRAP" "$LoginUser ALL=(ALL:ALL) NOPASSWD: ALL"
+}
+
+function Remove-HacocoonBootstrapSudoRule([string]$Name) {
+    Remove-HacocoonSudoPolicyBlock $Name "BOOTSTRAP"
+    Remove-LegacyHacocoonSudoDropIn $Name "/etc/sudoers.d/hacocoon-bootstrap"
+}
+
+function Set-HacocoonLoginSudoRule([string]$Name, [string]$LoginUser, [string]$Haco) {
+    Remove-LegacyHacocoonSudoDropIn $Name "/etc/sudoers.d/hacocoon-login"
+    return Set-HacocoonSudoPolicyBlock $Name "LOGIN" "$LoginUser ALL=(ALL:ALL) NOPASSWD: $Haco host ensure, $Haco host shell"
 }
 
 '''
@@ -110,9 +148,8 @@ old_enable = r'''    # install.sh intentionally runs as the ordinary workspace o
 '''
 new_enable = r'''    # install.sh intentionally runs as the ordinary workspace owner. Give that
     # user temporary passwordless sudo only while the trusted installer runs.
-    # Write the marked rule directly into each supported policy file instead of
-    # depending on distro-specific sudoers.d include behavior, then prove the
-    # effective policy with a real non-interactive sudo command.
+    # Write a marked rule directly into the active policy file(s), prove it with
+    # a real non-interactive sudo command, then remove it in finally.
     $policySet = Add-HacocoonBootstrapSudoRule $Name $LoginUser
     Write-Step "Validating temporary sudo rule through policy files: $policySet"
 '''
@@ -137,6 +174,29 @@ if installer.count(old_disable) != 1:
     raise SystemExit(f"expected one old Disable-BootstrapSudo function, found {installer.count(old_disable)}")
 installer = installer.replace(old_disable, new_disable)
 
+old_login = r'''    $sudoers = "$LoginUser ALL=NOPASSWD: $haco host ensure, $haco host shell`n"
+    $probe = Write-WslUtf8File $Name "/etc/sudoers.d/hacocoon-login" $sudoers
+    if ($probe.ExitCode -ne 0) { throw "Failed to write the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "chmod", "0440", "/etc/sudoers.d/hacocoon-login")
+    if ($probe.ExitCode -ne 0) { throw "Failed to protect the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", "/etc/sudoers.d/hacocoon-login")
+    if ($probe.ExitCode -ne 0) { throw "Failed to validate the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
+    $activePolicy = Ensure-HacocoonSudoRuleLoaded $Name "/etc/sudoers.d/hacocoon-login"
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", $haco, "host", "ensure")
+    if ($probe.ExitCode -ne 0) {
+        throw "Narrow Hacocoon WSL sudo rule is not effective through '$activePolicy': $($probe.Stderr)"
+    }
+'''
+new_login = r'''    $policySet = Set-HacocoonLoginSudoRule $Name $LoginUser $haco
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", $haco, "host", "ensure")
+    if ($probe.ExitCode -ne 0) {
+        throw "Narrow Hacocoon WSL sudo rule is not effective through policy files '$policySet': $($probe.Stderr)"
+    }
+'''
+if installer.count(old_login) != 1:
+    raise SystemExit(f"expected one old Configure-WslPost sudo block, found {installer.count(old_login)}")
+installer = installer.replace(old_login, new_login)
+
 for forbidden in (
     "BootstrapSudoersPath",
     "Ensure-HacocoonSudoRuleLoaded",
@@ -147,8 +207,6 @@ for forbidden in (
         raise SystemExit(f"old sudo drop-in mechanism survived patch: {forbidden}")
 installer_path.write_text(installer, encoding="utf-8")
 
-# Strengthen the Windows E2E cleanup assertion: the old drop-in must be absent
-# and neither policy file may retain the temporary direct-policy marker.
 workflow_path = Path(".github/workflows/windows-all-scripts-e2e.yml")
 workflow = workflow_path.read_text(encoding="utf-8")
 old = '''          & wsl.exe --distribution $instance --user root --exec test ! -e /etc/sudoers.d/hacocoon-bootstrap
@@ -156,6 +214,8 @@ old = '''          & wsl.exe --distribution $instance --user root --exec test ! 
 '''
 new = '''          & wsl.exe --distribution $instance --user root --exec test ! -e /etc/sudoers.d/hacocoon-bootstrap
           if ($LASTEXITCODE -ne 0) { throw "Legacy temporary bootstrap sudo drop-in leaked after installer completion." }
+          & wsl.exe --distribution $instance --user root --exec test ! -e /etc/sudoers.d/hacocoon-login
+          if ($LASTEXITCODE -ne 0) { throw "Legacy Hacocoon login sudo drop-in leaked after installer completion." }
           & wsl.exe --distribution $instance --user root --exec sh -eu -c 'for policy in /etc/sudoers-rs /etc/sudoers; do [ ! -f "$policy" ] || ! grep -Fq "# BEGIN HACOCOON BOOTSTRAP" "$policy"; done'
           if ($LASTEXITCODE -ne 0) { throw "Temporary bootstrap sudo policy block leaked after installer completion." }
 '''
@@ -163,8 +223,6 @@ if workflow.count(old) != 1:
     raise SystemExit(f"expected one old E2E sudo cleanup assertion, found {workflow.count(old)}")
 workflow_path.write_text(workflow.replace(old, new), encoding="utf-8")
 
-# Keep the package-level contract focused on direct, marked policy mutation and
-# forbid regression to provider guessing or sudoers.d bootstrap indirection.
 test_path = Path("tools/test_installer_packages.py")
 test = test_path.read_text(encoding="utf-8")
 old = '''                'Get-SudoersPolicyFiles',
@@ -177,9 +235,10 @@ old = '''                'Get-SudoersPolicyFiles',
                 '$LoginUser ALL=NOPASSWD: ALL','''
 new = '''                'Get-SudoersPolicyFiles',
                 '@(\"/etc/sudoers-rs\", \"/etc/sudoers\")',
-                'Add-HacocoonBootstrapSudoRule',
-                'Remove-HacocoonBootstrapSudoRule',
-                '# BEGIN HACOCOON BOOTSTRAP',
+                'Set-HacocoonSudoPolicyBlock',
+                'Remove-HacocoonSudoPolicyBlock',
+                'Set-HacocoonLoginSudoRule',
+                '# BEGIN HACOCOON $MarkerName',
                 '$LoginUser ALL=(ALL:ALL) NOPASSWD: ALL',
                 'Validating temporary sudo rule through policy files','''
 if test.count(old) != 1:
@@ -189,7 +248,6 @@ needle = '''                '\"update-alternatives\"',
             ):'''
 replacement_forbidden = '''                '\"update-alternatives\"',
                 '@include $RulePath',
-                '/etc/sudoers.d/hacocoon-bootstrap',
             ):'''
 if test.count(needle) != 1:
     raise SystemExit(f"expected one forbidden provider tuple tail, found {test.count(needle)}")
