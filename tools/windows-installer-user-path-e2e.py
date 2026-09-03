@@ -32,6 +32,15 @@ ASSERT_TIMEOUT_SECONDS = 120
 NATURAL_STOP_TIMEOUT_SECONDS = 90
 POST_EXIT_DRAIN_SECONDS = 1.0
 
+# GitHub's Windows Python can expose a cp1252 text stream when PowerShell
+# redirects this harness to a log file. Product output legitimately contains
+# Unicode (for example arrows). Logging must never abort the user journey merely
+# because the outer CI stream cannot encode one character. This changes only the
+# harness's own display error handling; child process environment/input is untouched.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(errors="replace")
+
 TERMINAL_ARGV = ("cmd.exe",)
 INSTALL_COMPLETE_RE = re.compile(r"Hacocoon WSL installation complete", re.MULTILINE)
 
