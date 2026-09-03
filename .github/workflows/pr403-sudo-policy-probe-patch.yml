@@ -1,0 +1,198 @@
+name: pr403-sudo-policy-probe-patch
+
+on:
+  push:
+    branches:
+      - fix/windows-one-shot-bootstrap
+    paths:
+      - .github/workflows/pr403-sudo-policy-probe-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/windows-one-shot-bootstrap
+          fetch-depth: 0
+
+      - name: Replace sudo provider guessing with behavioral policy loading
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          installer_path = Path("scripts/install-windows.ps1")
+          installer = installer_path.read_text(encoding="utf-8")
+
+          old = r'''function Get-ActiveSudoersPolicy([string]$Name) {
+              # Ubuntu 26.04 selects sudo-rs vs sudo.ws through update-alternatives.
+              # Do not infer the provider from human-facing --version text; inspect
+              # the resolved alternative target instead.
+              $provider = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "readlink", "-f", "/usr/bin/sudo")
+              if ($provider.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($provider.Stdout)) {
+                  throw "Unable to determine the active sudo provider target: $($provider.Stderr)"
+              }
+
+              if ($provider.Stdout -eq "/usr/lib/cargo/bin/sudo") {
+                  $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "test", "-f", "/etc/sudoers-rs")
+                  if ($probe.ExitCode -eq 0) { return "/etc/sudoers-rs" }
+                  if ($probe.ExitCode -ne 1) {
+                      throw "Failed to inspect sudo-rs policy file: $($probe.Stderr)"
+                  }
+              }
+
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "test", "-f", "/etc/sudoers")
+              if ($probe.ExitCode -eq 0) { return "/etc/sudoers" }
+              throw "No supported active sudo policy file was found for provider '$($provider.Stdout)'."
+          }
+
+          function Ensure-HacocoonSudoRuleLoaded([string]$Name, [string]$RulePath) {
+              $activePolicy = Get-ActiveSudoersPolicy $Name
+              $includedirPattern = '^[[:space:]]*(@includedir|#includedir)[[:space:]]+/etc/sudoers\.d([[:space:]]|$)'
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "grep", "-Eq", $includedirPattern, $activePolicy)
+              if ($probe.ExitCode -eq 0) { return $activePolicy }
+              if ($probe.ExitCode -ne 1) {
+                  throw "Failed to inspect active sudo policy '$activePolicy': $($probe.Stderr)"
+              }
+
+              # sudo-rs prefers /etc/sudoers-rs when present. Minimal Ubuntu/WSL
+              # policy may therefore ignore /etc/sudoers.d. Include only the
+              # Hacocoon-owned rule instead of enabling unrelated drop-ins.
+              $includeLine = "@include $RulePath"
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "grep", "-Fx", $includeLine, $activePolicy)
+              if ($probe.ExitCode -eq 1) {
+                  $probe = Write-WslUtf8File $Name $activePolicy ("`n$includeLine`n") -Append
+                  if ($probe.ExitCode -ne 0) {
+                      throw "Failed to include '$RulePath' from active sudo policy '$activePolicy': $($probe.Stderr)"
+                  }
+              } elseif ($probe.ExitCode -ne 0) {
+                  throw "Failed to inspect Hacocoon sudo include in '$activePolicy': $($probe.Stderr)"
+              }
+
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $activePolicy)
+              if ($probe.ExitCode -ne 0) {
+                  throw "Active sudo policy '$activePolicy' rejected Hacocoon rule '$RulePath': $($probe.Stderr)"
+              }
+              return $activePolicy
+          }
+'''
+
+          new = r'''function Get-SudoersPolicyFiles([string]$Name) {
+              # Ubuntu 26.04 can ship more than one sudo implementation. Provider
+              # symlink/version details have changed across images, so do not guess
+              # which parser is active. Load the Hacocoon-owned include into every
+              # supported policy file that actually exists, then verify behavior by
+              # running sudo as the target user.
+              $policies = @()
+              foreach ($policy in @("/etc/sudoers-rs", "/etc/sudoers")) {
+                  $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "test", "-f", $policy)
+                  if ($probe.ExitCode -eq 0) {
+                      $policies += $policy
+                  } elseif ($probe.ExitCode -ne 1) {
+                      throw "Failed to inspect sudo policy '$policy': $($probe.Stderr)"
+                  }
+              }
+              if ($policies.Count -eq 0) {
+                  throw "No supported sudo policy file exists in '$Name'."
+              }
+              return $policies
+          }
+
+          function Ensure-HacocoonSudoRuleLoaded([string]$Name, [string]$RulePath) {
+              $includedirPattern = '^[[:space:]]*(@includedir|#includedir)[[:space:]]+/etc/sudoers\.d([[:space:]]|$)'
+              $includeLine = "@include $RulePath"
+              $loadedPolicies = @()
+
+              foreach ($policy in @(Get-SudoersPolicyFiles $Name)) {
+                  $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "grep", "-Eq", $includedirPattern, $policy)
+                  if ($probe.ExitCode -eq 0) {
+                      $loadedPolicies += $policy
+                      continue
+                  }
+                  if ($probe.ExitCode -ne 1) {
+                      throw "Failed to inspect sudo policy '$policy': $($probe.Stderr)"
+                  }
+
+                  # Minimal Ubuntu/WSL policy may ignore /etc/sudoers.d. Include
+                  # only the Hacocoon-owned temporary rule instead of enabling all
+                  # unrelated drop-ins.
+                  $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "grep", "-Fx", $includeLine, $policy)
+                  if ($probe.ExitCode -eq 1) {
+                      $probe = Write-WslUtf8File $Name $policy ("`n$includeLine`n") -Append
+                      if ($probe.ExitCode -ne 0) {
+                          throw "Failed to include '$RulePath' from sudo policy '$policy': $($probe.Stderr)"
+                      }
+                  } elseif ($probe.ExitCode -ne 0) {
+                      throw "Failed to inspect Hacocoon sudo include in '$policy': $($probe.Stderr)"
+                  }
+                  $loadedPolicies += $policy
+              }
+
+              return ($loadedPolicies -join ", ")
+          }
+'''
+
+          if installer.count(old) != 1:
+              raise SystemExit(f"expected exactly one sudo provider block, found {installer.count(old)}")
+          installer = installer.replace(old, new)
+
+          old_cleanup = r'''    $activePolicy = Get-ActiveSudoersPolicy $Name
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $activePolicy)
+              if ($probe.ExitCode -ne 0) {
+                  throw "Active sudo policy '$activePolicy' is invalid after Hacocoon include cleanup: $($probe.Stderr)"
+              }
+          }'''
+          new_cleanup = r'''    # The temporary rule itself is already removed before this cleanup.
+              # Remove explicit includes from every supported policy file; provider
+              # selection is intentionally irrelevant here.
+          }'''
+          if installer.count(old_cleanup) != 1:
+              raise SystemExit(f"expected exactly one cleanup validation block, found {installer.count(old_cleanup)}")
+          installer = installer.replace(old_cleanup, new_cleanup)
+
+          installer = installer.replace(
+              '$activePolicy = Ensure-HacocoonSudoRuleLoaded $Name $BootstrapSudoersPath\n    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", "/usr/bin/true")',
+              '$policySet = Ensure-HacocoonSudoRuleLoaded $Name $BootstrapSudoersPath\n    Write-Step "Validating temporary sudo rule through policy candidates: $policySet"\n    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", "/usr/bin/true")',
+          )
+          installer = installer.replace(
+              'through \'$activePolicy\': $($probe.Stderr)',
+              'after loading policy candidates \'$policySet\': $($probe.Stderr)',
+          )
+          if 'Get-ActiveSudoersPolicy' in installer or '"readlink", "-f", "/usr/bin/sudo"' in installer:
+              raise SystemExit("provider-guessing implementation survived replacement")
+          installer_path.write_text(installer, encoding="utf-8")
+
+          test_path = Path("tools/test_installer_packages.py")
+          test = test_path.read_text(encoding="utf-8")
+          old_markers = '''                'Get-ActiveSudoersPolicy',\n                '\"readlink\", \"-f\", \"/usr/bin/sudo\"',\n                '/usr/lib/cargo/bin/sudo',\n                '/etc/sudoers-rs','''
+          new_markers = '''                'Get-SudoersPolicyFiles',\n                '@(\"/etc/sudoers-rs\", \"/etc/sudoers\")',\n                'Validating temporary sudo rule through policy candidates',\n                '/etc/sudoers-rs','''
+          if test.count(old_markers) != 1:
+              raise SystemExit(f"expected exactly one installer contract marker block, found {test.count(old_markers)}")
+          test = test.replace(old_markers, new_markers)
+
+          old_forbidden = '''            if "$provider.Stdout -match '^sudo-rs'" in windows_installer:\n                raise SystemExit(\n                    "Windows installer regressed to human-facing sudo version-string provider detection"\n                )'''
+          new_forbidden = '''            for forbidden_provider_guess in (\n                "$provider.Stdout -match '^sudo-rs'",\n                '\"readlink\", \"-f\", \"/usr/bin/sudo\"',\n                '\"update-alternatives\"',\n            ):\n                if forbidden_provider_guess in windows_installer:\n                    raise SystemExit(\n                        f"Windows installer regressed to sudo provider guessing: {forbidden_provider_guess!r}"\n                    )'''
+          if test.count(old_forbidden) != 1:
+              raise SystemExit(f"expected exactly one forbidden provider check, found {test.count(old_forbidden)}")
+          test = test.replace(old_forbidden, new_forbidden)
+          test_path.write_text(test, encoding="utf-8")
+          PY
+
+          python3 tools/test_installer_packages.py
+
+      - name: Commit fix and remove temporary helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "SLktEx"
+          git config user.email "85579720+SLktEx@users.noreply.github.com"
+          git rm .github/workflows/pr403-sudo-policy-probe-patch.yml
+          git add scripts/install-windows.ps1 tools/test_installer_packages.py
+          git diff --cached --check
+          git commit -m "fix(windows): probe effective sudo policy behaviorally"
+          git push origin HEAD:fix/windows-one-shot-bootstrap
