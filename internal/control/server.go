@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/SLktEx/Hacocoon/internal/terminalsession"
 )
 
 var noDeadline time.Time
@@ -128,7 +130,8 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	if request.Method == methodSessionWait {
+	switch request.Method {
+	case methodSessionWait:
 		if request.Stream {
 			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "invalid_argument", Message: "session wait is not a stream"}))
 			return
@@ -150,6 +153,23 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		}
 		_ = writeJSONLine(conn, responseEnvelope{Version: ProtocolVersion, Payload: payload})
 		return
+
+	case methodSessionResize:
+		if request.Stream {
+			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "invalid_argument", Message: "session resize is not a stream"}))
+			return
+		}
+		var resizeRequest sessionResizeRequest
+		if err := json.Unmarshal(request.Payload, &resizeRequest); err != nil {
+			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "invalid_argument", Message: "invalid session resize request"}))
+			return
+		}
+		if err := s.resizeSession(resizeRequest); err != nil {
+			_ = writeJSONLine(conn, errorEnvelope(err))
+			return
+		}
+		_ = writeJSONLine(conn, responseEnvelope{Version: ProtocolVersion})
+		return
 	}
 
 	if request.Stream {
@@ -160,17 +180,9 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "not_found", Message: "stream method not found"}))
 			return
 		}
-		stream, err := handler(ctx, request.Payload)
-		if err != nil {
-			_ = writeJSONLine(conn, errorEnvelope(err))
-			return
-		}
-		if stream == nil {
-			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "internal", Message: "stream handler returned no stream"}))
-			return
-		}
 
 		response := responseEnvelope{Version: ProtocolVersion}
+		handlerCtx := ctx
 		var sessionID string
 		var session *serverSession
 		if request.Session {
@@ -179,7 +191,24 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 				_ = writeJSONLine(conn, errorEnvelope(err))
 				return
 			}
+			handlerCtx = terminalsession.WithResizeSource(ctx, session)
 			response.SessionID = sessionID
+		}
+
+		stream, err := handler(handlerCtx, request.Payload)
+		if err != nil {
+			if session != nil {
+				s.discardSession(sessionID, session)
+			}
+			_ = writeJSONLine(conn, errorEnvelope(err))
+			return
+		}
+		if stream == nil {
+			if session != nil {
+				s.discardSession(sessionID, session)
+			}
+			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "internal", Message: "stream handler returned no stream"}))
+			return
 		}
 		if err := writeJSONLine(conn, response); err != nil {
 			if session != nil {
@@ -188,7 +217,7 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 			return
 		}
 
-		streamErr := stream(ctx, &bufferedConn{Conn: conn, reader: reader})
+		streamErr := stream(handlerCtx, &bufferedConn{Conn: conn, reader: reader})
 		if session != nil {
 			// Publish completion before the stream connection is closed by the
 			// outer defer. A client that observes EOF can therefore immediately
