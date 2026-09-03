@@ -11,8 +11,7 @@ on:
       - "scripts/install-windows.ps1"
       - "scripts/install.sh"
       - "tools/package_installers.py"
-      - "tools/installer-user-journey-e2e.sh"
-      - "tools/installer-network-security-e2e.sh"
+      - "tools/windows-installer-user-path-e2e.py"
       - ".github/workflows/windows-all-scripts-e2e.yml"
   workflow_dispatch:
 
@@ -22,7 +21,7 @@ permissions:
 jobs:
   windows-user-path:
     runs-on: windows-latest
-    timeout-minutes: 55
+    timeout-minutes: 70
     steps:
       - name: Checkout candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -103,166 +102,40 @@ jobs:
             throw "amd64 package contains arm64 payload."
           }
 
-      - name: User path phase 1 - run packaged BAT unchanged
+      - name: Prepare ConPTY user-input driver
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m pip install --disable-pip-version-check --no-input "pywinpty==3.0.2"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to install the ConPTY test driver dependency." }
+          python -m py_compile ./tools/windows-installer-user-path-e2e.py
+          if ($LASTEXITCODE -ne 0) { throw "Windows user-path driver failed syntax validation." }
+
+      - name: Reject Hacocoon test overrides before user path
+        shell: pwsh
+        run: |
+          $overrides = @(Get-ChildItem Env: | Where-Object { $_.Name -like 'HACO_*' })
+          if ($overrides.Count -ne 0) {
+            $names = ($overrides.Name | Sort-Object) -join ', '
+            throw "Exact user-path E2E refuses Hacocoon environment overrides: $names"
+          }
+
+      # USER-ACTION BOUNDARY:
+      # From the first packaged install-windows.bat invocation onward, the
+      # product-driving path is only terminal automation of commands a real user
+      # can type unchanged. No CI-only environment, installer/Hacocoon argument
+      # or option, root WSL preparation/repair, synthetic lifecycle action,
+      # alternate Hacocoon entry point, or test fixture mutation is allowed.
+      # The driver itself enforces a closed argv/command allowlist.
+      - name: Exercise exact packaged Windows install and reinstall user path
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $packageRoot = Join-Path $env:RUNNER_TEMP "hacocoon-windows-amd64"
           Push-Location $packageRoot
           try {
-            & cmd.exe /d /c "install-windows.bat"
-            if ($LASTEXITCODE -ne 0) { throw "Packaged BAT phase 1 failed with exit code $LASTEXITCODE." }
+            python "$env:GITHUB_WORKSPACE\tools\windows-installer-user-path-e2e.py"
+            if ($LASTEXITCODE -ne 0) { throw "Exact Windows installer user path failed." }
           } finally {
             Pop-Location
-          }
-
-      - name: Complete normal Ubuntu first-launch fixture
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $instance = "Hacocoon"
-          $loginUser = "haco-e2e"
-          $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
-          if (-not ($installed -contains $instance)) { throw "Packaged installer did not create the default Hacocoon WSL distribution." }
-
-          & wsl.exe --distribution $instance --user root --exec sh -eu -c "id '$loginUser' >/dev/null 2>&1 || useradd -m -s /bin/bash -G sudo '$loginUser'"
-          if ($LASTEXITCODE -ne 0) { throw "Failed to create ordinary Ubuntu user fixture." }
-
-          & wsl.exe --distribution $instance --user root --exec sh -eu -c "printf '\n[user]\ndefault=%s\n' '$loginUser' >> /etc/wsl.conf"
-          if ($LASTEXITCODE -ne 0) { throw "Failed to set the normal WSL default user fixture." }
-
-          # The hosted runner cannot answer an interactive sudo password prompt.
-          # Give the fixture user only the exact command families exercised by
-          # the normal installer. No installer argument or environment is changed.
-          $sudoers = @(
-            "Cmnd_Alias HACO_BOOTSTRAP = /usr/bin/apt-get, /usr/bin/install, /usr/bin/mkdir, /usr/bin/tee, /usr/bin/chmod, /usr/sbin/groupadd, /usr/sbin/usermod, /usr/bin/systemctl, /usr/bin/incus, /usr/bin/stat, /usr/bin/find, /usr/bin/chown, /usr/bin/cp, /usr/bin/test, /usr/bin/awk, /usr/sbin/modprobe, /usr/local/bin/haco host ensure",
-            "$loginUser ALL=(root) NOPASSWD: HACO_BOOTSTRAP"
-          ) -join "`n"
-          $sudoers += "`n"
-          $sudoersBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($sudoers))
-          & wsl.exe --distribution $instance --user root --exec sh -eu -c "printf '%s' '$sudoersBase64' | base64 -d > /etc/sudoers.d/hacocoon-e2e-bootstrap && chmod 0440 /etc/sudoers.d/hacocoon-e2e-bootstrap && visudo -cf /etc/sudoers.d/hacocoon-e2e-bootstrap >/dev/null"
-          if ($LASTEXITCODE -ne 0) { throw "Failed to prepare noninteractive sudo fixture." }
-
-          & wsl.exe --terminate $instance
-          if ($LASTEXITCODE -ne 0) { throw "Failed to restart WSL after normal first-launch fixture setup." }
-          Start-Sleep -Milliseconds 750
-          $defaultUser = (& wsl.exe --distribution $instance --exec id -un | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or $defaultUser -ne $loginUser) {
-            throw "Normal WSL default user setup failed: got '$defaultUser'."
-          }
-
-      - name: User path phase 2 - run the same packaged BAT unchanged
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $packageRoot = Join-Path $env:RUNNER_TEMP "hacocoon-windows-amd64"
-          Push-Location $packageRoot
-          try {
-            & cmd.exe /d /c "install-windows.bat"
-            if ($LASTEXITCODE -ne 0) { throw "Packaged BAT phase 2 failed with exit code $LASTEXITCODE." }
-          } finally {
-            Pop-Location
-          }
-
-      - name: Assert Hacocoon is usable through the WSL user path
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $instance = "Hacocoon"
-          $loginUser = "haco-e2e"
-
-          $pid1 = (& wsl.exe --distribution $instance --user root --exec ps -p 1 -o comm= | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or $pid1 -ne "systemd") { throw "systemd is not PID 1." }
-
-          $osRelease = (& wsl.exe --distribution $instance --user root --exec cat /etc/os-release | Out-String) -replace "`r", ""
-          if ($LASTEXITCODE -ne 0 -or $osRelease -notmatch '(?m)^ID=ubuntu$') { throw "Installed WSL distribution is not Ubuntu." }
-          $versionMatch = [regex]::Match($osRelease, '(?m)^VERSION_ID="?([^"\r\n]+)"?$')
-          if (-not $versionMatch.Success) { throw "Unable to read installed Ubuntu VERSION_ID." }
-          if ([version]$versionMatch.Groups[1].Value -lt [version]'26.4') { throw "Installed Ubuntu is older than 26.04." }
-
-          & wsl.exe --distribution $instance --user $loginUser --exec test -x /usr/local/bin/haco
-          if ($LASTEXITCODE -ne 0) { throw "haco is not executable for the normal WSL user." }
-          & wsl.exe --distribution $instance --user root --exec test -x /usr/bin/incus
-          if ($LASTEXITCODE -ne 0) { throw "incus is unavailable." }
-
-          & wsl.exe --distribution $instance --user $loginUser --exec /usr/local/bin/haco version
-          if ($LASTEXITCODE -ne 0) { throw "haco version failed." }
-
-          $groups = ((& wsl.exe --distribution $instance --user $loginUser --exec id -nG | Out-String).Trim() -split '\s+')
-          if ($LASTEXITCODE -ne 0 -or $groups -notcontains "hacocoon") {
-            throw "Normal WSL user does not have hacocoon group access after installer completion."
-          }
-          $socketState = (& wsl.exe --distribution $instance --user root --exec stat -Lc "%U:%G:%a" /run/hacocoon/control.sock | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or $socketState -ne "root:hacocoon:660") {
-            throw "Controller socket is not Docker-style root:hacocoon 0660: $socketState"
-          }
-
-          & wsl.exe --distribution $instance --user $loginUser --exec /usr/local/bin/haco doctor
-          if ($LASTEXITCODE -ne 0) { throw "haco doctor failed for hacocoon group member." }
-          & wsl.exe --distribution $instance --user root --exec systemctl is-active --quiet haco-controller.service
-          if ($LASTEXITCODE -ne 0) { throw "haco-controller is not active." }
-          & wsl.exe --distribution $instance --user root --exec test -S /run/hacocoon/control.sock
-          if ($LASTEXITCODE -ne 0) { throw "controller socket is unavailable." }
-          & wsl.exe --distribution $instance --user root --exec incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor
-          if ($LASTEXITCODE -ne 0) { throw "trusted haco-host doctor failed." }
-
-          $passwd = (& wsl.exe --distribution $instance --user root --exec getent passwd $loginUser | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0) { throw "Unable to inspect normal WSL user." }
-          $fields = $passwd -split ':'
-          $shell = if ($fields.Count -ge 7) { $fields[6].Trim() } else { "" }
-          if ($shell -ne "/usr/local/libexec/hacocoon-login") { throw "WSL post-install login integration is incomplete: $shell" }
-
-          & wsl.exe --distribution $instance --user $loginUser --exec sudo -n /usr/local/bin/haco host ensure
-          if ($LASTEXITCODE -ne 0) { throw "Installed narrow sudo rule does not permit haco host ensure." }
-
-      - name: Exercise installed Hacocoon user journey through WSL
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $instance = "Hacocoon"
-          $loginUser = "haco-e2e"
-          $scriptWindows = Join-Path $env:GITHUB_WORKSPACE "tools\installer-user-journey-e2e.sh"
-          $scriptLinux = (& wsl.exe --distribution $instance --user $loginUser --exec wslpath -u -a $scriptWindows | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($scriptLinux)) {
-            throw "Failed to translate the installed user-journey script path into WSL."
-          }
-          & wsl.exe --distribution $instance --user $loginUser --exec env HACO_BIN=/usr/local/bin/haco bash $scriptLinux
-          if ($LASTEXITCODE -ne 0) { throw "Installed Hacocoon WSL user journey failed." }
-
-      - name: Verify installed network isolation and spoofing guards through WSL
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $instance = "Hacocoon"
-          $scriptWindows = Join-Path $env:GITHUB_WORKSPACE "tools\installer-network-security-e2e.sh"
-          $scriptLinux = (& wsl.exe --distribution $instance --user root --exec wslpath -u -a $scriptWindows | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($scriptLinux)) {
-            throw "Failed to translate the network-security script path into WSL."
-          }
-          & wsl.exe --distribution $instance --user root --exec env HACO_BIN=/usr/local/bin/haco bash $scriptLinux
-          if ($LASTEXITCODE -ne 0) { throw "Installed Hacocoon WSL network-security acceptance failed." }
-
-      - name: Collect diagnostics
-        if: failure()
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          $instance = "Hacocoon"
-          & wsl.exe --list --verbose 2>&1 | ForEach-Object { Write-Host $_ }
-          $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
-          if ($installed -contains $instance) {
-            wsl.exe --distribution $instance --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; command -v nft || true; getent group hacocoon || true; stat -Lc "%U:%G:%a %n" /run/hacocoon/control.sock || true; haco version || true; haco doctor || true; haco env list || true; nft list ruleset || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true; incus network list --project default || true'
-          }
-          $global:LASTEXITCODE = 0
-
-      - name: Remove Hacocoon WSL distribution
-        if: always()
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          $instance = "Hacocoon"
-          $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
-          if ($installed -contains $instance) {
-            wsl.exe --terminate $instance 2>$null
-            wsl.exe --unregister $instance
           }
