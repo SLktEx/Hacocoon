@@ -51,39 +51,15 @@ func TestHostEnsureNamespaceContinuesWhenAlreadyWithPID1(t *testing.T) {
 	}
 }
 
-func TestHostEnsureNamespaceReexecsThroughPID1MountNamespaceWhenIncusInactive(t *testing.T) {
+func TestHostEnsureNamespaceRejectsMissingIncusMainPID(t *testing.T) {
 	deps := testHostEnsureNamespaceDeps()
-	deps.readlink = func(path string) (string, error) {
-		switch path {
-		case selfMountNamespace:
-			return "mnt:[11]", nil
-		case initMountNamespace:
-			return "mnt:[22]", nil
-		default:
-			return "", errors.New("unexpected path")
-		}
-	}
-
-	var gotName string
-	var gotArgs []string
-	deps.run = func(_ context.Context, name string, args []string, _ io.Reader, _ io.Writer, _ io.Writer) error {
-		gotName = name
-		gotArgs = append([]string(nil), args...)
-		return nil
-	}
+	deps.incusMainPID = func(context.Context) (int, error) { return 0, nil }
 
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
 		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
-	if !handled || err != nil {
-		t.Fatalf("handled=%v err=%v, want true nil", handled, err)
-	}
-	if gotName != nsenterBinary {
-		t.Fatalf("runner name=%q, want %q", gotName, nsenterBinary)
-	}
-	wantArgs := []string{"--mount=" + initMountNamespace, "--", "/usr/local/bin/haco", "host", "ensure"}
-	if !reflect.DeepEqual(gotArgs, wantArgs) {
-		t.Fatalf("runner args=%q, want %q", gotArgs, wantArgs)
+	if !handled || err == nil || !strings.Contains(err.Error(), "invalid MainPID 0") {
+		t.Fatalf("handled=%v err=%v, want missing Incus MainPID failure", handled, err)
 	}
 }
 
