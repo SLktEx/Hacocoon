@@ -159,11 +159,11 @@ haco host shell
 
 Installer E2E は `install.sh` 単体成功ではなく、実際の user-visible entry point から判定します。
 
-Windows gate は product-driving path に入る前に candidate `hacocoon-windows-amd64.zip` を build / 展開します。その後、Hacocoon を動かすための操作は **実ユーザーと同じ command と interaction** だけにします。`install-windows.bat` は Hacocoon 固有の追加 argument / environment override なしで実行し、Ubuntu first-launch は documented な `wsl -d Hacocoon` の interactive session で完了し、同じ packaged BAT を再実行します。Install 後の Host entry も同じ `wsl -d Hacocoon` を使い、通常の `haco` command を実行し、既存 state に対して unchanged BAT をもう一度実行した後も既存 Environment / Workspace が利用可能であることを確認します。
+Windows gate は user-path boundary に入る前に candidate `hacocoon-windows-amd64.zip` を build / 展開します。最初の packaged `install-windows.bat` を実行した後は、**実ユーザーがそのまま実行できる command と interaction だけ**を success path に使います。`install-windows.bat`、documented な `wsl -d Hacocoon` による Ubuntu first-launch、同じ packaged BAT の再実行、同じ `wsl -d Hacocoon` からの Host entry、通常の documented `haco` command による Environment 作成・利用、既存 state に対する unchanged BAT の再実行、そして同じ user path から既存 Environment を再利用できることまで確認します。
 
-Product action を成功させるために、`HACO_*` variable、installer-only E2E argument / option、CI 専用 user / sudoers、root での事前準備、Incus / mount / loop の repair、または後続 action を通すための mutation を注入してはいけません。CI が通常の terminal key input を自動化することはできますが、product action が見る command line や configuration は変更しません。
+この boundary 以降は `HACO_*` variable、installer / E2E 専用 argument や option、CI 専用 user / sudoers、`wsl --user root` / `wsl --exec`、`systemctl` / Incus / mount / loop の直接 inspection、synthetic な WSL terminate、marker command、assertion 専用 shell command、state repair を一切挟みません。CI が自動化してよいのは通常の terminal key input だけで、user-facing action が見る command line、process environment、lifecycle、product configuration は変更しません。
 
-一方、**product action 実行後の read-only assertion は許可し、むしろ積極的に行います**。`systemctl`、`incus storage get/show`、`findmnt`、`losetup`、`stat`、Environment の read-only inspection などで直前の action が期待どおり設定したか確認して構いません。確認に必要な権限で状態を読むことも可能です。ただし、その assertion が後続 action のために state を変更・repair した時点で禁止対象です。Reinstall acceptance では unchanged BAT の再実行前後で managed Btrfs mount、zstd compression、loop backing、Incus storage source、controller service、live Environment を確認します。
+Passing path の assertion は、通常の user-visible command output と process completion だけから行います。Storage / reconciliation regression もユーザーが実際に受ける結果で検出します。Unchanged reinstall が完了し、`haco env status` で既存 Environment が見え続け、通常の `haco env exec` がその Environment で再び成功することを要求します。Btrfs mount / loop / Incus storage の低レベル診断は、この exact user-path gate ではなく別の diagnostic / component test に置きます。
 
 Native Ubuntu gate は candidate `hacocoon-ubuntu-amd64.tar.gz` を作って展開し、package 内の `install-ubuntu.sh` を実行します。Controller と trusted `haco-host` round trip が成功し、native login shell が変更されていないことまで確認します。
 
