@@ -81,6 +81,21 @@ with tempfile.TemporaryDirectory() as temp:
             if zf.read("VERSION").decode() != VERSION + "\n":
                 raise SystemExit(f"Windows {arch} version mismatch")
 
+            windows_installer = zf.read("install-windows.ps1").decode("utf-8")
+            for required in (
+                "function Invoke-ElevatedWsl",
+                'Start-Process -FilePath "wsl.exe"',
+                "-Verb RunAs",
+                "Administrator approval is required only to create",
+                "Invoke-ElevatedWsl $args",
+            ):
+                if required not in windows_installer:
+                    raise SystemExit(
+                        f"Windows {arch} package is missing UAC creation behavior: {required!r}"
+                    )
+            if "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell." in windows_installer:
+                raise SystemExit(f"Windows {arch} package still contains the old elevation hard failure")
+
         with tarfile.open(out / f"hacocoon-ubuntu-{arch}.tar.gz", "r:gz") as tf:
             names = tf.getnames()
             expected = ["install-ubuntu.sh", "install.sh", archive_name, "checksums.txt", "VERSION"]
