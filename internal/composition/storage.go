@@ -2,38 +2,23 @@ package composition
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
-	"github.com/SLktEx/Hacocoon/internal/host"
+	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
 )
 
-const defaultIncusProject = "hacocoon"
-
-func ensureDefaultIncusStoragePool(ctx context.Context, runner host.Runner) (map[string]string, error) {
+func ensureDefaultIncusStoragePool(ctx context.Context, runtime *incus.Runtime) (map[string]string, error) {
 	attachment := defaultIncusStorageAttachment()
-	pool := attachment["incus_pool"]
-	if _, err := runner.Run(ctx, "incus", "storage", "show", pool, "--project", defaultIncusProject); err == nil {
-		return map[string]string{"incus_pool": pool}, nil
-	}
-
-	args := []string{
-		"storage", "create", pool, attachment["driver"],
-		"size=" + attachment["size"],
-		"btrfs.mount_options=" + attachment["btrfs.mount_options"],
-		"--project", defaultIncusProject,
-	}
-	result, err := runner.Run(ctx, "incus", args...)
+	pool, err := runtime.EnsureBtrfsLoopPool(ctx, incus.BtrfsLoopPoolSpec{
+		Name:         attachment["incus_pool"],
+		Size:         attachment["size"],
+		MountOptions: attachment["btrfs.mount_options"],
+	})
 	if err != nil {
-		reason := strings.TrimSpace(result.Stderr)
-		if reason != "" {
-			return nil, fmt.Errorf("create Incus-managed Btrfs storage pool %q: %s: %w", pool, reason, err)
-		}
-		return nil, fmt.Errorf("create Incus-managed Btrfs storage pool %q: %w", pool, err)
+		return nil, err
 	}
 
-	// Return only the pool identity. The runtime immediately verifies it with
-	// `incus storage show`; it does not need a Host source path because Incus
-	// owns the loop image and mount lifecycle for this pool.
+	// Return only the pool identity. The generic runtime path immediately
+	// verifies it and does not need a Host source path because Incus owns the
+	// sparse image, loop device and mount lifecycle.
 	return map[string]string{"incus_pool": pool}, nil
 }
