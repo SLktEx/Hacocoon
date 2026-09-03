@@ -496,8 +496,15 @@ func (r *Runtime) ensureStoragePool(ctx context.Context, attachment map[string]s
 	if driver == "" || source == "" {
 		return "", fmt.Errorf("storage attachment missing driver/source")
 	}
-	_, err := r.runner.Run(ctx, "incus", "storage", "create", pool, driver, "source="+source, "--project", r.project)
-	return pool, err
+	result, err := r.runner.Run(ctx, "incus", "storage", "create", pool, driver, "source="+source, "--project", r.project)
+	if err != nil {
+		reason := strings.TrimSpace(result.Stderr)
+		if reason != "" {
+			return "", fmt.Errorf("create Incus storage pool %q from %q: %s: %w", pool, source, reason, err)
+		}
+		return "", fmt.Errorf("create Incus storage pool %q from %q: %w", pool, source, err)
+	}
+	return pool, nil
 }
 
 func (r *Runtime) execInteractive(ctx context.Context, ref string, argv []string) (core.ExecResult, error) {
