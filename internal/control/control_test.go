@@ -13,6 +13,11 @@ import (
 	"time"
 )
 
+type testSessionExitError struct{ code int }
+
+func (e testSessionExitError) Error() string { return "guest exited" }
+func (e testSessionExitError) ExitCode() int { return e.code }
+
 func TestCallOverUnixSocket(t *testing.T) {
 	client, cancel := startTestServer(t, func(server *Server) {
 		if err := server.Register("echo", func(_ context.Context, payload json.RawMessage) (any, error) {
@@ -70,6 +75,133 @@ func TestOpenStreamPreservesBufferedBytes(t *testing.T) {
 	}
 }
 
+func TestOpenSessionReportsCleanCompletion(t *testing.T) {
+	client, cancel := startTestServer(t, func(server *Server) {
+		if err := server.RegisterStream("session-ok", func(context.Context, json.RawMessage) (Stream, error) {
+			return func(context.Context, net.Conn) error { return nil }, nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	defer cancel()
+
+	stream, err := client.OpenSession(context.Background(), "session-ok", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	if _, err := io.ReadAll(stream); err != nil {
+		t.Fatalf("clean session completion = %v", err)
+	}
+}
+
+func TestOpenSessionReportsProcessExitStatus(t *testing.T) {
+	client, cancel := startTestServer(t, func(server *Server) {
+		if err := server.RegisterStream("session-exit", func(context.Context, json.RawMessage) (Stream, error) {
+			return func(_ context.Context, conn net.Conn) error {
+				_, _ = io.WriteString(conn, "output")
+				return testSessionExitError{code: 7}
+			}, nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	defer cancel()
+
+	stream, err := client.OpenSession(context.Background(), "session-exit", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	output, err := io.ReadAll(stream)
+	if string(output) != "output" {
+		t.Fatalf("session output = %q", output)
+	}
+	var exitCoder interface{ ExitCode() int }
+	if !errors.As(err, &exitCoder) || exitCoder.ExitCode() != 7 {
+		t.Fatalf("session completion error = %v, want exit code 7", err)
+	}
+}
+
+func TestOpenSessionReportsPostHandshakeFailure(t *testing.T) {
+	client, cancel := startTestServer(t, func(server *Server) {
+		if err := server.RegisterStream("session-fail", func(context.Context, json.RawMessage) (Stream, error) {
+			return func(context.Context, net.Conn) error {
+				return errors.New("runtime exploded")
+			}, nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	defer cancel()
+
+	stream, err := client.OpenSession(context.Background(), "session-fail", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	_, err = io.ReadAll(stream)
+	var status *StatusError
+	if !errors.As(err, &status) || status.Code != "internal" || !strings.Contains(status.Message, "runtime exploded") {
+		t.Fatalf("session completion error = %v, want internal runtime failure", err)
+	}
+}
+
+func TestLegacyOpenStreamRetainsEOFOnlyCompletion(t *testing.T) {
+	client, cancel := startTestServer(t, func(server *Server) {
+		if err := server.RegisterStream("legacy-fail", func(context.Context, json.RawMessage) (Stream, error) {
+			return func(context.Context, net.Conn) error {
+				return errors.New("legacy failure")
+			}, nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	defer cancel()
+
+	stream, err := client.OpenStream(context.Background(), "legacy-fail", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	if _, err := io.ReadAll(stream); err != nil {
+		t.Fatalf("legacy stream unexpectedly changed completion semantics: %v", err)
+	}
+}
+
+func TestOpenSessionAbruptDisconnectStopsServerStream(t *testing.T) {
+	streamDone := make(chan error, 1)
+	client, cancel := startTestServer(t, func(server *Server) {
+		if err := server.RegisterStream("session-disconnect", func(context.Context, json.RawMessage) (Stream, error) {
+			return func(_ context.Context, conn net.Conn) error {
+				buffer := make([]byte, 1)
+				_, err := conn.Read(buffer)
+				streamDone <- err
+				return err
+			}, nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	defer cancel()
+
+	stream, err := client.OpenSession(context.Background(), "session-disconnect", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-streamDone:
+		if err == nil {
+			t.Fatal("server stream returned nil after abrupt disconnect")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("server stream did not stop after abrupt disconnect")
+	}
+}
+
 func TestStreamValidationErrorIsReturnedBeforeAck(t *testing.T) {
 	client, cancel := startTestServer(t, func(server *Server) {
 		if err := server.RegisterStream("denied", func(context.Context, json.RawMessage) (Stream, error) {
@@ -116,6 +248,16 @@ func TestOpenStreamClosesOnContextCancellation(t *testing.T) {
 	buffer := make([]byte, 1)
 	if _, err := stream.Read(buffer); err == nil {
 		t.Fatal("stream remained open after context cancellation")
+	}
+}
+
+func TestReservedSessionMethodCannotBeRegistered(t *testing.T) {
+	server := NewServer()
+	if err := server.Register(methodSessionWait, func(context.Context, json.RawMessage) (any, error) { return nil, nil }); !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("Register reserved method error = %v, want ErrInvalidArgument", err)
+	}
+	if err := server.RegisterStream("_control.custom", func(context.Context, json.RawMessage) (Stream, error) { return nil, nil }); !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("RegisterStream reserved prefix error = %v, want ErrInvalidArgument", err)
 	}
 }
 
