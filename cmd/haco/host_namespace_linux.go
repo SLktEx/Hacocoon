@@ -41,7 +41,18 @@ var defaultHostEnsureNamespaceDeps = hostEnsureNamespaceDeps{
 	executable:   os.Executable,
 	evalSymlinks: filepath.EvalSymlinks,
 	stat:         os.Stat,
-	incusMainPID: func(ctx context.Context) (int, error) {
+	incusMainPID: ensureIncusMainPID,
+	run: func(ctx context.Context, name string, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
+		cmd := exec.CommandContext(ctx, name, args...)
+		cmd.Stdin = stdin
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
+		return cmd.Run()
+	},
+}
+
+func ensureIncusMainPID(ctx context.Context) (int, error) {
+	readPID := func() (int, error) {
 		output, err := exec.CommandContext(ctx, systemctlBinary, "show", "--property", "MainPID", "--value", incusServiceName).Output()
 		if err != nil {
 			return 0, err
@@ -55,14 +66,26 @@ var defaultHostEnsureNamespaceDeps = hostEnsureNamespaceDeps{
 			return 0, fmt.Errorf("invalid %s MainPID %q", incusServiceName, raw)
 		}
 		return pid, nil
-	},
-	run: func(ctx context.Context, name string, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
-		cmd := exec.CommandContext(ctx, name, args...)
-		cmd.Stdin = stdin
-		cmd.Stdout = stdout
-		cmd.Stderr = stderr
-		return cmd.Run()
-	},
+	}
+
+	pid, err := readPID()
+	if err != nil || pid > 1 {
+		return pid, err
+	}
+	// WSL can boot with only incus.socket active. Starting incus.service here is
+	// deliberate: host ensure is about to require the daemon anyway, and we must
+	// know its final mount namespace before creating the managed Btrfs mount.
+	if err := exec.CommandContext(ctx, systemctlBinary, "start", incusServiceName).Run(); err != nil {
+		return 0, err
+	}
+	pid, err = readPID()
+	if err != nil {
+		return 0, err
+	}
+	if pid <= 1 {
+		return 0, fmt.Errorf("%s started without a usable MainPID", incusServiceName)
+	}
+	return pid, nil
 }
 
 // host ensure is the Physical Host bootstrap/recovery path. On WSL, processes
@@ -70,9 +93,9 @@ var defaultHostEnsureNamespaceDeps = hostEnsureNamespaceDeps{
 // PID 1/systemd and an already-running incusd. A Btrfs mount created only in the
 // session or PID 1 namespace can therefore remain invisible to incusd even
 // though findmnt and the storage helper report success. For a root command that
-// is actually outside PID 1's namespace, re-enter the running Incus daemon's
-// mount namespace when available, otherwise PID 1's namespace, before
-// composition.Local() lazily creates or reconciles managed storage.
+// is actually outside PID 1's namespace, ensure Incus is running and re-enter
+// its validated daemon mount namespace before composition.Local() lazily creates
+// or reconciles managed storage.
 func init() {
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
 		context.Background(),
@@ -143,18 +166,22 @@ func maybeReexecHostEnsureInInitMountNamespace(
 		return true, fmt.Errorf("refusing Physical Host mount namespace entry because PID 1 is %q, not systemd", strings.TrimSpace(string(comm)))
 	}
 
-	targetNamespace := initMountNamespace
-	if pid, pidErr := deps.incusMainPID(ctx); pidErr == nil && pid > 1 {
-		commPath := fmt.Sprintf("/proc/%d/comm", pid)
-		incusComm, err := deps.readFile(commPath)
-		if err != nil {
-			return true, fmt.Errorf("inspect %s MainPID %d before mount namespace entry: %w", incusServiceName, pid, err)
-		}
-		if strings.TrimSpace(string(incusComm)) != "incusd" {
-			return true, fmt.Errorf("refusing %s mount namespace entry because MainPID %d is %q, not incusd", incusServiceName, pid, strings.TrimSpace(string(incusComm)))
-		}
-		targetNamespace = fmt.Sprintf("/proc/%d/ns/mnt", pid)
+	pid, err := deps.incusMainPID(ctx)
+	if err != nil {
+		return true, fmt.Errorf("resolve running %s for WSL mount reconciliation: %w", incusServiceName, err)
 	}
+	if pid <= 1 {
+		return true, fmt.Errorf("resolve running %s for WSL mount reconciliation: invalid MainPID %d", incusServiceName, pid)
+	}
+	commPath := fmt.Sprintf("/proc/%d/comm", pid)
+	incusComm, err := deps.readFile(commPath)
+	if err != nil {
+		return true, fmt.Errorf("inspect %s MainPID %d before mount namespace entry: %w", incusServiceName, pid, err)
+	}
+	if strings.TrimSpace(string(incusComm)) != "incusd" {
+		return true, fmt.Errorf("refusing %s mount namespace entry because MainPID %d is %q, not incusd", incusServiceName, pid, strings.TrimSpace(string(incusComm)))
+	}
+	targetNamespace := fmt.Sprintf("/proc/%d/ns/mnt", pid)
 
 	targetNS, err := deps.readlink(targetNamespace)
 	if err != nil {
