@@ -1,0 +1,68 @@
+name: cleanup-obsolete-action-logs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/cleanup-obsolete-action-logs.yml
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: cleanup-obsolete-action-logs
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Delete logs from retired workflows
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          ids_file="$(mktemp)"
+          trap 'rm -f "$ids_file"' EXIT
+
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?per_page=100" \
+            --jq '.workflow_runs[] |
+              select(
+                .name == "secret-scan" or
+                .name == "vscode-agent-workspace" or
+                .name == "release-request" or
+                .name == "release-v0.1.4-bootstrap" or
+                .name == "release-v0.1.5-bootstrap" or
+                .name == "seed-private-registry-acceptance"
+              ) |
+              .id' \
+            | sort -nu > "$ids_file"
+
+          count="$(wc -l < "$ids_file" | tr -d ' ')"
+          echo "Found $count retired workflow runs whose logs should be removed."
+
+          deleted=0
+          already_absent=0
+          while IFS= read -r run_id; do
+            [[ -n "$run_id" ]] || continue
+            if gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/logs" >/dev/null 2>&1; then
+              deleted=$((deleted + 1))
+            else
+              # GitHub returns 404 when logs are already gone. Verify the run itself
+              # still exists before treating the failure as benign.
+              if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" >/dev/null 2>&1; then
+                already_absent=$((already_absent + 1))
+              else
+                echo "Failed to verify workflow run $run_id after log deletion error." >&2
+                exit 1
+              fi
+            fi
+          done < "$ids_file"
+
+          echo "Deleted logs for $deleted runs; $already_absent runs already had no logs."
