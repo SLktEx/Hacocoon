@@ -43,105 +43,68 @@ jobs:
               printf '%s\n' "$conflicts" >&2
               exit 1
             fi
-            git checkout --ours -- tools/test_installer_packages.py
+            # Keep main's UAC regression checks as the base, then append the
+            # one-shot/interactive contracts from this PR below.
+            git checkout --theirs -- tools/test_installer_packages.py
           fi
 
           python3 - <<'PY'
           from pathlib import Path
 
-          ps1 = Path('scripts/install-windows.ps1')
-          text = ps1.read_text(encoding='utf-8')
+          ps1 = Path('scripts/install-windows.ps1').read_text(encoding='utf-8')
+          required_product_contract = (
+              'function Invoke-ElevatedWsl',
+              'Invoke-ElevatedWsl $args',
+              '[switch]$InteractiveUserSetup',
+              '$ManagedLoginUser = "hacocoon"',
+              'Ensure-ManagedWslLoginUser',
+              'Complete-InteractiveWslUserSetup',
+              'Enable-BootstrapSudo',
+              'Disable-BootstrapSudo',
+              '$OutputEncoding = [Text.UTF8Encoding]::new($false)',
+              'Running common Ubuntu install.sh',
+          )
+          for marker in required_product_contract:
+              if marker not in ps1:
+                  raise SystemExit(f'merged Windows installer lost required behavior: {marker!r}')
+          if 'Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell.' in ps1:
+              raise SystemExit('merged Windows installer regressed to pre-UAC creation behavior')
 
-          uac_function = '''function Invoke-ElevatedWsl([string[]]$Arguments) {
-              $systemWsl = Join-Path ([Environment]::SystemDirectory) "wsl.exe"
-              if (-not (Test-Path -LiteralPath $systemWsl -PathType Leaf)) {
-                  throw "The system wsl.exe is unavailable at '$systemWsl'."
-              }
-              Write-Step "Administrator approval is required only to create the dedicated Hacocoon WSL instance. Requesting UAC."
-              try {
-                  $process = Start-Process -FilePath $systemWsl -ArgumentList $Arguments -Verb RunAs -Wait -PassThru
-              } catch {
-                  throw "Administrator approval was cancelled or elevation could not be started. The dedicated Hacocoon WSL instance was not created."
-              }
-              return [int]$process.ExitCode
-          }
-
-          '''
-          if 'function Invoke-ElevatedWsl' not in text:
-              marker = 'function Assert-SafeName([string]$Value, [string]$Label) {'
+          test_path = Path('tools/test_installer_packages.py')
+          text = test_path.read_text(encoding='utf-8')
+          if 'Windows installer lost one-shot bootstrap contract' not in text:
+              marker = '        with tarfile.open(out / f"hacocoon-ubuntu-{arch}.tar.gz", "r:gz") as tf:\n'
               if marker not in text:
-                  raise SystemExit('unable to locate Assert-SafeName insertion point')
-              text = text.replace(marker, uac_function + marker, 1)
-
-          old = '''if (-not ($installed -contains $InstanceName)) {
-              if (-not (Test-Administrator)) {
-                  throw "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell."
-              }
-              Write-Step "Creating dedicated WSL instance '$InstanceName' from '$BaseDistro'"
-              $args = @("--install", $BaseDistro, "--name", $InstanceName, "--no-launch")
-              if ($WebDownload) { $args += "--web-download" }
-              & wsl.exe @args
-              if ($LASTEXITCODE -ne 0) {
-                  throw "Failed to create '$InstanceName'. Update WSL with 'wsl --update' if named installation is unsupported."
-              }
-              $createdInstance = $true
-          }
-          '''
-          new = '''if (-not ($installed -contains $InstanceName)) {
-              Write-Step "Creating dedicated WSL instance '$InstanceName' from '$BaseDistro'"
-              $args = @("--install", $BaseDistro, "--name", $InstanceName, "--no-launch")
-              if ($WebDownload) { $args += "--web-download" }
-
-              if (Test-Administrator) {
-                  & wsl.exe @args
-                  $createExitCode = $LASTEXITCODE
-              } else {
-                  $createExitCode = Invoke-ElevatedWsl $args
-              }
-              if ($createExitCode -ne 0) {
-                  throw "Failed to create '$InstanceName'. Update WSL with 'wsl --update' if named installation is unsupported."
-              }
-              $createdInstance = $true
-          }
-          '''
-          if old in text:
-              text = text.replace(old, new, 1)
-          elif 'Invoke-ElevatedWsl $args' not in text:
-              raise SystemExit('unable to locate WSL creation block for UAC merge')
-          ps1.write_text(text, encoding='utf-8', newline='\n')
-
-          test = Path('tools/test_installer_packages.py')
-          t = test.read_text(encoding='utf-8')
-          if 'Windows {arch} package is missing UAC creation behavior' not in t:
-              marker = '            required_windows_contract = [\n'
-              uac_checks = '''            for required in (
-                  "function Invoke-ElevatedWsl",
-                  "([Environment]::SystemDirectory)",
-                  'Join-Path ([Environment]::SystemDirectory) "wsl.exe"',
-                  "Start-Process -FilePath $systemWsl",
-                  "-Verb RunAs",
-                  "Administrator approval is required only to create",
-                  "Invoke-ElevatedWsl $args",
-                  "$createExitCode = $LASTEXITCODE",
-              ):
-                  if required not in windows_installer:
-                      raise SystemExit(
-                          f"Windows {arch} package is missing UAC creation behavior: {required!r}"
-                      )
-              if "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell." in windows_installer:
-                  raise SystemExit(f"Windows {arch} package still contains the old elevation hard failure")
-              if '$process = Start-Process -FilePath "wsl.exe"' in windows_installer:
-                  raise SystemExit(f"Windows {arch} package elevates a PATH-resolved wsl.exe")
-              if "$createExitCode = if (Test-Administrator)" in windows_installer:
-                  raise SystemExit(
-                      f"Windows {arch} package captures wsl.exe stdout into its exit-code variable"
-                  )
-
-          '''
-              if marker not in t:
-                  raise SystemExit('unable to locate installer contract insertion point')
-              t = t.replace(marker, uac_checks + marker, 1)
-          test.write_text(t, encoding='utf-8', newline='\n')
+                  raise SystemExit('unable to locate Ubuntu package-test insertion point')
+              lines = [
+                  '            required_windows_contract = [',
+                  '                \'[switch]$InteractiveUserSetup\',',
+                  '                \'$ManagedLoginUser = "hacocoon"\',',
+                  '                \'Ensure-ManagedWslLoginUser\',',
+                  '                \'Complete-InteractiveWslUserSetup\',',
+                  '                \'Enable-BootstrapSudo\',',
+                  '                \'Disable-BootstrapSudo\',',
+                  '                \'$OutputEncoding = [Text.UTF8Encoding]::new($false)\',',
+                  '                \'Running common Ubuntu install.sh\',',
+                  '            ]',
+                  '            for contract_marker in required_windows_contract:',
+                  '                if contract_marker not in windows_installer:',
+                  '                    raise SystemExit(',
+                  '                        f"Windows installer lost one-shot bootstrap contract: {contract_marker!r}"',
+                  '                    )',
+                  '            forbidden_windows_contract = [',
+                  '                "Complete normal Ubuntu user setup, then run this installer again.",',
+                  '                "After completing the Ubuntu user setup, run install-windows.bat again.",',
+                  '            ]',
+                  '            for contract_marker in forbidden_windows_contract:',
+                  '                if contract_marker in windows_installer:',
+                  '                    raise SystemExit(',
+                  '                        f"Windows installer regressed to two-invocation setup: {contract_marker!r}"',
+                  '                    )',
+                  '',
+              ]
+              text = text.replace(marker, '\n'.join(lines) + marker, 1)
+              test_path.write_text(text, encoding='utf-8', newline='\n')
           PY
 
           git add -A
