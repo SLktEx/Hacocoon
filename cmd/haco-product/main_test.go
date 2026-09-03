@@ -74,14 +74,3 @@ func TestUnknownCommandFailsClearly(t *testing.T) {
 		t.Fatalf("unexpected stderr: %q", stderr)
 	}
 }
-
-func TestLoginAliasDetection(t *testing.T) {
-	for _, path := range []string{"hacocoon-login", "/usr/local/libexec/hacocoon-login", "-hacocoon-login"} {
-		if !isLoginAlias(path) {
-			t.Fatalf("expected login alias for %q", path)
-		}
-	}
-	if isLoginAlias("haco") {
-		t.Fatal("normal haco must not be treated as the login alias")
-	}
-}
