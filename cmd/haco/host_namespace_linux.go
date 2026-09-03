@@ -21,18 +21,22 @@ const (
 )
 
 type hostEnsureNamespaceDeps struct {
-	readlink   func(string) (string, error)
-	readFile   func(string) ([]byte, error)
-	geteuid    func() int
-	executable func() (string, error)
-	run        func(context.Context, string, []string, io.Reader, io.Writer, io.Writer) error
+	readlink     func(string) (string, error)
+	readFile     func(string) ([]byte, error)
+	geteuid      func() int
+	executable   func() (string, error)
+	evalSymlinks func(string) (string, error)
+	stat         func(string) (os.FileInfo, error)
+	run          func(context.Context, string, []string, io.Reader, io.Writer, io.Writer) error
 }
 
 var defaultHostEnsureNamespaceDeps = hostEnsureNamespaceDeps{
-	readlink:   os.Readlink,
-	readFile:   os.ReadFile,
-	geteuid:    os.Geteuid,
-	executable: os.Executable,
+	readlink:     os.Readlink,
+	readFile:     os.ReadFile,
+	geteuid:      os.Geteuid,
+	executable:   os.Executable,
+	evalSymlinks: filepath.EvalSymlinks,
+	stat:         os.Stat,
 	run: func(ctx context.Context, name string, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		cmd := exec.CommandContext(ctx, name, args...)
 		cmd.Stdin = stdin
@@ -80,8 +84,8 @@ func maybeReexecHostEnsureInInitMountNamespace(
 	if len(args) != 2 || args[0] != "host" || args[1] != "ensure" {
 		return false, nil
 	}
-	if deps.readlink == nil || deps.readFile == nil || deps.geteuid == nil || deps.executable == nil || deps.run == nil || stdin == nil || stdout == nil || stderr == nil {
-		return true, coreInvalidNamespaceDependency()
+	if deps.readlink == nil || deps.readFile == nil || deps.geteuid == nil || deps.executable == nil || deps.evalSymlinks == nil || deps.stat == nil || deps.run == nil || stdin == nil || stdout == nil || stderr == nil {
+		return true, fmt.Errorf("invalid host namespace bootstrap dependency")
 	}
 
 	selfNS, err := deps.readlink(selfMountNamespace)
@@ -111,14 +115,14 @@ func maybeReexecHostEnsureInInitMountNamespace(
 	if err != nil {
 		return true, fmt.Errorf("resolve haco executable for Physical Host namespace entry: %w", err)
 	}
-	executable, err = filepath.EvalSymlinks(executable)
+	executable, err = deps.evalSymlinks(executable)
 	if err != nil {
 		return true, fmt.Errorf("resolve haco executable symlinks for Physical Host namespace entry: %w", err)
 	}
 	if !filepath.IsAbs(executable) || filepath.Clean(executable) != executable {
 		return true, fmt.Errorf("resolved haco executable is not an absolute clean path: %q", executable)
 	}
-	if _, err := os.Stat(nsenterBinary); err != nil {
+	if _, err := deps.stat(nsenterBinary); err != nil {
 		return true, fmt.Errorf("Physical Host namespace entry requires %s: %w", nsenterBinary, err)
 	}
 
@@ -133,8 +137,4 @@ func maybeReexecHostEnsureInInitMountNamespace(
 		return true, err
 	}
 	return true, nil
-}
-
-func coreInvalidNamespaceDependency() error {
-	return fmt.Errorf("invalid host namespace bootstrap dependency")
 }
