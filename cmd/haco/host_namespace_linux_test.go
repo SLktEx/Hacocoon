@@ -97,10 +97,14 @@ func TestHostEnsureNamespaceReexecsThroughPID1MountNamespace(t *testing.T) {
 	}
 }
 
-func TestHostEnsureNamespaceRejectsDifferentNamespaceWithoutRoot(t *testing.T) {
-	deps := testHostEnsureNamespaceDeps()
-	deps.readlink = differingMountNamespaces
-	deps.geteuid = func() int { return 1000 }
+func TestHostEnsureNamespaceLeavesNonRootPathUnchanged(t *testing.T) {
+	deps := hostEnsureNamespaceDeps{
+		geteuid: func() int { return 1000 },
+		readlink: func(string) (string, error) {
+			t.Fatal("non-root host ensure must not inspect PID 1 namespace handles")
+			return "", nil
+		},
+	}
 
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
 		context.Background(),
@@ -110,8 +114,8 @@ func TestHostEnsureNamespaceRejectsDifferentNamespaceWithoutRoot(t *testing.T) {
 		io.Discard,
 		deps,
 	)
-	if !handled || err == nil || !strings.Contains(err.Error(), "must run as root") {
-		t.Fatalf("handled=%v err=%v, want root-required failure", handled, err)
+	if handled || err != nil {
+		t.Fatalf("handled=%v err=%v, want false nil", handled, err)
 	}
 }
 
