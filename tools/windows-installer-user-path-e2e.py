@@ -211,7 +211,11 @@ def run_bat(package_root: Path, *, phase: str) -> str:
     process = TerminalProcess(INSTALL_ARGV, cwd=package_root)
     output = process.run(
         responders=[
-            responder(r"\[sudo\]\s+password for [^:]+:\s*$", PASSWORD + "\r\n", repeat=True),
+            responder(
+                r"(?:\[sudo\]\s+password for [^:]+:|\[sudo:\s*authenticate\]\s*Password:)\s*$",
+                PASSWORD + "\r\n",
+                repeat=True,
+            ),
         ]
     )
     require_output(output, r"Hacocoon", phase=phase)
