@@ -8,6 +8,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/logging"
+	"github.com/SLktEx/Hacocoon/internal/terminalsession"
 )
 
 type environmentStreamRuntime interface {
@@ -31,12 +32,14 @@ func (s *Service) PrepareShellStream(ctx context.Context, name string) (func(con
 	}
 	ref := environment.RuntimeRef
 	terminal := core.TerminalMetadataFromContext(ctx)
+	resizeSource := terminalsession.ResizeSourceFromContext(ctx)
 	return func(runCtx context.Context, stdin io.Reader, stdout, stderr io.Writer) (err error) {
 		if stdin == nil || stdout == nil || stderr == nil {
 			return core.ErrInvalidArgument
 		}
 		started := time.Now()
 		runCtx = core.WithTerminalMetadata(runCtx, terminal)
+		runCtx = terminalsession.WithResizeSource(runCtx, resizeSource)
 		runCtx = logging.With(runCtx, "operation", "shell_environment_stream", "environment_id", name)
 		logger := logging.FromContext(runCtx).With("component", "core")
 		logger.InfoContext(runCtx, "opening streamed environment shell")
