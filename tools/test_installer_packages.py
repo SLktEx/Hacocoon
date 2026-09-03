@@ -67,8 +67,6 @@ with tempfile.TemporaryDirectory() as temp:
             expected = [
                 "install-windows.bat",
                 "install-windows.ps1",
-                "haco-windows.cmd",
-                "haco-windows.ps1",
                 "install.sh",
                 archive_name,
                 "checksums.txt",
@@ -76,6 +74,9 @@ with tempfile.TemporaryDirectory() as temp:
             ]
             if names != expected:
                 raise SystemExit(f"unexpected Windows {arch} package: {names!r}")
+            for forbidden in ("haco-windows.cmd", "haco-windows.ps1"):
+                if forbidden in names:
+                    raise SystemExit(f"Windows {arch} package unexpectedly contains native haco launcher {forbidden}")
             if f"haco_linux_{other}.tar.gz" in names:
                 raise SystemExit(f"Windows {arch} package contains the wrong architecture")
             if zf.read("checksums.txt").decode() != checksum_line:
@@ -108,39 +109,9 @@ with tempfile.TemporaryDirectory() as temp:
                 )
 
             windows_bat = zf.read("install-windows.bat").decode("utf-8")
-            for required in ("haco-windows.ps1", "__install-launcher"):
-                if required not in windows_bat:
-                    raise SystemExit(f"Windows {arch} installer does not install the host launcher: {required!r}")
-
-            launcher_cmd = zf.read("haco-windows.cmd").decode("utf-8")
-            if "haco-windows.ps1" not in launcher_cmd:
-                raise SystemExit(f"Windows {arch} launcher CMD does not delegate to the PowerShell helper")
-
-            launcher = zf.read("haco-windows.ps1").decode("utf-8")
-            for required in (
-                "Resolve-WslVhdPath",
-                "Invoke-Trim",
-                '"--terminate", $InstanceName',
-                "Wait-WslStopped",
-                "Ensure-WslVhdOffline",
-                'Invoke-WslExit $Wsl @("--shutdown")',
-                "Hacocoon will not stop them",
-                "Optimize-VHD",
-                "diskpart.exe",
-                "compact vdisk",
-                "VHD before:",
-                "VHD after:",
-                "Validating that",
-                "maintenance",
-                "compact",
-            ):
-                if required not in launcher:
-                    raise SystemExit(f"Windows {arch} maintenance launcher is missing {required!r}")
-            for forbidden in ("--set-sparse", "--allow-unsafe", "sparseVhd"):
-                if forbidden in launcher:
-                    raise SystemExit(
-                        f"Windows {arch} maintenance launcher must not enable experimental sparse VHD mode: {forbidden!r}"
-                    )
+            for forbidden in ("haco-windows", "__install-launcher", "HACO_LAUNCHER"):
+                if forbidden in windows_bat:
+                    raise SystemExit(f"Windows {arch} installer still contains launcher setup: {forbidden!r}")
 
         with tarfile.open(out / f"hacocoon-ubuntu-{arch}.tar.gz", "r:gz") as tf:
             names = tf.getnames()
