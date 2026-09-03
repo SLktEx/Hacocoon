@@ -23,6 +23,16 @@ function Test-Administrator {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Invoke-ElevatedWsl([string[]]$Arguments) {
+    Write-Step "Administrator approval is required only to create the dedicated Hacocoon WSL instance. Requesting UAC."
+    try {
+        $process = Start-Process -FilePath "wsl.exe" -ArgumentList $Arguments -Verb RunAs -Wait -PassThru
+    } catch {
+        throw "Administrator approval was cancelled or elevation could not be started. The dedicated Hacocoon WSL instance was not created."
+    }
+    return [int]$process.ExitCode
+}
+
 function Assert-SafeName([string]$Value, [string]$Label) {
     if ($Value -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
         throw "$Label '$Value' contains unsupported characters."
@@ -355,14 +365,17 @@ Assert-WslSupported
 
 $installed = @(Get-InstalledDistros)
 if (-not ($installed -contains $InstanceName)) {
-    if (-not (Test-Administrator)) {
-        throw "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell."
-    }
     Write-Step "Creating dedicated WSL instance '$InstanceName' from '$BaseDistro'"
     $args = @("--install", $BaseDistro, "--name", $InstanceName, "--no-launch")
     if ($WebDownload) { $args += "--web-download" }
-    & wsl.exe @args
-    if ($LASTEXITCODE -ne 0) {
+
+    $createExitCode = if (Test-Administrator) {
+        & wsl.exe @args
+        $LASTEXITCODE
+    } else {
+        Invoke-ElevatedWsl $args
+    }
+    if ($createExitCode -ne 0) {
         throw "Failed to create '$InstanceName'. Update WSL with 'wsl --update' if named installation is unsupported."
     }
     Ensure-Wsl2 $InstanceName
