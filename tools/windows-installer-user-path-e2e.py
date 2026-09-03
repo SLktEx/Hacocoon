@@ -5,6 +5,12 @@ From the first packaged BAT invocation onward, the harness only launches
 documented user-facing commands and supplies ordinary terminal input. It must
 not inject HACO_* overrides, installer/E2E-only arguments or options, root WSL
 inspection, CI-only assertions, lifecycle injections, or state repair.
+
+The command surface is deliberately closed: ConPTY may launch only the packaged
+BAT or the documented interactive WSL entry, and the trusted-host sessions may
+type only the ordinary Hacocoon commands declared below. Adding a CI shortcut
+therefore requires an explicit contract change instead of silently expanding the
+passing path.
 """
 
 from __future__ import annotations
@@ -24,6 +30,23 @@ PASSWORD = "Hacocoon-E2E-Only-42!"
 ENVIRONMENT = "installer-e2e"
 PROCESS_TIMEOUT_SECONDS = 900
 POST_EXIT_DRAIN_SECONDS = 1.0
+
+INSTALL_ARGV = ("cmd.exe", "/d", "/c", "install-windows.bat")
+WSL_ARGV = ("wsl.exe", "-d", INSTANCE)
+ALLOWED_TERMINAL_ARGV = frozenset((INSTALL_ARGV, WSL_ARGV))
+
+HOST_SESSION_COMMANDS: dict[str, tuple[str, ...]] = {
+    "before reinstall": (
+        "haco base list",
+        f'haco env create --workspace "$PWD" {ENVIRONMENT}',
+        f"haco env status {ENVIRONMENT}",
+        f"haco env exec {ENVIRONMENT} -- uname -a",
+    ),
+    "after reinstall": (
+        f"haco env status {ENVIRONMENT}",
+        f"haco env exec {ENVIRONMENT} -- uname -a",
+    ),
+}
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 OSC_RE = re.compile(r"\x1b\][^\x07]*(?:\x07|\x1b\\)")
@@ -64,15 +87,21 @@ def responder(pattern: str, reply: str, *, repeat: bool = False) -> Responder:
 
 
 class TerminalProcess:
-    def __init__(self, argv: list[str], *, cwd: Path | None = None):
+    def __init__(self, argv: list[str] | tuple[str, ...], *, cwd: Path | None = None):
+        argv_tuple = tuple(argv)
+        if argv_tuple not in ALLOWED_TERMINAL_ARGV:
+            raise RuntimeError(
+                "exact user-path E2E refuses non-user terminal command: "
+                + repr(argv_tuple)
+            )
         try:
             from winpty import PtyProcess
         except ImportError as exc:
             raise RuntimeError("pywinpty is required for the Windows user-path E2E") from exc
 
-        self.argv = argv
+        self.argv = list(argv_tuple)
         self.proc = PtyProcess.spawn(
-            argv,
+            self.argv,
             cwd=str(cwd) if cwd is not None else None,
             env=inherited_child_environment(),
             dimensions=(48, 160),
@@ -178,10 +207,7 @@ def require_output(output: str, pattern: str, *, phase: str) -> None:
 def run_bat(package_root: Path, *, phase: str) -> str:
     # User command: install-windows.bat. cmd.exe is only the ConPTY transport
     # needed to launch a BAT; the BAT itself receives no arguments or options.
-    process = TerminalProcess(
-        ["cmd.exe", "/d", "/c", "install-windows.bat"],
-        cwd=package_root,
-    )
+    process = TerminalProcess(INSTALL_ARGV, cwd=package_root)
     output = process.run(
         responders=[
             responder(r"\[sudo\]\s+password for [^:]+:\s*$", PASSWORD + "\r\n", repeat=True),
@@ -193,7 +219,7 @@ def run_bat(package_root: Path, *, phase: str) -> str:
 
 def complete_ubuntu_first_launch() -> str:
     # Exact documented user command: wsl -d Hacocoon
-    process = TerminalProcess(["wsl.exe", "-d", INSTANCE])
+    process = TerminalProcess(WSL_ARGV)
     user = normal_user_name()
     sent_exit = False
 
@@ -224,15 +250,19 @@ def complete_ubuntu_first_launch() -> str:
 
 
 def run_host_session(
-    commands: list[str],
+    session: str,
     *,
     expected_output: list[str],
-    phase: str,
 ) -> str:
-    # Exact documented user command: wsl -d Hacocoon. The commands typed after
-    # entry are ordinary documented haco commands, with no test-only markers,
-    # shell assertions, environment overrides, or hidden options.
-    process = TerminalProcess(["wsl.exe", "-d", INSTANCE])
+    # Exact documented user command: wsl -d Hacocoon. The command sequence is
+    # selected from HOST_SESSION_COMMANDS instead of accepting arbitrary strings,
+    # so marker/assertion/repair commands cannot silently enter the passing path.
+    try:
+        commands = HOST_SESSION_COMMANDS[session]
+    except KeyError as exc:
+        raise RuntimeError(f"unknown exact user-path host session: {session!r}") from exc
+
+    process = TerminalProcess(WSL_ARGV)
     sent = False
 
     def send_commands(normalized: str, terminal: TerminalProcess) -> None:
@@ -246,9 +276,9 @@ def run_host_session(
 
     output = process.run(on_output=send_commands)
     if not sent:
-        raise RuntimeError(f"{phase}: interactive WSL entry never reached haco-host")
+        raise RuntimeError(f"{session}: interactive WSL entry never reached haco-host")
     for pattern in expected_output:
-        require_output(output, pattern, phase=phase)
+        require_output(output, pattern, phase=session)
     return output
 
 
@@ -287,18 +317,12 @@ def main() -> int:
 
     print("==> USER: wsl -d Hacocoon; normal haco workflow")
     run_host_session(
-        [
-            "haco base list",
-            f'haco env create --workspace "$PWD" {ENVIRONMENT}',
-            f"haco env status {ENVIRONMENT}",
-            f"haco env exec {ENVIRONMENT} -- uname -a",
-        ],
+        "before reinstall",
         expected_output=[
             r"(?m)^haco/ubuntu-26\.04\s*$",
             rf"(?m)^name:\s+{re.escape(ENVIRONMENT)}\s*$",
             r"(?m)^Linux\s+",
         ],
-        phase="before reinstall",
     )
 
     print("==> USER: install-windows.bat")
@@ -311,15 +335,11 @@ def main() -> int:
 
     print("==> USER: wsl -d Hacocoon; reuse existing Environment")
     run_host_session(
-        [
-            f"haco env status {ENVIRONMENT}",
-            f"haco env exec {ENVIRONMENT} -- uname -a",
-        ],
+        "after reinstall",
         expected_output=[
             rf"(?m)^name:\s+{re.escape(ENVIRONMENT)}\s*$",
             r"(?m)^Linux\s+",
         ],
-        phase="after reinstall",
     )
 
     print("windows installer exact user path: PASS")
