@@ -121,11 +121,13 @@ with tempfile.TemporaryDirectory() as temp:
                 '$LoginUser ALL=(ALL:ALL) NOPASSWD: ALL',
                 'Validating temporary sudo rule through policy files',
                 '"sudo", "-n", "/usr/bin/true"',
-                '$OutputEncoding = [Text.UTF8Encoding]::new($false)',
-                '$wrappedArguments = @($Arguments[0..$execIndex])',
-                'LC_ALL=C sed ',
                 'function Invoke-WslRootShellScript',
                 'sh -eu "$tmp" "$@"',
+                'Never send installer-controlled bytes through the Windows native stdin',
+                'base64 -d >> "$2"',
+                '"sh", $encoded, $Path',
+                '$mainFailure = $null',
+                'Bootstrap sudo cleanup also failed after the installer error',
                 '& wsl.exe --terminate $Name | Out-Null',
                 '& wsl.exe --distribution $Name | Out-Host',
                 'Running common Ubuntu install.sh',
@@ -140,6 +142,7 @@ with tempfile.TemporaryDirectory() as temp:
                 "After completing the Ubuntu user setup, run install-windows.bat again.",
                 '$normalized | & wsl.exe @Arguments',
                 '"--exec", "sh", "-s"',
+                'function Invoke-WslCaptureWithInput',
             ]
             for contract_marker in forbidden_windows_contract:
                 if contract_marker in windows_installer:

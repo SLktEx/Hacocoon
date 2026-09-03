@@ -85,57 +85,6 @@ function Invoke-WslCapture([string[]]$Arguments) {
     return New-WslCaptureResult $exitCode $stdout $stderr
 }
 
-function Invoke-WslCaptureWithInput([string[]]$Arguments, [string]$InputText) {
-    $stderrPath = [IO.Path]::GetTempFileName()
-    $previousPreference = $ErrorActionPreference
-    $previousOutputEncoding = $OutputEncoding
-    $stdout = @()
-    $stderr = ""
-    $exitCode = 1
-    try {
-        # Windows PowerShell 5.1 may prepend an encoding preamble when piping a
-        # string to a native process. A BOM turns the first shell token into
-        # U+FEFF-prefixed text (for example "set" becomes "﻿set") and can also
-        # corrupt base64/config payloads. Normalize line endings and explicitly
-        # use BOM-free UTF-8 for every stdin transfer to wsl.exe.
-        $ErrorActionPreference = "Continue"
-        $OutputEncoding = [Text.UTF8Encoding]::new($false)
-        $normalized = ($InputText -replace "`r`n", "`n") -replace "`r", "`n"
-
-        # Windows PowerShell 5.1 can still emit a UTF-8 preamble to native
-        # stdin even when $OutputEncoding uses a BOM-free encoder. Wrap the
-        # Linux command so WSL strips only a leading UTF-8 BOM before handing
-        # stdin to the original command. This keeps shell scripts and base64
-        # payloads byte-stable on both Windows PowerShell and PowerShell 7.
-        $execIndex = -1
-        for ($index = 0; $index -lt $Arguments.Count; $index++) {
-            if ($Arguments[$index] -eq "--exec") {
-                $execIndex = $index
-                break
-            }
-        }
-        if ($execIndex -lt 0 -or $execIndex -ge ($Arguments.Count - 1)) {
-            throw "Invoke-WslCaptureWithInput requires a WSL --exec command."
-        }
-        $wrappedArguments = @($Arguments[0..$execIndex]) + @(
-            "sh",
-            "-c",
-            'LC_ALL=C sed ''1s/^\xEF\xBB\xBF//'' | "$@"',
-            "sh"
-        ) + @($Arguments[($execIndex + 1)..($Arguments.Count - 1)])
-        $stdout = @($normalized | & wsl.exe @wrappedArguments 2> $stderrPath)
-        $exitCode = $LASTEXITCODE
-        if (Test-Path -LiteralPath $stderrPath) {
-            $stderr = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
-        }
-    } finally {
-        $OutputEncoding = $previousOutputEncoding
-        $ErrorActionPreference = $previousPreference
-        Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
-    }
-    return New-WslCaptureResult $exitCode $stdout $stderr
-}
-
 function Invoke-WslRootShellScript([string]$Name, [string]$Script, [string[]]$ScriptArguments = @()) {
     # Shell source is control data, not stdin payload. Encode it into an argv-safe
     # base64 string, materialize it inside WSL, and execute the temporary file.
@@ -153,20 +102,21 @@ function Invoke-WslRootShellScript([string]$Name, [string]$Script, [string[]]$Sc
 }
 
 function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [switch]$Append) {
-    # Encode exact UTF-8 bytes and decode inside WSL. Invoke-WslCaptureWithInput
-    # itself pins the Windows native-pipeline encoding to BOM-free UTF-8.
+    # Never send installer-controlled bytes through the Windows native stdin
+    # pipeline. Windows PowerShell 5.1 can change encoding/preambles there.
+    # Base64 is argv-safe and decoded entirely inside WSL.
     $normalized = ($Content -replace "`r`n", "`n") -replace "`r", "`n"
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
     $script = if ($Append) {
-        'base64 -d | tee -a "$1" >/dev/null'
+        'printf ''%s'' "$1" | base64 -d >> "$2"'
     } else {
-        'base64 -d | tee "$1" >/dev/null'
+        'printf ''%s'' "$1" | base64 -d > "$2"'
     }
-    return Invoke-WslCaptureWithInput @(
+    return Invoke-WslCapture @(
         "--distribution", $Name,
         "--user", "root",
-        "--exec", "sh", "-eu", "-c", $script, "sh", $Path
-    ) ($encoded + "`n")
+        "--exec", "sh", "-eu", "-c", $script, "sh", $encoded, $Path
+    )
 }
 
 function Get-SudoersPolicyFiles([string]$Name) {
@@ -721,6 +671,7 @@ if ($probe.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($linuxAssetRoot)) {
 $skipIncusValue = if ($SkipIncus) { "1" } else { "0" }
 $grantIncusAdminValue = if ($GrantIncusAdmin) { "1" } else { "0" }
 $requireProvenance = if ($env:HACO_REQUIRE_PROVENANCE) { $env:HACO_REQUIRE_PROVENANCE } else { "1" }
+$mainFailure = $null
 try {
     Enable-BootstrapSudo $InstanceName $loginUser
     Write-Step "Running common Ubuntu install.sh inside '$InstanceName'"
@@ -733,8 +684,16 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "Common Hacocoon Ubuntu installation failed inside WSL."
     }
+} catch {
+    $mainFailure = $_
+    throw
 } finally {
-    Disable-BootstrapSudo $InstanceName
+    try {
+        Disable-BootstrapSudo $InstanceName
+    } catch {
+        if ($null -eq $mainFailure) { throw }
+        Write-Warning "Bootstrap sudo cleanup also failed after the installer error: $($_.Exception.Message)"
+    }
 }
 Assert-SystemdActive $InstanceName
 
