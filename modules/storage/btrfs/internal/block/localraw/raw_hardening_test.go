@@ -3,6 +3,7 @@ package localraw
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -12,10 +13,15 @@ import (
 	"github.com/SLktEx/Hacocoon/modules/storage/btrfs/internal/block"
 )
 
-type detachFailRunner struct{}
+type detachFailRunner struct {
+	backing string
+}
 
-func (detachFailRunner) Run(_ context.Context, name string, args ...string) (host.Result, error) {
-	if name == "losetup" && len(args) == 2 && args[0] == "-d" {
+func (r detachFailRunner) Run(_ context.Context, name string, args ...string) (host.Result, error) {
+	if name == "losetup" && len(args) == 2 && args[0] == "-j" && args[1] == r.backing {
+		return host.Result{Stdout: fmt.Sprintf("/dev/loop999: []: (%s)\n", r.backing)}, nil
+	}
+	if name == "losetup" && len(args) == 2 && args[0] == "-d" && args[1] == "/dev/loop999" {
 		return host.Result{ExitCode: 1}, errors.New("forced detach failure")
 	}
 	return host.Result{}, nil
@@ -28,18 +34,97 @@ func (r *recordingRunner) Run(context.Context, string, ...string) (host.Result, 
 	return host.Result{}, nil
 }
 
+type loopDetachRunner struct {
+	backing       string
+	currentDevice string
+	detached      []string
+	discoveryErr  error
+}
+
+func (r *loopDetachRunner) Run(_ context.Context, name string, args ...string) (host.Result, error) {
+	if name != "losetup" || len(args) != 2 {
+		return host.Result{}, fmt.Errorf("unexpected command: %s %v", name, args)
+	}
+	switch args[0] {
+	case "-j":
+		if args[1] != r.backing {
+			return host.Result{}, fmt.Errorf("unexpected backing path: %s", args[1])
+		}
+		if r.discoveryErr != nil {
+			return host.Result{ExitCode: 1}, r.discoveryErr
+		}
+		if r.currentDevice == "" {
+			return host.Result{}, nil
+		}
+		return host.Result{Stdout: fmt.Sprintf("%s: []: (%s)\n", r.currentDevice, r.backing)}, nil
+	case "-d":
+		r.detached = append(r.detached, args[1])
+		return host.Result{}, nil
+	default:
+		return host.Result{}, fmt.Errorf("unexpected losetup arguments: %v", args)
+	}
+}
+
 func TestDeletePreservesBackingFileWhenDetachFails(t *testing.T) {
 	path := trustedRawPath(t)
 	if err := os.WriteFile(path, []byte("data"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	store := New(detachFailRunner{})
+	store := New(detachFailRunner{backing: path})
 	err := store.Delete(context.Background(), block.Handle{Path: path, Device: "/dev/loop999"})
 	if err == nil {
 		t.Fatal("Delete succeeded despite detach failure")
 	}
 	if _, statErr := os.Stat(path); statErr != nil {
 		t.Fatalf("backing file was removed after detach failure: %v", statErr)
+	}
+}
+
+func TestDetachResolvesCurrentLoopFromBackingPathInsteadOfCachedDevice(t *testing.T) {
+	path := trustedRawPath(t)
+	if err := os.WriteFile(path, []byte("data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runner := &loopDetachRunner{backing: path, currentDevice: "/dev/loop8"}
+	store := New(runner)
+
+	if err := store.Detach(context.Background(), block.Handle{Path: path, Device: "/dev/loop3"}); err != nil {
+		t.Fatalf("Detach failed: %v", err)
+	}
+	if len(runner.detached) != 1 || runner.detached[0] != "/dev/loop8" {
+		t.Fatalf("detached devices = %v, want only current /dev/loop8", runner.detached)
+	}
+}
+
+func TestDetachDoesNotUseStaleCachedDeviceWhenBackingIsNotAttached(t *testing.T) {
+	path := trustedRawPath(t)
+	if err := os.WriteFile(path, []byte("data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runner := &loopDetachRunner{backing: path}
+	store := New(runner)
+
+	if err := store.Detach(context.Background(), block.Handle{Path: path, Device: "/dev/loop3"}); err != nil {
+		t.Fatalf("Detach failed: %v", err)
+	}
+	if len(runner.detached) != 0 {
+		t.Fatalf("detached stale cached device: %v", runner.detached)
+	}
+}
+
+func TestDetachFailsClosedWhenCurrentLoopCannotBeDiscovered(t *testing.T) {
+	path := trustedRawPath(t)
+	if err := os.WriteFile(path, []byte("data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runner := &loopDetachRunner{backing: path, discoveryErr: errors.New("forced discovery failure")}
+	store := New(runner)
+
+	if err := store.Detach(context.Background(), block.Handle{Path: path, Device: "/dev/loop3"}); err == nil {
+		t.Fatal("Detach succeeded despite loop discovery failure")
+	}
+	if len(runner.detached) != 0 {
+		t.Fatalf("detached cached device after discovery failure: %v", runner.detached)
 	}
 }
 
