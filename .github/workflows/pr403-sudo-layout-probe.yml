@@ -1,0 +1,53 @@
+name: pr403-sudo-layout-probe
+
+on:
+  push:
+    branches:
+      - fix/windows-one-shot-bootstrap
+    paths:
+      - .github/workflows/pr403-sudo-layout-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 10
+    steps:
+      - name: Install fresh Ubuntu 26.04 WSL fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          & wsl.exe --install Ubuntu-26.04 --name HacocoonProbe --no-launch
+          if ($LASTEXITCODE -ne 0) { throw "Failed to install probe distro." }
+          & wsl.exe --distribution HacocoonProbe --user root --exec true
+          if ($LASTEXITCODE -ne 0) { throw "Failed to launch probe distro." }
+
+      - name: Inspect sudo policy files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          & wsl.exe --distribution HacocoonProbe --user root --exec sh -eu -c @'
+          echo '--- ls ---'
+          ls -l /etc/sudoers /etc/sudoers-rs 2>&1 || true
+          echo '--- stat ---'
+          stat -Lc '%d:%i %F %a %n' /etc/sudoers /etc/sudoers-rs 2>&1 || true
+          echo '--- readlink ---'
+          readlink -f /etc/sudoers /etc/sudoers-rs 2>&1 || true
+          echo '--- hashes ---'
+          sha256sum /etc/sudoers /etc/sudoers-rs 2>&1 || true
+          echo '--- contents sudoers-rs ---'
+          cat /etc/sudoers-rs 2>&1 || true
+          echo '--- contents sudoers ---'
+          cat /etc/sudoers 2>&1 || true
+          '@
+          if ($LASTEXITCODE -ne 0) { throw "Probe failed." }
+
+      - name: Remove probe distro
+        if: always()
+        shell: pwsh
+        run: |
+          wsl.exe --terminate HacocoonProbe 2>$null
+          wsl.exe --unregister HacocoonProbe 2>$null
+          $global:LASTEXITCODE = 0
