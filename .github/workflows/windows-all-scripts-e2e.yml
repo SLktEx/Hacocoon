@@ -120,16 +120,14 @@ jobs:
             throw "Exact user-path E2E refuses Hacocoon environment overrides: $names"
           }
 
-      # PRODUCT-ACTION BOUNDARY:
-      # Every action that is intended to make Hacocoon do work uses the exact
-      # user-facing command and normal interaction. Do not inject HACO_* test
-      # variables, installer-only arguments/options, CI sudo rules, root setup,
-      # mount/loop repair, or any other mutation that makes a later action pass.
-      #
-      # Read-only assertions are explicitly allowed between actions. The
-      # harness may inspect service, Incus, mount, loop, and Environment state
-      # to prove the preceding action worked, provided those assertions never
-      # mutate or repair state used by the following action.
+      # USER-PATH BOUNDARY:
+      # From the first packaged install-windows.bat invocation onward, the
+      # success path is only a terminal automation of commands a real user can
+      # type unchanged. No CI-only environment, argument/option, root WSL
+      # inspection, direct Incus/mount/loop command, lifecycle injection, marker
+      # command, assertion shell command, or state repair is allowed after this
+      # point. Assertions come only from the ordinary commands' terminal output
+      # and process completion observed by the ConPTY driver.
       - name: Exercise exact packaged Windows user path
         shell: pwsh
         run: |
