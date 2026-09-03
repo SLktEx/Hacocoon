@@ -1,8 +1,8 @@
 # Btrfs ストレージレイアウト
 
-状態: **supportedなlocal storage pathはIncus-owned loop-backed Btrfsのみ。Hacocoon側でraw/loop/mountを所有するlegacy compatibility pathは提供しない。**
+状態: **supportedなlocal storage pathはIncus-owned loop-backed Btrfsのみ。**
 
-Milestone: **v0.20 Managed Btrfs Rootfs Storage** / **v0.21 Managed Btrfs Transparent Compression**。
+Milestone: **v0.20 Managed Btrfs Rootfs Storage** / **v0.21 Managed Btrfs Transparent Compression** / **v0.25 Incus-owned Btrfs Storage Acceptance**。
 
 ## 既定のlocal layout
 
@@ -29,15 +29,14 @@ Incus pool: haco-local-default
   |- cached Base image volumes
   |- Tooling Base builders
   |- Seed builders / cached Seed image volumes
+  |- trusted haco-host rootfs
   |- Environment rootfs volumes
   `- Incus snapshots / clones
 ```
 
 backing image作成、loop attach、Btrfs format、mount/unmount lifecycle、対応可能なloop-pool growはIncusが所有する。Hacocoonが所有するのはdesiredなpool identityとpolicyだけ。
 
-従来の `HACO_ROOT/images/<id>.raw -> loop -> mount -> source=<mountpoint>` pathは存在しない。この削除済みlayoutを使う既存installationはunsupportedとし、migration/recoveryを実装する代わりにinstallationを作り直す。
-
-このsingle-owner boundaryにより、特にWSLでHacocoon側のmount作成・復元と `incusd` のstorage initializationを競合させずに済む。
+Hacocoon側に別のHost-managed block/mount lifecycleは持たない。installとruntimeはこの1つのstorage shapeだけを対象にする。
 
 ## sparse file と WSL sparse VHD は別物
 
@@ -70,7 +69,7 @@ local compositionはstorage providerをlazyに設定する。Incus root storage�
 
 最初にEnvironment、Tooling Base builder、Seed builder、trusted hostなどがroot storageを必要とした時点で `haco-local-default` を確認し、存在しなければdesired sizeとmount optionsをIncusへ渡してloop-backed Btrfs poolを作成させる。その後のHacocoon-owned rootfs operationはHostの無関係なIncus default-profile poolではなくこのpoolを使う。
 
-supported stateは現在のIncus-owned pool shapeだけ。削除済みexternal-path storage layout向けのmigration、recovery、startup reconciliationは実装しない。
+runtimeは現在のIncus-owned pool shapeだけを前提とし、別のstorage ownership pathは持たない。
 
 ## Acceptance coverage
 
@@ -84,4 +83,4 @@ Host WorkspaceはEnvironmentへbind mountされるため、Hacocoon Btrfs pool�
 
 ## 複数pool
 
-既定local poolは `haco-local-default`。将来の明示configured poolも独自のIncus-managed storage identityを利用できるが、そのためにHacocoon側のHost-owned block/mount lifecycleを再導入しない。
+既定local poolは `haco-local-default`。将来の明示configured poolも、同じsingle-owner lifecycleを維持したまま独自のIncus-managed storage identityを利用できる。
