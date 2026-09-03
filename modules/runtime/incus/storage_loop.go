@@ -17,7 +17,8 @@ type BtrfsLoopPoolSpec struct {
 	MountOptions string
 }
 
-// EnsureBtrfsLoopPool ensures an Incus-owned loop-backed Btrfs pool exists.
+// EnsureBtrfsLoopPool ensures an Incus-owned loop-backed Btrfs pool exists and
+// reconciles the Hacocoon-owned mount policy through Incus pool configuration.
 // It deliberately does not accept a Host source path.
 func (r *Runtime) EnsureBtrfsLoopPool(ctx context.Context, spec BtrfsLoopPoolSpec) (string, error) {
 	name := strings.TrimSpace(spec.Name)
@@ -28,6 +29,9 @@ func (r *Runtime) EnsureBtrfsLoopPool(ctx context.Context, spec BtrfsLoopPoolSpe
 	}
 
 	if _, err := r.runner.Run(ctx, "incus", "storage", "show", name, "--project", r.project); err == nil {
+		if err := r.ensureBtrfsMountOptions(ctx, name, mountOptions); err != nil {
+			return "", err
+		}
 		return name, nil
 	}
 
@@ -48,5 +52,40 @@ func (r *Runtime) EnsureBtrfsLoopPool(ctx context.Context, spec BtrfsLoopPoolSpe
 	if _, err := r.runner.Run(ctx, "incus", "storage", "show", name, "--project", r.project); err != nil {
 		return "", fmt.Errorf("verify Incus-managed Btrfs loop pool %q: %w", name, err)
 	}
+	if err := r.ensureBtrfsMountOptions(ctx, name, mountOptions); err != nil {
+		return "", err
+	}
 	return name, nil
+}
+
+func (r *Runtime) ensureBtrfsMountOptions(ctx context.Context, name, desired string) error {
+	if desired == "" {
+		return nil
+	}
+
+	result, err := r.runner.Run(ctx, "incus", "storage", "get", name, "btrfs.mount_options", "--project", r.project)
+	if err != nil {
+		return fmt.Errorf("read Incus-managed Btrfs mount options for %q: %w", name, err)
+	}
+	if strings.TrimSpace(result.Stdout) == desired {
+		return nil
+	}
+
+	result, err = r.runner.Run(ctx, "incus", "storage", "set", name, "btrfs.mount_options="+desired, "--project", r.project)
+	if err != nil {
+		reason := strings.TrimSpace(result.Stderr)
+		if reason != "" {
+			return fmt.Errorf("set Incus-managed Btrfs mount options for %q: %s: %w", name, reason, err)
+		}
+		return fmt.Errorf("set Incus-managed Btrfs mount options for %q: %w", name, err)
+	}
+
+	result, err = r.runner.Run(ctx, "incus", "storage", "get", name, "btrfs.mount_options", "--project", r.project)
+	if err != nil {
+		return fmt.Errorf("verify Incus-managed Btrfs mount options for %q: %w", name, err)
+	}
+	if got := strings.TrimSpace(result.Stdout); got != desired {
+		return fmt.Errorf("verify Incus-managed Btrfs mount options for %q: got %q, want %q", name, got, desired)
+	}
+	return nil
 }

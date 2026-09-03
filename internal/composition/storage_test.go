@@ -37,19 +37,28 @@ func TestDefaultIncusStorageAttachmentIsIncusOwned(t *testing.T) {
 	if attachment["size"] != "128GiB" {
 		t.Fatalf("size = %q", attachment["size"])
 	}
-	if attachment["btrfs.mount_options"] != "compress=zstd:3" {
+	if attachment["btrfs.mount_options"] != "compress=zstd:3,noatime,nodiscard" {
 		t.Fatalf("btrfs.mount_options = %q", attachment["btrfs.mount_options"])
 	}
 	if source := attachment["source"]; source != "" {
 		t.Fatalf("default attachment must not supply Host source path, got %q", source)
 	}
+	for _, want := range []string{"compress=zstd:3", "noatime", "nodiscard"} {
+		if !strings.Contains(attachment["btrfs.mount_options"], want) {
+			t.Fatalf("mount policy %q missing %q", attachment["btrfs.mount_options"], want)
+		}
+	}
 	if strings.Contains(attachment["btrfs.mount_options"], "autodefrag") {
 		t.Fatalf("autodefrag must remain disabled: %q", attachment["btrfs.mount_options"])
+	}
+	if strings.Contains(attachment["btrfs.mount_options"], "compress-force") {
+		t.Fatalf("compress-force must remain disabled: %q", attachment["btrfs.mount_options"])
 	}
 }
 
 func TestEnsureDefaultIncusStoragePoolCreatesLoopBackedPool(t *testing.T) {
 	created := false
+	mountOptions := ""
 	runner := &storageRunnerFunc{run: func(_ string, args []string) (host.Result, error) {
 		if len(args) >= 2 && args[0] == "storage" && args[1] == "show" {
 			if !created {
@@ -59,6 +68,15 @@ func TestEnsureDefaultIncusStoragePoolCreatesLoopBackedPool(t *testing.T) {
 		}
 		if len(args) >= 2 && args[0] == "storage" && args[1] == "create" {
 			created = true
+			for _, arg := range args {
+				if strings.HasPrefix(arg, "btrfs.mount_options=") {
+					mountOptions = strings.TrimPrefix(arg, "btrfs.mount_options=")
+				}
+			}
+			return host.Result{}, nil
+		}
+		if len(args) >= 2 && args[0] == "storage" && args[1] == "get" {
+			return host.Result{Stdout: mountOptions + "\n"}, nil
 		}
 		return host.Result{}, nil
 	}}
@@ -70,14 +88,14 @@ func TestEnsureDefaultIncusStoragePoolCreatesLoopBackedPool(t *testing.T) {
 	if !reflect.DeepEqual(attachment, map[string]string{"incus_pool": "haco-local-default"}) {
 		t.Fatalf("attachment = %#v", attachment)
 	}
-	if len(runner.calls) != 3 {
-		t.Fatalf("calls = %#v", runner.calls)
-	}
 	wantCreate := []string{
 		"storage", "create", "haco-local-default", "btrfs",
 		"size=128GiB",
-		"btrfs.mount_options=compress=zstd:3",
+		"btrfs.mount_options=compress=zstd:3,noatime,nodiscard",
 		"--project", "hacocoon",
+	}
+	if len(runner.calls) != 4 {
+		t.Fatalf("calls = %#v", runner.calls)
 	}
 	if runner.calls[1].name != "incus" || !reflect.DeepEqual(runner.calls[1].args, wantCreate) {
 		t.Fatalf("create call = %#v, want incus %#v", runner.calls[1], wantCreate)
@@ -90,10 +108,16 @@ func TestEnsureDefaultIncusStoragePoolCreatesLoopBackedPool(t *testing.T) {
 	if runner.calls[2].args[0] != "storage" || runner.calls[2].args[1] != "show" {
 		t.Fatalf("post-create verification missing: %#v", runner.calls)
 	}
+	if runner.calls[3].args[0] != "storage" || runner.calls[3].args[1] != "get" {
+		t.Fatalf("mount-policy verification missing: %#v", runner.calls)
+	}
 }
 
-func TestEnsureDefaultIncusStoragePoolReusesExistingPool(t *testing.T) {
-	runner := &storageRunnerFunc{run: func(_ string, _ []string) (host.Result, error) {
+func TestEnsureDefaultIncusStoragePoolReusesMatchingExistingPool(t *testing.T) {
+	runner := &storageRunnerFunc{run: func(_ string, args []string) (host.Result, error) {
+		if len(args) >= 2 && args[0] == "storage" && args[1] == "get" {
+			return host.Result{Stdout: "compress=zstd:3,noatime,nodiscard\n"}, nil
+		}
 		return host.Result{}, nil
 	}}
 	attachment, err := ensureDefaultIncusStoragePool(context.Background(), runner)
@@ -103,8 +127,41 @@ func TestEnsureDefaultIncusStoragePoolReusesExistingPool(t *testing.T) {
 	if attachment["incus_pool"] != "haco-local-default" {
 		t.Fatalf("attachment = %#v", attachment)
 	}
-	if len(runner.calls) != 1 || runner.calls[0].args[0] != "storage" || runner.calls[0].args[1] != "show" {
+	if len(runner.calls) != 2 {
 		t.Fatalf("unexpected calls = %#v", runner.calls)
+	}
+	if runner.calls[0].args[0] != "storage" || runner.calls[0].args[1] != "show" || runner.calls[1].args[1] != "get" {
+		t.Fatalf("unexpected calls = %#v", runner.calls)
+	}
+}
+
+func TestEnsureDefaultIncusStoragePoolReconcilesExistingMountPolicy(t *testing.T) {
+	mountOptions := "compress=zstd:3"
+	runner := &storageRunnerFunc{run: func(_ string, args []string) (host.Result, error) {
+		switch {
+		case len(args) >= 2 && args[0] == "storage" && args[1] == "get":
+			return host.Result{Stdout: mountOptions + "\n"}, nil
+		case len(args) >= 2 && args[0] == "storage" && args[1] == "set":
+			mountOptions = strings.TrimPrefix(args[3], "btrfs.mount_options=")
+			return host.Result{}, nil
+		default:
+			return host.Result{}, nil
+		}
+	}}
+
+	if _, err := ensureDefaultIncusStoragePool(context.Background(), runner); err != nil {
+		t.Fatal(err)
+	}
+	if mountOptions != "compress=zstd:3,noatime,nodiscard" {
+		t.Fatalf("mount options = %q", mountOptions)
+	}
+	wantSet := []string{
+		"storage", "set", "haco-local-default",
+		"btrfs.mount_options=compress=zstd:3,noatime,nodiscard",
+		"--project", "hacocoon",
+	}
+	if len(runner.calls) != 4 || !reflect.DeepEqual(runner.calls[2].args, wantSet) {
+		t.Fatalf("calls = %#v, want reconcile %#v", runner.calls, wantSet)
 	}
 }
 

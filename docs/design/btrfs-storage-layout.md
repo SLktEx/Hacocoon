@@ -12,7 +12,7 @@ The normal local composition does not create or mount a Hacocoon-owned raw image
 Incus pool: haco-local-default
   driver=btrfs
   size=128GiB
-  btrfs.mount_options=compress=zstd:3
+  btrfs.mount_options=compress=zstd:3,noatime,nodiscard
         |
         v
 /var/lib/incus/disks/haco-local-default.img
@@ -50,25 +50,39 @@ The storage boundary is deliberate. Base, Tooling, Seed, and Environment rootfs 
 - transparent Btrfs compression can reduce physical bytes for managed rootfs data;
 - Incus Btrfs snapshots and clones can preserve copy-on-write sharing;
 - Seed-derived Environments only need new extents for changed data where the storage driver can share unchanged blocks;
-- filesystem-level maintenance and optional out-of-band deduplication can target Hacocoon rootfs data rather than unrelated Host data.
+- filesystem-level maintenance can target Hacocoon rootfs data rather than unrelated Host data.
 
 Hacocoon must not create a separate Btrfs filesystem or loop image per Environment or Seed merely for isolation. Incus volumes/subvolumes provide the logical isolation inside the shared pool.
 
-## Compression and defragmentation policy
+## Mount policy
 
-The default pool uses `compress=zstd:3`. Hacocoon deliberately does **not** request `compress-force`: normal Btrfs compression heuristics may leave incompressible data uncompressed rather than repeatedly spending CPU on forced attempts.
+The normal Incus-owned pool uses the desired mount policy:
 
-The default policy also leaves `autodefrag` disabled. Automatic defragmentation can rewrite extents and reduce existing reflink/COW sharing, which is a poor default trade-off for an Incus snapshot/clone-heavy rootfs pool. Any future autodefrag use requires an explicit workload-specific decision rather than becoming an implicit mount default.
+```text
+compress=zstd:3,noatime,nodiscard
+```
 
-Compression mount options affect newly written extents. Hacocoon does not automatically rewrite all existing data merely to recompress it.
+- `compress=zstd:3` keeps transparent compression enabled without forcing compression for data Btrfs considers incompressible.
+- `noatime` avoids access-time metadata updates on read-heavy development workloads, reducing metadata writes and unnecessary COW churn. Applications that intentionally depend on access-time semantics are not part of the default Hacocoon rootfs policy and would need a different future policy.
+- `nodiscard` keeps discard/reclamation out of the normal I/O path. Hacocoon's explicit maintenance flow remains the place for targeted trim/compaction work.
 
-## Runtime selection rule
+The default policy deliberately leaves `autodefrag` disabled. Automatic defragmentation can rewrite extents and reduce existing reflink/COW sharing, which is a poor default trade-off for an Incus snapshot/clone-heavy rootfs pool. `compress-force`, `nodatacow`, `nodatasum`, custom `commit=` values, and manually forced SSD heuristics are also not part of the default policy.
+
+Mount options affect newly mounted pool state and compression primarily affects newly written extents. Hacocoon does not rewrite all existing data merely to recompress it.
+
+## Runtime selection and reconciliation
 
 The local composition configures a lazy storage provider. Merely opening the local application for a command that does not need an Incus rootfs does not create the default pool.
 
 Before the first Environment, Tooling Base builder, Seed builder, or trusted host needs root storage, the provider checks for `haco-local-default`. If it does not exist, Hacocoon asks Incus to create the Btrfs loop pool with the desired size and mount options. The runtime then reuses that pool for subsequent Hacocoon-owned rootfs operations instead of inheriting the Host's Incus default-profile pool.
 
-An already-existing `haco-local-default` pool is reused. Hacocoon does not destructively replace an existing populated legacy pool during ordinary startup; migration of legacy pool contents must be a separate fail-safe operation.
+For an existing Incus-owned `haco-local-default` pool, Hacocoon reads `btrfs.mount_options` through the Incus storage API/CLI. If the value differs, it reconciles the key with `incus storage set` and verifies the resulting configuration. Hacocoon does not remount the filesystem behind Incus' back or use the privileged storage helper for this normal path.
+
+An already-existing populated legacy external-path pool is not destructively replaced during ordinary startup. Migration/recovery of that older ownership model remains a separate fail-safe compatibility operation.
+
+## `metadata_ratio` policy
+
+Hacocoon does not set a custom Btrfs metadata ratio by default. It is a filesystem-creation policy, not part of the normal mount-option reconciliation above. Any future non-default ratio must be justified by a focused snapshot/clone/COW-heavy benchmark that shows a repeatable reduction in metadata-allocation failure risk without unacceptable space overhead.
 
 ## Legacy Hacocoon-managed storage path
 
@@ -92,7 +106,7 @@ The helper remains fail-closed and typed: it does not expose arbitrary root comm
 Repository CI uses independent disposable Ubuntu 26.04 acceptance paths:
 
 1. the storage-helper job exercises the retained Hacocoon-managed raw/loop/Btrfs helper boundary and its hardening rules;
-2. the normal CLI job runs the actual ordinary-user `haco` binary against real Incus without installing the storage helper for that path. It verifies that Incus creates `/var/lib/incus/disks/haco-local-default.img`, the image is sparse at the Linux-file level, a real loop device backs the pool, the live mount is Btrfs with zstd compression and no autodefrag, no legacy `$HACO_ROOT/images/local-default.raw` or `$HACO_ROOT/mounts/local-default` appears, and `haco create` / `exec` / `delete` / `run` reuse the pool correctly.
+2. the normal CLI job runs the actual ordinary-user `haco` binary against real Incus without installing the storage helper for that path. It verifies that Incus creates `/var/lib/incus/disks/haco-local-default.img`, the image is sparse at the Linux-file level, a real loop device backs the pool, the configured/live Btrfs policy contains zstd compression, `noatime`, and `nodiscard` without `autodefrag`, no legacy `$HACO_ROOT/images/local-default.raw` or `$HACO_ROOT/mounts/local-default` appears, and `haco create` / `exec` / `delete` / `run` reuse the pool correctly.
 
 These checks establish lifecycle and policy behavior on the hosted environment. They do not by themselves establish compression ratio, COW efficiency, Windows-host VHDX compaction effectiveness, or every supported Host configuration.
 
