@@ -12,7 +12,7 @@ Milestone: **v0.20 Managed Btrfs Rootfs Storage** / **v0.21 Managed Btrfs Transp
 Incus pool: haco-local-default
   driver=btrfs
   size=128GiB
-  btrfs.mount_options=compress=zstd:3
+  btrfs.mount_options=compress=zstd:3,noatime,nodiscard
         |
         v
 /var/lib/incus/disks/haco-local-default.img
@@ -41,7 +41,7 @@ backing image作成、loop attach、Btrfs format、mount/unmount lifecycle、対
 
 Incusのloop-backed Btrfs poolはsparseな **Linux file** を使う。Incusはloop imageのlogical sizeだけを設定するsparse-file pathで作成し、128GiBを最初から全量physical allocateしない。repository acceptanceでも作成後にallocated bytesがlogical 128GiBより小さいことを確認する。
 
-これはWSLの `sparseVhd` / sparse-VHDX modeとは別。Hacocoonはこのstorage designのためにWSL sparse-VHD modeを有効化しない。Windows Host側VHDXのspace reclamationは明示的なmaintenanceとして扱い、`haco maintenance compact` の別workで管理する。
+これはWSLの `sparseVhd` / sparse-VHDX modeとは別。Hacocoonはこのstorage designのためにWSL sparse-VHD modeを有効化しない。Windows Host側VHDXのspace reclamationは明示的なmaintenanceとして扱い、`haco maintenance compact` は専用WSL VHDをoffline compactする前にguest側で `fstrim` を実行する。
 
 ## なぜrootfs objectを同じpoolで共有するのか
 
@@ -54,9 +54,19 @@ Base、Tooling、Seed、Environmentのrootfs dataを同じHacocoon Btrfs poolへ
 
 隔離のためだけにEnvironmentやSeedごとへ別のBtrfs filesystem / loop imageを作らない。論理的な隔離は共有pool内のIncus volume / subvolumeが担当する。
 
-## 圧縮・defragmentation policy
+## managed mount policy
 
-既定poolは `compress=zstd:3` を使う。`compress-force` は意図的に要求せず、圧縮しにくいdataはBtrfsの通常heuristicsに任せる。
+既定のdesired mount policyは次。
+
+```text
+compress=zstd:3,noatime,nodiscard
+```
+
+`compress=zstd:3` で透過圧縮を有効にする。`compress-force` は要求せず、圧縮しにくいdataはBtrfsの通常heuristicsに任せる。
+
+`noatime` は、source tree、package、compiler、runtime、database fileなどを繰り返し読むdevelopment rootfsでaccess-time metadata更新を避け、metadata writeと不要なCOW churnを減らす。`st_atime`、`find -atime` などaccess timeの意味へ明示的に依存するapplication/operator scriptはcompatibility exceptionであり、将来別のstorage policyが必要になる。
+
+`nodiscard` は、対応deviceでBtrfsが既定にし得るasync discardを含め、通常Environment稼働中のcontinuous discardを無効にする。Hacocoonは通常処理へdiscard workを混ぜるよりbatch reclamationを優先する。Windows/WSLでは `haco maintenance compact` がoffline VHD compaction前にguest `fstrim` を明示実行する。それ以外のHostでは、genericなHacocoon storage-maintenance surfaceが所有するまではHost/operator側の明示trim policyが必要。
 
 `autodefrag` も既定では無効。automatic defragmentationはextentを書き換え、既存のreflink/COW sharingを減らす可能性があるため、Incus snapshot/clone中心のrootfs poolには良いdefault trade-offではない。将来使う場合もworkload-specificな明示判断にする。
 
@@ -68,7 +78,7 @@ local compositionはstorage providerをlazyに設定する。Incus rootfsを必�
 
 最初にEnvironment、Tooling Base builder、Seed builder、trusted hostなどがroot storageを必要とした時点で、providerが `haco-local-default` の存在を確認する。なければHacocoonはIncusへdesired sizeとmount optionsを渡してloop-backed Btrfs poolを作成させる。その後はHacocoon所有rootfs operationで同じpoolを再利用し、HostのIncus default-profile poolへfallbackしない。
 
-既存の `haco-local-default` poolがある場合は再利用する。通常startupで既存のpopulated legacy poolを破壊・再作成しない。legacy pool contentsのmigrationは別のfail-safe operationとして扱う。
+既存の `haco-local-default` poolがある場合は再利用するが、再利用前に `btrfs.mount_options` をHacocoonのdesired policyへreconcileする。populated poolを破壊・再作成するのではなくIncus pool configを更新し、対応するremountのownershipもIncusに残す。legacy pool contentsのmigrationは別のfail-safe operationとして扱う。
 
 ## legacy Hacocoon-managed storage path
 
@@ -83,16 +93,20 @@ HACO_ROOT/images/<storage-id>.raw
 
 storage-helper、block backend、shrink/compact、hardening、compatibilityのfocused testに引き続き使える。local compositionで明示的に `HACO_STORAGE_PRIVILEGE_MODE` または `HACO_BLOCK_BACKEND` を設定した場合だけこのcompatibility pathを選ぶ。通常installationはどちらも設定しないためIncus-owned poolを使う。
 
-helperは引き続きfail-closedなtyped interfaceであり、任意のroot command executionを公開しない。専用acceptance coverageも通常CLI storage pathとは独立して残す。
+legacy filesystem pathも同じ `compress=zstd:3,noatime,nodiscard` desired stateを強制する。helperは引き続きfail-closedなtyped interfaceであり、Hacocoonの正確なmount/remount policyだけを許可し、任意のroot command executionや任意mount optionを公開しない。専用acceptance coverageも通常CLI storage pathとは独立して残す。
+
+## `metadata_ratio` policy
+
+Hacocoonは `metadata_ratio` を既定では設定しない。snapshot/reflink-heavy workloadはmetadata-heavyになり得る一方、metadataを積極的に予約するとallocation behaviorやphysical overheadも変わる。非default値を採用する場合は、Hacocoon固有のsnapshot/clone workloadでmetadata ENOSPCとphysical space overheadを含め、repeatableな改善が確認できた場合に限る。
 
 ## Acceptance coverage
 
 repository CIはdisposableなUbuntu 26.04上で独立した2種類のacceptanceを行う。
 
-1. storage-helper jobは、残しているHacocoon-managed raw/loop/Btrfs helper boundaryとhardening ruleを実機能で検証する。
-2. normal CLI jobは、その経路のためにstorage helperをinstallせず、actual ordinary-user `haco` をreal Incusへ接続する。Incusが `/var/lib/incus/disks/haco-local-default.img` を作ること、Linux fileとしてsparseであること、real loop deviceがpoolをbackingしていること、live mountがzstd圧縮付きBtrfsかつautodefrag無しであること、legacyな `$HACO_ROOT/images/local-default.raw` / `$HACO_ROOT/mounts/local-default` が作られないこと、`haco create` / `exec` / `delete` / `run` が同じpoolを正しく再利用することを確認する。
+1. storage-helper jobは、残しているHacocoon-managed raw/loop/Btrfs helper boundaryを実機能で検証し、正確なmanaged mount policyとfail-closed hardening ruleを確認する。
+2. normal CLI jobは、その経路のためにstorage helperをinstallせず、actual ordinary-user `haco` をreal Incusへ接続する。Incusが `/var/lib/incus/disks/haco-local-default.img` を作ること、Linux fileとしてsparseであること、real loop deviceがpoolをbackingしていること、live mountがzstd圧縮・`noatime`・`nodiscard` 付きBtrfsかつautodefrag無しであること、legacyな `$HACO_ROOT/images/local-default.raw` / `$HACO_ROOT/mounts/local-default` が作られないこと、`haco create` / `exec` / `delete` / `run` が同じpoolを正しく再利用することを確認する。また一度だけ旧compression-only policyを故意に設定し、次のHacocoon rootfs operationでdesired policyへ自動reconcileされることも確認する。
 
-これらはhosted environment上でlifecycleとpolicyを検証するもの。physical compression ratio、COW効率、Windows Host VHDX compaction効果、すべてのsupported Host configurationまで証明するものではない。
+これらはhosted environment上でlifecycleとpolicyを検証するもの。physical compression ratio、COW効率、Windows Host VHDX compaction効果、最適な `metadata_ratio`、すべてのsupported Host configurationまで証明するものではない。
 
 ## Workspace の境界
 
