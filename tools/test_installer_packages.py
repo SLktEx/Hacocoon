@@ -170,10 +170,14 @@ with tempfile.TemporaryDirectory() as temp:
 
             # Also retain #439's Windows maintenance launcher package contract.
             windows_bat = zf.read("install-windows.bat").decode("utf-8")
-            for required in ("haco-windows.ps1", "__install-launcher"):
+            for required in (
+                "haco-windows.ps1",
+                "__install-launcher",
+                "Hacocoon Windows installation complete.",
+            ):
                 if required not in windows_bat:
                     raise SystemExit(
-                        f"Windows {arch} installer does not install the host launcher: {required!r}"
+                        f"Windows {arch} installer does not install the host launcher or expose final completion: {required!r}"
                     )
 
             launcher_cmd = zf.read("haco-windows.cmd").decode("utf-8")
