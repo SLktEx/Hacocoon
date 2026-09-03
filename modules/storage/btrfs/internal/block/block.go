@@ -16,8 +16,10 @@ type Spec struct {
 }
 
 type Handle struct {
-	ID     string
-	Path   string
+	ID   string
+	Path string
+	// Device is the current runtime attachment, not durable identity. Callers
+	// must tolerate it becoming stale after detach, reattach, or reboot.
 	Device string
 	Bytes  int64
 }
