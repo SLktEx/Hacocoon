@@ -33,6 +33,27 @@ func TestExecRunnerDebugLoggingSanitizesArguments(t *testing.T) {
 	}
 }
 
+func TestExecRunnerFailureDoesNotRequireDebugLoggingForDiagnostics(t *testing.T) {
+	var buffer bytes.Buffer
+	logger, err := logging.New(logging.Config{Writer: &buffer, Level: slog.LevelInfo, Format: logging.FormatText})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := logging.WithLogger(context.Background(), logger)
+
+	_, runErr := (ExecRunner{}).Run(ctx, "sh", "-c", "printf 'failure detail' >&2; exit 4")
+	if runErr == nil {
+		t.Fatal("expected command failure")
+	}
+	if buffer.Len() != 0 {
+		t.Fatalf("debug-only runner logs unexpectedly emitted at info level: %s", buffer.String())
+	}
+	message := runErr.Error()
+	if !strings.Contains(message, "host command failed: sh -c") || !strings.Contains(message, "stderr:\nfailure detail") {
+		t.Fatalf("ordinary failure error lacks command/output diagnostics: %s", message)
+	}
+}
+
 func TestCommandComponentClassifiesSubsystems(t *testing.T) {
 	tests := []struct {
 		name string

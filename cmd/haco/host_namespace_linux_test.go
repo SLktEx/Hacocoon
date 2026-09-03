@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"reflect"
@@ -16,12 +17,7 @@ import (
 func TestHostEnsureNamespaceIgnoresOtherCommands(t *testing.T) {
 	deps := hostEnsureNamespaceDeps{}
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
-		context.Background(),
-		[]string{"doctor"},
-		bytes.NewReader(nil),
-		io.Discard,
-		io.Discard,
-		deps,
+		context.Background(), []string{"doctor"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
 	if handled || err != nil {
 		t.Fatalf("handled=%v err=%v, want false nil", handled, err)
@@ -38,62 +34,116 @@ func TestHostEnsureNamespaceContinuesWhenAlreadyWithPID1(t *testing.T) {
 			return "", errors.New("unexpected path")
 		}
 	}
+	deps.incusMainPID = func(context.Context) (int, error) {
+		t.Fatal("ordinary PID1 namespace path must not inspect incus.service")
+		return 0, nil
+	}
 	deps.run = func(context.Context, string, []string, io.Reader, io.Writer, io.Writer) error {
 		t.Fatal("namespace runner must not be called when mount namespace already matches PID 1")
 		return nil
 	}
 
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
-		context.Background(),
-		[]string{"host", "ensure"},
-		bytes.NewReader(nil),
-		io.Discard,
-		io.Discard,
-		deps,
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
 	if handled || err != nil {
 		t.Fatalf("handled=%v err=%v, want false nil", handled, err)
 	}
 }
 
-func TestHostEnsureNamespaceReexecsThroughPID1MountNamespace(t *testing.T) {
+func TestHostEnsureNamespaceRejectsMissingIncusMainPID(t *testing.T) {
 	deps := testHostEnsureNamespaceDeps()
+	deps.incusMainPID = func(context.Context) (int, error) { return 0, nil }
+
+	handled, err := maybeReexecHostEnsureInInitMountNamespace(
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
+	)
+	if !handled || err == nil || !strings.Contains(err.Error(), "invalid MainPID 0") {
+		t.Fatalf("handled=%v err=%v, want missing Incus MainPID failure", handled, err)
+	}
+}
+
+func TestHostEnsureNamespaceReexecsThroughRunningIncusMountNamespace(t *testing.T) {
+	const incusPID = 4242
+	incusNamespace := fmt.Sprintf("/proc/%d/ns/mnt", incusPID)
+	deps := testHostEnsureNamespaceDeps()
+	deps.incusMainPID = func(context.Context) (int, error) { return incusPID, nil }
+	deps.readFile = func(path string) ([]byte, error) {
+		switch path {
+		case initCommPath:
+			return []byte("systemd\n"), nil
+		case fmt.Sprintf("/proc/%d/comm", incusPID):
+			return []byte("incusd\n"), nil
+		default:
+			return nil, errors.New("unexpected path")
+		}
+	}
 	deps.readlink = func(path string) (string, error) {
 		switch path {
 		case selfMountNamespace:
 			return "mnt:[11]", nil
 		case initMountNamespace:
 			return "mnt:[22]", nil
+		case incusNamespace:
+			return "mnt:[33]", nil
 		default:
 			return "", errors.New("unexpected path")
 		}
 	}
 
-	var gotName string
 	var gotArgs []string
-	deps.run = func(_ context.Context, name string, args []string, _ io.Reader, _ io.Writer, _ io.Writer) error {
-		gotName = name
+	deps.run = func(_ context.Context, _ string, args []string, _ io.Reader, _ io.Writer, _ io.Writer) error {
 		gotArgs = append([]string(nil), args...)
 		return nil
 	}
 
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
-		context.Background(),
-		[]string{"host", "ensure"},
-		bytes.NewReader(nil),
-		io.Discard,
-		io.Discard,
-		deps,
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
 	if !handled || err != nil {
 		t.Fatalf("handled=%v err=%v, want true nil", handled, err)
 	}
-	if gotName != nsenterBinary {
-		t.Fatalf("runner name=%q, want %q", gotName, nsenterBinary)
-	}
-	wantArgs := []string{"--mount=" + initMountNamespace, "--", "/usr/local/bin/haco", "host", "ensure"}
+	wantArgs := []string{"--mount=" + incusNamespace, "--", "/usr/local/bin/haco", "host", "ensure"}
 	if !reflect.DeepEqual(gotArgs, wantArgs) {
 		t.Fatalf("runner args=%q, want %q", gotArgs, wantArgs)
+	}
+}
+
+func TestHostEnsureNamespaceContinuesWhenAlreadyWithRunningIncus(t *testing.T) {
+	const incusPID = 4242
+	incusNamespace := fmt.Sprintf("/proc/%d/ns/mnt", incusPID)
+	deps := testHostEnsureNamespaceDeps()
+	deps.incusMainPID = func(context.Context) (int, error) { return incusPID, nil }
+	deps.readFile = func(path string) ([]byte, error) {
+		switch path {
+		case initCommPath:
+			return []byte("systemd\n"), nil
+		case fmt.Sprintf("/proc/%d/comm", incusPID):
+			return []byte("incusd\n"), nil
+		default:
+			return nil, errors.New("unexpected path")
+		}
+	}
+	deps.readlink = func(path string) (string, error) {
+		switch path {
+		case selfMountNamespace, incusNamespace:
+			return "mnt:[33]", nil
+		case initMountNamespace:
+			return "mnt:[22]", nil
+		default:
+			return "", errors.New("unexpected path")
+		}
+	}
+	deps.run = func(context.Context, string, []string, io.Reader, io.Writer, io.Writer) error {
+		t.Fatal("namespace runner must not be called when already in incusd mount namespace")
+		return nil
+	}
+
+	handled, err := maybeReexecHostEnsureInInitMountNamespace(
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
+	)
+	if handled || err != nil {
+		t.Fatalf("handled=%v err=%v, want false nil", handled, err)
 	}
 }
 
@@ -101,18 +151,13 @@ func TestHostEnsureNamespaceLeavesNonRootPathUnchanged(t *testing.T) {
 	deps := hostEnsureNamespaceDeps{
 		geteuid: func() int { return 1000 },
 		readlink: func(string) (string, error) {
-			t.Fatal("non-root host ensure must not inspect PID 1 namespace handles")
+			t.Fatal("non-root host ensure must not inspect system namespace handles")
 			return "", nil
 		},
 	}
 
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
-		context.Background(),
-		[]string{"host", "ensure"},
-		bytes.NewReader(nil),
-		io.Discard,
-		io.Discard,
-		deps,
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
 	if handled || err != nil {
 		t.Fatalf("handled=%v err=%v, want false nil", handled, err)
@@ -125,23 +170,47 @@ func TestHostEnsureNamespaceRejectsNonSystemdPID1(t *testing.T) {
 	deps.readFile = func(string) ([]byte, error) { return []byte("bash\n"), nil }
 
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
-		context.Background(),
-		[]string{"host", "ensure"},
-		bytes.NewReader(nil),
-		io.Discard,
-		io.Discard,
-		deps,
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
 	if !handled || err == nil || !strings.Contains(err.Error(), "not systemd") {
 		t.Fatalf("handled=%v err=%v, want PID1 validation failure", handled, err)
 	}
 }
 
+func TestHostEnsureNamespaceRejectsUnexpectedIncusMainPID(t *testing.T) {
+	const incusPID = 4242
+	deps := testHostEnsureNamespaceDeps()
+	deps.incusMainPID = func(context.Context) (int, error) { return incusPID, nil }
+	deps.readFile = func(path string) ([]byte, error) {
+		switch path {
+		case initCommPath:
+			return []byte("systemd\n"), nil
+		case fmt.Sprintf("/proc/%d/comm", incusPID):
+			return []byte("not-incusd\n"), nil
+		default:
+			return nil, errors.New("unexpected path")
+		}
+	}
+
+	handled, err := maybeReexecHostEnsureInInitMountNamespace(
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
+	)
+	if !handled || err == nil || !strings.Contains(err.Error(), "not incusd") {
+		t.Fatalf("handled=%v err=%v, want incusd identity validation failure", handled, err)
+	}
+}
+
 func testHostEnsureNamespaceDeps() hostEnsureNamespaceDeps {
 	return hostEnsureNamespaceDeps{
 		readlink: differingMountNamespaces,
-		readFile: func(string) ([]byte, error) { return []byte("systemd\n"), nil },
-		geteuid:  func() int { return 0 },
+		readFile: func(path string) ([]byte, error) {
+			if path == initCommPath {
+				return []byte("systemd\n"), nil
+			}
+			return nil, errors.New("unexpected path")
+		},
+		geteuid:      func() int { return 0 },
+		incusMainPID: func(context.Context) (int, error) { return 0, nil },
 		executable: func() (string, error) {
 			return "/usr/local/bin/haco", nil
 		},
