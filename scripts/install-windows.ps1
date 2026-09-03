@@ -280,7 +280,7 @@ function Ensure-ManagedWslLoginUser([string]$Name) {
     }
 
     Set-WslDefaultUser $Name $ManagedLoginUser
-    & wsl.exe --terminate $Name
+    & wsl.exe --terminate $Name | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Failed to restart '$Name' after configuring the managed login user." }
     Start-Sleep -Milliseconds 750
 
@@ -294,7 +294,7 @@ function Ensure-ManagedWslLoginUser([string]$Name) {
 function Complete-InteractiveWslUserSetup([string]$Name) {
     Write-Step "Launching interactive Ubuntu user setup in '$Name'"
     Write-Host "Create the Ubuntu user you want to use, then exit the WSL shell to continue installation."
-    & wsl.exe --distribution $Name
+    & wsl.exe --distribution $Name | Out-Host
     if ($LASTEXITCODE -ne 0) {
         throw "Interactive Ubuntu user setup in '$Name' failed."
     }
