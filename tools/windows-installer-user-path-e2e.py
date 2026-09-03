@@ -42,7 +42,7 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(errors="replace")
 
 TERMINAL_ARGV = ("cmd.exe",)
-INSTALL_COMPLETE_RE = re.compile(r"Hacocoon WSL installation complete", re.MULTILINE)
+INSTALL_COMPLETE_RE = re.compile(r"Hacocoon Windows installation complete\.", re.MULTILINE)
 
 # Only these commands may drive Hacocoon state in the installed user path.
 # Read-only assertions live outside this table so the two roles cannot blur.
@@ -231,10 +231,10 @@ def run_bat(package_root: Path, *, phase: str) -> str:
 
     ConPTY does not reliably redraw cmd.exe's prompt after a long-running BAT
     until more input arrives. Waiting for that redraw made a successful install
-    hang in CI. The installer already prints a normal user-visible completion
-    line as its final success signal, so after observing that line we type the
-    ordinary outer-shell `exit`. No product command, argument, option, or
-    environment is changed.
+    hang in CI. The outer BAT prints its final user-visible completion line only
+    after both the WSL installer and Windows launcher setup succeed, so after
+    observing that line we type the ordinary outer-shell `exit`. No product
+    command, argument, option, or environment is changed.
     """
 
     process = TerminalProcess(cwd=package_root)
@@ -254,7 +254,7 @@ def run_bat(package_root: Path, *, phase: str) -> str:
     output = process.run(responders=sudo_responders(), on_output=drive)
     if not sent_command or not sent_exit:
         raise RuntimeError(f"{phase}: install-windows.bat did not reach normal completion")
-    require_output(output, r"Hacocoon WSL installation complete", phase=phase)
+    require_output(output, r"Hacocoon Windows installation complete\.", phase=phase)
     return output
 
 
