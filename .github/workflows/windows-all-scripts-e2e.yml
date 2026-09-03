@@ -11,6 +11,7 @@ on:
       - "scripts/install-windows.ps1"
       - "scripts/install.sh"
       - "tools/package_installers.py"
+      - "tools/test_installer_packages.py"
       - "tools/installer-user-journey-e2e.sh"
       - "tools/installer-network-security-e2e.sh"
       - ".github/workflows/windows-all-scripts-e2e.yml"
@@ -103,7 +104,7 @@ jobs:
             throw "amd64 package contains arm64 payload."
           }
 
-      - name: User path phase 1 - run packaged BAT unchanged
+      - name: Run packaged BAT once from a fresh Windows user path
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -111,57 +112,34 @@ jobs:
           Push-Location $packageRoot
           try {
             & cmd.exe /d /c "install-windows.bat"
-            if ($LASTEXITCODE -ne 0) { throw "Packaged BAT phase 1 failed with exit code $LASTEXITCODE." }
+            if ($LASTEXITCODE -ne 0) { throw "Packaged BAT failed with exit code $LASTEXITCODE." }
           } finally {
             Pop-Location
           }
 
-      - name: Complete normal Ubuntu first-launch fixture
+      - name: Assert first BAT invocation completed the managed-user install
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $instance = "Hacocoon"
-          $loginUser = "haco-e2e"
+          $loginUser = "hacocoon"
           $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
           if (-not ($installed -contains $instance)) { throw "Packaged installer did not create the default Hacocoon WSL distribution." }
 
-          & wsl.exe --distribution $instance --user root --exec sh -eu -c "id '$loginUser' >/dev/null 2>&1 || useradd -m -s /bin/bash -G sudo '$loginUser'"
-          if ($LASTEXITCODE -ne 0) { throw "Failed to create ordinary Ubuntu user fixture." }
-
-          & wsl.exe --distribution $instance --user root --exec sh -eu -c "printf '\n[user]\ndefault=%s\n' '$loginUser' >> /etc/wsl.conf"
-          if ($LASTEXITCODE -ne 0) { throw "Failed to set the normal WSL default user fixture." }
-
-          # The hosted runner cannot answer an interactive sudo password prompt.
-          # Give the fixture user only the exact command families exercised by
-          # the normal installer. No installer argument or environment is changed.
-          $sudoers = @(
-            "Cmnd_Alias HACO_BOOTSTRAP = /usr/bin/apt-get, /usr/bin/install, /usr/bin/mkdir, /usr/bin/tee, /usr/bin/chmod, /usr/sbin/groupadd, /usr/sbin/usermod, /usr/bin/systemctl, /usr/bin/incus, /usr/bin/stat, /usr/bin/find, /usr/bin/chown, /usr/bin/cp, /usr/bin/test, /usr/bin/awk, /usr/sbin/modprobe, /usr/local/bin/haco host ensure",
-            "$loginUser ALL=(root) NOPASSWD: HACO_BOOTSTRAP"
-          ) -join "`n"
-          $sudoers += "`n"
-          $sudoersBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($sudoers))
-          & wsl.exe --distribution $instance --user root --exec sh -eu -c "printf '%s' '$sudoersBase64' | base64 -d > /etc/sudoers.d/hacocoon-e2e-bootstrap && chmod 0440 /etc/sudoers.d/hacocoon-e2e-bootstrap && visudo -cf /etc/sudoers.d/hacocoon-e2e-bootstrap >/dev/null"
-          if ($LASTEXITCODE -ne 0) { throw "Failed to prepare noninteractive sudo fixture." }
-
-          & wsl.exe --terminate $instance
-          if ($LASTEXITCODE -ne 0) { throw "Failed to restart WSL after normal first-launch fixture setup." }
-          Start-Sleep -Milliseconds 750
           $defaultUser = (& wsl.exe --distribution $instance --exec id -un | Out-String).Trim()
           if ($LASTEXITCODE -ne 0 -or $defaultUser -ne $loginUser) {
-            throw "Normal WSL default user setup failed: got '$defaultUser'."
+            throw "Fresh installer did not configure the managed WSL default user: got '$defaultUser'."
           }
+          & wsl.exe --distribution $instance --user $loginUser --exec test -x /usr/local/bin/haco
+          if ($LASTEXITCODE -ne 0) { throw "First BAT invocation stopped before installing haco." }
+          & wsl.exe --distribution $instance --user root --exec test ! -e /etc/sudoers.d/hacocoon-bootstrap
+          if ($LASTEXITCODE -ne 0) { throw "Temporary bootstrap sudo rule leaked after installer completion." }
 
-      - name: User path phase 2 - run the same packaged BAT unchanged
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $packageRoot = Join-Path $env:RUNNER_TEMP "hacocoon-windows-amd64"
-          Push-Location $packageRoot
-          try {
-            & cmd.exe /d /c "install-windows.bat"
-            if ($LASTEXITCODE -ne 0) { throw "Packaged BAT phase 2 failed with exit code $LASTEXITCODE." }
-          } finally {
-            Pop-Location
+          $shadow = (& wsl.exe --distribution $instance --user root --exec getent shadow $loginUser | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0) { throw "Unable to inspect managed WSL user password state." }
+          $passwordField = ($shadow -split ':')[1]
+          if (-not $passwordField.StartsWith('!')) {
+            throw "Managed WSL user password login is not locked."
           }
 
       - name: Assert Hacocoon is usable through the WSL user path
@@ -169,7 +147,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $instance = "Hacocoon"
-          $loginUser = "haco-e2e"
+          $loginUser = "hacocoon"
 
           $pid1 = (& wsl.exe --distribution $instance --user root --exec ps -p 1 -o comm= | Out-String).Trim()
           if ($LASTEXITCODE -ne 0 -or $pid1 -ne "systemd") { throw "systemd is not PID 1." }
@@ -220,7 +198,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $instance = "Hacocoon"
-          $loginUser = "haco-e2e"
+          $loginUser = "hacocoon"
           $scriptWindows = Join-Path $env:GITHUB_WORKSPACE "tools\installer-user-journey-e2e.sh"
           $scriptLinux = (& wsl.exe --distribution $instance --user $loginUser --exec wslpath -u -a $scriptWindows | Out-String).Trim()
           if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($scriptLinux)) {
@@ -251,7 +229,7 @@ jobs:
           & wsl.exe --list --verbose 2>&1 | ForEach-Object { Write-Host $_ }
           $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
           if ($installed -contains $instance) {
-            wsl.exe --distribution $instance --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; command -v nft || true; getent group hacocoon || true; stat -Lc "%U:%G:%a %n" /run/hacocoon/control.sock || true; haco version || true; haco doctor || true; haco env list || true; nft list ruleset || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true; incus network list --project default || true'
+            wsl.exe --distribution $instance --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; command -v nft || true; getent passwd hacocoon || true; getent group hacocoon || true; ls -l /etc/sudoers.d || true; stat -Lc "%U:%G:%a %n" /run/hacocoon/control.sock || true; haco version || true; haco doctor || true; haco env list || true; nft list ruleset || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true; incus network list --project default || true'
           }
           $global:LASTEXITCODE = 0
 
