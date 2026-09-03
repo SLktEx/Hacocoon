@@ -61,8 +61,8 @@ assert_incus_managed_storage() {
   [[ "$mount_options" == "compress=zstd:3" ]] || fail "Incus Btrfs mount options are '$mount_options'"
   [[ ",$mount_options," != *,autodefrag,* ]] || fail "autodefrag must remain disabled: $mount_options"
 
-  [[ ! -e "$CLI_ROOT/images/local-default.raw" ]] || fail "default composition still created the legacy Hacocoon raw image"
-  [[ ! -e "$CLI_ROOT/mounts/local-default" ]] || fail "default composition still created the legacy Hacocoon mountpoint"
+  [[ ! -e "$CLI_ROOT/images/local-default.raw" ]] || fail "default composition still created the removed Hacocoon raw image"
+  [[ ! -e "$CLI_ROOT/mounts/local-default" ]] || fail "default composition still created the removed Hacocoon mountpoint"
 
   sudo test -f "$source" || fail "Incus loop backing image is missing"
   logical_bytes="$(sudo stat -Lc '%s' "$source")"
@@ -107,8 +107,6 @@ run_test() {
 
   export HACO_ROOT="$CLI_ROOT"
   unset HACO_PLUGIN_OCI
-  unset HACO_STORAGE_PRIVILEGE_MODE
-  unset HACO_BLOCK_BACKEND
 
   "$HACO_BIN" create --base haco/ubuntu-26.04 --workspace "$WORKSPACE" "$ENV_NAME"
 
