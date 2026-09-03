@@ -155,7 +155,13 @@ haco host shell
 
 Installer E2E is evaluated at the user-visible entry points, not by declaring success because `install.sh` ran in isolation.
 
-The Windows gate builds the candidate `hacocoon-windows-amd64.zip`, extracts it, executes the packaged `install-windows.bat`, emulates the normal Ubuntu first-launch user creation when necessary, executes the **same packaged BAT again**, and requires WSL 2, systemd, Incus, the controller socket/service, `haco-host doctor`, and WSL login integration to succeed.
+The Windows gate builds and extracts the branch candidate `hacocoon-windows-amd64.zip` before the user-action boundary. This preserves PR-branch coverage while exercising the same package shape as a release.
+
+From the first packaged `install-windows.bat` invocation onward, product-driving actions use only commands and interaction a real user can perform unchanged. The gate runs the BAT with no Hacocoon-specific arguments/options or environment overrides, completes the normal Ubuntu first launch through the documented `wsl -d Hacocoon` interactive session, runs the same packaged BAT again, enters the installed trusted Host through the same `wsl -d Hacocoon` command, creates and uses a normal Environment through ordinary `haco` commands, reruns the unchanged BAT against that existing state, then re-enters through the same user path and requires the existing Environment to remain usable.
+
+The exact-action driver has a closed command allowlist. It must not substitute CI-created users/sudoers, `wsl --user root` / `wsl --exec`, `HACO_*` test environment changes, installer/E2E-only arguments or options, direct `haco host ensure`, synthetic WSL lifecycle operations, or storage/mount/Incus repair for any product action. CI-specific preparation is finished before the boundary; the GitHub-hosted runner is disposable, so the passing path does not need Hacocoon-specific teardown afterward.
+
+Lower-level Incus-owned Btrfs/loop/storage invariants are covered by dedicated storage acceptance tests. The Windows exact user-action gate focuses on the observable contract: unchanged install/reinstall succeeds and an Environment created before reinstall still supports normal `haco env status` and `haco env exec` afterward.
 
 The native Ubuntu gate builds the candidate `hacocoon-ubuntu-amd64.tar.gz`, extracts it, executes the packaged `install-ubuntu.sh`, and requires the controller and trusted `haco-host` round trip to succeed while confirming the native login shell was not replaced.
 
