@@ -103,7 +103,7 @@ validate_release_artifacts() {
   local archive listing
   for archive in dist/haco_linux_amd64.tar.gz dist/haco_linux_arm64.tar.gz; do
     listing="$(tar -tzf "$archive")"
-    for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper; do
+    for binary in haco hacoq haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper; do
       grep -Fx "$binary" <<<"$listing" >/dev/null
     done
   done
