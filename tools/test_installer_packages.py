@@ -114,12 +114,12 @@ with tempfile.TemporaryDirectory() as temp:
                 'Disable-BootstrapSudo',
                 'Get-SudoersPolicyFiles',
                 '@("/etc/sudoers-rs", "/etc/sudoers")',
-                'Validating temporary sudo rule through policy candidates',
-                '/etc/sudoers-rs',
-                'Ensure-HacocoonSudoRuleLoaded',
-                'Remove-HacocoonSudoRuleInclude',
-                '@include $RulePath',
-                '$LoginUser ALL=NOPASSWD: ALL',
+                'Set-HacocoonSudoPolicyBlock',
+                'Remove-HacocoonSudoPolicyBlock',
+                'Set-HacocoonLoginSudoRule',
+                '# BEGIN HACOCOON $MarkerName',
+                '$LoginUser ALL=(ALL:ALL) NOPASSWD: ALL',
+                'Validating temporary sudo rule through policy files',
                 '"sudo", "-n", "/usr/bin/true"',
                 '$OutputEncoding = [Text.UTF8Encoding]::new($false)',
                 '& wsl.exe --terminate $Name | Out-Null',
@@ -144,6 +144,7 @@ with tempfile.TemporaryDirectory() as temp:
                 "$provider.Stdout -match '^sudo-rs'",
                 '"readlink", "-f", "/usr/bin/sudo"',
                 '"update-alternatives"',
+                '@include $RulePath',
             ):
                 if forbidden_provider_guess in windows_installer:
                     raise SystemExit(

@@ -14,7 +14,6 @@ Set-StrictMode -Version Latest
 
 $LoginShell = "/usr/local/libexec/hacocoon-login"
 $ManagedLoginUser = "hacocoon"
-$BootstrapSudoersPath = "/etc/sudoers.d/hacocoon-bootstrap"
 
 function Write-Step([string]$Message) {
     Write-Host "==> $Message"
@@ -133,11 +132,6 @@ function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [swit
 }
 
 function Get-SudoersPolicyFiles([string]$Name) {
-    # Ubuntu 26.04 can ship more than one sudo implementation. Provider
-    # symlink/version details have changed across images, so do not guess
-    # which parser is active. Load the Hacocoon-owned include into every
-    # supported policy file that actually exists, then verify behavior by
-    # running sudo as the target user.
     $policies = @()
     foreach ($policy in @("/etc/sudoers-rs", "/etc/sudoers")) {
         $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "test", "-f", $policy)
@@ -153,64 +147,108 @@ function Get-SudoersPolicyFiles([string]$Name) {
     return $policies
 }
 
-function Ensure-HacocoonSudoRuleLoaded([string]$Name, [string]$RulePath) {
-    $includedirPattern = '^[[:space:]]*(@includedir|#includedir)[[:space:]]+/etc/sudoers\.d([[:space:]]|$)'
-    $includeLine = "@include $RulePath"
-    $loadedPolicies = @()
-
-    foreach ($policy in @(Get-SudoersPolicyFiles $Name)) {
-        $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "grep", "-Eq", $includedirPattern, $policy)
-        if ($probe.ExitCode -eq 0) {
-            $loadedPolicies += $policy
-            continue
-        }
-        if ($probe.ExitCode -ne 1) {
-            throw "Failed to inspect sudo policy '$policy': $($probe.Stderr)"
-        }
-
-        # Minimal Ubuntu/WSL policy may ignore /etc/sudoers.d. Include only
-        # the Hacocoon-owned temporary rule instead of enabling unrelated
-        # drop-ins.
-        $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "grep", "-Fx", $includeLine, $policy)
-        if ($probe.ExitCode -eq 1) {
-            $probe = Write-WslUtf8File $Name $policy ("`n$includeLine`n") -Append
-            if ($probe.ExitCode -ne 0) {
-                throw "Failed to include '$RulePath' from sudo policy '$policy': $($probe.Stderr)"
-            }
-        } elseif ($probe.ExitCode -ne 0) {
-            throw "Failed to inspect Hacocoon sudo include in '$policy': $($probe.Stderr)"
-        }
-        $loadedPolicies += $policy
-    }
-
-    return ($loadedPolicies -join ", ")
-}
-
-function Remove-HacocoonSudoRuleInclude([string]$Name, [string]$RulePath) {
+function Remove-HacocoonSudoPolicyBlock([string]$Name, [string]$MarkerName) {
+    $markerStart = "# BEGIN HACOCOON $MarkerName"
+    $markerEnd = "# END HACOCOON $MarkerName"
     $script = @'
 set -eu
 policy="$1"
-include_line="$2"
+start="$2"
+end="$3"
 [ -f "$policy" ] || exit 0
+grep -Fxq "$start" "$policy" || exit 0
 tmp="$(mktemp)"
-awk -v include_line="$include_line" '$0 != include_line { print }' "$policy" > "$tmp"
+trap 'rm -f "$tmp"' EXIT
+awk -v start="$start" -v end="$end" '
+  BEGIN { skip=0; seen=0 }
+  $0 == start {
+    if (skip || seen) exit 41
+    skip=1
+    seen=1
+    next
+  }
+  $0 == end {
+    if (!skip) exit 42
+    skip=0
+    next
+  }
+  !skip { print }
+  END { if (skip) exit 43 }
+' "$policy" > "$tmp"
 install -o root -g root -m 0440 "$tmp" "$policy"
-rm -f "$tmp"
 '@
-    $includeLine = "@include $RulePath"
-    foreach ($policy in @("/etc/sudoers", "/etc/sudoers-rs")) {
+    foreach ($policy in @("/etc/sudoers-rs", "/etc/sudoers")) {
         $probe = Invoke-WslCaptureWithInput @(
             "--distribution", $Name,
             "--user", "root",
-            "--exec", "sh", "-s", "--", $policy, $includeLine
+            "--exec", "sh", "-s", "--", $policy, $markerStart, $markerEnd
         ) $script
         if ($probe.ExitCode -ne 0) {
-            throw "Failed to remove Hacocoon sudo include from '$policy': $($probe.Stderr)"
+            throw "Failed to remove Hacocoon sudo block '$MarkerName' from '$policy': $($probe.Stderr)"
         }
     }
-    # The temporary rule is removed before this cleanup. Explicit includes
-    # are removed from every supported policy file, so provider selection
-    # is intentionally irrelevant here.
+}
+
+function Remove-LegacyHacocoonSudoDropIn([string]$Name, [string]$RulePath) {
+    $script = @'
+set -eu
+rule_path="$1"
+rm -f "$rule_path"
+include_line="@include $rule_path"
+for policy in /etc/sudoers-rs /etc/sudoers; do
+  [ -f "$policy" ] || continue
+  grep -Fxq "$include_line" "$policy" || continue
+  tmp="$(mktemp)"
+  trap 'rm -f "$tmp"' EXIT
+  awk -v include_line="$include_line" '$0 != include_line { print }' "$policy" > "$tmp"
+  install -o root -g root -m 0440 "$tmp" "$policy"
+  rm -f "$tmp"
+  trap - EXIT
+done
+'@
+    $probe = Invoke-WslCaptureWithInput @(
+        "--distribution", $Name,
+        "--user", "root",
+        "--exec", "sh", "-s", "--", $RulePath
+    ) $script
+    if ($probe.ExitCode -ne 0) {
+        throw "Failed to remove legacy Hacocoon sudo drop-in '$RulePath': $($probe.Stderr)"
+    }
+}
+
+function Set-HacocoonSudoPolicyBlock([string]$Name, [string]$MarkerName, [string]$Rule) {
+    $policies = @(Get-SudoersPolicyFiles $Name)
+    Remove-HacocoonSudoPolicyBlock $Name $MarkerName
+    $markerStart = "# BEGIN HACOCOON $MarkerName"
+    $markerEnd = "# END HACOCOON $MarkerName"
+    $block = "`n$markerStart`n$Rule`n$markerEnd`n"
+
+    foreach ($policy in $policies) {
+        $probe = Write-WslUtf8File $Name $policy $block -Append
+        if ($probe.ExitCode -ne 0) {
+            throw "Failed to append Hacocoon sudo block '$MarkerName' to '$policy': $($probe.Stderr)"
+        }
+        $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $policy)
+        if ($probe.ExitCode -ne 0) {
+            throw "Sudo policy '$policy' rejected Hacocoon sudo block '$MarkerName': $($probe.Stderr)"
+        }
+    }
+    return ($policies -join ", ")
+}
+
+function Add-HacocoonBootstrapSudoRule([string]$Name, [string]$LoginUser) {
+    Remove-LegacyHacocoonSudoDropIn $Name "/etc/sudoers.d/hacocoon-bootstrap"
+    return Set-HacocoonSudoPolicyBlock $Name "BOOTSTRAP" "$LoginUser ALL=(ALL:ALL) NOPASSWD: ALL"
+}
+
+function Remove-HacocoonBootstrapSudoRule([string]$Name) {
+    Remove-HacocoonSudoPolicyBlock $Name "BOOTSTRAP"
+    Remove-LegacyHacocoonSudoDropIn $Name "/etc/sudoers.d/hacocoon-bootstrap"
+}
+
+function Set-HacocoonLoginSudoRule([string]$Name, [string]$LoginUser, [string]$Haco) {
+    Remove-LegacyHacocoonSudoDropIn $Name "/etc/sudoers.d/hacocoon-login"
+    return Set-HacocoonSudoPolicyBlock $Name "LOGIN" "$LoginUser ALL=(ALL:ALL) NOPASSWD: $Haco host ensure, $Haco host shell"
 }
 
 function Get-InstalledDistros {
@@ -397,30 +435,20 @@ function Enable-BootstrapSudo([string]$Name, [string]$LoginUser) {
     }
 
     # install.sh intentionally runs as the ordinary workspace owner. Give that
-    # user temporary passwordless sudo only while the trusted installer runs;
-    # the rule is removed in finally and replaced by the narrow haco-host rule.
-    $sudoers = "$LoginUser ALL=NOPASSWD: ALL`n"
-    $probe = Write-WslUtf8File $Name $BootstrapSudoersPath $sudoers
-    if ($probe.ExitCode -ne 0) { throw "Failed to write temporary installer sudo rule: $($probe.Stderr)" }
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "chmod", "0440", $BootstrapSudoersPath)
-    if ($probe.ExitCode -ne 0) { throw "Failed to protect temporary installer sudo rule." }
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $BootstrapSudoersPath)
-    if ($probe.ExitCode -ne 0) { throw "Failed to validate temporary installer sudo rule: $($probe.Stderr)" }
-    $policySet = Ensure-HacocoonSudoRuleLoaded $Name $BootstrapSudoersPath
-    Write-Step "Validating temporary sudo rule through policy candidates: $policySet"
+    # user temporary passwordless sudo only while the trusted installer runs.
+    # Write a marked rule directly into the active policy file(s), prove it with
+    # a real non-interactive sudo command, then remove it in finally.
+    $policySet = Add-HacocoonBootstrapSudoRule $Name $LoginUser
+    Write-Step "Validating temporary sudo rule through policy files: $policySet"
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", "/usr/bin/true")
     if ($probe.ExitCode -ne 0) {
         $policy = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sudo", "-l", "-U", $LoginUser)
-        throw "Temporary installer sudo rule is not effective for '$LoginUser' after loading policy candidates '$policySet': $($probe.Stderr) Policy: $($policy.Stdout) $($policy.Stderr)"
+        throw "Temporary installer sudo rule is not effective for '$LoginUser' after updating policy files '$policySet': $($probe.Stderr) Policy: $($policy.Stdout) $($policy.Stderr)"
     }
 }
 
 function Disable-BootstrapSudo([string]$Name) {
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "rm", "-f", $BootstrapSudoersPath)
-    if ($probe.ExitCode -ne 0) {
-        throw "Failed to remove temporary installer sudo rule."
-    }
-    Remove-HacocoonSudoRuleInclude $Name $BootstrapSudoersPath
+    Remove-HacocoonBootstrapSudoRule $Name
 }
 
 function Get-OsReleaseValue([string]$Content, [string]$Key) {
@@ -575,17 +603,10 @@ function Configure-WslPost([string]$Name, [string]$LoginUser) {
     }
     if ($probe.ExitCode -ne 0) { throw "Failed to register Hacocoon WSL login shell: $($probe.Stderr)" }
 
-    $sudoers = "$LoginUser ALL=NOPASSWD: $haco host ensure, $haco host shell`n"
-    $probe = Write-WslUtf8File $Name "/etc/sudoers.d/hacocoon-login" $sudoers
-    if ($probe.ExitCode -ne 0) { throw "Failed to write the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "chmod", "0440", "/etc/sudoers.d/hacocoon-login")
-    if ($probe.ExitCode -ne 0) { throw "Failed to protect the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", "/etc/sudoers.d/hacocoon-login")
-    if ($probe.ExitCode -ne 0) { throw "Failed to validate the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
-    $activePolicy = Ensure-HacocoonSudoRuleLoaded $Name "/etc/sudoers.d/hacocoon-login"
+    $policySet = Set-HacocoonLoginSudoRule $Name $LoginUser $haco
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", $haco, "host", "ensure")
     if ($probe.ExitCode -ne 0) {
-        throw "Narrow Hacocoon WSL sudo rule is not effective through '$activePolicy': $($probe.Stderr)"
+        throw "Narrow Hacocoon WSL sudo rule is not effective through policy files '$policySet': $($probe.Stderr)"
     }
 
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/usermod", "-s", $LoginShell, $LoginUser)
