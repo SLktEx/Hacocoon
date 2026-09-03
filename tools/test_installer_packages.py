@@ -88,6 +88,7 @@ with tempfile.TemporaryDirectory() as temp:
                 "-Verb RunAs",
                 "Administrator approval is required only to create",
                 "Invoke-ElevatedWsl $args",
+                "$createExitCode = $LASTEXITCODE",
             ):
                 if required not in windows_installer:
                     raise SystemExit(
@@ -95,6 +96,10 @@ with tempfile.TemporaryDirectory() as temp:
                     )
             if "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell." in windows_installer:
                 raise SystemExit(f"Windows {arch} package still contains the old elevation hard failure")
+            if "$createExitCode = if (Test-Administrator)" in windows_installer:
+                raise SystemExit(
+                    f"Windows {arch} package captures wsl.exe stdout into its exit-code variable"
+                )
 
         with tarfile.open(out / f"hacocoon-ubuntu-{arch}.tar.gz", "r:gz") as tf:
             names = tf.getnames()
