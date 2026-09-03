@@ -24,9 +24,13 @@ function Test-Administrator {
 }
 
 function Invoke-ElevatedWsl([string[]]$Arguments) {
+    $systemWsl = Join-Path ([Environment]::SystemDirectory) "wsl.exe"
+    if (-not (Test-Path -LiteralPath $systemWsl -PathType Leaf)) {
+        throw "The system wsl.exe is unavailable at '$systemWsl'."
+    }
     Write-Step "Administrator approval is required only to create the dedicated Hacocoon WSL instance. Requesting UAC."
     try {
-        $process = Start-Process -FilePath "wsl.exe" -ArgumentList $Arguments -Verb RunAs -Wait -PassThru
+        $process = Start-Process -FilePath $systemWsl -ArgumentList $Arguments -Verb RunAs -Wait -PassThru
     } catch {
         throw "Administrator approval was cancelled or elevation could not be started. The dedicated Hacocoon WSL instance was not created."
     }
