@@ -3,12 +3,13 @@ package composition
 import (
 	"context"
 
+	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
 )
 
-func ensureDefaultIncusStoragePool(ctx context.Context, runtime *incus.Runtime) (map[string]string, error) {
+func ensureDefaultIncusStoragePool(ctx context.Context, runner host.Runner) (map[string]string, error) {
 	attachment := defaultIncusStorageAttachment()
-	pool, err := runtime.EnsureBtrfsLoopPool(ctx, incus.BtrfsLoopPoolSpec{
+	pool, err := incus.New(runner).EnsureBtrfsLoopPool(ctx, incus.BtrfsLoopPoolSpec{
 		Name:         attachment["incus_pool"],
 		Size:         attachment["size"],
 		MountOptions: attachment["btrfs.mount_options"],
