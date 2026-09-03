@@ -103,7 +103,7 @@ install-windows.bat -InteractiveUserSetup
 
 The installer launches the WSL user-setup session itself. After the user completes setup and exits that shell, the same installer process resumes and continues through `install.sh` and the post phase; a second BAT invocation is still not required.
 
-During the common installer run, PowerShell gives the selected ordinary WSL user a temporary passwordless sudo rule so `install.sh` can remain the ordinary workspace owner. That broad bootstrap rule exists only for the trusted installer invocation and is removed in `finally`; normal completed installations retain only the narrow `haco host ensure` / `haco host shell` rule described below.
+During the common installer run, PowerShell gives the selected ordinary WSL user a temporary passwordless sudo rule so `install.sh` can remain the ordinary workspace owner. On Ubuntu 26.04 the rule uses sudo-rs-compatible default-root syntax, and the installer validates the effective sudo policy and proves a non-interactive sudo command succeeds before starting `install.sh`. That broad bootstrap rule exists only for the trusted installer invocation and is removed in `finally`; normal completed installations retain only the narrow `haco host ensure` / `haco host shell` rule described below.
 
 ## Common Ubuntu main phase
 
