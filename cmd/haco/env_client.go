@@ -245,39 +245,7 @@ func environmentClientExec(ctx context.Context, client environmentControllerClie
 }
 
 func environmentClientShell(ctx context.Context, client environmentControllerClient, args []string, stdin io.Reader, stdout io.Writer) error {
-	if len(args) != 1 {
-		return fmt.Errorf("usage: haco env shell <environment>: %w", core.ErrInvalidArgument)
-	}
-	stream, err := client.OpenEnvironmentShell(ctx, args[0])
-	if err != nil {
-		return err
-	}
-	defer stream.Close()
-
-	inputDone := make(chan error, 1)
-	go func() {
-		_, copyErr := io.Copy(stream, stdin)
-		if closer, ok := stream.(interface{ CloseWrite() error }); ok {
-			if closeErr := closer.CloseWrite(); copyErr == nil {
-				copyErr = closeErr
-			}
-		}
-		inputDone <- copyErr
-	}()
-
-	_, outputErr := io.Copy(stdout, stream)
-	_ = stream.Close()
-	if outputErr != nil && !errors.Is(outputErr, net.ErrClosed) && ctx.Err() == nil {
-		return outputErr
-	}
-	select {
-	case inputErr := <-inputDone:
-		if inputErr != nil && !errors.Is(inputErr, net.ErrClosed) && ctx.Err() == nil {
-			return inputErr
-		}
-	default:
-	}
-	return ctx.Err()
+	return environmentClientShellWithTerminal(ctx, client, args, stdin, stdout, prepareInteractiveTerminal)
 }
 
 func environmentClientDelete(ctx context.Context, client environmentControllerClient, args []string) error {
