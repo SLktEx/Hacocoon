@@ -113,8 +113,12 @@ func TestRealPrivilegedStorageHelperE2E(t *testing.T) {
 		t.Fatalf("managed mount filesystem = %q err=%v, want btrfs", strings.TrimSpace(fstype.Stdout), err)
 	}
 	options, err := direct.Run(ctx, "findmnt", "-rn", "-o", "OPTIONS", "--mountpoint", source)
-	if err != nil || !strings.Contains(strings.TrimSpace(options.Stdout), "compress=zstd:3") {
-		t.Fatalf("managed mount options = %q err=%v, want compress=zstd:3", strings.TrimSpace(options.Stdout), err)
+	mountOptions := strings.TrimSpace(options.Stdout)
+	if err != nil || !(strings.Contains(mountOptions, "compress=zstd:3") || strings.Contains(mountOptions, "compress=zstd")) || !strings.Contains(mountOptions, "noatime") || !strings.Contains(mountOptions, "nodiscard") {
+		t.Fatalf("managed mount options = %q err=%v, want zstd compression, noatime and nodiscard", mountOptions, err)
+	}
+	if strings.Contains(mountOptions, "discard=async") || strings.Contains(mountOptions, "relatime") || strings.Contains(mountOptions, "strictatime") {
+		t.Fatalf("managed mount options = %q, found conflicting atime/discard policy", mountOptions)
 	}
 
 	info, err := os.Lstat(backing)
