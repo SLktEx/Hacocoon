@@ -159,8 +159,12 @@ haco host shell
 
 Installer E2E は `install.sh` 単体成功ではなく、実際の user-visible entry point から判定します。
 
-Windows gate は candidate `hacocoon-windows-amd64.zip` を作って展開し、package 内の `install-windows.bat` を実行します。必要な Ubuntu first-launch user creation を CI で再現したあと、**同じ packaged BAT をもう一度実行**し、WSL 2、systemd、Incus、controller service/socket、`haco-host doctor`、WSL login integration まで成功を要求します。
+Windows gate は product-driving path に入る前に candidate `hacocoon-windows-amd64.zip` を build / 展開します。その後、Hacocoon を動かすための操作は **実ユーザーと同じ command と interaction** だけにします。`install-windows.bat` は Hacocoon 固有の追加 argument / environment override なしで実行し、Ubuntu first-launch は documented な `wsl -d Hacocoon` の interactive session で完了し、同じ packaged BAT を再実行します。Install 後の Host entry も同じ `wsl -d Hacocoon` を使い、通常の `haco` command を実行し、既存 state に対して unchanged BAT をもう一度実行した後も既存 Environment / Workspace が利用可能であることを確認します。
+
+Product action を成功させるために、`HACO_*` variable、installer-only E2E argument / option、CI 専用 user / sudoers、root での事前準備、Incus / mount / loop の repair、または後続 action を通すための mutation を注入してはいけません。CI が通常の terminal key input を自動化することはできますが、product action が見る command line や configuration は変更しません。
+
+一方、**product action 実行後の read-only assertion は許可し、むしろ積極的に行います**。`systemctl`、`incus storage get/show`、`findmnt`、`losetup`、`stat`、Environment の read-only inspection などで直前の action が期待どおり設定したか確認して構いません。確認に必要な権限で状態を読むことも可能です。ただし、その assertion が後続 action のために state を変更・repair した時点で禁止対象です。Reinstall acceptance では unchanged BAT の再実行前後で managed Btrfs mount、zstd compression、loop backing、Incus storage source、controller service、live Environment を確認します。
 
 Native Ubuntu gate は candidate `hacocoon-ubuntu-amd64.tar.gz` を作って展開し、package 内の `install-ubuntu.sh` を実行します。Controller と trusted `haco-host` round trip が成功し、native login shell が変更されていないことまで確認します。
 
-PR candidate package はまだ public Release ではないため release attestation を持ちません。Candidate E2E で provenance を無効化できるのはこの synthetic package の検証だけです。Release workflow は別途、実際に publish する architecture-specific payload そのものへ署名 / attestation を行います。
+PR candidate package はまだ public Release ではないため release attestation を持ちません。Release workflow は別途、実際に publish する architecture-specific payload そのものへ署名 / attestation を行います。
