@@ -83,11 +83,6 @@ var hacoCommandClassifications = map[string]commandClassification{
 		Domain: commandDomainPhysicalHost,
 		State:  "Physical Host managed egress service (egress serve)",
 	},
-	"maintenance": {
-		Name:   "maintenance",
-		Domain: commandDomainPhysicalHost,
-		State:  "Windows Host owns explicit WSL VHD compaction (#402)",
-	},
 	"plugin": {
 		Name:   "plugin",
 		Domain: commandDomainTrustedHost,
@@ -144,7 +139,6 @@ var historicalHacoCommands = []string{
 	"delete",
 	"doctor",
 	"host",
-	"maintenance",
 }
 
 func hacoCommandClassification(command string) (commandClassification, bool) {
