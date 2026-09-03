@@ -26,6 +26,8 @@ Incus pool: haco-<storage-id>
 
 The default local storage ID is `local-default`, so the default Incus pool is `haco-local-default`.
 
+The storage ID and managed `.raw` backing path are the durable identity. A concrete `/dev/loopN` name is only an ephemeral runtime attachment: it may change after detach/reattach or Host reboot and may later be reused for an unrelated backing file. Hacocoon must therefore rediscover the current loop from the managed backing image before destructive loop operations rather than treating a cached device number as authoritative.
+
 ## Why these objects share one filesystem
 
 The storage boundary is deliberate. Base, Tooling, Seed, and Environment rootfs data should stay on the same Hacocoon-managed Btrfs filesystem so storage-level optimizations apply across the complete lifecycle:
