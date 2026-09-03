@@ -159,7 +159,13 @@ haco host shell
 
 Installer E2E は `install.sh` 単体成功ではなく、実際の user-visible entry point から判定します。
 
-Windows gate は candidate `hacocoon-windows-amd64.zip` を作って展開し、package 内の `install-windows.bat` を実行します。必要な Ubuntu first-launch user creation を CI で再現したあと、**同じ packaged BAT をもう一度実行**し、WSL 2、systemd、Incus、controller service/socket、`haco-host doctor`、WSL login integration まで成功を要求します。
+Windows gate は user-action boundary に入る前に、PR branch の candidate `hacocoon-windows-amd64.zip` を build / 展開します。これにより branch の変更内容を反映しながら Release と同じ package shape を検証します。
+
+最初の packaged `install-windows.bat` を実行した後、製品を動かす action は **実ユーザーがそのまま実行できる command と interaction だけ**にします。BAT には Hacocoon 固有の追加 argument / option や environment override を渡さず、Ubuntu first-launch は documented な `wsl -d Hacocoon` の interactive session で完了し、同じ packaged BAT を再実行します。Install 後の trusted Host entry も同じ `wsl -d Hacocoon` を使い、通常の `haco` command で Environment を作成・利用し、その既存 state に unchanged BAT を再実行した後、同じ user path から入り直して既存 Environment が引き続き利用できることを要求します。
+
+Exact-action driver は command allowlist を閉じています。製品 action の代わりとして、CI 専用 user / sudoers、`wsl --user root` / `wsl --exec`、`HACO_*` test environment の注入や削除、installer / E2E 専用 argument / option、direct `haco host ensure`、synthetic な WSL lifecycle 操作、storage / mount / Incus repair を使ってはいけません。CI 固有の準備は boundary 前に完了させます。GitHub-hosted runner は disposable なので passing path 後の Hacocoon 固有 teardown も不要です。
+
+Incus-owned Btrfs / loop / storage の低レベル invariant は専用 storage acceptance test で検証します。Windows exact user-action gate はユーザーから見える contract に集中し、unchanged install / reinstall が成功し、reinstall 前に作成した Environment がその後も通常の `haco env status` / `haco env exec` で利用できることを保証します。
 
 Native Ubuntu gate は candidate `hacocoon-ubuntu-amd64.tar.gz` を作って展開し、package 内の `install-ubuntu.sh` を実行します。Controller と trusted `haco-host` round trip が成功し、native login shell が変更されていないことまで確認します。
 
