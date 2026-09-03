@@ -89,6 +89,7 @@ with tempfile.TemporaryDirectory() as temp:
                 'Complete-InteractiveWslUserSetup',
                 'Enable-BootstrapSudo',
                 'Disable-BootstrapSudo',
+                '$OutputEncoding = [Text.UTF8Encoding]::new($false)',
                 'Running common Ubuntu install.sh',
             ]
             for marker in required_windows_contract:
