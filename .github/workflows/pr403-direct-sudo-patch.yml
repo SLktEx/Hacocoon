@@ -1,0 +1,43 @@
+name: pr403-direct-sudo-patch
+
+on:
+  push:
+    branches:
+      - fix/windows-one-shot-bootstrap
+    paths:
+      - .github/workflows/pr403-direct-sudo-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/windows-one-shot-bootstrap
+          fetch-depth: 0
+
+      - name: Apply direct sudo bootstrap patch
+        run: python3 .github/pr403_direct_sudo_patch.py
+
+      - name: Validate package contract
+        run: python3 tools/test_installer_packages.py
+
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: '[scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null'
+
+      - name: Commit fix and remove temporary helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "SLktEx"
+          git config user.email "85579720+SLktEx@users.noreply.github.com"
+          git rm .github/workflows/pr403-direct-sudo-patch.yml .github/pr403_direct_sudo_patch.py
+          git add scripts/install-windows.ps1 tools/test_installer_packages.py .github/workflows/windows-all-scripts-e2e.yml
+          git diff --cached --check
+          git commit -m "fix(windows): bootstrap sudo through direct policy block"
+          git push origin HEAD:fix/windows-one-shot-bootstrap
