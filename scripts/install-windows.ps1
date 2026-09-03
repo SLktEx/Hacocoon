@@ -318,13 +318,20 @@ function Enable-BootstrapSudo([string]$Name, [string]$LoginUser) {
     # install.sh intentionally runs as the ordinary workspace owner. Give that
     # user temporary passwordless sudo only while the trusted installer runs;
     # the rule is removed in finally and replaced by the narrow haco-host rule.
-    $sudoers = "$LoginUser ALL=(root) NOPASSWD: ALL`n"
+    $sudoers = "$LoginUser ALL=NOPASSWD: ALL`n"
     $probe = Write-WslUtf8File $Name $BootstrapSudoersPath $sudoers
     if ($probe.ExitCode -ne 0) { throw "Failed to write temporary installer sudo rule: $($probe.Stderr)" }
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "chmod", "0440", $BootstrapSudoersPath)
     if ($probe.ExitCode -ne 0) { throw "Failed to protect temporary installer sudo rule." }
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $BootstrapSudoersPath)
     if ($probe.ExitCode -ne 0) { throw "Failed to validate temporary installer sudo rule: $($probe.Stderr)" }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-c")
+    if ($probe.ExitCode -ne 0) { throw "Failed to validate the effective sudo policy: $($probe.Stderr)" }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", "/usr/bin/true")
+    if ($probe.ExitCode -ne 0) {
+        $policy = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sudo", "-l", "-U", $LoginUser)
+        throw "Temporary installer sudo rule is not effective for '$LoginUser': $($probe.Stderr) Policy: $($policy.Stdout) $($policy.Stderr)"
+    }
 }
 
 function Disable-BootstrapSudo([string]$Name) {
@@ -486,7 +493,7 @@ function Configure-WslPost([string]$Name, [string]$LoginUser) {
     }
     if ($probe.ExitCode -ne 0) { throw "Failed to register Hacocoon WSL login shell: $($probe.Stderr)" }
 
-    $sudoers = "$LoginUser ALL=(root) NOPASSWD: $haco host ensure, $haco host shell`n"
+    $sudoers = "$LoginUser ALL=NOPASSWD: $haco host ensure, $haco host shell`n"
     $probe = Write-WslUtf8File $Name "/etc/sudoers.d/hacocoon-login" $sudoers
     if ($probe.ExitCode -ne 0) { throw "Failed to write the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "chmod", "0440", "/etc/sudoers.d/hacocoon-login")

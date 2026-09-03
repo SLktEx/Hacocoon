@@ -112,6 +112,8 @@ with tempfile.TemporaryDirectory() as temp:
                 'Complete-InteractiveWslUserSetup',
                 'Enable-BootstrapSudo',
                 'Disable-BootstrapSudo',
+                '$LoginUser ALL=NOPASSWD: ALL',
+                '"sudo", "-n", "/usr/bin/true"',
                 '$OutputEncoding = [Text.UTF8Encoding]::new($false)',
                 '& wsl.exe --terminate $Name | Out-Null',
                 '& wsl.exe --distribution $Name | Out-Host',
