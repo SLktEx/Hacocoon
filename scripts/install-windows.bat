@@ -38,6 +38,8 @@ if not "%HACO_LAUNCHER_EXIT%"=="0" (
     exit /b %HACO_LAUNCHER_EXIT%
 )
 
+echo.
+echo Hacocoon Windows installation complete.
 exit /b 0
 
 :resolve_instance
