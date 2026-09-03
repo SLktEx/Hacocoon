@@ -3,10 +3,9 @@ name: cleanup-obsolete-action-logs
 on:
   push:
     branches:
-      - main
+      - ci/cleanup-obsolete-action-logs
     paths:
       - .github/workflows/cleanup-obsolete-action-logs.yml
-  workflow_dispatch:
 
 permissions:
   actions: write
@@ -54,8 +53,6 @@ jobs:
             if gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/logs" >/dev/null 2>&1; then
               deleted=$((deleted + 1))
             else
-              # GitHub returns 404 when logs are already gone. Verify the run itself
-              # still exists before treating the failure as benign.
               if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" >/dev/null 2>&1; then
                 already_absent=$((already_absent + 1))
               else
