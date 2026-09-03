@@ -53,7 +53,7 @@ jobs:
   incus-core-e2e:
     needs: incus-standalone
     runs-on: ubuntu-26.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       HACO_CI_RUNNER_ENVIRONMENT: github-hosted
     steps:
@@ -66,7 +66,9 @@ jobs:
           check-latest: true
           cache: false
       - name: Validate Core and CLI E2E helper syntax
-        run: bash -n tools/ci-incus.sh tools/ci-incus-core.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh
+        run: |
+          bash -n tools/ci-incus.sh tools/ci-incus-core.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh test/e2e/interactive_shells.sh
+          python3 -m py_compile test/e2e/interactive_pty.py
       - name: Prepare proven Incus substrate for Hacocoon Core
         run: bash tools/ci-incus.sh setup
       - name: Allow leased workspace owner in Incus root idmap
@@ -87,6 +89,12 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}/haco-storage-helper-e2e
         run: bash tools/ci-incus.sh core
+      - name: Run real PTY interactive shell journeys
+        env:
+          HACO_E2E_INCUS: "1"
+          INCUS_CONF: ${{ runner.temp }}/haco-incus-client
+          TMPDIR: ${{ runner.temp }}/haco-storage-helper-e2e
+        run: bash test/e2e/interactive_shells.sh
       - name: Capture Hacocoon and Incus diagnostics
         if: failure()
         run: |
