@@ -557,28 +557,33 @@ configure_legacy_storage_recovery() {
   legacy_source="$($SUDO incus storage get "$LEGACY_STORAGE_POOL" source --project "$LEGACY_STORAGE_PROJECT" 2>/dev/null || true)"
   [ "$legacy_source" = "$LEGACY_STORAGE_SOURCE" ] || return 0
 
+  # The recovery program is persisted into a root service. Do not interpolate
+  # a caller-controlled custom helper path into that program.
+  [ "$STORAGE_HELPER_PATH" = "/usr/local/libexec/hacocoon/haco-storage-helper" ] ||
+    die "legacy storage recovery requires the default system storage-helper location"
+
   printf '==> Detected legacy Hacocoon Btrfs pool; installing pre-Incus recovery\n'
   $SUDO test -x "$STORAGE_HELPER_PATH" || die "legacy storage recovery requires $STORAGE_HELPER_PATH"
   $SUDO test -f "$LEGACY_STORAGE_BACKING" || die "legacy pool points at $LEGACY_STORAGE_SOURCE but backing image is missing: $LEGACY_STORAGE_BACKING"
   $SUDO install -d -o root -g root -m 0700 "$DEFAULT_HACO_ROOT/mounts" "$LEGACY_STORAGE_SOURCE"
 
   recovery_tmp="$(mktemp)"
-  cat > "$recovery_tmp" <<EOF_RECOVERY
+  cat > "$recovery_tmp" <<'EOF_RECOVERY'
 #!/bin/sh
 set -eu
-loop="\$("$STORAGE_HELPER_PATH" --root "$DEFAULT_HACO_ROOT" loop-attach "$LEGACY_STORAGE_BACKING")"
-[ -n "\$loop" ] || { printf '%s\n' 'legacy Hacocoon storage recovery did not obtain a loop device' >&2; exit 1; }
-fstype="\$("$STORAGE_HELPER_PATH" --root "$DEFAULT_HACO_ROOT" fs-type "\$loop")"
-[ "\$fstype" = "btrfs" ] || { printf 'legacy Hacocoon backing filesystem is %s, expected btrfs\n' "\$fstype" >&2; exit 1; }
-"$STORAGE_HELPER_PATH" --root "$DEFAULT_HACO_ROOT" mount-btrfs "\$loop" "$LEGACY_STORAGE_SOURCE"
-"$STORAGE_HELPER_PATH" --root "$DEFAULT_HACO_ROOT" remount-btrfs "\$loop" "$LEGACY_STORAGE_SOURCE"
-options="\$(/usr/bin/findmnt -rn -o OPTIONS --mountpoint "$LEGACY_STORAGE_SOURCE")"
-case ",\$options," in
-  *,autodefrag,*) printf 'legacy Hacocoon Btrfs mount unexpectedly enables autodefrag: %s\n' "\$options" >&2; exit 1 ;;
+loop="$(/usr/local/libexec/hacocoon/haco-storage-helper --root /var/lib/hacocoon loop-attach /var/lib/hacocoon/images/local-default.raw)"
+[ -n "$loop" ] || { printf '%s\n' 'legacy Hacocoon storage recovery did not obtain a loop device' >&2; exit 1; }
+fstype="$(/usr/local/libexec/hacocoon/haco-storage-helper --root /var/lib/hacocoon fs-type "$loop")"
+[ "$fstype" = "btrfs" ] || { printf 'legacy Hacocoon backing filesystem is %s, expected btrfs\n' "$fstype" >&2; exit 1; }
+/usr/local/libexec/hacocoon/haco-storage-helper --root /var/lib/hacocoon mount-btrfs "$loop" /var/lib/hacocoon/mounts/local-default
+/usr/local/libexec/hacocoon/haco-storage-helper --root /var/lib/hacocoon remount-btrfs "$loop" /var/lib/hacocoon/mounts/local-default
+options="$(/usr/bin/findmnt -rn -o OPTIONS --mountpoint /var/lib/hacocoon/mounts/local-default)"
+case ",$options," in
+  *,autodefrag,*) printf 'legacy Hacocoon Btrfs mount unexpectedly enables autodefrag: %s\n' "$options" >&2; exit 1 ;;
 esac
-case ",\$options," in
+case ",$options," in
   *,compress=zstd:3,*|*,compress=zstd,*) ;;
-  *) printf 'legacy Hacocoon Btrfs mount is missing zstd compression: %s\n' "\$options" >&2; exit 1 ;;
+  *) printf 'legacy Hacocoon Btrfs mount is missing zstd compression: %s\n' "$options" >&2; exit 1 ;;
 esac
 EOF_RECOVERY
   $SUDO install -o root -g root -m 0755 "$recovery_tmp" "$LEGACY_STORAGE_RECOVERY_PATH"
@@ -592,6 +597,7 @@ Before=incus.service
 
 [Service]
 Type=oneshot
+RemainAfterExit=yes
 ExecStart=$LEGACY_STORAGE_RECOVERY_PATH
 EOF_UNIT
   $SUDO install -o root -g root -m 0644 "$unit_tmp" "/etc/systemd/system/$LEGACY_STORAGE_SERVICE"
@@ -612,7 +618,10 @@ EOF_DROPIN
   # restore the mount. Restart it once under the new ordering so the pool is
   # initialized from a valid Btrfs source immediately instead of waiting for a
   # daemon retry interval.
-  $SUDO systemctl restart incus.service || die "failed to restart Incus after legacy Btrfs recovery setup"
+  if ! $SUDO systemctl restart incus.service; then
+    $SUDO systemctl status "$LEGACY_STORAGE_SERVICE" --no-pager >&2 || true
+    die "failed to restart Incus after legacy Btrfs recovery setup"
+  fi
   $SUDO incus info >/dev/null 2>&1 || die "Incus is not ready after legacy Btrfs recovery"
 }
 
