@@ -105,7 +105,7 @@ Common main は次を担当します。
 - 同梱 architecture-specific archive の checksum 検証
 - provenance 有効時の trusted GitHub/Sigstore provenance と signed release binding 検証
 - archive が期待する regular Hacocoon binary だけを含むことの検証
-- binary と root-owned storage helper の install
+- Hacocoon binary の install
 - `haco-controller.service` の install / restart
 - `/run/hacocoon/control.sock` が root-owned mode `0600` Unix socket であることの確認
 - `haco host ensure`
