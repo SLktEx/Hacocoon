@@ -120,13 +120,18 @@ jobs:
             throw "Exact user-path E2E refuses Hacocoon environment overrides: $names"
           }
 
-      # ABSOLUTE USER-PATH BOUNDARY:
-      # From the first `install-windows.bat` keystroke until this job ends,
-      # Hacocoon is touched only through the exact commands and normal keyboard
-      # interaction a real user performs. There are no later root/read-only
-      # assertions, diagnostics, lifecycle controls, test-only environment
-      # values, extra installer arguments/options, or repair shortcuts.
-      - name: Exercise exact packaged Windows user path
+      # ACTION / ASSERTION CONTRACT:
+      # - Product-driving actions are only commands a real user types unchanged.
+      #   No HACO_* injection/rewriting, E2E-only arguments/options, root repair,
+      #   direct Incus mutation, or synthetic WSL lifecycle control may substitute
+      #   for a user action.
+      # - After an action completes, the driver may run read-only assertions to
+      #   inspect the resulting WSL/systemd/Incus/Btrfs/loop state. Assertions may
+      #   use root when required to observe state, but must never create, repair,
+      #   restart, remount, attach, detach, delete, or otherwise mutate product
+      #   state. Natural WSL shutdown is observed by polling `wsl --list --running`;
+      #   it is never manufactured with `wsl --terminate`.
+      - name: Exercise exact Windows actions and assert resulting state
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
