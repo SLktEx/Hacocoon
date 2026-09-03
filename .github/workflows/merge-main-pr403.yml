@@ -37,13 +37,13 @@ jobs:
           set -e
           if [[ $merge_status -ne 0 ]]; then
             conflicts="$(git diff --name-only --diff-filter=U | sort)"
-            expected=$'scripts/install-windows.ps1\ntools/test_installer_packages.py'
+            expected='tools/test_installer_packages.py'
             if [[ "$conflicts" != "$expected" ]]; then
               echo "Unexpected merge conflicts:" >&2
               printf '%s\n' "$conflicts" >&2
               exit 1
             fi
-            git checkout --ours -- scripts/install-windows.ps1 tools/test_installer_packages.py
+            git checkout --ours -- tools/test_installer_packages.py
           fi
 
           python3 - <<'PY'
