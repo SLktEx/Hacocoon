@@ -5,8 +5,14 @@ import (
 	"errors"
 	"io"
 	"os/exec"
+	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+)
+
+const (
+	hacocoonPromptCommand = "PS1=$HACO_PS1"
+	trustedHostPrompt      = `\[\e[1;33;41m\][HACO-HOST]\[\e[0m\] \u@\h:\w\$ `
 )
 
 // ShellEnvironmentStream opens a shell through Incus while attaching it to
@@ -17,7 +23,12 @@ func (r *Runtime) ShellEnvironmentStream(ctx context.Context, ref string, stdin 
 	if r == nil || ref == "" || stdin == nil || stdout == nil || stderr == nil {
 		return core.ErrInvalidArgument
 	}
-	_, err := r.execInteractiveStream(ctx, ref, []string{"/bin/bash"}, stdin, stdout, stderr)
+	argv := interactiveShellWithPrompt(
+		[]string{"/bin/bash"},
+		environmentPrompt(ref),
+		"environment",
+	)
+	_, err := r.execInteractiveStream(ctx, ref, argv, stdin, stdout, stderr)
 	return err
 }
 
@@ -35,9 +46,53 @@ func (r *Runtime) PrepareTrustedHostShellStream(ctx context.Context) (func(conte
 		if stdin == nil || stdout == nil || stderr == nil {
 			return core.ErrInvalidArgument
 		}
-		_, err := r.execInteractiveStream(runCtx, trustedHostName, []string{"/bin/bash", "-l"}, stdin, stdout, stderr)
+		argv := interactiveShellWithPrompt(
+			[]string{"/bin/bash", "-l"},
+			trustedHostPrompt,
+			"trusted-host",
+		)
+		_, err := r.execInteractiveStream(runCtx, trustedHostName, argv, stdin, stdout, stderr)
 		return err
 	}, nil
+}
+
+func interactiveShellWithPrompt(argv []string, prompt, shellContext string) []string {
+	wrapped := []string{
+		"/usr/bin/env",
+		"HACO_SHELL_CONTEXT=" + shellContext,
+		"HACO_PS1=" + prompt,
+		"PROMPT_COMMAND=" + hacocoonPromptCommand,
+	}
+	return append(wrapped, argv...)
+}
+
+func environmentPrompt(ref string) string {
+	name := strings.TrimPrefix(ref, "haco-")
+	name = safePromptLabel(name)
+	return `\[\e[1;30;42m\][HACO-ENV:` + name + `]\[\e[0m\] \u@\h:\w\$ `
+}
+
+func safePromptLabel(value string) string {
+	if value == "" {
+		return "?"
+	}
+	var b strings.Builder
+	b.Grow(len(value))
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-', r == '_', r == '.':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('?')
+		}
+	}
+	return b.String()
 }
 
 func (r *Runtime) execInteractiveStream(ctx context.Context, ref string, argv []string, stdin io.Reader, stdout, stderr io.Writer) (core.ExecResult, error) {
