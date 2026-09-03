@@ -67,7 +67,7 @@ func (c *Client) ExecEnvironment(ctx context.Context, environment string, argv [
 }
 
 func (c *Client) OpenEnvironmentShell(ctx context.Context, environment string) (net.Conn, error) {
-	return c.wire.OpenStream(ctx, MethodEnvironmentShell, EnvironmentShellRequest{
+	return c.wire.OpenSession(ctx, MethodEnvironmentShell, EnvironmentShellRequest{
 		Environment: environment,
 		Terminal:    currentTerminalMetadata(),
 	})
@@ -78,7 +78,7 @@ func (c *Client) DeleteEnvironment(ctx context.Context, environment string) erro
 }
 
 func (c *Client) OpenTrustedHostShell(ctx context.Context) (net.Conn, error) {
-	return c.wire.OpenStream(ctx, MethodHostShell, HostShellRequest{Terminal: currentTerminalMetadata()})
+	return c.wire.OpenSession(ctx, MethodHostShell, HostShellRequest{Terminal: currentTerminalMetadata()})
 }
 
 func currentTerminalMetadata() TerminalMetadata {
