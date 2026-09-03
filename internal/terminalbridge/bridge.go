@@ -86,6 +86,7 @@ func BridgeWithTerminal(
 			if closeErr := closer.CloseWrite(); copyErr == nil {
 				copyErr = closeErr
 			}
+		}
 		inputDone <- copyErr
 	}()
 
