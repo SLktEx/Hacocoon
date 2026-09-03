@@ -80,6 +80,9 @@ func BridgeWithTerminal(
 		}()
 	}
 
+	resizeErrs, stopResize := startTerminalResizeForwarding(ctx, stream, stdin)
+	defer stopResize()
+
 	cancelDone := make(chan struct{})
 	defer close(cancelDone)
 	go func() {
@@ -97,12 +100,20 @@ func BridgeWithTerminal(
 			if closeErr := closer.CloseWrite(); copyErr == nil {
 				copyErr = closeErr
 			}
-		}
 		inputDone <- copyErr
 	}()
 
 	_, outputErr := io.Copy(stdout, stream)
 	_ = stream.Close()
+	if resizeErrs != nil {
+		select {
+		case resizeErr := <-resizeErrs:
+			if resizeErr != nil && ctx.Err() == nil {
+				return resizeErr
+			}
+		default:
+		}
+	}
 	if outputErr != nil && !errors.Is(outputErr, net.ErrClosed) && ctx.Err() == nil {
 		return outputErr
 	}
