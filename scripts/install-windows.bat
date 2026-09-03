@@ -28,7 +28,9 @@ if not "%HACO_INSTALL_EXIT%"=="0" (
     exit /b %HACO_INSTALL_EXIT%
 )
 
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%WINDOWS_LAUNCHER%" __install-launcher %*
+set "HACO_INSTANCE=Hacocoon"
+call :resolve_instance %*
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%WINDOWS_LAUNCHER%" __install-launcher "%HACO_INSTANCE%"
 set "HACO_LAUNCHER_EXIT=%ERRORLEVEL%"
 if not "%HACO_LAUNCHER_EXIT%"=="0" (
     echo.
@@ -37,3 +39,13 @@ if not "%HACO_LAUNCHER_EXIT%"=="0" (
 )
 
 exit /b 0
+
+:resolve_instance
+if "%~1"=="" exit /b 0
+if /I "%~1"=="-InstanceName" (
+    if "%~2"=="" exit /b 2
+    set "HACO_INSTANCE=%~2"
+    exit /b 0
+)
+shift
+goto resolve_instance
