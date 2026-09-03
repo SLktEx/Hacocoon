@@ -81,6 +81,27 @@ with tempfile.TemporaryDirectory() as temp:
             if zf.read("VERSION").decode() != VERSION + "\n":
                 raise SystemExit(f"Windows {arch} version mismatch")
 
+            windows_installer = zf.read("install-windows.ps1").decode()
+            required_windows_contract = [
+                '[switch]$InteractiveUserSetup',
+                '$ManagedLoginUser = "hacocoon"',
+                'Ensure-ManagedWslLoginUser',
+                'Complete-InteractiveWslUserSetup',
+                'Enable-BootstrapSudo',
+                'Disable-BootstrapSudo',
+                'Running common Ubuntu install.sh',
+            ]
+            for marker in required_windows_contract:
+                if marker not in windows_installer:
+                    raise SystemExit(f"Windows installer lost one-shot bootstrap contract: {marker!r}")
+            forbidden_windows_contract = [
+                "Complete normal Ubuntu user setup, then run this installer again.",
+                "After completing the Ubuntu user setup, run install-windows.bat again.",
+            ]
+            for marker in forbidden_windows_contract:
+                if marker in windows_installer:
+                    raise SystemExit(f"Windows installer regressed to two-invocation setup: {marker!r}")
+
         with tarfile.open(out / f"hacocoon-ubuntu-{arch}.tar.gz", "r:gz") as tf:
             names = tf.getnames()
             expected = ["install-ubuntu.sh", "install.sh", archive_name, "checksums.txt", "VERSION"]
