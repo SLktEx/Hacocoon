@@ -21,7 +21,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply atomic sudo policy fix
-        run: python3 .github/pr403_atomic_sudo_patch.py
+        run: |
+          python3 .github/pr403_atomic_sudo_patch.py
+          python3 .github/pr403_atomic_sudo_test_fix.py
 
       - name: Validate package contract
         run: python3 tools/test_installer_packages.py
@@ -40,7 +42,7 @@ jobs:
           set -euo pipefail
           git config user.name "SLktEx"
           git config user.email "85579720+SLktEx@users.noreply.github.com"
-          git rm .github/pr403_atomic_sudo_patch.py
+          git rm .github/pr403_atomic_sudo_patch.py .github/pr403_atomic_sudo_test_fix.py
           git add scripts/install-windows.ps1 tools/test_installer_packages.py
           git diff --cached --check
           git commit -m "fix(windows): update sudo policy atomically"
