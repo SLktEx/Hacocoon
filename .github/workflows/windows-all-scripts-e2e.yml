@@ -12,6 +12,7 @@ on:
       - "scripts/install.sh"
       - "tools/package_installers.py"
       - "tools/windows-installer-user-path-e2e.py"
+      - "tools/windows-installer-restart-e2e.py"
       - ".github/workflows/windows-all-scripts-e2e.yml"
   workflow_dispatch:
 
@@ -108,8 +109,8 @@ jobs:
           $ErrorActionPreference = "Stop"
           python -m pip install --disable-pip-version-check --no-input "pywinpty==3.0.2"
           if ($LASTEXITCODE -ne 0) { throw "Failed to install the ConPTY test driver dependency." }
-          python -m py_compile ./tools/windows-installer-user-path-e2e.py
-          if ($LASTEXITCODE -ne 0) { throw "Windows user-path driver failed syntax validation." }
+          python -m py_compile ./tools/windows-installer-user-path-e2e.py ./tools/windows-installer-restart-e2e.py
+          if ($LASTEXITCODE -ne 0) { throw "Windows user-path drivers failed syntax validation." }
 
       - name: Reject Hacocoon test overrides before user path
         shell: pwsh
@@ -123,15 +124,17 @@ jobs:
       # ACTION / ASSERTION CONTRACT:
       # - Product-driving actions are only commands a real user types unchanged.
       #   No HACO_* injection/rewriting, E2E-only arguments/options, root repair,
-      #   direct Incus mutation, or synthetic WSL lifecycle control may substitute
-      #   for a user action.
+      #   or direct Incus mutation may substitute for a user action.
+      # - This regression deliberately includes the exact Windows lifecycle action
+      #   `wsl --terminate Hacocoon` after the first successful install and before
+      #   any reinstall. Hacocoon must restart and serve ordinary haco commands
+      #   without install-windows.bat getting a chance to repair state first.
       # - After an action completes, the driver may run read-only assertions to
       #   inspect the resulting WSL/systemd/Incus/Btrfs/loop state. Assertions may
       #   use root when required to observe state, but must never create, repair,
       #   restart, remount, attach, detach, delete, or otherwise mutate product
-      #   state. Natural WSL shutdown is observed by polling `wsl --list --running`;
-      #   it is never manufactured with `wsl --terminate`.
-      - name: Exercise exact Windows actions and assert resulting state
+      #   state.
+      - name: Exercise install, terminate/restart, and reinstall user path
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -144,7 +147,7 @@ jobs:
             $previousPreference = $ErrorActionPreference
             $ErrorActionPreference = "Continue"
             try {
-              python "$env:GITHUB_WORKSPACE\tools\windows-installer-user-path-e2e.py" *> $logPath
+              python "$env:GITHUB_WORKSPACE\tools\windows-installer-restart-e2e.py" *> $logPath
               $driverExit = $LASTEXITCODE
             } finally {
               $ErrorActionPreference = $previousPreference
@@ -155,9 +158,9 @@ jobs:
 
           if ($driverExit -ne 0) {
             Write-Host "=== Exact user-path failure tail ==="
-            Get-Content -LiteralPath $logPath -Tail 120
+            Get-Content -LiteralPath $logPath -Tail 160
             throw "Exact Windows installer user path failed with exit $driverExit."
           }
 
           Write-Host "=== Exact user-path success tail ==="
-          Get-Content -LiteralPath $logPath -Tail 40
+          Get-Content -LiteralPath $logPath -Tail 60
