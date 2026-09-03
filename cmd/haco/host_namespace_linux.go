@@ -69,9 +69,10 @@ var defaultHostEnsureNamespaceDeps = hostEnsureNamespaceDeps{
 // launched by wsl.exe can inhabit a mount namespace that is different from both
 // PID 1/systemd and an already-running incusd. A Btrfs mount created only in the
 // session or PID 1 namespace can therefore remain invisible to incusd even
-// though findmnt and the storage helper report success. Re-enter the running
-// Incus daemon's mount namespace when available, otherwise PID 1's namespace,
-// before composition.Local() lazily creates or reconciles managed storage.
+// though findmnt and the storage helper report success. For a root command that
+// is actually outside PID 1's namespace, re-enter the running Incus daemon's
+// mount namespace when available, otherwise PID 1's namespace, before
+// composition.Local() lazily creates or reconciles managed storage.
 func init() {
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
 		context.Background(),
@@ -119,6 +120,21 @@ func maybeReexecHostEnsureInInitMountNamespace(
 		return true, fmt.Errorf("invalid host namespace bootstrap dependency")
 	}
 
+	selfNS, err := deps.readlink(selfMountNamespace)
+	if err != nil {
+		return true, fmt.Errorf("inspect current mount namespace: %w", err)
+	}
+	initNS, err := deps.readlink(initMountNamespace)
+	if err != nil {
+		return true, fmt.Errorf("inspect PID 1 mount namespace: %w", err)
+	}
+	// Preserve the ordinary Linux path exactly. The Incus-daemon namespace
+	// workaround is only needed for WSL-style root commands that already differ
+	// from the systemd/PID 1 mount namespace.
+	if selfNS == initNS {
+		return false, nil
+	}
+
 	comm, err := deps.readFile(initCommPath)
 	if err != nil {
 		return true, fmt.Errorf("inspect PID 1 before Physical Host namespace entry: %w", err)
@@ -140,10 +156,6 @@ func maybeReexecHostEnsureInInitMountNamespace(
 		targetNamespace = fmt.Sprintf("/proc/%d/ns/mnt", pid)
 	}
 
-	selfNS, err := deps.readlink(selfMountNamespace)
-	if err != nil {
-		return true, fmt.Errorf("inspect current mount namespace: %w", err)
-	}
 	targetNS, err := deps.readlink(targetNamespace)
 	if err != nil {
 		return true, fmt.Errorf("inspect target mount namespace %s: %w", targetNamespace, err)
