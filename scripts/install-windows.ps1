@@ -119,57 +119,52 @@ function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [swit
     )
 }
 
-function Get-SudoersPolicyFiles([string]$Name) {
-    $policies = @()
+function Get-SudoersPolicyFile([string]$Name) {
+    # Ubuntu 26.04 sudo-rs prefers /etc/sudoers-rs when it exists and otherwise
+    # falls back to /etc/sudoers. Manage only that effective policy instead of
+    # mutating both files and creating two sources of Hacocoon state.
     foreach ($policy in @("/etc/sudoers-rs", "/etc/sudoers")) {
         $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "test", "-f", $policy)
-        if ($probe.ExitCode -eq 0) {
-            $policies += $policy
-        } elseif ($probe.ExitCode -ne 1) {
+        if ($probe.ExitCode -eq 0) { return $policy }
+        if ($probe.ExitCode -ne 1) {
             throw "Failed to inspect sudo policy '$policy': $($probe.Stderr)"
         }
     }
-    if ($policies.Count -eq 0) {
-        throw "No supported sudo policy file exists in '$Name'."
-    }
-    return $policies
+    throw "No supported sudo policy file exists in '$Name'."
 }
 
 function Remove-HacocoonSudoPolicyBlock([string]$Name, [string]$MarkerName) {
-    $markerStart = "# BEGIN HACOCOON $MarkerName"
-    $markerEnd = "# END HACOCOON $MarkerName"
+    Assert-SafeName $MarkerName "sudo policy marker"
+    $policy = Get-SudoersPolicyFile $Name
     $script = @'
 set -eu
 policy="$1"
-start="$2"
-end="$3"
+marker_name="$2"
+start="# BEGIN HACOCOON $marker_name"
+end="# END HACOCOON $marker_name"
 [ -f "$policy" ] || exit 0
 grep -Fxq "$start" "$policy" || exit 0
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
+# Hacocoon blocks are always appended. Strip every complete block and also
+# recover an interrupted Hacocoon block at EOF. An unmatched END is not ours
+# to guess about, so fail closed in that case.
 awk -v start="$start" -v end="$end" '
-  BEGIN { skip=0; seen=0 }
-  $0 == start {
-    if (skip || seen) exit 41
-    skip=1
-    seen=1
-    next
-  }
+  BEGIN { skip=0 }
+  $0 == start { skip=1; next }
   $0 == end {
     if (!skip) exit 42
     skip=0
     next
   }
   !skip { print }
-  END { if (skip) exit 43 }
 ' "$policy" > "$tmp"
+/usr/sbin/visudo -cf "$tmp" >/dev/null
 install -o root -g root -m 0440 "$tmp" "$policy"
 '@
-    foreach ($policy in @("/etc/sudoers-rs", "/etc/sudoers")) {
-        $probe = Invoke-WslRootShellScript $Name $script @($policy, $markerStart, $markerEnd)
-        if ($probe.ExitCode -ne 0) {
-            throw "Failed to remove Hacocoon sudo block '$MarkerName' from '$policy' (exit $($probe.ExitCode)): $($probe.Stderr)"
-        }
+    $probe = Invoke-WslRootShellScript $Name $script @($policy, $MarkerName)
+    if ($probe.ExitCode -ne 0) {
+        throw "Failed to remove Hacocoon sudo block '$MarkerName' from '$policy' (exit $($probe.ExitCode)): $($probe.Stderr)"
     }
 }
 
@@ -197,23 +192,33 @@ done
 }
 
 function Set-HacocoonSudoPolicyBlock([string]$Name, [string]$MarkerName, [string]$Rule) {
-    $policies = @(Get-SudoersPolicyFiles $Name)
+    Assert-SafeName $MarkerName "sudo policy marker"
+    $policy = Get-SudoersPolicyFile $Name
     Remove-HacocoonSudoPolicyBlock $Name $MarkerName
-    $markerStart = "# BEGIN HACOCOON $MarkerName"
-    $markerEnd = "# END HACOCOON $MarkerName"
-    $block = "`n$markerStart`n$Rule`n$markerEnd`n"
-
-    foreach ($policy in $policies) {
-        $probe = Write-WslUtf8File $Name $policy $block -Append
-        if ($probe.ExitCode -ne 0) {
-            throw "Failed to append Hacocoon sudo block '$MarkerName' to '$policy': $($probe.Stderr)"
-        }
-        $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $policy)
-        if ($probe.ExitCode -ne 0) {
-            throw "Sudo policy '$policy' rejected Hacocoon sudo block '$MarkerName': $($probe.Stderr)"
-        }
+    $encodedRule = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Rule))
+    $script = @'
+set -eu
+policy="$1"
+marker_name="$2"
+rule_b64="$3"
+start="# BEGIN HACOCOON $marker_name"
+end="# END HACOCOON $marker_name"
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+cat "$policy" > "$tmp"
+printf '\n%s\n' "$start" >> "$tmp"
+printf '%s' "$rule_b64" | base64 -d >> "$tmp"
+printf '\n%s\n' "$end" >> "$tmp"
+# Never expose a partially-written sudo policy. Validate the complete candidate
+# first, then replace the active policy in one install(1) operation.
+/usr/sbin/visudo -cf "$tmp" >/dev/null
+install -o root -g root -m 0440 "$tmp" "$policy"
+'@
+    $probe = Invoke-WslRootShellScript $Name $script @($policy, $MarkerName, $encodedRule)
+    if ($probe.ExitCode -ne 0) {
+        throw "Failed to install Hacocoon sudo block '$MarkerName' in '$policy' atomically (exit $($probe.ExitCode)): $($probe.Stderr)"
     }
-    return ($policies -join ", ")
+    return $policy
 }
 
 function Add-HacocoonBootstrapSudoRule([string]$Name, [string]$LoginUser) {
@@ -686,7 +691,6 @@ try {
     }
 } catch {
     $mainFailure = $_
-    throw
 } finally {
     try {
         Disable-BootstrapSudo $InstanceName
@@ -694,6 +698,9 @@ try {
         if ($null -eq $mainFailure) { throw }
         Write-Warning "Bootstrap sudo cleanup also failed after the installer error: $($_.Exception.Message)"
     }
+}
+if ($null -ne $mainFailure) {
+    throw $mainFailure
 }
 Assert-SystemdActive $InstanceName
 
