@@ -21,7 +21,7 @@ fail() {
 [[ "$(id -u)" == "0" ]] || fail "Btrfs metadata_ratio experiment must run as root on an isolated Linux host"
 [[ "$(uname -s)" == "Linux" ]] || fail "Linux is required"
 
-for tool in btrfs mkfs.btrfs losetup mount umount truncate python3 stat sync; do
+for tool in btrfs mkfs.btrfs losetup mount umount mountpoint findmnt truncate python3 stat sync wc tr; do
   command -v "$tool" >/dev/null 2>&1 || fail "required tool '$tool' is unavailable"
 done
 
@@ -75,23 +75,23 @@ run_snapshot_workload() {
   local base="$mountpoint_path/base"
   local snapshots="$mountpoint_path/snapshots"
 
-  btrfs subvolume create "$base" >/dev/null
-  mkdir -p -- "$snapshots"
-  make_base_workload "$base"
-  sync
+  btrfs subvolume create "$base" >/dev/null || return 1
+  mkdir -p -- "$snapshots" || return 1
+  make_base_workload "$base" || return 1
+  sync || return 1
 
   local i snapshot
   for ((i = 1; i <= SNAPSHOT_COUNT; i++)); do
     snapshot="$snapshots/snap-$(printf '%04d' "$i")"
-    btrfs subvolume snapshot "$base" "$snapshot" >/dev/null
+    btrfs subvolume snapshot "$base" "$snapshot" >/dev/null || return 1
     # Small unique writes make each clone diverge while keeping the workload
     # dominated by snapshot/reflink metadata rather than bulk data copies.
-    printf 'snapshot=%d\n' "$i" > "$snapshot/clone-state"
+    printf 'snapshot=%d\n' "$i" > "$snapshot/clone-state" || return 1
     if (( i % 8 == 0 )); then
-      printf 'base-generation=%d\n' "$i" > "$base/base-state"
+      printf 'base-generation=%d\n' "$i" > "$base/base-state" || return 1
     fi
   done
-  sync
+  sync || return 1
 }
 
 for ratio in $RATIOS; do
