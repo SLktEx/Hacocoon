@@ -92,13 +92,18 @@ def exercise_interactive(session: PTYSession, prompt_label: bytes) -> None:
     session.read_until(prompt_label)
     session.assert_raw()
 
-    session.send(b'n=$(( ${n:-0}+1 )); printf "HACO_HISTORY_COUNT:%s\\n" "$n"\n')
+    history_command = b'n=$(( ${n:-0}+1 )); printf "HACO_HISTORY_COUNT:%s\\n" "$n"'
+    session.send(history_command + b"\n")
     session.read_until(b"HACO_HISTORY_COUNT:1")
     session.read_until(prompt_label)
 
-    # Readline/history must receive the escape sequence immediately. This is the
-    # exact user action that canonical-mode client stdin used to break.
-    session.send(b"\x1b[A\n")
+    # Send Up without Enter first. A canonical local TTY buffers the escape
+    # sequence, so the remote readline cannot redraw the previous command until
+    # a newline arrives. Waiting for the recalled command before Enter makes
+    # this test fail on the exact regression that originally escaped E2E.
+    session.send(b"\x1b[A")
+    session.read_until(history_command, timeout=3.0)
+    session.send(b"\n")
     session.read_until(b"HACO_HISTORY_COUNT:2")
     session.read_until(prompt_label)
 
