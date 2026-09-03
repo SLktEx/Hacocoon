@@ -9,15 +9,16 @@ import (
 )
 
 const (
-	trustedHostGeneralClientPath = "/usr/local/bin/haco"
+	trustedHostGeneralClientPath = "/usr/local/bin/hacoq"
 	trustedHostClientModeEnvKey  = "environment.HACO_CLIENT_MODE"
 	trustedHostClientModeValue   = "controller"
 )
 
-// ProvisionTrustedHostGeneralClient installs the general haco controller client
-// only after the trusted Host already exists and is running. The explicit
-// client-mode marker makes still-unmigrated haco commands fail closed inside
-// haco-host instead of accidentally initializing guest-local Hacocoon state.
+// ProvisionTrustedHostGeneralClient installs the temporary legacy controller
+// client as hacoq only after the trusted Host already exists and is running.
+// The explicit client-mode marker makes still-unmigrated legacy commands fail
+// closed inside haco-host instead of accidentally initializing guest-local
+// Hacocoon state.
 func (r *Runtime) ProvisionTrustedHostGeneralClient(ctx context.Context, source string) error {
 	state, exists, err := r.trustedHostState(ctx)
 	if err != nil {
@@ -52,14 +53,14 @@ func (r *Runtime) ProvisionTrustedHostGeneralClient(ctx context.Context, source 
 		"--gid", "0",
 		"--mode", "0755",
 	); err != nil {
-		return fmt.Errorf("install trusted host general client: %w", err)
+		return fmt.Errorf("install trusted host legacy client: %w", err)
 	}
 	ok, verifyErr := r.trustedHostGeneralClientMatches(ctx, digest)
 	if verifyErr != nil {
-		return fmt.Errorf("verify trusted host general client: %w", verifyErr)
+		return fmt.Errorf("verify trusted host legacy client: %w", verifyErr)
 	}
 	if !ok {
-		return fmt.Errorf("trusted host general client verification mismatch: %w", core.ErrIncompatibleState)
+		return fmt.Errorf("trusted host legacy client verification mismatch: %w", core.ErrIncompatibleState)
 	}
 	return nil
 }

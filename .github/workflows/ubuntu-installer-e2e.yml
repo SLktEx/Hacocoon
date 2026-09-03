@@ -65,15 +65,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          # release.yml runs the same command from an authorized release tag.
-          # This temporary tag never leaves the ephemeral Actions checkout.
           git tag "$HACO_E2E_VERSION" "$GITHUB_SHA"
           goreleaser release --clean --skip=publish
-
           test -f dist/haco_linux_amd64.tar.gz
           test -f dist/haco_linux_arm64.tar.gz
           test -f dist/checksums.txt
+          listing="$(tar -tzf dist/haco_linux_amd64.tar.gz)"
+          grep -Fx haco <<<"$listing"
+          grep -Fx hacoq <<<"$listing"
 
       - name: Build and extract release-equivalent Ubuntu package
         shell: bash
@@ -83,14 +82,11 @@ jobs:
           package_root="$RUNNER_TEMP/hacocoon-ubuntu-amd64"
           rm -rf "$package_out" "$package_root"
           mkdir -p "$package_root"
-
-          # release.yml invokes this same packager over GoReleaser dist/.
           python3 ./tools/package_installers.py \
             --dist ./dist \
             --output "$package_out" \
             --version "$HACO_E2E_VERSION" \
             --arch amd64
-
           tar -xzf "$package_out/hacocoon-ubuntu-amd64.tar.gz" -C "$package_root"
           test -x "$package_root/install-ubuntu.sh"
           test -x "$package_root/install.sh"
@@ -116,13 +112,20 @@ jobs:
           dpkg --compare-versions "$VERSION_ID" ge 26.04
           test "$(ps -p 1 -o comm= | tr -d '[:space:]')" = systemd
           command -v haco
+          command -v hacoq
           command -v incus
-          haco version
 
-          # Ubuntu's extra AppArmor user-namespace gate can leave systemd 259
-          # services inside Incus containers stuck before networkd starts. The
-          # packaged installer must persist and apply the Incus compatibility
-          # setting before any Hacocoon system container is created.
+          # Product CLI identity/help must work without touching runtime state.
+          haco --version
+          haco help
+          set +e
+          haco env >"$RUNNER_TEMP/product-env.out" 2>"$RUNNER_TEMP/product-env.err"
+          product_env_code=$?
+          set -e
+          test "$product_env_code" = 2
+          test ! -s "$RUNNER_TEMP/product-env.out"
+          grep -Fq 'command "env" is not available yet' "$RUNNER_TEMP/product-env.err"
+
           apparmor_userns=/proc/sys/kernel/apparmor_restrict_unprivileged_unconfined
           if test -e "$apparmor_userns"; then
             test "$(cat "$apparmor_userns")" = 0
@@ -136,47 +139,46 @@ jobs:
           id -nG "$login_user" | tr ' ' '\n' | grep -Fx hacocoon
           test "$(sudo stat -Lc '%u:%g:%a' /run/hacocoon/control.sock)" = "0:$access_gid:660"
 
-          # Re-enter the installed user through sudo/initgroups instead of sg.
-          # A real re-login keeps the user's primary GID and adds hacocoon as a
-          # supplementary group; sg/newgrp would incorrectly make hacocoon the
-          # primary GID and change ownership of newly-created workspaces.
           test "$(sudo -u "$login_user" -- id -g)" = "$primary_gid"
           sudo -u "$login_user" -- id -nG | tr ' ' '\n' | grep -Fx hacocoon
-          sudo -u "$login_user" -- /usr/local/bin/haco doctor
+          sudo -u "$login_user" -- /usr/local/bin/hacoq doctor
 
           sudo systemctl is-active --quiet haco-controller.service
           sudo test -S /run/hacocoon/control.sock
-          sudo haco host ensure
+          sudo hacoq host ensure
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
+          sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco --version >/dev/null
+          sudo incus exec haco-host --project hacocoon -- /usr/local/bin/hacoq env list --json >/dev/null
           test "$(getent passwd "$login_user" | cut -d: -f7)" != /usr/local/libexec/hacocoon-login
 
-      - name: Exercise installed Hacocoon user journey
+      - name: Exercise installed Hacocoon legacy user journey during migration
         shell: bash
         run: |
           set -euo pipefail
           login_user="$(id -un)"
           journey="$GITHUB_WORKSPACE/tools/installer-user-journey-e2e.sh"
-          sudo -u "$login_user" -- env HACO_BIN=/usr/local/bin/haco bash "$journey"
+          sudo -u "$login_user" -- env HACO_BIN=/usr/local/bin/hacoq bash "$journey"
 
       - name: Verify installed network isolation and spoofing guards
         shell: bash
         run: |
           set -euo pipefail
-          sudo env HACO_BIN=/usr/local/bin/haco bash "$GITHUB_WORKSPACE/tools/installer-network-security-e2e.sh"
+          sudo env HACO_BIN=/usr/local/bin/hacoq bash "$GITHUB_WORKSPACE/tools/installer-network-security-e2e.sh"
 
       - name: Collect diagnostics
         if: failure()
         shell: bash
         continue-on-error: true
         run: |
-          haco version || true
-          sudo haco doctor || true
-          sudo haco env list || true
+          haco --version || true
+          haco help || true
+          sudo hacoq doctor || true
+          sudo hacoq env list || true
           getent group hacocoon || true
           id || true
           sudo -u "$(id -un)" -- id || true
           sudo stat -Lc '%U:%G:%a %n' /run/hacocoon/control.sock || true
-          sudo env HACO_BIN=/usr/local/bin/haco bash "$GITHUB_WORKSPACE/tools/installer-dhcp-diagnostics.sh" || true
+          sudo env HACO_BIN=/usr/local/bin/hacoq bash "$GITHUB_WORKSPACE/tools/installer-dhcp-diagnostics.sh" || true
           sudo nft list ruleset || true
           systemctl --no-pager --failed || true
           sudo systemctl status haco-controller.service --no-pager || true

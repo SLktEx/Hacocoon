@@ -41,7 +41,7 @@ backing image作成、loop attach、Btrfs format、mount/unmount lifecycle、対
 
 Incusのloop-backed Btrfs poolはsparseな **Linux file** を使う。Incusはloop imageのlogical sizeだけを設定するsparse-file pathで作成し、128GiBを最初から全量physical allocateしない。repository acceptanceでも作成後にallocated bytesがlogical 128GiBより小さいことを確認する。
 
-これはWSLの `sparseVhd` / sparse-VHDX modeとは別。Hacocoonはこのstorage designのためにWSL sparse-VHD modeを有効化しない。Windows Host側VHDXのspace reclamationは明示的なmaintenanceとして扱い、`haco maintenance compact` の別workで管理する。
+これはWSLの `sparseVhd` / sparse-VHDX modeとは別。Hacocoonはこのstorage designのためにWSL sparse-VHD modeを有効化しない。Windows Host側VHDXのspace reclamationはHacocoon CLIの責務にせず、必要な場合はWindows/WSL側の運用として扱う。
 
 ## なぜrootfs objectを同じpoolで共有するのか
 

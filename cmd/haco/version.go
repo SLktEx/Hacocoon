@@ -11,15 +11,15 @@ import (
 )
 
 // Version handling is intentionally performed before main initializes the local
-// runtime composition. `haco --version` and `haco version` must work even when
-// Incus or Host state is unavailable.
+// runtime composition. The temporary migration CLI must remain diagnosable even
+// when Incus or Host state is unavailable.
 func init() {
 	handled, err := handleVersionArgs(os.Args[1:], os.Stdout)
 	if !handled {
 		return
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco:", err)
+		fmt.Fprintln(os.Stderr, "hacoq:", err)
 		os.Exit(2)
 	}
 	os.Exit(0)
@@ -28,7 +28,7 @@ func init() {
 func handleVersionArgs(args []string, out io.Writer) (bool, error) {
 	if len(args) == 1 && args[0] == "--version" {
 		info := buildinfo.Current()
-		_, err := fmt.Fprintf(out, "haco %s (checkpoint %s, commit %s)\n", info.Version, info.Checkpoint, buildinfo.ShortCommit(info.Commit))
+		_, err := fmt.Fprintf(out, "hacoq %s (temporary migration CLI; checkpoint %s, commit %s)\n", info.Version, info.Checkpoint, buildinfo.ShortCommit(info.Commit))
 		return true, err
 	}
 	if len(args) == 0 || args[0] != "version" {
@@ -41,7 +41,7 @@ func handleVersionArgs(args []string, out io.Writer) (bool, error) {
 		args = args[:0]
 	}
 	if len(args) != 0 {
-		return true, fmt.Errorf("usage: haco version [--json]: %w", core.ErrInvalidArgument)
+		return true, fmt.Errorf("usage: hacoq version [--json]: %w", core.ErrInvalidArgument)
 	}
 
 	info := buildinfo.Current()
@@ -51,7 +51,7 @@ func handleVersionArgs(args []string, out io.Writer) (bool, error) {
 		return true, encoder.Encode(info)
 	}
 	_, err := fmt.Fprintf(out,
-		"Hacocoon\n  checkpoint: %s\n  version: %s\n  commit: %s\n  built: %s\n",
+		"Hacocoon temporary migration CLI (hacoq; scheduled for deletion)\n  checkpoint: %s\n  version: %s\n  commit: %s\n  built: %s\n",
 		info.Checkpoint, info.Version, info.Commit, info.BuildDate,
 	)
 	return true, err

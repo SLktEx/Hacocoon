@@ -21,8 +21,6 @@
 /scripts/install-ubuntu.sh @SLktEx
 /scripts/install-windows.bat @SLktEx
 /scripts/install-windows.ps1 @SLktEx
-/scripts/haco-windows.cmd @SLktEx
-/scripts/haco-windows.ps1 @SLktEx
 
 /docs/INSTALLER_ARCHITECTURE.md @SLktEx
 /docs/RELEASE_SECURITY.md @SLktEx
