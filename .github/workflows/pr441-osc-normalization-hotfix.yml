@@ -1,0 +1,87 @@
+name: pr441-osc-normalization-hotfix
+
+on:
+  push:
+    branches:
+      - fix/windows-one-shot-current
+    paths:
+      - .github/workflows/pr441-osc-normalization-hotfix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/windows-one-shot-current
+          persist-credentials: true
+
+      - name: Fix terminal OSC normalization and add regression coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          driver_path = Path("tools/windows-installer-user-path-e2e.py")
+          driver = driver_path.read_text(encoding="utf-8")
+          old = 'OSC_RE = re.compile(r"\\x1b\\][^\\x07]*(?:\\x07|\\x1b\\\\)")'
+          new = 'OSC_RE = re.compile(r"\\x1b\\][^\\x07]*?(?:\\x07|\\x1b\\\\)")'
+          if driver.count(old) != 1:
+              raise SystemExit("expected exactly one greedy OSC normalization pattern")
+          driver_path.write_text(driver.replace(old, new), encoding="utf-8")
+
+          test_path = Path("tools/test_installer_packages.py")
+          test = test_path.read_text(encoding="utf-8")
+          imports_old = "import hashlib\nfrom pathlib import Path\nimport subprocess\n"
+          imports_new = "import hashlib\nimport importlib.util\nfrom pathlib import Path\nimport subprocess\nimport sys\n"
+          if imports_old not in test:
+              raise SystemExit("installer package test import block changed unexpectedly")
+          test = test.replace(imports_old, imports_new, 1)
+
+          marker = '\nprint("INSTALLER PACKAGES OK")\n'
+          if marker not in test:
+              raise SystemExit("installer package test completion marker changed unexpectedly")
+          block = r'''
+# A ConPTY cmd.exe session emits OSC title sequences before and after installer
+# output. Normalization must remove each OSC sequence independently instead of
+# greedily deleting user-visible text between them.
+driver_path = ROOT / "tools" / "windows-installer-user-path-e2e.py"
+spec = importlib.util.spec_from_file_location("windows_installer_user_path_e2e_test", driver_path)
+if spec is None or spec.loader is None:
+    raise SystemExit(f"cannot load Windows user-path driver from {driver_path}")
+driver = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = driver
+try:
+    spec.loader.exec_module(driver)
+    osc_sample = (
+        "\x1b]0;before\x1b\\"
+        "Hacocoon Windows installation complete."
+        "\x1b]0;after\x1b\\"
+    )
+    normalized = driver.normalize_terminal(osc_sample)
+finally:
+    sys.modules.pop(spec.name, None)
+if normalized != "Hacocoon Windows installation complete.":
+    raise SystemExit(f"Windows terminal normalization deleted visible output: {normalized!r}")
+'''
+          test = test.replace(marker, "\n" + block.strip("\n") + "\n" + marker, 1)
+          test_path.write_text(test, encoding="utf-8")
+          PY
+
+          python3 tools/test_installer_packages.py
+          git diff --check
+
+      - name: Commit the focused fix to the PR branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/windows-installer-user-path-e2e.py tools/test_installer_packages.py
+          git commit -m "test(windows): preserve output between OSC title sequences"
+          git push origin HEAD:fix/windows-one-shot-current
