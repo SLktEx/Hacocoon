@@ -132,6 +132,77 @@ function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [swit
     ) ($encoded + "`n")
 }
 
+function Get-ActiveSudoersPolicy([string]$Name) {
+    $provider = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sudo", "--version")
+    if ($provider.ExitCode -ne 0) {
+        throw "Unable to determine the active sudo provider: $($provider.Stderr)"
+    }
+    if ($provider.Stdout -match '^sudo-rs') {
+        $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "test", "-f", "/etc/sudoers-rs")
+        if ($probe.ExitCode -eq 0) { return "/etc/sudoers-rs" }
+    }
+    return "/etc/sudoers"
+}
+
+function Ensure-HacocoonSudoRuleLoaded([string]$Name, [string]$RulePath) {
+    $activePolicy = Get-ActiveSudoersPolicy $Name
+    $includedirPattern = '^[[:space:]]*(@includedir|#includedir)[[:space:]]+/etc/sudoers\.d([[:space:]]|$)'
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "grep", "-Eq", $includedirPattern, $activePolicy)
+    if ($probe.ExitCode -eq 0) { return $activePolicy }
+    if ($probe.ExitCode -ne 1) {
+        throw "Failed to inspect active sudo policy '$activePolicy': $($probe.Stderr)"
+    }
+
+    # sudo-rs prefers /etc/sudoers-rs when present. Minimal Ubuntu/WSL
+    # policy may therefore ignore /etc/sudoers.d. Include only the
+    # Hacocoon-owned rule instead of enabling unrelated drop-ins.
+    $includeLine = "@include $RulePath"
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "grep", "-Fx", $includeLine, $activePolicy)
+    if ($probe.ExitCode -eq 1) {
+        $probe = Write-WslUtf8File $Name $activePolicy ("`n$includeLine`n") -Append
+        if ($probe.ExitCode -ne 0) {
+            throw "Failed to include '$RulePath' from active sudo policy '$activePolicy': $($probe.Stderr)"
+        }
+    } elseif ($probe.ExitCode -ne 0) {
+        throw "Failed to inspect Hacocoon sudo include in '$activePolicy': $($probe.Stderr)"
+    }
+
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $activePolicy)
+    if ($probe.ExitCode -ne 0) {
+        throw "Active sudo policy '$activePolicy' rejected Hacocoon rule '$RulePath': $($probe.Stderr)"
+    }
+    return $activePolicy
+}
+
+function Remove-HacocoonSudoRuleInclude([string]$Name, [string]$RulePath) {
+    $script = @'
+set -eu
+policy="$1"
+include_line="$2"
+[ -f "$policy" ] || exit 0
+tmp="$(mktemp)"
+awk -v include_line="$include_line" '$0 != include_line { print }' "$policy" > "$tmp"
+install -o root -g root -m 0440 "$tmp" "$policy"
+rm -f "$tmp"
+'@
+    $includeLine = "@include $RulePath"
+    foreach ($policy in @("/etc/sudoers", "/etc/sudoers-rs")) {
+        $probe = Invoke-WslCaptureWithInput @(
+            "--distribution", $Name,
+            "--user", "root",
+            "--exec", "sh", "-s", "--", $policy, $includeLine
+        ) $script
+        if ($probe.ExitCode -ne 0) {
+            throw "Failed to remove Hacocoon sudo include from '$policy': $($probe.Stderr)"
+        }
+    }
+    $activePolicy = Get-ActiveSudoersPolicy $Name
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $activePolicy)
+    if ($probe.ExitCode -ne 0) {
+        throw "Active sudo policy '$activePolicy' is invalid after Hacocoon include cleanup: $($probe.Stderr)"
+    }
+}
+
 function Get-InstalledDistros {
     $lines = & wsl.exe --list --quiet 2>$null
     if ($LASTEXITCODE -ne 0) { return @() }
@@ -325,12 +396,11 @@ function Enable-BootstrapSudo([string]$Name, [string]$LoginUser) {
     if ($probe.ExitCode -ne 0) { throw "Failed to protect temporary installer sudo rule." }
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $BootstrapSudoersPath)
     if ($probe.ExitCode -ne 0) { throw "Failed to validate temporary installer sudo rule: $($probe.Stderr)" }
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-c")
-    if ($probe.ExitCode -ne 0) { throw "Failed to validate the effective sudo policy: $($probe.Stderr)" }
+    $activePolicy = Ensure-HacocoonSudoRuleLoaded $Name $BootstrapSudoersPath
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", "/usr/bin/true")
     if ($probe.ExitCode -ne 0) {
         $policy = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sudo", "-l", "-U", $LoginUser)
-        throw "Temporary installer sudo rule is not effective for '$LoginUser': $($probe.Stderr) Policy: $($policy.Stdout) $($policy.Stderr)"
+        throw "Temporary installer sudo rule is not effective for '$LoginUser' through '$activePolicy': $($probe.Stderr) Policy: $($policy.Stdout) $($policy.Stderr)"
     }
 }
 
@@ -339,6 +409,7 @@ function Disable-BootstrapSudo([string]$Name) {
     if ($probe.ExitCode -ne 0) {
         throw "Failed to remove temporary installer sudo rule."
     }
+    Remove-HacocoonSudoRuleInclude $Name $BootstrapSudoersPath
 }
 
 function Get-OsReleaseValue([string]$Content, [string]$Key) {
@@ -500,6 +571,11 @@ function Configure-WslPost([string]$Name, [string]$LoginUser) {
     if ($probe.ExitCode -ne 0) { throw "Failed to protect the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", "/etc/sudoers.d/hacocoon-login")
     if ($probe.ExitCode -ne 0) { throw "Failed to validate the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
+    $activePolicy = Ensure-HacocoonSudoRuleLoaded $Name "/etc/sudoers.d/hacocoon-login"
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", $haco, "host", "ensure")
+    if ($probe.ExitCode -ne 0) {
+        throw "Narrow Hacocoon WSL sudo rule is not effective through '$activePolicy': $($probe.Stderr)"
+    }
 
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/usermod", "-s", $LoginShell, $LoginUser)
     if ($probe.ExitCode -ne 0) { throw "Failed to configure Hacocoon WSL login shell for '$LoginUser'." }
