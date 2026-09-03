@@ -29,16 +29,14 @@ Unimplemented product commands fail clearly instead of falling back to the legac
 
 ## Compatibility boundary
 
-Release archives and installers temporarily contain both `haco` and `hacoq`.
+Release archives and installers temporarily contain both `haco` and `hacoq` for the Linux/WSL runtime.
 
 The trusted `haco-host` also receives both names:
 
 - `/usr/local/bin/haco` — the new product CLI
 - `/usr/local/bin/hacoq` — the temporary legacy controller/runtime CLI
 
-The same `haco` name therefore refers to the same product surface on the Physical Host, inside trusted `haco-host`, and through the Windows launcher.
-
-The Windows `haco` launcher keeps Windows-owned maintenance operations such as `haco maintenance compact` on Windows and delegates normal product CLI commands to `/usr/local/bin/haco` in the dedicated Hacocoon WSL distribution.
+On Windows, the installer only provisions the dedicated Hacocoon WSL distribution. It does **not** install a native Windows `haco` command, launcher, or PATH entry. Run `haco` inside the dedicated WSL environment.
 
 ## Development rule
 
