@@ -14,14 +14,18 @@ import (
 )
 
 const (
-	MethodPing              = "system.ping"
-	MethodEnvironmentCreate = "environment.create"
-	MethodEnvironmentList   = "environment.list"
-	MethodEnvironmentStatus = "environment.status"
-	MethodEnvironmentExec   = "environment.exec"
-	MethodEnvironmentShell  = "environment.shell"
-	MethodEnvironmentDelete = "environment.delete"
-	MethodHostShell         = "host.shell"
+	MethodPing                   = "system.ping"
+	MethodEnvironmentCreate      = "environment.create"
+	MethodEnvironmentList        = "environment.list"
+	MethodEnvironmentStatus      = "environment.status"
+	MethodEnvironmentExec        = "environment.exec"
+	MethodEnvironmentShell       = "environment.shell"
+	MethodEnvironmentDelete      = "environment.delete"
+	MethodEnvironmentConnections = "environment.connections"
+	MethodEnvironmentForward     = "environment.forward"
+	MethodEnvironmentUnforward   = "environment.unforward"
+	MethodEnvironmentSSH         = "environment.ssh"
+	MethodHostShell              = "host.shell"
 )
 
 type EnvironmentCreateRequest struct {
@@ -41,6 +45,24 @@ type EnvironmentExecRequest struct {
 	Argv        []string `json:"argv"`
 }
 
+type EnvironmentForwardRequest struct {
+	Environment string `json:"environment"`
+	Protocol    string `json:"protocol,omitempty"`
+	HostPort    int    `json:"host_port"`
+	TargetPort  int    `json:"target_port"`
+}
+
+type EnvironmentConnectionRequest struct {
+	Environment  string `json:"environment"`
+	ConnectionID string `json:"connection_id"`
+}
+
+type EnvironmentSSHRequest struct {
+	Environment string `json:"environment"`
+	PublicKey   string `json:"public_key"`
+	HostPort    int    `json:"host_port"`
+}
+
 type EnvironmentShellRequest = EnvironmentNameRequest
 
 type environmentService interface {
@@ -53,6 +75,10 @@ type environmentService interface {
 
 type clientService interface {
 	Status(context.Context, string) (core.EnvironmentStatus, error)
+	Connections(context.Context, string) ([]core.ClientConnection, error)
+	Forward(context.Context, string, core.LocalPortRequest) (core.ClientConnection, error)
+	Unforward(context.Context, string, string) error
+	SSH(context.Context, string, core.SSHAccessRequest) (core.ClientConnection, error)
 }
 
 type hostService interface {
@@ -109,6 +135,67 @@ func Register(server *control.Server, environments environmentService, clients c
 			return nil, translateError(err)
 		}
 		return status, nil
+	}); err != nil {
+		return err
+	}
+	if err := server.Register(MethodEnvironmentConnections, func(ctx context.Context, payload json.RawMessage) (any, error) {
+		request, err := decodeEnvironmentName(payload)
+		if err != nil {
+			return nil, err
+		}
+		connections, err := clients.Connections(ctx, request.Environment)
+		if err != nil {
+			return nil, translateError(err)
+		}
+		if connections == nil {
+			connections = []core.ClientConnection{}
+		}
+		return connections, nil
+	}); err != nil {
+		return err
+	}
+	if err := server.Register(MethodEnvironmentForward, func(ctx context.Context, payload json.RawMessage) (any, error) {
+		var request EnvironmentForwardRequest
+		if err := json.Unmarshal(payload, &request); err != nil || strings.TrimSpace(request.Environment) == "" {
+			return nil, control.NewStatusError("invalid_argument", "invalid environment forward request")
+		}
+		connection, err := clients.Forward(ctx, request.Environment, core.LocalPortRequest{
+			Protocol:   request.Protocol,
+			HostPort:   request.HostPort,
+			TargetPort: request.TargetPort,
+		})
+		if err != nil {
+			return nil, translateError(err)
+		}
+		return connection, nil
+	}); err != nil {
+		return err
+	}
+	if err := server.Register(MethodEnvironmentUnforward, func(ctx context.Context, payload json.RawMessage) (any, error) {
+		var request EnvironmentConnectionRequest
+		if err := json.Unmarshal(payload, &request); err != nil || strings.TrimSpace(request.Environment) == "" || strings.TrimSpace(request.ConnectionID) == "" {
+			return nil, control.NewStatusError("invalid_argument", "environment and connection_id are required")
+		}
+		if err := clients.Unforward(ctx, request.Environment, request.ConnectionID); err != nil {
+			return nil, translateError(err)
+		}
+		return nil, nil
+	}); err != nil {
+		return err
+	}
+	if err := server.Register(MethodEnvironmentSSH, func(ctx context.Context, payload json.RawMessage) (any, error) {
+		var request EnvironmentSSHRequest
+		if err := json.Unmarshal(payload, &request); err != nil || strings.TrimSpace(request.Environment) == "" || strings.TrimSpace(request.PublicKey) == "" {
+			return nil, control.NewStatusError("invalid_argument", "environment and public_key are required")
+		}
+		connection, err := clients.SSH(ctx, request.Environment, core.SSHAccessRequest{
+			PublicKey: request.PublicKey,
+			HostPort:  request.HostPort,
+		})
+		if err != nil {
+			return nil, translateError(err)
+		}
+		return connection, nil
 	}); err != nil {
 		return err
 	}
