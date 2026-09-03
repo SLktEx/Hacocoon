@@ -18,7 +18,7 @@ func TestHandleVersionArgsDetailed(t *testing.T) {
 	if !handled {
 		t.Fatal("version command was not handled")
 	}
-	for _, want := range []string{"Hacocoon", "checkpoint:", "version:", "commit:", "built:"} {
+	for _, want := range []string{"temporary migration CLI", "hacoq", "scheduled for deletion", "checkpoint:", "version:", "commit:", "built:"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("output missing %q: %s", want, out.String())
 		}
@@ -49,7 +49,7 @@ func TestHandleVersionArgsCompact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !handled || !strings.HasPrefix(out.String(), "haco ") || !strings.Contains(out.String(), "checkpoint") {
+	if !handled || !strings.HasPrefix(out.String(), "hacoq ") || !strings.Contains(out.String(), "temporary migration CLI") || !strings.Contains(out.String(), "checkpoint") {
 		t.Fatalf("unexpected compact output: %q", out.String())
 	}
 }
