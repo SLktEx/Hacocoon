@@ -124,6 +124,8 @@ with tempfile.TemporaryDirectory() as temp:
                 '$OutputEncoding = [Text.UTF8Encoding]::new($false)',
                 '$wrappedArguments = @($Arguments[0..$execIndex])',
                 'LC_ALL=C sed ',
+                'function Invoke-WslRootShellScript',
+                'sh -eu "$tmp" "$@"',
                 '& wsl.exe --terminate $Name | Out-Null',
                 '& wsl.exe --distribution $Name | Out-Host',
                 'Running common Ubuntu install.sh',
@@ -137,6 +139,7 @@ with tempfile.TemporaryDirectory() as temp:
                 "Complete normal Ubuntu user setup, then run this installer again.",
                 "After completing the Ubuntu user setup, run install-windows.bat again.",
                 '$normalized | & wsl.exe @Arguments',
+                '"--exec", "sh", "-s"',
             ]
             for contract_marker in forbidden_windows_contract:
                 if contract_marker in windows_installer:

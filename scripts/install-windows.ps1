@@ -136,6 +136,22 @@ function Invoke-WslCaptureWithInput([string[]]$Arguments, [string]$InputText) {
     return New-WslCaptureResult $exitCode $stdout $stderr
 }
 
+function Invoke-WslRootShellScript([string]$Name, [string]$Script, [string[]]$ScriptArguments = @()) {
+    # Shell source is control data, not stdin payload. Encode it into an argv-safe
+    # base64 string, materialize it inside WSL, and execute the temporary file.
+    # This avoids Windows PowerShell native-pipeline encoding/BOM behavior and
+    # also avoids sh -s early-exit interactions with the stdin producer.
+    $normalized = ($Script -replace "`r`n", "`n") -replace "`r", "`n"
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
+    $runner = 'tmp="$(mktemp)"; trap ''rm -f "$tmp"'' EXIT; printf ''%s'' "$1" | base64 -d > "$tmp"; shift; sh -eu "$tmp" "$@"'
+    $arguments = @(
+        "--distribution", $Name,
+        "--user", "root",
+        "--exec", "sh", "-eu", "-c", $runner, "sh", $encoded
+    ) + @($ScriptArguments)
+    return Invoke-WslCapture $arguments
+}
+
 function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [switch]$Append) {
     # Encode exact UTF-8 bytes and decode inside WSL. Invoke-WslCaptureWithInput
     # itself pins the Windows native-pipeline encoding to BOM-free UTF-8.
@@ -200,13 +216,9 @@ awk -v start="$start" -v end="$end" '
 install -o root -g root -m 0440 "$tmp" "$policy"
 '@
     foreach ($policy in @("/etc/sudoers-rs", "/etc/sudoers")) {
-        $probe = Invoke-WslCaptureWithInput @(
-            "--distribution", $Name,
-            "--user", "root",
-            "--exec", "sh", "-s", "--", $policy, $markerStart, $markerEnd
-        ) $script
+        $probe = Invoke-WslRootShellScript $Name $script @($policy, $markerStart, $markerEnd)
         if ($probe.ExitCode -ne 0) {
-            throw "Failed to remove Hacocoon sudo block '$MarkerName' from '$policy': $($probe.Stderr)"
+            throw "Failed to remove Hacocoon sudo block '$MarkerName' from '$policy' (exit $($probe.ExitCode)): $($probe.Stderr)"
         }
     }
 }
@@ -228,13 +240,9 @@ for policy in /etc/sudoers-rs /etc/sudoers; do
   trap - EXIT
 done
 '@
-    $probe = Invoke-WslCaptureWithInput @(
-        "--distribution", $Name,
-        "--user", "root",
-        "--exec", "sh", "-s", "--", $RulePath
-    ) $script
+    $probe = Invoke-WslRootShellScript $Name $script @($RulePath)
     if ($probe.ExitCode -ne 0) {
-        throw "Failed to remove legacy Hacocoon sudo drop-in '$RulePath': $($probe.Stderr)"
+        throw "Failed to remove legacy Hacocoon sudo drop-in '$RulePath' (exit $($probe.ExitCode)): $($probe.Stderr)"
     }
 }
 
@@ -387,11 +395,7 @@ fi
 install -o root -g root -m 0644 "$tmp" /etc/wsl.conf
 rm -f "$tmp"
 '@
-    $probe = Invoke-WslCaptureWithInput @(
-        "--distribution", $Name,
-        "--user", "root",
-        "--exec", "sh", "-s", "--", $LoginUser
-    ) $script
+    $probe = Invoke-WslRootShellScript $Name $script @($LoginUser)
     if ($probe.ExitCode -ne 0) {
         throw "Failed to configure '$LoginUser' as the default WSL user: $($probe.Stderr)"
     }
@@ -551,7 +555,7 @@ fi
 install -o root -g root -m 0644 "$tmp" /etc/wsl.conf
 rm -f "$tmp"
 '@
-    $probe = Invoke-WslCaptureWithInput @("--distribution", $Name, "--user", "root", "--exec", "sh", "-s") $script
+    $probe = Invoke-WslRootShellScript $Name $script
     if ($probe.ExitCode -ne 0) { throw "Failed to configure systemd in '$Name'." }
 
     & wsl.exe --terminate $Name
