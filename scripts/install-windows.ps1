@@ -27,6 +27,20 @@ function Test-Administrator {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Invoke-ElevatedWsl([string[]]$Arguments) {
+    $systemWsl = Join-Path ([Environment]::SystemDirectory) "wsl.exe"
+    if (-not (Test-Path -LiteralPath $systemWsl -PathType Leaf)) {
+        throw "The system wsl.exe is unavailable at '$systemWsl'."
+    }
+    Write-Step "Administrator approval is required only to create the dedicated Hacocoon WSL instance. Requesting UAC."
+    try {
+        $process = Start-Process -FilePath $systemWsl -ArgumentList $Arguments -Verb RunAs -Wait -PassThru
+    } catch {
+        throw "Administrator approval was cancelled or elevation could not be started. The dedicated Hacocoon WSL instance was not created."
+    }
+    return [int]$process.ExitCode
+}
+
 function Assert-SafeName([string]$Value, [string]$Label) {
     if ($Value -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
         throw "$Label '$Value' contains unsupported characters."
@@ -166,12 +180,12 @@ function Ensure-AutomaticWslLoginUser([string]$Name, [string]$User) {
     $script = @'
 set -eu
 user="$1"
-if command -v useradd >/dev/null 2>&1; then
-  useradd --create-home --shell /bin/bash "$user"
-elif command -v adduser >/dev/null 2>&1; then
+if command -v adduser >/dev/null 2>&1; then
   adduser --disabled-password --gecos '' "$user"
+elif command -v useradd >/dev/null 2>&1; then
+  useradd --create-home --user-group --shell /bin/bash "$user"
 else
-  echo "neither useradd nor adduser is available" >&2
+  echo "neither adduser nor useradd is available" >&2
   exit 1
 fi
 '@
@@ -367,24 +381,26 @@ rm -f "$tmp"
     Assert-SystemdActive $Name
 }
 
-function Grant-WslBootstrapSudo([string]$Name, [string]$User) {
-    Write-Step "Granting temporary bootstrap privileges to '$User'"
-    $sudoers = "$User ALL=(root) NOPASSWD: ALL`n"
-    $probe = Write-WslUtf8File $Name $BootstrapSudoers $sudoers
-    if ($probe.ExitCode -ne 0) { throw "Failed to write temporary bootstrap sudo rule: $($probe.Stderr)" }
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "chmod", "0440", $BootstrapSudoers)
-    if ($probe.ExitCode -ne 0) { throw "Failed to protect temporary bootstrap sudo rule." }
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $BootstrapSudoers)
-    if ($probe.ExitCode -ne 0) {
-        Remove-WslBootstrapSudo $Name
-        throw "Failed to validate temporary bootstrap sudo rule: $($probe.Stderr)"
-    }
-}
-
 function Remove-WslBootstrapSudo([string]$Name) {
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "rm", "-f", $BootstrapSudoers)
     if ($probe.ExitCode -ne 0) {
         Write-Warning "Failed to remove temporary Hacocoon bootstrap sudo rule."
+    }
+}
+
+function Grant-WslBootstrapSudo([string]$Name, [string]$User) {
+    Write-Step "Granting temporary bootstrap privileges to '$User'"
+    try {
+        $sudoers = "$User ALL=(root) NOPASSWD: ALL`n"
+        $probe = Write-WslUtf8File $Name $BootstrapSudoers $sudoers
+        if ($probe.ExitCode -ne 0) { throw "Failed to write temporary bootstrap sudo rule: $($probe.Stderr)" }
+        $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "chmod", "0440", $BootstrapSudoers)
+        if ($probe.ExitCode -ne 0) { throw "Failed to protect temporary bootstrap sudo rule." }
+        $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $BootstrapSudoers)
+        if ($probe.ExitCode -ne 0) { throw "Failed to validate temporary bootstrap sudo rule: $($probe.Stderr)" }
+    } catch {
+        Remove-WslBootstrapSudo $Name
+        throw
     }
 }
 
@@ -486,14 +502,17 @@ Assert-WslSupported
 $installed = @(Get-InstalledDistros)
 $createdInstance = $false
 if (-not ($installed -contains $InstanceName)) {
-    if (-not (Test-Administrator)) {
-        throw "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell."
-    }
     Write-Step "Creating dedicated WSL instance '$InstanceName' from '$BaseDistro'"
     $args = @("--install", $BaseDistro, "--name", $InstanceName, "--no-launch")
     if ($WebDownload) { $args += "--web-download" }
-    & wsl.exe @args
-    if ($LASTEXITCODE -ne 0) {
+
+    if (Test-Administrator) {
+        & wsl.exe @args
+        $createExitCode = $LASTEXITCODE
+    } else {
+        $createExitCode = Invoke-ElevatedWsl $args
+    }
+    if ($createExitCode -ne 0) {
         throw "Failed to create '$InstanceName'. Update WSL with 'wsl --update' if named installation is unsupported."
     }
     $createdInstance = $true
