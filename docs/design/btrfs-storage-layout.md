@@ -72,7 +72,9 @@ An already-existing `haco-local-default` pool is reused. Hacocoon does not destr
 
 ## Legacy Hacocoon-managed storage path
 
-The repository still contains the earlier `modules/storage/btrfs` implementation and `haco-storage-helper`. That path manages:
+The repository still contains the earlier `modules/storage/btrfs` implementation and `haco-storage-helper`. That historical compatibility path is the **Hacocoon-managed Btrfs storage layout**: it creates a **sparse raw** backing file for a storage ID and maps it to an Incus pool named `haco-<storage-id>`.
+
+It manages:
 
 ```text
 HACO_ROOT/images/<storage-id>.raw
