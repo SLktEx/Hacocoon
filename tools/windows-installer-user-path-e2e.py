@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-"""Drive the Windows installer through the same commands a real user runs.
+"""Drive the Windows installer through the exact commands a real user types.
 
-The harness automates terminal input only. Product-facing commands keep their
-normal environment, argv, and options. From the first packaged BAT invocation
-onward, this driver may launch only the documented Windows/WSL entry points and
-may type only ordinary Hacocoon commands a user can type unchanged.
-
-CI-specific observation belongs outside this driver. It must never prepare,
-repair, or mutate product state to make the user path pass.
+Before this driver starts, CI may build the PR candidate and prepare ConPTY.
+After it starts, product-facing actions are only keyboard input a real user can
+enter unchanged. The driver must not add Hacocoon environment variables,
+arguments, options, privileged shortcuts, or assertion-only product commands.
 """
 
 from __future__ import annotations
@@ -28,9 +25,9 @@ ENVIRONMENT = "installer-e2e"
 PROCESS_TIMEOUT_SECONDS = 900
 POST_EXIT_DRAIN_SECONDS = 1.0
 
-INSTALL_ARGV = ("cmd.exe", "/d", "/c", "install-windows.bat")
-WSL_ARGV = ("wsl.exe", "-d", INSTANCE)
-ALLOWED_TERMINAL_ARGV = frozenset((INSTALL_ARGV, WSL_ARGV))
+# ConPTY needs a terminal process. Start an ordinary cmd.exe and type every
+# product-facing Windows command into it exactly as a user does.
+TERMINAL_ARGV = ("cmd.exe",)
 
 HOST_SESSION_COMMANDS: dict[str, tuple[str, ...]] = {
     "before reinstall": (
@@ -48,13 +45,14 @@ HOST_SESSION_COMMANDS: dict[str, tuple[str, ...]] = {
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 OSC_RE = re.compile(r"\x1b\][^\x07]*(?:\x07|\x1b\\)")
+CMD_PROMPT_RE = re.compile(r"(?m)^[A-Za-z]:\\[^\r\n>]*>\s*$")
 
 
 def inherited_child_environment() -> dict[str, str]:
-    """Pass the normal runner environment through unchanged.
+    """Pass the runner environment through unchanged.
 
-    A HACO_* value in the CI environment is a test configuration leak. Reject it
-    instead of deleting/rewriting it for the product process.
+    HACO_* in CI is a configuration leak. Fail instead of deleting, adding, or
+    rewriting anything before the product sees its environment.
     """
 
     overrides = sorted(key for key in os.environ if key.startswith("HACO_"))
@@ -78,6 +76,10 @@ def normalize_terminal(text: str) -> str:
     return OSC_RE.sub("", ANSI_RE.sub("", text))
 
 
+def cmd_prompt_count(text: str) -> int:
+    return len(CMD_PROMPT_RE.findall(text))
+
+
 @dataclass
 class Responder:
     pattern: Pattern[str]
@@ -91,19 +93,13 @@ def responder(pattern: str, reply: str, *, repeat: bool = False) -> Responder:
 
 
 class TerminalProcess:
-    def __init__(self, argv: list[str] | tuple[str, ...], *, cwd: Path | None = None):
-        argv_tuple = tuple(argv)
-        if argv_tuple not in ALLOWED_TERMINAL_ARGV:
-            raise RuntimeError(
-                "exact user-path E2E refuses non-user terminal command: "
-                + repr(argv_tuple)
-            )
+    def __init__(self, *, cwd: Path | None = None):
         try:
             from winpty import PtyProcess
         except ImportError as exc:
             raise RuntimeError("pywinpty is required for the Windows user-path E2E") from exc
 
-        self.argv = list(argv_tuple)
+        self.argv = list(TERMINAL_ARGV)
         self.proc = PtyProcess.spawn(
             self.argv,
             cwd=str(cwd) if cwd is not None else None,
@@ -193,104 +189,147 @@ class TerminalProcess:
             break
         else:
             self.proc.terminate(force=True)
-            raise RuntimeError(f"timed out waiting for terminal command: {self.argv!r}")
+            raise RuntimeError("timed out waiting for exact user terminal session")
 
         exit_status = self.proc.exitstatus
         if exit_status not in (None, 0):
-            raise RuntimeError(
-                f"terminal command failed with exit status {exit_status}: {self.argv!r}"
-            )
+            raise RuntimeError(f"terminal session failed with exit status {exit_status}")
         return normalize_terminal(self.output)
 
 
 def require_output(output: str, pattern: str, *, phase: str) -> None:
     if not re.search(pattern, output, re.MULTILINE):
-        raise RuntimeError(f"{phase}: expected normal user-visible output matching {pattern!r}")
+        raise RuntimeError(
+            f"{phase}: expected normal user-visible output matching {pattern!r}"
+        )
+
+
+def sudo_responders() -> list[Responder]:
+    return [
+        responder(
+            r"\[sudo\]\s+password for [^:]+:\s*$",
+            PASSWORD + "\r\n",
+            repeat=True,
+        ),
+        responder(
+            r"\[sudo:\s*authenticate\]\s*Password:\s*$",
+            PASSWORD + "\r\n",
+            repeat=True,
+        ),
+    ]
 
 
 def run_bat(package_root: Path, *, phase: str) -> str:
-    # User command: install-windows.bat. cmd.exe is only the ConPTY transport
-    # needed to launch a BAT; the BAT itself receives no arguments or options.
-    process = TerminalProcess(INSTALL_ARGV, cwd=package_root)
-    output = process.run(
-        responders=[
-            # Classic sudo prompt.
-            responder(
-                r"\[sudo\]\s+password for [^:]+:\s*$",
-                PASSWORD + "\r\n",
-                repeat=True,
-            ),
-            # Ubuntu 26.04 / sudo authentication conversation used by the real
-            # packaged installer on GitHub-hosted Windows runners.
-            responder(
-                r"\[sudo:\s*authenticate\]\s*Password:\s*$",
-                PASSWORD + "\r\n",
-                repeat=True,
-            ),
-        ]
-    )
+    """Type `install-windows.bat` into a normal Windows command prompt."""
+
+    process = TerminalProcess(cwd=package_root)
+    sent_command = False
+    sent_exit = False
+    prompt_before = 0
+
+    def drive(normalized: str, terminal: TerminalProcess) -> None:
+        nonlocal sent_command, sent_exit, prompt_before
+        prompts = cmd_prompt_count(normalized)
+        if not sent_command and prompts:
+            prompt_before = prompts
+            terminal.write("install-windows.bat\r\n")
+            sent_command = True
+            return
+        if sent_command and not sent_exit and prompts > prompt_before:
+            terminal.write("exit\r\n")
+            sent_exit = True
+
+    output = process.run(responders=sudo_responders(), on_output=drive)
+    if not sent_command or not sent_exit:
+        raise RuntimeError(f"{phase}: install-windows.bat did not return to the user prompt")
     require_output(output, r"Hacocoon", phase=phase)
     return output
 
 
 def complete_ubuntu_first_launch() -> str:
-    # Exact documented user command: wsl -d Hacocoon
-    process = TerminalProcess(WSL_ARGV)
-    user = normal_user_name()
-    sent_exit = False
+    """Type the documented `wsl -d Hacocoon` command and complete stock OOBE."""
 
-    def maybe_exit(normalized: str, terminal: TerminalProcess) -> None:
-        nonlocal sent_exit
-        if sent_exit:
+    process = TerminalProcess()
+    user = normal_user_name()
+    sent_wsl = False
+    sent_linux_exit = False
+    sent_cmd_exit = False
+    prompt_before = 0
+
+    def drive(normalized: str, terminal: TerminalProcess) -> None:
+        nonlocal sent_wsl, sent_linux_exit, sent_cmd_exit, prompt_before
+        prompts = cmd_prompt_count(normalized)
+        if not sent_wsl and prompts:
+            prompt_before = prompts
+            terminal.write("wsl -d Hacocoon\r\n")
+            sent_wsl = True
             return
-        prompt = rf"{re.escape(user)}@[^:\r\n]+:[^\r\n]*\$\s*$"
-        if re.search(prompt, normalized, re.MULTILINE):
+
+        if sent_wsl and not sent_linux_exit:
+            linux_prompt = rf"(?m)^{re.escape(user)}@[^:\r\n]+:[^\r\n]*\$\s*$"
+            if re.search(linux_prompt, normalized):
+                terminal.write("exit\r\n")
+                sent_linux_exit = True
+                return
+
+        if sent_linux_exit and not sent_cmd_exit and prompts > prompt_before:
             terminal.write("exit\r\n")
-            sent_exit = True
+            sent_cmd_exit = True
 
     output = process.run(
         responders=[
-            # Accept the username prefilled by stock Ubuntu WSL OOBE.
             responder(r"Create a default Unix user account:\s*", "\r\n"),
             responder(r"New password:\s*$", PASSWORD + "\r\n"),
             responder(r"Retype new password:\s*$", PASSWORD + "\r\n"),
-            # Accept the current Ubuntu Insights default exactly as a user can by
-            # pressing Enter. Do not preconfigure OOBE state from CI.
             responder(
                 r"(?:Would you like to opt-in to platform metrics collection|\[Y/n/e\]:\s*)",
                 "\r\n",
             ),
         ],
-        on_output=maybe_exit,
+        on_output=drive,
     )
-    if not sent_exit:
-        raise RuntimeError("Ubuntu first-launch completed without reaching the normal user shell")
+    if not sent_wsl or not sent_linux_exit or not sent_cmd_exit:
+        raise RuntimeError("Ubuntu first launch did not complete through the exact user path")
     return output
 
 
 def run_host_session(session: str, *, expected_output: list[str]) -> str:
-    # Exact documented user command: wsl -d Hacocoon. Commands typed after entry
-    # come from a closed list of ordinary documented Hacocoon operations.
+    """Type the normal WSL entry, then only the ordinary Hacocoon commands."""
+
     try:
         commands = HOST_SESSION_COMMANDS[session]
     except KeyError as exc:
         raise RuntimeError(f"unknown exact user-path host session: {session!r}") from exc
 
-    process = TerminalProcess(WSL_ARGV)
-    sent = False
+    process = TerminalProcess()
+    sent_wsl = False
+    sent_commands = False
+    sent_cmd_exit = False
+    prompt_before = 0
 
-    def send_commands(normalized: str, terminal: TerminalProcess) -> None:
-        nonlocal sent
-        if sent or "haco-host" not in normalized:
+    def drive(normalized: str, terminal: TerminalProcess) -> None:
+        nonlocal sent_wsl, sent_commands, sent_cmd_exit, prompt_before
+        prompts = cmd_prompt_count(normalized)
+        if not sent_wsl and prompts:
+            prompt_before = prompts
+            terminal.write("wsl -d Hacocoon\r\n")
+            sent_wsl = True
             return
-        for command in commands:
-            terminal.write(command + "\r\n")
-        terminal.write("exit\r\n")
-        sent = True
 
-    output = process.run(on_output=send_commands)
-    if not sent:
-        raise RuntimeError(f"{session}: interactive WSL entry never reached haco-host")
+        if sent_wsl and not sent_commands and "haco-host" in normalized:
+            for command in commands:
+                terminal.write(command + "\r\n")
+            terminal.write("exit\r\n")
+            sent_commands = True
+            return
+
+        if sent_commands and not sent_cmd_exit and prompts > prompt_before:
+            terminal.write("exit\r\n")
+            sent_cmd_exit = True
+
+    output = process.run(on_output=drive)
+    if not sent_wsl or not sent_commands or not sent_cmd_exit:
+        raise RuntimeError(f"{session}: exact interactive user session did not complete")
     for pattern in expected_output:
         require_output(output, pattern, phase=session)
     return output
@@ -312,16 +351,18 @@ def main() -> int:
     )
     missing = [name for name in required if not (package_root / name).is_file()]
     if missing:
-        raise RuntimeError(f"run from extracted Windows package; missing: {', '.join(missing)}")
+        raise RuntimeError(
+            f"run from extracted Windows package; missing: {', '.join(missing)}"
+        )
 
-    print("==> USER: install-windows.bat")
+    print("==> USER TYPES: install-windows.bat")
     first = run_bat(package_root, phase="first install")
     require_output(first, r"wsl -d Hacocoon", phase="first install")
 
-    print("==> USER: wsl -d Hacocoon")
+    print("==> USER TYPES: wsl -d Hacocoon")
     complete_ubuntu_first_launch()
 
-    print("==> USER: install-windows.bat")
+    print("==> USER TYPES: install-windows.bat")
     second = run_bat(package_root, phase="install completion")
     require_output(
         second,
@@ -329,7 +370,7 @@ def main() -> int:
         phase="install completion",
     )
 
-    print("==> USER: wsl -d Hacocoon; normal haco workflow")
+    print("==> USER TYPES: wsl -d Hacocoon and normal haco commands")
     run_host_session(
         "before reinstall",
         expected_output=[
@@ -339,7 +380,7 @@ def main() -> int:
         ],
     )
 
-    print("==> USER: install-windows.bat")
+    print("==> USER TYPES: install-windows.bat")
     third = run_bat(package_root, phase="reinstall")
     require_output(
         third,
@@ -347,7 +388,7 @@ def main() -> int:
         phase="reinstall",
     )
 
-    print("==> USER: wsl -d Hacocoon; reuse and delete existing Environment")
+    print("==> USER TYPES: wsl -d Hacocoon and reuse the existing Environment")
     run_host_session(
         "after reinstall",
         expected_output=[
