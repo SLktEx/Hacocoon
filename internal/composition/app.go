@@ -75,10 +75,8 @@ func Local(ctx context.Context) (*App, error) {
 	runtimeRunner = incus.WrapEnvironmentNetworkOwnershipRunner(runtimeRunner)
 	incusRuntime := incus.New(runtimeRunner)
 
-	// Incus is the single lifecycle owner for the default local Btrfs pool. It
-	// creates and manages the loop-backed filesystem, mount, and resize state.
-	// Hacocoon deliberately has no compatibility path for the older Host-owned
-	// raw/loop/mount layout.
+	// Incus is the single lifecycle owner for the default local Btrfs pool,
+	// including its backing image, loop device, filesystem, mount, and resize.
 	if err := incusRuntime.ConfigureStorageProvider(func(storageCtx context.Context) (map[string]string, error) {
 		return ensureDefaultIncusStoragePool(storageCtx, runtimeRunner)
 	}); err != nil {
