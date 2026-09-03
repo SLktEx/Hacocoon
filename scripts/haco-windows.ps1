@@ -31,21 +31,6 @@ function Assert-SafeInstanceName([string]$Value) {
     }
 }
 
-function Get-InstallerInstanceName([string[]]$Arguments) {
-    $name = "Hacocoon"
-    for ($index = 0; $index -lt $Arguments.Count; $index++) {
-        if ($Arguments[$index] -eq "-InstanceName") {
-            if ($index + 1 -ge $Arguments.Count) {
-                throw "haco: -InstanceName requires a value."
-            }
-            $name = $Arguments[$index + 1]
-            $index++
-        }
-    }
-    Assert-SafeInstanceName $name
-    return $name
-}
-
 function Get-ConfiguredInstanceName {
     $instancePath = Join-Path $PSScriptRoot "INSTANCE"
     if (-not (Test-Path -LiteralPath $instancePath -PathType Leaf)) {
@@ -129,6 +114,21 @@ function Wait-WslStopped([string]$Wsl, [string]$InstanceName) {
     throw "haco maintenance compact: '$InstanceName' did not fully stop; refusing to compact a mounted filesystem."
 }
 
+function Wait-VhdUnlocked([string]$VhdPath) {
+    for ($attempt = 0; $attempt -lt 80; $attempt++) {
+        $stream = $null
+        try {
+            $stream = [IO.File]::Open($VhdPath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+            return
+        } catch [IO.IOException] {
+            Start-Sleep -Milliseconds 250
+        } finally {
+            if ($null -ne $stream) { $stream.Dispose() }
+        }
+    }
+    throw "haco maintenance compact: the WSL VHD is still open by another process; refusing host-side compaction. Close Hacocoon terminals and retry."
+}
+
 function Invoke-Trim([string]$Wsl, [string]$InstanceName) {
     $trim = $null
     foreach ($candidate in @("/usr/sbin/fstrim", "/sbin/fstrim")) {
@@ -158,7 +158,7 @@ function Invoke-SystemProcess([string]$FilePath, [string[]]$Arguments) {
         PassThru = $true
     }
     if (-not (Test-Administrator)) {
-        $start.Verb = "RunAs"
+        $start["Verb"] = "RunAs"
     }
     try {
         $process = Start-Process @start
@@ -225,6 +225,7 @@ function Invoke-Compact([string]$InstanceName) {
         throw "haco maintenance compact: failed to terminate '$InstanceName'; VHD compaction was not started."
     }
     Wait-WslStopped $wsl $InstanceName
+    Wait-VhdUnlocked $vhdPath
 
     $before = [long](Get-Item -LiteralPath $vhdPath -Force).Length
     Write-Host "VHD before: $(Format-ByteSize $before) ($before bytes)"
@@ -256,6 +257,7 @@ function Invoke-Compact([string]$InstanceName) {
 }
 
 function Install-Launcher([string]$InstanceName) {
+    Assert-SafeInstanceName $InstanceName
     $wsl = Get-SystemWsl
     if ((Get-InstalledDistros $wsl) -notcontains $InstanceName) { return }
     $code = Invoke-WslExit $wsl @("--distribution", $InstanceName, "--user", "root", "--exec", "test", "-x", "/usr/local/bin/haco")
@@ -288,7 +290,7 @@ function Install-Launcher([string]$InstanceName) {
     if (-not $present) {
         $newPath = (@($targetBin) + $entries) -join ';'
         [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-        Write-Host "Installed Windows haco launcher in '$targetBin' and added it to the user PATH. Open a new terminal to use it."
+        Write-Host "Installed Windows haco launcher in '$targetBin' and added it to the user PATH. Open a new terminal to use 'haco maintenance compact'."
     } else {
         Write-Host "Updated Windows haco launcher in '$targetBin'."
     }
@@ -296,8 +298,10 @@ function Install-Launcher([string]$InstanceName) {
 
 if ($null -eq $HacoArgs) { $HacoArgs = @() }
 if ($HacoArgs.Count -gt 0 -and $HacoArgs[0] -eq "__install-launcher") {
-    $installerArgs = if ($HacoArgs.Count -gt 1) { @($HacoArgs[1..($HacoArgs.Count - 1)]) } else { @() }
-    Install-Launcher (Get-InstallerInstanceName $installerArgs)
+    if ($HacoArgs.Count -ne 2) {
+        throw "haco: internal launcher installation requires exactly one WSL instance name."
+    }
+    Install-Launcher $HacoArgs[1]
     exit 0
 }
 
@@ -309,10 +313,4 @@ if ($HacoArgs.Count -eq 2 -and $HacoArgs[0] -eq "maintenance" -and $HacoArgs[1] 
 if ($HacoArgs.Count -gt 0 -and $HacoArgs[0] -eq "maintenance") {
     throw "usage: haco maintenance compact"
 }
-
-$wsl = Get-SystemWsl
-if ((Get-InstalledDistros $wsl) -notcontains $instanceName) {
-    throw "haco: dedicated WSL distribution '$instanceName' is not installed."
-}
-& $wsl --distribution $instanceName --exec /usr/local/bin/haco @HacoArgs
-exit $LASTEXITCODE
+throw "haco: the Windows launcher currently owns only 'haco maintenance compact'. Run other Hacocoon commands inside the dedicated WSL distribution."
