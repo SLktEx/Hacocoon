@@ -87,15 +87,13 @@ function Add-HacocoonBootstrapSudoRule([string]$Name, [string]$LoginUser) {
 }
 
 '''
-pattern = re.compile(
-    r"function Get-SudoersPolicyFiles\(\[string\]\$Name\) \{.*?\n\}\n\n"
-    r"function Ensure-HacocoonSudoRuleLoaded\(\[string\]\$Name, \[string\]\$RulePath\) \{.*?\n\}\n\n"
-    r"function Remove-HacocoonSudoRuleInclude\(\[string\]\$Name, \[string\]\$RulePath\) \{.*?\n\}\n\n",
-    re.S,
-)
-installer, count = pattern.subn(lambda _: replacement, installer, count=1)
-if count != 1:
-    raise SystemExit(f"expected one sudo policy function block, replaced {count}")
+start_marker = "function Get-SudoersPolicyFiles([string]$Name) {"
+end_marker = "function Get-InstalledDistros {"
+start = installer.find(start_marker)
+end = installer.find(end_marker, start)
+if start < 0 or end < 0 or end <= start:
+    raise SystemExit(f"unable to locate sudo policy function range: start={start}, end={end}")
+installer = installer[:start] + replacement + installer[end:]
 
 old_enable = r'''    # install.sh intentionally runs as the ordinary workspace owner. Give that
     # user temporary passwordless sudo only while the trusted installer runs;
