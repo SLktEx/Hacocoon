@@ -1,10 +1,8 @@
 # Btrfs storage layout
 
-Status: **the supported local storage path is Incus-owned loop-backed Btrfs. Hacocoon does not provide a legacy Host-owned raw/loop/mount compatibility path.**
+Status: **the supported local storage path is Incus-owned loop-backed Btrfs.**
 
-Milestones: **v0.20 Managed Btrfs Rootfs Storage** and **v0.21 Managed Btrfs Transparent Compression**.
-
-The former **Hacocoon-managed Btrfs storage layout** used a **sparse raw** file, `haco-<storage-id>` external-source pools, and `haco-storage-helper`. Those implementation paths are removed; these names are retained here only to make the unsupported boundary explicit.
+Milestones: **v0.20 Managed Btrfs Rootfs Storage**, **v0.21 Managed Btrfs Transparent Compression**, and **v0.25 Incus-owned Btrfs Storage Acceptance**.
 
 ## Default local layout
 
@@ -31,15 +29,14 @@ Incus pool: haco-local-default
   |- cached Base image volumes
   |- Tooling Base builders
   |- Seed builders / cached Seed image volumes
+  |- trusted haco-host rootfs
   |- Environment rootfs volumes
   `- Incus snapshots / clones
 ```
 
 Incus owns creation of the backing image, loop attachment, Btrfs formatting, mount/unmount lifecycle, and supported loop-pool growth. Hacocoon owns only the desired pool identity and policy.
 
-There is deliberately no Hacocoon-managed `HACO_ROOT/images/<id>.raw -> loop -> mount -> source=<mountpoint>` path. Pre-existing installations built around that removed layout are unsupported; recreate the installation instead of migrating or recovering that storage shape.
-
-This single-owner boundary is especially useful on WSL because Hacocoon no longer has to race `incusd` while creating or restoring Host mounts.
+There is no second Host-managed block or mount lifecycle in Hacocoon. Installation and runtime code target this single storage shape directly.
 
 ## Sparse file versus WSL sparse VHD
 
@@ -72,7 +69,7 @@ The local composition configures a lazy storage provider. Opening a command that
 
 Before the first Environment, Tooling Base builder, Seed builder, or trusted host needs root storage, the provider checks for `haco-local-default`. If it does not exist, Hacocoon asks Incus to create the Btrfs loop pool with the desired size and mount options. Subsequent Hacocoon-owned rootfs operations use that pool rather than the Host's unrelated Incus default-profile pool.
 
-The supported state is the current Incus-owned pool shape. Hacocoon does not implement migration, recovery, or startup reconciliation for the removed external-path storage layout.
+The runtime expects the current Incus-owned pool shape and does not carry alternate storage ownership paths.
 
 ## Acceptance coverage
 
@@ -86,4 +83,4 @@ Host Workspaces remain bind-mounted into Environments and are not required to li
 
 ## Multiple pools
 
-The default local pool is `haco-local-default`. Future explicitly configured pools may use their own Incus-managed storage identity, but Hacocoon does not reintroduce a second Host-owned block/mount lifecycle to support them.
+The default local pool is `haco-local-default`. Future explicitly configured pools may use their own Incus-managed storage identity while preserving the same single-owner lifecycle.
