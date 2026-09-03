@@ -119,7 +119,7 @@ See [Adapter and extension architecture](docs/design/plugin-architecture.md) and
 
 ## Bases and optional OCI tooling
 
-During the CLI migration, these existing low-level operations are exposed under temporary `hacoq`:
+Historical `haco base list` and `haco plugin oci` spellings belong to the previous CLI surface; during migration use the temporary `hacoq` forms below instead.
 
 ```bash
 hacoq base list
