@@ -75,20 +75,26 @@ function Invoke-WslCapture([string[]]$Arguments) {
 function Invoke-WslCaptureWithInput([string[]]$Arguments, [string]$InputText) {
     $stderrPath = [IO.Path]::GetTempFileName()
     $previousPreference = $ErrorActionPreference
+    $previousOutputEncoding = $OutputEncoding
     $stdout = @()
     $stderr = ""
     $exitCode = 1
     try {
-        # Send scripts/configuration over stdin instead of embedding them in a
-        # Windows native-process command line. Windows PowerShell 5.1 can
-        # rewrite quotes inside a `sh -c` argument before wsl.exe sees them.
+        # Windows PowerShell 5.1 may prepend an encoding preamble when piping a
+        # string to a native process. A BOM turns the first shell token into
+        # U+FEFF-prefixed text (for example "set" becomes "﻿set") and can also
+        # corrupt base64/config payloads. Normalize line endings and explicitly
+        # use BOM-free UTF-8 for every stdin transfer to wsl.exe.
         $ErrorActionPreference = "Continue"
-        $stdout = @($InputText | & wsl.exe @Arguments 2> $stderrPath)
+        $OutputEncoding = [Text.UTF8Encoding]::new($false)
+        $normalized = ($InputText -replace "`r`n", "`n") -replace "`r", "`n"
+        $stdout = @($normalized | & wsl.exe @Arguments 2> $stderrPath)
         $exitCode = $LASTEXITCODE
         if (Test-Path -LiteralPath $stderrPath) {
             $stderr = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
         }
     } finally {
+        $OutputEncoding = $previousOutputEncoding
         $ErrorActionPreference = $previousPreference
         Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
     }
@@ -96,10 +102,8 @@ function Invoke-WslCaptureWithInput([string[]]$Arguments, [string]$InputText) {
 }
 
 function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [switch]$Append) {
-    # Windows PowerShell's pipeline can translate newlines when feeding a native
-    # process. Encode the exact UTF-8 bytes first, then decode inside WSL. The
-    # shell program is fixed; file content and destination never become shell
-    # syntax, so this avoids both CRLF corruption and quoting ambiguity.
+    # Encode exact UTF-8 bytes and decode inside WSL. Invoke-WslCaptureWithInput
+    # itself pins the Windows native-pipeline encoding to BOM-free UTF-8.
     $normalized = ($Content -replace "`r`n", "`n") -replace "`r", "`n"
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
     $script = if ($Append) {
@@ -559,8 +563,8 @@ if ($probe.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($linuxAssetRoot)) {
 $skipIncusValue = if ($SkipIncus) { "1" } else { "0" }
 $grantIncusAdminValue = if ($GrantIncusAdmin) { "1" } else { "0" }
 $requireProvenance = if ($env:HACO_REQUIRE_PROVENANCE) { $env:HACO_REQUIRE_PROVENANCE } else { "1" }
-Enable-BootstrapSudo $InstanceName $loginUser
 try {
+    Enable-BootstrapSudo $InstanceName $loginUser
     Write-Step "Running common Ubuntu install.sh inside '$InstanceName'"
     & wsl.exe --distribution $InstanceName --user $loginUser --exec env `
         "HACO_BUNDLE_ROOT=$linuxAssetRoot" `
