@@ -118,19 +118,50 @@ function Wait-WslStopped([string]$Wsl, [string]$InstanceName) {
     throw "haco maintenance compact: '$InstanceName' did not fully stop; refusing to compact a mounted filesystem."
 }
 
+function Test-VhdUnlocked([string]$VhdPath) {
+    $stream = $null
+    try {
+        $stream = [IO.File]::Open($VhdPath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+        return $true
+    } catch [IO.IOException] {
+        return $false
+    } finally {
+        if ($null -ne $stream) { $stream.Dispose() }
+    }
+}
+
 function Wait-VhdUnlocked([string]$VhdPath) {
     for ($attempt = 0; $attempt -lt 80; $attempt++) {
-        $stream = $null
-        try {
-            $stream = [IO.File]::Open($VhdPath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+        if (Test-VhdUnlocked $VhdPath) {
             return
-        } catch [IO.IOException] {
-            Start-Sleep -Milliseconds 250
-        } finally {
-            if ($null -ne $stream) { $stream.Dispose() }
         }
+        Start-Sleep -Milliseconds 250
     }
-    throw "haco maintenance compact: the WSL VHD is still open by another process; refusing host-side compaction. Close Hacocoon terminals and retry."
+    throw "haco maintenance compact: the WSL VHD is still open by another process; refusing host-side compaction. Close WSL-integrated applications and retry."
+}
+
+function Ensure-WslVhdOffline([string]$Wsl, [string]$InstanceName, [string]$VhdPath) {
+    if (Test-VhdUnlocked $VhdPath) {
+        return
+    }
+
+    $others = @(Get-RunningDistros $Wsl | Where-Object { $_ -ne $InstanceName })
+    if ($others.Count -gt 0) {
+        $display = $others -join ", "
+        throw "haco maintenance compact: the WSL utility VM still owns '$InstanceName' VHD and other WSL distributions are running ($display). Hacocoon will not stop them. Stop those distributions or WSL-integrated applications yourself, then retry."
+    }
+
+    # WSL 2 can keep an ext4.vhdx open after the target distribution has been
+    # terminated because the shared utility VM remains alive. With no unrelated
+    # distributions running, shutting down that idle VM changes no other distro
+    # runtime state and is the supported way to release the VHD before Windows
+    # host tools access it.
+    Write-Step "No unrelated WSL distributions are running; releasing the idle WSL utility VM"
+    $code = Invoke-WslExit $Wsl @("--shutdown")
+    if ($code -ne 0) {
+        throw "haco maintenance compact: WSL utility VM shutdown failed with exit code $code; VHD compaction was not started."
+    }
+    Wait-VhdUnlocked $VhdPath
 }
 
 function Invoke-Trim([string]$Wsl, [string]$InstanceName) {
@@ -229,7 +260,7 @@ function Invoke-Compact([string]$InstanceName) {
         throw "haco maintenance compact: failed to terminate '$InstanceName'; VHD compaction was not started."
     }
     Wait-WslStopped $wsl $InstanceName
-    Wait-VhdUnlocked $vhdPath
+    Ensure-WslVhdOffline $wsl $InstanceName $vhdPath
 
     $before = [long](Get-Item -LiteralPath $vhdPath -Force).Length
     Write-Host "VHD before: $(Format-ByteSize $before) ($before bytes)"
