@@ -119,7 +119,8 @@ func TestRealPrivilegedStorageHelperE2E(t *testing.T) {
 	}
 	// findmnt can omit the default negative option `nodiscard`; prove the live
 	// state by rejecting active discard modes instead of requiring the token.
-	if strings.Contains(mountOptions, "discard") || strings.Contains(mountOptions, "relatime") || strings.Contains(mountOptions, "strictatime") {
+	normalizedMountOptions := "," + mountOptions + ","
+	if strings.Contains(normalizedMountOptions, ",discard,") || strings.Contains(normalizedMountOptions, ",discard=async,") || strings.Contains(normalizedMountOptions, ",relatime,") || strings.Contains(normalizedMountOptions, ",strictatime,") {
 		t.Fatalf("managed mount options = %q, found conflicting atime/discard policy", mountOptions)
 	}
 
