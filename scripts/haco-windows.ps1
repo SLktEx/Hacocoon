@@ -167,7 +167,7 @@ function Ensure-WslVhdOffline([string]$Wsl, [string]$InstanceName, [string]$VhdP
 function Invoke-Trim([string]$Wsl, [string]$InstanceName) {
     $trim = $null
     foreach ($candidate in @("/usr/sbin/fstrim", "/sbin/fstrim")) {
-        $code = Invoke-WslExit $Wsl @("--distribution", $InstanceName, "--user", "root", "--exec", "test", "-x", $candidate)
+        $code = Invoke-WslExit $wsl @("--distribution", $InstanceName, "--user", "root", "--exec", "test", "-x", $candidate)
         if ($code -eq 0) {
             $trim = $candidate
             break
@@ -179,7 +179,7 @@ function Invoke-Trim([string]$Wsl, [string]$InstanceName) {
     }
 
     Write-Step "Trimming free blocks inside '$InstanceName'"
-    $code = Invoke-WslExit $Wsl @("--distribution", $InstanceName, "--user", "root", "--exec", $trim, "-av")
+    $code = Invoke-WslExit $wsl @("--distribution", $InstanceName, "--user", "root", "--exec", $trim, "-av")
     if ($code -ne 0) {
         throw "haco maintenance compact: guest fstrim failed with exit code $code; VHD compaction was not started."
     }
@@ -325,7 +325,7 @@ function Install-Launcher([string]$InstanceName) {
     if (-not $present) {
         $newPath = (@($targetBin) + $entries) -join ';'
         [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-        Write-Host "Installed Windows haco launcher in '$targetBin' and added it to the user PATH. Open a new terminal to use 'haco maintenance compact'."
+        Write-Host "Installed Windows haco launcher in '$targetBin' and added it to the user PATH. Open a new terminal to use 'haco'."
     } else {
         Write-Host "Updated Windows haco launcher in '$targetBin'."
     }
@@ -348,4 +348,11 @@ if ($HacoArgs.Count -eq 2 -and $HacoArgs[0] -eq "maintenance" -and $HacoArgs[1] 
 if ($HacoArgs.Count -gt 0 -and $HacoArgs[0] -eq "maintenance") {
     throw "usage: haco maintenance compact"
 }
-throw "haco: the Windows launcher currently owns only 'haco maintenance compact'. Run other Hacocoon commands inside the dedicated WSL distribution."
+
+$wsl = Get-SystemWsl
+if ((Get-InstalledDistros $wsl) -notcontains $instanceName) {
+    throw "haco: dedicated WSL distribution '$instanceName' is not installed."
+}
+$delegateArgs = @("--distribution", $instanceName, "--exec", "/usr/local/bin/haco") + @($HacoArgs)
+$code = Invoke-WslExit $wsl $delegateArgs
+exit $code
