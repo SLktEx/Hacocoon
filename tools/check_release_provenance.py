@@ -6,6 +6,7 @@ import sys
 root = Path(__file__).resolve().parents[1]
 workflow = (root / ".github/workflows/release.yml").read_text(encoding="utf-8")
 installer = (root / "scripts/install.sh").read_text(encoding="utf-8")
+windows_installer = (root / "scripts/install-windows.ps1").read_text(encoding="utf-8")
 tag_checker = (root / "tools/check_release_tag_trust.sh").read_text(encoding="utf-8")
 
 required_release_artifacts = (
@@ -77,12 +78,24 @@ checks = {
         "signed release binding verification failed",
         'Using bundled %s',
     ],
+    "Windows installer": [
+        '[string]$LoginUser = "hacocoon"',
+        '[switch]$InteractiveUserSetup',
+        'Ensure-AutomaticWslLoginUser',
+        'Invoke-InteractiveWslUserSetup',
+        'Set-WslDefaultUser',
+        'Grant-WslBootstrapSudo',
+        'Remove-WslBootstrapSudo',
+        'Running common Ubuntu install.sh',
+        'Hacocoon WSL installation complete',
+    ],
 }
 
 texts = {
     "release workflow": workflow,
     "release tag checker": tag_checker,
     "installer": installer,
+    "Windows installer": windows_installer,
 }
 errors = []
 for label, needles in checks.items():
@@ -114,6 +127,16 @@ if "WSL_DISTRO_NAME" in installer or "systemd=true" in installer or "hacocoon-lo
     errors.append("common install.sh must not absorb WSL pre/post behavior")
 if "merge-base --is-ancestor" in tag_checker:
     errors.append("official release authorization must require current default-branch HEAD, not any historical ancestor")
+
+for obsolete_windows_flow in (
+    "Complete normal Ubuntu user setup, then run this installer again.",
+    "Launch it once with: wsl -d $InstanceName",
+):
+    if obsolete_windows_flow in windows_installer:
+        errors.append(f"Windows installer must not retain the old two-invocation bootstrap flow: {obsolete_windows_flow}")
+
+if 'exit 0\n}' in windows_installer.split('Creating dedicated WSL instance', 1)[-1].split('# pre', 1)[0]:
+    errors.append("Windows installer must not report success immediately after creating the WSL distribution")
 
 try:
     build = workflow.split("\n  build:\n", 1)[1].split("\n  publish:\n", 1)[0]
