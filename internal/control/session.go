@@ -10,12 +10,16 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/SLktEx/Hacocoon/internal/terminalsession"
 )
 
 const (
-	methodSessionWait = "_control.session.wait"
-	sessionIDBytes    = 16
-	sessionRetention  = 2 * time.Minute
+	methodSessionWait   = "_control.session.wait"
+	methodSessionResize = "_control.session.resize"
+	sessionIDBytes      = 16
+	sessionRetention    = 2 * time.Minute
+	maxSessionDimension = 10000
 )
 
 type sessionWaitRequest struct {
@@ -24,6 +28,12 @@ type sessionWaitRequest struct {
 
 type sessionWaitResponse struct {
 	ExitCode int `json:"exit_code"`
+}
+
+type sessionResizeRequest struct {
+	SessionID string `json:"session_id"`
+	Columns   int    `json:"columns"`
+	Rows      int    `json:"rows"`
 }
 
 // SessionExitError represents a successfully established process session that
@@ -47,13 +57,24 @@ func (e *SessionExitError) ExitCode() int {
 }
 
 type serverSession struct {
-	done chan struct{}
-	once sync.Once
-	err  error
+	done   chan struct{}
+	resize chan terminalsession.Size
+	once   sync.Once
+	err    error
 }
 
 func newServerSession() *serverSession {
-	return &serverSession{done: make(chan struct{})}
+	return &serverSession{
+		done:   make(chan struct{}),
+		resize: make(chan terminalsession.Size, 1),
+	}
+}
+
+func (s *serverSession) ResizeEvents() <-chan terminalsession.Size {
+	if s == nil {
+		return nil
+	}
+	return s.resize
 }
 
 func (s *serverSession) complete(err error) {
@@ -64,6 +85,35 @@ func (s *serverSession) complete(err error) {
 		s.err = err
 		close(s.done)
 	})
+}
+
+func (s *serverSession) pushResize(size terminalsession.Size) error {
+	if s == nil {
+		return ErrInvalidArgument
+	}
+	select {
+	case <-s.done:
+		return NewStatusError("not_found", "session is already complete")
+	default:
+	}
+
+	// Window drags can generate resize events faster than the runtime needs to
+	// apply them. Keep only the newest pending geometry instead of allowing an
+	// unbounded session-control queue to grow.
+	select {
+	case s.resize <- size:
+		return nil
+	default:
+	}
+	select {
+	case <-s.resize:
+	default:
+	}
+	select {
+	case s.resize <- size:
+	default:
+	}
+	return nil
 }
 
 func newSessionID() (string, error) {
@@ -116,13 +166,21 @@ func (s *Server) completeSession(id string, state *serverSession, err error) {
 	})
 }
 
-func (s *Server) waitSession(ctx context.Context, id string) (sessionWaitResponse, error) {
+func (s *Server) session(id string) *serverSession {
 	if s == nil || id == "" {
-		return sessionWaitResponse{}, NewStatusError("invalid_argument", "session_id is required")
+		return nil
 	}
 	s.sessionMu.Lock()
 	state := s.sessions[id]
 	s.sessionMu.Unlock()
+	return state
+}
+
+func (s *Server) waitSession(ctx context.Context, id string) (sessionWaitResponse, error) {
+	if s == nil || id == "" {
+		return sessionWaitResponse{}, NewStatusError("invalid_argument", "session_id is required")
+	}
+	state := s.session(id)
 	if state == nil {
 		return sessionWaitResponse{}, NewStatusError("not_found", "session not found")
 	}
@@ -143,6 +201,17 @@ func (s *Server) waitSession(ctx context.Context, id string) (sessionWaitRespons
 		}
 	}
 	return sessionWaitResponse{}, state.err
+}
+
+func (s *Server) resizeSession(request sessionResizeRequest) error {
+	if s == nil || request.SessionID == "" || request.Columns <= 0 || request.Rows <= 0 || request.Columns > maxSessionDimension || request.Rows > maxSessionDimension {
+		return NewStatusError("invalid_argument", "valid session_id, columns, and rows are required")
+	}
+	state := s.session(request.SessionID)
+	if state == nil {
+		return NewStatusError("not_found", "session not found")
+	}
+	return state.pushResize(terminalsession.Size{Columns: request.Columns, Rows: request.Rows})
 }
 
 type sessionConn struct {
@@ -186,6 +255,22 @@ func (c *sessionConn) Wait(ctx context.Context) error {
 		}
 	})
 	return c.waitErr
+}
+
+// ResizeTerminal sends terminal geometry over the independent session control
+// connection. Raw PTY stdin/stdout bytes remain untouched.
+func (c *sessionConn) ResizeTerminal(ctx context.Context, columns, rows int) error {
+	if c == nil || c.client == nil || c.id == "" || columns <= 0 || rows <= 0 {
+		return ErrInvalidArgument
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return c.client.Call(ctx, methodSessionResize, sessionResizeRequest{
+		SessionID: c.id,
+		Columns:   columns,
+		Rows:      rows,
+	}, nil)
 }
 
 func (c *sessionConn) CloseWrite() error {
