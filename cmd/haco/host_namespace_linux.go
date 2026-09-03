@@ -84,7 +84,19 @@ func maybeReexecHostEnsureInInitMountNamespace(
 	if len(args) != 2 || args[0] != "host" || args[1] != "ensure" {
 		return false, nil
 	}
-	if deps.readlink == nil || deps.readFile == nil || deps.geteuid == nil || deps.executable == nil || deps.evalSymlinks == nil || deps.stat == nil || deps.run == nil || stdin == nil || stdout == nil || stderr == nil {
+	if deps.geteuid == nil {
+		return true, fmt.Errorf("invalid host namespace bootstrap dependency")
+	}
+
+	// Normal users already have a supported helper-mediated host-ensure path.
+	// They also may not be permitted to inspect PID 1's namespace handles on
+	// hardened hosts. Namespace rebinding is only required for the root
+	// installer/bootstrap invocation that can create mounts directly and enter
+	// the system mount namespace.
+	if deps.geteuid() != 0 {
+		return false, nil
+	}
+	if deps.readlink == nil || deps.readFile == nil || deps.executable == nil || deps.evalSymlinks == nil || deps.stat == nil || deps.run == nil || stdin == nil || stdout == nil || stderr == nil {
 		return true, fmt.Errorf("invalid host namespace bootstrap dependency")
 	}
 
@@ -106,9 +118,6 @@ func maybeReexecHostEnsureInInitMountNamespace(
 	}
 	if strings.TrimSpace(string(comm)) != "systemd" {
 		return true, fmt.Errorf("refusing Physical Host mount namespace entry because PID 1 is %q, not systemd", strings.TrimSpace(string(comm)))
-	}
-	if deps.geteuid() != 0 {
-		return true, fmt.Errorf("haco host ensure must run as root to enter the Physical Host mount namespace")
 	}
 
 	executable, err := deps.executable()
