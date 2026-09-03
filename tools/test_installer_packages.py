@@ -109,9 +109,15 @@ with tempfile.TemporaryDirectory() as temp:
                 )
 
             windows_bat = zf.read("install-windows.bat").decode("utf-8")
-            for forbidden in ("haco-windows", "__install-launcher", "HACO_LAUNCHER"):
+            for forbidden in ("__install-launcher", "WINDOWS_LAUNCHER", "HACO_LAUNCHER_EXIT"):
                 if forbidden in windows_bat:
                     raise SystemExit(f"Windows {arch} installer still contains launcher setup: {forbidden!r}")
+            for required in (
+                "%LOCALAPPDATA%\\Hacocoon\\bin\\haco.cmd",
+                "%LOCALAPPDATA%\\Hacocoon\\bin\\haco-windows.ps1",
+            ):
+                if required not in windows_bat:
+                    raise SystemExit(f"Windows {arch} installer does not remove the obsolete launcher: {required!r}")
 
         with tarfile.open(out / f"hacocoon-ubuntu-{arch}.tar.gz", "r:gz") as tf:
             names = tf.getnames()
