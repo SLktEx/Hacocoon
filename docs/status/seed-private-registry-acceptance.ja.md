@@ -4,7 +4,7 @@ Status: Host が所有する Basic 認証 credential 経路について、実際
 
 ## 実証したこと
 
-`seed-private-registry-acceptance` workflow は、実 containerd daemon と nerdctl に対して production の Incus Seed acquisition 経路を実行します。テストは loopback 上に認証付き OCI Distribution 互換 endpoint を立ち上げ、immutable な SHA-256 identity を持つ OCI manifest/config/layer を提供し、`SandboxProvider.exportSeedImages` に exact な `reference@sha256:...` identity を trusted Host の `hacocoon-seed` namespace へ取得させます。
+`incus-core-e2e` workflow 内の手動 `authenticated-private-registry` job は、実 containerd daemon と nerdctl に対して production の Incus Seed acquisition 経路を実行します。テストは loopback 上に認証付き OCI Distribution 互換 endpoint を立ち上げ、immutable な SHA-256 identity を持つ OCI manifest/config/layer を提供し、`SandboxProvider.exportSeedImages` に exact な `reference@sha256:...` identity を trusted Host の `hacocoon-seed` namespace へ取得させます。
 
 acceptance では次を必須とします。
 
@@ -22,7 +22,7 @@ acceptance registry は loopback HTTP です。nerdctl は loopback registry を
 
 ## 再実行
 
-`seed-private-registry-acceptance` workflow を `workflow_dispatch` から実行します。registry と一時 credential は隔離された runner 内で生成されるため、repository secret は不要です。
+`incus-core-e2e` workflow を `workflow_dispatch` から実行すると、`authenticated-private-registry` job が手動実行時だけ走ります。registry と一時 credential は隔離された runner 内で生成されるため、repository secret は不要です。
 
 Go acceptance test 自体も `HACO_E2E_PRIVATE_REGISTRY=1` で gate されており、通常の unit/PR CI が実 containerd acceptance を実行したかのように見せることはありません。
 
