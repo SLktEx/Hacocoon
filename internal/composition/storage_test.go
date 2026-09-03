@@ -49,9 +49,16 @@ func TestDefaultIncusStorageAttachmentIsIncusOwned(t *testing.T) {
 }
 
 func TestEnsureDefaultIncusStoragePoolCreatesLoopBackedPool(t *testing.T) {
+	created := false
 	runner := &storageRunnerFunc{run: func(_ string, args []string) (host.Result, error) {
 		if len(args) >= 2 && args[0] == "storage" && args[1] == "show" {
-			return host.Result{ExitCode: 1}, errors.New("not found")
+			if !created {
+				return host.Result{ExitCode: 1}, errors.New("not found")
+			}
+			return host.Result{}, nil
+		}
+		if len(args) >= 2 && args[0] == "storage" && args[1] == "create" {
+			created = true
 		}
 		return host.Result{}, nil
 	}}
@@ -63,7 +70,7 @@ func TestEnsureDefaultIncusStoragePoolCreatesLoopBackedPool(t *testing.T) {
 	if !reflect.DeepEqual(attachment, map[string]string{"incus_pool": "haco-local-default"}) {
 		t.Fatalf("attachment = %#v", attachment)
 	}
-	if len(runner.calls) != 2 {
+	if len(runner.calls) != 3 {
 		t.Fatalf("calls = %#v", runner.calls)
 	}
 	wantCreate := []string{
@@ -79,6 +86,9 @@ func TestEnsureDefaultIncusStoragePoolCreatesLoopBackedPool(t *testing.T) {
 		if strings.HasPrefix(arg, "source=") {
 			t.Fatalf("Incus-owned loop pool unexpectedly specifies source: %#v", runner.calls[1].args)
 		}
+	}
+	if runner.calls[2].args[0] != "storage" || runner.calls[2].args[1] != "show" {
+		t.Fatalf("post-create verification missing: %#v", runner.calls)
 	}
 }
 
