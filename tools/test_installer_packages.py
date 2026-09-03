@@ -122,6 +122,8 @@ with tempfile.TemporaryDirectory() as temp:
                 'Validating temporary sudo rule through policy files',
                 '"sudo", "-n", "/usr/bin/true"',
                 '$OutputEncoding = [Text.UTF8Encoding]::new($false)',
+                '$wrappedArguments = @($Arguments[0..$execIndex])',
+                'LC_ALL=C sed ',
                 '& wsl.exe --terminate $Name | Out-Null',
                 '& wsl.exe --distribution $Name | Out-Host',
                 'Running common Ubuntu install.sh',
@@ -134,6 +136,7 @@ with tempfile.TemporaryDirectory() as temp:
             forbidden_windows_contract = [
                 "Complete normal Ubuntu user setup, then run this installer again.",
                 "After completing the Ubuntu user setup, run install-windows.bat again.",
+                '$normalized | & wsl.exe @Arguments',
             ]
             for contract_marker in forbidden_windows_contract:
                 if contract_marker in windows_installer:

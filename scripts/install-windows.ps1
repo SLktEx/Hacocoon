@@ -101,7 +101,29 @@ function Invoke-WslCaptureWithInput([string[]]$Arguments, [string]$InputText) {
         $ErrorActionPreference = "Continue"
         $OutputEncoding = [Text.UTF8Encoding]::new($false)
         $normalized = ($InputText -replace "`r`n", "`n") -replace "`r", "`n"
-        $stdout = @($normalized | & wsl.exe @Arguments 2> $stderrPath)
+
+        # Windows PowerShell 5.1 can still emit a UTF-8 preamble to native
+        # stdin even when $OutputEncoding uses a BOM-free encoder. Wrap the
+        # Linux command so WSL strips only a leading UTF-8 BOM before handing
+        # stdin to the original command. This keeps shell scripts and base64
+        # payloads byte-stable on both Windows PowerShell and PowerShell 7.
+        $execIndex = -1
+        for ($index = 0; $index -lt $Arguments.Count; $index++) {
+            if ($Arguments[$index] -eq "--exec") {
+                $execIndex = $index
+                break
+            }
+        }
+        if ($execIndex -lt 0 -or $execIndex -ge ($Arguments.Count - 1)) {
+            throw "Invoke-WslCaptureWithInput requires a WSL --exec command."
+        }
+        $wrappedArguments = @($Arguments[0..$execIndex]) + @(
+            "sh",
+            "-c",
+            'LC_ALL=C sed ''1s/^\xEF\xBB\xBF//'' | "$@"',
+            "sh"
+        ) + @($Arguments[($execIndex + 1)..($Arguments.Count - 1)])
+        $stdout = @($normalized | & wsl.exe @wrappedArguments 2> $stderrPath)
         $exitCode = $LASTEXITCODE
         if (Test-Path -LiteralPath $stderrPath) {
             $stderr = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
