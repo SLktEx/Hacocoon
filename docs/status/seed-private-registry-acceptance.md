@@ -4,7 +4,7 @@ Status: accepted on a real GitHub-hosted Ubuntu runner for the Host-owned Basic-
 
 ## What is proven
 
-The `seed-private-registry-acceptance` workflow runs the production Incus Seed acquisition path against a real containerd daemon and nerdctl. The test starts an authenticated OCI Distribution-compatible endpoint on loopback, publishes an OCI manifest/config/layer set with immutable SHA-256 identities, and asks `SandboxProvider.exportSeedImages` to acquire the exact `reference@sha256:...` identity into the trusted Host `hacocoon-seed` namespace.
+The manual `authenticated-private-registry` job in the `incus-core-e2e` workflow runs the production Incus Seed acquisition path against a real containerd daemon and nerdctl. The test starts an authenticated OCI Distribution-compatible endpoint on loopback, publishes an OCI manifest/config/layer set with immutable SHA-256 identities, and asks `SandboxProvider.exportSeedImages` to acquire the exact `reference@sha256:...` identity into the trusted Host `hacocoon-seed` namespace.
 
 The acceptance requires all of the following:
 
@@ -22,7 +22,7 @@ The acceptance registry is loopback HTTP because nerdctl treats loopback registr
 
 ## Re-run
 
-Use the `seed-private-registry-acceptance` workflow through `workflow_dispatch`. It requires no repository secret because the registry and one-time credentials are generated inside the isolated runner.
+Use the `incus-core-e2e` workflow through `workflow_dispatch`; the `authenticated-private-registry` job runs only for that manual trigger. It requires no repository secret because the registry and one-time credentials are generated inside the isolated runner.
 
 The Go acceptance test is additionally gated by `HACO_E2E_PRIVATE_REGISTRY=1` so normal unit/PR CI does not silently claim a real containerd acceptance run.
 
