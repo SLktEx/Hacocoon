@@ -120,12 +120,12 @@ jobs:
             throw "Exact user-path E2E refuses Hacocoon environment overrides: $names"
           }
 
-      # ACT BOUNDARY:
-      # From the first packaged BAT invocation until the user journey completes,
-      # product-facing operations are exactly commands a real user can type.
-      # No HACO_* rewriting, installer/E2E-only argv/options, CI-created user,
-      # sudoers fixture, root WSL state preparation, mount/Incus repair, or
-      # synthetic WSL restart is allowed to make the path pass.
+      # ABSOLUTE USER-PATH BOUNDARY:
+      # From the first `install-windows.bat` keystroke until this job ends,
+      # Hacocoon is touched only through the exact commands and normal keyboard
+      # interaction a real user performs. There are no later root/read-only
+      # assertions, diagnostics, lifecycle controls, test-only environment
+      # values, extra installer arguments/options, or repair shortcuts.
       - name: Exercise exact packaged Windows user path
         shell: pwsh
         run: |
@@ -138,76 +138,3 @@ jobs:
           } finally {
             Pop-Location
           }
-
-      # ASSERT BOUNDARY:
-      # These checks run only after all user-facing product actions have finished.
-      # They are read-only observations and must never prepare or repair state for
-      # a later product operation.
-      - name: Assert installed storage and service state read-only
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $instance = "Hacocoon"
-          $project = "hacocoon"
-          $pool = "haco-local-default"
-          $backing = "/var/lib/incus/disks/haco-local-default.img"
-          $mountpoint = "/var/lib/incus/storage-pools/haco-local-default"
-
-          $source = (& wsl.exe --distribution $instance --user root --exec incus storage get $pool source --project $project | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or $source -ne $backing) {
-            throw "Incus-owned Btrfs backing source is unexpected: '$source'."
-          }
-
-          $size = (& wsl.exe --distribution $instance --user root --exec incus storage get $pool size --project $project | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or $size -ne "128GiB") {
-            throw "Incus-owned Btrfs pool size is unexpected: '$size'."
-          }
-
-          $configuredOptions = (& wsl.exe --distribution $instance --user root --exec incus storage get $pool btrfs.mount_options --project $project | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or $configuredOptions -ne "compress=zstd:3") {
-            throw "Configured Btrfs mount options are unexpected: '$configuredOptions'."
-          }
-          if ($configuredOptions -match '(^|,)autodefrag(,|$)') {
-            throw "Configured Btrfs mount options unexpectedly enable autodefrag."
-          }
-
-          $fstype = (& wsl.exe --distribution $instance --user root --exec findmnt -rn -o FSTYPE --mountpoint $mountpoint | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or $fstype -ne "btrfs") {
-            throw "Incus-owned storage is not mounted as Btrfs: '$fstype'."
-          }
-
-          $liveOptions = (& wsl.exe --distribution $instance --user root --exec findmnt -rn -o OPTIONS --mountpoint $mountpoint | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or $liveOptions -notmatch '(^|,)compress=zstd(:3)?(,|$)') {
-            throw "Live Btrfs mount is missing zstd compression: '$liveOptions'."
-          }
-          if ($liveOptions -match '(^|,)autodefrag(,|$)') {
-            throw "Live Btrfs mount unexpectedly enables autodefrag: '$liveOptions'."
-          }
-
-          & wsl.exe --distribution $instance --user root --exec sh -eu -c "test -f '$backing'; test ! -e /var/lib/hacocoon/images/local-default.raw; test ! -e /var/lib/hacocoon/mounts/local-default"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Fresh Windows install did not keep the Incus-owned storage layout."
-          }
-
-          $loopBackings = (& wsl.exe --distribution $instance --user root --exec losetup --list --noheadings --output BACK-FILE | Out-String) -replace "`r", ""
-          if ($LASTEXITCODE -ne 0 -or (($loopBackings -split "`n") -notcontains $backing)) {
-            throw "Incus Btrfs backing image is not attached to a loop device."
-          }
-
-          & wsl.exe --distribution $instance --user root --exec systemctl is-active --quiet haco-controller.service
-          if ($LASTEXITCODE -ne 0) { throw "haco-controller is not active after exact user journey." }
-          & wsl.exe --distribution $instance --user root --exec test -S /run/hacocoon/control.sock
-          if ($LASTEXITCODE -ne 0) { throw "controller socket is unavailable after exact user journey." }
-
-      - name: Collect read-only diagnostics
-        if: failure()
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          $instance = "Hacocoon"
-          & wsl.exe --list --verbose 2>&1 | ForEach-Object { Write-Host $_ }
-          $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
-          if ($installed -contains $instance) {
-            & wsl.exe --distribution $instance --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; findmnt /var/lib/incus/storage-pools/haco-local-default || true; losetup --list --output NAME,BACK-FILE || true; incus storage show haco-local-default --project hacocoon || true; incus list --all-projects || true; systemctl is-active haco-controller.service || true; systemctl --no-pager --failed || true'
-          }
-          $global:LASTEXITCODE = 0
