@@ -8,16 +8,16 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-// Help is handled before main initializes composition.Local(). A general client
-// must be able to explain its execution domains even when Incus, Host state, or
-// the controller are unavailable.
+// Help is handled before main initializes composition.Local(). The temporary
+// migration client must remain diagnosable even when Incus, Host state, or the
+// controller are unavailable.
 func init() {
 	handled, err := handleHelpArgs(os.Args[1:], os.Stdout)
 	if !handled {
 		return
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco:", err)
+		fmt.Fprintln(os.Stderr, "hacoq:", err)
 		os.Exit(2)
 	}
 	os.Exit(0)
@@ -35,7 +35,7 @@ func handleHelpArgs(args []string, out io.Writer) (bool, error) {
 		return false, nil
 	}
 	if len(args) != 1 {
-		return true, fmt.Errorf("usage: haco help: %w", core.ErrInvalidArgument)
+		return true, fmt.Errorf("usage: hacoq help: %w", core.ErrInvalidArgument)
 	}
 	return true, writeHacoHelp(out)
 }
@@ -44,16 +44,19 @@ func writeHacoHelp(out io.Writer) error {
 	if out == nil {
 		return core.ErrInvalidArgument
 	}
-	if _, err := fmt.Fprintln(out, "Hacocoon CLI roles"); err != nil {
+	if _, err := fmt.Fprintln(out, "Hacocoon temporary migration CLI: hacoq"); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(out, "  haco      general Hacocoon client; bootstrap/recovery commands may be Physical-Host-local"); err != nil {
+	if _, err := fmt.Fprintln(out, "  This is the previous haco surface kept only during migration and is scheduled for deletion."); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(out, "  haco-host trusted logical Host-local tooling; never a second Core/state controller"); err != nil {
+	if _, err := fmt.Fprintln(out, "  Do not add new product features or integrations to hacoq."); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(out, "  help/version are standalone and do not require Incus or the controller"); err != nil {
+	if _, err := fmt.Fprintln(out, "  haco-host remains trusted logical Host-local tooling; it is not a second Core/state controller."); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(out, "  help/version are standalone and do not require Incus or the controller."); err != nil {
 		return err
 	}
 
@@ -61,8 +64,8 @@ func writeHacoHelp(out io.Writer) error {
 		title  string
 		domain commandDomain
 	}{
-		{"General controller-client operations", commandDomainGeneral},
-		{"Physical Host bootstrap/recovery/service operations", commandDomainPhysicalHost},
+		{"Legacy general controller-client operations", commandDomainGeneral},
+		{"Legacy Physical Host bootstrap/recovery/service operations", commandDomainPhysicalHost},
 		{"Trusted haco-host-local migration targets", commandDomainTrustedHost},
 		{"Temporary compatibility aliases", commandDomainCompatibility},
 	}
@@ -81,6 +84,6 @@ func writeHacoHelp(out io.Writer) error {
 		}
 	}
 
-	_, err := fmt.Fprintln(out, "\nUse `haco env ...` for Environment lifecycle. Unmigrated commands fail closed in trusted haco-host instead of creating guest-local Hacocoon state.")
+	_, err := fmt.Fprintln(out, "\nThese commands exist only to keep old functionality reachable while the new haco product workflow is rebuilt.")
 	return err
 }

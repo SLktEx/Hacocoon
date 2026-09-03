@@ -41,7 +41,7 @@ backing image作成、loop attach、Btrfs format、mount/unmount lifecycle、対
 
 Incusのloop-backed Btrfs poolはsparseな **Linux file** を使う。Incusはloop imageのlogical sizeだけを設定するsparse-file pathで作成し、128GiBを最初から全量physical allocateしない。repository acceptanceでも作成後にallocated bytesがlogical 128GiBより小さいことを確認する。
 
-これはWSLの `sparseVhd` / sparse-VHDX modeとは別。Hacocoonはこのstorage designのためにWSL sparse-VHD modeを有効化しない。Windows Host側VHDXのspace reclamationは明示的なmaintenanceとして扱い、`haco maintenance compact` は専用WSL VHDをoffline compactする前にguest側で `fstrim` を実行する。
+これはWSLの `sparseVhd` / sparse-VHDX modeとは別。Hacocoonはこのstorage designのためにWSL sparse-VHD modeを有効化しない。Windows Host側VHDXのspace reclamationはHacocoon product CLIの責務にせず、必要な場合はWindows/WSL側の明示的な運用として扱う。
 
 ## なぜrootfs objectを同じpoolで共有するのか
 
@@ -66,7 +66,7 @@ compress=zstd:3,noatime,nodiscard
 
 `noatime` は、source tree、package、compiler、runtime、database fileなどを繰り返し読むdevelopment rootfsでaccess-time metadata更新を避け、metadata writeと不要なCOW churnを減らす。`st_atime`、`find -atime` などaccess timeの意味へ明示的に依存するapplication/operator scriptはcompatibility exceptionであり、将来別のstorage policyが必要になる。
 
-`nodiscard` は、対応deviceでBtrfsが既定にし得るasync discardを含め、通常Environment稼働中のcontinuous discardを無効にする。Hacocoonは通常処理へdiscard workを混ぜるよりbatch reclamationを優先する。Windows/WSLでは `haco maintenance compact` がoffline VHD compaction前にguest `fstrim` を明示実行する。それ以外のHostでは、genericなHacocoon storage-maintenance surfaceが所有するまではHost/operator側の明示trim policyが必要。
+`nodiscard` は、対応deviceでBtrfsが既定にし得るasync discardを含め、通常Environment稼働中のcontinuous discardを無効にする。Hacocoonは通常処理へdiscard workを混ぜるよりbatch reclamationを優先する。現在のCLI移行中、Windows/WSLのtrimやVHDX compactionはHost/operator側の明示運用であり、product CLI commandはこのmaintenance flowを所有しない。それ以外のHostでも、genericなHacocoon storage-maintenance surfaceが所有するまではHost/operator側の明示trim policyが必要。
 
 `autodefrag` も既定では無効。automatic defragmentationはextentを書き換え、既存のreflink/COW sharingを減らす可能性があるため、Incus snapshot/clone中心のrootfs poolには良いdefault trade-offではない。将来使う場合もworkload-specificな明示判断にする。
 
@@ -93,7 +93,7 @@ HACO_ROOT/images/<storage-id>.raw
 
 storage-helper、block backend、shrink/compact、hardening、compatibilityのfocused testに引き続き使える。local compositionで明示的に `HACO_STORAGE_PRIVILEGE_MODE` または `HACO_BLOCK_BACKEND` を設定した場合だけこのcompatibility pathを選ぶ。通常installationはどちらも設定しないためIncus-owned poolを使う。
 
-legacy filesystem pathも同じ `compress=zstd:3,noatime,nodiscard` desired stateを強制する。helperは引き続きfail-closedなtyped interfaceであり、Hacocoonの正確なmount/remount policyだけを許可し、任意のroot command executionや任意mount optionを公開しない。専用acceptance coverageも通常CLI storage pathとは独立して残す。
+legacy filesystem pathも同じ `compress=zstd:3,noatime,nodiscard` desired stateを強制する。helperは引き続きfail-closedなtyped interfaceであり、Hacocoonの正確なmount/remount policyだけを許可し、任意のroot command executionや任意mount optionを公開しない。専用acceptance coverageも通常local Incus pathとは独立して残す。
 
 ## `metadata_ratio` policy
 
@@ -104,7 +104,9 @@ Hacocoonは `metadata_ratio` を既定では設定しない。snapshot/reflink-h
 repository CIはdisposableなUbuntu 26.04上で独立した2種類のacceptanceを行う。
 
 1. storage-helper jobは、残しているHacocoon-managed raw/loop/Btrfs helper boundaryを実機能で検証し、正確なmanaged mount policyとfail-closed hardening ruleを確認する。
-2. normal CLI jobは、その経路のためにstorage helperをinstallせず、actual ordinary-user `haco` をreal Incusへ接続する。Incusが `/var/lib/incus/disks/haco-local-default.img` を作ること、Linux fileとしてsparseであること、real loop deviceがpoolをbackingしていること、live mountがzstd圧縮・`noatime`・`nodiscard` 付きBtrfsかつautodefrag無しであること、legacyな `$HACO_ROOT/images/local-default.raw` / `$HACO_ROOT/mounts/local-default` が作られないこと、`haco create` / `exec` / `delete` / `run` が同じpoolを正しく再利用することを確認する。また一度だけ旧compression-only policyを故意に設定し、次のHacocoon rootfs operationでdesired policyへ自動reconcileされることも確認する。
+2. storage CLI acceptance jobは、CLI移行中のtemporary legacy runtime CLI実装（`cmd/haco`、releaseでは `hacoq` としてpackagingされる）をordinary userとしてreal Incusへ接続する。これはshared runtime/storage pathのcompatibility coverageであり、reset後のproduct-facing `haco` が現在 `create` / `run` を公開しているという意味ではない。Incusが `/var/lib/incus/disks/haco-local-default.img` を作ること、Linux fileとしてsparseであること、real loop deviceがpoolをbackingしていること、configured desired stateが `compress=zstd:3,noatime,nodiscard` であること、live Btrfs mountがzstd圧縮と `noatime` を持ち、activeなdiscard modeとautodefragが無いことを確認する。またlegacyな `$HACO_ROOT/images/local-default.raw` / `$HACO_ROOT/mounts/local-default` が作られないこと、create/exec/delete/run lifecycle operationが同じpoolを正しく再利用すること、旧compression-only policyを故意に設定した後の次のrootfs operationでdesired policyへ自動reconcileされることも確認する。
+
+`findmnt` はnegative/default optionの `nodiscard` tokenをlive mount outputから省略する場合がある。そのためacceptanceはIncus pool configに `nodiscard` が含まれることを要求し、live behaviorでは `discard` / `discard=async` が有効でないことを確認する。
 
 これらはhosted environment上でlifecycleとpolicyを検証するもの。physical compression ratio、COW効率、Windows Host VHDX compaction効果、最適な `metadata_ratio`、すべてのsupported Host configurationまで証明するものではない。
 

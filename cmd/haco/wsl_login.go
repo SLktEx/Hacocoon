@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -24,19 +23,18 @@ func runHacocoonLogin(args []string) error {
 		return execProcess("/bin/bash", append([]string{"bash"}, args...))
 	}
 
-	hacoBinary, err := os.Executable()
+	legacyBinary, err := os.Executable()
 	if err != nil {
-		return wslLoginRecoveryError(fmt.Errorf("resolve haco executable: %w", err))
+		return wslLoginRecoveryError(fmt.Errorf("resolve hacoq executable: %w", err))
 	}
-	if resolved, resolveErr := filepath.EvalSymlinks(hacoBinary); resolveErr == nil {
-		hacoBinary = resolved
+	if resolved, resolveErr := filepath.EvalSymlinks(legacyBinary); resolveErr == nil {
+		legacyBinary = resolved
 	}
-	sudoBinary, err := exec.LookPath("sudo")
-	if err != nil {
-		return wslLoginRecoveryError(fmt.Errorf("sudo is unavailable: %w", err))
-	}
-	if err := syscall.Exec(sudoBinary, []string{"sudo", "-n", hacoBinary, "host", "shell"}, os.Environ()); err != nil {
-		return wslLoginRecoveryError(fmt.Errorf("enter haco-host: %w", err))
+	// `hacoq host shell` is intercepted before runtime composition and connects
+	// to the Physical Host controller as the ordinary hacocoon-group user. It
+	// does not require sudo or grant the migration CLI extra Host authority.
+	if err := syscall.Exec(legacyBinary, []string{"hacoq", "host", "shell"}, os.Environ()); err != nil {
+		return wslLoginRecoveryError(fmt.Errorf("enter haco-host through temporary hacoq login shim: %w", err))
 	}
 	return nil
 }

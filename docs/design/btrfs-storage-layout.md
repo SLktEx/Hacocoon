@@ -41,7 +41,7 @@ This ownership boundary is important on WSL. A Host-managed mount created after 
 
 Incus' loop-backed Btrfs pool uses a sparse **Linux file**. Incus creates the loop image through its sparse-file path and sets its logical size without eagerly allocating every block. Repository acceptance verifies that the image's allocated bytes are smaller than its logical 128 GiB size after creation.
 
-That is separate from WSL's `sparseVhd` / sparse-VHDX mode. Hacocoon does not enable WSL sparse-VHD mode as part of this storage design. Windows-host VHDX space reclamation remains an explicit maintenance concern; `haco maintenance compact` runs guest `fstrim` before taking the dedicated WSL VHD offline and compacting it.
+That is separate from WSL's `sparseVhd` / sparse-VHDX mode. Hacocoon does not enable WSL sparse-VHD mode as part of this storage design. Windows-host VHDX space reclamation is not exposed as a Hacocoon product CLI command; when needed it remains an explicit Windows/WSL operational concern.
 
 ## Why rootfs objects share one pool
 
@@ -66,7 +66,7 @@ compress=zstd:3,noatime,nodiscard
 
 `noatime` avoids access-time metadata updates for read-heavy development rootfs workloads. This reduces metadata writes and avoidable COW churn when tools repeatedly read source trees, packages, compilers, runtimes, and database files. Applications or operator scripts that explicitly depend on `st_atime`, `find -atime`, or equivalent access-time semantics are a compatibility exception and require a different storage policy in the future.
 
-`nodiscard` disables continuous discard, including Btrfs' async-discard default on supporting devices. Hacocoon prefers batch reclamation rather than mixing discard work into ordinary Environment activity. On Windows/WSL, `haco maintenance compact` explicitly runs guest `fstrim` before offline VHD compaction. Other Host paths must use an explicit Host/operator trim policy until a generic Hacocoon storage-maintenance surface owns that operation.
+`nodiscard` disables continuous discard, including Btrfs' async-discard default on supporting devices. Hacocoon prefers batch reclamation rather than mixing discard work into ordinary Environment activity. Windows/WSL trim and VHDX compaction are explicit Host/operator operations during the current CLI migration; no product CLI command owns that maintenance flow today. Other Host paths likewise require an explicit Host/operator trim policy until a generic Hacocoon storage-maintenance surface owns the operation.
 
 The default policy also leaves `autodefrag` disabled. Automatic defragmentation can rewrite extents and reduce existing reflink/COW sharing, which is a poor default trade-off for an Incus snapshot/clone-heavy rootfs pool. Any future autodefrag use requires an explicit workload-specific decision rather than becoming an implicit mount default.
 
@@ -95,7 +95,7 @@ HACO_ROOT/images/<storage-id>.raw
 
 It remains useful for focused storage-helper, block-backend, shrink/compact, hardening, and compatibility tests. Explicit `HACO_STORAGE_PRIVILEGE_MODE` or `HACO_BLOCK_BACKEND` configuration selects that compatibility path in local composition. Normal installations set neither variable and therefore use the Incus-owned pool.
 
-The legacy filesystem path enforces the same `compress=zstd:3,noatime,nodiscard` desired state. The helper remains fail-closed and typed: it accepts only the exact Hacocoon mount/remount policy and does not expose arbitrary root command execution. Its dedicated acceptance coverage continues independently of the normal CLI storage path.
+The legacy filesystem path enforces the same `compress=zstd:3,noatime,nodiscard` desired state. The helper remains fail-closed and typed: it accepts only the exact Hacocoon mount/remount policy and does not expose arbitrary root command execution. Its dedicated acceptance coverage continues independently of the normal local Incus path.
 
 ## `metadata_ratio` policy
 
@@ -106,7 +106,9 @@ Hacocoon does not set `metadata_ratio` by default. Snapshot/reflink-heavy worklo
 Repository CI uses independent disposable Ubuntu 26.04 acceptance paths:
 
 1. the storage-helper job exercises the retained Hacocoon-managed raw/loop/Btrfs helper boundary, verifies the exact managed mount policy, and keeps the helper hardening rules fail-closed;
-2. the normal CLI job runs the actual ordinary-user `haco` binary against real Incus without installing the storage helper for that path. It verifies that Incus creates `/var/lib/incus/disks/haco-local-default.img`, the image is sparse at the Linux-file level, a real loop device backs the pool, the live mount is Btrfs with zstd compression, `noatime`, `nodiscard`, and no autodefrag, no legacy `$HACO_ROOT/images/local-default.raw` or `$HACO_ROOT/mounts/local-default` appears, and `haco create` / `exec` / `delete` / `run` reuse the pool correctly. The same path deliberately installs the old compression-only pool setting once and verifies that the next Hacocoon rootfs operation reconciles it back to the desired policy.
+2. the storage CLI acceptance job drives the temporary legacy runtime CLI implementation (`cmd/haco`, packaged as `hacoq` during the CLI migration) as an ordinary user against real Incus. This is compatibility coverage for the shared runtime/storage path, not a claim that the reset product-facing `haco` currently exposes `create` or `run`. The job verifies that Incus creates `/var/lib/incus/disks/haco-local-default.img`, the image is sparse at the Linux-file level, a real loop device backs the pool, the configured desired state is `compress=zstd:3,noatime,nodiscard`, and the live Btrfs mount has zstd compression and `noatime` with no active discard mode or autodefrag. It also verifies that no legacy `$HACO_ROOT/images/local-default.raw` / `$HACO_ROOT/mounts/local-default` appears, that create/exec/delete/run lifecycle operations reuse the pool correctly, and that deliberately installing the old compression-only pool setting is reconciled back to the desired policy on the next rootfs operation.
+
+`findmnt` may omit the negative/default `nodiscard` token from live mount output. Acceptance therefore requires `nodiscard` in the Incus pool configuration and proves live behavior by rejecting active `discard`/`discard=async` modes.
 
 These checks establish lifecycle and policy behavior on the hosted environment. They do not by themselves establish compression ratio, COW efficiency, Windows-host VHDX compaction effectiveness, optimal `metadata_ratio`, or every supported Host configuration.
 
