@@ -2,7 +2,6 @@ package composition
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +9,6 @@ import (
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	clientapp "github.com/SLktEx/Hacocoon/internal/client"
-	"github.com/SLktEx/Hacocoon/internal/core"
 	egressapp "github.com/SLktEx/Hacocoon/internal/egress"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
@@ -19,17 +17,13 @@ import (
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
 	seedbuildapp "github.com/SLktEx/Hacocoon/internal/seedbuild"
 	"github.com/SLktEx/Hacocoon/internal/state"
-	"github.com/SLktEx/Hacocoon/internal/storagepriv"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
 	"github.com/SLktEx/Hacocoon/modules/standard/egressproxy"
-	storagebtrfs "github.com/SLktEx/Hacocoon/modules/storage/btrfs"
 )
 
 const defaultLocalStorageID = "local-default"
-
-const defaultLocalStorageBytes int64 = 128 << 30
 
 const defaultLocalStorageSize = "128GiB"
 
@@ -81,55 +75,14 @@ func Local(ctx context.Context) (*App, error) {
 	runtimeRunner = incus.WrapEnvironmentNetworkOwnershipRunner(runtimeRunner)
 	incusRuntime := incus.New(runtimeRunner)
 
-	// Incus owns the normal local Btrfs loop image, loop-device attachment,
-	// filesystem format, mount lifecycle, and resize. This keeps those resources
-	// in the same lifecycle authority that consumes them and avoids a Host mount
-	// having to race incusd during WSL/systemd startup.
-	//
-	// The explicit storage privilege/backend environment variables retain the
-	// older Hacocoon-managed storage implementation for focused tests and
-	// compatibility experiments. Normal installations do not set them.
-	legacyStorageMode := strings.TrimSpace(os.Getenv("HACO_STORAGE_PRIVILEGE_MODE")) != "" || strings.TrimSpace(os.Getenv("HACO_BLOCK_BACKEND")) != ""
-	if legacyStorageMode {
-		var storageRunner host.Runner = runner
-		switch mode := strings.TrimSpace(os.Getenv("HACO_STORAGE_PRIVILEGE_MODE")); mode {
-		case "", "sudo":
-			privilegedRunner, err := storagepriv.NewSudoRunner(root, runner)
-			if err != nil {
-				return nil, err
-			}
-			storageRunner = privilegedRunner
-		case "direct":
-			// Test/development escape hatch. This never grants authority: every
-			// operation runs with the caller's existing credentials and therefore
-			// fails on a normal Host when privilege is actually required.
-			storageRunner = runner
-		default:
-			return nil, fmt.Errorf("unknown HACO_STORAGE_PRIVILEGE_MODE %q", mode)
-		}
-
-		managedStorage, err := storagebtrfs.NewLocal(ctx, root, storageRunner, strings.TrimSpace(os.Getenv("HACO_BLOCK_BACKEND")))
-		if err != nil {
-			return nil, err
-		}
-		if err := incusRuntime.ConfigureStorageProvider(func(storageCtx context.Context) (map[string]string, error) {
-			handle, err := managedStorage.Ensure(storageCtx, core.StorageSpec{
-				ID:        defaultLocalStorageID,
-				SizeBytes: defaultLocalStorageBytes,
-			})
-			if err != nil {
-				return nil, err
-			}
-			return handle.Attachment, nil
-		}); err != nil {
-			return nil, err
-		}
-	} else {
-		if err := incusRuntime.ConfigureStorageProvider(func(storageCtx context.Context) (map[string]string, error) {
-			return ensureDefaultIncusStoragePool(storageCtx, runtimeRunner)
-		}); err != nil {
-			return nil, err
-		}
+	// Incus is the single lifecycle owner for the default local Btrfs pool. It
+	// creates and manages the loop-backed filesystem, mount, and resize state.
+	// Hacocoon deliberately has no compatibility path for the older Host-owned
+	// raw/loop/mount layout.
+	if err := incusRuntime.ConfigureStorageProvider(func(storageCtx context.Context) (map[string]string, error) {
+		return ensureDefaultIncusStoragePool(storageCtx, runtimeRunner)
+	}); err != nil {
+		return nil, err
 	}
 
 	incusProvider, err := incus.NewSandboxProvider(incusRuntime, providerOptions...)
