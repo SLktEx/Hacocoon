@@ -140,6 +140,10 @@ with tempfile.TemporaryDirectory() as temp:
                     raise SystemExit(
                         f"Windows installer regressed to two-invocation setup: {contract_marker!r}"
                     )
+            if "$provider.Stdout -match '^sudo-rs'" in windows_installer:
+                raise SystemExit(
+                    "Windows installer regressed to human-facing sudo version-string provider detection"
+                )
         with tarfile.open(out / f"hacocoon-ubuntu-{arch}.tar.gz", "r:gz") as tf:
             names = tf.getnames()
             expected = ["install-ubuntu.sh", "install.sh", archive_name, "checksums.txt", "VERSION"]
