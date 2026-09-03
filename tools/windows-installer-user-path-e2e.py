@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Drive the Windows installer through the exact commands a real user types.
+"""Drive Windows install/reinstall through exact user actions plus read-only assertions.
 
-Before this driver starts, CI may build the PR candidate and prepare ConPTY.
-After it starts, product-facing actions are only keyboard input a real user can
-enter unchanged. The driver must not add Hacocoon environment variables,
-arguments, options, privileged shortcuts, or assertion-only product commands.
+The product-driving path is strict: after the candidate package is built, every
+Hacocoon action is typed exactly as a real user types it. The harness never adds
+HACO_* variables, installer/E2E-only arguments or options, privileged repair
+commands, or alternate product entry points.
+
+Assertions are a separate lane. After a real user action completes, the harness
+may inspect resulting state with read-only commands. Assertions may use root
+where observation requires it, but must never create, repair, restart, remount,
+attach, detach, delete, or otherwise change Hacocoon/WSL/Incus state.
 """
 
 from __future__ import annotations
@@ -12,23 +17,32 @@ from __future__ import annotations
 import os
 import queue
 import re
+import subprocess
 import sys
 import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Pattern
+from typing import Callable, Pattern, Sequence
 
 INSTANCE = "Hacocoon"
 PASSWORD = "Hacocoon-E2E-Only-42!"
 ENVIRONMENT = "installer-e2e"
+PROJECT = "hacocoon"
+POOL = "haco-local-default"
+INCUS_POOL_MOUNT = f"/var/lib/incus/storage-pools/{POOL}"
+INCUS_BACKING = f"/var/lib/incus/disks/{POOL}.img"
 PROCESS_TIMEOUT_SECONDS = 900
+ASSERT_TIMEOUT_SECONDS = 120
+NATURAL_STOP_TIMEOUT_SECONDS = 90
 POST_EXIT_DRAIN_SECONDS = 1.0
 
-# ConPTY needs a terminal process. Start an ordinary cmd.exe and type every
-# product-facing Windows command into it exactly as a user does.
+# ConPTY needs a terminal process. Product-facing Windows commands are typed
+# into this ordinary cmd.exe exactly as the user would type them.
 TERMINAL_ARGV = ("cmd.exe",)
 
+# Only these commands are allowed to drive Hacocoon state. Read-only assertions
+# are deliberately implemented outside this table so the two roles cannot blur.
 HOST_SESSION_COMMANDS: dict[str, tuple[str, ...]] = {
     "before reinstall": (
         "haco base list",
@@ -78,6 +92,16 @@ def normalize_terminal(text: str) -> str:
 
 def cmd_prompt_count(text: str) -> int:
     return len(CMD_PROMPT_RE.findall(text))
+
+
+def decode_process_output(data: bytes) -> str:
+    if not data:
+        return ""
+    # `wsl --list` can emit UTF-16LE when redirected while Linux command output
+    # is UTF-8. Detect the former without changing the child environment.
+    if data.startswith(b"\xff\xfe") or b"\x00" in data[:80]:
+        return data.decode("utf-16-le", errors="replace").lstrip("\ufeff")
+    return data.decode("utf-8", errors="replace")
 
 
 @dataclass
@@ -220,7 +244,7 @@ def sudo_responders() -> list[Responder]:
 
 
 def run_bat(package_root: Path, *, phase: str) -> str:
-    """Type `install-windows.bat` into a normal Windows command prompt."""
+    """ACTION: type `install-windows.bat` into a normal Windows prompt."""
 
     process = TerminalProcess(cwd=package_root)
     sent_command = False
@@ -247,7 +271,7 @@ def run_bat(package_root: Path, *, phase: str) -> str:
 
 
 def complete_ubuntu_first_launch() -> str:
-    """Type the documented `wsl -d Hacocoon` command and complete stock OOBE."""
+    """ACTION: type `wsl -d Hacocoon` and complete stock Ubuntu OOBE."""
 
     process = TerminalProcess()
     user = normal_user_name()
@@ -294,7 +318,7 @@ def complete_ubuntu_first_launch() -> str:
 
 
 def run_host_session(session: str, *, expected_output: list[str]) -> str:
-    """Type the normal WSL entry, then only the ordinary Hacocoon commands."""
+    """ACTION: type normal WSL entry and only ordinary Hacocoon commands."""
 
     try:
         commands = HOST_SESSION_COMMANDS[session]
@@ -335,6 +359,183 @@ def run_host_session(session: str, *, expected_output: list[str]) -> str:
     return output
 
 
+# ---------------------------------------------------------------------------
+# Read-only assertion lane. Nothing below is used to drive product state.
+# ---------------------------------------------------------------------------
+
+
+def observe(argv: Sequence[str], *, phase: str) -> str:
+    print("==> ASSERT READ-ONLY:", " ".join(argv))
+    completed = subprocess.run(
+        list(argv),
+        env=inherited_child_environment(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=ASSERT_TIMEOUT_SECONDS,
+        check=False,
+    )
+    stdout = decode_process_output(completed.stdout).strip()
+    stderr = decode_process_output(completed.stderr).strip()
+    if stdout:
+        print(stdout)
+    if stderr:
+        print(stderr, file=sys.stderr)
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"{phase}: read-only assertion command failed ({completed.returncode}): "
+            + " ".join(argv)
+        )
+    return stdout
+
+
+def observe_wsl_root(*args: str, phase: str) -> str:
+    # Root is allowed only in the assertion lane. Every caller below uses a
+    # command that reads state and has no repair/lifecycle side effect.
+    return observe(
+        (
+            "wsl.exe",
+            "--distribution",
+            INSTANCE,
+            "--user",
+            "root",
+            "--exec",
+            *args,
+        ),
+        phase=phase,
+    )
+
+
+def assert_wsl2(*, phase: str) -> None:
+    output = observe(("wsl.exe", "--list", "--verbose"), phase=phase)
+    if not re.search(rf"(?im)\b{re.escape(INSTANCE)}\b.*\b2\s*$", output):
+        raise RuntimeError(f"{phase}: {INSTANCE} is not listed as WSL 2")
+
+
+def assert_installed_host_state(*, phase: str) -> None:
+    assert_wsl2(phase=phase)
+
+    pid1 = observe_wsl_root("ps", "-p", "1", "-o", "comm=", phase=phase)
+    if pid1.strip() != "systemd":
+        raise RuntimeError(f"{phase}: PID 1 is {pid1!r}, expected systemd")
+
+    active = observe_wsl_root(
+        "systemctl", "is-active", "haco-controller.service", phase=phase
+    )
+    if active.strip() != "active":
+        raise RuntimeError(f"{phase}: haco-controller.service is {active!r}")
+
+    socket = observe_wsl_root(
+        "stat", "-Lc", "%U:%G:%a", "/run/hacocoon/control.sock", phase=phase
+    )
+    if socket.strip() != "root:hacocoon:660":
+        raise RuntimeError(f"{phase}: unexpected controller socket state: {socket!r}")
+
+    user = normal_user_name()
+    passwd = observe_wsl_root("getent", "passwd", user, phase=phase)
+    fields = passwd.split(":")
+    if len(fields) < 7 or fields[6].strip() != "/usr/local/libexec/hacocoon-login":
+        raise RuntimeError(f"{phase}: WSL login integration is incomplete: {passwd!r}")
+
+    groups = observe_wsl_root("id", "-nG", user, phase=phase).split()
+    if "hacocoon" not in groups:
+        raise RuntimeError(f"{phase}: normal WSL user lacks hacocoon group: {groups!r}")
+
+
+def assert_storage_state(*, phase: str) -> None:
+    source = observe_wsl_root(
+        "incus", "storage", "get", POOL, "source", "--project", PROJECT, phase=phase
+    )
+    if source.strip() != INCUS_BACKING:
+        raise RuntimeError(f"{phase}: pool source is {source!r}, expected {INCUS_BACKING!r}")
+
+    size = observe_wsl_root(
+        "incus", "storage", "get", POOL, "size", "--project", PROJECT, phase=phase
+    )
+    if size.strip() != "128GiB":
+        raise RuntimeError(f"{phase}: pool size is {size!r}, expected 128GiB")
+
+    configured = observe_wsl_root(
+        "incus",
+        "storage",
+        "get",
+        POOL,
+        "btrfs.mount_options",
+        "--project",
+        PROJECT,
+        phase=phase,
+    )
+    configured_options = {item for item in configured.strip().split(",") if item}
+    if "compress=zstd:3" not in configured_options:
+        raise RuntimeError(f"{phase}: configured Btrfs options lack zstd: {configured!r}")
+    if "autodefrag" in configured_options:
+        raise RuntimeError(f"{phase}: autodefrag must remain disabled: {configured!r}")
+
+    fstype = observe_wsl_root(
+        "findmnt", "-rn", "-o", "FSTYPE", "--mountpoint", INCUS_POOL_MOUNT, phase=phase
+    )
+    if fstype.strip() != "btrfs":
+        raise RuntimeError(f"{phase}: Incus pool mount is {fstype!r}, expected btrfs")
+
+    live = observe_wsl_root(
+        "findmnt", "-rn", "-o", "OPTIONS", "--mountpoint", INCUS_POOL_MOUNT, phase=phase
+    )
+    live_options = {item for item in live.strip().split(",") if item}
+    if not ({"compress=zstd:3", "compress=zstd"} & live_options):
+        raise RuntimeError(f"{phase}: live Btrfs mount lacks zstd compression: {live!r}")
+    if "autodefrag" in live_options:
+        raise RuntimeError(f"{phase}: live Btrfs mount unexpectedly enables autodefrag: {live!r}")
+
+    loop_rows = observe_wsl_root(
+        "losetup", "--list", "--noheadings", "--output", "NAME,BACK-FILE", phase=phase
+    )
+    if INCUS_BACKING not in loop_rows:
+        raise RuntimeError(f"{phase}: no loop device backs {INCUS_BACKING}: {loop_rows!r}")
+
+    stat = observe_wsl_root("stat", "-Lc", "%s %b", INCUS_BACKING, phase=phase)
+    try:
+        logical_blocks, allocated_blocks = (int(value) for value in stat.split())
+    except (ValueError, TypeError) as exc:
+        raise RuntimeError(f"{phase}: unexpected backing stat output: {stat!r}") from exc
+    allocated_bytes = allocated_blocks * 512
+    if logical_blocks != 128 * 1024 * 1024 * 1024:
+        raise RuntimeError(f"{phase}: backing logical size is {logical_blocks}")
+    if allocated_bytes >= logical_blocks:
+        raise RuntimeError(
+            f"{phase}: backing image is not sparse: allocated={allocated_bytes} logical={logical_blocks}"
+        )
+
+
+def assert_environment_runtime(*, present: bool, phase: str) -> None:
+    rows = observe_wsl_root(
+        "incus", "list", "--project", PROJECT, "--format", "csv", "-c", "n,s", phase=phase
+    )
+    expected_name = f"haco-{ENVIRONMENT}"
+    matching = [line for line in rows.splitlines() if line.split(",", 1)[0] == expected_name]
+    if present:
+        if not matching or not any(line.endswith(",RUNNING") for line in matching):
+            raise RuntimeError(
+                f"{phase}: expected running Environment runtime {expected_name!r}: {rows!r}"
+            )
+    elif matching:
+        raise RuntimeError(f"{phase}: deleted Environment runtime remains: {matching!r}")
+
+
+def wait_for_natural_wsl_stop(*, phase: str) -> None:
+    """Observe WSL's normal idle lifecycle without injecting terminate/shutdown."""
+
+    deadline = time.monotonic() + NATURAL_STOP_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        running = observe(("wsl.exe", "--list", "--running"), phase=phase)
+        if not re.search(rf"(?im)\b{re.escape(INSTANCE)}\b", running):
+            print(f"==> ASSERT READ-ONLY: {INSTANCE} stopped naturally")
+            return
+        time.sleep(2)
+    raise RuntimeError(
+        f"{phase}: {INSTANCE} did not reach normal stopped state within "
+        f"{NATURAL_STOP_TIMEOUT_SECONDS}s"
+    )
+
+
 def main() -> int:
     if os.name != "nt":
         raise RuntimeError("Windows user-path E2E must run on Windows")
@@ -355,22 +556,24 @@ def main() -> int:
             f"run from extracted Windows package; missing: {', '.join(missing)}"
         )
 
-    print("==> USER TYPES: install-windows.bat")
+    print("==> ACTION USER TYPES: install-windows.bat")
     first = run_bat(package_root, phase="first install")
     require_output(first, r"wsl -d Hacocoon", phase="first install")
+    assert_wsl2(phase="after first BAT")
 
-    print("==> USER TYPES: wsl -d Hacocoon")
+    print("==> ACTION USER TYPES: wsl -d Hacocoon")
     complete_ubuntu_first_launch()
 
-    print("==> USER TYPES: install-windows.bat")
+    print("==> ACTION USER TYPES: install-windows.bat")
     second = run_bat(package_root, phase="install completion")
     require_output(
         second,
         r"Hacocoon WSL installation complete",
         phase="install completion",
     )
+    assert_installed_host_state(phase="after install completion")
 
-    print("==> USER TYPES: wsl -d Hacocoon and normal haco commands")
+    print("==> ACTION USER TYPES: wsl -d Hacocoon and normal haco commands")
     run_host_session(
         "before reinstall",
         expected_output=[
@@ -379,16 +582,25 @@ def main() -> int:
             r"(?m)^Linux\s+",
         ],
     )
+    assert_environment_runtime(present=True, phase="after Environment create")
+    assert_storage_state(phase="after Environment create")
 
-    print("==> USER TYPES: install-windows.bat")
+    # A user can close WSL and rerun the installer later. Observe the natural
+    # idle shutdown instead of manufacturing it with `wsl --terminate`.
+    wait_for_natural_wsl_stop(phase="before reinstall")
+
+    print("==> ACTION USER TYPES: install-windows.bat")
     third = run_bat(package_root, phase="reinstall")
     require_output(
         third,
         r"Hacocoon WSL installation complete",
         phase="reinstall",
     )
+    assert_installed_host_state(phase="after reinstall")
+    assert_environment_runtime(present=True, phase="after reinstall")
+    assert_storage_state(phase="after reinstall")
 
-    print("==> USER TYPES: wsl -d Hacocoon and reuse the existing Environment")
+    print("==> ACTION USER TYPES: wsl -d Hacocoon and reuse existing Environment")
     run_host_session(
         "after reinstall",
         expected_output=[
@@ -396,8 +608,10 @@ def main() -> int:
             r"(?m)^Linux\s+",
         ],
     )
+    assert_environment_runtime(present=False, phase="after Environment delete")
+    assert_storage_state(phase="after Environment delete")
 
-    print("windows installer exact user path: PASS")
+    print("windows installer exact user actions + read-only assertions: PASS")
     return 0
 
 
@@ -405,5 +619,8 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except Exception as exc:
-        print(f"windows installer exact user path: FAIL: {exc}", file=sys.stderr)
+        print(
+            f"windows installer exact user actions + read-only assertions: FAIL: {exc}",
+            file=sys.stderr,
+        )
         raise
