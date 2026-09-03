@@ -44,12 +44,12 @@ Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progr
 | v0.17 | OCI Seed Builder & Btrfs/COW | 🧪 repository build/publish and operations-hardening slices implemented; real-host/private-registry/COW acceptance remains |
 | v0.18 | Docker Compatibility Plugin | ✅ repository implementation complete; real-host acceptance tracked separately |
 | v0.19 | Domain-aware Egress Authorization | ✅ repository implementation complete; real supported-Incus acceptance remains host-dependent |
-| v0.20 | Managed Btrfs Rootfs Storage | ✅ managed sparse-raw Btrfs pool and Incus rootfs routing implemented; broader physical COW/compaction acceptance remains host-dependent |
-| v0.21 | Managed Btrfs Transparent Compression | ✅ `compress=zstd:3` default implemented without `compress-force`; real compression/performance acceptance remains host-dependent |
+| v0.20 | Managed Btrfs Rootfs Storage | ✅ Incus-owned loop-backed Btrfs pool and Hacocoon rootfs routing implemented; broader physical COW/compaction acceptance remains host-dependent |
+| v0.21 | Managed Btrfs Transparent Compression | ✅ default Incus pool creation requests `compress=zstd:3` without `compress-force`; real compression/performance acceptance remains host-dependent |
 | v0.22 | Interaction Notification Clients | ✅ browser, native OS, and VS Code notification clients implemented with replay/dedup behavior tests |
 | v0.23 | Real Incus E2E Acceptance | ✅ standalone Incus substrate and Hacocoon Core lifecycle are exercised on GitHub-hosted Ubuntu 26.04 with phased gating |
 | v0.24 | Structured Logging | ✅ shared `log/slog` foundation, operation context, sanitized DEBUG tracing, and secret redaction implemented across maintained executables |
-| v0.25 | Managed Btrfs Host Privilege Broker | ✅ root-owned typed storage helper and ordinary-user real Incus/Btrfs CLI acceptance implemented |
+| v0.25 | Incus-owned Btrfs Storage Acceptance | ✅ ordinary-user real Incus/Btrfs CLI acceptance verifies the Incus-owned pool lifecycle and policy |
 | v0.26 | Trusted `haco-host` & Default WSL Entry | ✅ persistent trusted logical Host lifecycle, ownership/collision checks, managed-storage placement, default WSL entry, recovery path, and real Incus acceptance implemented |
 
 The current milestone position is **v0.26**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
@@ -75,7 +75,7 @@ Document addresses are semantic and do not change when milestone assignments cha
 | v0.21 Managed Btrfs Transparent Compression | [`../design/btrfs-storage-layout.md`](../design/btrfs-storage-layout.md) |
 | v0.22 Interaction Notification Clients | [`../INTERACTION_EVENTS.md`](../INTERACTION_EVENTS.md) |
 | v0.24 Structured Logging | [`../reference/logging.md`](../reference/logging.md) |
-| v0.25 Managed Btrfs Host Privilege Broker | [`../design/btrfs-storage-layout.md`](../design/btrfs-storage-layout.md) |
+| v0.25 Incus-owned Btrfs Storage Acceptance | [`../design/btrfs-storage-layout.md`](../design/btrfs-storage-layout.md) |
 | v0.26 Trusted `haco-host` & Default WSL Entry | [`../design/trusted-host.md`](../design/trusted-host.md) |
 | Optional Local OCI Registry | [`../OPTIONAL_LOCAL_OCI_REGISTRY.md`](../OPTIONAL_LOCAL_OCI_REGISTRY.md) |
 
@@ -93,12 +93,12 @@ v0.23 is an acceptance checkpoint rather than a new architecture contract. Its e
 - **v0.17:** repository build/publish plus explicit pin/re-enable, conservative old-revision GC, interrupted-builder recovery, deletion-race protection, and managed-Environment harvest are implemented. Authenticated/private-registry combinations, physical Btrfs COW measurement, broader real-host failure injection, and supported-host acceptance remain.
 - **v0.18:** repository lifecycle/CLI integration is implemented; real Base + Incus/systemd socket-activation acceptance remains host-dependent.
 - **v0.19:** hostname-aware proxy authorization/enforcement is implemented in the repository; real supported-Incus bridge/nftables/dnsmasq acceptance remains host-dependent.
-- **v0.20:** Hacocoon-owned Incus rootfs paths select the lazy managed sparse-raw Btrfs pool; physical COW/compaction measurements and broader supported-host acceptance remain host-dependent.
-- **v0.21:** managed Btrfs mounts use `compress=zstd:3`, remount non-compliant managed mounts, reject `compress-force` as the desired state, and avoid automatic recompression that could damage reflink/COW sharing. Real compression ratio, CPU cost, and supported-host behavior remain host-dependent.
+- **v0.20:** Hacocoon-owned Incus rootfs paths select the lazy `haco-local-default` Incus-owned loop-backed Btrfs pool; physical COW/compaction measurements and broader supported-host acceptance remain host-dependent.
+- **v0.21:** creation of the default Incus-owned Btrfs pool requests `compress=zstd:3`, does not request `compress-force`, and leaves `autodefrag` disabled. Real compression ratio, CPU cost, and supported-host behavior remain host-dependent.
 - **v0.22:** browser/native/VS Code notification delivery and replay/dedup behavior are repository-tested; desktop/session-specific delivery still depends on the actual client environment.
 - **v0.23:** GitHub-hosted Ubuntu 26.04 proves standalone Incus system-container behavior before Core lifecycle E2E; this narrows the CI support gap but does not prove every supported Host/WSL configuration.
 - **v0.24:** maintained executables share structured logging and redaction behavior; logging policy remains defense in depth and does not make unsafe call-site data safe to emit.
-- **v0.25:** real helper lifecycle and ordinary-user `haco create`/`exec`/`delete`/`run` are exercised against real Incus and managed Btrfs; broader physical-storage and Windows/WSL acceptance remains.
+- **v0.25:** ordinary-user `haco create`/`exec`/`delete`/`run` are exercised against real Incus; CI verifies the Incus-owned sparse backing file, loop attachment, Btrfs mount, zstd policy, pool reuse, and cleanup. Broader physical-storage and Windows/WSL acceptance remains.
 - **v0.26:** trusted-host creation, exact ownership/collision handling, idempotent ensure, stopped-state recovery, managed-storage placement, and raw control-socket non-exposure are covered by real Incus acceptance. Real Windows/WSL interactive-login behavior remains host-dependent, and broader Git/OCI/credential/control-channel migration remains follow-up work.
 
 ## Rule of thumb
