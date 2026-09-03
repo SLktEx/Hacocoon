@@ -84,7 +84,9 @@ with tempfile.TemporaryDirectory() as temp:
             windows_installer = zf.read("install-windows.ps1").decode("utf-8")
             for required in (
                 "function Invoke-ElevatedWsl",
-                'Start-Process -FilePath "wsl.exe"',
+                "([Environment]::SystemDirectory)",
+                'Join-Path ([Environment]::SystemDirectory) "wsl.exe"',
+                "Start-Process -FilePath $systemWsl",
                 "-Verb RunAs",
                 "Administrator approval is required only to create",
                 "Invoke-ElevatedWsl $args",
@@ -96,6 +98,8 @@ with tempfile.TemporaryDirectory() as temp:
                     )
             if "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell." in windows_installer:
                 raise SystemExit(f"Windows {arch} package still contains the old elevation hard failure")
+            if '$process = Start-Process -FilePath "wsl.exe"' in windows_installer:
+                raise SystemExit(f"Windows {arch} package elevates a PATH-resolved wsl.exe")
             if "$createExitCode = if (Test-Administrator)" in windows_installer:
                 raise SystemExit(
                     f"Windows {arch} package captures wsl.exe stdout into its exit-code variable"
