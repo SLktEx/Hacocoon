@@ -1,0 +1,82 @@
+name: pr403-sudo-patch
+
+on:
+  push:
+    branches:
+      - fix/windows-one-shot-bootstrap
+    paths:
+      - .github/workflows/pr403-sudo-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/windows-one-shot-bootstrap
+          fetch-depth: 0
+
+      - name: Apply sudo-rs compatible bootstrap rule and runtime acceptance check
+        shell: python
+        run: |
+          from pathlib import Path
+
+          installer_path = Path("scripts/install-windows.ps1")
+          installer = installer_path.read_text(encoding="utf-8")
+
+          replacements = [
+              (
+                  '$sudoers = "$LoginUser ALL=(root) NOPASSWD: ALL`n"',
+                  '$sudoers = "$LoginUser ALL=NOPASSWD: ALL`n"',
+              ),
+              (
+                  '$sudoers = "$LoginUser ALL=(root) NOPASSWD: $haco host ensure, $haco host shell`n"',
+                  '$sudoers = "$LoginUser ALL=NOPASSWD: $haco host ensure, $haco host shell`n"',
+              ),
+              (
+                  '    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $BootstrapSudoersPath)\n'
+                  '    if ($probe.ExitCode -ne 0) { throw "Failed to validate temporary installer sudo rule: $($probe.Stderr)" }\n',
+                  '    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $BootstrapSudoersPath)\n'
+                  '    if ($probe.ExitCode -ne 0) { throw "Failed to validate temporary installer sudo rule: $($probe.Stderr)" }\n'
+                  '    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-c")\n'
+                  '    if ($probe.ExitCode -ne 0) { throw "Failed to validate the effective sudo policy: $($probe.Stderr)" }\n'
+                  '    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", "/usr/bin/true")\n'
+                  '    if ($probe.ExitCode -ne 0) {\n'
+                  '        $policy = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sudo", "-l", "-U", $LoginUser)\n'
+                  '        throw "Temporary installer sudo rule is not effective for \'$LoginUser\': $($probe.Stderr) Policy: $($policy.Stdout) $($policy.Stderr)"\n'
+                  '    }\n',
+              ),
+          ]
+
+          for old, new in replacements:
+              if installer.count(old) != 1:
+                  raise SystemExit(f"expected exactly one installer match for {old!r}")
+              installer = installer.replace(old, new)
+          installer_path.write_text(installer, encoding="utf-8", newline="\n")
+
+          test_path = Path("tools/test_installer_packages.py")
+          test = test_path.read_text(encoding="utf-8")
+          anchor = "                'Disable-BootstrapSudo',\n"
+          addition = (
+              "                '$LoginUser ALL=NOPASSWD: ALL',\n"
+              "                '\"sudo\", \"-n\", \"/usr/bin/true\"',\n"
+          )
+          if test.count(anchor) != 1:
+              raise SystemExit("expected one installer contract anchor")
+          test = test.replace(anchor, anchor + addition)
+          test_path.write_text(test, encoding="utf-8", newline="\n")
+
+      - name: Commit patch and remove temporary helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/pr403-sudo-patch.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/install-windows.ps1 tools/test_installer_packages.py .github/workflows/pr403-sudo-patch.yml
+          git diff --cached --check
+          git commit -m "fix(windows): verify sudo-rs bootstrap policy before install"
+          git push origin HEAD:fix/windows-one-shot-bootstrap
