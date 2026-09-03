@@ -68,6 +68,8 @@ def package_windows(output: Path, archive: Path, checksum_line: str, version: st
     with zipfile.ZipFile(temporary, "w") as zf:
         add_zip_file(zf, ROOT / "scripts" / "install-windows.bat", "install-windows.bat", 0o644)
         add_zip_file(zf, ROOT / "scripts" / "install-windows.ps1", "install-windows.ps1", 0o644)
+        add_zip_file(zf, ROOT / "scripts" / "haco-windows.cmd", "haco-windows.cmd", 0o644)
+        add_zip_file(zf, ROOT / "scripts" / "haco-windows.ps1", "haco-windows.ps1", 0o644)
         add_zip_file(zf, ROOT / "scripts" / "install.sh", "install.sh", 0o755)
         add_zip_file(zf, archive, archive.name, 0o644)
         add_zip_bytes(zf, checksum_line.encode(), "checksums.txt", 0o644)
