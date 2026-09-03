@@ -14,7 +14,8 @@ import (
 )
 
 type fakeEnvironments struct {
-	deleted string
+	deleted       string
+	shellMetadata core.TerminalMetadata
 }
 
 func (*fakeEnvironments) Create(_ context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
@@ -48,10 +49,11 @@ func (*fakeEnvironments) Exec(_ context.Context, name string, request core.Execu
 	return core.ExecutionResult{ExitCode: 0, Stdout: "ok"}, nil
 }
 
-func (*fakeEnvironments) PrepareShellStream(_ context.Context, name string) (func(context.Context, io.Reader, io.Writer, io.Writer) error, error) {
+func (f *fakeEnvironments) PrepareShellStream(ctx context.Context, name string) (func(context.Context, io.Reader, io.Writer, io.Writer) error, error) {
 	if name != "demo" {
 		return nil, core.ErrNotFound
 	}
+	f.shellMetadata = core.TerminalMetadataFromContext(ctx)
 	return func(_ context.Context, stdin io.Reader, stdout, _ io.Writer) error {
 		buffer := make([]byte, 4)
 		if _, err := io.ReadFull(stdin, buffer); err != nil {
@@ -139,6 +141,8 @@ func TestTypedClientLifecycleOverUnixSocket(t *testing.T) {
 		t.Fatalf("non-zero exec result = %#v", result)
 	}
 
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("COLORTERM", "truecolor")
 	stream, err := client.OpenEnvironmentShell(context.Background(), "demo")
 	if err != nil {
 		t.Fatal(err)
@@ -158,6 +162,9 @@ func TestTypedClientLifecycleOverUnixSocket(t *testing.T) {
 	if string(response) != "ping" {
 		t.Fatalf("shell stream response = %q", response)
 	}
+	if environments.shellMetadata.Term != "xterm-256color" || environments.shellMetadata.ColorTerm != "truecolor" {
+		t.Fatalf("shell terminal metadata = %#v", environments.shellMetadata)
+	}
 
 	if err := client.DeleteEnvironment(context.Background(), "demo"); err != nil {
 		t.Fatal(err)
@@ -170,11 +177,26 @@ func TestTypedClientLifecycleOverUnixSocket(t *testing.T) {
 func TestShellMissingEnvironmentFailsBeforeStreamOpens(t *testing.T) {
 	client, cancel := startControlAPITestServer(t, &fakeEnvironments{})
 	defer cancel()
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("COLORTERM", "")
 
 	_, err := client.OpenEnvironmentShell(context.Background(), "missing")
 	var status *control.StatusError
 	if !errors.As(err, &status) || status.Code != "not_found" {
 		t.Fatalf("error = %v, want not_found StatusError", err)
+	}
+}
+
+func TestShellRejectsUnsafeTerminalIdentity(t *testing.T) {
+	client, cancel := startControlAPITestServer(t, &fakeEnvironments{})
+	defer cancel()
+	t.Setenv("TERM", "xterm;touch-bad")
+	 t.Setenv("COLORTERM", "")
+
+	_, err := client.OpenEnvironmentShell(context.Background(), "demo")
+	var status *control.StatusError
+	if !errors.As(err, &status) || status.Code != "invalid_argument" {
+		t.Fatalf("error = %v, want invalid_argument StatusError", err)
 	}
 }
 
