@@ -164,6 +164,40 @@ jobs:
             Pop-Location
           }
 
+      - name: Restart installed WSL and rerun the packaged BAT
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $instance = "Hacocoon"
+          $packageRoot = Join-Path $env:RUNNER_TEMP "hacocoon-windows-amd64"
+
+          # A successful install must survive a real WSL lifecycle boundary.
+          # This deliberately drops non-persistent mounts before exercising the
+          # same user-facing installer path again, matching a normal reboot/rerun.
+          & wsl.exe --terminate $instance
+          if ($LASTEXITCODE -ne 0) { throw "Failed to terminate installed Hacocoon WSL instance." }
+          Start-Sleep -Milliseconds 750
+
+          $pid1 = (& wsl.exe --distribution $instance --user root --exec ps -p 1 -o comm= | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $pid1 -ne "systemd") { throw "systemd did not recover after WSL restart." }
+
+          Push-Location $packageRoot
+          try {
+            & cmd.exe /d /c "install-windows.bat"
+            if ($LASTEXITCODE -ne 0) { throw "Packaged BAT failed after WSL restart with exit code $LASTEXITCODE." }
+          } finally {
+            Pop-Location
+          }
+
+          $mountType = (& wsl.exe --distribution $instance --user root --exec findmnt -rn -o FSTYPE --mountpoint /var/lib/hacocoon/mounts/local-default | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $mountType -ne "btrfs") {
+            throw "Managed Hacocoon storage was not restored as Btrfs after WSL restart: '$mountType'."
+          }
+          $mountOptions = (& wsl.exe --distribution $instance --user root --exec findmnt -rn -o OPTIONS --mountpoint /var/lib/hacocoon/mounts/local-default | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $mountOptions -notmatch '(^|,)compress=zstd(:3)?(,|$)') {
+            throw "Managed Hacocoon storage lost the expected zstd compression after WSL restart: '$mountOptions'."
+          }
+
       - name: Assert Hacocoon is usable through the WSL user path
         shell: pwsh
         run: |
@@ -251,7 +285,7 @@ jobs:
           & wsl.exe --list --verbose 2>&1 | ForEach-Object { Write-Host $_ }
           $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
           if ($installed -contains $instance) {
-            wsl.exe --distribution $instance --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; command -v nft || true; getent group hacocoon || true; stat -Lc "%U:%G:%a %n" /run/hacocoon/control.sock || true; haco version || true; haco doctor || true; haco env list || true; nft list ruleset || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true; incus network list --project default || true'
+            wsl.exe --distribution $instance --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v incus || true; command -v nft || true; getent group hacocoon || true; stat -Lc "%U:%G:%a %n" /run/hacocoon/control.sock || true; findmnt /var/lib/hacocoon/mounts/local-default || true; losetup -j /var/lib/hacocoon/images/local-default.raw || true; incus storage list --project hacocoon || true; haco version || true; haco doctor || true; haco env list || true; nft list ruleset || true; systemctl --no-pager --failed || true; systemctl status haco-controller.service --no-pager || true; incus list --all-projects || true; incus network list --project default || true'
           }
           $global:LASTEXITCODE = 0
 
