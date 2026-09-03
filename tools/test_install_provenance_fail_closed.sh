@@ -9,12 +9,12 @@ trap 'rm -rf "$root"' EXIT
 fixture="$root/fixture"
 src="$root/src"
 mkdir -p "$fixture" "$src"
-for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper; do
+for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
   printf '#!/bin/sh\necho %s\n' "$binary" > "$src/$binary"
   chmod 0755 "$src/$binary"
 done
 tar -czf "$fixture/haco_linux_amd64.tar.gz" -C "$src" \
-  haco haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper
+  haco haco-controller haco-host haco-vscode haco-agent-host haco-notify
 (cd "$fixture" && sha256sum haco_linux_amd64.tar.gz > checksums.txt)
 printf '{}\n' > "$fixture/attestation-bundle.json"
 
@@ -183,7 +183,6 @@ run_case() {
   case_root="$root/$name"
   bin="$case_root/bin"
   install="$case_root/install"
-  helper_install="$case_root/libexec"
   mkdir -p "$bin" "$install"
   make_fake_curl "$bin/curl"
   make_fake_privilege_tools "$bin"
@@ -206,7 +205,6 @@ run_case() {
     HACO_TEST_LATEST_TAG="v1.2.3" \
     HACO_INSTALL_BINARIES_ONLY="1" \
     HACO_INSTALL_DIR="$install" \
-    HACO_STORAGE_HELPER_INSTALL_DIR="$helper_install" \
     HACO_ROOT="$case_root/haco-root" \
     sh "$installer" "$version" >"$stdout" 2>"$stderr"
   code=$?
@@ -221,13 +219,11 @@ run_case() {
     for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
       [ -x "$install/$binary" ] || { echo "$name: missing installed $binary" >&2; exit 1; }
     done
-    [ -x "$helper_install/haco-storage-helper" ] || { echo "$name: missing installed storage helper" >&2; exit 1; }
   else
     [ "$code" -ne 0 ] || { echo "$name: expected failure" >&2; exit 1; }
     for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
       [ ! -e "$install/$binary" ] || { echo "$name: installed $binary after trust failure" >&2; exit 1; }
     done
-    [ ! -e "$helper_install/haco-storage-helper" ] || { echo "$name: installed storage helper after trust failure" >&2; exit 1; }
   fi
 }
 
