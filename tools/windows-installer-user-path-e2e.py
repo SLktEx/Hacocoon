@@ -1,15 +1,9 @@
 #!/usr/bin/env python3
-"""Drive Windows install/reinstall through exact user actions plus read-only assertions.
+"""Windows installer E2E: exact user actions plus read-only assertions.
 
-The product-driving path is strict: after the candidate package is built, every
-Hacocoon action is typed exactly as a real user types it. The harness never adds
-HACO_* variables, installer/E2E-only arguments or options, privileged repair
-commands, or alternate product entry points.
-
-Assertions are a separate lane. After a real user action completes, the harness
-may inspect resulting state with read-only commands. Assertions may use root
-where observation requires it, but must never create, repair, restart, remount,
-attach, detach, delete, or otherwise change Hacocoon/WSL/Incus state.
+Product-driving actions are typed exactly as a real user types them. Assertions
+run separately and may inspect state (including as root) but never mutate,
+repair, restart, remount, attach, detach, create, or delete product state.
 """
 
 from __future__ import annotations
@@ -37,12 +31,7 @@ ASSERT_TIMEOUT_SECONDS = 120
 NATURAL_STOP_TIMEOUT_SECONDS = 90
 POST_EXIT_DRAIN_SECONDS = 1.0
 
-# ConPTY needs a terminal process. Product-facing Windows commands are typed
-# into this ordinary cmd.exe exactly as the user would type them.
 TERMINAL_ARGV = ("cmd.exe",)
-
-# Only these commands are allowed to drive Hacocoon state. Read-only assertions
-# are deliberately implemented outside this table so the two roles cannot blur.
 HOST_SESSION_COMMANDS: dict[str, tuple[str, ...]] = {
     "before reinstall": (
         "haco base list",
@@ -63,12 +52,6 @@ CMD_PROMPT_RE = re.compile(r"(?m)^[A-Za-z]:\\[^\r\n>]*>\s*$")
 
 
 def inherited_child_environment() -> dict[str, str]:
-    """Pass the runner environment through unchanged.
-
-    HACO_* in CI is a configuration leak. Fail instead of deleting, adding, or
-    rewriting anything before the product sees its environment.
-    """
-
     overrides = sorted(key for key in os.environ if key.startswith("HACO_"))
     if overrides:
         raise RuntimeError(
@@ -97,8 +80,6 @@ def cmd_prompt_count(text: str) -> int:
 def decode_process_output(data: bytes) -> str:
     if not data:
         return ""
-    # `wsl --list` can emit UTF-16LE when redirected while Linux command output
-    # is UTF-8. Detect the former without changing the child environment.
     if data.startswith(b"\xff\xfe") or b"\x00" in data[:80]:
         return data.decode("utf-16-le", errors="replace").lstrip("\ufeff")
     return data.decode("utf-8", errors="replace")
@@ -122,10 +103,8 @@ class TerminalProcess:
             from winpty import PtyProcess
         except ImportError as exc:
             raise RuntimeError("pywinpty is required for the Windows user-path E2E") from exc
-
-        self.argv = list(TERMINAL_ARGV)
         self.proc = PtyProcess.spawn(
-            self.argv,
+            list(TERMINAL_ARGV),
             cwd=str(cwd) if cwd is not None else None,
             env=inherited_child_environment(),
             dimensions=(48, 160),
@@ -142,7 +121,7 @@ class TerminalProcess:
             except EOFError:
                 self._queue.put(None)
                 return
-            except Exception as exc:  # pragma: no cover - runtime diagnostic
+            except Exception as exc:  # pragma: no cover
                 self._queue.put(f"\n[terminal reader error: {exc}]\n")
                 self._queue.put(None)
                 return
@@ -151,26 +130,6 @@ class TerminalProcess:
 
     def write(self, text: str) -> None:
         self.proc.write(text)
-
-    def _consume(
-        self,
-        chunk: str,
-        responders: list[Responder],
-        on_output: Callable[[str, "TerminalProcess"], None] | None,
-    ) -> None:
-        sys.stdout.write(chunk)
-        sys.stdout.flush()
-        self.output += chunk
-        normalized = normalize_terminal(self.output)
-        for item in responders:
-            if item.fired and not item.repeat:
-                continue
-            matches = list(item.pattern.finditer(normalized))
-            if len(matches) > item.fired:
-                item.fired += 1
-                self.write(item.reply)
-        if on_output is not None:
-            on_output(normalized, self)
 
     def run(
         self,
@@ -182,18 +141,28 @@ class TerminalProcess:
         responders = responders or []
         deadline = time.monotonic() + timeout
         dead_since: float | None = None
-
         while time.monotonic() < deadline:
             try:
                 chunk = self._queue.get(timeout=0.1)
             except queue.Empty:
                 chunk = ""
-
             if chunk is None:
                 break
             if chunk:
                 dead_since = None
-                self._consume(chunk, responders, on_output)
+                sys.stdout.write(chunk)
+                sys.stdout.flush()
+                self.output += chunk
+                normalized = normalize_terminal(self.output)
+                for item in responders:
+                    if item.fired and not item.repeat:
+                        continue
+                    matches = list(item.pattern.finditer(normalized))
+                    if len(matches) > item.fired:
+                        item.fired += 1
+                        self.write(item.reply)
+                if on_output is not None:
+                    on_output(normalized, self)
                 continue
             if self.proc.isalive():
                 dead_since = None
@@ -201,20 +170,11 @@ class TerminalProcess:
             if dead_since is None:
                 dead_since = time.monotonic()
                 continue
-            if time.monotonic() - dead_since < POST_EXIT_DRAIN_SECONDS:
-                continue
-            while True:
-                try:
-                    pending = self._queue.get_nowait()
-                except queue.Empty:
-                    break
-                if pending:
-                    self._consume(pending, responders, on_output)
-            break
+            if time.monotonic() - dead_since >= POST_EXIT_DRAIN_SECONDS:
+                break
         else:
             self.proc.terminate(force=True)
             raise RuntimeError("timed out waiting for exact user terminal session")
-
         exit_status = self.proc.exitstatus
         if exit_status not in (None, 0):
             raise RuntimeError(f"terminal session failed with exit status {exit_status}")
@@ -223,56 +183,44 @@ class TerminalProcess:
 
 def require_output(output: str, pattern: str, *, phase: str) -> None:
     if not re.search(pattern, output, re.MULTILINE):
-        raise RuntimeError(
-            f"{phase}: expected normal user-visible output matching {pattern!r}"
-        )
+        raise RuntimeError(f"{phase}: expected user-visible output matching {pattern!r}")
 
 
 def sudo_responders() -> list[Responder]:
     return [
-        responder(
-            r"\[sudo\]\s+password for [^:]+:\s*$",
-            PASSWORD + "\r\n",
-            repeat=True,
-        ),
-        responder(
-            r"\[sudo:\s*authenticate\]\s*Password:\s*$",
-            PASSWORD + "\r\n",
-            repeat=True,
-        ),
+        responder(r"\[sudo\]\s+password for [^:]+:\s*$", PASSWORD + "\r\n", repeat=True),
+        responder(r"\[sudo:\s*authenticate\]\s*Password:\s*$", PASSWORD + "\r\n", repeat=True),
     ]
 
 
-def run_bat(package_root: Path, *, phase: str) -> str:
-    """ACTION: type `install-windows.bat` into a normal Windows prompt."""
-
+def run_bat(package_root: Path, *, phase: str, completion_pattern: str) -> str:
+    """ACTION: type the unchanged BAT, then close cmd after its normal completion."""
     process = TerminalProcess(cwd=package_root)
     sent_command = False
     sent_exit = False
-    prompt_before = 0
 
     def drive(normalized: str, terminal: TerminalProcess) -> None:
-        nonlocal sent_command, sent_exit, prompt_before
-        prompts = cmd_prompt_count(normalized)
-        if not sent_command and prompts:
-            prompt_before = prompts
+        nonlocal sent_command, sent_exit
+        if not sent_command and cmd_prompt_count(normalized):
             terminal.write("install-windows.bat\r\n")
             sent_command = True
             return
-        if sent_command and not sent_exit and prompts > prompt_before:
+        # ConPTY does not reliably emit the redisplayed cmd prompt until more
+        # input arrives. Observe the installer's own normal completion text,
+        # then type ordinary `exit`; the BAT itself is unchanged.
+        if sent_command and not sent_exit and re.search(completion_pattern, normalized, re.MULTILINE):
             terminal.write("exit\r\n")
             sent_exit = True
 
     output = process.run(responders=sudo_responders(), on_output=drive)
     if not sent_command or not sent_exit:
-        raise RuntimeError(f"{phase}: install-windows.bat did not return to the user prompt")
-    require_output(output, r"Hacocoon", phase=phase)
+        raise RuntimeError(f"{phase}: install-windows.bat did not reach normal completion")
+    require_output(output, completion_pattern, phase=phase)
     return output
 
 
 def complete_ubuntu_first_launch() -> str:
     """ACTION: type `wsl -d Hacocoon` and complete stock Ubuntu OOBE."""
-
     process = TerminalProcess()
     user = normal_user_name()
     sent_wsl = False
@@ -288,14 +236,12 @@ def complete_ubuntu_first_launch() -> str:
             terminal.write("wsl -d Hacocoon\r\n")
             sent_wsl = True
             return
-
         if sent_wsl and not sent_linux_exit:
             linux_prompt = rf"(?m)^{re.escape(user)}@[^:\r\n]+:[^\r\n]*\$\s*$"
             if re.search(linux_prompt, normalized):
                 terminal.write("exit\r\n")
                 sent_linux_exit = True
                 return
-
         if sent_linux_exit and not sent_cmd_exit and prompts > prompt_before:
             terminal.write("exit\r\n")
             sent_cmd_exit = True
@@ -305,10 +251,7 @@ def complete_ubuntu_first_launch() -> str:
             responder(r"Create a default Unix user account:\s*", "\r\n"),
             responder(r"New password:\s*$", PASSWORD + "\r\n"),
             responder(r"Retype new password:\s*$", PASSWORD + "\r\n"),
-            responder(
-                r"(?:Would you like to opt-in to platform metrics collection|\[Y/n/e\]:\s*)",
-                "\r\n",
-            ),
+            responder(r"(?:Would you like to opt-in to platform metrics collection|\[Y/n/e\]:\s*)", "\r\n"),
         ],
         on_output=drive,
     )
@@ -319,12 +262,9 @@ def complete_ubuntu_first_launch() -> str:
 
 def run_host_session(session: str, *, expected_output: list[str]) -> str:
     """ACTION: type normal WSL entry and only ordinary Hacocoon commands."""
-
-    try:
-        commands = HOST_SESSION_COMMANDS[session]
-    except KeyError as exc:
-        raise RuntimeError(f"unknown exact user-path host session: {session!r}") from exc
-
+    commands = HOST_SESSION_COMMANDS.get(session)
+    if commands is None:
+        raise RuntimeError(f"unknown exact user-path host session: {session!r}")
     process = TerminalProcess()
     sent_wsl = False
     sent_commands = False
@@ -339,14 +279,12 @@ def run_host_session(session: str, *, expected_output: list[str]) -> str:
             terminal.write("wsl -d Hacocoon\r\n")
             sent_wsl = True
             return
-
         if sent_wsl and not sent_commands and "haco-host" in normalized:
             for command in commands:
                 terminal.write(command + "\r\n")
             terminal.write("exit\r\n")
             sent_commands = True
             return
-
         if sent_commands and not sent_cmd_exit and prompts > prompt_before:
             terminal.write("exit\r\n")
             sent_cmd_exit = True
@@ -359,10 +297,7 @@ def run_host_session(session: str, *, expected_output: list[str]) -> str:
     return output
 
 
-# ---------------------------------------------------------------------------
-# Read-only assertion lane. Nothing below is used to drive product state.
-# ---------------------------------------------------------------------------
-
+# Read-only assertion lane ---------------------------------------------------
 
 def observe(argv: Sequence[str], *, phase: str) -> str:
     print("==> ASSERT READ-ONLY:", " ".join(argv))
@@ -382,25 +317,14 @@ def observe(argv: Sequence[str], *, phase: str) -> str:
         print(stderr, file=sys.stderr)
     if completed.returncode != 0:
         raise RuntimeError(
-            f"{phase}: read-only assertion command failed ({completed.returncode}): "
-            + " ".join(argv)
+            f"{phase}: read-only assertion failed ({completed.returncode}): " + " ".join(argv)
         )
     return stdout
 
 
 def observe_wsl_root(*args: str, phase: str) -> str:
-    # Root is allowed only in the assertion lane. Every caller below uses a
-    # command that reads state and has no repair/lifecycle side effect.
     return observe(
-        (
-            "wsl.exe",
-            "--distribution",
-            INSTANCE,
-            "--user",
-            "root",
-            "--exec",
-            *args,
-        ),
+        ("wsl.exe", "--distribution", INSTANCE, "--user", "root", "--exec", *args),
         phase=phase,
     )
 
@@ -413,69 +337,45 @@ def assert_wsl2(*, phase: str) -> None:
 
 def assert_installed_host_state(*, phase: str) -> None:
     assert_wsl2(phase=phase)
-
     pid1 = observe_wsl_root("ps", "-p", "1", "-o", "comm=", phase=phase)
     if pid1.strip() != "systemd":
         raise RuntimeError(f"{phase}: PID 1 is {pid1!r}, expected systemd")
-
-    active = observe_wsl_root(
-        "systemctl", "is-active", "haco-controller.service", phase=phase
-    )
+    active = observe_wsl_root("systemctl", "is-active", "haco-controller.service", phase=phase)
     if active.strip() != "active":
         raise RuntimeError(f"{phase}: haco-controller.service is {active!r}")
-
-    socket = observe_wsl_root(
-        "stat", "-Lc", "%U:%G:%a", "/run/hacocoon/control.sock", phase=phase
-    )
+    socket = observe_wsl_root("stat", "-Lc", "%U:%G:%a", "/run/hacocoon/control.sock", phase=phase)
     if socket.strip() != "root:hacocoon:660":
         raise RuntimeError(f"{phase}: unexpected controller socket state: {socket!r}")
-
     user = normal_user_name()
     passwd = observe_wsl_root("getent", "passwd", user, phase=phase)
     fields = passwd.split(":")
     if len(fields) < 7 or fields[6].strip() != "/usr/local/libexec/hacocoon-login":
         raise RuntimeError(f"{phase}: WSL login integration is incomplete: {passwd!r}")
-
     groups = observe_wsl_root("id", "-nG", user, phase=phase).split()
     if "hacocoon" not in groups:
         raise RuntimeError(f"{phase}: normal WSL user lacks hacocoon group: {groups!r}")
 
 
 def assert_storage_state(*, phase: str) -> None:
-    source = observe_wsl_root(
-        "incus", "storage", "get", POOL, "source", "--project", PROJECT, phase=phase
-    )
+    source = observe_wsl_root("incus", "storage", "get", POOL, "source", "--project", PROJECT, phase=phase)
     if source.strip() != INCUS_BACKING:
         raise RuntimeError(f"{phase}: pool source is {source!r}, expected {INCUS_BACKING!r}")
-
-    size = observe_wsl_root(
-        "incus", "storage", "get", POOL, "size", "--project", PROJECT, phase=phase
-    )
+    size = observe_wsl_root("incus", "storage", "get", POOL, "size", "--project", PROJECT, phase=phase)
     if size.strip() != "128GiB":
         raise RuntimeError(f"{phase}: pool size is {size!r}, expected 128GiB")
-
     configured = observe_wsl_root(
-        "incus",
-        "storage",
-        "get",
-        POOL,
-        "btrfs.mount_options",
-        "--project",
-        PROJECT,
-        phase=phase,
+        "incus", "storage", "get", POOL, "btrfs.mount_options", "--project", PROJECT, phase=phase
     )
     configured_options = {item for item in configured.strip().split(",") if item}
     if "compress=zstd:3" not in configured_options:
         raise RuntimeError(f"{phase}: configured Btrfs options lack zstd: {configured!r}")
     if "autodefrag" in configured_options:
         raise RuntimeError(f"{phase}: autodefrag must remain disabled: {configured!r}")
-
     fstype = observe_wsl_root(
         "findmnt", "-rn", "-o", "FSTYPE", "--mountpoint", INCUS_POOL_MOUNT, phase=phase
     )
     if fstype.strip() != "btrfs":
         raise RuntimeError(f"{phase}: Incus pool mount is {fstype!r}, expected btrfs")
-
     live = observe_wsl_root(
         "findmnt", "-rn", "-o", "OPTIONS", "--mountpoint", INCUS_POOL_MOUNT, phase=phase
     )
@@ -484,24 +384,22 @@ def assert_storage_state(*, phase: str) -> None:
         raise RuntimeError(f"{phase}: live Btrfs mount lacks zstd compression: {live!r}")
     if "autodefrag" in live_options:
         raise RuntimeError(f"{phase}: live Btrfs mount unexpectedly enables autodefrag: {live!r}")
-
     loop_rows = observe_wsl_root(
         "losetup", "--list", "--noheadings", "--output", "NAME,BACK-FILE", phase=phase
     )
     if INCUS_BACKING not in loop_rows:
         raise RuntimeError(f"{phase}: no loop device backs {INCUS_BACKING}: {loop_rows!r}")
-
-    stat = observe_wsl_root("stat", "-Lc", "%s %b", INCUS_BACKING, phase=phase)
+    stat_output = observe_wsl_root("stat", "-Lc", "%s %b", INCUS_BACKING, phase=phase)
     try:
-        logical_blocks, allocated_blocks = (int(value) for value in stat.split())
+        logical_bytes, allocated_blocks = (int(value) for value in stat_output.split())
     except (ValueError, TypeError) as exc:
-        raise RuntimeError(f"{phase}: unexpected backing stat output: {stat!r}") from exc
+        raise RuntimeError(f"{phase}: unexpected backing stat output: {stat_output!r}") from exc
     allocated_bytes = allocated_blocks * 512
-    if logical_blocks != 128 * 1024 * 1024 * 1024:
-        raise RuntimeError(f"{phase}: backing logical size is {logical_blocks}")
-    if allocated_bytes >= logical_blocks:
+    if logical_bytes != 128 * 1024 * 1024 * 1024:
+        raise RuntimeError(f"{phase}: backing logical size is {logical_bytes}")
+    if allocated_bytes >= logical_bytes:
         raise RuntimeError(
-            f"{phase}: backing image is not sparse: allocated={allocated_bytes} logical={logical_blocks}"
+            f"{phase}: backing image is not sparse: allocated={allocated_bytes} logical={logical_bytes}"
         )
 
 
@@ -513,16 +411,12 @@ def assert_environment_runtime(*, present: bool, phase: str) -> None:
     matching = [line for line in rows.splitlines() if line.split(",", 1)[0] == expected_name]
     if present:
         if not matching or not any(line.endswith(",RUNNING") for line in matching):
-            raise RuntimeError(
-                f"{phase}: expected running Environment runtime {expected_name!r}: {rows!r}"
-            )
+            raise RuntimeError(f"{phase}: expected running Environment {expected_name!r}: {rows!r}")
     elif matching:
         raise RuntimeError(f"{phase}: deleted Environment runtime remains: {matching!r}")
 
 
 def wait_for_natural_wsl_stop(*, phase: str) -> None:
-    """Observe WSL's normal idle lifecycle without injecting terminate/shutdown."""
-
     deadline = time.monotonic() + NATURAL_STOP_TIMEOUT_SECONDS
     while time.monotonic() < deadline:
         running = observe(("wsl.exe", "--list", "--running"), phase=phase)
@@ -531,8 +425,7 @@ def wait_for_natural_wsl_stop(*, phase: str) -> None:
             return
         time.sleep(2)
     raise RuntimeError(
-        f"{phase}: {INSTANCE} did not reach normal stopped state within "
-        f"{NATURAL_STOP_TIMEOUT_SECONDS}s"
+        f"{phase}: {INSTANCE} did not stop naturally within {NATURAL_STOP_TIMEOUT_SECONDS}s"
     )
 
 
@@ -540,7 +433,6 @@ def main() -> int:
     if os.name != "nt":
         raise RuntimeError("Windows user-path E2E must run on Windows")
     inherited_child_environment()
-
     package_root = Path.cwd()
     required = (
         "install-windows.bat",
@@ -552,12 +444,14 @@ def main() -> int:
     )
     missing = [name for name in required if not (package_root / name).is_file()]
     if missing:
-        raise RuntimeError(
-            f"run from extracted Windows package; missing: {', '.join(missing)}"
-        )
+        raise RuntimeError(f"run from extracted Windows package; missing: {', '.join(missing)}")
 
     print("==> ACTION USER TYPES: install-windows.bat")
-    first = run_bat(package_root, phase="first install")
+    first = run_bat(
+        package_root,
+        phase="first install",
+        completion_pattern=r"Complete normal Ubuntu user setup, then run this installer again\.",
+    )
     require_output(first, r"wsl -d Hacocoon", phase="first install")
     assert_wsl2(phase="after first BAT")
 
@@ -565,11 +459,10 @@ def main() -> int:
     complete_ubuntu_first_launch()
 
     print("==> ACTION USER TYPES: install-windows.bat")
-    second = run_bat(package_root, phase="install completion")
-    require_output(
-        second,
-        r"Hacocoon WSL installation complete",
+    run_bat(
+        package_root,
         phase="install completion",
+        completion_pattern=r"Hacocoon WSL installation complete",
     )
     assert_installed_host_state(phase="after install completion")
 
@@ -585,16 +478,13 @@ def main() -> int:
     assert_environment_runtime(present=True, phase="after Environment create")
     assert_storage_state(phase="after Environment create")
 
-    # A user can close WSL and rerun the installer later. Observe the natural
-    # idle shutdown instead of manufacturing it with `wsl --terminate`.
     wait_for_natural_wsl_stop(phase="before reinstall")
 
     print("==> ACTION USER TYPES: install-windows.bat")
-    third = run_bat(package_root, phase="reinstall")
-    require_output(
-        third,
-        r"Hacocoon WSL installation complete",
+    run_bat(
+        package_root,
         phase="reinstall",
+        completion_pattern=r"Hacocoon WSL installation complete",
     )
     assert_installed_host_state(phase="after reinstall")
     assert_environment_runtime(present=True, phase="after reinstall")
