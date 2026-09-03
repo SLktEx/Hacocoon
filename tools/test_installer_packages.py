@@ -112,9 +112,9 @@ with tempfile.TemporaryDirectory() as temp:
                 'Complete-InteractiveWslUserSetup',
                 'Enable-BootstrapSudo',
                 'Disable-BootstrapSudo',
-                'Get-ActiveSudoersPolicy',
-                '"readlink", "-f", "/usr/bin/sudo"',
-                '/usr/lib/cargo/bin/sudo',
+                'Get-SudoersPolicyFiles',
+                '@("/etc/sudoers-rs", "/etc/sudoers")',
+                'Validating temporary sudo rule through policy candidates',
                 '/etc/sudoers-rs',
                 'Ensure-HacocoonSudoRuleLoaded',
                 'Remove-HacocoonSudoRuleInclude',
@@ -140,10 +140,15 @@ with tempfile.TemporaryDirectory() as temp:
                     raise SystemExit(
                         f"Windows installer regressed to two-invocation setup: {contract_marker!r}"
                     )
-            if "$provider.Stdout -match '^sudo-rs'" in windows_installer:
-                raise SystemExit(
-                    "Windows installer regressed to human-facing sudo version-string provider detection"
-                )
+            for forbidden_provider_guess in (
+                "$provider.Stdout -match '^sudo-rs'",
+                '"readlink", "-f", "/usr/bin/sudo"',
+                '"update-alternatives"',
+            ):
+                if forbidden_provider_guess in windows_installer:
+                    raise SystemExit(
+                        f"Windows installer regressed to sudo provider guessing: {forbidden_provider_guess!r}"
+                    )
         with tarfile.open(out / f"hacocoon-ubuntu-{arch}.tar.gz", "r:gz") as tf:
             names = tf.getnames()
             expected = ["install-ubuntu.sh", "install.sh", archive_name, "checksums.txt", "VERSION"]
