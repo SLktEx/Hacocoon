@@ -15,6 +15,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/terminalbridge"
 )
 
 type controllerClient interface {
@@ -216,32 +217,7 @@ func envShellCommand(ctx context.Context, client controllerClient, args []string
 	if err != nil {
 		return err
 	}
-	defer stream.Close()
-
-	inputDone := make(chan error, 1)
-	go func() {
-		_, copyErr := io.Copy(stream, stdin)
-		if closer, ok := stream.(interface{ CloseWrite() error }); ok {
-			if closeErr := closer.CloseWrite(); copyErr == nil {
-				copyErr = closeErr
-			}
-		}
-		inputDone <- copyErr
-	}()
-
-	_, outputErr := io.Copy(stdout, stream)
-	_ = stream.Close()
-	if outputErr != nil && !errors.Is(outputErr, net.ErrClosed) && ctx.Err() == nil {
-		return outputErr
-	}
-	select {
-	case inputErr := <-inputDone:
-		if inputErr != nil && !errors.Is(inputErr, net.ErrClosed) && ctx.Err() == nil {
-			return inputErr
-		}
-	default:
-	}
-	return ctx.Err()
+	return terminalbridge.Bridge(ctx, stream, stdin, stdout)
 }
 
 func envDeleteCommand(ctx context.Context, client controllerClient, args []string) error {
