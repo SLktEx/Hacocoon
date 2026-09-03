@@ -15,7 +15,7 @@ const loginAlias = "hacocoon-login"
 
 func main() {
 	if isLoginAlias(os.Args[0]) {
-		if err := execLegacyLogin(os.Args[1:]); err != nil {
+		if err := runLoginShim(os.Args[1:]); err != nil {
 			fmt.Fprintln(os.Stderr, "haco:", err)
 			os.Exit(1)
 		}
@@ -100,14 +100,36 @@ func isLoginAlias(argv0 string) bool {
 	return name == loginAlias
 }
 
-func execLegacyLogin(args []string) error {
+func runLoginShim(args []string) error {
+	// Explicit shell arguments and non-interactive callers remain on the WSL
+	// Physical Host. Only a normal interactive distro entry is redirected into
+	// the trusted haco-host.
+	if len(args) != 0 || !stdioIsInteractive() {
+		return execProcess("/bin/bash", append([]string{"bash"}, args...))
+	}
+
 	legacy := "/usr/local/bin/hacoq"
 	if configured := strings.TrimSpace(os.Getenv("HACOQ_PATH")); configured != "" {
 		legacy = configured
 	}
-	argv := append([]string{loginAlias}, args...)
-	if err := syscall.Exec(legacy, argv, os.Environ()); err != nil {
-		return fmt.Errorf("start temporary login compatibility CLI %q: %w", legacy, err)
+	if err := syscall.Exec(legacy, []string{"hacoq", "host", "shell"}, os.Environ()); err != nil {
+		return fmt.Errorf("enter haco-host through temporary compatibility CLI %q: %w", legacy, err)
+	}
+	return nil
+}
+
+func stdioIsInteractive() bool {
+	stdin, err := os.Stdin.Stat()
+	if err != nil || stdin.Mode()&os.ModeCharDevice == 0 {
+		return false
+	}
+	stdout, err := os.Stdout.Stat()
+	return err == nil && stdout.Mode()&os.ModeCharDevice != 0
+}
+
+func execProcess(path string, argv []string) error {
+	if err := syscall.Exec(path, argv, os.Environ()); err != nil {
+		return fmt.Errorf("exec %s: %w", path, err)
 	}
 	return nil
 }
