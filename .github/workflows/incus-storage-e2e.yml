@@ -1,0 +1,57 @@
+name: incus-storage-e2e
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: incus-storage-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  incus-owned-btrfs:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      HACO_CI_RUNNER_ENVIRONMENT: github-hosted
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Validate real Incus storage CLI E2E helpers
+        run: bash -n tools/ci-incus-core.sh tools/ci-incus-storage-cli.sh
+      - name: Prepare real Incus substrate
+        run: |
+          printf 'INCUS_CONF=%s/haco-incus-client\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'HACO_CI_INCUS_CONF=%s/haco-incus-client\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          bash tools/ci-incus-core.sh setup
+      - name: Prepare normal-user haco CLI acceptance
+        run: bash tools/ci-incus-storage-cli.sh setup
+      - name: Run normal haco create and run against Incus-owned Btrfs
+        run: bash tools/ci-incus-storage-cli.sh test
+      - name: Capture storage CLI diagnostics
+        if: failure()
+        run: |
+          bash tools/ci-incus-storage-cli.sh diagnostics
+          bash tools/ci-incus-core.sh diagnostics
+      - name: Clean up storage CLI resources
+        if: always()
+        run: bash tools/ci-incus-storage-cli.sh cleanup
+      - name: Clean up Incus resources
+        if: always()
+        run: bash tools/ci-incus-core.sh cleanup
