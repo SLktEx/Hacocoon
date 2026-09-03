@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Callable, Pattern, Sequence
 
 INSTANCE = "Hacocoon"
+MANAGED_USER = "hacocoon"
 PASSWORD = "Hacocoon-E2E-Only-42!"
 ENVIRONMENT = "installer-e2e"
 PROJECT = "hacocoon"
@@ -76,14 +77,6 @@ def inherited_child_environment() -> dict[str, str]:
             + ", ".join(overrides)
         )
     return dict(os.environ)
-
-
-def normal_user_name() -> str:
-    value = os.environ.get("USERNAME", "runneradmin").lower().replace(" ", "_")
-    value = re.sub(r"[^a-z0-9_-]", "", value)
-    if not value or not re.match(r"^[a-z_]", value):
-        value = "runneradmin"
-    return value[:32]
 
 
 def normalize_terminal(text: str) -> str:
@@ -270,53 +263,6 @@ def run_bat(package_root: Path, *, phase: str) -> str:
     return output
 
 
-def complete_ubuntu_first_launch() -> str:
-    """ACTION: type `wsl -d Hacocoon` and complete stock Ubuntu OOBE."""
-
-    process = TerminalProcess()
-    user = normal_user_name()
-    sent_wsl = False
-    sent_linux_exit = False
-    sent_cmd_exit = False
-    prompt_before = 0
-
-    def drive(normalized: str, terminal: TerminalProcess) -> None:
-        nonlocal sent_wsl, sent_linux_exit, sent_cmd_exit, prompt_before
-        prompts = cmd_prompt_count(normalized)
-        if not sent_wsl and prompts:
-            prompt_before = prompts
-            terminal.write("wsl -d Hacocoon\r\n")
-            sent_wsl = True
-            return
-
-        if sent_wsl and not sent_linux_exit:
-            linux_prompt = rf"(?m)^{re.escape(user)}@[^:\r\n]+:[^\r\n]*\$\s*$"
-            if re.search(linux_prompt, normalized):
-                terminal.write("exit\r\n")
-                sent_linux_exit = True
-                return
-
-        if sent_linux_exit and not sent_cmd_exit and prompts > prompt_before:
-            terminal.write("exit\r\n")
-            sent_cmd_exit = True
-
-    output = process.run(
-        responders=[
-            responder(r"Create a default Unix user account:\s*", "\r\n"),
-            responder(r"New password:\s*$", PASSWORD + "\r\n"),
-            responder(r"Retype new password:\s*$", PASSWORD + "\r\n"),
-            responder(
-                r"(?:Would you like to opt-in to platform metrics collection|\[Y/n/e\]:\s*)",
-                "\r\n",
-            ),
-        ],
-        on_output=drive,
-    )
-    if not sent_wsl or not sent_linux_exit or not sent_cmd_exit:
-        raise RuntimeError("Ubuntu first launch did not complete through the exact user path")
-    return output
-
-
 def run_host_session(session: str, *, expected_output: list[str]) -> str:
     """ACTION: type normal WSL entry and only ordinary Hacocoon commands."""
 
@@ -430,7 +376,7 @@ def assert_installed_host_state(*, phase: str) -> None:
     if socket.strip() != "root:hacocoon:660":
         raise RuntimeError(f"{phase}: unexpected controller socket state: {socket!r}")
 
-    user = normal_user_name()
+    user = MANAGED_USER
     passwd = observe_wsl_root("getent", "passwd", user, phase=phase)
     fields = passwd.split(":")
     if len(fields) < 7 or fields[6].strip() != "/usr/local/libexec/hacocoon-login":
@@ -439,6 +385,15 @@ def assert_installed_host_state(*, phase: str) -> None:
     groups = observe_wsl_root("id", "-nG", user, phase=phase).split()
     if "hacocoon" not in groups:
         raise RuntimeError(f"{phase}: normal WSL user lacks hacocoon group: {groups!r}")
+
+    bootstrap = observe_wsl_root(
+        "sh",
+        "-c",
+        "grep -h -F '# BEGIN HACOCOON BOOTSTRAP' /etc/sudoers-rs /etc/sudoers 2>/dev/null || true",
+        phase=phase,
+    )
+    if bootstrap.strip():
+        raise RuntimeError(f"{phase}: temporary bootstrap sudo rule remains installed")
 
 
 def assert_storage_state(*, phase: str) -> None:
@@ -558,20 +513,12 @@ def main() -> int:
 
     print("==> ACTION USER TYPES: install-windows.bat")
     first = run_bat(package_root, phase="first install")
-    require_output(first, r"wsl -d Hacocoon", phase="first install")
-    assert_wsl2(phase="after first BAT")
-
-    print("==> ACTION USER TYPES: wsl -d Hacocoon")
-    complete_ubuntu_first_launch()
-
-    print("==> ACTION USER TYPES: install-windows.bat")
-    second = run_bat(package_root, phase="install completion")
     require_output(
-        second,
+        first,
         r"Hacocoon WSL installation complete",
-        phase="install completion",
+        phase="first install",
     )
-    assert_installed_host_state(phase="after install completion")
+    assert_installed_host_state(phase="after first BAT")
 
     print("==> ACTION USER TYPES: wsl -d Hacocoon and normal haco commands")
     run_host_session(
@@ -590,9 +537,9 @@ def main() -> int:
     wait_for_natural_wsl_stop(phase="before reinstall")
 
     print("==> ACTION USER TYPES: install-windows.bat")
-    third = run_bat(package_root, phase="reinstall")
+    second = run_bat(package_root, phase="reinstall")
     require_output(
-        third,
+        second,
         r"Hacocoon WSL installation complete",
         phase="reinstall",
     )
