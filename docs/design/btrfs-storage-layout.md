@@ -41,7 +41,7 @@ This ownership boundary is important on WSL. A Host-managed mount created after 
 
 Incus' loop-backed Btrfs pool uses a sparse **Linux file**. Incus creates the loop image through its sparse-file path and sets its logical size without eagerly allocating every block. Repository acceptance verifies that the image's allocated bytes are smaller than its logical 128 GiB size after creation.
 
-That is separate from WSL's `sparseVhd` / sparse-VHDX mode. Hacocoon does not enable WSL sparse-VHD mode as part of this storage design. Windows-host VHDX space reclamation remains an explicit maintenance concern; see the `haco maintenance compact` work tracked separately.
+That is separate from WSL's `sparseVhd` / sparse-VHDX mode. Hacocoon does not enable WSL sparse-VHD mode as part of this storage design. Windows-host VHDX space reclamation is not exposed as a Hacocoon CLI command; when needed it remains an explicit Windows/WSL operational concern.
 
 ## Why rootfs objects share one pool
 
