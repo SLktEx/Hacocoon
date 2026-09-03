@@ -4,6 +4,8 @@ Status: **the supported local storage path is Incus-owned loop-backed Btrfs. Hac
 
 Milestones: **v0.20 Managed Btrfs Rootfs Storage** and **v0.21 Managed Btrfs Transparent Compression**.
 
+The former **Hacocoon-managed Btrfs storage layout** used a **sparse raw** file, `haco-<storage-id>` external-source pools, and `haco-storage-helper`. Those implementation paths are removed; these names are retained here only to make the unsupported boundary explicit.
+
 ## Default local layout
 
 The local composition lazily asks Incus to create the default pool without a `source=` override:
