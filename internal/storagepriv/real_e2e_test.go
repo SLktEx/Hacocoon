@@ -74,6 +74,31 @@ func TestRealPrivilegedStorageHelperE2E(t *testing.T) {
 	if handle.Attachment["driver"] != "btrfs" {
 		t.Fatalf("managed driver = %q, want btrfs", handle.Attachment["driver"])
 	}
+	backing := filepath.Join(root, "images", id+".raw")
+
+	// Reproduce the partial state seen on real WSL: the sparse image remains,
+	// its loop device remains attached and already formatted as Btrfs, but the
+	// managed mount itself is absent. A normal Ensure must restore the mount
+	// rather than handing the underlying ext4 directory to Incus.
+	unmountResult, err := privileged.Run(ctx, "umount", source)
+	if err != nil {
+		t.Fatalf("remove managed mount for recovery fixture: result=%#v err=%v", unmountResult, err)
+	}
+	mounted, mountErr := direct.Run(ctx, "findmnt", "-rn", "--mountpoint", source)
+	if mountErr == nil || mounted.ExitCode != 1 {
+		t.Fatalf("managed mount still present in recovery fixture: result=%#v err=%v", mounted, mountErr)
+	}
+	loop, err := privileged.Run(ctx, "losetup", "-j", backing)
+	if err != nil || strings.TrimSpace(loop.Stdout) == "" {
+		t.Fatalf("managed loop disappeared from recovery fixture: result=%#v err=%v", loop, err)
+	}
+	recovered, err := storage.Ensure(ctx, spec)
+	if err != nil {
+		t.Fatalf("recover missing managed Btrfs mount through helper: %v", err)
+	}
+	if recovered.ID != handle.ID || recovered.Attachment["source"] != source || recovered.Attachment["incus_pool"] != handle.Attachment["incus_pool"] {
+		t.Fatalf("recovered ensure changed attachment: first=%#v recovered=%#v", handle, recovered)
+	}
 
 	state, err := storage.Inspect(ctx, handle)
 	if err != nil {
@@ -92,7 +117,6 @@ func TestRealPrivilegedStorageHelperE2E(t *testing.T) {
 		t.Fatalf("managed mount options = %q err=%v, want compress=zstd:3", strings.TrimSpace(options.Stdout), err)
 	}
 
-	backing := filepath.Join(root, "images", id+".raw")
 	info, err := os.Lstat(backing)
 	if err != nil {
 		t.Fatalf("inspect sparse backing image: %v", err)
@@ -108,7 +132,7 @@ func TestRealPrivilegedStorageHelperE2E(t *testing.T) {
 	if _, err := os.Lstat(backing); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("backing image remains after delete: %v", err)
 	}
-	mounted, mountErr := direct.Run(ctx, "findmnt", "-rn", "--mountpoint", source)
+	mounted, mountErr = direct.Run(ctx, "findmnt", "-rn", "--mountpoint", source)
 	if mountErr == nil || mounted.ExitCode != 1 {
 		t.Fatalf("managed mount remains after delete: result=%#v err=%v", mounted, mountErr)
 	}
