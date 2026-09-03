@@ -18,6 +18,12 @@ GRANT_INCUS_ADMIN="${HACO_BOOTSTRAP_GRANT_INCUS_ADMIN:-0}"
 HACOCOON_CONTROLLER_SERVICE="haco-controller.service"
 HACOCOON_CONTROLLER_SOCKET="/run/hacocoon/control.sock"
 HACOCOON_ACCESS_GROUP="hacocoon"
+LEGACY_STORAGE_SERVICE="hacocoon-legacy-storage.service"
+LEGACY_STORAGE_RECOVERY_PATH="$STORAGE_HELPER_DIR/hacocoon-legacy-storage-recover"
+LEGACY_STORAGE_POOL="haco-local-default"
+LEGACY_STORAGE_PROJECT="hacocoon"
+LEGACY_STORAGE_SOURCE="$DEFAULT_HACO_ROOT/mounts/local-default"
+LEGACY_STORAGE_BACKING="$DEFAULT_HACO_ROOT/images/local-default.raw"
 GITHUB_CLI_KEYRING_URL="https://cli.github.com/packages/githubcli-archive-keyring.gpg"
 GITHUB_CLI_OLD_KEY_FINGERPRINT_TEXT="2C61 0620 1985 B60E 6C7A C873 23F3 D4EA 7571 6059"
 GITHUB_CLI_CURRENT_KEY_FINGERPRINT_TEXT="7F38 BBB5 9D06 4DBC B3D8 4D72 5612 B364 6231 3325"
@@ -544,6 +550,72 @@ install_release_binaries() {
   prepare_default_haco_root
 }
 
+configure_legacy_storage_recovery() {
+  # Fresh/default installations use the Incus-owned loop-backed pool from #420
+  # and never need this compatibility service. Only adopt the exact historical
+  # external source path; an unexpected source is not safe to reinterpret.
+  legacy_source="$($SUDO incus storage get "$LEGACY_STORAGE_POOL" source --project "$LEGACY_STORAGE_PROJECT" 2>/dev/null || true)"
+  [ "$legacy_source" = "$LEGACY_STORAGE_SOURCE" ] || return 0
+
+  printf '==> Detected legacy Hacocoon Btrfs pool; installing pre-Incus recovery\n'
+  $SUDO test -x "$STORAGE_HELPER_PATH" || die "legacy storage recovery requires $STORAGE_HELPER_PATH"
+  $SUDO test -f "$LEGACY_STORAGE_BACKING" || die "legacy pool points at $LEGACY_STORAGE_SOURCE but backing image is missing: $LEGACY_STORAGE_BACKING"
+  $SUDO install -d -o root -g root -m 0700 "$DEFAULT_HACO_ROOT/mounts" "$LEGACY_STORAGE_SOURCE"
+
+  recovery_tmp="$(mktemp)"
+  cat > "$recovery_tmp" <<EOF_RECOVERY
+#!/bin/sh
+set -eu
+loop="\$("$STORAGE_HELPER_PATH" --root "$DEFAULT_HACO_ROOT" loop-attach "$LEGACY_STORAGE_BACKING")"
+[ -n "\$loop" ] || { printf '%s\n' 'legacy Hacocoon storage recovery did not obtain a loop device' >&2; exit 1; }
+fstype="\$("$STORAGE_HELPER_PATH" --root "$DEFAULT_HACO_ROOT" fs-type "\$loop")"
+[ "\$fstype" = "btrfs" ] || { printf 'legacy Hacocoon backing filesystem is %s, expected btrfs\n' "\$fstype" >&2; exit 1; }
+"$STORAGE_HELPER_PATH" --root "$DEFAULT_HACO_ROOT" mount-btrfs "\$loop" "$LEGACY_STORAGE_SOURCE"
+"$STORAGE_HELPER_PATH" --root "$DEFAULT_HACO_ROOT" remount-btrfs "\$loop" "$LEGACY_STORAGE_SOURCE"
+options="\$(/usr/bin/findmnt -rn -o OPTIONS --mountpoint "$LEGACY_STORAGE_SOURCE")"
+case ",\$options," in
+  *,autodefrag,*) printf 'legacy Hacocoon Btrfs mount unexpectedly enables autodefrag: %s\n' "\$options" >&2; exit 1 ;;
+esac
+case ",\$options," in
+  *,compress=zstd:3,*|*,compress=zstd,*) ;;
+  *) printf 'legacy Hacocoon Btrfs mount is missing zstd compression: %s\n' "\$options" >&2; exit 1 ;;
+esac
+EOF_RECOVERY
+  $SUDO install -o root -g root -m 0755 "$recovery_tmp" "$LEGACY_STORAGE_RECOVERY_PATH"
+  rm -f "$recovery_tmp"
+
+  unit_tmp="$(mktemp)"
+  cat > "$unit_tmp" <<EOF_UNIT
+[Unit]
+Description=Recover legacy Hacocoon Btrfs storage before Incus
+Before=incus.service
+
+[Service]
+Type=oneshot
+ExecStart=$LEGACY_STORAGE_RECOVERY_PATH
+EOF_UNIT
+  $SUDO install -o root -g root -m 0644 "$unit_tmp" "/etc/systemd/system/$LEGACY_STORAGE_SERVICE"
+  rm -f "$unit_tmp"
+
+  $SUDO install -d -o root -g root -m 0755 /etc/systemd/system/incus.service.d
+  dropin_tmp="$(mktemp)"
+  cat > "$dropin_tmp" <<EOF_DROPIN
+[Unit]
+Requires=$LEGACY_STORAGE_SERVICE
+After=$LEGACY_STORAGE_SERVICE
+EOF_DROPIN
+  $SUDO install -o root -g root -m 0644 "$dropin_tmp" /etc/systemd/system/incus.service.d/50-hacocoon-legacy-storage.conf
+  rm -f "$dropin_tmp"
+
+  $SUDO systemctl daemon-reload
+  # Incus may already have attempted this pool before the installer could
+  # restore the mount. Restart it once under the new ordering so the pool is
+  # initialized from a valid Btrfs source immediately instead of waiting for a
+  # daemon retry interval.
+  $SUDO systemctl restart incus.service || die "failed to restart Incus after legacy Btrfs recovery setup"
+  $SUDO incus info >/dev/null 2>&1 || die "Incus is not ready after legacy Btrfs recovery"
+}
+
 resolve_hacocoon_access_user() {
   if [ "$(id -u)" -ne 0 ]; then
     id -un
@@ -655,6 +727,7 @@ controller_bin="$(command -v haco-controller || true)"
 haco_bin="$(readlink -f "$haco_bin")"
 controller_bin="$(readlink -f "$controller_bin")"
 
+configure_legacy_storage_recovery
 printf '==> Configuring Physical Host controller service\n'
 configure_hacocoon_controller "$controller_bin"
 printf '==> Reconciling trusted haco-host and controller endpoint\n'
