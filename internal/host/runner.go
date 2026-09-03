@@ -32,6 +32,44 @@ type Runner interface {
 	Run(context.Context, string, ...string) (Result, error)
 }
 
+// CommandError preserves the underlying process error while making ordinary
+// user-facing failures actionable. The rendered command and captured streams
+// are redacted with the same rules as structured logging before they leave the
+// runner, so higher-level wrapping keeps useful diagnostics without printing
+// obvious credential-bearing arguments or output verbatim.
+type CommandError struct {
+	command  string
+	exitCode int
+	stdout   string
+	stderr   string
+	cause    error
+}
+
+func (e *CommandError) Error() string {
+	if e == nil {
+		return "host command failed"
+	}
+	var out strings.Builder
+	fmt.Fprintf(&out, "host command failed: %s\nexit code: %d", e.command, e.exitCode)
+	if e.cause != nil {
+		fmt.Fprintf(&out, "\nerror: %s", logging.RedactString(e.cause.Error()))
+	}
+	if strings.TrimSpace(e.stdout) != "" {
+		fmt.Fprintf(&out, "\nstdout:\n%s", strings.TrimRight(e.stdout, "\r\n"))
+	}
+	if strings.TrimSpace(e.stderr) != "" {
+		fmt.Fprintf(&out, "\nstderr:\n%s", strings.TrimRight(e.stderr, "\r\n"))
+	}
+	return out.String()
+}
+
+func (e *CommandError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+
 type ExecRunner struct {
 	// MaxOutputBytes is the maximum number of child-output bytes retained
 	// independently for stdout and stderr. Zero uses DefaultCaptureLimit. The
@@ -83,7 +121,7 @@ func (r ExecRunner) Run(ctx context.Context, name string, args ...string) (Resul
 			"exit_code", result.ExitCode,
 			"error", err,
 		)
-		return result, err
+		return result, newCommandError(name, args, result, err)
 	}
 	result.ExitCode = -1
 	logger.DebugContext(ctx, "host command failed",
@@ -91,7 +129,33 @@ func (r ExecRunner) Run(ctx context.Context, name string, args ...string) (Resul
 		"exit_code", result.ExitCode,
 		"error", err,
 	)
-	return result, err
+	return result, newCommandError(name, args, result, err)
+}
+
+func newCommandError(name string, args []string, result Result, cause error) error {
+	return &CommandError{
+		command:  formatCommand(name, args),
+		exitCode: result.ExitCode,
+		stdout:   logging.RedactString(result.Stdout),
+		stderr:   logging.RedactString(result.Stderr),
+		cause:    cause,
+	}
+}
+
+func formatCommand(name string, args []string) string {
+	parts := make([]string, 0, len(args)+1)
+	parts = append(parts, formatCommandArg(logging.RedactString(name)))
+	for _, arg := range logging.SanitizeArgs(args) {
+		parts = append(parts, formatCommandArg(arg))
+	}
+	return strings.Join(parts, " ")
+}
+
+func formatCommandArg(arg string) string {
+	if arg != "" && !strings.ContainsAny(arg, " \t\r\n\"'") {
+		return arg
+	}
+	return strconv.Quote(arg)
 }
 
 func commandComponent(name string, args []string) string {
