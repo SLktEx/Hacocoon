@@ -29,17 +29,19 @@ Unimplemented product commands fail clearly instead of falling back to the legac
 
 ## Compatibility boundary
 
-Release archives and installers temporarily contain both `haco` and `hacoq` for the Linux/WSL runtime.
+Release archives and installers temporarily contain both `haco` and `hacoq` inside the Linux/WSL runtime.
 
 The trusted `haco-host` also receives both names:
 
 - `/usr/local/bin/haco` — the new product CLI
 - `/usr/local/bin/hacoq` — the temporary legacy controller/runtime CLI
 
-On Windows, the installer only provisions the dedicated Hacocoon WSL distribution. It does **not** install a native Windows `haco` command, launcher, or PATH entry. Run `haco` inside the dedicated WSL environment.
+There is no native Windows `haco` command. The Windows installer only provisions the dedicated Hacocoon WSL environment; product commands run inside that environment.
+
+This reset does not preserve or clean up state from older installers. Pre-1.0 installer compatibility is intentionally out of scope; development and acceptance use the current installer contract only.
 
 ## Development rule
 
 Do not implement new workflows by adding commands to `hacoq`, and do not make the new `haco` shell out to `hacoq` for ordinary product operations. Shared behavior should move behind reusable Go packages or controller APIs as each product command is rebuilt.
 
-The WSL interactive-login shim is a temporary migration exception: it can use `hacoq` only to preserve entry into the trusted `haco-host` until that bootstrap path is moved behind the new product surface.
+The WSL interactive-login shim is a temporary migration exception: it can use existing runtime plumbing only to preserve entry into the trusted `haco-host` until that bootstrap path is moved behind the new product surface.
