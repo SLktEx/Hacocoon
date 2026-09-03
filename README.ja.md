@@ -102,7 +102,7 @@ VS Codeは最初のconvenience clientであり、Core dependencyではありま�
 
 ## Baseとoptional OCI tooling
 
-CLI migration中、既存のlow-level operationは一時的に`hacoq`から利用します。
+旧`haco base list`や`haco plugin oci`は以前のCLI表記です。CLI migration中は下記の一時的な`hacoq`表記を使います。
 
 ```bash
 hacoq base list
