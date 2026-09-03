@@ -41,7 +41,8 @@ installer_path.write_text(installer, encoding="utf-8", newline="\n")
 test = test_path.read_text(encoding="utf-8")
 needle = '''                '$OutputEncoding = [Text.UTF8Encoding]::new($false)',
 '''
-replacement = needle + '''                'LC_ALL=C sed ''1s/^\\xEF\\xBB\\xBF//'' | "$@"',
+replacement = needle + '''                '$wrappedArguments = @($Arguments[0..$execIndex])',
+                'LC_ALL=C sed ',
 '''
 if needle not in test:
     raise SystemExit("required Windows contract insertion point not found")
