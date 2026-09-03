@@ -3,6 +3,7 @@ package controlapi
 import (
 	"context"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/control"
@@ -66,7 +67,10 @@ func (c *Client) ExecEnvironment(ctx context.Context, environment string, argv [
 }
 
 func (c *Client) OpenEnvironmentShell(ctx context.Context, environment string) (net.Conn, error) {
-	return c.wire.OpenStream(ctx, MethodEnvironmentShell, EnvironmentShellRequest{Environment: environment})
+	return c.wire.OpenStream(ctx, MethodEnvironmentShell, EnvironmentShellRequest{
+		Environment: environment,
+		Terminal:    currentTerminalMetadata(),
+	})
 }
 
 func (c *Client) DeleteEnvironment(ctx context.Context, environment string) error {
@@ -74,5 +78,12 @@ func (c *Client) DeleteEnvironment(ctx context.Context, environment string) erro
 }
 
 func (c *Client) OpenTrustedHostShell(ctx context.Context) (net.Conn, error) {
-	return c.wire.OpenStream(ctx, MethodHostShell, struct{}{})
+	return c.wire.OpenStream(ctx, MethodHostShell, HostShellRequest{Terminal: currentTerminalMetadata()})
+}
+
+func currentTerminalMetadata() TerminalMetadata {
+	return TerminalMetadata{
+		Term:      os.Getenv("TERM"),
+		ColorTerm: os.Getenv("COLORTERM"),
+	}
 }

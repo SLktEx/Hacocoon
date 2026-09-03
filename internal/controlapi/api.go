@@ -22,6 +22,9 @@ const (
 	MethodEnvironmentShell  = "environment.shell"
 	MethodEnvironmentDelete = "environment.delete"
 	MethodHostShell         = "host.shell"
+
+	maxTerminalIdentityBytes = 128
+	maxTerminalDimension     = 10000
 )
 
 type EnvironmentCreateRequest struct {
@@ -41,7 +44,24 @@ type EnvironmentExecRequest struct {
 	Argv        []string `json:"argv"`
 }
 
-type EnvironmentShellRequest = EnvironmentNameRequest
+// TerminalMetadata is the wire representation of the small, explicitly
+// allow-listed terminal metadata that may accompany an interactive session.
+// Columns/Rows are reserved here for the resize work tracked in #410.
+type TerminalMetadata struct {
+	Term      string `json:"term,omitempty"`
+	ColorTerm string `json:"color_term,omitempty"`
+	Columns   int    `json:"columns,omitempty"`
+	Rows      int    `json:"rows,omitempty"`
+}
+
+type EnvironmentShellRequest struct {
+	Environment string           `json:"environment"`
+	Terminal    TerminalMetadata `json:"terminal,omitempty"`
+}
+
+type HostShellRequest struct {
+	Terminal TerminalMetadata `json:"terminal,omitempty"`
+}
 
 type environmentService interface {
 	Create(context.Context, core.EnvironmentSpec) (core.Environment, error)
@@ -129,10 +149,11 @@ func Register(server *control.Server, environments environmentService, clients c
 		return err
 	}
 	if err := server.RegisterStream(MethodEnvironmentShell, func(ctx context.Context, payload json.RawMessage) (control.Stream, error) {
-		request, err := decodeEnvironmentName(payload)
+		request, metadata, err := decodeEnvironmentShell(payload)
 		if err != nil {
 			return nil, err
 		}
+		ctx = core.WithTerminalMetadata(ctx, metadata)
 		prepared, err := environments.PrepareShellStream(ctx, request.Environment)
 		if err != nil {
 			return nil, translateError(err)
@@ -165,7 +186,18 @@ func RegisterHost(server *control.Server, hosts hostService) error {
 	if server == nil || hosts == nil {
 		return control.ErrInvalidArgument
 	}
-	return server.RegisterStream(MethodHostShell, func(ctx context.Context, _ json.RawMessage) (control.Stream, error) {
+	return server.RegisterStream(MethodHostShell, func(ctx context.Context, payload json.RawMessage) (control.Stream, error) {
+		var request HostShellRequest
+		if len(payload) != 0 {
+			if err := json.Unmarshal(payload, &request); err != nil {
+				return nil, control.NewStatusError("invalid_argument", "invalid host shell request")
+			}
+		}
+		metadata, err := validateTerminalMetadata(request.Terminal)
+		if err != nil {
+			return nil, err
+		}
+		ctx = core.WithTerminalMetadata(ctx, metadata)
 		prepared, err := hosts.PrepareTrustedHostShellStream(ctx)
 		if err != nil {
 			return nil, translateError(err)
@@ -182,6 +214,57 @@ func decodeEnvironmentName(payload json.RawMessage) (EnvironmentNameRequest, err
 		return EnvironmentNameRequest{}, control.NewStatusError("invalid_argument", "environment is required")
 	}
 	return request, nil
+}
+
+func decodeEnvironmentShell(payload json.RawMessage) (EnvironmentShellRequest, core.TerminalMetadata, error) {
+	var request EnvironmentShellRequest
+	if err := json.Unmarshal(payload, &request); err != nil || strings.TrimSpace(request.Environment) == "" {
+		return EnvironmentShellRequest{}, core.TerminalMetadata{}, control.NewStatusError("invalid_argument", "environment is required")
+	}
+	metadata, err := validateTerminalMetadata(request.Terminal)
+	if err != nil {
+		return EnvironmentShellRequest{}, core.TerminalMetadata{}, err
+	}
+	return request, metadata, nil
+}
+
+func validateTerminalMetadata(metadata TerminalMetadata) (core.TerminalMetadata, error) {
+	if err := validateTerminalIdentity("term", metadata.Term); err != nil {
+		return core.TerminalMetadata{}, err
+	}
+	if err := validateTerminalIdentity("color_term", metadata.ColorTerm); err != nil {
+		return core.TerminalMetadata{}, err
+	}
+	if metadata.Columns < 0 || metadata.Columns > maxTerminalDimension || metadata.Rows < 0 || metadata.Rows > maxTerminalDimension {
+		return core.TerminalMetadata{}, control.NewStatusError("invalid_argument", "terminal dimensions are out of range")
+	}
+	return core.TerminalMetadata{
+		Term:      metadata.Term,
+		ColorTerm: metadata.ColorTerm,
+		Columns:   metadata.Columns,
+		Rows:      metadata.Rows,
+	}, nil
+}
+
+func validateTerminalIdentity(name, value string) error {
+	if value == "" {
+		return nil
+	}
+	if len(value) > maxTerminalIdentityBytes || strings.TrimSpace(value) != value {
+		return control.NewStatusError("invalid_argument", name+" contains invalid terminal metadata")
+	}
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			continue
+		}
+		switch r {
+		case '-', '_', '.', '+':
+			continue
+		default:
+			return control.NewStatusError("invalid_argument", name+" contains invalid terminal metadata")
+		}
+	}
+	return nil
 }
 
 func translateError(err error) error {

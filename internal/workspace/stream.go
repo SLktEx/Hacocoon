@@ -30,11 +30,13 @@ func (s *Service) PrepareShellStream(ctx context.Context, name string) (func(con
 		return nil, fmt.Errorf("runtime does not support streamed shells: %w", core.ErrUnsupported)
 	}
 	ref := environment.RuntimeRef
+	terminal := core.TerminalMetadataFromContext(ctx)
 	return func(runCtx context.Context, stdin io.Reader, stdout, stderr io.Writer) (err error) {
 		if stdin == nil || stdout == nil || stderr == nil {
 			return core.ErrInvalidArgument
 		}
 		started := time.Now()
+		runCtx = core.WithTerminalMetadata(runCtx, terminal)
 		runCtx = logging.With(runCtx, "operation", "shell_environment_stream", "environment_id", name)
 		logger := logging.FromContext(runCtx).With("component", "core")
 		logger.InfoContext(runCtx, "opening streamed environment shell")
