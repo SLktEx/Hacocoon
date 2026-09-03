@@ -1,0 +1,175 @@
+name: pr403-sudo-policy-hotfix
+
+on:
+  push:
+    branches:
+      - fix/windows-one-shot-bootstrap
+    paths:
+      - .github/workflows/pr403-sudo-policy-hotfix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/windows-one-shot-bootstrap
+          persist-credentials: true
+      - name: Patch sudo-rs active policy handling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/install-windows.ps1')
+          text = path.read_text(encoding='utf-8')
+
+          anchor = 'function Get-InstalledDistros {'
+          if anchor not in text:
+              raise SystemExit('helper insertion anchor missing')
+          if 'function Get-ActiveSudoersPolicy' not in text:
+              helpers = r'''function Get-ActiveSudoersPolicy([string]$Name) {
+              $provider = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sudo", "--version")
+              if ($provider.ExitCode -ne 0) {
+                  throw "Unable to determine the active sudo provider: $($provider.Stderr)"
+              }
+              if ($provider.Stdout -match '^sudo-rs') {
+                  $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "test", "-f", "/etc/sudoers-rs")
+                  if ($probe.ExitCode -eq 0) { return "/etc/sudoers-rs" }
+              }
+              return "/etc/sudoers"
+          }
+
+          function Ensure-HacocoonSudoRuleLoaded([string]$Name, [string]$RulePath) {
+              $activePolicy = Get-ActiveSudoersPolicy $Name
+              $includedirPattern = '^[[:space:]]*(@includedir|#includedir)[[:space:]]+/etc/sudoers\.d([[:space:]]|$)'
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "grep", "-Eq", $includedirPattern, $activePolicy)
+              if ($probe.ExitCode -eq 0) { return $activePolicy }
+              if ($probe.ExitCode -ne 1) {
+                  throw "Failed to inspect active sudo policy '$activePolicy': $($probe.Stderr)"
+              }
+
+              # sudo-rs prefers /etc/sudoers-rs when present. Minimal Ubuntu/WSL
+              # policy may therefore ignore /etc/sudoers.d. Include only the
+              # Hacocoon-owned rule instead of enabling unrelated drop-ins.
+              $includeLine = "@include $RulePath"
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "grep", "-Fx", $includeLine, $activePolicy)
+              if ($probe.ExitCode -eq 1) {
+                  $probe = Write-WslUtf8File $Name $activePolicy ("`n$includeLine`n") -Append
+                  if ($probe.ExitCode -ne 0) {
+                      throw "Failed to include '$RulePath' from active sudo policy '$activePolicy': $($probe.Stderr)"
+                  }
+              } elseif ($probe.ExitCode -ne 0) {
+                  throw "Failed to inspect Hacocoon sudo include in '$activePolicy': $($probe.Stderr)"
+              }
+
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $activePolicy)
+              if ($probe.ExitCode -ne 0) {
+                  throw "Active sudo policy '$activePolicy' rejected Hacocoon rule '$RulePath': $($probe.Stderr)"
+              }
+              return $activePolicy
+          }
+
+          function Remove-HacocoonSudoRuleInclude([string]$Name, [string]$RulePath) {
+              $script = @'
+          set -eu
+          policy="$1"
+          include_line="$2"
+          [ -f "$policy" ] || exit 0
+          tmp="$(mktemp)"
+          awk -v include_line="$include_line" '$0 != include_line { print }' "$policy" > "$tmp"
+          install -o root -g root -m 0440 "$tmp" "$policy"
+          rm -f "$tmp"
+          '@
+              $includeLine = "@include $RulePath"
+              foreach ($policy in @("/etc/sudoers", "/etc/sudoers-rs")) {
+                  $probe = Invoke-WslCaptureWithInput @(
+                      "--distribution", $Name,
+                      "--user", "root",
+                      "--exec", "sh", "-s", "--", $policy, $includeLine
+                  ) $script
+                  if ($probe.ExitCode -ne 0) {
+                      throw "Failed to remove Hacocoon sudo include from '$policy': $($probe.Stderr)"
+                  }
+              }
+              $activePolicy = Get-ActiveSudoersPolicy $Name
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $activePolicy)
+              if ($probe.ExitCode -ne 0) {
+                  throw "Active sudo policy '$activePolicy' is invalid after Hacocoon include cleanup: $($probe.Stderr)"
+              }
+          }
+
+          '''
+              text = text.replace(anchor, helpers + anchor, 1)
+
+          old_bootstrap = r'''    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $BootstrapSudoersPath)
+              if ($probe.ExitCode -ne 0) { throw "Failed to validate temporary installer sudo rule: $($probe.Stderr)" }
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-c")
+              if ($probe.ExitCode -ne 0) { throw "Failed to validate the effective sudo policy: $($probe.Stderr)" }
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", "/usr/bin/true")
+              if ($probe.ExitCode -ne 0) {
+                  $policy = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sudo", "-l", "-U", $LoginUser)
+                  throw "Temporary installer sudo rule is not effective for '$LoginUser': $($probe.Stderr) Policy: $($policy.Stdout) $($policy.Stderr)"
+              }
+          }'''
+          new_bootstrap = r'''    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $BootstrapSudoersPath)
+              if ($probe.ExitCode -ne 0) { throw "Failed to validate temporary installer sudo rule: $($probe.Stderr)" }
+              $activePolicy = Ensure-HacocoonSudoRuleLoaded $Name $BootstrapSudoersPath
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", "/usr/bin/true")
+              if ($probe.ExitCode -ne 0) {
+                  $policy = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sudo", "-l", "-U", $LoginUser)
+                  throw "Temporary installer sudo rule is not effective for '$LoginUser' through '$activePolicy': $($probe.Stderr) Policy: $($policy.Stdout) $($policy.Stderr)"
+              }
+          }'''
+          if old_bootstrap not in text:
+              raise SystemExit('bootstrap replacement anchor missing')
+          text = text.replace(old_bootstrap, new_bootstrap, 1)
+
+          old_disable = r'''function Disable-BootstrapSudo([string]$Name) {
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "rm", "-f", $BootstrapSudoersPath)
+              if ($probe.ExitCode -ne 0) {
+                  throw "Failed to remove temporary installer sudo rule."
+              }
+          }'''
+          new_disable = r'''function Disable-BootstrapSudo([string]$Name) {
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "rm", "-f", $BootstrapSudoersPath)
+              if ($probe.ExitCode -ne 0) {
+                  throw "Failed to remove temporary installer sudo rule."
+              }
+              Remove-HacocoonSudoRuleInclude $Name $BootstrapSudoersPath
+          }'''
+          if old_disable not in text:
+              raise SystemExit('disable replacement anchor missing')
+          text = text.replace(old_disable, new_disable, 1)
+
+          old_post = r'''    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", "/etc/sudoers.d/hacocoon-login")
+              if ($probe.ExitCode -ne 0) { throw "Failed to validate the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
+
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/usermod", "-s", $LoginShell, $LoginUser)'''
+          new_post = r'''    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", "/etc/sudoers.d/hacocoon-login")
+              if ($probe.ExitCode -ne 0) { throw "Failed to validate the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
+              $activePolicy = Ensure-HacocoonSudoRuleLoaded $Name "/etc/sudoers.d/hacocoon-login"
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", $haco, "host", "ensure")
+              if ($probe.ExitCode -ne 0) {
+                  throw "Narrow Hacocoon WSL sudo rule is not effective through '$activePolicy': $($probe.Stderr)"
+              }
+
+              $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/usermod", "-s", $LoginShell, $LoginUser)'''
+          if old_post not in text:
+              raise SystemExit('post replacement anchor missing')
+          text = text.replace(old_post, new_post, 1)
+
+          path.write_text(text, encoding='utf-8', newline='\n')
+          PY
+
+          rm -f .github/workflows/pr403-sudo-policy-hotfix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/install-windows.ps1 .github/workflows/pr403-sudo-policy-hotfix.yml
+          git diff --cached --check
+          git commit -m 'fix(windows): load Hacocoon sudo rules from active policy'
+          git push origin HEAD:fix/windows-one-shot-bootstrap
