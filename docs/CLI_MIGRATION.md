@@ -44,4 +44,4 @@ This reset does not preserve or clean up state from older installers. Pre-1.0 in
 
 Do not implement new workflows by adding commands to `hacoq`, and do not make the new `haco` shell out to `hacoq` for ordinary product operations. Shared behavior should move behind reusable Go packages or controller APIs as each product command is rebuilt.
 
-The WSL interactive-login shim is a temporary migration exception: it can use existing runtime plumbing only to preserve entry into the trusted `haco-host` until that bootstrap path is moved behind the new product surface.
+The WSL interactive-login alias is handled by the product `haco` binary itself. Interactive entry opens the trusted `haco-host` through the controller API directly; it does not invoke or depend on `hacoq`.
