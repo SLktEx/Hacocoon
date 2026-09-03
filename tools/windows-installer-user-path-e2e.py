@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Drive the Windows installer through the real user path and inspect its result.
+"""Drive Windows install/reinstall through the real user path.
 
-Product-driving actions must stay identical to normal user actions: no HACO_*
-overrides, installer-only arguments/options, CI sudo rules, root preparation, or
-state repair may be added to make an action succeed.
+Product actions use the same command line and interaction a real user uses.
+The harness must not add HACO_* overrides, installer-only arguments/options,
+CI sudo rules, root preparation, or state repair to make an action succeed.
 
-Read-only assertions are allowed between actions. They may inspect WSL, Incus,
-mount, loop, service, and Environment state, but must never mutate or repair
-state that a later product action depends on.
+Read-only assertions may inspect the state produced by an action. A deliberate
+`wsl --terminate Hacocoon` is a lifecycle fault injection that reproduces a
+normal WSL/Host restart; nothing repairs Hacocoon state before the unchanged
+installer is run again.
 """
 
 from __future__ import annotations
@@ -33,19 +34,10 @@ POOL = "haco-local-default"
 MOUNTPOINT = "/var/lib/hacocoon/mounts/local-default"
 BACKING = "/var/lib/hacocoon/images/local-default.raw"
 PROCESS_TIMEOUT_SECONDS = 900
-IDLE_SHUTDOWN_SECONDS = 15
 POST_EXIT_DRAIN_SECONDS = 1.0
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 OSC_RE = re.compile(r"\x1b\][^\x07]*(?:\x07|\x1b\\)")
-
-
-def normal_user_name() -> str:
-    value = os.environ.get("USERNAME", "runneradmin").lower().replace(" ", "_")
-    value = re.sub(r"[^a-z0-9_-]", "", value)
-    if not value or not re.match(r"^[a-z_]", value):
-        value = "runneradmin"
-    return value[:32]
 
 
 def inherited_child_environment() -> dict[str, str]:
@@ -56,6 +48,14 @@ def inherited_child_environment() -> dict[str, str]:
             + ", ".join(overrides)
         )
     return dict(os.environ)
+
+
+def normal_user_name() -> str:
+    value = os.environ.get("USERNAME", "runneradmin").lower().replace(" ", "_")
+    value = re.sub(r"[^a-z0-9_-]", "", value)
+    if not value or not re.match(r"^[a-z_]", value):
+        value = "runneradmin"
+    return value[:32]
 
 
 def normalize_terminal(text: str) -> str:
@@ -100,7 +100,7 @@ class TerminalProcess:
             except EOFError:
                 self._queue.put(None)
                 return
-            except Exception as exc:  # pragma: no cover - platform/runtime diagnostic
+            except Exception as exc:  # pragma: no cover - runtime diagnostic
                 self._queue.put(f"\n[terminal reader error: {exc}]\n")
                 self._queue.put(None)
                 return
@@ -134,8 +134,8 @@ class TerminalProcess:
         self,
         *,
         responders: list[Responder] | None = None,
-        timeout: int = PROCESS_TIMEOUT_SECONDS,
         on_output: Callable[[str, "TerminalProcess"], None] | None = None,
+        timeout: int = PROCESS_TIMEOUT_SECONDS,
     ) -> str:
         responders = responders or []
         deadline = time.monotonic() + timeout
@@ -153,23 +153,22 @@ class TerminalProcess:
                 dead_since = None
                 self._consume(chunk, responders, on_output)
                 continue
-
             if self.proc.isalive():
                 dead_since = None
                 continue
-
             if dead_since is None:
                 dead_since = time.monotonic()
                 continue
-            if time.monotonic() - dead_since >= POST_EXIT_DRAIN_SECONDS:
-                while True:
-                    try:
-                        pending = self._queue.get_nowait()
-                    except queue.Empty:
-                        break
-                    if pending:
-                        self._consume(pending, responders, on_output)
-                break
+            if time.monotonic() - dead_since < POST_EXIT_DRAIN_SECONDS:
+                continue
+            while True:
+                try:
+                    pending = self._queue.get_nowait()
+                except queue.Empty:
+                    break
+                if pending:
+                    self._consume(pending, responders, on_output)
+            break
         else:
             self.proc.terminate(force=True)
             raise RuntimeError(f"timed out waiting for terminal command: {self.argv!r}")
@@ -183,8 +182,8 @@ class TerminalProcess:
 
 
 def run_bat(package_root: Path, *, phase: str) -> str:
-    # ACT: exact user-facing command. The BAT receives zero arguments and no
-    # Hacocoon-specific environment override.
+    # ACT: this is exactly the user-facing installer command. The cmd.exe flags
+    # only launch a BAT non-interactively; install-windows.bat receives no args.
     process = TerminalProcess(
         ["cmd.exe", "/d", "/c", "install-windows.bat"],
         cwd=package_root,
@@ -200,7 +199,7 @@ def run_bat(package_root: Path, *, phase: str) -> str:
 
 
 def complete_ubuntu_first_launch() -> str:
-    # ACT: exact documented user-facing command.
+    # ACT: documented first-launch command.
     process = TerminalProcess(["wsl.exe", "-d", INSTANCE])
     user = normal_user_name()
     sent_exit = False
@@ -232,21 +231,19 @@ def complete_ubuntu_first_launch() -> str:
 
 
 def run_host_session(commands: list[str], *, expected_markers: list[str]) -> str:
-    # ACT transport: exact documented user-facing command. Product commands in
-    # `commands` use their normal syntax. Marker commands are assertions only;
-    # they do not alter state or make a following product action succeed.
+    # ACT transport: documented WSL entry. Commands supplied here use normal
+    # shell/Hacocoon syntax. printf markers are read-only assertions only.
     process = TerminalProcess(["wsl.exe", "-d", INSTANCE])
     sent = False
 
     def send_commands(normalized: str, terminal: TerminalProcess) -> None:
         nonlocal sent
-        if sent:
+        if sent or "haco-host" not in normalized:
             return
-        if "haco-host" in normalized:
-            for command in commands:
-                terminal.write(command + "\r\n")
-            terminal.write("exit\r\n")
-            sent = True
+        for command in commands:
+            terminal.write(command + "\r\n")
+        terminal.write("exit\r\n")
+        sent = True
 
     output = process.run(on_output=send_commands)
     if not sent:
@@ -258,19 +255,18 @@ def run_host_session(commands: list[str], *, expected_markers: list[str]) -> str
 
 
 def run_readonly_wsl(argv: list[str], *, phase: str) -> str:
-    # ASSERT only. Root/direct WSL execution is permitted here because this path
-    # is read-only and never prepares or repairs product state.
-    command = [
-        "wsl.exe",
-        "--distribution",
-        INSTANCE,
-        "--user",
-        "root",
-        "--exec",
-        *argv,
-    ]
+    # ASSERT only. This direct root path is allowed because it reads state and
+    # cannot prepare or repair the next product action.
     completed = subprocess.run(
-        command,
+        [
+            "wsl.exe",
+            "--distribution",
+            INSTANCE,
+            "--user",
+            "root",
+            "--exec",
+            *argv,
+        ],
         text=True,
         capture_output=True,
         check=False,
@@ -288,11 +284,10 @@ def run_readonly_wsl(argv: list[str], *, phase: str) -> str:
 
 
 def assert_managed_storage(*, phase: str) -> None:
-    print(f"==> Read-only assertion: managed storage ({phase})")
+    print(f"==> ASSERT: managed storage ({phase})")
 
     service = run_readonly_wsl(
-        ["systemctl", "is-active", "haco-controller.service"],
-        phase=phase,
+        ["systemctl", "is-active", "haco-controller.service"], phase=phase
     )
     if service != "active":
         raise RuntimeError(f"{phase}: haco-controller is not active: {service!r}")
@@ -306,53 +301,75 @@ def assert_managed_storage(*, phase: str) -> None:
             f"{phase}: Incus pool source is {pool_source!r}, expected {MOUNTPOINT!r}"
         )
 
+    pool_list = run_readonly_wsl(
+        ["incus", "storage", "list", "--project", PROJECT], phase=phase
+    )
+    if POOL not in pool_list:
+        raise RuntimeError(f"{phase}: managed Incus storage pool is missing")
+    if "UNAVAILABLE" in pool_list.upper():
+        raise RuntimeError(f"{phase}: managed Incus storage pool is unavailable:\n{pool_list}")
+
     fstype = run_readonly_wsl(
-        ["findmnt", "-rn", "-o", "FSTYPE", "--mountpoint", MOUNTPOINT],
-        phase=phase,
+        ["findmnt", "-rn", "-o", "FSTYPE", "--mountpoint", MOUNTPOINT], phase=phase
     )
     if fstype != "btrfs":
         raise RuntimeError(f"{phase}: managed mount fstype is {fstype!r}, expected 'btrfs'")
 
     options = run_readonly_wsl(
-        ["findmnt", "-rn", "-o", "OPTIONS", "--mountpoint", MOUNTPOINT],
-        phase=phase,
+        ["findmnt", "-rn", "-o", "OPTIONS", "--mountpoint", MOUNTPOINT], phase=phase
     )
-    option_set = set(options.split(","))
-    if "compress=zstd:3" not in option_set and "compress=zstd" not in option_set:
+    if not re.search(r"(?:^|,)compress=zstd(?::3)?(?:,|$)", options):
         raise RuntimeError(f"{phase}: managed mount is missing zstd compression: {options}")
 
     source = run_readonly_wsl(
-        ["findmnt", "-rn", "-o", "SOURCE", "--mountpoint", MOUNTPOINT],
-        phase=phase,
+        ["findmnt", "-rn", "-o", "SOURCE", "--mountpoint", MOUNTPOINT], phase=phase
     )
     if not re.fullmatch(r"/dev/loop\d+", source):
-        raise RuntimeError(f"{phase}: managed mount is not backed by a loop device: {source!r}")
+        raise RuntimeError(f"{phase}: managed mount has unexpected source: {source!r}")
 
-    backing_type = run_readonly_wsl(
-        ["stat", "-Lc", "%F", BACKING],
-        phase=phase,
-    )
+    backing_type = run_readonly_wsl(["stat", "-Lc", "%F", BACKING], phase=phase)
     if backing_type != "regular file":
         raise RuntimeError(f"{phase}: managed backing is not a regular file: {backing_type!r}")
 
     loop_rows = run_readonly_wsl(
-        ["losetup", "--list", "--noheadings", "--output", "NAME,BACK-FILE"],
+        ["losetup", "--list", "--noheadings", "--output", "NAME,BACK-FILE"], phase=phase
+    )
+    if not any(
+        len(fields := row.split(None, 1)) == 2
+        and fields[0] == source
+        and fields[1] == BACKING
+        for row in loop_rows.splitlines()
+    ):
+        raise RuntimeError(f"{phase}: {source} is not attached to {BACKING}")
+
+    incus_pid = run_readonly_wsl(
+        ["systemctl", "show", "--property", "MainPID", "--value", "incus.service"],
         phase=phase,
     )
-    attached = False
-    for row in loop_rows.splitlines():
-        fields = row.split(None, 1)
-        if len(fields) == 2 and fields[0] == source and fields[1] == BACKING:
-            attached = True
-            break
-    if not attached:
+    if not incus_pid.isdigit() or int(incus_pid) <= 1:
+        raise RuntimeError(f"{phase}: incus.service has invalid MainPID: {incus_pid!r}")
+    incus_fstype = run_readonly_wsl(
+        [
+            "nsenter",
+            f"--mount=/proc/{incus_pid}/ns/mnt",
+            "--",
+            "findmnt",
+            "-rn",
+            "-o",
+            "FSTYPE",
+            "--mountpoint",
+            MOUNTPOINT,
+        ],
+        phase=phase,
+    )
+    if incus_fstype != "btrfs":
         raise RuntimeError(
-            f"{phase}: {source} is not attached to managed backing {BACKING}"
+            f"{phase}: managed Btrfs mount is not visible in incusd namespace: {incus_fstype!r}"
         )
 
 
 def assert_environment_running(*, phase: str) -> None:
-    print(f"==> Read-only assertion: Environment running ({phase})")
+    print(f"==> ASSERT: Environment running ({phase})")
     row = run_readonly_wsl(
         [
             "incus",
@@ -373,7 +390,7 @@ def assert_environment_running(*, phase: str) -> None:
 
 
 def assert_environment_deleted(*, phase: str) -> None:
-    print(f"==> Read-only assertion: Environment deleted ({phase})")
+    print(f"==> ASSERT: Environment deleted ({phase})")
     row = run_readonly_wsl(
         [
             "incus",
@@ -392,12 +409,23 @@ def assert_environment_deleted(*, phase: str) -> None:
         raise RuntimeError(f"{phase}: Environment instance still exists: {row!r}")
 
 
+def terminate_wsl_for_restart() -> None:
+    # LIFECYCLE INJECTION, not preparation. This intentionally discards WSL
+    # runtime namespaces/mounts so the next unchanged BAT must recover them.
+    print("==> LIFECYCLE: terminate Hacocoon WSL to reproduce a real restart")
+    completed = subprocess.run(
+        ["wsl.exe", "--terminate", INSTANCE],
+        check=False,
+        env=inherited_child_environment(),
+    )
+    if completed.returncode != 0:
+        raise RuntimeError("failed to terminate Hacocoon WSL for restart acceptance")
+    time.sleep(0.75)
+
+
 def main() -> int:
     if os.name != "nt":
         raise RuntimeError("Windows user-path E2E must run on Windows")
-
-    # Fail rather than deleting/overriding test knobs. The product inherits the
-    # ambient environment unchanged.
     inherited_child_environment()
 
     package_root = Path.cwd()
@@ -416,7 +444,7 @@ def main() -> int:
     print("==> ACT: first install-windows.bat")
     first = run_bat(package_root, phase="phase 1")
     if "wsl -d Hacocoon" not in first:
-        raise RuntimeError("phase 1 did not ask the user to complete normal WSL first launch")
+        raise RuntimeError("phase 1 did not request normal WSL first launch")
 
     print("==> ACT: wsl -d Hacocoon first-launch OOBE")
     complete_ubuntu_first_launch()
@@ -426,25 +454,24 @@ def main() -> int:
     if "Hacocoon WSL installation complete" not in second:
         raise RuntimeError("phase 2 did not complete the packaged installation")
 
-    assert_managed_storage(phase="after install")
+    assert_managed_storage(phase="after initial install")
 
-    print("==> ACT: enter haco-host and create a live Environment")
-    before_commands = [
-        "haco version",
-        "printf '__ASSERT_VERSION_RC__:%s\\n' \"$?\"",
-        "haco doctor",
-        "printf '__ASSERT_DOCTOR_BEFORE_RC__:%s\\n' \"$?\"",
-        f"mkdir -p {WORKSPACE}",
-        "printf 'before-reinstall\\n' > ~/installer-e2e-workspace/input.txt",
-        f"haco env create --workspace {WORKSPACE} {ENVIRONMENT}",
-        "printf '__ASSERT_CREATE_RC__:%s\\n' \"$?\"",
-        f"haco env status {ENVIRONMENT}",
-        "printf '__ASSERT_STATUS_BEFORE_RC__:%s\\n' \"$?\"",
-        f"haco env exec {ENVIRONMENT} -- cat /workspace/input.txt",
-        "printf '__ASSERT_EXEC_BEFORE_RC__:%s\\n' \"$?\"",
-    ]
+    print("==> ACT: wsl -d Hacocoon; create and use a live Environment")
     run_host_session(
-        before_commands,
+        [
+            "haco version",
+            "printf '__ASSERT_VERSION_RC__:%s\\n' \"$?\"",
+            "haco doctor",
+            "printf '__ASSERT_DOCTOR_BEFORE_RC__:%s\\n' \"$?\"",
+            f"mkdir -p {WORKSPACE}",
+            "printf 'before-reinstall\\n' > ~/installer-e2e-workspace/input.txt",
+            f"haco env create --workspace {WORKSPACE} {ENVIRONMENT}",
+            "printf '__ASSERT_CREATE_RC__:%s\\n' \"$?\"",
+            f"haco env status {ENVIRONMENT}",
+            "printf '__ASSERT_STATUS_BEFORE_RC__:%s\\n' \"$?\"",
+            f"haco env exec {ENVIRONMENT} -- cat /workspace/input.txt",
+            "printf '__ASSERT_EXEC_BEFORE_RC__:%s\\n' \"$?\"",
+        ],
         expected_markers=[
             "__ASSERT_VERSION_RC__:0",
             "__ASSERT_DOCTOR_BEFORE_RC__:0",
@@ -454,36 +481,33 @@ def main() -> int:
             "__ASSERT_EXEC_BEFORE_RC__:0",
         ],
     )
+    assert_environment_running(phase="before WSL restart")
+    assert_managed_storage(phase="before WSL restart")
 
-    assert_environment_running(phase="before reinstall")
-    assert_managed_storage(phase="before reinstall")
+    terminate_wsl_for_restart()
 
-    # No assertion or synthetic restart is run during this idle window. A
-    # read-only WSL assertion would itself start the distro if it had stopped.
-    print(f"==> Leave the user session idle for {IDLE_SHUTDOWN_SECONDS}s")
-    time.sleep(IDLE_SHUTDOWN_SECONDS)
-
-    print("==> ACT: rerun install-windows.bat unchanged")
-    third = run_bat(package_root, phase="reinstall")
+    # Nothing is asserted, mounted, attached, started, or repaired between the
+    # terminate and this ACT. The ordinary installer owns all reconciliation.
+    print("==> ACT: rerun unchanged install-windows.bat after WSL restart")
+    third = run_bat(package_root, phase="restart/reinstall")
     if "Hacocoon WSL installation complete" not in third:
-        raise RuntimeError("reinstall did not complete through the packaged BAT")
+        raise RuntimeError("reinstall did not complete after WSL restart")
 
-    assert_managed_storage(phase="after reinstall")
-    assert_environment_running(phase="after reinstall")
+    assert_managed_storage(phase="after WSL restart/reinstall")
+    assert_environment_running(phase="after WSL restart/reinstall")
 
-    print("==> ACT: re-enter haco-host and verify existing Environment")
-    after_commands = [
-        "haco doctor",
-        "printf '__ASSERT_DOCTOR_AFTER_RC__:%s\\n' \"$?\"",
-        f"haco env status {ENVIRONMENT}",
-        "printf '__ASSERT_STATUS_AFTER_RC__:%s\\n' \"$?\"",
-        f"haco env exec {ENVIRONMENT} -- cat /workspace/input.txt",
-        "printf '__ASSERT_EXEC_AFTER_RC__:%s\\n' \"$?\"",
-        f"haco env delete {ENVIRONMENT}",
-        "printf '__ASSERT_DELETE_RC__:%s\\n' \"$?\"",
-    ]
+    print("==> ACT: wsl -d Hacocoon; verify the existing Environment")
     run_host_session(
-        after_commands,
+        [
+            "haco doctor",
+            "printf '__ASSERT_DOCTOR_AFTER_RC__:%s\\n' \"$?\"",
+            f"haco env status {ENVIRONMENT}",
+            "printf '__ASSERT_STATUS_AFTER_RC__:%s\\n' \"$?\"",
+            f"haco env exec {ENVIRONMENT} -- cat /workspace/input.txt",
+            "printf '__ASSERT_EXEC_AFTER_RC__:%s\\n' \"$?\"",
+            f"haco env delete {ENVIRONMENT}",
+            "printf '__ASSERT_DELETE_RC__:%s\\n' \"$?\"",
+        ],
         expected_markers=[
             "__ASSERT_DOCTOR_AFTER_RC__:0",
             "__ASSERT_STATUS_AFTER_RC__:0",
@@ -492,11 +516,10 @@ def main() -> int:
             "__ASSERT_DELETE_RC__:0",
         ],
     )
-
     assert_environment_deleted(phase="after delete")
     assert_managed_storage(phase="after delete")
 
-    print("windows installer exact user path: PASS")
+    print("windows installer exact restart/reinstall user path: PASS")
     return 0
 
 
@@ -504,5 +527,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except Exception as exc:
-        print(f"windows installer exact user path: FAIL: {exc}", file=sys.stderr)
+        print(f"windows installer exact restart/reinstall user path: FAIL: {exc}", file=sys.stderr)
         raise
