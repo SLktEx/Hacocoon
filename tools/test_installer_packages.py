@@ -81,6 +81,46 @@ with tempfile.TemporaryDirectory() as temp:
             if zf.read("VERSION").decode() != VERSION + "\n":
                 raise SystemExit(f"Windows {arch} version mismatch")
 
+            windows_installer = zf.read("install-windows.ps1").decode("utf-8")
+            for required in (
+                "function Invoke-ElevatedWsl",
+                "([Environment]::SystemDirectory)",
+                'Join-Path ([Environment]::SystemDirectory) "wsl.exe"',
+                "Start-Process -FilePath $systemWsl",
+                "-Verb RunAs",
+                "Administrator approval is required only to create",
+                "Invoke-ElevatedWsl $args",
+                "$createExitCode = $LASTEXITCODE",
+                '[string]$LoginUser = "hacocoon"',
+                '[switch]$InteractiveUserSetup',
+                "Ensure-AutomaticWslLoginUser",
+                "Set-WslDefaultUser",
+                "Grant-WslBootstrapSudo",
+                "Remove-WslBootstrapSudo",
+                "Running common Ubuntu install.sh",
+                "Hacocoon WSL installation complete",
+            ):
+                if required not in windows_installer:
+                    raise SystemExit(
+                        f"Windows {arch} package is missing required installer behavior: {required!r}"
+                    )
+            if "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell." in windows_installer:
+                raise SystemExit(f"Windows {arch} package still contains the old elevation hard failure")
+            if '$process = Start-Process -FilePath "wsl.exe"' in windows_installer:
+                raise SystemExit(f"Windows {arch} package elevates a PATH-resolved wsl.exe")
+            if "$createExitCode = if (Test-Administrator)" in windows_installer:
+                raise SystemExit(
+                    f"Windows {arch} package captures wsl.exe stdout into its exit-code variable"
+                )
+            for obsolete_flow in (
+                "Complete normal Ubuntu user setup, then run this installer again.",
+                "Launch it once with: wsl -d $InstanceName",
+            ):
+                if obsolete_flow in windows_installer:
+                    raise SystemExit(
+                        f"Windows {arch} package still contains the old two-invocation bootstrap flow: {obsolete_flow!r}"
+                    )
+
         with tarfile.open(out / f"hacocoon-ubuntu-{arch}.tar.gz", "r:gz") as tf:
             names = tf.getnames()
             expected = ["install-ubuntu.sh", "install.sh", archive_name, "checksums.txt", "VERSION"]
