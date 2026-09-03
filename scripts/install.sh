@@ -7,8 +7,6 @@ SIGNER_SOURCE_REF="refs/heads/main"
 RELEASE_PREDICATE_TYPE="https://hacocoon.dev/attestations/release/v1"
 GITHUB_API_VERSION="2026-03-10"
 INSTALL_DIR="${HACO_INSTALL_DIR:-/usr/local/bin}"
-STORAGE_HELPER_DIR="${HACO_STORAGE_HELPER_INSTALL_DIR:-/usr/local/libexec/hacocoon}"
-STORAGE_HELPER_PATH="$STORAGE_HELPER_DIR/haco-storage-helper"
 DEFAULT_HACO_ROOT="/var/lib/hacocoon"
 VERSION="${1:-${HACO_VERSION:-latest}}"
 REQUIRE_PROVENANCE="${HACO_REQUIRE_PROVENANCE:-1}"
@@ -53,11 +51,6 @@ for bool_name in REQUIRE_PROVENANCE BINARIES_ONLY SKIP_INCUS GRANT_INCUS_ADMIN; 
     *) die "$bool_name must be 0 or 1" ;;
   esac
 done
-
-case "$STORAGE_HELPER_DIR" in
-  /*) ;;
-  *) die "HACO_STORAGE_HELPER_INSTALL_DIR must be an absolute path" ;;
-esac
 
 need uname
 need id
@@ -392,11 +385,10 @@ validate_release_archive() {
     $0 == "haco-vscode" { vscode++; next }
     $0 == "haco-agent-host" { agenthost++; next }
     $0 == "haco-notify" { notify++; next }
-    $0 == "haco-storage-helper" { storagehelper++; next }
     $0 ~ /^README[^/]*$/ { next }
     $0 ~ /^LICENSE[^/]*$/ { next }
     { bad=1 }
-    END { exit !(bad != 1 && haco == 1 && controller == 1 && hacohost == 1 && vscode == 1 && agenthost == 1 && notify == 1 && storagehelper == 1) }
+    END { exit !(bad != 1 && haco == 1 && controller == 1 && hacohost == 1 && vscode == 1 && agenthost == 1 && notify == 1) }
   '; then
     die "release archive must contain each Hacocoon release binary exactly once; only root README/LICENSE files are allowed in addition"
   fi
@@ -424,14 +416,6 @@ install_binary() {
       ;;
   esac
   printf 'Installed %s to %s\n' "$binary" "$target"
-}
-
-install_storage_helper() {
-  $SUDO mkdir -p "$STORAGE_HELPER_DIR"
-  $SUDO cp "$staging/haco-storage-helper" "$STORAGE_HELPER_PATH"
-  $SUDO chown root:root "$STORAGE_HELPER_PATH"
-  $SUDO chmod 0755 "$STORAGE_HELPER_PATH"
-  printf 'Installed haco-storage-helper to %s\n' "$STORAGE_HELPER_PATH"
 }
 
 prepare_default_haco_root() {
@@ -531,7 +515,7 @@ install_release_binaries() {
   staging="$tmpdir/staging"
   mkdir -m 0700 "$staging"
   tar -xzf "$tmpdir/$archive" -C "$staging"
-  for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper; do
+  for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
     [ -f "$staging/$binary" ] || die "release archive does not contain regular file $binary"
     [ ! -L "$staging/$binary" ] || die "release archive extracted symbolic link for $binary"
     chmod 0755 "$staging/$binary"
@@ -540,7 +524,6 @@ install_release_binaries() {
   for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
     install_binary "$binary"
   done
-  install_storage_helper
   prepare_default_haco_root
 }
 
