@@ -136,10 +136,28 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $packageRoot = Join-Path $env:RUNNER_TEMP "hacocoon-windows-amd64"
+          $logPath = Join-Path $env:RUNNER_TEMP "windows-installer-user-path.log"
+          $driverExit = 1
+
           Push-Location $packageRoot
           try {
-            python "$env:GITHUB_WORKSPACE\tools\windows-installer-user-path-e2e.py"
-            if ($LASTEXITCODE -ne 0) { throw "Exact Windows installer user path failed." }
+            $previousPreference = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            try {
+              python "$env:GITHUB_WORKSPACE\tools\windows-installer-user-path-e2e.py" *> $logPath
+              $driverExit = $LASTEXITCODE
+            } finally {
+              $ErrorActionPreference = $previousPreference
+            }
           } finally {
             Pop-Location
           }
+
+          if ($driverExit -ne 0) {
+            Write-Host "=== Exact user-path failure tail ==="
+            Get-Content -LiteralPath $logPath -Tail 120
+            throw "Exact Windows installer user path failed with exit $driverExit."
+          }
+
+          Write-Host "=== Exact user-path success tail ==="
+          Get-Content -LiteralPath $logPath -Tail 40
