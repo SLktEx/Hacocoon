@@ -42,4 +42,4 @@ jobs:
           git commit -m "fix(windows): bootstrap sudo through direct policy block"
           git push origin HEAD:fix/windows-one-shot-bootstrap
 
-# retry after range-based helper fix
+# retry with persistent login sudo migration
