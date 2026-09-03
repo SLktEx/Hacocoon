@@ -133,15 +133,25 @@ function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [swit
 }
 
 function Get-ActiveSudoersPolicy([string]$Name) {
-    $provider = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sudo", "--version")
-    if ($provider.ExitCode -ne 0) {
-        throw "Unable to determine the active sudo provider: $($provider.Stderr)"
+    # Ubuntu 26.04 selects sudo-rs vs sudo.ws through update-alternatives.
+    # Do not infer the provider from human-facing --version text; inspect
+    # the resolved alternative target instead.
+    $provider = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "readlink", "-f", "/usr/bin/sudo")
+    if ($provider.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($provider.Stdout)) {
+        throw "Unable to determine the active sudo provider target: $($provider.Stderr)"
     }
-    if ($provider.Stdout -match '^sudo-rs') {
+
+    if ($provider.Stdout -eq "/usr/lib/cargo/bin/sudo") {
         $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "test", "-f", "/etc/sudoers-rs")
         if ($probe.ExitCode -eq 0) { return "/etc/sudoers-rs" }
+        if ($probe.ExitCode -ne 1) {
+            throw "Failed to inspect sudo-rs policy file: $($probe.Stderr)"
+        }
     }
-    return "/etc/sudoers"
+
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "test", "-f", "/etc/sudoers")
+    if ($probe.ExitCode -eq 0) { return "/etc/sudoers" }
+    throw "No supported active sudo policy file was found for provider '$($provider.Stdout)'."
 }
 
 function Ensure-HacocoonSudoRuleLoaded([string]$Name, [string]$RulePath) {
