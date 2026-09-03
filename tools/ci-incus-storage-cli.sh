@@ -81,7 +81,9 @@ assert_incus_managed_storage() {
   live_options="$(sudo findmnt -rn -o OPTIONS --mountpoint "$INCUS_POOL_MOUNT")"
   [[ ",$live_options," == *,compress=zstd:3,* || ",$live_options," == *,compress=zstd,* ]] || fail "Incus pool mount is missing zstd compression: $live_options"
   [[ ",$live_options," == *,noatime,* ]] || fail "Incus pool mount is missing noatime: $live_options"
-  [[ ",$live_options," == *,nodiscard,* ]] || fail "Incus pool mount is missing nodiscard: $live_options"
+  # Linux may omit the default negative option `nodiscard` from findmnt output.
+  # The configured Incus desired state above must contain nodiscard; live state
+  # proves the policy by ensuring no discard mode is active.
   [[ ",$live_options," != *,discard,* && ",$live_options," != *,discard=async,* ]] || fail "Incus pool mount unexpectedly enables discard: $live_options"
   [[ ",$live_options," != *,relatime,* && ",$live_options," != *,strictatime,* ]] || fail "Incus pool mount unexpectedly enables atime updates: $live_options"
   [[ ",$live_options," != *,autodefrag,* ]] || fail "live Incus Btrfs mount unexpectedly enables autodefrag: $live_options"
