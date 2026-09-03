@@ -14,6 +14,16 @@ if not exist "%INSTALLER%" (
     exit /b 1
 )
 
+rem The short-lived Windows-side haco launcher is no longer part of Hacocoon.
+rem Remove files left by older installers so upgrades do not retain a native
+rem haco command. A stale empty PATH entry is harmless and can be cleaned later.
+if defined LOCALAPPDATA (
+    del /f /q "%LOCALAPPDATA%\Hacocoon\bin\haco.cmd" >nul 2>nul
+    del /f /q "%LOCALAPPDATA%\Hacocoon\bin\haco-windows.ps1" >nul 2>nul
+    del /f /q "%LOCALAPPDATA%\Hacocoon\bin\INSTANCE" >nul 2>nul
+    rmdir "%LOCALAPPDATA%\Hacocoon\bin" >nul 2>nul
+)
+
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER%" %*
 set "HACO_INSTALL_EXIT=%ERRORLEVEL%"
 
