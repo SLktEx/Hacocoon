@@ -1,0 +1,124 @@
+name: windows-maintenance-compact-e2e
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "cmd/haco/maintenance.go"
+      - "cmd/haco/maintenance_test.go"
+      - "cmd/haco/command_classification.go"
+      - "scripts/haco-windows.cmd"
+      - "scripts/haco-windows.ps1"
+      - "scripts/install-windows.bat"
+      - "tools/package_installers.py"
+      - "tools/test_installer_packages.py"
+      - ".github/workflows/windows-maintenance-compact-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compact-real-wsl-vhd:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate launcher syntax and forbidden-mode contract
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          [scriptblock]::Create((Get-Content -Raw "scripts/haco-windows.ps1")) | Out-Null
+          $launcher = Get-Content -Raw "scripts/haco-windows.ps1"
+          foreach ($forbidden in @("--set-sparse", "--allow-unsafe", "sparseVhd")) {
+            if ($launcher.Contains($forbidden)) {
+              throw "Windows maintenance launcher contains forbidden experimental mode token: $forbidden"
+            }
+          }
+
+      - name: Create disposable WSL distribution
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $instance = "HacocoonCompactE2E"
+          $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
+          if ($installed -contains $instance) {
+            & wsl.exe --unregister $instance
+            if ($LASTEXITCODE -ne 0) { throw "Failed to remove stale E2E distro." }
+          }
+          & wsl.exe --install Ubuntu-26.04 --name $instance --no-launch
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create disposable WSL distro." }
+          & wsl.exe --distribution $instance --user root --exec true
+          if ($LASTEXITCODE -ne 0) { throw "Disposable WSL distro did not start." }
+
+      - name: Grow and free guest data
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $instance = "HacocoonCompactE2E"
+          & wsl.exe --distribution $instance --user root --exec dd if=/dev/zero of=/var/tmp/haco-compact-e2e.bin bs=1M count=192 status=none
+          if ($LASTEXITCODE -ne 0) { throw "Failed to grow disposable WSL VHD." }
+          & wsl.exe --distribution $instance --user root --exec sync
+          if ($LASTEXITCODE -ne 0) { throw "sync failed." }
+          & wsl.exe --distribution $instance --user root --exec rm -f /var/tmp/haco-compact-e2e.bin
+          if ($LASTEXITCODE -ne 0) { throw "Failed to remove disposable guest data." }
+          & wsl.exe --distribution $instance --user root --exec sync
+          if ($LASTEXITCODE -ne 0) { throw "final sync failed." }
+
+      - name: Run exact Windows maintenance command
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $instance = "HacocoonCompactE2E"
+          $launcherRoot = Join-Path $env:RUNNER_TEMP "haco-windows-launcher"
+          New-Item -ItemType Directory -Path $launcherRoot -Force | Out-Null
+          Copy-Item "scripts/haco-windows.cmd" (Join-Path $launcherRoot "haco.cmd") -Force
+          Copy-Item "scripts/haco-windows.ps1" (Join-Path $launcherRoot "haco-windows.ps1") -Force
+          [IO.File]::WriteAllText((Join-Path $launcherRoot "INSTANCE"), $instance + "`n", [Text.Encoding]::ASCII)
+
+          Push-Location $launcherRoot
+          try {
+            & cmd.exe /d /c "haco.cmd maintenance compact"
+            if ($LASTEXITCODE -ne 0) { throw "haco maintenance compact failed with exit code $LASTEXITCODE." }
+          } finally {
+            Pop-Location
+          }
+
+          $running = @(& wsl.exe --list --running --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
+          if ($running -contains $instance) {
+            throw "Maintenance command left the target distro running."
+          }
+
+      - name: Verify compacted distro remains usable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $instance = "HacocoonCompactE2E"
+          & wsl.exe --distribution $instance --user root --exec sh -eu -c "test ! -e /var/tmp/haco-compact-e2e.bin && touch /var/tmp/haco-after-compact && rm /var/tmp/haco-after-compact"
+          if ($LASTEXITCODE -ne 0) { throw "Compacted WSL distro failed post-compaction read/write validation." }
+
+      - name: Collect diagnostics
+        if: failure()
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          & wsl.exe --version 2>&1 | ForEach-Object { Write-Host $_ }
+          & wsl.exe --list --verbose 2>&1 | ForEach-Object { Write-Host $_ }
+          Get-Command Optimize-VHD -ErrorAction SilentlyContinue | Format-List *
+          Get-Command diskpart.exe -ErrorAction SilentlyContinue | Format-List *
+          $global:LASTEXITCODE = 0
+
+      - name: Remove disposable WSL distribution
+        if: always()
+        shell: pwsh
+        run: |
+          $instance = "HacocoonCompactE2E"
+          $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
+          if ($installed -contains $instance) {
+            & wsl.exe --unregister $instance
+          }
+          $global:LASTEXITCODE = 0

@@ -19,9 +19,9 @@ type commandClassification struct {
 }
 
 // hacoCommandClassifications is the authoritative Phase 3 responsibility audit
-// for historical runtime-facing top-level haco commands. Standalone support
-// commands such as help/version are intentionally handled before runtime
-// composition and are not part of this migration table.
+// for runtime-facing top-level haco commands. Standalone support commands such
+// as help/version are intentionally handled before runtime composition and are
+// not part of this migration table.
 var hacoCommandClassifications = map[string]commandClassification{
 	"env": {
 		Name:   "env",
@@ -83,6 +83,11 @@ var hacoCommandClassifications = map[string]commandClassification{
 		Domain: commandDomainPhysicalHost,
 		State:  "Physical Host managed egress service (egress serve)",
 	},
+	"maintenance": {
+		Name:   "maintenance",
+		Domain: commandDomainPhysicalHost,
+		State:  "Windows Host owns explicit WSL VHD compaction (#402)",
+	},
 	"plugin": {
 		Name:   "plugin",
 		Domain: commandDomainTrustedHost,
@@ -139,6 +144,7 @@ var historicalHacoCommands = []string{
 	"delete",
 	"doctor",
 	"host",
+	"maintenance",
 }
 
 func hacoCommandClassification(command string) (commandClassification, bool) {
