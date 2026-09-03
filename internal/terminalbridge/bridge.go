@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os/signal"
-	"syscall"
 
 	"golang.org/x/term"
 )
@@ -57,15 +55,6 @@ func BridgeWithTerminal(
 	if ctx == nil || stream == nil || stdin == nil || stdout == nil || prepareTerminal == nil {
 		return errors.New("invalid interactive controller stream")
 	}
-
-	// The caller can enter raw mode below, so process termination must first turn
-	// into cooperative session cancellation. This gives the bridge a chance to
-	// close the controller stream and run the terminal restore defer instead of
-	// letting SIGTERM/SIGHUP terminate the process with the TTY left raw/no-echo.
-	// Do not subscribe to SIGINT here: when stdin is a real raw TTY, Ctrl-C is a
-	// byte for the remote PTY and must not become a local client signal.
-	ctx, stopSignals := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGHUP)
-	defer stopSignals()
 	defer stream.Close()
 
 	restoreTerminal, err := prepareTerminal(stdin)

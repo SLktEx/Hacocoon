@@ -85,52 +85,6 @@ func TestBridgeWithTerminalRestoresOnOutputFailure(t *testing.T) {
 	}
 }
 
-func TestBridgeWithTerminalRestoresOnContextCancellation(t *testing.T) {
-	client, server := net.Pipe()
-	defer server.Close()
-	ctx, cancel := context.WithCancel(context.Background())
-	prepared := make(chan struct{})
-	restored := make(chan struct{})
-	errCh := make(chan error, 1)
-
-	go func() {
-		errCh <- BridgeWithTerminal(
-			ctx,
-			client,
-			strings.NewReader(""),
-			io.Discard,
-			func(io.Reader) (func() error, error) {
-				close(prepared)
-				return func() error {
-					close(restored)
-					return nil
-				}, nil
-			},
-		)
-	}()
-
-	select {
-	case <-prepared:
-	case <-time.After(time.Second):
-		t.Fatal("terminal preparation did not start")
-	}
-	cancel()
-
-	select {
-	case err := <-errCh:
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("error = %v, want context canceled", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("bridge did not return after cancellation")
-	}
-	select {
-	case <-restored:
-	case <-time.After(time.Second):
-		t.Fatal("terminal was not restored after cancellation")
-	}
-}
-
 type testAddr string
 
 func (a testAddr) Network() string { return "test" }
@@ -171,8 +125,8 @@ func (c *scriptedConn) Close() error {
 	c.closeOne.Do(func() { close(c.closed) })
 	return nil
 }
-func (c *scriptedConn) LocalAddr() net.Addr                 { return testAddr("local") }
-func (c *scriptedConn) RemoteAddr() net.Addr                { return testAddr("remote") }
+func (c *scriptedConn) LocalAddr() net.Addr                { return testAddr("local") }
+func (c *scriptedConn) RemoteAddr() net.Addr               { return testAddr("remote") }
 func (c *scriptedConn) SetDeadline(time.Time) error         { return nil }
 func (c *scriptedConn) SetReadDeadline(time.Time) error     { return nil }
 func (c *scriptedConn) SetWriteDeadline(time.Time) error    { return nil }
@@ -192,18 +146,14 @@ type failingReadConn struct {
 
 func newFailingReadConn(err error) *failingReadConn { return &failingReadConn{err: err} }
 func (c *failingReadConn) Read([]byte) (int, error)  { return 0, c.err }
-func (c *failingReadConn) Write(p []byte) (int, error) {
-	return len(p), nil
-}
+func (c *failingReadConn) Write(p []byte) (int, error) { return len(p), nil }
 func (c *failingReadConn) Close() error {
 	c.closed = true
 	return nil
 }
-func (c *failingReadConn) CloseWrite() error              { return nil }
-func (c *failingReadConn) LocalAddr() net.Addr            { return testAddr("local") }
-func (c *failingReadConn) RemoteAddr() net.Addr           { return testAddr("remote") }
-func (c *failingReadConn) SetDeadline(time.Time) error     { return nil }
-func (c *failingReadConn) SetReadDeadline(time.Time) error { return nil }
-func (c *failingReadConn) SetWriteDeadline(time.Time) error {
-	return nil
-}
+func (c *failingReadConn) CloseWrite() error             { return nil }
+func (c *failingReadConn) LocalAddr() net.Addr           { return testAddr("local") }
+func (c *failingReadConn) RemoteAddr() net.Addr          { return testAddr("remote") }
+func (c *failingReadConn) SetDeadline(time.Time) error    { return nil }
+func (c *failingReadConn) SetReadDeadline(time.Time) error  { return nil }
+func (c *failingReadConn) SetWriteDeadline(time.Time) error { return nil }

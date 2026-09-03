@@ -12,10 +12,13 @@ done
   echo 'real GitHub push E2E only runs in GitHub Actions' >&2
   exit 1
 }
-[[ "${GITHUB_EVENT_NAME:-}" == "push" ]] || {
-  echo 'real GitHub push E2E requires a trusted push event' >&2
-  exit 1
-}
+case "${GITHUB_EVENT_NAME:-}" in
+  push|workflow_dispatch) ;;
+  *)
+    echo 'real GitHub push E2E requires a trusted main push or manual workflow dispatch' >&2
+    exit 1
+    ;;
+esac
 [[ "${GITHUB_REF:-}" == "refs/heads/main" ]] || {
   echo 'real GitHub push E2E only runs for main' >&2
   exit 1

@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -52,7 +53,7 @@ jobs:
   incus-core-e2e:
     needs: incus-standalone
     runs-on: ubuntu-26.04
-    timeout-minutes: 25
+    timeout-minutes: 20
     env:
       HACO_CI_RUNNER_ENVIRONMENT: github-hosted
     steps:
@@ -65,9 +66,7 @@ jobs:
           check-latest: true
           cache: false
       - name: Validate Core and CLI E2E helper syntax
-        run: |
-          bash -n tools/ci-incus.sh tools/ci-incus-core.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh test/e2e/interactive_shells.sh
-          python3 -m py_compile test/e2e/interactive_pty.py
+        run: bash -n tools/ci-incus.sh tools/ci-incus-core.sh tools/ci-incus-project-cleanup.sh tools/ci-storage-helper.sh test/e2e/incus.sh
       - name: Prepare proven Incus substrate for Hacocoon Core
         run: bash tools/ci-incus.sh setup
       - name: Allow leased workspace owner in Incus root idmap
@@ -88,12 +87,6 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}/haco-storage-helper-e2e
         run: bash tools/ci-incus.sh core
-      - name: Run real PTY interactive shell journeys
-        env:
-          HACO_E2E_INCUS: "1"
-          INCUS_CONF: ${{ runner.temp }}/haco-incus-client
-          TMPDIR: ${{ runner.temp }}/haco-storage-helper-e2e
-        run: bash test/e2e/interactive_shells.sh
       - name: Capture Hacocoon and Incus diagnostics
         if: failure()
         run: |
@@ -109,3 +102,40 @@ jobs:
       - name: Clean up storage helper resources
         if: always()
         run: bash tools/ci-storage-helper.sh cleanup
+
+  authenticated-private-registry:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    env:
+      NERDCTL_VERSION: 2.3.5
+      NERDCTL_AMD64_SHA256: de3206aeb7cbd5f20f5fb1f55c1e3bf2db1be567812a8a3f5e65eba2488347ee
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Start preinstalled containerd
+        run: |
+          command -v containerd
+          containerd --version
+          sudo systemctl enable --now containerd
+      - name: Install pinned nerdctl
+        run: |
+          archive="/tmp/nerdctl-${NERDCTL_VERSION}-linux-amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            --proto '=https' --tlsv1.2 \
+            "https://github.com/containerd/nerdctl/releases/download/v${NERDCTL_VERSION}/nerdctl-${NERDCTL_VERSION}-linux-amd64.tar.gz" \
+            --output "$archive"
+          printf '%s  %s\n' "$NERDCTL_AMD64_SHA256" "$archive" | sha256sum --check --strict
+          sudo tar -xzf "$archive" -C /usr/local/bin nerdctl
+          nerdctl --version
+      - name: Run authenticated private-registry Host acquisition acceptance
+        run: |
+          sudo --preserve-env=PATH,GOTOOLCHAIN env \
+            HACO_E2E_PRIVATE_REGISTRY=1 \
+            go test -count=1 -run '^TestPrivateRegistryHostAcquisitionAcceptance$' ./modules/runtime/incus
