@@ -34,6 +34,7 @@ POST_EXIT_DRAIN_SECONDS = 1.0
 INSTALL_ARGV = ("cmd.exe", "/d", "/c", "install-windows.bat")
 WSL_ARGV = ("wsl.exe", "-d", INSTANCE)
 ALLOWED_TERMINAL_ARGV = frozenset((INSTALL_ARGV, WSL_ARGV))
+HOST_PROMPT_RE = re.compile(r"root@haco-host:[^\r\n]*#\s*$", re.MULTILINE)
 
 HOST_SESSION_COMMANDS: dict[str, tuple[str, ...]] = {
     "before reinstall": (
@@ -263,7 +264,7 @@ def run_host_session(session: str, *, expected_output: list[str]) -> str:
 
     def send_commands(normalized: str, terminal: TerminalProcess) -> None:
         nonlocal sent
-        if sent or "haco-host" not in normalized:
+        if sent or not HOST_PROMPT_RE.search(normalized):
             return
         for command in commands:
             terminal.write(command + "\r\n")
@@ -272,7 +273,7 @@ def run_host_session(session: str, *, expected_output: list[str]) -> str:
 
     output = process.run(on_output=send_commands)
     if not sent:
-        raise RuntimeError(f"{session}: interactive WSL entry never reached haco-host")
+        raise RuntimeError(f"{session}: interactive WSL entry never reached the haco-host shell prompt")
     for pattern in expected_output:
         require_output(output, pattern, phase=session)
     return output
