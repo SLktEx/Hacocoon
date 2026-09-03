@@ -31,6 +31,10 @@ const defaultLocalStorageID = "local-default"
 
 const defaultLocalStorageBytes int64 = 128 << 30
 
+const defaultLocalStorageSize = "128GiB"
+
+const defaultLocalStorageMountOptions = "compress=zstd:3"
+
 type App struct {
 	Environments *workspaceapp.Service
 	AgentHosts    *agenthostapp.Broker
@@ -67,28 +71,6 @@ func Local(ctx context.Context) (*App, error) {
 		providerOptions = append(providerOptions, incus.WithSeedResolver(seedStore))
 	}
 
-	var storageRunner host.Runner = runner
-	switch mode := strings.TrimSpace(os.Getenv("HACO_STORAGE_PRIVILEGE_MODE")); mode {
-	case "", "sudo":
-		privilegedRunner, err := storagepriv.NewSudoRunner(root, runner)
-		if err != nil {
-			return nil, err
-		}
-		storageRunner = privilegedRunner
-	case "direct":
-		// Test/development escape hatch. This never grants authority: every
-		// operation runs with the caller's existing credentials and therefore
-		// fails on a normal Host when privilege is actually required.
-		storageRunner = runner
-	default:
-		return nil, fmt.Errorf("unknown HACO_STORAGE_PRIVILEGE_MODE %q", mode)
-	}
-
-	managedStorage, err := storagebtrfs.NewLocal(ctx, root, storageRunner, strings.TrimSpace(os.Getenv("HACO_BLOCK_BACKEND")))
-	if err != nil {
-		return nil, err
-	}
-
 	var runtimeRunner host.Runner = runner
 	if ociDriver == ociplugin.DriverNerdctl {
 		runtimeRunner = incus.WrapSeedHarvestRunner(runner)
@@ -98,18 +80,58 @@ func Local(ctx context.Context) (*App, error) {
 	// unmanaged bridge even if they bypass a higher-level network helper.
 	runtimeRunner = incus.WrapEnvironmentNetworkOwnershipRunner(runtimeRunner)
 	incusRuntime := incus.New(runtimeRunner)
-	if err := incusRuntime.ConfigureStorageProvider(func(storageCtx context.Context) (map[string]string, error) {
-		handle, err := managedStorage.Ensure(storageCtx, core.StorageSpec{
-			ID:        defaultLocalStorageID,
-			SizeBytes: defaultLocalStorageBytes,
-		})
+
+	// Incus owns the normal local Btrfs loop image, loop-device attachment,
+	// filesystem format, mount lifecycle, and resize. This keeps those resources
+	// in the same lifecycle authority that consumes them and avoids a Host mount
+	// having to race incusd during WSL/systemd startup.
+	//
+	// The explicit storage privilege/backend environment variables retain the
+	// older Hacocoon-managed storage implementation for focused tests and
+	// compatibility experiments. Normal installations do not set them.
+	legacyStorageMode := strings.TrimSpace(os.Getenv("HACO_STORAGE_PRIVILEGE_MODE")) != "" || strings.TrimSpace(os.Getenv("HACO_BLOCK_BACKEND")) != ""
+	if legacyStorageMode {
+		var storageRunner host.Runner = runner
+		switch mode := strings.TrimSpace(os.Getenv("HACO_STORAGE_PRIVILEGE_MODE")); mode {
+		case "", "sudo":
+			privilegedRunner, err := storagepriv.NewSudoRunner(root, runner)
+			if err != nil {
+				return nil, err
+			}
+			storageRunner = privilegedRunner
+		case "direct":
+			// Test/development escape hatch. This never grants authority: every
+			// operation runs with the caller's existing credentials and therefore
+			// fails on a normal Host when privilege is actually required.
+			storageRunner = runner
+		default:
+			return nil, fmt.Errorf("unknown HACO_STORAGE_PRIVILEGE_MODE %q", mode)
+		}
+
+		managedStorage, err := storagebtrfs.NewLocal(ctx, root, storageRunner, strings.TrimSpace(os.Getenv("HACO_BLOCK_BACKEND")))
 		if err != nil {
 			return nil, err
 		}
-		return handle.Attachment, nil
-	}); err != nil {
-		return nil, err
+		if err := incusRuntime.ConfigureStorageProvider(func(storageCtx context.Context) (map[string]string, error) {
+			handle, err := managedStorage.Ensure(storageCtx, core.StorageSpec{
+				ID:        defaultLocalStorageID,
+				SizeBytes: defaultLocalStorageBytes,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return handle.Attachment, nil
+		}); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := incusRuntime.ConfigureStorageProvider(func(storageCtx context.Context) (map[string]string, error) {
+			return ensureDefaultIncusStoragePool(storageCtx, runtimeRunner)
+		}); err != nil {
+			return nil, err
+		}
 	}
+
 	incusProvider, err := incus.NewSandboxProvider(incusRuntime, providerOptions...)
 	if err != nil {
 		return nil, err
@@ -182,6 +204,15 @@ func Local(ctx context.Context) (*App, error) {
 		Runtime:       incusRuntime,
 		EgressProxy:   egressproxy.New(egressBroker, egressSources),
 	}, nil
+}
+
+func defaultIncusStorageAttachment() map[string]string {
+	return map[string]string{
+		"incus_pool":          "haco-" + defaultLocalStorageID,
+		"driver":              "btrfs",
+		"size":                defaultLocalStorageSize,
+		"btrfs.mount_options": defaultLocalStorageMountOptions,
+	}
 }
 
 func envOr(name, fallback string) string {

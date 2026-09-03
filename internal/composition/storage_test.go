@@ -1,0 +1,127 @@
+package composition
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/SLktEx/Hacocoon/internal/host"
+)
+
+type storageCall struct {
+	name string
+	args []string
+}
+
+type storageRunnerFunc struct {
+	calls []storageCall
+	run   func(name string, args []string) (host.Result, error)
+}
+
+func (r *storageRunnerFunc) Run(_ context.Context, name string, args ...string) (host.Result, error) {
+	copied := append([]string(nil), args...)
+	r.calls = append(r.calls, storageCall{name: name, args: copied})
+	return r.run(name, copied)
+}
+
+func TestDefaultIncusStorageAttachmentIsIncusOwned(t *testing.T) {
+	attachment := defaultIncusStorageAttachment()
+	if attachment["incus_pool"] != "haco-local-default" {
+		t.Fatalf("incus_pool = %q", attachment["incus_pool"])
+	}
+	if attachment["driver"] != "btrfs" {
+		t.Fatalf("driver = %q", attachment["driver"])
+	}
+	if attachment["size"] != "128GiB" {
+		t.Fatalf("size = %q", attachment["size"])
+	}
+	if attachment["btrfs.mount_options"] != "compress=zstd:3" {
+		t.Fatalf("btrfs.mount_options = %q", attachment["btrfs.mount_options"])
+	}
+	if source := attachment["source"]; source != "" {
+		t.Fatalf("default attachment must not supply Host source path, got %q", source)
+	}
+	if strings.Contains(attachment["btrfs.mount_options"], "autodefrag") {
+		t.Fatalf("autodefrag must remain disabled: %q", attachment["btrfs.mount_options"])
+	}
+}
+
+func TestEnsureDefaultIncusStoragePoolCreatesLoopBackedPool(t *testing.T) {
+	created := false
+	runner := &storageRunnerFunc{run: func(_ string, args []string) (host.Result, error) {
+		if len(args) >= 2 && args[0] == "storage" && args[1] == "show" {
+			if !created {
+				return host.Result{ExitCode: 1}, errors.New("not found")
+			}
+			return host.Result{}, nil
+		}
+		if len(args) >= 2 && args[0] == "storage" && args[1] == "create" {
+			created = true
+		}
+		return host.Result{}, nil
+	}}
+
+	attachment, err := ensureDefaultIncusStoragePool(context.Background(), runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(attachment, map[string]string{"incus_pool": "haco-local-default"}) {
+		t.Fatalf("attachment = %#v", attachment)
+	}
+	if len(runner.calls) != 3 {
+		t.Fatalf("calls = %#v", runner.calls)
+	}
+	wantCreate := []string{
+		"storage", "create", "haco-local-default", "btrfs",
+		"size=128GiB",
+		"btrfs.mount_options=compress=zstd:3",
+		"--project", "hacocoon",
+	}
+	if runner.calls[1].name != "incus" || !reflect.DeepEqual(runner.calls[1].args, wantCreate) {
+		t.Fatalf("create call = %#v, want incus %#v", runner.calls[1], wantCreate)
+	}
+	for _, arg := range runner.calls[1].args {
+		if strings.HasPrefix(arg, "source=") {
+			t.Fatalf("Incus-owned loop pool unexpectedly specifies source: %#v", runner.calls[1].args)
+		}
+	}
+	if runner.calls[2].args[0] != "storage" || runner.calls[2].args[1] != "show" {
+		t.Fatalf("post-create verification missing: %#v", runner.calls)
+	}
+}
+
+func TestEnsureDefaultIncusStoragePoolReusesExistingPool(t *testing.T) {
+	runner := &storageRunnerFunc{run: func(_ string, _ []string) (host.Result, error) {
+		return host.Result{}, nil
+	}}
+	attachment, err := ensureDefaultIncusStoragePool(context.Background(), runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attachment["incus_pool"] != "haco-local-default" {
+		t.Fatalf("attachment = %#v", attachment)
+	}
+	if len(runner.calls) != 1 || runner.calls[0].args[0] != "storage" || runner.calls[0].args[1] != "show" {
+		t.Fatalf("unexpected calls = %#v", runner.calls)
+	}
+}
+
+func TestEnsureDefaultIncusStoragePoolSurfacesCreateStderr(t *testing.T) {
+	runner := &storageRunnerFunc{run: func(_ string, args []string) (host.Result, error) {
+		if len(args) >= 2 && args[0] == "storage" && args[1] == "show" {
+			return host.Result{ExitCode: 1}, errors.New("not found")
+		}
+		return host.Result{ExitCode: 1, Stderr: "Error: loop pool creation failed\n"}, errors.New("exit status 1")
+	}}
+	_, err := ensureDefaultIncusStoragePool(context.Background(), runner)
+	if err == nil {
+		t.Fatal("expected create failure")
+	}
+	for _, want := range []string{"haco-local-default", "loop pool creation failed", "exit status 1"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q, want %q", err, want)
+		}
+	}
+}
