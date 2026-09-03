@@ -325,14 +325,6 @@ function Configure-WslPost([string]$Name, [string]$LoginUser) {
     }
     if ($probe.ExitCode -ne 0) { throw "Failed to register Hacocoon WSL login shell: $($probe.Stderr)" }
 
-    # Older installers granted passwordless root access to `haco host ...` for
-    # the login shim. The reset product `haco` must not inherit that authority:
-    # interactive entry now reaches the controller through the normal hacocoon
-    # group and the temporary hacoq compatibility path. Remove the old rule on
-    # both fresh installs and upgrades before future product commands are added.
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "rm", "-f", "/etc/sudoers.d/hacocoon-login")
-    if ($probe.ExitCode -ne 0) { throw "Failed to remove obsolete Hacocoon WSL sudo rule." }
-
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/usermod", "-s", $LoginShell, $LoginUser)
     if ($probe.ExitCode -ne 0) { throw "Failed to configure Hacocoon WSL login shell for '$LoginUser'." }
 
