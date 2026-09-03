@@ -17,12 +17,7 @@ import (
 func TestHostEnsureNamespaceIgnoresOtherCommands(t *testing.T) {
 	deps := hostEnsureNamespaceDeps{}
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
-		context.Background(),
-		[]string{"doctor"},
-		bytes.NewReader(nil),
-		io.Discard,
-		io.Discard,
-		deps,
+		context.Background(), []string{"doctor"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
 	if handled || err != nil {
 		t.Fatalf("handled=%v err=%v, want false nil", handled, err)
@@ -39,18 +34,17 @@ func TestHostEnsureNamespaceContinuesWhenAlreadyWithPID1(t *testing.T) {
 			return "", errors.New("unexpected path")
 		}
 	}
+	deps.incusMainPID = func(context.Context) (int, error) {
+		t.Fatal("ordinary PID1 namespace path must not inspect incus.service")
+		return 0, nil
+	}
 	deps.run = func(context.Context, string, []string, io.Reader, io.Writer, io.Writer) error {
 		t.Fatal("namespace runner must not be called when mount namespace already matches PID 1")
 		return nil
 	}
 
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
-		context.Background(),
-		[]string{"host", "ensure"},
-		bytes.NewReader(nil),
-		io.Discard,
-		io.Discard,
-		deps,
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
 	if handled || err != nil {
 		t.Fatalf("handled=%v err=%v, want false nil", handled, err)
@@ -79,12 +73,7 @@ func TestHostEnsureNamespaceReexecsThroughPID1MountNamespaceWhenIncusInactive(t 
 	}
 
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
-		context.Background(),
-		[]string{"host", "ensure"},
-		bytes.NewReader(nil),
-		io.Discard,
-		io.Discard,
-		deps,
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
 	if !handled || err != nil {
 		t.Fatalf("handled=%v err=%v, want true nil", handled, err)
@@ -117,6 +106,8 @@ func TestHostEnsureNamespaceReexecsThroughRunningIncusMountNamespace(t *testing.
 		switch path {
 		case selfMountNamespace:
 			return "mnt:[11]", nil
+		case initMountNamespace:
+			return "mnt:[22]", nil
 		case incusNamespace:
 			return "mnt:[33]", nil
 		default:
@@ -131,12 +122,7 @@ func TestHostEnsureNamespaceReexecsThroughRunningIncusMountNamespace(t *testing.
 	}
 
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
-		context.Background(),
-		[]string{"host", "ensure"},
-		bytes.NewReader(nil),
-		io.Discard,
-		io.Discard,
-		deps,
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
 	if !handled || err != nil {
 		t.Fatalf("handled=%v err=%v, want true nil", handled, err)
@@ -166,6 +152,8 @@ func TestHostEnsureNamespaceContinuesWhenAlreadyWithRunningIncus(t *testing.T) {
 		switch path {
 		case selfMountNamespace, incusNamespace:
 			return "mnt:[33]", nil
+		case initMountNamespace:
+			return "mnt:[22]", nil
 		default:
 			return "", errors.New("unexpected path")
 		}
@@ -176,12 +164,7 @@ func TestHostEnsureNamespaceContinuesWhenAlreadyWithRunningIncus(t *testing.T) {
 	}
 
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
-		context.Background(),
-		[]string{"host", "ensure"},
-		bytes.NewReader(nil),
-		io.Discard,
-		io.Discard,
-		deps,
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
 	if handled || err != nil {
 		t.Fatalf("handled=%v err=%v, want false nil", handled, err)
@@ -198,12 +181,7 @@ func TestHostEnsureNamespaceLeavesNonRootPathUnchanged(t *testing.T) {
 	}
 
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
-		context.Background(),
-		[]string{"host", "ensure"},
-		bytes.NewReader(nil),
-		io.Discard,
-		io.Discard,
-		deps,
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
 	if handled || err != nil {
 		t.Fatalf("handled=%v err=%v, want false nil", handled, err)
@@ -216,12 +194,7 @@ func TestHostEnsureNamespaceRejectsNonSystemdPID1(t *testing.T) {
 	deps.readFile = func(string) ([]byte, error) { return []byte("bash\n"), nil }
 
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
-		context.Background(),
-		[]string{"host", "ensure"},
-		bytes.NewReader(nil),
-		io.Discard,
-		io.Discard,
-		deps,
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
 	if !handled || err == nil || !strings.Contains(err.Error(), "not systemd") {
 		t.Fatalf("handled=%v err=%v, want PID1 validation failure", handled, err)
@@ -244,12 +217,7 @@ func TestHostEnsureNamespaceRejectsUnexpectedIncusMainPID(t *testing.T) {
 	}
 
 	handled, err := maybeReexecHostEnsureInInitMountNamespace(
-		context.Background(),
-		[]string{"host", "ensure"},
-		bytes.NewReader(nil),
-		io.Discard,
-		io.Discard,
-		deps,
+		context.Background(), []string{"host", "ensure"}, bytes.NewReader(nil), io.Discard, io.Discard, deps,
 	)
 	if !handled || err == nil || !strings.Contains(err.Error(), "not incusd") {
 		t.Fatalf("handled=%v err=%v, want incusd identity validation failure", handled, err)
