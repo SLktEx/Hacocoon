@@ -72,26 +72,34 @@ PowerShell が Windows / WSL 固有の事前準備を担当します。
 1. current WSL を要求する
 2. `Ubuntu-26.04` から Hacocoon 専用 distribution だけを作成 / 再利用する
 3. global WSL default は変えず、その distribution だけ WSL 2 を保証する
-4. 通常の non-root Ubuntu user を要求する
-5. WSL guest が Ubuntu 26.04+ であることを確認する
-6. `/etc/wsl.conf` の他設定を残しつつ以下を保証する
+4. fresh / default install では専用の non-root Ubuntu user `hacocoon` を自動作成する
+5. `-InteractiveUserSetup` 指定時だけ Ubuntu 標準の first-launch user setup を使えるようにする
+6. WSL guest が Ubuntu 26.04+ であることを確認する
+7. `/etc/wsl.conf` の他設定を残しつつ、選択した login user と systemd を保証する
 
    ```ini
+   [user]
+   default=hacocoon
+
    [boot]
    systemd=true
    ```
 
-7. 必要なら `wsl --terminate Hacocoon` でその distribution だけ restart する
-8. systemd が PID 1 であることを確認する
-9. WSL architecture と同じ `haco_linux_<arch>.tar.gz` が installer package 内にあることを確認する
+8. 必要なら `wsl --terminate Hacocoon` でその distribution だけ restart する
+9. systemd が PID 1 であることを確認する
+10. WSL architecture と同じ `haco_linux_<arch>.tar.gz` が installer package 内にあることを確認する
 
-Fresh Ubuntu WSL では通常の first-launch user setup が必要な場合があります。その場合 installer は distribution 作成後に止まり、次を案内します。
+Fresh install の default path は **1回で完走**します。`install-windows.bat` を1回実行すると、WSL distribution 作成、`hacocoon` user 作成、systemd 有効化、package 内の `install.sh`、WSL post integration まで続けて実行し、install 完了後にだけ戻ります。途中で自分で `wsl -d Hacocoon` を起動して BAT をもう一度叩く必要はありません。
+
+Ubuntu account setup を対話で行いたい場合だけ、次を使います。
 
 ```powershell
-wsl -d Hacocoon
+.\install-windows.bat -InteractiveUserSetup
 ```
 
-Ubuntu user setup 完了後、`install-windows.bat` をもう一度実行します。
+この場合 installer が Ubuntu 標準の first-launch setup を起動します。Ubuntu user を作成して shell まで到達したら `exit` を1回実行すると、待機していた Windows installer が自動で再開し、そのまま `install.sh` と post integration を完了します。すでに dedicated distribution に通常の non-root default user がある場合、通常の再実行ではその user を再利用します。
+
+自動作成 user には common install 実行中だけ一時的な passwordless bootstrap sudo rule を付与します。この広い一時 rule は `finally` 経路でも削除します。Install 完了後に残す passwordless sudo は、後述する exact な `haco host ensure` / `haco host shell` だけです。
 
 ## Ubuntu 共通 main
 
@@ -159,7 +167,7 @@ haco host shell
 
 Installer E2E は `install.sh` 単体成功ではなく、実際の user-visible entry point から判定します。
 
-Windows gate は candidate `hacocoon-windows-amd64.zip` を作って展開し、package 内の `install-windows.bat` を実行します。必要な Ubuntu first-launch user creation を CI で再現したあと、**同じ packaged BAT をもう一度実行**し、WSL 2、systemd、Incus、controller service/socket、`haco-host doctor`、WSL login integration まで成功を要求します。
+Windows default path の gate は candidate `hacocoon-windows-amd64.zip` を作って展開し、package 内の `install-windows.bat` を **1回だけ**実行します。その1回で dedicated WSL user 作成から WSL 2、systemd、共通 `install.sh`、Incus、controller service/socket、`haco-host doctor`、WSL login integration まで成功することを要求します。Interactive user setup は opt-in の別 path であり、default installer の前提にはしません。
 
 Native Ubuntu gate は candidate `hacocoon-ubuntu-amd64.tar.gz` を作って展開し、package 内の `install-ubuntu.sh` を実行します。Controller と trusted `haco-host` round trip が成功し、native login shell が変更されていないことまで確認します。
 
