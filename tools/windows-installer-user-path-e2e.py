@@ -61,7 +61,7 @@ HOST_SESSION_COMMANDS: dict[str, tuple[str, ...]] = {
 }
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
-OSC_RE = re.compile(r"\x1b\][^\x07]*(?:\x07|\x1b\\)")
+OSC_RE = re.compile(r"\x1b\][^\x07]*?(?:\x07|\x1b\\)")
 CMD_PROMPT_RE = re.compile(r"(?m)^[A-Za-z]:\\[^\r\n>]*>\s*$")
 
 

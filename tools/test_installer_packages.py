@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 from pathlib import Path
 import subprocess
+import sys
 import tarfile
 import tempfile
 import zipfile
@@ -233,5 +235,27 @@ with tempfile.TemporaryDirectory() as temp:
     for name in expected_release - {"checksums.txt"}:
         if release_checksums.get(name) != digest(out / name):
             raise SystemExit(f"release checksum mismatch for {name}")
+
+# A ConPTY cmd.exe session emits OSC title sequences before and after installer
+# output. Normalization must remove each OSC sequence independently instead of
+# greedily deleting user-visible text between them.
+driver_path = ROOT / "tools" / "windows-installer-user-path-e2e.py"
+spec = importlib.util.spec_from_file_location("windows_installer_user_path_e2e_test", driver_path)
+if spec is None or spec.loader is None:
+    raise SystemExit(f"cannot load Windows user-path driver from {driver_path}")
+driver = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = driver
+try:
+    spec.loader.exec_module(driver)
+    osc_sample = (
+        "\x1b]0;before\x1b\\"
+        "Hacocoon Windows installation complete."
+        "\x1b]0;after\x1b\\"
+    )
+    normalized = driver.normalize_terminal(osc_sample)
+finally:
+    sys.modules.pop(spec.name, None)
+if normalized != "Hacocoon Windows installation complete.":
+    raise SystemExit(f"Windows terminal normalization deleted visible output: {normalized!r}")
 
 print("INSTALLER PACKAGES OK")
