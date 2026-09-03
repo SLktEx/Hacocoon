@@ -3,6 +3,8 @@ param(
     [string]$InstanceName = "Hacocoon",
     [string]$BaseDistro = "Ubuntu-26.04",
     [string]$HacocoonVersion = "latest",
+    [string]$LoginUser = "hacocoon",
+    [switch]$InteractiveUserSetup,
     [switch]$WebDownload,
     [switch]$SkipIncus,
     [switch]$GrantIncusAdmin
@@ -12,6 +14,8 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $LoginShell = "/usr/local/libexec/hacocoon-login"
+$BootstrapSudoers = "/etc/sudoers.d/hacocoon-bootstrap"
+$LoginUserExplicit = $PSBoundParameters.ContainsKey("LoginUser")
 
 function Write-Step([string]$Message) {
     Write-Host "==> $Message"
@@ -52,10 +56,6 @@ function Invoke-WslCapture([string[]]$Arguments) {
     $stderr = ""
     $exitCode = 1
     try {
-        # Windows PowerShell can promote native stderr to an ErrorRecord while
-        # $ErrorActionPreference is Stop. WSL may emit advisory systemd/session
-        # warnings even when the requested command succeeds, so let the native
-        # process finish and make the decision from its exit code.
         $ErrorActionPreference = "Continue"
         $stdout = @(& wsl.exe @Arguments 2> $stderrPath)
         $exitCode = $LASTEXITCODE
@@ -76,9 +76,6 @@ function Invoke-WslCaptureWithInput([string[]]$Arguments, [string]$InputText) {
     $stderr = ""
     $exitCode = 1
     try {
-        # Send scripts/configuration over stdin instead of embedding them in a
-        # Windows native-process command line. Windows PowerShell 5.1 can
-        # rewrite quotes inside a `sh -c` argument before wsl.exe sees them.
         $ErrorActionPreference = "Continue"
         $stdout = @($InputText | & wsl.exe @Arguments 2> $stderrPath)
         $exitCode = $LASTEXITCODE
@@ -93,10 +90,6 @@ function Invoke-WslCaptureWithInput([string[]]$Arguments, [string]$InputText) {
 }
 
 function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [switch]$Append) {
-    # Windows PowerShell's pipeline can translate newlines when feeding a native
-    # process. Encode the exact UTF-8 bytes first, then decode inside WSL. The
-    # shell program is fixed; file content and destination never become shell
-    # syntax, so this avoids both CRLF corruption and quoting ambiguity.
     $normalized = ($Content -replace "`r`n", "`n") -replace "`r", "`n"
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
     $script = if ($Append) {
@@ -150,24 +143,139 @@ function Assert-WslSupported {
     }
 }
 
-function Get-WslLoginUser([string]$Name) {
-    $candidate = $env:HACO_BOOTSTRAP_LOGIN_USER
-    if ([string]::IsNullOrWhiteSpace($candidate)) {
-        $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "id", "-un")
-        if ($probe.ExitCode -ne 0) {
-            throw "Unable to determine the default Linux user in '$Name'."
+function Get-CurrentWslLoginUser([string]$Name) {
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "id", "-un")
+    if ($probe.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($probe.Stdout)) {
+        return ""
+    }
+    $candidate = $probe.Stdout.Trim()
+    Assert-SafeName $candidate "WSL login user"
+    return $candidate
+}
+
+function Ensure-AutomaticWslLoginUser([string]$Name, [string]$User) {
+    Assert-SafeName $User "WSL login user"
+    if ($User -eq "root") {
+        throw "The automatic Hacocoon WSL login user cannot be root."
+    }
+
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "id", $User)
+    if ($probe.ExitCode -eq 0) { return }
+
+    Write-Step "Creating dedicated Ubuntu user '$User'"
+    $script = @'
+set -eu
+user="$1"
+if command -v useradd >/dev/null 2>&1; then
+  useradd --create-home --shell /bin/bash "$user"
+elif command -v adduser >/dev/null 2>&1; then
+  adduser --disabled-password --gecos '' "$user"
+else
+  echo "neither useradd nor adduser is available" >&2
+  exit 1
+fi
+'@
+    $probe = Invoke-WslCaptureWithInput @(
+        "--distribution", $Name,
+        "--user", "root",
+        "--exec", "sh", "-s", "--", $User
+    ) $script
+    if ($probe.ExitCode -ne 0) {
+        throw "Failed to create dedicated Ubuntu user '$User': $($probe.Stderr)"
+    }
+}
+
+function Invoke-InteractiveWslUserSetup([string]$Name) {
+    $current = Get-CurrentWslLoginUser $Name
+    if (-not [string]::IsNullOrWhiteSpace($current) -and $current -ne "root") {
+        return $current
+    }
+
+    Write-Host ""
+    Write-Step "Starting normal Ubuntu first-launch user setup"
+    Write-Host "Create the Ubuntu user you want to use for Hacocoon."
+    Write-Host "After setup reaches the shell, run 'exit' once so this installer can continue automatically."
+    & wsl.exe --distribution $Name
+    if ($LASTEXITCODE -ne 0) {
+        throw "Interactive Ubuntu user setup failed for '$Name'."
+    }
+
+    $current = Get-CurrentWslLoginUser $Name
+    if ([string]::IsNullOrWhiteSpace($current) -or $current -eq "root") {
+        throw "Interactive Ubuntu user setup did not produce a normal non-root default user."
+    }
+    return $current
+}
+
+function Resolve-WslLoginUser([string]$Name, [bool]$CreatedInstance) {
+    if ($InteractiveUserSetup) {
+        return Invoke-InteractiveWslUserSetup $Name
+    }
+
+    if (-not $CreatedInstance -and -not $LoginUserExplicit) {
+        $current = Get-CurrentWslLoginUser $Name
+        if (-not [string]::IsNullOrWhiteSpace($current) -and $current -ne "root") {
+            Write-Step "Reusing existing Ubuntu user '$current'"
+            return $current
         }
-        $candidate = $probe.Stdout
+    }
+
+    $candidate = $LoginUser
+    if (-not $LoginUserExplicit -and -not [string]::IsNullOrWhiteSpace($env:HACO_BOOTSTRAP_LOGIN_USER)) {
+        $candidate = $env:HACO_BOOTSTRAP_LOGIN_USER
     }
     Assert-SafeName $candidate "WSL login user"
-    if ($candidate -eq "root") {
-        throw "The dedicated WSL instance still defaults to root. Launch it once with 'wsl -d $Name' and complete normal Ubuntu user setup."
-    }
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "id", $candidate)
-    if ($probe.ExitCode -ne 0) {
-        throw "WSL login user '$candidate' does not exist in '$Name'."
-    }
+    Ensure-AutomaticWslLoginUser $Name $candidate
     return $candidate
+}
+
+function Set-WslDefaultUser([string]$Name, [string]$User) {
+    Write-Step "Setting '$User' as the default Ubuntu user"
+    $script = @'
+set -eu
+user="$1"
+tmp="$(mktemp)"
+if [ -f /etc/wsl.conf ]; then
+  awk -v user="$user" '
+    BEGIN { in_user=0; user_seen=0; default_seen=0 }
+    function flush_user() { if (in_user && !default_seen) { print "default=" user; default_seen=1 } }
+    /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+      flush_user()
+      in_user = ($0 ~ /^[[:space:]]*\[user\][[:space:]]*$/)
+      if (in_user) { user_seen=1; default_seen=0 }
+      print
+      next
+    }
+    {
+      if (in_user && $0 ~ /^[[:space:]]*default[[:space:]]*=/) {
+        if (!default_seen) { print "default=" user; default_seen=1 }
+        next
+      }
+      print
+    }
+    END {
+      flush_user()
+      if (!user_seen) {
+        if (NR > 0) print ""
+        print "[user]"
+        print "default=" user
+      }
+    }
+  ' /etc/wsl.conf > "$tmp"
+else
+  printf '[user]\ndefault=%s\n' "$user" > "$tmp"
+fi
+install -o root -g root -m 0644 "$tmp" /etc/wsl.conf
+rm -f "$tmp"
+'@
+    $probe = Invoke-WslCaptureWithInput @(
+        "--distribution", $Name,
+        "--user", "root",
+        "--exec", "sh", "-s", "--", $User
+    ) $script
+    if ($probe.ExitCode -ne 0) {
+        throw "Failed to set '$User' as the WSL default user: $($probe.Stderr)"
+    }
 }
 
 function Get-OsReleaseValue([string]$Content, [string]$Key) {
@@ -184,7 +292,7 @@ function Get-OsReleaseValue([string]$Content, [string]$Key) {
 }
 
 function Assert-UbuntuBaseline([string]$Name) {
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "cat", "/etc/os-release")
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "cat", "/etc/os-release")
     if ($probe.ExitCode -ne 0) {
         throw "Unable to read /etc/os-release from the dedicated WSL instance."
     }
@@ -200,7 +308,7 @@ function Assert-UbuntuBaseline([string]$Name) {
 }
 
 function Assert-SystemdActive([string]$Name) {
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "ps", "-p", "1", "-o", "comm=")
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "ps", "-p", "1", "-o", "comm=")
     $pid1 = $probe.Stdout
     if ($probe.ExitCode -ne 0 -or $pid1 -ne "systemd") {
         throw "systemd is not active as PID 1 inside '$Name'."
@@ -208,7 +316,7 @@ function Assert-SystemdActive([string]$Name) {
 }
 
 function Enable-WslSystemd([string]$Name) {
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "ps", "-p", "1", "-o", "comm=")
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "ps", "-p", "1", "-o", "comm=")
     if ($probe.ExitCode -eq 0 -and $probe.Stdout -eq "systemd") { return }
 
     Write-Step "Enabling systemd in '$Name'"
@@ -254,9 +362,30 @@ rm -f "$tmp"
     & wsl.exe --terminate $Name
     if ($LASTEXITCODE -ne 0) { throw "Failed to restart '$Name' after enabling systemd." }
     Start-Sleep -Milliseconds 750
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "true")
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "true")
     if ($probe.ExitCode -ne 0) { throw "Failed to start '$Name' after enabling systemd." }
     Assert-SystemdActive $Name
+}
+
+function Grant-WslBootstrapSudo([string]$Name, [string]$User) {
+    Write-Step "Granting temporary bootstrap privileges to '$User'"
+    $sudoers = "$User ALL=(root) NOPASSWD: ALL`n"
+    $probe = Write-WslUtf8File $Name $BootstrapSudoers $sudoers
+    if ($probe.ExitCode -ne 0) { throw "Failed to write temporary bootstrap sudo rule: $($probe.Stderr)" }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "chmod", "0440", $BootstrapSudoers)
+    if ($probe.ExitCode -ne 0) { throw "Failed to protect temporary bootstrap sudo rule." }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", $BootstrapSudoers)
+    if ($probe.ExitCode -ne 0) {
+        Remove-WslBootstrapSudo $Name
+        throw "Failed to validate temporary bootstrap sudo rule: $($probe.Stderr)"
+    }
+}
+
+function Remove-WslBootstrapSudo([string]$Name) {
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "rm", "-f", $BootstrapSudoers)
+    if ($probe.ExitCode -ne 0) {
+        Write-Warning "Failed to remove temporary Hacocoon bootstrap sudo rule."
+    }
 }
 
 function Get-BundledVersion {
@@ -276,7 +405,7 @@ function Get-BundledVersion {
 }
 
 function Get-WslArch([string]$Name) {
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "uname", "-m")
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "uname", "-m")
     if ($probe.ExitCode -ne 0) {
         throw "Unable to determine WSL architecture for '$Name'."
     }
@@ -288,11 +417,11 @@ function Get-WslArch([string]$Name) {
     }
 }
 
-function Configure-WslPost([string]$Name, [string]$LoginUser) {
+function Configure-WslPost([string]$Name, [string]$User) {
     Write-Step "Configuring WSL login to enter trusted haco-host"
     $haco = $null
     foreach ($candidate in @('/usr/local/bin/haco', '/usr/bin/haco')) {
-        $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "test", "-x", $candidate)
+        $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $User, "--exec", "test", "-x", $candidate)
         if ($probe.ExitCode -eq 0) {
             $haco = $candidate
             break
@@ -322,7 +451,7 @@ function Configure-WslPost([string]$Name, [string]$LoginUser) {
     }
     if ($probe.ExitCode -ne 0) { throw "Failed to register Hacocoon WSL login shell: $($probe.Stderr)" }
 
-    $sudoers = "$LoginUser ALL=(root) NOPASSWD: $haco host ensure, $haco host shell`n"
+    $sudoers = "$User ALL=(root) NOPASSWD: $haco host ensure, $haco host shell`n"
     $probe = Write-WslUtf8File $Name "/etc/sudoers.d/hacocoon-login" $sudoers
     if ($probe.ExitCode -ne 0) { throw "Failed to write the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "chmod", "0440", "/etc/sudoers.d/hacocoon-login")
@@ -330,22 +459,23 @@ function Configure-WslPost([string]$Name, [string]$LoginUser) {
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", "/etc/sudoers.d/hacocoon-login")
     if ($probe.ExitCode -ne 0) { throw "Failed to validate the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
 
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/usermod", "-s", $LoginShell, $LoginUser)
-    if ($probe.ExitCode -ne 0) { throw "Failed to configure Hacocoon WSL login shell for '$LoginUser'." }
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/usermod", "-s", $LoginShell, $User)
+    if ($probe.ExitCode -ne 0) { throw "Failed to configure Hacocoon WSL login shell for '$User'." }
 
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "getent", "passwd", $LoginUser)
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "getent", "passwd", $User)
     if ($probe.ExitCode -ne 0) {
         throw "Failed to inspect the WSL login user after shell configuration."
     }
     $passwdFields = $probe.Stdout -split ':'
     $actualShell = if ($passwdFields.Count -ge 7) { $passwdFields[6].Trim() } else { "" }
     if ($actualShell -ne $LoginShell) {
-        throw "WSL post-install validation failed: '$LoginUser' shell is '$actualShell'."
+        throw "WSL post-install validation failed: '$User' shell is '$actualShell'."
     }
 }
 
 Assert-SafeName $InstanceName "WSL instance name"
 Assert-SafeName $BaseDistro "WSL base distribution"
+Assert-SafeName $LoginUser "WSL login user"
 if ($HacocoonVersion -ne "latest") { Assert-ReleaseTag $HacocoonVersion }
 
 if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
@@ -354,6 +484,7 @@ if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
 Assert-WslSupported
 
 $installed = @(Get-InstalledDistros)
+$createdInstance = $false
 if (-not ($installed -contains $InstanceName)) {
     if (-not (Test-Administrator)) {
         throw "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell."
@@ -365,22 +496,18 @@ if (-not ($installed -contains $InstanceName)) {
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to create '$InstanceName'. Update WSL with 'wsl --update' if named installation is unsupported."
     }
-    Ensure-Wsl2 $InstanceName
-    Write-Host ""
-    Write-Host "Dedicated Hacocoon WSL instance '$InstanceName' was created."
-    Write-Host "Launch it once with: wsl -d $InstanceName"
-    Write-Host "Complete normal Ubuntu user setup, then run this installer again."
-    exit 0
+    $createdInstance = $true
 }
 
 Ensure-Wsl2 $InstanceName
-$probe = Invoke-WslCapture @("--distribution", $InstanceName, "--exec", "true")
+$probe = Invoke-WslCapture @("--distribution", $InstanceName, "--user", "root", "--exec", "true")
 if ($probe.ExitCode -ne 0) {
-    throw "'$InstanceName' exists but is not ready. Launch it once and complete Ubuntu user setup."
+    throw "'$InstanceName' exists but is not ready for bootstrap."
 }
 
 # pre
-$loginUser = Get-WslLoginUser $InstanceName
+$loginUser = Resolve-WslLoginUser $InstanceName $createdInstance
+Set-WslDefaultUser $InstanceName $loginUser
 Assert-UbuntuBaseline $InstanceName
 Enable-WslSystemd $InstanceName
 $arch = Get-WslArch $InstanceName
@@ -404,15 +531,24 @@ if ($probe.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($linuxAssetRoot)) {
 $skipIncusValue = if ($SkipIncus) { "1" } else { "0" }
 $grantIncusAdminValue = if ($GrantIncusAdmin) { "1" } else { "0" }
 $requireProvenance = if ($env:HACO_REQUIRE_PROVENANCE) { $env:HACO_REQUIRE_PROVENANCE } else { "1" }
-Write-Step "Running common Ubuntu install.sh inside '$InstanceName'"
-& wsl.exe --distribution $InstanceName --user $loginUser --exec env `
-    "HACO_BUNDLE_ROOT=$linuxAssetRoot" `
-    "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue" `
-    "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue" `
-    "HACO_REQUIRE_PROVENANCE=$requireProvenance" `
-    sh "$linuxAssetRoot/install.sh" $resolvedVersion
-if ($LASTEXITCODE -ne 0) {
-    throw "Common Hacocoon Ubuntu installation failed inside WSL."
+$bootstrapSudoGranted = $false
+try {
+    Grant-WslBootstrapSudo $InstanceName $loginUser
+    $bootstrapSudoGranted = $true
+    Write-Step "Running common Ubuntu install.sh inside '$InstanceName'"
+    & wsl.exe --distribution $InstanceName --user $loginUser --exec env `
+        "HACO_BUNDLE_ROOT=$linuxAssetRoot" `
+        "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue" `
+        "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue" `
+        "HACO_REQUIRE_PROVENANCE=$requireProvenance" `
+        sh "$linuxAssetRoot/install.sh" $resolvedVersion
+    if ($LASTEXITCODE -ne 0) {
+        throw "Common Hacocoon Ubuntu installation failed inside WSL."
+    }
+} finally {
+    if ($bootstrapSudoGranted) {
+        Remove-WslBootstrapSudo $InstanceName
+    }
 }
 Assert-SystemdActive $InstanceName
 
