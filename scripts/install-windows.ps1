@@ -369,11 +369,11 @@ if (-not ($installed -contains $InstanceName)) {
     $args = @("--install", $BaseDistro, "--name", $InstanceName, "--no-launch")
     if ($WebDownload) { $args += "--web-download" }
 
-    $createExitCode = if (Test-Administrator) {
+    if (Test-Administrator) {
         & wsl.exe @args
-        $LASTEXITCODE
+        $createExitCode = $LASTEXITCODE
     } else {
-        Invoke-ElevatedWsl $args
+        $createExitCode = Invoke-ElevatedWsl $args
     }
     if ($createExitCode -ne 0) {
         throw "Failed to create '$InstanceName'. Update WSL with 'wsl --update' if named installation is unsupported."
