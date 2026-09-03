@@ -66,10 +66,6 @@ function Invoke-WslCapture([string[]]$Arguments) {
     $stderr = ""
     $exitCode = 1
     try {
-        # Windows PowerShell can promote native stderr to an ErrorRecord while
-        # $ErrorActionPreference is Stop. WSL may emit advisory systemd/session
-        # warnings even when the requested command succeeds, so let the native
-        # process finish and make the decision from its exit code.
         $ErrorActionPreference = "Continue"
         $stdout = @(& wsl.exe @Arguments 2> $stderrPath)
         $exitCode = $LASTEXITCODE
@@ -90,9 +86,6 @@ function Invoke-WslCaptureWithInput([string[]]$Arguments, [string]$InputText) {
     $stderr = ""
     $exitCode = 1
     try {
-        # Send scripts/configuration over stdin instead of embedding them in a
-        # Windows native-process command line. Windows PowerShell 5.1 can
-        # rewrite quotes inside a `sh -c` argument before wsl.exe sees them.
         $ErrorActionPreference = "Continue"
         $stdout = @($InputText | & wsl.exe @Arguments 2> $stderrPath)
         $exitCode = $LASTEXITCODE
@@ -107,10 +100,6 @@ function Invoke-WslCaptureWithInput([string[]]$Arguments, [string]$InputText) {
 }
 
 function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [switch]$Append) {
-    # Windows PowerShell's pipeline can translate newlines when feeding a native
-    # process. Encode the exact UTF-8 bytes first, then decode inside WSL. The
-    # shell program is fixed; file content and destination never become shell
-    # syntax, so this avoids both CRLF corruption and quoting ambiguity.
     $normalized = ($Content -replace "`r`n", "`n") -replace "`r", "`n"
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
     $script = if ($Append) {
@@ -336,13 +325,13 @@ function Configure-WslPost([string]$Name, [string]$LoginUser) {
     }
     if ($probe.ExitCode -ne 0) { throw "Failed to register Hacocoon WSL login shell: $($probe.Stderr)" }
 
-    $sudoers = "$LoginUser ALL=(root) NOPASSWD: $haco host ensure, $haco host shell`n"
-    $probe = Write-WslUtf8File $Name "/etc/sudoers.d/hacocoon-login" $sudoers
-    if ($probe.ExitCode -ne 0) { throw "Failed to write the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "chmod", "0440", "/etc/sudoers.d/hacocoon-login")
-    if ($probe.ExitCode -ne 0) { throw "Failed to protect the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/visudo", "-cf", "/etc/sudoers.d/hacocoon-login")
-    if ($probe.ExitCode -ne 0) { throw "Failed to validate the narrow Hacocoon WSL sudo rule: $($probe.Stderr)" }
+    # Older installers granted passwordless root access to `haco host ...` for
+    # the login shim. The reset product `haco` must not inherit that authority:
+    # interactive entry now reaches the controller through the normal hacocoon
+    # group and the temporary hacoq compatibility path. Remove the old rule on
+    # both fresh installs and upgrades before future product commands are added.
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "rm", "-f", "/etc/sudoers.d/hacocoon-login")
+    if ($probe.ExitCode -ne 0) { throw "Failed to remove obsolete Hacocoon WSL sudo rule." }
 
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/usermod", "-s", $LoginShell, $LoginUser)
     if ($probe.ExitCode -ne 0) { throw "Failed to configure Hacocoon WSL login shell for '$LoginUser'." }
