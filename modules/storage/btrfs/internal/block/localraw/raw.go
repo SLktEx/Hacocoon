@@ -79,17 +79,21 @@ func (s *Store) Attach(ctx context.Context, handle block.Handle) (block.Handle, 
 }
 
 func (s *Store) Detach(ctx context.Context, handle block.Handle) error {
-	device := handle.Device
-	if device == "" {
-		if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
-			return err
-		}
-		device, _ = s.findDevice(ctx, handle.Path)
+	if _, err := block.ValidateBackingPath(handle.Path, false); err != nil {
+		return err
+	}
+	// A loop device name is only an ephemeral attachment. It can be reused for a
+	// different backing file after detach or reboot, so never trust Handle.Device
+	// for a destructive operation. Resolve the current attachment from the
+	// authoritative backing path immediately before detaching.
+	device, err := s.findDevice(ctx, handle.Path)
+	if err != nil {
+		return fmt.Errorf("discover raw loop image before detach: %w", err)
 	}
 	if device == "" {
 		return nil
 	}
-	_, err := s.runner.Run(ctx, "losetup", "-d", device)
+	_, err = s.runner.Run(ctx, "losetup", "-d", device)
 	return err
 }
 
