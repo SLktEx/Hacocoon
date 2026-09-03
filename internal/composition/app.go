@@ -125,8 +125,8 @@ func Local(ctx context.Context) (*App, error) {
 			return nil, err
 		}
 	} else {
-		if err := incusRuntime.ConfigureStorageProvider(func(context.Context) (map[string]string, error) {
-			return defaultIncusStorageAttachment(), nil
+		if err := incusRuntime.ConfigureStorageProvider(func(storageCtx context.Context) (map[string]string, error) {
+			return ensureDefaultIncusStoragePool(storageCtx, runtimeRunner)
 		}); err != nil {
 			return nil, err
 		}
