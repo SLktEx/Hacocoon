@@ -45,8 +45,12 @@ function Invoke-WslExit([string]$Wsl, [string[]]$Arguments) {
     $previousPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
-        & $Wsl @Arguments
-        return [int]$LASTEXITCODE
+        $output = @(& $Wsl @Arguments 2>&1)
+        $exitCode = [int]$LASTEXITCODE
+        foreach ($line in $output) {
+            Write-Host $line
+        }
+        return $exitCode
     } finally {
         $ErrorActionPreference = $previousPreference
     }
