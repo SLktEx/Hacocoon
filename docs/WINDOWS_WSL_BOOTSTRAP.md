@@ -72,26 +72,34 @@ The PowerShell installer owns Windows and WSL-specific preparation:
 1. require a current WSL installation;
 2. create or reuse only the dedicated `Hacocoon` distribution from `Ubuntu-26.04`;
 3. enforce WSL 2 for that distribution without changing global WSL defaults;
-4. require a normal non-root Ubuntu user;
-5. verify the WSL guest is Ubuntu 26.04+;
-6. preserve unrelated `/etc/wsl.conf` settings while ensuring:
+4. on a fresh/default setup, create the dedicated non-root Ubuntu user `hacocoon` automatically;
+5. optionally use Ubuntu's normal first-launch user setup when `-InteractiveUserSetup` is selected;
+6. verify the WSL guest is Ubuntu 26.04+;
+7. preserve unrelated `/etc/wsl.conf` settings while ensuring the selected login user and systemd are configured:
 
    ```ini
+   [user]
+   default=hacocoon
+
    [boot]
    systemd=true
    ```
 
-7. restart only the dedicated distribution with `wsl --terminate Hacocoon` when systemd activation requires it;
-8. verify systemd is PID 1;
-9. verify that the installer package contains the binary archive matching the WSL architecture.
+8. restart only the dedicated distribution with `wsl --terminate Hacocoon` when systemd activation requires it;
+9. verify systemd is PID 1;
+10. verify that the installer package contains the binary archive matching the WSL architecture.
 
-A freshly created Ubuntu WSL distribution can require its normal first-launch user setup. In that case the installer stops after creation and asks the user to run:
+The default fresh-install path is one-shot: running `install-windows.bat` creates the WSL distribution, creates the `hacocoon` user, enables systemd, runs the packaged `install.sh`, performs WSL post-install integration, and returns only after the installation is complete. The user does not need to launch WSL and rerun the BAT between phases.
+
+For an interactive Ubuntu account setup instead, run:
 
 ```powershell
-wsl -d Hacocoon
+.\install-windows.bat -InteractiveUserSetup
 ```
 
-After completing the Ubuntu user setup, run `install-windows.bat` again.
+The installer launches the normal Ubuntu first-launch setup. After creating the Ubuntu account and reaching its shell, run `exit` once; the still-running Windows installer then resumes automatically and finishes `install.sh` plus post-install integration. An existing dedicated distribution with a normal non-root default user is reused on ordinary reruns.
+
+The automatic bootstrap user receives a temporary passwordless bootstrap sudo rule only while the common installation is running. That broad temporary rule is removed in a `finally` path. Normal completed WSL integration retains only the exact passwordless `haco host ensure` and `haco host shell` commands described below.
 
 ## Common Ubuntu main phase
 
@@ -155,7 +163,7 @@ haco host shell
 
 Installer E2E is evaluated at the user-visible entry points, not by declaring success because `install.sh` ran in isolation.
 
-The Windows gate builds the candidate `hacocoon-windows-amd64.zip`, extracts it, executes the packaged `install-windows.bat`, emulates the normal Ubuntu first-launch user creation when necessary, executes the **same packaged BAT again**, and requires WSL 2, systemd, Incus, the controller socket/service, `haco-host doctor`, and WSL login integration to succeed.
+The Windows default-path gate builds the candidate `hacocoon-windows-amd64.zip`, extracts it, executes the packaged `install-windows.bat` once, and requires that single invocation to create the dedicated WSL user and proceed through WSL 2, systemd, the common `install.sh`, Incus, the controller socket/service, `haco-host doctor`, and WSL login integration. Interactive user setup is a separate opt-in path, not a prerequisite for the default installer.
 
 The native Ubuntu gate builds the candidate `hacocoon-ubuntu-amd64.tar.gz`, extracts it, executes the packaged `install-ubuntu.sh`, and requires the controller and trusted `haco-host` round trip to succeed while confirming the native login shell was not replaced.
 
