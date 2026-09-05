@@ -291,7 +291,7 @@ func (h *Helper) mountBtrfs(ctx context.Context, root, device, mountpoint string
 		if mountedID != mountID || mountedDevice != device {
 			return helperFailure(fmt.Errorf("refuse remount: %s is not mounted from %s", mountpoint, device))
 		}
-		result := h.run(ctx, "mount", device, mountpoint, "-o", "remount,compress=zstd:3")
+		result := h.run(ctx, "mount", device, mountpoint, "-o", "remount,"+managedBtrfsMountOptions)
 		if result.ExitCode != 0 {
 			return result
 		}
@@ -319,7 +319,7 @@ func (h *Helper) mountBtrfs(ctx context.Context, root, device, mountpoint string
 	if err := validateCallerDirectory(mountpoint, callerUID, "Hacocoon mountpoint"); err != nil {
 		return helperFailure(err)
 	}
-	result := h.run(ctx, "mount", device, mountpoint, "-o", "compress=zstd:3")
+	result := h.run(ctx, "mount", device, mountpoint, "-o", managedBtrfsMountOptions)
 	if result.ExitCode != 0 {
 		return result
 	}

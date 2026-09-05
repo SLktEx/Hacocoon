@@ -24,6 +24,8 @@ HacocoonはWorkspaceを隔離された実行境界の中に置き、特権author
 > [!WARNING]
 > **Hacocoonはまだpre-1.0で、Breaking Changeは今後も発生します。**
 >
+> product-facingな`haco` CLIは現在、基本のuser workflowから作り直しています。これまでのCLIはmigration専用の一時名`hacoq`として残しますが、最終的には削除します。[CLI migration](docs/CLI_MIGRATION.md) を参照してください。
+>
 > 現在のEnvironment backendはIncusです。Provider seamはgenericなまま維持し、以前のconcrete EC2/AWS/EBS implementationはdeferredです。現在のrepository realityとreal-host acceptance gapは [実装状況](docs/IMPLEMENTATION_STATUS.ja.md)、authoritativeなfast-moving development checkpointは [Versioning / Release status](docs/status/versioning-and-release-status.ja.md) を参照してください。
 
 ## なぜHacocoon?
@@ -57,23 +59,27 @@ Hacocoonは **Environment内での自由** と **Host / external serviceを触�
 git clone https://github.com/SLktEx/Hacocoon.git
 cd Hacocoon
 
-go build -o ./bin/haco ./cmd/haco
+go build -o ./bin/haco ./cmd/haco-product
+go build -o ./bin/hacoq ./cmd/haco
 go build -o ./bin/haco-vscode ./cmd/haco-vscode
 go build -o ./bin/haco-agent-host ./cmd/haco-agent-host
 go build -o ./bin/haco-notify ./cmd/haco-notify
 
-./bin/haco doctor
-./bin/haco run --workspace "$PWD" -- go test ./...
+./bin/haco --version
+./bin/haco help
 ```
 
-Named Environmentを残す場合:
+新しい`haco`は意図的に小さく始めます。既存のlow-level機能は移行期間だけ`hacoq`から利用できますが、新しいintegrationを`hacoq`へ依存させないでください。
+
+移行中の既存Workspace操作例:
 
 ```bash
-./bin/haco create --workspace "$PWD" dev
-./bin/haco exec dev -- go test ./...
-./bin/haco shell dev
-./bin/haco status dev
-./bin/haco delete dev
+./bin/hacoq run --workspace "$PWD" -- go test ./...
+./bin/hacoq create --workspace "$PWD" dev
+./bin/hacoq exec dev -- go test ./...
+./bin/hacoq shell dev
+./bin/hacoq status dev
+./bin/hacoq delete dev
 ```
 
 VS Codeでは:
@@ -96,17 +102,19 @@ VS Codeは最初のconvenience clientであり、Core dependencyではありま�
 
 ## Baseとoptional OCI tooling
 
-```bash
-haco base list
-haco base inspect haco/ubuntu-26.04
-haco create --base haco/ubuntu-26.04 --workspace "$PWD" dev
+旧`haco base list`や`haco plugin oci`は以前のCLI表記です。CLI migration中は下記の一時的な`hacoq`表記を使います。
 
-HACO_PLUGIN_OCI=nerdctl haco plugin oci seed sample
-HACO_PLUGIN_OCI=nerdctl haco plugin oci seed recommend
-HACO_PLUGIN_OCI=nerdctl haco plugin oci seed build
-HACO_PLUGIN_OCI=nerdctl haco plugin oci seed current
-HACO_PLUGIN_OCI=docker  haco plugin oci docker status dev
-HACO_PLUGIN_OCI=docker  haco plugin oci docker prepare dev
+```bash
+hacoq base list
+hacoq base inspect haco/ubuntu-26.04
+hacoq create --base haco/ubuntu-26.04 --workspace "$PWD" dev
+
+HACO_PLUGIN_OCI=nerdctl hacoq plugin oci seed sample
+HACO_PLUGIN_OCI=nerdctl hacoq plugin oci seed recommend
+HACO_PLUGIN_OCI=nerdctl hacoq plugin oci seed build
+HACO_PLUGIN_OCI=nerdctl hacoq plugin oci seed current
+HACO_PLUGIN_OCI=docker  hacoq plugin oci docker status dev
+HACO_PLUGIN_OCI=docker  hacoq plugin oci docker prepare dev
 ```
 
 Coreはcontainerd、nerdctl、Docker、local Registryを必須にしません。現在の実装realityは [実装状況](docs/IMPLEMENTATION_STATUS.ja.md)、意図的に速く進めるpre-1.0 checkpoint番号と履歴は [Versioning / Release status](docs/status/versioning-and-release-status.ja.md) を正本とします。READMEにはcheckpoint tableを複製しません。Local OCI Registryはdeferred/unversionedなoptional infrastructureです。
@@ -128,6 +136,7 @@ Security-sensitiveな変更の前に [Security architecture](docs/security/secur
 ## ドキュメント
 
 - [ドキュメント一覧](docs/README.ja.md)
+- [CLI migration](docs/CLI_MIGRATION.md)
 - [Documentation style guide](docs/DOCUMENTATION_STYLE_GUIDE.md)
 - [実装状況](docs/IMPLEMENTATION_STATUS.ja.md)
 - [Architecture / Roadmap](docs/status/architecture-and-roadmap.md)

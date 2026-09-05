@@ -13,6 +13,7 @@ import (
 
 const DefaultHelperPath = "/usr/local/libexec/hacocoon/haco-storage-helper"
 const defaultSudoPath = "/usr/bin/sudo"
+const managedBtrfsMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type SudoRunner struct {
 	root           string
@@ -101,9 +102,9 @@ func translatePrivilegedCommand(name string, args []string) (string, []string, b
 	case "mount":
 		if len(args) == 4 && args[2] == "-o" && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
 			switch args[3] {
-			case "compress=zstd:3":
+			case managedBtrfsMountOptions:
 				return "mount-btrfs", []string{args[0], args[1]}, true, nil
-			case "remount,compress=zstd:3":
+			case "remount," + managedBtrfsMountOptions:
 				return "remount-btrfs", []string{args[0], args[1]}, true, nil
 			}
 		}

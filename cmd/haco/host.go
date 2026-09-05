@@ -13,10 +13,10 @@ import (
 
 func hostCommand(ctx context.Context, app *composition.App, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: haco host <ensure|shell>: %w", core.ErrInvalidArgument)
+		return fmt.Errorf("usage: hacoq host <ensure|shell>: %w", core.ErrInvalidArgument)
 	}
 	if args[0] == "shell" {
-		return fmt.Errorf("haco host shell must use the controller client path: %w", core.ErrIncompatibleState)
+		return fmt.Errorf("hacoq host shell must use the controller client path: %w", core.ErrIncompatibleState)
 	}
 	if app == nil || app.Runtime == nil {
 		return core.ErrInvalidArgument
@@ -40,11 +40,18 @@ func ensureTrustedHostAndClient(ctx context.Context, app *composition.App) error
 	if err := app.Runtime.ProvisionTrustedHostClient(ctx, clientBinary); err != nil {
 		return err
 	}
-	generalClientBinary, err := trustedHostGeneralClientBinary()
+	legacyClientBinary, err := trustedHostGeneralClientBinary()
 	if err != nil {
 		return err
 	}
-	return app.Runtime.ProvisionTrustedHostGeneralClient(ctx, generalClientBinary)
+	if err := app.Runtime.ProvisionTrustedHostGeneralClient(ctx, legacyClientBinary); err != nil {
+		return err
+	}
+	productClientBinary, err := trustedHostProductClientBinary()
+	if err != nil {
+		return err
+	}
+	return app.Runtime.ProvisionTrustedHostProductClient(ctx, productClientBinary)
 }
 
 func trustedHostClientBinary() (string, error) {
@@ -60,14 +67,29 @@ func trustedHostClientBinary() (string, error) {
 	return resolved, nil
 }
 
+// trustedHostGeneralClientBinary resolves the temporary legacy CLI executable.
+// cmd/haco is intentionally built as hacoq during the migration.
 func trustedHostGeneralClientBinary() (string, error) {
 	executable, err := os.Executable()
 	if err != nil {
-		return "", fmt.Errorf("resolve haco executable: %w", err)
+		return "", fmt.Errorf("resolve hacoq executable: %w", err)
 	}
 	resolved, err := filepath.EvalSymlinks(executable)
 	if err != nil {
-		return "", fmt.Errorf("resolve haco executable %q: %w", executable, err)
+		return "", fmt.Errorf("resolve hacoq executable %q: %w", executable, err)
+	}
+	return resolved, nil
+}
+
+func trustedHostProductClientBinary() (string, error) {
+	legacy, err := trustedHostGeneralClientBinary()
+	if err != nil {
+		return "", err
+	}
+	candidate := filepath.Join(filepath.Dir(legacy), "haco")
+	resolved, err := filepath.EvalSymlinks(candidate)
+	if err != nil {
+		return "", fmt.Errorf("resolve companion product haco binary %q: %w", candidate, err)
 	}
 	return resolved, nil
 }

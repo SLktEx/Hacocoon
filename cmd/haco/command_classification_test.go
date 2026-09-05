@@ -33,13 +33,13 @@ func TestHistoricalHacoCommandsAreClassifiedExactlyOnce(t *testing.T) {
 	}
 }
 
-func TestLegacyEnvironmentAliasesPointAtFirstClassNamespace(t *testing.T) {
+func TestLegacyEnvironmentAliasesStayWithinTemporaryHacoqNamespace(t *testing.T) {
 	for command, replacement := range map[string]string{
-		"create": "haco env create",
-		"status": "haco env status",
-		"exec":   "haco env exec",
-		"shell":  "haco env shell",
-		"delete": "haco env delete",
+		"create": "hacoq env create",
+		"status": "hacoq env status",
+		"exec":   "hacoq env exec",
+		"shell":  "hacoq env shell",
+		"delete": "hacoq env delete",
 	} {
 		classification, ok := hacoCommandClassification(command)
 		if !ok {
@@ -51,7 +51,7 @@ func TestLegacyEnvironmentAliasesPointAtFirstClassNamespace(t *testing.T) {
 	}
 }
 
-func TestHandleHelpArgsIsPreRuntimeAndRoleAware(t *testing.T) {
+func TestHandleHelpArgsIsPreRuntimeAndExplicitlyTemporary(t *testing.T) {
 	for _, args := range [][]string{{"help"}, {"--help"}, {"-h"}} {
 		var out bytes.Buffer
 		handled, err := handleHelpArgs(args, &out)
@@ -60,14 +60,14 @@ func TestHandleHelpArgsIsPreRuntimeAndRoleAware(t *testing.T) {
 		}
 		text := out.String()
 		for _, required := range []string{
-			"Hacocoon CLI roles",
-			"general Hacocoon client",
-			"trusted logical Host-local tooling",
-			"General controller-client operations",
-			"Physical Host bootstrap/recovery/service operations",
+			"temporary migration CLI: hacoq",
+			"scheduled for deletion",
+			"Do not add new product features",
+			"Legacy general controller-client operations",
+			"Legacy Physical Host bootstrap/recovery/service operations",
 			"Trusted haco-host-local migration targets",
 			"Temporary compatibility aliases",
-			"haco env create",
+			"hacoq env create",
 			"migration pending",
 		} {
 			if !strings.Contains(text, required) {
