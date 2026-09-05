@@ -36,8 +36,8 @@ run_workflow_policy() {
   need python3
   section "workflow-policy"
   python3 tools/check_workflow_policy.py
-  python3 tools/test_public_release_readiness.py
   python3 tools/test_workflow_policy.py
+  python3 tools/test_public_release_readiness.py
   python3 tools/check_renovate_policy.py
   python3 tools/test_renovate_policy.py
 }
