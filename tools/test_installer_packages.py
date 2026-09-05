@@ -69,8 +69,6 @@ with tempfile.TemporaryDirectory() as temp:
             expected = [
                 "install-windows.bat",
                 "install-windows.ps1",
-                "haco-windows.cmd",
-                "haco-windows.ps1",
                 "install.sh",
                 archive_name,
                 "checksums.txt",
@@ -78,6 +76,9 @@ with tempfile.TemporaryDirectory() as temp:
             ]
             if names != expected:
                 raise SystemExit(f"unexpected Windows {arch} package: {names!r}")
+            for forbidden in ("haco-windows.cmd", "haco-windows.ps1"):
+                if forbidden in names:
+                    raise SystemExit(f"Windows {arch} package unexpectedly contains native haco launcher {forbidden}")
             if f"haco_linux_{other}.tar.gz" in names:
                 raise SystemExit(f"Windows {arch} package contains the wrong architecture")
             if zf.read("checksums.txt").decode() != checksum_line:
@@ -109,7 +110,6 @@ with tempfile.TemporaryDirectory() as temp:
                     f"Windows {arch} package captures wsl.exe stdout into its exit-code variable"
                 )
 
-            # Keep the current one-shot installer contract from #441.
             required_windows_contract = [
                 '[switch]$InteractiveUserSetup',
                 '$ManagedLoginUser = "hacocoon"',
@@ -170,51 +170,18 @@ with tempfile.TemporaryDirectory() as temp:
                         f"Windows installer regressed to sudo provider guessing: {forbidden_provider_guess!r}"
                     )
 
-            # Also retain #439's Windows maintenance launcher package contract.
             windows_bat = zf.read("install-windows.bat").decode("utf-8")
-            for required in (
-                "haco-windows.ps1",
+            for forbidden in (
                 "__install-launcher",
-                "Hacocoon Windows installation complete.",
+                "WINDOWS_LAUNCHER",
+                "HACO_LAUNCHER_EXIT",
+                "%LOCALAPPDATA%\\Hacocoon\\bin\\haco.cmd",
+                "%LOCALAPPDATA%\\Hacocoon\\bin\\haco-windows.ps1",
             ):
-                if required not in windows_bat:
-                    raise SystemExit(
-                        f"Windows {arch} installer does not install the host launcher or expose final completion: {required!r}"
-                    )
-
-            launcher_cmd = zf.read("haco-windows.cmd").decode("utf-8")
-            if "haco-windows.ps1" not in launcher_cmd:
-                raise SystemExit(
-                    f"Windows {arch} launcher CMD does not delegate to the PowerShell helper"
-                )
-
-            launcher = zf.read("haco-windows.ps1").decode("utf-8")
-            for required in (
-                "Resolve-WslVhdPath",
-                "Invoke-Trim",
-                '"--terminate", $InstanceName',
-                "Wait-WslStopped",
-                "Ensure-WslVhdOffline",
-                'Invoke-WslExit $Wsl @("--shutdown")',
-                "Hacocoon will not stop them",
-                "Optimize-VHD",
-                "diskpart.exe",
-                "compact vdisk",
-                "VHD before:",
-                "VHD after:",
-                "Validating that",
-                "maintenance",
-                "compact",
-            ):
-                if required not in launcher:
-                    raise SystemExit(
-                        f"Windows {arch} maintenance launcher is missing {required!r}"
-                    )
-            for forbidden in ("--set-sparse", "--allow-unsafe", "sparseVhd"):
-                if forbidden in launcher:
-                    raise SystemExit(
-                        f"Windows {arch} maintenance launcher must not enable experimental sparse VHD mode: {forbidden!r}"
-                    )
+                if forbidden in windows_bat:
+                    raise SystemExit(f"Windows {arch} installer still contains native launcher behavior: {forbidden!r}")
+            if "Hacocoon Windows installation complete." not in windows_bat:
+                raise SystemExit(f"Windows {arch} installer does not expose final completion")
 
         with tarfile.open(out / f"hacocoon-ubuntu-{arch}.tar.gz", "r:gz") as tf:
             names = tf.getnames()
