@@ -27,15 +27,14 @@ bin="$root/bin"
 mkdir -p "$bin" "$root/home" "$root/haco-root"
 export HOME="$root/home"
 export HACO_ROOT="$root/haco-root"
-export HACO_STORAGE_PRIVILEGE_MODE=direct
 unset WSL_DISTRO_NAME || true
 
 go build -o "$bin/haco" ./cmd/haco-product
 go build -o "$bin/hacoq" ./cmd/haco
-for name in haco-controller haco-vscode haco-agent-host haco-notify haco-storage-helper; do
+for name in haco-controller haco-vscode haco-agent-host haco-notify; do
   go build -o "$bin/$name" "./cmd/$name"
 done
-for name in haco hacoq haco-controller haco-vscode haco-agent-host haco-notify haco-storage-helper; do
+for name in haco hacoq haco-controller haco-vscode haco-agent-host haco-notify; do
   test -x "$bin/$name"
 done
 
@@ -158,28 +157,5 @@ kill -TERM "$notify_pid"
 wait "$notify_pid"
 notify_pid=""
 [[ ! -s "$root/notify.err" ]]
-
-# Privileged storage helper: invoke the real binary and prove it fails closed.
-set +e
-"$bin/haco-storage-helper" >"$root/storage.out" 2>"$root/storage.err"
-storage_code=$?
-set -e
-[[ "$storage_code" == "125" ]]
-[[ ! -s "$root/storage.out" ]]
-if [[ "$(id -u)" == "0" ]]; then
-  grep -Fq 'usage: haco-storage-helper --root <haco-root> <operation> [arguments]' "$root/storage.err"
-else
-  grep -Fq 'storage helper must run with effective uid 0' "$root/storage.err"
-fi
-
-if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
-  set +e
-  sudo -n -- "$bin/haco-storage-helper" >"$root/storage-root.out" 2>"$root/storage-root.err"
-  storage_root_code=$?
-  set -e
-  [[ "$storage_root_code" == "125" ]]
-  [[ ! -s "$root/storage-root.out" ]]
-  grep -Fq 'usage: haco-storage-helper --root <haco-root> <operation> [arguments]' "$root/storage-root.err"
-fi
 
 echo 'PASS: new haco product CLI + temporary hacoq compatibility black-box E2E'

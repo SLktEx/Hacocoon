@@ -30,6 +30,10 @@ stale_claims = [
     (r"implemented milestones are contiguous through \*\*v0\.12\*\*", "stale milestone ceiling"),
     (r"EC2 remains experimental and disabled by default", "stale active EC2 claim"),
     (r"\|\s*EC2 Environment provider\s*\|\s*experimental", "stale active EC2 provider claim"),
+    (r"haco-storage-helper", "removed Host-managed storage helper reference"),
+    (r"HACO_STORAGE_PRIVILEGE_MODE", "removed Host-managed storage mode reference"),
+    (r"HACO_BLOCK_BACKEND", "removed Host-managed block backend reference"),
+    (r"Managed Btrfs Host Privilege Broker", "removed Host-managed storage milestone name"),
 ]
 
 for p in markdown_files:
@@ -250,13 +254,13 @@ require_text("docs/DOCUMENTATION_STYLE_GUIDE.md", [
 require_text("docs/status/versioning-and-release-status.md", [
     "Minor milestones are lightweight pre-1.0 progress checkpoints",
     "Interaction Notification Clients", "Real Incus E2E Acceptance", "Structured Logging",
-    "Managed Btrfs Host Privilege Broker", "Trusted `haco-host` & Default WSL Entry",
+    "Incus-owned Btrfs Storage Acceptance", "Trusted `haco-host` & Default WSL Entry",
     "Local Registry infrastructure is deferred and unversioned", "cloud implementation is currently deferred",
     "Tags/releases are separate",
 ])
 require_text("docs/status/versioning-and-release-status.ja.md", [
     "Interaction Notification Clients", "Real Incus E2E Acceptance", "Structured Logging",
-    "Managed Btrfs Host Privilege Broker", "Trusted `haco-host` & Default WSL Entry",
+    "Incus-owned Btrfs Storage Acceptance", "Trusted `haco-host` & Default WSL Entry",
     "release tagとroadmap milestone番号は別物",
 ])
 require_text("docs/reference/build-release-identity.md", [
@@ -267,12 +271,12 @@ require_text("docs/reference/build-release-identity.ja.md", [
 ])
 require_text("docs/IMPLEMENTATION_STATUS.md", [
     "current code reality", "pkg/clientadapter", "haco ssh", "haco plugin oci seed build",
-    "haco-notify", "haco-storage-helper", "haco host ensure", "HACO_PLUGIN_OCI=nerdctl|docker",
+    "haco-notify", "Incus-owned Btrfs", "haco host ensure", "HACO_PLUGIN_OCI=nerdctl|docker",
     "design/btrfs-storage-layout.md", "design/trusted-host.md", "compress=zstd:3",
     "cloud implementation is currently deferred",
 ])
 require_text("docs/IMPLEMENTATION_STATUS.ja.md", [
-    "haco-notify", "haco-storage-helper", "haco host ensure", "design/trusted-host.ja.md",
+    "haco-notify", "Incus-owned Btrfs", "haco host ensure", "design/trusted-host.ja.md",
 ])
 require_text("docs/status/architecture-and-roadmap.md", [
     "Hacocoon is a **Secure Workspace Runtime**", "Core", "Standard", "Plugin",
@@ -311,9 +315,8 @@ require_text("docs/EGRESS_AUTHORIZATION.md", [
     "Domain-aware egress authorization", "network.egress/connect", "haco egress serve", "SNI",
 ])
 require_text("docs/design/btrfs-storage-layout.md", [
-    "Hacocoon-managed Btrfs storage layout", "Managed Btrfs Transparent Compression",
-    "sparse raw", "haco-<storage-id>", "Environment rootfs", "compress=zstd:3", "compress-force",
-    "haco-storage-helper",
+    "Incus-owned loop-backed Btrfs", "Managed Btrfs Transparent Compression",
+    "haco-local-default", "Environment rootfs", "compress=zstd:3", "compress-force", "autodefrag",
 ])
 require_text("docs/INTERACTION_EVENTS.md", ["browser", "native", "VS Code", "notification"])
 require_text("README.md", [

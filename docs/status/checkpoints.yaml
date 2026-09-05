@@ -27,5 +27,5 @@ milestones:
   "v0.22": "Interaction Notification Clients"
   "v0.23": "Real Incus E2E Acceptance"
   "v0.24": "Structured Logging"
-  "v0.25": "Managed Btrfs Host Privilege Broker"
+  "v0.25": "Incus-owned Btrfs Storage Acceptance"
   "v0.26": "Trusted `haco-host` & Default WSL Entry"
