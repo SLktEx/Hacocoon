@@ -112,13 +112,19 @@ jobs:
           }
           "HACO_E2E_PACKAGE_ROOT=$packageRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: User path phase 1 - run packaged BAT unchanged
+      - name: Restore Ubuntu 26.04 WSL image cache
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: ${{ runner.temp }}\hacocoon-windows-amd64\ubuntu.wsl
+          key: hacocoon-wsl-${{ runner.os }}-${{ runner.arch }}-ubuntu-26.04-v1
+
+      - name: User path phase 1 - run packaged BAT with cached WSL image
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           Push-Location $env:HACO_E2E_PACKAGE_ROOT
           try {
-            & cmd.exe /d /c "install-windows.bat"
+            & cmd.exe /d /c "install-windows.bat -UseCachedWslImage"
             if ($LASTEXITCODE -ne 0) { throw "Packaged BAT phase 1 failed with exit code $LASTEXITCODE." }
           } finally {
             Pop-Location
@@ -155,13 +161,13 @@ jobs:
             throw "Normal WSL default user setup failed: got '$defaultUser'."
           }
 
-      - name: User path phase 2 - run the same packaged BAT unchanged
+      - name: User path phase 2 - run the same packaged BAT with cached WSL image
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           Push-Location $env:HACO_E2E_PACKAGE_ROOT
           try {
-            & cmd.exe /d /c "install-windows.bat"
+            & cmd.exe /d /c "install-windows.bat -UseCachedWslImage"
             if ($LASTEXITCODE -ne 0) { throw "Packaged BAT phase 2 failed with exit code $LASTEXITCODE." }
           } finally {
             Pop-Location
