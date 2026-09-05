@@ -103,6 +103,24 @@ install-windows.bat -InteractiveUserSetup
 
 The installer launches the WSL user-setup session itself. After the user completes setup and exits that shell, the same installer process resumes and continues through `install.sh` and the post phase; a second BAT invocation is still not required.
 
+## Cached WSL image validation path
+
+`-UseCachedWslImage` is a validation-oriented installer option for repeated Windows/WSL installation tests. It keeps the normal installer behavior unchanged unless the option is explicitly selected.
+
+When enabled, `install-windows.ps1` uses `ubuntu.wsl` next to the installer package as the local Ubuntu 26.04 image cache. If that file is absent, the installer reads Microsoft's WSL `DistributionInfo.json`, resolves the `Ubuntu-26.04` image for the current Windows architecture, downloads it to a temporary file, verifies the published SHA256, and only then promotes it to `ubuntu.wsl`.
+
+The dedicated distribution is then created with the named-install path:
+
+```powershell
+wsl --install --from-file .\ubuntu.wsl --name Hacocoon --no-launch
+```
+
+`-UseCachedWslImage` currently supports only the `Ubuntu-26.04` base distribution and cannot be combined with `-WebDownload`. The cache file is intentionally **not** bundled into release installer packages; it is a local/CI acceleration artifact.
+
+GitHub Actions keeps the cache trust boundary separate from untrusted pull requests. A trusted `windows-wsl-image-cache` workflow on `main` owns cache creation with `actions/cache`: on a miss it invokes the same `-UseCachedWslImage` path, so the file is downloaded through Microsoft's metadata and SHA256 validation before it is stored. The pull-request Windows installer E2E uses only `actions/cache/restore`, copies the trusted cached `ubuntu.wsl` into the extracted candidate package when available, and never writes cache state from a PR. If no trusted cache exists, the candidate installer simply performs its normal verified download for that run.
+
+The restart/reinstall Windows E2E invokes both packaged BAT installs with `-UseCachedWslImage`, so the cached path itself remains exercised while also proving `wsl --terminate Hacocoon` restart persistence and reinstall idempotency.
+
 During the common installer run, PowerShell gives the selected ordinary WSL user a temporary passwordless sudo rule so `install.sh` can remain the ordinary workspace owner. On Ubuntu 26.04 the rule uses sudo-rs-compatible default-root syntax, and the installer validates the effective sudo policy and proves a non-interactive sudo command succeeds before starting `install.sh`. That broad bootstrap rule exists only for the trusted installer invocation and is removed in `finally`; normal completed installations retain only the narrow `haco host ensure` / `haco host shell` rule described below.
 
 ## Common Ubuntu main phase
@@ -167,7 +185,7 @@ haco host shell
 
 Installer E2E is evaluated at the user-visible entry points, not by declaring success because `install.sh` ran in isolation.
 
-The Windows gate builds the candidate `hacocoon-windows-amd64.zip`, extracts it, executes the packaged `install-windows.bat`, and requires that **that first unchanged BAT invocation** reaches the complete WSL installation path with the managed `hacocoon` user. The acceptance boundary includes WSL 2, systemd, Incus, the controller socket/service, `haco-host doctor`, and WSL login integration. Separate coverage keeps the opt-in interactive user-setup path available without making it the default install contract.
+The Windows gate builds the candidate `hacocoon-windows-amd64.zip`, extracts it, restores and stages the trusted `ubuntu.wsl` cache when available, and executes the packaged installer through the shipped `-UseCachedWslImage` option. It requires the first install to complete with the managed `hacocoon` user, then explicitly terminates the WSL distribution, proves the existing Environment survives restart before any repair install can run, and finally proves reinstall/idempotency. The acceptance boundary includes WSL 2, systemd, Incus, the controller socket/service, `haco-host doctor`, and WSL login integration. Separate coverage keeps the opt-in interactive user-setup path available without making it the default install contract.
 
 The native Ubuntu gate builds the candidate `hacocoon-ubuntu-amd64.tar.gz`, extracts it, executes the packaged `install-ubuntu.sh`, and requires the controller and trusted `haco-host` round trip to succeed while confirming the native login shell was not replaced.
 
