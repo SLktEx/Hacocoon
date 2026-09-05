@@ -57,12 +57,16 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 		if err := r.ensureTrustedHostControlDevice(ctx); err != nil {
 			return err
 		}
-		return r.ensureTrustedHostRunning(ctx, state)
+		return r.ensureTrustedHostNetworkAndRunning(ctx, state, rootPool)
 	}
 
+	if err := r.ensureTrustedHostNetwork(ctx); err != nil {
+		return err
+	}
 	_, initErr := r.runner.Run(ctx, "incus", "init", r.image, trustedHostName,
 		"--project", r.project,
 		"--storage", rootPool,
+		"--no-profiles", "--network", trustedHostNetwork,
 		"--config", trustedHostRoleKey+"="+trustedHostRoleValue,
 		"--config", trustedHostControlEnvKey+"="+trustedHostControlSocket,
 	)
@@ -82,7 +86,7 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 		if err := r.ensureTrustedHostControlDevice(ctx); err != nil {
 			return errors.Join(fmt.Errorf("create trusted host: %w", initErr), err)
 		}
-		return r.ensureTrustedHostRunning(ctx, state)
+		return r.ensureTrustedHostNetworkAndRunning(ctx, state, rootPool)
 	}
 
 	if err := r.verifyTrustedHostOwnership(ctx); err != nil {
@@ -94,7 +98,7 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 	if err := r.ensureTrustedHostControlDevice(ctx); err != nil {
 		return err
 	}
-	return r.ensureTrustedHostRunning(ctx, "STOPPED")
+	return r.ensureTrustedHostNetworkAndRunning(ctx, "STOPPED", rootPool)
 }
 
 // ProvisionTrustedHostClient installs the client-only haco-host binary into the

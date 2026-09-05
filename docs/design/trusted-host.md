@@ -4,7 +4,7 @@ Status: partial.
 
 Current CLI boundary: product `haco` implements help/version and the WSL login alias. Retained lifecycle commands described below use temporary `hacoq` during [CLI migration](../CLI_MIGRATION.md); they do not describe implemented new product commands.
 
-Observed Windows acceptance on 2026-09-06: `57b6ee2` completed fresh cached BAT installation, but its normal shell exit was later found to hang. Packaged `8a44f17` corrected cold entry and normal process exit; final `3f67845` passed cached BAT application, same-version rerun, cold entry, controller communication, actual exit 0 and trusted-host file/identity/account/sudo-policy retention. Fresh creation of the final candidate was not repeated. Physical Host and trusted-host HTTPS returned 200 on `3f67845`; earlier trusted-host attempts timed out under Docker FORWARD DROP, whereas the later read-only rules showed ACCEPT. No manual firewall repair was applied, and startup-order coexistence remains unverified. Environment proxy enforcement, SSH and Workspace work retention are separate pending acceptance. Explicit trusted-network ownership and removal of storage-dependent minimal initialization remain planned.
+Observed Windows acceptance on 2026-09-06: `57b6ee2` completed fresh cached BAT installation, but its normal shell exit was later found to hang. Packaged `8a44f17` corrected cold entry and normal process exit; final `3f67845` passed cached BAT application, same-version rerun, cold entry, controller communication, actual exit 0 and trusted-host file/identity/account/sudo-policy retention. Fresh creation of the final candidate was not repeated. Physical Host and trusted-host HTTPS returned 200 on `3f67845`; earlier trusted-host attempts timed out under Docker FORWARD DROP, whereas the later read-only rules showed ACCEPT. No manual firewall repair was applied, and startup-order coexistence remains unverified. Environment proxy enforcement, SSH and Workspace work retention are separate pending acceptance. These observations predate the dedicated-network correction described below.
 
 ## Summary
 
@@ -31,8 +31,8 @@ Managed Environments                   UNTRUSTED
 
 The current implementation provides:
 
-- `haco host ensure`, which reconciles one persistent `haco-host`;
-- `haco host shell`, which ensures the instance is running and enters an interactive login shell;
+- `hacoq host ensure`, which reconciles one persistent `haco-host`;
+- `hacoq host shell`, which ensures the instance is running and enters an interactive login shell;
 - the ownership marker `user.hacocoon.role=trusted-host`;
 - rootfs placement on Hacocoon-managed Incus storage;
 - Environment name `host` reserved to avoid a provider-local collision;
@@ -126,7 +126,7 @@ The instance-side socket is intentionally outside `/run` so guest runtime tmpfs 
 
 ## Client provisioning
 
-`haco host ensure` provisions both release client binaries:
+`hacoq host ensure` provisions both release client binaries:
 
 ```text
 /usr/local/bin/haco-host
@@ -140,6 +140,16 @@ This makes repeated ensure idempotent and avoids trusting arbitrary pre-existing
 The product `haco` binary has no guest-local composition fallback and does not invoke `hacoq`. The separately provisioned temporary `hacoq` retains the older lifecycle/CLI implementation, guarded by `HACO_CLIENT_MODE=controller`. Its Environment operations use the controller, and unsupported guest-local operations fail closed.
 
 The mode marker is not an authorization credential. `haco-host` is already trusted, and the Physical Host controller remains the authority for policy, state, and provider operations.
+
+## Dedicated trusted-host network
+
+The Incus adapter owns `haco-host0` in the default resource project, marked `user.hacocoon.owner=trusted-host-network-v1`. It verifies the owner, managed bridge type, private IPv4 subnet, DHCP/DNS/NAT/routing/firewall settings and consumers before use. Unknown routing/DNS overrides, external interfaces or foreign consumers fail closed. IPv6 is disabled in this initial trusted-network contract.
+
+Fresh trusted hosts have an explicit local NIC/root disk and no inherited profiles. Common installation checks Incus readiness and does not call minimal initialization or create a default directory pool. Existing exactly owned hosts using the known default-profile `incusbr0` NIC are gracefully stopped once, migrated to the explicit NIC and restarted; root disk, UUID and files are retained. Unknown profiles/devices fail without migration. A failed migration is resumable and never deletes the old shared bridge, profile or storage pool.
+
+Before bootstrap/entry, the adapter checks IPv4 forwarding and reconciles Docker's `DOCKER-USER` extension point when present. Its two rules match only this bridge/subnet's outbound packets and established/related replies. Global FORWARD policy and Environment bridges are untouched. DROP without a supported extension point fails explicitly. A firewall reload or late Docker startup during an open session is not continuously reconciled; another entry rechecks the state.
+
+The installer verifies DNS, a default IPv4 route and HTTPS inside the real trusted host before reporting success. These infrastructure checks are separate from Environment proxy/default-deny acceptance. See [ADR 0005](../adr/0005-trusted-host-network-ownership.md). Repository regressions and isolated Linux packet checks are separate from final packaged Windows acceptance.
 
 ## Storage
 
@@ -165,7 +175,7 @@ Before changing that login shell, bootstrap now requires all of these to succeed
 2. `haco-controller` is installed as a root-owned system binary;
 3. `haco-controller.service` is restarted on the current release;
 4. `/run/hacocoon/control.sock` is a `root:hacocoon` mode-`0660` Unix socket;
-5. `haco host ensure` reconciles the trusted Host, proxy, client mode, and both client binaries;
+5. `hacoq host ensure` reconciles the trusted Host, proxy, client mode, and both client binaries;
 6. `haco-host doctor` succeeds from inside the real trusted instance.
 
 Only then does normal entry become:
@@ -190,7 +200,7 @@ When `-SkipIncus` is selected, controller/Host automatic entry is not configured
 
 ## Interactive warning
 
-`haco host shell` prints a short privileged-management warning before entering `haco-host`. Japanese locale settings receive Japanese wording; other locales receive English wording.
+`hacoq host shell` prints a short privileged-management warning before entering `haco-host`. Japanese locale settings receive Japanese wording; other locales receive English wording.
 
 The warning is emitted only on the interactive Host-shell path, so non-interactive WSL commands are not polluted.
 

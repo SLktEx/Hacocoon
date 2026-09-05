@@ -3,6 +3,7 @@
 ## WSL向け更新 — 2026-09-05
 
 - 更新mainには #441・#442・#453・#456 と #458/#459 のimage cacheが入った。merge済みPR本文や過去のgreenは、この組合せ候補の受入証拠ではない。
+- **専用trusted networkはimplemented:** Incus adapterが `haco-host0` を所有・検証する。fresh hostはprofileを継承せず、installerはstorageからnetwork初期化を推測しない。現在のhostの限定NIC移行はroot disk/UUIDを保持する。Docker共存はowned bridgeと戻り通信だけに限定。installerのDNS/route/HTTPS検証、所有権・移行回帰、隔離Linux packet gateを実装し、最終packaged受入はpending。[ADR 0005](adr/0005-trusted-host-network-ownership.md)を参照。
 - **最終package `3f67845`（2026-09-06）:** cached BAT適用と同じ現在版の再実行は両方終了0。停止状態からの通常WSL入口、controller protocol 1、両実行場所の製品version、削除した `haco host` 委譲経路の明示的拒否、shell/process正常終了0、保持fileのchecksumを確認。trusted-host UUID・account状態・全sudo policy hashは再実行前後で一致した。fresh作成は `57b6ee2` で確認し、最終候補でデータを消す再実行はしていない。
 - **製品CLI境界:** 隠れた `haco host` の `hacoq` subprocess委譲を削除した。WSL login aliasはcontrollerを直接使い、installer bootstrapの `hacoq host ensure` 依存は明示的な移行残件として残る。未提供の製品commandが明確に失敗する回帰テストを追加。
 - **implemented:** Incus-only storage配布とmount policy。残存 `driver`/`source` attachmentを拒否し、検査失敗はfail closed。policy照合中の既存rootfs/Workspace保持をreal-Incus CI契約にも加えた。
@@ -12,11 +13,11 @@
 - **Windows受入を実測（2026-09-06）:** `9d459be` の明示的昇格時の失敗後、`57b6ee2` はsystem WSLを元のconsole内で呼び出し、未変更のcached BATが終了0で完了した。入口、Btrfs rootfs、controller疎通、同じ現在版BAT完了は成功。その後、以下の通りshell正常終了の不具合が判明し、待機sessionは再起動・再実行で切断された。trusted-host識別子・file・全sudo policy hashを保持し、product overrideや準備fixtureは使っていない。
 - **製品CLIはpartial:** 新 `haco` はhelp/versionとcontroller経由のWSL login aliasを持つ。以下の旧lifecycle・Base・SSH command表記は一時的な `hacoq` の機能。#456の再利用可能なcontroller adapterは実装済みだが、製品commandを `hacoq` へ委譲してはいけない。
 - **Seed撤去はplanned:** codeは残り、Base/任意OCIとの依存は[Seed設計](design/oci-seed-and-cow.ja.md)に記録した。Base選択と任意Pluginは保持する。
-- **network受入はpartial:** installer生成 `incusbr0` はtrusted-hostのDNS・経路を提供した。`57b6ee2` ではDocker FORWARD policy DROP下でHTTPSがtimeout。packaged `3f67845` ではPhysical Hostとtrusted-hostのHTTPSが200となり、同じ現在版BAT再実行後もtrusted-hostは200だった。その際の読み取り規則はDocker FORWARD policy ACCEPTだった。firewall修復は加えておらず、policy変化の原因・起動順を変えた共存は未検証。Windows gateは両層を要求する。Incus minimal初期化は未使用directory poolも作成し、単一pool bootstrapは未完了。
+- **以前のpackage受入（`3f67845`）:** installer生成 `incusbr0` はtrusted-hostのDNS・経路を提供した。`57b6ee2` ではDocker FORWARD policy DROP下でHTTPSがtimeout。packaged `3f67845` ではPhysical Hostとtrusted-hostのHTTPSが200となり、同じ現在版BAT再実行後もtrusted-hostは200だった。その際の読み取り規則はDocker FORWARD policy ACCEPTだった。firewall修復は加えておらず、policy変化の原因・起動順を変えた共存は未検証。Windows gateは両層を要求する。その候補は未使用directory poolも作成した。現在の修正はminimal初期化を撤去し、最終fresh受入はpending。
 - **対話終了を修正:** `57b6ee2` の最終観測でshellの `exit` はlogoutを表示してもWSL processが戻らず、後の再起動・再実行で待機connectionが切れた。入口とfile保持は成功したが、正常終了は失敗。adapterはprocess終了をclient入力の開閉から分離し、login aliasはterminalではないcharacter deviceを拒否する。入力を開いたまま正常・非zero終了するprocess回帰を追加。後のpackaged `8a44f17` は停止状態からのWSL入口、controller ping、保持fileのchecksum、shell `exit` 後のWSL process終了0を確認した。
 - **WSL起動を修正:** `5b3d36d` のpackaged BAT適用は完了したが、続く通常loginがcontroller socket作成より先に進んだ。その後の読み取り診断では、有効なcontrollerがWSL起動約19秒で正常に開始した。loginは期限付きの読み取り専用pingで準備を待ち、第二のcontrollerを作らない。起動待ち・拒否・timeout回帰は成功。packaged `8a44f17` でHacocoonだけを明示的に停止し、root/service事前診断なしで通常入口とprocess終了0を確認した。account、trusted-host UUID、全sudo policy hashも前のinstallと一致した。
 - **実機受入はpending:** 起動順が変わっても再現するtrusted-host network、Environmentの許可proxy通信と直接通信拒否、SSH、Environment/Workspace作業保持。更新したWindows gate全体の成功は未確認。LinuxのIncus/network基盤CIは継続する。
-- **次の具体的依存:** storage依存のbootstrapを、明示的に所有するtrusted-host networkと限定的なfirewall共存へ置き換え、Environmentの拒否・proxy policyを維持する。
+- **次の具体的受入:** 専用network修正をpackaged cached BATと現在データ保持で検証する。Environmentの拒否・proxy、SSH、製品lifecycle導線は別途follow-up。
 
 以下の表は元のcheckpoint時点の履歴文脈を保持する。
 

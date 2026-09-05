@@ -293,6 +293,17 @@ def assert_host() -> None:
     if not inspect_root("getent", "passwd", LOGIN_USER).endswith(":/usr/local/libexec/hacocoon-login"):
         raise RuntimeError("WSL login integration missing")
     inspect_root("incus", "exec", "haco-host", "--project", PROJECT, "--", "/usr/local/bin/haco-host", "doctor")
+    trusted_host = json.loads(inspect_root("incus", "query", f"/1.0/instances/haco-host?project={PROJECT}"))
+    if trusted_host["profiles"] or trusted_host["devices"].get("eth0") != {
+        "type": "nic", "name": "eth0", "network": "haco-host0",
+    }:
+        raise RuntimeError("trusted host inherited a profile or uses an unexpected network")
+    if inspect_root("incus", "network", "get", "haco-host0", "user.hacocoon.owner", "--project", "default") != "trusted-host-network-v1":
+        raise RuntimeError("trusted-host network ownership mismatch")
+    # This gate starts with an absent distro. A fresh product install creates
+    # only the Incus Btrfs pool; current-data migration is a separate check.
+    if set(inspect_root("incus", "storage", "list", "--format", "csv", "-c", "n").splitlines()) != {POOL}:
+        raise RuntimeError("fresh installer created an additional storage pool")
     if inspect_root("incus", "storage", "get", POOL, "btrfs.mount_options") != "compress=zstd:3,noatime,nodiscard":
         raise RuntimeError("Incus storage mount policy drift")
     if inspect_root("incus", "storage", "get", POOL, "source") != INCUS_BACKING:

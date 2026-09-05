@@ -113,6 +113,14 @@ done
 
 "$hacoq" host ensure
 trusted_host_created=1
+[[ "$(incus config device get "$trusted_host_ref" eth0 network --project hacocoon)" == "haco-host0" ]] || {
+  echo "trusted host did not receive its explicit dedicated bridge" >&2
+  exit 1
+}
+[[ "$(incus network get haco-host0 user.hacocoon.owner --project default)" == "trusted-host-network-v1" ]] || {
+  echo "trusted-host bridge ownership mismatch" >&2
+  exit 1
+}
 [[ "$(incus config get "$trusted_host_ref" user.hacocoon.role --project hacocoon)" == "trusted-host" ]] || {
   echo "trusted haco-host ownership marker mismatch" >&2
   exit 1

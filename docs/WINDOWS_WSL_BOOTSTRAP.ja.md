@@ -2,9 +2,9 @@
 
 Status: **partial**。固定管理accountのbootstrapはimplemented、実Windowsでのinstall/network/restart受入は[実装status](IMPLEMENTATION_STATUS.ja.md)で別管理する。製品 `haco` は現在help/versionとcontroller経由のWSL login aliasを持つ。保持しているlifecycle commandは[CLI移行](CLI_MIGRATION.md)中の一時的な `hacoq` の機能である。
 
-Windows受入の実測（2026-09-06）: `57b6ee2` のfresh cached BATは完了したが、後に通常shell終了のhangが判明した。packaged `8a44f17` で停止状態からの入口・正常終了を修正し、最終 `3f67845` でcached BAT適用・同じ現在版再実行・停止状態からの入口・controller疎通・実際の終了0・trusted-host file/識別子/account/sudo policy保持を確認した。最終候補のfresh作成は再実行していない。`3f67845` のPhysical Hostとtrusted-host HTTPSは200だった。以前のtrusted-host通信はDocker FORWARD DROP下でtimeoutし、後の読み取り規則はACCEPTだった。手動firewall修復はしておらず、起動順を変えた共存は未検証。Environment proxy制御・SSH・Workspace作業保持の受入は別途pending。trusted networkの明示的所有とstorage依存のminimal初期化撤去はplanned。
+Windows受入の実測（2026-09-06）: `57b6ee2` のfresh cached BATは完了したが、後に通常shell終了のhangが判明した。packaged `8a44f17` で停止状態からの入口・正常終了を修正し、最終 `3f67845` でcached BAT適用・同じ現在版再実行・停止状態からの入口・controller疎通・実際の終了0・trusted-host file/識別子/account/sudo policy保持を確認した。最終候補のfresh作成は再実行していない。`3f67845` のPhysical Hostとtrusted-host HTTPSは200だった。以前のtrusted-host通信はDocker FORWARD DROP下でtimeoutし、後の読み取り規則はACCEPTだった。手動firewall修復はしておらず、起動順を変えた共存は未検証。Environment proxy制御・SSH・Workspace作業保持の受入は別途pending。これらは以下の専用network修正前の受入記録。
 
-common phaseはstorageが無い場合だけ `incus admin init --minimal` を呼ぶ。このhostでは未使用の `default` directory poolと `incusbr0` を作成したが、`haco-host` 本体は `haco-local-default` Btrfsを使う。storage依存のbootstrapを明示的なtrusted-network準備へ置き換える作業はplanned。受入fixtureとして既存poolを削除したり、他のfirewallのglobal policyを変更したりしない。
+Common phaseはminimal初期化をせずdaemonの準備だけを確認する。Btrfs poolとtrusted-host bridgeはadapterが明示的に所有し、fresh installで未使用default directory poolを作らない。既存poolは保持し、現在のowned default-profile hostはデータを削除せず限定したNIC移行を行う。[trusted network](design/trusted-host.ja.md#専用trusted-host-network)と[ADR 0005](adr/0005-trusted-host-network-ownership.md)を参照。この変更の最終packaged受入はpending。
 
 Hacocoon の local Host baseline は Ubuntu 26.04+ です。Windows では専用の Ubuntu WSL 2 distribution を作り、native Ubuntu ではその Host を直接使います。
 

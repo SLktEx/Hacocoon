@@ -17,6 +17,9 @@ import (
 func TestEnsureTrustedHostCreatesMarkedInstanceWithNarrowControlProxyAndStartsIt(t *testing.T) {
 	deviceAdded := false
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if result, ok := trustedHostNetworkFixture(args); ok {
+			return result, nil
+		}
 		switch {
 		case len(args) >= 2 && args[0] == "storage" && args[1] == "show":
 			return host.Result{}, nil
@@ -57,6 +60,7 @@ func TestEnsureTrustedHostCreatesMarkedInstanceWithNarrowControlProxyAndStartsIt
 		"init", defaultImage, trustedHostName,
 		"--project", defaultProject,
 		"--storage", "haco-local-default",
+		"--no-profiles", "--network", trustedHostNetwork,
 		"--config", trustedHostRoleKey + "=" + trustedHostRoleValue,
 		"--config", trustedHostControlEnvKey + "=" + trustedHostControlSocket,
 	})
@@ -279,6 +283,9 @@ func TestProvisionTrustedHostClientRejectsWritableSource(t *testing.T) {
 
 func trustedHostRunner(state, role string, overrides map[string]string) *fakeRunner {
 	return &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if result, ok := trustedHostNetworkFixture(args); ok {
+			return result, nil
+		}
 		switch {
 		case len(args) >= 2 && args[0] == "profile" && args[1] == "show":
 			return rootProfileResult(), nil

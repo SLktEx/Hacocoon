@@ -282,7 +282,7 @@ prepare_ubuntu_host() {
   fi
 
   printf '==> Installing and starting Incus\n'
-  $SUDO apt-get install -y incus
+  $SUDO apt-get install -y incus iptables
   printf '==> Authorizing the local Hacocoon workspace owner for Incus idmap\n'
   configure_workspace_owner_idmap
   printf '==> Preparing bridge netfilter for Hacocoon sandbox filtering\n'
@@ -301,14 +301,30 @@ prepare_ubuntu_host() {
     fi
   fi
 
-  if command -v incus >/dev/null 2>&1 && $SUDO incus info >/dev/null 2>&1; then
-    if ! $SUDO incus storage list --format csv -c n 2>/dev/null | grep -q .; then
-      printf '==> Initializing Incus with a minimal configuration\n'
-      $SUDO incus admin init --minimal
-    fi
-  else
+  # The Incus adapter owns its Btrfs pool and trusted-host bridge explicitly.
+  # Minimal initialization would also create an unused directory pool and
+  # couple network availability to whether any storage pool already exists.
+  if ! command -v incus >/dev/null 2>&1 || ! $SUDO incus info >/dev/null 2>&1; then
     die "Incus daemon is not ready after systemd startup"
   fi
+}
+
+verify_trusted_host_connectivity() {
+  network_attempt=0
+  while [ "$network_attempt" -lt 10 ]; do
+    # Guest networkd/DHCP can lag behind Incus's RUNNING state. Bound each
+    # guest probe and wait without changing any network/firewall configuration.
+    if $SUDO incus exec haco-host --project hacocoon -- timeout 8 /bin/sh -ec '
+      getent ahostsv4 github.com >/dev/null
+      ip -4 route show default | grep -q "^default "
+      curl -4 -f -sS --connect-timeout 3 --max-time 5 -o /dev/null https://github.com
+    ' >/dev/null 2>&1; then
+      return 0
+    fi
+    network_attempt=$((network_attempt + 1))
+    [ "$network_attempt" -ge 10 ] || sleep 1
+  done
+  return 1
 }
 
 has_authenticated_gh() {
@@ -671,6 +687,8 @@ $SUDO "$hacoq_bin" host ensure || die "failed to prepare haco-host"
 printf '==> Verifying trusted haco-host controller round trip\n'
 $SUDO incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null ||
   die "haco-host cannot reach the Physical Host controller"
+printf '==> Verifying trusted haco-host DNS, route and HTTPS\n'
+verify_trusted_host_connectivity || die "haco-host network is not ready (DNS, default route or HTTPS failed after bounded probes)"
 
 if [ -n "${HACOCOON_ACCESS_USER:-}" ]; then
   warn "membership in $HACOCOON_ACCESS_GROUP grants authority to control Hacocoon environments; treat it as a privileged local group"

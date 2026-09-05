@@ -293,7 +293,7 @@ require_text("docs/README.ja.md", [
     "現在のcheckpoint", "haco-notify", "haco-host", "status/versioning-and-release-status.ja.md",
 ])
 require_text("docs/design/trusted-host.md", [
-    "haco-host", "Physical Host", "haco host ensure", "haco host shell",
+    "haco-host", "Physical Host", "hacoq host ensure", "hacoq host shell",
 ])
 require_text("docs/CLIENT_ADAPTER_CONTRACT.md", [
     "pkg/clientadapter", "public-key", "private key", "loopback-only", "/workspace",

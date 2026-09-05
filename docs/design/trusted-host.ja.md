@@ -4,7 +4,7 @@ Status: partial.
 
 現在のCLI境界: 製品 `haco` はhelp/versionとWSL login aliasを実装する。以下の保持しているlifecycle commandは[CLI移行](../CLI_MIGRATION.md)中の一時的な `hacoq` の機能であり、新製品commandの実装完了を意味しない。
 
-Windows受入の実測（2026-09-06）: `57b6ee2` のfresh cached BATは完了したが、後に通常shell終了のhangが判明した。packaged `8a44f17` で停止状態からの入口・正常終了を修正し、最終 `3f67845` でcached BAT適用・同じ現在版再実行・停止状態からの入口・controller疎通・実際の終了0・trusted-host file/識別子/account/sudo policy保持を確認した。最終候補のfresh作成は再実行していない。`3f67845` のPhysical Hostとtrusted-host HTTPSは200だった。以前のtrusted-host通信はDocker FORWARD DROP下でtimeoutし、後の読み取り規則はACCEPTだった。手動firewall修復はしておらず、起動順を変えた共存は未検証。Environment proxy制御・SSH・Workspace作業保持の受入は別途pending。trusted networkの明示的所有とstorage依存のminimal初期化撤去はplanned。
+Windows受入の実測（2026-09-06）: `57b6ee2` のfresh cached BATは完了したが、後に通常shell終了のhangが判明した。packaged `8a44f17` で停止状態からの入口・正常終了を修正し、最終 `3f67845` でcached BAT適用・同じ現在版再実行・停止状態からの入口・controller疎通・実際の終了0・trusted-host file/識別子/account/sudo policy保持を確認した。最終候補のfresh作成は再実行していない。`3f67845` のPhysical Hostとtrusted-host HTTPSは200だった。以前のtrusted-host通信はDocker FORWARD DROP下でtimeoutし、後の読み取り規則はACCEPTだった。手動firewall修復はしておらず、起動順を変えた共存は未検証。Environment proxy制御・SSH・Workspace作業保持の受入は別途pending。これらは以下の専用network修正前の受入記録。
 
 ## 概要
 
@@ -31,8 +31,8 @@ Managed Environments                   UNTRUSTED
 
 現在は次を実装しています。
 
-- `haco host ensure`: 永続的な `haco-host` を1個reconcile
-- `haco host shell`: instanceをrunningにしてinteractive login shellへ入る
+- `hacoq host ensure`: 永続的な `haco-host` を1個reconcile
+- `hacoq host shell`: instanceをrunningにしてinteractive login shellへ入る
 - `user.hacocoon.role=trusted-host` ownership marker
 - Hacocoon-managed Incus storage上へのrootfs配置
 - provider-local collisionを避けるためEnvironment名`host`を予約
@@ -126,7 +126,7 @@ Instance側socketを`/run`配下に置かないのは、guest runtime tmpfs init
 
 ## Client provisioning
 
-`haco host ensure`はreleaseのclient binaryを2本ともprovisionします。
+`hacoq host ensure`はreleaseのclient binaryを2本ともprovisionします。
 
 ```text
 /usr/local/bin/haco-host
@@ -140,6 +140,16 @@ Physical Host側sourceはregular executable、invoking effective UID所有、gro
 製品 `haco` はguest-local compositionへfallbackせず、`hacoq` も呼び出しません。別途provisionする一時的な `hacoq` が旧lifecycle/CLI実装を保持し、`HACO_CLIENT_MODE=controller` でguardします。そのEnvironment操作はcontrollerを使い、未対応のguest-local操作はfail closedします。
 
 このmode markerはauthorization credentialではありません。`haco-host`自体がtrustedであり、policy、state、provider operationのauthorityは引き続きPhysical Host controllerです。
+
+## 専用trusted-host network
+
+Incus adapterはdefault resource projectの `haco-host0` を所有し、`user.hacocoon.owner=trusted-host-network-v1` で識別する。利用前にowner、managed bridge型、private IPv4 subnet、DHCP/DNS/NAT/routing/firewall設定、利用対象を検証する。不明なrouting/DNS override、external interface、別の利用対象はfail closed。最初のtrusted-network契約ではIPv6を無効にする。
+
+Fresh trusted hostはlocal NIC/root diskを明示し、profileを継承しない。common installerはIncusの準備を確認し、minimal初期化やdefault directory pool作成を行わない。既知のdefault profile・`incusbr0` NICを持つ正確に所有した既存hostだけを一度graceful stopし、明示的NICへ移行して再開する。root disk・UUID・fileを保持し、不明なprofile/deviceは移行せず失敗する。中断した移行は再実行で回復でき、旧shared bridge/profile/poolは削除しない。
+
+Bootstrap/入口の前にIPv4転送を検査し、Dockerの `DOCKER-USER` 拡張点がある場合に照合する。2つの規則はこのbridge/subnetからの送信とestablished/relatedの戻り通信だけに一致する。global FORWARD policyとEnvironment bridgeは変更せず、対応する拡張点なしのDROPは明示的に失敗する。対話session中のfirewall reloadや後発Docker起動を常時監視する実装ではなく、次の入口で再検査する。
+
+Installerは成功を表示する前に、実際のtrusted host内でDNS・default IPv4 route・HTTPSを確認する。これはEnvironmentのproxy/default-deny受入とは別の基盤検証。[ADR 0005](../adr/0005-trusted-host-network-ownership.md)を参照。repository回帰と隔離Linuxのpacket検証は、最終packaged Windows受入と区別する。
 
 ## Storage
 
@@ -165,7 +175,7 @@ Login shellを変更する前にbootstrapは次をすべて確認します。
 2. `haco-controller`がroot-owned system binary
 3. current releaseで`haco-controller.service`をrestart
 4. `/run/hacocoon/control.sock`が `root:hacocoon` mode `0660` Unix socket
-5. `haco host ensure`でtrusted Host、proxy、client mode、2本のclient binaryがreconcile
+5. `hacoq host ensure`でtrusted Host、proxy、client mode、2本のclient binaryがreconcile
 6. 実trusted instance内の`haco-host doctor`が成功
 
 すべて成功した後だけ通常entryは次になります。
@@ -190,7 +200,7 @@ wsl -d Hacocoon -u root
 
 ## Interactive warning
 
-`haco host shell`は`haco-host`へ入る前に短いprivileged-management warningを表示します。Japanese localeでは日本語、その他では英語です。
+`hacoq host shell`は`haco-host`へ入る前に短いprivileged-management warningを表示します。Japanese localeでは日本語、その他では英語です。
 
 Warningはinteractive Host-shell pathだけに出し、non-interactive WSL commandのoutputには混ぜません。
 

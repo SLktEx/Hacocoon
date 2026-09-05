@@ -7,7 +7,7 @@ export GOTOOLCHAIN=local
 
 usage() {
   cat <<'USAGE'
-Usage: bash tools/ci-local.sh [all|docs|workflow-policy|release-config|systemd|test|race|e2e]
+Usage: bash tools/ci-local.sh [all|docs|workflow-policy|release-config|systemd|test|race|e2e|forwarding]
 
 Mirrors the checks in .github/workflows/test.yml using the local machine.
 The release-config job intentionally fails if dist/ already exists because
@@ -143,6 +143,7 @@ run_release_config() {
   bash tools/test_install_archive_safety.sh
   python3 tools/test_installer_packages.py
   python3 tools/test_install_identity.py
+  python3 tools/test_install_network.py
   python3 tools/test_wsl_oobe_config.py
 
   section "release-config: GoReleaser config"
@@ -189,6 +190,12 @@ run_race() {
   go test -race -count=1 ./...
 }
 
+run_forwarding() {
+  check_go
+  section "trusted-host forwarding: isolated Linux kernel regression"
+  bash tools/test_trusted_host_forwarding.sh
+}
+
 run_e2e() {
   need bash
   check_go
@@ -211,6 +218,7 @@ run_all() {
   run_test
   run_race
   run_e2e
+  run_forwarding
 }
 
 if (( $# > 1 )); then usage >&2; exit 2; fi
@@ -223,6 +231,7 @@ case "${1:-all}" in
   test) run_test ;;
   race) run_race ;;
   e2e) run_e2e ;;
+  forwarding) run_forwarding ;;
   -h|--help|help) usage ;;
   *) usage >&2; exit 2 ;;
 esac

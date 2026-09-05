@@ -23,7 +23,9 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 
 ## 現在のcheckpoint status
 
-Windows受入の実測（2026-09-06）: `57b6ee2` のfresh cached BATは完了したが、後に通常shell終了のhangが判明した。packaged `8a44f17` で停止状態からの入口・正常終了を修正し、最終 `3f67845` でcached BAT適用・同じ現在版再実行・停止状態からの入口・controller疎通・実際の終了0・trusted-host file/識別子/account/sudo policy保持を確認した。最終候補のfresh作成は再実行していない。`3f67845` のPhysical Hostとtrusted-host HTTPSは200だった。以前のtrusted-host通信はDocker FORWARD DROP下でtimeoutし、後の読み取り規則はACCEPTだった。手動firewall修復はしておらず、起動順を変えた共存は未検証。Environment proxy制御・SSH・Workspace作業保持の受入は別途pending。trusted networkの明示的所有とstorage依存のminimal初期化撤去はplanned。
+専用trusted-host networkの修正は現在のcheckpoint内で扱う。所有権、profile非依存のfresh作成、限定したDocker転送、データを保持する現在hostの移行を実装し、最終packaged受入は実装statusで追跡する。
+
+Windows受入の実測（2026-09-06）: `57b6ee2` のfresh cached BATは完了したが、後に通常shell終了のhangが判明した。packaged `8a44f17` で停止状態からの入口・正常終了を修正し、最終 `3f67845` でcached BAT適用・同じ現在版再実行・停止状態からの入口・controller疎通・実際の終了0・trusted-host file/識別子/account/sudo policy保持を確認した。最終候補のfresh作成は再実行していない。`3f67845` のPhysical Hostとtrusted-host HTTPSは200だった。以前のtrusted-host通信はDocker FORWARD DROP下でtimeoutし、後の読み取り規則はACCEPTだった。手動firewall修復はしておらず、起動順を変えた共存は未検証。Environment proxy制御・SSH・Workspace作業保持の受入は別途pending。これらは以下の専用network修正前の受入記録。
 
 | Version | Gate | `main` の状態 |
 |---|---|---|
