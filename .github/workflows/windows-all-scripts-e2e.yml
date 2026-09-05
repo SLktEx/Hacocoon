@@ -12,6 +12,7 @@ on:
       - "scripts/install.sh"
       - "tools/package_installers.py"
       - "tools/windows-installer-user-path-e2e.py"
+      - "tools/test_windows_user_path.py"
       - "tools/windows-installer-restart-e2e.py"
       - "tools/windows-installer-cached-restart-e2e.py"
       - ".github/workflows/windows-all-scripts-e2e.yml"
@@ -130,6 +131,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Failed to install the ConPTY test driver dependency." }
           python -m py_compile ./tools/windows-installer-user-path-e2e.py ./tools/windows-installer-restart-e2e.py ./tools/windows-installer-cached-restart-e2e.py
           if ($LASTEXITCODE -ne 0) { throw "Windows user-path drivers failed syntax validation." }
+          python ./tools/test_windows_user_path.py
+          if ($LASTEXITCODE -ne 0) { throw "Windows user-path assertion regressions failed." }
 
       - name: Verify Windows installer components on PowerShell 5.1
         shell: powershell

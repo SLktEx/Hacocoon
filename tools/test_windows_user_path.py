@@ -62,5 +62,30 @@ class DoctorAssertionTest(unittest.TestCase):
             gate.assert_doctor_report("not a report", self.build)
 
 
+class TerminalNormalizationTest(unittest.TestCase):
+    def test_conpty_carriage_return_does_not_hide_a_real_output_line(self):
+        # Reduced from a real pywinpty 3.0.2 -> ordinary WSL -> haco-host
+        # session: ConPTY emits CRLF followed by another CR before OSC 3008.
+        raw = (
+            "root@haco-host:~# cat ~/.hacocoon-installer-acceptance\r\n\r"
+            "\x1b[?2004l\x1b]3008;type=command;cwd=/root\x1b\\"
+            "kept-through-restart-and-rerun\r\n"
+            "\x1b]3008;exit=success\x07"
+        )
+        output = gate.normalize_terminal(raw)
+        gate.require_output(output, r"^kept-through-restart-and-rerun\s*$", phase="haco-host data")
+        self.assertNotIn("\r", output)
+        self.assertNotIn("3008;", output)
+
+    def test_echoed_command_cannot_satisfy_the_retained_data_assertion(self):
+        raw = (
+            "root@haco-host:~# printf '%s\\n' kept-through-restart-and-rerun"
+            " > ~/.hacocoon-installer-acceptance\r\n\r"
+        )
+        with self.assertRaises(RuntimeError):
+            gate.require_output(gate.normalize_terminal(raw),
+                                r"^kept-through-restart-and-rerun\s*$", phase="haco-host data")
+
+
 if __name__ == "__main__":
     unittest.main()

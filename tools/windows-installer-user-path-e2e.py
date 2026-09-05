@@ -64,7 +64,10 @@ def inherited_child_environment() -> dict[str, str]:
 
 
 def normalize_terminal(text: str) -> str:
-    return OSC_RE.sub("", ANSI_RE.sub("", text))
+    # ConPTY can insert a bare CR after CRLF and before an OSC-wrapped result.
+    # Drop this cursor control without inventing a new line: anchored assertions
+    # must still distinguish command output from an echoed command.
+    return OSC_RE.sub("", ANSI_RE.sub("", text)).replace("\r", "")
 
 
 def cmd_prompt_count(text: str) -> int:
