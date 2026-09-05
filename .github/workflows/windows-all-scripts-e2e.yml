@@ -11,6 +11,7 @@ on:
       - "scripts/install-windows.ps1"
       - "scripts/install.sh"
       - "tools/package_installers.py"
+      - "tools/installer-network-security-e2e.sh"
       - "tools/windows-installer-user-path-e2e.py"
       - "tools/windows-installer-restart-e2e.py"
       - "tools/windows-installer-cached-restart-e2e.py"
@@ -75,6 +76,9 @@ jobs:
               throw "Release-equivalent build is missing $_."
             }
           }
+          $listing = tar -tzf dist/haco_linux_amd64.tar.gz
+          if ($listing -notcontains "haco") { throw "release archive is missing product haco" }
+          if ($listing -notcontains "hacoq") { throw "release archive is missing temporary hacoq" }
 
       - name: Build and extract release-equivalent Windows package
         shell: pwsh
@@ -98,6 +102,11 @@ jobs:
           ) | ForEach-Object {
             if (-not (Test-Path -LiteralPath (Join-Path $packageRoot $_) -PathType Leaf)) {
               throw "Candidate package is missing $_."
+            }
+          }
+          foreach ($forbidden in @("haco-windows.cmd", "haco-windows.ps1")) {
+            if (Test-Path -LiteralPath (Join-Path $packageRoot $forbidden)) {
+              throw "Windows package still contains native haco launcher $forbidden."
             }
           }
           if (Test-Path -LiteralPath (Join-Path $packageRoot "haco_linux_arm64.tar.gz")) {
@@ -186,3 +195,40 @@ jobs:
 
           Write-Host "=== Exact user-path success tail ==="
           Get-Content -LiteralPath $logPath -Tail 60
+
+      - name: Verify installed network isolation and spoofing guards through WSL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $instance = "Hacocoon"
+          $scriptWindows = Join-Path $env:GITHUB_WORKSPACE "tools\installer-network-security-e2e.sh"
+          $scriptLinux = (& wsl.exe --distribution $instance --user root --exec wslpath -u -a $scriptWindows | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($scriptLinux)) { throw "Failed to translate network-security script path." }
+          & wsl.exe --distribution $instance --user root --exec env HACO_BIN=/usr/local/bin/hacoq bash $scriptLinux
+          if ($LASTEXITCODE -ne 0) { throw "Installed Hacocoon WSL network-security acceptance failed." }
+
+      - name: Collect diagnostics
+        if: failure()
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $instance = "Hacocoon"
+          & wsl.exe --list --verbose 2>&1 | ForEach-Object { Write-Host $_ }
+          $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
+          if ($installed -contains $instance) {
+            wsl.exe --distribution $instance --user root --exec sh -lc 'ps -p 1 -o comm=; uname -a; command -v haco || true; command -v hacoq || true; command -v incus || true; haco --version || true; haco help || true; hacoq doctor || true; hacoq env list || true; systemctl --no-pager --failed || true; incus list --all-projects || true'
+          }
+          $global:LASTEXITCODE = 0
+
+      - name: Remove Hacocoon WSL distribution
+        if: always()
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $instance = "Hacocoon"
+          $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
+          if ($installed -contains $instance) {
+            wsl.exe --terminate $instance 2>$null
+            wsl.exe --unregister $instance
+          }
+          $global:LASTEXITCODE = 0
