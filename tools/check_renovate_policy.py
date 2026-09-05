@@ -6,24 +6,22 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# There are intentionally no automerge-safe dependency identities today.
-# Future opt-ins must add an exact package identity here and a matching narrowly
-# scoped packageRule in renovate.json. Manager-wide or wildcard automerge is
-# deliberately forbidden because new executable dependencies must fail closed.
-AUTOMERGE_PACKAGE_ALLOWLIST: frozenset[str] = frozenset()
-
 
 def validate(config: dict[str, Any]) -> list[str]:
     errors: list[str] = []
 
-    if config.get("automerge") is not False:
-        errors.append("top-level automerge must be false")
+    if config.get("automerge") is not True:
+        errors.append("top-level automerge must be true")
+    if config.get("automergeType") != "pr":
+        errors.append("automergeType must remain pr")
     if config.get("minimumReleaseAge") != "30 days":
         errors.append("minimumReleaseAge must remain 30 days")
     if config.get("minimumReleaseAgeBehaviour") != "timestamp-required":
         errors.append("minimumReleaseAgeBehaviour must remain timestamp-required")
     if config.get("internalChecksFilter") != "strict":
         errors.append("internalChecksFilter must remain strict")
+    if config.get("ignoreTests") is not False:
+        errors.append("ignoreTests must remain false")
     if config.get("platformAutomerge") is not False:
         errors.append("platformAutomerge must remain false")
 
@@ -35,22 +33,25 @@ def validate(config: dict[str, Any]) -> list[str]:
         if not isinstance(rule, dict):
             errors.append(f"packageRules[{index}] must be an object")
             continue
-        if rule.get("automerge") is not True:
-            continue
-
-        dep_names = rule.get("matchDepNames")
-        if not isinstance(dep_names, list) or not dep_names:
+        if rule.get("automerge") is False:
             errors.append(
-                f"packageRules[{index}] enables automerge without an explicit non-empty matchDepNames allowlist"
+                f"packageRules[{index}] disables automerge; all dependency updates must follow the global cooldown-first automerge policy"
             )
-            continue
-        if any(not isinstance(name, str) or name not in AUTOMERGE_PACKAGE_ALLOWLIST for name in dep_names):
+        if rule.get("minimumReleaseAge") not in (None, "30 days"):
             errors.append(
-                f"packageRules[{index}] automerges a dependency not in the audited package allowlist: {dep_names!r}"
+                f"packageRules[{index}] overrides minimumReleaseAge away from 30 days"
             )
-        if any(key in rule for key in ("matchManagers", "matchDatasources", "matchPackagePatterns")):
+        if rule.get("minimumReleaseAgeBehaviour") not in (None, "timestamp-required"):
             errors.append(
-                f"packageRules[{index}] automerge must not be enabled by manager/datasource/pattern-wide matching"
+                f"packageRules[{index}] overrides minimumReleaseAgeBehaviour away from timestamp-required"
+            )
+        if rule.get("internalChecksFilter") not in (None, "strict"):
+            errors.append(
+                f"packageRules[{index}] overrides internalChecksFilter away from strict"
+            )
+        if rule.get("ignoreTests") is True:
+            errors.append(
+                f"packageRules[{index}] disables test gating via ignoreTests"
             )
 
     return errors
@@ -79,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
 
-    print("RENOVATE POLICY OK: automerge is fail-closed")
+    print("RENOVATE POLICY OK: 30-day cooldown, required checks, then automerge")
     return 0
 
 

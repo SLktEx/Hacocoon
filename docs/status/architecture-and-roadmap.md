@@ -27,7 +27,7 @@ Client / IDE / Agent / Orchestrator
           Incus (current)
 ```
 
-On the supported local path, the Physical Host remains the authority for Incus and privileged platform operations while a persistent trusted logical `haco-host` provides the normal management entry point. `haco-host` is TCB infrastructure, not an untrusted Environment.
+On the supported local path, the Physical Host remains the authority for Incus and privileged platform operations while a persistent trusted logical `haco-host` provides the normal management entry point. Incus owns the local Btrfs backing-image, loop, filesystem, and mount lifecycle. `haco-host` is TCB infrastructure, not an untrusted Environment.
 
 The provider-neutral routing seam remains, but **cloud implementation is currently deferred**. Concrete EC2/AWS/EBS code is intentionally absent from the active tree.
 
@@ -58,14 +58,14 @@ The roadmap is organized by architectural direction instead of copying per-check
 - keep client integrations reusable and client-neutral, including interaction events, notification delivery, VS Code, browser, and future IDEs;
 - preserve provider-neutral Environment/Core contracts while keeping concrete cloud backends deferred until local contracts settle;
 - keep OCI/container tooling optional and separate from Core;
-- make local storage efficient and recoverable through managed Btrfs/COW without broadening ordinary CLI privileges;
+- keep local rootfs storage on one Incus-owned Btrfs/COW lifecycle and strengthen real-host acceptance around it;
 - continue tightening real-host acceptance, especially Windows/WSL, networking, storage behavior, and client integration.
 
 **Local OCI Registry is not a required roadmap gate.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
 
 ## Trusted Host direction
 
-On the local Incus/WSL path, Hacocoon distinguishes the **Physical Host** from the persistent trusted logical **`haco-host`**. The Physical Host retains Incus, loop/Btrfs, and other platform authority. `haco-host` is trusted infrastructure inside the TCB, not an untrusted Environment.
+On the local Incus/WSL path, Hacocoon distinguishes the **Physical Host** from the persistent trusted logical **`haco-host`**. The Physical Host retains Incus and platform authority; Incus itself owns the Btrfs pool backing, loop, filesystem, and mount lifecycle. `haco-host` is trusted infrastructure inside the TCB, not an untrusted Environment.
 
 The implemented lifecycle/default-entry slice does not expose the raw Incus control socket. Follow-up work should move ordinary Hacocoon operations toward the logical Host through narrow controller/client contracts while preserving explicit Physical-Host recovery and bootstrap paths.
 
@@ -87,9 +87,9 @@ HACO_PLUGIN_OCI=docker   haco plugin oci ...
 
 Seed/storage work uses trusted Host acquisition/cache, offline builders, immutable publication/current pointers, exact-parent resolution, explicit immutable pins, conservative recovery/GC, credential-free managed-Environment harvest, and normal Incus/storage-driver cloning. Authenticated/private-registry combinations, physical Btrfs COW/compression measurements, broader real-host failure injection, and supported-host acceptance remain active hardening areas. Never share one writable `/var/lib/containerd` across Environments.
 
-Local rootfs storage routes Hacocoon-owned Base, Tooling, Seed, and Environment rootfs paths through the managed sparse-raw Btrfs pool rather than inheriting the Host default pool. Managed mounts use `compress=zstd:3`; `compress-force` is intentionally not desired state, and Hacocoon does not automatically rewrite old extents because doing so could reduce reflink/COW sharing.
+Local rootfs storage routes Hacocoon-owned Base, Tooling, Seed, trusted-host, and Environment rootfs paths through `haco-local-default`, an Incus-owned loop-backed Btrfs pool, rather than inheriting an unrelated Host default pool. Pool creation requests `compress=zstd:3`; `compress-force` and `autodefrag` are intentionally not desired defaults, and Hacocoon does not automatically rewrite old extents because doing so could reduce reflink/COW sharing.
 
-The ordinary CLI remains non-root for managed storage. Privileged loop/Btrfs/mount work crosses the narrow typed `haco-storage-helper` boundary, which revalidates managed paths, loop backing identity, filesystem signatures, and exact mount identity.
+The ordinary CLI remains non-root. Hacocoon asks Incus to provide the storage pool through the normal runtime boundary and does not implement a separate block-device or mount lifecycle.
 
 See [`../design/oci-seed-and-cow.md`](../design/oci-seed-and-cow.md), [`../design/btrfs-storage-layout.md`](../design/btrfs-storage-layout.md), [`../design/docker-compatibility-plugin.md`](../design/docker-compatibility-plugin.md), and [`../OPTIONAL_LOCAL_OCI_REGISTRY.md`](../OPTIONAL_LOCAL_OCI_REGISTRY.md).
 
@@ -109,7 +109,7 @@ See [`../CLIENT_ADAPTER_CONTRACT.md`](../CLIENT_ADAPTER_CONTRACT.md) and [`../IN
 
 ## Operational confidence direction
 
-Real-Incus CI acceptance proves the substrate independently before Core lifecycle checks, making substrate failures distinguishable from Hacocoon regressions. Managed-storage acceptance exercises the ordinary-user CLI through the privileged helper boundary, and trusted-host acceptance verifies lifecycle/ownership/control-socket isolation.
+Real-Incus CI acceptance proves the substrate independently before Core lifecycle checks, making substrate failures distinguishable from Hacocoon regressions. Incus-owned storage acceptance exercises the ordinary-user CLI against real Incus and verifies backing-image, loop, Btrfs mount, compression policy, pool reuse, and guarded cleanup; trusted-host acceptance verifies lifecycle/ownership/control-socket isolation.
 
 Structured logging uses `log/slog`, stable operation context, sanitized Host-command diagnostics, and defense-in-depth secret redaction across maintained executables. See [`../reference/logging.md`](../reference/logging.md).
 

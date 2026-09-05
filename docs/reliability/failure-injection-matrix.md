@@ -17,7 +17,7 @@ Timing-based sleeps are not canonical fault injection. Prefer semantic before/af
 | provider instance created but later provider reconciliation fails | existing Incus cleanup tests; provider-ref retention work pending | real-Incus case planned | exact runtime identity retained when known; cleanup or recovery-required |
 | before runtime ownership persistence | `recovery_failpoints_test.go` | selected real-Incus case planned | created runtime cleaned up; reservation finalized; retry succeeds |
 | after runtime ownership persistence | `recovery_failpoints_test.go` | selected real-Incus case planned | bounded cleanup; retry succeeds or recovery-required retains exact ref |
-| managed storage ensure/attach | storage/helper tests exist; common failpoint adapter pending | managed Btrfs E2E | no silently adopted pool/loop/mount state |
+| Incus storage pool ensure/use | Incus storage runner tests; common failpoint adapter pending | Incus-owned Btrfs E2E | conflicting or unavailable pool state cannot become Ready silently |
 | network/profile/device reconciliation | Incus unit/component tests exist; semantic failpoint expansion pending | real-Incus Core E2E | incomplete security attachment cannot become Ready |
 | instance start / readiness verification | Incus tests cover cleanup and RW probe; semantic failpoint expansion pending | real-Incus Core E2E | created != Ready; cleanup or retained recovery ownership |
 | before Ready Environment + active lease commit | `recovery_failpoints_test.go` | selected real-Incus case planned | runtime cleaned up; retry succeeds |
@@ -31,7 +31,7 @@ Timing-based sleeps are not canonical fault injection. Prefer semantic before/af
 | after runtime delete but caller loses response | `recovery_failpoints_test.go` | selected real-Incus case planned | state retains ownership until retry confirms absence and finalizes |
 | connection/forward teardown | pending common connection failpoint seam | user journey / real-Incus | retry-safe; unrelated forwards untouched |
 | Workspace detach / lease release | lifecycle aggregate prevents independent lease release; broader failpoint case pending | real-Incus | RW lease retained until runtime absence is proven |
-| storage cleanup | storage/helper fault cases pending | managed Btrfs E2E | unknown ownership never guessed/deleted |
+| shared Incus storage remains available | provider/storage tests pending | Incus-owned Btrfs E2E | Environment deletion never guesses at or destroys the shared pool lifecycle |
 | before authoritative state finalization | `recovery_failpoints_test.go` | selected real-Incus case planned | runtime already absent; retry finalizes atomically |
 | after authoritative state finalization but caller loses response | `recovery_failpoints_test.go` | selected real-Incus case planned | retry is idempotent success |
 
@@ -40,7 +40,7 @@ Timing-based sleeps are not canonical fault injection. Prefer semantic before/af
 | Semantic boundary | Fast deterministic coverage | Real-substrate coverage | Required recovery result |
 | --- | --- | --- | --- |
 | trusted-host ownership/reconciliation | pending | existing trusted-host/installer journeys | never adopt unrelated `haco-host` authority |
-| managed storage setup | storage helper tests provide lower-level pieces; common harness pending | managed Btrfs E2E | retry repairs only positively owned state |
+| Incus-owned storage pool ensure | Incus storage tests; common harness pending | Incus-owned Btrfs E2E | retry uses only the supported pool identity and fails on unresolved conflict |
 | host instance create/start | pending semantic failpoints | installer + real Incus | partial instance is repaired or retained as recovery-required |
 | same-release binary provisioning | pending | installer journeys | old valid host remains usable until replacement accepted where applicable |
 | controller endpoint/control channel | pending | installer/user journey | restart/retry restores exact authority boundary |
@@ -60,13 +60,12 @@ Timing-based sleeps are not canonical fault injection. Prefer semantic before/af
 
 | Failure | Lower faithful layer | Real-substrate layer | Required recovery result |
 | --- | --- | --- | --- |
-| helper non-zero result | helper unit/process tests; common recovery harness pending | managed Btrfs E2E | exact exit status propagated; no root-owned user-state contamination |
-| loop attach/detach failure | pending | scheduled/manual Btrfs matrix | stale loop is reported and only exact ownership is cleaned |
-| mount/unmount failure | pending | scheduled/manual Btrfs matrix | mount reality and metadata cannot silently diverge |
+| Incus storage create/show failure | Incus runner tests; common recovery harness pending | Incus-owned Btrfs E2E | exact Incus error is surfaced; Environment/host is not published Ready |
+| requested pool policy rejected by Incus | Incus storage tests | Incus-owned Btrfs E2E | fail closed without switching to an unrelated Host pool |
 | ENOSPC/quota-style exhaustion | pending | scheduled/manual | previous safe state remains or recovery-required |
-| read-only/unavailable managed storage | pending | selected real-host | no successful Ready publication |
-| stale loop/mount state | pending | selected real-host | no silent adoption |
-| cleanup refusal without exact ownership | existing fail-closed design pieces; cross-cutting assertion pending | selected real-host | conservative retention + actionable diagnostics |
+| read-only/unavailable Incus storage | pending | selected real-host | no successful Ready publication |
+| Incus restart with pool unavailable | pending | selected real-host | retry follows Incus-reported pool reality instead of guessing Host block state |
+| cleanup refusal with unexpected Incus resources | existing fail-closed cleanup guards; cross-cutting assertion pending | selected real-host | conservative retention + actionable diagnostics |
 
 ## Network / runtime failures
 
@@ -86,8 +85,7 @@ Every failure case should assert the relevant subset of:
 - Workspace lease state, owner, access mode, and runtime reference;
 - Incus project/instance/device inventory;
 - Environment network ownership marker and guard state;
-- managed Btrfs pool/filesystem state;
-- loop devices and mounts;
+- Incus-owned Btrfs pool identity and configuration;
 - connection/forward state;
 - trusted-host ownership markers;
 - user/root ownership of lock/state files;

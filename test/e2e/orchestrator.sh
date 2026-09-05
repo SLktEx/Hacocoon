@@ -228,7 +228,32 @@ case "$command_name" in
     action="${1:-}"; pool="${2:-}"
     case "$action" in
       show) [ -f "$state/storage-$pool" ] ;;
-      create) [ -n "$pool" ] || exit 2; : > "$state/storage-$pool" ;;
+      create)
+        [ -n "$pool" ] || exit 2
+        mount_options=''
+        for arg in "$@"; do
+          case "$arg" in
+            btrfs.mount_options=*) mount_options="${arg#btrfs.mount_options=}" ;;
+          esac
+        done
+        : > "$state/storage-$pool"
+        printf '%s\n' "$mount_options" > "$state/storage-$pool-mount-options"
+        ;;
+      get)
+        [ -f "$state/storage-$pool" ] || exit 1
+        [ "${3:-}" = btrfs.mount_options ] || exit 2
+        cat "$state/storage-$pool-mount-options"
+        ;;
+      set)
+        [ -f "$state/storage-$pool" ] || exit 1
+        assignment="${3:-}"
+        case "$assignment" in
+          btrfs.mount_options=*)
+            printf '%s\n' "${assignment#btrfs.mount_options=}" > "$state/storage-$pool-mount-options"
+            ;;
+          *) exit 2 ;;
+        esac
+        ;;
       *) exit 2 ;;
     esac
     ;;
@@ -421,7 +446,10 @@ assert env['base']['revision'] == 'sha256:' + ('b' * 64), r
 assert env['resources']['cpu']['mode'] == 'unlimited', r
 PY
 grep -Fq 'image info images:custom-moving --format json' "$HACO_FAKE_INCUS_LOG"
-grep -Fq 'storage create haco-local-default btrfs source=' "$HACO_FAKE_INCUS_LOG"
+storage_line="$(grep -F 'storage create haco-local-default btrfs ' "$HACO_FAKE_INCUS_LOG" | head -1)"
+[[ "$storage_line" == *'size=128GiB'* ]]
+[[ "$storage_line" == *'btrfs.mount_options=compress=zstd:3,noatime,nodiscard'* ]]
+[[ "$storage_line" != *'source='* ]]
 grep -Fq 'init images:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb haco-base-demo' "$HACO_FAKE_INCUS_LOG"
 grep -Fq -- '--no-profiles --storage haco-local-default' "$HACO_FAKE_INCUS_LOG"
 bridge_line="$(grep -F 'network create hbr' "$HACO_FAKE_INCUS_LOG" | head -1)"

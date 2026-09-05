@@ -53,7 +53,8 @@ validate_install_boundary() {
   grep -q 'Get-CachedUbuntuWslImage' scripts/install-windows.ps1
   grep -q 'DistributionInfo.json' scripts/install-windows.ps1
   grep -q -- '--from-file' scripts/install-windows.ps1
-  grep -q 'Get-FileHash.*SHA256' scripts/install-windows.ps1
+  grep -q 'Get-Sha256Hex' scripts/install-windows.ps1
+  grep -q 'Security.Cryptography.SHA256' scripts/install-windows.ps1
   grep -q 'ubuntu.wsl' scripts/install-windows.ps1
   grep -q 'this package is for native Ubuntu' scripts/install-ubuntu.sh
   grep -q 'HACO_BUNDLE_ROOT' scripts/install-ubuntu.sh
@@ -109,7 +110,7 @@ validate_release_artifacts() {
   local archive listing
   for archive in dist/haco_linux_amd64.tar.gz dist/haco_linux_arm64.tar.gz; do
     listing="$(tar -tzf "$archive")"
-    for binary in haco hacoq haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper; do
+    for binary in haco hacoq haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
       grep -Fx "$binary" <<<"$listing" >/dev/null
     done
   done
@@ -197,7 +198,7 @@ run_e2e() {
   section "e2e: git/github"
   bash test/e2e/git_github.sh
   section "e2e: orchestrator"
-  HACO_STORAGE_PRIVILEGE_MODE=direct bash test/e2e/orchestrator.sh
+  bash test/e2e/orchestrator.sh
 }
 
 run_all() {
