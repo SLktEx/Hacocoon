@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Run the exact Windows restart/reinstall E2E through -UseCachedWslImage.
+"""Run Windows restart acceptance through the shipped -UseCachedWslImage path.
 
 The cache switch is a shipped installer option used by repeated validation. This
-wrapper preserves the restart driver's assertions while making both BAT invocations
-explicitly exercise the trusted cached WSL image path retained on main.
+wrapper preserves the restart driver's assertions while making every BAT
+invocation explicitly exercise the trusted cached WSL image path retained on
+main. Pull-request CI can select the fast restart gate; main/manual runs keep the
+full Environment persistence + reinstall acceptance.
 """
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import sys
 from pathlib import Path
@@ -23,7 +26,21 @@ def load_module(path: Path, name: str):
     return module
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--pr-gate",
+        action="store_true",
+        help=(
+            "run the fast cached-install + explicit terminate/restart regression gate; "
+            "omit the Environment persistence and reinstall phases reserved for full acceptance"
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
     here = Path(__file__).resolve().parent
     restart = load_module(here / "windows-installer-restart-e2e.py", "windows_installer_restart_e2e")
     driver = restart.load_driver()
@@ -37,7 +54,7 @@ def main() -> int:
 
     driver.TerminalProcess.write = write_with_cached_image
     restart.load_driver = lambda: driver
-    return restart.main()
+    return restart.main(pr_gate=args.pr_gate)
 
 
 if __name__ == "__main__":
