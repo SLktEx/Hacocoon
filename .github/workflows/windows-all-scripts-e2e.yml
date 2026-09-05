@@ -14,19 +14,6 @@ on:
       - "tools/installer-user-journey-e2e.sh"
       - "tools/installer-network-security-e2e.sh"
       - ".github/workflows/windows-all-scripts-e2e.yml"
-  push:
-    branches: [main]
-    paths:
-      - "cmd/**"
-      - "internal/**"
-      - ".goreleaser.yaml"
-      - "scripts/install-windows.bat"
-      - "scripts/install-windows.ps1"
-      - "scripts/install.sh"
-      - "tools/package_installers.py"
-      - "tools/installer-user-journey-e2e.sh"
-      - "tools/installer-network-security-e2e.sh"
-      - ".github/workflows/windows-all-scripts-e2e.yml"
   workflow_dispatch:
 
 permissions:
@@ -126,11 +113,21 @@ jobs:
           "HACO_E2E_PACKAGE_ROOT=$packageRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Restore trusted Ubuntu 26.04 WSL image cache
-        id: wsl-image-cache
         uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
-          path: ${{ runner.temp }}\hacocoon-windows-amd64\ubuntu.wsl
+          path: ${{ runner.temp }}\hacocoon-wsl-cache\ubuntu.wsl
           key: hacocoon-wsl-${{ runner.os }}-${{ runner.arch }}-ubuntu-26.04-v1
+
+      - name: Stage cached WSL image into installer package
+        shell: pwsh
+        run: |
+          $cachePath = Join-Path $env:RUNNER_TEMP "hacocoon-wsl-cache\ubuntu.wsl"
+          if (Test-Path -LiteralPath $cachePath -PathType Leaf) {
+            Copy-Item -LiteralPath $cachePath -Destination (Join-Path $env:HACO_E2E_PACKAGE_ROOT "ubuntu.wsl") -Force
+            Write-Host "Using trusted main-branch Ubuntu WSL image cache."
+          } else {
+            Write-Host "Trusted Ubuntu WSL image cache was not available; installer will perform the verified download."
+          }
 
       - name: User path phase 1 - run packaged BAT with cached WSL image
         shell: pwsh
@@ -143,13 +140,6 @@ jobs:
           } finally {
             Pop-Location
           }
-
-      - name: Save verified Ubuntu 26.04 WSL image cache from main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.wsl-image-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
-        with:
-          path: ${{ runner.temp }}\hacocoon-windows-amd64\ubuntu.wsl
-          key: hacocoon-wsl-${{ runner.os }}-${{ runner.arch }}-ubuntu-26.04-v1
 
       - name: Complete normal Ubuntu first-launch fixture
         shell: pwsh
