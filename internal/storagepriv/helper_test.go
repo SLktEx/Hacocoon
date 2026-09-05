@@ -145,7 +145,7 @@ func TestHelperMountsOnlyMatchingManagedLoopAndMountpoint(t *testing.T) {
 	}
 	foundMount := false
 	for _, call := range runner.calls {
-		if call.name == "mount" && fmt.Sprint(call.args) == fmt.Sprint([]string{"/dev/loop7", mountpoint, "-o", "compress=zstd:3"}) {
+		if call.name == "mount" && fmt.Sprint(call.args) == fmt.Sprint([]string{"/dev/loop7", mountpoint, "-o", managedBtrfsMountOptions}) {
 			foundMount = true
 		}
 	}

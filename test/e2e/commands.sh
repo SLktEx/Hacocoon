@@ -30,14 +30,17 @@ export HACO_ROOT="$root/haco-root"
 export HACO_STORAGE_PRIVILEGE_MODE=direct
 unset WSL_DISTRO_NAME || true
 
-for name in haco haco-controller haco-vscode haco-agent-host haco-notify haco-storage-helper; do
+go build -o "$bin/haco" ./cmd/haco-product
+go build -o "$bin/hacoq" ./cmd/haco
+for name in haco-controller haco-vscode haco-agent-host haco-notify haco-storage-helper; do
   go build -o "$bin/$name" "./cmd/$name"
+done
+for name in haco hacoq haco-controller haco-vscode haco-agent-host haco-notify haco-storage-helper; do
   test -x "$bin/$name"
 done
 
-# Build identity must be available before any Incus/runtime initialization.
-# This empty HACO_ROOT has no prepared local runtime state, so successful
-# process-level version output proves the early identity path is standalone.
+# Product identity/help must be available before any Incus/runtime/controller
+# initialization. The new haco deliberately exposes no legacy namespaces yet.
 "$bin/haco" --version >"$root/haco-version-short.out" 2>"$root/haco-version-short.err"
 grep -Eq '^haco dev \(checkpoint v0\.[0-9]+, commit [^)]+\)$' "$root/haco-version-short.out"
 [[ ! -s "$root/haco-version-short.err" ]]
@@ -49,27 +52,47 @@ grep -Fq '"commit":' "$root/haco-version.json"
 grep -Fq '"build_date":"unknown"' "$root/haco-version.json"
 [[ ! -s "$root/haco-version-json.err" ]]
 
-# General haco commands are real controller clients on both the Physical Host
-# and trusted haco-host. Start the shipped controller and prove the final
-# executable reaches it without falling back to local CLI composition.
+"$bin/haco" help >"$root/haco-help.out" 2>"$root/haco-help.err"
+grep -Fq 'Usage:' "$root/haco-help.out"
+grep -Fq 'version' "$root/haco-help.out"
+[[ ! -s "$root/haco-help.err" ]]
+
+set +e
+"$bin/haco" env >"$root/haco-env.out" 2>"$root/haco-env.err"
+haco_env_code=$?
+set -e
+[[ "$haco_env_code" == "2" ]]
+[[ ! -s "$root/haco-env.out" ]]
+grep -Fq 'command "env" is not available yet' "$root/haco-env.err"
+
+set +e
+"$bin/haco" definitely-not-a-command >"$root/haco-invalid.out" 2>"$root/haco-invalid.err"
+haco_invalid_code=$?
+set -e
+[[ "$haco_invalid_code" == "2" ]]
+[[ ! -s "$root/haco-invalid.out" ]]
+grep -Fq 'command "definitely-not-a-command" is not available yet' "$root/haco-invalid.err"
+
+# Existing controller-backed functionality stays reachable only through the
+# temporary migration CLI. This is compatibility coverage, not a product API.
 haco_start_test_controller \
   "$bin/haco-controller" \
   "$root/control.sock" \
   "$root/controller.out" \
   "$root/controller.err"
 
-"$bin/haco" base list >"$root/haco-base.out" 2>"$root/haco-base.err"
-grep -Fxq 'haco/ubuntu-24.04' "$root/haco-base.out"
-grep -Fxq 'haco/ubuntu-26.04' "$root/haco-base.out"
-[[ ! -s "$root/haco-base.err" ]]
+"$bin/hacoq" base list >"$root/hacoq-base.out" 2>"$root/hacoq-base.err"
+grep -Fxq 'haco/ubuntu-24.04' "$root/hacoq-base.out"
+grep -Fxq 'haco/ubuntu-26.04' "$root/hacoq-base.out"
+[[ ! -s "$root/hacoq-base.err" ]]
 
-# The first-class `haco env` client and trusted-host controller mode must never
-# fall back to guest-local composition when the controller path is unavailable.
+# Legacy controller-client mode must still fail closed rather than initialize
+# local state while the migration surface exists.
 client_mode_root="$root/client-mode-root"
 missing_control="$root/missing-control.sock"
 set +e
 HACO_ROOT="$client_mode_root" HACO_CONTROL_SOCKET="$missing_control" \
-  "$bin/haco" env list >"$root/env-client.out" 2>"$root/env-client.err"
+  "$bin/hacoq" env list >"$root/env-client.out" 2>"$root/env-client.err"
 env_client_code=$?
 set -e
 [[ "$env_client_code" == "1" ]]
@@ -78,7 +101,7 @@ set -e
 
 set +e
 HACO_ROOT="$client_mode_root" HACO_CLIENT_MODE=controller HACO_CONTROL_SOCKET="$missing_control" \
-  "$bin/haco" base list >"$root/client-mode.out" 2>"$root/client-mode.err"
+  "$bin/hacoq" base list >"$root/client-mode.out" 2>"$root/client-mode.err"
 client_mode_code=$?
 set -e
 [[ "$client_mode_code" == "1" ]]
@@ -87,13 +110,12 @@ grep -Fq 'control endpoint unavailable' "$root/client-mode.err"
 [[ ! -e "$client_mode_root/state" ]]
 
 set +e
-"$bin/haco" definitely-not-a-command >"$root/haco-invalid.out" 2>"$root/haco-invalid.err"
-haco_invalid_code=$?
+"$bin/hacoq" definitely-not-a-command >"$root/hacoq-invalid.out" 2>"$root/hacoq-invalid.err"
+hacoq_invalid_code=$?
 set -e
-[[ "$haco_invalid_code" == "1" ]]
-[[ ! -s "$root/haco-invalid.out" ]]
-grep -Fq 'usage: haco <' "$root/haco-invalid.err"
-grep -Fq 'unknown command "definitely-not-a-command"' "$root/haco-invalid.err"
+[[ "$hacoq_invalid_code" == "1" ]]
+[[ ! -s "$root/hacoq-invalid.out" ]]
+grep -Fq 'unknown command "definitely-not-a-command"' "$root/hacoq-invalid.err"
 
 # Agent Host: release is intentionally idempotent, so a never-created session
 # gives us a deterministic successful process-level path without real Incus.
@@ -138,8 +160,6 @@ notify_pid=""
 [[ ! -s "$root/notify.err" ]]
 
 # Privileged storage helper: invoke the real binary and prove it fails closed.
-# As a normal user it must reject the caller before parsing operations; when
-# already root, the same empty request must reach the allowlisted usage guard.
 set +e
 "$bin/haco-storage-helper" >"$root/storage.out" 2>"$root/storage.err"
 storage_code=$?
@@ -162,4 +182,4 @@ if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
   grep -Fq 'usage: haco-storage-helper --root <haco-root> <operation> [arguments]' "$root/storage-root.err"
 fi
 
-echo 'PASS: Hacocoon shipped command black-box E2E'
+echo 'PASS: new haco product CLI + temporary hacoq compatibility black-box E2E'

@@ -31,7 +31,8 @@ func TestTranslatePrivilegedCommandAllowlist(t *testing.T) {
 		{name: "attach", cmd: "losetup", args: []string{"--find", "--show", "/var/lib/hacocoon/images/local-default.raw"}, op: "loop-attach", out: []string{"/var/lib/hacocoon/images/local-default.raw"}},
 		{name: "filesystem type", cmd: "blkid", args: []string{"-o", "value", "-s", "TYPE", "/dev/loop3"}, op: "fs-type", out: []string{"/dev/loop3"}},
 		{name: "format", cmd: "mkfs.btrfs", args: []string{"-f", "/dev/loop3"}, op: "fs-format-btrfs", out: []string{"/dev/loop3"}},
-		{name: "mount", cmd: "mount", args: []string{"/dev/loop3", "/var/lib/hacocoon/mounts/local-default", "-o", "compress=zstd:3"}, op: "mount-btrfs", out: []string{"/dev/loop3", "/var/lib/hacocoon/mounts/local-default"}},
+		{name: "mount", cmd: "mount", args: []string{"/dev/loop3", "/var/lib/hacocoon/mounts/local-default", "-o", managedBtrfsMountOptions}, op: "mount-btrfs", out: []string{"/dev/loop3", "/var/lib/hacocoon/mounts/local-default"}},
+		{name: "remount", cmd: "mount", args: []string{"/dev/loop3", "/var/lib/hacocoon/mounts/local-default", "-o", "remount," + managedBtrfsMountOptions}, op: "remount-btrfs", out: []string{"/dev/loop3", "/var/lib/hacocoon/mounts/local-default"}},
 		{name: "resize", cmd: "btrfs", args: []string{"filesystem", "resize", "max", "/var/lib/hacocoon/mounts/local-default"}, op: "btrfs-resize", out: []string{"/var/lib/hacocoon/mounts/local-default", "max"}},
 		{name: "balance", cmd: "btrfs", args: []string{"balance", "start", "-dusage=50", "-musage=50", "/var/lib/hacocoon/mounts/local-default"}, op: "btrfs-balance", out: []string{"/var/lib/hacocoon/mounts/local-default", "usage=50"}},
 	}
@@ -54,6 +55,8 @@ func TestTranslatePrivilegedCommandRejectsArbitraryAuthority(t *testing.T) {
 		args []string
 	}{
 		{cmd: "mount", args: []string{"/dev/sda", "/", "-o", "bind"}},
+		{cmd: "mount", args: []string{"/dev/loop3", "/var/lib/hacocoon/mounts/local-default", "-o", "compress=zstd:3"}},
+		{cmd: "mount", args: []string{"/dev/loop3", "/var/lib/hacocoon/mounts/local-default", "-o", "compress=zstd:3,noatime,discard=async"}},
 		{cmd: "losetup", args: []string{"--find", "--show", "--partscan", "/tmp/evil"}},
 		{cmd: "mkfs.btrfs", args: []string{"-f", "--", "/dev/sda"}},
 		{cmd: "btrfs", args: []string{"subvolume", "delete", "/"}},
@@ -81,7 +84,7 @@ func TestSudoRunnerPassesTypedOperationToHelperWhenAlreadyRoot(t *testing.T) {
 			return nil
 		},
 	}
-	if _, err := runner.Run(context.Background(), "mount", "/dev/loop7", "/var/lib/hacocoon/mounts/local-default", "-o", "compress=zstd:3"); err != nil {
+	if _, err := runner.Run(context.Background(), "mount", "/dev/loop7", "/var/lib/hacocoon/mounts/local-default", "-o", managedBtrfsMountOptions); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{"--root", "/var/lib/hacocoon", "mount-btrfs", "/dev/loop7", "/var/lib/hacocoon/mounts/local-default"}
