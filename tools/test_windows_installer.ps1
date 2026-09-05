@@ -63,6 +63,39 @@ try {
 } finally {
     [IO.File]::Delete($hashFile)
 }
+# A failed WSL invocation does not prove account absence. Keep the failure
+# closed, preserve the native exit code, and do not reveal arbitrary stderr.
+function Invoke-WslCapture([string[]]$Arguments) {
+    if (($Arguments -join '|') -eq '--distribution|Hacocoon|--exec|id|-un') {
+        return New-WslCaptureResult 0 @('hacocoon') ''
+    }
+    Assert-Equal ($Arguments -join '|') '--distribution|Hacocoon|--user|root|--exec|id|hacocoon'
+    $script:userProbeCalls++
+    $probeCode = $script:userProbeExit
+    if ($script:userProbeFailures -gt 0) { $script:userProbeFailures--; $probeCode = 1 }
+    return New-WslCaptureResult $probeCode @() 'untrusted stderr with secret'
+}
+foreach ($code in @(1, -1, 127)) {
+    $script:userProbeExit = $code
+    $script:userProbeCalls = $script:userProbeFailures = 0
+    $lookupFailure = $null
+    try { Get-WslLoginUser 'Hacocoon' | Out-Null } catch { $lookupFailure = $_ }
+    Assert-Equal ($null -ne $lookupFailure) $true
+    Assert-Equal $script:userProbeCalls 3
+    Assert-Equal ($lookupFailure.Exception.Message -like "*WSL exit code $code*") $true
+    Assert-Equal ($lookupFailure.Exception.Message -like '*does not exist*') $false
+    Assert-Equal ($lookupFailure.Exception.Message -like '*secret*') $false
+}
+$script:userProbeExit = 0
+$script:userProbeCalls = 0
+$script:userProbeFailures = 1
+Assert-Equal (Get-WslLoginUser 'Hacocoon') 'hacocoon'
+Assert-Equal $script:userProbeCalls 2
+$script:userProbeCalls = 0
+Assert-Equal (Get-WslLoginUser 'Hacocoon') 'hacocoon'
+Assert-Equal $script:userProbeCalls 1
+${function:Invoke-WslCapture} = $realCapture
+
 function Get-WslDefaultUser([string]$Name) { return $script:defaultUser }
 function Get-WslLoginUser([string]$Name) { return $script:defaultUser }
 function Ensure-ManagedWslLoginUser([string]$Name) { $script:managedCalls++; return 'hacocoon' }

@@ -10,6 +10,8 @@ Hacocoon の local Host baseline は Ubuntu 26.04+ です。Windows では専用
 
 Installer は WSL と native Ubuntu を無理に同一化せず、**pre / main / post** に分けます。
 
+WSLの同一accountへの読み取り照会だけを最大3回、失敗間に250 ms待って再確認する。この経路でaccount/setupの変更処理を再試行しない。失敗が続けばinstallerは停止し、最後のnative終了codeを示す。既存accountが消えた証拠ではないため、accountやデータを変更する前にWSL実行を確認する。候補 `63fdf24` はcommon setup前にこの失敗を起こしたが、既存accountは保持されていた。元の一時的なWSL失敗の原因は未確定。
+
 ## インストール済みHostの診断
 
 通常の `wsl -d Hacocoon` で入った後、`haco doctor` または `haco doctor --json` を実行する。Windowsからの `wsl -d Hacocoon --exec haco doctor --json` も通常WSL userで同じcontroller診断を行う。Doctorは停止hostを報告し、起動しない。[診断範囲と終了code](design/controller-client-transport.ja.md#host診断)を参照。

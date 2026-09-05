@@ -252,11 +252,14 @@ function Get-WslLoginUser([string]$Name) {
     if ($candidate -eq "root") {
         throw "The dedicated WSL instance still defaults to root. Re-run with -InteractiveUserSetup or let the installer create the managed '$ManagedLoginUser' user."
     }
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "id", $candidate)
-    if ($probe.ExitCode -ne 0) {
-        throw "WSL login user '$candidate' does not exist in '$Name'."
+    # A native WSL failure is not proof that the already-resolved user is
+    # absent. Retry only this read-only lookup, never account/setup mutations.
+    for ($attempt = 0; $attempt -lt 3; $attempt++) {
+        $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "id", $candidate)
+        if ($probe.ExitCode -eq 0) { return $candidate }
+        if ($attempt -lt 2) { Start-Sleep -Milliseconds 250 }
     }
-    return $candidate
+    throw "Unable to verify WSL login user '$candidate' in '$Name' after 3 read-only probes (WSL exit code $($probe.ExitCode)). A failed WSL invocation does not establish that the account is absent."
 }
 
 function Assert-LoginUserName([string]$Value) {
