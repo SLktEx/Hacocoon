@@ -4,7 +4,8 @@
 This orchestration deliberately proves that the first install stands on its own:
 after creating a real Environment, the test terminates the Hacocoon WSL distro,
 re-enters it, and runs ordinary haco commands before the second BAT is allowed
-to run. That prevents the reinstall path from masking restart-persistence bugs.
+to run. The reinstall then runs against the still-active distro, proving ordinary
+idempotency without depending on WSL idle-shutdown timing.
 """
 
 from __future__ import annotations
@@ -15,6 +16,8 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+INSTALL_PROCESS_TIMEOUT_SECONDS = 1800
 
 
 def load_driver():
@@ -80,8 +83,51 @@ def assert_wsl_stopped(driver, *, phase: str) -> None:
         raise RuntimeError(f"{phase}: {driver.INSTANCE} is still running after wsl --terminate")
 
 
+def assert_supported_storage_state(driver, *, phase: str) -> None:
+    """Assert only the supported public Incus-owned pool contract.
+
+    Incus owns the backing image, loop device and mount path. Those are internal
+    implementation details and must not become Windows installer acceptance
+    contracts.
+    """
+
+    driver.observe_wsl_root(
+        "incus", "storage", "show", driver.POOL, "--project", driver.PROJECT, phase=phase
+    )
+
+    size = driver.observe_wsl_root(
+        "incus", "storage", "get", driver.POOL, "size", "--project", driver.PROJECT, phase=phase
+    )
+    if size.strip() != "128GiB":
+        raise RuntimeError(f"{phase}: pool size is {size!r}, expected 128GiB")
+
+    configured = driver.observe_wsl_root(
+        "incus",
+        "storage",
+        "get",
+        driver.POOL,
+        "btrfs.mount_options",
+        "--project",
+        driver.PROJECT,
+        phase=phase,
+    )
+    configured_options = {item for item in configured.strip().split(",") if item}
+    required = {"compress=zstd:3", "noatime", "nodiscard"}
+    missing = sorted(required - configured_options)
+    if missing:
+        raise RuntimeError(
+            f"{phase}: configured Btrfs options are missing {missing!r}: {configured!r}"
+        )
+    if "autodefrag" in configured_options:
+        raise RuntimeError(f"{phase}: autodefrag must remain disabled: {configured!r}")
+
+
 def main() -> int:
     driver = load_driver()
+    # Hosted Windows runners can spend well beyond 15 minutes installing apt/
+    # Incus while still making progress. Keep the exact user path and give that
+    # real install a larger wall-clock ceiling instead of adding product shortcuts.
+    driver.PROCESS_TIMEOUT_SECONDS = INSTALL_PROCESS_TIMEOUT_SECONDS
     install_ubuntu_insights_responder(driver)
 
     if os.name != "nt":
@@ -104,7 +150,9 @@ def main() -> int:
     # First install and real Environment creation.
     print("==> ACTION USER TYPES: install-windows.bat")
     first = driver.run_bat(package_root, phase="first install")
-    driver.require_output(first, r"Hacocoon WSL installation complete", phase="first install")
+    driver.require_output(
+        first, r"Hacocoon Windows installation complete\.", phase="first install"
+    )
     driver.assert_installed_host_state(phase="after first BAT")
 
     print("==> ACTION USER TYPES: wsl -d Hacocoon and normal haco commands")
@@ -117,7 +165,7 @@ def main() -> int:
         ],
     )
     driver.assert_environment_runtime(present=True, phase="after Environment create")
-    driver.assert_storage_state(phase="after Environment create")
+    assert_supported_storage_state(driver, phase="after Environment create")
 
     # Critical regression: restart WSL before any second installer invocation.
     # If the first BAT only works because a later BAT repairs runtime state, this
@@ -139,18 +187,19 @@ def main() -> int:
     )
     driver.assert_installed_host_state(phase="after terminate restart")
     driver.assert_environment_runtime(present=True, phase="after terminate restart")
-    driver.assert_storage_state(phase="after terminate restart")
+    assert_supported_storage_state(driver, phase="after terminate restart")
 
-    # Keep the existing reinstall/idempotency regression, but only after the
-    # first-install restart proof has already succeeded.
-    driver.wait_for_natural_wsl_stop(phase="before reinstall")
-
+    # Re-run the normal BAT while the distro is still active. This is a stronger
+    # idempotency contract than requiring WSL/systemd to become idle within an
+    # arbitrary timeout after the user's shell exits.
     print("==> ACTION USER TYPES: install-windows.bat")
     second = driver.run_bat(package_root, phase="reinstall")
-    driver.require_output(second, r"Hacocoon WSL installation complete", phase="reinstall")
+    driver.require_output(
+        second, r"Hacocoon Windows installation complete\.", phase="reinstall"
+    )
     driver.assert_installed_host_state(phase="after reinstall")
     driver.assert_environment_runtime(present=True, phase="after reinstall")
-    driver.assert_storage_state(phase="after reinstall")
+    assert_supported_storage_state(driver, phase="after reinstall")
 
     print("==> ACTION USER TYPES: wsl -d Hacocoon and reuse existing Environment")
     driver.run_host_session(
@@ -161,7 +210,7 @@ def main() -> int:
         ],
     )
     driver.assert_environment_runtime(present=False, phase="after Environment delete")
-    driver.assert_storage_state(phase="after Environment delete")
+    assert_supported_storage_state(driver, phase="after Environment delete")
 
     print("windows installer terminate/restart + reinstall user journey: PASS")
     return 0
