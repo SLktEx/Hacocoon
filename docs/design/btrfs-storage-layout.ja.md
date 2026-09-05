@@ -6,6 +6,8 @@ Milestone: **v0.20 Managed Btrfs Rootfs Storage** / **v0.21 Managed Btrfs Transp
 
 ## 既定の local layout
 
+runtimeが受け入れるattachmentはlocal `incus_pool` identityだけです。削除した `driver`/`source` は既存poolがあっても拒否し、検査失敗時に代替poolを作りません。mount policyのread/readback失敗もfail closedです。real-Incus storage CIにはpolicy照合中の既存rootfs・Workspace sentinel data保持も含めます。
+
 local composition は `source=` を指定せず、Incus へ既定 pool を lazy に作成させる。
 
 ```text

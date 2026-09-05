@@ -484,25 +484,17 @@ func (r *Runtime) defaultRootPool(ctx context.Context) (string, error) {
 }
 
 func (r *Runtime) ensureStoragePool(ctx context.Context, attachment map[string]string) (string, error) {
-	pool := attachment["incus_pool"]
-	if pool == "" {
+	if len(attachment) == 0 {
 		return "", nil
 	}
-	if _, err := r.runner.Run(ctx, "incus", "storage", "show", pool, "--project", r.project); err == nil {
-		return pool, nil
+	pool := attachment["incus_pool"]
+	// Creation belongs to the Incus-owned storage provider. Do not accept the
+	// removed external driver/source attachment, even when the pool exists.
+	if len(attachment) != 1 || pool == "" || strings.TrimSpace(pool) != pool || strings.HasPrefix(pool, "-") || strings.ContainsAny(pool, ":/\\\x00\r\n\t ") {
+		return "", fmt.Errorf("storage attachment requires only a local incus_pool identity: %w", core.ErrInvalidArgument)
 	}
-	driver := attachment["driver"]
-	source := attachment["source"]
-	if driver == "" || source == "" {
-		return "", fmt.Errorf("storage attachment missing driver/source")
-	}
-	result, err := r.runner.Run(ctx, "incus", "storage", "create", pool, driver, "source="+source, "--project", r.project)
-	if err != nil {
-		reason := strings.TrimSpace(result.Stderr)
-		if reason != "" {
-			return "", fmt.Errorf("create Incus storage pool %q from %q: %s: %w", pool, source, reason, err)
-		}
-		return "", fmt.Errorf("create Incus storage pool %q from %q: %w", pool, source, err)
+	if _, err := r.runner.Run(ctx, "incus", "storage", "show", pool, "--project", r.project); err != nil {
+		return "", fmt.Errorf("Incus-owned storage pool %q is unavailable: %w", pool, err)
 	}
 	return pool, nil
 }

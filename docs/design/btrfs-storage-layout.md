@@ -6,6 +6,8 @@ Milestones: **v0.20 Managed Btrfs Rootfs Storage**, **v0.21 Managed Btrfs Transp
 
 ## Default local layout
 
+The runtime accepts only a local `incus_pool` attachment identity. Removed `driver`/`source` attachments are rejected even if a pool exists; failed inspection must not create a replacement. Mount-policy read/readback failures fail closed. Real-Incus storage CI also checks existing rootfs and Workspace sentinel data during pool-policy reconciliation.
+
 The local composition lazily asks Incus to create the default pool without a `source=` override:
 
 ```text
