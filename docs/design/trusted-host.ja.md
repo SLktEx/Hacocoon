@@ -4,7 +4,7 @@ Status: partial.
 
 現在のCLI境界: 製品 `haco` はhelp/versionとWSL login aliasを実装する。以下の保持しているlifecycle commandは[CLI移行](../CLI_MIGRATION.md)中の一時的な `hacoq` の機能であり、新製品commandの実装完了を意味しない。
 
-Windows受入の実測（2026-09-06）: `57b6ee2` のfresh cached BATは完了したが、後に通常shell終了のhangが判明した。packaged `8a44f17` で停止状態からの入口・正常終了を修正し、最終 `3f67845` でcached BAT適用・同じ現在版再実行・停止状態からの入口・controller疎通・実際の終了0・trusted-host file/識別子/account/sudo policy保持を確認した。最終候補のfresh作成は再実行していない。`3f67845` のPhysical Hostとtrusted-host HTTPSは200だった。以前のtrusted-host通信はDocker FORWARD DROP下でtimeoutし、後の読み取り規則はACCEPTだった。手動firewall修復はしておらず、起動順を変えた共存は未検証。Environment proxy制御・SSH・Workspace作業保持の受入は別途pending。これらは以下の専用network修正前の受入記録。
+Windows受入の実測（`af3065a`、2026-09-06）: 未変更のpackaged BATを `-UseCachedWslImage` で実行し、現在のinstallへの適用・同じ版の再実行とも終了0。installerが所有hostをprofileなしの `haco-host0` へ移行した。通常入口、Hacocoonだけを停止した後の入口、controller疎通、実際のprocess終了0、DNS・経路・HTTPS 200を確認。trusted-host file・UUID・account・全sudo policy hashを保持した。この実機はFORWARD ACCEPTでDOCKER-USER chainはなく、DROP下の共存は別の隔離Linux packet testだけで確認した。この候補のfresh作成、Windows再起動、稼働中のfirewall再読込・起動順変更、Environment proxy制御、SSH、Workspace作業保持は未実行。 以前の候補は[実装状況](../IMPLEMENTATION_STATUS.ja.md)に記録する。
 
 ## 概要
 
