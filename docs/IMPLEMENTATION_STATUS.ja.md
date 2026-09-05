@@ -7,7 +7,7 @@
 - **installer修正はimplemented:** 既定は固定管理account `hacocoon` でpassword入力不要。`-InteractiveUserSetup` はopt-in。root側common準備は検証済み通常UID/GIDを保持し、sudo policyを書かず、管理済みWSL初回設定を完了させる。PS5.1引数転送にも回帰テストがある。[ADR 0004](adr/0004-wsl-installer-authority.md)を参照。
 - **cache回帰を実測（2026-09-06）:** `831e5f0` のpackaged BATは `Get-FileHash` が利用できずdistro作成前に失敗した。#441統合時に落ちた #459のmodule非依存SHA-256 helperを復元し、PS5.1回帰テストを追加。修正版packageでfresh install受入を再実行する必要がある。
 - **cache性能修正はimplemented:** image download中のPS5.1のchunkごとの進捗描画を関数内だけ抑制。component testは実際のcache昇格・再利用、hash不一致時のcleanup、呼び出し元の設定保持を検証する。Windows受入では変更していないpackaged BATを使う。
-- **Windows境界を実測（2026-09-06）:** `c522fc7` はimage cacheの取得・検証に成功し、UAC後のWSL作成で失敗。Hacocoon distroとIncusはまだ作られていない。作成失敗時は終了codeを表示するようにした。fresh install受入の成功ではない。
+- **Windows境界を実測（2026-09-06）:** 検証済みimage cacheを使った `9d459be` はUAC後のWSL作成で終了code 1となった。Hacocoon distroとIncusはまだ作られていない。修正版はsystem WSLを元のconsole内で実行し、前提機能の昇格をWSL自身に任せる。進捗・error表示を保持し、失敗時はcommon準備前に停止する。修正版のpackaged BAT受入は未実行。
 - **製品CLIはpartial:** 新 `haco` はhelp/versionとcontroller経由のWSL login aliasを持つ。以下の旧lifecycle・Base・SSH command表記は一時的な `hacoq` の機能。#456の再利用可能なcontroller adapterは実装済みだが、製品commandを `hacoq` へ委譲してはいけない。
 - **Seed撤去はplanned:** codeは残り、Base/任意OCIとの依存は[Seed設計](design/oci-seed-and-cow.ja.md)に記録した。Base選択と任意Pluginは保持する。
 - **実機受入はpending:** 候補のcache付きBAT完走、installer生成DNS・経路・HTTPS、Environmentの許可proxy通信と直接通信拒否、再起動・現在版再実行でのdata保持。更新Windows gateのtrusted-host file保持はEnvironment/Workspaceの作業保持を証明しない。LinuxのIncus/network基盤CIは継続する。

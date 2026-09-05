@@ -20,25 +20,28 @@ function Write-Step([string]$Message) {
     Write-Host "==> $Message"
 }
 
-function Test-Administrator {
-    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-function Invoke-ElevatedWsl([string[]]$Arguments) {
+function Invoke-WslInstall([string]$Name, [string[]]$Arguments) {
     $systemWsl = Join-Path ([Environment]::SystemDirectory) "wsl.exe"
     if (-not (Test-Path -LiteralPath $systemWsl -PathType Leaf)) {
         throw "The system wsl.exe is unavailable at '$systemWsl'."
     }
-    Write-Step "Administrator approval is required only to create the dedicated Hacocoon WSL instance. Requesting UAC."
+    # WSL owns any prerequisite elevation and parent-console attachment. Do not
+    # elevate distro registration ourselves or lose diagnostics in a new window.
+    $previousPreference = $ErrorActionPreference
+    $createExitCode = 1
     try {
-        $quotedArguments = @($Arguments | ForEach-Object { '"' + (($_ -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"' })
-        $process = Start-Process -FilePath $systemWsl -ArgumentList $quotedArguments -Verb RunAs -Wait -PassThru
-    } catch {
-        throw "Administrator approval was cancelled or elevation could not be started. The dedicated Hacocoon WSL instance was not created."
+        # PS5.1 can turn native stderr into an ErrorRecord. Preserve the display
+        # and wait for the exit status instead of aborting at the first message.
+        $ErrorActionPreference = "Continue"
+        $global:LASTEXITCODE = 1
+        & $systemWsl @Arguments
+        $createExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousPreference
     }
-    return [int]$process.ExitCode
+    if ($createExitCode -ne 0) {
+        throw "WSL failed to create '$Name' (exit code $createExitCode). The installer stopped before common Ubuntu setup."
+    }
 }
 
 function Assert-SafeName([string]$Value, [string]$Label) {
@@ -621,15 +624,7 @@ if (-not ($installed -contains $InstanceName)) {
         if ($WebDownload) { $args += "--web-download" }
     }
 
-    if (Test-Administrator) {
-        & wsl.exe @args
-        $createExitCode = $LASTEXITCODE
-    } else {
-        $createExitCode = Invoke-ElevatedWsl $args
-    }
-    if ($createExitCode -ne 0) {
-        throw "WSL failed to create '$InstanceName' (exit code $createExitCode). The installer stopped before common Ubuntu setup."
-    }
+    Invoke-WslInstall $InstanceName $args
     $createdInstance = $true
 }
 

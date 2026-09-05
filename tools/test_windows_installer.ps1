@@ -19,6 +19,36 @@ Assert-LoginUserName '_ubuntu-user'
 function Assert-Equal($Actual, $Expected) {
     if ($Actual -cne $Expected) { throw "Expected '$Expected', got '$Actual'." }
 }
+# Mock only the native command boundary. Product stdout must remain visible,
+# never become part of the exit-code decision, and no extra elevation may run.
+$systemWsl = Join-Path ([Environment]::SystemDirectory) 'wsl.exe'
+$wslFunctionPath = 'function:' + $systemWsl
+function Start-Process { throw 'Installer must let WSL own prerequisite elevation' }
+Set-Item -LiteralPath $wslFunctionPath -Value {
+    Assert-Equal $ErrorActionPreference 'Continue'
+    Assert-Equal ($args -join '|') ($script:installArguments -join '|')
+    Write-Output 'WSL native progress'
+    $global:LASTEXITCODE = $script:installExitCode
+}
+try {
+    $script:installArguments = @('--install', '--from-file', "C:\cache space\a'b;`$(literal)\ubuntu.wsl", '--name', 'Hacocoon', '--no-launch')
+    foreach ($code in @(0, 1, 1223)) {
+        $script:installExitCode = $code
+        $failure = $null
+        $output = @()
+        try { Invoke-WslInstall 'Hacocoon' $script:installArguments | ForEach-Object { $output += $_ } } catch { $failure = $_ }
+        Assert-Equal ($output -join '|') 'WSL native progress'
+        Assert-Equal $ErrorActionPreference 'Stop'
+        if ($code -eq 0) {
+            Assert-Equal ($null -eq $failure) $true
+        } else {
+            Assert-Equal ($failure.Exception.Message -like "*exit code $code*before common Ubuntu setup*") $true
+        }
+    }
+} finally {
+    Remove-Item -LiteralPath $wslFunctionPath
+    Remove-Item -LiteralPath function:Start-Process
+}
 # Hashing must work in the BAT's PS5.1 process without module autoloading.
 function Get-FileHash { throw 'Get-FileHash must not be required by the installer' }
 $hashFile = Join-Path ([IO.Path]::GetTempPath()) ('haco hash [' + [guid]::NewGuid() + '].bin')
@@ -63,6 +93,13 @@ if ($WslTransportDistro) {
     $result = Invoke-WslRootShellScript $WslTransportDistro 'printf ''%s'' "$1" | base64 -w0' @($literal)
     Assert-Equal $result.ExitCode 0
     Assert-Equal $result.Stdout ([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($literal)))
+    # Actual native PS5.1 boundary, read-only: output on success, error on bad
+    # usage, and no stale exit status after a preceding failed command.
+    Invoke-WslInstall 'read-only version probe' @('--version') | Out-Null
+    $invalidUsage = $false
+    try { Invoke-WslInstall 'read-only invalid-option probe' @('--haco-invalid-option') | Out-Null } catch { $invalidUsage = $_.Exception.Message -like '*exit code*' }
+    Assert-Equal $invalidUsage $true
+    Invoke-WslInstall 'read-only version probe' @('--version') | Out-Null
 }
 # Load the unchanged cache function in a disposable package directory so its
 # real PSScriptRoot is exercised. Mock only the network boundary, never hashing.

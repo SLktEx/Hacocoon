@@ -115,7 +115,7 @@ When enabled, `install-windows.ps1` uses `ubuntu.wsl` next to the installer pack
 
 SHA-256 verification uses .NET directly so the BAT's Windows PowerShell 5.1 process does not depend on `Get-FileHash` module availability. Hash failures stop installation before distro creation and do not promote a partial download.
 
-WSL creation failures report the child process exit code and stop before common Ubuntu setup; they are not assumed to mean that WSL is outdated.
+WSL creation runs as the initiating Windows user in the BAT console. WSL itself owns any prerequisite elevation; the installer does not open a separate elevated process for distro registration. Native progress/errors remain visible, and a nonzero exit code stops the installer before common Ubuntu preparation. An outdated WSL installation is not assumed to be the cause.
 
 The download reports its destination and suppresses per-chunk PowerShell progress rendering inside this function, avoiding the PS5.1 large-file slowdown without changing the caller's progress settings.
 

@@ -115,7 +115,7 @@ install-windows.bat -InteractiveUserSetup
 
 SHA-256検証は.NETを直接使い、BATが起動するWindows PowerShell 5.1での `Get-FileHash` moduleの有無に依存しません。hash検証失敗時はdistro作成前に停止し、途中のdownloadをcacheへ昇格しません。
 
-WSL作成失敗時は子プロセスの終了codeを表示し、common Ubuntu準備前に停止します。WSLが古いことが原因とは決めつけません。
+WSL作成は起動元のWindows userとしてBATのconsole内で実行します。前提Windows機能に必要な昇格はWSL自身が管理し、installerはdistro登録のための別の昇格processを起動しません。WSLの進捗・error表示を保持し、終了codeが非zeroならcommon Ubuntu準備前に停止します。WSLが古いことが原因とは決めつけません。
 
 Download先は表示し、関数内だけPowerShellのchunkごとの進捗描画を抑えます。PS5.1での大容量downloadの遅延を避け、呼び出し元の進捗設定は変更しません。
 
