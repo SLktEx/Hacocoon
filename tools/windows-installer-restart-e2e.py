@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Exercise the Windows installer with an explicit WSL restart before reinstall.
 
-This orchestration deliberately proves that the first install stands on its own:
-after creating a real Environment, the test terminates the Hacocoon WSL distro,
-re-enters it, and runs ordinary haco commands before the second BAT is allowed
-to run. The reinstall then runs against the still-active distro, proving ordinary
-idempotency without depending on WSL idle-shutdown timing.
+The full acceptance path deliberately proves that the first install stands on its
+own: after creating a real Environment, the test terminates the Hacocoon WSL
+distro, re-enters it, and runs ordinary haco commands before the second BAT is
+allowed to run. The reinstall then runs against the still-active distro, proving
+ordinary idempotency without depending on WSL idle-shutdown timing.
+
+The PR gate keeps the same exact cached installer and explicit WSL lifecycle
+boundary, but stops after proving the installed host survives terminate/restart.
+The Environment persistence + reinstall journey remains authoritative on main and
+manual acceptance runs.
 """
 
 from __future__ import annotations
@@ -15,6 +20,8 @@ import os
 import re
 import subprocess
 import sys
+import time
+from contextlib import contextmanager
 from pathlib import Path
 
 INSTALL_PROCESS_TIMEOUT_SECONDS = 1800
@@ -29,6 +36,21 @@ def load_driver():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+@contextmanager
+def timed_phase(name: str):
+    started = time.monotonic()
+    print(f"==> PHASE START: {name}", flush=True)
+    try:
+        yield
+    except Exception:
+        elapsed = time.monotonic() - started
+        print(f"==> PHASE FAIL: {name} ({elapsed:.1f}s)", flush=True)
+        raise
+    else:
+        elapsed = time.monotonic() - started
+        print(f"==> PHASE END: {name} ({elapsed:.1f}s)", flush=True)
 
 
 def install_ubuntu_insights_responder(driver) -> None:
@@ -122,7 +144,98 @@ def assert_supported_storage_state(driver, *, phase: str) -> None:
         raise RuntimeError(f"{phase}: autodefrag must remain disabled: {configured!r}")
 
 
-def main() -> int:
+def run_pr_gate(driver, package_root: Path) -> None:
+    with timed_phase("first cached install"):
+        print("==> ACTION USER TYPES: install-windows.bat")
+        first = driver.run_bat(package_root, phase="first install")
+        driver.require_output(
+            first, r"Hacocoon Windows installation complete\.", phase="first install"
+        )
+        driver.assert_installed_host_state(phase="after first BAT")
+        assert_supported_storage_state(driver, phase="after first BAT")
+
+    with timed_phase("explicit WSL terminate"):
+        run_user_terminate(driver)
+        assert_wsl_stopped(driver, phase="after explicit terminate")
+
+    driver.HOST_SESSION_COMMANDS["pr after terminate"] = ("haco base list",)
+    with timed_phase("restart and verify installed host"):
+        print("==> ACTION USER TYPES: wsl -d Hacocoon and normal haco command after terminate")
+        driver.run_host_session(
+            "pr after terminate",
+            expected_output=[r"(?m)^haco/ubuntu-26\.04\s*$"],
+        )
+        driver.assert_installed_host_state(phase="after terminate restart")
+        assert_supported_storage_state(driver, phase="after terminate restart")
+
+
+def run_full_acceptance(driver, package_root: Path) -> None:
+    with timed_phase("first cached install"):
+        print("==> ACTION USER TYPES: install-windows.bat")
+        first = driver.run_bat(package_root, phase="first install")
+        driver.require_output(
+            first, r"Hacocoon Windows installation complete\.", phase="first install"
+        )
+        driver.assert_installed_host_state(phase="after first BAT")
+
+    with timed_phase("Environment create and initial assertions"):
+        print("==> ACTION USER TYPES: wsl -d Hacocoon and normal haco commands")
+        driver.run_host_session(
+            "before reinstall",
+            expected_output=[
+                r"(?m)^haco/ubuntu-26\.04\s*$",
+                rf"(?m)^name:\s+{re.escape(driver.ENVIRONMENT)}\s*$",
+                r"(?m)^Linux\s+",
+            ],
+        )
+        driver.assert_environment_runtime(present=True, phase="after Environment create")
+        assert_supported_storage_state(driver, phase="after Environment create")
+
+    with timed_phase("explicit WSL terminate"):
+        run_user_terminate(driver)
+        assert_wsl_stopped(driver, phase="after explicit terminate")
+
+    driver.HOST_SESSION_COMMANDS["after terminate"] = (
+        f"haco env status {driver.ENVIRONMENT}",
+        f"haco env exec {driver.ENVIRONMENT} -- uname -a",
+    )
+    with timed_phase("restart and reuse existing Environment"):
+        print("==> ACTION USER TYPES: wsl -d Hacocoon and reuse Environment after terminate")
+        driver.run_host_session(
+            "after terminate",
+            expected_output=[
+                rf"(?m)^name:\s+{re.escape(driver.ENVIRONMENT)}\s*$",
+                r"(?m)^Linux\s+",
+            ],
+        )
+        driver.assert_installed_host_state(phase="after terminate restart")
+        driver.assert_environment_runtime(present=True, phase="after terminate restart")
+        assert_supported_storage_state(driver, phase="after terminate restart")
+
+    with timed_phase("second cached install / idempotency"):
+        print("==> ACTION USER TYPES: install-windows.bat")
+        second = driver.run_bat(package_root, phase="reinstall")
+        driver.require_output(
+            second, r"Hacocoon Windows installation complete\.", phase="reinstall"
+        )
+        driver.assert_installed_host_state(phase="after reinstall")
+        driver.assert_environment_runtime(present=True, phase="after reinstall")
+        assert_supported_storage_state(driver, phase="after reinstall")
+
+    with timed_phase("Environment reuse and cleanup"):
+        print("==> ACTION USER TYPES: wsl -d Hacocoon and reuse existing Environment")
+        driver.run_host_session(
+            "after reinstall",
+            expected_output=[
+                rf"(?m)^name:\s+{re.escape(driver.ENVIRONMENT)}\s*$",
+                r"(?m)^Linux\s+",
+            ],
+        )
+        driver.assert_environment_runtime(present=False, phase="after Environment delete")
+        assert_supported_storage_state(driver, phase="after Environment delete")
+
+
+def main(*, pr_gate: bool = False) -> int:
     driver = load_driver()
     # Hosted Windows runners can spend well beyond 15 minutes installing apt/
     # Incus while still making progress. Keep the exact user path and give that
@@ -147,72 +260,15 @@ def main() -> int:
     if missing:
         raise RuntimeError(f"run from extracted Windows package; missing: {', '.join(missing)}")
 
-    # First install and real Environment creation.
-    print("==> ACTION USER TYPES: install-windows.bat")
-    first = driver.run_bat(package_root, phase="first install")
-    driver.require_output(
-        first, r"Hacocoon Windows installation complete\.", phase="first install"
-    )
-    driver.assert_installed_host_state(phase="after first BAT")
+    journey = "PR restart gate" if pr_gate else "full restart/reinstall acceptance"
+    print(f"==> WINDOWS INSTALLER JOURNEY: {journey}", flush=True)
 
-    print("==> ACTION USER TYPES: wsl -d Hacocoon and normal haco commands")
-    driver.run_host_session(
-        "before reinstall",
-        expected_output=[
-            r"(?m)^haco/ubuntu-26\.04\s*$",
-            rf"(?m)^name:\s+{re.escape(driver.ENVIRONMENT)}\s*$",
-            r"(?m)^Linux\s+",
-        ],
-    )
-    driver.assert_environment_runtime(present=True, phase="after Environment create")
-    assert_supported_storage_state(driver, phase="after Environment create")
-
-    # Critical regression: restart WSL before any second installer invocation.
-    # If the first BAT only works because a later BAT repairs runtime state, this
-    # phase fails before the reinstall is ever reached.
-    run_user_terminate(driver)
-    assert_wsl_stopped(driver, phase="after explicit terminate")
-
-    driver.HOST_SESSION_COMMANDS["after terminate"] = (
-        f"haco env status {driver.ENVIRONMENT}",
-        f"haco env exec {driver.ENVIRONMENT} -- uname -a",
-    )
-    print("==> ACTION USER TYPES: wsl -d Hacocoon and reuse Environment after terminate")
-    driver.run_host_session(
-        "after terminate",
-        expected_output=[
-            rf"(?m)^name:\s+{re.escape(driver.ENVIRONMENT)}\s*$",
-            r"(?m)^Linux\s+",
-        ],
-    )
-    driver.assert_installed_host_state(phase="after terminate restart")
-    driver.assert_environment_runtime(present=True, phase="after terminate restart")
-    assert_supported_storage_state(driver, phase="after terminate restart")
-
-    # Re-run the normal BAT while the distro is still active. This is a stronger
-    # idempotency contract than requiring WSL/systemd to become idle within an
-    # arbitrary timeout after the user's shell exits.
-    print("==> ACTION USER TYPES: install-windows.bat")
-    second = driver.run_bat(package_root, phase="reinstall")
-    driver.require_output(
-        second, r"Hacocoon Windows installation complete\.", phase="reinstall"
-    )
-    driver.assert_installed_host_state(phase="after reinstall")
-    driver.assert_environment_runtime(present=True, phase="after reinstall")
-    assert_supported_storage_state(driver, phase="after reinstall")
-
-    print("==> ACTION USER TYPES: wsl -d Hacocoon and reuse existing Environment")
-    driver.run_host_session(
-        "after reinstall",
-        expected_output=[
-            rf"(?m)^name:\s+{re.escape(driver.ENVIRONMENT)}\s*$",
-            r"(?m)^Linux\s+",
-        ],
-    )
-    driver.assert_environment_runtime(present=False, phase="after Environment delete")
-    assert_supported_storage_state(driver, phase="after Environment delete")
-
-    print("windows installer terminate/restart + reinstall user journey: PASS")
+    if pr_gate:
+        run_pr_gate(driver, package_root)
+        print("windows installer cached PR restart gate: PASS")
+    else:
+        run_full_acceptance(driver, package_root)
+        print("windows installer terminate/restart + reinstall user journey: PASS")
     return 0
 
 
