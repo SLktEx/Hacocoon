@@ -213,5 +213,6 @@ case "${1:-all}" in
   test) run_test ;;
   race) run_race ;;
   e2e) run_e2e ;;
-  -h|--help|help) usage >&2; exit 2 ;;
+  -h|--help|help) usage ;;
+  *) usage >&2; exit 2 ;;
 esac
