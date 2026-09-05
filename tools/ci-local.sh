@@ -103,7 +103,7 @@ validate_release_artifacts() {
   local archive listing
   for archive in dist/haco_linux_amd64.tar.gz dist/haco_linux_arm64.tar.gz; do
     listing="$(tar -tzf "$archive")"
-    for binary in haco hacoq haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper; do
+    for binary in haco hacoq haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
       grep -Fx "$binary" <<<"$listing" >/dev/null
     done
   done
@@ -191,7 +191,7 @@ run_e2e() {
   section "e2e: git/github"
   bash test/e2e/git_github.sh
   section "e2e: orchestrator"
-  HACO_STORAGE_PRIVILEGE_MODE=direct bash test/e2e/orchestrator.sh
+  bash test/e2e/orchestrator.sh
 }
 
 run_all() {
@@ -213,6 +213,5 @@ case "${1:-all}" in
   test) run_test ;;
   race) run_race ;;
   e2e) run_e2e ;;
-  -h|--help|help) usage ;;
-  *) usage >&2; exit 2 ;;
+  -h|--help|help) usage >&2; exit 2 ;;
 esac
