@@ -103,6 +103,24 @@ install-windows.bat -InteractiveUserSetup
 
 この場合も installer 自身が WSL の user-setup session を起動します。User setup を完了してその shell から exit すると、同じ installer process がそのまま `install.sh` と post phase を再開します。BAT の 2 回目実行は不要です。
 
+## WSL image cache 検証経路
+
+`-UseCachedWslImage` は、Windows / WSL の install を何度も検証するときのための validation-oriented option です。明示的に指定しない限り、通常 installer の挙動は変わりません。
+
+有効時は、installer package と同じ場所にある `ubuntu.wsl` を Ubuntu 26.04 の local image cache として使います。`ubuntu.wsl` が無ければ、Microsoft の WSL `DistributionInfo.json` から現在の Windows architecture に対応する `Ubuntu-26.04` の URL と SHA256 を取得し、一時ファイルへ download、公開 SHA256 を検証してから `ubuntu.wsl` に昇格します。
+
+専用 distribution の作成は named install 経路のままです。
+
+```powershell
+wsl --install --from-file .\ubuntu.wsl --name Hacocoon --no-launch
+```
+
+`-UseCachedWslImage` は現在 `Ubuntu-26.04` だけを対象とし、`-WebDownload` とは同時指定できません。`ubuntu.wsl` は Release installer package には同梱しません。Local / CI の install 検証を高速化するための artifact です。
+
+GitHub Actions では、cache の trust boundary を untrusted PR と分離します。Trusted な `main` 上の `windows-wsl-image-cache` workflow だけが `actions/cache` で cache を生成し、cache miss 時は同じ `-UseCachedWslImage` 経路を実行するため、Microsoft metadata と SHA256 検証を通った `ubuntu.wsl` だけが保存されます。Pull request の Windows installer E2E は `actions/cache/restore` のみを使い、trusted cache があれば candidate package に `ubuntu.wsl` を copy して利用します。PR から cache state を書き込みません。Trusted cache が無い場合は、その run だけ installer 自身が通常どおり検証付き download を行います。
+
+Restart / reinstall Windows E2E は最初と 2 回目の packaged BAT の両方に `-UseCachedWslImage` を渡すため、cache 経路そのものを acceptance しつつ、`wsl --terminate Hacocoon` 後の persistence と reinstall idempotency も同時に検証します。
+
 Common installer 実行中だけ、選択された通常 WSL user に temporary passwordless sudo rule を付けます。これは ordinary workspace owner のまま `install.sh` を走らせるための bootstrap 用で、trusted installer invocation の間だけ存在します。`finally` で必ず削除し、通常の install 完了後には後述の narrow な `haco host ensure` / `haco host shell` rule だけを残します。
 
 ## Ubuntu 共通 main
@@ -171,7 +189,7 @@ haco host shell
 
 Installer E2E は `install.sh` 単体成功ではなく、実際の user-visible entry point から判定します。
 
-Windows gate は candidate `hacocoon-windows-amd64.zip` を作って展開し、package 内の `install-windows.bat` を実行します。**最初の unchanged BAT 1 回だけで** managed `hacocoon` user を使った complete WSL install path に到達することを要求します。Acceptance boundary は WSL 2、systemd、Incus、controller service/socket、`haco-host doctor`、WSL login integration までです。Opt-in の interactive user-setup path も別途維持しますが、default install contract にはしません。
+Windows gate は candidate `hacocoon-windows-amd64.zip` を作って展開し、trusted `ubuntu.wsl` cache があれば restore / stage して、shipped `-UseCachedWslImage` option 経由で packaged installer を実行します。最初の install が managed `hacocoon` user で完了した後、WSL distribution を明示的に terminate し、repair install を一度も挟まず既存 Environment が restart 後も使えることを確認し、最後に reinstall / idempotency まで検証します。Acceptance boundary は WSL 2、systemd、Incus、controller service/socket、`haco-host doctor`、WSL login integration までです。Opt-in の interactive user-setup path も別途維持しますが、default install contract にはしません。
 
 Native Ubuntu gate は candidate `hacocoon-ubuntu-amd64.tar.gz` を作って展開し、package 内の `install-ubuntu.sh` を実行します。Controller と trusted `haco-host` round trip が成功し、native login shell が変更されていないことまで確認します。
 
