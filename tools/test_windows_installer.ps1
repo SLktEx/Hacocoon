@@ -173,4 +173,8 @@ try {
     foreach ($file in @($cachePath, ($cachePath + '.download'), $cacheFunctionFile)) { [IO.File]::Delete($file) }
     [IO.Directory]::Delete($cacheRoot)
 }
+# Failure-case probes intentionally change LASTEXITCODE. GitHub's PowerShell
+# wrapper returns it after this script, so publish success only after every
+# assertion and cleanup has completed. A thrown failure never reaches here.
+$global:LASTEXITCODE = 0
 Write-Host 'WINDOWS INSTALLER COMPONENTS OK'
