@@ -28,6 +28,36 @@ def load_driver():
     return module
 
 
+def install_ubuntu_insights_responder(driver) -> None:
+    """Model the one-time Ubuntu 26.04 WSL consent prompt as real user input.
+
+    Ubuntu's WSL OOBE asks for Ubuntu Insights consent on the first interactive
+    distro entry when no consent exists yet. Choosing `n` is an ordinary user
+    action, persists the local per-user consent, and leaves later Hacocoon
+    sessions prompt-free without changing product arguments or environment.
+    """
+
+    original_run = driver.TerminalProcess.run
+
+    def run_with_insights_consent(
+        terminal,
+        *,
+        responders=None,
+        on_output=None,
+        timeout=driver.PROCESS_TIMEOUT_SECONDS,
+    ):
+        combined = list(responders or [])
+        combined.append(driver.responder(r"\[Y/n/e\]:\s*$", "n\r\n"))
+        return original_run(
+            terminal,
+            responders=combined,
+            on_output=on_output,
+            timeout=timeout,
+        )
+
+    driver.TerminalProcess.run = run_with_insights_consent
+
+
 def run_user_terminate(driver) -> None:
     argv = ("wsl.exe", "--terminate", driver.INSTANCE)
     print("==> ACTION USER TYPES:", " ".join(argv))
@@ -52,6 +82,7 @@ def assert_wsl_stopped(driver, *, phase: str) -> None:
 
 def main() -> int:
     driver = load_driver()
+    install_ubuntu_insights_responder(driver)
 
     if os.name != "nt":
         raise RuntimeError("Windows restart E2E must run on Windows")
