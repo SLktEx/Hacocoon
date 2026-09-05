@@ -12,6 +12,7 @@ import (
 )
 
 const defaultCompressionOption = "compress=zstd:3"
+const defaultMountOptions = defaultCompressionOption + ",noatime,nodiscard"
 
 type FilesystemState struct {
 	Healthy      bool
@@ -142,20 +143,20 @@ func (b *Btrfs) Mount(ctx context.Context, device, mountpoint string) error {
 		if optionsErr != nil {
 			return fmt.Errorf("inspect mount options for %s: %w", mountpoint, optionsErr)
 		}
-		if hasExpectedCompression(options.Stdout) {
+		if hasExpectedMountOptions(options.Stdout) {
 			return nil
 		}
 
-		_, err = b.runner.Run(ctx, "mount", device, mountpoint, "-o", "remount,"+defaultCompressionOption)
+		_, err = b.runner.Run(ctx, "mount", device, mountpoint, "-o", "remount,"+defaultMountOptions)
 		if err != nil {
-			return fmt.Errorf("remount %s with %s: %w", mountpoint, defaultCompressionOption, err)
+			return fmt.Errorf("remount %s with %s: %w", mountpoint, defaultMountOptions, err)
 		}
 		return nil
 	}
 	if err != nil && mounted.ExitCode != 1 {
 		return fmt.Errorf("inspect mountpoint %s before mount: %w", mountpoint, err)
 	}
-	_, err = b.runner.Run(ctx, "mount", device, mountpoint, "-o", defaultCompressionOption)
+	_, err = b.runner.Run(ctx, "mount", device, mountpoint, "-o", defaultMountOptions)
 	return err
 }
 
@@ -173,18 +174,28 @@ func (b *Btrfs) Verify(ctx context.Context, mountpoint string, expected int64) e
 	return nil
 }
 
-func hasExpectedCompression(options string) bool {
-	hasExpected := false
+func hasExpectedMountOptions(options string) bool {
+	hasCompression := false
+	hasNoatime := false
+	hasNodiscard := false
 	for _, option := range strings.Split(strings.TrimSpace(options), ",") {
 		option = strings.TrimSpace(option)
-		if option == "compress-force" || strings.HasPrefix(option, "compress-force=") {
+		switch {
+		case option == "compress-force" || strings.HasPrefix(option, "compress-force="):
+			return false
+		case option == "compress=zstd" || option == defaultCompressionOption:
+			hasCompression = true
+		case option == "noatime":
+			hasNoatime = true
+		case option == "nodiscard":
+			hasNodiscard = true
+		case option == "discard" || strings.HasPrefix(option, "discard="):
+			return false
+		case option == "atime" || option == "strictatime" || option == "relatime":
 			return false
 		}
-		if option == "compress=zstd" || option == defaultCompressionOption {
-			hasExpected = true
-		}
 	}
-	return hasExpected
+	return hasCompression && hasNoatime && hasNodiscard
 }
 
 func parseFirstInt(input, pattern string) int64 {

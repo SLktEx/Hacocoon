@@ -108,7 +108,7 @@ func TestUnmountUsesExactMountpointLookup(t *testing.T) {
 	}
 }
 
-func TestMountEnablesTransparentCompression(t *testing.T) {
+func TestMountUsesManagedMountOptions(t *testing.T) {
 	runner := &filesystemRunner{fn: func(name string, args []string) (host.Result, error) {
 		if name == "findmnt" {
 			return host.Result{ExitCode: 1}, errors.New("not mounted")
@@ -122,16 +122,16 @@ func TestMountEnablesTransparentCompression(t *testing.T) {
 	if err := b.Mount(context.Background(), "/dev/expected", "/mnt/haco"); err != nil {
 		t.Fatalf("mount failed: %v", err)
 	}
-	want := "mount /dev/expected /mnt/haco -o compress=zstd:3"
+	want := "mount /dev/expected /mnt/haco -o compress=zstd:3,noatime,nodiscard"
 	for _, call := range runner.calls {
 		if call == want {
 			return
 		}
 	}
-	t.Fatalf("transparent compression mount option missing: %v", runner.calls)
+	t.Fatalf("managed mount options missing: %v", runner.calls)
 }
 
-func TestMountKeepsExistingExpectedCompression(t *testing.T) {
+func TestMountKeepsExistingExpectedMountOptions(t *testing.T) {
 	runner := &filesystemRunner{fn: func(name string, args []string) (host.Result, error) {
 		if name != "findmnt" || len(args) < 3 {
 			return host.Result{}, errors.New("unexpected command")
@@ -140,7 +140,7 @@ func TestMountKeepsExistingExpectedCompression(t *testing.T) {
 		case "SOURCE":
 			return host.Result{Stdout: "/dev/expected\n"}, nil
 		case "OPTIONS":
-			return host.Result{Stdout: "rw,relatime,compress=zstd:3,space_cache=v2\n"}, nil
+			return host.Result{Stdout: "rw,noatime,compress=zstd:3,nodiscard,space_cache=v2\n"}, nil
 		default:
 			return host.Result{}, errors.New("unexpected findmnt column")
 		}
@@ -156,7 +156,7 @@ func TestMountKeepsExistingExpectedCompression(t *testing.T) {
 	}
 }
 
-func TestMountRemountsExistingSourceWithoutCompression(t *testing.T) {
+func TestMountRemountsExistingSourceWithoutManagedOptions(t *testing.T) {
 	runner := &filesystemRunner{fn: func(name string, args []string) (host.Result, error) {
 		if name == "findmnt" && len(args) >= 3 {
 			switch args[2] {
@@ -175,13 +175,13 @@ func TestMountRemountsExistingSourceWithoutCompression(t *testing.T) {
 	if err := b.Mount(context.Background(), "/dev/expected", "/mnt/haco"); err != nil {
 		t.Fatalf("remount failed: %v", err)
 	}
-	want := "mount /dev/expected /mnt/haco -o remount,compress=zstd:3"
+	want := "mount /dev/expected /mnt/haco -o remount,compress=zstd:3,noatime,nodiscard"
 	for _, call := range runner.calls {
 		if call == want {
 			return
 		}
 	}
-	t.Fatalf("existing mount was not remounted with compression: %v", runner.calls)
+	t.Fatalf("existing mount was not reconciled: %v", runner.calls)
 }
 
 func TestMountReplacesCompressForce(t *testing.T) {
@@ -191,7 +191,7 @@ func TestMountReplacesCompressForce(t *testing.T) {
 			case "SOURCE":
 				return host.Result{Stdout: "/dev/expected\n"}, nil
 			case "OPTIONS":
-				return host.Result{Stdout: "rw,compress-force=zstd:3,space_cache=v2\n"}, nil
+				return host.Result{Stdout: "rw,noatime,nodiscard,compress-force=zstd:3,space_cache=v2\n"}, nil
 			}
 		}
 		if name == "mount" {
@@ -203,11 +203,67 @@ func TestMountReplacesCompressForce(t *testing.T) {
 	if err := b.Mount(context.Background(), "/dev/expected", "/mnt/haco"); err != nil {
 		t.Fatalf("remount failed: %v", err)
 	}
-	want := "mount /dev/expected /mnt/haco -o remount,compress=zstd:3"
+	want := "mount /dev/expected /mnt/haco -o remount,compress=zstd:3,noatime,nodiscard"
 	for _, call := range runner.calls {
 		if call == want {
 			return
 		}
 	}
 	t.Fatalf("compress-force mount was not replaced: %v", runner.calls)
+}
+
+func TestMountReplacesRelatime(t *testing.T) {
+	runner := &filesystemRunner{fn: func(name string, args []string) (host.Result, error) {
+		if name == "findmnt" && len(args) >= 3 {
+			switch args[2] {
+			case "SOURCE":
+				return host.Result{Stdout: "/dev/expected\n"}, nil
+			case "OPTIONS":
+				return host.Result{Stdout: "rw,relatime,compress=zstd:3,nodiscard,space_cache=v2\n"}, nil
+			}
+		}
+		if name == "mount" {
+			return host.Result{}, nil
+		}
+		return host.Result{}, errors.New("unexpected command")
+	}}
+	b := NewBtrfs(runner)
+	if err := b.Mount(context.Background(), "/dev/expected", "/mnt/haco"); err != nil {
+		t.Fatalf("remount failed: %v", err)
+	}
+	want := "mount /dev/expected /mnt/haco -o remount,compress=zstd:3,noatime,nodiscard"
+	for _, call := range runner.calls {
+		if call == want {
+			return
+		}
+	}
+	t.Fatalf("relatime mount was not replaced: %v", runner.calls)
+}
+
+func TestMountReplacesDiscardAsync(t *testing.T) {
+	runner := &filesystemRunner{fn: func(name string, args []string) (host.Result, error) {
+		if name == "findmnt" && len(args) >= 3 {
+			switch args[2] {
+			case "SOURCE":
+				return host.Result{Stdout: "/dev/expected\n"}, nil
+			case "OPTIONS":
+				return host.Result{Stdout: "rw,noatime,compress=zstd:3,discard=async,space_cache=v2\n"}, nil
+			}
+		}
+		if name == "mount" {
+			return host.Result{}, nil
+		}
+		return host.Result{}, errors.New("unexpected command")
+	}}
+	b := NewBtrfs(runner)
+	if err := b.Mount(context.Background(), "/dev/expected", "/mnt/haco"); err != nil {
+		t.Fatalf("remount failed: %v", err)
+	}
+	want := "mount /dev/expected /mnt/haco -o remount,compress=zstd:3,noatime,nodiscard"
+	for _, call := range runner.calls {
+		if call == want {
+			return
+		}
+	}
+	t.Fatalf("discard mount was not replaced: %v", runner.calls)
 }
