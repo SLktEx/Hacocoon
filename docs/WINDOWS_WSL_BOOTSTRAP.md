@@ -105,7 +105,7 @@ The common main phase:
 - verifies the bundled architecture-specific archive checksum;
 - verifies trusted GitHub/Sigstore provenance and signed release binding when provenance is enabled;
 - validates the archive contains exactly the expected regular Hacocoon binaries;
-- installs the Hacocoon binaries;
+- installs the binaries and root-owned storage helper;
 - installs/restarts `haco-controller.service`;
 - requires `/run/hacocoon/control.sock` to be a root-owned mode `0600` Unix socket;
 - runs `haco host ensure`;

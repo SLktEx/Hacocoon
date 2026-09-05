@@ -27,7 +27,7 @@ const defaultLocalStorageID = "local-default"
 
 const defaultLocalStorageSize = "128GiB"
 
-const defaultLocalStorageMountOptions = "compress=zstd:3"
+const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
 	Environments *workspaceapp.Service

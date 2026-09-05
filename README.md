@@ -24,6 +24,8 @@ Hacocoon puts a Workspace behind an isolated execution boundary while keeping pr
 > [!WARNING]
 > **Hacocoon is pre-1.0 and under active development. Breaking changes are expected.**
 >
+> The product-facing `haco` CLI is currently being rebuilt from the basic user workflow outward. The previous CLI is temporarily available as `hacoq` for migration only and will be deleted. See [CLI migration](docs/CLI_MIGRATION.md).
+>
 > Incus is the active Environment backend today. The provider seam remains generic, while the previous concrete EC2/AWS/EBS implementation is deferred. See [Implementation status](docs/IMPLEMENTATION_STATUS.md) for current repository reality and real-host acceptance gaps, and [Versioning and release status](docs/status/versioning-and-release-status.md) for the authoritative fast-moving development checkpoint.
 
 ## Why Hacocoon?
@@ -68,30 +70,31 @@ Hacocoon separates **freedom inside a development Environment** from **authority
 git clone https://github.com/SLktEx/Hacocoon.git
 cd Hacocoon
 
-go build -o ./bin/haco ./cmd/haco
+go build -o ./bin/haco ./cmd/haco-product
+go build -o ./bin/hacoq ./cmd/haco
 go build -o ./bin/haco-vscode ./cmd/haco-vscode
 go build -o ./bin/haco-agent-host ./cmd/haco-agent-host
 go build -o ./bin/haco-notify ./cmd/haco-notify
 
-./bin/haco doctor
+./bin/haco --version
+./bin/haco help
 ```
+
+The reset product CLI intentionally starts small. Current low-level behavior remains available temporarily through `hacoq`; do not build new integrations against it.
 
 For Windows + WSL host setup, see [Windows / WSL bootstrap](docs/WINDOWS_WSL_BOOTSTRAP.md). On the supported local path, normal interactive WSL entry opens the persistent trusted `haco-host`; Physical Host root remains the explicit recovery path.
 
-### Run in an isolated Workspace
+### Temporary legacy workspace commands
+
+The following commands are migration-only examples while their product-facing replacements are rebuilt:
 
 ```bash
-./bin/haco run --workspace "$PWD" -- go test ./...
-```
-
-Or keep a named Environment:
-
-```bash
-./bin/haco create --workspace "$PWD" dev
-./bin/haco exec dev -- go test ./...
-./bin/haco shell dev
-./bin/haco status dev
-./bin/haco delete dev
+./bin/hacoq run --workspace "$PWD" -- go test ./...
+./bin/hacoq create --workspace "$PWD" dev
+./bin/hacoq exec dev -- go test ./...
+./bin/hacoq shell dev
+./bin/hacoq status dev
+./bin/hacoq delete dev
 ```
 
 ### Open in VS Code
@@ -116,23 +119,19 @@ See [Adapter and extension architecture](docs/design/plugin-architecture.md) and
 
 ## Bases and optional OCI tooling
 
-Hacocoon Environment starting points use the provider-neutral Base namespace:
+Historical `haco base list` and `haco plugin oci` spellings belong to the previous CLI surface; during migration use the temporary `hacoq` forms below instead.
 
 ```bash
-haco base list
-haco base inspect haco/ubuntu-26.04
-haco create --base haco/ubuntu-26.04 --workspace "$PWD" dev
-```
+hacoq base list
+hacoq base inspect haco/ubuntu-26.04
+hacoq create --base haco/ubuntu-26.04 --workspace "$PWD" dev
 
-Container tooling remains optional and separate:
-
-```bash
-HACO_PLUGIN_OCI=nerdctl haco plugin oci seed sample
-HACO_PLUGIN_OCI=nerdctl haco plugin oci seed recommend
-HACO_PLUGIN_OCI=nerdctl haco plugin oci seed build
-HACO_PLUGIN_OCI=nerdctl haco plugin oci seed current
-HACO_PLUGIN_OCI=docker  haco plugin oci docker status dev
-HACO_PLUGIN_OCI=docker  haco plugin oci docker prepare dev
+HACO_PLUGIN_OCI=nerdctl hacoq plugin oci seed sample
+HACO_PLUGIN_OCI=nerdctl hacoq plugin oci seed recommend
+HACO_PLUGIN_OCI=nerdctl hacoq plugin oci seed build
+HACO_PLUGIN_OCI=nerdctl hacoq plugin oci seed current
+HACO_PLUGIN_OCI=docker  hacoq plugin oci docker status dev
+HACO_PLUGIN_OCI=docker  hacoq plugin oci docker prepare dev
 ```
 
 Core does not require containerd, nerdctl, Docker, or a local Registry. Current implementation reality lives in [Implementation status](docs/IMPLEMENTATION_STATUS.md); the intentionally fast-moving pre-1.0 checkpoint number and history live in [Versioning and release status](docs/status/versioning-and-release-status.md). README deliberately does not duplicate the checkpoint table. The Local OCI Registry direction remains deferred/unversioned optional infrastructure.
@@ -163,6 +162,7 @@ Read [Security architecture](docs/security/security-architecture.md), [Trusted l
 ## Documentation
 
 - [Documentation index](docs/README.md)
+- [CLI migration](docs/CLI_MIGRATION.md)
 - [Documentation style guide](docs/DOCUMENTATION_STYLE_GUIDE.md)
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 - [Architecture and roadmap](docs/status/architecture-and-roadmap.md)

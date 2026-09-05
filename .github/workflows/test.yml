@@ -124,6 +124,7 @@ jobs:
           for archive in dist/haco_linux_amd64.tar.gz dist/haco_linux_arm64.tar.gz; do
             listing="$(tar -tzf "$archive")"
             grep -Fx 'haco' <<<"$listing" >/dev/null
+            grep -Fx 'hacoq' <<<"$listing" >/dev/null
             grep -Fx 'haco-controller' <<<"$listing" >/dev/null
             grep -Fx 'haco-host' <<<"$listing" >/dev/null
             grep -Fx 'haco-vscode' <<<"$listing" >/dev/null
@@ -165,7 +166,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "dist/build/${GOOS}-${GOARCH}"
-          go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco" ./cmd/haco
+          go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco" ./cmd/haco-product
+          go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/hacoq" ./cmd/haco
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-controller" ./cmd/haco-controller
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-host" ./cmd/haco-host
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-vscode" ./cmd/haco-vscode
@@ -192,6 +194,17 @@ jobs:
           cache: false
       - run: go test -count=1 -shuffle=on ./...
       - run: go vet ./...
+      - name: Smoke-test the new product CLI without runtime state
+        if: matrix.go-version == '1.27.x'
+        run: |
+          set -euo pipefail
+          go build -o "$RUNNER_TEMP/haco" ./cmd/haco-product
+          env -u HACO_ROOT -u HACO_CONTROL_SOCKET "$RUNNER_TEMP/haco" --version
+          env -u HACO_ROOT -u HACO_CONTROL_SOCKET "$RUNNER_TEMP/haco" help
+          if env -u HACO_ROOT -u HACO_CONTROL_SOCKET "$RUNNER_TEMP/haco" env; then
+            echo 'unimplemented product command unexpectedly succeeded' >&2
+            exit 1
+          fi
       - name: Test Browser and VS Code notification clients
         if: matrix.go-version == '1.27.x'
         run: |

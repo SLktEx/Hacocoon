@@ -27,6 +27,7 @@ func (r *Runtime) ShellEnvironmentStream(ctx context.Context, ref string, stdin 
 		[]string{"/bin/bash"},
 		environmentPrompt(ref),
 		"environment",
+		core.TerminalMetadataFromContext(ctx),
 	)
 	_, err := r.execInteractiveStream(ctx, ref, argv, stdin, stdout, stderr)
 	return err
@@ -42,6 +43,7 @@ func (r *Runtime) PrepareTrustedHostShellStream(ctx context.Context) (func(conte
 	if err := r.EnsureTrustedHost(ctx); err != nil {
 		return nil, err
 	}
+	terminal := core.TerminalMetadataFromContext(ctx)
 	return func(runCtx context.Context, stdin io.Reader, stdout, stderr io.Writer) error {
 		if stdin == nil || stdout == nil || stderr == nil {
 			return core.ErrInvalidArgument
@@ -50,18 +52,25 @@ func (r *Runtime) PrepareTrustedHostShellStream(ctx context.Context) (func(conte
 			[]string{"/bin/bash", "-l"},
 			trustedHostPrompt,
 			"trusted-host",
+			terminal,
 		)
 		_, err := r.execInteractiveStream(runCtx, trustedHostName, argv, stdin, stdout, stderr)
 		return err
 	}, nil
 }
 
-func interactiveShellWithPrompt(argv []string, prompt, shellContext string) []string {
+func interactiveShellWithPrompt(argv []string, prompt, shellContext string, terminal core.TerminalMetadata) []string {
 	wrapped := []string{
 		"/usr/bin/env",
 		"HACO_SHELL_CONTEXT=" + shellContext,
 		"HACO_PS1=" + prompt,
 		"PROMPT_COMMAND=" + hacocoonPromptCommand,
+	}
+	if terminal.Term != "" {
+		wrapped = append(wrapped, "TERM="+terminal.Term)
+	}
+	if terminal.ColorTerm != "" {
+		wrapped = append(wrapped, "COLORTERM="+terminal.ColorTerm)
 	}
 	return append(wrapped, argv...)
 }

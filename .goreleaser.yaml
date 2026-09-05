@@ -4,8 +4,22 @@ project_name: hacocoon
 
 builds:
   - id: haco
-    main: ./cmd/haco
+    main: ./cmd/haco-product
     binary: haco
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - >-
+        -s -w
+        -X github.com/SLktEx/Hacocoon/internal/buildinfo.SoftwareVersion={{ .Version }}
+        -X github.com/SLktEx/Hacocoon/internal/buildinfo.Commit={{ .Commit }}
+        -X github.com/SLktEx/Hacocoon/internal/buildinfo.BuildDate={{ .Date }}
+  - id: hacoq
+    main: ./cmd/haco
+    binary: hacoq
     env:
       - CGO_ENABLED=0
     goos: [linux]
@@ -62,6 +76,7 @@ archives:
   - id: haco
     ids:
       - haco
+      - hacoq
       - haco-controller
       - haco-host
       - haco-vscode

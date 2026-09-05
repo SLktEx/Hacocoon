@@ -83,11 +83,13 @@ def regular(tf, name, payload=b"binary\n", mode=0o755):
     tf.addfile(info, io.BytesIO(payload))
 
 def expected_others(tf):
+    regular(tf, "hacoq", b"hacoq-safe\n")
     regular(tf, "haco-controller", b"controller-safe\n")
     regular(tf, "haco-host", b"haco-host-safe\n")
     regular(tf, "haco-vscode", b"vscode-safe\n")
     regular(tf, "haco-agent-host", b"agent-host-safe\n")
     regular(tf, "haco-notify", b"notify-safe\n")
+    regular(tf, "haco-storage-helper", b"storage-helper-safe\n")
 
 with tarfile.open(path, "w:gz", format=tarfile.USTAR_FORMAT) as tf:
     if kind == "valid":
@@ -144,9 +146,11 @@ PY
 run_installer() {
   fixture="$1"
   install_dir="$2"
+  helper_dir="$3"
   mkdir -p "$install_dir"
   HACO_TEST_ARCHIVE="$fixture" \
   HACO_INSTALL_DIR="$install_dir" \
+  HACO_STORAGE_HELPER_INSTALL_DIR="$helper_dir" \
   HACO_ROOT="$root/haco-root" \
   HACO_INSTALL_BINARIES_ONLY=1 \
   HACO_REQUIRE_PROVENANCE=0 \
@@ -158,35 +162,44 @@ run_installer() {
 
 valid="$root/valid.tar.gz"
 make_archive valid "$valid"
-run_installer "$valid" "$root/install-valid"
+run_installer "$valid" "$root/install-valid" "$root/helper-valid"
 grep -Fx 'haco-safe' "$root/install-valid/haco" >/dev/null
+grep -Fx 'hacoq-safe' "$root/install-valid/hacoq" >/dev/null
 grep -Fx 'controller-safe' "$root/install-valid/haco-controller" >/dev/null
 grep -Fx 'haco-host-safe' "$root/install-valid/haco-host" >/dev/null
 grep -Fx 'vscode-safe' "$root/install-valid/haco-vscode" >/dev/null
 grep -Fx 'agent-host-safe' "$root/install-valid/haco-agent-host" >/dev/null
 grep -Fx 'notify-safe' "$root/install-valid/haco-notify" >/dev/null
+grep -Fx 'storage-helper-safe' "$root/helper-valid/haco-storage-helper" >/dev/null
 
 valid_docs="$root/valid-docs.tar.gz"
 make_archive valid-docs "$valid_docs"
-run_installer "$valid_docs" "$root/install-valid-docs"
+run_installer "$valid_docs" "$root/install-valid-docs" "$root/helper-valid-docs"
 grep -Fx 'haco-safe' "$root/install-valid-docs/haco" >/dev/null
+grep -Fx 'hacoq-safe' "$root/install-valid-docs/hacoq" >/dev/null
+grep -Fx 'storage-helper-safe' "$root/helper-valid-docs/haco-storage-helper" >/dev/null
 
 printf 'sentinel\n' >"$outside"
 for kind in traversal absolute symlink hardlink fifo device extra; do
   fixture="$root/$kind.tar.gz"
   install_dir="$root/install-$kind"
+  helper_dir="$root/helper-$kind"
   make_archive "$kind" "$fixture"
-  if run_installer "$fixture" "$install_dir" >"$root/$kind.out" 2>&1; then
+  if run_installer "$fixture" "$install_dir" "$helper_dir" >"$root/$kind.out" 2>&1; then
     echo "expected installer to reject $kind archive" >&2
     cat "$root/$kind.out" >&2
     exit 1
   fi
-  for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
+  for binary in haco hacoq haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
     if [ -e "$install_dir/$binary" ]; then
       echo "installer wrote $binary for rejected $kind archive" >&2
       exit 1
     fi
   done
+  if [ -e "$helper_dir/haco-storage-helper" ]; then
+    echo "installer wrote storage helper for rejected $kind archive" >&2
+    exit 1
+  fi
   if [ "$(cat "$outside")" != "sentinel" ]; then
     echo "rejected $kind archive modified outside sentinel" >&2
     exit 1

@@ -26,6 +26,9 @@ type Server struct {
 	handlers       map[string]Handler
 	streamHandlers map[string]StreamHandler
 	connections    chan struct{}
+
+	sessionMu sync.Mutex
+	sessions  map[string]*serverSession
 }
 
 func NewServer() *Server {
@@ -33,11 +36,12 @@ func NewServer() *Server {
 		handlers:       make(map[string]Handler),
 		streamHandlers: make(map[string]StreamHandler),
 		connections:    make(chan struct{}, maxConcurrentConnections),
+		sessions:       make(map[string]*serverSession),
 	}
 }
 
 func (s *Server) Register(method string, handler Handler) error {
-	if s == nil || strings.TrimSpace(method) == "" || handler == nil {
+	if s == nil || strings.TrimSpace(method) == "" || handler == nil || strings.HasPrefix(method, "_control.") {
 		return ErrInvalidArgument
 	}
 	s.mu.Lock()
@@ -53,7 +57,7 @@ func (s *Server) Register(method string, handler Handler) error {
 }
 
 func (s *Server) RegisterStream(method string, handler StreamHandler) error {
-	if s == nil || strings.TrimSpace(method) == "" || handler == nil {
+	if s == nil || strings.TrimSpace(method) == "" || handler == nil || strings.HasPrefix(method, "_control.") {
 		return ErrInvalidArgument
 	}
 	s.mu.Lock()
@@ -119,6 +123,34 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "invalid_argument", Message: "method is required"}))
 		return
 	}
+	if request.Session && !request.Stream {
+		_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "invalid_argument", Message: "session requires stream mode"}))
+		return
+	}
+
+	if request.Method == methodSessionWait {
+		if request.Stream {
+			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "invalid_argument", Message: "session wait is not a stream"}))
+			return
+		}
+		var waitRequest sessionWaitRequest
+		if err := json.Unmarshal(request.Payload, &waitRequest); err != nil || strings.TrimSpace(waitRequest.SessionID) == "" {
+			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "invalid_argument", Message: "session_id is required"}))
+			return
+		}
+		result, err := s.waitSession(ctx, waitRequest.SessionID)
+		if err != nil {
+			_ = writeJSONLine(conn, errorEnvelope(err))
+			return
+		}
+		payload, err := marshalPayload(result)
+		if err != nil {
+			_ = writeJSONLine(conn, errorEnvelope(err))
+			return
+		}
+		_ = writeJSONLine(conn, responseEnvelope{Version: ProtocolVersion, Payload: payload})
+		return
+	}
 
 	if request.Stream {
 		s.mu.RLock()
@@ -137,10 +169,32 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "internal", Message: "stream handler returned no stream"}))
 			return
 		}
-		if err := writeJSONLine(conn, responseEnvelope{Version: ProtocolVersion}); err != nil {
+
+		response := responseEnvelope{Version: ProtocolVersion}
+		var sessionID string
+		var session *serverSession
+		if request.Session {
+			sessionID, session, err = s.createSession()
+			if err != nil {
+				_ = writeJSONLine(conn, errorEnvelope(err))
+				return
+			}
+			response.SessionID = sessionID
+		}
+		if err := writeJSONLine(conn, response); err != nil {
+			if session != nil {
+				s.discardSession(sessionID, session)
+			}
 			return
 		}
-		_ = stream(ctx, &bufferedConn{Conn: conn, reader: reader})
+
+		streamErr := stream(ctx, &bufferedConn{Conn: conn, reader: reader})
+		if session != nil {
+			// Publish completion before the stream connection is closed by the
+			// outer defer. A client that observes EOF can therefore immediately
+			// fetch the result on the independent control connection.
+			s.completeSession(sessionID, session, streamErr)
+		}
 		return
 	}
 

@@ -61,43 +61,75 @@ func (c *Client) Call(ctx context.Context, method string, request, response any)
 	return nil
 }
 
+// OpenStream opens the legacy raw byte-stream mode. It deliberately retains
+// EOF-only completion semantics for compatibility with older peers.
 func (c *Client) OpenStream(ctx context.Context, method string, request any) (net.Conn, error) {
+	conn, _, err := c.openStream(ctx, method, request, false)
+	return conn, err
+}
+
+// OpenSession opens a raw byte stream while negotiating an independent
+// completion/control identity. If the peer is older and does not return a
+// session id, it safely falls back to the legacy EOF-only stream behavior.
+func (c *Client) OpenSession(ctx context.Context, method string, request any) (net.Conn, error) {
+	conn, response, err := c.openStream(ctx, method, request, true)
+	if err != nil {
+		return nil, err
+	}
+	if response.SessionID == "" {
+		return conn, nil
+	}
+	return &sessionConn{
+		Conn:   conn,
+		client: c,
+		id:     response.SessionID,
+		ctx:    ctx,
+	}, nil
+}
+
+func (c *Client) openStream(ctx context.Context, method string, request any, managedSession bool) (net.Conn, responseEnvelope, error) {
 	if c == nil || c.dial == nil || strings.TrimSpace(method) == "" {
-		return nil, ErrInvalidArgument
+		return nil, responseEnvelope{}, ErrInvalidArgument
 	}
 	conn, err := c.dial(ctx)
 	if err != nil {
-		return nil, err
+		return nil, responseEnvelope{}, err
 	}
 	conn = bindContext(ctx, conn)
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := conn.SetDeadline(deadline); err != nil {
 			conn.Close()
-			return nil, err
+			return nil, responseEnvelope{}, err
 		}
 	}
 	payload, err := marshalPayload(request)
 	if err != nil {
 		conn.Close()
-		return nil, err
+		return nil, responseEnvelope{}, err
 	}
-	if err := writeJSONLine(conn, requestEnvelope{Version: ProtocolVersion, Method: method, Stream: true, Payload: payload}); err != nil {
+	if err := writeJSONLine(conn, requestEnvelope{
+		Version: ProtocolVersion,
+		Method:  method,
+		Stream:  true,
+		Session: managedSession,
+		Payload: payload,
+	}); err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("write control stream request: %w", err)
+		return nil, responseEnvelope{}, fmt.Errorf("write control stream request: %w", err)
 	}
 	wire, reader, err := readResponse(conn)
 	if err != nil {
 		conn.Close()
-		return nil, err
+		return nil, responseEnvelope{}, err
 	}
 	if err := validateResponse(wire); err != nil {
 		conn.Close()
-		return nil, err
+		return nil, responseEnvelope{}, err
 	}
 	if _, ok := ctx.Deadline(); !ok {
 		_ = conn.SetDeadline(noDeadline)
 	}
-	return &bufferedConn{Conn: conn, reader: reader}, nil
+	return &bufferedConn{Conn: conn, reader: reader}, wire, nil
 }
 
 type contextConn struct {

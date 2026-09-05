@@ -19,13 +19,15 @@ type requestEnvelope struct {
 	Version int             `json:"version"`
 	Method  string          `json:"method"`
 	Stream  bool            `json:"stream,omitempty"`
+	Session bool            `json:"session,omitempty"`
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
 type responseEnvelope struct {
-	Version int             `json:"version"`
-	Payload json.RawMessage `json:"payload,omitempty"`
-	Error   *wireError      `json:"error,omitempty"`
+	Version   int             `json:"version"`
+	SessionID string          `json:"session_id,omitempty"`
+	Payload   json.RawMessage `json:"payload,omitempty"`
+	Error     *wireError      `json:"error,omitempty"`
 }
 
 type wireError struct {

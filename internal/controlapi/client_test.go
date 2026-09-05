@@ -14,7 +14,8 @@ import (
 )
 
 type fakeEnvironments struct {
-	deleted string
+	deleted       string
+	shellMetadata core.TerminalMetadata
 }
 
 func (*fakeEnvironments) Create(_ context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
@@ -48,10 +49,11 @@ func (*fakeEnvironments) Exec(_ context.Context, name string, request core.Execu
 	return core.ExecutionResult{ExitCode: 0, Stdout: "ok"}, nil
 }
 
-func (*fakeEnvironments) PrepareShellStream(_ context.Context, name string) (func(context.Context, io.Reader, io.Writer, io.Writer) error, error) {
+func (f *fakeEnvironments) PrepareShellStream(ctx context.Context, name string) (func(context.Context, io.Reader, io.Writer, io.Writer) error, error) {
 	if name != "demo" {
 		return nil, core.ErrNotFound
 	}
+	f.shellMetadata = core.TerminalMetadataFromContext(ctx)
 	return func(_ context.Context, stdin io.Reader, stdout, _ io.Writer) error {
 		buffer := make([]byte, 4)
 		if _, err := io.ReadFull(stdin, buffer); err != nil {
@@ -80,6 +82,34 @@ func (fakeClients) Status(_ context.Context, name string) (core.EnvironmentStatu
 		Environment: core.Environment{Name: "demo", Workspace: core.Workspace{Path: "/work"}, AccessMode: core.WorkspaceReadWrite, RuntimeRef: "haco-demo"},
 		State:       core.EnvironmentRunning,
 	}, nil
+}
+
+func (fakeClients) Connections(_ context.Context, name string) ([]core.ClientConnection, error) {
+	if name != "demo" {
+		return nil, core.ErrNotFound
+	}
+	return []core.ClientConnection{{ID: "ssh-one", Kind: "ssh", Host: "127.0.0.1", Port: 2201, TargetPort: 22, User: "root"}}, nil
+}
+
+func (fakeClients) Forward(_ context.Context, name string, request core.LocalPortRequest) (core.ClientConnection, error) {
+	if name != "demo" || request.HostPort != 8080 || request.TargetPort != 80 {
+		return core.ClientConnection{}, core.ErrInvalidArgument
+	}
+	return core.ClientConnection{ID: "tcp-one", Kind: "tcp", Host: "127.0.0.1", Port: request.HostPort, TargetPort: request.TargetPort}, nil
+}
+
+func (fakeClients) Unforward(_ context.Context, name, connectionID string) error {
+	if name != "demo" || connectionID == "" {
+		return core.ErrInvalidArgument
+	}
+	return nil
+}
+
+func (fakeClients) SSH(_ context.Context, name string, request core.SSHAccessRequest) (core.ClientConnection, error) {
+	if name != "demo" || request.PublicKey == "" || request.HostPort != 2202 {
+		return core.ClientConnection{}, core.ErrInvalidArgument
+	}
+	return core.ClientConnection{ID: "ssh-two", Kind: "ssh", Host: "127.0.0.1", Port: request.HostPort, TargetPort: 22, User: "root"}, nil
 }
 
 func TestTypedClientLifecycleOverUnixSocket(t *testing.T) {
@@ -123,6 +153,36 @@ func TestTypedClientLifecycleOverUnixSocket(t *testing.T) {
 		t.Fatalf("status = %#v", status)
 	}
 
+	connections, err := client.EnvironmentConnections(context.Background(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(connections) != 1 || connections[0].ID != "ssh-one" {
+		t.Fatalf("connections = %#v", connections)
+	}
+
+	forwarded, err := client.ForwardEnvironment(context.Background(), "demo", core.LocalPortRequest{Protocol: "tcp", HostPort: 8080, TargetPort: 80})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if forwarded.ID != "tcp-one" || forwarded.Port != 8080 || forwarded.TargetPort != 80 {
+		t.Fatalf("forwarded = %#v", forwarded)
+	}
+	if err := client.UnforwardEnvironment(context.Background(), "demo", forwarded.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	ssh, err := client.PrepareEnvironmentSSH(context.Background(), "demo", core.SSHAccessRequest{PublicKey: "ssh-ed25519 AAAA test", HostPort: 2202})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ssh.ID != "ssh-two" || ssh.Port != 2202 || ssh.TargetPort != 22 {
+		t.Fatalf("ssh = %#v", ssh)
+	}
+	if err := client.UnforwardEnvironment(context.Background(), "demo", ssh.ID); err != nil {
+		t.Fatal(err)
+	}
+
 	result, err := client.ExecEnvironment(context.Background(), "demo", []string{"printf", "ok"})
 	if err != nil {
 		t.Fatal(err)
@@ -139,6 +199,8 @@ func TestTypedClientLifecycleOverUnixSocket(t *testing.T) {
 		t.Fatalf("non-zero exec result = %#v", result)
 	}
 
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("COLORTERM", "truecolor")
 	stream, err := client.OpenEnvironmentShell(context.Background(), "demo")
 	if err != nil {
 		t.Fatal(err)
@@ -158,6 +220,9 @@ func TestTypedClientLifecycleOverUnixSocket(t *testing.T) {
 	if string(response) != "ping" {
 		t.Fatalf("shell stream response = %q", response)
 	}
+	if environments.shellMetadata.Term != "xterm-256color" || environments.shellMetadata.ColorTerm != "truecolor" {
+		t.Fatalf("shell terminal metadata = %#v", environments.shellMetadata)
+	}
 
 	if err := client.DeleteEnvironment(context.Background(), "demo"); err != nil {
 		t.Fatal(err)
@@ -167,14 +232,48 @@ func TestTypedClientLifecycleOverUnixSocket(t *testing.T) {
 	}
 }
 
+func TestConnectionRequestsRejectMissingEnvironment(t *testing.T) {
+	client, cancel := startControlAPITestServer(t, &fakeEnvironments{})
+	defer cancel()
+
+	for name, run := range map[string]func() error{
+		"connections": func() error { _, err := client.EnvironmentConnections(context.Background(), ""); return err },
+		"forward": func() error { _, err := client.ForwardEnvironment(context.Background(), "", core.LocalPortRequest{HostPort: 8080, TargetPort: 80}); return err },
+		"unforward": func() error { return client.UnforwardEnvironment(context.Background(), "", "tcp-one") },
+		"ssh": func() error { _, err := client.PrepareEnvironmentSSH(context.Background(), "", core.SSHAccessRequest{PublicKey: "ssh-ed25519 AAAA test", HostPort: 2202}); return err },
+	} {
+		t.Run(name, func(t *testing.T) {
+			var status *control.StatusError
+			if err := run(); !errors.As(err, &status) || status.Code != "invalid_argument" {
+				t.Fatalf("error = %v, want invalid_argument StatusError", err)
+			}
+		})
+	}
+}
+
 func TestShellMissingEnvironmentFailsBeforeStreamOpens(t *testing.T) {
 	client, cancel := startControlAPITestServer(t, &fakeEnvironments{})
 	defer cancel()
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("COLORTERM", "")
 
 	_, err := client.OpenEnvironmentShell(context.Background(), "missing")
 	var status *control.StatusError
 	if !errors.As(err, &status) || status.Code != "not_found" {
 		t.Fatalf("error = %v, want not_found StatusError", err)
+	}
+}
+
+func TestShellRejectsUnsafeTerminalIdentity(t *testing.T) {
+	client, cancel := startControlAPITestServer(t, &fakeEnvironments{})
+	defer cancel()
+	t.Setenv("TERM", "xterm;touch-bad")
+	t.Setenv("COLORTERM", "")
+
+	_, err := client.OpenEnvironmentShell(context.Background(), "demo")
+	var status *control.StatusError
+	if !errors.As(err, &status) || status.Code != "invalid_argument" {
+		t.Fatalf("error = %v, want invalid_argument StatusError", err)
 	}
 }
 
