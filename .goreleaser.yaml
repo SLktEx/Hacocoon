@@ -38,7 +38,12 @@ builds:
     goos: [linux]
     goarch: [amd64, arm64]
     flags: [-trimpath]
-    ldflags: [-s -w]
+    ldflags:
+      - >-
+        -s -w
+        -X github.com/SLktEx/Hacocoon/internal/buildinfo.SoftwareVersion={{ .Version }}
+        -X github.com/SLktEx/Hacocoon/internal/buildinfo.Commit={{ .Commit }}
+        -X github.com/SLktEx/Hacocoon/internal/buildinfo.BuildDate={{ .Date }}
   - id: haco-host
     main: ./cmd/haco-host
     binary: haco-host

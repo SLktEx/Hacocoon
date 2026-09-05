@@ -102,7 +102,7 @@ Supported WSL bootstrapはその後、実際のtrusted instance内で`haco-host 
 
 ## Host診断
 
-Status: **implemented**。このcommandのpackaged受入は実装statusで別途追跡する。
+Status: **implemented**。このcommandのpackaged受入は実装statusで別途追跡する。配布controller binaryには製品clientと同じversion・commit・build日時を埋め込む。Windows gateは両方の実行場所でbuild識別子全体を照合し、開発用の既定値や古いcontrollerをpackaged受入の成功としない。
 
 `haco doctor` と `haco doctor --json` は、Physical Hostとtrusted `haco-host` 内で同じ `system.doctor` controller methodを使う。help/versionは引き続き単独で動作する。応答はcontrollerのbuild・protocolと、順序を固定した5項目を返す。
 

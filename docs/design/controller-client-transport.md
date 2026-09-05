@@ -102,7 +102,7 @@ The supported WSL bootstrap then executes `haco-host doctor` inside the real tru
 
 ## Host diagnostics
 
-Status: **implemented**; packaged acceptance of this command is tracked separately in implementation status.
+Status: **implemented**; packaged acceptance of this command is tracked separately in implementation status. The controller release binary carries the same version, commit and build date as the product client. The Windows gate compares their complete build identities in both execution contexts; a development/default or stale controller identity cannot satisfy packaged acceptance.
 
 `haco doctor` and `haco doctor --json` use the same `system.doctor` controller method on the Physical Host and inside trusted `haco-host`. Help/version remain standalone. The doctor response identifies the controller build and protocol and contains five ordered checks:
 

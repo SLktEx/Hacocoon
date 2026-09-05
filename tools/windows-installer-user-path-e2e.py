@@ -281,17 +281,22 @@ def host_session(*, create: bool) -> None:
         raise RuntimeError("ordinary host commands failed")
 
 
-def assert_doctor_report(output: str) -> None:
+def assert_doctor_report(output: str, expected_build: dict[str, str]) -> None:
     report = json.loads(output)
     names = ["runtime", "storage", "trusted_host", "trusted_network", "trusted_connectivity"]
-    if report["protocol_version"] != 1 or not report["controller"]["commit"]:
-        raise RuntimeError("doctor returned no controller identity")
+    fields = ("checkpoint", "version", "commit", "build_date")
+    if any(expected_build.get(field) in (None, "", "dev", "unknown") for field in fields):
+        raise RuntimeError("packaged client has incomplete build identity")
+    if report["protocol_version"] != 1 or report["controller"] != expected_build:
+        raise RuntimeError("doctor controller build does not match the packaged client")
     if [check["name"] for check in report["checks"]] != names or any(check["status"] != "ok" for check in report["checks"]):
         raise RuntimeError("doctor checks did not all pass")
 
 
 def assert_host() -> None:
-    assert_doctor_report(observe("wsl.exe", "-d", INSTANCE, "--exec", "haco", "doctor", "--json"))
+    expected_build = json.loads(observe("wsl.exe", "-d", INSTANCE, "--exec", "haco", "version", "--json"))
+    assert_doctor_report(observe("wsl.exe", "-d", INSTANCE, "--exec", "haco", "doctor", "--json"), expected_build)
+    assert_doctor_report(inspect_root("incus", "exec", "haco-host", "--project", PROJECT, "--", "/usr/local/bin/haco", "doctor", "--json"), expected_build)
     if inspect_root("ps", "-p", "1", "-o", "comm=") != "systemd":
         raise RuntimeError("systemd is not PID 1")
     inspect_root("systemctl", "is-active", "--quiet", "haco-controller.service")

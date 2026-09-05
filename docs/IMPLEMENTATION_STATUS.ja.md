@@ -18,6 +18,7 @@
 - **WSL起動を修正:** `5b3d36d` のpackaged BAT適用は完了したが、続く通常loginがcontroller socket作成より先に進んだ。その後の読み取り診断では、有効なcontrollerがWSL起動約19秒で正常に開始した。loginは期限付きの読み取り専用pingで準備を待ち、第二のcontrollerを作らない。起動待ち・拒否・timeout回帰は成功。packaged `8a44f17` でHacocoonだけを明示的に停止し、root/service事前診断なしで通常入口とprocess終了0を確認した。account、trusted-host UUID、全sudo policy hashも前のinstallと一致した。
 - **実機受入はpending:** `af3065a` のfresh作成、Windows再起動、firewall再読込・起動順変更時のnetwork、Environmentの許可proxy通信と直接通信拒否、SSH、Environment/Workspace作業保持。更新したWindows gate全体の成功は未確認。今回のWSL実機はFORWARD ACCEPTでDOCKER-USER chainはなかった。別のLinux kernel gateではDocker相当DROP下でtrusted往復通信を許可し、未要求inboundと別NICを拒否し、global policy保持を確認した。これはWindows上の実Docker共存やEnvironment proxyの受入ではない。
 - **controller診断はimplemented:** `haco doctor [--json]` は期限付き読み取り専用controller APIでruntime・Btrfs storage設定・trusted-host/network所有権・固定対象のtrusted疎通を検査する。修復・`hacoq` 呼出し・guest-local state作成は行わない。failed/skippedや不正応答を成功扱いしない。repository回帰は成功し、packaged受入はpending。[診断契約](design/controller-client-transport.ja.md#host診断)を参照。
+- **配布build識別子を修正:** `e7eed3d` はcached BATと通常入口を完了し、両方の実行場所でdoctorの5項目が成功したが、controllerのrelease情報欠落（`dev` / `unknown`）が判明した。GoReleaserでcontrollerにも情報を埋め込み、Windows gateはclient/controllerのbuild全体の一致を要求する。照合の回帰を追加し、再buildしたpackageの受入はpending。
 - **次の具体的実装:** installerの明示的な `hacoq host ensure` 依存をcontroller経由のbootstrapへ置き換える。Environmentの拒否・proxy、SSH、製品lifecycle導線は別途follow-up。
 
 以下の表は元のcheckpoint時点の履歴文脈を保持する。
