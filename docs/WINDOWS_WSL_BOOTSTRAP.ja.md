@@ -6,6 +6,8 @@ Installer は WSL と native Ubuntu を無理に同一化せず、**pre / main /
 
 ## Install phase
 
+現在の状態は **partial**。reset後の製品 `haco` はhelp/versionとWSL loginのみ。本書のlifecycle command表記は以前の名前を残しており、現在は一時的な `hacoq` で実行する。[CLI移行](CLI_MIGRATION.md)を参照。one-shot BAT、再起動・現在版installer再実行の受入は未完了。common phaseは特権storage実行ファイルを配布せず、Btrfs lifecycleはIncusだけが所有する。
+
 ```text
 Windows / WSL
 install-windows.bat
@@ -105,7 +107,7 @@ Common main は次を担当します。
 - 同梱 architecture-specific archive の checksum 検証
 - provenance 有効時の trusted GitHub/Sigstore provenance と signed release binding 検証
 - archive が期待する regular Hacocoon binary だけを含むことの検証
-- binary と root-owned storage helper の install
+- Hacocoon binary の install
 - `haco-controller.service` の install / restart
 - `/run/hacocoon/control.sock` が root-owned mode `0600` Unix socket であることの確認
 - `haco host ensure`

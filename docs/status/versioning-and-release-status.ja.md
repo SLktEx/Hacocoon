@@ -44,12 +44,12 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 | v0.17 | OCI Seed Builder & Btrfs/COW | repository build/publish + operations-hardening slice実装済み。real-host/private-registry/COW acceptanceはpending |
 | v0.18 | Docker Compatibility Plugin | repository実装完了、real-host acceptanceは別 |
 | v0.19 | Domain-aware Egress Authorization | repository実装完了。real supported-Incus acceptanceはhost-dependent |
-| v0.20 | Managed Btrfs Rootfs Storage | managed sparse-raw Btrfs poolとIncus rootfs routingを実装済み。broader physical COW/compaction acceptanceはhost-dependent |
-| v0.21 | Managed Btrfs Transparent Compression | `compress=zstd:3` default実装済み。`compress-force`は使わない。real compression/performance acceptanceはhost-dependent |
+| v0.20 | Managed Btrfs Rootfs Storage | Incus-owned loop-backed Btrfs poolとHacocoon rootfs routingを実装済み。broader physical COW/compaction acceptanceはhost-dependent |
+| v0.21 | Managed Btrfs Transparent Compression | default Incus pool作成時に `compress=zstd:3` を要求し、`compress-force` は使わない。real compression/performance acceptanceはhost-dependent |
 | v0.22 | Interaction Notification Clients | browser、native OS、VS Code notification clientを実装済み。replay/dedup behaviorもtest済み |
 | v0.23 | Real Incus E2E Acceptance | GitHub-hosted Ubuntu 26.04でstandalone Incus substrateとHacocoon Core lifecycleをphased gating付きで自動検証 |
 | v0.24 | Structured Logging | shared `log/slog`、operation context、sanitize済みDEBUG trace、secret redactionをmaintained executableへ実装済み |
-| v0.25 | Managed Btrfs Host Privilege Broker | root-owned typed storage helperとordinary-user real Incus/Btrfs CLI acceptanceを実装済み |
+| v0.25 | Incus-owned Btrfs Storage Acceptance | ordinary-user real Incus/Btrfs CLI acceptanceでIncus-owned pool lifecycleとpolicyを検証済み |
 | v0.26 | Trusted `haco-host` & Default WSL Entry | persistent trusted logical Host lifecycle、ownership/collision check、managed-storage配置、default WSL entry、recovery path、real Incus acceptanceを実装済み |
 
 現在のmilestone位置は **v0.26** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
@@ -88,12 +88,12 @@ v0.23は新しいarchitecture contractではなくacceptance checkpointです。
 - v0.17: Seed build/publish、explicit pin/reenable、保守的old-revision GC、中断builder recovery、deletion-race protection、managed Environment harvestまでrepository実装済み。authenticated/private-registry combination、physical Btrfs COW measurement、broader real-host failure injection、supported-host acceptanceが残る
 - v0.18: repository lifecycle/CLIは実装済み。real Incus/systemd socket activation acceptanceはhost-dependent
 - v0.19: hostname-aware proxy authorization/enforcementはrepository実装済み。real supported-Incus bridge/nftables/dnsmasq acceptanceはhost-dependent
-- v0.20: Hacocoon所有Incus rootfsはlazyなmanaged sparse-raw Btrfs poolを選択する。physical COW/compaction measurementとbroader supported-host acceptanceはhost-dependent
-- v0.21: managed Btrfs mountは `compress=zstd:3` を使い、desired stateとして `compress-force` を採用しない。既存COW/reflink sharingを壊し得る自動recompressionは行わない。real compression ratio、CPU cost、supported-host behaviorはhost-dependent
+- v0.20: Hacocoon所有Incus rootfsはlazyな `haco-local-default` Incus-owned loop-backed Btrfs poolを選択する。physical COW/compaction measurementとbroader supported-host acceptanceはhost-dependent
+- v0.21: default Incus-owned Btrfs pool作成時に `compress=zstd:3` を要求し、`compress-force` と `autodefrag` は要求しない。real compression ratio、CPU cost、supported-host behaviorはhost-dependent
 - v0.22: browser/native/VS Code notification deliveryとreplay/dedup behaviorはrepository test済み。desktop/session固有のdeliveryは実client環境に依存する
 - v0.23: GitHub-hosted Ubuntu 26.04でstandalone Incus system-container behaviorを先に証明してからCore lifecycle E2Eを実行する。CI上のsupport gapは縮まるが、全supported Host/WSL configurationの証明ではない
 - v0.24: maintained executable全体でstructured logging/redaction behaviorを共有する。logging policyはdefense in depthであり、unsafeなcall-site dataを出してよいことにはならない
-- v0.25: real helper lifecycleとordinary-user `haco create` / `exec` / `delete` / `run` をreal Incus + managed Btrfsで検証する。broader physical-storage / Windows/WSL acceptanceは引き続き残る
+- v0.25: ordinary-user `haco create` / `exec` / `delete` / `run` をreal Incusで検証し、Incus-owned sparse backing file、loop attach、Btrfs mount、zstd policy、pool reuse、cleanupを確認する。broader physical-storage / Windows/WSL acceptanceは引き続き残る
 - v0.26: trusted-host creation、exact ownership/collision handling、idempotent ensure、stopped-state recovery、managed-storage配置、raw control-socket非公開をreal Incus acceptanceで検証済み。real Windows/WSL interactive-login behaviorとGit/OCI/credential/control-channelの全面移行はfollow-up
 
 > **意味のあるproduct、operator、observability、acceptanceの進捗がlandしたら次minorへ進めてよい。pre-1.0ではversion番号を節約するよりcheckpointを見える化する。**

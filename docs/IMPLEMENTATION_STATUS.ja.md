@@ -6,6 +6,14 @@
 
 Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.26** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
+## WSL向け更新 — 2026-09-05
+
+- **このrepository差分でimplemented:** local Btrfs lifecycleの所有者はIncusだけ。旧storage実装と特権実行ファイルはcode・installer配布物・CIから削除。mount方針は `compress=zstd:3,noatime,nodiscard`。既存poolはIncus経由で変更・読戻しし、一致時は書き込まない。[storage契約](design/btrfs-storage-layout.ja.md)を参照。
+- **製品CLIはpartial:** 現在の `haco` はhelp/versionとcontroller経由のWSL login aliasのみ。以下のlifecycle・Base・SSH・OCI commandは一時的な `hacoq` の実装であり、新 `haco` の導線ではない。[CLI移行](CLI_MIGRATION.md)を参照。
+- **Seed撤去はplanned:** 任意のBase revision解決を含むSeed実装は残る。[Seed設計](design/oci-seed-and-cow.ja.md)に依存分離を記録し、Baseと任意Plugin契約は維持する。
+- **WSL実機受入はpending:** one-shot BAT、installer生成networkのDNS・経路・HTTPS、Environmentの許可proxy通信と直接通信拒否、停止・再起動と現在版installer再実行でのdata保持。repository testやLinux Incus fixtureはこの利用者導線の証拠にはならない。現Windows CIは初回setupと2回目BATを使用する。
+- **次の依存:** #441の有用なone-shot差分をCLI resetへ追従させ、一時的な広いsudo権限を使わず#452を解消する。#455/#456はcontroller/SSHの後続基盤として使い、製品commandを `hacoq` へ委譲しない。
+
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|
 | Runtime / Workspace | Incus Environment lifecycle、Workspace identity、RO/RW lease | v0.1-v0.2 |
@@ -26,12 +34,12 @@ Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.26** です。mil
 | OCI Seed Builder / Btrfs COW | `seed build/current`、Base単位pin、保守的GC/recover、trusted Host acquisition、managed Environmentからのcredential-free exact-image harvest、offline no-NIC build、immutable publish/current pointer、exact-parent resolutionを実装。real-host/authenticated-registry/COW acceptanceはpending | v0.17 partial |
 | Docker Compatibility | `haco plugin oci docker status/prepare`。Base提供profileとpinned systemd unitを検証し、active vendor daemonを勝手に停止せずEnvironment-local socket activationだけを有効化 | v0.18 implemented |
 | Domain-aware egress authorization | Core `network.egress/connect`、Standard HTTP/HTTPS proxy、Host DNS pinning、private-address reject、CONNECT/SNI検証、trusted Incus source-IP mapping、`haco egress serve` を実装 | v0.19 implemented |
-| Managed Btrfs rootfs storage | storage poolごとにsparse-raw Btrfs filesystemをlazyに用意し、Hacocoon所有のBase/Tooling/Seed/Environment rootfsを対応する `haco-<storage-id>` Incus poolへ固定 | v0.20 implemented |
-| Managed Btrfs transparent compression | managed Btrfs mountは標準で `compress=zstd:3`。非準拠mountはremountし、`compress-force`はdesired stateとして採用せず、既存dataの自動recompressionもしない | v0.21 implemented |
+| Managed Btrfs rootfs storage | local compositionが `haco-local-default` Incus-owned loop-backed Btrfs poolをlazyにensureし、Hacocoon所有のBase/Tooling/Seed/Environment/trusted-host rootfsをそのpoolへ配置 | v0.20 implemented |
+| Managed Btrfs transparent compression | default Incus pool作成時に `compress=zstd:3,noatime,nodiscard` を要求する。`compress-force` と `autodefrag` はdesired defaultにせず、mount lifecycleはIncusが所有 | v0.21 implemented |
 | Interaction notification clients | `haco-notify` がloopback interaction deliveryをbrowser/native OS向けに提供し、optional VS Code notification extensionも同じinteraction streamを利用。replay/dedup behaviorをtest済み | v0.22 implemented |
 | Real Incus E2E acceptance | GitHub-hosted Ubuntu 26.04でstandalone real Incus system-containerを先に検証し、その後fresh runnerでHacocoon Core lifecycle E2Eを実行。systemd/exec、network、hotplug、storage/snapshot、diagnostics、guarded cleanupをphased gateで検証 | v0.23 implemented |
 | Structured logging | shared `log/slog` foundation、INFO-default text/JSON output、Environment lifecycle operation field、sanitize済みDEBUG Host-command trace、egress authorization trace、secret redactionをmaintained executableへ実装 | v0.24 implemented |
-| Managed Btrfs Host privilege broker | ordinary `haco` は非rootのまま、root-owned `haco-storage-helper` にtypedなloop/Btrfs/mount operationだけを委譲。helperはmanaged path、hardlink/symlink、loop backing file/inode、filesystem signature、exact mount identityを再検証し、real Ubuntu 26.04でordinary-user `haco create` / `exec` / `delete` / `run` まで自動検証 | v0.25 implemented |
+| Incus-owned Btrfs storage acceptance | actual ordinary-user `haco` をreal Incusへ接続し、lazy pool creation、Incus-owned sparse backing image、loop attach、Btrfs mount、zstd policy、writable Workspace、pool reuse、guarded cleanupまで自動検証 | v0.25 implemented |
 | Trusted `haco-host` / default WSL entry | local Incus runtimeがpersistent trusted logical `haco-host` をensure/shellでき、exact ownership markerとreserved-name collision拒否で境界を守る。managed storageを使い、WSL interactive entryはdefaultで`haco-host`へ入り、Physical Host rootは明示recovery pathとして残す。raw Incus controlは`haco-host`へ公開しない | v0.26 implemented |
 | OCI plugin boundary | `HACO_PLUGIN_OCI=nerdctl|docker` の明示opt-in。未設定でもCoreは動作する | cross-cutting |
 | Optional Local OCI Registry | optional。通常pullやSeed constructionの必須経路ではない | unversioned optional / deferred |
@@ -76,13 +84,13 @@ containerd / nerdctl / Docker は Hacocoon Core の必須要件ではありま�
 
 v0.17はbuild/publish、operations-hardening、credential-free managed-Environment harvestのrepository sliceを実装済みです。trusted Host acquisition/cache → offline no-NIC Seed Builder → immutable Seed revision/current pointer → exact-parent resolution → normal Incus/storage-driver clone の経路を維持し、複数Environmentで一つのwritable `/var/lib/containerd` を共有しません。
 
-v0.20ではSeed固有のCOWだけでなく、local rootfs全体のstorage boundaryをHacocoon管理Btrfsへ統一します。Environment、Tooling Base builder、Seed builderがroot storageを必要とした時点でlazy providerがmanaged attachmentを解決し、対応する `haco-<storage-id>` Incus poolを選びます。
+v0.20ではlocal rootfs storageをIncus-owned Btrfsへ統一します。Environment、Tooling Base builder、Seed builder、trusted hostがroot storageを必要とした時点でlocal compositionが `haco-local-default` をlazyにensureします。sparse backing file、loop device、Btrfs filesystem、mount lifecycleはIncusが所有し、Host Workspaceはpool外からbind mountします。
 
-v0.21ではmanaged Btrfsのtransparent compressionを標準化します。初回mountと非準拠の既存managed mountに `compress=zstd:3` を適用し、`compress-force` はdesired stateとして使いません。既存extentの自動defrag/recompressはreflink/COW sharingを減らす可能性があるため行いません。
+v0.21ではtransparent compressionのdefault policyとしてIncusへ `btrfs.mount_options=compress=zstd:3` を渡します。`compress-force` と `autodefrag` はdesired defaultにせず、既存extentを自動rewriteしてrecompressしません。
 
-v0.25ではHost storage privilegeをordinary CLIから分離します。sparse file/state処理はinvoking userのまま行い、必要なHost特権だけをroot-owned `haco-storage-helper` のtyped requestへ変換します。helperは任意command/path/device/mount optionを拒否し、caller-owned managed directory/image、hardlink/symlink state、loop `BACK-FILE` / `BACK-INO`、format前filesystem signature、mount identity/postconditionを再検証します。Hacocoonはpasswordless sudo ruleをinstallしません。GitHub-hosted Ubuntu 26.04 acceptanceではreal helper lifecycleに加え、fresh runnerのreal Incusでactual ordinary-user `haco create` / `exec` / `delete` / `run`、managed pool reuse、ephemeral cleanup、exact pool/mount/loop cleanupまで確認します。詳細は [`design/btrfs-storage-layout.ja.md`](design/btrfs-storage-layout.ja.md) を参照してください。
+v0.25はこのstorage pathのreal ordinary-user acceptance checkpointです。GitHub-hosted Ubuntu 26.04でactual `haco` をreal Incusへ接続し、lazy `haco-local-default` creation、Incus-owned sparse backing image、loop attachment、live Btrfs mount、zstd policy、writable `haco create` / `exec` / `delete` / `run`、pool reuse、guarded cleanupまで確認します。詳細は [`design/btrfs-storage-layout.ja.md`](design/btrfs-storage-layout.ja.md) を参照してください。
 
-Local Registryはprerequisiteではなくroadmap versionも予約しません。残件はauthenticated/private-registry combination、physical Btrfs compression ratio / CPU cost / COW measurement、compaction/sparse-hole behavior、broader real-host failure injection、Windows/WSL behaviorなどです。
+Local Registryはprerequisiteではなくroadmap versionも予約しません。残件はauthenticated/private-registry combination、physical Btrfs compression ratio / CPU cost / COW measurement、compaction behavior、broader real-host failure injection、Windows/WSL behaviorなどです。
 
 ## Docker compatibility
 
@@ -94,4 +102,4 @@ v0.7のprovider-neutral Environment routing seamは維持します。以前のco
 
 ## Acceptance gaps
 
-v0.23でGitHub-hosted Ubuntu 26.04上のphased real-Incus substrate + Core lifecycleを、v0.25でordinary-user managed-Btrfs CLI + privileged helper boundaryを、v0.26でtrusted-host lifecycle/control-socket isolationをreal Incusで自動証明するようになりました。ただしproxy-only bridge ACL/dnsmasqを含む全network/resource behavior、Windows/WSL + VS Codeとinteractive `haco-host` entry、private-registry credential、Docker compatibility、physical Btrfs compression/COW/compaction、broader storage failure injection、desktop notification delivery、future cloud adapterなどは引き続きenvironment-dependentです。前のmilestoneにacceptance残件があっても、後続minor checkpointへ進むことは妨げません。
+v0.23でGitHub-hosted Ubuntu 26.04上のphased real-Incus substrate + Core lifecycleを、v0.25でordinary-user Incus-owned Btrfs CLI behaviorを、v0.26でtrusted-host lifecycle/control-socket isolationをreal Incusで自動証明するようになりました。ただしproxy-only bridge ACL/dnsmasqを含む全network/resource behavior、Windows/WSL + VS Codeとinteractive `haco-host` entry、private-registry credential、Docker compatibility、physical Btrfs compression/COW/compaction、broader storage failure injection、desktop notification delivery、future cloud adapterなどは引き続きenvironment-dependentです。前のmilestoneにacceptance残件があっても、後続minor checkpointへ進むことは妨げません。

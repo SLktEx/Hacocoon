@@ -1,18 +1,18 @@
 # Btrfs storage layout
 
-Status: **the normal local Incus path delegates loop-backed Btrfs lifecycle to Incus; the older Hacocoon-managed raw/helper implementation remains available for focused compatibility tests.**
+Status: **the supported local storage path is Incus-owned loop-backed Btrfs.**
 
-Milestones: **v0.20 Managed Btrfs Rootfs Storage** and **v0.21 Managed Btrfs Transparent Compression**.
+Milestones: **v0.20 Managed Btrfs Rootfs Storage**, **v0.21 Managed Btrfs Transparent Compression**, and **v0.25 Incus-owned Btrfs Storage Acceptance**.
 
 ## Default local layout
 
-The normal local composition does not create or mount a Hacocoon-owned raw image. Instead, it lazily asks Incus to create the default pool without a `source=` override:
+The local composition lazily asks Incus to create the default pool without a `source=` override:
 
 ```text
 Incus pool: haco-local-default
   driver=btrfs
   size=128GiB
-  btrfs.mount_options=compress=zstd:3
+  btrfs.mount_options=compress=zstd:3,noatime,nodiscard
         |
         v
 /var/lib/incus/disks/haco-local-default.img
@@ -29,70 +29,57 @@ Incus pool: haco-local-default
   |- cached Base image volumes
   |- Tooling Base builders
   |- Seed builders / cached Seed image volumes
+  |- trusted haco-host rootfs
   |- Environment rootfs volumes
   `- Incus snapshots / clones
 ```
 
-Incus owns creation of the backing image, loop attachment, Btrfs formatting, mount/unmount lifecycle, and supported loop-pool growth. Hacocoon owns the desired pool identity and policy, but does not duplicate Incus' block-device lifecycle for the normal local path.
+Incus owns creation of the backing image, loop attachment, Btrfs formatting, mount/unmount lifecycle, and supported loop-pool growth. Hacocoon owns only the desired pool identity and policy.
 
-This ownership boundary is important on WSL. A Host-managed mount created after `incusd` starts can race Incus storage initialization and leave a pool temporarily unavailable. Letting Incus own the backing image and mount removes that cross-owner startup dependency rather than adding mount-namespace or service-order workarounds.
+There is no second Host-managed block or mount lifecycle in Hacocoon. Installation and runtime code target this single storage shape directly.
+
+The ownership decision and rejected alternatives are recorded in [ADR 0003](../adr/0003-incus-owned-storage.md). Unsupported older layouts are not migrated or deleted by the installer.
 
 ## Sparse file versus WSL sparse VHD
 
-Incus' loop-backed Btrfs pool uses a sparse **Linux file**. Incus creates the loop image through its sparse-file path and sets its logical size without eagerly allocating every block. Repository acceptance verifies that the image's allocated bytes are smaller than its logical 128 GiB size after creation.
+Incus' loop-backed Btrfs pool uses a sparse **Linux file**. The logical 128 GiB pool size is not eagerly allocated in full.
 
 That is separate from WSL's `sparseVhd` / sparse-VHDX mode. Hacocoon does not enable WSL sparse-VHD mode as part of this storage design. Windows-host VHDX space reclamation is not exposed as a Hacocoon CLI command; when needed it remains an explicit Windows/WSL operational concern.
 
 ## Why rootfs objects share one pool
 
-The storage boundary is deliberate. Base, Tooling, Seed, and Environment rootfs data should stay on the same Hacocoon Btrfs pool so storage-level optimizations apply across the lifecycle:
+Base, Tooling, Seed, trusted-host, and Environment rootfs data share the Hacocoon Btrfs pool so Incus can apply its Btrfs storage-driver behavior across their lifecycle:
 
-- transparent Btrfs compression can reduce physical bytes for managed rootfs data;
+- transparent Btrfs compression reduces physical bytes where data is compressible;
 - Incus Btrfs snapshots and clones can preserve copy-on-write sharing;
-- Seed-derived Environments only need new extents for changed data where the storage driver can share unchanged blocks;
-- filesystem-level maintenance and optional out-of-band deduplication can target Hacocoon rootfs data rather than unrelated Host data.
+- Seed-derived Environments can share unchanged extents where supported;
+- storage maintenance stays scoped to Hacocoon rootfs data rather than arbitrary Host data.
 
-Hacocoon must not create a separate Btrfs filesystem or loop image per Environment or Seed merely for isolation. Incus volumes/subvolumes provide the logical isolation inside the shared pool.
+Hacocoon does not create a separate Btrfs filesystem or loop image per Environment or Seed merely for isolation. Incus volumes/subvolumes provide logical isolation inside the shared pool.
 
 ## Compression and defragmentation policy
 
-The default pool uses `compress=zstd:3`. Hacocoon deliberately does **not** request `compress-force`: normal Btrfs compression heuristics may leave incompressible data uncompressed rather than repeatedly spending CPU on forced attempts.
+The default pool requests `compress=zstd:3,noatime,nodiscard`. `compress-force` is intentionally not desired state; normal Btrfs compression heuristics may leave incompressible data uncompressed.
 
-The default policy also leaves `autodefrag` disabled. Automatic defragmentation can rewrite extents and reduce existing reflink/COW sharing, which is a poor default trade-off for an Incus snapshot/clone-heavy rootfs pool. Any future autodefrag use requires an explicit workload-specific decision rather than becoming an implicit mount default.
+`noatime` avoids access-time metadata writes and COW churn. Applications that depend on access-time updates need a different future policy. `nodiscard` keeps discard out of normal I/O; batch trim and Windows VHDX reclamation remain explicit maintenance, not automatic installer work.
 
-Compression mount options affect newly written extents. Hacocoon does not automatically rewrite all existing data merely to recompress it.
+`autodefrag` is also intentionally disabled by default. Automatic defragmentation can rewrite extents and reduce reflink/COW sharing, which is a poor default for a snapshot/clone-heavy rootfs pool.
+
+Compression mount options mainly affect newly written extents. Hacocoon does not automatically rewrite all existing data merely to recompress it.
 
 ## Runtime selection rule
 
-The local composition configures a lazy storage provider. Merely opening the local application for a command that does not need an Incus rootfs does not create the default pool.
+The local composition configures a lazy storage provider. Opening a command that does not need Incus root storage does not create the pool.
 
-Before the first Environment, Tooling Base builder, Seed builder, or trusted host needs root storage, the provider checks for `haco-local-default`. If it does not exist, Hacocoon asks Incus to create the Btrfs loop pool with the desired size and mount options. The runtime then reuses that pool for subsequent Hacocoon-owned rootfs operations instead of inheriting the Host's Incus default-profile pool.
+Before the first Environment, Tooling Base builder, Seed builder, or trusted host needs root storage, the provider checks for `haco-local-default`. If it does not exist, Hacocoon asks Incus to create the Btrfs loop pool with the desired size and mount options. Subsequent Hacocoon-owned rootfs operations use that pool rather than the Host's unrelated Incus default-profile pool.
 
-An already-existing `haco-local-default` pool is reused. Hacocoon does not destructively replace an existing populated legacy pool during ordinary startup; migration of legacy pool contents must be a separate fail-safe operation.
+The runtime expects the current Incus-owned pool shape and does not carry alternate storage ownership paths. A runtime attachment contains only `incus_pool`; external `driver`/`source` attachments are rejected before Incus access. An unavailable attached pool fails without creating a replacement from a Host path.
 
-## Legacy Hacocoon-managed storage path
-
-The repository still contains the earlier `modules/storage/btrfs` implementation and `haco-storage-helper`. That historical compatibility path is the **Hacocoon-managed Btrfs storage layout**: it creates a **sparse raw** backing file for a storage ID and maps it to an Incus pool named `haco-<storage-id>`.
-
-It manages:
-
-```text
-HACO_ROOT/images/<storage-id>.raw
-  -> loop device
-  -> Hacocoon-managed Btrfs mount
-  -> Incus pool source=<mountpoint>
-```
-
-It remains useful for focused storage-helper, block-backend, shrink/compact, hardening, and compatibility tests. Explicit `HACO_STORAGE_PRIVILEGE_MODE` or `HACO_BLOCK_BACKEND` configuration selects that compatibility path in local composition. Normal installations set neither variable and therefore use the Incus-owned pool.
-
-The helper remains fail-closed and typed: it does not expose arbitrary root command execution. Its dedicated acceptance coverage continues independently of the normal CLI storage path.
+For an existing pool, the runtime reads `btrfs.mount_options` through Incus. An exact match causes no write. A stale value is replaced with `incus storage set` and read back; a failed read, write, or mismatched readback fails the rootfs operation. Hacocoon never remounts behind Incus. Configuration readback proves desired configuration, not the live kernel mount: real acceptance separately inspects the live mount and must not use a Host remount to make it pass.
 
 ## Acceptance coverage
 
-Repository CI uses independent disposable Ubuntu 26.04 acceptance paths:
-
-1. the storage-helper job exercises the retained Hacocoon-managed raw/loop/Btrfs helper boundary and its hardening rules;
-2. the normal CLI job runs the actual ordinary-user `haco` binary against real Incus without installing the storage helper for that path. It verifies that Incus creates `/var/lib/incus/disks/haco-local-default.img`, the image is sparse at the Linux-file level, a real loop device backs the pool, the live mount is Btrfs with zstd compression and no autodefrag, no legacy `$HACO_ROOT/images/local-default.raw` or `$HACO_ROOT/mounts/local-default` appears, and `haco create` / `exec` / `delete` / `run` reuse the pool correctly.
+The `incus-owned-btrfs` job in the existing Incus workflow runs the ordinary-user temporary `hacoq` implementation against real Incus. It checks sparse backing, live zstd/noatime policy without discard, compress-force or autodefrag, stale-policy reconciliation, and existing rootfs/Workspace data retention. This is substrate acceptance, not proof of the new product `haco` journey. Unit tests cover matching reuse, stale updates, and read/write/readback failure.
 
 These checks establish lifecycle and policy behavior on the hosted environment. They do not by themselves establish compression ratio, COW efficiency, Windows-host VHDX compaction effectiveness, or every supported Host configuration.
 
@@ -100,6 +87,8 @@ These checks establish lifecycle and policy behavior on the hosted environment. 
 
 Host Workspaces remain bind-mounted into Environments and are not required to live inside the Hacocoon Btrfs pool. This layout applies to Hacocoon-owned Incus rootfs/image-volume data, not arbitrary user source trees.
 
+Independent COW repo clones with their own `.git` and Workspace volumes that survive Environment deletion/Base changes are **planned**. Seed code still uses this pool; its removal is planned separately after Base dependency separation, as described in [the Seed design](oci-seed-and-cow.md).
+
 ## Multiple pools
 
-The rule is one shared Btrfs filesystem **per configured Hacocoon storage pool**, not one hard global filesystem for every deployment. The default local pool is `haco-local-default`; future explicitly configured pools can use their own Incus-managed storage identity without falling back to the Host default pool.
+The default local pool is `haco-local-default`. Future explicitly configured pools may use their own Incus-managed storage identity while preserving the same single-owner lifecycle.

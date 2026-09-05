@@ -152,56 +152,6 @@ esac
 SH
 chmod +x "$bin/sudo" "$bin/ip" "$bin/nft"
 
-# Model the local sparse-raw block/Btrfs boundary without loop/mount privileges.
-cat > "$bin/losetup" <<'SH'
-#!/bin/sh
-set -u
-state="$HACO_FAKE_INCUS_STATE"
-case "${1:-}" in
-  --version) echo 'losetup fake' ;;
-  -j)
-    path="${2:-}"
-    if [ -f "$state/loop-path" ] && [ "$(cat "$state/loop-path")" = "$path" ]; then
-      printf '/dev/loop-haco: []: (%s)\n' "$path"
-    fi
-    ;;
-  --find)
-    [ "${2:-}" = '--show' ] || exit 2
-    path="${3:-}"; [ -n "$path" ] || exit 2
-    printf '%s\n' "$path" > "$state/loop-path"
-    printf '%s\n' '/dev/loop-haco'
-    ;;
-  -c) exit 0 ;;
-  -d) rm -f "$state/loop-path" ;;
-  *) exit 2 ;;
-esac
-SH
-
-cat > "$bin/blkid" <<'SH'
-#!/bin/sh
-set -u
-[ -f "$HACO_FAKE_INCUS_STATE/btrfs-formatted" ] && { printf '%s\n' 'btrfs'; exit 0; }
-exit 2
-SH
-cat > "$bin/mkfs.btrfs" <<'SH'
-#!/bin/sh
-set -u
-: > "$HACO_FAKE_INCUS_STATE/btrfs-formatted"
-SH
-cat > "$bin/findmnt" <<'SH'
-#!/bin/sh
-set -u
-[ -f "$HACO_FAKE_INCUS_STATE/mount-device" ] && { cat "$HACO_FAKE_INCUS_STATE/mount-device"; exit 0; }
-exit 1
-SH
-cat > "$bin/mount" <<'SH'
-#!/bin/sh
-set -u
-[ "$#" -ge 2 ] || exit 2
-printf '%s\n' "$1" > "$HACO_FAKE_INCUS_STATE/mount-device"
-SH
-chmod +x "$bin/losetup" "$bin/blkid" "$bin/mkfs.btrfs" "$bin/findmnt" "$bin/mount"
-
 cat > "$bin/incus" <<'SH'
 #!/bin/sh
 set -u
@@ -228,7 +178,24 @@ case "$command_name" in
     action="${1:-}"; pool="${2:-}"
     case "$action" in
       show) [ -f "$state/storage-$pool" ] ;;
-      create) [ -n "$pool" ] || exit 2; : > "$state/storage-$pool" ;;
+      create)
+        [ "$pool" = haco-local-default ] && [ "${3:-}" = btrfs ] || exit 2
+        saw_size=0
+        saw_mount_options=0
+        for arg in "$@"; do
+          case "$arg" in
+            source=*) exit 2 ;;
+            size=128GiB) saw_size=1 ;;
+            btrfs.mount_options=compress=zstd:3,noatime,nodiscard) saw_mount_options=1 ;;
+          esac
+        done
+        [ "$saw_size:$saw_mount_options" = 1:1 ] || exit 2
+        printf '%s\n' 'compress=zstd:3,noatime,nodiscard' > "$state/storage-$pool"
+        ;;
+      get)
+        [ "${3:-}" = btrfs.mount_options ] || exit 2
+        cat "$state/storage-$pool"
+        ;;
       *) exit 2 ;;
     esac
     ;;
@@ -421,7 +388,10 @@ assert env['base']['revision'] == 'sha256:' + ('b' * 64), r
 assert env['resources']['cpu']['mode'] == 'unlimited', r
 PY
 grep -Fq 'image info images:custom-moving --format json' "$HACO_FAKE_INCUS_LOG"
-grep -Fq 'storage create haco-local-default btrfs source=' "$HACO_FAKE_INCUS_LOG"
+storage_line="$(grep -F 'storage create haco-local-default btrfs ' "$HACO_FAKE_INCUS_LOG" | head -1)"
+[[ "$storage_line" == *'size=128GiB'* ]]
+[[ "$storage_line" == *'btrfs.mount_options=compress=zstd:3,noatime,nodiscard'* ]]
+[[ "$storage_line" != *'source='* ]]
 grep -Fq 'init images:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb haco-base-demo' "$HACO_FAKE_INCUS_LOG"
 grep -Fq -- '--no-profiles --storage haco-local-default' "$HACO_FAKE_INCUS_LOG"
 bridge_line="$(grep -F 'network create hbr' "$HACO_FAKE_INCUS_LOG" | head -1)"
@@ -515,4 +485,4 @@ assert 'parameters' not in raw
 assert 'message' not in raw
 PY
 
-echo 'PASS: Hacocoon orchestration, Base, resource, storage, and isolated-bridge E2E'
+echo 'PASS: Hacocoon orchestration, Base, resource, Incus-owned storage, and isolated-bridge E2E'

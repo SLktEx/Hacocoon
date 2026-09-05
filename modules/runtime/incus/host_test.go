@@ -44,8 +44,6 @@ func TestEnsureTrustedHostCreatesMarkedInstanceWithNarrowControlProxyAndStartsIt
 	if err := runtime.ConfigureStorageProvider(func(context.Context) (map[string]string, error) {
 		return map[string]string{
 			"incus_pool": "haco-local-default",
-			"driver":     "btrfs",
-			"source":     "/var/lib/hacocoon/mnt/local-default",
 		}, nil
 	}); err != nil {
 		t.Fatal(err)

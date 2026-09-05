@@ -6,6 +6,8 @@ The installer deliberately uses a **pre / main / post** split rather than preten
 
 ## Installation phases
 
+Current status: **partial**. The reset product `haco` exposes help/version and WSL login; lifecycle commands shown here retain the historical spelling and currently execute through temporary `hacoq`. See [CLI migration](CLI_MIGRATION.md). One-shot BAT completion and restart/current-installer rerun acceptance remain pending. The common phase now ships no privileged storage executable; Incus alone owns the Btrfs lifecycle.
+
 ```text
 Windows / WSL
 install-windows.bat
@@ -105,7 +107,7 @@ The common main phase:
 - verifies the bundled architecture-specific archive checksum;
 - verifies trusted GitHub/Sigstore provenance and signed release binding when provenance is enabled;
 - validates the archive contains exactly the expected regular Hacocoon binaries;
-- installs the binaries and root-owned storage helper;
+- installs the Hacocoon binaries;
 - installs/restarts `haco-controller.service`;
 - requires `/run/hacocoon/control.sock` to be a root-owned mode `0600` Unix socket;
 - runs `haco host ensure`;
