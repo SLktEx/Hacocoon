@@ -4,7 +4,7 @@ Status: partial.
 
 現在のCLI境界: 製品 `haco` はhelp/versionとWSL login aliasを実装する。以下の保持しているlifecycle commandは[CLI移行](../CLI_MIGRATION.md)中の一時的な `hacoq` の機能であり、新製品commandの実装完了を意味しない。
 
-WSL受入の実測（2026-09-06、packaged `57b6ee2`）: 通常入口、controller往復、Incus所有Btrfs rootfs、再起動、現在版installer再実行を確認し、trusted Host instanceと利用者が書いたfileを保持した。Environment/Workspaceの作業保持を示すものではない。現在のtrusted HostはIncus default profileのbridgeを継承する。このhostではDNSと経路は正常だがHTTPSはtimeoutし、Physical Host側ではHTTPSが通った。Incus bridgeのaccept規則と併存するDocker管理のIPv4 FORWARD chainはDROP policyだった。trusted networkの明示的所有とfirewall共存はplanned。EnvironmentのNAT開放やfirewall無効化で修復しない。
+Windows受入の実測（2026-09-06）: `57b6ee2` のfresh cached BATは完了したが、後に通常shell終了のhangが判明した。packaged `8a44f17` で停止状態からの入口・正常終了を修正し、最終 `3f67845` でcached BAT適用・同じ現在版再実行・停止状態からの入口・controller疎通・実際の終了0・trusted-host file/識別子/account/sudo policy保持を確認した。最終候補のfresh作成は再実行していない。`3f67845` のPhysical Hostとtrusted-host HTTPSは200だった。以前のtrusted-host通信はDocker FORWARD DROP下でtimeoutし、後の読み取り規則はACCEPTだった。手動firewall修復はしておらず、起動順を変えた共存は未検証。Environment proxy制御・SSH・Workspace作業保持の受入は別途pending。trusted networkの明示的所有とstorage依存のminimal初期化撤去はplanned。
 
 ## 概要
 

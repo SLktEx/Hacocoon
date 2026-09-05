@@ -23,7 +23,7 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 
 ## 現在のcheckpoint status
 
-2026-09-05〜06のWSL installer/storage修正はcurrent checkpoint内とする。packaged `57b6ee2` はfresh BAT完了、通常入口、再起動、同じ現在版再実行とtrusted-host file保持を確認した。trusted-host HTTPSは実測したfirewall共存問題で阻害され、Environment policy・SSH・作業保持の受入と単一poolのbootstrapは未完了。証拠の境界は実装statusを参照する。local検証によるrelease公開は行わない。
+Windows受入の実測（2026-09-06）: `57b6ee2` のfresh cached BATは完了したが、後に通常shell終了のhangが判明した。packaged `8a44f17` で停止状態からの入口・正常終了を修正し、最終 `3f67845` でcached BAT適用・同じ現在版再実行・停止状態からの入口・controller疎通・実際の終了0・trusted-host file/識別子/account/sudo policy保持を確認した。最終候補のfresh作成は再実行していない。`3f67845` のPhysical Hostとtrusted-host HTTPSは200だった。以前のtrusted-host通信はDocker FORWARD DROP下でtimeoutし、後の読み取り規則はACCEPTだった。手動firewall修復はしておらず、起動順を変えた共存は未検証。Environment proxy制御・SSH・Workspace作業保持の受入は別途pending。trusted networkの明示的所有とstorage依存のminimal初期化撤去はplanned。
 
 | Version | Gate | `main` の状態 |
 |---|---|---|

@@ -21,7 +21,7 @@ Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progr
 
 ## Current checkpoint status
 
-The 2026-09-05–06 WSL installer/storage corrections remain within the current checkpoint. Packaged `57b6ee2` passed fresh BAT completion, ordinary entry, restart and same-version rerun with trusted-host file retention. Trusted-host HTTPS remains blocked by the observed firewall coexistence problem; Environment policy/SSH/work-retention acceptance and single-pool bootstrap remain incomplete. See implementation status for evidence boundaries. No release is published by these local checks.
+Observed Windows acceptance on 2026-09-06: `57b6ee2` completed fresh cached BAT installation, but its normal shell exit was later found to hang. Packaged `8a44f17` corrected cold entry and normal process exit; final `3f67845` passed cached BAT application, same-version rerun, cold entry, controller communication, actual exit 0 and trusted-host file/identity/account/sudo-policy retention. Fresh creation of the final candidate was not repeated. Physical Host and trusted-host HTTPS returned 200 on `3f67845`; earlier trusted-host attempts timed out under Docker FORWARD DROP, whereas the later read-only rules showed ACCEPT. No manual firewall repair was applied, and startup-order coexistence remains unverified. Environment proxy enforcement, SSH and Workspace work retention are separate pending acceptance. Explicit trusted-network ownership and removal of storage-dependent minimal initialization remain planned.
 
 **Status legend:** ✅ implemented · 🧪 partial / foundation · 🚧 planned/deferred
 
