@@ -245,6 +245,13 @@ def host_session(*, create: bool) -> None:
     # Only the currently implemented product CLI is used. Environment/SSH
     # commands remain a separate gate until the reset CLI implements them.
     commands = ["haco version --json", "haco help"]
+    # Exercise the installer-created trusted-host network in the ordinary
+    # shell. This is infrastructure egress, not Environment proxy acceptance.
+    commands += [
+        "getent ahostsv4 github.com >/dev/null && printf '%s\\n' HACO_HOST_DNS_OK",
+        "ip -4 route show default | grep -q '^default ' && printf '%s\\n' HACO_HOST_ROUTE_OK",
+        "curl -4 -f -sS --connect-timeout 10 --max-time 30 -o /dev/null https://github.com && printf '%s\\n' HACO_HOST_HTTPS_OK",
+    ]
     if create:
         commands.append(f"printf '%s\\n' kept-through-restart-and-rerun > ~/{SENTINEL}")
     commands += [f"cat ~/{SENTINEL}", "exit"]
@@ -266,6 +273,8 @@ def host_session(*, create: bool) -> None:
         raise RuntimeError("ordinary WSL entry did not reach haco-host and return normally")
     require_output(output, r"(?m)^kept-through-restart-and-rerun\s*$", phase="haco-host data")
     require_output(output, r'"version"\s*:', phase="product CLI")
+    for check in ("DNS", "ROUTE", "HTTPS"):
+        require_output(output, rf"^HACO_HOST_{check}_OK\s*$", phase="trusted-host network")
     if re.search(r"command not found|unknown command|permission denied", output, re.I):
         raise RuntimeError("ordinary host commands failed")
 
@@ -290,11 +299,15 @@ def assert_host() -> None:
         raise RuntimeError("storage is not owned by Incus")
     if inspect_root("findmnt", "-rn", "-o", "FSTYPE", "--mountpoint", INCUS_POOL_MOUNT) != "btrfs":
         raise RuntimeError("Incus pool is not mounted as Btrfs")
+    inspect_root("sh", "-eu", "-c",
+                 "getent ahostsv4 github.com >/dev/null; "
+                 "ip -4 route show default | grep -q '^default '; "
+                 "curl -4 -f -sS --connect-timeout 10 --max-time 30 -o /dev/null https://github.com")
 
 
 def sudo_policy_digest() -> str:
     return inspect_root("sh", "-eu", "-c",
-                        "find /etc -maxdepth 2 -type f -name '*sudoers*' -exec sha256sum {} + | sort")
+                        "find /etc/sudoers /etc/sudoers.d -type f -exec sha256sum {} + | sort")
 
 
 def main() -> None:

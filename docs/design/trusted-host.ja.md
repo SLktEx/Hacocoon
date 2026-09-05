@@ -4,6 +4,8 @@ Status: partial.
 
 現在のCLI境界: 製品 `haco` はhelp/versionとWSL login aliasを実装する。以下の保持しているlifecycle commandは[CLI移行](../CLI_MIGRATION.md)中の一時的な `hacoq` の機能であり、新製品commandの実装完了を意味しない。
 
+WSL受入の実測（2026-09-06、packaged `57b6ee2`）: 通常入口、controller往復、Incus所有Btrfs rootfs、再起動、現在版installer再実行を確認し、trusted Host instanceと利用者が書いたfileを保持した。Environment/Workspaceの作業保持を示すものではない。現在のtrusted HostはIncus default profileのbridgeを継承する。このhostではDNSと経路は正常だがHTTPSはtimeoutし、Physical Host側ではHTTPSが通った。Incus bridgeのaccept規則と併存するDocker管理のIPv4 FORWARD chainはDROP policyだった。trusted networkの明示的所有とfirewall共存はplanned。EnvironmentのNAT開放やfirewall無効化で修復しない。
+
 ## 概要
 
 `haco-host` は Hacocoon が管理する永続的な trusted logical Host です。Local Incus backend では `haco-host` という名前の Incus system instance として実装し、通常の untrusted Environment とは明確に分離します。

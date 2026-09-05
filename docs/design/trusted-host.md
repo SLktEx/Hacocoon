@@ -4,6 +4,8 @@ Status: partial.
 
 Current CLI boundary: product `haco` implements help/version and the WSL login alias. Retained lifecycle commands described below use temporary `hacoq` during [CLI migration](../CLI_MIGRATION.md); they do not describe implemented new product commands.
 
+Observed WSL acceptance (2026-09-06, packaged `57b6ee2`): ordinary entry, controller round trip, Incus-owned Btrfs rootfs, restart, and current-installer rerun preserved the trusted Host instance and a user-written file. This does not establish Environment/Workspace work retention. The trusted Host currently inherits the default Incus profile's bridge. On this host, DNS and routes worked but HTTPS timed out while the Physical Host could reach HTTPS; the Docker-managed IPv4 FORWARD chain had a DROP policy alongside Incus bridge accept rules. Explicit trusted-network ownership and firewall coexistence remain planned. Do not repair this by opening Environment NAT or disabling firewall enforcement.
+
 ## Summary
 
 `haco-host` is Hacocoon's persistent trusted logical Host. On the local Incus backend it is an Incus system instance named `haco-host`, distinct from ordinary untrusted Environments.

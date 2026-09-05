@@ -21,7 +21,7 @@ Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progr
 
 ## Current checkpoint status
 
-The 2026-09-05 WSL installer/storage corrections remain within the current checkpoint. Root-side preparation, managed first-launch configuration and residual storage-path rejection are repository changes; they do not declare real Windows network/restart/data-retention acceptance complete or publish a release.
+The 2026-09-05–06 WSL installer/storage corrections remain within the current checkpoint. Packaged `57b6ee2` passed fresh BAT completion, ordinary entry, restart and same-version rerun with trusted-host file retention. Trusted-host HTTPS remains blocked by the observed firewall coexistence problem; Environment policy/SSH/work-retention acceptance and single-pool bootstrap remain incomplete. See implementation status for evidence boundaries. No release is published by these local checks.
 
 **Status legend:** ✅ implemented · 🧪 partial / foundation · 🚧 planned/deferred
 

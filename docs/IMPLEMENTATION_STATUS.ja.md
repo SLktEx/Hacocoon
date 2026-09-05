@@ -5,13 +5,14 @@
 - 更新mainには #441・#442・#453・#456 と #458/#459 のimage cacheが入った。merge済みPR本文や過去のgreenは、この組合せ候補の受入証拠ではない。
 - **implemented:** Incus-only storage配布とmount policy。残存 `driver`/`source` attachmentを拒否し、検査失敗はfail closed。policy照合中の既存rootfs/Workspace保持をreal-Incus CI契約にも加えた。
 - **installer修正はimplemented:** 既定は固定管理account `hacocoon` でpassword入力不要。`-InteractiveUserSetup` はopt-in。root側common準備は検証済み通常UID/GIDを保持し、sudo policyを書かず、管理済みWSL初回設定を完了させる。PS5.1引数転送にも回帰テストがある。[ADR 0004](adr/0004-wsl-installer-authority.md)を参照。
-- **cache回帰を実測（2026-09-06）:** `831e5f0` のpackaged BATは `Get-FileHash` が利用できずdistro作成前に失敗した。#441統合時に落ちた #459のmodule非依存SHA-256 helperを復元し、PS5.1回帰テストを追加。修正版packageでfresh install受入を再実行する必要がある。
+- **cache回帰を修正（2026-09-06）:** `831e5f0` のpackaged BATは `Get-FileHash` が利用できずdistro作成前に失敗した。#441統合時に落ちた #459のmodule非依存SHA-256 helperを復元し、PS5.1回帰テストを追加。修正後のdownloadを検証し、installに成功した `57b6ee2` で再利用した。
 - **cache性能修正はimplemented:** image download中のPS5.1のchunkごとの進捗描画を関数内だけ抑制。component testは実際のcache昇格・再利用、hash不一致時のcleanup、呼び出し元の設定保持を検証する。Windows受入では変更していないpackaged BATを使う。
-- **Windows境界を実測（2026-09-06）:** 検証済みimage cacheを使った `9d459be` はUAC後のWSL作成で終了code 1となった。Hacocoon distroとIncusはまだ作られていない。修正版はsystem WSLを元のconsole内で実行し、前提機能の昇格をWSL自身に任せる。進捗・error表示を保持し、失敗時はcommon準備前に停止する。修正版のpackaged BAT受入は未実行。
+- **Windows受入を実測（2026-09-06）:** `9d459be` の明示的昇格時の失敗後、`57b6ee2` はsystem WSLを元のconsole内で呼び出し、未変更のcached BATが終了0で完了した。通常入口、Btrfs rootfs、controller疎通、再実行前の再起動、同じ現在版BAT再実行が成功。trusted-host識別子・file・全sudo policy hashを保持し、product overrideや準備fixtureは使っていない。
 - **製品CLIはpartial:** 新 `haco` はhelp/versionとcontroller経由のWSL login aliasを持つ。以下の旧lifecycle・Base・SSH command表記は一時的な `hacoq` の機能。#456の再利用可能なcontroller adapterは実装済みだが、製品commandを `hacoq` へ委譲してはいけない。
 - **Seed撤去はplanned:** codeは残り、Base/任意OCIとの依存は[Seed設計](design/oci-seed-and-cow.ja.md)に記録した。Base選択と任意Pluginは保持する。
-- **実機受入はpending:** 候補のcache付きBAT完走、installer生成DNS・経路・HTTPS、Environmentの許可proxy通信と直接通信拒否、再起動・現在版再実行でのdata保持。更新Windows gateのtrusted-host file保持はEnvironment/Workspaceの作業保持を証明しない。LinuxのIncus/network基盤CIは継続する。
-- **次の具体的依存:** installer生成networkを検証し、storage有無からnetwork初期化を推定する処理を解消する。
+- **network阻害:** Physical HostのHTTPSは成功。installer生成 `incusbr0` によるtrusted-host DNS・経路は正常だがHTTPSはtimeoutした。Docker管理のIPv4 FORWARD DROP規則とIncus accept規則が併存する。Windows gateは両層のDNS・経路・HTTPSを要求する。`incus admin init --minimal` は未使用directory poolも作成し、単一poolのbootstrapは未完了。
+- **実機受入はpending:** trusted-host HTTPS、Environmentの許可proxy通信と直接通信拒否、SSH、Environment/Workspace作業保持。更新したWindows gate全体の成功は未確認。LinuxのIncus/network基盤CIは継続する。
+- **次の具体的依存:** storage依存のbootstrapを、明示的に所有するtrusted-host networkと限定的なfirewall共存へ置き換え、Environmentの拒否・proxy policyを維持する。
 
 以下の表は元のcheckpoint時点の履歴文脈を保持する。
 

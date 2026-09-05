@@ -23,7 +23,7 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 
 ## 現在のcheckpoint status
 
-2026-09-05のWSL installer/storage修正はcurrent checkpoint内とする。root側準備、管理済み初回設定、残存storage経路の拒否はrepository変更であり、実Windows network・再起動・data保持の受入完了やrelease公開を宣言しない。
+2026-09-05〜06のWSL installer/storage修正はcurrent checkpoint内とする。packaged `57b6ee2` はfresh BAT完了、通常入口、再起動、同じ現在版再実行とtrusted-host file保持を確認した。trusted-host HTTPSは実測したfirewall共存問題で阻害され、Environment policy・SSH・作業保持の受入と単一poolのbootstrapは未完了。証拠の境界は実装statusを参照する。local検証によるrelease公開は行わない。
 
 | Version | Gate | `main` の状態 |
 |---|---|---|

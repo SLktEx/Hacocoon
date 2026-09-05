@@ -2,6 +2,10 @@
 
 Status: **partial**. Managed-account bootstrap is implemented; real Windows install/network/restart acceptance is tracked separately in [implementation status](IMPLEMENTATION_STATUS.md). Product `haco` currently exposes help/version and its controller-backed WSL login alias. Retained lifecycle commands belong to temporary `hacoq` during [CLI migration](CLI_MIGRATION.md).
 
+The unmodified `57b6ee2` cached BAT completed fresh installation and current-version rerun on 2026-09-06. Ordinary WSL entry, restart before reinstall, controller communication, trusted-host file retention and unchanged sudo policy passed. Network acceptance remains partial: Physical Host HTTPS passed; trusted-host DNS/routes passed but HTTPS timed out under a Docker-managed FORWARD DROP policy. The Windows gate now checks both network layers and all sudo-policy files. See the [trusted Host boundary](design/trusted-host.md); its controller doctor alone does not establish outbound connectivity.
+
+The common phase still calls `incus admin init --minimal` only when storage is absent. On this host that created an unused `default` directory pool and `incusbr0`; `haco-host` itself uses `haco-local-default` Btrfs. Replacing this storage-dependent bootstrap with explicit trusted-network preparation remains planned. Do not delete an existing pool or change another firewall's global policy as an acceptance fixture.
+
 Hacocoon supports Ubuntu 26.04+ as its local Host baseline. On Windows it creates a dedicated Ubuntu WSL 2 distribution; on native Ubuntu it uses the host directly.
 
 The installer deliberately uses a **pre / main / post** split rather than pretending WSL and native Ubuntu are identical.

@@ -2,6 +2,10 @@
 
 Status: **partial**。固定管理accountのbootstrapはimplemented、実Windowsでのinstall/network/restart受入は[実装status](IMPLEMENTATION_STATUS.ja.md)で別管理する。製品 `haco` は現在help/versionとcontroller経由のWSL login aliasを持つ。保持しているlifecycle commandは[CLI移行](CLI_MIGRATION.md)中の一時的な `hacoq` の機能である。
 
+未変更の `57b6ee2` cached BATは2026-09-06にfresh installと現在版再実行を完了した。通常WSL入口、再実行前の再起動、controller疎通、trusted-host file保持、sudo policy不変を確認した。network受入はpartial: Physical HostのHTTPSは成功し、trusted HostのDNS・経路も正常だが、Docker管理のFORWARD DROP policy下でHTTPSがtimeoutした。Windows gateは両層のnetworkと全sudo policy fileを確認する。[trusted Host境界](design/trusted-host.ja.md)を参照。controller doctorの成功だけでは外部疎通を示さない。
+
+common phaseはstorageが無い場合だけ `incus admin init --minimal` を呼ぶ。このhostでは未使用の `default` directory poolと `incusbr0` を作成したが、`haco-host` 本体は `haco-local-default` Btrfsを使う。storage依存のbootstrapを明示的なtrusted-network準備へ置き換える作業はplanned。受入fixtureとして既存poolを削除したり、他のfirewallのglobal policyを変更したりしない。
+
 Hacocoon の local Host baseline は Ubuntu 26.04+ です。Windows では専用の Ubuntu WSL 2 distribution を作り、native Ubuntu ではその Host を直接使います。
 
 Installer は WSL と native Ubuntu を無理に同一化せず、**pre / main / post** に分けます。
