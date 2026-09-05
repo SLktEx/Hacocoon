@@ -142,6 +142,8 @@ run_release_config() {
   python3 tools/check_release_provenance.py
   bash tools/test_install_archive_safety.sh
   python3 tools/test_installer_packages.py
+  python3 tools/test_install_identity.py
+  python3 tools/test_wsl_oobe_config.py
 
   section "release-config: GoReleaser config"
   goreleaser check
@@ -156,6 +158,7 @@ run_release_config() {
   '
 
   section "release-config: pre/main/post boundary"
+  pwsh -NoLogo -NoProfile -NonInteractive -File tools/test_windows_installer.ps1
   validate_install_boundary
   run_systemd
 

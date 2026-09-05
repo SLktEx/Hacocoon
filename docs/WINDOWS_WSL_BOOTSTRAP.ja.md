@@ -1,5 +1,7 @@
 # Windows / WSL セットアップ
 
+Status: **partial**。固定管理accountのbootstrapはimplemented、実Windowsでのinstall/network/restart受入は[実装status](IMPLEMENTATION_STATUS.ja.md)で別管理する。製品 `haco` は現在help/versionとcontroller経由のWSL login aliasを持つ。保持しているlifecycle commandは[CLI移行](CLI_MIGRATION.md)中の一時的な `hacoq` の機能である。
+
 Hacocoon の local Host baseline は Ubuntu 26.04+ です。Windows では専用の Ubuntu WSL 2 distribution を作り、native Ubuntu ではその Host を直接使います。
 
 Installer は WSL と native Ubuntu を無理に同一化せず、**pre / main / post** に分けます。
@@ -72,7 +74,7 @@ PowerShell が Windows / WSL 固有の事前準備を担当します。
 1. current WSL を要求する
 2. `Ubuntu-26.04` から Hacocoon 専用 distribution だけを作成 / 再利用する
 3. global WSL default は変えず、その distribution だけ WSL 2 を保証する
-4. fresh install の default path では固定の managed non-root user `hacocoon` を作成し、その account の password login を lock して WSL default user にする
+4. fresh installのdefault pathではpassword loginをlockした固定non-root user `hacocoon` を作成し、WSL default userと管理済み初回設定を構成する
 5. `-InteractiveUserSetup` 指定時だけ Ubuntu の対話式 user setup を使う
 6. 旧 install の upgrade では既に設定済みの non-root default user を維持する
 7. WSL guest が Ubuntu 26.04+ であることを確認する
@@ -103,6 +105,8 @@ install-windows.bat -InteractiveUserSetup
 
 この場合も installer 自身が WSL の user-setup session を起動します。User setup を完了してその shell から exit すると、同じ installer process がそのまま `install.sh` と post phase を再開します。BAT の 2 回目実行は不要です。
 
+既定の管理accountはpassword入力不要で、retry時に既存accountのpasswordをresetしません。この経路だけ、既知のUbuntu account/metrics OOBE commandを空にし、検証済みdefault UIDを設定します。他のdistribution設定を保持してatomicに置換し、未知のOOBE設定ではfail closedします。対話optionでは通常のUbuntu setupを維持し、利用者をmetrics送信へopt-inしません。[ADR 0004](adr/0004-wsl-installer-authority.md)を参照してください。
+
 ## WSL image cache 検証経路
 
 `-UseCachedWslImage` は、Windows / WSL の install を何度も検証するときのための validation-oriented option です。明示的に指定しない限り、通常 installer の挙動は変わりません。
@@ -121,7 +125,7 @@ GitHub Actions では、cache の trust boundary を untrusted PR と分離し�
 
 Restart / reinstall Windows E2E は最初と 2 回目の packaged BAT の両方に `-UseCachedWslImage` を渡すため、cache 経路そのものを acceptance しつつ、`wsl --terminate Hacocoon` 後の persistence と reinstall idempotency も同時に検証します。
 
-Common installer 実行中だけ、選択された通常 WSL user に temporary passwordless sudo rule を付けます。これは ordinary workspace owner のまま `install.sh` を走らせるための bootstrap 用で、trusted installer invocation の間だけ存在します。`finally` で必ず削除し、通常の install 完了後には後述の narrow な `haco host ensure` / `haco host shell` rule だけを残します。
+PowerShellはWSL rootでcommon準備を実行し、通常login名を `HACO_INSTALL_USER` で渡します。common phaseは特権準備前に実際のnon-root UID/GIDを解決・検証し、exact IDをIncus subordinate-IDに使い、同じuserをcontroller access groupへ追加します。bootstrap/loginのsudo policyは書かず、`incus-admin` は明示optionのままです。
 
 ## Ubuntu 共通 main
 
@@ -135,10 +139,10 @@ Common main は次を担当します。
 - 同梱 architecture-specific archive の checksum 検証
 - provenance 有効時の trusted GitHub/Sigstore provenance と signed release binding 検証
 - archive が期待する regular Hacocoon binary だけを含むことの検証
-- binary と root-owned storage helper の install
+- Hacocoon binaryのinstall（storage helperは削除済み）
 - `haco-controller.service` の install / restart
-- `/run/hacocoon/control.sock` が root-owned mode `0600` Unix socket であることの確認
-- `haco host ensure`
+- `/run/hacocoon/control.sock` が `root:hacocoon` mode `0660` Unix socketであることの確認
+- CLI移行中の内部bootstrapとして保持している `hacoq host ensure`
 - 実際の `haco-host` 内から `/usr/local/bin/haco-host doctor` を実行する round-trip acceptance
 
 `install.sh` は `/etc/wsl.conf` を編集せず、WSL を terminate せず、user login shell も変更しません。
@@ -147,7 +151,7 @@ Common main は次を担当します。
 
 Common main 成功後、PowerShell が WSL 固有 integration を行います。
 
-System-owned `haco` を検証して `/usr/local/libexec/hacocoon-login` を作り、passwordless sudo は exact な `haco host ensure` / `haco host shell` だけに許可し、通常 non-root WSL user の login shell だけを変更します。
+System-owned `haco` を検証して `/usr/local/libexec/hacocoon-login` aliasを作り、通常non-root WSL userのlogin shellだけを変更します。aliasはPhysical Host controllerへ直接接続し、sudoや `hacoq` subprocessを使いません。
 
 その後:
 
@@ -189,8 +193,8 @@ haco host shell
 
 Installer E2E は `install.sh` 単体成功ではなく、実際の user-visible entry point から判定します。
 
-Windows gate は candidate `hacocoon-windows-amd64.zip` を作って展開し、trusted `ubuntu.wsl` cache があれば restore / stage して、shipped `-UseCachedWslImage` option 経由で packaged installer を実行します。最初の install が managed `hacocoon` user で完了した後、WSL distribution を明示的に terminate し、repair install を一度も挟まず既存 Environment が restart 後も使えることを確認し、最後に reinstall / idempotency まで検証します。Acceptance boundary は WSL 2、systemd、Incus、controller service/socket、`haco-host doctor`、WSL login integration までです。Opt-in の interactive user-setup path も別途維持しますが、default install contract にはしません。
+Windows gateはcandidate ZIPとtrustedなrestore-only cache経路を使い、packaged BATを `-UseCachedWslImage` 付きで実行します。通常の `wsl -d Hacocoon` から実装済み製品help/versionとtrusted-host file作成を確認し、installer再実行より前にWSLを停止して再入場します。その後の2回目BATでもfileとsudo policyを保持します。root検査はread-onlyで、製品override、account/sudoers fixture、テストbridge、mount修復で不足を補いません。対話account optionは管理accountの既定経路と別です。
 
 Native Ubuntu gate は candidate `hacocoon-ubuntu-amd64.tar.gz` を作って展開し、package 内の `install-ubuntu.sh` を実行します。Controller と trusted `haco-host` round trip が成功し、native login shell が変更されていないことまで確認します。
 
-PR candidate package はまだ public Release ではないため release attestation を持ちません。Candidate E2E で provenance を無効化できるのはこの synthetic package の検証だけです。Release workflow は別途、実際に publish する architecture-specific payload そのものへ署名 / attestation を行います。
+PR candidateはpublic releaseではありません。同梱payloadのchecksumは製品環境変数のoverrideなしで検証し、release workflowは公開するexact packageを署名・attestします。単独downloadは引き続き既定でprovenance検証を要求します。

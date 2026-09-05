@@ -1,5 +1,17 @@
 # 実装状況
 
+## WSL向け更新 — 2026-09-05
+
+- 更新mainには #441・#442・#453・#456 と #458/#459 のimage cacheが入った。merge済みPR本文や過去のgreenは、この組合せ候補の受入証拠ではない。
+- **implemented:** Incus-only storage配布とmount policy。残存 `driver`/`source` attachmentを拒否し、検査失敗はfail closed。policy照合中の既存rootfs/Workspace保持をreal-Incus CI契約にも加えた。
+- **installer修正はimplemented:** 既定は固定管理account `hacocoon` でpassword入力不要。`-InteractiveUserSetup` はopt-in。root側common準備は検証済み通常UID/GIDを保持し、sudo policyを書かず、管理済みWSL初回設定を完了させる。PS5.1引数転送にも回帰テストがある。[ADR 0004](adr/0004-wsl-installer-authority.md)を参照。
+- **製品CLIはpartial:** 新 `haco` はhelp/versionとcontroller経由のWSL login aliasを持つ。以下の旧lifecycle・Base・SSH command表記は一時的な `hacoq` の機能。#456の再利用可能なcontroller adapterは実装済みだが、製品commandを `hacoq` へ委譲してはいけない。
+- **Seed撤去はplanned:** codeは残り、Base/任意OCIとの依存は[Seed設計](design/oci-seed-and-cow.ja.md)に記録した。Base選択と任意Pluginは保持する。
+- **実機受入はpending:** 候補のcache付きBAT完走、installer生成DNS・経路・HTTPS、Environmentの許可proxy通信と直接通信拒否、再起動・現在版再実行でのdata保持。更新Windows gateのtrusted-host file保持はEnvironment/Workspaceの作業保持を証明しない。LinuxのIncus/network基盤CIは継続する。
+- **次の具体的依存:** installer生成networkを検証し、storage有無からnetwork初期化を推定する処理を解消する。
+
+以下の表は元のcheckpoint時点の履歴文脈を保持する。
+
 [English](IMPLEMENTATION_STATUS.md) | **日本語**
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。

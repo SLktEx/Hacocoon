@@ -23,6 +23,8 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 
 ## 現在のcheckpoint status
 
+2026-09-05のWSL installer/storage修正はcurrent checkpoint内とする。root側準備、管理済み初回設定、残存storage経路の拒否はrepository変更であり、実Windows network・再起動・data保持の受入完了やrelease公開を宣言しない。
+
 | Version | Gate | `main` の状態 |
 |---|---|---|
 | v0.1 | Secure Workspace Runtime MVP | 実装済み |

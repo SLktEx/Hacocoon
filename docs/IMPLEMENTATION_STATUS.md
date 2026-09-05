@@ -1,5 +1,17 @@
 # Implementation Status
 
+## WSL delivery update — 2026-09-05
+
+- Refreshed `main` includes #441, #442, #453, #456 and the #458/#459 image-cache path. Merged PR descriptions and older green runs do not establish acceptance of this combined candidate.
+- **Implemented:** Incus-only storage distribution and mount policy, with rejection of residual external `driver`/`source` attachments and fail-closed inspection. Existing rootfs/Workspace retention during reconciliation is now part of the real-Incus CI contract.
+- **Implemented installer correction:** fixed managed `hacocoon` account by default, password input unnecessary; `-InteractiveUserSetup` remains opt-in. Root-side common preparation preserves validated ordinary UID/GID, writes no sudo policy, and completes the managed WSL first-launch configuration. PS5.1 native quoting has regression coverage. See [ADR 0004](adr/0004-wsl-installer-authority.md).
+- **Partial product CLI:** new `haco` exposes help/version and a controller-backed WSL login alias. Older lifecycle, Base and SSH command claims below refer to temporary `hacoq`. The reusable controller adapter from #456 is available, but product commands must not delegate to `hacoq`.
+- **Planned Seed retirement:** code remains and its Base/optional OCI dependencies are recorded in [Seed design](design/oci-seed-and-cow.md); Base selection and optional Plugins remain.
+- **Pending real-host acceptance:** candidate cached BAT completion, installer-created DNS/routes/HTTPS, allowed proxy versus denied direct Environment traffic, and restart/current-installer rerun with data retention. The updated Windows gate checks trusted-host files, which does not establish Environment/Workspace work retention. Linux Incus/network foundation CI continues.
+- **Next concrete dependency:** verify the network created by the installer and eliminate inferring network initialization from storage presence.
+
+The historical checkpoint tables below retain their original milestone context.
+
 Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker compatibility lifecycle integration, the OCI Seed Builder repository slices including credential-free managed-Environment harvest, the client-neutral interaction-event contract, the reusable client-adapter contract, domain-aware Standard egress enforcement, Incus-owned Btrfs rootfs pool integration, default Incus-managed Btrfs `zstd:3` compression, browser/native/VS Code notification clients, phased real-Incus CI acceptance on Ubuntu 26.04, the shared structured logging foundation, ordinary-user real-Incus storage acceptance, and the persistent trusted `haco-host` / default WSL entry slice.
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.

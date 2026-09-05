@@ -110,66 +110,23 @@ with tempfile.TemporaryDirectory() as temp:
                     f"Windows {arch} package captures wsl.exe stdout into its exit-code variable"
                 )
 
-            required_windows_contract = [
-                '[switch]$InteractiveUserSetup',
-                '$ManagedLoginUser = "hacocoon"',
-                'Ensure-ManagedWslLoginUser',
-                'Complete-InteractiveWslUserSetup',
-                'Enable-BootstrapSudo',
-                'Disable-BootstrapSudo',
-                'Get-SudoersPolicyFile',
-                'foreach ($policy in @("/etc/sudoers-rs", "/etc/sudoers"))',
-                'Set-HacocoonSudoPolicyBlock',
-                'Remove-HacocoonSudoPolicyBlock',
-                'Set-HacocoonLoginSudoRule',
-                '# BEGIN HACOCOON $marker_name',
-                '$LoginUser ALL=(ALL:ALL) NOPASSWD: ALL',
-                'Validating temporary sudo rule through policy files',
-                '"sudo", "-n", "/usr/bin/true"',
-                'function Invoke-WslRootShellScript',
-                'sh -eu "$tmp" "$@"',
-                'Never send installer-controlled bytes through the Windows native stdin',
-                'base64 -d >> "$2"',
-                '"sh", $encoded, $Path',
-                '$mainFailure = $null',
-                'Bootstrap sudo cleanup also failed after the installer error',
-                '/usr/sbin/visudo -cf "$tmp"',
-                'install -o root -g root -m 0440 "$tmp" "$policy"',
-                'throw $mainFailure',
-                '& wsl.exe --terminate $Name | Out-Null',
-                '& wsl.exe --distribution $Name | Out-Host',
-                'Running common Ubuntu install.sh',
-            ]
-            for contract_marker in required_windows_contract:
-                if contract_marker not in windows_installer:
-                    raise SystemExit(
-                        f"Windows installer lost one-shot bootstrap contract: {contract_marker!r}"
-                    )
-            forbidden_windows_contract = [
-                "Complete normal Ubuntu user setup, then run this installer again.",
-                "After completing the Ubuntu user setup, run install-windows.bat again.",
-                '$normalized | & wsl.exe @Arguments',
-                '"--exec", "sh", "-s"',
-                'function Invoke-WslCaptureWithInput',
-                'Get-SudoersPolicyFiles',
-                'Write-WslUtf8File $Name $policy $block -Append',
-            ]
-            for contract_marker in forbidden_windows_contract:
-                if contract_marker in windows_installer:
-                    raise SystemExit(
-                        f"Windows installer regressed to two-invocation setup: {contract_marker!r}"
-                    )
-            for forbidden_provider_guess in (
-                "$provider.Stdout -match '^sudo-rs'",
-                '"readlink", "-f", "/usr/bin/sudo"',
-                '"update-alternatives"',
-                '@include $RulePath',
+            for required in (
+                '[switch]$InteractiveUserSetup', '[switch]$UseCachedWslImage',
+                '$ManagedLoginUser = "hacocoon"', 'Ensure-ManagedWslLoginUser',
+                'Complete-InteractiveWslUserSetup', 'Configure-ManagedWslOobe',
+                'Invoke-WslRootShellScript', '"HACO_INSTALL_USER=$loginUser"',
+                '--user root --exec env', 'Running common Ubuntu install.sh',
             ):
-                if forbidden_provider_guess in windows_installer:
-                    raise SystemExit(
-                        f"Windows installer regressed to sudo provider guessing: {forbidden_provider_guess!r}"
-                    )
-
+                if required not in windows_installer:
+                    raise SystemExit(f"Windows installer lost current contract: {required!r}")
+            for forbidden in (
+                'NOPASSWD', '/etc/sudoers', 'HACO_BOOTSTRAP_LOGIN_USER',
+                'Invoke-WslCaptureWithInput', '"--exec", "sh", "-s"',
+                'Complete normal Ubuntu user setup, then run this installer again.',
+                '"--lock"',
+            ):
+                if forbidden in windows_installer:
+                    raise SystemExit(f"Windows installer restored rejected behavior: {forbidden!r}")
             windows_bat = zf.read("install-windows.bat").decode("utf-8")
             for forbidden in (
                 "__install-launcher",

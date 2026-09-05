@@ -1,5 +1,7 @@
 # Windows / WSL installation
 
+Status: **partial**. Managed-account bootstrap is implemented; real Windows install/network/restart acceptance is tracked separately in [implementation status](IMPLEMENTATION_STATUS.md). Product `haco` currently exposes help/version and its controller-backed WSL login alias. Retained lifecycle commands belong to temporary `hacoq` during [CLI migration](CLI_MIGRATION.md).
+
 Hacocoon supports Ubuntu 26.04+ as its local Host baseline. On Windows it creates a dedicated Ubuntu WSL 2 distribution; on native Ubuntu it uses the host directly.
 
 The installer deliberately uses a **pre / main / post** split rather than pretending WSL and native Ubuntu are identical.
@@ -72,7 +74,7 @@ The PowerShell installer owns Windows and WSL-specific preparation:
 1. require a current WSL installation;
 2. create or reuse only the dedicated `Hacocoon` distribution from `Ubuntu-26.04`;
 3. enforce WSL 2 for that distribution without changing global WSL defaults;
-4. on a fresh default install, create the managed non-root `hacocoon` user, lock password login for that account, and configure it as the WSL default user;
+4. on a fresh default install, create the managed non-root `hacocoon` user with password login locked, configure it as the WSL default user, and complete the managed first-launch configuration;
 5. optionally use Ubuntu's interactive user setup instead when `-InteractiveUserSetup` is specified;
 6. preserve an already-configured non-root default user when upgrading an older installation;
 7. verify the WSL guest is Ubuntu 26.04+;
@@ -103,6 +105,8 @@ install-windows.bat -InteractiveUserSetup
 
 The installer launches the WSL user-setup session itself. After the user completes setup and exits that shell, the same installer process resumes and continues through `install.sh` and the post phase; a second BAT invocation is still not required.
 
+The default managed account needs no password input. It does not reset an existing account's password on retry. For this path only, the installer replaces the known Ubuntu account/metrics OOBE command with an empty command and sets the validated default UID, preserving unrelated distribution configuration through an atomic replacement. Unknown OOBE configurations fail closed; the interactive option preserves Ubuntu's normal setup. This does not opt the user into metrics collection. See [ADR 0004](adr/0004-wsl-installer-authority.md).
+
 ## Cached WSL image validation path
 
 `-UseCachedWslImage` is a validation-oriented installer option for repeated Windows/WSL installation tests. It keeps the normal installer behavior unchanged unless the option is explicitly selected.
@@ -121,7 +125,7 @@ GitHub Actions keeps the cache trust boundary separate from untrusted pull reque
 
 The restart/reinstall Windows E2E invokes both packaged BAT installs with `-UseCachedWslImage`, so the cached path itself remains exercised while also proving `wsl --terminate Hacocoon` restart persistence and reinstall idempotency.
 
-During the common installer run, PowerShell gives the selected ordinary WSL user a temporary passwordless sudo rule so `install.sh` can remain the ordinary workspace owner. On Ubuntu 26.04 the rule uses sudo-rs-compatible default-root syntax, and the installer validates the effective sudo policy and proves a non-interactive sudo command succeeds before starting `install.sh`. That broad bootstrap rule exists only for the trusted installer invocation and is removed in `finally`; normal completed installations retain only the narrow `haco host ensure` / `haco host shell` rule described below.
+PowerShell runs common preparation as WSL root and passes the selected ordinary login name as `HACO_INSTALL_USER`. The common phase resolves and validates its actual non-root UID/GID before privileged preparation and uses those exact IDs for Incus subordinate-ID mapping. It adds that user to the controller access group. No bootstrap or login sudo policy is written; `incus-admin` remains an explicit option.
 
 ## Common Ubuntu main phase
 
@@ -135,10 +139,10 @@ The common main phase:
 - verifies the bundled architecture-specific archive checksum;
 - verifies trusted GitHub/Sigstore provenance and signed release binding when provenance is enabled;
 - validates the archive contains exactly the expected regular Hacocoon binaries;
-- installs the binaries and root-owned storage helper;
+- installs the Hacocoon binaries (the storage helper is removed);
 - installs/restarts `haco-controller.service`;
-- requires `/run/hacocoon/control.sock` to be a root-owned mode `0600` Unix socket;
-- runs `haco host ensure`;
+- requires `/run/hacocoon/control.sock` to be a `root:hacocoon` mode `0660` Unix socket;
+- internally runs retained `hacoq host ensure` during the CLI migration;
 - proves the real trusted-host path with `/usr/local/bin/haco-host doctor` inside `haco-host`.
 
 `install.sh` does not edit `/etc/wsl.conf`, terminate WSL, or change a user's login shell.
@@ -147,7 +151,7 @@ The common main phase:
 
 After the common main phase succeeds, PowerShell performs WSL-only integration.
 
-It validates the system-owned `haco` binary, creates `/usr/local/libexec/hacocoon-login`, grants passwordless sudo only for the exact `haco host ensure` and `haco host shell` commands, and changes only the normal non-root WSL user's login shell.
+It validates the system-owned `haco` binary, creates its `/usr/local/libexec/hacocoon-login` alias, and changes only the normal non-root WSL user's login shell. The alias talks directly to the Physical Host controller, without sudo or a `hacoq` subprocess.
 
 After that:
 
@@ -185,8 +189,8 @@ haco host shell
 
 Installer E2E is evaluated at the user-visible entry points, not by declaring success because `install.sh` ran in isolation.
 
-The Windows gate builds the candidate `hacocoon-windows-amd64.zip`, extracts it, restores and stages the trusted `ubuntu.wsl` cache when available, and executes the packaged installer through the shipped `-UseCachedWslImage` option. It requires the first install to complete with the managed `hacocoon` user, then explicitly terminates the WSL distribution, proves the existing Environment survives restart before any repair install can run, and finally proves reinstall/idempotency. The acceptance boundary includes WSL 2, systemd, Incus, the controller socket/service, `haco-host doctor`, and WSL login integration. Separate coverage keeps the opt-in interactive user-setup path available without making it the default install contract.
+The Windows gate builds the candidate ZIP, retains the trusted restore-only cache flow, and runs the packaged BAT with `-UseCachedWslImage`. It enters ordinary `wsl -d Hacocoon`, checks implemented product help/version, and writes a trusted-host file. It stops and reopens WSL before any installer rerun, then checks file and sudo-policy preservation across the second BAT. Root assertions are read-only: no product overrides, account/sudoers fixtures, test bridges, or mount repairs fill product gaps. The interactive account option is separate from the managed default.
 
 The native Ubuntu gate builds the candidate `hacocoon-ubuntu-amd64.tar.gz`, extracts it, executes the packaged `install-ubuntu.sh`, and requires the controller and trusted `haco-host` round trip to succeed while confirming the native login shell was not replaced.
 
-PR candidate packages are not public releases and therefore do not yet have release attestations. Candidate E2E can disable provenance only for that synthetic package; the release workflow independently signs and attests the exact architecture-specific payload that is published.
+PR candidates are not public releases. Bundled payload checksums are verified without a product environment override; the release workflow signs and attests the exact published package. Standalone downloads still require provenance verification by default.

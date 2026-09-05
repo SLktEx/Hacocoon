@@ -33,7 +33,8 @@ function Invoke-ElevatedWsl([string[]]$Arguments) {
     }
     Write-Step "Administrator approval is required only to create the dedicated Hacocoon WSL instance. Requesting UAC."
     try {
-        $process = Start-Process -FilePath $systemWsl -ArgumentList $Arguments -Verb RunAs -Wait -PassThru
+        $quotedArguments = @($Arguments | ForEach-Object { '"' + (($_ -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"' })
+        $process = Start-Process -FilePath $systemWsl -ArgumentList $quotedArguments -Verb RunAs -Wait -PassThru
     } catch {
         throw "Administrator approval was cancelled or elevation could not be started. The dedicated Hacocoon WSL instance was not created."
     }
@@ -63,6 +64,11 @@ function New-WslCaptureResult([int]$ExitCode, [object[]]$Stdout, [object]$Stderr
 }
 
 function Invoke-WslCapture([string[]]$Arguments) {
+    $nativePassing = Get-Variable PSNativeCommandArgumentPassing -ErrorAction SilentlyContinue
+    if ($null -eq $nativePassing -or $nativePassing.Value -eq 'Legacy') {
+        # PS 5.1 strips embedded quotes unless escaped for the native binder.
+        $Arguments = @($Arguments | ForEach-Object { $_ -replace '(\\*)"', '$1$1\"' })
+    }
     $stderrPath = [IO.Path]::GetTempFileName()
     $previousPreference = $ErrorActionPreference
     $stdout = @()
@@ -118,123 +124,6 @@ function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [swit
         "--user", "root",
         "--exec", "sh", "-eu", "-c", $script, "sh", $encoded, $Path
     )
-}
-
-function Get-SudoersPolicyFile([string]$Name) {
-    # Ubuntu 26.04 sudo-rs prefers /etc/sudoers-rs when it exists and otherwise
-    # falls back to /etc/sudoers. Manage only that effective policy instead of
-    # mutating both files and creating two sources of Hacocoon state.
-    foreach ($policy in @("/etc/sudoers-rs", "/etc/sudoers")) {
-        $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "test", "-f", $policy)
-        if ($probe.ExitCode -eq 0) { return $policy }
-        if ($probe.ExitCode -ne 1) {
-            throw "Failed to inspect sudo policy '$policy': $($probe.Stderr)"
-        }
-    }
-    throw "No supported sudo policy file exists in '$Name'."
-}
-
-function Remove-HacocoonSudoPolicyBlock([string]$Name, [string]$MarkerName) {
-    Assert-SafeName $MarkerName "sudo policy marker"
-    $policy = Get-SudoersPolicyFile $Name
-    $script = @'
-set -eu
-policy="$1"
-marker_name="$2"
-start="# BEGIN HACOCOON $marker_name"
-end="# END HACOCOON $marker_name"
-[ -f "$policy" ] || exit 0
-grep -Fxq "$start" "$policy" || exit 0
-tmp="$(mktemp)"
-trap 'rm -f "$tmp"' EXIT
-# Hacocoon blocks are always appended. Strip every complete block and also
-# recover an interrupted Hacocoon block at EOF. An unmatched END is not ours
-# to guess about, so fail closed in that case.
-awk -v start="$start" -v end="$end" '
-  BEGIN { skip=0 }
-  $0 == start { skip=1; next }
-  $0 == end {
-    if (!skip) exit 42
-    skip=0
-    next
-  }
-  !skip { print }
-' "$policy" > "$tmp"
-/usr/sbin/visudo -cf "$tmp" >/dev/null
-install -o root -g root -m 0440 "$tmp" "$policy"
-'@
-    $probe = Invoke-WslRootShellScript $Name $script @($policy, $MarkerName)
-    if ($probe.ExitCode -ne 0) {
-        throw "Failed to remove Hacocoon sudo block '$MarkerName' from '$policy' (exit $($probe.ExitCode)): $($probe.Stderr)"
-    }
-}
-
-function Remove-LegacyHacocoonSudoDropIn([string]$Name, [string]$RulePath) {
-    $script = @'
-set -eu
-rule_path="$1"
-rm -f "$rule_path"
-include_line="@include $rule_path"
-for policy in /etc/sudoers-rs /etc/sudoers; do
-  [ -f "$policy" ] || continue
-  grep -Fxq "$include_line" "$policy" || continue
-  tmp="$(mktemp)"
-  trap 'rm -f "$tmp"' EXIT
-  awk -v include_line="$include_line" '$0 != include_line { print }' "$policy" > "$tmp"
-  install -o root -g root -m 0440 "$tmp" "$policy"
-  rm -f "$tmp"
-  trap - EXIT
-done
-'@
-    $probe = Invoke-WslRootShellScript $Name $script @($RulePath)
-    if ($probe.ExitCode -ne 0) {
-        throw "Failed to remove legacy Hacocoon sudo drop-in '$RulePath' (exit $($probe.ExitCode)): $($probe.Stderr)"
-    }
-}
-
-function Set-HacocoonSudoPolicyBlock([string]$Name, [string]$MarkerName, [string]$Rule) {
-    Assert-SafeName $MarkerName "sudo policy marker"
-    $policy = Get-SudoersPolicyFile $Name
-    Remove-HacocoonSudoPolicyBlock $Name $MarkerName
-    $encodedRule = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Rule))
-    $script = @'
-set -eu
-policy="$1"
-marker_name="$2"
-rule_b64="$3"
-start="# BEGIN HACOCOON $marker_name"
-end="# END HACOCOON $marker_name"
-tmp="$(mktemp)"
-trap 'rm -f "$tmp"' EXIT
-cat "$policy" > "$tmp"
-printf '\n%s\n' "$start" >> "$tmp"
-printf '%s' "$rule_b64" | base64 -d >> "$tmp"
-printf '\n%s\n' "$end" >> "$tmp"
-# Never expose a partially-written sudo policy. Validate the complete candidate
-# first, then replace the active policy in one install(1) operation.
-/usr/sbin/visudo -cf "$tmp" >/dev/null
-install -o root -g root -m 0440 "$tmp" "$policy"
-'@
-    $probe = Invoke-WslRootShellScript $Name $script @($policy, $MarkerName, $encodedRule)
-    if ($probe.ExitCode -ne 0) {
-        throw "Failed to install Hacocoon sudo block '$MarkerName' in '$policy' atomically (exit $($probe.ExitCode)): $($probe.Stderr)"
-    }
-    return $policy
-}
-
-function Add-HacocoonBootstrapSudoRule([string]$Name, [string]$LoginUser) {
-    Remove-LegacyHacocoonSudoDropIn $Name "/etc/sudoers.d/hacocoon-bootstrap"
-    return Set-HacocoonSudoPolicyBlock $Name "BOOTSTRAP" "$LoginUser ALL=(ALL:ALL) NOPASSWD: ALL"
-}
-
-function Remove-HacocoonBootstrapSudoRule([string]$Name) {
-    Remove-HacocoonSudoPolicyBlock $Name "BOOTSTRAP"
-    Remove-LegacyHacocoonSudoDropIn $Name "/etc/sudoers.d/hacocoon-bootstrap"
-}
-
-function Set-HacocoonLoginSudoRule([string]$Name, [string]$LoginUser, [string]$Haco) {
-    Remove-LegacyHacocoonSudoDropIn $Name "/etc/sudoers.d/hacocoon-login"
-    return Set-HacocoonSudoPolicyBlock $Name "LOGIN" "$LoginUser ALL=(ALL:ALL) NOPASSWD: $Haco host ensure, $Haco host shell"
 }
 
 function Get-InstalledDistros {
@@ -331,16 +220,13 @@ function Get-WslDefaultUser([string]$Name) {
         throw "Unable to determine the default Linux user in '$Name'."
     }
     $candidate = $probe.Stdout
-    Assert-SafeName $candidate "WSL login user"
+    Assert-LoginUserName $candidate
     return $candidate
 }
 
 function Get-WslLoginUser([string]$Name) {
-    $candidate = $env:HACO_BOOTSTRAP_LOGIN_USER
-    if ([string]::IsNullOrWhiteSpace($candidate)) {
-        $candidate = Get-WslDefaultUser $Name
-    }
-    Assert-SafeName $candidate "WSL login user"
+    $candidate = Get-WslDefaultUser $Name
+    Assert-LoginUserName $candidate
     if ($candidate -eq "root") {
         throw "The dedicated WSL instance still defaults to root. Re-run with -InteractiveUserSetup or let the installer create the managed '$ManagedLoginUser' user."
     }
@@ -349,6 +235,12 @@ function Get-WslLoginUser([string]$Name) {
         throw "WSL login user '$candidate' does not exist in '$Name'."
     }
     return $candidate
+}
+
+function Assert-LoginUserName([string]$Value) {
+    if ($Value -notmatch '^[A-Za-z_][A-Za-z0-9_.-]{0,63}$') {
+        throw "WSL login user contains unsupported characters."
+    }
 }
 
 function Set-WslDefaultUser([string]$Name, [string]$LoginUser) {
@@ -422,12 +314,10 @@ function Ensure-ManagedWslLoginUser([string]$Name) {
         }
     }
 
-    # The managed WSL account is not a password-login account. Hacocoon only
-    # grants the narrow post-install sudo rule needed to enter haco-host.
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/usermod", "--lock", $ManagedLoginUser)
-    if ($probe.ExitCode -ne 0) {
-        throw "Failed to lock password login for managed WSL user '$ManagedLoginUser'."
-    }
+    # useradd creates a locked-password account by default. Never reset an
+    # existing account's password on retry; normal WSL entry needs no password.
+    $probe = Invoke-WslRootShellScript $Name '[ "$(id -u -- "$1")" -gt 0 ] && [ "$(id -g -- "$1")" -gt 0 ]' @($ManagedLoginUser)
+    if ($probe.ExitCode -ne 0) { throw "Managed login user must have non-root UID and GID." }
 
     Set-WslDefaultUser $Name $ManagedLoginUser
     & wsl.exe --terminate $Name | Out-Null
@@ -439,6 +329,49 @@ function Ensure-ManagedWslLoginUser([string]$Name) {
         throw "Managed WSL default user setup failed: expected '$ManagedLoginUser', got '$actual'."
     }
     return $ManagedLoginUser
+}
+
+function Configure-ManagedWslOobe([string]$Name, [string]$LoginUser) {
+    # The default managed-account path owns account preparation. Do not leave
+    # Ubuntu account creation/metrics prompts pending at normal WSL entry.
+    # InteractiveUserSetup retains Ubuntu's original OOBE unchanged.
+    $script = @'
+set -eu
+uid="$(id -u -- "$1")"
+[ "$uid" -gt 0 ]
+config=/etc/wsl-distribution.conf
+[ -f "$config" ] && [ ! -L "$config" ]
+[ "$(stat -Lc '%u' "$config")" = 0 ]
+[ -z "$(find "$config" -perm /022 -print -quit)" ]
+tmp="$(mktemp /etc/.hacocoon-oobe.XXXXXX)"
+trap 'rm -f "$tmp"' EXIT
+# BEGIN MANAGED OOBE TRANSFORM
+awk -v uid="$uid" '
+  /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+    in_oobe = ($0 ~ /^[[:space:]]*\[oobe\][[:space:]]*$/)
+    if (in_oobe) sections++
+    print; next
+  }
+  in_oobe && /^[[:space:]]*command[[:space:]]*=/ {
+    value=$0; sub(/^[^=]*=[[:space:]]*/, "", value); sub(/[[:space:]]*$/, "", value)
+    if (value != "" && value != "/usr/lib/wsl/wsl-setup") bad=1
+    commands++; print "command="; next
+  }
+  in_oobe && /^[[:space:]]*defaultUid[[:space:]]*=/ {
+    ids++; print "defaultUid=" uid; next
+  }
+  { print }
+  END { if (bad || sections != 1 || commands != 1 || ids != 1) exit 1 }
+' "$config" > "$tmp"
+# END MANAGED OOBE TRANSFORM
+chown root:root "$tmp"
+chmod 0644 "$tmp"
+mv -fT "$tmp" "$config"
+'@
+    $probe = Invoke-WslRootShellScript $Name $script @($LoginUser)
+    if ($probe.ExitCode -ne 0) {
+        throw "Managed WSL first-launch configuration failed; existing distribution configuration was preserved. Use -InteractiveUserSetup for a custom Ubuntu OOBE."
+    }
 }
 
 function Complete-InteractiveWslUserSetup([string]$Name) {
@@ -455,31 +388,24 @@ function Complete-InteractiveWslUserSetup([string]$Name) {
     return Get-WslLoginUser $Name
 }
 
-function Enable-BootstrapSudo([string]$Name, [string]$LoginUser) {
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sh", "-c", "command -v sudo >/dev/null 2>&1")
-    if ($probe.ExitCode -ne 0) {
-        Write-Step "Installing sudo bootstrap dependency"
-        $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "apt-get", "update")
-        if ($probe.ExitCode -ne 0) { throw "Failed to update apt metadata while bootstrapping sudo." }
-        $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "apt-get", "install", "-y", "sudo")
-        if ($probe.ExitCode -ne 0) { throw "Failed to install sudo bootstrap dependency." }
+function Initialize-WslLoginUser([string]$Name, [bool]$Created) {
+    $defaultUser = Get-WslDefaultUser $Name
+    if ($InteractiveUserSetup) {
+        if ($defaultUser -eq "root") {
+            $loginUser = Complete-InteractiveWslUserSetup $Name
+        } else {
+            $loginUser = Get-WslLoginUser $Name
+        }
+    } elseif ($Created -or $defaultUser -eq "root") {
+        $loginUser = Ensure-ManagedWslLoginUser $Name
+    } else {
+        # Preserve already-configured non-root users when upgrading older installs.
+        $loginUser = Get-WslLoginUser $Name
     }
-
-    # install.sh intentionally runs as the ordinary workspace owner. Give that
-    # user temporary passwordless sudo only while the trusted installer runs.
-    # Write a marked rule directly into the active policy file(s), prove it with
-    # a real non-interactive sudo command, then remove it in finally.
-    $policySet = Add-HacocoonBootstrapSudoRule $Name $LoginUser
-    Write-Step "Validating temporary sudo rule through policy files: $policySet"
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", "/usr/bin/true")
-    if ($probe.ExitCode -ne 0) {
-        $policy = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "sudo", "-l", "-U", $LoginUser)
-        throw "Temporary installer sudo rule is not effective for '$LoginUser' after updating policy files '$policySet': $($probe.Stderr) Policy: $($policy.Stdout) $($policy.Stderr)"
+    if (-not $InteractiveUserSetup -and $loginUser -eq $ManagedLoginUser) {
+        Configure-ManagedWslOobe $Name $loginUser
     }
-}
-
-function Disable-BootstrapSudo([string]$Name) {
-    Remove-HacocoonBootstrapSudoRule $Name
+    return $loginUser
 }
 
 function Get-OsReleaseValue([string]$Content, [string]$Key) {
@@ -634,12 +560,6 @@ function Configure-WslPost([string]$Name, [string]$LoginUser) {
     }
     if ($probe.ExitCode -ne 0) { throw "Failed to register Hacocoon WSL login shell: $($probe.Stderr)" }
 
-    $policySet = Set-HacocoonLoginSudoRule $Name $LoginUser $haco
-    $probe = Invoke-WslCapture @("--distribution", $Name, "--user", $LoginUser, "--exec", "sudo", "-n", $haco, "host", "ensure")
-    if ($probe.ExitCode -ne 0) {
-        throw "Narrow Hacocoon WSL sudo rule is not effective through policy files '$policySet': $($probe.Stderr)"
-    }
-
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "/usr/sbin/usermod", "-s", $LoginShell, $LoginUser)
     if ($probe.ExitCode -ne 0) { throw "Failed to configure Hacocoon WSL login shell for '$LoginUser'." }
 
@@ -700,22 +620,9 @@ if ($probe.ExitCode -ne 0) {
     throw "'$InstanceName' exists but is not ready."
 }
 
-$defaultUser = Get-WslDefaultUser $InstanceName
-if ($InteractiveUserSetup) {
-    if ($defaultUser -eq "root") {
-        $loginUser = Complete-InteractiveWslUserSetup $InstanceName
-    } else {
-        $loginUser = Get-WslLoginUser $InstanceName
-    }
-} elseif ($createdInstance -or $defaultUser -eq "root") {
-    $loginUser = Ensure-ManagedWslLoginUser $InstanceName
-} else {
-    # Preserve already-configured non-root users when upgrading older installs.
-    $loginUser = Get-WslLoginUser $InstanceName
-}
-
 # pre
 Assert-UbuntuBaseline $InstanceName
+$loginUser = Initialize-WslLoginUser $InstanceName $createdInstance
 Enable-WslSystemd $InstanceName
 $arch = Get-WslArch $InstanceName
 $archiveName = "haco_linux_$arch.tar.gz"
@@ -738,31 +645,16 @@ if ($probe.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($linuxAssetRoot)) {
 $skipIncusValue = if ($SkipIncus) { "1" } else { "0" }
 $grantIncusAdminValue = if ($GrantIncusAdmin) { "1" } else { "0" }
 $requireProvenance = if ($env:HACO_REQUIRE_PROVENANCE) { $env:HACO_REQUIRE_PROVENANCE } else { "1" }
-$mainFailure = $null
-try {
-    Enable-BootstrapSudo $InstanceName $loginUser
-    Write-Step "Running common Ubuntu install.sh inside '$InstanceName'"
-    & wsl.exe --distribution $InstanceName --user $loginUser --exec env `
-        "HACO_BUNDLE_ROOT=$linuxAssetRoot" `
-        "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue" `
-        "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue" `
-        "HACO_REQUIRE_PROVENANCE=$requireProvenance" `
-        sh "$linuxAssetRoot/install.sh" $resolvedVersion
-    if ($LASTEXITCODE -ne 0) {
-        throw "Common Hacocoon Ubuntu installation failed inside WSL."
-    }
-} catch {
-    $mainFailure = $_
-} finally {
-    try {
-        Disable-BootstrapSudo $InstanceName
-    } catch {
-        if ($null -eq $mainFailure) { throw }
-        Write-Warning "Bootstrap sudo cleanup also failed after the installer error: $($_.Exception.Message)"
-    }
-}
-if ($null -ne $mainFailure) {
-    throw $mainFailure
+Write-Step "Running common Ubuntu install.sh inside '$InstanceName'"
+& wsl.exe --distribution $InstanceName --user root --exec env `
+    "HACO_INSTALL_USER=$loginUser" `
+    "HACO_BUNDLE_ROOT=$linuxAssetRoot" `
+    "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue" `
+    "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue" `
+    "HACO_REQUIRE_PROVENANCE=$requireProvenance" `
+    sh "$linuxAssetRoot/install.sh" $resolvedVersion
+if ($LASTEXITCODE -ne 0) {
+    throw "Common Hacocoon Ubuntu installation failed inside WSL."
 }
 Assert-SystemdActive $InstanceName
 

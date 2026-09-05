@@ -131,6 +131,10 @@ jobs:
           python -m py_compile ./tools/windows-installer-user-path-e2e.py ./tools/windows-installer-restart-e2e.py ./tools/windows-installer-cached-restart-e2e.py
           if ($LASTEXITCODE -ne 0) { throw "Windows user-path drivers failed syntax validation." }
 
+      - name: Verify Windows installer components on PowerShell 5.1
+        shell: powershell
+        run: ./tools/test_windows_installer.ps1
+
       - name: Reject Hacocoon test overrides before user path
         shell: pwsh
         run: |
@@ -146,7 +150,7 @@ jobs:
       #   or direct Incus mutation may substitute for a user action.
       # - This regression deliberately includes the exact Windows lifecycle action
       #   `wsl --terminate Hacocoon` after the first successful install and before
-      #   any reinstall. Hacocoon must restart and serve ordinary haco commands
+      #   any reinstall. Hacocoon must restart and serve implemented haco commands
       #   without install-windows.bat getting a chance to repair state first.
       # - The shipped -UseCachedWslImage option remains part of the repeated
       #   validation path, using only a trusted restored cache or its verified
@@ -155,7 +159,8 @@ jobs:
       #   inspect the resulting WSL/systemd/Incus/Btrfs/loop state. Assertions may
       #   use root when required to observe state, but must never create, repair,
       #   restart, remount, attach, detach, delete, or otherwise mutate product
-      #   state.
+      #   state. The reset CLI currently has help/version only. Trusted-host file
+      #   retention here does not establish Environment/Workspace retention or SSH.
       - name: Exercise cached install, terminate/restart, and reinstall user path
         shell: pwsh
         run: |
