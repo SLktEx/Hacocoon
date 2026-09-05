@@ -4,6 +4,7 @@ param(
     [string]$BaseDistro = "Ubuntu-26.04",
     [string]$HacocoonVersion = "latest",
     [switch]$WebDownload,
+    [switch]$UseCachedWslImage,
     [switch]$SkipIncus,
     [switch]$GrantIncusAdmin
 )
@@ -151,6 +152,55 @@ function Assert-WslSupported {
     if ($LASTEXITCODE -ne 0) {
         throw "This WSL installation is too old. Update WSL with 'wsl --update'."
     }
+}
+
+function Get-CachedUbuntuWslImage {
+    $cachePath = Join-Path $PSScriptRoot "ubuntu.wsl"
+    if (Test-Path -LiteralPath $cachePath -PathType Leaf) {
+        Write-Step "Using cached Ubuntu WSL image '$cachePath'"
+        return (Resolve-Path -LiteralPath $cachePath).Path
+    }
+
+    Write-Step "Cached Ubuntu WSL image not found; downloading Ubuntu-26.04"
+    $distributionInfoUrl = "https://raw.githubusercontent.com/microsoft/WSL/master/distributions/DistributionInfo.json"
+    try {
+        $distributionInfo = Invoke-RestMethod -Uri $distributionInfoUrl -UseBasicParsing
+    } catch {
+        throw "Failed to load WSL distribution metadata from '$distributionInfoUrl': $($_.Exception.Message)"
+    }
+
+    $ubuntu = @($distributionInfo.ModernDistributions.Ubuntu | Where-Object { $_.Name -eq "Ubuntu-26.04" }) | Select-Object -First 1
+    if ($null -eq $ubuntu) {
+        throw "Ubuntu-26.04 is not present in Microsoft's WSL distribution metadata."
+    }
+
+    $osArch = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+    $asset = switch ($osArch) {
+        "X64" { $ubuntu.Amd64Url }
+        "Arm64" { $ubuntu.Arm64Url }
+        default { throw "Unsupported Windows architecture '$osArch' for cached Ubuntu WSL image download." }
+    }
+    if ($null -eq $asset -or [string]::IsNullOrWhiteSpace([string]$asset.Url) -or [string]::IsNullOrWhiteSpace([string]$asset.Sha256)) {
+        throw "Ubuntu-26.04 WSL metadata does not contain a download URL and SHA256 for '$osArch'."
+    }
+
+    $expectedSha256 = ([string]$asset.Sha256).Trim().ToLowerInvariant() -replace '^0x', ''
+    $temporaryPath = "$cachePath.download"
+    Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
+    try {
+        Write-Step "Downloading Ubuntu-26.04 WSL image to '$cachePath'"
+        Invoke-WebRequest -Uri ([string]$asset.Url) -OutFile $temporaryPath -UseBasicParsing
+        $actualSha256 = (Get-FileHash -LiteralPath $temporaryPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualSha256 -ne $expectedSha256) {
+            throw "Downloaded Ubuntu-26.04 WSL image SHA256 mismatch (expected $expectedSha256, got $actualSha256)."
+        }
+        Move-Item -LiteralPath $temporaryPath -Destination $cachePath -Force
+    } catch {
+        Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
+        throw
+    }
+
+    return (Resolve-Path -LiteralPath $cachePath).Path
 }
 
 function Get-WslLoginUser([string]$Name) {
@@ -342,6 +392,12 @@ function Configure-WslPost([string]$Name, [string]$LoginUser) {
 Assert-SafeName $InstanceName "WSL instance name"
 Assert-SafeName $BaseDistro "WSL base distribution"
 if ($HacocoonVersion -ne "latest") { Assert-ReleaseTag $HacocoonVersion }
+if ($UseCachedWslImage -and $BaseDistro -ne "Ubuntu-26.04") {
+    throw "-UseCachedWslImage currently supports only -BaseDistro Ubuntu-26.04."
+}
+if ($UseCachedWslImage -and $WebDownload) {
+    throw "-UseCachedWslImage and -WebDownload cannot be used together."
+}
 
 if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
     throw "wsl.exe is unavailable. This installer requires Windows with current WSL."
@@ -350,9 +406,15 @@ Assert-WslSupported
 
 $installed = @(Get-InstalledDistros)
 if (-not ($installed -contains $InstanceName)) {
-    Write-Step "Creating dedicated WSL instance '$InstanceName' from '$BaseDistro'"
-    $args = @("--install", $BaseDistro, "--name", $InstanceName, "--no-launch")
-    if ($WebDownload) { $args += "--web-download" }
+    if ($UseCachedWslImage) {
+        $wslImagePath = Get-CachedUbuntuWslImage
+        Write-Step "Creating dedicated WSL instance '$InstanceName' from cached Ubuntu-26.04 image"
+        $args = @("--install", "--from-file", $wslImagePath, "--name", $InstanceName, "--no-launch")
+    } else {
+        Write-Step "Creating dedicated WSL instance '$InstanceName' from '$BaseDistro'"
+        $args = @("--install", $BaseDistro, "--name", $InstanceName, "--no-launch")
+        if ($WebDownload) { $args += "--web-download" }
+    }
 
     if (Test-Administrator) {
         & wsl.exe @args
