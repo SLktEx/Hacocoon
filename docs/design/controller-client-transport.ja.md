@@ -8,6 +8,8 @@ Status: **partial**。Local Unix domain socket protocol、Physical Host controll
 
 現在のreset CLI境界: 製品 `haco` はhelp/versionとWSL login aliasを持ち、このpageの旧 `haco env ...` 記述は保持している移行CLIの機能を指す。[実装status](../IMPLEMENTATION_STATUS.ja.md)を参照。
 
+WSLは有効なcontroller serviceがsocketをbindする前にlogin shellを開くことがある。login aliasは読み取り専用pingで最大30秒待ち、transport未準備だけをretryする。protocol・operationの拒否はretryせず、clientが第二のcontrollerを起動したりservice状態を変更したりしない。この起動待ち期限は対話sessionの寿命を制限しない。
+
 対話sessionはremote shell終了後にlocal stdinが閉じられるまで待ってはいけない。Incus adapterは子processへ専用OS stdin pipeを渡してclosureを所有し、controllerはprocess終了結果の記録後にclient connectionを閉じる。outputをdrainし、実際のexit statusを保持する。Windows受入で、以前のsocket reader直接指定では `exit` 後も終了待ちする不具合が見つかった。component testはclient入力を開いたまま正常・非zero終了を確認する。WSL login aliasも実際のterminal fdを要求し、`/dev/null` のようなcharacter deviceからtrusted-host shellを開始しない。
 
 Hacocoon Clientはraw Incus authorityを直接受け取らず、trusted Physical Host controllerにEnvironment / Host-authority operationを要求します。

@@ -8,6 +8,8 @@ Status: **partial**. The local Unix-domain-socket protocol, Physical Host contro
 
 Current reset-CLI boundary: product `haco` exposes help/version and its WSL login alias; older `haco env ...` descriptions on this page refer to the retained migration CLI. See [implementation status](../IMPLEMENTATION_STATUS.md).
 
+WSL may open the login shell before the enabled controller service has bound its socket. The login alias waits up to 30 seconds using read-only ping calls, retrying only transport unavailability. Protocol/operation rejection is not retried; the client never starts another controller or changes service state. This startup timeout does not limit the interactive session's lifetime.
+
 Interactive completion must not wait for the user to close local stdin after the remote shell exits. The Incus adapter supplies a dedicated OS stdin pipe to the child process and owns its closure, while the controller closes the client connection after publishing process completion. Output is drained and the actual exit status is preserved. A Windows acceptance run found the previous socket-reader assignment blocked process completion after `exit`; component tests keep client input open through both successful and nonzero process exit. The WSL login alias also requires actual terminal file descriptors, so a character device such as `/dev/null` cannot start a trusted-host shell.
 
 Hacocoon clients ask the trusted Physical Host controller to perform Environment and Host-authority operations instead of receiving direct Incus authority.

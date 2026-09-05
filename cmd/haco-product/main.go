@@ -3,13 +3,16 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/buildinfo"
+	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/terminalbridge"
 	"golang.org/x/term"
@@ -133,6 +136,14 @@ func runLoginShim(args []string) error {
 		return fmt.Errorf("open Hacocoon controller client: %w", err)
 	}
 	ctx := context.Background()
+	readyCtx, cancelReady := context.WithTimeout(ctx, 30*time.Second)
+	defer cancelReady()
+	if err := waitForController(readyCtx, func(ctx context.Context) error {
+		_, err := client.Ping(ctx)
+		return err
+	}); err != nil {
+		return fmt.Errorf("wait for Physical Host controller: %w", err)
+	}
 	stream, err := client.OpenTrustedHostShell(ctx)
 	if err != nil {
 		return fmt.Errorf("enter trusted haco-host: %w", err)
@@ -140,6 +151,27 @@ func runLoginShim(args []string) error {
 	defer stream.Close()
 	fmt.Fprintln(os.Stderr, "Entering trusted haco-host. Host authority is available here; use an Environment for ordinary development work.")
 	return terminalbridge.Bridge(ctx, stream, os.Stdin, os.Stdout)
+}
+
+// WSL can start a login shell before its enabled systemd controller is ready.
+// Retry only transport unavailability through a read-only probe; never create
+// another controller, restart services, or retry a rejected host operation.
+func waitForController(ctx context.Context, ping func(context.Context) error) error {
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := ping(ctx); !errors.Is(err, control.ErrUnavailable) {
+			return err
+		}
+		timer := time.NewTimer(100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 func stdioIsInteractive() bool {
