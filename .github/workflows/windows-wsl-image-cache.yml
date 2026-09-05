@@ -1,0 +1,69 @@
+name: windows-wsl-image-cache
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/install-windows.ps1"
+      - ".github/workflows/windows-wsl-image-cache.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  warm-ubuntu-wsl-image:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout trusted main source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Prepare WSL image cache directory
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $cacheRoot = Join-Path $env:RUNNER_TEMP "hacocoon-wsl-cache"
+          New-Item -ItemType Directory -Path $cacheRoot -Force | Out-Null
+          Copy-Item -LiteralPath "scripts/install-windows.ps1" -Destination (Join-Path $cacheRoot "install-windows.ps1") -Force
+          "HACO_WSL_CACHE_ROOT=$cacheRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Restore or reserve Ubuntu 26.04 WSL image cache
+        id: wsl-image-cache
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: ${{ runner.temp }}\hacocoon-wsl-cache\ubuntu.wsl
+          key: hacocoon-wsl-${{ runner.os }}-${{ runner.arch }}-ubuntu-26.04-v1
+
+      - name: Download and verify Ubuntu 26.04 WSL image on cache miss
+        if: steps.wsl-image-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Join-Path $env:HACO_WSL_CACHE_ROOT "install-windows.ps1"
+          & $installer -UseCachedWslImage -InstanceName "Hacocoon-Cache-Warm"
+
+      - name: Verify cache file exists
+        shell: pwsh
+        run: |
+          $cachePath = Join-Path $env:HACO_WSL_CACHE_ROOT "ubuntu.wsl"
+          if (-not (Test-Path -LiteralPath $cachePath -PathType Leaf)) {
+            throw "Ubuntu 26.04 WSL cache file was not created or restored."
+          }
+          Write-Host "Ubuntu WSL image cache: $cachePath"
+          Write-Host "SHA256: $((Get-FileHash -LiteralPath $cachePath -Algorithm SHA256).Hash.ToLowerInvariant())"
+
+      - name: Remove cache-warm WSL distribution
+        if: always()
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $instance = "Hacocoon-Cache-Warm"
+          $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
+          if ($installed -contains $instance) {
+            wsl.exe --terminate $instance 2>$null
+            wsl.exe --unregister $instance
+          }
+          $global:LASTEXITCODE = 0
