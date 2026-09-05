@@ -4,7 +4,7 @@ Status: partial.
 
 現在のCLI境界: 製品 `haco` はhelp/version・controller経由の `doctor` とWSL login aliasを実装する。以下の保持しているlifecycle commandは[CLI移行](../CLI_MIGRATION.md)中の一時的な `hacoq` の機能であり、新製品commandの実装完了を意味しない。
 
-Windows受入の実測（`af3065a`、2026-09-06）: 未変更のpackaged BATを `-UseCachedWslImage` で実行し、現在のinstallへの適用・同じ版の再実行とも終了0。installerが所有hostをprofileなしの `haco-host0` へ移行した。通常入口、Hacocoonだけを停止した後の入口、controller疎通、実際のprocess終了0、DNS・経路・HTTPS 200を確認。trusted-host file・UUID・account・全sudo policy hashを保持した。この実機はFORWARD ACCEPTでDOCKER-USER chainはなく、DROP下の共存は別の隔離Linux packet testだけで確認した。この候補のfresh作成、Windows再起動、稼働中のfirewall再読込・起動順変更、Environment proxy制御、SSH、Workspace作業保持は未実行。 以前の候補は[実装状況](../IMPLEMENTATION_STATUS.ja.md)に記録する。
+現在のpackageのWindows受入と未確認項目は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。製品診断は[読み取り専用controller契約](controller-client-transport.ja.md#host診断)を使う。
 
 ## 概要
 

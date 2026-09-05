@@ -27,7 +27,7 @@ Controller経由の `haco doctor` は、このcheckpoint内で読み取り専用
 
 専用trusted-host networkの修正は現在のcheckpoint内で扱う。所有権、profile非依存のfresh作成、限定したDocker転送、データを保持する現在hostの移行を実装した。現在のinstallへのpackaged受入は成功し、fresh受入はpending。
 
-Windows受入の実測（`af3065a`、2026-09-06）: 未変更のpackaged BATを `-UseCachedWslImage` で実行し、現在のinstallへの適用・同じ版の再実行とも終了0。installerが所有hostをprofileなしの `haco-host0` へ移行した。通常入口、Hacocoonだけを停止した後の入口、controller疎通、実際のprocess終了0、DNS・経路・HTTPS 200を確認。trusted-host file・UUID・account・全sudo policy hashを保持した。この実機はFORWARD ACCEPTでDOCKER-USER chainはなく、DROP下の共存は別の隔離Linux packet testだけで確認した。この候補のfresh作成、Windows再起動、稼働中のfirewall再読込・起動順変更、Environment proxy制御、SSH、Workspace作業保持は未実行。 以前の候補は[実装状況](../IMPLEMENTATION_STATUS.ja.md)に記録する。
+`7798b57` は現在のinstallで、同じ版のcached BAT再実行・通常/停止後の入口・controller/client build全体の一致・データ保持のWindows受入が成功した。現在のcheckpoint内で扱い、freshや広いprovider受入はpending。[実装status](../IMPLEMENTATION_STATUS.ja.md)に証拠の範囲を記録する。
 
 | Version | Gate | `main` の状態 |
 |---|---|---|

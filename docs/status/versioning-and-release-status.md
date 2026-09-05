@@ -25,7 +25,7 @@ Controller-backed `haco doctor` adds read-only infrastructure diagnostics within
 
 The dedicated trusted-host networking correction stays within the current checkpoint. Ownership, profile-independent fresh creation, scoped Docker forwarding and data-preserving current-host migration are implemented. Current-install packaged acceptance passed; fresh acceptance remains pending.
 
-Observed Windows acceptance (`af3065a`, 2026-09-06): the unmodified packaged BAT with `-UseCachedWslImage` completed current-install application and same-version rerun with exit 0. The installer migrated the owned host to `haco-host0` with no profiles. Ordinary entry, entry after terminating only Hacocoon, controller communication, actual process exit 0, DNS/routes and HTTPS 200 passed. The trusted-host file, UUID, account and all sudo-policy hashes were retained. This host had FORWARD ACCEPT and no DOCKER-USER chain; DROP coexistence passed only in the separate isolated Linux packet test. Fresh creation of this candidate, Windows reboot, live firewall reload/startup ordering, Environment proxy enforcement, SSH and Workspace work retention remain untested. Earlier candidates are recorded in [implementation status](../IMPLEMENTATION_STATUS.md).
+Current-install Windows acceptance passed on `7798b57`, including same-version cached BAT rerun, ordinary/cold entry, exact controller/client build identity and data retention. This stays within the current checkpoint; fresh and broader provider acceptance remain pending. See [implementation status](../IMPLEMENTATION_STATUS.md) for the evidence boundary.
 
 **Status legend:** ✅ implemented · 🧪 partial / foundation · 🚧 planned/deferred
 

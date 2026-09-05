@@ -2,7 +2,7 @@
 
 Status: **partial**。固定管理accountのbootstrapはimplemented、実Windowsでのinstall/network/restart受入は[実装status](IMPLEMENTATION_STATUS.ja.md)で別管理する。製品 `haco` は現在help/version・controller経由の `doctor` とWSL login aliasを持つ。保持しているlifecycle commandは[CLI移行](CLI_MIGRATION.md)中の一時的な `hacoq` の機能である。
 
-Windows受入の実測（`af3065a`、2026-09-06）: 未変更のpackaged BATを `-UseCachedWslImage` で実行し、現在のinstallへの適用・同じ版の再実行とも終了0。installerが所有hostをprofileなしの `haco-host0` へ移行した。通常入口、Hacocoonだけを停止した後の入口、controller疎通、実際のprocess終了0、DNS・経路・HTTPS 200を確認。trusted-host file・UUID・account・全sudo policy hashを保持した。この実機はFORWARD ACCEPTでDOCKER-USER chainはなく、DROP下の共存は別の隔離Linux packet testだけで確認した。この候補のfresh作成、Windows再起動、稼働中のfirewall再読込・起動順変更、Environment proxy制御、SSH、Workspace作業保持は未実行。 以前の候補は[実装状況](IMPLEMENTATION_STATUS.ja.md)に記録する。
+Windows受入の実測（`7798b57`、2026-09-06）: 未変更のpackaged `install-windows.bat -UseCachedWslImage` は現在のinstallへの適用・同じ版の再実行とも終了0。通常入口と明示停止後のWSL入口、両clientでのdoctorの5項目成功とcontroller build全体の一致、実際のshell/process終了0を確認した。既存file・trusted UUID・account/password状態・全sudo policy hash・Incus Btrfs配置・live mount policyを保持し、Physical Hostとtrusted-hostのDNS・経路・HTTPSも成功。この候補のfresh作成、Windows再起動、実Docker/firewall起動順、Environment proxy制御、SSH、Workspace作業保持は未実行。[実装status](IMPLEMENTATION_STATUS.ja.md)に検証範囲とfirewall観測の変化を記録する。
 
 Common phaseはminimal初期化をせずdaemonの準備だけを確認する。Btrfs poolとtrusted-host bridgeはadapterが明示的に所有し、fresh installで未使用default directory poolを作らない。既存poolは保持し、現在のowned default-profile hostはデータを削除せず限定したNIC移行を行う。[trusted network](design/trusted-host.ja.md#専用trusted-host-network)と[ADR 0005](adr/0005-trusted-host-network-ownership.md)を参照。現在のinstallへのpackaged受入は成功し、fresh受入はpending。
 
