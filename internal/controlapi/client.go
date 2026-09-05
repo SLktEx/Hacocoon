@@ -56,6 +56,43 @@ func (c *Client) EnvironmentStatus(ctx context.Context, environment string) (cor
 	return response, err
 }
 
+func (c *Client) EnvironmentConnections(ctx context.Context, environment string) ([]core.ClientConnection, error) {
+	var response []core.ClientConnection
+	err := c.wire.Call(ctx, MethodEnvironmentConnections, EnvironmentNameRequest{Environment: environment}, &response)
+	if response == nil && err == nil {
+		response = []core.ClientConnection{}
+	}
+	return response, err
+}
+
+func (c *Client) ForwardEnvironment(ctx context.Context, environment string, request core.LocalPortRequest) (core.ClientConnection, error) {
+	var response core.ClientConnection
+	err := c.wire.Call(ctx, MethodEnvironmentForward, EnvironmentForwardRequest{
+		Environment: environment,
+		Protocol:    request.Protocol,
+		HostPort:    request.HostPort,
+		TargetPort:  request.TargetPort,
+	}, &response)
+	return response, err
+}
+
+func (c *Client) UnforwardEnvironment(ctx context.Context, environment, connectionID string) error {
+	return c.wire.Call(ctx, MethodEnvironmentUnforward, EnvironmentConnectionRequest{
+		Environment:  environment,
+		ConnectionID: connectionID,
+	}, nil)
+}
+
+func (c *Client) PrepareEnvironmentSSH(ctx context.Context, environment string, request core.SSHAccessRequest) (core.ClientConnection, error) {
+	var response core.ClientConnection
+	err := c.wire.Call(ctx, MethodEnvironmentSSH, EnvironmentSSHRequest{
+		Environment: environment,
+		PublicKey:   request.PublicKey,
+		HostPort:    request.HostPort,
+	}, &response)
+	return response, err
+}
+
 func (c *Client) ExecEnvironment(ctx context.Context, environment string, argv []string) (core.ExecutionResult, error) {
 	var response core.ExecutionResult
 	err := c.wire.Call(ctx, MethodEnvironmentExec, EnvironmentExecRequest{
