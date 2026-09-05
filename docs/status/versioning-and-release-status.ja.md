@@ -23,6 +23,8 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 
 ## 現在のcheckpoint status
 
+Controller経由の `haco doctor` は、このcheckpoint内で読み取り専用の基盤診断を追加する。repository実装とpackaged受入は[実装status](../IMPLEMENTATION_STATUS.ja.md)で区別する。
+
 専用trusted-host networkの修正は現在のcheckpoint内で扱う。所有権、profile非依存のfresh作成、限定したDocker転送、データを保持する現在hostの移行を実装した。現在のinstallへのpackaged受入は成功し、fresh受入はpending。
 
 Windows受入の実測（`af3065a`、2026-09-06）: 未変更のpackaged BATを `-UseCachedWslImage` で実行し、現在のinstallへの適用・同じ版の再実行とも終了0。installerが所有hostをprofileなしの `haco-host0` へ移行した。通常入口、Hacocoonだけを停止した後の入口、controller疎通、実際のprocess終了0、DNS・経路・HTTPS 200を確認。trusted-host file・UUID・account・全sudo policy hashを保持した。この実機はFORWARD ACCEPTでDOCKER-USER chainはなく、DROP下の共存は別の隔離Linux packet testだけで確認した。この候補のfresh作成、Windows再起動、稼働中のfirewall再読込・起動順変更、Environment proxy制御、SSH、Workspace作業保持は未実行。 以前の候補は[実装状況](../IMPLEMENTATION_STATUS.ja.md)に記録する。

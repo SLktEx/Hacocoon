@@ -37,6 +37,9 @@ func main() {
 	if err := controlapi.RegisterHost(server, app.Runtime); err != nil {
 		fail(err)
 	}
+	if err := controlapi.RegisterDoctor(server, app); err != nil {
+		fail(err)
+	}
 
 	path := control.SocketPath()
 	listener, err := controllerListener(path)

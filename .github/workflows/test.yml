@@ -76,6 +76,7 @@ jobs:
         run: |
           python3 tools/test_install_identity.py
           python3 tools/test_install_network.py
+          python3 tools/test_windows_user_path.py
           python3 tools/test_wsl_oobe_config.py
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:

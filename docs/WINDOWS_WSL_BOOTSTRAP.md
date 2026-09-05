@@ -1,6 +1,6 @@
 # Windows / WSL installation
 
-Status: **partial**. Managed-account bootstrap is implemented; real Windows install/network/restart acceptance is tracked separately in [implementation status](IMPLEMENTATION_STATUS.md). Product `haco` currently exposes help/version and its controller-backed WSL login alias. Retained lifecycle commands belong to temporary `hacoq` during [CLI migration](CLI_MIGRATION.md).
+Status: **partial**. Managed-account bootstrap is implemented; real Windows install/network/restart acceptance is tracked separately in [implementation status](IMPLEMENTATION_STATUS.md). Product `haco` currently exposes help/version, controller-backed `doctor`, and its WSL login alias. Retained lifecycle commands belong to temporary `hacoq` during [CLI migration](CLI_MIGRATION.md).
 
 Observed Windows acceptance (`af3065a`, 2026-09-06): the unmodified packaged BAT with `-UseCachedWslImage` completed current-install application and same-version rerun with exit 0. The installer migrated the owned host to `haco-host0` with no profiles. Ordinary entry, entry after terminating only Hacocoon, controller communication, actual process exit 0, DNS/routes and HTTPS 200 passed. The trusted-host file, UUID, account and all sudo-policy hashes were retained. This host had FORWARD ACCEPT and no DOCKER-USER chain; DROP coexistence passed only in the separate isolated Linux packet test. Fresh creation of this candidate, Windows reboot, live firewall reload/startup ordering, Environment proxy enforcement, SSH and Workspace work retention remain untested. Earlier candidates are recorded in [implementation status](IMPLEMENTATION_STATUS.md).
 
@@ -9,6 +9,10 @@ The common phase now checks daemon readiness without minimal initialization. The
 Hacocoon supports Ubuntu 26.04+ as its local Host baseline. On Windows it creates a dedicated Ubuntu WSL 2 distribution; on native Ubuntu it uses the host directly.
 
 The installer deliberately uses a **pre / main / post** split rather than pretending WSL and native Ubuntu are identical.
+
+## Diagnose an installed Host
+
+After ordinary `wsl -d Hacocoon` entry, run `haco doctor` or `haco doctor --json`. From Windows, `wsl -d Hacocoon --exec haco doctor --json` runs the same controller diagnostics as the ordinary WSL user. Doctor reports a stopped host without starting it. See [diagnostic scope and exit codes](design/controller-client-transport.md#host-diagnostics).
 
 ## Installation phases
 

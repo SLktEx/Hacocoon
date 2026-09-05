@@ -2,11 +2,11 @@
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product `haco` currently exposes help/version and its controller-backed WSL login alias. Environment lifecycle in the new product CLI, PTY control framing, port forwarding and remote transport remain planned.
+Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product `haco` currently exposes help/version, controller-backed `doctor`, and its controller-backed WSL login alias. Environment lifecycle in the new product CLI, PTY control framing, port forwarding and remote transport remain planned.
 
 ## Summary
 
-Current reset-CLI boundary: product `haco` exposes help/version and its WSL login alias; older `haco env ...` descriptions on this page refer to the retained migration CLI. See [implementation status](../IMPLEMENTATION_STATUS.md).
+Current reset-CLI boundary: product `haco` exposes help/version, controller-backed `doctor`, and its WSL login alias; older `haco env ...` descriptions on this page refer to the retained migration CLI. See [implementation status](../IMPLEMENTATION_STATUS.md).
 
 WSL may open the login shell before the enabled controller service has bound its socket. The login alias waits up to 30 seconds using read-only ping calls, retrying only transport unavailability. Protocol/operation rejection is not retried; the client never starts another controller or changes service state. This startup timeout does not limit the interactive session's lifetime.
 
@@ -100,6 +100,28 @@ The instance-side path intentionally lives outside `/run`: guest systemd commonl
 
 The supported WSL bootstrap then executes `haco-host doctor` inside the real trusted instance. Bootstrap fails before changing the user's automatic login shell if the round trip cannot reach the Physical Host controller.
 
+## Host diagnostics
+
+Status: **implemented**; packaged acceptance of this command is tracked separately in implementation status.
+
+`haco doctor` and `haco doctor --json` use the same `system.doctor` controller method on the Physical Host and inside trusted `haco-host`. Help/version remain standalone. The doctor response identifies the controller build and protocol and contains five ordered checks:
+
+| Check | What is observed |
+|---|---|
+| runtime | Incus API availability and trusted management access |
+| storage | The configured Btrfs pool and its configured mount policy |
+| trusted_host | Running owned host, explicit root/NIC, no inherited profiles, and the narrow controller endpoint/client mode |
+| trusted_network | The owned bridge's configured DNS, DHCP, NAT, routing and firewall policy |
+| trusted_connectivity | IPv4 DNS, a default route and HTTPS to the fixed public target github.com from the verified trusted host |
+
+The controller's provider adapter performs the checks. The client neither invokes `hacoq`/Incus nor constructs guest-local state. The RPC takes no paths, commands, targets or repair options. It cannot create/start a host, initialize storage, reconcile a NIC/firewall, or change service state. A stopped host is a failed check; connectivity is skipped when host/network ownership or configuration fails.
+
+Results use `ok`, `failed` or `skipped`. Exit 0 requires every check to pass; a failed/skipped check returns a report and exit 1, while usage errors return 2. Transport/protocol failure returns exit 1 with no successful JSON report. Missing, duplicate, unknown or malformed check results are rejected. Diagnostic summaries are bounded fixed predicates; raw backend/guest output and errors are not copied into the report. Failure logging uses the shared logger on stderr, leaving stdout for the text/JSON result.
+
+Each provider probe is bounded to five seconds, the server operation to 30 seconds and the CLI to 35 seconds. Interrupt/cancellation closes the client connection. No automatic repair or privileged fallback occurs. The fixed external GET uses no Host credentials or caller input. The guest probe clears inherited environment variables and disables curl's user configuration; credentials/proxy options from the interactive shell or `.curlrc` are not imported.
+
+A successful report is a point-in-time infrastructure check. Configured storage options are not proof of actual compression/COW or live mount behavior. Trusted-host connectivity is not acceptance of Environment proxy-only egress, SSH, Workspace retention, or firewall behavior across future reload/startup orders. The retained `haco-host doctor` is still a ping-only migration diagnostic.
+
 ## Protocol boundary
 
 Each connection starts with a versioned, size-bounded JSON envelope. Requests identify a method and whether the connection transitions into a bidirectional stream.
@@ -120,7 +142,7 @@ The client-only `haco-host` executable and the retained migration CLI `hacoq env
 
 ## General `haco` client namespace
 
-Product `haco` is the common user entry point on the WSL Physical Host and inside trusted `haco-host`. Its current help/version commands are standalone, and its WSL login alias calls the controller directly. It does not delegate to `hacoq`; unimplemented commands, including `haco host ensure` and `haco host shell`, fail explicitly.
+Product `haco` is the common user entry point on the WSL Physical Host and inside trusted `haco-host`. Its help/version commands are standalone; `doctor` and the WSL login alias call the controller directly. It does not delegate to `hacoq`; unimplemented commands, including `haco host ensure` and `haco host shell`, fail explicitly.
 
 The prior Environment namespace remains in temporary `hacoq`, while the typed controller API remains reusable. Rebuilding the product lifecycle commands must use that API without guest-local composition or Incus authority. The current installer still invokes `hacoq host ensure` directly for bootstrap provisioning; that migration dependency is separate from the new CLI and remains scheduled for removal.
 

@@ -2,7 +2,7 @@
 
 Status: partial.
 
-Current CLI boundary: product `haco` implements help/version and the WSL login alias. Retained lifecycle commands described below use temporary `hacoq` during [CLI migration](../CLI_MIGRATION.md); they do not describe implemented new product commands.
+Current CLI boundary: product `haco` implements help/version, controller-backed `doctor`, and the WSL login alias. Retained lifecycle commands described below use temporary `hacoq` during [CLI migration](../CLI_MIGRATION.md); they do not describe implemented new product commands.
 
 Observed Windows acceptance (`af3065a`, 2026-09-06): the unmodified packaged BAT with `-UseCachedWslImage` completed current-install application and same-version rerun with exit 0. The installer migrated the owned host to `haco-host0` with no profiles. Ordinary entry, entry after terminating only Hacocoon, controller communication, actual process exit 0, DNS/routes and HTTPS 200 passed. The trusted-host file, UUID, account and all sudo-policy hashes were retained. This host had FORWARD ACCEPT and no DOCKER-USER chain; DROP coexistence passed only in the separate isolated Linux packet test. Fresh creation of this candidate, Windows reboot, live firewall reload/startup ordering, Environment proxy enforcement, SSH and Workspace work retention remain untested. Earlier candidates are recorded in [implementation status](../IMPLEMENTATION_STATUS.md).
 

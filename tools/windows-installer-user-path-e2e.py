@@ -8,6 +8,7 @@ never prepare, repair, restart, remount, attach, detach, create, or delete state
 
 from __future__ import annotations
 
+import json
 import os
 import queue
 import secrets
@@ -244,7 +245,7 @@ def host_session(*, create: bool) -> None:
     sent_at = 0
     # Only the currently implemented product CLI is used. Environment/SSH
     # commands remain a separate gate until the reset CLI implements them.
-    commands = ["haco version --json", "haco help"]
+    commands = ["haco version --json", "haco help", "haco doctor --json && printf '%s\\n' HACO_DOCTOR_OK"]
     # Exercise the installer-created trusted-host network in the ordinary
     # shell. This is infrastructure egress, not Environment proxy acceptance.
     commands += [
@@ -273,13 +274,24 @@ def host_session(*, create: bool) -> None:
         raise RuntimeError("ordinary WSL entry did not reach haco-host and return normally")
     require_output(output, r"(?m)^kept-through-restart-and-rerun\s*$", phase="haco-host data")
     require_output(output, r'"version"\s*:', phase="product CLI")
+    require_output(output, r"^HACO_DOCTOR_OK\s*$", phase="product doctor")
     for check in ("DNS", "ROUTE", "HTTPS"):
         require_output(output, rf"^HACO_HOST_{check}_OK\s*$", phase="trusted-host network")
     if re.search(r"command not found|unknown command|permission denied", output, re.I):
         raise RuntimeError("ordinary host commands failed")
 
 
+def assert_doctor_report(output: str) -> None:
+    report = json.loads(output)
+    names = ["runtime", "storage", "trusted_host", "trusted_network", "trusted_connectivity"]
+    if report["protocol_version"] != 1 or not report["controller"]["commit"]:
+        raise RuntimeError("doctor returned no controller identity")
+    if [check["name"] for check in report["checks"]] != names or any(check["status"] != "ok" for check in report["checks"]):
+        raise RuntimeError("doctor checks did not all pass")
+
+
 def assert_host() -> None:
+    assert_doctor_report(observe("wsl.exe", "-d", INSTANCE, "--exec", "haco", "doctor", "--json"))
     if inspect_root("ps", "-p", "1", "-o", "comm=") != "systemd":
         raise RuntimeError("systemd is not PID 1")
     inspect_root("systemctl", "is-active", "--quiet", "haco-controller.service")

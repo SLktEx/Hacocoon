@@ -58,6 +58,8 @@ func run(args []string) int {
 		return 0
 	case "version":
 		return runVersion(args[1:])
+	case "doctor":
+		return runDoctor(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "haco: command %q is not available yet; run 'haco help'\n", args[0])
 		return 2
@@ -96,6 +98,7 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  haco <command>")
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "Commands:")
+	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
 	fmt.Fprintln(out, "  help       Show this help")
 	fmt.Fprintln(out, "  version    Show Hacocoon version information")
 	fmt.Fprintln(out)

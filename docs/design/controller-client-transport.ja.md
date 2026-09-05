@@ -2,11 +2,11 @@
 
 日本語 | [**English**](controller-client-transport.md)
 
-Status: **partial**。Local Unix domain protocol、Physical Host controller、trusted-host endpoint投影、client-only `haco-host`、typed Environment API、対話streamは実装済み。製品 `haco` は現在help/versionとcontroller-backed WSL login aliasを提供する。新CLIのEnvironment lifecycle、PTY制御、port forwarding、remote transportはplanned。
+Status: **partial**。Local Unix domain protocol、Physical Host controller、trusted-host endpoint投影、client-only `haco-host`、typed Environment API、対話streamは実装済み。製品 `haco` は現在help/version・controller経由の `doctor` とcontroller-backed WSL login aliasを提供する。新CLIのEnvironment lifecycle、PTY制御、port forwarding、remote transportはplanned。
 
 ## 概要
 
-現在のreset CLI境界: 製品 `haco` はhelp/versionとWSL login aliasを持ち、このpageの旧 `haco env ...` 記述は保持している移行CLIの機能を指す。[実装status](../IMPLEMENTATION_STATUS.ja.md)を参照。
+現在のreset CLI境界: 製品 `haco` はhelp/version・controller経由の `doctor` とWSL login aliasを持ち、このpageの旧 `haco env ...` 記述は保持している移行CLIの機能を指す。[実装status](../IMPLEMENTATION_STATUS.ja.md)を参照。
 
 WSLは有効なcontroller serviceがsocketをbindする前にlogin shellを開くことがある。login aliasは読み取り専用pingで最大30秒待ち、transport未準備だけをretryする。protocol・operationの拒否はretryせず、clientが第二のcontrollerを起動したりservice状態を変更したりしない。この起動待ち期限は対話sessionの寿命を制限しない。
 
@@ -100,6 +100,28 @@ Instance側socketを`/run`配下に置かないのは意図的です。Guest sys
 
 Supported WSL bootstrapはその後、実際のtrusted instance内で`haco-host doctor`を実行します。Physical Host controllerへのround tripが成功しない場合、normal userのautomatic login shellを変更する前にbootstrapを失敗させます。
 
+## Host診断
+
+Status: **implemented**。このcommandのpackaged受入は実装statusで別途追跡する。
+
+`haco doctor` と `haco doctor --json` は、Physical Hostとtrusted `haco-host` 内で同じ `system.doctor` controller methodを使う。help/versionは引き続き単独で動作する。応答はcontrollerのbuild・protocolと、順序を固定した5項目を返す。
+
+| Check | 確認する内容 |
+|---|---|
+| runtime | Incus APIの利用可否とtrustedな管理アクセス |
+| storage | 設定対象Btrfs poolと設定上のmount policy |
+| trusted_host | 所有hostの稼働、明示root/NIC、profile継承なし、限定controller endpointとclient mode |
+| trusted_network | 所有bridgeのDNS・DHCP・NAT・routing・firewall設定 |
+| trusted_connectivity | 検証済みtrusted hostからのIPv4 DNS、default route、固定公開対象github.comへのHTTPS |
+
+検査はcontrollerのprovider adapterが実行する。clientは `hacoq` / Incusを起動せず、guest-local stateを作らない。RPCはpath・command・通信先・修復optionを受け取らない。host作成・起動、storage初期化、NIC/firewall調整、service状態変更は行わない。hostが停止していればfailedとなり、host/networkの所有権・設定が不一致なら疎通検査をskipする。
+
+結果は `ok`・`failed`・`skipped`。全項目成功だけが終了0で、failed/skippedがあればreportを出して終了1、不正な使い方は終了2。transport/protocol失敗は終了1で、成功を示すJSON reportを出さない。項目欠落・重複・不明値・不正応答を拒否する。summaryは長さを制限した固定の検査条件で、backend/guestの生出力・errorをreportへコピーしない。失敗は共有loggerでstderrへ記録し、stdoutはtext/JSON結果に使う。
+
+provider probeは各5秒、server operationは30秒、CLIは35秒を上限とする。割込み・cancelでclient connectionを閉じる。自動修復や権限を上げるfallbackはしない。固定対象への外部GETにHost credentialやcaller入力を渡さない。guest probeは継承環境変数を消去し、curlのuser設定を無効にする。対話shellや `.curlrc` のcredential/proxy optionは取り込まない。
+
+成功reportはその時点の基盤検査である。storage設定の一致は実圧縮・COW・live mountの証明ではない。trusted-host疎通はEnvironmentのproxy-only egress、SSH、Workspace保持、将来のfirewall再読込・起動順変更の受入ではない。保持している `haco-host doctor` は引き続きpingだけの移行用診断である。
+
 ## Protocol boundary
 
 各connectionの先頭にはversionedかつsize-boundedなJSON envelopeを置きます。Requestはmethodと、成功後にbidirectional streamへ遷移するかを指定します。
@@ -120,7 +142,7 @@ Client-only `haco-host` と移行用に残る `hacoq env ...` はdirect Incus au
 
 ## General `haco` client namespace
 
-製品 `haco` はWSL Physical Hostとtrusted `haco-host` 内で共通の利用者入口となる。現在のhelp/versionは単独で動作し、WSL login aliasはcontrollerを直接呼ぶ。`hacoq` へ処理を委譲せず、未提供の `haco host ensure`・`haco host shell` も明示的に失敗する。
+製品 `haco` はWSL Physical Hostとtrusted `haco-host` 内で共通の利用者入口となる。help/versionは単独で動作し、`doctor` とWSL login aliasはcontrollerを直接呼ぶ。`hacoq` へ処理を委譲せず、未提供の `haco host ensure`・`haco host shell` も明示的に失敗する。
 
 旧Environment namespaceは一時的な `hacoq` に残り、typed controller APIは再利用できる。新CLIのlifecycle実装はこのAPIを使い、guest-local compositionやIncus authorityを持たない。現在のinstallerはbootstrap provisionのため `hacoq host ensure` を直接呼ぶ。この移行依存は新CLIとは別で、撤去予定として残る。
 

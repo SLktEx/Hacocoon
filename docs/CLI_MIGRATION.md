@@ -27,6 +27,10 @@ These commands do not require Incus, the Hacocoon controller, `haco-host`, Hacoc
 
 Unimplemented product commands fail clearly instead of falling back to the legacy runtime stack. The hidden `haco host ensure` / `haco host shell` subprocess bridge has been removed. Bootstrap still calls the retained `hacoq host ensure` directly; eliminating that installer dependency is separate follow-up work.
 
+## Controller-backed diagnostics
+
+`haco doctor` and `haco doctor --json` now diagnose the same Physical Host through its controller from either execution domain. The command inspects runtime, configured storage, trusted-host/network ownership and trusted connectivity without repairs. It returns nonzero for failed, skipped, unavailable or malformed diagnostics. See [controller diagnostics](design/controller-client-transport.md#host-diagnostics) for the exact scope and limits.
+
 ## Compatibility boundary
 
 Release archives and installers temporarily contain both `haco` and `hacoq` inside the Linux/WSL runtime.

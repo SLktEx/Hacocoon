@@ -179,6 +179,7 @@ func (r *Runtime) ensureTrustedHostForwarding(ctx context.Context, subnet netip.
 
 type trustedHostNetworkState struct {
 	Name            string                       `json:"name"`
+	Status          string                       `json:"status"`
 	Config          map[string]string            `json:"config"`
 	Devices         map[string]map[string]string `json:"devices"`
 	ExpandedDevices map[string]map[string]string `json:"expanded_devices"`

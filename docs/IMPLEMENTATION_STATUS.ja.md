@@ -11,13 +11,14 @@
 - **cache回帰を修正（2026-09-06）:** `831e5f0` のpackaged BATは `Get-FileHash` が利用できずdistro作成前に失敗した。#441統合時に落ちた #459のmodule非依存SHA-256 helperを復元し、PS5.1回帰テストを追加。修正後のdownloadを検証し、installに成功した `57b6ee2` で再利用した。
 - **cache性能修正はimplemented:** image download中のPS5.1のchunkごとの進捗描画を関数内だけ抑制。component testは実際のcache昇格・再利用、hash不一致時のcleanup、呼び出し元の設定保持を検証する。Windows受入では変更していないpackaged BATを使う。
 - **Windows受入を実測（2026-09-06）:** `9d459be` の明示的昇格時の失敗後、`57b6ee2` はsystem WSLを元のconsole内で呼び出し、未変更のcached BATが終了0で完了した。入口、Btrfs rootfs、controller疎通、同じ現在版BAT完了は成功。その後、以下の通りshell正常終了の不具合が判明し、待機sessionは再起動・再実行で切断された。trusted-host識別子・file・全sudo policy hashを保持し、product overrideや準備fixtureは使っていない。
-- **製品CLIはpartial:** 新 `haco` はhelp/versionとcontroller経由のWSL login aliasを持つ。以下の旧lifecycle・Base・SSH command表記は一時的な `hacoq` の機能。#456の再利用可能なcontroller adapterは実装済みだが、製品commandを `hacoq` へ委譲してはいけない。
+- **製品CLIはpartial:** 新 `haco` はhelp/version・controller経由の `doctor` とWSL login aliasを持つ。以下の旧lifecycle・Base・SSH command表記は一時的な `hacoq` の機能。#456の再利用可能なcontroller adapterは実装済みだが、製品commandを `hacoq` へ委譲してはいけない。
 - **Seed撤去はplanned:** codeは残り、Base/任意OCIとの依存は[Seed設計](design/oci-seed-and-cow.ja.md)に記録した。Base選択と任意Pluginは保持する。
 - **以前のpackage受入（`3f67845`）:** installer生成 `incusbr0` はtrusted-hostのDNS・経路を提供した。`57b6ee2` ではDocker FORWARD policy DROP下でHTTPSがtimeout。packaged `3f67845` ではPhysical Hostとtrusted-hostのHTTPSが200となり、同じ現在版BAT再実行後もtrusted-hostは200だった。その際の読み取り規則はDocker FORWARD policy ACCEPTだった。firewall修復は加えておらず、policy変化の原因・起動順を変えた共存は未検証。Windows gateは両層を要求する。その候補は未使用directory poolも作成した。現在の修正はminimal初期化を撤去し、最終fresh受入はpending。
 - **対話終了を修正:** `57b6ee2` の最終観測でshellの `exit` はlogoutを表示してもWSL processが戻らず、後の再起動・再実行で待機connectionが切れた。入口とfile保持は成功したが、正常終了は失敗。adapterはprocess終了をclient入力の開閉から分離し、login aliasはterminalではないcharacter deviceを拒否する。入力を開いたまま正常・非zero終了するprocess回帰を追加。後のpackaged `8a44f17` は停止状態からのWSL入口、controller ping、保持fileのchecksum、shell `exit` 後のWSL process終了0を確認した。
 - **WSL起動を修正:** `5b3d36d` のpackaged BAT適用は完了したが、続く通常loginがcontroller socket作成より先に進んだ。その後の読み取り診断では、有効なcontrollerがWSL起動約19秒で正常に開始した。loginは期限付きの読み取り専用pingで準備を待ち、第二のcontrollerを作らない。起動待ち・拒否・timeout回帰は成功。packaged `8a44f17` でHacocoonだけを明示的に停止し、root/service事前診断なしで通常入口とprocess終了0を確認した。account、trusted-host UUID、全sudo policy hashも前のinstallと一致した。
 - **実機受入はpending:** `af3065a` のfresh作成、Windows再起動、firewall再読込・起動順変更時のnetwork、Environmentの許可proxy通信と直接通信拒否、SSH、Environment/Workspace作業保持。更新したWindows gate全体の成功は未確認。今回のWSL実機はFORWARD ACCEPTでDOCKER-USER chainはなかった。別のLinux kernel gateではDocker相当DROP下でtrusted往復通信を許可し、未要求inboundと別NICを拒否し、global policy保持を確認した。これはWindows上の実Docker共存やEnvironment proxyの受入ではない。
-- **次の具体的実装:** Physical Hostとtrusted-host共通の `haco doctor` を、既存adapterを再利用しcontroller経由で提供する。`hacoq` へ委譲しない。Environmentの拒否・proxy、SSH、製品lifecycle導線は別途follow-up。
+- **controller診断はimplemented:** `haco doctor [--json]` は期限付き読み取り専用controller APIでruntime・Btrfs storage設定・trusted-host/network所有権・固定対象のtrusted疎通を検査する。修復・`hacoq` 呼出し・guest-local state作成は行わない。failed/skippedや不正応答を成功扱いしない。repository回帰は成功し、packaged受入はpending。[診断契約](design/controller-client-transport.ja.md#host診断)を参照。
+- **次の具体的実装:** installerの明示的な `hacoq host ensure` 依存をcontroller経由のbootstrapへ置き換える。Environmentの拒否・proxy、SSH、製品lifecycle導線は別途follow-up。
 
 以下の表は元のcheckpoint時点の履歴文脈を保持する。
 
