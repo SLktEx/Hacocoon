@@ -421,7 +421,10 @@ assert env['base']['revision'] == 'sha256:' + ('b' * 64), r
 assert env['resources']['cpu']['mode'] == 'unlimited', r
 PY
 grep -Fq 'image info images:custom-moving --format json' "$HACO_FAKE_INCUS_LOG"
-grep -Fq 'storage create haco-local-default btrfs source=' "$HACO_FAKE_INCUS_LOG"
+storage_line="$(grep -F 'storage create haco-local-default btrfs ' "$HACO_FAKE_INCUS_LOG" | head -1)"
+[[ "$storage_line" == *'size=128GiB'* ]]
+[[ "$storage_line" == *'btrfs.mount_options=compress=zstd:3,noatime,nodiscard'* ]]
+[[ "$storage_line" != *'source='* ]]
 grep -Fq 'init images:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb haco-base-demo' "$HACO_FAKE_INCUS_LOG"
 grep -Fq -- '--no-profiles --storage haco-local-default' "$HACO_FAKE_INCUS_LOG"
 bridge_line="$(grep -F 'network create hbr' "$HACO_FAKE_INCUS_LOG" | head -1)"
