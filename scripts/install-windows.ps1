@@ -154,6 +154,21 @@ function Assert-WslSupported {
     }
 }
 
+function Get-Sha256Hex([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    try {
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        try {
+            $hash = $sha256.ComputeHash($stream)
+        } finally {
+            $sha256.Dispose()
+        }
+    } finally {
+        $stream.Dispose()
+    }
+    return ([BitConverter]::ToString($hash) -replace '-', '').ToLowerInvariant()
+}
+
 function Get-CachedUbuntuWslImage {
     $cachePath = Join-Path $PSScriptRoot "ubuntu.wsl"
     if (Test-Path -LiteralPath $cachePath -PathType Leaf) {
@@ -189,8 +204,14 @@ function Get-CachedUbuntuWslImage {
     Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
     try {
         Write-Step "Downloading Ubuntu-26.04 WSL image to '$cachePath'"
-        Invoke-WebRequest -Uri ([string]$asset.Url) -OutFile $temporaryPath -UseBasicParsing
-        $actualSha256 = (Get-FileHash -LiteralPath $temporaryPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $previousProgressPreference = $ProgressPreference
+        try {
+            $ProgressPreference = "SilentlyContinue"
+            Invoke-WebRequest -Uri ([string]$asset.Url) -OutFile $temporaryPath -UseBasicParsing
+        } finally {
+            $ProgressPreference = $previousProgressPreference
+        }
+        $actualSha256 = Get-Sha256Hex $temporaryPath
         if ($actualSha256 -ne $expectedSha256) {
             throw "Downloaded Ubuntu-26.04 WSL image SHA256 mismatch (expected $expectedSha256, got $actualSha256)."
         }

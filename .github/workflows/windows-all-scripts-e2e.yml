@@ -112,13 +112,30 @@ jobs:
           }
           "HACO_E2E_PACKAGE_ROOT=$packageRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: User path phase 1 - run packaged BAT unchanged
+      - name: Restore trusted Ubuntu 26.04 WSL image cache
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: ${{ runner.temp }}\hacocoon-wsl-cache\ubuntu.wsl
+          key: hacocoon-wsl-${{ runner.os }}-${{ runner.arch }}-ubuntu-26.04-v1
+
+      - name: Stage cached WSL image into installer package
+        shell: pwsh
+        run: |
+          $cachePath = Join-Path $env:RUNNER_TEMP "hacocoon-wsl-cache\ubuntu.wsl"
+          if (Test-Path -LiteralPath $cachePath -PathType Leaf) {
+            Copy-Item -LiteralPath $cachePath -Destination (Join-Path $env:HACO_E2E_PACKAGE_ROOT "ubuntu.wsl") -Force
+            Write-Host "Using trusted main-branch Ubuntu WSL image cache."
+          } else {
+            Write-Host "Trusted Ubuntu WSL image cache was not available; installer will perform the verified download."
+          }
+
+      - name: User path phase 1 - run packaged BAT with cached WSL image
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           Push-Location $env:HACO_E2E_PACKAGE_ROOT
           try {
-            & cmd.exe /d /c "install-windows.bat"
+            & cmd.exe /d /c "install-windows.bat -UseCachedWslImage"
             if ($LASTEXITCODE -ne 0) { throw "Packaged BAT phase 1 failed with exit code $LASTEXITCODE." }
           } finally {
             Pop-Location
@@ -155,13 +172,13 @@ jobs:
             throw "Normal WSL default user setup failed: got '$defaultUser'."
           }
 
-      - name: User path phase 2 - run the same packaged BAT unchanged
+      - name: User path phase 2 - run the same packaged BAT with cached WSL image
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           Push-Location $env:HACO_E2E_PACKAGE_ROOT
           try {
-            & cmd.exe /d /c "install-windows.bat"
+            & cmd.exe /d /c "install-windows.bat -UseCachedWslImage"
             if ($LASTEXITCODE -ne 0) { throw "Packaged BAT phase 2 failed with exit code $LASTEXITCODE." }
           } finally {
             Pop-Location
