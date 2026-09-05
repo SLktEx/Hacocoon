@@ -13,6 +13,7 @@ on:
       - "tools/package_installers.py"
       - "tools/windows-installer-user-path-e2e.py"
       - "tools/windows-installer-restart-e2e.py"
+      - "tools/windows-installer-cached-restart-e2e.py"
       - ".github/workflows/windows-all-scripts-e2e.yml"
   workflow_dispatch:
 
@@ -127,7 +128,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           python -m pip install --disable-pip-version-check --no-input "pywinpty==3.0.2"
           if ($LASTEXITCODE -ne 0) { throw "Failed to install the ConPTY test driver dependency." }
-          python -m py_compile ./tools/windows-installer-user-path-e2e.py ./tools/windows-installer-restart-e2e.py
+          python -m py_compile ./tools/windows-installer-user-path-e2e.py ./tools/windows-installer-restart-e2e.py ./tools/windows-installer-cached-restart-e2e.py
           if ($LASTEXITCODE -ne 0) { throw "Windows user-path drivers failed syntax validation." }
 
       - name: Reject Hacocoon test overrides before user path
@@ -147,12 +148,15 @@ jobs:
       #   `wsl --terminate Hacocoon` after the first successful install and before
       #   any reinstall. Hacocoon must restart and serve ordinary haco commands
       #   without install-windows.bat getting a chance to repair state first.
+      # - The shipped -UseCachedWslImage option remains part of the repeated
+      #   validation path, using only a trusted restored cache or its verified
+      #   download fallback.
       # - After an action completes, the driver may run read-only assertions to
       #   inspect the resulting WSL/systemd/Incus/Btrfs/loop state. Assertions may
       #   use root when required to observe state, but must never create, repair,
       #   restart, remount, attach, detach, delete, or otherwise mutate product
       #   state.
-      - name: Exercise install, terminate/restart, and reinstall user path
+      - name: Exercise cached install, terminate/restart, and reinstall user path
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -165,7 +169,7 @@ jobs:
             $previousPreference = $ErrorActionPreference
             $ErrorActionPreference = "Continue"
             try {
-              python "$env:GITHUB_WORKSPACE\tools\windows-installer-restart-e2e.py" *> $logPath
+              python "$env:GITHUB_WORKSPACE\tools\windows-installer-cached-restart-e2e.py" *> $logPath
               $driverExit = $LASTEXITCODE
             } finally {
               $ErrorActionPreference = $previousPreference
