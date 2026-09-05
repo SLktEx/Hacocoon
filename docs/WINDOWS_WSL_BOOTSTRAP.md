@@ -115,6 +115,8 @@ When enabled, `install-windows.ps1` uses `ubuntu.wsl` next to the installer pack
 
 SHA-256 verification uses .NET directly so the BAT's Windows PowerShell 5.1 process does not depend on `Get-FileHash` module availability. Hash failures stop installation before distro creation and do not promote a partial download.
 
+The download reports its destination and suppresses per-chunk PowerShell progress rendering inside this function, avoiding the PS5.1 large-file slowdown without changing the caller's progress settings.
+
 The dedicated distribution is then created with the named-install path:
 
 ```powershell

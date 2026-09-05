@@ -64,4 +64,43 @@ if ($WslTransportDistro) {
     Assert-Equal $result.ExitCode 0
     Assert-Equal $result.Stdout ([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($literal)))
 }
+# Load the unchanged cache function in a disposable package directory so its
+# real PSScriptRoot is exercised. Mock only the network boundary, never hashing.
+$cacheRoot = Join-Path ([IO.Path]::GetTempPath()) ('haco-cache-' + [guid]::NewGuid())
+[IO.Directory]::CreateDirectory($cacheRoot) | Out-Null
+$cacheFunctionFile = Join-Path $cacheRoot 'cache-functions.ps1'
+$cachePath = Join-Path $cacheRoot 'ubuntu.wsl'
+$cacheFunction = $ast.EndBlock.Statements | Where-Object { $_ -is [Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -eq 'Get-CachedUbuntuWslImage' }
+[IO.File]::WriteAllText($cacheFunctionFile, $cacheFunction.Extent.Text)
+$ProgressPreference = 'Continue'
+$script:downloads = 0
+$script:expectedHash = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+try {
+    . $cacheFunctionFile
+    function Invoke-RestMethod {
+        $asset = @{ Url = 'https://example.invalid/ubuntu.wsl'; Sha256 = $script:expectedHash }
+        return @{ ModernDistributions = @{ Ubuntu = @(@{ Name = 'Ubuntu-26.04'; Amd64Url = $asset; Arm64Url = $asset }) } }
+    }
+    function Invoke-WebRequest([string]$Uri, [string]$OutFile, [switch]$UseBasicParsing) {
+        Assert-Equal $ProgressPreference 'SilentlyContinue'
+        Assert-Equal $UseBasicParsing.IsPresent $true
+        $script:downloads++
+        [IO.File]::WriteAllText($OutFile, 'abc')
+    }
+    Assert-Equal (Get-CachedUbuntuWslImage) $cachePath
+    Assert-Equal (Get-CachedUbuntuWslImage) $cachePath
+    Assert-Equal $script:downloads 1
+    Assert-Equal $ProgressPreference 'Continue'
+    [IO.File]::Delete($cachePath)
+    $script:expectedHash = '0' * 64
+    $hashMismatch = $false
+    try { Get-CachedUbuntuWslImage | Out-Null } catch { $hashMismatch = $_.Exception.Message -like '*SHA256 mismatch*' }
+    Assert-Equal $hashMismatch $true
+    Assert-Equal ([IO.File]::Exists($cachePath)) $false
+    Assert-Equal ([IO.File]::Exists($cachePath + '.download')) $false
+    Assert-Equal $ProgressPreference 'Continue'
+} finally {
+    foreach ($file in @($cachePath, ($cachePath + '.download'), $cacheFunctionFile)) { [IO.File]::Delete($file) }
+    [IO.Directory]::Delete($cacheRoot)
+}
 Write-Host 'WINDOWS INSTALLER COMPONENTS OK'

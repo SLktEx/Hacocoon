@@ -181,6 +181,10 @@ function Get-Sha256Hex([string]$Path) {
 }
 
 function Get-CachedUbuntuWslImage {
+    # PS5.1 renders progress for every small download chunk, which can dominate
+    # large-image transfers. This preference is local to the product function;
+    # callers retain their progress settings, including when a download fails.
+    $ProgressPreference = 'SilentlyContinue'
     $cachePath = Join-Path $PSScriptRoot "ubuntu.wsl"
     if (Test-Path -LiteralPath $cachePath -PathType Leaf) {
         Write-Step "Using cached Ubuntu WSL image '$cachePath'"

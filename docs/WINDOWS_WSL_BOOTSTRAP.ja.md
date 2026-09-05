@@ -115,6 +115,8 @@ install-windows.bat -InteractiveUserSetup
 
 SHA-256検証は.NETを直接使い、BATが起動するWindows PowerShell 5.1での `Get-FileHash` moduleの有無に依存しません。hash検証失敗時はdistro作成前に停止し、途中のdownloadをcacheへ昇格しません。
 
+Download先は表示し、関数内だけPowerShellのchunkごとの進捗描画を抑えます。PS5.1での大容量downloadの遅延を避け、呼び出し元の進捗設定は変更しません。
+
 専用 distribution の作成は named install 経路のままです。
 
 ```powershell
