@@ -37,7 +37,7 @@ func TestDefaultIncusStorageAttachmentIsIncusOwned(t *testing.T) {
 	if attachment["size"] != "128GiB" {
 		t.Fatalf("size = %q", attachment["size"])
 	}
-	if attachment["btrfs.mount_options"] != "compress=zstd:3" {
+	if attachment["btrfs.mount_options"] != "compress=zstd:3,noatime,nodiscard" {
 		t.Fatalf("btrfs.mount_options = %q", attachment["btrfs.mount_options"])
 	}
 	if source := attachment["source"]; source != "" {
@@ -76,7 +76,7 @@ func TestEnsureDefaultIncusStoragePoolCreatesLoopBackedPool(t *testing.T) {
 	wantCreate := []string{
 		"storage", "create", "haco-local-default", "btrfs",
 		"size=128GiB",
-		"btrfs.mount_options=compress=zstd:3",
+		"btrfs.mount_options=compress=zstd:3,noatime,nodiscard",
 		"--project", "hacocoon",
 	}
 	if runner.calls[1].name != "incus" || !reflect.DeepEqual(runner.calls[1].args, wantCreate) {
@@ -93,7 +93,10 @@ func TestEnsureDefaultIncusStoragePoolCreatesLoopBackedPool(t *testing.T) {
 }
 
 func TestEnsureDefaultIncusStoragePoolReusesExistingPool(t *testing.T) {
-	runner := &storageRunnerFunc{run: func(_ string, _ []string) (host.Result, error) {
+	runner := &storageRunnerFunc{run: func(_ string, args []string) (host.Result, error) {
+		if len(args) >= 2 && args[0] == "storage" && args[1] == "get" {
+			return host.Result{Stdout: "compress=zstd:3,noatime,nodiscard\n"}, nil
+		}
 		return host.Result{}, nil
 	}}
 	attachment, err := ensureDefaultIncusStoragePool(context.Background(), runner)
@@ -103,7 +106,7 @@ func TestEnsureDefaultIncusStoragePoolReusesExistingPool(t *testing.T) {
 	if attachment["incus_pool"] != "haco-local-default" {
 		t.Fatalf("attachment = %#v", attachment)
 	}
-	if len(runner.calls) != 1 || runner.calls[0].args[0] != "storage" || runner.calls[0].args[1] != "show" {
+	if len(runner.calls) != 2 || runner.calls[0].args[0] != "storage" || runner.calls[0].args[1] != "show" || runner.calls[1].args[1] != "get" {
 		t.Fatalf("unexpected calls = %#v", runner.calls)
 	}
 }

@@ -28,6 +28,9 @@ func (r *Runtime) EnsureBtrfsLoopPool(ctx context.Context, spec BtrfsLoopPoolSpe
 	}
 
 	if _, err := r.runner.Run(ctx, "incus", "storage", "show", name, "--project", r.project); err == nil {
+		if err := r.reconcileBtrfsLoopPoolMountOptions(ctx, name, mountOptions); err != nil {
+			return "", err
+		}
 		return name, nil
 	}
 
@@ -49,4 +52,36 @@ func (r *Runtime) EnsureBtrfsLoopPool(ctx context.Context, spec BtrfsLoopPoolSpe
 		return "", fmt.Errorf("verify Incus-managed Btrfs loop pool %q: %w", name, err)
 	}
 	return name, nil
+}
+
+func (r *Runtime) reconcileBtrfsLoopPoolMountOptions(ctx context.Context, name, desired string) error {
+	if desired == "" {
+		return nil
+	}
+
+	current, err := r.runner.Run(ctx, "incus", "storage", "get", name, "btrfs.mount_options", "--project", r.project)
+	if err != nil {
+		return fmt.Errorf("inspect Incus-managed Btrfs loop pool %q mount options: %w", name, err)
+	}
+	if strings.TrimSpace(current.Stdout) == desired {
+		return nil
+	}
+
+	result, err := r.runner.Run(ctx, "incus", "storage", "set", name, "btrfs.mount_options="+desired, "--project", r.project)
+	if err != nil {
+		reason := strings.TrimSpace(result.Stderr)
+		if reason != "" {
+			return fmt.Errorf("reconcile Incus-managed Btrfs loop pool %q mount options: %s: %w", name, reason, err)
+		}
+		return fmt.Errorf("reconcile Incus-managed Btrfs loop pool %q mount options: %w", name, err)
+	}
+
+	verified, err := r.runner.Run(ctx, "incus", "storage", "get", name, "btrfs.mount_options", "--project", r.project)
+	if err != nil {
+		return fmt.Errorf("verify Incus-managed Btrfs loop pool %q mount options: %w", name, err)
+	}
+	if got := strings.TrimSpace(verified.Stdout); got != desired {
+		return fmt.Errorf("Incus-managed Btrfs loop pool %q mount options are %q after reconciliation, want %q", name, got, desired)
+	}
+	return nil
 }

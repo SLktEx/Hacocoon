@@ -15,6 +15,7 @@ readonly ENV_NAME="incus-storage-cli-e2e"
 readonly INSTANCE="haco-${ENV_NAME}"
 readonly INCUS_POOL_MOUNT="/var/lib/incus/storage-pools/${POOL}"
 readonly INCUS_BACKING="/var/lib/incus/disks/${POOL}.img"
+readonly BTRFS_MOUNT_OPTIONS="compress=zstd:3,noatime,nodiscard"
 
 fail() {
   echo "ERROR: $*" >&2
@@ -58,7 +59,7 @@ assert_incus_managed_storage() {
   [[ "$configured_size" == "128GiB" ]] || fail "Incus pool size is '$configured_size', expected 128GiB"
 
   mount_options="$(incus storage get "$POOL" btrfs.mount_options --project "$PROJECT")"
-  [[ "$mount_options" == "compress=zstd:3" ]] || fail "Incus Btrfs mount options are '$mount_options'"
+  [[ "$mount_options" == "$BTRFS_MOUNT_OPTIONS" ]] || fail "Incus Btrfs mount options are '$mount_options', expected '$BTRFS_MOUNT_OPTIONS'"
   [[ ",$mount_options," != *,autodefrag,* ]] || fail "autodefrag must remain disabled: $mount_options"
 
   [[ ! -e "$CLI_ROOT/images/local-default.raw" ]] || fail "default composition still created the legacy Hacocoon raw image"
@@ -79,6 +80,12 @@ assert_incus_managed_storage() {
   [[ "$fstype" == "btrfs" ]] || fail "Incus pool mount filesystem is '$fstype', expected btrfs"
   live_options="$(sudo findmnt -rn -o OPTIONS --mountpoint "$INCUS_POOL_MOUNT")"
   [[ ",$live_options," == *,compress=zstd:3,* || ",$live_options," == *,compress=zstd,* ]] || fail "Incus pool mount is missing zstd compression: $live_options"
+  [[ ",$live_options," == *,noatime,* ]] || fail "Incus pool mount is missing noatime: $live_options"
+  # Linux may omit the default negative option `nodiscard` from findmnt output.
+  # The configured Incus desired state above must contain nodiscard; live state
+  # proves the policy by ensuring no discard mode is active.
+  [[ ",$live_options," != *,discard,* && ",$live_options," != *,discard=async,* ]] || fail "Incus pool mount unexpectedly enables discard: $live_options"
+  [[ ",$live_options," != *,relatime,* && ",$live_options," != *,strictatime,* ]] || fail "Incus pool mount unexpectedly enables atime updates: $live_options"
   [[ ",$live_options," != *,autodefrag,* ]] || fail "live Incus Btrfs mount unexpectedly enables autodefrag: $live_options"
 }
 
@@ -136,6 +143,11 @@ PY
   if incus list "$INSTANCE" --project "$PROJECT" --format csv -c n | grep -Fx "$INSTANCE" >/dev/null 2>&1; then
     fail "named Environment instance remained after haco delete"
   fi
+
+  # Simulate a pre-policy pool. The next Hacocoon rootfs operation must repair
+  # the existing Incus pool instead of accepting stale mount options forever.
+  incus storage set "$POOL" btrfs.mount_options=compress=zstd:3 --project "$PROJECT"
+  [[ "$(incus storage get "$POOL" btrfs.mount_options --project "$PROJECT")" == "compress=zstd:3" ]] || fail "failed to install stale mount policy for reconciliation test"
 
   haco_start_test_controller \
     "$CONTROLLER_BIN" \
