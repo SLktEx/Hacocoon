@@ -18,10 +18,10 @@ type commandClassification struct {
 	Replacement string
 }
 
-// hacoCommandClassifications is the authoritative Phase 3 responsibility audit
-// for runtime-facing top-level haco commands. Standalone support commands such
-// as help/version are intentionally handled before runtime composition and are
-// not part of this migration table.
+// hacoCommandClassifications is the authoritative responsibility audit for the
+// previous runtime-facing CLI, now shipped temporarily as hacoq. Standalone
+// support commands such as help/version are intentionally handled before
+// runtime composition and are not part of this migration table.
 var hacoCommandClassifications = map[string]commandClassification{
 	"env": {
 		Name:   "env",
@@ -83,11 +83,6 @@ var hacoCommandClassifications = map[string]commandClassification{
 		Domain: commandDomainPhysicalHost,
 		State:  "Physical Host managed egress service (egress serve)",
 	},
-	"maintenance": {
-		Name:   "maintenance",
-		Domain: commandDomainPhysicalHost,
-		State:  "Windows Host owns explicit WSL VHD compaction (#402)",
-	},
 	"plugin": {
 		Name:   "plugin",
 		Domain: commandDomainTrustedHost,
@@ -97,31 +92,31 @@ var hacoCommandClassifications = map[string]commandClassification{
 		Name:        "create",
 		Domain:      commandDomainCompatibility,
 		State:       "legacy Environment spelling",
-		Replacement: "haco env create",
+		Replacement: "hacoq env create",
 	},
 	"status": {
 		Name:        "status",
 		Domain:      commandDomainCompatibility,
 		State:       "legacy Environment spelling",
-		Replacement: "haco env status",
+		Replacement: "hacoq env status",
 	},
 	"exec": {
 		Name:        "exec",
 		Domain:      commandDomainCompatibility,
 		State:       "legacy Environment spelling",
-		Replacement: "haco env exec",
+		Replacement: "hacoq env exec",
 	},
 	"shell": {
 		Name:        "shell",
 		Domain:      commandDomainCompatibility,
 		State:       "legacy Environment spelling",
-		Replacement: "haco env shell",
+		Replacement: "hacoq env shell",
 	},
 	"delete": {
 		Name:        "delete",
 		Domain:      commandDomainCompatibility,
 		State:       "legacy Environment spelling",
-		Replacement: "haco env delete",
+		Replacement: "hacoq env delete",
 	},
 }
 
@@ -144,7 +139,6 @@ var historicalHacoCommands = []string{
 	"delete",
 	"doctor",
 	"host",
-	"maintenance",
 }
 
 func hacoCommandClassification(command string) (commandClassification, bool) {

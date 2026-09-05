@@ -18,6 +18,7 @@ incus version >/dev/null
 root="$(mktemp -d)"
 workspace="$root/workspace"
 haco="$root/haco"
+hacoq="$root/hacoq"
 haco_host="$root/haco-host"
 controller="$root/haco-controller"
 controller_log="$root/controller.log"
@@ -28,7 +29,8 @@ client_environment="client-e2e-$$"
 client_runtime_ref="haco-$client_environment"
 trusted_host_ref="haco-host"
 trusted_control_socket="/var/lib/hacocoon-control.sock"
-trusted_general_haco="/usr/local/bin/haco"
+trusted_product_haco="/usr/local/bin/haco"
+trusted_legacy_hacoq="/usr/local/bin/hacoq"
 trusted_client_mode="controller"
 export HACO_ROOT="$root/haco-root"
 export HACO_CONTROL_SOCKET="$control_socket"
@@ -43,7 +45,7 @@ cleanup() {
     incus delete "$client_runtime_ref" --project hacocoon --force >/dev/null 2>&1 || true
   fi
   if [[ "$created" == "1" ]]; then
-    "$haco" delete "$environment" >/dev/null 2>&1 || \
+    "$hacoq" delete "$environment" >/dev/null 2>&1 || \
       incus delete "$runtime_ref" --project hacocoon --force >/dev/null 2>&1 || true
   fi
   if [[ "$trusted_host_created" == "1" ]]; then
@@ -63,9 +65,34 @@ trap cleanup EXIT
 mkdir -p "$workspace"
 printf 'from-host\n' > "$workspace/host.txt"
 
-go build -o "$haco" ./cmd/haco
+go build -o "$haco" ./cmd/haco-product
+go build -o "$hacoq" ./cmd/haco
 go build -o "$haco_host" ./cmd/haco-host
 go build -o "$controller" ./cmd/haco-controller
+
+# The reset product CLI must be usable before any runtime/controller state is
+# initialized and must not silently expose legacy commands.
+"$haco" --version >/dev/null
+"$haco" help >/dev/null
+product_unknown_stdout="$root/product-unknown-stdout"
+product_unknown_stderr="$root/product-unknown-stderr"
+set +e
+"$haco" env >"$product_unknown_stdout" 2>"$product_unknown_stderr"
+product_unknown_exit=$?
+set -e
+[[ "$product_unknown_exit" == "2" ]] || {
+  echo "new haco unexpectedly accepted legacy env command" >&2
+  exit 1
+}
+[[ ! -s "$product_unknown_stdout" ]] || {
+  echo "new haco legacy-command rejection unexpectedly produced stdout" >&2
+  exit 1
+}
+grep -Fq 'command "env" is not available yet' "$product_unknown_stderr" || {
+  echo "new haco did not clearly reject the legacy env command" >&2
+  cat "$product_unknown_stderr" >&2 || true
+  exit 1
+}
 
 "$controller" >"$controller_log" 2>&1 &
 controller_pid=$!
@@ -84,7 +111,7 @@ done
   exit 1
 }
 
-"$haco" host ensure
+"$hacoq" host ensure
 trusted_host_created=1
 [[ "$(incus config get "$trusted_host_ref" user.hacocoon.role --project hacocoon)" == "trusted-host" ]] || {
   echo "trusted haco-host ownership marker mismatch" >&2
@@ -121,11 +148,38 @@ for pair in \
 done
 
 incus exec "$trusted_host_ref" --project hacocoon -- test -x /usr/local/bin/haco-host
-incus exec "$trusted_host_ref" --project hacocoon -- test -x "$trusted_general_haco"
-local_haco_digest="$(sha256sum "$haco" | awk '{print $1}')"
-guest_haco_digest="$(incus exec "$trusted_host_ref" --project hacocoon -- sha256sum "$trusted_general_haco" | awk '{print $1}')"
-[[ "$local_haco_digest" == "$guest_haco_digest" ]] || {
-  echo "trusted haco-host general haco digest mismatch" >&2
+incus exec "$trusted_host_ref" --project hacocoon -- test -x "$trusted_product_haco"
+incus exec "$trusted_host_ref" --project hacocoon -- test -x "$trusted_legacy_hacoq"
+
+local_product_digest="$(sha256sum "$haco" | awk '{print $1}')"
+guest_product_digest="$(incus exec "$trusted_host_ref" --project hacocoon -- sha256sum "$trusted_product_haco" | awk '{print $1}')"
+[[ "$local_product_digest" == "$guest_product_digest" ]] || {
+  echo "trusted haco-host product haco digest mismatch" >&2
+  exit 1
+}
+local_legacy_digest="$(sha256sum "$hacoq" | awk '{print $1}')"
+guest_legacy_digest="$(incus exec "$trusted_host_ref" --project hacocoon -- sha256sum "$trusted_legacy_hacoq" | awk '{print $1}')"
+[[ "$local_legacy_digest" == "$guest_legacy_digest" ]] || {
+  echo "trusted haco-host legacy hacoq digest mismatch" >&2
+  exit 1
+}
+
+# Product haco must mean the same thing inside trusted haco-host: standalone
+# help/version only for this migration slice, never the legacy controller CLI.
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" --version >/dev/null
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" help >/dev/null
+trusted_product_stderr="$root/trusted-product-stderr"
+set +e
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" env >/dev/null 2>"$trusted_product_stderr"
+trusted_product_exit=$?
+set -e
+[[ "$trusted_product_exit" == "2" ]] || {
+  echo "trusted-host product haco unexpectedly exposed legacy env command" >&2
+  exit 1
+}
+grep -Fq 'command "env" is not available yet' "$trusted_product_stderr" || {
+  echo "trusted-host product haco did not preserve the reset CLI surface" >&2
+  cat "$trusted_product_stderr" >&2 || true
   exit 1
 }
 
@@ -145,69 +199,69 @@ grep -Eq '^protocol-version: [0-9]+$' <<<"$first_doctor" || {
 
 host_shell_stdout="$root/host-shell-stdout"
 host_shell_stderr="$root/host-shell-stderr"
-printf 'echo host-shell-controller-ok\nexit\n' | "$haco" host shell >"$host_shell_stdout" 2>"$host_shell_stderr"
+printf 'echo host-shell-controller-ok\nexit\n' | "$hacoq" host shell >"$host_shell_stdout" 2>"$host_shell_stderr"
 grep -Fq "host-shell-controller-ok" "$host_shell_stdout" || {
-  echo "haco host shell did not round-trip through the controller" >&2
+  echo "hacoq host shell did not round-trip through the controller" >&2
   cat "$host_shell_stdout" >&2 || true
   cat "$host_shell_stderr" >&2 || true
   exit 1
 }
 grep -Fq "haco-host" "$host_shell_stderr" || {
-  echo "haco host shell did not emit the privileged Host warning" >&2
+  echo "hacoq host shell did not emit the privileged Host warning" >&2
   cat "$host_shell_stderr" >&2 || true
   exit 1
 }
 
-# Production provisioning must make the general haco namespace immediately
-# usable through the controller from inside trusted haco-host.
-[[ "$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_general_haco" env list --json)" == "[]" ]] || {
-  echo "trusted-host haco env list did not use the empty controller state" >&2
+# The temporary legacy hacoq namespace remains usable through the controller
+# while product workflows are rebuilt.
+[[ "$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_legacy_hacoq" env list --json)" == "[]" ]] || {
+  echo "trusted-host hacoq env list did not use the empty controller state" >&2
   exit 1
 }
-physical_base_list="$("$haco" base list --json)"
-trusted_base_list="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_general_haco" base list --json)"
+physical_base_list="$("$hacoq" base list --json)"
+trusted_base_list="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_legacy_hacoq" base list --json)"
 [[ "$trusted_base_list" == "$physical_base_list" ]] || {
-  echo "trusted-host haco base list did not use the Physical Host controller view" >&2
+  echo "trusted-host hacoq base list did not use the Physical Host controller view" >&2
   printf 'physical: %s\ntrusted: %s\n' "$physical_base_list" "$trusted_base_list" >&2
   exit 1
 }
 
-# Still-unmigrated commands must fail before guest-local composition can be
-# initialized. The mode marker is a safety guard; authorization remains on the
-# Physical Host controller.
+# Still-unmigrated legacy commands must fail before guest-local composition can
+# be initialized. The mode marker is a safety guard; authorization remains on
+# the Physical Host controller.
 unmigrated_stdout="$root/unmigrated-stdout"
 unmigrated_stderr="$root/unmigrated-stderr"
 set +e
-incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_general_haco" connections >"$unmigrated_stdout" 2>"$unmigrated_stderr"
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_legacy_hacoq" connections >"$unmigrated_stdout" 2>"$unmigrated_stderr"
 unmigrated_exit=$?
 set -e
 [[ "$unmigrated_exit" != "0" ]] || {
-  echo "trusted-host unmigrated haco command unexpectedly succeeded" >&2
+  echo "trusted-host unmigrated hacoq command unexpectedly succeeded" >&2
   exit 1
 }
 [[ ! -s "$unmigrated_stdout" ]] || {
-  echo "trusted-host unmigrated haco command unexpectedly produced stdout" >&2
+  echo "trusted-host unmigrated hacoq command unexpectedly produced stdout" >&2
   exit 1
 }
 grep -Fq 'refusing local composition fallback' "$unmigrated_stderr" || {
-  echo "trusted-host unmigrated haco command did not fail closed" >&2
+  echo "trusted-host unmigrated hacoq command did not fail closed" >&2
   cat "$unmigrated_stderr" >&2 || true
   exit 1
 }
 incus exec "$trusted_host_ref" --project hacocoon -- test ! -e /var/lib/hacocoon/state || {
-  echo "trusted-host unmigrated haco command created guest-local state" >&2
+  echo "trusted-host unmigrated hacoq command created guest-local state" >&2
   exit 1
 }
 
 # Re-entry must be idempotent and a stopped trusted host must be restarted with
-# both client binaries and controller-client mode still converged.
-"$haco" host ensure
+# product and legacy clients plus controller-client mode still converged.
+"$hacoq" host ensure
 incus stop "$trusted_host_ref" --project hacocoon
 [[ "$(incus list "$trusted_host_ref" --project hacocoon --format csv -c s)" == "STOPPED" ]] || {
   echo "trusted haco-host did not stop for restart acceptance" >&2
   exit 1
 }
-"$haco" host ensure
+"$hacoq" host ensure
 [[ "$(incus list "$trusted_host_ref" --project hacocoon --format csv -c s)" == "RUNNING" ]] || {
   echo "trusted haco-host was not restarted by ensure" >&2
   exit 1
@@ -217,7 +271,8 @@ incus stop "$trusted_host_ref" --project hacocoon
   exit 1
 }
 incus exec "$trusted_host_ref" --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
-incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_general_haco" env list --json >/dev/null
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" --version >/dev/null
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_legacy_hacoq" env list --json >/dev/null
 
 trusted_host_config="$root/trusted-host-config"
 incus config show "$trusted_host_ref" --expanded --project hacocoon >"$trusted_host_config"
@@ -231,36 +286,33 @@ for forbidden in \
 done
 
 incus exec "$trusted_host_ref" --project hacocoon -- \
-  "$trusted_general_haco" env create --workspace "$workspace" "$client_environment" >/dev/null
+  "$trusted_legacy_hacoq" env create --workspace "$workspace" "$client_environment" >/dev/null
 client_created=1
 
-client_list="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_general_haco" env list --json)"
+client_list="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_legacy_hacoq" env list --json)"
 grep -Fq "\"name\":\"$client_environment\"" <<<"$client_list" || {
-  echo "trusted-host haco env list did not include controller-created Environment" >&2
+  echo "trusted-host hacoq env list did not include controller-created Environment" >&2
   exit 1
 }
-client_status="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_general_haco" env status "$client_environment" --json)"
+client_status="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_legacy_hacoq" env status "$client_environment" --json)"
 grep -Fq "\"name\":\"$client_environment\"" <<<"$client_status" || {
-  echo "trusted-host haco env status returned wrong Environment" >&2
+  echo "trusted-host hacoq env status returned wrong Environment" >&2
   exit 1
 }
 grep -Fq '"state":"running"' <<<"$client_status" || {
-  echo "trusted-host haco env status did not report running state" >&2
+  echo "trusted-host hacoq env status did not report running state" >&2
   exit 1
 }
 
-# Historical flat Environment aliases are compatibility-only on the Physical
-# Host, but in trusted client mode they are forced through the same controller
-# path instead of falling back locally.
-legacy_status="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_general_haco" status "$client_environment" --json)"
+legacy_status="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_legacy_hacoq" status "$client_environment" --json)"
 grep -Fq "\"name\":\"$client_environment\"" <<<"$legacy_status" || {
-  echo "trusted-host legacy haco status alias did not route through controller" >&2
+  echo "trusted-host legacy hacoq status alias did not route through controller" >&2
   exit 1
 }
 
-client_read="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_general_haco" env exec "$client_environment" -- cat /workspace/host.txt)"
+client_read="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_legacy_hacoq" env exec "$client_environment" -- cat /workspace/host.txt)"
 [[ "$client_read" == "from-host" ]] || {
-  echo "trusted-host haco env exec read mismatch: $client_read" >&2
+  echo "trusted-host hacoq env exec read mismatch: $client_read" >&2
   exit 1
 }
 
@@ -268,31 +320,31 @@ client_stdout="$root/client-stdout"
 client_stderr="$root/client-stderr"
 set +e
 incus exec "$trusted_host_ref" --project hacocoon -- \
-  "$trusted_general_haco" env exec "$client_environment" -- sh -c "printf 'client-out'; printf 'client-err' >&2; exit 19" \
+  "$trusted_legacy_hacoq" env exec "$client_environment" -- sh -c "printf 'client-out'; printf 'client-err' >&2; exit 19" \
   >"$client_stdout" 2>"$client_stderr"
 client_exit=$?
 set -e
 [[ "$client_exit" == "19" ]] || {
-  echo "trusted-host haco env exec expected exit 19, got $client_exit" >&2
+  echo "trusted-host hacoq env exec expected exit 19, got $client_exit" >&2
   exit 1
 }
 [[ "$(cat "$client_stdout")" == "client-out" ]] || {
-  echo "trusted-host haco env exec stdout mismatch" >&2
+  echo "trusted-host hacoq env exec stdout mismatch" >&2
   exit 1
 }
 grep -q "client-err" "$client_stderr" || {
-  echo "trusted-host haco env exec stderr mismatch" >&2
+  echo "trusted-host hacoq env exec stderr mismatch" >&2
   exit 1
 }
 
-incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_general_haco" env delete "$client_environment"
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_legacy_hacoq" env delete "$client_environment"
 client_created=0
 if incus info "$client_runtime_ref" --project hacocoon >/dev/null 2>&1; then
-  echo "controller-created client Environment remained after trusted-host haco env delete" >&2
+  echo "controller-created client Environment remained after trusted-host hacoq env delete" >&2
   exit 1
 fi
 
-"$haco" create --workspace "$workspace" "$environment" >/dev/null
+"$hacoq" create --workspace "$workspace" "$environment" >/dev/null
 created=1
 
 if incus config device list "$runtime_ref" --project hacocoon | grep -Fxq haco-control; then
@@ -308,13 +360,13 @@ if [[ "$(incus config get "$runtime_ref" environment.HACO_CLIENT_MODE --project 
   exit 1
 fi
 
-read_back="$("$haco" exec "$environment" -- cat /workspace/host.txt)"
+read_back="$("$hacoq" exec "$environment" -- cat /workspace/host.txt)"
 [[ "$read_back" == "from-host" ]] || {
   echo "workspace host->environment read mismatch: $read_back" >&2
   exit 1
 }
 
-"$haco" exec "$environment" -- sh -c "printf 'from-environment\\n' > /workspace/environment.txt"
+"$hacoq" exec "$environment" -- sh -c "printf 'from-environment\\n' > /workspace/environment.txt"
 [[ "$(cat "$workspace/environment.txt")" == "from-environment" ]] || {
   echo "workspace environment->host write mismatch" >&2
   exit 1
@@ -323,7 +375,7 @@ read_back="$("$haco" exec "$environment" -- cat /workspace/host.txt)"
 stdout_file="$root/stdout"
 stderr_file="$root/stderr"
 set +e
-"$haco" exec "$environment" -- sh -c "printf 'stdout-ok'; printf 'stderr-ok' >&2; exit 17" >"$stdout_file" 2>"$stderr_file"
+"$hacoq" exec "$environment" -- sh -c "printf 'stdout-ok'; printf 'stderr-ok' >&2; exit 17" >"$stdout_file" 2>"$stderr_file"
 exit_code=$?
 set -e
 [[ "$exit_code" == "17" ]] || {
@@ -339,7 +391,7 @@ grep -q "stderr-ok" "$stderr_file" || {
   exit 1
 }
 
-printf 'exit\n' | "$haco" shell "$environment" >/dev/null
+printf 'exit\n' | "$hacoq" shell "$environment" >/dev/null
 
 config_file="$root/incus-config"
 incus config show "$runtime_ref" --expanded --project hacocoon >"$config_file"
@@ -360,17 +412,17 @@ for forbidden in \
   fi
 done
 
-"$haco" delete "$environment"
+"$hacoq" delete "$environment"
 created=0
 
 if incus info "$runtime_ref" --project hacocoon >/dev/null 2>&1; then
-  echo "environment still exists after haco delete" >&2
+  echo "environment still exists after hacoq delete" >&2
   exit 1
 fi
 
 if [[ -e "$HACO_ROOT/state/environments.json" ]] && grep -Fq "\"$environment\"" "$HACO_ROOT/state/environments.json"; then
-  echo "environment metadata still exists after haco delete" >&2
+  echo "environment metadata still exists after hacoq delete" >&2
   exit 1
 fi
 
-echo "PASS: provisioned trusted haco general client + haco host shell -> Hacocoon UDS -> Physical Host controller + Incus E2E"
+echo "PASS: product haco stays minimal while temporary hacoq preserves trusted-host/controller + Incus E2E"

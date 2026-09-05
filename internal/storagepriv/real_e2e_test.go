@@ -113,8 +113,15 @@ func TestRealPrivilegedStorageHelperE2E(t *testing.T) {
 		t.Fatalf("managed mount filesystem = %q err=%v, want btrfs", strings.TrimSpace(fstype.Stdout), err)
 	}
 	options, err := direct.Run(ctx, "findmnt", "-rn", "-o", "OPTIONS", "--mountpoint", source)
-	if err != nil || !strings.Contains(strings.TrimSpace(options.Stdout), "compress=zstd:3") {
-		t.Fatalf("managed mount options = %q err=%v, want compress=zstd:3", strings.TrimSpace(options.Stdout), err)
+	mountOptions := strings.TrimSpace(options.Stdout)
+	if err != nil || !(strings.Contains(mountOptions, "compress=zstd:3") || strings.Contains(mountOptions, "compress=zstd")) || !strings.Contains(mountOptions, "noatime") {
+		t.Fatalf("managed mount options = %q err=%v, want zstd compression and noatime", mountOptions, err)
+	}
+	// findmnt can omit the default negative option `nodiscard`; prove the live
+	// state by rejecting active discard modes instead of requiring the token.
+	normalizedMountOptions := "," + mountOptions + ","
+	if strings.Contains(normalizedMountOptions, ",discard,") || strings.Contains(normalizedMountOptions, ",discard=async,") || strings.Contains(normalizedMountOptions, ",relatime,") || strings.Contains(normalizedMountOptions, ",strictatime,") {
+		t.Fatalf("managed mount options = %q, found conflicting atime/discard policy", mountOptions)
 	}
 
 	info, err := os.Lstat(backing)

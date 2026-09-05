@@ -4,20 +4,38 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 func TestInteractiveShellWithPrompt(t *testing.T) {
-	got := interactiveShellWithPrompt([]string{"/bin/bash", "-l"}, "prompt", "trusted-host")
+	got := interactiveShellWithPrompt(
+		[]string{"/bin/bash", "-l"},
+		"prompt",
+		"trusted-host",
+		core.TerminalMetadata{Term: "xterm-256color", ColorTerm: "truecolor"},
+	)
 	want := []string{
 		"/usr/bin/env",
 		"HACO_SHELL_CONTEXT=trusted-host",
 		"HACO_PS1=prompt",
 		"PROMPT_COMMAND=PS1=$HACO_PS1",
+		"TERM=xterm-256color",
+		"COLORTERM=truecolor",
 		"/bin/bash",
 		"-l",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("interactiveShellWithPrompt() = %#v, want %#v", got, want)
+	}
+}
+
+func TestInteractiveShellWithPromptOmitsMissingTerminalIdentity(t *testing.T) {
+	got := interactiveShellWithPrompt([]string{"/bin/bash"}, "prompt", "environment", core.TerminalMetadata{})
+	for _, arg := range got {
+		if strings.HasPrefix(arg, "TERM=") || strings.HasPrefix(arg, "COLORTERM=") {
+			t.Fatalf("interactiveShellWithPrompt() unexpectedly injected %q", arg)
+		}
 	}
 }
 

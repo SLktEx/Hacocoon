@@ -64,6 +64,12 @@ assert_managed_storage() {
 
   options="$(findmnt -rn -o OPTIONS --mountpoint "$MOUNTPOINT")"
   [[ ",$options," == *,compress=zstd:3,* || ",$options," == *,compress=zstd,* ]] || fail "managed mount is missing zstd compression: $options"
+  [[ ",$options," == *,noatime,* ]] || fail "managed mount is missing noatime: $options"
+  # findmnt may omit the default `nodiscard` token. The helper command path is
+  # tested separately for the exact requested options; live state only needs to
+  # prove that no discard mode is active.
+  [[ ",$options," != *,discard,* && ",$options," != *,discard=async,* ]] || fail "managed mount unexpectedly enables discard: $options"
+  [[ ",$options," != *,relatime,* && ",$options," != *,strictatime,* ]] || fail "managed mount unexpectedly enables atime updates: $options"
 
   [[ -f "$BACKING" && ! -L "$BACKING" ]] || fail "managed sparse backing image is missing or not a regular file"
   [[ "$(stat -c '%u' "$BACKING")" == "$(id -u)" ]] || fail "managed sparse backing image is not owned by the runner user"

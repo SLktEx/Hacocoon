@@ -117,7 +117,7 @@ validate_github_cli_keyring() {
     case "$fingerprint" in
       "$old_fingerprint") ;;
       "$current_fingerprint") current_seen=1 ;;
-      *) die "GitHub CLI package keyring contains an untrusted primary key: $fingerprint" ;;
+      *) die "downloaded GitHub CLI package keyring contains an untrusted primary key: $fingerprint" ;;
     esac
   done
   [ "$current_seen" = "1" ] || die "downloaded GitHub CLI package keyring does not contain the pinned current signing key"
@@ -387,6 +387,7 @@ validate_release_archive() {
   archive_names="$(tar -tzf "$archive_path")" || die "release archive cannot be listed safely"
   if ! printf '%s\n' "$archive_names" | awk '
     $0 == "haco" { haco++; next }
+    $0 == "hacoq" { hacoq++; next }
     $0 == "haco-controller" { controller++; next }
     $0 == "haco-host" { hacohost++; next }
     $0 == "haco-vscode" { vscode++; next }
@@ -396,7 +397,7 @@ validate_release_archive() {
     $0 ~ /^README[^/]*$/ { next }
     $0 ~ /^LICENSE[^/]*$/ { next }
     { bad=1 }
-    END { exit !(bad != 1 && haco == 1 && controller == 1 && hacohost == 1 && vscode == 1 && agenthost == 1 && notify == 1 && storagehelper == 1) }
+    END { exit !(bad != 1 && haco == 1 && hacoq == 1 && controller == 1 && hacohost == 1 && vscode == 1 && agenthost == 1 && notify == 1 && storagehelper == 1) }
   '; then
     die "release archive must contain each Hacocoon release binary exactly once; only root README/LICENSE files are allowed in addition"
   fi
@@ -531,13 +532,13 @@ install_release_binaries() {
   staging="$tmpdir/staging"
   mkdir -m 0700 "$staging"
   tar -xzf "$tmpdir/$archive" -C "$staging"
-  for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper; do
+  for binary in haco hacoq haco-controller haco-host haco-vscode haco-agent-host haco-notify haco-storage-helper; do
     [ -f "$staging/$binary" ] || die "release archive does not contain regular file $binary"
     [ ! -L "$staging/$binary" ] || die "release archive extracted symbolic link for $binary"
     chmod 0755 "$staging/$binary"
   done
 
-  for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
+  for binary in haco hacoq haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
     install_binary "$binary"
   done
   install_storage_helper
@@ -650,15 +651,17 @@ if [ "$SKIP_INCUS" = "1" ]; then
 fi
 
 haco_bin="$(command -v haco || true)"
+hacoq_bin="$(command -v hacoq || true)"
 controller_bin="$(command -v haco-controller || true)"
-[ -n "$haco_bin" ] && [ -n "$controller_bin" ] || die "haco or haco-controller binary is unavailable after installation"
+[ -n "$haco_bin" ] && [ -n "$hacoq_bin" ] && [ -n "$controller_bin" ] || die "haco, hacoq, or haco-controller binary is unavailable after installation"
 haco_bin="$(readlink -f "$haco_bin")"
+hacoq_bin="$(readlink -f "$hacoq_bin")"
 controller_bin="$(readlink -f "$controller_bin")"
 
 printf '==> Configuring Physical Host controller service\n'
 configure_hacocoon_controller "$controller_bin"
 printf '==> Reconciling trusted haco-host and controller endpoint\n'
-$SUDO "$haco_bin" host ensure || die "failed to prepare haco-host"
+$SUDO "$hacoq_bin" host ensure || die "failed to prepare haco-host"
 printf '==> Verifying trusted haco-host controller round trip\n'
 $SUDO incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null ||
   die "haco-host cannot reach the Physical Host controller"
