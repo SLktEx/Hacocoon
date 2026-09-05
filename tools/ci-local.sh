@@ -49,6 +49,12 @@ validate_install_boundary() {
   grep -q 'systemd=true' scripts/install-windows.ps1
   grep -q 'Running common Ubuntu install.sh' scripts/install-windows.ps1
   grep -q 'HACO_BUNDLE_ROOT' scripts/install-windows.ps1
+  grep -q 'UseCachedWslImage' scripts/install-windows.ps1
+  grep -q 'Get-CachedUbuntuWslImage' scripts/install-windows.ps1
+  grep -q 'DistributionInfo.json' scripts/install-windows.ps1
+  grep -q -- '--from-file' scripts/install-windows.ps1
+  grep -q 'Get-FileHash.*SHA256' scripts/install-windows.ps1
+  grep -q 'ubuntu.wsl' scripts/install-windows.ps1
   grep -q 'this package is for native Ubuntu' scripts/install-ubuntu.sh
   grep -q 'HACO_BUNDLE_ROOT' scripts/install-ubuntu.sh
   grep -q 'Hacocoon common Ubuntu installation complete' scripts/install.sh
