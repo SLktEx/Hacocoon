@@ -228,7 +228,32 @@ case "$command_name" in
     action="${1:-}"; pool="${2:-}"
     case "$action" in
       show) [ -f "$state/storage-$pool" ] ;;
-      create) [ -n "$pool" ] || exit 2; : > "$state/storage-$pool" ;;
+      create)
+        [ -n "$pool" ] || exit 2
+        mount_options=''
+        for arg in "$@"; do
+          case "$arg" in
+            btrfs.mount_options=*) mount_options="${arg#btrfs.mount_options=}" ;;
+          esac
+        done
+        : > "$state/storage-$pool"
+        printf '%s\n' "$mount_options" > "$state/storage-$pool-mount-options"
+        ;;
+      get)
+        [ -f "$state/storage-$pool" ] || exit 1
+        [ "${3:-}" = btrfs.mount_options ] || exit 2
+        cat "$state/storage-$pool-mount-options"
+        ;;
+      set)
+        [ -f "$state/storage-$pool" ] || exit 1
+        assignment="${3:-}"
+        case "$assignment" in
+          btrfs.mount_options=*)
+            printf '%s\n' "${assignment#btrfs.mount_options=}" > "$state/storage-$pool-mount-options"
+            ;;
+          *) exit 2 ;;
+        esac
+        ;;
       *) exit 2 ;;
     esac
     ;;
