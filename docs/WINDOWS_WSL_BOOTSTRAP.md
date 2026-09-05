@@ -107,7 +107,9 @@ wsl --install --from-file .\ubuntu.wsl --name Hacocoon --no-launch
 
 `-UseCachedWslImage` currently supports only the `Ubuntu-26.04` base distribution and cannot be combined with `-WebDownload`. The cache file is intentionally **not** bundled into release installer packages; it is a local/CI acceleration artifact.
 
-The Windows installer GitHub Actions E2E also uses this path. After extracting the candidate Windows package, the workflow restores `ubuntu.wsl` with `actions/cache` using an OS/architecture/Ubuntu-version-specific key. Both installer phases invoke the packaged BAT with `-UseCachedWslImage`. On a cache miss, the installer performs the verified download above, and the resulting `ubuntu.wsl` is saved by the Actions cache for later E2E runs.
+GitHub Actions keeps the cache trust boundary separate from untrusted pull requests. A trusted `windows-wsl-image-cache` workflow on `main` owns cache creation with `actions/cache`: on a miss it invokes the same `-UseCachedWslImage` path, so the file is downloaded through Microsoft's metadata and SHA256 validation before it is stored. The pull-request Windows installer E2E uses only `actions/cache/restore`, copies the trusted cached `ubuntu.wsl` into the extracted candidate package when available, and never writes cache state from a PR. If no trusted cache exists, the candidate installer simply performs its normal verified download for that run.
+
+Both Windows E2E installer phases invoke the packaged BAT with `-UseCachedWslImage`, so the cached path itself is exercised rather than bypassed.
 
 ## Common Ubuntu main phase
 
@@ -171,7 +173,7 @@ haco host shell
 
 Installer E2E is evaluated at the user-visible entry points, not by declaring success because `install.sh` ran in isolation.
 
-The Windows gate builds the candidate `hacocoon-windows-amd64.zip`, extracts it, restores the cached Ubuntu 26.04 `.wsl` image when available, executes the packaged `install-windows.bat -UseCachedWslImage`, emulates the normal Ubuntu first-launch user creation when necessary, executes the **same packaged BAT with the same cache option again**, and requires WSL 2, systemd, Incus, the controller socket/service, `haco-host doctor`, and WSL login integration to succeed.
+The Windows gate builds the candidate `hacocoon-windows-amd64.zip`, extracts it, restores the trusted Ubuntu 26.04 `.wsl` cache when available, executes the packaged `install-windows.bat -UseCachedWslImage`, emulates the normal Ubuntu first-launch user creation when necessary, executes the **same packaged BAT with the same cache option again**, and requires WSL 2, systemd, Incus, the controller socket/service, `haco-host doctor`, and WSL login integration to succeed. Pull-request jobs are restore-only; cache population is isolated in the trusted `main` cache-warmer workflow.
 
 The native Ubuntu gate builds the candidate `hacocoon-ubuntu-amd64.tar.gz`, extracts it, executes the packaged `install-ubuntu.sh`, and requires the controller and trusted `haco-host` round trip to succeed while confirming the native login shell was not replaced.
 
