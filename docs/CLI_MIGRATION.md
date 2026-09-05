@@ -25,9 +25,11 @@ haco --help
 
 These commands do not require Incus, the Hacocoon controller, `haco-host`, Hacocoon state directories, network access, or root privileges.
 
-Unimplemented product commands fail clearly instead of falling back to the legacy runtime stack. The hidden `haco host ensure` / `haco host shell` subprocess bridge has been removed. Bootstrap still calls the retained `hacoq host ensure` directly; eliminating that installer dependency is separate follow-up work.
+Unimplemented product commands fail clearly instead of falling back to the legacy runtime stack. The hidden `haco host ensure` / `haco host shell` subprocess bridge has been removed. The installer calls product `haco setup` through the existing controller. Legacy `hacoq host ensure` fails before composition; its local bootstrap pipeline has been removed.
 
-## Controller-backed diagnostics
+## Controller-backed setup and diagnostics
+
+`haco setup` prepares owned Host resources through the existing Physical Host controller. It accepts no source paths or repair/force options. Failed or interrupted attempts retain owned data, and an overlapping setup is rejected. See [setup contract](design/controller-client-transport.md#host-setup).
 
 `haco doctor` and `haco doctor --json` now diagnose the same Physical Host through its controller from either execution domain. The command inspects runtime, configured storage, trusted-host/network ownership and trusted connectivity without repairs. It returns nonzero for failed, skipped, unavailable or malformed diagnostics. See [controller diagnostics](design/controller-client-transport.md#host-diagnostics) for the exact scope and limits.
 
@@ -35,10 +37,7 @@ Unimplemented product commands fail clearly instead of falling back to the legac
 
 Release archives and installers temporarily contain both `haco` and `hacoq` inside the Linux/WSL runtime.
 
-The trusted `haco-host` also receives both names:
-
-- `/usr/local/bin/haco` — the new product CLI
-- `/usr/local/bin/hacoq` — the temporary legacy controller/runtime CLI
+Fresh trusted-host setup receives only product `haco` and client-only `haco-host`. Legacy guest hacoq provisioning has been removed. Existing guest copies are not required by the product and are not used for setup.
 
 There is no native Windows `haco` command. The Windows installer only provisions the dedicated Hacocoon WSL environment; product commands run inside that environment.
 

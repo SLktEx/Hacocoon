@@ -61,7 +61,7 @@ prepare_ubuntu_host
 SUDO=probe; calls=0; ready_after="$1"
 probe() {
   calls=$((calls + 1))
-  case "$*" in 'incus exec haco-host --project hacocoon -- timeout 8 /bin/sh -ec '*) ;; *) exit 99 ;; esac
+  case "$*" in 'incus exec haco-host --project hacocoon -- env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin timeout 8 /bin/sh -ec '*) ;; *) exit 99 ;; esac
   [ "$calls" = "$ready_after" ]
 }
 sleep() { :; }
@@ -72,6 +72,47 @@ printf '%s:%s\n' "$calls" "$status"
             result = subprocess.run(["sh", "-c", script, "sh", str(ready_after)], capture_output=True, text=True)
             self.assertEqual(result.stdout.strip(), f"{expected_calls}:{expected_status}", result.stderr)
 
+
+
+    def test_installer_bootstrap_uses_controller_and_stops_at_failure(self):
+        bootstrap = INSTALLER[INSTALLER.index('\nhaco_bin='):]
+        for failed_stage in ("none", "controller", "setup", "connectivity"):
+            with self.subTest(failed_stage=failed_stage):
+                script = r'''
+set -eu
+failed_stage="$1"; SUDO=privileged; GRANT_INCUS_ADMIN=0; INSTALL_UID=1000
+HACOCOON_ACCESS_USER=""
+die() { printf '%s\n' "$*" >&2; exit 1; }
+command() {
+  case "$*" in
+    '-v haco') printf 'haco\n' ;;
+    '-v haco-controller') printf 'haco-controller\n' ;;
+    *) exit 99 ;;
+  esac
+}
+readlink() { printf '%s\n' "$2"; }
+configure_hacocoon_controller() { printf 'stage:controller\n'; [ "$failed_stage" != controller ]; }
+privileged() {
+  case "$*" in
+    'haco setup') printf 'stage:setup\n'; [ "$failed_stage" != setup ] ;;
+    'incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor') printf 'stage:roundtrip\n' ;;
+    *) exit 99 ;;
+  esac
+}
+verify_trusted_host_connectivity() { printf 'stage:connectivity\n'; [ "$failed_stage" != connectivity ]; }
+''' + bootstrap
+                result = subprocess.run(["sh", "-c", script, "sh", failed_stage], capture_output=True, text=True)
+                if failed_stage == "none":
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.count("stage:setup"), 1)
+                    self.assertIn("Hacocoon common Ubuntu installation complete.", result.stdout)
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertNotIn("Hacocoon common Ubuntu installation complete.", result.stdout)
+                if failed_stage == "controller":
+                    self.assertNotIn("stage:setup", result.stdout)
+                if failed_stage == "setup":
+                    self.assertNotIn("stage:connectivity", result.stdout)
 
 if __name__ == "__main__":
     unittest.main()

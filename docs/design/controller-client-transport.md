@@ -2,11 +2,11 @@
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product `haco` currently exposes help/version, controller-backed `doctor`, and its controller-backed WSL login alias. Environment lifecycle in the new product CLI, PTY control framing, port forwarding and remote transport remain planned.
+Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product `haco` currently exposes help/version, controller-backed `setup` and `doctor`, and its controller-backed WSL login alias. Environment lifecycle in the new product CLI, PTY control framing, port forwarding and remote transport remain planned.
 
 ## Summary
 
-Current reset-CLI boundary: product `haco` exposes help/version, controller-backed `doctor`, and its WSL login alias; older `haco env ...` descriptions on this page refer to the retained migration CLI. See [implementation status](../IMPLEMENTATION_STATUS.md).
+Current reset-CLI boundary: product `haco` exposes help/version, controller-backed `setup` and `doctor`, and its WSL login alias; older `haco env ...` descriptions on this page refer to the retained migration CLI. See [implementation status](../IMPLEMENTATION_STATUS.md).
 
 WSL may open the login shell before the enabled controller service has bound its socket. The login alias waits up to 30 seconds using read-only ping calls, retrying only transport unavailability. Protocol/operation rejection is not retried; the client never starts another controller or changes service state. This startup timeout does not limit the interactive session's lifetime.
 
@@ -94,11 +94,21 @@ environment.HACO_CLIENT_MODE=controller
 
 The instance-side path intentionally lives outside `/run`: guest systemd commonly mounts runtime tmpfs state during boot, so a proxy listener that must exist independently of guest boot ordering uses a stable `/var/lib` path.
 
-`hacoq host ensure` verifies the trusted-host ownership marker, reconciles the exact endpoint shape, starts the instance when needed, and provisions both `/usr/local/bin/haco-host` and the same-release general `/usr/local/bin/haco`. Provisioning is digest-checked and requires each Physical Host source binary to be an executable regular file owned by the invoking effective UID and not writable by group/other users. The installed binaries must converge to `0755 root:root`.
+`haco setup` verifies the trusted-host ownership marker, reconciles the exact endpoint shape, starts the instance when needed, and provisions both `/usr/local/bin/haco-host` and the same-release general `/usr/local/bin/haco`. Provisioning is digest-checked and requires each Physical Host source binary to be an executable regular file owned by the invoking effective UID and not writable by group/other users. The installed binaries must converge to `0755 root:root`.
 
 `HACO_CLIENT_MODE=controller` is deliberately a safety/execution-context marker, not an authorization credential. The retained `hacoq` migration binary uses this marker to prevent guest-local state construction. The reset product `haco` does not contain that local composition path. Authorization and policy remain controller-side.
 
 The supported WSL bootstrap then executes `haco-host doctor` inside the real trusted instance. Bootstrap fails before changing the user's automatic login shell if the round trip cannot reach the Physical Host controller.
+
+## Host setup
+
+Status: **implemented**, with new packaged acceptance pending.
+
+`haco setup` invokes `system.setup` on the existing Physical Host controller from either client context. It prepares the owned host, storage, network and the two required client binaries. Requests take no parameters; companion paths are resolved next to the running controller executable. Both sources are validated before provider mutation. No legacy CLI, guest controller or caller-selected root command participates.
+
+Only one setup executes at a time. The server bounds it to 15 minutes and the CLI to 16 minutes. Client cancellation closes the connection; the controller may still finish its bounded operation. Another request receives busy until that operation ends. An explicit retry reuses owned resources and verified clients. Failures retain data and never imply permission to reformat or delete. Setup reports resource preparation; the installer separately verifies the controller round trip and connectivity before completion. Use `haco doctor` for read-only inspection.
+
+The controller owns setup failure logging and returns a selected error/next action without raw provider output. The client renders that failure; transport/protocol failures are logged at the client boundary. See [ADR 0006](../adr/0006-controller-owned-host-setup.md).
 
 ## Host diagnostics
 
@@ -142,9 +152,9 @@ The client-only `haco-host` executable and the retained migration CLI `hacoq env
 
 ## General `haco` client namespace
 
-Product `haco` is the common user entry point on the WSL Physical Host and inside trusted `haco-host`. Its help/version commands are standalone; `doctor` and the WSL login alias call the controller directly. It does not delegate to `hacoq`; unimplemented commands, including `haco host ensure` and `haco host shell`, fail explicitly.
+Product `haco` is the common user entry point on the WSL Physical Host and inside trusted `haco-host`. Its help/version commands are standalone; `setup`, `doctor` and the WSL login alias call the controller directly. It does not delegate to `hacoq`; unimplemented commands, including `haco host ensure` and `haco host shell`, fail explicitly.
 
-The prior Environment namespace remains in temporary `hacoq`, while the typed controller API remains reusable. Rebuilding the product lifecycle commands must use that API without guest-local composition or Incus authority. The current installer still invokes `hacoq host ensure` directly for bootstrap provisioning; that migration dependency is separate from the new CLI and remains scheduled for removal.
+The prior Environment namespace remains in temporary `hacoq`, while the typed controller API remains reusable. Rebuilding the product lifecycle commands must use that API without guest-local composition or Incus authority. The installer invokes `haco setup` through the existing controller; the legacy bootstrap orchestration and guest hacoq provisioner have been removed.
 
 ## `haco-host` transition surface
 
@@ -185,7 +195,7 @@ An opt-in generated 100 GiB-class benchmark exists to measure the baseline witho
 
 ## Current acceptance
 
-Repository and real-Incus acceptance cover:
+Repository tests and the maintained real-Incus gate cover the following contracts. The updated setup/client-only gate must run on the new commit before claiming its real-host acceptance:
 
 - local request/response over UDS without TCP;
 - bounded envelopes and connection concurrency;
@@ -199,10 +209,10 @@ Repository and real-Incus acceptance cover:
 - explicit controller-client mode and refusal of unexpected mode drift;
 - real trusted-instance `haco-host doctor` round trip to the Physical Host controller;
 - stopped/restarted trusted Host regaining controller access;
-- production-provisioned `haco env` create/list/status/exec/delete from inside the real trusted Host through the Physical Host controller;
-- historical Environment aliases being forced through the controller in trusted client mode;
-- still-unmigrated commands failing before guest-local composition is initialized;
-- guest command exit-status/stdout/stderr propagation through the general client path;
+- production-provisioned `haco-host env` create/list/status/exec/delete from inside the real trusted Host through the Physical Host controller;
+- absence of legacy guest `hacoq` after fresh setup;
+- component coverage of retained legacy aliases, Base routing and fail-closed local composition;
+- guest command exit-status/stdout/stderr propagation through the client-only companion;
 - absence of raw Incus control-socket exposure;
 - absence of the trusted controller endpoint and client-mode marker on ordinary Environments.
 

@@ -71,7 +71,7 @@ var hacoCommandClassifications = map[string]commandClassification{
 	"host": {
 		Name:   "host",
 		Domain: commandDomainPhysicalHost,
-		State:  "implemented Physical Host bootstrap/recovery lifecycle",
+		State:  "controller-backed host shell; removed bootstrap uses product haco setup",
 	},
 	"doctor": {
 		Name:   "doctor",

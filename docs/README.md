@@ -92,7 +92,7 @@ Current design/reference documents include:
 
 On the supported local Incus path, Hacocoon distinguishes the actual Linux/WSL **Physical Host** from the persistent trusted logical **`haco-host`**. The Physical Host retains Incus, loop/Btrfs, and other platform authority. `haco-host` is part of the TCB and must not be confused with an untrusted Environment.
 
-The current repository slice provides temporary `hacoq host ensure` / `hacoq host shell`, exact ownership marking, collision refusal, managed-storage placement, and a dedicated WSL login entry so a completed Windows install can treat `wsl -d Hacocoon` as “open my Hacocoon Host.” Raw Incus control is not mounted into `haco-host`; the root Physical Host shell remains the explicit recovery path. See [`design/trusted-host.md`](design/trusted-host.md) and [`WINDOWS_WSL_BOOTSTRAP.md`](WINDOWS_WSL_BOOTSTRAP.md).
+The current repository slice provides controller-backed `haco setup` / temporary `hacoq host shell`, exact ownership marking, collision refusal, managed-storage placement, and a dedicated WSL login entry so a completed Windows install can treat `wsl -d Hacocoon` as “open my Hacocoon Host.” Raw Incus control is not mounted into `haco-host`; the root Physical Host shell remains the explicit recovery path. See [`design/trusted-host.md`](design/trusted-host.md) and [`WINDOWS_WSL_BOOTSTRAP.md`](WINDOWS_WSL_BOOTSTRAP.md).
 
 ## Reusable client adapter boundary
 

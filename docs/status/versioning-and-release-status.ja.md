@@ -23,7 +23,7 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 
 ## 現在のcheckpoint status
 
-Controller経由の `haco doctor` は、このcheckpoint内で読み取り専用の基盤診断を追加する。repository実装とpackaged受入は[実装status](../IMPLEMENTATION_STATUS.ja.md)で区別する。
+Controller経由の `haco setup` と読み取り専用 `haco doctor` は、このcheckpoint内でHost準備と基盤診断を扱う。setup置換にはrepository検証があり、新package受入はpending。repository実装とpackaged受入は[実装status](../IMPLEMENTATION_STATUS.ja.md)で区別する。
 
 専用trusted-host networkの修正は現在のcheckpoint内で扱う。所有権、profile非依存のfresh作成、限定したDocker転送、データを保持する現在hostの移行を実装した。現在のinstallへのpackaged受入は成功し、fresh受入はpending。
 

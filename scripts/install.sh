@@ -314,10 +314,10 @@ verify_trusted_host_connectivity() {
   while [ "$network_attempt" -lt 10 ]; do
     # Guest networkd/DHCP can lag behind Incus's RUNNING state. Bound each
     # guest probe and wait without changing any network/firewall configuration.
-    if $SUDO incus exec haco-host --project hacocoon -- timeout 8 /bin/sh -ec '
+    if $SUDO incus exec haco-host --project hacocoon -- env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin timeout 8 /bin/sh -ec '
       getent ahostsv4 github.com >/dev/null
       ip -4 route show default | grep -q "^default "
-      curl -4 -f -sS --connect-timeout 3 --max-time 5 -o /dev/null https://github.com
+      curl -q -4 -f -sS --connect-timeout 3 --max-time 5 -o /dev/null https://github.com
     ' >/dev/null 2>&1; then
       return 0
     fi
@@ -673,17 +673,15 @@ if [ "$SKIP_INCUS" = "1" ]; then
 fi
 
 haco_bin="$(command -v haco || true)"
-hacoq_bin="$(command -v hacoq || true)"
 controller_bin="$(command -v haco-controller || true)"
-[ -n "$haco_bin" ] && [ -n "$hacoq_bin" ] && [ -n "$controller_bin" ] || die "haco, hacoq, or haco-controller binary is unavailable after installation"
+[ -n "$haco_bin" ] && [ -n "$controller_bin" ] || die "haco or haco-controller binary is unavailable after installation"
 haco_bin="$(readlink -f "$haco_bin")"
-hacoq_bin="$(readlink -f "$hacoq_bin")"
 controller_bin="$(readlink -f "$controller_bin")"
 
 printf '==> Configuring Physical Host controller service\n'
 configure_hacocoon_controller "$controller_bin"
 printf '==> Reconciling trusted haco-host and controller endpoint\n'
-$SUDO "$hacoq_bin" host ensure || die "failed to prepare haco-host"
+$SUDO "$haco_bin" setup || die "controller-backed Host setup failed; run haco doctor, then rerun the installer"
 printf '==> Verifying trusted haco-host controller round trip\n'
 $SUDO incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null ||
   die "haco-host cannot reach the Physical Host controller"

@@ -58,6 +58,8 @@ func run(args []string) int {
 		return 0
 	case "version":
 		return runVersion(args[1:])
+	case "setup":
+		return runSetup(args[1:])
 	case "doctor":
 		return runDoctor(args[1:])
 	default:
@@ -98,6 +100,7 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  haco <command>")
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "Commands:")
+	fmt.Fprintln(out, "  setup      Prepare the installed Host through its controller")
 	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
 	fmt.Fprintln(out, "  help       Show this help")
 	fmt.Fprintln(out, "  version    Show Hacocoon version information")

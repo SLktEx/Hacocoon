@@ -2,11 +2,11 @@
 
 日本語 | [**English**](controller-client-transport.md)
 
-Status: **partial**。Local Unix domain protocol、Physical Host controller、trusted-host endpoint投影、client-only `haco-host`、typed Environment API、対話streamは実装済み。製品 `haco` は現在help/version・controller経由の `doctor` とcontroller-backed WSL login aliasを提供する。新CLIのEnvironment lifecycle、PTY制御、port forwarding、remote transportはplanned。
+Status: **partial**。Local Unix domain protocol、Physical Host controller、trusted-host endpoint投影、client-only `haco-host`、typed Environment API、対話streamは実装済み。製品 `haco` は現在help/version・controller経由の `setup` / `doctor` とcontroller-backed WSL login aliasを提供する。新CLIのEnvironment lifecycle、PTY制御、port forwarding、remote transportはplanned。
 
 ## 概要
 
-現在のreset CLI境界: 製品 `haco` はhelp/version・controller経由の `doctor` とWSL login aliasを持ち、このpageの旧 `haco env ...` 記述は保持している移行CLIの機能を指す。[実装status](../IMPLEMENTATION_STATUS.ja.md)を参照。
+現在のreset CLI境界: 製品 `haco` はhelp/version・controller経由の `setup` / `doctor` とWSL login aliasを持ち、このpageの旧 `haco env ...` 記述は保持している移行CLIの機能を指す。[実装status](../IMPLEMENTATION_STATUS.ja.md)を参照。
 
 WSLは有効なcontroller serviceがsocketをbindする前にlogin shellを開くことがある。login aliasは読み取り専用pingで最大30秒待ち、transport未準備だけをretryする。protocol・operationの拒否はretryせず、clientが第二のcontrollerを起動したりservice状態を変更したりしない。この起動待ち期限は対話sessionの寿命を制限しない。
 
@@ -94,11 +94,21 @@ environment.HACO_CLIENT_MODE=controller
 
 Instance側socketを`/run`配下に置かないのは意図的です。Guest systemdはboot時にruntime tmpfsをmountするため、guest boot orderingから独立して存在させたいproxy listenerはstableな`/var/lib` pathに置きます。
 
-`hacoq host ensure`はownership markerを検証し、endpoint shapeを完全一致でreconcileし、必要ならinstanceをstartし、`/usr/local/bin/haco-host`と同じreleaseのgeneral `/usr/local/bin/haco`の両方をprovisionします。各client binaryはSHA-256で検証し、Physical Host側sourceはinvoking effective UID所有のregular executableかつgroup/other writableでないことを要求します。Install後は`0755 root:root`へ収束させます。
+`haco setup`はownership markerを検証し、endpoint shapeを完全一致でreconcileし、必要ならinstanceをstartし、`/usr/local/bin/haco-host`と同じreleaseのgeneral `/usr/local/bin/haco`の両方をprovisionします。各client binaryはSHA-256で検証し、Physical Host側sourceはinvoking effective UID所有のregular executableかつgroup/other writableでないことを要求します。Install後は`0755 root:root`へ収束させます。
 
 `HACO_CLIENT_MODE=controller`はauthorization credentialではなく、意図的なsafety / execution-context markerです。移行用 `hacoq` はこのmarkerでguest-local stateの構築を防ぐ。reset後の製品 `haco` はそのlocal composition経路を持たない。Authorizationとpolicyは引き続きcontroller側がauthorityです。
 
 Supported WSL bootstrapはその後、実際のtrusted instance内で`haco-host doctor`を実行します。Physical Host controllerへのround tripが成功しない場合、normal userのautomatic login shellを変更する前にbootstrapを失敗させます。
+
+## Host setup
+
+Status: **implemented**。新しいpackageでの受入はpending。
+
+`haco setup` は両clientの実行場所から既存Physical Host controllerの `system.setup` を呼ぶ。所有host・storage・networkと必要な2本のclient binaryを準備する。requestは引数を取らず、companion pathは稼働controller executableの隣から解決する。両sourceをprovider変更前に検証する。旧CLI・guest controller・callerが指定するroot commandは使わない。
+
+同時setupは1件に限定する。server上限は15分、CLIは16分。clientのcancelは接続を閉じるが、controllerの期限付き操作が続いている場合がある。その間の別requestはbusyとなる。明示的な再実行は所有resourceと検証済みclientを再利用し、失敗時もデータを保持する。失敗は再formatや削除の許可ではない。setupはresourceの準備を報告し、installerがcontroller round tripと疎通を別途検証してから完了する。読み取り検査には `haco doctor` を使う。
+
+setupの失敗logはcontrollerが所有し、provider生出力を含めず、選んだerrorと次の操作を返す。clientはその失敗を表示し、transport/protocol失敗はclient側でlogにする。[ADR 0006](../adr/0006-controller-owned-host-setup.md)を参照。
 
 ## Host診断
 
@@ -142,9 +152,9 @@ Client-only `haco-host` と移行用に残る `hacoq env ...` はdirect Incus au
 
 ## General `haco` client namespace
 
-製品 `haco` はWSL Physical Hostとtrusted `haco-host` 内で共通の利用者入口となる。help/versionは単独で動作し、`doctor` とWSL login aliasはcontrollerを直接呼ぶ。`hacoq` へ処理を委譲せず、未提供の `haco host ensure`・`haco host shell` も明示的に失敗する。
+製品 `haco` はWSL Physical Hostとtrusted `haco-host` 内で共通の利用者入口となる。help/versionは単独で動作し、`setup`・`doctor` とWSL login aliasはcontrollerを直接呼ぶ。`hacoq` へ処理を委譲せず、未提供の `haco host ensure`・`haco host shell` も明示的に失敗する。
 
-旧Environment namespaceは一時的な `hacoq` に残り、typed controller APIは再利用できる。新CLIのlifecycle実装はこのAPIを使い、guest-local compositionやIncus authorityを持たない。現在のinstallerはbootstrap provisionのため `hacoq host ensure` を直接呼ぶ。この移行依存は新CLIとは別で、撤去予定として残る。
+旧Environment namespaceは一時的な `hacoq` に残り、typed controller APIは再利用できる。新CLIのlifecycle実装はこのAPIを使い、guest-local compositionやIncus authorityを持たない。installerは `haco setup` から既存controllerへbootstrapを依頼する。旧CLIのbootstrap orchestrationとguestへのhacoq配備は撤去した。
 
 ## `haco-host` transition surface
 
@@ -185,7 +195,7 @@ BaselineはUnix domain socket上の通常のGo buffered forwardingです。Local
 
 ## 現在のacceptance
 
-Repository testとreal Incus acceptanceでは次を確認します。
+以下はrepository testと維持するreal-Incus gateの検証契約を示す。更新したsetup/client-only gateは新commitで実行するまで実機受入pending。
 
 - TCPなしのlocal UDS request/response
 - bounded envelope / connection concurrency
@@ -199,10 +209,10 @@ Repository testとreal Incus acceptanceでは次を確認します。
 - explicit controller-client modeと想定外mode driftの拒否
 - 実trusted instanceの`haco-host doctor`からPhysical Host controllerへのround trip
 - stopped/restarted trusted Hostでのcontroller再疎通
-- production provision済み`haco env`からcreate/list/status/exec/deleteをPhysical Host controller経由で実行できること
-- trusted client modeではhistorical Environment aliasもcontrollerへ強制routeされること
-- 未移行commandがguest-local composition初期化前にfail closedすること
-- general client pathでguest commandのexit status/stdout/stderrが保持されること
+- production provision済み`haco-host env`からcreate/list/status/exec/deleteをPhysical Host controller経由で実行できること
+- fresh setupでguestに旧`hacoq`を配備しないこと
+- 保持した旧alias・Base routing・local composition拒否のcomponent検証
+- client-only companionでguest commandのexit status/stdout/stderrが保持されること
 - raw Incus control socket非露出
 - 通常Environmentにtrusted controller endpointとclient-mode markerが存在しないこと
 

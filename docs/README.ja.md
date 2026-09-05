@@ -92,7 +92,7 @@ pre-1.0のcheckpoint番号は意図的に安く扱います。意味のあるpro
 
 Supported local Incus pathでは、実際のLinux/WSL substrateである **Physical Host** と、永続的なtrusted logical **`haco-host`** を分けます。Physical HostにはIncus、loop/Btrfs、その他platform authorityを残し、`haco-host` はTCBの一部として扱います。通常のuntrusted Environmentとは別物です。
 
-現在のrepository sliceでは 移行用の `hacoq host ensure` / `hacoq host shell`、exact ownership marker、name collision拒否、managed storage配置、専用WSL login entryを実装しています。Windows install完了後は `wsl -d Hacocoon` を「Hacocoon Hostを開く」入口として扱えます。Raw Incus controlは `haco-host` にmountせず、Physical Hostのroot shellを明示的なrecovery pathとして残します。詳細は [`design/trusted-host.ja.md`](design/trusted-host.ja.md) と [`WINDOWS_WSL_BOOTSTRAP.ja.md`](WINDOWS_WSL_BOOTSTRAP.ja.md) を参照してください。
+現在のrepository sliceでは controller経由の `haco setup` / 移行用の `hacoq host shell`、exact ownership marker、name collision拒否、managed storage配置、専用WSL login entryを実装しています。Windows install完了後は `wsl -d Hacocoon` を「Hacocoon Hostを開く」入口として扱えます。Raw Incus controlは `haco-host` にmountせず、Physical Hostのroot shellを明示的なrecovery pathとして残します。詳細は [`design/trusted-host.ja.md`](design/trusted-host.ja.md) と [`WINDOWS_WSL_BOOTSTRAP.ja.md`](WINDOWS_WSL_BOOTSTRAP.ja.md) を参照してください。
 
 ## Reusable client adapter境界
 

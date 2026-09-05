@@ -21,7 +21,7 @@ Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progr
 
 ## Current checkpoint status
 
-Controller-backed `haco doctor` adds read-only infrastructure diagnostics within this checkpoint. Repository implementation and packaged acceptance are distinguished in [implementation status](../IMPLEMENTATION_STATUS.md).
+Controller-backed `haco setup` and read-only `haco doctor` cover installed Host preparation and infrastructure diagnostics within this checkpoint. The new setup replacement has repository coverage; its packaged acceptance remains pending. Repository implementation and packaged acceptance are distinguished in [implementation status](../IMPLEMENTATION_STATUS.md).
 
 The dedicated trusted-host networking correction stays within the current checkpoint. Ownership, profile-independent fresh creation, scoped Docker forwarding and data-preserving current-host migration are implemented. Current-install packaged acceptance passed; fresh acceptance remains pending.
 

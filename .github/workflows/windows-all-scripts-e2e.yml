@@ -159,7 +159,7 @@ jobs:
       #   inspect the resulting WSL/systemd/Incus/Btrfs/loop state. Assertions may
       #   use root when required to observe state, but must never create, repair,
       #   restart, remount, attach, detach, delete, or otherwise mutate product
-      #   state. The reset CLI currently has help/version only. Trusted-host file
+      #   state. Product haco exposes help/version and setup/doctor. Trusted-host file
       #   retention here does not establish Environment/Workspace retention or SSH.
       - name: Exercise cached install, terminate/restart, and reinstall user path
         shell: pwsh

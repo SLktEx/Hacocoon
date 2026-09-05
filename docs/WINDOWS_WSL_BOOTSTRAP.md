@@ -1,6 +1,6 @@
 # Windows / WSL installation
 
-Status: **partial**. Managed-account bootstrap is implemented; real Windows install/network/restart acceptance is tracked separately in [implementation status](IMPLEMENTATION_STATUS.md). Product `haco` currently exposes help/version, controller-backed `doctor`, and its WSL login alias. Retained lifecycle commands belong to temporary `hacoq` during [CLI migration](CLI_MIGRATION.md).
+Status: **partial**. Managed-account bootstrap is implemented; real Windows install/network/restart acceptance is tracked separately in [implementation status](IMPLEMENTATION_STATUS.md). Product `haco` currently exposes help/version, controller-backed `setup` and `doctor`, and its WSL login alias. Retained lifecycle commands belong to temporary `hacoq` during [CLI migration](CLI_MIGRATION.md).
 
 Observed Windows acceptance (`7798b57`, 2026-09-06): the unmodified packaged `install-windows.bat -UseCachedWslImage` completed current-install application and same-version rerun with exit 0. Ordinary and explicitly cold WSL entry, product doctor from both clients with five successful checks and exact controller build identity, and actual shell/process exit 0 passed. The known file, trusted UUID, account/password state, all sudo-policy hashes, Incus Btrfs placement and live mount policy were retained. Physical Host and trusted-host DNS/routes/HTTPS passed. Fresh creation of this candidate, Windows reboot, live Docker/firewall ordering, Environment proxy enforcement, SSH and Workspace work retention remain untested. See [implementation status](IMPLEMENTATION_STATUS.md) for validation scope and observed firewall changes.
 
@@ -158,7 +158,7 @@ The common main phase:
 - installs the Hacocoon binaries (the storage helper is removed);
 - installs/restarts `haco-controller.service`;
 - requires `/run/hacocoon/control.sock` to be a `root:hacocoon` mode `0660` Unix socket;
-- internally runs retained `hacoq host ensure` during the CLI migration;
+- calls product `haco setup` through the existing controller, without legacy CLI orchestration;
 - proves the real trusted-host path with `/usr/local/bin/haco-host doctor` inside `haco-host`.
 
 `install.sh` does not edit `/etc/wsl.conf`, terminate WSL, or change a user's login shell.

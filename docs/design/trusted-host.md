@@ -2,7 +2,7 @@
 
 Status: partial.
 
-Current CLI boundary: product `haco` implements help/version, controller-backed `doctor`, and the WSL login alias. Retained lifecycle commands described below use temporary `hacoq` during [CLI migration](../CLI_MIGRATION.md); they do not describe implemented new product commands.
+Current CLI boundary: product `haco` implements help/version, controller-backed `setup` and `doctor`, and the WSL login alias. Retained lifecycle commands described below use temporary `hacoq` during [CLI migration](../CLI_MIGRATION.md); they do not describe implemented new product commands.
 
 Current packaged Windows acceptance and remaining gaps are recorded in [implementation status](../IMPLEMENTATION_STATUS.md). Product diagnostics use the [read-only controller contract](controller-client-transport.md#host-diagnostics).
 
@@ -31,7 +31,7 @@ Managed Environments                   UNTRUSTED
 
 The current implementation provides:
 
-- `hacoq host ensure`, which reconciles one persistent `haco-host`;
+- `haco setup`, which reconciles one persistent `haco-host`;
 - `hacoq host shell`, which ensures the instance is running and enters an interactive login shell;
 - the ownership marker `user.hacocoon.role=trusted-host`;
 - rootfs placement on Hacocoon-managed Incus storage;
@@ -126,7 +126,7 @@ The instance-side socket is intentionally outside `/run` so guest runtime tmpfs 
 
 ## Client provisioning
 
-`hacoq host ensure` provisions both release client binaries:
+`haco setup` provisions both release client binaries:
 
 ```text
 /usr/local/bin/haco-host
@@ -137,7 +137,7 @@ The Physical Host source for each binary must be a regular executable, owned by 
 
 This makes repeated ensure idempotent and avoids trusting arbitrary pre-existing executables in the trusted instance.
 
-The product `haco` binary has no guest-local composition fallback and does not invoke `hacoq`. The separately provisioned temporary `hacoq` retains the older lifecycle/CLI implementation, guarded by `HACO_CLIENT_MODE=controller`. Its Environment operations use the controller, and unsupported guest-local operations fail closed.
+The product `haco` binary has no guest-local composition fallback and does not invoke `hacoq`. The temporary `hacoq` remains in the Physical Host release payload for unmigrated operations; fresh trusted-host setup no longer provisions it. Existing guest copies are not a product dependency. Its controller-mode guard still refuses guest-local operations.
 
 The mode marker is not an authorization credential. `haco-host` is already trusted, and the Physical Host controller remains the authority for policy, state, and provider operations.
 
@@ -175,7 +175,7 @@ Before changing that login shell, bootstrap now requires all of these to succeed
 2. `haco-controller` is installed as a root-owned system binary;
 3. `haco-controller.service` is restarted on the current release;
 4. `/run/hacocoon/control.sock` is a `root:hacocoon` mode-`0660` Unix socket;
-5. `hacoq host ensure` reconciles the trusted Host, proxy, client mode, and both client binaries;
+5. `haco setup` reconciles the trusted Host, proxy, client mode, and both client binaries;
 6. `haco-host doctor` succeeds from inside the real trusted instance.
 
 Only then does normal entry become:
@@ -221,6 +221,6 @@ Still separate work:
 
 Repository tests cover ownership reconciliation, collision refusal, state recovery, exact controller-proxy validation, both client binaries' provisioning/idempotency, client-mode drift refusal, CLI routing, fail-closed fallback prevention, warning selection, and login-mode identification.
 
-Real Incus E2E covers trusted instance creation, control endpoint projection, production installation of both client binaries, exact general-client digest equality, `haco-host doctor` and `haco env ...` through the Physical Host controller, restart recovery, legacy Environment alias controller routing, unmigrated-command refusal before guest-local state creation, raw Incus-socket non-exposure, and absence of the trusted endpoint/client-mode marker on ordinary Environments.
+The maintained real Incus E2E gate checks controller-owned `haco setup`, endpoint projection, digest equality of both required clients, `haco-host doctor` and `haco-host env ...` through the Physical Host controller, restart recovery, absence of guest `hacoq` after fresh setup, raw Incus-socket non-exposure, and absence of the trusted endpoint/client-mode marker on ordinary Environments. Retained legacy aliases, Base routing and local-composition guards have component coverage. Acceptance of the updated gate on the new commit remains pending.
 
 Actual Windows terminal startup, WSL distribution restart behavior, login-shell transition, and Windows integration still require real Windows + WSL acceptance before being claimed as host-verified.

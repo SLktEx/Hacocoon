@@ -1,6 +1,6 @@
 # Windows / WSL セットアップ
 
-Status: **partial**。固定管理accountのbootstrapはimplemented、実Windowsでのinstall/network/restart受入は[実装status](IMPLEMENTATION_STATUS.ja.md)で別管理する。製品 `haco` は現在help/version・controller経由の `doctor` とWSL login aliasを持つ。保持しているlifecycle commandは[CLI移行](CLI_MIGRATION.md)中の一時的な `hacoq` の機能である。
+Status: **partial**。固定管理accountのbootstrapはimplemented、実Windowsでのinstall/network/restart受入は[実装status](IMPLEMENTATION_STATUS.ja.md)で別管理する。製品 `haco` は現在help/version・controller経由の `setup` / `doctor` とWSL login aliasを持つ。保持しているlifecycle commandは[CLI移行](CLI_MIGRATION.md)中の一時的な `hacoq` の機能である。
 
 Windows受入の実測（`7798b57`、2026-09-06）: 未変更のpackaged `install-windows.bat -UseCachedWslImage` は現在のinstallへの適用・同じ版の再実行とも終了0。通常入口と明示停止後のWSL入口、両clientでのdoctorの5項目成功とcontroller build全体の一致、実際のshell/process終了0を確認した。既存file・trusted UUID・account/password状態・全sudo policy hash・Incus Btrfs配置・live mount policyを保持し、Physical Hostとtrusted-hostのDNS・経路・HTTPSも成功。この候補のfresh作成、Windows再起動、実Docker/firewall起動順、Environment proxy制御、SSH、Workspace作業保持は未実行。[実装status](IMPLEMENTATION_STATUS.ja.md)に検証範囲とfirewall観測の変化を記録する。
 
@@ -158,7 +158,7 @@ Common main は次を担当します。
 - Hacocoon binaryのinstall（storage helperは削除済み）
 - `haco-controller.service` の install / restart
 - `/run/hacocoon/control.sock` が `root:hacocoon` mode `0660` Unix socketであることの確認
-- CLI移行中の内部bootstrapとして保持している `hacoq host ensure`
+- 製品 `haco setup` から既存controllerへbootstrapを依頼し、旧CLI orchestrationを使わない
 - 実際の `haco-host` 内から `/usr/local/bin/haco-host doctor` を実行する round-trip acceptance
 
 `install.sh` は `/etc/wsl.conf` を編集せず、WSL を terminate せず、user login shell も変更しません。
