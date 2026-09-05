@@ -6,6 +6,10 @@ Status: **partial**。Local Unix domain socket protocol、Physical Host controll
 
 ## 概要
 
+現在のreset CLI境界: 製品 `haco` はhelp/versionとWSL login aliasを持ち、このpageの旧 `haco env ...` 記述は保持している移行CLIの機能を指す。[実装status](../IMPLEMENTATION_STATUS.ja.md)を参照。
+
+対話sessionはremote shell終了後にlocal stdinが閉じられるまで待ってはいけない。Incus adapterは子processへ専用OS stdin pipeを渡してclosureを所有し、controllerはprocess終了結果の記録後にclient connectionを閉じる。outputをdrainし、実際のexit statusを保持する。Windows受入で、以前のsocket reader直接指定では `exit` 後も終了待ちする不具合が見つかった。component testはclient入力を開いたまま正常・非zero終了を確認する。WSL login aliasも実際のterminal fdを要求し、`/dev/null` のようなcharacter deviceからtrusted-host shellを開始しない。
+
 Hacocoon Clientはraw Incus authorityを直接受け取らず、trusted Physical Host controllerにEnvironment / Host-authority operationを要求します。
 
 Local pathは次です。
@@ -57,7 +61,7 @@ Controllerの既定local endpointは次です。
 /run/hacocoon/control.sock
 ```
 
-Supported WSL bootstrapでは`haco-controller`をPhysical Hostのsystemd serviceとして常駐させます。Runtime directoryはprivateにし、trusted Hostをprovisionする前にcontrol socketがroot-owned mode `0600`であることを検証します。
+Supported WSL bootstrapでは`haco-controller`をPhysical Hostのsystemd serviceとして常駐させます。trusted Hostのprovision前にcontrol socketが `root:hacocoon`、mode `0660` であることを検証します。このlocal groupへの所属はcontroller authorityを与えます。以下のtrusted-host側投影socketは `root:root`、mode `0600` のままです。
 
 localhost TCP listenerは不要です。将来remote transportが本当に必要になった場合だけ、同じclient boundaryの別実装として追加します。
 

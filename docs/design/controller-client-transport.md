@@ -6,6 +6,10 @@ Status: **partial**. The local Unix-domain-socket protocol, Physical Host contro
 
 ## Summary
 
+Current reset-CLI boundary: product `haco` exposes help/version and its WSL login alias; older `haco env ...` descriptions on this page refer to the retained migration CLI. See [implementation status](../IMPLEMENTATION_STATUS.md).
+
+Interactive completion must not wait for the user to close local stdin after the remote shell exits. The Incus adapter supplies a dedicated OS stdin pipe to the child process and owns its closure, while the controller closes the client connection after publishing process completion. Output is drained and the actual exit status is preserved. A Windows acceptance run found the previous socket-reader assignment blocked process completion after `exit`; component tests keep client input open through both successful and nonzero process exit. The WSL login alias also requires actual terminal file descriptors, so a character device such as `/dev/null` cannot start a trusted-host shell.
+
 Hacocoon clients ask the trusted Physical Host controller to perform Environment and Host-authority operations instead of receiving direct Incus authority.
 
 The local path is:
@@ -57,7 +61,7 @@ The controller listens locally at:
 /run/hacocoon/control.sock
 ```
 
-The supported WSL bootstrap runs `haco-controller` as a Physical Host systemd service. Its runtime directory is private and the control socket is verified as root-owned mode `0600` before the trusted Host is provisioned.
+The supported WSL bootstrap runs `haco-controller` as a Physical Host systemd service. Its control socket is verified as `root:hacocoon`, mode `0660`, before the trusted Host is provisioned. Membership in this local group grants controller authority. The projected trusted-host socket below remains `root:root`, mode `0600`.
 
 The controller does not require a localhost TCP listener. A future remote transport, if one is genuinely needed, should implement the same client boundary separately.
 

@@ -11,6 +11,7 @@
 - **製品CLIはpartial:** 新 `haco` はhelp/versionとcontroller経由のWSL login aliasを持つ。以下の旧lifecycle・Base・SSH command表記は一時的な `hacoq` の機能。#456の再利用可能なcontroller adapterは実装済みだが、製品commandを `hacoq` へ委譲してはいけない。
 - **Seed撤去はplanned:** codeは残り、Base/任意OCIとの依存は[Seed設計](design/oci-seed-and-cow.ja.md)に記録した。Base選択と任意Pluginは保持する。
 - **network阻害:** Physical HostのHTTPSは成功。installer生成 `incusbr0` によるtrusted-host DNS・経路は正常だがHTTPSはtimeoutした。Docker管理のIPv4 FORWARD DROP規則とIncus accept規則が併存する。Windows gateは両層のDNS・経路・HTTPSを要求する。`incus admin init --minimal` は未使用directory poolも作成し、単一poolのbootstrapは未完了。
+- **対話終了を修正:** `57b6ee2` の最終観測でshellの `exit` はlogoutを表示してもWSL processが戻らず、後の再起動・再実行で待機connectionが切れた。入口とfile保持は成功したが、正常終了は失敗。adapterはprocess終了をclient入力の開閉から分離し、login aliasはterminalではないcharacter deviceを拒否する。入力を開いたまま正常・非zero終了するprocess回帰を追加し、再build後のpackaged受入はpending。
 - **実機受入はpending:** trusted-host HTTPS、Environmentの許可proxy通信と直接通信拒否、SSH、Environment/Workspace作業保持。更新したWindows gate全体の成功は未確認。LinuxのIncus/network基盤CIは継続する。
 - **次の具体的依存:** storage依存のbootstrapを、明示的に所有するtrusted-host networkと限定的なfirewall共存へ置き換え、Environmentの拒否・proxy policyを維持する。
 

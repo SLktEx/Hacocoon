@@ -12,6 +12,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/buildinfo"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/terminalbridge"
+	"golang.org/x/term"
 )
 
 const loginAlias = "hacocoon-login"
@@ -142,12 +143,7 @@ func runLoginShim(args []string) error {
 }
 
 func stdioIsInteractive() bool {
-	stdin, err := os.Stdin.Stat()
-	if err != nil || stdin.Mode()&os.ModeCharDevice == 0 {
-		return false
-	}
-	stdout, err := os.Stdout.Stat()
-	return err == nil && stdout.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 }
 
 func execProcess(path string, argv []string) error {

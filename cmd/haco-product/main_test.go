@@ -55,6 +55,20 @@ func TestHelpDoesNotNeedRuntime(t *testing.T) {
 	}
 }
 
+func TestLoginAliasDoesNotTreatDevNullAsInteractive(t *testing.T) {
+	file, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	oldIn, oldOut := os.Stdin, os.Stdout
+	os.Stdin, os.Stdout = file, file
+	defer func() { os.Stdin, os.Stdout = oldIn, oldOut }()
+	if stdioIsInteractive() {
+		t.Fatal("non-terminal character devices must not enter haco-host")
+	}
+}
+
 func TestVersionDoesNotNeedRuntime(t *testing.T) {
 	code, stdout, stderr := captureRun(t, "--version")
 	if code != 0 || stderr != "" {
