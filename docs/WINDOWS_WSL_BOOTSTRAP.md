@@ -6,7 +6,7 @@ The installer deliberately uses a **pre / main / post** split rather than preten
 
 ## Installation phases
 
-Current status: **partial**. The reset product `haco` exposes help/version and WSL login; lifecycle commands shown here retain the historical spelling and currently execute through temporary `hacoq`. See [CLI migration](CLI_MIGRATION.md). One-shot BAT completion and restart/current-installer rerun acceptance remain pending. The common phase now ships no privileged storage executable; Incus alone owns the Btrfs lifecycle.
+Current status: **partial**. The reset product `haco` exposes help/version and WSL login; retained lifecycle commands currently belong to temporary `hacoq`. See [CLI migration](CLI_MIGRATION.md). One-invocation BAT continuation and root-side preparation are implemented; real-host completion, network and restart/rerun acceptance remain pending. The common phase ships no privileged storage executable; Incus alone owns the Btrfs lifecycle. [ADR 0004](adr/0004-wsl-installer-authority.md) owns installer authority.
 
 ```text
 Windows / WSL
@@ -87,17 +87,13 @@ The PowerShell installer owns Windows and WSL-specific preparation:
 8. verify systemd is PID 1;
 9. verify that the installer package contains the binary archive matching the WSL architecture.
 
-A freshly created Ubuntu WSL distribution can require its normal first-launch user setup. In that case the installer stops after creation and asks the user to run:
-
-```powershell
-wsl -d Hacocoon
-```
-
-After completing the Ubuntu user setup, run `install-windows.bat` again.
+A fresh or interrupted setup opens the normal Ubuntu first-launch session inside the same BAT invocation. Complete the OS prompts, including account creation and any metrics-consent choice, then type `exit` at the initial Linux shell. The BAT continues automatically. Only a completed current installation with the Hacocoon login shell skips this initial session. Existing users and data are preserved; a failed or interrupted setup retains the distribution for another run of the current BAT.
 
 ## Common Ubuntu main phase
 
 Both Windows/WSL and native Ubuntu invoke the same packaged `install.sh`.
+
+Windows invokes it as WSL root and passes the ordinary login name through `HACO_INSTALL_USER`. The common phase validates that account and resolves its actual non-root UID/GID before host preparation; these exact IDs drive Incus subordinate-ID mapping. Privileged execution must not substitute root for the workspace owner. Native user/sudo invocation retains its ordinary caller identity.
 
 The common main phase:
 
@@ -109,8 +105,9 @@ The common main phase:
 - validates the archive contains exactly the expected regular Hacocoon binaries;
 - installs the Hacocoon binaries;
 - installs/restarts `haco-controller.service`;
-- requires `/run/hacocoon/control.sock` to be a root-owned mode `0600` Unix socket;
-- runs `haco host ensure`;
+- adds the ordinary user to the privileged local `hacocoon` controller access group;
+- requires `/run/hacocoon/control.sock` to be a `root:hacocoon` mode `0660` Unix socket;
+- internally runs retained `hacoq host ensure` during the CLI migration;
 - proves the real trusted-host path with `/usr/local/bin/haco-host doctor` inside `haco-host`.
 
 `install.sh` does not edit `/etc/wsl.conf`, terminate WSL, or change a user's login shell.
@@ -119,7 +116,7 @@ The common main phase:
 
 After the common main phase succeeds, PowerShell performs WSL-only integration.
 
-It validates the system-owned `haco` binary, creates `/usr/local/libexec/hacocoon-login`, grants passwordless sudo only for the exact `haco host ensure` and `haco host shell` commands, and changes only the normal non-root WSL user's login shell.
+It validates the system-owned `haco` binary, creates its `/usr/local/libexec/hacocoon-login` alias, and changes only the normal non-root WSL user's login shell. The alias uses the controller directly. The installer writes no bootstrap or login sudo policy, and does not grant `incus-admin` unless explicitly requested.
 
 After that:
 
@@ -150,15 +147,17 @@ Its pre phase rejects WSL, verifies Ubuntu 26.04+, requires systemd as PID 1, an
 Its post phase intentionally leaves the native Ubuntu user's login shell unchanged. Enter the trusted Host explicitly with:
 
 ```bash
-haco host shell
+hacoq host shell
 ```
 
 ## E2E acceptance boundary
 
 Installer E2E is evaluated at the user-visible entry points, not by declaring success because `install.sh` ran in isolation.
 
-The Windows gate builds the candidate `hacocoon-windows-amd64.zip`, extracts it, executes the packaged `install-windows.bat`, emulates the normal Ubuntu first-launch user creation when necessary, executes the **same packaged BAT again**, and requires WSL 2, systemd, Incus, the controller socket/service, `haco-host doctor`, and WSL login integration to succeed.
+The Windows gate builds the candidate `hacocoon-windows-amd64.zip`, extracts it, types the unchanged BAT in a normal terminal, and answers Ubuntu's actual first-launch dialogs. It requires completion before any second BAT. It then enters `wsl -d Hacocoon`, checks the implemented product help/version, writes a trusted-host file, stops and reopens WSL, and only then reruns the same BAT and checks file and sudo-policy preservation. Root assertions are read-only. No product overrides, account/sudoers fixtures, test bridge, or mount repairs may fill product gaps.
+
+This checks trusted-host file retention, not Environment/Workspace work retention. The new CLI's lifecycle/SSH journey, installer-created network DNS/routes/HTTPS, and allowed proxy versus denied direct Environment traffic remain separate required acceptance. Linux Incus/network foundation CI continues; the removed Windows legacy fixture journey is not evidence for the new product path.
 
 The native Ubuntu gate builds the candidate `hacocoon-ubuntu-amd64.tar.gz`, extracts it, executes the packaged `install-ubuntu.sh`, and requires the controller and trusted `haco-host` round trip to succeed while confirming the native login shell was not replaced.
 
-PR candidate packages are not public releases and therefore do not yet have release attestations. Candidate E2E can disable provenance only for that synthetic package; the release workflow independently signs and attests the exact architecture-specific payload that is published.
+PR candidate packages are not public releases. The bundled-payload path verifies its checksum without requiring a product environment override; the release distribution workflow independently signs and attests the exact package it publishes. Standalone downloaded payloads still require provenance verification by default.

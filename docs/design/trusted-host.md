@@ -2,6 +2,8 @@
 
 Status: partial.
 
+Current CLI boundary: product `haco` implements help/version and the WSL login alias. Retained lifecycle commands described below use temporary `hacoq` during [CLI migration](../CLI_MIGRATION.md); they do not describe implemented new product commands.
+
 ## Summary
 
 `haco-host` is Hacocoon's persistent trusted logical Host. On the local Incus backend it is an Incus system instance named `haco-host`, distinct from ordinary untrusted Environments.
@@ -92,7 +94,7 @@ The Physical Host controller uses:
 /run/hacocoon/control.sock
 ```
 
-The supported WSL bootstrap runs `haco-controller` under systemd and verifies the socket is `root:root` mode `0600`.
+The supported WSL bootstrap runs `haco-controller` under systemd and verifies the socket is `root:hacocoon` mode `0660`. Membership in `hacocoon` grants privileged controller authority. The trusted-instance proxy remains root-only as shown below.
 
 The trusted instance receives exactly this proxy shape:
 
@@ -133,7 +135,7 @@ The Physical Host source for each binary must be a regular executable, owned by 
 
 This makes repeated ensure idempotent and avoids trusting arbitrary pre-existing executables in the trusted instance.
 
-The general `haco` binary is intentionally guarded by `HACO_CLIENT_MODE=controller`. The first-class `haco env ...` namespace always uses the controller path. Historical flat Environment aliases are also forced through the controller while this mode is active, and other still-unmigrated commands fail before `composition.Local()` can initialize guest-local state.
+The product `haco` binary has no guest-local composition fallback and does not invoke `hacoq`. The separately provisioned temporary `hacoq` retains the older lifecycle/CLI implementation, guarded by `HACO_CLIENT_MODE=controller`. Its Environment operations use the controller, and unsupported guest-local operations fail closed.
 
 The mode marker is not an authorization credential. `haco-host` is already trusted, and the Physical Host controller remains the authority for policy, state, and provider operations.
 
@@ -147,20 +149,20 @@ This does not by itself prove that all future `haco-host` data is physically COW
 
 After the supported installer succeeds, the normal non-root WSL user's login shell becomes the dedicated `hacocoon-login` entry.
 
-For an interactive no-command launch it delegates to:
+For an interactive no-command launch the product alias connects directly through:
 
 ```text
-sudo -n <system-owned-haco> host shell
+controlapi.Client.OpenTrustedHostShell
 ```
 
-The narrow sudo rule authorizes only exact `haco host ensure` and `haco host shell`; it does not grant `incus-admin` by default.
+No sudo rule or `hacoq` subprocess is involved. Root-side installation preserves the ordinary user's exact UID/GID and grants controller access through the `hacocoon` group; it does not grant `incus-admin` by default. See [ADR 0004](../adr/0004-wsl-installer-authority.md).
 
 Before changing that login shell, bootstrap now requires all of these to succeed:
 
 1. Incus is active;
 2. `haco-controller` is installed as a root-owned system binary;
 3. `haco-controller.service` is restarted on the current release;
-4. `/run/hacocoon/control.sock` is a root-owned mode-`0600` Unix socket;
+4. `/run/hacocoon/control.sock` is a `root:hacocoon` mode-`0660` Unix socket;
 5. `haco host ensure` reconciles the trusted Host, proxy, client mode, and both client binaries;
 6. `haco-host doctor` succeeds from inside the real trusted instance.
 
@@ -172,7 +174,7 @@ wsl -d Hacocoon
 
 ```text
 Physical Host login entry
-    -> haco host shell
+    -> product haco login alias -> Physical Host controller
     -> haco-host
 ```
 

@@ -2,6 +2,8 @@
 
 Status: partial.
 
+現在のCLI境界: 製品 `haco` はhelp/versionとWSL login aliasを実装する。以下の保持しているlifecycle commandは[CLI移行](../CLI_MIGRATION.md)中の一時的な `hacoq` の機能であり、新製品commandの実装完了を意味しない。
+
 ## 概要
 
 `haco-host` は Hacocoon が管理する永続的な trusted logical Host です。Local Incus backend では `haco-host` という名前の Incus system instance として実装し、通常の untrusted Environment とは明確に分離します。
@@ -92,7 +94,7 @@ Physical Host controllerは次を使います。
 /run/hacocoon/control.sock
 ```
 
-Supported WSL bootstrapでは`haco-controller`をsystemdで常駐させ、socketが`root:root` mode `0600`であることを検証します。
+Supported WSL bootstrapでは `haco-controller` をsystemdで常駐させ、socketが `root:hacocoon` mode `0660` であることを検証します。`hacocoon` groupは特権controller権限を与えます。trusted-instance側proxyは下記のroot-only設定を維持します。
 
 Trusted instanceにはexactに次のproxyを設定します。
 
@@ -133,7 +135,7 @@ Physical Host側sourceはregular executable、invoking effective UID所有、gro
 
 これによりrepeated ensureをidempotentにし、trusted instance内の任意の既存binaryをそのまま信頼しません。
 
-General `haco` binaryは`HACO_CLIENT_MODE=controller`で意図的にguardします。First-class `haco env ...` namespaceは常にcontroller pathを使います。Historical flat Environment aliasもこのmodeではcontrollerへ強制routeし、それ以外の未移行commandは`composition.Local()`がguest-local stateを初期化する前にfail closedします。
+製品 `haco` はguest-local compositionへfallbackせず、`hacoq` も呼び出しません。別途provisionする一時的な `hacoq` が旧lifecycle/CLI実装を保持し、`HACO_CLIENT_MODE=controller` でguardします。そのEnvironment操作はcontrollerを使い、未対応のguest-local操作はfail closedします。
 
 このmode markerはauthorization credentialではありません。`haco-host`自体がtrustedであり、policy、state、provider operationのauthorityは引き続きPhysical Host controllerです。
 
@@ -150,17 +152,17 @@ Supported installer成功後、通常non-root WSL userのlogin shellを専用`ha
 Interactive no-command launchでは次へdelegateします。
 
 ```text
-sudo -n <system-owned-haco> host shell
+controlapi.Client.OpenTrustedHostShell
 ```
 
-Narrow sudo ruleが許可するのはexactな`haco host ensure`と`haco host shell`だけです。`incus-admin`はdefaultで付与しません。
+製品aliasはcontrollerへ直接接続し、sudo ruleや `hacoq` subprocessを使いません。root側installerは通常userのexact UID/GIDを保持し、`hacocoon` groupでcontroller accessを与えます。`incus-admin` はdefaultで付与しません。[ADR 0004](../adr/0004-wsl-installer-authority.md)を参照してください。
 
 Login shellを変更する前にbootstrapは次をすべて確認します。
 
 1. Incusがactive
 2. `haco-controller`がroot-owned system binary
 3. current releaseで`haco-controller.service`をrestart
-4. `/run/hacocoon/control.sock`がroot-owned mode `0600` Unix socket
+4. `/run/hacocoon/control.sock`が `root:hacocoon` mode `0660` Unix socket
 5. `haco host ensure`でtrusted Host、proxy、client mode、2本のclient binaryがreconcile
 6. 実trusted instance内の`haco-host doctor`が成功
 
@@ -172,7 +174,7 @@ wsl -d Hacocoon
 
 ```text
 Physical Host login entry
-    -> haco host shell
+    -> product haco login alias -> Physical Host controller
     -> haco-host
 ```
 

@@ -135,6 +135,7 @@ run_release_config() {
   python3 tools/check_release_provenance.py
   bash tools/test_install_archive_safety.sh
   python3 tools/test_installer_packages.py
+  python3 tools/test_install_identity.py
 
   section "release-config: GoReleaser config"
   goreleaser check
@@ -147,6 +148,7 @@ run_release_config() {
     $ErrorActionPreference = "Stop"
     [scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null
   '
+  pwsh -NoLogo -NoProfile -NonInteractive -File tools/test_windows_installer.ps1
 
   section "release-config: pre/main/post boundary"
   validate_install_boundary

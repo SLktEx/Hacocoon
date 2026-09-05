@@ -11,8 +11,9 @@ Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.26** です。mil
 - **このrepository差分でimplemented:** local Btrfs lifecycleの所有者はIncusだけ。旧storage実装と特権実行ファイルはcode・installer配布物・CIから削除。mount方針は `compress=zstd:3,noatime,nodiscard`。既存poolはIncus経由で変更・読戻しし、一致時は書き込まない。[storage契約](design/btrfs-storage-layout.ja.md)を参照。
 - **製品CLIはpartial:** 現在の `haco` はhelp/versionとcontroller経由のWSL login aliasのみ。以下のlifecycle・Base・SSH・OCI commandは一時的な `hacoq` の実装であり、新 `haco` の導線ではない。[CLI移行](CLI_MIGRATION.md)を参照。
 - **Seed撤去はplanned:** 任意のBase revision解決を含むSeed実装は残る。[Seed設計](design/oci-seed-and-cow.ja.md)に依存分離を記録し、Baseと任意Plugin契約は維持する。
-- **WSL実機受入はpending:** one-shot BAT、installer生成networkのDNS・経路・HTTPS、Environmentの許可proxy通信と直接通信拒否、停止・再起動と現在版installer再実行でのdata保持。repository testやLinux Incus fixtureはこの利用者導線の証拠にはならない。現Windows CIは初回setupと2回目BATを使用する。
-- **次の依存:** #441の有用なone-shot差分をCLI resetへ追従させ、一時的な広いsudo権限を使わず#452を解消する。#455/#456はcontroller/SSHの後続基盤として使い、製品commandを `hacoq` へ委譲しない。
+- **installer継続はimplemented:** 最初のBATで通常UbuntuのOS対話を終え、検証済み通常UID/GIDを保持してroot側common準備へ続行する。installerはsudo policyを書かず、現在版の再実行では設定済みuserを保持する。PS5.1引数転送にも回帰テストがある。[ADR 0004](adr/0004-wsl-installer-authority.md)を参照。
+- **WSL実機受入はpending:** one-shot完走、installer生成networkのDNS・経路・HTTPS、Environmentの許可proxy通信と直接通信拒否、停止・再起動と現在版installer再実行でのdata保持。前のstorage候補の実BATはWSL作成後に再実行を求めたため、失敗の再現であり受入ではない。Windows CIは旧root-user/sudoers fixtureを除いてOS対話と通常入口を操作する形に更新したが、この候補では未実行。そのtrusted-host file保持はEnvironment/Workspaceの作業保持を証明しない。
+- **次の依存:** installer生成networkを検証し、storage有無からnetwork初期化を推定する処理を解消する。#455/#456はcontroller/SSHの後続基盤として使い、製品commandを `hacoq` へ委譲しない。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

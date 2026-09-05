@@ -60,6 +60,12 @@ function New-WslCaptureResult([int]$ExitCode, [object[]]$Stdout, [object]$Stderr
 }
 
 function Invoke-WslCapture([string[]]$Arguments) {
+    # Windows PowerShell's legacy native binder strips embedded quotes unless
+    # escaped for the Windows command line. Modern PowerShell preserves them.
+    $nativePassing = Get-Variable PSNativeCommandArgumentPassing -ErrorAction SilentlyContinue
+    if ($null -eq $nativePassing -or $nativePassing.Value -eq 'Legacy') {
+        $Arguments = @($Arguments | ForEach-Object { $_ -replace '(\\*)"', '$1$1\"' })
+    }
     $stderrPath = [IO.Path]::GetTempFileName()
     $previousPreference = $ErrorActionPreference
     $stdout = @()
@@ -79,39 +85,25 @@ function Invoke-WslCapture([string[]]$Arguments) {
     return New-WslCaptureResult $exitCode $stdout $stderr
 }
 
-function Invoke-WslCaptureWithInput([string[]]$Arguments, [string]$InputText) {
-    $stderrPath = [IO.Path]::GetTempFileName()
-    $previousPreference = $ErrorActionPreference
-    $stdout = @()
-    $stderr = ""
-    $exitCode = 1
-    try {
-        $ErrorActionPreference = "Continue"
-        $stdout = @($InputText | & wsl.exe @Arguments 2> $stderrPath)
-        $exitCode = $LASTEXITCODE
-        if (Test-Path -LiteralPath $stderrPath) {
-            $stderr = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
-        }
-    } finally {
-        $ErrorActionPreference = $previousPreference
-        Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
-    }
-    return New-WslCaptureResult $exitCode $stdout $stderr
+function Invoke-WslRootShellScript([string]$Name, [string]$Script, [string[]]$ScriptArguments = @()) {
+    # Reuse #441's argument transport: PS 5.1 native stdin is not a UTF-8 channel.
+    $normalized = ($Script -replace "`r`n", "`n") -replace "`r", "`n"
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
+    $runner = 'tmp="$(mktemp)"; trap ''rm -f "$tmp"'' EXIT; printf ''%s'' "$1" | base64 -d > "$tmp"; shift; sh -eu "$tmp" "$@"'
+    return Invoke-WslCapture (@(
+        "--distribution", $Name, "--user", "root", "--exec", "sh", "-eu", "-c", $runner, "sh", $encoded
+    ) + $ScriptArguments)
 }
 
 function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [switch]$Append) {
     $normalized = ($Content -replace "`r`n", "`n") -replace "`r", "`n"
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
     $script = if ($Append) {
-        'base64 -d | tee -a "$1" >/dev/null'
+        'printf ''%s'' "$1" | base64 -d >> "$2"'
     } else {
-        'base64 -d | tee "$1" >/dev/null'
+        'printf ''%s'' "$1" | base64 -d > "$2"'
     }
-    return Invoke-WslCaptureWithInput @(
-        "--distribution", $Name,
-        "--user", "root",
-        "--exec", "sh", "-eu", "-c", $script, "sh", $Path
-    ) ($encoded + "`n")
+    return Invoke-WslRootShellScript $Name $script @($encoded, $Path)
 }
 
 function Get-InstalledDistros {
@@ -153,16 +145,19 @@ function Assert-WslSupported {
     }
 }
 
-function Get-WslLoginUser([string]$Name) {
-    $candidate = $env:HACO_BOOTSTRAP_LOGIN_USER
-    if ([string]::IsNullOrWhiteSpace($candidate)) {
-        $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "id", "-un")
-        if ($probe.ExitCode -ne 0) {
-            throw "Unable to determine the default Linux user in '$Name'."
-        }
-        $candidate = $probe.Stdout
+function Assert-LoginUserName([string]$Value) {
+    if ($Value -notmatch '^[A-Za-z_][A-Za-z0-9_.-]{0,63}$') {
+        throw "WSL login user contains unsupported characters."
     }
-    Assert-SafeName $candidate "WSL login user"
+}
+
+function Get-WslLoginUser([string]$Name) {
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "id", "-un")
+    if ($probe.ExitCode -ne 0) {
+        throw "Unable to determine the default Linux user in '$Name'."
+    }
+    $candidate = $probe.Stdout
+    Assert-LoginUserName $candidate
     if ($candidate -eq "root") {
         throw "The dedicated WSL instance still defaults to root. Launch it once with 'wsl -d $Name' and complete normal Ubuntu user setup."
     }
@@ -171,6 +166,27 @@ function Get-WslLoginUser([string]$Name) {
         throw "WSL login user '$candidate' does not exist in '$Name'."
     }
     return $candidate
+}
+
+function Complete-WslUserSetup([string]$Name) {
+    $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "id", "-un")
+    if ($probe.ExitCode -ne 0) { throw "Unable to inspect the default user in '$Name'." }
+    $candidate = $probe.Stdout
+    Assert-LoginUserName $candidate
+    $passwd = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "getent", "passwd", $candidate)
+    if ($passwd.ExitCode -ne 0) { throw "Unable to inspect the default user's login shell." }
+    $fields = $passwd.Stdout -split ':'
+    # Only a completed current installation has our login shell. Before that,
+    # use normal WSL entry, including any interrupted Ubuntu OOBE/consent dialog.
+    if ($candidate -eq "root" -or $fields.Count -ne 7 -or $fields[6] -ne $LoginShell) {
+        Write-Step "Completing Ubuntu first-launch setup in '$Name'"
+        Write-Host "Complete any Ubuntu prompts. At the Linux shell, type exit to continue this installer."
+        & wsl.exe --distribution $Name | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw "Ubuntu setup was interrupted. Run install-windows.bat again to continue; the distribution is preserved."
+        }
+    }
+    return Get-WslLoginUser $Name
 }
 
 function Get-OsReleaseValue([string]$Content, [string]$Key) {
@@ -251,7 +267,7 @@ fi
 install -o root -g root -m 0644 "$tmp" /etc/wsl.conf
 rm -f "$tmp"
 '@
-    $probe = Invoke-WslCaptureWithInput @("--distribution", $Name, "--user", "root", "--exec", "sh", "-s") $script
+    $probe = Invoke-WslRootShellScript $Name $script
     if ($probe.ExitCode -ne 0) { throw "Failed to configure systemd in '$Name'." }
 
     & wsl.exe --terminate $Name
@@ -363,12 +379,6 @@ if (-not ($installed -contains $InstanceName)) {
     if ($createExitCode -ne 0) {
         throw "Failed to create '$InstanceName'. Update WSL with 'wsl --update' if named installation is unsupported."
     }
-    Ensure-Wsl2 $InstanceName
-    Write-Host ""
-    Write-Host "Dedicated Hacocoon WSL instance '$InstanceName' was created."
-    Write-Host "Launch it once with: wsl -d $InstanceName"
-    Write-Host "Complete normal Ubuntu user setup, then run this installer again."
-    exit 0
 }
 
 Ensure-Wsl2 $InstanceName
@@ -378,8 +388,8 @@ if ($probe.ExitCode -ne 0) {
 }
 
 # pre
-$loginUser = Get-WslLoginUser $InstanceName
 Assert-UbuntuBaseline $InstanceName
+$loginUser = Complete-WslUserSetup $InstanceName
 Enable-WslSystemd $InstanceName
 $arch = Get-WslArch $InstanceName
 $archiveName = "haco_linux_$arch.tar.gz"
@@ -403,7 +413,8 @@ $skipIncusValue = if ($SkipIncus) { "1" } else { "0" }
 $grantIncusAdminValue = if ($GrantIncusAdmin) { "1" } else { "0" }
 $requireProvenance = if ($env:HACO_REQUIRE_PROVENANCE) { $env:HACO_REQUIRE_PROVENANCE } else { "1" }
 Write-Step "Running common Ubuntu install.sh inside '$InstanceName'"
-& wsl.exe --distribution $InstanceName --user $loginUser --exec env `
+& wsl.exe --distribution $InstanceName --user root --exec env `
+    "HACO_INSTALL_USER=$loginUser" `
     "HACO_BUNDLE_ROOT=$linuxAssetRoot" `
     "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue" `
     "HACO_BOOTSTRAP_GRANT_INCUS_ADMIN=$grantIncusAdminValue" `

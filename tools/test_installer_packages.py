@@ -85,6 +85,13 @@ with tempfile.TemporaryDirectory() as temp:
                 raise SystemExit(f"Windows {arch} version mismatch")
 
             windows_installer = zf.read("install-windows.ps1").decode("utf-8")
+            for forbidden in ("NOPASSWD", "/etc/sudoers", "Invoke-WslCaptureWithInput", "HACO_BOOTSTRAP_LOGIN_USER"):
+                if forbidden in windows_installer:
+                    raise SystemExit(f"Windows package restored rejected bootstrap behavior: {forbidden}")
+            for required in ('"HACO_INSTALL_USER=$loginUser"', "Complete-WslUserSetup $InstanceName",
+                             "--user root --exec env", "Invoke-WslRootShellScript"):
+                if required not in windows_installer:
+                    raise SystemExit(f"Windows package lacks current bootstrap boundary: {required}")
             for required in (
                 "function Invoke-ElevatedWsl",
                 "([Environment]::SystemDirectory)",

@@ -6,7 +6,7 @@ Installer は WSL と native Ubuntu を無理に同一化せず、**pre / main /
 
 ## Install phase
 
-現在の状態は **partial**。reset後の製品 `haco` はhelp/versionとWSL loginのみ。本書のlifecycle command表記は以前の名前を残しており、現在は一時的な `hacoq` で実行する。[CLI移行](CLI_MIGRATION.md)を参照。one-shot BAT、再起動・現在版installer再実行の受入は未完了。common phaseは特権storage実行ファイルを配布せず、Btrfs lifecycleはIncusだけが所有する。
+現在の状態は **partial**。reset後の製品 `haco` はhelp/versionとWSL loginのみ。保持しているlifecycle commandは一時的な `hacoq` の実装である。[CLI移行](CLI_MIGRATION.md)を参照。一回のBATでの継続とroot側での準備はimplemented、実機完走・network・再起動・現在版installer再実行の受入はpending。common phaseは特権storage実行ファイルを配布せず、Btrfs lifecycleはIncusだけが所有する。installer権限の正本は[ADR 0004](adr/0004-wsl-installer-authority.md)。
 
 ```text
 Windows / WSL
@@ -87,17 +87,13 @@ PowerShell が Windows / WSL 固有の事前準備を担当します。
 8. systemd が PID 1 であることを確認する
 9. WSL architecture と同じ `haco_linux_<arch>.tar.gz` が installer package 内にあることを確認する
 
-Fresh Ubuntu WSL では通常の first-launch user setup が必要な場合があります。その場合 installer は distribution 作成後に止まり、次を案内します。
-
-```powershell
-wsl -d Hacocoon
-```
-
-Ubuntu user setup 完了後、`install-windows.bat` をもう一度実行します。
+freshまたは中断したsetupでは、同じBAT内で通常のUbuntu初回起動を開きます。アカウント作成と表示されたmetrics同意などのOS対話を済ませ、最初のLinux shellで `exit` を入力するとBATが続行します。現在版の導入が完了しHacocoon login shellを持つ場合だけ、この初回sessionを省略します。既存ユーザーとdataは保持します。失敗・中断時もdistributionを残し、現在版BATの再実行で続行します。
 
 ## Ubuntu 共通 main
 
 Windows / WSL と native Ubuntu の両方が、package 内の同じ `install.sh` を呼びます。
+
+WindowsはWSL rootで実行し、通常login名を `HACO_INSTALL_USER` で渡します。common phaseはHost準備前に実在accountとnon-root UID/GIDを検証し、そのexact IDをIncus subordinate-IDへ使用します。特権実行のrootをWorkspace ownerへ代入してはいけません。nativeの通常user/sudo実行は通常caller identityを保持します。
 
 Common main は次を担当します。
 
@@ -109,8 +105,9 @@ Common main は次を担当します。
 - archive が期待する regular Hacocoon binary だけを含むことの検証
 - Hacocoon binary の install
 - `haco-controller.service` の install / restart
-- `/run/hacocoon/control.sock` が root-owned mode `0600` Unix socket であることの確認
-- `haco host ensure`
+- 通常userを特権local `hacocoon` controller access groupへ追加
+- `/run/hacocoon/control.sock` が `root:hacocoon` mode `0660` Unix socketであることの確認
+- CLI移行中の内部bootstrapとして保持している `hacoq host ensure` の実行
 - 実際の `haco-host` 内から `/usr/local/bin/haco-host doctor` を実行する round-trip acceptance
 
 `install.sh` は `/etc/wsl.conf` を編集せず、WSL を terminate せず、user login shell も変更しません。
@@ -119,7 +116,7 @@ Common main は次を担当します。
 
 Common main 成功後、PowerShell が WSL 固有 integration を行います。
 
-System-owned `haco` を検証して `/usr/local/libexec/hacocoon-login` を作り、passwordless sudo は exact な `haco host ensure` / `haco host shell` だけに許可し、通常 non-root WSL user の login shell だけを変更します。
+System-owned `haco` を検証して `/usr/local/libexec/hacocoon-login` aliasを作り、通常non-root WSL userのlogin shellだけを変更します。aliasはcontrollerへ直接接続します。installerはbootstrap/loginのsudo policyを書き換えず、明示指定がなければ `incus-admin` も付与しません。
 
 その後:
 
@@ -152,7 +149,7 @@ Pre では WSL を拒否し、Ubuntu 26.04+、systemd PID 1、必要な sudo を
 Post では native Ubuntu user の login shell を変更しません。Trusted Host へは明示的に:
 
 ```bash
-haco host shell
+hacoq host shell
 ```
 
 で入ります。
@@ -161,8 +158,10 @@ haco host shell
 
 Installer E2E は `install.sh` 単体成功ではなく、実際の user-visible entry point から判定します。
 
-Windows gate は candidate `hacocoon-windows-amd64.zip` を作って展開し、package 内の `install-windows.bat` を実行します。必要な Ubuntu first-launch user creation を CI で再現したあと、**同じ packaged BAT をもう一度実行**し、WSL 2、systemd、Incus、controller service/socket、`haco-host doctor`、WSL login integration まで成功を要求します。
+Windows gateはcandidate ZIPを展開し、通常terminalで未変更のBATを入力し、Ubuntuの実際の初回対話へ応答します。2回目のBATより前に完了が必要です。続いて `wsl -d Hacocoon` で入り、実装済み製品help/versionとtrusted-host fileの作成を確認し、WSLを停止して再入場します。その後で同じBATを再実行し、fileとsudo policyの保持を確認します。root検査はread-onlyです。製品override、account/sudoers fixture、テスト専用bridge、mount修復で不足を補ってはいけません。
+
+このfile保持はtrusted-hostの受入であり、Environment/Workspaceの作業保持ではありません。新CLIのlifecycle/SSH、installer生成networkのDNS・経路・HTTPS、Environmentの許可proxy通信と直接通信拒否は別の必須受入です。LinuxのIncus/network基盤CIは継続し、削除したWindows旧fixture導線を新製品導線の証拠にはしません。
 
 Native Ubuntu gate は candidate `hacocoon-ubuntu-amd64.tar.gz` を作って展開し、package 内の `install-ubuntu.sh` を実行します。Controller と trusted `haco-host` round trip が成功し、native login shell が変更されていないことまで確認します。
 
-PR candidate package はまだ public Release ではないため release attestation を持ちません。Candidate E2E で provenance を無効化できるのはこの synthetic package の検証だけです。Release workflow は別途、実際に publish する architecture-specific payload そのものへ署名 / attestation を行います。
+PR candidate packageはpublic releaseではありません。同梱payload経路は製品環境変数のoverrideなしでchecksumを検証し、release配布workflowは公開するexact packageを別途署名・attestします。単独download payloadは引き続き既定でprovenance検証を要求します。
