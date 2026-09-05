@@ -3,6 +3,7 @@
 ## WSL delivery update — 2026-09-05
 
 - Refreshed `main` includes #441, #442, #453, #456 and the #458/#459 image-cache path. Merged PR descriptions and older green runs do not establish acceptance of this combined candidate.
+- **Product CLI boundary:** removed the hidden `haco host` subprocess bridge to `hacoq`. The WSL login alias uses the controller directly; installer bootstrap still has an explicit migration dependency on `hacoq host ensure`. Regression tests require the unavailable product commands to fail clearly.
 - **Implemented:** Incus-only storage distribution and mount policy, with rejection of residual external `driver`/`source` attachments and fail-closed inspection. Existing rootfs/Workspace retention during reconciliation is now part of the real-Incus CI contract.
 - **Implemented installer correction:** fixed managed `hacocoon` account by default, password input unnecessary; `-InteractiveUserSetup` remains opt-in. Root-side common preparation preserves validated ordinary UID/GID, writes no sudo policy, and completes the managed WSL first-launch configuration. PS5.1 native quoting has regression coverage. See [ADR 0004](adr/0004-wsl-installer-authority.md).
 - **Corrected cache regression (2026-09-06):** packaged `831e5f0` BAT failed before distro creation because `Get-FileHash` was unavailable. Restored #459's module-independent SHA-256 helper lost during #441 integration, with a PS5.1 regression. The corrected download was verified and reused by the successful `57b6ee2` installation.

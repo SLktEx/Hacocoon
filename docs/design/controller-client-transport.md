@@ -2,7 +2,7 @@
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The local Unix-domain-socket protocol, Physical Host controller, trusted-`haco-host` endpoint projection, client-only `haco-host` CLI, guarded general `haco` provisioning, typed Environment lifecycle calls, the first interactive stream, and the first general `haco env ...` controller-client namespace are implemented. Migrating the remaining `haco` operations, PTY control framing, Environment port forwarding, and any remote transport remain follow-up work.
+Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product `haco` currently exposes help/version and its controller-backed WSL login alias. Environment lifecycle in the new product CLI, PTY control framing, port forwarding and remote transport remain planned.
 
 ## Summary
 
@@ -94,9 +94,9 @@ environment.HACO_CLIENT_MODE=controller
 
 The instance-side path intentionally lives outside `/run`: guest systemd commonly mounts runtime tmpfs state during boot, so a proxy listener that must exist independently of guest boot ordering uses a stable `/var/lib` path.
 
-`haco host ensure` verifies the trusted-host ownership marker, reconciles the exact endpoint shape, starts the instance when needed, and provisions both `/usr/local/bin/haco-host` and the same-release general `/usr/local/bin/haco`. Provisioning is digest-checked and requires each Physical Host source binary to be an executable regular file owned by the invoking effective UID and not writable by group/other users. The installed binaries must converge to `0755 root:root`.
+`hacoq host ensure` verifies the trusted-host ownership marker, reconciles the exact endpoint shape, starts the instance when needed, and provisions both `/usr/local/bin/haco-host` and the same-release general `/usr/local/bin/haco`. Provisioning is digest-checked and requires each Physical Host source binary to be an executable regular file owned by the invoking effective UID and not writable by group/other users. The installed binaries must converge to `0755 root:root`.
 
-`HACO_CLIENT_MODE=controller` is deliberately a safety/execution-context marker, not an authorization credential. When the full `haco` binary runs inside trusted `haco-host`, the marker prevents still-unmigrated commands from silently constructing guest-local Hacocoon state. Authorization and policy remain controller-side.
+`HACO_CLIENT_MODE=controller` is deliberately a safety/execution-context marker, not an authorization credential. The retained `hacoq` migration binary uses this marker to prevent guest-local state construction. The reset product `haco` does not contain that local composition path. Authorization and policy remain controller-side.
 
 The supported WSL bootstrap then executes `haco-host doctor` inside the real trusted instance. Bootstrap fails before changing the user's automatic login shell if the round trip cannot reach the Physical Host controller.
 
@@ -116,30 +116,13 @@ The typed Environment API currently includes:
 - delete;
 - controller ping/doctor diagnostics.
 
-Both the client-only `haco-host` executable and the controller-backed `haco env ...` namespace use this API without direct Incus authority.
+The client-only `haco-host` executable and the retained migration CLI `hacoq env ...` use this API without direct Incus authority. These retained commands do not establish support in the reset product `haco`.
 
 ## General `haco` client namespace
 
-`haco` is the general Hacocoon client. The first migrated namespace is:
+Product `haco` is the common user entry point on the WSL Physical Host and inside trusted `haco-host`. Its current help/version commands are standalone, and its WSL login alias calls the controller directly. It does not delegate to `hacoq`; unimplemented commands, including `haco host ensure` and `haco host shell`, fail explicitly.
 
-```text
-haco env list
-haco env create --workspace <path> <environment>
-haco env status <environment>
-haco env exec <environment> -- <command...>
-haco env shell <environment>
-haco env delete <environment>
-```
-
-These commands are intentionally dispatched **before** `composition.Local()` is initialized. A `haco env ...` invocation therefore cannot silently become a guest-local Incus operation when the same binary is executed inside trusted `haco-host`.
-
-The command either reaches the configured Hacocoon controller endpoint or fails through the controller-client transport. It does not fall back to direct local composition.
-
-The historical flat commands such as `haco create`, `haco status`, `haco exec`, `haco shell`, and `haco delete` remain temporary compatibility/local paths on the Physical Host during migration. Inside trusted `haco-host`, controller-client mode forces those Environment aliases through the same controller client instead of letting them reach local composition.
-
-Any other still-unmigrated `haco` command is rejected in controller-client mode with an explicit fail-closed error. This makes permanent installation of the general binary safe without pretending that every historical namespace has already been migrated. New docs, automation, and integrations should use `haco env ...` rather than the compatibility aliases.
-
-The general `/usr/local/bin/haco` binary is now provisioned by `haco host ensure` beside `/usr/local/bin/haco-host`. The trusted instance receives an explicit controller socket and client-mode marker; it still receives no raw Incus authority or Physical Host state tree.
+The prior Environment namespace remains in temporary `hacoq`, while the typed controller API remains reusable. Rebuilding the product lifecycle commands must use that API without guest-local composition or Incus authority. The current installer still invokes `hacoq host ensure` directly for bootstrap provisioning; that migration dependency is separate from the new CLI and remains scheduled for removal.
 
 ## `haco-host` transition surface
 

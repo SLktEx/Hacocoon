@@ -3,6 +3,7 @@
 ## WSL向け更新 — 2026-09-05
 
 - 更新mainには #441・#442・#453・#456 と #458/#459 のimage cacheが入った。merge済みPR本文や過去のgreenは、この組合せ候補の受入証拠ではない。
+- **製品CLI境界:** 隠れた `haco host` の `hacoq` subprocess委譲を削除した。WSL login aliasはcontrollerを直接使い、installer bootstrapの `hacoq host ensure` 依存は明示的な移行残件として残る。未提供の製品commandが明確に失敗する回帰テストを追加。
 - **implemented:** Incus-only storage配布とmount policy。残存 `driver`/`source` attachmentを拒否し、検査失敗はfail closed。policy照合中の既存rootfs/Workspace保持をreal-Incus CI契約にも加えた。
 - **installer修正はimplemented:** 既定は固定管理account `hacocoon` でpassword入力不要。`-InteractiveUserSetup` はopt-in。root側common準備は検証済み通常UID/GIDを保持し、sudo policyを書かず、管理済みWSL初回設定を完了させる。PS5.1引数転送にも回帰テストがある。[ADR 0004](adr/0004-wsl-installer-authority.md)を参照。
 - **cache回帰を修正（2026-09-06）:** `831e5f0` のpackaged BATは `Get-FileHash` が利用できずdistro作成前に失敗した。#441統合時に落ちた #459のmodule非依存SHA-256 helperを復元し、PS5.1回帰テストを追加。修正後のdownloadを検証し、installに成功した `57b6ee2` で再利用した。

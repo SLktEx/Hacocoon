@@ -130,6 +130,17 @@ func TestUnknownCommandFailsClearly(t *testing.T) {
 	}
 }
 
+func TestLegacyHostCommandsAreUnavailable(t *testing.T) {
+	for _, operation := range []string{"ensure", "shell"} {
+		t.Run(operation, func(t *testing.T) {
+			code, stdout, stderr := captureRun(t, "host", operation)
+			if code != 2 || stdout != "" || !strings.Contains(stderr, `command "host" is not available yet`) {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+			}
+		})
+	}
+}
+
 func TestLoginAliasDetection(t *testing.T) {
 	for _, path := range []string{"hacocoon-login", "/usr/local/libexec/hacocoon-login", "-hacocoon-login"} {
 		if !isLoginAlias(path) {

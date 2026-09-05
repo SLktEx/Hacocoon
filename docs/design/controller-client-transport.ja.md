@@ -2,7 +2,7 @@
 
 日本語 | [**English**](controller-client-transport.md)
 
-Status: **partial**。Local Unix domain socket protocol、Physical Host controller、trusted `haco-host`への専用endpoint投影、client-only `haco-host` CLI、guard付きgeneral `haco` provisioning、typed Environment lifecycle call、最初のinteractive stream、そしてgeneral clientとしての最初の`haco env ...` namespaceは実装済みです。残る`haco` operationの移行、PTY control framing、Environment port forwarding、remote transportはfollow-upです。
+Status: **partial**。Local Unix domain protocol、Physical Host controller、trusted-host endpoint投影、client-only `haco-host`、typed Environment API、対話streamは実装済み。製品 `haco` は現在help/versionとcontroller-backed WSL login aliasを提供する。新CLIのEnvironment lifecycle、PTY制御、port forwarding、remote transportはplanned。
 
 ## 概要
 
@@ -94,9 +94,9 @@ environment.HACO_CLIENT_MODE=controller
 
 Instance側socketを`/run`配下に置かないのは意図的です。Guest systemdはboot時にruntime tmpfsをmountするため、guest boot orderingから独立して存在させたいproxy listenerはstableな`/var/lib` pathに置きます。
 
-`haco host ensure`はownership markerを検証し、endpoint shapeを完全一致でreconcileし、必要ならinstanceをstartし、`/usr/local/bin/haco-host`と同じreleaseのgeneral `/usr/local/bin/haco`の両方をprovisionします。各client binaryはSHA-256で検証し、Physical Host側sourceはinvoking effective UID所有のregular executableかつgroup/other writableでないことを要求します。Install後は`0755 root:root`へ収束させます。
+`hacoq host ensure`はownership markerを検証し、endpoint shapeを完全一致でreconcileし、必要ならinstanceをstartし、`/usr/local/bin/haco-host`と同じreleaseのgeneral `/usr/local/bin/haco`の両方をprovisionします。各client binaryはSHA-256で検証し、Physical Host側sourceはinvoking effective UID所有のregular executableかつgroup/other writableでないことを要求します。Install後は`0755 root:root`へ収束させます。
 
-`HACO_CLIENT_MODE=controller`はauthorization credentialではなく、意図的なsafety / execution-context markerです。Full `haco` binaryをtrusted `haco-host`内で実行したとき、未移行commandがguest-local Hacocoon stateをsilentに構築することを防ぎます。Authorizationとpolicyは引き続きcontroller側がauthorityです。
+`HACO_CLIENT_MODE=controller`はauthorization credentialではなく、意図的なsafety / execution-context markerです。移行用 `hacoq` はこのmarkerでguest-local stateの構築を防ぐ。reset後の製品 `haco` はそのlocal composition経路を持たない。Authorizationとpolicyは引き続きcontroller側がauthorityです。
 
 Supported WSL bootstrapはその後、実際のtrusted instance内で`haco-host doctor`を実行します。Physical Host controllerへのround tripが成功しない場合、normal userのautomatic login shellを変更する前にbootstrapを失敗させます。
 
@@ -116,30 +116,13 @@ Protocol mismatchは明示的なerrorとし、direct Incus accessへfallbackし�
 - delete
 - controller ping / doctor diagnostics
 
-Client-only `haco-host` executableとcontroller-backed `haco env ...` namespaceは、どちらもdirect Incus authorityを持たずこのAPIを利用します。
+Client-only `haco-host` と移行用に残る `hacoq env ...` はdirect Incus authorityを持たず、このAPIを利用する。これらの保持は、reset後の製品 `haco` での提供を意味しない。
 
 ## General `haco` client namespace
 
-`haco`はgeneral Hacocoon clientです。最初に移行したnamespaceは次です。
+製品 `haco` はWSL Physical Hostとtrusted `haco-host` 内で共通の利用者入口となる。現在のhelp/versionは単独で動作し、WSL login aliasはcontrollerを直接呼ぶ。`hacoq` へ処理を委譲せず、未提供の `haco host ensure`・`haco host shell` も明示的に失敗する。
 
-```text
-haco env list
-haco env create --workspace <path> <environment>
-haco env status <environment>
-haco env exec <environment> -- <command...>
-haco env shell <environment>
-haco env delete <environment>
-```
-
-これらは意図的に`composition.Local()`を初期化する**前**にdispatchします。そのため同じ`haco` binaryをtrusted `haco-host`内で実行しても、`haco env ...`がguest-local Incus operationへsilentに化けることはありません。
-
-Commandはconfigured Hacocoon controller endpointへ到達するか、controller-client transportとして明示的に失敗します。Direct local compositionへのfallbackはしません。
-
-既存のflat commandである`haco create`、`haco status`、`haco exec`、`haco shell`、`haco delete`は、migration中のPhysical Host向けtemporary compatibility/local pathとして残します。ただしtrusted `haco-host`内ではcontroller-client modeにより、これらEnvironment aliasも同じcontroller clientへ強制的にrouteし、local compositionへ落としません。
-
-それ以外の未移行`haco` commandはcontroller-client modeでは明示的なfail-closed errorで拒否します。これにより、すべてのhistorical namespaceを既に移行済みと見せかけずにgeneral binaryをpermanent installできます。新しいdocs、automation、integrationはcompatibility aliasではなく`haco env ...`を利用します。
-
-General `/usr/local/bin/haco`は`haco host ensure`によって`/usr/local/bin/haco-host`の隣へprovisionされます。Trusted instanceに渡すのは明示的なcontroller socketとclient-mode markerだけで、raw Incus authorityやPhysical Host state treeは渡しません。
+旧Environment namespaceは一時的な `hacoq` に残り、typed controller APIは再利用できる。新CLIのlifecycle実装はこのAPIを使い、guest-local compositionやIncus authorityを持たない。現在のinstallerはbootstrap provisionのため `hacoq host ensure` を直接呼ぶ。この移行依存は新CLIとは別で、撤去予定として残る。
 
 ## `haco-host` transition surface
 

@@ -25,7 +25,7 @@ haco --help
 
 These commands do not require Incus, the Hacocoon controller, `haco-host`, Hacocoon state directories, network access, or root privileges.
 
-Unimplemented product commands fail clearly instead of falling back to the legacy runtime stack.
+Unimplemented product commands fail clearly instead of falling back to the legacy runtime stack. The hidden `haco host ensure` / `haco host shell` subprocess bridge has been removed. Bootstrap still calls the retained `hacoq host ensure` directly; eliminating that installer dependency is separate follow-up work.
 
 ## Compatibility boundary
 

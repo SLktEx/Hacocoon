@@ -20,8 +20,6 @@ import (
 
 const loginAlias = "hacocoon-login"
 
-const legacyCLIPath = "/usr/local/bin/hacoq"
-
 func main() {
 	if isLoginAlias(os.Args[0]) {
 		if err := runLoginShim(os.Args[1:]); err != nil {
@@ -60,8 +58,6 @@ func run(args []string) int {
 		return 0
 	case "version":
 		return runVersion(args[1:])
-	case "host":
-		return runLegacyHostBridge(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "haco: command %q is not available yet; run 'haco help'\n", args[0])
 		return 2
@@ -86,18 +82,6 @@ func runVersion(args []string) int {
 	}
 	fmt.Fprintln(os.Stderr, "haco: usage: haco version [--json]")
 	return 2
-}
-
-func runLegacyHostBridge(args []string) int {
-	if len(args) != 1 || (args[0] != "ensure" && args[0] != "shell") {
-		fmt.Fprintln(os.Stderr, "haco: usage: haco host <ensure|shell>")
-		return 2
-	}
-	if err := execProcess(legacyCLIPath, []string{"hacoq", "host", args[0]}); err != nil {
-		fmt.Fprintln(os.Stderr, "haco:", err)
-		return 1
-	}
-	return 0
 }
 
 func writeShortVersion() {
