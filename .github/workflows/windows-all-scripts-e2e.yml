@@ -15,6 +15,20 @@ on:
       - "tools/windows-installer-restart-e2e.py"
       - "tools/windows-installer-cached-restart-e2e.py"
       - ".github/workflows/windows-all-scripts-e2e.yml"
+  push:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - ".goreleaser.yaml"
+      - "scripts/install-windows.bat"
+      - "scripts/install-windows.ps1"
+      - "scripts/install.sh"
+      - "tools/package_installers.py"
+      - "tools/windows-installer-user-path-e2e.py"
+      - "tools/windows-installer-restart-e2e.py"
+      - "tools/windows-installer-cached-restart-e2e.py"
+      - ".github/workflows/windows-all-scripts-e2e.yml"
   workflow_dispatch:
 
 permissions:
@@ -144,32 +158,41 @@ jobs:
       # - Product-driving actions are only commands a real user types unchanged.
       #   No HACO_* injection/rewriting, E2E-only arguments/options, root repair,
       #   or direct Incus mutation may substitute for a user action.
-      # - This regression deliberately includes the exact Windows lifecycle action
-      #   `wsl --terminate Hacocoon` after the first successful install and before
-      #   any reinstall. Hacocoon must restart and serve ordinary haco commands
-      #   without install-windows.bat getting a chance to repair state first.
-      # - The shipped -UseCachedWslImage option remains part of the repeated
-      #   validation path, using only a trusted restored cache or its verified
-      #   download fallback.
+      # - Every run keeps the exact cached first install and explicit
+      #   `wsl --terminate Hacocoon` restart boundary.
+      # - Pull requests stop after proving the installed host survives that
+      #   lifecycle boundary. This keeps ordinary feedback near the prior
+      #   single-digit-minute shape.
+      # - Main and manual runs retain the authoritative Environment persistence,
+      #   second installer invocation, idempotency assertions, and cleanup.
+      # - The shipped -UseCachedWslImage option uses only the trusted restored
+      #   cache or its verified download fallback.
       # - After an action completes, the driver may run read-only assertions to
-      #   inspect the resulting WSL/systemd/Incus/Btrfs/loop state. Assertions may
-      #   use root when required to observe state, but must never create, repair,
-      #   restart, remount, attach, detach, delete, or otherwise mutate product
-      #   state.
-      - name: Exercise cached install, terminate/restart, and reinstall user path
+      #   inspect the resulting WSL/systemd/Incus/Btrfs state. Assertions may use
+      #   root when required to observe state, but must never mutate product state.
+      - name: Exercise cached exact-user Windows installer path
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $packageRoot = Join-Path $env:RUNNER_TEMP "hacocoon-windows-amd64"
           $logPath = Join-Path $env:RUNNER_TEMP "windows-installer-user-path.log"
           $driverExit = 1
+          $driverArgs = @()
+
+          if ($env:GITHUB_EVENT_NAME -eq "pull_request") {
+            $driverArgs += "--pr-gate"
+            Write-Host "Running fast pull-request restart gate."
+          } else {
+            Write-Host "Running full restart/reinstall acceptance."
+          }
 
           Push-Location $packageRoot
           try {
             $previousPreference = $ErrorActionPreference
             $ErrorActionPreference = "Continue"
             try {
-              python "$env:GITHUB_WORKSPACE\tools\windows-installer-cached-restart-e2e.py" *> $logPath
+              & python "$env:GITHUB_WORKSPACE\tools\windows-installer-cached-restart-e2e.py" @driverArgs 2>&1 |
+                Tee-Object -FilePath $logPath
               $driverExit = $LASTEXITCODE
             } finally {
               $ErrorActionPreference = $previousPreference
@@ -183,6 +206,3 @@ jobs:
             Get-Content -LiteralPath $logPath -Tail 160
             throw "Exact Windows installer user path failed with exit $driverExit."
           }
-
-          Write-Host "=== Exact user-path success tail ==="
-          Get-Content -LiteralPath $logPath -Tail 60
