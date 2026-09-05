@@ -364,7 +364,12 @@ def main() -> None:
     assert_host()
     if sudo_policy_digest() != policy_before:
         raise RuntimeError("current-installer rerun changed existing sudo policy")
-    print("Windows BAT / WSL entry / restart / trusted-host data retention: PASS")
+    # Exercise the documented direct diagnostic entry before any root/service
+    # observation or interactive login can hide cold controller startup.
+    expected_build = json.loads(observe("wsl.exe", "-d", INSTANCE, "--exec", "haco", "version", "--json"))
+    subprocess.run(["wsl.exe", "--terminate", INSTANCE], check=True, timeout=120)
+    assert_doctor_report(observe("wsl.exe", "-d", INSTANCE, "--exec", "haco", "doctor", "--json"), expected_build)
+    print("Windows BAT / WSL entry / restart / trusted-host data retention / cold doctor: PASS")
 
 
 if __name__ == "__main__":

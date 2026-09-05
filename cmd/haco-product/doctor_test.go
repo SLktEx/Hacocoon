@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/buildinfo"
 	"github.com/SLktEx/Hacocoon/internal/control"
@@ -19,6 +20,9 @@ import (
 func productDoctorServer(t *testing.T, failed bool) string {
 	t.Helper()
 	server := control.NewServer()
+	_ = server.Register(controlapi.MethodPing, func(context.Context, json.RawMessage) (any, error) {
+		return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, nil
+	})
 	_ = server.Register(controlapi.MethodDoctor, func(context.Context, json.RawMessage) (any, error) {
 		report := diagnostics.Report{}
 		for _, name := range diagnostics.CheckNames() {
@@ -100,7 +104,67 @@ func TestProductDoctorHelpAndUsageNeedNoController(t *testing.T) {
 func TestProductDoctorUnavailableDoesNotReturnHealthyJSON(t *testing.T) {
 	t.Setenv("HACO_CONTROL_SOCKET", filepath.Join(t.TempDir(), "missing.sock"))
 	var stdout, stderr bytes.Buffer
-	if code := doctor(context.Background(), []string{"--json"}, &stdout, &stderr); code != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "unavailable") {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if code := doctor(ctx, []string{"--json"}, &stdout, &stderr); code != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "timed out") {
 		t.Fatalf("code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+}
+
+type startupDoctorClient struct {
+	ping        func(context.Context) error
+	doctorCalls int
+}
+
+func (c *startupDoctorClient) Ping(ctx context.Context) (controlapi.PingResponse, error) {
+	return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, c.ping(ctx)
+}
+func (c *startupDoctorClient) Doctor(context.Context) (controlapi.DoctorResponse, error) {
+	c.doctorCalls++
+	// A failed infrastructure check is still a completed diagnostic response.
+	return controlapi.DoctorResponse{ProtocolVersion: control.ProtocolVersion}, nil
+}
+
+func TestDoctorWaitsForControllerThenDiagnosesOnce(t *testing.T) {
+	calls := 0
+	client := &startupDoctorClient{ping: func(ctx context.Context) error {
+		deadline, ok := ctx.Deadline()
+		if !ok || time.Until(deadline) > 30*time.Second {
+			t.Fatal("missing bounded controller readiness")
+		}
+		calls++
+		if calls == 1 {
+			return control.ErrUnavailable
+		}
+		return nil
+	}}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	response, err := collectDoctor(ctx, client)
+	if err != nil || calls != 2 || client.doctorCalls != 1 || response.Healthy() {
+		t.Fatalf("pings=%d diagnostics=%d response=%+v error=%v", calls, client.doctorCalls, response, err)
+	}
+}
+
+func TestDoctorDoesNotRetryRejectedReadiness(t *testing.T) {
+	for _, rejected := range []error{control.ErrProtocol, control.NewStatusError("forbidden", "denied")} {
+		calls := 0
+		client := &startupDoctorClient{ping: func(context.Context) error { calls++; return rejected }}
+		_, err := collectDoctor(context.Background(), client)
+		if !errors.Is(err, rejected) || calls != 1 || client.doctorCalls != 0 {
+			t.Fatalf("pings=%d diagnostics=%d error=%v", calls, client.doctorCalls, err)
+		}
+	}
+}
+
+func TestDoctorCancellationStopsReadinessWithoutDiagnosing(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	client := &startupDoctorClient{ping: func(context.Context) error {
+		cancel()
+		return control.ErrUnavailable
+	}}
+	_, err := collectDoctor(ctx, client)
+	if !errors.Is(err, context.Canceled) || client.doctorCalls != 0 {
+		t.Fatalf("diagnostics=%d error=%v", client.doctorCalls, err)
 	}
 }

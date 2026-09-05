@@ -102,7 +102,7 @@ Supported WSL bootstrapはその後、実際のtrusted instance内で`haco-host 
 
 ## Host setup
 
-Status: **implemented**。新しいpackageでの受入はpending。
+Status: **implemented**。commitを固定したpackage / real-Incus受入は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。
 
 `haco setup` は両clientの実行場所から既存Physical Host controllerの `system.setup` を呼ぶ。所有host・storage・networkと必要な2本のclient binaryを準備する。requestは引数を取らず、companion pathは稼働controller executableの隣から解決する。両sourceをprovider変更前に検証する。旧CLI・guest controller・callerが指定するroot commandは使わない。
 
@@ -128,7 +128,9 @@ Status: **implemented**。このcommandのpackaged受入は実装statusで別途
 
 結果は `ok`・`failed`・`skipped`。全項目成功だけが終了0で、failed/skippedがあればreportを出して終了1、不正な使い方は終了2。transport/protocol失敗は終了1で、成功を示すJSON reportを出さない。項目欠落・重複・不明値・不正応答を拒否する。summaryは長さを制限した固定の検査条件で、backend/guestの生出力・errorをreportへコピーしない。失敗は共有loggerでstderrへ記録し、stdoutはtext/JSON結果に使う。
 
-provider probeは各5秒、server operationは30秒、CLIは35秒を上限とする。割込み・cancelでclient connectionを閉じる。自動修復や権限を上げるfallbackはしない。固定対象への外部GETにHost credentialやcaller入力を渡さない。guest probeは継承環境変数を消去し、curlのuser設定を無効にする。対話shellや `.curlrc` のcredential/proxy optionは取り込まない。
+cold WSLでは、enabled controllerのsocketよりCLIが先に動くことがある。最初に読み取り専用pingで最大30秒待ち、transport unavailableだけを再試行する。その後の診断は一度だけ行う。protocol/operation拒否やfailed checkは再試行せず、serviceの起動・resource修復も行わない。
+
+provider probeは各5秒、server operationは30秒、CLI全体は65秒を上限とする。割込み・cancelでclient connectionを閉じる。自動修復や権限を上げるfallbackはしない。固定対象への外部GETにHost credentialやcaller入力を渡さない。guest probeは継承環境変数を消去し、curlのuser設定を無効にする。対話shellや `.curlrc` のcredential/proxy optionは取り込まない。
 
 成功reportはその時点の基盤検査である。storage設定の一致は実圧縮・COW・live mountの証明ではない。trusted-host疎通はEnvironmentのproxy-only egress、SSH、Workspace保持、将来のfirewall再読込・起動順変更の受入ではない。保持している `haco-host doctor` は引き続きpingだけの移行用診断である。
 
@@ -195,7 +197,7 @@ BaselineはUnix domain socket上の通常のGo buffered forwardingです。Local
 
 ## 現在のacceptance
 
-以下はrepository testと維持するreal-Incus gateの検証契約を示す。更新したsetup/client-only gateは新commitで実行するまで実機受入pending。
+以下はrepository testと維持するreal-Incus gateの検証契約を示す。setup/client-only gateは `b71f88e` で成功した。後続の製品変更はそれぞれの受入を必要とする。
 
 - TCPなしのlocal UDS request/response
 - bounded envelope / connection concurrency

@@ -221,6 +221,6 @@ Warningはinteractive Host-shell pathだけに出し、non-interactive WSL comma
 
 Repository testではownership reconciliation、collision refusal、state recovery、exact controller proxy validation、2本のclient binary provisioning / idempotency、client-mode drift refusal、CLI routing、local fallbackのfail-closed、warning、login-mode identificationを確認します。
 
-維持するreal Incus E2E gateはcontroller経由の `haco setup`、endpoint投影、必要な2本のclientのdigest一致、`haco-host doctor` / `haco-host env ...` のcontroller経由操作、restart復旧、fresh setupでguestに旧`hacoq`がないこと、raw Incus socket非露出、通常Environmentのtrusted endpoint / client-mode marker非露出を検査する。保持した旧alias・Base routing・local composition拒否はcomponent testで検証する。更新したgateの新commitでの実機受入はpending。
+維持するreal Incus E2E gateはcontroller経由の `haco setup`、endpoint投影、必要な2本のclientのdigest一致、`haco-host doctor` / `haco-host env ...` のcontroller経由操作、restart復旧、fresh setupでguestに旧`hacoq`がないこと、raw Incus socket非露出、通常Environmentのtrusted endpoint / client-mode marker非露出を検査する。保持した旧alias・Base routing・local composition拒否はcomponent testで検証する。更新gateは `b71f88e` で成功した。commitを固定したWindows結果と残る制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。
 
 実Windows terminal起動、WSL distribution restart、login-shell transition、Windows integrationはReal Windows + WSL acceptanceが完了するまでhost-verifiedとは扱いません。

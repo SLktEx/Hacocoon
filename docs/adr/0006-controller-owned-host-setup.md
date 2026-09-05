@@ -58,5 +58,9 @@ mode refusal, interrupted client provisioning followed by idempotent retry,
 rejection of caller parameters, serialized concurrent/lost-client requests, safe
 failure responses and a CLI that works with no legacy executable or local state.
 The actual installer control flow is tested for failure before each later stage.
-Packaged Windows acceptance of this replacement is separate and remains pending
-until a new commit-bound ZIP runs.
+Packaged Windows current-install application, rerun, cold ordinary entry and
+trusted-host data retention passed on `b71f88e`. The fresh Windows BAT/restart/rerun
+gate passed on `a4c6e2d`, with unchanged product source and corrected test-harness
+exit/terminal handling. Ubuntu installer and all four real-Incus jobs passed on
+`b71f88e`. These results do not establish Windows reboot, Environment egress or
+Workspace work-retention acceptance. See [implementation status](../IMPLEMENTATION_STATUS.md).

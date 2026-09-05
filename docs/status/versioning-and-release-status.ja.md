@@ -23,11 +23,9 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 
 ## 現在のcheckpoint status
 
-Controller経由の `haco setup` と読み取り専用 `haco doctor` は、このcheckpoint内でHost準備と基盤診断を扱う。setup置換にはrepository検証があり、新package受入はpending。repository実装とpackaged受入は[実装status](../IMPLEMENTATION_STATUS.ja.md)で区別する。
+Controller経由の `haco setup`、trusted-host network、読み取り専用 `haco doctor` は現在のcheckpoint内で扱う。`b71f88e` で現在installへのcached BAT適用/再実行・通常/cold入口・trusted-hostデータ保持が成功。製品sourceが同じ `a4c6e2d` で正規Windows BATのfresh作成/停止/再実行gateが成功し、Ubuntu installerとIncus全4gateは `b71f88e` で成功した。
 
-専用trusted-host networkの修正は現在のcheckpoint内で扱う。所有権、profile非依存のfresh作成、限定したDocker転送、データを保持する現在hostの移行を実装した。現在のinstallへのpackaged受入は成功し、fresh受入はpending。
-
-`7798b57` は現在のinstallで、同じ版のcached BAT再実行・通常/停止後の入口・controller/client build全体の一致・データ保持のWindows受入が成功した。現在のcheckpoint内で扱い、freshや広いprovider受入はpending。[実装status](../IMPLEMENTATION_STATUS.ja.md)に証拠の範囲を記録する。
+後続のcold-doctor待機修正にはrepository回帰があり、そのpackage受入はpending。Windows再起動、広い層別診断、install済みEnvironment proxy制御はM1の残件である。証拠と制約の正本は[実装status](../IMPLEMENTATION_STATUS.ja.md)。
 
 | Version | Gate | `main` の状態 |
 |---|---|---|

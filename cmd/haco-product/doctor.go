@@ -19,7 +19,7 @@ import (
 func runDoctor(args []string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	ctx, cancel := context.WithTimeout(ctx, 35*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 65*time.Second)
 	defer cancel()
 	return doctor(ctx, args, os.Stdout, os.Stderr)
 }
@@ -48,10 +48,10 @@ func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail("Cannot open the Physical Host controller client")
 	}
-	response, err := client.Doctor(ctx)
+	response, err := collectDoctor(ctx, client)
 	if err != nil {
 		switch {
-		case ctx.Err() != nil:
+		case ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded):
 			return fail("Host diagnostics timed out or were canceled")
 		case errors.Is(err, control.ErrUnavailable):
 			return fail("Physical Host controller is unavailable; check the WSL installation and controller service")
@@ -79,4 +79,25 @@ func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return fail("Host diagnostic checks did not pass; see the reported checks")
 	}
 	return 0
+}
+
+type hostDoctorClient interface {
+	Ping(context.Context) (controlapi.PingResponse, error)
+	Doctor(context.Context) (controlapi.DoctorResponse, error)
+}
+
+// A normal WSL --exec invocation may run before systemd binds the enabled
+// controller socket. Wait only through read-only ping, then diagnose once.
+// Failed checks and protocol rejection are never retried or repaired.
+func collectDoctor(ctx context.Context, client hostDoctorClient) (controlapi.DoctorResponse, error) {
+	readyCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	err := waitForController(readyCtx, func(ctx context.Context) error {
+		_, err := client.Ping(ctx)
+		return err
+	})
+	cancel()
+	if err != nil {
+		return controlapi.DoctorResponse{}, err
+	}
+	return client.Doctor(ctx)
 }

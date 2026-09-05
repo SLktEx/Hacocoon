@@ -102,7 +102,7 @@ The supported WSL bootstrap then executes `haco-host doctor` inside the real tru
 
 ## Host setup
 
-Status: **implemented**, with new packaged acceptance pending.
+Status: **implemented**; commit-bound packaged and real-Incus acceptance is recorded in [implementation status](../IMPLEMENTATION_STATUS.md).
 
 `haco setup` invokes `system.setup` on the existing Physical Host controller from either client context. It prepares the owned host, storage, network and the two required client binaries. Requests take no parameters; companion paths are resolved next to the running controller executable. Both sources are validated before provider mutation. No legacy CLI, guest controller or caller-selected root command participates.
 
@@ -128,7 +128,9 @@ The controller's provider adapter performs the checks. The client neither invoke
 
 Results use `ok`, `failed` or `skipped`. Exit 0 requires every check to pass; a failed/skipped check returns a report and exit 1, while usage errors return 2. Transport/protocol failure returns exit 1 with no successful JSON report. Missing, duplicate, unknown or malformed check results are rejected. Diagnostic summaries are bounded fixed predicates; raw backend/guest output and errors are not copied into the report. Failure logging uses the shared logger on stderr, leaving stdout for the text/JSON result.
 
-Each provider probe is bounded to five seconds, the server operation to 30 seconds and the CLI to 35 seconds. Interrupt/cancellation closes the client connection. No automatic repair or privileged fallback occurs. The fixed external GET uses no Host credentials or caller input. The guest probe clears inherited environment variables and disables curl's user configuration; credentials/proxy options from the interactive shell or `.curlrc` are not imported.
+Cold WSL execution can precede the enabled controller socket. The CLI first waits up to 30 seconds using read-only ping, retrying only transport unavailability. It then requests diagnostics once; protocol/operation rejection and failed checks are not retried. The wait neither starts services nor repairs resources.
+
+Each provider probe is bounded to five seconds, the server operation to 30 seconds and the complete CLI operation to 65 seconds. Interrupt/cancellation closes the client connection. No automatic repair or privileged fallback occurs. The fixed external GET uses no Host credentials or caller input. The guest probe clears inherited environment variables and disables curl's user configuration; credentials/proxy options from the interactive shell or `.curlrc` are not imported.
 
 A successful report is a point-in-time infrastructure check. Configured storage options are not proof of actual compression/COW or live mount behavior. Trusted-host connectivity is not acceptance of Environment proxy-only egress, SSH, Workspace retention, or firewall behavior across future reload/startup orders. The retained `haco-host doctor` is still a ping-only migration diagnostic.
 
@@ -195,7 +197,7 @@ An opt-in generated 100 GiB-class benchmark exists to measure the baseline witho
 
 ## Current acceptance
 
-Repository tests and the maintained real-Incus gate cover the following contracts. The updated setup/client-only gate must run on the new commit before claiming its real-host acceptance:
+Repository tests and the maintained real-Incus gate cover the following contracts. The setup/client-only gate passed on `b71f88e`; subsequent product changes need their own acceptance:
 
 - local request/response over UDS without TCP;
 - bounded envelopes and connection concurrency;

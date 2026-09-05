@@ -21,11 +21,9 @@ Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progr
 
 ## Current checkpoint status
 
-Controller-backed `haco setup` and read-only `haco doctor` cover installed Host preparation and infrastructure diagnostics within this checkpoint. The new setup replacement has repository coverage; its packaged acceptance remains pending. Repository implementation and packaged acceptance are distinguished in [implementation status](../IMPLEMENTATION_STATUS.md).
+Controller-backed `haco setup`, trusted-host networking and read-only `haco doctor` remain within this checkpoint. Current-install cached BAT application/rerun, ordinary/cold entry and trusted-host retention passed on `b71f88e`; the exact fresh Windows BAT/restart/rerun gate passed on `a4c6e2d`, whose product source is unchanged. Ubuntu installer and all four Incus gates passed on `b71f88e`.
 
-The dedicated trusted-host networking correction stays within the current checkpoint. Ownership, profile-independent fresh creation, scoped Docker forwarding and data-preserving current-host migration are implemented. Current-install packaged acceptance passed; fresh acceptance remains pending.
-
-Current-install Windows acceptance passed on `7798b57`, including same-version cached BAT rerun, ordinary/cold entry, exact controller/client build identity and data retention. This stays within the current checkpoint; fresh and broader provider acceptance remain pending. See [implementation status](../IMPLEMENTATION_STATUS.md) for the evidence boundary.
+The subsequent cold-doctor readiness wait has repository regression coverage and awaits its own packaged acceptance. Windows reboot, broader layer diagnostics and installed Environment proxy enforcement remain separate M1 work. Exact evidence and limits are owned by [implementation status](../IMPLEMENTATION_STATUS.md).
 
 **Status legend:** ✅ implemented · 🧪 partial / foundation · 🚧 planned/deferred
 
