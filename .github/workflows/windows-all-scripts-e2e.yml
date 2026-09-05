@@ -103,6 +103,24 @@ jobs:
             throw "amd64 package contains arm64 payload."
           }
 
+      - name: Restore trusted Ubuntu 26.04 WSL image cache
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: ${{ runner.temp }}\hacocoon-wsl-cache\ubuntu.wsl
+          key: hacocoon-wsl-${{ runner.os }}-${{ runner.arch }}-ubuntu-26.04-v1
+
+      - name: Stage cached WSL image into installer package
+        shell: pwsh
+        run: |
+          $cachePath = Join-Path $env:RUNNER_TEMP "hacocoon-wsl-cache\ubuntu.wsl"
+          $packageRoot = Join-Path $env:RUNNER_TEMP "hacocoon-windows-amd64"
+          if (Test-Path -LiteralPath $cachePath -PathType Leaf) {
+            Copy-Item -LiteralPath $cachePath -Destination (Join-Path $packageRoot "ubuntu.wsl") -Force
+            Write-Host "Using trusted main-branch Ubuntu WSL image cache."
+          } else {
+            Write-Host "Trusted Ubuntu WSL image cache was not available; installer will perform the verified download."
+          }
+
       - name: Prepare ConPTY user-input driver
         shell: pwsh
         run: |
