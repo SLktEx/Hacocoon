@@ -23,4 +23,6 @@ if not "%HACO_INSTALL_EXIT%"=="0" (
     exit /b %HACO_INSTALL_EXIT%
 )
 
+echo.
+echo Hacocoon Windows installation complete.
 exit /b 0

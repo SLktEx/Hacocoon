@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 from pathlib import Path
 import subprocess
+import sys
 import tarfile
 import tempfile
 import zipfile
@@ -108,6 +110,66 @@ with tempfile.TemporaryDirectory() as temp:
                     f"Windows {arch} package captures wsl.exe stdout into its exit-code variable"
                 )
 
+            required_windows_contract = [
+                '[switch]$InteractiveUserSetup',
+                '$ManagedLoginUser = "hacocoon"',
+                'Ensure-ManagedWslLoginUser',
+                'Complete-InteractiveWslUserSetup',
+                'Enable-BootstrapSudo',
+                'Disable-BootstrapSudo',
+                'Get-SudoersPolicyFile',
+                'foreach ($policy in @("/etc/sudoers-rs", "/etc/sudoers"))',
+                'Set-HacocoonSudoPolicyBlock',
+                'Remove-HacocoonSudoPolicyBlock',
+                'Set-HacocoonLoginSudoRule',
+                '# BEGIN HACOCOON $marker_name',
+                '$LoginUser ALL=(ALL:ALL) NOPASSWD: ALL',
+                'Validating temporary sudo rule through policy files',
+                '"sudo", "-n", "/usr/bin/true"',
+                'function Invoke-WslRootShellScript',
+                'sh -eu "$tmp" "$@"',
+                'Never send installer-controlled bytes through the Windows native stdin',
+                'base64 -d >> "$2"',
+                '"sh", $encoded, $Path',
+                '$mainFailure = $null',
+                'Bootstrap sudo cleanup also failed after the installer error',
+                '/usr/sbin/visudo -cf "$tmp"',
+                'install -o root -g root -m 0440 "$tmp" "$policy"',
+                'throw $mainFailure',
+                '& wsl.exe --terminate $Name | Out-Null',
+                '& wsl.exe --distribution $Name | Out-Host',
+                'Running common Ubuntu install.sh',
+            ]
+            for contract_marker in required_windows_contract:
+                if contract_marker not in windows_installer:
+                    raise SystemExit(
+                        f"Windows installer lost one-shot bootstrap contract: {contract_marker!r}"
+                    )
+            forbidden_windows_contract = [
+                "Complete normal Ubuntu user setup, then run this installer again.",
+                "After completing the Ubuntu user setup, run install-windows.bat again.",
+                '$normalized | & wsl.exe @Arguments',
+                '"--exec", "sh", "-s"',
+                'function Invoke-WslCaptureWithInput',
+                'Get-SudoersPolicyFiles',
+                'Write-WslUtf8File $Name $policy $block -Append',
+            ]
+            for contract_marker in forbidden_windows_contract:
+                if contract_marker in windows_installer:
+                    raise SystemExit(
+                        f"Windows installer regressed to two-invocation setup: {contract_marker!r}"
+                    )
+            for forbidden_provider_guess in (
+                "$provider.Stdout -match '^sudo-rs'",
+                '"readlink", "-f", "/usr/bin/sudo"',
+                '"update-alternatives"',
+                '@include $RulePath',
+            ):
+                if forbidden_provider_guess in windows_installer:
+                    raise SystemExit(
+                        f"Windows installer regressed to sudo provider guessing: {forbidden_provider_guess!r}"
+                    )
+
             windows_bat = zf.read("install-windows.bat").decode("utf-8")
             for forbidden in (
                 "__install-launcher",
@@ -118,6 +180,8 @@ with tempfile.TemporaryDirectory() as temp:
             ):
                 if forbidden in windows_bat:
                     raise SystemExit(f"Windows {arch} installer still contains native launcher behavior: {forbidden!r}")
+            if "Hacocoon Windows installation complete." not in windows_bat:
+                raise SystemExit(f"Windows {arch} installer does not expose final completion")
 
         with tarfile.open(out / f"hacocoon-ubuntu-{arch}.tar.gz", "r:gz") as tf:
             names = tf.getnames()
@@ -138,5 +202,27 @@ with tempfile.TemporaryDirectory() as temp:
     for name in expected_release - {"checksums.txt"}:
         if release_checksums.get(name) != digest(out / name):
             raise SystemExit(f"release checksum mismatch for {name}")
+
+# A ConPTY cmd.exe session emits OSC title sequences before and after installer
+# output. Normalization must remove each OSC sequence independently instead of
+# greedily deleting user-visible text between them.
+driver_path = ROOT / "tools" / "windows-installer-user-path-e2e.py"
+spec = importlib.util.spec_from_file_location("windows_installer_user_path_e2e_test", driver_path)
+if spec is None or spec.loader is None:
+    raise SystemExit(f"cannot load Windows user-path driver from {driver_path}")
+driver = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = driver
+try:
+    spec.loader.exec_module(driver)
+    osc_sample = (
+        "\x1b]0;before\x1b\\"
+        "Hacocoon Windows installation complete."
+        "\x1b]0;after\x1b\\"
+    )
+    normalized = driver.normalize_terminal(osc_sample)
+finally:
+    sys.modules.pop(spec.name, None)
+if normalized != "Hacocoon Windows installation complete.":
+    raise SystemExit(f"Windows terminal normalization deleted visible output: {normalized!r}")
 
 print("INSTALLER PACKAGES OK")
