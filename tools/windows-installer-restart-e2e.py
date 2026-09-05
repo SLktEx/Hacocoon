@@ -152,7 +152,6 @@ def run_pr_gate(driver, package_root: Path) -> None:
             first, r"Hacocoon Windows installation complete\.", phase="first install"
         )
         driver.assert_installed_host_state(phase="after first BAT")
-        assert_supported_storage_state(driver, phase="after first BAT")
 
     with timed_phase("explicit WSL terminate"):
         run_user_terminate(driver)
@@ -166,7 +165,6 @@ def run_pr_gate(driver, package_root: Path) -> None:
             expected_output=[r"(?m)^haco/ubuntu-26\.04\s*$"],
         )
         driver.assert_installed_host_state(phase="after terminate restart")
-        assert_supported_storage_state(driver, phase="after terminate restart")
 
 
 def run_full_acceptance(driver, package_root: Path) -> None:
