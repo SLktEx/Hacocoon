@@ -113,6 +113,8 @@ install-windows.bat -InteractiveUserSetup
 
 有効時は、installer package と同じ場所にある `ubuntu.wsl` を Ubuntu 26.04 の local image cache として使います。`ubuntu.wsl` が無ければ、Microsoft の WSL `DistributionInfo.json` から現在の Windows architecture に対応する `Ubuntu-26.04` の URL と SHA256 を取得し、一時ファイルへ download、公開 SHA256 を検証してから `ubuntu.wsl` に昇格します。
 
+SHA-256検証は.NETを直接使い、BATが起動するWindows PowerShell 5.1での `Get-FileHash` moduleの有無に依存しません。hash検証失敗時はdistro作成前に停止し、途中のdownloadをcacheへ昇格しません。
+
 専用 distribution の作成は named install 経路のままです。
 
 ```powershell

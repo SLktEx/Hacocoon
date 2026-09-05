@@ -113,6 +113,8 @@ The default managed account needs no password input. It does not reset an existi
 
 When enabled, `install-windows.ps1` uses `ubuntu.wsl` next to the installer package as the local Ubuntu 26.04 image cache. If that file is absent, the installer reads Microsoft's WSL `DistributionInfo.json`, resolves the `Ubuntu-26.04` image for the current Windows architecture, downloads it to a temporary file, verifies the published SHA256, and only then promotes it to `ubuntu.wsl`.
 
+SHA-256 verification uses .NET directly so the BAT's Windows PowerShell 5.1 process does not depend on `Get-FileHash` module availability. Hash failures stop installation before distro creation and do not promote a partial download.
+
 The dedicated distribution is then created with the named-install path:
 
 ```powershell

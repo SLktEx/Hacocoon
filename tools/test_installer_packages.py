@@ -116,6 +116,8 @@ with tempfile.TemporaryDirectory() as temp:
                 'Complete-InteractiveWslUserSetup', 'Configure-ManagedWslOobe',
                 'Invoke-WslRootShellScript', '"HACO_INSTALL_USER=$loginUser"',
                 '--user root --exec env', 'Running common Ubuntu install.sh',
+                '$actualSha256 = Get-Sha256Hex $temporaryPath',
+                '[Security.Cryptography.SHA256]::Create()',
             ):
                 if required not in windows_installer:
                     raise SystemExit(f"Windows installer lost current contract: {required!r}")

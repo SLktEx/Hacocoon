@@ -19,6 +19,20 @@ Assert-LoginUserName '_ubuntu-user'
 function Assert-Equal($Actual, $Expected) {
     if ($Actual -cne $Expected) { throw "Expected '$Expected', got '$Actual'." }
 }
+# Hashing must work in the BAT's PS5.1 process without module autoloading.
+function Get-FileHash { throw 'Get-FileHash must not be required by the installer' }
+$hashFile = Join-Path ([IO.Path]::GetTempPath()) ('haco hash [' + [guid]::NewGuid() + '].bin')
+try {
+    [IO.File]::WriteAllBytes($hashFile, [Text.Encoding]::UTF8.GetBytes('abc'))
+    Assert-Equal (Get-Sha256Hex $hashFile) 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+    # On Windows this also verifies the input file handle was disposed.
+    [IO.File]::Delete($hashFile)
+    $missingFailed = $false
+    try { Get-Sha256Hex $hashFile | Out-Null } catch { $missingFailed = $true }
+    Assert-Equal $missingFailed $true
+} finally {
+    [IO.File]::Delete($hashFile)
+}
 function Get-WslDefaultUser([string]$Name) { return $script:defaultUser }
 function Get-WslLoginUser([string]$Name) { return $script:defaultUser }
 function Ensure-ManagedWslLoginUser([string]$Name) { $script:managedCalls++; return 'hacocoon' }
