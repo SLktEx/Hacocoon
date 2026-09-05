@@ -628,7 +628,7 @@ if (-not ($installed -contains $InstanceName)) {
         $createExitCode = Invoke-ElevatedWsl $args
     }
     if ($createExitCode -ne 0) {
-        throw "Failed to create '$InstanceName'. Update WSL with 'wsl --update' if named installation is unsupported."
+        throw "WSL failed to create '$InstanceName' (exit code $createExitCode). The installer stopped before common Ubuntu setup."
     }
     $createdInstance = $true
 }
