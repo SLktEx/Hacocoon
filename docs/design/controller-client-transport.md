@@ -6,12 +6,13 @@ Status: **partial**. The local Unix-domain protocol, Physical Host controller, t
 
 ## Summary
 
-The second-stage product client also exposes existing Base list/inspect and
-canonical stop/delete/create for managed Workspace Base switching. SSH config
-generation reads existing connection metadata. Optional `plugin.oci.distribute`
-invokes the OCI plugin's one-way image transfer through the trusted controller
-endpoint; it is never registered on the Environment Git-only endpoint. See
-[image distribution](oci-image-distribution.md).
+The product client exposes Base list/inspect and normal Environment create/delete.
+`switch-base` is currently disabled and deferred to Stage D+. SSH configuration
+reads existing loopback connection metadata. Optional `plugin.oci.store` manages
+persistent OCI data through the trusted controller; it is never registered on
+the Environment Git-only endpoint. `environment.create` can atomically reserve
+an optional persistent resource with its Workspace. See the
+[Persistent OCI Store contract](persistent-oci-store.md).
 
 Product `haco` calls the existing controller for the [managed repository workflow](../reference/managed-repository-workflow.md). Its typed management API adds `repository.clone`, `workspace.copy`, `environment.stop` and `git.connect/pending/decide`. These methods are available through the trusted management endpoint, not the Git-only Environment socket. See [implementation status](../IMPLEMENTATION_STATUS.md) for acceptance and [CLI migration](../CLI_MIGRATION.md) for remaining legacy commands.
 

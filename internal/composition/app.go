@@ -15,6 +15,7 @@ import (
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
 	"github.com/SLktEx/Hacocoon/internal/host"
+	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
 	seedbuildapp "github.com/SLktEx/Hacocoon/internal/seedbuild"
 	"github.com/SLktEx/Hacocoon/internal/state"
@@ -32,21 +33,21 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
-	Environments *workspaceapp.Service
-	AgentHosts   *agenthostapp.Broker
-	Clients      *clientapp.Service
-	Capabilities *capabilityapp.Service
-	Git          *gitcapapp.Broker
-	OCI          *ociplugin.Service
-	Seeds        *seedbuildapp.Service
-	Runner       *runapp.Service
-	Events       *eventsapp.Service
-	Bases        *environmentapp.BaseRouter
-	Runtime      *incus.Runtime
-	EgressProxy  *egressproxy.Proxy
-	Repositories *gitrepo.RepositoryService
-	GitBroker    *gitrepo.Broker
-	OCITransfer  *ociplugin.TransferService
+	Environments        *workspaceapp.Service
+	AgentHosts          *agenthostapp.Broker
+	Clients             *clientapp.Service
+	Capabilities        *capabilityapp.Service
+	Git                 *gitcapapp.Broker
+	OCI                 *ociplugin.Service
+	Seeds               *seedbuildapp.Service
+	Runner              *runapp.Service
+	Events              *eventsapp.Service
+	Bases               *environmentapp.BaseRouter
+	Runtime             *incus.Runtime
+	EgressProxy         *egressproxy.Proxy
+	Repositories        *gitrepo.RepositoryService
+	GitBroker           *gitrepo.Broker
+	PersistentResources *persistentresource.Service
 }
 
 func Local(ctx context.Context) (*App, error) {
@@ -90,6 +91,9 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	// unmanaged bridge even if they bypass a higher-level network helper.
 	runtimeRunner = incus.WrapEnvironmentNetworkOwnershipRunner(runtimeRunner)
 	incusRuntime := incus.New(runtimeRunner)
+	if kernel, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil && strings.Contains(strings.ToLower(string(kernel)), "microsoft") {
+		incusRuntime.ConfigureWSLInterop()
+	}
 
 	// Incus is the single lifecycle owner for the default local Btrfs pool,
 	// including its backing image, loop device, filesystem, mount, and resize.
@@ -177,21 +181,21 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 
 	environments := workspaceapp.NewWithProvider(runtime, store, repositoryWorkspaceProvider{repositories: repositories})
 	return &App{
-		OCITransfer:  &ociplugin.TransferService{Backend: &incus.OCITransferBackend{Runtime: incusRuntime}, Environments: store},
-		Environments: environments,
-		AgentHosts:   agenthostapp.New(environments, store, bindingStore),
-		Clients:      clientapp.New(runtime, store),
-		Capabilities: capabilities,
-		Git:          gitcapapp.NewBroker(runner, store, capabilities),
-		OCI:          ociPlugin,
-		Seeds:        seeds,
-		Runner:       runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks")),
-		Events:       eventsapp.New(auditPath),
-		Bases:        runtime,
-		Runtime:      incusRuntime,
-		EgressProxy:  egressproxy.New(egressBroker, egressSources),
-		Repositories: repositories,
-		GitBroker:    gitBroker,
+		PersistentResources: &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime}},
+		Environments:        environments,
+		AgentHosts:          agenthostapp.New(environments, store, bindingStore),
+		Clients:             clientapp.New(runtime, store),
+		Capabilities:        capabilities,
+		Git:                 gitcapapp.NewBroker(runner, store, capabilities),
+		OCI:                 ociPlugin,
+		Seeds:               seeds,
+		Runner:              runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks")),
+		Events:              eventsapp.New(auditPath),
+		Bases:               runtime,
+		Runtime:             incusRuntime,
+		EgressProxy:         egressproxy.New(egressBroker, egressSources),
+		Repositories:        repositories,
+		GitBroker:           gitBroker,
 	}, nil
 }
 

@@ -63,6 +63,28 @@ The roadmap is organized by architectural direction instead of copying per-check
 
 **Local OCI Registry is not a required roadmap gate.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
 
+## Current Stage B scope
+
+- B1: fresh Windows installation, native WSL direct `.exe` execution, Windows
+  PATH, and projection of actual Windows drives including non-C drives into
+  trusted `haco-host`; restart and setup rerun are acceptance requirements.
+- B2: preserve multiple independent repository Workspaces and approved Git push.
+- Former B3: `switch-base` is currently disabled, not a Stage B requirement,
+  and deferred to Stage D or later. Historical code/evidence remain. It does
+  not block Stage A-C completion.
+- B4: [Persistent OCI Store](../design/persistent-oci-store.md), with explicit
+  create/attach/reuse/delete lifecycle, replacing historical image distribution.
+- B5: real Windows native OpenSSH access through Windows/WSL loopback and Incus
+  proxy to Environment sshd, with Windows-owned private keys and strict pinning.
+- B6: retain readable Environment location/state and next-action guidance.
+
+Stage D+ may reconsider switch-base/recreate UX, Workspace/OCI/snapshot relations,
+SSH configuration auto-installation, Environment SSH auto-registration, VS Code
+Remote SSH/haco-vscode integration, Windows haco.exe, GUI/Web UX, registry
+proxy/credential broker/local registry, concurrent Store sharing and live
+migration. These are not Stage B requirements. Runtime acceptance belongs in
+[implementation status](../IMPLEMENTATION_STATUS.md), not roadmap claims.
+
 ## Trusted Host direction
 
 On the local Incus/WSL path, Hacocoon distinguishes the **Physical Host** from the persistent trusted logical **`haco-host`**. The Physical Host retains Incus and platform authority; Incus itself owns the Btrfs pool backing, loop, filesystem, and mount lifecycle. `haco-host` is trusted infrastructure inside the TCB, not an untrusted Environment.
@@ -85,9 +107,18 @@ HACO_PLUGIN_OCI=docker   haco plugin oci ...
 
 ## OCI storage direction
 
-Seed/storage work uses trusted Host acquisition/cache, offline builders, immutable publication/current pointers, exact-parent resolution, explicit immutable pins, conservative recovery/GC, credential-free managed-Environment harvest, and normal Incus/storage-driver cloning. Authenticated/private-registry combinations, physical Btrfs COW/compression measurements, broader real-host failure injection, and supported-host acceptance remain active hardening areas. Never share one writable `/var/lib/containerd` across Environments.
+Current B4 uses a [Persistent OCI Store](../design/persistent-oci-store.md):
+Environment-local containerd image/layer/snapshot metadata and BuildKit cache
+live on an independently managed Incus Btrfs volume. The controller reserves it
+exclusively with the Workspace. Environment deletion releases the attachment
+without deleting the Store; explicit Store deletion verifies ownership and
+absence. `/run`, processes, sockets and Host authority are not persistent data.
+No Seed, image delivery service, registry or credential broker is required.
+Earlier Seed/storage work is historical implementation material and is not the
+current Stage B direction. Never share one writable runtime data root between
+active Environments.
 
-Local rootfs storage routes Hacocoon-owned Base, Tooling, Seed, trusted-host, and Environment rootfs paths through `haco-local-default`, an Incus-owned loop-backed Btrfs pool, rather than inheriting an unrelated Host default pool. Pool creation requests `compress=zstd:3`; `compress-force` and `autodefrag` are intentionally not desired defaults, and Hacocoon does not automatically rewrite old extents because doing so could reduce reflink/COW sharing.
+Local rootfs storage routes Hacocoon-owned Base, trusted-host, Environment rootfs and persistent data paths through `haco-local-default`, an Incus-owned loop-backed Btrfs pool, rather than inheriting an unrelated Host default pool. Pool creation requests `compress=zstd:3`; `compress-force` and `autodefrag` are intentionally not desired defaults, and Hacocoon does not automatically rewrite old extents because doing so could reduce reflink/COW sharing.
 
 The ordinary CLI remains non-root. Hacocoon asks Incus to provide the storage pool through the normal runtime boundary and does not implement a separate block-device or mount lifecycle.
 

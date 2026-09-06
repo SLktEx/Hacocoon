@@ -6,11 +6,11 @@ Status: **partial**。Local Unix domain protocol、Physical Host controller、tr
 
 ## 概要
 
-第二段階の製品clientは既存Base list/inspectとcanonical stop/delete/createを
-使った管理WorkspaceのBase切替も提供する。SSH設定生成は既存接続情報を読む。
-任意`plugin.oci.distribute`はtrusted controller endpointからOCI pluginの
-一方向image配布を呼ぶ。EnvironmentのGit専用endpointには登録しない。
-[image配布](oci-image-distribution.md)を参照。
+現行product clientはBase一覧・確認と通常のEnvironment作成・削除を提供する。
+`switch-base`は現在無効でStage D以降へ延期。SSH設定は既存のloopback接続情報から生成する。
+任意の`plugin.oci.store`はtrusted controllerで永続OCIデータを管理し、Environmentの
+Git専用endpointには登録しない。Environment作成はWorkspaceと追加永続資源の利用権を
+同じtransactionで予約する。[Persistent OCI Store](persistent-oci-store.md)を参照。
 
 製品 `haco` は[管理repo利用手順](../reference/managed-repository-workflow.md)で既存controllerを呼ぶ。typed管理APIに `repository.clone`、`workspace.copy`、`environment.stop`、`git.connect/pending/decide` を追加した。これらはtrusted管理endpointに限り、EnvironmentのGit専用socketには公開しない。受入は[実装status](../IMPLEMENTATION_STATUS.ja.md)、残る旧commandは[CLI移行](../CLI_MIGRATION.md)を参照。
 

@@ -43,14 +43,15 @@ type BaseInfo struct {
 }
 
 type WorkspaceLease struct {
-	WorkspaceID   WorkspaceID         `json:"workspace_id"`
-	SourcePath    string              `json:"source_path"`
-	EnvironmentID string              `json:"environment_id"`
-	AccessMode    WorkspaceAccessMode `json:"access_mode"`
-	Owner         string              `json:"owner"`
-	RuntimeRef    string              `json:"runtime_ref,omitempty"`
-	State         WorkspaceLeaseState `json:"state,omitempty"`
-	AcquiredAt    time.Time           `json:"acquired_at"`
+	PersistentResource PersistentResourceRef `json:"persistent_resource,omitempty"`
+	WorkspaceID        WorkspaceID           `json:"workspace_id"`
+	SourcePath         string                `json:"source_path"`
+	EnvironmentID      string                `json:"environment_id"`
+	AccessMode         WorkspaceAccessMode   `json:"access_mode"`
+	Owner              string                `json:"owner"`
+	RuntimeRef         string                `json:"runtime_ref,omitempty"`
+	State              WorkspaceLeaseState   `json:"state,omitempty"`
+	AcquiredAt         time.Time             `json:"acquired_at"`
 }
 
 // EphemeralRun is trusted host-side evidence that an Environment belongs to
@@ -63,29 +64,32 @@ type EphemeralRun struct {
 }
 
 type Environment struct {
-	Name       string              `json:"name"`
-	Workspace  Workspace           `json:"workspace"`
-	AccessMode WorkspaceAccessMode `json:"access_mode"`
-	Base       *BaseRef            `json:"base,omitempty"`
-	Resources  ResourceBudget      `json:"resources"`
-	RuntimeRef string              `json:"runtime_ref"`
-	CreatedAt  time.Time           `json:"created_at"`
+	PersistentResource PersistentResourceRef `json:"persistent_resource,omitempty"`
+	Name               string                `json:"name"`
+	Workspace          Workspace             `json:"workspace"`
+	AccessMode         WorkspaceAccessMode   `json:"access_mode"`
+	Base               *BaseRef              `json:"base,omitempty"`
+	Resources          ResourceBudget        `json:"resources"`
+	RuntimeRef         string                `json:"runtime_ref"`
+	CreatedAt          time.Time             `json:"created_at"`
 }
 
 type EnvironmentSpec struct {
-	Name          string
-	WorkspacePath string
-	AccessMode    WorkspaceAccessMode
-	Base          BaseName
-	Resources     ResourceBudget
+	PersistentResource string
+	Name               string
+	WorkspacePath      string
+	AccessMode         WorkspaceAccessMode
+	Base               BaseName
+	Resources          ResourceBudget
 }
 
 type EnvironmentRuntimeSpec struct {
-	Name          string
-	WorkspacePath string
-	ReadOnly      bool
-	Base          BaseName
-	Resources     ResourceBudget
+	PersistentResource PersistentResource
+	Name               string
+	WorkspacePath      string
+	ReadOnly           bool
+	Base               BaseName
+	Resources          ResourceBudget
 }
 
 type EnvironmentRuntime struct {

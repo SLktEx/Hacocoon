@@ -703,6 +703,16 @@ haco_bin="$(readlink -f "$haco_bin")"
 controller_bin="$(readlink -f "$controller_bin")"
 
 printf '==> Configuring Physical Host controller service\n'
+if grep -qi microsoft /proc/sys/kernel/osrelease; then
+  interop_source="$BUNDLE_ROOT/setup-wsl-host-interop.py"
+  [ -f "$interop_source" ] || interop_source="$SCRIPT_DIR/setup-wsl-host-interop.py"
+  [ -f "$interop_source" ] || die "Windows interop setup is missing from this installer bundle"
+  $SUDO install -d -o root -g root -m 0755 /usr/local/libexec
+  $SUDO install -o root -g root -m 0755 "$interop_source" /usr/local/libexec/hacocoon-wsl-interop
+  # Capture only the already converted Windows portion before the controller's
+  # systemd environment drops the interactive WSL PATH. No Windows conversion.
+  $SUDO env "PATH=$PATH" /usr/bin/python3 -I /usr/local/libexec/hacocoon-wsl-interop --capture-path
+fi
 configure_hacocoon_controller "$controller_bin"
 printf '==> Reconciling trusted haco-host and controller endpoint\n'
 $SUDO "$haco_bin" setup || die "controller-backed Host setup failed; run haco doctor, then rerun the installer"

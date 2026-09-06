@@ -137,6 +137,9 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	if err := p.addWorkspaceDevice(ctx, ref, spec); err != nil {
 		return cleanup(err)
 	}
+	if err := p.attachPersistentResource(ctx, ref, spec.PersistentResource); err != nil {
+		return cleanup(err)
+	}
 	if result, err := p.runner.Run(ctx, "incus", "start", ref, "--project", p.project); err != nil {
 		reason := strings.TrimSpace(result.Stderr)
 		if reason == "" {
@@ -146,6 +149,11 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	}
 	if err := p.verifyRoutedSandboxAntiSpoof(ctx, ref); err != nil {
 		return cleanup(fmt.Errorf("verify routed sandbox anti-spoofing for %s: %w", ref, err))
+	}
+	if spec.PersistentResource.ID != "" {
+		if _, err := p.runner.Run(ctx, "incus", "exec", ref, "--project", p.project, "--", "/bin/sh", "-c", persistentOCIConfiguration); err != nil {
+			return cleanup(fmt.Errorf("configure Environment-local OCI data roots: %w", err))
+		}
 	}
 	if !spec.ReadOnly {
 		result, err := p.runner.Run(ctx, "incus", "exec", ref, "--project", p.project, "--", "test", "-w", "/workspace")

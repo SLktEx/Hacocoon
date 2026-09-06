@@ -1,5 +1,12 @@
 # バージョン番号とリリース状況
 
+現在のStage B改訂は、clean installからのnative WSL連携、実在する複数driveの投影、
+Persistent OCI Store、Windows標準OpenSSHの実接続が対象。`switch-base`は現在無効で、
+Stage D以降に再検討し、A〜Cの完了を妨げない。改訂版配布物の実機検証が終わるまでは
+partialとする。以下のv0.28における配布・Base切替の証拠は過去の対象範囲である。
+[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照。
+
+
 v0.28候補はtrusted WSL Windows連携、複数repo、Workspace保持Base切替、
 任意OCI一方向配布、OpenSSH設定生成、読みやすいEnvironment表示を追加した。
 B1〜B6はローカル実機確認済み。Dockerとnerdctlの配布・guest独立起動/変更/停止、
@@ -74,8 +81,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.26 | Trusted `haco-host` & Default WSL Entry | persistent trusted logical Host lifecycle、ownership/collision check、managed-storage配置、default WSL entry、recovery path、real Incus acceptanceを実装済み |
 | v0.27 | Managed Repository WSL Workflow | 実装済み |
 | v0.28 | Multi-repository Development and Optional OCI Distribution | 実装済み |
+| v0.29 | Persistent OCI Resources and Native Windows Access | 実装済み |
 
-現在のmilestone位置は **v0.28** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.29** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

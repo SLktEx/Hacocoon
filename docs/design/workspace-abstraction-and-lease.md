@@ -64,3 +64,16 @@ The Environment/runtime path must behave the same regardless of where the Worksp
 ## Compatibility note
 
 The lease and workspace concepts are architectural boundaries, not a promise that today's persisted representation or provider interface is frozen. Breaking changes remain allowed when needed to simplify or harden the pre-1.0 design.
+
+## Additional persistent resources
+
+An Environment may reserve one optional additional managed resource alongside
+its Workspace. Both reservations belong to the same canonical Environment
+transaction and lease, including the acquiring and cleanup-required states.
+Stopping keeps both reservations. Deleting the runtime releases reservations
+only after verified absence and does not delete either persistent resource.
+Explicit resource deletion excludes attachment and verifies provider ownership
+and absence before removing its catalog entry. The initial optional plugin is
+[Persistent OCI Store](persistent-oci-store.md); see
+[ADR 0014](../adr/0014-persistent-managed-resources.md). This does not change the
+independent Git metadata or Incus-owned COW contract of managed Workspaces.

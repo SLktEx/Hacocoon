@@ -205,3 +205,11 @@ jobs:
       - name: Verify installed controller Environment HTTPS and direct-egress refusal
         shell: pwsh
         run: ./tools/test_installed_egress.ps1
+
+      - name: Verify installed native Windows interop
+        shell: pwsh
+        run: ./tools/test_windows_host_interop.ps1
+
+      - name: Verify Windows standard OpenSSH connects with strict host-key pinning
+        shell: pwsh
+        run: ./tools/test_windows_environment_ssh.ps1

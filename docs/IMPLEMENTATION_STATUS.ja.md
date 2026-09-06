@@ -66,13 +66,31 @@ install済みservice設定へのpatchは行っていない。
 正しいprocess所有identityの検証はproviderのlifecycleの責務であり、
 CoreによるPID fileの自動削除やlogin timeout延長は根本修正ではない。
 
-## 第二段階
+## 現在のStage B改訂
+
+状態: **partial。実装と限定した回帰テストを進めており、改訂版配布物の実機確認は未完了**。
+mainの基準commitは`0665ba9`。現行の対象はfresh installからのnative WSL Interop、
+実在する複数Windows driveの投影、Persistent OCI Store、Windows標準OpenSSHの実接続。
+`switch-base`はCLIで無効化し、Stage D以降で必要性とUXを再検討する。B2/B6は維持する。
+[現行ロードマップ](status/architecture-and-roadmap.md#current-stage-b-scope)と
+[OCI Store](design/persistent-oci-store.md)を参照。
+
+mainの通常BATを実行する前に、WSLにはUbuntuとUbuntu-24.04だけがあり、Hacocoonは
+存在しないことを確認した。mainからの新規インストールは成功。Windows/DrvFsではCとQを
+検出した。手動投影後は絶対パスのcmd.exeが`/init`指定なしで動き、既存のWSLInteropを
+利用できた。mainでは投影の自動化とWindows PATHが不足していた。この観測は改訂版の
+複数drive read/write、再起動、再インストールの合格を意味しない。
+
+## 過去の第二段階（対象範囲を変更済み）
+
+以下は以前の依頼に対するcommit固定の実行証拠。旧B3と配布専用B4は現行要件ではない。
+
 
 状態は**implemented・以下のWindows/WSL構成でB1〜B6を受入済み**。
 Dockerとnerdctlの両方で一方向配布・独立起動が成功した。
 選択したB5/B6改善と、影響を受けるAの基本導線も確認済み。
 [利用手順](reference/managed-repository-workflow.md)、
-[OCI契約](design/oci-image-distribution.md)、
+[OCI契約](design/persistent-oci-store.md)、
 [残課題](status/development-follow-ups.md)を参照。
 
 | 段階 | 実装と確認結果 |
@@ -129,7 +147,7 @@ full bundle・privileged化・AppArmor無効化・runtime device共有は不要�
 `a2ea9ac81b39572d424bd2b63461ac659c2b0a4c327ccb963e110f08ed553c57`。
 両方とも--network noneで起動。Docker guestはguest-only、nerdctl guestは
 nerd-guest-onlyへ変更したが、Host側は両方host-originalのままだった。
-[再現手順](design/oci-image-distribution.md)を参照。
+[再現手順](design/persistent-oci-store.md)を参照。
 
 検証はci-local.shのdocs・workflow-policy・test（Go/vet/JS）・race・e2eが
 B5/B6変更後に通過。関連するlifecycle/Git/collection mount/OCI/SSH設定回帰、
@@ -251,7 +269,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.28** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.29** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

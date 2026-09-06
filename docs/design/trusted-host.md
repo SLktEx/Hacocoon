@@ -9,26 +9,40 @@ invoke fixed trusted Git operations; the Physical Host retains all controller,
 Policy and Incus authority. See the
 [workflow](../reference/managed-repository-workflow.md) and
 [ADR 0008](../adr/0008-managed-repository-workspaces.md). Windows drive/exe
-integration is implemented through explicit administrator setup; see below.
+integration is reconciled by normal Windows installation and setup; see below.
 
 ## Windows interop
 
-After `haco setup`, run `sudo python3 scripts/setup-wsl-host-interop.py` from the
-source checkout on the WSL Physical Host. It verifies ownership and projects
-existing DrvFs `/mnt/<letter>` roots at the same paths in trusted `haco-host`.
-No Environment or shared profile receives these devices. In a new trusted
-shell, use `cd /mnt/c` then `/init /mnt/c/Windows/System32/cmd.exe /d /c ver`.
+The normal Windows installer captures only Windows PATH entries already
+converted by WSL and stores them in the root-owned Physical Host configuration.
+Controller-backed setup projects actual mounted DrvFs drive roots, read-only
+`/init` and the WSL interop socket directory into the owned `haco-host`.
+No drive-letter list is compiled into the product. Linux PATH entries from the
+Physical Host are excluded; the trusted Host keeps its own Linux PATH.
 
-The explicit `/init` prefix avoids changing binfmt handlers. `/init` and the
-interop directory are read-only mounts; Windows user ACLs govern drive access.
-Use a user-owned directory for writes. Repeat setup after WSL restarts if its
-socket identity changes. Direct exe invocation without `/init`, hotplug,
-reconnection and broad application compatibility are deferred.
-See [ADR 0009](../adr/0009-trusted-host-windows-interop.md).
+Fresh WSL already registers the native `WSLInterop` binfmt handler. Hacocoon
+reuses it and WSL's `/init`, sets the stable init interop socket path and adds the
+Windows PATH to trusted shell startup. It does not register another handler or
+create a Windows executable launcher. In a new trusted shell:
 
-Current CLI boundary: product `haco` implements help/version, controller-backed `setup` and `doctor`, and the WSL login alias. Retained lifecycle commands described below use temporary `hacoq` during [CLI migration](../CLI_MIGRATION.md); they do not describe implemented new product commands.
+```bash
+cmd.exe /c ver
+powershell.exe -NoProfile -NonInteractive -Command "[Console]::Out.WriteLine('hello'); exit 23"
+echo $?  # 23
+```
 
-Current packaged Windows acceptance and remaining gaps are recorded in [implementation status](../IMPLEMENTATION_STATUS.md). Product diagnostics use the [read-only controller contract](controller-client-transport.md#host-diagnostics).
+For Windows tools sensitive to UNC current directories, first `cd` to an
+available projected Windows directory. Read/write operations affect the actual
+Windows filesystem and survive Environment/Host recreation; Windows ACLs still
+apply. Projection devices persist in Incus and setup reconciles their identity.
+The installer and ordinary setup can be rerun. Drive hotplug/removal and generic
+recovery remain deferred.
+
+Only trusted `haco-host` receives these mounts, PATH and executable authority.
+Environment creation uses explicit devices without inherited profiles. It never
+receives `/init`, WSL sockets, Windows drives or the trusted controller socket.
+See [ADR 0009](../adr/0009-trusted-host-windows-interop.md) and the commit-bound
+fresh-install/restart results in [implementation status](../IMPLEMENTATION_STATUS.md).
 
 ## Summary
 

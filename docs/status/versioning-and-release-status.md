@@ -1,5 +1,13 @@
 # Versioning and release status
 
+Current Stage B revision: native WSL interop from clean install, actual multi-drive
+projection, Persistent OCI Store and Windows native OpenSSH. `switch-base` is
+currently disabled and deferred to Stage D or later; it does not block A-C.
+Implementation is partial until the revised package passes real-host acceptance.
+The v0.28 delivery/Base-switching evidence below is historical and superseded
+by this scope. See [implementation status](../IMPLEMENTATION_STATUS.md).
+
+
 > **Human-readable checkpoint policy/status view · Updated 2026-08-31**
 
 Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progression; they are not compatibility guarantees, release tags, or proof of production support.
@@ -79,8 +87,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.26 | Trusted `haco-host` & Default WSL Entry | ✅ persistent trusted logical Host lifecycle, ownership/collision checks, managed-storage placement, default WSL entry, recovery path, and real Incus acceptance implemented |
 | v0.27 | Managed Repository WSL Workflow | ✅ implemented |
 | v0.28 | Multi-repository Development and Optional OCI Distribution | ✅ implemented |
+| v0.29 | Persistent OCI Resources and Native Windows Access | ✅ implemented |
 
-The current milestone position is **v0.28**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.29**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

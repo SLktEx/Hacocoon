@@ -3,31 +3,36 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
-	"github.com/SLktEx/Hacocoon/internal/controlapi"
-	"github.com/SLktEx/Hacocoon/modules/plugin/oci"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/SLktEx/Hacocoon/internal/controlapi"
 )
 
 func runPlugin(args []string) int {
-	if len(args) < 2 || args[0] != "oci" || args[1] != "distribute" {
-		fmt.Fprintln(os.Stderr, "Usage: haco plugin oci distribute --runtime docker|nerdctl --image <image> <environment>")
+	usage := func() int {
+		fmt.Fprintln(os.Stderr, "Usage: haco plugin oci store create|inspect|delete <store> | haco plugin oci store list")
 		return 2
 	}
-	flags := flag.NewFlagSet("oci distribute", flag.ContinueOnError)
-	driver := flags.String("runtime", "", "optional OCI runtime on both sides")
-	image := flags.String("image", "", "trusted Host image to copy")
-	if flags.Parse(args[2:]) != nil || flags.NArg() != 1 {
-		return 2
+	if len(args) < 3 || args[0] != "oci" || args[1] != "store" {
+		return usage()
 	}
-	selected, err := oci.ParseDriver(*driver)
-	if err != nil || *image == "" {
-		fmt.Fprintln(os.Stderr, "haco: --runtime docker|nerdctl and --image are required")
-		return 2
+	req := controlapi.OCIStoreRequest{Operation: args[2]}
+	switch req.Operation {
+	case "list":
+		if len(args) != 3 {
+			return usage()
+		}
+	case "create", "inspect", "delete":
+		if len(args) != 4 {
+			return usage()
+		}
+		req.ID = "oci:" + args[3]
+	default:
+		return usage()
 	}
 	c, err := controlapi.NewDefaultClient()
 	if err != nil {
@@ -38,7 +43,7 @@ func runPlugin(args []string) int {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 12*time.Minute)
 	defer cancel()
-	result, err := c.DistributeImage(ctx, oci.TransferRequest{Environment: flags.Arg(0), Driver: selected, Image: *image})
+	result, err := c.OCIStore(ctx, req)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "haco:", err)
 		return 1

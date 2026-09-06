@@ -92,6 +92,22 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 	if err != nil {
 		return core.Environment{}, err
 	}
+	var persistent core.PersistentResource
+	if spec.PersistentResource != "" {
+		catalog, ok := s.store.(interface {
+			GetPersistentResource(context.Context, string) (core.PersistentResource, error)
+		})
+		if !ok {
+			return core.Environment{}, core.ErrUnsupported
+		}
+		persistent, err = catalog.GetPersistentResource(ctx, spec.PersistentResource)
+		if err != nil {
+			return core.Environment{}, err
+		}
+		if persistent.State != "ready" || !core.ValidPersistentResourceRef(persistent.Ref()) {
+			return core.Environment{}, core.ErrRecoveryRequired
+		}
+	}
 	workspace, err := s.provider.Resolve(ctx, WorkspaceRequest{Path: spec.WorkspacePath})
 	if err != nil {
 		return core.Environment{}, err
@@ -108,24 +124,26 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 	}
 
 	lease := core.WorkspaceLease{
-		WorkspaceID:   workspace.ID,
-		SourcePath:    workspace.Path,
-		EnvironmentID: name,
-		AccessMode:    mode,
-		Owner:         name,
-		State:         core.WorkspaceLeaseAcquiring,
-		AcquiredAt:    s.now().UTC(),
+		PersistentResource: persistent.Ref(),
+		WorkspaceID:        workspace.ID,
+		SourcePath:         workspace.Path,
+		EnvironmentID:      name,
+		AccessMode:         mode,
+		Owner:              name,
+		State:              core.WorkspaceLeaseAcquiring,
+		AcquiredAt:         s.now().UTC(),
 	}
 	if err := s.store.BeginEnvironmentCreate(ctx, lease); err != nil {
 		return core.Environment{}, fmt.Errorf("begin environment create: %w", err)
 	}
 
 	created, err := s.runtime.CreateEnvironment(ctx, core.EnvironmentRuntimeSpec{
-		Name:          name,
-		WorkspacePath: workspace.Path,
-		ReadOnly:      mode == core.WorkspaceReadOnly,
-		Base:          spec.Base,
-		Resources:     resources,
+		PersistentResource: persistent,
+		Name:               name,
+		WorkspacePath:      workspace.Path,
+		ReadOnly:           mode == core.WorkspaceReadOnly,
+		Base:               spec.Base,
+		Resources:          resources,
 	})
 	if err != nil {
 		if errors.Is(err, core.ErrRecoveryRequired) {
@@ -167,13 +185,14 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 	}
 
 	environment = core.Environment{
-		Name:       name,
-		Workspace:  workspace,
-		AccessMode: mode,
-		Base:       created.Base,
-		Resources:  resources,
-		RuntimeRef: created.Ref,
-		CreatedAt:  s.now().UTC(),
+		PersistentResource: persistent.Ref(),
+		Name:               name,
+		Workspace:          workspace,
+		AccessMode:         mode,
+		Base:               created.Base,
+		Resources:          resources,
+		RuntimeRef:         created.Ref,
+		CreatedAt:          s.now().UTC(),
 	}
 	lease.State = core.WorkspaceLeaseActive
 	if err := s.store.CommitEnvironmentCreate(ctx, environment, lease); err != nil {

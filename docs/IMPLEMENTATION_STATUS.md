@@ -76,13 +76,34 @@ installed service configuration was patched. Correct ownership validation
 belongs in the provider's process lifecycle; automatically deleting its
 PID files from Core or increasing the login timeout is not a root fix.
 
-## Second-stage workflow
+## Current Stage B revision
+
+Status: **partial; implementation and focused regressions in progress; revised
+packaged acceptance pending**. Main baseline is `0665ba9`. The current contract
+is native WSL interop from fresh install, actual multi-drive projection,
+Persistent OCI Store and Windows native OpenSSH access. `switch-base` is disabled
+at the CLI and deferred to Stage D+; historical implementation remains. B2/B6
+remain supported. See [roadmap](status/architecture-and-roadmap.md#current-stage-b-scope)
+and [OCI Store](design/persistent-oci-store.md).
+
+Before baseline installation, Windows listed only Ubuntu and Ubuntu-24.04,
+with no Hacocoon distribution. The ordinary main-built BAT installed Hacocoon
+from scratch. Windows/DrvFs exposed C and Q. After baseline manual projection,
+absolute cmd.exe ran without `/init`; the existing WSLInterop binfmt worked.
+Main lacked automatic projection and Windows PATH. This baseline observation is
+not revised-package acceptance or multi-drive read/write/restart acceptance.
+
+## Historical second-stage workflow (superseded scope)
+
+The following is preserved commit-bound evidence for the earlier request.
+Former B3 and delivery-only B4 are historical, not current requirements.
+
 
 Status: **implemented; B1–B6 locally accepted** on the Windows/WSL configuration
 below. Docker and nerdctl both passed one-way distribution and independent
 container execution. The selected B5/B6 improvements and the affected A workflow
 also passed. See the [workflow](reference/managed-repository-workflow.md),
-[OCI contract](design/oci-image-distribution.md) and
+[OCI contract](design/persistent-oci-store.md) and
 [follow-ups](status/development-follow-ups.md).
 
 | Step | Implemented behavior and observed result |
@@ -153,7 +174,7 @@ Both product transfers reported 1,183,232 bytes and archive SHA-256
 `a2ea9ac81b39572d424bd2b63461ac659c2b0a4c327ccb963e110f08ed553c57`.
 Both used `--network none`. Docker guest content became `guest-only`, nerdctl
 guest content became `nerd-guest-only`; both Host copies stayed `host-original`.
-See the [reproducible procedure](design/oci-image-distribution.md).
+See the [reproducible procedure](design/persistent-oci-store.md).
 
 **Repository validation:** maintained `ci-local.sh docs`, `workflow-policy`,
 `test` (Go tests/vet and JS), `race` and `e2e` passed after B5/B6. Narrow lifecycle,
@@ -293,7 +314,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.28**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.29**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

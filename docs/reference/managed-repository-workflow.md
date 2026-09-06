@@ -161,24 +161,14 @@ that pending request. A denial must leave the remote unchanged; a subsequent
 ordinary `git push` creates a new proposal. Verify the resulting upstream OID
 using authenticated Git or GitHub from the trusted side.
 
-## Select and switch Base
+## Select a Base
 
-```bash
-haco base list
-haco env create --base haco/ubuntu-26.04 --workspace managed:both both-dev
-# Work and commit in either repository; pushing first is not required.
-haco env switch-base --base haco/ubuntu-24.04 both-dev
-haco git connect both-dev
-haco env ssh --key /root/client.pub --port 2222 both-dev
-```
-
-Switching keeps the managed Workspace volumes and all their Git state. It
-replaces the Environment root filesystem, so install development packages
-again if the new Base does not supply them. Files outside repository mounts
-are discarded. SSH gets a new host key: verify and update the client's pinned
-key through the trusted provider. If recreation fails, the error identifies
-the retained Workspace and gives the next command. Interruption recovery is
-deferred; inspect current state before retrying.
+Use `haco base list` and `haco env create --base haco/ubuntu-26.04
+--workspace managed:both both-dev` (on one command line). `switch-base` is
+currently disabled; Stage D or later will reconsider whether it is needed.
+Ordinary Environment delete/create can reuse retained resources with another
+Base. See the [Base contract](../design/base-images-and-custom-environments.md)
+and [Persistent OCI Store](../design/persistent-oci-store.md).
 
 ## Finish and retain work
 
@@ -195,3 +185,6 @@ Uncommitted, untracked and unpushed data remain in that volume. It is not a dele
 or garbage-collection command. Inspect remote state after an ambiguous Git
 failure before retrying. Large transfers, multiple refs, generalized
 recovery and automatic SSH configuration are deferred.
+
+For manual Windows native OpenSSH, including client-owned keys and trusted
+host-key pinning, use the [Windows SSH procedure](windows-environment-ssh.md).

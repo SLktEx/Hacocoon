@@ -27,5 +27,19 @@ class InteropTests(unittest.TestCase):
                 interop.plan(changed, devices)
 
 
-if __name__ == "__main__":
+
+class WindowsPathTests(unittest.TestCase):
+    def test_only_existing_drive_entries_no_linux_or_traversal(self):
+        value = '/usr/local/bin:/mnt/c/Windows/System32:/mnt/q/Tools With Spaces:/mnt/e/absent:/mnt/q/../secret:/mnt/q/bin\nBAD:/mnt/q/Tools With Spaces'
+        self.assertEqual(interop.windows_paths(value, ['/mnt/c', '/mnt/q']),
+                         ['/mnt/c/Windows/System32', '/mnt/q/Tools With Spaces'])
+
+    def test_no_fixed_drive_letter_list(self):
+        mounts = [{'target': '/mnt/q', 'fstype': '9p', 'options': 'rw,aname=drvfs;path=Q:'}]
+        self.assertEqual(interop.drive_mounts(mounts), ['/mnt/q'])
+        devices = interop.desired_devices(interop.drive_mounts(mounts))
+        self.assertEqual(devices['haco-wsl-drive-q']['path'], '/mnt/q')
+        self.assertNotIn('haco-wsl-drive-c', devices)
+
+if __name__ == '__main__':
     unittest.main()

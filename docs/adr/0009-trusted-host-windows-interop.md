@@ -1,6 +1,6 @@
 # ADR 0009: Limit Windows interoperability to the trusted Host
 
-Status: accepted  
+Status: accepted; implementation updated 2026-09-07  
 Date: 2026-09-06
 
 The WSL Physical Host remains the sole controller and Incus owner. The explicit
@@ -20,3 +20,16 @@ universal application compatibility are deferred.
 
 Rejected alternatives are shared profiles, drive mounts on Environments,
 privileged containers and a second guest controller. None is needed here.
+
+## Native WSL continuation (2026-09-07)
+
+The original manual `/init` invocation above is historical acceptance, not the
+current UX. A fresh main installation confirmed direct absolute `.exe` execution
+works once the existing mounts are projected, using WSL's existing binfmt
+registration. Normal install/setup now performs projection and passes only
+WSL-converted Windows PATH entries selected against actual DrvFs mounts. The
+stable `1_interop` socket path avoids recording a transient session PID.
+No custom launcher, extra binfmt registration or Linux PATH copy is introduced.
+See the current [trusted Host contract](../design/trusted-host.md#windows-interop).
+The [WSL interop description](https://wsl.dev/technical-documentation/interop/)
+explains the native interpreter/socket mechanism.

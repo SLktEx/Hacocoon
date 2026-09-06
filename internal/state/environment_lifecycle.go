@@ -40,6 +40,17 @@ func (s *EnvironmentJSONStore) BeginEnvironmentCreate(_ context.Context, lease c
 	if _, ok := data.Leases[lease.EnvironmentID]; ok {
 		return fmt.Errorf("workspace lease for environment %q already exists: %w", lease.EnvironmentID, core.ErrAlreadyExists)
 	}
+	if lease.PersistentResource != (core.PersistentResourceRef{}) {
+		resource, ok := data.PersistentResources[lease.PersistentResource.ID]
+		if !ok || resource.Ref() != lease.PersistentResource || resource.State != "ready" {
+			return fmt.Errorf("persistent resource is unavailable or changed: %w", core.ErrIncompatibleState)
+		}
+		for _, held := range data.Leases {
+			if held.PersistentResource.ID == resource.ID {
+				return fmt.Errorf("persistent resource %s is reserved by %s: %w", resource.ID, held.EnvironmentID, core.ErrStorageBusy)
+			}
+		}
+	}
 	for _, existing := range data.Leases {
 		if existing.WorkspaceID != lease.WorkspaceID {
 			continue
@@ -210,6 +221,9 @@ func (s *EnvironmentJSONStore) FinalizeEnvironmentDelete(_ context.Context, envi
 }
 
 func validateEnvironmentCreateReservation(lease core.WorkspaceLease) error {
+	if lease.PersistentResource != (core.PersistentResourceRef{}) && !core.ValidPersistentResourceRef(lease.PersistentResource) {
+		return core.ErrInvalidArgument
+	}
 	if lease.EnvironmentID == "" || lease.WorkspaceID == "" || lease.SourcePath == "" || lease.Owner == "" || lease.RuntimeRef != "" || lease.State != core.WorkspaceLeaseAcquiring || lease.AcquiredAt.IsZero() {
 		return core.ErrInvalidArgument
 	}
@@ -223,13 +237,14 @@ func validateEnvironmentCreateReservation(lease core.WorkspaceLease) error {
 
 func validateEnvironmentRuntimeReservation(lease core.WorkspaceLease) error {
 	if err := validateEnvironmentCreateReservation(core.WorkspaceLease{
-		WorkspaceID:   lease.WorkspaceID,
-		SourcePath:    lease.SourcePath,
-		EnvironmentID: lease.EnvironmentID,
-		AccessMode:    lease.AccessMode,
-		Owner:         lease.Owner,
-		State:         lease.State,
-		AcquiredAt:    lease.AcquiredAt,
+		PersistentResource: lease.PersistentResource,
+		WorkspaceID:        lease.WorkspaceID,
+		SourcePath:         lease.SourcePath,
+		EnvironmentID:      lease.EnvironmentID,
+		AccessMode:         lease.AccessMode,
+		Owner:              lease.Owner,
+		State:              lease.State,
+		AcquiredAt:         lease.AcquiredAt,
 	}); err != nil {
 		return err
 	}
@@ -240,6 +255,9 @@ func validateEnvironmentRuntimeReservation(lease core.WorkspaceLease) error {
 }
 
 func validateEnvironmentCreateCommit(environment core.Environment, lease core.WorkspaceLease) error {
+	if environment.PersistentResource != lease.PersistentResource {
+		return core.ErrIncompatibleState
+	}
 	if environment.Name == "" || environment.RuntimeRef == "" || environment.Workspace.ID == "" || environment.Workspace.Path == "" || environment.CreatedAt.IsZero() {
 		return core.ErrInvalidArgument
 	}
@@ -250,6 +268,9 @@ func validateEnvironmentCreateCommit(environment core.Environment, lease core.Wo
 }
 
 func validateSameLeaseReservation(existing, next core.WorkspaceLease) error {
+	if existing.PersistentResource != next.PersistentResource {
+		return core.ErrIncompatibleState
+	}
 	if existing.EnvironmentID != next.EnvironmentID || existing.WorkspaceID != next.WorkspaceID || existing.SourcePath != next.SourcePath || existing.AccessMode != next.AccessMode || existing.Owner != next.Owner || !existing.AcquiredAt.Equal(next.AcquiredAt) {
 		return fmt.Errorf("workspace lease reservation for environment %q changed identity during lifecycle transition: %w", next.EnvironmentID, core.ErrIncompatibleState)
 	}

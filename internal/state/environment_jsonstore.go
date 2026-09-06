@@ -12,14 +12,15 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const environmentStateVersion = 3
+const environmentStateVersion = 4
 const previousEnvironmentStateVersion = 2
 
 type environmentFileState struct {
-	Version       int                          `json:"version"`
-	Environments  map[string]core.Environment `json:"environments"`
-	Leases        map[string]core.WorkspaceLease `json:"workspace_leases,omitempty"`
-	EphemeralRuns map[string]core.EphemeralRun   `json:"ephemeral_runs,omitempty"`
+	PersistentResources map[string]core.PersistentResource `json:"persistent_resources,omitempty"`
+	Version             int                                `json:"version"`
+	Environments        map[string]core.Environment        `json:"environments"`
+	Leases              map[string]core.WorkspaceLease     `json:"workspace_leases,omitempty"`
+	EphemeralRuns       map[string]core.EphemeralRun       `json:"ephemeral_runs,omitempty"`
 }
 
 type EnvironmentJSONStore struct {
@@ -282,10 +283,11 @@ func validateEphemeralRun(run core.EphemeralRun) error {
 
 func newEnvironmentFileState() environmentFileState {
 	return environmentFileState{
-		Version:       environmentStateVersion,
-		Environments:  map[string]core.Environment{},
-		Leases:        map[string]core.WorkspaceLease{},
-		EphemeralRuns: map[string]core.EphemeralRun{},
+		PersistentResources: map[string]core.PersistentResource{},
+		Version:             environmentStateVersion,
+		Environments:        map[string]core.Environment{},
+		Leases:              map[string]core.WorkspaceLease{},
+		EphemeralRuns:       map[string]core.EphemeralRun{},
 	}
 }
 
@@ -311,6 +313,9 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 	if data.EphemeralRuns == nil {
 		data.EphemeralRuns = map[string]core.EphemeralRun{}
 	}
+	if data.PersistentResources == nil {
+		data.PersistentResources = map[string]core.PersistentResource{}
+	}
 	if err := normalizeEnvironmentState(&data); err != nil {
 		return environmentFileState{}, err
 	}
@@ -318,7 +323,7 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 }
 
 func normalizeEnvironmentState(data *environmentFileState) error {
-	if data.Version != 0 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
+	if data.Version != 0 && data.Version != 3 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
 		return fmt.Errorf("environment state version %d is unsupported (want %d): %w", data.Version, environmentStateVersion, core.ErrIncompatibleState)
 	}
 
@@ -332,14 +337,15 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 		}
 		if _, ok := data.Leases[name]; !ok {
 			data.Leases[name] = core.WorkspaceLease{
-				WorkspaceID:   environment.Workspace.ID,
-				SourcePath:    environment.Workspace.Path,
-				EnvironmentID: name,
-				AccessMode:    environment.AccessMode,
-				Owner:         name,
-				RuntimeRef:    environment.RuntimeRef,
-				State:         core.WorkspaceLeaseActive,
-				AcquiredAt:    environment.CreatedAt,
+				PersistentResource: environment.PersistentResource,
+				WorkspaceID:        environment.Workspace.ID,
+				SourcePath:         environment.Workspace.Path,
+				EnvironmentID:      name,
+				AccessMode:         environment.AccessMode,
+				Owner:              name,
+				RuntimeRef:         environment.RuntimeRef,
+				State:              core.WorkspaceLeaseActive,
+				AcquiredAt:         environment.CreatedAt,
 			}
 		}
 	}
@@ -367,6 +373,9 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 			run.State = core.EphemeralRunCleanupRequired
 		}
 		data.EphemeralRuns[environmentID] = run
+	}
+	if err := validatePersistentResourceState(*data); err != nil {
+		return err
 	}
 	data.Version = environmentStateVersion
 	return nil
