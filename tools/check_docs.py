@@ -312,7 +312,7 @@ require_text("docs/design/docker-compatibility-plugin.md", [
     "haco plugin oci docker prepare", "fail closed",
 ])
 require_text("docs/EGRESS_AUTHORIZATION.md", [
-    "Domain-aware egress authorization", "network.egress/connect", "haco egress serve", "SNI",
+    "Domain-aware egress authorization", "network.egress/connect", "169.254.254.1:18080", "SNI",
 ])
 require_text("docs/design/btrfs-storage-layout.md", [
     "Incus-owned loop-backed Btrfs", "Managed Btrfs Transparent Compression",

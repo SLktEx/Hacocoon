@@ -1,6 +1,6 @@
 # Domain-aware egress authorization
 
-Status: **repository implementation complete; real supported-Incus acceptance remains host-dependent.**
+Status: **authorization/enforcement components are implemented; installed proxy service operation and Windows Environment egress acceptance are partial.**
 
 Hacocoon authorizes outbound access by the hostname a sandbox asks to reach. Resolving a name once and allowing the resulting IP addresses is not equivalent: shared CDNs, DNS changes and direct-IP access would make that authority transferable to unrelated destinations.
 
@@ -10,8 +10,8 @@ The egress request/authorization contract belongs to Core. The project-maintaine
 
 ```text
 sandbox
-  -> Incus NIC default deny
-  -> only 10.x bridge-gateway:18080 is transport-allowed
+  -> dedicated Environment bridge + Host traffic guards
+  -> only 169.254.254.1:18080 is allowed for application egress
   -> Standard egress proxy
   -> trusted source-IP -> Environment resolution
   -> network.egress/connect Capability
@@ -37,14 +37,9 @@ The proxy is not an approval-token issuer and does not cache approval as an IP a
 
 ## Implemented Incus enforcement
 
-- The managed bridge keeps DHCP but sets `raw.dnsmasq=port=0`, disabling the bridge DNS service so guest DNS cannot become a separate exfiltration path.
-- The Hacocoon NIC still defaults unmatched ingress and egress to `reject`.
-- The managed ACL contains exactly one ordinary outbound allow rule: TCP to the Hacocoon bridge gateway on the Standard proxy port (`18080`). An empty legacy v0.13 ACL is migrated to that rule; unmanaged ACL rules fail closed.
-- Existing managed bridges with an empty `raw.dnsmasq` value are migrated to `port=0`; any other operator/custom value is rejected rather than overwritten.
-- The managed `haco-sandbox` profile injects uppercase and lowercase `HTTP_PROXY` / `HTTPS_PROXY` values that point to the bridge proxy and local-only `NO_PROXY` values. Direct traffic still cannot bypass the proxy because the NIC ACL remains authoritative below those convenience environment variables.
-- The proxy derives Environment identity from the connection source IP by querying trusted Incus runtime state. It requires exactly one `haco-*` instance match; missing, ambiguous or unmanaged matches are denied.
-- `haco egress serve` verifies the managed network and listens only on the Hacocoon bridge gateway. It runs in the trusted Host foreground so the existing synchronous stdio `require-approval` provider remains usable.
-- The broker is intentionally stateless across restart. If it is absent or restarting, the only ACL-allowed transport has no listener and outbound access fails closed.
+The canonical Environment provider uses one owned bridge per Environment, with NAT disabled, DHCP enabled and DNS disabled. Verified Host inet rules and per-Environment source guards enforce proxy-only access; the trusted `haco-host` NAT bridge is a separate infrastructure path. Proxy environment variables do not weaken the lower-layer boundary. See [managed Environment networking](design/managed-sandbox-network.md) for the authoritative topology and retained legacy paths.
+
+The proxy resolves its peer through trusted Incus runtime state and the controller's persisted Environment store, rather than accepting an Environment name from the guest. It listens only on the fixed Physical Host endpoint `169.254.254.1:18080`. Missing, ambiguous or unmanaged source identities fail closed. Restart does not retain a connection grant or turn a hostname grant into an IP allowlist.
 
 ## Policy example
 
@@ -71,15 +66,11 @@ Use `require-approval` instead of `allow` when the existing approval provider mu
 
 ## Operational path
 
-Run the Standard broker on the trusted Host:
+The installed Physical Host controller constructs the Standard proxy but does not yet serve its listener. Consequently the installed Environment path is not accepted for allowed outbound traffic. The new product `haco` has no egress-serving command. The retained migration binary's `hacoq egress serve` foreground command is legacy functionality, not the installer service or a second controller to add to `haco-host`.
 
-```text
-haco egress serve
-```
+Completing the installed service lifecycle must reuse the existing controller's Policy, persisted source resolver and Standard proxy, including fail-closed shutdown and `require-approval` behavior when no interactive approval provider is available. It must not grant NAT/direct access to make an absent broker appear functional.
 
-The listen address is not caller-selectable. Hacocoon derives it from the managed Incus bridge and verifies the bridge, ACL and profile before accepting traffic.
-
-Git push remains a separate privileged operation through the Git plugin and must not be made to work by giving reusable Host Git credentials to the sandbox.
+Git push remains a separate privileged operation through the Git boundary and must not be enabled by handing reusable Host Git credentials to an Environment.
 
 ## Acceptance boundary
 

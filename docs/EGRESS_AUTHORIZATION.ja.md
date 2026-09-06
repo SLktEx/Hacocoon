@@ -1,6 +1,6 @@
 # Domain-aware egress authorization
 
-状態: **repository実装完了。real supported-Incus acceptanceはhost-dependentです。**
+状態: **authorization/enforcement componentはimplemented。install済みproxy serviceの稼働とWindows Environment egress受入はpartial。**
 
 Hacocoonの外向き通信は、sandboxが要求したhostnameそのものをauthorityとして扱います。hostnameを一度DNS解決して得たIPをallowする方式では、shared CDN、DNS変更、direct-IP accessにより別destinationへauthorityが横滑りするため採用しません。
 
@@ -10,8 +10,8 @@ egress request / authorization contractはCore、project-maintainedなHTTP/HTTPS
 
 ```text
 sandbox
-  -> Incus NIC default deny
-  -> bridge gateway:18080だけtransport allow
+  -> 専用Environment bridge + Host traffic guard
+  -> application egressは169.254.254.1:18080だけallow
   -> Standard egress proxy
   -> trusted source-IP -> Environment resolution
   -> network.egress/connect Capability
@@ -37,14 +37,9 @@ proxyはapproval tokenを発行せず、approvalをIP allowlistとしてcacheし
 
 ## 実装済みIncus enforcement
 
-- managed bridgeはDHCPを残しつつ `raw.dnsmasq=port=0` を設定し、bridge DNS serviceを停止する。guest DNSを別exfiltration pathにしない。
-- Hacocoon NICのunmatched ingress / egressは引き続き `reject`。
-- managed ACLのordinary outbound allowは、Hacocoon bridge gatewayのStandard proxy port (`18080`) へのTCP 1本だけ。旧v0.13のempty ACLはこのruleへmigrationし、それ以外のunmanaged ruleはfail closed。
-- managed bridgeの `raw.dnsmasq` がemptyなら `port=0` へmigrationする。他のoperator/custom値が入っている場合は勝手に上書きせずreject。
-- managed `haco-sandbox` profileがupper/lowercaseの `HTTP_PROXY` / `HTTPS_PROXY` とlocal-only `NO_PROXY` を注入する。env varを無視するmalicious processでも、NIC ACLより下のdirect trafficは通らない。
-- proxyはconnection source IPをtrusted Incus runtime stateへ問い合わせてEnvironment identityを導出する。exactly oneの `haco-*` instanceに一致しないsourceはdeny。
-- `haco egress serve` はmanaged networkをverifyしてHacocoon bridge gatewayだけでlistenする。trusted Host foregroundで動かすため、既存の同期stdio `require-approval` providerをそのまま利用できる。
-- brokerはrestartをまたぐauthority cacheを持たない。停止・restart中はACLが許可する唯一のtransportにlistenerがいないためfail closed。
+canonical Environment providerはEnvironmentごとのowned bridgeを使い、NAT無効・DHCP有効・DNS無効を要求する。照合済みHost inet ruleとEnvironmentごとのsource guardがproxy経由通信だけを許可する。trusted `haco-host` のNAT bridgeは別の基盤経路であり、proxy環境変数で下位境界を弱めない。topologyと残存legacy経路の正本は[Environment管理network](design/managed-sandbox-network.ja.md)。
+
+proxyはguestの自己申告Environment名を受け取らず、接続元をtrusted Incus runtime stateとcontrollerの永続Environment storeで解決する。固定Physical Host endpoint `169.254.254.1:18080` だけでlistenし、不在・曖昧・unmanaged identityをfail closedにする。restartをまたいでconnection grantを保持せず、hostname grantをIP allowlistへ変換しない。
 
 ## Policy例
 
@@ -71,15 +66,11 @@ connectionごとに既存approval providerの承認を要求する場合は `all
 
 ## 起動経路
 
-trusted HostでStandard brokerをforeground起動します。
+install済みPhysical Host controllerはStandard proxyを構築するが、listenerを起動していない。そのためinstall済みEnvironmentの許可された外向き通信は未受入である。新しい製品 `haco` にegress起動commandはない。移行用binaryのforeground `hacoq egress serve` はlegacy機能であり、installerのserviceや `haco-host` 内へ追加する第二controllerではない。
 
-```text
-haco egress serve
-```
+install済みservice lifecycleの完成では、既存controllerのPolicy・永続source resolver・Standard proxyを再利用し、停止時のfail closedと、対話approval provider不在時の `require-approval` を扱う必要がある。broker不在をNAT/直接通信の開放で補わない。
 
-listen addressはcallerから指定できません。Hacocoonがmanaged Incus bridgeから導出し、bridge / ACL / profileをverifyしてからtrafficを受けます。
-
-Git pushは引き続きGit pluginの別privileged operationです。ordinary pushを動かすためにreusable Host Git credentialをsandboxへ渡してはいけません。
+Git pushは引き続きGit境界の別privileged operationであり、reusable Host Git credentialをEnvironmentへ渡して有効化しない。
 
 ## Acceptance boundary
 
