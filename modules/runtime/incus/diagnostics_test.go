@@ -133,6 +133,17 @@ func TestHostDiagnosticsRejectMalformedInventoriesAndHideProviderOutput(t *testi
 			if err != nil || report.Healthy() {
 				t.Fatalf("report=%+v err=%v", report, err)
 			}
+			if err := report.Validate(); err != nil {
+				t.Fatalf("failed diagnostic lacks a valid next action: %v", err)
+			}
+			for _, check := range report.Checks {
+				if check.Name == target && (check.Status != diagnostics.Failed || check.Action == "") {
+					t.Fatalf("failure lacks cause/action: %+v", check)
+				}
+				if check.Status != diagnostics.OK && (strings.Contains(check.Summary, " is available ") || strings.HasSuffix(check.Summary, " succeed") || strings.HasSuffix(check.Summary, " match")) {
+					t.Fatalf("failure displayed a success predicate: %+v", check)
+				}
+			}
 			output, _ := json.Marshal(report)
 			if strings.Contains(string(output), secret) {
 				t.Fatal("raw provider output leaked")
@@ -182,6 +193,41 @@ func TestHostDiagnosticsRejectsAmbiguousSuccessfulInventory(t *testing.T) {
 			report, err := New(runner).DiagnoseHost(context.Background(), diagnosticStorage)
 			if err != nil || report.Healthy() {
 				t.Fatalf("accepted ambiguous inventory: %+v err=%v", report, err)
+			}
+		})
+	}
+}
+
+func TestHostDiagnosticConnectivityFailureStageIsSelectedWithoutGuestOutput(t *testing.T) {
+	for _, tc := range []struct {
+		code    int
+		summary string
+	}{
+		{21, "Trusted-host IPv4 DNS lookup for github.com failed"},
+		{22, "Trusted-host default IPv4 route is unavailable"},
+		{23, "Trusted-host HTTPS to github.com failed after DNS and route checks passed"},
+		{124, "Trusted-host DNS, default route or HTTPS probe failed or timed out"},
+	} {
+		t.Run(tc.summary, func(t *testing.T) {
+			runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+				if args[0] == "exec" {
+					script := args[len(args)-1]
+					for _, marker := range []string{"|| exit 21", "|| exit 22", "|| exit 23"} {
+						if !strings.Contains(script, marker) {
+							t.Fatalf("missing failure marker: %s", marker)
+						}
+					}
+					return host.Result{ExitCode: tc.code, Stdout: "secret", Stderr: "secret"}, errors.New("secret")
+				}
+				return diagnosticFixture(t, args), nil
+			}}
+			report, err := New(runner).DiagnoseHost(context.Background(), diagnosticStorage)
+			if err != nil || report.Validate() != nil || report.Healthy() || report.Checks[4].Summary != tc.summary || report.Checks[4].Action == "" {
+				t.Fatalf("report=%+v error=%v", report, err)
+			}
+			raw, _ := json.Marshal(report)
+			if strings.Contains(string(raw), "secret") {
+				t.Fatal("guest output leaked into diagnostics")
 			}
 		})
 	}

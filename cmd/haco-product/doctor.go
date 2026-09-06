@@ -70,6 +70,9 @@ func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				break
 			}
 			_, err = fmt.Fprintf(stdout, "%s: %s - %s\n", check.Name, check.Status, check.Summary)
+			if err == nil && check.Action != "" {
+				_, err = fmt.Fprintf(stdout, "  Next: %s\n", check.Action)
+			}
 		}
 	}
 	if err != nil {

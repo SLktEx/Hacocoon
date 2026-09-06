@@ -126,7 +126,7 @@ Status: **implemented**。このcommandのpackaged受入は実装statusで別途
 
 検査はcontrollerのprovider adapterが実行する。clientは `hacoq` / Incusを起動せず、guest-local stateを作らない。RPCはpath・command・通信先・修復optionを受け取らない。host作成・起動、storage初期化、NIC/firewall調整、service状態変更は行わない。hostが停止していればfailedとなり、host/networkの所有権・設定が不一致なら疎通検査をskipする。
 
-結果は `ok`・`failed`・`skipped`。全項目成功だけが終了0で、failed/skippedがあればreportを出して終了1、不正な使い方は終了2。transport/protocol失敗は終了1で、成功を示すJSON reportを出さない。項目欠落・重複・不明値・不正応答を拒否する。summaryは長さを制限した固定の検査条件で、backend/guestの生出力・errorをreportへコピーしない。失敗は共有loggerでstderrへ記録し、stdoutはtext/JSON結果に使う。
+結果は `ok`・`failed`・`skipped`。全項目成功だけが終了0で、failed/skippedがあればreportを出して終了1、不正な使い方は終了2。transport/protocol失敗は終了1で、成功を示すJSON reportを出さない。項目欠落・重複・不明値・不正応答を拒否する。summaryは成功した検査条件と失敗を区別する。failed/skippedには短い `action` を付け、textでは `Next:` として示す。成功項目には修復を勧めない。両fieldは表示可能なASCII 256 byteまでとし、backend/guestの生出力・errorをreportへコピーしない。固定probe終了値でDNS・default route欠落・HTTPS失敗を区別し、時間切れや未知の終了値から失敗段階を推測しない。失敗は共有loggerでstderrへ記録し、stdoutはtext/JSON結果に使う。
 
 cold WSLでは、enabled controllerのsocketよりCLIが先に動くことがある。最初に読み取り専用pingで最大30秒待ち、transport unavailableだけを再試行する。その後の診断は一度だけ行う。protocol/operation拒否やfailed checkは再試行せず、serviceの起動・resource修復も行わない。
 

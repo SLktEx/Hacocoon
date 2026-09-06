@@ -71,7 +71,7 @@ func TestDoctorRoundTripIncludesControllerIdentityAndBoundedReadOnlyService(t *t
 }
 
 func TestDoctorClientRejectsIncompleteOrMalformedResponse(t *testing.T) {
-	for _, name := range []string{"missing", "duplicate", "unknown-status", "control-text", "protocol", "empty-payload", "missing-build", "invalid-build"} {
+	for _, name := range []string{"missing", "duplicate", "unknown-status", "control-text", "protocol", "empty-payload", "missing-build", "invalid-build", "missing-action", "control-action", "oversized-action", "healthy-action"} {
 		t.Run(name, func(t *testing.T) {
 			path := doctorTestSocket(t, func(server *control.Server) {
 				_ = server.Register(MethodDoctor, func(context.Context, json.RawMessage) (any, error) {
@@ -91,6 +91,16 @@ func TestDoctorClientRejectsIncompleteOrMalformedResponse(t *testing.T) {
 						r.Controller = buildinfo.Info{}
 					case "invalid-build":
 						r.Controller.Version = "bad\x1b[2J"
+					case "missing-action":
+						r.Checks[1].Status = diagnostics.Failed
+					case "control-action":
+						r.Checks[1].Status = diagnostics.Failed
+						r.Checks[1].Action = "bad\x1b[2J"
+					case "oversized-action":
+						r.Checks[1].Status = diagnostics.Failed
+						r.Checks[1].Action = strings.Repeat("x", 257)
+					case "healthy-action":
+						r.Checks[1].Action = "Unnecessary repair"
 					case "empty-payload":
 						return nil, nil
 					}

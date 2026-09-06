@@ -18,6 +18,7 @@ type Check struct {
 	Name    string `json:"name"`
 	Status  string `json:"status"`
 	Summary string `json:"summary"`
+	Action  string `json:"action,omitempty"`
 }
 
 type Report struct {
@@ -35,7 +36,10 @@ func (r Report) Validate() error {
 		if check.Name != names[i] || (check.Status != OK && check.Status != Failed && check.Status != Skipped) || len(check.Summary) == 0 || len(check.Summary) > 256 {
 			return fmt.Errorf("invalid Host diagnostic check")
 		}
-		for _, c := range check.Summary {
+		if len(check.Action) > 256 || (check.Status != OK && len(check.Action) == 0) || (check.Status == OK && check.Action != "") {
+			return fmt.Errorf("invalid Host diagnostic action")
+		}
+		for _, c := range check.Summary + check.Action {
 			if c < 32 || c > 126 {
 				return fmt.Errorf("invalid Host diagnostic summary")
 			}

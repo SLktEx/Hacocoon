@@ -30,6 +30,8 @@ func productDoctorServer(t *testing.T, failed bool) string {
 		}
 		if failed {
 			report.Checks[1].Status = diagnostics.Failed
+			report.Checks[1].Summary = "Configured storage differs"
+			report.Checks[1].Action = "Inspect the configured Incus pool"
 		}
 		return controlapi.DoctorResponse{ProtocolVersion: control.ProtocolVersion, Controller: buildinfo.Current(), Report: report}, nil
 	})
@@ -71,6 +73,9 @@ func TestProductDoctorUsesControllerWithoutLegacyOrLocalRuntime(t *testing.T) {
 					}
 				} else if !strings.Contains(stdout.String(), "Hacocoon Host diagnostics") {
 					t.Fatalf("output=%q", stdout.String())
+				}
+				if failed && !strings.Contains(stdout.String(), "Inspect the configured Incus pool") {
+					t.Fatalf("missing next action: %s", stdout.String())
 				}
 				if failed && !strings.Contains(stderr.String(), "operation=doctor") {
 					t.Fatalf("missing structured failure: %s", stderr.String())
