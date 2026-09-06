@@ -2,8 +2,8 @@
 
 ## Incus startup PID protection
 
-Status: **implemented; repository regressions passed; packaged provider acceptance
-pending**. The common Ubuntu/WSL installer installs a root-only Incus ExecStartPre
+Status: **implemented; repository regressions and hosted Ubuntu/WSL package
+acceptance passed**. The common Ubuntu/WSL installer installs a root-only Incus ExecStartPre
 guard that archives prior-namespace dnsmasq/proxy PID records before daemon
 startup. Current-namespace records and resource data are retained. See the
 [Host contract](design/trusted-host.md#wsl-default-entry) and
@@ -15,10 +15,18 @@ package and Windows driver regressions pass. The Windows package gate also check
 marker renewal and archived dnsmasq records after restart. Same-namespace helper
 PID reuse and optional device families remain upstream scope.
 
-The current user's installation has **not** received this change: automatic
-approval review rejected deploying the unreviewed drop-in. That attempt changed
-no installed configuration. Hosted acceptance and merge status are recorded when
-available. This maintenance fix remains in checkpoint v0.28.
+On `1b2d6ae`, the [Windows package gate](https://github.com/SLktEx/Hacocoon/actions/runs/34051931616)
+passed installation, ordinary WSL termination/re-entry, marker renewal, retained
+dnsmasq records, installer rerun and installed egress enforcement. The
+[Ubuntu package gate](https://github.com/SLktEx/Hacocoon/actions/runs/34051931562),
+[real Incus gate](https://github.com/SLktEx/Hacocoon/actions/runs/34051931583) and
+[repository CI](https://github.com/SLktEx/Hacocoon/actions/runs/34051931607) also passed.
+The optional authenticated-private-registry job was skipped; these results do
+not add private-registry acceptance. Final revision and merge status are in
+[PR #480](https://github.com/SLktEx/Hacocoon/pull/480).
+
+The existing local installation has **not** received this change. This maintenance
+fix remains in checkpoint v0.28; hosted acceptance does not imply local deployment.
 
 ## WSL startup failure investigation — 2026-09-07
 

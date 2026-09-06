@@ -2,7 +2,7 @@
 
 ## Incus起動時のPID再利用防止
 
-Status: **implemented。repository回帰は成功、配布providerの受入はpending**。
+Status: **implemented。repository回帰とhosted Ubuntu/WSL配布packageの受入は成功**。
 共通Ubuntu/WSL installerはroot専用のIncus ExecStartPre guardを導入する。
 前namespaceのdnsmasq/proxy PID記録をdaemon起動前に退避し、同一namespaceの記録と
 resourceデータを保持する。[Host契約](design/trusted-host.ja.md#incus起動時のpid記録)と
@@ -13,9 +13,17 @@ resourceデータを保持する。[Host契約](design/trusted-host.ja.md#incus�
 Windows配布gateには再起動後のmarker更新とdnsmasq記録の退避確認を追加した。
 同一namespace内のhelper PID再利用と任意device familyは上流側の残課題とする。
 
-ユーザーの現在のinstallationには**未適用**。自動承認reviewが未レビューのdrop-in配備を
-拒否したため、その試行ではinstall済み設定を変更していない。hosted受入とmerge状況は
-確認後に記録する。本修正はcheckpoint v0.28内の保守修正とする。
+`1b2d6ae`の[Windows配布gate](https://github.com/SLktEx/Hacocoon/actions/runs/34051931616)で、
+install、通常のWSL終了・再接続、marker更新、dnsmasq記録の保持、installer再実行、
+install済みegress制御が成功した。
+[Ubuntu配布gate](https://github.com/SLktEx/Hacocoon/actions/runs/34051931562)、
+[実Incus gate](https://github.com/SLktEx/Hacocoon/actions/runs/34051931583)、
+[repository CI](https://github.com/SLktEx/Hacocoon/actions/runs/34051931607)も成功した。
+任意のauthenticated-private-registry jobはskipであり、private-registryの受入実績は追加しない。
+最終revisionとmerge状況は[PR #480](https://github.com/SLktEx/Hacocoon/pull/480)に記録する。
+
+既存のlocal installationには**未適用**。本修正はcheckpoint v0.28内の保守修正であり、
+hosted受入の成功はlocal配備を意味しない。
 
 ## WSL起動失敗の調査 — 2026-09-07
 

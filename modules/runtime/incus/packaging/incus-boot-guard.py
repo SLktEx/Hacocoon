@@ -190,8 +190,8 @@ class Guard:
                     if any(getattr(before, field) != getattr(after, field) for field in fields):
                         raise Refused('provider PID record changed')
                     os.rename(name, name, src_dir_fd=entityfd, dst_dir_fd=destination)
-                    os.fsync(entityfd)
                     os.fsync(destination)
+                    os.fsync(entityfd)
                 os.fsync(statefd)
             self.write_marker(statefd)
 
