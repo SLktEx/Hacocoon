@@ -1,5 +1,14 @@
 # Trusted `haco-host`
 
+## Incus起動時のPID記録
+
+共通Ubuntu installerはIncus起動前にprovider専用guardを実行する。
+PID namespaceの起動が変わった場合だけ以前のnetwork/proxy process記録を退避し、
+再利用PIDを新しいIncus workerへ送信する経路を防ぐ。同一namespace内のservice再起動では
+記録を保持する。不明・危険なmetadataは起動を拒否し、processへのsignal送信や
+resource・Workspaceの削除は行わない。初期導入、永続化、trust boundaryと上流に残る範囲は
+[ADR 0013](../adr/0013-incus-pid-record-boot-identity.md)を参照。
+
 ## Windows連携
 
 状態: 手動セットアップをimplemented。WSL基盤側のcheckoutで、`haco setup`後に

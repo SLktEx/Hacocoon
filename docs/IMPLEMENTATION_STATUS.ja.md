@@ -1,5 +1,63 @@
 # 実装状況
 
+## Incus起動時のPID再利用防止
+
+Status: **implemented。repository回帰は成功、配布providerの受入はpending**。
+共通Ubuntu/WSL installerはroot専用のIncus ExecStartPre guardを導入する。
+前namespaceのdnsmasq/proxy PID記録をdaemon起動前に退避し、同一namespaceの記録と
+resourceデータを保持する。[Host契約](design/trusted-host.ja.md#incus起動時のpid記録)と
+[ADR 0013](adr/0013-incus-pid-record-boot-identity.md)を参照。
+
+15件のcomponent回帰で再利用PID、WSL/native起動、service再起動、初期導入、同時実行、
+中断復帰、不正metadataを確認した。installer/packageとWindows driver回帰も成功した。
+Windows配布gateには再起動後のmarker更新とdnsmasq記録の退避確認を追加した。
+同一namespace内のhelper PID再利用と任意device familyは上流側の残課題とする。
+
+ユーザーの現在のinstallationには**未適用**。自動承認reviewが未レビューのdrop-in配備を
+拒否したため、その試行ではinstall済み設定を変更していない。hosted受入とmerge状況は
+確認後に記録する。本修正はcheckpoint v0.28内の保守修正とする。
+
+## WSL起動失敗の調査 — 2026-09-07
+
+Status: **historical調査。起動失敗を再現し、古いPIDの再利用が原因であることを強く裏付けた**。
+namespaceをまたぐ再発防止は上記のとおりimplemented。
+対象は手元のWSL 2.7.12、製品 `029ff08e34c98e075b7b0b3d3a7fc7f639e89323`、
+Ubuntu package `incus 6.0.5-8`。別Windowsアカウント・別端末の原因を確定するものではない。
+
+02:32:21 JSTの成功起動では `haco-host0` のdnsmasqにPID 424が割り当てられていた。
+通常のWSL終了・再起動後、02:33:13にkernel traceで
+`kill(424, SIGKILL)` の対象が `libuv-worker` になっていることを捕捉し、
+直後にIncus本体PID 248がsignal 9で終了した。traceの対象kernel PIDは9468であり、
+424は呼出側namespaceのIDなので番号空間を混同しない。
+独立したprocess一覧でlibuv workerがIncus本体のthreadであることを確認した。
+OOMの記録は確認できていない。
+
+上流の[v6.0.5 dnsmasq終了処理](https://github.com/lxc/incus/blob/a87f49a2491fa3a0e74896c1f2322bd356c59ddc/internal/server/dnsmasq/dnsmasq.go)は
+保存済み `dnsmasq.pid` を読み、
+[`Process.Stop`](https://github.com/lxc/incus/blob/a87f49a2491fa3a0e74896c1f2322bd356c59ddc/shared/subprocess/proc.go)を呼ぶ。
+数値PIDの存在確認後に終了させ、boot・process開始時刻・実行ファイルの同一性は検証しない。
+以前のdnsmasq PIDがIncusのthread IDとして再利用される経路と一致する。
+失敗したsignalのuser-space呼出stackそのものは未採取であり、
+PID・対象thread・直前のdnsmasq identity・失敗時刻を照合した結果である。
+正常なforkproxy/helper終了でもSIGKILLが出るため、それだけで本体の障害と判定しない。
+
+テスト専用の子processだけを使った独立検証では、
+`pidfd_open(worker_tid)` はENOENT、数値IDへのsignal-0は成功し、
+同じTIDへのSIGKILLでprocess全体が終了した。
+これはOS上の誤終了の仕組みの検証であり、Incus修正の適用や上流packageのE2E回帰検証ではない。
+
+起動中にIncus本体が終了すると、600秒の `waitready` start-post processが残り、
+controllerの `After=incus.service` が待機を続け得る。
+その結果、製品loginの2分の期限が切れる。login clientは最後のtransport errorも捨てるため、
+timeout表示だけでは本原因やsocket権限の失敗を区別できない。
+
+一時kernel trace・uprobeは全て解除した。時間限定の観測でIncus serviceを明示的に1回再起動し、
+後続のinstall済み `haco doctor` は全6項目成功した。
+回復は間欠障害の解消を意味しない。provider binary、PID file、storage、network、
+install済みservice設定へのpatchは行っていない。
+正しいprocess所有identityの検証はproviderのlifecycleの責務であり、
+CoreによるPID fileの自動削除やlogin timeout延長は根本修正ではない。
+
 ## 第二段階
 
 状態は**implemented・以下のWindows/WSL構成でB1〜B6を受入済み**。

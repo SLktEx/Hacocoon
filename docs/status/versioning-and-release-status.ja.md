@@ -8,6 +8,10 @@ B5/B6とA回帰は配布物029ff08で確認済み。依頼されたローカル�
 
 [English](versioning-and-release-status.md) | **日本語**
 
+Incus起動時のPID guardはv0.28内の保守修正とし、milestone番号は変更しない。
+network/proxy process記録を別namespaceのPIDへ再適用する経路を防ぐ。
+検証とinstallationの範囲は[実装状況](../IMPLEMENTATION_STATUS.ja.md#incus起動時のpid再利用防止)を参照。
+
 v0.27候補は管理対象repoのWSL利用経路を実装する。独立Workspace copy、標準SSH、
 通常Git helperのfetch/pull、送信内容を固定したpush承認、作業を保持する正常停止が対象。
 実Gitのローカル回帰は成功し、branchのWindows配布物 `7a4d122` でA1〜A6を受入した。

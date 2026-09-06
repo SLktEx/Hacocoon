@@ -265,13 +265,36 @@ ensure_incus_userns_compatibility() {
     die "Ubuntu AppArmor user-namespace restriction remained enabled after configuration"
 }
 
+configure_incus_boot_guard() {
+  guard_source="$BUNDLE_ROOT/incus-boot-guard.py"
+  if [ ! -f "$guard_source" ]; then
+    guard_source="$SCRIPT_DIR/../modules/runtime/incus/packaging/incus-boot-guard.py"
+  fi
+  [ -f "$guard_source" ] || die "the Incus startup guard is missing from the installer"
+  $SUDO install -d -o root -g root -m 0755 /usr/local/libexec
+  $SUDO install -o root -g root -m 0755 "$guard_source" /usr/local/libexec/hacocoon-incus-boot-guard
+  # First adoption is allowed only with the existing trusted daemon present.
+  # Never stamp a new namespace over old PID records before retiring them.
+  $SUDO /usr/bin/python3 -I /usr/local/libexec/hacocoon-incus-boot-guard --initialize ||
+    die "cannot initialize Incus startup guard"
+  guard_unit="$(mktemp)"
+  cat > "$guard_unit" <<'EOF_GUARD'
+[Service]
+ExecStartPre=/usr/bin/python3 -I /usr/local/libexec/hacocoon-incus-boot-guard
+EOF_GUARD
+  $SUDO install -d -o root -g root -m 0755 /etc/systemd/system/incus.service.d
+  $SUDO install -o root -g root -m 0644 "$guard_unit" /etc/systemd/system/incus.service.d/90-hacocoon-boot-guard.conf
+  rm -f "$guard_unit"
+  $SUDO systemctl daemon-reload
+}
+
 prepare_ubuntu_host() {
   assert_ubuntu
   prepare_privilege
 
   printf '==> Installing common Ubuntu host dependencies\n'
   $SUDO apt-get update
-  $SUDO apt-get install -y ca-certificates curl tar git sudo systemd systemd-sysv btrfs-progs util-linux kmod procps gnupg coreutils findutils grep sed
+  $SUDO apt-get install -y ca-certificates curl tar git sudo systemd systemd-sysv btrfs-progs util-linux kmod procps gnupg coreutils findutils grep sed python3
   ensure_gh_attestation_verify
 
   pid1="$(ps -p 1 -o comm= 2>/dev/null | tr -d '[:space:]' || true)"
@@ -307,6 +330,7 @@ prepare_ubuntu_host() {
   if ! command -v incus >/dev/null 2>&1 || ! $SUDO incus info >/dev/null 2>&1; then
     die "Incus daemon is not ready after systemd startup"
   fi
+  configure_incus_boot_guard
 }
 
 verify_trusted_host_connectivity() {

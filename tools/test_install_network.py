@@ -27,6 +27,7 @@ ensure_gh_attestation_verify() { :; }
 configure_workspace_owner_idmap() { :; }
 ensure_bridge_netfilter() { :; }
 ensure_incus_userns_compatibility() { :; }
+configure_incus_boot_guard() { :; }
 ps() { printf 'systemd\n'; }
 incus() { :; }
 privileged() {
@@ -144,6 +145,35 @@ privileged() {
         self.assertIn("ExecStart=/usr/local/bin/haco-controller --standard-egress\n", result.stdout)
         self.assertIn("Requires=incus.service\nAfter=incus.service\n", result.stdout)
         self.assertNotIn("hacoq", result.stdout)
+
+    def test_boot_guard_initialization_precedes_enabling_startup_hook(self):
+        configure = re.search(r"^configure_incus_boot_guard\(\) \{\n.*?^\}", INSTALLER, re.M | re.S)[0]
+        for ready in (True, False):
+            with self.subTest(ready=ready):
+                script = r'''
+set -eu
+SUDO=privileged; BUNDLE_ROOT="$1"; SCRIPT_DIR="$1"; ready="$2"
+die() { printf '%s\n' "$*" >&2; exit 1; }
+privileged() {
+  case "$*" in
+    '/usr/bin/python3 -I /usr/local/libexec/hacocoon-incus-boot-guard --initialize') printf 'initialize\n'; [ "$ready" = 1 ] ;;
+    'install -o root -g root -m 0644 '*'/etc/systemd/system/incus.service.d/90-hacocoon-boot-guard.conf') cat "$8" ;;
+    'systemctl daemon-reload') printf 'reload\n' ;;
+    'install -d '*|'install -o root -g root -m 0755 '*) : ;;
+    *) exit 99 ;;
+  esac
+}
+''' + configure + '\nconfigure_incus_boot_guard\n'
+                result = subprocess.run(["sh", "-c", script, "sh",
+                                         str(ROOT / "modules/runtime/incus/packaging"), str(int(ready))],
+                                        capture_output=True, text=True)
+                if ready:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout, "initialize\n[Service]\nExecStartPre=/usr/bin/python3 -I /usr/local/libexec/hacocoon-incus-boot-guard\nreload\n")
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, "initialize\n")
+                    self.assertIn("cannot initialize Incus startup guard", result.stderr)
 
 if __name__ == "__main__":
     unittest.main()

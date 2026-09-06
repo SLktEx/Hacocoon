@@ -97,6 +97,7 @@ jobs:
             "install-windows.bat",
             "install-windows.ps1",
             "install.sh",
+            "incus-boot-guard.py",
             "haco_linux_amd64.tar.gz",
             "checksums.txt",
             "VERSION"

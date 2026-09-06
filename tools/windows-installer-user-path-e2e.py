@@ -358,6 +358,22 @@ def sudo_policy_digest() -> str:
                         "find /etc/sudoers /etc/sudoers.d -type f -exec sha256sum {} + | sort")
 
 
+def boot_guard_namespace() -> dict:
+    state = "/var/lib/incus/.hacocoon-boot-guard/namespace.json"
+    if inspect_root("stat", "-Lc", "%u:%g:%a", state) != "0:0:600":
+        raise RuntimeError("unsafe Incus boot guard marker")
+    marker = json.loads(inspect_root("cat", state))
+    namespace = marker["namespace"]
+    current = {
+        "boot": inspect_root("cat", "/proc/sys/kernel/random/boot_id"),
+        "init_start": int(inspect_root("cat", "/proc/1/stat").rsplit(")", 1)[1].split()[19]),
+        "pidns": int(inspect_root("stat", "-Lc", "%i", "/proc/1/ns/pid")),
+    }
+    if marker["version"] != 1 or namespace != current:
+        raise RuntimeError("Incus boot guard did not record the current PID namespace")
+    return namespace
+
+
 def main() -> None:
     if os.name != "nt":
         raise RuntimeError("this gate requires Windows")
@@ -371,10 +387,16 @@ def main() -> None:
     run_bat(package_root)
     assert_host()
     host_session(create=True)
+    previous_namespace = boot_guard_namespace()
     # A normal user stop, before any installer rerun that could repair startup.
     subprocess.run(["wsl.exe", "--terminate", INSTANCE], check=True, timeout=120)
     host_session(create=False)
     assert_host()
+    if boot_guard_namespace() == previous_namespace:
+        raise RuntimeError("WSL restart did not exercise a new PID namespace")
+    if not inspect_root("find", "/var/lib/incus/.hacocoon-boot-guard", "-type", "f",
+                        "-path", "*/networks/haco-host0/dnsmasq.pid"):
+        raise RuntimeError("previous dnsmasq PID record was not retained in the boot archive")
     policy_before = sudo_policy_digest()
     run_bat(package_root)
     host_session(create=False)
