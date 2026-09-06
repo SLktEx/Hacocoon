@@ -2,48 +2,83 @@
 
 ## Second-stage workflow
 
-B3 is **locally accepted** on packaged `3747bae`: Base switched from
-`haco/ubuntu-26.04` to `haco/ubuntu-24.04` (revision
-`sha256:f38ca805517f5b6e301f33b0f44523386c5a050847564c1233e586106b31dbc9`).
-All 54 repository files including `.git` had identical hashes after switching.
-Unpushed commits `bce47b9` / `6d5fc53`, modified tracked files and untracked
-notes survived. Git and SSH were reconnected, the new SSH host key was pinned,
-and editing over SSH on Ubuntu 24.04.4 succeeded. No Windows mount, `/init` or
-management socket appeared in the replacement Environment.
+Status: **partial**. B1–B3 and the selected B5/B6 improvements are implemented
+and locally accepted. B4 image distribution is implemented with repository
+regressions, but real Docker/nerdctl distribution and independent container
+execution are **not executed**. The requested second-stage acceptance is not
+complete. See the [workflow](reference/managed-repository-workflow.md),
+[OCI contract](design/oci-image-distribution.md) and
+[follow-ups](status/development-follow-ups.md).
 
-B4's optional [image distribution](design/oci-image-distribution.md) is
-implemented with bounded private archive staging and independent save/load.
-Repository tests pass; real Docker/nerdctl acceptance is in progress.
+| Step | Implemented behavior and observed result |
+|---|---|
+| B1 | Explicit trusted-Host setup discovers existing DrvFs drives. PowerShell received a separate spaced argument, preserved stdout/stderr and exit 23; user-owned `/mnt/c` reads/writes passed. Rechecked on final installed `029ff08`. Only C is mounted; extra-drive parsing has regression coverage, additional-drive real-host acceptance is not executed. Environments have no Windows devices, `/init` or interop environment. |
+| B2 | Packaged `087e7e2`: one `b-dev` Environment mounts independent Btrfs copies at `/workspace/b-first` and `/workspace/b-second`, with separate `.git`, no alternates/commondir. SSH fetch/pull, edit, commit and fixed-content approval push passed for each repository. GitHub returned `be34f60c2c3d1ab5761e821fbdaada5e4d5802dc` and `b834ee67dbc8f5e37e73656f13872d42ceda40f3` on the respective test branches. Two different remote URLs also pass local real-Git regression. |
+| B3 | Packaged `3747bae`: `haco base list` and `env switch-base` moved the same managed Workspace from Ubuntu 26.04 to 24.04. All 54 repository files, including `.git`, had identical hashes after switching. Unpushed commits `bce47b9` / `6d5fc53`, modified tracked files and untracked notes survived. Reconnected Git/SSH, pinned the new host key, and edited over SSH on Ubuntu 24.04.4. |
+| B4 | `haco plugin oci distribute --runtime <runtime> --image <image> <environment>` selects `docker` or `nerdctl`, stages a bounded private archive and loads into a separate guest runtime. Unit/component checks cover both command families, failed source export, invalid input, archive bounds and fixed instance-local sockets. Actual runtime installation/nesting and container execution are awaiting explicit authorization; neither Docker nor nerdctl has real-host acceptance. |
+| B5 | Packaged `029ff08`: `haco env ssh-config b-dev` generated OpenSSH configuration and standard `ssh -F ... haco-b-dev` connected successfully, removing manual host/port/user transcription. Existing Incus 6.0.5's unsupported `config show --format` was replaced with its JSON query API and regression coverage. |
+| B6 | Packaged `029ff08`: `haco env status` clearly displayed Environment, state, Workspace, access and Base. Stopped status explicitly said the Workspace is retained. `--json` preserves machine-readable output. |
 
-B2 is **locally accepted** with packaged `087e7e2`: `/workspace/b-first` and
-`/workspace/b-second` in `b-dev`, each with independent `.git`. SSH fetch/pull,
-edit, commit and fixed-content approval push succeeded. GitHub independently
-returned `be34f60c2c3d1ab5761e821fbdaada5e4d5802dc` and
-`b834ee67dbc8f5e37e73656f13872d42ceda40f3` on the two `codex/stage-b-b-*-20260906`
-branches of the authorized Hacocoon-test repository. Different remote URLs
-have local real-Git regression coverage. B3's Base selection/switch product
-commands and canonical lifecycle failure regressions are implemented and
-accepted as recorded above.
+**Test target:** all external writes used only
+`https://github.com/SLktEx/Hacocoon-test.git`, branches
+`codex/stage-b-b-first-20260906` and `codex/stage-b-b-second-20260906`.
+The two real-host registrations use this same authorized URL with separate
+branches; different remote URLs were exercised only in repository regression.
 
-B1 is **implemented and locally accepted** on the existing A installation
-(`7a4d122`, Windows 26200.9278 / WSL 2.7.12 / Incus 6.0.5), using
-`scripts/setup-wsl-host-interop.py`. Trusted-shell `/init` execution of Windows
-PowerShell preserved a spaced argument, stdout/stderr and exit code 23.
-Read/write in a user-owned `/mnt/c` test directory passed. Existing `poc-dev`
-has no WSL devices or interop environment. Only C is mounted on this host;
-extra-drive parsing has repository coverage, but extra-drive real-host
-acceptance is **not executed**. No installer or installed binary changed for
-this check. See [trusted Host](design/trusted-host.md#windows-interop).
+Btrfs independently reported source UUIDs
+`411102dc-d913-264a-96a0-b09d079eb898` / `58ccd7df-d8df-3444-98b4-67b35d85018e`
+as the parent UUIDs of the respective Workspace volumes
+`49eff338-40d8-244b-9276-e35952b475b2` / `a23fadbc-77af-be4a-b7a9-f9829e96e613`.
+This verifies the observed COW relationship, not performance.
 
-B2's immutable repository collection is implemented with per-member Incus
-Btrfs volumes, independent Git state and per-repository approval. Linux
-component tests include two real-Git remotes and refusal of foreign repository
-requests. B1–B3 acceptance is recorded above. B4 real-host runtime setup awaits
-explicit approval after the execution environment's automatic review refused
-nesting/package installation. B5 generates OpenSSH configuration from prepared
-connections; B6 displays readable target/Workspace/Base status (`--json` remains
-available). These product changes have repository coverage; their packaged
-acceptance is in progress. This is not complete second-stage acceptance.
+**Final installed candidate:** `029ff08e34c98e075b7b0b3d3a7fc7f639e89323`,
+checkpoint `v0.28`, snapshot `0.27.0-SNAPSHOT-029ff08`, built
+`2026-09-06T10:25:40Z`. ZIP SHA-256:
+`20f308cb5bcccfdaef1f0c76914bdae65834c957afd6c446fd0effdda26717fe`.
+Each candidate was built from its branch commit and applied through its ordinary
+Windows BAT to the existing Hacocoon WSL distribution. No installer-specific
+product override or internal state repair was used. Fresh installation was not
+repeated. The retained A configuration is Windows 26200.9278 / WSL 2.7.12 /
+Incus 6.0.5 / Incus-owned Btrfs `haco-local-default`.
+
+**Bases:** B3 moved from revision
+`sha256:d071290fb40659981198baf0161a8bcc9910ebae79a15f5ef5d9c06dbdb2ea4c`
+to Ubuntu 24.04 revision
+`sha256:f38ca805517f5b6e301f33b0f44523386c5a050847564c1233e586106b31dbc9`.
+Later explicit Ubuntu 26.04 creation resolved
+`sha256:297ce79fb308c09126222dd6e64c260003c5d1e1ea1ce46ea43e80a419941636`;
+the earlier Environment's recorded revision was unchanged.
+
+**A regression on final candidate:** ordinary single-repository `b-a-work` /
+`b-a-dev` creation with explicit Base, generated SSH configuration, fetch and
+fast-forward pull from `f4ff6e3` to `be34f60`, Python compilation/assertion, commit,
+denial (remote unchanged), then approval push all passed. GitHub independently
+returned `145fd7fce49a5a8771e39e7b142d47aa49c910c3` on the first test branch.
+Disconnect and graceful stop succeeded; all 28 files including dirty/untracked
+work and Git state had identical hashes before/after stop. The canonical lease
+and Incus volume remain. Inner/outer clients matched the controller build;
+all six doctor checks passed. The original A Workspace/Environment remains
+preserved. `b-a-dev` is stopped; `b-dev` remains available for pending B4 checks.
+
+**Repository validation:** maintained `ci-local.sh docs`, `workflow-policy`,
+`test` (Go tests/vet and JS), `race` and `e2e` passed after B5/B6. Narrow lifecycle,
+Git, collection-mount, OCI and SSH-configuration regressions passed while
+iterating. GoReleaser check/build and installer archive checksums passed.
+The complete release-config/forwarding jobs, hosted CI and broad real-host
+runtime/network matrices are not claimed. Local validation used Go 1.27.1.
+
+**Manual operations and blocking condition:** B1 requires the recorded Physical
+Host script; repeat after interop socket changes. Authentication and narrow
+Policy remain trusted-side setup. SSH private key and host-key pinning remain
+client-owned; use the controller's Physical Host/Windows loopback, since a
+different WSL distribution may have its own loopback namespace. SSH package
+downloads still need credential-free proxy exports (existing #469). Base switch
+discards root filesystem/packages and requires Git/SSH reconnection. B4's
+automatic execution review rejected nesting/runtime installation as requiring
+explicit approval for the two named instances. It also rejected an attempted
+missing-runtime check because distribution could transfer an unverified image.
+Those commands did not execute. The approval request is pending; B4 is current
+required work, not a completed or deferred acceptance item.
 
 ## Managed repository WSL workflow — 2026-09-06
 

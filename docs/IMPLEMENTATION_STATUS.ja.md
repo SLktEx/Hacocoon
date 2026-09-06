@@ -1,39 +1,65 @@
 # 実装状況
 
-B3は配布物`3747bae`で**ローカル実機確認済み**。26.04から24.04へBaseを
-切り替え、`.git`を含む54ファイルのハッシュ一致、未push commit
-`bce47b9` / `6d5fc53`・未コミット変更・未追跡notesの保持を確認。
-Git/SSH再接続、新SSH host key固定、Ubuntu 24.04.4上のSSH編集も通った。
-新Base revisionは`sha256:f38ca805517f5b6e301f33b0f44523386c5a050847564c1233e586106b31dbc9`。
-Windows mount・`/init`・管理socketは新Environmentへ渡っていない。
-B4の任意[イメージ配布](design/oci-image-distribution.md)は実装・回帰済みで、
-Docker/nerdctl実機確認は進行中。
-
-B2は配布物`087e7e2`で**ローカル実機確認済み**。`b-dev`内の
-`/workspace/b-first`と`/workspace/b-second`は独立した`.git`を持ち、SSHからの
-fetch/pull・編集・commit・固定内容承認付きpushが通った。指定Hacocoon-testの
-2つの`codex/stage-b-b-*-20260906` branchに、GitHub側で
-`be34f60c2c3d1ab5761e821fbdaada5e4d5802dc`と
-`b834ee67dbc8f5e37e73656f13872d42ceda40f3`の一致を確認した。異なるremote URLは
-ローカル実Git回帰で確認。B3のBase選択・切替とcanonical lifecycle失敗回帰は
-実装済みだが、B3実機確認は未完了。
-
-B2の不変repo集合を実装。各repoは独立したIncus Btrfs volumeと`.git`を
-持ち、repo別の承認を適用する。Linux componentテストでは2つの実Git remote
-へのpushと集合外repoの拒否を確認した。B2の配布物による実機確認とB3〜B6は
-進行中であり、第二段階全体の完了ではない。
-
 ## 第二段階
 
-B1は**implemented・ローカル実機確認済み**。既存A配布物`7a4d122`
-（Windows 26200.9278 / WSL 2.7.12 / Incus 6.0.5）に
-`scripts/setup-wsl-host-interop.py`を適用した。trusted shellから`/init`経由の
-Windows PowerShellで空白を含む引数、stdout/stderr、終了コード23を確認。
-利用者所有の`/mnt/c`検証ディレクトリの読み書きと、既存`poc-dev`へWSL
-デバイス・interop環境変数が継承されないことも確認した。この実機はCのみ。
-追加ドライブの解析回帰は通るが、追加ドライブ実機確認は**未実行**。
-installer・導入済みbinaryは変更していない。
-[trusted Host](design/trusted-host.ja.md)を参照。B2〜B6は作業中。
+状態は**partial**。B1〜B3と選択したB5/B6改善は実装・ローカル実機確認済み。
+B4の配布実装とrepository回帰は通ったが、Docker/nerdctlの実配布・独立起動は
+**未実行**。第二段階全体の完了ではない。
+[利用手順](reference/managed-repository-workflow.md)、
+[OCI契約](design/oci-image-distribution.md)、
+[残課題](status/development-follow-ups.md)を参照。
+
+| 段階 | 実装と確認結果 |
+|---|---|
+| B1 | trusted Host限定の明示setupで既存DrvFsドライブを検出。PowerShellへ独立した空白付き引数を渡し、stdout/stderr・終了23を確認。利用者所有`/mnt/c`の読み書き成功。最終候補029ff08でも再確認。実機はCのみ。追加ドライブは解析回帰のみで実機未検証。EnvironmentへWindows device・`/init`・interop環境変数は渡っていない。 |
+| B2 | 配布物087e7e2でb-dev内の`/workspace/b-first`・`/workspace/b-second`を確認。独立Btrfs copyと専用.git、alternates/commondirなし。SSH fetch/pull・編集・commit・固定内容承認付きpushが両repoで通った。GitHub側OIDは`be34f60c2c3d1ab5761e821fbdaada5e4d5802dc`と`b834ee67dbc8f5e37e73656f13872d42ceda40f3`。異なるremote URLもローカル実Git回帰で確認。 |
+| B3 | 配布物3747baeでBase一覧と26.04→24.04切替。全54ファイル（.gitを含む）のハッシュ一致。未push commit bce47b9 / 6d5fc53、未コミット変更、未追跡notesを保持。Git/SSH再接続、新host key固定、Ubuntu24.04.4上のSSH編集も成功。 |
+| B4 | 任意`haco plugin oci distribute --runtime docker/nerdctl --image <image> <environment>`を実装。privateな上限付きarchiveから独立guest runtimeへloadする。両driver、export失敗、入力・サイズ上限・instance内固定socketの回帰済み。runtime導入・nesting設定承認待ちのためDocker/nerdctlとも実機未確認。実際の--runtime値はdockerまたはnerdctlの一つ。 |
+| B5 | 配布物029ff08の`haco env ssh-config b-dev`で生成した設定から通常SSH接続が成功。host/port/userの手動転記を削減。Incus6.0.5にないconfig show --formatをJSON query APIへ修正し、回帰を追加。 |
+| B6 | 配布物029ff08のenv statusで対象Environment・状態・Workspace・access・Baseを読みやすく表示。停止時はWorkspace保持を明示。機械可読出力は--jsonで取得できる。 |
+
+実push先は指定の`https://github.com/SLktEx/Hacocoon-test.git`だけ。
+branchは`codex/stage-b-b-first-20260906`と`codex/stage-b-b-second-20260906`。
+実機の2登録は同じ許可済みURLの別branchを使用し、別URLの振分けはrepository回帰で確認した。
+
+Btrfs source UUID `411102dc-d913-264a-96a0-b09d079eb898` /
+`58ccd7df-d8df-3444-98b4-67b35d85018e`が、それぞれWorkspace volume
+`49eff338-40d8-244b-9276-e35952b475b2` / `a23fadbc-77af-be4a-b7a9-f9829e96e613`
+のparent UUIDに一致した。実際のCOW関係の確認であり、性能計測ではない。
+
+最終導入候補は`029ff08e34c98e075b7b0b3d3a7fc7f639e89323`、checkpoint v0.28、
+snapshot `0.27.0-SNAPSHOT-029ff08`、build時刻`2026-09-06T10:25:40Z`。
+Windows ZIP SHA-256は`20f308cb5bcccfdaef1f0c76914bdae65834c957afd6c446fd0effdda26717fe`。
+各候補のbranch commitから配布物を作り、通常BATで既存Hacocoon WSLへ適用した。
+製品の検証用overrideや内部state修復は使っていない。fresh導入は再実行していない。
+保持したA構成はWindows26200.9278 / WSL2.7.12 / Incus6.0.5、Incus所有Btrfs
+pool haco-local-default。
+
+B3の26.04 revisionは`sha256:d071290fb40659981198baf0161a8bcc9910ebae79a15f5ef5d9c06dbdb2ea4c`、
+切替先24.04は`sha256:f38ca805517f5b6e301f33b0f44523386c5a050847564c1233e586106b31dbc9`。
+後の26.04明示作成では`sha256:297ce79fb308c09126222dd6e64c260003c5d1e1ea1ce46ea43e80a419941636`
+へ解決された。先に作成したEnvironmentの固定revisionは変わっていない。
+
+最終候補のA回帰では単一repo b-a-work / b-a-devを通常作成。生成SSH設定、
+fetch・f4ff6e3からbe34f60へのfast-forward pull、Python compile/assert、commit、
+push拒否（remote不変）、続く承認pushが成功。GitHub側で第一branchの
+`145fd7fce49a5a8771e39e7b142d47aa49c910c3`一致を確認。disconnectと正常stop後も
+全28ファイル（未コミット・未追跡・Git状態）とcanonical lease・volumeを保持。
+内外clientとcontrollerのbuild一致、doctor6項目も正常。元のA資源は保全した。
+b-a-devは停止、b-devはB4確認用に保持している。
+
+検証はci-local.shのdocs・workflow-policy・test（Go/vet/JS）・race・e2eが
+B5/B6変更後に通過。関連するlifecycle/Git/collection mount/OCI/SSH設定回帰、
+GoReleaser check/buildと配布checksumも成功。全release-config/forwarding job、
+hosted CI、広い実機runtime/network matrixは未確認。ローカルGoは1.27.1。
+
+手動操作はB1のPhysical Host設定、trusted側認証と限定Policy、client所有SSH鍵と
+host key固定。別WSL distroのloopbackから届かない構成があり、controllerの
+Physical HostまたはWindows loopbackを使う。SSH内proxy exportは既存#469として残る。
+Base切替ではroot filesystem/packagesを破棄しGit/SSH再接続が必要。
+B4は自動実行レビューが「2つの指定instanceのnesting/runtime導入に明示承認が必要」
+として拒否。未導入エラー確認も「未確認imageを配布し得る」として拒否した。
+これらの操作は実行されていない。承認回答待ちであり、B4実機確認は今回の必要作業として残る。
 
 ## 管理対象repoのWSL利用経路 — 2026-09-06
 

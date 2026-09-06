@@ -25,7 +25,7 @@ The v0.28 candidate adds trusted WSL Windows interop, repository collections,
 Workspace-preserving Base switching, optional one-way OCI distribution,
 OpenSSH configuration generation and readable Environment status. B1–B3 have
 local packaged/manual acceptance. B4's real runtime setup awaits authorization;
-B5/B6 packaged checks are pending. This checkpoint records implementation
+B5/B6 and the A regression passed on packaged `029ff08`. This checkpoint records implementation
 progress, not completed second-stage acceptance or a published release.
 
 The v0.27 candidate implements the managed repository WSL workflow: independent

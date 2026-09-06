@@ -6,6 +6,13 @@ Status: **partial**. The local Unix-domain protocol, Physical Host controller, t
 
 ## Summary
 
+The second-stage product client also exposes existing Base list/inspect and
+canonical stop/delete/create for managed Workspace Base switching. SSH config
+generation reads existing connection metadata. Optional `plugin.oci.distribute`
+invokes the OCI plugin's one-way image transfer through the trusted controller
+endpoint; it is never registered on the Environment Git-only endpoint. See
+[image distribution](oci-image-distribution.md).
+
 Product `haco` calls the existing controller for the [managed repository workflow](../reference/managed-repository-workflow.md). Its typed management API adds `repository.clone`, `workspace.copy`, `environment.stop` and `git.connect/pending/decide`. These methods are available through the trusted management endpoint, not the Git-only Environment socket. See [implementation status](../IMPLEMENTATION_STATUS.md) for acceptance and [CLI migration](../CLI_MIGRATION.md) for remaining legacy commands.
 
 WSL may open the login shell before the enabled controller service has bound its socket. The login alias waits up to two minutes using read-only ping calls, retrying only transport unavailability. Protocol/operation rejection is not retried; the client never starts another controller or changes service state. This startup timeout does not limit the interactive session's lifetime.
