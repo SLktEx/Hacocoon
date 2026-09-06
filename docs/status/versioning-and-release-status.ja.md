@@ -25,7 +25,7 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 
 Controller経由の `haco setup`、trusted-host network、読み取り専用 `haco doctor` は現在のcheckpoint内で扱う。`b71f88e` で現在installへのcached BAT適用/再実行・通常/cold入口・trusted-hostデータ保持が成功。製品sourceが同じ `a4c6e2d` で正規Windows BATのfresh作成/停止/再実行gateが成功し、Ubuntu installerとIncus全4gateは `b71f88e` で成功した。
 
-後続のcold-doctor待機修正は `2d79778` でfresh Windows gateが成功した。現在の実機installでもcontroller round tripは成功したが、最初のcold疎通検査は失敗し、後の通常入口で成功した。原因は未確定。その後のcause/action追加は `663e2cd` でWindows・Ubuntu・Incus全4jobが成功し、実機BAT/通常入口/保持も成功した。実機の直接cold起動は一度終了9となり、停止確認後もIncus起動中に時間切れとなった。新しいcontroller待機上限2分は対象回帰を持つimplementedで、独自のpackage受入はpending。Windows再起動、広い層別診断、install済みEnvironment proxy制御はM1の残件である。証拠と制約の正本は[実装status](../IMPLEMENTATION_STATUS.ja.md)。
+後続のcold-doctor待機修正は `2d79778` でfresh Windows gateが成功した。現在の実機installでもcontroller round tripは成功したが、最初のcold疎通検査は失敗し、後の通常入口で成功した。原因は未確定。その後のcause/action追加は `663e2cd` でWindows・Ubuntu・Incus全4jobが成功し、実機BAT/通常入口/保持も成功した。実機の直接cold起動は一度終了9となり、停止確認後もIncus起動中に時間切れとなった。controller待機上限2分は `32592fb` でfresh Windows gateと実機の正規BAT適用/再実行・通常入口・cold doctor・保持検査が成功した。別の終了9の原因は未確定。Windows再起動、広い層別診断、install済みEnvironment proxy制御はM1の残件である。証拠と制約の正本は[実装status](../IMPLEMENTATION_STATUS.ja.md)。
 
 | Version | Gate | `main` の状態 |
 |---|---|---|
