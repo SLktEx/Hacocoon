@@ -25,7 +25,7 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 
 Controller経由setup、trusted network、controller所有Standard proxy、設定/live storageの読み取り専用診断は現在のcheckpoint内でimplemented。`c749ff9033b33c3526e108f60ce2009638075152` のpackageでWindows・Ubuntu・Incus全4job、実機cached BAT適用/再実行・通常/cold入口・readiness 6項目・trusted-hostデータ保持が成功した。
 
-M0–M1はinstall済みEnvironmentの許可proxy通信/直接通信拒否の受入が残るため **partial**。登録時の停止/続行とfresh Windows package gateは `4df465a` で成功した。最新の依頼範囲では実Windows OS再起動と続行案内の追加作り込みを対象外とし、網羅的な受入条件を増やしたり、具体的な変更・失敗なしに成功済みの手元検証を繰り返したりしない。以前のIncus起動時SIGKILLの送信元は未確定。commitを固定した証拠、package識別、受入の制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)を正本とする。
+今回指定されたWSL M0–M1の範囲は **implemented、受入済み**。candidate `81c0d16`（同一treeのPR merge `9049df3`）でinstall済みEnvironmentの許可proxy通信/直接通信拒否も成功した。登録時の停止/続行とfresh Windows package gateは `4df465a` で成功した。最新の依頼範囲では実Windows OS再起動と続行案内の追加作り込みを対象外とし、網羅的な受入条件を増やしたり、具体的な変更・失敗なしに成功済みの手元検証を繰り返したりしない。以前のIncus起動時SIGKILLの送信元は未確定。commitを固定した証拠、package識別、受入の制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)を正本とする。
 
 | Version | Gate | `main` の状態 |
 |---|---|---|

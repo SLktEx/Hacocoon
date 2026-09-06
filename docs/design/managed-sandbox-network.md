@@ -1,6 +1,6 @@
 # Managed Environment network
 
-Status: **implemented for the canonical Environment provider; installed proxy operation and Windows Environment egress acceptance remain partial.**
+Status: **implemented for the canonical Environment provider; installed Windows proxy allow/deny and direct-egress refusal acceptance passed.**
 
 The current Incus SandboxProvider creates one dedicated managed bridge per Environment on Linux and WSL. The older shared `haco-sandbox0` / ACL / profile helpers remain in legacy Runtime and Seed paths; they are not the current Environment topology and must not become its fallback.
 
@@ -24,8 +24,8 @@ The persistent trusted `haco-host` uses a different, owned NAT bridge for infras
 
 Several helpers and constants still contain `Routed` / `routed` migration names even though the canonical data plane is now bridge based. Do not infer routed-NIC behavior from those names. The retained shared bridge helpers and their tests are legacy coverage, not permission to attach current Environments to that NAT path.
 
-The installed unit now enables the Standard proxy inside the existing Physical Host controller. The adapter verifies its shared guards before the fixed listener is bound; preparation/bind failure prevents controller service startup, and either service exiting stops its peer. Shutdown closes hijacked CONNECT sockets as well as ordinary HTTP sockets. Headless require-approval fails closed. See [ADR 0007](../adr/0007-controller-owned-standard-egress.md). This lifecycle is repository-implemented; packaged Environment allow/deny and ordinary policy operation remain pending.
+The installed unit now enables the Standard proxy inside the existing Physical Host controller. The adapter verifies its shared guards before the fixed listener is bound; preparation/bind failure prevents controller service startup, and either service exiting stops its peer. Shutdown closes hijacked CONNECT sockets as well as ordinary HTTP sockets. Headless require-approval fails closed. See [ADR 0007](../adr/0007-controller-owned-standard-egress.md). This lifecycle and packaged Environment allow/deny are accepted on Windows with explicit administrator Policy configuration; an ordinary policy-management UI remains follow-up work.
 
 ## Acceptance
 
-Repository tests cover ownership, network/guard configuration, lifecycle and source identity. Real-Incus gates exercise the provider separately from installed Windows acceptance. The exact Windows installer gate currently proves trusted-host infrastructure connectivity and retention. Environment allow/deny traffic on the installed product, firewall reload/startup ordering and live Docker coexistence require their own recorded acceptance. See [implementation status](../IMPLEMENTATION_STATUS.md).
+Repository tests cover ownership, network/guard configuration, lifecycle and source identity. Real-Incus gates exercise the provider separately from installed Windows acceptance. The exact Windows installer gate proves trusted-host infrastructure connectivity and retention. Its separate installed-controller check passed Environment proxy allow/deny and direct TCP refusal. Firewall reload/startup ordering and live Docker coexistence remain separate acceptance concerns. See [implementation status](../IMPLEMENTATION_STATUS.md).

@@ -1,6 +1,6 @@
 # Domain-aware egress authorization
 
-Status: **authorization/enforcement components are implemented; installed proxy service operation and Windows Environment egress acceptance are partial.**
+Status: **implemented; installed Windows proxy allow/deny and direct-egress refusal acceptance passed.**
 
 Hacocoon authorizes outbound access by the hostname a sandbox asks to reach. Resolving a name once and allowing the resulting IP addresses is not equivalent: shared CDNs, DNS changes and direct-IP access would make that authority transferable to unrelated destinations.
 
@@ -72,7 +72,7 @@ The installed unit runs `haco-controller --standard-egress`. This serves the exi
 
 Controller and proxy shutdown are coupled. Every accepted proxy connection, including a hijacked CONNECT tunnel, closes on shutdown. Requests are canceled during ClientHello, upstream writes and established forwarding. Headers are limited to 16 KiB, header reads to 10 seconds and retained connections to 256. HTTP transport failures use a fixed structured log message without raw panic output.
 
-The daemon never consumes stdin as ambient approval. Missing Policy denies traffic. An exact allow uses the existing protected Physical Host policy file and audit contract; `require-approval` without an interactive provider is refused. The service adds neither an approval UI nor an automatic allow policy. Ordinary policy management and installed Environment traffic acceptance remain partial. See [ADR 0007](adr/0007-controller-owned-standard-egress.md).
+The daemon never consumes stdin as ambient approval. Missing Policy denies traffic. An exact allow uses the existing protected Physical Host policy file and audit contract; `require-approval` without an interactive provider is refused. The service adds neither an approval UI nor an automatic allow policy. Installed Environment traffic acceptance passed with explicit administrator Policy configuration; an ordinary policy-management UI remains follow-up work. See [ADR 0007](adr/0007-controller-owned-standard-egress.md).
 
 Git push remains a separate privileged operation through the Git boundary and must not be enabled by handing reusable Host Git credentials to an Environment.
 

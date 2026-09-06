@@ -2,7 +2,7 @@
 
 ## WSL向け更新 — 2026-09-06
 
-この候補branchのWSL向け実装を以下に示す。M0–M1は引き続き **partial**。更新main `e8974ef` は#441/#442/#453/#456と#458/#459を含む。後続のrelease準備・取消2commitの最終ファイル差分はなく、取込merge `b58f82c` の製品treeは受入対象 `c749ff9` と同じ。merge済みPRや過去のgreenを後続製品変更の受入としない。
+この候補branchのWSL向け実装を以下に示す。今回指定されたWSL M0–M1の範囲は **implemented、受入済み**。更新main `e8974ef` は#441/#442/#453/#456と#458/#459を含む。後続のrelease準備・取消2commitの最終ファイル差分はなく、取込merge `b58f82c` の製品treeは受入対象 `c749ff9` と同じ。merge済みPRや過去のgreenを後続製品変更の受入としない。
 
 - **storageはimplemented:** 配布/runtimeはIncus所有Btrfsだけを使う。外部 `driver`/`source` attachmentや不確実な検査はfail closed。desired policyは `compress=zstd:3,noatime,nodiscard`。[読み取り専用mount診断](design/btrfs-storage-layout.ja.md#読み取り専用のmount診断)は設定・検証済みlive反映・反映待ち `pending` を区別する。backing device/inode、単一の全image loop関連付け、Btrfs root mountの一致を要求し、不明・不正・観測中の変化を成功としない。独自のimage/loop/mount lifecycleや診断修復は追加しない。
 - **installerとtrusted Hostはimplemented:** 既定はnon-root `hacocoon`、passwordはlocked。`-InteractiveUserSetup` は任意。現在版再実行はaccount識別/password状態を保持し、sudo policyを書かない。controller所有の `haco setup` が所有trusted hostと限定endpointを準備し、common installerは製品doctorの全項目成功を完了条件とする。fresh hostはprofileを継承せずdeviceを明示する。所有 `haco-host0` はtrusted基盤向けDNS/DHCP/NATを提供し、Docker転送許可はそのbridgeと戻り通信だけに限定する。[bootstrap](WINDOWS_WSL_BOOTSTRAP.ja.md)、[trusted Host](design/trusted-host.ja.md)、ADR [0004](adr/0004-wsl-installer-authority.md)・[0005](adr/0005-trusted-host-network-ownership.md)・[0006](adr/0006-controller-owned-host-setup.md)を参照。
@@ -26,11 +26,15 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 **未解決の起動失敗:** `42e2fb3` の通常入口で11:33:30 JSTにIncus本体PID 282がSIGKILLを受け、標準600秒start-post待機とcontroller依存が残った。signal送信元は未確定で、得られたkernel記録はOOMを示していない。手動service/mount修復なしで11:43:16にIncus標準の自動再起動が始まり、後の入口/保持検査は成功した。guest DNS/DHCP起動の競合は別途修正・受入済みであり、その修正や後の `c749ff9` 成功からSIGKILL送信元や以前の独立したWSL終了9の原因を確定しない。
 
 **登録package受入 — `4df465a71aedcdc70c28b543220b79b2465808ab`:** [Windows run 34010791925](https://github.com/SLktEx/Hacocoon/actions/runs/34010791925)、job `101426135649` で正規fresh cached BAT、通常入口、停止/再開、同版再実行、データ保持、doctor 6項目、PowerShell/BAT回帰が成功した。手元のPS5.1実一覧/引数伝達、配布/provenance、`ci-local.sh docs` / `workflow-policy`、native文書検査も成功。provenanceの最初のUbuntu 22.04実行は26.04以上の条件で正しく停止し、製品条件を変えず対応基盤で成功した。実機向けZIPのSHA-256は `439dfc8a0a4dab5ef4adf05f1b1ed9b3e02883a5009b66dca7513c528d0d3105`、version `0.26.1-SNAPSHOT-4df465a`、build `2026-09-06T04:10:02Z`。build/checksum確認まで行い、手元で再installは繰り返していない。現在の実機installは受入済み `c749ff9` のままで、変更したfresh登録/再実行はCIで確認した。
-**現在のM1範囲:** 最新のユーザー方針により、実Windows OS再起動の実装/受入と続行案内の追加作り込みは対象外。具体的な変更や失敗に見合う検証に絞り、追加で維持する回帰はCIへ置く。新しい根拠なしに成功済み検証を繰り返さない。最小限の受入残件は、既存controller/provider境界を使ったinstall済みEnvironmentの許可proxy通信/直接通信拒否。原因未確定の起動事象は記録に残し、後の限定signal観測でもその原因は特定できていない。診断機能の拡大、firewall起動順の網羅、CLI/SSH開発導線、Workspace保持は後続とし、追加の完了条件にしない。
+**現在のM1範囲:** 最新のユーザー方針により、実Windows OS再起動の実装/受入と続行案内の追加作り込みは対象外。具体的な変更や失敗に見合う検証に絞り、追加で維持する回帰はCIへ置く。新しい根拠なしに成功済み検証を繰り返さない。必須だった既存controller/provider境界を使うinstall済みEnvironmentの許可proxy通信/直接通信拒否の受入は成功した。原因未確定の起動事象は記録に残し、後の限定signal観測でもその原因は特定できていない。診断機能の拡大、firewall起動順の網羅、CLI/SSH開発導線、Workspace保持は後続とし、追加の完了条件にしない。
 
 **Environment接続元の修正:** `f373cfc` のWindows gateは正規BAT経路に成功したが、許可HTTPS probeがproxy 403になった。永続接続元resolverがprovider-local参照とEnvironment作成のroute付き参照を比較していたため、正規router decoderでproviderとnative参照の両方を照合するよう修正した。実際のBase routerの作成結果を使う最小回帰で失敗を再現し、別providerの同一native参照は拒否する。
 
-**次の具体的な一件:** この修正を対象に既存Windows installed-controller packet checkを再実行する。exact Policy allow、検証済みproxy HTTPS、未承認hostnameの403、direct TCP拒否、controller cleanupの条件は維持する。このcandidateのrun成功まで受入はpending。
+**M1受入 — `81c0d160722b96864daa8d6f5f3b9ea86423ff48`:** [Windows run 34013409969](https://github.com/SLktEx/Hacocoon/actions/runs/34013409969)、job `101432997324` でfresh cached BAT install、通常入口、停止/再開、同版再実行、trusted-hostデータ保持、doctor 6項目が成功した。install済みcontrollerのEnvironment検証でも、証明書を検証する許可HTTPS、未承認hostnameの403、直接TCP拒否、管理socket非公開、controller cleanupが成功した。CIの対象はPR merge commit `9049df39f8000e32103b6a2f3939ea3d14fc5ffe` で、candidate `81c0d16` と全treeが一致することを確認した。route付き参照の回帰は修正前に失敗し、修正後の手元egress・Environment router・composition・Standard proxy testはすべて成功した。文書整合性検査も成功。
+
+新しい手元ZIPは `0.26.1-SNAPSHOT-81c0d16`、build日時 `2026-09-06T05:12:08Z`、SHA-256 `4938622b994a66b71d5647086819db63e7ee7a7a8ea1189e3b2ad964ccb69c6b`。GoReleaser配布物作成と全checksum検証が成功した。このZIPは現在のWindows実機に再installしておらず、実機のinstall版は `c749ff9` のまま。上記candidateのWindows受入はCIでの結果である。実Windows OS再起動は対象外のままとする。
+
+**次の具体的な一件:** M2として、既存controller-backed adapter経由のEnvironment作成を新 `haco` から利用できるようにする。
 
 以下の表は元のcheckpoint時点の履歴文脈を保持する。
 

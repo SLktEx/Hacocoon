@@ -1,6 +1,6 @@
 # Domain-aware egress authorization
 
-状態: **authorization/enforcement componentはimplemented。install済みproxy serviceの稼働とWindows Environment egress受入はpartial。**
+状態: **implemented。install済みWindowsでproxy許可/拒否と直接egress拒否の受入が成功。**
 
 Hacocoonの外向き通信は、sandboxが要求したhostnameそのものをauthorityとして扱います。hostnameを一度DNS解決して得たIPをallowする方式では、shared CDN、DNS変更、direct-IP accessにより別destinationへauthorityが横滑りするため採用しません。
 
@@ -72,7 +72,7 @@ install済みunitは `haco-controller --standard-egress` を実行する。Incus
 
 controllerとproxyの停止は連動する。hijack済みCONNECTを含む全proxy接続を閉じ、ClientHello待ち・upstream送信・通信中のrequestをcancelする。header上限は16 KiB、header読取期限は10秒、保持接続上限は256。HTTP transport失敗は任意panic出力を含まない固定structured messageで記録する。
 
-daemonはstdinをambient approvalとして使わない。Policy不在はdeny。exact allowは既存の保護されたPhysical Host policy fileとaudit契約を使い、対話provider不在の `require-approval` は拒否する。承認UIや自動allow policyは追加しない。通常のPolicy管理とinstall済みEnvironment通信受入はpartial。[ADR 0007](adr/0007-controller-owned-standard-egress.ja.md) を参照。
+daemonはstdinをambient approvalとして使わない。Policy不在はdeny。exact allowは既存の保護されたPhysical Host policy fileとaudit契約を使い、対話provider不在の `require-approval` は拒否する。承認UIや自動allow policyは追加しない。install済みEnvironment通信は明示的な管理者Policy設定で受入済み。通常のPolicy管理UIは後続とする。[ADR 0007](adr/0007-controller-owned-standard-egress.ja.md) を参照。
 
 Git pushは引き続きGit境界の別privileged operationであり、reusable Host Git credentialをEnvironmentへ渡して有効化しない。
 

@@ -1,6 +1,6 @@
 # Environment管理network
 
-Status: **canonical Environment providerはimplemented。install済みproxyの稼働とWindows Environment egress受入はpartial。**
+Status: **canonical Environment providerはimplemented。install済みWindowsでproxy許可/拒否と直接egress拒否の受入が成功。**
 
 現在のIncus SandboxProviderはLinux/WSLのEnvironmentごとに専用managed bridgeを作る。旧shared `haco-sandbox0` / ACL / profile helperはlegacy RuntimeとSeed経路に残るが、現在のEnvironment topologyやfallbackではない。
 
@@ -24,8 +24,8 @@ adapterは共有nftables input/forward ruleを照合する。Environment起点�
 
 canonical data planeはbridge方式だが、helper/constantの一部に移行時の `Routed` / `routed` 名が残る。名前からrouted NIC実装と推測しない。残存shared bridge helperとtestはlegacyの検証であり、現在のEnvironmentをそのNAT経路へ接続する許可ではない。
 
-install済みunitは既存Physical Host controller内のStandard proxyを有効にする。adapterが共有guardを検証してから固定listenerへbindし、準備/bind失敗ならcontroller serviceは起動しない。片方のservice終了で他方も止め、通常HTTP socketとhijack済みCONNECT socketを閉じる。headless require-approvalはfail closedとなる。[ADR 0007](../adr/0007-controller-owned-standard-egress.ja.md) を参照。lifecycleはrepository-implementedであり、packageのEnvironment allow/denyと通常のPolicy操作はpending。
+install済みunitは既存Physical Host controller内のStandard proxyを有効にする。adapterが共有guardを検証してから固定listenerへbindし、準備/bind失敗ならcontroller serviceは起動しない。片方のservice終了で他方も止め、通常HTTP socketとhijack済みCONNECT socketを閉じる。headless require-approvalはfail closedとなる。[ADR 0007](../adr/0007-controller-owned-standard-egress.ja.md) を参照。lifecycleとpackageのEnvironment allow/denyは、明示的な管理者Policy設定を用いてWindowsで受入済み。通常のPolicy管理UIは後続とする。
 
 ## 受入
 
-repository testは所有権・network/guard設定・lifecycle・source identityを検査し、real-Incus gateはinstall済みWindows受入と別にproviderを検証する。正規Windows installer gateが現在証明するのはtrusted-host基盤疎通と保持である。install済み製品のEnvironment許可/拒否、firewall再読込・起動順、実Docker共存には、それぞれ記録した受入が必要。[実装status](../IMPLEMENTATION_STATUS.ja.md)を参照。
+repository testは所有権・network/guard設定・lifecycle・source identityを検査し、real-Incus gateはinstall済みWindows受入と別にproviderを検証する。正規Windows installer gateはtrusted-host基盤疎通と保持を証明する。別段階のinstall済みcontroller検証ではEnvironmentのproxy許可/拒否と直接TCP拒否も成功した。firewall再読込・起動順と実Docker共存は別の受入事項として残る。[実装status](../IMPLEMENTATION_STATUS.ja.md)を参照。
