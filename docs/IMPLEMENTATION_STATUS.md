@@ -2,6 +2,16 @@
 
 ## Second-stage workflow
 
+B2 is **locally accepted** with packaged `087e7e2`: `/workspace/b-first` and
+`/workspace/b-second` in `b-dev`, each with independent `.git`. SSH fetch/pull,
+edit, commit and fixed-content approval push succeeded. GitHub independently
+returned `be34f60c2c3d1ab5761e821fbdaada5e4d5802dc` and
+`b834ee67dbc8f5e37e73656f13872d42ceda40f3` on the two `codex/stage-b-b-*-20260906`
+branches of the authorized Hacocoon-test repository. Different remote URLs
+have local real-Git regression coverage. B3's Base selection/switch product
+commands and canonical lifecycle failure regressions are implemented;
+real-host B3 acceptance remains pending.
+
 B1 is **implemented and locally accepted** on the existing A installation
 (`7a4d122`, Windows 26200.9278 / WSL 2.7.12 / Incus 6.0.5), using
 `scripts/setup-wsl-host-interop.py`. Trusted-shell `/init` execution of Windows

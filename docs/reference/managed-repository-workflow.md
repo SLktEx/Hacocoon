@@ -141,6 +141,25 @@ that pending request. A denial must leave the remote unchanged; a subsequent
 ordinary `git push` creates a new proposal. Verify the resulting upstream OID
 using authenticated Git or GitHub from the trusted side.
 
+## Select and switch Base
+
+```bash
+haco base list
+haco env create --base haco/ubuntu-26.04 --workspace managed:both both-dev
+# Work and commit in either repository; pushing first is not required.
+haco env switch-base --base haco/ubuntu-24.04 both-dev
+haco git connect both-dev
+haco env ssh --key /root/client.pub --port 2222 both-dev
+```
+
+Switching keeps the managed Workspace volumes and all their Git state. It
+replaces the Environment root filesystem, so install development packages
+again if the new Base does not supply them. Files outside repository mounts
+are discarded. SSH gets a new host key: verify and update the client's pinned
+key through the trusted provider. If recreation fails, the error identifies
+the retained Workspace and gives the next command. Interruption recovery is
+deferred; inspect current state before retrying.
+
 ## Finish and retain work
 
 Exit SSH, then use the trusted terminal:

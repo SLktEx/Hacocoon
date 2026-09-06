@@ -1,5 +1,14 @@
 # 実装状況
 
+B2は配布物`087e7e2`で**ローカル実機確認済み**。`b-dev`内の
+`/workspace/b-first`と`/workspace/b-second`は独立した`.git`を持ち、SSHからの
+fetch/pull・編集・commit・固定内容承認付きpushが通った。指定Hacocoon-testの
+2つの`codex/stage-b-b-*-20260906` branchに、GitHub側で
+`be34f60c2c3d1ab5761e821fbdaada5e4d5802dc`と
+`b834ee67dbc8f5e37e73656f13872d42ceda40f3`の一致を確認した。異なるremote URLは
+ローカル実Git回帰で確認。B3のBase選択・切替とcanonical lifecycle失敗回帰は
+実装済みだが、B3実機確認は未完了。
+
 B2の不変repo集合を実装。各repoは独立したIncus Btrfs volumeと`.git`を
 持ち、repo別の承認を適用する。Linux componentテストでは2つの実Git remote
 へのpushと集合外repoの拒否を確認した。B2の配布物による実機確認とB3〜B6は
