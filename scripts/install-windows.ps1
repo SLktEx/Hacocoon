@@ -168,6 +168,40 @@ function Invoke-WslRootShellScript([string]$Name, [string]$Script, [string[]]$Sc
     return Invoke-WslCapture $arguments
 }
 
+function Convert-WindowsLanguageTagToWslLocale([string]$LanguageTag) {
+    $tag = $LanguageTag.Trim()
+    if ($tag -match '^ja(?:-|$)') {
+        return 'ja_JP.UTF-8'
+    }
+    return ''
+}
+
+function Get-WindowsUiLanguageTag {
+    return [Globalization.CultureInfo]::CurrentUICulture.Name
+}
+
+function Initialize-WslLocaleFromWindows([string]$Name, [bool]$Created) {
+    if (-not $Created) { return }
+
+    $languageTag = Get-WindowsUiLanguageTag
+    $locale = Convert-WindowsLanguageTagToWslLocale $languageTag
+    if ([string]::IsNullOrWhiteSpace($locale)) { return }
+
+    Write-Step "Configuring '$Name' locale from Windows UI language '$languageTag' ($locale)"
+    $script = @'
+set -eu
+locale="$1"
+command -v locale-gen >/dev/null 2>&1
+command -v update-locale >/dev/null 2>&1
+locale-gen "$locale"
+update-locale LANG="$locale"
+'@
+    $probe = Invoke-WslRootShellScript $Name $script @($locale)
+    if ($probe.ExitCode -ne 0) {
+        throw "Failed to configure WSL locale '$locale' in '$Name'."
+    }
+}
+
 function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [switch]$Append) {
     # Never send installer-controlled bytes through the Windows native stdin
     # pipeline. Windows PowerShell 5.1 can change encoding/preambles there.
@@ -703,6 +737,7 @@ if ($probe.ExitCode -ne 0) {
 
 # pre
 Assert-UbuntuBaseline $InstanceName
+Initialize-WslLocaleFromWindows $InstanceName $createdInstance
 $loginUser = Initialize-WslLoginUser $InstanceName $createdInstance
 Enable-WslSystemd $InstanceName
 $arch = Get-WslArch $InstanceName
