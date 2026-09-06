@@ -125,7 +125,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		return nil, err
 	}
 	egressBroker := egressapp.NewBroker(capabilities)
-	egressSources, err := egressapp.NewPersistedSourceResolver(incusRuntime, store)
+	egressSources, err := egressapp.NewPersistedSourceResolver(environmentapp.ProviderIncus, incusRuntime, store)
 	if err != nil {
 		return nil, err
 	}

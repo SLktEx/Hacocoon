@@ -127,7 +127,13 @@ func check(name string) (result error) {
 		if match := regexp.MustCompile(`proxy status ([0-9]{1,3})\)`).FindStringSubmatch(executed.Stderr); len(match) == 2 {
 			proxyStatus = match[1]
 		}
-		return fmt.Errorf("Environment egress probe failed (phase %s, proxy status %s, exit %d)", phase, proxyStatus, executed.ExitCode)
+		denial := "unknown"
+		for _, label := range []string{"unmanaged_source", "authorization"} {
+			if strings.Contains(executed.Stderr, "denial="+label) {
+				denial = label
+			}
+		}
+		return fmt.Errorf("Environment egress probe failed (phase %s, proxy status %s, denial=%s, exit %d)", phase, proxyStatus, denial, executed.ExitCode)
 	}
 	fmt.Println(passed)
 	return nil
@@ -224,6 +230,7 @@ func probe(address string) error {
 
 func proxyRequest(host string, allowed bool) error {
 	proxyStatus := 0
+	denial := "unknown"
 	transport := &http.Transport{
 		Proxy:               http.ProxyURL(&url.URL{Scheme: "http", Host: "169.254.254.1:18080"}),
 		DialContext:         (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
@@ -231,6 +238,17 @@ func proxyRequest(host string, allowed bool) error {
 		DisableKeepAlives: true,
 		OnProxyConnectResponse: func(_ context.Context, _ *url.URL, _ *http.Request, response *http.Response) error {
 			proxyStatus = response.StatusCode
+			if response.StatusCode == http.StatusForbidden {
+				body, err := io.ReadAll(io.LimitReader(response.Body, 64))
+				if err == nil {
+					switch string(body) {
+					case "unmanaged egress source\n":
+						denial = "unmanaged_source"
+					case "egress denied\n":
+						denial = "authorization"
+					}
+				}
+			}
 			return nil
 		},
 	}
@@ -248,7 +266,7 @@ func proxyRequest(host string, allowed bool) error {
 		return nil
 	}
 	if err != nil || proxyStatus != http.StatusOK || response.StatusCode < 200 || response.StatusCode >= 400 || response.TLS == nil || len(response.TLS.VerifiedChains) == 0 {
-		return fmt.Errorf("allowed HTTPS did not complete with verified TLS (proxy status %d)", proxyStatus)
+		return fmt.Errorf("allowed HTTPS did not complete with verified TLS (proxy status %d) denial=%s", proxyStatus, denial)
 	}
 	return nil
 }

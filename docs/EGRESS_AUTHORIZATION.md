@@ -41,6 +41,8 @@ The canonical Environment provider uses one owned bridge per Environment, with N
 
 The proxy resolves its peer through trusted Incus runtime state and the controller's persisted Environment store, rather than accepting an Environment name from the guest. It listens only on the fixed Physical Host endpoint `169.254.254.1:18080`. Missing, ambiguous or unmanaged source identities fail closed. Restart does not retain a connection grant or turn a hostname grant into an IP allowlist.
 
+Persisted runtime references include their provider route. Source binding uses the Environment router's reference decoder and requires both the configured source provider and its native runtime reference to match. An identical native reference under another provider grants no authority.
+
 ## Policy example
 
 The implementation uses the existing exact-resource policy model. A permanent allow for one HTTPS hostname can be written as:

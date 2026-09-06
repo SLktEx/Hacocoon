@@ -41,6 +41,8 @@ canonical Environment providerはEnvironmentごとのowned bridgeを使い、NAT
 
 proxyはguestの自己申告Environment名を受け取らず、接続元をtrusted Incus runtime stateとcontrollerの永続Environment storeで解決する。固定Physical Host endpoint `169.254.254.1:18080` だけでlistenし、不在・曖昧・unmanaged identityをfail closedにする。restartをまたいでconnection grantを保持せず、hostname grantをIP allowlistへ変換しない。
 
+永続runtime参照にはprovider routeが含まれる。接続元照合はEnvironment routerの参照decoderを使い、設定した接続元providerとそのnative runtime参照の両方の一致を要求する。別providerの同一native参照には権限を与えない。
+
 ## Policy例
 
 特定HTTPS hostnameを常時allowする例:

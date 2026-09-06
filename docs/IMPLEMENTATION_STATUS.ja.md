@@ -28,7 +28,9 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 **登録package受入 — `4df465a71aedcdc70c28b543220b79b2465808ab`:** [Windows run 34010791925](https://github.com/SLktEx/Hacocoon/actions/runs/34010791925)、job `101426135649` で正規fresh cached BAT、通常入口、停止/再開、同版再実行、データ保持、doctor 6項目、PowerShell/BAT回帰が成功した。手元のPS5.1実一覧/引数伝達、配布/provenance、`ci-local.sh docs` / `workflow-policy`、native文書検査も成功。provenanceの最初のUbuntu 22.04実行は26.04以上の条件で正しく停止し、製品条件を変えず対応基盤で成功した。実機向けZIPのSHA-256は `439dfc8a0a4dab5ef4adf05f1b1ed9b3e02883a5009b66dca7513c528d0d3105`、version `0.26.1-SNAPSHOT-4df465a`、build `2026-09-06T04:10:02Z`。build/checksum確認まで行い、手元で再installは繰り返していない。現在の実機installは受入済み `c749ff9` のままで、変更したfresh登録/再実行はCIで確認した。
 **現在のM1範囲:** 最新のユーザー方針により、実Windows OS再起動の実装/受入と続行案内の追加作り込みは対象外。具体的な変更や失敗に見合う検証に絞り、追加で維持する回帰はCIへ置く。新しい根拠なしに成功済み検証を繰り返さない。最小限の受入残件は、既存controller/provider境界を使ったinstall済みEnvironmentの許可proxy通信/直接通信拒否。原因未確定の起動事象は記録に残し、後の限定signal観測でもその原因は特定できていない。診断機能の拡大、firewall起動順の網羅、CLI/SSH開発導線、Workspace保持は後続とし、追加の完了条件にしない。
 
-**次の具体的な一件:** 追加したWindowsのinstall済みcontroller packet検証をCIで実行する。通常userのWorkspace/Environmentを一つ使い、既存Policy形式による管理者の明示allow、proxy経由の検証付きHTTPS、未許可hostnameの403、直接TCP拒否、controller cleanupを確認する。installer/network修復や第二のcontrollerは使わず、対象candidateのrunが成功するまで受入はpendingとする。
+**Environment接続元の修正:** `f373cfc` のWindows gateは正規BAT経路に成功したが、許可HTTPS probeがproxy 403になった。永続接続元resolverがprovider-local参照とEnvironment作成のroute付き参照を比較していたため、正規router decoderでproviderとnative参照の両方を照合するよう修正した。実際のBase routerの作成結果を使う最小回帰で失敗を再現し、別providerの同一native参照は拒否する。
+
+**次の具体的な一件:** この修正を対象に既存Windows installed-controller packet checkを再実行する。exact Policy allow、検証済みproxy HTTPS、未承認hostnameの403、direct TCP拒否、controller cleanupの条件は維持する。このcandidateのrun成功まで受入はpending。
 
 以下の表は元のcheckpoint時点の履歴文脈を保持する。
 
