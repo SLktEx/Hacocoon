@@ -184,7 +184,8 @@ jobs:
             $previousPreference = $ErrorActionPreference
             $ErrorActionPreference = "Continue"
             try {
-              python "$env:GITHUB_WORKSPACE\tools\windows-installer-cached-restart-e2e.py" *> $logPath
+              Write-Host "=== Exact user-path live log ==="
+              python "$env:GITHUB_WORKSPACE\tools\windows-installer-cached-restart-e2e.py" 2>&1 | Tee-Object -FilePath $logPath
               $driverExit = $LASTEXITCODE
             } finally {
               $ErrorActionPreference = $previousPreference
