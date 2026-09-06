@@ -15,7 +15,8 @@
 - **Seed撤去はplanned:** codeは残り、[Base/任意OCIとの依存](design/oci-seed-and-cow.ja.md)を文書化した。Base選択と任意Pluginは保持する。
 - **commitを固定したhosted受入 — `663e2cd`:** [Windows正規BAT/停止/再実行/cold doctor](https://github.com/SLktEx/Hacocoon/actions/runs/34001263337)、[Ubuntu installer](https://github.com/SLktEx/Hacocoon/actions/runs/34001266478)、[Incus全4job](https://github.com/SLktEx/Hacocoon/actions/runs/34001265234) が成功。Windows freshはrunnerのcurrent WSL基盤でHacocoon distributionがない状態からの作成であり、Windows機能無効状態やOS再起動の受入ではない。以前のharness修正2件はnegative回帰を維持する。後続の製品変更には独自の受入が必要。
 - **controller所有setupはimplemented:** installerは `haco setup` を使い、旧bootstrap経路とguestへのhacoq配備を撤去した。固定companionの事前検証、client配備の途中失敗、所有権保持、同時実行・client切断、安全な失敗、installerの段階順序をテストする。上記package/hosted結果はこの置換を含む。[ADR 0006](adr/0006-controller-owned-host-setup.md)を参照。
-- **次の具体的実装:** 既存Standard proxyのlifecycleをinstall済みPhysical Host controllerへ接続する。残るM1の層別/live-storage診断と再起動時の続行を完成させ、Environment直接通信の禁止を維持する。
+- **Standard proxy lifecycleはimplemented、package受入pending:** install済みunitは既存Physical Host controllerのStandard proxyを有効にし、nftablesを明示的に導入する。bind前に共有guardを検証し、control/proxyの終了を連動させ、停止時にはhijack済みCONNECTも閉じる。daemonはambient approval providerを持たず、exact allowはauditを維持し、require-approvalはfail closedとなる。維持されるlocal Go全suite/vet/通知client検証、対象race、実socket cancel/半切断、Policy、logging、Windows assertion 9件、installer実shell 5件、文書整合性が成功した。この後続service変更は以前の `32592fb` package結果には含まれない。[ADR 0007](adr/0007-controller-owned-standard-egress.ja.md) を参照。
+- **次の具体的実装:** install済みproxy packageを受入確認し、通常のcontroller-backed Environment・exact Policy操作を公開して、許可proxyと禁止直接通信を検証する。残るM1の層別/live-storage診断と再起動時の続行を完成させる。
 
 以下の表は元のcheckpoint時点の履歴文脈を保持する。
 

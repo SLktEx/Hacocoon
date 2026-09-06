@@ -24,7 +24,7 @@ The persistent trusted `haco-host` uses a different, owned NAT bridge for infras
 
 Several helpers and constants still contain `Routed` / `routed` migration names even though the canonical data plane is now bridge based. Do not infer routed-NIC behavior from those names. The retained shared bridge helpers and their tests are legacy coverage, not permission to attach current Environments to that NAT path.
 
-The installed controller currently constructs the Standard proxy but does not start its listener. Completing that service lifecycle and ordinary policy operation is M1 work. No listener means outbound access fails closed; it does not mean allowed proxy communication is usable.
+The installed unit now enables the Standard proxy inside the existing Physical Host controller. The adapter verifies its shared guards before the fixed listener is bound; preparation/bind failure prevents controller service startup, and either service exiting stops its peer. Shutdown closes hijacked CONNECT sockets as well as ordinary HTTP sockets. Headless require-approval fails closed. See [ADR 0007](../adr/0007-controller-owned-standard-egress.md). This lifecycle is repository-implemented; packaged Environment allow/deny and ordinary policy operation remain pending.
 
 ## Acceptance
 

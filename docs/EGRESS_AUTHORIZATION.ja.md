@@ -66,9 +66,11 @@ connectionごとに既存approval providerの承認を要求する場合は `all
 
 ## 起動経路
 
-install済みPhysical Host controllerはStandard proxyを構築するが、listenerを起動していない。そのためinstall済みEnvironmentの許可された外向き通信は未受入である。新しい製品 `haco` にegress起動commandはない。移行用binaryのforeground `hacoq egress serve` はlegacy機能であり、installerのserviceや `haco-host` 内へ追加する第二controllerではない。
+install済みunitは `haco-controller --standard-egress` を実行する。Incus adapterがguardを検証してから、既存compositionのStandard proxy・Policy・audit・永続source resolverを固定endpointで動かす。引数なしcontrollerは独立したcontrol-transport用に残るが、installerは必ずStandard serviceを有効にする。新しい `haco` にegress起動commandは不要で、残る `hacoq egress serve` はlegacy機能である。
 
-install済みservice lifecycleの完成では、既存controllerのPolicy・永続source resolver・Standard proxyを再利用し、停止時のfail closedと、対話approval provider不在時の `require-approval` を扱う必要がある。broker不在をNAT/直接通信の開放で補わない。
+controllerとproxyの停止は連動する。hijack済みCONNECTを含む全proxy接続を閉じ、ClientHello待ち・upstream送信・通信中のrequestをcancelする。header上限は16 KiB、header読取期限は10秒、保持接続上限は256。HTTP transport失敗は任意panic出力を含まない固定structured messageで記録する。
+
+daemonはstdinをambient approvalとして使わない。Policy不在はdeny。exact allowは既存の保護されたPhysical Host policy fileとaudit契約を使い、対話provider不在の `require-approval` は拒否する。承認UIや自動allow policyは追加しない。通常のPolicy管理とinstall済みEnvironment通信受入はpartial。[ADR 0007](adr/0007-controller-owned-standard-egress.ja.md) を参照。
 
 Git pushは引き続きGit境界の別privileged operationであり、reusable Host Git credentialをEnvironmentへ渡して有効化しない。
 

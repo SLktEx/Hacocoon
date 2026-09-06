@@ -66,9 +66,11 @@ Use `require-approval` instead of `allow` when the existing approval provider mu
 
 ## Operational path
 
-The installed Physical Host controller constructs the Standard proxy but does not yet serve its listener. Consequently the installed Environment path is not accepted for allowed outbound traffic. The new product `haco` has no egress-serving command. The retained migration binary's `hacoq egress serve` foreground command is legacy functionality, not the installer service or a second controller to add to `haco-host`.
+The installed unit runs `haco-controller --standard-egress`. This serves the existing composition's Standard proxy, Policy, audit and persisted source resolver on the fixed endpoint after the Incus adapter verifies its guards. A bare controller is available for isolated control-transport use; the installer always enables the Standard service. New `haco` needs no egress-serving command, and the retained `hacoq egress serve` is legacy functionality.
 
-Completing the installed service lifecycle must reuse the existing controller's Policy, persisted source resolver and Standard proxy, including fail-closed shutdown and `require-approval` behavior when no interactive approval provider is available. It must not grant NAT/direct access to make an absent broker appear functional.
+Controller and proxy shutdown are coupled. Every accepted proxy connection, including a hijacked CONNECT tunnel, closes on shutdown. Requests are canceled during ClientHello, upstream writes and established forwarding. Headers are limited to 16 KiB, header reads to 10 seconds and retained connections to 256. HTTP transport failures use a fixed structured log message without raw panic output.
+
+The daemon never consumes stdin as ambient approval. Missing Policy denies traffic. An exact allow uses the existing protected Physical Host policy file and audit contract; `require-approval` without an interactive provider is refused. The service adds neither an approval UI nor an automatic allow policy. Ordinary policy management and installed Environment traffic acceptance remain partial. See [ADR 0007](adr/0007-controller-owned-standard-egress.md).
 
 Git push remains a separate privileged operation through the Git boundary and must not be enabled by handing reusable Host Git credentials to an Environment.
 

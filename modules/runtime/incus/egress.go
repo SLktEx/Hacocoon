@@ -37,14 +37,11 @@ func (r *Runtime) sandboxProxyURL(ctx context.Context) (string, error) {
 	return "http://" + net.JoinHostPort(gateway.String(), strconv.Itoa(sandboxEgressProxyPort)), nil
 }
 
-// PrepareEgressProxy verifies the managed fail-closed routed substrate and
+// PrepareEgressProxy verifies the managed fail-closed Environment substrate and
 // returns the only address on which the Standard egress proxy is expected to
 // listen. The address is Hacocoon-owned loopback state reachable from each
-// point-to-point routed NIC, rather than a shared Ethernet bridge.
+// dedicated Environment bridge. It never enables Environment NAT or DNS.
 func (r *Runtime) PrepareEgressProxy(ctx context.Context) (string, error) {
-	if err := r.ensureRoutedSandboxHost(ctx); err != nil {
-		return "", fmt.Errorf("ensure Hacocoon routed egress network: %w", err)
-	}
 	gateway, err := r.sandboxGateway(ctx)
 	if err != nil {
 		return "", err
@@ -53,9 +50,8 @@ func (r *Runtime) PrepareEgressProxy(ctx context.Context) (string, error) {
 }
 
 // ResolveRuntimeRef maps a proxy connection's source IP back to exactly one
-// Hacocoon-managed Incus runtime ref. Routed NICs remove the shared-L2 attack
-// surface, while the verified strict host-side rp_filter prevents a guest from
-// using a source address that is not routed to its own point-to-point veth.
+// Hacocoon-managed Incus runtime ref. Each Environment's dedicated bridge and
+// verified prerouting guard pin its MAC and source subnet before proxy access.
 // Persisted Environment identity is intentionally resolved outside the Incus
 // provider.
 func (r *Runtime) ResolveRuntimeRef(ctx context.Context, source net.IP) (string, error) {

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/composition"
 	"github.com/SLktEx/Hacocoon/internal/control"
@@ -20,10 +21,20 @@ import (
 const controlGroupGIDEnv = "HACO_CONTROL_GROUP_GID"
 
 func main() {
+	logger, err := logging.NewFromEnv(os.Stderr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "controller logging configuration is invalid")
+		os.Exit(1)
+	}
+	logging.SetRoot(logger)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	app, err := composition.Local(ctx)
+	standardEgress, err := controllerMode(os.Args[1:])
+	if err != nil {
+		fail(err)
+	}
+	app, err := composition.Controller(ctx)
 	if err != nil {
 		fail(err)
 	}
@@ -44,6 +55,21 @@ func main() {
 		fail(err)
 	}
 
+	var proxyListener net.Listener
+	if standardEgress {
+		prepareCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		address, prepareErr := app.Runtime.PrepareEgressProxy(prepareCtx)
+		cancel()
+		if prepareErr != nil {
+			fail(fmt.Errorf("prepare Standard egress substrate failed"))
+		}
+		proxyListener, err = net.Listen("tcp4", address)
+		if err != nil {
+			fail(fmt.Errorf("bind Standard egress endpoint: %w", err))
+		}
+		defer proxyListener.Close()
+	}
+
 	path := control.SocketPath()
 	listener, err := controllerListener(path)
 	if err != nil {
@@ -51,11 +77,54 @@ func main() {
 	}
 	defer listener.Close()
 
-	logger := logging.Root().With("component", "control")
+	logger = logging.Root().With("component", "control")
 	logger.InfoContext(ctx, "controller listening", "socket_path", path)
-	if err := server.Serve(ctx, listener); err != nil && !errors.Is(err, context.Canceled) {
+	services := []func(context.Context) error{func(ctx context.Context) error { return server.Serve(ctx, listener) }}
+	if proxyListener != nil {
+		services = append(services, func(ctx context.Context) error { return app.EgressProxy.Serve(ctx, proxyListener) })
+		logging.Root().InfoContext(ctx, "Standard egress proxy listening", "component", "proxy", "operation", "serve_http")
+	}
+	if err := serveControllerServices(ctx, services...); err != nil && !errors.Is(err, context.Canceled) {
 		fail(err)
 	}
+}
+
+// The installed unit explicitly enables the replaceable Standard component.
+// A bare controller remains available for isolated control-transport use.
+func controllerMode(args []string) (bool, error) {
+	if len(args) == 0 {
+		return false, nil
+	}
+	if len(args) == 1 && args[0] == "--standard-egress" {
+		return true, nil
+	}
+	return false, fmt.Errorf("usage: haco-controller [--standard-egress]")
+}
+
+func serveControllerServices(parent context.Context, services ...func(context.Context) error) error {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	if len(services) == 0 {
+		return fmt.Errorf("controller has no services")
+	}
+	results := make(chan error, len(services))
+	for _, serve := range services {
+		go func() { results <- serve(ctx) }()
+	}
+	err := <-results
+	cancel()
+	for range len(services) - 1 {
+		<-results
+	}
+	if parent.Err() != nil {
+		return parent.Err()
+	}
+	// An independently stopped component must restart the whole controller,
+	// including when it returned nil or context.Canceled unexpectedly.
+	if err == nil || errors.Is(err, context.Canceled) {
+		return fmt.Errorf("controller service stopped unexpectedly")
+	}
+	return err
 }
 
 func controllerListener(path string) (net.Listener, error) {

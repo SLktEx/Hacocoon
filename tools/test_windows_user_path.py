@@ -62,6 +62,22 @@ class DoctorAssertionTest(unittest.TestCase):
             gate.assert_doctor_report("not a report", self.build)
 
 
+class ProxyListenerAssertionTest(unittest.TestCase):
+    listener = 'LISTEN 0 4096 169.254.254.1:18080 0.0.0.0:* users:(("haco-controller",pid=125,fd=3))'
+
+    def test_fixed_listener_belongs_to_same_controller(self):
+        gate.assert_proxy_listener("125", self.listener)
+
+    def test_missing_wildcard_duplicate_and_foreign_listeners_fail(self):
+        for pid, lines in (("0", self.listener), ("", self.listener), ("125", ""),
+                           ("125", self.listener.replace("169.254.254.1", "0.0.0.0")),
+                           ("125", self.listener + "\n" + self.listener),
+                           ("126", self.listener), ("125", self.listener.replace("pid=125,", "pid=1250,"))):
+            with self.subTest(pid=pid, lines=lines):
+                with self.assertRaises(RuntimeError):
+                    gate.assert_proxy_listener(pid, lines)
+
+
 class TerminalNormalizationTest(unittest.TestCase):
     def test_conpty_carriage_return_does_not_hide_a_real_output_line(self):
         # Reduced from a real pywinpty 3.0.2 -> ordinary WSL -> haco-host

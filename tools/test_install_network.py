@@ -47,7 +47,7 @@ prepare_ubuntu_host
         result, commands = self.prepare(True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual([c for c in commands if c.startswith("incus ")], ["incus info"])
-        self.assertIn("apt-get install -y incus iptables", commands)
+        self.assertIn("apt-get install -y incus iptables nftables", commands)
 
     def test_unavailable_daemon_fails_without_initialization(self):
         result, commands = self.prepare(False)
@@ -113,6 +113,31 @@ verify_trusted_host_connectivity() { printf 'stage:connectivity\n'; [ "$failed_s
                     self.assertNotIn("stage:setup", result.stdout)
                 if failed_stage == "setup":
                     self.assertNotIn("stage:connectivity", result.stdout)
+
+    def test_installed_controller_unit_owns_standard_proxy(self):
+        configure = re.search(r"^configure_hacocoon_controller\(\) \{\n.*?^\}", INSTALLER, re.M | re.S)[0]
+        script = r'''
+set -eu
+SUDO=privileged; HACOCOON_CONTROLLER_SERVICE=haco-controller.service
+HACOCOON_CONTROLLER_SOCKET=/run/hacocoon/control.sock
+configure_hacocoon_access_group() { HACOCOON_ACCESS_GID=1000; }
+die() { printf '%s\n' "$*" >&2; exit 1; }
+privileged() {
+  case "$*" in
+    'stat -Lc %u /usr/local/bin/haco-controller') printf '0\n' ;;
+    'stat -Lc %u:%g:%a /run/hacocoon/control.sock') printf '0:1000:660\n' ;;
+    'find /usr/local/bin/haco-controller -perm /022 -print -quit') : ;;
+    'install -o root -g root -m 0644 '*'/etc/systemd/system/haco-controller.service') cat "$8" ;;
+    'systemctl daemon-reload'|'systemctl enable haco-controller.service'|'systemctl restart haco-controller.service'|'test -S /run/hacocoon/control.sock') : ;;
+    *) printf 'Unexpected privileged command\n' >&2; exit 99 ;;
+  esac
+}
+''' + configure + '\nconfigure_hacocoon_controller /usr/local/bin/haco-controller\n'
+        result = subprocess.run(["sh", "-c", script], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ExecStart=/usr/local/bin/haco-controller --standard-egress\n", result.stdout)
+        self.assertIn("Requires=incus.service\nAfter=incus.service\n", result.stdout)
+        self.assertNotIn("hacoq", result.stdout)
 
 if __name__ == "__main__":
     unittest.main()

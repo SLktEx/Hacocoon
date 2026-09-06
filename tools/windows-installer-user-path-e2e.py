@@ -296,6 +296,17 @@ def assert_doctor_report(output: str, expected_build: dict[str, str]) -> None:
         raise RuntimeError("doctor checks did not all pass")
 
 
+def assert_proxy_listener(controller_pid: str, listeners: str) -> None:
+    lines = listeners.splitlines()
+    if not controller_pid.isdigit() or int(controller_pid) < 1 or len(lines) != 1:
+        raise RuntimeError("installed proxy must have one controller-owned listener")
+    fields = lines[0].split()
+    if len(fields) < 6 or fields[3] != "169.254.254.1:18080":
+        raise RuntimeError("proxy is not bound to its fixed endpoint")
+    if re.findall(r"pid=(\d+),", lines[0]) != [controller_pid]:
+        raise RuntimeError("proxy listener is not owned by the installed controller")
+
+
 def assert_host() -> None:
     expected_build = json.loads(observe("wsl.exe", "-d", INSTANCE, "--exec", "haco", "version", "--json"))
     assert_doctor_report(observe("wsl.exe", "-d", INSTANCE, "--exec", "haco", "doctor", "--json"), expected_build)
@@ -303,6 +314,12 @@ def assert_host() -> None:
     if inspect_root("ps", "-p", "1", "-o", "comm=") != "systemd":
         raise RuntimeError("systemd is not PID 1")
     inspect_root("systemctl", "is-active", "--quiet", "haco-controller.service")
+    assert_proxy_listener(
+        inspect_root("systemctl", "show", "--property=MainPID", "--value", "haco-controller.service"),
+        inspect_root("ss", "-H", "-lntp", "sport = :18080"),
+    )
+    if inspect_root("curl", "-q", "--noproxy", "*", "--connect-timeout", "2", "--max-time", "5", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "http://169.254.254.1:18080/") != "403":
+        raise RuntimeError("proxy did not reject the unmanaged Physical Host source")
     group = inspect_root("getent", "group", "hacocoon").split(":")
     if len(group) != 4 or not group[2].isdigit() or group[2] == "0":
         raise RuntimeError("invalid controller access group")

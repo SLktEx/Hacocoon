@@ -24,7 +24,7 @@ adapterは共有nftables input/forward ruleを照合する。Environment起点�
 
 canonical data planeはbridge方式だが、helper/constantの一部に移行時の `Routed` / `routed` 名が残る。名前からrouted NIC実装と推測しない。残存shared bridge helperとtestはlegacyの検証であり、現在のEnvironmentをそのNAT経路へ接続する許可ではない。
 
-install済みcontrollerはStandard proxyを構築するが、listenerを起動していない。そのservice lifecycleと通常のPolicy運用の完成はM1残件。listener不在は外向き通信をfail closedにするが、許可proxy通信が利用可能という意味ではない。
+install済みunitは既存Physical Host controller内のStandard proxyを有効にする。adapterが共有guardを検証してから固定listenerへbindし、準備/bind失敗ならcontroller serviceは起動しない。片方のservice終了で他方も止め、通常HTTP socketとhijack済みCONNECT socketを閉じる。headless require-approvalはfail closedとなる。[ADR 0007](../adr/0007-controller-owned-standard-egress.ja.md) を参照。lifecycleはrepository-implementedであり、packageのEnvironment allow/denyと通常のPolicy操作はpending。
 
 ## 受入
 

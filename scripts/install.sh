@@ -282,7 +282,7 @@ prepare_ubuntu_host() {
   fi
 
   printf '==> Installing and starting Incus\n'
-  $SUDO apt-get install -y incus iptables
+  $SUDO apt-get install -y incus iptables nftables
   printf '==> Authorizing the local Hacocoon workspace owner for Incus idmap\n'
   configure_workspace_owner_idmap
   printf '==> Preparing bridge netfilter for Hacocoon sandbox filtering\n'
@@ -619,7 +619,7 @@ After=incus.service
 
 [Service]
 Type=simple
-ExecStart=$controller_bin
+ExecStart=$controller_bin --standard-egress
 Restart=on-failure
 RestartSec=1s
 RuntimeDirectory=hacocoon
@@ -638,7 +638,7 @@ EOF_UNIT
   $SUDO systemctl restart "$HACOCOON_CONTROLLER_SERVICE"
 
   attempts=0
-  while [ "$attempts" -lt 100 ]; do
+  while [ "$attempts" -lt 600 ]; do
     if $SUDO test -S "$HACOCOON_CONTROLLER_SOCKET"; then
       break
     fi

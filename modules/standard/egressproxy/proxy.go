@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	DefaultPort = 18080
+	DefaultPort         = 18080
 	maxClientHelloBytes = 128 << 10
-	clientHelloTimeout = 10 * time.Second
+	clientHelloTimeout  = 10 * time.Second
 )
 
 type Authorizer interface {
@@ -46,9 +46,9 @@ func New(authorizer Authorizer, sources SourceResolver) *Proxy {
 	dialer := &net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}
 	return &Proxy{
 		authorizer: authorizer,
-		sources: sources,
-		resolver: net.DefaultResolver,
-		dial: dialer.DialContext,
+		sources:    sources,
+		resolver:   net.DefaultResolver,
+		dial:       dialer.DialContext,
 	}
 }
 
@@ -109,7 +109,7 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request, environment s
 	}
 
 	transport := &http.Transport{
-		Proxy: nil,
+		Proxy:             nil,
 		DisableKeepAlives: true,
 		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 			requestedHost, requestedPort, splitErr := net.SplitHostPort(address)
@@ -169,6 +169,8 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request, environmen
 		return
 	}
 	defer client.Close()
+	stopClient := context.AfterFunc(r.Context(), func() { _ = client.Close() })
+	defer stopClient()
 	if buffered.Reader.Buffered() != 0 {
 		// A pipelined ClientHello would bypass the bounded SNI reader below.
 		return
@@ -195,6 +197,8 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request, environmen
 		return
 	}
 	defer upstream.Close()
+	stopUpstream := context.AfterFunc(r.Context(), func() { _ = upstream.Close() })
+	defer stopUpstream()
 	if _, err := upstream.Write(prefix); err != nil {
 		return
 	}
@@ -429,7 +433,7 @@ func copyHeaders(dst, src http.Header) {
 }
 
 func closeWrite(conn net.Conn) {
-	if tcp, ok := conn.(*net.TCPConn); ok {
+	if tcp, ok := conn.(interface{ CloseWrite() error }); ok {
 		_ = tcp.CloseWrite()
 	}
 }
