@@ -42,6 +42,12 @@ func main() {
 	if err := controlapi.Register(server, app.Environments, app.Clients); err != nil {
 		fail(err)
 	}
+	if err := controlapi.RegisterStop(server, app.Environments); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterRepositories(server, app.Repositories, app.GitBroker); err != nil {
+		fail(err)
+	}
 	if err := controlapi.RegisterGeneral(server, app.Bases, app.Runner, app.Events, app.Capabilities); err != nil {
 		fail(err)
 	}
@@ -76,6 +82,10 @@ func main() {
 		fail(err)
 	}
 	defer listener.Close()
+	if err := app.GitBroker.Start(ctx); err != nil {
+		fail(err)
+	}
+	defer app.GitBroker.Close()
 
 	logger = logging.Root().With("component", "control")
 	logger.InfoContext(ctx, "controller listening", "socket_path", path)

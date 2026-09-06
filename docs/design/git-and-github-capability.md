@@ -4,6 +4,32 @@ Status: **roadmap contract implemented on `main`.** Brokered host-side Git push 
 
 ## Goal
 
+The WSL PoC managed-repository workflow is implemented separately from
+the historical shared-path broker below. It uses registered trusted-host
+repositories, independent Incus volume copies and a Git-only remote helper
+endpoint. Approval binds the registered upstream and branch plus old/new OIDs;
+the Environment never supplies trusted Git configuration or credentials. See
+[ADR 0008](../adr/0008-managed-repository-workspaces.md). The implementation and
+real-host acceptance status remain separate in
+[implementation status](../IMPLEMENTATION_STATUS.md).
+
+The product commands and manual setup are documented in the
+[managed repository workflow](../reference/managed-repository-workflow.md).
+This Standard integration implements `git.repository` through the existing
+Policy/Approval/Capability/audit service. `fetch` authorization precedes remote
+reads; `push` authorization follows object validation and proposal preparation.
+Each proposal exposes the Environment, registered repository/upstream, ref,
+old/new commit OIDs, operation and a bounded diff summary. The trusted client
+decides its opaque, single-use ID. Approval cancellation or a changed remote
+ref cannot silently authorize another push. Only Git objects cross from the
+Environment; authenticated Git runs in the registered trusted repository.
+
+The initial transport handles one existing SHA-1 branch and packs up to 32 MiB.
+HTTPS GitHub authentication uses the trusted Host's `gh` credential store.
+Force push, branch creation/deletion, multiple refs, LFS and submodules are
+**deferred**. A transport failure after an external write can leave its result
+unknown; inspect the remote before retrying. Generic retry/recovery is deferred.
+
 Allow tools and agents inside a Hacocoon Environment to participate in Git/GitHub workflows without receiving broad, long-lived parent credentials.
 
 ## In scope

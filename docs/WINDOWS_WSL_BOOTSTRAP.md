@@ -1,6 +1,6 @@
 # Windows / WSL installation
 
-Status: **partial**. Managed-account bootstrap is implemented; real Windows install/network/restart acceptance is tracked separately in [implementation status](IMPLEMENTATION_STATUS.md). Product `haco` currently exposes help/version, controller-backed `setup` and `doctor`, and its WSL login alias. Retained lifecycle commands belong to temporary `hacoq` during [CLI migration](CLI_MIGRATION.md).
+Status: **partial**. Managed-account bootstrap is implemented; real Windows install/network/restart acceptance is tracked separately in [implementation status](IMPLEMENTATION_STATUS.md). Product `haco` provides controller-backed setup, diagnostics, managed repository/Workspace preparation, Environment SSH/stop and Git approvals. Follow the [managed repository workflow](reference/managed-repository-workflow.md) after installation. Remaining legacy commands belong to temporary `hacoq` during [CLI migration](CLI_MIGRATION.md).
 
 Packaged acceptance, exact commits and unresolved startup failures are tracked in [implementation status](IMPLEMENTATION_STATUS.md). A later successful run does not erase an earlier unexplained failure.
 

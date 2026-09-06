@@ -1,5 +1,21 @@
 # Implementation Status
 
+## Managed repository WSL workflow — 2026-09-06
+
+**Implemented; packaged real-host journey pending.** The v0.27 candidate adds
+product CLI repository registration, independent Incus Btrfs Workspace copies,
+controller-backed Environment creation/SSH, a Git-only remote helper and
+graceful stop retaining Workspace ownership. Authenticated Git executes inside
+trusted `haco-host`; Policy, approval, state and Incus authority stay in the
+Physical Host controller. Ordinary helper fetch, conflict-free pull, deny and
+approval pinned to old/new OIDs pass a real-Git local integration regression,
+including a local branch change during approval. These tests do not establish
+actual Incus COW or Windows acceptance. See the
+[workflow](reference/managed-repository-workflow.md) and
+[ownership decision](adr/0008-managed-repository-workspaces.md).
+
+The historical M1 observations below remain tied to their original builds.
+
 ## WSL delivery update — 2026-09-06
 
 This candidate branch implements the following WSL slice; the requested WSL M0–M1 scope is **implemented and accepted**. Refreshed main `e8974ef` includes #441/#442/#453/#456 and #458/#459. Its two later release-bootstrap/revert commits have no net file changes; merge `b58f82c` has the same product tree as the accepted `c749ff9`. A merged PR or an older green run is not acceptance of later product changes.
@@ -34,7 +50,7 @@ The local ZIP is `0.26.1-SNAPSHOT-c749ff9`, built at `2026-09-06T03:12:38Z`, wit
 
 The new local ZIP is `0.26.1-SNAPSHOT-81c0d16`, built at `2026-09-06T05:12:08Z`, SHA-256 `4938622b994a66b71d5647086819db63e7ee7a7a8ea1189e3b2ad964ccb69c6b`. GoReleaser packaging and all distribution checksums passed. This ZIP has not been reinstalled on the current Windows host, whose installed version remains `c749ff9`; candidate Windows acceptance above is from CI. Actual Windows OS reboot remains outside scope.
 
-**Next concrete item:** M2: expose Environment creation in new `haco` through the existing controller-backed adapter.
+**Historical next item:** M2 Environment creation is implemented in the v0.27 candidate above; packaged journey acceptance is tracked separately.
 
 The historical checkpoint tables below retain their original milestone context.
 
@@ -42,7 +58,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.26**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.27**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

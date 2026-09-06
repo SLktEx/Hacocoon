@@ -1,5 +1,19 @@
 # 実装状況
 
+## 管理対象repoのWSL利用経路 — 2026-09-06
+
+**implemented・配布物による実機の通し検証はpending**。v0.27候補は、新hacoのrepo登録、
+独立したIncus Btrfs Workspace copy、controller経由のEnvironment作成・SSH、
+Git専用remote helper、Workspace所有権を保持する正常停止を実装する。
+認証付きGitはtrusted `haco-host` 内で実行し、Policy・承認・state・Incus権限は
+Physical Hostのcontrollerに置く。実Gitを使うローカル回帰では通常fetch・競合のないpull・
+push拒否・旧/新OIDを固定した承認付きpushが成功し、承認待ち中のlocal branch変更でも
+送信対象が変わらないことを確認した。実IncusのCOWやWindows受入の証明とは区別する。
+[利用手順](reference/managed-repository-workflow.md)と
+[所有権の決定](adr/0008-managed-repository-workspaces.md)を参照。
+
+以下のM1記録は各記載buildに対する過去の観測として保持する。
+
 ## WSL向け更新 — 2026-09-06
 
 この候補branchのWSL向け実装を以下に示す。今回指定されたWSL M0–M1の範囲は **implemented、受入済み**。更新main `e8974ef` は#441/#442/#453/#456と#458/#459を含む。後続のrelease準備・取消2commitの最終ファイル差分はなく、取込merge `b58f82c` の製品treeは受入対象 `c749ff9` と同じ。merge済みPRや過去のgreenを後続製品変更の受入としない。
@@ -42,7 +56,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.26** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.27** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

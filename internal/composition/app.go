@@ -9,6 +9,7 @@ import (
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	clientapp "github.com/SLktEx/Hacocoon/internal/client"
+	"github.com/SLktEx/Hacocoon/internal/core"
 	egressapp "github.com/SLktEx/Hacocoon/internal/egress"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
@@ -21,6 +22,7 @@ import (
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
 	"github.com/SLktEx/Hacocoon/modules/standard/egressproxy"
+	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
 )
 
 const defaultLocalStorageID = "local-default"
@@ -42,6 +44,8 @@ type App struct {
 	Bases        *environmentapp.BaseRouter
 	Runtime      *incus.Runtime
 	EgressProxy  *egressproxy.Proxy
+	Repositories *gitrepo.RepositoryService
+	GitBroker    *gitrepo.Broker
 }
 
 func Local(ctx context.Context) (*App, error) {
@@ -110,6 +114,23 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 
 	environmentStatePath := filepath.Join(stateDir, "environments.json")
 	store := state.NewEnvironmentJSONStore(environmentStatePath)
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	repositoryBackend := &incus.RepositoryBackend{Runtime: incusRuntime, ProductBinary: filepath.Join(filepath.Dir(executable), "haco")}
+	repositories := gitrepo.NewRepositoryService(filepath.Join(stateDir, "repositories"), repositoryBackend)
+	incusRuntime.ConfigureManagedWorkspaces(func(ctx context.Context, source string) (string, string, error) {
+		if !strings.HasPrefix(source, "managed:") {
+			return "", "", core.ErrInvalidArgument
+		}
+		object, err := repositories.Get("work", strings.TrimPrefix(source, "managed:"))
+		if err != nil {
+			return "", "", err
+		}
+		return repositoryBackend.WorkspaceAttachment(ctx, object)
+	})
+	gitBroker := gitrepo.NewBroker(repositories, store, filepath.Join(root, "run", "git"))
 	bindingStore := agenthostapp.NewJSONBindingStore(filepath.Join(stateDir, "agent-bindings.json"))
 	gitProvider := gitcapapp.NewUnifiedProvider(runner, store)
 	auditPath := filepath.Join(root, "audit", "capabilities.jsonl")
@@ -120,10 +141,12 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		capabilityapp.LocalEcho{},
 		egressapp.Provider{},
 		gitProvider,
+		gitBroker,
 	)
 	if err != nil {
 		return nil, err
 	}
+	gitBroker.Capabilities = capabilities
 	egressBroker := egressapp.NewBroker(capabilities)
 	egressSources, err := egressapp.NewPersistedSourceResolver(environmentapp.ProviderIncus, incusRuntime, store)
 	if err != nil {
@@ -151,7 +174,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		}
 	}
 
-	environments := workspaceapp.New(runtime, store)
+	environments := workspaceapp.NewWithProvider(runtime, store, repositoryWorkspaceProvider{repositories: repositories})
 	return &App{
 		Environments: environments,
 		AgentHosts:   agenthostapp.New(environments, store, bindingStore),
@@ -165,6 +188,8 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		Bases:        runtime,
 		Runtime:      incusRuntime,
 		EgressProxy:  egressproxy.New(egressBroker, egressSources),
+		Repositories: repositories,
+		GitBroker:    gitBroker,
 	}, nil
 }
 

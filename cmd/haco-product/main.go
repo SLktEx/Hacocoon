@@ -15,6 +15,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/terminalbridge"
+	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
 	"golang.org/x/term"
 )
 
@@ -25,6 +26,20 @@ const loginAlias = "hacocoon-login"
 const controllerStartupTimeout = 2 * time.Minute
 
 func main() {
+	if filepath.Base(os.Args[0]) == "git-remote-haco" {
+		if err := gitrepo.Helper(context.Background(), os.Args[1:], os.Stdin, os.Stdout, os.Stderr, gitrepo.UnixExchange(gitrepo.GuestSocket)); err != nil {
+			fmt.Fprintln(os.Stderr, "git-remote-haco:", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) == 2 && os.Args[1] == "_git-agent" {
+		if err := gitrepo.Agent(context.Background(), os.Stdin, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "haco: invalid trusted Git operation")
+			os.Exit(1)
+		}
+		return
+	}
 	if isLoginAlias(os.Args[0]) {
 		if err := runLoginShim(os.Args[1:]); err != nil {
 			fmt.Fprintln(os.Stderr, "haco:", err)
@@ -66,6 +81,10 @@ func run(args []string) int {
 		return runSetup(args[1:])
 	case "doctor":
 		return runDoctor(args[1:])
+	case "env":
+		return runEnvironment(args[1:])
+	case "repo", "workspace", "git":
+		return runRepository(args[0], args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "haco: command %q is not available yet; run 'haco help'\n", args[0])
 		return 2
@@ -106,6 +125,10 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "Commands:")
 	fmt.Fprintln(out, "  setup      Prepare the installed Host through its controller")
 	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
+	fmt.Fprintln(out, "  env        Create, inspect and access development Environments")
+	fmt.Fprintln(out, "  repo       Clone a repository inside the trusted Host")
+	fmt.Fprintln(out, "  workspace  Prepare an independent managed repository copy")
+	fmt.Fprintln(out, "  git        Connect Git and review pending push approvals")
 	fmt.Fprintln(out, "  help       Show this help")
 	fmt.Fprintln(out, "  version    Show Hacocoon version information")
 	fmt.Fprintln(out)
