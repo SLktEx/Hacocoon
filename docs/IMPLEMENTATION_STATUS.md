@@ -2,11 +2,10 @@
 
 ## Second-stage workflow
 
-Status: **partial**. B1–B3 and the selected B5/B6 improvements are implemented
-and locally accepted. B4 image distribution is implemented with repository
-regressions, but real Docker/nerdctl distribution and independent container
-execution are **not executed**. The requested second-stage acceptance is not
-complete. See the [workflow](reference/managed-repository-workflow.md),
+Status: **implemented; B1–B6 locally accepted** on the Windows/WSL configuration
+below. Docker and nerdctl both passed one-way distribution and independent
+container execution. The selected B5/B6 improvements and the affected A workflow
+also passed. See the [workflow](reference/managed-repository-workflow.md),
 [OCI contract](design/oci-image-distribution.md) and
 [follow-ups](status/development-follow-ups.md).
 
@@ -15,7 +14,7 @@ complete. See the [workflow](reference/managed-repository-workflow.md),
 | B1 | Explicit trusted-Host setup discovers existing DrvFs drives. PowerShell received a separate spaced argument, preserved stdout/stderr and exit 23; user-owned `/mnt/c` reads/writes passed. Rechecked on final installed `029ff08`. Only C is mounted; extra-drive parsing has regression coverage, additional-drive real-host acceptance is not executed. Environments have no Windows devices, `/init` or interop environment. |
 | B2 | Packaged `087e7e2`: one `b-dev` Environment mounts independent Btrfs copies at `/workspace/b-first` and `/workspace/b-second`, with separate `.git`, no alternates/commondir. SSH fetch/pull, edit, commit and fixed-content approval push passed for each repository. GitHub returned `be34f60c2c3d1ab5761e821fbdaada5e4d5802dc` and `b834ee67dbc8f5e37e73656f13872d42ceda40f3` on the respective test branches. Two different remote URLs also pass local real-Git regression. |
 | B3 | Packaged `3747bae`: `haco base list` and `env switch-base` moved the same managed Workspace from Ubuntu 26.04 to 24.04. All 54 repository files, including `.git`, had identical hashes after switching. Unpushed commits `bce47b9` / `6d5fc53`, modified tracked files and untracked notes survived. Reconnected Git/SSH, pinned the new host key, and edited over SSH on Ubuntu 24.04.4. |
-| B4 | `haco plugin oci distribute --runtime <runtime> --image <image> <environment>` selects `docker` or `nerdctl`, stages a bounded private archive and loads into a separate guest runtime. Unit/component checks cover both command families, failed source export, invalid input, archive bounds and fixed instance-local sockets. Actual runtime installation/nesting and container execution are awaiting explicit authorization; neither Docker nor nerdctl has real-host acceptance. |
+| B4 | Packaged `029ff08`: `haco plugin oci distribute --runtime <runtime> --image hacocoon-b4:smoke b-dev` passed separately for Docker and nerdctl. Each guest container started over ordinary SSH, changed its file, then stopped; the corresponding Host container remained running with its original file. Unit/component regressions cover both command families, failed export, input/size bounds and fixed instance-local sockets. |
 | B5 | Packaged `029ff08`: `haco env ssh-config b-dev` generated OpenSSH configuration and standard `ssh -F ... haco-b-dev` connected successfully, removing manual host/port/user transcription. Existing Incus 6.0.5's unsupported `config show --format` was replaced with its JSON query API and regression coverage. |
 | B6 | Packaged `029ff08`: `haco env status` clearly displayed Environment, state, Workspace, access and Base. Stopped status explicitly said the Workspace is retained. `--json` preserves machine-readable output. |
 
@@ -58,7 +57,27 @@ Disconnect and graceful stop succeeded; all 28 files including dirty/untracked
 work and Git state had identical hashes before/after stop. The canonical lease
 and Incus volume remain. Inner/outer clients matched the controller build;
 all six doctor checks passed. The original A Workspace/Environment remains
-preserved. `b-a-dev` is stopped; `b-dev` remains available for pending B4 checks.
+preserved. After OCI setup, SSH/helper fetch still passed in both repositories,
+allowed proxy access passed, direct external TCP remained denied, and Windows
+interop/controller paths remained absent from the guest. Ordinary `env stop
+b-dev` retained all 57 Workspace file hashes and the collection ownership;
+both Host containers remained running. `b-a-dev` and `b-dev` are stopped.
+
+**B4 configuration and result (2026-09-06):** nesting was explicitly enabled on
+owned, unprivileged `haco-host` and `haco-b-dev`; existing devices and network
+guards were retained. Independent Ubuntu `docker.io` installations provided
+Docker 29.1.3 on both sides and containerd 2.2.2 (Host) / 2.2.1 (guest).
+Official minimal nerdctl 2.3.5 archive SHA-256 was
+`de3206aeb7cbd5f20f5fb1f55c1e3bf2db1be567812a8a3f5e65eba2488347ee`.
+No full bundle, privileged mode, AppArmor disabling or shared runtime device was
+needed. The image contained only Ubuntu `busybox-static`, its shell symlink and
+fixed `/data/message`; image ID was
+`sha256:9bafa1f9ed06b9fcc33ef5b6674ef3c4d79ae819b7724d5b228923712112b46f`.
+Both product transfers reported 1,183,232 bytes and archive SHA-256
+`a2ea9ac81b39572d424bd2b63461ac659c2b0a4c327ccb963e110f08ed553c57`.
+Both used `--network none`. Docker guest content became `guest-only`, nerdctl
+guest content became `nerd-guest-only`; both Host copies stayed `host-original`.
+See the [reproducible procedure](design/oci-image-distribution.md).
 
 **Repository validation:** maintained `ci-local.sh docs`, `workflow-policy`,
 `test` (Go tests/vet and JS), `race` and `e2e` passed after B5/B6. Narrow lifecycle,
@@ -67,18 +86,18 @@ iterating. GoReleaser check/build and installer archive checksums passed.
 The complete release-config/forwarding jobs, hosted CI and broad real-host
 runtime/network matrices are not claimed. Local validation used Go 1.27.1.
 
-**Manual operations and blocking condition:** B1 requires the recorded Physical
+**Manual operations and acceptance limits:** B1 requires the recorded Physical
 Host script; repeat after interop socket changes. Authentication and narrow
 Policy remain trusted-side setup. SSH private key and host-key pinning remain
 client-owned; use the controller's Physical Host/Windows loopback, since a
 different WSL distribution may have its own loopback namespace. SSH package
 downloads still need credential-free proxy exports (existing #469). Base switch
-discards root filesystem/packages and requires Git/SSH reconnection. B4's
-automatic execution review rejected nesting/runtime installation as requiring
-explicit approval for the two named instances. It also rejected an attempted
-missing-runtime check because distribution could transfer an unverified image.
-Those commands did not execute. The approval request is pending; B4 is current
-required work, not a completed or deferred acceptance item.
+discards root filesystem/packages and requires Git/SSH reconnection. B4 requires
+explicit nesting/runtime setup in each instance, repeated after Base replacement.
+The earlier execution-review refusal was resolved on the resumed B-completion
+request; the exact-instance setup and known test-image transfers above executed
+successfully. Additional Windows drives were unavailable; wider Windows/image
+compatibility, interrupted operation and general recovery remain unverified.
 
 ## Managed repository WSL workflow — 2026-09-06
 

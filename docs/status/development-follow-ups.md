@@ -1,14 +1,8 @@
 # Development follow-ups
 
 Status: current residual work from the second-stage PoC. These are local issue
-notes, not additional acceptance requirements for B1–B3/B5/B6.
+notes, not additional acceptance requirements for the completed local B1–B6 journey.
 
-- **Required B4 acceptance, blocked:** approve runtime installation and
-  `security.nesting=true` only for owned `haco-host` and test `b-dev`. Prepare a
-  small explicitly identified image, run normal one-way distribution and
-  guest start/change/stop, and prove Host container state remains independent.
-  Record Docker and nerdctl separately. Automatic execution review refused
-  the setup and a possible transfer of an unverified image; neither ran.
 - **Windows integration:** existing [#275](https://github.com/SLktEx/Hacocoon/issues/275).
   Only C was available. Additional real drives, detach/reconnect, WSL socket
   changes and broad Windows executable compatibility remain unverified.
@@ -25,6 +19,8 @@ notes, not additional acceptance requirements for B1–B3/B5/B6.
 - **OCI lifecycle:** crash-left private archives, broad image compatibility,
   automatic updates, running state/volume migration and large image performance
   remain unverified. No container live state or Host credentials are copied.
+  The small Docker 29.1.3 / nerdctl 2.3.5 image distribution and independent
+  start/change/stop were accepted; automatic runtime preparation is deferred.
 - **Distribution acceptance:** branch BAT application passed on the existing
   WSL installation. Fresh reinstall, upgrade interruptions, wider Windows/WSL
   matrices, forwarding/release-config full jobs and comprehensive E2E/performance

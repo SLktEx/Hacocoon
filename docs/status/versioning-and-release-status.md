@@ -23,10 +23,11 @@ Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progr
 
 The v0.28 candidate adds trusted WSL Windows interop, repository collections,
 Workspace-preserving Base switching, optional one-way OCI distribution,
-OpenSSH configuration generation and readable Environment status. B1–B3 have
-local packaged/manual acceptance. B4's real runtime setup awaits authorization;
-B5/B6 and the A regression passed on packaged `029ff08`. This checkpoint records implementation
-progress, not completed second-stage acceptance or a published release.
+OpenSSH configuration generation and readable Environment status. B1–B6 have
+local packaged/manual acceptance. Docker and nerdctl distribution, independent
+guest start/change/stop, B5/B6 and the A regression passed on packaged `029ff08`.
+This completes the requested local second-stage journey; it is not a published
+release or acceptance of a broader platform/image matrix.
 
 The v0.27 candidate implements the managed repository WSL workflow: independent
 Workspace copies, standard SSH, ordinary Git helper fetch/pull and fixed-content

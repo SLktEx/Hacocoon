@@ -45,6 +45,25 @@ sockets or disable AppArmor to make a runtime work. The manual setting is
 needed again after Base replacement. See the
 [Incus nested Docker instructions](https://linuxcontainers.org/incus/docs/main/faq/).
 
+For the Ubuntu 26.04 Host / Ubuntu 24.04 Environment smoke configuration,
+install `docker.io` independently with each instance's package manager and
+verify `systemctl is-active docker containerd`. The nerdctl alternative uses
+the same instance-local containerd service and the official minimal nerdctl
+binary, verified against its release `SHA256SUMS`; it does not require the
+full bundle or replacing containerd. This is operator setup, not a Core
+installation dependency. Use the Environment's permitted package proxy where
+required by Policy.
+
+A small reproducible test image can contain only Ubuntu's `busybox-static`
+binary, `/bin/sh` pointing to it, and `/data/message` with fixed test text.
+Archive those paths and use `docker import <archive> example:dev` on the Host.
+For nerdctl, first import that same image into the Host's `default` namespace
+using `docker save example:dev | nerdctl load`. Distribute with the command
+above, then start a container on each side with `--network none` and
+`/bin/busybox sleep 86400`. Change `/data/message` and stop only the guest
+container. The Host must retain the original file and remain running.
+Do not include Host home directories or runtime stores in the test archive.
+
 After distribution, use ordinary SSH and `docker run` or `nerdctl run` in the
 Environment. For an offline smoke test, use `--network none`. Changes, stop,
 and deletion of the guest container affect only that guest's runtime. Image

@@ -2,9 +2,9 @@
 
 v0.28候補はtrusted WSL Windows連携、複数repo、Workspace保持Base切替、
 任意OCI一方向配布、OpenSSH設定生成、読みやすいEnvironment表示を追加した。
-B1〜B3はローカル実機確認済み。B4の実runtime導入は設定承認待ち。B5/B6と
-A回帰は配布物029ff08で確認済み。実装進捗のcheckpointであり、第二段階全体の完了や
-公開releaseを意味しない。
+B1〜B6はローカル実機確認済み。Dockerとnerdctlの配布・guest独立起動/変更/停止、
+B5/B6とA回帰は配布物029ff08で確認済み。依頼されたローカル第二段階の導線は完了した。
+公開releaseや広いplatform/image matrixの受入を意味しない。
 
 [English](versioning-and-release-status.md) | **日本語**
 

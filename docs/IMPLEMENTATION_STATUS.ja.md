@@ -2,9 +2,9 @@
 
 ## 第二段階
 
-状態は**partial**。B1〜B3と選択したB5/B6改善は実装・ローカル実機確認済み。
-B4の配布実装とrepository回帰は通ったが、Docker/nerdctlの実配布・独立起動は
-**未実行**。第二段階全体の完了ではない。
+状態は**implemented・以下のWindows/WSL構成でB1〜B6を受入済み**。
+Dockerとnerdctlの両方で一方向配布・独立起動が成功した。
+選択したB5/B6改善と、影響を受けるAの基本導線も確認済み。
 [利用手順](reference/managed-repository-workflow.md)、
 [OCI契約](design/oci-image-distribution.md)、
 [残課題](status/development-follow-ups.md)を参照。
@@ -14,7 +14,7 @@ B4の配布実装とrepository回帰は通ったが、Docker/nerdctlの実配布
 | B1 | trusted Host限定の明示setupで既存DrvFsドライブを検出。PowerShellへ独立した空白付き引数を渡し、stdout/stderr・終了23を確認。利用者所有`/mnt/c`の読み書き成功。最終候補029ff08でも再確認。実機はCのみ。追加ドライブは解析回帰のみで実機未検証。EnvironmentへWindows device・`/init`・interop環境変数は渡っていない。 |
 | B2 | 配布物087e7e2でb-dev内の`/workspace/b-first`・`/workspace/b-second`を確認。独立Btrfs copyと専用.git、alternates/commondirなし。SSH fetch/pull・編集・commit・固定内容承認付きpushが両repoで通った。GitHub側OIDは`be34f60c2c3d1ab5761e821fbdaada5e4d5802dc`と`b834ee67dbc8f5e37e73656f13872d42ceda40f3`。異なるremote URLもローカル実Git回帰で確認。 |
 | B3 | 配布物3747baeでBase一覧と26.04→24.04切替。全54ファイル（.gitを含む）のハッシュ一致。未push commit bce47b9 / 6d5fc53、未コミット変更、未追跡notesを保持。Git/SSH再接続、新host key固定、Ubuntu24.04.4上のSSH編集も成功。 |
-| B4 | 任意`haco plugin oci distribute --runtime docker/nerdctl --image <image> <environment>`を実装。privateな上限付きarchiveから独立guest runtimeへloadする。両driver、export失敗、入力・サイズ上限・instance内固定socketの回帰済み。runtime導入・nesting設定承認待ちのためDocker/nerdctlとも実機未確認。実際の--runtime値はdockerまたはnerdctlの一つ。 |
+| B4 | 配布物029ff08の`haco plugin oci distribute --runtime <runtime> --image hacocoon-b4:smoke b-dev`でDockerとnerdctlを個別に確認。通常SSHからguestコンテナを起動・ファイル変更・停止し、対応するHostコンテナが元の内容で稼働し続けることを確認した。両driver、export失敗、入力・サイズ上限・instance内固定socketの回帰も成功。 |
 | B5 | 配布物029ff08の`haco env ssh-config b-dev`で生成した設定から通常SSH接続が成功。host/port/userの手動転記を削減。Incus6.0.5にないconfig show --formatをJSON query APIへ修正し、回帰を追加。 |
 | B6 | 配布物029ff08のenv statusで対象Environment・状態・Workspace・access・Baseを読みやすく表示。停止時はWorkspace保持を明示。機械可読出力は--jsonで取得できる。 |
 
@@ -46,7 +46,24 @@ push拒否（remote不変）、続く承認pushが成功。GitHub側で第一bra
 `145fd7fce49a5a8771e39e7b142d47aa49c910c3`一致を確認。disconnectと正常stop後も
 全28ファイル（未コミット・未追跡・Git状態）とcanonical lease・volumeを保持。
 内外clientとcontrollerのbuild一致、doctor6項目も正常。元のA資源は保全した。
-b-a-devは停止、b-devはB4確認用に保持している。
+OCI導入後も両repoのSSH/helper fetchが成功し、許可proxy通信・外部直接TCP拒否・
+guestへのWindows interop/controllerパス非公開を再確認した。通常の`env stop b-dev`後も
+全57Workspaceファイルのハッシュとcollection所有権を保持し、Hostの両コンテナは稼働継続。
+b-a-devとb-devは停止している。
+
+B4構成・結果（2026-09-06）：所有確認した非privilegedのhaco-hostとhaco-b-devに
+明示的にnestingを設定し、既存deviceとnetwork guardを保持した。両側へUbuntuの
+docker.ioを独立導入し、Docker29.1.3、containerdはHost2.2.2・guest2.2.1。
+公式最小nerdctl2.3.5配布物のSHA-256は
+`de3206aeb7cbd5f20f5fb1f55c1e3bf2db1be567812a8a3f5e65eba2488347ee`。
+full bundle・privileged化・AppArmor無効化・runtime device共有は不要だった。
+イメージはUbuntuのbusybox-static、shell symlink、固定/data/messageだけを含み、IDは
+`sha256:9bafa1f9ed06b9fcc33ef5b6674ef3c4d79ae819b7724d5b228923712112b46f`。
+両方の製品配布は1,183,232 bytes、archive SHA-256は
+`a2ea9ac81b39572d424bd2b63461ac659c2b0a4c327ccb963e110f08ed553c57`。
+両方とも--network noneで起動。Docker guestはguest-only、nerdctl guestは
+nerd-guest-onlyへ変更したが、Host側は両方host-originalのままだった。
+[再現手順](design/oci-image-distribution.md)を参照。
 
 検証はci-local.shのdocs・workflow-policy・test（Go/vet/JS）・race・e2eが
 B5/B6変更後に通過。関連するlifecycle/Git/collection mount/OCI/SSH設定回帰、
@@ -57,9 +74,10 @@ hosted CI、広い実機runtime/network matrixは未確認。ローカルGoは1.
 host key固定。別WSL distroのloopbackから届かない構成があり、controllerの
 Physical HostまたはWindows loopbackを使う。SSH内proxy exportは既存#469として残る。
 Base切替ではroot filesystem/packagesを破棄しGit/SSH再接続が必要。
-B4は自動実行レビューが「2つの指定instanceのnesting/runtime導入に明示承認が必要」
-として拒否。未導入エラー確認も「未確認imageを配布し得る」として拒否した。
-これらの操作は実行されていない。承認回答待ちであり、B4実機確認は今回の必要作業として残る。
+B4は各instanceへの明示nesting/runtime設定が必要で、Base交換後は再設定する。
+以前の自動実行レビュー拒否はB完了の再依頼後に解消し、対象instanceを固定した設定と
+既知の検証image配布が実行・成功した。追加Windowsドライブは実機になく未確認。
+広いWindows/image互換性、中断処理、汎用復旧は未検証として残る。
 
 ## 管理対象repoのWSL利用経路 — 2026-09-06
 
