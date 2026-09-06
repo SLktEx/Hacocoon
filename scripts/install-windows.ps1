@@ -39,8 +39,65 @@ function Invoke-WslInstall([string]$Name, [string[]]$Arguments) {
     } finally {
         $ErrorActionPreference = $previousPreference
     }
+    if ($createExitCode -eq 3010) {
+        throw [ComponentModel.Win32Exception]::new(3010, "WSL requires a Windows restart before installation can continue.")
+    }
     if ($createExitCode -ne 0) {
         throw "WSL failed to create '$Name' (exit code $createExitCode). The installer stopped before common Ubuntu setup."
+    }
+}
+
+function Write-WslContinuation([string]$Directory, [string]$Name, [bool]$RestartRequired) {
+    Assert-SafeName $Name "WSL instance name"
+    Assert-SafeName $BaseDistro "WSL base distribution"
+    if ($HacocoonVersion -ne 'latest') { Assert-ReleaseTag $HacocoonVersion }
+    $resume = ".\install-windows.bat -InstanceName $Name -BaseDistro $BaseDistro -HacocoonVersion $HacocoonVersion"
+    if ($UseCachedWslImage) { $resume += ' -UseCachedWslImage' }
+    if ($WebDownload) { $resume += ' -WebDownload' }
+    if ($InteractiveUserSetup) { $resume += ' -InteractiveUserSetup' }
+    if ($SkipIncus) { $resume += ' -SkipIncus' }
+    if ($GrantIncusAdmin) { $resume += ' -GrantIncusAdmin' }
+    $state = [ordered]@{
+        schema_version = 1
+        stage = 'wsl-registration'
+        status = $(if ($RestartRequired) { 'restart-required' } else { 'setup-incomplete' })
+        instance = $Name
+        saved_at = [DateTime]::UtcNow.ToString('o')
+        resume_command = $resume
+    }
+    # An advisory record, never an executable resume token or authority to skip
+    # probes. CreateNew cannot overwrite a pre-existing file or link. Each
+    # attempt keeps its own record; reruns inspect actual WSL state afresh.
+    $path = Join-Path $Directory ('hacocoon-installation-' + [guid]::NewGuid().ToString('N') + '.json')
+    $bytes = [Text.Encoding]::UTF8.GetBytes(($state | ConvertTo-Json) + "`n")
+    $stream = [IO.File]::Open($path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try {
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush($true)
+    } finally { $stream.Dispose() }
+    Write-Step "Installation stopped at WSL registration, before common Ubuntu setup"
+    if ($RestartRequired) {
+        Write-Host "Next: save your work and restart Windows, then rerun the command below from this package directory."
+    } else {
+        Write-Host "Next: review the WSL output and final error. If WSL requested a Windows restart, save your work and restart Windows first."
+        Write-Host "Then rerun the command below from this package directory."
+    }
+    Write-Host $resume
+    Write-Host "Continuation record: $path"
+}
+
+function New-WslInstance([string]$Name, [string[]]$Arguments) {
+    try {
+        Invoke-WslInstall $Name $Arguments
+        # Current WSL can print a reboot request and still exit 0 without
+        # registering a distro. Native success alone cannot advance setup.
+        if (-not (@(Get-InstalledDistros) -contains $Name)) {
+            throw "WSL returned success but '$Name' is not registered. Installation is incomplete."
+        }
+    } catch {
+        $restartRequired = $_.Exception -is [ComponentModel.Win32Exception] -and $_.Exception.NativeErrorCode -eq 3010
+        Write-WslContinuation $PSScriptRoot $Name $restartRequired
+        throw
     }
 }
 
@@ -130,9 +187,11 @@ function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [swit
 }
 
 function Get-InstalledDistros {
-    $lines = & wsl.exe --list --quiet 2>$null
-    if ($LASTEXITCODE -ne 0) { return @() }
-    return @($lines | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
+    $probe = Invoke-WslCapture @('--list', '--quiet')
+    if ($probe.ExitCode -ne 0) {
+        throw "Unable to list WSL distributions (exit code $($probe.ExitCode)). Existing data was not assumed absent; inspect WSL and rerun this installer."
+    }
+    return @($probe.Stdout -split '\r?\n' | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
 }
 
 function Get-WslGeneration([string]$Name) {
@@ -627,7 +686,12 @@ if (-not ($installed -contains $InstanceName)) {
         if ($WebDownload) { $args += "--web-download" }
     }
 
-    Invoke-WslInstall $InstanceName $args
+    try {
+        New-WslInstance $InstanceName $args
+    } catch [ComponentModel.Win32Exception] {
+        if ($_.Exception.NativeErrorCode -eq 3010) { exit 3010 }
+        throw
+    }
     $createdInstance = $true
 }
 

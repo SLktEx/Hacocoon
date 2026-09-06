@@ -14,6 +14,9 @@ foreach ($node in $ast.EndBlock.Statements) {
     }
 }
 $realCapture = ${function:Invoke-WslCapture}
+$realInstall = ${function:Invoke-WslInstall}
+$realDistros = ${function:Get-InstalledDistros}
+$realContinuation = ${function:Write-WslContinuation}
 $ManagedLoginUser = 'hacocoon'
 Assert-LoginUserName '_ubuntu-user'
 function Assert-Equal($Actual, $Expected) {
@@ -32,7 +35,7 @@ Set-Item -LiteralPath $wslFunctionPath -Value {
 }
 try {
     $script:installArguments = @('--install', '--from-file', "C:\cache space\a'b;`$(literal)\ubuntu.wsl", '--name', 'Hacocoon', '--no-launch')
-    foreach ($code in @(0, 1, 1223)) {
+    foreach ($code in @(0, 1, 1223, 3010)) {
         $script:installExitCode = $code
         $failure = $null
         $output = @()
@@ -41,6 +44,9 @@ try {
         Assert-Equal $ErrorActionPreference 'Stop'
         if ($code -eq 0) {
             Assert-Equal ($null -eq $failure) $true
+        } elseif ($code -eq 3010) {
+            Assert-Equal ($failure.Exception -is [ComponentModel.Win32Exception]) $true
+            Assert-Equal $failure.Exception.NativeErrorCode 3010
         } else {
             Assert-Equal ($failure.Exception.Message -like "*exit code $code*before common Ubuntu setup*") $true
         }
@@ -48,6 +54,95 @@ try {
 } finally {
     Remove-Item -LiteralPath $wslFunctionPath
     Remove-Item -LiteralPath function:Start-Process
+}
+# A failed listing is unknown, never an empty inventory. Do not echo stderr.
+function Invoke-WslCapture([string[]]$Arguments) {
+    Assert-Equal ($Arguments -join '|') '--list|--quiet'
+    return New-WslCaptureResult $script:listCode @($script:listOutput) 'secret backend detail'
+}
+try {
+    $script:listCode = 0
+    $script:listOutput = "H`0a`0c`0o`0c`0o`0o`0n`0`r`nUbuntu-24.04`r`n"
+    Assert-Equal (@(Get-InstalledDistros) -join '|') 'Hacocoon|Ubuntu-24.04'
+    $script:listOutput = ''
+    Assert-Equal (@(Get-InstalledDistros).Count) 0
+    foreach ($code in @(1, -1, 1223)) {
+        $script:listCode = $code
+        $failure = $null
+        try { Get-InstalledDistros | Out-Null } catch { $failure = $_ }
+        Assert-Equal ($failure.Exception.Message -like "*exit code $code*") $true
+        Assert-Equal ($failure.Exception.Message -like '*secret*') $false
+    }
+} finally { ${function:Invoke-WslCapture} = $realCapture }
+
+# Exercise registration continuation with only native/inventory/file boundaries
+# mocked. Native 0 without the exact distro must never advance to common setup.
+function Invoke-WslInstall([string]$Name, [string[]]$Arguments) {
+    Assert-Equal $Name 'Hacocoon'
+    Assert-Equal ($Arguments -join '|') '--install|Ubuntu-26.04|--name|Hacocoon|--no-launch'
+    $script:createCalls++
+    if ($script:createCode -eq 3010) { throw [ComponentModel.Win32Exception]::new(3010, 'restart') }
+    if ($script:createCode -ne 0) { throw 'native failure' }
+}
+function Get-InstalledDistros {
+    $script:listCalls++
+    if ($script:inventoryUnknown) { throw 'unknown inventory' }
+    return $script:inventory
+}
+function Write-WslContinuation([string]$Directory, [string]$Name, [bool]$RestartRequired) {
+    Assert-Equal $Name 'Hacocoon'
+    $script:recordCalls++
+    $script:recordRestart = $RestartRequired
+}
+try {
+    foreach ($scenario in @('created', 'zero-without-distro', 'unknown', 'restart', 'cancelled')) {
+        $script:createCalls = $script:listCalls = $script:recordCalls = 0
+        $script:recordRestart = $false
+        $script:createCode = switch ($scenario) { 'restart' { 3010 } 'cancelled' { 1223 } default { 0 } }
+        $script:inventoryUnknown = $scenario -eq 'unknown'
+        $script:inventory = if ($scenario -eq 'created') { @('Ubuntu', 'Hacocoon') } else { @('Ubuntu') }
+        $failure = $null
+        try { New-WslInstance 'Hacocoon' @('--install', 'Ubuntu-26.04', '--name', 'Hacocoon', '--no-launch') } catch { $failure = $_ }
+        Assert-Equal ($null -eq $failure) ($scenario -eq 'created')
+        Assert-Equal $script:createCalls 1
+        Assert-Equal $script:listCalls $(if ($script:createCode -eq 0) { 1 } else { 0 })
+        Assert-Equal $script:recordCalls $(if ($scenario -eq 'created') { 0 } else { 1 })
+        Assert-Equal $script:recordRestart ($scenario -eq 'restart')
+    }
+} finally {
+    ${function:Invoke-WslInstall} = $realInstall
+    ${function:Get-InstalledDistros} = $realDistros
+    ${function:Write-WslContinuation} = $realContinuation
+}
+
+# Continuation records retain validated options, are separate per attempt, and
+# cannot overwrite old records. They are informational and are never read back.
+$recordRoot = Join-Path ([IO.Path]::GetTempPath()) ('haco-continuation-' + [guid]::NewGuid())
+[IO.Directory]::CreateDirectory($recordRoot) | Out-Null
+$BaseDistro = 'Ubuntu-26.04'
+$HacocoonVersion = 'latest'
+$UseCachedWslImage = $InteractiveUserSetup = $true
+$WebDownload = $SkipIncus = $GrantIncusAdmin = $false
+try {
+    Write-WslContinuation $recordRoot 'Hacocoon' $true
+    $first = @(Get-ChildItem -LiteralPath $recordRoot -File)
+    Assert-Equal $first.Count 1
+    $saved = [IO.File]::ReadAllText($first[0].FullName)
+    $record = $saved | ConvertFrom-Json
+    Assert-Equal $record.schema_version 1
+    Assert-Equal $record.stage 'wsl-registration'
+    Assert-Equal $record.status 'restart-required'
+    Assert-Equal $record.resume_command '.\install-windows.bat -InstanceName Hacocoon -BaseDistro Ubuntu-26.04 -HacocoonVersion latest -UseCachedWslImage -InteractiveUserSetup'
+    Write-WslContinuation $recordRoot 'Hacocoon' $false
+    Assert-Equal (@(Get-ChildItem -LiteralPath $recordRoot -File).Count) 2
+    Assert-Equal ([IO.File]::ReadAllText($first[0].FullName)) $saved
+    $failure = $null
+    try { Write-WslContinuation $recordRoot 'bad;command' $true } catch { $failure = $_ }
+    Assert-Equal ($null -ne $failure) $true
+    Assert-Equal (@(Get-ChildItem -LiteralPath $recordRoot -File).Count) 2
+} finally {
+    foreach ($file in [IO.Directory]::GetFiles($recordRoot)) { [IO.File]::Delete($file) }
+    [IO.Directory]::Delete($recordRoot)
 }
 # Hashing must work in the BAT's PS5.1 process without module autoloading.
 function Get-FileHash { throw 'Get-FileHash must not be required by the installer' }
@@ -119,6 +214,7 @@ foreach ($scenario in @('fresh', 'interactive', 'rerun-managed', 'rerun-custom')
     Assert-Equal $script:oobeCalls $(if ($scenario -in @('fresh', 'rerun-managed')) { 1 } else { 0 })
 }
 if ($WslTransportDistro) {
+    Assert-Equal (@(Get-InstalledDistros) -contains $WslTransportDistro) $true
     # Optional real PS 5.1 -> WSL transport check. Only mktemp is written, then
     # removed by the product helper; argument contents must stay literal.
     ${function:Invoke-WslCapture} = $realCapture

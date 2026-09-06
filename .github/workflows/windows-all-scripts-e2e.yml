@@ -136,7 +136,9 @@ jobs:
 
       - name: Verify Windows installer components on PowerShell 5.1
         shell: powershell
-        run: ./tools/test_windows_installer.ps1
+        run: |
+          ./tools/test_windows_installer.ps1
+          ./tools/test_windows_installer_exit.ps1
 
       - name: Reject Hacocoon test overrides before user path
         shell: pwsh

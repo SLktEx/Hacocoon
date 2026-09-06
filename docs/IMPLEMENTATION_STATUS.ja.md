@@ -10,6 +10,7 @@
 - **Standard proxy lifecycleはimplemented:** install済みcontrollerは固定proxy listenerを所有し、bind前に共有guardを検証する。control/proxyの停止を連動させ、hijack済みCONNECTも閉じる。daemonはambient approval providerを持たず、exact allowのauditを維持し、require-approvalはfail closed。同PID listenerと未管理元拒否はEnvironmentの許可通信と区別する。[ADR 0007](adr/0007-controller-owned-standard-egress.ja.md)を参照。
 - **repository検証 — `c749ff9`:** 対象race/vet、pendingのCLI/API回帰、Windows assertion 9件、installer実shell 5件、shell構文、文書検査が成功した。維持する `ci-local.sh test` から全Go shuffle test・vet・JavaScript構文2件・notification test 5件が成功した。先行local vetは `bin/` に取得した調査用sourceを含めて停止したが、その観測資料を `.txt` に直してentry point全体を再実行し成功した。製品環境変数のoverrideやinstall済みresourceの修復は与えていない。
 - **Seed撤去はplanned:** codeは残り、[Base/任意OCIとの依存](design/oci-seed-and-cow.ja.md)を保持する。Base選択と任意Pluginの境界は維持する。
+- **登録時の続行はimplemented、package受入はpending:** WSL一覧取得失敗を不存在とせず、native作成成功後も対象名の登録を読戻し確認する。作成/読戻し失敗時は手動で現在版BATを再実行するための段階/option記録を保存する。記録は権限を与えず、実行もしない。明示的な終了3010は再起動待ちとして伝え、終了0でも未登録なら未完了とし、再起動案内は条件付きにする。PowerShell 5.1 component testと実BATの終了code伝達testは成功した。これらはWindows機能installやOS再起動の受入ではない。[bootstrap続行](WINDOWS_WSL_BOOTSTRAP.ja.md#登録の中断とwindows再起動)を参照。
 
 package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
@@ -26,7 +27,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 **M1残件:** 起動失敗の原因特定、WSL/Incus/storage/network/controller/haco-host/SSHの広い層別診断、再起動時の続行と実Windows再起動受入、firewall再読込/起動順の受入、install済みEnvironmentの許可proxy通信/直接通信拒否。観測はDocker規則ありのFORWARD DROPからDOCKER-USERなしのACCEPTまで変化しており、隔離Linux packet gateはWindows Dockerの全起動順の受入ではない。広いCLI/SSH開発導線とWorkspace作業保持の受入は後続に残る。
 
-**次の具体的な一件:** 受入時にservice・network・mountを修復せず、Incus起動時SIGKILLの送信元と対象identityを特定する。
+**次の具体的な一件:** 登録続行のpackageを受け入れ、続いて受入時にservice・network・mountを修復せずIncus起動時SIGKILLの送信元と対象identityの調査を進める。
 
 以下の表は元のcheckpoint時点の履歴文脈を保持する。
 

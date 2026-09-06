@@ -10,6 +10,7 @@ This candidate branch implements the following WSL slice; M0–M1 remains **part
 - **Implemented Standard proxy lifecycle:** the installed controller owns the fixed proxy listener and verifies shared guards before binding. Control/proxy shutdown is coupled, including hijacked CONNECT tunnels. The daemon has no ambient approval provider; exact allows stay audited and require-approval fails closed. Same-PID listener and unmanaged-source refusal are distinct from allowed Environment traffic. See [ADR 0007](adr/0007-controller-owned-standard-egress.md).
 - **Repository validation — `c749ff9`:** focused race/vet tests, pending CLI/API regressions, nine Windows assertions, five installer shell tests, shell syntax and documentation checks passed. The maintained `ci-local.sh test` passed the full shuffled Go suite, vet, two JavaScript syntax checks and five notification tests. An earlier local vet attempt included downloaded research sources under `bin/`; after renaming those observations to `.txt`, the complete entry point passed. These tools supplied no product environment overrides or installed-resource repair.
 - **Planned Seed retirement:** Seed code remains with [Base/optional OCI dependencies](design/oci-seed-and-cow.md). Base selection and optional Plugins remain supported architectural boundaries.
+- **Implemented registration continuation, package acceptance pending:** failed WSL inventory cannot become assumed absence, and native creation success requires exact registration readback. A failed creation/readback saves an advisory stage/options record for a manual current-BAT rerun; it grants no authority and is never executed. Explicit exit 3010 propagates as restart-required, while exit 0 without registration remains incomplete with a conditional reboot action. PowerShell 5.1 component tests and actual BAT exit-propagation tests passed. Windows feature installation and OS reboot are not accepted by those tests. See [bootstrap continuation](WINDOWS_WSL_BOOTSTRAP.md#interrupted-registration-and-windows-restart).
 
 Packaged acceptance is bound to **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
@@ -26,7 +27,7 @@ The local ZIP is `0.26.1-SNAPSHOT-c749ff9`, built at `2026-09-06T03:12:38Z`, wit
 
 **Remaining M1 work:** startup failure attribution, broader WSL/Incus/storage/network/controller/haco-host/SSH layer diagnostics, reboot continuation and real Windows reboot acceptance, firewall reload/startup-order acceptance, and installed Environment allowed-proxy/denied-direct communication. Observations varied between FORWARD DROP with Docker rules and ACCEPT without DOCKER-USER; isolated Linux packet gates do not establish every Windows Docker ordering. Broader CLI/SSH development and Workspace work-retention acceptance remain later work.
 
-**Next concrete item:** identify the sender and target identity of the Incus startup SIGKILL without acceptance-time service, network or mount repair.
+**Next concrete item:** accept the registration-continuation package, then continue identifying the Incus startup SIGKILL sender/target without acceptance-time service, network or mount repair.
 
 The historical checkpoint tables below retain their original milestone context.
 

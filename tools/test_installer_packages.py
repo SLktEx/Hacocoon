@@ -91,7 +91,8 @@ with tempfile.TemporaryDirectory() as temp:
                 "function Invoke-WslInstall",
                 'Join-Path ([Environment]::SystemDirectory) "wsl.exe"',
                 "& $systemWsl @Arguments",
-                "Invoke-WslInstall $InstanceName $args",
+                "New-WslInstance $InstanceName $args",
+                "Invoke-WslInstall $Name $Arguments",
                 "$createExitCode = $LASTEXITCODE",
             ):
                 if required not in windows_installer:

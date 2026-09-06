@@ -119,6 +119,16 @@ install-windows.bat -InteractiveUserSetup
 
 既定の管理accountはpassword入力不要で、retry時に既存accountのpasswordをresetしません。この経路だけ、既知のUbuntu account/metrics OOBE commandを空にし、検証済みdefault UIDを設定します。他のdistribution設定を保持してatomicに置換し、未知のOOBE設定ではfail closedします。対話optionでは通常のUbuntu setupを維持し、利用者をmetrics送信へopt-inしません。[ADR 0004](adr/0004-wsl-installer-authority.md)を参照してください。
 
+## 登録の中断とWindows再起動
+
+InstallerはWSL一覧の取得成功を確認してからdistributionの作成要否を決めます。一覧取得失敗は状態不明であり、空の一覧として扱いません。作成後も再度一覧を取得し、対象名のdistributionが登録されたことを確認してからcommon Ubuntu setupへ進みます。
+
+現在の[WSL install実装](https://github.com/microsoft/WSL/blob/2.7.12/src/windows/common/WslClient.cpp)には、Windows再起動を案内してもdistributionを登録せず終了0を返す経路があります。そのためHacocoonはnative終了0だけで完了としません。native終了3010は再起動待ちとして明示し、BATまで3010を伝えます。終了0でも未登録ならsetup-incompleteとして停止し、それだけで再起動が原因とは断定しません。WSLの出力と最後のerrorを確認して次の操作を選びます。
+
+作成または作成後の一覧確認に失敗すると、展開済みinstallerの横へ `hacocoon-installation-<id>.json` を保存します。記録は `wsl-registration`、restart-required/setup-incomplete、instance、日時、検証済みoptionを保持した再実行commandです。試行ごとに新しいfileを作り、前の記録を上書きしません。WSLが再起動を求めた場合は作業を保存してWindowsを再起動し、同じ現在版packageのdirectoryから表示されたBAT commandを実行します。他の失敗では表示されたWSLの問題を解消してから同じcommandを実行します。
+
+記録は案内用です。Installerは記録を実行・importせず、検証省略の根拠にもしません。再実行時は実際のWSL状態を確認し、既存の同名distributionを再利用して現在版installerを続けます。distribution登録削除、Windowsの自動再起動、autorun task登録、保存commandの昇格実行はしません。PowerShell/BAT component testで停止と続行の契約を検証し、Windows機能無効状態と実Windows OS再起動は別の実機受入として残します。
+
 ## WSL image cache 検証経路
 
 `-UseCachedWslImage` は、Windows / WSL の install を何度も検証するときのための validation-oriented option です。明示的に指定しない限り、通常 installer の挙動は変わりません。

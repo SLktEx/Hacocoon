@@ -25,7 +25,7 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 
 Controller経由setup、trusted network、controller所有Standard proxy、設定/live storageの読み取り専用診断は現在のcheckpoint内でimplemented。`c749ff9033b33c3526e108f60ce2009638075152` のpackageでWindows・Ubuntu・Incus全4job、実機cached BAT適用/再実行・通常/cold入口・readiness 6項目・trusted-hostデータ保持が成功した。
 
-M0–M1は引き続き **partial**。後の成功とは別に、以前のIncus起動時SIGKILLの送信元は未確定。広い層別診断、再起動時の続行/実Windows再起動受入、firewall起動順、install済みEnvironmentの許可proxy通信/直接通信拒否が残る。commitを固定した証拠、package識別、受入の制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)を正本とする。
+M0–M1は引き続き **partial**。登録時の停止/続行にはPowerShell/BAT component coverageが入り、packageと実Windows再起動の受入はpending。後の成功とは別に、以前のIncus起動時SIGKILLの送信元は未確定。広い層別診断、firewall起動順、install済みEnvironmentの許可proxy通信/直接通信拒否が残る。commitを固定した証拠、package識別、受入の制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)を正本とする。
 
 | Version | Gate | `main` の状態 |
 |---|---|---|

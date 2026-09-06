@@ -17,6 +17,12 @@ if not exist "%INSTALLER%" (
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER%" %*
 set "HACO_INSTALL_EXIT=%ERRORLEVEL%"
 
+if "%HACO_INSTALL_EXIT%"=="3010" (
+    echo.
+    echo Hacocoon installation is paused until Windows restarts. Follow the saved continuation instructions.
+    exit /b 3010
+)
+
 if not "%HACO_INSTALL_EXIT%"=="0" (
     echo.
     echo Hacocoon installation failed with exit code %HACO_INSTALL_EXIT%. 1>&2

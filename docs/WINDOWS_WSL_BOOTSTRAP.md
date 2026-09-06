@@ -119,6 +119,16 @@ The installer launches the WSL user-setup session itself. After the user complet
 
 The default managed account needs no password input. It does not reset an existing account's password on retry. For this path only, the installer replaces the known Ubuntu account/metrics OOBE command with an empty command and sets the validated default UID, preserving unrelated distribution configuration through an atomic replacement. Unknown OOBE configurations fail closed; the interactive option preserves Ubuntu's normal setup. This does not opt the user into metrics collection. See [ADR 0004](adr/0004-wsl-installer-authority.md).
 
+## Interrupted registration and Windows restart
+
+The installer requires a successful WSL inventory before deciding to create a distribution. A failed listing is unknown state, not an empty list. After creation, it requires the exact named distribution to appear in a second successful inventory before common Ubuntu setup can begin.
+
+Current [WSL installation code](https://github.com/microsoft/WSL/blob/2.7.12/src/windows/common/WslClient.cpp) can print a Windows-restart request and return 0 without registering a distribution. Hacocoon therefore does not infer completion from native exit 0. Native exit 3010 is explicitly reported as restart-required and propagated through the BAT. Exit 0 without registration stops as setup-incomplete; it cannot by itself establish that a reboot is the cause. Review WSL's output and the final error before choosing the next action.
+
+A failed creation or post-creation inventory saves `hacocoon-installation-<id>.json` next to the extracted installer. It records `wsl-registration`, restart-required/setup-incomplete, the instance, timestamp and a command retaining the validated installer options. Each attempt creates a new file without overwriting previous records. If WSL requests a restart, save your work, restart Windows, and run the printed BAT command from the same current package directory. For other failures, resolve the reported WSL failure and run that command.
+
+The record is informational: the installer never executes or imports it, and never uses it to skip validation. Rerunning inspects actual WSL state, reuses an existing named distribution and continues the current installer. It does not unregister distributions, reboot Windows automatically, register an autorun task or execute an elevated saved command. PowerShell/BAT component tests cover the stop and continuation contract; disabled Windows features and actual Windows OS reboot remain separate real-host acceptance.
+
 ## Cached WSL image validation path
 
 `-UseCachedWslImage` is a validation-oriented installer option for repeated Windows/WSL installation tests. It keeps the normal installer behavior unchanged unless the option is explicitly selected.

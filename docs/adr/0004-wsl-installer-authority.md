@@ -19,6 +19,7 @@ The reset CLI already uses a Physical Host controller socket owned by `root:haco
 - Delegate only the resolved workspace UID/GID to Incus subordinate-ID mapping. Add the same ordinary user to the controller access group. Incus admin access remains an explicit option.
 - Do not create, replace, or remove sudo policy. Neither a bootstrap rule nor a login rule is needed. The candidate-replacement mechanism discussed in #452 is therefore unnecessary on the reset-CLI baseline; old installers are outside this change's compatibility scope.
 - Preserve the distro on interruption or failure and fail before printing completion. Rerun the current BAT to continue. A normal restart must be tested before reinstall, so repair on rerun cannot hide failed startup.
+- Require successful inventory before creation and confirm the exact registration afterward. WSL exit 0 can still mean prerequisites need a reboot. Preserve a failed creation's stage/options in a new advisory record; never execute that record, trust it as resource ownership, or use it to skip fresh probes. Propagate an explicit restart-required code without claiming installation completed. Resume through the current BAT, without autorun or a saved elevated command.
 
 ## Rejected alternatives
 
