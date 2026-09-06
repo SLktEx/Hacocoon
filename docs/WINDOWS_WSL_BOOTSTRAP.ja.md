@@ -127,7 +127,7 @@ InstallerはWSL一覧の取得成功を確認してからdistributionの作成�
 
 作成または作成後の一覧確認に失敗すると、展開済みinstallerの横へ `hacocoon-installation-<id>.json` を保存します。記録は `wsl-registration`、restart-required/setup-incomplete、instance、日時、検証済みoptionを保持した再実行commandです。試行ごとに新しいfileを作り、前の記録を上書きしません。WSLが再起動を求めた場合は作業を保存してWindowsを再起動し、同じ現在版packageのdirectoryから表示されたBAT commandを実行します。他の失敗では表示されたWSLの問題を解消してから同じcommandを実行します。
 
-記録は案内用です。Installerは記録を実行・importせず、検証省略の根拠にもしません。再実行時は実際のWSL状態を確認し、既存の同名distributionを再利用して現在版installerを続けます。distribution登録削除、Windowsの自動再起動、autorun task登録、保存commandの昇格実行はしません。PowerShell/BAT component testで停止と続行の契約を検証し、Windows機能無効状態と実Windows OS再起動は別の実機受入として残します。
+記録は案内用です。Installerは記録を実行・importせず、検証省略の根拠にもしません。再実行時は実際のWSL状態を確認し、既存の同名distributionを再利用して現在版installerを続けます。distribution登録削除、Windowsの自動再起動、autorun task登録、保存commandの昇格実行はしません。PowerShell/BAT component testで停止と続行の契約を検証します。現在のM1依頼範囲では実Windows OS再起動の実装/受入と続行機能の追加は対象外で、Windows機能無効状態の受入を主張しません。
 
 ## WSL image cache 検証経路
 
