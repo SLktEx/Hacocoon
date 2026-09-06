@@ -3,6 +3,7 @@ package gitrepo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -47,9 +48,10 @@ type preparedOperation struct {
 }
 type operationContextKey struct{}
 type binding struct {
-	Environment core.Environment `json:"environment"`
-	Workspace   Object           `json:"workspace"`
-	Repository  Object           `json:"repository"`
+	Environment  core.Environment `json:"environment"`
+	Workspace    Object           `json:"workspace"`
+	Repository   Object           `json:"repository"`
+	Repositories []Object         `json:"repositories,omitempty"`
 }
 type boundServer struct {
 	binding binding
@@ -143,11 +145,18 @@ func (b *Broker) Connect(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	repo, err := b.Repositories.Get("repo", workspace.Repository)
-	if err != nil {
-		return err
+	bound := binding{Environment: environment, Workspace: workspace}
+	for _, member := range workspace.Copies() {
+		repo, err := b.Repositories.Get("repo", member.Repository)
+		if err != nil {
+			return err
+		}
+		if len(workspace.Members) == 0 {
+			bound.Repository = repo
+		} else {
+			bound.Repositories = append(bound.Repositories, repo)
+		}
 	}
-	bound := binding{Environment: environment, Workspace: workspace, Repository: repo}
 	if err := b.validateBinding(ctx, bound); err != nil {
 		return err
 	}
@@ -157,7 +166,14 @@ func (b *Broker) Connect(ctx context.Context, name string) error {
 		return core.ErrRuntimeUnavailable
 	}
 	if old, exists := b.servers[name]; exists && !reflect.DeepEqual(old.binding, bound) {
-		return core.ErrIncompatibleState
+		// A canonical runtime replacement invalidates the old binding. It may
+		// be replaced only after the old Environment identity is stale.
+		stale := b.validateBinding(ctx, old.binding)
+		if !errors.Is(stale, core.ErrCapabilityStale) && !errors.Is(stale, core.ErrNotFound) {
+			return core.ErrIncompatibleState
+		}
+		old.server.Close()
+		delete(b.servers, name)
 	}
 	if err := writeRecord(filepath.Join(b.Repositories.Root, "bindings", name+".json"), bound); err != nil {
 		return err
@@ -224,20 +240,39 @@ func (b *Broker) validateBinding(ctx context.Context, bound binding) error {
 	if err != nil || !reflect.DeepEqual(workspace, bound.Workspace) {
 		return core.ErrCapabilityStale
 	}
-	repo, err := b.Repositories.Get("repo", workspace.Repository)
-	if err != nil || !reflect.DeepEqual(repo, bound.Repository) {
+	repos := bound.repositories()
+	if len(repos) != len(workspace.Copies()) {
 		return core.ErrCapabilityStale
 	}
+	for i, member := range workspace.Copies() {
+		repo, err := b.Repositories.Get("repo", member.Repository)
+		if err != nil || !reflect.DeepEqual(repo, repos[i]) {
+			return core.ErrCapabilityStale
+		}
+	}
 	return nil
+}
+
+func (bound binding) repositories() []Object {
+	if len(bound.Workspace.Members) != 0 {
+		return bound.Repositories
+	}
+	return []Object{bound.Repository}
 }
 
 func (b *Broker) exchange(ctx context.Context, bound binding, req Request) (Response, error) {
 	if err := b.validateBinding(ctx, bound); err != nil {
 		return Response{}, err
 	}
-	repo := bound.Repository
+	var repo Object
+	for _, candidate := range bound.repositories() {
+		if candidate.ID == req.Repository {
+			repo = candidate
+			break
+		}
+	}
 	ref := "refs/heads/" + repo.Branch
-	if req.Repository != repo.ID || len(req.Pack) > MaxPack {
+	if repo.ID == "" || req.Repository != repo.ID || len(req.Pack) > MaxPack {
 		return Response{}, core.ErrPolicyDenied
 	}
 	agent := AgentRequest{Operation: req.Operation, Repository: repo.ID, Remote: repo.Remote, Branch: repo.Branch, OldOID: req.OldOID, NewOID: req.NewOID, Pack: req.Pack}

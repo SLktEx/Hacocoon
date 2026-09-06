@@ -36,6 +36,27 @@ to an Environment. Failed creation keeps an ownership/recovery record and does
 not remove data. Diagnose it before choosing a new ID or retrying; automated
 recovery is deferred.
 
+## Multiple repositories in one Workspace
+
+Register each upstream separately, then create an immutable collection:
+
+```bash
+haco repo clone --branch first-branch first https://github.com/OWNER/REPO.git
+haco repo clone --branch second-branch second https://github.com/OWNER/REPO.git
+haco workspace create --repo first,second both
+haco env create --workspace managed:both both-dev
+haco git connect both-dev
+```
+
+Inside the Environment, work in `/workspace/first` and `/workspace/second`.
+Each has its own Incus Btrfs copy and `.git`. Ordinary fetch, pull, commit and
+approved push apply independently to its registered remote and branch. Add
+Policy rules for both repository IDs. The one canonical Workspace lease owns
+the complete collection; members cannot be leased separately. Files outside
+the repository mounts belong to the disposable Environment root filesystem.
+Changing collection membership and partial-creation recovery are deferred.
+See [ADR 0010](../adr/0010-multiple-repositories-per-workspace.md).
+
 ## Configure narrow Policy
 
 Policy is an ordinary administrator-owned file on the WSL Physical Host,
@@ -133,5 +154,5 @@ haco env status sample-dev
 Stop is graceful and keeps the Environment metadata, Workspace volume and lease.
 Uncommitted, untracked and unpushed data remain in that volume. It is not a delete
 or garbage-collection command. Inspect remote state after an ambiguous Git
-failure before retrying. Large transfers, multiple refs/repositories, generalized
+failure before retrying. Large transfers, multiple refs, generalized
 recovery and automatic SSH configuration are deferred.

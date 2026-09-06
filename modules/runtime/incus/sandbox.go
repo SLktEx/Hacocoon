@@ -194,16 +194,26 @@ func (p *SandboxProvider) addWorkspaceDevice(ctx context.Context, ref string, sp
 		if p.managedWorkspace == nil {
 			return core.ErrUnsupported
 		}
-		pool, volume, err := p.managedWorkspace(ctx, spec.WorkspacePath)
+		attachments, err := p.managedWorkspace(ctx, spec.WorkspacePath)
 		if err != nil {
 			return err
 		}
-		args := []string{"config", "device", "add", ref, "workspace", "disk", "pool=" + pool, "source=" + volume, "path=/workspace", "--project", p.project}
-		if spec.ReadOnly {
-			args = append(args, "readonly=true")
+		if len(attachments) == 0 {
+			return core.ErrIncompatibleState
 		}
-		_, err = p.runner.Run(ctx, "incus", args...)
-		return err
+		for _, mount := range attachments {
+			if !validWorkspaceAttachment(mount) {
+				return core.ErrIncompatibleState
+			}
+			args := []string{"config", "device", "add", ref, mount.Device, "disk", "pool=" + mount.Pool, "source=" + mount.Volume, "path=" + mount.Path, "--project", p.project}
+			if spec.ReadOnly {
+				args = append(args, "readonly=true")
+			}
+			if _, err := p.runner.Run(ctx, "incus", args...); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	deviceArgs := []string{
 		"config", "device", "add", ref, "workspace", "disk",

@@ -1,5 +1,22 @@
 # 実装状況
 
+B2の不変repo集合を実装。各repoは独立したIncus Btrfs volumeと`.git`を
+持ち、repo別の承認を適用する。Linux componentテストでは2つの実Git remote
+へのpushと集合外repoの拒否を確認した。B2の配布物による実機確認とB3〜B6は
+進行中であり、第二段階全体の完了ではない。
+
+## 第二段階
+
+B1は**implemented・ローカル実機確認済み**。既存A配布物`7a4d122`
+（Windows 26200.9278 / WSL 2.7.12 / Incus 6.0.5）に
+`scripts/setup-wsl-host-interop.py`を適用した。trusted shellから`/init`経由の
+Windows PowerShellで空白を含む引数、stdout/stderr、終了コード23を確認。
+利用者所有の`/mnt/c`検証ディレクトリの読み書きと、既存`poc-dev`へWSL
+デバイス・interop環境変数が継承されないことも確認した。この実機はCのみ。
+追加ドライブの解析回帰は通るが、追加ドライブ実機確認は**未実行**。
+installer・導入済みbinaryは変更していない。
+[trusted Host](design/trusted-host.ja.md)を参照。B2〜B6は作業中。
+
 ## 管理対象repoのWSL利用経路 — 2026-09-06
 
 **implemented・以下のローカルWindows/WSL構成でA1〜A6を受入済み**。v0.27候補は、新hacoのrepo登録、

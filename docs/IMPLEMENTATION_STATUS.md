@@ -1,5 +1,23 @@
 # Implementation Status
 
+## Second-stage workflow
+
+B1 is **implemented and locally accepted** on the existing A installation
+(`7a4d122`, Windows 26200.9278 / WSL 2.7.12 / Incus 6.0.5), using
+`scripts/setup-wsl-host-interop.py`. Trusted-shell `/init` execution of Windows
+PowerShell preserved a spaced argument, stdout/stderr and exit code 23.
+Read/write in a user-owned `/mnt/c` test directory passed. Existing `poc-dev`
+has no WSL devices or interop environment. Only C is mounted on this host;
+extra-drive parsing has repository coverage, but extra-drive real-host
+acceptance is **not executed**. No installer or installed binary changed for
+this check. See [trusted Host](design/trusted-host.md#windows-interop).
+
+B2's immutable repository collection is implemented with per-member Incus
+Btrfs volumes, independent Git state and per-repository approval. Linux
+component tests include two real-Git remotes and refusal of foreign repository
+requests. Packaged B2 acceptance and B3–B6 remain in progress; this is not
+complete second-stage acceptance.
+
 ## Managed repository WSL workflow — 2026-09-06
 
 **Implemented; A1–A6 accepted on the local Windows/WSL configuration below.** The v0.27 candidate adds

@@ -9,7 +9,22 @@ invoke fixed trusted Git operations; the Physical Host retains all controller,
 Policy and Incus authority. See the
 [workflow](../reference/managed-repository-workflow.md) and
 [ADR 0008](../adr/0008-managed-repository-workspaces.md). Windows drive/exe
-integration remains deferred.
+integration is implemented through explicit administrator setup; see below.
+
+## Windows interop
+
+After `haco setup`, run `sudo python3 scripts/setup-wsl-host-interop.py` from the
+source checkout on the WSL Physical Host. It verifies ownership and projects
+existing DrvFs `/mnt/<letter>` roots at the same paths in trusted `haco-host`.
+No Environment or shared profile receives these devices. In a new trusted
+shell, use `cd /mnt/c` then `/init /mnt/c/Windows/System32/cmd.exe /d /c ver`.
+
+The explicit `/init` prefix avoids changing binfmt handlers. `/init` and the
+interop directory are read-only mounts; Windows user ACLs govern drive access.
+Use a user-owned directory for writes. Repeat setup after WSL restarts if its
+socket identity changes. Direct exe invocation without `/init`, hotplug,
+reconnection and broad application compatibility are deferred.
+See [ADR 0009](../adr/0009-trusted-host-windows-interop.md).
 
 Current CLI boundary: product `haco` implements help/version, controller-backed `setup` and `doctor`, and the WSL login alias. Retained lifecycle commands described below use temporary `hacoq` during [CLI migration](../CLI_MIGRATION.md); they do not describe implemented new product commands.
 

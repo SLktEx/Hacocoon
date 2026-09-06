@@ -120,15 +120,15 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	}
 	repositoryBackend := &incus.RepositoryBackend{Runtime: incusRuntime, ProductBinary: filepath.Join(filepath.Dir(executable), "haco")}
 	repositories := gitrepo.NewRepositoryService(filepath.Join(stateDir, "repositories"), repositoryBackend)
-	incusRuntime.ConfigureManagedWorkspaces(func(ctx context.Context, source string) (string, string, error) {
+	incusRuntime.ConfigureManagedWorkspaces(func(ctx context.Context, source string) ([]incus.WorkspaceAttachment, error) {
 		if !strings.HasPrefix(source, "managed:") {
-			return "", "", core.ErrInvalidArgument
+			return nil, core.ErrInvalidArgument
 		}
 		object, err := repositories.Get("work", strings.TrimPrefix(source, "managed:"))
 		if err != nil {
-			return "", "", err
+			return nil, err
 		}
-		return repositoryBackend.WorkspaceAttachment(ctx, object)
+		return repositoryBackend.WorkspaceAttachments(ctx, object)
 	})
 	gitBroker := gitrepo.NewBroker(repositories, store, filepath.Join(root, "run", "git"))
 	bindingStore := agenthostapp.NewJSONBindingStore(filepath.Join(stateDir, "agent-bindings.json"))
