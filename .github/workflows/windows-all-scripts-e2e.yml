@@ -12,6 +12,7 @@ on:
       - "scripts/install-windows.bat"
       - "scripts/install-windows.ps1"
       - "scripts/install.sh"
+      - "scripts/setup-wsl-host-interop.py"
       - "tools/package_installers.py"
       - "tools/windows-installer-user-path-e2e.py"
       - "tools/test_windows_user_path.py"
@@ -19,6 +20,7 @@ on:
       - "tools/windows-installer-cached-restart-e2e.py"
       - "tools/installed-egress-check/**"
       - "tools/test_installed_egress.ps1"
+      - "tools/test_windows_environment_ssh.ps1"
       - ".github/workflows/windows-all-scripts-e2e.yml"
   workflow_dispatch:
 
@@ -204,3 +206,7 @@ jobs:
       - name: Verify installed controller Environment HTTPS and direct-egress refusal
         shell: pwsh
         run: ./tools/test_installed_egress.ps1
+
+      - name: Verify Windows OpenSSH can reach an Environment
+        shell: pwsh
+        run: ./tools/test_windows_environment_ssh.ps1
