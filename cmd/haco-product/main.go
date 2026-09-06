@@ -19,7 +19,12 @@ import (
 	"golang.org/x/term"
 )
 
-const loginAlias = "hacocoon-login"
+const (
+	loginAlias = "hacocoon-login"
+
+	trustedHostNoticeEnglish  = "Entering trusted haco-host. Host authority is available here; use an Environment for ordinary development work."
+	trustedHostNoticeJapanese = "信頼済みの haco-host に入ります。ここでは Host 権限を利用できます。通常の開発作業には Environment を使用してください。"
+)
 
 // Cold WSL starts Incus before the controller. A populated Incus installation
 // can exceed 30 seconds; bound startup without delaying an already-ready host.
@@ -166,8 +171,44 @@ func runLoginShim(args []string) error {
 		return fmt.Errorf("enter trusted haco-host: %w", err)
 	}
 	defer stream.Close()
-	fmt.Fprintln(os.Stderr, "Entering trusted haco-host. Host authority is available here; use an Environment for ordinary development work.")
+	writeTrustedHostNotice(os.Stderr)
 	return terminalbridge.Bridge(ctx, stream, os.Stdin, os.Stdout)
+}
+
+func writeTrustedHostNotice(out *os.File) {
+	useColor := term.IsTerminal(int(out.Fd())) && os.Getenv("NO_COLOR") == ""
+	fmt.Fprintln(out, formatTrustedHostNotice(trustedHostNotice(), useColor))
+}
+
+func trustedHostNotice() string {
+	if isJapaneseLocale(currentMessagesLocale()) {
+		return trustedHostNoticeJapanese
+	}
+	return trustedHostNoticeEnglish
+}
+
+func currentMessagesLocale() string {
+	for _, key := range []string{"LC_ALL", "LC_MESSAGES", "LANG"} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func isJapaneseLocale(locale string) bool {
+	locale = strings.ToLower(strings.TrimSpace(locale))
+	if separator := strings.IndexAny(locale, ".@"); separator >= 0 {
+		locale = locale[:separator]
+	}
+	return locale == "ja" || strings.HasPrefix(locale, "ja_") || strings.HasPrefix(locale, "ja-")
+}
+
+func formatTrustedHostNotice(message string, useColor bool) string {
+	if !useColor {
+		return message
+	}
+	return "\x1b[33m" + message + "\x1b[0m"
 }
 
 // WSL can start a login shell before its enabled systemd controller is ready.
