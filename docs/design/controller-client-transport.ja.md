@@ -8,7 +8,7 @@ Status: **partial**。Local Unix domain protocol、Physical Host controller、tr
 
 現在のreset CLI境界: 製品 `haco` はhelp/version・controller経由の `setup` / `doctor` とWSL login aliasを持ち、このpageの旧 `haco env ...` 記述は保持している移行CLIの機能を指す。[実装status](../IMPLEMENTATION_STATUS.ja.md)を参照。
 
-WSLは有効なcontroller serviceがsocketをbindする前にlogin shellを開くことがある。login aliasは読み取り専用pingで最大30秒待ち、transport未準備だけをretryする。protocol・operationの拒否はretryせず、clientが第二のcontrollerを起動したりservice状態を変更したりしない。この起動待ち期限は対話sessionの寿命を制限しない。
+WSLは有効なcontroller serviceがsocketをbindする前にlogin shellを開くことがある。login aliasは読み取り専用pingで最大2分待ち、transport未準備だけをretryする。protocol・operationの拒否はretryせず、clientが第二のcontrollerを起動したりservice状態を変更したりしない。この起動待ち期限は対話sessionの寿命を制限しない。
 
 対話sessionはremote shell終了後にlocal stdinが閉じられるまで待ってはいけない。Incus adapterは子processへ専用OS stdin pipeを渡してclosureを所有し、controllerはprocess終了結果の記録後にclient connectionを閉じる。outputをdrainし、実際のexit statusを保持する。Windows受入で、以前のsocket reader直接指定では `exit` 後も終了待ちする不具合が見つかった。component testはclient入力を開いたまま正常・非zero終了を確認する。WSL login aliasも実際のterminal fdを要求し、`/dev/null` のようなcharacter deviceからtrusted-host shellを開始しない。
 
@@ -128,9 +128,9 @@ Status: **implemented**。このcommandのpackaged受入は実装statusで別途
 
 結果は `ok`・`failed`・`skipped`。全項目成功だけが終了0で、failed/skippedがあればreportを出して終了1、不正な使い方は終了2。transport/protocol失敗は終了1で、成功を示すJSON reportを出さない。項目欠落・重複・不明値・不正応答を拒否する。summaryは成功した検査条件と失敗を区別する。failed/skippedには短い `action` を付け、textでは `Next:` として示す。成功項目には修復を勧めない。両fieldは表示可能なASCII 256 byteまでとし、backend/guestの生出力・errorをreportへコピーしない。固定probe終了値でDNS・default route欠落・HTTPS失敗を区別し、時間切れや未知の終了値から失敗段階を推測しない。失敗は共有loggerでstderrへ記録し、stdoutはtext/JSON結果に使う。
 
-cold WSLでは、enabled controllerのsocketよりCLIが先に動くことがある。最初に読み取り専用pingで最大30秒待ち、transport unavailableだけを再試行する。その後の診断は一度だけ行う。protocol/operation拒否やfailed checkは再試行せず、serviceの起動・resource修復も行わない。
+cold WSLでは、enabled controllerのsocketよりCLIが先に動くことがある。最初に読み取り専用pingで最大2分待ち、transport unavailableだけを再試行する。その後の診断は一度だけ行う。protocol/operation拒否やfailed checkは再試行せず、serviceの起動・resource修復も行わない。
 
-provider probeは各5秒、server operationは30秒、CLI全体は65秒を上限とする。割込み・cancelでclient connectionを閉じる。自動修復や権限を上げるfallbackはしない。固定対象への外部GETにHost credentialやcaller入力を渡さない。guest probeは継承環境変数を消去し、curlのuser設定を無効にする。対話shellや `.curlrc` のcredential/proxy optionは取り込まない。
+provider probeは各5秒、server operationは30秒、CLI全体は155秒を上限とする。割込み・cancelでclient connectionを閉じる。自動修復や権限を上げるfallbackはしない。固定対象への外部GETにHost credentialやcaller入力を渡さない。guest probeは継承環境変数を消去し、curlのuser設定を無効にする。対話shellや `.curlrc` のcredential/proxy optionは取り込まない。
 
 成功reportはその時点の基盤検査である。storage設定の一致は実圧縮・COW・live mountの証明ではない。trusted-host疎通はEnvironmentのproxy-only egress、SSH、Workspace保持、将来のfirewall再読込・起動順変更の受入ではない。保持している `haco-host doctor` は引き続きpingだけの移行用診断である。
 

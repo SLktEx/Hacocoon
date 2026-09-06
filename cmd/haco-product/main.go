@@ -20,6 +20,10 @@ import (
 
 const loginAlias = "hacocoon-login"
 
+// Cold WSL starts Incus before the controller. A populated Incus installation
+// can exceed 30 seconds; bound startup without delaying an already-ready host.
+const controllerStartupTimeout = 2 * time.Minute
+
 func main() {
 	if isLoginAlias(os.Args[0]) {
 		if err := runLoginShim(os.Args[1:]); err != nil {
@@ -126,7 +130,7 @@ func runLoginShim(args []string) error {
 		return fmt.Errorf("open Hacocoon controller client: %w", err)
 	}
 	ctx := context.Background()
-	readyCtx, cancelReady := context.WithTimeout(ctx, 30*time.Second)
+	readyCtx, cancelReady := context.WithTimeout(ctx, controllerStartupTimeout)
 	defer cancelReady()
 	if err := waitForController(readyCtx, func(ctx context.Context) error {
 		_, err := client.Ping(ctx)

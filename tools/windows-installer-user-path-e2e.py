@@ -30,7 +30,7 @@ POOL = "haco-local-default"
 INCUS_POOL_MOUNT = f"/var/lib/incus/storage-pools/{POOL}"
 INCUS_BACKING = f"/var/lib/incus/disks/{POOL}.img"
 PROCESS_TIMEOUT_SECONDS = 1800
-ASSERT_TIMEOUT_SECONDS = 120
+ASSERT_TIMEOUT_SECONDS = 180  # 155s CLI budget plus WSL process startup.
 
 POST_EXIT_DRAIN_SECONDS = 1.0
 

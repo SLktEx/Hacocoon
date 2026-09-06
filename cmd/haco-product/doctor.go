@@ -19,7 +19,7 @@ import (
 func runDoctor(args []string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	ctx, cancel := context.WithTimeout(ctx, 65*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, controllerStartupTimeout+35*time.Second)
 	defer cancel()
 	return doctor(ctx, args, os.Stdout, os.Stderr)
 }
@@ -93,7 +93,7 @@ type hostDoctorClient interface {
 // controller socket. Wait only through read-only ping, then diagnose once.
 // Failed checks and protocol rejection are never retried or repaired.
 func collectDoctor(ctx context.Context, client hostDoctorClient) (controlapi.DoctorResponse, error) {
-	readyCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	readyCtx, cancel := context.WithTimeout(ctx, controllerStartupTimeout)
 	err := waitForController(readyCtx, func(ctx context.Context) error {
 		_, err := client.Ping(ctx)
 		return err

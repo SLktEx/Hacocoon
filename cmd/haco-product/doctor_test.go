@@ -134,7 +134,7 @@ func TestDoctorWaitsForControllerThenDiagnosesOnce(t *testing.T) {
 	calls := 0
 	client := &startupDoctorClient{ping: func(ctx context.Context) error {
 		deadline, ok := ctx.Deadline()
-		if !ok || time.Until(deadline) > 30*time.Second {
+		if !ok || time.Until(deadline) > 2*time.Minute || time.Until(deadline) < time.Minute {
 			t.Fatal("missing bounded controller readiness")
 		}
 		calls++
@@ -143,9 +143,7 @@ func TestDoctorWaitsForControllerThenDiagnosesOnce(t *testing.T) {
 		}
 		return nil
 	}}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	response, err := collectDoctor(ctx, client)
+	response, err := collectDoctor(context.Background(), client)
 	if err != nil || calls != 2 || client.doctorCalls != 1 || response.Healthy() {
 		t.Fatalf("pings=%d diagnostics=%d response=%+v error=%v", calls, client.doctorCalls, response, err)
 	}
