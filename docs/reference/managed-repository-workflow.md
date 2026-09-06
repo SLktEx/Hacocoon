@@ -112,6 +112,26 @@ Environment and compare `ssh-keygen -lf` output). The loopback address refers to
 not to the loopback of `haco-host`. Keep the private key on the SSH client.
 Record the returned connection ID for disconnect. In the SSH session:
 
+With exactly one prepared SSH connection, generate OpenSSH configuration from
+the trusted terminal instead of transcribing its JSON fields:
+
+```bash
+haco env ssh-config sample-dev > sample.ssh
+# On the SSH client, after pinning the host key as described above:
+ssh -F sample.ssh -i /path/to/client-private-key haco-sample-dev
+```
+
+Transfer only this credential-free configuration to the SSH client if needed.
+It enforces strict host-key checking. Supply a client-local known-hosts file
+with `-o UserKnownHostsFile=/path/to/known_hosts` if using a dedicated pin file.
+The loopback must address the controller's Physical Host; another WSL
+distribution may have a different loopback namespace.
+
+`haco env status sample-dev` displays the target Environment, state, Workspace
+and Base as labeled text. Use `haco env status --json sample-dev` for scripts.
+
+In the SSH session:
+
 ```bash
 cd /workspace
 export http_proxy=http://169.254.254.1:18080

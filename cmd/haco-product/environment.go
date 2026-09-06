@@ -25,7 +25,7 @@ func runEnvironment(args []string) int {
 
 func environmentCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] <name> | switch-base --base <base> <name> | list | status <name> | ssh --key <public-key-file> --port <port> <name> | disconnect <name> <connection-id> | stop <name>")
+		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] <name> | switch-base --base <base> <name> | list | status [--json] <name> | ssh --key <public-key-file> --port <port> <name> | ssh-config <name> | disconnect <name> <connection-id> | stop <name>")
 		return 2
 	}
 	if len(args) == 0 {
@@ -39,6 +39,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	flags.SetOutput(diagnostic)
 	var workspace, keyPath, base string
 	var port int
+	var jsonOutput bool
 	switch args[0] {
 	case "create":
 		flags.StringVar(&workspace, "workspace", "", "Workspace path on the controller")
@@ -48,7 +49,10 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	case "ssh":
 		flags.StringVar(&keyPath, "key", "", "client-owned SSH public key file")
 		flags.IntVar(&port, "port", 2222, "loopback port on the WSL Physical Host")
-	case "list", "status", "disconnect", "stop":
+	case "ssh-config":
+	case "status":
+		flags.BoolVar(&jsonOutput, "json", false, "machine-readable status")
+	case "list", "disconnect", "stop":
 	default:
 		return usage()
 	}
@@ -80,7 +84,21 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	case "list":
 		result, err = client.ListEnvironments(ctx)
 	case "status":
-		result, err = client.EnvironmentStatus(ctx, pos[0])
+		var status core.EnvironmentStatus
+		status, err = client.EnvironmentStatus(ctx, pos[0])
+		if err == nil && !jsonOutput {
+			return writeEnvironmentStatus(out, status)
+		}
+		result = status
+	case "ssh-config":
+		var connections []core.ClientConnection
+		connections, err = client.EnvironmentConnections(ctx, pos[0])
+		if err == nil {
+			err = writeSSHConfig(out, pos[0], connections)
+			if err == nil {
+				return 0
+			}
+		}
 	case "stop":
 		err = client.StopEnvironment(ctx, pos[0])
 		result = "Environment stopped; Workspace retained"

@@ -95,5 +95,5 @@ func TestListClientConnectionsReconcilesManagedProxyDevices(t *testing.T) {
 	if !reflect.DeepEqual(connections, want) {
 		t.Fatalf("connections = %#v want %#v", connections, want)
 	}
-	assertRunnerCall(t, runner.calls[0], "incus", "config", "show", "haco-demo", "--project", defaultProject, "--format", "json")
+	assertRunnerCall(t, runner.calls[0], "incus", "query", "/1.0/instances/haco-demo?project="+defaultProject)
 }

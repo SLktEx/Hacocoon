@@ -1,5 +1,11 @@
 # バージョン番号とリリース状況
 
+v0.28候補はtrusted WSL Windows連携、複数repo、Workspace保持Base切替、
+任意OCI一方向配布、OpenSSH設定生成、読みやすいEnvironment表示を追加した。
+B1〜B3はローカル実機確認済み。B4の実runtime導入は設定承認待ち、B5/B6の
+配布物確認は進行中。実装進捗のcheckpointであり、第二段階全体の完了や
+公開releaseを意味しない。
+
 [English](versioning-and-release-status.md) | **日本語**
 
 v0.27候補は管理対象repoのWSL利用経路を実装する。独立Workspace copy、標準SSH、
@@ -63,8 +69,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.25 | Incus-owned Btrfs Storage Acceptance | ordinary-user real Incus/Btrfs CLI acceptanceでIncus-owned pool lifecycleとpolicyを検証済み |
 | v0.26 | Trusted `haco-host` & Default WSL Entry | persistent trusted logical Host lifecycle、ownership/collision check、managed-storage配置、default WSL entry、recovery path、real Incus acceptanceを実装済み |
 | v0.27 | Managed Repository WSL Workflow | 実装済み |
+| v0.28 | Multi-repository Development and Optional OCI Distribution | 実装済み |
 
-現在のmilestone位置は **v0.27** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.28** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

@@ -22,8 +22,8 @@ returned `be34f60c2c3d1ab5761e821fbdaada5e4d5802dc` and
 `b834ee67dbc8f5e37e73656f13872d42ceda40f3` on the two `codex/stage-b-b-*-20260906`
 branches of the authorized Hacocoon-test repository. Different remote URLs
 have local real-Git regression coverage. B3's Base selection/switch product
-commands and canonical lifecycle failure regressions are implemented;
-real-host B3 acceptance remains pending.
+commands and canonical lifecycle failure regressions are implemented and
+accepted as recorded above.
 
 B1 is **implemented and locally accepted** on the existing A installation
 (`7a4d122`, Windows 26200.9278 / WSL 2.7.12 / Incus 6.0.5), using
@@ -38,8 +38,12 @@ this check. See [trusted Host](design/trusted-host.md#windows-interop).
 B2's immutable repository collection is implemented with per-member Incus
 Btrfs volumes, independent Git state and per-repository approval. Linux
 component tests include two real-Git remotes and refusal of foreign repository
-requests. Packaged B2 acceptance and B3–B6 remain in progress; this is not
-complete second-stage acceptance.
+requests. B1–B3 acceptance is recorded above. B4 real-host runtime setup awaits
+explicit approval after the execution environment's automatic review refused
+nesting/package installation. B5 generates OpenSSH configuration from prepared
+connections; B6 displays readable target/Workspace/Base status (`--json` remains
+available). These product changes have repository coverage; their packaged
+acceptance is in progress. This is not complete second-stage acceptance.
 
 ## Managed repository WSL workflow — 2026-09-06
 
@@ -157,7 +161,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.27**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.28**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
