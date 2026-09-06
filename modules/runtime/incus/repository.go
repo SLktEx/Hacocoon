@@ -205,10 +205,7 @@ func (b *RepositoryBackend) ConnectGit(ctx context.Context, environment core.Env
 	if !environmentapp.MatchesRuntimeRef(environment.RuntimeRef, environmentapp.ProviderIncus, ref) {
 		return core.ErrInvalidArgument
 	}
-	if err := b.InspectVolume(ctx, workspace); err != nil {
-		return err
-	}
-	pool, volume, err := volumeRef(workspace)
+	attachments, err := b.WorkspaceAttachments(ctx, workspace)
 	if err != nil {
 		return err
 	}
@@ -223,9 +220,11 @@ func (b *RepositoryBackend) ConnectGit(ctx context.Context, environment core.Env
 	if json.Unmarshal([]byte(result.Stdout), &instance) != nil || instance.Config[managedEnvironmentMarkerKey] != managedEnvironmentMarkerValue {
 		return core.ErrIncompatibleState
 	}
-	disk := instance.Devices["workspace"]
-	if disk["pool"] != pool || disk["source"] != volume || disk["path"] != "/workspace" {
-		return core.ErrIncompatibleState
+	for _, mount := range attachments {
+		disk := instance.Devices[mount.Device]
+		if disk["type"] != "disk" || disk["pool"] != mount.Pool || disk["source"] != mount.Volume || disk["path"] != mount.Path {
+			return core.ErrIncompatibleState
+		}
 	}
 	device := map[string]string{"type": "proxy", "bind": "instance", "listen": "unix:" + gitrepo.GuestSocket, "connect": "unix:" + socket, "mode": "0600", "uid": "0", "gid": "0"}
 	if old, exists := instance.Devices["git-broker"]; exists {
@@ -249,16 +248,42 @@ func (b *RepositoryBackend) ConnectGit(ctx context.Context, environment core.Env
 }
 
 // ConfigureManagedWorkspaces is called once during controller composition.
-func (r *Runtime) ConfigureManagedWorkspaces(resolve func(context.Context, string) (string, string, error)) {
+func (r *Runtime) ConfigureManagedWorkspaces(resolve func(context.Context, string) ([]WorkspaceAttachment, error)) {
 	r.managedWorkspace = resolve
 }
 
-func (b *RepositoryBackend) WorkspaceAttachment(ctx context.Context, object gitrepo.Object) (string, string, error) {
+type WorkspaceAttachment struct{ Device, Pool, Volume, Path string }
+
+func validWorkspaceAttachment(m WorkspaceAttachment) bool {
+	if !safeIncusRef(m.Pool) || !safeIncusRef(m.Volume) {
+		return false
+	}
+	return (m.Device == "workspace" && m.Path == "/workspace") ||
+		(strings.HasPrefix(m.Device, "workspace-") && gitrepo.ValidID(strings.TrimPrefix(m.Device, "workspace-")) && m.Path == "/workspace/"+strings.TrimPrefix(m.Device, "workspace-"))
+}
+
+func (b *RepositoryBackend) WorkspaceAttachments(ctx context.Context, object gitrepo.Object) ([]WorkspaceAttachment, error) {
 	if object.Kind != "work" {
-		return "", "", core.ErrInvalidArgument
+		return nil, core.ErrInvalidArgument
 	}
-	if err := b.InspectVolume(ctx, object); err != nil {
-		return "", "", err
+	var mounts []WorkspaceAttachment
+	for _, member := range object.Copies() {
+		if err := b.InspectVolume(ctx, member); err != nil {
+			return nil, err
+		}
+		pool, volume, err := volumeRef(member)
+		if err != nil {
+			return nil, err
+		}
+		mount := WorkspaceAttachment{Device: "workspace", Pool: pool, Volume: volume, Path: "/workspace"}
+		if len(object.Members) != 0 {
+			mount.Device += "-" + member.Repository
+			mount.Path += "/" + member.Repository
+		}
+		if !validWorkspaceAttachment(mount) {
+			return nil, core.ErrIncompatibleState
+		}
+		mounts = append(mounts, mount)
 	}
-	return volumeRef(object)
+	return mounts, nil
 }

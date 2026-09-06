@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -43,7 +44,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		flags.StringVar(&branch, "branch", "", "one existing upstream branch")
 		n = 2
 	case "workspace create":
-		flags.StringVar(&repo, "repo", "", "registered repository")
+		flags.StringVar(&repo, "repo", "", "registered repository IDs, separated by commas")
 	case "git connect", "git approve", "git deny":
 	case "git pending":
 		n = 0
@@ -67,7 +68,12 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	case "repo clone":
 		result, err = client.CloneRepository(ctx, controlapi.RepositoryCloneRequest{ID: pos[0], Remote: pos[1], Branch: branch})
 	case "workspace create":
-		result, err = client.CopyWorkspace(ctx, controlapi.WorkspaceCopyRequest{ID: pos[0], Repository: repo})
+		request := controlapi.WorkspaceCopyRequest{ID: pos[0], Repository: repo}
+		if strings.Contains(repo, ",") {
+			request.Repository = ""
+			request.Repositories = strings.Split(repo, ",")
+		}
+		result, err = client.CopyWorkspace(ctx, request)
 	case "git connect":
 		err = client.ConnectGit(ctx, pos[0])
 		result = "Environment Git helper connected"

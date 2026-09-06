@@ -6,6 +6,12 @@ Status: **partial**。Local Unix domain protocol、Physical Host controller、tr
 
 ## 概要
 
+第二段階の製品clientは既存Base list/inspectとcanonical stop/delete/createを
+使った管理WorkspaceのBase切替も提供する。SSH設定生成は既存接続情報を読む。
+任意`plugin.oci.distribute`はtrusted controller endpointからOCI pluginの
+一方向image配布を呼ぶ。EnvironmentのGit専用endpointには登録しない。
+[image配布](oci-image-distribution.md)を参照。
+
 製品 `haco` は[管理repo利用手順](../reference/managed-repository-workflow.md)で既存controllerを呼ぶ。typed管理APIに `repository.clone`、`workspace.copy`、`environment.stop`、`git.connect/pending/decide` を追加した。これらはtrusted管理endpointに限り、EnvironmentのGit専用socketには公開しない。受入は[実装status](../IMPLEMENTATION_STATUS.ja.md)、残る旧commandは[CLI移行](../CLI_MIGRATION.md)を参照。
 
 WSLは有効なcontroller serviceがsocketをbindする前にlogin shellを開くことがある。login aliasは読み取り専用pingで最大2分待ち、transport未準備だけをretryする。protocol・operationの拒否はretryせず、clientが第二のcontrollerを起動したりservice状態を変更したりしない。この起動待ち期限は対話sessionの寿命を制限しない。

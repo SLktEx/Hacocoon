@@ -1,5 +1,19 @@
 # Trusted `haco-host`
 
+## Windows連携
+
+状態: 手動セットアップをimplemented。WSL基盤側のcheckoutで、`haco setup`後に
+`sudo python3 scripts/setup-wsl-host-interop.py`を実行する。所有マークと衝突を
+確認し、実在するDrvFsの`/mnt/<letter>`をtrusted `haco-host`の同じパスへ
+マウントする。Environmentや共有profileには追加しない。
+新しいtrusted shellで`cd /mnt/c`した後、
+`/init /mnt/c/Windows/System32/cmd.exe /d /c ver`を実行できる。
+`/init`とinteropディレクトリは読み取り専用で、Windows利用者権限が
+ドライブアクセスを制約する。書き込みには利用者所有のディレクトリを使う。
+WSL再起動でsocket識別が変わる場合は設定を再実行する。
+`/init`なしの直接起動、着脱・再接続、全アプリ互換性はdeferred。
+[ADR 0009](../adr/0009-trusted-host-windows-interop.md)を参照。
+
 Status: partial.
 
 管理対象repoのWSL経路は **implemented**。登録upstreamのcloneとGitHub認証は

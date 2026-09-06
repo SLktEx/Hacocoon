@@ -100,7 +100,7 @@ func (r *Runtime) ListClientConnections(ctx context.Context, ref string) ([]core
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return nil, err
 	}
-	result, err := r.runner.Run(ctx, "incus", "config", "show", ref, "--project", r.project, "--format", "json")
+	result, err := r.runner.Run(ctx, "incus", "query", "/1.0/instances/"+ref+"?project="+r.project)
 	if err != nil {
 		return nil, err
 	}

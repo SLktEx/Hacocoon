@@ -25,7 +25,7 @@ func runEnvironment(args []string) int {
 
 func environmentCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> <name> | list | status <name> | ssh --key <public-key-file> --port <port> <name> | disconnect <name> <connection-id> | stop <name>")
+		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] <name> | switch-base --base <base> <name> | list | status [--json] <name> | ssh --key <public-key-file> --port <port> <name> | ssh-config <name> | disconnect <name> <connection-id> | stop <name>")
 		return 2
 	}
 	if len(args) == 0 {
@@ -37,15 +37,22 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	}
 	flags := flag.NewFlagSet("haco env "+args[0], flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
-	var workspace, keyPath string
+	var workspace, keyPath, base string
 	var port int
+	var jsonOutput bool
 	switch args[0] {
 	case "create":
 		flags.StringVar(&workspace, "workspace", "", "Workspace path on the controller")
+		flags.StringVar(&base, "base", "", "logical Base name")
+	case "switch-base":
+		flags.StringVar(&base, "base", "", "replacement Base; retains managed Workspace, discards Environment root filesystem")
 	case "ssh":
 		flags.StringVar(&keyPath, "key", "", "client-owned SSH public key file")
 		flags.IntVar(&port, "port", 2222, "loopback port on the WSL Physical Host")
-	case "list", "status", "disconnect", "stop":
+	case "ssh-config":
+	case "status":
+		flags.BoolVar(&jsonOutput, "json", false, "machine-readable status")
+	case "list", "disconnect", "stop":
 	default:
 		return usage()
 	}
@@ -60,7 +67,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	if args[0] == "disconnect" {
 		n = 2
 	}
-	if len(pos) != n || (args[0] == "create" && workspace == "") || (args[0] == "ssh" && keyPath == "") {
+	if len(pos) != n || (args[0] == "create" && workspace == "") || (args[0] == "switch-base" && base == "") || (args[0] == "ssh" && keyPath == "") {
 		return usage()
 	}
 	client, err := controlapi.NewDefaultClient()
@@ -71,11 +78,27 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	var result any
 	switch args[0] {
 	case "create":
-		result, err = client.CreateEnvironment(ctx, controlapi.EnvironmentCreateRequest{Name: pos[0], WorkspacePath: workspace})
+		result, err = client.CreateEnvironment(ctx, controlapi.EnvironmentCreateRequest{Name: pos[0], WorkspacePath: workspace, Base: core.BaseName(base)})
+	case "switch-base":
+		result, err = switchBase(ctx, client, pos[0], core.BaseName(base))
 	case "list":
 		result, err = client.ListEnvironments(ctx)
 	case "status":
-		result, err = client.EnvironmentStatus(ctx, pos[0])
+		var status core.EnvironmentStatus
+		status, err = client.EnvironmentStatus(ctx, pos[0])
+		if err == nil && !jsonOutput {
+			return writeEnvironmentStatus(out, status)
+		}
+		result = status
+	case "ssh-config":
+		var connections []core.ClientConnection
+		connections, err = client.EnvironmentConnections(ctx, pos[0])
+		if err == nil {
+			err = writeSSHConfig(out, pos[0], connections)
+			if err == nil {
+				return 0
+			}
+		}
 	case "stop":
 		err = client.StopEnvironment(ctx, pos[0])
 		result = "Environment stopped; Workspace retained"

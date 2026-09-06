@@ -1,5 +1,106 @@
 # Implementation Status
 
+## Second-stage workflow
+
+Status: **implemented; B1–B6 locally accepted** on the Windows/WSL configuration
+below. Docker and nerdctl both passed one-way distribution and independent
+container execution. The selected B5/B6 improvements and the affected A workflow
+also passed. See the [workflow](reference/managed-repository-workflow.md),
+[OCI contract](design/oci-image-distribution.md) and
+[follow-ups](status/development-follow-ups.md).
+
+| Step | Implemented behavior and observed result |
+|---|---|
+| B1 | Explicit trusted-Host setup discovers existing DrvFs drives. PowerShell received a separate spaced argument, preserved stdout/stderr and exit 23; user-owned `/mnt/c` reads/writes passed. Rechecked on final installed `029ff08`. Only C is mounted; extra-drive parsing has regression coverage, additional-drive real-host acceptance is not executed. Environments have no Windows devices, `/init` or interop environment. |
+| B2 | Packaged `087e7e2`: one `b-dev` Environment mounts independent Btrfs copies at `/workspace/b-first` and `/workspace/b-second`, with separate `.git`, no alternates/commondir. SSH fetch/pull, edit, commit and fixed-content approval push passed for each repository. GitHub returned `be34f60c2c3d1ab5761e821fbdaada5e4d5802dc` and `b834ee67dbc8f5e37e73656f13872d42ceda40f3` on the respective test branches. Two different remote URLs also pass local real-Git regression. |
+| B3 | Packaged `3747bae`: `haco base list` and `env switch-base` moved the same managed Workspace from Ubuntu 26.04 to 24.04. All 54 repository files, including `.git`, had identical hashes after switching. Unpushed commits `bce47b9` / `6d5fc53`, modified tracked files and untracked notes survived. Reconnected Git/SSH, pinned the new host key, and edited over SSH on Ubuntu 24.04.4. |
+| B4 | Packaged `029ff08`: `haco plugin oci distribute --runtime <runtime> --image hacocoon-b4:smoke b-dev` passed separately for Docker and nerdctl. Each guest container started over ordinary SSH, changed its file, then stopped; the corresponding Host container remained running with its original file. Unit/component regressions cover both command families, failed export, input/size bounds and fixed instance-local sockets. |
+| B5 | Packaged `029ff08`: `haco env ssh-config b-dev` generated OpenSSH configuration and standard `ssh -F ... haco-b-dev` connected successfully, removing manual host/port/user transcription. Existing Incus 6.0.5's unsupported `config show --format` was replaced with its JSON query API and regression coverage. |
+| B6 | Packaged `029ff08`: `haco env status` clearly displayed Environment, state, Workspace, access and Base. Stopped status explicitly said the Workspace is retained. `--json` preserves machine-readable output. |
+
+**Test target:** all external writes used only
+`https://github.com/SLktEx/Hacocoon-test.git`, branches
+`codex/stage-b-b-first-20260906` and `codex/stage-b-b-second-20260906`.
+The two real-host registrations use this same authorized URL with separate
+branches; different remote URLs were exercised only in repository regression.
+
+Btrfs independently reported source UUIDs
+`411102dc-d913-264a-96a0-b09d079eb898` / `58ccd7df-d8df-3444-98b4-67b35d85018e`
+as the parent UUIDs of the respective Workspace volumes
+`49eff338-40d8-244b-9276-e35952b475b2` / `a23fadbc-77af-be4a-b7a9-f9829e96e613`.
+This verifies the observed COW relationship, not performance.
+
+**Final installed candidate:** `029ff08e34c98e075b7b0b3d3a7fc7f639e89323`,
+checkpoint `v0.28`, snapshot `0.27.0-SNAPSHOT-029ff08`, built
+`2026-09-06T10:25:40Z`. ZIP SHA-256:
+`20f308cb5bcccfdaef1f0c76914bdae65834c957afd6c446fd0effdda26717fe`.
+Each candidate was built from its branch commit and applied through its ordinary
+Windows BAT to the existing Hacocoon WSL distribution. No installer-specific
+product override or internal state repair was used. Fresh installation was not
+repeated. The retained A configuration is Windows 26200.9278 / WSL 2.7.12 /
+Incus 6.0.5 / Incus-owned Btrfs `haco-local-default`.
+
+**Bases:** B3 moved from revision
+`sha256:d071290fb40659981198baf0161a8bcc9910ebae79a15f5ef5d9c06dbdb2ea4c`
+to Ubuntu 24.04 revision
+`sha256:f38ca805517f5b6e301f33b0f44523386c5a050847564c1233e586106b31dbc9`.
+Later explicit Ubuntu 26.04 creation resolved
+`sha256:297ce79fb308c09126222dd6e64c260003c5d1e1ea1ce46ea43e80a419941636`;
+the earlier Environment's recorded revision was unchanged.
+
+**A regression on final candidate:** ordinary single-repository `b-a-work` /
+`b-a-dev` creation with explicit Base, generated SSH configuration, fetch and
+fast-forward pull from `f4ff6e3` to `be34f60`, Python compilation/assertion, commit,
+denial (remote unchanged), then approval push all passed. GitHub independently
+returned `145fd7fce49a5a8771e39e7b142d47aa49c910c3` on the first test branch.
+Disconnect and graceful stop succeeded; all 28 files including dirty/untracked
+work and Git state had identical hashes before/after stop. The canonical lease
+and Incus volume remain. Inner/outer clients matched the controller build;
+all six doctor checks passed. The original A Workspace/Environment remains
+preserved. After OCI setup, SSH/helper fetch still passed in both repositories,
+allowed proxy access passed, direct external TCP remained denied, and Windows
+interop/controller paths remained absent from the guest. Ordinary `env stop
+b-dev` retained all 57 Workspace file hashes and the collection ownership;
+both Host containers remained running. `b-a-dev` and `b-dev` are stopped.
+
+**B4 configuration and result (2026-09-06):** nesting was explicitly enabled on
+owned, unprivileged `haco-host` and `haco-b-dev`; existing devices and network
+guards were retained. Independent Ubuntu `docker.io` installations provided
+Docker 29.1.3 on both sides and containerd 2.2.2 (Host) / 2.2.1 (guest).
+Official minimal nerdctl 2.3.5 archive SHA-256 was
+`de3206aeb7cbd5f20f5fb1f55c1e3bf2db1be567812a8a3f5e65eba2488347ee`.
+No full bundle, privileged mode, AppArmor disabling or shared runtime device was
+needed. The image contained only Ubuntu `busybox-static`, its shell symlink and
+fixed `/data/message`; image ID was
+`sha256:9bafa1f9ed06b9fcc33ef5b6674ef3c4d79ae819b7724d5b228923712112b46f`.
+Both product transfers reported 1,183,232 bytes and archive SHA-256
+`a2ea9ac81b39572d424bd2b63461ac659c2b0a4c327ccb963e110f08ed553c57`.
+Both used `--network none`. Docker guest content became `guest-only`, nerdctl
+guest content became `nerd-guest-only`; both Host copies stayed `host-original`.
+See the [reproducible procedure](design/oci-image-distribution.md).
+
+**Repository validation:** maintained `ci-local.sh docs`, `workflow-policy`,
+`test` (Go tests/vet and JS), `race` and `e2e` passed after B5/B6. Narrow lifecycle,
+Git, collection-mount, OCI and SSH-configuration regressions passed while
+iterating. GoReleaser check/build and installer archive checksums passed.
+The isolated Linux kernel forwarding job also passed. Local validation used
+Go 1.27.1. Hosted CI, including release-config and installer/provider jobs, is
+recorded on [PR #473](https://github.com/SLktEx/Hacocoon/pull/473).
+Broad real-host runtime/network matrices are not claimed.
+
+**Manual operations and acceptance limits:** B1 requires the recorded Physical
+Host script; repeat after interop socket changes. Authentication and narrow
+Policy remain trusted-side setup. SSH private key and host-key pinning remain
+client-owned; use the controller's Physical Host/Windows loopback, since a
+different WSL distribution may have its own loopback namespace. SSH package
+downloads still need credential-free proxy exports (existing #469). Base switch
+discards root filesystem/packages and requires Git/SSH reconnection. B4 requires
+explicit nesting/runtime setup in each instance, repeated after Base replacement.
+The earlier execution-review refusal was resolved on the resumed B-completion
+request; the exact-instance setup and known test-image transfers above executed
+successfully. Additional Windows drives were unavailable; wider Windows/image
+compatibility, interrupted operation and general recovery remain unverified.
+
 ## Managed repository WSL workflow — 2026-09-06
 
 **Implemented; A1–A6 accepted on the local Windows/WSL configuration below.** The v0.27 candidate adds
@@ -116,7 +217,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.27**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.28**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

@@ -176,6 +176,8 @@ run_release_config() {
 run_test() {
   check_go
   need node
+  need python3
+  python3 tools/test_wsl_host_interop.py
   section "test"
   go test -count=1 -shuffle=on ./...
   go vet ./...

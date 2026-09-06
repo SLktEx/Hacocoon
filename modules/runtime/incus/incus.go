@@ -37,7 +37,7 @@ type Runtime struct {
 	stdout           io.Writer
 	stderr           io.Writer
 	cleanupTimeout   time.Duration
-	managedWorkspace func(context.Context, string) (string, string, error)
+	managedWorkspace func(context.Context, string) ([]WorkspaceAttachment, error)
 }
 
 func New(runner host.Runner) *Runtime {

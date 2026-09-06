@@ -22,8 +22,9 @@ type RepositoryCloneRequest struct {
 	Branch string `json:"branch"`
 }
 type WorkspaceCopyRequest struct {
-	ID         string `json:"id"`
-	Repository string `json:"repository"`
+	ID           string   `json:"id"`
+	Repository   string   `json:"repository"`
+	Repositories []string `json:"repositories,omitempty"`
 }
 type GitDecisionRequest struct {
 	ID       string `json:"id"`
@@ -47,6 +48,13 @@ func RegisterRepositories(server *control.Server, repositories *gitrepo.Reposito
 			var req WorkspaceCopyRequest
 			if json.Unmarshal(payload, &req) != nil {
 				return nil, control.ErrInvalidArgument
+			}
+			if len(req.Repositories) != 0 {
+				if req.Repository != "" {
+					return nil, control.ErrInvalidArgument
+				}
+				result, err := repositories.CopyWorkspaceSet(ctx, req.ID, req.Repositories)
+				return result, translateError(err)
 			}
 			result, err := repositories.CopyWorkspace(ctx, req.ID, req.Repository)
 			return result, translateError(err)

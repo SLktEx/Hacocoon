@@ -36,6 +36,27 @@ to an Environment. Failed creation keeps an ownership/recovery record and does
 not remove data. Diagnose it before choosing a new ID or retrying; automated
 recovery is deferred.
 
+## Multiple repositories in one Workspace
+
+Register each upstream separately, then create an immutable collection:
+
+```bash
+haco repo clone --branch first-branch first https://github.com/OWNER/REPO.git
+haco repo clone --branch second-branch second https://github.com/OWNER/REPO.git
+haco workspace create --repo first,second both
+haco env create --workspace managed:both both-dev
+haco git connect both-dev
+```
+
+Inside the Environment, work in `/workspace/first` and `/workspace/second`.
+Each has its own Incus Btrfs copy and `.git`. Ordinary fetch, pull, commit and
+approved push apply independently to its registered remote and branch. Add
+Policy rules for both repository IDs. The one canonical Workspace lease owns
+the complete collection; members cannot be leased separately. Files outside
+the repository mounts belong to the disposable Environment root filesystem.
+Changing collection membership and partial-creation recovery are deferred.
+See [ADR 0010](../adr/0010-multiple-repositories-per-workspace.md).
+
 ## Configure narrow Policy
 
 Policy is an ordinary administrator-owned file on the WSL Physical Host,
@@ -91,6 +112,26 @@ Environment and compare `ssh-keygen -lf` output). The loopback address refers to
 not to the loopback of `haco-host`. Keep the private key on the SSH client.
 Record the returned connection ID for disconnect. In the SSH session:
 
+With exactly one prepared SSH connection, generate OpenSSH configuration from
+the trusted terminal instead of transcribing its JSON fields:
+
+```bash
+haco env ssh-config sample-dev > sample.ssh
+# On the SSH client, after pinning the host key as described above:
+ssh -F sample.ssh -i /path/to/client-private-key haco-sample-dev
+```
+
+Transfer only this credential-free configuration to the SSH client if needed.
+It enforces strict host-key checking. Supply a client-local known-hosts file
+with `-o UserKnownHostsFile=/path/to/known_hosts` if using a dedicated pin file.
+The loopback must address the controller's Physical Host; another WSL
+distribution may have a different loopback namespace.
+
+`haco env status sample-dev` displays the target Environment, state, Workspace
+and Base as labeled text. Use `haco env status --json sample-dev` for scripts.
+
+In the SSH session:
+
 ```bash
 cd /workspace
 export http_proxy=http://169.254.254.1:18080
@@ -120,6 +161,25 @@ that pending request. A denial must leave the remote unchanged; a subsequent
 ordinary `git push` creates a new proposal. Verify the resulting upstream OID
 using authenticated Git or GitHub from the trusted side.
 
+## Select and switch Base
+
+```bash
+haco base list
+haco env create --base haco/ubuntu-26.04 --workspace managed:both both-dev
+# Work and commit in either repository; pushing first is not required.
+haco env switch-base --base haco/ubuntu-24.04 both-dev
+haco git connect both-dev
+haco env ssh --key /root/client.pub --port 2222 both-dev
+```
+
+Switching keeps the managed Workspace volumes and all their Git state. It
+replaces the Environment root filesystem, so install development packages
+again if the new Base does not supply them. Files outside repository mounts
+are discarded. SSH gets a new host key: verify and update the client's pinned
+key through the trusted provider. If recreation fails, the error identifies
+the retained Workspace and gives the next command. Interruption recovery is
+deferred; inspect current state before retrying.
+
 ## Finish and retain work
 
 Exit SSH, then use the trusted terminal:
@@ -133,5 +193,5 @@ haco env status sample-dev
 Stop is graceful and keeps the Environment metadata, Workspace volume and lease.
 Uncommitted, untracked and unpushed data remain in that volume. It is not a delete
 or garbage-collection command. Inspect remote state after an ambiguous Git
-failure before retrying. Large transfers, multiple refs/repositories, generalized
+failure before retrying. Large transfers, multiple refs, generalized
 recovery and automatic SSH configuration are deferred.

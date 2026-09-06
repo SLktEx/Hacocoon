@@ -21,6 +21,14 @@ Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progr
 
 ## Current checkpoint status
 
+The v0.28 candidate adds trusted WSL Windows interop, repository collections,
+Workspace-preserving Base switching, optional one-way OCI distribution,
+OpenSSH configuration generation and readable Environment status. B1–B6 have
+local packaged/manual acceptance. Docker and nerdctl distribution, independent
+guest start/change/stop, B5/B6 and the A regression passed on packaged `029ff08`.
+This completes the requested local second-stage journey; it is not a published
+release or acceptance of a broader platform/image matrix.
+
 The v0.27 candidate implements the managed repository WSL workflow: independent
 Workspace copies, standard SSH, ordinary Git helper fetch/pull and fixed-content
 push approval, followed by graceful stop retaining work. Local real-Git
@@ -65,8 +73,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.25 | Incus-owned Btrfs Storage Acceptance | ✅ ordinary-user real Incus/Btrfs CLI acceptance verifies the Incus-owned pool lifecycle and policy |
 | v0.26 | Trusted `haco-host` & Default WSL Entry | ✅ persistent trusted logical Host lifecycle, ownership/collision checks, managed-storage placement, default WSL entry, recovery path, and real Incus acceptance implemented |
 | v0.27 | Managed Repository WSL Workflow | ✅ implemented |
+| v0.28 | Multi-repository Development and Optional OCI Distribution | ✅ implemented |
 
-The current milestone position is **v0.27**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.28**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

@@ -1,5 +1,86 @@
 # 実装状況
 
+## 第二段階
+
+状態は**implemented・以下のWindows/WSL構成でB1〜B6を受入済み**。
+Dockerとnerdctlの両方で一方向配布・独立起動が成功した。
+選択したB5/B6改善と、影響を受けるAの基本導線も確認済み。
+[利用手順](reference/managed-repository-workflow.md)、
+[OCI契約](design/oci-image-distribution.md)、
+[残課題](status/development-follow-ups.md)を参照。
+
+| 段階 | 実装と確認結果 |
+|---|---|
+| B1 | trusted Host限定の明示setupで既存DrvFsドライブを検出。PowerShellへ独立した空白付き引数を渡し、stdout/stderr・終了23を確認。利用者所有`/mnt/c`の読み書き成功。最終候補029ff08でも再確認。実機はCのみ。追加ドライブは解析回帰のみで実機未検証。EnvironmentへWindows device・`/init`・interop環境変数は渡っていない。 |
+| B2 | 配布物087e7e2でb-dev内の`/workspace/b-first`・`/workspace/b-second`を確認。独立Btrfs copyと専用.git、alternates/commondirなし。SSH fetch/pull・編集・commit・固定内容承認付きpushが両repoで通った。GitHub側OIDは`be34f60c2c3d1ab5761e821fbdaada5e4d5802dc`と`b834ee67dbc8f5e37e73656f13872d42ceda40f3`。異なるremote URLもローカル実Git回帰で確認。 |
+| B3 | 配布物3747baeでBase一覧と26.04→24.04切替。全54ファイル（.gitを含む）のハッシュ一致。未push commit bce47b9 / 6d5fc53、未コミット変更、未追跡notesを保持。Git/SSH再接続、新host key固定、Ubuntu24.04.4上のSSH編集も成功。 |
+| B4 | 配布物029ff08の`haco plugin oci distribute --runtime <runtime> --image hacocoon-b4:smoke b-dev`でDockerとnerdctlを個別に確認。通常SSHからguestコンテナを起動・ファイル変更・停止し、対応するHostコンテナが元の内容で稼働し続けることを確認した。両driver、export失敗、入力・サイズ上限・instance内固定socketの回帰も成功。 |
+| B5 | 配布物029ff08の`haco env ssh-config b-dev`で生成した設定から通常SSH接続が成功。host/port/userの手動転記を削減。Incus6.0.5にないconfig show --formatをJSON query APIへ修正し、回帰を追加。 |
+| B6 | 配布物029ff08のenv statusで対象Environment・状態・Workspace・access・Baseを読みやすく表示。停止時はWorkspace保持を明示。機械可読出力は--jsonで取得できる。 |
+
+実push先は指定の`https://github.com/SLktEx/Hacocoon-test.git`だけ。
+branchは`codex/stage-b-b-first-20260906`と`codex/stage-b-b-second-20260906`。
+実機の2登録は同じ許可済みURLの別branchを使用し、別URLの振分けはrepository回帰で確認した。
+
+Btrfs source UUID `411102dc-d913-264a-96a0-b09d079eb898` /
+`58ccd7df-d8df-3444-98b4-67b35d85018e`が、それぞれWorkspace volume
+`49eff338-40d8-244b-9276-e35952b475b2` / `a23fadbc-77af-be4a-b7a9-f9829e96e613`
+のparent UUIDに一致した。実際のCOW関係の確認であり、性能計測ではない。
+
+最終導入候補は`029ff08e34c98e075b7b0b3d3a7fc7f639e89323`、checkpoint v0.28、
+snapshot `0.27.0-SNAPSHOT-029ff08`、build時刻`2026-09-06T10:25:40Z`。
+Windows ZIP SHA-256は`20f308cb5bcccfdaef1f0c76914bdae65834c957afd6c446fd0effdda26717fe`。
+各候補のbranch commitから配布物を作り、通常BATで既存Hacocoon WSLへ適用した。
+製品の検証用overrideや内部state修復は使っていない。fresh導入は再実行していない。
+保持したA構成はWindows26200.9278 / WSL2.7.12 / Incus6.0.5、Incus所有Btrfs
+pool haco-local-default。
+
+B3の26.04 revisionは`sha256:d071290fb40659981198baf0161a8bcc9910ebae79a15f5ef5d9c06dbdb2ea4c`、
+切替先24.04は`sha256:f38ca805517f5b6e301f33b0f44523386c5a050847564c1233e586106b31dbc9`。
+後の26.04明示作成では`sha256:297ce79fb308c09126222dd6e64c260003c5d1e1ea1ce46ea43e80a419941636`
+へ解決された。先に作成したEnvironmentの固定revisionは変わっていない。
+
+最終候補のA回帰では単一repo b-a-work / b-a-devを通常作成。生成SSH設定、
+fetch・f4ff6e3からbe34f60へのfast-forward pull、Python compile/assert、commit、
+push拒否（remote不変）、続く承認pushが成功。GitHub側で第一branchの
+`145fd7fce49a5a8771e39e7b142d47aa49c910c3`一致を確認。disconnectと正常stop後も
+全28ファイル（未コミット・未追跡・Git状態）とcanonical lease・volumeを保持。
+内外clientとcontrollerのbuild一致、doctor6項目も正常。元のA資源は保全した。
+OCI導入後も両repoのSSH/helper fetchが成功し、許可proxy通信・外部直接TCP拒否・
+guestへのWindows interop/controllerパス非公開を再確認した。通常の`env stop b-dev`後も
+全57Workspaceファイルのハッシュとcollection所有権を保持し、Hostの両コンテナは稼働継続。
+b-a-devとb-devは停止している。
+
+B4構成・結果（2026-09-06）：所有確認した非privilegedのhaco-hostとhaco-b-devに
+明示的にnestingを設定し、既存deviceとnetwork guardを保持した。両側へUbuntuの
+docker.ioを独立導入し、Docker29.1.3、containerdはHost2.2.2・guest2.2.1。
+公式最小nerdctl2.3.5配布物のSHA-256は
+`de3206aeb7cbd5f20f5fb1f55c1e3bf2db1be567812a8a3f5e65eba2488347ee`。
+full bundle・privileged化・AppArmor無効化・runtime device共有は不要だった。
+イメージはUbuntuのbusybox-static、shell symlink、固定/data/messageだけを含み、IDは
+`sha256:9bafa1f9ed06b9fcc33ef5b6674ef3c4d79ae819b7724d5b228923712112b46f`。
+両方の製品配布は1,183,232 bytes、archive SHA-256は
+`a2ea9ac81b39572d424bd2b63461ac659c2b0a4c327ccb963e110f08ed553c57`。
+両方とも--network noneで起動。Docker guestはguest-only、nerdctl guestは
+nerd-guest-onlyへ変更したが、Host側は両方host-originalのままだった。
+[再現手順](design/oci-image-distribution.md)を参照。
+
+検証はci-local.shのdocs・workflow-policy・test（Go/vet/JS）・race・e2eが
+B5/B6変更後に通過。関連するlifecycle/Git/collection mount/OCI/SSH設定回帰、
+GoReleaser check/buildと配布checksum、独立Linux network namespaceのforwarding jobも成功。
+ローカルGoは1.27.1。release-configとinstaller/provider jobを含むhosted CI結果は
+[PR #473](https://github.com/SLktEx/Hacocoon/pull/473)に記録する。
+広い実機runtime/network matrixの受入は主張しない。
+
+手動操作はB1のPhysical Host設定、trusted側認証と限定Policy、client所有SSH鍵と
+host key固定。別WSL distroのloopbackから届かない構成があり、controllerの
+Physical HostまたはWindows loopbackを使う。SSH内proxy exportは既存#469として残る。
+Base切替ではroot filesystem/packagesを破棄しGit/SSH再接続が必要。
+B4は各instanceへの明示nesting/runtime設定が必要で、Base交換後は再設定する。
+以前の自動実行レビュー拒否はB完了の再依頼後に解消し、対象instanceを固定した設定と
+既知の検証image配布が実行・成功した。追加Windowsドライブは実機になく未確認。
+広いWindows/image互換性、中断処理、汎用復旧は未検証として残る。
+
 ## 管理対象repoのWSL利用経路 — 2026-09-06
 
 **implemented・以下のローカルWindows/WSL構成でA1〜A6を受入済み**。v0.27候補は、新hacoのrepo登録、
@@ -104,7 +185,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.27** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.28** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

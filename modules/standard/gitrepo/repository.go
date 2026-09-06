@@ -15,14 +15,15 @@ import (
 )
 
 type Object struct {
-	Kind       string `json:"kind"`
-	ID         string `json:"id"`
-	Repository string `json:"repository"`
-	Remote     string `json:"remote"`
-	Branch     string `json:"branch"`
-	NativeRef  string `json:"native_ref"`
-	Owner      string `json:"owner"`
-	State      string `json:"state"`
+	Kind       string   `json:"kind"`
+	ID         string   `json:"id"`
+	Repository string   `json:"repository"`
+	Remote     string   `json:"remote"`
+	Branch     string   `json:"branch"`
+	NativeRef  string   `json:"native_ref"`
+	Owner      string   `json:"owner"`
+	State      string   `json:"state"`
+	Members    []Object `json:"members,omitempty"`
 }
 
 type Backend interface {
@@ -67,6 +68,95 @@ func (s *RepositoryService) CopyWorkspace(ctx context.Context, id, repository st
 		return Object{}, err
 	}
 	return s.create(ctx, Object{Kind: "work", ID: id, Repository: repository, Remote: repo.Remote, Branch: repo.Branch}, &repo)
+}
+
+// CopyWorkspaceSet reserves the entire immutable collection before creating
+// member volumes. Members have no independently resolvable state records.
+func (s *RepositoryService) CopyWorkspaceSet(ctx context.Context, id string, repositories []string) (Object, error) {
+	if !ValidID(id) || len(repositories) < 2 || len(repositories) > 8 {
+		return Object{}, core.ErrInvalidArgument
+	}
+	seen := map[string]bool{}
+	for _, repo := range repositories {
+		if !ValidID(repo) || !ValidID(id+"-"+repo) || seen[repo] {
+			return Object{}, core.ErrInvalidArgument
+		}
+		seen[repo] = true
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	object := Object{Kind: "work", ID: id, Owner: randomID(), State: "creating"}
+	sources := make([]Object, 0, len(repositories))
+	for _, name := range repositories {
+		source, err := s.Get("repo", name)
+		if err != nil {
+			return Object{}, err
+		}
+		if err := s.Backend.InspectVolume(ctx, source); err != nil {
+			return Object{}, err
+		}
+		ref, err := s.Backend.Plan(ctx, "work", id+"-"+name)
+		if err != nil {
+			return Object{}, err
+		}
+		object.Members = append(object.Members, Object{Kind: "work", ID: id + "-" + name, Repository: name, Remote: source.Remote, Branch: source.Branch, NativeRef: ref, Owner: randomID(), State: "creating"})
+		sources = append(sources, source)
+	}
+	if err := s.reserve(object); err != nil {
+		return Object{}, err
+	}
+	for i := range object.Members {
+		member := &object.Members[i]
+		if err := s.Backend.CreateVolume(ctx, *member, &sources[i]); err != nil {
+			return object, errors.Join(err, core.ErrRecoveryRequired)
+		}
+		member.State = "created"
+		if err := s.save(object); err != nil {
+			return object, errors.Join(err, core.ErrRecoveryRequired)
+		}
+		if err := s.Backend.InspectVolume(ctx, *member); err != nil {
+			return object, errors.Join(err, core.ErrRecoveryRequired)
+		}
+		if err := s.Backend.Populate(ctx, *member); err != nil {
+			return object, errors.Join(err, core.ErrRecoveryRequired)
+		}
+		member.State = "ready"
+		if err := s.save(object); err != nil {
+			return object, errors.Join(err, core.ErrRecoveryRequired)
+		}
+	}
+	object.State = "ready"
+	if err := s.save(object); err != nil {
+		return object, errors.Join(err, core.ErrRecoveryRequired)
+	}
+	return object, nil
+}
+
+func (o Object) Copies() []Object {
+	if len(o.Members) != 0 {
+		return o.Members
+	}
+	return []Object{o}
+}
+
+func validObject(o Object) bool {
+	if !ValidID(o.ID) || (o.Kind != "work" && o.Kind != "repo") || len(o.Owner) != 32 {
+		return false
+	}
+	if len(o.Members) == 0 {
+		return ValidID(o.Repository) && ValidBranch(o.Branch) && ValidateRemote(o.Remote) == nil && o.NativeRef != ""
+	}
+	if o.Kind != "work" || len(o.Members) < 2 || len(o.Members) > 8 || o.NativeRef != "" || o.Repository != "" || o.Remote != "" || o.Branch != "" {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, member := range o.Members {
+		if len(member.Members) != 0 || member.Kind != "work" || member.ID != o.ID+"-"+member.Repository || seen[member.Repository] || !validObject(member) || (o.State == "ready" && member.State != "ready") {
+			return false
+		}
+		seen[member.Repository] = true
+	}
+	return true
 }
 
 func (s *RepositoryService) create(ctx context.Context, object Object, source *Object) (Object, error) {
@@ -114,7 +204,7 @@ func (s *RepositoryService) Get(kind, id string) (Object, error) {
 	if err != nil {
 		return object, err
 	}
-	if len(content) > 16384 || json.Unmarshal(content, &object) != nil || object.ID != id || object.Kind != kind || !ValidID(object.Repository) || !ValidBranch(object.Branch) || ValidateRemote(object.Remote) != nil || len(object.Owner) != 32 || object.NativeRef == "" {
+	if len(content) > 16384 || json.Unmarshal(content, &object) != nil || object.ID != id || object.Kind != kind || !validObject(object) {
 		return Object{}, core.ErrIncompatibleState
 	}
 	if object.State != "ready" {
@@ -128,8 +218,10 @@ func (s *RepositoryService) Workspace(ctx context.Context, id string) (core.Work
 	if err != nil {
 		return core.Workspace{}, err
 	}
-	if err := s.Backend.InspectVolume(ctx, object); err != nil {
-		return core.Workspace{}, err
+	for _, member := range object.Copies() {
+		if err := s.Backend.InspectVolume(ctx, member); err != nil {
+			return core.Workspace{}, err
+		}
 	}
 	return core.Workspace{ID: core.WorkspaceID("workspace:managed:" + object.Owner), Path: "managed:" + id}, nil
 }
