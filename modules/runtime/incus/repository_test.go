@@ -16,9 +16,13 @@ func TestVolumeCopySetsExactOwnerInCreationRequest(t *testing.T) {
 	source := gitrepo.Object{Kind: "repo", ID: "demo", Repository: "demo", NativeRef: "haco-local-default/haco-repo-demo", Owner: strings.Repeat("a", 32)}
 	target := gitrepo.Object{Kind: "work", ID: "work", Repository: "demo", NativeRef: "haco-local-default/haco-work-work", Owner: strings.Repeat("b", 32)}
 	posts := 0
+	idmap := `[{"Isuid":true,"Isgid":false,"Hostid":1000000,"Nsid":0,"Maprange":1000000000},{"Isuid":false,"Isgid":true,"Hostid":1000000,"Nsid":0,"Maprange":1000000000}]`
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if len(args) == 2 && args[0] == "query" {
-			data, _ := json.Marshal(map[string]any{"name": "haco-repo-demo", "type": "custom", "content_type": "filesystem", "config": volumeConfig(source)})
+			config := volumeConfig(source)
+			config["volatile.idmap.last"] = idmap
+			config["volatile.idmap.next"] = idmap
+			data, _ := json.Marshal(map[string]any{"name": "haco-repo-demo", "type": "custom", "content_type": "filesystem", "config": config})
 			return host.Result{Stdout: string(data)}, nil
 		}
 		if len(args) != 7 || args[0] != "query" || args[2] != "POST" || args[3] != "--wait" {
@@ -34,6 +38,9 @@ func TestVolumeCopySetsExactOwnerInCreationRequest(t *testing.T) {
 		}
 		if request.Name != "haco-work-work" || request.Config["user.hacocoon.owner"] != target.Owner || request.Source["name"] != "haco-repo-demo" || request.Source["type"] != "copy" {
 			t.Fatalf("request=%+v", request)
+		}
+		if request.Config["volatile.idmap.last"] != idmap || request.Config["volatile.idmap.next"] != idmap {
+			t.Fatal("copy lost Incus ID bookkeeping and would shift file owners twice")
 		}
 		posts++
 		return host.Result{}, nil

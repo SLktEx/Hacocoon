@@ -83,8 +83,11 @@ Generate a client-owned key with `ssh-keygen`. Put only its public key in truste
 haco env ssh --key /root/client.pub --port 2222 sample-dev
 ```
 
-Use the returned user, port and host key with an ordinary SSH client on Windows
-or the WSL Physical Host. The loopback address refers to that Physical Host,
+Use the returned user and port with an ordinary SSH client on Windows
+or the WSL Physical Host. Check the server fingerprint through the trusted
+provider before accepting it on first connection (for example, the administrator
+can read `/etc/ssh/ssh_host_ed25519_key.pub` using `incus exec` on that exact
+Environment and compare `ssh-keygen -lf` output). The loopback address refers to that Physical Host,
 not to the loopback of `haco-host`. Keep the private key on the SSH client.
 Record the returned connection ID for disconnect. In the SSH session:
 

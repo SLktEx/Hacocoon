@@ -19,6 +19,10 @@ the sole controller and Incus owner.
 - Each managed Workspace is a separate Incus volume copy, including its own
   `.git`. Core receives an opaque Workspace source and stable identity through
   its WorkspaceProvider; Incus resolves the storage reference in its adapter.
+- Volume copy carries Incus's existing `volatile.idmap.last/next` with the
+  already shifted filesystem. Dropping that bookkeeping shifts owners twice
+  on the next mount. Do not compensate with recursive chown or a privileged
+  Environment; preserve Incus's copy contract instead.
 - Volume ownership is recorded by the controller before creation and included
   in the provider creation request. Uncertain creation retains that record as
   recovery-required. No automatic deletion or adoption is part of this PoC.

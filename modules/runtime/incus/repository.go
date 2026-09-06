@@ -60,10 +60,23 @@ func (b *RepositoryBackend) CreateVolume(ctx context.Context, object gitrepo.Obj
 	if err != nil {
 		return err
 	}
-	request := map[string]any{"name": volume, "type": "custom", "content_type": "filesystem", "config": volumeConfig(object)}
+	config := volumeConfig(object)
+	request := map[string]any{"name": volume, "type": "custom", "content_type": "filesystem", "config": config}
 	if source != nil {
-		if err := b.InspectVolume(ctx, *source); err != nil {
+		sourceConfig, err := b.inspectVolumeConfig(ctx, *source)
+		if err != nil {
 			return err
+		}
+		// Incus copies the already shifted on-disk IDs. Preserve its idmap
+		// bookkeeping with the data, just as the native volume copy client
+		// does; dropping it causes a second shift when the copy is mounted.
+		for _, key := range []string{"volatile.idmap.last", "volatile.idmap.next"} {
+			value := sourceConfig[key]
+			var mapping []json.RawMessage
+			if json.Unmarshal([]byte(value), &mapping) != nil || len(mapping) == 0 {
+				return core.ErrIncompatibleState
+			}
+			config[key] = value
 		}
 		sourcePool, sourceVolume, err := volumeRef(*source)
 		if err != nil {
@@ -82,13 +95,18 @@ func (b *RepositoryBackend) CreateVolume(ctx context.Context, object gitrepo.Obj
 	return err
 }
 func (b *RepositoryBackend) InspectVolume(ctx context.Context, object gitrepo.Object) error {
+	_, err := b.inspectVolumeConfig(ctx, object)
+	return err
+}
+
+func (b *RepositoryBackend) inspectVolumeConfig(ctx context.Context, object gitrepo.Object) (map[string]string, error) {
 	pool, volume, err := volumeRef(object)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	result, err := b.Runtime.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+pool+"/volumes/custom/"+volume+"?project="+b.Runtime.project)
 	if err != nil || result.StdoutTruncated {
-		return fmt.Errorf("owned volume unavailable: %w", core.ErrIncompatibleState)
+		return nil, fmt.Errorf("owned volume unavailable: %w", core.ErrIncompatibleState)
 	}
 	var observed struct {
 		Name        string            `json:"name"`
@@ -97,14 +115,14 @@ func (b *RepositoryBackend) InspectVolume(ctx context.Context, object gitrepo.Ob
 		Config      map[string]string `json:"config"`
 	}
 	if json.Unmarshal([]byte(result.Stdout), &observed) != nil || observed.Name != volume || observed.Type != "custom" || observed.ContentType != "filesystem" {
-		return core.ErrIncompatibleState
+		return nil, core.ErrIncompatibleState
 	}
 	for key, value := range volumeConfig(object) {
 		if observed.Config[key] != value {
-			return fmt.Errorf("volume ownership mismatch: %w", core.ErrIncompatibleState)
+			return nil, fmt.Errorf("volume ownership mismatch: %w", core.ErrIncompatibleState)
 		}
 	}
-	return nil
+	return observed.Config, nil
 }
 
 func (b *RepositoryBackend) Populate(ctx context.Context, object gitrepo.Object) error {
@@ -210,12 +228,12 @@ func (b *RepositoryBackend) ConnectGit(ctx context.Context, environment core.Env
 		return core.ErrIncompatibleState
 	}
 	device := map[string]string{"type": "proxy", "bind": "instance", "listen": "unix:" + gitrepo.GuestSocket, "connect": "unix:" + socket, "mode": "0600", "uid": "0", "gid": "0"}
-	if old, exists := instance.Devices["haco-git"]; exists {
+	if old, exists := instance.Devices["git-broker"]; exists {
 		if !reflect.DeepEqual(old, device) {
 			return core.ErrIncompatibleState
 		}
 	} else {
-		args := []string{"config", "device", "add", ref, "haco-git", "proxy", "bind=instance", "listen=" + device["listen"], "connect=" + device["connect"], "mode=0600", "uid=0", "gid=0", "--project", b.Runtime.project}
+		args := []string{"config", "device", "add", ref, "git-broker", "proxy", "bind=instance", "listen=" + device["listen"], "connect=" + device["connect"], "mode=0600", "uid=0", "gid=0", "--project", b.Runtime.project}
 		if _, err := b.Runtime.runner.Run(ctx, "incus", args...); err != nil {
 			return err
 		}
