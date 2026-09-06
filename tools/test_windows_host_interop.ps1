@@ -47,7 +47,7 @@ foreach($drive in $drives){
         $argumentScript=Join-Path $windowsDirectory 'arguments with spaces.ps1'
         [IO.File]::WriteAllText($argumentScript,'param([string]$Message); [Console]::Out.WriteLine($Message); exit 23')
         $argumentResult=Invoke-InteropGuest @('powershell.exe','-NoProfile','-NonInteractive','-File',$argumentScript,'separate argument with spaces')
-        if($argumentResult.Code -ne 23 -or $argumentResult.Out.Trim() -ne 'separate argument with spaces'){throw "Native argv spacing failed on $drive"}
+        if($argumentResult.Code -ne 23 -or $argumentResult.Out.Trim() -ne 'separate argument with spaces'){throw "Native argv spacing failed on ${drive}: exit=$($argumentResult.Code); stdout=$($argumentResult.Out); stderr=$($argumentResult.Err)"}
         Write-Host "$drive native executable spaced path/argument: PASS"
         Write-Host "$drive read/write in both directions: PASS"
     } finally {

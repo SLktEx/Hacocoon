@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Opt in to Windows drive/EXE access for the owned trusted haco-host only.
+"""Reconcile Windows drive/EXE access for the owned trusted haco-host only.
 
-Run as root on the WSL Physical Host after `haco setup`. No profiles or
+Installed by the Windows installer and invoked by controller-owned setup. No profiles or
 Environment devices are modified. Windows continues to enforce its user's ACLs.
 """
 import json
@@ -68,7 +68,7 @@ def drive_mounts(mounts):
 def desired_devices(drives):
     devices = {
         "haco-wsl-init": {"type": "disk", "source": "/init", "path": "/init", "readonly": "true"},
-        "haco-wsl-interop": {"type": "disk", "source": "/run/WSL", "path": "/var/lib/hacocoon-wsl", "readonly": "true"},
+        "haco-wsl-interop": {"type": "disk", "source": "/run/WSL", "path": "/run/WSL", "readonly": "true"},
     }
     for drive in drives:
         devices["haco-wsl-drive-" + drive[-1]] = {"type": "disk", "source": drive, "path": drive}
@@ -88,7 +88,7 @@ def plan(config, devices):
             if other != name and present.get("path") == desired["path"]:
                 raise ValueError("mount target already used: " + desired["path"])
     current_interop = config.get("config", {}).get("environment.WSL_INTEROP", "")
-    if current_interop and not re.fullmatch(r"/var/lib/hacocoon-wsl/[0-9]+_interop", current_interop):
+    if current_interop and not re.fullmatch(r"/run/WSL/[0-9]+_interop", current_interop):
         raise ValueError("incompatible WSL_INTEROP setting")
     return [name for name in devices if name not in current]
 
@@ -120,11 +120,12 @@ def main():
     for name in missing:
         device = devices[name]
         subprocess.run(incus + ["config", "device", "add", "haco-host", name, device["type"]] + [k + "=" + v for k, v in device.items() if k != "type"], check=True)
-    # Keep WSL's stable init socket path rather than persisting a session PID.
-    subprocess.run(incus + ["config", "set", "haco-host", "environment.WSL_INTEROP=/var/lib/hacocoon-wsl/1_interop"], check=True)
+    # WSL's stable symlink uses an absolute /run/WSL target. Keep the same
+    # mount path so native symlink resolution survives changing session PIDs.
+    subprocess.run(incus + ["config", "set", "haco-host", "environment.WSL_INTEROP=/run/WSL/1_interop"], check=True)
     subprocess.run(incus + ["config", "set", "haco-host", "environment.PATH=" + GUEST_LINUX_PATH + ':' + ':'.join(paths)], check=True)
     profile = '# Hacocoon managed Windows PATH; WSL already converted these entries.\n'
-    profile += 'export WSL_INTEROP=/var/lib/hacocoon-wsl/1_interop\n'
+    profile += 'export WSL_INTEROP=/run/WSL/1_interop\n'
     profile += 'export PATH="$PATH":' + shlex.quote(':'.join(paths)) + '\n'
     subprocess.run(incus + ['exec', 'haco-host', '--disable-stdin=false', '--', '/bin/sh', '-c',
                    'umask 022; cat > /etc/profile.d/hacocoon-windows.sh'], input=profile, text=True, check=True)

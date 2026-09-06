@@ -33,3 +33,10 @@ No custom launcher, extra binfmt registration or Linux PATH copy is introduced.
 See the current [trusted Host contract](../design/trusted-host.md#windows-interop).
 The [WSL interop description](https://wsl.dev/technical-documentation/interop/)
 explains the native interpreter/socket mechanism.
+
+The first revised fresh package exposed an absolute-symlink detail:
+`/run/WSL/1_interop` points to `/run/WSL/<pid>_interop`. Projection at a different
+guest path breaks native resolution with ENOENT. The directory is therefore
+projected read-only at the same `/run/WSL` path, and the stable native symlink is
+used without resolving/persisting its transient PID. A regression protects this
+same-path contract; the Windows test exercises an actual native executable.

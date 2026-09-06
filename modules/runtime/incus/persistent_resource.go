@@ -88,6 +88,9 @@ func (b *PersistentResourceBackend) Verify(ctx context.Context, r core.Persisten
 	if v == nil {
 		return core.ErrNotFound
 	}
+	if len(v.UsedBy) != 0 {
+		return core.ErrStorageBusy
+	}
 	return nil
 }
 
@@ -115,7 +118,7 @@ func (b *PersistentResourceBackend) Delete(ctx context.Context, r core.Persisten
 }
 
 func (p *SandboxProvider) attachPersistentResource(ctx context.Context, ref string, r core.PersistentResource) error {
-	if r.ID == "" {
+	if r == (core.PersistentResource{}) {
 		return nil
 	}
 	if err := (&PersistentResourceBackend{Runtime: p.Runtime}).Verify(ctx, r); err != nil {

@@ -14,8 +14,9 @@ $PublicKey = "$PrivateKey.pub"
 $ConfigPath = Join-Path $Work 'ssh-config'
 $KnownHosts = Join-Path $Work 'known_hosts'
 $ConnectionId = $null
-$EnvironmentCreated = $false
+$EnvironmentAttempted = $false
 $WorkspaceCreated = $false
+$CleanupFailed = $false
 
 function Invoke-Captured([string]$FileName, [string[]]$Arguments) {
     $start = [Diagnostics.ProcessStartInfo]::new()
@@ -61,6 +62,36 @@ function Invoke-HacoHost([string[]]$Arguments, [string]$Description) {
     return Invoke-Wsl (@('-u', 'root', '--exec', 'incus', 'exec', 'haco-host', '--project', 'hacocoon', '--') + $Arguments) $Description
 }
 
+# This is the documented administrator Policy operation, scoped to this test
+# Environment. Existing rules are preserved; no network/provider repair occurs.
+function Update-SSHTestPolicy([string]$Action) {
+    $policyScript=@"
+import json, os, pathlib, re, stat, sys, tempfile
+operation, environment = sys.argv[1:]
+if operation not in ('add','remove') or not re.fullmatch(r'win-ssh-[a-f0-9]{16}', environment):
+    raise SystemExit('invalid test Policy scope')
+p = pathlib.Path('/var/lib/hacocoon/policy.json')
+if p.exists():
+    metadata = p.lstat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o022:
+        raise SystemExit('unsafe existing Policy file')
+    data = json.loads(p.read_text())
+else:
+    data = {'default':'deny','rules':[]}
+if not isinstance(data.get('rules'),list): raise SystemExit('invalid existing Policy')
+rules = [{'capability':'network.egress','action':'connect','resource':host,
+          'environment':environment,'attributes':{'protocol':protocol,'port':port},
+          'decision':'allow','reason':'Windows SSH acceptance '+environment}
+         for host in ('archive.ubuntu.com','security.ubuntu.com')
+         for protocol,port in (('http','80'),('https','443'))]
+data['rules'] = [rule for rule in data['rules'] if rule not in rules]
+if operation == 'add': data['rules'] += rules
+with tempfile.NamedTemporaryFile(mode='w',dir=p.parent,delete=False) as f:
+    json.dump(data,f); f.flush(); os.fsync(f.fileno()); temporary=f.name
+os.replace(temporary,p)
+"@
+    [void](Invoke-Wsl @('-u','root','--exec','python3','-c',$policyScript,$Action,$EnvironmentName) 'Configure only this SSH test Environment package Policy')
+}
 [IO.Directory]::CreateDirectory($Work) | Out-Null
 try {
     foreach ($tool in @('ssh.exe', 'ssh-keygen.exe')) {
@@ -90,9 +121,10 @@ try {
     [void](Invoke-Wsl @('--exec', 'mkdir', '-m', '700', $Workspace) 'Create acceptance Workspace on the WSL Physical Host')
     $WorkspaceCreated = $true
     [void](Invoke-Wsl @('--exec', 'sh', '-c', "printf 'windows-workspace-ok\n' > '$Workspace/windows-marker'") 'Seed acceptance Workspace marker')
+    $EnvironmentAttempted = $true
     [void](Invoke-Wsl @('--exec', '/usr/local/bin/haco', 'env', 'create', '--workspace', $Workspace, $EnvironmentName) 'Create acceptance Environment')
-    $EnvironmentCreated = $true
 
+    Update-SSHTestPolicy 'add'
     $prepared = Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'ssh', '--key', $PublicKeyWsl, '--port', $Port.ToString(), $EnvironmentName) 'Prepare loopback-only SSH from trusted haco-host'
     $connection = $prepared.Stdout | ConvertFrom-Json
     if ($connection.kind -ne 'ssh' -or $connection.host -ne '127.0.0.1' -or [int]$connection.port -ne $Port -or $connection.user -ne 'root') {
@@ -149,22 +181,23 @@ try {
     Write-Host "Native client: $NativeSSH"
     Write-Host "Route: Windows 127.0.0.1:$Port -> WSL Physical Host -> Incus proxy -> haco-$EnvironmentName sshd"
     Write-Host 'Private key remained in its Windows directory; only the .pub was passed to haco-host.'
-    Write-Host 'WINDOWS DIRECT ENVIRONMENT SSH: PASS'
+
 } finally {
+    try { Update-SSHTestPolicy 'remove' } catch { $CleanupFailed = $true; Write-Warning $_ }
     if ($ConnectionId) {
         try {
             [void](Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'disconnect', $EnvironmentName, $ConnectionId) 'Disconnect acceptance SSH transport')
         } catch {
-            Write-Warning $_
+            $CleanupFailed = $true; Write-Warning $_
         }
     }
-    $EnvironmentGone = -not $EnvironmentCreated
-    if ($EnvironmentCreated) {
+    $EnvironmentGone = -not $EnvironmentAttempted
+    if ($EnvironmentAttempted) {
         try {
             [void](Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'delete', $EnvironmentName) 'Delete acceptance Environment')
             $EnvironmentGone = $true
         } catch {
-            Write-Warning $_
+            $CleanupFailed = $true; Write-Warning $_
         }
     }
     if ($WorkspaceCreated -and $EnvironmentGone) {
@@ -172,7 +205,7 @@ try {
             [void](Invoke-Wsl @('--exec', 'rm', '-f', "$Workspace/windows-marker") 'Remove acceptance Workspace marker')
             [void](Invoke-Wsl @('--exec', 'rmdir', $Workspace) 'Remove acceptance Workspace')
         } catch {
-            Write-Warning $_
+            $CleanupFailed = $true; Write-Warning $_
         }
     }
     foreach ($path in @($KnownHosts, $ConfigPath, $PublicKey, $PrivateKey)) {
@@ -185,3 +218,6 @@ try {
         Remove-Item -LiteralPath $Work -Force
     }
 }
+
+if ($CleanupFailed) { throw 'Windows SSH acceptance cleanup failed; inspect retained test resources' }
+Write-Host 'WINDOWS DIRECT ENVIRONMENT SSH: PASS'

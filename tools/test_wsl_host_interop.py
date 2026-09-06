@@ -34,6 +34,17 @@ class WindowsPathTests(unittest.TestCase):
         self.assertEqual(interop.windows_paths(value, ['/mnt/c', '/mnt/q']),
                          ['/mnt/c/Windows/System32', '/mnt/q/Tools With Spaces'])
 
+    def test_native_absolute_socket_symlink_keeps_its_mount_path(self):
+        # Real fresh WSL uses 1_interop -> /run/WSL/<pid>_interop. Mounting
+        # this directory at another guest path makes native connect fail ENOENT.
+        device = interop.desired_devices(['/mnt/q'])['haco-wsl-interop']
+        self.assertEqual(device['source'], '/run/WSL')
+        self.assertEqual(device['path'], device['source'])
+        self.assertEqual(device['readonly'], 'true')
+        config = {'config': {'user.hacocoon.role': 'trusted-host',
+                            'environment.WSL_INTEROP': '/run/WSL/1_interop'},
+                  'profiles': [], 'devices': interop.desired_devices(['/mnt/q'])}
+        self.assertEqual(interop.plan(config, config['devices']), [])
     def test_no_fixed_drive_letter_list(self):
         mounts = [{'target': '/mnt/q', 'fstype': '9p', 'options': 'rw,aname=drvfs;path=Q:'}]
         self.assertEqual(interop.drive_mounts(mounts), ['/mnt/q'])

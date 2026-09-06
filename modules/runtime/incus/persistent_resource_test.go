@@ -56,3 +56,22 @@ func TestPersistentVolumeDeletionRequiresExactOwnershipAndConfirmedAbsence(t *te
 		})
 	}
 }
+
+func TestPersistentVolumeAttachRefusesProviderUseOutsideCatalog(t *testing.T) {
+	resource := core.PersistentResource{ID: "oci:demo", Kind: OCIStoreKind, Owner: strings.Repeat("a", 32), NativeRef: "pool/haco-persistent-" + strings.Repeat("a", 32)}
+	observation := persistentVolumeObservation{Name: "haco-persistent-" + resource.Owner, Type: "custom", ContentType: "filesystem", Config: map[string]string{"user.hacocoon.owner": resource.Owner, "user.hacocoon.resource": resource.ID, "user.hacocoon.kind": resource.Kind}, UsedBy: []string{"/1.0/instances/foreign"}}
+	data, _ := json.Marshal([]persistentVolumeObservation{observation})
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if args[0] != "query" {
+			t.Fatalf("mutated a resource already in use: %v", args)
+		}
+		return host.Result{Stdout: string(data)}, nil
+	}}
+	provider, err := NewSandboxProvider(New(runner))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := provider.attachPersistentResource(context.Background(), "haco-dev", resource); !errors.Is(err, core.ErrStorageBusy) {
+		t.Fatalf("external RW attachment accepted: %v", err)
+	}
+}
