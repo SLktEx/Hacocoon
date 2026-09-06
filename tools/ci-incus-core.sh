@@ -62,7 +62,7 @@ setup() {
   sudo env DEBIAN_FRONTEND=noninteractive apt-get update
   sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
     incus-base \
-    dnsmasq-base
+    dnsmasq-base iptables
 
   configure_workspace_owner_idmap
 

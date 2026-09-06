@@ -21,6 +21,10 @@ Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progr
 
 ## Current checkpoint status
 
+Controller-backed setup, trusted networking, controller-owned Standard proxy and read-only configured/live storage diagnostics are implemented within the current checkpoint. Packaged acceptance on `c749ff9033b33c3526e108f60ce2009638075152` passed Windows, Ubuntu and all four Incus jobs, plus local cached BAT application/rerun, ordinary/cold entry, six readiness checks and retained trusted-host data.
+
+The requested WSL M0–M1 scope is **implemented and accepted**: installed Environment allowed-proxy/denied-direct acceptance passed for candidate `81c0d16` (identical-tree PR merge `9049df3`). Registration stop/continuation and the fresh Windows package gate passed on `4df465a`. Actual Windows OS reboot and further continuation work are outside the latest requested scope; do not add broad acceptance matrices or repeat successful local checks without a concrete change or failure. The earlier Incus startup SIGKILL source remains unresolved. [Implementation status](../IMPLEMENTATION_STATUS.md) owns the commit-bound evidence, package identity and acceptance limits.
+
 **Status legend:** ✅ implemented · 🧪 partial / foundation · 🚧 planned/deferred
 
 | Version | Gate | `main` status |

@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 )
 
 // RuntimeSourceResolver resolves trusted provider/runtime evidence for a
@@ -24,15 +26,16 @@ type EnvironmentLister interface {
 // PersistedSourceResolver requires both runtime/provider evidence and exactly
 // one matching persisted Environment before granting an Environment identity.
 type PersistedSourceResolver struct {
+	provider     string
 	runtime      RuntimeSourceResolver
 	environments EnvironmentLister
 }
 
-func NewPersistedSourceResolver(runtime RuntimeSourceResolver, environments EnvironmentLister) (*PersistedSourceResolver, error) {
-	if runtime == nil || environments == nil {
+func NewPersistedSourceResolver(provider string, runtime RuntimeSourceResolver, environments EnvironmentLister) (*PersistedSourceResolver, error) {
+	if strings.TrimSpace(provider) == "" || runtime == nil || environments == nil {
 		return nil, core.ErrInvalidArgument
 	}
-	return &PersistedSourceResolver{runtime: runtime, environments: environments}, nil
+	return &PersistedSourceResolver{provider: provider, runtime: runtime, environments: environments}, nil
 }
 
 func (r *PersistedSourceResolver) ResolveEnvironment(ctx context.Context, source net.IP) (string, error) {
@@ -56,7 +59,7 @@ func (r *PersistedSourceResolver) ResolveEnvironment(ctx context.Context, source
 	matched := ""
 	matches := 0
 	for _, environment := range environments {
-		if !matchesPersistedRuntimeRef(environment, runtimeRef) {
+		if !matchesPersistedRuntimeRef(environment, r.provider, runtimeRef) {
 			continue
 		}
 		matches++
@@ -68,12 +71,12 @@ func (r *PersistedSourceResolver) ResolveEnvironment(ctx context.Context, source
 	return matched, nil
 }
 
-func matchesPersistedRuntimeRef(environment core.Environment, runtimeRef string) bool {
-	if environment.RuntimeRef == runtimeRef {
+func matchesPersistedRuntimeRef(environment core.Environment, provider, runtimeRef string) bool {
+	if environmentapp.MatchesRuntimeRef(environment.RuntimeRef, provider, runtimeRef) {
 		return true
 	}
 	// Pre-v0.7 Environment state could persist the logical Environment name as
 	// the Incus runtime ref. Keep that narrow compatibility shape without
 	// accepting arbitrary aliases: the provider ref must be exactly haco-<name>.
-	return environment.RuntimeRef == environment.Name && runtimeRef == "haco-"+environment.Name
+	return provider == environmentapp.ProviderIncus && environment.RuntimeRef == environment.Name && runtimeRef == "haco-"+environment.Name
 }

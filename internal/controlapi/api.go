@@ -267,8 +267,8 @@ func Register(server *control.Server, environments environmentService, clients c
 }
 
 // RegisterHost adds controller-owned trusted Host operations without widening
-// the Environment API registration surface. Bootstrap-only Host operations stay
-// local to the Physical Host CLI; only the interactive shell is a client API.
+// the Environment API registration surface. RegisterSetup separately exposes
+// the fixed controller-owned bootstrap operation.
 func RegisterHost(server *control.Server, hosts hostService) error {
 	if server == nil || hosts == nil {
 		return control.ErrInvalidArgument

@@ -43,11 +43,11 @@ Backends with a stronger isolation model, such as a VM or microVM, may reduce th
 
 Being trusted does not mean every control primitive should be mounted into `haco-host`.
 
-The current local Incus design keeps the Incus daemon socket and `/var/lib/incus` on the Physical Host. `haco host ensure` and `haco host shell` are executed with Physical Host authority and use Incus from there. `haco-host` itself does not need the raw Incus socket to provide its interactive Host UX.
+The local Incus implementation keeps the daemon socket, `/var/lib/incus`, authoritative Hacocoon state and Policy on the Physical Host. Product `haco setup` and the WSL login entry call the existing Physical Host controller. Only that controller constructs the privileged provider composition. The trusted `haco-host` receives a narrow root-only Hacocoon endpoint and client binaries, never an Incus socket or second controller. See [ADR 0006](../adr/0006-controller-owned-host-setup.md).
 
 If an existing Incus instance already occupies the literal `haco-host` name, Hacocoon reuses it only when the Hacocoon ownership marker matches exactly. Otherwise reconciliation fails closed rather than taking over an unrelated instance. The ordinary Environment name `host` is reserved by the Incus adapter because it would collide with that provider-local infrastructure name.
 
-On the supported WSL bootstrap path, the normal non-root WSL user may receive passwordless sudo permission for the exact system-owned `haco host ensure` and `haco host shell` commands so the default interactive WSL entry can reach the trusted Host. This narrow rule is not equivalent to automatically granting `incus-admin`, and the root user's normal Physical Host shell remains an explicit recovery path.
+On the supported WSL path, root performs installation while the ordinary managed account keeps UID/GID 1000 and a locked password. Normal entry uses controller group access to the `root:hacocoon` socket with mode `0660`; it does not use sudo or grant `incus-admin` by default. Membership in that group grants privileged controller authority. The installer creates no sudo policy. Physical Host root remains the explicit recovery path. See [ADR 0004](../adr/0004-wsl-installer-authority.md).
 
 ## Environment-local root is allowed
 

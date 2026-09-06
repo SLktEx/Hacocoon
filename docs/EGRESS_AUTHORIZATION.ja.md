@@ -1,6 +1,6 @@
 # Domain-aware egress authorization
 
-状態: **repository実装完了。real supported-Incus acceptanceはhost-dependentです。**
+状態: **implemented。install済みWindowsでproxy許可/拒否と直接egress拒否の受入が成功。**
 
 Hacocoonの外向き通信は、sandboxが要求したhostnameそのものをauthorityとして扱います。hostnameを一度DNS解決して得たIPをallowする方式では、shared CDN、DNS変更、direct-IP accessにより別destinationへauthorityが横滑りするため採用しません。
 
@@ -10,8 +10,8 @@ egress request / authorization contractはCore、project-maintainedなHTTP/HTTPS
 
 ```text
 sandbox
-  -> Incus NIC default deny
-  -> bridge gateway:18080だけtransport allow
+  -> 専用Environment bridge + Host traffic guard
+  -> application egressは169.254.254.1:18080だけallow
   -> Standard egress proxy
   -> trusted source-IP -> Environment resolution
   -> network.egress/connect Capability
@@ -37,14 +37,11 @@ proxyはapproval tokenを発行せず、approvalをIP allowlistとしてcacheし
 
 ## 実装済みIncus enforcement
 
-- managed bridgeはDHCPを残しつつ `raw.dnsmasq=port=0` を設定し、bridge DNS serviceを停止する。guest DNSを別exfiltration pathにしない。
-- Hacocoon NICのunmatched ingress / egressは引き続き `reject`。
-- managed ACLのordinary outbound allowは、Hacocoon bridge gatewayのStandard proxy port (`18080`) へのTCP 1本だけ。旧v0.13のempty ACLはこのruleへmigrationし、それ以外のunmanaged ruleはfail closed。
-- managed bridgeの `raw.dnsmasq` がemptyなら `port=0` へmigrationする。他のoperator/custom値が入っている場合は勝手に上書きせずreject。
-- managed `haco-sandbox` profileがupper/lowercaseの `HTTP_PROXY` / `HTTPS_PROXY` とlocal-only `NO_PROXY` を注入する。env varを無視するmalicious processでも、NIC ACLより下のdirect trafficは通らない。
-- proxyはconnection source IPをtrusted Incus runtime stateへ問い合わせてEnvironment identityを導出する。exactly oneの `haco-*` instanceに一致しないsourceはdeny。
-- `haco egress serve` はmanaged networkをverifyしてHacocoon bridge gatewayだけでlistenする。trusted Host foregroundで動かすため、既存の同期stdio `require-approval` providerをそのまま利用できる。
-- brokerはrestartをまたぐauthority cacheを持たない。停止・restart中はACLが許可する唯一のtransportにlistenerがいないためfail closed。
+canonical Environment providerはEnvironmentごとのowned bridgeを使い、NAT無効・DHCP有効・DNS無効を要求する。照合済みHost inet ruleとEnvironmentごとのsource guardがproxy経由通信だけを許可する。trusted `haco-host` のNAT bridgeは別の基盤経路であり、proxy環境変数で下位境界を弱めない。topologyと残存legacy経路の正本は[Environment管理network](design/managed-sandbox-network.ja.md)。
+
+proxyはguestの自己申告Environment名を受け取らず、接続元をtrusted Incus runtime stateとcontrollerの永続Environment storeで解決する。固定Physical Host endpoint `169.254.254.1:18080` だけでlistenし、不在・曖昧・unmanaged identityをfail closedにする。restartをまたいでconnection grantを保持せず、hostname grantをIP allowlistへ変換しない。
+
+永続runtime参照にはprovider routeが含まれる。接続元照合はEnvironment routerの参照decoderを使い、設定した接続元providerとそのnative runtime参照の両方の一致を要求する。別providerの同一native参照には権限を与えない。
 
 ## Policy例
 
@@ -71,16 +68,18 @@ connectionごとに既存approval providerの承認を要求する場合は `all
 
 ## 起動経路
 
-trusted HostでStandard brokerをforeground起動します。
+install済みunitは `haco-controller --standard-egress` を実行する。Incus adapterがguardを検証してから、既存compositionのStandard proxy・Policy・audit・永続source resolverを固定endpointで動かす。引数なしcontrollerは独立したcontrol-transport用に残るが、installerは必ずStandard serviceを有効にする。新しい `haco` にegress起動commandは不要で、残る `hacoq egress serve` はlegacy機能である。
 
-```text
-haco egress serve
-```
+controllerとproxyの停止は連動する。hijack済みCONNECTを含む全proxy接続を閉じ、ClientHello待ち・upstream送信・通信中のrequestをcancelする。header上限は16 KiB、header読取期限は10秒、保持接続上限は256。HTTP transport失敗は任意panic出力を含まない固定structured messageで記録する。
 
-listen addressはcallerから指定できません。Hacocoonがmanaged Incus bridgeから導出し、bridge / ACL / profileをverifyしてからtrafficを受けます。
+daemonはstdinをambient approvalとして使わない。Policy不在はdeny。exact allowは既存の保護されたPhysical Host policy fileとaudit契約を使い、対話provider不在の `require-approval` は拒否する。承認UIや自動allow policyは追加しない。install済みEnvironment通信は明示的な管理者Policy設定で受入済み。通常のPolicy管理UIは後続とする。[ADR 0007](adr/0007-controller-owned-standard-egress.ja.md) を参照。
 
-Git pushは引き続きGit pluginの別privileged operationです。ordinary pushを動かすためにreusable Host Git credentialをsandboxへ渡してはいけません。
+Git pushは引き続きGit境界の別privileged operationであり、reusable Host Git credentialをEnvironmentへ渡して有効化しない。
 
 ## Acceptance boundary
+
+Windows workflowは正規BATのjourney成功後、install済みcontrollerのpacket検証を別のstepで行います。Physical Hostの通常userによるAPI clientが読み取り専用Workspace/Environmentを一つ作成し、そのWorkspaceのstatic HTTPS probeを実行して、同じcontroller経由で削除します。第二のcontroller、旧CLI、製品環境変数のoverrideは使いません。文書化済みの管理者 `policy.json` 設定で、そのEnvironmentの `github.com` HTTPS port 443だけを許可します。既存Policyは上書きせず、cleanupは内容が変わっていない検証用Policyだけを削除します。これは明示的なPolicy設定であり、installerやnetworkの修復ではありません。
+
+Probeはinstall済みproxy経由での証明書検証付きHTTPS成功、未許可hostnameのproxy 403、Physical Hostで到達を確認したpublic endpointへの直接TCP接続拒否を要求します。管理socket pathがないことも確認します。Guestのroute起動は観測だけで、package、NAT例外、firewall変更、service override、mount修復は注入しません。controller/providerのpacket受入であり、plannedの製品Environment CLIや通常Policy UIが実装済みという主張ではありません。対象commitごとの結果は実装statusに記録します。
 
 repository testsはallow / deny / require-approval、direct-IP reject、shared-IP / alternate-hostname耐性、mixed/private DNS、SNI mismatch、legacy network migration、unmanaged DNS/ACL drift、trusted source-IP mappingをcoverします。real supported-Incusのbridge / nftables / dnsmasq動作はhost acceptanceとして別に確認します。

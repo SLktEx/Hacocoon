@@ -19,9 +19,8 @@ type hostControllerClient interface {
 
 type hostControllerFactory func() (hostControllerClient, error)
 
-// `haco host shell` is a normal controller-client operation and therefore must
-// be intercepted before main initializes composition.Local(). `haco host
-// ensure` deliberately stays on the Physical Host bootstrap/recovery path.
+// Host shell is intercepted before composition.Local(). Removed bootstrap
+// commands are also rejected here, before a legacy client can create local state.
 func init() {
 	handled, err := handleHostClientArgs(
 		context.Background(),
@@ -60,6 +59,9 @@ func handleHostClientArgs(
 	stdout io.Writer,
 	stderr io.Writer,
 ) (bool, error) {
+	if len(args) >= 2 && args[0] == "host" && args[1] == "ensure" {
+		return true, fmt.Errorf("use haco setup: %w", core.ErrUnsupported)
+	}
 	if len(args) < 2 || args[0] != "host" || args[1] != "shell" {
 		return false, nil
 	}

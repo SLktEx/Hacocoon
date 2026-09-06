@@ -89,6 +89,34 @@ prepare_privilege() {
   fi
 }
 
+resolve_install_identity() {
+  # Privileged execution and the ordinary workspace owner are separate. The
+  # WSL pre phase supplies a name, never caller-selected numeric IDs.
+  install_caller_uid="$(id -u)"
+  INSTALL_USER="${HACO_INSTALL_USER:-}"
+  if [ -z "$INSTALL_USER" ]; then
+    if [ "$install_caller_uid" != "0" ]; then
+      INSTALL_USER="$(id -un)"
+    else
+      INSTALL_USER="${SUDO_USER:-root}"
+    fi
+  fi
+  case "$INSTALL_USER" in
+    ""|-*|*[!a-zA-Z0-9_.-]*) die "invalid installer user name" ;;
+  esac
+  INSTALL_UID="$(id -u -- "$INSTALL_USER")" || die "installer user does not exist"
+  INSTALL_GID="$(id -g -- "$INSTALL_USER")" || die "installer group does not exist"
+  case "$INSTALL_UID:$INSTALL_GID" in
+    :*|*:|*[!0-9:]*) die "installer user identity is not numeric" ;;
+  esac
+  if [ -n "${HACO_INSTALL_USER:-}" ]; then
+    [ "$INSTALL_UID" != "0" ] && [ "$INSTALL_GID" != "0" ] ||
+      die "explicit installer user must have non-root UID and GID"
+    [ "$install_caller_uid" = "0" ] || [ "$install_caller_uid" = "$INSTALL_UID" ] ||
+      die "only root may select a different installer user"
+  fi
+}
+
 has_gh_attestation_verify() {
   command -v gh >/dev/null 2>&1 && gh attestation verify --help >/dev/null 2>&1
 }
@@ -172,8 +200,8 @@ allow_root_subid() {
 }
 
 configure_workspace_owner_idmap() {
-  workspace_uid="$(id -u)"
-  workspace_gid="$(id -g)"
+  workspace_uid="$INSTALL_UID"
+  workspace_gid="$INSTALL_GID"
   case "$workspace_uid:$workspace_gid" in
     *[!0-9:]*) die "installer user identity is not numeric: $workspace_uid:$workspace_gid" ;;
   esac
@@ -254,7 +282,7 @@ prepare_ubuntu_host() {
   fi
 
   printf '==> Installing and starting Incus\n'
-  $SUDO apt-get install -y incus
+  $SUDO apt-get install -y incus iptables nftables
   printf '==> Authorizing the local Hacocoon workspace owner for Incus idmap\n'
   configure_workspace_owner_idmap
   printf '==> Preparing bridge netfilter for Hacocoon sandbox filtering\n'
@@ -264,23 +292,39 @@ prepare_ubuntu_host() {
   $SUDO systemctl enable --now incus.service 2>/dev/null || $SUDO systemctl enable --now incus 2>/dev/null ||
     die "failed to enable/start Incus with systemd"
 
-  if [ "$GRANT_INCUS_ADMIN" = "1" ] && [ "$(id -u)" -ne 0 ]; then
+  if [ "$GRANT_INCUS_ADMIN" = "1" ] && [ "$INSTALL_UID" != "0" ]; then
     if getent group incus-admin >/dev/null 2>&1; then
       warn "granting incus-admin gives the current Ubuntu user root-equivalent local Incus authority"
-      $SUDO usermod -aG incus-admin "$(id -un)"
+      $SUDO usermod -aG incus-admin "$INSTALL_USER"
     else
       warn "incus-admin group does not exist after package installation"
     fi
   fi
 
-  if command -v incus >/dev/null 2>&1 && $SUDO incus info >/dev/null 2>&1; then
-    if ! $SUDO incus storage list --format csv -c n 2>/dev/null | grep -q .; then
-      printf '==> Initializing Incus with a minimal configuration\n'
-      $SUDO incus admin init --minimal
-    fi
-  else
+  # The Incus adapter owns its Btrfs pool and trusted-host bridge explicitly.
+  # Minimal initialization would also create an unused directory pool and
+  # couple network availability to whether any storage pool already exists.
+  if ! command -v incus >/dev/null 2>&1 || ! $SUDO incus info >/dev/null 2>&1; then
     die "Incus daemon is not ready after systemd startup"
   fi
+}
+
+verify_trusted_host_connectivity() {
+  network_attempt=0
+  while [ "$network_attempt" -lt 10 ]; do
+    # Guest networkd/DHCP can lag behind Incus's RUNNING state. Bound each
+    # guest probe and wait without changing any network/firewall configuration.
+    if $SUDO incus exec haco-host --project hacocoon -- env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin timeout 8 /bin/sh -ec '
+      getent ahostsv4 github.com >/dev/null
+      ip -4 route show default | grep -q "^default "
+      curl -q -4 -f -sS --connect-timeout 3 --max-time 5 -o /dev/null https://github.com
+    ' >/dev/null 2>&1; then
+      return 0
+    fi
+    network_attempt=$((network_attempt + 1))
+    [ "$network_attempt" -ge 10 ] || sleep 1
+  done
+  return 1
 }
 
 has_authenticated_gh() {
@@ -529,14 +573,8 @@ install_release_binaries() {
 }
 
 resolve_hacocoon_access_user() {
-  if [ "$(id -u)" -ne 0 ]; then
-    id -un
-    return 0
-  fi
-  case "${SUDO_USER:-}" in
-    ""|root) return 1 ;;
-    *) printf '%s\n' "$SUDO_USER" ;;
-  esac
+  [ "$INSTALL_UID" != "0" ] || return 1
+  printf '%s\n' "$INSTALL_USER"
 }
 
 configure_hacocoon_access_group() {
@@ -581,7 +619,7 @@ After=incus.service
 
 [Service]
 Type=simple
-ExecStart=$controller_bin
+ExecStart=$controller_bin --standard-egress
 Restart=on-failure
 RestartSec=1s
 RuntimeDirectory=hacocoon
@@ -600,7 +638,7 @@ EOF_UNIT
   $SUDO systemctl restart "$HACOCOON_CONTROLLER_SERVICE"
 
   attempts=0
-  while [ "$attempts" -lt 100 ]; do
+  while [ "$attempts" -lt 600 ]; do
     if $SUDO test -S "$HACOCOON_CONTROLLER_SOCKET"; then
       break
     fi
@@ -617,6 +655,7 @@ EOF_UNIT
 
 assert_ubuntu
 prepare_privilege
+resolve_install_identity
 if [ "$BINARIES_ONLY" != "1" ]; then
   prepare_ubuntu_host
 fi
@@ -634,27 +673,29 @@ if [ "$SKIP_INCUS" = "1" ]; then
 fi
 
 haco_bin="$(command -v haco || true)"
-hacoq_bin="$(command -v hacoq || true)"
 controller_bin="$(command -v haco-controller || true)"
-[ -n "$haco_bin" ] && [ -n "$hacoq_bin" ] && [ -n "$controller_bin" ] || die "haco, hacoq, or haco-controller binary is unavailable after installation"
+[ -n "$haco_bin" ] && [ -n "$controller_bin" ] || die "haco or haco-controller binary is unavailable after installation"
 haco_bin="$(readlink -f "$haco_bin")"
-hacoq_bin="$(readlink -f "$hacoq_bin")"
 controller_bin="$(readlink -f "$controller_bin")"
 
 printf '==> Configuring Physical Host controller service\n'
 configure_hacocoon_controller "$controller_bin"
 printf '==> Reconciling trusted haco-host and controller endpoint\n'
-$SUDO "$hacoq_bin" host ensure || die "failed to prepare haco-host"
+$SUDO "$haco_bin" setup || die "controller-backed Host setup failed; run haco doctor, then rerun the installer"
 printf '==> Verifying trusted haco-host controller round trip\n'
 $SUDO incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null ||
   die "haco-host cannot reach the Physical Host controller"
+printf '==> Verifying trusted haco-host DNS, route and HTTPS\n'
+verify_trusted_host_connectivity || die "haco-host network is not ready (DNS, default route or HTTPS failed after bounded probes)"
+printf '==> Verifying configured and live installation readiness\n'
+$SUDO "$haco_bin" doctor || die "installation readiness checks did not pass; follow the reported next actions and rerun the current installer"
 
 if [ -n "${HACOCOON_ACCESS_USER:-}" ]; then
   warn "membership in $HACOCOON_ACCESS_GROUP grants authority to control Hacocoon environments; treat it as a privileged local group"
   printf 'haco installer: added %s to %s; start a new login session (or run newgrp %s) before using haco without sudo.\n' \
     "$HACOCOON_ACCESS_USER" "$HACOCOON_ACCESS_GROUP" "$HACOCOON_ACCESS_GROUP"
 fi
-if [ "$GRANT_INCUS_ADMIN" = "1" ] && [ "$(id -u)" -ne 0 ]; then
+if [ "$GRANT_INCUS_ADMIN" = "1" ] && [ "$INSTALL_UID" != "0" ]; then
   printf '%s\n' 'haco installer: start a new login session (or use newgrp incus-admin) before relying on the new group membership.'
 fi
 printf '%s\n' 'Hacocoon common Ubuntu installation complete.'

@@ -6,6 +6,8 @@ Milestones: **v0.20 Managed Btrfs Rootfs Storage**, **v0.21 Managed Btrfs Transp
 
 ## Default local layout
 
+The runtime accepts only a local `incus_pool` attachment identity. Removed `driver`/`source` attachments are rejected even if a pool exists; failed inspection must not create a replacement. Mount-policy read/readback failures fail closed. Real-Incus storage CI also checks existing rootfs and Workspace sentinel data during pool-policy reconciliation.
+
 The local composition lazily asks Incus to create the default pool without a `source=` override:
 
 ```text
@@ -72,6 +74,25 @@ Before the first Environment, Tooling Base builder, Seed builder, or trusted hos
 When `haco-local-default` already exists, Hacocoon reconciles `btrfs.mount_options` to `compress=zstd:3,noatime,nodiscard` before reuse. The populated pool is not destructively recreated; Incus remains the lifecycle and remount owner.
 
 The runtime expects this Incus-owned pool shape and carries no alternate Host-managed storage ownership path.
+
+## Read-only mount diagnostics
+
+`haco doctor` separates the Incus configuration check (`storage`) from the active filesystem check (`storage_mount`). A configured policy is not evidence that Incus has applied it to the live mount.
+
+| Configured policy | Live observation | Result |
+|---|---|---|
+| Matches | Verified Btrfs root mount applies the policy | `storage_mount: ok` |
+| Matches | Verified Btrfs root mount has different options | `storage_mount: pending`; exit 1 |
+| Matches | Missing, malformed, ambiguous or changing identity/mount observation | `storage_mount: failed`; exit 1 |
+| Unavailable or differs | Live inspection is skipped | Fix the configuration before interpreting live policy |
+
+The Incus adapter reads the local daemon's pool source and accepts the Incus-owned `disks/<pool>.img` layout. It derives that daemon's pool mountpoint and uses read-only `stat`, `losetup --list --associated` and `findmnt --kernel`. The backing object must be a regular file; its device/inode must match exactly one full-image loop association. The mount must be the root of that Btrfs filesystem and use that loop device. Rechecking the backing identity and association detects observed changes during collection. Equal filenames in different WSL distributions are not sufficient identity.
+
+A live match requires writable Btrfs, `noatime` and `compress=zstd:3`, without active discard, autodefrag or forced compression. The negative `nodiscard` token may be absent in kernel output. The report exposes selected results, not raw paths, mount options or subprocess output. Missing fields, duplicate associations/mounts, truncation, cancellation and uncertain inspection cannot become `ok` or `pending`.
+
+`pending` means the desired configuration is recorded but its live application has not been observed. It does not schedule maintenance or promise that a reboot is safe. Preserve work and arrange an Incus-owned pool remount during maintenance, then diagnose again. Hacocoon never attaches, detaches, remounts or reformats as a diagnostic repair. This point-in-time observation is not an ownership lease or a precondition for subsequent mutations.
+
+The common installer runs this same product doctor before reporting completion. A pending or failed live mount check stops installation with the diagnostic next action; rerunning never bypasses the check.
 
 ## Acceptance coverage
 

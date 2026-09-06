@@ -244,6 +244,13 @@ func encodeRouteRef(provider, ref string) string {
 	return refPrefix + provider + ":" + base64.RawURLEncoding.EncodeToString([]byte(ref))
 }
 
+// MatchesRuntimeRef binds a persisted route to evidence from a specific
+// provider. A provider-local ref alone cannot identify resources across routes.
+func MatchesRuntimeRef(raw, provider, ref string) bool {
+	id, native, err := decodeRouteRef(raw)
+	return err == nil && provider != "" && ref != "" && id == provider && native == ref
+}
+
 func decodeRouteRef(raw string) (string, string, error) {
 	if !strings.HasPrefix(raw, refPrefix) {
 		// Pre-v0.7 persisted environments are Incus-backed. Keeping this fallback

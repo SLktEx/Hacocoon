@@ -145,10 +145,10 @@ jobs:
 
           sudo systemctl is-active --quiet haco-controller.service
           sudo test -S /run/hacocoon/control.sock
-          sudo hacoq host ensure
+          sudo haco setup
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco --version >/dev/null
-          sudo incus exec haco-host --project hacocoon -- /usr/local/bin/hacoq env list --json >/dev/null
+          sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host env list >/dev/null
           test "$(getent passwd "$login_user" | cut -d: -f7)" != /usr/local/libexec/hacocoon-login
 
       - name: Exercise installed Hacocoon legacy user journey during migration

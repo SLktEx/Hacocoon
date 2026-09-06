@@ -65,8 +65,8 @@ func handleControllerClientModeArgs(
 	}
 	if len(args) > 1 && args[0] == "host" && args[1] == "shell" {
 		// host_client.go owns the controller-backed interactive Host session.
-		// Other host subcommands, notably host ensure, remain Physical Host-local
-		// and must continue through the classification error path below.
+		// Removed bootstrap commands continue through the classification error
+		// path below; product haco setup owns controller-backed preparation.
 		return false, nil
 	}
 	if factory == nil || stdin == nil || stdout == nil || stderr == nil {

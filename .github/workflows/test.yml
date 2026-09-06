@@ -72,6 +72,12 @@ jobs:
         run: bash tools/test_install_archive_safety.sh
       - name: Test architecture-specific installer packaging
         run: python3 tools/test_installer_packages.py
+      - name: Test installer identity and managed WSL first launch
+        run: |
+          python3 tools/test_install_identity.py
+          python3 tools/test_install_network.py
+          python3 tools/test_windows_user_path.py
+          python3 tools/test_wsl_oobe_config.py
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.x
@@ -194,6 +200,9 @@ jobs:
           cache: false
       - run: go test -count=1 -shuffle=on ./...
       - run: go vet ./...
+      - name: Test trusted-host forwarding in an isolated Linux network
+        if: matrix.go-version == '1.27.x'
+        run: bash tools/ci-local.sh forwarding
       - name: Smoke-test the new product CLI without runtime state
         if: matrix.go-version == '1.27.x'
         run: |

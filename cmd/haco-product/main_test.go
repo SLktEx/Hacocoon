@@ -1,11 +1,52 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"io"
 	"os"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/SLktEx/Hacocoon/internal/control"
 )
+
+func TestLoginWaitsForControllerStartup(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	calls := 0
+	err := waitForController(ctx, func(context.Context) error {
+		calls++
+		if calls == 1 {
+			return control.ErrUnavailable
+		}
+		return nil
+	})
+	if err != nil || calls != 2 {
+		t.Fatalf("calls=%d error=%v", calls, err)
+	}
+}
+
+func TestLoginDoesNotRetryProtocolRejection(t *testing.T) {
+	calls := 0
+	err := waitForController(context.Background(), func(context.Context) error {
+		calls++
+		return control.ErrProtocol
+	})
+	if !errors.Is(err, control.ErrProtocol) || calls != 1 {
+		t.Fatalf("calls=%d error=%v", calls, err)
+	}
+}
+
+func TestLoginControllerWaitIsBounded(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	err := waitForController(ctx, func(context.Context) error { return control.ErrUnavailable })
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error=%v", err)
+	}
+}
 
 func captureRun(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
@@ -55,6 +96,20 @@ func TestHelpDoesNotNeedRuntime(t *testing.T) {
 	}
 }
 
+func TestLoginAliasDoesNotTreatDevNullAsInteractive(t *testing.T) {
+	file, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	oldIn, oldOut := os.Stdin, os.Stdout
+	os.Stdin, os.Stdout = file, file
+	defer func() { os.Stdin, os.Stdout = oldIn, oldOut }()
+	if stdioIsInteractive() {
+		t.Fatal("non-terminal character devices must not enter haco-host")
+	}
+}
+
 func TestVersionDoesNotNeedRuntime(t *testing.T) {
 	code, stdout, stderr := captureRun(t, "--version")
 	if code != 0 || stderr != "" {
@@ -72,6 +127,17 @@ func TestUnknownCommandFailsClearly(t *testing.T) {
 	}
 	if !strings.Contains(stderr, `command "env" is not available yet`) {
 		t.Fatalf("unexpected stderr: %q", stderr)
+	}
+}
+
+func TestLegacyHostCommandsAreUnavailable(t *testing.T) {
+	for _, operation := range []string{"ensure", "shell"} {
+		t.Run(operation, func(t *testing.T) {
+			code, stdout, stderr := captureRun(t, "host", operation)
+			if code != 2 || stdout != "" || !strings.Contains(stderr, `command "host" is not available yet`) {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+			}
+		})
 	}
 }
 

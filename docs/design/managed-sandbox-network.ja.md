@@ -1,33 +1,31 @@
-# v0.13 — Managed Sandbox Network
+# Environment管理network
 
-Status: **`main` に実装済み。real Incus networking acceptance は host-dependent。**
+Status: **canonical Environment providerはimplemented。install済みWindowsでproxy許可/拒否と直接egress拒否の受入が成功。**
 
-v0.13 は Incus-backed Hacocoon Environment に、Incus `default` profileへ暗黙に依存しない Hacocoon 管理の sandbox network substrate を提供します。
+現在のIncus SandboxProviderはLinux/WSLのEnvironmentごとに専用managed bridgeを作る。旧shared `haco-sandbox0` / ACL / profile helperはlegacy RuntimeとSeed経路に残るが、現在のEnvironment topologyやfallbackではない。
 
-## 実装済み
+## 現在のtopologyと所有権
 
-- managed bridge `haco-sandbox0` の作成・検証
-- default-deny substrate `haco-sandbox-egress` ACL の作成・検証
-- `haco-sandbox` profile の作成・検証
-- 新規 local sandbox Environment の default profile として `haco-sandbox` を使用
-- profile/network/ACL drift 時は broad network へfallbackせず fail closed
-- anti-spoofing / port isolation は Incus adapter 側で管理
-- v0.12 root-disk ResourceBudget と両立
+Environmentはprofileを継承せず、明示NICをIncus default resource project内の決定的な名前の `hbr*` bridgeへ接続する。production command adapterは作成時に `user.hacocoon.owner=environment-network-v1` を付け、接続・削除前に照合する。名前の一致だけでは所有権を認めない。
 
-## 境界
+bridgeはIncusが選ぶIPv4 address・DHCP・routingを使い、`ipv4.nat=false`、`ipv4.firewall=true`、`ipv6.address=none`、`raw.dnsmasq=port=0` を要求する。DNS serviceは無効。Incus IPv4 firewallはDHCP/checksum処理のため有効のままとし、それより早いHacocoon inet hookで通信境界を守る。NICは固定managed MACとport isolationを持つ。
 
-このmilestoneはnetwork substrateまでです。Incus ACLはIP/CIDR/address-setベースであり、domain-name authorizationを提供するものとして扱いません。
+共有proxy endpointはPhysical Hostのloopback address `169.254.254.1:18080` であり、各bridge gatewayではない。adapterはupper/lowercase HTTP(S) proxy設定とlocal-only NO_PROXYを渡すが、これらの便利な環境変数は権限を与えない。
 
-Domain-aware allow/ask policyは上位のproxy/broker/pluginの責務です。
+## 通信境界
 
-## Security requirements
+adapterは共有nftables input/forward ruleを照合する。Environment起点のHost通信はDHCPと固定proxyだけに限定し、Host起点通信へのestablished replyとは区別する。外部や別Environmentへの直接転送はdropする。Environmentごとのprerouting guardがmanaged MACとIPv4 subnetを固定し、subnet検査から除くのはaddress取得前のDHCP tupleだけ。
 
-- Incus `default` profileへsilent fallbackしない
-- managed objectを使用前に検証する
-- drift時にsecurityを弱めない
-- coding EnvironmentへIncus/Hacocoon control-plane authorityを渡さない
-- higher-level egress authorizationは別の明示的境界として扱う
+各Environmentは別bridgeを持つため、旧shared L2の前提を適用しない。proxyは接続元をtrusted Incus runtime stateとcontrollerの永続Environment identityへ照合する。hostname承認・public address pinning・HTTPS SNI検証は置換可能なStandard proxyとCore Capability契約が担当する。[egress承認](../EGRESS_AUTHORIZATION.ja.md)を参照。
 
-## Acceptance
+永続trusted `haco-host` は基盤疎通用の別owned NAT bridgeを使う。そのDNS/HTTPS成功はEnvironmentのproxy迂回が許可された証拠ではない。[trusted-host network](trusted-host.ja.md#専用trusted-host-network)を参照。
 
-repository unit/static coverageでは作成・選択・drift rejectionを確認済みです。実環境のbridge/profile/ACL挙動とisolationはsupported Incus hostで別途確認します。
+## 実装上の制約
+
+canonical data planeはbridge方式だが、helper/constantの一部に移行時の `Routed` / `routed` 名が残る。名前からrouted NIC実装と推測しない。残存shared bridge helperとtestはlegacyの検証であり、現在のEnvironmentをそのNAT経路へ接続する許可ではない。
+
+install済みunitは既存Physical Host controller内のStandard proxyを有効にする。adapterが共有guardを検証してから固定listenerへbindし、準備/bind失敗ならcontroller serviceは起動しない。片方のservice終了で他方も止め、通常HTTP socketとhijack済みCONNECT socketを閉じる。headless require-approvalはfail closedとなる。[ADR 0007](../adr/0007-controller-owned-standard-egress.ja.md) を参照。lifecycleとpackageのEnvironment allow/denyは、明示的な管理者Policy設定を用いてWindowsで受入済み。通常のPolicy管理UIは後続とする。
+
+## 受入
+
+repository testは所有権・network/guard設定・lifecycle・source identityを検査し、real-Incus gateはinstall済みWindows受入と別にproviderを検証する。正規Windows installer gateはtrusted-host基盤疎通と保持を証明する。別段階のinstall済みcontroller検証ではEnvironmentのproxy許可/拒否と直接TCP拒否も成功した。firewall再読込・起動順と実Docker共存は別の受入事項として残る。[実装status](../IMPLEMENTATION_STATUS.ja.md)を参照。

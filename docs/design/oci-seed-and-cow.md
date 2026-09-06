@@ -10,6 +10,10 @@ The implementation originally began landing while this feature was numbered v0.1
 
 ## Goal
 
+Current direction (2026-09-05): Seed retirement is **planned**, not implemented. Do not add new Seed dependencies. The remaining sections describe the retained implementation and historical acceptance scope.
+
+`internal/composition` creates the Seed store/resolver only when the OCI Plugin is enabled. `modules/runtime/incus/base.go` resolves the parent Base independently, then optionally selects a current Seed revision. Removal must first separate that optional resolution, preserve existing pinned Base revisions and data, then remove Seed commands, builders, recommendation/harvest and their tests/docs. Base selection/change and optional Plugin contracts remain. Independent Workspace repo clones are a separate storage contract, not a replacement Seed pipeline.
+
 Preload common OCI images into an immutable Incus-derived Seed so future Environments can reuse unchanged filesystem blocks through normal Incus/storage-driver clone semantics while keeping each Environment's writable containerd state independent.
 
 ```text

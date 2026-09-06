@@ -4,15 +4,17 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 const (
 	hacocoonPromptCommand = "PS1=$HACO_PS1"
-	trustedHostPrompt      = `\[\e[1;33;41m\][HACO-HOST]\[\e[0m\] \u@\h:\w\$ `
+	trustedHostPrompt     = `\[\e[1;33;41m\][HACO-HOST]\[\e[0m\] \u@\h:\w\$ `
 )
 
 // ShellEnvironmentStream opens a shell through Incus while attaching it to
@@ -110,10 +112,9 @@ func (r *Runtime) execInteractiveStream(ctx context.Context, ref string, argv []
 	}
 	args := append([]string{"exec", ref, "--project", r.project, "--force-interactive", "--"}, argv...)
 	cmd := exec.CommandContext(ctx, "incus", args...)
-	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
-	err := cmd.Run()
+	err := runInteractiveCommand(cmd, stdin)
 	if err == nil {
 		return core.ExecResult{ExitCode: 0}, nil
 	}
@@ -122,4 +123,41 @@ func (r *Runtime) execInteractiveStream(ctx context.Context, ref string, argv []
 		return core.ExecResult{ExitCode: exit.ExitCode()}, err
 	}
 	return core.ExecResult{ExitCode: -1}, err
+}
+
+// runInteractiveCommand lets process exit complete independently of an open
+// client input stream. Giving exec.Cmd a socket reader directly makes Wait wait
+// for its stdin-copy goroutine, even after the remote shell has already exited.
+func runInteractiveCommand(cmd *exec.Cmd, stdin io.Reader) error {
+	input, writer, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+	defer writer.Close()
+	cmd.Stdin = input
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	_ = input.Close()
+	inputDone := make(chan error, 1)
+	go func() {
+		defer writer.Close()
+		_, err := io.Copy(writer, stdin)
+		inputDone <- err
+	}()
+	// Wait still drains stdout/stderr and preserves the actual process status.
+	// Returning lets the controller close its client connection, which releases
+	// the input copier if it is still waiting for another terminal keystroke.
+	if err := cmd.Wait(); err != nil {
+		return err
+	}
+	select {
+	case err := <-inputDone:
+		if err != nil && !errors.Is(err, os.ErrClosed) && !errors.Is(err, syscall.EPIPE) {
+			return err
+		}
+	default:
+	}
+	return nil
 }

@@ -31,20 +31,31 @@ const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
 	Environments *workspaceapp.Service
-	AgentHosts    *agenthostapp.Broker
-	Clients       *clientapp.Service
-	Capabilities  *capabilityapp.Service
-	Git           *gitcapapp.Broker
-	OCI           *ociplugin.Service
-	Seeds         *seedbuildapp.Service
-	Runner        *runapp.Service
-	Events        *eventsapp.Service
-	Bases         *environmentapp.BaseRouter
-	Runtime       *incus.Runtime
-	EgressProxy   *egressproxy.Proxy
+	AgentHosts   *agenthostapp.Broker
+	Clients      *clientapp.Service
+	Capabilities *capabilityapp.Service
+	Git          *gitcapapp.Broker
+	OCI          *ociplugin.Service
+	Seeds        *seedbuildapp.Service
+	Runner       *runapp.Service
+	Events       *eventsapp.Service
+	Bases        *environmentapp.BaseRouter
+	Runtime      *incus.Runtime
+	EgressProxy  *egressproxy.Proxy
 }
 
 func Local(ctx context.Context) (*App, error) {
+	return local(ctx, capabilityapp.NewStdioApproval(os.Stdin, os.Stderr))
+}
+
+// Controller has no ambient approval terminal. Interactive control sessions
+// supply their own scoped callback; background proxy requests fail closed when
+// Policy requires approval, without consuming daemon stdin or printing requests.
+func Controller(ctx context.Context) (*App, error) {
+	return local(ctx, nil)
+}
+
+func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, error) {
 	runner := host.ExecRunner{}
 	root := envOr("HACO_ROOT", "/var/lib/hacocoon")
 	stateDir := filepath.Join(root, "state")
@@ -104,7 +115,7 @@ func Local(ctx context.Context) (*App, error) {
 	auditPath := filepath.Join(root, "audit", "capabilities.jsonl")
 	capabilities, err := capabilityapp.New(
 		capabilityapp.NewFilePolicyEvaluator(filepath.Join(root, "policy.json")),
-		capabilityapp.NewStdioApproval(os.Stdin, os.Stderr),
+		approval,
 		capabilityapp.NewJSONLAudit(auditPath),
 		capabilityapp.LocalEcho{},
 		egressapp.Provider{},
@@ -114,7 +125,7 @@ func Local(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 	egressBroker := egressapp.NewBroker(capabilities)
-	egressSources, err := egressapp.NewPersistedSourceResolver(incusRuntime, store)
+	egressSources, err := egressapp.NewPersistedSourceResolver(environmentapp.ProviderIncus, incusRuntime, store)
 	if err != nil {
 		return nil, err
 	}
@@ -143,17 +154,17 @@ func Local(ctx context.Context) (*App, error) {
 	environments := workspaceapp.New(runtime, store)
 	return &App{
 		Environments: environments,
-		AgentHosts:    agenthostapp.New(environments, store, bindingStore),
-		Clients:       clientapp.New(runtime, store),
-		Capabilities:  capabilities,
-		Git:           gitcapapp.NewBroker(runner, store, capabilities),
-		OCI:           ociPlugin,
-		Seeds:         seeds,
-		Runner:        runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks")),
-		Events:        eventsapp.New(auditPath),
-		Bases:         runtime,
-		Runtime:       incusRuntime,
-		EgressProxy:   egressproxy.New(egressBroker, egressSources),
+		AgentHosts:   agenthostapp.New(environments, store, bindingStore),
+		Clients:      clientapp.New(runtime, store),
+		Capabilities: capabilities,
+		Git:          gitcapapp.NewBroker(runner, store, capabilities),
+		OCI:          ociPlugin,
+		Seeds:        seeds,
+		Runner:       runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks")),
+		Events:       eventsapp.New(auditPath),
+		Bases:        runtime,
+		Runtime:      incusRuntime,
+		EgressProxy:  egressproxy.New(egressBroker, egressSources),
 	}, nil
 }
 

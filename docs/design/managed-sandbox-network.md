@@ -1,33 +1,31 @@
-# v0.13 — Managed Sandbox Network
+# Managed Environment network
 
-Status: **implemented on `main`; real Incus networking acceptance remains host-dependent.**
+Status: **implemented for the canonical Environment provider; installed Windows proxy allow/deny and direct-egress refusal acceptance passed.**
 
-v0.13 gives Incus-backed Hacocoon Environments a Hacocoon-owned sandbox networking substrate instead of silently inheriting the Incus `default` profile.
+The current Incus SandboxProvider creates one dedicated managed bridge per Environment on Linux and WSL. The older shared `haco-sandbox0` / ACL / profile helpers remain in legacy Runtime and Seed paths; they are not the current Environment topology and must not become its fallback.
 
-## Implemented behavior
+## Current topology and ownership
 
-- Hacocoon creates/verifies the managed `haco-sandbox0` bridge.
-- Hacocoon creates/verifies the `haco-sandbox-egress` default-deny ACL substrate.
-- Hacocoon creates/verifies the `haco-sandbox` Incus profile.
-- New local sandbox Environments use `haco-sandbox` by default.
-- Profile/network/ACL drift must fail closed instead of silently falling back to broader networking.
-- Anti-spoofing and port-isolation settings stay adapter-owned.
-- Root-disk handling remains compatible with the v0.12 resource-budget path.
+An Environment starts without inherited profiles. Its explicit NIC attaches to a deterministic `hbr*` bridge in the Incus default resource project. The production command adapter marks creation with `user.hacocoon.owner=environment-network-v1` and verifies that marker before attachment or deletion. A matching name does not establish ownership.
 
-## Boundary
+The bridge uses Incus-selected IPv4 addressing, DHCP and routing, with `ipv4.nat=false`, `ipv4.firewall=true`, `ipv6.address=none` and `raw.dnsmasq=port=0`. DNS service is disabled. Incus' IPv4 firewall remains enabled for DHCP/checksum plumbing; the earlier Hacocoon inet hooks enforce the traffic boundary. The NIC has a fixed managed MAC and port isolation.
 
-This milestone provides the network substrate only. Incus ACLs are IP/CIDR/address-set based; Hacocoon does not pretend they provide domain-name authorization.
+The shared proxy endpoint is `169.254.254.1:18080`, a Physical Host loopback address, not each bridge gateway. The adapter supplies upper/lowercase HTTP(S) proxy settings and local-only NO_PROXY values. Those convenience variables grant no authority.
 
-Domain-aware allow/ask policy belongs in a higher-layer proxy/broker/plugin and must not be faked with stale DNS-to-IP assumptions in Core.
+## Traffic boundary
 
-## Security requirements
+The adapter verifies its shared nftables input/forward rules. Environment-initiated Host traffic is limited to DHCP and the fixed proxy endpoint; established replies to Host-initiated traffic are separate. Direct forwarding to the outside or another Environment is dropped. A per-Environment prerouting guard pins the managed MAC and IPv4 subnet, with only the pre-address DHCP tuple exempted from the subnet check.
 
-- no silent fallback to the Incus `default` profile;
-- managed objects are verified before use;
-- drift is an error, not a request to weaken isolation;
-- coding Environments receive no Incus/Hacocoon control-plane authority;
-- higher-level egress authorization remains explicit and separate.
+Each Environment has its own bridge; the shared-L2 assumptions of the older network do not apply. The proxy maps a connection source through trusted Incus runtime state and the controller's persisted Environment identity. Hostname authorization, public-address pinning and HTTPS SNI verification belong to the replaceable Standard proxy and Core Capability contracts, as described in [egress authorization](../EGRESS_AUTHORIZATION.md).
+
+The persistent trusted `haco-host` uses a different, owned NAT bridge for infrastructure connectivity. Its allowed DNS/HTTPS traffic must never be used as evidence that an Environment can bypass its proxy. See [trusted-host networking](trusted-host.md#dedicated-trusted-host-network).
+
+## Implementation limits
+
+Several helpers and constants still contain `Routed` / `routed` migration names even though the canonical data plane is now bridge based. Do not infer routed-NIC behavior from those names. The retained shared bridge helpers and their tests are legacy coverage, not permission to attach current Environments to that NAT path.
+
+The installed unit now enables the Standard proxy inside the existing Physical Host controller. The adapter verifies its shared guards before the fixed listener is bound; preparation/bind failure prevents controller service startup, and either service exiting stops its peer. Shutdown closes hijacked CONNECT sockets as well as ordinary HTTP sockets. Headless require-approval fails closed. See [ADR 0007](../adr/0007-controller-owned-standard-egress.md). This lifecycle and packaged Environment allow/deny are accepted on Windows with explicit administrator Policy configuration; an ordinary policy-management UI remains follow-up work.
 
 ## Acceptance
 
-Repository unit/static coverage verifies creation, selection, and drift rejection. Real supported-Incus acceptance must separately verify bridge/profile/ACL behavior and effective isolation.
+Repository tests cover ownership, network/guard configuration, lifecycle and source identity. Real-Incus gates exercise the provider separately from installed Windows acceptance. The exact Windows installer gate proves trusted-host infrastructure connectivity and retention. Its separate installed-controller check passed Environment proxy allow/deny and direct TCP refusal. Firewall reload/startup ordering and live Docker coexistence remain separate acceptance concerns. See [implementation status](../IMPLEMENTATION_STATUS.md).

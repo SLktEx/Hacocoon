@@ -8,8 +8,10 @@ never prepare, repair, restart, remount, attach, detach, create, or delete state
 
 from __future__ import annotations
 
+import json
 import os
 import queue
+import secrets
 import re
 import subprocess
 import sys
@@ -20,16 +22,16 @@ from pathlib import Path
 from typing import Callable, Pattern, Sequence
 
 INSTANCE = "Hacocoon"
-MANAGED_USER = "hacocoon"
-PASSWORD = "Hacocoon-E2E-Only-42!"
-ENVIRONMENT = "installer-e2e"
+LOGIN_USER = "hacocoon"
+PASSWORD = secrets.token_urlsafe(24)
+SENTINEL = ".hacocoon-installer-acceptance"
 PROJECT = "hacocoon"
 POOL = "haco-local-default"
 INCUS_POOL_MOUNT = f"/var/lib/incus/storage-pools/{POOL}"
 INCUS_BACKING = f"/var/lib/incus/disks/{POOL}.img"
-PROCESS_TIMEOUT_SECONDS = 900
-ASSERT_TIMEOUT_SECONDS = 120
-NATURAL_STOP_TIMEOUT_SECONDS = 90
+PROCESS_TIMEOUT_SECONDS = 1800
+ASSERT_TIMEOUT_SECONDS = 180  # 165s CLI budget plus WSL process startup.
+
 POST_EXIT_DRAIN_SECONDS = 1.0
 
 # GitHub's Windows Python can expose a cp1252 text stream when PowerShell
@@ -44,22 +46,6 @@ for _stream in (sys.stdout, sys.stderr):
 TERMINAL_ARGV = ("cmd.exe",)
 INSTALL_COMPLETE_RE = re.compile(r"Hacocoon Windows installation complete\.", re.MULTILINE)
 
-# Only these commands may drive Hacocoon state in the installed user path.
-# Read-only assertions live outside this table so the two roles cannot blur.
-HOST_SESSION_COMMANDS: dict[str, tuple[str, ...]] = {
-    "before reinstall": (
-        "haco base list",
-        f'haco env create --workspace "$PWD" {ENVIRONMENT}',
-        f"haco env status {ENVIRONMENT}",
-        f"haco env exec {ENVIRONMENT} -- uname -a",
-    ),
-    "after reinstall": (
-        f"haco env status {ENVIRONMENT}",
-        f"haco env exec {ENVIRONMENT} -- uname -a",
-        f"haco env delete {ENVIRONMENT}",
-    ),
-}
-
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 OSC_RE = re.compile(r"\x1b\][^\x07]*?(?:\x07|\x1b\\)")
 CMD_PROMPT_RE = re.compile(r"(?m)^[A-Za-z]:\\[^\r\n>]*>\s*$")
@@ -68,7 +54,7 @@ CMD_PROMPT_RE = re.compile(r"(?m)^[A-Za-z]:\\[^\r\n>]*>\s*$")
 def inherited_child_environment() -> dict[str, str]:
     """Pass the runner environment through unchanged or fail on HACO_* leakage."""
 
-    overrides = sorted(key for key in os.environ if key.startswith("HACO_"))
+    overrides = sorted(key for key in os.environ if key.startswith(("HACO_", "HACOQ_", "HACOHOST_")))
     if overrides:
         raise RuntimeError(
             "exact user-path E2E refuses Hacocoon environment overrides: "
@@ -78,7 +64,10 @@ def inherited_child_environment() -> dict[str, str]:
 
 
 def normalize_terminal(text: str) -> str:
-    return OSC_RE.sub("", ANSI_RE.sub("", text))
+    # ConPTY can insert a bare CR after CRLF and before an OSC-wrapped result.
+    # Drop this cursor control without inventing a new line: anchored assertions
+    # must still distinguish command output from an echoed command.
+    return OSC_RE.sub("", ANSI_RE.sub("", text)).replace("\r", "")
 
 
 def cmd_prompt_count(text: str) -> int:
@@ -215,331 +204,190 @@ def require_output(output: str, pattern: str, *, phase: str) -> None:
         raise RuntimeError(f"{phase}: expected user-visible output matching {pattern!r}")
 
 
-def sudo_responders() -> list[Responder]:
-    return [
-        responder(r"\[sudo\]\s+password for [^:]+:\s*$", PASSWORD + "\r\n", repeat=True),
-        responder(
-            r"\[sudo:\s*authenticate\]\s*Password:\s*$",
-            PASSWORD + "\r\n",
-            repeat=True,
-        ),
-    ]
+def observe(*args: str) -> str:
+    result = subprocess.run(args, env=inherited_child_environment(), capture_output=True,
+                            timeout=ASSERT_TIMEOUT_SECONDS, check=True)
+    return decode_process_output(result.stdout).strip()
 
 
-def run_bat(package_root: Path, *, phase: str) -> str:
-    """ACTION: type the unchanged BAT into a normal cmd.exe prompt.
+def inspect_root(*args: str) -> str:
+    return observe("wsl.exe", "-d", INSTANCE, "-u", "root", "--exec", *args)
 
-    ConPTY does not reliably redraw cmd.exe's prompt after a long-running BAT
-    until more input arrives. Waiting for that redraw made a successful install
-    hang in CI. The outer BAT prints its final user-visible completion line only
-    after both the WSL installer and Windows launcher setup succeed, so after
-    observing that line we type the ordinary outer-shell `exit`. No product
-    command, argument, option, or environment is changed.
-    """
 
-    process = TerminalProcess(cwd=package_root)
-    sent_command = False
-    sent_exit = False
+def run_bat(package_root: Path) -> None:
+    terminal = TerminalProcess(cwd=package_root)
+    sent_bat = sent_exit = False
 
-    def drive(normalized: str, terminal: TerminalProcess) -> None:
-        nonlocal sent_command, sent_exit
-        if not sent_command and cmd_prompt_count(normalized):
-            terminal.write("install-windows.bat\r\n")
-            sent_command = True
-            return
-        if sent_command and not sent_exit and INSTALL_COMPLETE_RE.search(normalized):
-            terminal.write("exit\r\n")
+    def drive(output: str, process: TerminalProcess) -> None:
+        nonlocal sent_bat, sent_exit
+        if not sent_bat and cmd_prompt_count(output):
+            process.write("install-windows.bat\r\n")
+            sent_bat = True
+        elif sent_bat and not sent_exit and INSTALL_COMPLETE_RE.search(output):
+            process.write("exit\r\n")
             sent_exit = True
 
-    output = process.run(responders=sudo_responders(), on_output=drive)
-    if not sent_command or not sent_exit:
-        raise RuntimeError(f"{phase}: install-windows.bat did not reach normal completion")
-    require_output(output, r"Hacocoon Windows installation complete\.", phase=phase)
-    return output
+    # Ubuntu's own dialogs, via keystrokes. Never useradd, passwd, sudoers,
+    # cloud-init fixtures, product overrides, or modifications to distro OOBE.
+    responses = [
+        responder(r"Create a default Unix user account:[^\r\n]*$", "\x15" + LOGIN_USER + "\r\n"),
+        responder(r"(?<!Retype )(?<!retype )New password:\s*$", PASSWORD + "\r\n"),
+        responder(r"Retype new password:\s*$", PASSWORD + "\r\n"),
+        responder(r"^\[Y/n/e\]:[^\r\n]*$", "\x15n\r\n"),
+        responder(r"(?m)^[^\r\n]*@[^\r\n]*:[^\r\n]*\$\s*$", "exit\r\n"),
+    ]
+    output = terminal.run(responders=responses, on_output=drive)
+    if not sent_bat or not sent_exit:
+        raise RuntimeError("BAT did not complete; no second BAT may repair first-install acceptance")
+    require_output(output, r"Hacocoon WSL installation complete", phase="BAT")
 
 
-def run_host_session(session: str, *, expected_output: list[str]) -> str:
-    """ACTION: type normal WSL entry and only ordinary Hacocoon commands."""
+def host_session(*, create: bool) -> None:
+    terminal = TerminalProcess()
+    stage = 0
+    sent_at = 0
+    # Only the currently implemented product CLI is used. Environment/SSH
+    # commands remain a separate gate until the reset CLI implements them.
+    commands = ["haco version --json", "haco help", "haco doctor --json && printf '%s\\n' HACO_DOCTOR_OK"]
+    # Exercise the installer-created trusted-host network in the ordinary
+    # shell. This is infrastructure egress, not Environment proxy acceptance.
+    commands += [
+        "getent ahostsv4 github.com >/dev/null && printf '%s\\n' HACO_HOST_DNS_OK",
+        "ip -4 route show default | grep -q '^default ' && printf '%s\\n' HACO_HOST_ROUTE_OK",
+        "curl -4 -f -sS --connect-timeout 10 --max-time 30 -o /dev/null https://github.com && printf '%s\\n' HACO_HOST_HTTPS_OK",
+    ]
+    if create:
+        commands.append(f"printf '%s\\n' kept-through-restart-and-rerun > ~/{SENTINEL}")
+    commands += [f"cat ~/{SENTINEL}", "exit"]
 
-    try:
-        commands = HOST_SESSION_COMMANDS[session]
-    except KeyError as exc:
-        raise RuntimeError(f"unknown exact user-path host session: {session!r}") from exc
+    def drive(output: str, process: TerminalProcess) -> None:
+        nonlocal stage, sent_at
+        if stage == 0 and cmd_prompt_count(output):
+            process.write("wsl -d Hacocoon\r\n")
+            stage, sent_at = 1, len(output)
+        elif stage == 1 and re.search(r"(?m)^[^\r\n]*@haco-host:[^\r\n]*[#\$]\s*$", output[sent_at:]):
+            process.write("\r\n".join(commands) + "\r\n")
+            stage, sent_at = 2, len(output)
+        elif stage == 2 and cmd_prompt_count(output[sent_at:]):
+            process.write("exit\r\n")
+            stage = 3
 
-    process = TerminalProcess()
-    sent_wsl = False
-    sent_commands = False
-    sent_cmd_exit = False
-    prompt_before = 0
-
-    def drive(normalized: str, terminal: TerminalProcess) -> None:
-        nonlocal sent_wsl, sent_commands, sent_cmd_exit, prompt_before
-        prompts = cmd_prompt_count(normalized)
-        if not sent_wsl and prompts:
-            prompt_before = prompts
-            terminal.write("wsl -d Hacocoon\r\n")
-            sent_wsl = True
-            return
-        if sent_wsl and not sent_commands and "haco-host" in normalized:
-            for command in commands:
-                terminal.write(command + "\r\n")
-            terminal.write("exit\r\n")
-            sent_commands = True
-            return
-        if sent_commands and not sent_cmd_exit and prompts > prompt_before:
-            terminal.write("exit\r\n")
-            sent_cmd_exit = True
-
-    output = process.run(on_output=drive)
-    if not sent_wsl or not sent_commands or not sent_cmd_exit:
-        raise RuntimeError(f"{session}: exact interactive user session did not complete")
-    for pattern in expected_output:
-        require_output(output, pattern, phase=session)
-    return output
-
-
-# ---------------------------------------------------------------------------
-# Read-only assertion lane. Nothing below is used to drive product state.
-# ---------------------------------------------------------------------------
+    output = terminal.run(on_output=drive)
+    if stage != 3:
+        raise RuntimeError("ordinary WSL entry did not reach haco-host and return normally")
+    require_output(output, r"(?m)^kept-through-restart-and-rerun\s*$", phase="haco-host data")
+    require_output(output, r'"version"\s*:', phase="product CLI")
+    require_output(output, r"^HACO_DOCTOR_OK\s*$", phase="product doctor")
+    for check in ("DNS", "ROUTE", "HTTPS"):
+        require_output(output, rf"^HACO_HOST_{check}_OK\s*$", phase="trusted-host network")
+    if re.search(r"command not found|unknown command|permission denied", output, re.I):
+        raise RuntimeError("ordinary host commands failed")
 
 
-def observe(argv: Sequence[str], *, phase: str) -> str:
-    print("==> ASSERT READ-ONLY:", " ".join(argv))
-    completed = subprocess.run(
-        list(argv),
-        env=inherited_child_environment(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=ASSERT_TIMEOUT_SECONDS,
-        check=False,
+def assert_doctor_report(output: str, expected_build: dict[str, str]) -> None:
+    report = json.loads(output)
+    names = ["runtime", "storage", "storage_mount", "trusted_host", "trusted_network", "trusted_connectivity"]
+    fields = ("checkpoint", "version", "commit", "build_date")
+    if any(expected_build.get(field) in (None, "", "dev", "unknown") for field in fields):
+        raise RuntimeError("packaged client has incomplete build identity")
+    if report["protocol_version"] != 1 or report["controller"] != expected_build:
+        raise RuntimeError("doctor controller build does not match the packaged client")
+    if [check["name"] for check in report["checks"]] != names or any(check["status"] != "ok" for check in report["checks"]):
+        raise RuntimeError("doctor checks did not all pass")
+
+
+def assert_proxy_listener(controller_pid: str, listeners: str) -> None:
+    lines = listeners.splitlines()
+    if not controller_pid.isdigit() or int(controller_pid) < 1 or len(lines) != 1:
+        raise RuntimeError("installed proxy must have one controller-owned listener")
+    fields = lines[0].split()
+    if len(fields) < 6 or fields[3] != "169.254.254.1:18080":
+        raise RuntimeError("proxy is not bound to its fixed endpoint")
+    if re.findall(r"pid=(\d+),", lines[0]) != [controller_pid]:
+        raise RuntimeError("proxy listener is not owned by the installed controller")
+
+
+def assert_host() -> None:
+    expected_build = json.loads(observe("wsl.exe", "-d", INSTANCE, "--exec", "haco", "version", "--json"))
+    assert_doctor_report(observe("wsl.exe", "-d", INSTANCE, "--exec", "haco", "doctor", "--json"), expected_build)
+    assert_doctor_report(inspect_root("incus", "exec", "haco-host", "--project", PROJECT, "--", "/usr/local/bin/haco", "doctor", "--json"), expected_build)
+    if inspect_root("ps", "-p", "1", "-o", "comm=") != "systemd":
+        raise RuntimeError("systemd is not PID 1")
+    inspect_root("systemctl", "is-active", "--quiet", "haco-controller.service")
+    assert_proxy_listener(
+        inspect_root("systemctl", "show", "--property=MainPID", "--value", "haco-controller.service"),
+        inspect_root("ss", "-H", "-lntp", "sport = :18080"),
     )
-    stdout = decode_process_output(completed.stdout).strip()
-    stderr = decode_process_output(completed.stderr).strip()
-    if stdout:
-        print(stdout)
-    if stderr:
-        print(stderr, file=sys.stderr)
-    if completed.returncode != 0:
-        raise RuntimeError(
-            f"{phase}: read-only assertion command failed ({completed.returncode}): "
-            + " ".join(argv)
-        )
-    return stdout
+    if inspect_root("curl", "-q", "--noproxy", "*", "--connect-timeout", "2", "--max-time", "5", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "http://169.254.254.1:18080/") != "403":
+        raise RuntimeError("proxy did not reject the unmanaged Physical Host source")
+    group = inspect_root("getent", "group", "hacocoon").split(":")
+    if len(group) != 4 or not group[2].isdigit() or group[2] == "0":
+        raise RuntimeError("invalid controller access group")
+    if inspect_root("stat", "-Lc", "%u:%g:%a", "/run/hacocoon/control.sock") != f"0:{group[2]}:660":
+        raise RuntimeError("unsafe Physical Host controller socket")
+    if observe("wsl.exe", "-d", INSTANCE, "--exec", "id", "-un") != LOGIN_USER:
+        raise RuntimeError("ordinary WSL login identity changed")
+    if not inspect_root("getent", "passwd", LOGIN_USER).endswith(":/usr/local/libexec/hacocoon-login"):
+        raise RuntimeError("WSL login integration missing")
+    inspect_root("incus", "exec", "haco-host", "--project", PROJECT, "--", "/usr/local/bin/haco-host", "doctor")
+    trusted_host = json.loads(inspect_root("incus", "query", f"/1.0/instances/haco-host?project={PROJECT}"))
+    if trusted_host["profiles"] or trusted_host["devices"].get("eth0") != {
+        "type": "nic", "name": "eth0", "network": "haco-host0",
+    }:
+        raise RuntimeError("trusted host inherited a profile or uses an unexpected network")
+    if inspect_root("incus", "network", "get", "haco-host0", "user.hacocoon.owner", "--project", "default") != "trusted-host-network-v1":
+        raise RuntimeError("trusted-host network ownership mismatch")
+    # This gate starts with an absent distro. A fresh product install creates
+    # only the Incus Btrfs pool; current-data migration is a separate check.
+    if set(inspect_root("incus", "storage", "list", "--format", "csv", "-c", "n").splitlines()) != {POOL}:
+        raise RuntimeError("fresh installer created an additional storage pool")
+    if inspect_root("incus", "storage", "get", POOL, "btrfs.mount_options") != "compress=zstd:3,noatime,nodiscard":
+        raise RuntimeError("Incus storage mount policy drift")
+    if inspect_root("incus", "storage", "get", POOL, "source") != INCUS_BACKING:
+        raise RuntimeError("storage is not owned by Incus")
+    if inspect_root("findmnt", "-rn", "-o", "FSTYPE", "--mountpoint", INCUS_POOL_MOUNT) != "btrfs":
+        raise RuntimeError("Incus pool is not mounted as Btrfs")
+    inspect_root("sh", "-eu", "-c",
+                 "getent ahostsv4 github.com >/dev/null; "
+                 "ip -4 route show default | grep -q '^default '; "
+                 "curl -4 -f -sS --connect-timeout 10 --max-time 30 -o /dev/null https://github.com")
 
 
-def observe_wsl_root(*args: str, phase: str) -> str:
-    return observe(
-        ("wsl.exe", "--distribution", INSTANCE, "--user", "root", "--exec", *args),
-        phase=phase,
-    )
+def sudo_policy_digest() -> str:
+    return inspect_root("sh", "-eu", "-c",
+                        "find /etc/sudoers /etc/sudoers.d -type f -exec sha256sum {} + | sort")
 
 
-def assert_wsl2(*, phase: str) -> None:
-    output = observe(("wsl.exe", "--list", "--verbose"), phase=phase)
-    if not re.search(rf"(?im)\b{re.escape(INSTANCE)}\b.*\b2\s*$", output):
-        raise RuntimeError(f"{phase}: {INSTANCE} is not listed as WSL 2")
-
-
-def assert_installed_host_state(*, phase: str) -> None:
-    assert_wsl2(phase=phase)
-
-    pid1 = observe_wsl_root("ps", "-p", "1", "-o", "comm=", phase=phase)
-    if pid1.strip() != "systemd":
-        raise RuntimeError(f"{phase}: PID 1 is {pid1!r}, expected systemd")
-
-    active = observe_wsl_root(
-        "systemctl", "is-active", "haco-controller.service", phase=phase
-    )
-    if active.strip() != "active":
-        raise RuntimeError(f"{phase}: haco-controller.service is {active!r}")
-
-    socket = observe_wsl_root(
-        "stat", "-Lc", "%U:%G:%a", "/run/hacocoon/control.sock", phase=phase
-    )
-    if socket.strip() != "root:hacocoon:660":
-        raise RuntimeError(f"{phase}: unexpected controller socket state: {socket!r}")
-
-    passwd = observe_wsl_root("getent", "passwd", MANAGED_USER, phase=phase)
-    fields = passwd.split(":")
-    if len(fields) < 7 or fields[6].strip() != "/usr/local/libexec/hacocoon-login":
-        raise RuntimeError(f"{phase}: WSL login integration is incomplete: {passwd!r}")
-
-    groups = observe_wsl_root("id", "-nG", MANAGED_USER, phase=phase).split()
-    if "hacocoon" not in groups:
-        raise RuntimeError(f"{phase}: managed WSL user lacks hacocoon group: {groups!r}")
-
-    bootstrap = observe_wsl_root(
-        "sh",
-        "-c",
-        "grep -h -F '# BEGIN HACOCOON BOOTSTRAP' /etc/sudoers-rs /etc/sudoers 2>/dev/null || true",
-        phase=phase,
-    )
-    if bootstrap.strip():
-        raise RuntimeError(f"{phase}: temporary bootstrap sudo rule remains installed")
-
-
-def assert_storage_state(*, phase: str) -> None:
-    source = observe_wsl_root(
-        "incus", "storage", "get", POOL, "source", "--project", PROJECT, phase=phase
-    )
-    if source.strip() != INCUS_BACKING:
-        raise RuntimeError(f"{phase}: pool source is {source!r}, expected {INCUS_BACKING!r}")
-
-    size = observe_wsl_root(
-        "incus", "storage", "get", POOL, "size", "--project", PROJECT, phase=phase
-    )
-    if size.strip() != "128GiB":
-        raise RuntimeError(f"{phase}: pool size is {size!r}, expected 128GiB")
-
-    configured = observe_wsl_root(
-        "incus",
-        "storage",
-        "get",
-        POOL,
-        "btrfs.mount_options",
-        "--project",
-        PROJECT,
-        phase=phase,
-    )
-    configured_options = {item for item in configured.strip().split(",") if item}
-    if "compress=zstd:3" not in configured_options:
-        raise RuntimeError(f"{phase}: configured Btrfs options lack zstd: {configured!r}")
-    if "autodefrag" in configured_options:
-        raise RuntimeError(f"{phase}: autodefrag must remain disabled: {configured!r}")
-
-    fstype = observe_wsl_root(
-        "findmnt", "-rn", "-o", "FSTYPE", "--mountpoint", INCUS_POOL_MOUNT, phase=phase
-    )
-    if fstype.strip() != "btrfs":
-        raise RuntimeError(f"{phase}: Incus pool mount is {fstype!r}, expected btrfs")
-
-    live = observe_wsl_root(
-        "findmnt", "-rn", "-o", "OPTIONS", "--mountpoint", INCUS_POOL_MOUNT, phase=phase
-    )
-    live_options = {item for item in live.strip().split(",") if item}
-    if not ({"compress=zstd:3", "compress=zstd"} & live_options):
-        raise RuntimeError(f"{phase}: live Btrfs mount lacks zstd compression: {live!r}")
-    if "autodefrag" in live_options:
-        raise RuntimeError(f"{phase}: live Btrfs mount unexpectedly enables autodefrag: {live!r}")
-
-    loop_rows = observe_wsl_root(
-        "losetup", "--list", "--noheadings", "--output", "NAME,BACK-FILE", phase=phase
-    )
-    if INCUS_BACKING not in loop_rows:
-        raise RuntimeError(f"{phase}: no loop device backs {INCUS_BACKING}: {loop_rows!r}")
-
-    stat_output = observe_wsl_root("stat", "-Lc", "%s %b", INCUS_BACKING, phase=phase)
-    try:
-        logical_bytes, allocated_blocks = (int(value) for value in stat_output.split())
-    except (ValueError, TypeError) as exc:
-        raise RuntimeError(f"{phase}: unexpected backing stat output: {stat_output!r}") from exc
-    allocated_bytes = allocated_blocks * 512
-    if logical_bytes != 128 * 1024 * 1024 * 1024:
-        raise RuntimeError(f"{phase}: backing logical size is {logical_bytes}")
-    if allocated_bytes >= logical_bytes:
-        raise RuntimeError(
-            f"{phase}: backing image is not sparse: allocated={allocated_bytes} logical={logical_bytes}"
-        )
-
-
-def assert_environment_runtime(*, present: bool, phase: str) -> None:
-    rows = observe_wsl_root(
-        "incus", "list", "--project", PROJECT, "--format", "csv", "-c", "n,s", phase=phase
-    )
-    expected_name = f"haco-{ENVIRONMENT}"
-    matching = [line for line in rows.splitlines() if line.split(",", 1)[0] == expected_name]
-    if present:
-        if not matching or not any(line.endswith(",RUNNING") for line in matching):
-            raise RuntimeError(
-                f"{phase}: expected running Environment runtime {expected_name!r}: {rows!r}"
-            )
-    elif matching:
-        raise RuntimeError(f"{phase}: deleted Environment runtime remains: {matching!r}")
-
-
-def wait_for_natural_wsl_stop(*, phase: str) -> None:
-    """Observe WSL's normal idle lifecycle without injecting terminate/shutdown."""
-
-    deadline = time.monotonic() + NATURAL_STOP_TIMEOUT_SECONDS
-    while time.monotonic() < deadline:
-        running = observe(("wsl.exe", "--list", "--running"), phase=phase)
-        if not re.search(rf"(?im)\b{re.escape(INSTANCE)}\b", running):
-            print(f"==> ASSERT READ-ONLY: {INSTANCE} stopped naturally")
-            return
-        time.sleep(2)
-    raise RuntimeError(
-        f"{phase}: {INSTANCE} did not reach normal stopped state within "
-        f"{NATURAL_STOP_TIMEOUT_SECONDS}s"
-    )
-
-
-def main() -> int:
+def main() -> None:
     if os.name != "nt":
-        raise RuntimeError("Windows user-path E2E must run on Windows")
+        raise RuntimeError("this gate requires Windows")
     inherited_child_environment()
-
+    existing = observe("wsl.exe", "--list", "--quiet").splitlines()
+    if INSTANCE.casefold() in {name.strip().casefold() for name in existing}:
+        raise RuntimeError("fresh-install gate refuses an existing Hacocoon distribution")
     package_root = Path.cwd()
-    required = (
-        "install-windows.bat",
-        "install-windows.ps1",
-        "install.sh",
-        "haco_linux_amd64.tar.gz",
-        "checksums.txt",
-        "VERSION",
-    )
-    missing = [name for name in required if not (package_root / name).is_file()]
-    if missing:
-        raise RuntimeError(f"run from extracted Windows package; missing: {', '.join(missing)}")
-
-    print("==> ACTION USER TYPES: install-windows.bat")
-    first = run_bat(package_root, phase="first install")
-    require_output(first, r"Hacocoon WSL installation complete", phase="first install")
-    assert_installed_host_state(phase="after first BAT")
-
-    print("==> ACTION USER TYPES: wsl -d Hacocoon and normal haco commands")
-    run_host_session(
-        "before reinstall",
-        expected_output=[
-            r"(?m)^haco/ubuntu-26\.04\s*$",
-            rf"(?m)^name:\s+{re.escape(ENVIRONMENT)}\s*$",
-            r"(?m)^Linux\s+",
-        ],
-    )
-    assert_environment_runtime(present=True, phase="after Environment create")
-    assert_storage_state(phase="after Environment create")
-
-    # A user can close WSL and rerun the installer later. Observe the natural
-    # idle shutdown instead of manufacturing it with `wsl --terminate`.
-    wait_for_natural_wsl_stop(phase="before reinstall")
-
-    print("==> ACTION USER TYPES: install-windows.bat")
-    second = run_bat(package_root, phase="reinstall")
-    require_output(second, r"Hacocoon WSL installation complete", phase="reinstall")
-    assert_installed_host_state(phase="after reinstall")
-    assert_environment_runtime(present=True, phase="after reinstall")
-    assert_storage_state(phase="after reinstall")
-
-    print("==> ACTION USER TYPES: wsl -d Hacocoon and reuse existing Environment")
-    run_host_session(
-        "after reinstall",
-        expected_output=[
-            rf"(?m)^name:\s+{re.escape(ENVIRONMENT)}\s*$",
-            r"(?m)^Linux\s+",
-        ],
-    )
-    assert_environment_runtime(present=False, phase="after Environment delete")
-    assert_storage_state(phase="after Environment delete")
-
-    print("windows installer exact user actions + read-only assertions: PASS")
-    return 0
+    if not (package_root / "install-windows.bat").is_file():
+        raise RuntimeError("run from the extracted candidate ZIP")
+    run_bat(package_root)
+    assert_host()
+    host_session(create=True)
+    # A normal user stop, before any installer rerun that could repair startup.
+    subprocess.run(["wsl.exe", "--terminate", INSTANCE], check=True, timeout=120)
+    host_session(create=False)
+    assert_host()
+    policy_before = sudo_policy_digest()
+    run_bat(package_root)
+    host_session(create=False)
+    assert_host()
+    if sudo_policy_digest() != policy_before:
+        raise RuntimeError("current-installer rerun changed existing sudo policy")
+    # Exercise the documented direct diagnostic entry before any root/service
+    # observation or interactive login can hide cold controller startup.
+    expected_build = json.loads(observe("wsl.exe", "-d", INSTANCE, "--exec", "haco", "version", "--json"))
+    subprocess.run(["wsl.exe", "--terminate", INSTANCE], check=True, timeout=120)
+    assert_doctor_report(observe("wsl.exe", "-d", INSTANCE, "--exec", "haco", "doctor", "--json"), expected_build)
+    print("Windows BAT / WSL entry / restart / trusted-host data retention / cold doctor: PASS")
 
 
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except Exception as exc:
-        print(
-            f"windows installer exact user actions + read-only assertions: FAIL: {exc}",
-            file=sys.stderr,
-        )
-        raise
+    main()

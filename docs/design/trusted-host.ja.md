@@ -2,6 +2,10 @@
 
 Status: partial.
 
+現在のCLI境界: 製品 `haco` はhelp/version・controller経由の `setup` / `doctor` とWSL login aliasを実装する。以下の保持しているlifecycle commandは[CLI移行](../CLI_MIGRATION.md)中の一時的な `hacoq` の機能であり、新製品commandの実装完了を意味しない。
+
+現在のpackageのWindows受入と未確認項目は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。製品診断は[読み取り専用controller契約](controller-client-transport.ja.md#host診断)を使う。
+
 ## 概要
 
 `haco-host` は Hacocoon が管理する永続的な trusted logical Host です。Local Incus backend では `haco-host` という名前の Incus system instance として実装し、通常の untrusted Environment とは明確に分離します。
@@ -27,8 +31,8 @@ Managed Environments                   UNTRUSTED
 
 現在は次を実装しています。
 
-- `haco host ensure`: 永続的な `haco-host` を1個reconcile
-- `haco host shell`: instanceをrunningにしてinteractive login shellへ入る
+- `haco setup`: 永続的な `haco-host` を1個reconcile
+- `hacoq host shell`: instanceをrunningにしてinteractive login shellへ入る
 - `user.hacocoon.role=trusted-host` ownership marker
 - Hacocoon-managed Incus storage上へのrootfs配置
 - provider-local collisionを避けるためEnvironment名`host`を予約
@@ -92,7 +96,7 @@ Physical Host controllerは次を使います。
 /run/hacocoon/control.sock
 ```
 
-Supported WSL bootstrapでは`haco-controller`をsystemdで常駐させ、socketが`root:root` mode `0600`であることを検証します。
+Supported WSL bootstrapでは `haco-controller` をsystemdで常駐させ、socketが `root:hacocoon` mode `0660` であることを検証します。`hacocoon` groupは特権controller権限を与えます。trusted-instance側proxyは下記のroot-only設定を維持します。
 
 Trusted instanceにはexactに次のproxyを設定します。
 
@@ -122,7 +126,7 @@ Instance側socketを`/run`配下に置かないのは、guest runtime tmpfs init
 
 ## Client provisioning
 
-`haco host ensure`はreleaseのclient binaryを2本ともprovisionします。
+`haco setup`はreleaseのclient binaryを2本ともprovisionします。
 
 ```text
 /usr/local/bin/haco-host
@@ -133,9 +137,19 @@ Physical Host側sourceはregular executable、invoking effective UID所有、gro
 
 これによりrepeated ensureをidempotentにし、trusted instance内の任意の既存binaryをそのまま信頼しません。
 
-General `haco` binaryは`HACO_CLIENT_MODE=controller`で意図的にguardします。First-class `haco env ...` namespaceは常にcontroller pathを使います。Historical flat Environment aliasもこのmodeではcontrollerへ強制routeし、それ以外の未移行commandは`composition.Local()`がguest-local stateを初期化する前にfail closedします。
+製品 `haco` はguest-local compositionへfallbackせず、`hacoq` も呼び出しません。一時的な `hacoq` は未移行操作のためPhysical Host配布物に残るが、fresh trusted-host setupでは配備しない。既存guest内のcopyは製品の依存ではない。controller-mode guardは引き続きguest-local操作を拒否する。
 
 このmode markerはauthorization credentialではありません。`haco-host`自体がtrustedであり、policy、state、provider operationのauthorityは引き続きPhysical Host controllerです。
+
+## 専用trusted-host network
+
+Incus adapterはdefault resource projectの `haco-host0` を所有し、`user.hacocoon.owner=trusted-host-network-v1` で識別する。利用前にowner、managed bridge型、private IPv4 subnet、DHCP/DNS/NAT/routing/firewall設定、利用対象を検証する。不明なrouting/DNS override、external interface、別の利用対象はfail closed。最初のtrusted-network契約ではIPv6を無効にする。
+
+Fresh trusted hostはlocal NIC/root diskを明示し、profileを継承しない。common installerはIncusの準備を確認し、minimal初期化やdefault directory pool作成を行わない。既知のdefault profile・`incusbr0` NICを持つ正確に所有した既存hostだけを一度graceful stopし、明示的NICへ移行して再開する。root disk・UUID・fileを保持し、不明なprofile/deviceは移行せず失敗する。中断した移行は再実行で回復でき、旧shared bridge/profile/poolは削除しない。
+
+Bootstrap/入口の前にIPv4転送を検査し、Dockerの `DOCKER-USER` 拡張点がある場合に照合する。2つの規則はこのbridge/subnetからの送信とestablished/relatedの戻り通信だけに一致する。global FORWARD policyとEnvironment bridgeは変更せず、対応する拡張点なしのDROPは明示的に失敗する。対話session中のfirewall reloadや後発Docker起動を常時監視する実装ではなく、次の入口で再検査する。
+
+Installerは成功を表示する前に、実際のtrusted host内でDNS・default IPv4 route・HTTPSを確認する。これはEnvironmentのproxy/default-deny受入とは別の基盤検証。[ADR 0005](../adr/0005-trusted-host-network-ownership.md)を参照。repository回帰と隔離Linuxのpacket検証は、最終packaged Windows受入と区別する。
 
 ## Storage
 
@@ -150,18 +164,18 @@ Supported installer成功後、通常non-root WSL userのlogin shellを専用`ha
 Interactive no-command launchでは次へdelegateします。
 
 ```text
-sudo -n <system-owned-haco> host shell
+controlapi.Client.OpenTrustedHostShell
 ```
 
-Narrow sudo ruleが許可するのはexactな`haco host ensure`と`haco host shell`だけです。`incus-admin`はdefaultで付与しません。
+製品aliasはcontrollerへ直接接続し、sudo ruleや `hacoq` subprocessを使いません。root側installerは通常userのexact UID/GIDを保持し、`hacocoon` groupでcontroller accessを与えます。`incus-admin` はdefaultで付与しません。[ADR 0004](../adr/0004-wsl-installer-authority.md)を参照してください。
 
 Login shellを変更する前にbootstrapは次をすべて確認します。
 
 1. Incusがactive
 2. `haco-controller`がroot-owned system binary
 3. current releaseで`haco-controller.service`をrestart
-4. `/run/hacocoon/control.sock`がroot-owned mode `0600` Unix socket
-5. `haco host ensure`でtrusted Host、proxy、client mode、2本のclient binaryがreconcile
+4. `/run/hacocoon/control.sock`が `root:hacocoon` mode `0660` Unix socket
+5. `haco setup`でtrusted Host、proxy、client mode、2本のclient binaryがreconcile
 6. 実trusted instance内の`haco-host doctor`が成功
 
 すべて成功した後だけ通常entryは次になります。
@@ -172,7 +186,7 @@ wsl -d Hacocoon
 
 ```text
 Physical Host login entry
-    -> haco host shell
+    -> product haco login alias -> Physical Host controller
     -> haco-host
 ```
 
@@ -186,7 +200,7 @@ wsl -d Hacocoon -u root
 
 ## Interactive warning
 
-`haco host shell`は`haco-host`へ入る前に短いprivileged-management warningを表示します。Japanese localeでは日本語、その他では英語です。
+`hacoq host shell`は`haco-host`へ入る前に短いprivileged-management warningを表示します。Japanese localeでは日本語、その他では英語です。
 
 Warningはinteractive Host-shell pathだけに出し、non-interactive WSL commandのoutputには混ぜません。
 
@@ -207,6 +221,6 @@ Warningはinteractive Host-shell pathだけに出し、non-interactive WSL comma
 
 Repository testではownership reconciliation、collision refusal、state recovery、exact controller proxy validation、2本のclient binary provisioning / idempotency、client-mode drift refusal、CLI routing、local fallbackのfail-closed、warning、login-mode identificationを確認します。
 
-Real Incus E2Eではtrusted instance作成、controller endpoint投影、2本のclient binaryのproduction install、general client digest一致、`haco-host doctor`と`haco env ...`からPhysical Host controllerへのround trip、restart recovery、historical Environment aliasのcontroller routing、guest-local state作成前の未移行command拒否、raw Incus socket非露出、通常Environmentにtrusted endpoint / client-mode markerが存在しないことを確認します。
+維持するreal Incus E2E gateはcontroller経由の `haco setup`、endpoint投影、必要な2本のclientのdigest一致、`haco-host doctor` / `haco-host env ...` のcontroller経由操作、restart復旧、fresh setupでguestに旧`hacoq`がないこと、raw Incus socket非露出、通常Environmentのtrusted endpoint / client-mode marker非露出を検査する。保持した旧alias・Base routing・local composition拒否はcomponent testで検証する。更新gateは `b71f88e` で成功した。commitを固定したWindows結果と残る制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。
 
 実Windows terminal起動、WSL distribution restart、login-shell transition、Windows integrationはReal Windows + WSL acceptanceが完了するまでhost-verifiedとは扱いません。

@@ -1,5 +1,43 @@
 # 実装状況
 
+## WSL向け更新 — 2026-09-06
+
+この候補branchのWSL向け実装を以下に示す。今回指定されたWSL M0–M1の範囲は **implemented、受入済み**。更新main `e8974ef` は#441/#442/#453/#456と#458/#459を含む。後続のrelease準備・取消2commitの最終ファイル差分はなく、取込merge `b58f82c` の製品treeは受入対象 `c749ff9` と同じ。merge済みPRや過去のgreenを後続製品変更の受入としない。
+
+- **storageはimplemented:** 配布/runtimeはIncus所有Btrfsだけを使う。外部 `driver`/`source` attachmentや不確実な検査はfail closed。desired policyは `compress=zstd:3,noatime,nodiscard`。[読み取り専用mount診断](design/btrfs-storage-layout.ja.md#読み取り専用のmount診断)は設定・検証済みlive反映・反映待ち `pending` を区別する。backing device/inode、単一の全image loop関連付け、Btrfs root mountの一致を要求し、不明・不正・観測中の変化を成功としない。独自のimage/loop/mount lifecycleや診断修復は追加しない。
+- **installerとtrusted Hostはimplemented:** 既定はnon-root `hacocoon`、passwordはlocked。`-InteractiveUserSetup` は任意。現在版再実行はaccount識別/password状態を保持し、sudo policyを書かない。controller所有の `haco setup` が所有trusted hostと限定endpointを準備し、common installerは製品doctorの全項目成功を完了条件とする。fresh hostはprofileを継承せずdeviceを明示する。所有 `haco-host0` はtrusted基盤向けDNS/DHCP/NATを提供し、Docker転送許可はそのbridgeと戻り通信だけに限定する。[bootstrap](WINDOWS_WSL_BOOTSTRAP.ja.md)、[trusted Host](design/trusted-host.ja.md)、ADR [0004](adr/0004-wsl-installer-authority.md)・[0005](adr/0005-trusted-host-network-ownership.md)・[0006](adr/0006-controller-owned-host-setup.md)を参照。
+- **製品CLIはpartial:** 新 `haco` はhelp/version・`setup`・`doctor`・controller経由WSL login aliasを提供し、`hacoq` を呼ばない。controller state・Policy・provider・Incus権限はPhysical Hostが所有し、guestにcontrollerやIncus daemonを置かない。[診断](design/controller-client-transport.ja.md#host診断)は順序付き6項目と長さを制限した失敗/pending actionを返す。controller待機とguest DNS/routeの読み取り専用起動待機は、失敗した外部検査の再試行やresource修復をしない。広いlifecycle/Base/SSH CLI移行は別件で、#456のcontroller adapterは再利用できる。
+- **Standard proxy lifecycleはimplemented:** install済みcontrollerは固定proxy listenerを所有し、bind前に共有guardを検証する。control/proxyの停止を連動させ、hijack済みCONNECTも閉じる。daemonはambient approval providerを持たず、exact allowのauditを維持し、require-approvalはfail closed。同PID listenerと未管理元拒否はEnvironmentの許可通信と区別する。[ADR 0007](adr/0007-controller-owned-standard-egress.ja.md)を参照。
+- **repository検証 — `c749ff9`:** 対象race/vet、pendingのCLI/API回帰、Windows assertion 9件、installer実shell 5件、shell構文、文書検査が成功した。維持する `ci-local.sh test` から全Go shuffle test・vet・JavaScript構文2件・notification test 5件が成功した。先行local vetは `bin/` に取得した調査用sourceを含めて停止したが、その観測資料を `.txt` に直してentry point全体を再実行し成功した。製品環境変数のoverrideやinstall済みresourceの修復は与えていない。
+- **Seed撤去はplanned:** codeは残り、[Base/任意OCIとの依存](design/oci-seed-and-cow.ja.md)を保持する。Base選択と任意Pluginの境界は維持する。
+- **登録時の続行はimplemented、Windows package受入済み:** WSL一覧取得失敗を不存在とせず、native作成成功後も対象名の登録を読戻し確認する。作成/読戻し失敗時は手動で現在版BATを再実行するための段階/option記録を保存する。記録は権限を与えず、実行もしない。明示的な終了3010は再起動待ちとして伝え、終了0でも未登録なら未完了とし、再起動案内は条件付きにする。PowerShell 5.1 component testと実BATの終了code伝達testは成功した。これらはWindows機能installやOS再起動の受入ではない。[bootstrap続行](WINDOWS_WSL_BOOTSTRAP.ja.md#登録の中断とwindows再起動)を参照。
+
+package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
+
+| 環境 | 実測した受入 |
+|---|---|
+| [Windows gate](https://github.com/SLktEx/Hacocoon/actions/runs/34008408570) | 正規cached BATのfresh作成、通常入口、停止/再入場、同版再実行、cold doctor、build識別、保持、proxy所有、未管理元403が成功 |
+| [Ubuntu installer](https://github.com/SLktEx/Hacocoon/actions/runs/34008411207) | 配布物からのordinary-user installとtrusted-host検査が成功 |
+| [Incus gates](https://github.com/SLktEx/Hacocoon/actions/runs/34008410296) | standalone・owned Btrfs・authenticated private registry・Coreの全jobが成功 |
+| 現在のWindows実機 | 未変更ZIPの適用と同版BAT再実行はreadiness全6項目成功後に終了0。通常入口、両clientのbuild全体一致、UUID/file/account/sudo policy保持、Btrfs状態、proxy検査が成功。distro停止確認後のdoctorは51.906秒で終了0 |
+
+実機ZIPは `0.26.1-SNAPSHOT-c749ff9`、build日時 `2026-09-06T03:12:38Z`、SHA-256 `f638379fb293cf249f32ef46b5576b95906ff775bc2f00f96ae3ed602724d3f9`。fresh Windowsはrunnerのcurrent WSL基盤でHacocoon distributionがない状態を意味し、Windows機能無効状態やWindows OS再起動の受入ではない。実機の保持証拠はtrusted-host sentinelと基準値であり、Workspaceの未commit・未追跡・未push作業保持の証明ではない。
+
+**未解決の起動失敗:** `42e2fb3` の通常入口で11:33:30 JSTにIncus本体PID 282がSIGKILLを受け、標準600秒start-post待機とcontroller依存が残った。signal送信元は未確定で、得られたkernel記録はOOMを示していない。手動service/mount修復なしで11:43:16にIncus標準の自動再起動が始まり、後の入口/保持検査は成功した。guest DNS/DHCP起動の競合は別途修正・受入済みであり、その修正や後の `c749ff9` 成功からSIGKILL送信元や以前の独立したWSL終了9の原因を確定しない。
+
+**登録package受入 — `4df465a71aedcdc70c28b543220b79b2465808ab`:** [Windows run 34010791925](https://github.com/SLktEx/Hacocoon/actions/runs/34010791925)、job `101426135649` で正規fresh cached BAT、通常入口、停止/再開、同版再実行、データ保持、doctor 6項目、PowerShell/BAT回帰が成功した。手元のPS5.1実一覧/引数伝達、配布/provenance、`ci-local.sh docs` / `workflow-policy`、native文書検査も成功。provenanceの最初のUbuntu 22.04実行は26.04以上の条件で正しく停止し、製品条件を変えず対応基盤で成功した。実機向けZIPのSHA-256は `439dfc8a0a4dab5ef4adf05f1b1ed9b3e02883a5009b66dca7513c528d0d3105`、version `0.26.1-SNAPSHOT-4df465a`、build `2026-09-06T04:10:02Z`。build/checksum確認まで行い、手元で再installは繰り返していない。現在の実機installは受入済み `c749ff9` のままで、変更したfresh登録/再実行はCIで確認した。
+**現在のM1範囲:** 最新のユーザー方針により、実Windows OS再起動の実装/受入と続行案内の追加作り込みは対象外。具体的な変更や失敗に見合う検証に絞り、追加で維持する回帰はCIへ置く。新しい根拠なしに成功済み検証を繰り返さない。必須だった既存controller/provider境界を使うinstall済みEnvironmentの許可proxy通信/直接通信拒否の受入は成功した。原因未確定の起動事象は記録に残し、後の限定signal観測でもその原因は特定できていない。診断機能の拡大、firewall起動順の網羅、CLI/SSH開発導線、Workspace保持は後続とし、追加の完了条件にしない。
+
+**Environment接続元の修正:** `f373cfc` のWindows gateは正規BAT経路に成功したが、許可HTTPS probeがproxy 403になった。永続接続元resolverがprovider-local参照とEnvironment作成のroute付き参照を比較していたため、正規router decoderでproviderとnative参照の両方を照合するよう修正した。実際のBase routerの作成結果を使う最小回帰で失敗を再現し、別providerの同一native参照は拒否する。
+
+**M1受入 — `81c0d160722b96864daa8d6f5f3b9ea86423ff48`:** [Windows run 34013409969](https://github.com/SLktEx/Hacocoon/actions/runs/34013409969)、job `101432997324` でfresh cached BAT install、通常入口、停止/再開、同版再実行、trusted-hostデータ保持、doctor 6項目が成功した。install済みcontrollerのEnvironment検証でも、証明書を検証する許可HTTPS、未承認hostnameの403、直接TCP拒否、管理socket非公開、controller cleanupが成功した。CIの対象はPR merge commit `9049df39f8000e32103b6a2f3939ea3d14fc5ffe` で、candidate `81c0d16` と全treeが一致することを確認した。route付き参照の回帰は修正前に失敗し、修正後の手元egress・Environment router・composition・Standard proxy testはすべて成功した。文書整合性検査も成功。
+
+新しい手元ZIPは `0.26.1-SNAPSHOT-81c0d16`、build日時 `2026-09-06T05:12:08Z`、SHA-256 `4938622b994a66b71d5647086819db63e7ee7a7a8ea1189e3b2ad964ccb69c6b`。GoReleaser配布物作成と全checksum検証が成功した。このZIPは現在のWindows実機に再installしておらず、実機のinstall版は `c749ff9` のまま。上記candidateのWindows受入はCIでの結果である。実Windows OS再起動は対象外のままとする。
+
+**次の具体的な一件:** M2として、既存controller-backed adapter経由のEnvironment作成を新 `haco` から利用できるようにする。
+
+以下の表は元のcheckpoint時点の履歴文脈を保持する。
+
 [English](IMPLEMENTATION_STATUS.md) | **日本語**
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
