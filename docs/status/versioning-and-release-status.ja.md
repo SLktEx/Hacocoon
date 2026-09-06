@@ -4,7 +4,9 @@
 
 v0.27候補は管理対象repoのWSL利用経路を実装する。独立Workspace copy、標準SSH、
 通常Git helperのfetch/pull、送信内容を固定したpush承認、作業を保持する正常停止が対象。
-実Gitのローカル回帰は成功し、branchから作ったWindows配布物の受入は **pending**。
+実Gitのローカル回帰は成功し、branchのWindows配布物 `7a4d122` でA1〜A6を受入した。
+承認付きremote pushとWorkspace保持停止まで確認済み。手動setupは残り、この候補のfresh導入や
+広いhost matrixは未検証。
 正確な根拠は[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照。
 
 > **人間向けcheckpoint policy/status view · 2026-08-31更新**

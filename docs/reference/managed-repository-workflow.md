@@ -93,6 +93,8 @@ Record the returned connection ID for disconnect. In the SSH session:
 
 ```bash
 cd /workspace
+export http_proxy=http://169.254.254.1:18080
+export https_proxy=$http_proxy
 apt-get update
 apt-get install -y git
 git config user.name 'Your Name'
@@ -104,6 +106,12 @@ git add <files>
 git commit -m 'Describe the change'
 git push
 ```
+
+The current Standard proxy uses the credential-free URL shown above. The
+existing Incus exec environment receives it automatically; an SSH login needs
+these ordinary shell exports. They do not grant network authority: the proxy
+still requires the matching Environment Policy. Automatic SSH shell setup is
+deferred.
 
 While push waits, use a second trusted Host terminal to run `haco git pending`.
 Review the repository, remote, ref, old/new OIDs and summary. Run

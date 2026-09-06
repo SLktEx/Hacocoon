@@ -2,15 +2,63 @@
 
 ## 管理対象repoのWSL利用経路 — 2026-09-06
 
-**implemented・配布物による実機の通し検証はpending**。v0.27候補は、新hacoのrepo登録、
+**implemented・以下のローカルWindows/WSL構成でA1〜A6を受入済み**。v0.27候補は、新hacoのrepo登録、
 独立したIncus Btrfs Workspace copy、controller経由のEnvironment作成・SSH、
 Git専用remote helper、Workspace所有権を保持する正常停止を実装する。
 認証付きGitはtrusted `haco-host` 内で実行し、Policy・承認・state・Incus権限は
 Physical Hostのcontrollerに置く。実Gitを使うローカル回帰では通常fetch・競合のないpull・
 push拒否・旧/新OIDを固定した承認付きpushが成功し、承認待ち中のlocal branch変更でも
-送信対象が変わらないことを確認した。実IncusのCOWやWindows受入の証明とは区別する。
+送信対象が変わらないことを確認した。repository検証と以下の実機観測は区別する。
 [利用手順](reference/managed-repository-workflow.md)と
 [所有権の決定](adr/0008-managed-repository-workspaces.md)を参照。
+
+**配布物の受入:** commit `7a4d1227c95642f27cb118c3d20d2cd554e8be32`、
+version `0.27.0-SNAPSHOT-7a4d122`、build `2026-09-06T07:57:54Z`。
+Windows ZIPのSHA-256は
+`0468c8f95c5b431c5d4160aead860deb152ed8d8e381b321c6b85b2f650d1a80`。
+Windows build `26200.9278`、WSL `2.7.12.0`、kernel `6.18.33.2-2`、
+Ubuntu 26.04、Incus `6.0.5`、Incus所有Btrfs pool `haco-local-default`。
+既存Hacocoon distributionへ同梱BATを通常実行し、doctor全6項目が成功して終了0。
+CI専用の製品設定や内部資源の修復は使っていない。この候補の未登録distroからのfresh導入は
+**未再実行**であり、下記の過去installer受入とは区別する。
+
+| 段階 | 観測結果 |
+|---|---|
+| 入口・controller | 通常の `wsl -d Hacocoon` でtrusted Hostへ入り、内外のhacoが同じbuildと `poc-dev` を返した |
+| repo・COW | `https://github.com/SLktEx/Hacocoon-test.git` の `codex/wsl-poc-20260906` を `poc` として登録。独立copy `poc-work2` を `poc-dev` の `/workspace` に配置 |
+| 既定Base | `haco/ubuntu-26.04`、revision `sha256:d071290fb40659981198baf0161a8bcc9910ebae79a15f5ef5d9c06dbdb2ea4c` |
+| 開発 | client所有鍵と固定host keyによる標準OpenSSHで編集、Python byte compile・unittest 2件・commitが成功。専用.gitを持ち、commondir/alternates・Host gh認証ファイル・管理socketはなく、trusted元worktreeも未変更 |
+| fetch/pull | 同じWorkspaceで通常helper fetchと `pull --ff-only` が `f4ff6e3` からremoteで作った `19caa79e123b981227d1c0b58783c7a6af80e930` へ進んだ |
+| 拒否 | `haco git deny` 後のremoteは `19caa79` のまま |
+| 承認 | proposalの登録URL/ref・操作・`19caa79` → `c18cbb8e202cecc0d6c80b29a8cd700dc1c0558f` を確認してapprove。通常git pushが終了0となり、GitHubからも同じOIDを取得。auditの拒否・承認・成功を確認 |
+| 終了 | SSH commandが終了し、`env disconnect poc-dev ssh-2222` と `env stop poc-dev` が成功。内外statusはstopped、再接続は拒否 |
+| 保持 | canonical leaseとcustom volumeを保持。未push HEAD `5650953d591fc6294a0db8db5f71a408e7917555`、変更済greeting.py、未追跡notes、branch refのSHA-256は停止前後で一致。remoteはc18cbb8のまま |
+
+元repoのBtrfs UUID `760d7b7e-0e0e-7f4c-9f88-7303ad96f55c` と、Workspace
+`f3326bfe-8cb0-684e-a3a3-d437dd3b817e` の親UUIDが一致した。COW関係の観測であり、
+性能計測ではない。最初の候補 `c116307` はrepo登録後、copyのIncus ID-map履歴を
+落としてEnvironment書込み検証に失敗した。provider回帰と `7a4d122` の修正で履歴を保持する。
+失敗copy `poc-work` は保全し、同じ登録repoから通常workspace createで作った新copyで
+受入した。chownや特権Environmentによる回避はしていない。
+
+**残る手動setup:** trusted Hostにgit/ghを導入して認証、Physical Hostで対象Git/Ubuntu
+取得だけをPolicy許可、SSH公開鍵の準備・host key固定、SSH shellでcredentialを含まない
+Standard proxy URLをexport。既存の許可済gh credentialは標準入力でtrusted Hostだけへ
+渡した。適用前のHost HTTP/HTTPSはtimeoutしたが、通常BATのsetup後はreadinessが成功した。
+別途の修復は行わず、最初の失敗原因は未確定。
+
+**repository検証:** `ci-local.sh docs`・`workflow-policy`・`test`（全Go、vet、JS）・
+`race`・`e2e` が成功。env未実装を前提にした既存E2Eを更新し、一時HOME外の既存Go cacheで
+実行した。ID-map修正は関連race回帰、配布物はGoReleaser check/buildとchecksumが成功。
+完全なrelease-config/forwarding jobや新しいhosted CI実行の成功は主張しない。
+
+**deferred・未検証:** SSH proxy自動設定は [#469](https://github.com/SLktEx/Hacocoon/issues/469)、
+承認中断・push結果不明・retryは [#470](https://github.com/SLktEx/Hacocoon/issues/470)。
+次の依頼のB1は既存 [#275](https://github.com/SLktEx/Hacocoon/issues/275) の境界に沿った
+trusted haco-hostのWindows exe実行・利用可能なWSLドライブmountであり、Environmentへ自動公開しない。
+B2/B3の複数repo・Base変更、大きなpack・他認証方式・force/複数ref・LFS/submodule、
+汎用復旧/削除・resume UX・広いhost matrixは未受入。test Environmentは停止し、両copyと
+test branchを意図して保持した。B/Cの実装は今回に含めない。
 
 以下のM1記録は各記載buildに対する過去の観測として保持する。
 

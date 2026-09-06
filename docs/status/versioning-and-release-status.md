@@ -24,7 +24,10 @@ Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progr
 The v0.27 candidate implements the managed repository WSL workflow: independent
 Workspace copies, standard SSH, ordinary Git helper fetch/pull and fixed-content
 push approval, followed by graceful stop retaining work. Local real-Git
-regressions pass; branch-built Windows package acceptance is **pending**.
+regressions pass; the branch-built Windows package completed the local A1–A6
+journey on `7a4d122`, including approved remote push and retained shutdown.
+Manual setup remains; fresh installation and a wider host matrix are unverified
+for this candidate.
 See [implementation status](../IMPLEMENTATION_STATUS.md) for exact evidence.
 
 Controller-backed setup, trusted networking, controller-owned Standard proxy and read-only configured/live storage diagnostics are implemented within the current checkpoint. Packaged acceptance on `c749ff9033b33c3526e108f60ce2009638075152` passed Windows, Ubuntu and all four Incus jobs, plus local cached BAT application/rerun, ordinary/cold entry, six readiness checks and retained trusted-host data.
