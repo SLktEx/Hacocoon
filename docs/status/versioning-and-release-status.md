@@ -21,6 +21,11 @@ Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progr
 
 ## Current checkpoint status
 
+The Incus startup PID guard is a v0.28 maintenance fix. It prevents cross-namespace
+replay of network/proxy process records without changing milestone numbering.
+See [implementation status](../IMPLEMENTATION_STATUS.md#incus-startup-pid-protection)
+for validation and installation limits.
+
 The v0.28 candidate adds trusted WSL Windows interop, repository collections,
 Workspace-preserving Base switching, optional one-way OCI distribution,
 OpenSSH configuration generation and readable Environment status. B1–B6 have

@@ -144,6 +144,7 @@ run_release_config() {
   python3 tools/test_installer_packages.py
   python3 tools/test_install_identity.py
   python3 tools/test_install_network.py
+  python3 tools/test_incus_boot_guard.py
   python3 tools/test_windows_user_path.py
   python3 tools/test_wsl_oobe_config.py
 

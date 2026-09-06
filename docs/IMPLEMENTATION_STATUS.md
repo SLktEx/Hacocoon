@@ -1,5 +1,81 @@
 # Implementation Status
 
+## Incus startup PID protection
+
+Status: **implemented; repository regressions and hosted Ubuntu/WSL package
+acceptance passed**. The common Ubuntu/WSL installer installs a root-only Incus ExecStartPre
+guard that archives prior-namespace dnsmasq/proxy PID records before daemon
+startup. Current-namespace records and resource data are retained. See the
+[Host contract](design/trusted-host.md#wsl-default-entry) and
+[ADR 0013](adr/0013-incus-pid-record-boot-identity.md).
+
+Nineteen component cases cover reused PIDs, WSL/native boots, service restart,
+initialization, concurrency, interrupted retirement and unsafe metadata. Installer,
+package and Windows driver regressions pass. The Windows package gate also checks
+marker renewal and archived dnsmasq records after restart. Same-namespace helper
+PID reuse and optional device families remain upstream scope.
+
+On `1b2d6ae`, the [Windows package gate](https://github.com/SLktEx/Hacocoon/actions/runs/34051931616)
+passed installation, ordinary WSL termination/re-entry, marker renewal, retained
+dnsmasq records, installer rerun and installed egress enforcement. The
+[Ubuntu package gate](https://github.com/SLktEx/Hacocoon/actions/runs/34051931562),
+[real Incus gate](https://github.com/SLktEx/Hacocoon/actions/runs/34051931583) and
+[repository CI](https://github.com/SLktEx/Hacocoon/actions/runs/34051931607) also passed.
+The optional authenticated-private-registry job was skipped; these results do
+not add private-registry acceptance. Final revision and merge status are in
+[PR #480](https://github.com/SLktEx/Hacocoon/pull/480).
+
+The existing local installation has **not** received this change. This maintenance
+fix remains in checkpoint v0.28; hosted acceptance does not imply local deployment.
+
+## WSL startup failure investigation — 2026-09-07
+
+Status: **historical investigation; startup failure reproduced, stale-PID cause
+strongly supported**. Cross-namespace prevention is implemented above. This investigation used installed product
+`029ff08e34c98e075b7b0b3d3a7fc7f639e89323` and Ubuntu package
+`incus 6.0.5-8` on the local WSL 2.7.12 host. It does not establish the
+cause on another Windows account or machine.
+
+At 02:32:21 JST, the preceding successful startup assigned PID 424 to the
+`haco-host0` dnsmasq process. After ordinary WSL shutdown and startup,
+at 02:33:13 the kernel trace captured `kill(424, SIGKILL)` targeting
+`libuv-worker`, followed by Incus main PID 248 exiting with signal 9.
+The trace's target kernel PID was 9468; 424 is the caller-namespace ID,
+not the same numbering space. An independent process listing confirms
+that these libuv workers are threads of the Incus daemon. No OOM event
+was established.
+
+The upstream [v6.0.5 dnsmasq cleanup](https://github.com/lxc/incus/blob/a87f49a2491fa3a0e74896c1f2322bd356c59ddc/internal/server/dnsmasq/dnsmasq.go)
+imports the saved `dnsmasq.pid` and calls
+[`Process.Stop`](https://github.com/lxc/incus/blob/a87f49a2491fa3a0e74896c1f2322bd356c59ddc/shared/subprocess/proc.go).
+It checks numeric PID existence and kills it without validating boot,
+process start time or executable identity. This is consistent with a
+previous dnsmasq PID being reused as an Incus thread ID. The exact
+user-space call stack of the failing signal was not captured; the PID,
+target thread, previous dnsmasq identity and failure time were correlated.
+Normal forkproxy/helper SIGKILL events were also observed and must not be
+mistaken for daemon failure.
+
+A separate test using only a test-owned child process confirmed that
+`pidfd_open(worker_tid)` returns ENOENT, while numeric signal-0 succeeds
+and SIGKILL to that TID terminates the entire process. This verifies the
+OS-level failure mechanism, not an applied Incus fix or an end-to-end
+regression for the upstream package.
+
+After Incus dies during startup, its 600-second `waitready` start-post
+process can remain, blocking the controller's `After=incus.service`.
+The product login then reaches its two-minute deadline. The login client
+also discards the last transport error, so the timeout alone cannot
+identify this cause or distinguish socket permission failures.
+
+All temporary kernel traces and uprobes were removed. One bounded
+observation included an explicit Incus service restart; later installed
+`haco doctor` passed all six checks. This recovery does not close the
+intermittent failure. No provider binary, PID file, storage, network or
+installed service configuration was patched. Correct ownership validation
+belongs in the provider's process lifecycle; automatically deleting its
+PID files from Core or increasing the login timeout is not a root fix.
+
 ## Second-stage workflow
 
 Status: **implemented; B1–B6 locally accepted** on the Windows/WSL configuration

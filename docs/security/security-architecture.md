@@ -50,6 +50,11 @@ Backends with a stronger isolation model, such as a VM or microVM, may reduce th
 
 ## `haco-host` does not get raw Incus authority
 
+The installer-owned Incus startup guard archives obsolete network/proxy PID
+records only on the Physical Host and only across proven namespace boots.
+It never signals a process. Core and clients gain no provider-state repair API;
+unsafe metadata fails closed. See [ADR 0013](../adr/0013-incus-pid-record-boot-identity.md).
+
 Being trusted does not mean every control primitive should be mounted into `haco-host`.
 
 The local Incus implementation keeps the daemon socket, `/var/lib/incus`, authoritative Hacocoon state and Policy on the Physical Host. Product `haco setup` and the WSL login entry call the existing Physical Host controller. Only that controller constructs the privileged provider composition. The trusted `haco-host` receives a narrow root-only Hacocoon endpoint and client binaries, never an Incus socket or second controller. See [ADR 0006](../adr/0006-controller-owned-host-setup.md).

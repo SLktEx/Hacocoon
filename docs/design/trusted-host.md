@@ -183,6 +183,14 @@ This does not by itself prove that all future `haco-host` data is physically COW
 
 ## WSL default entry
 
+The common Ubuntu installer installs an Incus-specific startup guard. Across
+PID namespace boots it archives old network/proxy process records before Incus
+can replay a reused PID against a new worker. Same-namespace service restarts
+retain records. Unknown or unsafe metadata refuses startup; no process is
+signalled and no resource or Workspace is removed. See
+[ADR 0013](../adr/0013-incus-pid-record-boot-identity.md) for initialization,
+durability, trust boundaries and the remaining upstream scope.
+
 After the supported installer succeeds, the normal non-root WSL user's login shell becomes the dedicated `hacocoon-login` entry.
 
 For an interactive no-command launch the product alias connects directly through:

@@ -7,6 +7,7 @@ on:
     paths:
       - "cmd/**"
       - "internal/**"
+      - "modules/runtime/incus/packaging/**"
       - ".goreleaser.yaml"
       - "scripts/install-ubuntu.sh"
       - "scripts/install.sh"
