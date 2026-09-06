@@ -1,7 +1,7 @@
 # Hacocoon development-checkpoint numbering and gate identity.
 # This intentionally uses a constrained YAML subset parsed by repository tooling.
 schema: 1
-current: "v0.26"
+current: "v0.27"
 milestones:
   "v0.1": "Secure Workspace Runtime MVP"
   "v0.2": "Workspace Abstraction & Lease"
@@ -29,3 +29,4 @@ milestones:
   "v0.24": "Structured Logging"
   "v0.25": "Incus-owned Btrfs Storage Acceptance"
   "v0.26": "Trusted `haco-host` & Default WSL Entry"
+  "v0.27": "Managed Repository WSL Workflow"

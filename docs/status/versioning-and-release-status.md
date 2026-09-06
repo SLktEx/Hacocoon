@@ -21,6 +21,15 @@ Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progr
 
 ## Current checkpoint status
 
+The v0.27 candidate implements the managed repository WSL workflow: independent
+Workspace copies, standard SSH, ordinary Git helper fetch/pull and fixed-content
+push approval, followed by graceful stop retaining work. Local real-Git
+regressions pass; the branch-built Windows package completed the local A1–A6
+journey on `7a4d122`, including approved remote push and retained shutdown.
+Manual setup remains; fresh installation and a wider host matrix are unverified
+for this candidate.
+See [implementation status](../IMPLEMENTATION_STATUS.md) for exact evidence.
+
 Controller-backed setup, trusted networking, controller-owned Standard proxy and read-only configured/live storage diagnostics are implemented within the current checkpoint. Packaged acceptance on `c749ff9033b33c3526e108f60ce2009638075152` passed Windows, Ubuntu and all four Incus jobs, plus local cached BAT application/rerun, ordinary/cold entry, six readiness checks and retained trusted-host data.
 
 The requested WSL M0–M1 scope is **implemented and accepted**: installed Environment allowed-proxy/denied-direct acceptance passed for candidate `81c0d16` (identical-tree PR merge `9049df3`). Registration stop/continuation and the fresh Windows package gate passed on `4df465a`. Actual Windows OS reboot and further continuation work are outside the latest requested scope; do not add broad acceptance matrices or repeat successful local checks without a concrete change or failure. The earlier Incus startup SIGKILL source remains unresolved. [Implementation status](../IMPLEMENTATION_STATUS.md) owns the commit-bound evidence, package identity and acceptance limits.
@@ -55,8 +64,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.24 | Structured Logging | ✅ shared `log/slog` foundation, operation context, sanitized DEBUG tracing, and secret redaction implemented across maintained executables |
 | v0.25 | Incus-owned Btrfs Storage Acceptance | ✅ ordinary-user real Incus/Btrfs CLI acceptance verifies the Incus-owned pool lifecycle and policy |
 | v0.26 | Trusted `haco-host` & Default WSL Entry | ✅ persistent trusted logical Host lifecycle, ownership/collision checks, managed-storage placement, default WSL entry, recovery path, and real Incus acceptance implemented |
+| v0.27 | Managed Repository WSL Workflow | ✅ implemented |
 
-The current milestone position is **v0.26**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.27**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

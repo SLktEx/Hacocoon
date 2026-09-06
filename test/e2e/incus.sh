@@ -70,8 +70,8 @@ go build -o "$hacoq" ./cmd/haco
 go build -o "$haco_host" ./cmd/haco-host
 go build -o "$controller" ./cmd/haco-controller
 
-# The reset product CLI must be usable before any runtime/controller state is
-# initialized and must not silently expose legacy commands.
+# Product help and argument validation must work before runtime/controller state
+# is initialized, without delegating to the legacy CLI.
 "$haco" --version >/dev/null
 "$haco" help >/dev/null
 product_unknown_stdout="$root/product-unknown-stdout"
@@ -81,15 +81,15 @@ set +e
 product_unknown_exit=$?
 set -e
 [[ "$product_unknown_exit" == "2" ]] || {
-  echo "new haco unexpectedly accepted legacy env command" >&2
+  echo "product haco accepted env without a subcommand" >&2
   exit 1
 }
 [[ ! -s "$product_unknown_stdout" ]] || {
-  echo "new haco legacy-command rejection unexpectedly produced stdout" >&2
+  echo "product haco argument rejection unexpectedly produced stdout" >&2
   exit 1
 }
-grep -Fq 'command "env" is not available yet' "$product_unknown_stderr" || {
-  echo "new haco did not clearly reject the legacy env command" >&2
+grep -Fq 'Usage: haco env create' "$product_unknown_stderr" || {
+  echo "product haco did not show Environment usage" >&2
   cat "$product_unknown_stderr" >&2 || true
   exit 1
 }
@@ -172,8 +172,8 @@ guest_client_digest="$(incus exec "$trusted_host_ref" --project hacocoon -- sha2
   exit 1
 }
 
-# Product haco must mean the same thing inside trusted haco-host: standalone
-# standalone help/version and controller-backed setup/doctor, without legacy delegation.
+# Product haco must mean the same thing inside trusted haco-host, including
+# argument validation and controller-backed operations without legacy delegation.
 incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" --version >/dev/null
 incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" help >/dev/null
 trusted_product_stderr="$root/trusted-product-stderr"
@@ -182,11 +182,11 @@ incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" env
 trusted_product_exit=$?
 set -e
 [[ "$trusted_product_exit" == "2" ]] || {
-  echo "trusted-host product haco unexpectedly exposed legacy env command" >&2
+  echo "trusted-host product haco accepted env without a subcommand" >&2
   exit 1
 }
-grep -Fq 'command "env" is not available yet' "$trusted_product_stderr" || {
-  echo "trusted-host product haco did not preserve the reset CLI surface" >&2
+grep -Fq 'Usage: haco env create' "$trusted_product_stderr" || {
+  echo "trusted-host product haco did not show Environment usage" >&2
   cat "$trusted_product_stderr" >&2 || true
   exit 1
 }

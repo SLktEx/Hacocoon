@@ -1,5 +1,79 @@
 # Implementation Status
 
+## Managed repository WSL workflow — 2026-09-06
+
+**Implemented; A1–A6 accepted on the local Windows/WSL configuration below.** The v0.27 candidate adds
+product CLI repository registration, independent Incus Btrfs Workspace copies,
+controller-backed Environment creation/SSH, a Git-only remote helper and
+graceful stop retaining Workspace ownership. Authenticated Git executes inside
+trusted `haco-host`; Policy, approval, state and Incus authority stay in the
+Physical Host controller. Ordinary helper fetch, conflict-free pull, deny and
+approval pinned to old/new OIDs pass a real-Git local integration regression,
+including a local branch change during approval. Local repository tests and
+the separately observed packaged journey are distinguished below. See the
+[workflow](reference/managed-repository-workflow.md) and
+[ownership decision](adr/0008-managed-repository-workspaces.md).
+
+**Packaged acceptance:** `7a4d1227c95642f27cb118c3d20d2cd554e8be32`, version
+`0.27.0-SNAPSHOT-7a4d122`, built `2026-09-06T07:57:54Z`. Windows ZIP SHA-256:
+`0468c8f95c5b431c5d4160aead860deb152ed8d8e381b321c6b85b2f650d1a80`.
+Windows build `26200.9278`, WSL `2.7.12.0`, kernel `6.18.33.2-2`, installed
+Ubuntu 26.04, Incus `6.0.5`, Incus-owned Btrfs pool `haco-local-default`.
+The ordinary packaged BAT applied to the existing Hacocoon distribution and
+exited 0 after all six doctor checks. No CI product overrides or internal
+resource repairs were used. Fresh absent-distro installation of this candidate
+was **not** repeated; prior installer acceptance below remains separate.
+
+| Step | Observed result |
+|---|---|
+| Entry and controller | Ordinary `wsl -d Hacocoon` entered trusted `haco-host`; inner and outer product clients returned the same build and `poc-dev` Environment |
+| Repository and COW | Registered `poc` from `https://github.com/SLktEx/Hacocoon-test.git`, branch `codex/wsl-poc-20260906`; independent `poc-work2` copy mounted at `/workspace` in `poc-dev` |
+| Default Base | `haco/ubuntu-26.04`, revision `sha256:d071290fb40659981198baf0161a8bcc9910ebae79a15f5ef5d9c06dbdb2ea4c` |
+| Development | Standard OpenSSH with a client-owned key and pinned server key; Python byte-compilation, two unittest cases and a commit succeeded. Own `.git`, no `commondir`/alternates, no Host gh credential file or management socket; trusted source worktree remained unchanged |
+| Fetch/pull | Ordinary helper fetch and `pull --ff-only` advanced the same Workspace from `f4ff6e3` to the remotely prepared `19caa79e123b981227d1c0b58783c7a6af80e930` |
+| Denial | `haco git deny` rejected the pending push; remote stayed at `19caa79` |
+| Approval | Proposal fixed `19caa79` → `c18cbb8e202cecc0d6c80b29a8cd700dc1c0558f`, the registered URL/ref and operation. `haco git approve` let ordinary `git push` finish 0; GitHub independently returned exactly `c18cbb8`. Audit recorded denial, approval and successful completion |
+| Finish | SSH commands exited, `env disconnect poc-dev ssh-2222` revoked the endpoint, `env stop poc-dev` succeeded and inner/outer status reported `stopped`. Reconnection was refused |
+| Retention | The exact canonical Workspace lease and custom volume remained. Unpushed HEAD `5650953d591fc6294a0db8db5f71a408e7917555`, modified `greeting.py`, untracked notes and the branch-ref file had identical SHA-256 before/after stop; remote remained `c18cbb8` |
+
+Btrfs source UUID `760d7b7e-0e0e-7f4c-9f88-7303ad96f55c` matches the parent UUID
+of Workspace `f3326bfe-8cb0-684e-a3a3-d437dd3b817e`. This establishes the observed
+Incus COW relationship, not a performance measurement. The first candidate
+`c116307` registered the source but failed Environment write access because it
+dropped Incus ID-map bookkeeping while copying. A focused provider regression
+and `7a4d122` fix preserve that bookkeeping. The failed `poc-work` copy was kept;
+the accepted journey used a fresh ordinary `workspace create` from the same
+registered source, with no chown or privileged-Environment workaround.
+
+**Manual setup retained:** install `git gh` and authenticate gh inside trusted
+`haco-host`; create exact Git/Ubuntu egress Policy rules on the Physical Host;
+provide the SSH public key and pin its host key; export the credential-free
+Standard proxy URL inside the SSH shell before apt. Existing authorized gh
+credentials were transferred by stdin to the trusted Host only. Pre-application
+Host HTTP/HTTPS attempts timed out; the normal BAT's setup then restored passing
+readiness without separate repair. The initial failure's cause is unconfirmed.
+
+**Repository validation:** maintained `ci-local.sh docs`, `workflow-policy`,
+`test` (all Go tests, vet, JS syntax/tests), `race` and `e2e` passed. The E2E
+expectation that product `env` was unavailable was updated, and the local E2E
+runner used existing Go caches outside its temporary HOME. The Incus ID-map fix
+passed focused race regressions; GoReleaser check/build and package checksums
+passed. The complete release-config/forwarding jobs and a new hosted CI run are
+not claimed by those local checks.
+
+**Deferred / unverified:** SSH proxy setup is [#469](https://github.com/SLktEx/Hacocoon/issues/469);
+interrupted approvals, unknown push results and retry are [#470](https://github.com/SLktEx/Hacocoon/issues/470).
+The next requested B1 is trusted `haco-host` Windows exe execution and available
+WSL drive mounts, under the existing [#275](https://github.com/SLktEx/Hacocoon/issues/275)
+boundary; no automatic Environment exposure. B2/B3 multiple repositories/Base
+switching, larger packs, other auth methods, force/multiple refs, LFS/submodules,
+generic recovery/cleanup, resume UX and a wider host matrix remain outside this
+acceptance. The retained test Environment is stopped; both Workspace copies and
+the test branch are intentionally preserved. B/C implementation is not part of
+this checkpoint's acceptance work.
+
+The historical M1 observations below remain tied to their original builds.
+
 ## WSL delivery update — 2026-09-06
 
 This candidate branch implements the following WSL slice; the requested WSL M0–M1 scope is **implemented and accepted**. Refreshed main `e8974ef` includes #441/#442/#453/#456 and #458/#459. Its two later release-bootstrap/revert commits have no net file changes; merge `b58f82c` has the same product tree as the accepted `c749ff9`. A merged PR or an older green run is not acceptance of later product changes.
@@ -34,7 +108,7 @@ The local ZIP is `0.26.1-SNAPSHOT-c749ff9`, built at `2026-09-06T03:12:38Z`, wit
 
 The new local ZIP is `0.26.1-SNAPSHOT-81c0d16`, built at `2026-09-06T05:12:08Z`, SHA-256 `4938622b994a66b71d5647086819db63e7ee7a7a8ea1189e3b2ad964ccb69c6b`. GoReleaser packaging and all distribution checksums passed. This ZIP has not been reinstalled on the current Windows host, whose installed version remains `c749ff9`; candidate Windows acceptance above is from CI. Actual Windows OS reboot remains outside scope.
 
-**Next concrete item:** M2: expose Environment creation in new `haco` through the existing controller-backed adapter.
+**Historical next item:** M2 Environment creation is implemented in the v0.27 candidate above; packaged journey acceptance is tracked separately.
 
 The historical checkpoint tables below retain their original milestone context.
 
@@ -42,7 +116,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.26**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.27**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

@@ -121,6 +121,20 @@ func (r *Router) DeleteEnvironment(ctx context.Context, rawRef string) error {
 	return provider.DeleteEnvironment(ctx, ref)
 }
 
+func (r *Router) StopEnvironment(ctx context.Context, rawRef string) error {
+	provider, ref, err := r.resolve(rawRef)
+	if err != nil {
+		return err
+	}
+	stopper, ok := provider.(interface {
+		StopEnvironment(context.Context, string) error
+	})
+	if !ok {
+		return core.ErrUnsupported
+	}
+	return stopper.StopEnvironment(ctx, ref)
+}
+
 func (r *Router) InspectEnvironment(ctx context.Context, rawRef string) (core.EnvironmentRuntimeStatus, error) {
 	provider, ref, id, err := r.resolveWithID(rawRef)
 	if err != nil {

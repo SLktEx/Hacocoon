@@ -1,6 +1,6 @@
 # Windows / WSL セットアップ
 
-Status: **partial**。固定管理accountのbootstrapはimplemented、実Windowsでのinstall/network/restart受入は[実装status](IMPLEMENTATION_STATUS.ja.md)で別管理する。製品 `haco` は現在help/version・controller経由の `setup` / `doctor` とWSL login aliasを持つ。保持しているlifecycle commandは[CLI移行](CLI_MIGRATION.md)中の一時的な `hacoq` の機能である。
+Status: **partial**。固定管理accountのbootstrapはimplemented、実Windowsでのinstall/network/restart受入は[実装status](IMPLEMENTATION_STATUS.ja.md)で別管理する。製品 `haco` はcontroller経由のsetup・診断、管理対象repo/Workspaceの準備、EnvironmentのSSH・停止、Git承認を提供する。導入後は[管理対象repoの利用手順](reference/managed-repository-workflow.md)を参照する。残る旧commandは[CLI移行](CLI_MIGRATION.md)中の一時的な `hacoq` の機能である。
 
 Package受入、対象commit、未解決の起動失敗は[実装status](IMPLEMENTATION_STATUS.ja.md)で管理する。後の成功をもって以前の原因未確定の失敗を解消済みとしない。
 

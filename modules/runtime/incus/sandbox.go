@@ -190,6 +190,21 @@ func (p *SandboxProvider) DeleteEnvironment(ctx context.Context, ref string) err
 }
 
 func (p *SandboxProvider) addWorkspaceDevice(ctx context.Context, ref string, spec core.EnvironmentRuntimeSpec) error {
+	if strings.HasPrefix(spec.WorkspacePath, "managed:") {
+		if p.managedWorkspace == nil {
+			return core.ErrUnsupported
+		}
+		pool, volume, err := p.managedWorkspace(ctx, spec.WorkspacePath)
+		if err != nil {
+			return err
+		}
+		args := []string{"config", "device", "add", ref, "workspace", "disk", "pool=" + pool, "source=" + volume, "path=/workspace", "--project", p.project}
+		if spec.ReadOnly {
+			args = append(args, "readonly=true")
+		}
+		_, err = p.runner.Run(ctx, "incus", args...)
+		return err
+	}
 	deviceArgs := []string{
 		"config", "device", "add", ref, "workspace", "disk",
 		"source=" + spec.WorkspacePath,

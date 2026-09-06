@@ -29,14 +29,15 @@ type runtimeStorageState struct {
 }
 
 type Runtime struct {
-	runner         host.Runner
-	project        string
-	image          string
-	storage        *runtimeStorageState
-	stdin          io.Reader
-	stdout         io.Writer
-	stderr         io.Writer
-	cleanupTimeout time.Duration
+	runner           host.Runner
+	project          string
+	image            string
+	storage          *runtimeStorageState
+	stdin            io.Reader
+	stdout           io.Writer
+	stderr           io.Writer
+	cleanupTimeout   time.Duration
+	managedWorkspace func(context.Context, string) (string, string, error)
 }
 
 func New(runner host.Runner) *Runtime {

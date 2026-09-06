@@ -2,11 +2,11 @@
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product `haco` currently exposes help/version, controller-backed `setup` and `doctor`, and its controller-backed WSL login alias. Environment lifecycle in the new product CLI, PTY control framing, port forwarding and remote transport remain planned.
+Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product `haco` provides help/version, setup/doctor, WSL login, managed repository/Workspace preparation, Environment create/list/status/SSH/disconnect/stop and Git approval commands. Additional lifecycle conveniences, PTY control framing, general port-forwarding CLI and remote transport remain planned.
 
 ## Summary
 
-Current reset-CLI boundary: product `haco` exposes help/version, controller-backed `setup` and `doctor`, and its WSL login alias; older `haco env ...` descriptions on this page refer to the retained migration CLI. See [implementation status](../IMPLEMENTATION_STATUS.md).
+Product `haco` calls the existing controller for the [managed repository workflow](../reference/managed-repository-workflow.md). Its typed management API adds `repository.clone`, `workspace.copy`, `environment.stop` and `git.connect/pending/decide`. These methods are available through the trusted management endpoint, not the Git-only Environment socket. See [implementation status](../IMPLEMENTATION_STATUS.md) for acceptance and [CLI migration](../CLI_MIGRATION.md) for remaining legacy commands.
 
 WSL may open the login shell before the enabled controller service has bound its socket. The login alias waits up to two minutes using read-only ping calls, retrying only transport unavailability. Protocol/operation rejection is not retried; the client never starts another controller or changes service state. This startup timeout does not limit the interactive session's lifetime.
 
@@ -157,9 +157,9 @@ The client-only `haco-host` executable and the retained migration CLI `hacoq env
 
 ## General `haco` client namespace
 
-Product `haco` is the common user entry point on the WSL Physical Host and inside trusted `haco-host`. Its help/version commands are standalone; `setup`, `doctor` and the WSL login alias call the controller directly. It does not delegate to `hacoq`; unimplemented commands, including `haco host ensure` and `haco host shell`, fail explicitly.
+Product `haco` is the common user entry point on the WSL Physical Host and inside trusted `haco-host`. Its help/version commands are standalone; setup, diagnostics, repository/Workspace/Environment management, Git approval and the WSL login alias call the controller directly. It does not delegate to `hacoq`; unimplemented commands, including `haco host ensure` and `haco host shell`, fail explicitly.
 
-The prior Environment namespace remains in temporary `hacoq`, while the typed controller API remains reusable. Rebuilding the product lifecycle commands must use that API without guest-local composition or Incus authority. The installer invokes `haco setup` through the existing controller; the legacy bootstrap orchestration and guest hacoq provisioner have been removed.
+Additional Environment commands remain in temporary `hacoq`, while the product's initial development journey uses the typed controller API without guest-local composition or Incus authority. The installer invokes `haco setup` through the existing controller; the legacy bootstrap orchestration and guest hacoq provisioner have been removed.
 
 ## `haco-host` transition surface
 
@@ -177,7 +177,7 @@ haco-host doctor
 
 The `haco-host env ...` surface remains useful during migration, but ordinary Environment lifecycle belongs to general `haco` UX. Long-term `haco-host` commands should focus on operations whose execution domain is the trusted logical Host itself, such as trusted tooling, credential brokering, OCI/runtime administration, and Windows/WSL integration.
 
-`env create --workspace` still uses the controller-side Workspace path contract. Moving repository ownership or Workspace path resolution fully into the logical Host is separate architecture work.
+`env create --workspace` uses the controller-side Workspace source contract: external paths remain supported, while `managed:<id>` resolves a registered independent volume through `WorkspaceProvider`. The registered upstream repository lives in the trusted logical Host; its metadata and provider ownership remain with the controller.
 
 ## Streaming
 

@@ -121,11 +121,11 @@ func TestVersionDoesNotNeedRuntime(t *testing.T) {
 }
 
 func TestUnknownCommandFailsClearly(t *testing.T) {
-	code, stdout, stderr := captureRun(t, "env")
+	code, stdout, stderr := captureRun(t, "unknown")
 	if code != 2 || stdout != "" {
 		t.Fatalf("code=%d stdout=%q", code, stdout)
 	}
-	if !strings.Contains(stderr, `command "env" is not available yet`) {
+	if !strings.Contains(stderr, `command "unknown" is not available yet`) {
 		t.Fatalf("unexpected stderr: %q", stderr)
 	}
 }

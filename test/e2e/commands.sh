@@ -62,7 +62,7 @@ haco_env_code=$?
 set -e
 [[ "$haco_env_code" == "2" ]]
 [[ ! -s "$root/haco-env.out" ]]
-grep -Fq 'command "env" is not available yet' "$root/haco-env.err"
+grep -Fq 'Usage: haco env create' "$root/haco-env.err"
 
 set +e
 "$bin/haco" definitely-not-a-command >"$root/haco-invalid.out" 2>"$root/haco-invalid.err"
@@ -79,6 +79,19 @@ haco_start_test_controller \
   "$root/control.sock" \
   "$root/controller.out" \
   "$root/controller.err"
+
+# Product development commands use the same controller without legacy fallback.
+"$bin/haco" env list >"$root/product-env-list.out"
+grep -Fq '[' "$root/product-env-list.out"
+"$bin/haco" git pending >"$root/product-git-pending.out"
+grep -Fq '[' "$root/product-git-pending.out"
+set +e
+HACO_ROOT="$root/product-missing-root" HACO_CONTROL_SOCKET="$root/missing-product.sock" \
+  "$bin/haco" env list >"$root/product-missing.out" 2>"$root/product-missing.err"
+product_missing_code=$?
+set -e
+[[ "$product_missing_code" == "1" ]]
+[[ ! -e "$root/product-missing-root/state" ]]
 
 "$bin/hacoq" base list >"$root/hacoq-base.out" 2>"$root/hacoq-base.err"
 grep -Fxq 'haco/ubuntu-24.04' "$root/hacoq-base.out"

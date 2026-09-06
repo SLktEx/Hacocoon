@@ -33,7 +33,16 @@ Unimplemented product commands fail clearly instead of falling back to the legac
 
 `haco doctor` and `haco doctor --json` now diagnose the same Physical Host through its controller from either execution domain. The command inspects runtime, configured storage, trusted-host/network ownership and trusted connectivity without repairs. It returns nonzero for failed, skipped, unavailable or malformed diagnostics. See [controller diagnostics](design/controller-client-transport.md#host-diagnostics) for the exact scope and limits.
 
-## Compatibility boundary
+## Managed repository development
+
+Product `haco` now exposes controller-backed `repo clone`, `workspace create`,
+`env create/list/status/ssh/disconnect/stop`, and `git connect/pending/approve/deny`.
+These commands implement the initial independent-Workspace development journey;
+they do not invoke `hacoq`. Follow the
+[managed repository workflow](reference/managed-repository-workflow.md) for
+ordinary SSH, Git fetch/pull, fixed-content push approval and retained shutdown.
+
+## Packaged compatibility boundary
 
 Release archives and installers temporarily contain both `haco` and `hacoq` inside the Linux/WSL runtime.
 

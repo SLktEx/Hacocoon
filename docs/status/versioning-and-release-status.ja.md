@@ -2,6 +2,13 @@
 
 [English](versioning-and-release-status.md) | **日本語**
 
+v0.27候補は管理対象repoのWSL利用経路を実装する。独立Workspace copy、標準SSH、
+通常Git helperのfetch/pull、送信内容を固定したpush承認、作業を保持する正常停止が対象。
+実Gitのローカル回帰は成功し、branchのWindows配布物 `7a4d122` でA1〜A6を受入した。
+承認付きremote pushとWorkspace保持停止まで確認済み。手動setupは残り、この候補のfresh導入や
+広いhost matrixは未検証。
+正確な根拠は[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照。
+
 > **人間向けcheckpoint policy/status view · 2026-08-31更新**
 
 Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進行を表し、compatibility guarantee、release tag、production supportの証明ではありません。
@@ -55,8 +62,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.24 | Structured Logging | shared `log/slog`、operation context、sanitize済みDEBUG trace、secret redactionをmaintained executableへ実装済み |
 | v0.25 | Incus-owned Btrfs Storage Acceptance | ordinary-user real Incus/Btrfs CLI acceptanceでIncus-owned pool lifecycleとpolicyを検証済み |
 | v0.26 | Trusted `haco-host` & Default WSL Entry | persistent trusted logical Host lifecycle、ownership/collision check、managed-storage配置、default WSL entry、recovery path、real Incus acceptanceを実装済み |
+| v0.27 | Managed Repository WSL Workflow | 実装済み |
 
-現在のmilestone位置は **v0.26** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.27** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

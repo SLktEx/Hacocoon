@@ -24,6 +24,15 @@ untrusted workspace process
 
 ## Trusted computing base and non-goals
 
+The managed-repository WSL workflow mounts its upstream repository only in
+trusted `haco-host` and an independent Incus volume copy in the Environment.
+Authenticated Git reads only registered trusted metadata. A per-Environment
+Git-only Unix proxy is bound to one registered repository; it exposes no
+controller methods, Host shell, credentials or Incus socket. Untrusted packs
+are validated before approval. Policy and approval bind the registered upstream,
+ref, old/new OIDs and operation; execution uses those immutable values and an
+exact remote-ref lease. See [ADR 0008](../adr/0008-managed-repository-workspaces.md).
+
 Hacocoon does not promise that every Environment backend has VM-equivalent isolation.
 
 For the Incus system-container backend, the following are part of the trusted computing base:

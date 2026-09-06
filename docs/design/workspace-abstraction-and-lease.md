@@ -6,6 +6,14 @@ Status: **roadmap contract implemented on `main`.** This document records the v0
 
 Separate **where a Workspace came from** from **how Hacocoon safely lends it to an Environment**.
 
+The WSL PoC additionally implements a registered `managed:<id>` source through
+`WorkspaceProvider`. It resolves to a stable ownership identity and an
+Incus-owned Btrfs custom volume copy, never an external-path fallback. Each copy
+contains independent Git metadata. Creation still uses the canonical lifecycle
+transition; graceful Environment stop keeps its metadata, lease and volume.
+See [ADR 0008](../adr/0008-managed-repository-workspaces.md) and the
+[managed repository workflow](../reference/managed-repository-workflow.md).
+
 ## In scope
 
 - Formal `WorkspaceProvider` boundary where a real provider seam is justified.

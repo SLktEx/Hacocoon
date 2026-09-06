@@ -2,6 +2,13 @@
 
 Status: partial.
 
+管理対象repoのWSL経路は **implemented**。登録upstreamのcloneとGitHub認証は
+trusted Hostに置く。独立Workspace volume copyはEnvironment利用前にHostから外す。
+Git専用broker要求は固定したtrusted Git操作だけを呼び、controller・Policy・Incus権限は
+Physical Hostが保持する。[利用手順](../reference/managed-repository-workflow.md)と
+[ADR 0008](../adr/0008-managed-repository-workspaces.md)を参照。
+Windowsドライブ・exe連携はdeferred。
+
 現在のCLI境界: 製品 `haco` はhelp/version・controller経由の `setup` / `doctor` とWSL login aliasを実装する。以下の保持しているlifecycle commandは[CLI移行](../CLI_MIGRATION.md)中の一時的な `hacoq` の機能であり、新製品commandの実装完了を意味しない。
 
 現在のpackageのWindows受入と未確認項目は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。製品診断は[読み取り専用controller契約](controller-client-transport.ja.md#host診断)を使う。

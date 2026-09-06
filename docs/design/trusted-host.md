@@ -2,6 +2,15 @@
 
 Status: partial.
 
+The managed-repository WSL slice is **implemented**: registered upstream clones
+and GitHub authentication live in this trusted Host. Independent Workspace
+volume copies are detached before Environment use. Git-only broker requests
+invoke fixed trusted Git operations; the Physical Host retains all controller,
+Policy and Incus authority. See the
+[workflow](../reference/managed-repository-workflow.md) and
+[ADR 0008](../adr/0008-managed-repository-workspaces.md). Windows drive/exe
+integration remains deferred.
+
 Current CLI boundary: product `haco` implements help/version, controller-backed `setup` and `doctor`, and the WSL login alias. Retained lifecycle commands described below use temporary `hacoq` during [CLI migration](../CLI_MIGRATION.md); they do not describe implemented new product commands.
 
 Current packaged Windows acceptance and remaining gaps are recorded in [implementation status](../IMPLEMENTATION_STATUS.md). Product diagnostics use the [read-only controller contract](controller-client-transport.md#host-diagnostics).
