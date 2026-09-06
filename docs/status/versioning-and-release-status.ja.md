@@ -23,9 +23,9 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 
 ## 現在のcheckpoint status
 
-Controller経由の `haco setup`、trusted-host network、読み取り専用 `haco doctor` は現在のcheckpoint内で扱う。`b71f88e` で現在installへのcached BAT適用/再実行・通常/cold入口・trusted-hostデータ保持が成功。製品sourceが同じ `a4c6e2d` で正規Windows BATのfresh作成/停止/再実行gateが成功し、Ubuntu installerとIncus全4gateは `b71f88e` で成功した。
+Controller経由setup、trusted network、controller所有Standard proxy、設定/live storageの読み取り専用診断は現在のcheckpoint内でimplemented。`c749ff9033b33c3526e108f60ce2009638075152` のpackageでWindows・Ubuntu・Incus全4job、実機cached BAT適用/再実行・通常/cold入口・readiness 6項目・trusted-hostデータ保持が成功した。
 
-後続のcold-doctor待機修正は `2d79778` でfresh Windows gateが成功した。現在の実機installでもcontroller round tripは成功したが、最初のcold疎通検査は失敗し、後の通常入口で成功した。原因は未確定。その後のcause/action追加は `663e2cd` でWindows・Ubuntu・Incus全4jobが成功し、実機BAT/通常入口/保持も成功した。実機の直接cold起動は一度終了9となり、停止確認後もIncus起動中に時間切れとなった。controller待機上限2分は `32592fb` でfresh Windows gateと実機の正規BAT適用/再実行・通常入口・cold doctor・保持検査が成功した。別の終了9の原因は未確定。後続のStandard proxy lifecycleはcontrollerを再利用し、停止を連動させ、daemonのambient approvalを拒否する。`abd4125` でWindows・Ubuntu・Incus全4gate、実機package適用/再実行・通常入口・保持・同一PID listener・未管理元拒否が成功した。実機cold DNS失敗はguest resolved/DHCP起動より前だった。`42e2fb3` のguest前提待機はWindows gateと実機cold doctorが成功したが、後の通常入口でIncusのSIGKILL/start-post停止を観測した。標準の自動回復後に保持検査は成功したものの、signal送信元は未確定。次のstorage診断は設定・検証済みlive反映・反映待ちを区別し、別のmount lifecycleは作らない。この診断のpackage受入はpending。Windows再起動、広い層別診断、install済みEnvironment proxy制御はM1の残件である。証拠と制約の正本は[実装status](../IMPLEMENTATION_STATUS.ja.md)。
+M0–M1は引き続き **partial**。後の成功とは別に、以前のIncus起動時SIGKILLの送信元は未確定。広い層別診断、再起動時の続行/実Windows再起動受入、firewall起動順、install済みEnvironmentの許可proxy通信/直接通信拒否が残る。commitを固定した証拠、package識別、受入の制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)を正本とする。
 
 | Version | Gate | `main` の状態 |
 |---|---|---|

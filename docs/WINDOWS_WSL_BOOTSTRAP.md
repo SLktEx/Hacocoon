@@ -2,7 +2,7 @@
 
 Status: **partial**. Managed-account bootstrap is implemented; real Windows install/network/restart acceptance is tracked separately in [implementation status](IMPLEMENTATION_STATUS.md). Product `haco` currently exposes help/version, controller-backed `setup` and `doctor`, and its WSL login alias. Retained lifecycle commands belong to temporary `hacoq` during [CLI migration](CLI_MIGRATION.md).
 
-Observed Windows acceptance (2026-09-06): current-install application/rerun and ordinary/cold entry passed on `b71f88e`. The exact cached BAT fresh/restart/rerun gate passed on `a4c6e2d` with unchanged product source. Both clients' doctor/build identities and trusted-host data retention passed. Windows reboot, live Docker/firewall ordering, installed Environment proxy enforcement, SSH and Workspace work retention remain separate. See [implementation status](IMPLEMENTATION_STATUS.md) for commit-bound evidence and later changes awaiting acceptance.
+Packaged acceptance, exact commits and unresolved startup failures are tracked in [implementation status](IMPLEMENTATION_STATUS.md). A later successful run does not erase an earlier unexplained failure.
 
 The common phase checks daemon readiness without minimal initialization. The adapter owns the Btrfs pool and trusted-host bridge; fresh installs do not create an unused default directory pool. Existing pools are preserved. Current owned default-profile hosts receive a bounded NIC transition without data deletion. See [trusted networking](design/trusted-host.md#dedicated-trusted-host-network) and [ADR 0005](adr/0005-trusted-host-network-ownership.md).
 
