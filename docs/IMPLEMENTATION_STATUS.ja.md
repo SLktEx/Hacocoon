@@ -67,8 +67,10 @@ nerd-guest-onlyへ変更したが、Host側は両方host-originalのままだっ
 
 検証はci-local.shのdocs・workflow-policy・test（Go/vet/JS）・race・e2eが
 B5/B6変更後に通過。関連するlifecycle/Git/collection mount/OCI/SSH設定回帰、
-GoReleaser check/buildと配布checksumも成功。全release-config/forwarding job、
-hosted CI、広い実機runtime/network matrixは未確認。ローカルGoは1.27.1。
+GoReleaser check/buildと配布checksum、独立Linux network namespaceのforwarding jobも成功。
+ローカルGoは1.27.1。release-configとinstaller/provider jobを含むhosted CI結果は
+[PR #473](https://github.com/SLktEx/Hacocoon/pull/473)に記録する。
+広い実機runtime/network matrixの受入は主張しない。
 
 手動操作はB1のPhysical Host設定、trusted側認証と限定Policy、client所有SSH鍵と
 host key固定。別WSL distroのloopbackから届かない構成があり、controllerの

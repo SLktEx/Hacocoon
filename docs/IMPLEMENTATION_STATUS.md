@@ -83,8 +83,10 @@ See the [reproducible procedure](design/oci-image-distribution.md).
 `test` (Go tests/vet and JS), `race` and `e2e` passed after B5/B6. Narrow lifecycle,
 Git, collection-mount, OCI and SSH-configuration regressions passed while
 iterating. GoReleaser check/build and installer archive checksums passed.
-The complete release-config/forwarding jobs, hosted CI and broad real-host
-runtime/network matrices are not claimed. Local validation used Go 1.27.1.
+The isolated Linux kernel forwarding job also passed. Local validation used
+Go 1.27.1. Hosted CI, including release-config and installer/provider jobs, is
+recorded on [PR #473](https://github.com/SLktEx/Hacocoon/pull/473).
+Broad real-host runtime/network matrices are not claimed.
 
 **Manual operations and acceptance limits:** B1 requires the recorded Physical
 Host script; repeat after interop socket changes. Authentication and narrow
