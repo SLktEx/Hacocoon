@@ -76,4 +76,8 @@ Git push remains a separate privileged operation through the Git boundary and mu
 
 ## Acceptance boundary
 
+The Windows workflow adds a separate installed-controller packet check after the exact BAT journey succeeds. An ordinary Physical Host API client creates one read-only Workspace/Environment, executes a static HTTPS probe from that Workspace, and deletes through the same controller. It starts no second controller and uses no legacy CLI or product environment override. The documented administrator `policy.json` operation grants only that Environment's `github.com` HTTPS port 443; an existing Policy is never overwritten, and cleanup removes only the unchanged acceptance Policy. This is explicit policy configuration, not installer or network repair.
+
+The probe requires certificate-verified HTTPS through the installed proxy, proxy 403 for an unapproved hostname, and refusal of a direct TCP connection to a public endpoint first proved reachable from the Physical Host. It also checks that management socket paths are absent. Guest route startup is only observed; no packages, NAT exceptions, firewall changes, service overrides or mount repairs are injected. This is controller/provider packet acceptance, not a claim that the planned product Environment CLI or ordinary policy UI is implemented. Commit-bound results belong in implementation status.
+
 Repository tests cover allow/deny/require-approval integration, direct-IP rejection, shared-IP/alternate-hostname resistance, mixed/private DNS answers, SNI mismatch, legacy network migration, unmanaged DNS/ACL drift and trusted source-IP mapping. Real supported-Incus bridge/nftables/dnsmasq behavior remains a host acceptance concern and must not be inferred solely from unit/static tests.

@@ -6,6 +6,8 @@ on:
     paths:
       - "cmd/**"
       - "internal/**"
+      - "modules/runtime/incus/**"
+      - "modules/standard/egressproxy/**"
       - ".goreleaser.yaml"
       - "scripts/install-windows.bat"
       - "scripts/install-windows.ps1"
@@ -15,6 +17,8 @@ on:
       - "tools/test_windows_user_path.py"
       - "tools/windows-installer-restart-e2e.py"
       - "tools/windows-installer-cached-restart-e2e.py"
+      - "tools/installed-egress-check/**"
+      - "tools/test_installed_egress.ps1"
       - ".github/workflows/windows-all-scripts-e2e.yml"
   workflow_dispatch:
 
@@ -196,3 +200,7 @@ jobs:
 
           Write-Host "=== Exact user-path success tail ==="
           Get-Content -LiteralPath $logPath -Tail 60
+
+      - name: Verify installed controller Environment HTTPS and direct-egress refusal
+        shell: pwsh
+        run: ./tools/test_installed_egress.ps1

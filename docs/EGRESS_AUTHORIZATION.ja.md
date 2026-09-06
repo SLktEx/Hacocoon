@@ -76,4 +76,8 @@ Git pushは引き続きGit境界の別privileged operationであり、reusable H
 
 ## Acceptance boundary
 
+Windows workflowは正規BATのjourney成功後、install済みcontrollerのpacket検証を別のstepで行います。Physical Hostの通常userによるAPI clientが読み取り専用Workspace/Environmentを一つ作成し、そのWorkspaceのstatic HTTPS probeを実行して、同じcontroller経由で削除します。第二のcontroller、旧CLI、製品環境変数のoverrideは使いません。文書化済みの管理者 `policy.json` 設定で、そのEnvironmentの `github.com` HTTPS port 443だけを許可します。既存Policyは上書きせず、cleanupは内容が変わっていない検証用Policyだけを削除します。これは明示的なPolicy設定であり、installerやnetworkの修復ではありません。
+
+Probeはinstall済みproxy経由での証明書検証付きHTTPS成功、未許可hostnameのproxy 403、Physical Hostで到達を確認したpublic endpointへの直接TCP接続拒否を要求します。管理socket pathがないことも確認します。Guestのroute起動は観測だけで、package、NAT例外、firewall変更、service override、mount修復は注入しません。controller/providerのpacket受入であり、plannedの製品Environment CLIや通常Policy UIが実装済みという主張ではありません。対象commitごとの結果は実装statusに記録します。
+
 repository testsはallow / deny / require-approval、direct-IP reject、shared-IP / alternate-hostname耐性、mixed/private DNS、SNI mismatch、legacy network migration、unmanaged DNS/ACL drift、trusted source-IP mappingをcoverします。real supported-Incusのbridge / nftables / dnsmasq動作はhost acceptanceとして別に確認します。
