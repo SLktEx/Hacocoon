@@ -687,6 +687,8 @@ $SUDO incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor
   die "haco-host cannot reach the Physical Host controller"
 printf '==> Verifying trusted haco-host DNS, route and HTTPS\n'
 verify_trusted_host_connectivity || die "haco-host network is not ready (DNS, default route or HTTPS failed after bounded probes)"
+printf '==> Verifying configured and live installation readiness\n'
+$SUDO "$haco_bin" doctor || die "installation readiness checks did not pass; follow the reported next actions and rerun the current installer"
 
 if [ -n "${HACOCOON_ACCESS_USER:-}" ]; then
   warn "membership in $HACOCOON_ACCESS_GROUP grants authority to control Hacocoon environments; treat it as a privileged local group"

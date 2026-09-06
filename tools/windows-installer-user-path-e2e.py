@@ -30,7 +30,7 @@ POOL = "haco-local-default"
 INCUS_POOL_MOUNT = f"/var/lib/incus/storage-pools/{POOL}"
 INCUS_BACKING = f"/var/lib/incus/disks/{POOL}.img"
 PROCESS_TIMEOUT_SECONDS = 1800
-ASSERT_TIMEOUT_SECONDS = 180  # 160s CLI budget plus WSL process startup.
+ASSERT_TIMEOUT_SECONDS = 180  # 165s CLI budget plus WSL process startup.
 
 POST_EXIT_DRAIN_SECONDS = 1.0
 
@@ -286,7 +286,7 @@ def host_session(*, create: bool) -> None:
 
 def assert_doctor_report(output: str, expected_build: dict[str, str]) -> None:
     report = json.loads(output)
-    names = ["runtime", "storage", "trusted_host", "trusted_network", "trusted_connectivity"]
+    names = ["runtime", "storage", "storage_mount", "trusted_host", "trusted_network", "trusted_connectivity"]
     fields = ("checkpoint", "version", "commit", "build_date")
     if any(expected_build.get(field) in (None, "", "dev", "unknown") for field in fields):
         raise RuntimeError("packaged client has incomplete build identity")

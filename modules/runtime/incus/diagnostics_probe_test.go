@@ -50,9 +50,9 @@ func TestConnectivityProbeReportsTheFirstFailedShellStage(t *testing.T) {
 				t.Fatal(err)
 			}
 			observed := -1
-			runner := &fakeRunner{run: func(ctx context.Context, _ int, _ string, args []string) (host.Result, error) {
+			runner := &fakeRunner{run: func(ctx context.Context, _ int, name string, args []string) (host.Result, error) {
 				if args[0] != "exec" || args[len(args)-1] == trustedNetworkStartupProbe {
-					return diagnosticFixture(t, args), nil
+					return diagnosticFixture(t, name, args), nil
 				}
 				command := exec.CommandContext(ctx, "/bin/sh", "-ec", args[len(args)-1])
 				command.Env = []string{"PATH=" + dir}
@@ -70,8 +70,8 @@ func TestConnectivityProbeReportsTheFirstFailedShellStage(t *testing.T) {
 			if err != nil || report.Validate() != nil || observed != code || report.Healthy() != (code == 0) {
 				t.Fatalf("exit=%d report=%+v error=%v", observed, report, err)
 			}
-			if code != 0 && !strings.Contains(report.Checks[4].Summary, map[int]string{21: "DNS lookup", 22: "route is unavailable", 23: "HTTPS to github.com failed"}[code]) {
-				t.Fatalf("incorrect failure stage: %+v", report.Checks[4])
+			if code != 0 && !strings.Contains(report.Checks[5].Summary, map[int]string{21: "DNS lookup", 22: "route is unavailable", 23: "HTTPS to github.com failed"}[code]) {
+				t.Fatalf("incorrect failure stage: %+v", report.Checks[5])
 			}
 		})
 	}

@@ -12,6 +12,8 @@ The installer deliberately uses a **pre / main / post** split rather than preten
 
 The installer retries the same read-only WSL account lookup at most three times, with 250 ms between failed probes; it never retries account/setup mutations through this path. Persistent failure stops the installer and reports the final native exit code. It does not establish that an existing account is missing; inspect WSL execution before changing accounts or data. Candidate `63fdf24` encountered this failure before common setup while the existing account remained intact; the underlying intermittent WSL failure is unconfirmed.
 
+The common installer runs `haco doctor` before its completion message. Configured storage and the live Incus-owned Btrfs mount must both pass; a pending mount policy or other failed check stops with a next action. Repeating the current installer does not bypass readiness.
+
 ## Diagnose an installed Host
 
 After ordinary `wsl -d Hacocoon` entry, run `haco doctor` or `haco doctor --json`. From Windows, `wsl -d Hacocoon --exec haco doctor --json` runs the same controller diagnostics as the ordinary WSL user. Doctor reports a stopped host without starting it. See [diagnostic scope and exit codes](design/controller-client-transport.md#host-diagnostics).

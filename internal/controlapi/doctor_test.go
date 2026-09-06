@@ -48,7 +48,7 @@ func TestDoctorRoundTripIncludesControllerIdentityAndBoundedReadOnlyService(t *t
 	path := doctorTestSocket(t, func(server *control.Server) {
 		err := RegisterDoctor(server, doctorServiceFunc(func(ctx context.Context) (diagnostics.Report, error) {
 			deadline, ok := ctx.Deadline()
-			if !ok || time.Until(deadline) > 35*time.Second {
+			if !ok || time.Until(deadline) > 40*time.Second {
 				t.Error("missing server deadline")
 			}
 			return healthyDoctorReport(), nil

@@ -75,6 +75,25 @@ local composition は storage provider を lazy に設定する。Incus root sto
 
 runtime はこの Incus-owned pool shape だけを前提とし、別の Host-managed storage ownership path は持たない。
 
+## 読み取り専用のmount診断
+
+`haco doctor` はIncus設定の検査（`storage`）と稼働中filesystemの検査（`storage_mount`）を区別する。設定の一致だけではlive mountへの反映を証明できない。
+
+| 設定policy | live観測 | 結果 |
+|---|---|---|
+| 一致 | 検証済みBtrfs root mountにpolicy適用済み | `storage_mount: ok` |
+| 一致 | 検証済みBtrfs root mountのoptionが異なる | `storage_mount: pending`、終了1 |
+| 一致 | identity/mountが欠落・不正・曖昧、または観測中に変化 | `storage_mount: failed`、終了1 |
+| 不明または不一致 | live検査をskip | 設定を解決してからlive policyを判断する |
+
+Incus adapterはlocal daemonのpool sourceを読み、Incus所有の `disks/<pool>.img` layoutを検証する。そのdaemonのpool mountpointを導出し、読み取り専用の `stat`・`losetup --list --associated`・`findmnt --kernel` を使う。backing objectはregular fileであり、device/inodeが単一の全image loop関連付けと一致する必要がある。mountはそのloop deviceを使うBtrfs filesystemのrootに限定する。backing identityと関連付けを再照会し、収集中に観測した変化を検出する。別WSL distributionでfilenameが同じだけでは同一としない。
+
+live一致には書き込み可能なBtrfs、`noatime`、`compress=zstd:3` を要求し、active discard・autodefrag・forced compressionは拒否する。否定形の `nodiscard` はkernel出力になくてもよい。reportは選択した結果だけを返し、raw path・mount option・subprocess出力を公開しない。field欠落、関連付け/mountの重複、出力切断、cancel、不明な観測を `ok` / `pending` にしない。
+
+`pending` はdesired設定が記録されているがlive反映を確認できていない状態を表す。maintenanceを予約せず、再起動の安全性も保証しない。作業を保持し、maintenance時にIncus所有のpool remountを行ってから再診断する。診断の修復としてHacocoonがattach・detach・remount・formatを実行することはない。この時点の観測は所有権leaseや後続mutationの前提条件ではない。
+
+common installerは完了表示の前に同じ製品doctorを実行する。live mountがpending/failedなら診断の次の操作を示してinstallを停止し、再実行でも検査を迂回しない。
+
 ## Acceptance coverage
 
 repository CI は CLI 移行中の temporary legacy runtime CLI（`cmd/haco`、release では `hacoq` として packaging）を ordinary user として real Incus へ接続する。Incus が loop-backed Btrfs pool を作ること、backing image が Linux file として sparse であること、configured desired state が `compress=zstd:3,noatime,nodiscard` であること、live filesystem が zstd 圧縮と `noatime` を持ち active な discard mode と autodefrag が無いことを確認する。また create/exec/delete/run lifecycle operation が同じ pool を再利用し、旧 compression-only policy を設定しても次の rootfs operation で desired policy へ reconcile されることを確認する。

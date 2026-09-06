@@ -76,7 +76,7 @@ printf '%s:%s\n' "$calls" "$status"
 
     def test_installer_bootstrap_uses_controller_and_stops_at_failure(self):
         bootstrap = INSTALLER[INSTALLER.index('\nhaco_bin='):]
-        for failed_stage in ("none", "controller", "setup", "connectivity"):
+        for failed_stage in ("none", "controller", "setup", "connectivity", "readiness"):
             with self.subTest(failed_stage=failed_stage):
                 script = r'''
 set -eu
@@ -95,6 +95,7 @@ configure_hacocoon_controller() { printf 'stage:controller\n'; [ "$failed_stage"
 privileged() {
   case "$*" in
     'haco setup') printf 'stage:setup\n'; [ "$failed_stage" != setup ] ;;
+    'haco doctor') printf 'stage:readiness\n'; [ "$failed_stage" != readiness ] ;;
     'incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor') printf 'stage:roundtrip\n' ;;
     *) exit 99 ;;
   esac
@@ -105,6 +106,9 @@ verify_trusted_host_connectivity() { printf 'stage:connectivity\n'; [ "$failed_s
                 if failed_stage == "none":
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(result.stdout.count("stage:setup"), 1)
+                    self.assertEqual(result.stdout.count("stage:readiness"), 1)
+                    self.assertLess(result.stdout.index("stage:connectivity"), result.stdout.index("stage:readiness"))
+                    self.assertLess(result.stdout.index("stage:readiness"), result.stdout.index("Hacocoon common Ubuntu installation complete."))
                     self.assertIn("Hacocoon common Ubuntu installation complete.", result.stdout)
                 else:
                     self.assertNotEqual(result.returncode, 0)
@@ -113,6 +117,8 @@ verify_trusted_host_connectivity() { printf 'stage:connectivity\n'; [ "$failed_s
                     self.assertNotIn("stage:setup", result.stdout)
                 if failed_stage == "setup":
                     self.assertNotIn("stage:connectivity", result.stdout)
+                if failed_stage == "connectivity":
+                    self.assertNotIn("stage:readiness", result.stdout)
 
     def test_installed_controller_unit_owns_standard_proxy(self):
         configure = re.search(r"^configure_hacocoon_controller\(\) \{\n.*?^\}", INSTALLER, re.M | re.S)[0]

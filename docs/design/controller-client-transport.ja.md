@@ -114,27 +114,28 @@ setupの失敗logはcontrollerが所有し、provider生出力を含めず、選
 
 Status: **implemented**。このcommandのpackaged受入は実装statusで別途追跡する。配布controller binaryには製品clientと同じversion・commit・build日時を埋め込む。Windows gateは両方の実行場所でbuild識別子全体を照合し、開発用の既定値や古いcontrollerをpackaged受入の成功としない。
 
-`haco doctor` と `haco doctor --json` は、Physical Hostとtrusted `haco-host` 内で同じ `system.doctor` controller methodを使う。help/versionは引き続き単独で動作する。応答はcontrollerのbuild・protocolと、順序を固定した5項目を返す。
+`haco doctor` と `haco doctor --json` は、Physical Hostとtrusted `haco-host` 内で同じ `system.doctor` controller methodを使う。help/versionは引き続き単独で動作する。応答はcontrollerのbuild・protocolと、順序を固定した6項目を返す。
 
 | Check | 確認する内容 |
 |---|---|
 | runtime | Incus APIの利用可否とtrustedな管理アクセス |
 | storage | 設定対象Btrfs poolと設定上のmount policy |
+| storage_mount | backing identityとlive Btrfs policyの読み取り検査。設定一致・live不一致はpending |
 | trusted_host | 所有hostの稼働、明示root/NIC、profile継承なし、限定controller endpointとclient mode |
 | trusted_network | 所有bridgeのDNS・DHCP・NAT・routing・firewall設定 |
 | trusted_connectivity | 検証済みtrusted hostからのIPv4 DNS、default route、固定公開対象github.comへのHTTPS |
 
 検査はcontrollerのprovider adapterが実行する。clientは `hacoq` / Incusを起動せず、guest-local stateを作らない。RPCはpath・command・通信先・修復optionを受け取らない。host作成・起動、storage初期化、NIC/firewall調整、service状態変更は行わない。hostが停止していればfailedとなり、host/networkの所有権・設定が不一致なら疎通検査をskipする。
 
-結果は `ok`・`failed`・`skipped`。全項目成功だけが終了0で、failed/skippedがあればreportを出して終了1、不正な使い方は終了2。transport/protocol失敗は終了1で、成功を示すJSON reportを出さない。項目欠落・重複・不明値・不正応答を拒否する。summaryは成功した検査条件と失敗を区別する。failed/skippedには短い `action` を付け、textでは `Next:` として示す。成功項目には修復を勧めない。両fieldは表示可能なASCII 256 byteまでとし、backend/guestの生出力・errorをreportへコピーしない。固定probe終了値でDNS・default route欠落・HTTPS失敗を区別し、時間切れや未知の終了値から失敗段階を推測しない。失敗は共有loggerでstderrへ記録し、stdoutはtext/JSON結果に使う。
+結果は `ok`・`failed`・`skipped`・`pending`（検証済みlive storage policy不一致だけ）。全項目成功だけが終了0で、failed/skipped/pendingがあればreportを出して終了1、不正な使い方は終了2。transport/protocol失敗は終了1で、成功を示すJSON reportを出さない。項目欠落・重複・不明値・不正応答を拒否する。summaryは成功した検査条件と失敗を区別する。failed/skipped/pendingには短い `action` を付け、textでは `Next:` として示す。成功項目には修復を勧めない。両fieldは表示可能なASCII 256 byteまでとし、backend/guestの生出力・errorをreportへコピーしない。固定probe終了値でDNS・default route欠落・HTTPS失敗を区別し、時間切れや未知の終了値から失敗段階を推測しない。失敗は共有loggerでstderrへ記録し、stdoutはtext/JSON結果に使う。
 
 cold WSLでは、enabled controllerのsocketよりCLIが先に動くことがある。最初に読み取り専用pingで最大2分待ち、transport unavailableだけを再試行する。その後の診断は一度だけ行う。protocol/operation拒否やfailed checkは再試行せず、serviceの起動・resource修復も行わない。
 
 IncusのRunningはguest DNS/DHCPの準備完了より先になることがある。外部疎通probe前に、既存DNS serviceのactiveとdefault IPv4 routeの出現を最大5秒待つ。localな前提を観測するだけでserviceを起動せず、DNS/HTTPSを再試行しない。待機に失敗した場合はDNS lookup障害とせず、network起動準備が未完了と示す。外部probeは一度だけ行う。
 
-inventory probeは各5秒、疎通（起動待ちとprobe）は10秒、server operationは35秒、CLI全体は160秒を上限とする。割込み・cancelでclient connectionを閉じる。自動修復や権限を上げるfallbackはしない。固定対象への外部GETにHost credentialやcaller入力を渡さない。guest probeは継承環境変数を消去し、curlのuser設定を無効にする。対話shellや `.curlrc` のcredential/proxy optionは取り込まない。
+inventory probeは各5秒、疎通（起動待ちとprobe）は10秒、server operationは40秒、CLI全体は165秒を上限とする。割込み・cancelでclient connectionを閉じる。自動修復や権限を上げるfallbackはしない。固定対象への外部GETにHost credentialやcaller入力を渡さない。guest probeは継承環境変数を消去し、curlのuser設定を無効にする。対話shellや `.curlrc` のcredential/proxy optionは取り込まない。
 
-成功reportはその時点の基盤検査である。storage設定の一致は実圧縮・COW・live mountの証明ではない。trusted-host疎通はEnvironmentのproxy-only egress、SSH、Workspace保持、将来のfirewall再読込・起動順変更の受入ではない。保持している `haco-host doctor` は引き続きpingだけの移行用診断である。
+成功reportはその時点の基盤検査である。設定/liveの検査は [mount診断契約](btrfs-storage-layout.ja.md#読み取り専用のmount診断) に従うが、実圧縮率やCOW効率の証明ではない。trusted-host疎通はEnvironmentのproxy-only egress、SSH、Workspace保持、将来のfirewall再読込・起動順変更の受入ではない。保持している `haco-host doctor` は引き続きpingだけの移行用診断である。
 
 ## Protocol boundary
 

@@ -8,10 +8,11 @@ const (
 	OK      = "ok"
 	Failed  = "failed"
 	Skipped = "skipped"
+	Pending = "pending"
 )
 
-func CheckNames() [5]string {
-	return [5]string{"runtime", "storage", "trusted_host", "trusted_network", "trusted_connectivity"}
+func CheckNames() [6]string {
+	return [6]string{"runtime", "storage", "storage_mount", "trusted_host", "trusted_network", "trusted_connectivity"}
 }
 
 type Check struct {
@@ -33,8 +34,11 @@ func (r Report) Validate() error {
 		return fmt.Errorf("incomplete Host diagnostics")
 	}
 	for i, check := range r.Checks {
-		if check.Name != names[i] || (check.Status != OK && check.Status != Failed && check.Status != Skipped) || len(check.Summary) == 0 || len(check.Summary) > 256 {
+		if check.Name != names[i] || (check.Status != OK && check.Status != Failed && check.Status != Skipped && !(check.Name == "storage_mount" && check.Status == Pending)) || len(check.Summary) == 0 || len(check.Summary) > 256 {
 			return fmt.Errorf("invalid Host diagnostic check")
+		}
+		if check.Name == "storage_mount" && ((check.Status == OK || check.Status == Pending) && r.Checks[1].Status != OK) {
+			return fmt.Errorf("live storage lacks verified configuration")
 		}
 		if len(check.Action) > 256 || (check.Status != OK && len(check.Action) == 0) || (check.Status == OK && check.Action != "") {
 			return fmt.Errorf("invalid Host diagnostic action")

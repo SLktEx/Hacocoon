@@ -28,13 +28,16 @@ func diagnosticHostState() trustedHostNetworkState {
 	return state
 }
 
-func diagnosticFixture(t *testing.T, args []string) host.Result {
+func diagnosticFixture(t *testing.T, name string, args []string) host.Result {
 	t.Helper()
+	if name != "incus" {
+		return storageDiagnosticFixture(t, name, args)
+	}
 	switch {
 	case reflect.DeepEqual(args, []string{"query", "/1.0"}):
 		return jsonResult(map[string]string{"api_version": "1.0", "auth": "trusted"})
 	case reflect.DeepEqual(args, []string{"storage", "list", "--project", "default", "--format", "json"}):
-		return jsonResult([]any{map[string]any{"name": diagnosticStorage.Name, "driver": "btrfs", "status": "Created", "config": map[string]string{"btrfs.mount_options": diagnosticStorage.MountOptions}}})
+		return jsonResult([]any{map[string]any{"name": diagnosticStorage.Name, "driver": "btrfs", "status": "Created", "config": map[string]string{"btrfs.mount_options": diagnosticStorage.MountOptions, "source": diagnosticBackingFile}}})
 	case reflect.DeepEqual(args, []string{"query", "/1.0/instances/haco-host?project=hacocoon"}):
 		return jsonResult(diagnosticHostState())
 	case reflect.DeepEqual(args, []string{"network", "list", "--project", "default", "--format", "json"}):
@@ -54,9 +57,7 @@ func diagnosticFixture(t *testing.T, args []string) host.Result {
 
 func TestHostDiagnosticsReadOnlyAndBounded(t *testing.T) {
 	runner := &fakeRunner{run: func(ctx context.Context, _ int, name string, args []string) (host.Result, error) {
-		if name != "incus" {
-			t.Fatalf("unexpected executable %s", name)
-		}
+
 		deadline, ok := ctx.Deadline()
 		limit := 5 * time.Second
 		if args[0] == "exec" {
@@ -65,7 +66,7 @@ func TestHostDiagnosticsReadOnlyAndBounded(t *testing.T) {
 		if !ok || time.Until(deadline) > limit {
 			t.Fatal("probe lacks server-side deadline")
 		}
-		return diagnosticFixture(t, args), nil
+		return diagnosticFixture(t, name, args), nil
 	}}
 	runtime := New(runner)
 	if err := runtime.ConfigureStorageProvider(func(context.Context) (map[string]string, error) {
@@ -75,21 +76,21 @@ func TestHostDiagnosticsReadOnlyAndBounded(t *testing.T) {
 		t.Fatal(err)
 	}
 	report, err := runtime.DiagnoseHost(context.Background(), diagnosticStorage)
-	if err != nil || !report.Healthy() || len(runner.calls) != 6 {
+	if err != nil || !report.Healthy() || len(runner.calls) != 11 {
 		t.Fatalf("report=%+v err=%v calls=%v", report, err, runner.calls)
 	}
 }
 
 func TestHostDiagnosticsFailClosedWithoutExecutingUnownedOrMisconfiguredHost(t *testing.T) {
-	for _, name := range []string{"unowned", "stopped", "profile", "extra-nic", "wrong-proxy", "wrong-client", "unowned-network"} {
-		t.Run(name, func(t *testing.T) {
-			runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+	for _, scenario := range []string{"unowned", "stopped", "profile", "extra-nic", "wrong-proxy", "wrong-client", "unowned-network"} {
+		t.Run(scenario, func(t *testing.T) {
+			runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
 				if args[0] == "exec" {
 					t.Fatal("executed host after failed ownership/configuration check")
 				}
 				if strings.HasPrefix(args[1], "/1.0/instances/") {
 					state := diagnosticHostState()
-					switch name {
+					switch scenario {
 					case "unowned":
 						state.Config[trustedHostRoleKey] = "environment"
 					case "stopped":
@@ -105,15 +106,15 @@ func TestHostDiagnosticsFailClosedWithoutExecutingUnownedOrMisconfiguredHost(t *
 					}
 					return jsonResult(state), nil
 				}
-				if args[0] == "network" && name == "unowned-network" {
+				if args[0] == "network" && scenario == "unowned-network" {
 					network := ownedTrustedNetwork()
 					delete(network.Config, environmentNetworkOwnerKey)
 					return jsonResult([]trustedNetwork{network}), nil
 				}
-				return diagnosticFixture(t, args), nil
+				return diagnosticFixture(t, name, args), nil
 			}}
 			report, err := New(runner).DiagnoseHost(context.Background(), diagnosticStorage)
-			if err != nil || report.Healthy() || report.Checks[4].Status != diagnostics.Skipped {
+			if err != nil || report.Healthy() || report.Checks[5].Status != diagnostics.Skipped {
 				t.Fatalf("report=%+v err=%v", report, err)
 			}
 		})
@@ -124,7 +125,7 @@ func TestHostDiagnosticsRejectMalformedInventoriesAndHideProviderOutput(t *testi
 	for _, target := range []string{"runtime", "storage", "trusted_host", "trusted_network", "trusted_connectivity"} {
 		t.Run(target, func(t *testing.T) {
 			secret := "Bearer provider-secret"
-			runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+			runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
 				match := target == "runtime" && args[1] == "/1.0" ||
 					target == "storage" && args[0] == "storage" ||
 					target == "trusted_host" && strings.HasPrefix(args[1], "/1.0/instances/") ||
@@ -133,7 +134,7 @@ func TestHostDiagnosticsRejectMalformedInventoriesAndHideProviderOutput(t *testi
 				if match {
 					return host.Result{Stdout: secret, Stderr: secret, StdoutTruncated: true}, errors.New(secret)
 				}
-				return diagnosticFixture(t, args), nil
+				return diagnosticFixture(t, name, args), nil
 			}}
 			report, err := New(runner).DiagnoseHost(context.Background(), diagnosticStorage)
 			if err != nil || report.Healthy() {
@@ -162,11 +163,11 @@ func TestHostDiagnosticsRejectMalformedInventoriesAndHideProviderOutput(t *testi
 }
 
 func TestHostDiagnosticsRejectStorageDriftWithoutRepair(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+	runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
 		if args[0] == "storage" {
 			return jsonResult([]any{map[string]any{"name": diagnosticStorage.Name, "driver": "dir", "status": "Created"}}), nil
 		}
-		return diagnosticFixture(t, args), nil
+		return diagnosticFixture(t, name, args), nil
 	}}
 	report, err := New(runner).DiagnoseHost(context.Background(), diagnosticStorage)
 	if err != nil || report.Checks[1].Status != diagnostics.Failed {
@@ -175,23 +176,23 @@ func TestHostDiagnosticsRejectStorageDriftWithoutRepair(t *testing.T) {
 }
 
 func TestHostDiagnosticsRejectsAmbiguousSuccessfulInventory(t *testing.T) {
-	for _, name := range []string{"null-api", "truncated-api", "duplicate-pool", "duplicate-network", "truncated-host"} {
-		t.Run(name, func(t *testing.T) {
-			runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-				result := diagnosticFixture(t, args)
+	for _, scenario := range []string{"null-api", "truncated-api", "duplicate-pool", "duplicate-network", "truncated-host"} {
+		t.Run(scenario, func(t *testing.T) {
+			runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+				result := diagnosticFixture(t, name, args)
 				switch {
-				case name == "null-api" && args[1] == "/1.0":
+				case scenario == "null-api" && args[1] == "/1.0":
 					result.Stdout = "null"
-				case name == "truncated-api" && args[1] == "/1.0":
+				case scenario == "truncated-api" && args[1] == "/1.0":
 					result.StdoutTruncated = true
-				case name == "duplicate-pool" && args[0] == "storage",
-					name == "duplicate-network" && args[0] == "network":
+				case scenario == "duplicate-pool" && args[0] == "storage",
+					scenario == "duplicate-network" && args[0] == "network":
 					var items []json.RawMessage
 					if err := json.Unmarshal([]byte(result.Stdout), &items); err != nil {
 						t.Fatal(err)
 					}
 					result = jsonResult(append(items, items[0]))
-				case name == "truncated-host" && strings.HasPrefix(args[1], "/1.0/instances/"):
+				case scenario == "truncated-host" && strings.HasPrefix(args[1], "/1.0/instances/"):
 					result.StdoutTruncated = true
 				}
 				return result, nil
@@ -215,7 +216,7 @@ func TestHostDiagnosticConnectivityFailureStageIsSelectedWithoutGuestOutput(t *t
 		{124, "Trusted-host DNS, default route or HTTPS probe failed or timed out"},
 	} {
 		t.Run(tc.summary, func(t *testing.T) {
-			runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+			runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
 				if args[0] == "exec" && args[len(args)-1] != trustedNetworkStartupProbe {
 					script := args[len(args)-1]
 					for _, marker := range []string{"|| exit 21", "|| exit 22", "|| exit 23"} {
@@ -225,10 +226,10 @@ func TestHostDiagnosticConnectivityFailureStageIsSelectedWithoutGuestOutput(t *t
 					}
 					return host.Result{ExitCode: tc.code, Stdout: "secret", Stderr: "secret"}, errors.New("secret")
 				}
-				return diagnosticFixture(t, args), nil
+				return diagnosticFixture(t, name, args), nil
 			}}
 			report, err := New(runner).DiagnoseHost(context.Background(), diagnosticStorage)
-			if err != nil || report.Validate() != nil || report.Healthy() || report.Checks[4].Summary != tc.summary || report.Checks[4].Action == "" {
+			if err != nil || report.Validate() != nil || report.Healthy() || report.Checks[5].Summary != tc.summary || report.Checks[5].Action == "" {
 				t.Fatalf("report=%+v error=%v", report, err)
 			}
 			raw, _ := json.Marshal(report)
@@ -243,9 +244,9 @@ func TestHostStartupFailureOrCancellationNeverRunsExternalProbe(t *testing.T) {
 	for _, canceled := range []bool{false, true} {
 		ctx, cancel := context.WithCancel(context.Background())
 		calls := 0
-		runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
 			if args[0] != "exec" {
-				return diagnosticFixture(t, args), nil
+				return diagnosticFixture(t, name, args), nil
 			}
 			calls++
 			if args[len(args)-1] != trustedNetworkStartupProbe {
@@ -262,8 +263,8 @@ func TestHostStartupFailureOrCancellationNeverRunsExternalProbe(t *testing.T) {
 		if err != nil || report.Validate() != nil || report.Healthy() || calls != 1 {
 			t.Fatalf("report=%+v calls=%d err=%v", report, calls, err)
 		}
-		if report.Checks[4].Summary != "Trusted-host DNS service and default IPv4 route did not become ready" || report.Checks[4].Action == "" {
-			t.Fatalf("startup failure was misclassified: %+v", report.Checks[4])
+		if report.Checks[5].Summary != "Trusted-host DNS service and default IPv4 route did not become ready" || report.Checks[5].Action == "" {
+			t.Fatalf("startup failure was misclassified: %+v", report.Checks[5])
 		}
 		raw, _ := json.Marshal(report)
 		if strings.Contains(string(raw), "private guest") {

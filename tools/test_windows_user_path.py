@@ -18,17 +18,17 @@ class DoctorAssertionTest(unittest.TestCase):
     def report(self):
         return {"protocol_version": 1, "controller": dict(self.build), "checks": [
             {"name": name, "status": "ok"} for name in
-            ["runtime", "storage", "trusted_host", "trusted_network", "trusted_connectivity"]
+            ["runtime", "storage", "storage_mount", "trusted_host", "trusted_network", "trusted_connectivity"]
         ]}
 
     def test_accepts_complete_report(self):
         gate.assert_doctor_report(json.dumps(self.report()), self.build)
 
     def test_rejects_failure_skips_missing_and_duplicates(self):
-        for mutation in ("failed", "skipped", "missing", "duplicate", "protocol", "identity"):
+        for mutation in ("failed", "skipped", "pending", "missing", "duplicate", "protocol", "identity"):
             with self.subTest(mutation=mutation):
                 report = self.report()
-                if mutation in ("failed", "skipped"):
+                if mutation in ("failed", "skipped", "pending"):
                     report["checks"][4]["status"] = mutation
                 elif mutation == "missing":
                     report["checks"].pop()

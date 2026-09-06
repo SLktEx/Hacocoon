@@ -17,7 +17,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/diagnostics"
 )
 
-func productDoctorServer(t *testing.T, failed bool) string {
+func productDoctorServer(t *testing.T, state string) string {
 	t.Helper()
 	server := control.NewServer()
 	_ = server.Register(controlapi.MethodPing, func(context.Context, json.RawMessage) (any, error) {
@@ -28,10 +28,14 @@ func productDoctorServer(t *testing.T, failed bool) string {
 		for _, name := range diagnostics.CheckNames() {
 			report.Checks = append(report.Checks, diagnostics.Check{Name: name, Status: diagnostics.OK, Summary: "Verified predicate"})
 		}
-		if failed {
+		if state == diagnostics.Failed {
+			report.Checks[2] = diagnostics.Check{Name: "storage_mount", Status: diagnostics.Skipped, Summary: "Configuration unavailable", Action: "Resolve storage configuration first"}
 			report.Checks[1].Status = diagnostics.Failed
 			report.Checks[1].Summary = "Configured storage differs"
 			report.Checks[1].Action = "Inspect the configured Incus pool"
+		}
+		if state == diagnostics.Pending {
+			report.Checks[2] = diagnostics.Check{Name: "storage_mount", Status: diagnostics.Pending, Summary: "Live mount policy differs", Action: "Arrange Incus-owned maintenance"}
 		}
 		return controlapi.DoctorResponse{ProtocolVersion: control.ProtocolVersion, Controller: buildinfo.Current(), Report: report}, nil
 	})
@@ -48,9 +52,10 @@ func productDoctorServer(t *testing.T, failed bool) string {
 }
 
 func TestProductDoctorUsesControllerWithoutLegacyOrLocalRuntime(t *testing.T) {
-	for _, failed := range []bool{false, true} {
-		t.Run(map[bool]string{false: "healthy", true: "failed-check"}[failed], func(t *testing.T) {
-			t.Setenv("HACO_CONTROL_SOCKET", productDoctorServer(t, failed))
+	for _, state := range []string{diagnostics.OK, diagnostics.Failed, diagnostics.Pending} {
+		failed := state != diagnostics.OK
+		t.Run(state, func(t *testing.T) {
+			t.Setenv("HACO_CONTROL_SOCKET", productDoctorServer(t, state))
 			t.Setenv("PATH", t.TempDir()) // No hacoq, incus, shell or sudo to fall back to.
 			t.Setenv("HACO_ROOT", filepath.Join(t.TempDir(), "must-not-create"))
 			for _, args := range [][]string{nil, {"--json"}} {
@@ -74,8 +79,11 @@ func TestProductDoctorUsesControllerWithoutLegacyOrLocalRuntime(t *testing.T) {
 				} else if !strings.Contains(stdout.String(), "Hacocoon Host diagnostics") {
 					t.Fatalf("output=%q", stdout.String())
 				}
-				if failed && !strings.Contains(stdout.String(), "Inspect the configured Incus pool") {
+				if state == diagnostics.Failed && !strings.Contains(stdout.String(), "Inspect the configured Incus pool") {
 					t.Fatalf("missing next action: %s", stdout.String())
+				}
+				if state == diagnostics.Pending && (!strings.Contains(stdout.String(), "pending") || !strings.Contains(stdout.String(), "Arrange Incus-owned maintenance")) {
+					t.Fatalf("missing pending state/action: %s", stdout.String())
 				}
 				if failed && !strings.Contains(stderr.String(), "operation=doctor") {
 					t.Fatalf("missing structured failure: %s", stderr.String())
