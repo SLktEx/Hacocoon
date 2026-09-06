@@ -1,6 +1,6 @@
 # Architecture and roadmap
 
-> **Architecture baseline · Updated 2026-08-31**
+> **Architecture baseline · Updated 2026-09-07**
 >
 > Hacocoon is a **Secure Workspace Runtime**. Use [`../IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md) for current code reality and [`versioning-and-release-status.md`](versioning-and-release-status.md) for authoritative development-checkpoint numbering/history.
 
@@ -60,6 +60,8 @@ The roadmap is organized by architectural direction instead of copying per-check
 - keep OCI/container tooling optional and separate from Core;
 - keep local rootfs storage on one Incus-owned Btrfs/COW lifecycle and strengthen real-host acceptance around it;
 - continue tightening real-host acceptance, especially Windows/WSL, networking, storage behavior, and client integration.
+
+**Workspace-preserving Base switching is deferred to Stage D or later.** The `haco env switch-base` implementation that landed in the v0.28 Stage B development work is retained as already-implemented convenience functionality, but it is not a Stage B roadmap requirement and must not block completion of earlier-stage work. Historical B3 labels in implementation/acceptance records remain evidence of what was tested at that time, not the current priority assignment.
 
 **Local OCI Registry is not a required roadmap gate.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
 
