@@ -130,7 +130,9 @@ Status: **implemented**。このcommandのpackaged受入は実装statusで別途
 
 cold WSLでは、enabled controllerのsocketよりCLIが先に動くことがある。最初に読み取り専用pingで最大2分待ち、transport unavailableだけを再試行する。その後の診断は一度だけ行う。protocol/operation拒否やfailed checkは再試行せず、serviceの起動・resource修復も行わない。
 
-provider probeは各5秒、server operationは30秒、CLI全体は155秒を上限とする。割込み・cancelでclient connectionを閉じる。自動修復や権限を上げるfallbackはしない。固定対象への外部GETにHost credentialやcaller入力を渡さない。guest probeは継承環境変数を消去し、curlのuser設定を無効にする。対話shellや `.curlrc` のcredential/proxy optionは取り込まない。
+IncusのRunningはguest DNS/DHCPの準備完了より先になることがある。外部疎通probe前に、既存DNS serviceのactiveとdefault IPv4 routeの出現を最大5秒待つ。localな前提を観測するだけでserviceを起動せず、DNS/HTTPSを再試行しない。待機に失敗した場合はDNS lookup障害とせず、network起動準備が未完了と示す。外部probeは一度だけ行う。
+
+inventory probeは各5秒、疎通（起動待ちとprobe）は10秒、server operationは35秒、CLI全体は160秒を上限とする。割込み・cancelでclient connectionを閉じる。自動修復や権限を上げるfallbackはしない。固定対象への外部GETにHost credentialやcaller入力を渡さない。guest probeは継承環境変数を消去し、curlのuser設定を無効にする。対話shellや `.curlrc` のcredential/proxy optionは取り込まない。
 
 成功reportはその時点の基盤検査である。storage設定の一致は実圧縮・COW・live mountの証明ではない。trusted-host疎通はEnvironmentのproxy-only egress、SSH、Workspace保持、将来のfirewall再読込・起動順変更の受入ではない。保持している `haco-host doctor` は引き続きpingだけの移行用診断である。
 

@@ -9,6 +9,10 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/diagnostics"
 )
 
+// A running Incus instance can precede its DNS service and DHCP lease. Wait
+// only for these local, read-only prerequisites; never retry an external probe.
+const trustedNetworkStartupProbe = "until systemctl is-active --quiet systemd-resolved.service && ip -4 route show default | grep -q '^default '; do sleep 0.1; done"
+
 // DiagnoseHost observes the configured installation. It deliberately never
 // calls Prepare, defaultRootPool (a lazy creator), EnsureTrustedHost, or a
 // reconciler. Unknown ownership prevents execution even inside the trusted host.
@@ -18,7 +22,11 @@ func (r *Runtime) DiagnoseHost(ctx context.Context, storage BtrfsLoopPoolSpec) (
 		report.Checks = append(report.Checks, diagnostics.Check{Name: name, Status: diagnostics.Skipped, Summary: "Prerequisite check did not pass", Action: "Resolve the preceding failed checks, then run haco doctor again"})
 	}
 	check := func(index int, summary, failure, action string, probe func(context.Context) bool) bool {
-		probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		budget := 5 * time.Second
+		if index == 4 {
+			budget = 10 * time.Second
+		}
+		probeCtx, cancel := context.WithTimeout(ctx, budget)
 		defer cancel()
 		ok := probeCtx.Err() == nil && probe(probeCtx) && probeCtx.Err() == nil
 		report.Checks[index].Status = diagnostics.Failed
@@ -97,9 +105,15 @@ func (r *Runtime) DiagnoseHost(ctx context.Context, storage BtrfsLoopPoolSpec) (
 		})
 	if hostOK && networkOK {
 		connectivityExit := 0
+		startupReady := false
 		ok := check(4, "Trusted-host IPv4 DNS, default route and HTTPS to github.com succeed",
 			"Trusted-host DNS, default route or HTTPS probe failed or timed out",
 			"Check Physical Host DNS, routing and firewall state; rerun haco doctor after restoring connectivity", func(ctx context.Context) bool {
+				startup, err := r.runner.Run(ctx, "incus", "exec", trustedHostName, "--project", r.project, "--", "env", "-i", "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "timeout", "5", "/bin/sh", "-ec", trustedNetworkStartupProbe)
+				if err != nil || startup.ExitCode != 0 || ctx.Err() != nil {
+					return false
+				}
+				startupReady = true
 				// Fixed probes only. No caller data is interpolated or sent to the
 				// external service, and raw guest output never enters the report.
 				result, err := r.runner.Run(ctx, "incus", "exec", trustedHostName, "--project", r.project, "--", "env", "-i", "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "timeout", "4", "/bin/sh", "-ec",
@@ -108,6 +122,11 @@ func (r *Runtime) DiagnoseHost(ctx context.Context, storage BtrfsLoopPoolSpec) (
 				return err == nil && result.ExitCode == 0
 			})
 		if !ok {
+			if !startupReady {
+				report.Checks[4].Summary = "Trusted-host DNS service and default IPv4 route did not become ready"
+				report.Checks[4].Action = "Allow Host network startup, then rerun haco doctor; inspect guest DNS and DHCP services if this persists"
+				return report, nil
+			}
 			// Only fixed exit markers identify a completed failure stage. A
 			// timeout/transport error stays unknown; never infer from guest text.
 			switch connectivityExit {

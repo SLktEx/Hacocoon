@@ -19,7 +19,7 @@ import (
 func runDoctor(args []string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	ctx, cancel := context.WithTimeout(ctx, controllerStartupTimeout+35*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, controllerStartupTimeout+40*time.Second)
 	defer cancel()
 	return doctor(ctx, args, os.Stdout, os.Stderr)
 }

@@ -35,7 +35,7 @@ func RegisterDoctor(server *control.Server, service diagnosticService) error {
 			return nil, control.NewStatusError("invalid_argument", "doctor accepts no parameters")
 		}
 		// This bound also applies to direct RPC callers, not just the CLI.
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 35*time.Second)
 		defer cancel()
 		report, err := service.DiagnoseHost(ctx)
 		if err != nil || report.Validate() != nil {

@@ -39,6 +39,8 @@ func diagnosticFixture(t *testing.T, args []string) host.Result {
 		return jsonResult(diagnosticHostState())
 	case reflect.DeepEqual(args, []string{"network", "list", "--project", "default", "--format", "json"}):
 		return jsonResult([]trustedNetwork{ownedTrustedNetwork()})
+	case len(args) == 13 && reflect.DeepEqual(args[:12], []string{"exec", "haco-host", "--project", "hacocoon", "--", "env", "-i", "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "timeout", "5", "/bin/sh", "-ec"}) && args[12] == trustedNetworkStartupProbe:
+		return host.Result{}
 	case len(args) == 13 && reflect.DeepEqual(args[:12], []string{"exec", "haco-host", "--project", "hacocoon", "--", "env", "-i", "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "timeout", "4", "/bin/sh", "-ec"}):
 		if !strings.Contains(args[12], "https://github.com") || !strings.Contains(args[12], "curl -q ") {
 			t.Fatalf("unexpected probe: %v", args)
@@ -56,7 +58,11 @@ func TestHostDiagnosticsReadOnlyAndBounded(t *testing.T) {
 			t.Fatalf("unexpected executable %s", name)
 		}
 		deadline, ok := ctx.Deadline()
-		if !ok || time.Until(deadline) > 5*time.Second {
+		limit := 5 * time.Second
+		if args[0] == "exec" {
+			limit = 10 * time.Second
+		}
+		if !ok || time.Until(deadline) > limit {
 			t.Fatal("probe lacks server-side deadline")
 		}
 		return diagnosticFixture(t, args), nil
@@ -69,7 +75,7 @@ func TestHostDiagnosticsReadOnlyAndBounded(t *testing.T) {
 		t.Fatal(err)
 	}
 	report, err := runtime.DiagnoseHost(context.Background(), diagnosticStorage)
-	if err != nil || !report.Healthy() || len(runner.calls) != 5 {
+	if err != nil || !report.Healthy() || len(runner.calls) != 6 {
 		t.Fatalf("report=%+v err=%v calls=%v", report, err, runner.calls)
 	}
 }
@@ -210,7 +216,7 @@ func TestHostDiagnosticConnectivityFailureStageIsSelectedWithoutGuestOutput(t *t
 	} {
 		t.Run(tc.summary, func(t *testing.T) {
 			runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-				if args[0] == "exec" {
+				if args[0] == "exec" && args[len(args)-1] != trustedNetworkStartupProbe {
 					script := args[len(args)-1]
 					for _, marker := range []string{"|| exit 21", "|| exit 22", "|| exit 23"} {
 						if !strings.Contains(script, marker) {
@@ -230,5 +236,38 @@ func TestHostDiagnosticConnectivityFailureStageIsSelectedWithoutGuestOutput(t *t
 				t.Fatal("guest output leaked into diagnostics")
 			}
 		})
+	}
+}
+
+func TestHostStartupFailureOrCancellationNeverRunsExternalProbe(t *testing.T) {
+	for _, canceled := range []bool{false, true} {
+		ctx, cancel := context.WithCancel(context.Background())
+		calls := 0
+		runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+			if args[0] != "exec" {
+				return diagnosticFixture(t, args), nil
+			}
+			calls++
+			if args[len(args)-1] != trustedNetworkStartupProbe {
+				t.Fatal("external probe ran before network startup")
+			}
+			if canceled {
+				cancel()
+				return host.Result{}, context.Canceled
+			}
+			return host.Result{ExitCode: 124, Stderr: "private guest details"}, errors.New("private guest details")
+		}}
+		report, err := New(runner).DiagnoseHost(ctx, diagnosticStorage)
+		cancel()
+		if err != nil || report.Validate() != nil || report.Healthy() || calls != 1 {
+			t.Fatalf("report=%+v calls=%d err=%v", report, calls, err)
+		}
+		if report.Checks[4].Summary != "Trusted-host DNS service and default IPv4 route did not become ready" || report.Checks[4].Action == "" {
+			t.Fatalf("startup failure was misclassified: %+v", report.Checks[4])
+		}
+		raw, _ := json.Marshal(report)
+		if strings.Contains(string(raw), "private guest") {
+			t.Fatal("startup output leaked")
+		}
 	}
 }
