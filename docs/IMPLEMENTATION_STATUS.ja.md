@@ -8,7 +8,7 @@ Status: **implemented。repository回帰は成功、配布providerの受入はpe
 resourceデータを保持する。[Host契約](design/trusted-host.ja.md#incus起動時のpid記録)と
 [ADR 0013](adr/0013-incus-pid-record-boot-identity.md)を参照。
 
-15件のcomponent回帰で再利用PID、WSL/native起動、service再起動、初期導入、同時実行、
+19件のcomponent回帰で再利用PID、WSL/native起動、service再起動、初期導入、同時実行、
 中断復帰、不正metadataを確認した。installer/packageとWindows driver回帰も成功した。
 Windows配布gateには再起動後のmarker更新とdnsmasq記録の退避確認を追加した。
 同一namespace内のhelper PID再利用と任意device familyは上流側の残課題とする。

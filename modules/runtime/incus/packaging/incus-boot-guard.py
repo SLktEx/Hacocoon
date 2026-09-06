@@ -9,9 +9,8 @@ import fcntl
 import json
 import os
 from pathlib import Path
-import socket
 import stat
-import struct
+import subprocess
 import sys
 import uuid
 
@@ -31,19 +30,32 @@ def namespace_identity():
     return {'boot': boot, 'init_start': started, 'pidns': ns.st_ino}
 
 
-def daemon_available(root):
-    with socket.socket(socket.AF_UNIX) as conn:
-        conn.settimeout(2)
+def daemon_available(_root):
+    # incus.socket belongs to PID 1 even after Incus accepts it. Connecting
+    # cannot distinguish an idle activation socket from a running daemon.
+    namespace = os.stat('/proc/self/ns/pid').st_ino
+    processes = set()
+    for entry in os.listdir('/proc'):
+        if not entry.isascii() or not entry.isdigit():
+            continue
         try:
-            conn.connect(str(root / 'unix.socket'))
-        except (FileNotFoundError, ConnectionRefusedError):
-            return False
-        pid, uid, _ = struct.unpack('3i', conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
-        if uid != 0 or os.readlink(f'/proc/{pid}/exe') != '/usr/libexec/incus/incusd':
-            raise Refused('unexpected Incus socket peer')
-        if os.stat(f'/proc/{pid}/ns/pid').st_ino != os.stat('/proc/self/ns/pid').st_ino:
-            raise Refused('unexpected Incus PID namespace')
-        return True
+            if os.readlink(f'/proc/{entry}/exe').removesuffix(' (deleted)') != '/usr/libexec/incus/incusd':
+                continue
+            if os.stat(f'/proc/{entry}/ns/pid').st_ino != namespace:
+                continue
+            if os.stat(f'/proc/{entry}').st_uid != 0:
+                raise Refused('unexpected Incus process owner')
+            processes.add(int(entry))
+        except (FileNotFoundError, ProcessLookupError):
+            continue
+    if not processes:
+        return False
+    result = subprocess.run(['/usr/bin/systemctl', 'show', 'incus.service', '--property=MainPID', '--value'],
+                            env={'PATH': '/usr/bin:/usr/sbin'}, capture_output=True,
+                            text=True, timeout=5, check=True)
+    if int(result.stdout.strip()) not in processes:
+        raise Refused('Incus processes exist outside the managed daemon')
+    return True
 
 
 class Guard:
@@ -86,7 +98,7 @@ class Guard:
                 or set(data['namespace']) != {'boot', 'init_start', 'pidns'}):
             raise Refused('invalid namespace marker')
         ns = data['namespace']
-        if (str(uuid.UUID(ns['boot'])) != ns['boot']
+        if (type(ns['boot']) is not str or str(uuid.UUID(ns['boot'])) != ns['boot']
                 or type(ns['init_start']) is not int or ns['init_start'] < 0
                 or type(ns['pidns']) is not int or ns['pidns'] <= 0):
             raise Refused('invalid namespace marker')
@@ -190,7 +202,7 @@ def main():
         return 2
     try:
         Guard('/var/lib/incus', namespace_identity()).run(bool(sys.argv[1:]))
-    except (Refused, OSError, ValueError, KeyError, TypeError):
+    except (Refused, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
         # Never emit arbitrary provider contents or subprocess output.
         print('haco-incus-boot-guard: cannot safely prepare PID records; check provider state and rerun the installer', file=sys.stderr)
         return 1

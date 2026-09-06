@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -194,6 +195,39 @@ class BootGuardTests(unittest.TestCase):
         identity = guard.namespace_identity()
         self.assertEqual(set(identity), {'boot', 'init_start', 'pidns'})
         self.assertGreater(identity['pidns'], 0)
+
+
+class DaemonDetectionTests(unittest.TestCase):
+    def detect(self, executable, main_pid='248', namespace=111, uid=0):
+        def readlink(path):
+            return '/usr/lib/systemd/systemd' if path == '/proc/1/exe' else executable
+
+        def info(path):
+            return SimpleNamespace(st_ino=111 if path == '/proc/self/ns/pid' else namespace, st_uid=uid)
+
+        with patch.object(os, 'listdir', return_value=['self', '1', '248']), \
+                patch.object(os, 'readlink', side_effect=readlink), \
+                patch.object(os, 'stat', side_effect=info), \
+                patch.object(guard.subprocess, 'run', return_value=SimpleNamespace(stdout=main_pid)) as run:
+            result = guard.daemon_available(Path('/var/lib/incus'))
+            if result:
+                self.assertEqual(run.call_args.args[0], ['/usr/bin/systemctl', 'show', 'incus.service', '--property=MainPID', '--value'])
+            return result
+
+    def test_idle_systemd_activation_socket_is_not_a_running_daemon(self):
+        self.assertFalse(self.detect('/usr/bin/python3', main_pid='0'))
+
+    def test_managed_daemon_and_replaced_executable_are_detected(self):
+        for suffix in ('', ' (deleted)'):
+            self.assertTrue(self.detect('/usr/libexec/incus/incusd' + suffix))
+
+    def test_unmanaged_helpers_or_wrong_owner_refuse_retirement(self):
+        for kwargs in ({'main_pid': '0'}, {'uid': 1000}):
+            with self.assertRaises(guard.Refused):
+                self.detect('/usr/libexec/incus/incusd', **kwargs)
+
+    def test_daemon_in_another_pid_namespace_does_not_authorize_adoption(self):
+        self.assertFalse(self.detect('/usr/libexec/incus/incusd', namespace=222))
 
 
 if __name__ == '__main__':

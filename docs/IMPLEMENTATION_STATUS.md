@@ -9,7 +9,7 @@ startup. Current-namespace records and resource data are retained. See the
 [Host contract](design/trusted-host.md#wsl-default-entry) and
 [ADR 0013](adr/0013-incus-pid-record-boot-identity.md).
 
-Fifteen component cases cover reused PIDs, WSL/native boots, service restart,
+Nineteen component cases cover reused PIDs, WSL/native boots, service restart,
 initialization, concurrency, interrupted retirement and unsafe metadata. Installer,
 package and Windows driver regressions pass. The Windows package gate also checks
 marker renewal and archived dnsmasq records after restart. Same-namespace helper

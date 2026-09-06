@@ -22,12 +22,17 @@ archives only `networks/*/dnsmasq.pid` and `devices/*/proxy.*` before Incus read
 them. Contents are not interpreted and no process is signalled. Configuration,
 instances, disks, Workspaces and resource ownership remain unchanged.
 
-First installation adopts the current namespace only with a root Incus daemon
-at the fixed socket in the same PID namespace; the installer first requires
+First installation adopts the current namespace only with the root Incus daemon
+matching systemd's MainPID in the same PID namespace; the installer first requires
 `incus info` readiness. Unmarked existing records cannot be retired speculatively.
 Initialization cannot overwrite a different namespace marker. Fresh empty state
 can initialize during ExecStartPre. An already stuck older installation must
 first regain daemon readiness; this installer does not force-kill or delete state.
+
+The systemd activation socket is not a daemon-liveness signal: PID 1 owns the
+listener before and after Incus starts. The guard checks actual executable and
+namespace identity through procfs, including replaced executables. Incus
+processes without a matching managed daemon refuse retirement and adoption.
 
 The helper opens all path components without symlink traversal. Metadata must
 be root-owned and not group/other-writable; files must be single-link regular
