@@ -46,6 +46,7 @@ type App struct {
 	EgressProxy  *egressproxy.Proxy
 	Repositories *gitrepo.RepositoryService
 	GitBroker    *gitrepo.Broker
+	OCITransfer  *ociplugin.TransferService
 }
 
 func Local(ctx context.Context) (*App, error) {
@@ -176,6 +177,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 
 	environments := workspaceapp.NewWithProvider(runtime, store, repositoryWorkspaceProvider{repositories: repositories})
 	return &App{
+		OCITransfer:  &ociplugin.TransferService{Backend: &incus.OCITransferBackend{Runtime: incusRuntime}, Environments: store},
 		Environments: environments,
 		AgentHosts:   agenthostapp.New(environments, store, bindingStore),
 		Clients:      clientapp.New(runtime, store),

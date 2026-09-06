@@ -1,5 +1,14 @@
 # 実装状況
 
+B3は配布物`3747bae`で**ローカル実機確認済み**。26.04から24.04へBaseを
+切り替え、`.git`を含む54ファイルのハッシュ一致、未push commit
+`bce47b9` / `6d5fc53`・未コミット変更・未追跡notesの保持を確認。
+Git/SSH再接続、新SSH host key固定、Ubuntu 24.04.4上のSSH編集も通った。
+新Base revisionは`sha256:f38ca805517f5b6e301f33b0f44523386c5a050847564c1233e586106b31dbc9`。
+Windows mount・`/init`・管理socketは新Environmentへ渡っていない。
+B4の任意[イメージ配布](design/oci-image-distribution.md)は実装・回帰済みで、
+Docker/nerdctl実機確認は進行中。
+
 B2は配布物`087e7e2`で**ローカル実機確認済み**。`b-dev`内の
 `/workspace/b-first`と`/workspace/b-second`は独立した`.git`を持ち、SSHからの
 fetch/pull・編集・commit・固定内容承認付きpushが通った。指定Hacocoon-testの

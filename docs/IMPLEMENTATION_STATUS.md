@@ -2,6 +2,19 @@
 
 ## Second-stage workflow
 
+B3 is **locally accepted** on packaged `3747bae`: Base switched from
+`haco/ubuntu-26.04` to `haco/ubuntu-24.04` (revision
+`sha256:f38ca805517f5b6e301f33b0f44523386c5a050847564c1233e586106b31dbc9`).
+All 54 repository files including `.git` had identical hashes after switching.
+Unpushed commits `bce47b9` / `6d5fc53`, modified tracked files and untracked
+notes survived. Git and SSH were reconnected, the new SSH host key was pinned,
+and editing over SSH on Ubuntu 24.04.4 succeeded. No Windows mount, `/init` or
+management socket appeared in the replacement Environment.
+
+B4's optional [image distribution](design/oci-image-distribution.md) is
+implemented with bounded private archive staging and independent save/load.
+Repository tests pass; real Docker/nerdctl acceptance is in progress.
+
 B2 is **locally accepted** with packaged `087e7e2`: `/workspace/b-first` and
 `/workspace/b-second` in `b-dev`, each with independent `.git`. SSH fetch/pull,
 edit, commit and fixed-content approval push succeeded. GitHub independently
