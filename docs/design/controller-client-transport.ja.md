@@ -2,11 +2,11 @@
 
 日本語 | [**English**](controller-client-transport.md)
 
-Status: **partial**。Local Unix domain protocol、Physical Host controller、trusted-host endpoint投影、client-only `haco-host`、typed Environment API、対話streamは実装済み。製品 `haco` は現在help/version・controller経由の `setup` / `doctor` とcontroller-backed WSL login aliasを提供する。新CLIのEnvironment lifecycle、PTY制御、port forwarding、remote transportはplanned。
+Status: **partial**。Local Unix domain protocol、Physical Host controller、trusted-host endpoint投影、client-only `haco-host`、typed Environment API、対話streamは実装済み。製品 `haco` はhelp/version、setup/doctor、WSL login、管理repo/Workspace準備、Environment create/list/status/ssh/disconnect/stop、Git承認を提供する。追加のlifecycle便利機能、PTY制御、汎用port-forwarding CLI、remote transportはplanned。
 
 ## 概要
 
-現在のreset CLI境界: 製品 `haco` はhelp/version・controller経由の `setup` / `doctor` とWSL login aliasを持ち、このpageの旧 `haco env ...` 記述は保持している移行CLIの機能を指す。[実装status](../IMPLEMENTATION_STATUS.ja.md)を参照。
+製品 `haco` は[管理repo利用手順](../reference/managed-repository-workflow.md)で既存controllerを呼ぶ。typed管理APIに `repository.clone`、`workspace.copy`、`environment.stop`、`git.connect/pending/decide` を追加した。これらはtrusted管理endpointに限り、EnvironmentのGit専用socketには公開しない。受入は[実装status](../IMPLEMENTATION_STATUS.ja.md)、残る旧commandは[CLI移行](../CLI_MIGRATION.md)を参照。
 
 WSLは有効なcontroller serviceがsocketをbindする前にlogin shellを開くことがある。login aliasは読み取り専用pingで最大2分待ち、transport未準備だけをretryする。protocol・operationの拒否はretryせず、clientが第二のcontrollerを起動したりservice状態を変更したりしない。この起動待ち期限は対話sessionの寿命を制限しない。
 
@@ -157,9 +157,9 @@ Client-only `haco-host` と移行用に残る `hacoq env ...` はdirect Incus au
 
 ## General `haco` client namespace
 
-製品 `haco` はWSL Physical Hostとtrusted `haco-host` 内で共通の利用者入口となる。help/versionは単独で動作し、`setup`・`doctor` とWSL login aliasはcontrollerを直接呼ぶ。`hacoq` へ処理を委譲せず、未提供の `haco host ensure`・`haco host shell` も明示的に失敗する。
+製品 `haco` はWSL Physical Hostとtrusted `haco-host` 内で共通の利用者入口となる。help/versionは単独で動作し、setup・診断・repo/Workspace/Environment管理・Git承認・WSL login aliasはcontrollerを直接呼ぶ。`hacoq` へ処理を委譲せず、未提供の `haco host ensure`・`haco host shell` も明示的に失敗する。
 
-旧Environment namespaceは一時的な `hacoq` に残り、typed controller APIは再利用できる。新CLIのlifecycle実装はこのAPIを使い、guest-local compositionやIncus authorityを持たない。installerは `haco setup` から既存controllerへbootstrapを依頼する。旧CLIのbootstrap orchestrationとguestへのhacoq配備は撤去した。
+追加のEnvironment commandは一時的な `hacoq` に残り、製品の最初の開発経路はtyped controller APIを使う。guest-local compositionやIncus authorityは持たない。installerは `haco setup` から既存controllerへbootstrapを依頼する。旧CLIのbootstrap orchestrationとguestへのhacoq配備は撤去した。
 
 ## `haco-host` transition surface
 
@@ -177,7 +177,7 @@ haco-host doctor
 
 `haco-host env ...`はmigration中のsurfaceとして有用ですが、通常のEnvironment lifecycleはgeneral `haco` UXへ移します。Long-termの`haco-host` commandはtrusted tooling、credential broker、OCI/runtime administration、Windows/WSL integrationなど、trusted logical Host自体がexecution domainであるoperationへ寄せます。
 
-`env create --workspace`は現時点ではcontroller-side Workspace path contractを維持します。Repository ownershipやWorkspace path resolutionをlogical Host側へ完全移行することは別architecture workです。
+`env create --workspace`はcontroller側のWorkspace source契約を使う。外部pathも維持し、`managed:<id>` は `WorkspaceProvider` 経由で登録済みの独立volumeへ解決する。登録upstream repoはtrusted logical Hostに置き、metadataとprovider所有権はcontrollerが保持する。
 
 ## Streaming
 
