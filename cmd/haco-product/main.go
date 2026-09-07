@@ -145,7 +145,7 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  haco <command>")
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "Commands:")
-	fmt.Fprintln(out, "  setup      Prepare the installed Host through its controller")
+	fmt.Fprintln(out, "  setup      Prepare the Host or replay project setup in an Environment")
 	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
 	fmt.Fprintln(out, "  env        Create, inspect and access development Environments")
 	fmt.Fprintln(out, "  run        Execute a command in a temporary Environment and clean up")

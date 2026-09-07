@@ -15,9 +15,9 @@ import (
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
 	"github.com/SLktEx/Hacocoon/internal/host"
-	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"github.com/SLktEx/Hacocoon/internal/nameresolution"
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
+	"github.com/SLktEx/Hacocoon/internal/recipes"
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
 	seedbuildapp "github.com/SLktEx/Hacocoon/internal/seedbuild"
 	"github.com/SLktEx/Hacocoon/internal/state"
@@ -27,6 +27,7 @@ import (
 	"github.com/SLktEx/Hacocoon/modules/standard/dnsproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/egressproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
+	"github.com/SLktEx/Hacocoon/modules/standard/projectsetup"
 )
 
 const defaultLocalStorageID = "local-default"
@@ -36,7 +37,8 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
-	HostCustomization   *hostsetup.Service
+	HostCustomization   *recipes.Service
+	ProjectSetup        *projectsetup.Service
 	Environments        *workspaceapp.Service
 	AgentHosts          *agenthostapp.Broker
 	Clients             *clientapp.Service
@@ -191,7 +193,8 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	runs := runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks"))
 	runs.ConfigureTemporaryWorkspace(workspaceStores.CleanupTemporary)
 	return &App{
-		HostCustomization:   &hostsetup.Service{Root: filepath.Join(root, "host-customization"), Execute: incusRuntime.RunTrustedHostCustomization},
+		ProjectSetup:        &projectsetup.Service{Root: filepath.Join(root, "project-setup"), Environments: environments},
+		HostCustomization:   &recipes.Service{Root: filepath.Join(root, "host-customization"), Execute: incusRuntime.RunTrustedHostCustomization},
 		PersistentResources: resources,
 		Environments:        environments,
 		AgentHosts:          agenthostapp.New(environments, store, bindingStore),

@@ -25,7 +25,16 @@ same DNS unit successfully; it does not reproduce or explain the GHA failure.
 The probe was canonically deleted and its empty Workspace removed. The adapter
 now returns only an allowlisted failure phase and numeric service exit status
 to diagnose the installer failure without exposing arbitrary guest output.
-C4 [project setup](design/project-setup.md) has a planned contract, not an implementation.
+At `a1d084b`, the bounded guest-manager wait passed Ubuntu installer, Incus
+and test workflows. Windows acceptance is still running.
+
+C4 [project setup](design/project-setup.md) now implements explicit Workspace
+recipes through `haco setup --script <path> <environment>`, replay and clear.
+Host recipes retain their existing behavior. Target identity is checked before
+start and under the execution lifecycle lock; script bytes travel through
+bounded stdin. Relevant race tests passed. Installed GHA coverage was added but
+has not executed for this slice; package installation and actual cancellation
+cleanup acceptance remain unverified.
 
 ## Current desktop-development checkpoint
 

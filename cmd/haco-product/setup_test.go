@@ -54,7 +54,7 @@ func TestProductSetupUsesOnlyController(t *testing.T) {
 
 func TestProductSetupHelpUsageAndFailures(t *testing.T) {
 	t.Setenv("HACO_CONTROL_SOCKET", filepath.Join(t.TempDir(), "missing.sock"))
-	for _, args := range [][]string{{"--help"}, {"--force"}, {"path"}, nil} {
+	for _, args := range [][]string{{"--help"}, {"--force"}, {"first", "second"}, {"--script", ""}, nil} {
 		var stdout, stderr bytes.Buffer
 		code := setup(context.Background(), args, &stdout, &stderr)
 		want := 2

@@ -1,6 +1,6 @@
 //go:build linux
 
-package hostsetup
+package recipes
 
 import (
 	"crypto/rand"
@@ -30,7 +30,7 @@ func openStore(path string) (*store, error) {
 	}
 	info, err := os.Lstat(path)
 	if err != nil || !private(info, true) {
-		return nil, fmt.Errorf("unsafe Host customization directory")
+		return nil, fmt.Errorf("unsafe setup recipe directory")
 	}
 	root, err := os.OpenRoot(path)
 	if err != nil {
@@ -39,7 +39,7 @@ func openStore(path string) (*store, error) {
 	observed, err := root.Stat(".")
 	if err != nil || !os.SameFile(info, observed) {
 		root.Close()
-		return nil, fmt.Errorf("Host customization directory changed")
+		return nil, fmt.Errorf("setup recipe directory changed")
 	}
 	s := &store{root: root}
 	lock, err := root.OpenFile("setup.lock", os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
@@ -51,11 +51,11 @@ func openStore(path string) (*store, error) {
 	info, err = lock.Stat()
 	if err != nil || !private(info, false) {
 		s.close()
-		return nil, fmt.Errorf("unsafe Host customization lock")
+		return nil, fmt.Errorf("unsafe setup recipe lock")
 	}
 	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		s.close()
-		return nil, fmt.Errorf("Host customization is already running")
+		return nil, fmt.Errorf("setup recipe is already running")
 	}
 	return s, nil
 }
@@ -73,12 +73,12 @@ func (s *store) read() ([]byte, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("open Host customization recipe: %w", err)
+		return nil, fmt.Errorf("open setup recipe recipe: %w", err)
 	}
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil || !private(info, false) {
-		return nil, fmt.Errorf("unsafe Host customization recipe")
+		return nil, fmt.Errorf("unsafe setup recipe recipe")
 	}
 	content, err := io.ReadAll(io.LimitReader(f, MaxScriptBytes+1))
 	if err != nil {

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/SLktEx/Hacocoon/internal/hostsetup"
+	"github.com/SLktEx/Hacocoon/internal/recipes"
 	"os/exec"
 	"time"
 )
@@ -12,7 +12,7 @@ import (
 // Script bytes are stdin to the verified logical Host, never Physical Host code.
 func (r *Runtime) RunTrustedHostCustomization(ctx context.Context, script []byte) error {
 	text := string(script)
-	if err := (hostsetup.Update{Script: &text}).Validate(); err != nil {
+	if err := (recipes.Update{Script: &text}).Validate(); err != nil {
 		return err
 	}
 	if err := r.verifyTrustedHostOwnership(ctx); err != nil {

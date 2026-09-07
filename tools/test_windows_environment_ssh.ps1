@@ -216,6 +216,43 @@ try {
         if ($desktop.Stdout.Trim() -ne 'windows-workspace-ok') { throw 'Reconnect lost Workspace content' }
         Write-Host 'PASS: ordinary ssh setup, Windows-owned key/config, strict native SSH, stopped resume and connection reuse'
         & (Join-Path $PSScriptRoot 'test_vscode_environment.ps1') -EnvironmentName $EnvironmentName -Distro $Distro
+        $projectSetupProbe = @'
+set -eu
+name=$1
+recipe=$(mktemp /tmp/haco-project-setup-XXXXXX)
+trap 'rm -f "$recipe"' EXIT
+cat > "$recipe" <<'RECIPE'
+set -eu
+test "$PWD" = /workspace
+test ! -e /init
+test ! -e /var/lib/hacocoon-control.sock
+count=0
+if test -f .haco-setup-probe; then count=$(cat .haco-setup-probe); fi
+count=$((count + 1))
+printf '%s' "$count" > .haco-setup-probe
+printf 'SETUP_COUNT=%s\n' "$count"
+RECIPE
+first=$(haco setup --script "$recipe" "$name")
+printf '%s\n' "$first" | grep -qx SETUP_COUNT=1
+second=$(haco setup "$name")
+printf '%s\n' "$second" | grep -qx SETUP_COUNT=2
+printf '%s\n' 'exit 17' > "$recipe"
+if haco setup --script "$recipe" "$name"; then exit 1; fi
+if haco setup "$name"; then exit 1; fi
+cat > "$recipe" <<'RECIPE'
+set -eu
+test "$(cat /workspace/.haco-setup-probe)" = 2
+rm /workspace/.haco-setup-probe
+printf '%s\n' SETUP_UPDATED
+RECIPE
+updated=$(haco setup --script "$recipe" "$name")
+printf '%s\n' "$updated" | grep -qx SETUP_UPDATED
+haco setup --clear-script "$name"
+haco setup "$name"
+'@
+        [void](Invoke-HacoHost @('/bin/bash', '-ec', $projectSetupProbe, '--', $EnvironmentName) 'Exercise saved project setup')
+        Write-Host 'PROJECT SETUP SAVE / REPLAY / FAILURE / UPDATE / CLEAR: PASS'
+
     } else {
         Write-Host 'SKIP: automatic desktop SSH setup acceptance uses the disposable GHA Windows profile'
     }

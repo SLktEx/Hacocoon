@@ -2,11 +2,12 @@
 
 [日本語](project-setup.ja.md) | English
 
-Status: **planned roadmap C4**. This contract is not an available command yet.
+Status: **implemented explicit recipe slice; roadmap C4 acceptance is partial**.
+Installed GHA acceptance is pending.
 
 ## Ordinary use
 
-Extend the existing setup command with an explicit Environment target:
+Use the existing setup command with an explicit Environment target:
 
 ```bash
 haco setup --script ./dev-setup.sh dev
@@ -60,3 +61,10 @@ Physical/VPN-dependent gaps remain explicit SKIP items, not inferred success.
 
 See [Base boundaries](base-images-and-custom-environments.md#project-setup-boundary)
 and [trusted Host setup](trusted-host.md).
+
+Component tests pass for Workspace-scoped save/replay/clear, retained recipes
+after failure, identity-bound start refusal, strict controller requests and
+bounded stdin transfer. Installed Windows GHA now includes explicit
+save/replay/nonzero/update/clear acceptance; it has not run for this change yet.
+Package installation, cancellation descendant cleanup and reuse after actual
+Environment recreation remain unverified at the provider acceptance layer.

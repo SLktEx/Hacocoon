@@ -1,6 +1,7 @@
 package host
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -32,6 +33,10 @@ type Runner interface {
 	Run(context.Context, string, ...string) (Result, error)
 }
 
+type InputRunner interface {
+	RunWithInput(context.Context, []byte, string, ...string) (Result, error)
+}
+
 type ExecRunner struct {
 	// MaxOutputBytes is the maximum number of child-output bytes retained
 	// independently for stdout and stderr. Zero uses DefaultCaptureLimit. The
@@ -41,6 +46,14 @@ type ExecRunner struct {
 }
 
 func (r ExecRunner) Run(ctx context.Context, name string, args ...string) (Result, error) {
+	return r.run(ctx, nil, name, args...)
+}
+
+// RunWithInput keeps opaque input out of argv and structured command logs.
+func (r ExecRunner) RunWithInput(ctx context.Context, input []byte, name string, args ...string) (Result, error) {
+	return r.run(ctx, input, name, args...)
+}
+func (r ExecRunner) run(ctx context.Context, input []byte, name string, args ...string) (Result, error) {
 	started := time.Now()
 	logger := logging.FromContext(ctx).With(
 		"component", commandComponent(name, args),
@@ -54,6 +67,10 @@ func (r ExecRunner) Run(ctx context.Context, name string, args ...string) (Resul
 	}
 
 	cmd := exec.CommandContext(ctx, name, args...)
+	if input != nil {
+		cmd.Stdin = bytes.NewReader(input)
+		cmd.WaitDelay = time.Second
+	}
 	stdout := newBoundedBuffer(limit)
 	stderr := newBoundedBuffer(limit)
 	cmd.Stdout = stdout

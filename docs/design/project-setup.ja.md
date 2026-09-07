@@ -2,7 +2,7 @@
 
 日本語 | [English](project-setup.md)
 
-状態: **ロードマップ C4 の planned**。以下の command はまだ利用できません。
+状態: **明示的 recipe の実装済み、ロードマップ C4 の acceptance は partial**。installed GHA の検証は未完了です。
 
 ## 通常の使い方
 
@@ -56,3 +56,9 @@ save/replay/update/clear、同じ Workspace の別 Environment での再利用�
 
 [Base の境界](base-images-and-custom-environments.md#project-setup-boundary)と
 [trusted Host setup](trusted-host.ja.md)を参照してください。
+
+Workspace ごとの保存・再実行・削除、失敗後の recipe 保持、起動前の所有先確認、
+controller の不正引数拒否、stdin 転送は component test で確認済みです。
+Windows GHA に保存・再実行・非ゼロ終了・更新・削除の検証を追加しましたが、
+この変更ではまだ実行していません。package install、cancel 後の子 process cleanup、
+実 Environment 再作成後の再利用は provider acceptance として未検証です。

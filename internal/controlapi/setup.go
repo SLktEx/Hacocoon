@@ -9,15 +9,15 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/control"
-	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"github.com/SLktEx/Hacocoon/internal/logging"
+	"github.com/SLktEx/Hacocoon/internal/recipes"
 )
 
 const MethodSetup = "system.setup"
 const setupTimeout = 15 * time.Minute
 
 type setupService interface {
-	SetupHost(context.Context, hostsetup.Update) error
+	SetupHost(context.Context, recipes.Update) error
 }
 
 // RegisterSetup keeps bootstrap under the same controller authority as normal
@@ -28,7 +28,7 @@ func RegisterSetup(server *control.Server, service setupService) error {
 	}
 	active := make(chan struct{}, 1)
 	return server.Register(MethodSetup, func(ctx context.Context, payload json.RawMessage) (any, error) {
-		var update hostsetup.Update
+		var update recipes.Update
 		if len(bytes.TrimSpace(payload)) != 0 {
 			decoder := json.NewDecoder(bytes.NewReader(payload))
 			decoder.DisallowUnknownFields()
@@ -55,7 +55,7 @@ func RegisterSetup(server *control.Server, service setupService) error {
 		if err := service.SetupHost(ctx, update); err != nil || ctx.Err() != nil {
 			// The provider error may contain arbitrary guest/backend output. Record the
 			// owning failure boundary without forwarding that output to logs or clients.
-			if errors.Is(err, hostsetup.ErrCustomizationFailed) {
+			if errors.Is(err, recipes.ErrExecutionFailed) {
 				logging.Root().ErrorContext(ctx, "Trusted Host customization failed", "component", "bootstrap", "operation", "setup")
 				return nil, control.NewStatusError("customization_failed", "Host prepared, but customization failed; update the script and rerun haco setup")
 			}
@@ -66,7 +66,7 @@ func RegisterSetup(server *control.Server, service setupService) error {
 	})
 }
 
-func (c *Client) SetupHost(ctx context.Context, update hostsetup.Update) error {
+func (c *Client) SetupHost(ctx context.Context, update recipes.Update) error {
 	var response PingResponse
 	if err := c.wire.Call(ctx, MethodSetup, update, &response); err != nil {
 		return err

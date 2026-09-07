@@ -176,3 +176,7 @@ v0.23 is an acceptance checkpoint rather than a new architecture contract. Its e
 ## Rule of thumb
 
 > **When a meaningful chunk of product, operator, observability, or acceptance progress lands, taking the next minor number is fine. During pre-1.0 development, prefer visible checkpoints over conserving version numbers.**
+
+The C4 Workspace recipe slice extends `haco setup` with an optional Environment
+target. Implementation and focused race coverage exist; installed acceptance
+is pending, so the C4 roadmap item remains partial.

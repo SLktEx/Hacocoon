@@ -1,4 +1,4 @@
-package hostsetup
+package recipes
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"unicode/utf8"
 )
 
-var ErrCustomizationFailed = errors.New("Host customization failed")
+var ErrExecutionFailed = errors.New("setup recipe failed")
 
 const MaxScriptBytes = 1 << 20
 
@@ -25,7 +25,7 @@ func (u Update) Validate() error {
 		return fmt.Errorf("script and clear_script are mutually exclusive")
 	}
 	if u.Script != nil && (len(*u.Script) > MaxScriptBytes || !utf8.ValidString(*u.Script) || strings.ContainsRune(*u.Script, 0)) {
-		return fmt.Errorf("Host setup script must be UTF-8 without NUL and at most 1 MiB")
+		return fmt.Errorf("setup script must be UTF-8 without NUL and at most 1 MiB")
 	}
 	return nil
 }
@@ -38,7 +38,7 @@ type Service struct {
 func (s *Service) Apply(ctx context.Context, update Update) (resultErr error) {
 	defer func() {
 		if resultErr != nil {
-			resultErr = errors.Join(ErrCustomizationFailed, resultErr)
+			resultErr = errors.Join(ErrExecutionFailed, resultErr)
 		}
 	}()
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
@@ -47,7 +47,7 @@ func (s *Service) Apply(ctx context.Context, update Update) (resultErr error) {
 		return err
 	}
 	if s == nil || s.Execute == nil {
-		return fmt.Errorf("Host customization executor is unavailable")
+		return fmt.Errorf("setup recipe executor is unavailable")
 	}
 	files, err := openStore(s.Root)
 	if err != nil {
@@ -84,7 +84,7 @@ func ReadScript(path string) ([]byte, error) {
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil || !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("Host setup script must be a regular file")
+		return nil, fmt.Errorf("setup script must be a regular file")
 	}
 	data, err := io.ReadAll(io.LimitReader(f, MaxScriptBytes+1))
 	if err != nil {

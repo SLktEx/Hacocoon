@@ -1,6 +1,6 @@
 //go:build linux
 
-package hostsetup
+package recipes
 
 import (
 	"context"

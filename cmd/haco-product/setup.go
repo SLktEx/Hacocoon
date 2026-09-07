@@ -13,8 +13,8 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
-	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"github.com/SLktEx/Hacocoon/internal/logging"
+	"github.com/SLktEx/Hacocoon/internal/recipes"
 )
 
 func runSetup(args []string) int {
@@ -28,24 +28,30 @@ func runSetup(args []string) int {
 func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("haco setup", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	scriptPath := flags.String("script", "", "save and run a UTF-8 bash script only in the trusted Host")
-	clear := flags.Bool("clear-script", false, "remove the saved Host script without running it")
+	scriptPath := flags.String("script", "", "save and run a UTF-8 bash script in the Host or selected Environment")
+	clear := flags.Bool("clear-script", false, "remove the selected saved script without running it")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			fmt.Fprintln(stdout, "Usage: haco setup [--script <path> | --clear-script]")
+			fmt.Fprintln(stdout, "Usage: haco setup [--script <path> | --clear-script] [environment]")
 			return 0
 		}
 		return 2
 	}
-	if flags.NArg() != 0 || (*scriptPath != "" && *clear) {
-		fmt.Fprintln(stderr, "haco: usage: haco setup [--script <path> | --clear-script]")
+	scriptSelected := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "script" {
+			scriptSelected = true
+		}
+	})
+	if flags.NArg() > 1 || (scriptSelected && (*scriptPath == "" || *clear)) {
+		fmt.Fprintln(stderr, "haco: usage: haco setup [--script <path> | --clear-script] [environment]")
 		return 2
 	}
-	update := hostsetup.Update{Clear: *clear}
+	update := recipes.Update{Clear: *clear}
 	if *scriptPath != "" {
-		data, err := hostsetup.ReadScript(*scriptPath)
+		data, err := recipes.ReadScript(*scriptPath)
 		if err != nil {
-			fmt.Fprintln(stderr, "haco: cannot read a regular UTF-8 Host setup script (maximum 1 MiB)")
+			fmt.Fprintln(stderr, "haco: cannot read a regular UTF-8 setup script (maximum 1 MiB)")
 			return 1
 		}
 
@@ -70,6 +76,33 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
 		return fail("Cannot open the Physical Host controller client; rerun the installer")
+	}
+	if flags.NArg() == 1 {
+		response, err := client.SetupProject(ctx, flags.Arg(0), update)
+		if err != nil {
+			return fail("Project setup request failed")
+		}
+		result := response.Result
+		if _, err := io.WriteString(stdout, result.Execution.Stdout); err != nil {
+			return 1
+		}
+		if _, err := io.WriteString(stderr, result.Execution.Stderr); err != nil {
+			return 1
+		}
+		if result.Execution.StdoutTruncated || result.Execution.StderrTruncated {
+			fmt.Fprintln(stderr, "haco: setup output was truncated")
+		}
+		if response.Failed {
+			return fail("Project setup failed; correct the script or Environment and rerun haco setup")
+		}
+		if result.Cleared {
+			fmt.Fprintln(stdout, "Saved project setup removed.")
+		} else if result.Applied {
+			fmt.Fprintln(stdout, "Project setup completed.")
+		} else {
+			fmt.Fprintln(stdout, "No saved project setup. Use haco setup --script <path> <environment>.")
+		}
+		return 0
 	}
 	if err := client.SetupHost(ctx, update); err != nil {
 		var status *control.StatusError

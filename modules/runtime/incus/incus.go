@@ -222,12 +222,13 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 }
 
 func (r *Runtime) SupportsWorkingDirectory() bool { return true }
+func (r *Runtime) SupportsStdin() bool            { _, ok := r.runner.(host.InputRunner); return ok }
 
 func (r *Runtime) ExecEnvironment(ctx context.Context, ref string, req core.ExecutionRequest) (core.ExecutionResult, error) {
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return core.ExecutionResult{}, err
 	}
-	if len(req.Argv) == 0 {
+	if len(req.Argv) == 0 || len(req.Stdin) > core.MaxExecutionInputBytes {
 		return core.ExecutionResult{}, core.ErrInvalidArgument
 	}
 	args := []string{"exec", ref, "--project", r.project}
@@ -238,11 +239,22 @@ func (r *Runtime) ExecEnvironment(ctx context.Context, ref string, req core.Exec
 		args = append(args, "--cwd", req.WorkingDirectory)
 	}
 	args = append(append(args, "--"), req.Argv...)
-	result, err := r.runner.Run(ctx, "incus", args...)
+	var result host.Result
+	var err error
+	if req.Stdin != nil {
+		runner, ok := r.runner.(host.InputRunner)
+		if !ok {
+			return core.ExecutionResult{}, core.ErrUnsupported
+		}
+		result, err = runner.RunWithInput(ctx, req.Stdin, "incus", args...)
+	} else {
+		result, err = r.runner.Run(ctx, "incus", args...)
+	}
 	return core.ExecutionResult{
-		ExitCode: result.ExitCode,
-		Stdout:   result.Stdout,
-		Stderr:   result.Stderr,
+		ExitCode:        result.ExitCode,
+		StdoutTruncated: result.StdoutTruncated, StderrTruncated: result.StderrTruncated, StdoutBytes: result.StdoutBytes, StderrBytes: result.StderrBytes,
+		Stdout: result.Stdout,
+		Stderr: result.Stderr,
 	}, err
 }
 

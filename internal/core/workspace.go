@@ -102,7 +102,10 @@ type EnvironmentRuntime struct {
 	Resources ResourceBudget
 }
 
+const MaxExecutionInputBytes = 1 << 20
+
 type ExecutionRequest struct {
+	Stdin            []byte
 	WorkingDirectory string
 	Argv             []string
 }

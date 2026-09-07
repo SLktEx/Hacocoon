@@ -111,6 +111,15 @@ func (r *Router) ExecEnvironment(ctx context.Context, rawRef string, req core.Ex
 			return core.ExecutionResult{}, core.ErrUnsupported
 		}
 	}
+	if len(req.Stdin) > core.MaxExecutionInputBytes {
+		return core.ExecutionResult{}, core.ErrInvalidArgument
+	}
+	if req.Stdin != nil {
+		supported, ok := provider.(interface{ SupportsStdin() bool })
+		if !ok || !supported.SupportsStdin() {
+			return core.ExecutionResult{}, core.ErrUnsupported
+		}
+	}
 	return provider.ExecEnvironment(ctx, ref, req)
 }
 
