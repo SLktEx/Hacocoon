@@ -675,3 +675,5 @@ Environment 範囲の E2E と製品 CLI E2E は成功しました。
 Windows run 34133686648 は DNS・通常 SSH の再利用/再開・VS Code が成功し、
 project setup で失敗しました。実運用 runner decorator が Incus exec の optional な
 stdin 契約を引き継ぐ修正を加えています。修正後の installed 検証は再実行待ちです。
+
+保存 Policy に Environment 単位・全 Environment の毎回承認を追加しました。terminal で今回の許可・拒否を別に確認し、ask の保存から allow を作りません。通常の Git/通知への統合と、それらを不変の Environment identity に結び付ける作業は未完了です。

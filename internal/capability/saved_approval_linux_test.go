@@ -50,3 +50,56 @@ func TestSavedApprovalAuditsBeforeSavingAndPreservesPromptAuthority(t *testing.T
 		}
 	}
 }
+
+func TestSavedAskIsDurableAndNeverBecomesAllow(t *testing.T) {
+	for _, choice := range []SavedChoice{AskEnvironment, AskGlobal} {
+		for _, approved := range []bool{false, true} {
+			path := filepath.Join(t.TempDir(), "policy.json")
+			if err := os.WriteFile(path, []byte(`{"default":"require-approval","rules":[]}`), 0600); err != nil {
+				t.Fatal(err)
+			}
+			evaluator := NewFilePolicyEvaluator(path)
+			provider := &fakeProvider{}
+			service := newTestService(t, evaluator, nil, &fakeAudit{}, provider)
+			request := core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev"}
+			_, err := service.RequestWithDecision(context.Background(), request, func(context.Context, core.ApprovalRequest) (ApprovalDecision, error) {
+				return ApprovalDecision{Approved: approved, Save: choice}, nil
+			})
+			if approved && err != nil {
+				t.Fatal(err)
+			}
+			if !approved && !errors.Is(err, core.ErrApprovalDenied) {
+				t.Fatalf("declined ask: %v", err)
+			}
+			wantCalls := 0
+			if approved {
+				wantCalls = 1
+			}
+			if provider.calls != wantCalls {
+				t.Fatal("saving ask changed one-shot execution")
+			}
+			policy, err := evaluator.load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(policy.SavedDecisions) != 1 || policy.SavedDecisions[0].Decision != core.PolicyRequireApproval {
+				t.Fatal("ask was not persisted")
+			}
+			scope := "dev"
+			if choice == AskGlobal {
+				scope = "*"
+			}
+			if policy.SavedDecisions[0].Environment != scope {
+				t.Fatal("wrong ask scope")
+			}
+			prompted := false
+			_, err = service.RequestWithDecision(context.Background(), request, func(context.Context, core.ApprovalRequest) (ApprovalDecision, error) {
+				prompted = true
+				return ApprovalDecision{}, nil
+			})
+			if !prompted || !errors.Is(err, core.ErrApprovalDenied) || provider.calls != wantCalls {
+				t.Fatal("saved ask auto-authorized next request")
+			}
+		}
+	}
+}

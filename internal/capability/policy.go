@@ -130,8 +130,8 @@ func validatePolicy(policy PolicyFile) error {
 		return fmt.Errorf("invalid default policy decision %q", policy.Default)
 	}
 	for _, rule := range policy.SavedDecisions {
-		if rule.Decision != core.PolicyAllow && rule.Decision != core.PolicyDeny {
-			return fmt.Errorf("saved decisions must allow or deny")
+		if !validDecision(rule.Decision) {
+			return fmt.Errorf("saved decisions must allow, deny or require approval")
 		}
 	}
 	for index, rule := range append(append([]PolicyRule(nil), policy.Rules...), policy.SavedDecisions...) {

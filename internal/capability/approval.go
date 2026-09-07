@@ -54,12 +54,13 @@ func (a *StdioApproval) decide(ctx context.Context, req core.ApprovalRequest, pe
 	}
 	options := "y/N"
 	if persistent {
-		options = "y/N; 1=allow this Environment, 2=deny this Environment, 3=allow all Environments, 4=deny all Environments"
+		options = "y/N; 1=allow this Environment, 2=deny this Environment, 3=allow all Environments, 4=deny all Environments, 5=ask every time in this Environment, 6=ask every time in all Environments"
 	}
 	if _, err := fmt.Fprintf(a.out, " reason=%s? [%s] ", terminalSafe(req.Reason), options); err != nil {
 		return ApprovalDecision{}, fmt.Errorf("display approval request: %w", err)
 	}
-	line, err := bufio.NewReader(io.LimitReader(a.in, 129)).ReadString('\n')
+	reader := bufio.NewReader(io.LimitReader(a.in, 258))
+	line, err := reader.ReadString('\n')
 	if err != nil && err != io.EOF {
 		return ApprovalDecision{}, err
 	}
@@ -83,11 +84,23 @@ func (a *StdioApproval) decide(ctx context.Context, req core.ApprovalRequest, pe
 			decision = ApprovalDecision{Approved: true, Save: AllowGlobal}
 		case "4":
 			decision = ApprovalDecision{Save: DenyGlobal}
+		case "5":
+			decision.Save = AskEnvironment
+		case "6":
+			decision.Save = AskGlobal
 		}
 		if decision.Save != "" {
 			if _, err := RuleForSavedChoice(request, decision.Save); err != nil {
 				return ApprovalDecision{}, err
 			}
+		}
+	}
+	if decision.Save == AskEnvironment || decision.Save == AskGlobal {
+		// Saving ask does not authorize this operation. Collect its one-shot answer
+		// from the same buffered reader, including when both lines arrived together.
+		decision.Approved, err = NewStdioApproval(reader, a.out).Approve(ctx, req)
+		if err != nil {
+			return ApprovalDecision{}, err
 		}
 	}
 	return decision, nil

@@ -27,3 +27,25 @@ func TestLegacyApprovalCannotAccidentallySave(t *testing.T) {
 		t.Fatal("legacy numeric input granted authority")
 	}
 }
+
+func TestTerminalSavedAskStillRequiresOneShotAnswer(t *testing.T) {
+	for _, tc := range []struct {
+		input    string
+		save     SavedChoice
+		approved bool
+	}{
+		{"5\nyes\n", AskEnvironment, true},
+		{"5\nno\n", AskEnvironment, false},
+		{"6\nyes\n", AskGlobal, true},
+		{"6\n", AskGlobal, false},
+	} {
+		var out bytes.Buffer
+		decision, err := NewStdioApproval(strings.NewReader(tc.input), &out).Decide(context.Background(), core.ApprovalRequest{CapabilityRequest: core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev"}})
+		if err != nil || decision.Save != tc.save || decision.Approved != tc.approved {
+			t.Fatalf("%q: %#v %v", tc.input, decision, err)
+		}
+		if !strings.Contains(out.String(), "[y/N]") {
+			t.Fatal("ask did not request one-shot approval")
+		}
+	}
+}

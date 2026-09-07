@@ -16,6 +16,8 @@ const (
 	DenyEnvironment  SavedChoice = "deny-environment"
 	AllowGlobal      SavedChoice = "allow-global"
 	DenyGlobal       SavedChoice = "deny-global"
+	AskEnvironment   SavedChoice = "ask-environment"
+	AskGlobal        SavedChoice = "ask-global"
 )
 
 func RuleForSavedChoice(request core.CapabilityRequest, choice SavedChoice) (PolicyRule, error) {
@@ -34,11 +36,11 @@ func RuleForSavedChoice(request core.CapabilityRequest, choice SavedChoice) (Pol
 		rule.Attributes[key] = value
 	}
 	switch choice {
-	case AllowEnvironment, DenyEnvironment:
+	case AllowEnvironment, DenyEnvironment, AskEnvironment:
 		if strings.TrimSpace(request.Environment) == "" || request.Environment == "*" {
 			return PolicyRule{}, core.ErrInvalidArgument
 		}
-	case AllowGlobal, DenyGlobal:
+	case AllowGlobal, DenyGlobal, AskGlobal:
 		rule.Environment = "*"
 	default:
 		return PolicyRule{}, core.ErrInvalidArgument
@@ -48,6 +50,8 @@ func RuleForSavedChoice(request core.CapabilityRequest, choice SavedChoice) (Pol
 		rule.Decision = core.PolicyAllow
 	case DenyEnvironment, DenyGlobal:
 		rule.Decision = core.PolicyDeny
+	case AskEnvironment, AskGlobal:
+		rule.Decision = core.PolicyRequireApproval
 	}
 	if err := validatePolicy(PolicyFile{Rules: []PolicyRule{rule}}); err != nil {
 		return PolicyRule{}, err

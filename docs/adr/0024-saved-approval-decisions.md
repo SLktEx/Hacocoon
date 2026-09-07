@@ -1,8 +1,8 @@
 # ADR 0024: Saved approval decisions preserve administrator Policy
 
-Status: accepted; controller transport and user interface integration pending.
+Status: accepted; controller/terminal support implemented; ordinary Git/notification integration pending.
 
-Persistent choices are explicit allow/deny for the selected Environment or for
+Persistent choices are explicit allow/deny/require-approval for the selected Environment or for
 all Environments. They are stored as saved_decisions in the same human-editable
 Policy JSON. They never replace administrator rules. Both lists participate in
 deny > require-approval > allow evaluation; default applies only without matches.
@@ -29,3 +29,8 @@ rule with the same complete match scope. A saved allow never removes deny/ask.
 Rejected: mixing generated choices into administrator rules, silently widening
 commit/attribute scopes, granting persistence after a failed approval audit,
 and pretending a failed persistence operation was a successful one-shot choice.
+
+Saving require-approval preserves that restriction for later matching requests.
+The current request still needs its own explicit yes/no answer; saving ask is
+never treated as a grant. Environment and global ask use the same rule storage
+and precedence as hand-edited require-approval rules.

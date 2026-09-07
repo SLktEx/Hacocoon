@@ -109,4 +109,12 @@ assert "saved-choice-secret" not in audit
 assert "allow-environment" in audit
 PY
 
-echo "PASS: Hacocoon capability approval / saved scope / replay E2E"
+ask_output="$(printf '5\nyes\n' | "$haco" capability request local.echo echo --resource ask-always --environment first --param message=ask-once 2>"$root/ask.err")"
+[[ "$ask_output" == "ask-once" ]]
+if "$haco" capability request local.echo echo --resource ask-always --environment first --param message=must-not-run </dev/null >"$root/ask-again.out" 2>"$root/ask-again.err"; then
+  echo "saved ask unexpectedly authorized another request" >&2
+  exit 1
+fi
+[[ ! -s "$root/ask-again.out" ]]
+grep -Fq 'Approve capability' "$root/ask-again.err"
+echo "PASS: Hacocoon capability approval / saved scope / replay / persistent ask E2E"

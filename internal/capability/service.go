@@ -158,7 +158,7 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 		approved := decision.Approved
 		if approvalErr == nil && decision.Save != "" {
 			rule, choiceErr := RuleForSavedChoice(req, decision.Save)
-			if choiceErr != nil || (rule.Decision == core.PolicyAllow) != approved {
+			if choiceErr != nil || (rule.Decision != core.PolicyRequireApproval && (rule.Decision == core.PolicyAllow) != approved) {
 				approvalErr = core.ErrInvalidArgument
 			}
 		}

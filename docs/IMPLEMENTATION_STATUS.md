@@ -802,8 +802,7 @@ See [diagnostic scope](design/controller-client-transport.md#environment-diagnos
 
 Status: **partial roadmap D1**. Matching explicit Policy rules now use
 `deny > require-approval > allow`, replacing first-match ordering. Environment
-and attribute matching are unchanged; the default remains a fallback. The four
-persistent choices now have typed scope conversion, a protected atomic writer
+and attribute matching are unchanged; the default remains a fallback. Persistent choices now have typed scope conversion, a protected atomic writer
 and audited service integration. Controller stream and terminal component support are implemented; ordinary
 product Git queue and notification integration remain unimplemented.
 See [precedence](design/policy-and-capability-foundation.md#matching-rule-precedence).
@@ -822,3 +821,5 @@ local saved-choice/replay/Environment-scope E2E and product CLI E2E passed.
 Windows run 34133686648 passed DNS, ordinary SSH reuse/resume and VS Code, then
 failed project setup. Production runner decorators now retain the optional stdin
 contract for Incus exec; installed acceptance of this fix remains pending.
+
+Saved Policy now also supports Environment/global require-approval. The terminal asks a separate y/N for the current request; saving ask never creates allow. Ordinary Git/notification integration and binding these product flows to immutable Environment identity remain incomplete.
