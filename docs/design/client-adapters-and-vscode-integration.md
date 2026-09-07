@@ -244,6 +244,7 @@ Status: **implemented product commands; installed Windows and editor acceptance 
 haco ssh setup dev
 ssh haco-dev
 haco open dev
+haco open --client ssh dev
 ```
 
 If exactly one Environment exists, omit `dev`. With multiple Environments,
@@ -251,7 +252,10 @@ the command lists names and asks for a name on the next invocation. `haco open`
 performs the same setup then launches the installed VS Code on `/workspace`
 through Remote-SSH; if its extension is absent, the client installs it with the
 installed VS Code CLI before launch. Installation failure is reported as failure.
-SSH setup itself remains editor-neutral.
+SSH setup itself remains editor-neutral. `haco open` defaults to VS Code, while
+`--client ssh` opens a terminal in `/workspace` without requiring an editor.
+Remote-SSH needs its requested dynamic forwarding: generated settings use
+`ClearAllForwardings no` and `GatewayPorts no`; agent forwarding remains disabled.
 
 In WSL (including trusted haco-host), the client resolves the Windows profile and
 uses Windows ssh-keygen. On Linux it uses the local client home. The private key

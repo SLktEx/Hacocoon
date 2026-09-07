@@ -1,5 +1,29 @@
 # Implementation Status
 
+## Current desktop-development checkpoint
+
+Status: **partial roadmap C**. `haco open [--client vscode|ssh] [environment]`
+defaults to VS Code, with a terminal alternative and no name needed for one
+Environment. Generated SSH settings now preserve Remote-SSH dynamic forwarding
+while keeping client listeners on loopback; agent forwarding stays disabled.
+
+The ordinary Windows installer upgraded the existing distribution to `8752431`
+(v0.33, build `2026-09-07T06:44:17Z`). Doctor passed all six checks and the
+existing `stage-b-git-dev` Environment/Workspace registration was preserved.
+Installer ZIP SHA-256:
+`c2c5b720643d98e586996e2d2413d1af196d764331e2b160a5bda647c76946a9`.
+All four GHA workflows passed at that commit. The installed candidate predates
+the client-choice and forwarding fixes; their installed acceptance remains pending.
+
+Live local VS Code acceptance is **SKIP pending explicit approval**. Automatic
+approval review rejected temporary Ubuntu package-egress rules for test Environment
+`desktop-8752431`. No rule was applied or retried indirectly. The approval question
+is pending; the test Environment is stopped and its Workspace retained.
+Linux OpenSSH reproduced the forwarding restriction, and corrected settings passed
+Linux/native Windows parsing. A raw Incus fixture first failed with haco-host
+stopped after cold entry; ordinary interactive WSL entry then allowed the fixture
+to pass. Configuration parsing is not editor-connection acceptance.
+
 ## Independent persistent Store copies
 
 Status: **implemented storage slice; full revised B4 remains partial**. Based on

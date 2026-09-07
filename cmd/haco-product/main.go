@@ -135,7 +135,7 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
 	fmt.Fprintln(out, "  env        Create, inspect and access development Environments")
 	fmt.Fprintln(out, "  ssh setup  Prepare desktop SSH keys and connection settings")
-	fmt.Fprintln(out, "  open       Open an Environment in VS Code")
+	fmt.Fprintln(out, "  open       Open an Environment in a desktop client")
 	fmt.Fprintln(out, "  base       List and inspect Environment starting points")
 	fmt.Fprintln(out, "  plugin     Optional integrations, including persistent OCI Stores")
 	fmt.Fprintln(out, "  repo       Clone a repository inside the trusted Host")

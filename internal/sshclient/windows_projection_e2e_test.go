@@ -49,12 +49,12 @@ func TestWindowsDesktopProjectionE2E(t *testing.T) {
 	// -F selects only this fixture's managed host entry. -G parses configuration
 	// without opening a network connection or reading the operator's SSH config.
 	config := desktop.NativeHome + "\\.ssh\\hacocoon\\projection.conf"
-	out, err := exec.CommandContext(ctx, "ssh.exe", "-G", "-F", config, alias).Output()
+	out, err := exec.CommandContext(ctx, "ssh.exe", "-G", "-D", "127.0.0.1:49101", "-F", config, alias).Output()
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := strings.ReplaceAll(string(out), "\r\n", "\n")
-	for _, want := range []string{"hostname 127.0.0.1\n", "port 23001\n", "stricthostkeychecking true\n", "hostkeyalias haco-projection\n"} {
+	for _, want := range []string{"hostname 127.0.0.1\n", "port 23001\n", "stricthostkeychecking true\n", "hostkeyalias haco-projection\n", "dynamicforward [127.0.0.1]:49101\n"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("native SSH projection missing %q", want)
 		}

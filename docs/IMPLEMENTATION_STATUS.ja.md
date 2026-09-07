@@ -1,5 +1,26 @@
 # 実装状況
 
+## 現在のdesktop開発checkpoint
+
+Status: **ロードマップCはpartial**。`haco open [--client vscode|ssh] [environment]`は
+VS Codeを既定とし、terminalも選べます。環境が1つなら名前を省略できます。
+SSH設定はRemote-SSHの動的転送を保持し、clientの待受をloopbackに限定します。
+agent転送は無効のままです。
+
+通常Windows installerで既存distributionを`8752431`へ更新しました。
+v0.33、buildは`2026-09-07T06:44:17Z`です。doctor全6項目が成功し、
+既存`stage-b-git-dev`とWorkspaceの登録も保持しました。ZIP SHA-256は
+`c2c5b720643d98e586996e2d2413d1af196d764331e2b160a5bda647c76946a9`です。
+同commitのGHA全4本も成功しました。installed候補はclient選択・転送修正より前のため、
+これらのinstalled受入は未実行です。
+
+実端末のVS Code接続は**明示許可待ちのためSKIP**です。検証用`desktop-8752431`への
+Ubuntu package通信ルール追加を自動承認レビューが拒否しました。ルールの適用・別経路の
+再試行はせず、質問を保留しています。検証環境は停止しWorkspaceを保持しました。
+Linux OpenSSHで転送制限を再現し、修正後はLinux/Windows nativeの設定解釈が成功しました。
+cold entry後のraw Incus fixtureはHost未起動で一度失敗し、通常の対話WSL入口を通した後は
+成功しました。設定解釈はeditor接続成功を意味しません。
+
 ## 永続Storeの独立コピー
 
 状態: **storageの実装単位はimplemented、改訂B4全体はpartial**。

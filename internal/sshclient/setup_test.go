@@ -147,3 +147,30 @@ func TestRenderRejectsSSHConfigInjection(t *testing.T) {
 		t.Fatal("accepted injected key")
 	}
 }
+
+func TestManagedConfigPreservesVSCodeDynamicForward(t *testing.T) {
+	ssh, err := exec.LookPath("ssh")
+	if err != nil {
+		t.Skip("OpenSSH client unavailable")
+	}
+	config, _, err := render("dev", saved{Runtime: "owned", Connection: core.ClientConnection{Kind: "ssh", Host: "127.0.0.1", Port: 23000, TargetPort: 22, User: "root", HostPublicKey: testKey}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "config")
+	if err = os.WriteFile(path, []byte(config), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(ssh, "-G", "-D", "127.0.0.1:49101", "-F", path, "haco-dev").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "dynamicforward [127.0.0.1]:49101") {
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.Contains(line, "forward") {
+				t.Log(line)
+			}
+		}
+		t.Fatal("managed SSH config discarded the VS Code forwarding request")
+	}
+}

@@ -1,8 +1,25 @@
 # Windows OpenSSH access to an Environment
 
-Status: implemented manual configuration; real Windows acceptance belongs in
-[implementation status](../IMPLEMENTATION_STATUS.md). Automatic SSH config
-installation and VS Code integration remain planned Stage C work.
+Status: automatic SSH setup is implemented; commit-bound Windows/editor acceptance
+belongs in [implementation status](../IMPLEMENTATION_STATUS.md).
+
+From trusted haco-host:
+
+```bash
+haco ssh setup my-dev
+haco open my-dev
+# Optional terminal client:
+haco open --client ssh my-dev
+```
+
+A single Environment needs no name. Setup manages Windows-owned keys, host-key
+pins and the SSH include, resumes stopped Environments and reuses matching
+connections. See the [client contract](../design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening)
+for ownership and recovery.
+
+## Advanced manual configuration
+
+The existing explicit public-key/configuration flow remains available:
 
 Use Windows standard `%WINDIR%\System32\OpenSSH\ssh.exe` and `ssh-keygen.exe`.
 Create a dedicated keypair on Windows. The private key stays in that Windows

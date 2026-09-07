@@ -195,7 +195,7 @@ func render(name string, s saved) (string, string, error) {
 		return "", "", err
 	}
 	alias := "haco-" + name
-	content := fmt.Sprintf("%s%s\nHost %s\n  HostName %s\n  Port %d\n  User root\n  IdentityFile ~/.ssh/hacocoon/identity\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n  HostKeyAlias %s\n  UserKnownHostsFile ~/.ssh/%s\n  GlobalKnownHostsFile none\n  CheckHostIP no\n  ProxyCommand none\n  ProxyJump none\n  ForwardAgent no\n  ClearAllForwardings yes\n  PermitLocalCommand no\n", prefix, meta, alias, ip.String(), c.Port, alias, knownPath(s))
+	content := fmt.Sprintf("%s%s\nHost %s\n  HostName %s\n  Port %d\n  User root\n  IdentityFile ~/.ssh/hacocoon/identity\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n  HostKeyAlias %s\n  UserKnownHostsFile ~/.ssh/%s\n  GlobalKnownHostsFile none\n  CheckHostIP no\n  ProxyCommand none\n  ProxyJump none\n  ForwardAgent no\n  ClearAllForwardings no\n  GatewayPorts no\n  PermitLocalCommand no\n", prefix, meta, alias, ip.String(), c.Port, alias, knownPath(s))
 	return content, alias + " " + key + "\n", nil
 }
 func identity(ctx context.Context, f *files, d Desktop) (string, error) {

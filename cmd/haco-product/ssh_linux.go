@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -18,16 +20,25 @@ func runSSH(args []string) int {
 		fmt.Fprintln(os.Stderr, "Usage: haco ssh setup [environment]")
 		return 2
 	}
-	return setupDesktopSSH(args[1:], false)
+	return setupDesktopSSH(args[1:], "")
 }
 func runOpen(args []string) int {
-	if len(args) > 1 {
-		fmt.Fprintln(os.Stderr, "Usage: haco open [environment]")
+	flags := flag.NewFlagSet("haco open", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	selected := flags.String("client", "vscode", "desktop client: vscode or ssh")
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
-	return setupDesktopSSH(args, true)
+	if flags.NArg() > 1 || (*selected != "vscode" && *selected != "ssh") {
+		fmt.Fprintln(os.Stderr, "Usage: haco open [--client vscode|ssh] [environment]")
+		return 2
+	}
+	return setupDesktopSSH(flags.Args(), *selected)
 }
-func setupDesktopSSH(args []string, launch bool) int {
+func setupDesktopSSH(args []string, launch string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 	client, err := controlapi.NewDefaultClient()
@@ -64,7 +75,22 @@ func setupDesktopSSH(args []string, launch bool) int {
 		return 1
 	}
 	fmt.Fprintln(os.Stdout, "SSH ready:", alias)
-	if !launch {
+	if launch == "" {
+		return 0
+	}
+	if launch == "ssh" {
+		executable := "ssh"
+		if desktop.Windows {
+			executable = "ssh.exe"
+		}
+		command := exec.Command(executable, "-t", alias, "cd /workspace && exec bash -l")
+		command.Stdin = os.Stdin
+		command.Stdout = os.Stdout
+		command.Stderr = os.Stderr
+		if err := command.Run(); err != nil {
+			fmt.Fprintln(os.Stderr, "haco: SSH client:", err)
+			return 1
+		}
 		return 0
 	}
 	executable, err := sshclient.Editor(ctx, desktop)
