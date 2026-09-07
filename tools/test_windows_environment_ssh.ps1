@@ -269,6 +269,49 @@ haco open --port 3000 --no-browser "$name"
         if ($previewUrl -notmatch '^http://127\.0\.0\.1:[0-9]{1,5}/$') { throw 'Preview returned an unsafe URL' }
         $previewResponse = Invoke-WebRequest -Uri ($previewUrl + 'windows-marker') -TimeoutSec 10
         if ($previewResponse.Content.Trim() -ne 'windows-workspace-ok') { throw 'Preview reached a different Workspace' }
+
+        # Render through an actual browser engine using an isolated disposable profile.
+        $edge = Join-Path ${env:ProgramFiles(x86)} 'Microsoft/Edge/Application/msedge.exe'
+        if (Test-Path -LiteralPath $edge -PathType Leaf) {
+            $browserProfile = Join-Path $Work 'preview-edge'
+            $browserStart = [Diagnostics.ProcessStartInfo]::new()
+            $browserStart.FileName = $edge
+            $browserStart.UseShellExecute = $false
+            $browserStart.CreateNoWindow = $true
+            $browserStart.RedirectStandardOutput = $true
+            $browserStart.RedirectStandardError = $true
+            foreach ($argument in @('--headless', '--disable-gpu', '--no-first-run', '--disable-background-mode', "--user-data-dir=$browserProfile", '--dump-dom', ($previewUrl + 'windows-marker'))) {
+                [void]$browserStart.ArgumentList.Add($argument)
+            }
+            $browserProcess = [Diagnostics.Process]::new()
+            $browserProcess.StartInfo = $browserStart
+            try {
+                if (-not $browserProcess.Start()) { throw 'Could not start preview browser' }
+                $browserOutput = $browserProcess.StandardOutput.ReadToEndAsync()
+                $browserError = $browserProcess.StandardError.ReadToEndAsync()
+                if (-not $browserProcess.WaitForExit(30000)) {
+                    $browserProcess.Kill($true)
+                    $browserProcess.WaitForExit()
+                    throw 'Preview browser timed out'
+                }
+                $rendered = $browserOutput.GetAwaiter().GetResult()
+                [void]$browserError.GetAwaiter().GetResult()
+                if ($browserProcess.ExitCode -ne 0 -or $rendered -notmatch 'windows-workspace-ok') { throw 'Browser did not render the Workspace marker' }
+                Write-Host 'WINDOWS EDGE HEADLESS PREVIEW RENDER: PASS'
+            } finally {
+                $browserProcess.Dispose()
+                if (Test-Path -LiteralPath $browserProfile) {
+                    $expectedBrowserProfile = [IO.Path]::GetFullPath((Join-Path $Work 'preview-edge'))
+                    $actualBrowserProfile = (Resolve-Path -LiteralPath $browserProfile).Path
+                    if ($actualBrowserProfile -ne $expectedBrowserProfile -or ((Get-Item -LiteralPath $browserProfile).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+                        throw 'Refusing unsafe preview browser profile cleanup'
+                    }
+                    Remove-Item -LiteralPath $actualBrowserProfile -Recurse -Force
+                }
+            }
+        } else {
+            Write-Host 'SKIP: Edge browser executable absent; Windows HTTP preview is tested separately'
+        }
         $reusedPreview = Invoke-HacoHost @('/usr/local/bin/haco', 'open', '--port', '3000', '--no-browser', $EnvironmentName) 'Reuse preview connection'
         if ($reusedPreview.Stdout.Trim() -ne $previewUrl) { throw 'Preview did not reuse its connection' }
         [void](Invoke-HacoHost @('/usr/local/bin/haco', 'open', '--port', '3000', '--close', $EnvironmentName) 'Close preview connection')
