@@ -715,3 +715,12 @@ trigger cleanup; the corrected transport passes that regression and focused race
 tests. Execution disconnects return to canonical bounded cleanup, with result and
 cleanup errors preserved. Product `haco run` UX and real-Incus cancellation acceptance
 remain **pending**; this is not a completed `--rm` feature.
+
+Windows GHA at `703ec76` **failed** in VS Code executable discovery after SSH
+setup and observer installation; the other three workflows passed. Editor lookup
+now uses the exact `code.cmd` from the captured Windows PATH before native PATH
+fallback, and passes that selected path as encoded data when preparing extensions.
+The updated actual-Windows preparation fixture passed through the installed trusted
+Host. The development Ubuntu distro fixture failed earlier with `exec format error`
+starting PowerShell; that separate environment failure was not counted as a pass.
+These preparation checks still do not prove editor/server connectivity; new GHA is pending.

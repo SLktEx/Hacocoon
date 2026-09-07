@@ -613,3 +613,10 @@ VS Code serverへの接続成功を示すものではなく、更新後のGHA de
 修正後は回帰テストと対象の race test が成功しています。接続の切断で canonical な期限付きの
 後片付けへ戻り、実行結果と削除エラーを保持します。product の `haco run` UX と実際の Incus での
 中断検証は **pending** であり、`--rm` 機能全体の完了ではありません。
+
+`703ec76` の Windows GHA は SSH 準備と observer install 後、VS Code executable の探索で **失敗** しました。
+他の3つの workflow は成功しました。探索は保存された Windows PATH の `code.cmd` を優先し、
+native PATH を代替とします。拡張の準備にも選択済みのパスを符号化したデータとして渡します。
+修正後の実 Windows 準備 fixture はインストール済み trusted Host 経由で成功しました。
+その前の開発用 Ubuntu fixture は PowerShell 起動の `exec format error` で失敗しており、成功には数えていません。
+この準備検証は editor/server 接続の成功ではなく、更新した GHA の結果は pending です。

@@ -299,3 +299,8 @@ The observer is a test artifact, never a product extension or workload dependenc
 Only bounded stage/result metadata is reported; remote logs and server tokens are
 not uploaded. Failure and timeout fail the job. The local package-egress approval
 question does not grant permission to change local policy through this fixture.
+
+Windows editor discovery prefers the exact `code.cmd` in the trusted Host's captured
+Windows PATH. A native child can have a different PATH; extension preparation uses
+the selected CLI path as encoded data rather than resolving a second executable.
+Native Windows PATH discovery remains the fallback when the captured PATH has no CLI.
