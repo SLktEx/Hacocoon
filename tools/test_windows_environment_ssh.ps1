@@ -35,7 +35,16 @@ function Invoke-Captured([string]$FileName, [string[]]$Arguments) {
     }
     $stdoutTask = $process.StandardOutput.ReadToEndAsync()
     $stderrTask = $process.StandardError.ReadToEndAsync()
-    $process.WaitForExit()
+    if (-not $process.WaitForExit(300000)) {
+        $process.Kill($true)
+        [void]$process.WaitForExit(10000)
+        $process.Dispose()
+        throw "Acceptance child exceeded five minutes: $FileName"
+    }
+    if (-not [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($stdoutTask, $stderrTask), 10000)) {
+        $process.Dispose()
+        throw "Acceptance child output did not close: $FileName"
+    }
     $stdout = $stdoutTask.GetAwaiter().GetResult()
     $stderr = $stderrTask.GetAwaiter().GetResult()
     return [pscustomobject]@{
@@ -46,6 +55,7 @@ function Invoke-Captured([string]$FileName, [string[]]$Arguments) {
 }
 
 function Invoke-Checked([string]$FileName, [string[]]$Arguments, [string]$Description) {
+    Write-Host "ACCEPTANCE: $Description"
     $result = Invoke-Captured $FileName $Arguments
     if ($result.ExitCode -ne 0) {
         $details = @($result.Stderr.Trim(), $result.Stdout.Trim()) | Where-Object { $_ }

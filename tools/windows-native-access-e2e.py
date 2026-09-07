@@ -10,7 +10,38 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
+
+
+def run_acceptance(command, timeout=1800):
+    # File-backed output cannot hold communicate() open through a surviving
+    # WSL descendant after the immediate PowerShell process exits.
+    with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+        process = subprocess.Popen(command, stdout=stdout, stderr=stderr)
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            if os.name == 'nt':
+                subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               timeout=15, check=False)
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=15)
+            raise RuntimeError('Native acceptance child timed out') from error
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=15)
+        stdout.seek(0)
+        stderr.seek(0)
+        limit = 4 * 1024 * 1024
+        out, err = stdout.read(limit + 1), stderr.read(limit + 1)
+        if len(out) > limit or len(err) > limit:
+            raise RuntimeError('Native acceptance output exceeded its limit')
+        return subprocess.CompletedProcess(command, process.returncode,
+            out.decode('utf-8', errors='replace'), err.decode('utf-8', errors='replace'))
 
 
 def main():
@@ -32,6 +63,7 @@ def main():
     def drive(output, process):
         nonlocal stage, sent_at
         if stage == 0 and driver.cmd_prompt_count(output):
+            print('NATIVE ACCEPTANCE: entering ordinary Host terminal', flush=True)
             process.write('wsl -d Hacocoon\r\n')
             stage, sent_at = 1, len(output)
         elif stage == 1 and re.search(r'(?m)^[^\r\n]*@haco-host:[^\r\n]*[#\$]\s*$', output[sent_at:]):
@@ -45,8 +77,9 @@ def main():
                     scripts.append(('test_host_customization.ps1', []))
                 scripts.append(scripts[0])
             for name, options in scripts:
-                result = subprocess.run([powershell, '-NoLogo', '-NoProfile', '-NonInteractive',
-                    '-ExecutionPolicy', 'Bypass', '-File', str(here / name), *options], timeout=1800, capture_output=True, text=True, encoding='utf-8', errors='replace')
+                print(f'NATIVE ACCEPTANCE START: {name}', flush=True)
+                result = run_acceptance([powershell, '-NoLogo', '-NoProfile', '-NonInteractive',
+                    '-ExecutionPolicy', 'Bypass', '-File', str(here / name), *options], timeout=1800)
                 print(result.stdout, result.stderr, flush=True)
                 expected = 'Direct .exe / Windows PATH / stdout / stderr / exit 23 / spaces: PASS' if name == 'test_windows_host_interop.ps1' else 'WINDOWS DIRECT ENVIRONMENT SSH: PASS'
                 if name == 'test_host_customization.ps1': expected = 'HOST CUSTOMIZATION SAVE / REPLAY / UPDATE / CLEAR: PASS'
