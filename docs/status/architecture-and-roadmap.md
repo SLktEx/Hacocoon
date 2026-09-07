@@ -95,6 +95,10 @@ After those B gaps, proceed in this order:
 - C: repeatable `haco ssh setup`, optional VS Code environment/workspace selection,
   Host customization, Windows DNS for both Host and Environment, project setup,
   restricted preview and concise diagnostics. `haco open` stays editor-neutral.
+- After VS Code connection/edit/build/test is usable: expose a short temporary
+  Environment execution flow, analogous to `docker run --rm`, with automatic
+  runtime cleanup through the existing canonical ephemeral-run service. Retained
+  Workspaces and persistent data must not be silently deleted.
 - D: human-editable Git/network/AWS approval policy, exact target and scope,
   OS/optional VS Code decisions, and optional AWS operations. Domain resolution
   does not itself grant a network connection.

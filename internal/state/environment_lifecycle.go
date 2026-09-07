@@ -42,7 +42,7 @@ func (s *EnvironmentJSONStore) BeginEnvironmentCreate(_ context.Context, lease c
 	}
 	if lease.PersistentResource != (core.PersistentResourceRef{}) {
 		resource, ok := data.PersistentResources[lease.PersistentResource.ID]
-		if !ok || resource.Ref() != lease.PersistentResource || resource.State != "ready" {
+		if !ok || resource.Ref() != lease.PersistentResource || resource.State != "ready" || resource.SourceOnly || (resource.WorkspaceID != "" && resource.WorkspaceID != lease.WorkspaceID) {
 			return fmt.Errorf("persistent resource is unavailable or changed: %w", core.ErrIncompatibleState)
 		}
 		if persistentCopyReserved(data, resource.ID) {

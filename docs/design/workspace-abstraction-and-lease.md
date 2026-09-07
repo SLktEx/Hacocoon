@@ -86,3 +86,12 @@ recovery-required aggregates cannot resume. Create/start/stop/delete serialize
 by Environment identity before provider actions, as specified in
 [ADR 0016](../adr/0016-resume-owned-environments.md). Incus verifies owned network
 isolation before start. Missing guards fail closed; reboot recovery is partial.
+
+## Default persistent-resource initialization
+
+Status: implemented optional initializer. Environment creation resolves its
+default resource under the existing lifecycle locks and includes the resulting
+identity in the canonical aggregate reservation. Resources bound to a Workspace
+cannot be attached to a different Workspace; source-only publications cannot be
+attached directly at all. Opt-out and explicit selection bypass the initializer.
+See [ADR 0017](../adr/0017-default-workspace-resource-initialization.md).

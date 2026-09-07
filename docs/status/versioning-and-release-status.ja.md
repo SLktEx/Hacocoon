@@ -1,8 +1,15 @@
 # バージョン番号とリリース状況
 
-現在のcheckpoint v0.31では `haco env start <name>` による保持済みEnvironmentの再開を追加しました。
+現在のcheckpoint v0.32では既定Storeの自動初期化、Workspaceへの対応付けと再利用、
+公開元専用の状態、任意の`--no-oci`を追加しました。公開済みsourceのコピーはローカルの
+componentと実Btrfs合成データ試験で確認しました。HostイメージproducerとDockerの
+image/runtime確認は未完了で、B4全体はpartialです。v0.31とSSH公開鍵追加はPR #482の
+`f8517ba`で4つのGHA workflowがすべて成功しました。
+
+
+先行するcheckpoint v0.31では `haco env start <name>` による保持済みEnvironmentの再開を追加しました。
 ローカルtest/raceと独立した実Incus/WSLの再開fixtureは成功しました。
-インストール済み製品経路・GHA・SSH setup自動化は未確認または未実装で、ロードマップC/E全体の完了ではありません。
+インストール済み製品経路も`f8517ba`のGHAで成功しました。SSH setup自動化は未実装で、ロードマップC/E全体の完了ではありません。
 先行するv0.30のStore copyとB4の残課題は以下に記録しています。
 
 
@@ -91,8 +98,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.29 | Persistent OCI Resources and Native Windows Access | 実装済み |
 | v0.30 | Independent Persistent Store Copies | 実装済み |
 | v0.31 | Retained Environment Resume | 実装済み |
+| v0.32 | Automatic Workspace Store Initialization | 実装済み |
 
-現在のmilestone位置は **v0.31** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.32** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

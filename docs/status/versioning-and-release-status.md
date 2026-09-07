@@ -1,9 +1,17 @@
 # Versioning and release status
 
-Current checkpoint v0.31 adds retained Environment resume through
+Current checkpoint v0.32 adds automatic default Store initialization, Workspace
+association/reuse, source-only publication state and the optional `--no-oci`.
+Ready-source copying passed local component and synthetic real-Btrfs acceptance.
+The Host image producer and Docker image/runtime acceptance remain incomplete,
+so the entire B4 flow is still partial. v0.31 and the SSH public-key addition
+passed all four PR #482 GHA workflows at `f8517ba`.
+
+
+Preceding checkpoint v0.31 adds retained Environment resume through
 `haco env start <name>`. Local test/race and an independent real Incus/WSL
-resume fixture passed. Installed-product/GHA and automatic SSH setup remain
-pending. This does not complete roadmap C/E. The preceding v0.30 Store copy
+resume fixture and installed-product GHA at `f8517ba` passed. Automatic SSH setup
+remains pending. This does not complete roadmap C/E. The preceding v0.30 Store copy
 slice and its B4 follow-ups remain described below.
 
 
@@ -98,8 +106,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.29 | Persistent OCI Resources and Native Windows Access | ✅ implemented |
 | v0.30 | Independent Persistent Store Copies | ✅ implemented |
 | v0.31 | Retained Environment Resume | ✅ implemented |
+| v0.32 | Automatic Workspace Store Initialization | ✅ implemented |
 
-The current milestone position is **v0.31**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.32**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

@@ -40,11 +40,12 @@ type environmentStore interface {
 }
 
 type Service struct {
-	runtime        environmentRuntime
-	store          environmentStore
-	provider       WorkspaceProvider
-	now            func() time.Time
-	cleanupTimeout time.Duration
+	defaultResource func(context.Context, core.Workspace) (core.PersistentResource, error)
+	runtime         environmentRuntime
+	store           environmentStore
+	provider        WorkspaceProvider
+	now             func() time.Time
+	cleanupTimeout  time.Duration
 }
 
 func New(runtime environmentRuntime, store environmentStore) *Service {
@@ -97,6 +98,9 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 	if err != nil {
 		return core.Environment{}, err
 	}
+	if spec.SkipDefaultResource && spec.PersistentResource != "" {
+		return core.Environment{}, core.ErrInvalidArgument
+	}
 	var persistent core.PersistentResource
 	if spec.PersistentResource != "" {
 		catalog, ok := s.store.(interface {
@@ -128,6 +132,15 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 		return core.Environment{}, err
 	}
 
+	if spec.PersistentResource == "" && !spec.SkipDefaultResource && s.defaultResource != nil {
+		persistent, err = s.defaultResource(ctx, workspace)
+		if err != nil {
+			return core.Environment{}, err
+		}
+		if persistent != (core.PersistentResource{}) && (persistent.WorkspaceID != workspace.ID || persistent.State != "ready" || !core.ValidPersistentResourceRef(persistent.Ref())) {
+			return core.Environment{}, core.ErrRecoveryRequired
+		}
+	}
 	lease := core.WorkspaceLease{
 		PersistentResource: persistent.Ref(),
 		WorkspaceID:        workspace.ID,
@@ -378,4 +391,10 @@ func normalizeAccessMode(mode core.WorkspaceAccessMode) (core.WorkspaceAccessMod
 
 func isNotFound(err error) bool {
 	return errors.Is(err, core.ErrNotFound) || os.IsNotExist(err)
+}
+
+// ConfigureDefaultResource installs an optional provider-neutral initializer.
+// Configure once at composition time, before serving concurrent requests.
+func (s *Service) ConfigureDefaultResource(resolve func(context.Context, core.Workspace) (core.PersistentResource, error)) {
+	s.defaultResource = resolve
 }

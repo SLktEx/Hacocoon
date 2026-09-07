@@ -406,7 +406,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.31** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.32** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|
@@ -510,7 +510,7 @@ create/start/stop/deleteをcontrollerプロセス間で直列化します。
 初回fixtureはJSON保存でGoの単調時計情報が失われるためtimestamp比較だけ失敗し、
 保存済みlease同士の比較へ修正後の再実行は成功しました。両試験runtimeは除去され、
 既存のユーザーEnvironmentは停止状態を維持しています。既存Incus E2Eにもtrusted Hostからの
-製品stop/startとWorkspace保持の検証を追加しましたが、このsourceでの製品経路全体とGHAは未実行です。
+製品stop/startとWorkspace保持の検証を追加し、`f8517ba`のGHAで成功しました。
 SSH setup自動化とHost再起動後に欠けたguardを復元する処理は未実装です。
 
 ## 通常APIからのSSH公開ホスト鍵取得
@@ -520,11 +520,27 @@ IncusのSSH準備は構造検証済みEd25519 `host_public_key` を通常のcont
 native clientは別途管理者としてIncusを呼ばず鍵を固定できます。不正な鍵では管理対象の鍵と
 proxyを撤回し、後始末の失敗はrecovery-requiredとします。公開adapterも任意fieldの鍵を再検証します。
 関連race testは成功しました。Windows native受け入れscriptもこのfieldを使うよう更新しましたが、
-新しいインストール済みWindows経路はまだ未実行です。
+インストール済みWindows経路も`f8517ba`のGHAで成功しました。
 
 利用者の補足: 開発sourceはHacocoonの作業branchへpushしてPRを出し、Git push機能の
 検証先は引き続きHacocoon-testに限定します。PR #482でv0.30/v0.31とSSH公開鍵の範囲を
 `f8517ba`として公開しました。以前の公開拒否は本体pushの明示許可により解消しました。
 B4の必須defaultを明確化しました。Environment作成時にOCIイメージの公開・COWコピーを
-自動実行し、任意のOFF指定だけを設けます。これは**planned**であり、手動Storeコピーだけでは
+自動実行し、任意のOFF指定だけを設けます。公開済みsourceのコピーは実装済みですが、Hostイメージ公開は
 完了していません。詳細はStoreの所有文書に記録しています。
+
+## Workspace Storeの自動初期化
+
+Status: **公開済みsourceのコピー・再利用・OFF指定はimplemented、B4全体はpartial**。
+通常のEnvironment作成で任意OCI連携の既定resolverを呼びます。readyかつsource-onlyの
+`oci-source:host`をWorkspaceに永続的に対応付けたStoreへコピーし、再作成では再利用します。
+`--no-oci`で省略できます。公開元がない場合も非OCI作成は利用可能です。公開元の直接接続、
+別Workspaceへの流用、不完全な公開/コピー、失敗を空データで成功扱いする経路は拒否します。
+HostのDocker/nerdctlイメージproducerは未実装で、自動イメージ配布全体の完了ではありません。
+Docker/runtime互換性も未検証です。関連回帰/race testが成功しました。実Incus/Btrfsの合成データ
+fixtureも既定resolverを通し、COW親子関係・独立書込み・source削除・後始末を確認しました。
+イメージ取得やruntime利用を証明する試験ではありません。PR #482の`f8517ba`ではWindows
+native SSHを含む4つのGHA workflowが成功しました。以降の変更には別のCI結果が必要です。
+private-registry E2Eはworkflow-dispatch限定のためSKIPです。
+追加依頼の`docker run --rm`相当の一時Environment実行は、VS Code接続確認後に既存の
+一時実行実装を活かして進めます。

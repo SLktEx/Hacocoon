@@ -11,9 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 	"github.com/SLktEx/Hacocoon/internal/state"
+	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 )
 
 // A dedicated test pool/project contains synthetic data only. This is provider
@@ -51,20 +53,24 @@ func TestRealIncusPersistentCopyE2E(t *testing.T) {
 	}
 	svc := &persistentresource.Service{Store: state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json")), Backend: &PersistentResourceBackend{Runtime: runtime}}
 	t.Logf("test-owned pool/project: %s; failure retains exact resources for inspection", pool)
-	source, err := svc.Create(ctx, "oci:source", OCIStoreKind)
+	var sourcePath string
+	marker := []byte("independent OCI Store copy test\n")
+	source, err := svc.PublishSource(ctx, ociplugin.PublishedStoreID, OCIStoreKind, func(_ context.Context, r core.PersistentResource) error {
+		sourcePath = filepath.Join("/var/lib/incus/storage-pools", pool, "custom", project+"_haco-persistent-"+r.Owner)
+		// Derived only from fresh test ownership, never guest/backend paths.
+		info, err := os.Lstat(sourcePath)
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return core.ErrIncompatibleState
+		}
+		return os.WriteFile(filepath.Join(sourcePath, "marker"), marker, 0600)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	sourcePath := filepath.Join("/var/lib/incus/storage-pools", pool, "custom", project+"_haco-persistent-"+source.Owner)
-	// The path comes only from fresh test ownership, never a guest/backend path.
-	if info, err := os.Lstat(sourcePath); err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		t.Fatalf("test volume path unavailable: %v", err)
-	}
-	marker := []byte("independent OCI Store copy test\n")
-	if err := os.WriteFile(filepath.Join(sourcePath, "marker"), marker, 0600); err != nil {
-		t.Fatal(err)
-	}
-	target, err := svc.Copy(ctx, "oci:target", OCIStoreKind, source.ID)
+	target, err := (ociplugin.WorkspaceStores{Resources: svc}).Resolve(ctx, core.Workspace{ID: "automatic-copy-work"})
 	if err != nil {
 		t.Fatal(err)
 	}

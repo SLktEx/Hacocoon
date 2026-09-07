@@ -75,3 +75,22 @@ func TestPersistentVolumeAttachRefusesProviderUseOutsideCatalog(t *testing.T) {
 		t.Fatalf("external RW attachment accepted: %v", err)
 	}
 }
+
+func TestSourceOnlyResourcesCannotBeAttachedOrMasqueradeAsGuestStores(t *testing.T) {
+	r := core.PersistentResource{ID: "oci-source:host", Kind: OCIStoreKind, Owner: strings.Repeat("a", 32), NativeRef: "pool/haco-persistent-" + strings.Repeat("a", 32), SourceOnly: true}
+	p, _ := NewSandboxProvider(New(&fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+		t.Fatal("source attachment reached provider mutation")
+		return host.Result{}, nil
+	}}))
+	if err := p.attachPersistentResource(context.Background(), "haco-dev", r); !errors.Is(err, core.ErrPolicyDenied) {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{"true", "false", "", "unexpected"} {
+		if matchesSourceOnlyMarker(marker, true) != (marker == "true") {
+			t.Fatal("source role confused")
+		}
+		if matchesSourceOnlyMarker(marker, false) != (marker == "false" || marker == "") {
+			t.Fatal("guest role confused")
+		}
+	}
+}

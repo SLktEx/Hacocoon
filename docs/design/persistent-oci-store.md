@@ -90,13 +90,18 @@ Environment data and do not attach them to the trusted Host.
 
 ## Default Environment creation flow
 
-Status: planned, required by the current user workflow. The explicit Store
+Status: **partial**. Default copy/reuse and opt-out are implemented; trusted Host
+image publication and Docker/runtime acceptance remain incomplete. The explicit Store
 commands above are implemented advanced/recovery operations, not the intended
 ordinary create sequence. Environment creation must automatically publish the
 locally prepared Docker/nerdctl images from trusted Host, make an independent
 Btrfs COW copy and attach the resulting persistent data. Users must not normally
 create, copy and name a Store separately. A single optional `--no-oci` opt-out
-is the intended product surface; it is not implemented yet.
+is implemented. When a ready source-only `oci-source:host` exists, ordinary
+creation copies it automatically into a Workspace-bound Store. When it does not
+exist, there is no published optional content to attach. The Host image producer
+that will populate it is not implemented yet; do not infer complete image delivery
+from this wiring. See [ADR 0017](../adr/0017-default-workspace-resource-initialization.md).
 
 The maintained optional OCI integration supplies this default. Core keeps a
 provider-neutral initialization contract and does not require either runtime.

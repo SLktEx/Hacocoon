@@ -180,8 +180,10 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	}
 
 	environments := workspaceapp.NewWithProvider(runtime, store, repositoryWorkspaceProvider{repositories: repositories})
+	resources := &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime}}
+	environments.ConfigureDefaultResource(ociplugin.WorkspaceStores{Resources: resources}.Resolve)
 	return &App{
-		PersistentResources: &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime}},
+		PersistentResources: resources,
 		Environments:        environments,
 		AgentHosts:          agenthostapp.New(environments, store, bindingStore),
 		Clients:             clientapp.New(runtime, store),

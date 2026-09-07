@@ -75,12 +75,13 @@ type Environment struct {
 }
 
 type EnvironmentSpec struct {
-	PersistentResource string
-	Name               string
-	WorkspacePath      string
-	AccessMode         WorkspaceAccessMode
-	Base               BaseName
-	Resources          ResourceBudget
+	SkipDefaultResource bool
+	PersistentResource  string
+	Name                string
+	WorkspacePath       string
+	AccessMode          WorkspaceAccessMode
+	Base                BaseName
+	Resources           ResourceBudget
 }
 
 type EnvironmentRuntimeSpec struct {

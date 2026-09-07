@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -41,7 +42,7 @@ func (b *PersistentResourceBackend) Create(ctx context.Context, r core.Persisten
 	if err != nil {
 		return err
 	}
-	data, _ := json.Marshal(map[string]any{"name": name, "type": "custom", "content_type": "filesystem", "config": map[string]string{"user.hacocoon.owner": r.Owner, "user.hacocoon.resource": r.ID, "user.hacocoon.kind": r.Kind}})
+	data, _ := json.Marshal(map[string]any{"name": name, "type": "custom", "content_type": "filesystem", "config": map[string]string{"user.hacocoon.owner": r.Owner, "user.hacocoon.resource": r.ID, "user.hacocoon.kind": r.Kind, "user.hacocoon.source-only": strconv.FormatBool(r.SourceOnly)}})
 	_, err = b.Runtime.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project, "-X", "POST", "--wait", "--data", string(data))
 	return err
 }
@@ -70,7 +71,7 @@ func (b *PersistentResourceBackend) observe(ctx context.Context, r core.Persiste
 	var found *persistentVolumeObservation
 	for _, v := range volumes {
 		if v.Name == name {
-			if found != nil || v.Type != "custom" || v.ContentType != "filesystem" || v.Config["user.hacocoon.owner"] != r.Owner || v.Config["user.hacocoon.resource"] != r.ID || v.Config["user.hacocoon.kind"] != r.Kind {
+			if found != nil || v.Type != "custom" || v.ContentType != "filesystem" || v.Config["user.hacocoon.owner"] != r.Owner || v.Config["user.hacocoon.resource"] != r.ID || v.Config["user.hacocoon.kind"] != r.Kind || !matchesSourceOnlyMarker(v.Config["user.hacocoon.source-only"], r.SourceOnly) {
 				return nil, core.ErrIncompatibleState
 			}
 			copy := v
@@ -118,6 +119,9 @@ func (b *PersistentResourceBackend) Delete(ctx context.Context, r core.Persisten
 }
 
 func (p *SandboxProvider) attachPersistentResource(ctx context.Context, ref string, r core.PersistentResource) error {
+	if r.SourceOnly {
+		return core.ErrPolicyDenied
+	}
 	if r == (core.PersistentResource{}) {
 		return nil
 	}
@@ -211,7 +215,7 @@ func (b *PersistentResourceBackend) Copy(ctx context.Context, source, target cor
 	}
 	// Incus refuses a destination name collision. Supply new ownership markers,
 	// never copy arbitrary source config (especially authority-bearing settings).
-	config := map[string]string{"user.hacocoon.owner": target.Owner, "user.hacocoon.resource": target.ID, "user.hacocoon.kind": target.Kind}
+	config := map[string]string{"user.hacocoon.owner": target.Owner, "user.hacocoon.resource": target.ID, "user.hacocoon.kind": target.Kind, "user.hacocoon.source-only": strconv.FormatBool(target.SourceOnly)}
 	for _, key := range []string{"volatile.idmap.last", "volatile.idmap.next"} {
 		value := observed.Config[key]
 		if value == "" {
@@ -230,4 +234,11 @@ func (b *PersistentResourceBackend) Copy(ctx context.Context, source, target cor
 	}
 	_, err = b.Runtime.runner.Run(ctx, "incus", "query", "-X", "POST", "--wait", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project, "--data", string(data))
 	return err
+}
+
+func matchesSourceOnlyMarker(marker string, sourceOnly bool) bool {
+	if sourceOnly {
+		return marker == "true"
+	}
+	return marker == "" || marker == "false"
 }

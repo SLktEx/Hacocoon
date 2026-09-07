@@ -482,7 +482,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.31**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.32**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
@@ -602,7 +602,7 @@ failed only its timestamp comparison (JSON removes Go's monotonic clock); compar
 persisted leases fixed it and the rerun passed. Both test runtimes were removed;
 the existing user Environment remained stopped. The existing Incus E2E also now
 includes trusted Host product stop/start and retained Workspace assertions;
-that complete installed-product flow and GHA remain unexecuted for this source. SSH setup automation and reconstruction of
+that installed-product flow passed GHA at `f8517ba`. SSH setup automation and reconstruction of
 missing guards after Host reboot remain unimplemented.
 
 ## SSH host public key through the ordinary API
@@ -613,12 +613,31 @@ through the ordinary controller response. Native clients can pin it without a
 separate administrator Incus command. Invalid key data revokes the managed key
 and proxy; cleanup failure is recovery-required. Public adapters revalidate the
 optional key. Related race tests passed; the Windows native acceptance script
-now consumes this field, but the new installed Windows flow has not yet run.
+now consumes this field; the installed Windows flow passed GHA at `f8517ba`.
 
 User clarification: development-source pushes go to a branch in Hacocoon and
 then a PR; Git push feature tests remain restricted to Hacocoon-test. PR #482
 publishes the v0.30/v0.31 and SSH public-key slices at `f8517ba`. The earlier
 publication rejection is resolved by explicit source-push authorization.
 The required B4 default is now explicit: automatic OCI image publication/COW
-copy at Environment creation with an optional opt-out. This is **planned**,
-not achieved by the manual Store-copy command; see the owning Store contract.
+copy at Environment creation with an optional opt-out. The ready-source copy slice
+is implemented below; Host image publication remains planned. See the owning Store contract.
+
+## Automatic Workspace Store initialization
+
+Status: **implemented ready-source copy/reuse and opt-out; full B4 remains partial**.
+Ordinary Environment creation now invokes the optional OCI default resolver.
+A ready source-only `oci-source:host` is copied to a Store durably bound to the
+Workspace; recreation reuses it. `--no-oci` skips this initialization. Without
+a publication, non-OCI creation remains usable. Source-only direct attachment,
+wrong-Workspace reuse, partial publication/copy and silent empty fallback are
+rejected. No Host Docker/nerdctl image producer exists yet; this does not complete
+automatic image delivery. Docker/runtime compatibility remains unverified.
+Related regression/race tests passed. The real Incus/Btrfs synthetic copy fixture
+also passed through the default resolver, proving COW ancestry, independent writes,
+source deletion and cleanup. It does not prove image acquisition or runtime use.
+PR #482 at `f8517ba` passed all four GHA workflows, including Windows native SSH;
+newer changes require their own CI evidence. Private-registry E2E was SKIP because
+that job is workflow-dispatch-only.
+The requested temporary `docker run --rm`-like Environment flow is scheduled after
+VS Code connection acceptance, reusing the existing ephemeral-run implementation.

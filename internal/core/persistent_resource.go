@@ -13,12 +13,14 @@ type PersistentResourceRef struct {
 }
 
 type PersistentResource struct {
-	ID        string    `json:"id"`
-	Owner     string    `json:"owner"`
-	Kind      string    `json:"kind"`
-	NativeRef string    `json:"native_ref"`
-	State     string    `json:"state"`
-	CreatedAt time.Time `json:"created_at"`
+	SourceOnly  bool        `json:"source_only,omitempty"`
+	WorkspaceID WorkspaceID `json:"workspace_id,omitempty"`
+	ID          string      `json:"id"`
+	Owner       string      `json:"owner"`
+	Kind        string      `json:"kind"`
+	NativeRef   string      `json:"native_ref"`
+	State       string      `json:"state"`
+	CreatedAt   time.Time   `json:"created_at"`
 	// CopySource reserves the exact source until a verified copy is committed.
 	CopySource PersistentResourceRef `json:"copy_source,omitempty"`
 }
