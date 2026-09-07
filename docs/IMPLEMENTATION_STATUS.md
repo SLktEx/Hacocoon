@@ -799,5 +799,13 @@ Status: **partial roadmap D1**. Matching explicit Policy rules now use
 `deny > require-approval > allow`, replacing first-match ordering. Environment
 and attribute matching are unchanged; the default remains a fallback. The four
 persistent choices now have typed scope conversion, a protected atomic writer
-and audited service integration. Controller transport and UI remain unimplemented.
+and audited service integration. Controller stream and terminal component support are implemented; ordinary
+product Git queue and notification integration remain unimplemented.
 See [precedence](design/policy-and-capability-foundation.md#matching-rule-precedence).
+
+At `a1d084b`, Windows run 34124995997 was cancelled after the job limit.
+Installed HTTPS/direct-egress checks passed; the native-access step did not
+produce DNS/SSH/VS Code completion markers. This is not acceptance success.
+`c05528a` adds bounded child/output waits and progress markers; its actual
+Windows run is pending. Three runner regressions passed on local Windows,
+including a descendant retaining inherited output.

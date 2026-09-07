@@ -8,6 +8,7 @@ import (
 	"net"
 	"strings"
 
+	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
@@ -75,15 +76,17 @@ type runResponse struct {
 }
 
 type capabilityServerFrame struct {
-	Type     string                  `json:"type"`
-	Approval *ApprovalRequestPayload `json:"approval,omitempty"`
-	Result   *core.CapabilityResult  `json:"result,omitempty"`
-	Error    *responseStatus         `json:"error,omitempty"`
+	SavedChoices bool                    `json:"saved_choices,omitempty"`
+	Type         string                  `json:"type"`
+	Approval     *ApprovalRequestPayload `json:"approval,omitempty"`
+	Result       *core.CapabilityResult  `json:"result,omitempty"`
+	Error        *responseStatus         `json:"error,omitempty"`
 }
 
 type capabilityClientFrame struct {
-	Type     string `json:"type"`
-	Approved bool   `json:"approved"`
+	Save     capabilityapp.SavedChoice `json:"save,omitempty"`
+	Type     string                    `json:"type"`
+	Approved bool                      `json:"approved"`
 }
 
 type capabilityStreamTransportError struct{ err error }
@@ -158,25 +161,43 @@ func RegisterGeneral(server *control.Server, bases baseService, runner runServic
 		return func(runCtx context.Context, conn net.Conn) error {
 			encoder := json.NewEncoder(conn)
 			decoder := json.NewDecoder(conn)
-			result, requestErr := capabilities.RequestWithApproval(runCtx, request.coreRequest(), func(approvalCtx context.Context, approval core.ApprovalRequest) (bool, error) {
+			_, savedChoices := capabilities.(interface {
+				RequestWithDecision(context.Context, core.CapabilityRequest, func(context.Context, core.ApprovalRequest) (capabilityapp.ApprovalDecision, error)) (core.CapabilityResult, error)
+			})
+			decide := func(approvalCtx context.Context, approval core.ApprovalRequest) (capabilityapp.ApprovalDecision, error) {
 				select {
 				case <-approvalCtx.Done():
-					return false, approvalCtx.Err()
+					return capabilityapp.ApprovalDecision{}, approvalCtx.Err()
 				default:
 				}
 				payload := approvalPayload(approval)
-				if err := encoder.Encode(capabilityServerFrame{Type: capabilityFrameApproval, Approval: &payload}); err != nil {
-					return false, &capabilityStreamTransportError{err: err}
+				if err := encoder.Encode(capabilityServerFrame{Type: capabilityFrameApproval, Approval: &payload, SavedChoices: savedChoices}); err != nil {
+					return capabilityapp.ApprovalDecision{}, &capabilityStreamTransportError{err: err}
 				}
 				var response capabilityClientFrame
 				if err := decoder.Decode(&response); err != nil {
-					return false, &capabilityStreamTransportError{err: err}
+					return capabilityapp.ApprovalDecision{}, &capabilityStreamTransportError{err: err}
 				}
 				if response.Type != capabilityFrameApprovalResponse {
-					return false, &capabilityStreamTransportError{err: fmt.Errorf("unexpected capability client frame %q: %w", response.Type, control.ErrProtocol)}
+					return capabilityapp.ApprovalDecision{}, &capabilityStreamTransportError{err: fmt.Errorf("unexpected capability client frame %q: %w", response.Type, control.ErrProtocol)}
 				}
-				return response.Approved, nil
-			})
+				return capabilityapp.ApprovalDecision{Approved: response.Approved, Save: response.Save}, nil
+			}
+			var result core.CapabilityResult
+			var requestErr error
+			if service, ok := capabilities.(interface {
+				RequestWithDecision(context.Context, core.CapabilityRequest, func(context.Context, core.ApprovalRequest) (capabilityapp.ApprovalDecision, error)) (core.CapabilityResult, error)
+			}); ok {
+				result, requestErr = service.RequestWithDecision(runCtx, request.coreRequest(), decide)
+			} else {
+				result, requestErr = capabilities.RequestWithApproval(runCtx, request.coreRequest(), func(ctx context.Context, r core.ApprovalRequest) (bool, error) {
+					decision, err := decide(ctx, r)
+					if decision.Save != "" {
+						return false, core.ErrUnsupported
+					}
+					return decision.Approved, err
+				})
+			}
 			var transportErr *capabilityStreamTransportError
 			if errors.As(requestErr, &transportErr) {
 				return transportErr

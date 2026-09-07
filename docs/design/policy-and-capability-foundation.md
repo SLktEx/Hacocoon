@@ -99,11 +99,15 @@ See [ADR 0023](../adr/0023-policy-restriction-precedence.md).
 
 ## Saved decisions
 
-Status: **storage and service implemented; controller/UI integration pending**.
+Status: **storage, service, controller stream and terminal component implemented;
+ordinary Git/notification integration pending**.
 The optional `saved_decisions` array uses the same rule shape, limited to allow
 or deny. It participates alongside `rules` without replacing administrator rules.
 Four explicit choices scope allow/deny to one Environment or all Environments.
 Persistence copies every authority attribute and never stores opaque parameters.
 See [ADR 0024](../adr/0024-saved-approval-decisions.md) for durability, audit failure
-and manual editing constraints. There is no installed interactive command for
-these choices yet.
+and manual editing constraints. The capability stream advertises saved-choice support before
+a client may send a persistent decision. Unsupported peers cannot silently
+downgrade it to one-shot approval. The terminal component offers y/N plus the
+four explicitly labeled persistent choices. The ordinary product Git queue and
+notification approval path are not connected to these choices yet.
