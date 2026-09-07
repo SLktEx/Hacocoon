@@ -1,12 +1,12 @@
 # クライアント中立 Interaction Event
 
-信頼された Host の haco approve で現在の承認待ちを確認できます。これは private な管理経路であり、VS Code はローカル review を開けます。OS 通知からの起動は planned です。[承認待ちの契約](design/pending-approval-review.ja.md)を参照してください。
+信頼された Host の haco approve で現在の承認待ちを確認できます。これは private な管理経路であり、VS Code はローカル review を開けます。任意の Windows native adapter は同じローカル CLI を開きます。[承認待ちの契約](design/pending-approval-review.ja.md)を参照してください。
 
 ## 承認要求の照合
 
 信頼された承認画面と Git の承認待ち情報には、通知イベント・監査・実行結果と
 同じ controller 発行の `request_id` を渡します。この照合部分は実装済みですが、
-VS Code からの review はローカル CLI を使い、OS 通知からの起動は planned です。ID 自体は権限を与えません。Git の決定には
+VS Code からの review はローカル CLI を使い、任意の Windows native adapter は同じローカル CLI を開きます。ID 自体は権限を与えません。Git の決定には
 既存の信頼された管理 endpoint と proposal ID を使います。read-only のイベント
 bridge に操作 endpoint や機密の詳細情報を追加しません。
 
@@ -115,4 +115,4 @@ optionalなVS Code presentation clientは [`../clients/vscode-notify/README.md`]
 
 `interaction.NewDefaultReader()` は local Hacocoon と同じ root 規則を使います。`HACO_ROOT` があればそれを、なければ `/var/lib/hacocoon` を使います。明示的な adapter/test では `NewReader(root)` を利用できます。
 
-任意の desktop VS Code Review は回答せずローカルの信頼された CLI を開きます。OS 通知からの起動は planned です。 [Contract](design/pending-approval-review.ja.md).
+任意の desktop VS Code Review は回答せずローカルの信頼された CLI を開きます。任意の Windows native adapter は同じローカル CLI を開きます。 [Contract](design/pending-approval-review.ja.md).

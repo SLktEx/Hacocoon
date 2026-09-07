@@ -77,6 +77,15 @@ builds:
     flags: [-trimpath]
     ldflags: [-s -w]
 
+  - id: haco-review
+    main: ./cmd/haco-review
+    binary: haco-review
+    env: [CGO_ENABLED=0]
+    goos: [windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
+
 archives:
   - id: haco
     ids:
@@ -89,6 +98,11 @@ archives:
       - haco-notify
     formats: [tar.gz]
     name_template: "haco_{{ .Os }}_{{ .Arch }}"
+
+  - id: windows-review
+    ids: [haco-review]
+    formats: [zip]
+    name_template: "haco_review_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: checksums.txt

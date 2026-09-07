@@ -1,0 +1,70 @@
+# Optional Windows desktop adapter; no controller or approval authority is stored here.
+function Get-HacocoonReviewScheme([string]$Name) {
+    if ($Name -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$') { throw 'Invalid review distribution' }
+    $hash = [Security.Cryptography.SHA256]::Create()
+    try { $bytes = $hash.ComputeHash([Text.Encoding]::UTF8.GetBytes($Name.ToLowerInvariant())) }
+    finally { $hash.Dispose() }
+    return 'hacocoon-review-' + (($bytes[0..7] | ForEach-Object { $_.ToString('x2') }) -join '')
+}
+function Install-HacocoonDesktopReview([string]$Name, [string]$BundleRoot) {
+    $scheme = Get-HacocoonReviewScheme $Name
+    $source = Join-Path $BundleRoot 'haco-review.exe'
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw 'Missing Windows review adapter' }
+    $checksumFile = Join-Path $BundleRoot 'checksums.txt'
+    $matches = @(Get-Content -LiteralPath $checksumFile | Where-Object { $_ -cmatch '^[a-f0-9]{64}  haco-review.exe$' })
+    if ($matches.Count -ne 1 -or (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant() -cne $matches[0].Substring(0,64)) { throw 'Windows review adapter checksum mismatch' }
+    $localRoot = [Environment]::GetFolderPath('LocalApplicationData')
+    if ([string]::IsNullOrWhiteSpace($localRoot)) { throw 'Windows user application directory unavailable' }
+    $directory = [IO.Path]::GetFullPath((Join-Path $localRoot ('Hacocoon\review\' + $scheme)))
+    # Only this user's application directory and ordinary descendants are accepted.
+    $cursor = $directory
+    while ($cursor.Length -ge $localRoot.Length) {
+        if ((Test-Path -LiteralPath $cursor) -and ((Get-Item -LiteralPath $cursor).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Refusing linked review directory' }
+        if ($cursor -eq $localRoot) { break }
+        $cursor = [IO.Path]::GetDirectoryName($cursor)
+    }
+    $configuration = Join-Path $directory 'review.json'
+    if (Test-Path -LiteralPath $directory) {
+        if (-not (Test-Path -LiteralPath $configuration -PathType Leaf)) { throw 'Existing review directory has no ownership configuration' }
+        if ((Get-Item -LiteralPath $configuration).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing linked review configuration' }
+        $owned = Get-Content -Raw -LiteralPath $configuration | ConvertFrom-Json
+        if ($owned.distribution -ine $Name) { throw 'Existing review directory belongs to another distribution' }
+    } else {
+        [void][IO.Directory]::CreateDirectory($directory)
+        # Durable exact ownership is recorded before another fallible installation step.
+        $json = @{ distribution = $Name } | ConvertTo-Json -Compress
+        [IO.File]::WriteAllText($configuration, $json, [Text.UTF8Encoding]::new($false))
+    }
+    $target = Join-Path $directory 'haco-review.exe'
+    if ((Test-Path -LiteralPath $target) -and ((Get-Item -LiteralPath $target).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Refusing linked review executable' }
+    $command = '"' + $target + '" "%1"'
+    $registry = 'HKCU:\Software\Classes\' + $scheme
+    if (Test-Path -LiteralPath $registry) {
+        $existing = Get-ItemProperty -LiteralPath $registry
+        if ($existing.HacocoonDistribution -ine $Name) { throw 'Review protocol is owned by another registration' }
+        $existingCommand = (Get-Item -LiteralPath ($registry + '\shell\open\command')).GetValue('')
+        if ($existingCommand -cne $command) { throw 'Review protocol command differs; inspect the existing registration' }
+    }
+    $appID = 'HKCU:\Software\Classes\AppUserModelId\' + $scheme
+    if (Test-Path -LiteralPath $appID) {
+        $owner = Get-ItemProperty -LiteralPath $appID
+        if ($owner.HacocoonDistribution -ine $Name) { throw 'Notification identity is owned by another registration' }
+    }
+    $temporary = Join-Path $directory ('adapter-' + [guid]::NewGuid().ToString('N') + '.tmp')
+    try {
+        Copy-Item -LiteralPath $source -Destination $temporary
+        Move-Item -LiteralPath $temporary -Destination $target -Force
+    } finally {
+        if (Test-Path -LiteralPath $temporary -PathType Leaf) { Remove-Item -LiteralPath $temporary }
+    }
+    [void](New-Item -Path ($registry + '\shell\open\command') -Force)
+    Set-Item -LiteralPath $registry -Value 'URL:Hacocoon approval review'
+    [void](New-ItemProperty -LiteralPath $registry -Name 'URL Protocol' -Value '' -PropertyType String -Force)
+    [void](New-ItemProperty -LiteralPath $registry -Name 'HacocoonDistribution' -Value $Name -PropertyType String -Force)
+    Set-Item -LiteralPath ($registry + '\shell\open\command') -Value $command
+    $appID = 'HKCU:\Software\Classes\AppUserModelId\' + $scheme
+    [void](New-Item -Path $appID -Force)
+    [void](New-ItemProperty -LiteralPath $appID -Name 'HacocoonDistribution' -Value $Name -PropertyType String -Force)
+    [void](New-ItemProperty -LiteralPath $appID -Name 'DisplayName' -Value ('Hacocoon (' + $Name + ')') -PropertyType String -Force)
+    Write-Host 'Windows notification review registered for this Hacocoon distribution.'
+}

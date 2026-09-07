@@ -1,5 +1,5 @@
 # Versioning and release status
-Current checkpoint v0.38 includes bounded pending approval review and optional local VS Code review. Native notification activation remains planned; installed review acceptance remains partial. See [implementation status](../IMPLEMENTATION_STATUS.md).
+Current checkpoint v0.39 adds the Windows notification review adapter and per-distribution registration. Native history/protocol/stale-refusal checks passed locally; fresh notification decisions and Linux activation remain incomplete. See [implementation status](../IMPLEMENTATION_STATUS.md).
 
 
 The partial approval slice now connects ordinary Git pending/approve/deny to
@@ -138,8 +138,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.36 | Environment Name Resolution | ✅ implemented |
 | v0.37 | Approval Configuration Editing | ✅ implemented |
 | v0.38 | Pending Approval Review | ✅ implemented |
+| v0.39 | Windows Notification Review | ✅ implemented |
 
-The current milestone position is **v0.38**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.39**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

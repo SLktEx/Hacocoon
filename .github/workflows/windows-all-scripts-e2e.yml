@@ -186,6 +186,7 @@ jobs:
       #   state. Product haco exposes help/version and setup/doctor. Trusted-host file
       #   retention here does not establish Environment/Workspace retention or SSH.
       - name: Exercise cached install, terminate/restart, and reinstall user path
+        id: installed
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -223,3 +224,8 @@ jobs:
       - name: Verify native Windows interop and strict OpenSSH through ordinary Host entry
         shell: pwsh
         run: python ./tools/windows-native-access-e2e.py
+
+      - name: Verify installed native notification review route
+        if: ${{ !cancelled() && steps.installed.outcome == 'success' }}
+        shell: pwsh
+        run: ./tools/test_windows_native_review.ps1

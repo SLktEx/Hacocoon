@@ -2,7 +2,7 @@
 
 [日本語](pending-approval-review.ja.md) | English
 
-Status: **implemented repository slice; VS Code review implemented; native activation remains planned**.
+Status: **implemented repository slice; VS Code review implemented; Windows native entry implemented; D2 acceptance partial**.
 Repository tests are separate from installed network, desktop and GitHub acceptance.
 
 ## Ordinary use
@@ -82,7 +82,7 @@ Duplicate panes for the same request are reused. Input and output are bounded;
 subprocess control characters cannot alter terminal display. Closing, Ctrl-C/D or
 fifteen-minute expiry terminates the local child and never retries or rolls back
 an already submitted decision. Failed/unknown outcomes remain visibly unconfirmed.
-Native OS notification activation remains planned. See [ADR 0029](../adr/0029-local-desktop-approval-review.md).
+Windows native entry is described below; Linux desktop activation remains planned. See [ADR 0029](../adr/0029-local-desktop-approval-review.md).
 
 Repository JS tests cover routing, input, disposal, failures and notification clicks.
 Installed GHA now probes the real custom terminal from a Remote-SSH editor with an
@@ -95,3 +95,24 @@ the full API object failed before review in real desktop acceptance. It removes
 proven owned editor/terminal probes on failure, and reports only fixed diagnostic
 steps and booleans without subprocess output. A real local test passed ordinary
 HTTPS approval decisions separately; the corrected desktop observer passed the actual local editor, terminal and stale-request refusal checks, followed by successful fixture cleanup.
+
+## Windows notification entry
+
+The Windows installer now registers an optional native review adapter for its own
+WSL distribution; advanced installation can opt out with -SkipDesktopReview. Run `haco-notify native` on the trusted WSL side to deliver the
+read-only interaction stream. Clicking an approval notification opens the existing
+`haco approve` console for that exact request. Inspect its scope and type the ordinary
+answer; opening the console never answers, saves Policy or retries an operation.
+
+Each distribution has its own user protocol and notification identity. Installing a
+test instance does not redirect another instance's notifications. The helper receives
+only a canonical request URI, fixes executable paths and the configured distribution,
+and strips environment overrides. Invalid links, extra arguments and stale requests
+fail closed. Missing registration leaves a notification without an approval action.
+Linux desktop activation remains planned; VS Code remains optional.
+
+Local Windows evidence covers native notification history with the exact protocol URI,
+Windows protocol launch of the expected helper, and the installed controller's stale
+request refusal. These used an already completed dedicated HTTPS test request. Fresh
+decisions through an OS notification and a human's visible toast click are not yet
+verified. See [ADR 0030](../adr/0030-windows-notification-review.md).

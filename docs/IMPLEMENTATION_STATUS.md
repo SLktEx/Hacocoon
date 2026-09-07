@@ -1,5 +1,32 @@
 # Implementation Status
 
+## Windows notification review
+
+Status: **implemented adapter slice; roadmap D2 remains partial**. Windows bundles
+include a native helper, checksum and per-distribution user protocol registration.
+Notifications open the existing approval console with only an exact request ID;
+they never answer or expose a management endpoint. See [the contract](design/pending-approval-review.md)
+and [ADR 0030](adr/0030-windows-notification-review.md).
+
+Local testing in Hacocoon-Review-6771f2f passed registration, installed stale-request
+and malformed-link refusal, Windows protocol launch of the exact helper, and a
+notification-history entry with the expected URI. The helper SHA256 was
+e79df7c870f6218440479ea0d833e3c3d398a2499fff0eae4cc6bfd902acfc0b.
+Later notification delivery failed before PowerShell with system error 8 because
+the native WSL executable registration was absent while interop remained enabled.
+The installed canonical WSL setup restored the registration after its normal
+validation; final delivery and exact notification-history checks passed. No /init
+fallback or notification-owned binfmt mutation was added. The reason the registration
+disappeared remains unconfirmed. The initial helper attempt failed before the trusted
+Host finished starting. Maintained local CI, focused native tests, package checks,
+PowerShell syntax, docs and GoReleaser validation passed.
+Native visible-click/fresh-decision acceptance and Linux activation remain unverified.
+
+The preceding 05c8206 passed all four GHA workflows: test 34166655131, Ubuntu
+34166655270, Incus 34166655133 and Windows 34166655142. Windows explicitly passed
+local review stale refusal, ordinary HTTPS saved-ask/allow/re-prompt denial,
+actual VS Code, preview/Edge and doctor. These results do not cover the new native adapter.
+
 The corrected observer at `05c8206` passed actual local VS Code 1.136.1 acceptance against installed `6771f2f`: Environment `win-ssh-33848c2759174f10`, Windows loopback port 40429, remote file read/write, remote terminal execution, local custom approval terminal and installed-controller stale-request refusal. Ordinary HTTPS saved-ask denial / one-shot allow / re-prompt denial passed again. The normal fixture finished with exit 0: temporary Policy, SSH connection, Environment, Workspace, keys and observer files were removed; listener absence and Windows connection refusal were verified. This is real local manual-SSH/Remote-SSH acceptance, not a fresh human approval through the UI or native toast activation.
 
 At `5283705`, test 34165137831, Ubuntu 34165137686 and Incus 34165137697 passed. Windows 34165137705 failed at local approval review and project setup for the approval prerequisite. Remote editor/terminal, ordinary setup, preview/Edge and doctor passed.
@@ -701,7 +728,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.38**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.39**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

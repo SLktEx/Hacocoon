@@ -7,7 +7,8 @@ param(
     [switch]$UseCachedWslImage,
     [switch]$SkipIncus,
     [switch]$GrantIncusAdmin,
-    [switch]$InteractiveUserSetup
+    [switch]$InteractiveUserSetup,
+    [switch]$SkipDesktopReview
 )
 
 $ErrorActionPreference = "Stop"
@@ -747,6 +748,10 @@ if (-not $SkipIncus) {
 }
 
 Write-Host ""
+if (-not $SkipIncus -and -not $SkipDesktopReview) {
+    . (Join-Path $PSScriptRoot "windows-review.ps1")
+    Install-HacocoonDesktopReview $InstanceName $PSScriptRoot
+}
 Write-Step "Hacocoon WSL installation complete"
 Write-Host "Instance: $InstanceName"
 Write-Host "Ubuntu user: $loginUser"

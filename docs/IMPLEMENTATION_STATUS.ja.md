@@ -1,5 +1,29 @@
 # 実装状況
 
+## Windows 通知からの承認確認
+
+状態: **adapter の一段階を実装済み。ロードマップ D2 は partial**。
+Windows package に native helper、checksum、distribution ごとのユーザー protocol 登録を含めます。
+通知は正確な要求 ID だけで既存の承認 console を開き、回答や管理 endpoint の公開は行いません。
+[契約](design/pending-approval-review.ja.md)と [ADR 0030](adr/0030-windows-notification-review.ja.md)を参照してください。
+
+実機 Hacocoon-Review-6771f2f で、登録・古い要求／不正リンク拒否・Windows protocol から
+正しい helper の起動・期待する URI を持つ通知履歴を確認しました。helper SHA256 は
+e79df7c870f6218440479ea0d833e3c3d398a2499fff0eae4cc6bfd902acfc0b です。
+後続の通知配送は、interop 全体は有効なのに native WSL 実行登録が欠けており、
+PowerShell 起動前の system error 8 で失敗しました。installed の正規 WSL setup が
+既存の検証後に登録を復旧し、最終の配送と正しい通知履歴確認は成功しました。
+/init 迂回や通知側の binfmt 変更は追加していません。登録が消えた原因自体は未確定です。
+最初の helper 試行は trusted Host の起動完了前で失敗しました。
+維持されている local CI、関連 native テスト、package、PowerShell 構文、
+文書、GoReleaser 設定検査は成功しました。
+画面上の通知 click と新規回答、Linux の起動導線は未確認です。
+
+先行する 05c8206 は GHA の test 34166655131、Ubuntu 34166655270、
+Incus 34166655133、Windows 34166655142 の全てが成功しました。
+Windows では local review の古い要求拒否、通常 HTTPS の ask 保存・許可・再確認拒否、
+実 VS Code、preview/Edge、doctor の成功を明示的に確認しました。新しい native adapter の証拠とは分けます。
+
 修正 observer `05c8206` と installed `6771f2f` の組合せで、実機 VS Code 1.136.1 の確認に成功しました。Environment `win-ssh-33848c2759174f10`、Windows loopback port 40429 で、リモートのファイル読み書き・terminal 実行・ローカル承認 terminal・installed controller の古い要求拒否を確認しました。通常の実 HTTPS ask 保存・今回拒否／単発許可／再確認・拒否も再度成功しました。通常 fixture は exit 0 で完了し、一時 Policy・SSH 接続・Environment・Workspace・鍵・observer ファイルを削除、listener 不在と Windows 接続拒否も確認しました。手動 SSH 設定と Remote-SSH による実機結果であり、UI で人間が新規承認する操作や OS toast 起動の証明ではありません。
 
 `5283705` の test 34165137831、Ubuntu 34165137686、Incus 34165137697 は成功しました。Windows 34165137705 はローカル承認画面と承認テスト前提の project setup で失敗しました。リモート編集・terminal、通常 setup、preview/Edge、doctor は成功しました。
@@ -609,7 +633,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.38** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.39** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

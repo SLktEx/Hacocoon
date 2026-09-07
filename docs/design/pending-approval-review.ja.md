@@ -2,7 +2,7 @@
 
 [English](pending-approval-review.md) | 日本語
 
-状態: **repository の一段階を実装済み。VS Code review は実装済み、OS 通知からの起動は planned です。**
+状態: **repository の一段階を実装済み。VS Code review は実装済み、Windows 通知の起動導線は実装済み、D2 受け入れは partial です。**
 repository のテストと、installed の network・desktop・GitHub 受け入れは区別します。
 
 ## 通常の使い方
@@ -60,7 +60,7 @@ provider 出力は除外し、error は固定の分類だけを返します。
 
 [Interaction stream](../INTERACTION_EVENTS.ja.md) は read-only の最小化された表示経路です。
 ID は照合用で、承認 token ではありません。VS Code は下記のローカル review を使用し、
-native OS 通知からの起動は planned です。event bridge へ回答を送ったり、
+native Windows 通知の起動導線は実装済み、D2 受け入れは partial です。event bridge へ回答を送ったり、
 信頼しない remote terminal で管理コマンドを動かしたりしません。
 [ADR 0028](../adr/0028-pending-approval-sessions.ja.md) を参照してください。
 
@@ -80,7 +80,7 @@ Web、remote extension host、信頼されていない window、非対応 platfo
 
 同じ要求の画面は再利用し、入力と出力を制限します。子プロセスの制御文字は terminal を操作できません。
 閉じる操作・Ctrl-C/D・15 分の期限はローカルの子プロセスを終了させますが、送信済み回答の取消しや
-再実行はしません。失敗・不明な結果は未確認として示します。OS 通知からの起動は planned のままです。
+再実行はしません。失敗・不明な結果は未確認として示します。Windows の起動導線は後述し、Linux desktop の起動は planned です。
 [ADR 0029](../adr/0029-local-desktop-approval-review.ja.md) を参照してください。
 
 JavaScript テストは実行先、入力、終了処理、失敗、通知クリックを確認します。
@@ -88,3 +88,22 @@ JavaScript テストは実行先、入力、終了処理、失敗、通知クリ
 probe を追加しましたが、結果は未確認です。新しい要求への人間の実回答や OS 通知クリックを証明するものではありません。
 
 実機検証では VS Code API 全体の列挙が review 起動前に失敗したため、observer は必要な安定 API だけを明示的に渡します。失敗時も作成確認済みの editor/terminal 検証ファイルを削除し、生の subprocess 出力を含まない固定段階と真偽値だけを記録します。実機で通常 CLI の HTTPS 承認は別途成功し、修正 observer は実機 VS Code 1.136.1 で編集・terminal・古い要求拒否を確認し、fixture cleanup も成功しました（installed 6771f2f、observer 05c8206）。
+
+## Windows 通知から開く
+
+Windows installer は対象 WSL 専用の任意の native review adapter を登録します。
+必要な構成では installer の -SkipDesktopReview で省略できます。
+信頼された WSL 側で `haco-notify native` を実行すると、読み取り専用の interaction
+stream を通知します。承認通知から、その要求の既存 `haco approve` console を開きます。
+範囲を確認して通常の回答を入力してください。開くだけで回答・Policy 保存・再実行はしません。
+
+distribution ごとにユーザー単位の protocol と通知 identity を分けるため、検証 instance
+の導入で別 instance の通知先を変えません。helper は正規の要求 URI だけを受け取り、
+実行ファイルと設定済み distribution を固定し、環境の上書きを除去します。
+不正リンク・余分な引数・古い要求は拒否します。登録がない場合は承認起動のない通知です。
+Linux desktop の起動は planned で、VS Code は引き続き任意です。
+
+実機 Windows では、正しい protocol URI を持つ通知履歴、対応 helper の Windows
+protocol 起動、installed controller の古い要求拒否を確認しました。
+終了済みの専用 HTTPS 検証要求を使った結果であり、OS 通知からの新規回答と人間による
+画面上の toast click は未確認です。[ADR 0030](../adr/0030-windows-notification-review.ja.md)を参照してください。

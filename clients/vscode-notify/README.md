@@ -51,6 +51,6 @@ hosts and untrusted windows cannot run review. Never install the UI extension in
 Environment as a way to grant it management access.
 
 Closing/Ctrl-C/Ctrl-D does not undo a submitted answer. On failure or disconnection,
-inspect Policy/audit before retrying. Native OS notification activation remains planned.
+inspect Policy/audit before retrying. The optional Windows notification adapter opens the same CLI; Linux native activation remains planned.
 See the [approval contract](../../docs/design/pending-approval-review.md) for exact
 boundaries and the distinction between repository tests and installed acceptance.
