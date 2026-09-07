@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -84,5 +85,28 @@ func TestEnvironmentDNSProvisioningRequiresOwnedTargetAndVerifiedCompanion(t *te
 				t.Fatal("missing automatic provisioning")
 			}
 		})
+	}
+}
+
+func TestDNSSetupFailureStageDoesNotExposeGuestOutput(t *testing.T) {
+	for input, want := range map[string]string{
+		"secret=do-not-return":                                "unknown",
+		"HACO_DNS_STAGE=restart\nHACO_DNS_UNIT_EXIT=226\n":    "restart; service_exit=226",
+		"HACO_DNS_STAGE=restart\nHACO_DNS_UNIT_EXIT=secret\n": "restart",
+		"HACO_DNS_STAGE=restart\n":                            "restart",
+		"HACO_DNS_STAGE=restart secret=do-not-return":         "unknown",
+		"HACO_DNS_STAGE=resolver\nsecret=do-not-return":       "resolver",
+	} {
+		if got := dnsSetupFailureStage(input); got != want {
+			t.Fatalf("stage=%q want %q", got, want)
+		}
+	}
+}
+
+func TestEnvironmentDNSSetupShellSyntax(t *testing.T) {
+	command := exec.Command("/bin/sh", "-n")
+	command.Stdin = strings.NewReader(environmentDNSSetup)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("invalid DNS setup shell: %v: %s", err, output)
 	}
 }

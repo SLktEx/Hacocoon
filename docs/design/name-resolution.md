@@ -21,3 +21,10 @@ The untrusted guest stub uses loopback port 53 and the existing fixed proxy endp
 Windows DNS changes, VPN connect/disconnect and WSL restart must be checked against the Windows resolver, Physical Host, trusted Host and Environment using the same public and available VPN names. Platform and application caching must be distinguished from the uncached relay. Current component tests do not establish when any particular VPN change becomes visible.
 
 Maintained component tests cover policy/audit refusal, source-header spoofing, private-address results without connection grants, malformed messages, UDP/TCP and cancellation. Automatic guest provisioning is implemented; actual getaddrinfo acceptance is pending in the new Windows GHA fixture. VPN/NRPT and OS restart acceptance are not run; they must be reported as SKIP if no suitable host/VPN fixture is available. Connection allow/deny must be tested separately. Do not count proxy-only name resolution as guest acceptance.
+
+Installer acceptance at `72096d8` failed during automatic DNS service setup on
+both Ubuntu and Windows, before the getaddrinfo fixture. The failure is not
+counted as SKIP or success. A local isolated unit-start probe succeeded on an
+older installed substrate and was cleaned up; its success does not validate
+the current installed create path. Failure phase/numeric service status are
+allowlisted; raw guest logs and script contents are not forwarded.

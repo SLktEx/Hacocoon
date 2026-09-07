@@ -15,6 +15,16 @@ trusted Host、Environment の通常 getaddrinfo と default DNS 拒否を比較
 fixture を追加しましたが、新しい fixture の GHA 成功はまだ確認していません。
 VPN/NRPT、DNS 変更・再起動後の反映は未検証です。[名前解決](design/name-resolution.ja.md)を参照してください。
 
+
+`72096d8` のローカル test/vet/docs/e2e と関連 race は成功しました。
+GHA の test と Incus は成功し、Ubuntu run 34121278716 と Windows run 34121278578 は
+Environment DNS service の設定中に失敗しました。新しい DNS fixture には未到達です。
+古い installed substrate 上の独立したローカル probe では同じ DNS unit が起動しましたが、
+GHA の失敗の再現・原因の説明にはなりません。probe は canonical に削除し、
+空の Workspace も削除しました。adapter は任意の guest 出力を公開せず、
+許可した処理段階と数値の service 終了コードだけを返す診断を追加しています。
+C4 の[プロジェクト setup](design/project-setup.ja.md)は契約を planned として記録した段階で、未実装です。
+
 ## 現在のdesktop開発checkpoint
 
 状態: **ロードマップ C は partial**。desktop SSH の準備、`haco open [--client vscode|ssh] [environment]`、

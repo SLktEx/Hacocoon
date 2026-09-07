@@ -16,6 +16,17 @@ getaddrinfo results across Windows, WSL, trusted Host and Environment and checks
 default DNS denial; the new fixture has not yet passed GHA. VPN/NRPT, propagation
 after DNS changes and restart remain unverified. See [name resolution](design/name-resolution.md).
 
+
+At `72096d8`, local test/vet/docs/e2e and affected-package race checks passed.
+GHA test and Incus passed; Ubuntu run 34121278716 and Windows run 34121278578
+failed while configuring the Environment DNS service, before the new DNS fixture
+could run. A separate local probe on the older installed substrate started the
+same DNS unit successfully; it does not reproduce or explain the GHA failure.
+The probe was canonically deleted and its empty Workspace removed. The adapter
+now returns only an allowlisted failure phase and numeric service exit status
+to diagnose the installer failure without exposing arbitrary guest output.
+C4 [project setup](design/project-setup.md) has a planned contract, not an implementation.
+
 ## Current desktop-development checkpoint
 
 Status: **partial roadmap C**. Product commands provide desktop SSH setup,

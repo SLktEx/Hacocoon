@@ -21,3 +21,9 @@ Standard が Physical Host の platform resolver を使います。対応する 
 同じ public name と利用可能な VPN name を使い、Windows、Physical Host、trusted Host、Environment を比較します。Windows DNS 変更、VPN 接続・切断、WSL 再起動を確認し、platform/application cache と relay の挙動を分けます。現時点の component test では各 VPN の反映タイミングを証明できません。
 
 Policy・監査拒否、送信元 header 偽装、接続許可を伴わない private address、異常 message、UDP/TCP、cancel を component test で確認します。自動導入は実装済みで、実際の getaddrinfo は新しい Windows GHA fixture の検証待ちです。VPN/NRPT・OS 再起動は未実行で、適切な host/VPN fixture がない場合は SKIP として報告します。接続 allow/deny は別途検証し、proxy 内の解決だけを guest の検証成功としません。
+
+`72096d8` の Ubuntu/Windows installer 検証は DNS service 自動設定中に失敗し、
+getaddrinfo fixture には未到達です。この失敗を SKIP や成功として扱いません。
+古い installed substrate 上の独立した local unit 起動 probe は成功して削除済みですが、
+現在の installed create 経路の検証にはなりません。診断は許可した処理段階と数値の
+service 終了コードに限定し、生の guest log や script 内容を転送しません。
