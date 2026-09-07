@@ -143,9 +143,18 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(sockets) })
-	broker := NewBroker(repositories, singleEnvironment{environment}, sockets)
+	identity, err := core.NewEnvironmentInstanceID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	broker := NewBroker(repositories, &identityEnvironmentStore{environment: environment, identity: identity}, sockets)
+	policyPath := filepath.Join(root, "saved-policy.json")
+	initialPolicy := `{"default":"allow","rules":[{"capability":"git.repository","action":"push","environment":"*","resource":"*","attributes":{"repository":"*","remote":"*","target_ref":"*","old_oid":"*","new_oid":"*","operation_id":"*","update_kind":"fast-forward"},"decision":"require-approval"}]}`
+	if err := os.WriteFile(policyPath, []byte(initialPolicy), 0600); err != nil {
+		t.Fatal(err)
+	}
 	audit := &gitAudit{}
-	capabilities, err := capabilityapp.New(gitPolicy{}, nil, audit, broker)
+	capabilities, err := capabilityapp.New(capabilityapp.NewFilePolicyEvaluator(policyPath), nil, audit, broker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,12 +265,6 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	}
 	// Reusable Policy must approve future commits on this registered branch,
 	// while every execution still carries the exact prepared old/new OIDs.
-	identity, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
-	broker.Environments = &identityEnvironmentStore{environment: environment, identity: identity}
-	policyPath := filepath.Join(root, "saved-policy.json")
 	resetPolicy := func() {
 		t.Helper()
 		if err := os.WriteFile(policyPath, []byte(`{"default":"require-approval","rules":[{"capability":"git.repository","action":"fetch","environment":"*","resource":"*","attributes":{"repository":"*","remote":"*","target_ref":"*","old_oid":"*","new_oid":"*","operation_id":"*"},"decision":"allow"}]}`), 0600); err != nil {
@@ -269,11 +272,6 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 		}
 	}
 	resetPolicy()
-	evaluator := capabilityapp.NewFilePolicyEvaluator(policyPath)
-	broker.Capabilities, err = capabilityapp.New(evaluator, nil, audit, broker)
-	if err != nil {
-		t.Fatal(err)
-	}
 	finishPush := func(done <-chan error, wantSuccess bool) {
 		t.Helper()
 		select {
@@ -328,6 +326,14 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 		t.Fatal("unprepared caller obtained reusable scope")
 	}
 
+	deletion := exec.Command("/usr/bin/git", "-C", workspace, "push", "--delete", "origin", "main")
+	if err := deletion.Run(); err == nil {
+		t.Fatal("saved allow authorized branch deletion")
+	}
+	if got := testGit(t, remote, "rev-parse", "main"); got != next {
+		t.Fatal("deletion changed remote")
+	}
+
 	// An explicit saved ask still requests a separate answer every time.
 	resetPolicy()
 	testCommit(t, workspace, "ask.txt", "ask\n")
@@ -353,8 +359,10 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	}
 
 	audit.mu.Lock()
+	events := append([]core.CapabilityAuditEvent(nil), audit.events...)
+	audit.mu.Unlock()
 	foundSaved := false
-	for _, event := range audit.events {
+	for _, event := range events {
 		if event.Type == "policy-saved" {
 			foundSaved = true
 			if event.Attributes["new_oid"] == "" || event.SavedScope == nil || event.SavedScope.Attributes["new_oid"] != "*" || event.SavedScope.Attributes["target_ref"] != "refs/heads/main" {
@@ -365,8 +373,7 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	if !foundSaved {
 		t.Fatal("saved scope was not audited")
 	}
-	data, _ := json.Marshal(audit.events)
-	audit.mu.Unlock()
+	data, _ := json.Marshal(events)
 	if bytes.Contains(data, []byte("approved work")) || bytes.Contains(data, []byte("PACK")) {
 		t.Fatal("audit contains transferred content")
 	}
