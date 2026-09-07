@@ -1,14 +1,15 @@
 # 実装状況
 
+`5283705` の test 34165137831、Ubuntu 34165137686、Incus 34165137697 は成功しました。Windows 34165137705 はローカル承認画面と承認テスト前提の project setup で失敗しました。リモート編集・terminal、通常 setup、preview/Edge、doctor は成功しました。
+
+修正した snapshot を専用ローカル WSL `Hacocoon-Review-6771f2f` に導入できました（installed commit `6771f2f38f8c036a2fb16e8f9640377229b11c65`）。実機 Environment `win-ssh-d5dc5903cceb456a` で Windows SSH（port 37713）、VS Code 1.136.1 のリモート編集・terminal、通常の `haco approve` による実 HTTPS の ask 保存・今回拒否／単発許可／再確認・拒否に成功しました。ローカル承認 terminal の確認は失敗し、固定診断と失敗時の検証ファイル cleanup の回帰テストを追加しました。接続・Environment 削除と listener の接続拒否は成功しました。最初の cleanup は observer ファイルの残留で失敗し、その後、作成確認済みファイルと空ディレクトリだけを削除しました。先行する既存 instance 更新は自動承認審査で拒否され未実行です。専用 instance の導入は別途承認されています。
+
 `6771f2f` の test 34163005164、Ubuntu 34163005175、Incus 34163005206 は成功しました。
 Windows 34163005171 は VS Code 全体の受け入れ（段階はログ未表示）と承認の Python 準備が失敗し、
 preview/Edge・doctor 全 4 項目は成功しました。editor timeout／remote 確認／local review、
 準備の実行／保存レシピ解除を固定 phase で区別する診断を補いました。新しい UI の成功は未確認です。
 
-ローカル snapshot build は成功しました。既定 Hacocoon の更新は自動承認審査に拒否され、未実行です。
-代わりに専用 WSL Hacocoon-Review-6771f2f を作成しました。最初の導入は package 作成時の version に
-先頭 v がなく停止し、修正した package を専用 instance に導入中です。これらの installer 実行で
-既存 Hacocoon は更新していません。実機の新しい review／通知の受け入れは未確認です。
+ローカル snapshot build と修正 package の専用 instance 導入は成功しました。先行する version の先頭 v がない package は導入途中で失敗しました。現在の実機結果は上記を参照してください。
 
 ## VS Code の信頼された承認画面
 

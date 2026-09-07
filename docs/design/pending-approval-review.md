@@ -90,3 +90,9 @@ unpredictable stale ID, requiring the installed controller's refusal. This new p
 is pending; it does not prove an actual human's fresh approval or OS notification click.
 
 See [ADR 0028](../adr/0028-pending-approval-sessions.md).
+
+The installed observer uses only explicitly selected stable VS Code APIs: enumerating
+the full API object failed before review in real desktop acceptance. It removes
+proven owned editor/terminal probes on failure, and reports only fixed diagnostic
+steps and booleans without subprocess output. A real local test passed ordinary
+HTTPS approval decisions separately; the corrected desktop observer is being rerun.

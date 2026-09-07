@@ -1,17 +1,16 @@
 # Implementation Status
 
+At `5283705`, test 34165137831, Ubuntu 34165137686 and Incus 34165137697 passed. Windows 34165137705 failed at local approval review and project setup for the approval prerequisite. Remote editor/terminal, ordinary setup, preview/Edge and doctor passed.
+
+The corrected snapshot installed successfully in the dedicated local WSL instance `Hacocoon-Review-6771f2f` (installed commit `6771f2f38f8c036a2fb16e8f9640377229b11c65`). Local Environment `win-ssh-d5dc5903cceb456a` passed Windows SSH on port 37713, actual VS Code 1.136.1 remote editor/terminal, and actual HTTPS saved-ask denial / one-shot allow / re-prompt denial through ordinary `haco approve`. Local approval-terminal acceptance failed; diagnostics and a regression for failure-path probe cleanup were added. Connection and Environment removal and listener refusal passed. The initial cleanup failed on retained observer files; exact owned files and empty directories were subsequently removed. The earlier existing-instance update was rejected by automatic approval review and not executed; the dedicated installation was separately approved.
+
 At `6771f2f`, test 34163005164, Ubuntu 34163005175 and Incus 34163005206 passed.
 Windows 34163005171 failed overall VS Code acceptance (the exact stage was not
 reported) and approval Python preparation; preview/Edge and all four doctor checks
 passed. Fixed stage reporting now separates editor timeout/remote checks/local review,
 and prerequisite execution from clearing its recipe. No new UI success is claimed.
 
-The local snapshot build passed. Updating the existing default Hacocoon instance
-was rejected by automatic approval review and was not executed. A separate dedicated
-WSL instance Hacocoon-Review-6771f2f was created instead. The initial installation
-stopped on a packaging invocation missing the version's leading v; corrected package
-installation in that dedicated instance is in progress. Existing Hacocoon is unchanged
-by these installer attempts. Real local review/notification acceptance remains pending.
+The local snapshot build and corrected dedicated installation passed; the first packaging invocation without the leading v failed before installation completed. See the current physical acceptance results above.
 
 ## VS Code trusted review
 

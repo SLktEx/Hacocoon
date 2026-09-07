@@ -13,10 +13,10 @@ async function observe(options = {}) {
   let shown = false, terminal = false, disposed = false, closed = false;
   const folder = {scheme: 'vscode-remote', authority: fixture.authority, path: '/workspace', ...options.uri};
   const api = {
-    ExtensionKind: { UI: 1 }, version: 'fixture', env: {remoteName: options.remoteName || 'ssh-remote'},
+    UIKind: { Desktop: 1 }, ExtensionKind: { UI: 1 }, version: 'fixture', env: {uiKind: 1, remoteName: options.remoteName || 'ssh-remote'},
     Uri: {joinPath: (uri, name) => ({...uri, path: uri.path + '/' + name})},
     workspace: {
-      workspaceFolders: [{uri: folder}],
+      isTrusted: true, workspaceFolders: [{uri: folder}],
       fs: {
         readFile: async uri => {
           if (!files.has(uri.path)) throw Object.assign(new Error('missing'), {code: 'FileNotFound'});
@@ -46,6 +46,8 @@ async function observe(options = {}) {
     },
     commands: {executeCommand: async () => { closed = true; }}
   };
+  Object.defineProperty(api, 'gatedAPI', {enumerable: true, get() { throw Error('proposed API unavailable'); }});
+  Object.defineProperty(api.window, 'gatedAPI', {enumerable: true, get() { throw Error('proposed API unavailable'); }});
   const context = {
     exports: {}, Buffer,
     require: name => name === './review' ? { createReview(localAPI, settings) {
@@ -73,7 +75,7 @@ async function observe(options = {}) {
   return {result: publications.has('/result') ? JSON.parse(publications.get('/result')) : undefined,
     files, shown, terminal, disposed, closed};
 }
-test('PASS requires remote editor read/write, terminal execution and cleanup', async () => {
+test('PASS uses only required stable APIs and requires editor, terminal and cleanup', async () => {
   const r = await observe();
   assert.equal(r.result.status, 'passed');
   assert.deepEqual(r.result.checks, ['workspace-marker', 'editor-file-read-write', 'remote-terminal-exec', 'local-approval-stale-refusal', 'owned-probes-removed']);
@@ -102,3 +104,10 @@ for (const [name, options, stage] of [
     assert.equal(r.result.stage, stage);
   });
 }
+
+test('failed local review removes its proven owned remote probes', async () => {
+  const r = await observe({badReview: true});
+  assert.equal(r.result.status, 'failed');
+  assert.equal(r.result.reviewDiagnostics.cleanup, true);
+  assert.equal(r.files.size, 1);
+});
