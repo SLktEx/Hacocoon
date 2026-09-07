@@ -40,7 +40,8 @@ provider の bind 成功が必要です。競合した bind は失敗させま�
 接続再利用、再開しない close、不正 endpoint 拒否を focused test で扱います。
 Windows installer fixture は通常の project setup から Python HTTP server を起動し、
 Windows で Workspace marker を取得して、URL 再利用と close 後の接続拒否を確認します。
-この変更ではまだ実行していません。browser の実起動・描画は未検証であり、
+ `bffc3fd` では Windows HTTP 応答を取得しましたが、拡張子のない marker が byte 列で返り、内容確認で失敗しました。
+ブラウザー表示にも適した text/plain の .txt marker に修正しています。preview 再利用・close・Edge の検証は再実行待ちです。browser の実起動・描画は未検証であり、
 HTTP の成功だけを browser 検証成功とは扱いません。
 
 [Client adapter](client-adapters-and-vscode-integration.md) も参照してください。

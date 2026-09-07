@@ -43,8 +43,10 @@ the LAN. Access is available to other local processes.
 Focused tests cover reuse, close without resume, and invalid endpoint refusal.
 The Windows installer fixture starts a Python HTTP server through ordinary
 project setup, reads the Workspace marker from Windows, reuses the same URL,
-and checks connection refusal after close. This fixture has not run for this
-change yet. Actual browser launch and rendering remain unverified; HTTP
+and checks connection refusal after close. At `bffc3fd`, the fixture received a Windows HTTP response but failed its
+content assertion: the extensionless marker was returned as bytes, not text.
+It now serves a text/plain .txt marker, also suitable for browser rendering.
+Preview reuse/close and Edge acceptance await the rerun. Actual browser launch and rendering remain unverified; HTTP
 acceptance alone must not be reported as browser acceptance.
 
 See [client adapters](client-adapters-and-vscode-integration.md).

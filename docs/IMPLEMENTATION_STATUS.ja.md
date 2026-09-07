@@ -679,3 +679,7 @@ stdin 契約を引き継ぐ修正を加えています。修正後の installed 
 保存 Policy に Environment 単位・全 Environment の毎回承認を追加しました。terminal で今回の許可・拒否を別に確認し、ask の保存から allow を作りません。通常の Git/通知への統合と、それらを不変の Environment identity に結び付ける作業は未完了です。
 
 `347ca50` は test・Ubuntu・Incus workflow が成功しました。Windows run 34135390824 では DNS・VS Code と project setup の保存・再実行・非ゼロ終了・更新・削除が成功し、preview server recipe で失敗しました。fixture は Python がなければ準備し、loopback listener の起動を待つようにしました。前回の失敗原因はまだ確定していません。preview・Edge・Environment doctor の実機検証は未完了です。単発承認・最初から許可された要求も実行直前に Policy を再評価する修正は、関連 race test が成功しました。
+
+Environment 作成時に canonical lease へランダムな instance ID を予約します。既存の整合した ready 状態には catalog lock 内で一度だけ付与します。保存 Policy・承認表示・監査で ID を扱い、実運用 Git は取得後、実行直前にも再確認します。同名再作成に識別済み保存方針を引き継ぎません。State/Workspace/Core と Capability/controller/Git の race test は成功しました。通常の Git 保存範囲/UI と network identity 統合は partial です。[ADR 0025](adr/0025-environment-approval-identity.ja.md)を参照してください。
+
+`bffc3fd` は test・Ubuntu・Incus が成功しました。Windows run 34136858725 は VS Code と project setup が再度成功し、拡張子のない preview marker が PowerShell に byte 列で返ったため、内容確認で失敗しました。text/plain fixture への修正は installed 検証待ちです。Git pending には追加引数なしで trusted な作成識別子を表示します。

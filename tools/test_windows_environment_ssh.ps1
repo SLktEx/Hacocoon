@@ -274,6 +274,7 @@ if ! test -x /usr/bin/python3; then
   apt-get update
   apt-get install -y --no-install-recommends python3
 fi
+cp /workspace/windows-marker /workspace/haco-preview-marker.txt
 printf '%s\n' PREVIEW_RUNTIME_READY
 systemd-run --unit=haco-preview-probe --collect --service-type=exec /usr/bin/python3 -m http.server 3000 --bind 127.0.0.1 --directory /workspace
 for attempt in $(seq 1 30); do
@@ -293,7 +294,7 @@ haco open --port 3000 --no-browser "$name"
         $previewResult = Invoke-HacoHost @('/bin/bash', '-ec', $previewProbe, '--', $EnvironmentName) 'Start preview through ordinary project setup'
         $previewUrl = $previewResult.Stdout.Trim()
         if ($previewUrl -notmatch '^http://127\.0\.0\.1:[0-9]{1,5}/$') { throw 'Preview returned an unsafe URL' }
-        $previewResponse = Invoke-WebRequest -Uri ($previewUrl + 'windows-marker') -TimeoutSec 10
+        $previewResponse = Invoke-WebRequest -Uri ($previewUrl + 'haco-preview-marker.txt') -TimeoutSec 10
         if ($previewResponse.Content.Trim() -ne 'windows-workspace-ok') { throw 'Preview reached a different Workspace' }
 
         # Render through an actual browser engine using an isolated disposable profile.
@@ -306,7 +307,7 @@ haco open --port 3000 --no-browser "$name"
             $browserStart.CreateNoWindow = $true
             $browserStart.RedirectStandardOutput = $true
             $browserStart.RedirectStandardError = $true
-            foreach ($argument in @('--headless', '--disable-gpu', '--no-first-run', '--disable-background-mode', "--user-data-dir=$browserProfile", '--dump-dom', ($previewUrl + 'windows-marker'))) {
+            foreach ($argument in @('--headless', '--disable-gpu', '--no-first-run', '--disable-background-mode', "--user-data-dir=$browserProfile", '--dump-dom', ($previewUrl + 'haco-preview-marker.txt'))) {
                 [void]$browserStart.ArgumentList.Add($argument)
             }
             $browserProcess = [Diagnostics.Process]::new()
@@ -405,7 +406,7 @@ haco open --port 3000 --no-browser "$name"
     }
     if ($WorkspaceCreated -and $EnvironmentGone) {
         try {
-            [void](Invoke-Wsl @('--exec', 'rm', '-f', "$Workspace/windows-marker") 'Remove acceptance Workspace marker')
+            [void](Invoke-Wsl @('--exec', 'rm', '-f', "$Workspace/windows-marker", "$Workspace/haco-preview-marker.txt") 'Remove acceptance Workspace marker')
             [void](Invoke-Wsl @('--exec', 'rmdir', $Workspace) 'Remove acceptance Workspace')
         } catch {
             $CleanupFailed = $true; Write-Warning $_
