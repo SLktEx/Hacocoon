@@ -67,7 +67,7 @@ func dnsSetupFailureStage(output string) string {
 			}
 		}
 		switch line {
-		case "HACO_DNS_STAGE=install", "HACO_DNS_STAGE=unit", "HACO_DNS_STAGE=reload", "HACO_DNS_STAGE=enable", "HACO_DNS_STAGE=restart", "HACO_DNS_STAGE=active", "HACO_DNS_STAGE=resolver":
+		case "HACO_DNS_STAGE=manager", "HACO_DNS_STAGE=install", "HACO_DNS_STAGE=unit", "HACO_DNS_STAGE=reload", "HACO_DNS_STAGE=enable", "HACO_DNS_STAGE=restart", "HACO_DNS_STAGE=active", "HACO_DNS_STAGE=resolver":
 			stage = strings.TrimPrefix(line, "HACO_DNS_STAGE=")
 		}
 	}
@@ -103,6 +103,13 @@ RestrictAddressFamilies=AF_INET AF_UNIX
 [Install]
 WantedBy=multi-user.target
 HACO_DNS_UNIT
+stage=manager
+attempt=0
+until systemctl show --property=Version --value >/dev/null 2>&1; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 60 ]; then exit 1; fi
+  sleep 0.5
+done
 stage=reload
 systemctl daemon-reload
 stage=enable

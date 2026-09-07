@@ -28,3 +28,9 @@ counted as SKIP or success. A local isolated unit-start probe succeeded on an
 older installed substrate and was cleaned up; its success does not validate
 the current installed create path. Failure phase/numeric service status are
 allowlisted; raw guest logs and script contents are not forwarded.
+
+The installer diagnostic at `7eecbdf` narrowed the failure to `daemon-reload`.
+Provisioning now waits up to 30 seconds for the guest systemd manager before
+mutating service state. A failed reload is not retried. Shell regression tests
+cover delayed readiness, timeout, and reload failure; real installer acceptance
+of this correction remains pending.

@@ -27,3 +27,8 @@ getaddrinfo fixture には未到達です。この失敗を SKIP や成功とし
 古い installed substrate 上の独立した local unit 起動 probe は成功して削除済みですが、
 現在の installed create 経路の検証にはなりません。診断は許可した処理段階と数値の
 service 終了コードに限定し、生の guest log や script 内容を転送しません。
+
+`7eecbdf` の installer 診断で失敗箇所を `daemon-reload` に絞りました。
+service の変更前に guest systemd manager を最大 30 秒待ちます。
+reload 自体の失敗は再試行しません。起動遅延・timeout・reload 失敗を
+shell 回帰テストで確認します。この修正の installer 実機検証は未完了です。
