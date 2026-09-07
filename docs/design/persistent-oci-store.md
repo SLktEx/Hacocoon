@@ -55,7 +55,9 @@ compaction are outside this PoC.
 Install containerd, runc, nerdctl and (for builds) BuildKit in the Environment
 using its permitted package/download proxy or a prepared Base. No custom Base
 builder is required. The attachment writes `/etc/containerd/config.toml` and an
-Environment-local `buildkit.service` using the native snapshotter. Start the
+Environment-local `buildkit.service` using the native snapshotter. It waits a bounded
+period for the guest systemd manager before configuring services; a readiness
+failure fails creation through the normal ownership-preserving cleanup. Start the
 optional services when installed:
 
 ```bash

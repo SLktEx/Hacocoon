@@ -139,6 +139,17 @@ func (p *SandboxProvider) attachPersistentResource(ctx context.Context, ref stri
 // private to the disposable Environment. Optional runtime binaries are supplied
 // by the selected Base or installed by its user, never required by Core.
 const persistentOCIConfiguration = `set -eu
+# Incus start returns before guest systemd's management socket is necessarily
+# ready. Probe readiness only; never repair/restart a rejected guest operation.
+attempt=0
+until systemctl show --property=Version --value >/dev/null 2>&1; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 60 ]; then
+    printf '%s\n' 'Environment systemd manager did not become ready' >&2
+    exit 1
+  fi
+  sleep 0.5
+done
 was_active=false
 if systemctl is-active --quiet containerd; then was_active=true; systemctl stop containerd; fi
 mkdir -p /etc/containerd /etc/systemd/system

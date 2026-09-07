@@ -22,7 +22,10 @@ Physical Host are excluded; the trusted Host keeps its own Linux PATH.
 
 Fresh WSL already registers the native `WSLInterop` binfmt handler. Hacocoon
 reuses it and WSL's `/init`, sets the stable init interop socket path and adds the
-Windows PATH to trusted shell startup. It does not register another handler or
+Windows PATH to trusted shell startup. The socket directory is mounted outside
+transient `/run`; standard systemd tmpfiles restores `/run/WSL` as a symlink to
+that read-only projection at every boot, preserving native absolute socket
+symlinks. It does not register another handler or
 create a Windows executable launcher. In a new trusted shell:
 
 ```bash
@@ -254,10 +257,10 @@ The warning is emitted only on the interactive Host-shell path, so non-interacti
 
 Still separate work:
 
-- make `haco-host` the normal home for Git/GitHub and selected external-service tooling;
-- run the Host OCI store/containerd inside `haco-host`;
+- extend trusted external-service tooling beyond the implemented Git/GitHub path;
+- evaluate additional optional OCI runtime compatibility; current Stores attach only to Environments;
 - broker credentials without putting reusable credentials in ordinary Environments;
-- add optional WSL/Windows interop only to the trusted Host;
+- evaluate wider Windows application compatibility beyond the accepted native CLI cases;
 - classify and migrate the remaining appropriate `haco` commands to the controller client path;
 - move trusted Host-local operations into their long-term `haco-host` namespaces and remove temporary ambiguity;
 - finish the `haco` versus `haco-host` CLI responsibility split;

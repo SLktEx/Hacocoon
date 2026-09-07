@@ -215,7 +215,7 @@ try {
     }
     if (Test-Path -LiteralPath $Work -PathType Container) {
         # Only known test files were removed above; leave unexpected contents.
-        Remove-Item -LiteralPath $Work -Force
+        [IO.Directory]::Delete($Work, $false)
     }
 }
 

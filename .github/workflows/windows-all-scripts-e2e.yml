@@ -206,10 +206,6 @@ jobs:
         shell: pwsh
         run: ./tools/test_installed_egress.ps1
 
-      - name: Verify installed native Windows interop
+      - name: Verify native Windows interop and strict OpenSSH through ordinary Host entry
         shell: pwsh
-        run: ./tools/test_windows_host_interop.ps1
-
-      - name: Verify Windows standard OpenSSH connects with strict host-key pinning
-        shell: pwsh
-        run: ./tools/test_windows_environment_ssh.ps1
+        run: python ./tools/windows-native-access-e2e.py

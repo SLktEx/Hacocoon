@@ -99,11 +99,11 @@ See [`../design/trusted-host.md`](../design/trusted-host.md) and [`../WINDOWS_WS
 haco base list
 haco base inspect <base>
 
-HACO_PLUGIN_OCI=nerdctl  haco plugin oci ...
-HACO_PLUGIN_OCI=docker   haco plugin oci ...
+haco plugin oci store create dev
+haco env create --workspace managed:work --resource oci:dev example
 ```
 
-`haco base` describes Environment starting identity. OCI/container lifecycle is an optional Plugin responsibility. The maintained OCI profile may use containerd + nerdctl, and Docker compatibility may use genuine Docker CLI plus Environment-local socket-activated Engine; neither is a Core invariant.
+`haco base` describes Environment starting identity. OCI/container lifecycle is an optional Plugin responsibility. Current persistent Stores use containerd/nerdctl and BuildKit data; Docker Store compatibility is deferred. Runtime tooling is optional, and its process/socket stays within each Environment.
 
 ## OCI storage direction
 

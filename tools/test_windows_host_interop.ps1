@@ -1,5 +1,5 @@
 #Requires -Version 7.0
-param([string]$Distro='Hacocoon', [switch]$RequireNonC)
+param([string]$Distro='Hacocoon', [switch]$RequireNonC, [string]$PersistenceManifest)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 
@@ -72,3 +72,15 @@ if((Assert-InteropSuccess $spaces 'Spaced argument').Trim() -ne 'argument with s
 $pathTool=Invoke-InteropGuest @('/bin/bash','-lc','where.exe cmd.exe')
 if((Assert-InteropSuccess $pathTool 'Windows PATH executable where.exe') -notmatch 'cmd.exe'){throw 'where.exe output mismatch'}
 Write-Host 'Direct .exe / Windows PATH / stdout / stderr / exit 23 / spaces: PASS'
+if ($PersistenceManifest) {
+    foreach ($record in (Get-Content -Raw -LiteralPath $PersistenceManifest | ConvertFrom-Json)) {
+        if ($record.guest -notmatch '^/mnt/[a-z]/Hacocoon-Persistence-[a-f0-9]{32}$') { throw 'Invalid persistence test path' }
+        $driveRoot=$record.guest.Substring(5,1).ToUpperInvariant()+':\'
+        $expectedWindows=Join-Path $driveRoot ($record.guest.Split('/')[-1])
+        if ($record.windows -ne $expectedWindows) { throw 'Persistence paths do not identify the same Windows directory' }
+        if ([IO.File]::ReadAllText((Join-Path $expectedWindows 'host.txt')) -ne 'retained-host-marker') { throw 'Windows persistence read mismatch' }
+        $retained=Assert-InteropSuccess (Invoke-InteropGuest @('cat',"$($record.guest)/windows.txt")) 'Retained Windows file read from Host'
+        if ($retained -ne 'retained-windows-marker') { throw 'Host persistence read mismatch' }
+        Write-Host "$driveRoot pre-restart files retained in both directions: PASS"
+    }
+}
