@@ -22,6 +22,13 @@ sandbox
 
 The proxy is not an approval-token issuer and does not cache approval as an IP allowlist. Every grant is scoped to one Environment, canonical hostname, protocol and port, and to one connection attempt.
 
+The serving proxy tracks accepted clients and CONNECT upstream connections in
+one shutdown owner. Shutdown closes both sides synchronously; a dial that
+finishes after shutdown is rejected before its first upstream write. Context
+cancellation alone is insufficient because its callbacks run asynchronously.
+Repository regression covers ClientHello wait, prefix write, established tunnels
+and a late upstream registration. This changes no policy grants or CLI steps.
+
 ## Implemented authorization engine
 
 - `internal/core` defines provider-neutral `EgressRequest` / `EgressGrant` values.

@@ -196,6 +196,12 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request, environmen
 	if err != nil {
 		return
 	}
+	if owner, ok := r.Context().Value(proxyConnectionsKey{}).(*proxyListener); ok {
+		upstream, err = owner.trackUpstream(upstream)
+		if err != nil {
+			return
+		}
+	}
 	defer upstream.Close()
 	stopUpstream := context.AfterFunc(r.Context(), func() { _ = upstream.Close() })
 	defer stopUpstream()

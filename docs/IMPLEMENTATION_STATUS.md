@@ -37,6 +37,30 @@ verified results, not a new push. C-G implementation is still planned according
 to the updated [roadmap](status/architecture-and-roadmap.md#user-facing-development-order).
 
 
+## Validation of the Store copy slice
+
+Local checks passed: maintained CI `test` (Go tests/vet, installer components and
+JavaScript), `e2e` command/capability/Git/orchestrator assertions, docs/workflow
+policy, and the real-Incus synthetic COW test. `forwarding` initially failed for
+missing passwordless sudo; running the same isolated-namespace test as root in
+the development WSL passed. E2E assertions passed, but its first temporary Go
+module-cache cleanup emitted permission errors; this is a cleanup failure,
+not a product assertion failure.
+
+The first full `race` run failed in the existing CONNECT upstream-prefix shutdown
+test. The serving proxy now synchronously owns/closes CONNECT upstreams and
+rejects a dial completing after shutdown before any write. The proxy package
+passed 100 race repetitions; the full maintained `race` gate then passed.
+See the [egress contract](EGRESS_AUTHORIZATION.md). No authorization policy or
+user command changed in this fix.
+
+The monolithic `bash tools/ci-local.sh` stopped at release-config because the
+Ubuntu development WSL has no `pwsh`; that run **failed**. Remaining release
+packaging checks were **SKIP locally** rather than treated as successful.
+The existing GitHub Actions installer/release/Incus workflows provide the
+supported-platform alternative once this branch is published; prior B CI
+success does not verify this revision.
+
 ## Incus startup PID protection
 
 Status: **implemented; repository regressions and hosted Ubuntu/WSL package

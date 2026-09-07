@@ -1,6 +1,6 @@
 # ADR 0015: Reserve offline persistent resources during independent copy
 
-Status: accepted  
+Status: accepted
 Date: 2026-09-07
 
 ## Decision

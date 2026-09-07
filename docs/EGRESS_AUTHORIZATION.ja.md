@@ -22,6 +22,12 @@ sandbox
 
 proxyはapproval tokenを発行せず、approvalをIP allowlistとしてcacheしません。grantは1 Environment・canonical hostname・protocol・port・1 connection attemptだけにscopeされます。
 
+proxyのserve処理はclient側とCONNECT上流接続を同じ終了管理下で追跡する。
+停止時は両側を同期的にcloseし、停止後に完了したdialは最初の上流write前に拒否する。
+context cancellationのcallbackは非同期のため、それだけで停止完了を判断しない。
+ClientHello待ち・prefix書込み・確立済みtunnel・停止後の上流登録をrepository回帰で確認する。
+Policyの許可内容やCLI操作手順は変更しない。
+
 ## 実装済みauthorization engine
 
 - `internal/core` にprovider-neutralな `EgressRequest` / `EgressGrant` を定義。
