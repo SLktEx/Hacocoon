@@ -1,6 +1,6 @@
 # ADR 0024: Saved approval decisions preserve administrator Policy
 
-Status: accepted; controller/terminal support implemented; ordinary Git/notification integration pending.
+Status: accepted; controller/terminal and ordinary Git support implemented; notifications pending.
 
 Persistent choices are explicit allow/deny/require-approval for the selected Environment or for
 all Environments. They are stored as saved_decisions in the same human-editable
@@ -8,7 +8,8 @@ Policy JSON. They never replace administrator rules. Both lists participate in
 deny > require-approval > allow evaluation; default applies only without matches.
 Consequently an explicit administrator ask can still prompt after a saved allow.
 
-The rule copies the observed capability, action, resource and every attribute.
+The rule copies observed authority unless a trusted provider declares reusable
+values under [ADR 0026](0026-reusable-git-approval-scope.md).
 Global means environment:"*" only. No resource or attribute wildcard is inferred;
 an observed literal "*" cannot be persisted through this interface. Opaque
 provider parameters never become policy or approval-display data.

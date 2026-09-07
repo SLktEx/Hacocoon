@@ -1,5 +1,19 @@
 # 実装状況
 
+## 通常 Git 承認の方針保存
+
+状態: **repository の一段階を implemented。D1／D2 は partial**。既存 Git
+approve／deny に任意の --save で env／全 env の allow・deny・ask を接続しました。
+pending は今回の exact commit と provider が定義する再利用範囲を分けます。
+OID と operation ID だけを wildcard にし、repository・remote・ref・fast-forward
+update kind と属性名完全一致を維持します。永続化・監査済み応答を確認し、非対応 peer
+は拒否します。実ローカル Git helper で次 commit、ask、deny、history rewrite 拒否を
+確認しました。この保存経路の Hacocoon-test push は未検証です。
+[ADR 0026](adr/0026-reusable-git-approval-scope.ja.md) を参照してください。
+
+953d1e5 は全 4 GHA workflow が PASS しました。修正した orchestrator／crash fixture
+も含みます。それ以降の変更の受け入れを証明するものではありません。
+
 ## Policy に従う名前解決
 
 状態: **ロードマップ C3 は partial**。installed Standard mode では canonical な

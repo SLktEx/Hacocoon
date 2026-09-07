@@ -57,6 +57,22 @@ func (a *StdioApproval) decide(ctx context.Context, req core.ApprovalRequest, pe
 			return ApprovalDecision{}, fmt.Errorf("display approval request: %w", err)
 		}
 	}
+	if persistent && req.SavedScope != nil {
+		scope := *req.SavedScope
+		if _, err := fmt.Fprintf(a.out, " future-scope=%s/%s resource=%s", terminalSafe(scope.Capability), terminalSafe(scope.Action), terminalSafe(scope.Resource)); err != nil {
+			return ApprovalDecision{}, err
+		}
+		keys := make([]string, 0, len(scope.Attributes))
+		for key := range scope.Attributes {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			if _, err := fmt.Fprintf(a.out, " %s=%s", terminalSafe(key), terminalSafe(scope.Attributes[key])); err != nil {
+				return ApprovalDecision{}, err
+			}
+		}
+	}
 	options := "y/N"
 	if persistent {
 		options = "y/N; 1=allow this Environment, 2=deny this Environment, 3=allow all Environments, 4=deny all Environments, 5=ask every time in this Environment, 6=ask every time in all Environments"
@@ -98,7 +114,7 @@ func (a *StdioApproval) decide(ctx context.Context, req core.ApprovalRequest, pe
 			decision.Save = AskGlobal
 		}
 		if decision.Save != "" {
-			if _, err := RuleForSavedChoice(request, decision.Save); err != nil {
+			if _, err := approvalSavedRule(req, decision.Save); err != nil {
 				return ApprovalDecision{}, err
 			}
 		}
@@ -120,4 +136,11 @@ func terminalSafe(value string) string {
 		return quoted
 	}
 	return quoted[1 : len(quoted)-1]
+}
+
+func approvalSavedRule(req core.ApprovalRequest, choice SavedChoice) (PolicyRule, error) {
+	if req.SavedScope != nil {
+		return RuleForSavedScope(*req.SavedScope, choice)
+	}
+	return RuleForSavedChoice(req.CapabilityRequest, choice)
 }

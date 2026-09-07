@@ -65,7 +65,7 @@ type fakeProvider struct {
 	err   error
 }
 
-func (*fakeProvider) Capability() string { return "local.echo" }
+func (*fakeProvider) Capability() string               { return "local.echo" }
 func (*fakeProvider) NonAuthorityParameters() []string { return []string{"message"} }
 func (f *fakeProvider) Execute(_ context.Context, req core.CapabilityRequest) (core.CapabilityResult, error) {
 	f.calls++

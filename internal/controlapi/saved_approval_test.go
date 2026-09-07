@@ -15,7 +15,8 @@ type savedWireCapabilities struct {
 }
 
 func (f *savedWireCapabilities) RequestWithDecision(ctx context.Context, r core.CapabilityRequest, decide func(context.Context, core.ApprovalRequest) (capabilityapp.ApprovalDecision, error)) (core.CapabilityResult, error) {
-	d, err := decide(ctx, core.ApprovalRequest{CapabilityRequest: r})
+	scope := core.CapabilityRequest{Capability: r.Capability, Action: r.Action, Resource: "target", Attributes: map[string]string{"branch": "main"}}
+	d, err := decide(ctx, core.ApprovalRequest{CapabilityRequest: r, SavedScope: &scope})
 	f.decision = d
 	return core.CapabilityResult{Provider: "demo"}, err
 }
@@ -27,7 +28,10 @@ func TestSavedApprovalCrossesControllerStream(t *testing.T) {
 		}
 	})
 	client, _ := NewClient(path)
-	_, err := client.RequestCapabilityWithDecision(context.Background(), core.CapabilityRequest{Capability: "demo", Action: "approve"}, func(context.Context, core.ApprovalRequest) (capabilityapp.ApprovalDecision, error) {
+	_, err := client.RequestCapabilityWithDecision(context.Background(), core.CapabilityRequest{Capability: "demo", Action: "approve"}, func(_ context.Context, prompt core.ApprovalRequest) (capabilityapp.ApprovalDecision, error) {
+		if prompt.SavedScope == nil || prompt.SavedScope.Attributes["branch"] != "main" {
+			t.Fatal("saved scope lost in wire transport")
+		}
 		return capabilityapp.ApprovalDecision{Approved: true, Save: capabilityapp.AllowGlobal}, nil
 	})
 	if err != nil || service.decision.Save != capabilityapp.AllowGlobal || !service.decision.Approved {
@@ -38,7 +42,7 @@ func TestSavedApprovalRejectsNonSupportingPeer(t *testing.T) {
 	service := &fakeCapabilities{}
 	client, cancel := startGeneralControlAPITestServer(t, service)
 	defer cancel()
-	_, err := client.RequestCapabilityWithDecision(context.Background(), core.CapabilityRequest{Capability: "demo", Action: "approve"}, func(context.Context, core.ApprovalRequest) (capabilityapp.ApprovalDecision, error) {
+	_, err := client.RequestCapabilityWithDecision(context.Background(), core.CapabilityRequest{Capability: "demo", Action: "approve"}, func(_ context.Context, prompt core.ApprovalRequest) (capabilityapp.ApprovalDecision, error) {
 		return capabilityapp.ApprovalDecision{Approved: true, Save: capabilityapp.AllowGlobal}, nil
 	})
 	if !errors.Is(err, core.ErrUnsupported) {

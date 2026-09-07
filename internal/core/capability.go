@@ -34,11 +34,15 @@ type PolicyEvaluation struct {
 }
 
 type ApprovalRequest struct {
+	SavedScope *CapabilityRequest
+
 	CapabilityRequest CapabilityRequest
 	Reason            string
 }
 
 type CapabilityResult struct {
+	SavedChoice string `json:"saved_choice,omitempty"`
+
 	Provider       string                   `json:"provider"`
 	Output         string                   `json:"output,omitempty"`
 	RequestID      string                   `json:"request_id,omitempty"`
@@ -47,6 +51,8 @@ type CapabilityResult struct {
 }
 
 type CapabilityAuditEvent struct {
+	SavedScope *CapabilityRequest `json:"saved_scope,omitempty"`
+
 	EnvironmentInstance string            `json:"environment_instance,omitempty"`
 	SavedChoice         string            `json:"saved_choice,omitempty"`
 	Time                time.Time         `json:"time"`

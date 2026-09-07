@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
+	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -28,6 +30,8 @@ type CapabilityService interface {
 }
 
 type Proposal struct {
+	SavedScope *core.CapabilityRequest `json:"saved_scope,omitempty"`
+
 	EnvironmentInstance string `json:"environment_instance,omitempty"`
 	ID                  string `json:"id"`
 	Environment         string `json:"environment"`
@@ -40,9 +44,15 @@ type Proposal struct {
 	Summary             string `json:"summary,omitempty"`
 }
 type pendingProposal struct {
-	proposal Proposal
-	decision chan bool
+	proposal  Proposal
+	decision  chan capabilityapp.ApprovalDecision
+	completed chan decisionCompletion
 }
+type decisionCompletion struct {
+	result core.CapabilityResult
+	err    error
+}
+
 type preparedOperation struct {
 	request core.CapabilityRequest
 	execute func(context.Context) (Response, error)
@@ -317,6 +327,9 @@ func (b *Broker) perform(ctx context.Context, bound binding, proposal Proposal, 
 	}
 	proposal.ID = randomID()
 	request := core.CapabilityRequest{Capability: Capability, Action: proposal.Operation, Environment: proposal.Environment, Resource: proposal.Remote, Attributes: map[string]string{"repository": proposal.Repository, "remote": proposal.Remote, "target_ref": proposal.Ref, "old_oid": proposal.OldOID, "new_oid": proposal.NewOID, "operation_id": proposal.ID}}
+	if proposal.Operation == "push" {
+		request.Attributes["update_kind"] = "fast-forward"
+	}
 	if identities, ok := b.Environments.(interface {
 		EnvironmentInstance(context.Context, core.Environment) (string, error)
 	}); ok {
@@ -356,18 +369,36 @@ func (b *Broker) perform(ctx context.Context, bound binding, proposal Proposal, 
 	b.mu.Unlock()
 	defer func() { b.mu.Lock(); delete(b.operations, proposal.ID); delete(b.pending, proposal.ID); b.mu.Unlock() }()
 	ctx = context.WithValue(ctx, operationContextKey{}, proposal.ID)
-	_, err := b.Capabilities.RequestWithApproval(ctx, request, func(ctx context.Context, _ core.ApprovalRequest) (bool, error) {
-		decision := make(chan bool, 1)
+	completed := make(chan decisionCompletion, 1)
+	decide := func(ctx context.Context, prompt core.ApprovalRequest) (capabilityapp.ApprovalDecision, error) {
+		proposal.SavedScope = cloneScope(prompt.SavedScope)
+		decision := make(chan capabilityapp.ApprovalDecision, 1)
 		b.mu.Lock()
-		b.pending[proposal.ID] = pendingProposal{proposal: proposal, decision: decision}
+		b.pending[proposal.ID] = pendingProposal{proposal: proposal, decision: decision, completed: completed}
 		b.mu.Unlock()
 		select {
 		case approved := <-decision:
 			return approved, nil
 		case <-ctx.Done():
-			return false, ctx.Err()
+			return capabilityapp.ApprovalDecision{}, ctx.Err()
 		}
-	})
+	}
+	var result core.CapabilityResult
+	var err error
+	if typed, ok := b.Capabilities.(interface {
+		RequestWithDecision(context.Context, core.CapabilityRequest, func(context.Context, core.ApprovalRequest) (capabilityapp.ApprovalDecision, error)) (core.CapabilityResult, error)
+	}); ok {
+		result, err = typed.RequestWithDecision(ctx, request, decide)
+	} else {
+		result, err = b.Capabilities.RequestWithApproval(ctx, request, func(ctx context.Context, prompt core.ApprovalRequest) (bool, error) {
+			d, e := decide(ctx, prompt)
+			if d.Save != "" {
+				return false, core.ErrUnsupported
+			}
+			return d.Approved, e
+		})
+	}
+	completed <- decisionCompletion{result: result, err: err}
 	return response, err
 }
 func (b *Broker) Pending() []Proposal {
@@ -375,19 +406,95 @@ func (b *Broker) Pending() []Proposal {
 	defer b.mu.Unlock()
 	result := make([]Proposal, 0, len(b.pending))
 	for _, pending := range b.pending {
-		result = append(result, pending.proposal)
+		proposal := pending.proposal
+		proposal.SavedScope = cloneScope(proposal.SavedScope)
+		result = append(result, proposal)
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
 	return result
 }
 func (b *Broker) Decide(id string, approved bool) error {
+	_, err := b.submitDecision(id, capabilityapp.ApprovalDecision{Approved: approved})
+	return err
+}
+
+func (b *Broker) submitDecision(id string, decision capabilityapp.ApprovalDecision) (<-chan decisionCompletion, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	pending, ok := b.pending[id]
 	if !ok {
-		return fmt.Errorf("approval is no longer pending: %w", core.ErrNotFound)
+		return nil, fmt.Errorf("approval is no longer pending: %w", core.ErrNotFound)
+	}
+	if decision.Save != "" {
+		if pending.proposal.SavedScope == nil {
+			return nil, core.ErrUnsupported
+		}
+		rule, err := capabilityapp.RuleForSavedScope(*pending.proposal.SavedScope, decision.Save)
+		if err != nil {
+			return nil, err
+		}
+		if rule.Decision != core.PolicyRequireApproval && (rule.Decision == core.PolicyAllow) != decision.Approved {
+			return nil, core.ErrInvalidArgument
+		}
 	}
 	delete(b.pending, id)
-	pending.decision <- approved
-	return nil
+	pending.decision <- decision
+	return pending.completed, nil
+}
+
+// A persistent response is acknowledged only after durable save and audit.
+// The request itself may still be denied by current Policy or fail at Git.
+func (b *Broker) DecideWithDecision(ctx context.Context, id string, decision capabilityapp.ApprovalDecision) (core.CapabilityResult, error) {
+	completed, err := b.submitDecision(id, decision)
+	if err != nil {
+		return core.CapabilityResult{}, err
+	}
+	select {
+	case outcome := <-completed:
+		if decision.Save != "" && outcome.result.SavedChoice != string(decision.Save) {
+			if outcome.err != nil {
+				return outcome.result, outcome.err
+			}
+			return outcome.result, core.ErrIncompatibleState
+		}
+		if errors.Is(outcome.err, core.ErrAuditIncomplete) {
+			return outcome.result, outcome.err
+		}
+		if !decision.Approved && (errors.Is(outcome.err, core.ErrApprovalDenied) || outcome.err == core.ErrPolicyDenied) {
+			return outcome.result, nil
+		}
+		return outcome.result, outcome.err
+	case <-ctx.Done():
+		return core.CapabilityResult{}, ctx.Err()
+	}
+}
+
+func cloneScope(scope *core.CapabilityRequest) *core.CapabilityRequest {
+	if scope == nil {
+		return nil
+	}
+	copy := *scope
+	copy.Attributes = maps.Clone(scope.Attributes)
+	copy.Parameters = nil
+	return &copy
+}
+
+// Only a context-bound operation prepared in this broker can declare reusable
+// scope. The fixed request is still required by Execute and by the Git backend.
+func (b *Broker) SavedApprovalScope(ctx context.Context, request core.CapabilityRequest) (core.CapabilityRequest, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	id := request.Attributes["operation_id"]
+	operation, ok := b.operations[id]
+	if !ok || ctx.Value(operationContextKey{}) != id || !reflect.DeepEqual(request, operation.request) {
+		return core.CapabilityRequest{}, core.ErrCapabilityStale
+	}
+	if request.Action == "push" && request.Attributes["update_kind"] != "fast-forward" {
+		return core.CapabilityRequest{}, core.ErrUnsupported
+	}
+	scope := *cloneScope(&request)
+	for _, key := range []string{"operation_id", "old_oid", "new_oid"} {
+		scope.Attributes[key] = "*"
+	}
+	return scope, nil
 }

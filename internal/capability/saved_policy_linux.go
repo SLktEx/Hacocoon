@@ -30,6 +30,21 @@ func (e *FilePolicyEvaluator) Remember(ctx context.Context, request core.Capabil
 	if e == nil || !filepath.IsAbs(e.path) {
 		return core.ErrInvalidArgument
 	}
+	return e.rememberRule(ctx, rule)
+}
+
+func (e *FilePolicyEvaluator) RememberScope(ctx context.Context, request core.CapabilityRequest, choice SavedChoice) error {
+	rule, err := RuleForSavedScope(request, choice)
+	if err != nil {
+		return err
+	}
+	if e == nil || !filepath.IsAbs(e.path) {
+		return core.ErrInvalidArgument
+	}
+	return e.rememberRule(ctx, rule)
+}
+
+func (e *FilePolicyEvaluator) rememberRule(ctx context.Context, rule PolicyRule) error {
 	parent, name := filepath.Dir(e.path), filepath.Base(e.path)
 	info, err := os.Lstat(parent)
 	if err != nil || !safePolicyFile(info, true) {

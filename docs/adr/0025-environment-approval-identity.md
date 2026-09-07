@@ -1,6 +1,6 @@
 # ADR 0025: Bind saved Environment decisions to a creation identity
 
-Status: accepted; identity and Git request binding implemented, ordinary saved Git approval integration partial.
+Status: accepted; identity binding and ordinary saved Git CLI implemented; external acceptance partial.
 
 ## Decision
 
@@ -36,7 +36,8 @@ trusted identifier for display. The production Capability service also resolves 
 
 The identity is not a credential or a provider ownership token. It does not by
 itself make a request authorized. Git commit/ref binding, Policy, audit and
-canonical cleanup remain authoritative. Provider-declared reusable Git scope,
-ordinary saved-choice UI and real network/provider acceptance remain unfinished.
+canonical cleanup remain authoritative. Reusable Git scope and CLI saving are
+implemented under [ADR 0026](0026-reusable-git-approval-scope.md); notifications
+and real network/provider acceptance remain unfinished.
 
 Identity resolution reads persisted lease evidence directly. The general legacy state reader can synthesize missing leases; that compatibility result is not accepted as proof for identity assignment.

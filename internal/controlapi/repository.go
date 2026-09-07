@@ -1,8 +1,12 @@
 package controlapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
+	"github.com/SLktEx/Hacocoon/internal/core"
+	"io"
 
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
@@ -27,6 +31,8 @@ type WorkspaceCopyRequest struct {
 	Repositories []string `json:"repositories,omitempty"`
 }
 type GitDecisionRequest struct {
+	Save capabilityapp.SavedChoice `json:"save,omitempty"`
+
 	ID       string `json:"id"`
 	Approved bool   `json:"approved"`
 }
@@ -69,10 +75,16 @@ func RegisterRepositories(server *control.Server, repositories *gitrepo.Reposito
 		{MethodGitPending, func(context.Context, json.RawMessage) (any, error) { return broker.Pending(), nil }},
 		{MethodGitDecide, func(ctx context.Context, payload json.RawMessage) (any, error) {
 			var req GitDecisionRequest
-			if json.Unmarshal(payload, &req) != nil {
+			decoder := json.NewDecoder(bytes.NewReader(payload))
+			decoder.DisallowUnknownFields()
+			if decoder.Decode(&req) != nil || decoder.Decode(new(any)) != io.EOF {
 				return nil, control.ErrInvalidArgument
 			}
-			return nil, translateError(broker.Decide(req.ID, req.Approved))
+			if req.Save == "" {
+				return nil, translateError(broker.Decide(req.ID, req.Approved))
+			}
+			result, err := broker.DecideWithDecision(ctx, req.ID, capabilityapp.ApprovalDecision{Approved: req.Approved, Save: req.Save})
+			return result, translateError(err)
 		}},
 	}
 	for _, registration := range registrations {
@@ -102,4 +114,30 @@ func (c *Client) PendingGit(ctx context.Context) ([]gitrepo.Proposal, error) {
 }
 func (c *Client) DecideGit(ctx context.Context, id string, approved bool) error {
 	return c.wire.Call(ctx, MethodGitDecide, GitDecisionRequest{ID: id, Approved: approved}, nil)
+}
+
+func (c *Client) DecideGitWithSavedChoice(ctx context.Context, id string, approved bool, save capabilityapp.SavedChoice) (core.CapabilityResult, error) {
+	var result core.CapabilityResult
+	if save == "" {
+		return result, core.ErrInvalidArgument
+	}
+	pending, err := c.PendingGit(ctx)
+	if err != nil {
+		return result, err
+	}
+	supported := false
+	for _, proposal := range pending {
+		if proposal.ID == id && proposal.SavedScope != nil {
+			supported = true
+			break
+		}
+	}
+	if !supported {
+		return result, core.ErrUnsupported
+	}
+	err = c.wire.Call(ctx, MethodGitDecide, GitDecisionRequest{ID: id, Approved: approved, Save: save}, &result)
+	if err == nil && result.SavedChoice != string(save) {
+		return result, core.ErrIncompatibleState
+	}
+	return result, err
 }

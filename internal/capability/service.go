@@ -173,10 +173,16 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 		if approval == nil {
 			return baseResult, fmt.Errorf("approval provider unavailable: %w", core.ErrApprovalDenied)
 		}
+		savedRequest, scopeErr := savedApprovalScope(ctx, provider, req)
+		if scopeErr != nil {
+			return baseResult, scopeErr
+		}
+		promptScope := savedRequest
+		promptScope.Attributes = maps.Clone(savedRequest.Attributes)
 		promptRequest := req
 		promptRequest.Attributes = maps.Clone(req.Attributes)
 		promptRequest.Parameters = nil
-		prompt := core.ApprovalRequest{CapabilityRequest: promptRequest, Reason: evaluation.Reason}
+		prompt := core.ApprovalRequest{CapabilityRequest: promptRequest, SavedScope: &promptScope, Reason: evaluation.Reason}
 		var decision ApprovalDecision
 		var approvalErr error
 		if decider, ok := approval.(interface {
@@ -188,7 +194,7 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 		}
 		approved := decision.Approved
 		if approvalErr == nil && decision.Save != "" {
-			rule, choiceErr := RuleForSavedChoice(req, decision.Save)
+			rule, choiceErr := RuleForSavedScope(savedRequest, decision.Save)
 			if choiceErr != nil || (rule.Decision != core.PolicyRequireApproval && (rule.Decision == core.PolicyAllow) != approved) {
 				approvalErr = core.ErrInvalidArgument
 			}
@@ -208,13 +214,29 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 			if !ok {
 				return baseResult, core.ErrUnsupported
 			}
-			if err := saver.Remember(ctx, req, decision.Save); err != nil {
+			remember := saver.Remember
+			if !maps.Equal(savedRequest.Attributes, req.Attributes) {
+				scoped, ok := s.policy.(interface {
+					RememberScope(context.Context, core.CapabilityRequest, SavedChoice) error
+				})
+				if !ok {
+					return baseResult, core.ErrUnsupported
+				}
+				remember = scoped.RememberScope
+			}
+			if err := remember(ctx, savedRequest, decision.Save); err != nil {
 				_ = s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-save-failed", SavedChoice: string(decision.Save), Reason: "policy-save-failed"})
 				return baseResult, fmt.Errorf("save approval choice: %w", err)
 			}
-			if err := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-saved", SavedChoice: string(decision.Save)}); err != nil {
+			auditScope := savedRequest
+			if decision.Save == AllowGlobal || decision.Save == DenyGlobal || decision.Save == AskGlobal {
+				auditScope.Environment = "*"
+				auditScope.EnvironmentInstance = ""
+			}
+			if err := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-saved", SavedChoice: string(decision.Save), SavedScope: &auditScope}); err != nil {
 				return baseResult, errors.Join(core.ErrAuditIncomplete, err)
 			}
+			baseResult.SavedChoice = string(decision.Save)
 			current, err := s.policy.Evaluate(ctx, req)
 			if err != nil {
 				return baseResult, err
@@ -263,6 +285,7 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 	}
 	result, execErr := provider.Execute(ctx, req)
 	result.RequestID = requestID
+	result.SavedChoice = baseResult.SavedChoice
 	if execErr == nil {
 		result.ExecutionState = core.CapabilitySucceeded
 	} else {

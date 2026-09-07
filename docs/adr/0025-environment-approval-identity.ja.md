@@ -1,6 +1,6 @@
 # ADR 0025: 保存方針を Environment の作成識別子に結び付ける
 
-状態: accepted。識別子と Git 要求への結び付けは implemented。通常の Git 保存承認は partial。
+状態: accepted。識別子と通常 Git CLI の保存は implemented。外部受け入れは partial。
 
 ## 決定
 
@@ -32,6 +32,6 @@ trusted な ID を表示用に保持します。実運用の Capability service 
 
 ID は credential や provider 所有権 token ではなく、それだけで操作を許可しません。
 Git commit/ref の照合、Policy、監査、canonical cleanup は引き続き必要です。
-再利用する Git 許可範囲・通常の保存選択 UI・実 network/provider の受け入れ確認は未完了です。
+再利用する Git 許可範囲と通常 CLI の保存は [ADR 0026](0026-reusable-git-approval-scope.ja.md) で実装しました。通知と実 network/provider の受け入れ確認は未完了です。
 
 identity 解決では保存済み lease を直接確認します。一般の legacy reader が補完した不在 lease を、ID 付与の証拠として採用しません。

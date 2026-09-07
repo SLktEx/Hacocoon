@@ -1,5 +1,10 @@
 # Versioning and release status
 
+The partial approval slice now connects ordinary Git pending/approve/deny to
+reusable saved scope and durable receipts. Notifications, broader config
+management and external GitHub acceptance remain incomplete. See
+[ADR 0026](../adr/0026-reusable-git-approval-scope.md).
+
 Current checkpoint v0.36 adds automatic Environment DNS configuration in installed
 Standard mode and safe restoration of absent stopped-Environment source guards.
 Lookup and connection permissions remain separate. Repository regression coverage

@@ -100,22 +100,25 @@ See [ADR 0023](../adr/0023-policy-restriction-precedence.md).
 ## Saved decisions
 
 Status: **storage, service, controller stream and terminal component implemented;
-ordinary Git/notification integration pending**.
+ordinary Git saved decisions implemented; notification integration pending**.
 The optional `saved_decisions` array uses the same rule shape, allow, deny or require-approval. It participates alongside `rules` without replacing administrator rules.
 Persistent allow, deny and ask choices have explicit Environment or global scope.
-Persistence copies every authority attribute and never stores opaque parameters.
+Persistence keeps every attribute name. A trusted provider may explicitly wildcard
+changing values in the displayed saved scope; opaque parameters are never stored.
 See [ADR 0024](../adr/0024-saved-approval-decisions.md) for durability, audit failure
 and manual editing constraints. The capability stream advertises saved-choice support before
 a client may send a persistent decision. Unsupported peers cannot silently
 downgrade it to one-shot approval. The terminal component offers y/N plus the
 six explicitly labeled scope/decision combinations. Saving ask collects a separate
-y/N answer for this request and keeps later requests subject to approval. The ordinary product Git queue and
-notification approval path are not connected to these choices yet.
+y/N answer for this request and keeps later requests subject to approval. The
+ordinary Git queue supports optional approve/deny --save; notifications remain pending.
 
 The maintained Capability E2E now drives the terminal/controller saved choice,
 replays it without a prompt in the same Environment, requires approval in another
 Environment, preserves administrator rules and checks audit parameter redaction.
-This covers the shared approval path; ordinary Git queue integration remains pending.
+This covers the shared approval path. Ordinary Git queue tests also use real local
+Git and a bare remote. See [ADR 0026](../adr/0026-reusable-git-approval-scope.md)
+for reusable scope, persistence receipts and fixed execution.
 
 Every request is reevaluated immediately before provider execution, including one-shot approvals and initially allowed requests. A new deny, unreadable Policy, or newly required approval blocks execution. An in-flight request that already obtained explicit approval may proceed if current Policy still requires approval. This is a boundary recheck, not a transaction with arbitrary manual editors; already-established connections are not revoked by this change.
 

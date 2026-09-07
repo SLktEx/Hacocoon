@@ -1,5 +1,9 @@
 # バージョン番号とリリース状況
 
+partial の承認段階で、通常 Git pending／approve／deny を再利用する保存範囲と
+永続化 receipt に接続しました。通知・config 管理全体・外部 GitHub 受け入れは未完了です。
+[ADR 0026](../adr/0026-reusable-git-approval-scope.ja.md) を参照してください。
+
 現在の checkpoint v0.36 は installed Standard mode の Environment DNS 自動設定と、
 停止中 Environment の欠落した source guard を起動前に復元する処理を追加します。
 名前解決と接続の許可は別です。repository 回帰テストはありますが、新しい Windows DNS

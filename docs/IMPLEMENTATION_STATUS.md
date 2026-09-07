@@ -1,5 +1,20 @@
 # Implementation Status
 
+## Reusable ordinary Git approvals
+
+Status: **implemented repository slice; D1/D2 remain partial**. Existing Git
+approve/deny commands accept optional --save for Environment/global allow, deny
+and ask. Pending output separates current exact commits from provider-declared
+reusable scope. Only OIDs and operation ID are wildcarded; repository/remote/ref
+and fast-forward update kind stay fixed. Attribute-name matching remains exact.
+Saved responses require durable persistence and audit, and unsupported peers fail
+closed. Real local Git helper tests cover subsequent commits, ask, deny and
+history-rewrite refusal. Dedicated Hacocoon-test push for this saving path is
+unverified. See [ADR 0026](adr/0026-reusable-git-approval-scope.md).
+
+At 953d1e5, all four GHA workflows passed, including the corrected orchestrator
+and crash-recovery fixtures. This does not establish acceptance of later changes.
+
 ## Policy-bound name resolution
 
 Status: **partial roadmap C3**. Installed Standard mode now automatically installs
