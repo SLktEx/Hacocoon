@@ -60,5 +60,6 @@ save/replay/update/clear、同じ Workspace の別 Environment での再利用�
 Workspace ごとの保存・再実行・削除、失敗後の recipe 保持、起動前の所有先確認、
 controller の不正引数拒否、stdin 転送は component test で確認済みです。
 Windows GHA に保存・再実行・非ゼロ終了・更新・削除の検証を追加しましたが、
-この変更ではまだ実行していません。package install、cancel 後の子 process cleanup、
+ `c05528a` では Bash に CRLF が渡り、setup 実行前に検証スクリプトが失敗しました。
+LF に正規化する修正後の再実行待ちです。package install、cancel 後の子 process cleanup、
 実 Environment 再作成後の再利用は provider acceptance として未検証です。

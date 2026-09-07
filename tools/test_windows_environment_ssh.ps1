@@ -260,6 +260,7 @@ printf '%s\n' "$updated" | grep -qx SETUP_UPDATED
 haco setup --clear-script "$name"
 haco setup "$name"
 '@
+        $projectSetupProbe = $projectSetupProbe.Replace("`r", "")
         [void](Invoke-HacoHost @('/bin/bash', '-ec', $projectSetupProbe, '--', $EnvironmentName) 'Exercise saved project setup')
         Write-Host 'PROJECT SETUP SAVE / REPLAY / FAILURE / UPDATE / CLEAR: PASS'
         $previewProbe = @'
@@ -274,6 +275,7 @@ haco setup --script "$recipe" "$name" >/dev/null
 haco setup --clear-script "$name" >/dev/null
 haco open --port 3000 --no-browser "$name"
 '@
+        $previewProbe = $previewProbe.Replace("`r", "")
         $previewResult = Invoke-HacoHost @('/bin/bash', '-ec', $previewProbe, '--', $EnvironmentName) 'Start preview through ordinary project setup'
         $previewUrl = $previewResult.Stdout.Trim()
         if ($previewUrl -notmatch '^http://127\.0\.0\.1:[0-9]{1,5}/$') { throw 'Preview returned an unsafe URL' }

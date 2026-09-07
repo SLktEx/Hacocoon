@@ -2,7 +2,7 @@
 
 [日本語](name-resolution.ja.md) | English
 
-Status: **partial**. The policy-bound resolver, controller HTTP route and UDP/TCP relay components exist. Installed Standard mode configures the guest service automatically on creation and resume. Real Windows/VPN acceptance of this slice remains pending.
+Status: **partial**. The policy-bound resolver, controller HTTP route and UDP/TCP relay components exist. Installed Standard mode configures the guest service automatically on creation and resume. Windows GHA accepted ordinary resolution and default denial at `c05528a`; VPN/change/restart acceptance remains pending.
 
 ## Intended ordinary use
 
@@ -20,7 +20,7 @@ The untrusted guest stub uses loopback port 53 and the existing fixed proxy endp
 
 Windows DNS changes, VPN connect/disconnect and WSL restart must be checked against the Windows resolver, Physical Host, trusted Host and Environment using the same public and available VPN names. Platform and application caching must be distinguished from the uncached relay. Current component tests do not establish when any particular VPN change becomes visible.
 
-Maintained component tests cover policy/audit refusal, source-header spoofing, private-address results without connection grants, malformed messages, UDP/TCP and cancellation. Automatic guest provisioning is implemented; actual getaddrinfo acceptance is pending in the new Windows GHA fixture. VPN/NRPT and OS restart acceptance are not run; they must be reported as SKIP if no suitable host/VPN fixture is available. Connection allow/deny must be tested separately. Do not count proxy-only name resolution as guest acceptance.
+Maintained component tests cover policy/audit refusal, source-header spoofing, private-address results without connection grants, malformed messages, UDP/TCP and cancellation. Automatic guest provisioning is implemented; actual getaddrinfo equality across Windows, WSL, trusted Host and Environment, plus default DNS denial, passed in Windows GHA run 34132173483 at `c05528a`. VPN/NRPT and OS restart acceptance are not run; they must be reported as SKIP if no suitable host/VPN fixture is available. Connection allow/deny must be tested separately. Do not count proxy-only name resolution as guest acceptance.
 
 Installer acceptance at `72096d8` failed during automatic DNS service setup on
 both Ubuntu and Windows, before the getaddrinfo fixture. The failure is not
@@ -33,4 +33,4 @@ The installer diagnostic at `7eecbdf` narrowed the failure to `daemon-reload`.
 Provisioning now waits up to 30 seconds for the guest systemd manager before
 mutating service state. A failed reload is not retried. Shell regression tests
 cover delayed readiness, timeout, and reload failure; real installer acceptance
-of this correction remains pending.
+of this correction passed Ubuntu and Incus at `c05528a`. The Windows DNS fixture and VS Code connection passed, but the workflow failed later in the project-setup test harness before setup execution.

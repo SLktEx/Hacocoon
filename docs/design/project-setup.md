@@ -65,6 +65,8 @@ and [trusted Host setup](trusted-host.md).
 Component tests pass for Workspace-scoped save/replay/clear, retained recipes
 after failure, identity-bound start refusal, strict controller requests and
 bounded stdin transfer. Installed Windows GHA now includes explicit
-save/replay/nonzero/update/clear acceptance; it has not run for this change yet.
+save/replay/nonzero/update/clear acceptance. At `c05528a`, the harness failed
+before setup execution because a CRLF script reached Bash. The harness now
+normalizes scripts to LF; acceptance awaits a rerun.
 Package installation, cancellation descendant cleanup and reuse after actual
 Environment recreation remain unverified at the provider acceptance layer.

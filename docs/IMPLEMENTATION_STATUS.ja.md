@@ -12,7 +12,7 @@ bare controller mode では component は optional のままです。自動導�
 既存の隔離された listener が永続化された送信元を識別し、Capability Policy と監査の
 後で Physical Host resolver を使います。接続権限は別です。Windows、WSL、
 trusted Host、Environment の通常 getaddrinfo と default DNS 拒否を比較する GHA
-fixture を追加しましたが、新しい fixture の GHA 成功はまだ確認していません。
+fixture は `c05528a` の Windows run 34132173483 で成功しました。
 VPN/NRPT、DNS 変更・再起動後の反映は未検証です。[名前解決](design/name-resolution.ja.md)を参照してください。
 
 
@@ -23,7 +23,18 @@ Environment DNS service の設定中に失敗しました。新しい DNS fixtur
 GHA の失敗の再現・原因の説明にはなりません。probe は canonical に削除し、
 空の Workspace も削除しました。adapter は任意の guest 出力を公開せず、
 許可した処理段階と数値の service 終了コードだけを返す診断を追加しています。
-C4 の[プロジェクト setup](design/project-setup.ja.md)は契約を planned として記録した段階で、未実装です。
+`a1d084b` は Ubuntu installer・Incus・test が成功し、Windows は job 制限時間で CANCELLED になりました。
+`c05528a` も test・Ubuntu installer・Incus は成功しました。Windows run 34132173483 は
+DNS の一致・default 拒否と VS Code 実接続に成功し、その後の project setup 検証で失敗しました。
+PowerShell で生成した Bash script の CRLF により、setup 実行前の `set` が終了コード 2 を返しました。
+setup と preview の script を LF に正規化しています。setup・preview・Environment doctor の実機検証は再実行待ちです。
+
+C4 の[プロジェクト setup](design/project-setup.ja.md)は Workspace ごとの recipe を
+`haco setup --script <path> <environment>` で保存・実行し、再実行・削除する部分を実装済みです。
+Host recipe は既存の挙動を保ちます。起動前と実行 lifecycle lock 内で対象 identity を確認し、
+script は上限付き stdin で渡します。関連 race test は成功しました。
+installed GHA は `c05528a` で setup 実行前の検証スクリプトが失敗しました。
+package 導入と実際の cancel cleanup は未検証です。
 
 ## 現在のdesktop開発checkpoint
 

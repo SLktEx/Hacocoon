@@ -13,7 +13,7 @@ The existing guarded listener binds requests to persisted source identity and
 uses Capability Policy/audit before the Physical Host resolver. Connection
 authority remains separate. A Windows GHA fixture now compares ordinary
 getaddrinfo results across Windows, WSL, trusted Host and Environment and checks
-default DNS denial; the new fixture has not yet passed GHA. VPN/NRPT, propagation
+default DNS denial; both passed at `c05528a` in Windows run 34132173483. VPN/NRPT, propagation
 after DNS changes and restart remain unverified. See [name resolution](design/name-resolution.md).
 
 
@@ -26,14 +26,19 @@ The probe was canonically deleted and its empty Workspace removed. The adapter
 now returns only an allowlisted failure phase and numeric service exit status
 to diagnose the installer failure without exposing arbitrary guest output.
 At `a1d084b`, the bounded guest-manager wait passed Ubuntu installer, Incus
-and test workflows. Windows acceptance is still running.
+and test workflows. Its Windows run was cancelled at the job time limit.
+At `c05528a`, test, Ubuntu installer and Incus workflows passed. Windows run
+34132173483 passed DNS equality/default denial and real VS Code connection,
+then failed before project setup: CRLF in the PowerShell-generated Bash script
+made `set` exit 2. The harness now normalizes both setup and preview scripts
+to LF. Setup, preview and Environment doctor acceptance await the rerun.
 
 C4 [project setup](design/project-setup.md) now implements explicit Workspace
 recipes through `haco setup --script <path> <environment>`, replay and clear.
 Host recipes retain their existing behavior. Target identity is checked before
 start and under the execution lifecycle lock; script bytes travel through
 bounded stdin. Relevant race tests passed. Installed GHA coverage was added but
-has not executed for this slice; package installation and actual cancellation
+failed in the harness before setup execution at `c05528a`; package installation and actual cancellation
 cleanup acceptance remain unverified.
 
 ## Current desktop-development checkpoint
