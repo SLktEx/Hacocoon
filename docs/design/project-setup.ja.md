@@ -70,3 +70,5 @@ interface を引き継がず、runtime が setup を未対応として拒否し�
 両 decorator は Incus exec の stdin のみ引き継ぎ、管理コマンドは既存の所有権検査を通します。
 実運用と同じ構成で stdin・結果の引き継ぎ、未対応 backend、管理操作の拒否を回帰確認します。
 installed setup の成功確認は再実行待ちです。
+
+installed Windows run 34135390824（`347ca50`）で通常の setup による保存・再実行・非ゼロ終了・更新・削除が成功しました。DNS と VS Code 実接続も成功しました。次の preview server recipe で失敗しており、package 導入・再作成・cancel の実機検証は未完了です。

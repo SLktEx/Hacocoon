@@ -677,3 +677,5 @@ project setup で失敗しました。実運用 runner decorator が Incus exec 
 stdin 契約を引き継ぐ修正を加えています。修正後の installed 検証は再実行待ちです。
 
 保存 Policy に Environment 単位・全 Environment の毎回承認を追加しました。terminal で今回の許可・拒否を別に確認し、ask の保存から allow を作りません。通常の Git/通知への統合と、それらを不変の Environment identity に結び付ける作業は未完了です。
+
+`347ca50` は test・Ubuntu・Incus workflow が成功しました。Windows run 34135390824 では DNS・VS Code と project setup の保存・再実行・非ゼロ終了・更新・削除が成功し、preview server recipe で失敗しました。fixture は Python がなければ準備し、loopback listener の起動を待つようにしました。前回の失敗原因はまだ確定していません。preview・Edge・Environment doctor の実機検証は未完了です。単発承認・最初から許可された要求も実行直前に Policy を再評価する修正は、関連 race test が成功しました。

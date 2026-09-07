@@ -823,3 +823,5 @@ failed project setup. Production runner decorators now retain the optional stdin
 contract for Incus exec; installed acceptance of this fix remains pending.
 
 Saved Policy now also supports Environment/global require-approval. The terminal asks a separate y/N for the current request; saving ask never creates allow. Ordinary Git/notification integration and binding these product flows to immutable Environment identity remain incomplete.
+
+At `347ca50`, test/Ubuntu/Incus workflows passed. Windows run 34135390824 passed DNS, VS Code and project setup save/replay/nonzero/update/clear, then failed the preview server recipe. The fixture now prepares Python if absent and waits for a loopback listener; the previous failure cause is not fully established. Preview/Edge/Environment doctor remain unaccepted. Policy now rechecks one-shot and initially allowed requests immediately before execution; focused race tests passed.

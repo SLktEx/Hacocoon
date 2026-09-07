@@ -78,3 +78,5 @@ Both decorators now preserve stdin for Incus exec only; management commands stay
 on their existing ownership-checked route. A regression uses the production
 decorator chain and checks stdin/result forwarding, unsupported backends and
 management-operation refusal. Installed setup acceptance still awaits a rerun.
+
+Installed Windows run 34135390824 at `347ca50` passed save/replay/nonzero/update/clear through ordinary setup. DNS and actual VS Code also passed. The next preview-server recipe failed; package installation, recreation and cancellation acceptance remain unproven.

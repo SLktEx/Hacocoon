@@ -269,9 +269,23 @@ name=$1
 recipe=$(mktemp /tmp/haco-preview-XXXXXX)
 trap 'rm -f "$recipe"' EXIT
 cat > "$recipe" <<'RECIPE'
+set -eu
+if ! test -x /usr/bin/python3; then
+  apt-get update
+  apt-get install -y --no-install-recommends python3
+fi
+printf '%s\n' PREVIEW_RUNTIME_READY
 systemd-run --unit=haco-preview-probe --collect --service-type=exec /usr/bin/python3 -m http.server 3000 --bind 127.0.0.1 --directory /workspace
+for attempt in $(seq 1 30); do
+  if /usr/bin/python3 -c 'import socket; socket.create_connection(("127.0.0.1", 3000), timeout=1).close()'; then
+    printf '%s\n' PREVIEW_SERVER_READY
+    exit 0
+  fi
+  sleep 1
+done
+exit 1
 RECIPE
-haco setup --script "$recipe" "$name" >/dev/null
+haco setup --script "$recipe" "$name" >&2
 haco setup --clear-script "$name" >/dev/null
 haco open --port 3000 --no-browser "$name"
 '@
