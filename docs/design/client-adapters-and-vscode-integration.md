@@ -249,7 +249,8 @@ haco open dev
 If exactly one Environment exists, omit `dev`. With multiple Environments,
 the command lists names and asks for a name on the next invocation. `haco open`
 performs the same setup then launches the installed VS Code on `/workspace`
-through Remote-SSH; the VS Code Remote-SSH extension must be installed.
+through Remote-SSH; if its extension is absent, the client installs it with the
+installed VS Code CLI before launch. Installation failure is reported as failure.
 SSH setup itself remains editor-neutral.
 
 In WSL (including trusted haco-host), the client resolves the Windows profile and

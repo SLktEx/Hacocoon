@@ -61,3 +61,26 @@ func TestWindowsDesktopProjectionE2E(t *testing.T) {
 	}
 	t.Log("PASS native Windows key generation, confined client-file writes, reconnect reuse and OpenSSH configuration parsing; no transport exercised")
 }
+
+func TestWindowsEditorPreparationE2E(t *testing.T) {
+	if os.Getenv("HACO_E2E_WINDOWS_EDITOR") != "1" {
+		t.Skip("requires explicit desktop editor preparation acceptance")
+	}
+	ctx := context.Background()
+	d, err := ResolveDesktop(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !d.Windows {
+		t.Fatal("requires Windows desktop")
+	}
+	path, err := Editor(ctx, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		t.Fatalf("editor executable: %v", err)
+	}
+	t.Log("PASS actual Windows VS Code discovery and Remote-SSH extension preparation; editor connection not exercised")
+}

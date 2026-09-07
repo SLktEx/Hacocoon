@@ -560,7 +560,7 @@ Windows試験はまだ実行していません。鍵・config自動設定とVS C
 Status: **製品コマンドはimplemented、更新後のWindows実接続とeditor受入は未確認**。
 `haco ssh setup dev`でクライアント側の鍵・接続設定・公開ホスト鍵固定を用意し、
 `ssh haco-dev`で接続します。`haco open dev`は同じ設定後にVS Codeを起動します。
-環境が1つなら名前を省略できます。Remote-SSH拡張はVS Code側に必要です。
+環境が1つなら名前を省略できます。Remote-SSH拡張が未導入なら初回openでVS Code CLIを通して導入します。
 Windows/WSLではWindowsのprofileとnative ssh-keygenを使い、秘密鍵をWindowsに保持します。
 停止済み環境は既存のstart経路で再開し、同じ接続を再利用します。既存SSH設定を残し、
 専用Includeと管理ファイルを追加します。設定失敗後の準備済み接続はID付きで
@@ -571,3 +571,10 @@ recovery-requiredとして保持します。関連テスト・raceは成功し�
 native ssh-keygen、ファイル作成、設定再利用、Windows OpenSSHの`-G`構文解釈を確認しています。
 `HACO_E2E_WINDOWS_DESKTOP=1`で`TestWindowsDesktopProjectionE2E`を実行します。
 controllerはfakeであり、実SSH・VS Code接続成功を示す試験ではありません。
+
+`haco open`はRemote-SSH拡張がない場合だけ導入し、`ssh setup`にはeditor依存を追加しません。
+開発端末ではWindows CLIによるRemote-SSH 0.128.0の導入が成功しました。
+`TestWindowsEditorPreparationE2E`もhaco-host経由の実editor検出・拡張確認に成功しました。
+初回はPowerShell起動が`exec format error`で失敗し、読み取り専用の状態確認後の再実行は
+手動修復なしで成功しました。一時的なnative interop失敗の原因は未確定です。
+VS Code serverへの接続成功を示すものではなく、更新後のGHA desktop SSH受入も確認待ちです。

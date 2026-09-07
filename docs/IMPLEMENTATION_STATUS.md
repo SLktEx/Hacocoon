@@ -667,3 +667,12 @@ haco-host with a test-only temporary Windows home: native ssh-keygen, confined
 file creation, repeated setup reuse and native OpenSSH `-G` parsing. Run
 `TestWindowsDesktopProjectionE2E` with `HACO_E2E_WINDOWS_DESKTOP=1` for this fixture.
 Its controller is fake; it does not prove live SSH or VS Code connectivity.
+
+`haco open` now prepares the VS Code Remote-SSH extension only when absent;
+`ssh setup` has no editor dependency. The actual Windows CLI installed Remote-SSH
+0.128.0 on the development desktop. The opt-in `TestWindowsEditorPreparationE2E`
+then passed installed-editor discovery and extension inspection through haco-host.
+Its first execution failed starting PowerShell with `exec format error`; a later
+execution passed after read-only interop inspection, with no manual repair. The
+cause of that transient native-interop failure remains unconfirmed. Neither result
+proves a VS Code server connection. Updated GHA desktop SSH acceptance is pending.
