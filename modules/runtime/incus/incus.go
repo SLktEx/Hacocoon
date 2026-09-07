@@ -323,6 +323,17 @@ func (r *Runtime) ForwardLocalPort(ctx context.Context, ref string, req core.Loc
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return core.ClientConnection{}, err
 	}
+	if req.Protocol != "" && req.Protocol != "tcp" {
+		return core.ClientConnection{}, core.ErrUnsupported
+	}
+	if req.TargetPort < 1 || req.TargetPort > 65535 {
+		return core.ClientConnection{}, core.ErrInvalidArgument
+	}
+	port, err := chooseLoopbackPort(ctx, req.HostPort)
+	if err != nil {
+		return core.ClientConnection{}, err
+	}
+	req.HostPort = port
 	id := fmt.Sprintf("tcp-%d-%d", req.HostPort, req.TargetPort)
 	if err := r.addLoopbackProxy(ctx, ref, id, req.HostPort, req.TargetPort); err != nil {
 		return core.ClientConnection{}, err

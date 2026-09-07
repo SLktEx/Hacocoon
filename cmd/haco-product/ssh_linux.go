@@ -25,6 +25,9 @@ func runSSH(args []string) int {
 func runOpen(args []string) int {
 	flags := flag.NewFlagSet("haco open", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
+	port := flags.Int("port", 0, "open an Environment HTTP port in the browser")
+	closePreview := flags.Bool("close", false, "close the selected preview port")
+	noBrowser := flags.Bool("no-browser", false, "print the preview URL without launching a browser")
 	selected := flags.String("client", "vscode", "desktop client: vscode or ssh")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -33,7 +36,27 @@ func runOpen(args []string) int {
 		return 2
 	}
 	if flags.NArg() > 1 || (*selected != "vscode" && *selected != "ssh") {
-		fmt.Fprintln(os.Stderr, "Usage: haco open [--client vscode|ssh] [environment]")
+		fmt.Fprintln(os.Stderr, "Usage: haco open [--client vscode|ssh | --port <port> [--close | --no-browser]] [environment]")
+		return 2
+	}
+	portSet := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "port" {
+			portSet = true
+		}
+	})
+	if portSet {
+		if *port < 1 || *port > 65535 || *selected != "vscode" {
+			return 2
+		}
+		name := ""
+		if flags.NArg() == 1 {
+			name = flags.Arg(0)
+		}
+		return openPreview(name, *port, *closePreview, *noBrowser, os.Stdout, os.Stderr)
+	}
+	if *closePreview || *noBrowser {
+		fmt.Fprintln(os.Stderr, "haco: --close and --no-browser require --port")
 		return 2
 	}
 	return setupDesktopSSH(flags.Args(), *selected)

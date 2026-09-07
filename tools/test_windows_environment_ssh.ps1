@@ -252,6 +252,31 @@ haco setup "$name"
 '@
         [void](Invoke-HacoHost @('/bin/bash', '-ec', $projectSetupProbe, '--', $EnvironmentName) 'Exercise saved project setup')
         Write-Host 'PROJECT SETUP SAVE / REPLAY / FAILURE / UPDATE / CLEAR: PASS'
+        $previewProbe = @'
+set -eu
+name=$1
+recipe=$(mktemp /tmp/haco-preview-XXXXXX)
+trap 'rm -f "$recipe"' EXIT
+cat > "$recipe" <<'RECIPE'
+systemd-run --unit=haco-preview-probe --collect --service-type=exec /usr/bin/python3 -m http.server 3000 --bind 127.0.0.1 --directory /workspace
+RECIPE
+haco setup --script "$recipe" "$name" >/dev/null
+haco setup --clear-script "$name" >/dev/null
+haco open --port 3000 --no-browser "$name"
+'@
+        $previewResult = Invoke-HacoHost @('/bin/bash', '-ec', $previewProbe, '--', $EnvironmentName) 'Start preview through ordinary project setup'
+        $previewUrl = $previewResult.Stdout.Trim()
+        if ($previewUrl -notmatch '^http://127\.0\.0\.1:[0-9]{1,5}/$') { throw 'Preview returned an unsafe URL' }
+        $previewResponse = Invoke-WebRequest -Uri ($previewUrl + 'windows-marker') -TimeoutSec 10
+        if ($previewResponse.Content.Trim() -ne 'windows-workspace-ok') { throw 'Preview reached a different Workspace' }
+        $reusedPreview = Invoke-HacoHost @('/usr/local/bin/haco', 'open', '--port', '3000', '--no-browser', $EnvironmentName) 'Reuse preview connection'
+        if ($reusedPreview.Stdout.Trim() -ne $previewUrl) { throw 'Preview did not reuse its connection' }
+        [void](Invoke-HacoHost @('/usr/local/bin/haco', 'open', '--port', '3000', '--close', $EnvironmentName) 'Close preview connection')
+        $previewRefused = $false
+        try { [void](Invoke-WebRequest -Uri $previewUrl -TimeoutSec 3) } catch { $previewRefused = $true }
+        if (-not $previewRefused) { throw 'Closed preview still accepts Windows HTTP requests' }
+        Write-Host 'WINDOWS HTTP PREVIEW / REUSE / CONNECTION REFUSAL: PASS'
+
 
     } else {
         Write-Host 'SKIP: automatic desktop SSH setup acceptance uses the disposable GHA Windows profile'

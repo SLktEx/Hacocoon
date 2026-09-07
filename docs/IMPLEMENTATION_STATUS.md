@@ -778,3 +778,9 @@ cancellation cleanup at 4adfe19 (run 34115004878, job 101719650209). Populated
 OCI image execution and local installed acceptance remain unverified. See
 [temporary execution](design/temporary-execution.md) and
 [ADR 0020](adr/0020-runtime-owned-temporary-workspaces.md).
+
+## Development preview
+
+Status: **partial roadmap C5**. `haco open --port <port> [environment]` adds
+loopback HTTP preview with connection reuse and `--close`. Installed Windows HTTP
+acceptance and actual browser launch remain pending. See [preview](design/development-preview.md).

@@ -11,7 +11,7 @@ import (
 )
 
 func TestSSHPortProbeUsesLoopbackAndReleasesListener(t *testing.T) {
-	port, err := chooseSSHPort(context.Background(), 0)
+	port, err := chooseLoopbackPort(context.Background(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,16 +24,16 @@ func TestSSHPortProbeUsesLoopbackAndReleasesListener(t *testing.T) {
 
 func TestSSHPortSelectionRejectsInvalidAndCanceledRequests(t *testing.T) {
 	for _, port := range []int{-1, 65536} {
-		if _, err := chooseSSHPort(context.Background(), port); !errors.Is(err, core.ErrInvalidArgument) {
+		if _, err := chooseLoopbackPort(context.Background(), port); !errors.Is(err, core.ErrInvalidArgument) {
 			t.Fatal(err)
 		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := chooseSSHPort(ctx, 0); !errors.Is(err, context.Canceled) {
+	if _, err := chooseLoopbackPort(ctx, 0); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if got, err := chooseSSHPort(context.Background(), 2222); err != nil || got != 2222 {
+	if got, err := chooseLoopbackPort(context.Background(), 2222); err != nil || got != 2222 {
 		t.Fatalf("%d: %v", got, err)
 	}
 }
