@@ -1,7 +1,10 @@
 # バージョン番号とリリース状況
 
 partial の承認段階で、通常 Git pending／approve／deny を再利用する保存範囲と
-永続化 receipt に接続しました。通知・config 管理全体・外部 GitHub 受け入れは未完了です。
+永続化 receipt に接続しました。通知・config 管理全体は未完了です。
+installed `eb16300b6700` で専用 GitHub への push、保存 ask の再利用、拒否を確認しました。
+他の選択肢は repository 内検証に限定されます。現行 Windows GHA は SSH 成功後の
+editor 完了待ちで失敗しています。
 [ADR 0026](../adr/0026-reusable-git-approval-scope.ja.md) を参照してください。
 
 現在の checkpoint v0.36 は installed Standard mode の Environment DNS 自動設定と、

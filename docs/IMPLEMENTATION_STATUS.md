@@ -9,8 +9,16 @@ reusable scope. Only OIDs and operation ID are wildcarded; repository/remote/ref
 and fast-forward update kind stay fixed. Attribute-name matching remains exact.
 Saved responses require durable persistence and audit, and unsupported peers fail
 closed. Real local Git helper tests cover subsequent commits, ask, deny and
-history-rewrite refusal. Dedicated Hacocoon-test push for this saving path is
-unverified. See [ADR 0026](adr/0026-reusable-git-approval-scope.md).
+history-rewrite refusal. Installed Windows/WSL acceptance at `eb16300b6700`
+passed ordinary SSH, saved ask approval, GitHub push, subsequent re-prompt and
+denial with unchanged remote. See the exact commits and retained resources in
+[managed Git acceptance](reference/managed-repository-workflow.md#installed-saved-approval-acceptance)
+and [ADR 0026](adr/0026-reusable-git-approval-scope.md).
+
+At `eb16300`, GHA test 34146281274, Ubuntu 34146281278 and Incus 34146281289
+passed. Windows 34146281264 failed: DNS and ordinary SSH/resume passed, then
+VS Code did not complete within ten minutes. Setup/preview/doctor later in that
+job were not run. This remains a failure, not a SKIP or current editor acceptance.
 
 At 953d1e5, all four GHA workflows passed, including the corrected orchestrator
 and crash-recovery fixtures. This does not establish acceptance of later changes.

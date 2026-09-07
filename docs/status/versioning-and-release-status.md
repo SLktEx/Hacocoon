@@ -2,7 +2,9 @@
 
 The partial approval slice now connects ordinary Git pending/approve/deny to
 reusable saved scope and durable receipts. Notifications, broader config
-management and external GitHub acceptance remain incomplete. See
+management remain incomplete. Installed `eb16300b6700` passed dedicated GitHub
+push, saved ask reuse and denial acceptance; other choices retain repository-only
+coverage. Current Windows GHA failed at the editor wait, after SSH passed. See
 [ADR 0026](../adr/0026-reusable-git-approval-scope.md).
 
 Current checkpoint v0.36 adds automatic Environment DNS configuration in installed

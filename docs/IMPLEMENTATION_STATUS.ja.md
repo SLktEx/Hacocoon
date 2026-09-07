@@ -8,8 +8,16 @@ pending は今回の exact commit と provider が定義する再利用範囲を
 OID と operation ID だけを wildcard にし、repository・remote・ref・fast-forward
 update kind と属性名完全一致を維持します。永続化・監査済み応答を確認し、非対応 peer
 は拒否します。実ローカル Git helper で次 commit、ask、deny、history rewrite 拒否を
-確認しました。この保存経路の Hacocoon-test push は未検証です。
+確認しました。`eb16300b6700` の installed Windows／WSL で通常 SSH、ask 方針の
+保存、GitHub push、次 commit の再確認、拒否時の remote 不変を確認しました。
+正確な commit と保持資源は[管理 Git の検証](reference/managed-repository-workflow.md#installed-saved-approval-acceptance)
+に記載しています。
 [ADR 0026](adr/0026-reusable-git-approval-scope.ja.md) を参照してください。
+
+`eb16300` の GHA test 34146281274、Ubuntu 34146281278、Incus 34146281289 は
+PASS。Windows 34146281264 は FAIL です。DNS・通常 SSH・再開は成功しましたが、
+VS Code が 10 分以内に完了しませんでした。後続の setup／preview／doctor は未実行です。
+失敗を SKIP や現行 editor の受け入れ成功として扱いません。
 
 953d1e5 は全 4 GHA workflow が PASS しました。修正した orchestrator／crash fixture
 も含みます。それ以降の変更の受け入れを証明するものではありません。

@@ -162,6 +162,30 @@ that pending request. A denial must leave the remote unchanged; a subsequent
 ordinary `git push` creates a new proposal. Verify the resulting upstream OID
 using authenticated Git or GitHub from the trusted side.
 
+## Installed saved-approval acceptance
+
+The locally packaged and normally installed `eb16300b6700` build passed Windows
+native SSH and ordinary guest Git push through the Host broker on 2026-09-08.
+The only upstream was `https://github.com/SLktEx/Hacocoon-test.git`, branch
+`codex/stage-b-b-first-20260906`. `haco git approve --save ask-env <id>` returned
+`saved_choice: ask-environment`, successful execution and complete audit; the
+protected Policy file contained the matching creation identity and fixed ref.
+Remote verification observed `3ca59c3a0b56f2c05287c289f17ae9f0ce41b416`.
+
+After removing the temporary administrator push rule, the saved ask rule alone
+prompted for the next commit, `26a7b664214242d663520d10f1f4a111a1dccaa8`.
+Ordinary `haco git deny <id>` made push exit 1 as expected; the remote stayed at
+`3ca59c3a0b56f2c05287c289f17ae9f0ce41b416`. This is successful denial acceptance,
+not a successful second push. Other saved choices have repository integration
+coverage, not this installed GitHub acceptance.
+
+The test Environment was canonically stopped/deleted. Its Workspace and
+repository `git-save-eb16300` retain the unpushed second commit. Test-only
+Policy rules, saved decision and SSH entry/pin were removed; the original eight
+rules and default deny were preserved. Initial SSH setup failed without package
+egress permission; it passed after temporary, creation-bound Ubuntu archive
+permissions were added. No guest received reusable GitHub credentials.
+
 ## Select a Base
 
 Use `haco base list` and `haco env create --base haco/ubuntu-26.04
