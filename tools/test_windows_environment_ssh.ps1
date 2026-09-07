@@ -320,7 +320,7 @@ haco setup "$name"
         } catch {
             $DesktopFailures.Add('approval-review')
             $reviewPhase = 'unknown'
-            if ($_.Exception.Message -match 'PENDING APPROVAL REVIEW: FAIL phase=(configure|saved-ask-deny|one-shot-allow|reask-deny|cleanup) cleanup_failed=(true|false)') {
+            if ($_.Exception.Message -match 'PENDING APPROVAL REVIEW: FAIL phase=((?:configure|prepare|saved-ask-deny|one-shot-allow|reask-deny|cleanup)(?:-(?:configuration|python-prerequisite|start-probe|wait-pending|validate-prompt|submit-review|validate-receipt|network-result|clear-recipe|verify-saved-policy))?) cleanup_failed=(true|false)') {
                 $reviewPhase = $Matches[1] + '-cleanup-failed-' + $Matches[2]
             }
             Write-DesktopProbeFailure 'PENDING APPROVAL REVIEW' $reviewPhase $_
@@ -348,9 +348,15 @@ for attempt in $(seq 1 30); do
 done
 exit 1
 RECIPE
-haco setup --script "$recipe" "$name" >&2
-haco setup --clear-script "$name" >/dev/null
-haco open --port 3000 --no-browser "$name"
+if ! haco setup --script "$recipe" "$name" >&2; then
+  printf "%s\n" PREVIEW_FAILURE_SETUP >&2; exit 1
+fi
+if ! haco setup --clear-script "$name" >/dev/null; then
+  printf "%s\n" PREVIEW_FAILURE_CLEAR >&2; exit 1
+fi
+if ! haco open --port 3000 --no-browser "$name"; then
+  printf "%s\n" PREVIEW_FAILURE_OPEN >&2; exit 1
+fi
 '@
         $previewProbe = $previewProbe.Replace("`r", "")
         $previewPhase = 'setup-and-open'
@@ -425,17 +431,26 @@ haco open --port 3000 --no-browser "$name"
             Write-Host 'WINDOWS HTTP PREVIEW / REUSE / CONNECTION REFUSAL: PASS'
         } catch {
             $DesktopFailures.Add('preview')
+            if ($previewPhase -eq 'setup-and-open' -and $_.Exception.Message -match 'PREVIEW_FAILURE_(SETUP|CLEAR|OPEN)') {
+                $previewPhase = $Matches[1].ToLowerInvariant()
+            }
             Write-DesktopProbeFailure 'WINDOWS HTTP PREVIEW' $previewPhase $_
         }
         $doctorPhase = 'invoke'
         try {
-            $environmentDoctor = Invoke-HacoHost @('/usr/local/bin/haco', 'doctor', '--json', $EnvironmentName) 'Diagnose Environment prerequisites'
+            Write-Host 'ACCEPTANCE: Diagnose Environment prerequisites'
+            $environmentDoctor = Invoke-Captured 'wsl.exe' @('-d', $Distro, '-u', 'root', '--exec', 'incus', 'exec', 'haco-host', '--project', 'hacocoon', '--', '/usr/local/bin/haco', 'doctor', '--json', $EnvironmentName)
             $doctorPhase = 'json'
             $environmentReport = $environmentDoctor.Stdout | ConvertFrom-Json
             $doctorPhase = 'workspace-identity'
             if ($environmentReport.environment -ne $EnvironmentName -or [string]::IsNullOrWhiteSpace($environmentReport.workspace.id)) { throw 'Environment doctor reported the wrong Workspace' }
             $doctorPhase = 'prerequisite-status'
-            if (@($environmentReport.checks | Where-Object { $_.status -ne 'ok' }).Count -ne 0) { throw 'Environment doctor did not pass local prerequisite checks' }
+            foreach ($check in $environmentReport.checks) {
+                if ($check.name -cin @('runtime', 'workspace', 'dns_service', 'ssh_service') -and $check.status -cin @('ok', 'failed', 'skipped')) {
+                    Write-Host ('ENVIRONMENT DOCTOR CHECK: ' + $check.name + '=' + $check.status)
+                }
+            }
+            if ($environmentDoctor.ExitCode -ne 0 -or @($environmentReport.checks | Where-Object { $_.status -ne 'ok' }).Count -ne 0) { throw 'Environment doctor did not pass local prerequisite checks' }
             Write-Host 'ENVIRONMENT DOCTOR WORKSPACE / DNS / SSH PREREQUISITES: PASS'
         } catch {
             $DesktopFailures.Add('doctor')

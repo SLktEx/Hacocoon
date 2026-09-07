@@ -24,7 +24,8 @@ An optional request ID selects an exact request. No new arguments are required f
 ordinary Git or network operations. Existing Git approve/deny commands remain.
 Use [haco config](../reference/configuration.md) to inspect or edit saved Policy.
 
-The result is a capability receipt, not command output. It distinguishes execution
+Ordinary results show Approved/Denied and any saved Policy in readable text. Add
+--json when a script needs the capability receipt. It distinguishes execution
 state, saved choice and audit completion. A denied request is not executed; it
 does not have a successful provider-completion audit. On transport loss or a
 failed outcome, inspect Policy and audit before retrying. Never infer persistence

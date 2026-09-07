@@ -37,6 +37,10 @@ def configuration_update(directory, mutate):
         raise RuntimeError("configuration receipt mismatch")
 
 
+def valid_network_output(output):
+    return output.splitlines() == ["PENDING_NETWORK_RESULT_OK", "Project setup completed."]
+
+
 def main(environment):
     if not re.fullmatch(r"win-ssh-[a-f0-9]{16}", environment):
         raise RuntimeError("requires a disposable Windows SSH acceptance Environment")
@@ -52,6 +56,7 @@ def main(environment):
     recipe_touched = False
     phase = "configure"
     failure = None
+    step = "configuration"
     cleanup_failed = False
     with tempfile.TemporaryDirectory(prefix="haco-approval-acceptance-") as temporary:
         directory = pathlib.Path(temporary)
@@ -68,11 +73,20 @@ def main(environment):
             # add marks cleanup necessary only after proving the scope absent,
             # but before the fallible apply/receipt check.
             configuration_update(directory, add)
+            phase = "prepare"
+            step = "python-prerequisite"
+            prerequisite = directory / "prerequisite.sh"
+            prerequisite.write_text("set -eu\nif ! test -x /usr/bin/python3; then\n  apt-get update\n  apt-get install -y --no-install-recommends python3\nfi\n", encoding="utf-8")
+            prerequisite.chmod(0o600)
+            recipe_touched = True
+            command("setup", "--script", str(prerequisite), environment, timeout=240)
+            command("setup", "--clear-script", environment)
             for phase, answer, allowed in (
                 ("saved-ask-deny", "5\nn\n", False),
                 ("one-shot-allow", "y\n", True),
                 ("reask-deny", "n\n", False),
             ):
+                step = "start-probe"
                 recipe = directory / "probe.sh"
                 recipe.write_text("""set -eu
 test -x /usr/bin/python3
@@ -96,6 +110,7 @@ PY
                     ["/usr/local/bin/haco", "setup", "--script", str(recipe), environment],
                     text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 )
+                step = "wait-pending"
                 deadline = time.monotonic() + 60
                 prompt = None
                 while time.monotonic() < deadline:
@@ -111,6 +126,7 @@ PY
                     if process.poll() is not None:
                         raise RuntimeError("network probe exited before pending review")
                     time.sleep(0.1)
+                step = "validate-prompt"
                 if prompt is None or not re.fullmatch(r"[a-f0-9]{32}", prompt.get("request_id", "")):
                     raise RuntimeError("no valid pending request")
                 if prompt.get("request", {}).get("attributes") != {"protocol": "https", "port": "443"}:
@@ -123,26 +139,31 @@ PY
                         raise RuntimeError("unexpected saved scope")
                     saved_rule = candidate
                     saved_rule["decision"] = "require-approval"
-                receipt = json.loads(command("approve", prompt["request_id"], input_text=answer))
+                step = "submit-review"
+                receipt = json.loads(command("approve", "--json", prompt["request_id"], input_text=answer))
+                step = "validate-receipt"
                 expected_saved = "ask-environment" if phase == "saved-ask-deny" else ""
                 if receipt.get("request_id") != prompt["request_id"] or receipt.get("saved_choice", "") != expected_saved:
                     raise RuntimeError("approval receipt mismatch")
                 expected_state = "succeeded" if allowed else "not-executed"
                 if receipt.get("execution_state") != expected_state or (allowed and not receipt.get("audit_complete")):
                     raise RuntimeError("approval execution state mismatch")
+                step = "network-result"
                 output, _ = process.communicate(timeout=120)
-                if process.returncode or output.strip() != "PENDING_NETWORK_RESULT_OK":
+                if process.returncode or not valid_network_output(output):
                     raise RuntimeError("actual network result mismatch")
                 process = None
+                step = "clear-recipe"
                 command("setup", "--clear-script", environment)
                 if phase == "saved-ask-deny":
                     def remove_administrator_ask(policy):
                         if policy.get("saved_decisions", []).count(saved_rule) != 1:
                             raise RuntimeError("saved ask was not persisted exactly")
                         policy["rules"] = [r for r in policy["rules"] if r != rule]
+                    step = "verify-saved-policy"
                     configuration_update(directory, remove_administrator_ask)
         except Exception:
-            failure = phase
+            failure = phase + "-" + step
         finally:
             if process is not None:
                 try:

@@ -39,6 +39,7 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 	flags := flag.NewFlagSet("haco approve", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	list := flags.Bool("list", false, "list pending requests without deciding")
+	jsonResult := flags.Bool("json", false, "print the decision receipt as JSON")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -46,7 +47,7 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 		return 2
 	}
 	if flags.NArg() > 1 || (*list && flags.NArg() != 0) {
-		fmt.Fprintln(diagnostic, "Usage: haco approve [request-id] | haco approve --list")
+		fmt.Fprintln(diagnostic, "Usage: haco approve [--json] [request-id] | haco approve --list")
 		return 2
 	}
 	requests, err := client.PendingApprovals(ctx)
@@ -66,7 +67,11 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 			fmt.Fprintln(diagnostic, "haco: request is no longer pending")
 			return 1
 		}
-		fmt.Fprintln(out, "No pending approvals.")
+		if *jsonResult {
+			fmt.Fprintln(out, "null")
+		} else {
+			fmt.Fprintln(out, "No pending approvals.")
+		}
 		return 0
 	}
 	reader := bufio.NewReader(io.LimitReader(in, 4096))
@@ -123,7 +128,7 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 	result, err := client.DecideApproval(ctx, request.RequestID, decision)
 	if result.RequestID == request.RequestID {
 		result.Output, result.Provider = "", ""
-		if encodeErr := json.NewEncoder(out).Encode(result); encodeErr != nil {
+		if displayErr := writeApprovalReceipt(out, result, decision, err, *jsonResult); displayErr != nil {
 			return 1
 		}
 	}
@@ -136,4 +141,44 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 		return 1
 	}
 	return 0
+}
+
+func writeApprovalReceipt(out io.Writer, result core.CapabilityResult, decision capability.ApprovalDecision, operationErr error, asJSON bool) error {
+	if asJSON {
+		return json.NewEncoder(out).Encode(result)
+	}
+	message := "Request outcome is not confirmed."
+	if operationErr == nil {
+		message = "Denied."
+		if decision.Approved {
+			message = "Approved."
+		}
+	} else {
+		switch result.ExecutionState {
+		case core.CapabilitySucceeded:
+			message = "Capability completed; final confirmation failed."
+		case core.CapabilityNotExecuted:
+			message = "Request was not executed."
+		case core.CapabilityFailed:
+			message = "Request execution failed."
+		}
+	}
+	if _, err := fmt.Fprintln(out, message); err != nil {
+		return err
+	}
+	choices := map[string]string{
+		string(capability.AllowEnvironment): "allow this scope in this Environment",
+		string(capability.DenyEnvironment):  "deny this scope in this Environment",
+		string(capability.AskEnvironment):   "ask every time for this scope in this Environment",
+		string(capability.AllowGlobal):      "allow this scope in all Environments",
+		string(capability.DenyGlobal):       "deny this scope in all Environments",
+		string(capability.AskGlobal):        "ask every time for this scope in all Environments",
+	}
+	if choice := choices[result.SavedChoice]; choice != "" {
+		if _, err := fmt.Fprintln(out, "Saved Policy:", choice); err != nil {
+			return err
+		}
+	}
+	_, err := fmt.Fprintf(out, "Request: %q\n", result.RequestID)
+	return err
 }

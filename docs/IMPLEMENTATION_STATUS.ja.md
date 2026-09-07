@@ -11,12 +11,24 @@ Standard queue が background の待機を制限し、共通の private review A
 通知から開く操作は planned です。[契約](design/pending-approval-review.ja.md)を参照してください。
 
 installed GHA に、通常の設定操作と実際の HTTPS を使う ask 保存・今回拒否・
-単発許可・再確認／拒否・対象を限定した cleanup を追加しました。この新しい受け入れは
-未確認です。preview／doctor の失敗は、生出力を使わず固定 phase と数値を記録します。
+単発許可・再確認／拒否・対象を限定した cleanup を追加しました。実行結果は下記のとおりです。preview／doctor の失敗は、生出力を使わず固定 phase と数値を記録します。
 
 f6d193b の test 34154746874、Ubuntu 34154746842、Incus 34154746852 は成功しました。
 Windows 34154746844 は実際の VS Code、SSH、設定、project setup、doctor が成功し、
 HTTP preview が失敗しました。正確な原因は未確定です。
+
+`5ad8c3e` の Windows run 34159087435 は ask 保存・今回拒否、preview の
+setup/open、doctor 呼び出しで失敗しました。実 VS Code、SSH、設定、project setup は成功。
+test 34159087438、Ubuntu 34159087434、Incus 34159087447 とローカル test/E2E・docs は成功。
+承認 fixture は通常の setup で Python を準備し、正常な完了行を受け入れるよう修正しました。
+この修正の installed 再検証は未完了です。
+
+ローカルの installed `71dbb4f` で Windows native SSH、接続先キー不一致の拒否、
+cleanup が成功しました。port 33105、Environment `win-ssh-67210d9ab7994c7d` を使用し、
+一時 Policy・接続・Environment・Workspace を削除、listener 不在と再接続拒否を確認しました。
+先行する 2 回は Host 停止により失敗し、成功した実行は通常 Host ターミナルを開いたまま行いました。
+自動 desktop setup は disposable GHA profile 用のためローカルでは SKIP です。
+これは installed snapshot の SSH 検証であり、新しい承認 review や新たなローカル VS Code の成功ではありません。
 
 ## 承認要求の照合
 

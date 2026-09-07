@@ -23,7 +23,8 @@ action、対象、Environment 作成 identity、権限に関わる属性と、�
 新しい引数は不要です。既存の Git approve/deny も使えます。保存した Policy の
 確認・編集には [haco config](../reference/configuration.ja.md) を使います。
 
-結果はコマンド出力ではなく capability の receipt です。実行状態・保存した選択・
+通常は Approved／Denied と保存した Policy を短い文で表示します。スクリプト用に
+capability receipt が必要な場合だけ --json を指定します。実行状態・保存した選択・
 監査の完了を区別します。拒否した要求は未実行で、provider 成功の完了監査もありません。
 通信断や失敗時は、再試行前に Policy と監査を確認してください。回答を送れただけで
 保存や実行の成功とは扱いません。

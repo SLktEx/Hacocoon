@@ -27,6 +27,10 @@ func (f *fakeApprovalClient) DecideApproval(_ context.Context, id string, decisi
 	f.id, f.decision = id, decision
 	f.calls++
 	result := core.CapabilityResult{RequestID: id, SavedChoice: string(decision.Save), ExecutionState: core.CapabilityNotExecuted}
+	if decision.Approved {
+		result.ExecutionState = core.CapabilitySucceeded
+		result.AuditComplete = true
+	}
 	if f.badReceipt {
 		result.RequestID = "other"
 	}
@@ -47,6 +51,17 @@ func TestApprovalCommandSelectsAndAsksWithoutMandatoryID(t *testing.T) {
 		if code := approvalCommand(context.Background(), f, nil, strings.NewReader(input), &out, &diagnostic); code != 0 || f.calls != 1 || f.id != "wanted" || !f.decision.Approved {
 			t.Fatalf("selection code=%d id=%s diagnostic=%s", code, f.id, diagnostic.String())
 		}
+		if !strings.HasPrefix(out.String(), "Approved.\n") || strings.Contains(out.String(), "execution_state") {
+			t.Fatal("ordinary approval should be readable without JSON")
+		}
+	}
+}
+
+func TestApprovalCommandJSONReceiptIsOptional(t *testing.T) {
+	f := &fakeApprovalClient{requests: []core.ApprovalRequest{testApprovalRequest("request")}}
+	var out, diagnostic bytes.Buffer
+	if code := approvalCommand(context.Background(), f, []string{"--json"}, strings.NewReader("y\n"), &out, &diagnostic); code != 0 || !strings.Contains(out.String(), `"execution_state":"succeeded"`) {
+		t.Fatalf("JSON receipt: %d %s", code, out.String())
 	}
 }
 func TestApprovalCommandSupportsSavedAskAndSeparateCurrentDenial(t *testing.T) {

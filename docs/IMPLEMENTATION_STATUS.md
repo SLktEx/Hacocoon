@@ -11,12 +11,26 @@ failure receipts and real local Git helper integration passed related race/vet t
 Notification activation remains planned. See [pending review](design/pending-approval-review.md).
 
 Installed GHA now includes ordinary configuration plus actual HTTPS saved-ask denial,
-one-shot approval, re-prompt/denial and scoped cleanup. This new acceptance is pending.
+one-shot approval, re-prompt/denial and scoped cleanup. At `5ad8c3e`, Windows run
+34159087435 failed in saved-ask denial, preview setup/open and doctor invocation.
+Actual VS Code, SSH, configuration and project setup passed. Test 34159087438,
+Ubuntu 34159087434 and Incus 34159087447 passed. Maintained local test/E2E and docs
+also passed. The approval fixture now prepares Python through ordinary setup and
+accepts its normal completion line; installed rerun of these corrections is pending.
 Preview/doctor failures now include fixed phase and numeric metadata without raw output.
 
 At f6d193b, test 34154746874, Ubuntu 34154746842 and Incus 34154746852 passed.
 Windows 34154746844 passed actual VS Code, SSH, configuration, project setup and doctor,
 but HTTP preview failed. Its exact cause remains unresolved.
+
+A local installed `71dbb4f` rerun passed Windows native SSH, changed-host-key
+refusal and cleanup on port 33105 (`win-ssh-67210d9ab7994c7d`). The scoped temporary
+Policy, connection, Environment and Workspace were removed; the listener was absent
+and Windows connections were refused afterward. Two earlier attempts failed because
+the Host was stopped; the successful attempt kept the ordinary Host terminal open.
+Automatic desktop setup was SKIP locally because that fixture uses a disposable GHA
+profile. This is SSH evidence for the installed snapshot, not installed acceptance
+of the new approval review or a new local VS Code run.
 
 ## Approval correlation
 
