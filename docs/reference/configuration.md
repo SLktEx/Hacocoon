@@ -69,3 +69,17 @@ saved_decisions array was omitted by the serializer on replacement. The snapshot
 now presents that same canonical structure from the first read; its revision still
 hashes exact on-disk bytes. A faithful component regression and CLI E2E passed.
 Installed acceptance of this display correction is pending.
+
+At `71dbb4f`, all four GHA workflows passed: test 34151576434, Ubuntu 34151576429,
+Incus 34151576447 and Windows 34151576493. Windows included ordinary configuration
+round-trip, actual VS Code, project setup, Edge preview and Environment doctor.
+
+A separate local `71dbb4f` journey used `haco config --file` to add and later
+remove only four temporary Ubuntu archive rules for `preview-71dbb4f`.
+Ordinary project setup started a loopback HTTP server. Windows received its
+exact Workspace marker at port 36059; preview reuse, close/refusal and local
+runtime/Workspace/DNS doctor checks passed. No SSH connection was prepared in
+this local probe. The marker, recipe, Environment and listener were removed,
+and default deny/eight original rules/zero saved choices were verified. Existing
+Workspace `git-save-eb16300` was retained. Earlier intermittent preview/doctor
+failures were not reproduced here; their original causes remain unresolved.

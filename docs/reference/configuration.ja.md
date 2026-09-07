@@ -62,3 +62,16 @@ Windows package の SHA-256 は
 保存時に省略されたためです。初回の snapshot 表示から同じ形式へ正規化する修正を行いました。
 revision は引き続き実ファイルの正確な bytes を hash 化します。
 同じ条件の component 回帰テストと CLI E2E は成功しました。表示修正の installed 受け入れは未確認です。
+
+`71dbb4f` は GHA 全 4 系統が成功しました。test 34151576434、Ubuntu 34151576429、
+Incus 34151576447、Windows 34151576493 です。Windows は通常 config の往復、
+実際の VS Code・project setup・Edge preview・Environment doctor を含みます。
+
+別のローカル `71dbb4f` 検証では、`haco config --file` で `preview-71dbb4f` だけに
+Ubuntu archive の一時ルール 4 件を追加・削除しました。通常の project setup で
+loopback HTTP server を起動し、Windows が port 36059 で正確な Workspace marker を取得しました。
+preview の再利用・閉鎖後の拒否と、runtime／Workspace／DNS の doctor が成功しました。
+このローカル probe には SSH 接続を用意していません。marker・recipe・Environment・
+listener を削除し、default deny・元の 8 ルール・保存方針 0 件を確認しました。
+既存 Workspace `git-save-eb16300` は保持しています。過去の preview／doctor 失敗は
+この実行では再現せず、元の原因は未解明のままです。

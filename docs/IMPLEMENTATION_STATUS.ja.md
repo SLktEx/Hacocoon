@@ -16,6 +16,19 @@ snapshot 表示の正規化と component／CLI 回帰テストを追加して成
 installed 受け入れは未確認です。[正確な観測](reference/configuration.ja.md#ローカル-installed-での観測)
 を参照してください。
 
+`71dbb4f` は GHA 全 4 系統が成功しました。test 34151576434、Ubuntu 34151576429、
+Incus 34151576447、Windows 34151576493 です。Windows は通常 config の往復、
+実際の VS Code・project setup・Edge preview・Environment doctor を含みます。
+
+別のローカル `71dbb4f` 検証では、`haco config --file` で `preview-71dbb4f` だけに
+Ubuntu archive の一時ルール 4 件を追加・削除しました。通常の project setup で
+loopback HTTP server を起動し、Windows が port 36059 で正確な Workspace marker を取得しました。
+preview の再利用・閉鎖後の拒否と、runtime／Workspace／DNS の doctor が成功しました。
+このローカル probe には SSH 接続を用意していません。marker・recipe・Environment・
+listener を削除し、default deny・元の 8 ルール・保存方針 0 件を確認しました。
+既存 Workspace `git-save-eb16300` は保持しています。過去の preview／doctor 失敗は
+この実行では再現せず、元の原因は未解明のままです。
+
 `729f008` の GHA test 34149690153、Ubuntu 34149690280、Incus 34149690192 は PASS。
 Windows 34149690178 は DNS・desktop SSH／再開・実際の VS Code・project setup が成功し、
 preview と Environment doctor が失敗しました。変更した fixture は両方を実行し、
