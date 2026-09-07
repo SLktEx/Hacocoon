@@ -11,6 +11,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/composition"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/sshkey"
 	"github.com/SLktEx/Hacocoon/pkg/interaction"
 )
 
@@ -40,12 +41,13 @@ type Environment struct {
 }
 
 type Connection struct {
-	ID         string `json:"id"`
-	Kind       string `json:"kind"`
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	TargetPort int    `json:"target_port"`
-	User       string `json:"user,omitempty"`
+	HostPublicKey string `json:"host_public_key,omitempty"`
+	ID            string `json:"id"`
+	Kind          string `json:"kind"`
+	Host          string `json:"host"`
+	Port          int    `json:"port"`
+	TargetPort    int    `json:"target_port"`
+	User          string `json:"user,omitempty"`
 }
 
 type EnsureRequest struct {
@@ -359,13 +361,22 @@ func projectConnection(raw core.ClientConnection) (Connection, error) {
 	if raw.Kind != "tcp" && raw.Kind != "ssh" {
 		return Connection{}, fmt.Errorf("connection %q has unsupported kind %q: %w", raw.ID, raw.Kind, ErrIncompatibleState)
 	}
+	var hostKey string
+	if raw.HostPublicKey != "" {
+		var err error
+		hostKey, err = sshkey.NormalizePublicKey(raw.HostPublicKey)
+		if err != nil || raw.Kind != "ssh" {
+			return Connection{}, ErrIncompatibleState
+		}
+	}
 	return Connection{
-		ID:         raw.ID,
-		Kind:       raw.Kind,
-		Host:       raw.Host,
-		Port:       raw.Port,
-		TargetPort: raw.TargetPort,
-		User:       raw.User,
+		ID:            raw.ID,
+		HostPublicKey: hostKey,
+		Kind:          raw.Kind,
+		Host:          raw.Host,
+		Port:          raw.Port,
+		TargetPort:    raw.TargetPort,
+		User:          raw.User,
 	}, nil
 }
 

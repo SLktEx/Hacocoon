@@ -49,13 +49,18 @@ func TestPrepareSSHAccessRollsBackProxyWhenProvisioningFails(t *testing.T) {
 }
 
 func TestPrepareSSHAccessUsesConnectionScopedManagedKey(t *testing.T) {
-	runner := &fakeRunner{}
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if args[len(args)-1] == "/etc/ssh/ssh_host_ed25519_key.pub" {
+			return host.Result{Stdout: testHostPublicKey + " guest-comment\n"}, nil
+		}
+		return host.Result{}, nil
+	}}
 	key := "ssh-ed25519 AAAATEST"
 	connection, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: key, HostPort: 2222})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if connection.ID != "ssh-2222" || connection.Command != "ssh -p 2222 root@127.0.0.1" {
+	if connection.HostPublicKey != testHostPublicKey || connection.ID != "ssh-2222" || connection.Command != "ssh -p 2222 root@127.0.0.1" {
 		t.Fatalf("connection = %#v", connection)
 	}
 	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "add", "haco-demo", "haco-ssh-2222", "proxy", "listen=tcp:127.0.0.1:2222", "connect=tcp:127.0.0.1:22", "--project", defaultProject)
@@ -97,3 +102,5 @@ func TestListClientConnectionsReconcilesManagedProxyDevices(t *testing.T) {
 	}
 	assertRunnerCall(t, runner.calls[0], "incus", "query", "/1.0/instances/haco-demo?project="+defaultProject)
 }
+
+const testHostPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f"

@@ -604,3 +604,13 @@ the existing user Environment remained stopped. The existing Incus E2E also now
 includes trusted Host product stop/start and retained Workspace assertions;
 that complete installed-product flow and GHA remain unexecuted for this source. SSH setup automation and reconstruction of
 missing guards after Host reboot remain unimplemented.
+
+## SSH host public key through the ordinary API
+
+Status: **implemented protocol slice; automatic SSH setup remains planned**.
+Incus SSH preparation returns a structurally validated Ed25519 `host_public_key`
+through the ordinary controller response. Native clients can pin it without a
+separate administrator Incus command. Invalid key data revokes the managed key
+and proxy; cleanup failure is recovery-required. Public adapters revalidate the
+optional key. Related race tests passed; the Windows native acceptance script
+now consumes this field, but the new installed Windows flow has not yet run.

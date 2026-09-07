@@ -152,9 +152,8 @@ try {
 
     # Obtain the public server identity through the trusted provider, never
     # treat an unauthenticated network scan as proof of server identity.
-    $trustedKey = Invoke-Wsl @('-u', 'root', '--exec', 'incus', 'exec', "haco-$EnvironmentName", '--project', 'hacocoon', '--', 'cat', '/etc/ssh/ssh_host_ed25519_key.pub') 'Read trusted provider host public key'
-    $keyParts = $trustedKey.Stdout.Trim() -split '\s+'
-    if ($keyParts.Length -lt 2 -or $keyParts[0] -ne 'ssh-ed25519' -or $keyParts[1] -notmatch '^[A-Za-z0-9+/=]+$') { throw 'Malformed host public key' }
+    $keyParts = ([string]$connection.host_public_key).Trim() -split '\s+'
+    if ($keyParts.Length -ne 2 -or $keyParts[0] -ne 'ssh-ed25519' -or $keyParts[1] -notmatch '^[A-Za-z0-9+/=]+$') { throw 'Malformed controller-provided host public key' }
     $hostKey = "[127.0.0.1]:$Port $($keyParts[0]) $($keyParts[1])"
     [IO.File]::WriteAllText($KnownHosts, $hostKey + "`n", [Text.UTF8Encoding]::new($false))
 

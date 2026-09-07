@@ -512,3 +512,12 @@ create/start/stop/deleteをcontrollerプロセス間で直列化します。
 既存のユーザーEnvironmentは停止状態を維持しています。既存Incus E2Eにもtrusted Hostからの
 製品stop/startとWorkspace保持の検証を追加しましたが、このsourceでの製品経路全体とGHAは未実行です。
 SSH setup自動化とHost再起動後に欠けたguardを復元する処理は未実装です。
+
+## 通常APIからのSSH公開ホスト鍵取得
+
+Status: **protocolの範囲はimplemented、SSH setup自動化はplanned**。
+IncusのSSH準備は構造検証済みEd25519 `host_public_key` を通常のcontroller応答で返します。
+native clientは別途管理者としてIncusを呼ばず鍵を固定できます。不正な鍵では管理対象の鍵と
+proxyを撤回し、後始末の失敗はrecovery-requiredとします。公開adapterも任意fieldの鍵を再検証します。
+関連race testは成功しました。Windows native受け入れscriptもこのfieldを使うよう更新しましたが、
+新しいインストール済みWindows経路はまだ未実行です。
