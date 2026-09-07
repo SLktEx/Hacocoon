@@ -156,3 +156,5 @@ CIでDEBUGを有効にしてもredaction/secret handlingを弱めません。
 - field nameをCI/debugging toolが使える程度にstableに保てるか。
 
 新しいredaction rule、field contract、format behavior、failure boundaryを導入するlogging changeにはfocused testを追加します。
+
+Capability audit の `environment_instance` は、再利用できる表示名とは別に canonical な Environment 作成を識別します。ランダムな公開識別子であり、credential や provider 所有権 token ではありません。Policy と実行の対応を追うため監査に保持します。

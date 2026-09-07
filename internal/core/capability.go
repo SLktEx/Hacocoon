@@ -19,12 +19,13 @@ const (
 )
 
 type CapabilityRequest struct {
-	Capability  string            `json:"capability"`
-	Action      string            `json:"action"`
-	Resource    string            `json:"resource,omitempty"`
-	Environment string            `json:"environment,omitempty"`
-	Attributes  map[string]string `json:"attributes,omitempty"`
-	Parameters  map[string]string `json:"-"`
+	EnvironmentInstance string            `json:"environment_instance,omitempty"`
+	Capability          string            `json:"capability"`
+	Action              string            `json:"action"`
+	Resource            string            `json:"resource,omitempty"`
+	Environment         string            `json:"environment,omitempty"`
+	Attributes          map[string]string `json:"attributes,omitempty"`
+	Parameters          map[string]string `json:"-"`
 }
 
 type PolicyEvaluation struct {
@@ -46,17 +47,18 @@ type CapabilityResult struct {
 }
 
 type CapabilityAuditEvent struct {
-	SavedChoice string            `json:"saved_choice,omitempty"`
-	Time        time.Time         `json:"time"`
-	RequestID   string            `json:"request_id"`
-	Type        string            `json:"type"`
-	Capability  string            `json:"capability"`
-	Action      string            `json:"action"`
-	Resource    string            `json:"resource,omitempty"`
-	Environment string            `json:"environment,omitempty"`
-	Attributes  map[string]string `json:"attributes,omitempty"`
-	Decision    PolicyDecision    `json:"decision,omitempty"`
-	Approved    *bool             `json:"approved,omitempty"`
-	Success     *bool             `json:"success,omitempty"`
-	Reason      string            `json:"reason,omitempty"`
+	EnvironmentInstance string            `json:"environment_instance,omitempty"`
+	SavedChoice         string            `json:"saved_choice,omitempty"`
+	Time                time.Time         `json:"time"`
+	RequestID           string            `json:"request_id"`
+	Type                string            `json:"type"`
+	Capability          string            `json:"capability"`
+	Action              string            `json:"action"`
+	Resource            string            `json:"resource,omitempty"`
+	Environment         string            `json:"environment,omitempty"`
+	Attributes          map[string]string `json:"attributes,omitempty"`
+	Decision            PolicyDecision    `json:"decision,omitempty"`
+	Approved            *bool             `json:"approved,omitempty"`
+	Success             *bool             `json:"success,omitempty"`
+	Reason              string            `json:"reason,omitempty"`
 }

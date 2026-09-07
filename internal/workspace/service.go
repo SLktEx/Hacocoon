@@ -149,7 +149,12 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 			return core.Environment{}, core.ErrRecoveryRequired
 		}
 	}
+	instanceID, identityErr := core.NewEnvironmentInstanceID()
+	if identityErr != nil {
+		return core.Environment{}, identityErr
+	}
 	lease := core.WorkspaceLease{
+		InstanceID:         instanceID,
 		PersistentResource: persistent.Ref(),
 		WorkspaceID:        workspace.ID,
 		SourcePath:         workspace.Path,

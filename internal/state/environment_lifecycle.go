@@ -224,6 +224,9 @@ func (s *EnvironmentJSONStore) FinalizeEnvironmentDelete(_ context.Context, envi
 }
 
 func validateEnvironmentCreateReservation(lease core.WorkspaceLease) error {
+	if lease.InstanceID != "" && !core.ValidEnvironmentInstanceID(lease.InstanceID) {
+		return core.ErrInvalidArgument
+	}
 	if lease.PersistentResource != (core.PersistentResourceRef{}) && !core.ValidPersistentResourceRef(lease.PersistentResource) {
 		return core.ErrInvalidArgument
 	}
@@ -274,7 +277,7 @@ func validateSameLeaseReservation(existing, next core.WorkspaceLease) error {
 	if existing.PersistentResource != next.PersistentResource {
 		return core.ErrIncompatibleState
 	}
-	if existing.EnvironmentID != next.EnvironmentID || existing.WorkspaceID != next.WorkspaceID || existing.SourcePath != next.SourcePath || existing.AccessMode != next.AccessMode || existing.Owner != next.Owner || !existing.AcquiredAt.Equal(next.AcquiredAt) {
+	if existing.InstanceID != next.InstanceID || existing.EnvironmentID != next.EnvironmentID || existing.WorkspaceID != next.WorkspaceID || existing.SourcePath != next.SourcePath || existing.AccessMode != next.AccessMode || existing.Owner != next.Owner || !existing.AcquiredAt.Equal(next.AcquiredAt) {
 		return fmt.Errorf("workspace lease reservation for environment %q changed identity during lifecycle transition: %w", next.EnvironmentID, core.ErrIncompatibleState)
 	}
 	return nil

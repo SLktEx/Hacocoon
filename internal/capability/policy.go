@@ -15,13 +15,14 @@ import (
 )
 
 type PolicyRule struct {
-	Capability  string              `json:"capability"`
-	Action      string              `json:"action"`
-	Resource    string              `json:"resource"`
-	Environment string              `json:"environment,omitempty"`
-	Attributes  map[string]string   `json:"attributes,omitempty"`
-	Decision    core.PolicyDecision `json:"decision"`
-	Reason      string              `json:"reason,omitempty"`
+	EnvironmentInstance string              `json:"environment_instance,omitempty"`
+	Capability          string              `json:"capability"`
+	Action              string              `json:"action"`
+	Resource            string              `json:"resource"`
+	Environment         string              `json:"environment,omitempty"`
+	Attributes          map[string]string   `json:"attributes,omitempty"`
+	Decision            core.PolicyDecision `json:"decision"`
+	Reason              string              `json:"reason,omitempty"`
 }
 
 type PolicyFile struct {
@@ -44,7 +45,10 @@ func (e *FilePolicyEvaluator) Evaluate(_ context.Context, req core.CapabilityReq
 		return core.PolicyEvaluation{}, err
 	}
 	var selected core.PolicyEvaluation
-	for _, rule := range append(append([]PolicyRule(nil), policy.Rules...), policy.SavedDecisions...) {
+	for index, rule := range append(append([]PolicyRule(nil), policy.Rules...), policy.SavedDecisions...) {
+		if index >= len(policy.Rules) && rule.Environment != "*" && rule.EnvironmentInstance != req.EnvironmentInstance {
+			continue
+		}
 		if !ruleMatches(rule, req) {
 			continue
 		}
@@ -63,6 +67,9 @@ func (e *FilePolicyEvaluator) Evaluate(_ context.Context, req core.CapabilityReq
 }
 
 func ruleMatches(rule PolicyRule, req core.CapabilityRequest) bool {
+	if rule.EnvironmentInstance != "" && rule.EnvironmentInstance != req.EnvironmentInstance {
+		return false
+	}
 	if rule.Capability != req.Capability || rule.Action != req.Action {
 		return false
 	}
@@ -130,6 +137,9 @@ func validatePolicy(policy PolicyFile) error {
 		return fmt.Errorf("invalid default policy decision %q", policy.Default)
 	}
 	for _, rule := range policy.SavedDecisions {
+		if rule.EnvironmentInstance != "" && !core.ValidEnvironmentInstanceID(rule.EnvironmentInstance) {
+			return fmt.Errorf("invalid Environment instance identity")
+		}
 		if !validDecision(rule.Decision) {
 			return fmt.Errorf("saved decisions must allow, deny or require approval")
 		}
@@ -137,6 +147,9 @@ func validatePolicy(policy PolicyFile) error {
 	for index, rule := range append(append([]PolicyRule(nil), policy.Rules...), policy.SavedDecisions...) {
 		if strings.TrimSpace(rule.Capability) == "" || strings.TrimSpace(rule.Action) == "" || strings.TrimSpace(rule.Resource) == "" {
 			return fmt.Errorf("rule %d requires capability, action, and explicit resource", index)
+		}
+		if rule.EnvironmentInstance != "" && !core.ValidEnvironmentInstanceID(rule.EnvironmentInstance) {
+			return fmt.Errorf("invalid Environment instance identity")
 		}
 		if !validDecision(rule.Decision) {
 			return fmt.Errorf("rule %d has invalid policy decision %q", index, rule.Decision)

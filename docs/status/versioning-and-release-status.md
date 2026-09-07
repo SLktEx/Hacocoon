@@ -180,3 +180,5 @@ v0.23 is an acceptance checkpoint rather than a new architecture contract. Its e
 The C4 Workspace recipe slice extends `haco setup` with an optional Environment
 target. Implementation and focused race coverage exist; installed acceptance
 is pending, so the C4 roadmap item remains partial.
+
+The current partial approval checkpoint now includes creation-specific Environment identity and Policy binding. This is repository implementation evidence; ordinary Git saved choices and network/provider acceptance remain separate work.

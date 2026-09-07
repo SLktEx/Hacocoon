@@ -28,15 +28,16 @@ type CapabilityService interface {
 }
 
 type Proposal struct {
-	ID          string `json:"id"`
-	Environment string `json:"environment"`
-	Repository  string `json:"repository"`
-	Remote      string `json:"remote"`
-	Ref         string `json:"ref"`
-	OldOID      string `json:"old_oid"`
-	NewOID      string `json:"new_oid"`
-	Operation   string `json:"operation"`
-	Summary     string `json:"summary,omitempty"`
+	EnvironmentInstance string `json:"environment_instance,omitempty"`
+	ID                  string `json:"id"`
+	Environment         string `json:"environment"`
+	Repository          string `json:"repository"`
+	Remote              string `json:"remote"`
+	Ref                 string `json:"ref"`
+	OldOID              string `json:"old_oid"`
+	NewOID              string `json:"new_oid"`
+	Operation           string `json:"operation"`
+	Summary             string `json:"summary,omitempty"`
 }
 type pendingProposal struct {
 	proposal Proposal
@@ -316,8 +317,30 @@ func (b *Broker) perform(ctx context.Context, bound binding, proposal Proposal, 
 	}
 	proposal.ID = randomID()
 	request := core.CapabilityRequest{Capability: Capability, Action: proposal.Operation, Environment: proposal.Environment, Resource: proposal.Remote, Attributes: map[string]string{"repository": proposal.Repository, "remote": proposal.Remote, "target_ref": proposal.Ref, "old_oid": proposal.OldOID, "new_oid": proposal.NewOID, "operation_id": proposal.ID}}
+	if identities, ok := b.Environments.(interface {
+		EnvironmentInstance(context.Context, core.Environment) (string, error)
+	}); ok {
+		instance, err := identities.EnvironmentInstance(ctx, bound.Environment)
+		if err != nil {
+			return Response{}, err
+		}
+		request.EnvironmentInstance = instance
+		proposal.EnvironmentInstance = instance
+	}
 	var response Response
 	operation := preparedOperation{request: request, execute: func(ctx context.Context) (Response, error) {
+		if request.EnvironmentInstance != "" {
+			identities := b.Environments.(interface {
+				EnvironmentInstance(context.Context, core.Environment) (string, error)
+			})
+			current, err := identities.EnvironmentInstance(ctx, bound.Environment)
+			if err != nil {
+				return Response{}, err
+			}
+			if current != request.EnvironmentInstance {
+				return Response{}, core.ErrCapabilityStale
+			}
+		}
 		if err := ctx.Err(); err != nil {
 			return Response{}, err
 		}

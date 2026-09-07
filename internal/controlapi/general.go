@@ -49,12 +49,13 @@ type CapabilityRequestPayload struct {
 }
 
 type ApprovalRequestPayload struct {
-	Capability  string            `json:"capability"`
-	Action      string            `json:"action"`
-	Resource    string            `json:"resource,omitempty"`
-	Environment string            `json:"environment,omitempty"`
-	Attributes  map[string]string `json:"attributes,omitempty"`
-	Reason      string            `json:"reason,omitempty"`
+	EnvironmentInstance string            `json:"environment_instance,omitempty"`
+	Capability          string            `json:"capability"`
+	Action              string            `json:"action"`
+	Resource            string            `json:"resource,omitempty"`
+	Environment         string            `json:"environment,omitempty"`
+	Attributes          map[string]string `json:"attributes,omitempty"`
+	Reason              string            `json:"reason,omitempty"`
 }
 
 type responseStatus struct {
@@ -262,23 +263,25 @@ func (r CapabilityRequestPayload) coreRequest() core.CapabilityRequest {
 
 func approvalPayload(request core.ApprovalRequest) ApprovalRequestPayload {
 	return ApprovalRequestPayload{
-		Capability:  request.CapabilityRequest.Capability,
-		Action:      request.CapabilityRequest.Action,
-		Resource:    request.CapabilityRequest.Resource,
-		Environment: request.CapabilityRequest.Environment,
-		Attributes:  cloneStringMap(request.CapabilityRequest.Attributes),
-		Reason:      request.Reason,
+		EnvironmentInstance: request.CapabilityRequest.EnvironmentInstance,
+		Capability:          request.CapabilityRequest.Capability,
+		Action:              request.CapabilityRequest.Action,
+		Resource:            request.CapabilityRequest.Resource,
+		Environment:         request.CapabilityRequest.Environment,
+		Attributes:          cloneStringMap(request.CapabilityRequest.Attributes),
+		Reason:              request.Reason,
 	}
 }
 
 func (r ApprovalRequestPayload) coreRequest() core.ApprovalRequest {
 	return core.ApprovalRequest{
 		CapabilityRequest: core.CapabilityRequest{
-			Capability:  r.Capability,
-			Action:      r.Action,
-			Resource:    r.Resource,
-			Environment: r.Environment,
-			Attributes:  cloneStringMap(r.Attributes),
+			EnvironmentInstance: r.EnvironmentInstance,
+			Capability:          r.Capability,
+			Action:              r.Action,
+			Resource:            r.Resource,
+			Environment:         r.Environment,
+			Attributes:          cloneStringMap(r.Attributes),
 		},
 		Reason: r.Reason,
 	}

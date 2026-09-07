@@ -43,6 +43,7 @@ type BaseInfo struct {
 }
 
 type WorkspaceLease struct {
+	InstanceID         string                `json:"instance_id,omitempty"`
 	PersistentResource PersistentResourceRef `json:"persistent_resource,omitempty"`
 	WorkspaceID        WorkspaceID           `json:"workspace_id"`
 	SourcePath         string                `json:"source_path"`

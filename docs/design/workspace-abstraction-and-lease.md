@@ -95,3 +95,5 @@ identity in the canonical aggregate reservation. Resources bound to a Workspace
 cannot be attached to a different Workspace; source-only publications cannot be
 attached directly at all. Opt-out and explicit selection bypass the initializer.
 See [ADR 0017](../adr/0017-default-workspace-resource-initialization.md).
+
+Creation now persists a random Environment instance ID in the canonical lease reservation. It survives resume and differs after same-name recreation. Legacy ready aggregates receive an ID once under the catalog lock; provider resources are unchanged. See [approval identity](../adr/0025-environment-approval-identity.md).

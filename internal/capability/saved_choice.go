@@ -28,7 +28,7 @@ func RuleForSavedChoice(request core.CapabilityRequest, choice SavedChoice) (Pol
 	if request.Resource == "" || request.Resource == "*" {
 		return PolicyRule{}, core.ErrInvalidArgument
 	}
-	rule := PolicyRule{Capability: request.Capability, Action: request.Action, Resource: request.Resource, Environment: request.Environment, Attributes: map[string]string{}}
+	rule := PolicyRule{EnvironmentInstance: request.EnvironmentInstance, Capability: request.Capability, Action: request.Action, Resource: request.Resource, Environment: request.Environment, Attributes: map[string]string{}}
 	for key, value := range request.Attributes {
 		if value == "*" {
 			return PolicyRule{}, fmt.Errorf("cannot persist wildcard request attribute: %w", core.ErrInvalidArgument)
@@ -42,6 +42,7 @@ func RuleForSavedChoice(request core.CapabilityRequest, choice SavedChoice) (Pol
 		}
 	case AllowGlobal, DenyGlobal, AskGlobal:
 		rule.Environment = "*"
+		rule.EnvironmentInstance = ""
 	default:
 		return PolicyRule{}, core.ErrInvalidArgument
 	}

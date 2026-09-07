@@ -250,6 +250,7 @@ func (s *Service) record(ctx context.Context, requestID string, req core.Capabil
 	event.Action = req.Action
 	event.Resource = req.Resource
 	event.Environment = req.Environment
+	event.EnvironmentInstance = req.EnvironmentInstance
 	event.Attributes = cloneStrings(req.Attributes)
 	return s.audit.Record(ctx, event)
 }
@@ -270,6 +271,9 @@ func normalizeRequest(req core.CapabilityRequest) core.CapabilityRequest {
 }
 
 func validateRequest(req core.CapabilityRequest) error {
+	if req.EnvironmentInstance != "" && !core.ValidEnvironmentInstanceID(req.EnvironmentInstance) {
+		return core.ErrInvalidArgument
+	}
 	if req.Capability == "" || req.Action == "" {
 		return core.ErrInvalidArgument
 	}

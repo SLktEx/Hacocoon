@@ -42,6 +42,11 @@ func (a *StdioApproval) decide(ctx context.Context, req core.ApprovalRequest, pe
 	if _, err := fmt.Fprintf(a.out, "Approve capability %s action=%s resource=%s environment=%s", terminalSafe(request.Capability), terminalSafe(request.Action), terminalSafe(request.Resource), terminalSafe(request.Environment)); err != nil {
 		return ApprovalDecision{}, fmt.Errorf("display approval request: %w", err)
 	}
+	if request.EnvironmentInstance != "" {
+		if _, err := fmt.Fprintf(a.out, " instance=%s", terminalSafe(request.EnvironmentInstance)); err != nil {
+			return ApprovalDecision{}, err
+		}
+	}
 	keys := make([]string, 0, len(request.Attributes))
 	for key := range request.Attributes {
 		keys = append(keys, key)

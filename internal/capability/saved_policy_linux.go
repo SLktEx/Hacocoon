@@ -72,7 +72,7 @@ func (e *FilePolicyEvaluator) Remember(ctx context.Context, request core.Capabil
 	}
 	replaced := false
 	for i, existing := range policy.SavedDecisions {
-		if existing.Capability == rule.Capability && existing.Action == rule.Action && existing.Resource == rule.Resource && existing.Environment == rule.Environment && maps.Equal(existing.Attributes, rule.Attributes) {
+		if existing.Capability == rule.Capability && existing.Action == rule.Action && existing.Resource == rule.Resource && existing.Environment == rule.Environment && existing.EnvironmentInstance == rule.EnvironmentInstance && maps.Equal(existing.Attributes, rule.Attributes) {
 			policy.SavedDecisions[i] = rule
 			replaced = true
 			break
