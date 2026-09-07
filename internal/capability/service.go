@@ -197,6 +197,30 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 		}
 	}
 
+	// An approval can be pending while trusted Policy is edited. Recheck every
+	// request at the execution boundary, including one-shot and initially allowed
+	// requests; persistence is not the only way Policy can change.
+	current, err := s.policy.Evaluate(ctx, req)
+	if err != nil {
+		return baseResult, fmt.Errorf("reevaluate capability Policy: %w", err)
+	}
+	var recheckErr error
+	switch current.Decision {
+	case core.PolicyAllow:
+	case core.PolicyRequireApproval:
+		if evaluation.Decision != core.PolicyRequireApproval {
+			recheckErr = core.ErrApprovalDenied
+		}
+	case core.PolicyDeny:
+		recheckErr = core.ErrPolicyDenied
+	default:
+		recheckErr = core.ErrPolicyDenied
+	}
+	if recheckErr != nil {
+		auditErr := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-recheck-denied", Reason: "policy-changed-before-execution"})
+		return baseResult, errors.Join(recheckErr, auditErr)
+	}
+
 	result, execErr := provider.Execute(ctx, req)
 	result.RequestID = requestID
 	if execErr == nil {

@@ -34,3 +34,5 @@ Saving require-approval preserves that restriction for later matching requests.
 The current request still needs its own explicit yes/no answer; saving ask is
 never treated as a grant. Environment and global ask use the same rule storage
 and precedence as hand-edited require-approval rules.
+
+Execution-time reevaluation applies even when no decision was saved. A pending one-shot approval cannot override a new deny; a previously allowed request cannot skip a newly required prompt. The recheck does not terminate established connections or make manual file edits transactional with provider execution.

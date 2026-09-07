@@ -116,3 +116,5 @@ The maintained Capability E2E now drives the terminal/controller saved choice,
 replays it without a prompt in the same Environment, requires approval in another
 Environment, preserves administrator rules and checks audit parameter redaction.
 This covers the shared approval path; ordinary Git queue integration remains pending.
+
+Every request is reevaluated immediately before provider execution, including one-shot approvals and initially allowed requests. A new deny, unreadable Policy, or newly required approval blocks execution. An in-flight request that already obtained explicit approval may proceed if current Policy still requires approval. This is a boundary recheck, not a transaction with arbitrary manual editors; already-established connections are not revoked by this change.
