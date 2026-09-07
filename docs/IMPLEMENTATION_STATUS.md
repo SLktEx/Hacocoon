@@ -661,3 +661,9 @@ Stopped reuse, real ssh-keygen, file/config protections and focused race tests
 passed. Updated GHA acceptance and actual VS Code/server use are not yet verified.
 The preceding automatic SSH-port commit `44c62c4` passed all four GHA workflows.
 See the [owning client design](design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening).
+
+Physical Windows projection acceptance also passed through the existing trusted
+haco-host with a test-only temporary Windows home: native ssh-keygen, confined
+file creation, repeated setup reuse and native OpenSSH `-G` parsing. Run
+`TestWindowsDesktopProjectionE2E` with `HACO_E2E_WINDOWS_DESKTOP=1` for this fixture.
+Its controller is fake; it does not prove live SSH or VS Code connectivity.

@@ -566,3 +566,8 @@ Windows/WSLではWindowsのprofileとnative ssh-keygenを使い、秘密鍵をWi
 専用Includeと管理ファイルを追加します。設定失敗後の準備済み接続はID付きで
 recovery-requiredとして保持します。関連テスト・raceは成功しました。
 更新後のGHAは未確認で、VS Codeのプロセス起動をeditor接続成功とは扱いません。
+
+既存のtrusted haco-hostから、Windows上の検証専用一時homeを使ったprojection受入も成功しました。
+native ssh-keygen、ファイル作成、設定再利用、Windows OpenSSHの`-G`構文解釈を確認しています。
+`HACO_E2E_WINDOWS_DESKTOP=1`で`TestWindowsDesktopProjectionE2E`を実行します。
+controllerはfakeであり、実SSH・VS Code接続成功を示す試験ではありません。
