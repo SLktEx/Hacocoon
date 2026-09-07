@@ -6,7 +6,9 @@ from test_pending_approvals import valid_network_output, command_failure_categor
 class NetworkOutputTest(unittest.TestCase):
     def test_diagnostics_never_return_arbitrary_output(self):
         self.assertEqual(command_failure_category("SECRET", "SECRET"), "command")
-        self.assertEqual(command_failure_category("", "Unit hacocoon-project-setup.service already exists. SECRET"), "unit-busy")
+        self.assertEqual(command_failure_category("", "haco: cannot read a regular UTF-8 setup script SECRET"), "script-input")
+        self.assertEqual(command_failure_category("", "Project setup request failed SECRET"), "controller-request")
+        self.assertEqual(command_failure_category("", "Unit hacocoon-project-setup.service already exists. Project setup failed; correct the script or Environment SECRET"), "unit-busy")
         self.assertEqual(command_failure_category("PENDING_PREREQ_STARTED\nSECRET\n", ""), "package-update")
         self.assertEqual(command_failure_category("PENDING_PREREQ_UPDATED\n", ""), "package-install")
         self.assertEqual(command_failure_category("PENDING_PREREQ_READY\n", ""), "after-prerequisite")

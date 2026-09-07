@@ -1,5 +1,15 @@
 # 実装状況
 
+`6771f2f` の test 34163005164、Ubuntu 34163005175、Incus 34163005206 は成功しました。
+Windows 34163005171 は VS Code 全体の受け入れ（段階はログ未表示）と承認の Python 準備が失敗し、
+preview/Edge・doctor 全 4 項目は成功しました。editor timeout／remote 確認／local review、
+準備の実行／保存レシピ解除を固定 phase で区別する診断を補いました。新しい UI の成功は未確認です。
+
+ローカル snapshot build は成功しました。既定 Hacocoon の更新は自動承認審査に拒否され、未実行です。
+代わりに専用 WSL Hacocoon-Review-6771f2f を作成しました。最初の導入は package 作成時の version に
+先頭 v がなく停止し、修正した package を専用 instance に導入中です。これらの installer 実行で
+既存 Hacocoon は更新していません。実機の新しい review／通知の受け入れは未確認です。
+
 ## VS Code の信頼された承認画面
 
 状態: **repository 実装済み、ロードマップ D2 は partial**。

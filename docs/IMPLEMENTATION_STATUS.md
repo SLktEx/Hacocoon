@@ -1,5 +1,18 @@
 # Implementation Status
 
+At `6771f2f`, test 34163005164, Ubuntu 34163005175 and Incus 34163005206 passed.
+Windows 34163005171 failed overall VS Code acceptance (the exact stage was not
+reported) and approval Python preparation; preview/Edge and all four doctor checks
+passed. Fixed stage reporting now separates editor timeout/remote checks/local review,
+and prerequisite execution from clearing its recipe. No new UI success is claimed.
+
+The local snapshot build passed. Updating the existing default Hacocoon instance
+was rejected by automatic approval review and was not executed. A separate dedicated
+WSL instance Hacocoon-Review-6771f2f was created instead. The initial installation
+stopped on a packaging invocation missing the version's leading v; corrected package
+installation in that dedicated instance is in progress. Existing Hacocoon is unchanged
+by these installer attempts. Real local review/notification acceptance remains pending.
+
 ## VS Code trusted review
 
 Status: **implemented repository slice; roadmap D2 remains partial**. The optional

@@ -41,6 +41,7 @@ try {
         Start-Sleep -Seconds 2
     }
     if (-not (Test-Path -LiteralPath $resultFile -PathType Leaf)) {
+        Write-Host 'VS CODE ACCEPTANCE: FAIL phase=editor-timeout'
         throw 'VS Code did not complete remote editor/terminal acceptance within 10 minutes.'
     }
     $result = Get-Content -Raw -LiteralPath $resultFile | ConvertFrom-Json
@@ -48,7 +49,10 @@ try {
     if ($result.status -ne 'passed' -or $result.stage -ne 'complete' -or
         $result.authority -ne $fixture.authority -or $result.nonce -ne $fixture.nonce -or
         ($result.checks -join ',') -ne ($expected -join ',')) {
-        throw "Editor acceptance failed at stage '$($result.stage)'."
+        $safeStage = 'invalid-receipt'
+        if ($result.stage -cin @('remote-kind','remote-filesystem','remote-terminal','local-approval-review','cleanup','complete')) { $safeStage = $result.stage }
+        Write-Host "VS CODE ACCEPTANCE: FAIL phase=$safeStage"
+        throw "Editor acceptance failed at stage '$safeStage'."
     }
     Write-Host "VS Code $($result.vscode): actual Remote-SSH editor file read/write, terminal execution and probe cleanup passed."
     Write-Host 'VS CODE LOCAL APPROVAL TERMINAL / INSTALLED CONTROLLER STALE REFUSAL: PASS'

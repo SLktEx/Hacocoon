@@ -32,6 +32,15 @@ def command_failure_category(stdout, stderr):
                              ("PENDING_PREREQ_STARTED", "package-update")):
         if marker in stdout.splitlines():
             return category
+    for message, category in (
+        ("cannot read a regular UTF-8 setup script", "script-input"),
+        ("Project setup request failed", "controller-request"),
+        ("Project setup failed; correct the script or Environment", "project-setup"),
+        ("Cannot open the Physical Host controller client", "controller-client"),
+        ("invalid logging configuration", "logging-config"),
+    ):
+        if message in stderr:
+            return category
     return "command"
 
 
@@ -101,6 +110,7 @@ def main(environment):
             prerequisite.chmod(0o600)
             recipe_touched = True
             command("setup", "--script", str(prerequisite), environment, timeout=240)
+            step = "clear-prerequisite"
             command("setup", "--clear-script", environment)
             for phase, answer, allowed in (
                 ("saved-ask-deny", "5\nn\n", False),

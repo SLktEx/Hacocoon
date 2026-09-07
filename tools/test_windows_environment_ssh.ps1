@@ -320,7 +320,7 @@ haco setup "$name"
         } catch {
             $DesktopFailures.Add('approval-review')
             $reviewPhase = 'unknown'
-            if ($_.Exception.Message -match 'PENDING APPROVAL REVIEW: FAIL phase=((?:configure|prepare|saved-ask-deny|one-shot-allow|reask-deny|cleanup)(?:-(?:configuration|python-prerequisite|start-probe|wait-pending|validate-prompt|submit-review|validate-receipt|network-result|clear-recipe|verify-saved-policy))?(?:-(?:unit-busy|dns-failed|package-lock|after-prerequisite|package-install|package-update|command|timeout|validation))?) cleanup_failed=(true|false)') {
+            if ($_.Exception.Message -match 'PENDING APPROVAL REVIEW: FAIL phase=((?:configure|prepare|saved-ask-deny|one-shot-allow|reask-deny|cleanup)(?:-(?:configuration|python-prerequisite|clear-prerequisite|start-probe|wait-pending|validate-prompt|submit-review|validate-receipt|network-result|clear-recipe|verify-saved-policy))?(?:-(?:script-input|controller-request|project-setup|controller-client|logging-config|unit-busy|dns-failed|package-lock|after-prerequisite|package-install|package-update|command|timeout|validation))?) cleanup_failed=(true|false)') {
                 $reviewPhase = $Matches[1] + '-cleanup-failed-' + $Matches[2]
             }
             Write-DesktopProbeFailure 'PENDING APPROVAL REVIEW' $reviewPhase $_
