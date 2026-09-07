@@ -127,3 +127,40 @@ func TestPublicationIsNotCopyableOrDeletableUntilContentPreparationCompletes(t *
 		t.Fatalf("%v copies=%d", err, backend.copies)
 	}
 }
+
+func TestTemporaryCopyCleanupChecksWorkspaceOwnershipAndKeepsSource(t *testing.T) {
+	ctx := context.Background()
+	st := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
+	backend := &workspaceCopyBackend{store: st}
+	resources := &persistentresource.Service{Store: st, Backend: backend}
+	resolver := WorkspaceStores{Resources: resources}
+	if _, err := resources.PublishSource(ctx, PublishedStoreID, StoreKind, func(context.Context, core.PersistentResource) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	work, err := core.NewTemporaryWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	copied, err := resolver.Resolve(ctx, work)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := resources.DeleteForWorkspace(ctx, copied.ID, "different-workspace"); !errors.Is(err, core.ErrIncompatibleState) {
+		t.Fatal(err)
+	}
+	if err := resolver.CleanupTemporary(ctx, work); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.GetPersistentResource(ctx, copied.ID); !errors.Is(err, core.ErrNotFound) {
+		t.Fatal("temporary copy retained")
+	}
+	if _, err := st.GetPersistentResource(ctx, PublishedStoreID); err != nil {
+		t.Fatal("source removed")
+	}
+	if err := resolver.CleanupTemporary(ctx, work); err != nil {
+		t.Fatal("cleanup not retryable", err)
+	}
+	if err := resolver.CleanupTemporary(ctx, core.Workspace{ID: "regular", Path: "/work"}); !errors.Is(err, core.ErrInvalidArgument) {
+		t.Fatal(err)
+	}
+}

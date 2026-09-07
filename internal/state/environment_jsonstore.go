@@ -270,6 +270,9 @@ func (s *EnvironmentJSONStore) DeleteEphemeralRun(_ context.Context, environment
 }
 
 func validateEphemeralRun(run core.EphemeralRun) error {
+	if run.TemporaryWorkspace != nil && !core.ValidTemporaryWorkspace(*run.TemporaryWorkspace) {
+		return core.ErrInvalidArgument
+	}
 	if run.EnvironmentID == "" || run.CreatedAt.IsZero() {
 		return core.ErrInvalidArgument
 	}

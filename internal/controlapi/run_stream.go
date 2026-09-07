@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/control"
@@ -19,8 +18,8 @@ const maxRunResultBytes = 16 << 20
 func registerRun(server *control.Server, runner runService) error {
 	return server.RegisterStream(MethodRun, func(_ context.Context, payload json.RawMessage) (control.Stream, error) {
 		var request runapp.Spec
-		if err := json.Unmarshal(payload, &request); err != nil || strings.TrimSpace(request.WorkspacePath) == "" || len(request.Argv) == 0 {
-			return nil, control.NewStatusError("invalid_argument", "workspace_path and argv are required")
+		if err := json.Unmarshal(payload, &request); err != nil || len(request.Argv) == 0 {
+			return nil, control.NewStatusError("invalid_argument", "argv is required")
 		}
 		return func(ctx context.Context, conn net.Conn) error {
 			runCtx, cancel := context.WithCancel(ctx)

@@ -183,7 +183,10 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 
 	environments := workspaceapp.NewWithProvider(runtime, store, repositoryWorkspaceProvider{repositories: repositories})
 	resources := &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime}}
-	environments.ConfigureDefaultResource(ociplugin.WorkspaceStores{Resources: resources}.Resolve)
+	workspaceStores := ociplugin.WorkspaceStores{Resources: resources}
+	environments.ConfigureDefaultResource(workspaceStores.Resolve)
+	runs := runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks"))
+	runs.ConfigureTemporaryWorkspace(workspaceStores.CleanupTemporary)
 	return &App{
 		HostCustomization:   &hostsetup.Service{Root: filepath.Join(root, "host-customization"), Execute: incusRuntime.RunTrustedHostCustomization},
 		PersistentResources: resources,
@@ -194,7 +197,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		Git:                 gitcapapp.NewBroker(runner, store, capabilities),
 		OCI:                 ociPlugin,
 		Seeds:               seeds,
-		Runner:              runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks")),
+		Runner:              runs,
 		Events:              eventsapp.New(auditPath),
 		Bases:               runtime,
 		Runtime:             incusRuntime,

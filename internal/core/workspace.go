@@ -58,9 +58,10 @@ type WorkspaceLease struct {
 // haco run. Names alone are never sufficient proof because a user may create an
 // ordinary Environment whose name happens to start with "run-".
 type EphemeralRun struct {
-	EnvironmentID string            `json:"environment_id"`
-	State         EphemeralRunState `json:"state"`
-	CreatedAt     time.Time         `json:"created_at"`
+	TemporaryWorkspace *Workspace        `json:"temporary_workspace,omitempty"`
+	EnvironmentID      string            `json:"environment_id"`
+	State              EphemeralRunState `json:"state"`
+	CreatedAt          time.Time         `json:"created_at"`
 }
 
 type Environment struct {
@@ -75,6 +76,7 @@ type Environment struct {
 }
 
 type EnvironmentSpec struct {
+	TemporaryWorkspace  *Workspace
 	SkipDefaultResource bool
 	PersistentResource  string
 	Name                string
@@ -85,6 +87,7 @@ type EnvironmentSpec struct {
 }
 
 type EnvironmentRuntimeSpec struct {
+	TemporaryWorkspace bool
 	PersistentResource PersistentResource
 	Name               string
 	WorkspacePath      string
@@ -100,7 +103,8 @@ type EnvironmentRuntime struct {
 }
 
 type ExecutionRequest struct {
-	Argv []string
+	WorkingDirectory string
+	Argv             []string
 }
 
 type ExecutionResult struct {

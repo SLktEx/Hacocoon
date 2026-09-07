@@ -220,6 +220,8 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	return core.EnvironmentRuntime{Ref: ref}, nil
 }
 
+func (r *Runtime) SupportsWorkingDirectory() bool { return true }
+
 func (r *Runtime) ExecEnvironment(ctx context.Context, ref string, req core.ExecutionRequest) (core.ExecutionResult, error) {
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return core.ExecutionResult{}, err
@@ -227,7 +229,14 @@ func (r *Runtime) ExecEnvironment(ctx context.Context, ref string, req core.Exec
 	if len(req.Argv) == 0 {
 		return core.ExecutionResult{}, core.ErrInvalidArgument
 	}
-	args := append([]string{"exec", ref, "--project", r.project, "--"}, req.Argv...)
+	args := []string{"exec", ref, "--project", r.project}
+	if req.WorkingDirectory != "" {
+		if !strings.HasPrefix(req.WorkingDirectory, "/") || strings.ContainsAny(req.WorkingDirectory, "\x00\r\n") {
+			return core.ExecutionResult{}, core.ErrInvalidArgument
+		}
+		args = append(args, "--cwd", req.WorkingDirectory)
+	}
+	args = append(append(args, "--"), req.Argv...)
 	result, err := r.runner.Run(ctx, "incus", args...)
 	return core.ExecutionResult{
 		ExitCode: result.ExitCode,

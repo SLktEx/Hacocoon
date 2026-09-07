@@ -22,8 +22,7 @@ func (s WorkspaceStores) Resolve(ctx context.Context, work core.Workspace) (core
 	if s.Resources == nil || work.ID == "" {
 		return core.PersistentResource{}, core.ErrInvalidArgument
 	}
-	sum := sha256.Sum256([]byte(work.ID))
-	id := fmt.Sprintf("oci:auto-%x", sum[:16])
+	id := workspaceStoreID(work.ID)
 	existing, err := s.Resources.Store.GetPersistentResource(ctx, id)
 	if err == nil {
 		if existing.WorkspaceID != work.ID || existing.Kind != StoreKind || existing.SourceOnly {
@@ -51,4 +50,22 @@ func (s WorkspaceStores) Resolve(ctx context.Context, work core.Workspace) (core
 		return core.PersistentResource{}, core.ErrRecoveryRequired
 	}
 	return s.Resources.CopyForWorkspace(ctx, id, StoreKind, PublishedStoreID, work.ID)
+}
+
+func workspaceStoreID(work core.WorkspaceID) string {
+	sum := sha256.Sum256([]byte(work))
+	return fmt.Sprintf("oci:auto-%x", sum[:16])
+}
+
+// CleanupTemporary only disposes the default copy bound to this exact scratch
+// Workspace after canonical Environment removal. Incomplete copies fail closed.
+func (s WorkspaceStores) CleanupTemporary(ctx context.Context, work core.Workspace) error {
+	if s.Resources == nil || !core.ValidTemporaryWorkspace(work) {
+		return core.ErrInvalidArgument
+	}
+	err := s.Resources.DeleteForWorkspace(ctx, workspaceStoreID(work.ID), work.ID)
+	if errors.Is(err, core.ErrNotFound) {
+		return nil
+	}
+	return err
 }

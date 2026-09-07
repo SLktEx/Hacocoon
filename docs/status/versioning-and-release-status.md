@@ -113,9 +113,10 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.31 | Retained Environment Resume | ✅ implemented |
 | v0.32 | Automatic Workspace Store Initialization | ✅ implemented |
 | v0.33 | Desktop SSH Setup | ✅ implemented |
-| v0.34 | Host Setup Recipes | repository implemented; installed acceptance pending |
+| v0.34 | Host Setup Recipes | implemented; installed Windows save/replay/update/clear passed at bcc1baf |
+| v0.35 | Temporary Execution | repository implemented; real-Incus acceptance pending |
 
-The current milestone position is **v0.34**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.35**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

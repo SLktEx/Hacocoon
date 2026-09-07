@@ -117,9 +117,17 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 			return core.Environment{}, core.ErrRecoveryRequired
 		}
 	}
-	workspace, err := s.provider.Resolve(ctx, WorkspaceRequest{Path: spec.WorkspacePath})
-	if err != nil {
-		return core.Environment{}, err
+	var workspace core.Workspace
+	if spec.TemporaryWorkspace != nil {
+		if spec.WorkspacePath != "" || !core.ValidTemporaryWorkspace(*spec.TemporaryWorkspace) || mode != core.WorkspaceReadWrite || spec.PersistentResource != "" {
+			return core.Environment{}, core.ErrInvalidArgument
+		}
+		workspace = *spec.TemporaryWorkspace
+	} else {
+		workspace, err = s.provider.Resolve(ctx, WorkspaceRequest{Path: spec.WorkspacePath})
+		if err != nil {
+			return core.Environment{}, err
+		}
 	}
 	unlock, err := lockWorkspace(ctx, workspace.ID)
 	if err != nil {
@@ -156,6 +164,7 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 	}
 
 	created, err := s.runtime.CreateEnvironment(ctx, core.EnvironmentRuntimeSpec{
+		TemporaryWorkspace: spec.TemporaryWorkspace != nil,
 		PersistentResource: persistent,
 		Name:               name,
 		WorkspacePath:      workspace.Path,
@@ -275,7 +284,9 @@ func (s *Service) Shell(ctx context.Context, name string) (err error) {
 	return s.runtime.ShellEnvironment(ctx, environment.RuntimeRef)
 }
 
-func (s *Service) Delete(ctx context.Context, name string) (err error) {
+func (s *Service) Delete(ctx context.Context, name string) error { return s.delete(ctx, name, nil) }
+
+func (s *Service) delete(ctx context.Context, name string, expected *core.Workspace) (err error) {
 	started := time.Now()
 	ctx = logging.With(ctx, "operation", "delete_environment", "environment_id", name)
 	logger := logging.FromContext(ctx).With("component", "core")
@@ -301,6 +312,9 @@ func (s *Service) Delete(ctx context.Context, name string) (err error) {
 	defer unlock()
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err == nil {
+		if expected != nil && environment.Workspace != *expected {
+			return core.ErrIncompatibleState
+		}
 		if err := s.runtime.DeleteEnvironment(ctx, environment.RuntimeRef); err != nil && !isNotFound(err) {
 			return fmt.Errorf("delete runtime %q: %w", environment.RuntimeRef, err)
 		}
@@ -319,6 +333,9 @@ func (s *Service) Delete(ctx context.Context, name string) (err error) {
 	}
 	if leaseErr != nil {
 		return leaseErr
+	}
+	if expected != nil && (lease.WorkspaceID != expected.ID || lease.SourcePath != expected.Path) {
+		return core.ErrIncompatibleState
 	}
 	if lease.RuntimeRef == "" {
 		return fmt.Errorf("workspace lease for %q has no runtime reference; refusing to reclaim without proof: %w", name, core.ErrRecoveryRequired)

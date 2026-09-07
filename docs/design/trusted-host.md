@@ -279,7 +279,7 @@ Windows/WSL claims are limited to the commit-bound real-host acceptance in imple
 
 ## Saved customization recipes
 
-Status: **implemented explicit controller setup/replay; installed acceptance pending**.
+Status: **implemented explicit controller setup/replay; Windows GHA acceptance passed at bcc1baf**.
 
 `haco setup --script <path>` saves and runs a user-selected Bash recipe after normal
 Host preparation. `haco setup` replays its saved snapshot; editing the original file
@@ -316,6 +316,5 @@ step fails; it does not roll back earlier user commands. Script stdout/stderr ar
 not forwarded to controller diagnostics because they may contain credentials.
 To inspect a recipe's own output, run the original script directly in the trusted
 Host. Unsafe stored-file permissions or links fail closed and require inspection
-of the controller-owned configuration. Ordinary installation/setup after Host
-recreation can reuse the snapshot; implicit recreation outside setup is not yet
-accepted. See [ADR 0019](../adr/0019-trusted-host-customization.md).
+of the controller-owned configuration. Explicit controller setup after Host recreation can reuse the snapshot; real
+recreation acceptance and implicit recreation outside setup remain unverified. See [ADR 0019](../adr/0019-trusted-host-customization.md).

@@ -104,9 +104,10 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.31 | Retained Environment Resume | 実装済み |
 | v0.32 | Automatic Workspace Store Initialization | 実装済み |
 | v0.33 | Desktop SSH Setup | 実装済み |
-| v0.34 | Host Setup Recipes | repository 実装済み・installed acceptance は pending |
+| v0.34 | Host Setup Recipes | 実装済み・Windows の保存/再実行/更新/解除は bcc1baf で成功 |
+| v0.35 | Temporary Execution | repository 実装済み・実 Incus 検証は pending |
 
-現在のmilestone位置は **v0.34** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.35** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

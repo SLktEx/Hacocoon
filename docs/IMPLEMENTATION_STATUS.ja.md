@@ -4,8 +4,8 @@
 
 状態: **ロードマップ C は partial**。desktop SSH の準備、`haco open [--client vscode|ssh] [environment]`、
 保持した環境の再開、読みやすい対象一覧を提供します。Host の保存手順は `haco setup --script <path>`、
-再実行、`--clear-script` で implemented ですが、インストール済み GHA の確認は pending です。
-より広い C1 の対象選択、C3–C5、一時実行 CLI と後続段階は未完了です。
+再実行、`--clear-script` で implemented で、bcc1baf のインストール済み GHA も成功しました。
+一時実行 CLI は repository 実装済みで実 Incus 検証待ちです。より広い C1 の対象選択、C3–C5 と後続段階は未完了です。
 
 `4f1f512` では4つの GHA workflow が成功しました。Windows job は通常の `haco open` から実際の VS Code
 1.136.1 Remote-SSH に接続し、document の読み書き、terminal 実行、検証用ファイルの削除を確認しました。
@@ -427,7 +427,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.34** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.35** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|
@@ -563,18 +563,16 @@ fixtureも既定resolverを通し、COW親子関係・独立書込み・source�
 イメージ取得やruntime利用を証明する試験ではありません。PR #482の`f8517ba`ではWindows
 native SSHを含む4つのGHA workflowが成功しました。以降の変更には別のCI結果が必要です。
 private-registry E2Eはworkflow-dispatch限定のためSKIPです。
-追加依頼の`docker run --rm`相当の一時Environment実行は、VS Code接続確認後に既存の
-一時実行実装を活かして進めます。
+追加依頼の `docker run --rm` 相当は VS Code 接続確認後に製品 CLI へ接続しました。
+実 Incus の受入結果は下の一時実行節で区別します。
 
 ## runtime側でのSSH自動ポート選択
 
-Status: **implemented、この追加のインストール済み受入は未実行**。
+Status: **implemented、Windows GHA bcc1baf の受入は成功**。
 `haco env ssh --key <public-key-file> <name>`はポート引数が不要になりました。
 SSHポート0をIncus runtimeへ渡し、Physical Hostで選択してからguestの鍵変更前に
 proxyを確保します。Windows native E2Eもこの通常defaultを使い、実際のproxyを
-確認するよう更新しました。対象Goテストは成功しましたが、このsourceで更新後の
-Windows試験はまだ実行していません。鍵・config自動設定とVS Code接続を先に進め、
-一時実行後の削除機能はその後に実装します。
+確認し、bcc1baf で成功しました。鍵・config 自動設定と実際の VS Code 接続も確認済みです。
 
 ## Desktop SSH setupとVS Code起動
 
@@ -594,22 +592,32 @@ cold entry 後の raw Incus fixture は Host 停止中で失敗し、通常の�
 
 ## 保存した Host カスタマイズ
 
-状態: **明示 setup/replay は implemented、インストール済み検証は pending**。
+状態: **明示 setup/replay は implemented、Windows GHA は bcc1baf で成功**。
 利用者が選んだ UTF-8 Bash 手順を controller が private に保存し、所有権を確認した trusted Host だけで実行します。
 通常の setup で保存内容を再実行し、明示した script 更新で置き換え、clear で実行せず解除します。
 Environment へ渡しません。回帰テストは file/link 保護、直列化、script 失敗前の保存、service 再作成後の replay、
 対象の所有権、標準入力での受渡し、秘密を含まない失敗通知を確認します。
-Windows GHA fixture には通常の保存・再実行・更新・解除の検証を追加しました。
+Windows GHA bcc1baf（run 34103036390、job 101681633357）で通常の保存・再実行・更新・解除が成功しました。
+test・Ubuntu・Incus workflow も成功しました。
 [Host カスタマイズ](design/trusted-host.ja.md#保存したカスタマイズ手順) を参照してください。
 
 controller setup 外の暗黙の Host 再作成は未検証です。ユーザーの installation では、このカスタマイズや任意の package/dotfile 手順を実行していません。
 当初のソース編集の自動レビュー拒否は、ロードマップ C2 の明示要件を確認し、同じソース編集をその根拠で再審査して解消しました。
 保留中のローカル package policy の許可とは別の事項です。
 
-## 一時実行の前提
+## 一時実行
 
-状態: **controller の中断は implemented、product の run/--rm UX は pending**。
-client 切断で execution を中断し、canonical な期限付き cleanup へ戻します。
-controller integration test で cleanup が始まらない問題を再現し、stream 修正後に成功しました。
-想定外の入力でも中断します。実 Incus の中断検証と簡単な product CLI は残っています。
-[ADR 0018](adr/0018-ephemeral-run-cancellation.md) を参照してください。
+状態: **product CLI は implemented、実 Incus の検証は pending**。
+`haco run [--rm] -- <command>` は既定で所有権付きの一時 Workspace を作り、
+/workspace から実行し、runtime と自動 OCI copy を削除します。
+`--workspace` は既存 Workspace と Store を保持し、`--no-oci` は自動コピーを無効化します。
+一時 identity を作成前に記録し、canonical deletion が lifecycle lock 内で照合します。
+resource cleanup も Workspace binding を原子的に確認します。失敗時は回復証拠を残します。
+非ゼロ終了、片付け失敗、中断を区別し、stdin/TTY は未実装です。
+
+race 回帰は既存作業の保護、片付け失敗と回復、既定の一時 source、OCI 公開元の保持、
+provider の明示対応と argv の保持を検証します。実 Incus GHA に通常 CLI の成功、exit 17、
+既存ファイルへの書き込み、中断後の削除を追加し、新しい source での結果は未取得です。
+内容入り OCI image 実行とローカル installed acceptance は未検証です。
+[一時実行](design/temporary-execution.ja.md) と
+[ADR 0020](adr/0020-runtime-owned-temporary-workspaces.md) を参照してください。

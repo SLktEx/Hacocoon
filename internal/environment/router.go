@@ -87,6 +87,9 @@ func (r *Router) CreateEnvironment(ctx context.Context, spec core.EnvironmentRun
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
+	if err := validateTemporaryProvider(provider, spec); err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
 	created, err := provider.CreateEnvironment(ctx, spec)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
@@ -101,6 +104,12 @@ func (r *Router) ExecEnvironment(ctx context.Context, rawRef string, req core.Ex
 	provider, ref, err := r.resolve(rawRef)
 	if err != nil {
 		return core.ExecutionResult{}, err
+	}
+	if req.WorkingDirectory != "" {
+		supported, ok := provider.(interface{ SupportsWorkingDirectory() bool })
+		if !ok || !supported.SupportsWorkingDirectory() {
+			return core.ExecutionResult{}, core.ErrUnsupported
+		}
 	}
 	return provider.ExecEnvironment(ctx, ref, req)
 }

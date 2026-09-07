@@ -31,6 +31,9 @@ func (r *BaseRouter) CreateEnvironment(ctx context.Context, spec core.Environmen
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
+	if err := validateTemporaryProvider(provider, spec); err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
 	created, err := provider.CreateEnvironment(ctx, spec)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err

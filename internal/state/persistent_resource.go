@@ -85,12 +85,27 @@ func (s *EnvironmentJSONStore) CommitPersistentResourceCreate(_ context.Context,
 	})
 }
 
-func (s *EnvironmentJSONStore) BeginPersistentResourceDelete(_ context.Context, id string) (r core.PersistentResource, err error) {
+func (s *EnvironmentJSONStore) BeginPersistentResourceDelete(ctx context.Context, id string) (core.PersistentResource, error) {
+	return s.beginPersistentResourceDelete(ctx, id, "")
+}
+
+// Workspace ownership is compared in the same transaction that excludes new attachments.
+func (s *EnvironmentJSONStore) BeginWorkspaceResourceDelete(ctx context.Context, id string, work core.WorkspaceID) (core.PersistentResource, error) {
+	if work == "" {
+		return core.PersistentResource{}, core.ErrInvalidArgument
+	}
+	return s.beginPersistentResourceDelete(ctx, id, work)
+}
+
+func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, id string, expected core.WorkspaceID) (r core.PersistentResource, err error) {
 	err = s.resourceTransaction(func(d *environmentFileState) error {
 		var ok bool
 		r, ok = d.PersistentResources[id]
 		if !ok {
 			return core.ErrNotFound
+		}
+		if expected != "" && (r.WorkspaceID != expected || r.SourceOnly) {
+			return core.ErrIncompatibleState
 		}
 		if r.CopySource != (core.PersistentResourceRef{}) || (r.SourceOnly && r.State == "creating") {
 			return core.ErrRecoveryRequired

@@ -82,6 +82,24 @@ func (s *Service) create(ctx context.Context, id, kind string, sourceOnly bool, 
 	return r, nil
 }
 
+// DeleteForWorkspace excludes ownership changes and new attachments atomically.
+func (s *Service) DeleteForWorkspace(ctx context.Context, id string, workspace core.WorkspaceID) error {
+	store, ok := s.Store.(interface {
+		BeginWorkspaceResourceDelete(context.Context, string, core.WorkspaceID) (core.PersistentResource, error)
+	})
+	if !ok {
+		return core.ErrUnsupported
+	}
+	resource, err := store.BeginWorkspaceResourceDelete(ctx, id, workspace)
+	if err != nil {
+		return err
+	}
+	if err := s.Backend.Delete(ctx, resource); err != nil {
+		return fmt.Errorf("temporary resource cleanup incomplete: %w: %w", core.ErrRecoveryRequired, err)
+	}
+	return s.Store.FinalizePersistentResourceDelete(ctx, resource)
+}
+
 func (s *Service) Delete(ctx context.Context, id string) error {
 	r, err := s.Store.BeginPersistentResourceDelete(ctx, id)
 	if err != nil {

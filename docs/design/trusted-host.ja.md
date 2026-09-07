@@ -276,7 +276,7 @@ Windows/WSLの確認済み範囲は、実装statusに記録したcommit固定の
 
 ## 保存したカスタマイズ手順
 
-状態: **controller setup からの明示実行・再実行は implemented、インストール済み構成の検証は pending**。
+状態: **controller setup からの明示実行・再実行は implemented、Windows GHA は bcc1baf で成功**。
 
 `haco setup --script <path>` は利用者が選んだ Bash 手順を、通常の Host 準備後に保存・実行します。
 `haco setup` は保存した内容を再実行します。元ファイルを編集しただけでは変わらず、再び `--script` を指定して更新します。
@@ -310,5 +310,5 @@ haco setup --clear-script
 認証情報が含まれる可能性があるため、script の stdout/stderr は controller の診断へ転送しません。
 script 自身の出力を調べるときは、元の script を trusted Host 内で直接実行してください。
 保存 file の不正な権限や link は拒否するため、controller 所有の設定を確認する必要があります。
-Host 再作成後も通常の install/setup から保存内容を再利用できますが、setup 外での暗黙の再作成は未検証です。
+Host 再作成後の明示的な controller setup から保存内容を再利用できますが、実際の再作成と setup 外での暗黙の再作成は未検証です。
 [ADR 0019](../adr/0019-trusted-host-customization.md) を参照してください。

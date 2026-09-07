@@ -5,9 +5,9 @@
 Status: **partial roadmap C**. Product commands provide desktop SSH setup,
 `haco open [--client vscode|ssh] [environment]`, retained resume and readable
 Environment target discovery. Saved Host setup recipes are now implemented through
-`haco setup --script <path>`, replay and `--clear-script`; their installed GHA
-acceptance is pending. Broader C1 selection, C3–C5, temporary-run CLI and later
-roadmap stages remain incomplete.
+`haco setup --script <path>`, replay and `--clear-script`; installed Windows GHA
+passed at bcc1baf. The temporary-run product CLI is implemented with real-Incus
+acceptance pending. Broader C1 selection, C3–C5 and later roadmap stages remain incomplete.
 
 All four GHA workflows passed at `4f1f512`. The Windows job proved actual VS Code
 1.136.1 Remote-SSH document read/write, terminal execution and owned probe cleanup
@@ -508,7 +508,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.34**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.35**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
@@ -673,10 +673,8 @@ VS Code connection acceptance, reusing the existing ephemeral-run implementation
 Status: **implemented; installed acceptance pending for this addition**.
 `haco env ssh --key <public-key-file> <name>` no longer needs a port argument.
 SSH port zero is passed to the Incus runtime, which selects on the Physical Host
-and reserves the proxy before guest key changes. The native Windows E2E now uses
-this ordinary default and checks the actual proxy endpoint. Focused Go tests passed;
-this source has not yet run the updated installed Windows test. SSH key/config
-automation and usable VS Code launch remain next, before temporary run-and-remove.
+and reserves the proxy before guest key changes. Windows GHA at bcc1baf passed this
+ordinary default, desktop key/config setup and actual VS Code access.
 
 ## Desktop SSH setup and opening
 
@@ -700,14 +698,15 @@ terminal controls. Broader DNS and connection diagnosis remains incomplete.
 
 ## Saved Host customization
 
-Status: **implemented explicit setup/replay; installed acceptance pending**.
+Status: **implemented explicit setup/replay; Windows GHA acceptance passed at bcc1baf**.
 A user-selected UTF-8 Bash recipe is saved privately by the controller and executed
 only in the verified trusted Host. Plain setup replays the snapshot, an explicit
 script update replaces it, and clear removes it without execution. No Environment
 receives the recipe. Regression coverage exercises private-file/link protections,
 serialization, persistence before script failure, replay after service recreation,
 target ownership, stdin delivery, and sanitized failure reporting. The Windows GHA
-fixture adds ordinary save/replay/update/clear acceptance. See
+fixture passed ordinary save/replay/update/clear acceptance at bcc1baf (Windows run
+34103036390, job 101681633357). Test, Ubuntu and Incus workflows also passed. See
 [Host customization](design/trusted-host.md#saved-customization-recipes).
 
 Implicit Host recreation outside controller setup is not yet accepted. Physical
@@ -716,11 +715,21 @@ installation. The initial source-edit review rejection was resolved by reading t
 explicit roadmap C2 requirement and resubmitting the same source-only edit with that
 evidence; it is separate from the still-pending local package policy permission.
 
-## Temporary execution prerequisite
+## Temporary execution
 
-Status: **implemented controller cancellation; product run/--rm UX pending**.
-Client disconnect cancels execution and returns to canonical bounded cleanup.
-A controller integration regression first reproduced missing cleanup, then passed
-after the stream change; unexpected input also cancels. Real-Incus interrupted-run
-acceptance and the simple product CLI remain outstanding. See
-[ADR 0018](adr/0018-ephemeral-run-cancellation.md).
+Status: **implemented product CLI; real-Incus acceptance pending**.
+`haco run [--rm] -- <command>` creates an owned temporary Workspace by default,
+executes in /workspace and removes the runtime plus its automatic OCI copy.
+`--workspace` retains an existing Workspace and Store; `--no-oci` opts out.
+Temporary identity is recorded before creation. Canonical deletion checks that
+identity under its lifecycle lock, and resource cleanup atomically checks the
+Workspace binding. Failed cleanup keeps recovery evidence. Nonzero exits,
+cleanup failure and cancellation remain distinct; stdin/TTY is not implemented.
+
+Focused race regressions cover retained-work protection, cleanup failure/recovery,
+default source selection, OCI source retention, provider opt-in and literal argv.
+Maintained real Incus GHA now includes product success, exit 17, retained writes
+and cancellation cleanup; the new source has not run that gate yet. Populated
+OCI image execution and local installed acceptance remain unverified. See
+[temporary execution](design/temporary-execution.md) and
+[ADR 0020](adr/0020-runtime-owned-temporary-workspaces.md).

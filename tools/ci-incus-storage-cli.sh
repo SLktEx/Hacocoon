@@ -45,6 +45,7 @@ setup() {
 
   go build -trimpath -o "$HACO_BIN" ./cmd/haco
   go build -trimpath -o "$CONTROLLER_BIN" ./cmd/haco-controller
+  go build -trimpath -o "$CLI_ROOT/haco-product" ./cmd/haco-product
   [[ -x "$HACO_BIN" ]] || fail "haco CLI build failed"
   [[ -x "$CONTROLLER_BIN" ]] || fail "haco-controller build failed"
 }
@@ -158,6 +159,7 @@ assert row["execution"]["stdout"] == "run-ok\n", row
 assert row["cleaned_up"] is True, row
 PY
   [[ "$(cat "$RUN_WORKSPACE/from-run.txt")" == "from-run" ]] || fail "haco run did not write through the real workspace mount"
+  python3 tools/test_temporary_run.py "$CLI_ROOT/haco-product" "$RUN_WORKSPACE"
   incus storage show "$POOL" --project "$PROJECT" >/dev/null
   assert_incus_managed_storage
   [[ "$(cat "$WORKSPACE/from-environment.txt")" == "from-environment" ]] || fail "workspace data changed during pool reuse"
