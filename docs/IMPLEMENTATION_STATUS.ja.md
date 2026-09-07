@@ -1,5 +1,7 @@
 # 実装状況
 
+修正 observer `05c8206` と installed `6771f2f` の組合せで、実機 VS Code 1.136.1 の確認に成功しました。Environment `win-ssh-33848c2759174f10`、Windows loopback port 40429 で、リモートのファイル読み書き・terminal 実行・ローカル承認 terminal・installed controller の古い要求拒否を確認しました。通常の実 HTTPS ask 保存・今回拒否／単発許可／再確認・拒否も再度成功しました。通常 fixture は exit 0 で完了し、一時 Policy・SSH 接続・Environment・Workspace・鍵・observer ファイルを削除、listener 不在と Windows 接続拒否も確認しました。手動 SSH 設定と Remote-SSH による実機結果であり、UI で人間が新規承認する操作や OS toast 起動の証明ではありません。
+
 `5283705` の test 34165137831、Ubuntu 34165137686、Incus 34165137697 は成功しました。Windows 34165137705 はローカル承認画面と承認テスト前提の project setup で失敗しました。リモート編集・terminal、通常 setup、preview/Edge、doctor は成功しました。
 
 修正した snapshot を専用ローカル WSL `Hacocoon-Review-6771f2f` に導入できました（installed commit `6771f2f38f8c036a2fb16e8f9640377229b11c65`）。実機 Environment `win-ssh-d5dc5903cceb456a` で Windows SSH（port 37713）、VS Code 1.136.1 のリモート編集・terminal、通常の `haco approve` による実 HTTPS の ask 保存・今回拒否／単発許可／再確認・拒否に成功しました。ローカル承認 terminal の確認は失敗し、固定診断と失敗時の検証ファイル cleanup の回帰テストを追加しました。接続・Environment 削除と listener の接続拒否は成功しました。最初の cleanup は observer ファイルの残留で失敗し、その後、作成確認済みファイルと空ディレクトリだけを削除しました。先行する既存 instance 更新は自動承認審査で拒否され未実行です。専用 instance の導入は別途承認されています。

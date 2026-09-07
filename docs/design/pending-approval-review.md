@@ -86,8 +86,7 @@ Native OS notification activation remains planned. See [ADR 0029](../adr/0029-lo
 
 Repository JS tests cover routing, input, disposal, failures and notification clicks.
 Installed GHA now probes the real custom terminal from a Remote-SSH editor with an
-unpredictable stale ID, requiring the installed controller's refusal. This new probe
-is pending; it does not prove an actual human's fresh approval or OS notification click.
+unpredictable stale ID, requiring the installed controller's refusal. This probe passed in actual local VS Code 1.136.1 with installed 6771f2f and observer 05c8206; it does not prove an actual human's fresh approval or OS notification click.
 
 See [ADR 0028](../adr/0028-pending-approval-sessions.md).
 
@@ -95,4 +94,4 @@ The installed observer uses only explicitly selected stable VS Code APIs: enumer
 the full API object failed before review in real desktop acceptance. It removes
 proven owned editor/terminal probes on failure, and reports only fixed diagnostic
 steps and booleans without subprocess output. A real local test passed ordinary
-HTTPS approval decisions separately; the corrected desktop observer is being rerun.
+HTTPS approval decisions separately; the corrected desktop observer passed the actual local editor, terminal and stale-request refusal checks, followed by successful fixture cleanup.

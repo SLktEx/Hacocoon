@@ -87,4 +87,4 @@ JavaScript テストは実行先、入力、終了処理、失敗、通知クリ
 実 VS Code GHA には予測不能な古い要求 ID で local terminal から installed controller の拒否を確認する
 probe を追加しましたが、結果は未確認です。新しい要求への人間の実回答や OS 通知クリックを証明するものではありません。
 
-実機検証では VS Code API 全体の列挙が review 起動前に失敗したため、observer は必要な安定 API だけを明示的に渡します。失敗時も作成確認済みの editor/terminal 検証ファイルを削除し、生の subprocess 出力を含まない固定段階と真偽値だけを記録します。実機で通常 CLI の HTTPS 承認は別途成功し、修正した desktop observer は再検証中です。
+実機検証では VS Code API 全体の列挙が review 起動前に失敗したため、observer は必要な安定 API だけを明示的に渡します。失敗時も作成確認済みの editor/terminal 検証ファイルを削除し、生の subprocess 出力を含まない固定段階と真偽値だけを記録します。実機で通常 CLI の HTTPS 承認は別途成功し、修正 observer は実機 VS Code 1.136.1 で編集・terminal・古い要求拒否を確認し、fixture cleanup も成功しました（installed 6771f2f、observer 05c8206）。
