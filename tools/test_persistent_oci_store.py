@@ -16,7 +16,8 @@ PREFIX = 'oci-check-' + uuid.uuid4().hex[:12]
 POLICY = pathlib.Path('/var/lib/hacocoon/policy.json')
 HOSTS = ('archive.ubuntu.com', 'security.ubuntu.com', 'github.com',
          'release-assets.githubusercontent.com', 'objects.githubusercontent.com',
-         'auth.docker.io', 'registry-1.docker.io', 'production.cloudflare.docker.com')
+         'auth.docker.io', 'registry-1.docker.io', 'production.cloudflare.docker.com',
+         'production.cloudfront.docker.com')
 INSTALL = r'''
 set -eu
 export DEBIAN_FRONTEND=noninteractive
@@ -29,7 +30,14 @@ tar -xzf nerdctl.tar.gz -C /usr/local/bin nerdctl
 curl -fL --retry 2 -o buildkit.tar.gz https://github.com/moby/buildkit/releases/download/v0.33.0/buildkit-v0.33.0.linux-amd64.tar.gz
 printf '%s  %s\n' b6242896d343100808dcbe37565caf381e0a444a6a83d7255926bb1519248ead buildkit.tar.gz | sha256sum -c -
 tar -xzf buildkit.tar.gz -C /usr/local bin/buildkitd bin/buildctl
-systemctl start containerd buildkit
+# Daemon-side registry operations need the same credential-free Standard proxy
+# as the shell. These service settings belong to disposable rootfs, not Store.
+for service in containerd buildkit; do
+  mkdir -p /etc/systemd/system/$service.service.d
+  printf '[Service]\nEnvironment="HTTP_PROXY=%s" "HTTPS_PROXY=%s" "NO_PROXY=%s"\n' "$HTTP_PROXY" "$HTTPS_PROXY" "$NO_PROXY" > /etc/systemd/system/$service.service.d/proxy.conf
+done
+systemctl daemon-reload
+systemctl restart containerd buildkit
 containerd --version
 nerdctl --version
 buildkitd --version
@@ -37,7 +45,7 @@ test ! -e /init
 test ! -e /run/WSL
 test ! -e /var/lib/hacocoon-control.sock
 test -z "$(find /mnt -mindepth 1 -maxdepth 1 -print -quit)"
-test -z "$WSL_INTEROP"
+test -z "${WSL_INTEROP-}"
 '''
 
 def run(args, *, check=True):
@@ -88,7 +96,7 @@ try:
     policy(first)
     guest(first,INSTALL)
     guest(first,r'''set -eu
-nerdctl --snapshotter native pull docker.io/library/busybox:latest
+nerdctl --snapshotter native pull --unpack=false docker.io/library/busybox:latest
 nerdctl --snapshotter native run --rm --network none docker.io/library/busybox:latest echo pulled-image-ok
 mkdir -p /workspace/build-context
 cp /bin/busybox /workspace/build-context/busybox
@@ -97,10 +105,10 @@ printf persistent-built-image-ok > /workspace/build-context/marker
 cd /workspace/build-context
 nerdctl --snapshotter native build --progress plain --network none -t hacocoon-test:local .
 nerdctl --snapshotter native run --rm --network none hacocoon-test:local
-nerdctl images --digests
+nerdctl --snapshotter native images --digests
 buildctl du
 ''')
-    before = guest(first,'nerdctl image inspect --format "{{.Id}}" docker.io/library/busybox:latest hacocoon-test:local').stdout
+    before = guest(first,'nerdctl --snapshotter native image inspect --format "{{.Id}}" docker.io/library/busybox:latest hacocoon-test:local').stdout
     haco('env','delete',first)
     retained = json.loads(haco('plugin','oci','store','inspect',store_a).stdout)['resources'][0]
     assert retained == a
@@ -108,7 +116,7 @@ buildctl du
     haco('env','create','--workspace',str(work),'--resource','oci:'+store_a,second)
     policy(second,registry=False)
     guest(second,INSTALL)
-    after = guest(second,'nerdctl image inspect --format "{{.Id}}" docker.io/library/busybox:latest hacocoon-test:local').stdout
+    after = guest(second,'nerdctl --snapshotter native image inspect --format "{{.Id}}" docker.io/library/busybox:latest hacocoon-test:local').stdout
     assert before == after, (before,after)
     reused = guest(second,r'''set -eu
 nerdctl --snapshotter native run --rm --pull never --network none docker.io/library/busybox:latest echo pulled-image-reused

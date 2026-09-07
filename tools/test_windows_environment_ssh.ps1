@@ -136,8 +136,8 @@ try {
     }
 
     $instance = Invoke-Wsl @('-u', 'root', '--exec', 'incus', 'query', "/1.0/instances/haco-$EnvironmentName`?project=hacocoon") 'Inspect actual SSH proxy binding'
-    $observed = $instance.Stdout | ConvertFrom-Json
-    $proxy = $observed.expanded_devices.PSObject.Properties["haco-$ConnectionId"].Value
+    $observed = $instance.Stdout | ConvertFrom-Json -AsHashtable
+    $proxy = $observed.expanded_devices["haco-$ConnectionId"]
     if ($proxy.type -ne 'proxy' -or $proxy.listen -ne "tcp:127.0.0.1:$Port" -or $proxy.connect -ne 'tcp:127.0.0.1:22') { throw 'SSH proxy is not loopback-only into Environment sshd' }
     $generated = Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'ssh-config', $EnvironmentName) 'Generate OpenSSH config from trusted haco-host'
     $config = $generated.Stdout

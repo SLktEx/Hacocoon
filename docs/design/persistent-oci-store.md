@@ -58,14 +58,28 @@ builder is required. The attachment writes `/etc/containerd/config.toml` and an
 Environment-local `buildkit.service` using the native snapshotter. It waits a bounded
 period for the guest systemd manager before configuring services; a readiness
 failure fails creation through the normal ownership-preserving cleanup. Start the
-optional services when installed:
+optional services when installed. Daemon-side registry operations also need the
+Environment's existing credential-free Standard proxy. Configure this inside the
+Environment (and retain exact registry/download Policy on the Physical Host):
 
 ```bash
-systemctl start containerd buildkit
-nerdctl --snapshotter native pull docker.io/library/busybox:latest
+for service in containerd buildkit; do
+  mkdir -p /etc/systemd/system/$service.service.d
+  printf '[Service]\nEnvironment="HTTP_PROXY=%s" "HTTPS_PROXY=%s" "NO_PROXY=%s"\n' \
+    "$HTTP_PROXY" "$HTTPS_PROXY" "$NO_PROXY" \
+    > /etc/systemd/system/$service.service.d/proxy.conf
+done
+systemctl daemon-reload
+systemctl restart containerd buildkit
+nerdctl --snapshotter native pull --unpack=false docker.io/library/busybox:latest
 nerdctl --snapshotter native build --network none -t example:local .
 nerdctl --snapshotter native run --rm --network none example:local
 ```
+
+The validated containerd 2.2 / nerdctl 2.3 combination uses `pull --unpack=false`:
+content is stored first and native snapshots are prepared by `run`. Its transfer
+service default unpack configuration does not select the native snapshotter.
+Use `--snapshotter native` consistently for run, build and image inspection.
 
 Pulled and built images in the same containerd namespace remain after a later
 reattachment. A different Store starts with separate image/cache data. No Host
