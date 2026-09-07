@@ -78,26 +78,7 @@ git -C "$workspace" commit -qm 'test: real Hacocoon GitHub push E2E'
 expected_sha="$(git -C "$workspace" rev-parse HEAD)"
 
 mkdir -p "$HACO_ROOT/state"
-python3 - "$HACO_ROOT/state/environments.json" "$workspace" <<'PY'
-import json
-import sys
-
-path, workspace = sys.argv[1:]
-data = {
-    "environments": {
-        "demo": {
-            "name": "demo",
-            "workspace": {"id": "path:real-github-e2e", "path": workspace},
-            "access_mode": "rw",
-            "runtime_ref": "unused",
-            "created_at": "0001-01-01T00:00:00Z",
-        }
-    },
-    "workspace_leases": {},
-}
-with open(path, "w", encoding="utf-8") as handle:
-    json.dump(data, handle)
-PY
+python3 test/e2e/environment_fixture.py "$HACO_ROOT/state/environments.json" demo "$workspace"
 
 python3 - "$HACO_ROOT/policy.json" "$owner" "$repo" "$target_ref" <<'PY'
 import json

@@ -3,9 +3,11 @@ package composition
 import (
 	"context"
 	"errors"
+	"github.com/SLktEx/Hacocoon/internal/state"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -31,6 +33,27 @@ func TestControllerEgressPolicyDoesNotReadAmbientApproval(t *testing.T) {
 	t.Cleanup(func() { os.Stdin = original })
 	app, err := Controller(context.Background())
 	if err != nil {
+		t.Fatal(err)
+	}
+	// Catalog-only fixture: this test checks the composed Policy boundary and
+	// does not claim a running provider Environment.
+	store := state.NewEnvironmentJSONStore(filepath.Join(root, "state", "environments.json"))
+	instance, err := core.NewEnvironmentInstanceID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease := core.WorkspaceLease{InstanceID: instance, EnvironmentID: "env-a", WorkspaceID: "work", SourcePath: "/workspace/work", AccessMode: core.WorkspaceReadWrite, Owner: "env-a", State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC()}
+	ctx := context.Background()
+	if err := store.BeginEnvironmentCreate(ctx, lease); err != nil {
+		t.Fatal(err)
+	}
+	lease.RuntimeRef = "test:env-a"
+	if err := store.RecordEnvironmentRuntime(ctx, lease); err != nil {
+		t.Fatal(err)
+	}
+	lease.State = core.WorkspaceLeaseActive
+	env := core.Environment{Name: "env-a", Workspace: core.Workspace{ID: lease.WorkspaceID, Path: lease.SourcePath}, AccessMode: lease.AccessMode, RuntimeRef: lease.RuntimeRef, CreatedAt: lease.AcquiredAt}
+	if err := store.CommitEnvironmentCreate(ctx, env, lease); err != nil {
 		t.Fatal(err)
 	}
 	request := core.CapabilityRequest{Capability: "network.egress", Action: "connect", Resource: "example.com", Environment: "env-a", Attributes: map[string]string{"protocol": "https", "port": "443"}}

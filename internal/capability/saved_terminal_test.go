@@ -12,7 +12,7 @@ func TestTerminalSavedChoicesAreExplicit(t *testing.T) {
 	for input, want := range map[string]SavedChoice{"1": AllowEnvironment, "2": DenyEnvironment, "3": AllowGlobal, "4": DenyGlobal} {
 		var out bytes.Buffer
 		approval := NewStdioApproval(strings.NewReader(input+"\n"), &out)
-		decision, err := approval.Decide(context.Background(), core.ApprovalRequest{CapabilityRequest: core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev"}})
+		decision, err := approval.Decide(context.Background(), core.ApprovalRequest{CapabilityRequest: core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev", EnvironmentInstance: "env-11111111111111111111111111111111"}})
 		if err != nil || decision.Save != want || decision.Approved != (want == AllowEnvironment || want == AllowGlobal) {
 			t.Fatalf("%s: %#v %v", input, decision, err)
 		}
@@ -40,7 +40,7 @@ func TestTerminalSavedAskStillRequiresOneShotAnswer(t *testing.T) {
 		{"6\n", AskGlobal, false},
 	} {
 		var out bytes.Buffer
-		decision, err := NewStdioApproval(strings.NewReader(tc.input), &out).Decide(context.Background(), core.ApprovalRequest{CapabilityRequest: core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev"}})
+		decision, err := NewStdioApproval(strings.NewReader(tc.input), &out).Decide(context.Background(), core.ApprovalRequest{CapabilityRequest: core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev", EnvironmentInstance: "env-11111111111111111111111111111111"}})
 		if err != nil || decision.Save != tc.save || decision.Approved != tc.approved {
 			t.Fatalf("%q: %#v %v", tc.input, decision, err)
 		}

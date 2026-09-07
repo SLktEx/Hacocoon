@@ -3,7 +3,7 @@
 [日本語](development-preview.ja.md) | English
 
 Status: **partial roadmap C5**. The product CLI and loopback connection path are
-implemented. Installed Windows acceptance for this slice is pending.
+implemented. Installed Windows HTTP and Edge headless rendering acceptance passed; default-browser launch remains unverified.
 
 ## Ordinary use
 
@@ -46,7 +46,6 @@ project setup, reads the Workspace marker from Windows, reuses the same URL,
 and checks connection refusal after close. At `bffc3fd`, the fixture received a Windows HTTP response but failed its
 content assertion: the extensionless marker was returned as bytes, not text.
 It now serves a text/plain .txt marker, also suitable for browser rendering.
-Preview reuse/close and Edge acceptance await the rerun. Actual browser launch and rendering remain unverified; HTTP
-acceptance alone must not be reported as browser acceptance.
+At d4aef8d, Windows run 34139245378 passed HTTP content, URL reuse, close/refusal and actual Edge headless rendering. Default-browser launch remains unverified; headless rendering does not prove the desktop launcher.
 
 See [client adapters](client-adapters-and-vscode-integration.md).

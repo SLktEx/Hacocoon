@@ -21,7 +21,7 @@ func TestSavedApprovalAuditsBeforeSavingAndPreservesPromptAuthority(t *testing.T
 		audit := &fakeAudit{failAt: failAt}
 		provider := &fakeProvider{}
 		service := newTestService(t, evaluator, nil, audit, provider)
-		request := core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev", Attributes: map[string]string{"branch": "main"}, Parameters: map[string]string{"message": "opaque"}}
+		request := core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev", EnvironmentInstance: "env-11111111111111111111111111111111", Attributes: map[string]string{"branch": "main"}, Parameters: map[string]string{"message": "opaque"}}
 		result, err := service.RequestWithDecision(context.Background(), request, func(_ context.Context, prompt core.ApprovalRequest) (ApprovalDecision, error) {
 			if len(prompt.CapabilityRequest.Parameters) != 0 {
 				t.Fatal("opaque parameters sent to approval UI")
@@ -61,7 +61,7 @@ func TestSavedAskIsDurableAndNeverBecomesAllow(t *testing.T) {
 			evaluator := NewFilePolicyEvaluator(path)
 			provider := &fakeProvider{}
 			service := newTestService(t, evaluator, nil, &fakeAudit{}, provider)
-			request := core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev"}
+			request := core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev", EnvironmentInstance: "env-11111111111111111111111111111111"}
 			_, err := service.RequestWithDecision(context.Background(), request, func(context.Context, core.ApprovalRequest) (ApprovalDecision, error) {
 				return ApprovalDecision{Approved: approved, Save: choice}, nil
 			})

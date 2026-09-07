@@ -158,6 +158,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	if err != nil {
 		return nil, err
 	}
+	capabilities.ConfigureEnvironmentIdentity(store)
 	gitBroker.Capabilities = capabilities
 	egressBroker := egressapp.NewBroker(capabilities)
 	egressSources, err := egressapp.NewPersistedSourceResolver(environmentapp.ProviderIncus, incusRuntime, store)

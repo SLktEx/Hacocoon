@@ -60,6 +60,9 @@ func (a *StdioApproval) decide(ctx context.Context, req core.ApprovalRequest, pe
 	options := "y/N"
 	if persistent {
 		options = "y/N; 1=allow this Environment, 2=deny this Environment, 3=allow all Environments, 4=deny all Environments, 5=ask every time in this Environment, 6=ask every time in all Environments"
+		if !core.ValidEnvironmentInstanceID(request.EnvironmentInstance) {
+			options = "y/N; 3=allow all Environments, 4=deny all Environments, 6=ask every time in all Environments"
+		}
 	}
 	if _, err := fmt.Fprintf(a.out, " reason=%s? [%s] ", terminalSafe(req.Reason), options); err != nil {
 		return ApprovalDecision{}, fmt.Errorf("display approval request: %w", err)

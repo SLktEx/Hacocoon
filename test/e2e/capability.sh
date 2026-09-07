@@ -32,6 +32,8 @@ cat > "$HACO_ROOT/policy.json" <<'JSON'
 JSON
 
 chmod 600 "$HACO_ROOT/policy.json"
+python3 test/e2e/environment_fixture.py "$HACO_ROOT/state/environments.json" first "$root/first"
+python3 test/e2e/environment_fixture.py "$HACO_ROOT/state/environments.json" second "$root/second"
 
 go build -o "$haco" ./cmd/haco
 go build -o "$controller" ./cmd/haco-controller
@@ -48,7 +50,7 @@ safe_output="$("$haco" capability request local.echo echo --resource safe --para
 # the bidirectional controller stream, then audited/executed by the controller.
 approved_output="$(printf 'yes\n' | "$haco" capability request local.echo echo --resource sensitive --param message=approved-secret 2>"$root/approval.err")"
 [[ "$approved_output" == "approved-secret" ]]
-grep -Fq '[y/N; 1=allow this Environment' "$root/approval.err"
+grep -Fq '3=allow all Environments' "$root/approval.err"
 
 set +e
 printf 'no\n' | "$haco" capability request local.echo echo --resource sensitive --param message=must-not-run >"$root/denied.out" 2>"$root/denied.err"
@@ -117,4 +119,13 @@ if "$haco" capability request local.echo echo --resource ask-always --environmen
 fi
 [[ ! -s "$root/ask-again.out" ]]
 grep -Fq 'Approve capability' "$root/ask-again.err"
-echo "PASS: Hacocoon capability approval / saved scope / replay / persistent ask E2E"
+# Simulate a new canonical creation in this repository-only catalog fixture.
+# The name and Workspace remain the same; the durable instance identity changes.
+python3 test/e2e/environment_fixture.py "$HACO_ROOT/state/environments.json" first "$root/first"
+if "$haco" capability request local.echo echo --resource remembered --environment first --param message=must-not-run </dev/null >"$root/recreated.out" 2>"$root/recreated.err"; then
+  echo "saved choice escaped its creation identity" >&2
+  exit 1
+fi
+[[ ! -s "$root/recreated.out" ]]
+grep -Fq 'Approve capability' "$root/recreated.err"
+echo "PASS: Hacocoon capability approval / saved scope / replay / persistent ask / recreation E2E"

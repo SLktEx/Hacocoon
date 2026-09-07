@@ -6,7 +6,7 @@ import (
 )
 
 func TestSavedChoicesPreserveObservedAuthority(t *testing.T) {
-	request := core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev", Attributes: map[string]string{"branch": "main"}, Parameters: map[string]string{"secret": "never-store"}}
+	request := core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev", EnvironmentInstance: "env-11111111111111111111111111111111", Attributes: map[string]string{"branch": "main"}, Parameters: map[string]string{"secret": "never-store"}}
 	for _, choice := range []SavedChoice{AllowEnvironment, DenyEnvironment, AllowGlobal, DenyGlobal} {
 		rule, err := RuleForSavedChoice(request, choice)
 		if err != nil {
@@ -31,10 +31,11 @@ func TestSavedChoicesPreserveObservedAuthority(t *testing.T) {
 }
 func TestSavedChoiceRejectsImplicitOrWildcardAuthority(t *testing.T) {
 	for _, request := range []core.CapabilityRequest{
-		{Capability: "local.echo", Action: "echo", Resource: "*", Environment: "dev"},
+		{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev"},
+		{Capability: "local.echo", Action: "echo", Resource: "*", Environment: "dev", EnvironmentInstance: "env-11111111111111111111111111111111"},
 		{Capability: "local.echo", Action: "echo", Resource: "target"},
 		{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "*"},
-		{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev", Attributes: map[string]string{"branch": "*"}},
+		{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev", EnvironmentInstance: "env-11111111111111111111111111111111", Attributes: map[string]string{"branch": "*"}},
 	} {
 		if _, err := RuleForSavedChoice(request, AllowEnvironment); err == nil {
 			t.Fatalf("broad authority accepted: %#v", request)

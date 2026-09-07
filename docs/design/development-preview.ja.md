@@ -3,7 +3,7 @@
 日本語 | [English](development-preview.md)
 
 状態: **ロードマップ C5 は partial**。product CLI と loopback 接続を実装しました。
-この変更の Windows installer 検証は未完了です。
+Windows installer で HTTP と Edge headless 描画の検証が PASS になりました。既定ブラウザの起動は未検証です。
 
 ## 通常の使い方
 
@@ -41,7 +41,6 @@ provider の bind 成功が必要です。競合した bind は失敗させま�
 Windows installer fixture は通常の project setup から Python HTTP server を起動し、
 Windows で Workspace marker を取得して、URL 再利用と close 後の接続拒否を確認します。
  `bffc3fd` では Windows HTTP 応答を取得しましたが、拡張子のない marker が byte 列で返り、内容確認で失敗しました。
-ブラウザー表示にも適した text/plain の .txt marker に修正しています。preview 再利用・close・Edge の検証は再実行待ちです。browser の実起動・描画は未検証であり、
-HTTP の成功だけを browser 検証成功とは扱いません。
+ブラウザー表示にも適した text/plain の .txt marker に修正しています。d4aef8d の Windows run 34139245378 で HTTP 内容、URL 再利用、close 後の接続拒否、Edge headless の実描画が PASS になりました。既定ブラウザの起動は未検証です。headless 描画の成功を desktop launcher の確認とは扱いません。
 
 [Client adapter](client-adapters-and-vscode-integration.md) も参照してください。

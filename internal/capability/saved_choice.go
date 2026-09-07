@@ -37,7 +37,7 @@ func RuleForSavedChoice(request core.CapabilityRequest, choice SavedChoice) (Pol
 	}
 	switch choice {
 	case AllowEnvironment, DenyEnvironment, AskEnvironment:
-		if strings.TrimSpace(request.Environment) == "" || request.Environment == "*" {
+		if strings.TrimSpace(request.Environment) == "" || request.Environment == "*" || !core.ValidEnvironmentInstanceID(request.EnvironmentInstance) {
 			return PolicyRule{}, core.ErrInvalidArgument
 		}
 	case AllowGlobal, DenyGlobal, AskGlobal:

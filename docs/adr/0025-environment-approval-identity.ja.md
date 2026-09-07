@@ -21,8 +21,7 @@ Environment 単位の保存方針は同じ instance のみ照合し、古い名�
 
 実運用の Git broker は trusted catalog から ID を取得し、準備済み操作の実行直前にも
 照合します。一般 client の要求 payload から ID を指定できません。承認 payload では
-trusted な ID を表示用に保持します。他 provider も env 単位の保存を提供する前に、
-trusted な送信元 binding から識別子を取得する必要があります。
+trusted な ID を表示用に保持します。実運用の Capability service も、名前付き要求の ID を Policy 評価前に catalog から取得し、provider 実行直前に同じ snapshot を再確認します。env 単位の保存には有効な作成 ID が必須です。識別できない要求では今回だけの回答と明示的な全 env 方針のみを提示します。
 
 ## 却下した方式と範囲
 
@@ -33,6 +32,6 @@ trusted な送信元 binding から識別子を取得する必要があります
 
 ID は credential や provider 所有権 token ではなく、それだけで操作を許可しません。
 Git commit/ref の照合、Policy、監査、canonical cleanup は引き続き必要です。
-再利用する Git 許可範囲・通常の保存選択 UI・network の identity 統合は未完了です。
+再利用する Git 許可範囲・通常の保存選択 UI・実 network/provider の受け入れ確認は未完了です。
 
 identity 解決では保存済み lease を直接確認します。一般の legacy reader が補完した不在 lease を、ID 付与の証拠として採用しません。

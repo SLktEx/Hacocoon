@@ -24,8 +24,7 @@ their existing name scopes and may explicitly constrain an instance.
 The production Git broker resolves this identity from trusted catalog state and
 checks it again before its prepared operation executes. The general client
 request payload cannot assert an instance ID; approval payloads preserve the
-trusted identifier for display. Other provider integrations must obtain identities
-from their trusted source bindings before offering Environment-scoped persistence.
+trusted identifier for display. The production Capability service also resolves every named request from the catalog before Policy evaluation and rechecks the exact snapshot immediately before provider execution. Environment-scoped saving requires a valid creation identity; unidentified requests offer only one-shot and explicit global choices.
 
 ## Rejected alternatives and limits
 
@@ -38,6 +37,6 @@ from their trusted source bindings before offering Environment-scoped persistenc
 The identity is not a credential or a provider ownership token. It does not by
 itself make a request authorized. Git commit/ref binding, Policy, audit and
 canonical cleanup remain authoritative. Provider-declared reusable Git scope,
-ordinary saved-choice UI and network identity integration remain unfinished.
+ordinary saved-choice UI and real network/provider acceptance remain unfinished.
 
 Identity resolution reads persisted lease evidence directly. The general legacy state reader can synthesize missing leases; that compatibility result is not accepted as proof for identity assignment.

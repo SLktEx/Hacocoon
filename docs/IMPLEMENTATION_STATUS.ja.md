@@ -683,3 +683,7 @@ stdin 契約を引き継ぐ修正を加えています。修正後の installed 
 Environment 作成時に canonical lease へランダムな instance ID を予約します。既存の整合した ready 状態には catalog lock 内で一度だけ付与します。保存 Policy・承認表示・監査で ID を扱い、実運用 Git は取得後、実行直前にも再確認します。同名再作成に識別済み保存方針を引き継ぎません。State/Workspace/Core と Capability/controller/Git の race test は成功しました。通常の Git 保存範囲/UI と network identity 統合は partial です。[ADR 0025](adr/0025-environment-approval-identity.ja.md)を参照してください。
 
 `bffc3fd` は test・Ubuntu・Incus が成功しました。Windows run 34136858725 は VS Code と project setup が再度成功し、拡張子のない preview marker が PowerShell に byte 列で返ったため、内容確認で失敗しました。text/plain fixture への修正は installed 検証待ちです。Git pending には追加引数なしで trusted な作成識別子を表示します。
+
+d4aef8d では 4 workflow が成功しました。Windows run [34139245378](https://github.com/SLktEx/Hacocoon/actions/runs/34139245378) で VS Code の実接続、project setup の保存・再実行・非ゼロ終了・更新・削除、Edge headless の preview 描画、HTTP preview の再利用・終了・接続拒否、Environment doctor の前提確認が PASS です。上記の preview 受け入れ待ちは解消しました。既定ブラウザの起動や物理端末の受け入れを証明するものではありません。VPN／NRPT は VPN と private name の fixture がないため SKIP です。
+
+実運用の Capability service は全ての名前付き要求を trusted catalog の作成 ID に結び付け、実行直前にも照合します。env 限定の保存には ID が必須ですが、利用者の引数は増えません。通常の Git 保存範囲・UI と実 network/provider の受け入れ確認は partial です。

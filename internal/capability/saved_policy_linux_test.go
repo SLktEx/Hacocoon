@@ -17,7 +17,7 @@ func TestRememberPreservesRestrictionsAndUpdatesOnlySavedDecisions(t *testing.T)
 		t.Fatal(err)
 	}
 	evaluator := NewFilePolicyEvaluator(path)
-	request := core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev"}
+	request := core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev", EnvironmentInstance: "env-11111111111111111111111111111111"}
 	if err := evaluator.Remember(context.Background(), request, AllowEnvironment); err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestRememberRefusesUnsafePolicyFiles(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			request := core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev"}
+			request := core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev", EnvironmentInstance: "env-11111111111111111111111111111111"}
 			if err := NewFilePolicyEvaluator(path).Remember(context.Background(), request, AllowEnvironment); err == nil {
 				t.Fatal("unsafe file accepted")
 			}
