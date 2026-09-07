@@ -200,6 +200,19 @@ try {
             $CleanupFailed = $true; Write-Warning $_
         }
     }
+    if ($ConnectionId -and $EnvironmentGone) {
+        # Confirm actual WSL listener removal and Windows connection refusal,
+        # independently of the controller cleanup response. Windows WSL
+        # forwarding may report a timeout instead of ECONNREFUSED after removal.
+        $listeners = Invoke-Wsl @('-u', 'root', '--exec', 'ss', '-H', '-ltn', "sport = :$Port") 'Verify Physical Host SSH listener was removed'
+        $closed = Invoke-Captured $NativeSSH @('-F', $ConfigPath, '-i', $PrivateKey, '-o', "UserKnownHostsFile=$KnownHosts", '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=2', "haco-$EnvironmentName", 'echo MUST-NOT-EXECUTE')
+        if (-not [string]::IsNullOrWhiteSpace($listeners.Stdout) -or $closed.ExitCode -eq 0 -or $closed.Stdout.Contains('MUST-NOT-EXECUTE')) {
+            $CleanupFailed = $true
+            Write-Warning 'SSH listener removal or Windows connection rejection could not be confirmed.'
+        } else {
+            Write-Host 'Cleanup: WSL loopback listener absent; Windows SSH connection rejected.'
+        }
+    }
     if ($WorkspaceCreated -and $EnvironmentGone) {
         try {
             [void](Invoke-Wsl @('--exec', 'rm', '-f', "$Workspace/windows-marker") 'Remove acceptance Workspace marker')

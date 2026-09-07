@@ -53,3 +53,9 @@ Keep the client private key on Windows throughout. The maintained
 [`tools/test_windows_environment_ssh.ps1`](../../tools/test_windows_environment_ssh.ps1)
 uses an isolated Windows key directory, a dedicated pin, a mismatch rejection
 probe, `/workspace` verification and cleanup; it never installs user SSH config.
+
+After a fresh candidate ZIP passes the ordinary Windows installer gate, run
+`python tools/windows-native-access-e2e.py --require-non-c` on a machine with
+a writable additional drive. The maintained ConPTY driver keeps an ordinary
+trusted Host shell open, checks native interop before and after the complete
+SSH lifecycle, and leaves the user's SSH configuration untouched.

@@ -36,7 +36,10 @@ def main():
         elif stage == 1 and re.search(r'(?m)^[^\r\n]*@haco-host:[^\r\n]*[#\$]\s*$', output[sent_at:]):
             scripts = [('test_windows_host_interop.ps1', ['-RequireNonC'] if args.require_non_c else [])]
             if args.persistence_manifest: scripts[0][1].extend(['-PersistenceManifest', str(Path(args.persistence_manifest).resolve())])
-            if not args.interop_only: scripts.append(('test_windows_environment_ssh.ps1', []))
+            if not args.interop_only:
+                # Environment creation/deletion must not break interop in the
+                # already-open trusted Host session.
+                scripts.extend([('test_windows_environment_ssh.ps1', []), scripts[0]])
             for name, options in scripts:
                 result = subprocess.run([powershell, '-NoLogo', '-NoProfile', '-NonInteractive',
                     '-ExecutionPolicy', 'Bypass', '-File', str(here / name), *options], timeout=1800, capture_output=True, text=True, encoding='utf-8', errors='replace')
