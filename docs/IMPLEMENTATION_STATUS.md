@@ -2,16 +2,19 @@
 
 ## Policy-bound name resolution
 
-Status: **partial roadmap C3**. The controller Standard listener now has a
-source-bound DNS relay, backed by the existing Capability Policy and audit service.
-The guest UDP/TCP stub is implemented as a component; automatic Environment
-provisioning is not implemented yet. No new policy allow rules are installed.
-Component/race tests cover refusal before upstream lookup, untrusted source
-headers and provider results, same-path external HTTP requests retaining egress
-authorization, malformed DNS, UDP/TCP and cancellation. These do not establish
-ordinary guest getaddrinfo, Windows DNS/VPN propagation or trusted Host acceptance.
-See [name resolution](design/name-resolution.md) for the contract and remaining
-acceptance. The current checkpoint remains v0.35 until a usable C3 slice is ready.
+Status: **partial roadmap C3**. Installed Standard mode now automatically installs
+the guest loopback DNS service during canonical Environment creation and resume.
+The service notifies readiness after binding UDP/TCP; failed installation or
+startup prevents successful creation/resume. Bare controller mode keeps the
+component optional. No new user command, nameserver argument or allow rule is
+required for provisioning. Lookup still requires its own Policy permission.
+
+The existing guarded listener binds requests to persisted source identity and
+uses Capability Policy/audit before the Physical Host resolver. Connection
+authority remains separate. A Windows GHA fixture now compares ordinary
+getaddrinfo results across Windows, WSL, trusted Host and Environment and checks
+default DNS denial; the new fixture has not yet passed GHA. VPN/NRPT, propagation
+after DNS changes and restart remain unverified. See [name resolution](design/name-resolution.md).
 
 ## Current desktop-development checkpoint
 
@@ -33,10 +36,20 @@ The ordinary local installer last upgraded the existing distribution to `8752431
 (v0.33, build `2026-09-07T06:44:17Z`). Doctor passed six checks and preserved
 `stage-b-git-dev` and its Workspace. Installer ZIP SHA-256:
 `c2c5b720643d98e586996e2d2413d1af196d764331e2b160a5bda647c76946a9`.
-This installation predates the latest source changes. Local editor connection is
-**SKIP pending permission**: automatic review rejected temporary Ubuntu package
-policy rules for `desktop-8752431`; none were applied. The question remains pending
-and the test Environment is stopped with its Workspace retained.
+This installation predates the current DNS changes. Local acceptance passed on
+2026-09-07 after the user authorized temporary package-egress rules for
+`desktop-8752431`: native Windows OpenSSH and VS Code 1.136.1 Remote-SSH verified
+the Workspace marker, editor read/write, remote terminal execution and probe
+cleanup. The editor used a separate local profile and explicit Remote-SSH URI;
+this is not local acceptance of ordinary `haco open`, which GHA covers separately.
+The four temporary rules were removed (remaining count zero), SSH connection
+`ssh-39493` revoked, disposable Windows key deleted and test Environment stopped.
+The user's `stage-b-git-dev` remained stopped. Earlier local resume failed because
+WSL restart removed its volatile source guard; recreation used canonical deletion
+and creation. Its old /tmp Workspace was also absent, so a fresh test directory
+was created. These failures are separate from subsequent connection success.
+The missing-guard resume fix now has regression coverage; actual reboot acceptance
+of that fix remains pending.
 
 ## Independent persistent Store copies
 
@@ -520,7 +533,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.35**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.36**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

@@ -10,18 +10,39 @@ import (
 )
 
 func TestResumeValidatesNetworkBeforeStartingAndPreservesRuntime(t *testing.T) {
-	for _, scenario := range []string{"stopped", "running", "foreign", "drift", "unknown", "foreign-network", "isolation-off", "post-start-drift"} {
+	for _, scenario := range []string{"stopped", "running", "foreign", "drift", "unknown", "foreign-network", "isolation-off", "post-start-drift", "missing-guard", "running-missing-guard", "guard-drift"} {
 		t.Run(scenario, func(t *testing.T) {
 			state := "STOPPED"
-			if scenario == "running" {
+			if scenario == "running" || scenario == "running-missing-guard" {
 				state = "RUNNING"
 			}
 			if scenario == "unknown" {
 				state = "FROZEN"
 			}
 			starts, stops := 0, 0
-			runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+			guardPresent := scenario != "missing-guard" && scenario != "running-missing-guard"
+			guardWrites := 0
+			runner := &fakeRunner{run: func(_ context.Context, _ int, command string, args []string) (host.Result, error) {
+				if command == "sudo" && len(args) > 6 && args[2] == "nft" && args[6] == routedSandboxGuardTable("haco-demo") {
+					if args[3] == "list" && !guardPresent {
+						return host.Result{Stderr: "No such file or directory"}, errors.New("missing volatile guard")
+					}
+					if args[3] == "list" && scenario == "guard-drift" {
+						return host.Result{Stdout: "table inet guard {}"}, nil
+					}
+					if args[3] == "add" {
+						guardPresent = true
+						guardWrites++
+						return host.Result{}, nil
+					}
+					if args[3] == "delete" {
+						t.Fatal("resume deleted an existing guard")
+					}
+				}
 				if args[0] == "start" {
+					if scenario == "missing-guard" && guardWrites != 5 {
+						t.Fatal("started before source guard was restored")
+					}
 					starts++
 					state = "RUNNING"
 					return host.Result{}, nil
@@ -71,13 +92,16 @@ func TestResumeValidatesNetworkBeforeStartingAndPreservesRuntime(t *testing.T) {
 				t.Fatal(err)
 			}
 			err = p.StartEnvironment(context.Background(), "haco-demo")
-			wantFailure := scenario != "stopped" && scenario != "running"
+			wantFailure := scenario != "stopped" && scenario != "running" && scenario != "missing-guard"
 			if (err != nil) != wantFailure {
 				t.Fatalf("err=%v", err)
 			}
 			wantStarts := 0
-			if scenario == "stopped" || scenario == "post-start-drift" {
+			if scenario == "stopped" || scenario == "post-start-drift" || scenario == "missing-guard" {
 				wantStarts = 1
+			}
+			if scenario != "missing-guard" && guardWrites != 0 {
+				t.Fatal("unexpected guard repair")
 			}
 			if starts != wantStarts {
 				t.Fatalf("starts=%d err=%v", starts, err)

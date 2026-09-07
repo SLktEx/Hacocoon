@@ -153,6 +153,9 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	if err := p.verifyRoutedSandboxAntiSpoof(ctx, ref); err != nil {
 		return cleanup(fmt.Errorf("verify routed sandbox anti-spoofing for %s: %w", ref, err))
 	}
+	if err := p.provisionEnvironmentDNS(ctx, ref); err != nil {
+		return cleanup(err)
+	}
 	if spec.PersistentResource.ID != "" {
 		if _, err := p.runner.Run(ctx, "incus", "exec", ref, "--project", p.project, "--", "/bin/sh", "-c", persistentOCIConfiguration); err != nil {
 			return cleanup(fmt.Errorf("configure Environment-local OCI data roots: %w", err))

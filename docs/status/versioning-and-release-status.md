@@ -1,9 +1,16 @@
 # Versioning and release status
 
-Current checkpoint v0.33 adds desktop-owned SSH identity/configuration setup and
-`haco open` for VS Code. Repository checks cover the implemented client flow;
-updated installed Windows and actual editor/server acceptance remain pending.
-The preceding `44c62c4` automatic-port change passed all four GHA workflows.
+Current checkpoint v0.36 adds automatic Environment DNS configuration in installed
+Standard mode and safe restoration of absent stopped-Environment source guards.
+Lookup and connection permissions remain separate. Repository regression coverage
+exists; the new Windows DNS fixture and real reboot/VPN acceptance are pending.
+
+The preceding v0.33–v0.35 desktop SSH, Host recipe and temporary-execution slices
+passed all four GHA workflows at `b6c428d`. The DNS relay foundation at `3c3c101`
+also passed all four workflows. Local VS Code 1.136.1 Remote-SSH acceptance passed
+on the older `8752431` installation after explicit permission; temporary rules
+and the test connection were removed. See [implementation status](../IMPLEMENTATION_STATUS.md)
+for the exact scope and the initial resume failure.
 
 Preceding checkpoint v0.32 adds automatic default Store initialization, Workspace
 association/reuse, source-only publication state and the optional `--no-oci`.
@@ -115,8 +122,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.33 | Desktop SSH Setup | ✅ implemented |
 | v0.34 | Host Setup Recipes | implemented; installed Windows save/replay/update/clear passed at bcc1baf |
 | v0.35 | Temporary Execution | implemented; product run and cancellation cleanup passed on real Incus at 4adfe19 |
+| v0.36 | Environment Name Resolution | ✅ implemented |
 
-The current milestone position is **v0.35**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.36**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

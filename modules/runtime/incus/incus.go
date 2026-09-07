@@ -29,6 +29,7 @@ type runtimeStorageState struct {
 }
 
 type Runtime struct {
+	environmentDNS     string
 	trustedHostInterop func(context.Context) error
 	runner             host.Runner
 	project            string

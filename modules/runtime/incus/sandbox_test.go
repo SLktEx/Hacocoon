@@ -14,9 +14,18 @@ const sandboxTestFingerprint = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	values := map[string]string{}
+	guardCreated := false
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if len(args) >= 2 && args[0] == "image" && args[1] == "info" {
 			return host.Result{Stdout: `{"fingerprint":"` + sandboxTestFingerprint + `"}`}, nil
+		}
+		if len(args) > 6 && args[2] == "nft" && args[6] == routedSandboxGuardTable("haco-demo") {
+			if args[3] == "list" && !guardCreated {
+				return host.Result{Stderr: "No such file or directory"}, errors.New("guard absent before creation")
+			}
+			if args[3] == "add" && args[4] == "table" {
+				guardCreated = true
+			}
 		}
 		if result, ok := sandboxNetworkResult(args); ok {
 			return result, nil

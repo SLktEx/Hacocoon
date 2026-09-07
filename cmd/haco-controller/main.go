@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -69,6 +70,13 @@ func main() {
 
 	var proxyListener net.Listener
 	if standardEgress {
+		executable, sourceErr := os.Executable()
+		if sourceErr != nil {
+			fail(sourceErr)
+		}
+		if sourceErr = app.Runtime.ConfigureEnvironmentDNS(filepath.Join(filepath.Dir(executable), "haco")); sourceErr != nil {
+			fail(sourceErr)
+		}
 		prepareCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		address, prepareErr := app.Runtime.PrepareEgressProxy(prepareCtx)
 		cancel()

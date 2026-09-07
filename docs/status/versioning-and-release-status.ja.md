@@ -1,8 +1,15 @@
 # バージョン番号とリリース状況
 
-現在のcheckpoint v0.33ではdesktop側のSSH鍵・設定自動化と`haco open`を追加しました。
-製品フローのrepository検証は行っていますが、更新後のWindows実接続とeditor/server受入は未確認です。
-先行する`44c62c4`の自動ポート選択は4つのGHA workflowが成功しました。
+現在の checkpoint v0.36 は installed Standard mode の Environment DNS 自動設定と、
+停止中 Environment の欠落した source guard を起動前に復元する処理を追加します。
+名前解決と接続の許可は別です。repository 回帰テストはありますが、新しい Windows DNS
+fixture と実際の再起動・VPN の検証は未完了です。
+
+先行する v0.33–v0.35 の desktop SSH、Host recipe、一時実行は `b6c428d` で
+GHA 全 4 系統が成功しました。DNS relay の基礎部分 `3c3c101` も全 4 系統が成功済みです。
+ローカルの VS Code 1.136.1 Remote-SSH は、明示的な許可後に古い `8752431` installation
+で成功し、一時 rule と検証接続を解除しました。正確な範囲と最初の再開失敗は
+[実装状態](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
 
 先行するcheckpoint v0.32では既定Storeの自動初期化、Workspaceへの対応付けと再利用、
 公開元専用の状態、任意の`--no-oci`を追加しました。公開済みsourceのコピーはローカルの
@@ -106,8 +113,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.33 | Desktop SSH Setup | 実装済み |
 | v0.34 | Host Setup Recipes | 実装済み・Windows の保存/再実行/更新/解除は bcc1baf で成功 |
 | v0.35 | Temporary Execution | 実装済み・通常 run と中断後削除は 4adfe19 の実 Incus で成功 |
+| v0.36 | Environment Name Resolution | 実装済み |
 
-現在のmilestone位置は **v0.35** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.36** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

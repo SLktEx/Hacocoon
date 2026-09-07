@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -15,6 +16,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/terminalbridge"
+	"github.com/SLktEx/Hacocoon/modules/standard/dnsproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
 	"golang.org/x/term"
 )
@@ -26,6 +28,16 @@ const loginAlias = "hacocoon-login"
 const controllerStartupTimeout = 2 * time.Minute
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "_dns-agent" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := dnsproxy.RunAgent(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			fmt.Fprintln(os.Stderr, "haco: guest DNS service failed")
+			os.Exit(1)
+		}
+		return
+	}
+
 	if filepath.Base(os.Args[0]) == "git-remote-haco" {
 		if err := gitrepo.Helper(context.Background(), os.Args[1:], os.Stdin, os.Stdout, os.Stderr, gitrepo.UnixExchange(gitrepo.GuestSocket)); err != nil {
 			fmt.Fprintln(os.Stderr, "git-remote-haco:", err)

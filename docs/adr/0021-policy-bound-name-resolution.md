@@ -29,4 +29,4 @@ No default allow rule is added. DNS-only permission is explicit and distinct fro
 
 ## Current scope
 
-The broker, Standard provider, HTTP handler and guest stub are implemented and tested as components. The controller routes the handler through its existing Standard listener, but the guest stub is not yet automatically installed. Automatic provisioning, getaddrinfo acceptance, Windows/VPN propagation and connectivity-policy acceptance remain incomplete. See [the design contract](../design/name-resolution.md).
+The broker, Standard provider, HTTP handler and guest stub are implemented and tested as components. The controller routes the handler through its existing Standard listener, and installed Standard mode automatically provisions the guest stub on creation and resume. getaddrinfo acceptance, Windows/VPN propagation and connectivity-policy acceptance remain incomplete. See [the design contract](../design/name-resolution.md).

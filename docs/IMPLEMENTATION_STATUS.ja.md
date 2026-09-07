@@ -2,15 +2,18 @@
 
 ## Policy に従う名前解決
 
-状態: **ロードマップ C3 は partial**。controller の Standard listener に送信元を
-識別する DNS relay を接続し、既存の Capability Policy と監査を使います。
-guest UDP/TCP stub は component として実装済みですが、Environment への自動導入は
-未実装です。Policy の allow rule は追加しません。component/race test では upstream
-を呼ぶ前の拒否、送信元 header と provider 応答の偽装、同じ path を持つ外部 HTTP の
-egress 認可維持、不正 DNS、UDP/TCP、cancel を確認します。通常の guest getaddrinfo、
-Windows DNS/VPN の変更反映、trusted Host の実機検証を示すものではありません。
-契約と残る検証は[名前解決](design/name-resolution.ja.md)を参照してください。
-利用可能な C3 のまとまりができるまで current checkpoint は v0.35 を維持します。
+状態: **ロードマップ C3 は partial**。installed Standard mode では canonical な
+Environment 作成・再開時に guest loopback DNS service を自動導入します。
+UDP/TCP の bind 後に readiness を通知し、導入・起動失敗時は成功を返しません。
+bare controller mode では component は optional のままです。自動導入のために
+新しい command、nameserver 引数、allow rule は不要です。名前解決そのものには
+専用の Policy 許可が必要です。
+
+既存の隔離された listener が永続化された送信元を識別し、Capability Policy と監査の
+後で Physical Host resolver を使います。接続権限は別です。Windows、WSL、
+trusted Host、Environment の通常 getaddrinfo と default DNS 拒否を比較する GHA
+fixture を追加しましたが、新しい fixture の GHA 成功はまだ確認していません。
+VPN/NRPT、DNS 変更・再起動後の反映は未検証です。[名前解決](design/name-resolution.ja.md)を参照してください。
 
 ## 現在のdesktop開発checkpoint
 
@@ -29,9 +32,19 @@ Windows DNS/VPN の変更反映、trusted Host の実機検証を示すもので
 ローカルの通常 installer による最終更新は `8752431`（v0.33、build `2026-09-07T06:44:17Z`）です。
 doctor の6項目が成功し、`stage-b-git-dev` と Workspace の登録を保持しました。Installer ZIP SHA-256 は
 `c2c5b720643d98e586996e2d2413d1af196d764331e2b160a5bda647c76946a9` です。
-この installation は最新 source の変更を含みません。ローカルの editor 接続は **許可待ちで SKIP** です。
-`desktop-8752431` への一時 Ubuntu package policy 追加が自動承認レビューで拒否され、適用していません。
-質問は保留中で、検証 Environment は停止し Workspace を保持しています。
+この installation は現在の DNS 変更を含みません。2026-09-07 にユーザーが
+`desktop-8752431` の一時 package-egress rule を許可した後、ローカル検証が成功しました。
+Windows 標準 OpenSSH と VS Code 1.136.1 Remote-SSH で Workspace marker、
+editor の読み書き、remote terminal、probe 削除を確認しました。専用の別 profile と
+明示した Remote-SSH URI を使った検証であり、ローカルの通常 `haco open` の検証では
+ありません。通常の `haco open` は別途 GHA で確認済みです。
+追加した 4 rule は削除済み（残り 0）、SSH 接続 `ssh-39493` は解除済み、
+Windows の専用 key は削除済み、検証 Environment は停止済みです。
+`stage-b-git-dev` は停止状態を維持しました。最初の再開は WSL 再起動後に volatile
+source guard が消えていたため失敗し、canonical な削除・作成で検証環境を作り直しました。
+古い /tmp Workspace も存在せず、新規の検証 directory を作りました。
+この失敗と、その後の接続成功は区別します。欠落 guard の再開修正には回帰テストを
+追加しましたが、その修正の実際の再起動検証は未完了です。
 
 ## 永続Storeの独立コピー
 
@@ -439,7 +452,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.35** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.36** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

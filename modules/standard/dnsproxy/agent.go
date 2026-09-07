@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -25,6 +26,22 @@ func RunAgent(ctx context.Context) error {
 	if err != nil {
 		udp.Close()
 		return fmt.Errorf("bind guest DNS TCP listener: %w", err)
+	}
+	defer udp.Close()
+	defer tcp.Close()
+	if endpoint := os.Getenv("NOTIFY_SOCKET"); endpoint != "" {
+		conn, err := net.DialTimeout("unixgram", endpoint, time.Second)
+		if err != nil {
+			return fmt.Errorf("notify guest DNS readiness: %w", err)
+		}
+		err = conn.SetWriteDeadline(time.Now().Add(time.Second))
+		if err == nil {
+			_, err = conn.Write([]byte("READY=1"))
+		}
+		conn.Close()
+		if err != nil {
+			return fmt.Errorf("notify guest DNS readiness: %w", err)
+		}
 	}
 	transport := &http.Transport{Proxy: nil, DisableKeepAlives: true, DialContext: (&net.Dialer{Timeout: 3 * time.Second}).DialContext, MaxResponseHeaderBytes: 4096}
 	defer transport.CloseIdleConnections()

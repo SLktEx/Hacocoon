@@ -24,4 +24,4 @@ default allow は追加しません。名前解決の許可と接続の許可は
 
 ## 現在の範囲
 
-broker、Standard provider、HTTP handler、guest stub は component として実装・検証済みです。controller の既存 Standard listener に route を接続済みですが、guest stub の自動導入は未実装です。getaddrinfo、Windows/VPN の変更反映、接続 Policy の実機検証は未完了です。[設計](../design/name-resolution.ja.md)を参照してください。
+broker、Standard provider、HTTP handler、guest stub は component として実装・検証済みです。controller の既存 Standard listener に route を接続済みですが、installed Standard mode の作成・再開で guest stub を自動導入します。getaddrinfo、Windows/VPN の変更反映、接続 Policy の実機検証は未完了です。[設計](../design/name-resolution.ja.md)を参照してください。

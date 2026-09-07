@@ -85,6 +85,8 @@ rules = [{'capability':'network.egress','action':'connect','resource':host,
           'decision':'allow','reason':'Windows SSH acceptance '+environment}
          for host in ('archive.ubuntu.com','security.ubuntu.com')
          for protocol,port in (('http','80'),('https','443'))]
+rules += [{'capability':'network.resolve','action':'lookup','resource':'one.one.one.one',
+           'environment':environment,'decision':'allow','reason':'Windows DNS acceptance '+environment}]
 data['rules'] = [rule for rule in data['rules'] if rule not in rules]
 if operation == 'add': data['rules'] += rules
 with tempfile.NamedTemporaryFile(mode='w',dir=p.parent,delete=False) as f:
@@ -126,6 +128,26 @@ try {
     [void](Invoke-Wsl @('--exec', '/usr/local/bin/haco', 'env', 'create', '--workspace', $Workspace, $EnvironmentName) 'Create acceptance Environment')
 
     Update-SSHTestPolicy 'add'
+    if ($env:GITHUB_ACTIONS -eq 'true') {
+        $expectedDNS = @(Resolve-DnsName -Name 'one.one.one.one' -Type A -DnsOnly |
+            Where-Object Type -eq 'A' | Select-Object -ExpandProperty IPAddress | Sort-Object -Unique)
+        if ($expectedDNS.Count -eq 0) { throw 'Windows resolver returned no public IPv4 address' }
+        $physicalDNS = Invoke-Wsl @('-u','root','--exec','getent','ahostsv4','one.one.one.one') 'Resolve through WSL platform DNS'
+        $hostDNS = Invoke-HacoHost @('getent','ahostsv4','one.one.one.one') 'Resolve inside trusted Host'
+        $guestDNS = Invoke-Wsl @('-u','root','--exec','incus','exec',"haco-$EnvironmentName",'--project','hacocoon','--','getent','ahostsv4','one.one.one.one') 'Resolve through automatic Environment DNS'
+        foreach ($observedDNS in @($physicalDNS,$hostDNS,$guestDNS)) {
+            $addresses = @($observedDNS.Stdout -split "\r?\n" | ForEach-Object { ($_ -split '\s+')[0] } |
+                Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' } | Sort-Object -Unique)
+            if (($addresses -join ',') -ne ($expectedDNS -join ',')) { throw 'Windows/WSL/Host/Environment DNS address sets differ' }
+        }
+        $deniedDNS = Invoke-Captured 'wsl.exe' @('-d',$Distro,'-u','root','--exec','incus','exec',"haco-$EnvironmentName",'--project','hacocoon','--','getent','ahostsv4','example.com')
+        if ($deniedDNS.ExitCode -ne 2 -or -not [string]::IsNullOrWhiteSpace($deniedDNS.Stdout)) {
+            throw 'Environment DNS default denial failed'
+        }
+        Write-Host 'WINDOWS / WSL / HOST / ENVIRONMENT GETADDRINFO AND DNS DENIAL: PASS'
+        Write-Host 'SKIP: VPN/NRPT acceptance requires an available VPN and private test name.'
+    }
+
     $sshArgs = @('/usr/local/bin/haco', 'env', 'ssh', '--key', $PublicKeyWsl)
     if ($Port -ne 0) { $sshArgs += @('--port', $Port.ToString()) }
     $sshArgs += $EnvironmentName

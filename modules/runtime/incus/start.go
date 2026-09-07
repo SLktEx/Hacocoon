@@ -47,13 +47,13 @@ func (p *SandboxProvider) StartEnvironment(ctx context.Context, ref string) erro
 	if err := p.ensureRoutedSandboxHost(ctx); err != nil {
 		return err
 	}
-	// Missing or drifted guards fail closed; restarting must never silently
-	// weaken isolation or start first and attempt to fix its firewall afterwards.
-	if err := p.verifyRoutedSandboxAntiSpoof(ctx, ref); err != nil {
+	// Restore missing volatile guards only while stopped and after ownership
+	// checks. Existing drift is rejected, and all guards precede guest start.
+	if err := p.verifyRoutedSandboxAntiSpoofForStart(ctx, ref, status.State == core.EnvironmentStopped); err != nil {
 		return err
 	}
 	if status.State == core.EnvironmentRunning {
-		return nil
+		return p.provisionEnvironmentDNS(ctx, ref)
 	}
 	if err := p.Start(ctx, ref); err != nil {
 		return err
@@ -64,6 +64,9 @@ func (p *SandboxProvider) StartEnvironment(ctx context.Context, ref string) erro
 	}
 	if err == nil {
 		err = p.verifyRoutedSandboxAntiSpoof(ctx, ref)
+	}
+	if err == nil {
+		err = p.provisionEnvironmentDNS(ctx, ref)
 	}
 	if err == nil {
 		return nil

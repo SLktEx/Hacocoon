@@ -32,4 +32,6 @@ repository testは所有権・network/guard設定・lifecycle・source identity�
 
 ## Policy に従う名前解決
 
-Standard listener は上限付き DNS query を専用の lookup Capability へ送ります。直接 DNS を有効にせず、返した address への接続権限も付与しません。guest stub の自動導入はまだ partial です。[名前解決](name-resolution.ja.md)と [ADR 0021](../adr/0021-policy-bound-name-resolution.ja.md)を参照してください。
+Standard listener は上限付き DNS query を専用の lookup Capability へ送ります。直接 DNS を有効にせず、返した address への接続権限も付与しません。installed Standard mode の guest stub 自動導入は実装済みです。[名前解決](name-resolution.ja.md)と [ADR 0021](../adr/0021-policy-bound-name-resolution.ja.md)を参照してください。
+
+所有権を確認した停止中 Environment は起動前に欠落した volatile source guard を復元します。既存 guard の不一致と稼働中 guest の欠落は fail closed です。[ADR 0022](../adr/0022-resume-volatile-source-guards.md)を参照してください。

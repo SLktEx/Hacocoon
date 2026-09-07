@@ -2,7 +2,7 @@
 
 日本語 | [English](name-resolution.md)
 
-状態: **partial**。Policy に従う resolver、controller HTTP route、UDP/TCP relay component は存在します。Environment への自動設定と Windows/VPN 実機検証は未実装・未検証です。
+状態: **partial**。Policy に従う resolver、controller HTTP route、UDP/TCP relay component は存在します。installed Standard mode の作成・再開で自動設定します。この変更の Windows/VPN 実機検証は未完了です。
 
 ## 通常の利用方法として目指すもの
 
@@ -20,4 +20,4 @@ Standard が Physical Host の platform resolver を使います。対応する 
 
 同じ public name と利用可能な VPN name を使い、Windows、Physical Host、trusted Host、Environment を比較します。Windows DNS 変更、VPN 接続・切断、WSL 再起動を確認し、platform/application cache と relay の挙動を分けます。現時点の component test では各 VPN の反映タイミングを証明できません。
 
-Policy・監査拒否、送信元 header 偽装、接続許可を伴わない private address、異常 message、UDP/TCP、cancel を component test で確認します。自動導入と実際の getaddrinfo は未完了です。VPN/NRPT・OS 再起動は未実行で、適切な host/VPN fixture がない場合は SKIP として報告します。接続 allow/deny は別途検証し、proxy 内の解決だけを guest の検証成功としません。
+Policy・監査拒否、送信元 header 偽装、接続許可を伴わない private address、異常 message、UDP/TCP、cancel を component test で確認します。自動導入は実装済みで、実際の getaddrinfo は新しい Windows GHA fixture の検証待ちです。VPN/NRPT・OS 再起動は未実行で、適切な host/VPN fixture がない場合は SKIP として報告します。接続 allow/deny は別途検証し、proxy 内の解決だけを guest の検証成功としません。
