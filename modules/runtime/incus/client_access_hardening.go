@@ -73,8 +73,14 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 	// use a network keyscan as authority for the identity of this Environment.
 	result, keyErr := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "cat", "--", "/etc/ssh/ssh_host_ed25519_key.pub")
 	var hostKey string
+	if result.StdoutTruncated {
+		keyErr = core.ErrIncompatibleState
+	}
 	if keyErr == nil {
 		hostKey, keyErr = sshkey.NormalizePublicKey(result.Stdout)
+		if keyErr != nil {
+			keyErr = core.ErrIncompatibleState
+		}
 		if keyErr == nil && !strings.HasPrefix(hostKey, "ssh-ed25519 ") {
 			keyErr = core.ErrIncompatibleState
 		}

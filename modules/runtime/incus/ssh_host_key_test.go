@@ -38,3 +38,16 @@ func TestInvalidHostKeyNeverLeavesPublishedSSHConnection(t *testing.T) {
 		}
 	}
 }
+
+func TestTruncatedHostKeyResponseCannotPublishConnection(t *testing.T) {
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if args[len(args)-1] == "/etc/ssh/ssh_host_ed25519_key.pub" {
+			return host.Result{Stdout: testHostPublicKey, StdoutTruncated: true}, nil
+		}
+		return host.Result{}, nil
+	}}
+	c, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: testHostPublicKey, HostPort: 2222})
+	if !errors.Is(err, core.ErrIncompatibleState) || c != (core.ClientConnection{}) {
+		t.Fatalf("%+v %v", c, err)
+	}
+}
