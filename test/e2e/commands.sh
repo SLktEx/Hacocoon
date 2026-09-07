@@ -91,6 +91,15 @@ grep -Fxq '[]' "$root/product-env-list-json.out"
 "$bin/haco" git pending >"$root/product-git-pending.out"
 grep -Fq '[' "$root/product-git-pending.out"
 
+"$bin/haco" approve --list >"$root/product-approval-list.out"
+grep -Fxq '[]' "$root/product-approval-list.out"
+"$bin/haco" approve >"$root/product-approval-empty.out"
+grep -Fxq 'No pending approvals.' "$root/product-approval-empty.out"
+if "$bin/haco" approve stale-request >"$root/product-approval-stale.out" 2>"$root/product-approval-stale.err"; then
+  echo 'stale approval unexpectedly succeeded' >&2
+  exit 1
+fi
+
 # Configuration uses the shipped CLI/controller, with no provider repair or
 # direct Policy write. Stale snapshots must not erase a newer saved document.
 "$bin/haco" config >"$root/config-initial.json"

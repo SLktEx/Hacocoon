@@ -64,14 +64,23 @@ func TestControllerEgressPolicyDoesNotReadAmbientApproval(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		result, err := app.Capabilities.Request(context.Background(), request)
+		requestContext := context.Background()
+		cancel := func() {}
+		if decision == "require-approval" {
+			requestContext, cancel = context.WithTimeout(requestContext, 100*time.Millisecond)
+		}
+		result, err := app.Capabilities.Request(requestContext, request)
+		cancel()
 		if decision == "allow" {
 			if err != nil || !result.AuditComplete || result.ExecutionState != core.CapabilitySucceeded {
 				t.Fatalf("allow: %+v %v", result, err)
 			}
 		} else if decision == "require-approval" {
-			if !errors.Is(err, core.ErrApprovalDenied) {
+			if !errors.Is(err, context.DeadlineExceeded) {
 				t.Fatalf("headless approval: %v", err)
+			}
+			if pending, pendingErr := app.Reviews.Pending(context.Background()); pendingErr != nil || len(pending) != 0 {
+				t.Fatalf("expired approval remained: %+v %v", pending, pendingErr)
 			}
 		} else if !errors.Is(err, core.ErrPolicyDenied) {
 			t.Fatalf("%s: %v", decision, err)

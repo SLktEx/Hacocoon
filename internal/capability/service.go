@@ -108,7 +108,7 @@ func (s *Service) RequestWithApproval(
 	return s.request(ctx, req, provider)
 }
 
-func (s *Service) request(ctx context.Context, req core.CapabilityRequest, approval ApprovalProvider) (core.CapabilityResult, error) {
+func (s *Service) request(ctx context.Context, req core.CapabilityRequest, approval ApprovalProvider) (outcome core.CapabilityResult, outcomeErr error) {
 	req = normalizeRequest(req)
 	if err := validateRequest(req); err != nil {
 		return core.CapabilityResult{}, err
@@ -185,7 +185,18 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 		prompt := core.ApprovalRequest{RequestID: requestID, CapabilityRequest: promptRequest, SavedScope: &promptScope, Reason: evaluation.Reason}
 		var decision ApprovalDecision
 		var approvalErr error
-		if decider, ok := approval.(interface {
+		if queued, ok := approval.(SessionApprovalProvider); ok {
+			var session ApprovalSession
+			session, approvalErr = queued.BeginApproval(ctx, prompt)
+			if approvalErr == nil {
+				if session == nil {
+					approvalErr = core.ErrIncompatibleState
+				} else {
+					defer func() { session.Complete(outcome, outcomeErr) }()
+					decision, approvalErr = session.Decide(ctx)
+				}
+			}
+		} else if decider, ok := approval.(interface {
 			Decide(context.Context, core.ApprovalRequest) (ApprovalDecision, error)
 		}); ok {
 			decision, approvalErr = decider.Decide(ctx, prompt)
@@ -193,11 +204,8 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 			decision.Approved, approvalErr = approval.Approve(ctx, prompt)
 		}
 		approved := decision.Approved
-		if approvalErr == nil && decision.Save != "" {
-			rule, choiceErr := RuleForSavedScope(savedRequest, decision.Save)
-			if choiceErr != nil || (rule.Decision != core.PolicyRequireApproval && (rule.Decision == core.PolicyAllow) != approved) {
-				approvalErr = core.ErrInvalidArgument
-			}
+		if approvalErr == nil {
+			approvalErr = ValidateApprovalDecision(core.ApprovalRequest{CapabilityRequest: req, SavedScope: &savedRequest}, decision)
 		}
 		if approvalErr != nil {
 			falseValue := false

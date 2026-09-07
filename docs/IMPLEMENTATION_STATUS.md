@@ -1,5 +1,23 @@
 # Implementation Status
 
+## Pending approval review
+
+Status: **implemented repository slice; roadmap D2 remains partial**.
+haco approve selects a sole pending request automatically or offers a numbered choice.
+The Standard queue bounds background approval waiting; the common private review API
+also uses original Git prompts. One-shot decisions, six saved choices, cancellation,
+expiry, duplicate submission, exact completion ownership, Policy changes, sanitized
+failure receipts and real local Git helper integration passed related race/vet tests.
+Notification activation remains planned. See [pending review](design/pending-approval-review.md).
+
+Installed GHA now includes ordinary configuration plus actual HTTPS saved-ask denial,
+one-shot approval, re-prompt/denial and scoped cleanup. This new acceptance is pending.
+Preview/doctor failures now include fixed phase and numeric metadata without raw output.
+
+At f6d193b, test 34154746874, Ubuntu 34154746842 and Incus 34154746852 passed.
+Windows 34154746844 passed actual VS Code, SSH, configuration, project setup and doctor,
+but HTTP preview failed. Its exact cause remains unresolved.
+
 ## Approval correlation
 
 Status: **implemented groundwork; roadmap D2 remains partial**. Approval prompts,
@@ -632,7 +650,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.37**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.38**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

@@ -1,5 +1,23 @@
 # 実装状況
 
+## 承認待ちの確認
+
+状態: **repository の一段階を実装済み。ロードマップ D2 は partial です。**
+haco approve は候補が一つなら直接表示し、複数なら番号で選択できます。
+Standard queue が background の待機を制限し、共通の private review API は
+元の Git 要求も扱います。単発回答、6 種類の保存、キャンセル、期限切れ、
+二重回答、session の完了所有権、Policy 変更、失敗時の安全な receipt、
+実際の local Git helper 経路は関連 race／vet で成功しました。
+通知から開く操作は planned です。[契約](design/pending-approval-review.ja.md)を参照してください。
+
+installed GHA に、通常の設定操作と実際の HTTPS を使う ask 保存・今回拒否・
+単発許可・再確認／拒否・対象を限定した cleanup を追加しました。この新しい受け入れは
+未確認です。preview／doctor の失敗は、生出力を使わず固定 phase と数値を記録します。
+
+f6d193b の test 34154746874、Ubuntu 34154746842、Incus 34154746852 は成功しました。
+Windows 34154746844 は実際の VS Code、SSH、設定、project setup、doctor が成功し、
+HTTP preview が失敗しました。正確な原因は未確定です。
+
 ## 承認要求の照合
 
 状態: **照合の基礎は実装済み。ロードマップ D2 は partial です。**
@@ -546,7 +564,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.37** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.38** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

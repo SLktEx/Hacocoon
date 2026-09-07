@@ -18,12 +18,14 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/nameresolution"
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 	"github.com/SLktEx/Hacocoon/internal/recipes"
+	"github.com/SLktEx/Hacocoon/internal/review"
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
 	seedbuildapp "github.com/SLktEx/Hacocoon/internal/seedbuild"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
+	"github.com/SLktEx/Hacocoon/modules/standard/approvals"
 	"github.com/SLktEx/Hacocoon/modules/standard/dnsproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/egressproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
@@ -37,6 +39,7 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
+	Reviews             *review.Service
 	Configuration       *capabilityapp.PolicyConfiguration
 	HostCustomization   *recipes.Service
 	ProjectSetup        *projectsetup.Service
@@ -61,11 +64,17 @@ func Local(ctx context.Context) (*App, error) {
 	return local(ctx, capabilityapp.NewStdioApproval(os.Stdin, os.Stderr))
 }
 
-// Controller has no ambient approval terminal. Interactive control sessions
-// supply their own scoped callback; background proxy requests fail closed when
-// Policy requires approval, without consuming daemon stdin or printing requests.
+// Controller never consumes ambient stdin. Background requests requiring human
+// approval wait in a bounded Standard queue, reviewed through the private API.
+// Interactive control sessions retain their own scoped approval callback.
 func Controller(ctx context.Context) (*App, error) {
-	return local(ctx, nil)
+	queue := approvals.New()
+	app, err := local(ctx, queue)
+	if err != nil {
+		return nil, err
+	}
+	app.Reviews = review.New(queue, app.GitBroker)
+	return app, nil
 }
 
 func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, error) {

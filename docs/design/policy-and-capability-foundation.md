@@ -1,5 +1,7 @@
 # v0.4 — Policy & Capability Foundation
 
+Background controller approval now uses a bounded Standard session queue and the trusted haco approve review path. The capability service owns the actual decision, persistence, audit and execution outcome. See [pending approval review](pending-approval-review.md).
+
 Status: **roadmap contract implemented on `main`.** The fail-closed policy/approval/audit boundary exists; Hacocoon remains pre-1.0 and concrete policy/capability schemas may still change incompatibly.
 
 ## Goal

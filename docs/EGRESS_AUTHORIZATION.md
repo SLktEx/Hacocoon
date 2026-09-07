@@ -79,7 +79,7 @@ The installed unit runs `haco-controller --standard-egress`. This serves the exi
 
 Controller and proxy shutdown are coupled. Every accepted proxy connection, including a hijacked CONNECT tunnel, closes on shutdown. Requests are canceled during ClientHello, upstream writes and established forwarding. Headers are limited to 16 KiB, header reads to 10 seconds and retained connections to 256. HTTP transport failures use a fixed structured log message without raw panic output.
 
-The daemon never consumes stdin as ambient approval. Missing Policy denies traffic. An exact allow uses the existing protected Physical Host policy file and audit contract; `require-approval` without an interactive provider is refused. The service adds neither an approval UI nor an automatic allow policy. Installed Environment traffic acceptance passed with explicit administrator Policy configuration; an ordinary policy-management UI remains follow-up work. See [ADR 0007](adr/0007-controller-owned-standard-egress.md).
+The daemon never consumes ambient stdin. Missing Policy denies traffic. Controller require-approval waits in a bounded Standard queue for haco approve on the trusted Host. Persistence and execution still pass through the existing Policy, audit and identity checks. Use haco config for ordinary Policy editing; no automatic allow is added. See [pending review](design/pending-approval-review.md) and [ADR 0028](adr/0028-pending-approval-sessions.md). Installed acceptance of the new review path remains separate.
 
 Git push remains a separate privileged operation through the Git boundary and must not be enabled by handing reusable Host Git credentials to an Environment.
 

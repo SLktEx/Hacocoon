@@ -1,5 +1,7 @@
 # Client-neutral interaction events
 
+The trusted Host can review current pending requests with haco approve. This is a separate private management path; notification activation remains planned. See [pending approval review](design/pending-approval-review.md).
+
 ## Approval correlation
 
 Trusted approval prompts and pending Git proposals now carry the same controller-assigned

@@ -93,6 +93,8 @@ func run(args []string) int {
 		return runSetup(args[1:])
 	case "config":
 		return runConfiguration(args[1:])
+	case "approve":
+		return runApproval(args[1:])
 	case "doctor":
 		return runDoctor(args[1:])
 	case "ssh":
@@ -149,6 +151,7 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "Commands:")
 	fmt.Fprintln(out, "  setup      Prepare the Host or replay project setup in an Environment")
 	fmt.Fprintln(out, "  config     Inspect or edit approval policy configuration")
+	fmt.Fprintln(out, "  approve    Review a pending request and optionally save its Policy")
 	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
 	fmt.Fprintln(out, "  env        Create, inspect and access development Environments")
 	fmt.Fprintln(out, "  run        Execute a command in a temporary Environment and clean up")

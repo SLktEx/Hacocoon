@@ -15,6 +15,7 @@ import (
 
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/review"
 )
 
 type localBackend struct{ repos, workspaces string }
@@ -291,7 +292,18 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	}
 	// Pending snapshots must not let a display client rewrite stored scope.
 	proposal.SavedScope.Attributes["target_ref"] = "refs/heads/other"
-	result, err := broker.DecideWithDecision(ctx, proposal.ID, capabilityapp.ApprovalDecision{Approved: true, Save: capabilityapp.AllowEnvironment})
+	reviews := review.New(broker)
+	reviewPending, err := reviews.Pending(ctx)
+	if err != nil || len(reviewPending) != 1 || reviewPending[0].RequestID != proposal.RequestID {
+		t.Fatalf("common review lost Git request: %+v %v", reviewPending, err)
+	}
+	reviewPending[0].CapabilityRequest.Attributes["target_ref"] = "refs/heads/other"
+	canceledReview, cancelReview := context.WithCancel(ctx)
+	cancelReview()
+	if _, err := broker.DecideWithDecision(canceledReview, proposal.ID, capabilityapp.ApprovalDecision{Approved: true}); err == nil || len(broker.Pending()) != 1 {
+		t.Fatal("canceled Git review consumed approval")
+	}
+	result, err := reviews.Decide(ctx, proposal.RequestID, capabilityapp.ApprovalDecision{Approved: true, Save: capabilityapp.AllowEnvironment})
 	if err != nil || result.SavedChoice != string(capabilityapp.AllowEnvironment) || proposal.RequestID == "" || result.RequestID != proposal.RequestID {
 		t.Fatalf("saved result: %+v %v", result, err)
 	}

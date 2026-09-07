@@ -1,5 +1,7 @@
 # Controller client transport
 
+Pending approvals can be listed and decided through approval.pending / approval.decide on this management socket only. A decision response contains the actual capability receipt even when execution or audit failed; raw provider output is omitted. The read-only notification bridge and guest Git sockets do not expose these methods. See [pending approval review](pending-approval-review.md).
+
 [**日本語**](controller-client-transport.ja.md) | English
 
 Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product `haco` provides help/version, setup/doctor, WSL login, managed repository/Workspace preparation, Environment create/list/status/SSH/disconnect/stop and Git approval commands. Additional lifecycle conveniences, PTY control framing, general port-forwarding CLI and remote transport remain planned.

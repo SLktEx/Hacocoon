@@ -1,5 +1,7 @@
 # クライアント中立 Interaction Event
 
+信頼された Host の haco approve で現在の承認待ちを確認できます。これは private な管理経路であり、通知から開く操作は引き続き planned です。[承認待ちの契約](design/pending-approval-review.ja.md)を参照してください。
+
 ## 承認要求の照合
 
 信頼された承認画面と Git の承認待ち情報には、通知イベント・監査・実行結果と

@@ -1,5 +1,7 @@
 # Controller client transport
 
+承認待ちは、この管理 socket の approval.pending／approval.decide だけで確認・回答できます。実行や監査が失敗しても実際の capability receipt を返し、生の provider 出力は除外します。read-only の通知 bridge と guest Git socket には登録しません。[承認待ちの契約](pending-approval-review.ja.md)を参照してください。
+
 日本語 | [**English**](controller-client-transport.md)
 
 Status: **partial**。Local Unix domain protocol、Physical Host controller、trusted-host endpoint投影、client-only `haco-host`、typed Environment API、対話streamは実装済み。製品 `haco` はhelp/version、setup/doctor、WSL login、管理repo/Workspace準備、Environment create/list/status/ssh/disconnect/stop、Git承認を提供する。追加のlifecycle便利機能、PTY制御、汎用port-forwarding CLI、remote transportはplanned。

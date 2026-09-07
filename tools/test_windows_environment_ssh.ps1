@@ -61,7 +61,9 @@ function Invoke-Checked([string]$FileName, [string[]]$Arguments, [string]$Descri
     if ($result.ExitCode -ne 0) {
         $details = @($result.Stderr.Trim(), $result.Stdout.Trim()) | Where-Object { $_ }
         $detail = $details -join "`n"
-        throw "$Description failed with exit $($result.ExitCode). $detail"
+        $failure = [Exception]::new("$Description failed with exit $($result.ExitCode). $detail")
+        $failure.Data['acceptance_exit_code'] = $result.ExitCode
+        throw $failure
     }
     return $result
 }
@@ -72,6 +74,16 @@ function Invoke-Wsl([string[]]$Arguments, [string]$Description) {
 
 function Invoke-HacoHost([string[]]$Arguments, [string]$Description) {
     return Invoke-Wsl (@('-u', 'root', '--exec', 'incus', 'exec', 'haco-host', '--project', 'hacocoon', '--') + $Arguments) $Description
+}
+
+# Report only fixture-owned phase and numeric process metadata, never raw guest
+# output or exception messages captured by Invoke-Checked.
+function Write-DesktopProbeFailure([string]$Label, [string]$Phase, [Management.Automation.ErrorRecord]$Failure) {
+    $exitCode = 'unknown'
+    if ($Failure.Exception.Data['acceptance_exit_code'] -is [int]) {
+        $exitCode = [string]$Failure.Exception.Data['acceptance_exit_code']
+    }
+    Write-Host "${Label}: FAIL phase=$Phase exit=$exitCode line=$($Failure.InvocationInfo.ScriptLineNumber); continuing independent probes"
 }
 
 # This is the documented administrator Policy operation, scoped to this test
@@ -298,6 +310,21 @@ haco setup "$name"
             $DesktopFailures.Add('project-setup')
             Write-Host 'PROJECT SETUP: FAIL; continuing independent probes'
         }
+
+        try {
+            $approvalProbePath = Join-Path $PSScriptRoot 'test_pending_approvals.py'
+            $approvalProbeWsl = (Invoke-Wsl @('--exec', 'wslpath', '-u', '-a', $approvalProbePath) 'Locate installed approval acceptance fixture').Stdout.Trim()
+            $approvalProbe = Invoke-HacoHost @('/usr/bin/python3', $approvalProbeWsl, $EnvironmentName) 'Review actual pending HTTPS requests through ordinary haco commands'
+            if ($approvalProbe.Stdout.Trim() -ne 'PENDING_REVIEW_SAVED_ASK_DENY / ONE_SHOT_ALLOW / REASK_DENY: PASS') { throw 'Missing pending approval acceptance receipt' }
+            Write-Host 'PENDING REVIEW SAVED ASK / CURRENT DENY / ONE-SHOT ALLOW / REASK / CLEANUP: PASS'
+        } catch {
+            $DesktopFailures.Add('approval-review')
+            $reviewPhase = 'unknown'
+            if ($_.Exception.Message -match 'PENDING APPROVAL REVIEW: FAIL phase=(configure|saved-ask-deny|one-shot-allow|reask-deny|cleanup) cleanup_failed=(true|false)') {
+                $reviewPhase = $Matches[1] + '-cleanup-failed-' + $Matches[2]
+            }
+            Write-DesktopProbeFailure 'PENDING APPROVAL REVIEW' $reviewPhase $_
+        }
         $previewProbe = @'
 set -eu
 name=$1
@@ -326,16 +353,21 @@ haco setup --clear-script "$name" >/dev/null
 haco open --port 3000 --no-browser "$name"
 '@
         $previewProbe = $previewProbe.Replace("`r", "")
+        $previewPhase = 'setup-and-open'
         try {
             $previewResult = Invoke-HacoHost @('/bin/bash', '-ec', $previewProbe, '--', $EnvironmentName) 'Start preview through ordinary project setup'
+            $previewPhase = 'url-validation'
             $previewUrl = $previewResult.Stdout.Trim()
             if ($previewUrl -notmatch '^http://127\.0\.0\.1:[0-9]{1,5}/$') { throw 'Preview returned an unsafe URL' }
+            $previewPhase = 'windows-http'
             $previewResponse = Invoke-WebRequest -Uri ($previewUrl + 'haco-preview-marker.txt') -TimeoutSec 10
+            $previewPhase = 'workspace-marker'
             if ($previewResponse.Content.Trim() -ne 'windows-workspace-ok') { throw 'Preview reached a different Workspace' }
 
             # Render through an actual browser engine using an isolated disposable profile.
             $edge = Join-Path ${env:ProgramFiles(x86)} 'Microsoft/Edge/Application/msedge.exe'
             if (Test-Path -LiteralPath $edge -PathType Leaf) {
+                $previewPhase = 'browser-render-and-cleanup'
                 $browserProfile = Join-Path $Work 'preview-edge'
                 $browserStart = [Diagnostics.ProcessStartInfo]::new()
                 $browserStart.FileName = $edge
@@ -381,26 +413,33 @@ haco open --port 3000 --no-browser "$name"
             } else {
                 Write-Host 'SKIP: Edge browser executable absent; Windows HTTP preview is tested separately'
             }
+            $previewPhase = 'reuse'
             $reusedPreview = Invoke-HacoHost @('/usr/local/bin/haco', 'open', '--port', '3000', '--no-browser', $EnvironmentName) 'Reuse preview connection'
             if ($reusedPreview.Stdout.Trim() -ne $previewUrl) { throw 'Preview did not reuse its connection' }
+            $previewPhase = 'close'
             [void](Invoke-HacoHost @('/usr/local/bin/haco', 'open', '--port', '3000', '--close', $EnvironmentName) 'Close preview connection')
+            $previewPhase = 'closed-connection-refusal'
             $previewRefused = $false
             try { [void](Invoke-WebRequest -Uri $previewUrl -TimeoutSec 3) } catch { $previewRefused = $true }
             if (-not $previewRefused) { throw 'Closed preview still accepts Windows HTTP requests' }
             Write-Host 'WINDOWS HTTP PREVIEW / REUSE / CONNECTION REFUSAL: PASS'
         } catch {
             $DesktopFailures.Add('preview')
-            Write-Host 'WINDOWS HTTP PREVIEW: FAIL; continuing independent probes'
+            Write-DesktopProbeFailure 'WINDOWS HTTP PREVIEW' $previewPhase $_
         }
+        $doctorPhase = 'invoke'
         try {
             $environmentDoctor = Invoke-HacoHost @('/usr/local/bin/haco', 'doctor', '--json', $EnvironmentName) 'Diagnose Environment prerequisites'
+            $doctorPhase = 'json'
             $environmentReport = $environmentDoctor.Stdout | ConvertFrom-Json
+            $doctorPhase = 'workspace-identity'
             if ($environmentReport.environment -ne $EnvironmentName -or [string]::IsNullOrWhiteSpace($environmentReport.workspace.id)) { throw 'Environment doctor reported the wrong Workspace' }
+            $doctorPhase = 'prerequisite-status'
             if (@($environmentReport.checks | Where-Object { $_.status -ne 'ok' }).Count -ne 0) { throw 'Environment doctor did not pass local prerequisite checks' }
             Write-Host 'ENVIRONMENT DOCTOR WORKSPACE / DNS / SSH PREREQUISITES: PASS'
         } catch {
             $DesktopFailures.Add('doctor')
-            Write-Host 'ENVIRONMENT DOCTOR: FAIL; continuing host-key refusal and cleanup'
+            Write-DesktopProbeFailure 'ENVIRONMENT DOCTOR' $doctorPhase $_
         }
 
 

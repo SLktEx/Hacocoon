@@ -45,6 +45,7 @@ type Proposal struct {
 	Summary             string `json:"summary,omitempty"`
 }
 type pendingProposal struct {
+	approval  core.ApprovalRequest
 	proposal  Proposal
 	decision  chan capabilityapp.ApprovalDecision
 	completed chan decisionCompletion
@@ -376,7 +377,7 @@ func (b *Broker) perform(ctx context.Context, bound binding, proposal Proposal, 
 		proposal.SavedScope = cloneScope(prompt.SavedScope)
 		decision := make(chan capabilityapp.ApprovalDecision, 1)
 		b.mu.Lock()
-		b.pending[proposal.ID] = pendingProposal{proposal: proposal, decision: decision, completed: completed}
+		b.pending[proposal.ID] = pendingProposal{approval: capabilityapp.CloneApprovalRequest(prompt), proposal: proposal, decision: decision, completed: completed}
 		b.mu.Unlock()
 		select {
 		case approved := <-decision:
@@ -447,6 +448,9 @@ func (b *Broker) submitDecision(id string, decision capabilityapp.ApprovalDecisi
 // A persistent response is acknowledged only after durable save and audit.
 // The request itself may still be denied by current Policy or fail at Git.
 func (b *Broker) DecideWithDecision(ctx context.Context, id string, decision capabilityapp.ApprovalDecision) (core.CapabilityResult, error) {
+	if err := ctx.Err(); err != nil {
+		return core.CapabilityResult{}, err
+	}
 	completed, err := b.submitDecision(id, decision)
 	if err != nil {
 		return core.CapabilityResult{}, err
@@ -469,6 +473,37 @@ func (b *Broker) DecideWithDecision(ctx context.Context, id string, decision cap
 	case <-ctx.Done():
 		return core.CapabilityResult{}, ctx.Err()
 	}
+}
+
+// PendingApprovals exposes the original trusted prompt to the common review
+// application, without reconstructing authority from a display summary.
+func (b *Broker) PendingApprovals() []core.ApprovalRequest {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	requests := make([]core.ApprovalRequest, 0, len(b.pending))
+	for _, item := range b.pending {
+		requests = append(requests, capabilityapp.CloneApprovalRequest(item.approval))
+	}
+	return requests
+}
+
+func (b *Broker) DecideApproval(ctx context.Context, requestID string, decision capabilityapp.ApprovalDecision) (core.CapabilityResult, error) {
+	b.mu.Lock()
+	id := ""
+	for proposalID, item := range b.pending {
+		if item.approval.RequestID == requestID && requestID != "" {
+			if id != "" {
+				b.mu.Unlock()
+				return core.CapabilityResult{}, core.ErrIncompatibleState
+			}
+			id = proposalID
+		}
+	}
+	b.mu.Unlock()
+	if id == "" {
+		return core.CapabilityResult{}, core.ErrNotFound
+	}
+	return b.DecideWithDecision(ctx, id, decision)
 }
 
 func cloneScope(scope *core.CapabilityRequest) *core.CapabilityRequest {
