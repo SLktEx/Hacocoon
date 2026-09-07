@@ -1,6 +1,11 @@
 # Versioning and release status
 
-Current checkpoint v0.32 adds automatic default Store initialization, Workspace
+Current checkpoint v0.33 adds desktop-owned SSH identity/configuration setup and
+`haco open` for VS Code. Repository checks cover the implemented client flow;
+updated installed Windows and actual editor/server acceptance remain pending.
+The preceding `44c62c4` automatic-port change passed all four GHA workflows.
+
+Preceding checkpoint v0.32 adds automatic default Store initialization, Workspace
 association/reuse, source-only publication state and the optional `--no-oci`.
 Ready-source copying passed local component and synthetic real-Btrfs acceptance.
 The Host image producer and Docker image/runtime acceptance remain incomplete,
@@ -107,8 +112,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.30 | Independent Persistent Store Copies | ✅ implemented |
 | v0.31 | Retained Environment Resume | ✅ implemented |
 | v0.32 | Automatic Workspace Store Initialization | ✅ implemented |
+| v0.33 | Desktop SSH Setup | ✅ implemented |
 
-The current milestone position is **v0.32**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.33**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

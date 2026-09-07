@@ -1,6 +1,10 @@
 # バージョン番号とリリース状況
 
-現在のcheckpoint v0.32では既定Storeの自動初期化、Workspaceへの対応付けと再利用、
+現在のcheckpoint v0.33ではdesktop側のSSH鍵・設定自動化と`haco open`を追加しました。
+製品フローのrepository検証は行っていますが、更新後のWindows実接続とeditor/server受入は未確認です。
+先行する`44c62c4`の自動ポート選択は4つのGHA workflowが成功しました。
+
+先行するcheckpoint v0.32では既定Storeの自動初期化、Workspaceへの対応付けと再利用、
 公開元専用の状態、任意の`--no-oci`を追加しました。公開済みsourceのコピーはローカルの
 componentと実Btrfs合成データ試験で確認しました。HostイメージproducerとDockerの
 image/runtime確認は未完了で、B4全体はpartialです。v0.31とSSH公開鍵追加はPR #482の
@@ -99,8 +103,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.30 | Independent Persistent Store Copies | 実装済み |
 | v0.31 | Retained Environment Resume | 実装済み |
 | v0.32 | Automatic Workspace Store Initialization | 実装済み |
+| v0.33 | Desktop SSH Setup | 実装済み |
 
-現在のmilestone位置は **v0.32** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.33** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

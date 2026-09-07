@@ -81,6 +81,10 @@ func run(args []string) int {
 		return runSetup(args[1:])
 	case "doctor":
 		return runDoctor(args[1:])
+	case "ssh":
+		return runSSH(args[1:])
+	case "open":
+		return runOpen(args[1:])
 	case "env":
 		return runEnvironment(args[1:])
 	case "base":
@@ -130,6 +134,8 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  setup      Prepare the installed Host through its controller")
 	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
 	fmt.Fprintln(out, "  env        Create, inspect and access development Environments")
+	fmt.Fprintln(out, "  ssh setup  Prepare desktop SSH keys and connection settings")
+	fmt.Fprintln(out, "  open       Open an Environment in VS Code")
 	fmt.Fprintln(out, "  base       List and inspect Environment starting points")
 	fmt.Fprintln(out, "  plugin     Optional integrations, including persistent OCI Stores")
 	fmt.Fprintln(out, "  repo       Clone a repository inside the trusted Host")

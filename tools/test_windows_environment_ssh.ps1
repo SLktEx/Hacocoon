@@ -1,6 +1,7 @@
 # Follow-on B1+B5 acceptance after the exact Windows installer journey has passed.
 # The test proves a real Windows OpenSSH client can use Hacocoon's loopback-only
-# SSH transport. It deliberately does not install or edit the user's SSH config.
+# SSH transport. Desktop SSH setup is also exercised on the disposable GHA user;
+# local manual execution preserves the operator's SSH configuration.
 #Requires -Version 7.0
 param([string]$Distro = 'Hacocoon', [int]$Port = 0)
 $ErrorActionPreference = 'Stop'
@@ -175,6 +176,25 @@ try {
     $remoteLines = $remote.Stdout -split "`r?`n"
     if ($remoteLines -notcontains 'windows-ssh-ok' -or $remoteLines -notcontains 'windows-workspace-ok') {
         throw "Windows SSH did not execute in the expected Environment Workspace. Output: $($remote.Stdout.Trim())"
+    }
+
+
+    # The disposable GHA Windows user exercises real desktop-home installation.
+    # Local manual invocations keep the operator's SSH configuration untouched.
+    if ($env:GITHUB_ACTIONS -eq 'true') {
+        [void](Invoke-HacoHost @('/usr/local/bin/haco', 'ssh', 'setup', $EnvironmentName) 'Prepare ordinary desktop SSH settings')
+        $managedConfig = Join-Path $env:USERPROFILE ".ssh/hacocoon/$EnvironmentName.conf"
+        $managedBefore = [IO.File]::ReadAllText($managedConfig)
+        $desktop = Invoke-Checked $NativeSSH @('-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', $alias, 'cat /workspace/windows-marker') 'Use generated desktop SSH alias'
+        if ($desktop.Stdout.Trim() -ne 'windows-workspace-ok') { throw 'Generated SSH alias reached the wrong Workspace' }
+        [void](Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'stop', $EnvironmentName) 'Stop Environment before desktop reconnect')
+        [void](Invoke-HacoHost @('/usr/local/bin/haco', 'ssh', 'setup', $EnvironmentName) 'Resume and reuse desktop SSH settings')
+        if ([IO.File]::ReadAllText($managedConfig) -ne $managedBefore) { throw 'Reconnect unexpectedly rotated the managed SSH connection' }
+        $desktop = Invoke-Checked $NativeSSH @('-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', $alias, 'cat /workspace/windows-marker') 'Reconnect using generated desktop SSH alias'
+        if ($desktop.Stdout.Trim() -ne 'windows-workspace-ok') { throw 'Reconnect lost Workspace content' }
+        Write-Host 'PASS: ordinary ssh setup, Windows-owned key/config, strict native SSH, stopped resume and connection reuse'
+    } else {
+        Write-Host 'SKIP: automatic desktop SSH setup acceptance uses the disposable GHA Windows profile'
     }
 
     # A changed key must fail closed before any remote command is executed.

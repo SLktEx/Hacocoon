@@ -233,5 +233,46 @@ The probe alone does not guarantee a bind: a competing bind returns failure
 without changing guest keys. No arbitrary provisioning failure is retried.
 This prevents trusted haco-host from selecting ports in its own network namespace.
 
-Automatic private-key/config setup and VS Code launch in the product CLI remain
-planned. The temporary run-and-remove UX follows usable VS Code connectivity.
+Product SSH setup and VS Code launch are implemented below; installed acceptance
+remains pending. The temporary run-and-remove UX follows usable VS Code connectivity.
+
+## Desktop SSH setup and VS Code opening
+
+Status: **implemented product commands; installed Windows and editor acceptance pending**.
+
+```sh
+haco ssh setup dev
+ssh haco-dev
+haco open dev
+```
+
+If exactly one Environment exists, omit `dev`. With multiple Environments,
+the command lists names and asks for a name on the next invocation. `haco open`
+performs the same setup then launches the installed VS Code on `/workspace`
+through Remote-SSH; the VS Code Remote-SSH extension must be installed.
+SSH setup itself remains editor-neutral.
+
+In WSL (including trusted haco-host), the client resolves the Windows profile and
+uses Windows ssh-keygen. On Linux it uses the local client home. The private key
+stays under that client's `~/.ssh/hacocoon/identity`; only its public key reaches
+the controller. A global Include is prepended to the existing UTF-8 SSH config.
+Managed entries and host-key pins use separate files below `.ssh/hacocoon`.
+Existing unrelated SSH configuration is preserved. Symlink/hardlink config files,
+non-private Linux managed directories, malformed provider data and host-key changes
+for the same runtime fail closed. Writes use a confined filesystem root, a setup
+lock and atomic replacement. Windows uses the client's inherited filesystem ACLs
+and native key-generation permissions; no client directory is exposed to workloads.
+
+A stopped Environment is resumed through the canonical start operation. Setup
+reuses a matching live connection and restores its managed files from the pinned
+metadata. New host-key files are keyed by runtime identity and public key.
+If connection preparation succeeds but local installation fails, its ID is reported
+as recovery-required and retained for inspection rather than silently discarded.
+Use the existing `haco env disconnect <name> <connection-id>` after inspection.
+
+Repository regressions cover real ssh-keygen, preservation, reuse/resume and hostile
+file/config/provider input. The maintained Windows acceptance additionally exercises
+the default client home on the disposable GHA user, native SSH, and stopped resume.
+Local manual runs of that fixture SKIP home modification; they continue the existing
+explicit-key SSH test. VS Code process launch alone is not proof of editor/server
+connection, terminal or debugger acceptance.

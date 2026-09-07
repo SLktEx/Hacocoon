@@ -482,7 +482,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.32**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.33**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
@@ -651,3 +651,13 @@ and reserves the proxy before guest key changes. The native Windows E2E now uses
 this ordinary default and checks the actual proxy endpoint. Focused Go tests passed;
 this source has not yet run the updated installed Windows test. SSH key/config
 automation and usable VS Code launch remain next, before temporary run-and-remove.
+
+## Desktop SSH setup and opening
+
+Status: **implemented; installed acceptance pending**. `haco ssh setup [name]`
+automates desktop-owned keys, strict host-key pins and configuration. `haco open
+[name]` uses it to launch the installed VS Code; one Environment needs no name.
+Stopped reuse, real ssh-keygen, file/config protections and focused race tests
+passed. Updated GHA acceptance and actual VS Code/server use are not yet verified.
+The preceding automatic SSH-port commit `44c62c4` passed all four GHA workflows.
+See the [owning client design](design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening).

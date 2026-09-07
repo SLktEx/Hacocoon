@@ -406,7 +406,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.32** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.33** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|
@@ -554,3 +554,15 @@ proxyを確保します。Windows native E2Eもこの通常defaultを使い、�
 確認するよう更新しました。対象Goテストは成功しましたが、このsourceで更新後の
 Windows試験はまだ実行していません。鍵・config自動設定とVS Code接続を先に進め、
 一時実行後の削除機能はその後に実装します。
+
+## Desktop SSH setupとVS Code起動
+
+Status: **製品コマンドはimplemented、更新後のWindows実接続とeditor受入は未確認**。
+`haco ssh setup dev`でクライアント側の鍵・接続設定・公開ホスト鍵固定を用意し、
+`ssh haco-dev`で接続します。`haco open dev`は同じ設定後にVS Codeを起動します。
+環境が1つなら名前を省略できます。Remote-SSH拡張はVS Code側に必要です。
+Windows/WSLではWindowsのprofileとnative ssh-keygenを使い、秘密鍵をWindowsに保持します。
+停止済み環境は既存のstart経路で再開し、同じ接続を再利用します。既存SSH設定を残し、
+専用Includeと管理ファイルを追加します。設定失敗後の準備済み接続はID付きで
+recovery-requiredとして保持します。関連テスト・raceは成功しました。
+更新後のGHAは未確認で、VS Codeのプロセス起動をeditor接続成功とは扱いません。
