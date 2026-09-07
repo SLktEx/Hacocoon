@@ -46,6 +46,7 @@ type CapabilityResult struct {
 }
 
 type CapabilityAuditEvent struct {
+	SavedChoice string            `json:"saved_choice,omitempty"`
 	Time        time.Time         `json:"time"`
 	RequestID   string            `json:"request_id"`
 	Type        string            `json:"type"`

@@ -96,3 +96,14 @@ All matching explicit rules participate: `deny` > `require-approval` > `allow`.
 Rule ordering never bypasses a stronger restriction. The default applies only
 when no explicit rule matches. This replaces historical first-match behavior.
 See [ADR 0023](../adr/0023-policy-restriction-precedence.md).
+
+## Saved decisions
+
+Status: **storage and service implemented; controller/UI integration pending**.
+The optional `saved_decisions` array uses the same rule shape, limited to allow
+or deny. It participates alongside `rules` without replacing administrator rules.
+Four explicit choices scope allow/deny to one Environment or all Environments.
+Persistence copies every authority attribute and never stores opaque parameters.
+See [ADR 0024](../adr/0024-saved-approval-decisions.md) for durability, audit failure
+and manual editing constraints. There is no installed interactive command for
+these choices yet.

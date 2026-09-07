@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -141,14 +142,55 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 		if approval == nil {
 			return baseResult, fmt.Errorf("approval provider unavailable: %w", core.ErrApprovalDenied)
 		}
-		approved, approvalErr := approval.Approve(ctx, core.ApprovalRequest{CapabilityRequest: req, Reason: evaluation.Reason})
+		promptRequest := req
+		promptRequest.Attributes = maps.Clone(req.Attributes)
+		promptRequest.Parameters = nil
+		prompt := core.ApprovalRequest{CapabilityRequest: promptRequest, Reason: evaluation.Reason}
+		var decision ApprovalDecision
+		var approvalErr error
+		if decider, ok := approval.(interface {
+			Decide(context.Context, core.ApprovalRequest) (ApprovalDecision, error)
+		}); ok {
+			decision, approvalErr = decider.Decide(ctx, prompt)
+		} else {
+			decision.Approved, approvalErr = approval.Approve(ctx, prompt)
+		}
+		approved := decision.Approved
+		if approvalErr == nil && decision.Save != "" {
+			rule, choiceErr := RuleForSavedChoice(req, decision.Save)
+			if choiceErr != nil || (rule.Decision == core.PolicyAllow) != approved {
+				approvalErr = core.ErrInvalidArgument
+			}
+		}
 		if approvalErr != nil {
 			falseValue := false
 			_ = s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "approval-decision", Approved: &falseValue, Reason: "approval-provider-failed"})
 			return baseResult, fmt.Errorf("obtain capability approval: %w", approvalErr)
 		}
-		if err := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "approval-decision", Approved: &approved, Reason: evaluation.Reason}); err != nil {
+		if err := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "approval-decision", Approved: &approved, SavedChoice: string(decision.Save), Reason: evaluation.Reason}); err != nil {
 			return baseResult, fmt.Errorf("record approval decision: %w", err)
+		}
+		if decision.Save != "" {
+			saver, ok := s.policy.(interface {
+				Remember(context.Context, core.CapabilityRequest, SavedChoice) error
+			})
+			if !ok {
+				return baseResult, core.ErrUnsupported
+			}
+			if err := saver.Remember(ctx, req, decision.Save); err != nil {
+				_ = s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-save-failed", SavedChoice: string(decision.Save), Reason: "policy-save-failed"})
+				return baseResult, fmt.Errorf("save approval choice: %w", err)
+			}
+			if err := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-saved", SavedChoice: string(decision.Save)}); err != nil {
+				return baseResult, errors.Join(core.ErrAuditIncomplete, err)
+			}
+			current, err := s.policy.Evaluate(ctx, req)
+			if err != nil {
+				return baseResult, err
+			}
+			if !validDecision(current.Decision) || current.Decision == core.PolicyDeny {
+				return baseResult, core.ErrPolicyDenied
+			}
 		}
 		if !approved {
 			return baseResult, core.ErrApprovalDenied

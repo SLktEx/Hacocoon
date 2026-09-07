@@ -798,5 +798,6 @@ See [diagnostic scope](design/controller-client-transport.md#environment-diagnos
 Status: **partial roadmap D1**. Matching explicit Policy rules now use
 `deny > require-approval > allow`, replacing first-match ordering. Environment
 and attribute matching are unchanged; the default remains a fallback. The four
-persistent decision choices and their user interface are still unimplemented.
+persistent choices now have typed scope conversion, a protected atomic writer
+and audited service integration. Controller transport and UI remain unimplemented.
 See [precedence](design/policy-and-capability-foundation.md#matching-rule-precedence).

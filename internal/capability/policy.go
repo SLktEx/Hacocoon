@@ -25,8 +25,9 @@ type PolicyRule struct {
 }
 
 type PolicyFile struct {
-	Default core.PolicyDecision `json:"default"`
-	Rules   []PolicyRule        `json:"rules"`
+	SavedDecisions []PolicyRule        `json:"saved_decisions,omitempty"`
+	Default        core.PolicyDecision `json:"default"`
+	Rules          []PolicyRule        `json:"rules"`
 }
 
 type FilePolicyEvaluator struct {
@@ -43,7 +44,7 @@ func (e *FilePolicyEvaluator) Evaluate(_ context.Context, req core.CapabilityReq
 		return core.PolicyEvaluation{}, err
 	}
 	var selected core.PolicyEvaluation
-	for _, rule := range policy.Rules {
+	for _, rule := range append(append([]PolicyRule(nil), policy.Rules...), policy.SavedDecisions...) {
 		if !ruleMatches(rule, req) {
 			continue
 		}
@@ -95,17 +96,21 @@ func (e *FilePolicyEvaluator) load() (PolicyFile, error) {
 	if err != nil {
 		return PolicyFile{}, fmt.Errorf("read policy %s: %w", filepath.Clean(e.path), err)
 	}
+	return decodePolicy(content)
+}
+
+func decodePolicy(content []byte) (PolicyFile, error) {
 	decoder := json.NewDecoder(bytes.NewReader(content))
 	decoder.DisallowUnknownFields()
 	var policy PolicyFile
 	if err := decoder.Decode(&policy); err != nil {
-		return PolicyFile{}, fmt.Errorf("parse policy %s: %w", filepath.Clean(e.path), err)
+		return PolicyFile{}, fmt.Errorf("parse policy: %w", err)
 	}
 	if err := rejectTrailingJSON(decoder); err != nil {
-		return PolicyFile{}, fmt.Errorf("parse policy %s: %w", filepath.Clean(e.path), err)
+		return PolicyFile{}, fmt.Errorf("parse policy: %w", err)
 	}
 	if err := validatePolicy(policy); err != nil {
-		return PolicyFile{}, fmt.Errorf("validate policy %s: %w", filepath.Clean(e.path), err)
+		return PolicyFile{}, fmt.Errorf("validate policy: %w", err)
 	}
 	return policy, nil
 }
@@ -124,7 +129,12 @@ func validatePolicy(policy PolicyFile) error {
 	if policy.Default != "" && !validDecision(policy.Default) {
 		return fmt.Errorf("invalid default policy decision %q", policy.Default)
 	}
-	for index, rule := range policy.Rules {
+	for _, rule := range policy.SavedDecisions {
+		if rule.Decision != core.PolicyAllow && rule.Decision != core.PolicyDeny {
+			return fmt.Errorf("saved decisions must allow or deny")
+		}
+	}
+	for index, rule := range append(append([]PolicyRule(nil), policy.Rules...), policy.SavedDecisions...) {
 		if strings.TrimSpace(rule.Capability) == "" || strings.TrimSpace(rule.Action) == "" || strings.TrimSpace(rule.Resource) == "" {
 			return fmt.Errorf("rule %d requires capability, action, and explicit resource", index)
 		}
