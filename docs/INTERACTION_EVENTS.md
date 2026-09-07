@@ -1,5 +1,14 @@
 # Client-neutral interaction events
 
+## Approval correlation
+
+Trusted approval prompts and pending Git proposals now carry the same controller-assigned
+`request_id` as interaction events, audit records and the final capability result.
+This is implemented groundwork for notification review; notification-triggered approval
+remains planned. The ID grants no authority. Git decisions still use the existing
+trusted management endpoint and proposal ID. No action endpoint or sensitive detail
+is added to the read-only event bridge.
+
 Hacocoon exposes a small, read-only interaction-event contract for client adapters through `github.com/SLktEx/Hacocoon/pkg/interaction`.
 
 This is a **presentation and resume boundary**, not an authorization boundary. Reading an event never approves, executes, retries, or mutates a capability. Approval and execution stay inside the existing Policy/Capability path.

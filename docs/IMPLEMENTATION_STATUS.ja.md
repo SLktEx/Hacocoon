@@ -1,12 +1,26 @@
 # 実装状況
 
+## 承認要求の照合
+
+状態: **照合の基礎は実装済み。ロードマップ D2 は partial です。**
+承認画面・信頼された controller の応答・Git の承認待ち情報に、
+capability の監査・実行結果と同じ request ID を渡します。
+コマンド・承認権限・通知からの操作 endpoint は追加していません。
+[Interaction Event](INTERACTION_EVENTS.ja.md) を参照してください。
+
+`2584ec6` の GHA は test 34152700790、Ubuntu 34152700745、
+Incus 34152700884 が成功しました。Windows 34152700897 は native SSH、
+実際の VS Code 接続、設定 round-trip、project setup が成功し、HTTP preview と
+Environment doctor が失敗しました。失敗の正確な原因は未確定です。
+以前の installed 成功は別の検証結果として扱い、失敗した項目の成功とはしません。
+
 ## 承認方針の設定編集
 
 状態: **repository の一段階を実装済み。ロードマップ D は partial のままです。**
 `haco config` と任意の `--edit`／`--file` で、通常の承認保存と同じ Policy を扱います。
 revision の確認と共通の private writer により、同時に保存された変更を上書きしません。
 監査には操作・revision の情報だけを記録します。関連 test／race／vet と製品 CLI／
-controller E2E は成功しました。設定編集の installed 受け入れは未確認です。
+controller E2E は成功しました。設定 round-trip の installed 受け入れは 2584ec6 で成功しました。
 [設定](reference/configuration.ja.md)を参照してください。
 
 ローカル `71dbb4f` の通常インストールは Host 診断 6 項目が成功し、config の取得・反映・

@@ -30,6 +30,7 @@ type CapabilityService interface {
 }
 
 type Proposal struct {
+	RequestID  string                  `json:"request_id,omitempty"`
 	SavedScope *core.CapabilityRequest `json:"saved_scope,omitempty"`
 
 	EnvironmentInstance string `json:"environment_instance,omitempty"`
@@ -371,6 +372,7 @@ func (b *Broker) perform(ctx context.Context, bound binding, proposal Proposal, 
 	ctx = context.WithValue(ctx, operationContextKey{}, proposal.ID)
 	completed := make(chan decisionCompletion, 1)
 	decide := func(ctx context.Context, prompt core.ApprovalRequest) (capabilityapp.ApprovalDecision, error) {
+		proposal.RequestID = prompt.RequestID
 		proposal.SavedScope = cloneScope(prompt.SavedScope)
 		decision := make(chan capabilityapp.ApprovalDecision, 1)
 		b.mu.Lock()

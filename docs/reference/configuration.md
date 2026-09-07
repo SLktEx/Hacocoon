@@ -1,6 +1,6 @@
 # Approval configuration
 
-Status: **implemented repository slice; installed acceptance pending**.
+Status: **implemented; configuration round-trip passed installed GHA at 2584ec6**.
 
 Run these commands in the trusted Linux/WSL Host:
 
@@ -68,7 +68,7 @@ The initial JSON-view equality assertion **failed** because an explicitly empty
 saved_decisions array was omitted by the serializer on replacement. The snapshot
 now presents that same canonical structure from the first read; its revision still
 hashes exact on-disk bytes. A faithful component regression and CLI E2E passed.
-Installed acceptance of this display correction is pending.
+Configuration round-trip with the display correction passed installed Windows GHA 34152700897 at 2584ec6; that run separately failed preview and Environment doctor.
 
 At `71dbb4f`, all four GHA workflows passed: test 34151576434, Ubuntu 34151576429,
 Incus 34151576447 and Windows 34151576493. Windows included ordinary configuration

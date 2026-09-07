@@ -49,6 +49,7 @@ type CapabilityRequestPayload struct {
 }
 
 type ApprovalRequestPayload struct {
+	RequestID  string                  `json:"request_id,omitempty"`
 	SavedScope *core.CapabilityRequest `json:"saved_scope,omitempty"`
 
 	EnvironmentInstance string            `json:"environment_instance,omitempty"`
@@ -265,6 +266,7 @@ func (r CapabilityRequestPayload) coreRequest() core.CapabilityRequest {
 
 func approvalPayload(request core.ApprovalRequest) ApprovalRequestPayload {
 	return ApprovalRequestPayload{
+		RequestID:           request.RequestID,
 		SavedScope:          request.SavedScope,
 		EnvironmentInstance: request.CapabilityRequest.EnvironmentInstance,
 		Capability:          request.CapabilityRequest.Capability,
@@ -278,6 +280,7 @@ func approvalPayload(request core.ApprovalRequest) ApprovalRequestPayload {
 
 func (r ApprovalRequestPayload) coreRequest() core.ApprovalRequest {
 	return core.ApprovalRequest{
+		RequestID:  r.RequestID,
 		SavedScope: r.SavedScope,
 		CapabilityRequest: core.CapabilityRequest{
 			EnvironmentInstance: r.EnvironmentInstance,

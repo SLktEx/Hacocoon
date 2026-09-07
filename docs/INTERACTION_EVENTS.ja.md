@@ -1,5 +1,13 @@
 # クライアント中立 Interaction Event
 
+## 承認要求の照合
+
+信頼された承認画面と Git の承認待ち情報には、通知イベント・監査・実行結果と
+同じ controller 発行の `request_id` を渡します。この照合部分は実装済みですが、
+通知から承認する操作は planned です。ID 自体は権限を与えません。Git の決定には
+既存の信頼された管理 endpoint と proposal ID を使います。read-only のイベント
+bridge に操作 endpoint や機密の詳細情報を追加しません。
+
 Hacocoon は `github.com/SLktEx/Hacocoon/pkg/interaction` を通じて、クライアントアダプタ向けの小さな read-only Interaction Event 契約を提供します。
 
 これは **表示・再接続のための境界**であり、認可境界ではありません。イベントを読むだけで capability の承認、実行、retry、状態変更が発生することはありません。承認と実行は既存の Policy/Capability 経路に残ります。

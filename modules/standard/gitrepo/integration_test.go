@@ -292,7 +292,7 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	// Pending snapshots must not let a display client rewrite stored scope.
 	proposal.SavedScope.Attributes["target_ref"] = "refs/heads/other"
 	result, err := broker.DecideWithDecision(ctx, proposal.ID, capabilityapp.ApprovalDecision{Approved: true, Save: capabilityapp.AllowEnvironment})
-	if err != nil || result.SavedChoice != string(capabilityapp.AllowEnvironment) {
+	if err != nil || result.SavedChoice != string(capabilityapp.AllowEnvironment) || proposal.RequestID == "" || result.RequestID != proposal.RequestID {
 		t.Fatalf("saved result: %+v %v", result, err)
 	}
 	finishPush(done, true)

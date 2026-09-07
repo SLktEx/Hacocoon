@@ -182,7 +182,7 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 		promptRequest := req
 		promptRequest.Attributes = maps.Clone(req.Attributes)
 		promptRequest.Parameters = nil
-		prompt := core.ApprovalRequest{CapabilityRequest: promptRequest, SavedScope: &promptScope, Reason: evaluation.Reason}
+		prompt := core.ApprovalRequest{RequestID: requestID, CapabilityRequest: promptRequest, SavedScope: &promptScope, Reason: evaluation.Reason}
 		var decision ApprovalDecision
 		var approvalErr error
 		if decider, ok := approval.(interface {

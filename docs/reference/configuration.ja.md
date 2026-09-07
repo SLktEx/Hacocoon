@@ -1,6 +1,6 @@
 # 承認方針の設定
 
-状態: **repository の一段階を実装済み。installed 受け入れは未確認です。**
+状態: **repository 実装済み。設定 round-trip は installed GHA 2584ec6 で成功しました。**
 
 trusted Linux／WSL Host で実行します。
 
@@ -61,7 +61,7 @@ Windows package の SHA-256 は
 最初の JSON 表示の一致確認は **FAIL** でした。明示的な空の saved_decisions 配列が
 保存時に省略されたためです。初回の snapshot 表示から同じ形式へ正規化する修正を行いました。
 revision は引き続き実ファイルの正確な bytes を hash 化します。
-同じ条件の component 回帰テストと CLI E2E は成功しました。表示修正の installed 受け入れは未確認です。
+同じ条件の component 回帰テストと CLI E2E は成功しました。表示修正を含む installed GHA の設定 round-trip も 2584ec6 で成功しました。
 
 `71dbb4f` は GHA 全 4 系統が成功しました。test 34151576434、Ubuntu 34151576429、
 Incus 34151576447、Windows 34151576493 です。Windows は通常 config の往復、

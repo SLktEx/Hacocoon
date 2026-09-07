@@ -1,5 +1,18 @@
 # Implementation Status
 
+## Approval correlation
+
+Status: **implemented groundwork; roadmap D2 remains partial**. Approval prompts,
+trusted controller responses and pending Git proposals share the capability audit/result
+request ID. This adds no command, approval authority or notification action endpoint.
+See [interaction events](INTERACTION_EVENTS.md#approval-correlation).
+
+At `2584ec6`, GHA test 34152700790, Ubuntu 34152700745 and Incus 34152700884
+passed. Windows 34152700897 passed native SSH, actual VS Code, configuration round-trip
+and project setup, but failed HTTP preview and Environment doctor. Their exact
+causes remain unresolved. Earlier installed successes are separate evidence,
+not success for those failed probes.
+
 ## Approval configuration editing
 
 Status: **implemented repository slice; roadmap D remains partial**.
@@ -7,13 +20,13 @@ Status: **implemented repository slice; roadmap D remains partial**.
 saved approvals. Revision checks and the common private writer prevent concurrent
 saves from being overwritten. Audit records only operation/revision metadata.
 Focused test/race/vet and maintained CLI/controller E2E passed; installed acceptance
-of configuration editing is pending. See [configuration](reference/configuration.md).
+of configuration round-trip passed at 2584ec6. See [configuration](reference/configuration.md).
 
 Local `71dbb4f` installation passed six Host checks. Configuration read/replace,
 receipt, file revision and audit were verified without changing default deny or
 the original eight rules. JSON-view equality failed on an empty saved_decisions
 array omitted at write time. Snapshot canonicalization and its component/CLI
-regression now pass; installed acceptance of that correction remains pending.
+regression now pass; installed configuration round-trip with the correction passed at 2584ec6.
 See [the exact observation](reference/configuration.md#local-installed-observation).
 
 At `71dbb4f`, all four GHA workflows passed: test 34151576434, Ubuntu 34151576429,

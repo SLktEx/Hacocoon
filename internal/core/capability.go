@@ -34,6 +34,8 @@ type PolicyEvaluation struct {
 }
 
 type ApprovalRequest struct {
+	// RequestID is assigned by the capability service for correlation, never authorization.
+	RequestID  string
 	SavedScope *CapabilityRequest
 
 	CapabilityRequest CapabilityRequest
