@@ -4,6 +4,7 @@ Reuses the maintained ConPTY driver, including product login/startup waiting.
 No source setup, provider repair or replacement controller is invoked.
 """
 import argparse
+import os
 import importlib.util
 import re
 import shutil
@@ -46,6 +47,8 @@ def main():
                 print(result.stdout, result.stderr, flush=True)
                 expected = 'Direct .exe / Windows PATH / stdout / stderr / exit 23 / spaces: PASS' if name == 'test_windows_host_interop.ps1' else 'WINDOWS DIRECT ENVIRONMENT SSH: PASS'
                 if expected not in result.stdout: raise RuntimeError(f'{name} did not report its acceptance assertions')
+                if name == 'test_windows_environment_ssh.ps1' and os.environ.get('GITHUB_ACTIONS') == 'true' and 'VS CODE REMOTE ENVIRONMENT: PASS' not in result.stdout:
+                    raise RuntimeError('Real VS Code acceptance did not report its assertions')
                 if result.returncode: raise RuntimeError(f'{name} failed with exit {result.returncode}')
             process.write('exit\r\n')
             stage, sent_at = 2, len(output)

@@ -185,7 +185,7 @@ run_test() {
   section "notification clients"
   node --check pkg/interactionhttp/web/app.js
   node --check clients/vscode-notify/extension.js
-  node --test test/js/notification_clients.test.js
+  node --test test/js/notification_clients.test.js test/js/vscode_acceptance.test.js
 }
 
 run_race() {

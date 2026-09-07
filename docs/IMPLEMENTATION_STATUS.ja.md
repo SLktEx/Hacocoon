@@ -21,6 +21,14 @@ Linux OpenSSHで転送制限を再現し、修正後はLinux/Windows nativeの�
 cold entry後のraw Incus fixtureはHost未起動で一度失敗し、通常の対話WSL入口を通した後は
 成功しました。設定解釈はeditor接続成功を意味しません。
 
+`1d841b4` でも4つの GHA workflow が成功し、転送と client 選択の変更を含みます。
+追加した Windows GHA の editor 検証は **implemented、実行結果は pending** です。
+使い捨ての固定版 portable client から通常の `haco open` を通し、remote document
+の読み書き、terminal 実行、検証ファイルの削除を必須にします。observer の unit test と
+native VSIX install は検証用ツールの確認であり、editor 接続の成功ではありません。
+GUI は出力 stream を引き継がず、呼出元の controller/Incus command を保持しません。
+ローカル接続の確認は上記の許可待ちのままです。
+
 ## 永続Storeの独立コピー
 
 状態: **storageの実装単位はimplemented、改訂B4全体はpartial**。

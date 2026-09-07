@@ -24,6 +24,15 @@ Linux/native Windows parsing. A raw Incus fixture first failed with haco-host
 stopped after cold entry; ordinary interactive WSL entry then allowed the fixture
 to pass. Configuration parsing is not editor-connection acceptance.
 
+The four GHA workflows also passed at `1d841b4`, including the forwarding and
+client-choice changes. New Windows GHA editor acceptance is **implemented, execution
+pending**: a disposable pinned portable client must prove remote document read/write,
+terminal execution and probe cleanup through ordinary `haco open`. Observer unit
+checks and native VSIX installation are repository/tooling checks, not an editor
+connection. The GUI now detaches its output streams so it cannot hold the invoking
+controller/Incus command open. Local acceptance remains subject to the pending
+approval above.
+
 ## Independent persistent Store copies
 
 Status: **implemented storage slice; full revised B4 remains partial**. Based on
@@ -678,13 +687,12 @@ automation and usable VS Code launch remain next, before temporary run-and-remov
 
 ## Desktop SSH setup and opening
 
-Status: **implemented; installed acceptance pending**. `haco ssh setup [name]`
-automates desktop-owned keys, strict host-key pins and configuration. `haco open
-[name]` uses it to launch the installed VS Code; one Environment needs no name.
-Stopped reuse, real ssh-keygen, file/config protections and focused race tests
-passed. Updated GHA acceptance and actual VS Code/server use are not yet verified.
-The preceding automatic SSH-port commit `44c62c4` passed all four GHA workflows.
-See the [owning client design](design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening).
+Status: **implemented; Windows GHA SSH acceptance passed at `1d841b4`; actual
+editor acceptance pending**. `haco ssh setup [name]` prepares desktop-owned keys
+and strict host-key pins. `haco open [--client vscode|ssh] [name]` selects the client;
+one Environment needs no name. Installed GHA proves native Windows SSH, stopped
+resume and connection reuse. Repository checks cover real key generation,
+file/config protections and concurrency. See the [owning client design](design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening).
 
 Physical Windows projection acceptance also passed through the existing trusted
 haco-host with a test-only temporary Windows home: native ssh-keygen, confined
@@ -699,4 +707,4 @@ then passed installed-editor discovery and extension inspection through haco-hos
 Its first execution failed starting PowerShell with `exec format error`; a later
 execution passed after read-only interop inspection, with no manual repair. The
 cause of that transient native-interop failure remains unconfirmed. Neither result
-proves a VS Code server connection. Updated GHA desktop SSH acceptance is pending.
+proves a VS Code server connection. GHA desktop SSH acceptance passed at 1d841b4; actual editor acceptance remains pending.

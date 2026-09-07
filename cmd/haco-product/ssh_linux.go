@@ -98,9 +98,9 @@ func setupDesktopSSH(args []string, launch string) int {
 		fmt.Fprintln(os.Stderr, "haco: SSH is prepared; cannot launch VS Code:", err)
 		return 1
 	}
+	// A desktop process outlives this CLI. Its stdio must not retain the
+	// controller/Incus command streams and prevent the invoking shell returning.
 	command := exec.Command(executable, "--folder-uri", "vscode-remote://ssh-remote+"+alias+"/workspace")
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
 	if err = command.Start(); err != nil {
 		fmt.Fprintln(os.Stderr, "haco: launch VS Code:", err)
 		return 1

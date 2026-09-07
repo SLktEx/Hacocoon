@@ -281,3 +281,21 @@ the default client home on the disposable GHA user, native SSH, and stopped resu
 Local manual runs of that fixture SKIP home modification; they continue the existing
 explicit-key SSH test. VS Code process launch alone is not proof of editor/server
 connection, terminal or debugger acceptance.
+
+### Disposable Windows editor acceptance
+
+Status: **implemented validation; first editor run pending**. The existing Windows
+installer GHA prepares a SHA-256-pinned portable VS Code before ordinary installation
+captures the Windows PATH. The SSH fixture then calls ordinary `haco open` and a
+UI-only observer checks the exact Environment authority, reads the Workspace marker,
+writes and opens a remote document, executes a remote terminal command, and removes
+both probes. A launch exit code or SSH configuration alone cannot pass this check.
+The detached GUI does not inherit command-output pipes, so the calling shell can return.
+
+The disposable portable profile downloads the Remote-SSH server on Windows and
+transfers it through SSH. Its Workspace trust prompt is disabled only in that test
+profile; normal user trust prompts and local desktop acceptance remain unverified.
+The observer is a test artifact, never a product extension or workload dependency.
+Only bounded stage/result metadata is reported; remote logs and server tokens are
+not uploaded. Failure and timeout fail the job. The local package-egress approval
+question does not grant permission to change local policy through this fixture.
