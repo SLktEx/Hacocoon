@@ -99,8 +99,10 @@ HTTPS approval decisions separately; the corrected desktop observer passed the a
 ## Windows notification entry
 
 The Windows installer now registers an optional native review adapter for its own
-WSL distribution; advanced installation can opt out with -SkipDesktopReview. Run `haco-notify native` on the trusted WSL side to deliver the
-read-only interaction stream. Clicking an approval notification opens the existing
+WSL distribution; advanced installation can opt out with -SkipDesktopReview. Current acceptance runs `haco-notify native` on the WSL Physical Host as root,
+where the audit source and binary are installed. The ordinary haco-host currently
+has neither that binary nor the audit source; its convenient subscription path is
+still incomplete. This limitation is not a requirement to expose audit files to guests. Clicking an approval notification opens the existing
 `haco approve` console for that exact request. Inspect its scope and type the ordinary
 answer; opening the console never answers, saves Policy or retries an operation.
 

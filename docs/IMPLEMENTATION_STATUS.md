@@ -1,5 +1,11 @@
 # Implementation Status
 
+
+Read-only inspection also confirmed that installed haco-host has neither haco-notify
+nor the audit file. The native evidence above is from the Physical Host. Completing
+ordinary Host notification subscription remains a priority before claiming daily D2 usability.
+
+
 ## Windows notification review
 
 Status: **implemented adapter slice; roadmap D2 remains partial**. Windows bundles

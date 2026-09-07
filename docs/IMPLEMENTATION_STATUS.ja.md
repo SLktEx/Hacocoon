@@ -1,5 +1,11 @@
 # 実装状況
 
+
+追加の読み取り確認で、installed haco-host には haco-notify と監査ファイルの両方がないことを確認しました。
+上記 native の証拠は Physical Host からのものです。日常の D2 利用を完了扱いにする前に、
+通常 Host からの通知購読を優先して整える必要があります。
+
+
 ## Windows 通知からの承認確認
 
 状態: **adapter の一段階を実装済み。ロードマップ D2 は partial**。

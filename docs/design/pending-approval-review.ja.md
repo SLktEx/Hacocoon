@@ -93,8 +93,9 @@ probe を追加しましたが、結果は未確認です。新しい要求へ�
 
 Windows installer は対象 WSL 専用の任意の native review adapter を登録します。
 必要な構成では installer の -SkipDesktopReview で省略できます。
-信頼された WSL 側で `haco-notify native` を実行すると、読み取り専用の interaction
-stream を通知します。承認通知から、その要求の既存 `haco approve` console を開きます。
+現在の実機確認は、バイナリと監査元がある WSL Physical Host の root から
+`haco-notify native` を実行しています。通常の haco-host には両方がなく、
+日常の購読導線は未完了です。監査ファイルを guest に公開する要件にはしません。承認通知から、その要求の既存 `haco approve` console を開きます。
 範囲を確認して通常の回答を入力してください。開くだけで回答・Policy 保存・再実行はしません。
 
 distribution ごとにユーザー単位の protocol と通知 identity を分けるため、検証 instance
