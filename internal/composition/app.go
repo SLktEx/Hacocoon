@@ -37,6 +37,7 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
+	Configuration       *capabilityapp.PolicyConfiguration
 	HostCustomization   *recipes.Service
 	ProjectSetup        *projectsetup.Service
 	Environments        *workspaceapp.Service
@@ -145,10 +146,12 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	bindingStore := agenthostapp.NewJSONBindingStore(filepath.Join(stateDir, "agent-bindings.json"))
 	gitProvider := gitcapapp.NewUnifiedProvider(runner, store)
 	auditPath := filepath.Join(root, "audit", "capabilities.jsonl")
+	policy := capabilityapp.NewFilePolicyEvaluator(filepath.Join(root, "policy.json"))
+	audit := capabilityapp.NewJSONLAudit(auditPath)
 	capabilities, err := capabilityapp.New(
-		capabilityapp.NewFilePolicyEvaluator(filepath.Join(root, "policy.json")),
+		policy,
 		approval,
-		capabilityapp.NewJSONLAudit(auditPath),
+		audit,
 		capabilityapp.LocalEcho{},
 		egressapp.Provider{},
 		dnsproxy.Provider{},
@@ -201,6 +204,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		AgentHosts:          agenthostapp.New(environments, store, bindingStore),
 		Clients:             clientapp.New(runtime, store),
 		Capabilities:        capabilities,
+		Configuration:       &capabilityapp.PolicyConfiguration{Evaluator: policy, Audit: audit},
 		Git:                 gitcapapp.NewBroker(runner, store, capabilities),
 		OCI:                 ociPlugin,
 		Seeds:               seeds,

@@ -7,7 +7,11 @@ push, saved ask reuse and denial acceptance; other choices retain repository-onl
 coverage. Current Windows GHA failed at the editor wait, after SSH passed. See
 [ADR 0026](../adr/0026-reusable-git-approval-scope.md).
 
-Current checkpoint v0.36 adds automatic Environment DNS configuration in installed
+Current checkpoint v0.37 adds approval configuration inspection and revision-bound
+editing through the same Policy and writer as saved approvals. Installed acceptance
+is pending.
+
+Preceding checkpoint v0.36 adds automatic Environment DNS configuration in installed
 Standard mode and safe restoration of absent stopped-Environment source guards.
 Lookup and connection permissions remain separate. Repository regression coverage
 exists; the new Windows DNS fixture and real reboot/VPN acceptance are pending.
@@ -130,8 +134,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.34 | Host Setup Recipes | implemented; installed Windows save/replay/update/clear passed at bcc1baf |
 | v0.35 | Temporary Execution | implemented; product run and cancellation cleanup passed on real Incus at 4adfe19 |
 | v0.36 | Environment Name Resolution | ✅ implemented |
+| v0.37 | Approval Configuration Editing | ✅ implemented |
 
-The current milestone position is **v0.36**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.37**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

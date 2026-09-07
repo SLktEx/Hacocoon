@@ -45,6 +45,31 @@ func (e *FilePolicyEvaluator) RememberScope(ctx context.Context, request core.Ca
 }
 
 func (e *FilePolicyEvaluator) rememberRule(ctx context.Context, rule PolicyRule) error {
+	return e.updatePolicy(ctx, func(before []byte) (PolicyFile, error) {
+		var err error
+		policy := PolicyFile{Default: core.PolicyDeny}
+		if before != nil {
+			policy, err = decodePolicy(before)
+			if err != nil {
+				return PolicyFile{}, err
+			}
+		}
+		replaced := false
+		for i, existing := range policy.SavedDecisions {
+			if existing.Capability == rule.Capability && existing.Action == rule.Action && existing.Resource == rule.Resource && existing.Environment == rule.Environment && existing.EnvironmentInstance == rule.EnvironmentInstance && maps.Equal(existing.Attributes, rule.Attributes) {
+				policy.SavedDecisions[i] = rule
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			policy.SavedDecisions = append(policy.SavedDecisions, rule)
+		}
+		return policy, nil
+	})
+}
+func (e *FilePolicyEvaluator) updatePolicy(ctx context.Context, change func([]byte) (PolicyFile, error)) error {
+
 	parent, name := filepath.Dir(e.path), filepath.Base(e.path)
 	info, err := os.Lstat(parent)
 	if err != nil || !safePolicyFile(info, true) {
@@ -78,23 +103,9 @@ func (e *FilePolicyEvaluator) rememberRule(ctx context.Context, rule PolicyRule)
 	if err != nil {
 		return err
 	}
-	policy := PolicyFile{Default: core.PolicyDeny}
-	if before != nil {
-		policy, err = decodePolicy(before)
-		if err != nil {
-			return err
-		}
-	}
-	replaced := false
-	for i, existing := range policy.SavedDecisions {
-		if existing.Capability == rule.Capability && existing.Action == rule.Action && existing.Resource == rule.Resource && existing.Environment == rule.Environment && existing.EnvironmentInstance == rule.EnvironmentInstance && maps.Equal(existing.Attributes, rule.Attributes) {
-			policy.SavedDecisions[i] = rule
-			replaced = true
-			break
-		}
-	}
-	if !replaced {
-		policy.SavedDecisions = append(policy.SavedDecisions, rule)
+	policy, err := change(before)
+	if err != nil {
+		return err
 	}
 	if err = validatePolicy(policy); err != nil {
 		return err

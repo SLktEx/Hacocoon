@@ -226,6 +226,30 @@ try {
         $desktop = Invoke-Checked $NativeSSH @('-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', $alias, 'cat /workspace/windows-marker') 'Reconnect using generated desktop SSH alias'
         if ($desktop.Stdout.Trim() -ne 'windows-workspace-ok') { throw 'Reconnect lost Workspace content' }
         Write-Host 'PASS: ordinary ssh setup, Windows-owned key/config, strict native SSH, stopped resume and connection reuse'
+        $configurationProbe = @'
+set -eu
+umask 077
+before=$(mktemp /tmp/haco-config-before-XXXXXX)
+after=$(mktemp /tmp/haco-config-after-XXXXXX)
+trap 'rm -f "$before" "$after"' EXIT
+haco config > "$before"
+haco config --file "$before" > "$after"
+python3 - "$before" "$after" <<'PY'
+import json, re, sys
+with open(sys.argv[1]) as f: before = json.load(f)
+with open(sys.argv[2]) as f: after = json.load(f)
+assert before['policy'] == after['policy'], 'configuration meaning changed'
+assert re.fullmatch(r'sha256:[a-f0-9]{64}', after['revision']), 'invalid receipt'
+PY
+'@
+        $configurationProbe = $configurationProbe.Replace("`r", "")
+        try {
+            [void](Invoke-HacoHost @('/bin/bash', '-ec', $configurationProbe) 'Round-trip existing Policy through ordinary configuration commands')
+            Write-Host 'INSTALLED CONFIGURATION INSPECT / PERSISTED RECEIPT / UNCHANGED POLICY: PASS'
+        } catch {
+            $DesktopFailures.Add('configuration')
+            Write-Host 'INSTALLED CONFIGURATION: FAIL; continuing independent probes'
+        }
         try {
             & (Join-Path $PSScriptRoot 'test_vscode_environment.ps1') -EnvironmentName $EnvironmentName -Distro $Distro
         } catch {

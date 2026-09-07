@@ -1,5 +1,19 @@
 # 実装状況
 
+## 承認方針の設定編集
+
+状態: **repository の一段階を実装済み。ロードマップ D は partial のままです。**
+`haco config` と任意の `--edit`／`--file` で、通常の承認保存と同じ Policy を扱います。
+revision の確認と共通の private writer により、同時に保存された変更を上書きしません。
+監査には操作・revision の情報だけを記録します。関連 test／race／vet と製品 CLI／
+controller E2E は成功しました。設定編集の installed 受け入れは未確認です。
+[設定](reference/configuration.ja.md)を参照してください。
+
+`729f008` の GHA test 34149690153、Ubuntu 34149690280、Incus 34149690192 は PASS。
+Windows 34149690178 は DNS・desktop SSH／再開・実際の VS Code・project setup が成功し、
+preview と Environment doctor が失敗しました。変更した fixture は両方を実行し、
+最終 job を失敗に保ちました。正確な原因は未解明です。
+
 ## 通常 Git 承認の方針保存
 
 状態: **repository の一段階を implemented。D1／D2 は partial**。既存 Git
@@ -498,7 +512,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.36** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.37** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

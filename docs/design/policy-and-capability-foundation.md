@@ -123,3 +123,15 @@ for reusable scope, persistence receipts and fixed execution.
 Every request is reevaluated immediately before provider execution, including one-shot approvals and initially allowed requests. A new deny, unreadable Policy, or newly required approval blocks execution. An in-flight request that already obtained explicit approval may proceed if current Policy still requires approval. This is a boundary recheck, not a transaction with arbitrary manual editors; already-established connections are not revoked by this change.
 
 Saved Environment-specific decisions require and bind to a trusted creation identity. The production service resolves it from the catalog for every named request before Policy evaluation and rechecks the exact snapshot before execution. Unidentified requests expose only one-shot and explicit global choices. A saved name-only rule does not match an identified request; explicit global scope remains global. The Git broker obtains and rechecks the ID from canonical state. General client request payloads cannot assert it. See [ADR 0025](../adr/0025-environment-approval-identity.md); ordinary saved Git scope/UI and real network/provider acceptance remain partial. Repository CLI/controller E2E verifies that replacing the catalog creation identity for the same name requires a new approval; this fixture does not create a real provider resource.
+
+## Trusted configuration editing
+
+Status: **implemented repository slice; installed acceptance pending**.
+`haco config` inspects the same rules used by saved approval and evaluation.
+`--edit` or `--file` replaces a reviewed, revision-bound snapshot through the
+trusted controller. Configuration editing and approval saving share the canonical
+private atomic writer; stale snapshots fail instead of erasing another change.
+See [configuration usage](../reference/configuration.md) and
+[ADR 0027](../adr/0027-revision-bound-policy-editing.md). This adds no Environment
+permission or notification mutation endpoint. D2 notification approval remains
+pending.

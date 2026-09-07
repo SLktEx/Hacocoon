@@ -1,6 +1,6 @@
 # ADR 0026: Git の保存範囲と固定された今回の実行を分ける
 
-状態: accepted。repository 実装済み。専用 GitHub 受け入れは未完了です。
+状態: accepted。eb16300 の installed 保存 ask／GitHub 検証は成功しました。[正確な範囲](../reference/managed-repository-workflow.md#installed-saved-approval-acceptance)を参照してください。他の保存方針は repository 内検証です。
 
 trusted provider が準備済み要求の再利用範囲を定義します。controller は capability、
 action、resource、Environment ID、属性名の全集合を維持し、明示された可変値だけを

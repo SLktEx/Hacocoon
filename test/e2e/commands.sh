@@ -90,6 +90,48 @@ grep -Fq 'No Environments.' "$root/product-env-list.out"
 grep -Fxq '[]' "$root/product-env-list-json.out"
 "$bin/haco" git pending >"$root/product-git-pending.out"
 grep -Fq '[' "$root/product-git-pending.out"
+
+# Configuration uses the shipped CLI/controller, with no provider repair or
+# direct Policy write. Stale snapshots must not erase a newer saved document.
+"$bin/haco" config >"$root/config-initial.json"
+python3 - "$root/config-initial.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+with open(p) as f: data = json.load(f)
+assert data['revision'].startswith('sha256:')
+data['policy']['rules'] = [{'capability':'local.echo', 'action':'echo',
+    'resource':'config-authority-marker', 'environment':'*', 'decision':'deny'}]
+with open(p, 'w') as f: json.dump(data, f)
+PY
+"$bin/haco" config --file "$root/config-initial.json" >"$root/config-applied.json"
+if "$bin/haco" config --file "$root/config-initial.json" >"$root/config-stale.out" 2>"$root/config-stale.err"; then
+  echo 'stale configuration was accepted' >&2
+  exit 1
+fi
+[[ ! -s "$root/config-stale.out" ]]
+"$bin/haco" config >"$root/config-current.json"
+cmp "$root/config-applied.json" "$root/config-current.json"
+cat >"$root/editor with spaces" <<'PY'
+#!/usr/bin/env python3
+import json, sys
+with open(sys.argv[1]) as f: data = json.load(f)
+data['policy'] = {'default':'deny','rules':[]}
+with open(sys.argv[1], 'w') as f: json.dump(data, f)
+PY
+chmod 700 "$root/editor with spaces"
+VISUAL="" EDITOR="'$root/editor with spaces'" "$bin/haco" config --edit >"$root/config-edited.json"
+python3 - "$HACO_ROOT" "$root/config-edited.json" <<'PY'
+import json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+data = json.loads(pathlib.Path(sys.argv[2]).read_text())
+assert data['policy']['default'] == 'deny' and data['policy']['rules'] == []
+assert (root / 'policy.json').stat().st_mode & 0o777 == 0o600
+events = [json.loads(line) for line in (root / 'audit/capabilities.jsonl').read_text().splitlines()]
+events = [e for e in events if e['capability'] == 'policy.configuration']
+assert [e['type'] for e in events] == ['configuration-change-requested', 'configuration-changed'] * 2
+assert 'config-authority-marker' not in json.dumps(events)
+PY
+echo 'Configuration inspect / editor / stale-write refusal / minimized audit: PASS'
 set +e
 HACO_ROOT="$root/product-missing-root" HACO_CONTROL_SOCKET="$root/missing-product.sock" \
   "$bin/haco" env list >"$root/product-missing.out" 2>"$root/product-missing.err"

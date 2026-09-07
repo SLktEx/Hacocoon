@@ -7,7 +7,10 @@ installed `eb16300b6700` で専用 GitHub への push、保存 ask の再利用�
 editor 完了待ちで失敗しています。
 [ADR 0026](../adr/0026-reusable-git-approval-scope.ja.md) を参照してください。
 
-現在の checkpoint v0.36 は installed Standard mode の Environment DNS 自動設定と、
+現在の checkpoint v0.37 は、承認方針の確認・revision に結び付いた編集を追加します。
+保存済み承認と同じ Policy・writer を使い、競合を拒否します。installed 受け入れは未確認です。
+
+先行する checkpoint v0.36 は installed Standard mode の Environment DNS 自動設定と、
 停止中 Environment の欠落した source guard を起動前に復元する処理を追加します。
 名前解決と接続の許可は別です。repository 回帰テストはありますが、新しい Windows DNS
 fixture と実際の再起動・VPN の検証は未完了です。
@@ -121,8 +124,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.34 | Host Setup Recipes | 実装済み・Windows の保存/再実行/更新/解除は bcc1baf で成功 |
 | v0.35 | Temporary Execution | 実装済み・通常 run と中断後削除は 4adfe19 の実 Incus で成功 |
 | v0.36 | Environment Name Resolution | 実装済み |
+| v0.37 | Approval Configuration Editing | 実装済み |
 
-現在のmilestone位置は **v0.36** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.37** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

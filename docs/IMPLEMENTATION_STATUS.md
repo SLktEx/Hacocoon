@@ -1,5 +1,19 @@
 # Implementation Status
 
+## Approval configuration editing
+
+Status: **implemented repository slice; roadmap D remains partial**.
+`haco config` and optional `--edit` / `--file` use the same Policy as ordinary
+saved approvals. Revision checks and the common private writer prevent concurrent
+saves from being overwritten. Audit records only operation/revision metadata.
+Focused test/race/vet and maintained CLI/controller E2E passed; installed acceptance
+of configuration editing is pending. See [configuration](reference/configuration.md).
+
+At `729f008`, GHA test 34149690153, Ubuntu 34149690280 and Incus 34149690192
+passed. Windows 34149690178 passed DNS, desktop SSH/resume, actual VS Code and
+project setup. Preview and Environment doctor failed; the modified fixture ran
+both and kept the final job failed. Their exact causes remain unresolved.
+
 ## Reusable ordinary Git approvals
 
 Status: **implemented repository slice; D1/D2 remain partial**. Existing Git
@@ -584,7 +598,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.36**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.37**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
