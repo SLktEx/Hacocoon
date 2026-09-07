@@ -25,7 +25,7 @@ func runEnvironment(args []string) int {
 
 func environmentCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store>] <name> | list | status [--json] <name> | ssh --key <public-key-file> --port <port> <name> | ssh-config <name> | disconnect <name> <connection-id> | stop <name> | delete <name>")
+		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store>] <name> | list | status [--json] <name> | ssh --key <public-key-file> --port <port> <name> | ssh-config <name> | disconnect <name> <connection-id> | start <name> | stop <name> | delete <name>")
 		return 2
 	}
 	if len(args) == 0 {
@@ -55,7 +55,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	case "ssh-config":
 	case "status":
 		flags.BoolVar(&jsonOutput, "json", false, "machine-readable status")
-	case "list", "disconnect", "stop", "delete":
+	case "list", "disconnect", "start", "stop", "delete":
 	default:
 		return usage()
 	}
@@ -103,6 +103,9 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 				return 0
 			}
 		}
+	case "start":
+		err = client.StartEnvironment(ctx, pos[0])
+		result = "Environment running; Workspace and persistent resources retained"
 	case "stop":
 		err = client.StopEnvironment(ctx, pos[0])
 		result = "Environment stopped; Workspace retained"

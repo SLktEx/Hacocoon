@@ -77,3 +77,12 @@ and absence before removing its catalog entry. The initial optional plugin is
 [Persistent OCI Store](persistent-oci-store.md); see
 [ADR 0014](../adr/0014-persistent-managed-resources.md). This does not change the
 independent Git metadata or Incus-owned COW contract of managed Workspaces.
+
+## Resume retained work
+
+Status: implemented. `haco env start <name>` retains the Environment runtime,
+Workspace and optional persistent Store. Start requires a matching active lease;
+recovery-required aggregates cannot resume. Create/start/stop/delete serialize
+by Environment identity before provider actions, as specified in
+[ADR 0016](../adr/0016-resume-owned-environments.md). Incus verifies owned network
+isolation before start. Missing guards fail closed; reboot recovery is partial.

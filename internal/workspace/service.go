@@ -84,6 +84,11 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 	if err != nil {
 		return core.Environment{}, err
 	}
+	unlockEnvironment, err := lockLifecycle(ctx, "environment", name)
+	if err != nil {
+		return core.Environment{}, err
+	}
+	defer unlockEnvironment()
 	mode, err := normalizeAccessMode(spec.AccessMode)
 	if err != nil {
 		return core.Environment{}, err
@@ -276,6 +281,11 @@ func (s *Service) Delete(ctx context.Context, name string) (err error) {
 	if _, err := validateEnvironmentName(name); err != nil {
 		return err
 	}
+	unlock, err := lockLifecycle(ctx, "environment", name)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err == nil {
 		if err := s.runtime.DeleteEnvironment(ctx, environment.RuntimeRef); err != nil && !isNotFound(err) {

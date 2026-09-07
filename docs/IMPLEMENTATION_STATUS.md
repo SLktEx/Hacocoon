@@ -482,7 +482,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.30**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.31**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
@@ -587,3 +587,20 @@ v0.7 retains the provider-neutral Environment routing seam because that architec
 ## Acceptance gaps
 
 Repository tests do not substitute for all real-host acceptance. v0.23 proves a phased real-Incus substrate plus Core lifecycle on GitHub-hosted Ubuntu 26.04, v0.25 additionally proves ordinary-user Incus-owned Btrfs CLI behavior, and v0.26 proves trusted-host lifecycle/control-socket isolation on real Incus. Real Incus networking/resource behavior beyond those paths—including proxy-only bridge ACL/dnsmasq behavior—Windows/WSL + VS Code and interactive `haco-host` entry, private-registry credentials, Docker compatibility, physical Btrfs compression/COW/compaction behavior, broader storage failure injection, desktop notification delivery, and future cloud adapters remain environment-dependent. Partial acceptance in an earlier milestone does not prevent later minor checkpoints from advancing.
+
+## Resume retained Environments
+
+Status: **implemented command and component slice; roadmap C/E remain partial**.
+`haco env start <name>` resumes the existing runtime without extra required flags.
+Active lease identity and Incus network isolation are checked before start;
+create/start/stop/delete serialize across controller processes on Linux/WSL.
+See [ADR 0016](adr/0016-resume-owned-environments.md).
+Full local CI test and race phases passed. Independent real Incus 6.0.5-8 /
+WSL acceptance passed: stop/start, repeated start, root filesystem and Workspace
+contents, unchanged persisted lease and canonical deletion. The initial fixture
+failed only its timestamp comparison (JSON removes Go's monotonic clock); comparing
+persisted leases fixed it and the rerun passed. Both test runtimes were removed;
+the existing user Environment remained stopped. The existing Incus E2E also now
+includes trusted Host product stop/start and retained Workspace assertions;
+that complete installed-product flow and GHA remain unexecuted for this source. SSH setup automation and reconstruction of
+missing guards after Host reboot remain unimplemented.

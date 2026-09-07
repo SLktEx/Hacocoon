@@ -280,6 +280,16 @@ grep -Fq '"state":"running"' <<<"$client_status" || {
   exit 1
 }
 
+# Exercise the product command through the trusted Host, retaining the same
+# provider instance, lease and workspace across repeated start requests.
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" env stop "$client_environment"
+stopped_status="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" env status --json "$client_environment")"
+grep -Fq '"state":"stopped"' <<<"$stopped_status"
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" env start "$client_environment"
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" env start "$client_environment"
+resumed_status="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" env status --json "$client_environment")"
+grep -Fq '"state":"running"' <<<"$resumed_status"
+
 client_read="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_client" env exec "$client_environment" -- cat /workspace/host.txt)"
 [[ "$client_read" == "from-host" ]] || {
   echo "trusted-host haco-host env exec read mismatch: $client_read" >&2

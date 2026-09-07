@@ -135,6 +135,20 @@ func (r *Router) StopEnvironment(ctx context.Context, rawRef string) error {
 	return stopper.StopEnvironment(ctx, ref)
 }
 
+func (r *Router) StartEnvironment(ctx context.Context, rawRef string) error {
+	provider, ref, err := r.resolve(rawRef)
+	if err != nil {
+		return err
+	}
+	starter, ok := provider.(interface {
+		StartEnvironment(context.Context, string) error
+	})
+	if !ok {
+		return core.ErrUnsupported
+	}
+	return starter.StartEnvironment(ctx, ref)
+}
+
 func (r *Router) InspectEnvironment(ctx context.Context, rawRef string) (core.EnvironmentRuntimeStatus, error) {
 	provider, ref, id, err := r.resolveWithID(rawRef)
 	if err != nil {

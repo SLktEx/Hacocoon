@@ -406,7 +406,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.30** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.31** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|
@@ -497,3 +497,18 @@ v0.7のprovider-neutral Environment routing seamは維持します。以前のco
 ## Acceptance gaps
 
 v0.23でGitHub-hosted Ubuntu 26.04上のphased real-Incus substrate + Core lifecycleを、v0.25でordinary-user Incus-owned Btrfs CLI behaviorを、v0.26でtrusted-host lifecycle/control-socket isolationをreal Incusで自動証明するようになりました。ただしproxy-only bridge ACL/dnsmasqを含む全network/resource behavior、Windows/WSL + VS Codeとinteractive `haco-host` entry、private-registry credential、Docker compatibility、physical Btrfs compression/COW/compaction、broader storage failure injection、desktop notification delivery、future cloud adapterなどは引き続きenvironment-dependentです。前のmilestoneにacceptance残件があっても、後続minor checkpointへ進むことは妨げません。
+
+## 保持したEnvironmentの再開
+
+Status: **コマンドとcomponentの範囲はimplemented、ロードマップC/Eはpartial**。
+`haco env start <name>` は必須flagを増やさず既存runtimeを再開します。
+起動前にactive leaseの同一性とIncusのネットワーク隔離を検証し、Linux/WSLでは
+create/start/stop/deleteをcontrollerプロセス間で直列化します。
+[ADR 0016](adr/0016-resume-owned-environments.md)を参照してください。
+ローカルCIのtest・race段階は全体で成功しました。独立した実Incus 6.0.5-8 / WSLで
+停止・再開・再度start・root filesystemとWorkspace内容・保存済みleaseの保持・正規削除が成功しました。
+初回fixtureはJSON保存でGoの単調時計情報が失われるためtimestamp比較だけ失敗し、
+保存済みlease同士の比較へ修正後の再実行は成功しました。両試験runtimeは除去され、
+既存のユーザーEnvironmentは停止状態を維持しています。既存Incus E2Eにもtrusted Hostからの
+製品stop/startとWorkspace保持の検証を追加しましたが、このsourceでの製品経路全体とGHAは未実行です。
+SSH setup自動化とHost再起動後に欠けたguardを復元する処理は未実装です。

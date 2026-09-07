@@ -188,3 +188,8 @@ recovery and automatic SSH configuration are deferred.
 
 For manual Windows native OpenSSH, including client-owned keys and trusted
 host-key pinning, use the [Windows SSH procedure](windows-environment-ssh.md).
+
+To return to the same work, use `haco env start sample-dev`, then reconnect SSH.
+The existing root filesystem, Workspace and optional Store remain attached.
+Repeated start is safe. A recovery-required ownership or network error must be
+resolved before reconnecting; start never disables isolation to proceed.

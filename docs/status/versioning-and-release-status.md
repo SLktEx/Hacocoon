@@ -1,6 +1,13 @@
 # Versioning and release status
 
-Current checkpoint v0.30 adds independent offline persistent Store copies through
+Current checkpoint v0.31 adds retained Environment resume through
+`haco env start <name>`. Local test/race and an independent real Incus/WSL
+resume fixture passed. Installed-product/GHA and automatic SSH setup remain
+pending. This does not complete roadmap C/E. The preceding v0.30 Store copy
+slice and its B4 follow-ups remain described below.
+
+
+Preceding checkpoint v0.30 adds independent offline persistent Store copies through
 `haco plugin oci store create <target> --from <source>`. Repository and local
 real-Incus synthetic-data COW acceptance cover this slice; full trusted Host OCI
 image delivery, runtime acceptance and interrupted-copy recovery remain partial.
@@ -90,8 +97,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.28 | Multi-repository Development and Optional OCI Distribution | ✅ implemented |
 | v0.29 | Persistent OCI Resources and Native Windows Access | ✅ implemented |
 | v0.30 | Independent Persistent Store Copies | ✅ implemented |
+| v0.31 | Retained Environment Resume | ✅ implemented |
 
-The current milestone position is **v0.30**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.31**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

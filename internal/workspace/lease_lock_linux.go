@@ -16,7 +16,14 @@ import (
 )
 
 func lockWorkspace(ctx context.Context, id core.WorkspaceID) (func(), error) {
-	dir := filepath.Join(os.TempDir(), "hacocoon-workspace-locks")
+	return lockLifecycle(ctx, "workspace", string(id))
+}
+
+func lockLifecycle(ctx context.Context, domain, id string) (func(), error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	dir := filepath.Join(os.TempDir(), "hacocoon-"+domain+"-locks")
 	if err := ensureTrustedWorkspaceLockDirectory(dir); err != nil {
 		return nil, err
 	}

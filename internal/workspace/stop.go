@@ -13,6 +13,11 @@ func (s *Service) Stop(ctx context.Context, name string) error {
 	if _, err := validateEnvironmentName(name); err != nil {
 		return err
 	}
+	unlock, err := lockLifecycle(ctx, "environment", name)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err != nil {
 		return err
