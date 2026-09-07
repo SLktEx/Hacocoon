@@ -63,3 +63,10 @@ Windows GHA に保存・再実行・非ゼロ終了・更新・削除の検証�
  `c05528a` では Bash に CRLF が渡り、setup 実行前に検証スクリプトが失敗しました。
 LF に正規化する修正後の再実行待ちです。package install、cancel 後の子 process cleanup、
 実 Environment 再作成後の再利用は provider acceptance として未検証です。
+
+`5f824b4` でも Windows の DNS・VS Code 検証は成功しましたが、検証スクリプト修正後の
+project setup が失敗しました。実運用の Incus command decorator が optional な stdin
+interface を引き継がず、runtime が setup を未対応として拒否していました。
+両 decorator は Incus exec の stdin のみ引き継ぎ、管理コマンドは既存の所有権検査を通します。
+実運用と同じ構成で stdin・結果の引き継ぎ、未対応 backend、管理操作の拒否を回帰確認します。
+installed setup の成功確認は再実行待ちです。
