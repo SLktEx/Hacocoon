@@ -110,22 +110,22 @@ func openPreview(name string, port int, closeConnection, noBrowser bool, out, di
 		fmt.Fprintln(diagnostic, "haco: open the printed URL in your browser")
 		return 1
 	}
-	var command *exec.Cmd
-	if desktop.Windows {
-		// URL contains only a fixed loopback host and a validated numeric port.
-		command = exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "Start-Process '"+url+"'")
-	} else {
-		command = exec.Command("xdg-open", url)
-	}
-	command.Stdin = nil
-	command.Stdout = nil
-	command.Stderr = nil
-	if err = command.Start(); err != nil {
-		fmt.Fprintln(diagnostic, "haco: open the printed URL in your browser")
-		return 1
-	}
-	if err = command.Process.Release(); err != nil {
+	if err := launchPreviewBrowser(ctx, desktop.Windows, url); err != nil {
+		fmt.Fprintln(diagnostic, "haco: browser launch failed; open the printed URL in your browser")
 		return 1
 	}
 	return 0
+}
+
+func launchPreviewBrowser(ctx context.Context, windows bool, url string) error {
+	launchCtx, stopLaunch := context.WithTimeout(ctx, 10*time.Second)
+	defer stopLaunch()
+	var command *exec.Cmd
+	if windows {
+		// URL is generated from the validated loopback connection above.
+		command = exec.CommandContext(launchCtx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "Start-Process '"+url+"'")
+	} else {
+		command = exec.CommandContext(launchCtx, "xdg-open", url)
+	}
+	return command.Run()
 }

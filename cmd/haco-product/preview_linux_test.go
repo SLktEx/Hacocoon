@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -61,6 +63,24 @@ func TestPreviewRefusesUntrustedEndpoint(t *testing.T) {
 		}
 		if f.created != 0 {
 			t.Fatal("replaced untrusted connection")
+		}
+	}
+}
+
+func TestPreviewLauncherFailureIsNotReportedAsSuccess(t *testing.T) {
+	for _, windows := range []bool{false, true} {
+		dir := t.TempDir()
+		name := "xdg-open"
+		if windows {
+			name = "powershell.exe"
+		}
+		executable := filepath.Join(dir, name)
+		if err := os.WriteFile(executable, []byte("#!/bin/sh\nexit 17\n"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("PATH", dir)
+		if err := launchPreviewBrowser(context.Background(), windows, "http://127.0.0.1:45000/"); err == nil {
+			t.Fatal("launcher failure hidden")
 		}
 	}
 }

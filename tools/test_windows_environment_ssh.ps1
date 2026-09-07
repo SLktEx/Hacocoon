@@ -285,8 +285,10 @@ haco open --port 3000 --no-browser "$name"
             }
             $browserProcess = [Diagnostics.Process]::new()
             $browserProcess.StartInfo = $browserStart
+            $browserStarted = $false
             try {
                 if (-not $browserProcess.Start()) { throw 'Could not start preview browser' }
+                $browserStarted = $true
                 $browserOutput = $browserProcess.StandardOutput.ReadToEndAsync()
                 $browserError = $browserProcess.StandardError.ReadToEndAsync()
                 if (-not $browserProcess.WaitForExit(30000)) {
@@ -299,6 +301,10 @@ haco open --port 3000 --no-browser "$name"
                 if ($browserProcess.ExitCode -ne 0 -or $rendered -notmatch 'windows-workspace-ok') { throw 'Browser did not render the Workspace marker' }
                 Write-Host 'WINDOWS EDGE HEADLESS PREVIEW RENDER: PASS'
             } finally {
+                if ($browserStarted -and -not $browserProcess.HasExited) {
+                    $browserProcess.Kill($true)
+                    $browserProcess.WaitForExit()
+                }
                 $browserProcess.Dispose()
                 if (Test-Path -LiteralPath $browserProfile) {
                     $expectedBrowserProfile = [IO.Path]::GetFullPath((Join-Path $Work 'preview-edge'))
