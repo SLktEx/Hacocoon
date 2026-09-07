@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for command in go grep mktemp sleep; do
+for command in go grep mktemp sleep python3; do
   command -v "$command" >/dev/null 2>&1 || {
     echo "missing required command: $command" >&2
     exit 1
@@ -31,6 +31,8 @@ cat > "$HACO_ROOT/policy.json" <<'JSON'
 }
 JSON
 
+chmod 600 "$HACO_ROOT/policy.json"
+
 go build -o "$haco" ./cmd/haco
 go build -o "$controller" ./cmd/haco-controller
 haco_start_test_controller \
@@ -42,11 +44,11 @@ haco_start_test_controller \
 safe_output="$("$haco" capability request local.echo echo --resource safe --param message=hello)"
 [[ "$safe_output" == "hello" ]]
 
-# Approval is collected by the client terminal, transferred as a boolean over
+# Approval is collected by the client terminal, transferred as a typed decision over
 # the bidirectional controller stream, then audited/executed by the controller.
 approved_output="$(printf 'yes\n' | "$haco" capability request local.echo echo --resource sensitive --param message=approved-secret 2>"$root/approval.err")"
 [[ "$approved_output" == "approved-secret" ]]
-grep -Fq '[y/N]' "$root/approval.err"
+grep -Fq '[y/N; 1=allow this Environment' "$root/approval.err"
 
 set +e
 printf 'no\n' | "$haco" capability request local.echo echo --resource sensitive --param message=must-not-run >"$root/denied.out" 2>"$root/denied.err"
@@ -71,4 +73,40 @@ if grep -Fq 'approved-secret' "$audit" || grep -Fq 'must-not-run' "$audit"; then
   exit 1
 fi
 
-echo "PASS: Hacocoon v0.4 capability E2E"
+# A saved choice can resolve the default ask without replacing explicit rules.
+python3 - "$HACO_ROOT/policy.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+policy = json.loads(path.read_text())
+policy["default"] = "require-approval"
+path.write_text(json.dumps(policy))
+PY
+saved_output="$(printf '1\n' | "$haco" capability request local.echo echo --resource remembered --environment first --param message=saved-choice-secret 2>"$root/saved.err")"
+[[ "$saved_output" == "saved-choice-secret" ]]
+replayed_output="$("$haco" capability request local.echo echo --resource remembered --environment first --param message=replayed </dev/null 2>"$root/replayed.err")"
+[[ "$replayed_output" == "replayed" ]]
+if grep -Fq 'Approve capability' "$root/replayed.err"; then
+  echo "saved choice unexpectedly prompted again" >&2
+  exit 1
+fi
+if "$haco" capability request local.echo echo --resource remembered --environment second --param message=must-not-run </dev/null >"$root/other.out" 2>"$root/other.err"; then
+  echo "saved choice escaped its Environment" >&2
+  exit 1
+fi
+[[ ! -s "$root/other.out" ]]
+grep -Fq 'Approve capability' "$root/other.err"
+python3 - "$HACO_ROOT/policy.json" "$audit" <<'PY'
+import json, pathlib, sys
+policy = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert len(policy["rules"]) == 2, "administrator rules changed"
+saved = policy["saved_decisions"]
+assert len(saved) == 1, "wrong saved choice count"
+assert saved[0]["environment"] == "first"
+assert saved[0]["resource"] == "remembered"
+assert saved[0]["decision"] == "allow"
+audit = pathlib.Path(sys.argv[2]).read_text()
+assert "saved-choice-secret" not in audit
+assert "allow-environment" in audit
+PY
+
+echo "PASS: Hacocoon capability approval / saved scope / replay E2E"

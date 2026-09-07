@@ -25,7 +25,6 @@ trap cleanup EXIT
 
 bin="$root/bin"
 mkdir -p "$bin" "$root/home" "$root/haco-root"
-export HOME="$root/home"
 export HACO_ROOT="$root/haco-root"
 unset WSL_DISTRO_NAME || true
 
@@ -37,6 +36,10 @@ done
 for name in haco hacoq haco-controller haco-vscode haco-agent-host haco-notify; do
   test -x "$bin/$name"
 done
+
+# Build with the normal Go cache; isolate HOME only for product execution.
+# Go module directories are read-only and must not become disposable user data.
+export HOME="$root/home"
 
 # Product identity/help must be available before any Incus/runtime/controller
 # initialization. The new haco deliberately exposes no legacy namespaces yet.

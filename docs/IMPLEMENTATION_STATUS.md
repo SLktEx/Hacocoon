@@ -812,5 +812,13 @@ At `a1d084b`, Windows run 34124995997 was cancelled after the job limit.
 Installed HTTPS/direct-egress checks passed; the native-access step did not
 produce DNS/SSH/VS Code completion markers. This is not acceptance success.
 `c05528a` adds bounded child/output waits and progress markers; its actual
-Windows run is pending. Three runner regressions passed on local Windows,
+Windows run passed DNS/VS Code but failed before setup due to harness CRLF. Three runner regressions passed on local Windows,
 including a descendant retaining inherited output.
+
+At `5f824b4`, Ubuntu and Incus passed. Go 1.26/1.27 tests/vet, race and docs passed,
+but the test workflow failed: Capability E2E still expected the old approval prompt,
+and GoReleaser installation received HTTP 504. The prompt assertion is updated;
+local saved-choice/replay/Environment-scope E2E and product CLI E2E passed.
+Windows run 34133686648 passed DNS, ordinary SSH reuse/resume and VS Code, then
+failed project setup. Production runner decorators now retain the optional stdin
+contract for Incus exec; installed acceptance of this fix remains pending.

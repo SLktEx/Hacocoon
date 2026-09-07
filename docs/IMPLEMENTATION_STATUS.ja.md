@@ -667,3 +667,11 @@ provider の明示対応と argv の保持を検証します。実 Incus GHA の
 内容入り OCI image 実行とローカル installed acceptance は未検証です。
 [一時実行](design/temporary-execution.ja.md) と
 [ADR 0020](adr/0020-runtime-owned-temporary-workspaces.md) を参照してください。
+
+`5f824b4` は Ubuntu・Incus が成功しました。Go 1.26/1.27 test/vet・race・docs も成功しましたが、
+test workflow は失敗しました。Capability E2E が古い承認表示を期待し、別ジョブでは
+GoReleaser 導入が HTTP 504 でした。表示期待値を更新し、ローカルの保存・再利用・
+Environment 範囲の E2E と製品 CLI E2E は成功しました。
+Windows run 34133686648 は DNS・通常 SSH の再利用/再開・VS Code が成功し、
+project setup で失敗しました。実運用 runner decorator が Incus exec の optional な
+stdin 契約を引き継ぐ修正を加えています。修正後の installed 検証は再実行待ちです。

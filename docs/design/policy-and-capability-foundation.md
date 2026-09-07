@@ -111,3 +111,8 @@ a client may send a persistent decision. Unsupported peers cannot silently
 downgrade it to one-shot approval. The terminal component offers y/N plus the
 four explicitly labeled persistent choices. The ordinary product Git queue and
 notification approval path are not connected to these choices yet.
+
+The maintained Capability E2E now drives the terminal/controller saved choice,
+replays it without a prompt in the same Environment, requires approval in another
+Environment, preserves administrator rules and checks audit parameter redaction.
+This covers the shared approval path; ordinary Git queue integration remains pending.
