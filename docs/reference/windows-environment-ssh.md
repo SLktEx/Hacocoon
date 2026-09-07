@@ -17,6 +17,11 @@ pins and the SSH include, resumes stopped Environments and reuses matching
 connections. See the [client contract](../design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening)
 for ownership and recovery.
 
+The installed Windows acceptance fixture records editor, project setup, preview
+and Environment doctor failures separately and continues the independent probes.
+Any recorded failure still fails the job after host-key refusal checks and
+cleanup. A later PASS marker never erases an earlier failure.
+
 ## Advanced manual configuration
 
 The existing explicit public-key/configuration flow remains available:

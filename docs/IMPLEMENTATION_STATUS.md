@@ -19,6 +19,9 @@ At `eb16300`, GHA test 34146281274, Ubuntu 34146281278 and Incus 34146281289
 passed. Windows 34146281264 failed: DNS and ordinary SSH/resume passed, then
 VS Code did not complete within ten minutes. Setup/preview/doctor later in that
 job were not run. This remains a failure, not a SKIP or current editor acceptance.
+The fixture now continues independent setup, preview and doctor checks after an
+editor failure, retaining each failure for the final job result. PowerShell
+syntax was checked locally; changed-fixture GHA acceptance is pending.
 
 At 953d1e5, all four GHA workflows passed, including the corrected orchestrator
 and crash-recovery fixtures. This does not establish acceptance of later changes.

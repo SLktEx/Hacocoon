@@ -18,6 +18,9 @@ update kind と属性名完全一致を維持します。永続化・監査済�
 PASS。Windows 34146281264 は FAIL です。DNS・通常 SSH・再開は成功しましたが、
 VS Code が 10 分以内に完了しませんでした。後続の setup／preview／doctor は未実行です。
 失敗を SKIP や現行 editor の受け入れ成功として扱いません。
+検証 fixture を変更し、editor 失敗後も独立した setup・preview・doctor を実行します。
+各失敗は最終 job 結果に保持します。ローカルの PowerShell 構文確認は成功しましたが、
+変更した fixture の GHA 実行結果は未確認です。
 
 953d1e5 は全 4 GHA workflow が PASS しました。修正した orchestrator／crash fixture
 も含みます。それ以降の変更の受け入れを証明するものではありません。

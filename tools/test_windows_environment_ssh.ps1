@@ -18,6 +18,7 @@ $ConnectionId = $null
 $EnvironmentAttempted = $false
 $WorkspaceCreated = $false
 $CleanupFailed = $false
+$DesktopFailures = [Collections.Generic.List[string]]::new()
 
 function Invoke-Captured([string]$FileName, [string[]]$Arguments) {
     $start = [Diagnostics.ProcessStartInfo]::new()
@@ -225,7 +226,12 @@ try {
         $desktop = Invoke-Checked $NativeSSH @('-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', $alias, 'cat /workspace/windows-marker') 'Reconnect using generated desktop SSH alias'
         if ($desktop.Stdout.Trim() -ne 'windows-workspace-ok') { throw 'Reconnect lost Workspace content' }
         Write-Host 'PASS: ordinary ssh setup, Windows-owned key/config, strict native SSH, stopped resume and connection reuse'
-        & (Join-Path $PSScriptRoot 'test_vscode_environment.ps1') -EnvironmentName $EnvironmentName -Distro $Distro
+        try {
+            & (Join-Path $PSScriptRoot 'test_vscode_environment.ps1') -EnvironmentName $EnvironmentName -Distro $Distro
+        } catch {
+            $DesktopFailures.Add('vscode')
+            Write-Host 'VS CODE REMOTE ENVIRONMENT: FAIL; continuing independent probes'
+        }
         $projectSetupProbe = @'
 set -eu
 name=$1
@@ -261,8 +267,13 @@ haco setup --clear-script "$name"
 haco setup "$name"
 '@
         $projectSetupProbe = $projectSetupProbe.Replace("`r", "")
-        [void](Invoke-HacoHost @('/bin/bash', '-ec', $projectSetupProbe, '--', $EnvironmentName) 'Exercise saved project setup')
-        Write-Host 'PROJECT SETUP SAVE / REPLAY / FAILURE / UPDATE / CLEAR: PASS'
+        try {
+            [void](Invoke-HacoHost @('/bin/bash', '-ec', $projectSetupProbe, '--', $EnvironmentName) 'Exercise saved project setup')
+            Write-Host 'PROJECT SETUP SAVE / REPLAY / FAILURE / UPDATE / CLEAR: PASS'
+        } catch {
+            $DesktopFailures.Add('project-setup')
+            Write-Host 'PROJECT SETUP: FAIL; continuing independent probes'
+        }
         $previewProbe = @'
 set -eu
 name=$1
@@ -291,72 +302,82 @@ haco setup --clear-script "$name" >/dev/null
 haco open --port 3000 --no-browser "$name"
 '@
         $previewProbe = $previewProbe.Replace("`r", "")
-        $previewResult = Invoke-HacoHost @('/bin/bash', '-ec', $previewProbe, '--', $EnvironmentName) 'Start preview through ordinary project setup'
-        $previewUrl = $previewResult.Stdout.Trim()
-        if ($previewUrl -notmatch '^http://127\.0\.0\.1:[0-9]{1,5}/$') { throw 'Preview returned an unsafe URL' }
-        $previewResponse = Invoke-WebRequest -Uri ($previewUrl + 'haco-preview-marker.txt') -TimeoutSec 10
-        if ($previewResponse.Content.Trim() -ne 'windows-workspace-ok') { throw 'Preview reached a different Workspace' }
+        try {
+            $previewResult = Invoke-HacoHost @('/bin/bash', '-ec', $previewProbe, '--', $EnvironmentName) 'Start preview through ordinary project setup'
+            $previewUrl = $previewResult.Stdout.Trim()
+            if ($previewUrl -notmatch '^http://127\.0\.0\.1:[0-9]{1,5}/$') { throw 'Preview returned an unsafe URL' }
+            $previewResponse = Invoke-WebRequest -Uri ($previewUrl + 'haco-preview-marker.txt') -TimeoutSec 10
+            if ($previewResponse.Content.Trim() -ne 'windows-workspace-ok') { throw 'Preview reached a different Workspace' }
 
-        # Render through an actual browser engine using an isolated disposable profile.
-        $edge = Join-Path ${env:ProgramFiles(x86)} 'Microsoft/Edge/Application/msedge.exe'
-        if (Test-Path -LiteralPath $edge -PathType Leaf) {
-            $browserProfile = Join-Path $Work 'preview-edge'
-            $browserStart = [Diagnostics.ProcessStartInfo]::new()
-            $browserStart.FileName = $edge
-            $browserStart.UseShellExecute = $false
-            $browserStart.CreateNoWindow = $true
-            $browserStart.RedirectStandardOutput = $true
-            $browserStart.RedirectStandardError = $true
-            foreach ($argument in @('--headless', '--disable-gpu', '--no-first-run', '--disable-background-mode', "--user-data-dir=$browserProfile", '--dump-dom', ($previewUrl + 'haco-preview-marker.txt'))) {
-                [void]$browserStart.ArgumentList.Add($argument)
-            }
-            $browserProcess = [Diagnostics.Process]::new()
-            $browserProcess.StartInfo = $browserStart
-            $browserStarted = $false
-            try {
-                if (-not $browserProcess.Start()) { throw 'Could not start preview browser' }
-                $browserStarted = $true
-                $browserOutput = $browserProcess.StandardOutput.ReadToEndAsync()
-                $browserError = $browserProcess.StandardError.ReadToEndAsync()
-                if (-not $browserProcess.WaitForExit(30000)) {
-                    $browserProcess.Kill($true)
-                    $browserProcess.WaitForExit()
-                    throw 'Preview browser timed out'
+            # Render through an actual browser engine using an isolated disposable profile.
+            $edge = Join-Path ${env:ProgramFiles(x86)} 'Microsoft/Edge/Application/msedge.exe'
+            if (Test-Path -LiteralPath $edge -PathType Leaf) {
+                $browserProfile = Join-Path $Work 'preview-edge'
+                $browserStart = [Diagnostics.ProcessStartInfo]::new()
+                $browserStart.FileName = $edge
+                $browserStart.UseShellExecute = $false
+                $browserStart.CreateNoWindow = $true
+                $browserStart.RedirectStandardOutput = $true
+                $browserStart.RedirectStandardError = $true
+                foreach ($argument in @('--headless', '--disable-gpu', '--no-first-run', '--disable-background-mode', "--user-data-dir=$browserProfile", '--dump-dom', ($previewUrl + 'haco-preview-marker.txt'))) {
+                    [void]$browserStart.ArgumentList.Add($argument)
                 }
-                $rendered = $browserOutput.GetAwaiter().GetResult()
-                [void]$browserError.GetAwaiter().GetResult()
-                if ($browserProcess.ExitCode -ne 0 -or $rendered -notmatch 'windows-workspace-ok') { throw 'Browser did not render the Workspace marker' }
-                Write-Host 'WINDOWS EDGE HEADLESS PREVIEW RENDER: PASS'
-            } finally {
-                if ($browserStarted -and -not $browserProcess.HasExited) {
-                    $browserProcess.Kill($true)
-                    $browserProcess.WaitForExit()
-                }
-                $browserProcess.Dispose()
-                if (Test-Path -LiteralPath $browserProfile) {
-                    $expectedBrowserProfile = [IO.Path]::GetFullPath((Join-Path $Work 'preview-edge'))
-                    $actualBrowserProfile = (Resolve-Path -LiteralPath $browserProfile).Path
-                    if ($actualBrowserProfile -ne $expectedBrowserProfile -or ((Get-Item -LiteralPath $browserProfile).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-                        throw 'Refusing unsafe preview browser profile cleanup'
+                $browserProcess = [Diagnostics.Process]::new()
+                $browserProcess.StartInfo = $browserStart
+                $browserStarted = $false
+                try {
+                    if (-not $browserProcess.Start()) { throw 'Could not start preview browser' }
+                    $browserStarted = $true
+                    $browserOutput = $browserProcess.StandardOutput.ReadToEndAsync()
+                    $browserError = $browserProcess.StandardError.ReadToEndAsync()
+                    if (-not $browserProcess.WaitForExit(30000)) {
+                        $browserProcess.Kill($true)
+                        $browserProcess.WaitForExit()
+                        throw 'Preview browser timed out'
                     }
-                    Remove-Item -LiteralPath $actualBrowserProfile -Recurse -Force
+                    $rendered = $browserOutput.GetAwaiter().GetResult()
+                    [void]$browserError.GetAwaiter().GetResult()
+                    if ($browserProcess.ExitCode -ne 0 -or $rendered -notmatch 'windows-workspace-ok') { throw 'Browser did not render the Workspace marker' }
+                    Write-Host 'WINDOWS EDGE HEADLESS PREVIEW RENDER: PASS'
+                } finally {
+                    if ($browserStarted -and -not $browserProcess.HasExited) {
+                        $browserProcess.Kill($true)
+                        $browserProcess.WaitForExit()
+                    }
+                    $browserProcess.Dispose()
+                    if (Test-Path -LiteralPath $browserProfile) {
+                        $expectedBrowserProfile = [IO.Path]::GetFullPath((Join-Path $Work 'preview-edge'))
+                        $actualBrowserProfile = (Resolve-Path -LiteralPath $browserProfile).Path
+                        if ($actualBrowserProfile -ne $expectedBrowserProfile -or ((Get-Item -LiteralPath $browserProfile).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+                            throw 'Refusing unsafe preview browser profile cleanup'
+                        }
+                        Remove-Item -LiteralPath $actualBrowserProfile -Recurse -Force
+                    }
                 }
+            } else {
+                Write-Host 'SKIP: Edge browser executable absent; Windows HTTP preview is tested separately'
             }
-        } else {
-            Write-Host 'SKIP: Edge browser executable absent; Windows HTTP preview is tested separately'
+            $reusedPreview = Invoke-HacoHost @('/usr/local/bin/haco', 'open', '--port', '3000', '--no-browser', $EnvironmentName) 'Reuse preview connection'
+            if ($reusedPreview.Stdout.Trim() -ne $previewUrl) { throw 'Preview did not reuse its connection' }
+            [void](Invoke-HacoHost @('/usr/local/bin/haco', 'open', '--port', '3000', '--close', $EnvironmentName) 'Close preview connection')
+            $previewRefused = $false
+            try { [void](Invoke-WebRequest -Uri $previewUrl -TimeoutSec 3) } catch { $previewRefused = $true }
+            if (-not $previewRefused) { throw 'Closed preview still accepts Windows HTTP requests' }
+            Write-Host 'WINDOWS HTTP PREVIEW / REUSE / CONNECTION REFUSAL: PASS'
+        } catch {
+            $DesktopFailures.Add('preview')
+            Write-Host 'WINDOWS HTTP PREVIEW: FAIL; continuing independent probes'
         }
-        $reusedPreview = Invoke-HacoHost @('/usr/local/bin/haco', 'open', '--port', '3000', '--no-browser', $EnvironmentName) 'Reuse preview connection'
-        if ($reusedPreview.Stdout.Trim() -ne $previewUrl) { throw 'Preview did not reuse its connection' }
-        [void](Invoke-HacoHost @('/usr/local/bin/haco', 'open', '--port', '3000', '--close', $EnvironmentName) 'Close preview connection')
-        $previewRefused = $false
-        try { [void](Invoke-WebRequest -Uri $previewUrl -TimeoutSec 3) } catch { $previewRefused = $true }
-        if (-not $previewRefused) { throw 'Closed preview still accepts Windows HTTP requests' }
-        Write-Host 'WINDOWS HTTP PREVIEW / REUSE / CONNECTION REFUSAL: PASS'
-        $environmentDoctor = Invoke-HacoHost @('/usr/local/bin/haco', 'doctor', '--json', $EnvironmentName) 'Diagnose Environment prerequisites'
-        $environmentReport = $environmentDoctor.Stdout | ConvertFrom-Json
-        if ($environmentReport.environment -ne $EnvironmentName -or [string]::IsNullOrWhiteSpace($environmentReport.workspace.id)) { throw 'Environment doctor reported the wrong Workspace' }
-        if (@($environmentReport.checks | Where-Object { $_.status -ne 'ok' }).Count -ne 0) { throw 'Environment doctor did not pass local prerequisite checks' }
-        Write-Host 'ENVIRONMENT DOCTOR WORKSPACE / DNS / SSH PREREQUISITES: PASS'
+        try {
+            $environmentDoctor = Invoke-HacoHost @('/usr/local/bin/haco', 'doctor', '--json', $EnvironmentName) 'Diagnose Environment prerequisites'
+            $environmentReport = $environmentDoctor.Stdout | ConvertFrom-Json
+            if ($environmentReport.environment -ne $EnvironmentName -or [string]::IsNullOrWhiteSpace($environmentReport.workspace.id)) { throw 'Environment doctor reported the wrong Workspace' }
+            if (@($environmentReport.checks | Where-Object { $_.status -ne 'ok' }).Count -ne 0) { throw 'Environment doctor did not pass local prerequisite checks' }
+            Write-Host 'ENVIRONMENT DOCTOR WORKSPACE / DNS / SSH PREREQUISITES: PASS'
+        } catch {
+            $DesktopFailures.Add('doctor')
+            Write-Host 'ENVIRONMENT DOCTOR: FAIL; continuing host-key refusal and cleanup'
+        }
 
 
 
@@ -424,4 +445,7 @@ haco open --port 3000 --no-browser "$name"
 }
 
 if ($CleanupFailed) { throw 'Windows SSH acceptance cleanup failed; inspect retained test resources' }
+if ($DesktopFailures.Count -ne 0) {
+    throw ("Desktop acceptance failed: " + ($DesktopFailures -join ', ') + "; independent probes and cleanup were attempted.")
+}
 Write-Host 'WINDOWS DIRECT ENVIRONMENT SSH: PASS'
