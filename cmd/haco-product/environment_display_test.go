@@ -22,3 +22,22 @@ func TestSSHConfigRefusesUnsafeTargetsAndAmbiguousConnections(t *testing.T) {
 		}
 	}
 }
+
+func TestEnvironmentDisplayEscapesControlCharacters(t *testing.T) {
+	env := core.Environment{Name: "dev", Workspace: core.Workspace{Path: "/work/escape\x1b[2J\ninjected\trow"}}
+	var out bytes.Buffer
+	if err := writeEnvironmentList(&out, []core.Environment{env}); err != nil {
+		t.Fatal(err)
+	}
+	for _, render := range []string{out.String(), func() string {
+		out.Reset()
+		if writeEnvironmentStatus(&out, core.EnvironmentStatus{Environment: env}) != 0 {
+			t.Fatal("status failed")
+		}
+		return out.String()
+	}()} {
+		if strings.Contains(render, "\x1b") || strings.Contains(render, "\ninjected") || !strings.Contains(render, "\\x1b[2J\\ninjected\\trow") {
+			t.Fatalf("unsafe terminal output: %q", render)
+		}
+	}
+}

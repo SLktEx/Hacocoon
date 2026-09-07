@@ -250,3 +250,12 @@ caller must not interpret disconnection as successful cleanup. Result writes hav
 a 30-second deadline. Ordinary lifecycle RPCs retain their existing semantics.
 The previous pre-1.0 call form is replaced without retrying ambiguous executions.
 See [ADR 0018](../adr/0018-ephemeral-run-cancellation.md).
+
+## Daily Environment inspection
+
+Status: **implemented CLI slice**. `haco env list` shows the registered Environment
+name, Workspace and Base in a readable table; `--json` returns the typed list for
+scripts. It does not imply a current runtime state from registration alone.
+`haco env status <name>` queries runtime state. Both human-readable displays escape
+terminal control characters in external metadata. Empty state includes the create
+command; populated state routes to `haco open <name>` and status inspection.

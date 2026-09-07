@@ -620,3 +620,8 @@ native PATH を代替とします。拡張の準備にも選択済みのパス�
 修正後の実 Windows 準備 fixture はインストール済み trusted Host 経由で成功しました。
 その前の開発用 Ubuntu fixture は PowerShell 起動の `exec format error` で失敗しており、成功には数えていません。
 この準備検証は editor/server 接続の成功ではなく、更新した GHA の結果は pending です。
+
+日常の CLI 確認は **C6 の一部として implemented** です。`haco env list` は名前・Workspace・Base を読みやすい表で示し、
+open/status command へ案内します。機械処理には `haco env list --json` を使います。
+list/status の表示では外部 metadata の端末制御文字を escape します。対象 CLI の回帰テストと配布 command の E2E は成功しました。
+より広い DNS・接続診断は未完了です。

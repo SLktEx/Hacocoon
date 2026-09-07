@@ -193,3 +193,10 @@ To return to the same work, use `haco env start sample-dev`, then reconnect SSH.
 The existing root filesystem, Workspace and optional Store remain attached.
 Repeated start is safe. A recovery-required ownership or network error must be
 resolved before reconnecting; start never disables isolation to proceed.
+
+## Find the development target
+
+`haco env list` shows Environment names, their Workspace and Base. Use
+`haco open sample-dev` to connect and `haco env status sample-dev` to inspect its
+current runtime state. Scripts that consume the registered list use
+`haco env list --json`.

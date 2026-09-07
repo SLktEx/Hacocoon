@@ -247,3 +247,10 @@ canonical な run cleanup は独立した期限を使い、呼出元は切断を
 結果の書込み期限は30秒です。通常の lifecycle RPC の意味は変えません。
 pre-1.0 の旧 call 形式は置き換え、結果が不明な実行を自動で再試行しません。
 詳細は [ADR 0018](../adr/0018-ephemeral-run-cancellation.md) を参照してください。
+
+## 日常の Environment 確認
+
+状態: **CLI の範囲は implemented**。`haco env list` は登録済み Environment の名前、Workspace、Base を表で表示します。
+スクリプトでは `--json` で型付き一覧を取得できます。登録情報だけから現在の runtime 状態を推測しません。
+`haco env status <name>` は runtime 状態を問い合わせます。両方の人向け表示で外部 metadata の端末制御文字を escape します。
+空の状態では create command を示し、一覧がある場合は `haco open <name>` と status 確認へ案内します。

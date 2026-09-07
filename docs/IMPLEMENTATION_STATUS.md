@@ -724,3 +724,9 @@ The updated actual-Windows preparation fixture passed through the installed trus
 Host. The development Ubuntu distro fixture failed earlier with `exec format error`
 starting PowerShell; that separate environment failure was not counted as a pass.
 These preparation checks still do not prove editor/server connectivity; new GHA is pending.
+
+Daily CLI inspection is **implemented as a partial C6 slice**: `haco env list`
+now shows a readable name/Workspace/Base table and routes to open/status commands.
+`haco env list --json` preserves machine-readable access. List/status displays
+escape terminal controls in external metadata. Focused CLI regression and shipped
+command E2E passed; broader DNS/connection diagnostics remain incomplete.

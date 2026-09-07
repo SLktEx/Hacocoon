@@ -82,7 +82,9 @@ haco_start_test_controller \
 
 # Product development commands use the same controller without legacy fallback.
 "$bin/haco" env list >"$root/product-env-list.out"
-grep -Fq '[' "$root/product-env-list.out"
+grep -Fq 'No Environments.' "$root/product-env-list.out"
+"$bin/haco" env list --json >"$root/product-env-list-json.out"
+grep -Fxq '[]' "$root/product-env-list-json.out"
 "$bin/haco" git pending >"$root/product-git-pending.out"
 grep -Fq '[' "$root/product-git-pending.out"
 set +e
