@@ -89,3 +89,10 @@ Capability names are unique identities. Duplicate or invalid provider names fail
 ## Compatibility note
 
 The fail-closed security invariants matter more than preserving an accidental pre-1.0 schema. Policy, request, audit, or capability formats may break when needed to close bypasses or clarify authority; such changes must remain explicit and auditable.
+
+## Matching-rule precedence
+
+All matching explicit rules participate: `deny` > `require-approval` > `allow`.
+Rule ordering never bypasses a stronger restriction. The default applies only
+when no explicit rule matches. This replaces historical first-match behavior.
+See [ADR 0023](../adr/0023-policy-restriction-precedence.md).

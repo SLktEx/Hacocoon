@@ -42,11 +42,17 @@ func (e *FilePolicyEvaluator) Evaluate(_ context.Context, req core.CapabilityReq
 	if err != nil {
 		return core.PolicyEvaluation{}, err
 	}
+	var selected core.PolicyEvaluation
 	for _, rule := range policy.Rules {
 		if !ruleMatches(rule, req) {
 			continue
 		}
-		return core.PolicyEvaluation{Decision: rule.Decision, Reason: rule.Reason}, nil
+		if decisionPriority(rule.Decision) > decisionPriority(selected.Decision) {
+			selected = core.PolicyEvaluation{Decision: rule.Decision, Reason: rule.Reason}
+		}
+	}
+	if selected.Decision != "" {
+		return selected, nil
 	}
 	decision := policy.Default
 	if decision == "" {
@@ -137,4 +143,19 @@ func validatePolicy(policy PolicyFile) error {
 		}
 	}
 	return nil
+}
+
+// Matching explicit restrictions cannot be bypassed by reordering saved rules.
+// The default is a fallback only; it does not override a matching explicit rule.
+func decisionPriority(decision core.PolicyDecision) int {
+	switch decision {
+	case core.PolicyDeny:
+		return 3
+	case core.PolicyRequireApproval:
+		return 2
+	case core.PolicyAllow:
+		return 1
+	default:
+		return 0
+	}
 }

@@ -792,3 +792,11 @@ Workspace, runtime and sanitized client connection information and checks local
 Workspace/DNS/SSH prerequisites without starting or repairing the Environment.
 Installed acceptance and external DNS/desktop reachability remain separate.
 See [diagnostic scope](design/controller-client-transport.md#environment-diagnostics).
+
+## Saved Policy precedence
+
+Status: **partial roadmap D1**. Matching explicit Policy rules now use
+`deny > require-approval > allow`, replacing first-match ordering. Environment
+and attribute matching are unchanged; the default remains a fallback. The four
+persistent decision choices and their user interface are still unimplemented.
+See [precedence](design/policy-and-capability-foundation.md#matching-rule-precedence).
