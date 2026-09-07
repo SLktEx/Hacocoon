@@ -9,6 +9,13 @@ saves from being overwritten. Audit records only operation/revision metadata.
 Focused test/race/vet and maintained CLI/controller E2E passed; installed acceptance
 of configuration editing is pending. See [configuration](reference/configuration.md).
 
+Local `71dbb4f` installation passed six Host checks. Configuration read/replace,
+receipt, file revision and audit were verified without changing default deny or
+the original eight rules. JSON-view equality failed on an empty saved_decisions
+array omitted at write time. Snapshot canonicalization and its component/CLI
+regression now pass; installed acceptance of that correction remains pending.
+See [the exact observation](reference/configuration.md#local-installed-observation).
+
 At `729f008`, GHA test 34149690153, Ubuntu 34149690280 and Incus 34149690192
 passed. Windows 34149690178 passed DNS, desktop SSH/resume, actual VS Code and
 project setup. Preview and Environment doctor failed; the modified fixture ran

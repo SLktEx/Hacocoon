@@ -45,8 +45,15 @@ func (c *PolicyConfiguration) Snapshot(ctx context.Context) (PolicySnapshot, err
 	if data == nil {
 		view = []byte(`{"default":"deny","rules":[]}`)
 	}
-	if _, err := decodePolicy(view); err != nil {
+	policy, err := decodePolicy(view)
+	if err != nil {
 		return PolicySnapshot{}, core.ErrInvalidArgument
+	}
+	// Present the same canonical structure that replacement persists, while the
+	// revision still binds to exact on-disk bytes (including omitted fields).
+	view, err = json.Marshal(policy)
+	if err != nil {
+		return PolicySnapshot{}, err
 	}
 	return PolicySnapshot{Revision: policyRevision(data), Policy: view}, nil
 }

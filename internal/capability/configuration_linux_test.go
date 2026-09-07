@@ -16,6 +16,36 @@ import (
 
 type configurationAuditFunc func(context.Context, core.CapabilityAuditEvent) error
 
+func TestConfigurationRoundTripKeepsCanonicalViewOfEmptySavedChoices(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "policy.json")
+	raw := []byte(`{"default":"deny","rules":[],"saved_decisions":[]}`)
+	if err := os.WriteFile(path, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	c := &PolicyConfiguration{Evaluator: NewFilePolicyEvaluator(path), Audit: &fakeAudit{}}
+	before, err := c.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.Revision != policyRevision(raw) {
+		t.Fatal("revision no longer binds to raw bytes")
+	}
+	after, err := c.Replace(ctx, before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var first, second any
+	if json.Unmarshal(before.Policy, &first) != nil || json.Unmarshal(after.Policy, &second) != nil {
+		t.Fatal("invalid view")
+	}
+	x, _ := json.Marshal(first)
+	y, _ := json.Marshal(second)
+	if string(x) != string(y) {
+		t.Fatalf("empty saved choices changed display: %s -> %s", x, y)
+	}
+}
+
 func (f configurationAuditFunc) Record(ctx context.Context, event core.CapabilityAuditEvent) error {
 	return f(ctx, event)
 }

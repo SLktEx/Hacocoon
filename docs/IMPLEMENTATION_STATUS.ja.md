@@ -9,6 +9,13 @@ revision の確認と共通の private writer により、同時に保存され�
 controller E2E は成功しました。設定編集の installed 受け入れは未確認です。
 [設定](reference/configuration.ja.md)を参照してください。
 
+ローカル `71dbb4f` の通常インストールは Host 診断 6 項目が成功し、config の取得・反映・
+receipt・実ファイル revision・監査を照合しました。default deny と元の 8 ルールは維持しました。
+空の saved_decisions 配列が保存時に省略され、JSON 表示の一致は FAIL でした。
+snapshot 表示の正規化と component／CLI 回帰テストを追加して成功していますが、修正の
+installed 受け入れは未確認です。[正確な観測](reference/configuration.ja.md#ローカル-installed-での観測)
+を参照してください。
+
 `729f008` の GHA test 34149690153、Ubuntu 34149690280、Incus 34149690192 は PASS。
 Windows 34149690178 は DNS・desktop SSH／再開・実際の VS Code・project setup が成功し、
 preview と Environment doctor が失敗しました。変更した fixture は両方を実行し、

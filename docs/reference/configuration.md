@@ -54,3 +54,18 @@ Repository tests cover stale edits, simultaneous approval saving, unsafe files,
 malformed input, pre/post-write audit failure and next-request behavior. Shipped
 CLI/controller E2E covers inspect, editor, file apply and conflict refusal.
 These tests do not establish installed Windows/WSL acceptance.
+
+## Local installed observation
+
+The normally installed `71dbb4fc4f3e` snapshot passed all six Host doctor checks.
+Normal trusted Host `haco config` read/replace returned an acknowledged revision;
+the Physical Host file and matching intent/completion audit were independently
+verified. Default deny, eight administrator rules and zero saved choices remained.
+The Windows package SHA-256 was
+`d658fe9947146a23b168f9de333443302576b339aefe8a30d58ed4562931dae5`.
+
+The initial JSON-view equality assertion **failed** because an explicitly empty
+saved_decisions array was omitted by the serializer on replacement. The snapshot
+now presents that same canonical structure from the first read; its revision still
+hashes exact on-disk bytes. A faithful component regression and CLI E2E passed.
+Installed acceptance of this display correction is pending.

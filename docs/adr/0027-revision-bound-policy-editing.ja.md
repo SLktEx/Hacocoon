@@ -2,6 +2,8 @@
 
 状態: accepted。repository に実装済み。installed 受け入れは未確認です。
 
+Policy の表示は正規化した JSON を使います。revision は元の実ファイルの正確な bytes に結び付くため、空の任意配列が往復で表示上増減することを避けつつ競合を検出します。
+
 通常の trusted 利用者が Physical Host の復旧 shell に入らず承認方針を確認・編集できるように、
 `haco config` で既存 Policy の管理者 rules と saved_decisions を取得します。
 `--edit` は利用者の editor、`--file` は同じ snapshot 形式を使用します。

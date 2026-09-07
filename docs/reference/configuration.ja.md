@@ -49,3 +49,16 @@ Policy の詳細は通知 payload に載せません。[ADR 0027](../adr/0027-re
 repository 内で競合、承認保存との同時更新、危険なファイル、不正入力、保存前後の監査失敗、
 次要求への反映を確認します。製品 CLI／controller E2E は確認・editor・ファイル反映・
 競合拒否を扱います。installed Windows／WSL の受け入れを示すものではありません。
+
+## ローカル installed での観測
+
+通常インストーラで導入した `71dbb4fc4f3e` snapshot の Host doctor は全 6 項目が成功しました。
+通常の trusted Host から `haco config` で取得・反映し、返された revision を Physical Host の
+ファイルと変更前後の監査に照合しました。default deny・管理者 8 ルール・保存方針 0 件は維持されています。
+Windows package の SHA-256 は
+`d658fe9947146a23b168f9de333443302576b339aefe8a30d58ed4562931dae5` です。
+
+最初の JSON 表示の一致確認は **FAIL** でした。明示的な空の saved_decisions 配列が
+保存時に省略されたためです。初回の snapshot 表示から同じ形式へ正規化する修正を行いました。
+revision は引き続き実ファイルの正確な bytes を hash 化します。
+同じ条件の component 回帰テストと CLI E2E は成功しました。表示修正の installed 受け入れは未確認です。

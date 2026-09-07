@@ -2,6 +2,8 @@
 
 Status: accepted; repository implementation, installed acceptance pending.
 
+The Policy view is canonical JSON; the revision still hashes the exact original file, so explicit empty optional arrays do not change the displayed structure during a round trip.
+
 Ordinary trusted users need to inspect and edit saved approval choices without
 entering a Physical Host recovery shell. `haco config` exposes a snapshot of the
 existing Policy, including administrator rules and saved decisions. `--edit`
