@@ -222,3 +222,16 @@ v0.8 does not require:
 ## One-sentence definition
 
 > **v0.8 lets standard developer clients—starting with VS Code Remote-SSH—enter a Hacocoon Environment with minimal glue while keeping IDE UX and AI orchestration outside Core.**
+
+## Automatic SSH ports in the product client
+
+Status: **implemented**. `haco env ssh --key <public-key-file> <name>`
+defaults to runtime-selected loopback access; `--port` is optional. Port zero
+travels unchanged through the controller and client adapter. The Incus integration
+probes on the Physical Host, then reserves its proxy before installing credentials.
+The probe alone does not guarantee a bind: a competing bind returns failure
+without changing guest keys. No arbitrary provisioning failure is retried.
+This prevents trusted haco-host from selecting ports in its own network namespace.
+
+Automatic private-key/config setup and VS Code launch in the product CLI remain
+planned. The temporary run-and-remove UX follows usable VS Code connectivity.

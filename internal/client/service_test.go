@@ -156,3 +156,14 @@ func TestUnforwardRejectsUnsafeConnectionID(t *testing.T) {
 		t.Fatalf("error=%v", err)
 	}
 }
+
+func TestSSHLeavesAutomaticPortSelectionToRuntime(t *testing.T) {
+	runtime := &fakeRuntime{}
+	service := New(runtime, fakeStore{environment: core.Environment{Name: "demo", RuntimeRef: "haco-demo"}})
+	if _, err := service.SSH(context.Background(), "demo", core.SSHAccessRequest{PublicKey: validEd25519Key}); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.sshRef != "haco-demo" || runtime.sshReq.HostPort != 0 {
+		t.Fatalf("%+v", runtime.sshReq)
+	}
+}

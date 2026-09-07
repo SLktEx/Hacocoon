@@ -53,9 +53,11 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return core.ClientConnection{}, err
 	}
-	if req.HostPort < 1 || req.HostPort > 65535 {
-		return core.ClientConnection{}, core.ErrInvalidArgument
+	port, err := chooseSSHPort(ctx, req.HostPort)
+	if err != nil {
+		return core.ClientConnection{}, err
 	}
+	req.HostPort = port
 	id := fmt.Sprintf("ssh-%d", req.HostPort)
 	if err := r.addLoopbackProxy(ctx, ref, id, req.HostPort, 22); err != nil {
 		return core.ClientConnection{}, err
@@ -195,4 +197,34 @@ func parseTCPProxyEndpoint(endpoint string) (string, int, error) {
 		return "", 0, fmt.Errorf("invalid port %q: %w", rawPort, core.ErrInvalidArgument)
 	}
 	return host, port, nil
+}
+
+// chooseSSHPort runs on the Physical Host where this Incus integration owns
+// proxy listeners. The probe is not a reservation: Incus must still bind the
+// selected port before any guest credentials are changed. A concurrent bind
+// fails the operation; never treat the probe as proof of successful access.
+func chooseSSHPort(ctx context.Context, port int) (int, error) {
+	if port < 0 || port > 65535 {
+		return 0, core.ErrInvalidArgument
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if port != 0 {
+		return port, nil
+	}
+	var lc net.ListenConfig
+	listener, err := lc.Listen(ctx, "tcp4", "127.0.0.1:0")
+	if err != nil {
+		return 0, fmt.Errorf("choose SSH loopback port: %w", err)
+	}
+	address, ok := listener.Addr().(*net.TCPAddr)
+	closeErr := listener.Close()
+	if closeErr != nil {
+		return 0, fmt.Errorf("release SSH port probe: %w", closeErr)
+	}
+	if !ok || address.Port < 1 || address.Port > 65535 || !address.IP.IsLoopback() {
+		return 0, core.ErrIncompatibleState
+	}
+	return address.Port, nil
 }

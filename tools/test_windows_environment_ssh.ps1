@@ -2,7 +2,7 @@
 # The test proves a real Windows OpenSSH client can use Hacocoon's loopback-only
 # SSH transport. It deliberately does not install or edit the user's SSH config.
 #Requires -Version 7.0
-param([string]$Distro = 'Hacocoon', [int]$Port = 22229)
+param([string]$Distro = 'Hacocoon', [int]$Port = 0)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
@@ -125,8 +125,13 @@ try {
     [void](Invoke-Wsl @('--exec', '/usr/local/bin/haco', 'env', 'create', '--workspace', $Workspace, $EnvironmentName) 'Create acceptance Environment')
 
     Update-SSHTestPolicy 'add'
-    $prepared = Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'ssh', '--key', $PublicKeyWsl, '--port', $Port.ToString(), $EnvironmentName) 'Prepare loopback-only SSH from trusted haco-host'
+    $sshArgs = @('/usr/local/bin/haco', 'env', 'ssh', '--key', $PublicKeyWsl)
+    if ($Port -ne 0) { $sshArgs += @('--port', $Port.ToString()) }
+    $sshArgs += $EnvironmentName
+    $prepared = Invoke-HacoHost $sshArgs 'Prepare loopback-only SSH from trusted haco-host'
     $connection = $prepared.Stdout | ConvertFrom-Json
+    if ([int]$connection.port -lt 1 -or [int]$connection.port -gt 65535) { throw 'Invalid allocated SSH port' }
+    if ($Port -eq 0) { $Port = [int]$connection.port }
     if ($connection.kind -ne 'ssh' -or $connection.host -ne '127.0.0.1' -or [int]$connection.port -ne $Port -or $connection.user -ne 'root') {
         throw "Unexpected prepared SSH connection metadata: $($prepared.Stdout.Trim())"
     }

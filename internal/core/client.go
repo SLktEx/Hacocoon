@@ -25,7 +25,7 @@ type LocalPortRequest struct {
 
 type SSHAccessRequest struct {
 	PublicKey string
-	HostPort  int
+	HostPort  int // zero requests automatic selection by the runtime authority
 }
 
 type ClientConnection struct {

@@ -147,3 +147,12 @@ providers and connection-list reconciliation may omit it; clients must obtain
 trusted identity before installing or changing a pin. This does not authorize
 silently replacing an existing known-host key. Automated SSH setup remains
 planned; clients retain ownership of private keys and local configuration.
+
+## Automatic SSH port ownership
+
+`PrepareSSH` accepts `HostPort: 0` to let the runtime authority choose its
+loopback port. The adapter must not allocate an SSH port in the client namespace.
+Incus binds the selected proxy before modifying guest credentials; a bind failure
+is a failed operation. Clients use the returned validated port. Explicit nonzero
+ports remain available. This rule concerns SSH; generic forwarding currently
+retains its earlier client-side port selection.

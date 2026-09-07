@@ -641,3 +641,13 @@ newer changes require their own CI evidence. Private-registry E2E was SKIP becau
 that job is workflow-dispatch-only.
 The requested temporary `docker run --rm`-like Environment flow is scheduled after
 VS Code connection acceptance, reusing the existing ephemeral-run implementation.
+
+## Runtime-owned automatic SSH ports
+
+Status: **implemented; installed acceptance pending for this addition**.
+`haco env ssh --key <public-key-file> <name>` no longer needs a port argument.
+SSH port zero is passed to the Incus runtime, which selects on the Physical Host
+and reserves the proxy before guest key changes. The native Windows E2E now uses
+this ordinary default and checks the actual proxy endpoint. Focused Go tests passed;
+this source has not yet run the updated installed Windows test. SSH key/config
+automation and usable VS Code launch remain next, before temporary run-and-remove.

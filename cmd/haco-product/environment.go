@@ -25,7 +25,7 @@ func runEnvironment(args []string) int {
 
 func environmentCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] <name> | list | status [--json] <name> | ssh --key <public-key-file> --port <port> <name> | ssh-config <name> | disconnect <name> <connection-id> | start <name> | stop <name> | delete <name>")
+		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] <name> | list | status [--json] <name> | ssh --key <public-key-file> [--port <port>] <name> | ssh-config <name> | disconnect <name> <connection-id> | start <name> | stop <name> | delete <name>")
 		return 2
 	}
 	if len(args) == 0 {
@@ -52,7 +52,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		flags.StringVar(&resource, "resource", "", "persistent resource to attach exclusively, e.g. oci:dev")
 	case "ssh":
 		flags.StringVar(&keyPath, "key", "", "client-owned SSH public key file")
-		flags.IntVar(&port, "port", 2222, "loopback port on the WSL Physical Host")
+		flags.IntVar(&port, "port", 0, "Physical Host loopback port (default: automatic)")
 	case "ssh-config":
 	case "status":
 		flags.BoolVar(&jsonOutput, "json", false, "machine-readable status")

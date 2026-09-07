@@ -144,3 +144,11 @@ recovery-requiredです。private host keyは読みません。adapterも公開�
 他providerや接続一覧では省略される場合があり、clientはpinの作成・変更前に信頼できる
 identityを取得する必要があります。既存known-host keyの無断置換を許可する機能ではありません。
 SSH setup自動化はplannedで、private keyとローカル設定はclientが所有します。
+
+## SSHの自動ポート選択
+
+`PrepareSSH`の`HostPort: 0`はruntime権限側にloopbackポート選択を任せます。
+adapterはclientのnetwork namespaceでSSHポートを選びません。Incusはguestの鍵を
+変更する前にproxyをbindし、bind失敗は操作失敗として返します。clientは応答の検証済み
+ポートを使います。明示した非ゼロのポートも利用できます。この規則はSSHが対象で、
+汎用forwardingは従来のclient側ポート選択のままです。

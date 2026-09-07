@@ -104,3 +104,18 @@ func TestListClientConnectionsReconcilesManagedProxyDevices(t *testing.T) {
 }
 
 const testHostPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f"
+
+func TestAutomaticSSHPortBindFailureDoesNotMutateGuestKeys(t *testing.T) {
+	bindErr := errors.New("proxy bind failed")
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, _ []string) (host.Result, error) {
+		return host.Result{}, bindErr
+	}}
+	_, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: testHostPublicKey})
+	if !errors.Is(err, bindErr) || len(runner.calls) != 1 {
+		t.Fatalf("err=%v calls=%+v", err, runner.calls)
+	}
+	args := runner.calls[0].args
+	if len(args) < 8 || args[0] != "config" || args[1] != "device" || args[2] != "add" || args[6] == "listen=tcp:127.0.0.1:0" {
+		t.Fatalf("invalid automatic proxy reservation: %+v", args)
+	}
+}

@@ -212,11 +212,12 @@ func (a *Adapter) PrepareSSH(ctx context.Context, req SSHRequest) (Connection, e
 	if a == nil || a.clients == nil || strings.TrimSpace(req.Environment) == "" || strings.TrimSpace(req.PublicKey) == "" {
 		return Connection{}, ErrInvalidArgument
 	}
-	port, err := resolveHostPort(req.HostPort)
-	if err != nil {
-		return Connection{}, err
+	if req.HostPort < 0 || req.HostPort > 65535 {
+		return Connection{}, ErrInvalidArgument
 	}
-	raw, err := a.clients.SSH(ctx, req.Environment, core.SSHAccessRequest{PublicKey: req.PublicKey, HostPort: port})
+	// Port zero must reach the authority that owns the listener. A controller
+	// client may run in a different network namespace from that authority.
+	raw, err := a.clients.SSH(ctx, req.Environment, core.SSHAccessRequest{PublicKey: req.PublicKey, HostPort: req.HostPort})
 	if err != nil {
 		return Connection{}, translateError(err)
 	}

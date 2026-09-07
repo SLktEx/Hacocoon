@@ -544,3 +544,13 @@ native SSHを含む4つのGHA workflowが成功しました。以降の変更に
 private-registry E2Eはworkflow-dispatch限定のためSKIPです。
 追加依頼の`docker run --rm`相当の一時Environment実行は、VS Code接続確認後に既存の
 一時実行実装を活かして進めます。
+
+## runtime側でのSSH自動ポート選択
+
+Status: **implemented、この追加のインストール済み受入は未実行**。
+`haco env ssh --key <public-key-file> <name>`はポート引数が不要になりました。
+SSHポート0をIncus runtimeへ渡し、Physical Hostで選択してからguestの鍵変更前に
+proxyを確保します。Windows native E2Eもこの通常defaultを使い、実際のproxyを
+確認するよう更新しました。対象Goテストは成功しましたが、このsourceで更新後の
+Windows試験はまだ実行していません。鍵・config自動設定とVS Code接続を先に進め、
+一時実行後の削除機能はその後に実装します。
