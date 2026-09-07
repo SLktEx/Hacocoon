@@ -730,3 +730,14 @@ now shows a readable name/Workspace/Base table and routes to open/status command
 `haco env list --json` preserves machine-readable access. List/status displays
 escape terminal controls in external metadata. Focused CLI regression and shipped
 command E2E passed; broader DNS/connection diagnostics remain incomplete.
+
+The GHA editor fixture now saves its exact alias's Linux platform in the disposable
+profile, as a user would select on first Remote-SSH use. This avoids requiring an
+interactive platform picker in CI; it is not evidence that the pending Windows
+run failed for that reason. Ordinary user profiles remain unchanged.
+
+At `506c38f`, test/Ubuntu/Incus GHA passed. Windows GHA **failed** after ordinary
+`haco open` returned successfully: the editor observer did not complete within ten
+minutes. The exact editor-side cause remains unconfirmed. The next fixture saves
+the first-use Linux platform choice; its result is pending, not a successful
+editor connection claim.

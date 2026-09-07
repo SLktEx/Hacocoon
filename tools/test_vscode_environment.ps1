@@ -23,6 +23,13 @@ $manifestFile = Join-Path $work 'fixture.json'
 & python (Join-Path $PSScriptRoot 'package_vscode_acceptance.py') --environment $EnvironmentName --output $vsix --result $resultFile --manifest $manifestFile
 if ($LASTEXITCODE -ne 0) { throw 'Failed to package editor observer.' }
 $fixture = Get-Content -Raw -LiteralPath $manifestFile | ConvertFrom-Json
+# Supply the same saved platform choice a user selects on first Remote-SSH use.
+# This belongs only to the disposable editor profile, not Hacocoon policy.
+$settingsPath = Join-Path $application 'data/user-data/User/settings.json'
+$settings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json -AsHashtable
+$alias = 'haco-' + $EnvironmentName
+$settings['remote.SSH.remotePlatform'] = @{ $alias = 'linux' }
+[IO.File]::WriteAllText($settingsPath, ($settings | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
 try {
     & $code --install-extension $vsix
     if ($LASTEXITCODE -ne 0) { throw 'Failed to install disposable UI observer.' }

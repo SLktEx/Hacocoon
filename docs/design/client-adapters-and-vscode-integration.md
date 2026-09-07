@@ -304,3 +304,8 @@ Windows editor discovery prefers the exact `code.cmd` in the trusted Host's capt
 Windows PATH. A native child can have a different PATH; extension preparation uses
 the selected CLI path as encoded data rather than resolving a second executable.
 Native Windows PATH discovery remains the fallback when the captured PATH has no CLI.
+
+The disposable editor fixture also saves the known Linux platform for its exact
+SSH alias, matching Remote-SSH's first-use platform choice. That choice and the
+Workspace trust prompt are outside automated acceptance; the fixture still uses
+the installed product command, SSH transport and remote filesystem/terminal.

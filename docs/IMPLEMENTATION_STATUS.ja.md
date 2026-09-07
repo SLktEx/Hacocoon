@@ -625,3 +625,11 @@ native PATH を代替とします。拡張の準備にも選択済みのパス�
 open/status command へ案内します。機械処理には `haco env list --json` を使います。
 list/status の表示では外部 metadata の端末制御文字を escape します。対象 CLI の回帰テストと配布 command の E2E は成功しました。
 より広い DNS・接続診断は未完了です。
+
+GHA の editor fixture は、初回 Remote-SSH で利用者が選ぶ Linux platform を、対象 alias に限って使い捨て profile に保存します。
+CI で対話的な platform 選択を要求しないための準備であり、進行中の Windows run の問題がそれによるものと確認したわけではありません。
+通常の利用者 profile は変更しません。
+
+`506c38f` の test/Ubuntu/Incus GHA は成功しました。Windows GHA は通常の `haco open` が成功終了した後、
+editor observer が10分以内に完了せず **失敗** しました。editor 側の正確な原因は未確定です。
+次の fixture は初回の Linux platform 選択を保存して実行します。その結果は pending であり、editor 接続の成功ではありません。
