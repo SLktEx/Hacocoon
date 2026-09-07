@@ -614,3 +614,11 @@ separate administrator Incus command. Invalid key data revokes the managed key
 and proxy; cleanup failure is recovery-required. Public adapters revalidate the
 optional key. Related race tests passed; the Windows native acceptance script
 now consumes this field, but the new installed Windows flow has not yet run.
+
+User clarification: development-source pushes go to a branch in Hacocoon and
+then a PR; Git push feature tests remain restricted to Hacocoon-test. PR #482
+publishes the v0.30/v0.31 and SSH public-key slices at `f8517ba`. The earlier
+publication rejection is resolved by explicit source-push authorization.
+The required B4 default is now explicit: automatic OCI image publication/COW
+copy at Environment creation with an optional opt-out. This is **planned**,
+not achieved by the manual Store-copy command; see the owning Store contract.

@@ -521,3 +521,10 @@ native clientは別途管理者としてIncusを呼ばず鍵を固定できま�
 proxyを撤回し、後始末の失敗はrecovery-requiredとします。公開adapterも任意fieldの鍵を再検証します。
 関連race testは成功しました。Windows native受け入れscriptもこのfieldを使うよう更新しましたが、
 新しいインストール済みWindows経路はまだ未実行です。
+
+利用者の補足: 開発sourceはHacocoonの作業branchへpushしてPRを出し、Git push機能の
+検証先は引き続きHacocoon-testに限定します。PR #482でv0.30/v0.31とSSH公開鍵の範囲を
+`f8517ba`として公開しました。以前の公開拒否は本体pushの明示許可により解消しました。
+B4の必須defaultを明確化しました。Environment作成時にOCIイメージの公開・COWコピーを
+自動実行し、任意のOFF指定だけを設けます。これは**planned**であり、手動Storeコピーだけでは
+完了していません。詳細はStoreの所有文書に記録しています。

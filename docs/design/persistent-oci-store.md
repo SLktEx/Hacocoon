@@ -88,6 +88,34 @@ runtime directory, `/run`, or Windows authority is shared. Registry credentials
 are not provisioned into a Store by Hacocoon. Treat Store contents as untrusted
 Environment data and do not attach them to the trusted Host.
 
+## Default Environment creation flow
+
+Status: planned, required by the current user workflow. The explicit Store
+commands above are implemented advanced/recovery operations, not the intended
+ordinary create sequence. Environment creation must automatically publish the
+locally prepared Docker/nerdctl images from trusted Host, make an independent
+Btrfs COW copy and attach the resulting persistent data. Users must not normally
+create, copy and name a Store separately. A single optional `--no-oci` opt-out
+is the intended product surface; it is not implemented yet.
+
+The maintained optional OCI integration supplies this default. Core keeps a
+provider-neutral initialization contract and does not require either runtime.
+If the integration/runtime is absent, ordinary non-OCI Environment creation
+must remain usable. If a configured publication/copy operation fails, report
+that failure and retain exact ownership for recovery; do not silently omit the
+requested content. Do not fetch new registry content as a side effect of copying
+already prepared local images.
+
+Publication must contain image data only, quiesced before COW. Do not copy a live
+Host daemon directory, credentials, management sockets, process state or arbitrary
+Host volumes. Preserve separate Docker/containerd formats when required; verify
+both runtime paths independently. A guest-used Store is never reattached to Host.
+Reuse a Workspace's retained Store on recreation without overwriting guest edits;
+explicit resource selection remains available for advanced use. Creation failure
+must leave every automatic resource identifiable and recoverable. This default
+workflow is incomplete until Host publication, automatic copy/attachment, opt-out,
+repeat/recreate behavior and both runtime acceptance have actually run.
+
 ## Independent offline copies
 
 Status: implemented at the repository and real-Incus storage boundary. End-to-end

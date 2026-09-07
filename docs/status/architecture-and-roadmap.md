@@ -70,11 +70,13 @@ The roadmap is organized by architectural direction instead of copying per-check
   trusted `haco-host`; restart and setup rerun are acceptance requirements.
 - B2: preserve multiple independent repository Workspaces and approved Git push.
 - Former B3: `switch-base` is currently disabled, not a Stage B requirement,
-  and deferred to Stage D or later. Historical code/evidence remain. It does
+  and on hold with no reintroduction planned by this roadmap. Historical evidence remains. It does
   not block Stage A-C completion.
 - B4: [Persistent OCI Store](../design/persistent-oci-store.md), with explicit
   create/attach/reuse/delete lifecycle and independent offline COW copies. Trusted
   Host image acquisition/publication and full runtime acceptance remain partial.
+  Ordinary Environment creation must perform the image COW copy automatically;
+  only disabling it is an optional user step. See the owning Store contract.
 - B5: real Windows native OpenSSH access through Windows/WSL loopback and Incus
   proxy to Environment sshd, with Windows-owned private keys and strict pinning.
 - B6: retain readable Environment location/state and next-action guidance.
