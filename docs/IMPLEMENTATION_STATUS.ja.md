@@ -687,3 +687,7 @@ Environment 作成時に canonical lease へランダムな instance ID を予�
 d4aef8d では 4 workflow が成功しました。Windows run [34139245378](https://github.com/SLktEx/Hacocoon/actions/runs/34139245378) で VS Code の実接続、project setup の保存・再実行・非ゼロ終了・更新・削除、Edge headless の preview 描画、HTTP preview の再利用・終了・接続拒否、Environment doctor の前提確認が PASS です。上記の preview 受け入れ待ちは解消しました。既定ブラウザの起動や物理端末の受け入れを証明するものではありません。VPN／NRPT は VPN と private name の fixture がないため SKIP です。
 
 実運用の Capability service は全ての名前付き要求を trusted catalog の作成 ID に結び付け、実行直前にも照合します。env 限定の保存には ID が必須ですが、利用者の引数は増えません。通常の Git 保存範囲・UI と実 network/provider の受け入れ確認は partial です。
+
+5272434 の GHA では Go 1.26／1.27 の tests・vet、race、release-config、docs、Ubuntu、Incus が PASS です。test workflow は orchestrator E2E で未作成の名前を承認元に使っていたため失敗しました。fixture を通常の create／delete に直し、ローカル E2E は PASS しました。Capability の保存範囲・再作成と Git transport 拒否の E2E も PASS です。
+
+local CI 全体は docs／workflow 検査後、WSL の pwsh 不在で失敗し、それ以降の工程はその呼び出しでは未実行です。Go 工程の個別実行では、空の select が SIGKILL 用 helper を deadlock 終了させ、親が生存中の lock を確認する前に解放するテスト不具合が見つかりました。制限時間付き timer で親からの kill まで生存させ、実 subprocess／SIGKILL の回帰 20 回と run package の race 検証が PASS です。cleanup の権限を変える修正ではありません。

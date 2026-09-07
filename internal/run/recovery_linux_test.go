@@ -95,7 +95,11 @@ func TestEphemeralOwnershipLockHelper(t *testing.T) {
 	}
 	defer lock.Release()
 	fmt.Println("ready")
-	select {}
+	// A bare select lets the runtime abort this otherwise idle helper as a
+	// deadlock, releasing its lock before the parent can test live ownership.
+	// Keep a bounded timer alive until the parent sends SIGKILL.
+	time.Sleep(time.Minute)
+	t.Fatal("parent did not terminate ownership helper")
 }
 
 func TestSIGTERMDuringServiceRunPerformsBoundedCleanup(t *testing.T) {

@@ -523,6 +523,9 @@ set -e
 grep -Fq run-error "$root/run.err"
 [[ "$(grep -c '^delete haco-run-' "$HACO_FAKE_INCUS_LOG")" -ge 2 ]]
 
+# The approval source must be an actual catalog Environment, created through
+# the same canonical lifecycle as the other fake-provider scenarios above.
+"$haco" create --workspace "$workspace" agent-run >/dev/null
 mkdir -p "$HACO_ROOT"
 cat > "$HACO_ROOT/policy.json" <<'JSON'
 {"default":"deny","rules":[{"capability":"local.echo","action":"echo","resource":"*","environment":"agent-run","decision":"require-approval","reason":"security approval test"}]}
@@ -542,5 +545,7 @@ raw=open(sys.argv[1]).read().lower()
 assert 'parameters' not in raw
 assert 'message' not in raw
 PY
+
+"$haco" delete agent-run
 
 echo 'PASS: Hacocoon orchestration, Base, resource, storage, and isolated-bridge E2E'
