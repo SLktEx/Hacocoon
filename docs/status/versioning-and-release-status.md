@@ -1,5 +1,13 @@
 # Versioning and release status
 
+Current checkpoint v0.29 implements native WSL interop from fresh installation,
+actual C/non-C drive projection, Persistent OCI Store and Windows native OpenSSH.
+Local packaged B1/B4/B5 acceptance and B2/A/B6 regressions passed on `c86c43e`.
+`switch-base` is currently disabled, deferred to Stage D+ and does not block A-C.
+The v0.28 delivery/Base-switching results below are historical. See
+[implementation status](../IMPLEMENTATION_STATUS.md) for exact evidence and limits.
+
+
 > **Human-readable checkpoint policy/status view · Updated 2026-08-31**
 
 Hacocoon is **pre-1.0**. Milestone numbers describe product/implementation progression; they are not compatibility guarantees, release tags, or proof of production support.
@@ -26,12 +34,12 @@ replay of network/proxy process records without changing milestone numbering.
 See [implementation status](../IMPLEMENTATION_STATUS.md#incus-startup-pid-protection)
 for validation and installation limits.
 
-The v0.28 candidate adds trusted WSL Windows interop, repository collections,
+Historical v0.28 acceptance: the candidate added trusted WSL Windows interop, repository collections,
 Workspace-preserving Base switching, optional one-way OCI distribution,
 OpenSSH configuration generation and readable Environment status. B1–B6 have
 local packaged/manual acceptance. Docker and nerdctl distribution, independent
 guest start/change/stop, B5/B6 and the A regression passed on packaged `029ff08`.
-This completes the requested local second-stage journey; it is not a published
+That completed the earlier local second-stage request; it was not a published
 release or acceptance of a broader platform/image matrix.
 
 The v0.27 candidate implements the managed repository WSL workflow: independent
@@ -45,7 +53,7 @@ See [implementation status](../IMPLEMENTATION_STATUS.md) for exact evidence.
 
 Controller-backed setup, trusted networking, controller-owned Standard proxy and read-only configured/live storage diagnostics are implemented within the current checkpoint. Packaged acceptance on `c749ff9033b33c3526e108f60ce2009638075152` passed Windows, Ubuntu and all four Incus jobs, plus local cached BAT application/rerun, ordinary/cold entry, six readiness checks and retained trusted-host data.
 
-The requested WSL M0–M1 scope is **implemented and accepted**: installed Environment allowed-proxy/denied-direct acceptance passed for candidate `81c0d16` (identical-tree PR merge `9049df3`). Registration stop/continuation and the fresh Windows package gate passed on `4df465a`. Actual Windows OS reboot and further continuation work are outside the latest requested scope; do not add broad acceptance matrices or repeat successful local checks without a concrete change or failure. The earlier Incus startup SIGKILL source remains unresolved. [Implementation status](../IMPLEMENTATION_STATUS.md) owns the commit-bound evidence, package identity and acceptance limits.
+The requested WSL M0–M1 scope is **implemented and accepted**: installed Environment allowed-proxy/denied-direct acceptance passed for candidate `81c0d16` (identical-tree PR merge `9049df3`). Registration stop/continuation and the fresh Windows package gate passed on `4df465a`. Actual Windows OS reboot and further continuation work are outside the latest requested scope; do not add broad acceptance matrices or repeat successful local checks without a concrete change or failure. Cross-namespace Incus startup PID replay is addressed by ADR 0013; remaining upstream process-lifecycle limits are recorded separately. [Implementation status](../IMPLEMENTATION_STATUS.md) owns the commit-bound evidence, package identity and acceptance limits.
 
 **Status legend:** ✅ implemented · 🧪 partial / foundation · 🚧 planned/deferred
 
@@ -79,8 +87,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.26 | Trusted `haco-host` & Default WSL Entry | ✅ persistent trusted logical Host lifecycle, ownership/collision checks, managed-storage placement, default WSL entry, recovery path, and real Incus acceptance implemented |
 | v0.27 | Managed Repository WSL Workflow | ✅ implemented |
 | v0.28 | Multi-repository Development and Optional OCI Distribution | ✅ implemented |
+| v0.29 | Persistent OCI Resources and Native Windows Access | ✅ implemented |
 
-The current milestone position is **v0.28**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.29**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

@@ -1,6 +1,13 @@
 # バージョン番号とリリース状況
 
-v0.28候補はtrusted WSL Windows連携、複数repo、Workspace保持Base切替、
+現在のcheckpoint v0.29はfresh installからのnative WSL連携、C/non-C drive投影、
+Persistent OCI Store、Windows標準OpenSSHを実装。配布物c86c43eでB1/B4/B5実機受入と
+B2/A/B6回帰が成功した。switch-baseは現在無効でStage D+へ延期し、A-Cをblockしない。
+下記v0.28の配布・Base切替は過去の証拠である。正確な構成と制約は
+[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照。
+
+
+過去のv0.28受入：当時の候補はtrusted WSL Windows連携、複数repo、Workspace保持Base切替、
 任意OCI一方向配布、OpenSSH設定生成、読みやすいEnvironment表示を追加した。
 B1〜B6はローカル実機確認済み。Dockerとnerdctlの配布・guest独立起動/変更/停止、
 B5/B6とA回帰は配布物029ff08で確認済み。依頼されたローカル第二段階の導線は完了した。
@@ -42,7 +49,7 @@ Hacocoonは **pre-1.0** です。milestone番号はproduct/implementationの進�
 
 Controller経由setup、trusted network、controller所有Standard proxy、設定/live storageの読み取り専用診断は現在のcheckpoint内でimplemented。`c749ff9033b33c3526e108f60ce2009638075152` のpackageでWindows・Ubuntu・Incus全4job、実機cached BAT適用/再実行・通常/cold入口・readiness 6項目・trusted-hostデータ保持が成功した。
 
-今回指定されたWSL M0–M1の範囲は **implemented、受入済み**。candidate `81c0d16`（同一treeのPR merge `9049df3`）でinstall済みEnvironmentの許可proxy通信/直接通信拒否も成功した。登録時の停止/続行とfresh Windows package gateは `4df465a` で成功した。最新の依頼範囲では実Windows OS再起動と続行案内の追加作り込みを対象外とし、網羅的な受入条件を増やしたり、具体的な変更・失敗なしに成功済みの手元検証を繰り返したりしない。以前のIncus起動時SIGKILLの送信元は未確定。commitを固定した証拠、package識別、受入の制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)を正本とする。
+今回指定されたWSL M0–M1の範囲は **implemented、受入済み**。candidate `81c0d16`（同一treeのPR merge `9049df3`）でinstall済みEnvironmentの許可proxy通信/直接通信拒否も成功した。登録時の停止/続行とfresh Windows package gateは `4df465a` で成功した。最新の依頼範囲では実Windows OS再起動と続行案内の追加作り込みを対象外とし、網羅的な受入条件を増やしたり、具体的な変更・失敗なしに成功済みの手元検証を繰り返したりしない。namespaceをまたぐIncus起動時のPID再利用にはADR 0013で対処済み。残るupstreamのprocess lifecycle上の制約は別途記録している。commitを固定した証拠、package識別、受入の制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)を正本とする。
 
 | Version | Gate | `main` の状態 |
 |---|---|---|
@@ -74,8 +81,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.26 | Trusted `haco-host` & Default WSL Entry | persistent trusted logical Host lifecycle、ownership/collision check、managed-storage配置、default WSL entry、recovery path、real Incus acceptanceを実装済み |
 | v0.27 | Managed Repository WSL Workflow | 実装済み |
 | v0.28 | Multi-repository Development and Optional OCI Distribution | 実装済み |
+| v0.29 | Persistent OCI Resources and Native Windows Access | 実装済み |
 
-現在のmilestone位置は **v0.28** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.29** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

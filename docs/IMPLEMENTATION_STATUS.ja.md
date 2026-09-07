@@ -22,8 +22,8 @@ install済みegress制御が成功した。
 任意のauthenticated-private-registry jobはskipであり、private-registryの受入実績は追加しない。
 最終revisionとmerge状況は[PR #480](https://github.com/SLktEx/Hacocoon/pull/480)に記録する。
 
-既存のlocal installationには**未適用**。本修正はcheckpoint v0.28内の保守修正であり、
-hosted受入の成功はlocal配備を意味しない。
+当時のhosted受入はローカル環境を更新していなかった。下記の改訂Stage B fresh受入には、
+main由来のこのPID guardも含まれる。
 
 ## WSL起動失敗の調査 — 2026-09-07
 
@@ -66,13 +66,111 @@ install済みservice設定へのpatchは行っていない。
 正しいprocess所有identityの検証はproviderのlifecycleの責務であり、
 CoreによるPID fileの自動削除やlogin timeout延長は根本修正ではない。
 
-## 第二段階
+## 現在のStage B改訂
+
+状態: **implemented。改訂後のローカル配布物・実機受入は完了**。mainの基準は
+`0665ba9`。これは作業branch候補の確認であり、公開releaseや他の未merge PRの完了を
+意味しない。対象はnative WSL Interop、実在する複数drive、Persistent OCI Store、
+Windows標準OpenSSH。`switch-base`は公開CLIで無効、Stage D以降で再検討し、A-Cを
+blockしない。過去のコード・ADR・証拠は残す。[roadmap](status/architecture-and-roadmap.md#current-stage-b-scope)、
+[OCI Store](design/persistent-oci-store.md)、[Windows SSH手順](reference/windows-environment-ssh.md)を参照。
+
+**実機の配布物:** `c86c43e4f2702c5fccadd91f542d82bd8b733706`、checkpoint `v0.29`、
+`0.27.0-SNAPSHOT-c86c43e`、build 2026-09-07 10:38:30 JST。Windows ZIP SHA-256は
+`39205fea38aa7b38f8474edb6f957363b3565a22a00e6957d64ba542217566db`。
+後続commitはテスト・文書の改善であり、実際に導入した製品はこの候補である。
+構成はWindows 10.0.26200.9278、WSL 2.7.12、kernel
+`6.18.33.2-microsoft-standard-WSL2`、Ubuntu 26.04、Incus `6.0.5-8`、
+Incus所有Btrfs pool `haco-local-default`。既定Baseのrevisionは
+`sha256:297ce79fb308c09126222dd6e64c260003c5d1e1ea1ce46ea43e80a419941636`。
+
+**fresh手順:** UbuntuとUbuntu-24.04だけがありHacocoonがない状態を確認し、branchから
+作ったZIPを展開して通常の`install-windows.bat`を実行。`wsl -d Hacocoon`からHostへ入り、
+doctor全6項目が成功。既存Windows installer gateでWSL終了・再入場、Host内データ保持、
+同じBATの再実行、cold doctorも成功した。追加でHostだけの
+`incus restart haco-host --project hacocoon`直後を再設定なしで確認し、実際の
+`wsl --shutdown`後の通常入口と、その後の通常`haco setup`再実行・doctorも確認した。
+最終配布物の受入では、source由来binary、mount、PATH、socket、serviceの手動修復を
+注入していない。Windows/WSL機能自体は導入済みであり、Hacocoon distributionのfresh
+installであって、OS再インストールやWindows OS再起動の試験ではない。
+
+| 項目 | 最終候補で確認した結果 |
+|---|---|
+| B1 drive | 実在するDrvFsからCとQを検出し、`/mnt/c`と`/mnt/q`へ投影。両NTFS driveでWindows作成ファイルをHostからread、HostのwriteをWindowsからreadし、空白入りpath/argumentも成功。WSL削除前のファイルもfresh install・Host restart・WSL shutdown後に保持された。同じWindows filesystemを参照しており、Environment内のコピーではない。 |
+| B1 exe/PATH | 明示的な`/init`なしの絶対path cmd.exe、`cmd.exe /c ver`、`powershell.exe -NoProfile -NonInteractive`、Windows PATH上のwhere.exe/findstr.exeが成功。stdoutのhello、stderr marker、終了23を確認。検出drive下にあるWSL変換済みWindows PATHだけを継承。OCI/SSHのEnvironment作成・削除後も、開いたままのHostでInteropが動いた。 |
+| 旧B3 | 配布物の`haco env switch-base`はcontroller操作前に終了2、currently disabledとStage D案内を返す。通常のEnvironment作成時のBase選択は維持。 |
+| B4 | 別々のprovider identityを持つ2 Storeを作成。Aをattachし、使用中deleteを拒否。BusyBox pull、local image build/run、Environment削除、Store保持、別Environmentへの再attach、registry接続なしのimage再利用、buildのCACHEDを確認。別Storeは空でWorkspaceは保持。Environment deleteはStoreを残し、明示Store delete後のinspectはnot found。 |
+| B5 | Windows標準System32/OpenSSH/ssh.exeから127.0.0.1:22229、WSL Physical Host、Incus loopback proxy、Environment sshdへ実接続。生成configはstrict checking、dedicated known_hostsをtrusted provider由来の公開host keyでpin。/workspaceを利用でき、鍵不一致は実行前に失敗。disconnect/delete後はWSL listenerが消え、Windows再接続も失敗。終了後のWindowsエラーはrefusedではなくtimeoutになる場合がある。 |
+| B2/A/B6 | 一つのstage-b-git-devで独立した2つの.gitを確認し、commondir/alternates共有なし。Windows SSHでfetch/pull、編集、commit、製品helperの承認付きpushが両repoで成功。disconnect/stop後のstatusはEnvironment・Workspace・Base・保持状態を表示。通常WSL再入場後にもEnvironmentが停止状態で、Workspaceの未追跡noteが残ることを確認した。 |
+
+OCIの実機版はcontainerd `2.2.2-0ubuntu1.1`、nerdctl `2.3.5`、BuildKit `0.33.0`。
+各Environmentへ必要なruntimeとdaemon proxy設定を通常導入し、download Policyは
+対象Environment・宛先に限定した。`pull --unpack=false`でcontentを保存し、
+`run --snapshotter native`でsnapshotを用意する。imageとBuildKit cacheはStore、
+process/socketは`/run`に分離。再attach前後でBusyBoxのIDは
+`sha256:c6348fa86ba0fb2108c9334f5fe913ddc6d853313e655891f133a0127c30099f`、
+local imageのIDは`sha256:475bcd7010f2b330b1b82f7a43a911baeb6be801dfd1d2fb2d6b7b498a99c7bb`
+で一致した。Docker Storeの互換性は**未確認**。下記の旧Docker配布受入は過去の証拠である。
+
+Git成果の送信先は`https://github.com/SLktEx/Hacocoon-test.git`のみ。
+指定に従い同じURLの異なるbranchを2 repoとして登録した。異なるremote URLの動作は
+local real-Git回帰で扱う。両pushともrepo・Environment・URL・ref・操作・旧OID
+`f4ff6e33588a7183b0c7d3db2f4c2214a527678f`と固定新OIDを照合して`haco git approve`を実行し、
+Windows側の独立した`git ls-remote`で一致を確認した。
+
+| repo / branch | 確認したremote commit |
+|---|---|
+| stage-b-first / codex/stage-b-20260907-first | `7f9f9ecaaae1cc332c3a42d9724eeddbb9701f4d` |
+| stage-b-second / codex/stage-b-20260907-second | `98168553a91e20f2f97b0658bfd305ab4ed488e6` |
+
+Btrfsの観測ではsource UUID `8dbe4029-79b1-5f46-96d1-522b9cf9fd6a`と
+`d84cae46-8f22-2144-99c8-d7d6ac5a6c9f`が、それぞれWorkspace
+`a558d778-1ac5-1047-9c04-d72568d530ff`と`8b7b06f4-8b40-7d4d-92e8-4643074ca769`の
+parent UUIDに一致した。独立COW関係の証拠であり、性能評価ではない。
+`managed:stage-b-both`と停止済みEnvironmentは利用者向けに保持している。
+
+**境界・検証:** Environmentに/init・WSL socket・Windows drive・Windows exe権限がない。
+client秘密鍵はWindowsでのみ作成・削除し、公開鍵だけをHacocoonへ渡した。Git資格情報は
+trusted Hostのroot専用標準gh storeだけに置いた。既存Windows Git tokenの本人性と
+テストrepoのpush権限を公式gh apiで確認し、stdin経由で設定。tokenのログ出力や
+Environmentへの保存はない。gh auth login --with-tokenは追加OAuth scope不足で失敗したが、
+権限を拡張していない（[GitHub CLI仕様](https://cli.github.com/manual/gh_auth_login)）。
+これは手動の資格情報設定であり、新しい製品credential brokerではない。
+
+installed egress検証は許可HTTPS、拒否proxyの403、直接TCP拒否、管理socket非共有が成功。
+local CIのdocs、workflow policy、Go test/vet、JavaScript、race、E2E、隔離namespaceの
+kernel forwardingが成功した。release/package、native interop、lifecycle ownership、
+guest systemd readiness回帰も成功。対応systemdが必要なrelease checkはUbuntu 26.04、
+Windows installer/BAT componentは実PowerShell 7/5.1で確認。開発用Ubuntu 22.04では
+release phase全体をそのまま実行できず、対応platformで各componentを分けて実行した。
+新しいhosted CIやprivate registryの受入を意味しない。
+
+再実行用driverは[Windows installer](../tools/windows-installer-user-path-e2e.py)、
+[native access](../tools/windows-native-access-e2e.py)、
+[Windows SSH](../tools/test_windows_environment_ssh.ps1)、
+[OCI lifecycle](../tools/test_persistent_oci_store.py)、
+[installed egress](../tools/installed-egress-check/main.go)。
+ローカル証拠はbin/stage-b-c86-*、特にfresh-package-gate、persistent-oci、
+native-ssh-cleanup、approved-git-standard-credentials、two-repository-cow、
+retained-workspaceのログに保存した。ログや資格情報はsource archiveに含めない。
+
+Git認証・Policy、SSH key/config/pin、任意OCI runtime/proxy設定は手動。
+Windows/image/runtimeの広い互換性、drive着脱、開いたsession中の外部操作によるWSL
+binfmt登録削除、異常切断、upgrade、汎用復旧は未確認。以前観測したhandler消失のtriggerは
+未特定であり、通常setup/entryはhandlerがない場合だけWSL自身の生成serviceで補完する。
+D+の自動化、switch-base再検討、registry/broker、Store同時共有、live migrationは
+[後続課題](status/development-follow-ups.md)に残す。
+
+## 過去の第二段階（対象範囲を変更済み）
+
+以下は以前の依頼に対するcommit固定の実行証拠。旧B3と配布専用B4は現行要件ではない。
+
 
 状態は**implemented・以下のWindows/WSL構成でB1〜B6を受入済み**。
 Dockerとnerdctlの両方で一方向配布・独立起動が成功した。
 選択したB5/B6改善と、影響を受けるAの基本導線も確認済み。
 [利用手順](reference/managed-repository-workflow.md)、
-[OCI契約](design/oci-image-distribution.md)、
+[OCI契約](design/persistent-oci-store.md)、
 [残課題](status/development-follow-ups.md)を参照。
 
 | 段階 | 実装と確認結果 |
@@ -129,7 +227,7 @@ full bundle・privileged化・AppArmor無効化・runtime device共有は不要�
 `a2ea9ac81b39572d424bd2b63461ac659c2b0a4c327ccb963e110f08ed553c57`。
 両方とも--network noneで起動。Docker guestはguest-only、nerdctl guestは
 nerd-guest-onlyへ変更したが、Host側は両方host-originalのままだった。
-[再現手順](design/oci-image-distribution.md)を参照。
+[再現手順](design/persistent-oci-store.md)を参照。
 
 検証はci-local.shのdocs・workflow-policy・test（Go/vet/JS）・race・e2eが
 B5/B6変更後に通過。関連するlifecycle/Git/collection mount/OCI/SSH設定回帰、
@@ -251,7 +349,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.28** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.29** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

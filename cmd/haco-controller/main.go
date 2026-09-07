@@ -48,7 +48,7 @@ func main() {
 	if err := controlapi.RegisterRepositories(server, app.Repositories, app.GitBroker); err != nil {
 		fail(err)
 	}
-	if err := controlapi.RegisterOCITransfer(server, app.OCITransfer); err != nil {
+	if err := controlapi.RegisterOCIStores(server, app.PersistentResources); err != nil {
 		fail(err)
 	}
 	if err := controlapi.RegisterGeneral(server, app.Bases, app.Runner, app.Events, app.Capabilities); err != nil {

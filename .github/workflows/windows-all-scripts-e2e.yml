@@ -205,3 +205,7 @@ jobs:
       - name: Verify installed controller Environment HTTPS and direct-egress refusal
         shell: pwsh
         run: ./tools/test_installed_egress.ps1
+
+      - name: Verify native Windows interop and strict OpenSSH through ordinary Host entry
+        shell: pwsh
+        run: python ./tools/windows-native-access-e2e.py

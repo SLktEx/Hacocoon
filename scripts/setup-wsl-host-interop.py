@@ -1,14 +1,56 @@
 #!/usr/bin/env python3
-"""Opt in to Windows drive/EXE access for the owned trusted haco-host only.
+"""Reconcile Windows drive/EXE access for the owned trusted haco-host only.
 
-Run as root on the WSL Physical Host after `haco setup`. No profiles or
+Installed by the Windows installer and invoked by controller-owned setup. No profiles or
 Environment devices are modified. Windows continues to enforce its user's ACLs.
 """
 import json
 import os
 from pathlib import Path
 import re
+import shlex
+import stat
+import sys
 import subprocess
+import tempfile
+
+PATH_RECORD = Path('/etc/hacocoon/windows-path.json')
+GUEST_LINUX_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
+
+def windows_paths(value, drives):
+    result = []
+    for entry in value.split(':'):
+        if (entry not in result and entry.startswith('/') and
+                not any(ord(c) < 32 or ord(c) == 127 for c in entry) and
+                '..' not in entry.split('/') and
+                any(entry == drive or entry.startswith(drive + '/') for drive in drives)):
+            result.append(entry)
+    return result
+
+
+def path_record(drives, capture=False):
+    if capture:
+        paths = windows_paths(os.environ.get('PATH', ''), drives)
+        if not paths:
+            raise ValueError('no WSL-converted Windows PATH; enable appendWindowsPath and rerun Windows installer')
+        parent = PATH_RECORD.parent
+        parent.mkdir(mode=0o755, exist_ok=True)
+        if parent.is_symlink() or parent.stat().st_uid != 0 or parent.stat().st_mode & 0o022:
+            raise ValueError('unsafe Windows PATH record directory')
+        with tempfile.NamedTemporaryFile(mode='w', dir=parent, delete=False) as stream:
+            json.dump(paths, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+            temporary = stream.name
+        os.replace(temporary, PATH_RECORD)
+        return paths
+    if PATH_RECORD.is_symlink() or PATH_RECORD.stat().st_uid != 0 or PATH_RECORD.stat().st_mode & 0o022:
+        raise ValueError('unsafe Windows PATH record; rerun Windows installer')
+    paths = json.loads(PATH_RECORD.read_text())
+    if not isinstance(paths, list) or not all(isinstance(p, str) and ':' not in p for p in paths):
+        raise ValueError('invalid Windows PATH record')
+    return windows_paths(':'.join(paths), drives)
 
 
 def drive_mounts(mounts):
@@ -47,9 +89,53 @@ def plan(config, devices):
             if other != name and present.get("path") == desired["path"]:
                 raise ValueError("mount target already used: " + desired["path"])
     current_interop = config.get("config", {}).get("environment.WSL_INTEROP", "")
-    if current_interop and not re.fullmatch(r"/var/lib/hacocoon-wsl/[0-9]+_interop", current_interop):
+    if current_interop and not re.fullmatch(r"/run/WSL/[0-9]+_interop", current_interop):
         raise ValueError("incompatible WSL_INTEROP setting")
     return [name for name in devices if name not in current]
+
+
+def ensure_native_binfmt(directory=Path('/proc/sys/fs/binfmt_misc'),
+                         generated=Path('/run/systemd/generator/systemd-binfmt.service.d/override.conf'),
+                         run=subprocess.run):
+    # A healthy native registration is never rewritten. Respect explicit disable
+    # or foreign interpreter settings rather than silently replacing them.
+    if (directory / 'status').read_text().strip() != 'enabled':
+        raise ValueError('WSL native binfmt is disabled; enable WSL interop explicitly')
+
+    def check():
+        entries = list(directory.glob('WSLInterop*'))
+        for entry in entries:
+            lines = set(entry.read_text().strip().splitlines())
+            expected = {'enabled', 'interpreter /init', 'flags: P', 'offset 0', 'magic 4d5a'}
+            if lines != expected:
+                raise ValueError('incompatible or disabled native WSL binfmt registration')
+        return bool(entries)
+
+    if check():
+        return
+    # Let WSL's own generated systemd integration restore its native handler.
+    # Never write a Hacocoon registration string into binfmt_misc/register.
+    info = generated.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+        raise ValueError('untrusted WSL systemd binfmt integration')
+    if ':WSLInterop:M::MZ::/init:P' not in generated.read_text():
+        raise ValueError('WSL native binfmt integration is unavailable')
+    run(['systemctl', 'restart', 'systemd-binfmt.service'], check=True)
+    if not check():
+        raise ValueError('WSL native binfmt registration was not restored')
+
+
+# No launcher or socket relay: this only restores WSL's native pathname after
+# the guest recreates /run. Refuse a pre-existing path owned by another setup.
+SOCKET_LAYOUT = r"""set -eu
+if test -e /run/WSL || test -L /run/WSL; then
+    if ! test -L /run/WSL || test "$(readlink /run/WSL)" != /var/lib/hacocoon-wsl; then exit 1; fi
+fi
+mkdir -p /etc/tmpfiles.d
+printf '%s\n' 'L /run/WSL - - - - /var/lib/hacocoon-wsl' > /etc/tmpfiles.d/hacocoon-wsl.conf
+systemd-tmpfiles --create /etc/tmpfiles.d/hacocoon-wsl.conf
+test -S /run/WSL/1_interop
+"""
 
 
 def main():
@@ -64,6 +150,14 @@ def main():
     for drive in drives:
         if Path(drive).is_symlink() or str(Path(drive).resolve()) != drive:
             raise ValueError("refusing a redirected drive root")
+    if sys.argv[1:] == ['--capture-path']:
+        path_record(drives, capture=True)
+        print('Recorded only WSL-converted Windows PATH entries')
+        return
+    if sys.argv[1:]:
+        raise ValueError('usage: setup-wsl-host-interop.py [--capture-path]')
+    paths = path_record(drives)
+    ensure_native_binfmt()
     incus = ["incus", "--project", "hacocoon"]
     inspect = ["incus", "query", "/1.0/instances/haco-host?project=hacocoon"]
     config = json.loads(subprocess.check_output(inspect))
@@ -72,15 +166,22 @@ def main():
     for name in missing:
         device = devices[name]
         subprocess.run(incus + ["config", "device", "add", "haco-host", name, device["type"]] + [k + "=" + v for k, v in device.items() if k != "type"], check=True)
-    socket_name = Path("/run/WSL/1_interop").resolve().name
-    if not re.fullmatch(r"[0-9]+_interop", socket_name):
-        raise ValueError("unexpected WSL interop socket identity")
-    subprocess.run(incus + ["config", "set", "haco-host", "environment.WSL_INTEROP=/var/lib/hacocoon-wsl/" + socket_name], check=True)
+    # /run is replaced by guest systemd's tmpfs at boot. Keep the Incus disk
+    # outside it and use standard tmpfiles to restore the native absolute path.
+    subprocess.run(incus + ['exec', 'haco-host', '--disable-stdin=false', '--',
+                           '/bin/sh', '-s'], input=SOCKET_LAYOUT, text=True, check=True)
+    subprocess.run(incus + ["config", "set", "haco-host", "environment.WSL_INTEROP=/run/WSL/1_interop"], check=True)
+    subprocess.run(incus + ["config", "set", "haco-host", "environment.PATH=" + GUEST_LINUX_PATH + ':' + ':'.join(paths)], check=True)
+    profile = '# Hacocoon managed Windows PATH; WSL already converted these entries.\n'
+    profile += 'export WSL_INTEROP=/run/WSL/1_interop\n'
+    profile += 'export PATH="$PATH":' + shlex.quote(':'.join(paths)) + '\n'
+    subprocess.run(incus + ['exec', 'haco-host', '--disable-stdin=false', '--', '/bin/sh', '-c',
+                   'umask 022; cat > /etc/profile.d/hacocoon-windows.sh'], input=profile, text=True, check=True)
     verified = json.loads(subprocess.check_output(inspect))
     if plan(verified, devices):
         raise ValueError("trusted Host interop devices did not converge")
     print("Trusted haco-host Windows access enabled: " + ", ".join(drives))
-    print("Open a new haco-host shell; use /init /mnt/<drive>/path/to/tool.exe <arguments>.")
+    print("Open a new haco-host shell; existing WSLInterop supports direct tool.exe execution.")
 
 
 if __name__ == "__main__":

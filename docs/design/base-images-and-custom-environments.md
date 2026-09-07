@@ -6,14 +6,17 @@ This document defines the v0.11 Base-image contract. `BASE_IMAGES.md` remains th
 
 ## Goal
 
-The product CLI now exposes `haco base list`, `haco base inspect <base>`,
-`haco env create --base <base> --workspace managed:<workspace> <environment>`
-and `haco env switch-base --base <base> <environment>`. Switch retains every
-managed repository volume, including uncommitted, untracked and unpushed work.
-It discards the Environment root filesystem and connections; reconnect Git
-and SSH afterwards. It uses canonical stop/delete/create transitions and
-fails closed at each step. See [ADR 0011](../adr/0011-managed-workspace-base-switch.md).
-Real-host acceptance is recorded in [implementation status](../IMPLEMENTATION_STATUS.md).
+The product CLI exposes `haco base list`, `haco base inspect <base>` and
+`haco env create --base <base> --workspace managed:<workspace> <environment>`.
+`haco env switch-base` is currently disabled and is not a Stage B requirement.
+Its need, semantics and CLI UX are deferred to Stage D or later, without blocking
+Stage A-C. The underlying historical composition/tests and
+[ADR 0011](../adr/0011-managed-workspace-base-switch.md) remain available.
+
+When necessary, use ordinary Environment deletion and creation with another
+Base, then attach the retained Workspace and optional persistent resource.
+This lifecycle is available today; it does not prescribe a future helper UX.
+See [ADR 0014](../adr/0014-persistent-managed-resources.md).
 
 Allow an Environment to start from a selectable Hacocoon **Base** without exposing Incus image aliases, remotes, or fingerprints as Core/public architecture.
 

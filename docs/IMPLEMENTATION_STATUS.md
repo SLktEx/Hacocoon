@@ -25,8 +25,8 @@ The optional authenticated-private-registry job was skipped; these results do
 not add private-registry acceptance. Final revision and merge status are in
 [PR #480](https://github.com/SLktEx/Hacocoon/pull/480).
 
-The existing local installation has **not** received this change. This maintenance
-fix remains in checkpoint v0.28; hosted acceptance does not imply local deployment.
+The hosted v0.28 run did not update the local installation at that time. The
+revised fresh Stage B acceptance below includes this guard from main.
 
 ## WSL startup failure investigation — 2026-09-07
 
@@ -76,13 +76,131 @@ installed service configuration was patched. Correct ownership validation
 belongs in the provider's process lifecycle; automatically deleting its
 PID files from Core or increasing the login timeout is not a root fix.
 
-## Second-stage workflow
+## Current Stage B revision
+
+Status: **implemented; revised local packaged acceptance passed**. Main baseline
+was `0665ba9`; this is branch-candidate evidence, not a published release or a
+claim that unrelated open PRs have landed. Current scope is native WSL interop,
+actual multi-drive projection, Persistent OCI Store and Windows native OpenSSH.
+`switch-base` is disabled at the public CLI and deferred to Stage D+; it does not
+block A-C. Historical code/ADR/evidence remain. See the
+[roadmap](status/architecture-and-roadmap.md#current-stage-b-scope),
+[OCI Store](design/persistent-oci-store.md) and
+[Windows SSH procedure](reference/windows-environment-ssh.md).
+
+**Installed candidate:** `c86c43e4f2702c5fccadd91f542d82bd8b733706`, checkpoint
+`v0.29`, snapshot `0.27.0-SNAPSHOT-c86c43e`, built 2026-09-07 10:38:30 JST.
+Windows ZIP SHA-256:
+`39205fea38aa7b38f8474edb6f957363b3565a22a00e6957d64ba542217566db`.
+Later commits refine tests and documentation; the accepted installed product is
+this exact candidate. Configuration: Windows 10.0.26200.9278, WSL 2.7.12,
+kernel `6.18.33.2-microsoft-standard-WSL2`, Ubuntu 26.04, Incus `6.0.5-8`,
+Incus-owned Btrfs pool `haco-local-default`. Default Base revision:
+`sha256:297ce79fb308c09126222dd6e64c260003c5d1e1ea1ce46ea43e80a419941636`.
+
+**Fresh path:** verified that only Ubuntu and Ubuntu-24.04 existed and Hacocoon
+was absent, extracted the branch-built ZIP, ran its ordinary `install-windows.bat`,
+entered `wsl -d Hacocoon`, and passed all six doctor checks. The maintained
+Windows installer gate then passed WSL termination/re-entry, retained Host data,
+the same BAT rerun and cold doctor. Additional native checks passed Host-only
+`incus restart haco-host --project hacocoon` without setup in between, actual
+`wsl --shutdown` followed by normal entry, and a later ordinary `haco setup`
+rerun/doctor. No source binary, mount, PATH, socket or service repair was injected
+into final-package acceptance. Windows/WSL features already existed; this is a
+fresh Hacocoon distribution, not an OS reinstall or Windows OS reboot test.
+
+| Step | Observed result on the final candidate |
+|---|---|
+| B1 | Actual DrvFs inventory detected C and Q, projected at `/mnt/c` and `/mnt/q`. On both NTFS drives, Windows-created files were read from Host, Host-created files were read from Windows, and spaced paths/arguments worked. Files created before WSL removal remained readable after fresh installation and both restart paths. These are the same Windows filesystems, not copies inside a disposable Environment. |
+| B1 native execution | Absolute `cmd.exe` ran without an explicit `/init`, followed by `cmd.exe /c ver`, `powershell.exe -NoProfile -NonInteractive`, Windows-PATH `where.exe`/`findstr.exe`, stdout `hello`, stderr marker and exit 23. The shell received only WSL-converted PATH entries under detected Windows drives. OCI and SSH Environment create/delete did not break interop in the already-open Host session. |
+| Former B3 | Packaged `haco env switch-base` returned exit 2 with `currently disabled` and Stage D guidance before any controller mutation. Base selection during ordinary Environment creation remains supported. |
+| B4 | Two Stores had different provider identities. Creating/attaching Store A, rejecting its deletion while leased, pulling BusyBox, building/running a local image, deleting the Environment, inspecting the retained Store, attaching it to a new Environment, reusing both images without registry access, and observing cached build steps passed. A separate Store started empty while the Workspace remained. Environment deletion kept Stores; explicit Store deletion removed them and subsequent inspection returned not found. |
+| B5 | Windows standard `System32/OpenSSH/ssh.exe` connected through Windows 127.0.0.1:22229, WSL Physical Host loopback and the Incus loopback proxy to Environment sshd. Generated config used strict checking and a dedicated trusted-provider host-key pin. `/workspace` was usable; a mismatched key failed before execution. Disconnect/delete removed the WSL listener and Windows reconnection failed. Windows may report timeout rather than ECONNREFUSED after removal. |
+| B2/A/B6 | One `stage-b-git-dev` Environment contained two independent `.git` directories with no shared commondir or alternates. Windows SSH fetch/pull, edit, commit and product-helper approved push passed for both. After disconnect/stop, status named the Environment, Workspace, Base and retained state. A later ordinary WSL entry verified the Environment remained stopped and its untracked Workspace note remained intact. |
+
+OCI versions were containerd `2.2.2-0ubuntu1.1`, nerdctl `2.3.5` and BuildKit
+`0.33.0`. Runtime binaries and daemon proxy settings were installed in each
+Environment through its exact package/download Policy. `pull --unpack=false`
+stored content; `run --snapshotter native` prepared snapshots. Built images and
+BuildKit cache stayed in the Store, while process/socket state stayed in `/run`.
+Before and after reattachment, BusyBox image ID was
+`sha256:c6348fa86ba0fb2108c9334f5fe913ddc6d853313e655891f133a0127c30099f`
+and the local image ID was
+`sha256:475bcd7010f2b330b1b82f7a43a911baeb6be801dfd1d2fb2d6b7b498a99c7bb`.
+Docker Store compatibility is **not** accepted by these results. Earlier Docker
+image-distribution evidence below is historical.
+
+All Git result writes targeted only `https://github.com/SLktEx/Hacocoon-test.git`.
+The two registrations intentionally use this one authorized remote with separate
+branches; different remote URLs remain covered by local real-Git regression.
+Both proposals were inspected for repository, Environment, URL, ref, operation,
+old OID `f4ff6e33588a7183b0c7d3db2f4c2214a527678f` and fixed new OID before
+`haco git approve`; independent Windows `git ls-remote` then matched:
+
+| Registration / branch | Verified remote commit |
+|---|---|
+| `stage-b-first` / `codex/stage-b-20260907-first` | `7f9f9ecaaae1cc332c3a42d9724eeddbb9701f4d` |
+| `stage-b-second` / `codex/stage-b-20260907-second` | `98168553a91e20f2f97b0658bfd305ab4ed488e6` |
+
+Btrfs independently reported source UUIDs `8dbe4029-79b1-5f46-96d1-522b9cf9fd6a`
+and `d84cae46-8f22-2144-99c8-d7d6ac5a6c9f` as the respective parent UUIDs of
+Workspace volumes `a558d778-1ac5-1047-9c04-d72568d530ff` and
+`8b7b06f4-8b40-7d4d-92e8-4643074ca769`. This proves the observed independent COW
+relationship, not performance. `managed:stage-b-both` and its stopped Environment
+are retained for the user.
+
+**Boundary/validation:** Environment checks found no `/init`, WSL socket,
+Windows drives or Windows executable access. Windows client private keys were
+created and removed only on Windows; only public keys entered Hacocoon. Git
+credentials remained in trusted Host's root-only standard gh store. The existing
+Windows Git token was transferred via stdin after official `gh api` identity
+and test-repository push-permission checks; no token was logged or put in an
+Environment. `gh auth login --with-token` initially rejected missing additional
+OAuth scopes; no broader scopes were granted (see the
+[GitHub CLI contract](https://cli.github.com/manual/gh_auth_login)). This was
+manual credential setup, not a new product broker.
+
+The installed egress workload passed allowed HTTPS, denied-proxy 403, blocked
+direct TCP and absent management sockets. Maintained local CI phases passed:
+docs, workflow policy, Go tests/vet and JavaScript tests, race, E2E, and isolated
+kernel forwarding. Release/package, native interop, lifecycle ownership and
+guest-systemd-readiness regressions passed. Release checks requiring supported
+systemd ran on Ubuntu 26.04; Windows installer/BAT components ran on real
+PowerShell 7/5.1. The developer Ubuntu 22.04 could not run the monolithic release
+phase unchanged; its supported-platform components were run separately. These
+are local results, not a claim of new hosted CI or private-registry acceptance.
+
+Reproducible drivers are
+[`windows-installer-user-path-e2e.py`](../tools/windows-installer-user-path-e2e.py),
+[`windows-native-access-e2e.py`](../tools/windows-native-access-e2e.py),
+[`test_windows_environment_ssh.ps1`](../tools/test_windows_environment_ssh.ps1),
+[`test_persistent_oci_store.py`](../tools/test_persistent_oci_store.py) and
+[`installed-egress-check`](../tools/installed-egress-check/main.go).
+Local proof logs are under `bin/stage-b-c86-*`, especially fresh-package-gate,
+persistent-oci, native-ssh-cleanup, approved-git-standard-credentials,
+two-repository-cow and retained-workspace. Logs and credential material are not
+part of the source archive.
+
+Manual Git authentication/Policy, SSH key/config/pin handling and optional OCI
+runtime/proxy installation remain. Wider Windows/image/runtime compatibility,
+hotplug, external removal of a live WSL binfmt handler, interrupted operations,
+upgrades and generic recovery remain unverified. The earlier handler disappearance
+was observed but its trigger was not established; normal setup/entry reconciles
+only a missing handler through WSL's own generated service. Stage D+ automation,
+switch-base reconsideration, registry/broker infrastructure, concurrent Store
+sharing and live migration are listed in [follow-ups](status/development-follow-ups.md).
+
+## Historical second-stage workflow (superseded scope)
+
+The following is preserved commit-bound evidence for the earlier request.
+Former B3 and delivery-only B4 are historical, not current requirements.
+
 
 Status: **implemented; B1–B6 locally accepted** on the Windows/WSL configuration
 below. Docker and nerdctl both passed one-way distribution and independent
 container execution. The selected B5/B6 improvements and the affected A workflow
 also passed. See the [workflow](reference/managed-repository-workflow.md),
-[OCI contract](design/oci-image-distribution.md) and
+[OCI contract](design/persistent-oci-store.md) and
 [follow-ups](status/development-follow-ups.md).
 
 | Step | Implemented behavior and observed result |
@@ -153,7 +271,7 @@ Both product transfers reported 1,183,232 bytes and archive SHA-256
 `a2ea9ac81b39572d424bd2b63461ac659c2b0a4c327ccb963e110f08ed553c57`.
 Both used `--network none`. Docker guest content became `guest-only`, nerdctl
 guest content became `nerd-guest-only`; both Host copies stayed `host-original`.
-See the [reproducible procedure](design/oci-image-distribution.md).
+See the [reproducible procedure](design/persistent-oci-store.md).
 
 **Repository validation:** maintained `ci-local.sh docs`, `workflow-policy`,
 `test` (Go tests/vet and JS), `race` and `e2e` passed after B5/B6. Narrow lifecycle,
@@ -293,7 +411,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.28**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.29**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

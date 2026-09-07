@@ -1,6 +1,6 @@
 # ADR 0011: Switch Base through canonical Environment lifecycle operations
 
-Status: accepted  
+Status: historical; superseded at the public contract by [ADR 0014](0014-persistent-managed-resources.md)  
 Date: 2026-09-06
 
 The PoC product client offers `haco env switch-base --base <base> <environment>`.

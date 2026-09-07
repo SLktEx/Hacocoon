@@ -131,7 +131,7 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
 	fmt.Fprintln(out, "  env        Create, inspect and access development Environments")
 	fmt.Fprintln(out, "  base       List and inspect Environment starting points")
-	fmt.Fprintln(out, "  plugin     Optional integrations, including OCI image distribution")
+	fmt.Fprintln(out, "  plugin     Optional integrations, including persistent OCI Stores")
 	fmt.Fprintln(out, "  repo       Clone a repository inside the trusted Host")
 	fmt.Fprintln(out, "  workspace  Prepare an independent managed repository copy")
 	fmt.Fprintln(out, "  git        Connect Git and review pending push approvals")

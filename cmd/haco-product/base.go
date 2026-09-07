@@ -20,6 +20,8 @@ type baseSwitchClient interface {
 	CreateEnvironment(context.Context, controlapi.EnvironmentCreateRequest) (core.Environment, error)
 }
 
+// Historical asset, not registered by the product CLI. Stage D+ must revisit
+// semantics (including persistent resource attachment) before reusing this UX.
 // Only canonical lifecycle operations mutate Environment ownership. Each API
 // fails closed; a failed replacement leaves the managed Workspace available.
 func switchBase(ctx context.Context, c baseSwitchClient, name string, base core.BaseName) (core.Environment, error) {

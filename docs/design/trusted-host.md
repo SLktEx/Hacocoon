@@ -9,26 +9,46 @@ invoke fixed trusted Git operations; the Physical Host retains all controller,
 Policy and Incus authority. See the
 [workflow](../reference/managed-repository-workflow.md) and
 [ADR 0008](../adr/0008-managed-repository-workspaces.md). Windows drive/exe
-integration is implemented through explicit administrator setup; see below.
+integration is reconciled by normal Windows installation and setup; see below.
 
 ## Windows interop
 
-After `haco setup`, run `sudo python3 scripts/setup-wsl-host-interop.py` from the
-source checkout on the WSL Physical Host. It verifies ownership and projects
-existing DrvFs `/mnt/<letter>` roots at the same paths in trusted `haco-host`.
-No Environment or shared profile receives these devices. In a new trusted
-shell, use `cd /mnt/c` then `/init /mnt/c/Windows/System32/cmd.exe /d /c ver`.
+The normal Windows installer captures only Windows PATH entries already
+converted by WSL and stores them in the root-owned Physical Host configuration.
+Controller-backed setup projects actual mounted DrvFs drive roots, read-only
+`/init` and the WSL interop socket directory into the owned `haco-host`.
+No drive-letter list is compiled into the product. Linux PATH entries from the
+Physical Host are excluded; the trusted Host keeps its own Linux PATH.
 
-The explicit `/init` prefix avoids changing binfmt handlers. `/init` and the
-interop directory are read-only mounts; Windows user ACLs govern drive access.
-Use a user-owned directory for writes. Repeat setup after WSL restarts if its
-socket identity changes. Direct exe invocation without `/init`, hotplug,
-reconnection and broad application compatibility are deferred.
-See [ADR 0009](../adr/0009-trusted-host-windows-interop.md).
+Fresh WSL already registers the native `WSLInterop` binfmt handler. Hacocoon
+reuses it and WSL's `/init`, sets the stable init interop socket path and adds the
+Windows PATH to trusted shell startup. The socket directory is mounted outside
+transient `/run`; standard systemd tmpfiles restores `/run/WSL` as a symlink to
+that read-only projection at every boot, preserving native absolute socket
+symlinks. It does not register another handler or
+create a Windows executable launcher. Healthy native binfmt registration is left
+untouched; if it disappeared, setup asks WSL's own generated systemd integration
+to restore it. Disabled or incompatible registrations are rejected. In a new
+trusted shell:
 
-Current CLI boundary: product `haco` implements help/version, controller-backed `setup` and `doctor`, and the WSL login alias. Retained lifecycle commands described below use temporary `hacoq` during [CLI migration](../CLI_MIGRATION.md); they do not describe implemented new product commands.
+```bash
+cmd.exe /c ver
+powershell.exe -NoProfile -NonInteractive -Command "[Console]::Out.WriteLine('hello'); exit 23"
+echo $?  # 23
+```
 
-Current packaged Windows acceptance and remaining gaps are recorded in [implementation status](../IMPLEMENTATION_STATUS.md). Product diagnostics use the [read-only controller contract](controller-client-transport.md#host-diagnostics).
+For Windows tools sensitive to UNC current directories, first `cd` to an
+available projected Windows directory. Read/write operations affect the actual
+Windows filesystem and survive Environment/Host recreation; Windows ACLs still
+apply. Projection devices persist in Incus and setup reconciles their identity.
+The installer and ordinary setup can be rerun. Drive hotplug/removal and generic
+recovery remain deferred.
+
+Only trusted `haco-host` receives these mounts, PATH and executable authority.
+Environment creation uses explicit devices without inherited profiles. It never
+receives `/init`, WSL sockets, Windows drives or the trusted controller socket.
+See [ADR 0009](../adr/0009-trusted-host-windows-interop.md) and the commit-bound
+fresh-install/restart results in [implementation status](../IMPLEMENTATION_STATUS.md).
 
 ## Summary
 
@@ -56,7 +76,7 @@ Managed Environments                   UNTRUSTED
 The current implementation provides:
 
 - `haco setup`, which reconciles one persistent `haco-host`;
-- `hacoq host shell`, which ensures the instance is running and enters an interactive login shell;
+- ordinary `wsl -d Hacocoon` entry and the retained legacy `hacoq host shell` alias;
 - the ownership marker `user.hacocoon.role=trusted-host`;
 - rootfs placement on Hacocoon-managed Incus storage;
 - Environment name `host` reserved to avoid a provider-local collision;
@@ -67,7 +87,7 @@ The current implementation provides:
 - `environment.HACO_CLIENT_MODE=controller`, which prevents still-unmigrated `haco` commands from silently using guest-local composition;
 - supported WSL bootstrap that verifies `haco-host doctor` before enabling default interactive entry.
 
-The broader trusted-Host design is still partial: Git/GitHub, OCI/containerd, cloud credentials, general external tooling, Windows mounts, and WSL interop have not all moved into `haco-host`, and the full `haco` versus `haco-host` responsibility migration is not complete.
+The broader namespace migration, cloud credentials and general external tooling remain partial. Git/GitHub and Windows integration above are implemented. Current OCI Stores attach only to Environments and do not require a Host runtime.
 
 ## Trust and authority
 
@@ -179,7 +199,7 @@ The installer verifies DNS, a default IPv4 route and HTTPS inside the real trust
 
 `haco-host` uses the root storage pool selected by the normal Hacocoon Incus storage integration. On the default local backend this keeps the instance rootfs in Hacocoon's sparse-raw Btrfs-backed Incus pool.
 
-This does not by itself prove that all future `haco-host` data is physically COW-shared with Seeds or Environments. Physical sharing remains measurement-dependent.
+This does not by itself prove that all future `haco-host` data is physically COW-shared with Base images or Environments. Physical sharing remains measurement-dependent.
 
 ## WSL default entry
 
@@ -240,10 +260,10 @@ The warning is emitted only on the interactive Host-shell path, so non-interacti
 
 Still separate work:
 
-- make `haco-host` the normal home for Git/GitHub and selected external-service tooling;
-- run the Host OCI store/containerd inside `haco-host`;
+- extend trusted external-service tooling beyond the implemented Git/GitHub path;
+- evaluate additional optional OCI runtime compatibility; current Stores attach only to Environments;
 - broker credentials without putting reusable credentials in ordinary Environments;
-- add optional WSL/Windows interop only to the trusted Host;
+- evaluate wider Windows application compatibility beyond the accepted native CLI cases;
 - classify and migrate the remaining appropriate `haco` commands to the controller client path;
 - move trusted Host-local operations into their long-term `haco-host` namespaces and remove temporary ambiguity;
 - finish the `haco` versus `haco-host` CLI responsibility split;
@@ -255,4 +275,4 @@ Repository tests cover ownership reconciliation, collision refusal, state recove
 
 The maintained real Incus E2E gate checks controller-owned `haco setup`, endpoint projection, digest equality of both required clients, `haco-host doctor` and `haco-host env ...` through the Physical Host controller, restart recovery, absence of guest `hacoq` after fresh setup, raw Incus-socket non-exposure, and absence of the trusted endpoint/client-mode marker on ordinary Environments. Retained legacy aliases, Base routing and local-composition guards have component coverage. The updated gate passed on `b71f88e`; commit-bound Windows results and remaining limits are recorded in [implementation status](../IMPLEMENTATION_STATUS.md).
 
-Actual Windows terminal startup, WSL distribution restart behavior, login-shell transition, and Windows integration still require real Windows + WSL acceptance before being claimed as host-verified.
+Windows/WSL claims are limited to the commit-bound real-host acceptance in implementation status. Other hardware and configurations remain unverified.

@@ -57,7 +57,7 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 		if err := r.ensureTrustedHostControlDevice(ctx); err != nil {
 			return err
 		}
-		return r.ensureTrustedHostNetworkAndRunning(ctx, state, rootPool)
+		return r.completeTrustedHost(ctx, state, rootPool)
 	}
 
 	if err := r.ensureTrustedHostNetwork(ctx); err != nil {
@@ -86,7 +86,7 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 		if err := r.ensureTrustedHostControlDevice(ctx); err != nil {
 			return errors.Join(fmt.Errorf("create trusted host: %w", initErr), err)
 		}
-		return r.ensureTrustedHostNetworkAndRunning(ctx, state, rootPool)
+		return r.completeTrustedHost(ctx, state, rootPool)
 	}
 
 	if err := r.verifyTrustedHostOwnership(ctx); err != nil {
@@ -98,7 +98,32 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 	if err := r.ensureTrustedHostControlDevice(ctx); err != nil {
 		return err
 	}
-	return r.ensureTrustedHostNetworkAndRunning(ctx, "STOPPED", rootPool)
+	return r.completeTrustedHost(ctx, "STOPPED", rootPool)
+}
+
+func (r *Runtime) completeTrustedHost(ctx context.Context, state, pool string) error {
+	if err := r.ensureTrustedHostNetworkAndRunning(ctx, state, pool); err != nil {
+		return err
+	}
+	if r.trustedHostInterop != nil {
+		return r.trustedHostInterop(ctx)
+	}
+	return nil
+}
+
+// ConfigureWSLInterop uses the installer-owned setup script. It does not
+// register binfmt handlers or install a Windows executable launcher.
+func (r *Runtime) ConfigureWSLInterop() {
+	r.trustedHostInterop = func(ctx context.Context) error {
+		const script = "/usr/local/libexec/hacocoon-wsl-interop"
+		if _, _, err := trustedClientSource(script); err != nil {
+			return fmt.Errorf("WSL interop setup unavailable; rerun Windows installer: %w", err)
+		}
+		if _, err := r.runner.Run(ctx, "/usr/bin/python3", "-I", script); err != nil {
+			return fmt.Errorf("refresh trusted Host Windows access; rerun Windows installer: %w", err)
+		}
+		return nil
+	}
 }
 
 // ProvisionTrustedHostClient installs the client-only haco-host binary into the

@@ -1,6 +1,6 @@
 # ADR 0012: Distribute OCI image archives into independent guest runtimes
 
-Status: accepted  
+Status: historical; superseded at the public contract by [ADR 0014](0014-persistent-managed-resources.md)  
 Date: 2026-09-06
 
 The OCI plugin owns one-way image save/load. The Incus adapter runs fixed

@@ -11,17 +11,36 @@ resource・Workspaceの削除は行わない。初期導入、永続化、trust 
 
 ## Windows連携
 
-状態: 手動セットアップをimplemented。WSL基盤側のcheckoutで、`haco setup`後に
-`sudo python3 scripts/setup-wsl-host-interop.py`を実行する。所有マークと衝突を
-確認し、実在するDrvFsの`/mnt/<letter>`をtrusted `haco-host`の同じパスへ
-マウントする。Environmentや共有profileには追加しない。
-新しいtrusted shellで`cd /mnt/c`した後、
-`/init /mnt/c/Windows/System32/cmd.exe /d /c ver`を実行できる。
-`/init`とinteropディレクトリは読み取り専用で、Windows利用者権限が
-ドライブアクセスを制約する。書き込みには利用者所有のディレクトリを使う。
-WSL再起動でsocket識別が変わる場合は設定を再実行する。
-`/init`なしの直接起動、着脱・再接続、全アプリ互換性はdeferred。
-[ADR 0009](../adr/0009-trusted-host-windows-interop.md)を参照。
+通常のWindows installerは、WSLが既に変換したWindows由来PATHだけを収集し、
+Physical Hostのroot所有設定へ保存する。controller経由のsetupは、実在するDrvFs
+ルート、読み取り専用の`/init`とWSL interop socketディレクトリを、所有確認済みの
+`haco-host`へ投影する。drive letterの固定一覧は実装しない。Physical HostのLinux
+PATHはコピーせず、trusted Host自身のLinux PATHを維持する。
+
+fresh WSLが登録したnative `WSLInterop` binfmtと`/init`を再利用し、安定したinit
+socket pathとWindows PATHをtrusted shellへ設定する。socketディレクトリは再作成される
+`/run`の外へ読み取り専用でmountし、標準systemd tmpfilesが起動時に`/run/WSL`への
+symlinkを復元する。これによりWSLの絶対path symlinkを保持する。別のbinfmt handlerや
+独自Windows executable launcherは作らない。正常な登録は変更せず、消失した場合だけ
+WSL自身が生成したsystemd integrationで復元する。無効化・非互換な登録は拒否する。
+新しいtrusted shellで次を実行できる。
+
+```bash
+cmd.exe /c ver
+powershell.exe -NoProfile -NonInteractive -Command "[Console]::Out.WriteLine('hello'); exit 23"
+echo $?  # 23
+```
+
+UNCの作業directoryを受け付けないWindows toolでは、先に利用可能な投影済みWindows
+ディレクトリへcdする。read/writeは同じWindows filesystemを変更し、Environmentや
+Hostを作り直してもファイルは残る。Windows ACLは引き続き適用される。projection deviceは
+Incus設定に保持され、setupがidentityを確認する。installerと通常setupは再実行可能。
+drive着脱・再接続と汎用復旧は後続対象とする。
+
+mount・PATH・Windows実行権限はtrusted `haco-host`専用。Environmentは共有profileを
+継承せず、/init、WSL socket、Windows drive、trusted controller socketを受け取らない。
+[ADR 0009](../adr/0009-trusted-host-windows-interop.md)と、commitを固定したfresh install・
+restartの[実機結果](../IMPLEMENTATION_STATUS.ja.md)を参照。
 
 Status: partial.
 
@@ -30,9 +49,9 @@ trusted Hostに置く。独立Workspace volume copyはEnvironment利用前にHos
 Git専用broker要求は固定したtrusted Git操作だけを呼び、controller・Policy・Incus権限は
 Physical Hostが保持する。[利用手順](../reference/managed-repository-workflow.md)と
 [ADR 0008](../adr/0008-managed-repository-workspaces.md)を参照。
-Windowsドライブ・exe連携はdeferred。
+Windows drive・exe連携は通常installer/setupで構成する（上記参照）。
 
-現在のCLI境界: 製品 `haco` はhelp/version・controller経由の `setup` / `doctor` とWSL login aliasを実装する。以下の保持しているlifecycle commandは[CLI移行](../CLI_MIGRATION.md)中の一時的な `hacoq` の機能であり、新製品commandの実装完了を意味しない。
+現在の製品hacoはcontroller経由のsetup/doctor、WSL通常入口、repo・Workspace・Environment・Git・OCI Storeの操作を提供する。保持したhacoq aliasはlegacy資産であり、新hacoのsubprocess依存ではない。
 
 現在のpackageのWindows受入と未確認項目は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。製品診断は[読み取り専用controller契約](controller-client-transport.ja.md#host診断)を使う。
 
@@ -62,7 +81,7 @@ Managed Environments                   UNTRUSTED
 現在は次を実装しています。
 
 - `haco setup`: 永続的な `haco-host` を1個reconcile
-- `hacoq host shell`: instanceをrunningにしてinteractive login shellへ入る
+- 通常の`wsl -d Hacocoon`入口と、保持したlegacy `hacoq host shell` alias
 - `user.hacocoon.role=trusted-host` ownership marker
 - Hacocoon-managed Incus storage上へのrootfs配置
 - provider-local collisionを避けるためEnvironment名`host`を予約
@@ -73,7 +92,7 @@ Managed Environments                   UNTRUSTED
 - 未移行`haco` commandがguest-local compositionへsilentに落ちることを防ぐ`environment.HACO_CLIENT_MODE=controller`
 - `haco-host doctor`を確認してからdefault interactive entryを有効化するsupported WSL bootstrap
 
-Trusted Host全体はまだpartialです。Git/GitHub、OCI/containerd、cloud credentials、一般的なexternal tooling、Windows mount、WSL interopはまだすべて移行済みではなく、`haco`と`haco-host`の責務分割も完了していません。
+Trusted Host全体のnamespace整理、cloud credential、汎用external toolingはまだpartial。上記のGit/GitHubとWindows連携はimplemented。現行OCI StoreはEnvironmentだけへattachし、Host runtimeを必須にしない。
 
 ## Trust と authority
 
@@ -185,7 +204,7 @@ Installerは成功を表示する前に、実際のtrusted host内でDNS・defau
 
 `haco-host`は通常のHacocoon Incus storage integrationが選んだroot storage poolを使います。Default local backendではHacocoonのsparse-raw Btrfs-backed Incus poolにrootfsを置きます。
 
-ただし、同じBtrfs上にあるだけで将来の`haco-host` dataがSeed / Environmentと物理的にCOW shareされるとはみなしません。そのclaimはmeasurement依存です。
+ただし、同じBtrfs上にあるだけで将来の`haco-host` dataがBase image / Environmentと物理的にCOW shareされるとはみなしません。そのclaimはmeasurement依存です。
 
 ## WSL default entry
 
@@ -239,9 +258,9 @@ Warningはinteractive Host-shell pathだけに出し、non-interactive WSL comma
 別workとして残るもの:
 
 - Git/GitHubやselected external-service toolingの標準実行場所を`haco-host`にする
-- Host OCI store / containerdを`haco-host`内で動かす
+- 任意OCI runtimeの対応範囲を拡張（現行StoreはEnvironmentだけにattach）
 - reusable credentialを通常Environmentへ置かないcredential broker
-- trusted Hostだけにoptional WSL / Windows interopを付与
+- 実機確認したCLI以外のWindows application互換性を評価
 - 残る適切な`haco` commandをclassifyしてcontroller client pathへ移行
 - trusted Host-local operationをlong-termの`haco-host` namespaceへ移しtemporary ambiguityをなくす
 - `haco` / `haco-host` CLI responsibility splitを完了
@@ -253,4 +272,4 @@ Repository testではownership reconciliation、collision refusal、state recove
 
 維持するreal Incus E2E gateはcontroller経由の `haco setup`、endpoint投影、必要な2本のclientのdigest一致、`haco-host doctor` / `haco-host env ...` のcontroller経由操作、restart復旧、fresh setupでguestに旧`hacoq`がないこと、raw Incus socket非露出、通常Environmentのtrusted endpoint / client-mode marker非露出を検査する。保持した旧alias・Base routing・local composition拒否はcomponent testで検証する。更新gateは `b71f88e` で成功した。commitを固定したWindows結果と残る制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。
 
-実Windows terminal起動、WSL distribution restart、login-shell transition、Windows integrationはReal Windows + WSL acceptanceが完了するまでhost-verifiedとは扱いません。
+Windows/WSLの確認済み範囲は、実装statusに記録したcommit固定の実機受入に限る。別hardware・別構成への互換性は未確認として扱う。
