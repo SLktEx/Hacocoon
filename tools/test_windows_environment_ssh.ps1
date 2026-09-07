@@ -319,6 +319,12 @@ haco open --port 3000 --no-browser "$name"
         try { [void](Invoke-WebRequest -Uri $previewUrl -TimeoutSec 3) } catch { $previewRefused = $true }
         if (-not $previewRefused) { throw 'Closed preview still accepts Windows HTTP requests' }
         Write-Host 'WINDOWS HTTP PREVIEW / REUSE / CONNECTION REFUSAL: PASS'
+        $environmentDoctor = Invoke-HacoHost @('/usr/local/bin/haco', 'doctor', '--json', $EnvironmentName) 'Diagnose Environment prerequisites'
+        $environmentReport = $environmentDoctor.Stdout | ConvertFrom-Json
+        if ($environmentReport.environment -ne $EnvironmentName -or [string]::IsNullOrWhiteSpace($environmentReport.workspace.id)) { throw 'Environment doctor reported the wrong Workspace' }
+        if (@($environmentReport.checks | Where-Object { $_.status -ne 'ok' }).Count -ne 0) { throw 'Environment doctor did not pass local prerequisite checks' }
+        Write-Host 'ENVIRONMENT DOCTOR WORKSPACE / DNS / SSH PREREQUISITES: PASS'
+
 
 
     } else {

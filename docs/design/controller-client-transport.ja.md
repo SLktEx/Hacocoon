@@ -254,3 +254,19 @@ pre-1.0 の旧 call 形式は置き換え、結果が不明な実行を自動で
 スクリプトでは `--json` で型付き一覧を取得できます。登録情報だけから現在の runtime 状態を推測しません。
 `haco env status <name>` は runtime 状態を問い合わせます。両方の人向け表示で外部 metadata の端末制御文字を escape します。
 空の状態では create command を示し、一覧がある場合は `haco open <name>` と status 確認へ案内します。
+
+## Environment の診断
+
+状態: **local prerequisite の実装済み、installed acceptance は未完了**。
+
+`haco doctor [--json] <environment>` は既存 controller から対象 Workspace、
+runtime 状態、client 接続を読みます。/workspace の存在、管理された DNS service と
+resolver 設定を確認し、SSH 接続がある場合は ssh.service も確認します。
+guest probe は固定の read-only command で、対象診断全体を 20 秒に制限します。
+停止した Environment は起動せず、依存する検査を skipped として報告します。
+
+host public key、接続用の提案 command、生の guest stdout/stderr や backend error は
+表示しません。local check の失敗は次の確認手順と exit 1 を返し、自動修復しません。
+成功はこの local prerequisite のみを示します。外部 DNS、egress Policy、
+desktop からの実到達、browser 描画は別途確認が必要です。
+対象指定のない Host 診断と既存の六項目は従来どおりです。

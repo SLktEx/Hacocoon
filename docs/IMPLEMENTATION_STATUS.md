@@ -784,3 +784,11 @@ OCI image execution and local installed acceptance remain unverified. See
 Status: **partial roadmap C5**. `haco open --port <port> [environment]` adds
 loopback HTTP preview with connection reuse and `--close`. Installed Windows HTTP
 acceptance and actual browser launch remain pending. See [preview](design/development-preview.md).
+
+## Environment diagnostics
+
+Status: **partial roadmap C6**. `haco doctor [--json] <environment>` reports
+Workspace, runtime and sanitized client connection information and checks local
+Workspace/DNS/SSH prerequisites without starting or repairing the Environment.
+Installed acceptance and external DNS/desktop reachability remain separate.
+See [diagnostic scope](design/controller-client-transport.md#environment-diagnostics).

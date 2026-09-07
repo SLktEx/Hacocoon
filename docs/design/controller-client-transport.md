@@ -259,3 +259,21 @@ scripts. It does not imply a current runtime state from registration alone.
 `haco env status <name>` queries runtime state. Both human-readable displays escape
 terminal control characters in external metadata. Empty state includes the create
 command; populated state routes to `haco open <name>` and status inspection.
+
+## Environment diagnostics
+
+Status: **implemented local-prerequisite slice; installed acceptance pending**.
+
+`haco doctor [--json] <environment>` reads the selected Environment's Workspace,
+runtime state and client connections through the existing controller. It checks
+the /workspace directory and managed DNS service/resolver configuration. When an
+SSH connection exists, it also checks ssh.service. Each guest probe has a fixed
+read-only command; the complete target inspection is bounded to 20 seconds.
+Stopped Environments remain stopped, with dependent checks reported skipped.
+
+The response omits host public keys and suggested connection commands. Arbitrary
+guest stdout/stderr and backend errors are not rendered. Failed local checks
+return exit 1 with a next action; they are not repaired. A successful report
+proves only these local prerequisites: external DNS, egress Policy, actual
+desktop reachability and browser rendering require separate acceptance.
+The existing no-target Host diagnostic behavior and six checks remain unchanged.
