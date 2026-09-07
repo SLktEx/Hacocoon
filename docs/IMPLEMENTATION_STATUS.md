@@ -1,5 +1,28 @@
 # Implementation Status
 
+## VS Code trusted review
+
+Status: **implemented repository slice; roadmap D2 remains partial**. The optional
+UI extension opens ordinary approval in a local custom terminal from Review or the
+command palette. It fixes executable routing and environment, rejects remote/web or
+untrusted execution and requires the existing CLI answer. VSIX packaging needs no
+npm download. Related 26 JS tests passed. The existing real VS Code GHA now includes
+local terminal to installed controller stale-request refusal; its result is pending.
+Native OS activation and fresh human review acceptance are not proven by this slice.
+See [the contract](design/pending-approval-review.md) and [ADR 0029](adr/0029-local-desktop-approval-review.md).
+
+At `0754280`, test 34161070477, Ubuntu 34161070466 and Incus 34161070522 passed.
+Windows 34161070471 passed actual VS Code, preview/Edge and all four doctor checks.
+Only approval acceptance failed, at Python prerequisite preparation before review;
+cleanup succeeded. Fixed diagnostic categories now distinguish setup-unit/package/
+DNS failures without raw output. The root cause is not established; this is FAIL,
+not SKIP, and the new diagnostic rerun is pending.
+
+
+The generated optional VSIX passed archive/manifest checks and installation into an
+isolated profile of the actual local VS Code. This verifies packaging only, not a
+fresh approval or local terminal/controller round trip.
+
 ## Pending approval review
 
 Status: **implemented repository slice; roadmap D2 remains partial**.

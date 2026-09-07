@@ -1,12 +1,12 @@
 # Client-neutral interaction events
 
-The trusted Host can review current pending requests with haco approve. This is a separate private management path; notification activation remains planned. See [pending approval review](design/pending-approval-review.md).
+The trusted Host can review current pending requests with haco approve. This is a separate private management path; native OS notification activation remains planned. See [pending approval review](design/pending-approval-review.md).
 
 ## Approval correlation
 
 Trusted approval prompts and pending Git proposals now carry the same controller-assigned
 `request_id` as interaction events, audit records and the final capability result.
-This is implemented groundwork for notification review; notification-triggered approval
+This is implemented groundwork for notification review; native OS activation
 remains planned. The ID grants no authority. Git decisions still use the existing
 trusted management endpoint and proposal ID. No action endpoint or sensitive detail
 is added to the read-only event bridge.
@@ -114,8 +114,10 @@ Native notification text is constructed only from the minimized public interacti
 
 The optional VS Code presentation client lives at [`../clients/vscode-notify/README.md`](../clients/vscode-notify/README.md). It reads the same loopback `/api/v1/events` bridge, persists cursor/dedup state through VS Code `globalState`, and shows normal VS Code notifications.
 
-The extension is not required by `haco-vscode` and does not replace standard Remote-SSH. It is a UI-side observer only; displaying or clicking a notification is not an approval.
+The extension is not required by `haco-vscode` and does not replace standard Remote-SSH. Presentation remains read-only; Review opens a separate local CLI. Displaying or clicking a notification is not an approval.
 
 ## Root selection
 
 `interaction.NewDefaultReader()` follows the same root convention as the local Hacocoon composition: `HACO_ROOT` when set, otherwise `/var/lib/hacocoon`. `NewReader(root)` is available for explicitly scoped adapters and tests.
+
+The optional desktop VS Code Review action now opens the trusted local CLI without answering. Native OS activation remains planned. [Contract](design/pending-approval-review.md).

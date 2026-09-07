@@ -1,4 +1,6 @@
 # バージョン番号とリリース状況
+現在の checkpoint v0.38 は、承認待ちと任意のローカル VS Code review を扱います。OS 通知からの起動は planned、installed review の受け入れは partial です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
+
 
 partial の承認段階で、通常 Git pending／approve／deny を再利用する保存範囲と
 永続化 receipt に接続しました。通知・config 管理全体は未完了です。

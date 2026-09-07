@@ -1,4 +1,6 @@
 # Versioning and release status
+Current checkpoint v0.38 includes bounded pending approval review and optional local VS Code review. Native notification activation remains planned; installed review acceptance remains partial. See [implementation status](../IMPLEMENTATION_STATUS.md).
+
 
 The partial approval slice now connects ordinary Git pending/approve/deny to
 reusable saved scope and durable receipts. Notifications, broader config
@@ -7,7 +9,7 @@ push, saved ask reuse and denial acceptance; other choices retain repository-onl
 coverage. Current Windows GHA failed at the editor wait, after SSH passed. See
 [ADR 0026](../adr/0026-reusable-git-approval-scope.md).
 
-Current checkpoint v0.37 adds approval configuration inspection and revision-bound
+Preceding checkpoint v0.37 adds approval configuration inspection and revision-bound
 editing through the same Policy and writer as saved approvals. Installed acceptance
 is pending.
 

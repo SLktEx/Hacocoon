@@ -44,13 +44,14 @@ try {
         throw 'VS Code did not complete remote editor/terminal acceptance within 10 minutes.'
     }
     $result = Get-Content -Raw -LiteralPath $resultFile | ConvertFrom-Json
-    $expected = @('workspace-marker','editor-file-read-write','remote-terminal-exec','owned-probes-removed')
+    $expected = @('workspace-marker','editor-file-read-write','remote-terminal-exec','local-approval-stale-refusal','owned-probes-removed')
     if ($result.status -ne 'passed' -or $result.stage -ne 'complete' -or
         $result.authority -ne $fixture.authority -or $result.nonce -ne $fixture.nonce -or
         ($result.checks -join ',') -ne ($expected -join ',')) {
         throw "Editor acceptance failed at stage '$($result.stage)'."
     }
     Write-Host "VS Code $($result.vscode): actual Remote-SSH editor file read/write, terminal execution and probe cleanup passed."
+    Write-Host 'VS CODE LOCAL APPROVAL TERMINAL / INSTALLED CONTROLLER STALE REFUSAL: PASS'
     Write-Host 'VS CODE REMOTE ENVIRONMENT: PASS'
 } finally {
     # This exact executable belongs to the freshly created portable fixture;

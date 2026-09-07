@@ -38,6 +38,7 @@ def package(environment: str, output: Path, result: Path) -> dict:
         z.writestr('extension/package.json', json.dumps(manifest))
         z.writestr('extension/fixture.json', json.dumps(fixture))
         z.write(HERE / 'vscode-acceptance/extension.js', 'extension/extension.js')
+        z.write(HERE.parent / 'clients/vscode-notify/review.js', 'extension/review.js')
     return fixture
 
 def main():

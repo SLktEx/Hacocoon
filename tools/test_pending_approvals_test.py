@@ -1,9 +1,16 @@
 """Regression for the installed approval fixture's real setup output contract."""
 import unittest
-from test_pending_approvals import valid_network_output
+from test_pending_approvals import valid_network_output, command_failure_category
 
 
 class NetworkOutputTest(unittest.TestCase):
+    def test_diagnostics_never_return_arbitrary_output(self):
+        self.assertEqual(command_failure_category("SECRET", "SECRET"), "command")
+        self.assertEqual(command_failure_category("", "Unit hacocoon-project-setup.service already exists. SECRET"), "unit-busy")
+        self.assertEqual(command_failure_category("PENDING_PREREQ_STARTED\nSECRET\n", ""), "package-update")
+        self.assertEqual(command_failure_category("PENDING_PREREQ_UPDATED\n", ""), "package-install")
+        self.assertEqual(command_failure_category("PENDING_PREREQ_READY\n", ""), "after-prerequisite")
+
     def test_setup_completion_is_expected(self):
         self.assertTrue(valid_network_output("PENDING_NETWORK_RESULT_OK\nProject setup completed.\n"))
 

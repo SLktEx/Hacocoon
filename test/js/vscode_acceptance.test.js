@@ -13,7 +13,7 @@ async function observe(options = {}) {
   let shown = false, terminal = false, disposed = false, closed = false;
   const folder = {scheme: 'vscode-remote', authority: fixture.authority, path: '/workspace', ...options.uri};
   const api = {
-    version: 'fixture', env: {remoteName: options.remoteName || 'ssh-remote'},
+    ExtensionKind: { UI: 1 }, version: 'fixture', env: {remoteName: options.remoteName || 'ssh-remote'},
     Uri: {joinPath: (uri, name) => ({...uri, path: uri.path + '/' + name})},
     workspace: {
       workspaceFolders: [{uri: folder}],
@@ -29,7 +29,8 @@ async function observe(options = {}) {
     },
     window: {
       showTextDocument: async () => { shown = true; },
-      createTerminal: ({cwd}) => {
+      createTerminal: ({cwd, pty}) => {
+        if (pty) return { dispose() {} };
         assert.equal(cwd.authority, fixture.authority);
         terminal = true;
         return {
@@ -47,7 +48,18 @@ async function observe(options = {}) {
   };
   const context = {
     exports: {}, Buffer,
-    require: name => name === 'vscode' ? api : name === './fixture.json' ? fixture : {
+    require: name => name === './review' ? { createReview(localAPI, settings) {
+      assert.equal(settings.localUI, true);
+      const review = (id) => {
+        assert.equal(id, fixture.nonce);
+        localAPI.window.createTerminal({ pty: { onDidWrite(callback) {
+          callback(options.badReview ? 'wrong result' : 'haco: request is no longer pending\r\nReview ended (exit 1).');
+          return { dispose() {} };
+        } } });
+      };
+      review.dispose = () => {};
+      return review;
+    } } : name === 'vscode' ? api : name === './fixture.json' ? fixture : {
       writeFileSync: (p, content, flags) => { assert.equal(flags.flag, 'wx'); assert.ok(!publications.has(p)); publications.set(p, content); },
       linkSync: (src, dst) => { assert.ok(!publications.has(dst)); publications.set(dst, publications.get(src)); },
       unlinkSync: p => publications.delete(p)
@@ -56,7 +68,7 @@ async function observe(options = {}) {
     clearTimeout: () => {}
   };
   vm.runInNewContext(source, context);
-  context.exports.activate();
+  context.exports.activate({ extension: { extensionKind: 1 } });
   for (let i = 0; i < 1000; i++) await Promise.resolve();
   return {result: publications.has('/result') ? JSON.parse(publications.get('/result')) : undefined,
     files, shown, terminal, disposed, closed};
@@ -64,7 +76,7 @@ async function observe(options = {}) {
 test('PASS requires remote editor read/write, terminal execution and cleanup', async () => {
   const r = await observe();
   assert.equal(r.result.status, 'passed');
-  assert.deepEqual(r.result.checks, ['workspace-marker', 'editor-file-read-write', 'remote-terminal-exec', 'owned-probes-removed']);
+  assert.deepEqual(r.result.checks, ['workspace-marker', 'editor-file-read-write', 'remote-terminal-exec', 'local-approval-stale-refusal', 'owned-probes-removed']);
   assert.equal(r.files.size, 1);
   assert.ok(r.shown && r.terminal && r.disposed && r.closed);
 });
@@ -81,6 +93,7 @@ for (const [name, options, stage] of [
   ['editor mismatch', {badEditor: true}, 'remote-filesystem'],
   ['terminal absent', {noTerminal: true}, 'remote-terminal'],
   ['terminal mismatch', {badTerminal: true}, 'remote-terminal'],
+  ['wrong local review result', {badReview: true}, 'local-approval-review'],
   ['cleanup fails', {cleanupFailure: true}, 'cleanup']
 ]) {
   test(name + ' cannot pass', async () => {

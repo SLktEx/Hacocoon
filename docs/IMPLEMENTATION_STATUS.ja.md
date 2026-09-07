@@ -1,5 +1,25 @@
 # 実装状況
 
+## VS Code の信頼された承認画面
+
+状態: **repository 実装済み、ロードマップ D2 は partial**。
+任意の UI 拡張は Review または command palette から通常の承認 CLI をローカル専用 terminal で開きます。
+実行先と環境を固定し、remote/web・信頼しない window を拒否、回答は既存 CLI で入力します。
+VSIX 作成に npm download は不要です。関連 JavaScript 26 件は成功しました。
+実 VS Code GHA に local terminal → installed controller の古い要求の拒否を追加しましたが結果は未確認です。
+OS 通知からの起動と、新規要求への人間の実回答はこの段階では証明していません。
+[契約](design/pending-approval-review.ja.md) と [ADR 0029](adr/0029-local-desktop-approval-review.ja.md) を参照してください。
+
+`0754280` の test 34161070477、Ubuntu 34161070466、Incus 34161070522 は成功しました。
+Windows 34161070471 は実 VS Code、preview/Edge、doctor 全 4 項目が成功しました。
+承認受け入れだけが review 前の Python 準備で失敗し、cleanup は成功しました。
+setup unit・package・DNS 等を生出力なしの固定分類で識別する診断を追加しました。
+原因は未確定で、これは SKIP ではなく FAIL です。診断を追加した再実行は未確認です。
+
+
+生成した任意拡張の VSIX は archive/manifest 検証と、実ローカル VS Code の独立 profile への
+インストールに成功しました。これは package の確認であり、新規承認や local terminal/controller の往復の証明ではありません。
+
 ## 承認待ちの確認
 
 状態: **repository の一段階を実装済み。ロードマップ D2 は partial です。**

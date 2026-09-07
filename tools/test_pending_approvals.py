@@ -14,13 +14,34 @@ import tempfile
 import time
 
 
+class CommandFailure(RuntimeError):
+    def __init__(self, result):
+        self.category = command_failure_category(result.stdout, result.stderr)
+        super().__init__("haco command failed")
+
+
+def command_failure_category(stdout, stderr):
+    if re.search(r"Unit hacocoon-project-setup(?:\.service)? (?:already exists|is already loaded|was already loaded)", stderr):
+        return "unit-busy"
+    if "Temporary failure resolving" in stderr or "Temporary failure resolving" in stdout:
+        return "dns-failed"
+    if "Could not get lock" in stderr:
+        return "package-lock"
+    for marker, category in (("PENDING_PREREQ_READY", "after-prerequisite"),
+                             ("PENDING_PREREQ_UPDATED", "package-install"),
+                             ("PENDING_PREREQ_STARTED", "package-update")):
+        if marker in stdout.splitlines():
+            return category
+    return "command"
+
+
 def command(*args, input_text=None, timeout=90):
     result = subprocess.run(
         ["/usr/local/bin/haco", *args], input=input_text, text=True,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout,
     )
     if result.returncode:
-        raise RuntimeError("haco command failed with exit " + str(result.returncode))
+        raise CommandFailure(result)
     return result.stdout
 
 
@@ -76,7 +97,7 @@ def main(environment):
             phase = "prepare"
             step = "python-prerequisite"
             prerequisite = directory / "prerequisite.sh"
-            prerequisite.write_text("set -eu\nif ! test -x /usr/bin/python3; then\n  apt-get update\n  apt-get install -y --no-install-recommends python3\nfi\n", encoding="utf-8")
+            prerequisite.write_text("set -eu\necho PENDING_PREREQ_STARTED\nif ! test -x /usr/bin/python3; then\n  apt-get update\n  echo PENDING_PREREQ_UPDATED\n  apt-get install -y --no-install-recommends python3\nfi\necho PENDING_PREREQ_READY\n", encoding="utf-8")
             prerequisite.chmod(0o600)
             recipe_touched = True
             command("setup", "--script", str(prerequisite), environment, timeout=240)
@@ -162,8 +183,9 @@ PY
                         policy["rules"] = [r for r in policy["rules"] if r != rule]
                     step = "verify-saved-policy"
                     configuration_update(directory, remove_administrator_ask)
-        except Exception:
-            failure = phase + "-" + step
+        except Exception as error:
+            category = error.category if isinstance(error, CommandFailure) else "timeout" if isinstance(error, subprocess.TimeoutExpired) else "validation"
+            failure = phase + "-" + step + "-" + category
         finally:
             if process is not None:
                 try:

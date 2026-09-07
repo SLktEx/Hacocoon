@@ -1,12 +1,12 @@
 # クライアント中立 Interaction Event
 
-信頼された Host の haco approve で現在の承認待ちを確認できます。これは private な管理経路であり、通知から開く操作は引き続き planned です。[承認待ちの契約](design/pending-approval-review.ja.md)を参照してください。
+信頼された Host の haco approve で現在の承認待ちを確認できます。これは private な管理経路であり、VS Code はローカル review を開けます。OS 通知からの起動は planned です。[承認待ちの契約](design/pending-approval-review.ja.md)を参照してください。
 
 ## 承認要求の照合
 
 信頼された承認画面と Git の承認待ち情報には、通知イベント・監査・実行結果と
 同じ controller 発行の `request_id` を渡します。この照合部分は実装済みですが、
-通知から承認する操作は planned です。ID 自体は権限を与えません。Git の決定には
+VS Code からの review はローカル CLI を使い、OS 通知からの起動は planned です。ID 自体は権限を与えません。Git の決定には
 既存の信頼された管理 endpoint と proposal ID を使います。read-only のイベント
 bridge に操作 endpoint や機密の詳細情報を追加しません。
 
@@ -109,8 +109,10 @@ native通知文は最小化済みpublic interaction fieldだけから生成し�
 
 optionalなVS Code presentation clientは [`../clients/vscode-notify/README.md`](../clients/vscode-notify/README.md) にあります。同じloopback `/api/v1/events` bridgeを読み、cursor/dedup stateはVS Code `globalState`へ保存し、通常のVS Code notification UIへ表示します。
 
-このextensionは `haco-vscode` の必須要件ではなく、標準Remote-SSHを置き換えません。UI側のobserverにすぎず、通知を表示・clickすること自体はapprovalではありません。
+このextensionは `haco-vscode` の必須要件ではなく、標準Remote-SSHを置き換えません。表示は read-only で、Review は別のローカル CLI を開きます。通知の表示・クリック自体は approval ではありません。
 
 ## Root
 
 `interaction.NewDefaultReader()` は local Hacocoon と同じ root 規則を使います。`HACO_ROOT` があればそれを、なければ `/var/lib/hacocoon` を使います。明示的な adapter/test では `NewReader(root)` を利用できます。
+
+任意の desktop VS Code Review は回答せずローカルの信頼された CLI を開きます。OS 通知からの起動は planned です。 [Contract](design/pending-approval-review.ja.md).

@@ -2,7 +2,7 @@
 
 [日本語](pending-approval-review.ja.md) | English
 
-Status: **implemented repository slice; notification activation remains planned**.
+Status: **implemented repository slice; VS Code review implemented; native activation remains planned**.
 Repository tests are separate from installed network, desktop and GitHub acceptance.
 
 ## Ordinary use
@@ -65,10 +65,28 @@ actual result on failure but omit provider output and use fixed error categories
 ## Notifications
 
 The [interaction stream](../INTERACTION_EVENTS.md) remains read-only and minimized.
-Its request ID is correlation data, never an approval token. Notification clicks
-and native/VS Code review activation are not implemented by this slice. Future
-clients must open the trusted review path and require a fresh human answer; they
-must not submit authority through the event bridge or run the trusted command in
-an untrusted remote terminal.
+Its request ID is correlation data, never an approval token. The optional desktop
+VS Code extension offers Review and a Hacocoon: Review Pending Approvals command.
+Both open the ordinary CLI in a custom terminal owned by the local UI extension
+host. Clicking supplies no answer. The operator sees the exact trusted prompt
+and types the existing one-shot or saved choice, including a separate answer for ask.
+
+Windows uses the installed local Hacocoon WSL distribution and its default operator
+account. Linux uses the installed local Physical Host CLI. Executables are fixed
+absolute paths, arguments are separate, and a small environment allowlist excludes
+workspace/controller overrides. No remote shell or workspace task runs the command.
+Only an explicit local user setting can select another installed WSL distribution.
+Web, remote extension hosts, untrusted windows and unsupported platforms refuse review.
+
+Duplicate panes for the same request are reused. Input and output are bounded;
+subprocess control characters cannot alter terminal display. Closing, Ctrl-C/D or
+fifteen-minute expiry terminates the local child and never retries or rolls back
+an already submitted decision. Failed/unknown outcomes remain visibly unconfirmed.
+Native OS notification activation remains planned. See [ADR 0029](../adr/0029-local-desktop-approval-review.md).
+
+Repository JS tests cover routing, input, disposal, failures and notification clicks.
+Installed GHA now probes the real custom terminal from a Remote-SSH editor with an
+unpredictable stale ID, requiring the installed controller's refusal. This new probe
+is pending; it does not prove an actual human's fresh approval or OS notification click.
 
 See [ADR 0028](../adr/0028-pending-approval-sessions.md).

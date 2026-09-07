@@ -2,7 +2,7 @@
 
 [English](pending-approval-review.md) | 日本語
 
-状態: **repository の一段階を実装済み。通知から開く操作は planned です。**
+状態: **repository の一段階を実装済み。VS Code review は実装済み、OS 通知からの起動は planned です。**
 repository のテストと、installed の network・desktop・GitHub 受け入れは区別します。
 
 ## 通常の使い方
@@ -58,10 +58,31 @@ provider 出力は除外し、error は固定の分類だけを返します。
 
 ## 通知
 
-[Interaction Event](../INTERACTION_EVENTS.ja.md) は read-only・最小限のままです。
-ID は照合用で、承認 token ではありません。この段階では native／VS Code の通知から
-review を開く操作は未実装です。将来の client も信頼された review 経路で新たに人の
-回答を求める必要があります。event bridge 経由で承認したり、信頼されない remote
-terminal で Host の承認コマンドを実行したりしてはいけません。
-
+[Interaction stream](../INTERACTION_EVENTS.ja.md) は read-only の最小化された表示経路です。
+ID は照合用で、承認 token ではありません。VS Code は下記のローカル review を使用し、
+native OS 通知からの起動は planned です。event bridge へ回答を送ったり、
+信頼しない remote terminal で管理コマンドを動かしたりしません。
 [ADR 0028](../adr/0028-pending-approval-sessions.ja.md) を参照してください。
+
+## VS Code からのローカル承認
+
+状態: **repository 実装済み、installed 受け入れは未確認**。
+任意の desktop VS Code 拡張で通知の Review、または Hacocoon: Review Pending Approvals を選ぶと、
+ローカル UI extension host が通常の `haco approve` を専用 terminal で開きます。
+クリック自体では回答しません。信頼された現在の要求と再利用範囲を確認し、単発回答または保存を選び、
+ask には別途今回の yes/no を入力します。
+
+Windows はローカルの installed Hacocoon WSL distribution と既定の利用者を使用し、
+Linux はローカル Physical Host の installed CLI を使用します。実行ファイルは絶対パス固定、
+引数は分離し、環境変数は許可リストに限定します。workspace の実行設定や controller override、
+remote shell は使いません。別の WSL distribution はローカル user 設定だけで指定できます。
+Web、remote extension host、信頼されていない window、非対応 platform は承認を開けません。
+
+同じ要求の画面は再利用し、入力と出力を制限します。子プロセスの制御文字は terminal を操作できません。
+閉じる操作・Ctrl-C/D・15 分の期限はローカルの子プロセスを終了させますが、送信済み回答の取消しや
+再実行はしません。失敗・不明な結果は未確認として示します。OS 通知からの起動は planned のままです。
+[ADR 0029](../adr/0029-local-desktop-approval-review.ja.md) を参照してください。
+
+JavaScript テストは実行先、入力、終了処理、失敗、通知クリックを確認します。
+実 VS Code GHA には予測不能な古い要求 ID で local terminal から installed controller の拒否を確認する
+probe を追加しましたが、結果は未確認です。新しい要求への人間の実回答や OS 通知クリックを証明するものではありません。
