@@ -5,7 +5,7 @@
 状態: **ロードマップ C は partial**。desktop SSH の準備、`haco open [--client vscode|ssh] [environment]`、
 保持した環境の再開、読みやすい対象一覧を提供します。Host の保存手順は `haco setup --script <path>`、
 再実行、`--clear-script` で implemented で、bcc1baf のインストール済み GHA も成功しました。
-一時実行 CLI は repository 実装済みで実 Incus 検証待ちです。より広い C1 の対象選択、C3–C5 と後続段階は未完了です。
+一時実行 CLI は実装済みで、4adfe19 の実 Incus 検証も成功しました。より広い C1 の対象選択、C3–C5 と後続段階は未完了です。
 
 `4f1f512` では4つの GHA workflow が成功しました。Windows job は通常の `haco open` から実際の VS Code
 1.136.1 Remote-SSH に接続し、document の読み書き、terminal 実行、検証用ファイルの削除を確認しました。
@@ -607,7 +607,7 @@ controller setup 外の暗黙の Host 再作成は未検証です。ユーザー
 
 ## 一時実行
 
-状態: **product CLI は implemented、実 Incus の検証は pending**。
+状態: **product CLI は implemented、実 Incus の検証は 4adfe19 で成功**。
 `haco run [--rm] -- <command>` は既定で所有権付きの一時 Workspace を作り、
 /workspace から実行し、runtime と自動 OCI copy を削除します。
 `--workspace` は既存 Workspace と Store を保持し、`--no-oci` は自動コピーを無効化します。
@@ -616,8 +616,8 @@ resource cleanup も Workspace binding を原子的に確認します。失敗�
 非ゼロ終了、片付け失敗、中断を区別し、stdin/TTY は未実装です。
 
 race 回帰は既存作業の保護、片付け失敗と回復、既定の一時 source、OCI 公開元の保持、
-provider の明示対応と argv の保持を検証します。実 Incus GHA に通常 CLI の成功、exit 17、
-既存ファイルへの書き込み、中断後の削除を追加し、新しい source での結果は未取得です。
+provider の明示対応と argv の保持を検証します。実 Incus GHA の 4adfe19（run 34115004878、job 101719650209）で通常 CLI の成功、exit 17、
+既存ファイルへの書き込み、中断後の実体不在を確認しました。
 内容入り OCI image 実行とローカル installed acceptance は未検証です。
 [一時実行](design/temporary-execution.ja.md) と
 [ADR 0020](adr/0020-runtime-owned-temporary-workspaces.md) を参照してください。

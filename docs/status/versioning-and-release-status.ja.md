@@ -105,7 +105,7 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.32 | Automatic Workspace Store Initialization | 実装済み |
 | v0.33 | Desktop SSH Setup | 実装済み |
 | v0.34 | Host Setup Recipes | 実装済み・Windows の保存/再実行/更新/解除は bcc1baf で成功 |
-| v0.35 | Temporary Execution | repository 実装済み・実 Incus 検証は pending |
+| v0.35 | Temporary Execution | 実装済み・通常 run と中断後削除は 4adfe19 の実 Incus で成功 |
 
 現在のmilestone位置は **v0.35** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 

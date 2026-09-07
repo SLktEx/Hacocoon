@@ -6,8 +6,7 @@ Status: **partial roadmap C**. Product commands provide desktop SSH setup,
 `haco open [--client vscode|ssh] [environment]`, retained resume and readable
 Environment target discovery. Saved Host setup recipes are now implemented through
 `haco setup --script <path>`, replay and `--clear-script`; installed Windows GHA
-passed at bcc1baf. The temporary-run product CLI is implemented with real-Incus
-acceptance pending. Broader C1 selection, C3–C5 and later roadmap stages remain incomplete.
+passed at bcc1baf. The temporary-run product CLI and real-Incus acceptance passed at 4adfe19. Broader C1 selection, C3–C5 and later roadmap stages remain incomplete.
 
 All four GHA workflows passed at `4f1f512`. The Windows job proved actual VS Code
 1.136.1 Remote-SSH document read/write, terminal execution and owned probe cleanup
@@ -717,7 +716,7 @@ evidence; it is separate from the still-pending local package policy permission.
 
 ## Temporary execution
 
-Status: **implemented product CLI; real-Incus acceptance pending**.
+Status: **implemented product CLI; real-Incus acceptance passed at 4adfe19**.
 `haco run [--rm] -- <command>` creates an owned temporary Workspace by default,
 executes in /workspace and removes the runtime plus its automatic OCI copy.
 `--workspace` retains an existing Workspace and Store; `--no-oci` opts out.
@@ -728,8 +727,8 @@ cleanup failure and cancellation remain distinct; stdin/TTY is not implemented.
 
 Focused race regressions cover retained-work protection, cleanup failure/recovery,
 default source selection, OCI source retention, provider opt-in and literal argv.
-Maintained real Incus GHA now includes product success, exit 17, retained writes
-and cancellation cleanup; the new source has not run that gate yet. Populated
+Maintained real Incus GHA passed product success, exit 17, retained writes and
+cancellation cleanup at 4adfe19 (run 34115004878, job 101719650209). Populated
 OCI image execution and local installed acceptance remain unverified. See
 [temporary execution](design/temporary-execution.md) and
 [ADR 0020](adr/0020-runtime-owned-temporary-workspaces.md).

@@ -2,7 +2,7 @@
 
 日本語 | [English](temporary-execution.md)
 
-状態: **product CLI は implemented、実 Incus の検証は pending**。
+状態: **product CLI は implemented、実 Incus の検証は 4adfe19 で成功**。
 
 Environment の命名や事前作成なしに、コマンドを1回実行します。
 
@@ -51,6 +51,6 @@ Environment 名が再利用されても、別の作業を削除しません。
 [接続切断時の中断](../adr/0018-ephemeral-run-cancellation.md) を参照してください。
 
 repository test は argv の保持、既定の一時領域、既存 Workspace の保護、
-片付け失敗と再試行、OCI 公開元の保持を検証します。既存 Incus GHA に通常の製品コマンドでの
-成功、exit 17、既存ファイルへの書き込み、中断後の実体削除を追加し、新しい結果は pending です。
+片付け失敗と再試行、OCI 公開元の保持を検証します。既存 Incus GHA の 4adfe19（run 34115004878、job 101719650209）で、通常の製品コマンドによる
+成功、exit 17、既存ファイルへの書き込み、中断後の実体不在が確認できました。
 対話利用、ローカル installed acceptance、内容入り OCI image の実行を確認したとは扱いません。

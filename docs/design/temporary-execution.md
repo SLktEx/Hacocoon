@@ -2,7 +2,7 @@
 
 [日本語](temporary-execution.ja.md) | English
 
-Status: **implemented product CLI; real-Incus acceptance pending**.
+Status: **implemented product CLI; real-Incus acceptance passed at 4adfe19**.
 
 Run one command without first naming or creating an Environment:
 
@@ -54,7 +54,7 @@ Environment name cannot redirect cleanup to retained work. See
 
 Repository tests cover argument preservation, default temporary selection,
 retained Workspace ownership, cleanup failure/retry and OCI source retention.
-The maintained Incus GHA fixture exercises ordinary product commands for success,
-exit 17, retained file writes and actual cancellation cleanup; its new result is
-pending. Interactive sessions, local installed acceptance and a populated OCI
+The maintained Incus GHA fixture passed at 4adfe19 (run 34115004878, job
+101719650209), using ordinary product commands for success, exit 17, retained file
+writes and actual cancellation followed by verified provider absence. Interactive sessions, local installed acceptance and a populated OCI
 image execution are not claimed by these checks.
