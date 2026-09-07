@@ -239,3 +239,14 @@ Still planned:
 - generic Environment forwarding;
 - remote transport only if a real use case requires it;
 - FD passing/zero-copy only if profiling demonstrates a worthwhile benefit.
+
+## Ephemeral execution cancellation
+
+Status: **implemented transport; product temporary-run CLI pending**.
+`run.execute` uses a stream handshake followed by one bounded JSON result.
+No input frames are accepted. Closing the client connection or sending unexpected
+input cancels execution. Canonical run cleanup uses its independent deadline; the
+caller must not interpret disconnection as successful cleanup. Result writes have
+a 30-second deadline. Ordinary lifecycle RPCs retain their existing semantics.
+The previous pre-1.0 call form is replaced without retrying ambiguous executions.
+See [ADR 0018](../adr/0018-ephemeral-run-cancellation.md).

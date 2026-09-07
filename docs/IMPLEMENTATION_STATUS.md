@@ -708,3 +708,10 @@ Its first execution failed starting PowerShell with `exec format error`; a later
 execution passed after read-only interop inspection, with no manual repair. The
 cause of that transient native-interop failure remains unconfirmed. Neither result
 proves a VS Code server connection. GHA desktop SSH acceptance passed at 1d841b4; actual editor acceptance remains pending.
+
+The temporary-run prerequisite now uses a cancellable execution stream. A new
+controller integration test first **failed** because client cancellation did not
+trigger cleanup; the corrected transport passes that regression and focused race
+tests. Execution disconnects return to canonical bounded cleanup, with result and
+cleanup errors preserved. Product `haco run` UX and real-Incus cancellation acceptance
+remain **pending**; this is not a completed `--rm` feature.

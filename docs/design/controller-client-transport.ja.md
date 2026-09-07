@@ -237,3 +237,13 @@ BaselineはUnix domain socket上の通常のGo buffered forwardingです。Local
 - generic Environment forwarding
 - 実需が出た場合のみremote transport
 - profilingで必要性が示された場合のみFD passing / zero-copy
+
+## 一時実行のキャンセル
+
+状態: **transport は implemented、product の一時実行 CLI は pending**。
+`run.execute` は stream handshake の後、サイズ制限付きの JSON 結果を1つ返します。
+入力 frame は受け付けません。client 接続の切断や想定外の入力で execution を中断します。
+canonical な run cleanup は独立した期限を使い、呼出元は切断を削除成功と扱ってはいけません。
+結果の書込み期限は30秒です。通常の lifecycle RPC の意味は変えません。
+pre-1.0 の旧 call 形式は置き換え、結果が不明な実行を自動で再試行しません。
+詳細は [ADR 0018](../adr/0018-ephemeral-run-cancellation.md) を参照してください。

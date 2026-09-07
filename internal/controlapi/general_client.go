@@ -29,10 +29,26 @@ func (c *Client) InspectBase(ctx context.Context, name core.BaseName) (core.Base
 }
 
 func (c *Client) Run(ctx context.Context, spec runapp.Spec) (runapp.Result, error) {
-	var response runResponse
-	if err := c.wire.Call(ctx, MethodRun, spec, &response); err != nil {
+	conn, err := c.wire.OpenStream(ctx, MethodRun, spec)
+	if err != nil {
 		return runapp.Result{}, err
 	}
+	defer conn.Close()
+	data, err := io.ReadAll(io.LimitReader(conn, maxRunResultBytes+1))
+	if err != nil {
+		if ctx.Err() != nil {
+			return runapp.Result{}, ctx.Err()
+		}
+		return runapp.Result{}, fmt.Errorf("read run result: %w", err)
+	}
+	if len(data) > maxRunResultBytes {
+		return runapp.Result{}, fmt.Errorf("run result exceeds size limit: %w", control.ErrProtocol)
+	}
+	var response runResponse
+	if err := json.Unmarshal(data, &response); err != nil {
+		return runapp.Result{}, fmt.Errorf("decode run result: %w", control.ErrProtocol)
+	}
+
 	return response.Result, responseError(response.Error)
 }
 

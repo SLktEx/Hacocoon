@@ -88,7 +88,9 @@ type capabilityClientFrame struct {
 
 type capabilityStreamTransportError struct{ err error }
 
-func (e *capabilityStreamTransportError) Error() string { return fmt.Sprintf("capability approval stream: %v", e.err) }
+func (e *capabilityStreamTransportError) Error() string {
+	return fmt.Sprintf("capability approval stream: %v", e.err)
+}
 func (e *capabilityStreamTransportError) Unwrap() error { return e.err }
 
 type baseService interface {
@@ -145,21 +147,7 @@ func RegisterGeneral(server *control.Server, bases baseService, runner runServic
 	}); err != nil {
 		return err
 	}
-	if err := server.Register(MethodRun, func(ctx context.Context, payload json.RawMessage) (any, error) {
-		var request runapp.Spec
-		if err := json.Unmarshal(payload, &request); err != nil || strings.TrimSpace(request.WorkspacePath) == "" || len(request.Argv) == 0 {
-			return nil, control.NewStatusError("invalid_argument", "workspace_path and argv are required")
-		}
-		result, err := runner.Run(ctx, request)
-		if err != nil {
-			// Preserve both the partial result and the original process exit code.
-			// run errors may be joined with cleanup/recovery failures, so the status
-			// message remains intact while ExitCode lets the CLI retain historical
-			// process semantics across the controller boundary.
-			return runResponse{Result: result, Error: statusFromError(err)}, nil
-		}
-		return runResponse{Result: result}, nil
-	}); err != nil {
+	if err := registerRun(server, runner); err != nil {
 		return err
 	}
 	if err := server.RegisterStream(MethodCapabilityRequest, func(ctx context.Context, payload json.RawMessage) (control.Stream, error) {

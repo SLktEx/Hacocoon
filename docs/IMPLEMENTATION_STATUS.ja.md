@@ -607,3 +607,9 @@ controllerはfakeであり、実SSH・VS Code接続成功を示す試験では�
 初回はPowerShell起動が`exec format error`で失敗し、読み取り専用の状態確認後の再実行は
 手動修復なしで成功しました。一時的なnative interop失敗の原因は未確定です。
 VS Code serverへの接続成功を示すものではなく、更新後のGHA desktop SSH受入も確認待ちです。
+
+一時実行の前提として、execution をキャンセル可能な stream に変更しました。
+新しい controller integration test は、client の中断で後片付けが始まらず、最初に **失敗** しました。
+修正後は回帰テストと対象の race test が成功しています。接続の切断で canonical な期限付きの
+後片付けへ戻り、実行結果と削除エラーを保持します。product の `haco run` UX と実際の Incus での
+中断検証は **pending** であり、`--rm` 機能全体の完了ではありません。
