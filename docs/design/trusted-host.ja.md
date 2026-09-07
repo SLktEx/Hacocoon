@@ -273,3 +273,42 @@ Repository testではownership reconciliation、collision refusal、state recove
 維持するreal Incus E2E gateはcontroller経由の `haco setup`、endpoint投影、必要な2本のclientのdigest一致、`haco-host doctor` / `haco-host env ...` のcontroller経由操作、restart復旧、fresh setupでguestに旧`hacoq`がないこと、raw Incus socket非露出、通常Environmentのtrusted endpoint / client-mode marker非露出を検査する。保持した旧alias・Base routing・local composition拒否はcomponent testで検証する。更新gateは `b71f88e` で成功した。commitを固定したWindows結果と残る制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。
 
 Windows/WSLの確認済み範囲は、実装statusに記録したcommit固定の実機受入に限る。別hardware・別構成への互換性は未確認として扱う。
+
+## 保存したカスタマイズ手順
+
+状態: **controller setup からの明示実行・再実行は implemented、インストール済み構成の検証は pending**。
+
+`haco setup --script <path>` は利用者が選んだ Bash 手順を、通常の Host 準備後に保存・実行します。
+`haco setup` は保存した内容を再実行します。元ファイルを編集しただけでは変わらず、再び `--script` を指定して更新します。
+`haco setup --clear-script` は保存した手順を実行せずに解除します。新しいトップレベル command は増やしません。
+
+client は最大1 MiB の通常の UTF-8 file を読み、BOM と Windows CRLF を正規化します。
+controller は設定した Hacocoon root の `host-customization/recipe.sh` に private な snapshot を保存します。
+既定の絶対パスは `/var/lib/hacocoon/host-customization/recipe.sh` です。
+所有権を確認した trusted Host の `/root` で `/bin/bash -se` を起動し、内容を標準入力から渡します。
+固定名の systemd transient unit が同時実行を拒否し、controller 終了後も最長14分で process group を停止します。
+request の期限が短い場合は unit の期限も短くします。
+Physical Host で実行せず、Environment へコピーせず、project の hook を自動探索しません。
+
+trusted `haco-host` 内の例:
+
+```sh
+cat > ~/host-setup.sh <<'SH'
+install -d -m 0755 "$HOME/.local/bin"
+cat > "$HOME/.local/bin/hello-haco" <<'HELLO'
+#!/bin/sh
+echo "hello from haco-host"
+HELLO
+chmod 0755 "$HOME/.local/bin/hello-haco"
+SH
+haco setup --script ~/host-setup.sh
+haco setup
+haco setup --clear-script
+```
+
+手順は再実行できる形で書きます。途中で失敗すると保存内容を保持して失敗を返し、それ以前の利用者 command を rollback しません。
+認証情報が含まれる可能性があるため、script の stdout/stderr は controller の診断へ転送しません。
+script 自身の出力を調べるときは、元の script を trusted Host 内で直接実行してください。
+保存 file の不正な権限や link は拒否するため、controller 所有の設定を確認する必要があります。
+Host 再作成後も通常の install/setup から保存内容を再利用できますが、setup 外での暗黙の再作成は未検証です。
+[ADR 0019](../adr/0019-trusted-host-customization.md) を参照してください。

@@ -18,7 +18,7 @@ func productSetupServer(t *testing.T, failure error) string {
 	t.Helper()
 	server := control.NewServer()
 	_ = server.Register(controlapi.MethodSetup, func(_ context.Context, payload json.RawMessage) (any, error) {
-		if len(payload) != 0 {
+		if string(payload) != "{}" {
 			t.Errorf("setup accepted caller parameters: %q", payload)
 		}
 		return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, failure

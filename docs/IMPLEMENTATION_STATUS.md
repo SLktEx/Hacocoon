@@ -2,36 +2,29 @@
 
 ## Current desktop-development checkpoint
 
-Status: **partial roadmap C**. `haco open [--client vscode|ssh] [environment]`
-defaults to VS Code, with a terminal alternative and no name needed for one
-Environment. Generated SSH settings now preserve Remote-SSH dynamic forwarding
-while keeping client listeners on loopback; agent forwarding stays disabled.
+Status: **partial roadmap C**. Product commands provide desktop SSH setup,
+`haco open [--client vscode|ssh] [environment]`, retained resume and readable
+Environment target discovery. Saved Host setup recipes are now implemented through
+`haco setup --script <path>`, replay and `--clear-script`; their installed GHA
+acceptance is pending. Broader C1 selection, C3–C5, temporary-run CLI and later
+roadmap stages remain incomplete.
 
-The ordinary Windows installer upgraded the existing distribution to `8752431`
-(v0.33, build `2026-09-07T06:44:17Z`). Doctor passed all six checks and the
-existing `stage-b-git-dev` Environment/Workspace registration was preserved.
-Installer ZIP SHA-256:
+All four GHA workflows passed at `4f1f512`. The Windows job proved actual VS Code
+1.136.1 Remote-SSH document read/write, terminal execution and owned probe cleanup
+through ordinary `haco open`. It uses a disposable portable profile with the Linux
+platform choice saved and Workspace trust prompts disabled; this does not cover
+normal desktop prompts or every Windows/VPN configuration. Earlier `703ec76`
+failed executable discovery; `506c38f` advanced past launch but timed out waiting
+for editor acceptance. Those failed runs are distinct from the successful rerun.
+
+The ordinary local installer last upgraded the existing distribution to `8752431`
+(v0.33, build `2026-09-07T06:44:17Z`). Doctor passed six checks and preserved
+`stage-b-git-dev` and its Workspace. Installer ZIP SHA-256:
 `c2c5b720643d98e586996e2d2413d1af196d764331e2b160a5bda647c76946a9`.
-All four GHA workflows passed at that commit. The installed candidate predates
-the client-choice and forwarding fixes; their installed acceptance remains pending.
-
-Live local VS Code acceptance is **SKIP pending explicit approval**. Automatic
-approval review rejected temporary Ubuntu package-egress rules for test Environment
-`desktop-8752431`. No rule was applied or retried indirectly. The approval question
-is pending; the test Environment is stopped and its Workspace retained.
-Linux OpenSSH reproduced the forwarding restriction, and corrected settings passed
-Linux/native Windows parsing. A raw Incus fixture first failed with haco-host
-stopped after cold entry; ordinary interactive WSL entry then allowed the fixture
-to pass. Configuration parsing is not editor-connection acceptance.
-
-The four GHA workflows also passed at `1d841b4`, including the forwarding and
-client-choice changes. New Windows GHA editor acceptance is **implemented, execution
-pending**: a disposable pinned portable client must prove remote document read/write,
-terminal execution and probe cleanup through ordinary `haco open`. Observer unit
-checks and native VSIX installation are repository/tooling checks, not an editor
-connection. The GUI now detaches its output streams so it cannot hold the invoking
-controller/Incus command open. Local acceptance remains subject to the pending
-approval above.
+This installation predates the latest source changes. Local editor connection is
+**SKIP pending permission**: automatic review rejected temporary Ubuntu package
+policy rules for `desktop-8752431`; none were applied. The question remains pending
+and the test Environment is stopped with its Workspace retained.
 
 ## Independent persistent Store copies
 
@@ -515,7 +508,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.33**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.34**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
@@ -687,57 +680,47 @@ automation and usable VS Code launch remain next, before temporary run-and-remov
 
 ## Desktop SSH setup and opening
 
-Status: **implemented; Windows GHA SSH acceptance passed at `1d841b4`; actual
-editor acceptance pending**. `haco ssh setup [name]` prepares desktop-owned keys
-and strict host-key pins. `haco open [--client vscode|ssh] [name]` selects the client;
-one Environment needs no name. Installed GHA proves native Windows SSH, stopped
-resume and connection reuse. Repository checks cover real key generation,
-file/config protections and concurrency. See the [owning client design](design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening).
+Status: **implemented commands; Windows GHA editor acceptance passed**.
+`haco ssh setup [name]` prepares desktop-owned keys and strict host-key pins.
+`haco open [--client vscode|ssh] [name]` selects the client; a single Environment
+needs no name. Installed GHA covers native SSH, stopped resume and connection reuse,
+then actual editor and terminal access at `4f1f512`. See the
+[client contract](design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening).
 
-Physical Windows projection acceptance also passed through the existing trusted
-haco-host with a test-only temporary Windows home: native ssh-keygen, confined
-file creation, repeated setup reuse and native OpenSSH `-G` parsing. Run
-`TestWindowsDesktopProjectionE2E` with `HACO_E2E_WINDOWS_DESKTOP=1` for this fixture.
-Its controller is fake; it does not prove live SSH or VS Code connectivity.
+Native Windows fixture checks also cover key/config creation and editor discovery
+through the installed trusted Host. A separate development-Ubuntu attempt failed
+with PowerShell `exec format error`; a cold raw-Incus fixture failed with the Host
+stopped, then passed after normal interactive entry. Those preparation fixtures
+alone are not connection acceptance. The local installed version/approval gap and
+the exact successful GHA scope are recorded at the top of this document.
 
-`haco open` now prepares the VS Code Remote-SSH extension only when absent;
-`ssh setup` has no editor dependency. The actual Windows CLI installed Remote-SSH
-0.128.0 on the development desktop. The opt-in `TestWindowsEditorPreparationE2E`
-then passed installed-editor discovery and extension inspection through haco-host.
-Its first execution failed starting PowerShell with `exec format error`; a later
-execution passed after read-only interop inspection, with no manual repair. The
-cause of that transient native-interop failure remains unconfirmed. Neither result
-proves a VS Code server connection. GHA desktop SSH acceptance passed at 1d841b4; actual editor acceptance remains pending.
+Daily CLI inspection is a **partial C6 slice**: `haco env list` shows the registered
+name/Workspace/Base; `--json` is available for scripts. List/status output escapes
+terminal controls. Broader DNS and connection diagnosis remains incomplete.
 
-The temporary-run prerequisite now uses a cancellable execution stream. A new
-controller integration test first **failed** because client cancellation did not
-trigger cleanup; the corrected transport passes that regression and focused race
-tests. Execution disconnects return to canonical bounded cleanup, with result and
-cleanup errors preserved. Product `haco run` UX and real-Incus cancellation acceptance
-remain **pending**; this is not a completed `--rm` feature.
+## Saved Host customization
 
-Windows GHA at `703ec76` **failed** in VS Code executable discovery after SSH
-setup and observer installation; the other three workflows passed. Editor lookup
-now uses the exact `code.cmd` from the captured Windows PATH before native PATH
-fallback, and passes that selected path as encoded data when preparing extensions.
-The updated actual-Windows preparation fixture passed through the installed trusted
-Host. The development Ubuntu distro fixture failed earlier with `exec format error`
-starting PowerShell; that separate environment failure was not counted as a pass.
-These preparation checks still do not prove editor/server connectivity; new GHA is pending.
+Status: **implemented explicit setup/replay; installed acceptance pending**.
+A user-selected UTF-8 Bash recipe is saved privately by the controller and executed
+only in the verified trusted Host. Plain setup replays the snapshot, an explicit
+script update replaces it, and clear removes it without execution. No Environment
+receives the recipe. Regression coverage exercises private-file/link protections,
+serialization, persistence before script failure, replay after service recreation,
+target ownership, stdin delivery, and sanitized failure reporting. The Windows GHA
+fixture adds ordinary save/replay/update/clear acceptance. See
+[Host customization](design/trusted-host.md#saved-customization-recipes).
 
-Daily CLI inspection is **implemented as a partial C6 slice**: `haco env list`
-now shows a readable name/Workspace/Base table and routes to open/status commands.
-`haco env list --json` preserves machine-readable access. List/status displays
-escape terminal controls in external metadata. Focused CLI regression and shipped
-command E2E passed; broader DNS/connection diagnostics remain incomplete.
+Implicit Host recreation outside controller setup is not yet accepted. Physical
+customization and arbitrary package/dotfile recipes have not been run on the user's
+installation. The initial source-edit review rejection was resolved by reading the
+explicit roadmap C2 requirement and resubmitting the same source-only edit with that
+evidence; it is separate from the still-pending local package policy permission.
 
-The GHA editor fixture now saves its exact alias's Linux platform in the disposable
-profile, as a user would select on first Remote-SSH use. This avoids requiring an
-interactive platform picker in CI; it is not evidence that the pending Windows
-run failed for that reason. Ordinary user profiles remain unchanged.
+## Temporary execution prerequisite
 
-At `506c38f`, test/Ubuntu/Incus GHA passed. Windows GHA **failed** after ordinary
-`haco open` returned successfully: the editor observer did not complete within ten
-minutes. The exact editor-side cause remains unconfirmed. The next fixture saves
-the first-use Linux platform choice; its result is pending, not a successful
-editor connection claim.
+Status: **implemented controller cancellation; product run/--rm UX pending**.
+Client disconnect cancels execution and returns to canonical bounded cleanup.
+A controller integration regression first reproduced missing cleanup, then passed
+after the stream change; unexpected input also cancels. Real-Incus interrupted-run
+acceptance and the simple product CLI remain outstanding. See
+[ADR 0018](adr/0018-ephemeral-run-cancellation.md).

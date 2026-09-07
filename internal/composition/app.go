@@ -15,6 +15,7 @@ import (
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
 	"github.com/SLktEx/Hacocoon/internal/host"
+	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
 	seedbuildapp "github.com/SLktEx/Hacocoon/internal/seedbuild"
@@ -33,6 +34,7 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
+	HostCustomization   *hostsetup.Service
 	Environments        *workspaceapp.Service
 	AgentHosts          *agenthostapp.Broker
 	Clients             *clientapp.Service
@@ -183,6 +185,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	resources := &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime}}
 	environments.ConfigureDefaultResource(ociplugin.WorkspaceStores{Resources: resources}.Resolve)
 	return &App{
+		HostCustomization:   &hostsetup.Service{Root: filepath.Join(root, "host-customization"), Execute: incusRuntime.RunTrustedHostCustomization},
 		PersistentResources: resources,
 		Environments:        environments,
 		AgentHosts:          agenthostapp.New(environments, store, bindingStore),

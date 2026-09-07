@@ -40,12 +40,16 @@ def main():
             if not args.interop_only:
                 # Environment creation/deletion must not break interop in the
                 # already-open trusted Host session.
-                scripts.extend([('test_windows_environment_ssh.ps1', []), scripts[0]])
+                scripts.extend([('test_windows_environment_ssh.ps1', [])])
+                if os.environ.get('GITHUB_ACTIONS') == 'true':
+                    scripts.append(('test_host_customization.ps1', []))
+                scripts.append(scripts[0])
             for name, options in scripts:
                 result = subprocess.run([powershell, '-NoLogo', '-NoProfile', '-NonInteractive',
                     '-ExecutionPolicy', 'Bypass', '-File', str(here / name), *options], timeout=1800, capture_output=True, text=True, encoding='utf-8', errors='replace')
                 print(result.stdout, result.stderr, flush=True)
                 expected = 'Direct .exe / Windows PATH / stdout / stderr / exit 23 / spaces: PASS' if name == 'test_windows_host_interop.ps1' else 'WINDOWS DIRECT ENVIRONMENT SSH: PASS'
+                if name == 'test_host_customization.ps1': expected = 'HOST CUSTOMIZATION SAVE / REPLAY / UPDATE / CLEAR: PASS'
                 if expected not in result.stdout: raise RuntimeError(f'{name} did not report its acceptance assertions')
                 if name == 'test_windows_environment_ssh.ps1' and os.environ.get('GITHUB_ACTIONS') == 'true' and 'VS CODE REMOTE ENVIRONMENT: PASS' not in result.stdout:
                     raise RuntimeError('Real VS Code acceptance did not report its assertions')

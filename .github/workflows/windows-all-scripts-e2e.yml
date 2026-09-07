@@ -23,6 +23,7 @@ on:
       - "tools/windows-native-access-e2e.py"
       - "tools/setup-vscode-acceptance.ps1"
       - "tools/test_vscode_environment.ps1"
+      - "tools/test_host_customization.ps1"
       - "tools/package_vscode_acceptance.py"
       - "tools/vscode-acceptance/**"
       - ".github/workflows/windows-all-scripts-e2e.yml"

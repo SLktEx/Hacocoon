@@ -276,3 +276,46 @@ Repository tests cover ownership reconciliation, collision refusal, state recove
 The maintained real Incus E2E gate checks controller-owned `haco setup`, endpoint projection, digest equality of both required clients, `haco-host doctor` and `haco-host env ...` through the Physical Host controller, restart recovery, absence of guest `hacoq` after fresh setup, raw Incus-socket non-exposure, and absence of the trusted endpoint/client-mode marker on ordinary Environments. Retained legacy aliases, Base routing and local-composition guards have component coverage. The updated gate passed on `b71f88e`; commit-bound Windows results and remaining limits are recorded in [implementation status](../IMPLEMENTATION_STATUS.md).
 
 Windows/WSL claims are limited to the commit-bound real-host acceptance in implementation status. Other hardware and configurations remain unverified.
+
+## Saved customization recipes
+
+Status: **implemented explicit controller setup/replay; installed acceptance pending**.
+
+`haco setup --script <path>` saves and runs a user-selected Bash recipe after normal
+Host preparation. `haco setup` replays its saved snapshot; editing the original file
+has no effect until another explicit `--script` update. `haco setup --clear-script`
+removes the saved recipe without executing it. No new top-level command is required.
+
+The client reads a regular UTF-8 file of at most 1 MiB. UTF-8 BOM and Windows CRLF
+are normalized. The controller stores the snapshot privately at
+`/var/lib/hacocoon/host-customization/recipe.sh` (under its configured Hacocoon root).
+It verifies the owned trusted Host and supplies the bytes on stdin to
+`/bin/bash -se` in `/root` through a fixed transient systemd unit. The unit refuses
+overlapping runs and stops its process group after at most 14 minutes, including
+when the controller exits. A shorter request deadline reduces that limit. The recipe is never executed on the Physical Host and
+is never copied to an Environment. Project files are not searched for hooks.
+
+For example, inside trusted `haco-host`:
+
+```sh
+cat > ~/host-setup.sh <<'SH'
+install -d -m 0755 "$HOME/.local/bin"
+cat > "$HOME/.local/bin/hello-haco" <<'HELLO'
+#!/bin/sh
+echo "hello from haco-host"
+HELLO
+chmod 0755 "$HOME/.local/bin/hello-haco"
+SH
+haco setup --script ~/host-setup.sh
+haco setup
+haco setup --clear-script
+```
+
+Write replayable recipes. Setup reports failure and retains the saved recipe if a
+step fails; it does not roll back earlier user commands. Script stdout/stderr are
+not forwarded to controller diagnostics because they may contain credentials.
+To inspect a recipe's own output, run the original script directly in the trusted
+Host. Unsafe stored-file permissions or links fail closed and require inspection
+of the controller-owned configuration. Ordinary installation/setup after Host
+recreation can reuse the snapshot; implicit recreation outside setup is not yet
+accepted. See [ADR 0019](../adr/0019-trusted-host-customization.md).

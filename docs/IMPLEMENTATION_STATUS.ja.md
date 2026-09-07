@@ -2,32 +2,24 @@
 
 ## 現在のdesktop開発checkpoint
 
-Status: **ロードマップCはpartial**。`haco open [--client vscode|ssh] [environment]`は
-VS Codeを既定とし、terminalも選べます。環境が1つなら名前を省略できます。
-SSH設定はRemote-SSHの動的転送を保持し、clientの待受をloopbackに限定します。
-agent転送は無効のままです。
+状態: **ロードマップ C は partial**。desktop SSH の準備、`haco open [--client vscode|ssh] [environment]`、
+保持した環境の再開、読みやすい対象一覧を提供します。Host の保存手順は `haco setup --script <path>`、
+再実行、`--clear-script` で implemented ですが、インストール済み GHA の確認は pending です。
+より広い C1 の対象選択、C3–C5、一時実行 CLI と後続段階は未完了です。
 
-通常Windows installerで既存distributionを`8752431`へ更新しました。
-v0.33、buildは`2026-09-07T06:44:17Z`です。doctor全6項目が成功し、
-既存`stage-b-git-dev`とWorkspaceの登録も保持しました。ZIP SHA-256は
-`c2c5b720643d98e586996e2d2413d1af196d764331e2b160a5bda647c76946a9`です。
-同commitのGHA全4本も成功しました。installed候補はclient選択・転送修正より前のため、
-これらのinstalled受入は未実行です。
+`4f1f512` では4つの GHA workflow が成功しました。Windows job は通常の `haco open` から実際の VS Code
+1.136.1 Remote-SSH に接続し、document の読み書き、terminal 実行、検証用ファイルの削除を確認しました。
+使い捨て portable profile で Linux platform を保存し、Workspace trust prompt を無効化した構成です。
+通常の desktop prompt や全 Windows/VPN 構成の確認ではありません。
+以前の `703ec76` は executable の探索で失敗し、`506c38f` は起動後の editor 検証待ちで timeout しました。
+これらの失敗と、その後の成功は区別します。
 
-実端末のVS Code接続は**明示許可待ちのためSKIP**です。検証用`desktop-8752431`への
-Ubuntu package通信ルール追加を自動承認レビューが拒否しました。ルールの適用・別経路の
-再試行はせず、質問を保留しています。検証環境は停止しWorkspaceを保持しました。
-Linux OpenSSHで転送制限を再現し、修正後はLinux/Windows nativeの設定解釈が成功しました。
-cold entry後のraw Incus fixtureはHost未起動で一度失敗し、通常の対話WSL入口を通した後は
-成功しました。設定解釈はeditor接続成功を意味しません。
-
-`1d841b4` でも4つの GHA workflow が成功し、転送と client 選択の変更を含みます。
-追加した Windows GHA の editor 検証は **implemented、実行結果は pending** です。
-使い捨ての固定版 portable client から通常の `haco open` を通し、remote document
-の読み書き、terminal 実行、検証ファイルの削除を必須にします。observer の unit test と
-native VSIX install は検証用ツールの確認であり、editor 接続の成功ではありません。
-GUI は出力 stream を引き継がず、呼出元の controller/Incus command を保持しません。
-ローカル接続の確認は上記の許可待ちのままです。
+ローカルの通常 installer による最終更新は `8752431`（v0.33、build `2026-09-07T06:44:17Z`）です。
+doctor の6項目が成功し、`stage-b-git-dev` と Workspace の登録を保持しました。Installer ZIP SHA-256 は
+`c2c5b720643d98e586996e2d2413d1af196d764331e2b160a5bda647c76946a9` です。
+この installation は最新 source の変更を含みません。ローカルの editor 接続は **許可待ちで SKIP** です。
+`desktop-8752431` への一時 Ubuntu package policy 追加が自動承認レビューで拒否され、適用していません。
+質問は保留中で、検証 Environment は停止し Workspace を保持しています。
 
 ## 永続Storeの独立コピー
 
@@ -435,7 +427,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.33** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.34** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|
@@ -586,50 +578,38 @@ Windows試験はまだ実行していません。鍵・config自動設定とVS C
 
 ## Desktop SSH setupとVS Code起動
 
-Status: **製品コマンドはimplemented、更新後のWindows実接続とeditor受入は未確認**。
-`haco ssh setup dev`でクライアント側の鍵・接続設定・公開ホスト鍵固定を用意し、
-`ssh haco-dev`で接続します。`haco open dev`は同じ設定後にVS Codeを起動します。
-環境が1つなら名前を省略できます。Remote-SSH拡張が未導入なら初回openでVS Code CLIを通して導入します。
-Windows/WSLではWindowsのprofileとnative ssh-keygenを使い、秘密鍵をWindowsに保持します。
-停止済み環境は既存のstart経路で再開し、同じ接続を再利用します。既存SSH設定を残し、
-専用Includeと管理ファイルを追加します。設定失敗後の準備済み接続はID付きで
-recovery-requiredとして保持します。関連テスト・raceは成功しました。
-更新後のGHAは未確認で、VS Codeのプロセス起動をeditor接続成功とは扱いません。
+状態: **command は implemented、Windows GHA の editor 接続は成功**。
+`haco ssh setup [name]` は desktop 所有の鍵と厳密な host-key pin を準備します。
+`haco open [--client vscode|ssh] [name]` で client を選択し、Environment が1つなら名前を省略できます。
+インストール済み GHA は native SSH、停止からの再開、接続の再利用に加え、`4f1f512` で実際の editor と terminal 接続を確認しました。
+[client の契約](design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening) を参照してください。
 
-既存のtrusted haco-hostから、Windows上の検証専用一時homeを使ったprojection受入も成功しました。
-native ssh-keygen、ファイル作成、設定再利用、Windows OpenSSHの`-G`構文解釈を確認しています。
-`HACO_E2E_WINDOWS_DESKTOP=1`で`TestWindowsDesktopProjectionE2E`を実行します。
-controllerはfakeであり、実SSH・VS Code接続成功を示す試験ではありません。
+native Windows fixture では鍵・config 作成と、インストール済み trusted Host 経由での editor 探索も確認しました。
+別の開発用 Ubuntu からの試行は PowerShell の `exec format error` で失敗しました。
+cold entry 後の raw Incus fixture は Host 停止中で失敗し、通常の対話 entry 後に成功しました。
+これらの準備 fixture だけでは接続成功を証明しません。ローカルの version/許可の残件と GHA の正確な範囲は文書冒頭に記録しています。
 
-`haco open`はRemote-SSH拡張がない場合だけ導入し、`ssh setup`にはeditor依存を追加しません。
-開発端末ではWindows CLIによるRemote-SSH 0.128.0の導入が成功しました。
-`TestWindowsEditorPreparationE2E`もhaco-host経由の実editor検出・拡張確認に成功しました。
-初回はPowerShell起動が`exec format error`で失敗し、読み取り専用の状態確認後の再実行は
-手動修復なしで成功しました。一時的なnative interop失敗の原因は未確定です。
-VS Code serverへの接続成功を示すものではなく、更新後のGHA desktop SSH受入も確認待ちです。
+日常 CLI の確認は **C6 の一部** です。`haco env list` は登録された名前・Workspace・Base を表示し、
+スクリプトでは `--json` を使えます。list/status は端末制御文字を escape します。広い DNS・接続診断は未完了です。
 
-一時実行の前提として、execution をキャンセル可能な stream に変更しました。
-新しい controller integration test は、client の中断で後片付けが始まらず、最初に **失敗** しました。
-修正後は回帰テストと対象の race test が成功しています。接続の切断で canonical な期限付きの
-後片付けへ戻り、実行結果と削除エラーを保持します。product の `haco run` UX と実際の Incus での
-中断検証は **pending** であり、`--rm` 機能全体の完了ではありません。
+## 保存した Host カスタマイズ
 
-`703ec76` の Windows GHA は SSH 準備と observer install 後、VS Code executable の探索で **失敗** しました。
-他の3つの workflow は成功しました。探索は保存された Windows PATH の `code.cmd` を優先し、
-native PATH を代替とします。拡張の準備にも選択済みのパスを符号化したデータとして渡します。
-修正後の実 Windows 準備 fixture はインストール済み trusted Host 経由で成功しました。
-その前の開発用 Ubuntu fixture は PowerShell 起動の `exec format error` で失敗しており、成功には数えていません。
-この準備検証は editor/server 接続の成功ではなく、更新した GHA の結果は pending です。
+状態: **明示 setup/replay は implemented、インストール済み検証は pending**。
+利用者が選んだ UTF-8 Bash 手順を controller が private に保存し、所有権を確認した trusted Host だけで実行します。
+通常の setup で保存内容を再実行し、明示した script 更新で置き換え、clear で実行せず解除します。
+Environment へ渡しません。回帰テストは file/link 保護、直列化、script 失敗前の保存、service 再作成後の replay、
+対象の所有権、標準入力での受渡し、秘密を含まない失敗通知を確認します。
+Windows GHA fixture には通常の保存・再実行・更新・解除の検証を追加しました。
+[Host カスタマイズ](design/trusted-host.ja.md#保存したカスタマイズ手順) を参照してください。
 
-日常の CLI 確認は **C6 の一部として implemented** です。`haco env list` は名前・Workspace・Base を読みやすい表で示し、
-open/status command へ案内します。機械処理には `haco env list --json` を使います。
-list/status の表示では外部 metadata の端末制御文字を escape します。対象 CLI の回帰テストと配布 command の E2E は成功しました。
-より広い DNS・接続診断は未完了です。
+controller setup 外の暗黙の Host 再作成は未検証です。ユーザーの installation では、このカスタマイズや任意の package/dotfile 手順を実行していません。
+当初のソース編集の自動レビュー拒否は、ロードマップ C2 の明示要件を確認し、同じソース編集をその根拠で再審査して解消しました。
+保留中のローカル package policy の許可とは別の事項です。
 
-GHA の editor fixture は、初回 Remote-SSH で利用者が選ぶ Linux platform を、対象 alias に限って使い捨て profile に保存します。
-CI で対話的な platform 選択を要求しないための準備であり、進行中の Windows run の問題がそれによるものと確認したわけではありません。
-通常の利用者 profile は変更しません。
+## 一時実行の前提
 
-`506c38f` の test/Ubuntu/Incus GHA は成功しました。Windows GHA は通常の `haco open` が成功終了した後、
-editor observer が10分以内に完了せず **失敗** しました。editor 側の正確な原因は未確定です。
-次の fixture は初回の Linux platform 選択を保存して実行します。その結果は pending であり、editor 接続の成功ではありません。
+状態: **controller の中断は implemented、product の run/--rm UX は pending**。
+client 切断で execution を中断し、canonical な期限付き cleanup へ戻します。
+controller integration test で cleanup が始まらない問題を再現し、stream 修正後に成功しました。
+想定外の入力でも中断します。実 Incus の中断検証と簡単な product CLI は残っています。
+[ADR 0018](adr/0018-ephemeral-run-cancellation.md) を参照してください。
