@@ -16,6 +16,7 @@ import (
 	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/hostsetup"
+	"github.com/SLktEx/Hacocoon/internal/nameresolution"
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
 	seedbuildapp "github.com/SLktEx/Hacocoon/internal/seedbuild"
@@ -23,6 +24,7 @@ import (
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
+	"github.com/SLktEx/Hacocoon/modules/standard/dnsproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/egressproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
 )
@@ -147,6 +149,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		capabilityapp.NewJSONLAudit(auditPath),
 		capabilityapp.LocalEcho{},
 		egressapp.Provider{},
+		dnsproxy.Provider{},
 		gitProvider,
 		gitBroker,
 	)
@@ -201,7 +204,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		Events:              eventsapp.New(auditPath),
 		Bases:               runtime,
 		Runtime:             incusRuntime,
-		EgressProxy:         egressproxy.New(egressBroker, egressSources),
+		EgressProxy:         egressproxy.NewWithNameResolution(egressBroker, egressSources, nameresolution.New(capabilities)),
 		Repositories:        repositories,
 		GitBroker:           gitBroker,
 	}, nil

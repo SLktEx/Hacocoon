@@ -15,6 +15,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 	egressapp "github.com/SLktEx/Hacocoon/internal/egress"
+	"github.com/SLktEx/Hacocoon/modules/standard/dnsproxy"
 )
 
 const (
@@ -36,10 +37,11 @@ type DNSResolver interface {
 }
 
 type Proxy struct {
-	authorizer Authorizer
-	sources    SourceResolver
-	resolver   DNSResolver
-	dial       func(context.Context, string, string) (net.Conn, error)
+	nameResolution http.Handler
+	authorizer     Authorizer
+	sources        SourceResolver
+	resolver       DNSResolver
+	dial           func(context.Context, string, string) (net.Conn, error)
 }
 
 func New(authorizer Authorizer, sources SourceResolver) *Proxy {
@@ -52,9 +54,21 @@ func New(authorizer Authorizer, sources SourceResolver) *Proxy {
 	}
 }
 
+// NewWithNameResolution shares only the guarded listener and persisted source
+// mapping. DNS requests still pass through their own Capability policy and audit.
+func NewWithNameResolution(authorizer Authorizer, sources SourceResolver, lookup dnsproxy.Lookup) *Proxy {
+	p := New(authorizer, sources)
+	p.nameResolution = dnsproxy.NewHandler(lookup, sources)
+	return p
+}
+
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if p == nil || p.authorizer == nil || p.sources == nil || p.resolver == nil || p.dial == nil {
 		http.Error(w, "egress proxy unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if p.nameResolution != nil && r.URL != nil && !r.URL.IsAbs() && r.RequestURI == dnsproxy.Path {
+		p.nameResolution.ServeHTTP(w, r)
 		return
 	}
 	environment, err := p.resolveSource(r.Context(), r.RemoteAddr)

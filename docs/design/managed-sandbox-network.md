@@ -29,3 +29,7 @@ The installed unit now enables the Standard proxy inside the existing Physical H
 ## Acceptance
 
 Repository tests cover ownership, network/guard configuration, lifecycle and source identity. Real-Incus gates exercise the provider separately from installed Windows acceptance. The exact Windows installer gate proves trusted-host infrastructure connectivity and retention. Its separate installed-controller check passed Environment proxy allow/deny and direct TCP refusal. Firewall reload/startup ordering and live Docker coexistence remain separate acceptance concerns. See [implementation status](../IMPLEMENTATION_STATUS.md).
+
+## Policy-bound name resolution
+
+The Standard listener also routes bounded DNS queries through a separate lookup Capability. This does not enable direct DNS or grant connections to returned addresses. Automatic guest stub provisioning is still partial; see [name resolution](name-resolution.md) and [ADR 0021](../adr/0021-policy-bound-name-resolution.md).

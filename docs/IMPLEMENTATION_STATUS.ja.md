@@ -1,5 +1,17 @@
 # 実装状況
 
+## Policy に従う名前解決
+
+状態: **ロードマップ C3 は partial**。controller の Standard listener に送信元を
+識別する DNS relay を接続し、既存の Capability Policy と監査を使います。
+guest UDP/TCP stub は component として実装済みですが、Environment への自動導入は
+未実装です。Policy の allow rule は追加しません。component/race test では upstream
+を呼ぶ前の拒否、送信元 header と provider 応答の偽装、同じ path を持つ外部 HTTP の
+egress 認可維持、不正 DNS、UDP/TCP、cancel を確認します。通常の guest getaddrinfo、
+Windows DNS/VPN の変更反映、trusted Host の実機検証を示すものではありません。
+契約と残る検証は[名前解決](design/name-resolution.ja.md)を参照してください。
+利用可能な C3 のまとまりができるまで current checkpoint は v0.35 を維持します。
+
 ## 現在のdesktop開発checkpoint
 
 状態: **ロードマップ C は partial**。desktop SSH の準備、`haco open [--client vscode|ssh] [environment]`、

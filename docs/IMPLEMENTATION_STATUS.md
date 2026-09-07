@@ -1,5 +1,18 @@
 # Implementation Status
 
+## Policy-bound name resolution
+
+Status: **partial roadmap C3**. The controller Standard listener now has a
+source-bound DNS relay, backed by the existing Capability Policy and audit service.
+The guest UDP/TCP stub is implemented as a component; automatic Environment
+provisioning is not implemented yet. No new policy allow rules are installed.
+Component/race tests cover refusal before upstream lookup, untrusted source
+headers and provider results, same-path external HTTP requests retaining egress
+authorization, malformed DNS, UDP/TCP and cancellation. These do not establish
+ordinary guest getaddrinfo, Windows DNS/VPN propagation or trusted Host acceptance.
+See [name resolution](design/name-resolution.md) for the contract and remaining
+acceptance. The current checkpoint remains v0.35 until a usable C3 slice is ready.
+
 ## Current desktop-development checkpoint
 
 Status: **partial roadmap C**. Product commands provide desktop SSH setup,
