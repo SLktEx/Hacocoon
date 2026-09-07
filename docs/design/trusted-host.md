@@ -76,7 +76,7 @@ Managed Environments                   UNTRUSTED
 The current implementation provides:
 
 - `haco setup`, which reconciles one persistent `haco-host`;
-- `hacoq host shell`, which ensures the instance is running and enters an interactive login shell;
+- ordinary `wsl -d Hacocoon` entry and the retained legacy `hacoq host shell` alias;
 - the ownership marker `user.hacocoon.role=trusted-host`;
 - rootfs placement on Hacocoon-managed Incus storage;
 - Environment name `host` reserved to avoid a provider-local collision;
@@ -87,7 +87,7 @@ The current implementation provides:
 - `environment.HACO_CLIENT_MODE=controller`, which prevents still-unmigrated `haco` commands from silently using guest-local composition;
 - supported WSL bootstrap that verifies `haco-host doctor` before enabling default interactive entry.
 
-The broader trusted-Host design is still partial: Git/GitHub, OCI/containerd, cloud credentials, general external tooling, Windows mounts, and WSL interop have not all moved into `haco-host`, and the full `haco` versus `haco-host` responsibility migration is not complete.
+The broader namespace migration, cloud credentials and general external tooling remain partial. Git/GitHub and Windows integration above are implemented. Current OCI Stores attach only to Environments and do not require a Host runtime.
 
 ## Trust and authority
 
@@ -199,7 +199,7 @@ The installer verifies DNS, a default IPv4 route and HTTPS inside the real trust
 
 `haco-host` uses the root storage pool selected by the normal Hacocoon Incus storage integration. On the default local backend this keeps the instance rootfs in Hacocoon's sparse-raw Btrfs-backed Incus pool.
 
-This does not by itself prove that all future `haco-host` data is physically COW-shared with Seeds or Environments. Physical sharing remains measurement-dependent.
+This does not by itself prove that all future `haco-host` data is physically COW-shared with Base images or Environments. Physical sharing remains measurement-dependent.
 
 ## WSL default entry
 
@@ -275,4 +275,4 @@ Repository tests cover ownership reconciliation, collision refusal, state recove
 
 The maintained real Incus E2E gate checks controller-owned `haco setup`, endpoint projection, digest equality of both required clients, `haco-host doctor` and `haco-host env ...` through the Physical Host controller, restart recovery, absence of guest `hacoq` after fresh setup, raw Incus-socket non-exposure, and absence of the trusted endpoint/client-mode marker on ordinary Environments. Retained legacy aliases, Base routing and local-composition guards have component coverage. The updated gate passed on `b71f88e`; commit-bound Windows results and remaining limits are recorded in [implementation status](../IMPLEMENTATION_STATUS.md).
 
-Actual Windows terminal startup, WSL distribution restart behavior, login-shell transition, and Windows integration still require real Windows + WSL acceptance before being claimed as host-verified.
+Windows/WSL claims are limited to the commit-bound real-host acceptance in implementation status. Other hardware and configurations remain unverified.

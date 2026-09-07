@@ -15,6 +15,9 @@ and any current blockers are owned by [implementation status](../IMPLEMENTATION_
   compatibility beyond tested CLI tools, additional Windows/WSL configurations,
   interrupted upgrades and generic recovery remain unverified. C and non-C
   acceptance of this change is recorded with the actual package, not assumed.
+  The trigger for an earlier native WSL binfmt registration disappearance was
+  not established. Setup/entry repairs only absence through WSL's own service;
+  external changes during an already-open session are not continuously watched.
 - **Persistent OCI breadth:** Docker Store compatibility, runtime version
   migration, simultaneous RW sharing, snapshots/compaction, automatic updates,
   large images/performance and live migration are deferred. Registry proxy,
