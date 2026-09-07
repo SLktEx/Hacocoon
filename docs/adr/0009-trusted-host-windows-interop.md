@@ -42,3 +42,16 @@ as tmpfs during boot. A direct Incus mount under `/run` is then hidden. Project
 absolute socket resolution without a socket relay, launcher or stored session
 PID. Foreign path collisions fail closed. A tmpfiles regression and the real
 Windows restart test cover this layout.
+
+Further combined acceptance observed the WSL VM's native registration disappear
+while `/init` plus the projected socket still worked. The trigger is not proven.
+[Ubuntu's binfmt explanation](https://ubuntu.com/wsl/docs/stable/explanation/binfmt/)
+and [WSL systemd integration](https://wsl.dev/technical-documentation/systemd/)
+describe native registration lifecycle and WSL's generated protection unit.
+Setup leaves a healthy native handler untouched. Only when it is absent, setup
+uses the root-owned WSL-generated `systemd-binfmt.service` integration and checks
+that the native `/init` handler returned. Explicit disable or incompatible
+handlers fail closed. Hacocoon never writes its own registration to `register`,
+never installs an executable launcher and never changes another distribution.
+External replacement of VM-wide binfmt state during an already-open session is
+not silently monitored; use normal `haco setup` to reconcile it.

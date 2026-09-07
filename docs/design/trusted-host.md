@@ -26,7 +26,10 @@ Windows PATH to trusted shell startup. The socket directory is mounted outside
 transient `/run`; standard systemd tmpfiles restores `/run/WSL` as a symlink to
 that read-only projection at every boot, preserving native absolute socket
 symlinks. It does not register another handler or
-create a Windows executable launcher. In a new trusted shell:
+create a Windows executable launcher. Healthy native binfmt registration is left
+untouched; if it disappeared, setup asks WSL's own generated systemd integration
+to restore it. Disabled or incompatible registrations are rejected. In a new
+trusted shell:
 
 ```bash
 cmd.exe /c ver

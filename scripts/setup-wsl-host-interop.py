@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import stat
 import sys
 import subprocess
 import tempfile
@@ -93,6 +94,37 @@ def plan(config, devices):
     return [name for name in devices if name not in current]
 
 
+def ensure_native_binfmt(directory=Path('/proc/sys/fs/binfmt_misc'),
+                         generated=Path('/run/systemd/generator/systemd-binfmt.service.d/override.conf'),
+                         run=subprocess.run):
+    # A healthy native registration is never rewritten. Respect explicit disable
+    # or foreign interpreter settings rather than silently replacing them.
+    if (directory / 'status').read_text().strip() != 'enabled':
+        raise ValueError('WSL native binfmt is disabled; enable WSL interop explicitly')
+
+    def check():
+        entries = list(directory.glob('WSLInterop*'))
+        for entry in entries:
+            lines = set(entry.read_text().strip().splitlines())
+            expected = {'enabled', 'interpreter /init', 'flags: P', 'offset 0', 'magic 4d5a'}
+            if lines != expected:
+                raise ValueError('incompatible or disabled native WSL binfmt registration')
+        return bool(entries)
+
+    if check():
+        return
+    # Let WSL's own generated systemd integration restore its native handler.
+    # Never write a Hacocoon registration string into binfmt_misc/register.
+    info = generated.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+        raise ValueError('untrusted WSL systemd binfmt integration')
+    if ':WSLInterop:M::MZ::/init:P' not in generated.read_text():
+        raise ValueError('WSL native binfmt integration is unavailable')
+    run(['systemctl', 'restart', 'systemd-binfmt.service'], check=True)
+    if not check():
+        raise ValueError('WSL native binfmt registration was not restored')
+
+
 # No launcher or socket relay: this only restores WSL's native pathname after
 # the guest recreates /run. Refuse a pre-existing path owned by another setup.
 SOCKET_LAYOUT = r"""set -eu
@@ -125,6 +157,7 @@ def main():
     if sys.argv[1:]:
         raise ValueError('usage: setup-wsl-host-interop.py [--capture-path]')
     paths = path_record(drives)
+    ensure_native_binfmt()
     incus = ["incus", "--project", "hacocoon"]
     inspect = ["incus", "query", "/1.0/instances/haco-host?project=hacocoon"]
     config = json.loads(subprocess.check_output(inspect))
