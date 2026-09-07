@@ -1,6 +1,9 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import shutil
+import subprocess
+import tempfile
 
 spec = importlib.util.spec_from_file_location("interop", Path(__file__).resolve().parents[1] / "scripts/setup-wsl-host-interop.py")
 interop = importlib.util.module_from_spec(spec)
@@ -34,17 +37,31 @@ class WindowsPathTests(unittest.TestCase):
         self.assertEqual(interop.windows_paths(value, ['/mnt/c', '/mnt/q']),
                          ['/mnt/c/Windows/System32', '/mnt/q/Tools With Spaces'])
 
-    def test_native_absolute_socket_symlink_keeps_its_mount_path(self):
-        # Real fresh WSL uses 1_interop -> /run/WSL/<pid>_interop. Mounting
-        # this directory at another guest path makes native connect fail ENOENT.
+    def test_native_socket_path_restored_after_run_recreation(self):
+        # /run tmpfs hides an Incus disk mounted directly there on reboot.
+        # Exercise the standard tmpfiles rule against a fresh filesystem root.
         device = interop.desired_devices(['/mnt/q'])['haco-wsl-interop']
         self.assertEqual(device['source'], '/run/WSL')
-        self.assertEqual(device['path'], device['source'])
+        self.assertFalse(device['path'].startswith('/run/'))
         self.assertEqual(device['readonly'], 'true')
-        config = {'config': {'user.hacocoon.role': 'trusted-host',
-                            'environment.WSL_INTEROP': '/run/WSL/1_interop'},
-                  'profiles': [], 'devices': interop.desired_devices(['/mnt/q'])}
-        self.assertEqual(interop.plan(config, config['devices']), [])
+        if not shutil.which('systemd-tmpfiles'):
+            self.skipTest('systemd-tmpfiles required for native layout regression')
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            (root / 'etc/tmpfiles.d').mkdir(parents=True)
+            (root / 'run').mkdir()
+            rules = [line for line in interop.SOCKET_LAYOUT.splitlines() if line.startswith("printf ")]
+            self.assertEqual(len(rules), 1)
+            rule = rules[0].split("'", 4)[3]
+            config = root / 'etc/tmpfiles.d/hacocoon-wsl.conf'
+            config.write_text(rule + '\n')
+            subprocess.run(['systemd-tmpfiles', '--root=' + str(root), '--create', str(config)], check=True)
+            self.assertEqual((root / 'run/WSL').readlink(), Path(device['path']))
+            # A fresh /run after reboot gets the same native address again.
+            (root / 'run/WSL').unlink()
+            subprocess.run(['systemd-tmpfiles', '--root=' + str(root), '--create', str(config)], check=True)
+            self.assertEqual((root / 'run/WSL').readlink(), Path(device['path']))
+
     def test_no_fixed_drive_letter_list(self):
         mounts = [{'target': '/mnt/q', 'fstype': '9p', 'options': 'rw,aname=drvfs;path=Q:'}]
         self.assertEqual(interop.drive_mounts(mounts), ['/mnt/q'])

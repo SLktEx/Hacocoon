@@ -34,9 +34,11 @@ See the current [trusted Host contract](../design/trusted-host.md#windows-intero
 The [WSL interop description](https://wsl.dev/technical-documentation/interop/)
 explains the native interpreter/socket mechanism.
 
-The first revised fresh package exposed an absolute-symlink detail:
-`/run/WSL/1_interop` points to `/run/WSL/<pid>_interop`. Projection at a different
-guest path breaks native resolution with ENOENT. The directory is therefore
-projected read-only at the same `/run/WSL` path, and the stable native symlink is
-used without resolving/persisting its transient PID. A regression protects this
-same-path contract; the Windows test exercises an actual native executable.
+Revised fresh packages exposed two native lifecycle details: `1_interop`
+points to the absolute `/run/WSL/<pid>_interop`, while the guest recreates `/run`
+as tmpfs during boot. A direct Incus mount under `/run` is then hidden. Project
+`/run/WSL` read-only at `/var/lib/hacocoon-wsl`; standard systemd tmpfiles restores
+`/run/WSL` as a symlink to that directory after each boot. This preserves native
+absolute socket resolution without a socket relay, launcher or stored session
+PID. Foreign path collisions fail closed. A tmpfiles regression and the real
+Windows restart test cover this layout.

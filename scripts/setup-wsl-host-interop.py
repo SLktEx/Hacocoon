@@ -68,7 +68,7 @@ def drive_mounts(mounts):
 def desired_devices(drives):
     devices = {
         "haco-wsl-init": {"type": "disk", "source": "/init", "path": "/init", "readonly": "true"},
-        "haco-wsl-interop": {"type": "disk", "source": "/run/WSL", "path": "/run/WSL", "readonly": "true"},
+        "haco-wsl-interop": {"type": "disk", "source": "/run/WSL", "path": "/var/lib/hacocoon-wsl", "readonly": "true"},
     }
     for drive in drives:
         devices["haco-wsl-drive-" + drive[-1]] = {"type": "disk", "source": drive, "path": drive}
@@ -91,6 +91,19 @@ def plan(config, devices):
     if current_interop and not re.fullmatch(r"/run/WSL/[0-9]+_interop", current_interop):
         raise ValueError("incompatible WSL_INTEROP setting")
     return [name for name in devices if name not in current]
+
+
+# No launcher or socket relay: this only restores WSL's native pathname after
+# the guest recreates /run. Refuse a pre-existing path owned by another setup.
+SOCKET_LAYOUT = r"""set -eu
+if test -e /run/WSL || test -L /run/WSL; then
+    if ! test -L /run/WSL || test "$(readlink /run/WSL)" != /var/lib/hacocoon-wsl; then exit 1; fi
+fi
+mkdir -p /etc/tmpfiles.d
+printf '%s\n' 'L /run/WSL - - - - /var/lib/hacocoon-wsl' > /etc/tmpfiles.d/hacocoon-wsl.conf
+systemd-tmpfiles --create /etc/tmpfiles.d/hacocoon-wsl.conf
+test -S /run/WSL/1_interop
+"""
 
 
 def main():
@@ -120,8 +133,10 @@ def main():
     for name in missing:
         device = devices[name]
         subprocess.run(incus + ["config", "device", "add", "haco-host", name, device["type"]] + [k + "=" + v for k, v in device.items() if k != "type"], check=True)
-    # WSL's stable symlink uses an absolute /run/WSL target. Keep the same
-    # mount path so native symlink resolution survives changing session PIDs.
+    # /run is replaced by guest systemd's tmpfs at boot. Keep the Incus disk
+    # outside it and use standard tmpfiles to restore the native absolute path.
+    subprocess.run(incus + ['exec', 'haco-host', '--disable-stdin=false', '--',
+                           '/bin/sh', '-s'], input=SOCKET_LAYOUT, text=True, check=True)
     subprocess.run(incus + ["config", "set", "haco-host", "environment.WSL_INTEROP=/run/WSL/1_interop"], check=True)
     subprocess.run(incus + ["config", "set", "haco-host", "environment.PATH=" + GUEST_LINUX_PATH + ':' + ':'.join(paths)], check=True)
     profile = '# Hacocoon managed Windows PATH; WSL already converted these entries.\n'
