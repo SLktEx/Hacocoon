@@ -45,7 +45,9 @@ policy, and the real-Incus synthetic COW test. `forwarding` initially failed for
 missing passwordless sudo; running the same isolated-namespace test as root in
 the development WSL passed. E2E assertions passed, but its first temporary Go
 module-cache cleanup emitted permission errors; this is a cleanup failure,
-not a product assertion failure.
+not a product assertion failure. Re-running the command E2E with the existing
+`GOMODCACHE` explicitly selected passed without cleanup errors. The earlier
+temporary path was independently confirmed absent.
 
 The first full `race` run failed in the existing CONNECT upstream-prefix shutdown
 test. The serving proxy now synchronously owns/closes CONNECT upstreams and
@@ -55,11 +57,19 @@ See the [egress contract](EGRESS_AUTHORIZATION.md). No authorization policy or
 user command changed in this fix.
 
 The monolithic `bash tools/ci-local.sh` stopped at release-config because the
-Ubuntu development WSL has no `pwsh`; that run **failed**. Remaining release
-packaging checks were **SKIP locally** rather than treated as successful.
-The existing GitHub Actions installer/release/Incus workflows provide the
-supported-platform alternative once this branch is published; prior B CI
-success does not verify this revision.
+Ubuntu development WSL has no `pwsh`; that run **failed**. Standalone Windows installer component tests passed in Windows PowerShell.
+Release provenance initially failed the development Ubuntu 22.04 minimum-OS
+check. Running its fixture-only checks on Ubuntu 26.04 passed provenance and
+installer package contracts after trusting this exact Windows-owned worktree
+for that process only. GoReleaser configuration validation passed. Full release
+archive builds and fresh package installation remain **SKIP** for this slice.
+
+New GitHub Actions execution is **SKIP / publication blocked**: automatic approval
+review rejected pushing the implementation branch to `SLktEx/Hacocoon` because
+explicit destination authorization was present only for push testing to
+`SLktEx/Hacocoon-test`. No source push or PR was created. The new COW test is
+ready in the existing Incus workflow for a later authorized publication; prior
+B CI success does not verify this revision.
 
 ## Incus startup PID protection
 

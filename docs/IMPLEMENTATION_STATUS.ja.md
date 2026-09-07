@@ -37,6 +37,8 @@ A/B成果は保持。PR #481は`3b2d0b6`としてmerge済み。最終`0b79cac`�
 実Incusの合成データCOW検証。`forwarding`は最初sudoの認証で失敗したが、開発用WSLで
 同じ隔離namespaceテストをrootとして実行して成功した。初回E2Eは本体assertion成功後、
 一時Go module cacheの権限でcleanupエラーが出た。製品assertionの失敗とは分ける。
+既存`GOMODCACHE`を明示してcommand E2Eだけ再実行した結果、cleanupエラーなく成功。
+以前の一時パスが存在しないことも別途確認した。
 
 初回全体`race`は既存CONNECTのupstream-prefix停止テストで失敗した。
 serve側がCONNECT上流を同期closeし、停止後に完了したdialをwrite前に拒否するよう修正。
@@ -44,9 +46,16 @@ proxy packageのrace反復100回と、その後の全体`race`が成功した。
 [egress契約](EGRESS_AUTHORIZATION.ja.md)参照。認可Policyや利用コマンドは変更していない。
 
 `bash tools/ci-local.sh`全体実行は、開発用Ubuntu WSLに`pwsh`がないため
-release-configで**失敗**した。残りの配布package検証は**ローカルではSKIP**。
-branch公開後の既存GHA installer/release/Incusを対応platformでの代替検証とする。
-過去のBのCI成功を今回のrevisionの成功として扱わない。
+release-configで**失敗**した。Windows PowerShellでinstaller component単独検証は成功。
+配布由来の検査も最初Ubuntu 22.04の最低OS条件で失敗したが、Ubuntu 26.04でfixture限定の
+検査を行い、由来・installer package契約が成功した。rootとWindows所有者の違いは、その
+検証プロセスに限り既知worktreeだけをsafe.directoryとして扱って解消。GoReleaser設定検査も成功。
+全release archive buildとfresh package installは今回は**SKIP**。
+
+新しいGHA実行は**SKIP／公開阻害**。自動承認レビューが、push検証の明示許可先は
+`SLktEx/Hacocoon-test`だけとして、実装branchの本体`SLktEx/Hacocoon`へのpushを拒否した。
+sourceのpushもPR作成も行っていない。新しいCOWテストは既存Incus workflowに追加済みで、
+公開が承認されれば実行可能。過去のBのCI成功を今回のrevisionの成功として扱わない。
 
 ## Incus起動時のPID再利用防止
 
