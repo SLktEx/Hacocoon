@@ -172,3 +172,62 @@ HACO_BUILDKIT
 systemctl daemon-reload
 if "$was_active"; then systemctl start containerd; fi
 `
+
+// Copy uses Incus's same-pool volume copy. Incus owns Btrfs COW and idmaps;
+// neither source data nor a Host runtime socket is mounted into a new boundary.
+func (b *PersistentResourceBackend) Copy(ctx context.Context, source, target core.PersistentResource) error {
+	pool, name, err := persistentVolume(target)
+	if err != nil {
+		return err
+	}
+	sourcePool, sourceName, err := persistentVolume(source)
+	if err != nil {
+		return err
+	}
+	if pool != sourcePool || sourceName == name || source.ID == target.ID || target.CopySource != source.Ref() {
+		return core.ErrInvalidArgument
+	}
+	// Refuse storage drift rather than silently claiming a full copy is COW.
+	result, err := b.Runtime.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+pool)
+	if err != nil || result.StdoutTruncated {
+		return core.ErrRuntimeUnavailable
+	}
+	var storage struct {
+		Name   string `json:"name"`
+		Driver string `json:"driver"`
+	}
+	if json.Unmarshal([]byte(result.Stdout), &storage) != nil || storage.Name != pool || storage.Driver != "btrfs" {
+		return core.ErrIncompatibleState
+	}
+	observed, err := b.observe(ctx, source)
+	if err != nil {
+		return err
+	}
+	if observed == nil {
+		return core.ErrNotFound
+	}
+	if len(observed.UsedBy) != 0 {
+		return core.ErrStorageBusy
+	}
+	// Incus refuses a destination name collision. Supply new ownership markers,
+	// never copy arbitrary source config (especially authority-bearing settings).
+	config := map[string]string{"user.hacocoon.owner": target.Owner, "user.hacocoon.resource": target.ID, "user.hacocoon.kind": target.Kind}
+	for _, key := range []string{"volatile.idmap.last", "volatile.idmap.next"} {
+		value := observed.Config[key]
+		if value == "" {
+			continue
+		} // A never-attached empty Store has no idmap yet.
+		var mapping []json.RawMessage
+		if json.Unmarshal([]byte(value), &mapping) != nil || mapping == nil {
+			return core.ErrIncompatibleState
+		}
+		config[key] = value
+	}
+	data, err := json.Marshal(map[string]any{"name": name, "type": "custom", "content_type": "filesystem", "config": config,
+		"source": map[string]any{"type": "copy", "name": sourceName, "pool": pool, "project": b.Runtime.project, "volume_only": true}})
+	if err != nil {
+		return err
+	}
+	_, err = b.Runtime.runner.Run(ctx, "incus", "query", "-X", "POST", "--wait", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project, "--data", string(data))
+	return err
+}

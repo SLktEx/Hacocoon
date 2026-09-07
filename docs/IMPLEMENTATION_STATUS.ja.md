@@ -1,5 +1,35 @@
 # 実装状況
 
+## 永続Storeの独立コピー
+
+状態: **storageの実装単位はimplemented、改訂B4全体はpartial**。
+最新main `3b2d0b6`（PR #481 merge）を基準に、既存の
+`haco plugin oci store create dev --from shared` で未接続Storeを独立複製する。
+コマンド群は増やさない。正規catalogでコピー元を予約し、provider完了と検証後の
+公開まで接続・削除を拒否する。失敗時は所有権を保持し、手動recoveryが必要。
+中断コピーの自動回復は未実装。[Store契約](design/persistent-oci-store.md#independent-offline-copies)参照。
+
+ローカルの実Incus 6.0.5-8 / WSL / Btrfsで合成データの受入が成功。
+Parent UUID一致、両方向の書込み独立、元Store削除後のコピー保持、検証用volume・
+project・poolの削除を確認した。OCI image/runtime、配布済みCLI、trusted Hostからの
+publicationの成功は意味しない。初回E2Eはpool確認前にテストprojectを作っていない
+fixtureの問題で失敗し、修正後に成功した。RPC回帰では不正引数がinternal errorに
+分類される問題を検出し、handlerを修正した。
+
+A/B成果は保持。PR #481は`3b2d0b6`としてmerge済み。最終`0b79cac`の
+[test](https://github.com/SLktEx/Hacocoon/actions/runs/34081379821)、
+[Ubuntu installer](https://github.com/SLktEx/Hacocoon/actions/runs/34081379810)、
+[Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34081379802)、
+[Windows installer](https://github.com/SLktEx/Hacocoon/actions/runs/34081379870)
+は成功済み。今回のコピー変更のCI結果とは区別する。新しいstorage testは既存Incus CIへ追加。
+
+今回のSKIP: trusted Hostからのimage取得/publicationとコピーしたimageのcontainerd/Docker
+実利用（その製品経路は未完成）、VS Codeでの実開発（今回IDE操作なし）、今回のWindows
+配布物受入（installed productは前のB候補のまま）、新しいGit実push（Git・認証・refの
+変更はなく、storage受入にrepoを使わない）。下記Bのpush OIDは過去に照合済みの結果であり、
+今回pushしたものではない。C-Gは更新した[ロードマップ](status/architecture-and-roadmap.md#user-facing-development-order)に沿うplanned項目。
+
+
 ## Incus起動時のPID再利用防止
 
 Status: **implemented。repository回帰とhosted Ubuntu/WSL配布packageの受入は成功**。
@@ -349,7 +379,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.29** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.30** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

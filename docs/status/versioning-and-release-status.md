@@ -1,11 +1,12 @@
 # Versioning and release status
 
-Current checkpoint v0.29 implements native WSL interop from fresh installation,
-actual C/non-C drive projection, Persistent OCI Store and Windows native OpenSSH.
-Local packaged B1/B4/B5 acceptance and B2/A/B6 regressions passed on `c86c43e`.
-`switch-base` is currently disabled, deferred to Stage D+ and does not block A-C.
-The v0.28 delivery/Base-switching results below are historical. See
-[implementation status](../IMPLEMENTATION_STATUS.md) for exact evidence and limits.
+Current checkpoint v0.30 adds independent offline persistent Store copies through
+`haco plugin oci store create <target> --from <source>`. Repository and local
+real-Incus synthetic-data COW acceptance cover this slice; full trusted Host OCI
+image delivery, runtime acceptance and interrupted-copy recovery remain partial.
+The preceding v0.29 native WSL/Persistent Store/Windows OpenSSH acceptance remains
+bound to `c86c43e`. `switch-base` stays disabled and on hold. See
+[implementation status](../IMPLEMENTATION_STATUS.md) for evidence and limits.
 
 
 > **Human-readable checkpoint policy/status view · Updated 2026-08-31**
@@ -88,8 +89,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.27 | Managed Repository WSL Workflow | ✅ implemented |
 | v0.28 | Multi-repository Development and Optional OCI Distribution | ✅ implemented |
 | v0.29 | Persistent OCI Resources and Native Windows Access | ✅ implemented |
+| v0.30 | Independent Persistent Store Copies | ✅ implemented |
 
-The current milestone position is **v0.29**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.30**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

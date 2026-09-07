@@ -15,6 +15,7 @@ type Store interface {
 	ListPersistentResources(context.Context) ([]core.PersistentResource, error)
 	BeginPersistentResourceCreate(context.Context, core.PersistentResource) error
 	CommitPersistentResourceCreate(context.Context, core.PersistentResource) error
+	BeginPersistentResourceCopy(context.Context, core.PersistentResource, core.PersistentResource) error
 	BeginPersistentResourceDelete(context.Context, string) (core.PersistentResource, error)
 	FinalizePersistentResourceDelete(context.Context, core.PersistentResource) error
 }
@@ -72,4 +73,53 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("resource retained for recovery; retry explicit delete: %w: %w", core.ErrRecoveryRequired, err)
 	}
 	return s.Store.FinalizePersistentResourceDelete(ctx, r)
+}
+
+// Copy creates an independent offline resource without exposing its contents to
+// Core or the trusted Host. Backends may opt in; no OCI runtime is required.
+func (s *Service) Copy(ctx context.Context, id, kind, sourceID string) (core.PersistentResource, error) {
+	copier, ok := s.Backend.(interface {
+		Copy(context.Context, core.PersistentResource, core.PersistentResource) error
+	})
+	if !ok {
+		return core.PersistentResource{}, core.ErrUnsupported
+	}
+	var nonce [16]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return core.PersistentResource{}, err
+	}
+	target := core.PersistentResource{ID: id, Kind: kind, Owner: hex.EncodeToString(nonce[:]), State: "creating", CreatedAt: time.Now().UTC()}
+	if !core.ValidPersistentResourceRef(target.Ref()) || id == sourceID {
+		return core.PersistentResource{}, core.ErrInvalidArgument
+	}
+	source, err := s.Store.GetPersistentResource(ctx, sourceID)
+	if err != nil {
+		return core.PersistentResource{}, err
+	}
+	if source.Kind != kind || source.State != "ready" {
+		return core.PersistentResource{}, core.ErrIncompatibleState
+	}
+	target.CopySource = source.Ref()
+	target.NativeRef, err = s.Backend.Plan(ctx, kind, target.Owner)
+	if err != nil {
+		return core.PersistentResource{}, err
+	}
+	if err := s.Store.BeginPersistentResourceCopy(ctx, source, target); err != nil {
+		return core.PersistentResource{}, err
+	}
+	incomplete := func(err error) (core.PersistentResource, error) {
+		return target, fmt.Errorf("copy incomplete; source and destination retained for recovery; inspect %s: %w: %w", id, core.ErrRecoveryRequired, err)
+	}
+	if err := copier.Copy(ctx, source, target); err != nil {
+		return incomplete(err)
+	}
+	if err := s.Backend.Verify(ctx, target); err != nil {
+		return incomplete(err)
+	}
+	if err := s.Store.CommitPersistentResourceCreate(ctx, target); err != nil {
+		return incomplete(err)
+	}
+	target.State = "ready"
+	target.CopySource = core.PersistentResourceRef{}
+	return target, nil
 }

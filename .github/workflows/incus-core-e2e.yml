@@ -120,6 +120,11 @@ jobs:
         run: bash tools/ci-incus-storage-cli.sh setup
       - name: Run normal haco create and run against Incus-owned Btrfs
         run: bash tools/ci-incus-storage-cli.sh test
+      - name: Verify independent persistent Store COW with real Btrfs
+        run: |
+          go test -c -o "$RUNNER_TEMP/persistent-copy.test" ./modules/runtime/incus
+          sudo env HACO_E2E_INCUS_PERSISTENT_COPY=1 \
+            "$RUNNER_TEMP/persistent-copy.test" -test.run='^TestRealIncusPersistentCopyE2E$' -test.v
       - name: Capture storage CLI diagnostics
         if: failure()
         run: |

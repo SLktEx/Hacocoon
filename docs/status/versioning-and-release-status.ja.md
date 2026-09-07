@@ -1,10 +1,11 @@
 # バージョン番号とリリース状況
 
-現在のcheckpoint v0.29はfresh installからのnative WSL連携、C/non-C drive投影、
-Persistent OCI Store、Windows標準OpenSSHを実装。配布物c86c43eでB1/B4/B5実機受入と
-B2/A/B6回帰が成功した。switch-baseは現在無効でStage D+へ延期し、A-Cをblockしない。
-下記v0.28の配布・Base切替は過去の証拠である。正確な構成と制約は
-[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照。
+現在のcheckpoint v0.30は `haco plugin oci store create <target> --from <source>` による
+未接続の永続Store独立コピーを追加。repositoryとローカル実Incusの合成データによるCOWを
+検証する単位であり、trusted HostからのOCI image配布全体・runtime受入・中断コピーの
+回復はpartial。前のv0.29で行ったnative WSL・永続Store・Windows OpenSSHの受入は
+`c86c43e`に結び付く。`switch-base`は無効・保留のまま。
+[実装状況](../IMPLEMENTATION_STATUS.ja.md)に証拠と制約を記載。
 
 
 過去のv0.28受入：当時の候補はtrusted WSL Windows連携、複数repo、Workspace保持Base切替、
@@ -82,8 +83,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.27 | Managed Repository WSL Workflow | 実装済み |
 | v0.28 | Multi-repository Development and Optional OCI Distribution | 実装済み |
 | v0.29 | Persistent OCI Resources and Native Windows Access | 実装済み |
+| v0.30 | Independent Persistent Store Copies | 実装済み |
 
-現在のmilestone位置は **v0.29** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.30** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

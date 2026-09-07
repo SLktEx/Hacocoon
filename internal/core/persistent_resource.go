@@ -19,6 +19,8 @@ type PersistentResource struct {
 	NativeRef string    `json:"native_ref"`
 	State     string    `json:"state"`
 	CreatedAt time.Time `json:"created_at"`
+	// CopySource reserves the exact source until a verified copy is committed.
+	CopySource PersistentResourceRef `json:"copy_source,omitempty"`
 }
 
 func (r PersistentResource) Ref() PersistentResourceRef {

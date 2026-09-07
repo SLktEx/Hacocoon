@@ -1,5 +1,23 @@
 # Development follow-ups
 
+## Revised B4 and daily-development follow-ups
+
+- **Partial:** independent offline Store copy now exists; implement trusted Host
+  image acquisition/publication without mounting guest-populated Stores there
+  or copying Host credentials/live daemon state. Accept containerd/nerdctl image
+  reuse and independence, and separately assess Docker Store compatibility.
+- **Planned:** bounded interrupted-copy recovery must first prove the exact
+  asynchronous provider operation has finished. Until then, failed copies retain
+  `copy_source` and block attachment/deletion; catalog editing is not a user flow.
+- **Planned:** complete B's manual VS Code Remote - SSH development acceptance;
+  C then adds repeatable SSH setup and optional VS Code selection. The revised
+  [development order](architecture-and-roadmap.md#user-facing-development-order)
+  takes precedence over older D+ labels below for daily connection convenience.
+- **Planned:** C Host/project setup, Windows DNS and restricted preview precede
+  D approval-policy/AWS and E environment-recreation work. `switch-base` stays
+  disabled/on hold without a scheduled return.
+
+
 Status: remaining work after the revised Stage B contract. Acceptance evidence
 and any current blockers are owned by [implementation status](../IMPLEMENTATION_STATUS.md).
 

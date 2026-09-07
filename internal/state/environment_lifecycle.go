@@ -45,6 +45,9 @@ func (s *EnvironmentJSONStore) BeginEnvironmentCreate(_ context.Context, lease c
 		if !ok || resource.Ref() != lease.PersistentResource || resource.State != "ready" {
 			return fmt.Errorf("persistent resource is unavailable or changed: %w", core.ErrIncompatibleState)
 		}
+		if persistentCopyReserved(data, resource.ID) {
+			return core.ErrStorageBusy
+		}
 		for _, held := range data.Leases {
 			if held.PersistentResource.ID == resource.ID {
 				return fmt.Errorf("persistent resource %s is reserved by %s: %w", resource.ID, held.EnvironmentID, core.ErrStorageBusy)

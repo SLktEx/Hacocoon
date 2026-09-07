@@ -1,5 +1,42 @@
 # Implementation Status
 
+## Independent persistent Store copies
+
+Status: **implemented storage slice; full revised B4 remains partial**. Based on
+main `3b2d0b6` (merged PR #481), `haco plugin oci store create dev --from shared`
+creates an independent copy of an unleased Store without adding a command group.
+The canonical catalog reserves the exact source until provider completion and
+verified publication. Failure retains ownership and requires manual recovery;
+automated interrupted-copy recovery is not implemented. See the
+[Store contract](design/persistent-oci-store.md#independent-offline-copies).
+
+Local real Incus 6.0.5-8 / WSL / Btrfs acceptance passed with synthetic data:
+Btrfs parent UUID matched the original, writes were independent in both
+directions, source deletion retained the copy, and test volumes/project/pool
+were removed. This does not establish OCI image/runtime, installed CLI or
+trusted Host publication acceptance. The initial E2E fixture failed because
+its project did not exist before pool inspection; the fixture was corrected
+and the rerun passed. An initial RPC regression exposed invalid-argument
+classification as internal error; the handler was corrected.
+
+A/B prior work is preserved: PR #481 merged as `3b2d0b6`; its final `0b79cac`
+[test](https://github.com/SLktEx/Hacocoon/actions/runs/34081379821),
+[Ubuntu installer](https://github.com/SLktEx/Hacocoon/actions/runs/34081379810),
+[Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34081379802) and
+[Windows installer](https://github.com/SLktEx/Hacocoon/actions/runs/34081379870)
+workflows completed successfully. These are prior-commit results, not CI for
+this copy change. The new storage test is wired into existing Incus CI.
+
+SKIP for this slice: trusted Host image acquisition/publication and actual
+containerd/Docker consumption of copied images (that full product path is not
+yet implemented); VS Code UI development (no IDE exercise in this slice);
+Windows packaged acceptance of this change (installed product remains the
+previous B candidate); a new real Git push (no Git/auth/ref change here, and
+copy acceptance uses no repository). Existing B push OIDs below are historical
+verified results, not a new push. C-G implementation is still planned according
+to the updated [roadmap](status/architecture-and-roadmap.md#user-facing-development-order).
+
+
 ## Incus startup PID protection
 
 Status: **implemented; repository regressions and hosted Ubuntu/WSL package
@@ -411,7 +448,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.29**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.30**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

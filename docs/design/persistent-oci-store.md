@@ -88,6 +88,63 @@ runtime directory, `/run`, or Windows authority is shared. Registry credentials
 are not provisioned into a Store by Hacocoon. Treat Store contents as untrusted
 Environment data and do not attach them to the trusted Host.
 
+## Independent offline copies
+
+Status: implemented at the repository and real-Incus storage boundary. End-to-end
+OCI image distribution from trusted Host remains **partial**. See
+[ADR 0015](../adr/0015-offline-persistent-resource-copy.md).
+
+Reuse the existing create operation when a new Environment needs an independent
+copy of a prepared Store:
+
+```bash
+# Gracefully stop workloads and delete the old Environment to release its Store.
+# Environment deletion retains its Workspace and Store.
+haco env delete first
+haco plugin oci store create dev --from shared
+haco env create --workspace managed:work --resource oci:dev second
+```
+
+Here `shared` is an existing Store previously prepared in an Environment, not a
+Host daemon directory. `--from shared` may precede or follow `dev`. Omitting it
+still creates an empty Store. Copying requires an unleased source: stopping an
+Environment alone retains its reservation. Runtime/tool installation is still
+required in the new Environment. Copies preserve Store data; they do not start
+containers or copy the old Environment rootfs, `/run`, sockets or credentials
+from trusted Host. Hacocoon does not provision registry credentials into Stores;
+any credentials a user manually placed in source data would also be copied.
+
+The Incus adapter requires the same Btrfs pool, independently validates ownership
+and `used_by`, supplies new ownership markers and preserves idmap metadata. Incus
+performs the volume-only COW copy. Source and copy can later be used by separate
+Environments, changed or deleted independently. Core never parses image contents
+or accesses the Btrfs mount directly.
+
+During copying, source attachment/deletion and target attachment/deletion are
+blocked by the durable catalog reservation. On success the target is `ready` and
+the source is released. A failed/timed-out copy stays `creating` with an exact
+`copy_source`; `inspect`/`list` show these recovery details. Automatic recovery is
+not yet implemented. Do not retry by editing state or deleting provider objects:
+an asynchronous Incus operation may still be running even if its destination is
+not yet visible. An explicit future recovery path must prove operation quiescence.
+
+Repository regressions cover malformed/foreign/busy source observations, idmap
+preservation, CLI/RPC validation, reservations, restart, duplicate operations and
+failure retention. `TestRealIncusPersistentCopyE2E` uses a dedicated test-owned
+pool/project and synthetic data to verify Btrfs parent UUID, independent writes,
+source deletion and exact cleanup. It is included in the existing real-Incus GHA
+workflow. This is storage acceptance, **not** image/runtime or installed CLI
+acceptance. Reproduce on a root Linux/WSL host with Incus and Btrfs:
+
+```bash
+HACO_E2E_INCUS_PERSISTENT_COPY=1 go test -count=1 \
+  -run '^TestRealIncusPersistentCopyE2E$' -v ./modules/runtime/incus
+```
+
 The former `haco plugin oci distribute` CLI, RPC, archive service and save/load
-adapter have been removed. [ADR 0012](../adr/0012-one-way-oci-distribution.md) and
-its commit-bound acceptance remain historical; image delivery is not current B4.
+adapter remain removed. [ADR 0012](../adr/0012-one-way-oci-distribution.md) is
+historical. Revised B4 requires both persistent Stores and independent COW image
+delivery; Store reattachment alone does not complete that request. Trusted Host
+acquisition/publication without Host credential/live-state sharing, complete
+containerd/nerdctl and Docker image acceptance, and interrupted-copy recovery
+remain follow-up work. Never attach guest-populated Stores to trusted Host.

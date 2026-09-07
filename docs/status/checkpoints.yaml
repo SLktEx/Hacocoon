@@ -1,7 +1,7 @@
 # Hacocoon development-checkpoint numbering and gate identity.
 # This intentionally uses a constrained YAML subset parsed by repository tooling.
 schema: 1
-current: "v0.29"
+current: "v0.30"
 milestones:
   "v0.1": "Secure Workspace Runtime MVP"
   "v0.2": "Workspace Abstraction & Lease"
@@ -32,3 +32,4 @@ milestones:
   "v0.27": "Managed Repository WSL Workflow"
   "v0.28": "Multi-repository Development and Optional OCI Distribution"
   "v0.29": "Persistent OCI Resources and Native Windows Access"
+  "v0.30": "Independent Persistent Store Copies"
