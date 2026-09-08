@@ -303,7 +303,7 @@ The fixture deliberately prepares owned source storage directly. It does not
 claim installed CLI acceptance, restoration/reconnection or running OCI database
 consistency. The shared source Base image is retained, so deletion of that image
 is SKIP. Prior individual storage tests prove Btrfs parent UUID relationships.
-Existing Incus GHA now includes the complete fixture; new execution is pending.
+Existing Incus GHA now includes the complete fixture; its corrected execution passed.
 
 A repeat of the aggregate fixture failed before Environment creation because its
 previously supplied image fingerprint e363846a6ada800967c8d15cf9a2b2e10385ec2988154357c68086b3c6e5a5fa
@@ -336,4 +336,9 @@ fixture now uses a private temporary directory for its separate catalog and
 unique resources, without changing production locks or ownership checks.
 The failed run also reported incomplete storage cleanup after refusing the
 remaining aggregate instance; the subsequent CI-owned project cleanup succeeded.
-The corrected aggregate GHA execution remains pending.
+The corrected aggregate GHA execution passed.
+
+The corrected aggregate GHA passed at 4c05e6f and PR #487 was merged after all
+applicable workflows succeeded. Its Windows attempt first failed the approval
+fixture's Python-prerequisite project setup; the unchanged-head retry passed.
+The cause of that initial Windows failure remains unconfirmed.

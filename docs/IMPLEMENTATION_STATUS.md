@@ -1,8 +1,23 @@
 # Implementation Status
 
+## Retained Base ownership
+
+Partial: schema 7 adds a provider-neutral Base-asset catalog and retention
+coordinator. Exact provider/scope/revision and native ownership are reserved before
+creation; a durable creation receipt precedes verification and ready publication.
+Reuse verifies the same asset, and incomplete work retains ownership. Schema 6
+snapshot bindings remain readable. The Incus storage adapter now retains an independent stopped Base and verifies
+it without the image cache. Ordinary-create integration, recovery and
+reference-aware collection remain planned; the original
+cached-Base limitation is not yet resolved. See [ADR 0038](adr/0038-retained-base-assets.md).
+
 The first aggregate GHA run failed on a foreign-owned temporary lifecycle lock;
 the test now isolates its temporary lock directory. Production ownership checks
-remain unchanged. Corrected GHA acceptance is pending.
+remain unchanged. Corrected aggregate GHA passed; Windows passed on the unchanged-head retry.
+
+Dedicated WSL retained-Base acceptance passed after actual source-image deletion,
+catalog reload, exact reuse and rootfs read, followed by owned cleanup. This is
+adapter/coordinator acceptance; ordinary creation and restore remain incomplete.
 
 ## Snapshot aggregate capture
 
@@ -25,7 +40,7 @@ Shared Base-image deletion remains SKIP; restored Environment execution and live
 Docker/containerd database consistency are not established.
 
 Component, race and prior storage E2E checks passed. Existing Incus GHA now includes
-the aggregate fixture; execution of this extension is pending. Rootfs/Base GHA
+the aggregate fixture; its corrected execution passed. Rootfs/Base GHA
 already passed. The Base PR's first Windows run failed ordinary Environment init
 with insufficient provider diagnostics; its unchanged-head retry passed. That
 initial failure remains recorded, with cause unconfirmed.

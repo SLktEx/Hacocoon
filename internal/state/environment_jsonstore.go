@@ -12,10 +12,11 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const environmentStateVersion = 6
+const environmentStateVersion = 7
 const previousEnvironmentStateVersion = 2
 
 type environmentFileState struct {
+	BaseAssets          map[string]core.BaseAsset          `json:"base_assets,omitempty"`
 	Snapshots           map[string]core.Snapshot           `json:"snapshots,omitempty"`
 	PersistentResources map[string]core.PersistentResource `json:"persistent_resources,omitempty"`
 	Version             int                                `json:"version"`
@@ -287,6 +288,7 @@ func validateEphemeralRun(run core.EphemeralRun) error {
 
 func newEnvironmentFileState() environmentFileState {
 	return environmentFileState{
+		BaseAssets:          map[string]core.BaseAsset{},
 		Snapshots:           map[string]core.Snapshot{},
 		PersistentResources: map[string]core.PersistentResource{},
 		Version:             environmentStateVersion,
@@ -318,6 +320,9 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 	if data.EphemeralRuns == nil {
 		data.EphemeralRuns = map[string]core.EphemeralRun{}
 	}
+	if data.BaseAssets == nil {
+		data.BaseAssets = map[string]core.BaseAsset{}
+	}
 	if data.Snapshots == nil {
 		data.Snapshots = map[string]core.Snapshot{}
 	}
@@ -331,10 +336,20 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 }
 
 func normalizeEnvironmentState(data *environmentFileState) error {
-	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != 5 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
+	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != 5 && data.Version != 6 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
 		return fmt.Errorf("environment state version %d is unsupported (want %d): %w", data.Version, environmentStateVersion, core.ErrIncompatibleState)
 	}
 
+	for id, a := range data.BaseAssets {
+		if data.Version != environmentStateVersion || id != a.ID || validateBaseAsset(a) != nil {
+			return core.ErrIncompatibleState
+		}
+		for otherID, b := range data.BaseAssets {
+			if otherID != id && a.Provider == b.Provider && ((a.Scope == b.Scope && a.Base == b.Base) || a.NativeRef == b.NativeRef) {
+				return core.ErrIncompatibleState
+			}
+		}
+	}
 	for id, snapshot := range data.Snapshots {
 		if data.Version == 5 {
 			for _, component := range snapshot.Components {
@@ -343,7 +358,7 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 				}
 			}
 		}
-		if (data.Version != 5 && data.Version != environmentStateVersion) || id != snapshot.ID || validateSnapshot(snapshot) != nil {
+		if (data.Version != 5 && data.Version != 6 && data.Version != environmentStateVersion) || id != snapshot.ID || validateSnapshot(snapshot) != nil {
 			return core.ErrIncompatibleState
 		}
 	}

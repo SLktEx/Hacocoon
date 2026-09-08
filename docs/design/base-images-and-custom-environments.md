@@ -267,3 +267,46 @@ v0.12 Resource Budgets must compose with v0.11 so a custom Base cannot raise or 
 See [`../BASE_IMAGES.md`](../BASE_IMAGES.md) for the broader design and future lifecycle work.
 
 > **v0.11 now gives Environment creation a provider-neutral logical Base that is resolved once to an immutable revision and persisted; mutable Incus image names remain adapter details.**
+
+## Independently retained Base assets
+
+Partial: schema 7 now stores exact Base-asset ownership alongside Environment and
+snapshot state. The internal retention coordinator reserves a provider-native
+plan, immediately records successful creation, verifies it and publishes ready.
+A ready asset can be reused only for the same name/revision, provider and storage
+scope and only after provider verification. An ambiguous create, failed receipt or
+failed verification leaves recoverable ownership; it does not trigger another
+create or forget the resource. Existing snapshot schema 6 bindings survive upgrade.
+
+This is preparation for automatic retention during ordinary Environment creation.
+The Incus retained-material adapter is implemented; creation wiring is still planned, so missing cached Base
+images remain a limitation of current daily snapshot work. No command or required
+argument is added. Asset removal requires future reference-aware collection; this
+slice exposes no deletion API. See [ADR 0038](../adr/0038-retained-base-assets.md).
+
+The Incus adapter creates a stopped `haco-base-<owner>` with the exact pinned
+image, no profiles, no host devices and no autostart. It rechecks Btrfs placement
+before creation. Canonical bindings qualify project/pool, source revision, owner,
+asset ID and provider before provider access. Verification checks the independently
+retained rootfs rather than re-querying the source image. Existing snapshot Base
+validation uses the same storage checks while retaining its own namespace.
+Component regressions cover cache-independent verification, lost create replies,
+binding drift and inherited authority refusal. Real-provider E2E is included in
+the existing Incus workflow; its new execution is pending.
+
+### Retained-material acceptance
+
+Dedicated WSL Incus 6.0.5 passed TestRealIncusBaseAssetE2E in 10.50 seconds.
+Asset base-b8b35a1f72ffee3934eb3916ecce88a6 reached ready through the real catalog
+and retention coordinator. The fixture proved project image isolation and that
+no other Environment used its explicitly selected source image before deleting
+1c0521930f3ac10dd5b9e61f236a7f61f8ebb5487a7b44aa4d7d9e75197f81af.
+After positive image absence and catalog reload, Ensure reused exactly the same
+asset and its Ubuntu rootfs remained readable. Exact asset deletion and private
+catalog cleanup then succeeded. Source-image deletion was executed successfully
+in this dedicated run; the shared-cache deletion variant remains disabled in GHA.
+This does not yet establish ordinary-create wiring or snapshot restore.
+
+An initial local compile/vet attempt failed on a missing BaseRevision conversion
+in the new regression test. The type was corrected; focused tests and the real
+fixture passed. The full local CI rerun remains pending.
