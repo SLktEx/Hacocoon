@@ -1,5 +1,20 @@
 # 実装状況
 
+## 実際の Host OCI 領域のコピー
+
+B4 の要件は実際の Host イメージ保存領域をそのまま Btrfs COW でコピーすることです。
+イメージ選択や export/import による再構成ではありません。方向の異なる一覧処理は
+取り消しました。既存の独立 volume コピーは一致していますが、実 Host 保存領域と
+書き込み停止を接続する処理は planned です。合成データの検証を配布完了と扱いません。
+[判断](adr/0031-host-oci-area-copy.md)を参照してください。
+
+Windows `4bb8dad` の run 34176272125 は native review が使用できない Get-FileHash を
+要求して失敗しました。`8d7a2ea` で .NET SHA-256 に置き換え、PowerShell 5.1 component は
+成功しました。修正後の Windows 実受け入れは pending です。取り消した OCI 一覧処理の
+対象テストは成功しましたが、実装と一緒に削除しました。その全体 local CI は Go テスト成功後、
+vet 中に中断しました。全 CI 成功や、訂正後の領域コピーの検証結果とは扱いません。
+
+
 ## Git と network の承認の一致
 
 実装済みの共通承認について、CLI と Policy／監査の capability 間比較テストを追加しました。
@@ -17,7 +32,7 @@
 通常通り使います。バイナリは検証した atomic 置換により、notifier 動作中も更新できます。
 unit parser・所有権・opt-out・from-now と race 回帰は成功しました。
 インストール済みの自動サービス受入は pending です。
-`4bb8dad` では test・Ubuntu・Incus E2E が成功し、Windows は実行中です。
+`4bb8dad` は test・Ubuntu・Incus E2E が成功し、Windows は失敗しました。上記の修正記録を参照してください。
 
 
 ## Host 通知の受入と状態保存

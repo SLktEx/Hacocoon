@@ -1,5 +1,21 @@
 # Implementation Status
 
+## Actual Host OCI area copying
+
+B4 requires direct area-level Btrfs COW of the actual Host image storage, not
+image selection or export/import reconstruction. The contrary inventory slice
+was reverted. Existing independent volume copy is aligned; the missing actual
+Host source/quiescence integration remains planned. Do not claim delivery from
+synthetic storage tests. [Decision](adr/0031-host-oci-area-copy.md).
+
+Windows `4bb8dad` run 34176272125 failed: native review required unavailable
+Get-FileHash. `8d7a2ea` replaces that dependency with .NET SHA-256; PowerShell 5.1
+component tests passed. Installed Windows acceptance after the fix is pending.
+The former OCI focused tests passed, but were removed with that withdrawn slice.
+Its broader local CI was canceled during vet after Go tests passed; it was not a
+full CI pass and is not evidence for the corrected area-copy implementation.
+
+
 ## Git and network approval parity
 
 Implemented shared approval behavior is now covered by cross-capability CLI and
@@ -19,7 +35,7 @@ First start skips historical presentation, while existing cursors resume normall
 Companion publication uses verified atomic replacement so a running notifier does
 not block updates. Unit parser, ownership, opt-out, from-now and race regressions passed.
 Installed automatic service acceptance remains pending.
-At `4bb8dad`, test, Ubuntu and Incus E2E passed. Windows remains running.
+At `4bb8dad`, test, Ubuntu and Incus E2E passed. Windows failed; see the current correction above.
 
 
 ## Host notification acceptance and state safety

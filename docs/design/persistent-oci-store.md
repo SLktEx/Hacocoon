@@ -93,33 +93,40 @@ Environment data and do not attach them to the trusted Host.
 Status: **partial**. Default copy/reuse and opt-out are implemented; trusted Host
 image publication and Docker/runtime acceptance remain incomplete. The explicit Store
 commands above are implemented advanced/recovery operations, not the intended
-ordinary create sequence. Environment creation must automatically publish the
-locally prepared Docker/nerdctl images from trusted Host, make an independent
-Btrfs COW copy and attach the resulting persistent data. Users must not normally
-create, copy and name a Store separately. A single optional `--no-oci` opt-out
-is implemented. When a ready source-only `oci-source:host` exists, ordinary
-creation copies it automatically into a Workspace-bound Store. When it does not
-exist, there is no published optional content to attach. The Host image producer
-that will populate it is not implemented yet; do not infer complete image delivery
-from this wiring. See [ADR 0017](../adr/0017-default-workspace-resource-initialization.md).
+ordinary create sequence. Environment creation must automatically make an independent
+Btrfs COW copy of the actual image storage area used by Docker/nerdctl in
+`haco-host`. It must not enumerate/select images and export/import them into a
+reconstructed publication. Tags, local images, layers and runtime metadata travel
+as part of the storage area. The goal is a fast area-level copy that makes the
+same local images available immediately with a compatible runtime.
 
-The maintained optional OCI integration supplies this default. Core keeps a
-provider-neutral initialization contract and does not require either runtime.
-If the integration/runtime is absent, ordinary non-OCI Environment creation
-must remain usable. If a configured publication/copy operation fails, report
-that failure and retain exact ownership for recovery; do not silently omit the
-requested content. Do not fetch new registry content as a side effect of copying
-already prepared local images.
+A single optional `--no-oci` opt-out is implemented. Existing wiring consumes a
+ready source-only `oci-source:host`, but does not yet connect the actual Host data
+area. The proposed image-inventory producer was withdrawn because it did not
+satisfy this requirement. A prepared empty/synthetic source is not acceptance of
+Host image delivery. See [ADR 0031](../adr/0031-host-oci-area-copy.md).
 
-Publication must contain image data only, quiesced before COW. Do not copy a live
-Host daemon directory, credentials, management sockets, process state or arbitrary
-Host volumes. Preserve separate Docker/containerd formats when required; verify
-both runtime paths independently. A guest-used Store is never reattached to Host.
-Reuse a Workspace's retained Store on recreation without overwriting guest edits;
-explicit resource selection remains available for advanced use. Creation failure
-must leave every automatic resource identifiable and recoverable. This default
-workflow is incomplete until Host publication, automatic copy/attachment, opt-out,
-repeat/recreate behavior and both runtime acceptance have actually run.
+Core keeps a provider-neutral initialization contract and neither runtime is a
+mandatory dependency. Missing optional tooling leaves non-OCI creation usable;
+a configured copy failure must be reported with retained exact ownership rather
+than silently producing empty content. No registry pull occurs during copying.
+
+Before copying, stop all writers and prevent their restart. Copying a live daemon
+root is not accepted. The area includes image data and required runtime metadata,
+but excludes `/run`, management sockets, Host credentials and unrelated Host
+volumes. Docker and containerd formats remain distinct and require independent
+acceptance. Do not replace this operation with save/load, Seed construction or
+per-image filtering. Runtime binaries belong to the Environment/Base integration;
+data reuse is not proof that a compatible runtime is installed.
+
+The source remains Host-owned; a copy receives fresh ownership and is never
+reattached to Host. Reusing a Workspace's retained Store preserves guest changes.
+Copy failure must retain source/target identities and the writer-stopped state
+until completion or absence is proven. The existing backend currently rejects
+all attached sources; do not relax that guard without an owned Host quiescence
+protocol and regression coverage. The full flow remains incomplete until actual
+Host area copy, immediate local-image use, opt-out, recreation, source/target
+independent mutation/deletion and interrupted cleanup are demonstrated.
 
 ## Independent offline copies
 
@@ -177,7 +184,6 @@ HACO_E2E_INCUS_PERSISTENT_COPY=1 go test -count=1 \
 The former `haco plugin oci distribute` CLI, RPC, archive service and save/load
 adapter remain removed. [ADR 0012](../adr/0012-one-way-oci-distribution.md) is
 historical. Revised B4 requires both persistent Stores and independent COW image
-delivery; Store reattachment alone does not complete that request. Trusted Host
-acquisition/publication without Host credential/live-state sharing, complete
+delivery; Store reattachment alone does not complete that request. Actual Host storage-area copying without Host credential/live-state sharing, complete
 containerd/nerdctl and Docker image acceptance, and interrupted-copy recovery
 remain follow-up work. Never attach guest-populated Stores to trusted Host.
