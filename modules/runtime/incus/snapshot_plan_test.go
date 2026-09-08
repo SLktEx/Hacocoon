@@ -11,7 +11,7 @@ import (
 )
 
 func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
-	for _, mode := range []string{"ok", "no-oci", "missing-work", "missing-base", "extra-disk", "duplicate-work", "foreign-owner", "running", "foreign-instance", "missing-volume", "foreign-user", "wrong-image", "readonly-option", "wrong-pool"} {
+	for _, mode := range []string{"ok", "no-oci", "missing-work", "missing-base", "extra-disk", "duplicate-work", "foreign-owner", "running", "foreign-instance", "missing-volume", "foreign-user", "wrong-image", "missing-image", "readonly-option", "wrong-pool"} {
 		t.Run(mode, func(t *testing.T) {
 			root, instance := rootfsFixture()
 			base := baseSnapshotFixture()
@@ -68,6 +68,9 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 				case strings.Contains(args[1], "/volumes/custom?"):
 					value = volumes
 				case strings.HasPrefix(args[1], "/1.0/images/"):
+					if mode == "missing-image" {
+						return host.Result{ExitCode: 1}, nil
+					}
 					fingerprint := strings.Repeat("b", 64)
 					if mode == "wrong-image" {
 						fingerprint = strings.Repeat("c", 64)

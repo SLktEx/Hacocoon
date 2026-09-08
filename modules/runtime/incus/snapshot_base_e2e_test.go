@@ -31,7 +31,7 @@ func TestRealIncusSnapshotBaseE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := snapshotBasePlan{Pool: pool, Owner: hex.EncodeToString(nonce[:]), Base: core.BaseRef{Name: "snapshot-fixture/base", Revision: core.BaseRevision("sha256:" + image)}}
-	file, err := os.CreateTemp("", "haco-snapshot-base-*.json")
+	file, err := os.CreateTemp("/var/lib", "haco-snapshot-base-*.json")
 	if err != nil {
 		t.Fatal(err)
 	}

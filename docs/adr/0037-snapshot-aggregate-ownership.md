@@ -89,3 +89,9 @@ requires a single Btrfs pool and cached effective Base, and refuses omitted or
 extra storage before reservation. Device/path layout joins the persisted volume
 binding. Provider-qualified component refs prevent cross-provider cleanup or
 source confusion. Real full-aggregate acceptance and restore remain pending.
+
+Dedicated WSL now passed the complete five-component capture through the canonical
+catalog/coordinator/router, reopening state and deleting source Environment and
+volumes before verifying retained Git/OCI/rootfs data and saved-component cleanup.
+This proves the internal capture path for prepared owned fixtures. Restore,
+installed daily commands and live OCI database consistency remain separate gates.

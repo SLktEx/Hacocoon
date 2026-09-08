@@ -1,43 +1,35 @@
 # 実装状況
 
-## snapshot の送信元検査
+## snapshot 全体保存
 
-内部の停止中一括 planner と本番 provider routing を実装しました。登録済み Workspace
-全メンバーの所有権と実 disk を照合し、OCI/Base と mount 配置を記録します。
-欠落・未登録の保存対象は変更前に拒否します。component/route テストは成功しました。
-実際の全体保存・復元・日常 CLI は引き続き未検証／未実装です。
+E2 は partial です。内部の保存・削除 service を、正規の schema 6 catalog と lifecycle
+lock、provider router、停止中 Incus の全体 planner まで接続しました。rootfs、登録済み
+Workspace/Git 全メンバー、任意の正確な OCI 保存領域、cached effective Base を含みます。
+最初の対応は同じ Btrfs pool 内です。disk の欠落・余分な接続・メンバー重複・他者の所有権や
+使用・作成 ID 不一致・Base 欠落は拒否します。provider binding と mount 配置を再起動後も
+保持し、作成記録→検証→公開の順を守ります。削除は不存在を確認するまで所有権を保持します。
 
-Schema 6 で provider の完全な保存計画を永続化し、再起動後も CAS で正確に照合します。
-Incus は project/version/role/owner/ref と送信元 ID を確認してから処理します。
-旧 schema 5 の所有権は計画を捏造せず保持し、新規予約での Base 欠落は拒否します。
-全体の実機受入と復元は残作業です。
+専用 WSL で、2 Workspace・OCI・rootfs・Base の 5 component を実 catalog/coordinator/router
+経由で保存できました。catalog を再読込みし、元 Environment と元 volume を削除しても、
+保存先の Git commit・未コミット／未追跡ファイル・OCI fixture データ・guest-only ファイルが
+残りました。全保存 component の検証と snapshot 記録を含む cleanup も成功しました。
+fixture は所有付き保存領域を直接準備しており、installed CLI の受入ではありません。
+共有 Base イメージ自体の削除は SKIP、復元後の実行と稼働中 Docker/containerd DB の整合性は未検証です。
 
-内部 Base 保存もローカルの正確な image revision に固定しました。専用 WSL で
-停止中の設定分離、Btrfs COW の親 UUID、保存先書込みの独立性と cleanup に成功しました。
-E2E で検出した Incus 6.0.5 の image info 非互換は JSON API へ修正済みです。
-共有キャッシュのため元イメージ削除の確認は SKIP。一括保存・復元は残作業、Base GHA は待機中です。
+component・race・先行 storage E2E は成功しました。既存 Incus GHA に全体 fixture を追加し、
+その実行は待機中です。rootfs/Base の GHA は成功済みです。Base PR の初回 Windows 実行は
+通常の Environment init で失敗し、provider 詳細が不足していました。同じ head の再実行は
+成功しましたが、初回失敗の原因は未確定として記録します。
 
-E2 の内部基盤を部分実装しました。Environment/Workspace lock の下で全対象の対応を
-検査し、provider の停止と正確な永続作成 ID を要求します。不一致・running/unknown・
-不正な接続 ID は拒否し、同時削除を防ぎます。focused race は成功しました。
-schema 6 の component catalog で作成・復旧中の所有権を永続化し、全保存物の確認または
-全対象の消失確認まで start/delete を拒否します。再起動・状態遷移・cleanup・migration・
-同時予約の回帰テストは成功しました。新規の stateful Incus 作成では予約 ID を作成要求に
-記録し、snapshot 検査時に provider route 経由で照合します。marker のない既存環境や
-同名の置換先を後付けで採用しません。専用 WSL の provider ID 照合・異なる ID の拒否・
-stop/start は fixture haco-resume-e2e-4bf6bd219effb14f で成功し、消失確認も済みました。
-これは provider fixture であり、installed controller の snapshot 受入れではありません。内部の capture/delete 処理で予約・作成記録・確認・
-公開の順序を保証し、キャンセルや部分 cleanup でも所有権を保持します。実 JSON catalog
-を使った各段階の失敗注入テストを追加しました。provider 保存・全構成の manifest・restore・CLI・
-Environment 全体の実データ往復は未実装です。内部の Incus Workspace/OCI volume COW・
-保存先検査・消失確認付き削除を実装しました。専用 WSL でファイル/リンク保持、Btrfs の
-親 UUID、双方向の独立性、元 volume 削除後の保持に成功し、片付けも確認済みです。
-同じ fixture を既存 Incus GHA に追加し、新 HEAD の実行は未確認です。完全な manifest・
-Base を含む本番の全体保存/復元・CLI は残作業であり、稼働中 OCI DB の整合性は未検証です。
-独立した rootfs COW も専用 WSL で保存元 ID/停止状態、設定/デバイスの遮断、データ保持、
-元環境削除後の独立性を確認しました。既存 Incus GHA に追加した rootfs fixture は実行待ちです。
+復元・保存データからの独立した再作成・簡潔な公開 save/restore 操作は残作業です。
+公開 snapshot コマンドはまだありません。旧 controller に schema 6 を読み書きさせて
+所有権を失わないよう、旧版は拒否する必要があります。
 [snapshot 設計](design/environment-snapshots.md)と [ADR 0037](adr/0037-snapshot-aggregate-ownership.md)を参照してください。
 
+再実行では指定した旧 image がキャッシュになく、Image not found で失敗しました。
+残った未使用 OCI fixture は正確な所有権を照合して片付けました。復旧記録は WSL 再起動を
+またいで保持する /var/lib に移し、fixture 作成前に image を照会します。公開日常操作の前に、
+長期間使う Environment の Base 資材を自動保持する仕組みも必要です。別 image への置換はしません。
 
 ## 外部 Workspace 再作成の実機検証
 
