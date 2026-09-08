@@ -1,5 +1,16 @@
 # Implementation Status
 
+## Fresh notification service startup
+
+Windows run 34181502807 failed at notification-service setup and skipped the
+subsequent connection/native checks. A deterministic component defect was
+reproduced on dedicated WSL: unconditional `reset-failed` rejects a new unloaded
+unit. An attempted explicit load still failed because systemd can unload it again.
+Startup now resets only an observed failed unit; unknown results fail closed.
+The 11 Python regressions and real systemd fresh startup/refresh/owned cleanup
+passed. These checks do not prove that the full Windows installer failure is
+resolved; the new GHA run and fresh notification activation remain unverified.
+
 ## Fresh Host OCI storage setup
 
 Partial: ordinary `haco setup` creates and binds an owned source area for a fresh

@@ -60,3 +60,8 @@ atomic replacement. Predictable temporary names can redirect writes through a
 link; unlinking the lock can split ownership across inodes. Both are rejected.
 This is client-owned presentation state, not a capability authority or an
 exactly-once delivery guarantee. Windows setup now owns optional background startup after desktop registration.
+
+Notification startup inspects failure state before resetting it. A fresh inactive
+unit has no failed state and may be unloaded by systemd; it must still start
+normally. Existing failed units retain the explicit reset path. Unknown inspection
+results fail setup rather than being treated as a successful start.

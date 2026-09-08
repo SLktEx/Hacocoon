@@ -238,7 +238,13 @@ def install_notification_unit(unit, enabled, directory=Path('/etc/systemd/system
         if temporary and os.path.exists(temporary):
             os.unlink(temporary)
     run(['systemctl', 'daemon-reload'], check=True)
-    run(['systemctl', 'reset-failed', 'hacocoon-notify.service'], check=True)
+    # A new/inactive unit can be garbage-collected between systemctl calls.
+    # Only a retained failed unit has failure state to reset.
+    failed = run(['systemctl', 'is-failed', '--quiet', 'hacocoon-notify.service'], check=False)
+    if failed.returncode == 0:
+        run(['systemctl', 'reset-failed', 'hacocoon-notify.service'], check=True)
+    elif failed.returncode != 1:
+        raise subprocess.CalledProcessError(failed.returncode, 'inspect notification failure state')
     run(['systemctl', 'enable', 'hacocoon-notify.service'], check=True)
     run(['systemctl', 'restart', 'hacocoon-notify.service'], check=True)
     run(['systemctl', 'is-active', '--quiet', 'hacocoon-notify.service'], check=True)

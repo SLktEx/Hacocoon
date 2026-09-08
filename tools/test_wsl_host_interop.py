@@ -119,7 +119,11 @@ class NotificationServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
             target = directory / 'hacocoon-notify.service'
-            run = mock.Mock()
+            def fresh_systemd(args, **kwargs):
+                if args[1] == 'reset-failed':
+                    raise subprocess.CalledProcessError(1, args, stderr='Unit not loaded')
+                return subprocess.CompletedProcess(args, 1 if args[1] == 'is-failed' else 0)
+            run = mock.Mock(side_effect=fresh_systemd)
             unit = interop.notification_unit(['/mnt/c/Windows/System32'], 'Hacocoon')
             original = Path.lstat
             def owned(path, *args, **kwargs):
@@ -128,12 +132,14 @@ class NotificationServiceTests(unittest.TestCase):
             with mock.patch.object(Path, 'lstat', owned):
                 interop.install_notification_unit(unit, True, directory, run)
                 self.assertEqual(target.read_text(), unit)
-                self.assertEqual([call.args[0][1] for call in run.call_args_list], ['daemon-reload','reset-failed','enable','restart','is-active'])
+                self.assertEqual([call.args[0][1] for call in run.call_args_list], ['daemon-reload','is-failed','enable','restart','is-active'])
                 run.reset_mock()
+                run.side_effect = None
                 run.return_value = subprocess.CompletedProcess([], 0)
                 interop.install_notification_unit(unit, None, directory, run)
                 self.assertEqual(run.call_args_list[0].args[0], ['systemctl','is-enabled','--quiet','hacocoon-notify.service'])
                 self.assertIn(mock.call(['systemctl','restart','hacocoon-notify.service'], check=True), run.call_args_list)
+                self.assertIn(mock.call(['systemctl','reset-failed','hacocoon-notify.service'], check=True), run.call_args_list)
                 run.reset_mock()
                 interop.install_notification_unit(unit, False, directory, run)
                 run.assert_called_once_with(['systemctl','disable','--now','hacocoon-notify.service'], check=True)
