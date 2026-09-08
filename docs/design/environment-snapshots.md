@@ -1,6 +1,6 @@
 # Environment snapshots and restore
 
-Status: **partial internal capture backend**. The durable component catalog and
+Status: **partial capture and restore preparation**. The durable component catalog and
 capture coordinator now connect through the provider router to an Incus aggregate
 planner and owned storage. Individual storage primitives have real-host evidence;
 the full aggregate path passed dedicated WSL catalog/coordinator/router acceptance.
@@ -40,11 +40,15 @@ precede verification; only every verified component permits `prepared`, which
 still does not publish a runnable replacement. Cleanup retains ownership until
 all new copies are positively absent, leaving current work and both snapshots.
 
-The future service must capture the pre-restore snapshot freshly under canonical
-locks before reservation. The catalog validates identity and transitions, not
-guest contents or provider completion. Provider staging, canonical replacement,
-recovery execution and simple public save/restore are still pending. This is not
-real-host restore acceptance. See [ADR 0039](../adr/0039-snapshot-restore-preparation.md).
+The service now captures the pre-restore snapshot freshly under canonical locks
+before reservation, then creates each planned copy, records its completion and
+verifies it. The Incus backend stages rootfs, Base, Workspace and OCI as independent
+stopped instances/unattached volumes with fresh ownership; provider routing keeps
+saved and destination material in the same provider. The catalog validates
+identity/transitions and the backend validates owned material. Cleanup preserves
+both snapshots and current work. Canonical replacement, recovery execution for
+that replacement and simple public save/restore are still pending. Preparation
+does not constitute real-host restore acceptance. See [ADR 0039](../adr/0039-snapshot-restore-preparation.md).
 
 ## Scope
 
@@ -382,3 +386,11 @@ The corrected aggregate GHA passed at 4c05e6f and PR #487 was merged after all
 applicable workflows succeeded. Its Windows attempt first failed the approval
 fixture's Python-prerequisite project setup; the unchanged-head retry passed.
 The cause of that initial Windows failure remains unconfirmed.
+
+Dedicated WSL restore-preparation acceptance passed with a real schema-8 catalog,
+Workspace service, provider router and Incus copies. It checked all five staged
+components after changing current rootfs/Workspace/OCI data, preserved those
+changes in a fresh backup, verified saved Git commit/uncommitted/untracked work
+and OCI bytes, and proved edits to staging do not affect current work or the save.
+Catalog reload and positive-absence cleanup passed. This fixture does not activate
+or execute a replacement Environment and does not test live OCI databases.

@@ -1,14 +1,30 @@
 # Implementation Status
 
-## Restore preparation catalog
+## Snapshot restore preparation
 
-Implemented internally: schema 8 reserves saved and pre-restore snapshots plus
-complete independent destination ownership. It blocks snapshot deletion and
-conflicting target lifecycle until every new component is positively absent.
-Created/verified/prepared transitions never publish an Environment. Restart,
-partial cleanup, stale binding, downgrade and deletion-race regressions passed.
-Provider staging, fresh backup capture, canonical replacement and public restore
-remain pending; no real-host restore was executed. See [ADR 0039](adr/0039-snapshot-restore-preparation.md).
+Implemented internally: schema 8 reserves the selected save, a fresh pre-restore
+backup and every independent destination identity. The canonical locked service
+verifies stopped current work, captures its backup, stages all saved components,
+records each create before verification, and publishes only `prepared`. Incus
+copies rootfs/Base/Workspace/OCI into independently owned stopped instances and
+unattached volumes. Routing rejects mixed providers; cleanup requires exact
+ownership and positive absence. Both snapshots and current work remain preserved.
+
+Catalog, service, router and backend race regressions passed. The catalog slice
+passed full local CI and all applicable GHA and is merged as PR #491. The staging
+slice's full CI/GHA remain pending. Dedicated WSL final staging acceptance passed
+in 79.60 seconds with fixture `haco-aggregate-7bef775e5b1e3d29` and snapshot
+`snap-3e2d4921733e6425d00042a0a3453b2a`: delete the source image, capture all five
+components, change current rootfs/Workspace/OCI data, prepare saved data with a
+fresh backup, reload the catalog, verify saved Base/rootfs/Git/OCI bytes and backup
+changes, edit staging copies without affecting current work or the saved snapshot,
+then positively clean up staging, backups and original fixture resources.
+
+This is preparation, not a completed restore. Canonical Environment replacement,
+connection reconciliation, restart/recovery of that replacement and public
+save/restore remain required. Live Docker/containerd consistency remains unverified;
+OCI acceptance uses persistent file fixtures. See [ADR 0039](adr/0039-snapshot-restore-preparation.md)
+and [snapshot design](design/environment-snapshots.md).
 
 ## Retained Bases and snapshot capture
 
@@ -36,7 +52,7 @@ Dedicated WSL final aggregate acceptance passed in 1.46 seconds with fixture
 `snap-51d2e3ab955f3f1be10c156d1305e185`: delete the source image, capture all five
 components, reload the catalog, delete source Environment/volumes and original
 Base, verify saved Git/data, then positively clean up all owned resources.
-The new snapshot GHA execution is pending. Restore, public save/restore, planned
+The retained-Base snapshot GHA passed and PR #490 is merged. Restore, public save/restore, planned
 Base recovery and reference-aware collection remain incomplete. Live Docker/
 containerd consistency and restore are unverified. See [Base design](design/base-images-and-custom-environments.md),
 [snapshot design](design/environment-snapshots.md) and [ADR 0038](adr/0038-retained-base-assets.md).
@@ -1121,7 +1137,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.48**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.49**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

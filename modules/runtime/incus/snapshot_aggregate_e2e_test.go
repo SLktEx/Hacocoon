@@ -212,7 +212,106 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	reopened := state.NewEnvironmentJSONStore(filepath.Join(dir, "state.json"))
 	snap, err = reopened.GetSnapshot(ctx, snap.ID)
 	must(err)
+	read := func(base, path, want string) {
+		t.Helper()
+		data, err := os.ReadFile(filepath.Join(base, path))
+		must(err)
+		if string(data) != want {
+			t.Fatalf("saved %s changed", path)
+		}
+	}
 	service = workspace.New(runtime, reopened)
+	// Change current work after saving, then prove preparation preserves it and
+	// stages the earlier saved bytes. This does not publish or start a replacement.
+	write(filepath.Join(rootPath(native), "root"), "snapshot-marker", "changed current work")
+	for _, m := range mounts {
+		write(volumePath(m.Volume), "tracked", "changed "+m.Device)
+		write(volumePath(m.Volume), "untracked", "changed untracked "+m.Device)
+	}
+	write(volumePath("haco-persistent-"+resource.Owner), "containerd/data", "changed containerd")
+	write(volumePath("haco-persistent-"+resource.Owner), "docker/volumes/data", "changed Docker volume")
+	command("sync")
+	prepared, err := service.PrepareSnapshotRestore(ctx, name, snap.ID)
+	must(err)
+	if prepared.State != "prepared" || len(prepared.Components) != 5 {
+		t.Fatal("restore staging incomplete")
+	}
+	prepared, err = reopened.GetSnapshotRestore(ctx, prepared.ID)
+	must(err)
+	for _, component := range prepared.Components {
+		must(runtime.VerifyRestoreComponent(ctx, component))
+		prefix := "haco-runtime-v1:" + environmentapp.ProviderIncus + ":"
+		if !strings.HasPrefix(component.NativeRef, prefix) {
+			t.Fatal("restore route absent")
+		}
+		decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(component.NativeRef, prefix))
+		must(err)
+		local := component
+		local.NativeRef = string(decoded)
+		binding, err := r.decodeRestore(local)
+		must(err)
+		source, _, _, instance, err := r.restoreShape(binding)
+		must(err)
+		switch {
+		case component.Role == "rootfs":
+			read(rootPath(binding.target()), "root/snapshot-marker", "guest-only bytes")
+			write(filepath.Join(rootPath(binding.target()), "root"), "snapshot-marker", "edited staged rootfs")
+		case component.Role == "base":
+			data, err := os.ReadFile(filepath.Join(rootPath(binding.target()), "usr/lib/os-release"))
+			must(err)
+			if !strings.Contains(string(data), "ID=ubuntu") {
+				t.Fatal("staged Base data missing")
+			}
+		case !instance && component.Role == "oci":
+			read(volumePath(binding.target()), "containerd/data", "actual stored bytes")
+			read(volumePath(binding.target()), "docker/volumes/data", "persistent volume bytes")
+			write(volumePath(binding.target()), "containerd/data", "edited staged OCI")
+		case !instance:
+			path := volumePath(binding.target())
+			device := source.Volume.Device
+			if command("git", "-C", path, "rev-parse", "HEAD") != commits[device] {
+				t.Fatal("staged Git commit missing")
+			}
+			read(path, "tracked", "uncommitted "+device)
+			read(path, "untracked", "untracked "+device)
+			if _, err := os.Lstat(filepath.Join(path, ".git", "objects", "info", "alternates")); !os.IsNotExist(err) {
+				t.Fatal("staged Git depends on source objects", err)
+			}
+			write(path, "tracked", "edited staged work")
+		}
+	}
+	for _, component := range prepared.Before.Components {
+		prefix := "haco-runtime-v1:" + environmentapp.ProviderIncus + ":"
+		decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(component.NativeRef, prefix))
+		must(err)
+		local := component
+		local.NativeRef = string(decoded)
+		binding, err := r.decodeSnapshotComponent(local)
+		must(err)
+		switch {
+		case binding.Rootfs != nil:
+			read(rootPath(binding.Rootfs.target()), "root/snapshot-marker", "changed current work")
+		case binding.Volume != nil:
+			path := volumePath(binding.Volume.target())
+			if component.Role == "oci" {
+				read(path, "containerd/data", "changed containerd")
+				read(path, "docker/volumes/data", "changed Docker volume")
+			} else {
+				read(path, "tracked", "changed "+binding.Volume.Device)
+				read(path, "untracked", "changed untracked "+binding.Volume.Device)
+			}
+		}
+	}
+	read(rootPath(native), "root/snapshot-marker", "changed current work")
+	for _, m := range mounts {
+		read(volumePath(m.Volume), "tracked", "changed "+m.Device)
+		read(volumePath(m.Volume), "untracked", "changed untracked "+m.Device)
+	}
+	read(volumePath("haco-persistent-"+resource.Owner), "containerd/data", "changed containerd")
+	read(volumePath("haco-persistent-"+resource.Owner), "docker/volumes/data", "changed Docker volume")
+	must(service.CleanupSnapshotRestore(ctx, prepared.ID))
+	must(service.DeleteSnapshot(ctx, prepared.Before.ID))
+	t.Log("PASS five-component restore preparation, durable reload, saved rootfs/Base/Git/OCI bytes staged, changed current work backed up, staging edits independent, owned staging cleanup; no Environment replacement performed")
 	must(r.VerifyEnvironmentIdentity(ctx, native, id))
 	must(service.Delete(ctx, name))
 	if exists, err := r.environmentExists(ctx, native); err != nil || exists {
@@ -238,14 +337,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	must(err)
 	must(persistent.Delete(ctx, deleting))
 	must(reopened.FinalizePersistentResourceDelete(ctx, deleting))
-	read := func(base, path, want string) {
-		t.Helper()
-		data, err := os.ReadFile(filepath.Join(base, path))
-		must(err)
-		if string(data) != want {
-			t.Fatalf("saved %s changed", path)
-		}
-	}
+
 	// Intentionally remove the fixture-owned original Base to prove snapshot independence.
 	// Keep its durable receipt until the complete fixture is positively absent.
 	must(r.deleteBaseStorage(ctx, baseIdentity))

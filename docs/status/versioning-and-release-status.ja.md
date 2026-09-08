@@ -5,8 +5,8 @@
 snapshot/restore への接続は未完了です。
 
 復元準備は内部の後続実装です。schema 8 が保存元・復元前退避 snapshot と
-コピー先の所有権を保持します。provider コピー、正規切替、公開 restore は未完了で、
-復元の受入完了を示すものではありません。現在の checkpoint は変更しません。
+コピー先の所有権を保持します。provider コピーは接続済みで専用 WSL の受入が成功しました。正規切替と公開 restore は
+未完了で、準備を復元の受入完了とは扱いません。
 
 
 v0.46 の snapshot 作業に schema 7 の Base 保持用所有権と内部の保持
@@ -158,8 +158,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.46 | Snapshot Workspace and OCI storage | 実装済み |
 | v0.47 | Automatic Base retention | 実装済み |
 | v0.48 | Retained Base snapshot capture | 実装済み |
+| v0.49 | Snapshot restore staging | 実装済み |
 
-現在のmilestone位置は **v0.48** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.49** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

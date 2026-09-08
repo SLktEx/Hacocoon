@@ -5,9 +5,9 @@ resume verification on retry. Installed acceptance, planned-create recovery,
 collection and snapshot/restore integration remain incomplete.
 
 Restore preparation is an implemented internal follow-up: schema 8 preserves
-source/pre-restore snapshots and staging ownership. Provider staging, canonical
-replacement and public restore remain pending; this does not satisfy restore
-acceptance or change the current checkpoint.
+source/pre-restore snapshots and staging ownership. Provider staging is now connected and accepted on dedicated WSL. Canonical
+replacement and public restore remain pending; preparation does not satisfy
+completed restore acceptance.
 
 
 The v0.46 snapshot work now includes schema-7 retained Base ownership and an
@@ -170,8 +170,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.46 | Snapshot Workspace and OCI storage | ✅ implemented |
 | v0.47 | Automatic Base retention | ✅ implemented |
 | v0.48 | Retained Base snapshot capture | ✅ implemented |
+| v0.49 | Snapshot restore staging | ✅ implemented |
 
-The current milestone position is **v0.48**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.49**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

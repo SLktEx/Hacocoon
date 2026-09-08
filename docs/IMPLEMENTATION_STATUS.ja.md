@@ -1,14 +1,28 @@
 # 実装状況
 
-## 復元準備の台帳
+## スナップショットの復元準備
 
-内部実装済み: schema 8 に保存元・復元前退避 snapshot と独立したコピー先の完全な
-所有権を予約します。新しい全要素の不在を確認するまで、snapshot 削除と対象環境の
-競合するライフサイクル操作を拒否します。created・verified・prepared の遷移は
-Environment を公開しません。再読込、部分 cleanup、binding 不一致、downgrade、
-削除競合の回帰は成功しました。provider のコピー、直前の退避作成、正規の切替と
-公開 restore は未完了です。実機での復元は未実行です。
-[ADR 0039](adr/0039-snapshot-restore-preparation.md) を参照してください。
+内部実装済み: schema 8 に保存元、新しく作る復元前退避 snapshot、全コピー先の
+独立した所有権を予約します。正規ロック内で停止中の現在の作業を確認・退避し、
+保存全要素のコピー、作成完了記録、検証を行い、`prepared` のみを公開します。
+Incus は rootfs・Base・Workspace・OCI を独立した停止 instance／未接続 volume に
+コピーします。異なる provider の混在を拒否し、cleanup は完全一致する所有権と
+実際の不在を確認します。保存元・退避 snapshot と現在の作業は保持します。
+
+台帳・サービス・router・backend の race 回帰は成功しました。台帳部分は全体
+ローカル CI と対象 GHA が成功し、PR #491 でマージ済みです。コピー部分の全体 CI と
+GHA は実行待ちです。専用 WSL の最終受入は 79.60 秒で成功しました。fixture は
+`haco-aggregate-7bef775e5b1e3d29`、snapshot は
+`snap-3e2d4921733e6425d00042a0a3453b2a` です。元イメージ削除後に 5 要素を保存し、
+現在の rootfs・Workspace・OCI を変更、直前退避と復元用コピー作成、台帳再読込、
+保存済み Base/rootfs/Git/OCI の内容と退避した変更の確認、コピー先編集の非干渉、
+コピー・退避・元 fixture の所有対象を不在まで確認する後片付けを実行しました。
+
+これは準備であり、復元完了ではありません。正規の Environment 切替、接続の再設定、
+切替後の起動と障害復旧、公開 save/restore は未完了です。動作中の Docker/containerd
+の整合性は未検証で、OCI 受入は永続ファイルの fixture です。
+[ADR 0039](adr/0039-snapshot-restore-preparation.md) と
+[snapshot 設計](design/environment-snapshots.md) を参照してください。
 
 ## Base 保持とスナップショット
 
@@ -33,8 +47,7 @@ test・Ubuntu・Incus・Windows は成功し、PR #489 はマージ済みです�
 `haco-aggregate-e5829f65fc5b94f2`、snapshot は
 `snap-51d2e3ab955f3f1be10c156d1305e185` です。元イメージ削除後に 5 要素を保存し、
 台帳の再読込、元環境・元ボリューム・元 Base の削除、保存済み Git/data の確認、
-所有対象すべての不在を確認する後片付けまで実行しました。更新した snapshot の GHA は
-実行待ちです。復元、公開 save/restore、planned Base の復旧、参照を考慮する回収は
+所有対象すべての不在を確認する後片付けまで実行しました。保持済み Base を使う snapshot の GHA は成功し、PR #490 でマージ済みです。復元、公開 save/restore、planned Base の復旧、参照を考慮する回収は
 未完了です。動作中の Docker/containerd の整合性と復元は未検証です。
 [Base 設計](design/base-images-and-custom-environments.md)、
 [snapshot 設計](design/environment-snapshots.md)、[ADR 0038](adr/0038-retained-base-assets.md) を参照してください。
@@ -987,7 +1000,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.48** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.49** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|
