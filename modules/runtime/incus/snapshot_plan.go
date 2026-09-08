@@ -134,7 +134,7 @@ func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, 
 			return nil, err
 		}
 		member := strings.TrimPrefix(m.Volume, "haco-work-")
-		p := snapshotVolumePlan{Pool: m.Pool, Source: m.Volume, SourceOwner: m.Owner, SourceKind: "work", SourceID: m.Repository, SourceInstance: root.Source, SourceInstanceID: root.SourceInstanceID, Owner: targetOwner, Role: "workspace:" + member, Device: m.Device, Path: m.Path}
+		p := snapshotVolumePlan{Pool: m.Pool, Source: m.Volume, SourceOwner: m.Owner, SourceKind: "work", SourceID: m.Repository, SourceInstance: root.Source, SourceInstanceID: root.SourceInstanceID, Owner: targetOwner, Role: "workspace:" + member, Remote: m.Remote, Branch: m.Branch, Device: m.Device, Path: m.Path}
 		if err := addVolume(p); err != nil {
 			return nil, err
 		}

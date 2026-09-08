@@ -1,5 +1,29 @@
 # Implementation Status
 
+## Saved Workspace registration
+
+Implemented internally: same-pool Incus/Btrfs copies register as normal managed
+Workspaces with fresh ownership and trusted remote/branch provenance. Completion
+receipts precede verification; incomplete copies use bounded exact-owned cleanup.
+Source-less legacy manifests without Git provenance remain preserved but are
+unsupported for automatic registration. Runnable activation, restored OCI
+registration and the public snapshot/restore CLI remain planned.
+
+Focused race tests passed. Dedicated WSL Incus/Btrfs aggregate passed in 4.09s
+with fixture `haco-aggregate-42d34d51baa33c72`, snapshot
+`snap-a0b22312747180b9891e790f8427c78c`: source Env/volumes deleted before
+Workspace registration, durable registry reload, saved Git commits/uncommitted/
+untracked files and independent edits, exact cleanup. The first attempt failed
+because planning unnecessarily consulted the default profile; planning now uses
+the saved pool and has a regression. Its exact-owned snapshot was cleaned through
+the canonical API; original Base/Workspace/OCI absence was verified. Ownership
+files remain at `/var/lib/haco-snapshot-aggregate-666738198`. Full local CI passed
+(Go tests/vet, docs/helpers, JavaScript 27/27); GHA is tracked on the PR.
+Shared image deletion was SKIP; runnable restore/live OCI consistency were not
+executed. PR #494
+passed local CI and all applicable GHA before merge at a66035d.
+
+
 ## Runtime ownership before configuration
 
 Implemented: production Incus creation records its exact routed runtime immediately
