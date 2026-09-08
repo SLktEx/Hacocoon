@@ -1,5 +1,22 @@
 # 実装状況
 
+## 保存 rootfs の正規作成経路
+
+内部実装済み：保存 rootfs の作成を通常の lifecycle、保存元予約、参照付き receipt、
+所有対象だけの期限付き cleanup に接続しました。schema 12 は schema 11 の保存物と
+OCI の作成記録を維持します。environment／state／workspace 全体の race、追加の
+失敗・競合・移行回帰、文書と CI cleanup helper は成功しました。専用 WSL Incus/Btrfs
+aggregate は 129.46 秒で成功しました。fixture は `haco-aggregate-b9c627e16c2da2be`、
+snapshot は `snap-0b4153b66307d5bce49b46befe0ee764`。削除した元 Env と同じ名前を正規経路で
+新世代として作成し、receipt 後の公開と保存元予約解除、通常削除後の Workspace／OCI
+保持、fixture 全削除を確認しました。共有 image 削除は SKIP、復元先の実 SSH 接続、
+公開 aggregate restore、live OCI database 整合性は未検証です。全体 local CI と同一 head
+GHA は実装 PR に記録します。データコピー全体の調整と公開 restore は planned です。
+
+PR #497 は適用対象 GHA の全成功後、`62e9947` にマージしました。実 Incus aggregate は
+10.30 秒で成功し、Windows の通常 SSH／VS Code も成功しました。Ubuntu installer は
+変更パスの対象外、記載済み private registry／image／VPN／人間の UI 操作は SKIP です。
+
 ## 保存 rootfs の実行用コピー
 
 内部実装済み：Base／image／default profile の解決を通さず独立 rootfs をコピーし、

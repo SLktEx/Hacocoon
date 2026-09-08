@@ -146,3 +146,12 @@ Workspace lifecycle owner. It does not independently delete the same resource.
 Legacy direct provider creation still performs its own cleanup; it is not claimed
 to provide the early durable receipt. The production Incus composition uses the
 receipt path. No schema or user-command change is needed.
+
+## Saved-rootfs creation
+
+Use the same creation transitions for a saved rootfs. The snapshot-aware begin
+atomically checks a ready saved manifest and records its ID on the acquiring
+lease. That reference blocks source deletion until publication or positively
+completed cleanup. It protects immutable saved data without promising runtime
+resumption after every crash. Do not split source reservation from the canonical
+creation transition, and do not bypass receipts for copied instances.

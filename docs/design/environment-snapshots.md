@@ -194,3 +194,29 @@ optionally deletes the isolated source image. It checks staged bytes, independen
 edits, unchanged current data, normal Env deletion and source-independent saved
 data. Execution results belong in implementation status. File fixtures do not
 establish live Docker/containerd database consistency or runnable restore.
+
+## Canonical creation from saved rootfs
+
+Implemented internally: `workspace.Service.CreateFromSnapshot` uses caller-prepared
+normal Workspace/OCI bindings and the ordinary creation lifecycle. The saved
+rootfs reference selects its runtime implementation; neither a deleted Base nor
+the current default chooses the restore provider. Both creation routes share the
+same routed receipt protocol and bounded exact-owned failure cleanup.
+
+`BeginEnvironmentCreateFromSnapshot` atomically reserves the exact ready saved
+manifest alongside the new generation and data lease. `WorkspaceLease.SnapshotSource`
+blocks saved-source deletion during copy/configuration and uncertain cleanup.
+Publication clears it; positive runtime absence removes the lease. This adds no
+new lifecycle states. A recreated name receives a new generation. Missing original
+Env, Base or cache is permitted; no default Host OCI copy runs implicitly.
+
+Schema 12 preserves schema 11 and all earlier supported catalogs, including OCI
+copy receipts, legacy Base components and legacy before snapshots. Older
+controllers reject the new version instead of dropping a source reservation.
+Do not relabel a new catalog as schema 11 or run an old writer against it. Ordinary
+upgrades need no manual saved-data rewrite. The unpublished schema 9 remains
+explicitly unsupported.
+
+Aggregate Workspace/OCI copy orchestration, replacement switching and public CLI
+remain planned. This internal method takes prepared data bindings; it does not
+claim those higher-level workflows or introduce an automatic backup.

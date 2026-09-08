@@ -43,6 +43,8 @@ type BaseInfo struct {
 }
 
 type WorkspaceLease struct {
+	// SnapshotSource reserves immutable saved data only while this creation is pending.
+	SnapshotSource     string                `json:"snapshot_source,omitempty"`
 	InstanceID         string                `json:"instance_id,omitempty"`
 	PersistentResource PersistentResourceRef `json:"persistent_resource,omitempty"`
 	WorkspaceID        WorkspaceID           `json:"workspace_id"`

@@ -35,13 +35,22 @@ func TestSavedResourceSchemaUpgradeAndReceipt(t *testing.T) {
 	mustSnapshot(t, err)
 	var current environmentFileState
 	mustSnapshot(t, json.Unmarshal(raw, &current))
-	if current.Version != 11 || !reflect.DeepEqual(current.Snapshots, old.Snapshots) || !reflect.DeepEqual(current.Environments, old.Environments) {
+	if current.Version != environmentStateVersion || !reflect.DeepEqual(current.Snapshots, old.Snapshots) || !reflect.DeepEqual(current.Environments, old.Environments) {
 		t.Fatal("upgrade changed old data")
 	}
 	got, err := NewEnvironmentJSONStore(store.path).GetPersistentResource(context.Background(), target.ID)
 	mustSnapshot(t, err)
 	if got != target {
 		t.Fatal("receipt lost")
+	}
+	current.Version = 11
+	raw, err = json.Marshal(current)
+	mustSnapshot(t, err)
+	mustSnapshot(t, os.WriteFile(store.path, raw, 0600))
+	preserved, err := NewEnvironmentJSONStore(store.path).GetPersistentResource(context.Background(), target.ID)
+	mustSnapshot(t, err)
+	if preserved != target {
+		t.Fatal("schema 11 pending OCI receipt lost")
 	}
 	current.Version = 10
 	raw, err = json.Marshal(current)

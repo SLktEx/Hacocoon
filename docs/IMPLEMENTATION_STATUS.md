@@ -1,5 +1,26 @@
 # Implementation Status
 
+## Saved-rootfs canonical creation
+
+Implemented internally: saved-rootfs creation now uses the normal lifecycle,
+source reservation, routed receipt and bounded owned cleanup. Schema 12 preserves
+schema 11 saved data and OCI receipts. Full environment/state/workspace race
+tests and added failure/concurrency/migration regressions passed; docs and CI
+cleanup-helper checks passed. Dedicated WSL Incus/Btrfs aggregate passed in
+129.46s: fixture `haco-aggregate-b9c627e16c2da2be`, snapshot
+`snap-0b4153b66307d5bce49b46befe0ee764`. Canonical routed creation reused the deleted
+source name with a fresh generation, published after its receipt, released the
+saved-source reservation, and normal deletion retained Workspace/OCI. Complete
+fixture cleanup passed. Shared-image deletion was SKIP; restored SSH handshake,
+public aggregate restore and live OCI database consistency remain unverified.
+Maintained full local CI and exact-head GHA are tracked on the implementation PR.
+Aggregate data-copy orchestration and public restore remain planned.
+
+PR #497 passed all applicable GHA and merged at `62e9947`; its actual Incus
+aggregate passed in 10.30s. Windows ordinary SSH/VS Code passed. Ubuntu installer
+was path-filtered out; the documented private-registry/image/VPN/human UI gates
+remain SKIP.
+
 ## Saved rootfs runtime primitive
 
 Implemented internally: native independent rootfs copy without Base/image/profile

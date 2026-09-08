@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -14,7 +15,23 @@ import (
 // provider runtime reference has been durably recorded and the complete
 // Environment can be committed. Callers should use the lifecycle methods in
 // this file rather than composing PutEnvironment/PutWorkspaceLease manually.
-func (s *EnvironmentJSONStore) BeginEnvironmentCreate(_ context.Context, lease core.WorkspaceLease) error {
+func (s *EnvironmentJSONStore) BeginEnvironmentCreate(ctx context.Context, lease core.WorkspaceLease) error {
+	if lease.SnapshotSource != "" {
+		return core.ErrInvalidArgument
+	}
+	return s.beginEnvironmentCreate(ctx, lease, nil)
+}
+
+// BeginEnvironmentCreateFromSnapshot atomically reserves the immutable saved
+// source alongside the ordinary generation/data lease. It needs no source Env.
+func (s *EnvironmentJSONStore) BeginEnvironmentCreateFromSnapshot(ctx context.Context, lease core.WorkspaceLease, saved core.Snapshot) error {
+	if validateSnapshot(saved) != nil || saved.State != "ready" || lease.SnapshotSource != saved.ID || !core.ValidEnvironmentInstanceID(lease.InstanceID) || lease.InstanceID == saved.Source.InstanceID {
+		return core.ErrInvalidArgument
+	}
+	return s.beginEnvironmentCreate(ctx, lease, &saved)
+}
+
+func (s *EnvironmentJSONStore) beginEnvironmentCreate(_ context.Context, lease core.WorkspaceLease, saved *core.Snapshot) error {
 	if err := validateEnvironmentCreateReservation(lease); err != nil {
 		return err
 	}
@@ -33,6 +50,9 @@ func (s *EnvironmentJSONStore) BeginEnvironmentCreate(_ context.Context, lease c
 	}
 	if err := validateLeaseCompatibleState(data); err != nil {
 		return err
+	}
+	if saved != nil && !reflect.DeepEqual(data.Snapshots[saved.ID], *saved) {
+		return core.ErrCapabilityStale
 	}
 	if _, ok := data.Environments[lease.EnvironmentID]; ok {
 		return fmt.Errorf("environment %q: %w", lease.EnvironmentID, core.ErrAlreadyExists)
@@ -128,7 +148,7 @@ func (s *EnvironmentJSONStore) CommitEnvironmentCreate(_ context.Context, enviro
 	}
 	if existingEnvironment, ok := data.Environments[environment.Name]; ok {
 		existingLease, leaseOK := data.Leases[environment.Name]
-		if leaseOK && existingEnvironment == environment && existingLease == lease {
+		if leaseOK && existingEnvironment == environment && existingLease == publishedLease(lease) {
 			return nil
 		}
 		return fmt.Errorf("environment %q already has different committed state: %w", environment.Name, core.ErrIncompatibleState)
@@ -149,7 +169,7 @@ func (s *EnvironmentJSONStore) CommitEnvironmentCreate(_ context.Context, enviro
 	}
 
 	data.Environments[environment.Name] = environment
-	data.Leases[environment.Name] = lease
+	data.Leases[environment.Name] = publishedLease(lease)
 	return s.writeEnvironments(data)
 }
 
@@ -276,7 +296,15 @@ func validateEnvironmentCreateCommit(environment core.Environment, lease core.Wo
 	return nil
 }
 
+func publishedLease(lease core.WorkspaceLease) core.WorkspaceLease {
+	lease.SnapshotSource = ""
+	return lease
+}
+
 func validateSameLeaseReservation(existing, next core.WorkspaceLease) error {
+	if existing.SnapshotSource != next.SnapshotSource {
+		return core.ErrCapabilityStale
+	}
 	if existing.PersistentResource != next.PersistentResource {
 		return core.ErrIncompatibleState
 	}
