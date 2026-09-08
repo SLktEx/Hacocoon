@@ -51,3 +51,12 @@ Windows helper installation and protocol registration are separate from Core and
 Linux desktop activation remains a follow-up. Native presentation, protocol activation and fresh
 decision acceptance require distinct real-desktop evidence; command success alone does not prove
 a visible notification. Preserve earlier failed runs and report absent evidence explicitly.
+
+## Native client state ownership
+
+A native client pins its private state directory and holds an OS process lock
+through observation and delivery. Save uses an exclusive random file and synced
+atomic replacement. Predictable temporary names can redirect writes through a
+link; unlinking the lock can split ownership across inodes. Both are rejected.
+This is client-owned presentation state, not a capability authority or an
+exactly-once delivery guarantee. Background startup remains separate work.

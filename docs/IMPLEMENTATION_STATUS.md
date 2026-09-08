@@ -1,5 +1,21 @@
 # Implementation Status
 
+## Host notification acceptance and state safety
+
+At `213fb2b`, Ubuntu installer run 34173412741 passed installed Host notification
+subscription and listener cleanup (job 101898000285). The test workflow passed.
+Incus run 34173412776 failed Host setup: its standalone CLI fixture builds no
+notification companion, now required by setup. The fixture is updated to build
+and verify its installed digest/ownership; the corrected real Incus run is pending.
+Windows run 34173412761 remains in progress.
+
+Native cursor storage now rejects linked/special files, bounds reads, pins the
+owned parent, synchronizes atomic saves and locks one writer for the process
+lifetime. Focused tests and vet passed, including separate-process exclusion and
+parent replacement. Automatic notification startup and fresh native decisions
+remain incomplete; this change does not claim them.
+
+
 Real Host component acceptance also passed in Hacocoon-Review-6771f2f using the
 new worktree notification binary in an owned temporary directory: existing
 controller subscription without audit projection, public schema and listener

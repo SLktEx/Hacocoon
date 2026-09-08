@@ -136,3 +136,19 @@ optionalなVS Code presentation clientは [`../clients/vscode-notify/README.md`]
 `interaction.NewDefaultReader()` は local Hacocoon と同じ root 規則を使います。`HACO_ROOT` があればそれを、なければ `/var/lib/hacocoon` を使います。明示的な adapter/test では `NewReader(root)` を利用できます。
 
 任意の desktop VS Code Review は回答せずローカルの信頼された CLI を開きます。任意の Windows native adapter は同じローカル CLI を開きます。 [Contract](design/pending-approval-review.ja.md).
+
+### Native 通知の状態ファイル
+
+Linux/WSL client は終了まで状態ファイルのプロセスロックを保持します。同じ状態を使う
+二つ目の client は、イベント読み取り・通知前に停止します。新しい必須オプションは不要です。
+別 inode のロックを同時取得させないため、終了後もロックファイルは残します。
+
+状態は現在の利用者が所有する非公開の通常ファイルで、ハードリンク数を 1 に限定します。
+親は同じ利用者が所有し、group/other が書き込めないディレクトリである必要があります。
+client はディレクトリを実行中固定し、リンク・特殊ファイルを拒否します。読み取りは
+128 KiB に制限し、排他的なランダム一時ファイル、ファイル同期、atomic rename、
+ディレクトリ同期で保存します。旧来の固定 `.tmp` パスには書き込みません。
+未対応プラットフォームは所有権やロックの保証を省略せず拒否します。
+これはバックグラウンド動作の準備であり、通知の自動起動自体は未実装です。
+
+通知の表示と再開位置の保存は別の操作です。その間で終了すると、再起動後に表示が重複する場合がありますが、capability の承認や再実行にはなりません。

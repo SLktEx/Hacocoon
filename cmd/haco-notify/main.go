@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -177,7 +176,12 @@ func runNative(ctx context.Context, reader batchReader, presenter notifier, stat
 	if reader == nil || presenter == nil || statePath == "" || poll < 250*time.Millisecond {
 		return interaction.ErrInvalidArgument
 	}
-	state, err := loadState(statePath)
+	store, err := openNotifyStore(statePath)
+	if err != nil {
+		return err
+	}
+	defer store.close()
+	state, err := store.load()
 	if err != nil {
 		return err
 	}
@@ -203,13 +207,13 @@ func runNative(ctx context.Context, reader batchReader, presenter notifier, stat
 				}
 			}
 			state.Offset = event.NextOffset
-			if err := saveState(statePath, state); err != nil {
+			if err := store.save(state); err != nil {
 				return err
 			}
 		}
 		if batch.NextOffset > state.Offset {
 			state.Offset = batch.NextOffset
-			if err := saveState(statePath, state); err != nil {
+			if err := store.save(state); err != nil {
 				return err
 			}
 		}
@@ -374,46 +378,6 @@ func defaultStatePath() string {
 		return ".haco-notify-state.json"
 	}
 	return filepath.Join(home, ".local", "state", "hacocoon", "native-notify.json")
-}
-
-func loadState(path string) (notifyState, error) {
-	var state notifyState
-	payload, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return state, nil
-	}
-	if err != nil {
-		return state, err
-	}
-	if err := json.Unmarshal(payload, &state); err != nil || state.Offset < 0 {
-		return notifyState{}, fmt.Errorf("invalid notification state: %w", interaction.ErrInvalidArgument)
-	}
-	if len(state.SeenEventIDs) > maxSeenEventIDs {
-		state.SeenEventIDs = append([]string(nil), state.SeenEventIDs[len(state.SeenEventIDs)-maxSeenEventIDs:]...)
-	}
-	return state, nil
-}
-
-func saveState(path string, state notifyState) error {
-	if path == "" || state.Offset < 0 {
-		return interaction.ErrInvalidArgument
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	payload, err := json.Marshal(state)
-	if err != nil {
-		return err
-	}
-	temporary := path + ".tmp"
-	if err := os.WriteFile(temporary, payload, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(temporary, path); err != nil {
-		_ = os.Remove(temporary)
-		return err
-	}
-	return nil
 }
 
 func (s notifyState) hasSeen(eventID string) bool {

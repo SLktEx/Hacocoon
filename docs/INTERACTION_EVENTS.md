@@ -142,3 +142,21 @@ The extension is not required by `haco-vscode` and does not replace standard Rem
 `interaction.NewDefaultReader()` follows the same root convention as the local Hacocoon composition: `HACO_ROOT` when set, otherwise `/var/lib/hacocoon`. `NewReader(root)` is available for explicitly scoped adapters and tests.
 
 The optional desktop VS Code Review action now opens the trusted local CLI without answering. Native OS activation remains planned. [Contract](design/pending-approval-review.md).
+
+### Native notification state
+
+The Linux/WSL client holds a process lock for its state file until it exits. A
+second client using the same state stops before reading events or delivering
+notifications; no additional user option is required. The lock file remains in
+place after exit so parallel processes cannot acquire locks on different inodes.
+
+State files must be regular, private, owned by the current user and have one hard
+link. The parent must be an owned directory without group/other write access.
+The client pins this directory for its lifetime, rejects linked/special state
+files, limits input to 128 KiB, and saves through an exclusive random temporary
+file, file sync, atomic rename and directory sync. It never writes through the
+old predictable `.tmp` path. Unsupported platforms fail closed rather than
+silently omitting ownership or process locking. These guarantees prepare for
+background use; automatic notification startup remains unimplemented.
+
+Notification delivery and cursor persistence are separate operations. A crash between them can repeat a presentation after restart; it cannot approve or replay a capability.
