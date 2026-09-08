@@ -65,6 +65,15 @@ func (s *Service) withSnapshotSource(ctx context.Context, name string, operation
 	if instance != lease.InstanceID {
 		return core.ErrCapabilityStale
 	}
+	verifier, ok := s.runtime.(interface {
+		VerifyEnvironmentIdentity(context.Context, string, string) error
+	})
+	if !ok {
+		return core.ErrUnsupported
+	}
+	if err := verifier.VerifyEnvironmentIdentity(ctx, environment.RuntimeRef, instance); err != nil {
+		return err
+	}
 	runtime, ok := s.runtime.(interface {
 		InspectEnvironment(context.Context, string) (core.EnvironmentRuntimeStatus, error)
 	})

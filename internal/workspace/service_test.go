@@ -131,6 +131,12 @@ func TestCreateResolvesWorkspaceAndPersistsEnvironment(t *testing.T) {
 
 	runtime := &fakeEnvironmentRuntime{createResult: core.EnvironmentRuntime{Ref: "haco-demo"}}
 	store := newFakeEnvironmentStore()
+	runtime.createHook = func() {
+		lease := store.leases["demo"]
+		if !core.ValidEnvironmentInstanceID(runtime.createSpec.InstanceID) || runtime.createSpec.InstanceID != lease.InstanceID {
+			t.Fatal("provider creation lost reserved identity")
+		}
+	}
 	service := New(runtime, store)
 	fixed := time.Date(2026, 8, 29, 6, 30, 0, 0, time.UTC)
 	service.now = func() time.Time { return fixed }

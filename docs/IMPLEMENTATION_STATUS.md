@@ -9,6 +9,12 @@ identity fail closed; concurrent deletion is excluded. Focused race tests passed
 The schema-5 component catalog now persists capture/recovery ownership and blocks
 start/delete until all components are verified or cleanup proves every target absent.
 Restart, transition, cleanup, migration and concurrent reservation regressions pass.
+New stateful Incus creation records the lease creation ID in the initial provider
+request. Snapshot inspection verifies that exact marker through the provider route;
+unmarked legacy or replaced instances are refused without adopting ownership.
+Dedicated WSL provider identity/refusal and stop/start acceptance passed with
+fixture haco-resume-e2e-4bf6bd219effb14f; cleanup inventory was verified. This was
+a provider fixture, not installed-controller snapshot acceptance.
 The internal capture/delete coordinator now enforces reservation/create-receipt/
 verification/publication order and preserves ownership through cancellation and
 partial cleanup. Real-catalog failure-injection tests cover each capture boundary.

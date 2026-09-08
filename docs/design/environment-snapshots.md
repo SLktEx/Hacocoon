@@ -108,3 +108,30 @@ Coordinator integration tests use the real JSON catalog and a recording backend.
 They inject failures at every capture step, verify exact durable state before
 provider calls, and exercise cancellation, failed recovery markers and partial
 cleanup retries. These are repository integration tests, not Incus data round trips.
+
+## Provider creation identity
+
+Stateful creation now passes the reserved creation ID through the provider route
+and supplies it to Incus init as user.hacocoon.instance-id. Snapshot source
+inspection requires the provider to read back that exact marker as well as the
+canonical catalog/lease checks. Missing, replaced or unreadable markers fail
+closed; no marker is repaired or adopted during inspection. Existing Environments
+created without the marker remain usable for ordinary lifecycle operations but
+cannot become snapshot sources through this guard. Use normal recreation after
+preserving any guest-only work; the guard does not recreate automatically.
+
+Unit/component regressions cover reservation-to-provider propagation, marker in
+the creation request, routed readback, missing/replaced/truncated observations
+and invalid IDs rejected before provider access. The opt-in real Incus resume
+fixture also checks exact and foreign creation IDs; its execution is reported
+separately from ordinary repository tests.
+
+Dedicated WSL acceptance passed the provider identity checks and ordinary
+stop/start with fixture haco-resume-e2e-4bf6bd219effb14f, using cached image
+e363846a6ada800967c8d15cf9a2b2e10385ec2988154357c68086b3c6e5a5fa
+and haco-local-default. Canonical cleanup and subsequent inventory confirmed
+only the existing haco-host remained. The first invocation failed before test
+startup because PowerShell split the Go test flag; the corrected invocation
+passed. This fixture directly initializes an owned Incus instance with the
+marker; ordinary stateful creation propagation is covered by component tests.
+It does not establish snapshot capture/restore or installed-controller acceptance.

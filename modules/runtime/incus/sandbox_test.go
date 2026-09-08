@@ -61,7 +61,7 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 		PIDs:        core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 1024},
 		RootBytes:   core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 40 << 30},
 	}
-	created, err := provider.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/tmp/work", Resources: budget})
+	created, err := provider.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{InstanceID: testEnvironmentInstance, Name: "demo", WorkspacePath: "/tmp/work", Resources: budget})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,6 +82,9 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	seenIPGuard := false
 	for i, call := range runner.calls {
 		joined := strings.Join(call.args, " ")
+		if len(call.args) > 0 && call.args[0] == "init" && !strings.Contains(joined, "--config "+environmentInstanceKey+"="+testEnvironmentInstance) {
+			t.Fatal("creation omitted durable ID", call.args)
+		}
 		if len(call.args) > 0 && call.args[0] == "start" {
 			start = i
 		}

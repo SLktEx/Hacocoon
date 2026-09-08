@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,7 +48,11 @@ func TestRealIncusResumeE2E(t *testing.T) {
 	}
 	// The provider fixture starts stopped; use canonical transitions for ownership.
 	st := state.NewEnvironmentJSONStore(filepath.Join(root, "state.json"))
-	lease := core.WorkspaceLease{EnvironmentID: name, WorkspaceID: core.WorkspaceID(work), SourcePath: work, AccessMode: core.WorkspaceReadWrite, Owner: name, State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now()}
+	instanceID, err := core.NewEnvironmentInstanceID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease := core.WorkspaceLease{InstanceID: instanceID, EnvironmentID: name, WorkspaceID: core.WorkspaceID(work), SourcePath: work, AccessMode: core.WorkspaceReadWrite, Owner: name, State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now()}
 	if err := st.BeginEnvironmentCreate(ctx, lease); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +64,7 @@ func TestRealIncusResumeE2E(t *testing.T) {
 		}
 		return result.Stdout
 	}
-	run("init", "local:"+image, ref, "--project", r.project, "--no-profiles", "--storage", pool, "--config", managedEnvironmentMarkerKey+"="+managedEnvironmentMarkerValue)
+	run("init", "local:"+image, ref, "--project", r.project, "--no-profiles", "--storage", pool, "--config", managedEnvironmentMarkerKey+"="+managedEnvironmentMarkerValue, "--config", environmentInstanceKey+"="+instanceID)
 	lease.RuntimeRef = ref
 	if err := st.RecordEnvironmentRuntime(ctx, lease); err != nil {
 		t.Fatalf("ownership recording failed; retain %s: %v", ref, err)
@@ -73,6 +78,16 @@ func TestRealIncusResumeE2E(t *testing.T) {
 		}
 	}()
 	t.Logf("test-owned runtime: %s", ref)
+	if err := p.VerifyEnvironmentIdentity(ctx, ref, instanceID); err != nil {
+		t.Fatal(err)
+	}
+	otherID, err := core.NewEnvironmentInstanceID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.VerifyEnvironmentIdentity(ctx, ref, otherID); !errors.Is(err, core.ErrCapabilityStale) {
+		t.Fatalf("foreign creation ID accepted: %v", err)
+	}
 	if err := r.ensureRoutedSandboxHost(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -113,5 +128,5 @@ func TestRealIncusResumeE2E(t *testing.T) {
 	if err := svc.Delete(ctx, name); err != nil {
 		t.Fatal(err)
 	}
-	t.Log("PASS stop/start, repeated start, root and Workspace retention, unchanged lease and canonical cleanup")
+	t.Log("PASS exact provider creation identity, foreign identity refusal, stop/start, repeated start, root and Workspace retention, unchanged lease and canonical cleanup")
 }

@@ -32,6 +32,10 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	if p == nil || p.BaseProvider == nil || p.Runtime == nil || spec.Name == "" || spec.WorkspacePath == "" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
+	identityArgs, err := environmentIdentityArgs(spec.InstanceID)
+	if err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
 	if spec.TemporaryWorkspace && (!core.IsTemporaryWorkspacePath(spec.WorkspacePath) || spec.ReadOnly) {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
@@ -73,6 +77,7 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	for _, key := range configKeys {
 		initArgs = append(initArgs, "--config", key+"="+profileConfig[key])
 	}
+	initArgs = append(initArgs, identityArgs...)
 	if _, err := p.runner.Run(ctx, "incus", initArgs...); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}

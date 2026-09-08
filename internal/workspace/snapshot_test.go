@@ -9,6 +9,7 @@ import (
 )
 
 type snapshotRuntime struct {
+	identityErr error
 	fakeEnvironmentRuntime
 	inspect func(context.Context, string) (core.EnvironmentRuntimeStatus, error)
 }
@@ -37,7 +38,7 @@ func snapshotFixture() (*snapshotStore, *snapshotRuntime) {
 	return s, r
 }
 func TestSnapshotSourceRequiresCompleteStoppedAggregate(t *testing.T) {
-	for _, mode := range []string{"valid", "valid-resource", "external", "running", "unknown", "drift", "recreated", "unowned", "resource-drift", "resource-invalid", "inspection-failure"} {
+	for _, mode := range []string{"valid", "valid-resource", "external", "running", "unknown", "drift", "recreated", "unowned", "resource-drift", "resource-invalid", "inspection-failure", "provider-replaced"} {
 		t.Run(mode, func(t *testing.T) {
 			s, r := snapshotFixture()
 			l := s.leases["resume"]
@@ -67,6 +68,8 @@ func TestSnapshotSourceRequiresCompleteStoppedAggregate(t *testing.T) {
 			case "resource-invalid":
 				e.PersistentResource = core.PersistentResourceRef{ID: "oci:one"}
 				l.PersistentResource = e.PersistentResource
+			case "provider-replaced":
+				r.identityErr = core.ErrCapabilityStale
 			case "inspection-failure":
 				r.inspect = func(context.Context, string) (core.EnvironmentRuntimeStatus, error) {
 					return core.EnvironmentRuntimeStatus{}, errors.New("unavailable")
@@ -140,4 +143,8 @@ func TestSnapshotRecoveryBlocksLifecycleBeforeProvider(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (r *snapshotRuntime) VerifyEnvironmentIdentity(context.Context, string, string) error {
+	return r.identityErr
 }

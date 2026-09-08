@@ -169,6 +169,7 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 	}
 
 	created, err := s.runtime.CreateEnvironment(ctx, core.EnvironmentRuntimeSpec{
+		InstanceID:         instanceID,
 		TemporaryWorkspace: spec.TemporaryWorkspace != nil,
 		PersistentResource: persistent,
 		Name:               name,

@@ -48,3 +48,9 @@ reservation/receipt/verification sequence under the canonical lifecycle locks.
 A backend supplies only plan/create/verify/proven-absent deletion; it cannot
 publish the catalog or release source ownership. Production Incus integration
 and restore remain planned.
+
+The source creation ID must also be recorded on the provider instance during
+creation. A catalog-only creation ID cannot distinguish a same-name provider
+replacement. Incus receives the ID in init and snapshot inspection verifies it
+through the persisted provider route. Missing legacy markers are refused, not
+backfilled from a name match. This is an ownership prerequisite for capture.

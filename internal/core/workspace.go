@@ -88,6 +88,8 @@ type EnvironmentSpec struct {
 }
 
 type EnvironmentRuntimeSpec struct {
+	// InstanceID binds the provider resource to the durable creation reservation.
+	InstanceID         string
 	TemporaryWorkspace bool
 	PersistentResource PersistentResource
 	Name               string

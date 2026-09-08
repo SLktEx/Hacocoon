@@ -7,7 +7,11 @@ E2 の内部基盤を部分実装しました。Environment/Workspace lock の�
 不正な接続 ID は拒否し、同時削除を防ぎます。focused race は成功しました。
 schema 5 の component catalog で作成・復旧中の所有権を永続化し、全保存物の確認または
 全対象の消失確認まで start/delete を拒否します。再起動・状態遷移・cleanup・migration・
-同時予約の回帰テストは成功しました。内部の capture/delete 処理で予約・作成記録・確認・
+同時予約の回帰テストは成功しました。新規の stateful Incus 作成では予約 ID を作成要求に
+記録し、snapshot 検査時に provider route 経由で照合します。marker のない既存環境や
+同名の置換先を後付けで採用しません。専用 WSL の provider ID 照合・異なる ID の拒否・
+stop/start は fixture haco-resume-e2e-4bf6bd219effb14f で成功し、消失確認も済みました。
+これは provider fixture であり、installed controller の snapshot 受入れではありません。内部の capture/delete 処理で予約・作成記録・確認・
 公開の順序を保証し、キャンセルや部分 cleanup でも所有権を保持します。実 JSON catalog
 を使った各段階の失敗注入テストを追加しました。provider 保存・全構成の manifest・restore・CLI・
 実データ往復は未実装です。

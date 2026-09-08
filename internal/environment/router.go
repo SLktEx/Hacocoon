@@ -343,3 +343,21 @@ func (p DisabledProvider) DeleteEnvironment(context.Context, string) error { ret
 func (p DisabledProvider) InspectEnvironment(context.Context, string) (core.EnvironmentRuntimeStatus, error) {
 	return core.EnvironmentRuntimeStatus{}, p.blocked()
 }
+
+// VerifyEnvironmentIdentity routes exact creation evidence to the owning provider.
+func (r *Router) VerifyEnvironmentIdentity(ctx context.Context, rawRef, instance string) error {
+	if !core.ValidEnvironmentInstanceID(instance) {
+		return core.ErrInvalidArgument
+	}
+	provider, ref, _, err := r.resolveWithID(rawRef)
+	if err != nil {
+		return err
+	}
+	verifier, ok := provider.(interface {
+		VerifyEnvironmentIdentity(context.Context, string, string) error
+	})
+	if !ok {
+		return core.ErrUnsupported
+	}
+	return verifier.VerifyEnvironmentIdentity(ctx, ref, instance)
+}
