@@ -188,6 +188,11 @@ func (s *EnvironmentJSONStore) BeginSnapshotDelete(ctx context.Context, id strin
 				return false, core.ErrStorageBusy
 			}
 		}
+		for _, lease := range d.Leases {
+			if lease.SnapshotSource == id {
+				return false, core.ErrStorageBusy
+			}
+		}
 		if restoreUsesSnapshot(*d, id) {
 			return false, core.ErrStorageBusy
 		}

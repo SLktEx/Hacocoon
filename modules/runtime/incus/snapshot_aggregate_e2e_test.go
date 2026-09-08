@@ -359,26 +359,31 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	if reopenedOCI != restoredOCI || reopenedOCI.RestoreSource != "" || reopenedOCI.State != "ready" {
 		t.Fatal("OCI publication receipt drift")
 	}
-	// Activate only in this private, single-controller fixture. Production aggregate
-	// reservation/orchestration and CLI publication remain a separate contract.
-	resumedName := "resumed-" + strings.TrimPrefix(name, "aggregate-")
-	resumedID, err := core.NewEnvironmentInstanceID()
-	must(err)
-	resumedLease := core.WorkspaceLease{InstanceID: resumedID, EnvironmentID: resumedName, WorkspaceID: restoredOCI.WorkspaceID, SourcePath: "managed:" + reloadedWork.ID, Owner: resumedName, AccessMode: core.WorkspaceReadWrite, State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC(), PersistentResource: restoredOCI.Ref()}
-	must(reopened.BeginEnvironmentCreate(ctx, resumedLease))
+	// Reuse the deleted source name through the canonical service. The saved
+	// snapshot still describes the old generation; new permissions must not.
+	resumedName := name
+	resumedPath := "managed:" + reloadedWork.ID
 	r.ConfigureManagedWorkspaces(func(ctx context.Context, path string) ([]WorkspaceAttachment, error) {
-		if path != resumedLease.SourcePath {
+		if path != resumedPath {
 			return nil, core.ErrInvalidArgument
 		}
 		return repository.WorkspaceAttachments(ctx, reloadedWork)
 	})
 	sandbox, err := NewSandboxProvider(r)
 	must(err)
-	resumed, err := sandbox.CreateEnvironmentFromSnapshot(ctx, core.EnvironmentRuntimeSpec{Name: resumedName, InstanceID: resumedID, WorkspacePath: resumedLease.SourcePath, PersistentResource: restoredOCI}, snap, func(created core.EnvironmentRuntime) error {
-		resumedLease.RuntimeRef = created.Ref
-		return reopened.RecordEnvironmentRuntime(ctx, resumedLease)
-	})
+	resumedRouter, err := environmentapp.NewRouter(environmentapp.ProviderIncus, environmentapp.Register(environmentapp.ProviderIncus, sandbox))
 	must(err)
+	resumedService := workspace.NewWithProvider(environmentapp.NewBaseRouter(resumedRouter), reopened, aggregateWorkspaceResolver{reopenedRepositories})
+	resumedEnv, err := resumedService.CreateFromSnapshot(ctx, core.EnvironmentSpec{Name: resumedName, WorkspacePath: resumedPath, PersistentResource: restoredOCI.ID}, snap.ID)
+	must(err)
+	resumedID, err := reopened.EnvironmentInstance(ctx, resumedEnv)
+	must(err)
+	resumedLease, err := reopened.GetWorkspaceLease(ctx, resumedName)
+	must(err)
+	if resumedLease.SnapshotSource != "" || resumedLease.State != core.WorkspaceLeaseActive {
+		t.Fatal("saved source reservation not released on publication")
+	}
+	resumed := core.EnvironmentRuntime{Ref: "haco-" + resumedName}
 	must(r.VerifyEnvironmentIdentity(ctx, resumed.Ref, resumedID))
 	if err := r.VerifyEnvironmentIdentity(ctx, resumed.Ref, id); err == nil {
 		t.Fatal("old generation accepted")
@@ -397,9 +402,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	if got := command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", OCIStorePath+"/containerd/data"); got != "independent registered OCI copy" {
 		t.Fatal("OCI data unavailable")
 	}
-	resumedLease.State = core.WorkspaceLeaseActive
-	must(reopened.CommitEnvironmentCreate(ctx, core.Environment{Name: resumedName, RuntimeRef: resumed.Ref, Workspace: core.Workspace{ID: resumedLease.WorkspaceID, Path: resumedLease.SourcePath}, AccessMode: resumedLease.AccessMode, Base: resumed.Base, PersistentResource: restoredOCI.Ref(), Resources: resumed.Resources, CreatedAt: resumedLease.AcquiredAt}, resumedLease))
-	must(workspace.New(sandbox, reopened).Delete(ctx, resumedName))
+	must(resumedService.Delete(ctx, resumedName))
 	if exists, err := r.environmentExists(ctx, resumed.Ref); err != nil || exists {
 		t.Fatal("restored runtime absence unproven", err)
 	}
@@ -407,7 +410,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	for _, m := range restoredMounts {
 		read(volumePath(m.Volume), "tracked", "uncommitted "+m.Device)
 	}
-	t.Log("PASS saved-rootfs native activation without Base, fresh generation/current source guard, guest root/Workspace/OCI bytes, managed SSH authorization reset, canonical runtime deletion retaining data; public restore and actual restored SSH handshake not tested")
+	t.Log("PASS canonical saved-rootfs activation without Base, same-name fresh generation/current source guard, guest root/Workspace/OCI bytes, managed SSH authorization reset, canonical runtime deletion retaining data; public restore and actual restored SSH handshake not tested")
 	must(restoredStores.DeleteForWorkspace(ctx, restoredOCI.ID, restoredOCI.WorkspaceID))
 	t.Log("PASS restored OCI registered with new owner and Workspace, source reservation released, durable reload, saved bytes and independent edits, canonical owned deletion")
 
@@ -466,4 +469,14 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	}
 	must(os.Remove(dir))
 	t.Log("PASS canonical catalog/coordinator/provider route; complete four-component save; restart readback; source Environment/volumes deleted; independent Git and data retained; owned snapshot cleanup. No snapshot Base material retained; image deletion reported separately; public restore orchestration/live OCI consistency not tested.")
+}
+
+// The fixture uses the same trusted registry lookup as application composition.
+type aggregateWorkspaceResolver struct{ repositories *gitrepo.RepositoryService }
+
+func (p aggregateWorkspaceResolver) Resolve(ctx context.Context, req workspace.WorkspaceRequest) (core.Workspace, error) {
+	if !strings.HasPrefix(req.Path, "managed:") {
+		return core.Workspace{}, core.ErrInvalidArgument
+	}
+	return p.repositories.Workspace(ctx, strings.TrimPrefix(req.Path, "managed:"))
 }
