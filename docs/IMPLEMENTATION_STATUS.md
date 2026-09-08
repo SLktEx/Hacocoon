@@ -1,5 +1,29 @@
 # Implementation Status
 
+The initial automatic-retention GHA failed ordinary creation because composition
+and the adapter disagreed on provider identity. They now share `runtime.incus`;
+a composed catalog/backend regression and the updated mock CLI E2E pass. The
+initial local CI also failed Git fixture setup from a Windows worktree in WSL;
+fixture setup now uses an isolated directory and its regression passes. Corrected
+full CI and installed acceptance remain pending.
+
+## Automatic Base retention
+
+Implemented in the local Incus composition: ordinary Environment and temporary-run
+creation retain their resolved Base before init, without additional user commands
+or arguments. Exact ready ownership is required. Failed Base preparation keeps
+its independent catalog reservation while allowing the unused Workspace lease
+to be released. Durable created assets can finish verification on retry.
+
+Component tests cover ordering, source pinning, receipt mismatch and failure
+ownership. Ordinary-user GHA now asserts retained Base material after create;
+its updated execution remains pending. Planned-create recovery, referenced-asset
+collection, snapshot lookup of retained material and restore remain incomplete.
+See [Base design](design/base-images-and-custom-environments.md).
+
+A retained Base with a durable creation receipt now completes verification and
+ready publication on the next request. Planned/ambiguous creation is not adopted.
+
 ## Retained Base ownership
 
 Partial: schema 7 adds a provider-neutral Base-asset catalog and retention
@@ -7,8 +31,8 @@ coordinator. Exact provider/scope/revision and native ownership are reserved bef
 creation; a durable creation receipt precedes verification and ready publication.
 Reuse verifies the same asset, and incomplete work retains ownership. Schema 6
 snapshot bindings remain readable. The Incus storage adapter now retains an independent stopped Base and verifies
-it without the image cache. Ordinary-create integration, recovery and
-reference-aware collection remain planned; the original
+it without the image cache. Ordinary-create integration and created-receipt recovery are implemented;
+reference-aware collection remains planned. The original
 cached-Base limitation is not yet resolved. See [ADR 0038](adr/0038-retained-base-assets.md).
 
 The first aggregate GHA run failed on a foreign-owned temporary lifecycle lock;
@@ -17,7 +41,7 @@ remain unchanged. Corrected aggregate GHA passed; Windows passed on the unchange
 
 Dedicated WSL retained-Base acceptance passed after actual source-image deletion,
 catalog reload, exact reuse and rootfs read, followed by owned cleanup. This is
-adapter/coordinator acceptance; ordinary creation and restore remain incomplete.
+adapter/coordinator acceptance; ordinary-create acceptance and restore remain incomplete.
 
 ## Snapshot aggregate capture
 
@@ -1099,7 +1123,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.46**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.47**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

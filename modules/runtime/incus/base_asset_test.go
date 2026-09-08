@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
@@ -99,7 +100,7 @@ func TestBaseAssetBackendPlanCreateAndCacheIndependentVerify(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			a := core.BaseAsset{ID: "base-" + owner, Owner: owner, Base: base, Provider: "incus", Scope: "hacocoon/pool", NativeRef: native, Binding: binding, State: "planned"}
+			a := core.BaseAsset{ID: "base-" + owner, Owner: owner, Base: base, Provider: environmentapp.ProviderIncus, Scope: "hacocoon/pool", NativeRef: native, Binding: binding, State: "planned"}
 			before := calls
 			err = b.Create(ctx, a)
 			if calls != before+2 || observations != 0 {
@@ -126,7 +127,7 @@ func TestBaseAssetBackendPlanCreateAndCacheIndependentVerify(t *testing.T) {
 func TestBaseAssetBackendRejectsBindingDriftBeforeProviderAccess(t *testing.T) {
 	p := baseSnapshotFixture()
 	binding, _ := json.Marshal(baseAssetBinding{Version: 1, Project: "hacocoon", Pool: p.Pool, Source: "images:" + strings.Repeat("b", 64)})
-	initial := core.BaseAsset{ID: "base-" + p.Owner, Owner: p.Owner, Base: p.Base, Provider: "incus", Scope: "hacocoon/pool", NativeRef: "instance/haco-base-" + p.Owner, Binding: string(binding), State: "planned"}
+	initial := core.BaseAsset{ID: "base-" + p.Owner, Owner: p.Owner, Base: p.Base, Provider: environmentapp.ProviderIncus, Scope: "hacocoon/pool", NativeRef: "instance/haco-base-" + p.Owner, Binding: string(binding), State: "planned"}
 	for _, mode := range []string{"provider", "scope", "native", "owner", "id", "base", "unknown-field", "duplicate-field", "source", "state"} {
 		t.Run(mode, func(t *testing.T) {
 			a := initial
@@ -163,5 +164,34 @@ func TestBaseAssetBackendRejectsBindingDriftBeforeProviderAccess(t *testing.T) {
 				t.Fatal("accepted drift")
 			}
 		})
+	}
+}
+
+func TestBaseAssetPlanPreservesResolvedLocalSource(t *testing.T) {
+	p := baseSnapshotFixture()
+	provider, err := NewBaseProvider(New(&fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if !reflect.DeepEqual(args, []string{"query", "/1.0/storage-pools/pool"}) {
+			t.Fatal("resolved source was looked up again", args)
+		}
+		return host.Result{Stdout: `{"name":"pool","driver":"btrfs"}`}, nil
+	}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := &BaseAssetBackend{Provider: provider, PinnedSource: "local:" + strings.Repeat("b", 64)}
+	_, binding, err := backend.Plan(context.Background(), p.Base, "hacocoon/pool", p.Owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var plan baseAssetBinding
+	if err := json.Unmarshal([]byte(binding), &plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan.Source != backend.PinnedSource {
+		t.Fatal("effective source substituted", plan.Source)
+	}
+	backend.PinnedSource = "local:" + strings.Repeat("c", 64)
+	if _, _, err := backend.Plan(context.Background(), p.Base, "hacocoon/pool", p.Owner); err == nil {
+		t.Fatal("accepted another revision")
 	}
 }

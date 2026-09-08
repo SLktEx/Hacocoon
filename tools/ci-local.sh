@@ -180,6 +180,7 @@ run_test() {
   need python3
   python3 tools/test_wsl_host_interop.py
   python3 tools/test_pending_approvals_test.py
+  python3 tools/test_cleanup_ci_base_asset.py
   section "test"
   go test -count=1 -shuffle=on ./...
   go vet ./...

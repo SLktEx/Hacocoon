@@ -278,9 +278,9 @@ scope and only after provider verification. An ambiguous create, failed receipt 
 failed verification leaves recoverable ownership; it does not trigger another
 create or forget the resource. Existing snapshot schema 6 bindings survive upgrade.
 
-This is preparation for automatic retention during ordinary Environment creation.
-The Incus retained-material adapter is implemented; creation wiring is still planned, so missing cached Base
-images remain a limitation of current daily snapshot work. No command or required
+The local Incus composition now connects retention automatically during ordinary
+Environment creation. The snapshot planner still requires its cached Base image;
+using retained material for snapshot capture remains follow-up work. No command or required
 argument is added. Asset removal requires future reference-aware collection; this
 slice exposes no deletion API. See [ADR 0038](../adr/0038-retained-base-assets.md).
 
@@ -310,3 +310,30 @@ This does not yet establish ordinary-create wiring or snapshot restore.
 An initial local compile/vet attempt failed on a missing BaseRevision conversion
 in the new regression test. The type was corrected; focused tests and the real
 fixture passed. The full local CI rerun remains pending.
+
+When creation completion was durably recorded but verification/publication was
+interrupted, the next retention request re-verifies the same owned material and
+finishes ready publication. It issues no new create. A merely planned reservation
+still requires recovery; resource presence alone does not prove completed creation.
+
+## Automatic retention during Environment creation
+
+Implemented in the local Incus composition: ordinary `haco create` and temporary
+`haco run` retain the resolved Base before the Environment is initialized. No new
+command, argument or opt-in is required. The resolved immutable source is passed
+into the asset plan, including local effective revisions, without resolving a
+moving alias again. The exact ready provider/scope/revision/binding is checked
+before Environment creation continues.
+
+The Base catalog owns failed retention independently. If retention fails before
+Environment creation starts, creation returns unavailable and its unused
+Workspace reservation can be released. Completed asset creation can finish
+verification/publication on the next request; ambiguous planned creation remains
+reserved for recovery. Deleting an Environment keeps its independent Base asset.
+Reference-aware asset collection remains planned.
+
+The existing ordinary-user Incus storage CLI E2E now asserts ready Base ownership
+and isolated stopped material after create. Its disposable CI cleanup verifies
+the exact unused catalog-owned asset and positive absence. New installed/GHA
+execution is pending. Snapshot use of retained assets and restore remain planned;
+the older cached-Base snapshot planner is not yet changed by this integration.

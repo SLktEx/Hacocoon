@@ -116,6 +116,7 @@ run_test() {
   unset HACO_PLUGIN_OCI
 
   "$HACO_BIN" create --base haco/ubuntu-26.04 --workspace "$WORKSPACE" "$ENV_NAME"
+  python3 tools/verify_ci_retained_base.py "$CLI_ROOT/state/environments.json" "$ENV_NAME"
 
   status_json="$("$HACO_BIN" status "$ENV_NAME" --json)"
   python3 - "$status_json" <<'PY'
@@ -195,6 +196,7 @@ delete_owned_instances() {
   while IFS= read -r instance; do
     [[ -n "$instance" ]] || continue
     case "$instance" in
+      haco-base-*) python3 tools/cleanup_ci_base_asset.py "$instance" || return 1 ;;
       "$INSTANCE"|haco-run-*) incus delete "$instance" --project "$PROJECT" --force || return 1 ;;
       *) echo "ERROR: refusing to delete unexpected instance '$instance'" >&2; unexpected=1 ;;
     esac

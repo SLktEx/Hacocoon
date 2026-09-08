@@ -1,9 +1,14 @@
 # Versioning and release status
+Current checkpoint v0.47 connects automatic Base retention to ordinary Incus
+Environment creation without extra user steps. Completed creation receipts can
+resume verification on retry. Installed acceptance, planned-create recovery,
+collection and snapshot/restore integration remain incomplete.
+
 
 The v0.46 snapshot work now includes schema-7 retained Base ownership and an
 internal retention coordinator. The Incus retained-material adapter is implemented; automatic normal
 creation integration remains planned; no new public command is introduced.
-Current checkpoint v0.46 now includes complete stopped snapshot capture through
+Checkpoint v0.46 introduced complete stopped snapshot capture through
 schema-6 ownership, provider routing and independent rootfs/Workspace/OCI/Base
 storage. Dedicated WSL passed five-component save, catalog reload, source deletion,
 saved Git/data retention and owned cleanup. Restore and public daily operations
@@ -158,8 +163,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.44 | Verified AWS Object Downloads | ✅ implemented |
 | v0.45 | Guest AWS Request Boundary | ✅ implemented |
 | v0.46 | Snapshot Workspace and OCI storage | ✅ implemented |
+| v0.47 | Automatic Base retention | ✅ implemented |
 
-The current milestone position is **v0.46**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.47**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

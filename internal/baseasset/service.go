@@ -85,11 +85,28 @@ func (s *Service) Ensure(ctx context.Context, base core.BaseRef, scope string) (
 }
 
 func (s *Service) reuse(ctx context.Context, a core.BaseAsset) (core.BaseAsset, error) {
-	if a.State != "ready" {
+	if a.State != "created" && a.State != "ready" {
 		return a, core.ErrRecoveryRequired
 	}
 	if err := s.Backend.Verify(ctx, a); err != nil {
 		return a, errors.Join(core.ErrRecoveryRequired, err)
+	}
+	// A durable creation receipt proves Create completed. Recovery must only
+	// re-verify that exact material, never recreate or adopt a planned target.
+	if a.State == "created" {
+		if err := s.Store.RecordBaseAsset(ctx, a, "ready"); err != nil {
+			// A concurrent verifier may publish the exact same immutable receipt.
+			if errors.Is(err, core.ErrCapabilityStale) {
+				current, readErr := s.Store.FindBaseAsset(ctx, a.Base, a.Provider, a.Scope)
+				ready := a
+				ready.State = "ready"
+				if readErr == nil && current == ready {
+					return current, nil
+				}
+			}
+			return a, errors.Join(core.ErrRecoveryRequired, err)
+		}
+		a.State = "ready"
 	}
 	return a, nil
 }

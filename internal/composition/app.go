@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
+	"github.com/SLktEx/Hacocoon/internal/baseasset"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	clientapp "github.com/SLktEx/Hacocoon/internal/client"
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -137,6 +138,8 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 
 	environmentStatePath := filepath.Join(stateDir, "environments.json")
 	store := state.NewEnvironmentJSONStore(environmentStatePath)
+	configureBaseRetention(incusProvider.BaseProvider, store)
+
 	executable, err := os.Executable()
 	if err != nil {
 		return nil, err
@@ -259,4 +262,11 @@ func envOr(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func configureBaseRetention(provider *incus.BaseProvider, store *state.EnvironmentJSONStore) {
+	provider.ConfigureBaseRetention(func(ctx context.Context, base core.BaseRef, scope, source string) (core.BaseAsset, error) {
+		service := &baseasset.Service{Store: store, Backend: &incus.BaseAssetBackend{Provider: provider, PinnedSource: source}, Provider: environmentapp.ProviderIncus}
+		return service.Ensure(ctx, base, scope)
+	})
 }

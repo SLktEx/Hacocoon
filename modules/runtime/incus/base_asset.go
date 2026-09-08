@@ -8,11 +8,15 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/baseasset"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 )
 
 // BaseAssetBackend retains independently owned Base rootfs material. Its caller
 // must persist the complete plan before Create and its receipt before Verify.
-type BaseAssetBackend struct{ Provider *BaseProvider }
+type BaseAssetBackend struct {
+	Provider     *BaseProvider
+	PinnedSource string
+}
 
 var _ baseasset.Backend = (*BaseAssetBackend)(nil)
 
@@ -37,7 +41,11 @@ func (b *BaseAssetBackend) Plan(ctx context.Context, base core.BaseRef, scope, o
 		return "", "", core.ErrNotFound
 	}
 	fp, _ := baseRevisionFingerprint(base.Revision)
-	binding := baseAssetBinding{Version: 1, Project: project, Pool: pool, Source: pinImageSource(source, fp)}
+	pinned := pinImageSource(source, fp)
+	if b.PinnedSource != "" {
+		pinned = b.PinnedSource
+	}
+	binding := baseAssetBinding{Version: 1, Project: project, Pool: pool, Source: pinned}
 	if !validBaseAssetSource(binding.Source, fp) {
 		return "", "", core.ErrUnsupported
 	}
@@ -60,7 +68,7 @@ func (b *BaseAssetBackend) decode(a core.BaseAsset) (baseStorageIdentity, baseAs
 	p.Pool = binding.Pool
 	fp, err := baseRevisionFingerprint(a.Base.Revision)
 	canonical, encodeErr := json.Marshal(binding)
-	if err != nil || encodeErr != nil || string(canonical) != a.Binding || p.validate() != nil || a.Provider != "incus" || a.ID != "base-"+a.Owner || binding.Version != 1 || !safeIncusRef(binding.Project) || binding.Project != b.Provider.project || a.Scope != binding.Project+"/"+binding.Pool || a.NativeRef != "instance/"+p.target() || !validBaseAssetSource(binding.Source, fp) {
+	if err != nil || encodeErr != nil || string(canonical) != a.Binding || p.validate() != nil || a.Provider != environmentapp.ProviderIncus || a.ID != "base-"+a.Owner || binding.Version != 1 || !safeIncusRef(binding.Project) || binding.Project != b.Provider.project || a.Scope != binding.Project+"/"+binding.Pool || a.NativeRef != "instance/"+p.target() || !validBaseAssetSource(binding.Source, fp) {
 		return p, binding, core.ErrIncompatibleState
 	}
 	return p, binding, nil
