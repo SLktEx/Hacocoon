@@ -32,7 +32,7 @@ func (f *lifecycleFixture) CreateEnvironment(_ context.Context, r controlapi.Env
 	if err := f.step(); err != nil {
 		return core.Environment{}, err
 	}
-	if r.Name != f.old.Name || r.WorkspacePath != f.old.Workspace.Path || r.AccessMode != f.old.AccessMode {
+	if !r.SkipDefaultResource || r.Name != f.old.Name || r.WorkspacePath != f.old.Workspace.Path || r.AccessMode != f.old.AccessMode {
 		return core.Environment{}, errors.New("recreation scope lost")
 	}
 	result := f.old

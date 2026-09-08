@@ -142,3 +142,15 @@ not completion of roadmap E2-E5.
 The existing Windows installer E2E now runs check-lifecycle through the same
 installed acceptance tool. Its phase/identity verifier regressions and local CI
 passed; new-head GHA is pending.
+
+The external-Workspace acceptance fixture explicitly skips automatic OCI attachment
+on both create and recreate. This keeps its scope to E1 file retention and avoids
+leaving retained OCI Stores after a disposable fixture. Windows E2E at b73f965
+failed this fixture precondition because the installed OCI default was active;
+the network and guest AWS refusal checks passed. The corrected fixture requires
+a new installed run before Windows acceptance is claimed.
+
+The corrected verifier passed in dedicated WSL at product 093ed159b80e with
+fixture m1-egress-b73f965020260908. Canonical cleanup removed the Environment
+and fixture Workspace. This older local installation does not replace acceptance
+of the corrected fixture against the default-OCI Windows installer in GHA.

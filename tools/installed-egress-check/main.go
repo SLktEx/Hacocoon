@@ -88,7 +88,7 @@ func check(name string, network, lifecycle bool) (result error) {
 		access = core.WorkspaceReadWrite
 	}
 	created, err := client.CreateEnvironment(ctx, controlapi.EnvironmentCreateRequest{
-		Name: name, WorkspacePath: workspace, AccessMode: access,
+		Name: name, WorkspacePath: workspace, AccessMode: access, SkipDefaultResource: true,
 	})
 	if err != nil {
 		return fmt.Errorf("controller create failed; retain workspace %s: %w", workspace, err)

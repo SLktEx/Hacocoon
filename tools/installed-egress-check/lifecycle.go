@@ -51,7 +51,7 @@ printf verified`); err != nil {
 	if err := c.DeleteEnvironment(ctx, old.Name); err != nil {
 		return err
 	}
-	request := controlapi.EnvironmentCreateRequest{Name: old.Name, WorkspacePath: old.Workspace.Path, AccessMode: old.AccessMode, Resources: old.Resources}
+	request := controlapi.EnvironmentCreateRequest{Name: old.Name, WorkspacePath: old.Workspace.Path, AccessMode: old.AccessMode, Resources: old.Resources, SkipDefaultResource: true}
 	if old.Base != nil {
 		request.Base = old.Base.Name
 	}
@@ -59,7 +59,7 @@ printf verified`); err != nil {
 	if err != nil {
 		return fmt.Errorf("recreate failed; retain Workspace: %w", err)
 	}
-	if created.Workspace != old.Workspace || created.Name != old.Name || !created.CreatedAt.After(old.CreatedAt) {
+	if created.Workspace != old.Workspace || created.Name != old.Name || created.AccessMode != old.AccessMode || created.PersistentResource != (core.PersistentResourceRef{}) || !created.CreatedAt.After(old.CreatedAt) {
 		return fmt.Errorf("recreation identity mismatch")
 	}
 	return run("recreate", `test "$(cat /workspace/work.txt)" = uncommitted-work || exit 41
