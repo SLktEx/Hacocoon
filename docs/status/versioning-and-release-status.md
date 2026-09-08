@@ -1,5 +1,5 @@
 # Versioning and release status
-Current checkpoint v0.44 adds streamed S3 object downloads through shared approval and Policy, with verified atomic file publication. Guest-scoped requests and real AWS acceptance remain planned. See [implementation status](../IMPLEMENTATION_STATUS.md).
+Current checkpoint v0.45 adds the guest AWS server boundary tied to persisted source creation identity. Guest CLI integration and installed/authenticated acceptance remain pending. See [implementation status](../IMPLEMENTATION_STATUS.md).
 
 Fresh Host setup now binds the owned OCI area automatically; existing data migration and runtime acceptance remain partial.
 Preceding checkpoint v0.39 adds the Windows notification review adapter and per-distribution registration. Native history/protocol/stale-refusal checks passed locally; fresh notification decisions and Linux activation remain incomplete. See [implementation status](../IMPLEMENTATION_STATUS.md).
@@ -147,8 +147,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.42 | Completed OCI Copy Recovery | ✅ implemented |
 | v0.43 | Approved AWS S3 Listing | ✅ implemented |
 | v0.44 | Verified AWS Object Downloads | ✅ implemented |
+| v0.45 | Guest AWS Request Boundary | ✅ implemented |
 
-The current milestone position is **v0.44**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.45**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

@@ -3,7 +3,7 @@
 [日本語](aws-operations.ja.md) | English
 
 Status: **partial D3 implementation**. Trusted Host S3 listing and streamed downloads are implemented.
-ID-bound Host account labels are implemented. Guest-scoped transport and
+ID-bound Host account labels are implemented. Guest server transport is implemented; the guest CLI and
 real AWS/desktop acceptance remain planned. This does not reintroduce the deferred
 EC2 runtime.
 
@@ -202,3 +202,16 @@ Focused race tests and fifteen intercepted SDK/config tests passed, including
 profile isolation, identity mismatch, label changes and unsafe config. Actual
 authenticated AWS and desktop label rendering remain unverified for the same
 missing Host AWS prerequisites.
+
+## Guest request boundary
+
+The Standard listener now exposes an optional AWS-only origin-form endpoint at
+/_haco/operations/aws. It accepts list/get, URL, profile and region; it does not
+accept Environment identities or management/approval methods. Trusted runtime
+source evidence and the exact persisted Environment creation ID select the caller.
+The plugin rejects recreation before authentication and retains that ID through
+ordinary approval and execution. Forwarding headers do not select the source.
+
+This is a server-side implementation; the normal guest haco client and installed
+guest acceptance are still pending. Do not publish downloaded bytes without the
+final verified receipt. See [ADR 0036](../adr/0036-guest-aws-source-identity.md).

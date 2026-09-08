@@ -1,4 +1,12 @@
 # 実装状況
+
+## guest AWS server 境界
+
+server 側実装済み: 隔離された Standard listener で、送信元 Environment の正確な
+作成 ID に紐付く AWS list/get だけを受け付けます。管理・承認決定は公開しません。
+送信元・再作成・偽装・frame サイズの回帰が成功しました。guest CLI と installed guest／
+AWS 検証は未完了です。[AWS 操作](design/aws-operations.ja.md)を参照してください。
+
 ## AWS アカウント表示名
 
 実装済み: 任意の Host AWS profile 表示名を実 STS アカウント ID に紐付け、
@@ -879,7 +887,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.44** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.45** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

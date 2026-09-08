@@ -220,8 +220,9 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	environments.ConfigureDefaultResource(workspaceStores.Resolve)
 	runs := runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks"))
 	runs.ConfigureTemporaryWorkspace(workspaceStores.CleanupTemporary)
+	awsBroker := &awsplugin.Broker{Host: incusRuntime.RunTrustedHostPython, Capabilities: capabilities, Environments: store}
 	return &App{
-		AWS:                 &awsplugin.Broker{Host: incusRuntime.RunTrustedHostPython, Capabilities: capabilities, Environments: store},
+		AWS:                 awsBroker,
 		ProjectSetup:        &projectsetup.Service{Root: filepath.Join(root, "project-setup"), Environments: environments},
 		HostCustomization:   &recipes.Service{Root: filepath.Join(root, "host-customization"), Execute: incusRuntime.RunTrustedHostCustomization},
 		PersistentResources: resources,
@@ -237,7 +238,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		Events:              eventsapp.New(auditPath),
 		Bases:               runtime,
 		Runtime:             incusRuntime,
-		EgressProxy:         egressproxy.NewWithNameResolution(egressBroker, egressSources, nameresolution.New(capabilities)),
+		EgressProxy:         egressproxy.NewWithOperations(egressBroker, egressSources, nameresolution.New(capabilities), awsplugin.NewGuestHandler(awsBroker, egressSources)),
 		Repositories:        repositories,
 		GitBroker:           gitBroker,
 	}, nil

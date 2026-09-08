@@ -156,3 +156,15 @@ Environment や repo からラベルを指定することはできません。
 focused race と SDK/config の 15 テストが成功し、profile 分離・ID 不一致・名前変更・
 危険な config の拒否を確認しました。認証済み AWS とデスクトップ上の表示確認は、
 Host の AWS 前提不足により引き続き未検証です。
+
+## guest 要求の境界
+
+Standard listener に AWS 専用の origin-form 入口 /_haco/operations/aws を追加しました。
+受け付けるのは list/get・URL・profile・region のみで、Environment ID や管理・承認決定
+メソッドは受け付けません。runtime の送信元証拠と保存済みの正確な Environment 作成 ID で
+呼出元を特定し、再作成を認証前に拒否して、同じ ID を通常の承認・実行まで保持します。
+転送ヘッダーから送信元を選ぶことはありません。
+
+これは server 側の実装です。guest の通常 haco client と installed guest 検証は未完了です。
+最終 receipt の検証前に取得データを保存完了として扱ってはいけません。
+[ADR 0036](../adr/0036-guest-aws-source-identity.md)を参照してください。

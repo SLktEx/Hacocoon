@@ -279,3 +279,8 @@ return exit 1 with a next action; they are not repaired. A successful report
 proves only these local prerequisites: external DNS, egress Policy, actual
 desktop reachability and browser rendering require separate acceptance.
 The existing no-target Host diagnostic behavior and six checks remain unchanged.
+
+The optional guest AWS operation endpoint shares the guarded Standard HTTP listener,
+not the management socket. It accepts only list/get requests and uses trusted source
+creation identity. Approval/configuration/lifecycle methods remain inaccessible.
+See [AWS operations](aws-operations.md#guest-request-boundary).

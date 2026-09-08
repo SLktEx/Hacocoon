@@ -37,6 +37,7 @@ type DNSResolver interface {
 }
 
 type Proxy struct {
+	operations     http.Handler
 	nameResolution http.Handler
 	authorizer     Authorizer
 	sources        SourceResolver
@@ -62,9 +63,21 @@ func NewWithNameResolution(authorizer Authorizer, sources SourceResolver, lookup
 	return p
 }
 
+// NewWithOperations admits optional operation handlers only on origin-form
+// reserved paths. Each handler owns source authentication and capability policy.
+func NewWithOperations(authorizer Authorizer, sources SourceResolver, lookup dnsproxy.Lookup, operations http.Handler) *Proxy {
+	p := NewWithNameResolution(authorizer, sources, lookup)
+	p.operations = operations
+	return p
+}
+
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if p == nil || p.authorizer == nil || p.sources == nil || p.resolver == nil || p.dial == nil {
 		http.Error(w, "egress proxy unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if p.operations != nil && r.URL != nil && !r.URL.IsAbs() && strings.HasPrefix(r.RequestURI, "/_haco/operations/") {
+		p.operations.ServeHTTP(w, r)
 		return
 	}
 	if p.nameResolution != nil && r.URL != nil && !r.URL.IsAbs() && r.RequestURI == dnsproxy.Path {

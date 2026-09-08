@@ -136,6 +136,9 @@ func (b *Broker) List(ctx context.Context, s ListSpec) (core.CapabilityResult, e
 }
 
 func (b *Broker) prepare(ctx context.Context, s ListSpec, get bool) (core.CapabilityRequest, error) {
+	return b.prepareBound(ctx, s, get, "")
+}
+func (b *Broker) prepareBound(ctx context.Context, s ListSpec, get bool, expectedInstance string) (core.CapabilityRequest, error) {
 	s, bucket, prefix, err := parse(s)
 	if err != nil || get && !validObjectKey(prefix) {
 		if err == nil {
@@ -153,6 +156,9 @@ func (b *Broker) prepare(ctx context.Context, s ListSpec, get bool) (core.Capabi
 	instance, err := b.Environments.EnvironmentInstance(ctx, environment)
 	if err != nil {
 		return core.CapabilityRequest{}, err
+	}
+	if expectedInstance != "" && instance != expectedInstance {
+		return core.CapabilityRequest{}, core.ErrCapabilityStale
 	}
 	out, err := call(ctx, b.Host, agentRequest{Mode: "identity", Profile: s.Profile, Region: s.Region})
 	if err != nil {

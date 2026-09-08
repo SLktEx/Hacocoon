@@ -272,3 +272,8 @@ host public key、接続用の提案 command、生の guest stdout/stderr や ba
 成功はこの local prerequisite のみを示します。外部 DNS、egress Policy、
 desktop からの実到達、browser 描画は別途確認が必要です。
 対象指定のない Host 診断と既存の六項目は従来どおりです。
+
+任意の guest AWS 操作入口は、管理 socket ではなく隔離付き Standard HTTP listener を
+共有します。list/get 要求だけを受け付け、trusted な送信元作成 ID を使います。
+承認決定・config・lifecycle メソッドは公開しません。
+[AWS 操作](aws-operations.ja.md)を参照してください。
