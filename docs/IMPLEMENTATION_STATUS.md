@@ -2,6 +2,12 @@
 
 ## Snapshot source guard
 
+Internal Base rootfs retention now pins the exact local effective image revision.
+Dedicated WSL passed isolated stopped configuration, Btrfs COW ancestry, independent
+saved writes and owned cleanup. Incus 6.0.5 image-info incompatibility found by E2E
+was fixed through the JSON API. Source-image deletion is SKIP because the cached
+image is shared; full aggregate/restore remains planned. Base GHA is pending.
+
 Partial E2 foundation: the Workspace service validates the complete source
 aggregate under Environment/Workspace locks, requiring stopped provider state and
 the exact durable creation ID. Drift, running/unknown state and invalid attachment
@@ -25,7 +31,7 @@ was confirmed. The same fixture was added to existing Incus GHA, pending executi
 Independent rootfs COW storage also passed dedicated WSL acceptance: source
 identity/stopped state, config/device masking, data retention and source-deletion
 independence. The updated Incus GHA includes this fixture and remains pending.
-Complete aggregate manifests, Base assets, production capture/restore wiring, CLI
+Complete aggregate manifests including Base assets, production capture/restore wiring, CLI
 and full Environment round trips remain planned. Live OCI database consistency
 is not claimed.
 See [snapshot design](design/environment-snapshots.md) and [ADR 0037](adr/0037-snapshot-aggregate-ownership.md).

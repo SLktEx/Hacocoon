@@ -2,7 +2,7 @@
 
 Status: **partial internal foundation**. Source validation and lifecycle locking
 and a durable component catalog/capture coordinator are implemented. Incus custom
-volume and independent rootfs COW primitives are implemented and tested; complete aggregate capture,
+volume, independent rootfs and exact-revision Base COW primitives are implemented and tested; complete aggregate capture,
 restore and public CLI are planned. No usable Environment snapshot is produced yet.
 
 ## Scope
@@ -154,7 +154,7 @@ ownership markers and no attachments. Cleanup checks exact ownership and absence
 a delete attempt or lost reply is not permission to release the catalog record.
 
 The aggregate planner must durably encode the complete adapter binding before
-calling these primitives. Rootfs/Base storage, complete member inventory and
+calling these primitives. Complete member inventory and
 production coordinator wiring remain required. These private functions alone
 are not an Environment snapshot and are not registered as a public haco command.
 
@@ -199,6 +199,36 @@ masking and survival of source edits/deletion. Cleanup and final inventory were
 verified. Existing Incus GHA now runs both volume and rootfs fixtures. The previous
 volume-only checkpoint's Incus GHA passed; the updated rootfs GHA is pending.
 
-Base asset capture, durable complete aggregate binding, production coordinator
+Durable complete aggregate binding including Base assets, production coordinator
 routing and restore remain planned. These primitives do not yet provide a public
 save/restore operation or complete Environment round-trip acceptance.
+
+## Independent Base storage
+
+Implemented internally: an exact local effective Base revision can be retained
+as an independently owned, stopped container on the selected Btrfs pool. The
+creation request uses the full image fingerprint, no profiles, a root disk only,
+explicit unprivileged/non-nesting configuration and disabled autostart. It does
+not resolve a mutable alias or download an image. Missing cached assets fail
+before creation; aggregate planning must include this asset before reservation.
+The immutable Base name/revision accompany fresh ownership markers. Creation
+returns before another provider call so the coordinator can persist its receipt.
+
+Verification requires the exact markers and volatile.base_image, stopped state,
+no profiles/ephemeral lifecycle, only the planned root disk, and no unexpected
+workload configuration. Incus image.* properties are descriptive metadata and
+never ownership evidence. Deletion uses the same checks and positively observes
+absence. The saved instance is not a runnable Hacocoon Environment. This retains
+Base filesystem material; it is not a published image/archive or a Base registry.
+Full aggregate binding, registration and restore remain planned.
+
+Dedicated WSL Incus 6.0.5 acceptance passed with target
+haco-snapshot-base-c7de95953bae7da75ff2557b7a9270b1. It proved exact image identity,
+Btrfs parent UUID 6b3241ef-4eac-2d46-8df2-23ff1e8979a5, an independent saved write,
+and cleanup without changing the shared cached image. Final inventory retained
+only haco-host. The first run failed before creation because image info does not
+support --format on 6.0.5; the implementation now uses the JSON API and its
+regression fixes that request contract. The initial reservation was absent at the final cleanup check. Source-image deletion acceptance is SKIP: that cached image is
+shared by existing infrastructure. This test does not establish a full restore
+or independent recreation after losing the original image. Existing Incus GHA
+includes the same fixture; execution of the new Base extension is pending.
