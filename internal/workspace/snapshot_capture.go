@@ -44,12 +44,21 @@ func (s *Service) CaptureSnapshot(ctx context.Context, name string) (result core
 	if !ok {
 		return result, core.ErrUnsupported
 	}
+	err = s.withSnapshotSource(ctx, name, func(ctx context.Context, source core.SnapshotSource) error {
+		result, err = s.captureSnapshotLocked(ctx, source, backend, catalog)
+		return err
+	})
+	return result, err
+}
+
+// The caller holds the canonical Environment and Workspace lifecycle locks.
+func (s *Service) captureSnapshotLocked(ctx context.Context, source core.SnapshotSource, backend SnapshotBackend, catalog snapshotCatalog) (result core.Snapshot, err error) {
 	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
+	if _, err = rand.Read(nonce[:]); err != nil {
 		return result, err
 	}
 	id := "snap-" + hex.EncodeToString(nonce[:])
-	err = s.withSnapshotSource(ctx, name, func(ctx context.Context, source core.SnapshotSource) error {
+	err = func() error {
 		components, err := backend.PlanSnapshot(ctx, source, id)
 		if err != nil {
 			return err
@@ -96,7 +105,7 @@ func (s *Service) CaptureSnapshot(ctx context.Context, name string) (result core
 		}
 		result.State = "ready"
 		return nil
-	})
+	}()
 	return result, err
 }
 

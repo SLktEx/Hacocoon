@@ -1,6 +1,6 @@
 # ADR 0039: Preserve ownership through snapshot restore preparation
 
-Status: accepted design; internal preparation catalog implemented; provider staging and lifecycle replacement pending
+Status: accepted design; internal preparation catalog implemented; service/provider staging implemented; lifecycle replacement pending
 Date: 2026-09-08
 
 ## Decision
@@ -46,7 +46,13 @@ cannot be restore sources.
 
 The internal catalog and lifecycle/deletion guards are implemented and tested for
 restart, complete receipts, binding drift, downgrade, partial cleanup and races.
-Fresh pre-restore capture, provider staging, replacement, restore execution and
-public CLI are still required. Tests of the catalog are not real-host restore
+Fresh pre-restore capture and provider staging are now implemented through the
+canonical locked service. Incus copies each saved component into independently
+owned stopped/unattached storage, clearing source configuration and management
+identity while preserving required idmap bookkeeping. Saved and destination
+provider routes must agree. Source ownership is rechecked before copy and target
+ownership before verification or cleanup. Lost replies retain the planned target.
+Replacement, restore execution and public CLI are still required; prepared storage
+is not a completed restore. Tests of the catalog alone are not real-host restore
 acceptance. See [snapshot design](../design/environment-snapshots.md) and
 [canonical lifecycle](0002-environment-lifecycle-ownership.md).
