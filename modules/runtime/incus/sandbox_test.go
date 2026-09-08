@@ -13,9 +13,16 @@ import (
 const sandboxTestFingerprint = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
+	initialized, recorded := false, false
 	values := map[string]string{}
 	guardCreated := false
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if initialized && !recorded {
+			t.Fatal("provider call before durable ownership receipt", args)
+		}
+		if args[0] == "init" {
+			initialized = true
+		}
 		if len(args) >= 2 && args[0] == "image" && args[1] == "info" {
 			return host.Result{Stdout: `{"fingerprint":"` + sandboxTestFingerprint + `"}`}, nil
 		}
@@ -61,7 +68,13 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 		PIDs:        core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 1024},
 		RootBytes:   core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 40 << 30},
 	}
-	created, err := provider.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{InstanceID: testEnvironmentInstance, Name: "demo", WorkspacePath: "/tmp/work", Resources: budget})
+	created, err := provider.CreateEnvironmentWithReceipt(context.Background(), core.EnvironmentRuntimeSpec{InstanceID: testEnvironmentInstance, Name: "demo", WorkspacePath: "/tmp/work", Resources: budget}, func(v core.EnvironmentRuntime) error {
+		if !initialized || recorded || v.Ref != "haco-demo" || v.Resources != budget || v.Base == nil {
+			t.Fatal("invalid creation receipt", v)
+		}
+		recorded = true
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,5 +208,54 @@ func TestSandboxProviderVerificationFailureCleansUpWithoutStart(t *testing.T) {
 	}
 	if !seenDelete {
 		t.Fatalf("cleanup delete missing: %#v", runner.calls)
+	}
+}
+
+func TestSandboxReceiptFailureLeavesCleanupToLifecycleOwner(t *testing.T) {
+	initialized := false
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if initialized {
+			t.Fatal("provider performed work after failed receipt", args)
+		}
+		if args[0] == "init" {
+			initialized = true
+		}
+		if len(args) > 1 && args[0] == "image" && args[1] == "info" {
+			return host.Result{Stdout: `{"fingerprint":"` + sandboxTestFingerprint + `"}`}, nil
+		}
+		if out, ok := sandboxNetworkResult(args); ok {
+			return out, nil
+		}
+		if len(args) > 2 && args[0] == "profile" && args[1] == "show" && args[2] == "default" {
+			return rootProfileResult(), nil
+		}
+		return host.Result{}, nil
+	}}
+	provider, err := NewSandboxProvider(New(runner))
+	if err != nil {
+		t.Fatal(err)
+	}
+	failure := errors.New("durable receipt failed")
+	created, err := provider.CreateEnvironmentWithReceipt(context.Background(), core.EnvironmentRuntimeSpec{InstanceID: testEnvironmentInstance, Name: "demo", WorkspacePath: "/tmp/work"}, func(v core.EnvironmentRuntime) error {
+		if !initialized || v.Ref != "haco-demo" {
+			t.Fatal(v)
+		}
+		return failure
+	})
+	if !errors.Is(err, failure) || created.Ref != "haco-demo" {
+		t.Fatal("lost owned failed runtime", created, err)
+	}
+}
+func TestSandboxReceiptRequiresGenerationBeforeProviderAccess(t *testing.T) {
+	provider, err := NewSandboxProvider(New(&fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+		t.Fatal("provider access without generation")
+		return host.Result{}, nil
+	}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = provider.CreateEnvironmentWithReceipt(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/tmp/work"}, func(core.EnvironmentRuntime) error { return nil })
+	if !errors.Is(err, core.ErrInvalidArgument) {
+		t.Fatal(err)
 	}
 }

@@ -168,7 +168,7 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 		return core.Environment{}, fmt.Errorf("begin environment create: %w", err)
 	}
 
-	created, err := s.runtime.CreateEnvironment(ctx, core.EnvironmentRuntimeSpec{
+	runtimeSpec := core.EnvironmentRuntimeSpec{
 		InstanceID:         instanceID,
 		TemporaryWorkspace: spec.TemporaryWorkspace != nil,
 		PersistentResource: persistent,
@@ -177,8 +177,32 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 		ReadOnly:           mode == core.WorkspaceReadOnly,
 		Base:               spec.Base,
 		Resources:          resources,
-	})
+	}
+	recorded := false
+	record := func(created core.EnvironmentRuntime) error {
+		if recorded || strings.TrimSpace(created.Ref) == "" {
+			return core.ErrIncompatibleState
+		}
+		lease.RuntimeRef = created.Ref
+		if err := s.store.RecordEnvironmentRuntime(ctx, lease); err != nil {
+			return err
+		}
+		recorded = true
+		return nil
+	}
+	var created core.EnvironmentRuntime
+	if provider, ok := s.runtime.(interface {
+		CreateEnvironmentWithReceipt(context.Context, core.EnvironmentRuntimeSpec, func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error)
+	}); ok {
+		created, err = provider.CreateEnvironmentWithReceipt(ctx, runtimeSpec, record)
+	} else {
+		created, err = s.runtime.CreateEnvironment(ctx, runtimeSpec)
+	}
+
 	if err != nil {
+		if lease.RuntimeRef != "" {
+			return core.Environment{}, s.failCreatedEnvironment(ctx, lease, fmt.Errorf("create environment %q: %w", name, err))
+		}
 		if errors.Is(err, core.ErrRecoveryRequired) {
 			lease.State = core.WorkspaceLeaseCleanupRequired
 			markErr := s.markEnvironmentRecovery(ctx, lease)
@@ -200,10 +224,13 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 	// Record provider ownership before performing any further validation or
 	// persistence. If the process stops after this point, recovery has an exact
 	// runtime reference and the Workspace remains conservatively reserved.
-	lease.RuntimeRef = created.Ref
-	lease.State = core.WorkspaceLeaseAcquiring
-	if err := s.store.RecordEnvironmentRuntime(ctx, lease); err != nil {
-		return core.Environment{}, s.failCreatedEnvironment(ctx, lease, fmt.Errorf("record environment runtime ownership: %w", err))
+	if recorded && lease.RuntimeRef != created.Ref {
+		return core.Environment{}, s.failCreatedEnvironment(ctx, lease, core.ErrCapabilityStale)
+	}
+	if !recorded {
+		if err := record(created); err != nil {
+			return core.Environment{}, s.failCreatedEnvironment(ctx, lease, fmt.Errorf("record environment runtime ownership: %w", err))
+		}
 	}
 
 	if created.Resources == (core.ResourceBudget{}) && !core.ResourceBudgetHasFinite(resources) {
