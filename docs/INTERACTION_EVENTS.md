@@ -1,5 +1,27 @@
 # Client-neutral interaction events
 
+## Ordinary trusted Host subscription
+
+Implemented: normal setup provisions the same-release `haco-notify` companion in
+`haco-host`. Run `haco-notify native` there, or `haco-notify web` for the optional
+browser view. The existing `HACO_CLIENT_MODE=controller` selects the existing
+management socket automatically; no endpoint or audit-path argument is needed.
+A controller failure never falls back to local audit files. The explicit
+`NewReader(root)` API remains available for file-based/offline consumers.
+
+The trusted client receives the existing private `events.stream` records and
+projects them through the same minimized public schema before notification or
+HTTP delivery. Neither raw audit files nor a new control endpoint are mounted
+into Environments. Consumer errors and batch limits preserve resume semantics;
+controller failures return a generic public error and the received prefix.
+Detailed typed corruption diagnostics remain specific to the direct file reader.
+
+Windows installation records its validated distribution identity alongside the
+Windows PATH record and setup projects it into the owned Host. Conflicting
+identities fail closed. Upgrading an older installation requires rerunning the
+Windows installer so the identity is captured before controller setup.
+
+
 The trusted Host can review current pending requests with haco approve. This is a separate private management path; the optional Windows native adapter opens the same CLI. See [pending approval review](design/pending-approval-review.md).
 
 ## Approval correlation

@@ -1,5 +1,14 @@
 # Trusted `haco-host`
 
+## 通知バイナリ
+
+実装済み: setup は同じリリースの `/usr/local/bin/haco-notify` も配布し、provider の
+変更前に必要な全バイナリを検証します。Host 所有権・ダイジェスト・root 所有の実行権限は
+既存の検証を再利用します。通知は controller mode で既存の管理接続を読み、Physical Host
+の監査ファイルを必要としません。[イベント契約](../INTERACTION_EVENTS.ja.md)を参照してください。
+この追加変更の新規パッケージでの受入確認は pending です。
+
+
 ## Incus起動時のPID記録
 
 共通Ubuntu installerはIncus起動前にprovider専用guardを実行する。

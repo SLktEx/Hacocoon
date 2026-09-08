@@ -150,6 +150,7 @@ jobs:
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco --version >/dev/null
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host env list >/dev/null
+          sudo incus exec haco-host --project hacocoon --disable-stdin=false -- python3 -I - < tools/test_host_notification.py
           test "$(getent passwd "$login_user" | cut -d: -f7)" != /usr/local/libexec/hacocoon-login
 
       - name: Exercise installed Hacocoon legacy user journey during migration

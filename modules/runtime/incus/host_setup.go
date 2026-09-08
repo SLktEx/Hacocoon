@@ -8,10 +8,10 @@ import (
 
 // SetupTrustedHost composes the existing owned-resource reconciler and client
 // provisioners. Only the controller supplies clientDirectory; it is never RPC
-// input. Validate both required companions before creating provider resources.
+// input. Validate required companions before creating provider resources.
 // The temporary hacoq migration client is not a setup dependency.
 func (r *Runtime) SetupTrustedHost(ctx context.Context, clientDirectory string) error {
-	paths := []string{filepath.Join(clientDirectory, "haco-host"), filepath.Join(clientDirectory, "haco")}
+	paths := []string{filepath.Join(clientDirectory, "haco-host"), filepath.Join(clientDirectory, "haco"), filepath.Join(clientDirectory, "haco-notify")}
 	for _, path := range paths {
 		if _, _, err := trustedClientSource(path); err != nil {
 			return fmt.Errorf("validate setup client: %w", err)
@@ -29,5 +29,8 @@ func (r *Runtime) SetupTrustedHost(ctx context.Context, clientDirectory string) 
 	if err := r.ProvisionTrustedHostClient(ctx, paths[0]); err != nil {
 		return err
 	}
-	return r.ProvisionTrustedHostProductClient(ctx, paths[1])
+	if err := r.ProvisionTrustedHostProductClient(ctx, paths[1]); err != nil {
+		return err
+	}
+	return r.provisionTrustedHostCompanion(ctx, paths[2], "/usr/local/bin/haco-notify")
 }

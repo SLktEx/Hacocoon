@@ -1,5 +1,26 @@
 # Implementation Status
 
+Real Host component acceptance also passed in Hacocoon-Review-6771f2f using the
+new worktree notification binary in an owned temporary directory: existing
+controller subscription without audit projection, public schema and listener
+cleanup. The temporary executable was removed. Direct execution from the Windows
+mount first failed the fixture's installed-mode assertion; the corrected temporary
+0755 copy passed. This does not prove normal installer delivery or native activation.
+
+
+Local release-provenance validation **failed** on the Ubuntu 22.04 validation distro: the installer requires Ubuntu 26.04 or newer. The same release-provenance check subsequently passed on the dedicated Ubuntu 26.04 distro with a command-scoped Git safe-directory setting (no persistent Git configuration change). The earlier 22.04 failure remains recorded; normal notification package acceptance is still pending.
+
+
+## Ordinary Host notification follow-up
+
+Implemented in the working branch: same-release notification provisioning,
+controller-mode event subscription with no local fallback, and validated Windows
+distribution identity projection. Focused Go tests and WSL identity regressions
+passed. Installed Host subscription E2E is added to Windows and Ubuntu workflows;
+its new packaged run is pending. Previous Physical Host evidence does not prove
+this new ordinary Host path, and fresh human notification decisions remain unverified.
+
+
 
 Read-only inspection also confirmed that installed haco-host has neither haco-notify
 nor the audit file. The native evidence above is from the Physical Host. Completing

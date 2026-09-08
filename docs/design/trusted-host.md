@@ -1,5 +1,15 @@
 # Trusted `haco-host`
 
+## Notification companion
+
+Implemented: setup also provisions same-release `/usr/local/bin/haco-notify`,
+validating all required companions before provider mutation. Provisioning reuses
+Host ownership, digest and root-owned executable metadata checks. Notifications
+read the existing controller endpoint in controller mode; the Host does not need
+the Physical Host audit file. See [interaction events](../INTERACTION_EVENTS.md).
+Fresh packaged acceptance for this addition remains pending.
+
+
 Status: partial.
 
 The managed-repository WSL slice is **implemented**: registered upstream clones

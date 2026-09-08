@@ -72,6 +72,31 @@ class WindowsPathTests(unittest.TestCase):
         self.assertEqual(devices['haco-wsl-drive-q']['path'], '/mnt/q')
         self.assertNotIn('haco-wsl-drive-c', devices)
 
+class DistributionTests(unittest.TestCase):
+    def test_validated_record_and_collision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            record = Path(directory) / 'distribution.json'
+            original = Path.stat
+            def owned(path, *args, **kwargs):
+                info = original(path, *args, **kwargs)
+                return types.SimpleNamespace(st_mode=info.st_mode, st_uid=0, st_size=info.st_size)
+            with mock.patch.object(interop, 'DISTRIBUTION_RECORD', record), mock.patch.object(Path, 'stat', owned), mock.patch.dict(interop.os.environ, {'WSL_DISTRO_NAME':'Hacocoon-Test'}):
+                self.assertEqual(interop.distribution_record(True), 'Hacocoon-Test')
+                self.assertEqual(interop.distribution_record(), 'Hacocoon-Test')
+                with mock.patch.dict(interop.os.environ, {'WSL_DISTRO_NAME':'Other'}):
+                    with self.assertRaises(ValueError): interop.distribution_record(True)
+                self.assertEqual(interop.distribution_record(), 'Hacocoon-Test')
+                record.write_text('"bad;command"')
+                with self.assertRaises(ValueError): interop.distribution_record()
+                record.unlink()
+                record.symlink_to(Path(directory) / 'missing')
+                with self.assertRaises(ValueError): interop.distribution_record(True)
+
+    def test_foreign_host_distribution_is_rejected(self):
+        config = {'profiles':[], 'config':{'user.hacocoon.role':'trusted-host', 'environment.WSL_DISTRO_NAME':'Other'}}
+        with self.assertRaises(ValueError): interop.plan(config, {}, 'Hacocoon')
+
+
 class NativeBinfmtTests(unittest.TestCase):
     handler = 'enabled\ninterpreter /init\nflags: P\noffset 0\nmagic 4d5a\n'
 

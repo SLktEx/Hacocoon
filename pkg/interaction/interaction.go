@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 )
@@ -51,8 +53,33 @@ type Batch struct {
 	NextOffset    int64   `json:"next_offset"`
 }
 
+type eventSource interface {
+	Stream(context.Context, int64, func(eventsapp.Event) error) (int64, error)
+}
+
+type controllerSource struct{ client *controlapi.Client }
+
+func (s controllerSource) Stream(ctx context.Context, offset int64, emit func(eventsapp.Event) error) (int64, error) {
+	var callbackErr error
+	next, err := s.client.StreamEvents(ctx, offset, func(event eventsapp.Event) error {
+		callbackErr = emit(event)
+		return callbackErr
+	})
+	if callbackErr != nil {
+		return next, callbackErr
+	}
+	if err != nil {
+		if ctx.Err() != nil {
+			return next, ctx.Err()
+		}
+		// Transport and remote diagnostics are private, like raw audit fields.
+		return next, errors.New("interaction controller read failed")
+	}
+	return next, nil
+}
+
 type Reader struct {
-	events *eventsapp.Service
+	events eventSource
 }
 
 func NewReader(root string) (*Reader, error) {
@@ -64,6 +91,17 @@ func NewReader(root string) (*Reader, error) {
 }
 
 func NewDefaultReader() (*Reader, error) {
+	switch strings.TrimSpace(os.Getenv("HACO_CLIENT_MODE")) {
+	case "controller":
+		client, err := controlapi.NewDefaultClient()
+		if err != nil {
+			return nil, err
+		}
+		return &Reader{events: controllerSource{client: client}}, nil
+	case "":
+	default:
+		return nil, ErrInvalidArgument
+	}
 	root := os.Getenv("HACO_ROOT")
 	if root == "" {
 		root = "/var/lib/hacocoon"

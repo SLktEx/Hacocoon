@@ -17,7 +17,7 @@ import (
 func setupClientFixtures(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	for _, name := range []string{"haco-host", "haco"} {
+	for _, name := range []string{"haco-host", "haco", "haco-notify"} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("client-"+name), 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -100,7 +100,7 @@ func TestHostSetupReusesOwnedHostAndRecoversPartialClientInstall(t *testing.T) {
 	if err := runtime.SetupTrustedHost(context.Background(), dir); err != nil {
 		t.Fatal(err)
 	}
-	if pushes[trustedHostClientPath] != 1 || pushes[trustedHostProductClientPath] != 2 {
+	if pushes[trustedHostClientPath] != 1 || pushes[trustedHostProductClientPath] != 2 || pushes["/usr/local/bin/haco-notify"] != 1 {
 		t.Fatalf("non-idempotent pushes=%v", pushes)
 	}
 	for _, call := range runner.calls {
@@ -141,5 +141,25 @@ func TestHostSetupRefusesUnexpectedClientMode(t *testing.T) {
 		if len(call.args) > 0 && call.args[0] == "file" {
 			t.Fatalf("provisioned after client mode drift: %v", call)
 		}
+	}
+}
+
+func TestHostSetupRequiresNotificationCompanionBeforeProviderAccess(t *testing.T) {
+	dir := setupClientFixtures(t)
+	if err := os.Remove(filepath.Join(dir, "haco-notify")); err != nil {
+		t.Fatal(err)
+	}
+	runner := trustedHostRunner("RUNNING", trustedHostRoleValue, nil)
+	if err := New(runner).SetupTrustedHost(context.Background(), dir); err == nil {
+		t.Fatal("missing notifier accepted")
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("provider accessed before companion validation: %v", runner.calls)
+	}
+	if err := New(runner).provisionTrustedHostCompanion(context.Background(), filepath.Join(dir, "haco"), "/etc/foreign"); !errors.Is(err, core.ErrInvalidArgument) {
+		t.Fatalf("target error=%v", err)
+	}
+	if len(runner.calls) != 0 {
+		t.Fatal("invalid target reached provider")
 	}
 }

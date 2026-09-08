@@ -15,6 +15,15 @@ const trustedHostProductClientPath = "/usr/local/bin/haco"
 // local runtime state; the product CLI decides which controller-backed product
 // operations it supports.
 func (r *Runtime) ProvisionTrustedHostProductClient(ctx context.Context, source string) error {
+	return r.provisionTrustedHostCompanion(ctx, source, trustedHostProductClientPath)
+}
+
+func (r *Runtime) provisionTrustedHostCompanion(ctx context.Context, source, target string) error {
+	switch target {
+	case trustedHostProductClientPath, "/usr/local/bin/haco-notify":
+	default:
+		return core.ErrInvalidArgument
+	}
 	state, exists, err := r.trustedHostState(ctx)
 	if err != nil {
 		return err
@@ -33,33 +42,33 @@ func (r *Runtime) ProvisionTrustedHostProductClient(ctx context.Context, source 
 	if err != nil {
 		return err
 	}
-	if ok, _ := r.trustedHostProductClientMatches(ctx, digest); ok {
+	if ok, _ := r.trustedHostCompanionMatches(ctx, target, digest); ok {
 		return nil
 	}
 
 	if _, err := r.runner.Run(ctx, "incus", "file", "push", source,
-		trustedHostName+trustedHostProductClientPath,
+		trustedHostName+target,
 		"--project", r.project,
 		"--create-dirs",
 		"--uid", "0",
 		"--gid", "0",
 		"--mode", "0755",
 	); err != nil {
-		return fmt.Errorf("install trusted host product client: %w", err)
+		return fmt.Errorf("install trusted host companion: %w", err)
 	}
-	ok, verifyErr := r.trustedHostProductClientMatches(ctx, digest)
+	ok, verifyErr := r.trustedHostCompanionMatches(ctx, target, digest)
 	if verifyErr != nil {
-		return fmt.Errorf("verify trusted host product client: %w", verifyErr)
+		return fmt.Errorf("verify trusted host companion: %w", verifyErr)
 	}
 	if !ok {
-		return fmt.Errorf("trusted host product client verification mismatch: %w", core.ErrIncompatibleState)
+		return fmt.Errorf("trusted host companion verification mismatch: %w", core.ErrIncompatibleState)
 	}
 	return nil
 }
 
-func (r *Runtime) trustedHostProductClientMatches(ctx context.Context, digest string) (bool, error) {
+func (r *Runtime) trustedHostCompanionMatches(ctx context.Context, target, digest string) (bool, error) {
 	hashResult, err := r.runner.Run(ctx, "incus", "exec", trustedHostName, "--project", r.project,
-		"--", "sha256sum", trustedHostProductClientPath)
+		"--", "sha256sum", target)
 	if err != nil {
 		return false, err
 	}
@@ -68,7 +77,7 @@ func (r *Runtime) trustedHostProductClientMatches(ctx context.Context, digest st
 		return false, nil
 	}
 	statResult, err := r.runner.Run(ctx, "incus", "exec", trustedHostName, "--project", r.project,
-		"--", "stat", "-c", "%a:%u:%g", trustedHostProductClientPath)
+		"--", "stat", "-c", "%a:%u:%g", target)
 	if err != nil {
 		return false, err
 	}

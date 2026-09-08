@@ -15,6 +15,7 @@ import subprocess
 import tempfile
 
 PATH_RECORD = Path('/etc/hacocoon/windows-path.json')
+DISTRIBUTION_RECORD = Path('/etc/hacocoon/windows-distribution.json')
 GUEST_LINUX_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 
 
@@ -53,6 +54,38 @@ def path_record(drives, capture=False):
     return windows_paths(':'.join(paths), drives)
 
 
+def distribution_record(capture=False):
+    if capture:
+        name = os.environ.get('WSL_DISTRO_NAME', '')
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}', name):
+            raise ValueError('invalid WSL distribution identity; rerun Windows installer')
+        parent = DISTRIBUTION_RECORD.parent
+        if parent.is_symlink() or parent.stat().st_uid != 0 or parent.stat().st_mode & 0o022:
+            raise ValueError('unsafe Windows distribution directory')
+        if DISTRIBUTION_RECORD.exists() or DISTRIBUTION_RECORD.is_symlink():
+            if distribution_record().lower() != name.lower():
+                raise ValueError('Windows distribution identity mismatch')
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', dir=parent, delete=False) as stream:
+                temporary = stream.name
+                json.dump(name, stream)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, DISTRIBUTION_RECORD)
+        finally:
+            if temporary and os.path.exists(temporary):
+                os.unlink(temporary)
+        return name
+    info = DISTRIBUTION_RECORD.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022 or info.st_size > 256:
+        raise ValueError('unsafe Windows distribution record; rerun Windows installer')
+    name = json.loads(DISTRIBUTION_RECORD.read_text())
+    if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}', name):
+        raise ValueError('invalid Windows distribution record')
+    return name
+
+
 def drive_mounts(mounts):
     """Only actual WSL drive roots, never an arbitrary /mnt directory."""
     result = []
@@ -76,11 +109,14 @@ def desired_devices(drives):
     return devices
 
 
-def plan(config, devices):
+def plan(config, devices, distribution=None):
     if config.get("config", {}).get("user.hacocoon.role") != "trusted-host":
         raise ValueError("refusing an unowned haco-host")
     if config.get("profiles"):
         raise ValueError("haco-host must use explicit devices without profiles; run haco setup")
+    current_distribution = config.get("config", {}).get("environment.WSL_DISTRO_NAME", "")
+    if distribution and current_distribution and current_distribution.lower() != distribution.lower():
+        raise ValueError("incompatible WSL distribution identity")
     current = config.get("devices", {})
     for name, desired in devices.items():
         if name in current and current[name] != desired:
@@ -152,17 +188,19 @@ def main():
             raise ValueError("refusing a redirected drive root")
     if sys.argv[1:] == ['--capture-path']:
         path_record(drives, capture=True)
+        distribution_record(capture=True)
         print('Recorded only WSL-converted Windows PATH entries')
         return
     if sys.argv[1:]:
         raise ValueError('usage: setup-wsl-host-interop.py [--capture-path]')
     paths = path_record(drives)
+    distribution = distribution_record()
     ensure_native_binfmt()
     incus = ["incus", "--project", "hacocoon"]
     inspect = ["incus", "query", "/1.0/instances/haco-host?project=hacocoon"]
     config = json.loads(subprocess.check_output(inspect))
     devices = desired_devices(drives)
-    missing = plan(config, devices)
+    missing = plan(config, devices, distribution)
     for name in missing:
         device = devices[name]
         subprocess.run(incus + ["config", "device", "add", "haco-host", name, device["type"]] + [k + "=" + v for k, v in device.items() if k != "type"], check=True)
@@ -172,13 +210,15 @@ def main():
                            '/bin/sh', '-s'], input=SOCKET_LAYOUT, text=True, check=True)
     subprocess.run(incus + ["config", "set", "haco-host", "environment.WSL_INTEROP=/run/WSL/1_interop"], check=True)
     subprocess.run(incus + ["config", "set", "haco-host", "environment.PATH=" + GUEST_LINUX_PATH + ':' + ':'.join(paths)], check=True)
+    subprocess.run(incus + ["config", "set", "haco-host", "environment.WSL_DISTRO_NAME=" + distribution], check=True)
     profile = '# Hacocoon managed Windows PATH; WSL already converted these entries.\n'
+    profile += 'export WSL_DISTRO_NAME=' + shlex.quote(distribution) + '\n'
     profile += 'export WSL_INTEROP=/run/WSL/1_interop\n'
     profile += 'export PATH="$PATH":' + shlex.quote(':'.join(paths)) + '\n'
     subprocess.run(incus + ['exec', 'haco-host', '--disable-stdin=false', '--', '/bin/sh', '-c',
                    'umask 022; cat > /etc/profile.d/hacocoon-windows.sh'], input=profile, text=True, check=True)
     verified = json.loads(subprocess.check_output(inspect))
-    if plan(verified, devices):
+    if plan(verified, devices, distribution) or verified.get("config", {}).get("environment.WSL_DISTRO_NAME") != distribution:
         raise ValueError("trusted Host interop devices did not converge")
     print("Trusted haco-host Windows access enabled: " + ", ".join(drives))
     print("Open a new haco-host shell; existing WSLInterop supports direct tool.exe execution.")

@@ -82,3 +82,6 @@ try {
 Write-Host 'WINDOWS REVIEW FOREIGN OWNERSHIP REFUSAL: PASS'
 Write-Host 'INSTALLED NATIVE REVIEW / EXACT REGISTRATION / STALE AND MALFORMED REFUSAL: PASS'
 Write-Host 'SKIP: this console fixture does not observe a human toast click or fresh UI decision'
+
+Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'test_host_notification.py') | & wsl.exe --distribution $Distro --user root --exec incus exec haco-host --project hacocoon --disable-stdin=false -- python3 -I - $Distro
+if ($LASTEXITCODE -ne 0) { throw 'Installed Host notification subscription failed' }

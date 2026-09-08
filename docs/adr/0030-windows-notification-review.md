@@ -1,5 +1,16 @@
 # Windows notification review
 
+## Trusted Host subscription
+
+Normal setup delivers the notification companion with the existing source,
+digest and Host-ownership checks. The already trusted management transport is
+reused for events; the public notification schema is projected in the client.
+A failed controller subscription must not silently change to local audit reading.
+The Windows installer captures a validated, persistent distribution identity for
+Host projection; conflicting existing identities are rejected. This keeps routing
+out of workload input without adding another user command or raw-state mount.
+
+
 Status: accepted; Windows adapter implementation and installed acceptance in progress.
 
 ## Context

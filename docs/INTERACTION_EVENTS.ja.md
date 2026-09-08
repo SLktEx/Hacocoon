@@ -1,5 +1,25 @@
 # クライアント中立 Interaction Event
 
+## 通常の trusted Host での通知購読
+
+実装済み: 通常の setup は同じリリースの `haco-notify` を `haco-host` に配布します。
+Host 内で `haco-notify native` を実行できます。任意のブラウザー表示は
+`haco-notify web` です。既存の `HACO_CLIENT_MODE=controller` により管理ソケットを
+自動選択するため、接続先や監査パスの引数は不要です。接続失敗時にローカル監査へ
+フォールバックしません。ファイル・オフライン用途の明示的な `NewReader(root)` は残ります。
+
+trusted client は既存の非公開 `events.stream` を読み、通知・HTTP 応答の前に
+既存の公開スキーマへ絞ります。監査ファイルや新しい管理口を Environment に
+マウントしません。購読側のエラーと件数制限でも再開位置を保持します。
+controller の失敗は一般化した公開エラーと受信済みの部分結果を返します。
+型付きの詳細な破損診断は、直接ファイルを読む経路に限ります。
+
+Windows インストールは検証済みのディストリビューション名を Windows PATH と
+併せて記録し、setup が所有権を確認した Host に渡します。名前の衝突は拒否します。
+旧インストールの更新は Windows インストーラーを再実行し、controller の setup 前に
+名前を記録してください。
+
+
 信頼された Host の haco approve で現在の承認待ちを確認できます。これは private な管理経路であり、VS Code はローカル review を開けます。任意の Windows native adapter は同じローカル CLI を開きます。[承認待ちの契約](design/pending-approval-review.ja.md)を参照してください。
 
 ## 承認要求の照合
