@@ -63,7 +63,7 @@ func TestSnapshotBindingSchemaMigration(t *testing.T) {
 			raw, err = os.ReadFile(s.path)
 			mustSnapshot(t, err)
 			mustSnapshot(t, json.Unmarshal(raw, &data))
-			if data.Version != 6 || data.Snapshots[snap.ID].State != "recovery-required" {
+			if data.Version != environmentStateVersion || data.Snapshots[snap.ID].State != "recovery-required" {
 				t.Fatal("legacy ownership migration lost", data)
 			}
 		})

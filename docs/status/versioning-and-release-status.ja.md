@@ -1,4 +1,8 @@
 # バージョン番号とリリース状況
+
+v0.46 の snapshot 作業に schema 7 の Base 保持用所有権と内部の保持
+コーディネータを追加しました。provider 実体の自動保持と通常作成への
+接続は planned です。新しい公開コマンドは追加していません。
 現在の checkpoint v0.46 は、schema 6 の所有権、provider routing、独立した
 rootfs/Workspace/OCI/Base 保存を通した停止中 snapshot 全体保存まで含みます。
 専用 WSL で 5 component の保存、catalog 再読込み、元資源削除、保存先 Git/データ保持と

@@ -1,5 +1,15 @@
 # Implementation Status
 
+## Retained Base ownership
+
+Partial: schema 7 adds a provider-neutral Base-asset catalog and retention
+coordinator. Exact provider/scope/revision and native ownership are reserved before
+creation; a durable creation receipt precedes verification and ready publication.
+Reuse verifies the same asset, and incomplete work retains ownership. Schema 6
+snapshot bindings remain readable. Incus material retention, ordinary-create
+integration, recovery and reference-aware collection remain planned; the original
+cached-Base limitation is not yet resolved. See [ADR 0038](adr/0038-retained-base-assets.md).
+
 The first aggregate GHA run failed on a foreign-owned temporary lifecycle lock;
 the test now isolates its temporary lock directory. Production ownership checks
 remain unchanged. Corrected GHA acceptance is pending.

@@ -267,3 +267,19 @@ v0.12 Resource Budgets must compose with v0.11 so a custom Base cannot raise or 
 See [`../BASE_IMAGES.md`](../BASE_IMAGES.md) for the broader design and future lifecycle work.
 
 > **v0.11 now gives Environment creation a provider-neutral logical Base that is resolved once to an immutable revision and persisted; mutable Incus image names remain adapter details.**
+
+## Independently retained Base assets
+
+Partial: schema 7 now stores exact Base-asset ownership alongside Environment and
+snapshot state. The internal retention coordinator reserves a provider-native
+plan, immediately records successful creation, verifies it and publishes ready.
+A ready asset can be reused only for the same name/revision, provider and storage
+scope and only after provider verification. An ambiguous create, failed receipt or
+failed verification leaves recoverable ownership; it does not trigger another
+create or forget the resource. Existing snapshot schema 6 bindings survive upgrade.
+
+This is preparation for automatic retention during ordinary Environment creation.
+The Incus adapter and creation wiring are still planned, so missing cached Base
+images remain a limitation of current daily snapshot work. No command or required
+argument is added. Asset removal requires future reference-aware collection; this
+slice exposes no deletion API. See [ADR 0038](../adr/0038-retained-base-assets.md).

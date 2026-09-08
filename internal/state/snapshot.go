@@ -75,7 +75,7 @@ func snapshotBusy(data environmentFileState, name string) bool {
 	return false
 }
 func (s *EnvironmentJSONStore) CheckSnapshotIdle(ctx context.Context, name string) error {
-	return s.snapshotTransaction(ctx, func(data *environmentFileState) (bool, error) {
+	return s.catalogTransaction(ctx, func(data *environmentFileState) (bool, error) {
 		if snapshotBusy(*data, name) {
 			return false, core.ErrRecoveryRequired
 		}
@@ -102,7 +102,7 @@ func (s *EnvironmentJSONStore) BeginSnapshot(ctx context.Context, snapshot core.
 			return core.ErrInvalidArgument
 		}
 	}
-	return s.snapshotTransaction(ctx, func(data *environmentFileState) (bool, error) {
+	return s.catalogTransaction(ctx, func(data *environmentFileState) (bool, error) {
 		if _, ok := data.Snapshots[snapshot.ID]; ok {
 			return false, core.ErrAlreadyExists
 		}
@@ -131,7 +131,7 @@ func (s *EnvironmentJSONStore) BeginSnapshot(ctx context.Context, snapshot core.
 }
 func (s *EnvironmentJSONStore) GetSnapshot(ctx context.Context, id string) (core.Snapshot, error) {
 	var result core.Snapshot
-	err := s.snapshotTransaction(ctx, func(data *environmentFileState) (bool, error) {
+	err := s.catalogTransaction(ctx, func(data *environmentFileState) (bool, error) {
 		value, ok := data.Snapshots[id]
 		if !ok {
 			return false, core.ErrNotFound
@@ -191,7 +191,7 @@ func (s *EnvironmentJSONStore) BeginSnapshotDelete(ctx context.Context, id strin
 	return s.mutateSnapshot(ctx, id, func(value *core.Snapshot) error { value.State = "deleting"; return nil })
 }
 func (s *EnvironmentJSONStore) FinalizeSnapshotDelete(ctx context.Context, id string) error {
-	return s.snapshotTransaction(ctx, func(data *environmentFileState) (bool, error) {
+	return s.catalogTransaction(ctx, func(data *environmentFileState) (bool, error) {
 		value, ok := data.Snapshots[id]
 		if !ok {
 			return false, core.ErrNotFound
@@ -209,7 +209,7 @@ func (s *EnvironmentJSONStore) FinalizeSnapshotDelete(ctx context.Context, id st
 	})
 }
 func (s *EnvironmentJSONStore) mutateSnapshot(ctx context.Context, id string, change func(*core.Snapshot) error) error {
-	return s.snapshotTransaction(ctx, func(data *environmentFileState) (bool, error) {
+	return s.catalogTransaction(ctx, func(data *environmentFileState) (bool, error) {
 		value, ok := data.Snapshots[id]
 		if !ok {
 			return false, core.ErrNotFound
@@ -223,31 +223,4 @@ func (s *EnvironmentJSONStore) mutateSnapshot(ctx context.Context, id string, ch
 		data.Snapshots[id] = value
 		return true, nil
 	})
-}
-func (s *EnvironmentJSONStore) snapshotTransaction(ctx context.Context, change func(*environmentFileState) (bool, error)) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	unlock, err := lockEnvironmentState(s.path)
-	if err != nil {
-		return err
-	}
-	defer unlock()
-	data, err := s.readEnvironments()
-	if err != nil {
-		return err
-	}
-	dirty, err := change(&data)
-	if err != nil {
-		return err
-	}
-	if !dirty {
-		return nil
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return s.writeEnvironments(data)
 }
