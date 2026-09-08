@@ -1,5 +1,9 @@
 # 実装状況
 
+aggregate の初回 GHA は、一時 lifecycle lock が先行する一般ユーザーの
+所有だったため失敗しました。検証専用の一時ディレクトリを使うよう修正し、
+製品の所有者チェックは維持しています。修正後の GHA 確認は未完了です。
+
 ## snapshot 全体保存
 
 E2 は partial です。内部の保存・削除 service を、正規の schema 6 catalog と lifecycle

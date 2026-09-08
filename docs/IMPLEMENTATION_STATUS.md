@@ -1,5 +1,9 @@
 # Implementation Status
 
+The first aggregate GHA run failed on a foreign-owned temporary lifecycle lock;
+the test now isolates its temporary lock directory. Production ownership checks
+remain unchanged. Corrected GHA acceptance is pending.
+
 ## Snapshot aggregate capture
 
 Partial E2: the internal capture/delete service now connects the canonical

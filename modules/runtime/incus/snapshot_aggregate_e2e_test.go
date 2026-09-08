@@ -48,6 +48,10 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	if imageErr != nil || observed.ExitCode != 0 || observed.StdoutTruncated || json.Unmarshal([]byte(observed.Stdout), &cached) != nil || cached.Fingerprint != image || cached.Type != "container" {
 		t.Fatal("specified cached Base unavailable; no fixture resources created")
 	}
+	// This fixture has a private catalog and unique resources. Its lifecycle
+	// locks must not share the ordinary-user CLI test's temporary directory.
+	// Keep production ownership checks and the durable recovery catalog intact.
+	t.Setenv("TMPDIR", t.TempDir())
 	dir, err := os.MkdirTemp("/var/lib", "haco-snapshot-aggregate-")
 	must(err)
 	t.Logf("fixture %s; durable failure recovery directory %s", native, dir)

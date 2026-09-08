@@ -328,3 +328,12 @@ source haco-aggregate-e218729c326ca5c4 and snapshot
 snap-cca124eb1c6509eadb099360f1c4cb98. All five components, catalog reload,
 source deletion, retained Git/data and cleanup passed. Its owned recovery
 directory was removed only after successful cleanup.
+
+The first aggregate GHA run failed because the preceding ordinary-user CLI
+fixture owned the shared temporary lifecycle-lock directory. Root correctly
+refused that foreign owner; component storage tests passed. The aggregate
+fixture now uses a private temporary directory for its separate catalog and
+unique resources, without changing production locks or ownership checks.
+The failed run also reported incomplete storage cleanup after refusing the
+remaining aggregate instance; the subsequent CI-owned project cleanup succeeded.
+The corrected aggregate GHA execution remains pending.
