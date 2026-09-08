@@ -12,6 +12,7 @@ import (
 type snapshotBasePlan struct {
 	Pool, Owner string
 	Base        core.BaseRef
+	Asset       *core.BaseAsset `json:"asset,omitempty"`
 }
 
 func (p snapshotBasePlan) target() string { return "haco-snapshot-base-" + p.Owner }
@@ -31,16 +32,11 @@ func (r *Runtime) createSnapshotBase(ctx context.Context, p snapshotBasePlan) er
 	if err := p.validate(); err != nil {
 		return err
 	}
-	fingerprint, _ := baseRevisionFingerprint(p.Base.Revision)
-	out, err := r.runner.Run(ctx, "incus", "query", "/1.0/images/"+fingerprint+"?project="+r.project)
-	if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
-		return core.ErrRuntimeUnavailable
+	source, err := r.snapshotBaseSource(ctx, p)
+	if err != nil {
+		return err
 	}
-	var image struct{ Fingerprint, Type string }
-	if json.Unmarshal([]byte(out.Stdout), &image) != nil || image.Fingerprint != fingerprint || image.Type != "container" {
-		return core.ErrIncompatibleState
-	}
-	out, err = r.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+p.Pool)
+	out, err := r.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+p.Pool)
 	if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
 		return core.ErrRuntimeUnavailable
 	}
@@ -50,7 +46,7 @@ func (r *Runtime) createSnapshotBase(ctx context.Context, p snapshotBasePlan) er
 	}
 	data, err := json.Marshal(map[string]any{"name": p.target(), "type": "container", "ephemeral": false,
 		"profiles": []string{}, "config": p.config(), "devices": map[string]any{"root": map[string]string{"type": "disk", "path": "/", "pool": p.Pool}},
-		"source": map[string]string{"type": "image", "fingerprint": fingerprint}})
+		"source": source})
 	if err != nil {
 		return err
 	}
@@ -79,4 +75,47 @@ func (r *Runtime) verifySnapshotBase(ctx context.Context, p snapshotBasePlan) er
 }
 func (r *Runtime) deleteSnapshotBase(ctx context.Context, p snapshotBasePlan) error {
 	return r.deleteBaseStorage(ctx, p.storageIdentity())
+}
+
+// ConfigureRetainedBases installs the composition-owned read-only catalog lookup.
+// Configure once before concurrent use. Absence alone permits legacy cache use.
+func (r *Runtime) ConfigureRetainedBases(find func(context.Context, core.BaseRef, string) (core.BaseAsset, error)) {
+	r.retainedBase = find
+}
+
+func (r *Runtime) snapshotBaseSource(ctx context.Context, p snapshotBasePlan) (map[string]any, error) {
+	if p.Asset != nil {
+		identity, err := r.decodeSnapshotBaseAsset(p)
+		if err != nil {
+			return nil, err
+		}
+		a := *p.Asset
+		backend := &BaseAssetBackend{Provider: &BaseProvider{Runtime: r}}
+		if err := backend.Verify(ctx, a); err != nil {
+			return nil, err
+		}
+		return map[string]any{"type": "copy", "source": identity.target(), "project": r.project, "instance_only": true, "live": false}, nil
+	}
+	fingerprint, err := baseRevisionFingerprint(p.Base.Revision)
+	if err != nil {
+		return nil, err
+	}
+	out, err := r.runner.Run(ctx, "incus", "query", "/1.0/images/"+fingerprint+"?project="+r.project)
+	if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
+		return nil, core.ErrRuntimeUnavailable
+	}
+	var image struct{ Fingerprint, Type string }
+	if json.Unmarshal([]byte(out.Stdout), &image) != nil || image.Fingerprint != fingerprint || image.Type != "container" {
+		return nil, core.ErrIncompatibleState
+	}
+	return map[string]any{"type": "image", "fingerprint": fingerprint}, nil
+}
+
+func (r *Runtime) decodeSnapshotBaseAsset(p snapshotBasePlan) (baseStorageIdentity, error) {
+	a := *p.Asset
+	if a.Base != p.Base || a.Scope != r.project+"/"+p.Pool || a.State != "ready" || a.Owner == p.Owner {
+		return baseStorageIdentity{}, core.ErrCapabilityStale
+	}
+	identity, _, err := (&BaseAssetBackend{Provider: &BaseProvider{Runtime: r}}).decode(a)
+	return identity, err
 }

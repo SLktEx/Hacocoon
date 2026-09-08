@@ -41,6 +41,11 @@ func (r *Runtime) snapshotComponent(binding snapshotBinding) (core.SnapshotCompo
 		if err := p.validate(); err != nil {
 			return c, err
 		}
+		if p.Asset != nil {
+			if _, err := r.decodeSnapshotBaseAsset(p); err != nil {
+				return c, err
+			}
+		}
 		c.Role, c.Owner, c.NativeRef = "base", p.Owner, "instance/"+p.target()
 	default:
 		return c, core.ErrInvalidArgument

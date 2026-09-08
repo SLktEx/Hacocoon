@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"sort"
 	"strings"
 
@@ -169,15 +170,18 @@ func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, 
 	if err := base.validate(); err != nil {
 		return nil, err
 	}
-	fingerprint, _ := baseRevisionFingerprint(base.Base.Revision)
-	out, err = r.runner.Run(ctx, "incus", "query", "/1.0/images/"+fingerprint+"?project="+r.project)
-	if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
-		return nil, core.ErrRuntimeUnavailable
+	if r.retainedBase != nil {
+		asset, err := r.retainedBase(ctx, base.Base, r.project+"/"+pool)
+		if err == nil {
+			base.Asset = &asset
+		} else if !errors.Is(err, core.ErrNotFound) {
+			return nil, err
+		}
 	}
-	var image struct{ Fingerprint, Type string }
-	if json.Unmarshal([]byte(out.Stdout), &image) != nil || image.Fingerprint != fingerprint || image.Type != "container" {
-		return nil, core.ErrIncompatibleState
+	if _, err := r.snapshotBaseSource(ctx, base); err != nil {
+		return nil, err
 	}
+
 	if err := add(snapshotBinding{Base: &base}); err != nil {
 		return nil, err
 	}

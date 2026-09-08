@@ -164,8 +164,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.45 | Guest AWS Request Boundary | ✅ implemented |
 | v0.46 | Snapshot Workspace and OCI storage | ✅ implemented |
 | v0.47 | Automatic Base retention | ✅ implemented |
+| v0.48 | Retained Base snapshot capture | ✅ implemented |
 
-The current milestone position is **v0.47**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.48**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

@@ -75,3 +75,11 @@ routing. The initial adapter-only fixtures used `incus`, which disagreed with
 production composition and blocked ordinary creation; the adapter and fixtures
 now use the shared constant. No automatic adoption or rewriting of old asset
 receipts is performed.
+
+Snapshot planning now records and verifies the exact ready asset receipt and
+copies its isolated rootfs with fresh independent snapshot ownership. Only an
+absent catalog entry permits the legacy exact cached-image path; invalid or
+incomplete retention is never hidden by a fallback. Saved-target verification
+and cleanup depend on saved ownership, not continued source availability. Old
+bindings without an asset remain compatible. Future Base collection must reserve
+sources against concurrent copying; this change adds no collection API.

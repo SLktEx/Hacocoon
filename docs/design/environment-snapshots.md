@@ -6,6 +6,30 @@ planner and owned storage. Individual storage primitives have real-host evidence
 the full aggregate path passed dedicated WSL catalog/coordinator/router acceptance.
 Restore and public CLI remain pending.
 
+## Retained Base source
+
+Implemented: the production planner looks up the exact ready Base asset by Base
+name/revision, provider and project/pool. It verifies the complete ownership
+binding and stopped, isolated rootfs before planning and again before copying.
+The snapshot records that immutable source receipt and creates its own independent
+Btrfs-backed Incus copy with fresh snapshot ownership. No image-cache lookup is
+performed for this path. Missing catalog entries alone permit the historical
+exact-fingerprint cached-image path; incomplete, mismatched or unreadable assets
+fail closed without cache fallback.
+
+Existing bindings without an asset field remain readable and retain their exact
+cached-image semantics. Verification and deletion of the saved target do not
+require its original Base or cached image to remain. There is no Base GC API;
+future collection must respect in-flight source reservations. Ordinary users gain
+no extra commands or arguments from this internal change; public save/restore
+remains pending until restoration and recovery are available together.
+
+The updated aggregate fixture tests this source through the real catalog and
+provider router. Dedicated WSL passed after deleting the exact source image,
+then capturing all five components and checking source-independent data. Shared
+GHA deliberately leaves its image cache intact; actual deletion is an explicit
+dedicated-fixture gate. This does not establish restore or live OCI consistency.
+
 ## Scope
 
 The first supported capture will require a stopped Environment with a managed
@@ -268,7 +292,7 @@ Implemented internally: the planner resolves registered managed Workspace member
 with exact owners/repository IDs and compares their disk names, paths, pools and
 volume identities against an ownership-verified stopped Incus instance. It records
 the mount layout in each volume binding, includes optional attached OCI and the
-exact cached Base, and uses fresh independent ownership for every target. One
+exact retained Base (or the legacy cached fallback), and uses fresh independent ownership for every target. One
 Btrfs pool is supported initially. Missing Base cache, extra disks, omitted or
 duplicate members, unsupported devices/options, foreign volume users and ownership
 drift refuse planning before any write. The callback inventory is copied before

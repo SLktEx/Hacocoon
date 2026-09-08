@@ -279,7 +279,7 @@ failed verification leaves recoverable ownership; it does not trigger another
 create or forget the resource. Existing snapshot schema 6 bindings survive upgrade.
 
 The local Incus composition now connects retention automatically during ordinary
-Environment creation. The snapshot planner still requires its cached Base image;
+Environment creation. The snapshot planner now prefers the exact retained Base asset;
 using retained material for snapshot capture remains follow-up work. No command or required
 argument is added. Asset removal requires future reference-aware collection; this
 slice exposes no deletion API. See [ADR 0038](../adr/0038-retained-base-assets.md).
@@ -335,5 +335,6 @@ Reference-aware asset collection remains planned.
 The existing ordinary-user Incus storage CLI E2E now asserts ready Base ownership
 and isolated stopped material after create. Its disposable CI cleanup verifies
 the exact unused catalog-owned asset and positive absence. New installed/GHA
-execution is pending. Snapshot use of retained assets and restore remain planned;
-the older cached-Base snapshot planner is not yet changed by this integration.
+execution is reported in implementation status. Snapshot planning/copy now uses
+exact ready retained assets, with cached-image fallback only for absent catalog
+entries. Restore remains planned.
