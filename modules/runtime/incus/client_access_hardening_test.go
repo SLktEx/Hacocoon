@@ -49,13 +49,18 @@ func TestPrepareSSHAccessRollsBackProxyWhenProvisioningFails(t *testing.T) {
 }
 
 func TestPrepareSSHAccessUsesConnectionScopedManagedKey(t *testing.T) {
-	runner := &fakeRunner{}
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if args[len(args)-1] == "/etc/ssh/ssh_host_ed25519_key.pub" {
+			return host.Result{Stdout: testHostPublicKey + " guest-comment\n"}, nil
+		}
+		return host.Result{}, nil
+	}}
 	key := "ssh-ed25519 AAAATEST"
 	connection, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: key, HostPort: 2222})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if connection.ID != "ssh-2222" || connection.Command != "ssh -p 2222 root@127.0.0.1" {
+	if connection.HostPublicKey != testHostPublicKey || connection.ID != "ssh-2222" || connection.Command != "ssh -p 2222 root@127.0.0.1" {
 		t.Fatalf("connection = %#v", connection)
 	}
 	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "add", "haco-demo", "haco-ssh-2222", "proxy", "listen=tcp:127.0.0.1:2222", "connect=tcp:127.0.0.1:22", "--project", defaultProject)
@@ -96,4 +101,21 @@ func TestListClientConnectionsReconcilesManagedProxyDevices(t *testing.T) {
 		t.Fatalf("connections = %#v want %#v", connections, want)
 	}
 	assertRunnerCall(t, runner.calls[0], "incus", "query", "/1.0/instances/haco-demo?project="+defaultProject)
+}
+
+const testHostPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f"
+
+func TestAutomaticSSHPortBindFailureDoesNotMutateGuestKeys(t *testing.T) {
+	bindErr := errors.New("proxy bind failed")
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, _ []string) (host.Result, error) {
+		return host.Result{}, bindErr
+	}}
+	_, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: testHostPublicKey})
+	if !errors.Is(err, bindErr) || len(runner.calls) != 1 {
+		t.Fatalf("err=%v calls=%+v", err, runner.calls)
+	}
+	args := runner.calls[0].args
+	if len(args) < 8 || args[0] != "config" || args[1] != "device" || args[2] != "add" || args[6] == "listen=tcp:127.0.0.1:0" {
+		t.Fatalf("invalid automatic proxy reservation: %+v", args)
+	}
 }

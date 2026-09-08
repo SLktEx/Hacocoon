@@ -87,6 +87,9 @@ func (r *Router) CreateEnvironment(ctx context.Context, spec core.EnvironmentRun
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
+	if err := validateTemporaryProvider(provider, spec); err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
 	created, err := provider.CreateEnvironment(ctx, spec)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
@@ -101,6 +104,21 @@ func (r *Router) ExecEnvironment(ctx context.Context, rawRef string, req core.Ex
 	provider, ref, err := r.resolve(rawRef)
 	if err != nil {
 		return core.ExecutionResult{}, err
+	}
+	if req.WorkingDirectory != "" {
+		supported, ok := provider.(interface{ SupportsWorkingDirectory() bool })
+		if !ok || !supported.SupportsWorkingDirectory() {
+			return core.ExecutionResult{}, core.ErrUnsupported
+		}
+	}
+	if len(req.Stdin) > core.MaxExecutionInputBytes {
+		return core.ExecutionResult{}, core.ErrInvalidArgument
+	}
+	if req.Stdin != nil {
+		supported, ok := provider.(interface{ SupportsStdin() bool })
+		if !ok || !supported.SupportsStdin() {
+			return core.ExecutionResult{}, core.ErrUnsupported
+		}
 	}
 	return provider.ExecEnvironment(ctx, ref, req)
 }
@@ -133,6 +151,20 @@ func (r *Router) StopEnvironment(ctx context.Context, rawRef string) error {
 		return core.ErrUnsupported
 	}
 	return stopper.StopEnvironment(ctx, ref)
+}
+
+func (r *Router) StartEnvironment(ctx context.Context, rawRef string) error {
+	provider, ref, err := r.resolve(rawRef)
+	if err != nil {
+		return err
+	}
+	starter, ok := provider.(interface {
+		StartEnvironment(context.Context, string) error
+	})
+	if !ok {
+		return core.ErrUnsupported
+	}
+	return starter.StartEnvironment(ctx, ref)
 }
 
 func (r *Router) InspectEnvironment(ctx context.Context, rawRef string) (core.EnvironmentRuntimeStatus, error) {
@@ -310,4 +342,22 @@ func (p DisabledProvider) ShellEnvironment(context.Context, string) error  { ret
 func (p DisabledProvider) DeleteEnvironment(context.Context, string) error { return p.blocked() }
 func (p DisabledProvider) InspectEnvironment(context.Context, string) (core.EnvironmentRuntimeStatus, error) {
 	return core.EnvironmentRuntimeStatus{}, p.blocked()
+}
+
+// VerifyEnvironmentIdentity routes exact creation evidence to the owning provider.
+func (r *Router) VerifyEnvironmentIdentity(ctx context.Context, rawRef, instance string) error {
+	if !core.ValidEnvironmentInstanceID(instance) {
+		return core.ErrInvalidArgument
+	}
+	provider, ref, _, err := r.resolveWithID(rawRef)
+	if err != nil {
+		return err
+	}
+	verifier, ok := provider.(interface {
+		VerifyEnvironmentIdentity(context.Context, string, string) error
+	})
+	if !ok {
+		return core.ErrUnsupported
+	}
+	return verifier.VerifyEnvironmentIdentity(ctx, ref, instance)
 }

@@ -269,6 +269,30 @@ try {
     foreach ($file in @($cachePath, ($cachePath + '.download'), $cacheFunctionFile)) { [IO.File]::Delete($file) }
     [IO.Directory]::Delete($cacheRoot)
 }
+# Native review checksum verification runs in the same minimal PowerShell host.
+# Get-FileHash is deliberately unavailable in these component tests.
+. (Join-Path $PSScriptRoot '../scripts/windows-review.ps1')
+$reviewHashRoot = Join-Path ([IO.Path]::GetTempPath()) ('haco-review-hash-' + [guid]::NewGuid().ToString('N'))
+[void][IO.Directory]::CreateDirectory($reviewHashRoot)
+$reviewHashFile = Join-Path $reviewHashRoot 'haco-review.exe'
+$reviewChecksums = Join-Path $reviewHashRoot 'checksums.txt'
+try {
+    [IO.File]::WriteAllText($reviewHashFile, 'abc', [Text.UTF8Encoding]::new($false))
+    Assert-Equal (Get-HacocoonReviewFileHash $reviewHashFile) 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+    [IO.File]::WriteAllText($reviewChecksums, (('0' * 64) + '  haco-review.exe'), [Text.UTF8Encoding]::new($false))
+    $reviewMismatch = $false
+    try { Install-HacocoonDesktopReview 'Hacocoon-Hash-Probe' $reviewHashRoot }
+    catch { $reviewMismatch = $_.Exception.Message -ceq 'Windows review adapter checksum mismatch' }
+    Assert-Equal $reviewMismatch $true
+    [IO.File]::Delete($reviewHashFile)
+    $reviewMissing = $false
+    try { Get-HacocoonReviewFileHash $reviewHashFile | Out-Null } catch { $reviewMissing = $true }
+    Assert-Equal $reviewMissing $true
+} finally {
+    [IO.File]::Delete($reviewHashFile)
+    [IO.File]::Delete($reviewChecksums)
+    [IO.Directory]::Delete($reviewHashRoot, $false)
+}
 # Failure-case probes intentionally change LASTEXITCODE. GitHub's PowerShell
 # wrapper returns it after this script, so publish success only after every
 # assertion and cleanup has completed. A thrown failure never reaches here.

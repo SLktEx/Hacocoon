@@ -222,3 +222,95 @@ v0.8 does not require:
 ## One-sentence definition
 
 > **v0.8 lets standard developer clients—starting with VS Code Remote-SSH—enter a Hacocoon Environment with minimal glue while keeping IDE UX and AI orchestration outside Core.**
+
+## Automatic SSH ports in the product client
+
+Status: **implemented**. `haco env ssh --key <public-key-file> <name>`
+defaults to runtime-selected loopback access; `--port` is optional. Port zero
+travels unchanged through the controller and client adapter. The Incus integration
+probes on the Physical Host, then reserves its proxy before installing credentials.
+The probe alone does not guarantee a bind: a competing bind returns failure
+without changing guest keys. No arbitrary provisioning failure is retried.
+This prevents trusted haco-host from selecting ports in its own network namespace.
+
+Product SSH setup and VS Code launch are implemented below; installed acceptance
+remains pending. The temporary run-and-remove UX follows usable VS Code connectivity.
+
+## Desktop SSH setup and VS Code opening
+
+Status: **implemented product commands; installed Windows and editor acceptance pending**.
+
+```sh
+haco ssh setup dev
+ssh haco-dev
+haco open dev
+haco open --client ssh dev
+```
+
+If exactly one Environment exists, omit `dev`. With multiple Environments,
+an interactive terminal lists names with Workspace IDs and access modes, then
+accepts a number in the same invocation. Blank input cancels before desktop or
+connection setup. Noninteractive callers must supply a name and their stdin is
+not consumed. The selected creation/runtime identity, Workspace and access mode
+are rechecked during ordinary setup; a stale selection asks the user to select
+again. This check does not replace controller lifecycle validation. `haco open`
+performs the same setup then launches the installed VS Code on `/workspace`
+through Remote-SSH; if its extension is absent, the client installs it with the
+installed VS Code CLI before launch. Installation failure is reported as failure.
+SSH setup itself remains editor-neutral. `haco open` defaults to VS Code, while
+`--client ssh` opens a terminal in `/workspace` without requiring an editor.
+Remote-SSH needs its requested dynamic forwarding: generated settings use
+`ClearAllForwardings no` and `GatewayPorts no`; agent forwarding remains disabled.
+
+In WSL (including trusted haco-host), the client resolves the Windows profile and
+uses Windows ssh-keygen. On Linux it uses the local client home. The private key
+stays under that client's `~/.ssh/hacocoon/identity`; only its public key reaches
+the controller. A global Include is prepended to the existing UTF-8 SSH config.
+Managed entries and host-key pins use separate files below `.ssh/hacocoon`.
+Existing unrelated SSH configuration is preserved. Symlink/hardlink config files,
+non-private Linux managed directories, malformed provider data and host-key changes
+for the same runtime fail closed. Writes use a confined filesystem root, a setup
+lock and atomic replacement. Windows uses the client's inherited filesystem ACLs
+and native key-generation permissions; no client directory is exposed to workloads.
+
+A stopped Environment is resumed through the canonical start operation. Setup
+reuses a matching live connection and restores its managed files from the pinned
+metadata. New host-key files are keyed by runtime identity and public key.
+If connection preparation succeeds but local installation fails, its ID is reported
+as recovery-required and retained for inspection rather than silently discarded.
+Use the existing `haco env disconnect <name> <connection-id>` after inspection.
+
+Repository regressions cover real ssh-keygen, preservation, reuse/resume and hostile
+file/config/provider input. The maintained Windows acceptance additionally exercises
+the default client home on the disposable GHA user, native SSH, and stopped resume.
+Local manual runs of that fixture SKIP home modification; they continue the existing
+explicit-key SSH test. VS Code process launch alone is not proof of editor/server
+connection, terminal or debugger acceptance.
+
+### Disposable Windows editor acceptance
+
+Status: **implemented validation; first editor run pending**. The existing Windows
+installer GHA prepares a SHA-256-pinned portable VS Code before ordinary installation
+captures the Windows PATH. The SSH fixture then calls ordinary `haco open` and a
+UI-only observer checks the exact Environment authority, reads the Workspace marker,
+writes and opens a remote document, executes a remote terminal command, and removes
+both probes. A launch exit code or SSH configuration alone cannot pass this check.
+The detached GUI does not inherit command-output pipes, so the calling shell can return.
+
+The disposable portable profile downloads the Remote-SSH server on Windows and
+transfers it through SSH. Its Workspace trust prompt is disabled only in that test
+profile; normal user trust prompts and local desktop acceptance remain unverified.
+The observer is a test artifact, never a product extension or workload dependency.
+Only bounded stage/result metadata is reported; remote logs and server tokens are
+not uploaded. Failure and timeout fail the job. The local package-egress approval
+question does not grant permission to change local policy through this fixture.
+
+Windows editor discovery prefers the exact `code.cmd` in the trusted Host's captured
+Windows PATH. A native child can have a different PATH; extension preparation uses
+the selected CLI path as encoded data rather than resolving a second executable.
+Native Windows PATH discovery remains the fallback when the captured PATH has no CLI.
+
+The disposable editor fixture also saves the known Linux platform for its exact
+SSH alias, matching Remote-SSH's first-use platform choice. That choice and the
+Workspace trust prompt are outside automated acceptance; the fixture still uses
+the installed product command, SSH transport and remote filesystem/terminal.

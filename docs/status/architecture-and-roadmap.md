@@ -70,20 +70,50 @@ The roadmap is organized by architectural direction instead of copying per-check
   trusted `haco-host`; restart and setup rerun are acceptance requirements.
 - B2: preserve multiple independent repository Workspaces and approved Git push.
 - Former B3: `switch-base` is currently disabled, not a Stage B requirement,
-  and deferred to Stage D or later. Historical code/evidence remain. It does
+  and on hold with no reintroduction planned by this roadmap. Historical evidence remains. It does
   not block Stage A-C completion.
 - B4: [Persistent OCI Store](../design/persistent-oci-store.md), with explicit
-  create/attach/reuse/delete lifecycle, replacing historical image distribution.
+  create/attach/reuse/delete lifecycle and independent offline COW copies. Trusted
+  Host image acquisition/publication and full runtime acceptance remain partial.
+  Ordinary Environment creation must perform the image COW copy automatically;
+  only disabling it is an optional user step. See the owning Store contract.
 - B5: real Windows native OpenSSH access through Windows/WSL loopback and Incus
   proxy to Environment sshd, with Windows-owned private keys and strict pinning.
 - B6: retain readable Environment location/state and next-action guidance.
 
-Stage D+ may reconsider switch-base/recreate UX, Workspace/OCI/snapshot relations,
-SSH configuration auto-installation, Environment SSH auto-registration, VS Code
-Remote SSH/haco-vscode integration, Windows haco.exe, GUI/Web UX, registry
-proxy/credential broker/local registry, concurrent Store sharing and live
-migration. These are not Stage B requirements. Runtime acceptance belongs in
-[implementation status](../IMPLEMENTATION_STATUS.md), not roadmap claims.
+## User-facing development order
+
+The revised user roadmap prioritizes ordinary development with a small `haco`
+surface. Preserve the completed A workflow and commit-bound B evidence; do not
+reinterpret older acceptance as proof of new requirements. B4 still needs the
+full trusted Host preparation -> independent COW Store -> Environment image-use
+path. Windows standard SSH is accepted on the recorded B candidate; manual
+VS Code Remote - SSH editing/build/test is not yet separately accepted.
+
+After those B gaps, proceed in this order:
+
+- C: repeatable `haco ssh setup`, optional VS Code environment/workspace selection,
+  Host customization, Windows DNS for both Host and Environment, project setup,
+  restricted preview and concise diagnostics. `haco open` stays editor-neutral.
+- After VS Code connection/edit/build/test is usable: expose a short temporary
+  Environment execution flow, analogous to `docker run --rm`, with automatic
+  runtime cleanup through the existing canonical ephemeral-run service. Retained
+  Workspaces and persistent data must not be silently deleted.
+- D: human-editable Git/network/AWS approval policy, exact target and scope,
+  OS/optional VS Code decisions, and optional AWS operations. Domain resolution
+  does not itself grant a network connection.
+- E: start/stop and Workspace reuse, snapshots/restore, copy, Base building and
+  explicit cleanup of retained Workspaces/images.
+- F: storage reclamation across Btrfs/Incus loop/WSL disk, optional management UI,
+  diagnostics, reinstall and upgrade.
+- G: Environment export/import, complete backup and restore into a new WSL.
+
+Agent orchestration stays outside Core. `switch-base` remains disabled and on
+hold; this roadmap does not schedule its return. Native Windows haco.exe, optional
+registry/broker infrastructure, concurrent Store sharing and live migration do
+not block the simpler workflows. Prefer extending an existing operation with
+optional configuration over introducing new required commands/arguments.
+Runtime acceptance belongs in [implementation status](../IMPLEMENTATION_STATUS.md).
 
 ## Trusted Host direction
 

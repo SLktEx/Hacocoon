@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 )
 
@@ -24,7 +25,7 @@ func runRepository(namespace string, args []string) int {
 }
 func repositoryCommand(ctx context.Context, namespace string, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco repo clone --branch <branch> <id> <URL> | haco workspace create --repo <id> <workspace> | haco git connect <environment> | haco git pending | haco git approve <id> | haco git deny <id>")
+		fmt.Fprintln(diagnostic, "Usage: haco repo clone --branch <branch> <id> <URL> | haco workspace create --repo <id> <workspace> | haco git connect <environment> | haco git pending | haco git approve [--save env|all|ask-env|ask-all] <id> | haco git deny [--save env|all|ask-env|ask-all] <id>")
 		return 2
 	}
 	if len(args) == 0 {
@@ -37,7 +38,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	operation := namespace + " " + args[0]
 	flags := flag.NewFlagSet(operation, flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
-	var branch, repo string
+	var branch, repo, save string
 	n := 1
 	switch operation {
 	case "repo clone":
@@ -45,7 +46,9 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		n = 2
 	case "workspace create":
 		flags.StringVar(&repo, "repo", "", "registered repository IDs, separated by commas")
-	case "git connect", "git approve", "git deny":
+	case "git connect":
+	case "git approve", "git deny":
+		flags.StringVar(&save, "save", "", "save this operation scope: env, all, ask-env or ask-all")
 	case "git pending":
 		n = 0
 	default:
@@ -57,6 +60,27 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	pos := flags.Args()
 	if len(pos) != n || (operation == "repo clone" && branch == "") || (operation == "workspace create" && repo == "") {
 		return usage()
+	}
+	var choice capabilityapp.SavedChoice
+	if save != "" {
+		switch save {
+		case "env":
+			choice = capabilityapp.DenyEnvironment
+			if operation == "git approve" {
+				choice = capabilityapp.AllowEnvironment
+			}
+		case "all":
+			choice = capabilityapp.DenyGlobal
+			if operation == "git approve" {
+				choice = capabilityapp.AllowGlobal
+			}
+		case "ask-env":
+			choice = capabilityapp.AskEnvironment
+		case "ask-all":
+			choice = capabilityapp.AskGlobal
+		default:
+			return usage()
+		}
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
@@ -79,12 +103,14 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		result = "Environment Git helper connected"
 	case "git pending":
 		result, err = client.PendingGit(ctx)
-	case "git approve":
-		err = client.DecideGit(ctx, pos[0], true)
-		result = "Approval recorded for the displayed fixed request"
-	case "git deny":
-		err = client.DecideGit(ctx, pos[0], false)
-		result = "Push denied"
+	case "git approve", "git deny":
+		approved := operation == "git approve"
+		if choice == "" {
+			err = client.DecideGit(ctx, pos[0], approved)
+			result = "Decision recorded for the displayed fixed request"
+		} else {
+			result, err = client.DecideGitWithSavedChoice(ctx, pos[0], approved, choice)
+		}
 	}
 	if err != nil {
 		fmt.Fprintf(diagnostic, "haco: %v\n", err)

@@ -1,15 +1,21 @@
 {
   "name": "hacocoon-notifications",
   "displayName": "Hacocoon Notifications",
-  "description": "Optional VS Code presentation for Hacocoon interaction events.",
-  "version": "0.0.1",
+  "description": "Optional Hacocoon notifications and trusted local approval review.",
+  "version": "0.0.2",
   "private": true,
   "engines": {
     "vscode": "^1.100.0"
   },
-  "categories": ["Other"],
-  "extensionKind": ["ui"],
-  "activationEvents": ["onStartupFinished"],
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./extension.js",
   "contributes": {
     "configuration": {
@@ -30,8 +36,29 @@
           "type": "boolean",
           "default": false,
           "description": "Show low-priority operation-completed notifications."
+        },
+        "hacocoon.review.wslDistribution": {
+          "type": "string",
+          "default": "Hacocoon",
+          "scope": "machine",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$",
+          "description": "Local installed Hacocoon WSL distribution for trusted approval review (Windows only). Workspace values are ignored."
         }
       }
-    }
-  }
+    },
+    "commands": [
+      {
+        "command": "hacocoon.reviewPending",
+        "title": "Hacocoon: Review Pending Approvals"
+      }
+    ]
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Notifications are read-only; approval review requires a trusted desktop window."
+    },
+    "virtualWorkspaces": false
+  },
+  "publisher": "hacocoon"
 }

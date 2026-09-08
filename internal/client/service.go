@@ -84,7 +84,7 @@ func (s *Service) Unforward(ctx context.Context, name, connectionID string) erro
 }
 
 func (s *Service) SSH(ctx context.Context, name string, req core.SSHAccessRequest) (core.ClientConnection, error) {
-	if req.HostPort < 1 || req.HostPort > 65535 {
+	if req.HostPort < 0 || req.HostPort > 65535 {
 		return core.ClientConnection{}, fmt.Errorf("SSH host port %d: %w", req.HostPort, core.ErrInvalidArgument)
 	}
 	key, err := normalizePublicKey(req.PublicKey)
@@ -106,7 +106,7 @@ func normalizePortRequest(req core.LocalPortRequest) (core.LocalPortRequest, err
 	if req.Protocol != "tcp" {
 		return core.LocalPortRequest{}, fmt.Errorf("protocol %q: %w", req.Protocol, core.ErrUnsupported)
 	}
-	if req.HostPort < 1 || req.HostPort > 65535 || req.TargetPort < 1 || req.TargetPort > 65535 {
+	if req.HostPort < 0 || req.HostPort > 65535 || req.TargetPort < 1 || req.TargetPort > 65535 {
 		return core.LocalPortRequest{}, fmt.Errorf("ports host=%d target=%d: %w", req.HostPort, req.TargetPort, core.ErrInvalidArgument)
 	}
 	return req, nil

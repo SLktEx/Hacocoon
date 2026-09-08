@@ -1,8 +1,8 @@
 # Persistent OCI Store
 
 Status: implemented for containerd/nerdctl; packaged acceptance is recorded in
-[implementation status](../IMPLEMENTATION_STATUS.md). Docker Store compatibility
-is deferred. Container tooling remains optional and is not installed by Core.
+[implementation status](../IMPLEMENTATION_STATUS.md). Docker data-root configuration is implemented; full Docker Store compatibility
+acceptance remains partial. Container tooling remains optional and is not installed by Core.
 
 An Environment has a disposable root filesystem, a persistent Workspace and an
 optional persistent OCI Store. The controller owns the Store catalog and its
@@ -41,6 +41,8 @@ anti-spoofing rules. Its containerd configuration uses:
 | Data | Location | Lifetime |
 |---|---|---|
 | Images, content/layers, snapshots and metadata | `/var/lib/hacocoon-oci/containerd` | Store |
+| Docker images and persistent daemon metadata | `/var/lib/hacocoon-oci/docker` | Store |
+| Docker process state and socket | `/run/docker`, `/run/docker.sock` | Environment |
 | Local BuildKit build cache | `/var/lib/hacocoon-oci/buildkit` | Store |
 | containerd process state and socket | `/run/containerd` | Environment |
 | BuildKit process/socket | `/run/buildkit` | Environment |
@@ -88,6 +90,164 @@ runtime directory, `/run`, or Windows authority is shared. Registry credentials
 are not provisioned into a Store by Hacocoon. Treat Store contents as untrusted
 Environment data and do not attach them to the trusted Host.
 
+## Default Environment creation flow
+
+Status: **partial**. Default copy/reuse and opt-out are implemented; trusted Host
+existing-data migration and Docker/runtime acceptance remain incomplete. The explicit Store
+commands above are implemented advanced/recovery operations, not the intended
+ordinary create sequence. Environment creation must automatically make an independent
+Btrfs COW copy of the actual image storage area used by Docker/nerdctl in
+`haco-host`. It must not enumerate/select images and export/import them into a
+reconstructed publication. Tags, local images, layers and runtime metadata travel
+as part of the storage area. The goal is a fast area-level copy that makes the
+same local images available immediately with a compatible runtime.
+
+A single optional `--no-oci` opt-out is implemented. Existing wiring consumes a
+ready source-only `oci-source:host`. Ordinary `haco setup` now connects the
+managed area for a fresh Host and configures its rootful containerd/Docker data
+roots. No extra daily command is required. Existing data or custom configuration
+is refused pending an area-preserving migration; do not remove it to bypass the
+check. Repeat setup verifies the binding without rewriting the source. The copy
+provider repeats readiness/configuration validation immediately before its journal
+and pause, so a changed Host layout is not silently treated as the managed source. The proposed image-inventory producer was withdrawn because it did not
+satisfy this requirement. A prepared empty/synthetic source is not acceptance of
+Host image delivery. See [ADR 0031](../adr/0031-host-oci-area-copy.md).
+
+Core keeps a provider-neutral initialization contract and neither runtime is a
+mandatory dependency. Missing optional tooling leaves non-OCI creation usable;
+a configured copy failure must be reported with retained exact ownership rather
+than silently producing empty content. No registry pull occurs during copying.
+
+Before copying, stop all writers and prevent their restart. Copying a live daemon
+root is not accepted. The area includes image data and required runtime metadata,
+but excludes `/run`, management sockets, Host credentials and unrelated Host
+volumes. Docker and containerd formats remain distinct and require independent
+acceptance. Do not replace this operation with save/load, Seed construction or
+per-image filtering. Runtime binaries belong to the Environment/Base integration;
+data reuse is not proof that a compatible runtime is installed.
+
+The source remains Host-owned; a copy receives fresh ownership and is never
+reattached to Host. Reusing a Workspace's retained Store preserves guest changes.
+Copy failure must retain source/target identities and the writer-stopped state
+until completion or absence is proven. The backend now permits the exact owned Host area only through the pause/copy/resume
+protocol in ADR 0031; other attached sources remain refused. This is a provider
+slice with fresh Host binding, not existing-data migration or application recovery acceptance. The full flow remains incomplete until actual
+Host area copy, immediate local-image use, opt-out, recreation, source/target
+independent mutation/deletion and interrupted cleanup are demonstrated.
+
+## Independent offline copies
+
+Status: implemented at the repository and real-Incus storage boundary. End-to-end
+OCI image distribution from trusted Host remains **partial**. See
+[ADR 0015](../adr/0015-offline-persistent-resource-copy.md).
+
+Reuse the existing create operation when a new Environment needs an independent
+copy of a prepared Store:
+
+```bash
+# Gracefully stop workloads and delete the old Environment to release its Store.
+# Environment deletion retains its Workspace and Store.
+haco env delete first
+haco plugin oci store create dev --from shared
+haco env create --workspace managed:work --resource oci:dev second
+```
+
+Here `shared` is an existing Store previously prepared in an Environment, not a
+Host daemon directory. `--from shared` may precede or follow `dev`. Omitting it
+still creates an empty Store. Copying requires an unleased source: stopping an
+Environment alone retains its reservation. Runtime/tool installation is still
+required in the new Environment. Copies preserve Store data; they do not start
+containers or copy the old Environment rootfs, `/run`, sockets or credentials
+from trusted Host. Hacocoon does not provision registry credentials into Stores;
+any credentials a user manually placed in source data would also be copied.
+
+The Incus adapter requires the same Btrfs pool, independently validates ownership
+and `used_by`, supplies new ownership markers and preserves idmap metadata. Incus
+performs the volume-only COW copy. Source and copy can later be used by separate
+Environments, changed or deleted independently. Core never parses image contents
+or accesses the Btrfs mount directly.
+
+During copying, source attachment/deletion and target attachment/deletion are
+blocked by the durable catalog reservation. On success the target is `ready` and
+the source is released. A failed/timed-out copy stays `creating` with an exact
+`copy_source`; `inspect`/`list` show these recovery details. Recovery for a durable positively completed copy is described below. Unknown
+completion is not recovered automatically. Do not retry by editing state or deleting provider objects:
+an asynchronous Incus operation may still be running even if its destination is
+not yet visible. An explicit future recovery path must prove operation quiescence.
+
+Repository regressions cover malformed/foreign/busy source observations, idmap
+preservation, CLI/RPC validation, reservations, restart, duplicate operations and
+failure retention. `TestRealIncusPersistentCopyE2E` uses a dedicated test-owned
+pool/project and synthetic data to verify Btrfs parent UUID, independent writes,
+source deletion and exact cleanup. It is included in the existing real-Incus GHA
+workflow. This is storage acceptance, **not** image/runtime or installed CLI
+acceptance. Reproduce on a root Linux/WSL host with Incus and Btrfs:
+
+```bash
+HACO_E2E_INCUS_PERSISTENT_COPY=1 go test -count=1 \
+  -run '^TestRealIncusPersistentCopyE2E$' -v ./modules/runtime/incus
+```
+
 The former `haco plugin oci distribute` CLI, RPC, archive service and save/load
-adapter have been removed. [ADR 0012](../adr/0012-one-way-oci-distribution.md) and
-its commit-bound acceptance remain historical; image delivery is not current B4.
+adapter remain removed. [ADR 0012](../adr/0012-one-way-oci-distribution.md) is
+historical. Revised B4 requires both persistent Stores and independent COW image
+delivery; Store reattachment alone does not complete that request. Actual Host storage-area copying without Host credential/live-state sharing, complete
+containerd/nerdctl and Docker image acceptance, and interrupted-copy recovery
+remain follow-up work. Never attach guest-populated Stores to trusted Host.
+
+## Docker root configuration and actual Host-area acceptance
+
+Normal Store attachment also configures `/etc/docker/daemon.json`. It preserves
+unrelated options and writes the managed `data-root` and `exec-root` atomically.
+Conflicting roots, existing default-root data, active Docker units, symlinks,
+hardlinks, writable or malformed configuration are refused before replacement.
+An already matching configuration is reused. Existing-data migration remains
+unimplemented. No additional daily command or mandatory runtime installation is
+introduced.
+
+The owned Host-area E2E can build and run actual Docker/nerdctl images in the Host,
+copy its area through the canonical resource service, and run the same identities
+in a separate networkless instance with `--pull never`. The copy path does not
+export/import images. Docker 28.5.2 uses vfs and nerdctl 2.3.5/containerd 2.3.3 uses
+the native snapshotter in this fixture; other drivers/versions and full installed
+CLI recreation are separate acceptance scopes. It verifies independent image
+deletion and exact owned cleanup. Runtime binaries and build context are fixture
+inputs, not shared Host management sockets or credentials.
+
+The maintained Btrfs GHA job enables this extension. On a dedicated root
+Linux/WSL Incus host, prepare a new fixture directory and run:
+
+```bash
+python3 tools/prepare-oci-runtime-fixture.py /tmp/haco-oci-runtime-assets
+CGO_ENABLED=0 go build -o /tmp/haco-oci-runtime-assets/oci-probe ./modules/runtime/incus/testdata/oci-probe
+go test -c -o /tmp/haco-area.test ./modules/runtime/incus
+HACO_E2E_INCUS_HOST_AREA_COPY=1 HACO_E2E_OCI_RUNTIME_ASSETS=/tmp/haco-oci-runtime-assets \
+  /tmp/haco-area.test -test.run='^TestRealIncusHostAreaCopyE2E$' -test.v -test.timeout=14m
+```
+
+A failure retains the printed project and catalog for inspection. The explicit
+`TestCleanupRealIncusHostAreaFixture` helper accepts only the exact printed
+`HACO_E2E_CLEANUP_AREA_PROJECT` and `HACO_E2E_CLEANUP_AREA_STATE`; it revalidates
+ownership, both consumers and absent pending-copy state, then uses canonical
+resource deletion. It is fixture teardown, not an operator recovery API.
+
+## Retrying a positively completed copy
+
+A `creating` copy can retain `copy_completed: true` after the provider finished
+but Host restoration or publication failed. The controller verifies the exact
+source/destination and finishes that copy on ordinary Host setup/entry or a retry
+of Environment creation. It reuses the same volume and ownership. While a copy
+is pending, source/target attachment and deletion remain blocked.
+
+If the Host is paused and cannot run a command itself, invoke ordinary
+`haco setup` from the Physical Host. On WSL this can be invoked as:
+
+```bash
+wsl.exe -d <distribution> -u root -- /usr/local/bin/haco setup
+```
+
+This does not turn unknown copy completion into success. A missing completion
+receipt or incompatible journal remains recovery-required. Do not edit the state,
+remove the provider marker or force a restart. See
+[ADR 0033](../adr/0033-completed-copy-recovery.md) for the exact proof and remaining
+unconfirmed-operation gap.

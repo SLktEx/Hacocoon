@@ -1,5 +1,595 @@
 # 実装状況
 
+## snapshot の送信元検査
+
+E2 の内部基盤を部分実装しました。Environment/Workspace lock の下で全対象の対応を
+検査し、provider の停止と正確な永続作成 ID を要求します。不一致・running/unknown・
+不正な接続 ID は拒否し、同時削除を防ぎます。focused race は成功しました。
+schema 5 の component catalog で作成・復旧中の所有権を永続化し、全保存物の確認または
+全対象の消失確認まで start/delete を拒否します。再起動・状態遷移・cleanup・migration・
+同時予約の回帰テストは成功しました。新規の stateful Incus 作成では予約 ID を作成要求に
+記録し、snapshot 検査時に provider route 経由で照合します。marker のない既存環境や
+同名の置換先を後付けで採用しません。専用 WSL の provider ID 照合・異なる ID の拒否・
+stop/start は fixture haco-resume-e2e-4bf6bd219effb14f で成功し、消失確認も済みました。
+これは provider fixture であり、installed controller の snapshot 受入れではありません。内部の capture/delete 処理で予約・作成記録・確認・
+公開の順序を保証し、キャンセルや部分 cleanup でも所有権を保持します。実 JSON catalog
+を使った各段階の失敗注入テストを追加しました。provider 保存・全構成の manifest・restore・CLI・
+Environment 全体の実データ往復は未実装です。内部の Incus Workspace/OCI volume COW・
+保存先検査・消失確認付き削除を実装しました。専用 WSL でファイル/リンク保持、Btrfs の
+親 UUID、双方向の独立性、元 volume 削除後の保持に成功し、片付けも確認済みです。
+同じ fixture を既存 Incus GHA に追加し、新 HEAD の実行は未確認です。完全な manifest・
+rootfs/Base 保存・復元・CLI は残作業であり、稼働中 OCI DB の整合性は未検証です。
+[snapshot 設計](design/environment-snapshots.md)と [ADR 0037](adr/0037-snapshot-aggregate-ownership.md)を参照してください。
+
+
+## 外部 Workspace 再作成の実機検証
+
+E1 の基本構成が専用 WSL の product 093ed159b80e で成功しました。通常 API の stop/start
+では Workspace と永続的な guest ファイルを保持し、delete/create では guest が編集した
+外部 Workspace を保持して guest 内だけの状態を除去しました。修正版 fixture
+m1-egress-708dfbc120260908 と、最初に /tmp marker で失敗した fixture は両方とも
+片付け済みです。各段階・identity 判定と local CI は成功しました。Windows installed E2E
+にも追加し、b73f965 の GHA は既定 OCI を無効化しなかった fixture の前提条件で失敗しました。
+create/recreate で明示的に opt-out する修正後の Windows GHA は未確認です。managed Git/OCI の組合せと E2-E5 は別の残作業です。
+[Workspace lifecycle](design/workspace-abstraction-and-lease.md#resume-and-recreate-an-external-workspace)を参照してください。
+
+
+## 実 guest AWS 拒否検証
+
+専用 WSL の product 093ed159b80e で、通常ユーザーによる作成、guest haco 自動選択、
+送信元固定の未設定 profile 拒否、失敗時のファイル保持、canonical 削除が成功しました。
+controller 稼働と検証用 Environment/Workspace の不在も確認済みです。既存 Windows
+installer E2E に追加し、新 HEAD の GHA は未完了です。local CI と判定テストは成功です。
+認証済み AWS／正の取得は SKIP で、成功扱いにしません。
+[AWS 検証](design/aws-operations.ja.md)を参照してください。
+
+
+## guest の通常 AWS CLI
+
+実装済み: Standard の作成・start で通常 haco を配置し、AWS list/cp は --env や認証情報なしで
+隔離付き送信元固定入口へ接続します。取得は検証済み private 保存を再利用します。focused race、
+実 HTTP queue／Policy／audit と setup 再利用・競合拒否が成功しました。installed guest は
+未検証、実 AWS は前提不足により SKIP です。[AWS 操作](design/aws-operations.ja.md)を参照してください。
+
+
+## guest AWS server 境界
+
+server 側実装済み: 隔離された Standard listener で、送信元 Environment の正確な
+作成 ID に紐付く AWS list/get だけを受け付けます。管理・承認決定は公開しません。
+送信元・再作成・偽装・frame サイズの回帰が成功しました。guest CLI は上記で実装済みです。installed guest／
+AWS 検証は未完了です。[AWS 操作](design/aws-operations.ja.md)を参照してください。
+
+## AWS アカウント表示名
+
+実装済み: 任意の Host AWS profile 表示名を実 STS アカウント ID に紐付け、
+承認と保存範囲へ含めます。ID 不一致や名前変更では実行を拒否します。
+local CI、focused race と SDK/config 15 テストが成功しました。
+通常の controller 承認・保存許可・失効経路でも、一覧・取得の表示名を確認しました。認証済み AWS と desktop 表示は
+Host の前提不足により SKIP です。[AWS 操作](design/aws-operations.ja.md)を参照してください。
+
+
+## AWS オブジェクトのストリーム取得
+
+repository 実装です。haco aws s3 cp は承認済み current object を trusted Host・controller
+経由で転送し、サイズ・SHA-256・最終の実行／監査 receipt を確認して atomic に保存します。
+公開前に失敗した場合は既存ファイルを保持します。実 controller stream の 20 MiB 転送を含む
+scope・SDK 応答・filesystem の回帰が成功しました。
+[AWS 操作](design/aws-operations.ja.md) と [ADR 0035](adr/0035-streamed-aws-downloads.md) を参照してください。
+local CI と SDK 11 テストも成功しました。現在の所有確認付き Host streaming adapter は
+専用 WSL で AWS 通信なしに 20 MiB を転送できました。
+Host の前提不足による実 AWS の SKIP は継続します。guest 要求経路、native Windows
+filesystem と AWS desktop 判断の受入は別の残項目です。
+
+## 承認を経由する AWS S3 一覧
+
+D3 の部分実装です。trusted Host の S3 一覧取得を製品 CLI・controller・共通の
+Policy／承認／監査と任意の AWS plugin に接続しました。Host 内で固定した credential を使い、
+account／principal を再確認します。署名 region だけが変わる場合を含め、SDK redirect を
+送信前に拒否します。準備・範囲・上限は [AWS 操作](design/aws-operations.ja.md) を参照してください。
+focused race、通常 controller review と config 撤回、合成 credential を使う実 SDK の
+8 ケースが成功しました。署名 region だけが変わる redirect の回帰を含みます。
+ファイル取得、guest 要求経路、account 名、実 AWS／desktop 受入は planned です。
+SDK の transport 置換テストから実 AWS 成功を推測しません。
+
+現行 Host adapter は専用 WSL でも実行でき、AWS 未設定を検出して外部要求なしで拒否しました。
+その所有確認済み Host に AWS CLI・botocore・AWS config がないため、実 AWS は SKIP です。
+
+## 完了確認済み OCI コピーの復旧
+
+実装済み: canonical resource lifecycle は Host 再開より先にコピー完了の記録を
+永続化します。通常 setup・Host entry・Environment 作成の再試行で、同じコピーを
+再コピーせずに再開・公開できます。所有権・journal・再起動 guard を検証し、完了記録が
+ない場合や完了不明の場合は recovery-required を維持します。
+[ADR 0033](adr/0033-completed-copy-recovery.md) を参照してください。
+
+対象の race 回帰で state 再読込、予約の保持、壊れた・異なる所有者の journal 拒否、
+冪等な再開が成功しました。専用 WSL の実復旧・イメージ検証は成功しました（355.73 秒、project
+`haco-area-d6ad75cf558f514e`）。完了直後の再開失敗を注入し、guard を保持したまま
+state 再読込で同じコピーを復旧、再コピーなしで両 runtime のオフライン実行と全所有
+リソースの cleanup を確認しました。Installed CLI での復旧と完了不明のコピー復旧は
+まだ証明していません。`ae0c245` の全 4 GHA は成功し、Btrfs job
+101949881165 では Docker/nerdctl の同一 ID・オフライン実行・全 cleanup も実行して
+成功しました（109.79 秒）。Private registry は workflow_dispatch 専用 job が
+実行されなかったため SKIP です。
+
+
+## Docker Store の root 設定と Host 実イメージ検証
+
+実装済み: Store 接続時に Docker の永続・一時 root を設定し、他の option を保持します。
+既存の default data、競合する root、稼働 Docker unit、不安全な設定ファイルは拒否し、
+一致する設定は再利用します。対象 race 回帰・vet は成功しました。Host で Docker/
+nerdctl の実イメージを build し、コピー先の同一 identity・オフライン実行を調べる
+E2E を追加し、維持済み Btrfs GHA に組み込みました。
+
+初回実検証は両方の Host イメージを build・実行後、コピー先の Docker image inspect
+で失敗しました（336.37 秒）。Host は `/var/lib/hacocoon-oci/docker`、コピー先は
+`/var/lib/docker` を使用していました。確認後、canonical resource deletion で
+fixture を全削除しました（11.75 秒）。修正後の新規検証は成功しました（376.60 秒、
+project `haco-area-3147b9dd5920fb2c`）。COW 後の両イメージの同一 ID・オフライン
+実行、コピー先イメージ削除後の Host 実行、Btrfs ancestry、双方向の領域変更・削除、
+全 fixture cleanup を確認しました。Docker 28.5.2/vfs と nerdctl 2.3.5/containerd
+2.3.3/native の provider fixture の結果であり、全 driver/version や installed CLI
+での再作成を証明しません。f3f5557 の全 4 GHA workflow は成功し、実 image copy と
+完了済み copy の復旧も確認しています。初回の失敗は記録に残します。
+
+`470a2b8` は Windows run 34188963290 を含む全 4 GHA workflow に成功しました。
+実 Remote-SSH の editor 読み書き・terminal・trusted review、Host customization の
+cleanup、installed notification subscription が成功しました。人間の fresh toast
+判断と VPN/NRPT は明示的 SKIP のままで、workflow の成功をそれらの成功とは扱いません。
+
+
+## 所有確認済み Host の nesting
+
+実装済み: 通常の OCI setup は、所有権・非特権 instance・profile・source・
+lifecycle を確認してから nesting を有効にします。設定は永続化され、再 setup
+で確認して再利用します。[ADR 0032](adr/0032-owned-host-nested-runtime.md) を参照。
+対象の race test・vet と composition/OCI lifecycle テストは成功しました。
+専用 WSL `Hacocoon-Review-6771f2f` の実検証で nesting 設定・再利用、mount
+namespace、Host pause/COW/resume、独立した変更・削除、所有 fixture の全後片付け
+に成功しました（58.56 秒、project `haco-area-e8168370b7f8d3f8`）。検証設定は
+残っていません。初回は PowerShell の引数解釈でテスト開始前に失敗し、修正後に
+成功しました。後続の Docker/nerdctl 実データ結果は上記に記録しています。
+namespace だけの成功を実イメージの受け入れ成功とは扱いません。
+
+
+## デスクトップ接続時の Environment 選択
+
+implemented: 対話端末の `haco open` と `haco ssh setup` は、複数の Environment が
+あると Environment／Workspace の一覧を示し、その場で番号選択できます。一つなら入力不要です。
+空入力は setup 前に取り消し、非対話で対象が曖昧なら stdin を読まず名前の指定を求めます。
+SSH クライアントは選択した作成時刻・runtime・Workspace・access mode を setup 中に再確認します。
+
+component 回帰と実 PTY 上の製品プロセステストで、選択と取り消しが成功しました。
+非公開の fixture controller と一時 desktop directory を用いたもので、複数 Environment からの
+Windows／VS Code 実接続の証明ではありません。既存の単一 Environment の実績と区別し、
+新しい GUI 受け入れは pending です。
+
+`711005a` の GHA test／Ubuntu／Incus は成功しました。Windows run 34185304876 は
+インストール・再起動・再インストールと実 SSH 設定／再利用を通過しましたが、Host customization
+の後片付けと通知サービスの稼働確認で失敗しました。連続 setup による systemd 起動制限への
+到達を再現し、健康で同じサービスを再利用するよう修正しています。実行ファイルや設定の変更時は
+再起動します。Python 回帰 12 件と実 systemd の連続 8 回の再設定・後片付けは成功しました。
+途中の編集で Python indentation error があり、修正後に上記検証を通しました。
+Windows 全体の後続検証は上記 `470a2b8` で成功しました。人間の toast 操作と VPN は SKIP のままです。
+
+## 新規通知サービスの起動
+
+Windows run 34181502807 は通知サービス設定で失敗し、後続の接続・native 検証は SKIP です。
+専用 WSL で、新規の未ロード unit に無条件で `reset-failed` を実行すると失敗する不具合を
+再現しました。明示ロードだけの修正案も、systemd が再び解放するため実測で失敗しました。
+失敗状態を確認できた unit だけを reset し、不明な結果では停止する形に修正しています。
+Python 回帰 11 件と実 systemd の新規起動・再設定・所有物の後片付けは成功しました。
+これだけで Windows installer 全体の失敗が解消したとは扱いません。新しい GHA と
+新規通知からの実操作は未検証です。
+
+## 新規 Host の OCI 保存領域設定
+
+partial: 通常の `haco setup` が新規 Host の所有確認済み保存領域を作成・接続し、
+containerd/Docker の保存先を設定して、再実行時に接続と設定を確認します。
+既存データ・symlink・独自設定は移行待ちとして拒否し、準備失敗時は所有記録を残します。
+日常コマンドや必須 runtime は増やしません。既存データの
+移行、実 runtime の復旧は未完了です。Host の nesting は上記の所有確認付き setup で扱います。
+
+専用 Incus/WSL で設定・再確認・領域 COW・独立した変更と削除・正確な後片付けが
+成功しました（53.19 秒）。合成データであり Docker/nerdctl image の検証ではありません。
+先行 provider commit `29fd6d1` の GHA test・Ubuntu installer・Incus E2E は成功し、
+Windows run 34181502807 は通知サービス設定で失敗し、後続の受け入れ検証は SKIP です。
+
+最初の設定回帰は Python に `tomllib` がなく失敗しました。この依存を除いた最終実装で、対象 race テストと実 provider E2E は成功しました。
+
+保守されている local CI で Go tests/vet、WSL の Python 11 件・承認の Python 3 件、JS 27 件が成功しました。文書整合性とその回帰 7 件も成功しました。
+
+コピー開始時も journal・一時停止の直前に Host 保存領域の準備と設定を再確認します。
+setup 時の確認だけでは、その後の設定変更で古い領域をコピーできるためです。
+準備記録の欠落・設定不一致・確認の失敗／切り捨てを拒否し、Host を停止もコピーも
+しない回帰を追加しました。失敗時は正規の source／destination 復旧記録を保持します。
+
+## Host 領域コピーの provider
+
+partial: Incus backend は、専用 source-only volume を持つ所有確認済み Host を一時停止し、
+既存の領域 COW コピーを行い、完了を確認して再開できます。永続のコピー記録により
+自動起動を無効にし、不明な状態では通常の Host entry を拒否します。他所有者・複数の利用者・
+異なる接続先・既存の一時停止・コピーや再開や後処理の未確認を拒否する component テストは
+成功しました。実 Incus E2E はローカルで成功し、既存 Btrfs job に組み込み、`29fd6d1` の GHA でも成功しました。
+
+既存 Host データの移行、Docker/containerd のアプリケーション復旧、途中コピーの運用復旧は
+未完了です。プロセスの一時停止は daemon の正常終了ではありません。イメージ列挙や
+export/import は使用しません。[手順と限界](adr/0031-host-oci-area-copy.md#provider-pause-and-restart-guard)を参照してください。
+
+
+専用 WSL の project `haco-area-23ef9c90488e244b` で provider の実機検証が
+成功しました（39.15 秒）。一時停止・COW・再開、Btrfs parent UUID、双方向の変更の独立性、
+コピー元削除、正確な後片付けを確認しました。初回はコピーと独立性の検査後、download した
+Base image が残って project 削除で失敗しました。その正確な fixture image・project・pool は
+削除済みで、E2E に記録した Base ID の削除を追加しました。それより前の PowerShell 起動も
+引数解析で失敗しましたがテスト開始前です。いずれも成功扱いしません。データは合成データであり、
+OCI runtime の image ではありません。対象 race・vet・workflow policy・文書検査は成功しました。
+
+維持されている local CI test は Go tests/vet、WSL の Python 11 件・承認の Python 3 件、JS 27 件が成功しました。その後の Host 起動／コピーのプロセス間ロック変更は、対象回帰と新しい provider E2E で別途検証します。
+
+プロセス間ロックと正確な autostart 復元を含む最終 provider コードは、`haco-area-a7d74034ed65d7d4` の専用 E2E で成功しました（37.98 秒）。所有する image・Host・volume・project・pool・非公開の復旧 catalog は後片付け済みです。最終の対象 race／vet も成功しました。
+
+## 実際の Host OCI 領域のコピー
+
+B4 の要件は実際の Host イメージ保存領域をそのまま Btrfs COW でコピーすることです。
+イメージ選択や export/import による再構成ではありません。方向の異なる一覧処理は
+取り消しました。既存の独立 volume コピーは一致していますが、実 Host 保存領域と
+書き込み停止の provider と新規領域の接続までの partial です。合成データの検証を配布完了と扱いません。
+[判断](adr/0031-host-oci-area-copy.md)を参照してください。
+
+Windows `4bb8dad` の run 34176272125 は native review が使用できない Get-FileHash を
+要求して失敗しました。`8d7a2ea` で .NET SHA-256 に置き換え、PowerShell 5.1 component は
+成功しました。修正後の Windows 実受け入れは pending です。取り消した OCI 一覧処理の
+対象テストは成功しましたが、実装と一緒に削除しました。その全体 local CI は一部 Go package の成功出力後、
+実行中に中断しました。Go 全体・全 CI の完了は確認しておらず、全 CI 成功や、訂正後の領域コピーの検証結果とは扱いません。
+
+
+## Git と network の承認の一致
+
+実装済みの共通承認について、CLI と Policy／監査の capability 間比較テストを追加しました。
+単発判断、保存 6 種、正確な対象範囲、再評価、同名 Environment の再作成を確認します。
+対象の race テストと vet は成功しました。最初のテストは保存拒否を approval-denied と期待して
+失敗しましたが、再評価後の正しい policy-denied に修正し、両 provider で一致を確認しました。
+この回帰検証では新たな実 Git push や HTTPS 接続を行っていません。
+[共通の契約](design/pending-approval-review.ja.md)を参照してください。
+
+
+## Desktop 自動通知の追加
+
+作業ブランチで実装済み: Windows の登録後に、所有する Host 通知サービスを有効化します。
+`-SkipDesktopReview` は停止・無効化します。初回は過去の表示をスキップし、既存の再開位置は
+通常通り使います。バイナリは検証した atomic 置換により、notifier 動作中も更新できます。
+unit parser・所有権・opt-out・from-now と race 回帰は成功しました。
+インストール済みの自動サービス受入は pending です。
+`4bb8dad` は test・Ubuntu・Incus E2E が成功し、Windows は失敗しました。上記の修正記録を参照してください。
+
+
+## Host 通知の受入と状態保存
+
+`213fb2b` の Ubuntu installer run 34173412741 で、インストール済み Host の通知購読と
+待受の後片付けが成功しました（job 101898000285）。test workflow も成功しました。
+Incus run 34173412776 は Host setup で失敗しました。独立した CLI fixture が、setup の
+必要条件になった通知バイナリをビルドしていません。fixture にビルドと配布後の
+ダイジェスト・所有権検証を追加し、修正後の `6d516d3` の Incus run 34174437698 は成功しました。
+Windows run 34173412761 は実行中です。
+
+Native の再開位置保存は、リンク・特殊ファイルを拒否し、読み取りを制限し、所有する
+親ディレクトリを固定し、同期した atomic 保存とプロセス存続中の単一 writer ロックを
+実装しました。別プロセスの競合と親の差し替えを含む対象テスト・vet は成功しました。
+Windows 自動起動は実装済みです。native 経由の新規判断の受入は引き続き未完了です。
+
+
+専用 Hacocoon-Review-6771f2f の実 Host でも、作業中の通知バイナリを所有する一時
+ディレクトリに置いた component 検証が成功しました。監査の投影なしで既存 controller
+を購読し、公開スキーマと待受の終了を確認しました。一時実行ファイルは削除済みです。
+最初の Windows マウントからの直接実行は、配布後の権限を要求するテストで失敗し、
+0755 の一時コピーで再検証して成功しました。通常インストーラーの配布と native 起動の
+証明ではありません。
+
+
+ローカルの release-provenance 検証は **失敗** しました。検証用 Ubuntu が 22.04 で、インストーラーは 26.04 以上を要求するためです。その後、専用 Ubuntu 26.04 で Git の対象作業ツリーをコマンド内だけ指定し、同じ release-provenance 検証が成功しました。永続的な Git 設定は変更していません。22.04 での失敗は記録に残し、通常の通知パッケージ受入は pending とします。
+
+
+## 通常 Host の通知経路の追加
+
+作業ブランチで実装済み: 同じリリースの通知バイナリ配布、ローカルへのフォールバックを
+しない controller 購読、検証済み Windows ディストリビューション名の投影。
+対象 Go テストと WSL 名の回帰検証は成功しました。Windows・Ubuntu のワークフローへ
+インストール済み Host の購読 E2E を追加しましたが、新しいパッケージでの実行は pending です。
+以前の Physical Host での成功は今回の通常 Host 経路の証明ではありません。
+通知から人が新規要求へ回答する操作も未検証です。
+
+
+
+追加の読み取り確認で、installed haco-host には haco-notify と監査ファイルの両方がないことを確認しました。
+上記 native の証拠は Physical Host からのものです。日常の D2 利用を完了扱いにする前に、
+通常 Host からの通知購読を優先して整える必要があります。
+
+
+## Windows 通知からの承認確認
+
+状態: **adapter の一段階を実装済み。ロードマップ D2 は partial**。
+Windows package に native helper、checksum、distribution ごとのユーザー protocol 登録を含めます。
+通知は正確な要求 ID だけで既存の承認 console を開き、回答や管理 endpoint の公開は行いません。
+[契約](design/pending-approval-review.ja.md)と [ADR 0030](adr/0030-windows-notification-review.ja.md)を参照してください。
+
+実機 Hacocoon-Review-6771f2f で、登録・古い要求／不正リンク拒否・Windows protocol から
+正しい helper の起動・期待する URI を持つ通知履歴を確認しました。helper SHA256 は
+e79df7c870f6218440479ea0d833e3c3d398a2499fff0eae4cc6bfd902acfc0b です。
+後続の通知配送は、interop 全体は有効なのに native WSL 実行登録が欠けており、
+PowerShell 起動前の system error 8 で失敗しました。installed の正規 WSL setup が
+既存の検証後に登録を復旧し、最終の配送と正しい通知履歴確認は成功しました。
+/init 迂回や通知側の binfmt 変更は追加していません。登録が消えた原因自体は未確定です。
+最初の helper 試行は trusted Host の起動完了前で失敗しました。
+維持されている local CI、関連 native テスト、package、PowerShell 構文、
+文書、GoReleaser 設定検査は成功しました。
+画面上の通知 click と新規回答、Linux の起動導線は未確認です。
+
+先行する 05c8206 は GHA の test 34166655131、Ubuntu 34166655270、
+Incus 34166655133、Windows 34166655142 の全てが成功しました。
+Windows では local review の古い要求拒否、通常 HTTPS の ask 保存・許可・再確認拒否、
+実 VS Code、preview/Edge、doctor の成功を明示的に確認しました。新しい native adapter の証拠とは分けます。
+
+修正 observer `05c8206` と installed `6771f2f` の組合せで、実機 VS Code 1.136.1 の確認に成功しました。Environment `win-ssh-33848c2759174f10`、Windows loopback port 40429 で、リモートのファイル読み書き・terminal 実行・ローカル承認 terminal・installed controller の古い要求拒否を確認しました。通常の実 HTTPS ask 保存・今回拒否／単発許可／再確認・拒否も再度成功しました。通常 fixture は exit 0 で完了し、一時 Policy・SSH 接続・Environment・Workspace・鍵・observer ファイルを削除、listener 不在と Windows 接続拒否も確認しました。手動 SSH 設定と Remote-SSH による実機結果であり、UI で人間が新規承認する操作や OS toast 起動の証明ではありません。
+
+`5283705` の test 34165137831、Ubuntu 34165137686、Incus 34165137697 は成功しました。Windows 34165137705 はローカル承認画面と承認テスト前提の project setup で失敗しました。リモート編集・terminal、通常 setup、preview/Edge、doctor は成功しました。
+
+修正した snapshot を専用ローカル WSL `Hacocoon-Review-6771f2f` に導入できました（installed commit `6771f2f38f8c036a2fb16e8f9640377229b11c65`）。実機 Environment `win-ssh-d5dc5903cceb456a` で Windows SSH（port 37713）、VS Code 1.136.1 のリモート編集・terminal、通常の `haco approve` による実 HTTPS の ask 保存・今回拒否／単発許可／再確認・拒否に成功しました。ローカル承認 terminal の確認は失敗し、固定診断と失敗時の検証ファイル cleanup の回帰テストを追加しました。接続・Environment 削除と listener の接続拒否は成功しました。最初の cleanup は observer ファイルの残留で失敗し、その後、作成確認済みファイルと空ディレクトリだけを削除しました。先行する既存 instance 更新は自動承認審査で拒否され未実行です。専用 instance の導入は別途承認されています。
+
+`6771f2f` の test 34163005164、Ubuntu 34163005175、Incus 34163005206 は成功しました。
+Windows 34163005171 は VS Code 全体の受け入れ（段階はログ未表示）と承認の Python 準備が失敗し、
+preview/Edge・doctor 全 4 項目は成功しました。editor timeout／remote 確認／local review、
+準備の実行／保存レシピ解除を固定 phase で区別する診断を補いました。新しい UI の成功は未確認です。
+
+ローカル snapshot build と修正 package の専用 instance 導入は成功しました。先行する version の先頭 v がない package は導入途中で失敗しました。現在の実機結果は上記を参照してください。
+
+## VS Code の信頼された承認画面
+
+状態: **repository 実装済み、ロードマップ D2 は partial**。
+任意の UI 拡張は Review または command palette から通常の承認 CLI をローカル専用 terminal で開きます。
+実行先と環境を固定し、remote/web・信頼しない window を拒否、回答は既存 CLI で入力します。
+VSIX 作成に npm download は不要です。関連 JavaScript 26 件は成功しました。
+実 VS Code GHA に local terminal → installed controller の古い要求の拒否を追加しましたが結果は未確認です。
+OS 通知からの起動と、新規要求への人間の実回答はこの段階では証明していません。
+[契約](design/pending-approval-review.ja.md) と [ADR 0029](adr/0029-local-desktop-approval-review.ja.md) を参照してください。
+
+`0754280` の test 34161070477、Ubuntu 34161070466、Incus 34161070522 は成功しました。
+Windows 34161070471 は実 VS Code、preview/Edge、doctor 全 4 項目が成功しました。
+承認受け入れだけが review 前の Python 準備で失敗し、cleanup は成功しました。
+setup unit・package・DNS 等を生出力なしの固定分類で識別する診断を追加しました。
+原因は未確定で、これは SKIP ではなく FAIL です。診断を追加した再実行は未確認です。
+
+
+生成した任意拡張の VSIX は archive/manifest 検証と、実ローカル VS Code の独立 profile への
+インストールに成功しました。これは package の確認であり、新規承認や local terminal/controller の往復の証明ではありません。
+
+## 承認待ちの確認
+
+状態: **repository の一段階を実装済み。ロードマップ D2 は partial です。**
+haco approve は候補が一つなら直接表示し、複数なら番号で選択できます。
+Standard queue が background の待機を制限し、共通の private review API は
+元の Git 要求も扱います。単発回答、6 種類の保存、キャンセル、期限切れ、
+二重回答、session の完了所有権、Policy 変更、失敗時の安全な receipt、
+実際の local Git helper 経路は関連 race／vet で成功しました。
+通知から開く操作は planned です。[契約](design/pending-approval-review.ja.md)を参照してください。
+
+installed GHA に、通常の設定操作と実際の HTTPS を使う ask 保存・今回拒否・
+単発許可・再確認／拒否・対象を限定した cleanup を追加しました。実行結果は下記のとおりです。preview／doctor の失敗は、生出力を使わず固定 phase と数値を記録します。
+
+f6d193b の test 34154746874、Ubuntu 34154746842、Incus 34154746852 は成功しました。
+Windows 34154746844 は実際の VS Code、SSH、設定、project setup、doctor が成功し、
+HTTP preview が失敗しました。正確な原因は未確定です。
+
+`5ad8c3e` の Windows run 34159087435 は ask 保存・今回拒否、preview の
+setup/open、doctor 呼び出しで失敗しました。実 VS Code、SSH、設定、project setup は成功。
+test 34159087438、Ubuntu 34159087434、Incus 34159087447 とローカル test/E2E・docs は成功。
+承認 fixture は通常の setup で Python を準備し、正常な完了行を受け入れるよう修正しました。
+この修正の installed 再検証は未完了です。
+
+ローカルの installed `71dbb4f` で Windows native SSH、接続先キー不一致の拒否、
+cleanup が成功しました。port 33105、Environment `win-ssh-67210d9ab7994c7d` を使用し、
+一時 Policy・接続・Environment・Workspace を削除、listener 不在と再接続拒否を確認しました。
+先行する 2 回は Host 停止により失敗し、成功した実行は通常 Host ターミナルを開いたまま行いました。
+自動 desktop setup は disposable GHA profile 用のためローカルでは SKIP です。
+これは installed snapshot の SSH 検証であり、新しい承認 review や新たなローカル VS Code の成功ではありません。
+
+## 承認要求の照合
+
+状態: **照合の基礎は実装済み。ロードマップ D2 は partial です。**
+承認画面・信頼された controller の応答・Git の承認待ち情報に、
+capability の監査・実行結果と同じ request ID を渡します。
+コマンド・承認権限・通知からの操作 endpoint は追加していません。
+[Interaction Event](INTERACTION_EVENTS.ja.md) を参照してください。
+
+`2584ec6` の GHA は test 34152700790、Ubuntu 34152700745、
+Incus 34152700884 が成功しました。Windows 34152700897 は native SSH、
+実際の VS Code 接続、設定 round-trip、project setup が成功し、HTTP preview と
+Environment doctor が失敗しました。失敗の正確な原因は未確定です。
+以前の installed 成功は別の検証結果として扱い、失敗した項目の成功とはしません。
+
+## 承認方針の設定編集
+
+状態: **repository の一段階を実装済み。ロードマップ D は partial のままです。**
+`haco config` と任意の `--edit`／`--file` で、通常の承認保存と同じ Policy を扱います。
+revision の確認と共通の private writer により、同時に保存された変更を上書きしません。
+監査には操作・revision の情報だけを記録します。関連 test／race／vet と製品 CLI／
+controller E2E は成功しました。設定 round-trip の installed 受け入れは 2584ec6 で成功しました。
+[設定](reference/configuration.ja.md)を参照してください。
+
+ローカル `71dbb4f` の通常インストールは Host 診断 6 項目が成功し、config の取得・反映・
+receipt・実ファイル revision・監査を照合しました。default deny と元の 8 ルールは維持しました。
+空の saved_decisions 配列が保存時に省略され、JSON 表示の一致は FAIL でした。
+snapshot 表示の正規化と component／CLI 回帰テストを追加して成功していますが、修正の
+installed 受け入れは未確認です。[正確な観測](reference/configuration.ja.md#ローカル-installed-での観測)
+を参照してください。
+
+`71dbb4f` は GHA 全 4 系統が成功しました。test 34151576434、Ubuntu 34151576429、
+Incus 34151576447、Windows 34151576493 です。Windows は通常 config の往復、
+実際の VS Code・project setup・Edge preview・Environment doctor を含みます。
+
+別のローカル `71dbb4f` 検証では、`haco config --file` で `preview-71dbb4f` だけに
+Ubuntu archive の一時ルール 4 件を追加・削除しました。通常の project setup で
+loopback HTTP server を起動し、Windows が port 36059 で正確な Workspace marker を取得しました。
+preview の再利用・閉鎖後の拒否と、runtime／Workspace／DNS の doctor が成功しました。
+このローカル probe には SSH 接続を用意していません。marker・recipe・Environment・
+listener を削除し、default deny・元の 8 ルール・保存方針 0 件を確認しました。
+既存 Workspace `git-save-eb16300` は保持しています。過去の preview／doctor 失敗は
+この実行では再現せず、元の原因は未解明のままです。
+
+`729f008` の GHA test 34149690153、Ubuntu 34149690280、Incus 34149690192 は PASS。
+Windows 34149690178 は DNS・desktop SSH／再開・実際の VS Code・project setup が成功し、
+preview と Environment doctor が失敗しました。変更した fixture は両方を実行し、
+最終 job を失敗に保ちました。正確な原因は未解明です。
+
+## 通常 Git 承認の方針保存
+
+状態: **repository の一段階を implemented。D1／D2 は partial**。既存 Git
+approve／deny に任意の --save で env／全 env の allow・deny・ask を接続しました。
+pending は今回の exact commit と provider が定義する再利用範囲を分けます。
+OID と operation ID だけを wildcard にし、repository・remote・ref・fast-forward
+update kind と属性名完全一致を維持します。永続化・監査済み応答を確認し、非対応 peer
+は拒否します。実ローカル Git helper で次 commit、ask、deny、history rewrite 拒否を
+確認しました。`eb16300b6700` の installed Windows／WSL で通常 SSH、ask 方針の
+保存、GitHub push、次 commit の再確認、拒否時の remote 不変を確認しました。
+正確な commit と保持資源は[管理 Git の検証](reference/managed-repository-workflow.md#installed-saved-approval-acceptance)
+に記載しています。
+[ADR 0026](adr/0026-reusable-git-approval-scope.ja.md) を参照してください。
+
+`eb16300` の GHA test 34146281274、Ubuntu 34146281278、Incus 34146281289 は
+PASS。Windows 34146281264 は FAIL です。DNS・通常 SSH・再開は成功しましたが、
+VS Code が 10 分以内に完了しませんでした。後続の setup／preview／doctor は未実行です。
+失敗を SKIP や現行 editor の受け入れ成功として扱いません。
+検証 fixture を変更し、editor 失敗後も独立した setup・preview・doctor を実行します。
+各失敗は最終 job 結果に保持します。ローカルの PowerShell 構文確認は成功しましたが、
+変更した fixture の GHA 実行結果は未確認です。
+
+953d1e5 は全 4 GHA workflow が PASS しました。修正した orchestrator／crash fixture
+も含みます。それ以降の変更の受け入れを証明するものではありません。
+
+## Policy に従う名前解決
+
+状態: **ロードマップ C3 は partial**。installed Standard mode では canonical な
+Environment 作成・再開時に guest loopback DNS service を自動導入します。
+UDP/TCP の bind 後に readiness を通知し、導入・起動失敗時は成功を返しません。
+bare controller mode では component は optional のままです。自動導入のために
+新しい command、nameserver 引数、allow rule は不要です。名前解決そのものには
+専用の Policy 許可が必要です。
+
+既存の隔離された listener が永続化された送信元を識別し、Capability Policy と監査の
+後で Physical Host resolver を使います。接続権限は別です。Windows、WSL、
+trusted Host、Environment の通常 getaddrinfo と default DNS 拒否を比較する GHA
+fixture は `c05528a` の Windows run 34132173483 で成功しました。
+VPN/NRPT、DNS 変更・再起動後の反映は未検証です。[名前解決](design/name-resolution.ja.md)を参照してください。
+
+
+`72096d8` のローカル test/vet/docs/e2e と関連 race は成功しました。
+GHA の test と Incus は成功し、Ubuntu run 34121278716 と Windows run 34121278578 は
+Environment DNS service の設定中に失敗しました。新しい DNS fixture には未到達です。
+古い installed substrate 上の独立したローカル probe では同じ DNS unit が起動しましたが、
+GHA の失敗の再現・原因の説明にはなりません。probe は canonical に削除し、
+空の Workspace も削除しました。adapter は任意の guest 出力を公開せず、
+許可した処理段階と数値の service 終了コードだけを返す診断を追加しています。
+`a1d084b` は Ubuntu installer・Incus・test が成功し、Windows は job 制限時間で CANCELLED になりました。
+`c05528a` も test・Ubuntu installer・Incus は成功しました。Windows run 34132173483 は
+DNS の一致・default 拒否と VS Code 実接続に成功し、その後の project setup 検証で失敗しました。
+PowerShell で生成した Bash script の CRLF により、setup 実行前の `set` が終了コード 2 を返しました。
+setup と preview の script を LF に正規化しています。setup・preview・Environment doctor の実機検証は再実行待ちです。
+
+C4 の[プロジェクト setup](design/project-setup.ja.md)は Workspace ごとの recipe を
+`haco setup --script <path> <environment>` で保存・実行し、再実行・削除する部分を実装済みです。
+Host recipe は既存の挙動を保ちます。起動前と実行 lifecycle lock 内で対象 identity を確認し、
+script は上限付き stdin で渡します。関連 race test は成功しました。
+installed GHA は `c05528a` で setup 実行前の検証スクリプトが失敗しました。
+package 導入と実際の cancel cleanup は未検証です。
+
+## 現在のdesktop開発checkpoint
+
+状態: **ロードマップ C は partial**。desktop SSH の準備、`haco open [--client vscode|ssh] [environment]`、
+保持した環境の再開、読みやすい対象一覧を提供します。Host の保存手順は `haco setup --script <path>`、
+再実行、`--clear-script` で implemented で、bcc1baf のインストール済み GHA も成功しました。
+一時実行 CLI は実装済みで、4adfe19 の実 Incus 検証も成功しました。より広い C1 の対象選択、C3–C5 と後続段階は未完了です。
+
+`4f1f512` では4つの GHA workflow が成功しました。Windows job は通常の `haco open` から実際の VS Code
+1.136.1 Remote-SSH に接続し、document の読み書き、terminal 実行、検証用ファイルの削除を確認しました。
+使い捨て portable profile で Linux platform を保存し、Workspace trust prompt を無効化した構成です。
+通常の desktop prompt や全 Windows/VPN 構成の確認ではありません。
+以前の `703ec76` は executable の探索で失敗し、`506c38f` は起動後の editor 検証待ちで timeout しました。
+これらの失敗と、その後の成功は区別します。
+
+ローカルの通常 installer による最終更新は `8752431`（v0.33、build `2026-09-07T06:44:17Z`）です。
+doctor の6項目が成功し、`stage-b-git-dev` と Workspace の登録を保持しました。Installer ZIP SHA-256 は
+`c2c5b720643d98e586996e2d2413d1af196d764331e2b160a5bda647c76946a9` です。
+この installation は現在の DNS 変更を含みません。2026-09-07 にユーザーが
+`desktop-8752431` の一時 package-egress rule を許可した後、ローカル検証が成功しました。
+Windows 標準 OpenSSH と VS Code 1.136.1 Remote-SSH で Workspace marker、
+editor の読み書き、remote terminal、probe 削除を確認しました。専用の別 profile と
+明示した Remote-SSH URI を使った検証であり、ローカルの通常 `haco open` の検証では
+ありません。通常の `haco open` は別途 GHA で確認済みです。
+追加した 4 rule は削除済み（残り 0）、SSH 接続 `ssh-39493` は解除済み、
+Windows の専用 key は削除済み、検証 Environment は停止済みです。
+`stage-b-git-dev` は停止状態を維持しました。最初の再開は WSL 再起動後に volatile
+source guard が消えていたため失敗し、canonical な削除・作成で検証環境を作り直しました。
+古い /tmp Workspace も存在せず、新規の検証 directory を作りました。
+この失敗と、その後の接続成功は区別します。欠落 guard の再開修正には回帰テストを
+追加しましたが、その修正の実際の再起動検証は未完了です。
+
+## 永続Storeの独立コピー
+
+状態: **storageの実装単位はimplemented、改訂B4全体はpartial**。
+最新main `3b2d0b6`（PR #481 merge）を基準に、既存の
+`haco plugin oci store create dev --from shared` で未接続Storeを独立複製する。
+コマンド群は増やさない。正規catalogでコピー元を予約し、provider完了と検証後の
+公開まで接続・削除を拒否する。失敗時は所有権を保持し、手動recoveryが必要。
+中断コピーの自動回復は未実装。[Store契約](design/persistent-oci-store.md#independent-offline-copies)参照。
+
+ローカルの実Incus 6.0.5-8 / WSL / Btrfsで合成データの受入が成功。
+Parent UUID一致、両方向の書込み独立、元Store削除後のコピー保持、検証用volume・
+project・poolの削除を確認した。OCI image/runtime、配布済みCLI、trusted Hostからの
+publicationの成功は意味しない。初回E2Eはpool確認前にテストprojectを作っていない
+fixtureの問題で失敗し、修正後に成功した。RPC回帰では不正引数がinternal errorに
+分類される問題を検出し、handlerを修正した。
+
+A/B成果は保持。PR #481は`3b2d0b6`としてmerge済み。最終`0b79cac`の
+[test](https://github.com/SLktEx/Hacocoon/actions/runs/34081379821)、
+[Ubuntu installer](https://github.com/SLktEx/Hacocoon/actions/runs/34081379810)、
+[Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34081379802)、
+[Windows installer](https://github.com/SLktEx/Hacocoon/actions/runs/34081379870)
+は成功済み。今回のコピー変更のCI結果とは区別する。新しいstorage testは既存Incus CIへ追加。
+
+今回のSKIP: trusted Hostからのimage取得/publicationとコピーしたimageのcontainerd/Docker
+実利用（その製品経路は未完成）、VS Codeでの実開発（今回IDE操作なし）、今回のWindows
+配布物受入（installed productは前のB候補のまま）、新しいGit実push（Git・認証・refの
+変更はなく、storage受入にrepoを使わない）。下記Bのpush OIDは過去に照合済みの結果であり、
+今回pushしたものではない。C-Gは更新した[ロードマップ](status/architecture-and-roadmap.md#user-facing-development-order)に沿うplanned項目。
+
+
+## Storeコピー実装単位の検証
+
+ローカル成功: 維持CIの`test`（Go test/vet・installer component・JavaScript）、
+`e2e`のcommand/capability/Git/orchestrator assertion、docs/workflow policy、
+実Incusの合成データCOW検証。`forwarding`は最初sudoの認証で失敗したが、開発用WSLで
+同じ隔離namespaceテストをrootとして実行して成功した。初回E2Eは本体assertion成功後、
+一時Go module cacheの権限でcleanupエラーが出た。製品assertionの失敗とは分ける。
+既存`GOMODCACHE`を明示してcommand E2Eだけ再実行した結果、cleanupエラーなく成功。
+以前の一時パスが存在しないことも別途確認した。
+
+初回全体`race`は既存CONNECTのupstream-prefix停止テストで失敗した。
+serve側がCONNECT上流を同期closeし、停止後に完了したdialをwrite前に拒否するよう修正。
+proxy packageのrace反復100回と、その後の全体`race`が成功した。
+[egress契約](EGRESS_AUTHORIZATION.ja.md)参照。認可Policyや利用コマンドは変更していない。
+
+`bash tools/ci-local.sh`全体実行は、開発用Ubuntu WSLに`pwsh`がないため
+release-configで**失敗**した。Windows PowerShellでinstaller component単独検証は成功。
+配布由来の検査も最初Ubuntu 22.04の最低OS条件で失敗したが、Ubuntu 26.04でfixture限定の
+検査を行い、由来・installer package契約が成功した。rootとWindows所有者の違いは、その
+検証プロセスに限り既知worktreeだけをsafe.directoryとして扱って解消。GoReleaser設定検査も成功。
+全release archive buildとfresh package installは今回は**SKIP**。
+
+新しいGHA実行は**SKIP／公開阻害**。自動承認レビューが、push検証の明示許可先は
+`SLktEx/Hacocoon-test`だけとして、実装branchの本体`SLktEx/Hacocoon`へのpushを拒否した。
+sourceのpushもPR作成も行っていない。新しいCOWテストは既存Incus workflowに追加済みで、
+公開が承認されれば実行可能。過去のBのCI成功を今回のrevisionの成功として扱わない。
+
 ## Incus起動時のPID再利用防止
 
 Status: **implemented。repository回帰とhosted Ubuntu/WSL配布packageの受入は成功**。
@@ -349,7 +939,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.29** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.46** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|
@@ -440,3 +1030,130 @@ v0.7のprovider-neutral Environment routing seamは維持します。以前のco
 ## Acceptance gaps
 
 v0.23でGitHub-hosted Ubuntu 26.04上のphased real-Incus substrate + Core lifecycleを、v0.25でordinary-user Incus-owned Btrfs CLI behaviorを、v0.26でtrusted-host lifecycle/control-socket isolationをreal Incusで自動証明するようになりました。ただしproxy-only bridge ACL/dnsmasqを含む全network/resource behavior、Windows/WSL + VS Codeとinteractive `haco-host` entry、private-registry credential、Docker compatibility、physical Btrfs compression/COW/compaction、broader storage failure injection、desktop notification delivery、future cloud adapterなどは引き続きenvironment-dependentです。前のmilestoneにacceptance残件があっても、後続minor checkpointへ進むことは妨げません。
+
+## 保持したEnvironmentの再開
+
+Status: **コマンドとcomponentの範囲はimplemented、ロードマップC/Eはpartial**。
+`haco env start <name>` は必須flagを増やさず既存runtimeを再開します。
+起動前にactive leaseの同一性とIncusのネットワーク隔離を検証し、Linux/WSLでは
+create/start/stop/deleteをcontrollerプロセス間で直列化します。
+[ADR 0016](adr/0016-resume-owned-environments.md)を参照してください。
+ローカルCIのtest・race段階は全体で成功しました。独立した実Incus 6.0.5-8 / WSLで
+停止・再開・再度start・root filesystemとWorkspace内容・保存済みleaseの保持・正規削除が成功しました。
+初回fixtureはJSON保存でGoの単調時計情報が失われるためtimestamp比較だけ失敗し、
+保存済みlease同士の比較へ修正後の再実行は成功しました。両試験runtimeは除去され、
+既存のユーザーEnvironmentは停止状態を維持しています。既存Incus E2Eにもtrusted Hostからの
+製品stop/startとWorkspace保持の検証を追加し、`f8517ba`のGHAで成功しました。
+SSH setup自動化とHost再起動後に欠けたguardを復元する処理は未実装です。
+
+## 通常APIからのSSH公開ホスト鍵取得
+
+Status: **protocolの範囲はimplemented、SSH setup自動化はplanned**。
+IncusのSSH準備は構造検証済みEd25519 `host_public_key` を通常のcontroller応答で返します。
+native clientは別途管理者としてIncusを呼ばず鍵を固定できます。不正な鍵では管理対象の鍵と
+proxyを撤回し、後始末の失敗はrecovery-requiredとします。公開adapterも任意fieldの鍵を再検証します。
+関連race testは成功しました。Windows native受け入れscriptもこのfieldを使うよう更新しましたが、
+インストール済みWindows経路も`f8517ba`のGHAで成功しました。
+
+利用者の補足: 開発sourceはHacocoonの作業branchへpushしてPRを出し、Git push機能の
+検証先は引き続きHacocoon-testに限定します。PR #482でv0.30/v0.31とSSH公開鍵の範囲を
+`f8517ba`として公開しました。以前の公開拒否は本体pushの明示許可により解消しました。
+B4の必須defaultを明確化しました。Environment作成時にOCIイメージの公開・COWコピーを
+自動実行し、任意のOFF指定だけを設けます。公開済みsourceのコピーは実装済みですが、Hostイメージ公開は
+完了していません。詳細はStoreの所有文書に記録しています。
+
+## Workspace Storeの自動初期化
+
+Status: **公開済みsourceのコピー・再利用・OFF指定はimplemented、B4全体はpartial**。
+通常のEnvironment作成で任意OCI連携の既定resolverを呼びます。readyかつsource-onlyの
+`oci-source:host`をWorkspaceに永続的に対応付けたStoreへコピーし、再作成では再利用します。
+`--no-oci`で省略できます。公開元がない場合も非OCI作成は利用可能です。公開元の直接接続、
+別Workspaceへの流用、不完全な公開/コピー、失敗を空データで成功扱いする経路は拒否します。
+HostのDocker/nerdctlイメージproducerは未実装で、自動イメージ配布全体の完了ではありません。
+Docker/runtime互換性も未検証です。関連回帰/race testが成功しました。実Incus/Btrfsの合成データ
+fixtureも既定resolverを通し、COW親子関係・独立書込み・source削除・後始末を確認しました。
+イメージ取得やruntime利用を証明する試験ではありません。PR #482の`f8517ba`ではWindows
+native SSHを含む4つのGHA workflowが成功しました。以降の変更には別のCI結果が必要です。
+private-registry E2Eはworkflow-dispatch限定のためSKIPです。
+追加依頼の `docker run --rm` 相当は VS Code 接続確認後に製品 CLI へ接続しました。
+実 Incus の受入結果は下の一時実行節で区別します。
+
+## runtime側でのSSH自動ポート選択
+
+Status: **implemented、Windows GHA bcc1baf の受入は成功**。
+`haco env ssh --key <public-key-file> <name>`はポート引数が不要になりました。
+SSHポート0をIncus runtimeへ渡し、Physical Hostで選択してからguestの鍵変更前に
+proxyを確保します。Windows native E2Eもこの通常defaultを使い、実際のproxyを
+確認し、bcc1baf で成功しました。鍵・config 自動設定と実際の VS Code 接続も確認済みです。
+
+## Desktop SSH setupとVS Code起動
+
+状態: **command は implemented、Windows GHA の editor 接続は成功**。
+`haco ssh setup [name]` は desktop 所有の鍵と厳密な host-key pin を準備します。
+`haco open [--client vscode|ssh] [name]` で client を選択し、Environment が1つなら名前を省略できます。
+インストール済み GHA は native SSH、停止からの再開、接続の再利用に加え、`4f1f512` で実際の editor と terminal 接続を確認しました。
+[client の契約](design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening) を参照してください。
+
+native Windows fixture では鍵・config 作成と、インストール済み trusted Host 経由での editor 探索も確認しました。
+別の開発用 Ubuntu からの試行は PowerShell の `exec format error` で失敗しました。
+cold entry 後の raw Incus fixture は Host 停止中で失敗し、通常の対話 entry 後に成功しました。
+これらの準備 fixture だけでは接続成功を証明しません。ローカルの version/許可の残件と GHA の正確な範囲は文書冒頭に記録しています。
+
+日常 CLI の確認は **C6 の一部** です。`haco env list` は登録された名前・Workspace・Base を表示し、
+スクリプトでは `--json` を使えます。list/status は端末制御文字を escape します。広い DNS・接続診断は未完了です。
+
+## 保存した Host カスタマイズ
+
+状態: **明示 setup/replay は implemented、Windows GHA は bcc1baf で成功**。
+利用者が選んだ UTF-8 Bash 手順を controller が private に保存し、所有権を確認した trusted Host だけで実行します。
+通常の setup で保存内容を再実行し、明示した script 更新で置き換え、clear で実行せず解除します。
+Environment へ渡しません。回帰テストは file/link 保護、直列化、script 失敗前の保存、service 再作成後の replay、
+対象の所有権、標準入力での受渡し、秘密を含まない失敗通知を確認します。
+Windows GHA bcc1baf（run 34103036390、job 101681633357）で通常の保存・再実行・更新・解除が成功しました。
+test・Ubuntu・Incus workflow も成功しました。
+[Host カスタマイズ](design/trusted-host.ja.md#保存したカスタマイズ手順) を参照してください。
+
+controller setup 外の暗黙の Host 再作成は未検証です。ユーザーの installation では、このカスタマイズや任意の package/dotfile 手順を実行していません。
+当初のソース編集の自動レビュー拒否は、ロードマップ C2 の明示要件を確認し、同じソース編集をその根拠で再審査して解消しました。
+保留中のローカル package policy の許可とは別の事項です。
+
+## 一時実行
+
+状態: **product CLI は implemented、実 Incus の検証は 4adfe19 で成功**。
+`haco run [--rm] -- <command>` は既定で所有権付きの一時 Workspace を作り、
+/workspace から実行し、runtime と自動 OCI copy を削除します。
+`--workspace` は既存 Workspace と Store を保持し、`--no-oci` は自動コピーを無効化します。
+一時 identity を作成前に記録し、canonical deletion が lifecycle lock 内で照合します。
+resource cleanup も Workspace binding を原子的に確認します。失敗時は回復証拠を残します。
+非ゼロ終了、片付け失敗、中断を区別し、stdin/TTY は未実装です。
+
+race 回帰は既存作業の保護、片付け失敗と回復、既定の一時 source、OCI 公開元の保持、
+provider の明示対応と argv の保持を検証します。実 Incus GHA の 4adfe19（run 34115004878、job 101719650209）で通常 CLI の成功、exit 17、
+既存ファイルへの書き込み、中断後の実体不在を確認しました。
+内容入り OCI image 実行とローカル installed acceptance は未検証です。
+[一時実行](design/temporary-execution.ja.md) と
+[ADR 0020](adr/0020-runtime-owned-temporary-workspaces.md) を参照してください。
+
+`5f824b4` は Ubuntu・Incus が成功しました。Go 1.26/1.27 test/vet・race・docs も成功しましたが、
+test workflow は失敗しました。Capability E2E が古い承認表示を期待し、別ジョブでは
+GoReleaser 導入が HTTP 504 でした。表示期待値を更新し、ローカルの保存・再利用・
+Environment 範囲の E2E と製品 CLI E2E は成功しました。
+Windows run 34133686648 は DNS・通常 SSH の再利用/再開・VS Code が成功し、
+project setup で失敗しました。実運用 runner decorator が Incus exec の optional な
+stdin 契約を引き継ぐ修正を加えています。修正後の installed 検証は再実行待ちです。
+
+保存 Policy に Environment 単位・全 Environment の毎回承認を追加しました。terminal で今回の許可・拒否を別に確認し、ask の保存から allow を作りません。通常の Git/通知への統合と、それらを不変の Environment identity に結び付ける作業は未完了です。
+
+`347ca50` は test・Ubuntu・Incus workflow が成功しました。Windows run 34135390824 では DNS・VS Code と project setup の保存・再実行・非ゼロ終了・更新・削除が成功し、preview server recipe で失敗しました。fixture は Python がなければ準備し、loopback listener の起動を待つようにしました。前回の失敗原因はまだ確定していません。preview・Edge・Environment doctor の実機検証は未完了です。単発承認・最初から許可された要求も実行直前に Policy を再評価する修正は、関連 race test が成功しました。
+
+Environment 作成時に canonical lease へランダムな instance ID を予約します。既存の整合した ready 状態には catalog lock 内で一度だけ付与します。保存 Policy・承認表示・監査で ID を扱い、実運用 Git は取得後、実行直前にも再確認します。同名再作成に識別済み保存方針を引き継ぎません。State/Workspace/Core と Capability/controller/Git の race test は成功しました。通常の Git 保存範囲/UI と network identity 統合は partial です。[ADR 0025](adr/0025-environment-approval-identity.ja.md)を参照してください。
+
+`bffc3fd` は test・Ubuntu・Incus が成功しました。Windows run 34136858725 は VS Code と project setup が再度成功し、拡張子のない preview marker が PowerShell に byte 列で返ったため、内容確認で失敗しました。text/plain fixture への修正は installed 検証待ちです。Git pending には追加引数なしで trusted な作成識別子を表示します。
+
+d4aef8d では 4 workflow が成功しました。Windows run [34139245378](https://github.com/SLktEx/Hacocoon/actions/runs/34139245378) で VS Code の実接続、project setup の保存・再実行・非ゼロ終了・更新・削除、Edge headless の preview 描画、HTTP preview の再利用・終了・接続拒否、Environment doctor の前提確認が PASS です。上記の preview 受け入れ待ちは解消しました。既定ブラウザの起動や物理端末の受け入れを証明するものではありません。VPN／NRPT は VPN と private name の fixture がないため SKIP です。
+
+実運用の Capability service は全ての名前付き要求を trusted catalog の作成 ID に結び付け、実行直前にも照合します。env 限定の保存には ID が必須ですが、利用者の引数は増えません。通常の Git 保存範囲・UI と実 network/provider の受け入れ確認は partial です。
+
+5272434 の GHA では Go 1.26／1.27 の tests・vet、race、release-config、docs、Ubuntu、Incus が PASS です。test workflow は orchestrator E2E で未作成の名前を承認元に使っていたため失敗しました。fixture を通常の create／delete に直し、ローカル E2E は PASS しました。Capability の保存範囲・再作成と Git transport 拒否の E2E も PASS です。
+
+local CI 全体は docs／workflow 検査後、WSL の pwsh 不在で失敗し、それ以降の工程はその呼び出しでは未実行です。Go 工程の個別実行では、空の select が SIGKILL 用 helper を deadlock 終了させ、親が生存中の lock を確認する前に解放するテスト不具合が見つかりました。制限時間付き timer で親からの kill まで生存させ、実 subprocess／SIGKILL の回帰 20 回と run package の race 検証が PASS です。cleanup の権限を変える修正ではありません。

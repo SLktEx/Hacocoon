@@ -1,5 +1,663 @@
 # Implementation Status
 
+## Snapshot source guard
+
+Partial E2 foundation: the Workspace service validates the complete source
+aggregate under Environment/Workspace locks, requiring stopped provider state and
+the exact durable creation ID. Drift, running/unknown state and invalid attachment
+identity fail closed; concurrent deletion is excluded. Focused race tests passed.
+The schema-5 component catalog now persists capture/recovery ownership and blocks
+start/delete until all components are verified or cleanup proves every target absent.
+Restart, transition, cleanup, migration and concurrent reservation regressions pass.
+New stateful Incus creation records the lease creation ID in the initial provider
+request. Snapshot inspection verifies that exact marker through the provider route;
+unmarked legacy or replaced instances are refused without adopting ownership.
+Dedicated WSL provider identity/refusal and stop/start acceptance passed with
+fixture haco-resume-e2e-4bf6bd219effb14f; cleanup inventory was verified. This was
+a provider fixture, not installed-controller snapshot acceptance.
+The internal capture/delete coordinator now enforces reservation/create-receipt/
+verification/publication order and preserves ownership through cancellation and
+partial cleanup. Real-catalog failure-injection tests cover each capture boundary.
+Internal Incus Workspace/OCI volume COW, target verification and proven-absent
+cleanup are implemented. Dedicated WSL file/link retention, Btrfs ancestry,
+bidirectional independence and source-deletion retention passed; fixture cleanup
+was confirmed. The same fixture was added to existing Incus GHA, pending execution.
+Complete aggregate manifests, rootfs/Base capture, restore, CLI and full Environment
+round trips remain planned. Live OCI database consistency is not claimed.
+See [snapshot design](design/environment-snapshots.md) and [ADR 0037](adr/0037-snapshot-aggregate-ownership.md).
+
+
+## External Workspace recreation acceptance
+
+E1 baseline passed in dedicated WSL at product 093ed159b80e: ordinary API
+stop/start retained Workspace and permanent guest files; delete/recreate retained
+the guest-written external Workspace file and removed guest-only state. Corrected
+fixture m1-egress-708dfbc120260908 and the initial failed /tmp-marker fixture were
+fully cleaned. Phase/identity regressions and local CI passed. Windows installed
+E2E includes the flow. At b73f965 its fixture failed because it did not opt out
+of default OCI attachment; the fixture now explicitly opts out on create/recreate.
+Corrected Windows GHA remains pending. Managed Git/OCI combinations
+and E2-E5 remain separate work. See [Workspace lifecycle](design/workspace-abstraction-and-lease.md#resume-and-recreate-an-external-workspace).
+
+
+## Real guest AWS refusal acceptance
+
+Dedicated WSL passed ordinary-user creation, installed guest haco selection,
+source-bound unconfigured-profile refusal, failed-download preservation and
+canonical cleanup at product 093ed159b80e. Controller stayed active; the fixture
+Environment/Workspace are absent. Existing Windows installer E2E now includes
+the check; new-head GHA is pending. Local CI and verifier tests passed. Real
+authenticated AWS/positive download remains SKIP, not success. See
+[AWS acceptance](design/aws-operations.md#installed-guest-acceptance).
+
+
+## Ordinary guest AWS CLI
+
+Implemented: Standard creation/start supplies the ordinary guest haco entry point.
+AWS list/cp automatically use the guarded source-bound endpoint, with no --env or
+credentials. Downloads reuse verified private publication. Focused race, real HTTP
+queue/Policy/audit integration and setup reuse/conflict checks passed. Installed
+guest acceptance remains pending; real AWS remains SKIP for missing prerequisites.
+See [AWS operations](design/aws-operations.md#use-aws-inside-an-environment).
+
+
+## Guest AWS server boundary
+
+Implemented server slice: the guarded Standard listener admits only AWS list/get
+requests tied to the exact persisted source Environment creation ID. Management
+and approval decisions are absent. Source, recreation, spoofing and frame-size
+regressions passed. Guest CLI is implemented above; installed guest/AWS acceptance remains pending.
+See [AWS operations](design/aws-operations.md#guest-request-boundary).
+
+## AWS account labels
+
+Implemented: optional Host AWS profile labels are tied to the actual STS account ID
+and included in review/saved scope. ID mismatch or changed labels refuse execution.
+Maintained local CI, focused race and fifteen SDK/config regressions passed.
+The ordinary controller review, saved permission and revocation tests also passed
+with labels for both listing and downloads. Real authenticated AWS and
+desktop rendering remain SKIP for missing Host prerequisites. See
+[AWS operations](design/aws-operations.md#account-names-in-review).
+
+
+## Streamed AWS object downloads
+
+Implemented repository slice: haco aws s3 cp streams an approved current object
+through the trusted Host and controller, verifies byte count/SHA-256 and the final
+execution/audit receipt, then atomically publishes the local file. Existing files
+remain unchanged on pre-publication failure. Scope, SDK response and filesystem
+regressions passed, including 20 MiB through the actual controller stream. See
+[AWS operations](design/aws-operations.md) and [ADR 0035](adr/0035-streamed-aws-downloads.md).
+Maintained local CI and eleven intercepted SDK tests passed. The current owned
+Host streaming adapter transferred 20 MiB in dedicated WSL without AWS access.
+Real AWS remains SKIP for absent Host prerequisites. Guest CLI integration, native Windows
+filesystem acceptance and AWS desktop decisions are still separate pending scope.
+
+## Approved AWS S3 listing
+
+Partial D3: trusted Host S3 listing is wired through the product CLI, controller,
+shared Policy/approval/audit and optional AWS capability plugin. Account/principal
+are rechecked using a frozen Host credential set. SDK region redirects, including
+signing-region-only changes, are refused before transport. See
+[AWS operations](design/aws-operations.md) for preparation, exact scope and limits.
+Focused race tests and ordinary controller review/config revocation checks passed.
+Eight real-SDK tests with synthetic credentials and intercepted HTTP transport
+passed, including a signing-region-only redirect regression. Downloads are now
+implemented above; guest CLI integration and real AWS/desktop acceptance remain
+planned. Intercepted SDK tests do not prove real AWS acceptance.
+
+The current Host adapter also passed a dedicated WSL execution with missing AWS
+prerequisites, returning not-configured without AWS access. Actual AWS remains SKIP
+because that owned Host has no AWS CLI, botocore or AWS config.
+
+## Completed OCI copy recovery
+
+Implemented: the canonical resource lifecycle persists a positive completion
+receipt before Host restoration. A retry of ordinary setup/Host entry or
+Environment creation can restore and publish that exact completed copy without
+recopying. Ownership, journal and restart guards remain checked; missing receipts
+and unknown completion remain recovery-required. See
+[ADR 0033](adr/0033-completed-copy-recovery.md).
+
+Focused race regressions passed reopened-state recovery, retained reservations,
+malformed/foreign journal refusal and idempotent restoration. Dedicated WSL recovery/image acceptance passed in 355.73 s (project
+`haco-area-d6ad75cf558f514e`): an injected post-completion resume failure retained
+the guard, reopened state recovered the same copy without recopying, both runtime
+images executed offline and all owned resources were cleaned. Installed CLI
+recovery and unknown-completion recovery remain unproven.
+At `ae0c245`, all four GHA workflows passed. Its Btrfs job 101949881165 actually
+ran Docker/nerdctl image identity/offline execution and complete cleanup (109.79 s),
+not only synthetic data checks. Private-registry acceptance was SKIP because the
+workflow-dispatch-only job did not run.
+
+
+## Docker Store roots and real Host-image acceptance
+
+Implemented: Store attachment configures Docker's managed persistent/transient
+roots, preserves unrelated options and refuses existing default data, conflicting
+roots, active Docker units and unsafe configuration files. Matching configuration
+is reused. Focused race regressions and vet passed. The owned-area E2E now builds
+actual Docker/nerdctl images in Host and checks copied identities and offline
+execution; the maintained Btrfs GHA job enables it.
+
+The first real run built and executed both Host images, then failed Docker image
+inspection in the copy (336.37 s): Host used `/var/lib/hacocoon-oci/docker` but the
+copy used `/var/lib/docker`. The inspected fixture was fully removed through
+canonical resource deletion (11.75 s). The corrected fresh run passed (376.60 s; project
+`haco-area-3147b9dd5920fb2c`): both locally built images retained their identities
+and executed offline after COW; deleting copy images left Host images usable.
+Btrfs ancestry, bidirectional area writes/deletion and complete fixture cleanup
+also passed. This covers Docker 28.5.2/vfs and nerdctl 2.3.5/containerd 2.3.3/native
+in owned provider fixtures, not every driver/version or installed CLI recreation.
+At f3f5557, all four GHA workflows passed, including the real image-copy and
+completed-copy recovery extension. The initial failure stays recorded.
+
+At `470a2b8`, all four GHA workflows passed, including Windows run 34188963290.
+Actual Remote-SSH editor read/write, terminal execution, trusted review, Host
+customization cleanup and installed notification subscription passed. Human
+fresh-toast decision and VPN/NRPT remained explicitly SKIP; successful workflow
+completion does not turn those into passes.
+
+
+## Owned Host nesting
+
+Implemented: the maintained OCI setup enables nested runtimes only after positive
+ownership, unprivileged instance, profile, source and lifecycle verification.
+The setting is persistent and reused on repeated setup. See
+[ADR 0032](adr/0032-owned-host-nested-runtime.md). Focused race tests and vet passed, as did composition/OCI lifecycle tests.
+Dedicated WSL `Hacocoon-Review-6771f2f` passed real nesting/reuse, nested mount
+namespace, Host pause/COW/resume, independent writes/deletion and complete owned
+fixture cleanup (58.56 s; project `haco-area-e8168370b7f8d3f8`). No fixture setting
+remains. An initial PowerShell argument parsing failure occurred before test
+execution and was corrected. The later actual Docker/nerdctl result is recorded above; the namespace-only
+result did not itself prove image recovery.
+
+
+## Interactive desktop Environment selection
+
+Implemented: `haco open` and `haco ssh setup` offer an Environment/Workspace list
+when multiple Environments exist in an interactive terminal. A sole Environment
+still needs no input. Blank input cancels before setup; noninteractive ambiguity
+requires an explicit name without reading stdin. The SSH client rechecks the
+selected creation/runtime identity, Workspace and access mode during setup.
+
+Component regressions and real-PTY product-process tests passed selection and
+cancellation with a private fixture controller and temporary desktop directory.
+They do not prove a multi-Environment Windows/VS Code connection. Existing
+single-Environment editor evidence remains separate; new GUI acceptance is pending.
+
+At `711005a`, GHA test/Ubuntu/Incus passed. Windows run 34185304876 passed
+installation/restart/reinstallation and actual SSH setup/reuse, but failed the
+Host customization cleanup and notification activity check. Repeated setup was
+reproduced exhausting systemd's start limit. Healthy identical services now remain
+running; changed executable revisions/configuration still restart. Twelve Python
+regressions and eight consecutive real-systemd refreshes plus cleanup passed.
+An intermediate edit had a Python indentation error and was corrected before
+these successful runs. Full Windows acceptance subsequently passed at `470a2b8`
+as recorded above, with human toast/VPN scopes still skipped.
+
+## Fresh notification service startup
+
+Windows run 34181502807 failed at notification-service setup and skipped the
+subsequent connection/native checks. A deterministic component defect was
+reproduced on dedicated WSL: unconditional `reset-failed` rejects a new unloaded
+unit. An attempted explicit load still failed because systemd can unload it again.
+Startup now resets only an observed failed unit; unknown results fail closed.
+The 11 Python regressions and real systemd fresh startup/refresh/owned cleanup
+passed. These component checks alone did not prove installed resolution. The
+full Windows path later passed at `470a2b8`; fresh human notification activation
+remains unverified.
+
+## Fresh Host OCI storage setup
+
+Partial: ordinary `haco setup` creates and binds an owned source area for a fresh
+Host, configures its containerd/Docker data roots and verifies repeat setup.
+Existing data, symlinks and custom configuration are refused without migration;
+failed preparation retains ownership. No new daily command or mandatory runtime
+installation is added. Existing-data migration
+and actual runtime recovery remain incomplete. Host nesting is covered by the owned-Host setup slice above.
+
+Local dedicated Incus/WSL setup, repeat verification, area COW, independent writes
+and deletion, and exact fixture cleanup passed (53.19 s). This used synthetic
+area data, not Docker/nerdctl images. The earlier provider commit `29fd6d1` passed
+GHA test, Ubuntu installer and Incus E2E; its Windows run 34181502807 failed at notification service setup; downstream acceptance was skipped.
+
+The initial configuration regression failed on Python without `tomllib`. The final implementation avoids that dependency and passed focused race tests and the real provider E2E.
+
+Maintained local CI passed all Go tests/vet, 11 WSL and 3 approval Python cases, and 27 JS cases. Documentation consistency and its seven regressions passed.
+
+Copy initialization now repeats the managed Host source readiness and configuration
+check immediately before journal/pause. Setup-time validation alone could copy an
+obsolete area after a later layout change. Regressions reject absent readiness,
+layout drift and failed/truncated verification without pausing or copying. The
+canonical source/destination recovery reservation remains retained on failure.
+
+## Host area copy provider
+
+Partial: the Incus backend can pause an exact owned Host with its source-only data
+volume, perform existing area-level COW, verify completion and resume. A durable
+copy marker disables autostart and blocks ordinary Host entry during uncertainty.
+Foreign/duplicate consumers, mismatched attachments, pre-existing pauses and
+unconfirmed copy/resume/cleanup are refused. Component tests and local provider E2E passed. The new real
+Incus E2E is wired into the existing Btrfs job and passed at `29fd6d1`.
+
+Existing Host data migration, Docker/containerd application recovery and
+operator recovery of interrupted copies are still missing. Pausing processes is
+not graceful daemon shutdown. No image enumeration or export/import is used.
+[Protocol and limits](adr/0031-host-oci-area-copy.md#provider-pause-and-restart-guard).
+
+
+Local dedicated WSL acceptance passed the provider mechanism in project
+`haco-area-23ef9c90488e244b`, including real pause/COW/resume, Btrfs parent UUID,
+bidirectional write independence, source deletion and exact cleanup (39.15 s).
+The first actual run reached the copy/independence checks but failed final project
+deletion because its downloaded Base image remained. That exact fixture image,
+project and pool were removed; the E2E now removes its recorded Base identity.
+A preceding PowerShell invocation failed argument parsing before starting the test.
+Neither failure is counted as a pass. This uses synthetic area data, not OCI
+runtime images. Focused race tests/vet, workflow policy and docs passed.
+
+The maintained local CI test entry passed Go tests/vet, 11 WSL and 3 approval Python regressions, and 27 JS tests. The final Host start/copy process-lock change is checked separately with focused regressions and a new provider E2E run.
+
+Final provider code, including the cross-process lock and exact autostart restoration, passed the dedicated E2E in `haco-area-a7d74034ed65d7d4` (37.98 s). The owned image, Host, volumes, project, pool and private recovery catalog were cleaned up. Final focused race/vet also passed.
+
+## Actual Host OCI area copying
+
+B4 requires direct area-level Btrfs COW of the actual Host image storage, not
+image selection or export/import reconstruction. The contrary inventory slice
+was reverted. Existing independent volume copy is aligned; the missing actual
+Host runtime compatibility and existing-data migration remain incomplete. Do not claim delivery from
+synthetic storage tests. [Decision](adr/0031-host-oci-area-copy.md).
+
+Windows `4bb8dad` run 34176272125 failed: native review required unavailable
+Get-FileHash. `8d7a2ea` replaces that dependency with .NET SHA-256; PowerShell 5.1
+component tests passed. Installed Windows acceptance after the fix is pending.
+The former OCI focused tests passed, but were removed with that withdrawn slice.
+Its broader local CI was canceled while still running after successful individual
+Go package results; full Go-suite and CI completion were not established and is not evidence for the corrected area-copy implementation.
+
+
+## Git and network approval parity
+
+Implemented shared approval behavior is now covered by cross-capability CLI and
+Policy/audit regression tests: one-shot decisions, all six saved choices, exact
+target scope, reevaluation and same-name Environment recreation. Focused race tests
+and vet passed. The initial test expected approval-denied for saved deny; corrected
+expectation is policy-denied after reevaluation, identically for both providers.
+No new real Git push or HTTPS connection was performed for this regression slice.
+See [the shared contract](design/pending-approval-review.md#shared-git-and-network-decisions).
+
+
+## Automatic desktop notification follow-up
+
+Implemented in the working branch: Windows post-install enables an owned Host
+notification service after registration; `-SkipDesktopReview` stops/disables it.
+First start skips historical presentation, while existing cursors resume normally.
+Companion publication uses verified atomic replacement so a running notifier does
+not block updates. Unit parser, ownership, opt-out, from-now and race regressions passed.
+Installed automatic service acceptance remains pending.
+At `4bb8dad`, test, Ubuntu and Incus E2E passed. Windows failed; see the current correction above.
+
+
+## Host notification acceptance and state safety
+
+At `213fb2b`, Ubuntu installer run 34173412741 passed installed Host notification
+subscription and listener cleanup (job 101898000285). The test workflow passed.
+Incus run 34173412776 failed Host setup: its standalone CLI fixture builds no
+notification companion, now required by setup. The fixture is updated to build
+and verify its installed digest/ownership; the corrected Incus run 34174437698 at `6d516d3` passed.
+Windows run 34173412761 remains in progress.
+
+Native cursor storage now rejects linked/special files, bounds reads, pins the
+owned parent, synchronizes atomic saves and locks one writer for the process
+lifetime. Focused tests and vet passed, including separate-process exclusion and
+parent replacement. Windows automatic startup is now implemented; fresh native decisions remain incomplete.
+
+
+Real Host component acceptance also passed in Hacocoon-Review-6771f2f using the
+new worktree notification binary in an owned temporary directory: existing
+controller subscription without audit projection, public schema and listener
+cleanup. The temporary executable was removed. Direct execution from the Windows
+mount first failed the fixture's installed-mode assertion; the corrected temporary
+0755 copy passed. This does not prove normal installer delivery or native activation.
+
+
+Local release-provenance validation **failed** on the Ubuntu 22.04 validation distro: the installer requires Ubuntu 26.04 or newer. The same release-provenance check subsequently passed on the dedicated Ubuntu 26.04 distro with a command-scoped Git safe-directory setting (no persistent Git configuration change). The earlier 22.04 failure remains recorded; normal notification package acceptance is still pending.
+
+
+## Ordinary Host notification follow-up
+
+Implemented in the working branch: same-release notification provisioning,
+controller-mode event subscription with no local fallback, and validated Windows
+distribution identity projection. Focused Go tests and WSL identity regressions
+passed. Installed Host subscription E2E is added to Windows and Ubuntu workflows;
+its new packaged run is pending. Previous Physical Host evidence does not prove
+this new ordinary Host path, and fresh human notification decisions remain unverified.
+
+
+
+Read-only inspection also confirmed that installed haco-host has neither haco-notify
+nor the audit file. The native evidence above is from the Physical Host. Completing
+ordinary Host notification subscription remains a priority before claiming daily D2 usability.
+
+
+## Windows notification review
+
+Status: **implemented adapter slice; roadmap D2 remains partial**. Windows bundles
+include a native helper, checksum and per-distribution user protocol registration.
+Notifications open the existing approval console with only an exact request ID;
+they never answer or expose a management endpoint. See [the contract](design/pending-approval-review.md)
+and [ADR 0030](adr/0030-windows-notification-review.md).
+
+Local testing in Hacocoon-Review-6771f2f passed registration, installed stale-request
+and malformed-link refusal, Windows protocol launch of the exact helper, and a
+notification-history entry with the expected URI. The helper SHA256 was
+e79df7c870f6218440479ea0d833e3c3d398a2499fff0eae4cc6bfd902acfc0b.
+Later notification delivery failed before PowerShell with system error 8 because
+the native WSL executable registration was absent while interop remained enabled.
+The installed canonical WSL setup restored the registration after its normal
+validation; final delivery and exact notification-history checks passed. No /init
+fallback or notification-owned binfmt mutation was added. The reason the registration
+disappeared remains unconfirmed. The initial helper attempt failed before the trusted
+Host finished starting. Maintained local CI, focused native tests, package checks,
+PowerShell syntax, docs and GoReleaser validation passed.
+Native visible-click/fresh-decision acceptance and Linux activation remain unverified.
+
+The preceding 05c8206 passed all four GHA workflows: test 34166655131, Ubuntu
+34166655270, Incus 34166655133 and Windows 34166655142. Windows explicitly passed
+local review stale refusal, ordinary HTTPS saved-ask/allow/re-prompt denial,
+actual VS Code, preview/Edge and doctor. These results do not cover the new native adapter.
+
+The corrected observer at `05c8206` passed actual local VS Code 1.136.1 acceptance against installed `6771f2f`: Environment `win-ssh-33848c2759174f10`, Windows loopback port 40429, remote file read/write, remote terminal execution, local custom approval terminal and installed-controller stale-request refusal. Ordinary HTTPS saved-ask denial / one-shot allow / re-prompt denial passed again. The normal fixture finished with exit 0: temporary Policy, SSH connection, Environment, Workspace, keys and observer files were removed; listener absence and Windows connection refusal were verified. This is real local manual-SSH/Remote-SSH acceptance, not a fresh human approval through the UI or native toast activation.
+
+At `5283705`, test 34165137831, Ubuntu 34165137686 and Incus 34165137697 passed. Windows 34165137705 failed at local approval review and project setup for the approval prerequisite. Remote editor/terminal, ordinary setup, preview/Edge and doctor passed.
+
+The corrected snapshot installed successfully in the dedicated local WSL instance `Hacocoon-Review-6771f2f` (installed commit `6771f2f38f8c036a2fb16e8f9640377229b11c65`). Local Environment `win-ssh-d5dc5903cceb456a` passed Windows SSH on port 37713, actual VS Code 1.136.1 remote editor/terminal, and actual HTTPS saved-ask denial / one-shot allow / re-prompt denial through ordinary `haco approve`. Local approval-terminal acceptance failed; diagnostics and a regression for failure-path probe cleanup were added. Connection and Environment removal and listener refusal passed. The initial cleanup failed on retained observer files; exact owned files and empty directories were subsequently removed. The earlier existing-instance update was rejected by automatic approval review and not executed; the dedicated installation was separately approved.
+
+At `6771f2f`, test 34163005164, Ubuntu 34163005175 and Incus 34163005206 passed.
+Windows 34163005171 failed overall VS Code acceptance (the exact stage was not
+reported) and approval Python preparation; preview/Edge and all four doctor checks
+passed. Fixed stage reporting now separates editor timeout/remote checks/local review,
+and prerequisite execution from clearing its recipe. No new UI success is claimed.
+
+The local snapshot build and corrected dedicated installation passed; the first packaging invocation without the leading v failed before installation completed. See the current physical acceptance results above.
+
+## VS Code trusted review
+
+Status: **implemented repository slice; roadmap D2 remains partial**. The optional
+UI extension opens ordinary approval in a local custom terminal from Review or the
+command palette. It fixes executable routing and environment, rejects remote/web or
+untrusted execution and requires the existing CLI answer. VSIX packaging needs no
+npm download. Related 26 JS tests passed. The existing real VS Code GHA now includes
+local terminal to installed controller stale-request refusal; its result is pending.
+Native OS activation and fresh human review acceptance are not proven by this slice.
+See [the contract](design/pending-approval-review.md) and [ADR 0029](adr/0029-local-desktop-approval-review.md).
+
+At `0754280`, test 34161070477, Ubuntu 34161070466 and Incus 34161070522 passed.
+Windows 34161070471 passed actual VS Code, preview/Edge and all four doctor checks.
+Only approval acceptance failed, at Python prerequisite preparation before review;
+cleanup succeeded. Fixed diagnostic categories now distinguish setup-unit/package/
+DNS failures without raw output. The root cause is not established; this is FAIL,
+not SKIP, and the new diagnostic rerun is pending.
+
+
+The generated optional VSIX passed archive/manifest checks and installation into an
+isolated profile of the actual local VS Code. This verifies packaging only, not a
+fresh approval or local terminal/controller round trip.
+
+## Pending approval review
+
+Status: **implemented repository slice; roadmap D2 remains partial**.
+haco approve selects a sole pending request automatically or offers a numbered choice.
+The Standard queue bounds background approval waiting; the common private review API
+also uses original Git prompts. One-shot decisions, six saved choices, cancellation,
+expiry, duplicate submission, exact completion ownership, Policy changes, sanitized
+failure receipts and real local Git helper integration passed related race/vet tests.
+Windows notification activation is implemented; fresh native decision acceptance remains partial. See [pending review](design/pending-approval-review.md).
+
+Installed GHA now includes ordinary configuration plus actual HTTPS saved-ask denial,
+one-shot approval, re-prompt/denial and scoped cleanup. At `5ad8c3e`, Windows run
+34159087435 failed in saved-ask denial, preview setup/open and doctor invocation.
+Actual VS Code, SSH, configuration and project setup passed. Test 34159087438,
+Ubuntu 34159087434 and Incus 34159087447 passed. Maintained local test/E2E and docs
+also passed. The approval fixture now prepares Python through ordinary setup and
+accepts its normal completion line; installed rerun of these corrections is pending.
+Preview/doctor failures now include fixed phase and numeric metadata without raw output.
+
+At f6d193b, test 34154746874, Ubuntu 34154746842 and Incus 34154746852 passed.
+Windows 34154746844 passed actual VS Code, SSH, configuration, project setup and doctor,
+but HTTP preview failed. Its exact cause remains unresolved.
+
+A local installed `71dbb4f` rerun passed Windows native SSH, changed-host-key
+refusal and cleanup on port 33105 (`win-ssh-67210d9ab7994c7d`). The scoped temporary
+Policy, connection, Environment and Workspace were removed; the listener was absent
+and Windows connections were refused afterward. Two earlier attempts failed because
+the Host was stopped; the successful attempt kept the ordinary Host terminal open.
+Automatic desktop setup was SKIP locally because that fixture uses a disposable GHA
+profile. This is SSH evidence for the installed snapshot, not installed acceptance
+of the new approval review or a new local VS Code run.
+
+## Approval correlation
+
+Status: **implemented groundwork; roadmap D2 remains partial**. Approval prompts,
+trusted controller responses and pending Git proposals share the capability audit/result
+request ID. This adds no command, approval authority or notification action endpoint.
+See [interaction events](INTERACTION_EVENTS.md#approval-correlation).
+
+At `2584ec6`, GHA test 34152700790, Ubuntu 34152700745 and Incus 34152700884
+passed. Windows 34152700897 passed native SSH, actual VS Code, configuration round-trip
+and project setup, but failed HTTP preview and Environment doctor. Their exact
+causes remain unresolved. Earlier installed successes are separate evidence,
+not success for those failed probes.
+
+## Approval configuration editing
+
+Status: **implemented repository slice; roadmap D remains partial**.
+`haco config` and optional `--edit` / `--file` use the same Policy as ordinary
+saved approvals. Revision checks and the common private writer prevent concurrent
+saves from being overwritten. Audit records only operation/revision metadata.
+Focused test/race/vet and maintained CLI/controller E2E passed; installed acceptance
+of configuration round-trip passed at 2584ec6. See [configuration](reference/configuration.md).
+
+Local `71dbb4f` installation passed six Host checks. Configuration read/replace,
+receipt, file revision and audit were verified without changing default deny or
+the original eight rules. JSON-view equality failed on an empty saved_decisions
+array omitted at write time. Snapshot canonicalization and its component/CLI
+regression now pass; installed configuration round-trip with the correction passed at 2584ec6.
+See [the exact observation](reference/configuration.md#local-installed-observation).
+
+At `71dbb4f`, all four GHA workflows passed: test 34151576434, Ubuntu 34151576429,
+Incus 34151576447 and Windows 34151576493. Windows included ordinary configuration
+round-trip, actual VS Code, project setup, Edge preview and Environment doctor.
+
+A separate local `71dbb4f` journey used `haco config --file` to add and later
+remove only four temporary Ubuntu archive rules for `preview-71dbb4f`.
+Ordinary project setup started a loopback HTTP server. Windows received its
+exact Workspace marker at port 36059; preview reuse, close/refusal and local
+runtime/Workspace/DNS doctor checks passed. No SSH connection was prepared in
+this local probe. The marker, recipe, Environment and listener were removed,
+and default deny/eight original rules/zero saved choices were verified. Existing
+Workspace `git-save-eb16300` was retained. Earlier intermittent preview/doctor
+failures were not reproduced here; their original causes remain unresolved.
+
+At `729f008`, GHA test 34149690153, Ubuntu 34149690280 and Incus 34149690192
+passed. Windows 34149690178 passed DNS, desktop SSH/resume, actual VS Code and
+project setup. Preview and Environment doctor failed; the modified fixture ran
+both and kept the final job failed. Their exact causes remain unresolved.
+
+## Reusable ordinary Git approvals
+
+Status: **implemented repository slice; D1/D2 remain partial**. Existing Git
+approve/deny commands accept optional --save for Environment/global allow, deny
+and ask. Pending output separates current exact commits from provider-declared
+reusable scope. Only OIDs and operation ID are wildcarded; repository/remote/ref
+and fast-forward update kind stay fixed. Attribute-name matching remains exact.
+Saved responses require durable persistence and audit, and unsupported peers fail
+closed. Real local Git helper tests cover subsequent commits, ask, deny and
+history-rewrite refusal. Installed Windows/WSL acceptance at `eb16300b6700`
+passed ordinary SSH, saved ask approval, GitHub push, subsequent re-prompt and
+denial with unchanged remote. See the exact commits and retained resources in
+[managed Git acceptance](reference/managed-repository-workflow.md#installed-saved-approval-acceptance)
+and [ADR 0026](adr/0026-reusable-git-approval-scope.md).
+
+At `eb16300`, GHA test 34146281274, Ubuntu 34146281278 and Incus 34146281289
+passed. Windows 34146281264 failed: DNS and ordinary SSH/resume passed, then
+VS Code did not complete within ten minutes. Setup/preview/doctor later in that
+job were not run. This remains a failure, not a SKIP or current editor acceptance.
+The fixture now continues independent setup, preview and doctor checks after an
+editor failure, retaining each failure for the final job result. PowerShell
+syntax was checked locally; changed-fixture GHA acceptance is pending.
+
+At 953d1e5, all four GHA workflows passed, including the corrected orchestrator
+and crash-recovery fixtures. This does not establish acceptance of later changes.
+
+## Policy-bound name resolution
+
+Status: **partial roadmap C3**. Installed Standard mode now automatically installs
+the guest loopback DNS service during canonical Environment creation and resume.
+The service notifies readiness after binding UDP/TCP; failed installation or
+startup prevents successful creation/resume. Bare controller mode keeps the
+component optional. No new user command, nameserver argument or allow rule is
+required for provisioning. Lookup still requires its own Policy permission.
+
+The existing guarded listener binds requests to persisted source identity and
+uses Capability Policy/audit before the Physical Host resolver. Connection
+authority remains separate. A Windows GHA fixture now compares ordinary
+getaddrinfo results across Windows, WSL, trusted Host and Environment and checks
+default DNS denial; both passed at `c05528a` in Windows run 34132173483. VPN/NRPT, propagation
+after DNS changes and restart remain unverified. See [name resolution](design/name-resolution.md).
+
+
+At `72096d8`, local test/vet/docs/e2e and affected-package race checks passed.
+GHA test and Incus passed; Ubuntu run 34121278716 and Windows run 34121278578
+failed while configuring the Environment DNS service, before the new DNS fixture
+could run. A separate local probe on the older installed substrate started the
+same DNS unit successfully; it does not reproduce or explain the GHA failure.
+The probe was canonically deleted and its empty Workspace removed. The adapter
+now returns only an allowlisted failure phase and numeric service exit status
+to diagnose the installer failure without exposing arbitrary guest output.
+At `a1d084b`, the bounded guest-manager wait passed Ubuntu installer, Incus
+and test workflows. Its Windows run was cancelled at the job time limit.
+At `c05528a`, test, Ubuntu installer and Incus workflows passed. Windows run
+34132173483 passed DNS equality/default denial and real VS Code connection,
+then failed before project setup: CRLF in the PowerShell-generated Bash script
+made `set` exit 2. The harness now normalizes both setup and preview scripts
+to LF. Setup, preview and Environment doctor acceptance await the rerun.
+
+C4 [project setup](design/project-setup.md) now implements explicit Workspace
+recipes through `haco setup --script <path> <environment>`, replay and clear.
+Host recipes retain their existing behavior. Target identity is checked before
+start and under the execution lifecycle lock; script bytes travel through
+bounded stdin. Relevant race tests passed. Installed GHA coverage was added but
+failed in the harness before setup execution at `c05528a`; package installation and actual cancellation
+cleanup acceptance remain unverified.
+
+## Current desktop-development checkpoint
+
+Status: **partial roadmap C**. Product commands provide desktop SSH setup,
+`haco open [--client vscode|ssh] [environment]`, retained resume and readable
+Environment target discovery. Saved Host setup recipes are now implemented through
+`haco setup --script <path>`, replay and `--clear-script`; installed Windows GHA
+passed at bcc1baf. The temporary-run product CLI and real-Incus acceptance passed at 4adfe19. Broader C1 selection, C3–C5 and later roadmap stages remain incomplete.
+
+All four GHA workflows passed at `4f1f512`. The Windows job proved actual VS Code
+1.136.1 Remote-SSH document read/write, terminal execution and owned probe cleanup
+through ordinary `haco open`. It uses a disposable portable profile with the Linux
+platform choice saved and Workspace trust prompts disabled; this does not cover
+normal desktop prompts or every Windows/VPN configuration. Earlier `703ec76`
+failed executable discovery; `506c38f` advanced past launch but timed out waiting
+for editor acceptance. Those failed runs are distinct from the successful rerun.
+
+The ordinary local installer last upgraded the existing distribution to `8752431`
+(v0.33, build `2026-09-07T06:44:17Z`). Doctor passed six checks and preserved
+`stage-b-git-dev` and its Workspace. Installer ZIP SHA-256:
+`c2c5b720643d98e586996e2d2413d1af196d764331e2b160a5bda647c76946a9`.
+This installation predates the current DNS changes. Local acceptance passed on
+2026-09-07 after the user authorized temporary package-egress rules for
+`desktop-8752431`: native Windows OpenSSH and VS Code 1.136.1 Remote-SSH verified
+the Workspace marker, editor read/write, remote terminal execution and probe
+cleanup. The editor used a separate local profile and explicit Remote-SSH URI;
+this is not local acceptance of ordinary `haco open`, which GHA covers separately.
+The four temporary rules were removed (remaining count zero), SSH connection
+`ssh-39493` revoked, disposable Windows key deleted and test Environment stopped.
+The user's `stage-b-git-dev` remained stopped. Earlier local resume failed because
+WSL restart removed its volatile source guard; recreation used canonical deletion
+and creation. Its old /tmp Workspace was also absent, so a fresh test directory
+was created. These failures are separate from subsequent connection success.
+The missing-guard resume fix now has regression coverage; actual reboot acceptance
+of that fix remains pending.
+
+## Independent persistent Store copies
+
+Status: **implemented storage slice; full revised B4 remains partial**. Based on
+main `3b2d0b6` (merged PR #481), `haco plugin oci store create dev --from shared`
+creates an independent copy of an unleased Store without adding a command group.
+The canonical catalog reserves the exact source until provider completion and
+verified publication. Failure retains ownership and requires manual recovery;
+automated interrupted-copy recovery is not implemented. See the
+[Store contract](design/persistent-oci-store.md#independent-offline-copies).
+
+Local real Incus 6.0.5-8 / WSL / Btrfs acceptance passed with synthetic data:
+Btrfs parent UUID matched the original, writes were independent in both
+directions, source deletion retained the copy, and test volumes/project/pool
+were removed. This does not establish OCI image/runtime, installed CLI or
+trusted Host publication acceptance. The initial E2E fixture failed because
+its project did not exist before pool inspection; the fixture was corrected
+and the rerun passed. An initial RPC regression exposed invalid-argument
+classification as internal error; the handler was corrected.
+
+A/B prior work is preserved: PR #481 merged as `3b2d0b6`; its final `0b79cac`
+[test](https://github.com/SLktEx/Hacocoon/actions/runs/34081379821),
+[Ubuntu installer](https://github.com/SLktEx/Hacocoon/actions/runs/34081379810),
+[Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34081379802) and
+[Windows installer](https://github.com/SLktEx/Hacocoon/actions/runs/34081379870)
+workflows completed successfully. These are prior-commit results, not CI for
+this copy change. The new storage test is wired into existing Incus CI.
+
+SKIP for this slice: trusted Host image acquisition/publication and actual
+containerd/Docker consumption of copied images (that full product path is not
+yet implemented); VS Code UI development (no IDE exercise in this slice);
+Windows packaged acceptance of this change (installed product remains the
+previous B candidate); a new real Git push (no Git/auth/ref change here, and
+copy acceptance uses no repository). Existing B push OIDs below are historical
+verified results, not a new push. C-G implementation is still planned according
+to the updated [roadmap](status/architecture-and-roadmap.md#user-facing-development-order).
+
+
+## Validation of the Store copy slice
+
+Local checks passed: maintained CI `test` (Go tests/vet, installer components and
+JavaScript), `e2e` command/capability/Git/orchestrator assertions, docs/workflow
+policy, and the real-Incus synthetic COW test. `forwarding` initially failed for
+missing passwordless sudo; running the same isolated-namespace test as root in
+the development WSL passed. E2E assertions passed, but its first temporary Go
+module-cache cleanup emitted permission errors; this is a cleanup failure,
+not a product assertion failure. Re-running the command E2E with the existing
+`GOMODCACHE` explicitly selected passed without cleanup errors. The earlier
+temporary path was independently confirmed absent.
+
+The first full `race` run failed in the existing CONNECT upstream-prefix shutdown
+test. The serving proxy now synchronously owns/closes CONNECT upstreams and
+rejects a dial completing after shutdown before any write. The proxy package
+passed 100 race repetitions; the full maintained `race` gate then passed.
+See the [egress contract](EGRESS_AUTHORIZATION.md). No authorization policy or
+user command changed in this fix.
+
+The monolithic `bash tools/ci-local.sh` stopped at release-config because the
+Ubuntu development WSL has no `pwsh`; that run **failed**. Standalone Windows installer component tests passed in Windows PowerShell.
+Release provenance initially failed the development Ubuntu 22.04 minimum-OS
+check. Running its fixture-only checks on Ubuntu 26.04 passed provenance and
+installer package contracts after trusting this exact Windows-owned worktree
+for that process only. GoReleaser configuration validation passed. Full release
+archive builds and fresh package installation remain **SKIP** for this slice.
+
+New GitHub Actions execution is **SKIP / publication blocked**: automatic approval
+review rejected pushing the implementation branch to `SLktEx/Hacocoon` because
+explicit destination authorization was present only for push testing to
+`SLktEx/Hacocoon-test`. No source push or PR was created. The new COW test is
+ready in the existing Incus workflow for a later authorized publication; prior
+B CI success does not verify this revision.
+
 ## Incus startup PID protection
 
 Status: **implemented; repository regressions and hosted Ubuntu/WSL package
@@ -411,7 +1069,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.29**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.46**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
@@ -516,3 +1174,177 @@ v0.7 retains the provider-neutral Environment routing seam because that architec
 ## Acceptance gaps
 
 Repository tests do not substitute for all real-host acceptance. v0.23 proves a phased real-Incus substrate plus Core lifecycle on GitHub-hosted Ubuntu 26.04, v0.25 additionally proves ordinary-user Incus-owned Btrfs CLI behavior, and v0.26 proves trusted-host lifecycle/control-socket isolation on real Incus. Real Incus networking/resource behavior beyond those paths—including proxy-only bridge ACL/dnsmasq behavior—Windows/WSL + VS Code and interactive `haco-host` entry, private-registry credentials, Docker compatibility, physical Btrfs compression/COW/compaction behavior, broader storage failure injection, desktop notification delivery, and future cloud adapters remain environment-dependent. Partial acceptance in an earlier milestone does not prevent later minor checkpoints from advancing.
+
+## Resume retained Environments
+
+Status: **implemented command and component slice; roadmap C/E remain partial**.
+`haco env start <name>` resumes the existing runtime without extra required flags.
+Active lease identity and Incus network isolation are checked before start;
+create/start/stop/delete serialize across controller processes on Linux/WSL.
+See [ADR 0016](adr/0016-resume-owned-environments.md).
+Full local CI test and race phases passed. Independent real Incus 6.0.5-8 /
+WSL acceptance passed: stop/start, repeated start, root filesystem and Workspace
+contents, unchanged persisted lease and canonical deletion. The initial fixture
+failed only its timestamp comparison (JSON removes Go's monotonic clock); comparing
+persisted leases fixed it and the rerun passed. Both test runtimes were removed;
+the existing user Environment remained stopped. The existing Incus E2E also now
+includes trusted Host product stop/start and retained Workspace assertions;
+that installed-product flow passed GHA at `f8517ba`. SSH setup automation and reconstruction of
+missing guards after Host reboot remain unimplemented.
+
+## SSH host public key through the ordinary API
+
+Status: **implemented protocol slice; automatic SSH setup remains planned**.
+Incus SSH preparation returns a structurally validated Ed25519 `host_public_key`
+through the ordinary controller response. Native clients can pin it without a
+separate administrator Incus command. Invalid key data revokes the managed key
+and proxy; cleanup failure is recovery-required. Public adapters revalidate the
+optional key. Related race tests passed; the Windows native acceptance script
+now consumes this field; the installed Windows flow passed GHA at `f8517ba`.
+
+User clarification: development-source pushes go to a branch in Hacocoon and
+then a PR; Git push feature tests remain restricted to Hacocoon-test. PR #482
+publishes the v0.30/v0.31 and SSH public-key slices at `f8517ba`. The earlier
+publication rejection is resolved by explicit source-push authorization.
+The required B4 default is now explicit: automatic OCI image publication/COW
+copy at Environment creation with an optional opt-out. The ready-source copy slice
+is implemented below; Host image publication remains planned. See the owning Store contract.
+
+## Automatic Workspace Store initialization
+
+Status: **implemented ready-source copy/reuse and opt-out; full B4 remains partial**.
+Ordinary Environment creation now invokes the optional OCI default resolver.
+A ready source-only `oci-source:host` is copied to a Store durably bound to the
+Workspace; recreation reuses it. `--no-oci` skips this initialization. Without
+a publication, non-OCI creation remains usable. Source-only direct attachment,
+wrong-Workspace reuse, partial publication/copy and silent empty fallback are
+rejected. No Host Docker/nerdctl image producer exists yet; this does not complete
+automatic image delivery. Docker/runtime compatibility remains unverified.
+Related regression/race tests passed. The real Incus/Btrfs synthetic copy fixture
+also passed through the default resolver, proving COW ancestry, independent writes,
+source deletion and cleanup. It does not prove image acquisition or runtime use.
+PR #482 at `f8517ba` passed all four GHA workflows, including Windows native SSH;
+newer changes require their own CI evidence. Private-registry E2E was SKIP because
+that job is workflow-dispatch-only.
+The requested temporary `docker run --rm`-like Environment flow is scheduled after
+VS Code connection acceptance, reusing the existing ephemeral-run implementation.
+
+## Runtime-owned automatic SSH ports
+
+Status: **implemented; installed acceptance pending for this addition**.
+`haco env ssh --key <public-key-file> <name>` no longer needs a port argument.
+SSH port zero is passed to the Incus runtime, which selects on the Physical Host
+and reserves the proxy before guest key changes. Windows GHA at bcc1baf passed this
+ordinary default, desktop key/config setup and actual VS Code access.
+
+## Desktop SSH setup and opening
+
+Status: **implemented commands; Windows GHA editor acceptance passed**.
+`haco ssh setup [name]` prepares desktop-owned keys and strict host-key pins.
+`haco open [--client vscode|ssh] [name]` selects the client; a single Environment
+needs no name. Installed GHA covers native SSH, stopped resume and connection reuse,
+then actual editor and terminal access at `4f1f512`. See the
+[client contract](design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening).
+
+Native Windows fixture checks also cover key/config creation and editor discovery
+through the installed trusted Host. A separate development-Ubuntu attempt failed
+with PowerShell `exec format error`; a cold raw-Incus fixture failed with the Host
+stopped, then passed after normal interactive entry. Those preparation fixtures
+alone are not connection acceptance. The local installed version/approval gap and
+the exact successful GHA scope are recorded at the top of this document.
+
+Daily CLI inspection is a **partial C6 slice**: `haco env list` shows the registered
+name/Workspace/Base; `--json` is available for scripts. List/status output escapes
+terminal controls. Broader DNS and connection diagnosis remains incomplete.
+
+## Saved Host customization
+
+Status: **implemented explicit setup/replay; Windows GHA acceptance passed at bcc1baf**.
+A user-selected UTF-8 Bash recipe is saved privately by the controller and executed
+only in the verified trusted Host. Plain setup replays the snapshot, an explicit
+script update replaces it, and clear removes it without execution. No Environment
+receives the recipe. Regression coverage exercises private-file/link protections,
+serialization, persistence before script failure, replay after service recreation,
+target ownership, stdin delivery, and sanitized failure reporting. The Windows GHA
+fixture passed ordinary save/replay/update/clear acceptance at bcc1baf (Windows run
+34103036390, job 101681633357). Test, Ubuntu and Incus workflows also passed. See
+[Host customization](design/trusted-host.md#saved-customization-recipes).
+
+Implicit Host recreation outside controller setup is not yet accepted. Physical
+customization and arbitrary package/dotfile recipes have not been run on the user's
+installation. The initial source-edit review rejection was resolved by reading the
+explicit roadmap C2 requirement and resubmitting the same source-only edit with that
+evidence; it is separate from the still-pending local package policy permission.
+
+## Temporary execution
+
+Status: **implemented product CLI; real-Incus acceptance passed at 4adfe19**.
+`haco run [--rm] -- <command>` creates an owned temporary Workspace by default,
+executes in /workspace and removes the runtime plus its automatic OCI copy.
+`--workspace` retains an existing Workspace and Store; `--no-oci` opts out.
+Temporary identity is recorded before creation. Canonical deletion checks that
+identity under its lifecycle lock, and resource cleanup atomically checks the
+Workspace binding. Failed cleanup keeps recovery evidence. Nonzero exits,
+cleanup failure and cancellation remain distinct; stdin/TTY is not implemented.
+
+Focused race regressions cover retained-work protection, cleanup failure/recovery,
+default source selection, OCI source retention, provider opt-in and literal argv.
+Maintained real Incus GHA passed product success, exit 17, retained writes and
+cancellation cleanup at 4adfe19 (run 34115004878, job 101719650209). Populated
+OCI image execution and local installed acceptance remain unverified. See
+[temporary execution](design/temporary-execution.md) and
+[ADR 0020](adr/0020-runtime-owned-temporary-workspaces.md).
+
+## Development preview
+
+Status: **partial roadmap C5**. `haco open --port <port> [environment]` adds
+loopback HTTP preview with connection reuse and `--close`. Installed Windows HTTP
+acceptance and actual browser launch remain pending. See [preview](design/development-preview.md).
+
+## Environment diagnostics
+
+Status: **partial roadmap C6**. `haco doctor [--json] <environment>` reports
+Workspace, runtime and sanitized client connection information and checks local
+Workspace/DNS/SSH prerequisites without starting or repairing the Environment.
+Installed acceptance and external DNS/desktop reachability remain separate.
+See [diagnostic scope](design/controller-client-transport.md#environment-diagnostics).
+
+## Saved Policy precedence
+
+Status: **partial roadmap D1**. Matching explicit Policy rules now use
+`deny > require-approval > allow`, replacing first-match ordering. Environment
+and attribute matching are unchanged; the default remains a fallback. Persistent choices now have typed scope conversion, a protected atomic writer
+and audited service integration. Controller stream and terminal component support are implemented; ordinary
+product Git queue and notification integration remain unimplemented.
+See [precedence](design/policy-and-capability-foundation.md#matching-rule-precedence).
+
+At `a1d084b`, Windows run 34124995997 was cancelled after the job limit.
+Installed HTTPS/direct-egress checks passed; the native-access step did not
+produce DNS/SSH/VS Code completion markers. This is not acceptance success.
+`c05528a` adds bounded child/output waits and progress markers; its actual
+Windows run passed DNS/VS Code but failed before setup due to harness CRLF. Three runner regressions passed on local Windows,
+including a descendant retaining inherited output.
+
+At `5f824b4`, Ubuntu and Incus passed. Go 1.26/1.27 tests/vet, race and docs passed,
+but the test workflow failed: Capability E2E still expected the old approval prompt,
+and GoReleaser installation received HTTP 504. The prompt assertion is updated;
+local saved-choice/replay/Environment-scope E2E and product CLI E2E passed.
+Windows run 34133686648 passed DNS, ordinary SSH reuse/resume and VS Code, then
+failed project setup. Production runner decorators now retain the optional stdin
+contract for Incus exec; installed acceptance of this fix remains pending.
+
+Saved Policy now also supports Environment/global require-approval. The terminal asks a separate y/N for the current request; saving ask never creates allow. Ordinary Git/notification integration and binding these product flows to immutable Environment identity remain incomplete.
+
+At `347ca50`, test/Ubuntu/Incus workflows passed. Windows run 34135390824 passed DNS, VS Code and project setup save/replay/nonzero/update/clear, then failed the preview server recipe. The fixture now prepares Python if absent and waits for a loopback listener; the previous failure cause is not fully established. Preview/Edge/Environment doctor remain unaccepted. Policy now rechecks one-shot and initially allowed requests immediately before execution; focused race tests passed.
+
+Environment creation now reserves a random instance ID in its canonical lease. Legacy ready state assigns one once under the catalog lock. Saved Policy, approval display and audit can carry that ID; production Git resolves and rechecks it before execution. Same-name recreation cannot inherit an identified saved Environment rule. State/Workspace/Core and Capability/controller/Git race tests passed; ordinary Git saved-choice scope/UI and network identity integration remain partial. See [ADR 0025](adr/0025-environment-approval-identity.md).
+
+At `bffc3fd`, test/Ubuntu/Incus passed. Windows run 34136858725 again passed VS Code and project setup, then failed the preview response assertion because PowerShell received byte content for the extensionless marker. The text/plain fixture correction awaits installed validation. Git pending output now includes the trusted creation identity without new user arguments.
+
+At d4aef8d, all four workflows passed. Windows run [34139245378](https://github.com/SLktEx/Hacocoon/actions/runs/34139245378) verified actual VS Code access, project setup save/replay/nonzero/update/clear, Edge headless preview rendering, HTTP preview reuse/close/refusal and Environment doctor prerequisites. This supersedes the pending preview acceptance above; it does not establish default-browser launch or physical-host acceptance. VPN/NRPT remained SKIP without a VPN/private-name fixture.
+
+The production Capability service now resolves every named request to trusted catalog identity and rechecks it before execution. Environment-scoped saved choices require an identity; no new user argument is needed. Ordinary Git saved-choice scope/UI and real network/provider acceptance remain partial.
+
+At 5272434, GHA Go 1.26/1.27 tests/vet, race, release-config, docs, Ubuntu and Incus passed. The test workflow failed only in the orchestrator E2E, whose approval source name had never been created. The fixture now uses ordinary create/delete, and its local E2E passed. Capability saved-scope/recreation and Git transport-refusal E2Es passed.
+
+The local CI entry point passed docs/workflow checks, then failed because WSL lacks pwsh; subsequent stages in that invocation were unexecuted. Its separate Go stage exposed a test-helper deadlock: an empty select could terminate the SIGKILL helper before the parent checked its live lock. A bounded timer preserves the helper until the parent kills it. The actual subprocess/SIGKILL regression passed 20 repetitions and the run package race tests passed. These are fixture fixes, not changes to cleanup authority.

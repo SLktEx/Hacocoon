@@ -32,6 +32,13 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	if p == nil || p.BaseProvider == nil || p.Runtime == nil || spec.Name == "" || spec.WorkspacePath == "" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
+	identityArgs, err := environmentIdentityArgs(spec.InstanceID)
+	if err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
+	if spec.TemporaryWorkspace && (!core.IsTemporaryWorkspacePath(spec.WorkspacePath) || spec.ReadOnly) {
+		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
+	}
 	resources, err := core.ResolveResourceBudget(spec.Resources)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
@@ -70,6 +77,7 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	for _, key := range configKeys {
 		initArgs = append(initArgs, "--config", key+"="+profileConfig[key])
 	}
+	initArgs = append(initArgs, identityArgs...)
 	if _, err := p.runner.Run(ctx, "incus", initArgs...); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}
@@ -150,9 +158,17 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	if err := p.verifyRoutedSandboxAntiSpoof(ctx, ref); err != nil {
 		return cleanup(fmt.Errorf("verify routed sandbox anti-spoofing for %s: %w", ref, err))
 	}
+	if err := p.provisionEnvironmentDNS(ctx, ref); err != nil {
+		return cleanup(err)
+	}
 	if spec.PersistentResource.ID != "" {
 		if _, err := p.runner.Run(ctx, "incus", "exec", ref, "--project", p.project, "--", "/bin/sh", "-c", persistentOCIConfiguration); err != nil {
 			return cleanup(fmt.Errorf("configure Environment-local OCI data roots: %w", err))
+		}
+	}
+	if spec.TemporaryWorkspace {
+		if _, err := p.runner.Run(ctx, "incus", "exec", ref, "--project", p.project, "--", "/bin/sh", "-ec", "test ! -L /workspace; mkdir -p /workspace"); err != nil {
+			return cleanup(fmt.Errorf("prepare temporary Workspace: %w", err))
 		}
 	}
 	if !spec.ReadOnly {
@@ -197,7 +213,15 @@ func (p *SandboxProvider) DeleteEnvironment(ctx context.Context, ref string) err
 	return deleteErr
 }
 
+func (p *SandboxProvider) SupportsTemporaryWorkspace() bool { return true }
+
 func (p *SandboxProvider) addWorkspaceDevice(ctx context.Context, ref string, spec core.EnvironmentRuntimeSpec) error {
+	if spec.TemporaryWorkspace {
+		if !core.IsTemporaryWorkspacePath(spec.WorkspacePath) || spec.ReadOnly {
+			return core.ErrInvalidArgument
+		}
+		return nil
+	}
 	if strings.HasPrefix(spec.WorkspacePath, "managed:") {
 		if p.managedWorkspace == nil {
 			return core.ErrUnsupported

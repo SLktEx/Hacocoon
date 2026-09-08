@@ -1,5 +1,37 @@
 # Client-neutral interaction events
 
+## Ordinary trusted Host subscription
+
+Implemented: normal setup provisions the same-release `haco-notify` companion in
+`haco-host`. Run `haco-notify native` there, or `haco-notify web` for the optional
+browser view. The existing `HACO_CLIENT_MODE=controller` selects the existing
+management socket automatically; no endpoint or audit-path argument is needed.
+A controller failure never falls back to local audit files. The explicit
+`NewReader(root)` API remains available for file-based/offline consumers.
+
+The trusted client receives the existing private `events.stream` records and
+projects them through the same minimized public schema before notification or
+HTTP delivery. Neither raw audit files nor a new control endpoint are mounted
+into Environments. Consumer errors and batch limits preserve resume semantics;
+controller failures return a generic public error and the received prefix.
+Detailed typed corruption diagnostics remain specific to the direct file reader.
+
+Windows installation records its validated distribution identity alongside the
+Windows PATH record and setup projects it into the owned Host. Conflicting
+identities fail closed. Upgrading an older installation requires rerunning the
+Windows installer so the identity is captured before controller setup.
+
+
+The trusted Host can review current pending requests with haco approve. This is a separate private management path; the optional Windows native adapter opens the same CLI. See [pending approval review](design/pending-approval-review.md).
+
+## Approval correlation
+
+Trusted approval prompts and pending Git proposals now carry the same controller-assigned
+`request_id` as interaction events, audit records and the final capability result.
+This is implemented groundwork for notification review; Windows native activation opens the local CLI. The ID grants no authority. Git decisions still use the existing
+trusted management endpoint and proposal ID. No action endpoint or sensitive detail
+is added to the read-only event bridge.
+
 Hacocoon exposes a small, read-only interaction-event contract for client adapters through `github.com/SLktEx/Hacocoon/pkg/interaction`.
 
 This is a **presentation and resume boundary**, not an authorization boundary. Reading an event never approves, executes, retries, or mutates a capability. Approval and execution stay inside the existing Policy/Capability path.
@@ -103,8 +135,51 @@ Native notification text is constructed only from the minimized public interacti
 
 The optional VS Code presentation client lives at [`../clients/vscode-notify/README.md`](../clients/vscode-notify/README.md). It reads the same loopback `/api/v1/events` bridge, persists cursor/dedup state through VS Code `globalState`, and shows normal VS Code notifications.
 
-The extension is not required by `haco-vscode` and does not replace standard Remote-SSH. It is a UI-side observer only; displaying or clicking a notification is not an approval.
+The extension is not required by `haco-vscode` and does not replace standard Remote-SSH. Presentation remains read-only; Review opens a separate local CLI. Displaying or clicking a notification is not an approval.
 
 ## Root selection
 
 `interaction.NewDefaultReader()` follows the same root convention as the local Hacocoon composition: `HACO_ROOT` when set, otherwise `/var/lib/hacocoon`. `NewReader(root)` is available for explicitly scoped adapters and tests.
+
+The optional desktop VS Code Review action now opens the trusted local CLI without answering. Native OS activation remains planned. [Contract](design/pending-approval-review.md).
+
+### Native notification state
+
+The Linux/WSL client holds a process lock for its state file until it exits. A
+second client using the same state stops before reading events or delivering
+notifications; no additional user option is required. The lock file remains in
+place after exit so parallel processes cannot acquire locks on different inodes.
+
+State files must be regular, private, owned by the current user and have one hard
+link. The parent must be an owned directory without group/other write access.
+The client pins this directory for its lifetime, rejects linked/special state
+files, limits input to 128 KiB, and saves through an exclusive random temporary
+file, file sync, atomic rename and directory sync. It never writes through the
+old predictable `.tmp` path. Unsupported platforms fail closed rather than
+silently omitting ownership or process locking. These guarantees prepare for
+background use; Windows automatic startup is implemented below; installed acceptance remains separate.
+
+Notification delivery and cursor persistence are separate operations. A crash between them can repeat a presentation after restart; it cannot approve or replay a capability.
+
+## Automatic Windows notifications
+
+Windows installation enables the owned `hacocoon-notify.service` in trusted Host
+after desktop protocol registration. It starts with the Host, reads only the
+existing controller endpoint and resumes its private cursor. No extra daily
+command is required. `-SkipDesktopReview` disables/stops the owned service as
+well as skipping registration. An unowned or linked unit is rejected, not replaced.
+Linux desktop autostart is not configured by this Windows integration.
+
+First automatic start uses the current event end to avoid replaying historical
+notifications. Existing saved cursors are never reset; pending requests remain
+available through `haco approve`. The optional helper flag `--from-now` implements
+this first-start policy. Notification failures get bounded systemd restarts; the
+notifier never repairs native interop or restarts a controller. Failed startup
+is reported by the installer. Later failure is visible in the service journal.
+
+Companion upgrades stage a new file in a private directory, verify its digest and
+root-owned executable permissions, then atomically replace the installed name.
+A running old executable is not truncated. Cleanup removes only the exact owned
+staging file/directory and reports recovery-required if cleanup fails.
+
+Normal `haco setup` refreshes an already enabled notification service after companion publication. It preserves a disabled service and does not create one before Windows desktop registration.

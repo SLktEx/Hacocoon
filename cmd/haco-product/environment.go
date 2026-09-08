@@ -25,7 +25,7 @@ func runEnvironment(args []string) int {
 
 func environmentCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store>] <name> | list | status [--json] <name> | ssh --key <public-key-file> --port <port> <name> | ssh-config <name> | disconnect <name> <connection-id> | stop <name> | delete <name>")
+		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--port <port>] <name> | ssh-config <name> | disconnect <name> <connection-id> | start <name> | stop <name> | delete <name>")
 		return 2
 	}
 	if len(args) == 0 {
@@ -43,19 +43,20 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	flags.SetOutput(diagnostic)
 	var workspace, keyPath, base, resource string
 	var port int
-	var jsonOutput bool
+	var jsonOutput, noOCI bool
 	switch args[0] {
 	case "create":
+		flags.BoolVar(&noOCI, "no-oci", false, "skip automatic OCI Store copy and attachment")
 		flags.StringVar(&workspace, "workspace", "", "Workspace path on the controller")
 		flags.StringVar(&base, "base", "", "logical Base name")
 		flags.StringVar(&resource, "resource", "", "persistent resource to attach exclusively, e.g. oci:dev")
 	case "ssh":
 		flags.StringVar(&keyPath, "key", "", "client-owned SSH public key file")
-		flags.IntVar(&port, "port", 2222, "loopback port on the WSL Physical Host")
+		flags.IntVar(&port, "port", 0, "Physical Host loopback port (default: automatic)")
 	case "ssh-config":
-	case "status":
-		flags.BoolVar(&jsonOutput, "json", false, "machine-readable status")
-	case "list", "disconnect", "stop", "delete":
+	case "status", "list":
+		flags.BoolVar(&jsonOutput, "json", false, "machine-readable result")
+	case "disconnect", "start", "stop", "delete":
 	default:
 		return usage()
 	}
@@ -81,12 +82,21 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	var result any
 	switch args[0] {
 	case "create":
-		result, err = client.CreateEnvironment(ctx, controlapi.EnvironmentCreateRequest{Name: pos[0], WorkspacePath: workspace, Base: core.BaseName(base), PersistentResource: resource})
+		result, err = client.CreateEnvironment(ctx, controlapi.EnvironmentCreateRequest{Name: pos[0], WorkspacePath: workspace, Base: core.BaseName(base), PersistentResource: resource, SkipDefaultResource: noOCI})
 	case "delete":
 		err = client.DeleteEnvironment(ctx, pos[0])
 		result = "Environment deleted; Workspace and persistent resources retained"
 	case "list":
-		result, err = client.ListEnvironments(ctx)
+		var environments []core.Environment
+		environments, err = client.ListEnvironments(ctx)
+		if err == nil && !jsonOutput {
+			if err := writeEnvironmentList(out, environments); err != nil {
+				fmt.Fprintln(diagnostic, "haco: cannot write result")
+				return 1
+			}
+			return 0
+		}
+		result = environments
 	case "status":
 		var status core.EnvironmentStatus
 		status, err = client.EnvironmentStatus(ctx, pos[0])
@@ -103,6 +113,9 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 				return 0
 			}
 		}
+	case "start":
+		err = client.StartEnvironment(ctx, pos[0])
+		result = "Environment running; Workspace and persistent resources retained"
 	case "stop":
 		err = client.StopEnvironment(ctx, pos[0])
 		result = "Environment stopped; Workspace retained"

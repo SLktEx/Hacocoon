@@ -18,7 +18,7 @@ func productSetupServer(t *testing.T, failure error) string {
 	t.Helper()
 	server := control.NewServer()
 	_ = server.Register(controlapi.MethodSetup, func(_ context.Context, payload json.RawMessage) (any, error) {
-		if len(payload) != 0 {
+		if string(payload) != "{}" {
 			t.Errorf("setup accepted caller parameters: %q", payload)
 		}
 		return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, failure
@@ -54,7 +54,7 @@ func TestProductSetupUsesOnlyController(t *testing.T) {
 
 func TestProductSetupHelpUsageAndFailures(t *testing.T) {
 	t.Setenv("HACO_CONTROL_SOCKET", filepath.Join(t.TempDir(), "missing.sock"))
-	for _, args := range [][]string{{"--help"}, {"--force"}, {"path"}, nil} {
+	for _, args := range [][]string{{"--help"}, {"--force"}, {"first", "second"}, {"--script", ""}, nil} {
 		var stdout, stderr bytes.Buffer
 		code := setup(context.Background(), args, &stdout, &stderr)
 		want := 2

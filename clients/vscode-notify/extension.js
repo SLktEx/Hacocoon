@@ -7,8 +7,13 @@ const https = require('https');
 const maxSeen = 512;
 let timer;
 let stopped = false;
+let reviewPending;
 
 function activate(context) {
+  const { createReview } = require('./review');
+  reviewPending = createReview(vscode, { localUI: context.extension.extensionKind === vscode.ExtensionKind.UI });
+  context.subscriptions.push({ dispose: reviewPending.dispose });
+  context.subscriptions.push(vscode.commands.registerCommand('hacocoon.reviewPending', () => reviewPending()));
   const output = vscode.window.createOutputChannel('Hacocoon Notifications');
   context.subscriptions.push(output);
   stopped = false;
@@ -122,7 +127,12 @@ function present(event, includeCompleted) {
   const details = [event.environment, event.capability, event.action].filter(Boolean).join(' · ');
   switch (event.kind) {
     case 'approval-required':
-      void vscode.window.showWarningMessage(message('Hacocoon approval required', details));
+      void vscode.window.showWarningMessage(message('Hacocoon approval required', details), 'Review').then((choice) => {
+        if (!stopped && choice === 'Review' && reviewPending) {
+          const id = typeof event.request_id === 'string' && /^[a-f0-9]{32}$/.test(event.request_id) ? event.request_id : undefined;
+          reviewPending(id);
+        }
+      });
       break;
     case 'recovery-required':
       void vscode.window.showErrorMessage(message('Hacocoon needs recovery', details || event.code));

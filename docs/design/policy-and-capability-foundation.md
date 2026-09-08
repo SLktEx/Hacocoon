@@ -1,5 +1,7 @@
 # v0.4 — Policy & Capability Foundation
 
+Background controller approval now uses a bounded Standard session queue and the trusted haco approve review path. The capability service owns the actual decision, persistence, audit and execution outcome. See [pending approval review](pending-approval-review.md).
+
 Status: **roadmap contract implemented on `main`.** The fail-closed policy/approval/audit boundary exists; Hacocoon remains pre-1.0 and concrete policy/capability schemas may still change incompatibly.
 
 ## Goal
@@ -89,3 +91,49 @@ Capability names are unique identities. Duplicate or invalid provider names fail
 ## Compatibility note
 
 The fail-closed security invariants matter more than preserving an accidental pre-1.0 schema. Policy, request, audit, or capability formats may break when needed to close bypasses or clarify authority; such changes must remain explicit and auditable.
+
+## Matching-rule precedence
+
+All matching explicit rules participate: `deny` > `require-approval` > `allow`.
+Rule ordering never bypasses a stronger restriction. The default applies only
+when no explicit rule matches. This replaces historical first-match behavior.
+See [ADR 0023](../adr/0023-policy-restriction-precedence.md).
+
+## Saved decisions
+
+Status: **storage, service, controller stream and terminal component implemented;
+ordinary Git saved decisions implemented; notification integration pending**.
+The optional `saved_decisions` array uses the same rule shape, allow, deny or require-approval. It participates alongside `rules` without replacing administrator rules.
+Persistent allow, deny and ask choices have explicit Environment or global scope.
+Persistence keeps every attribute name. A trusted provider may explicitly wildcard
+changing values in the displayed saved scope; opaque parameters are never stored.
+See [ADR 0024](../adr/0024-saved-approval-decisions.md) for durability, audit failure
+and manual editing constraints. The capability stream advertises saved-choice support before
+a client may send a persistent decision. Unsupported peers cannot silently
+downgrade it to one-shot approval. The terminal component offers y/N plus the
+six explicitly labeled scope/decision combinations. Saving ask collects a separate
+y/N answer for this request and keeps later requests subject to approval. The
+ordinary Git queue supports optional approve/deny --save; notifications remain pending.
+
+The maintained Capability E2E now drives the terminal/controller saved choice,
+replays it without a prompt in the same Environment, requires approval in another
+Environment, preserves administrator rules and checks audit parameter redaction.
+This covers the shared approval path. Ordinary Git queue tests also use real local
+Git and a bare remote. See [ADR 0026](../adr/0026-reusable-git-approval-scope.md)
+for reusable scope, persistence receipts and fixed execution.
+
+Every request is reevaluated immediately before provider execution, including one-shot approvals and initially allowed requests. A new deny, unreadable Policy, or newly required approval blocks execution. An in-flight request that already obtained explicit approval may proceed if current Policy still requires approval. This is a boundary recheck, not a transaction with arbitrary manual editors; already-established connections are not revoked by this change.
+
+Saved Environment-specific decisions require and bind to a trusted creation identity. The production service resolves it from the catalog for every named request before Policy evaluation and rechecks the exact snapshot before execution. Unidentified requests expose only one-shot and explicit global choices. A saved name-only rule does not match an identified request; explicit global scope remains global. The Git broker obtains and rechecks the ID from canonical state. General client request payloads cannot assert it. See [ADR 0025](../adr/0025-environment-approval-identity.md); ordinary saved Git scope/UI and real network/provider acceptance remain partial. Repository CLI/controller E2E verifies that replacing the catalog creation identity for the same name requires a new approval; this fixture does not create a real provider resource.
+
+## Trusted configuration editing
+
+Status: **implemented repository slice; installed acceptance pending**.
+`haco config` inspects the same rules used by saved approval and evaluation.
+`--edit` or `--file` replaces a reviewed, revision-bound snapshot through the
+trusted controller. Configuration editing and approval saving share the canonical
+private atomic writer; stale snapshots fail instead of erasing another change.
+See [configuration usage](../reference/configuration.md) and
+[ADR 0027](../adr/0027-revision-bound-policy-editing.md). This adds no Environment
+permission or notification mutation endpoint. D2 notification approval remains
+pending.

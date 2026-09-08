@@ -70,11 +70,12 @@ func (s controllerEnvironmentService) Create(ctx context.Context, spec core.Envi
 		return core.Environment{}, core.ErrInvalidArgument
 	}
 	environment, err := s.client.CreateEnvironment(ctx, controlapi.EnvironmentCreateRequest{
-		Name:          spec.Name,
-		WorkspacePath: spec.WorkspacePath,
-		AccessMode:    spec.AccessMode,
-		Base:          spec.Base,
-		Resources:     spec.Resources,
+		Name:                spec.Name,
+		WorkspacePath:       spec.WorkspacePath,
+		AccessMode:          spec.AccessMode,
+		SkipDefaultResource: spec.SkipDefaultResource,
+		Base:                spec.Base,
+		Resources:           spec.Resources,
 	})
 	return environment, controllerError(err)
 }

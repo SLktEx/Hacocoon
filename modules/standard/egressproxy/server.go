@@ -20,6 +20,7 @@ func (p *Proxy) Serve(ctx context.Context, listener net.Listener) error {
 	defer cancel()
 	connections := &proxyListener{Listener: listener, connections: make(map[*proxyConnection]struct{})}
 	defer connections.Close()
+	ctx = context.WithValue(ctx, proxyConnectionsKey{}, connections)
 	server := &http.Server{
 		Handler:           p,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
@@ -54,11 +55,14 @@ func (w proxyErrorWriter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
+type proxyConnectionsKey struct{}
+
 type proxyListener struct {
 	net.Listener
 	mu          sync.Mutex
 	closed      bool
 	connections map[*proxyConnection]struct{}
+	upstreams   map[*proxyConnection]struct{}
 }
 
 func (l *proxyListener) Accept() (net.Conn, error) {
@@ -92,6 +96,9 @@ func (l *proxyListener) Close() error {
 	for conn := range l.connections {
 		connections = append(connections, conn)
 	}
+	for conn := range l.upstreams {
+		connections = append(connections, conn)
+	}
 	l.mu.Unlock()
 	err := l.Listener.Close()
 	for _, conn := range connections {
@@ -109,6 +116,7 @@ func (c *proxyConnection) Close() error {
 	err := c.Conn.Close()
 	c.owner.mu.Lock()
 	delete(c.owner.connections, c)
+	delete(c.owner.upstreams, c)
 	c.owner.mu.Unlock()
 	return err
 }
@@ -118,4 +126,21 @@ func (c *proxyConnection) CloseWrite() error {
 		return conn.CloseWrite()
 	}
 	return nil
+}
+
+// Track before the first upstream write. A dial completing after shutdown must
+// close immediately instead of depending on asynchronous context callbacks.
+func (l *proxyListener) trackUpstream(conn net.Conn) (net.Conn, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		_ = conn.Close()
+		return nil, net.ErrClosed
+	}
+	if l.upstreams == nil {
+		l.upstreams = make(map[*proxyConnection]struct{})
+	}
+	tracked := &proxyConnection{Conn: conn, owner: l}
+	l.upstreams[tracked] = struct{}{}
+	return tracked, nil
 }

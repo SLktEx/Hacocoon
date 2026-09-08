@@ -42,8 +42,11 @@ func (s *EnvironmentJSONStore) BeginEnvironmentCreate(_ context.Context, lease c
 	}
 	if lease.PersistentResource != (core.PersistentResourceRef{}) {
 		resource, ok := data.PersistentResources[lease.PersistentResource.ID]
-		if !ok || resource.Ref() != lease.PersistentResource || resource.State != "ready" {
+		if !ok || resource.Ref() != lease.PersistentResource || resource.State != "ready" || resource.SourceOnly || (resource.WorkspaceID != "" && resource.WorkspaceID != lease.WorkspaceID) {
 			return fmt.Errorf("persistent resource is unavailable or changed: %w", core.ErrIncompatibleState)
+		}
+		if persistentCopyReserved(data, resource.ID) {
+			return core.ErrStorageBusy
 		}
 		for _, held := range data.Leases {
 			if held.PersistentResource.ID == resource.ID {
@@ -210,6 +213,9 @@ func (s *EnvironmentJSONStore) FinalizeEnvironmentDelete(_ context.Context, envi
 	if err != nil {
 		return err
 	}
+	if snapshotBusy(data, environmentID) {
+		return core.ErrRecoveryRequired
+	}
 	_, environmentExists := data.Environments[environmentID]
 	_, leaseExists := data.Leases[environmentID]
 	if !environmentExists && !leaseExists {
@@ -221,6 +227,9 @@ func (s *EnvironmentJSONStore) FinalizeEnvironmentDelete(_ context.Context, envi
 }
 
 func validateEnvironmentCreateReservation(lease core.WorkspaceLease) error {
+	if lease.InstanceID != "" && !core.ValidEnvironmentInstanceID(lease.InstanceID) {
+		return core.ErrInvalidArgument
+	}
 	if lease.PersistentResource != (core.PersistentResourceRef{}) && !core.ValidPersistentResourceRef(lease.PersistentResource) {
 		return core.ErrInvalidArgument
 	}
@@ -271,7 +280,7 @@ func validateSameLeaseReservation(existing, next core.WorkspaceLease) error {
 	if existing.PersistentResource != next.PersistentResource {
 		return core.ErrIncompatibleState
 	}
-	if existing.EnvironmentID != next.EnvironmentID || existing.WorkspaceID != next.WorkspaceID || existing.SourcePath != next.SourcePath || existing.AccessMode != next.AccessMode || existing.Owner != next.Owner || !existing.AcquiredAt.Equal(next.AcquiredAt) {
+	if existing.InstanceID != next.InstanceID || existing.EnvironmentID != next.EnvironmentID || existing.WorkspaceID != next.WorkspaceID || existing.SourcePath != next.SourcePath || existing.AccessMode != next.AccessMode || existing.Owner != next.Owner || !existing.AcquiredAt.Equal(next.AcquiredAt) {
 		return fmt.Errorf("workspace lease reservation for environment %q changed identity during lifecycle transition: %w", next.EnvironmentID, core.ErrIncompatibleState)
 	}
 	return nil

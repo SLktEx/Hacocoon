@@ -5,6 +5,8 @@ Installed by the Windows installer and invoked by controller-owned setup. No pro
 Environment devices are modified. Windows continues to enforce its user's ACLs.
 """
 import json
+import hashlib
+import inspect
 import os
 from pathlib import Path
 import re
@@ -15,6 +17,7 @@ import subprocess
 import tempfile
 
 PATH_RECORD = Path('/etc/hacocoon/windows-path.json')
+DISTRIBUTION_RECORD = Path('/etc/hacocoon/windows-distribution.json')
 GUEST_LINUX_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 
 
@@ -53,6 +56,38 @@ def path_record(drives, capture=False):
     return windows_paths(':'.join(paths), drives)
 
 
+def distribution_record(capture=False):
+    if capture:
+        name = os.environ.get('WSL_DISTRO_NAME', '')
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}', name):
+            raise ValueError('invalid WSL distribution identity; rerun Windows installer')
+        parent = DISTRIBUTION_RECORD.parent
+        if parent.is_symlink() or parent.stat().st_uid != 0 or parent.stat().st_mode & 0o022:
+            raise ValueError('unsafe Windows distribution directory')
+        if DISTRIBUTION_RECORD.exists() or DISTRIBUTION_RECORD.is_symlink():
+            if distribution_record().lower() != name.lower():
+                raise ValueError('Windows distribution identity mismatch')
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', dir=parent, delete=False) as stream:
+                temporary = stream.name
+                json.dump(name, stream)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, DISTRIBUTION_RECORD)
+        finally:
+            if temporary and os.path.exists(temporary):
+                os.unlink(temporary)
+        return name
+    info = DISTRIBUTION_RECORD.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022 or info.st_size > 256:
+        raise ValueError('unsafe Windows distribution record; rerun Windows installer')
+    name = json.loads(DISTRIBUTION_RECORD.read_text())
+    if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}', name):
+        raise ValueError('invalid Windows distribution record')
+    return name
+
+
 def drive_mounts(mounts):
     """Only actual WSL drive roots, never an arbitrary /mnt directory."""
     result = []
@@ -76,11 +111,14 @@ def desired_devices(drives):
     return devices
 
 
-def plan(config, devices):
+def plan(config, devices, distribution=None):
     if config.get("config", {}).get("user.hacocoon.role") != "trusted-host":
         raise ValueError("refusing an unowned haco-host")
     if config.get("profiles"):
         raise ValueError("haco-host must use explicit devices without profiles; run haco setup")
+    current_distribution = config.get("config", {}).get("environment.WSL_DISTRO_NAME", "")
+    if distribution and current_distribution and current_distribution.lower() != distribution.lower():
+        raise ValueError("incompatible WSL distribution identity")
     current = config.get("devices", {})
     for name, desired in devices.items():
         if name in current and current[name] != desired:
@@ -138,6 +176,120 @@ test -S /run/WSL/1_interop
 """
 
 
+def notification_executable_revision(path=Path('/usr/local/bin/haco-notify')):
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1 or info.st_mode & 0o022 or not 0 < info.st_size <= 128 * 1024 * 1024:
+            raise ValueError('unsafe notification executable')
+        digest = hashlib.sha256()
+        remaining = info.st_size
+        while remaining:
+            chunk = stream.read(min(remaining, 1024 * 1024))
+            if not chunk: raise ValueError('notification executable changed')
+            digest.update(chunk)
+            remaining -= len(chunk)
+        final = os.fstat(stream.fileno())
+        if stream.read(1) or final.st_size != info.st_size or final.st_mtime_ns != info.st_mtime_ns:
+            raise ValueError('notification executable changed')
+        return digest.hexdigest()
+
+
+def notification_unit(paths, distribution, revision):
+    if not re.fullmatch(r'[0-9a-f]{64}', revision):
+        raise ValueError('invalid notification executable revision')
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}', distribution):
+        raise ValueError('invalid notification distribution')
+    def setting(value):
+        if any(ord(c) < 32 or ord(c) == 127 for c in value):
+            raise ValueError('invalid notification environment')
+        return '"' + value.replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%') + '"'
+    environment = [
+        'HOME=/root', 'HACO_CLIENT_MODE=controller', 'HACO_CONTROL_SOCKET=/var/lib/hacocoon-control.sock',
+        'WSL_INTEROP=/run/WSL/1_interop', 'WSL_DISTRO_NAME=' + distribution,
+        'PATH=' + GUEST_LINUX_PATH + ':' + ':'.join(paths),
+    ]
+    return ('# Hacocoon managed native notifications\n# Executable SHA256: ' + revision + '\n[Unit]\n'
+            'Description=Hacocoon desktop notifications\nAfter=systemd-tmpfiles-setup.service\n'
+            'StartLimitIntervalSec=60\nStartLimitBurst=5\n[Service]\nType=simple\n'
+            'ExecStart=/usr/local/bin/haco-notify native --from-now\n'
+            'User=root\nUMask=0077\n'
+            'Environment=' + ' '.join(setting(value) for value in environment) + '\n'
+            'Restart=on-failure\nRestartSec=5\nStandardOutput=null\nStandardError=journal\n'
+            '[Install]\nWantedBy=multi-user.target\n')
+
+
+def install_notification_unit(unit, enabled, directory=Path('/etc/systemd/system'), run=subprocess.run):
+    marker = '# Hacocoon managed native notifications\n'
+    if not unit.startswith(marker) or enabled is not None and not isinstance(enabled, bool):
+        raise ValueError('invalid notification service request')
+    info = directory.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+        raise ValueError('unsafe notification service directory')
+    target = directory / 'hacocoon-notify.service'
+    exists = target.exists() or target.is_symlink()
+    previous = None
+    if exists:
+        info = target.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1 or info.st_mode & 0o022 or info.st_size > 32768:
+            raise ValueError('unsafe existing notification service')
+        previous = target.read_text()
+        if not previous.startswith(marker):
+            raise ValueError('notification service is owned by another configuration')
+    if enabled is None:
+        if not exists:
+            return
+        state = run(['systemctl', 'is-enabled', '--quiet', 'hacocoon-notify.service'], check=False)
+        if state.returncode == 1:
+            return
+        if state.returncode != 0:
+            raise subprocess.CalledProcessError(state.returncode, 'inspect notification service')
+        enabled = True
+    if not enabled:
+        if exists:
+            run(['systemctl', 'disable', '--now', 'hacocoon-notify.service'], check=True)
+        return
+    if previous == unit:
+        active = run(['systemctl', 'is-active', '--quiet', 'hacocoon-notify.service'], check=False)
+        if active.returncode == 0:
+            run(['systemctl', 'enable', 'hacocoon-notify.service'], check=True)
+            return
+        if active.returncode != 3:
+            raise subprocess.CalledProcessError(active.returncode, 'inspect notification activity')
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', dir=directory, delete=False) as stream:
+            temporary = stream.name
+            os.fchmod(stream.fileno(), 0o644)
+            stream.write(unit)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, target)
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
+    run(['systemctl', 'daemon-reload'], check=True)
+    # A new/inactive unit can be garbage-collected between systemctl calls.
+    # Only a retained failed unit has failure state to reset.
+    failed = run(['systemctl', 'is-failed', '--quiet', 'hacocoon-notify.service'], check=False)
+    if failed.returncode == 0:
+        run(['systemctl', 'reset-failed', 'hacocoon-notify.service'], check=True)
+    elif failed.returncode != 1:
+        raise subprocess.CalledProcessError(failed.returncode, 'inspect notification failure state')
+    run(['systemctl', 'enable', 'hacocoon-notify.service'], check=True)
+    run(['systemctl', 'restart', 'hacocoon-notify.service'], check=True)
+    run(['systemctl', 'is-active', '--quiet', 'hacocoon-notify.service'], check=True)
+
+
+def configure_notifications(incus, paths, distribution, enabled):
+    unit = notification_unit(paths, distribution, notification_executable_revision())
+    program = ('from pathlib import Path\nimport os, stat, tempfile, subprocess\n' +
+               inspect.getsource(install_notification_unit) +
+               '\ninstall_notification_unit(' + repr(unit) + ', ' + repr(enabled) + ')\n')
+    subprocess.run(incus + ['exec', 'haco-host', '--disable-stdin=false', '--', 'python3', '-I', '-'],
+                   input=program, text=True, check=True)
+
+
 def main():
     if os.geteuid() != 0 or "microsoft" not in Path("/proc/sys/kernel/osrelease").read_text().lower():
         raise ValueError("run as root on the WSL Physical Host")
@@ -152,17 +304,20 @@ def main():
             raise ValueError("refusing a redirected drive root")
     if sys.argv[1:] == ['--capture-path']:
         path_record(drives, capture=True)
+        distribution_record(capture=True)
         print('Recorded only WSL-converted Windows PATH entries')
         return
-    if sys.argv[1:]:
-        raise ValueError('usage: setup-wsl-host-interop.py [--capture-path]')
+    notification_mode = sys.argv[1:]
+    if notification_mode not in ([], ['--notifications=on'], ['--notifications=off'], ['--notifications=refresh']):
+        raise ValueError('invalid WSL setup mode')
     paths = path_record(drives)
+    distribution = distribution_record()
     ensure_native_binfmt()
     incus = ["incus", "--project", "hacocoon"]
     inspect = ["incus", "query", "/1.0/instances/haco-host?project=hacocoon"]
     config = json.loads(subprocess.check_output(inspect))
     devices = desired_devices(drives)
-    missing = plan(config, devices)
+    missing = plan(config, devices, distribution)
     for name in missing:
         device = devices[name]
         subprocess.run(incus + ["config", "device", "add", "haco-host", name, device["type"]] + [k + "=" + v for k, v in device.items() if k != "type"], check=True)
@@ -172,14 +327,18 @@ def main():
                            '/bin/sh', '-s'], input=SOCKET_LAYOUT, text=True, check=True)
     subprocess.run(incus + ["config", "set", "haco-host", "environment.WSL_INTEROP=/run/WSL/1_interop"], check=True)
     subprocess.run(incus + ["config", "set", "haco-host", "environment.PATH=" + GUEST_LINUX_PATH + ':' + ':'.join(paths)], check=True)
+    subprocess.run(incus + ["config", "set", "haco-host", "environment.WSL_DISTRO_NAME=" + distribution], check=True)
     profile = '# Hacocoon managed Windows PATH; WSL already converted these entries.\n'
+    profile += 'export WSL_DISTRO_NAME=' + shlex.quote(distribution) + '\n'
     profile += 'export WSL_INTEROP=/run/WSL/1_interop\n'
     profile += 'export PATH="$PATH":' + shlex.quote(':'.join(paths)) + '\n'
     subprocess.run(incus + ['exec', 'haco-host', '--disable-stdin=false', '--', '/bin/sh', '-c',
                    'umask 022; cat > /etc/profile.d/hacocoon-windows.sh'], input=profile, text=True, check=True)
     verified = json.loads(subprocess.check_output(inspect))
-    if plan(verified, devices):
+    if plan(verified, devices, distribution) or verified.get("config", {}).get("environment.WSL_DISTRO_NAME") != distribution:
         raise ValueError("trusted Host interop devices did not converge")
+    if notification_mode:
+        configure_notifications(incus, paths, distribution, None if notification_mode == ['--notifications=refresh'] else notification_mode == ['--notifications=on'])
     print("Trusted haco-host Windows access enabled: " + ", ".join(drives))
     print("Open a new haco-host shell; existing WSLInterop supports direct tool.exe execution.")
 

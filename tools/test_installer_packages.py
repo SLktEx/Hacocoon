@@ -29,6 +29,10 @@ with tempfile.TemporaryDirectory() as temp:
         archive = dist / f"haco_linux_{arch}.tar.gz"
         archive.write_bytes(f"fake-{arch}-archive\n".encode())
         checksum_lines.append(f"{digest(archive)}  {archive.name}\n")
+        native = dist / f"haco_review_windows_{arch}.zip"
+        with zipfile.ZipFile(native, "w") as zf:
+            zf.writestr("haco-review.exe", f"fake-review-{arch}".encode())
+        checksum_lines.append(f"{digest(native)}  {native.name}\n")
     (dist / "checksums.txt").write_text("".join(checksum_lines), encoding="utf-8")
 
     subprocess.run(
@@ -69,6 +73,8 @@ with tempfile.TemporaryDirectory() as temp:
             expected = [
                 "install-windows.bat",
                 "install-windows.ps1",
+                "windows-review.ps1",
+                "haco-review.exe",
                 "install.sh",
                 "setup-wsl-host-interop.py",
                 "incus-boot-guard.py",
@@ -83,7 +89,8 @@ with tempfile.TemporaryDirectory() as temp:
                     raise SystemExit(f"Windows {arch} package unexpectedly contains native haco launcher {forbidden}")
             if f"haco_linux_{other}.tar.gz" in names:
                 raise SystemExit(f"Windows {arch} package contains the wrong architecture")
-            if zf.read("checksums.txt").decode() != checksum_line:
+            native_checksum = hashlib.sha256(f"fake-review-{arch}".encode()).hexdigest() + "  haco-review.exe\n"
+            if zf.read("checksums.txt").decode() != checksum_line + native_checksum:
                 raise SystemExit(f"Windows {arch} inner checksum mismatch")
             if zf.read("VERSION").decode() != VERSION + "\n":
                 raise SystemExit(f"Windows {arch} version mismatch")

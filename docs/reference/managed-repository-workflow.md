@@ -81,7 +81,8 @@ registered Environment/repository, for example:
       "environment": "sample-dev", "resource": "https://github.com/OWNER/REPO.git",
       "attributes": {
         "repository": "sample", "remote": "https://github.com/OWNER/REPO.git",
-        "target_ref": "refs/heads/my-branch", "old_oid": "*", "new_oid": "*", "operation_id": "*"
+        "target_ref": "refs/heads/my-branch", "old_oid": "*", "new_oid": "*", "operation_id": "*",
+        "update_kind": "fast-forward"
       },
       "decision": "require-approval", "reason": "Review the fixed push proposal"
     }
@@ -161,6 +162,30 @@ that pending request. A denial must leave the remote unchanged; a subsequent
 ordinary `git push` creates a new proposal. Verify the resulting upstream OID
 using authenticated Git or GitHub from the trusted side.
 
+## Installed saved-approval acceptance
+
+The locally packaged and normally installed `eb16300b6700` build passed Windows
+native SSH and ordinary guest Git push through the Host broker on 2026-09-08.
+The only upstream was `https://github.com/SLktEx/Hacocoon-test.git`, branch
+`codex/stage-b-b-first-20260906`. `haco git approve --save ask-env <id>` returned
+`saved_choice: ask-environment`, successful execution and complete audit; the
+protected Policy file contained the matching creation identity and fixed ref.
+Remote verification observed `3ca59c3a0b56f2c05287c289f17ae9f0ce41b416`.
+
+After removing the temporary administrator push rule, the saved ask rule alone
+prompted for the next commit, `26a7b664214242d663520d10f1f4a111a1dccaa8`.
+Ordinary `haco git deny <id>` made push exit 1 as expected; the remote stayed at
+`3ca59c3a0b56f2c05287c289f17ae9f0ce41b416`. This is successful denial acceptance,
+not a successful second push. Other saved choices have repository integration
+coverage, not this installed GitHub acceptance.
+
+The test Environment was canonically stopped/deleted. Its Workspace and
+repository `git-save-eb16300` retain the unpushed second commit. Test-only
+Policy rules, saved decision and SSH entry/pin were removed; the original eight
+rules and default deny were preserved. Initial SSH setup failed without package
+egress permission; it passed after temporary, creation-bound Ubuntu archive
+permissions were added. No guest received reusable GitHub credentials.
+
 ## Select a Base
 
 Use `haco base list` and `haco env create --base haco/ubuntu-26.04
@@ -188,3 +213,47 @@ recovery and automatic SSH configuration are deferred.
 
 For manual Windows native OpenSSH, including client-owned keys and trusted
 host-key pinning, use the [Windows SSH procedure](windows-environment-ssh.md).
+
+To return to the same work, use `haco env start sample-dev`, then reconnect SSH.
+The existing root filesystem, Workspace and optional Store remain attached.
+Repeated start is safe. A recovery-required ownership or network error must be
+resolved before reconnecting; start never disables isolation to proceed.
+
+## Find the development target
+
+`haco env list` shows Environment names, their Workspace and Base. Use
+`haco open sample-dev` to connect and `haco env status sample-dev` to inspect its
+current runtime state. Scripts that consume the registered list use
+`haco env list --json`.
+
+## Remember a reviewed operation
+
+Review `haco git pending`: current old/new commits and summary are separate from
+`saved_scope`, which fixes future repository, remote, branch and operation.
+
+```bash
+haco git approve --save env <id>
+haco git approve --save all <id>
+haco git deny --save env <id>
+haco git approve --save ask-env <id>
+```
+
+`env` applies to this creation only; `all` explicitly includes other/future
+Environments. `deny --save all` saves global denial. `ask-env` / `ask-all` save
+require-approval while approve/deny answers the current request separately.
+Omitting --save changes no Policy.
+
+Saved allow never overrides administrator deny/require-approval. If remembering
+ordinary approvals is intended, use default require-approval for unspecified
+requests instead of a mandatory ask rule on that scope; preserve required
+restrictions. The example above intentionally always asks.
+
+The same private administrator-owned policy.json stores generated saved_decisions.
+Edit/remove the matching entry there to revoke it. Policy is read on each request
+and rechecked before execution; invalid files fail closed. A saved_choice receipt
+requires durable storage and audit. Later execution/transport failure may leave
+Policy saved; inspect Policy and remote before retrying.
+
+Existing hand-written push rules need update_kind=fast-forward, as shown above.
+Rules without that field fail closed. The saved branch scope never grants force,
+deletion or branch creation. See [ADR 0026](../adr/0026-reusable-git-approval-scope.md).

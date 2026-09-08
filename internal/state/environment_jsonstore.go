@@ -12,10 +12,11 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const environmentStateVersion = 4
+const environmentStateVersion = 5
 const previousEnvironmentStateVersion = 2
 
 type environmentFileState struct {
+	Snapshots           map[string]core.Snapshot           `json:"snapshots,omitempty"`
 	PersistentResources map[string]core.PersistentResource `json:"persistent_resources,omitempty"`
 	Version             int                                `json:"version"`
 	Environments        map[string]core.Environment        `json:"environments"`
@@ -270,6 +271,9 @@ func (s *EnvironmentJSONStore) DeleteEphemeralRun(_ context.Context, environment
 }
 
 func validateEphemeralRun(run core.EphemeralRun) error {
+	if run.TemporaryWorkspace != nil && !core.ValidTemporaryWorkspace(*run.TemporaryWorkspace) {
+		return core.ErrInvalidArgument
+	}
 	if run.EnvironmentID == "" || run.CreatedAt.IsZero() {
 		return core.ErrInvalidArgument
 	}
@@ -283,6 +287,7 @@ func validateEphemeralRun(run core.EphemeralRun) error {
 
 func newEnvironmentFileState() environmentFileState {
 	return environmentFileState{
+		Snapshots:           map[string]core.Snapshot{},
 		PersistentResources: map[string]core.PersistentResource{},
 		Version:             environmentStateVersion,
 		Environments:        map[string]core.Environment{},
@@ -313,6 +318,9 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 	if data.EphemeralRuns == nil {
 		data.EphemeralRuns = map[string]core.EphemeralRun{}
 	}
+	if data.Snapshots == nil {
+		data.Snapshots = map[string]core.Snapshot{}
+	}
 	if data.PersistentResources == nil {
 		data.PersistentResources = map[string]core.PersistentResource{}
 	}
@@ -323,10 +331,15 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 }
 
 func normalizeEnvironmentState(data *environmentFileState) error {
-	if data.Version != 0 && data.Version != 3 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
+	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
 		return fmt.Errorf("environment state version %d is unsupported (want %d): %w", data.Version, environmentStateVersion, core.ErrIncompatibleState)
 	}
 
+	for id, snapshot := range data.Snapshots {
+		if data.Version != environmentStateVersion || id != snapshot.ID || validateSnapshot(snapshot) != nil {
+			return core.ErrIncompatibleState
+		}
+	}
 	for name, environment := range data.Environments {
 		if environment.Name == "" {
 			environment.Name = name

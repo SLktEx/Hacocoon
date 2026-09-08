@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/sshkey"
 )
 
 const managedSSHProvisionScript = `
@@ -52,9 +53,11 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return core.ClientConnection{}, err
 	}
-	if req.HostPort < 1 || req.HostPort > 65535 {
-		return core.ClientConnection{}, core.ErrInvalidArgument
+	port, err := chooseLoopbackPort(ctx, req.HostPort)
+	if err != nil {
+		return core.ClientConnection{}, err
 	}
+	req.HostPort = port
 	id := fmt.Sprintf("ssh-%d", req.HostPort)
 	if err := r.addLoopbackProxy(ctx, ref, id, req.HostPort, 22); err != nil {
 		return core.ClientConnection{}, err
@@ -68,14 +71,40 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 		return core.ClientConnection{}, errors.Join(fmt.Errorf("prepare SSH in %s: %w", ref, err), cleanupErr)
 	}
 
+	// Retrieve only the public key through the trusted provider channel. Never
+	// use a network keyscan as authority for the identity of this Environment.
+	result, keyErr := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "cat", "--", "/etc/ssh/ssh_host_ed25519_key.pub")
+	var hostKey string
+	if result.StdoutTruncated {
+		keyErr = core.ErrIncompatibleState
+	}
+	if keyErr == nil {
+		hostKey, keyErr = sshkey.NormalizePublicKey(result.Stdout)
+		if keyErr != nil {
+			keyErr = core.ErrIncompatibleState
+		}
+		if keyErr == nil && !strings.HasPrefix(hostKey, "ssh-ed25519 ") {
+			keyErr = core.ErrIncompatibleState
+		}
+	}
+	if keyErr != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cleanupTimeout)
+		defer cancel()
+		cleanupErr := r.RevokeSSHAccess(cleanupCtx, ref, id)
+		if cleanupErr != nil {
+			cleanupErr = errors.Join(cleanupErr, core.ErrRecoveryRequired)
+		}
+		return core.ClientConnection{}, errors.Join(fmt.Errorf("verify SSH host public key: %w", keyErr), cleanupErr)
+	}
 	return core.ClientConnection{
-		ID:         id,
-		Kind:       "ssh",
-		Host:       "127.0.0.1",
-		Port:       req.HostPort,
-		TargetPort: 22,
-		User:       "root",
-		Command:    fmt.Sprintf("ssh -p %d root@127.0.0.1", req.HostPort),
+		ID:            id,
+		HostPublicKey: hostKey,
+		Kind:          "ssh",
+		Host:          "127.0.0.1",
+		Port:          req.HostPort,
+		TargetPort:    22,
+		User:          "root",
+		Command:       fmt.Sprintf("ssh -p %d root@127.0.0.1", req.HostPort),
 	}, nil
 }
 
@@ -168,4 +197,34 @@ func parseTCPProxyEndpoint(endpoint string) (string, int, error) {
 		return "", 0, fmt.Errorf("invalid port %q: %w", rawPort, core.ErrInvalidArgument)
 	}
 	return host, port, nil
+}
+
+// chooseLoopbackPort runs on the Physical Host where this Incus integration owns
+// proxy listeners. The probe is not a reservation: Incus must still bind the
+// selected port before any guest credentials are changed. A concurrent bind
+// fails the operation; never treat the probe as proof of successful access.
+func chooseLoopbackPort(ctx context.Context, port int) (int, error) {
+	if port < 0 || port > 65535 {
+		return 0, core.ErrInvalidArgument
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if port != 0 {
+		return port, nil
+	}
+	var lc net.ListenConfig
+	listener, err := lc.Listen(ctx, "tcp4", "127.0.0.1:0")
+	if err != nil {
+		return 0, fmt.Errorf("choose loopback port: %w", err)
+	}
+	address, ok := listener.Addr().(*net.TCPAddr)
+	closeErr := listener.Close()
+	if closeErr != nil {
+		return 0, fmt.Errorf("release loopback port probe: %w", closeErr)
+	}
+	if !ok || address.Port < 1 || address.Port > 65535 || !address.IP.IsLoopback() {
+		return 0, core.ErrIncompatibleState
+	}
+	return address.Port, nil
 }

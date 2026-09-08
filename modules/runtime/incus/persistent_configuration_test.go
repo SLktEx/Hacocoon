@@ -27,6 +27,7 @@ case "$*" in
     count=0; if test -f "$COUNT"; then count=$(cat "$COUNT"); fi
     count=$((count+1)); printf '%s' "$count" > "$COUNT"
     test "$MODE" != timeout && test "$count" -ge 3 ;;
+  'is-active --quiet docker.service docker.socket hacocoon-docker.service hacocoon-docker.socket') exit 3 ;;
   'is-active --quiet containerd') test "$MODE" = active ;;
   'stop containerd'|'daemon-reload'|'start containerd') printf '%s\n' "$*" >> "$TRACE" ;;
   *) exit 99 ;;
@@ -37,7 +38,8 @@ esac
 					t.Fatal(err)
 				}
 			}
-			script := strings.ReplaceAll(persistentOCIConfiguration, "/etc/", root+"/etc/")
+			script := strings.ReplaceAll(strings.ReplaceAll(persistentOCIConfiguration, "/etc/", root+"/etc/"), "/var/lib/docker", root+"/var/lib/docker")
+			script = strings.ReplaceAll(script, "info.st_uid != 0 or ", "") // non-root Linux fixture; production retains uid validation
 			command := exec.Command("/bin/sh", "-c", script)
 			command.Env = []string{"PATH=" + tools + ":/usr/bin:/bin", "MODE=" + mode, "COUNT=" + filepath.Join(root, "count"), "TRACE=" + filepath.Join(root, "trace")}
 			output, err := command.CombinedOutput()

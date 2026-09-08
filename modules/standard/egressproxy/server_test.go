@@ -190,3 +190,28 @@ func TestTrackedConnectionPreservesTCPHalfClose(t *testing.T) {
 		t.Fatalf("half-close killed reverse traffic: %v", err)
 	}
 }
+
+func TestProxyShutdownSynchronouslyClosesUpstreamsAndRejectsLateDials(t *testing.T) {
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tracked := &proxyListener{Listener: listener, connections: make(map[*proxyConnection]struct{})}
+	conn, peer := net.Pipe()
+	defer peer.Close()
+	upstream, err := tracked.trackUpstream(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer upstream.Close()
+	if err := tracked.Close(); err != nil {
+		t.Fatal(err)
+	}
+	assertClosed(t, peer)
+	late, latePeer := net.Pipe()
+	defer latePeer.Close()
+	if _, err := tracked.trackUpstream(late); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("accepted late upstream: %v", err)
+	}
+	assertClosed(t, latePeer)
+}

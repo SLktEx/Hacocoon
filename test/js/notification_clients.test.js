@@ -102,14 +102,17 @@ function browserHarness({ storage = {}, batch, completed = false }) {
   return { values, notifications, fetches, scheduled, status, events };
 }
 
-function extensionHarness({ batch, state = {}, endpoint = 'http://127.0.0.1:18081' } = {}) {
+function extensionHarness({ batch, state = {}, endpoint = 'http://127.0.0.1:18081', choice } = {}) {
   const messages = [];
   const output = [];
   const requests = [];
   const scheduled = [];
   const stateMap = new Map(Object.entries(state));
 
+  const reviews = [];
   const vscode = {
+    ExtensionKind: { UI: 1 },
+    commands: { registerCommand() { return { dispose() {} }; } },
     window: {
       createOutputChannel() {
         return {
@@ -120,7 +123,7 @@ function extensionHarness({ batch, state = {}, endpoint = 'http://127.0.0.1:1808
       },
       showWarningMessage(...args) {
         messages.push({ kind: 'warning', args });
-        return Promise.resolve(undefined);
+        return Promise.resolve(choice);
       },
       showErrorMessage(...args) {
         messages.push({ kind: 'error', args });
@@ -170,6 +173,7 @@ function extensionHarness({ batch, state = {}, endpoint = 'http://127.0.0.1:1808
     module,
     exports: module.exports,
     require(name) {
+      if (name === './review') return { createReview() { const review = (id) => reviews.push(id); review.dispose = () => {}; return review; } };
       if (name === 'vscode') return vscode;
       if (name === 'http' || name === 'https') return transport;
       return require(name);
@@ -186,6 +190,7 @@ function extensionHarness({ batch, state = {}, endpoint = 'http://127.0.0.1:1808
   vm.runInNewContext(extensionSource, sandbox, { filename: 'clients/vscode-notify/extension.js' });
 
   const context = {
+    extension: { extensionKind: 1 },
     subscriptions: { push() {} },
     globalState: {
       get(key, fallback) {
@@ -196,7 +201,7 @@ function extensionHarness({ batch, state = {}, endpoint = 'http://127.0.0.1:1808
       }
     }
   };
-  return { extension: module.exports, context, stateMap, messages, output, requests, scheduled };
+  return { extension: module.exports, context, stateMap, messages, output, requests, scheduled, reviews };
 }
 
 test('browser client resumes, deduplicates, and never renders extra sensitive fields', async () => {
@@ -283,7 +288,8 @@ test('VS Code client resumes, deduplicates, and keeps notifications presentation
   assert.match(harness.requests[0], /offset=17/);
   const eventMessages = harness.messages.filter((entry) => entry.args[0] === 'Hacocoon approval required — dev · git.push · push');
   assert.equal(eventMessages.length, 1);
-  assert.equal(eventMessages[0].args.length, 1, 'notification must not expose an approval action button');
+  assert.equal(eventMessages[0].args[1], 'Review', 'notification only opens trusted review');
+  assert.equal(harness.reviews.length, 0, 'observing a notification cannot open or decide a request');
   assert.doesNotMatch(JSON.stringify(harness.messages), /TOP-SECRET|approval_token/);
   assert.equal(harness.stateMap.get(`hacocoon.notifications.cursor.v1:${origin}`), 50);
   assert.deepEqual(harness.stateMap.get(`hacocoon.notifications.seen.v1:${origin}`), ['old:event', 'new:event']);
@@ -307,4 +313,14 @@ test('VS Code client stops polling when the bridge reports source corruption', a
   assert.ok(harness.messages.some((entry) => entry.kind === 'warning' && /stream paused: source-corruption/.test(entry.args[0])));
   assert.ok(harness.output.some((line) => /interaction stream paused: source-corruption/.test(line)));
   assert.equal(harness.scheduled.length, 0);
+});
+
+test('VS Code Review click opens only the correlated trusted request without deciding', async () => {
+  const id = 'a'.repeat(32);
+  const h = extensionHarness({ choice: 'Review', batch: { events: [
+    { event_id: 'event', request_id: id, kind: 'approval-required', next_offset: 1 }
+  ], next_offset: 1 } });
+  h.extension.activate(h.context); await settle();
+  assert.deepEqual(h.reviews, [id]);
+  assert.equal(h.requests.length, 1, 'Review must not POST to the public event bridge');
 });

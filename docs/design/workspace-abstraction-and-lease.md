@@ -77,3 +77,80 @@ and absence before removing its catalog entry. The initial optional plugin is
 [Persistent OCI Store](persistent-oci-store.md); see
 [ADR 0014](../adr/0014-persistent-managed-resources.md). This does not change the
 independent Git metadata or Incus-owned COW contract of managed Workspaces.
+
+## Resume retained work
+
+Status: implemented. `haco env start <name>` retains the Environment runtime,
+Workspace and optional persistent Store. Start requires a matching active lease;
+recovery-required aggregates cannot resume. Create/start/stop/delete serialize
+by Environment identity before provider actions, as specified in
+[ADR 0016](../adr/0016-resume-owned-environments.md). Incus verifies owned network
+isolation before start. Missing guards fail closed; reboot recovery is partial.
+
+## Default persistent-resource initialization
+
+Status: implemented optional initializer. Environment creation resolves its
+default resource under the existing lifecycle locks and includes the resulting
+identity in the canonical aggregate reservation. Resources bound to a Workspace
+cannot be attached to a different Workspace; source-only publications cannot be
+attached directly at all. Opt-out and explicit selection bypass the initializer.
+See [ADR 0017](../adr/0017-default-workspace-resource-initialization.md).
+
+Creation now persists a random Environment instance ID in the canonical lease reservation. It survives resume and differs after same-name recreation. Legacy ready aggregates receive an ID once under the catalog lock; provider resources are unchanged. See [approval identity](../adr/0025-environment-approval-identity.md).
+
+
+## Resume and recreate an external Workspace
+
+Existing commands cover this flow; recreation does not need a separate public
+command. For an external controller-side Workspace:
+
+```sh
+haco env create --workspace /home/hacocoon/dev --no-oci dev
+haco env stop dev
+haco env start dev
+```
+
+Stop/start resumes the same Environment filesystem and Workspace. Guest temporary
+directories such as /tmp may be cleared by the guest OS at boot.
+
+Before deleting, save any needed Environment-only files into the Workspace.
+Deletion removes the Environment filesystem. Recreate with the same Workspace
+and chosen Base only when losing those Environment-only changes is intended:
+
+```sh
+haco env stop dev
+haco env delete dev
+haco env create --workspace /home/hacocoon/dev --no-oci dev
+```
+
+This explicit example opts out of OCI so its acceptance scope is clear; normal
+creation still initializes OCI by default. Workspace files, including untracked
+and uncommitted file contents, survive deletion. This flow is not a snapshot,
+does not preserve arbitrary guest configuration, and does not test managed Git
+metadata, OCI restoration or Base revision migration.
+
+Dedicated WSL acceptance passed with product 093ed159b80e and ordinary controller
+APIs: a guest-written external read/write Workspace file and /root file survived
+stop/start; recreation preserved the Workspace identity/data and removed the
+Environment-only file. Fixture m1-egress-708dfbc120260908 was canonically deleted;
+provider inventory and the temporary Workspace were verified absent afterward.
+The initial m1-egress-708dfbc020260908 attempt failed resume validation because
+the test placed its Environment marker in /tmp. That fixture was also cleaned;
+the corrected permanent-filesystem test passed. This is a supported baseline,
+not completion of roadmap E2-E5.
+
+The existing Windows installer E2E now runs check-lifecycle through the same
+installed acceptance tool. Its phase/identity verifier regressions and local CI
+passed; new-head GHA is pending.
+
+The external-Workspace acceptance fixture explicitly skips automatic OCI attachment
+on both create and recreate. This keeps its scope to E1 file retention and avoids
+leaving retained OCI Stores after a disposable fixture. Windows E2E at b73f965
+failed this fixture precondition because the installed OCI default was active;
+the network and guest AWS refusal checks passed. The corrected fixture requires
+a new installed run before Windows acceptance is claimed.
+
+The corrected verifier passed in dedicated WSL at product 093ed159b80e with
+fixture m1-egress-b73f965020260908. Canonical cleanup removed the Environment
+and fixture Workspace. This older local installation does not replace acceptance
+of the corrected fixture against the default-OCI Windows installer in GHA.

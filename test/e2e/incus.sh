@@ -69,6 +69,7 @@ go build -o "$haco" ./cmd/haco-product
 go build -o "$hacoq" ./cmd/haco
 go build -o "$haco_host" ./cmd/haco-host
 go build -o "$controller" ./cmd/haco-controller
+go build -o "$root/haco-notify" ./cmd/haco-notify
 
 # Product help and argument validation must work before runtime/controller state
 # is initialized, without delegating to the legacy CLI.
@@ -158,6 +159,17 @@ done
 incus exec "$trusted_host_ref" --project hacocoon -- test -x /usr/local/bin/haco-host
 incus exec "$trusted_host_ref" --project hacocoon -- test -x "$trusted_product_haco"
 incus exec "$trusted_host_ref" --project hacocoon -- test ! -e /usr/local/bin/hacoq
+notify_digest="$(sha256sum "$root/haco-notify" | awk '{print $1}')"
+host_notify_digest="$(incus exec "$trusted_host_ref" --project hacocoon -- sha256sum /usr/local/bin/haco-notify | awk '{print $1}')"
+[[ "$notify_digest" == "$host_notify_digest" ]] || {
+  echo "trusted Host notification companion digest mismatch" >&2
+  exit 1
+}
+[[ "$(incus exec "$trusted_host_ref" --project hacocoon -- stat -c '%a:%u:%g' /usr/local/bin/haco-notify)" == "755:0:0" ]] || {
+  echo "trusted Host notification companion ownership mismatch" >&2
+  exit 1
+}
+
 
 local_product_digest="$(sha256sum "$haco" | awk '{print $1}')"
 guest_product_digest="$(incus exec "$trusted_host_ref" --project hacocoon -- sha256sum "$trusted_product_haco" | awk '{print $1}')"
@@ -279,6 +291,16 @@ grep -Fq '"state":"running"' <<<"$client_status" || {
   echo "trusted-host haco-host env status did not report running state" >&2
   exit 1
 }
+
+# Exercise the product command through the trusted Host, retaining the same
+# provider instance, lease and workspace across repeated start requests.
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" env stop "$client_environment"
+stopped_status="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" env status --json "$client_environment")"
+grep -Fq '"state":"stopped"' <<<"$stopped_status"
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" env start "$client_environment"
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" env start "$client_environment"
+resumed_status="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_product_haco" env status --json "$client_environment")"
+grep -Fq '"state":"running"' <<<"$resumed_status"
 
 client_read="$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_client" env exec "$client_environment" -- cat /workspace/host.txt)"
 [[ "$client_read" == "from-host" ]] || {

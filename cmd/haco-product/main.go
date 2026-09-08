@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -15,6 +16,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/terminalbridge"
+	"github.com/SLktEx/Hacocoon/modules/standard/dnsproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
 	"golang.org/x/term"
 )
@@ -26,6 +28,16 @@ const loginAlias = "hacocoon-login"
 const controllerStartupTimeout = 2 * time.Minute
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "_dns-agent" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := dnsproxy.RunAgent(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			fmt.Fprintln(os.Stderr, "haco: guest DNS service failed")
+			os.Exit(1)
+		}
+		return
+	}
+
 	if filepath.Base(os.Args[0]) == "git-remote-haco" {
 		if err := gitrepo.Helper(context.Background(), os.Args[1:], os.Stdin, os.Stdout, os.Stderr, gitrepo.UnixExchange(gitrepo.GuestSocket)); err != nil {
 			fmt.Fprintln(os.Stderr, "git-remote-haco:", err)
@@ -79,8 +91,20 @@ func run(args []string) int {
 		return runVersion(args[1:])
 	case "setup":
 		return runSetup(args[1:])
+	case "config":
+		return runConfiguration(args[1:])
+	case "aws":
+		return runAWS(args[1:])
+	case "approve":
+		return runApproval(args[1:])
 	case "doctor":
 		return runDoctor(args[1:])
+	case "ssh":
+		return runSSH(args[1:])
+	case "open":
+		return runOpen(args[1:])
+	case "run":
+		return runTemporary(args[1:])
 	case "env":
 		return runEnvironment(args[1:])
 	case "base":
@@ -127,9 +151,15 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  haco <command>")
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "Commands:")
-	fmt.Fprintln(out, "  setup      Prepare the installed Host through its controller")
+	fmt.Fprintln(out, "  setup      Prepare the Host or replay project setup in an Environment")
+	fmt.Fprintln(out, "  aws        Use approved AWS operations with trusted Host authentication")
+	fmt.Fprintln(out, "  config     Inspect or edit approval policy configuration")
+	fmt.Fprintln(out, "  approve    Review a pending request and optionally save its Policy")
 	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
 	fmt.Fprintln(out, "  env        Create, inspect and access development Environments")
+	fmt.Fprintln(out, "  run        Execute a command in a temporary Environment and clean up")
+	fmt.Fprintln(out, "  ssh setup  Prepare desktop SSH keys and connection settings")
+	fmt.Fprintln(out, "  open       Open an Environment in a desktop client")
 	fmt.Fprintln(out, "  base       List and inspect Environment starting points")
 	fmt.Fprintln(out, "  plugin     Optional integrations, including persistent OCI Stores")
 	fmt.Fprintln(out, "  repo       Clone a repository inside the trusted Host")

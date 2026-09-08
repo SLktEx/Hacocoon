@@ -32,12 +32,13 @@ const (
 )
 
 type EnvironmentCreateRequest struct {
-	PersistentResource string                   `json:"persistent_resource,omitempty"`
-	Name               string                   `json:"name"`
-	WorkspacePath      string                   `json:"workspace_path"`
-	AccessMode         core.WorkspaceAccessMode `json:"access_mode,omitempty"`
-	Base               core.BaseName            `json:"base,omitempty"`
-	Resources          core.ResourceBudget      `json:"resources,omitempty"`
+	SkipDefaultResource bool                     `json:"skip_default_resource,omitempty"`
+	PersistentResource  string                   `json:"persistent_resource,omitempty"`
+	Name                string                   `json:"name"`
+	WorkspacePath       string                   `json:"workspace_path"`
+	AccessMode          core.WorkspaceAccessMode `json:"access_mode,omitempty"`
+	Base                core.BaseName            `json:"base,omitempty"`
+	Resources           core.ResourceBudget      `json:"resources,omitempty"`
 }
 
 type EnvironmentNameRequest struct {
@@ -124,12 +125,13 @@ func Register(server *control.Server, environments environmentService, clients c
 			return nil, control.NewStatusError("invalid_argument", "name and workspace_path are required")
 		}
 		environment, err := environments.Create(ctx, core.EnvironmentSpec{
-			PersistentResource: request.PersistentResource,
-			Name:               request.Name,
-			WorkspacePath:      request.WorkspacePath,
-			AccessMode:         request.AccessMode,
-			Base:               request.Base,
-			Resources:          request.Resources,
+			PersistentResource:  request.PersistentResource,
+			SkipDefaultResource: request.SkipDefaultResource,
+			Name:                request.Name,
+			WorkspacePath:       request.WorkspacePath,
+			AccessMode:          request.AccessMode,
+			Base:                request.Base,
+			Resources:           request.Resources,
 		})
 		if err != nil {
 			return nil, translateError(err)

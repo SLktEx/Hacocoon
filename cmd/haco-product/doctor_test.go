@@ -98,7 +98,7 @@ func TestProductDoctorUsesControllerWithoutLegacyOrLocalRuntime(t *testing.T) {
 
 func TestProductDoctorHelpAndUsageNeedNoController(t *testing.T) {
 	t.Setenv("HACO_CONTROL_SOCKET", filepath.Join(t.TempDir(), "missing.sock"))
-	for _, args := range [][]string{{"--help"}, {"--repair"}, {"--json", "--json"}, {"target"}} {
+	for _, args := range [][]string{{"--help"}, {"--repair"}, {"--json", "--json"}, {"first", "second"}} {
 		var stdout, stderr bytes.Buffer
 		code := doctor(context.Background(), args, &stdout, &stderr)
 		if _, err := os.Stat(os.Getenv("HACO_ROOT")); !errors.Is(err, os.ErrNotExist) {

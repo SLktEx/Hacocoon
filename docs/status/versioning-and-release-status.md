@@ -1,11 +1,55 @@
 # Versioning and release status
+Current checkpoint v0.46 adds snapshot ownership/recovery coordination, provider creation identity and internal Workspace/OCI COW storage. Dedicated WSL volume data/link retention, COW ancestry and source independence passed. Complete aggregate capture, rootfs/Base storage, restore and public CLI remain partial/planned; new-head GHA is pending. See [implementation status](../IMPLEMENTATION_STATUS.md).
 
-Current checkpoint v0.29 implements native WSL interop from fresh installation,
-actual C/non-C drive projection, Persistent OCI Store and Windows native OpenSSH.
-Local packaged B1/B4/B5 acceptance and B2/A/B6 regressions passed on `c86c43e`.
-`switch-base` is currently disabled, deferred to Stage D+ and does not block A-C.
-The v0.28 delivery/Base-switching results below are historical. See
-[implementation status](../IMPLEMENTATION_STATUS.md) for exact evidence and limits.
+Fresh Host setup now binds the owned OCI area automatically; existing data migration and runtime acceptance remain partial.
+Preceding checkpoint v0.39 adds the Windows notification review adapter and per-distribution registration. Native history/protocol/stale-refusal checks passed locally; fresh notification decisions and Linux activation remain incomplete. See [implementation status](../IMPLEMENTATION_STATUS.md).
+
+
+The partial approval slice now connects ordinary Git pending/approve/deny to
+reusable saved scope and durable receipts. Notifications, broader config
+management remain incomplete. Installed `eb16300b6700` passed dedicated GitHub
+push, saved ask reuse and denial acceptance; other choices retain repository-only
+coverage. Current Windows GHA failed at the editor wait, after SSH passed. See
+[ADR 0026](../adr/0026-reusable-git-approval-scope.md).
+
+Preceding checkpoint v0.37 adds approval configuration inspection and revision-bound
+editing through the same Policy and writer as saved approvals. Installed acceptance
+is pending.
+
+Preceding checkpoint v0.36 adds automatic Environment DNS configuration in installed
+Standard mode and safe restoration of absent stopped-Environment source guards.
+Lookup and connection permissions remain separate. Repository regression coverage
+exists; the new Windows DNS fixture and real reboot/VPN acceptance are pending.
+
+The preceding v0.33–v0.35 desktop SSH, Host recipe and temporary-execution slices
+passed all four GHA workflows at `b6c428d`. The DNS relay foundation at `3c3c101`
+also passed all four workflows. Local VS Code 1.136.1 Remote-SSH acceptance passed
+on the older `8752431` installation after explicit permission; temporary rules
+and the test connection were removed. See [implementation status](../IMPLEMENTATION_STATUS.md)
+for the exact scope and the initial resume failure.
+
+Preceding checkpoint v0.32 adds automatic default Store initialization, Workspace
+association/reuse, source-only publication state and the optional `--no-oci`.
+Ready-source copying passed local component and synthetic real-Btrfs acceptance.
+The Host image producer and Docker image/runtime acceptance remain incomplete,
+so the entire B4 flow is still partial. v0.31 and the SSH public-key addition
+passed all four PR #482 GHA workflows at `f8517ba`.
+
+
+Preceding checkpoint v0.31 adds retained Environment resume through
+`haco env start <name>`. Local test/race and an independent real Incus/WSL
+resume fixture and installed-product GHA at `f8517ba` passed. Automatic SSH setup
+remains pending. This does not complete roadmap C/E. The preceding v0.30 Store copy
+slice and its B4 follow-ups remain described below.
+
+
+Preceding checkpoint v0.30 adds independent offline persistent Store copies through
+`haco plugin oci store create <target> --from <source>`. Repository and local
+real-Incus synthetic-data COW acceptance cover this slice; full trusted Host OCI
+image delivery, runtime acceptance and interrupted-copy recovery remain partial.
+The preceding v0.29 native WSL/Persistent Store/Windows OpenSSH acceptance remains
+bound to `c86c43e`. `switch-base` stays disabled and on hold. See
+[implementation status](../IMPLEMENTATION_STATUS.md) for evidence and limits.
 
 
 > **Human-readable checkpoint policy/status view · Updated 2026-08-31**
@@ -88,8 +132,25 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.27 | Managed Repository WSL Workflow | ✅ implemented |
 | v0.28 | Multi-repository Development and Optional OCI Distribution | ✅ implemented |
 | v0.29 | Persistent OCI Resources and Native Windows Access | ✅ implemented |
+| v0.30 | Independent Persistent Store Copies | ✅ implemented |
+| v0.31 | Retained Environment Resume | ✅ implemented |
+| v0.32 | Automatic Workspace Store Initialization | ✅ implemented |
+| v0.33 | Desktop SSH Setup | ✅ implemented |
+| v0.34 | Host Setup Recipes | implemented; installed Windows save/replay/update/clear passed at bcc1baf |
+| v0.35 | Temporary Execution | implemented; product run and cancellation cleanup passed on real Incus at 4adfe19 |
+| v0.36 | Environment Name Resolution | ✅ implemented |
+| v0.37 | Approval Configuration Editing | ✅ implemented |
+| v0.38 | Pending Approval Review | ✅ implemented |
+| v0.39 | Windows Notification Review | ✅ implemented |
+| v0.40 | Host OCI Area Copy Boundary | partial |
+| v0.41 | Interactive Environment Selection | ✅ implemented |
+| v0.42 | Completed OCI Copy Recovery | ✅ implemented |
+| v0.43 | Approved AWS S3 Listing | ✅ implemented |
+| v0.44 | Verified AWS Object Downloads | ✅ implemented |
+| v0.45 | Guest AWS Request Boundary | ✅ implemented |
+| v0.46 | Snapshot Workspace and OCI storage | ✅ implemented |
 
-The current milestone position is **v0.29**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.46**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 
@@ -141,3 +202,11 @@ v0.23 is an acceptance checkpoint rather than a new architecture contract. Its e
 ## Rule of thumb
 
 > **When a meaningful chunk of product, operator, observability, or acceptance progress lands, taking the next minor number is fine. During pre-1.0 development, prefer visible checkpoints over conserving version numbers.**
+
+The C4 Workspace recipe slice extends `haco setup` with an optional Environment
+target. Implementation and focused race coverage exist; installed acceptance
+is pending, so the C4 roadmap item remains partial.
+
+The current partial approval checkpoint now includes creation-specific Environment identity and Policy binding. This is repository implementation evidence; ordinary Git saved choices and network/provider acceptance remain separate work.
+
+Windows acceptance at d4aef8d now covers the basic C4 recipe cycle, C5 HTTP/Edge preview and C6 Environment doctor prerequisites, alongside VS Code. C4 recreation/cancellation, default-browser launch and VPN/NRPT remain separate acceptance work. The partial approval checkpoint additionally resolves named requests to catalog identity without extra CLI arguments.

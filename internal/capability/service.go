@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -36,7 +37,18 @@ type AuditSink interface {
 	Record(context.Context, core.CapabilityAuditEvent) error
 }
 
+type EnvironmentIdentityResolver interface {
+	GetEnvironment(context.Context, string) (core.Environment, error)
+	EnvironmentInstance(context.Context, core.Environment) (string, error)
+}
+
+// ConfigureEnvironmentIdentity is called during composition, before serving requests.
+func (s *Service) ConfigureEnvironmentIdentity(resolver EnvironmentIdentityResolver) {
+	s.identities = resolver
+}
+
 type Service struct {
+	identities   EnvironmentIdentityResolver
 	policy       PolicyEvaluator
 	approval     ApprovalProvider
 	audit        AuditSink
@@ -96,7 +108,7 @@ func (s *Service) RequestWithApproval(
 	return s.request(ctx, req, provider)
 }
 
-func (s *Service) request(ctx context.Context, req core.CapabilityRequest, approval ApprovalProvider) (core.CapabilityResult, error) {
+func (s *Service) request(ctx context.Context, req core.CapabilityRequest, approval ApprovalProvider) (outcome core.CapabilityResult, outcomeErr error) {
 	req = normalizeRequest(req)
 	if err := validateRequest(req); err != nil {
 		return core.CapabilityResult{}, err
@@ -110,6 +122,26 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 	}
 	if err := validateNonAuthorityParameters(provider, req.Parameters); err != nil {
 		return core.CapabilityResult{}, err
+	}
+
+	var identitySnapshot core.Environment
+	if s.identities != nil && req.Environment != "" {
+		snapshot, err := s.identities.GetEnvironment(ctx, req.Environment)
+		if err != nil {
+			return core.CapabilityResult{}, err
+		}
+		instance, err := s.identities.EnvironmentInstance(ctx, snapshot)
+		if err != nil {
+			return core.CapabilityResult{}, err
+		}
+		if !core.ValidEnvironmentInstanceID(instance) {
+			return core.CapabilityResult{}, core.ErrIncompatibleState
+		}
+		if req.EnvironmentInstance != "" && req.EnvironmentInstance != instance {
+			return core.CapabilityResult{}, core.ErrCapabilityStale
+		}
+		req.EnvironmentInstance = instance
+		identitySnapshot = snapshot
 	}
 
 	requestID, err := s.newRequestID()
@@ -141,22 +173,127 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 		if approval == nil {
 			return baseResult, fmt.Errorf("approval provider unavailable: %w", core.ErrApprovalDenied)
 		}
-		approved, approvalErr := approval.Approve(ctx, core.ApprovalRequest{CapabilityRequest: req, Reason: evaluation.Reason})
+		savedRequest, scopeErr := savedApprovalScope(ctx, provider, req)
+		if scopeErr != nil {
+			return baseResult, scopeErr
+		}
+		promptScope := savedRequest
+		promptScope.Attributes = maps.Clone(savedRequest.Attributes)
+		promptRequest := req
+		promptRequest.Attributes = maps.Clone(req.Attributes)
+		promptRequest.Parameters = nil
+		prompt := core.ApprovalRequest{RequestID: requestID, CapabilityRequest: promptRequest, SavedScope: &promptScope, Reason: evaluation.Reason}
+		var decision ApprovalDecision
+		var approvalErr error
+		if queued, ok := approval.(SessionApprovalProvider); ok {
+			var session ApprovalSession
+			session, approvalErr = queued.BeginApproval(ctx, prompt)
+			if approvalErr == nil {
+				if session == nil {
+					approvalErr = core.ErrIncompatibleState
+				} else {
+					defer func() { session.Complete(outcome, outcomeErr) }()
+					decision, approvalErr = session.Decide(ctx)
+				}
+			}
+		} else if decider, ok := approval.(interface {
+			Decide(context.Context, core.ApprovalRequest) (ApprovalDecision, error)
+		}); ok {
+			decision, approvalErr = decider.Decide(ctx, prompt)
+		} else {
+			decision.Approved, approvalErr = approval.Approve(ctx, prompt)
+		}
+		approved := decision.Approved
+		if approvalErr == nil {
+			approvalErr = ValidateApprovalDecision(core.ApprovalRequest{CapabilityRequest: req, SavedScope: &savedRequest}, decision)
+		}
 		if approvalErr != nil {
 			falseValue := false
 			_ = s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "approval-decision", Approved: &falseValue, Reason: "approval-provider-failed"})
 			return baseResult, fmt.Errorf("obtain capability approval: %w", approvalErr)
 		}
-		if err := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "approval-decision", Approved: &approved, Reason: evaluation.Reason}); err != nil {
+		if err := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "approval-decision", Approved: &approved, SavedChoice: string(decision.Save), Reason: evaluation.Reason}); err != nil {
 			return baseResult, fmt.Errorf("record approval decision: %w", err)
+		}
+		if decision.Save != "" {
+			saver, ok := s.policy.(interface {
+				Remember(context.Context, core.CapabilityRequest, SavedChoice) error
+			})
+			if !ok {
+				return baseResult, core.ErrUnsupported
+			}
+			remember := saver.Remember
+			if !maps.Equal(savedRequest.Attributes, req.Attributes) {
+				scoped, ok := s.policy.(interface {
+					RememberScope(context.Context, core.CapabilityRequest, SavedChoice) error
+				})
+				if !ok {
+					return baseResult, core.ErrUnsupported
+				}
+				remember = scoped.RememberScope
+			}
+			if err := remember(ctx, savedRequest, decision.Save); err != nil {
+				_ = s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-save-failed", SavedChoice: string(decision.Save), Reason: "policy-save-failed"})
+				return baseResult, fmt.Errorf("save approval choice: %w", err)
+			}
+			auditScope := savedRequest
+			if decision.Save == AllowGlobal || decision.Save == DenyGlobal || decision.Save == AskGlobal {
+				auditScope.Environment = "*"
+				auditScope.EnvironmentInstance = ""
+			}
+			if err := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-saved", SavedChoice: string(decision.Save), SavedScope: &auditScope}); err != nil {
+				return baseResult, errors.Join(core.ErrAuditIncomplete, err)
+			}
+			baseResult.SavedChoice = string(decision.Save)
+			current, err := s.policy.Evaluate(ctx, req)
+			if err != nil {
+				return baseResult, err
+			}
+			if !validDecision(current.Decision) || current.Decision == core.PolicyDeny {
+				return baseResult, core.ErrPolicyDenied
+			}
 		}
 		if !approved {
 			return baseResult, core.ErrApprovalDenied
 		}
 	}
 
+	// An approval can be pending while trusted Policy is edited. Recheck every
+	// request at the execution boundary, including one-shot and initially allowed
+	// requests; persistence is not the only way Policy can change.
+	current, err := s.policy.Evaluate(ctx, req)
+	if err != nil {
+		return baseResult, fmt.Errorf("reevaluate capability Policy: %w", err)
+	}
+	var recheckErr error
+	switch current.Decision {
+	case core.PolicyAllow:
+	case core.PolicyRequireApproval:
+		if evaluation.Decision != core.PolicyRequireApproval {
+			recheckErr = core.ErrApprovalDenied
+		}
+	case core.PolicyDeny:
+		recheckErr = core.ErrPolicyDenied
+	default:
+		recheckErr = core.ErrPolicyDenied
+	}
+	if recheckErr != nil {
+		auditErr := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "policy-recheck-denied", Reason: "policy-changed-before-execution"})
+		return baseResult, errors.Join(recheckErr, auditErr)
+	}
+
+	if s.identities != nil && req.Environment != "" {
+		current, err := s.identities.EnvironmentInstance(ctx, identitySnapshot)
+		if err != nil {
+			return baseResult, err
+		}
+		if current != req.EnvironmentInstance {
+			return baseResult, core.ErrCapabilityStale
+		}
+	}
 	result, execErr := provider.Execute(ctx, req)
 	result.RequestID = requestID
+	result.SavedChoice = baseResult.SavedChoice
 	if execErr == nil {
 		result.ExecutionState = core.CapabilitySucceeded
 	} else {
@@ -184,6 +321,7 @@ func (s *Service) record(ctx context.Context, requestID string, req core.Capabil
 	event.Action = req.Action
 	event.Resource = req.Resource
 	event.Environment = req.Environment
+	event.EnvironmentInstance = req.EnvironmentInstance
 	event.Attributes = cloneStrings(req.Attributes)
 	return s.audit.Record(ctx, event)
 }
@@ -204,6 +342,9 @@ func normalizeRequest(req core.CapabilityRequest) core.CapabilityRequest {
 }
 
 func validateRequest(req core.CapabilityRequest) error {
+	if req.EnvironmentInstance != "" && (req.Environment == "" || !core.ValidEnvironmentInstanceID(req.EnvironmentInstance)) {
+		return core.ErrInvalidArgument
+	}
 	if req.Capability == "" || req.Action == "" {
 		return core.ErrInvalidArgument
 	}

@@ -15,15 +15,22 @@ import (
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
 	"github.com/SLktEx/Hacocoon/internal/host"
+	"github.com/SLktEx/Hacocoon/internal/nameresolution"
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
+	"github.com/SLktEx/Hacocoon/internal/recipes"
+	"github.com/SLktEx/Hacocoon/internal/review"
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
 	seedbuildapp "github.com/SLktEx/Hacocoon/internal/seedbuild"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
+	awsplugin "github.com/SLktEx/Hacocoon/modules/capability/aws"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
+	"github.com/SLktEx/Hacocoon/modules/standard/approvals"
+	"github.com/SLktEx/Hacocoon/modules/standard/dnsproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/egressproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
+	"github.com/SLktEx/Hacocoon/modules/standard/projectsetup"
 )
 
 const defaultLocalStorageID = "local-default"
@@ -33,6 +40,11 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
+	AWS                 *awsplugin.Broker
+	Reviews             *review.Service
+	Configuration       *capabilityapp.PolicyConfiguration
+	HostCustomization   *recipes.Service
+	ProjectSetup        *projectsetup.Service
 	Environments        *workspaceapp.Service
 	AgentHosts          *agenthostapp.Broker
 	Clients             *clientapp.Service
@@ -54,11 +66,17 @@ func Local(ctx context.Context) (*App, error) {
 	return local(ctx, capabilityapp.NewStdioApproval(os.Stdin, os.Stderr))
 }
 
-// Controller has no ambient approval terminal. Interactive control sessions
-// supply their own scoped callback; background proxy requests fail closed when
-// Policy requires approval, without consuming daemon stdin or printing requests.
+// Controller never consumes ambient stdin. Background requests requiring human
+// approval wait in a bounded Standard queue, reviewed through the private API.
+// Interactive control sessions retain their own scoped approval callback.
 func Controller(ctx context.Context) (*App, error) {
-	return local(ctx, nil)
+	queue := approvals.New()
+	app, err := local(ctx, queue)
+	if err != nil {
+		return nil, err
+	}
+	app.Reviews = review.New(queue, app.GitBroker)
+	return app, nil
 }
 
 func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, error) {
@@ -139,18 +157,23 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	bindingStore := agenthostapp.NewJSONBindingStore(filepath.Join(stateDir, "agent-bindings.json"))
 	gitProvider := gitcapapp.NewUnifiedProvider(runner, store)
 	auditPath := filepath.Join(root, "audit", "capabilities.jsonl")
+	policy := capabilityapp.NewFilePolicyEvaluator(filepath.Join(root, "policy.json"))
+	audit := capabilityapp.NewJSONLAudit(auditPath)
 	capabilities, err := capabilityapp.New(
-		capabilityapp.NewFilePolicyEvaluator(filepath.Join(root, "policy.json")),
+		policy,
 		approval,
-		capabilityapp.NewJSONLAudit(auditPath),
+		audit,
 		capabilityapp.LocalEcho{},
 		egressapp.Provider{},
+		dnsproxy.Provider{},
 		gitProvider,
+		&awsplugin.Provider{Host: incusRuntime.RunTrustedHostPython, Stream: incusRuntime.RunTrustedHostPythonStream},
 		gitBroker,
 	)
 	if err != nil {
 		return nil, err
 	}
+	capabilities.ConfigureEnvironmentIdentity(store)
 	gitBroker.Capabilities = capabilities
 	egressBroker := egressapp.NewBroker(capabilities)
 	egressSources, err := egressapp.NewPersistedSourceResolver(environmentapp.ProviderIncus, incusRuntime, store)
@@ -180,20 +203,42 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	}
 
 	environments := workspaceapp.NewWithProvider(runtime, store, repositoryWorkspaceProvider{repositories: repositories})
+	resources := &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime}}
+	workspaceStores := ociplugin.WorkspaceStores{Resources: resources}
+	incusRuntime.ConfigureHostCopyRecovery(workspaceStores.RecoverHostCopies)
+	incusRuntime.ConfigureHostStorage(func(ctx context.Context) error {
+		backend := &incus.PersistentResourceBackend{Runtime: incusRuntime}
+		if err := workspaceStores.EnsureHost(ctx, backend); err != nil {
+			return err
+		}
+		source, err := store.GetPersistentResource(ctx, ociplugin.HostStoreID)
+		if err != nil {
+			return err
+		}
+		return backend.EnableHostOCI(ctx, source)
+	})
+	environments.ConfigureDefaultResource(workspaceStores.Resolve)
+	runs := runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks"))
+	runs.ConfigureTemporaryWorkspace(workspaceStores.CleanupTemporary)
+	awsBroker := &awsplugin.Broker{Host: incusRuntime.RunTrustedHostPython, Capabilities: capabilities, Environments: store}
 	return &App{
-		PersistentResources: &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime}},
+		AWS:                 awsBroker,
+		ProjectSetup:        &projectsetup.Service{Root: filepath.Join(root, "project-setup"), Environments: environments},
+		HostCustomization:   &recipes.Service{Root: filepath.Join(root, "host-customization"), Execute: incusRuntime.RunTrustedHostCustomization},
+		PersistentResources: resources,
 		Environments:        environments,
 		AgentHosts:          agenthostapp.New(environments, store, bindingStore),
 		Clients:             clientapp.New(runtime, store),
 		Capabilities:        capabilities,
+		Configuration:       &capabilityapp.PolicyConfiguration{Evaluator: policy, Audit: audit},
 		Git:                 gitcapapp.NewBroker(runner, store, capabilities),
 		OCI:                 ociPlugin,
 		Seeds:               seeds,
-		Runner:              runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks")),
+		Runner:              runs,
 		Events:              eventsapp.New(auditPath),
 		Bases:               runtime,
 		Runtime:             incusRuntime,
-		EgressProxy:         egressproxy.New(egressBroker, egressSources),
+		EgressProxy:         egressproxy.NewWithOperations(egressBroker, egressSources, nameresolution.New(capabilities), awsplugin.NewGuestHandler(awsBroker, egressSources)),
 		Repositories:        repositories,
 		GitBroker:           gitBroker,
 	}, nil

@@ -7,7 +7,7 @@ export GOTOOLCHAIN=local
 
 usage() {
   cat <<'USAGE'
-Usage: bash tools/ci-local.sh [all|docs|workflow-policy|release-config|systemd|test|race|e2e|forwarding]
+Usage: bash tools/ci-local.sh [all|docs|workflow-policy|release-config|systemd|test|race|e2e|forwarding|aws]
 
 Mirrors the checks in .github/workflows/test.yml using the local machine.
 The release-config job intentionally fails if dist/ already exists because
@@ -179,13 +179,15 @@ run_test() {
   need node
   need python3
   python3 tools/test_wsl_host_interop.py
+  python3 tools/test_pending_approvals_test.py
   section "test"
   go test -count=1 -shuffle=on ./...
   go vet ./...
   section "notification clients"
   node --check pkg/interactionhttp/web/app.js
   node --check clients/vscode-notify/extension.js
-  node --test test/js/notification_clients.test.js
+  node --check clients/vscode-notify/review.js
+  node --test test/js/notification_clients.test.js test/js/vscode_acceptance.test.js test/js/approval_review.test.js
 }
 
 run_race() {
@@ -232,6 +234,7 @@ case "${1:-all}" in
   workflow-policy) run_workflow_policy ;;
   release-config) run_release_config ;;
   systemd) run_systemd ;;
+  aws) "${HACO_AWS_TEST_PYTHON:-python3}" modules/capability/aws/test_host_agent.py ;;
   test) run_test ;;
   race) run_race ;;
   e2e) run_e2e ;;

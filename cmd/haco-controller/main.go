@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -39,10 +40,22 @@ func main() {
 		fail(err)
 	}
 	server := control.NewServer()
+	if err := controlapi.RegisterReviews(server, app.Reviews); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterConfiguration(server, app.Configuration); err != nil {
+		fail(err)
+	}
 	if err := controlapi.Register(server, app.Environments, app.Clients); err != nil {
 		fail(err)
 	}
+	if err := controlapi.RegisterStart(server, app.Environments); err != nil {
+		fail(err)
+	}
 	if err := controlapi.RegisterStop(server, app.Environments); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterAWS(server, app.AWS); err != nil {
 		fail(err)
 	}
 	if err := controlapi.RegisterRepositories(server, app.Repositories, app.GitBroker); err != nil {
@@ -57,6 +70,9 @@ func main() {
 	if err := controlapi.RegisterHost(server, app.Runtime); err != nil {
 		fail(err)
 	}
+	if err := controlapi.RegisterProjectSetup(server, app.ProjectSetup); err != nil {
+		fail(err)
+	}
 	if err := controlapi.RegisterSetup(server, app); err != nil {
 		fail(err)
 	}
@@ -66,6 +82,13 @@ func main() {
 
 	var proxyListener net.Listener
 	if standardEgress {
+		executable, sourceErr := os.Executable()
+		if sourceErr != nil {
+			fail(sourceErr)
+		}
+		if sourceErr = app.Runtime.ConfigureEnvironmentDNS(filepath.Join(filepath.Dir(executable), "haco")); sourceErr != nil {
+			fail(sourceErr)
+		}
 		prepareCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		address, prepareErr := app.Runtime.PrepareEgressProxy(prepareCtx)
 		cancel()

@@ -28,7 +28,7 @@ func WrapEnvironmentNetworkOwnershipRunner(inner host.Runner) host.Runner {
 	if inner == nil {
 		return nil
 	}
-	return environmentNetworkOwnershipRunner{inner: inner}
+	return preserveExecInput(environmentNetworkOwnershipRunner{inner: inner}, inner)
 }
 
 type environmentNetworkOwnershipRunner struct {

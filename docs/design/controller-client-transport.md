@@ -1,5 +1,7 @@
 # Controller client transport
 
+Pending approvals can be listed and decided through approval.pending / approval.decide on this management socket only. A decision response contains the actual capability receipt even when execution or audit failed; raw provider output is omitted. The read-only notification bridge and guest Git sockets do not expose these methods. See [pending approval review](pending-approval-review.md).
+
 [**日本語**](controller-client-transport.ja.md) | English
 
 Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product `haco` provides help/version, setup/doctor, WSL login, managed repository/Workspace preparation, Environment create/list/status/SSH/disconnect/stop and Git approval commands. Additional lifecycle conveniences, PTY control framing, general port-forwarding CLI and remote transport remain planned.
@@ -239,3 +241,46 @@ Still planned:
 - generic Environment forwarding;
 - remote transport only if a real use case requires it;
 - FD passing/zero-copy only if profiling demonstrates a worthwhile benefit.
+
+## Ephemeral execution cancellation
+
+Status: **implemented transport; product temporary-run CLI pending**.
+`run.execute` uses a stream handshake followed by one bounded JSON result.
+No input frames are accepted. Closing the client connection or sending unexpected
+input cancels execution. Canonical run cleanup uses its independent deadline; the
+caller must not interpret disconnection as successful cleanup. Result writes have
+a 30-second deadline. Ordinary lifecycle RPCs retain their existing semantics.
+The previous pre-1.0 call form is replaced without retrying ambiguous executions.
+See [ADR 0018](../adr/0018-ephemeral-run-cancellation.md).
+
+## Daily Environment inspection
+
+Status: **implemented CLI slice**. `haco env list` shows the registered Environment
+name, Workspace and Base in a readable table; `--json` returns the typed list for
+scripts. It does not imply a current runtime state from registration alone.
+`haco env status <name>` queries runtime state. Both human-readable displays escape
+terminal control characters in external metadata. Empty state includes the create
+command; populated state routes to `haco open <name>` and status inspection.
+
+## Environment diagnostics
+
+Status: **implemented local-prerequisite slice; installed acceptance pending**.
+
+`haco doctor [--json] <environment>` reads the selected Environment's Workspace,
+runtime state and client connections through the existing controller. It checks
+the /workspace directory and managed DNS service/resolver configuration. When an
+SSH connection exists, it also checks ssh.service. Each guest probe has a fixed
+read-only command; the complete target inspection is bounded to 20 seconds.
+Stopped Environments remain stopped, with dependent checks reported skipped.
+
+The response omits host public keys and suggested connection commands. Arbitrary
+guest stdout/stderr and backend errors are not rendered. Failed local checks
+return exit 1 with a next action; they are not repaired. A successful report
+proves only these local prerequisites: external DNS, egress Policy, actual
+desktop reachability and browser rendering require separate acceptance.
+The existing no-target Host diagnostic behavior and six checks remain unchanged.
+
+The optional guest AWS operation endpoint shares the guarded Standard HTTP listener,
+not the management socket. It accepts only list/get requests and uses trusted source
+creation identity. Approval/configuration/lifecycle methods remain inaccessible.
+See [AWS operations](aws-operations.md#guest-request-boundary).

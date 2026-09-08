@@ -1,19 +1,24 @@
 package controlapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"strings"
+	"errors"
+	"io"
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/logging"
+	"github.com/SLktEx/Hacocoon/internal/recipes"
 )
 
 const MethodSetup = "system.setup"
 const setupTimeout = 15 * time.Minute
 
-type setupService interface{ SetupHost(context.Context) error }
+type setupService interface {
+	SetupHost(context.Context, recipes.Update) error
+}
 
 // RegisterSetup keeps bootstrap under the same controller authority as normal
 // operations. There is no second local composition path in the product client.
@@ -23,11 +28,22 @@ func RegisterSetup(server *control.Server, service setupService) error {
 	}
 	active := make(chan struct{}, 1)
 	return server.Register(MethodSetup, func(ctx context.Context, payload json.RawMessage) (any, error) {
-		switch strings.TrimSpace(string(payload)) {
-		case "", "null", "{}":
-		default:
-			return nil, control.NewStatusError("invalid_argument", "setup accepts no parameters")
+		var update recipes.Update
+		if len(bytes.TrimSpace(payload)) != 0 {
+			decoder := json.NewDecoder(bytes.NewReader(payload))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(&update); err != nil {
+				return nil, control.NewStatusError("invalid_argument", "invalid Host setup options")
+			}
+			var extra any
+			if err := decoder.Decode(&extra); err != io.EOF {
+				return nil, control.NewStatusError("invalid_argument", "invalid Host setup options")
+			}
 		}
+		if err := update.Validate(); err != nil {
+			return nil, control.NewStatusError("invalid_argument", err.Error())
+		}
+
 		select {
 		case active <- struct{}{}:
 			defer func() { <-active }()
@@ -36,9 +52,13 @@ func RegisterSetup(server *control.Server, service setupService) error {
 		}
 		ctx, cancel := context.WithTimeout(ctx, setupTimeout)
 		defer cancel()
-		if err := service.SetupHost(ctx); err != nil || ctx.Err() != nil {
+		if err := service.SetupHost(ctx, update); err != nil || ctx.Err() != nil {
 			// The provider error may contain arbitrary guest/backend output. Record the
 			// owning failure boundary without forwarding that output to logs or clients.
+			if errors.Is(err, recipes.ErrExecutionFailed) {
+				logging.Root().ErrorContext(ctx, "Trusted Host customization failed", "component", "bootstrap", "operation", "setup")
+				return nil, control.NewStatusError("customization_failed", "Host prepared, but customization failed; update the script and rerun haco setup")
+			}
 			logging.Root().ErrorContext(ctx, "Trusted Host setup failed", "component", "bootstrap", "operation", "setup")
 			return nil, control.NewStatusError("setup_failed", "Host setup failed; run haco doctor, then rerun the installer")
 		}
@@ -46,9 +66,9 @@ func RegisterSetup(server *control.Server, service setupService) error {
 	})
 }
 
-func (c *Client) SetupHost(ctx context.Context) error {
+func (c *Client) SetupHost(ctx context.Context, update recipes.Update) error {
 	var response PingResponse
-	if err := c.wire.Call(ctx, MethodSetup, nil, &response); err != nil {
+	if err := c.wire.Call(ctx, MethodSetup, update, &response); err != nil {
 		return err
 	}
 	if response.ProtocolVersion != control.ProtocolVersion {

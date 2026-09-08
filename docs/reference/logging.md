@@ -156,3 +156,15 @@ Before adding a log event, check:
 - Will the field name remain stable enough for CI/debugging tools to consume?
 
 Logging changes should include focused tests when they introduce a new redaction rule, field contract, format behavior, or failure boundary.
+
+The capability audit field `environment_instance` identifies one canonical Environment creation independently of its reusable display name. It is a random public identifier, not a credential or provider ownership token. Audit records retain it for policy and execution correlation.
+
+The `policy-saved` Capability audit event includes `saved_scope`, separate from
+current exact attributes. It contains only validated Policy-visible authority and
+explicit provider-declared wildcards, never credentials, packs or opaque parameters.
+
+Configuration changes audit `configuration-change-requested` before mutation and
+`configuration-changed` after durable replacement. Only the operation ID and
+`previous_revision` / `revision` hashes are recorded under
+`policy.configuration`; complete rules, resource values and editor contents are
+never logged by this path. A failed completion audit yields no successful receipt.

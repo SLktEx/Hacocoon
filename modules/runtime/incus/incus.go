@@ -29,16 +29,20 @@ type runtimeStorageState struct {
 }
 
 type Runtime struct {
-	trustedHostInterop func(context.Context) error
-	runner             host.Runner
-	project            string
-	image              string
-	storage            *runtimeStorageState
-	stdin              io.Reader
-	stdout             io.Writer
-	stderr             io.Writer
-	cleanupTimeout     time.Duration
-	managedWorkspace   func(context.Context, string) ([]WorkspaceAttachment, error)
+	environmentDNS           string
+	trustedHostInterop       func(context.Context) error
+	trustedHostNotifications func(context.Context) error
+	trustedHostStorage       func(context.Context) error
+	trustedHostCopyRecovery  func(context.Context) error
+	runner                   host.Runner
+	project                  string
+	image                    string
+	storage                  *runtimeStorageState
+	stdin                    io.Reader
+	stdout                   io.Writer
+	stderr                   io.Writer
+	cleanupTimeout           time.Duration
+	managedWorkspace         func(context.Context, string) ([]WorkspaceAttachment, error)
 }
 
 func New(runner host.Runner) *Runtime {
@@ -128,6 +132,10 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	if spec.Name == "" || spec.WorkspacePath == "" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
+	identityArgs, err := environmentIdentityArgs(spec.InstanceID)
+	if err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
 	ref := "haco-" + spec.Name
 	if ref == trustedHostName {
 		return core.EnvironmentRuntime{}, fmt.Errorf("environment name %q is reserved for trusted Hacocoon infrastructure: %w", spec.Name, core.ErrInvalidArgument)
@@ -143,7 +151,8 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return core.EnvironmentRuntime{}, fmt.Errorf("resolve isolated root storage: %w", err)
 	}
 
-	if _, err := r.runner.Run(ctx, "incus", "init", r.image, ref, "--project", r.project, "--profile", sandboxProfile, "--storage", rootPool); err != nil {
+	initArgs := append([]string{"init", r.image, ref, "--project", r.project, "--profile", sandboxProfile, "--storage", rootPool}, identityArgs...)
+	if _, err := r.runner.Run(ctx, "incus", initArgs...); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}
 	cleanup := func(cause error) (core.EnvironmentRuntime, error) {
@@ -220,19 +229,40 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	return core.EnvironmentRuntime{Ref: ref}, nil
 }
 
+func (r *Runtime) SupportsWorkingDirectory() bool { return true }
+func (r *Runtime) SupportsStdin() bool            { _, ok := r.runner.(host.InputRunner); return ok }
+
 func (r *Runtime) ExecEnvironment(ctx context.Context, ref string, req core.ExecutionRequest) (core.ExecutionResult, error) {
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return core.ExecutionResult{}, err
 	}
-	if len(req.Argv) == 0 {
+	if len(req.Argv) == 0 || len(req.Stdin) > core.MaxExecutionInputBytes {
 		return core.ExecutionResult{}, core.ErrInvalidArgument
 	}
-	args := append([]string{"exec", ref, "--project", r.project, "--"}, req.Argv...)
-	result, err := r.runner.Run(ctx, "incus", args...)
+	args := []string{"exec", ref, "--project", r.project}
+	if req.WorkingDirectory != "" {
+		if !strings.HasPrefix(req.WorkingDirectory, "/") || strings.ContainsAny(req.WorkingDirectory, "\x00\r\n") {
+			return core.ExecutionResult{}, core.ErrInvalidArgument
+		}
+		args = append(args, "--cwd", req.WorkingDirectory)
+	}
+	args = append(append(args, "--"), req.Argv...)
+	var result host.Result
+	var err error
+	if req.Stdin != nil {
+		runner, ok := r.runner.(host.InputRunner)
+		if !ok {
+			return core.ExecutionResult{}, core.ErrUnsupported
+		}
+		result, err = runner.RunWithInput(ctx, req.Stdin, "incus", args...)
+	} else {
+		result, err = r.runner.Run(ctx, "incus", args...)
+	}
 	return core.ExecutionResult{
-		ExitCode: result.ExitCode,
-		Stdout:   result.Stdout,
-		Stderr:   result.Stderr,
+		ExitCode:        result.ExitCode,
+		StdoutTruncated: result.StdoutTruncated, StderrTruncated: result.StderrTruncated, StdoutBytes: result.StdoutBytes, StderrBytes: result.StderrBytes,
+		Stdout: result.Stdout,
+		Stderr: result.Stderr,
 	}, err
 }
 
@@ -286,6 +316,9 @@ func (r *Runtime) InspectEnvironment(ctx context.Context, ref string) (core.Envi
 	if err != nil {
 		return core.EnvironmentRuntimeStatus{}, err
 	}
+	if result.ExitCode != 0 || result.StdoutTruncated {
+		return core.EnvironmentRuntimeStatus{}, core.ErrRuntimeUnavailable
+	}
 	states := map[string]core.EnvironmentState{
 		"RUNNING": core.EnvironmentRunning,
 		"STOPPED": core.EnvironmentStopped,
@@ -301,6 +334,17 @@ func (r *Runtime) ForwardLocalPort(ctx context.Context, ref string, req core.Loc
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return core.ClientConnection{}, err
 	}
+	if req.Protocol != "" && req.Protocol != "tcp" {
+		return core.ClientConnection{}, core.ErrUnsupported
+	}
+	if req.TargetPort < 1 || req.TargetPort > 65535 {
+		return core.ClientConnection{}, core.ErrInvalidArgument
+	}
+	port, err := chooseLoopbackPort(ctx, req.HostPort)
+	if err != nil {
+		return core.ClientConnection{}, err
+	}
+	req.HostPort = port
 	id := fmt.Sprintf("tcp-%d-%d", req.HostPort, req.TargetPort)
 	if err := r.addLoopbackProxy(ctx, ref, id, req.HostPort, req.TargetPort); err != nil {
 		return core.ClientConnection{}, err

@@ -1,5 +1,7 @@
 # Controller client transport
 
+承認待ちは、この管理 socket の approval.pending／approval.decide だけで確認・回答できます。実行や監査が失敗しても実際の capability receipt を返し、生の provider 出力は除外します。read-only の通知 bridge と guest Git socket には登録しません。[承認待ちの契約](pending-approval-review.ja.md)を参照してください。
+
 日本語 | [**English**](controller-client-transport.md)
 
 Status: **partial**。Local Unix domain protocol、Physical Host controller、trusted-host endpoint投影、client-only `haco-host`、typed Environment API、対話streamは実装済み。製品 `haco` はhelp/version、setup/doctor、WSL login、管理repo/Workspace準備、Environment create/list/status/ssh/disconnect/stop、Git承認を提供する。追加のlifecycle便利機能、PTY制御、汎用port-forwarding CLI、remote transportはplanned。
@@ -237,3 +239,41 @@ BaselineはUnix domain socket上の通常のGo buffered forwardingです。Local
 - generic Environment forwarding
 - 実需が出た場合のみremote transport
 - profilingで必要性が示された場合のみFD passing / zero-copy
+
+## 一時実行のキャンセル
+
+状態: **transport は implemented、product の一時実行 CLI は pending**。
+`run.execute` は stream handshake の後、サイズ制限付きの JSON 結果を1つ返します。
+入力 frame は受け付けません。client 接続の切断や想定外の入力で execution を中断します。
+canonical な run cleanup は独立した期限を使い、呼出元は切断を削除成功と扱ってはいけません。
+結果の書込み期限は30秒です。通常の lifecycle RPC の意味は変えません。
+pre-1.0 の旧 call 形式は置き換え、結果が不明な実行を自動で再試行しません。
+詳細は [ADR 0018](../adr/0018-ephemeral-run-cancellation.md) を参照してください。
+
+## 日常の Environment 確認
+
+状態: **CLI の範囲は implemented**。`haco env list` は登録済み Environment の名前、Workspace、Base を表で表示します。
+スクリプトでは `--json` で型付き一覧を取得できます。登録情報だけから現在の runtime 状態を推測しません。
+`haco env status <name>` は runtime 状態を問い合わせます。両方の人向け表示で外部 metadata の端末制御文字を escape します。
+空の状態では create command を示し、一覧がある場合は `haco open <name>` と status 確認へ案内します。
+
+## Environment の診断
+
+状態: **local prerequisite の実装済み、installed acceptance は未完了**。
+
+`haco doctor [--json] <environment>` は既存 controller から対象 Workspace、
+runtime 状態、client 接続を読みます。/workspace の存在、管理された DNS service と
+resolver 設定を確認し、SSH 接続がある場合は ssh.service も確認します。
+guest probe は固定の read-only command で、対象診断全体を 20 秒に制限します。
+停止した Environment は起動せず、依存する検査を skipped として報告します。
+
+host public key、接続用の提案 command、生の guest stdout/stderr や backend error は
+表示しません。local check の失敗は次の確認手順と exit 1 を返し、自動修復しません。
+成功はこの local prerequisite のみを示します。外部 DNS、egress Policy、
+desktop からの実到達、browser 描画は別途確認が必要です。
+対象指定のない Host 診断と既存の六項目は従来どおりです。
+
+任意の guest AWS 操作入口は、管理 socket ではなく隔離付き Standard HTTP listener を
+共有します。list/get 要求だけを受け付け、trusted な送信元作成 ID を使います。
+承認決定・config・lifecycle メソッドは公開しません。
+[AWS 操作](aws-operations.ja.md)を参照してください。

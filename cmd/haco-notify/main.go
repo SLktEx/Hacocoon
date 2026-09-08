@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,12 +13,14 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
 	"unicode/utf16"
 
+	"github.com/SLktEx/Hacocoon/internal/desktopreview"
 	"github.com/SLktEx/Hacocoon/pkg/interaction"
 	"github.com/SLktEx/Hacocoon/pkg/interactionhttp"
 )
@@ -39,11 +41,41 @@ type commandNotifier struct {
 
 func (n commandNotifier) Notify(ctx context.Context, title, body string) error {
 	cmd := n.command(ctx, title, body)
-	output, err := cmd.CombinedOutput()
+	diagnostic := &nativeDiagnostic{}
+	cmd.Stderr = diagnostic
+	err := cmd.Run()
 	if err != nil {
-		return fmt.Errorf("native notification command failed: %w: %s", err, strings.TrimSpace(string(output)))
+		if match := nativeFailurePattern.FindStringSubmatch(string(diagnostic.data)); match != nil {
+			return fmt.Errorf("native notification failed at %s (code %s)", match[1], match[2])
+		}
+		var exited *exec.ExitError
+		if errors.As(err, &exited) {
+			return fmt.Errorf("native notification command failed (exit %d)", exited.ExitCode())
+		}
+		var code syscall.Errno
+		if errors.As(err, &code) {
+			return fmt.Errorf("native notification command could not start (system error %d)", code)
+		}
+		return errors.New("native notification command could not start")
 	}
 	return nil
+}
+
+// Capture only a bounded private diagnostic. Only closed stage/numeric codes
+// may become public; arbitrary native output is always discarded.
+var nativeFailurePattern = regexp.MustCompile(`(?m)^HACO_NATIVE_FAILURE:(runtime|template|registration|create|identity|show):(-?[0-9]{1,11})\r?$`)
+
+type nativeDiagnostic struct{ data []byte }
+
+func (b *nativeDiagnostic) Write(data []byte) (int, error) {
+	size := len(data)
+	if remaining := 2048 - len(b.data); remaining > 0 {
+		if len(data) > remaining {
+			data = data[:remaining]
+		}
+		b.data = append(b.data, data...)
+	}
+	return size, nil
 }
 
 type notifyState struct {
@@ -120,6 +152,7 @@ func nativeCommand(ctx context.Context, args []string) error {
 	statePath := fs.String("state", defaultStatePath(), "cursor/dedup state file")
 	poll := fs.Duration("poll", 2*time.Second, "poll interval")
 	once := fs.Bool("once", false, "process one available batch and exit")
+	fromNow := fs.Bool("from-now", false, "start at the current end only when no saved state exists")
 	includeCompleted := fs.Bool("include-completed", false, "show low-priority completed events")
 	backend := fs.String("backend", "auto", "notification backend: auto, windows, linux")
 	if err := fs.Parse(args); err != nil {
@@ -137,16 +170,46 @@ func nativeCommand(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	return runNative(ctx, reader, presenter, *statePath, *poll, *once, *includeCompleted)
+	return runNativeWithStart(ctx, reader, presenter, *statePath, *poll, *once, *includeCompleted, *fromNow)
 }
 
 func runNative(ctx context.Context, reader batchReader, presenter notifier, statePath string, poll time.Duration, once, includeCompleted bool) error {
+	return runNativeWithStart(ctx, reader, presenter, statePath, poll, once, includeCompleted, false)
+}
+
+func runNativeWithStart(ctx context.Context, reader batchReader, presenter notifier, statePath string, poll time.Duration, once, includeCompleted, fromNow bool) error {
 	if reader == nil || presenter == nil || statePath == "" || poll < 250*time.Millisecond {
 		return interaction.ErrInvalidArgument
 	}
-	state, err := loadState(statePath)
+	store, err := openNotifyStore(statePath)
 	if err != nil {
 		return err
+	}
+	defer store.close()
+	state, err := store.load()
+	if err != nil {
+		return err
+	}
+
+	if fromNow {
+		if _, statErr := store.root.Lstat(store.name); errors.Is(statErr, os.ErrNotExist) {
+			stream, ok := reader.(interface {
+				Stream(context.Context, int64, func(interaction.Event) error) (int64, error)
+			})
+			if !ok {
+				return interaction.ErrInvalidArgument
+			}
+			offset, streamErr := stream.Stream(ctx, 0, func(interaction.Event) error { return nil })
+			if streamErr != nil {
+				return streamErr
+			}
+			state.Offset = offset
+			if err := store.save(state); err != nil {
+				return err
+			}
+		} else if statErr != nil {
+			return statErr
+		}
 	}
 
 	for {
@@ -155,20 +218,28 @@ func runNative(ctx context.Context, reader batchReader, presenter notifier, stat
 			if !state.hasSeen(event.EventID) {
 				title, body, show := notificationText(event, includeCompleted)
 				if show {
-					if err := presenter.Notify(ctx, title, body); err != nil {
-						return err
+					var deliveryErr error
+					if reviewer, ok := presenter.(interface {
+						NotifyReview(context.Context, string, string, string) error
+					}); ok && event.Kind == interaction.ApprovalRequired {
+						deliveryErr = reviewer.NotifyReview(ctx, title, body, event.RequestID)
+					} else {
+						deliveryErr = presenter.Notify(ctx, title, body)
+					}
+					if deliveryErr != nil {
+						return deliveryErr
 					}
 					state.remember(event.EventID)
 				}
 			}
 			state.Offset = event.NextOffset
-			if err := saveState(statePath, state); err != nil {
+			if err := store.save(state); err != nil {
 				return err
 			}
 		}
 		if batch.NextOffset > state.Offset {
 			state.Offset = batch.NextOffset
-			if err := saveState(statePath, state); err != nil {
+			if err := store.save(state); err != nil {
 				return err
 			}
 		}
@@ -217,11 +288,19 @@ func chooseNotifier(backend string) (notifier, error) {
 	}
 }
 
-func windowsNotifier() notifier {
-	return commandNotifier{command: func(ctx context.Context, title, body string) *exec.Cmd {
-		script := windowsToastScript(title, body)
+type windowsReviewNotifier struct{ commandNotifier }
+
+func (n windowsReviewNotifier) NotifyReview(ctx context.Context, title, body, request string) error {
+	script := windowsReviewToastScript(title, body, os.Getenv("WSL_DISTRO_NAME"), request)
+	command := commandNotifier{command: func(ctx context.Context, _, _ string) *exec.Cmd {
 		return exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encodePowerShell(script))
 	}}
+	return command.Notify(ctx, title, body)
+}
+func windowsNotifier() notifier {
+	return windowsReviewNotifier{commandNotifier{command: func(ctx context.Context, title, body string) *exec.Cmd {
+		return exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encodePowerShell(windowsReviewToastScript(title, body, os.Getenv("WSL_DISTRO_NAME"), "")))
+	}}}
 }
 
 func linuxNotifier() notifier {
@@ -233,17 +312,48 @@ func linuxNotifier() notifier {
 func windowsToastScript(title, body string) string {
 	title64 := base64.StdEncoding.EncodeToString([]byte(title))
 	body64 := base64.StdEncoding.EncodeToString([]byte(body))
-	return "$title=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + title64 + "'));" +
+	tag := sha256.Sum256([]byte(title + "\x00" + body))
+	return "$ErrorActionPreference='Stop';$nativeStage='runtime';try{$title=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + title64 + "'));" +
 		"$body=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + body64 + "'));" +
 		"[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime] > $null;" +
 		"[Windows.UI.Notifications.ToastNotification,Windows.UI.Notifications,ContentType=WindowsRuntime] > $null;" +
-		"$template=[Windows.UI.Notifications.ToastTemplateType]::ToastText02;" +
+		"$nativeStage='template';$template=[Windows.UI.Notifications.ToastTemplateType]::ToastText02;" +
 		"$xml=[Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent($template);" +
 		"$nodes=$xml.GetElementsByTagName('text');" +
 		"$null=$nodes.Item(0).AppendChild($xml.CreateTextNode($title));" +
 		"$null=$nodes.Item(1).AppendChild($xml.CreateTextNode($body));" +
-		"$toast=New-Object Windows.UI.Notifications.ToastNotification $xml;" +
-		"[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Hacocoon').Show($toast);"
+		"$nativeStage='create';$toast=New-Object Windows.UI.Notifications.ToastNotification $xml;" +
+		"$nativeStage='identity';$toast.Tag='" + fmt.Sprintf("%x", tag[:8]) + "';$toast.Group='Hacocoon';" +
+		"$nativeStage='show';[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Hacocoon').Show($toast);" +
+		"}catch{[Console]::Error.WriteLine('HACO_NATIVE_FAILURE:'+$nativeStage+':'+$_.Exception.HResult);exit 1;}"
+}
+
+// Registration is owned by the Windows installer for one local distribution.
+// The URI carries only correlation. Activation cannot contain an answer.
+func windowsReviewToastScript(title, body, distribution, request string) string {
+	script := windowsToastScript(title, body)
+	scheme, err := desktopreview.Scheme(distribution)
+	if err != nil {
+		return script
+	}
+	activation := ""
+	reviewTag := ""
+	if uri, err := desktopreview.URI(distribution, request); err == nil {
+		reviewTag = request[:16]
+		activation = "$xml.DocumentElement.SetAttribute('activationType','protocol');" + "$xml.DocumentElement.SetAttribute('launch','" + uri + "');"
+	}
+	registration := "$nativeStage='registration';$appID='Hacocoon';$registration='HKCU:\\Software\\Classes\\" + scheme + "';" +
+		"if(Test-Path -LiteralPath $registration){" +
+		"$owner=(Get-ItemProperty -LiteralPath $registration -Name HacocoonDistribution -ErrorAction SilentlyContinue).HacocoonDistribution;" +
+		"if($owner -ieq '" + distribution + "'){" +
+		"$appID='" + scheme + "';" +
+		activation +
+		"}};"
+	script = strings.Replace(script, "$nativeStage='create';", registration+"$nativeStage='create';", 1)
+	if reviewTag != "" {
+		script = strings.Replace(script, "$toast.Group=", "$toast.Tag='"+reviewTag+"';$toast.Group=", 1)
+	}
+	return strings.Replace(script, "CreateToastNotifier('Hacocoon')", "CreateToastNotifier($appID)", 1)
 }
 
 func encodePowerShell(script string) string {
@@ -294,46 +404,6 @@ func defaultStatePath() string {
 		return ".haco-notify-state.json"
 	}
 	return filepath.Join(home, ".local", "state", "hacocoon", "native-notify.json")
-}
-
-func loadState(path string) (notifyState, error) {
-	var state notifyState
-	payload, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return state, nil
-	}
-	if err != nil {
-		return state, err
-	}
-	if err := json.Unmarshal(payload, &state); err != nil || state.Offset < 0 {
-		return notifyState{}, fmt.Errorf("invalid notification state: %w", interaction.ErrInvalidArgument)
-	}
-	if len(state.SeenEventIDs) > maxSeenEventIDs {
-		state.SeenEventIDs = append([]string(nil), state.SeenEventIDs[len(state.SeenEventIDs)-maxSeenEventIDs:]...)
-	}
-	return state, nil
-}
-
-func saveState(path string, state notifyState) error {
-	if path == "" || state.Offset < 0 {
-		return interaction.ErrInvalidArgument
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	payload, err := json.Marshal(state)
-	if err != nil {
-		return err
-	}
-	temporary := path + ".tmp"
-	if err := os.WriteFile(temporary, payload, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(temporary, path); err != nil {
-		_ = os.Remove(temporary)
-		return err
-	}
-	return nil
 }
 
 func (s notifyState) hasSeen(eventID string) bool {

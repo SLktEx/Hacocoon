@@ -43,6 +43,7 @@ type BaseInfo struct {
 }
 
 type WorkspaceLease struct {
+	InstanceID         string                `json:"instance_id,omitempty"`
 	PersistentResource PersistentResourceRef `json:"persistent_resource,omitempty"`
 	WorkspaceID        WorkspaceID           `json:"workspace_id"`
 	SourcePath         string                `json:"source_path"`
@@ -58,9 +59,10 @@ type WorkspaceLease struct {
 // haco run. Names alone are never sufficient proof because a user may create an
 // ordinary Environment whose name happens to start with "run-".
 type EphemeralRun struct {
-	EnvironmentID string            `json:"environment_id"`
-	State         EphemeralRunState `json:"state"`
-	CreatedAt     time.Time         `json:"created_at"`
+	TemporaryWorkspace *Workspace        `json:"temporary_workspace,omitempty"`
+	EnvironmentID      string            `json:"environment_id"`
+	State              EphemeralRunState `json:"state"`
+	CreatedAt          time.Time         `json:"created_at"`
 }
 
 type Environment struct {
@@ -75,15 +77,20 @@ type Environment struct {
 }
 
 type EnvironmentSpec struct {
-	PersistentResource string
-	Name               string
-	WorkspacePath      string
-	AccessMode         WorkspaceAccessMode
-	Base               BaseName
-	Resources          ResourceBudget
+	TemporaryWorkspace  *Workspace
+	SkipDefaultResource bool
+	PersistentResource  string
+	Name                string
+	WorkspacePath       string
+	AccessMode          WorkspaceAccessMode
+	Base                BaseName
+	Resources           ResourceBudget
 }
 
 type EnvironmentRuntimeSpec struct {
+	// InstanceID binds the provider resource to the durable creation reservation.
+	InstanceID         string
+	TemporaryWorkspace bool
 	PersistentResource PersistentResource
 	Name               string
 	WorkspacePath      string
@@ -98,8 +105,12 @@ type EnvironmentRuntime struct {
 	Resources ResourceBudget
 }
 
+const MaxExecutionInputBytes = 1 << 20
+
 type ExecutionRequest struct {
-	Argv []string
+	Stdin            []byte
+	WorkingDirectory string
+	Argv             []string
 }
 
 type ExecutionResult struct {

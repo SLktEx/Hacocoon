@@ -272,9 +272,9 @@ func (r *Runtime) ensureRoutedSandboxSourceGuard(ctx context.Context, ref, subne
 	table := routedSandboxGuardTable(ref)
 	shown, listErr := r.runRoutedPrivileged(ctx, "nft", "list", "table", sandboxRoutedFirewallFamily, table)
 	if listErr == nil {
-		if _, err := r.runRoutedPrivileged(ctx, "nft", "delete", "table", sandboxRoutedFirewallFamily, table); err != nil {
-			return fmt.Errorf("replace stale Environment source guard %s: %w", table, err)
-		}
+		// A stopped owned Environment may restore an absent volatile table after
+		// reboot. An existing table must match exactly; never replace drift.
+		return verifyRoutedSandboxSourceGuard(shown.Stdout, iface, prefix.String())
 	} else if !nftTableMissing(shown) {
 		return fmt.Errorf("inspect Environment source guard %s: %w", table, listErr)
 	}
@@ -393,6 +393,12 @@ func (r *Runtime) addRoutedSandboxNIC(ctx context.Context, ref string) error {
 }
 
 func (r *Runtime) verifyRoutedSandboxAntiSpoof(ctx context.Context, ref string) error {
+	return r.verifyRoutedSandboxAntiSpoofForStart(ctx, ref, false)
+}
+
+// restoreAbsent is reserved for a stopped, ownership-verified Environment under
+// the canonical lifecycle lock. A running guest must never trigger repair.
+func (r *Runtime) verifyRoutedSandboxAntiSpoofForStart(ctx context.Context, ref string, restoreAbsent bool) error {
 	bridge := environmentBridgeName(ref)
 	configured, err := r.runner.Run(ctx, "incus", "config", "device", "get", ref, "eth0", "network", "--project", r.project)
 	if err != nil || strings.TrimSpace(configured.Stdout) != bridge {
@@ -411,6 +417,11 @@ func (r *Runtime) verifyRoutedSandboxAntiSpoof(ctx context.Context, ref string) 
 	prefix, err := r.ensureEnvironmentBridge(ctx, ref)
 	if err != nil {
 		return err
+	}
+	if restoreAbsent {
+		if err := r.ensureRoutedSandboxSourceGuard(ctx, ref, prefix.String()); err != nil {
+			return err
+		}
 	}
 	if err := r.verifyRoutedSandboxSourceGuard(ctx, ref, prefix); err != nil {
 		return fmt.Errorf("verify Environment source identity guard: %w", err)

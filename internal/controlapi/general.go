@@ -8,6 +8,7 @@ import (
 	"net"
 	"strings"
 
+	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
@@ -48,12 +49,16 @@ type CapabilityRequestPayload struct {
 }
 
 type ApprovalRequestPayload struct {
-	Capability  string            `json:"capability"`
-	Action      string            `json:"action"`
-	Resource    string            `json:"resource,omitempty"`
-	Environment string            `json:"environment,omitempty"`
-	Attributes  map[string]string `json:"attributes,omitempty"`
-	Reason      string            `json:"reason,omitempty"`
+	RequestID  string                  `json:"request_id,omitempty"`
+	SavedScope *core.CapabilityRequest `json:"saved_scope,omitempty"`
+
+	EnvironmentInstance string            `json:"environment_instance,omitempty"`
+	Capability          string            `json:"capability"`
+	Action              string            `json:"action"`
+	Resource            string            `json:"resource,omitempty"`
+	Environment         string            `json:"environment,omitempty"`
+	Attributes          map[string]string `json:"attributes,omitempty"`
+	Reason              string            `json:"reason,omitempty"`
 }
 
 type responseStatus struct {
@@ -75,20 +80,24 @@ type runResponse struct {
 }
 
 type capabilityServerFrame struct {
-	Type     string                  `json:"type"`
-	Approval *ApprovalRequestPayload `json:"approval,omitempty"`
-	Result   *core.CapabilityResult  `json:"result,omitempty"`
-	Error    *responseStatus         `json:"error,omitempty"`
+	SavedChoices bool                    `json:"saved_choices,omitempty"`
+	Type         string                  `json:"type"`
+	Approval     *ApprovalRequestPayload `json:"approval,omitempty"`
+	Result       *core.CapabilityResult  `json:"result,omitempty"`
+	Error        *responseStatus         `json:"error,omitempty"`
 }
 
 type capabilityClientFrame struct {
-	Type     string `json:"type"`
-	Approved bool   `json:"approved"`
+	Save     capabilityapp.SavedChoice `json:"save,omitempty"`
+	Type     string                    `json:"type"`
+	Approved bool                      `json:"approved"`
 }
 
 type capabilityStreamTransportError struct{ err error }
 
-func (e *capabilityStreamTransportError) Error() string { return fmt.Sprintf("capability approval stream: %v", e.err) }
+func (e *capabilityStreamTransportError) Error() string {
+	return fmt.Sprintf("capability approval stream: %v", e.err)
+}
 func (e *capabilityStreamTransportError) Unwrap() error { return e.err }
 
 type baseService interface {
@@ -145,21 +154,7 @@ func RegisterGeneral(server *control.Server, bases baseService, runner runServic
 	}); err != nil {
 		return err
 	}
-	if err := server.Register(MethodRun, func(ctx context.Context, payload json.RawMessage) (any, error) {
-		var request runapp.Spec
-		if err := json.Unmarshal(payload, &request); err != nil || strings.TrimSpace(request.WorkspacePath) == "" || len(request.Argv) == 0 {
-			return nil, control.NewStatusError("invalid_argument", "workspace_path and argv are required")
-		}
-		result, err := runner.Run(ctx, request)
-		if err != nil {
-			// Preserve both the partial result and the original process exit code.
-			// run errors may be joined with cleanup/recovery failures, so the status
-			// message remains intact while ExitCode lets the CLI retain historical
-			// process semantics across the controller boundary.
-			return runResponse{Result: result, Error: statusFromError(err)}, nil
-		}
-		return runResponse{Result: result}, nil
-	}); err != nil {
+	if err := registerRun(server, runner); err != nil {
 		return err
 	}
 	if err := server.RegisterStream(MethodCapabilityRequest, func(ctx context.Context, payload json.RawMessage) (control.Stream, error) {
@@ -170,25 +165,43 @@ func RegisterGeneral(server *control.Server, bases baseService, runner runServic
 		return func(runCtx context.Context, conn net.Conn) error {
 			encoder := json.NewEncoder(conn)
 			decoder := json.NewDecoder(conn)
-			result, requestErr := capabilities.RequestWithApproval(runCtx, request.coreRequest(), func(approvalCtx context.Context, approval core.ApprovalRequest) (bool, error) {
+			_, savedChoices := capabilities.(interface {
+				RequestWithDecision(context.Context, core.CapabilityRequest, func(context.Context, core.ApprovalRequest) (capabilityapp.ApprovalDecision, error)) (core.CapabilityResult, error)
+			})
+			decide := func(approvalCtx context.Context, approval core.ApprovalRequest) (capabilityapp.ApprovalDecision, error) {
 				select {
 				case <-approvalCtx.Done():
-					return false, approvalCtx.Err()
+					return capabilityapp.ApprovalDecision{}, approvalCtx.Err()
 				default:
 				}
 				payload := approvalPayload(approval)
-				if err := encoder.Encode(capabilityServerFrame{Type: capabilityFrameApproval, Approval: &payload}); err != nil {
-					return false, &capabilityStreamTransportError{err: err}
+				if err := encoder.Encode(capabilityServerFrame{Type: capabilityFrameApproval, Approval: &payload, SavedChoices: savedChoices}); err != nil {
+					return capabilityapp.ApprovalDecision{}, &capabilityStreamTransportError{err: err}
 				}
 				var response capabilityClientFrame
 				if err := decoder.Decode(&response); err != nil {
-					return false, &capabilityStreamTransportError{err: err}
+					return capabilityapp.ApprovalDecision{}, &capabilityStreamTransportError{err: err}
 				}
 				if response.Type != capabilityFrameApprovalResponse {
-					return false, &capabilityStreamTransportError{err: fmt.Errorf("unexpected capability client frame %q: %w", response.Type, control.ErrProtocol)}
+					return capabilityapp.ApprovalDecision{}, &capabilityStreamTransportError{err: fmt.Errorf("unexpected capability client frame %q: %w", response.Type, control.ErrProtocol)}
 				}
-				return response.Approved, nil
-			})
+				return capabilityapp.ApprovalDecision{Approved: response.Approved, Save: response.Save}, nil
+			}
+			var result core.CapabilityResult
+			var requestErr error
+			if service, ok := capabilities.(interface {
+				RequestWithDecision(context.Context, core.CapabilityRequest, func(context.Context, core.ApprovalRequest) (capabilityapp.ApprovalDecision, error)) (core.CapabilityResult, error)
+			}); ok {
+				result, requestErr = service.RequestWithDecision(runCtx, request.coreRequest(), decide)
+			} else {
+				result, requestErr = capabilities.RequestWithApproval(runCtx, request.coreRequest(), func(ctx context.Context, r core.ApprovalRequest) (bool, error) {
+					decision, err := decide(ctx, r)
+					if decision.Save != "" {
+						return false, core.ErrUnsupported
+					}
+					return decision.Approved, err
+				})
+			}
 			var transportErr *capabilityStreamTransportError
 			if errors.As(requestErr, &transportErr) {
 				return transportErr
@@ -253,23 +266,29 @@ func (r CapabilityRequestPayload) coreRequest() core.CapabilityRequest {
 
 func approvalPayload(request core.ApprovalRequest) ApprovalRequestPayload {
 	return ApprovalRequestPayload{
-		Capability:  request.CapabilityRequest.Capability,
-		Action:      request.CapabilityRequest.Action,
-		Resource:    request.CapabilityRequest.Resource,
-		Environment: request.CapabilityRequest.Environment,
-		Attributes:  cloneStringMap(request.CapabilityRequest.Attributes),
-		Reason:      request.Reason,
+		RequestID:           request.RequestID,
+		SavedScope:          request.SavedScope,
+		EnvironmentInstance: request.CapabilityRequest.EnvironmentInstance,
+		Capability:          request.CapabilityRequest.Capability,
+		Action:              request.CapabilityRequest.Action,
+		Resource:            request.CapabilityRequest.Resource,
+		Environment:         request.CapabilityRequest.Environment,
+		Attributes:          cloneStringMap(request.CapabilityRequest.Attributes),
+		Reason:              request.Reason,
 	}
 }
 
 func (r ApprovalRequestPayload) coreRequest() core.ApprovalRequest {
 	return core.ApprovalRequest{
+		RequestID:  r.RequestID,
+		SavedScope: r.SavedScope,
 		CapabilityRequest: core.CapabilityRequest{
-			Capability:  r.Capability,
-			Action:      r.Action,
-			Resource:    r.Resource,
-			Environment: r.Environment,
-			Attributes:  cloneStringMap(r.Attributes),
+			EnvironmentInstance: r.EnvironmentInstance,
+			Capability:          r.Capability,
+			Action:              r.Action,
+			Resource:            r.Resource,
+			Environment:         r.Environment,
+			Attributes:          cloneStringMap(r.Attributes),
 		},
 		Reason: r.Reason,
 	}

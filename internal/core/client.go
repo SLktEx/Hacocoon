@@ -25,15 +25,16 @@ type LocalPortRequest struct {
 
 type SSHAccessRequest struct {
 	PublicKey string
-	HostPort  int
+	HostPort  int // zero requests automatic selection by the runtime authority
 }
 
 type ClientConnection struct {
-	ID         string `json:"id"`
-	Kind       string `json:"kind"`
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	TargetPort int    `json:"target_port"`
-	User       string `json:"user,omitempty"`
-	Command    string `json:"command,omitempty"`
+	HostPublicKey string `json:"host_public_key,omitempty"`
+	ID            string `json:"id"`
+	Kind          string `json:"kind"`
+	Host          string `json:"host"`
+	Port          int    `json:"port"`
+	TargetPort    int    `json:"target_port"`
+	User          string `json:"user,omitempty"`
+	Command       string `json:"command,omitempty"`
 }

@@ -122,3 +122,9 @@ Local Incus and any future remote/cloud adapter must meet the same higher-level 
 The historical EC2 opt-in variable names, remote image contract, staging mechanics, state representation, and provider details are **not current compatibility commitments**. A future cloud adapter may be redesigned before it returns.
 
 The durable properties to preserve are: **explicit opt-in, fail closed before provider-side effects, keep reusable credentials on the trusted side, and keep provider-specific details out of Core.**
+
+## Separate external operations
+
+The optional [AWS operations plugin](aws-operations.md) now implements a partial
+S3 listing path. It does not restore the historical EC2 runtime, EBS helpers or
+cloud-provider acceptance described above.

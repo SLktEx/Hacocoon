@@ -1,7 +1,7 @@
 # Hacocoon development-checkpoint numbering and gate identity.
 # This intentionally uses a constrained YAML subset parsed by repository tooling.
 schema: 1
-current: "v0.29"
+current: "v0.46"
 milestones:
   "v0.1": "Secure Workspace Runtime MVP"
   "v0.2": "Workspace Abstraction & Lease"
@@ -32,3 +32,20 @@ milestones:
   "v0.27": "Managed Repository WSL Workflow"
   "v0.28": "Multi-repository Development and Optional OCI Distribution"
   "v0.29": "Persistent OCI Resources and Native Windows Access"
+  "v0.30": "Independent Persistent Store Copies"
+  "v0.31": "Retained Environment Resume"
+  "v0.32": "Automatic Workspace Store Initialization"
+  "v0.33": "Desktop SSH Setup"
+  "v0.34": "Host Setup Recipes"
+  "v0.35": "Temporary Execution"
+  "v0.36": "Environment Name Resolution"
+  "v0.37": "Approval Configuration Editing"
+  "v0.38": "Pending Approval Review"
+  "v0.39": "Windows Notification Review"
+  "v0.40": "Host OCI Area Copy Boundary"
+  "v0.41": "Interactive Environment Selection"
+  "v0.42": "Completed OCI Copy Recovery"
+  "v0.43": "Approved AWS S3 Listing"
+  "v0.44": "Verified AWS Object Downloads"
+  "v0.45": "Guest AWS Request Boundary"
+  "v0.46": "Snapshot Workspace and OCI storage"

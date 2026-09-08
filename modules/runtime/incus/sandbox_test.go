@@ -14,9 +14,18 @@ const sandboxTestFingerprint = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	values := map[string]string{}
+	guardCreated := false
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if len(args) >= 2 && args[0] == "image" && args[1] == "info" {
 			return host.Result{Stdout: `{"fingerprint":"` + sandboxTestFingerprint + `"}`}, nil
+		}
+		if len(args) > 6 && args[2] == "nft" && args[6] == routedSandboxGuardTable("haco-demo") {
+			if args[3] == "list" && !guardCreated {
+				return host.Result{Stderr: "No such file or directory"}, errors.New("guard absent before creation")
+			}
+			if args[3] == "add" && args[4] == "table" {
+				guardCreated = true
+			}
 		}
 		if result, ok := sandboxNetworkResult(args); ok {
 			return result, nil
@@ -52,7 +61,7 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 		PIDs:        core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 1024},
 		RootBytes:   core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 40 << 30},
 	}
-	created, err := provider.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/tmp/work", Resources: budget})
+	created, err := provider.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{InstanceID: testEnvironmentInstance, Name: "demo", WorkspacePath: "/tmp/work", Resources: budget})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,6 +82,9 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	seenIPGuard := false
 	for i, call := range runner.calls {
 		joined := strings.Join(call.args, " ")
+		if len(call.args) > 0 && call.args[0] == "init" && !strings.Contains(joined, "--config "+environmentInstanceKey+"="+testEnvironmentInstance) {
+			t.Fatal("creation omitted durable ID", call.args)
+		}
 		if len(call.args) > 0 && call.args[0] == "start" {
 			start = i
 		}

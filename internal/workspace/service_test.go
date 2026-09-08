@@ -14,6 +14,7 @@ import (
 )
 
 type fakeEnvironmentRuntime struct {
+	createHook    func()
 	createSpec    core.EnvironmentRuntimeSpec
 	createResult  core.EnvironmentRuntime
 	createErr     error
@@ -30,6 +31,9 @@ type fakeEnvironmentRuntime struct {
 
 func (f *fakeEnvironmentRuntime) CreateEnvironment(_ context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
 	f.createSpec = spec
+	if f.createHook != nil {
+		f.createHook()
+	}
 	return f.createResult, f.createErr
 }
 
@@ -127,6 +131,12 @@ func TestCreateResolvesWorkspaceAndPersistsEnvironment(t *testing.T) {
 
 	runtime := &fakeEnvironmentRuntime{createResult: core.EnvironmentRuntime{Ref: "haco-demo"}}
 	store := newFakeEnvironmentStore()
+	runtime.createHook = func() {
+		lease := store.leases["demo"]
+		if !core.ValidEnvironmentInstanceID(runtime.createSpec.InstanceID) || runtime.createSpec.InstanceID != lease.InstanceID {
+			t.Fatal("provider creation lost reserved identity")
+		}
+	}
 	service := New(runtime, store)
 	fixed := time.Date(2026, 8, 29, 6, 30, 0, 0, time.UTC)
 	service.now = func() time.Time { return fixed }
@@ -195,7 +205,8 @@ func TestCreateCleansRuntimeWhenPersistenceFailsEvenAfterCancellation(t *testing
 	store := newFakeEnvironmentStore()
 	store.putErr = persistErr
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	defer cancel()
+	runtime.createHook = cancel
 
 	_, err := New(runtime, store).Create(ctx, core.EnvironmentSpec{Name: "demo", WorkspacePath: root})
 	if !errors.Is(err, persistErr) {

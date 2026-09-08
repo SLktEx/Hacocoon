@@ -1,10 +1,50 @@
 # バージョン番号とリリース状況
+現在の checkpoint v0.46 は snapshot の所有権・復旧処理、provider 作成 ID、内部の Workspace/OCI COW 保存を追加します。専用 WSL で volume のデータ/リンク保持、COW の親子関係、元データからの独立性を確認しました。全構成の保存、rootfs/Base 保存、復元、公開 CLI は未完了で、新 HEAD の GHA は未確認です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
 
-現在のcheckpoint v0.29はfresh installからのnative WSL連携、C/non-C drive投影、
-Persistent OCI Store、Windows標準OpenSSHを実装。配布物c86c43eでB1/B4/B5実機受入と
-B2/A/B6回帰が成功した。switch-baseは現在無効でStage D+へ延期し、A-Cをblockしない。
-下記v0.28の配布・Base切替は過去の証拠である。正確な構成と制約は
-[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照。
+新規 Host の所有確認済み OCI 領域は setup で自動接続されます。既存データの移行と runtime 受け入れは partial です。
+前の checkpoint v0.39 は Windows 通知 review adapter と distribution 別登録を追加します。実機の通知履歴・protocol 起動・古い要求拒否は成功しましたが、通知からの新規回答と Linux 起動は未完了です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
+
+
+partial の承認段階で、通常 Git pending／approve／deny を再利用する保存範囲と
+永続化 receipt に接続しました。通知・config 管理全体は未完了です。
+installed `eb16300b6700` で専用 GitHub への push、保存 ask の再利用、拒否を確認しました。
+他の選択肢は repository 内検証に限定されます。現行 Windows GHA は SSH 成功後の
+editor 完了待ちで失敗しています。
+[ADR 0026](../adr/0026-reusable-git-approval-scope.ja.md) を参照してください。
+
+現在の checkpoint v0.37 は、承認方針の確認・revision に結び付いた編集を追加します。
+保存済み承認と同じ Policy・writer を使い、競合を拒否します。installed 受け入れは未確認です。
+
+先行する checkpoint v0.36 は installed Standard mode の Environment DNS 自動設定と、
+停止中 Environment の欠落した source guard を起動前に復元する処理を追加します。
+名前解決と接続の許可は別です。repository 回帰テストはありますが、新しい Windows DNS
+fixture と実際の再起動・VPN の検証は未完了です。
+
+先行する v0.33–v0.35 の desktop SSH、Host recipe、一時実行は `b6c428d` で
+GHA 全 4 系統が成功しました。DNS relay の基礎部分 `3c3c101` も全 4 系統が成功済みです。
+ローカルの VS Code 1.136.1 Remote-SSH は、明示的な許可後に古い `8752431` installation
+で成功し、一時 rule と検証接続を解除しました。正確な範囲と最初の再開失敗は
+[実装状態](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
+
+先行するcheckpoint v0.32では既定Storeの自動初期化、Workspaceへの対応付けと再利用、
+公開元専用の状態、任意の`--no-oci`を追加しました。公開済みsourceのコピーはローカルの
+componentと実Btrfs合成データ試験で確認しました。HostイメージproducerとDockerの
+image/runtime確認は未完了で、B4全体はpartialです。v0.31とSSH公開鍵追加はPR #482の
+`f8517ba`で4つのGHA workflowがすべて成功しました。
+
+
+先行するcheckpoint v0.31では `haco env start <name>` による保持済みEnvironmentの再開を追加しました。
+ローカルtest/raceと独立した実Incus/WSLの再開fixtureは成功しました。
+インストール済み製品経路も`f8517ba`のGHAで成功しました。SSH setup自動化は未実装で、ロードマップC/E全体の完了ではありません。
+先行するv0.30のStore copyとB4の残課題は以下に記録しています。
+
+
+先行するcheckpoint v0.30は `haco plugin oci store create <target> --from <source>` による
+未接続の永続Store独立コピーを追加。repositoryとローカル実Incusの合成データによるCOWを
+検証する単位であり、trusted HostからのOCI image配布全体・runtime受入・中断コピーの
+回復はpartial。前のv0.29で行ったnative WSL・永続Store・Windows OpenSSHの受入は
+`c86c43e`に結び付く。`switch-base`は無効・保留のまま。
+[実装状況](../IMPLEMENTATION_STATUS.ja.md)に証拠と制約を記載。
 
 
 過去のv0.28受入：当時の候補はtrusted WSL Windows連携、複数repo、Workspace保持Base切替、
@@ -82,8 +122,25 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.27 | Managed Repository WSL Workflow | 実装済み |
 | v0.28 | Multi-repository Development and Optional OCI Distribution | 実装済み |
 | v0.29 | Persistent OCI Resources and Native Windows Access | 実装済み |
+| v0.30 | Independent Persistent Store Copies | 実装済み |
+| v0.31 | Retained Environment Resume | 実装済み |
+| v0.32 | Automatic Workspace Store Initialization | 実装済み |
+| v0.33 | Desktop SSH Setup | 実装済み |
+| v0.34 | Host Setup Recipes | 実装済み・Windows の保存/再実行/更新/解除は bcc1baf で成功 |
+| v0.35 | Temporary Execution | 実装済み・通常 run と中断後削除は 4adfe19 の実 Incus で成功 |
+| v0.36 | Environment Name Resolution | 実装済み |
+| v0.37 | Approval Configuration Editing | 実装済み |
+| v0.38 | Pending Approval Review | 実装済み |
+| v0.39 | Windows Notification Review | 実装済み |
+| v0.40 | Host OCI Area Copy Boundary | partial |
+| v0.41 | Interactive Environment Selection | 実装済み |
+| v0.42 | Completed OCI Copy Recovery | 実装済み |
+| v0.43 | Approved AWS S3 Listing | 実装済み |
+| v0.44 | Verified AWS Object Downloads | 実装済み |
+| v0.45 | Guest AWS Request Boundary | 実装済み |
+| v0.46 | Snapshot Workspace and OCI storage | 実装済み |
 
-現在のmilestone位置は **v0.29** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.46** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 
@@ -128,3 +185,5 @@ v0.23は新しいarchitecture contractではなくacceptance checkpointです。
 - v0.26: trusted-host creation、exact ownership/collision handling、idempotent ensure、stopped-state recovery、managed-storage配置、raw control-socket非公開をreal Incus acceptanceで検証済み。real Windows/WSL interactive-login behaviorとGit/OCI/credential/control-channelの全面移行はfollow-up
 
 > **意味のあるproduct、operator、observability、acceptanceの進捗がlandしたら次minorへ進めてよい。pre-1.0ではversion番号を節約するよりcheckpointを見える化する。**
+
+d4aef8d の Windows 受け入れ確認では、VS Code に加えて C4 の基本 recipe 操作、C5 の HTTP／Edge preview、C6 の Environment doctor 前提確認が PASS になりました。C4 の再作成・キャンセル、既定ブラウザ起動、VPN／NRPT は別の受け入れ項目です。partial の承認 checkpoint では、追加 CLI 引数なしで名前付き要求を catalog の作成 ID に結び付けます。

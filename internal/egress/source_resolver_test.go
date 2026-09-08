@@ -164,3 +164,50 @@ func TestPersistedSourceResolverSupportsLegacyLogicalRuntimeRef(t *testing.T) {
 		t.Fatalf("environment = %q, want demo", got)
 	}
 }
+
+type instanceEnvironmentLister struct {
+	fakeEnvironmentLister
+	instance    string
+	snapshot    core.Environment
+	errInstance error
+}
+
+func (f *instanceEnvironmentLister) EnvironmentInstance(_ context.Context, expected core.Environment) (string, error) {
+	f.snapshot = expected
+	return f.instance, f.errInstance
+}
+func TestSourceInstanceRequiresExactPersistedCreationEvidence(t *testing.T) {
+	const id = "env-11111111111111111111111111111111"
+	for _, scenario := range []string{"valid", "stale", "invalid", "unsupported", "ambiguous", "orphan"} {
+		t.Run(scenario, func(t *testing.T) {
+			env := core.Environment{Name: "demo", RuntimeRef: "demo"}
+			store := &instanceEnvironmentLister{fakeEnvironmentLister: fakeEnvironmentLister{environments: []core.Environment{env}}, instance: id}
+			switch scenario {
+			case "stale":
+				store.errInstance = core.ErrCapabilityStale
+			case "invalid":
+				store.instance = ""
+			case "ambiguous":
+				store.environments = append(store.environments, env)
+			case "orphan":
+				store.environments = nil
+			}
+			var catalog EnvironmentLister = store
+			if scenario == "unsupported" {
+				catalog = store.fakeEnvironmentLister
+			}
+			resolver, err := NewPersistedSourceResolver(environmentapp.ProviderIncus, fakeRuntimeSourceResolver{ref: "haco-demo"}, catalog)
+			if err != nil {
+				t.Fatal(err)
+			}
+			name, instance, err := resolver.ResolveEnvironmentInstance(context.Background(), net.ParseIP("10.200.0.23"))
+			if scenario == "valid" {
+				if err != nil || name != "demo" || instance != id || store.snapshot.RuntimeRef != env.RuntimeRef {
+					t.Fatal(name, instance, err)
+				}
+			} else if err == nil || name != "" || instance != "" {
+				t.Fatal("unproven source accepted", name, instance, err)
+			}
+		})
+	}
+}

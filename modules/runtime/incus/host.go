@@ -43,6 +43,11 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 		return fmt.Errorf("resolve trusted host root storage: %w", err)
 	}
 
+	if r.trustedHostCopyRecovery != nil {
+		if err := r.trustedHostCopyRecovery(ctx); err != nil {
+			return err
+		}
+	}
 	state, exists, err := r.trustedHostState(ctx)
 	if err != nil {
 		return err
@@ -114,16 +119,22 @@ func (r *Runtime) completeTrustedHost(ctx context.Context, state, pool string) e
 // ConfigureWSLInterop uses the installer-owned setup script. It does not
 // register binfmt handlers or install a Windows executable launcher.
 func (r *Runtime) ConfigureWSLInterop() {
-	r.trustedHostInterop = func(ctx context.Context) error {
+	configure := func(ctx context.Context, mode string) error {
 		const script = "/usr/local/libexec/hacocoon-wsl-interop"
 		if _, _, err := trustedClientSource(script); err != nil {
 			return fmt.Errorf("WSL interop setup unavailable; rerun Windows installer: %w", err)
 		}
-		if _, err := r.runner.Run(ctx, "/usr/bin/python3", "-I", script); err != nil {
+		args := []string{"-I", script}
+		if mode != "" {
+			args = append(args, mode)
+		}
+		if _, err := r.runner.Run(ctx, "/usr/bin/python3", args...); err != nil {
 			return fmt.Errorf("refresh trusted Host Windows access; rerun Windows installer: %w", err)
 		}
 		return nil
 	}
+	r.trustedHostInterop = func(ctx context.Context) error { return configure(ctx, "") }
+	r.trustedHostNotifications = func(ctx context.Context) error { return configure(ctx, "--notifications=refresh") }
 }
 
 // ProvisionTrustedHostClient installs the client-only haco-host binary into the
@@ -384,6 +395,14 @@ func (r *Runtime) verifyTrustedHostOwnership(ctx context.Context) error {
 }
 
 func (r *Runtime) ensureTrustedHostRunning(ctx context.Context, state string) error {
+	unlock, err := lockHostOperation(ctx, r.project)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if err := r.rejectPendingHostCopy(ctx); err != nil {
+		return err
+	}
 	switch strings.ToUpper(strings.TrimSpace(state)) {
 	case "RUNNING":
 		return nil

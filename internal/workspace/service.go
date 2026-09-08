@@ -40,11 +40,12 @@ type environmentStore interface {
 }
 
 type Service struct {
-	runtime        environmentRuntime
-	store          environmentStore
-	provider       WorkspaceProvider
-	now            func() time.Time
-	cleanupTimeout time.Duration
+	defaultResource func(context.Context, core.Workspace) (core.PersistentResource, error)
+	runtime         environmentRuntime
+	store           environmentStore
+	provider        WorkspaceProvider
+	now             func() time.Time
+	cleanupTimeout  time.Duration
 }
 
 func New(runtime environmentRuntime, store environmentStore) *Service {
@@ -84,6 +85,11 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 	if err != nil {
 		return core.Environment{}, err
 	}
+	unlockEnvironment, err := lockLifecycle(ctx, "environment", name)
+	if err != nil {
+		return core.Environment{}, err
+	}
+	defer unlockEnvironment()
 	mode, err := normalizeAccessMode(spec.AccessMode)
 	if err != nil {
 		return core.Environment{}, err
@@ -91,6 +97,9 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 	resources, err := core.ResolveResourceBudget(spec.Resources)
 	if err != nil {
 		return core.Environment{}, err
+	}
+	if spec.SkipDefaultResource && spec.PersistentResource != "" {
+		return core.Environment{}, core.ErrInvalidArgument
 	}
 	var persistent core.PersistentResource
 	if spec.PersistentResource != "" {
@@ -108,9 +117,17 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 			return core.Environment{}, core.ErrRecoveryRequired
 		}
 	}
-	workspace, err := s.provider.Resolve(ctx, WorkspaceRequest{Path: spec.WorkspacePath})
-	if err != nil {
-		return core.Environment{}, err
+	var workspace core.Workspace
+	if spec.TemporaryWorkspace != nil {
+		if spec.WorkspacePath != "" || !core.ValidTemporaryWorkspace(*spec.TemporaryWorkspace) || mode != core.WorkspaceReadWrite || spec.PersistentResource != "" {
+			return core.Environment{}, core.ErrInvalidArgument
+		}
+		workspace = *spec.TemporaryWorkspace
+	} else {
+		workspace, err = s.provider.Resolve(ctx, WorkspaceRequest{Path: spec.WorkspacePath})
+		if err != nil {
+			return core.Environment{}, err
+		}
 	}
 	unlock, err := lockWorkspace(ctx, workspace.ID)
 	if err != nil {
@@ -123,7 +140,21 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 		return core.Environment{}, err
 	}
 
+	if spec.PersistentResource == "" && !spec.SkipDefaultResource && s.defaultResource != nil {
+		persistent, err = s.defaultResource(ctx, workspace)
+		if err != nil {
+			return core.Environment{}, err
+		}
+		if persistent != (core.PersistentResource{}) && (persistent.WorkspaceID != workspace.ID || persistent.State != "ready" || !core.ValidPersistentResourceRef(persistent.Ref())) {
+			return core.Environment{}, core.ErrRecoveryRequired
+		}
+	}
+	instanceID, identityErr := core.NewEnvironmentInstanceID()
+	if identityErr != nil {
+		return core.Environment{}, identityErr
+	}
 	lease := core.WorkspaceLease{
+		InstanceID:         instanceID,
 		PersistentResource: persistent.Ref(),
 		WorkspaceID:        workspace.ID,
 		SourcePath:         workspace.Path,
@@ -138,6 +169,8 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 	}
 
 	created, err := s.runtime.CreateEnvironment(ctx, core.EnvironmentRuntimeSpec{
+		InstanceID:         instanceID,
+		TemporaryWorkspace: spec.TemporaryWorkspace != nil,
 		PersistentResource: persistent,
 		Name:               name,
 		WorkspacePath:      workspace.Path,
@@ -201,7 +234,20 @@ func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (enviro
 	return environment, nil
 }
 
-func (s *Service) Exec(ctx context.Context, name string, req core.ExecutionRequest) (result core.ExecutionResult, err error) {
+func (s *Service) Exec(ctx context.Context, name string, req core.ExecutionRequest) (core.ExecutionResult, error) {
+	return s.exec(ctx, name, req, "")
+}
+
+// ExecForWorkspace serializes execution with inverse lifecycle operations and
+// rejects recycled names before the provider can receive saved project input.
+func (s *Service) ExecForWorkspace(ctx context.Context, name string, workspace core.WorkspaceID, req core.ExecutionRequest) (core.ExecutionResult, error) {
+	if workspace == "" {
+		return core.ExecutionResult{}, core.ErrInvalidArgument
+	}
+	return s.exec(ctx, name, req, workspace)
+}
+
+func (s *Service) exec(ctx context.Context, name string, req core.ExecutionRequest, workspace core.WorkspaceID) (result core.ExecutionResult, err error) {
 	started := time.Now()
 	ctx = logging.With(ctx, "operation", "exec_environment", "environment_id", name)
 	logger := logging.FromContext(ctx).With("component", "core")
@@ -212,7 +258,13 @@ func (s *Service) Exec(ctx context.Context, name string, req core.ExecutionReque
 			"exit_code", result.ExitCode,
 		}
 		if err != nil {
-			logger.ErrorContext(ctx, "environment command failed", append(attrs, "error", err)...)
+			if workspace == "" {
+				logger.ErrorContext(ctx, "environment command failed", append(attrs, "error", err)...)
+			} else {
+				// Saved input and backend diagnostics may contain project secrets.
+				// The setup boundary owns the failure log; do not duplicate it.
+				logger.DebugContext(ctx, "project command failed", attrs...)
+			}
 			return
 		}
 		logger.InfoContext(ctx, "environment command completed", attrs...)
@@ -221,12 +273,22 @@ func (s *Service) Exec(ctx context.Context, name string, req core.ExecutionReque
 	if _, err := validateEnvironmentName(name); err != nil {
 		return core.ExecutionResult{}, err
 	}
-	if len(req.Argv) == 0 {
+	if len(req.Argv) == 0 || len(req.Stdin) > core.MaxExecutionInputBytes {
 		return core.ExecutionResult{}, core.ErrInvalidArgument
+	}
+	if workspace != "" {
+		unlock, lockErr := lockLifecycle(ctx, "environment", name)
+		if lockErr != nil {
+			return core.ExecutionResult{}, lockErr
+		}
+		defer unlock()
 	}
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err != nil {
 		return core.ExecutionResult{}, err
+	}
+	if workspace != "" && environment.Workspace.ID != workspace {
+		return core.ExecutionResult{}, core.ErrIncompatibleState
 	}
 	return s.runtime.ExecEnvironment(ctx, environment.RuntimeRef, req)
 }
@@ -257,7 +319,9 @@ func (s *Service) Shell(ctx context.Context, name string) (err error) {
 	return s.runtime.ShellEnvironment(ctx, environment.RuntimeRef)
 }
 
-func (s *Service) Delete(ctx context.Context, name string) (err error) {
+func (s *Service) Delete(ctx context.Context, name string) error { return s.delete(ctx, name, nil) }
+
+func (s *Service) delete(ctx context.Context, name string, expected *core.Workspace) (err error) {
 	started := time.Now()
 	ctx = logging.With(ctx, "operation", "delete_environment", "environment_id", name)
 	logger := logging.FromContext(ctx).With("component", "core")
@@ -276,8 +340,19 @@ func (s *Service) Delete(ctx context.Context, name string) (err error) {
 	if _, err := validateEnvironmentName(name); err != nil {
 		return err
 	}
+	unlock, err := lockLifecycle(ctx, "environment", name)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if err := s.checkSnapshotIdle(ctx, name); err != nil {
+		return err
+	}
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err == nil {
+		if expected != nil && environment.Workspace != *expected {
+			return core.ErrIncompatibleState
+		}
 		if err := s.runtime.DeleteEnvironment(ctx, environment.RuntimeRef); err != nil && !isNotFound(err) {
 			return fmt.Errorf("delete runtime %q: %w", environment.RuntimeRef, err)
 		}
@@ -296,6 +371,9 @@ func (s *Service) Delete(ctx context.Context, name string) (err error) {
 	}
 	if leaseErr != nil {
 		return leaseErr
+	}
+	if expected != nil && (lease.WorkspaceID != expected.ID || lease.SourcePath != expected.Path) {
+		return core.ErrIncompatibleState
 	}
 	if lease.RuntimeRef == "" {
 		return fmt.Errorf("workspace lease for %q has no runtime reference; refusing to reclaim without proof: %w", name, core.ErrRecoveryRequired)
@@ -368,4 +446,10 @@ func normalizeAccessMode(mode core.WorkspaceAccessMode) (core.WorkspaceAccessMod
 
 func isNotFound(err error) bool {
 	return errors.Is(err, core.ErrNotFound) || os.IsNotExist(err)
+}
+
+// ConfigureDefaultResource installs an optional provider-neutral initializer.
+// Configure once at composition time, before serving concurrent requests.
+func (s *Service) ConfigureDefaultResource(resolve func(context.Context, core.Workspace) (core.PersistentResource, error)) {
+	s.defaultResource = resolve
 }

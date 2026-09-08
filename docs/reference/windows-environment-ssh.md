@@ -1,8 +1,32 @@
 # Windows OpenSSH access to an Environment
 
-Status: implemented manual configuration; real Windows acceptance belongs in
-[implementation status](../IMPLEMENTATION_STATUS.md). Automatic SSH config
-installation, VS Code integration and final SSH UX are deferred to Stage D+.
+Status: automatic SSH setup is implemented; commit-bound Windows/editor acceptance
+belongs in [implementation status](../IMPLEMENTATION_STATUS.md).
+
+From trusted haco-host:
+
+```bash
+haco ssh setup my-dev
+haco open my-dev
+# Optional terminal client:
+haco open --client ssh my-dev
+```
+
+A single Environment needs no name. With several, run `haco open` or
+`haco ssh setup` in a terminal and select a number from the Environment/Workspace
+list. Blank input cancels. Scripts should supply the name explicitly. Setup manages Windows-owned keys, host-key
+pins and the SSH include, resumes stopped Environments and reuses matching
+connections. See the [client contract](../design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening)
+for ownership and recovery.
+
+The installed Windows acceptance fixture records editor, project setup, preview
+and Environment doctor failures separately and continues the independent probes.
+Any recorded failure still fails the job after host-key refusal checks and
+cleanup. A later PASS marker never erases an earlier failure.
+
+## Advanced manual configuration
+
+The existing explicit public-key/configuration flow remains available:
 
 Use Windows standard `%WINDIR%\System32\OpenSSH\ssh.exe` and `ssh-keygen.exe`.
 Create a dedicated keypair on Windows. The private key stays in that Windows
@@ -22,12 +46,11 @@ Save the generated text as a UTF-8 file on Windows. It contains a loopback host,
 port, root user and `StrictHostKeyChecking yes`. It does not embed a private key
 or edit the user's `.ssh/config`.
 
-Pin the server's public host key using a trusted channel. For this local manual
-PoC, the Physical Host administrator can read it directly:
-
-```powershell
-wsl -d Hacocoon -u root --exec incus exec haco-my-dev --project hacocoon -- cat /etc/ssh/ssh_host_ed25519_key.pub
-```
+The `haco env ssh` JSON response includes `host_public_key`. Hacocoon reads only
+the Environment's public Ed25519 host key through the trusted provider channel,
+validates its SSH wire structure and drops its comment. Use that value for
+pinning; ordinary users no longer need to invoke Incus as an administrator.
+Malformed keys fail preparation and trigger managed key/proxy cleanup.
 
 Put `[127.0.0.1]:22229 ssh-ed25519 <public-key-data>` into a dedicated Windows
 `known_hosts` file. An unauthenticated `ssh-keyscan` result alone is not trusted

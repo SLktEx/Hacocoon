@@ -15,6 +15,7 @@ import (
 
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/review"
 )
 
 type localBackend struct{ repos, workspaces string }
@@ -143,9 +144,18 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(sockets) })
-	broker := NewBroker(repositories, singleEnvironment{environment}, sockets)
+	identity, err := core.NewEnvironmentInstanceID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	broker := NewBroker(repositories, &identityEnvironmentStore{environment: environment, identity: identity}, sockets)
+	policyPath := filepath.Join(root, "saved-policy.json")
+	initialPolicy := `{"default":"allow","rules":[{"capability":"git.repository","action":"push","environment":"*","resource":"*","attributes":{"repository":"*","remote":"*","target_ref":"*","old_oid":"*","new_oid":"*","operation_id":"*","update_kind":"fast-forward"},"decision":"require-approval"}]}`
+	if err := os.WriteFile(policyPath, []byte(initialPolicy), 0600); err != nil {
+		t.Fatal(err)
+	}
 	audit := &gitAudit{}
-	capabilities, err := capabilityapp.New(gitPolicy{}, nil, audit, broker)
+	capabilities, err := capabilityapp.New(capabilityapp.NewFilePolicyEvaluator(policyPath), nil, audit, broker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,9 +264,128 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	if _, err := broker.Execute(ctx, core.CapabilityRequest{Capability: Capability, Action: "push", Attributes: map[string]string{"operation_id": proposal.ID}}); err == nil {
 		t.Fatal("unprepared provider call succeeded")
 	}
+	// Reusable Policy must approve future commits on this registered branch,
+	// while every execution still carries the exact prepared old/new OIDs.
+	resetPolicy := func() {
+		t.Helper()
+		if err := os.WriteFile(policyPath, []byte(`{"default":"require-approval","rules":[{"capability":"git.repository","action":"fetch","environment":"*","resource":"*","attributes":{"repository":"*","remote":"*","target_ref":"*","old_oid":"*","new_oid":"*","operation_id":"*"},"decision":"allow"}]}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	resetPolicy()
+	finishPush := func(done <-chan error, wantSuccess bool) {
+		t.Helper()
+		select {
+		case err := <-done:
+			if (err == nil) != wantSuccess {
+				t.Fatalf("push success=%v: %v", wantSuccess, err)
+			}
+		case <-time.After(15 * time.Second):
+			t.Fatal("saved-policy push did not finish")
+		}
+	}
+	done, _ = push()
+	proposal = waitProposal()
+	if proposal.SavedScope == nil || proposal.SavedScope.Attributes["target_ref"] != "refs/heads/main" || proposal.SavedScope.Attributes["update_kind"] != "fast-forward" ||
+		proposal.SavedScope.Attributes["new_oid"] != "*" || proposal.SavedScope.Attributes["operation_id"] != "*" {
+		t.Fatalf("incorrect reusable scope: %+v", proposal.SavedScope)
+	}
+	// Pending snapshots must not let a display client rewrite stored scope.
+	proposal.SavedScope.Attributes["target_ref"] = "refs/heads/other"
+	reviews := review.New(broker)
+	reviewPending, err := reviews.Pending(ctx)
+	if err != nil || len(reviewPending) != 1 || reviewPending[0].RequestID != proposal.RequestID {
+		t.Fatalf("common review lost Git request: %+v %v", reviewPending, err)
+	}
+	reviewPending[0].CapabilityRequest.Attributes["target_ref"] = "refs/heads/other"
+	canceledReview, cancelReview := context.WithCancel(ctx)
+	cancelReview()
+	if _, err := broker.DecideWithDecision(canceledReview, proposal.ID, capabilityapp.ApprovalDecision{Approved: true}); err == nil || len(broker.Pending()) != 1 {
+		t.Fatal("canceled Git review consumed approval")
+	}
+	result, err := reviews.Decide(ctx, proposal.RequestID, capabilityapp.ApprovalDecision{Approved: true, Save: capabilityapp.AllowEnvironment})
+	if err != nil || result.SavedChoice != string(capabilityapp.AllowEnvironment) || proposal.RequestID == "" || result.RequestID != proposal.RequestID {
+		t.Fatalf("saved result: %+v %v", result, err)
+	}
+	finishPush(done, true)
+	next := testCommit(t, workspace, "next.txt", "next approved commit\n")
+	done, _ = push()
+	finishPush(done, true)
+	if got := testGit(t, remote, "rev-parse", "main"); got != next {
+		t.Fatal("saved scope did not push next exact commit")
+	}
+	contents, err := os.ReadFile(policyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved capabilityapp.PolicyFile
+	if err := json.Unmarshal(contents, &saved); err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.SavedDecisions) != 1 || saved.SavedDecisions[0].Attributes["target_ref"] != "refs/heads/main" || saved.SavedDecisions[0].Attributes["old_oid"] != "*" {
+		t.Fatal("saved scope changed or pinned a commit")
+	}
+
+	// A branch allow is not permission to rewrite its history.
+	force := exec.Command("/usr/bin/git", "-C", workspace, "push", "--force", "origin", initial+":refs/heads/main")
+	if err := force.Run(); err == nil {
+		t.Fatal("saved allow authorized a history rewrite")
+	}
+	if got := testGit(t, remote, "rev-parse", "main"); got != next {
+		t.Fatal("force request changed remote")
+	}
+	if _, err := broker.SavedApprovalScope(ctx, core.CapabilityRequest{Capability: Capability, Action: "push", Attributes: map[string]string{"operation_id": proposal.ID}}); err == nil {
+		t.Fatal("unprepared caller obtained reusable scope")
+	}
+
+	deletion := exec.Command("/usr/bin/git", "-C", workspace, "push", "--delete", "origin", "main")
+	if err := deletion.Run(); err == nil {
+		t.Fatal("saved allow authorized branch deletion")
+	}
+	if got := testGit(t, remote, "rev-parse", "main"); got != next {
+		t.Fatal("deletion changed remote")
+	}
+
+	// An explicit saved ask still requests a separate answer every time.
+	resetPolicy()
+	testCommit(t, workspace, "ask.txt", "ask\n")
+	done, _ = push()
+	proposal = waitProposal()
+	result, err = broker.DecideWithDecision(ctx, proposal.ID, capabilityapp.ApprovalDecision{Approved: true, Save: capabilityapp.AskEnvironment})
+	if err != nil || result.SavedChoice != string(capabilityapp.AskEnvironment) {
+		t.Fatalf("save ask: %+v %v", result, err)
+	}
+	finishPush(done, true)
+	testCommit(t, workspace, "deny.txt", "denied\n")
+	done, _ = push()
+	proposal = waitProposal()
+	result, err = broker.DecideWithDecision(ctx, proposal.ID, capabilityapp.ApprovalDecision{Save: capabilityapp.DenyEnvironment})
+	if err != nil || result.SavedChoice != string(capabilityapp.DenyEnvironment) {
+		t.Fatalf("save deny: %+v %v", result, err)
+	}
+	finishPush(done, false)
+	done, _ = push()
+	finishPush(done, false)
+	if len(broker.Pending()) != 0 {
+		t.Fatal("saved deny prompted")
+	}
+
 	audit.mu.Lock()
-	data, _ := json.Marshal(audit.events)
+	events := append([]core.CapabilityAuditEvent(nil), audit.events...)
 	audit.mu.Unlock()
+	foundSaved := false
+	for _, event := range events {
+		if event.Type == "policy-saved" {
+			foundSaved = true
+			if event.Attributes["new_oid"] == "" || event.SavedScope == nil || event.SavedScope.Attributes["new_oid"] != "*" || event.SavedScope.Attributes["target_ref"] != "refs/heads/main" {
+				t.Fatal("audit confused execution with saved authority")
+			}
+		}
+	}
+	if !foundSaved {
+		t.Fatal("saved scope was not audited")
+	}
+	data, _ := json.Marshal(events)
 	if bytes.Contains(data, []byte("approved work")) || bytes.Contains(data, []byte("PACK")) {
 		t.Fatal("audit contains transferred content")
 	}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -26,13 +27,21 @@ func runDoctor(args []string) int {
 
 func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Fprintln(stdout, "Usage: haco doctor [--json]")
+		fmt.Fprintln(stdout, "Usage: haco doctor [--json] [environment]")
 		return 0
 	}
-	jsonOutput := len(args) == 1 && args[0] == "--json"
-	if len(args) != 0 && !jsonOutput {
-		fmt.Fprintln(stderr, "haco: usage: haco doctor [--json]")
+	jsonOutput := false
+	if len(args) > 0 && args[0] == "--json" {
+		jsonOutput = true
+		args = args[1:]
+	}
+	if len(args) > 1 || (len(args) == 1 && (args[0] == "" || strings.HasPrefix(args[0], "-"))) {
+		fmt.Fprintln(stderr, "haco: usage: haco doctor [--json] [environment]")
 		return 2
+	}
+	target := ""
+	if len(args) == 1 {
+		target = args[0]
 	}
 	logger, err := logging.NewFromEnv(stderr)
 	if err != nil {
@@ -47,6 +56,13 @@ func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
 		return fail("Cannot open the Physical Host controller client")
+	}
+	if target != "" {
+		report, err := diagnoseEnvironment(ctx, client, target)
+		if err != nil {
+			return fail("Could not inspect Environment; check haco env list and controller availability")
+		}
+		return writeEnvironmentDoctor(stdout, report, jsonOutput)
 	}
 	response, err := collectDoctor(ctx, client)
 	if err != nil {

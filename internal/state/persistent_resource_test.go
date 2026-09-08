@@ -104,3 +104,24 @@ func TestPersistentCatalogCorruptionFailsClosed(t *testing.T) {
 		t.Fatalf("corrupt ownership accepted: %v", err)
 	}
 }
+
+func TestPublicationAndWorkspaceAssociationsCannotBeBypassedByDirectLease(t *testing.T) {
+	for _, sourceOnly := range []bool{true, false} {
+		ctx := context.Background()
+		s := NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
+		r := core.PersistentResource{ID: "oci:bound", Owner: strings.Repeat("a", 32), Kind: "oci-containerd", NativeRef: "pool/bound", State: "creating", CreatedAt: time.Now().UTC(), SourceOnly: sourceOnly}
+		if !sourceOnly {
+			r.WorkspaceID = "original"
+		}
+		if err := s.BeginPersistentResourceCreate(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.CommitPersistentResourceCreate(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+		lease := core.WorkspaceLease{WorkspaceID: "other", SourcePath: "/other", EnvironmentID: "other", Owner: "other", AccessMode: core.WorkspaceReadWrite, State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC(), PersistentResource: r.Ref()}
+		if err := s.BeginEnvironmentCreate(ctx, lease); !errors.Is(err, core.ErrIncompatibleState) {
+			t.Fatalf("source=%t accepted direct attachment: %v", sourceOnly, err)
+		}
+	}
+}
