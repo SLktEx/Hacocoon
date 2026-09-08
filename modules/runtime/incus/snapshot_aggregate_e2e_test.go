@@ -150,6 +150,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	write(volumePath("haco-persistent-"+resource.Owner), "containerd/data", "actual stored bytes")
 	write(volumePath("haco-persistent-"+resource.Owner), "docker/volumes/data", "persistent volume bytes")
 	write(filepath.Join(rootPath(native), "root"), "snapshot-marker", "guest-only bytes")
+	write(filepath.Join(rootPath(native), "root"), ".ssh/authorized_keys", "ssh-ed25519 AAAA user-key\nssh-ed25519 BBBB haco:ssh-old-generation\n")
 	command("sync")
 	env := core.Environment{Name: name, RuntimeRef: native, Workspace: core.Workspace{ID: lease.WorkspaceID, Path: lease.SourcePath}, AccessMode: lease.AccessMode, Base: &core.BaseRef{Name: "fixture/base", Revision: core.BaseRevision("sha256:" + image)}, PersistentResource: resource.Ref(), CreatedAt: lease.AcquiredAt}
 	lease.State = core.WorkspaceLeaseActive
@@ -358,6 +359,55 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	if reopenedOCI != restoredOCI || reopenedOCI.RestoreSource != "" || reopenedOCI.State != "ready" {
 		t.Fatal("OCI publication receipt drift")
 	}
+	// Activate only in this private, single-controller fixture. Production aggregate
+	// reservation/orchestration and CLI publication remain a separate contract.
+	resumedName := "resumed-" + strings.TrimPrefix(name, "aggregate-")
+	resumedID, err := core.NewEnvironmentInstanceID()
+	must(err)
+	resumedLease := core.WorkspaceLease{InstanceID: resumedID, EnvironmentID: resumedName, WorkspaceID: restoredOCI.WorkspaceID, SourcePath: "managed:" + reloadedWork.ID, Owner: resumedName, AccessMode: core.WorkspaceReadWrite, State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC(), PersistentResource: restoredOCI.Ref()}
+	must(reopened.BeginEnvironmentCreate(ctx, resumedLease))
+	r.ConfigureManagedWorkspaces(func(ctx context.Context, path string) ([]WorkspaceAttachment, error) {
+		if path != resumedLease.SourcePath {
+			return nil, core.ErrInvalidArgument
+		}
+		return repository.WorkspaceAttachments(ctx, reloadedWork)
+	})
+	sandbox, err := NewSandboxProvider(r)
+	must(err)
+	resumed, err := sandbox.CreateEnvironmentFromSnapshot(ctx, core.EnvironmentRuntimeSpec{Name: resumedName, InstanceID: resumedID, WorkspacePath: resumedLease.SourcePath, PersistentResource: restoredOCI}, snap, func(created core.EnvironmentRuntime) error {
+		resumedLease.RuntimeRef = created.Ref
+		return reopened.RecordEnvironmentRuntime(ctx, resumedLease)
+	})
+	must(err)
+	must(r.VerifyEnvironmentIdentity(ctx, resumed.Ref, resumedID))
+	if err := r.VerifyEnvironmentIdentity(ctx, resumed.Ref, id); err == nil {
+		t.Fatal("old generation accepted")
+	}
+	if got := command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", "/root/snapshot-marker"); got != "guest-only bytes" {
+		t.Fatal("rootfs data lost")
+	}
+	if got := command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", "/root/.ssh/authorized_keys"); got != "ssh-ed25519 AAAA user-key" {
+		t.Fatal("managed SSH authorization inherited", got)
+	}
+	for _, m := range restoredMounts {
+		if got := command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", m.Path+"/tracked"); got != "uncommitted "+m.Device {
+			t.Fatal("Workspace data unavailable")
+		}
+	}
+	if got := command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", OCIStorePath+"/containerd/data"); got != "independent registered OCI copy" {
+		t.Fatal("OCI data unavailable")
+	}
+	resumedLease.State = core.WorkspaceLeaseActive
+	must(reopened.CommitEnvironmentCreate(ctx, core.Environment{Name: resumedName, RuntimeRef: resumed.Ref, Workspace: core.Workspace{ID: resumedLease.WorkspaceID, Path: resumedLease.SourcePath}, AccessMode: resumedLease.AccessMode, Base: resumed.Base, PersistentResource: restoredOCI.Ref(), Resources: resumed.Resources, CreatedAt: resumedLease.AcquiredAt}, resumedLease))
+	must(workspace.New(sandbox, reopened).Delete(ctx, resumedName))
+	if exists, err := r.environmentExists(ctx, resumed.Ref); err != nil || exists {
+		t.Fatal("restored runtime absence unproven", err)
+	}
+	must(persistent.Verify(ctx, restoredOCI))
+	for _, m := range restoredMounts {
+		read(volumePath(m.Volume), "tracked", "uncommitted "+m.Device)
+	}
+	t.Log("PASS saved-rootfs native activation without Base, fresh generation/current source guard, guest root/Workspace/OCI bytes, managed SSH authorization reset, canonical runtime deletion retaining data; public restore and actual restored SSH handshake not tested")
 	must(restoredStores.DeleteForWorkspace(ctx, restoredOCI.ID, restoredOCI.WorkspaceID))
 	t.Log("PASS restored OCI registered with new owner and Workspace, source reservation released, durable reload, saved bytes and independent edits, canonical owned deletion")
 
@@ -415,5 +465,5 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		must(os.Remove(filepath.Join(dir, entry.Name())))
 	}
 	must(os.Remove(dir))
-	t.Log("PASS canonical catalog/coordinator/provider route; complete four-component save; restart readback; source Environment/volumes deleted; independent Git and data retained; owned snapshot cleanup. No snapshot Base material retained; image deletion reported separately; restore/live OCI consistency not tested.")
+	t.Log("PASS canonical catalog/coordinator/provider route; complete four-component save; restart readback; source Environment/volumes deleted; independent Git and data retained; owned snapshot cleanup. No snapshot Base material retained; image deletion reported separately; public restore orchestration/live OCI consistency not tested.")
 }

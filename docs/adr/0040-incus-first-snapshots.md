@@ -56,3 +56,13 @@ silently discarding those new ownership fields. Retain schema 10 records and all
 older supported saved data. Clear the source reservation only on publication or
 positive exact-owned cleanup. This protects immutable saved data; it does not
 promise automatic runtime recovery or replay old approvals/management settings.
+
+## Saved rootfs execution
+
+Copy saved rootfs directly through Incus, then apply the same current security
+and attachment configuration as ordinary creation. Record native ownership before
+that fallible phase. Preserve only the rootfs idmap bookkeeping needed by Incus,
+not saved management config or permission generation. Renew managed guest SSH
+identity before publication. Keep this native primitive in the Incus package;
+aggregate reservations and publication remain orchestration responsibilities.
+It introduces no Base retention, backup or general runtime rollback coordinator.

@@ -2,8 +2,8 @@
 The current development checkpoint remains v0.49. Incus-first refactoring removes
 new snapshot Base storage, ordinary automatic Base retention and pre-restore
 backup. Existing saved data/ownership migrates without deletion. Restore
-preparation and saved Workspace/OCI registration remain internal; runnable
-activation and public CLI are planned. Schema 11 adds OCI ownership receipts while
+preparation, saved Workspace/OCI registration and the native saved-rootfs runtime
+primitive remain internal; aggregate activation and public CLI are planned. Schema 11 adds OCI ownership receipts while
 preserving existing saved data. Full
 runtime recovery is not a milestone prerequisite. See [implementation status](../IMPLEMENTATION_STATUS.md)
 and [ADR 0040](../adr/0040-incus-first-snapshots.md).
