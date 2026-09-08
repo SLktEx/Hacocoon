@@ -14,7 +14,11 @@ stop/start は fixture haco-resume-e2e-4bf6bd219effb14f で成功し、消失確
 これは provider fixture であり、installed controller の snapshot 受入れではありません。内部の capture/delete 処理で予約・作成記録・確認・
 公開の順序を保証し、キャンセルや部分 cleanup でも所有権を保持します。実 JSON catalog
 を使った各段階の失敗注入テストを追加しました。provider 保存・全構成の manifest・restore・CLI・
-実データ往復は未実装です。
+Environment 全体の実データ往復は未実装です。内部の Incus Workspace/OCI volume COW・
+保存先検査・消失確認付き削除を実装しました。専用 WSL でファイル/リンク保持、Btrfs の
+親 UUID、双方向の独立性、元 volume 削除後の保持に成功し、片付けも確認済みです。
+同じ fixture を既存 Incus GHA に追加し、新 HEAD の実行は未確認です。完全な manifest・
+rootfs/Base 保存・復元・CLI は残作業であり、稼働中 OCI DB の整合性は未検証です。
 [snapshot 設計](design/environment-snapshots.md)と [ADR 0037](adr/0037-snapshot-aggregate-ownership.md)を参照してください。
 
 
@@ -935,7 +939,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.45** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.46** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

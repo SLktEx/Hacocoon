@@ -316,6 +316,9 @@ func (r *Runtime) InspectEnvironment(ctx context.Context, ref string) (core.Envi
 	if err != nil {
 		return core.EnvironmentRuntimeStatus{}, err
 	}
+	if result.ExitCode != 0 || result.StdoutTruncated {
+		return core.EnvironmentRuntimeStatus{}, core.ErrRuntimeUnavailable
+	}
 	states := map[string]core.EnvironmentState{
 		"RUNNING": core.EnvironmentRunning,
 		"STOPPED": core.EnvironmentStopped,

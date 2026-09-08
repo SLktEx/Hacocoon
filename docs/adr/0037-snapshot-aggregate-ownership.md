@@ -54,3 +54,9 @@ creation. A catalog-only creation ID cannot distinguish a same-name provider
 replacement. Incus receives the ID in init and snapshot inspection verifies it
 through the persisted provider route. Missing legacy markers are refused, not
 backfilled from a name match. This is an ownership prerequisite for capture.
+
+Custom-volume storage now uses independent same-pool Incus copies with new
+ownership, exact source-binding markers and retained idmap bookkeeping. Host
+sources and foreign attachments are refused. Private primitives were verified
+on real Btrfs for Workspace/OCI fixture data; full aggregate binding persistence,
+rootfs/Base capture and restore are still required before public snapshots.

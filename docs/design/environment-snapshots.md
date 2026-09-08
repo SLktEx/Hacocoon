@@ -1,8 +1,9 @@
 # Environment snapshots and restore
 
 Status: **partial internal foundation**. Source validation and lifecycle locking
-and a durable component catalog/capture coordinator are implemented. Incus capture, restore and
-public CLI are planned; no saved snapshot is produced yet.
+and a durable component catalog/capture coordinator are implemented. Incus custom
+volume COW primitives are implemented and tested; complete aggregate capture,
+restore and public CLI are planned. No usable Environment snapshot is produced yet.
 
 ## Scope
 
@@ -135,3 +136,35 @@ startup because PowerShell split the Go test flag; the corrected invocation
 passed. This fixture directly initializes an owned Incus instance with the
 marker; ordinary stateful creation propagation is covered by component tests.
 It does not establish snapshot capture/restore or installed-controller acceptance.
+
+## Incus Workspace and OCI volume storage
+
+Implemented as internal adapter primitives: independent same-pool custom-volume
+copy for owned Workspace members and attached OCI data. The source binding names
+its exact volume, owner, kind, logical ID and stopped Environment creation ID.
+Before copying, the adapter verifies the instance ID/stopped state, Btrfs pool,
+source ownership and exclusive attachment scope. Host sources, foreign users,
+malformed/truncated observations and ambiguous completion fail closed. Source
+writers must also remain excluded by the aggregate coordinator's lifecycle locks.
+
+The copy request supplies new ownership and source-binding markers at creation
+and preserves only Incus idmap bookkeeping from source config. There is no image
+export/import or reconstruction of OCI data. Verification requires the target
+ownership markers and no attachments. Cleanup checks exact ownership and absence;
+a delete attempt or lost reply is not permission to release the catalog record.
+
+The aggregate planner must durably encode the complete adapter binding before
+calling these primitives. Rootfs/Base storage, complete member inventory and
+production coordinator wiring remain required. These private functions alone
+are not an Environment snapshot and are not registered as a public haco command.
+
+Dedicated WSL TestRealIncusSnapshotVolumesE2E passed with owned instance
+haco-snap-probe-c9eea06b42bd21cd and the existing haco-local-default pool. Both
+Workspace and OCI fixtures proved Btrfs parent-UUID ancestry, file/hardlink/symlink
+retention, independent edits in both directions and persistence after source
+volume deletion. Snapshot/source volumes, instance and recovery plan were removed;
+subsequent inventory showed only existing Host/image volumes. The data is a file
+fixture, not a claim that live Docker/containerd databases were quiesced or that
+all Environment components were restored. Existing Incus-owned-Btrfs GHA now runs
+the same opt-in fixture after normal CLI storage acceptance; new-head execution
+is pending.

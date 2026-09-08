@@ -18,8 +18,12 @@ a provider fixture, not installed-controller snapshot acceptance.
 The internal capture/delete coordinator now enforces reservation/create-receipt/
 verification/publication order and preserves ownership through cancellation and
 partial cleanup. Real-catalog failure-injection tests cover each capture boundary.
-Provider capture, complete backend manifests, restore, CLI and real data round trips
-remain planned.
+Internal Incus Workspace/OCI volume COW, target verification and proven-absent
+cleanup are implemented. Dedicated WSL file/link retention, Btrfs ancestry,
+bidirectional independence and source-deletion retention passed; fixture cleanup
+was confirmed. The same fixture was added to existing Incus GHA, pending execution.
+Complete aggregate manifests, rootfs/Base capture, restore, CLI and full Environment
+round trips remain planned. Live OCI database consistency is not claimed.
 See [snapshot design](design/environment-snapshots.md) and [ADR 0037](adr/0037-snapshot-aggregate-ownership.md).
 
 
@@ -1065,7 +1069,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.45**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.46**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
