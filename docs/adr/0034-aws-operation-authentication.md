@@ -51,8 +51,8 @@ Optional Host profile labels are now bound to an explicit expected account ID,
 verified against STS before review and again at execution. Labels are not identity
 authority; their changes invalidate the reviewed/saved scope. No untrusted request
 can supply a new label. The guest server boundary is implemented in
-[ADR 0036](0036-guest-aws-source-identity.md); guest client integration and additional
-actual-use operations remain future slices. The first slice supports
+[ADR 0036](0036-guest-aws-source-identity.md); guest client integration is also implemented. Installed guest acceptance and
+additional actual-use operations remain future slices. The first slice supports
 same-account ordinary commercial S3 buckets and bounded complete listings.
 Real AWS/SSO and installed desktop acceptance remain separate from repository
 and intercepted-SDK validation. See [AWS operations](../design/aws-operations.md).

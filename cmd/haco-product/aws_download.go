@@ -25,14 +25,11 @@ func awsDownloadCommand(ctx context.Context, client awsClient, args []string, ou
 		return 2
 	}
 	spec.URL = flags.Args()[0]
-	if spec.Environment == "" {
-		envs, err := client.ListEnvironments(ctx)
-		if err != nil || len(envs) != 1 {
-			fmt.Fprintln(diagnostic, "haco: select an Environment with --env")
-			return 2
-		}
-		spec.Environment = envs[0].Name
+	if err := selectAWSEnvironment(ctx, client, &spec.Environment); err != nil {
+		fmt.Fprintln(diagnostic, "haco:", err)
+		return 2
 	}
+
 	download, ok := client.(awsDownloadClient)
 	if !ok {
 		fmt.Fprintln(diagnostic, "haco: AWS downloads are unavailable")

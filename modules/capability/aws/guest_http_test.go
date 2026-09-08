@@ -113,3 +113,26 @@ func TestGuestHTTPRefusesCallerAuthorityAndUnmanagedSources(t *testing.T) {
 		})
 	}
 }
+
+type deadlineTrackingRecorder struct {
+	deadlineRecorder
+	reads []time.Time
+}
+
+func (w *deadlineTrackingRecorder) SetReadDeadline(deadline time.Time) error {
+	w.reads = append(w.reads, deadline)
+	return nil
+}
+func TestGuestBodyDeadlineDoesNotLimitApprovalWait(t *testing.T) {
+	w := &deadlineTrackingRecorder{deadlineRecorder: deadlineRecorder{httptest.NewRecorder()}}
+	request := httptest.NewRequest("POST", GuestPath, strings.NewReader(`{"operation":"list","url":"s3://example-bucket/"}`))
+	request.RemoteAddr = "10.200.0.2:1234"
+	request.Header.Set("Content-Type", "application/json")
+	h := NewGuestHandler(&guestOps{}, guestSourceFunc(func(context.Context, net.IP) (string, string, error) {
+		return "dev", "env-11111111111111111111111111111111", nil
+	}))
+	h.ServeHTTP(w, request)
+	if len(w.reads) != 2 || w.reads[0].IsZero() || !w.reads[1].IsZero() {
+		t.Fatal("body deadline leaked into approval wait", w.reads)
+	}
+}

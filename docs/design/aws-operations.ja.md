@@ -165,6 +165,37 @@ Standard listener に AWS 専用の origin-form 入口 /_haco/operations/aws を
 呼出元を特定し、再作成を認証前に拒否して、同じ ID を通常の承認・実行まで保持します。
 転送ヘッダーから送信元を選ぶことはありません。
 
-これは server 側の実装です。guest の通常 haco client と installed guest 検証は未完了です。
+guest の通常 haco client も接続しました。installed guest 検証は未完了です。
 最終 receipt の検証前に取得データを保存完了として扱ってはいけません。
 [ADR 0036](../adr/0036-guest-aws-source-identity.md)を参照してください。
+
+
+## Environment 内で AWS を使う
+
+Standard の Environment 作成・start 時に、検証済み guest companion から通常の haco 入口を
+用意します。Environment 内でも同じコマンドを使います。
+
+```sh
+haco aws s3 ls s3://example-bucket/project/
+haco aws s3 cp s3://example-bucket/project/config.json ./config.json
+```
+
+呼出元 Environment は自動選択し、内部では --env を拒否します。profile と region は
+従来どおり trusted Host 側の指定です。承認は trusted Host／desktop から行います。
+guest に認証情報や管理 socket は渡しません。
+
+管理された guest 実行ファイルは固定の隔離付き入口を自動選択します。この実行パスは
+client の接続先選択だけで、送信元の証明ではありません。server は runtime と保存状態で
+引き続き本人性を確認します。HTTP proxy 環境変数や redirect は接続先を変更できません。
+既存の無関係な /usr/local/bin/haco は上書きせず拒否します。
+
+取得は private な仮置きと検証後の atomic 保存を使い、途中失敗では既存ファイルを保持します。
+最終 receipt 後の EOF、frame 上限、サイズ・hash、実行・監査の成功を確認します。
+本文受信後は短い読み取り期限を解除し、人の承認待ちをそこで切断しません。
+操作全体の 15 分制限は維持します。
+
+実 HTTP socket・通常の承認 queue・保存 Policy・手動失効・監査までを、合成の送信元と AWS
+fixture で確認しました。redirect・途中切断・receipt 不一致、setup 再利用と競合拒否も成功です。
+最初の setup テストはリンク作成先を一時領域へ隔離できず失敗しましたが、fixture 修正後は
+focused tests が成功しました。実 Incus guest と認証済み AWS の受け入れ確認ではありません。
+installed guest E2E は未完了、実 AWS は Host の認証・依存不足により SKIP です。

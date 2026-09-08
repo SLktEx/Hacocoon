@@ -39,3 +39,17 @@ func TestAWSUsesOneEnvironmentAndReportsFailure(t *testing.T) {
 		t.Fatal("failure hidden")
 	}
 }
+
+type guestAWSFixture struct{ fakeAWSClient }
+
+func (*guestAWSFixture) GuestSource() bool { return true }
+func TestGuestAWSDoesNotRequireOrSendEnvironmentSelection(t *testing.T) {
+	f := &guestAWSFixture{}
+	var out, diag bytes.Buffer
+	if code := awsCommand(context.Background(), f, []string{"s3", "ls", "s3://example-bucket/a/"}, &out, &diag); code != 0 || f.spec.Environment != "" || f.calls != 1 {
+		t.Fatal(code, f.spec, diag.String())
+	}
+	if code := awsCommand(context.Background(), f, []string{"s3", "ls", "--env", "other", "s3://example-bucket/a/"}, &out, &diag); code != 2 || f.calls != 1 {
+		t.Fatal("guest selected another environment", code)
+	}
+}

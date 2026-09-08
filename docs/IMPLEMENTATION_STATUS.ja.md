@@ -1,10 +1,18 @@
 # 実装状況
 
+## guest の通常 AWS CLI
+
+実装済み: Standard の作成・start で通常 haco を配置し、AWS list/cp は --env や認証情報なしで
+隔離付き送信元固定入口へ接続します。取得は検証済み private 保存を再利用します。focused race、
+実 HTTP queue／Policy／audit と setup 再利用・競合拒否が成功しました。installed guest は
+未検証、実 AWS は前提不足により SKIP です。[AWS 操作](design/aws-operations.ja.md)を参照してください。
+
+
 ## guest AWS server 境界
 
 server 側実装済み: 隔離された Standard listener で、送信元 Environment の正確な
 作成 ID に紐付く AWS list/get だけを受け付けます。管理・承認決定は公開しません。
-送信元・再作成・偽装・frame サイズの回帰が成功しました。guest CLI と installed guest／
+送信元・再作成・偽装・frame サイズの回帰が成功しました。guest CLI は上記で実装済みです。installed guest／
 AWS 検証は未完了です。[AWS 操作](design/aws-operations.ja.md)を参照してください。
 
 ## AWS アカウント表示名

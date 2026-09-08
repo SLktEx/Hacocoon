@@ -1,5 +1,5 @@
 # Versioning and release status
-Current checkpoint v0.45 adds the guest AWS server boundary tied to persisted source creation identity. Guest CLI integration and installed/authenticated acceptance remain pending. See [implementation status](../IMPLEMENTATION_STATUS.md).
+Current checkpoint v0.45 includes the source-bound guest AWS server and ordinary guest CLI with verified downloads. Installed guest and authenticated acceptance remain pending. See [implementation status](../IMPLEMENTATION_STATUS.md).
 
 Fresh Host setup now binds the owned OCI area automatically; existing data migration and runtime acceptance remain partial.
 Preceding checkpoint v0.39 adds the Windows notification review adapter and per-distribution registration. Native history/protocol/stale-refusal checks passed locally; fresh notification decisions and Linux activation remain incomplete. See [implementation status](../IMPLEMENTATION_STATUS.md).

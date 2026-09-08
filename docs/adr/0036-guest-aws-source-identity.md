@@ -1,6 +1,6 @@
 # ADR 0036: Bind guest AWS requests to persisted creation identity
 
-Status: accepted; server-side implementation; product guest client acceptance pending
+Status: accepted; server and product client implemented; installed guest acceptance pending
 Date: 2026-09-08
 
 ## Decision
@@ -38,6 +38,10 @@ management socket or network exception is installed in a workload.
 Regression tests cover persisted source ambiguity and stale/invalid identities,
 recreated Environment refusal before authentication, caller identity injection,
 forwarded-source spoofing, bounded download frames and external proxy URL routing.
-The endpoint is wired in Standard composition. Automatic guest client selection,
-safe file publication from that client, installed guest/Incus acceptance and
-authenticated AWS are not yet verified. See [AWS operations](../design/aws-operations.md).
+The endpoint and automatic guest client are wired in Standard composition. The
+managed companion selects the fixed endpoint; that path grants no authority.
+Client frame/EOF/receipt verification precedes ordinary private file publication.
+HTTP proxies and redirects are disabled. The body deadline is cleared before
+waiting for approval, retaining the total operation deadline. A real HTTP socket
+through ordinary queue/Policy/audit is tested with synthetic source/AWS evidence.
+Installed guest/Incus acceptance and authenticated AWS remain unverified. See [AWS operations](../design/aws-operations.md).

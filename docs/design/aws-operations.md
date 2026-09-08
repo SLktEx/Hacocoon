@@ -3,8 +3,8 @@
 [日本語](aws-operations.ja.md) | English
 
 Status: **partial D3 implementation**. Trusted Host S3 listing and streamed downloads are implemented.
-ID-bound Host account labels are implemented. Guest server transport is implemented; the guest CLI and
-real AWS/desktop acceptance remain planned. This does not reintroduce the deferred
+ID-bound Host account labels are implemented. Guest server transport and ordinary guest CLI are implemented; installed guest
+and real AWS/desktop acceptance remain pending. This does not reintroduce the deferred
 EC2 runtime.
 
 ## Ordinary use
@@ -212,6 +212,41 @@ source evidence and the exact persisted Environment creation ID select the calle
 The plugin rejects recreation before authentication and retains that ID through
 ordinary approval and execution. Forwarding headers do not select the source.
 
-This is a server-side implementation; the normal guest haco client and installed
-guest acceptance are still pending. Do not publish downloaded bytes without the
-final verified receipt. See [ADR 0036](../adr/0036-guest-aws-source-identity.md).
+The normal guest haco client is now connected. Installed guest acceptance remains
+pending. The client publishes downloads only after the final verified receipt. See [ADR 0036](../adr/0036-guest-aws-source-identity.md).
+
+
+## Use AWS inside an Environment
+
+Standard Environment creation and start now install the ordinary haco entry point
+from the verified guest companion. Use the same commands inside the Environment:
+
+```sh
+haco aws s3 ls s3://example-bucket/project/
+haco aws s3 cp s3://example-bucket/project/config.json ./config.json
+```
+
+The caller Environment is automatic; --env is refused inside it. Profile and
+region options retain their existing meaning in the trusted Host. Approval is
+reviewed from the trusted Host/desktop, not granted by the guest. Credentials and
+management sockets remain absent from this route.
+
+The managed guest executable selects the fixed guarded endpoint automatically.
+This executable path is client routing, not proof of caller identity: the server
+still derives identity from runtime/state evidence. HTTP proxy environment
+variables and redirects cannot replace the destination. An existing unrelated
+/usr/local/bin/haco is refused instead of overwritten.
+
+Downloads retain private staging, atomic verified publication and preservation
+of existing files on incomplete transfer. Guest HTTP checks require EOF after
+the receipt, bounded frames, byte count/hash and successful execution/audit.
+The short body deadline is cleared after input is complete so it cannot cancel
+a valid human approval wait; the 15-minute operation limit remains.
+
+Local tests passed the actual HTTP socket through the ordinary approval queue,
+saved Policy, revocation and audit using synthetic source/AWS evidence, plus
+redirect/truncation/receipt refusal and guest setup idempotence/conflict refusal.
+The first setup test failed because the new link path was not isolated into its
+temporary root; after fixing that fixture all focused tests passed. These are
+not real Incus guest or authenticated AWS acceptance. Installed guest E2E remains
+pending; real AWS remains SKIP for absent Host authentication/dependencies.

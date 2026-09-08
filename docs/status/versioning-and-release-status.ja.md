@@ -1,5 +1,5 @@
 # バージョン番号とリリース状況
-現在の checkpoint v0.45 は、保存済みの送信元作成 ID に紐付く guest AWS server 境界を追加します。guest CLI 接続と installed／認証済み検証は未完了です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
+現在の checkpoint v0.45 は、送信元を固定した guest AWS server と通常 guest CLI・検証後の取得保存を含みます。installed guest と認証済み検証は未完了です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
 
 新規 Host の所有確認済み OCI 領域は setup で自動接続されます。既存データの移行と runtime 受け入れは partial です。
 前の checkpoint v0.39 は Windows 通知 review adapter と distribution 別登録を追加します。実機の通知履歴・protocol 起動・古い要求拒否は成功しましたが、通知からの新規回答と Linux 起動は未完了です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。

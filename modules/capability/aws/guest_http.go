@@ -82,6 +82,12 @@ func (h *GuestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid AWS request", 400)
 		return
 	}
+	// The body limit must not cancel net/http's background disconnect reader
+	// while a valid request waits for human approval.
+	if ctl.SetReadDeadline(time.Time{}) != nil {
+		http.Error(w, "AWS transport unavailable", 503)
+		return
+	}
 	spec := ListSpec{URL: request.URL, Profile: request.Profile, Region: request.Region}
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	encoder := json.NewEncoder(w)

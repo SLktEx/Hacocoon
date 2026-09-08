@@ -1,11 +1,21 @@
 # Implementation Status
 
+## Ordinary guest AWS CLI
+
+Implemented: Standard creation/start supplies the ordinary guest haco entry point.
+AWS list/cp automatically use the guarded source-bound endpoint, with no --env or
+credentials. Downloads reuse verified private publication. Focused race, real HTTP
+queue/Policy/audit integration and setup reuse/conflict checks passed. Installed
+guest acceptance remains pending; real AWS remains SKIP for missing prerequisites.
+See [AWS operations](design/aws-operations.md#use-aws-inside-an-environment).
+
+
 ## Guest AWS server boundary
 
 Implemented server slice: the guarded Standard listener admits only AWS list/get
 requests tied to the exact persisted source Environment creation ID. Management
 and approval decisions are absent. Source, recreation, spoofing and frame-size
-regressions passed. Guest CLI and installed guest/AWS acceptance remain pending.
+regressions passed. Guest CLI is implemented above; installed guest/AWS acceptance remains pending.
 See [AWS operations](design/aws-operations.md#guest-request-boundary).
 
 ## AWS account labels

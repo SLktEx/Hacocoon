@@ -83,6 +83,12 @@ mv -T /usr/local/libexec/hacocoon-dns.next /usr/local/libexec/hacocoon-dns
 stage=unit
 test -d /etc/systemd/system
 test ! -L /etc/systemd/system/hacocoon-dns.service
+if [ -e /usr/local/bin/haco ] || [ -L /usr/local/bin/haco ]; then
+  test -L /usr/local/bin/haco
+  test "$(readlink /usr/local/bin/haco)" = /usr/local/libexec/hacocoon-dns
+else
+  ln -s /usr/local/libexec/hacocoon-dns /usr/local/bin/haco
+fi
 cat > /etc/systemd/system/hacocoon-dns.service <<'HACO_DNS_UNIT'
 [Unit]
 Description=Hacocoon policy-bound name resolution

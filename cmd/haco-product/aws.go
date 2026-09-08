@@ -26,7 +26,14 @@ func runAWS(args []string) int {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
-	client, err := controlapi.NewDefaultClient()
+	var client awsClient
+	var err error
+	executable, executableErr := os.Executable()
+	if executableErr == nil && executable == "/usr/local/libexec/hacocoon-dns" {
+		client = awsplugin.NewGuestClient()
+	} else {
+		client, err = controlapi.NewDefaultClient()
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "haco: cannot open controller client")
 		return 1
@@ -59,14 +66,11 @@ func awsCommand(ctx context.Context, client awsClient, args []string, out, diagn
 		return usage()
 	}
 	spec.URL = flags.Args()[0]
-	if spec.Environment == "" {
-		envs, err := client.ListEnvironments(ctx)
-		if err != nil || len(envs) != 1 {
-			fmt.Fprintln(diagnostic, "haco: select an Environment with --env")
-			return 2
-		}
-		spec.Environment = envs[0].Name
+	if err := selectAWSEnvironment(ctx, client, &spec.Environment); err != nil {
+		fmt.Fprintln(diagnostic, "haco:", err)
+		return 2
 	}
+
 	fmt.Fprintln(diagnostic, "AWS authentication stays in Host. If approval is required, review the notification or use haco approve.")
 	result, err := client.ListS3(ctx, spec)
 	if err != nil {
@@ -81,4 +85,22 @@ func awsCommand(ctx context.Context, client awsClient, args []string, out, diagn
 		return 1
 	}
 	return 0
+}
+
+func selectAWSEnvironment(ctx context.Context, client awsClient, name *string) error {
+	if guest, ok := client.(interface{ GuestSource() bool }); ok && guest.GuestSource() {
+		if *name != "" {
+			return fmt.Errorf("--env is unavailable inside an Environment; its source is selected automatically")
+		}
+		return nil
+	}
+	if *name != "" {
+		return nil
+	}
+	envs, err := client.ListEnvironments(ctx)
+	if err != nil || len(envs) != 1 {
+		return fmt.Errorf("select an Environment with --env")
+	}
+	*name = envs[0].Name
+	return nil
 }
