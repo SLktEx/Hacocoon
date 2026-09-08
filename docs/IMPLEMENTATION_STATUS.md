@@ -1,4 +1,14 @@
 # Implementation Status
+## AWS account labels
+
+Implemented: optional Host AWS profile labels are tied to the actual STS account ID
+and included in review/saved scope. ID mismatch or changed labels refuse execution.
+Maintained local CI, focused race and fifteen SDK/config regressions passed.
+The ordinary controller review, saved permission and revocation tests also passed
+with labels for both listing and downloads. Real authenticated AWS and
+desktop rendering remain SKIP for missing Host prerequisites. See
+[AWS operations](design/aws-operations.md#account-names-in-review).
+
 
 ## Streamed AWS object downloads
 
@@ -23,7 +33,7 @@ signing-region-only changes, are refused before transport. See
 Focused race tests and ordinary controller review/config revocation checks passed.
 Eight real-SDK tests with synthetic credentials and intercepted HTTP transport
 passed, including a signing-region-only redirect regression. Downloads are now
-implemented above; guest request transport, account labels and real AWS/desktop acceptance remain
+implemented above; guest request transport and real AWS/desktop acceptance remain
 planned. Intercepted SDK tests do not prove real AWS acceptance.
 
 The current Host adapter also passed a dedicated WSL execution with missing AWS

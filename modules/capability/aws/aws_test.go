@@ -66,7 +66,7 @@ func TestBrokerPreparesExactScopeAndProviderRejectsTampering(t *testing.T) {
 	if _, err := p.Execute(context.Background(), prepared); err != nil || calls != 1 {
 		t.Fatal(err)
 	}
-	for _, field := range []string{"account", "principal", "region", "profile", "prefix", "bucket_owner", "description", "service", "unknown"} {
+	for _, field := range []string{"account", "account_name", "principal", "region", "profile", "prefix", "bucket_owner", "description", "service", "unknown"} {
 		encoded, _ := json.Marshal(prepared)
 		var bad core.CapabilityRequest
 		json.Unmarshal(encoded, &bad)
@@ -130,5 +130,41 @@ func TestListingEscapesUnicodeWithoutChangingKeys(t *testing.T) {
 	var decoded []Object
 	if json.Unmarshal([]byte(text), &decoded) != nil || len(decoded) != 1 || decoded[0] != original[0] {
 		t.Fatal("key changed", text)
+	}
+}
+
+func TestAccountLabelBoundToReviewAndExecution(t *testing.T) {
+	ctx := context.Background()
+	original := testIdentity
+	original.AccountName = "Development"
+	current := original
+	h := func(_ context.Context, _ string, input []byte) ([]byte, error) {
+		var r agentRequest
+		if err := json.Unmarshal(input, &r); err != nil {
+			t.Fatal(err)
+		}
+		if r.Mode == "list" && r.AccountName != current.AccountName {
+			return []byte(`{"error":"identity_changed"}`), nil
+		}
+		return json.Marshal(agentResponse{Identity: &current})
+	}
+	var prepared core.CapabilityRequest
+	b := &Broker{Host: h, Environments: environments{}, Capabilities: requester(func(_ context.Context, r core.CapabilityRequest) (core.CapabilityResult, error) {
+		prepared = r
+		return core.CapabilityResult{}, nil
+	})}
+	if _, err := b.List(ctx, ListSpec{Environment: "dev", URL: "s3://example-bucket/project/"}); err != nil {
+		t.Fatal(err)
+	}
+	if prepared.Attributes["account_name"] != "Development" || prepared.Attributes["account"] != original.Account {
+		t.Fatal("label not bound")
+	}
+	p := &Provider{Host: h}
+	if _, err := p.Execute(ctx, prepared); err != nil {
+		t.Fatal(err)
+	}
+	current.AccountName = "Production"
+	if _, err := p.Execute(ctx, prepared); !errors.Is(err, core.ErrCapabilityStale) {
+		t.Fatalf("changed label: %v", err)
 	}
 }

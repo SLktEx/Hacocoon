@@ -44,7 +44,7 @@ func TestAWSRequestUsesOrdinaryPendingReviewAndSavedPolicy(t *testing.T) {
 				if err := json.Unmarshal(input, &req); err != nil {
 					return nil, err
 				}
-				result := map[string]any{"identity": map[string]string{"account": "123456789012", "principal": "arn:aws:sts::123456789012:assumed-role/Developer/session", "region": "ap-northeast-1"}}
+				result := map[string]any{"identity": map[string]string{"account": "123456789012", "account_name": "Development", "principal": "arn:aws:sts::123456789012:assumed-role/Developer/session", "region": "ap-northeast-1"}}
 				if req["mode"] == "list" {
 					calls.Add(1)
 					result["objects"] = []map[string]any{{"key": "project/config.json", "size": 42}}
@@ -60,7 +60,7 @@ func TestAWSRequestUsesOrdinaryPendingReviewAndSavedPolicy(t *testing.T) {
 					return err
 				}
 				return encoder.Encode(map[string]any{
-					"identity": map[string]string{"account": "123456789012", "principal": "arn:aws:sts::123456789012:assumed-role/Developer/session", "region": "ap-northeast-1"},
+					"identity": map[string]string{"account": "123456789012", "account_name": "Development", "principal": "arn:aws:sts::123456789012:assumed-role/Developer/session", "region": "ap-northeast-1"},
 					"receipt":  awsplugin.DownloadReceipt{Bytes: int64(len(data)), SHA256: hex.EncodeToString(digest[:])},
 				})
 			}})
@@ -113,7 +113,7 @@ func TestAWSRequestUsesOrdinaryPendingReviewAndSavedPolicy(t *testing.T) {
 				t.Fatal("request bypassed review", pending)
 			}
 			prompt := pending[0]
-			if prompt.CapabilityRequest.Attributes["account"] != "123456789012" || prompt.CapabilityRequest.Action != map[string]string{"list": "ListObjectsV2", "download": "GetObject"}[operation] || prompt.SavedScope == nil {
+			if prompt.CapabilityRequest.Attributes["account_name"] != "Development" || prompt.CapabilityRequest.Attributes["account"] != "123456789012" || prompt.CapabilityRequest.Action != map[string]string{"list": "ListObjectsV2", "download": "GetObject"}[operation] || prompt.SavedScope == nil {
 				t.Fatal("review missing AWS scope")
 			}
 			receipt, err := client.DecideApproval(ctx, prompt.RequestID, capability.ApprovalDecision{Approved: true, Save: capability.AllowEnvironment})

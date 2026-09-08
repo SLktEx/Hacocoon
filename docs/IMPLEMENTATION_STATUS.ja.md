@@ -1,4 +1,12 @@
 # 実装状況
+## AWS アカウント表示名
+
+実装済み: 任意の Host AWS profile 表示名を実 STS アカウント ID に紐付け、
+承認と保存範囲へ含めます。ID 不一致や名前変更では実行を拒否します。
+local CI、focused race と SDK/config 15 テストが成功しました。
+通常の controller 承認・保存許可・失効経路でも、一覧・取得の表示名を確認しました。認証済み AWS と desktop 表示は
+Host の前提不足により SKIP です。[AWS 操作](design/aws-operations.ja.md)を参照してください。
+
 
 ## AWS オブジェクトのストリーム取得
 

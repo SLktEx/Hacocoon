@@ -3,7 +3,7 @@
 [日本語](aws-operations.ja.md) | English
 
 Status: **partial D3 implementation**. Trusted Host S3 listing and streamed downloads are implemented.
-Guest-scoped transport, friendly account-name configuration and
+ID-bound Host account labels are implemented. Guest-scoped transport and
 real AWS/desktop acceptance remain planned. This does not reintroduce the deferred
 EC2 runtime.
 
@@ -83,8 +83,9 @@ or credential-process profiles. Resolved credentials remain in Host process
 memory. A single resolved credential set performs STS identity verification and
 the approved S3 operation; identity is checked again after waiting for approval.
 The Physical Host controller receives only account ID, principal ARN, region and
-operation results. Account name is explicitly unavailable, not inferred from a
-profile label or guessed.
+operation results. Account name is either explicitly unavailable or an operator
+label configured in Host and bound to the actual account ID; it is not an AWS
+identity assertion and is never inferred from the profile name.
 
 The review includes Environment, account, principal, profile, region, S3 bucket
 ARN, prefix, API action and IAM action. ListObjectsV2 requires
@@ -164,3 +165,40 @@ has no AWS CLI, botocore or AWS config; those tests have not become real AWS pro
 The current verified Host streaming adapter also transferred 20 MiB successfully
 in dedicated WSL without contacting AWS. Maintained local CI, the eleven SDK
 tests and documentation checks passed. This does not verify authenticated S3.
+
+
+## Account names in review
+
+Optionally add a readable label and its expected account ID to the existing
+trusted Host AWS profile at /root/.aws/config:
+
+```ini
+[profile development]
+region = ap-northeast-1
+haco_account_id = 123456789012
+haco_account_name = Development
+```
+
+For the default profile, use [default]. Keep existing authentication settings.
+Then use the ordinary --profile development option. The displayed name is a
+Host operator label, not an account name discovered from AWS. No IAM lookup or
+additional credential permission is required. The actual STS account ID and
+principal remain visible and determine the execution identity.
+
+Both name and expected ID must be configured together. A mismatch with the STS
+account refuses the operation before S3 access. Labels are re-read at execution;
+a label changed while waiting requires a new request. The label is part of the
+saved scope, so changing it also invalidates matching old saved permissions.
+An explicit rule matching account_name = unavailable must be adjusted through
+ordinary haco config when adding a label; permission is never silently widened.
+
+The file must be a regular file owned by the Host user, not writable by group
+or others, and at most 1 MiB; symlinks are refused. Invalid or duplicate INI,
+control/format characters and labels longer than 256 UTF-8 bytes fail closed.
+Profiles with neither field still display unavailable. Labels do not come from
+the Environment or its repository.
+
+Focused race tests and fifteen intercepted SDK/config tests passed, including
+profile isolation, identity mismatch, label changes and unsafe config. Actual
+authenticated AWS and desktop label rendering remain unverified for the same
+missing Host AWS prerequisites.

@@ -1,5 +1,8 @@
 """Trusted Host AWS adapter. Request data never becomes shell code or credentials."""
 import json
+import configparser
+import stat
+import unicodedata
 import base64
 import hashlib
 import os
@@ -103,8 +106,47 @@ def api(service, action, region, env, fields, consume=None):
     finally:
         client.close()
 
+def account_name(profile, account):
+    # This is an operator label, never an identity returned by AWS or the guest.
+    try:
+        fd = os.open("/root/.aws/config", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return ""
+    except OSError:
+        raise Failure("not_configured") from None
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022 or info.st_size > 1 << 20:
+            raise Failure("not_configured")
+        with os.fdopen(fd, "r", encoding="utf-8") as stream:
+            fd = None
+            content = stream.read((1 << 20) + 1)
+        if len(content.encode()) > 1 << 20:
+            raise Failure("not_configured")
+        config = configparser.RawConfigParser(default_section="__haco_no_defaults__")
+        config.read_string(content)
+        section = "default" if profile == "default" else "profile " + profile
+        if not config.has_section(section):
+            return ""
+        name = config.get(section, "haco_account_name", fallback="")
+        expected = config.get(section, "haco_account_id", fallback="")
+        if not name and not expected:
+            return ""
+        if not name or len(name.encode()) > 256 or name != name.strip() or name in ("*", "unavailable") or any(unicodedata.category(c) in ("Cc", "Cf") for c in name):
+            raise Failure("not_configured")
+        if not re.fullmatch(r"[0-9]{12}", expected):
+            raise Failure("not_configured")
+        if expected != account:
+            raise Failure("identity_changed")
+        return name
+    except (OSError, UnicodeError, configparser.Error):
+        raise Failure("not_configured") from None
+    finally:
+        if fd is not None:
+            os.close(fd)
+
 def execute(req):
-    allowed = {"mode", "profile", "region", "account", "principal", "bucket", "prefix", "key"}
+    allowed = {"mode", "profile", "region", "account", "principal", "bucket", "prefix", "key", "account_name"}
     if not isinstance(req, dict) or set(req) - allowed or any(not isinstance(v, str) for v in req.values()):
         raise Failure("invalid")
     mode, profile, region = req.get("mode"), req.get("profile"), req.get("region", "")
@@ -134,9 +176,12 @@ def execute(req):
         raise Failure("not_configured")
     caller = api("sts", "get-caller-identity", region, frozen, {})
     identity = {"account": caller.get("Account"), "principal": caller.get("Arn"), "region": region}
+    label = account_name(profile, identity["account"])
+    if label:
+        identity["account_name"] = label
     if mode == "identity":
         return {"identity": identity}
-    if identity["account"] != req.get("account") or identity["principal"] != req.get("principal"):
+    if identity["account"] != req.get("account") or identity["principal"] != req.get("principal") or label != req.get("account_name", ""):
         raise Failure("identity_changed")
     bucket, prefix = req.get("bucket", ""), req.get("prefix", "")
     if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket) or ".." in bucket or bucket.endswith(("--x-s3", "-s3alias", "--ol-s3")) or bucket.startswith("xn--"):

@@ -44,19 +44,21 @@ type ListSpec struct {
 	Region      string `json:"region,omitempty"`
 }
 type identity struct {
-	Account   string `json:"account"`
-	Principal string `json:"principal"`
-	Region    string `json:"region"`
+	AccountName string `json:"account_name,omitempty"`
+	Account     string `json:"account"`
+	Principal   string `json:"principal"`
+	Region      string `json:"region"`
 }
 type agentRequest struct {
-	Mode      string `json:"mode"`
-	Profile   string `json:"profile"`
-	Region    string `json:"region"`
-	Account   string `json:"account,omitempty"`
-	Principal string `json:"principal,omitempty"`
-	Bucket    string `json:"bucket,omitempty"`
-	Prefix    string `json:"prefix,omitempty"`
-	Key       string `json:"key,omitempty"`
+	AccountName string `json:"account_name,omitempty"`
+	Mode        string `json:"mode"`
+	Profile     string `json:"profile"`
+	Region      string `json:"region"`
+	Account     string `json:"account,omitempty"`
+	Principal   string `json:"principal,omitempty"`
+	Bucket      string `json:"bucket,omitempty"`
+	Prefix      string `json:"prefix,omitempty"`
+	Key         string `json:"key,omitempty"`
 }
 type agentResponse struct {
 	Error    string    `json:"error,omitempty"`
@@ -91,7 +93,7 @@ func safeText(s string, limit int) bool {
 	return true
 }
 func validIdentity(i identity) bool {
-	return accountPattern.MatchString(i.Account) && principalPattern.MatchString(i.Principal) &&
+	return safeText(i.AccountName, 256) && i.AccountName != "unavailable" && accountPattern.MatchString(i.Account) && principalPattern.MatchString(i.Principal) &&
 		strings.Contains(i.Principal, "::"+i.Account+":") && len(i.Principal) <= 256 && validRegion(i.Region)
 }
 func parse(s ListSpec) (ListSpec, string, string, error) {
@@ -114,7 +116,7 @@ func parse(s ListSpec) (ListSpec, string, string, error) {
 }
 func request(s ListSpec, bucket, prefix string, i identity) core.CapabilityRequest {
 	return core.CapabilityRequest{Capability: Capability, Action: ListAction, Resource: "arn:aws:s3:::" + bucket, Environment: s.Environment, Attributes: map[string]string{
-		"account": i.Account, "account_name": "unavailable", "principal": i.Principal, "profile": s.Profile, "region": i.Region,
+		"account": i.Account, "account_name": displayAccountName(i.AccountName), "principal": i.Principal, "profile": s.Profile, "region": i.Region,
 		"service": "s3", "description": "List object names and sizes", "iam_action": "s3:ListBucket", "bucket": bucket, "bucket_owner": i.Account, "prefix": prefix,
 	}}
 }
@@ -181,7 +183,7 @@ func (p *Provider) Execute(ctx context.Context, r core.CapabilityRequest) (core.
 		return core.CapabilityResult{}, core.ErrUnsupported
 	}
 	a := r.Attributes
-	i := identity{Account: a["account"], Principal: a["principal"], Region: a["region"]}
+	i := identity{Account: a["account"], Principal: a["principal"], Region: a["region"], AccountName: rawAccountName(a["account_name"])}
 	s := ListSpec{Environment: r.Environment, Profile: a["profile"], Region: i.Region, URL: (&url.URL{Scheme: "s3", Host: a["bucket"], Path: "/" + a["prefix"]}).String()}
 	_, bucket, prefix, err := parse(s)
 	if err != nil || !validIdentity(i) || len(r.Parameters) != 0 {
@@ -191,7 +193,7 @@ func (p *Provider) Execute(ctx context.Context, r core.CapabilityRequest) (core.
 	if r.Capability != Capability || r.Action != ListAction || r.Resource != expected.Resource || !maps.Equal(a, expected.Attributes) {
 		return core.CapabilityResult{}, core.ErrInvalidArgument
 	}
-	out, err := call(ctx, p.Host, agentRequest{Mode: "list", Profile: s.Profile, Region: i.Region, Account: i.Account, Principal: i.Principal, Bucket: bucket, Prefix: prefix})
+	out, err := call(ctx, p.Host, agentRequest{Mode: "list", Profile: s.Profile, Region: i.Region, Account: i.Account, AccountName: i.AccountName, Principal: i.Principal, Bucket: bucket, Prefix: prefix})
 	if err != nil {
 		return core.CapabilityResult{}, err
 	}
@@ -263,4 +265,18 @@ func asciiJSON(encoded []byte) string {
 		}
 	}
 	return out.String()
+}
+
+// Account names are trusted Host labels tied to an actual STS account ID.
+func displayAccountName(name string) string {
+	if name == "" {
+		return "unavailable"
+	}
+	return name
+}
+func rawAccountName(name string) string {
+	if name == "unavailable" {
+		return ""
+	}
+	return name
 }

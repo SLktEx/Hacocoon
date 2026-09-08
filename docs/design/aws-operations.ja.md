@@ -52,8 +52,9 @@ home が `/root` の trusted Host ユーザーで、たとえば
 Host 内で AWS CLI の credential resolver を使い、SSO・credential-process 等を解決します。
 credential は Host プロセスのメモリ内に留め、一度解決した同じ credential で
 STS identity を確認して S3 を実行します。承認待ちの後も account／principal を再確認します。
-Physical Host controller へ返すのは account ID・principal ARN・region・操作結果だけです。
-account 名は unavailable と表示し、profile 名から推測しません。
+Physical Host controller へ返すのは account ID・principal ARN・region・表示名・操作結果です。
+account 名は unavailable または実 ID に紐付いた Host 管理者のラベルを表示し、
+profile 名から推測しません。AWS 自体が証明した名前としては扱いません。
 
 review には env・account・principal・profile・region・bucket ARN・prefix・API action と
 IAM action を表示します。ListObjectsV2 の IAM action は
@@ -123,3 +124,35 @@ native Windows filesystem の受入は別に残します。
 現在の所有確認付き Host streaming adapter は、専用 WSL でも AWS 通信なしで
 20 MiB の転送に成功しました。保守対象の local CI、SDK 11 テスト、文書検査は成功です。
 認証済み S3 の検証を代替するものではありません。
+
+
+## 承認画面のアカウント名
+
+任意で、既存の trusted Host の /root/.aws/config に表示名と対応する ID を設定できます。
+
+```ini
+[profile development]
+region = ap-northeast-1
+haco_account_id = 123456789012
+haco_account_name = Development
+```
+
+既定 profile は [default] を使い、既存の認証設定は保持します。
+実行時は従来の --profile development を使います。名前は Host 管理者の表示ラベルで、
+AWS から取得した正式名称ではありません。追加の IAM 照会権限は不要です。
+実際の STS アカウント ID と principal は引き続き表示・照合します。
+
+名前と ID は対で設定します。STS の ID と異なる場合は S3 操作前に拒否します。
+実行時も設定を読み直すため、承認待ち中に名前が変わったら新しい要求が必要です。
+名前も保存範囲に含まれ、変更後に古い名前の保存許可は一致しません。
+account_name = unavailable に一致する明示ルールは、名前を追加するときに
+通常の haco config から調整します。許可を自動で広げることはありません。
+
+config は Host ユーザー所有の regular file、group/other 書込不可、1 MiB 以下が条件で、
+symlink は拒否します。不正・重複 INI、制御／書式文字、256 UTF-8 bytes を超える名前は
+拒否します。両フィールドがない profile は unavailable を表示します。
+Environment や repo からラベルを指定することはできません。
+
+focused race と SDK/config の 15 テストが成功し、profile 分離・ID 不一致・名前変更・
+危険な config の拒否を確認しました。認証済み AWS とデスクトップ上の表示確認は、
+Host の AWS 前提不足により引き続き未検証です。

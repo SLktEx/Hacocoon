@@ -58,7 +58,7 @@ func (p *Provider) download(ctx context.Context, r core.CapabilityRequest) (core
 		return core.CapabilityResult{}, core.ErrUnsupported
 	}
 	a := r.Attributes
-	i := identity{Account: a["account"], Principal: a["principal"], Region: a["region"]}
+	i := identity{Account: a["account"], Principal: a["principal"], Region: a["region"], AccountName: rawAccountName(a["account_name"])}
 	s := ListSpec{Environment: r.Environment, Profile: a["profile"], Region: i.Region, URL: (&url.URL{Scheme: "s3", Host: a["bucket"], Path: "/" + a["key"]}).String()}
 	_, bucket, key, err := parse(s)
 	if err != nil || !validObjectKey(key) || !validIdentity(i) || len(r.Parameters) != 0 {
@@ -68,7 +68,7 @@ func (p *Provider) download(ctx context.Context, r core.CapabilityRequest) (core
 	if r.Capability != Capability || r.Action != GetAction || r.Resource != want.Resource || !maps.Equal(a, want.Attributes) {
 		return core.CapabilityResult{}, core.ErrInvalidArgument
 	}
-	input, _ := json.Marshal(agentRequest{Mode: "get", Profile: s.Profile, Region: i.Region, Account: i.Account, Principal: i.Principal, Bucket: bucket, Key: key})
+	input, _ := json.Marshal(agentRequest{Mode: "get", Profile: s.Profile, Region: i.Region, Account: i.Account, AccountName: i.AccountName, Principal: i.Principal, Bucket: bucket, Key: key})
 	reader, writer := io.Pipe()
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()

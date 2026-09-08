@@ -5,6 +5,8 @@ import hashlib
 from contextlib import redirect_stdout
 import json
 import unittest
+import tempfile
+import os
 from pathlib import Path
 from unittest.mock import patch
 import botocore.httpsession
@@ -33,6 +35,9 @@ class Raw:
 
 class AgentTest(unittest.TestCase):
     def setUp(self):
+        self.label = patch.object(agent, 'account_name', return_value='')
+        self.label_mock = self.label.start()
+        self.addCleanup(self.label.stop)
         self.requests = []
         self.object_payload = None
         self.s3 = [(200, {}, b'<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><IsTruncated>false</IsTruncated><Contents><Key>project/config.json</Key><Size>42</Size></Contents></ListBucketResult>')]
@@ -74,6 +79,16 @@ class AgentTest(unittest.TestCase):
                "principal":PRINCIPAL, "bucket":"example-bucket", "prefix":"project/"}
         req.update(changes)
         return req
+    def test_label_is_bound_before_s3(self):
+        self.label_mock.return_value = "Development"
+        result = agent.execute(self.request(account_name="Development"))
+        self.assertEqual(result["identity"]["account_name"], "Development")
+        self.assertEqual(len(self.requests), 2)
+        self.requests.clear()
+        with self.assertRaises(agent.Failure):
+            agent.execute(self.request(account_name="Production"))
+        self.assertEqual(len(self.requests), 1)
+
     def test_preparation_does_not_list(self):
         result = agent.execute({"mode":"identity", "profile":"default", "region":"ap-northeast-1"})
         self.assertEqual(result["identity"]["account"], ACCOUNT)
@@ -144,6 +159,46 @@ class AgentTest(unittest.TestCase):
             with self.assertRaisesRegex(agent.Failure,"aws_failed"):
                 agent.execute(self.request(mode="get", key="project/data.bin"))
         self.assertEqual(captured.getvalue(),"")
+
+class AccountLabelTest(unittest.TestCase):
+    def read(self, content, profile="default", mode=0o600, symlink=False):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "config"
+            target.write_text(content, encoding="utf-8")
+            target.chmod(mode)
+            path = target
+            if symlink:
+                path = Path(folder) / "link"
+                path.symlink_to(target)
+            real_open = os.open
+            def opened(name, flags):
+                self.assertEqual(name, "/root/.aws/config")
+                return real_open(path, flags)
+            with patch.object(agent.os, "open", opened):
+                return agent.account_name(profile, ACCOUNT)
+
+    def test_exact_profile_and_account(self):
+        config = "[default]\nhaco_account_id = 123456789012\nhaco_account_name = Development\n"
+        self.assertEqual(self.read(config), "Development")
+        self.assertEqual(self.read(config, "other"), "")
+        named = config.replace("[default]", "[profile other]")
+        self.assertEqual(self.read(named, "other"), "Development")
+        self.assertEqual(self.read(named), "")
+
+    def test_invalid_labels_and_identity_fail_closed(self):
+        for name, number in [("Dev", "000000000000"), ("*", ACCOUNT), ("unavailable", ACCOUNT), ("Dev\u202e", ACCOUNT), ("", ACCOUNT), ("Dev", "")]:
+            with self.subTest(name=name, number=number), self.assertRaises(agent.Failure):
+                self.read("[default]\nhaco_account_id = "+number+"\nhaco_account_name = "+name+"\n")
+        with self.assertRaises(agent.Failure):
+            self.read("[default]\nhaco_account_name=x\nhaco_account_name=y\n")
+
+    def test_unsafe_file_is_refused(self):
+        config = "[default]\nregion = ap-northeast-1\n"
+        with self.assertRaises(agent.Failure):
+            self.read(config, mode=0o666)
+        with self.assertRaises(agent.Failure):
+            self.read(config, symlink=True)
+        self.assertEqual(self.read(config), "")
 
 if __name__ == "__main__":
     unittest.main()
