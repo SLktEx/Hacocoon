@@ -30,7 +30,7 @@ func (s *EnvironmentJSONStore) EnvironmentInstance(ctx context.Context, expected
 	if err = json.Unmarshal(content, &data); err != nil {
 		return "", err
 	}
-	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != 5 && data.Version != 6 && data.Version != 7 && data.Version != 8 && data.Version != 10 && data.Version != 11 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
+	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != 5 && data.Version != 6 && data.Version != 7 && data.Version != 8 && data.Version != 10 && data.Version != 11 && data.Version != 12 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
 		return "", core.ErrIncompatibleState
 	}
 	current, ok := data.Environments[expected.Name]

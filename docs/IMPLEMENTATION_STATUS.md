@@ -1,5 +1,15 @@
 # Implementation Status
 
+## Workspace snapshot copy source protection
+
+Implemented: Workspace copy now reserves its saved source in the shared catalog.
+Partial cleanup retains both ownership and source protection; a published copy
+with failed release can retry only that release. Schema 13 preserves schema 12
+runtime source holds, schema 11 OCI receipts and older saved data. No CLI command,
+Base component, backup or runtime recovery state was added. State, registry, lifecycle and composition race tests passed, as did docs and
+cleanup-helper checks. Real Incus and full CI for this change remain pending;
+public aggregate restore remains planned.
+
 ## Public snapshot capture and management
 
 Implemented: `haco snapshot create <env>`, `list [env]` and `delete <id>` use the

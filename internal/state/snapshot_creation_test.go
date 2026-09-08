@@ -94,8 +94,17 @@ func TestSnapshotCreationSchemaElevenPreservationAndDowngradeRefusal(t *testing.
 	mustSnapshot(t, err)
 	var current environmentFileState
 	mustSnapshot(t, json.Unmarshal(raw, &current))
-	if current.Version != 12 || !reflect.DeepEqual(old.Snapshots, current.Snapshots) || !reflect.DeepEqual(old.Environments, current.Environments) {
+	if current.Version != environmentStateVersion || !reflect.DeepEqual(old.Snapshots, current.Snapshots) || !reflect.DeepEqual(old.Environments, current.Environments) {
 		t.Fatal("existing saved data changed")
+	}
+	current.Version = 12
+	raw, err = json.Marshal(current)
+	mustSnapshot(t, err)
+	mustSnapshot(t, os.WriteFile(st.path, raw, 0600))
+	preserved, err := st.GetWorkspaceLease(ctx, lease.EnvironmentID)
+	mustSnapshot(t, err)
+	if preserved.SnapshotSource != saved.ID || preserved.InstanceID != lease.InstanceID {
+		t.Fatal("schema 12 source identity lost")
 	}
 	current.Version = 11
 	raw, err = json.Marshal(current)

@@ -1,5 +1,9 @@
 # Versioning and release status
 
+Workspace copy source reservations are implemented at the existing v0.49
+checkpoint. Schema 13 retains older saved data and source ownership records;
+public aggregate restore remains planned. See the [snapshot contract](../design/environment-snapshots.md).
+
 Public snapshot create/list/delete now use the existing lifecycle and Incus
 copies, including stop/save/resume for a running source. Public aggregate restore
 remains planned; v0.49 remains the current checkpoint. No new catalog format or

@@ -1,5 +1,9 @@
 # バージョン番号とリリース状況
 
+既存の v0.49 checkpoint で Workspace コピー中の保存元予約を implemented とします。
+schema 13 は既存保存物と保存元の所有記録を保持します。公開 aggregate restore は
+planned です。[snapshot 契約](../design/environment-snapshots.md)を参照してください。
+
 公開 snapshot の create/list/delete は既存 lifecycle と Incus copy を利用し、
 実行中の保存元は停止・保存・再開します。公開 aggregate restore は planned、
 checkpoint は v0.49 のままです。新しい catalog 形式や backup 機構は追加しません。

@@ -144,6 +144,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	}
 	repositoryBackend := &incus.RepositoryBackend{Runtime: incusRuntime, ProductBinary: filepath.Join(filepath.Dir(executable), "haco")}
 	repositories := gitrepo.NewRepositoryService(filepath.Join(stateDir, "repositories"), repositoryBackend)
+	repositories.SnapshotCatalog = store
 	incusRuntime.ConfigureManagedWorkspaces(func(ctx context.Context, source string) ([]incus.WorkspaceAttachment, error) {
 		if !strings.HasPrefix(source, "managed:") {
 			return nil, core.ErrInvalidArgument

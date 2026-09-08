@@ -18,6 +18,13 @@ type SavedWorkspace struct {
 	Repository, Remote, Branch string
 }
 
+// SnapshotWorkspaceCatalog serializes source deletion against native copies.
+// The registry remains responsible for destination ownership and cleanup.
+type SnapshotWorkspaceCatalog interface {
+	BeginSnapshotWorkspaceCopy(context.Context, core.Snapshot, string, string) error
+	FinishSnapshotWorkspaceCopy(context.Context, string, string, string) error
+}
+
 type savedWorkspaceBackend interface {
 	SavedWorkspaces(context.Context, core.Snapshot) ([]SavedWorkspace, error)
 	PlanSavedWorkspace(context.Context, string, SavedWorkspace) (string, error)
@@ -30,14 +37,15 @@ func validSavedID(id string) bool {
 }
 
 // RestoreWorkspace registers independent normal Workspace copies. The caller
-// must hold the saved aggregate reservation through this operation. No source
+// supplies the catalog used for saved-data deletion. This service holds the
+// source reservation until publication or positive cleanup. No source
 // checkout, Git network operation, old Base or old Environment is required.
 func (s *RepositoryService) RestoreWorkspace(ctx context.Context, id string, saved core.Snapshot) (Object, error) {
 	if !ValidID(id) || !validSavedID(saved.ID) || saved.State != "ready" {
 		return Object{}, core.ErrInvalidArgument
 	}
 	backend, ok := s.Backend.(savedWorkspaceBackend)
-	if !ok {
+	if !ok || s.SnapshotCatalog == nil {
 		return Object{}, core.ErrUnsupported
 	}
 	s.mu.Lock()
@@ -94,6 +102,9 @@ func (s *RepositoryService) RestoreWorkspace(ctx context.Context, id string, sav
 		}
 		return Object{}, fmt.Errorf("restored workspace %s failed; new copies removed: %w", id, cause)
 	}
+	if err := s.SnapshotCatalog.BeginSnapshotWorkspaceCopy(ctx, saved, object.ID, object.Owner); err != nil {
+		return fail(err)
+	}
 	for i, source := range sources {
 		member := &object
 		if len(object.Members) != 0 {
@@ -118,19 +129,30 @@ func (s *RepositoryService) RestoreWorkspace(ctx context.Context, id string, sav
 	if err := s.save(object); err != nil {
 		return fail(err)
 	}
+	if err := s.SnapshotCatalog.FinishSnapshotWorkspaceCopy(ctx, saved.ID, object.ID, object.Owner); err != nil {
+		return object, fmt.Errorf("workspace %s is ready; source reservation release failed: %w", id, errors.Join(err, core.ErrRecoveryRequired))
+	}
 	return object, nil
 }
 
-// CleanupRestoredWorkspace removes incomplete restored copies only. Published
-// Workspaces need the ordinary explicit data deletion path, not failure cleanup.
+// CleanupRestoredWorkspace removes incomplete restored copies or retries a
+// pending source release for a published copy. It never deletes published data.
 func (s *RepositoryService) CleanupRestoredWorkspace(ctx context.Context, id string) error {
 	backend, ok := s.Backend.(savedWorkspaceBackend)
-	if !ok {
+	if !ok || s.SnapshotCatalog == nil {
 		return core.ErrUnsupported
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	object, err := s.Get("work", id)
+	if err == nil && validSavedID(object.RestoredFrom) {
+		// Retry only the pending release; never delete published data.
+		err = s.SnapshotCatalog.FinishSnapshotWorkspaceCopy(ctx, object.RestoredFrom, object.ID, object.Owner)
+		if errors.Is(err, core.ErrNotFound) {
+			return core.ErrIncompatibleState
+		}
+		return err
+	}
 	if !errors.Is(err, core.ErrRecoveryRequired) || !validSavedID(object.RestoredFrom) {
 		if err != nil {
 			return err
@@ -149,6 +171,9 @@ func (s *RepositoryService) cleanupRestoredWorkspace(ctx context.Context, backen
 	}
 	if len(failures) != 0 {
 		return errors.Join(failures...)
+	}
+	if err := s.SnapshotCatalog.FinishSnapshotWorkspaceCopy(ctx, object.RestoredFrom, object.ID, object.Owner); err != nil && !errors.Is(err, core.ErrNotFound) {
+		return err
 	}
 	if err := os.Remove(s.path("work", object.ID)); err != nil {
 		return err

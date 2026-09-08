@@ -1,5 +1,14 @@
 # 実装状況
 
+## Workspace snapshot コピーの保存元保護
+
+implemented: Workspace コピー中は共有 catalog で保存元を予約します。
+cleanup が不確実なら所有記録と予約を保持し、公開済みコピーで予約解除だけが
+失敗した場合は解除だけを再試行します。schema 13 は schema 12 の実行環境の
+保存元予約、schema 11 の OCI 記録と既存保存物を維持します。CLI コマンド、
+Base component、backup、実行環境の復旧状態は追加しません。state・registry・lifecycle・composition の race テスト、文書・cleanup helper 検査は成功。
+この変更の実 Incus と全 CI は未完了、公開 aggregate restore は planned です。
+
 ## 公開 snapshot の保存・管理
 
 実装済み：`haco snapshot create <env>`、`list [env]`、`delete <id>` は既存の
