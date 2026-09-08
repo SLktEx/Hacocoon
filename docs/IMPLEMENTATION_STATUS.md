@@ -2,6 +2,12 @@
 
 ## Snapshot source guard
 
+Schema 6 now preserves complete opaque adapter bindings and exact CAS across
+restart. Incus validates canonical project/version/role/owner/ref and source
+identity before dispatching saved component operations. Legacy schema-5 ownership
+is retained without fabricating plans; Base omission in new reservations is
+refused. Complete member enumeration and production routing remain planned.
+
 Internal Base rootfs retention now pins the exact local effective image revision.
 Dedicated WSL passed isolated stopped configuration, Btrfs COW ancestry, independent
 saved writes and owned cleanup. Incus 6.0.5 image-info incompatibility found by E2E
@@ -12,7 +18,7 @@ Partial E2 foundation: the Workspace service validates the complete source
 aggregate under Environment/Workspace locks, requiring stopped provider state and
 the exact durable creation ID. Drift, running/unknown state and invalid attachment
 identity fail closed; concurrent deletion is excluded. Focused race tests passed.
-The schema-5 component catalog now persists capture/recovery ownership and blocks
+The schema-6 component catalog now persists capture/recovery ownership and blocks
 start/delete until all components are verified or cleanup proves every target absent.
 Restart, transition, cleanup, migration and concurrent reservation regressions pass.
 New stateful Incus creation records the lease creation ID in the initial provider

@@ -203,10 +203,10 @@ func TestSnapshotCatalogSchemaAndCancellation(t *testing.T) {
 	raw, err = os.ReadFile(s.path)
 	mustSnapshot(t, err)
 	mustSnapshot(t, json.Unmarshal(raw, &data))
-	if data["version"] != float64(5) {
+	if data["version"] != float64(environmentStateVersion) {
 		t.Fatal("missing downgrade barrier")
 	}
-	for _, version := range []int{4, 6} {
+	for _, version := range []int{4, environmentStateVersion + 1} {
 		data["version"] = version
 		raw, err = json.Marshal(data)
 		mustSnapshot(t, err)

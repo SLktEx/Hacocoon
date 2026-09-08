@@ -51,9 +51,9 @@ exact owned target absent before recording absent. Only then can finalization
 remove the manifest and release the source reservation. Component updates compare
 the complete previous identity/state; changed owners, refs or stale states fail.
 
-Catalog schema 5 preserves these records across ordinary lifecycle writes and
-rejects malformed manifests. Schema 4 without snapshots can migrate on write;
-older binaries must reject schema 5 instead of silently dropping recovery state.
+Catalog schema 6 preserves these records across ordinary lifecycle writes and
+rejects malformed manifests. Schema 5 ownership-only records and older snapshot-free catalogs migrate on write;
+older binaries must reject schema 6 instead of silently dropping recovery state.
 Do not manually downgrade the schema number. These APIs do not themselves inspect
 provider resources: the future locked capture adapter must establish the evidence
 before recording created, verified or absent.
@@ -232,3 +232,30 @@ regression fixes that request contract. The initial reservation was absent at th
 shared by existing infrastructure. This test does not establish a full restore
 or independent recreation after losing the original image. Existing Incus GHA
 includes the same fixture; execution of the new Base extension is pending.
+
+## Durable provider binding
+
+Schema 6 adds a bounded opaque component binding that participates in exact
+component comparison. Incus serializes a versioned project plus exactly one
+rootfs, volume or Base storage plan. The binding retains pool/source identity,
+source ownership/creation ID and the independent target owner; it has no slot
+for credentials or arbitrary workload configuration. Decoding requires canonical
+serialization, the current project and agreement with the outer role/owner/ref.
+Unknown/duplicate fields, version drift and a changed target fail before provider
+access. Creation also compares the source creation ID or effective Base revision.
+
+This internal dispatcher can verify/delete a saved binding after JSON reload,
+including a planned target without a creation receipt. Full member enumeration
+and production routing are still planned. No public save/restore command is
+introduced. New reservations with a Base must include a Base component. Legacy
+schema-5 records retain recovery ownership without inventing absent provider
+bindings; Incus refuses to execute them as complete storage plans. Schema-5 files
+containing new bindings or Base roles are rejected. Older controllers reject
+schema 6 rather than silently strip these ownership fields. Never downgrade it.
+
+The updated Base E2E passed in dedicated WSL after writing/reading the complete
+component JSON, then dispatching creation, verification and owned deletion from
+that record. Fixture haco-snapshot-base-b5cbeb5867500feef28b98adb957b428 retained
+the same Btrfs ancestry and independent-write guarantees. This is real adapter
+binding acceptance; the canonical catalog/coordinator and complete aggregate
+remain covered separately, not an installed public snapshot round trip.
