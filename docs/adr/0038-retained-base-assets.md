@@ -1,6 +1,6 @@
 # ADR 0038: Retain Base material independently of image caches
 
-Status: accepted design; catalog/coordinator implemented; provider integration planned
+Status: accepted design; catalog/coordinator and Incus storage implemented; normal creation integration planned
 Date: 2026-09-08
 
 ## Decision
@@ -38,11 +38,19 @@ snapshot and concurrent creation users atomically.
 
 ## Current scope
 
-The provider-neutral catalog and retention coordinator are implemented internally.
+The provider-neutral catalog/coordinator and Incus retained-material adapter are
+implemented internally. Incus initializes a stopped, profile-free Base instance
+from the exact pinned source and records fresh asset ownership at creation.
+Verification checks exact root storage and metadata without consulting the image
+cache. Snapshot and retained-Base validation share the same ownership checks but
+keep distinct namespaces and unchanged persisted snapshot bindings.
+
 They do not yet change ordinary creation or remove the snapshot planner's cached
-image requirement. The Incus retained-material adapter, normal-create wiring,
-interrupted-create recovery and referenced-asset collection remain required.
-There is no new public command and no claim of real-provider retention acceptance.
+image requirement. Normal-create wiring, interrupted-create recovery and
+referenced-asset collection remain required.
+There is no new public command. Dedicated WSL proved retained material survives
+explicit source-image deletion and catalog reload, then verified owned cleanup.
+Ordinary-create and restore acceptance remain separate.
 
 See [Base contract](../design/base-images-and-custom-environments.md) and
 [snapshot contract](../design/environment-snapshots.md).

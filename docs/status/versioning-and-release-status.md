@@ -1,8 +1,8 @@
 # Versioning and release status
 
 The v0.46 snapshot work now includes schema-7 retained Base ownership and an
-internal retention coordinator. Automatic provider material retention and normal
-creation integration remain planned; no new public command is introduced.
+internal retention coordinator. The Incus retained-material adapter is implemented; automatic normal
+creation integration remains planned; no new public command is introduced.
 Current checkpoint v0.46 now includes complete stopped snapshot capture through
 schema-6 ownership, provider routing and independent rootfs/Workspace/OCI/Base
 storage. Dedicated WSL passed five-component save, catalog reload, source deletion,
