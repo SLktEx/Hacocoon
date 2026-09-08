@@ -1,5 +1,15 @@
 # 実装状況
 
+## 実 guest AWS 拒否検証
+
+専用 WSL の product 093ed159b80e で、通常ユーザーによる作成、guest haco 自動選択、
+送信元固定の未設定 profile 拒否、失敗時のファイル保持、canonical 削除が成功しました。
+controller 稼働と検証用 Environment/Workspace の不在も確認済みです。既存 Windows
+installer E2E に追加し、新 HEAD の GHA は未完了です。local CI と判定テストは成功です。
+認証済み AWS／正の取得は SKIP で、成功扱いにしません。
+[AWS 検証](design/aws-operations.ja.md)を参照してください。
+
+
 ## guest の通常 AWS CLI
 
 実装済み: Standard の作成・start で通常 haco を配置し、AWS list/cp は --env や認証情報なしで

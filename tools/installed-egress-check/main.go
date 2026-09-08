@@ -28,9 +28,11 @@ const passed = "allowed_https=verified denied_proxy=403 direct_tcp=blocked manag
 func main() {
 	var err error
 	if len(os.Args) != 3 {
-		err = errors.New("usage: installed-egress-check check <environment> | probe <public-ipv4>")
+		err = errors.New("usage: installed-egress-check check <environment> | check-aws <environment> | probe <public-ipv4>")
 	} else if os.Args[1] == "check" {
-		err = check(os.Args[2])
+		err = check(os.Args[2], true)
+	} else if os.Args[1] == "check-aws" {
+		err = check(os.Args[2], false)
 	} else if os.Args[1] == "probe" {
 		err = probe(os.Args[2])
 	} else {
@@ -42,7 +44,7 @@ func main() {
 	}
 }
 
-func check(name string) (result error) {
+func check(name string, network bool) (result error) {
 	if os.Geteuid() == 0 || !regexp.MustCompile(`^m1-egress-[a-f0-9]{16}$`).MatchString(name) {
 		return errors.New("check requires the ordinary WSL user and a unique acceptance name")
 	}
@@ -52,18 +54,21 @@ func check(name string) (result error) {
 	if err != nil {
 		return err
 	}
-	// Positive control: the exact public endpoint must be reachable from the
-	// Physical Host before its denied direct path is tested in the Environment.
-	addresses, err := net.DefaultResolver.LookupIP(ctx, "ip4", "github.com")
-	if err != nil || len(addresses) == 0 || !publicIPv4(addresses[0]) {
-		return errors.New("Physical Host github.com IPv4 lookup failed")
+	var address string
+	if network {
+		// Positive control: the exact public endpoint must be reachable from the
+		// Physical Host before its denied direct path is tested in the Environment.
+		addresses, err := net.DefaultResolver.LookupIP(ctx, "ip4", "github.com")
+		if err != nil || len(addresses) == 0 || !publicIPv4(addresses[0]) {
+			return errors.New("Physical Host github.com IPv4 lookup failed")
+		}
+		address = addresses[0].String()
+		connection, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "tcp4", net.JoinHostPort(address, "443"))
+		if err != nil {
+			return errors.New("Physical Host positive TCP control failed")
+		}
+		connection.Close()
 	}
-	address := addresses[0].String()
-	connection, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "tcp4", net.JoinHostPort(address, "443"))
-	if err != nil {
-		return errors.New("Physical Host positive TCP control failed")
-	}
-	connection.Close()
 	workspace, err := os.MkdirTemp("", name+"-")
 	if err != nil {
 		return err
@@ -108,34 +113,42 @@ func check(name string) (result error) {
 		result = errors.Join(result, os.Remove(filepath.Join(workspace, "probe")))
 		result = errors.Join(result, os.Remove(workspace))
 	}()
-	executed, err := client.ExecEnvironment(ctx, name, []string{"/workspace/probe", "probe", address})
-	if err != nil {
-		return fmt.Errorf("controller exec failed: %w", err)
-	}
-	if executed.ExitCode != 0 || executed.StdoutTruncated || executed.StderrTruncated || strings.TrimSpace(executed.Stdout) != passed {
-		// Do not copy arbitrary guest output into acceptance logs.
-		phase := "unknown"
-		for fragment, label := range map[string]string{
-			"management endpoint": "management_boundary", "guest DHCP/default route": "network_startup",
-			"allowed HTTPS": "allowed_https", "unapproved proxy": "denied_proxy", "direct Environment TCP": "direct_tcp",
-		} {
-			if strings.Contains(executed.Stderr, fragment) {
-				phase = label
+	if network {
+		executed, err := client.ExecEnvironment(ctx, name, []string{"/workspace/probe", "probe", address})
+		if err != nil {
+			return fmt.Errorf("controller exec failed: %w", err)
+		}
+		if executed.ExitCode != 0 || executed.StdoutTruncated || executed.StderrTruncated || strings.TrimSpace(executed.Stdout) != passed {
+			// Do not copy arbitrary guest output into acceptance logs.
+			phase := "unknown"
+			for fragment, label := range map[string]string{
+				"management endpoint": "management_boundary", "guest DHCP/default route": "network_startup",
+				"allowed HTTPS": "allowed_https", "unapproved proxy": "denied_proxy", "direct Environment TCP": "direct_tcp",
+			} {
+				if strings.Contains(executed.Stderr, fragment) {
+					phase = label
+				}
 			}
-		}
-		proxyStatus := "unknown"
-		if match := regexp.MustCompile(`proxy status ([0-9]{1,3})\)`).FindStringSubmatch(executed.Stderr); len(match) == 2 {
-			proxyStatus = match[1]
-		}
-		denial := "unknown"
-		for _, label := range []string{"unmanaged_source", "authorization"} {
-			if strings.Contains(executed.Stderr, "denial="+label) {
-				denial = label
+			proxyStatus := "unknown"
+			if match := regexp.MustCompile(`proxy status ([0-9]{1,3})\)`).FindStringSubmatch(executed.Stderr); len(match) == 2 {
+				proxyStatus = match[1]
 			}
+			denial := "unknown"
+			for _, label := range []string{"unmanaged_source", "authorization"} {
+				if strings.Contains(executed.Stderr, "denial="+label) {
+					denial = label
+				}
+			}
+			return fmt.Errorf("Environment egress probe failed (phase %s, proxy status %s, denial=%s, exit %d)", phase, proxyStatus, denial, executed.ExitCode)
 		}
-		return fmt.Errorf("Environment egress probe failed (phase %s, proxy status %s, denial=%s, exit %d)", phase, proxyStatus, denial, executed.ExitCode)
 	}
-	fmt.Println(passed)
+	if err := checkGuestAWS(ctx, client, name); err != nil {
+		return err
+	}
+	if network {
+		fmt.Println(passed)
+	}
+	fmt.Println("guest_aws=source_bound unconfigured_profile=refused failed_download=preserved")
 	return nil
 }
 

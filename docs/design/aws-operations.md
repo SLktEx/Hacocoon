@@ -250,3 +250,24 @@ The first setup test failed because the new link path was not isolated into its
 temporary root; after fixing that fixture all focused tests passed. These are
 not real Incus guest or authenticated AWS acceptance. Installed guest E2E remains
 pending; real AWS remains SKIP for absent Host authentication/dependencies.
+
+## Installed guest acceptance
+
+Dedicated WSL Hacocoon-Review-6771f2f passed guest acceptance with haco/controller
+built from 093ed159b80e: ordinary user/API creation of m1-egress-093ed15020260908,
+automatic haco companion link, refusal of --env, source-bound controller/Host
+refusal of a unique unconfigured AWS profile, failed-download file preservation
+and canonical deletion. Provider inventory and the temporary Workspace were
+confirmed absent afterward; controller remained active. This was a local binary
+update, not a fresh Windows installer run. Previous binaries remain in the
+root-only /root/hacocoon-validation-093ed15 backup on that dedicated WSL.
+
+The maintained installed-egress-check now exercises these cases in the existing
+Windows installer GHA. Its check-aws mode uses the same create/delete path without
+requiring an unrelated external-network allow rule. Local CI and acceptance
+verifier regressions passed. The initial new test source had a string-literal
+newline error; it was fixed before the successful run. New-head GHA is pending.
+
+Authenticated AWS remains SKIP: Host authentication and optional dependencies are
+absent. Negative unconfigured-profile acceptance does not prove S3 success,
+positive guest file download, SSO renewal or native desktop AWS decisions.

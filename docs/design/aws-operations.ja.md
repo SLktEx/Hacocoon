@@ -199,3 +199,21 @@ fixture で確認しました。redirect・途中切断・receipt 不一致、se
 最初の setup テストはリンク作成先を一時領域へ隔離できず失敗しましたが、fixture 修正後は
 focused tests が成功しました。実 Incus guest と認証済み AWS の受け入れ確認ではありません。
 installed guest E2E は未完了、実 AWS は Host の認証・依存不足により SKIP です。
+
+## installed guest 検証
+
+専用 WSL Hacocoon-Review-6771f2f で、093ed159b80e からビルドした haco/controller の
+guest 検証が成功しました。通常ユーザー/API で m1-egress-093ed15020260908 を作成し、
+haco companion の自動配置、--env 拒否、実 controller/Host 経路での固有の未設定 AWS
+profile 拒否、取得失敗時の既存ファイル保持、canonical 削除を確認しました。
+終了後の provider inventory と一時 Workspace の不在、controller 稼働も確認済みです。
+これはローカル binary 更新で、Windows installer の新規実行ではありません。旧 binary は
+専用 WSL の root 専用 /root/hacocoon-validation-093ed15 に退避してあります。
+
+既存 Windows installer GHA の installed-egress-check に同じ検証を追加しました。
+check-aws は同じ作成・削除経路で、無関係な外部通信許可なしに実行できます。
+local CI と判定の回帰テストが成功しました。初回の追加テストには文字列改行による
+構文エラーがあり、修正後に成功しました。新 HEAD の GHA は未完了です。
+
+認証済み AWS は Host の認証・依存不足により SKIP です。未設定 profile の拒否成功は、
+S3 成功・guest への正のファイル取得・SSO 更新・native desktop の AWS 判断を証明しません。

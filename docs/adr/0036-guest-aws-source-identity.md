@@ -44,4 +44,6 @@ Client frame/EOF/receipt verification precedes ordinary private file publication
 HTTP proxies and redirects are disabled. The body deadline is cleared before
 waiting for approval, retaining the total operation deadline. A real HTTP socket
 through ordinary queue/Policy/audit is tested with synthetic source/AWS evidence.
-Installed guest/Incus acceptance and authenticated AWS remain unverified. See [AWS operations](../design/aws-operations.md).
+Dedicated WSL now passed installed guest entry, source-bound unconfigured-profile
+refusal and preservation on failed download, followed by canonical cleanup.
+Authenticated AWS and positive guest download remain unverified. See [AWS operations](../design/aws-operations.md).

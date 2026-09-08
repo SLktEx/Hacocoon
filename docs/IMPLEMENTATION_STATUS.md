@@ -1,5 +1,16 @@
 # Implementation Status
 
+## Real guest AWS refusal acceptance
+
+Dedicated WSL passed ordinary-user creation, installed guest haco selection,
+source-bound unconfigured-profile refusal, failed-download preservation and
+canonical cleanup at product 093ed159b80e. Controller stayed active; the fixture
+Environment/Workspace are absent. Existing Windows installer E2E now includes
+the check; new-head GHA is pending. Local CI and verifier tests passed. Real
+authenticated AWS/positive download remains SKIP, not success. See
+[AWS acceptance](design/aws-operations.md#installed-guest-acceptance).
+
+
 ## Ordinary guest AWS CLI
 
 Implemented: Standard creation/start supplies the ordinary guest haco entry point.
