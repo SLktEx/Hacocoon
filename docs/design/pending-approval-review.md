@@ -33,6 +33,34 @@ or successful execution from a submitted answer alone.
 
 For network.egress, succeeded means connection authorization completed, not that a remote HTTP operation succeeded. The original application still reports connection, TLS and application failures. Installed acceptance checks the actual HTTPS response separately from the authorization receipt.
 
+## Shared Git and network decisions
+
+Git proposals and HTTPS/network requests use the same `haco approve` choices,
+readable receipts, saved Policy, audit and pre-execution reevaluation.
+
+| Choice | Current request | Later matching requests |
+|---|---|---|
+| One-shot allow / deny | Explicit answer | No saved change |
+| Environment allow / deny / ask | Apply saved decision; ask needs another answer | Same Environment creation identity only |
+| Global allow / deny / ask | Apply saved decision; ask needs another answer | All Environments, including future creations |
+
+Recreating an Environment with the same name never inherits its Environment-scoped
+choices. Global choices intentionally apply to future Environments. Saved decisions
+do not widen the target: Git retains repository, remote, ref and update kind;
+network retains canonical hostname, protocol and port. Only a trusted Git provider
+may generalize changing operation/old/new commit identifiers for its supported
+reusable scope. Explicit deny and mandatory isolation still take precedence.
+
+HTTPS CONNECT authorizes a connection, not each HTTP request carried inside it.
+Encrypted URL paths and methods are not visible or enforceable at this boundary;
+they are not presented as saved constraints. The original client reports the
+actual TLS/HTTP outcome. Domain-level approval does not imply URL-level approval.
+
+Common regression tests compare both capability identities across ten CLI answers
+and six saved choices, including audit scope, reevaluation, changed targets and
+same-name recreation. These tests exercise the shared boundary; they do not execute
+Git pushes or establish network connections.
+
 ## Waiting and authority
 
 The replaceable Standard queue admits background controller requests only after
@@ -98,13 +126,14 @@ HTTPS approval decisions separately; the corrected desktop observer passed the a
 
 ## Windows notification entry
 
-The Windows installer now registers an optional native review adapter for its own
-WSL distribution; advanced installation can opt out with -SkipDesktopReview. Current acceptance runs `haco-notify native` on the WSL Physical Host as root,
-where the audit source and binary are installed. The ordinary haco-host currently
-has neither that binary nor the audit source; its convenient subscription path is
-still incomplete. This limitation is not a requirement to expose audit files to guests. Clicking an approval notification opens the existing
-`haco approve` console for that exact request. Inspect its scope and type the ordinary
-answer; opening the console never answers, saves Policy or retries an operation.
+The Windows installer registers the native review adapter for its own WSL
+distribution and enables the owned notification service in the trusted `haco-host`.
+`-SkipDesktopReview` skips registration and disables that service. Ordinary Host
+setup provisions the notification companion and subscribes through the controller;
+raw audit files are not projected. Clicking opens the existing `haco approve`
+console for that request. Inspect the scope and type the ordinary answer; opening
+never answers, saves Policy or retries an operation. Installed Windows automatic
+startup acceptance remains pending; see [interaction delivery](../INTERACTION_EVENTS.md).
 
 Each distribution has its own user protocol and notification identity. Installing a
 test instance does not redirect another instance's notifications. The helper receives

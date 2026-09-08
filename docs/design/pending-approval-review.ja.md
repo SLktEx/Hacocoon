@@ -31,6 +31,31 @@ capability receipt が必要な場合だけ --json を指定します。実行�
 
 network.egress の succeeded は通信の認可完了を意味し、相手の HTTP 操作の成功ではありません。接続・TLS・application の失敗は元の application が報告します。installed 受け入れでは認可の receipt と実際の HTTPS 応答を別々に確認します。
 
+## Git と network に共通の判断
+
+Git proposal と HTTPS/network 要求は、同じ `haco approve` の選択肢、読みやすい結果表示、
+保存 Policy、監査、実行前の再評価を使います。
+
+| 選択 | 今回の要求 | 以後の一致する要求 |
+|---|---|---|
+| 今回だけ許可／拒否 | 明示した回答 | 保存変更なし |
+| Environment の許可／拒否／毎回確認 | 保存判断を適用。毎回確認は別途回答が必要 | 同じ Environment 作成 ID のみ |
+| 全体の許可／拒否／毎回確認 | 保存判断を適用。毎回確認は別途回答が必要 | 将来作成するものも含め全 Environment |
+
+同名で作り直した Environment に、以前の Environment 限定設定は引き継ぎません。
+全体設定は意図どおり将来の Environment にも適用します。保存によって対象を広げず、
+Git は repository・remote・ref・update kind、network は正規化した hostname・protocol・port を
+保持します。変化する operation／old／new commit ID の一般化は、信頼済み Git provider が
+検証した再利用範囲だけで行います。明示した拒否と必須の隔離は引き続き優先します。
+
+HTTPS CONNECT の承認単位は接続であり、その内部の HTTP 要求一件ごとではありません。
+暗号化された URL path・method はこの境界では観測・強制できず、保存条件として表示しません。
+実際の TLS／HTTP 成否は元のクライアントが報告します。domain 単位の承認を URL 単位とは扱いません。
+
+共通の回帰テストは、両 capability の CLI 回答 10 通りと保存設定 6 通りについて、
+監査範囲・再評価・対象変更・同名再作成を比較します。これは共通境界の検証であり、
+Git push や実際の network 接続を実行するテストではありません。
+
 ## 待機と権限
 
 置き換え可能な Standard queue は、Policy が承認を要求した controller の background
@@ -91,12 +116,13 @@ probe を追加しましたが、結果は未確認です。新しい要求へ�
 
 ## Windows 通知から開く
 
-Windows installer は対象 WSL 専用の任意の native review adapter を登録します。
-必要な構成では installer の -SkipDesktopReview で省略できます。
-現在の実機確認は、バイナリと監査元がある WSL Physical Host の root から
-`haco-notify native` を実行しています。通常の haco-host には両方がなく、
-日常の購読導線は未完了です。監査ファイルを guest に公開する要件にはしません。承認通知から、その要求の既存 `haco approve` console を開きます。
-範囲を確認して通常の回答を入力してください。開くだけで回答・Policy 保存・再実行はしません。
+Windows installer は対象 WSL 専用の native review adapter を登録し、信頼済み
+`haco-host` の所有する通知サービスを有効にします。`-SkipDesktopReview` は登録を省略し、
+サービスを無効にします。通常の Host setup が通知バイナリを配置し、controller 経由で購読します。
+監査ファイルは投影しません。通知からその要求の既存 `haco approve` console を開き、
+範囲を確認して通常の回答を入力します。開くだけで回答・Policy 保存・再実行はしません。
+Windows のインストール済み自動起動の受け入れは pending です。
+[通知の配送](../INTERACTION_EVENTS.ja.md)を参照してください。
 
 distribution ごとにユーザー単位の protocol と通知 identity を分けるため、検証 instance
 の導入で別 instance の通知先を変えません。helper は正規の要求 URI だけを受け取り、

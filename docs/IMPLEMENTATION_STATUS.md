@@ -1,5 +1,16 @@
 # Implementation Status
 
+## Git and network approval parity
+
+Implemented shared approval behavior is now covered by cross-capability CLI and
+Policy/audit regression tests: one-shot decisions, all six saved choices, exact
+target scope, reevaluation and same-name Environment recreation. Focused race tests
+and vet passed. The initial test expected approval-denied for saved deny; corrected
+expectation is policy-denied after reevaluation, identically for both providers.
+No new real Git push or HTTPS connection was performed for this regression slice.
+See [the shared contract](design/pending-approval-review.md#shared-git-and-network-decisions).
+
+
 ## Automatic desktop notification follow-up
 
 Implemented in the working branch: Windows post-install enables an owned Host
@@ -8,7 +19,7 @@ First start skips historical presentation, while existing cursors resume normall
 Companion publication uses verified atomic replacement so a running notifier does
 not block updates. Unit parser, ownership, opt-out, from-now and race regressions passed.
 Installed automatic service acceptance remains pending.
-At `6d516d3`, test, Ubuntu and corrected Incus E2E passed. Windows remains running.
+At `4bb8dad`, test, Ubuntu and Incus E2E passed. Windows remains running.
 
 
 ## Host notification acceptance and state safety

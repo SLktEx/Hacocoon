@@ -101,3 +101,57 @@ func TestApprovalCommandReportsFailureWithoutRetryAndEscapesLabels(t *testing.T)
 		}
 	}
 }
+
+func TestGitAndNetworkUseIdenticalApprovalChoicesAndReceipts(t *testing.T) {
+	cases := []struct {
+		input    string
+		save     capability.SavedChoice
+		approved bool
+	}{
+		{"y\n", "", true}, {"n\n", "", false},
+		{"1\n", capability.AllowEnvironment, true}, {"2\n", capability.DenyEnvironment, false},
+		{"3\n", capability.AllowGlobal, true}, {"4\n", capability.DenyGlobal, false},
+		{"5\ny\n", capability.AskEnvironment, true}, {"5\nn\n", capability.AskEnvironment, false},
+		{"6\ny\n", capability.AskGlobal, true}, {"6\nn\n", capability.AskGlobal, false},
+	}
+	requests := []core.CapabilityRequest{
+		{Capability: "git.repository", Action: "push", Resource: "https://github.com/SLktEx/Hacocoon-test.git", Attributes: map[string]string{"repository": "repo-example", "target_ref": "refs/heads/main", "update_kind": "fast-forward"}},
+		{Capability: "network.egress", Action: "connect", Resource: "example.com", Attributes: map[string]string{"protocol": "https", "port": "443"}},
+	}
+	for _, tc := range cases {
+		t.Run(strings.ReplaceAll(tc.input, "\n", "-"), func(t *testing.T) {
+			var firstMenu, firstReceipt string
+			for index, request := range requests {
+				request.Environment = "dev"
+				request.EnvironmentInstance = "env-11111111111111111111111111111111"
+				f := &fakeApprovalClient{requests: []core.ApprovalRequest{{RequestID: "same-request", CapabilityRequest: request}}}
+				var out, diagnostic bytes.Buffer
+				if code := approvalCommand(context.Background(), f, nil, strings.NewReader(tc.input), &out, &diagnostic); code != 0 {
+					t.Fatalf("%s: code=%d %s", request.Capability, code, diagnostic.String())
+				}
+				if f.calls != 1 || f.decision.Save != tc.save || f.decision.Approved != tc.approved {
+					t.Fatalf("%s: %+v", request.Capability, f.decision)
+				}
+				text := diagnostic.String()
+				start := strings.Index(text, "? [")
+				if start < 0 {
+					t.Fatal("missing common choices")
+				}
+				menu := strings.SplitN(text[start:], "]", 2)[0]
+				if index == 0 {
+					firstMenu, firstReceipt = menu, out.String()
+				} else if menu != firstMenu || out.String() != firstReceipt {
+					t.Fatal("provider-specific choice or receipt semantics")
+				}
+				if !strings.Contains(text, request.Resource) {
+					t.Fatal("target omitted")
+				}
+				for key, value := range request.Attributes {
+					if !strings.Contains(text, key+"="+value) {
+						t.Fatal("authority attribute omitted")
+					}
+				}
+			}
+		})
+	}
+}

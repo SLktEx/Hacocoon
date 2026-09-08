@@ -1,5 +1,15 @@
 # 実装状況
 
+## Git と network の承認の一致
+
+実装済みの共通承認について、CLI と Policy／監査の capability 間比較テストを追加しました。
+単発判断、保存 6 種、正確な対象範囲、再評価、同名 Environment の再作成を確認します。
+対象の race テストと vet は成功しました。最初のテストは保存拒否を approval-denied と期待して
+失敗しましたが、再評価後の正しい policy-denied に修正し、両 provider で一致を確認しました。
+この回帰検証では新たな実 Git push や HTTPS 接続を行っていません。
+[共通の契約](design/pending-approval-review.ja.md)を参照してください。
+
+
 ## Desktop 自動通知の追加
 
 作業ブランチで実装済み: Windows の登録後に、所有する Host 通知サービスを有効化します。
@@ -7,7 +17,7 @@
 通常通り使います。バイナリは検証した atomic 置換により、notifier 動作中も更新できます。
 unit parser・所有権・opt-out・from-now と race 回帰は成功しました。
 インストール済みの自動サービス受入は pending です。
-`6d516d3` では test・Ubuntu・修正後の Incus E2E が成功し、Windows は実行中です。
+`4bb8dad` では test・Ubuntu・Incus E2E が成功し、Windows は実行中です。
 
 
 ## Host 通知の受入と状態保存
