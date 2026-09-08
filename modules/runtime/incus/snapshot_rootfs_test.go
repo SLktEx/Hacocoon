@@ -14,7 +14,7 @@ import (
 
 func rootfsFixture() (snapshotRootfsPlan, snapshotInstanceObservation) {
 	p := snapshotRootfsPlan{Pool: "pool", Source: "haco-source", SourceInstanceID: testEnvironmentInstance, Owner: strings.Repeat("a", 32)}
-	config := map[string]string{environmentInstanceKey: p.SourceInstanceID, managedEnvironmentMarkerKey: managedEnvironmentMarkerValue, "environment.TEST_TOKEN": "synthetic-secret", "raw.lxc": "synthetic-hook", "boot.autostart": "true", "volatile.idmap.current": "[]"}
+	config := map[string]string{environmentInstanceKey: p.SourceInstanceID, managedEnvironmentMarkerKey: managedEnvironmentMarkerValue, "environment.TEST_TOKEN": "synthetic-secret", "raw.lxc": "synthetic-hook", "boot.autostart": "true", "volatile.idmap.current": "[]", "volatile.last_state.ready": "true"}
 	devices := map[string]map[string]string{"root": {"type": "disk", "path": "/", "pool": p.Pool}, "workspace": {"type": "disk", "path": "/workspace", "source": "/synthetic-work"}, "eth0": {"type": "nic", "nictype": "bridged", "parent": "synthetic"}, "control": {"type": "proxy", "listen": "unix:/tmp/synthetic", "connect": "unix:/tmp/host-synthetic"}}
 	return p, snapshotInstanceObservation{Name: p.Source, Type: "container", Status: "Stopped", Config: config, ExpandedConfig: config, Devices: devices, ExpandedDevices: devices, Profiles: []string{"default"}}
 }
@@ -60,6 +60,9 @@ func TestSnapshotRootfsClearsInheritedAuthorityBeforeCopy(t *testing.T) {
 						if req.Config[k] != v {
 							t.Fatal("unsafe target config", req.Config)
 						}
+					}
+					if req.Config["volatile.last_state.ready"] != "false" {
+						t.Fatal("copied ready state or invalid empty boolean", req.Config["volatile.last_state.ready"])
 					}
 					if req.Config["volatile.idmap.current"] != "[]" {
 						t.Fatal("lost idmap")

@@ -1,8 +1,39 @@
 # Environment snapshots and restore
 
-Status: **partial**. Internal capture, independent restore copies and exact-owned
-cleanup are implemented. Publishing a restored runnable Environment and the
-public snapshot/restore CLI remain planned. See [implementation status](../IMPLEMENTATION_STATUS.md).
+Status: **partial**. Public capture/list/delete, independent restore copies and
+canonical saved-rootfs creation are implemented. Public aggregate restore remains
+planned. See [implementation status](../IMPLEMENTATION_STATUS.md).
+
+## Daily snapshot commands
+
+```bash
+haco snapshot create dev
+haco snapshot list dev
+haco snapshot delete snap-0123456789abcdef0123456789abcdef
+```
+
+`create` requires a managed Workspace. It holds the normal lifecycle locks,
+verifies the current generation, and stops a running Env through Incus before
+copying. It restarts that same generation only after the complete save is ready;
+an already stopped Env stays stopped. Expect interruption of running processes.
+This saves filesystem data, not process state or live database consistency.
+
+`list` without an Env shows all saved records, including incomplete captures and
+saves whose source Env has been deleted. `create` and `list` support `--json`
+before the positional argument. Results contain IDs/state and aggregate counts,
+not private storage bindings or management configuration.
+
+A failed capture stays stopped; a partial save keeps its ID and ownership record.
+Inspect with `list`, then explicitly delete that ID to clean its owned components
+before starting the source again. If saving completed but restart failed, the
+command returns failure while retaining the ready ID. Use normal Env status/start
+to inspect and resume it. A disconnected client is not proof that capture failed:
+check `list` before retrying. No automatic backup or runtime rollback is created.
+
+`delete` requires the full ID and affects only the saved copies. It preserves
+current Env/Workspace/OCI data, checks active restore reservations, and retains
+ownership records when cleanup cannot establish positive absence. This is the
+explicit removal operation for complete or incomplete saved data.
 
 ## Incus owns storage and runtime operations
 
@@ -60,6 +91,13 @@ Saved instances have no profiles or active non-root devices, no autostart and
 fresh storage ownership. Workload config is explicitly cleared except required
 Incus idmap bookkeeping. Host credentials, controller state, old network access,
 management authority and approval records are not replayable snapshot settings.
+
+Native instance-copy configuration uses the same clearing helper for capture,
+staging and runnable copies. Incus's `volatile.last_state.ready` is reset to
+`false`, never an empty string or the source's ready value: the
+[Incus 6.0.5 validator](https://github.com/lxc/incus/blob/v6.0.5/internal/instance/config.go)
+requires a boolean even for this volatile key. This does not preserve processes
+or old authority, and changes no saved-data schema.
 
 ## Restore preparation and future activation
 

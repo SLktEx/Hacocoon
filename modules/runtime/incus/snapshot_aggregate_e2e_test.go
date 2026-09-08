@@ -7,7 +7,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/SLktEx/Hacocoon/internal/control"
+	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -44,7 +47,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	native := "haco-" + name
 	id, err := core.NewEnvironmentInstanceID()
 	must(err)
-	r := New(host.ExecRunner{})
+	r := New(WrapEnvironmentNetworkOwnershipRunner(host.ExecRunner{}))
 	observed, imageErr := r.runner.Run(ctx, "incus", "query", "/1.0/images/"+image+"?project="+r.project)
 	var cached struct{ Fingerprint, Type string }
 	if imageErr != nil || observed.ExitCode != 0 || observed.StdoutTruncated || json.Unmarshal([]byte(observed.Stdout), &cached) != nil || cached.Fingerprint != image || cached.Type != "container" {
@@ -402,9 +405,106 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	if got := command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", OCIStorePath+"/containerd/data"); got != "independent registered OCI copy" {
 		t.Fatal("OCI data unavailable")
 	}
+	// Exercise the shipped CLI through a private real controller socket, with
+	// real Incus stopped copies and automatic restart of this running runtime.
+	binary := os.Getenv("HACO_E2E_SNAPSHOT_CLI")
+	var cliSavedID string
+	if binary != "" {
+		func() {
+			server := control.NewServer()
+			must(controlapi.RegisterSnapshots(server, resumedService))
+			socket := filepath.Join(dir, "cli.sock")
+			listener, err := control.ListenUnix(socket, 0600)
+			must(err)
+			serveCtx, stopServer := context.WithCancel(ctx)
+			done := make(chan error, 1)
+			go func() { done <- server.Serve(serveCtx, listener) }()
+			defer func() { stopServer(); <-done }()
+			t.Setenv("HACO_CONTROL_SOCKET", socket)
+			invoke := func(args ...string) []controlapi.SnapshotSummary {
+				t.Helper()
+				cmd := exec.CommandContext(ctx, binary, args...)
+				output, err := cmd.CombinedOutput()
+				if err != nil {
+					t.Fatalf("snapshot CLI %v failed: %v: %s", args, err, output)
+				}
+				var summaries []controlapi.SnapshotSummary
+				must(json.Unmarshal(output, &summaries))
+				return summaries
+			}
+			saved := invoke("snapshot", "create", "--json", resumedName)
+			if len(saved) != 1 || saved[0].State != "ready" || saved[0].Workspaces != 2 || !saved[0].OCI {
+				t.Fatal("incomplete CLI save", saved)
+			}
+			cliSavedID = saved[0].ID
+			t.Logf("public CLI saved %s from running %s", cliSavedID, resumedName)
+			current, err := r.InspectEnvironment(ctx, resumed.Ref)
+			must(err)
+			if current.State != core.EnvironmentRunning {
+				t.Fatal("source not resumed", current)
+			}
+			listed := invoke("snapshot", "list", "--json", resumedName)
+			found := false
+			for _, item := range listed {
+				if item.ID == cliSavedID {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatal("CLI save missing from list", listed)
+			}
+		}()
+	} else {
+		t.Log("SKIP public snapshot CLI: HACO_E2E_SNAPSHOT_CLI binary not supplied")
+	}
 	must(resumedService.Delete(ctx, resumedName))
 	if exists, err := r.environmentExists(ctx, resumed.Ref); err != nil || exists {
 		t.Fatal("restored runtime absence unproven", err)
+	}
+	if cliSavedID != "" {
+		saved, err := reopened.GetSnapshot(ctx, cliSavedID)
+		must(err)
+		for _, component := range saved.Components {
+			must(resumedRouter.VerifySnapshotComponent(ctx, component))
+		}
+		server := control.NewServer()
+		must(controlapi.RegisterSnapshots(server, resumedService))
+		socket := filepath.Join(dir, "delete.sock")
+		listener, err := control.ListenUnix(socket, 0600)
+		must(err)
+		serveCtx, stop := context.WithCancel(ctx)
+		done := make(chan error, 1)
+		go func() { done <- server.Serve(serveCtx, listener) }()
+		t.Setenv("HACO_CONTROL_SOCKET", socket)
+		listedOutput, listErr := exec.CommandContext(ctx, binary, "snapshot", "list", "--json", resumedName).CombinedOutput()
+		var listed []controlapi.SnapshotSummary
+		if listErr != nil || json.Unmarshal(listedOutput, &listed) != nil {
+			stop()
+			<-done
+			t.Fatalf("list after source deletion: %v: %s", listErr, listedOutput)
+		}
+		found := false
+		for _, item := range listed {
+			if item.ID == cliSavedID {
+				found = true
+			}
+		}
+		if !found {
+			stop()
+			<-done
+			t.Fatal("save disappeared with source", listed)
+		}
+		cmd := exec.CommandContext(ctx, binary, "snapshot", "delete", cliSavedID)
+		output, deleteErr := cmd.CombinedOutput()
+		stop()
+		<-done
+		if deleteErr != nil {
+			t.Fatalf("CLI delete: %v: %s", deleteErr, output)
+		}
+		if _, err := reopened.GetSnapshot(ctx, cliSavedID); !errors.Is(err, core.ErrNotFound) {
+			t.Fatal("save not deleted", err)
+		}
+		t.Log("PASS public snapshot create/list/delete: running source stopped and resumed, saved copies verified after source deletion, explicit owned save deletion; Workspace/OCI remain")
 	}
 	must(persistent.Verify(ctx, restoredOCI))
 	for _, m := range restoredMounts {

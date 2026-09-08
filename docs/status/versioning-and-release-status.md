@@ -1,9 +1,15 @@
 # Versioning and release status
+
+Public snapshot create/list/delete now use the existing lifecycle and Incus
+copies, including stop/save/resume for a running source. Public aggregate restore
+remains planned; v0.49 remains the current checkpoint. No new catalog format or
+backup mechanism is introduced. See [usage](../design/environment-snapshots.md).
+
 The current development checkpoint remains v0.49. Incus-first refactoring removes
 new snapshot Base storage, ordinary automatic Base retention and pre-restore
 backup. Existing saved data/ownership migrates without deletion. Restore
 preparation, saved Workspace/OCI registration and the native saved-rootfs runtime
-primitive and canonical creation remain internal; aggregate activation and public CLI are planned. Schema 12 adds creation-time saved-source reservations while preserving schema 11 OCI receipts and existing saved data. Full
+primitive and canonical creation remain internal; aggregate activation and public restore are planned. Schema 12 adds creation-time saved-source reservations while preserving schema 11 OCI receipts and existing saved data. Full
 runtime recovery is not a milestone prerequisite. See [implementation status](../IMPLEMENTATION_STATUS.md)
 and [ADR 0040](../adr/0040-incus-first-snapshots.md).
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -238,4 +239,21 @@ func (s *EnvironmentJSONStore) mutateSnapshot(ctx context.Context, id string, ch
 		data.Snapshots[id] = value
 		return true, nil
 	})
+}
+
+func (s *EnvironmentJSONStore) ListSnapshots(ctx context.Context) ([]core.Snapshot, error) {
+	result := []core.Snapshot{}
+	err := s.catalogTransaction(ctx, func(d *environmentFileState) (bool, error) {
+		for _, saved := range d.Snapshots {
+			result = append(result, saved)
+		}
+		return false, nil
+	})
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Source.Environment.Name != result[j].Source.Environment.Name {
+			return result[i].Source.Environment.Name < result[j].Source.Environment.Name
+		}
+		return result[i].ID < result[j].ID
+	})
+	return result, err
 }

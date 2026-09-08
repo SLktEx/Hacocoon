@@ -14,6 +14,7 @@ func savedRuntimeFixture() (snapshotRootfsPlan, snapshotInstanceObservation) {
 	p, _ := rootfsFixture()
 	config := p.config()
 	config["volatile.idmap.current"] = "[]"
+	config["volatile.last_state.ready"] = "true"
 	devices := map[string]map[string]string{"root": {"type": "disk", "path": "/", "pool": p.Pool}, "workspace": {"type": "none"}, "persistent-resource": {"type": "none"}}
 	return p, snapshotInstanceObservation{Name: p.target(), Type: "container", Status: "Stopped", Config: config, ExpandedConfig: config, Devices: devices, ExpandedDevices: devices}
 }
@@ -50,6 +51,9 @@ func TestSavedRuntimeCopyUsesIndependentRootAndFreshIdentity(t *testing.T) {
 					}
 					if request.Name != "haco-new" || len(request.Profiles) != 0 || request.Source["source"] != p.target() || request.Source["instance_only"] != true || request.Source["live"] != false || request.Config[environmentInstanceKey] == p.SourceInstanceID || request.Config["user.hacocoon.owner"] != "" || len(request.Devices) != 3 {
 						t.Fatal(request)
+					}
+					if request.Config["volatile.last_state.ready"] != "false" {
+						t.Fatal("saved ready state not reset as boolean")
 					}
 					if mode == "lost-reply" {
 						return host.Result{}, errors.New("lost response")

@@ -1,5 +1,48 @@
 # Implementation Status
 
+## Public snapshot capture and management
+
+Implemented: `haco snapshot create <env>`, `list [env]` and `delete <id>` use the
+existing controller/lifecycle/catalog and Incus copy paths. Running sources stop
+before capture and restart only after a ready save; stopped sources stay stopped.
+Failed or partially saved results keep their IDs and return failure. Listing
+survives source Env deletion and exposes no private bindings. No schema change,
+new Base storage or automatic pre-restore backup is introduced. Public aggregate
+restore remains planned. Validation results are recorded on this change's PR.
+See [snapshot usage and contract](design/environment-snapshots.md).
+
+PR #498 merged as `d54618b` after all four applicable workflows passed at
+`5cf9bb7`. Real Incus aggregate passed in 10.62s; Windows actual SSH and VS Code
+editor/terminal passed. Private registry, shared image deletion, VPN/NRPT and
+fresh human notification decision remain SKIP under their documented gates.
+
+
+Initial real-WSL public captures failed in 116.15s and 138.25s, retaining partial
+IDs. A scoped native probe identified Incus rejecting an empty boolean: clearing
+`volatile.last_state.ready` to an empty string is invalid. Capture, saved-runtime
+copy and restore staging now reset that state to `false`, with native-request
+regressions. A separate start probe exposed the fixture's missing production
+network-ownership wrapper; the E2E now uses that wrapper. Exact-owned cleanup of
+first fixture `haco-aggregate-52a680aada6ca3e6` passed; only its metadata at
+`/var/lib/haco-snapshot-aggregate-1076841042` remains as evidence.
+
+The fixed native probe passed capture and restart of the previously failing
+second fixture, saving `snap-bc49bb612ad51ab361840aa59488913f`. Exact-owned cleanup
+of its saves, runtime/network, Workspace and OCI passed; only metadata at
+`/var/lib/haco-snapshot-aggregate-4240550795` remains. Focused application/state/API/
+CLI race tests and native capture/staging/runtime-copy regressions passed.
+
+The corrected fresh real WSL Incus/Btrfs aggregate passed in 211.58s: fixture
+`haco-aggregate-53f70c5d1b1341e5`, initial save `snap-2e55b4514894de3adb8f71e2ddac39fa`,
+public CLI save `snap-5f11941d2fdab09a0049716565d86d29`. The actual built `haco`
+ran create/list/delete through a private controller socket: running source
+stop/save/resume, saved-copy verification and listing after source Env deletion,
+explicit save deletion and current Workspace/OCI preservation all passed.
+Complete fixture cleanup passed. Shared cached-image deletion was SKIP (no
+dedicated-image permission); public aggregate restore, restored SSH handshake
+and live OCI database consistency remain unverified. Full local CI/exact-head
+GHA results belong to the implementation PR.
+
 ## Saved-rootfs canonical creation
 
 Implemented internally: saved-rootfs creation now uses the normal lifecycle,

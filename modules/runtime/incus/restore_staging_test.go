@@ -16,6 +16,7 @@ func TestRestoreStagingOwnershipAndIndependentCleanup(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			p := baseSnapshotFixture()
 			sourceConfig := p.config()
+			sourceConfig["volatile.last_state.ready"] = "true"
 			sourceConfig["volatile.base_image"] = strings.Repeat("b", 64)
 			root := map[string]map[string]string{"root": {"type": "disk", "path": "/", "pool": "pool"}}
 			source := snapshotInstanceObservation{Name: p.target(), Type: "container", Status: "Stopped", Config: sourceConfig, ExpandedConfig: sourceConfig, Devices: root, ExpandedDevices: root}
@@ -52,6 +53,9 @@ func TestRestoreStagingOwnershipAndIndependentCleanup(t *testing.T) {
 					}
 					if json.Unmarshal([]byte(args[6]), &req) != nil || req.Source["type"] != "copy" || req.Source["source"] != p.target() || req.Source["instance_only"] != true || req.Source["live"] != false || req.Config["user.hacocoon.kind"] != "restore-staging" || req.Config["user.hacocoon.owner"] == p.Owner || req.Profiles == nil || len(req.Profiles) != 0 || req.Ephemeral {
 						t.Fatal("unsafe copy", req)
+					}
+					if req.Config["volatile.last_state.ready"] != "false" {
+						t.Fatal("staging copied ready state or invalid empty boolean")
 					}
 					target := snapshotInstanceObservation{Name: req.Name, Type: "container", Status: "Stopped", Config: req.Config, ExpandedConfig: req.Config, Devices: req.Devices, ExpandedDevices: req.Devices}
 					switch mode {
