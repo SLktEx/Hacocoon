@@ -1,5 +1,25 @@
 # Implementation Status
 
+## Public snapshot restore
+
+Implemented: `haco snapshot restore <id> [new-env]` copies saved Workspaces/OCI,
+creates a fresh canonical Env from independent rootfs and starts it. The default
+name is `<source>-restored`; existing names are refused. Failed creation cleans
+only owned unused copies under the Workspace lifecycle lock. Uncertain leases
+retain data; a start failure keeps the published Env. No Base dependency, backup,
+new catalog state or required prepared-binding CLI arguments are added.
+Focused and related race tests passed, including cancellation, foreign OCI owners,
+acquiring leases and incomplete published-copy cleanup. The initial dedicated
+WSL Incus/Btrfs public-restore aggregate passed in 237.69s (fixture
+`haco-aggregate-9b6e7be3f4718210`, public save
+`snap-9a0e62a7d6e7ee1ad2b430e06658ceaa`, Workspace
+`restore-7a43b3413a89ad32`). It restored through the real CLI after source deletion,
+checked fresh identity and guest data, and cleaned all owned test resources.
+Final-build and full CI results are recorded with the change. Shared image
+deletion was SKIP because this fixture did not own a dedicated image.
+Replacement switching, restored SSH handshake and live OCI consistency remain
+unverified. See [the contract](design/environment-snapshots.md).
+
 ## Workspace snapshot copy source protection
 
 Implemented: Workspace copy now reserves its saved source in the shared catalog.
@@ -12,7 +32,7 @@ cleanup-helper checks. Dedicated WSL Incus/Btrfs aggregate passed in 184.64s: fi
 public save `snap-4dd65c2c8d0da67de8dc358c24689332`. Source-independent normal
 Workspace/OCI copies, same-name fresh runtime generation, public snapshot CLI,
 data retention and complete owned cleanup passed. Shared image deletion was
-SKIP (not dedicated); public restore, restored SSH handshake and live OCI
+SKIP (not dedicated); public restore was not covered by that run; restored SSH handshake and live OCI
 consistency remain unverified. Full CI results are recorded with the change.
 
 ## Public snapshot capture and management
@@ -23,7 +43,7 @@ before capture and restart only after a ready save; stopped sources stay stopped
 Failed or partially saved results keep their IDs and return failure. Listing
 survives source Env deletion and exposes no private bindings. No schema change,
 new Base storage or automatic pre-restore backup is introduced. Public aggregate
-restore remains planned. Validation results are recorded on this change's PR.
+restore was not yet implemented at that checkpoint. Validation results are recorded on this change's PR.
 See [snapshot usage and contract](design/environment-snapshots.md).
 
 PR #498 merged as `d54618b` after all four applicable workflows passed at
@@ -1241,7 +1261,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.49**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.50**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

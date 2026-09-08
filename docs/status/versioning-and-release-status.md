@@ -1,21 +1,11 @@
 # Versioning and release status
 
-Workspace copy source reservations are implemented at the existing v0.49
-checkpoint. Schema 13 retains older saved data and source ownership records;
-public aggregate restore remains planned. See the [snapshot contract](../design/environment-snapshots.md).
-
-Public snapshot create/list/delete now use the existing lifecycle and Incus
-copies, including stop/save/resume for a running source. Public aggregate restore
-remains planned; v0.49 remains the current checkpoint. No new catalog format or
-backup mechanism is introduced. See [usage](../design/environment-snapshots.md).
-
-The current development checkpoint remains v0.49. Incus-first refactoring removes
-new snapshot Base storage, ordinary automatic Base retention and pre-restore
-backup. Existing saved data/ownership migrates without deletion. Restore
-preparation, saved Workspace/OCI registration and the native saved-rootfs runtime
-primitive and canonical creation remain internal; aggregate activation and public restore are planned. Schema 12 adds creation-time saved-source reservations while preserving schema 11 OCI receipts and existing saved data. Full
-runtime recovery is not a milestone prerequisite. See [implementation status](../IMPLEMENTATION_STATUS.md)
-and [ADR 0040](../adr/0040-incus-first-snapshots.md).
+The v0.50 checkpoint adds public snapshot restore, combining independent Workspace/OCI copies with
+canonical saved-rootfs creation and start. Existing Env names are refused, and
+failed cleanup retains exact ownership evidence. Schema 13 is unchanged. No Base
+filesystem, automatic backup or full runtime recovery is added. See the
+[snapshot contract](../design/environment-snapshots.md). In-place replacement,
+restored SSH acceptance and live OCI consistency remain incomplete.
 
 Fresh Host setup now binds the owned OCI area automatically; existing data migration and runtime acceptance remain partial.
 Preceding checkpoint v0.39 adds the Windows notification review adapter and per-distribution registration. Native history/protocol/stale-refusal checks passed locally; fresh notification decisions and Linux activation remain incomplete. See [implementation status](../IMPLEMENTATION_STATUS.md).
@@ -168,8 +158,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.47 | Automatic Base retention | ✅ implemented |
 | v0.48 | Retained Base snapshot capture | ✅ implemented |
 | v0.49 | Snapshot restore staging | ✅ implemented |
+| v0.50 | Public Snapshot Restore | ✅ implemented |
 
-The current milestone position is **v0.49**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.50**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

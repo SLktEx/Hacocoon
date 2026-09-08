@@ -49,6 +49,9 @@ func main() {
 	if err := controlapi.Register(server, app.Environments, app.Clients); err != nil {
 		fail(err)
 	}
+	if err := controlapi.RegisterSnapshotRestore(server, app.SnapshotRestore); err != nil {
+		fail(err)
+	}
 	if err := controlapi.RegisterSnapshots(server, app.Environments); err != nil {
 		fail(err)
 	}

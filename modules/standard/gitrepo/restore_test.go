@@ -235,3 +235,56 @@ func TestRestoredWorkspaceRequiresSourceCatalog(t *testing.T) {
 		t.Fatal("unprotected native copy", err)
 	}
 }
+
+func TestRestoredLongRepositoryNamesAndExactPublishedCleanup(t *testing.T) {
+	backend := &savedBackend{t: t}
+	for _, name := range []string{strings.Repeat("a", 48), strings.Repeat("b", 48)} {
+		backend.sources = append(backend.sources, SavedWorkspace{Repository: name, Remote: "https://github.com/example/" + name + ".git", Branch: "main", Component: core.SnapshotComponent{State: "verified"}})
+	}
+	service := NewRepositoryService(t.TempDir(), backend)
+	backend.service = service
+	service.SnapshotCatalog = &workspaceCopyCatalog{}
+	object, err := service.RestoreWorkspace(context.Background(), "restored", core.Snapshot{ID: "snap-" + strings.Repeat("a", 32), State: "ready"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, member := range object.Members {
+		if !ValidID(member.ID) || len(member.Repository) != 48 {
+			t.Fatal(member)
+		}
+	}
+	stale := object
+	stale.Owner = strings.Repeat("f", 32)
+	if err := service.DeleteRestoredCopy(context.Background(), stale); !errors.Is(err, core.ErrCapabilityStale) || len(backend.deleted) != 0 {
+		t.Fatal("foreign receipt deleted published copy", err)
+	}
+	if err := service.DeleteRestoredCopy(context.Background(), object); err != nil || len(backend.deleted) != 2 {
+		t.Fatal(err, backend.deleted)
+	}
+}
+
+func TestPublishedRestoreCleanupFailureIsNotReady(t *testing.T) {
+	backend := &savedBackend{t: t}
+	for _, name := range []string{"one", "two"} {
+		backend.sources = append(backend.sources, SavedWorkspace{Repository: name, Remote: "https://github.com/example/" + name + ".git", Branch: "main", Component: core.SnapshotComponent{State: "verified"}})
+	}
+	service := NewRepositoryService(t.TempDir(), backend)
+	backend.service = service
+	service.SnapshotCatalog = &workspaceCopyCatalog{}
+	object, err := service.RestoreWorkspace(context.Background(), "restored", core.Snapshot{ID: "snap-" + strings.Repeat("a", 32), State: "ready"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend.fail = "cleanup"
+	if err := service.DeleteRestoredCopy(context.Background(), object); err == nil {
+		t.Fatal("ambiguous cleanup succeeded")
+	}
+	incomplete, err := service.Get("work", object.ID)
+	if !errors.Is(err, core.ErrRecoveryRequired) || incomplete.Owner != object.Owner || incomplete.State == "ready" {
+		t.Fatal("partial data remained ready", incomplete, err)
+	}
+	backend.fail = ""
+	if err := service.CleanupRestoredWorkspace(context.Background(), object.ID); err != nil {
+		t.Fatal(err)
+	}
+}

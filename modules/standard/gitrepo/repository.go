@@ -156,7 +156,11 @@ func validObject(o Object) bool {
 	}
 	seen := map[string]bool{}
 	for _, member := range o.Members {
-		if len(member.Members) != 0 || member.Kind != "work" || member.RestoredFrom != o.RestoredFrom || member.ID != o.ID+"-"+member.Repository || seen[member.Repository] || !validObject(member) || (o.State == "ready" && member.State != "ready") {
+		expectedID := o.ID + "-" + member.Repository
+		if o.RestoredFrom != "" {
+			expectedID = restoredWorkspaceMemberID(o.ID, member.Repository, member.Owner)
+		}
+		if len(member.Members) != 0 || member.Kind != "work" || member.RestoredFrom != o.RestoredFrom || member.ID != expectedID || seen[member.Repository] || !validObject(member) || (o.State == "ready" && member.State != "ready") {
 			return false
 		}
 		seen[member.Repository] = true
