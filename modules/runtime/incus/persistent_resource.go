@@ -183,6 +183,11 @@ if "$was_active"; then systemctl start containerd; fi
 // Copy uses Incus's same-pool volume copy. Incus owns Btrfs COW and idmaps;
 // neither source data nor a Host runtime socket is mounted into a new boundary.
 func (b *PersistentResourceBackend) Copy(ctx context.Context, source, target core.PersistentResource) error {
+	return b.CopyWithCompletion(ctx, source, target, nil)
+}
+
+// Completion is durably recorded by the canonical lifecycle before Host resume.
+func (b *PersistentResourceBackend) CopyWithCompletion(ctx context.Context, source, target core.PersistentResource, completed func() error) error {
 	pool, name, err := persistentVolume(target)
 	if err != nil {
 		return err
@@ -248,6 +253,11 @@ func (b *PersistentResourceBackend) Copy(ctx context.Context, source, target cor
 	result, err = b.Runtime.runner.Run(ctx, "incus", "query", "-X", "POST", "--wait", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project, "--data", string(data))
 	if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
 		return fmt.Errorf("persistent copy completion unconfirmed: %w", core.ErrRecoveryRequired)
+	}
+	if completed != nil {
+		if err := completed(); err != nil {
+			return err
+		}
 	}
 	if resume != nil {
 		return resume(ctx)

@@ -31,3 +31,23 @@ func (s WorkspaceStores) EnsureHost(ctx context.Context, backend HostStoreBacken
 	_, err = s.Resources.PublishSource(ctx, HostStoreID, StoreKind, backend.PrepareHostSource)
 	return err
 }
+
+// RecoverHostCopies is used before ordinary Host setup reads its running state.
+// Unconfirmed copies are deliberately left reserved and blocked by the provider.
+func (s WorkspaceStores) RecoverHostCopies(ctx context.Context) error {
+	if s.Resources == nil {
+		return core.ErrInvalidArgument
+	}
+	resources, err := s.Resources.Store.ListPersistentResources(ctx)
+	if err != nil {
+		return err
+	}
+	for _, target := range resources {
+		if target.State == "creating" && target.CopyCompleted && target.CopySource.ID == HostStoreID {
+			if _, err := s.Resources.RecoverCopy(ctx, target.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}

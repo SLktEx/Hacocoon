@@ -1,5 +1,5 @@
 # バージョン番号とリリース状況
-現在の checkpoint v0.41 は、デスクトップ SSH／VS Code setup で Environment をその場で選択できるようにします。コマンドや必須引数は増やしません。複数 Environment の GUI 受け入れは pending です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
+現在の checkpoint v0.42 は、完了確認済み OCI コピーを通常 setup・作成の再試行で復旧します。完了不明のコピーは停止を維持し、installed CLI の復旧は別の受け入れ確認として残します。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
 
 新規 Host の所有確認済み OCI 領域は setup で自動接続されます。既存データの移行と runtime 受け入れは partial です。
 前の checkpoint v0.39 は Windows 通知 review adapter と distribution 別登録を追加します。実機の通知履歴・protocol 起動・古い要求拒否は成功しましたが、通知からの新規回答と Linux 起動は未完了です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
@@ -134,8 +134,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.39 | Windows Notification Review | 実装済み |
 | v0.40 | Host OCI Area Copy Boundary | partial |
 | v0.41 | Interactive Environment Selection | 実装済み |
+| v0.42 | Completed OCI Copy Recovery | 実装済み |
 
-現在のmilestone位置は **v0.41** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.42** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

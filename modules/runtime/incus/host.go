@@ -43,6 +43,11 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 		return fmt.Errorf("resolve trusted host root storage: %w", err)
 	}
 
+	if r.trustedHostCopyRecovery != nil {
+		if err := r.trustedHostCopyRecovery(ctx); err != nil {
+			return err
+		}
+	}
 	state, exists, err := r.trustedHostState(ctx)
 	if err != nil {
 		return err

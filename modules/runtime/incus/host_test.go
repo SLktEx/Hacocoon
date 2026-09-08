@@ -377,3 +377,19 @@ func writeTrustedClientFixture(t *testing.T, mode os.FileMode) string {
 	}
 	return path
 }
+
+func TestHostSetupRecoversBeforeReadingOrStartingHost(t *testing.T) {
+	runner := trustedHostRunner("RUNNING", trustedHostRoleValue, nil)
+	runtime := New(runner)
+	expected := errors.New("recovery remains blocked")
+	called := false
+	runtime.ConfigureHostCopyRecovery(func(context.Context) error { called = true; return expected })
+	if err := runtime.EnsureTrustedHost(context.Background()); !errors.Is(err, expected) || !called {
+		t.Fatal("setup bypassed recovery", err)
+	}
+	for _, call := range runner.calls {
+		if len(call.args) > 1 && ((call.args[0] == "list" && call.args[1] == trustedHostName) || call.args[0] == "start" || call.args[0] == "init") {
+			t.Fatal("Host accessed before recovery completed", call.args)
+		}
+	}
+}

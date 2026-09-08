@@ -15,8 +15,10 @@ const hostOCICopyKey = "user.hacocoon.oci-copy"
 // Provider-side journal accompanies the catalog's durable CopySource reservation.
 // Disabling autostart in the same PATCH prevents a reboot from restarting writers.
 type hostOCICopyJournal struct {
-	Owner     string `json:"owner"`
-	Autostart string `json:"autostart"`
+	Version           int    `json:"version,omitempty"`
+	ExpandedAutostart string `json:"expanded_autostart,omitempty"`
+	Owner             string `json:"owner"`
+	Autostart         string `json:"autostart"`
 }
 
 type hostOCICopyInstance struct {
@@ -107,7 +109,7 @@ func (b *PersistentResourceBackend) quiesceHostCopy(ctx context.Context, source,
 	if prior != "" && prior != "true" && prior != "false" {
 		return nil, core.ErrIncompatibleState
 	}
-	encoded, _ := json.Marshal(hostOCICopyJournal{Owner: target.Owner, Autostart: prior})
+	encoded, _ := json.Marshal(hostOCICopyJournal{Version: 1, Owner: target.Owner, Autostart: prior, ExpandedAutostart: expandedAutostart})
 	marker := string(encoded)
 	if err := b.patchHostCopy(ctx, map[string]any{hostOCICopyKey: marker, "boot.autostart": "false"}); err != nil {
 		return nil, err

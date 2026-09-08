@@ -202,6 +202,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	environments := workspaceapp.NewWithProvider(runtime, store, repositoryWorkspaceProvider{repositories: repositories})
 	resources := &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime}}
 	workspaceStores := ociplugin.WorkspaceStores{Resources: resources}
+	incusRuntime.ConfigureHostCopyRecovery(workspaceStores.RecoverHostCopies)
 	incusRuntime.ConfigureHostStorage(func(ctx context.Context) error {
 		backend := &incus.PersistentResourceBackend{Runtime: incusRuntime}
 		if err := workspaceStores.EnsureHost(ctx, backend); err != nil {

@@ -170,8 +170,8 @@ or accesses the Btrfs mount directly.
 During copying, source attachment/deletion and target attachment/deletion are
 blocked by the durable catalog reservation. On success the target is `ready` and
 the source is released. A failed/timed-out copy stays `creating` with an exact
-`copy_source`; `inspect`/`list` show these recovery details. Automatic recovery is
-not yet implemented. Do not retry by editing state or deleting provider objects:
+`copy_source`; `inspect`/`list` show these recovery details. Recovery for a durable positively completed copy is described below. Unknown
+completion is not recovered automatically. Do not retry by editing state or deleting provider objects:
 an asynchronous Incus operation may still be running even if its destination is
 not yet visible. An explicit future recovery path must prove operation quiescence.
 
@@ -230,3 +230,24 @@ A failure retains the printed project and catalog for inspection. The explicit
 `HACO_E2E_CLEANUP_AREA_PROJECT` and `HACO_E2E_CLEANUP_AREA_STATE`; it revalidates
 ownership, both consumers and absent pending-copy state, then uses canonical
 resource deletion. It is fixture teardown, not an operator recovery API.
+
+## Retrying a positively completed copy
+
+A `creating` copy can retain `copy_completed: true` after the provider finished
+but Host restoration or publication failed. The controller verifies the exact
+source/destination and finishes that copy on ordinary Host setup/entry or a retry
+of Environment creation. It reuses the same volume and ownership. While a copy
+is pending, source/target attachment and deletion remain blocked.
+
+If the Host is paused and cannot run a command itself, invoke ordinary
+`haco setup` from the Physical Host. On WSL this can be invoked as:
+
+```bash
+wsl.exe -d <distribution> -u root -- /usr/local/bin/haco setup
+```
+
+This does not turn unknown copy completion into success. A missing completion
+receipt or incompatible journal remains recovery-required. Do not edit the state,
+remove the provider marker or force a restart. See
+[ADR 0033](../adr/0033-completed-copy-recovery.md) for the exact proof and remaining
+unconfirmed-operation gap.

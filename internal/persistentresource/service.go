@@ -16,6 +16,7 @@ type Store interface {
 	BeginPersistentResourceCreate(context.Context, core.PersistentResource) error
 	CommitPersistentResourceCreate(context.Context, core.PersistentResource) error
 	BeginPersistentResourceCopy(context.Context, core.PersistentResource, core.PersistentResource) error
+	MarkPersistentResourceCopyCompleted(context.Context, core.PersistentResource) error
 	BeginPersistentResourceDelete(context.Context, string) (core.PersistentResource, error)
 	FinalizePersistentResourceDelete(context.Context, core.PersistentResource) error
 }
@@ -26,6 +27,13 @@ type Backend interface {
 	Verify(context.Context, core.PersistentResource) error
 	// Delete succeeds only after positively observing absence of the owned resource.
 	Delete(context.Context, core.PersistentResource) error
+}
+
+// StagedCopyBackend records completion before restoring any source writers.
+// Its recovery method must be safe to retry using that durable receipt.
+type StagedCopyBackend interface {
+	CopyWithCompletion(context.Context, core.PersistentResource, core.PersistentResource, func() error) error
+	RecoverCompletedCopy(context.Context, core.PersistentResource, core.PersistentResource) error
 }
 
 type Service struct {
@@ -157,18 +165,41 @@ func (s *Service) copy(ctx context.Context, id, kind, sourceID string, workspace
 		return core.PersistentResource{}, err
 	}
 	incomplete := func(err error) (core.PersistentResource, error) {
+		if target.CopyCompleted {
+			return target, fmt.Errorf("copy completed; retry the operation to finish restoration and publication; inspect %s: %w: %w", id, core.ErrRecoveryRequired, err)
+		}
 		return target, fmt.Errorf("copy incomplete; source and destination retained for recovery; inspect %s: %w: %w", id, core.ErrRecoveryRequired, err)
 	}
-	if err := copier.Copy(ctx, source, target); err != nil {
-		return incomplete(err)
+	completed := func() error {
+		if err := s.Backend.Verify(ctx, target); err != nil {
+			return err
+		}
+		if err := s.Store.MarkPersistentResourceCopyCompleted(ctx, target); err != nil {
+			return err
+		}
+		target.CopyCompleted = true
+		return nil
 	}
-	if err := s.Backend.Verify(ctx, target); err != nil {
-		return incomplete(err)
+	if staged, ok := s.Backend.(StagedCopyBackend); ok {
+		if err := staged.CopyWithCompletion(ctx, source, target, completed); err != nil {
+			return incomplete(err)
+		}
+	} else {
+		if err := copier.Copy(ctx, source, target); err != nil {
+			return incomplete(err)
+		}
+		if err := completed(); err != nil {
+			return incomplete(err)
+		}
+	}
+	if !target.CopyCompleted {
+		return incomplete(core.ErrRecoveryRequired)
 	}
 	if err := s.Store.CommitPersistentResourceCreate(ctx, target); err != nil {
 		return incomplete(err)
 	}
 	target.State = "ready"
 	target.CopySource = core.PersistentResourceRef{}
+	target.CopyCompleted = false
 	return target, nil
 }

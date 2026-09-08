@@ -67,9 +67,9 @@ all runtime versions/drivers.
 Only positive copy completion permits resume. After verified running status, the
 copier restores autostart and removes its marker, then verifies both. Any uncertain
 copy outcome retains the marker, disabled autostart and source reservation instead
-of resuming in `defer`. Failed resume/marker cleanup stays recovery-required. A
-complete operator recovery implementation is still required; editing away the
-marker or forcing Host start is not a supported recovery procedure.
+of resuming in `defer`. Failed resume/marker cleanup stays recovery-required. Receipt-bearing completed copies can now finish source restoration through
+[ADR 0033](0033-completed-copy-recovery.md). Unconfirmed operations still require
+recovery; editing away the marker or forcing Host start is unsupported.
 
 ## Fresh Host storage binding
 
@@ -114,4 +114,4 @@ conflicts, unsafe files, active Docker units and existing default-root data.
 A corrected fresh dedicated WSL run passed all fixture checks and cleanup.
 The maintained GHA Btrfs job enables the same pinned-runtime extension.
 Existing-data migration, opt-out/recreation combinations with real OCI tools and
-interrupted-copy recovery remain required follow-up acceptance.
+unconfirmed-operation recovery remain required follow-up acceptance.

@@ -1,5 +1,26 @@
 # Implementation Status
 
+## Completed OCI copy recovery
+
+Implemented: the canonical resource lifecycle persists a positive completion
+receipt before Host restoration. A retry of ordinary setup/Host entry or
+Environment creation can restore and publish that exact completed copy without
+recopying. Ownership, journal and restart guards remain checked; missing receipts
+and unknown completion remain recovery-required. See
+[ADR 0033](adr/0033-completed-copy-recovery.md).
+
+Focused race regressions passed reopened-state recovery, retained reservations,
+malformed/foreign journal refusal and idempotent restoration. Dedicated WSL recovery/image acceptance passed in 355.73 s (project
+`haco-area-d6ad75cf558f514e`): an injected post-completion resume failure retained
+the guard, reopened state recovered the same copy without recopying, both runtime
+images executed offline and all owned resources were cleaned. Installed CLI
+recovery and unknown-completion recovery remain unproven.
+At `ae0c245`, all four GHA workflows passed. Its Btrfs job 101949881165 actually
+ran Docker/nerdctl image identity/offline execution and complete cleanup (109.79 s),
+not only synthetic data checks. Private-registry acceptance was SKIP because the
+workflow-dispatch-only job did not run.
+
+
 ## Docker Store roots and real Host-image acceptance
 
 Implemented: Store attachment configures Docker's managed persistent/transient
@@ -937,7 +958,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.41**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.42**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

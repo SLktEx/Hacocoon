@@ -1,5 +1,24 @@
 # 実装状況
 
+## 完了確認済み OCI コピーの復旧
+
+実装済み: canonical resource lifecycle は Host 再開より先にコピー完了の記録を
+永続化します。通常 setup・Host entry・Environment 作成の再試行で、同じコピーを
+再コピーせずに再開・公開できます。所有権・journal・再起動 guard を検証し、完了記録が
+ない場合や完了不明の場合は recovery-required を維持します。
+[ADR 0033](adr/0033-completed-copy-recovery.md) を参照してください。
+
+対象の race 回帰で state 再読込、予約の保持、壊れた・異なる所有者の journal 拒否、
+冪等な再開が成功しました。専用 WSL の実復旧・イメージ検証は成功しました（355.73 秒、project
+`haco-area-d6ad75cf558f514e`）。完了直後の再開失敗を注入し、guard を保持したまま
+state 再読込で同じコピーを復旧、再コピーなしで両 runtime のオフライン実行と全所有
+リソースの cleanup を確認しました。Installed CLI での復旧と完了不明のコピー復旧は
+まだ証明していません。`ae0c245` の全 4 GHA は成功し、Btrfs job
+101949881165 では Docker/nerdctl の同一 ID・オフライン実行・全 cleanup も実行して
+成功しました（109.79 秒）。Private registry は workflow_dispatch 専用 job が
+実行されなかったため SKIP です。
+
+
 ## Docker Store の root 設定と Host 実イメージ検証
 
 実装済み: Store 接続時に Docker の永続・一時 root を設定し、他の option を保持します。
@@ -825,7 +844,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.41** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.42** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

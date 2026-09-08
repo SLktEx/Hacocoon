@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -127,7 +128,11 @@ func TestRealIncusPersistentCopyE2E(t *testing.T) {
 
 // This uses a real running owned Host and its attached data area. It proves the
 // pause/COW/resume provider mechanism, not Docker/containerd crash recovery.
-func TestRealIncusHostAreaCopyE2E(t *testing.T) {
+func TestRealIncusHostAreaCopyE2E(t *testing.T) { testRealIncusHostAreaCopy(t, false) }
+
+func TestRealIncusCompletedHostCopyRecoveryE2E(t *testing.T) { testRealIncusHostAreaCopy(t, true) }
+
+func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 	if os.Getenv("HACO_E2E_INCUS_HOST_AREA_COPY") != "1" {
 		t.Skip("set HACO_E2E_INCUS_HOST_AREA_COPY=1 on a root Incus/Btrfs host")
 	}
@@ -194,7 +199,33 @@ func TestRealIncusHostAreaCopyE2E(t *testing.T) {
 	t.Log("PASS owned Host nesting/reuse and nested mount namespace; OCI runtime acceptance remains separate")
 	verifyRuntimeCopy := prepareHostRuntimeCopy(t, ctx, runtime, command)
 	command("exec", trustedHostName, "--project", project, "--", "/bin/sh", "-ec", "printf 'Host area content\\n' > /var/lib/hacocoon-oci/marker; sync")
+	var interrupted *hostCopyResumeFailureRunner
+	if interruptResume {
+		interrupted = &hostCopyResumeFailureRunner{Runner: runner}
+		runtime.runner = interrupted
+	}
 	target, err := (ociplugin.WorkspaceStores{Resources: service}).Resolve(ctx, core.Workspace{ID: "area-copy-work"})
+	if interruptResume {
+		if !errors.Is(err, core.ErrRecoveryRequired) || !target.CopyCompleted || target.State != "creating" {
+			t.Fatal("missing durable completed copy", err)
+		}
+		paused, e := (&PersistentResourceBackend{Runtime: runtime}).hostCopyInstance(ctx, source)
+		if e != nil || paused.StatusCode != 110 || paused.Config[hostOCICopyKey] == "" {
+			t.Fatal("interrupted copy lost writer guard", e)
+		}
+		// Reopen the durable catalog to model a new controller process.
+		reopened := &persistentresource.Service{Store: state.NewEnvironmentJSONStore(statePath), Backend: &PersistentResourceBackend{Runtime: runtime}}
+		recoveredStores := ociplugin.WorkspaceStores{Resources: reopened}
+		if e := recoveredStores.RecoverHostCopies(ctx); e != nil {
+			t.Fatal("ordinary Host recovery", e)
+		}
+		recovered, e := recoveredStores.Resolve(ctx, core.Workspace{ID: "area-copy-work"})
+		if e != nil || recovered.Owner != target.Owner || recovered.State != "ready" || recovered.CopyCompleted || interrupted.copies != 1 {
+			t.Fatal("recovery recopied or changed ownership", e)
+		}
+		target, err = recovered, nil
+		t.Log("PASS durable completion before interrupted resume, reopened-state recovery and retry without another copy")
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,4 +313,23 @@ func TestRealIncusHostAreaCopyE2E(t *testing.T) {
 	}
 
 	t.Log("PASS running Host pause, attached-area Btrfs COW, resume, independent writes/deletion and owned cleanup")
+}
+
+// Fault injection belongs only to the fixture. The provider copy and all state
+// writes are real; the first post-copy Host start reports failure without running.
+type hostCopyResumeFailureRunner struct {
+	host.Runner
+	failed bool
+	copies int
+}
+
+func (r *hostCopyResumeFailureRunner) Run(ctx context.Context, name string, args ...string) (host.Result, error) {
+	if name == "incus" && len(args) > 2 && args[0] == "query" && args[1] == "-X" && args[2] == "POST" {
+		r.copies++
+	}
+	if name == "incus" && len(args) > 1 && args[0] == "start" && args[1] == trustedHostName && !r.failed {
+		r.failed = true
+		return host.Result{ExitCode: 1}, errors.New("fixture interrupted Host resume")
+	}
+	return r.Runner.Run(ctx, name, args...)
 }

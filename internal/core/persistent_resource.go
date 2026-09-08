@@ -23,6 +23,9 @@ type PersistentResource struct {
 	CreatedAt   time.Time   `json:"created_at"`
 	// CopySource reserves the exact source until a verified copy is committed.
 	CopySource PersistentResourceRef `json:"copy_source,omitempty"`
+	// CopyCompleted is a durable receipt recorded only after provider completion
+	// and verification, before restoring source writers or publishing the copy.
+	CopyCompleted bool `json:"copy_completed,omitempty"`
 }
 
 func (r PersistentResource) Ref() PersistentResourceRef {
