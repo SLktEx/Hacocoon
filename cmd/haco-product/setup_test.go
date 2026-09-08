@@ -90,3 +90,14 @@ func TestProductSetupCanceledBeforeConnection(t *testing.T) {
 		t.Fatalf("code=%d stdout=%s", code, stdout.String())
 	}
 }
+
+func TestProjectSetupFailureDiagnosticsAllowOnlyKnownCategories(t *testing.T) {
+	stage, code := safeProjectSetupFailure("start", "unavailable")
+	if stage != "start" || code != "unavailable" {
+		t.Fatal(stage, code)
+	}
+	stage, code = safeProjectSetupFailure("SECRET-private-script", "SECRET-backend-error")
+	if stage != "unknown" || code != "internal" {
+		t.Fatal("arbitrary error leaked", stage, code)
+	}
+}

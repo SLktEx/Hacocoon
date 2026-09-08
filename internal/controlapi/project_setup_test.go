@@ -37,7 +37,7 @@ func TestProjectSetupWireKeepsFailureAndRejectsUnexpectedOptions(t *testing.T) {
 	client, _ := NewClient(path)
 	script := "echo project"
 	response, err := client.SetupProject(context.Background(), "dev", recipes.Update{Script: &script})
-	if err != nil || !response.Failed || response.Result.Execution.ExitCode != 17 || response.Result.Execution.Stdout != "result" {
+	if err != nil || !response.Failed || response.Result.Execution.ExitCode != 17 || response.Result.Execution.Stdout != "result" || response.FailureCode != "internal" {
 		t.Fatalf("failure lost: %#v %v", response, err)
 	}
 	wire, _ := control.NewClient(control.UnixDialer(path))

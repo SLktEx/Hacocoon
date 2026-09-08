@@ -21,16 +21,23 @@ type Service struct {
 	Environments Environments
 }
 type Result struct {
-	Environment string               `json:"environment"`
-	Workspace   core.WorkspaceID     `json:"workspace_id"`
-	Applied     bool                 `json:"applied"`
-	Cleared     bool                 `json:"cleared"`
-	Execution   core.ExecutionResult `json:"execution"`
+	FailureStage string               `json:"failure_stage,omitempty"`
+	Environment  string               `json:"environment"`
+	Workspace    core.WorkspaceID     `json:"workspace_id"`
+	Applied      bool                 `json:"applied"`
+	Cleared      bool                 `json:"cleared"`
+	Execution    core.ExecutionResult `json:"execution"`
 }
 
 // Apply uses a Workspace-scoped snapshot but executes only in the explicitly
 // selected Environment. Its Host counterpart uses a distinct store and adapter.
 func (s *Service) Apply(ctx context.Context, name string, update recipes.Update) (result Result, err error) {
+	result.FailureStage = "validate"
+	defer func() {
+		if err == nil {
+			result.FailureStage = ""
+		}
+	}()
 	if s == nil || s.Environments == nil || !filepath.IsAbs(s.Root) {
 		return result, core.ErrInvalidArgument
 	}
@@ -39,6 +46,7 @@ func (s *Service) Apply(ctx context.Context, name string, update recipes.Update)
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
+	result.FailureStage = "lookup"
 	environment, err := s.Environments.Get(ctx, name)
 	if err != nil {
 		return result, err
@@ -50,7 +58,9 @@ func (s *Service) Apply(ctx context.Context, name string, update recipes.Update)
 	result.Workspace = environment.Workspace.ID
 	result.Cleared = update.Clear
 	identity := fmt.Sprintf("%x", sha256.Sum256([]byte(environment.Workspace.ID)))
+	result.FailureStage = "recipe"
 	storage := recipes.Service{Root: filepath.Join(s.Root, identity), Execute: func(ctx context.Context, script []byte) error {
+		result.FailureStage = "start"
 		if err := s.Environments.StartForWorkspace(ctx, name, environment.Workspace.ID); err != nil {
 			return err
 		}
@@ -73,6 +83,7 @@ func (s *Service) Apply(ctx context.Context, name string, update recipes.Update)
 			argv = append(argv, "--setenv="+key)
 		}
 		argv = append(argv, "/bin/bash", "-se")
+		result.FailureStage = "execute"
 		execution, err := s.Environments.ExecForWorkspace(ctx, name, environment.Workspace.ID, core.ExecutionRequest{
 			WorkingDirectory: "/workspace", Argv: argv, Stdin: script,
 		})
@@ -82,6 +93,7 @@ func (s *Service) Apply(ctx context.Context, name string, update recipes.Update)
 			return err
 		}
 		if execution.ExitCode != 0 {
+			result.FailureStage = "script"
 			return fmt.Errorf("project setup exited with status %d", execution.ExitCode)
 		}
 		return nil

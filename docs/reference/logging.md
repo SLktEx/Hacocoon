@@ -168,3 +168,8 @@ Configuration changes audit `configuration-change-requested` before mutation and
 `previous_revision` / `revision` hashes are recorded under
 `policy.configuration`; complete rules, resource values and editor contents are
 never logged by this path. A failed completion audit yields no successful receipt.
+
+Project setup failures expose only allowlisted `stage` and `error_code` plus the
+numeric `exit_code`. Stages distinguish lookup/recipe/start/execute/script;
+unknown response values become `unknown`/`internal`. Raw backend errors, recipe
+contents and process output are not copied into diagnostic fields.

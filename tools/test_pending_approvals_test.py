@@ -13,6 +13,10 @@ class NetworkOutputTest(unittest.TestCase):
         self.assertEqual(command_failure_category("PENDING_PREREQ_UPDATED\n", ""), "package-install")
         self.assertEqual(command_failure_category("PENDING_PREREQ_READY\n", ""), "after-prerequisite")
 
+    def test_safe_setup_stage_survives_without_subprocess_output(self):
+        self.assertEqual(command_failure_category("SECRET", "stage=start error_code=unavailable exit_code=0 SECRET"), "setup-start-unavailable")
+        self.assertEqual(command_failure_category("", "stage=SECRET error_code=SECRET"), "command")
+
     def test_setup_completion_is_expected(self):
         self.assertTrue(valid_network_output("PENDING_NETWORK_RESULT_OK\nProject setup completed.\n"))
 
