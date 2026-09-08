@@ -1,5 +1,5 @@
 # Versioning and release status
-Current checkpoint v0.46 adds snapshot ownership/recovery coordination, provider creation identity and internal Workspace/OCI COW storage. Dedicated WSL volume data/link retention, COW ancestry and source independence passed. Complete aggregate capture, rootfs/Base storage, restore and public CLI remain partial/planned; new-head GHA is pending. See [implementation status](../IMPLEMENTATION_STATUS.md).
+Current checkpoint v0.46 adds snapshot ownership/recovery coordination, provider creation identity and internal Workspace/OCI COW storage. Dedicated WSL volume data/link retention, COW ancestry and source independence passed. Independent rootfs COW also passed dedicated WSL storage acceptance. Complete aggregate capture, Base assets, restore and public CLI remain partial/planned; new-head GHA is pending. See [implementation status](../IMPLEMENTATION_STATUS.md).
 
 Fresh Host setup now binds the owned OCI area automatically; existing data migration and runtime acceptance remain partial.
 Preceding checkpoint v0.39 adds the Windows notification review adapter and per-distribution registration. Native history/protocol/stale-refusal checks passed locally; fresh notification decisions and Linux activation remain incomplete. See [implementation status](../IMPLEMENTATION_STATUS.md).

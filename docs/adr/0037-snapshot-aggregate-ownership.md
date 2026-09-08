@@ -60,3 +60,10 @@ ownership, exact source-binding markers and retained idmap bookkeeping. Host
 sources and foreign attachments are refused. Private primitives were verified
 on real Btrfs for Workspace/OCI fixture data; full aggregate binding persistence,
 rootfs/Base capture and restore are still required before public snapshots.
+
+Rootfs storage uses an independent stopped Incus copy, not an instance-bound
+snapshot that disappears with its source. Because the copy API merges omitted
+source configuration, creation explicitly clears inherited settings and masks
+non-root devices. No profiles/autostart are retained; exact target verification
+precedes publication. Real 6.0.5/Btrfs acceptance proved source-deletion independence.
+Base/aggregate integration and restore are not implemented by this storage slice.
