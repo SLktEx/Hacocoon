@@ -17,6 +17,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	"github.com/SLktEx/Hacocoon/internal/host"
+	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	"github.com/SLktEx/Hacocoon/internal/workspace"
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
@@ -343,6 +344,23 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		read(path, "untracked", "untracked "+m.Device)
 		write(path, "untracked", "independent registered copy")
 	}
+
+	restoredStores := persistentresource.Service{Store: reopened, Backend: persistent}
+	restoredOCI, err := restoredStores.RestoreSnapshot(ctx, "oci:restored-"+strings.TrimPrefix(name, "aggregate-"), snap, core.WorkspaceID("workspace:managed:"+reloadedWork.Owner))
+	must(err)
+	_, restoredOCIVolume, err := persistentVolume(restoredOCI)
+	must(err)
+	read(volumePath(restoredOCIVolume), "containerd/data", "actual stored bytes")
+	read(volumePath(restoredOCIVolume), "docker/volumes/data", "persistent volume bytes")
+	write(volumePath(restoredOCIVolume), "containerd/data", "independent registered OCI copy")
+	reopenedOCI, err := state.NewEnvironmentJSONStore(filepath.Join(dir, "state.json")).GetPersistentResource(ctx, restoredOCI.ID)
+	must(err)
+	if reopenedOCI != restoredOCI || reopenedOCI.RestoreSource != "" || reopenedOCI.State != "ready" {
+		t.Fatal("OCI publication receipt drift")
+	}
+	must(restoredStores.DeleteForWorkspace(ctx, restoredOCI.ID, restoredOCI.WorkspaceID))
+	t.Log("PASS restored OCI registered with new owner and Workspace, source reservation released, durable reload, saved bytes and independent edits, canonical owned deletion")
+
 	for _, member := range reloadedWork.Copies() {
 		must(repository.DeleteRestoredWorkspaceVolume(ctx, member))
 	}

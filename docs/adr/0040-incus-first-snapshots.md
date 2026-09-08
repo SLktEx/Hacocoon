@@ -46,3 +46,13 @@ trusted registry; never reconstruct Host policy from guest `.git/config` or an
 old repository name that may have been reused. Old metadata-less bindings remain
 owned and readable, but automatic registration refuses missing provenance.
 This adds no Base dependency, automatic backup or replacement rollback machine.
+
+## Restored OCI registration
+
+Use the normal Store catalog and an independent Incus volume copy. Keep a
+short-lived snapshot reference while copying, with a durable `created` receipt
+before verification and publication. Schema 11 prevents older controllers from
+silently discarding those new ownership fields. Retain schema 10 records and all
+older supported saved data. Clear the source reservation only on publication or
+positive exact-owned cleanup. This protects immutable saved data; it does not
+promise automatic runtime recovery or replay old approvals/management settings.

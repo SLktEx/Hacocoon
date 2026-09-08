@@ -12,7 +12,7 @@ POOL = "haco-local-default"
 
 
 def owned_asset(data, name, require_unused=True):
-    if data.get("version") not in (7, 8, 10) or (require_unused and (data.get("environments") or data.get("workspace_leases") or data.get("snapshots") or data.get("restores"))):
+    if data.get("version") not in (7, 8, 10, 11) or (require_unused and (data.get("environments") or data.get("workspace_leases") or data.get("snapshots") or data.get("restores"))):
         raise RuntimeError("fixture has active ownership or unsupported schema")
     rows = [a for a in data.get("base_assets", {}).values() if a.get("native_ref") == "instance/" + name]
     if len(rows) != 1:

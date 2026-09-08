@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
-	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
 )
 
@@ -20,7 +19,7 @@ func (b *RepositoryBackend) SavedWorkspaces(ctx context.Context, saved core.Snap
 		if !strings.HasPrefix(c.Role, "workspace:") {
 			continue
 		}
-		plan, err := b.savedWorkspacePlan(c)
+		plan, err := b.Runtime.decodeSavedComponent(c)
 		if err != nil {
 			return nil, err
 		}
@@ -46,7 +45,7 @@ func (b *RepositoryBackend) SavedWorkspaces(ctx context.Context, saved core.Snap
 		return nil, core.ErrIncompatibleState
 	}
 	for _, source := range out {
-		plan, _ := b.savedWorkspacePlan(source.Component)
+		plan, _ := b.Runtime.decodeSavedComponent(source.Component)
 		p := plan.Volume
 		device, path := "workspace", "/workspace"
 		if len(out) > 1 {
@@ -61,7 +60,7 @@ func (b *RepositoryBackend) SavedWorkspaces(ctx context.Context, saved core.Snap
 }
 
 func (b *RepositoryBackend) CreateSavedWorkspace(ctx context.Context, target gitrepo.Object, source gitrepo.SavedWorkspace) error {
-	plan, err := b.savedWorkspacePlan(source.Component)
+	plan, err := b.Runtime.decodeSavedComponent(source.Component)
 	if err != nil {
 		return err
 	}
@@ -79,50 +78,7 @@ func (b *RepositoryBackend) CreateSavedWorkspace(ctx context.Context, target git
 	if pool != p.Pool || name == p.target() || name == p.Source {
 		return core.ErrIncompatibleState
 	}
-	observed, err := b.Runtime.snapshotVolumeObservation(ctx, *p, true)
-	if err != nil {
-		return err
-	}
-	if observed == nil {
-		return core.ErrNotFound
-	}
-	result, err := b.Runtime.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+pool)
-	if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
-		return core.ErrRuntimeUnavailable
-	}
-	var storage struct{ Name, Driver string }
-	if json.Unmarshal([]byte(result.Stdout), &storage) != nil || storage.Name != pool || storage.Driver != "btrfs" {
-		return core.ErrUnsupported
-	}
-	config := map[string]string{}
-	for k := range observed.Config {
-		config[k] = ""
-	}
-	for _, key := range []string{"volatile.idmap.last", "volatile.idmap.next"} {
-		value := observed.Config[key]
-		if value == "" {
-			continue
-		}
-		var mapping []json.RawMessage
-		if json.Unmarshal([]byte(value), &mapping) != nil || mapping == nil {
-			return core.ErrIncompatibleState
-		}
-		config[key] = value
-	}
-	for k, v := range volumeConfig(target) {
-		config[k] = v
-	}
-	request := map[string]any{"name": name, "type": "custom", "content_type": "filesystem", "config": config,
-		"source": map[string]any{"type": "copy", "name": p.target(), "pool": pool, "project": b.Runtime.project, "volume_only": true}}
-	raw, err := json.Marshal(request)
-	if err != nil {
-		return err
-	}
-	result, err = b.Runtime.runner.Run(ctx, "incus", "query", "-X", "POST", "--wait", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project, "--data", string(raw))
-	if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
-		return core.ErrRecoveryRequired
-	}
-	return nil // Registry records completion before verification or another copy.
+	return b.Runtime.copySavedVolume(ctx, p, pool, name, volumeConfig(target))
 }
 
 func (b *RepositoryBackend) DeleteRestoredWorkspaceVolume(ctx context.Context, target gitrepo.Object) error {
@@ -180,31 +136,13 @@ func (b *RepositoryBackend) DeleteRestoredWorkspaceVolume(ctx context.Context, t
 	return nil
 }
 
-// Catalog receipts may be routed. Bind the route to the canonical plan rather
-// than stripping arbitrary prefixes or permitting another provider identity.
-func (b *RepositoryBackend) savedWorkspacePlan(c core.SnapshotComponent) (snapshotBinding, error) {
-	var plan snapshotBinding
-	if len(c.Binding) == 0 || len(c.Binding) > 16384 || json.Unmarshal([]byte(c.Binding), &plan) != nil {
-		return plan, core.ErrInvalidArgument
-	}
-	expected, err := b.Runtime.snapshotComponent(plan)
-	if err != nil {
-		return plan, err
-	}
-	if !environmentapp.MatchesRuntimeRef(c.NativeRef, environmentapp.ProviderIncus, expected.NativeRef) {
-		return plan, core.ErrCapabilityStale
-	}
-	c.NativeRef = expected.NativeRef
-	return b.Runtime.decodeSnapshotComponent(c)
-}
-
 // Restore stays in the saved pool; the current default profile/pool is unrelated
 // to the owned saved volume and must not become a new restore dependency.
 func (b *RepositoryBackend) PlanSavedWorkspace(_ context.Context, id string, source gitrepo.SavedWorkspace) (string, error) {
 	if !gitrepo.ValidID(id) {
 		return "", core.ErrInvalidArgument
 	}
-	binding, err := b.savedWorkspacePlan(source.Component)
+	binding, err := b.Runtime.decodeSavedComponent(source.Component)
 	if err != nil {
 		return "", err
 	}
