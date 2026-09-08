@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
@@ -99,7 +100,7 @@ func TestBaseAssetBackendPlanCreateAndCacheIndependentVerify(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			a := core.BaseAsset{ID: "base-" + owner, Owner: owner, Base: base, Provider: "incus", Scope: "hacocoon/pool", NativeRef: native, Binding: binding, State: "planned"}
+			a := core.BaseAsset{ID: "base-" + owner, Owner: owner, Base: base, Provider: environmentapp.ProviderIncus, Scope: "hacocoon/pool", NativeRef: native, Binding: binding, State: "planned"}
 			before := calls
 			err = b.Create(ctx, a)
 			if calls != before+2 || observations != 0 {
@@ -126,7 +127,7 @@ func TestBaseAssetBackendPlanCreateAndCacheIndependentVerify(t *testing.T) {
 func TestBaseAssetBackendRejectsBindingDriftBeforeProviderAccess(t *testing.T) {
 	p := baseSnapshotFixture()
 	binding, _ := json.Marshal(baseAssetBinding{Version: 1, Project: "hacocoon", Pool: p.Pool, Source: "images:" + strings.Repeat("b", 64)})
-	initial := core.BaseAsset{ID: "base-" + p.Owner, Owner: p.Owner, Base: p.Base, Provider: "incus", Scope: "hacocoon/pool", NativeRef: "instance/haco-base-" + p.Owner, Binding: string(binding), State: "planned"}
+	initial := core.BaseAsset{ID: "base-" + p.Owner, Owner: p.Owner, Base: p.Base, Provider: environmentapp.ProviderIncus, Scope: "hacocoon/pool", NativeRef: "instance/haco-base-" + p.Owner, Binding: string(binding), State: "planned"}
 	for _, mode := range []string{"provider", "scope", "native", "owner", "id", "base", "unknown-field", "duplicate-field", "source", "state"} {
 		t.Run(mode, func(t *testing.T) {
 			a := initial

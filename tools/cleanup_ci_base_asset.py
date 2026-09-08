@@ -22,7 +22,7 @@ def owned_asset(data, name, require_unused=True):
     revision = a.get("base", {}).get("revision", "")
     if (not re.fullmatch(r"[a-f0-9]{32}", owner) or name != "haco-base-" + owner
             or a.get("id") != "base-" + owner or data["base_assets"].get(a["id"]) != a
-            or a.get("provider") != "incus" or a.get("scope") != PROJECT + "/" + POOL
+            or a.get("provider") != "runtime.incus" or a.get("scope") != PROJECT + "/" + POOL
             or a.get("state") != "ready" or not re.fullmatch(r"sha256:[a-f0-9]{64}", revision)):
         raise RuntimeError("Base identity mismatch")
     binding = json.loads(a["binding"])

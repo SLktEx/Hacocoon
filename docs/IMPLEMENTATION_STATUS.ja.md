@@ -1,5 +1,12 @@
 # 実装状況
 
+自動保持の初回 GHA は、composition と adapter の provider ID 不一致により
+通常作成で失敗しました。現在は `runtime.incus` に統一し、実際の台帳と backend を
+接続する回帰テスト、および更新した模擬 CLI E2E は成功しています。初回ローカル CI は
+Windows worktree を WSL から使った Git fixture の初期化でも失敗しました。
+fixture の作業ディレクトリを分離し、対象テストは成功しました。修正後の全体 CI と
+インストール済み経路の受入確認は保留中です。
+
 ## Base の自動保持
 
 local Incus の通常 Environment 作成と一時 run 作成は、init 前に解決済み

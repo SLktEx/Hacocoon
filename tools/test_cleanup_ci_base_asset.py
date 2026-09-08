@@ -8,7 +8,7 @@ class CleanupTest(unittest.TestCase):
     def fixture(self):
         owner = "a" * 32
         name = "haco-base-" + owner
-        asset = dict(id="base-" + owner, owner=owner, provider="incus", scope="hacocoon/haco-local-default",
+        asset = dict(id="base-" + owner, owner=owner, provider="runtime.incus", scope="hacocoon/haco-local-default",
                      native_ref="instance/" + name, state="ready", base=dict(name="fixture/base", revision="sha256:" + "b" * 64),
                      binding=json.dumps(dict(version=1, project="hacocoon", pool="haco-local-default", source="local:" + "b" * 64)))
         config = {"user.hacocoon.kind": "base", "user.hacocoon.owner": owner, "user.hacocoon.base-name": "fixture/base",

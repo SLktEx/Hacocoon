@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 )
 
 const (
@@ -301,7 +302,7 @@ func (p *BaseProvider) retainResolvedBase(ctx context.Context, resolved resolved
 		// has been created here, so its Workspace reservation can safely be released.
 		return fmt.Errorf("retain Base %q before Environment creation: %w", base.Name, core.ErrRuntimeUnavailable)
 	}
-	if asset.Base != base || asset.Provider != "incus" || asset.Scope != p.project+"/"+pool || asset.State != "ready" {
+	if asset.Base != base || asset.Provider != environmentapp.ProviderIncus || asset.Scope != p.project+"/"+pool || asset.State != "ready" {
 		return core.ErrIncompatibleState
 	}
 	if _, _, err := (&BaseAssetBackend{Provider: p}).decode(asset); err != nil {

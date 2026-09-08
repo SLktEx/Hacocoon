@@ -12,6 +12,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/baseasset"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/state"
 )
@@ -56,7 +57,7 @@ func TestRealIncusBaseAssetE2E(t *testing.T) {
 	base := core.BaseRef{Name: "fixture/base", Revision: core.BaseRevision("sha256:" + image)}
 	provider.sources[base.Name] = "local:" + image
 	backend := &BaseAssetBackend{Provider: provider}
-	service := baseasset.Service{Store: catalog, Backend: backend, Provider: "incus"}
+	service := baseasset.Service{Store: catalog, Backend: backend, Provider: environmentapp.ProviderIncus}
 	asset, err := service.Ensure(ctx, base, r.project+"/"+pool)
 	must(err)
 	if asset.State != "ready" {

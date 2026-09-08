@@ -8,6 +8,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/baseasset"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 )
 
 // BaseAssetBackend retains independently owned Base rootfs material. Its caller
@@ -67,7 +68,7 @@ func (b *BaseAssetBackend) decode(a core.BaseAsset) (baseStorageIdentity, baseAs
 	p.Pool = binding.Pool
 	fp, err := baseRevisionFingerprint(a.Base.Revision)
 	canonical, encodeErr := json.Marshal(binding)
-	if err != nil || encodeErr != nil || string(canonical) != a.Binding || p.validate() != nil || a.Provider != "incus" || a.ID != "base-"+a.Owner || binding.Version != 1 || !safeIncusRef(binding.Project) || binding.Project != b.Provider.project || a.Scope != binding.Project+"/"+binding.Pool || a.NativeRef != "instance/"+p.target() || !validBaseAssetSource(binding.Source, fp) {
+	if err != nil || encodeErr != nil || string(canonical) != a.Binding || p.validate() != nil || a.Provider != environmentapp.ProviderIncus || a.ID != "base-"+a.Owner || binding.Version != 1 || !safeIncusRef(binding.Project) || binding.Project != b.Provider.project || a.Scope != binding.Project+"/"+binding.Pool || a.NativeRef != "instance/"+p.target() || !validBaseAssetSource(binding.Source, fp) {
 		return p, binding, core.ErrIncompatibleState
 	}
 	return p, binding, nil

@@ -69,3 +69,9 @@ therefore they must not strand an unused Workspace lease as Environment recovery
 The Incus create boundary still requires an exact ready Base receipt. Assets
 remain retained after Environment deletion; no implicit garbage collection is
 introduced. Installed acceptance and snapshot lookup integration remain pending.
+
+Base assets use the same canonical `runtime.incus` provider identity as runtime
+routing. The initial adapter-only fixtures used `incus`, which disagreed with
+production composition and blocked ordinary creation; the adapter and fixtures
+now use the shared constant. No automatic adoption or rewriting of old asset
+receipts is performed.
