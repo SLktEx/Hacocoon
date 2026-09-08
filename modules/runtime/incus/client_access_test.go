@@ -89,3 +89,13 @@ func TestInspectEnvironmentUsesExactNameAmongPrefixMatches(t *testing.T) {
 		}
 	}
 }
+
+func TestLegacyInspectUsesTheSameExactIdentity(t *testing.T) {
+	runner := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+		return host.Result{Stdout: "haco-demo-copy,RUNNING\nhaco-demo,STOPPED\n"}, nil
+	}}
+	got, err := New(runner).Inspect(context.Background(), "haco-demo")
+	if err != nil || got.Observed != core.ObservedStopped {
+		t.Fatal(got, err)
+	}
+}

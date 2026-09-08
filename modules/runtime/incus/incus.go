@@ -434,22 +434,18 @@ func (r *Runtime) Exec(ctx context.Context, ref string, req core.ExecRequest) (c
 }
 
 func (r *Runtime) Inspect(ctx context.Context, ref string) (core.RuntimeState, error) {
-	if err := validateManagedInstanceRef(ref); err != nil {
-		return core.RuntimeState{}, err
-	}
-	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "ns")
+	status, err := r.InspectEnvironment(ctx, ref)
 	if err != nil {
 		return core.RuntimeState{}, err
 	}
-	states := map[string]core.ObservedState{
-		"RUNNING": core.ObservedRunning,
-		"STOPPED": core.ObservedStopped,
+	observed := core.ObservedUnknown
+	switch status.State {
+	case core.EnvironmentRunning:
+		observed = core.ObservedRunning
+	case core.EnvironmentStopped:
+		observed = core.ObservedStopped
 	}
-	state, ok := states[strings.ToUpper(strings.TrimSpace(result.Stdout))]
-	if !ok {
-		state = core.ObservedUnknown
-	}
-	return core.RuntimeState{Observed: state}, nil
+	return core.RuntimeState{Observed: observed}, nil
 }
 
 func (r *Runtime) materializeSandboxNIC(ctx context.Context, ref string) error {
