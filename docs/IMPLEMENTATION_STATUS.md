@@ -1,99 +1,37 @@
 # Implementation Status
 
-## Snapshot restore preparation
+## Incus-first snapshot simplification
 
-Implemented internally: schema 8 reserves the selected save, a fresh pre-restore
-backup and every independent destination identity. The canonical locked service
-verifies stopped current work, captures its backup, stages all saved components,
-records each create before verification, and publishes only `prepared`. Incus
-copies rootfs/Base/Workspace/OCI into independently owned stopped instances and
-unattached volumes. Routing rejects mixed providers; cleanup requires exact
-ownership and positive absence. Both snapshots and current work remain preserved.
+Implemented internally: new captures save independent rootfs, managed Workspace
+members and attached OCI, with Base provenance only. Ordinary create/run no longer
+retains an extra Base instance. Restore preparation copies saved data without an
+automatic backup or changing current data. Exact receipts, source write exclusion,
+positive cleanup and generation/security boundaries remain.
 
-Catalog, service, router and backend race regressions passed. The catalog slice
-passed full local CI and all applicable GHA and is merged as PR #491. The staging
-slice's full CI/GHA remain pending. Dedicated WSL final staging acceptance passed
-in 79.60 seconds with fixture `haco-aggregate-7bef775e5b1e3d29` and snapshot
-`snap-3e2d4921733e6425d00042a0a3453b2a`: delete the source image, capture all five
-components, change current rootfs/Workspace/OCI data, prepare saved data with a
-fresh backup, reload the catalog, verify saved Base/rootfs/Git/OCI bytes and backup
-changes, edit staging copies without affecting current work or the saved snapshot,
-then positively clean up staging, backups and original fixture resources.
+Schema 10 migrates schema-8 restore target identity while preserving every old
+backup/Base ownership record. No stored resource is deleted by upgrade. The
+unpublished schema-9 prototype is rejected explicitly. Package boundaries remain
+Incus adapter / Workspace orchestration / state ownership / routing; production
+Base retention callbacks were removed. See [ADR 0040](adr/0040-incus-first-snapshots.md).
 
-This is preparation, not a completed restore. Canonical Environment replacement,
-connection reconciliation, restart/recovery of that replacement and public
-save/restore remain required. Live Docker/containerd consistency remains unverified;
-OCI acceptance uses persistent file fixtures. See [ADR 0039](adr/0039-snapshot-restore-preparation.md)
-and [snapshot design](design/environment-snapshots.md).
+Focused state/service/router/provider/ordinary-create and race tests passed.
+Full local CI (`bash tools/ci-local.sh test`) passed, including Go tests/vet,
+documentation/helper checks and all 27 JavaScript tests. GHA is pending.
+Dedicated WSL Incus 6.0.5/Btrfs aggregate acceptance passed in 5.95 seconds:
+fixture `haco-aggregate-822d7154c3c2f6dc`, snapshot
+`snap-d849c57477844eef6f02e54e9c9b4364`. The test deleted its original Base and
+isolated Ubuntu image before capture, saved four components, prepared independent
+copies with no backup, verified unchanged current work and copied Git/rootfs/OCI
+bytes, deleted the original Environment/data and checked saved independence.
+Owned snapshot/staging/source cleanup passed. The first attempt refused deletion
+of an image referenced by another fixture; that failed attempt's exact owned
+resources were subsequently deleted and positively observed absent. Its ownership
+files remain at `/var/lib/haco-snapshot-aggregate-3029918541` for evidence.
 
-## Retained Bases and snapshot capture
-
-Implemented internally: ordinary Incus Environment and temporary-run creation
-retain their exact resolved Base before init, without extra user commands or
-arguments. The schema-7 catalog durably records provider ownership; completed
-creation receipts can resume verification. Planned ambiguous creation remains
-reserved. Base failures release unused Workspace leases without losing Base
-ownership. Provider identity is the shared `runtime.incus` constant.
-
-The snapshot planner now looks up exact ready retained material and copies its
-isolated rootfs into independent Incus/Btrfs storage with fresh ownership. Invalid,
-incomplete or unreadable assets fail closed. Only absent catalog entries permit
-legacy exact-image fallback; old bindings remain readable. Saved verification
-and deletion do not depend on the original Base or image remaining.
-
-Focused race tests and mock CLI E2E passed. Automatic-retention full local CI,
-GHA test, Ubuntu, Incus and Windows passed; PR #489 is merged. Initial GHA failed on a
-provider-ID mismatch; the composed catalog/backend regression covers the fix.
-Initial local CI failed Git fixture setup in a Windows worktree accessed through
-WSL; isolated fixture directories fixed it, and full local CI subsequently passed.
-
-Dedicated WSL final aggregate acceptance passed in 1.46 seconds with fixture
-`haco-aggregate-e5829f65fc5b94f2` and snapshot
-`snap-51d2e3ab955f3f1be10c156d1305e185`: delete the source image, capture all five
-components, reload the catalog, delete source Environment/volumes and original
-Base, verify saved Git/data, then positively clean up all owned resources.
-The retained-Base snapshot GHA passed and PR #490 is merged. Restore, public save/restore, planned
-Base recovery and reference-aware collection remain incomplete. Live Docker/
-containerd consistency and restore are unverified. See [Base design](design/base-images-and-custom-environments.md),
-[snapshot design](design/environment-snapshots.md) and [ADR 0038](adr/0038-retained-base-assets.md).
-
-## Snapshot aggregate capture
-
-Partial E2: the internal capture/delete service now connects the canonical
-schema-6 catalog and lifecycle locks through the provider router to a complete
-stopped Incus aggregate planner. It includes rootfs, every registered managed
-Workspace/Git member, optional exact OCI storage and the retained effective Base (legacy cache fallback).
-One Btrfs pool is supported. Missing/extra disks, duplicate members, foreign
-ownership/users, source creation-ID drift and absent Base assets fail closed.
-Provider bindings and mount layout survive restart; creation receipts precede
-verification and publication. Cleanup retains ownership until positive absence.
-
-Dedicated WSL acceptance passed with two Workspace members, OCI, rootfs and Base
-through the real catalog/coordinator/router. After catalog reload and deletion
-of the source Environment and source volumes, the saved Git commits, uncommitted
-and untracked files, OCI fixture data and guest-only rootfs file remained intact.
-All five saved components verified and owned cleanup removed the snapshot record.
-This fixture prepares owned storage directly, not through the installed user CLI.
-Shared Base-image deletion remains SKIP; restored Environment execution and live
-Docker/containerd database consistency are not established.
-
-Component, race and prior storage E2E checks passed. Existing Incus GHA now includes
-the aggregate fixture; its corrected execution passed. Rootfs/Base GHA
-already passed. The Base PR's first Windows run failed ordinary Environment init
-with insufficient provider diagnostics; its unchanged-head retry passed. That
-initial failure remains recorded, with cause unconfirmed.
-
-Restore, independent recreation from saved data, and simple public save/restore
-operations remain planned. No public snapshot command is registered yet. Older
-controllers must reject schema 6 instead of dropping saved ownership. See the
-[snapshot design](design/environment-snapshots.md) and
-[ADR 0037](adr/0037-snapshot-aggregate-ownership.md).
-
-A repeat fixture failed on a no-longer-cached image; direct diagnosis confirmed
-Image not found. Its unused OCI fixture was cleaned with exact ownership checks.
-Recovery records now use /var/lib across WSL restart, and image preflight precedes
-fixture allocation. Automatic long-lived Base asset retention remains required
-before public daily snapshots; missing original images are never substituted.
+Public save/restore and runnable restore activation remain planned; this change
+does not claim those features. Live OCI database consistency is unverified.
+PR #492 staging was merged after local CI and applicable GHA passed; its previous
+five-component/automatic-backup behavior is historical, superseded here.
 
 ## External Workspace recreation acceptance
 

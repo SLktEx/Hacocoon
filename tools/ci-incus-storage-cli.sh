@@ -116,7 +116,7 @@ run_test() {
   unset HACO_PLUGIN_OCI
 
   "$HACO_BIN" create --base haco/ubuntu-26.04 --workspace "$WORKSPACE" "$ENV_NAME"
-  python3 tools/verify_ci_retained_base.py "$CLI_ROOT/state/environments.json" "$ENV_NAME"
+  python3 tools/verify_ci_base_provenance.py "$CLI_ROOT/state/environments.json" "$ENV_NAME"
 
   status_json="$("$HACO_BIN" status "$ENV_NAME" --json)"
   python3 - "$status_json" <<'PY'

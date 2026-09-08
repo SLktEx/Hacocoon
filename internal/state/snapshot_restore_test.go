@@ -44,7 +44,7 @@ func restoreFixture(t *testing.T) (*EnvironmentJSONStore, core.SnapshotRestore) 
 		before.Components[i].State = "planned"
 	}
 	before = publish(before)
-	op := core.SnapshotRestore{ID: "restore-" + strings.Repeat("3", 32), Saved: saved, Before: before, State: "preparing", Components: append([]core.SnapshotComponent(nil), saved.Components...)}
+	op := core.SnapshotRestore{ID: "restore-" + strings.Repeat("3", 32), Saved: saved, Before: before, Current: before.Source, State: "preparing", Components: append([]core.SnapshotComponent(nil), saved.Components...)}
 	for i := range op.Components {
 		op.Components[i].NativeRef += "-restored"
 		op.Components[i].Owner = strings.Repeat(string(rune('e'+i)), 32)
@@ -149,7 +149,7 @@ func TestRestoreReservationRacesSnapshotDeletionAtomically(t *testing.T) {
 }
 
 func TestRestoreCatalogRejectsDowngradeAndOwnershipDrift(t *testing.T) {
-	for _, mode := range []string{"schema7", "snapshot-drift", "target-owner", "omitted-component", "duplicate-target", "target-current"} {
+	for _, mode := range []string{"schema7", "empty-backup-metadata", "snapshot-drift", "target-owner", "omitted-component", "duplicate-target", "target-current"} {
 		t.Run(mode, func(t *testing.T) {
 			s, op := restoreFixture(t)
 			ctx := context.Background()
@@ -159,6 +159,9 @@ func TestRestoreCatalogRejectsDowngradeAndOwnershipDrift(t *testing.T) {
 			var d environmentFileState
 			mustSnapshot(t, json.Unmarshal(raw, &d))
 			switch mode {
+			case "empty-backup-metadata":
+				op.Before.ID = ""
+				d.Restores[op.ID] = op
 			case "schema7":
 				d.Version = 7
 			case "snapshot-drift":
@@ -185,5 +188,52 @@ func TestRestoreCatalogRejectsDowngradeAndOwnershipDrift(t *testing.T) {
 				t.Fatal("invalid catalog read", err)
 			}
 		})
+	}
+}
+
+func TestSchema8RestoreMigrationPreservesAllSavedOwnership(t *testing.T) {
+	s, op := restoreFixture(t)
+	ctx := context.Background()
+	mustSnapshot(t, s.BeginSnapshotRestore(ctx, op))
+	raw, err := os.ReadFile(s.path)
+	mustSnapshot(t, err)
+	var d environmentFileState
+	mustSnapshot(t, json.Unmarshal(raw, &d))
+	d.Version = 8
+	legacy := d.Restores[op.ID]
+	legacy.Current = core.SnapshotSource{}
+	d.Restores[op.ID] = legacy
+	raw, err = json.Marshal(d)
+	mustSnapshot(t, err)
+	mustSnapshot(t, os.WriteFile(s.path, raw, 0600))
+	reloaded := NewEnvironmentJSONStore(s.path)
+	got, err := reloaded.GetSnapshotRestore(ctx, op.ID)
+	mustSnapshot(t, err)
+	if !reflect.DeepEqual(got, op) {
+		t.Fatal("legacy ownership changed", got)
+	}
+	mustSnapshot(t, reloaded.MarkRestoreRecovery(ctx, op.ID))
+	raw, err = os.ReadFile(s.path)
+	mustSnapshot(t, err)
+	var migrated environmentFileState
+	mustSnapshot(t, json.Unmarshal(raw, &migrated))
+	if migrated.Version != environmentStateVersion || !reflect.DeepEqual(d.Snapshots, migrated.Snapshots) || !reflect.DeepEqual(legacy.Before, migrated.Restores[op.ID].Before) {
+		t.Fatal("migration discarded saved material")
+	}
+}
+
+func TestNewRestoreDoesNotRequireLegacyBaseCopy(t *testing.T) {
+	s, op := restoreFixture(t)
+	ctx := context.Background()
+	op.Before = core.Snapshot{}
+	// An old save may own extra Base storage; new restores do not duplicate it.
+	op.Saved.Source.Environment.Base = &core.BaseRef{Name: "old", Revision: "provenance"}
+	op.Saved.Components = append(op.Saved.Components, core.SnapshotComponent{Role: "base", Owner: strings.Repeat("9", 32), NativeRef: "legacy-base", Binding: "legacy", State: "verified"})
+	mustSnapshot(t, s.catalogTransaction(ctx, func(d *environmentFileState) (bool, error) { d.Snapshots[op.Saved.ID] = op.Saved; return true, nil }))
+	mustSnapshot(t, s.BeginSnapshotRestore(ctx, op))
+	got, err := s.GetSnapshotRestore(ctx, op.ID)
+	mustSnapshot(t, err)
+	if got.Before.ID != "" || len(got.Components) != len(got.Saved.Components)-1 {
+		t.Fatal("new Base/backup introduced")
 	}
 }

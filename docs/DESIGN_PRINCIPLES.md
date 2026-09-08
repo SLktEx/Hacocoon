@@ -6,22 +6,19 @@ Status: authoritative cross-cutting design principles.
 
 These principles describe what Hacocoon is trying to preserve as the implementation and the set of Environment backends evolve. They are product and architecture constraints, not claims that every planned capability is already implemented.
 
-## 1. Hacocoon manages Environments, not one runtime
+## 1. Incus-first development runtime
 
-Hacocoon is a system for creating and operating isolated development Environments. It is not an Incus wrapper.
+Hacocoon is Incus plus small development conveniences, special Workspace/OCI
+lifetimes and its own security boundary. Start with native Incus capabilities;
+add only missing product behavior. Incus+Btrfs is the current first-class target.
+Useful interfaces separate ownership and testing responsibilities; hypothetical
+future backends must not constrain today's implementation or add recovery states.
 
-Incus system containers are the first concrete backend because they provide a useful balance of Linux fidelity, systemd support, startup speed, storage efficiency, and operational simplicity. They must not become a permanent Core dependency.
-
-Future Environment backends may include, when justified:
-
-- Incus containers;
-- Incus VMs;
-- microVMs;
-- Kubernetes or other scheduler-backed environments;
-- remote/SSH-backed hosts;
-- other local or remote isolation technologies.
-
-Core should express Environment lifecycle and required capabilities. Backend-specific mechanics stay behind the Environment boundary.
+Environments are disposable. Preserve Workspace/Git, retained OCI, explicit
+persistent data and saved snapshots across ordinary Env deletion. Unsaved runtime
+state need not be recoverable. Recreate uses current persistent data; snapshot
+restore uses saved data. Security identities and positive ownership cleanup remain
+mandatory. See [snapshots](design/environment-snapshots.md).
 
 ## 2. Untrusted inside, trusted boundary outside
 
@@ -207,11 +204,13 @@ The current v0.13 Managed Sandbox Network implements only the default-deny subst
 
 Operations such as Git that cannot express authority safely as a generic network destination may use specialized Capabilities containing organization, repository, branch/ref, operation, or other authority-sensitive attributes while reusing the same Core Policy / Approval semantics.
 
-## 13. Portability is a design constraint
+## 13. Keep clients and optional tools independent
 
-An Environment should remain conceptually usable from different clients and on different backends.
-
-Do not make VS Code, Incus, a specific container runtime, or a specific cloud provider part of the definition of an Environment. Client-specific launch behavior, backend-specific lifecycle mechanics, and workload-specific tooling belong outside the Core domain model.
+Environments should remain usable from different clients. Keep client-specific
+launch behavior and optional workload tooling outside the domain model. Keep
+Incus calls behind its adapter for clear responsibility and tests, while using
+its native capabilities directly; portability is not a reason to invent runtime
+or recovery machinery for hypothetical backends.
 
 ## Security promise summary
 

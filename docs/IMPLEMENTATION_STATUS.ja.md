@@ -1,87 +1,32 @@
 # 実装状況
 
-## スナップショットの復元準備
+## Incus-first の snapshot 整理
 
-内部実装済み: schema 8 に保存元、新しく作る復元前退避 snapshot、全コピー先の
-独立した所有権を予約します。正規ロック内で停止中の現在の作業を確認・退避し、
-保存全要素のコピー、作成完了記録、検証を行い、`prepared` のみを公開します。
-Incus は rootfs・Base・Workspace・OCI を独立した停止 instance／未接続 volume に
-コピーします。異なる provider の混在を拒否し、cleanup は完全一致する所有権と
-実際の不在を確認します。保存元・退避 snapshot と現在の作業は保持します。
+内部実装済み：新規保存は独立 rootfs、管理 Workspace の全メンバー、接続 OCI とし、
+Base は由来 metadata のみにしました。通常 create/run の Base instance 自動保持と、
+restore 前の自動 backup を削除しました。復元用コピーの準備は現在データを変更しません。
+作成完了記録、書き込みの排除、所有確認、削除完了確認、権限の世代境界は維持します。
 
-台帳・サービス・router・backend の race 回帰は成功しました。台帳部分は全体
-ローカル CI と対象 GHA が成功し、PR #491 でマージ済みです。コピー部分の全体 CI と
-GHA は実行待ちです。専用 WSL の最終受入は 79.60 秒で成功しました。fixture は
-`haco-aggregate-7bef775e5b1e3d29`、snapshot は
-`snap-3e2d4921733e6425d00042a0a3453b2a` です。元イメージ削除後に 5 要素を保存し、
-現在の rootfs・Workspace・OCI を変更、直前退避と復元用コピー作成、台帳再読込、
-保存済み Base/rootfs/Git/OCI の内容と退避した変更の確認、コピー先編集の非干渉、
-コピー・退避・元 fixture の所有対象を不在まで確認する後片付けを実行しました。
+schema 10 は schema 8 の復元対象識別を移行し、古い backup／Base の所有記録を
+すべて保持します。更新による資源削除はありません。未公開 schema 9 の試作は
+明示的に拒否します。Incus adapter／Workspace の調整／state の所有管理／routing の
+分離を維持し、本番 Base 保持 callback は削除しました。
+[ADR 0040](adr/0040-incus-first-snapshots.md)を参照してください。
 
-これは準備であり、復元完了ではありません。正規の Environment 切替、接続の再設定、
-切替後の起動と障害復旧、公開 save/restore は未完了です。動作中の Docker/containerd
-の整合性は未検証で、OCI 受入は永続ファイルの fixture です。
-[ADR 0039](adr/0039-snapshot-restore-preparation.md) と
-[snapshot 設計](design/environment-snapshots.md) を参照してください。
+state/service/router/provider/通常作成と race の関連テストは成功しました。
+全体 local CI（`bash tools/ci-local.sh test`）も成功しました。Go tests/vet、
+文書・helper 検証、JavaScript 27 件すべてを含みます。GHA は待機中です。
+専用 WSL の Incus 6.0.5/Btrfs 検証は 5.95 秒で成功しました。
+fixture は `haco-aggregate-822d7154c3c2f6dc`、snapshot は
+`snap-d849c57477844eef6f02e54e9c9b4364` です。元 Base と専用 Ubuntu image を
+削除後に 4 component を保存し、自動 backup なしの独立コピー、現在データの不変、
+Git/rootfs/OCI の保存内容、元 Env／データ削除後の独立性と所有 cleanup を確認しました。
+初回は別 fixture が参照する image の削除を拒否して失敗しました。その回の所有資源は
+削除・不在確認済みです。証跡は `/var/lib/haco-snapshot-aggregate-3029918541` に保持します。
 
-## Base 保持とスナップショット
-
-内部実装済み: Incus の通常 Environment・一時 run 作成では init 前に解決済みの
-正確な Base を保持します。追加コマンド・必須引数は不要です。schema 7 の台帳に
-provider の所有権を永続化し、作成完了記録があれば検証を再開します。作成完了が
-不明な planned は予約を残します。Base 失敗時は Base 所有権を残して未使用の
-Workspace lease を解放します。provider ID は共通の `runtime.incus` です。
-
-snapshot planner は完全一致する ready Base の独立 rootfs を検索し、新しい所有権で
-Incus/Btrfs コピーを作ります。不正・未完成・読取不能な保持は拒否します。台帳に
-存在しない場合のみ従来の完全一致イメージを使い、古い binding も読めます。
-保存先の検証・削除は元 Base やイメージの残存に依存しません。
-
-対象 race テストと模擬 CLI E2E は成功しました。自動保持の全体ローカル CI、GHA の
-test・Ubuntu・Incus・Windows は成功し、PR #489 はマージ済みです。初回 GHA は provider ID の
-不一致で失敗し、実際の台帳・backend を接続する回帰で修正を確認しました。
-初回ローカル CI は Windows worktree を WSL から使った Git fixture の初期化で
-失敗しました。作業ディレクトリを分離し、全体ローカル CI の再実行は成功しました。
-
-専用 WSL の最終集約受入は 1.46 秒で成功しました。fixture は
-`haco-aggregate-e5829f65fc5b94f2`、snapshot は
-`snap-51d2e3ab955f3f1be10c156d1305e185` です。元イメージ削除後に 5 要素を保存し、
-台帳の再読込、元環境・元ボリューム・元 Base の削除、保存済み Git/data の確認、
-所有対象すべての不在を確認する後片付けまで実行しました。保持済み Base を使う snapshot の GHA は成功し、PR #490 でマージ済みです。復元、公開 save/restore、planned Base の復旧、参照を考慮する回収は
-未完了です。動作中の Docker/containerd の整合性と復元は未検証です。
-[Base 設計](design/base-images-and-custom-environments.md)、
-[snapshot 設計](design/environment-snapshots.md)、[ADR 0038](adr/0038-retained-base-assets.md) を参照してください。
-
-## snapshot 全体保存
-
-E2 は partial です。内部の保存・削除 service を、正規の schema 6 catalog と lifecycle
-lock、provider router、停止中 Incus の全体 planner まで接続しました。rootfs、登録済み
-Workspace/Git 全メンバー、任意の正確な OCI 保存領域、cached effective Base を含みます。
-最初の対応は同じ Btrfs pool 内です。disk の欠落・余分な接続・メンバー重複・他者の所有権や
-使用・作成 ID 不一致・Base 欠落は拒否します。provider binding と mount 配置を再起動後も
-保持し、作成記録→検証→公開の順を守ります。削除は不存在を確認するまで所有権を保持します。
-
-専用 WSL で、2 Workspace・OCI・rootfs・Base の 5 component を実 catalog/coordinator/router
-経由で保存できました。catalog を再読込みし、元 Environment と元 volume を削除しても、
-保存先の Git commit・未コミット／未追跡ファイル・OCI fixture データ・guest-only ファイルが
-残りました。全保存 component の検証と snapshot 記録を含む cleanup も成功しました。
-fixture は所有付き保存領域を直接準備しており、installed CLI の受入ではありません。
-共有 Base イメージ自体の削除は SKIP、復元後の実行と稼働中 Docker/containerd DB の整合性は未検証です。
-
-component・race・先行 storage E2E は成功しました。既存 Incus GHA に全体 fixture を追加し、
-その実行は待機中です。rootfs/Base の GHA は成功済みです。Base PR の初回 Windows 実行は
-通常の Environment init で失敗し、provider 詳細が不足していました。同じ head の再実行は
-成功しましたが、初回失敗の原因は未確定として記録します。
-
-復元・保存データからの独立した再作成・簡潔な公開 save/restore 操作は残作業です。
-公開 snapshot コマンドはまだありません。旧 controller に schema 6 を読み書きさせて
-所有権を失わないよう、旧版は拒否する必要があります。
-[snapshot 設計](design/environment-snapshots.md)と [ADR 0037](adr/0037-snapshot-aggregate-ownership.md)を参照してください。
-
-再実行では指定した旧 image がキャッシュになく、Image not found で失敗しました。
-残った未使用 OCI fixture は正確な所有権を照合して片付けました。復旧記録は WSL 再起動を
-またいで保持する /var/lib に移し、fixture 作成前に image を照会します。公開日常操作の前に、
-長期間使う Environment の Base 資材を自動保持する仕組みも必要です。別 image への置換はしません。
+公開 save/restore と起動可能な復元先への切り替えは planned、稼働 OCI DB の整合性は
+未検証です。PR #492 は local CI と対象 GHA 成功後にマージ済みです。その 5 component／
+自動 backup の動作は過去のもので、今回の方針に置き換わります。
 
 ## 外部 Workspace 再作成の実機検証
 

@@ -93,9 +93,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	must(err)
 	baseIdentity, _, err := baseBackend.decode(asset)
 	must(err)
-	r.ConfigureRetainedBases(func(ctx context.Context, base core.BaseRef, scope string) (core.BaseAsset, error) {
-		return store.FindBaseAsset(ctx, base, environmentapp.ProviderIncus, scope)
-	})
+
 	persistent := &PersistentResourceBackend{Runtime: r}
 	must(store.BeginPersistentResourceCreate(ctx, resource))
 	must(persistent.Create(ctx, resource))
@@ -199,13 +197,15 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 				t.Fatal("source image remains")
 			}
 		}
-		t.Log("source image deleted; aggregate capture must use retained Base")
+		t.Log("source image deleted; capture must use only current rootfs and data")
 	} else {
 		t.Log("SKIP source image deletion: dedicated-image permission not enabled")
 	}
+	// Prove both capture and restore need neither the original Base nor image.
+	must(r.deleteBaseStorage(ctx, baseIdentity))
 	snap, err := service.CaptureSnapshot(ctx, name)
 	must(err)
-	if snap.State != "ready" || len(snap.Components) != 5 {
+	if snap.State != "ready" || len(snap.Components) != 4 {
 		t.Fatal("incomplete aggregate", snap.ID, snap.State, len(snap.Components))
 	}
 	t.Logf("ready snapshot %s with %d components", snap.ID, len(snap.Components))
@@ -233,7 +233,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	command("sync")
 	prepared, err := service.PrepareSnapshotRestore(ctx, name, snap.ID)
 	must(err)
-	if prepared.State != "prepared" || len(prepared.Components) != 5 {
+	if prepared.State != "prepared" || len(prepared.Components) != 4 {
 		t.Fatal("restore staging incomplete")
 	}
 	prepared, err = reopened.GetSnapshotRestore(ctx, prepared.ID)
@@ -256,12 +256,6 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		case component.Role == "rootfs":
 			read(rootPath(binding.target()), "root/snapshot-marker", "guest-only bytes")
 			write(filepath.Join(rootPath(binding.target()), "root"), "snapshot-marker", "edited staged rootfs")
-		case component.Role == "base":
-			data, err := os.ReadFile(filepath.Join(rootPath(binding.target()), "usr/lib/os-release"))
-			must(err)
-			if !strings.Contains(string(data), "ID=ubuntu") {
-				t.Fatal("staged Base data missing")
-			}
 		case !instance && component.Role == "oci":
 			read(volumePath(binding.target()), "containerd/data", "actual stored bytes")
 			read(volumePath(binding.target()), "docker/volumes/data", "persistent volume bytes")
@@ -280,27 +274,17 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			write(path, "tracked", "edited staged work")
 		}
 	}
-	for _, component := range prepared.Before.Components {
-		prefix := "haco-runtime-v1:" + environmentapp.ProviderIncus + ":"
-		decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(component.NativeRef, prefix))
-		must(err)
-		local := component
-		local.NativeRef = string(decoded)
-		binding, err := r.decodeSnapshotComponent(local)
-		must(err)
-		switch {
-		case binding.Rootfs != nil:
-			read(rootPath(binding.Rootfs.target()), "root/snapshot-marker", "changed current work")
-		case binding.Volume != nil:
-			path := volumePath(binding.Volume.target())
-			if component.Role == "oci" {
-				read(path, "containerd/data", "changed containerd")
-				read(path, "docker/volumes/data", "changed Docker volume")
-			} else {
-				read(path, "tracked", "changed "+binding.Volume.Device)
-				read(path, "untracked", "changed untracked "+binding.Volume.Device)
-			}
-		}
+	if prepared.Before.ID != "" {
+		t.Fatal("restore made an automatic backup")
+	}
+	rawCatalog, err := os.ReadFile(filepath.Join(dir, "state.json"))
+	must(err)
+	var inventoryCatalog struct {
+		Snapshots map[string]core.Snapshot `json:"snapshots"`
+	}
+	must(json.Unmarshal(rawCatalog, &inventoryCatalog))
+	if len(inventoryCatalog.Snapshots) != 1 {
+		t.Fatal("unexpected automatic snapshot")
 	}
 	read(rootPath(native), "root/snapshot-marker", "changed current work")
 	for _, m := range mounts {
@@ -310,8 +294,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	read(volumePath("haco-persistent-"+resource.Owner), "containerd/data", "changed containerd")
 	read(volumePath("haco-persistent-"+resource.Owner), "docker/volumes/data", "changed Docker volume")
 	must(service.CleanupSnapshotRestore(ctx, prepared.ID))
-	must(service.DeleteSnapshot(ctx, prepared.Before.ID))
-	t.Log("PASS five-component restore preparation, durable reload, saved rootfs/Base/Git/OCI bytes staged, changed current work backed up, staging edits independent, owned staging cleanup; no Environment replacement performed")
+	t.Log("PASS four-component restore preparation without Base or automatic backup, durable reload, saved rootfs/Git/OCI bytes staged, current work unchanged, staging edits independent, owned staging cleanup; no Environment replacement performed")
 	must(r.VerifyEnvironmentIdentity(ctx, native, id))
 	must(service.Delete(ctx, name))
 	if exists, err := r.environmentExists(ctx, native); err != nil || exists {
@@ -387,5 +370,5 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		must(os.Remove(filepath.Join(dir, entry.Name())))
 	}
 	must(os.Remove(dir))
-	t.Log("PASS canonical catalog/coordinator/provider route; complete five-component save; restart readback; source Environment/volumes deleted; independent Git and data retained; owned snapshot cleanup. Snapshot Base copied from retained material; image deletion reported separately; restore/live OCI consistency not tested.")
+	t.Log("PASS canonical catalog/coordinator/provider route; complete four-component save; restart readback; source Environment/volumes deleted; independent Git and data retained; owned snapshot cleanup. No snapshot Base material retained; image deletion reported separately; restore/live OCI consistency not tested.")
 }

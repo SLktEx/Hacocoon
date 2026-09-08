@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -133,13 +132,8 @@ func (r *restoreTraceRuntime) receipt(c core.SnapshotComponent, state string) co
 }
 func (r *restoreTraceRuntime) CreateRestoreComponent(_ context.Context, saved core.Snapshot, c core.SnapshotComponent) error {
 	op := r.receipt(c, "planned")
-	if op.Before.State != "ready" {
-		r.t.Fatal("restore before completed backup")
-	}
-	for _, b := range op.Before.Components {
-		if r.data[b.NativeRef] != r.current+":"+b.Role {
-			r.t.Fatal("backup not current work")
-		}
+	if op.Before.ID != "" {
+		r.t.Fatal("unexpected automatic backup")
 	}
 	for _, src := range saved.Components {
 		if src.Role == c.Role {
@@ -174,7 +168,7 @@ func (r *restoreTraceRuntime) DeleteRestoreComponent(_ context.Context, c core.S
 }
 
 func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) {
-	for _, failure := range []string{"", "source", "plan", "backup", "reserve", "create:rootfs", "record-created:rootfs", "verify:workspace:main", "record-verified:workspace:main", "commit", "cancel"} {
+	for _, failure := range []string{"", "source", "plan", "reserve", "create:rootfs", "record-created:rootfs", "verify:workspace:main", "record-verified:workspace:main", "commit", "cancel"} {
 		t.Run(failure, func(t *testing.T) {
 			_, catalog, original := captureFixture(t)
 			store := &restoreTraceStore{EnvironmentJSONStore: catalog.EnvironmentJSONStore}
@@ -206,6 +200,9 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 			} else if err == nil {
 				t.Fatal("injected failure succeeded")
 			}
+			if len(r.plans) != len(saved.Components) {
+				t.Fatal("restore created an automatic snapshot")
+			}
 			current, readErr := store.GetEnvironment(ctx, "resume")
 			if readErr != nil || !reflect.DeepEqual(current, expectedEnv) {
 				t.Fatal("current Environment changed", readErr)
@@ -216,15 +213,7 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 				}
 			}
 			if op.ID == "" {
-				if failure == "reserve" {
-					if op.Before.ID == "" {
-						t.Fatal("backup handle lost")
-					}
-					backup, e := store.GetSnapshot(ctx, op.Before.ID)
-					if e != nil || backup.State != "ready" {
-						t.Fatal("backup missing", e)
-					}
-				}
+
 				return
 			}
 			reloaded := state.NewEnvironmentJSONStore(catalog.path)
@@ -235,7 +224,7 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 			if failure != "" && !errors.Is(err, core.ErrRecoveryRequired) {
 				t.Fatal("failure lost recovery indication", err)
 			}
-			if reloaded.BeginSnapshotDelete(ctx, saved.ID) == nil || reloaded.BeginSnapshotDelete(ctx, op.Before.ID) == nil || reloaded.CheckSnapshotIdle(ctx, "resume") == nil {
+			if reloaded.BeginSnapshotDelete(ctx, saved.ID) == nil || reloaded.CheckSnapshotIdle(ctx, "resume") == nil {
 				t.Fatal("restore references released")
 			}
 			store.fail = ""
@@ -254,11 +243,6 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 			for _, c := range persisted.Components {
 				if _, exists := r.data[c.NativeRef]; exists {
 					t.Fatal("copy remains")
-				}
-			}
-			for _, c := range op.Before.Components {
-				if !strings.HasPrefix(r.data[c.NativeRef], "new uncommitted work:") {
-					t.Fatal("current backup lost")
 				}
 			}
 			if e := reloaded.CheckSnapshotIdle(ctx, "resume"); e != nil {
