@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/baseasset"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	"github.com/SLktEx/Hacocoon/internal/host"
@@ -82,6 +83,19 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	must(err)
 	must(f.Sync())
 	must(f.Close())
+	base := core.BaseRef{Name: "fixture/base", Revision: core.BaseRevision("sha256:" + image)}
+	baseProvider, err := NewBaseProvider(r)
+	must(err)
+	baseProvider.sources[base.Name] = "local:" + image
+	baseBackend := &BaseAssetBackend{Provider: baseProvider}
+	baseService := baseasset.Service{Store: store, Backend: baseBackend, Provider: environmentapp.ProviderIncus}
+	asset, err := baseService.Ensure(ctx, base, r.project+"/"+pool)
+	must(err)
+	baseIdentity, _, err := baseBackend.decode(asset)
+	must(err)
+	r.ConfigureRetainedBases(func(ctx context.Context, base core.BaseRef, scope string) (core.BaseAsset, error) {
+		return store.FindBaseAsset(ctx, base, environmentapp.ProviderIncus, scope)
+	})
 	persistent := &PersistentResourceBackend{Runtime: r}
 	must(store.BeginPersistentResourceCreate(ctx, resource))
 	must(persistent.Create(ctx, resource))
@@ -145,6 +159,50 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	must(err)
 	runtime := environmentapp.NewBaseRouter(router)
 	service := workspace.New(runtime, store)
+	if os.Getenv("HACO_E2E_SNAPSHOT_DELETE_IMAGE") == "1" {
+		var project struct {
+			Name   string
+			Config map[string]string
+		}
+		must(json.Unmarshal([]byte(command("incus", "query", "/1.0/projects/"+r.project)), &project))
+		if project.Name != r.project || project.Config["features.images"] != "true" {
+			t.Fatal("image project isolation unproven")
+		}
+		must(baseBackend.Verify(ctx, asset))
+		must(r.VerifyEnvironmentIdentity(ctx, native, id))
+		var inventory []snapshotInstanceObservation
+		must(json.Unmarshal([]byte(command("incus", "query", "/1.0/instances?project="+r.project+"&recursion=1")), &inventory))
+		if inventory == nil {
+			t.Fatal("instance inventory unproven")
+		}
+		seen := map[string]bool{}
+		for _, instance := range inventory {
+			if instance.Name == "" || seen[instance.Name] || instance.Config == nil || instance.ExpandedConfig == nil {
+				t.Fatal("instance inventory invalid")
+			}
+			seen[instance.Name] = true
+			if instance.Name != native && instance.Name != baseIdentity.target() && (instance.Config["volatile.base_image"] == image || instance.ExpandedConfig["volatile.base_image"] == image) {
+				t.Fatal("another instance depends on selected image")
+			}
+		}
+		if !seen[native] || !seen[baseIdentity.target()] {
+			t.Fatal("fixture ownership absent")
+		}
+		command("incus", "image", "delete", image, "--project", r.project)
+		var images []struct{ Fingerprint string }
+		must(json.Unmarshal([]byte(command("incus", "query", "/1.0/images?project="+r.project+"&recursion=1")), &images))
+		if images == nil {
+			t.Fatal("image absence unproven")
+		}
+		for _, item := range images {
+			if item.Fingerprint == image {
+				t.Fatal("source image remains")
+			}
+		}
+		t.Log("source image deleted; aggregate capture must use retained Base")
+	} else {
+		t.Log("SKIP source image deletion: dedicated-image permission not enabled")
+	}
 	snap, err := service.CaptureSnapshot(ctx, name)
 	must(err)
 	if snap.State != "ready" || len(snap.Components) != 5 {
@@ -188,6 +246,9 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			t.Fatalf("saved %s changed", path)
 		}
 	}
+	// Intentionally remove the fixture-owned original Base to prove snapshot independence.
+	// Keep its durable receipt until the complete fixture is positively absent.
+	must(r.deleteBaseStorage(ctx, baseIdentity))
 	for _, component := range snap.Components {
 		must(runtime.VerifySnapshotComponent(ctx, component))
 		prefix := "haco-runtime-v1:" + environmentapp.ProviderIncus + ":"
@@ -234,5 +295,5 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		must(os.Remove(filepath.Join(dir, entry.Name())))
 	}
 	must(os.Remove(dir))
-	t.Log("PASS canonical catalog/coordinator/provider route; complete five-component save; restart readback; source Environment/volumes deleted; independent Git and data retained; owned snapshot cleanup. Shared Base image retained; restore/live OCI consistency not tested.")
+	t.Log("PASS canonical catalog/coordinator/provider route; complete five-component save; restart readback; source Environment/volumes deleted; independent Git and data retained; owned snapshot cleanup. Snapshot Base copied from retained material; image deletion reported separately; restore/live OCI consistency not tested.")
 }

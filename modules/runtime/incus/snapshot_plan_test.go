@@ -11,7 +11,7 @@ import (
 )
 
 func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
-	for _, mode := range []string{"ok", "no-oci", "missing-work", "missing-base", "extra-disk", "duplicate-work", "foreign-owner", "running", "foreign-instance", "missing-volume", "foreign-user", "wrong-image", "missing-image", "readonly-option", "wrong-pool"} {
+	for _, mode := range []string{"ok", "no-oci", "missing-work", "missing-base", "extra-disk", "duplicate-work", "foreign-owner", "running", "foreign-instance", "missing-volume", "foreign-user", "wrong-image", "missing-image", "readonly-option", "wrong-pool", "retained", "retained-not-ready", "retained-drift", "retained-lookup-error"} {
 		t.Run(mode, func(t *testing.T) {
 			root, instance := rootfsFixture()
 			base := baseSnapshotFixture()
@@ -53,6 +53,12 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 			case "wrong-pool":
 				mounts[0].Pool = "foreign"
 			}
+			asset := readyBaseReceipt(base.Base, "hacocoon/pool", "local:"+strings.Repeat("b", 64))
+			identity := baseStorageIdentity{Kind: "base", Pool: "pool", Owner: asset.Owner, Base: asset.Base}
+			config := identity.config()
+			config["volatile.base_image"] = strings.Repeat("b", 64)
+			rootDevice := map[string]map[string]string{"root": {"type": "disk", "path": "/", "pool": "pool"}}
+			retained := snapshotInstanceObservation{Name: identity.target(), Type: "container", Status: "Stopped", Config: config, ExpandedConfig: config, Devices: rootDevice, ExpandedDevices: rootDevice}
 			reads := 0
 			r := New(&fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
 				if name != "incus" || len(args) != 2 || args[0] != "query" {
@@ -62,12 +68,15 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 				var value any
 				switch {
 				case strings.HasPrefix(args[1], "/1.0/instances?"):
-					value = []snapshotInstanceObservation{instance}
+					value = []snapshotInstanceObservation{instance, retained}
 				case args[1] == "/1.0/storage-pools/pool":
 					value = map[string]string{"name": "pool", "driver": "btrfs"}
 				case strings.Contains(args[1], "/volumes/custom?"):
 					value = volumes
 				case strings.HasPrefix(args[1], "/1.0/images/"):
+					if strings.HasPrefix(mode, "retained") {
+						t.Fatal("retained Base fell back to image cache")
+					}
 					if mode == "missing-image" {
 						return host.Result{ExitCode: 1}, nil
 					}
@@ -88,8 +97,26 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 				}
 				return mounts, nil
 			})
+			if strings.HasPrefix(mode, "retained") {
+				r.ConfigureRetainedBases(func(_ context.Context, b core.BaseRef, scope string) (core.BaseAsset, error) {
+					if b != base.Base || scope != "hacocoon/pool" {
+						t.Fatal(b, scope)
+					}
+					a := asset
+					if mode == "retained-not-ready" {
+						a.State = "created"
+					}
+					if mode == "retained-drift" {
+						a.Base.Revision = "wrong"
+					}
+					if mode == "retained-lookup-error" {
+						return core.BaseAsset{}, core.ErrIncompatibleState
+					}
+					return a, nil
+				})
+			}
 			components, err := r.PlanSnapshot(context.Background(), source, "snap-"+strings.Repeat("e", 32))
-			if mode != "ok" && mode != "no-oci" {
+			if mode != "ok" && mode != "no-oci" && mode != "retained" {
 				if err == nil || len(components) != 0 {
 					t.Fatal("incomplete aggregate accepted", err, components)
 				}
@@ -116,7 +143,7 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 					t.Fatal("lost mount layout")
 				}
 			}
-			if !roles["rootfs"] || !roles["base"] || !roles["workspace:work-one"] || !roles["workspace:work-two"] || roles["oci"] != (mode == "ok") {
+			if !roles["rootfs"] || !roles["base"] || !roles["workspace:work-one"] || !roles["workspace:work-two"] || roles["oci"] != (mode != "no-oci") {
 				t.Fatal(roles)
 			}
 		})

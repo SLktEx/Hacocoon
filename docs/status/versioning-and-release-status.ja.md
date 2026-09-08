@@ -153,8 +153,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.45 | Guest AWS Request Boundary | 実装済み |
 | v0.46 | Snapshot Workspace and OCI storage | 実装済み |
 | v0.47 | Automatic Base retention | 実装済み |
+| v0.48 | Retained Base snapshot capture | 実装済み |
 
-現在のmilestone位置は **v0.47** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.48** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

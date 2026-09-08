@@ -265,6 +265,9 @@ func envOr(name, fallback string) string {
 }
 
 func configureBaseRetention(provider *incus.BaseProvider, store *state.EnvironmentJSONStore) {
+	provider.ConfigureRetainedBases(func(ctx context.Context, base core.BaseRef, scope string) (core.BaseAsset, error) {
+		return store.FindBaseAsset(ctx, base, environmentapp.ProviderIncus, scope)
+	})
 	provider.ConfigureBaseRetention(func(ctx context.Context, base core.BaseRef, scope, source string) (core.BaseAsset, error) {
 		service := &baseasset.Service{Store: store, Backend: &incus.BaseAssetBackend{Provider: provider, PinnedSource: source}, Provider: environmentapp.ProviderIncus}
 		return service.Ensure(ctx, base, scope)

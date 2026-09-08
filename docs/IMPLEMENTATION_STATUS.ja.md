@@ -1,47 +1,33 @@
 # 実装状況
 
-自動保持の初回 GHA は、composition と adapter の provider ID 不一致により
-通常作成で失敗しました。現在は `runtime.incus` に統一し、実際の台帳と backend を
-接続する回帰テスト、および更新した模擬 CLI E2E は成功しています。初回ローカル CI は
-Windows worktree を WSL から使った Git fixture の初期化でも失敗しました。
-fixture の作業ディレクトリを分離し、対象テストは成功しました。修正後の全体 CI と
-インストール済み経路の受入確認は保留中です。
+## Base 保持とスナップショット
 
-## Base の自動保持
+内部実装済み: Incus の通常 Environment・一時 run 作成では init 前に解決済みの
+正確な Base を保持します。追加コマンド・必須引数は不要です。schema 7 の台帳に
+provider の所有権を永続化し、作成完了記録があれば検証を再開します。作成完了が
+不明な planned は予約を残します。Base 失敗時は Base 所有権を残して未使用の
+Workspace lease を解放します。provider ID は共通の `runtime.incus` です。
 
-local Incus の通常 Environment 作成と一時 run 作成は、init 前に解決済み
-Base を保持します。利用者の追加コマンドや引数は不要です。正確な ready の
-所有権を確認してから進みます。Base 準備失敗時は独立した台帳予約を残し、
-未使用の Workspace lease は解放できます。作成完了記録があれば再要求で
-検証を再開できます。
+snapshot planner は完全一致する ready Base の独立 rootfs を検索し、新しい所有権で
+Incus/Btrfs コピーを作ります。不正・未完成・読取不能な保持は拒否します。台帳に
+存在しない場合のみ従来の完全一致イメージを使い、古い binding も読めます。
+保存先の検証・削除は元 Base やイメージの残存に依存しません。
 
-順序・source 固定・receipt 不一致・失敗時所有権の component テストを
-追加しました。通常ユーザーの GHA も create 後の保持実体を確認しますが、
-更新後の実行は未完了です。planned 作成の復旧・参照を考慮した回収・
-snapshot からの保持実体参照・復元は残っています。
-[Base 設計](design/base-images-and-custom-environments.md) を参照してください。
+対象 race テストと模擬 CLI E2E は成功しました。自動保持の全体ローカル CI、GHA の
+test・Ubuntu・Incus・Windows は成功し、PR #489 はマージ済みです。初回 GHA は provider ID の
+不一致で失敗し、実際の台帳・backend を接続する回帰で修正を確認しました。
+初回ローカル CI は Windows worktree を WSL から使った Git fixture の初期化で
+失敗しました。作業ディレクトリを分離し、全体ローカル CI の再実行は成功しました。
 
-Base の作成完了が永続記録されていれば、次の要求で同じ実体を再検証し、
-ready の公開を完了します。作成完了が不明な planned 資源は採用しません。
-
-## Base の保持用所有権
-
-専用 WSL では元イメージを実際に削除し、台帳再読込・同じ Base の再利用・
-rootfs 読取・所有する実体の後片付けが成功しました。adapter とコーディネータの
-受け入れ確認であり、通常作成への接続と復元は未完了です。
-
-Partial: schema 7 に provider 中立の Base 資源台帳と保持コーディネータを
-追加しました。provider・保存先・revision・実体の所有権を作成前に予約し、
-作成完了の永続記録後に検証して ready を公開します。再利用時も同じ実体を
-検証し、途中の失敗では所有権を保持します。schema 6 の snapshot binding は
-引き続き読めます。Incus 側には独立した停止中の Base を保持し、イメージキャッシュに依存せず
-検証する adapter を追加しました。通常作成への接続・復旧・参照を考慮した
-回収は planned で、日常利用でのキャッシュ消失問題はまだ解消していません。
-[ADR 0038](adr/0038-retained-base-assets.md) を参照してください。
-
-aggregate の初回 GHA は、一時 lifecycle lock が先行する一般ユーザーの
-所有だったため失敗しました。検証専用の一時ディレクトリを使うよう修正し、
-製品の所有者チェックは維持しています。修正後の aggregate GHA は成功し、Windows も同じ head の再実行で成功しました。
+専用 WSL の最終集約受入は 1.46 秒で成功しました。fixture は
+`haco-aggregate-e5829f65fc5b94f2`、snapshot は
+`snap-51d2e3ab955f3f1be10c156d1305e185` です。元イメージ削除後に 5 要素を保存し、
+台帳の再読込、元環境・元ボリューム・元 Base の削除、保存済み Git/data の確認、
+所有対象すべての不在を確認する後片付けまで実行しました。更新した snapshot の GHA は
+実行待ちです。復元、公開 save/restore、planned Base の復旧、参照を考慮する回収は
+未完了です。動作中の Docker/containerd の整合性と復元は未検証です。
+[Base 設計](design/base-images-and-custom-environments.md)、
+[snapshot 設計](design/environment-snapshots.md)、[ADR 0038](adr/0038-retained-base-assets.md) を参照してください。
 
 ## snapshot 全体保存
 
@@ -991,7 +977,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.47** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.48** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

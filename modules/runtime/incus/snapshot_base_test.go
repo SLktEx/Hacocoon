@@ -166,3 +166,92 @@ func TestSnapshotBaseCleanupRequiresExactOwnedStoppedInstance(t *testing.T) {
 		})
 	}
 }
+
+func TestSnapshotBaseCopiesRetainedMaterialWithoutCacheAndSurvivesSourceDeletion(t *testing.T) {
+	for _, mode := range []string{"ok", "lost-reply", "foreign-owner"} {
+		t.Run(mode, func(t *testing.T) {
+			p := baseSnapshotFixture()
+			asset := readyBaseReceipt(p.Base, "hacocoon/pool", "local:"+strings.Repeat("b", 64))
+			p.Asset = &asset
+			source := baseStorageIdentity{Kind: "base", Pool: p.Pool, Owner: asset.Owner, Base: p.Base}
+			observe := func(identity baseStorageIdentity) snapshotInstanceObservation {
+				config := identity.config()
+				config["volatile.base_image"] = strings.Repeat("b", 64)
+				devices := map[string]map[string]string{"root": {"type": "disk", "path": "/", "pool": p.Pool}}
+				return snapshotInstanceObservation{Name: identity.target(), Type: "container", Status: "Stopped", Config: config, ExpandedConfig: config, Devices: devices, ExpandedDevices: devices}
+			}
+			sourceItem := observe(source)
+			if mode == "foreign-owner" {
+				sourceItem.Config["user.hacocoon.owner"] = "foreign"
+			}
+			items := []snapshotInstanceObservation{sourceItem}
+			created, receipt, deleted := false, false, false
+			r := New(&fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+				if created && !receipt {
+					t.Fatal("provider call before create receipt", args)
+				}
+				switch {
+				case args[0] == "query" && args[1] == "/1.0/instances?project=hacocoon&recursion=1":
+					raw, _ := json.Marshal(items)
+					return host.Result{Stdout: string(raw)}, nil
+				case args[0] == "query" && args[1] == "/1.0/storage-pools/pool":
+					return host.Result{Stdout: `{"name":"pool","driver":"btrfs"}`}, nil
+				case args[0] == "query" && args[1] == "-X":
+					var req struct {
+						Name   string
+						Config map[string]string
+						Source map[string]any
+					}
+					if json.Unmarshal([]byte(args[6]), &req) != nil || req.Name != p.target() || !reflect.DeepEqual(req.Config, p.config()) || !reflect.DeepEqual(req.Source, map[string]any{"type": "copy", "source": source.target(), "project": "hacocoon", "instance_only": true, "live": false}) {
+						t.Fatal("unexpected copy", req)
+					}
+					created = true
+					// Only the independent target remains after the source is deleted.
+					items = []snapshotInstanceObservation{observe(p.storageIdentity())}
+					if mode == "lost-reply" {
+						return host.Result{ExitCode: 1}, nil
+					}
+					return host.Result{}, nil
+				case args[0] == "delete":
+					if args[1] != p.target() {
+						t.Fatal("deleted source", args)
+					}
+					items = []snapshotInstanceObservation{}
+					deleted = true
+					return host.Result{}, nil
+				default:
+					t.Fatal("unexpected cache access or provider operation", args)
+					return host.Result{}, nil
+				}
+			}})
+			c, err := r.snapshotComponent(snapshotBinding{Version: 1, Project: "hacocoon", Base: &p})
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = r.createSnapshotComponent(context.Background(), core.SnapshotSource{Environment: core.Environment{Base: &p.Base}}, c)
+			if mode == "foreign-owner" {
+				if err == nil || created {
+					t.Fatal(err, created)
+				}
+				return
+			}
+			if mode == "lost-reply" {
+				if !errors.Is(err, core.ErrRecoveryRequired) {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err != nil || !created {
+				t.Fatal(err, created)
+			}
+			receipt = true
+			c.State = "created"
+			if err = r.verifySnapshotComponent(context.Background(), c); err != nil {
+				t.Fatal(err)
+			}
+			if err = r.deleteSnapshotComponent(context.Background(), c); err != nil || !deleted {
+				t.Fatal(err, deleted)
+			}
+		})
+	}
+}

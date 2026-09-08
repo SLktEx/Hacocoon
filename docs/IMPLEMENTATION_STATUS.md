@@ -1,54 +1,42 @@
 # Implementation Status
 
-The initial automatic-retention GHA failed ordinary creation because composition
-and the adapter disagreed on provider identity. They now share `runtime.incus`;
-a composed catalog/backend regression and the updated mock CLI E2E pass. The
-initial local CI also failed Git fixture setup from a Windows worktree in WSL;
-fixture setup now uses an isolated directory and its regression passes. Corrected
-full CI and installed acceptance remain pending.
+## Retained Bases and snapshot capture
 
-## Automatic Base retention
+Implemented internally: ordinary Incus Environment and temporary-run creation
+retain their exact resolved Base before init, without extra user commands or
+arguments. The schema-7 catalog durably records provider ownership; completed
+creation receipts can resume verification. Planned ambiguous creation remains
+reserved. Base failures release unused Workspace leases without losing Base
+ownership. Provider identity is the shared `runtime.incus` constant.
 
-Implemented in the local Incus composition: ordinary Environment and temporary-run
-creation retain their resolved Base before init, without additional user commands
-or arguments. Exact ready ownership is required. Failed Base preparation keeps
-its independent catalog reservation while allowing the unused Workspace lease
-to be released. Durable created assets can finish verification on retry.
+The snapshot planner now looks up exact ready retained material and copies its
+isolated rootfs into independent Incus/Btrfs storage with fresh ownership. Invalid,
+incomplete or unreadable assets fail closed. Only absent catalog entries permit
+legacy exact-image fallback; old bindings remain readable. Saved verification
+and deletion do not depend on the original Base or image remaining.
 
-Component tests cover ordering, source pinning, receipt mismatch and failure
-ownership. Ordinary-user GHA now asserts retained Base material after create;
-its updated execution remains pending. Planned-create recovery, referenced-asset
-collection, snapshot lookup of retained material and restore remain incomplete.
-See [Base design](design/base-images-and-custom-environments.md).
+Focused race tests and mock CLI E2E passed. Automatic-retention full local CI,
+GHA test, Ubuntu, Incus and Windows passed; PR #489 is merged. Initial GHA failed on a
+provider-ID mismatch; the composed catalog/backend regression covers the fix.
+Initial local CI failed Git fixture setup in a Windows worktree accessed through
+WSL; isolated fixture directories fixed it, and full local CI subsequently passed.
 
-A retained Base with a durable creation receipt now completes verification and
-ready publication on the next request. Planned/ambiguous creation is not adopted.
-
-## Retained Base ownership
-
-Partial: schema 7 adds a provider-neutral Base-asset catalog and retention
-coordinator. Exact provider/scope/revision and native ownership are reserved before
-creation; a durable creation receipt precedes verification and ready publication.
-Reuse verifies the same asset, and incomplete work retains ownership. Schema 6
-snapshot bindings remain readable. The Incus storage adapter now retains an independent stopped Base and verifies
-it without the image cache. Ordinary-create integration and created-receipt recovery are implemented;
-reference-aware collection remains planned. The original
-cached-Base limitation is not yet resolved. See [ADR 0038](adr/0038-retained-base-assets.md).
-
-The first aggregate GHA run failed on a foreign-owned temporary lifecycle lock;
-the test now isolates its temporary lock directory. Production ownership checks
-remain unchanged. Corrected aggregate GHA passed; Windows passed on the unchanged-head retry.
-
-Dedicated WSL retained-Base acceptance passed after actual source-image deletion,
-catalog reload, exact reuse and rootfs read, followed by owned cleanup. This is
-adapter/coordinator acceptance; ordinary-create acceptance and restore remain incomplete.
+Dedicated WSL final aggregate acceptance passed in 1.46 seconds with fixture
+`haco-aggregate-e5829f65fc5b94f2` and snapshot
+`snap-51d2e3ab955f3f1be10c156d1305e185`: delete the source image, capture all five
+components, reload the catalog, delete source Environment/volumes and original
+Base, verify saved Git/data, then positively clean up all owned resources.
+The new snapshot GHA execution is pending. Restore, public save/restore, planned
+Base recovery and reference-aware collection remain incomplete. Live Docker/
+containerd consistency and restore are unverified. See [Base design](design/base-images-and-custom-environments.md),
+[snapshot design](design/environment-snapshots.md) and [ADR 0038](adr/0038-retained-base-assets.md).
 
 ## Snapshot aggregate capture
 
 Partial E2: the internal capture/delete service now connects the canonical
 schema-6 catalog and lifecycle locks through the provider router to a complete
 stopped Incus aggregate planner. It includes rootfs, every registered managed
-Workspace/Git member, optional exact OCI storage and the cached effective Base.
+Workspace/Git member, optional exact OCI storage and the retained effective Base (legacy cache fallback).
 One Btrfs pool is supported. Missing/extra disks, duplicate members, foreign
 ownership/users, source creation-ID drift and absent Base assets fail closed.
 Provider bindings and mount layout survive restart; creation receipts precede
@@ -1123,7 +1111,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.47**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.48**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
