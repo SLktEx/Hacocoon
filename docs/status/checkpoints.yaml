@@ -1,7 +1,7 @@
 # Hacocoon development-checkpoint numbering and gate identity.
 # This intentionally uses a constrained YAML subset parsed by repository tooling.
 schema: 1
-current: "v0.46"
+current: "v0.47"
 milestones:
   "v0.1": "Secure Workspace Runtime MVP"
   "v0.2": "Workspace Abstraction & Lease"
@@ -49,3 +49,4 @@ milestones:
   "v0.44": "Verified AWS Object Downloads"
   "v0.45": "Guest AWS Request Boundary"
   "v0.46": "Snapshot Workspace and OCI storage"
+  "v0.47": "Automatic Base retention"

@@ -165,3 +165,32 @@ func TestBaseAssetBackendRejectsBindingDriftBeforeProviderAccess(t *testing.T) {
 		})
 	}
 }
+
+func TestBaseAssetPlanPreservesResolvedLocalSource(t *testing.T) {
+	p := baseSnapshotFixture()
+	provider, err := NewBaseProvider(New(&fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if !reflect.DeepEqual(args, []string{"query", "/1.0/storage-pools/pool"}) {
+			t.Fatal("resolved source was looked up again", args)
+		}
+		return host.Result{Stdout: `{"name":"pool","driver":"btrfs"}`}, nil
+	}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := &BaseAssetBackend{Provider: provider, PinnedSource: "local:" + strings.Repeat("b", 64)}
+	_, binding, err := backend.Plan(context.Background(), p.Base, "hacocoon/pool", p.Owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var plan baseAssetBinding
+	if err := json.Unmarshal([]byte(binding), &plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan.Source != backend.PinnedSource {
+		t.Fatal("effective source substituted", plan.Source)
+	}
+	backend.PinnedSource = "local:" + strings.Repeat("c", 64)
+	if _, _, err := backend.Plan(context.Background(), p.Base, "hacocoon/pool", p.Owner); err == nil {
+		t.Fatal("accepted another revision")
+	}
+}

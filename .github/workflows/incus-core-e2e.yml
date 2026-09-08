@@ -110,7 +110,9 @@ jobs:
           check-latest: true
           cache: false
       - name: Validate real Incus storage CLI E2E helpers
-        run: bash -n tools/ci-incus-core.sh tools/ci-incus-storage-cli.sh
+        run: |
+          bash -n tools/ci-incus-core.sh tools/ci-incus-storage-cli.sh
+          python3 tools/test_cleanup_ci_base_asset.py
       - name: Prepare real Incus substrate
         run: |
           printf 'INCUS_CONF=%s/haco-incus-client\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"

@@ -1,9 +1,14 @@
 # バージョン番号とリリース状況
+現在の checkpoint v0.47 は、通常の Incus Environment 作成へ Base の自動
+保持を接続します。利用者の追加操作は不要で、作成完了記録があれば再要求で
+検証を再開できます。installed 受け入れ・planned 作成の復旧・回収・
+snapshot/restore への接続は未完了です。
+
 
 v0.46 の snapshot 作業に schema 7 の Base 保持用所有権と内部の保持
 コーディネータを追加しました。Incus の実体保持 adapter は実装済みですが、通常作成への自動接続は
 planned です。新しい公開コマンドは追加していません。
-現在の checkpoint v0.46 は、schema 6 の所有権、provider routing、独立した
+checkpoint v0.46 では、schema 6 の所有権、provider routing、独立した
 rootfs/Workspace/OCI/Base 保存を通した停止中 snapshot 全体保存まで含みます。
 専用 WSL で 5 component の保存、catalog 再読込み、元資源削除、保存先 Git/データ保持と
 cleanup に成功しました。復元と公開日常操作は残作業、全体 GHA は待機中です。
@@ -147,8 +152,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.44 | Verified AWS Object Downloads | 実装済み |
 | v0.45 | Guest AWS Request Boundary | 実装済み |
 | v0.46 | Snapshot Workspace and OCI storage | 実装済み |
+| v0.47 | Automatic Base retention | 実装済み |
 
-現在のmilestone位置は **v0.46** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.47** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

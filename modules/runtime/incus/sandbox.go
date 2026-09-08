@@ -54,6 +54,9 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	if err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("resolve isolated root storage: %w", err)
 	}
+	if err := p.retainResolvedBase(ctx, resolved, rootPool); err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
 	if err := p.ensureRoutedSandboxHost(ctx); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("ensure Hacocoon routed sandbox substrate: %w", err)
 	}

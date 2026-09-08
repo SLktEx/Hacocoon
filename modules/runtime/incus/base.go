@@ -37,6 +37,7 @@ func WithSeedResolver(resolver SeedResolver) BaseProviderOption {
 }
 
 type BaseProvider struct {
+	retainBase func(context.Context, core.BaseRef, string, string) (core.BaseAsset, error)
 	*Runtime
 	sources      map[core.BaseName]string
 	seedResolver SeedResolver
@@ -136,6 +137,18 @@ func (p *BaseProvider) CreateEnvironment(ctx context.Context, spec core.Environm
 	resolved, err := p.resolveBase(ctx, spec.Base)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
+	}
+	if p.retainBase != nil {
+		if err := p.ensureProject(ctx); err != nil {
+			return core.EnvironmentRuntime{}, err
+		}
+		pool, err := p.defaultRootPool(ctx)
+		if err != nil {
+			return core.EnvironmentRuntime{}, err
+		}
+		if err := p.retainResolvedBase(ctx, resolved, pool); err != nil {
+			return core.EnvironmentRuntime{}, err
+		}
 	}
 	clone := *p.Runtime
 	clone.image = resolved.pinnedSource
@@ -267,4 +280,32 @@ func pinImageSource(source, fingerprint string) string {
 		return source[:cut+1] + fingerprint
 	}
 	return fingerprint
+}
+
+// ConfigureBaseRetention connects the composition-owned durable asset service.
+// Call once during composition, before serving concurrent Environment requests.
+func (p *BaseProvider) ConfigureBaseRetention(retain func(context.Context, core.BaseRef, string, string) (core.BaseAsset, error)) {
+	p.retainBase = retain
+}
+func (p *BaseProvider) retainResolvedBase(ctx context.Context, resolved resolvedBase, pool string) error {
+	if p.retainBase == nil {
+		return nil
+	}
+	base := resolved.ref
+	asset, err := p.retainBase(ctx, base, p.project+"/"+pool, resolved.pinnedSource)
+	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		// The independent Base catalog owns any incomplete resource. No Environment
+		// has been created here, so its Workspace reservation can safely be released.
+		return fmt.Errorf("retain Base %q before Environment creation: %w", base.Name, core.ErrRuntimeUnavailable)
+	}
+	if asset.Base != base || asset.Provider != "incus" || asset.Scope != p.project+"/"+pool || asset.State != "ready" {
+		return core.ErrIncompatibleState
+	}
+	if _, _, err := (&BaseAssetBackend{Provider: p}).decode(asset); err != nil {
+		return err
+	}
+	return nil
 }

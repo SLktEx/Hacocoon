@@ -1,5 +1,19 @@
 # 実装状況
 
+## Base の自動保持
+
+local Incus の通常 Environment 作成と一時 run 作成は、init 前に解決済み
+Base を保持します。利用者の追加コマンドや引数は不要です。正確な ready の
+所有権を確認してから進みます。Base 準備失敗時は独立した台帳予約を残し、
+未使用の Workspace lease は解放できます。作成完了記録があれば再要求で
+検証を再開できます。
+
+順序・source 固定・receipt 不一致・失敗時所有権の component テストを
+追加しました。通常ユーザーの GHA も create 後の保持実体を確認しますが、
+更新後の実行は未完了です。planned 作成の復旧・参照を考慮した回収・
+snapshot からの保持実体参照・復元は残っています。
+[Base 設計](design/base-images-and-custom-environments.md) を参照してください。
+
 Base の作成完了が永続記録されていれば、次の要求で同じ実体を再検証し、
 ready の公開を完了します。作成完了が不明な planned 資源は採用しません。
 
@@ -970,7 +984,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.46** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.47** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

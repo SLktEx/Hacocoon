@@ -12,7 +12,10 @@ import (
 
 // BaseAssetBackend retains independently owned Base rootfs material. Its caller
 // must persist the complete plan before Create and its receipt before Verify.
-type BaseAssetBackend struct{ Provider *BaseProvider }
+type BaseAssetBackend struct {
+	Provider     *BaseProvider
+	PinnedSource string
+}
 
 var _ baseasset.Backend = (*BaseAssetBackend)(nil)
 
@@ -37,7 +40,11 @@ func (b *BaseAssetBackend) Plan(ctx context.Context, base core.BaseRef, scope, o
 		return "", "", core.ErrNotFound
 	}
 	fp, _ := baseRevisionFingerprint(base.Revision)
-	binding := baseAssetBinding{Version: 1, Project: project, Pool: pool, Source: pinImageSource(source, fp)}
+	pinned := pinImageSource(source, fp)
+	if b.PinnedSource != "" {
+		pinned = b.PinnedSource
+	}
+	binding := baseAssetBinding{Version: 1, Project: project, Pool: pool, Source: pinned}
 	if !validBaseAssetSource(binding.Source, fp) {
 		return "", "", core.ErrUnsupported
 	}
