@@ -248,7 +248,12 @@ haco open --client ssh dev
 ```
 
 If exactly one Environment exists, omit `dev`. With multiple Environments,
-the command lists names and asks for a name on the next invocation. `haco open`
+an interactive terminal lists names with Workspace IDs and access modes, then
+accepts a number in the same invocation. Blank input cancels before desktop or
+connection setup. Noninteractive callers must supply a name and their stdin is
+not consumed. The selected creation/runtime identity, Workspace and access mode
+are rechecked during ordinary setup; a stale selection asks the user to select
+again. This check does not replace controller lifecycle validation. `haco open`
 performs the same setup then launches the installed VS Code on `/workspace`
 through Remote-SSH; if its extension is absent, the client installs it with the
 installed VS Code CLI before launch. Installation failure is reported as failure.

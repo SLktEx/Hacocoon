@@ -5,6 +5,7 @@ Installed by the Windows installer and invoked by controller-owned setup. No pro
 Environment devices are modified. Windows continues to enforce its user's ACLs.
 """
 import json
+import hashlib
 import inspect
 import os
 from pathlib import Path
@@ -175,7 +176,28 @@ test -S /run/WSL/1_interop
 """
 
 
-def notification_unit(paths, distribution):
+def notification_executable_revision(path=Path('/usr/local/bin/haco-notify')):
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1 or info.st_mode & 0o022 or not 0 < info.st_size <= 128 * 1024 * 1024:
+            raise ValueError('unsafe notification executable')
+        digest = hashlib.sha256()
+        remaining = info.st_size
+        while remaining:
+            chunk = stream.read(min(remaining, 1024 * 1024))
+            if not chunk: raise ValueError('notification executable changed')
+            digest.update(chunk)
+            remaining -= len(chunk)
+        final = os.fstat(stream.fileno())
+        if stream.read(1) or final.st_size != info.st_size or final.st_mtime_ns != info.st_mtime_ns:
+            raise ValueError('notification executable changed')
+        return digest.hexdigest()
+
+
+def notification_unit(paths, distribution, revision):
+    if not re.fullmatch(r'[0-9a-f]{64}', revision):
+        raise ValueError('invalid notification executable revision')
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}', distribution):
         raise ValueError('invalid notification distribution')
     def setting(value):
@@ -187,7 +209,7 @@ def notification_unit(paths, distribution):
         'WSL_INTEROP=/run/WSL/1_interop', 'WSL_DISTRO_NAME=' + distribution,
         'PATH=' + GUEST_LINUX_PATH + ':' + ':'.join(paths),
     ]
-    return ('# Hacocoon managed native notifications\n[Unit]\n'
+    return ('# Hacocoon managed native notifications\n# Executable SHA256: ' + revision + '\n[Unit]\n'
             'Description=Hacocoon desktop notifications\nAfter=systemd-tmpfiles-setup.service\n'
             'StartLimitIntervalSec=60\nStartLimitBurst=5\n[Service]\nType=simple\n'
             'ExecStart=/usr/local/bin/haco-notify native --from-now\n'
@@ -206,11 +228,13 @@ def install_notification_unit(unit, enabled, directory=Path('/etc/systemd/system
         raise ValueError('unsafe notification service directory')
     target = directory / 'hacocoon-notify.service'
     exists = target.exists() or target.is_symlink()
+    previous = None
     if exists:
         info = target.lstat()
         if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1 or info.st_mode & 0o022 or info.st_size > 32768:
             raise ValueError('unsafe existing notification service')
-        if not target.read_text().startswith(marker):
+        previous = target.read_text()
+        if not previous.startswith(marker):
             raise ValueError('notification service is owned by another configuration')
     if enabled is None:
         if not exists:
@@ -225,6 +249,13 @@ def install_notification_unit(unit, enabled, directory=Path('/etc/systemd/system
         if exists:
             run(['systemctl', 'disable', '--now', 'hacocoon-notify.service'], check=True)
         return
+    if previous == unit:
+        active = run(['systemctl', 'is-active', '--quiet', 'hacocoon-notify.service'], check=False)
+        if active.returncode == 0:
+            run(['systemctl', 'enable', 'hacocoon-notify.service'], check=True)
+            return
+        if active.returncode != 3:
+            raise subprocess.CalledProcessError(active.returncode, 'inspect notification activity')
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode='w', dir=directory, delete=False) as stream:
@@ -251,7 +282,7 @@ def install_notification_unit(unit, enabled, directory=Path('/etc/systemd/system
 
 
 def configure_notifications(incus, paths, distribution, enabled):
-    unit = notification_unit(paths, distribution)
+    unit = notification_unit(paths, distribution, notification_executable_revision())
     program = ('from pathlib import Path\nimport os, stat, tempfile, subprocess\n' +
                inspect.getsource(install_notification_unit) +
                '\ninstall_notification_unit(' + repr(unit) + ', ' + repr(enabled) + ')\n')

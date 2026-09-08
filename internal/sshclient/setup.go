@@ -62,6 +62,36 @@ func ResolveDesktop(ctx context.Context) (Desktop, error) {
 	return Desktop{Home: home, NativeHome: native, Windows: true}, nil
 }
 
+// SetupSelected checks the displayed identity before local changes and at each
+// subsequent status observation in the ordinary setup path.
+func SetupSelected(ctx context.Context, c Controller, d Desktop, selected core.Environment) (string, error) {
+	if !namePattern.MatchString(selected.Name) || selected.RuntimeRef == "" || selected.CreatedAt.IsZero() || selected.Workspace.ID == "" {
+		return "", core.ErrInvalidArgument
+	}
+	guarded := selectedController{Controller: c, selected: selected}
+	if _, err := guarded.EnvironmentStatus(ctx, selected.Name); err != nil {
+		return "", err
+	}
+	return Setup(ctx, guarded, d, selected.Name)
+}
+
+type selectedController struct {
+	Controller
+	selected core.Environment
+}
+
+func (c selectedController) EnvironmentStatus(ctx context.Context, name string) (core.EnvironmentStatus, error) {
+	status, err := c.Controller.EnvironmentStatus(ctx, name)
+	if err != nil {
+		return status, err
+	}
+	expected, actual := c.selected, status.Environment
+	if actual.Name != expected.Name || actual.RuntimeRef != expected.RuntimeRef || !actual.CreatedAt.Equal(expected.CreatedAt) || actual.Workspace.ID != expected.Workspace.ID || actual.AccessMode != expected.AccessMode {
+		return core.EnvironmentStatus{}, fmt.Errorf("selected Environment changed; select it again: %w", core.ErrIncompatibleState)
+	}
+	return status, nil
+}
+
 func Setup(ctx context.Context, c Controller, d Desktop, name string) (alias string, resultErr error) {
 	if !namePattern.MatchString(name) {
 		return "", core.ErrInvalidArgument

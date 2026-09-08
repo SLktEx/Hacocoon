@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
+	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/sshclient"
 )
 
@@ -70,6 +71,7 @@ func setupDesktopSSH(args []string, launch string) int {
 		return 1
 	}
 	name := ""
+	var selectedEnvironment *core.Environment
 	if len(args) == 1 {
 		name = args[0]
 	} else {
@@ -78,21 +80,28 @@ func setupDesktopSSH(args []string, launch string) int {
 			fmt.Fprintln(os.Stderr, "haco:", err)
 			return 1
 		}
-		if len(envs) != 1 {
-			fmt.Fprintln(os.Stderr, "haco: select an Environment by name; available Environments:")
-			for _, env := range envs {
-				fmt.Fprintln(os.Stderr, " ", env.Name)
-			}
+		chosen, err := chooseDesktopEnvironment(envs, stdioIsInteractive(), os.Stdin, os.Stderr)
+		if errors.Is(err, errEnvironmentChoiceCanceled) {
+			return 0
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "haco:", err)
 			return 2
 		}
-		name = envs[0].Name
+		name = chosen.Name
+		selectedEnvironment = &chosen
 	}
 	desktop, err := sshclient.ResolveDesktop(ctx)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "haco:", err)
 		return 1
 	}
-	alias, err := sshclient.Setup(ctx, client, desktop, name)
+	var alias string
+	if selectedEnvironment != nil {
+		alias, err = sshclient.SetupSelected(ctx, client, desktop, *selectedEnvironment)
+	} else {
+		alias, err = sshclient.Setup(ctx, client, desktop, name)
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "haco:", err)
 		return 1

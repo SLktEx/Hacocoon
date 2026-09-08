@@ -1,5 +1,5 @@
 # Versioning and release status
-Current checkpoint v0.40 adds the owned Host pause/COW/resume provider boundary and persistent restart guard. The actual Host area provisioning and Docker/containerd recovery acceptance remain partial. See [implementation status](../IMPLEMENTATION_STATUS.md).
+Current checkpoint v0.41 adds interactive Environment selection for desktop SSH/VS Code setup without another command or required argument. Multi-Environment GUI acceptance remains pending. See [implementation status](../IMPLEMENTATION_STATUS.md).
 
 Fresh Host setup now binds the owned OCI area automatically; existing data migration and runtime acceptance remain partial.
 Preceding checkpoint v0.39 adds the Windows notification review adapter and per-distribution registration. Native history/protocol/stale-refusal checks passed locally; fresh notification decisions and Linux activation remain incomplete. See [implementation status](../IMPLEMENTATION_STATUS.md).
@@ -143,8 +143,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.38 | Pending Approval Review | ✅ implemented |
 | v0.39 | Windows Notification Review | ✅ implemented |
 | v0.40 | Host OCI Area Copy Boundary | partial |
+| v0.41 | Interactive Environment Selection | ✅ implemented |
 
-The current milestone position is **v0.40**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.41**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

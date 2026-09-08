@@ -58,3 +58,8 @@ native client は非公開の状態ディレクトリを固定し、購読・表
 通知の起動処理は失敗状態を確認してから reset します。新規の inactive unit は失敗状態を
 持たず systemd が解放する場合もありますが、正常に起動できなければなりません。
 失敗済み unit の reset 経路は維持し、確認結果が不明な場合は成功扱いせず setup を失敗させます。
+
+setup の再実行では、所有確認済みの通知サービスが active で unit 設定と実行ファイルの
+revision が一致すれば再利用します。保護された Physical Host のインストール済み companion の
+SHA-256 を unit に記録し、バイナリや設定が変わった場合は再起動します。健康な再設定は
+systemd の起動回数制限を消費しません。inactive／failed の復旧と opt-out は維持します。

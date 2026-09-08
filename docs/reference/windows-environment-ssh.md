@@ -12,7 +12,9 @@ haco open my-dev
 haco open --client ssh my-dev
 ```
 
-A single Environment needs no name. Setup manages Windows-owned keys, host-key
+A single Environment needs no name. With several, run `haco open` or
+`haco ssh setup` in a terminal and select a number from the Environment/Workspace
+list. Blank input cancels. Scripts should supply the name explicitly. Setup manages Windows-owned keys, host-key
 pins and the SSH include, resumes stopped Environments and reuses matching
 connections. See the [client contract](../design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening)
 for ownership and recovery.

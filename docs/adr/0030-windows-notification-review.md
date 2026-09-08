@@ -65,3 +65,9 @@ Notification startup inspects failure state before resetting it. A fresh inactiv
 unit has no failed state and may be unloaded by systemd; it must still start
 normally. Existing failed units retain the explicit reset path. Unknown inspection
 results fail setup rather than being treated as a successful start.
+
+Repeated setup reuses an active owned notification service when its full unit
+configuration and executable revision match. The unit records a SHA-256 revision
+of the installed, protected Physical Host companion; a new binary or configuration
+therefore still restarts the service. Healthy refresh does not consume systemd
+start-rate limits. Inactive/failed service recovery and opt-out remain explicit.

@@ -1,5 +1,25 @@
 # 実装状況
 
+## デスクトップ接続時の Environment 選択
+
+implemented: 対話端末の `haco open` と `haco ssh setup` は、複数の Environment が
+あると Environment／Workspace の一覧を示し、その場で番号選択できます。一つなら入力不要です。
+空入力は setup 前に取り消し、非対話で対象が曖昧なら stdin を読まず名前の指定を求めます。
+SSH クライアントは選択した作成時刻・runtime・Workspace・access mode を setup 中に再確認します。
+
+component 回帰と実 PTY 上の製品プロセステストで、選択と取り消しが成功しました。
+非公開の fixture controller と一時 desktop directory を用いたもので、複数 Environment からの
+Windows／VS Code 実接続の証明ではありません。既存の単一 Environment の実績と区別し、
+新しい GUI 受け入れは pending です。
+
+`711005a` の GHA test／Ubuntu／Incus は成功しました。Windows run 34185304876 は
+インストール・再起動・再インストールと実 SSH 設定／再利用を通過しましたが、Host customization
+の後片付けと通知サービスの稼働確認で失敗しました。連続 setup による systemd 起動制限への
+到達を再現し、健康で同じサービスを再利用するよう修正しています。実行ファイルや設定の変更時は
+再起動します。Python 回帰 12 件と実 systemd の連続 8 回の再設定・後片付けは成功しました。
+途中の編集で Python indentation error があり、修正後に上記検証を通しました。
+更新後の Windows 全体の受け入れは pending です。
+
 ## 新規通知サービスの起動
 
 Windows run 34181502807 は通知サービス設定で失敗し、後続の接続・native 検証は SKIP です。
@@ -767,7 +787,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.40** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.41** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

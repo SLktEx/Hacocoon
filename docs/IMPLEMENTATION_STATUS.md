@@ -1,5 +1,27 @@
 # Implementation Status
 
+## Interactive desktop Environment selection
+
+Implemented: `haco open` and `haco ssh setup` offer an Environment/Workspace list
+when multiple Environments exist in an interactive terminal. A sole Environment
+still needs no input. Blank input cancels before setup; noninteractive ambiguity
+requires an explicit name without reading stdin. The SSH client rechecks the
+selected creation/runtime identity, Workspace and access mode during setup.
+
+Component regressions and real-PTY product-process tests passed selection and
+cancellation with a private fixture controller and temporary desktop directory.
+They do not prove a multi-Environment Windows/VS Code connection. Existing
+single-Environment editor evidence remains separate; new GUI acceptance is pending.
+
+At `711005a`, GHA test/Ubuntu/Incus passed. Windows run 34185304876 passed
+installation/restart/reinstallation and actual SSH setup/reuse, but failed the
+Host customization cleanup and notification activity check. Repeated setup was
+reproduced exhausting systemd's start limit. Healthy identical services now remain
+running; changed executable revisions/configuration still restart. Twelve Python
+regressions and eight consecutive real-systemd refreshes plus cleanup passed.
+An intermediate edit had a Python indentation error and was corrected before
+these successful runs. Full updated Windows acceptance remains pending.
+
 ## Fresh notification service startup
 
 Windows run 34181502807 failed at notification-service setup and skipped the
@@ -872,7 +894,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.40**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.41**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
