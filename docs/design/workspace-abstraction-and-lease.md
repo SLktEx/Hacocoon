@@ -97,3 +97,48 @@ attached directly at all. Opt-out and explicit selection bypass the initializer.
 See [ADR 0017](../adr/0017-default-workspace-resource-initialization.md).
 
 Creation now persists a random Environment instance ID in the canonical lease reservation. It survives resume and differs after same-name recreation. Legacy ready aggregates receive an ID once under the catalog lock; provider resources are unchanged. See [approval identity](../adr/0025-environment-approval-identity.md).
+
+
+## Resume and recreate an external Workspace
+
+Existing commands cover this flow; recreation does not need a separate public
+command. For an external controller-side Workspace:
+
+```sh
+haco env create --workspace /home/hacocoon/dev --no-oci dev
+haco env stop dev
+haco env start dev
+```
+
+Stop/start resumes the same Environment filesystem and Workspace. Guest temporary
+directories such as /tmp may be cleared by the guest OS at boot.
+
+Before deleting, save any needed Environment-only files into the Workspace.
+Deletion removes the Environment filesystem. Recreate with the same Workspace
+and chosen Base only when losing those Environment-only changes is intended:
+
+```sh
+haco env stop dev
+haco env delete dev
+haco env create --workspace /home/hacocoon/dev --no-oci dev
+```
+
+This explicit example opts out of OCI so its acceptance scope is clear; normal
+creation still initializes OCI by default. Workspace files, including untracked
+and uncommitted file contents, survive deletion. This flow is not a snapshot,
+does not preserve arbitrary guest configuration, and does not test managed Git
+metadata, OCI restoration or Base revision migration.
+
+Dedicated WSL acceptance passed with product 093ed159b80e and ordinary controller
+APIs: a guest-written external read/write Workspace file and /root file survived
+stop/start; recreation preserved the Workspace identity/data and removed the
+Environment-only file. Fixture m1-egress-708dfbc120260908 was canonically deleted;
+provider inventory and the temporary Workspace were verified absent afterward.
+The initial m1-egress-708dfbc020260908 attempt failed resume validation because
+the test placed its Environment marker in /tmp. That fixture was also cleaned;
+the corrected permanent-filesystem test passed. This is a supported baseline,
+not completion of roadmap E2-E5.
+
+The existing Windows installer E2E now runs check-lifecycle through the same
+installed acceptance tool. Its phase/identity verifier regressions and local CI
+passed; new-head GHA is pending.

@@ -1,5 +1,16 @@
 # Implementation Status
 
+## External Workspace recreation acceptance
+
+E1 baseline passed in dedicated WSL at product 093ed159b80e: ordinary API
+stop/start retained Workspace and permanent guest files; delete/recreate retained
+the guest-written external Workspace file and removed guest-only state. Corrected
+fixture m1-egress-708dfbc120260908 and the initial failed /tmp-marker fixture were
+fully cleaned. Phase/identity regressions and local CI passed. Windows installed
+E2E now includes the flow; new-head GHA is pending. Managed Git/OCI combinations
+and E2-E5 remain separate work. See [Workspace lifecycle](design/workspace-abstraction-and-lease.md#resume-and-recreate-an-external-workspace).
+
+
 ## Real guest AWS refusal acceptance
 
 Dedicated WSL passed ordinary-user creation, installed guest haco selection,

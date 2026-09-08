@@ -28,11 +28,13 @@ const passed = "allowed_https=verified denied_proxy=403 direct_tcp=blocked manag
 func main() {
 	var err error
 	if len(os.Args) != 3 {
-		err = errors.New("usage: installed-egress-check check <environment> | check-aws <environment> | probe <public-ipv4>")
+		err = errors.New("usage: installed-egress-check check <environment> | check-aws <environment> | check-lifecycle <environment> | probe <public-ipv4>")
 	} else if os.Args[1] == "check" {
-		err = check(os.Args[2], true)
+		err = check(os.Args[2], true, false)
 	} else if os.Args[1] == "check-aws" {
-		err = check(os.Args[2], false)
+		err = check(os.Args[2], false, false)
+	} else if os.Args[1] == "check-lifecycle" {
+		err = check(os.Args[2], false, true)
 	} else if os.Args[1] == "probe" {
 		err = probe(os.Args[2])
 	} else {
@@ -44,7 +46,7 @@ func main() {
 	}
 }
 
-func check(name string, network bool) (result error) {
+func check(name string, network, lifecycle bool) (result error) {
 	if os.Geteuid() == 0 || !regexp.MustCompile(`^m1-egress-[a-f0-9]{16}$`).MatchString(name) {
 		return errors.New("check requires the ordinary WSL user and a unique acceptance name")
 	}
@@ -81,8 +83,12 @@ func check(name string, network bool) (result error) {
 	if err := copyProbe(filepath.Join(workspace, "probe")); err != nil {
 		return err
 	}
+	access := core.WorkspaceReadOnly
+	if lifecycle {
+		access = core.WorkspaceReadWrite
+	}
 	created, err := client.CreateEnvironment(ctx, controlapi.EnvironmentCreateRequest{
-		Name: name, WorkspacePath: workspace, AccessMode: core.WorkspaceReadOnly,
+		Name: name, WorkspacePath: workspace, AccessMode: access,
 	})
 	if err != nil {
 		return fmt.Errorf("controller create failed; retain workspace %s: %w", workspace, err)
@@ -110,6 +116,11 @@ func check(name string, network bool) (result error) {
 		}
 		// Remove only known files after successful controller cleanup. Never
 		// recursively delete a Workspace after an uncertain lifecycle outcome.
+		if lifecycle {
+			if err := os.Remove(filepath.Join(workspace, "work.txt")); err != nil && !errors.Is(err, os.ErrNotExist) {
+				result = errors.Join(result, err)
+			}
+		}
 		result = errors.Join(result, os.Remove(filepath.Join(workspace, "probe")))
 		result = errors.Join(result, os.Remove(workspace))
 	}()
@@ -141,6 +152,13 @@ func check(name string, network bool) (result error) {
 			}
 			return fmt.Errorf("Environment egress probe failed (phase %s, proxy status %s, denial=%s, exit %d)", phase, proxyStatus, denial, executed.ExitCode)
 		}
+	}
+	if lifecycle {
+		if err := checkRetainedWorkspace(ctx, client, created); err != nil {
+			return err
+		}
+		fmt.Println("stop_start=retained environment_recreated=clean workspace=preserved")
+		return nil
 	}
 	if err := checkGuestAWS(ctx, client, name); err != nil {
 		return err

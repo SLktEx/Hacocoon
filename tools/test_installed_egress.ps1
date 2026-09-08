@@ -42,6 +42,8 @@ with os.fdopen(fd, 'wb') as f:
     # Default ordinary WSL user; no HACO_* overrides and no guest-local daemon.
     & wsl.exe -d Hacocoon --exec $linuxBinary check $environmentName
     if ($LASTEXITCODE -ne 0) { throw 'Installed controller / Environment egress acceptance failed' }
+    & wsl.exe -d Hacocoon --exec $linuxBinary check-lifecycle $environmentName
+    if ($LASTEXITCODE -ne 0) { throw 'Installed stop/start and Workspace recreation acceptance failed' }
 } finally {
     if ($policyCreated) {
         $removePolicy = @'

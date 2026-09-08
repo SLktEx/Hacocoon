@@ -1,5 +1,16 @@
 # 実装状況
 
+## 外部 Workspace 再作成の実機検証
+
+E1 の基本構成が専用 WSL の product 093ed159b80e で成功しました。通常 API の stop/start
+では Workspace と永続的な guest ファイルを保持し、delete/create では guest が編集した
+外部 Workspace を保持して guest 内だけの状態を除去しました。修正版 fixture
+m1-egress-708dfbc120260908 と、最初に /tmp marker で失敗した fixture は両方とも
+片付け済みです。各段階・identity 判定と local CI は成功しました。Windows installed E2E
+にも追加し、新 HEAD の GHA は未完了です。managed Git/OCI の組合せと E2-E5 は別の残作業です。
+[Workspace lifecycle](design/workspace-abstraction-and-lease.md#resume-and-recreate-an-external-workspace)を参照してください。
+
+
 ## 実 guest AWS 拒否検証
 
 専用 WSL の product 093ed159b80e で、通常ユーザーによる作成、guest haco 自動選択、
