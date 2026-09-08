@@ -1,9 +1,10 @@
 # Environment snapshots and restore
 
-Status: **partial internal foundation**. Source validation and lifecycle locking
-and a durable component catalog/capture coordinator are implemented. Incus custom
-volume, independent rootfs and exact-revision Base COW primitives are implemented and tested; complete aggregate capture,
-restore and public CLI are planned. No usable Environment snapshot is produced yet.
+Status: **partial internal capture backend**. The durable component catalog and
+capture coordinator now connect through the provider router to an Incus aggregate
+planner and owned storage. Individual storage primitives have real-host evidence;
+the full aggregate path passed dedicated WSL catalog/coordinator/router acceptance.
+Restore and public CLI remain pending.
 
 ## Scope
 
@@ -73,13 +74,14 @@ publication follows verification of every component. Failure returns the reserve
 snapshot ID and retains recovery state, including caller cancellation or failure
 to write the recovery marker. DeleteSnapshot holds the same lifecycle locks,
 rechecks the manifest, and retries only components not durably confirmed absent.
-The production Incus runtime does not yet implement this optional backend, so
-production capture fails as unsupported before reserving or mutating resources.
+The production Incus runtime now implements this optional backend and the existing
+Base/provider router forwards it. Source enumeration and storage remain behind
+the Incus boundary; controller-facing public operations are not yet exposed.
 
-Implement the Incus backend for this contract.
+The following ownership rule applies to this backend:
 Record each newly created identity immediately, before another fallible step.
-A storage backend, full member inventory and independent saved data are still
-required before these internal records represent a usable snapshot.
+Restoration and public operations are
+still required before this internal path becomes a usable daily snapshot feature.
 
 Restore must show which current changes will be replaced and preserve recoverable
 pre-restore state. All component restoration and failure recovery must precede
@@ -197,10 +199,10 @@ haco-snapshot-root-dc2e92a1d1cb24ddad89921d09c82566. It verified guest-only file
 retention, Btrfs parent UUID ec4b0e81-f190-5a4f-a30b-9e076b7b17e8, config/device
 masking and survival of source edits/deletion. Cleanup and final inventory were
 verified. Existing Incus GHA now runs both volume and rootfs fixtures. The previous
-volume-only checkpoint's Incus GHA passed; the updated rootfs GHA is pending.
+volume and rootfs fixtures passed in existing Incus GHA.
 
-Durable complete aggregate binding including Base assets, production coordinator
-routing and restore remain planned. These primitives do not yet provide a public
+Complete aggregate binding and production routing are implemented below;
+restore remains planned. These primitives do not yet provide a public
 save/restore operation or complete Environment round-trip acceptance.
 
 ## Independent Base storage
@@ -220,7 +222,7 @@ workload configuration. Incus image.* properties are descriptive metadata and
 never ownership evidence. Deletion uses the same checks and positively observes
 absence. The saved instance is not a runnable Hacocoon Environment. This retains
 Base filesystem material; it is not a published image/archive or a Base registry.
-Full aggregate binding, registration and restore remain planned.
+Aggregate binding is implemented below; Base registration and restore remain planned.
 
 Dedicated WSL Incus 6.0.5 acceptance passed with target
 haco-snapshot-base-c7de95953bae7da75ff2557b7a9270b1. It proved exact image identity,
@@ -231,7 +233,7 @@ support --format on 6.0.5; the implementation now uses the JSON API and its
 regression fixes that request contract. The initial reservation was absent at the final cleanup check. Source-image deletion acceptance is SKIP: that cached image is
 shared by existing infrastructure. This test does not establish a full restore
 or independent recreation after losing the original image. Existing Incus GHA
-includes the same fixture; execution of the new Base extension is pending.
+includes the same fixture; its Base extension passed before the aggregate extension.
 
 ## Durable provider binding
 
@@ -246,7 +248,7 @@ access. Creation also compares the source creation ID or effective Base revision
 
 This internal dispatcher can verify/delete a saved binding after JSON reload,
 including a planned target without a creation receipt. Full member enumeration
-and production routing are still planned. No public save/restore command is
+and production routing are implemented below; dedicated WSL aggregate capture passed. No public save/restore command is
 introduced. New reservations with a Base must include a Base component. Legacy
 schema-5 records retain recovery ownership without inventing absent provider
 bindings; Incus refuses to execute them as complete storage plans. Schema-5 files
@@ -259,3 +261,79 @@ that record. Fixture haco-snapshot-base-b5cbeb5867500feef28b98adb957b428 retaine
 the same Btrfs ancestry and independent-write guarantees. This is real adapter
 binding acceptance; the canonical catalog/coordinator and complete aggregate
 remain covered separately, not an installed public snapshot round trip.
+
+## Stopped aggregate planner and provider routing
+
+Implemented internally: the planner resolves registered managed Workspace members
+with exact owners/repository IDs and compares their disk names, paths, pools and
+volume identities against an ownership-verified stopped Incus instance. It records
+the mount layout in each volume binding, includes optional attached OCI and the
+exact cached Base, and uses fresh independent ownership for every target. One
+Btrfs pool is supported initially. Missing Base cache, extra disks, omitted or
+duplicate members, unsupported devices/options, foreign volume users and ownership
+drift refuse planning before any write. The callback inventory is copied before
+sorting. Old volume bindings without mount fields remain decodable for cleanup.
+
+The existing provider router wraps component references with the selected provider,
+unwraps them only for that provider, and refuses source/target provider mismatch.
+There is no Incus conditional in Core and no fallible operation after a create
+returns before the coordinator writes its receipt. The Base router inherits this
+optional backend. No new public command is registered by this change.
+
+Component regressions cover two Workspace members plus OCI/Base, explicit absence
+of OCI, missing/extra storage, malformed ownership, source changes and wrong Base
+image. Router regressions cover nondefault providers and cross-provider refusal.
+These are not real aggregate capture/restore acceptance. The canonical catalog/coordinator/router with all real storage components
+is exercised below; restore and the simple daily command flow remain required.
+
+## Real aggregate capture acceptance
+
+TestRealIncusSnapshotAggregateE2E passed on dedicated WSL Incus 6.0.5 with fixture
+haco-aggregate-f76d7aae24408901 and snapshot
+snap-38a9f5cd646a2b90e3fa9e4c9f35d52b (36.50 seconds). The canonical state store,
+Workspace capture coordinator, Base/provider router and real Incus backend
+published all five components: two independent Git Workspace volumes, OCI,
+rootfs and Base. The test reopens the catalog, deletes the source Environment
+through canonical deletion, proves its absence, and removes exact source volumes.
+Saved components still verify, and real Git HEAD commits plus modified/untracked
+files, OCI fixture data and the guest-only root file retain their saved contents.
+Snapshot cleanup uses the same service and removes the catalog after absence.
+
+The fixture deliberately prepares owned source storage directly. It does not
+claim installed CLI acceptance, restoration/reconnection or running OCI database
+consistency. The shared source Base image is retained, so deletion of that image
+is SKIP. Prior individual storage tests prove Btrfs parent UUID relationships.
+Existing Incus GHA now includes the complete fixture; new execution is pending.
+
+A repeat of the aggregate fixture failed before Environment creation because its
+previously supplied image fingerprint e363846a6ada800967c8d15cf9a2b2e10385ec2988154357c68086b3c6e5a5fa
+was no longer cached. Direct Incus diagnosis confirmed Image not found; the
+current cached image had a different fingerprint and auto_update enabled. The
+exact cause of the cache replacement is not asserted. The failed fixture's OCI
+volume was positively matched to its generated ID/owner, found unused and removed.
+The initial /tmp recovery record had disappeared across WSL restart. All snapshot
+storage fixtures now keep failure records under root-owned /var/lib instead, and
+the aggregate fixture checks its exact cached image before allocating resources.
+A planner regression likewise refuses missing-image observations before mutation.
+
+Automatic retention of Base assets while Environments exist remains required
+before the public daily workflow. The internal capture path refuses a missing
+original Base; it never silently substitutes a different cached image. This
+single-cached-Base acceptance does not establish long-lived Base availability.
+
+The final fixture with durable /var/lib recovery records passed again in 31.43
+seconds using cached image
+1c0521930f3ac10dd5b9e61f236a7f61f8ebb5487a7b44aa4d7d9e75197f81af,
+source haco-aggregate-e218729c326ca5c4 and snapshot
+snap-cca124eb1c6509eadb099360f1c4cb98. All five components, catalog reload,
+source deletion, retained Git/data and cleanup passed. Its owned recovery
+directory was removed only after successful cleanup.
+
+The first aggregate GHA run failed because the preceding ordinary-user CLI
+fixture owned the shared temporary lifecycle-lock directory. Root correctly
+refused that foreign owner; component storage tests passed. The aggregate
+fixture now uses a private temporary directory for its separate catalog and
+unique resources, without changing production locks or ownership checks.
+The failed run also reported incomplete storage cleanup after refusing the
+remaining aggregate instance; the subsequent CI-owned project cleanup succeeded.
+The corrected aggregate GHA execution remains pending.

@@ -63,7 +63,7 @@ func TestRealIncusSnapshotVolumesE2E(t *testing.T) {
 	}
 	// Keep exact intended identities on disk before any creation. A failed test
 	// deliberately retains these owned resources and this recovery record.
-	stateDir, err := os.MkdirTemp("", "haco-snapshot-volume-")
+	stateDir, err := os.MkdirTemp("/var/lib", "haco-snapshot-volume-")
 	if err != nil {
 		t.Fatal(err)
 	}

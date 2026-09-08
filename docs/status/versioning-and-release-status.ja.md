@@ -1,9 +1,9 @@
 # バージョン番号とリリース状況
-現在の checkpoint v0.46 は snapshot の所有権・復旧処理、provider 作成 ID、内部の Workspace/OCI COW 保存を追加します。専用 WSL で volume のデータ/リンク保持、COW の親子関係、元データからの独立性を確認しました。独立 rootfs COW も専用 WSL で確認しました。全構成の保存、Base 保存、復元、公開 CLI は未完了で、新 HEAD の GHA は未確認です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
-
-Schema 6 で snapshot の正確な provider 保存計画を再起動後も保持します。全構成の列挙・routing と復元は残作業です。
-
-正確な revision の内部 Base rootfs 保存も専用 WSL で COW・設定分離・cleanup を確認しました。全構成の snapshot と復元は残作業です。
+現在の checkpoint v0.46 は、schema 6 の所有権、provider routing、独立した
+rootfs/Workspace/OCI/Base 保存を通した停止中 snapshot 全体保存まで含みます。
+専用 WSL で 5 component の保存、catalog 再読込み、元資源削除、保存先 Git/データ保持と
+cleanup に成功しました。復元と公開日常操作は残作業、全体 GHA は待機中です。
+[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
 
 新規 Host の所有確認済み OCI 領域は setup で自動接続されます。既存データの移行と runtime 受け入れは partial です。
 前の checkpoint v0.39 は Windows 通知 review adapter と distribution 別登録を追加します。実機の通知履歴・protocol 起動・古い要求拒否は成功しましたが、通知からの新規回答と Linux 起動は未完了です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
