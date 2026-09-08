@@ -29,7 +29,7 @@ func TestClientAccessCrossesRealProcessBoundary(t *testing.T) {
 set -eu
 printf '%s\n' "$*" >> "$HACO_FAKE_INCUS_LOG"
 if [ "${1:-}" = "list" ]; then
-  printf 'RUNNING\n'
+  printf 'haco-demo-copy,STOPPED\nhaco-demo,RUNNING\n'
 fi
 `
 	if err := os.WriteFile(filepath.Join(bin, "incus"), []byte(script), 0o755); err != nil {
@@ -66,7 +66,7 @@ fi
 	}
 	text := string(log)
 	for _, want := range []string{
-		"list haco-demo --project hacocoon --format csv -c s",
+		"list haco-demo --project hacocoon --format csv -c ns",
 		"config device add haco-demo haco-tcp-18080-3000 proxy listen=tcp:127.0.0.1:18080 connect=tcp:127.0.0.1:3000 --project hacocoon",
 		"config device remove haco-demo haco-tcp-18080-3000 --project hacocoon",
 	} {
