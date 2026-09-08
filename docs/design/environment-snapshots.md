@@ -1,14 +1,15 @@
 # Environment snapshots and restore
 
 Status: **partial**. Public capture/list/delete, independent restore copies and
-canonical saved-rootfs creation are implemented. Public aggregate restore remains
-planned. See [implementation status](../IMPLEMENTATION_STATUS.md).
+canonical saved-rootfs creation and public restore into a new Env are implemented.
+Replacement switching and broader host acceptance remain partial. See [implementation status](../IMPLEMENTATION_STATUS.md).
 
 ## Daily snapshot commands
 
 ```bash
 haco snapshot create dev
 haco snapshot list dev
+haco snapshot restore snap-0123456789abcdef0123456789abcdef new-dev
 haco snapshot delete snap-0123456789abcdef0123456789abcdef
 ```
 
@@ -175,7 +176,8 @@ service. Failure remains failure and the caller owns bounded exact-owned cleanup
 ambiguous creation keeps the reserved name/generation for inspection. No new
 runtime recovery state machine or automatic backup is added. The saved source is
 unchanged. This internal primitive does not adopt arbitrary existing instances.
-Aggregate activation orchestration, target switching and public CLI remain planned.
+Public aggregate restore uses this primitive through canonical creation and start.
+Replacing an existing Environment in place remains planned.
 Independent Workspace and OCI registration are implemented internally; the latter
 uses the existing [Store catalog](persistent-oci-store.md#store-registration-from-a-snapshot).
 
@@ -237,7 +239,9 @@ Workspaces, OCI file data and rootfs; it deletes its owned Base before capture a
 optionally deletes the isolated source image. It checks staged bytes, independent
 edits, unchanged current data, normal Env deletion and source-independent saved
 data. Execution results belong in implementation status. File fixtures do not
-establish live Docker/containerd database consistency or runnable restore.
+establish live Docker/containerd database consistency or a restored SSH handshake.
+With the shipped CLI supplied, the fixture also performs public restore, checks
+fresh identity and guest bytes, then verifies independent saved-data deletion.
 
 ## Canonical creation from saved rootfs
 
@@ -262,6 +266,35 @@ Do not relabel a new catalog as schema 12 or earlier or run an old writer agains
 upgrades need no manual saved-data rewrite. The unpublished schema 9 remains
 explicitly unsupported.
 
-Aggregate Workspace/OCI copy orchestration, replacement switching and public CLI
-remain planned. This internal method takes prepared data bindings; it does not
-claim those higher-level workflows or introduce an automatic backup.
+The public restore service now prepares these bindings. Replacement switching
+remains planned; no automatic backup is introduced.
+
+## Restore into a new Environment
+
+Implemented: `haco snapshot restore [--json] <snapshot-id> [new-env]` creates
+independent normal Workspace/OCI copies and a fresh runtime from saved rootfs,
+then starts it through the canonical lifecycle. No Base/cache lookup, Git network
+operation, automatic backup or old approval replay occurs. Omit the name to use
+`<source>-restored` (source prefix limited to 48 characters). Existing names and
+incomplete creation leases are refused; there is no implicit replacement.
+
+The application service in `internal/snapshotrestore` orders existing registry,
+Store and Environment operations. Each native copy owns its source reservation;
+if the saved source is explicitly deleted between completed stages, the next
+stage fails and cleans its newly owned destinations. Complete copies are already
+independent, so an aggregate-wide runtime recovery transaction is unnecessary.
+
+Before failed-operation data cleanup, the canonical Workspace lock excludes
+creation/attachment, the registry identity is rechecked and durable leases must
+be absent. Store deletion also atomically excludes attachments and checks the
+exact owner. Uncertain runtime cleanup retains its lease, blocking data deletion.
+Cleanup attempts independent owned members and retains receipts when absence is
+unproven. Once an Env has been published, a start failure retains it and its data;
+inspect it and retry `haco env start <name>`. A failure is never reported as success.
+The response includes names of remaining data and the intended Env, without
+private native bindings. No all-crash-point resume machine is added.
+
+Workspace volume names may use their fresh owner when a long repository name
+would exceed the Incus-facing name limit; repository identity and Git provenance
+remain unchanged. Existing saved bindings and schema 13 records are retained.
+No manual saved-data migration is required for this public command.

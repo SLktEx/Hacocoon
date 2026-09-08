@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -66,11 +67,8 @@ func (s *RepositoryService) RestoreWorkspace(ctx context.Context, id string, sav
 		seen[source.Repository] = true
 		member := Object{Kind: "work", ID: id, Repository: source.Repository, Remote: source.Remote, Branch: source.Branch, Owner: object.Owner, State: "creating", RestoredFrom: saved.ID}
 		if len(sources) > 1 {
-			member.ID = id + "-" + source.Repository
 			member.Owner = randomID()
-		}
-		if !ValidID(member.ID) {
-			return Object{}, core.ErrInvalidArgument
+			member.ID = restoredWorkspaceMemberID(id, source.Repository, member.Owner)
 		}
 		member.NativeRef, err = backend.PlanSavedWorkspace(ctx, member.ID, source)
 		if err != nil {
@@ -179,4 +177,39 @@ func (s *RepositoryService) cleanupRestoredWorkspace(ctx context.Context, backen
 		return err
 	}
 	return syncDir(s.Root)
+}
+
+// DeleteRestoredCopy is exact-owned failure cleanup for a published data copy.
+// The lifecycle service must hold its Workspace lock and exclude durable leases.
+func (s *RepositoryService) DeleteRestoredCopy(ctx context.Context, expected Object) error {
+	if expected.State != "ready" || !validSavedID(expected.RestoredFrom) || !validObject(expected) {
+		return core.ErrInvalidArgument
+	}
+	backend, ok := s.Backend.(savedWorkspaceBackend)
+	if !ok || s.SnapshotCatalog == nil {
+		return core.ErrUnsupported
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, err := s.Get("work", expected.ID)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(current, expected) {
+		return core.ErrCapabilityStale
+	}
+	// Refuse new consumers before the first deletion; partial data is not ready.
+	current.State = "creating"
+	if err := s.save(current); err != nil {
+		return err
+	}
+	return s.cleanupRestoredWorkspace(ctx, backend, current)
+}
+
+func restoredWorkspaceMemberID(group, repository, owner string) string {
+	id := group + "-" + repository
+	if !ValidID(id) {
+		return "restored-" + owner
+	}
+	return id
 }

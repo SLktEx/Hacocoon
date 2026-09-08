@@ -93,7 +93,9 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "haco: setup output was truncated")
 		}
 		if response.Failed {
-			return fail("Project setup failed; correct the script or Environment and rerun haco setup")
+			stage, code := safeProjectSetupFailure(result.FailureStage, response.FailureCode)
+			logging.Root().ErrorContext(ctx, "Project setup failed; correct the script or Environment and rerun haco setup", "component", "cli", "operation", "setup", "stage", stage, "error_code", code, "exit_code", result.Execution.ExitCode)
+			return 1
 		}
 		if result.Cleared {
 			fmt.Fprintln(stdout, "Saved project setup removed.")
@@ -129,4 +131,20 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return fail("Could not write setup result")
 	}
 	return 0
+}
+
+// Diagnostics admit fixed categories only; neither backend errors nor arbitrary
+// controller response strings belong in logs.
+func safeProjectSetupFailure(stage, code string) (string, string) {
+	switch stage {
+	case "validate", "lookup", "recipe", "start", "execute", "script":
+	default:
+		stage = "unknown"
+	}
+	switch code {
+	case "internal", "invalid_argument", "not_found", "already_exists", "unsupported", "unavailable", "denied", "busy", "incompatible_state", "recovery_required":
+	default:
+		code = "internal"
+	}
+	return stage, code
 }

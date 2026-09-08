@@ -23,8 +23,9 @@ type ProjectSetupRequest struct {
 	Update      recipes.Update `json:"update"`
 }
 type ProjectSetupResponse struct {
-	Result projectsetup.Result `json:"result"`
-	Failed bool                `json:"failed"`
+	FailureCode string              `json:"failure_code,omitempty"`
+	Result      projectsetup.Result `json:"result"`
+	Failed      bool                `json:"failed"`
 }
 
 func RegisterProjectSetup(server *control.Server, service projectSetupService) error {
@@ -52,7 +53,11 @@ func RegisterProjectSetup(server *control.Server, service projectSetupService) e
 			// Recipe and guest output belong only in explicit command results, never logs.
 			logging.Root().ErrorContext(ctx, "Project setup failed", "component", "project_setup", "operation", "setup")
 		}
-		return ProjectSetupResponse{Result: result, Failed: err != nil}, nil
+		code := ""
+		if err != nil {
+			code = statusFromError(err).Code
+		}
+		return ProjectSetupResponse{Result: result, Failed: err != nil, FailureCode: code}, nil
 	})
 }
 

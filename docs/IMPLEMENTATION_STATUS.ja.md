@@ -1,5 +1,23 @@
 # 実装状況
 
+## 公開 snapshot restore
+
+implemented: `haco snapshot restore <id> [new-env]` が保存 Workspace／OCI のコピー、
+独立 rootfs からの正規 Env 作成と起動を行います。省略時の名前は `<source>-restored`、
+既存名は拒否します。作成失敗時は Workspace lifecycle lock の下で今回所有する未使用
+コピーだけを cleanup。不確実な lease があればデータを残し、起動だけの失敗なら
+公開済み Env を残します。Base 依存、backup、新しい catalog 状態、準備済み binding の
+CLI 必須引数は追加しません。対象・関連 race テストは成功し、キャンセル、別 owner の
+OCI、作成中 lease、公開コピーの不完全 cleanup を確認しました。隔離 WSL の初回実
+Incus/Btrfs 公開 restore aggregate は 237.69 秒で成功。fixture は
+`haco-aggregate-9b6e7be3f4718210`、公開保存は
+`snap-9a0e62a7d6e7ee1ad2b430e06658ceaa`、Workspace は
+`restore-7a43b3413a89ad32` です。保存元削除後の実 CLI 復元、新世代の識別、guest の
+データ、所有試験資源の完全 cleanup を確認しました。最終 build と全 CI の結果は
+この変更の PR に記録します。専用 image でないため共有 image 削除は SKIP です。
+既存 Env の置換、復元先への実 SSH 接続、live OCI 整合性は未検証です。
+[契約](design/environment-snapshots.md)を参照してください。
+
 ## Workspace snapshot コピーの保存元保護
 
 implemented: Workspace コピー中は共有 catalog で保存元を予約します。
@@ -1097,7 +1115,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.49** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.50** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

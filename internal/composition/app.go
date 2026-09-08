@@ -21,6 +21,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/review"
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
 	seedbuildapp "github.com/SLktEx/Hacocoon/internal/seedbuild"
+	"github.com/SLktEx/Hacocoon/internal/snapshotrestore"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	awsplugin "github.com/SLktEx/Hacocoon/modules/capability/aws"
@@ -40,6 +41,7 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
+	SnapshotRestore     *snapshotrestore.Service
 	AWS                 *awsplugin.Broker
 	Reviews             *review.Service
 	Configuration       *capabilityapp.PolicyConfiguration
@@ -224,6 +226,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	runs.ConfigureTemporaryWorkspace(workspaceStores.CleanupTemporary)
 	awsBroker := &awsplugin.Broker{Host: incusRuntime.RunTrustedHostPython, Capabilities: capabilities, Environments: store}
 	return &App{
+		SnapshotRestore:     &snapshotrestore.Service{Catalog: store, Environments: environments, Workspaces: repositories, Stores: resources},
 		AWS:                 awsBroker,
 		ProjectSetup:        &projectsetup.Service{Root: filepath.Join(root, "project-setup"), Environments: environments},
 		HostCustomization:   &recipes.Service{Root: filepath.Join(root, "host-customization"), Execute: incusRuntime.RunTrustedHostCustomization},

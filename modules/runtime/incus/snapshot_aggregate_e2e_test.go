@@ -21,6 +21,7 @@ import (
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
+	"github.com/SLktEx/Hacocoon/internal/snapshotrestore"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	"github.com/SLktEx/Hacocoon/internal/workspace"
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
@@ -34,7 +35,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	if os.Geteuid() != 0 || !safeIncusRef(pool) || !baseFingerprintPattern.MatchString(image) {
 		t.Fatal("root and explicit pool/full image required")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 	defer cancel()
 	must := func(err error) {
 		t.Helper()
@@ -368,10 +369,14 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	resumedName := name
 	resumedPath := "managed:" + reloadedWork.ID
 	r.ConfigureManagedWorkspaces(func(ctx context.Context, path string) ([]WorkspaceAttachment, error) {
-		if path != resumedPath {
+		if !strings.HasPrefix(path, "managed:") {
 			return nil, core.ErrInvalidArgument
 		}
-		return repository.WorkspaceAttachments(ctx, reloadedWork)
+		object, err := reopenedRepositories.Get("work", strings.TrimPrefix(path, "managed:"))
+		if err != nil {
+			return nil, err
+		}
+		return repository.WorkspaceAttachments(ctx, object)
 	})
 	sandbox, err := NewSandboxProvider(r)
 	must(err)
@@ -414,6 +419,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		func() {
 			server := control.NewServer()
 			must(controlapi.RegisterSnapshots(server, resumedService))
+			must(controlapi.RegisterSnapshotRestore(server, &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}))
 			socket := filepath.Join(dir, "cli.sock")
 			listener, err := control.ListenUnix(socket, 0600)
 			must(err)
@@ -470,6 +476,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		}
 		server := control.NewServer()
 		must(controlapi.RegisterSnapshots(server, resumedService))
+		must(controlapi.RegisterSnapshotRestore(server, &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}))
 		socket := filepath.Join(dir, "delete.sock")
 		listener, err := control.ListenUnix(socket, 0600)
 		must(err)
@@ -495,6 +502,38 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			<-done
 			t.Fatal("save disappeared with source", listed)
 		}
+		restoreOutput, restoreErr := exec.CommandContext(ctx, binary, "snapshot", "restore", "--json", cliSavedID, resumedName).CombinedOutput()
+		var restored snapshotrestore.Result
+		if restoreErr != nil || json.Unmarshal(restoreOutput, &restored) != nil || restored.State != "running" {
+			stop()
+			<-done
+			t.Fatalf("public restore: %v: %s", restoreErr, restoreOutput)
+		}
+		publicEnv, err := reopened.GetEnvironment(ctx, restored.Environment)
+		must(err)
+		publicGeneration, err := reopened.EnvironmentInstance(ctx, publicEnv)
+		must(err)
+		if publicGeneration == resumedID || publicGeneration == id {
+			t.Fatal("public restore reused permission generation")
+		}
+		publicWork, err := restoredRepositories.Get("work", restored.Workspace)
+		must(err)
+		publicOCI, err := reopened.GetPersistentResource(ctx, restored.OCI)
+		must(err)
+		publicMounts, err := repository.WorkspaceAttachments(ctx, publicWork)
+		must(err)
+		for _, m := range publicMounts {
+			if command("incus", "exec", "haco-"+resumedName, "--project", r.project, "--", "cat", m.Path+"/tracked") != "uncommitted "+m.Device {
+				t.Fatal("public restored Workspace lost data")
+			}
+		}
+		if command("incus", "exec", "haco-"+resumedName, "--project", r.project, "--", "cat", "/root/snapshot-marker") != "guest-only bytes" {
+			t.Fatal("public rootfs lost")
+		}
+		if command("incus", "exec", "haco-"+resumedName, "--project", r.project, "--", "cat", OCIStorePath+"/containerd/data") != "independent registered OCI copy" {
+			t.Fatal("public OCI lost")
+		}
+		t.Logf("public restore running %s with Workspace %s and OCI %s", restored.Environment, restored.Workspace, restored.OCI)
 		cmd := exec.CommandContext(ctx, binary, "snapshot", "delete", cliSavedID)
 		output, deleteErr := cmd.CombinedOutput()
 		stop()
@@ -505,13 +544,24 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		if _, err := reopened.GetSnapshot(ctx, cliSavedID); !errors.Is(err, core.ErrNotFound) {
 			t.Fatal("save not deleted", err)
 		}
-		t.Log("PASS public snapshot create/list/delete: running source stopped and resumed, saved copies verified after source deletion, explicit owned save deletion; Workspace/OCI remain")
+		must(resumedService.Delete(ctx, publicEnv.Name))
+		must(persistent.Verify(ctx, publicOCI))
+		for _, m := range publicMounts {
+			read(volumePath(m.Volume), "tracked", "uncommitted "+m.Device)
+		}
+		must(resumedService.CleanupRestoredData(ctx, publicEnv.Workspace, func(ctx context.Context) error {
+			if err := restoredStores.DeleteRestoredCopy(ctx, publicOCI); err != nil {
+				return err
+			}
+			return restoredRepositories.DeleteRestoredCopy(ctx, publicWork)
+		}))
+		t.Log("PASS public snapshot create/list/restore/delete: one-command restore after source deletion, fresh generation and independent rootfs/Git/OCI, saved-copy deletion, normal Env deletion retaining data, owned restored-data cleanup; actual restored SSH handshake not tested")
 	}
 	must(persistent.Verify(ctx, restoredOCI))
 	for _, m := range restoredMounts {
 		read(volumePath(m.Volume), "tracked", "uncommitted "+m.Device)
 	}
-	t.Log("PASS canonical saved-rootfs activation without Base, same-name fresh generation/current source guard, guest root/Workspace/OCI bytes, managed SSH authorization reset, canonical runtime deletion retaining data; public restore and actual restored SSH handshake not tested")
+	t.Log("PASS canonical saved-rootfs activation without Base, same-name fresh generation/current source guard, guest root/Workspace/OCI bytes, managed SSH authorization reset, canonical runtime deletion retaining data; actual restored SSH handshake not tested")
 	must(restoredStores.DeleteForWorkspace(ctx, restoredOCI.ID, restoredOCI.WorkspaceID))
 	t.Log("PASS restored OCI registered with new owner and Workspace, source reservation released, durable reload, saved bytes and independent edits, canonical owned deletion")
 
@@ -569,7 +619,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		must(os.Remove(filepath.Join(dir, entry.Name())))
 	}
 	must(os.Remove(dir))
-	t.Log("PASS canonical catalog/coordinator/provider route; complete four-component save; restart readback; source Environment/volumes deleted; independent Git and data retained; owned snapshot cleanup. No snapshot Base material retained; image deletion reported separately; public restore orchestration/live OCI consistency not tested.")
+	t.Log("PASS canonical catalog/coordinator/provider route; complete four-component save; restart readback; source Environment/volumes deleted; independent Git and data retained; owned snapshot cleanup. No snapshot Base material retained; image deletion reported separately; public CLI coverage reported separately; restored SSH handshake/live OCI consistency not tested.")
 }
 
 // The fixture uses the same trusted registry lookup as application composition.

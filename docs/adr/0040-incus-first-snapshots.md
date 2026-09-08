@@ -34,8 +34,8 @@ not be hidden behind constraints for nonexistent providers.
 Schema 10 preserves legacy Base components and schema-8 before snapshots and
 migrates only the current target identity. Existing material is not deleted by
 upgrade. The unpublished schema-9 replacement prototype is rejected explicitly.
-Prepared storage still is not a runnable restore; activation/public CLI remain
-planned. See the [snapshot contract](../design/environment-snapshots.md).
+Prepared storage alone is not a runnable restore. Public restore now combines
+normal data copies with canonical creation/start; in-place replacement is planned. See the [snapshot contract](../design/environment-snapshots.md).
 
 ## Restored Workspace registration
 
@@ -86,3 +86,15 @@ Schema 13 preserves older saved data and schema 12/11 source receipts. Failed
 reservation release retains the registry record. Retry on an already published
 Workspace releases only that reservation, without deleting its data. This is a
 data-lifetime guard, not a runtime recovery state machine or hidden backup.
+
+## Public restore orchestration
+
+Use a short application service for data copies, canonical creation and start.
+Do not import the rejected full replacement/replay prototype. Refuse an existing
+Env name and create fresh permissions. Before pre-publication failure cleanup,
+hold the canonical Workspace lock, compare its current identity and require all
+durable leases absent. Exact-owner native cleanup preserves uncertain receipts.
+Once published, a failed start keeps the Env and data for ordinary start/recreate.
+Per-copy saved-source holds suffice: source deletion between completed copies may
+fail the next stage, but cannot mutate an independent completed copy. There is no
+need to introduce another aggregate recovery catalog or hidden backup.

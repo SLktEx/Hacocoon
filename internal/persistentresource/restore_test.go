@@ -124,3 +124,37 @@ func TestSnapshotStoreReservationReceiptAndFailureCleanup(t *testing.T) {
 		})
 	}
 }
+
+func TestDeleteRestoredCopyRefusesForeignOwnerAndAcquiringAttachment(t *testing.T) {
+	store, saved := restoreFixture(t)
+	ctx := context.Background()
+	b := &restoreBackend{backend: backend{store: store}, t: t, saved: saved}
+	service := persistentresource.Service{Store: store, Backend: b}
+	resource, err := service.RestoreSnapshot(ctx, "oci:restored", saved, "new-work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := resource
+	foreign.Owner = strings.Repeat("f", 32)
+	if err := service.DeleteRestoredCopy(ctx, foreign); !errors.Is(err, core.ErrCapabilityStale) || !b.exists {
+		t.Fatal("foreign generation deleted", err)
+	}
+	generation, _ := core.NewEnvironmentInstanceID()
+	lease := core.WorkspaceLease{InstanceID: generation, EnvironmentID: "new", WorkspaceID: "new-work", SourcePath: "managed:restored", PersistentResource: resource.Ref(), Owner: "new", AccessMode: core.WorkspaceReadWrite, State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC()}
+	if err := store.BeginEnvironmentCreate(ctx, lease); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.DeleteRestoredCopy(ctx, resource); !errors.Is(err, core.ErrStorageBusy) || !b.exists {
+		t.Fatal("acquiring attachment ignored", err)
+	}
+	// No provider runtime was created in this catalog-only fixture.
+	if err := store.FinalizeEnvironmentDelete(ctx, "new"); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.DeleteRestoredCopy(ctx, resource); err != nil || b.exists {
+		t.Fatal(err)
+	}
+	if _, err := store.GetPersistentResource(ctx, resource.ID); !errors.Is(err, core.ErrNotFound) {
+		t.Fatal("positive cleanup retained receipt", err)
+	}
+}

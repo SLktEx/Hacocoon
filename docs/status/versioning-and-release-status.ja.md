@@ -1,22 +1,13 @@
 # バージョン番号とリリース状況
 
-既存の v0.49 checkpoint で Workspace コピー中の保存元予約を implemented とします。
-schema 13 は既存保存物と保存元の所有記録を保持します。公開 aggregate restore は
-planned です。[snapshot 契約](../design/environment-snapshots.md)を参照してください。
-
-公開 snapshot の create/list/delete は既存 lifecycle と Incus copy を利用し、
-実行中の保存元は停止・保存・再開します。公開 aggregate restore は planned、
-checkpoint は v0.49 のままです。新しい catalog 形式や backup 機構は追加しません。
-[使い方](../design/environment-snapshots.md)を参照してください。
-
-現在の開発 checkpoint は v0.49 です。Incus-first の整理により、新規 snapshot の
-Base 実体、通常作成の Base 自動保持、復元前自動 backup を削除します。既存保存物と
-所有記録は削除せず移行します。復元準備、Workspace／OCI 登録、保存 rootfs の実行用
-コピーと正規作成経路は内部実装、aggregate の起動調整と公開 restore は planned です。schema 12 は
-schema 11 の OCI 作成記録と既存保存物を維持しながら、作成中の保存元予約を追加します。実行環境の完全復旧を checkpoint の前提にはしません。
-[実装状況](../IMPLEMENTATION_STATUS.ja.md)と [ADR 0040](../adr/0040-incus-first-snapshots.md)を参照してください。
+v0.50 checkpoint の公開 snapshot restore が Workspace／OCI の独立コピー、保存 rootfs からの正規作成と
+起動をまとめます。既存 Env 名は拒否し、cleanup が不確実なら所有記録を保持します。
+schema 13 は変更しません。Base 実体・自動 backup・完全な runtime 復旧は追加しません。
+[snapshot 契約](../design/environment-snapshots.md)を参照してください。既存 Env の置換、
+復元先 SSH の受け入れ、live OCI 整合性は未完了です。
 
 新規 Host の所有確認済み OCI 領域は setup で自動接続されます。既存データの移行と runtime 受け入れは partial です。
+
 前の checkpoint v0.39 は Windows 通知 review adapter と distribution 別登録を追加します。実機の通知履歴・protocol 起動・古い要求拒否は成功しましたが、通知からの新規回答と Linux 起動は未完了です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
 
 
@@ -157,8 +148,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.47 | Automatic Base retention | 実装済み |
 | v0.48 | Retained Base snapshot capture | 実装済み |
 | v0.49 | Snapshot restore staging | 実装済み |
+| v0.50 | Public Snapshot Restore | 実装済み |
 
-現在のmilestone位置は **v0.49** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.50** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

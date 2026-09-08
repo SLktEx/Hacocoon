@@ -32,6 +32,10 @@ def command_failure_category(stdout, stderr):
                              ("PENDING_PREREQ_STARTED", "package-update")):
         if marker in stdout.splitlines():
             return category
+    stage = re.search(r"\bstage=(validate|lookup|recipe|start|execute|script|unknown)\b", stderr)
+    code = re.search(r"\berror_code=(internal|invalid_argument|not_found|already_exists|unsupported|unavailable|denied|busy|incompatible_state|recovery_required)\b", stderr)
+    if stage and code:
+        return "setup-" + stage.group(1) + "-" + code.group(1)
     for message, category in (
         ("cannot read a regular UTF-8 setup script", "script-input"),
         ("Project setup request failed", "controller-request"),

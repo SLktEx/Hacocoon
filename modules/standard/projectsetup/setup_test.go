@@ -42,7 +42,7 @@ func TestWorkspaceRecipeSaveReplayIsolationAndClear(t *testing.T) {
 	s := Service{Root: t.TempDir(), Environments: f}
 	script := "printf project"
 	result, err := s.Apply(context.Background(), "dev", recipes.Update{Script: &script})
-	if !errors.Is(err, recipes.ErrExecutionFailed) || !result.Applied || result.Execution.ExitCode != 17 {
+	if !errors.Is(err, recipes.ErrExecutionFailed) || !result.Applied || result.Execution.ExitCode != 17 || result.FailureStage != "script" {
 		t.Fatalf("nonzero result lost: %#v %v", result, err)
 	}
 	if len(f.requests) != 1 || string(f.requests[0].Stdin) != script || strings.Contains(strings.Join(f.requests[0].Argv, " "), script) {
@@ -81,7 +81,7 @@ func TestProjectSetupRefusesStartFailureBeforeExecution(t *testing.T) {
 	s := Service{Root: t.TempDir(), Environments: f}
 	script := "echo secret"
 	result, err := s.Apply(context.Background(), "dev", recipes.Update{Script: &script})
-	if !errors.Is(err, core.ErrIncompatibleState) || result.Applied || len(f.requests) != 0 {
+	if !errors.Is(err, core.ErrIncompatibleState) || result.Applied || len(f.requests) != 0 || result.FailureStage != "start" {
 		t.Fatal("executed after failed identity-bound start")
 	}
 }

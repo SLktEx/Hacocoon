@@ -82,3 +82,20 @@ func (s *Service) RestoreSnapshot(ctx context.Context, id string, saved core.Sna
 	r.RestoreSource = ""
 	return r, nil
 }
+
+// DeleteRestoredCopy uses the exact generation receipt and the catalog's active
+// attachment checks. It cannot delete a later Store which reuses the public ID.
+func (s *Service) DeleteRestoredCopy(ctx context.Context, expected core.PersistentResource) error {
+	catalog, ok := s.Store.(savedResourceCatalog)
+	if !ok {
+		return core.ErrUnsupported
+	}
+	owned, err := catalog.BeginPersistentResourceDeleteOwned(ctx, expected)
+	if err != nil {
+		return err
+	}
+	if err := s.Backend.Delete(ctx, owned); err != nil {
+		return fmt.Errorf("restored Store cleanup incomplete: %w", errors.Join(err, core.ErrRecoveryRequired))
+	}
+	return s.Store.FinalizePersistentResourceDelete(ctx, owned)
+}
