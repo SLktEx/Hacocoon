@@ -6,13 +6,24 @@ function Get-HacocoonReviewScheme([string]$Name) {
     finally { $hash.Dispose() }
     return 'hacocoon-review-' + (($bytes[0..7] | ForEach-Object { $_.ToString('x2') }) -join '')
 }
+# Use .NET directly: the supported Windows PowerShell installer environment may
+# not have the module that supplies Get-FileHash loaded or available.
+function Get-HacocoonReviewFileHash([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    try {
+        $hash = [Security.Cryptography.SHA256]::Create()
+        try { $bytes = $hash.ComputeHash($stream) }
+        finally { $hash.Dispose() }
+    } finally { $stream.Dispose() }
+    return ([BitConverter]::ToString($bytes) -replace '-', '').ToLowerInvariant()
+}
 function Install-HacocoonDesktopReview([string]$Name, [string]$BundleRoot) {
     $scheme = Get-HacocoonReviewScheme $Name
     $source = Join-Path $BundleRoot 'haco-review.exe'
     if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw 'Missing Windows review adapter' }
     $checksumFile = Join-Path $BundleRoot 'checksums.txt'
     $matches = @(Get-Content -LiteralPath $checksumFile | Where-Object { $_ -cmatch '^[a-f0-9]{64}  haco-review.exe$' })
-    if ($matches.Count -ne 1 -or (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant() -cne $matches[0].Substring(0,64)) { throw 'Windows review adapter checksum mismatch' }
+    if ($matches.Count -ne 1 -or (Get-HacocoonReviewFileHash $source) -cne $matches[0].Substring(0,64)) { throw 'Windows review adapter checksum mismatch' }
     $localRoot = [Environment]::GetFolderPath('LocalApplicationData')
     if ([string]::IsNullOrWhiteSpace($localRoot)) { throw 'Windows user application directory unavailable' }
     $directory = [IO.Path]::GetFullPath((Join-Path $localRoot ('Hacocoon\review\' + $scheme)))

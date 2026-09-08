@@ -147,3 +147,10 @@ Windows protocol launch of the expected helper, and the installed controller's s
 request refusal. These used an already completed dedicated HTTPS test request. Fresh
 decisions through an OS notification and a human's visible toast click are not yet
 verified. See [ADR 0030](../adr/0030-windows-notification-review.md).
+
+Windows run 34176272125 at `4bb8dad` failed before desktop acceptance because
+native adapter checksum verification required unavailable `Get-FileHash`.
+The adapter now hashes through .NET directly; PowerShell 5.1 component regression
+passes with `Get-FileHash` deliberately unavailable. Real Windows installation
+and automatic service acceptance after this fix remain pending. Downstream checks
+in that failed run were skipped, not successful.

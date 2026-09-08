@@ -134,3 +134,9 @@ Linux desktop の起動は planned で、VS Code は引き続き任意です。
 protocol 起動、installed controller の古い要求拒否を確認しました。
 終了済みの専用 HTTPS 検証要求を使った結果であり、OS 通知からの新規回答と人間による
 画面上の toast click は未確認です。[ADR 0030](../adr/0030-windows-notification-review.ja.md)を参照してください。
+
+`4bb8dad` の Windows run 34176272125 は、native adapter の checksum 検証が
+使用できない `Get-FileHash` に依存していたため、desktop 受け入れ前に失敗しました。
+.NET で直接 hash を計算するよう修正し、`Get-FileHash` を使えない条件の PowerShell 5.1
+component 回帰は成功しました。修正後の実 Windows インストールと通知サービス自動起動は
+pending です。失敗 run の後続検査は SKIP であり、成功ではありません。
