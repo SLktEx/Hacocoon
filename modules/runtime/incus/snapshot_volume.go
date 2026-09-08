@@ -14,6 +14,8 @@ import (
 // persist this complete binding before createSnapshotVolume; a source name alone
 // is not authority to copy it. This primitive is not a complete Environment save.
 type snapshotVolumePlan struct {
+	Remote                                          string `json:"remote,omitempty"`
+	Branch                                          string `json:"branch,omitempty"`
 	Device                                          string `json:"device,omitempty"`
 	Path                                            string `json:"path,omitempty"`
 	Pool, Source, SourceOwner, SourceKind, SourceID string
@@ -37,6 +39,11 @@ func (p snapshotVolumePlan) validate() error {
 			return core.ErrInvalidArgument
 		}
 		if p.SourceKind == OCIStoreKind && (p.Device != "persistent-resource" || p.Path != OCIStorePath) {
+			return core.ErrInvalidArgument
+		}
+	}
+	if p.Remote != "" || p.Branch != "" {
+		if p.SourceKind != "work" || gitrepo.ValidateRemote(p.Remote) != nil || !gitrepo.ValidBranch(p.Branch) {
 			return core.ErrInvalidArgument
 		}
 	}

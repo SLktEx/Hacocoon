@@ -36,3 +36,13 @@ migrates only the current target identity. Existing material is not deleted by
 upgrade. The unpublished schema-9 replacement prototype is rejected explicitly.
 Prepared storage still is not a runnable restore; activation/public CLI remain
 planned. See the [snapshot contract](../design/environment-snapshots.md).
+
+## Restored Workspace registration
+
+Create normal independently owned Incus volumes from the saved copies rather
+than renaming staging objects and changing ownership underneath their cleanup
+receipts. Keep Git routing provenance in the saved binding, sourced from the
+trusted registry; never reconstruct Host policy from guest `.git/config` or an
+old repository name that may have been reused. Old metadata-less bindings remain
+owned and readable, but automatic registration refuses missing provenance.
+This adds no Base dependency, automatic backup or replacement rollback machine.

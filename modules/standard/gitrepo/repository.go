@@ -15,15 +15,16 @@ import (
 )
 
 type Object struct {
-	Kind       string   `json:"kind"`
-	ID         string   `json:"id"`
-	Repository string   `json:"repository"`
-	Remote     string   `json:"remote"`
-	Branch     string   `json:"branch"`
-	NativeRef  string   `json:"native_ref"`
-	Owner      string   `json:"owner"`
-	State      string   `json:"state"`
-	Members    []Object `json:"members,omitempty"`
+	RestoredFrom string   `json:"restored_from,omitempty"`
+	Kind         string   `json:"kind"`
+	ID           string   `json:"id"`
+	Repository   string   `json:"repository"`
+	Remote       string   `json:"remote"`
+	Branch       string   `json:"branch"`
+	NativeRef    string   `json:"native_ref"`
+	Owner        string   `json:"owner"`
+	State        string   `json:"state"`
+	Members      []Object `json:"members,omitempty"`
 }
 
 type Backend interface {
@@ -140,6 +141,9 @@ func (o Object) Copies() []Object {
 }
 
 func validObject(o Object) bool {
+	if o.RestoredFrom != "" && !validSavedID(o.RestoredFrom) {
+		return false
+	}
 	if !ValidID(o.ID) || (o.Kind != "work" && o.Kind != "repo") || len(o.Owner) != 32 {
 		return false
 	}
@@ -151,7 +155,7 @@ func validObject(o Object) bool {
 	}
 	seen := map[string]bool{}
 	for _, member := range o.Members {
-		if len(member.Members) != 0 || member.Kind != "work" || member.ID != o.ID+"-"+member.Repository || seen[member.Repository] || !validObject(member) || (o.State == "ready" && member.State != "ready") {
+		if len(member.Members) != 0 || member.Kind != "work" || member.RestoredFrom != o.RestoredFrom || member.ID != o.ID+"-"+member.Repository || seen[member.Repository] || !validObject(member) || (o.State == "ready" && member.State != "ready") {
 			return false
 		}
 		seen[member.Repository] = true

@@ -1,5 +1,27 @@
 # 実装状況
 
+## 保存 Workspace の再登録
+
+内部実装済み：Incus/Btrfs の同一 pool 内コピーを、新しい所有者と管理側の
+remote／branch 情報を持つ通常の Workspace として登録します。検証前に作成完了を
+記録し、途中失敗は今回の所有対象だけを限定 cleanup します。Git の由来情報がない
+旧 manifest は保持しますが、自動再登録は未対応です。Env の起動、復元 OCI の
+登録、公開 snapshot／restore CLI は planned です。
+
+対象 race テストと専用 WSL Incus/Btrfs aggregate は成功しました（4.09 秒）。
+fixture `haco-aggregate-42d34d51baa33c72`、snapshot
+`snap-a0b22312747180b9891e790f8427c78c` で、元 Env／volume 削除後の再登録、
+registry 再読み込み、Git commit・未 commit・untracked の保持、独立した変更と
+正確な cleanup を確認しました。初回は不要な default profile 参照で失敗し、
+保存 pool だけを使う修正と回帰を追加しました。失敗 fixture の snapshot は正規 API
+で cleanup し、元 Base／Workspace／OCI の不在も確認しました。所有記録は
+`/var/lib/haco-snapshot-aggregate-666738198` に保持しています。全体 local CI
+（Go tests/vet、文書・helper、JS 27/27）は成功し、GHA は PR に記録します。
+共有 image 削除は SKIP、復元 Env 起動と live OCI 整合性は未実行です。
+PR #494 は local CI と適用対象
+GHA の全成功後に main a66035d へマージ済みです。
+
+
 ## 構成前の runtime 所有記録
 
 実装済み：本番 Incus 作成は init の直後、device／network／resource 設定と起動の

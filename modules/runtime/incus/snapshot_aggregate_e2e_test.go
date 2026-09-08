@@ -67,7 +67,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	}
 	collection := gitrepo.Object{Kind: "work", ID: name, Owner: random(), State: "ready"}
 	for _, repo := range []string{"one", "two"} {
-		collection.Members = append(collection.Members, gitrepo.Object{Kind: "work", ID: name + "-" + repo, Repository: repo, Owner: random(), NativeRef: pool + "/haco-work-" + name + "-" + repo, State: "ready"})
+		collection.Members = append(collection.Members, gitrepo.Object{Kind: "work", ID: name + "-" + repo, Repository: repo, Remote: "https://github.com/example/" + repo + ".git", Branch: "main", Owner: random(), NativeRef: pool + "/haco-work-" + name + "-" + repo, State: "ready"})
 	}
 	resource := core.PersistentResource{ID: "oci:" + name, Owner: random(), Kind: OCIStoreKind, State: "creating", CreatedAt: time.Now().UTC()}
 	resource.NativeRef = pool + "/haco-persistent-" + resource.Owner
@@ -320,6 +320,33 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	must(err)
 	must(persistent.Delete(ctx, deleting))
 	must(reopened.FinalizePersistentResourceDelete(ctx, deleting))
+
+	// The original runtime and volumes are absent. Register normal managed copies
+	// using only the saved aggregate, then reopen the registry and inspect Git data.
+	restoredRepositories := gitrepo.NewRepositoryService(dir, repository)
+	restoredWork, err := restoredRepositories.RestoreWorkspace(ctx, "restored-"+strings.TrimPrefix(name, "aggregate-"), snap)
+	must(err)
+	reopenedRepositories := gitrepo.NewRepositoryService(dir, repository)
+	reloadedWork, err := reopenedRepositories.Get("work", restoredWork.ID)
+	must(err)
+	if reloadedWork.Owner != restoredWork.Owner || reloadedWork.RestoredFrom != snap.ID {
+		t.Fatal("restored ownership lost")
+	}
+	restoredMounts, err := repository.WorkspaceAttachments(ctx, reloadedWork)
+	must(err)
+	for _, m := range restoredMounts {
+		path := volumePath(m.Volume)
+		if command("git", "-C", path, "rev-parse", "HEAD") != commits[m.Device] {
+			t.Fatal("restored unpushed commit lost")
+		}
+		read(path, "tracked", "uncommitted "+m.Device)
+		read(path, "untracked", "untracked "+m.Device)
+		write(path, "untracked", "independent registered copy")
+	}
+	for _, member := range reloadedWork.Copies() {
+		must(repository.DeleteRestoredWorkspaceVolume(ctx, member))
+	}
+	t.Log("PASS normal Workspace registration/reload from saved data after original Env/volumes deletion; Git commits/uncommitted/untracked retained; independent mutation; exact copy cleanup; no Git network operation")
 
 	// Intentionally remove the fixture-owned original Base to prove snapshot independence.
 	// Keep its durable receipt until the complete fixture is positively absent.
