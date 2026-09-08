@@ -27,6 +27,11 @@ Windows run 34181502807 は通知サービス設定で失敗し、後続の受�
 
 保守されている local CI で Go tests/vet、WSL の Python 11 件・承認の Python 3 件、JS 27 件が成功しました。文書整合性とその回帰 7 件も成功しました。
 
+コピー開始時も journal・一時停止の直前に Host 保存領域の準備と設定を再確認します。
+setup 時の確認だけでは、その後の設定変更で古い領域をコピーできるためです。
+準備記録の欠落・設定不一致・確認の失敗／切り捨てを拒否し、Host を停止もコピーも
+しない回帰を追加しました。失敗時は正規の source／destination 復旧記録を保持します。
+
 ## Host 領域コピーの provider
 
 partial: Incus backend は、専用 source-only volume を持つ所有確認済み Host を一時停止し、

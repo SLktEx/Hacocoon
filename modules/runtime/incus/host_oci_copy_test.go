@@ -12,14 +12,16 @@ import (
 )
 
 func TestHostAreaCopyPausesExactOwnerAndRestoresOnlyAfterCompletion(t *testing.T) {
-	for _, scenario := range []string{"ok", "inherited-autostart", "foreign-consumer", "extra-consumer", "wrong-path", "foreign-host", "already-paused", "pending", "pause-failed", "freeze-unconfirmed", "copy-failed", "copy-exit", "copy-truncated", "resume-failed", "clear-failed"} {
+	for _, scenario := range []string{"ok", "unprepared-source", "layout-drift", "layout-query-failed", "layout-truncated", "inherited-autostart", "foreign-consumer", "extra-consumer", "wrong-path", "foreign-host", "already-paused", "pending", "pause-failed", "freeze-unconfirmed", "copy-failed", "copy-exit", "copy-truncated", "resume-failed", "clear-failed"} {
 		t.Run(scenario, func(t *testing.T) {
 			source := core.PersistentResource{ID: "oci-source:host", Kind: OCIStoreKind, Owner: strings.Repeat("a", 32), NativeRef: "pool/haco-persistent-" + strings.Repeat("a", 32), SourceOnly: true}
 			target := core.PersistentResource{ID: "oci:copy", Kind: OCIStoreKind, Owner: strings.Repeat("b", 32), NativeRef: "pool/haco-persistent-" + strings.Repeat("b", 32), CopySource: source.Ref()}
 			volume := persistentVolumeObservation{Name: "haco-persistent-" + source.Owner, Type: "custom", ContentType: "filesystem", Config: map[string]string{"user.hacocoon.owner": source.Owner, "user.hacocoon.resource": source.ID, "user.hacocoon.kind": source.Kind, "user.hacocoon.source-only": "true"}, UsedBy: []string{"/1.0/instances/haco-host?project=hacocoon"}}
-			instance := hostOCICopyInstance{Name: trustedHostName, StatusCode: 103, Config: map[string]string{trustedHostRoleKey: trustedHostRoleValue, "boot.autostart": "true"}, Devices: map[string]map[string]string{"oci": {"type": "disk", "pool": "pool", "source": volume.Name, "path": OCIStorePath}}}
+			instance := hostOCICopyInstance{Name: trustedHostName, StatusCode: 103, Config: map[string]string{trustedHostRoleKey: trustedHostRoleValue, hostOCIStoreKey: source.Owner, "boot.autostart": "true"}, Devices: map[string]map[string]string{"oci": {"type": "disk", "pool": "pool", "source": volume.Name, "path": OCIStorePath}}}
 			instance.LocalConfig = map[string]string{"boot.autostart": "true"}
 			switch scenario {
+			case "unprepared-source":
+				delete(instance.Config, hostOCIStoreKey)
 			case "inherited-autostart":
 				delete(instance.LocalConfig, "boot.autostart")
 			case "foreign-consumer":
@@ -42,6 +44,19 @@ func TestHostAreaCopyPausesExactOwnerAndRestoresOnlyAfterCompletion(t *testing.T
 					t.Fatal("unexpected executable")
 				}
 				switch {
+				case args[0] == "exec" && args[len(args)-1] == hostOCILayoutVerify:
+					if instance.StatusCode != 103 || instance.Config[hostOCICopyKey] != "" {
+						t.Fatal("layout verification after freeze/journal")
+					}
+					switch scenario {
+					case "layout-drift":
+						return host.Result{ExitCode: 40}, nil
+					case "layout-query-failed":
+						return host.Result{}, errors.New("lost layout reply")
+					case "layout-truncated":
+						return host.Result{StdoutTruncated: true}, nil
+					}
+					return host.Result{}, nil
 				case args[0] == "query" && args[1] == "/1.0/storage-pools/pool":
 					return host.Result{Stdout: `{"name":"pool","driver":"btrfs"}`}, nil
 				case args[0] == "query" && strings.HasPrefix(args[1], "/1.0/storage-pools/pool/volumes/custom?"):
@@ -122,6 +137,11 @@ func TestHostAreaCopyPausesExactOwnerAndRestoresOnlyAfterCompletion(t *testing.T
 					t.Fatalf("copy/restoration: %v %+v", err, instance)
 				}
 			} else {
+				if scenario == "unprepared-source" || strings.HasPrefix(scenario, "layout-") {
+					if copies != 0 || pauses != 0 || resumes != 0 || instance.Config[hostOCICopyKey] != "" || !errors.Is(err, core.ErrRecoveryRequired) {
+						t.Fatal("invalid layout mutated Host or copied stale area")
+					}
+				}
 				if err == nil {
 					t.Fatal("unsafe copy succeeded")
 				}

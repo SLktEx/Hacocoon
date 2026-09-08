@@ -105,7 +105,9 @@ ready source-only `oci-source:host`. Ordinary `haco setup` now connects the
 managed area for a fresh Host and configures its rootful containerd/Docker data
 roots. No extra daily command is required. Existing data or custom configuration
 is refused pending an area-preserving migration; do not remove it to bypass the
-check. Repeat setup verifies the binding without rewriting the source. The proposed image-inventory producer was withdrawn because it did not
+check. Repeat setup verifies the binding without rewriting the source. The copy
+provider repeats readiness/configuration validation immediately before its journal
+and pause, so a changed Host layout is not silently treated as the managed source. The proposed image-inventory producer was withdrawn because it did not
 satisfy this requirement. A prepared empty/synthetic source is not acceptance of
 Host image delivery. See [ADR 0031](../adr/0031-host-oci-area-copy.md).
 

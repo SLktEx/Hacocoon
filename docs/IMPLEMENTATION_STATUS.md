@@ -29,6 +29,12 @@ The initial configuration regression failed on Python without `tomllib`. The fin
 
 Maintained local CI passed all Go tests/vet, 11 WSL and 3 approval Python cases, and 27 JS cases. Documentation consistency and its seven regressions passed.
 
+Copy initialization now repeats the managed Host source readiness and configuration
+check immediately before journal/pause. Setup-time validation alone could copy an
+obsolete area after a later layout change. Regressions reject absent readiness,
+layout drift and failed/truncated verification without pausing or copying. The
+canonical source/destination recovery reservation remains retained on failure.
+
 ## Host area copy provider
 
 Partial: the Incus backend can pause an exact owned Host with its source-only data

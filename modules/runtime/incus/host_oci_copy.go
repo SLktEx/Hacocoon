@@ -96,6 +96,10 @@ func (b *PersistentResourceBackend) quiesceHostCopy(ctx context.Context, source,
 	if before.StatusCode != 103 {
 		return nil, core.ErrStorageBusy
 	} // Never adopt someone else's pause.
+	// Setup validation can become stale before a later Environment creation.
+	if err := b.VerifyHostSource(ctx, source); err != nil {
+		return nil, err
+	}
 	prior := before.LocalConfig["boot.autostart"]
 	expandedAutostart := before.Config["boot.autostart"]
 	if prior != "" && prior != "true" && prior != "false" {

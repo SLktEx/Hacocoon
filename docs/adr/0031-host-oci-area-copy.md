@@ -44,6 +44,12 @@ persistent copy marker still blocks restart. The marker check and start happen
 under this lock so a concurrent start cannot pass the check before pause and
 then thaw the Host during the copy. Unsupported platforms fail closed.
 
+Immediately before preparing the copy journal, the backend revalidates the Host
+source readiness marker and managed daemon configuration. Setup-time validation
+alone is insufficient after a later configuration change. Failure leaves the Host
+running and does not issue pause/copy/resume commands; the canonical resource
+reservation still remains available for recovery.
+
 Before pausing, one provider configuration PATCH records the destination ownership
 token and previous autostart setting, and disables autostart. The copier verifies
 that durable guard, pauses the running Host and verifies the frozen status plus
