@@ -181,6 +181,20 @@ jobs:
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-agent-host" ./cmd/haco-agent-host
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-notify" ./cmd/haco-notify
 
+  aws-plugin:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Prepare optional AWS SDK test environment
+        run: |
+          python3 -m venv "$RUNNER_TEMP/aws-sdk"
+          "$RUNNER_TEMP/aws-sdk/bin/pip" install botocore==1.40.76
+      - name: Verify AWS identity, signing scope and redirect refusal without AWS access
+        run: HACO_AWS_TEST_PYTHON="$RUNNER_TEMP/aws-sdk/bin/python" bash tools/ci-local.sh aws
+
   test:
     runs-on: ubuntu-26.04
     timeout-minutes: 15

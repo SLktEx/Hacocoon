@@ -1,5 +1,22 @@
 # Implementation Status
 
+## Approved AWS S3 listing
+
+Partial D3: trusted Host S3 listing is wired through the product CLI, controller,
+shared Policy/approval/audit and optional AWS capability plugin. Account/principal
+are rechecked using a frozen Host credential set. SDK region redirects, including
+signing-region-only changes, are refused before transport. See
+[AWS operations](design/aws-operations.md) for preparation, exact scope and limits.
+Focused race tests and ordinary controller review/config revocation checks passed.
+Eight real-SDK tests with synthetic credentials and intercepted HTTP transport
+passed, including a signing-region-only redirect regression. Object download,
+guest request transport, account labels and real AWS/desktop acceptance remain
+planned. Intercepted SDK tests do not prove real AWS acceptance.
+
+The current Host adapter also passed a dedicated WSL execution with missing AWS
+prerequisites, returning not-configured without AWS access. Actual AWS remains SKIP
+because that owned Host has no AWS CLI, botocore or AWS config.
+
 ## Completed OCI copy recovery
 
 Implemented: the canonical resource lifecycle persists a positive completion
@@ -39,7 +56,8 @@ and executed offline after COW; deleting copy images left Host images usable.
 Btrfs ancestry, bidirectional area writes/deletion and complete fixture cleanup
 also passed. This covers Docker 28.5.2/vfs and nerdctl 2.3.5/containerd 2.3.3/native
 in owned provider fixtures, not every driver/version or installed CLI recreation.
-Updated GHA runtime acceptance is pending; the initial failure stays recorded.
+At f3f5557, all four GHA workflows passed, including the real image-copy and
+completed-copy recovery extension. The initial failure stays recorded.
 
 At `470a2b8`, all four GHA workflows passed, including Windows run 34188963290.
 Actual Remote-SSH editor read/write, terminal execution, trusted review, Host
@@ -958,7 +976,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.42**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.43**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

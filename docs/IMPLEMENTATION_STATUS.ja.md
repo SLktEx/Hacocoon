@@ -1,5 +1,19 @@
 # 実装状況
 
+## 承認を経由する AWS S3 一覧
+
+D3 の部分実装です。trusted Host の S3 一覧取得を製品 CLI・controller・共通の
+Policy／承認／監査と任意の AWS plugin に接続しました。Host 内で固定した credential を使い、
+account／principal を再確認します。署名 region だけが変わる場合を含め、SDK redirect を
+送信前に拒否します。準備・範囲・上限は [AWS 操作](design/aws-operations.ja.md) を参照してください。
+focused race、通常 controller review と config 撤回、合成 credential を使う実 SDK の
+8 ケースが成功しました。署名 region だけが変わる redirect の回帰を含みます。
+ファイル取得、guest 要求経路、account 名、実 AWS／desktop 受入は planned です。
+SDK の transport 置換テストから実 AWS 成功を推測しません。
+
+現行 Host adapter は専用 WSL でも実行でき、AWS 未設定を検出して外部要求なしで拒否しました。
+その所有確認済み Host に AWS CLI・botocore・AWS config がないため、実 AWS は SKIP です。
+
 ## 完了確認済み OCI コピーの復旧
 
 実装済み: canonical resource lifecycle は Host 再開より先にコピー完了の記録を
@@ -35,7 +49,8 @@ project `haco-area-3147b9dd5920fb2c`）。COW 後の両イメージの同一 ID�
 実行、コピー先イメージ削除後の Host 実行、Btrfs ancestry、双方向の領域変更・削除、
 全 fixture cleanup を確認しました。Docker 28.5.2/vfs と nerdctl 2.3.5/containerd
 2.3.3/native の provider fixture の結果であり、全 driver/version や installed CLI
-での再作成を証明しません。更新後の実 runtime GHA は pending で、初回の失敗は記録に残します。
+での再作成を証明しません。f3f5557 の全 4 GHA workflow は成功し、実 image copy と
+完了済み copy の復旧も確認しています。初回の失敗は記録に残します。
 
 `470a2b8` は Windows run 34188963290 を含む全 4 GHA workflow に成功しました。
 実 Remote-SSH の editor 読み書き・terminal・trusted review、Host customization の
@@ -844,7 +859,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.42** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.43** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

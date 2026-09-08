@@ -55,6 +55,9 @@ func main() {
 	if err := controlapi.RegisterStop(server, app.Environments); err != nil {
 		fail(err)
 	}
+	if err := controlapi.RegisterAWS(server, app.AWS); err != nil {
+		fail(err)
+	}
 	if err := controlapi.RegisterRepositories(server, app.Repositories, app.GitBroker); err != nil {
 		fail(err)
 	}

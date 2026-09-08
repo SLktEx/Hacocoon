@@ -23,6 +23,7 @@ import (
 	seedbuildapp "github.com/SLktEx/Hacocoon/internal/seedbuild"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
+	awsplugin "github.com/SLktEx/Hacocoon/modules/capability/aws"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
 	"github.com/SLktEx/Hacocoon/modules/standard/approvals"
@@ -39,6 +40,7 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
+	AWS                 *awsplugin.Broker
 	Reviews             *review.Service
 	Configuration       *capabilityapp.PolicyConfiguration
 	HostCustomization   *recipes.Service
@@ -165,6 +167,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		egressapp.Provider{},
 		dnsproxy.Provider{},
 		gitProvider,
+		&awsplugin.Provider{Host: incusRuntime.RunTrustedHostPython},
 		gitBroker,
 	)
 	if err != nil {
@@ -218,6 +221,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	runs := runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks"))
 	runs.ConfigureTemporaryWorkspace(workspaceStores.CleanupTemporary)
 	return &App{
+		AWS:                 &awsplugin.Broker{Host: incusRuntime.RunTrustedHostPython, Capabilities: capabilities, Environments: store},
 		ProjectSetup:        &projectsetup.Service{Root: filepath.Join(root, "project-setup"), Environments: environments},
 		HostCustomization:   &recipes.Service{Root: filepath.Join(root, "host-customization"), Execute: incusRuntime.RunTrustedHostCustomization},
 		PersistentResources: resources,

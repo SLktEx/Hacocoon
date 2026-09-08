@@ -7,7 +7,7 @@ export GOTOOLCHAIN=local
 
 usage() {
   cat <<'USAGE'
-Usage: bash tools/ci-local.sh [all|docs|workflow-policy|release-config|systemd|test|race|e2e|forwarding]
+Usage: bash tools/ci-local.sh [all|docs|workflow-policy|release-config|systemd|test|race|e2e|forwarding|aws]
 
 Mirrors the checks in .github/workflows/test.yml using the local machine.
 The release-config job intentionally fails if dist/ already exists because
@@ -234,6 +234,7 @@ case "${1:-all}" in
   workflow-policy) run_workflow_policy ;;
   release-config) run_release_config ;;
   systemd) run_systemd ;;
+  aws) "${HACO_AWS_TEST_PYTHON:-python3}" modules/capability/aws/test_host_agent.py ;;
   test) run_test ;;
   race) run_race ;;
   e2e) run_e2e ;;
