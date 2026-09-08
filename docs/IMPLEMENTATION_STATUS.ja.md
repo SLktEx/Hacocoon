@@ -1,5 +1,30 @@
 # 実装状況
 
+## 保存 rootfs の実行用コピー
+
+内部実装済み：Base／image／default profile の解決を通さず独立 rootfs をコピーし、
+直後に所有記録を保存して、通常作成と共通の現在の sandbox 設定を適用します。
+世代 ID と管理 SSH 情報を更新します。aggregate の起動調整と公開 CLI は planned
+です。対象と Incus package 全体の race／vet は成功しました。全体 local CI
+（Go tests／vet、文書／helper、JavaScript 27/27）は最後の device 修正前に成功しました。
+実 Incus の初回は、コピーされた `none` device と現在の接続名が衝突して 93.76 秒で失敗。
+作成記録後に新しい実行用 instance の mask だけを除去する修正と、名前衝突・除去失敗の
+低レベル回帰テストを追加し、最終の対象テストと文書チェックは成功しました。
+
+修正後の専用 WSL Incus/Btrfs aggregate は 135.24 秒で成功しました。fixture は
+`haco-aggregate-8ce0bd921c0adafb`、snapshot は `snap-d401c8f07e734b02f8c14fd03293a8c1`。
+元 Env／volume と Base がない状態で、実起動、新世代と source guard、guest 内の
+root／Workspace／OCI データ、管理 SSH 登録の更新、通常 Env 削除後のデータ保持、
+fixture 全削除を確認しました。失敗 fixture の実資源も正確な所有確認と正規 API で
+削除し、記録 `/var/lib/haco-snapshot-aggregate-4256480528` だけ保持しています。
+共有 image 削除は専用 image 条件により SKIP、復元先への実 SSH 接続、公開 restore の
+調整処理、live OCI database 整合性は未検証です。同一 head の GHA は実装 PR に記録します。
+
+OCI 登録の PR #496 は適用対象４ GHA workflow がすべて成功し、`4b06b5f` に
+マージしました。実 Incus/Btrfs のデータコピーと Windows SSH／VS Code は成功、
+private registry、共有 image 削除、VPN/NRPT、人間による通知判断は fixture 条件により
+SKIP です。
+
 ## 保存 OCI の再登録
 
 内部実装済み：保存 OCI volume を同じ Btrfs pool の通常 Store に独立コピーし、

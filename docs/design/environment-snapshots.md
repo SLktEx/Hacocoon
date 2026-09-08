@@ -120,9 +120,24 @@ one implementation. Production ordinary creation records its runtime before this
 fallible phase using the canonical lifecycle receipt described in
 [ADR 0002](../adr/0002-environment-lifecycle-ownership.md).
 
-This prepares the same configuration path for a new rootfs copied from a save.
-Saved-rootfs activation into the runnable Environment is still planned;
-the extraction does not expose an API that adopts arbitrary existing instances.
+`snapshot_runtime.go` implements the internal native saved-rootfs creation path.
+It copies the verified independent saved instance in its Btrfs pool without
+resolving an original Base, image or default profile. The caller holds the saved
+aggregate reservation and canonical creation lease, supplies newly registered
+Workspace/OCI bindings and a fresh generation, and records the creation receipt
+before configuration. On that newly owned runtime only, remove the copied `none`
+device masks before adding current attachments; Incus preserves those names and
+otherwise rejects duplicate device additions. Current network/source guards,
+limits and data attachments use the ordinary path. Saved profiles/devices/authority-bearing config are not
+replayed. Only Incus filesystem idmap bookkeeping survives the rootfs copy.
+
+Before publication, remove Hacocoon-managed SSH authorized-key entries, preserve
+user entries, regenerate installed SSH host keys and restart an installed SSH
+service. Failure remains failure and the caller owns bounded exact-owned cleanup;
+ambiguous creation keeps the reserved name/generation for inspection. No new
+runtime recovery state machine or automatic backup is added. The saved source is
+unchanged. This internal primitive does not adopt arbitrary existing instances.
+Aggregate activation orchestration, target switching and public CLI remain planned.
 Independent Workspace and OCI registration are implemented internally; the latter
 uses the existing [Store catalog](persistent-oci-store.md#store-registration-from-a-snapshot).
 

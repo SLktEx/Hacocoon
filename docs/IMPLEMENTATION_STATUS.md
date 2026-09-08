@@ -1,5 +1,33 @@
 # Implementation Status
 
+## Saved rootfs runtime primitive
+
+Implemented internally: native independent rootfs copy without Base/image/profile
+resolution, immediate ownership receipt, shared current sandbox configuration and
+fresh generation/managed SSH identity. The aggregate activation coordinator and
+public CLI remain planned. Focused and full Incus-package race/vet passed.
+Maintained full local CI passed before the final device-mask fix (Go tests/vet,
+docs/helpers, JavaScript 27/27). Real Incus first failed in 93.76s because copied
+`none` devices collided with current attachment names. A low-level regression now
+covers that collision and mask-removal failures; the fix removes masks only on
+the newly owned runtime after its receipt. Final related tests and docs passed.
+
+Dedicated WSL Incus/Btrfs aggregate then passed in 135.24s: fixture
+`haco-aggregate-8ce0bd921c0adafb`, snapshot `snap-d401c8f07e734b02f8c14fd03293a8c1`.
+Source Env/volumes and Base were absent. Native activation, fresh generation and
+source guard, guest root/Workspace/OCI bytes, managed SSH authorization reset,
+canonical Env deletion retaining data and complete fixture cleanup passed.
+The failed fixture's native resources were cleaned through exact-owned canonical
+APIs; its metadata directory `/var/lib/haco-snapshot-aggregate-4256480528` remains.
+Shared-image deletion was SKIP (dedicated-image gate); restored SSH handshake,
+public restore orchestration and live OCI database consistency were not tested.
+Exact-head GHA is tracked on the implementation PR.
+
+PR #496 OCI registration passed all four applicable GHA workflows and merged
+at `4b06b5f`; actual Incus/Btrfs data copies and Windows SSH/VS Code passed.
+Private-registry, shared-image deletion, VPN/NRPT and human notification decisions
+were SKIP under the respective fixture gates.
+
 ## Saved OCI registration
 
 Implemented internally: saved OCI volumes copy into ordinary Stores in their
@@ -17,7 +45,7 @@ ordinary-delete guard. A new regression then reproduced that missing guard as a
 failure and was fixed. Final full-package race/vet for state, persistentresource
 and Incus, docs and cleanup-helper tests passed; exact-head GHA is tracked on the
 implementation PR. PR #495 Workspace registration
-passed all applicable GHA and merged at 239b3e6. Runnable activation/public CLI
+passed all applicable GHA and merged at 239b3e6. Aggregate activation/public CLI
 remain planned; no live OCI database consistency claim is made.
 
 
