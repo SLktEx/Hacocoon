@@ -30,6 +30,22 @@ then capturing all five components and checking source-independent data. Shared
 GHA deliberately leaves its image cache intact; actual deletion is an explicit
 dedicated-fixture gate. This does not establish restore or live OCI consistency.
 
+## Restore preparation ownership
+
+Implemented internally: schema 8 records a separate restore preparation with
+complete saved and pre-restore snapshot manifests and fresh destination component
+identities. It atomically reserves both snapshots against deletion and blocks
+conflicting lifecycle operations on the current Environment. Created receipts
+precede verification; only every verified component permits `prepared`, which
+still does not publish a runnable replacement. Cleanup retains ownership until
+all new copies are positively absent, leaving current work and both snapshots.
+
+The future service must capture the pre-restore snapshot freshly under canonical
+locks before reservation. The catalog validates identity and transitions, not
+guest contents or provider completion. Provider staging, canonical replacement,
+recovery execution and simple public save/restore are still pending. This is not
+real-host restore acceptance. See [ADR 0039](../adr/0039-snapshot-restore-preparation.md).
+
 ## Scope
 
 The first supported capture will require a stopped Environment with a managed

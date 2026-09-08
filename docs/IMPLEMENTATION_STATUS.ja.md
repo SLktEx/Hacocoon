@@ -1,5 +1,15 @@
 # 実装状況
 
+## 復元準備の台帳
+
+内部実装済み: schema 8 に保存元・復元前退避 snapshot と独立したコピー先の完全な
+所有権を予約します。新しい全要素の不在を確認するまで、snapshot 削除と対象環境の
+競合するライフサイクル操作を拒否します。created・verified・prepared の遷移は
+Environment を公開しません。再読込、部分 cleanup、binding 不一致、downgrade、
+削除競合の回帰は成功しました。provider のコピー、直前の退避作成、正規の切替と
+公開 restore は未完了です。実機での復元は未実行です。
+[ADR 0039](adr/0039-snapshot-restore-preparation.md) を参照してください。
+
 ## Base 保持とスナップショット
 
 内部実装済み: Incus の通常 Environment・一時 run 作成では init 前に解決済みの

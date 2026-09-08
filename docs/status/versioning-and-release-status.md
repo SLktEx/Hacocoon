@@ -4,6 +4,11 @@ Environment creation without extra user steps. Completed creation receipts can
 resume verification on retry. Installed acceptance, planned-create recovery,
 collection and snapshot/restore integration remain incomplete.
 
+Restore preparation is an implemented internal follow-up: schema 8 preserves
+source/pre-restore snapshots and staging ownership. Provider staging, canonical
+replacement and public restore remain pending; this does not satisfy restore
+acceptance or change the current checkpoint.
+
 
 The v0.46 snapshot work now includes schema-7 retained Base ownership and an
 internal retention coordinator. The Incus retained-material adapter is implemented; automatic normal

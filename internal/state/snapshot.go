@@ -67,6 +67,11 @@ func validateSnapshot(s core.Snapshot) error {
 	return nil
 }
 func snapshotBusy(data environmentFileState, name string) bool {
+	for _, op := range data.Restores {
+		if op.Before.Source.Environment.Name == name {
+			return true
+		}
+	}
 	for _, s := range data.Snapshots {
 		if s.Source.Environment.Name == name && s.State != "ready" {
 			return true
@@ -188,7 +193,18 @@ func (s *EnvironmentJSONStore) MarkSnapshotRecovery(ctx context.Context, id stri
 	})
 }
 func (s *EnvironmentJSONStore) BeginSnapshotDelete(ctx context.Context, id string) error {
-	return s.mutateSnapshot(ctx, id, func(value *core.Snapshot) error { value.State = "deleting"; return nil })
+	return s.catalogTransaction(ctx, func(d *environmentFileState) (bool, error) {
+		if restoreUsesSnapshot(*d, id) {
+			return false, core.ErrStorageBusy
+		}
+		value, ok := d.Snapshots[id]
+		if !ok {
+			return false, core.ErrNotFound
+		}
+		value.State = "deleting"
+		d.Snapshots[id] = value
+		return true, nil
+	})
 }
 func (s *EnvironmentJSONStore) FinalizeSnapshotDelete(ctx context.Context, id string) error {
 	return s.catalogTransaction(ctx, func(data *environmentFileState) (bool, error) {
