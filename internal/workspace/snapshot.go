@@ -1,0 +1,82 @@
+package workspace
+
+import (
+	"context"
+	"fmt"
+	"github.com/SLktEx/Hacocoon/internal/core"
+	"strings"
+)
+
+// InspectSnapshotSource checks the canonical aggregate under the lifecycle locks.
+// Provider capture, durable manifests and restore are separate unfinished work.
+func (s *Service) InspectSnapshotSource(ctx context.Context, name string) (core.SnapshotSource, error) {
+	var source core.SnapshotSource
+	err := s.withSnapshotSource(ctx, name, func(_ context.Context, verified core.SnapshotSource) error { source = verified; return nil })
+	return source, err
+}
+
+// Snapshot capture must reuse this locked path, not act on an old inspection.
+func (s *Service) withSnapshotSource(ctx context.Context, name string, operation func(context.Context, core.SnapshotSource) error) error {
+	if _, err := validateEnvironmentName(name); err != nil {
+		return err
+	}
+	unlock, err := lockLifecycle(ctx, "environment", name)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	environment, err := s.store.GetEnvironment(ctx, name)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(environment.Workspace.Path, "managed:") || environment.Workspace.ID == "" {
+		return fmt.Errorf("snapshots require a managed Workspace: %w", core.ErrUnsupported)
+	}
+	release, err := lockWorkspace(ctx, environment.Workspace.ID)
+	if err != nil {
+		return err
+	}
+	defer release()
+	lease, err := s.store.GetWorkspaceLease(ctx, name)
+	if err != nil {
+		return fmt.Errorf("snapshot requires durable ownership: %w", core.ErrRecoveryRequired)
+	}
+	if lease.State != core.WorkspaceLeaseActive || lease.Owner == "" || lease.EnvironmentID != name || lease.RuntimeRef == "" || lease.RuntimeRef != environment.RuntimeRef ||
+		lease.WorkspaceID != environment.Workspace.ID || lease.SourcePath != environment.Workspace.Path || lease.AccessMode != environment.AccessMode ||
+		lease.PersistentResource != environment.PersistentResource || !core.ValidEnvironmentInstanceID(lease.InstanceID) {
+		return core.ErrRecoveryRequired
+	}
+	if environment.PersistentResource != (core.PersistentResourceRef{}) && !core.ValidPersistentResourceRef(environment.PersistentResource) {
+		return core.ErrRecoveryRequired
+	}
+	identities, ok := s.store.(interface {
+		EnvironmentInstance(context.Context, core.Environment) (string, error)
+	})
+	if !ok {
+		return core.ErrUnsupported
+	}
+	instance, err := identities.EnvironmentInstance(ctx, environment)
+	if err != nil {
+		return err
+	}
+	if instance != lease.InstanceID {
+		return core.ErrCapabilityStale
+	}
+	runtime, ok := s.runtime.(interface {
+		InspectEnvironment(context.Context, string) (core.EnvironmentRuntimeStatus, error)
+	})
+	if !ok {
+		return core.ErrUnsupported
+	}
+	status, err := runtime.InspectEnvironment(ctx, environment.RuntimeRef)
+	if err != nil {
+		return err
+	}
+	if status.State != core.EnvironmentStopped {
+		return fmt.Errorf("stop the Environment before snapshot: %w", core.ErrIncompatibleState)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return operation(ctx, core.SnapshotSource{Environment: environment, InstanceID: instance})
+}

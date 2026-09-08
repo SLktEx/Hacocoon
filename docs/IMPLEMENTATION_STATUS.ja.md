@@ -1,5 +1,14 @@
 # 実装状況
 
+## snapshot の送信元検査
+
+E2 の内部基盤を部分実装しました。Environment/Workspace lock の下で全対象の対応を
+検査し、provider の停止と正確な永続作成 ID を要求します。不一致・running/unknown・
+不正な接続 ID は拒否し、同時削除を防ぎます。focused race は成功しました。
+provider 保存・manifest・restore・CLI・実データ往復は未実装です。
+[snapshot 設計](design/environment-snapshots.md)と [ADR 0037](adr/0037-snapshot-aggregate-ownership.md)を参照してください。
+
+
 ## 外部 Workspace 再作成の実機検証
 
 E1 の基本構成が専用 WSL の product 093ed159b80e で成功しました。通常 API の stop/start

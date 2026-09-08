@@ -1,5 +1,15 @@
 # Implementation Status
 
+## Snapshot source guard
+
+Partial E2 foundation: the Workspace service validates the complete source
+aggregate under Environment/Workspace locks, requiring stopped provider state and
+the exact durable creation ID. Drift, running/unknown state and invalid attachment
+identity fail closed; concurrent deletion is excluded. Focused race tests passed.
+Provider capture, manifests, restore, CLI and real data round trips remain planned.
+See [snapshot design](design/environment-snapshots.md) and [ADR 0037](adr/0037-snapshot-aggregate-ownership.md).
+
+
 ## External Workspace recreation acceptance
 
 E1 baseline passed in dedicated WSL at product 093ed159b80e: ordinary API
