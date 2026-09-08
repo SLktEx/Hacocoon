@@ -97,3 +97,92 @@ func TestEnsureBaseAssetDurableOrderingFailuresAndReuse(t *testing.T) {
 		})
 	}
 }
+
+func TestEnsureRecoversDurablyCreatedBaseAfterRestart(t *testing.T) {
+	for _, mode := range []string{"created", "planned", "changed-material", "publish-failed"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx := context.Background()
+			path := filepath.Join(t.TempDir(), "state.json")
+			catalog := state.NewEnvironmentJSONStore(path)
+			a := core.BaseAsset{ID: "base-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Owner: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Base: core.BaseRef{Name: "dev/base", Revision: "revision:one"}, Provider: "provider", Scope: "pool", NativeRef: "owned/base", Binding: `{"version":1}`, State: "planned"}
+			if err := catalog.BeginBaseAsset(ctx, a); err != nil {
+				t.Fatal(err)
+			}
+			if mode != "planned" {
+				if err := catalog.RecordBaseAsset(ctx, a, "created"); err != nil {
+					t.Fatal(err)
+				}
+				a.State = "created"
+			}
+			reopened := state.NewEnvironmentJSONStore(path)
+			verified := 0
+			b := &backend{create: func(core.BaseAsset) error { t.Fatal("recovery recreated Base"); return nil }, verify: func(got core.BaseAsset) error {
+				verified++
+				if got != a {
+					t.Fatal("recovery substituted ownership")
+				}
+				if mode == "changed-material" {
+					return errors.New("material changed")
+				}
+				return nil
+			}}
+			service := Service{Store: reopened, Backend: b, Provider: "provider"}
+			if mode == "publish-failed" {
+				service.Store = failingReceipt{reopened}
+			}
+			got, err := service.Ensure(ctx, a.Base, a.Scope)
+			durable, readErr := state.NewEnvironmentJSONStore(path).FindBaseAsset(ctx, a.Base, a.Provider, a.Scope)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if mode == "created" {
+				a.State = "ready"
+				if err != nil || got != a || durable != a {
+					t.Fatal("recovery did not finish exact asset", got, err)
+				}
+			} else {
+				if !errors.Is(err, core.ErrRecoveryRequired) || got != a || durable != a {
+					t.Fatal("lost incomplete ownership", got, err)
+				}
+			}
+			if b.creates != 0 || (mode == "planned" && verified != 0) || (mode != "planned" && verified != 1) {
+				t.Fatal("invalid recovery provider operations", b.creates, verified)
+			}
+		})
+	}
+}
+
+func TestConcurrentBaseRecoveryConvergesOnExactReadyAsset(t *testing.T) {
+	ctx := context.Background()
+	catalog := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
+	a := core.BaseAsset{ID: "base-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Owner: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Base: core.BaseRef{Name: "dev/base", Revision: "revision:one"}, Provider: "provider", Scope: "pool", NativeRef: "owned/base", Binding: `{"version":1}`, State: "planned"}
+	if err := catalog.BeginBaseAsset(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := catalog.RecordBaseAsset(ctx, a, "created"); err != nil {
+		t.Fatal(err)
+	}
+	a.State = "created"
+	arrived := make(chan struct{}, 2)
+	release := make(chan struct{})
+	results := make(chan error, 2)
+	b := &backend{verify: func(core.BaseAsset) error { arrived <- struct{}{}; <-release; return nil }}
+	service := Service{Store: catalog, Backend: b, Provider: "provider"}
+	for i := 0; i < 2; i++ {
+		go func() {
+			got, err := service.Ensure(ctx, a.Base, a.Scope)
+			if err == nil && got.State != "ready" {
+				err = errors.New("not ready")
+			}
+			results <- err
+		}()
+	}
+	<-arrived
+	<-arrived
+	close(release)
+	for i := 0; i < 2; i++ {
+		if err := <-results; err != nil {
+			t.Fatal(err)
+		}
+	}
+}

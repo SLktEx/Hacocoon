@@ -1,5 +1,8 @@
 # Implementation Status
 
+A retained Base with a durable creation receipt now completes verification and
+ready publication on the next request. Planned/ambiguous creation is not adopted.
+
 ## Retained Base ownership
 
 Partial: schema 7 adds a provider-neutral Base-asset catalog and retention

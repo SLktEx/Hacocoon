@@ -310,3 +310,8 @@ This does not yet establish ordinary-create wiring or snapshot restore.
 An initial local compile/vet attempt failed on a missing BaseRevision conversion
 in the new regression test. The type was corrected; focused tests and the real
 fixture passed. The full local CI rerun remains pending.
+
+When creation completion was durably recorded but verification/publication was
+interrupted, the next retention request re-verifies the same owned material and
+finishes ready publication. It issues no new create. A merely planned reservation
+still requires recovery; resource presence alone does not prove completed creation.

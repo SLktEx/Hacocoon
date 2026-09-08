@@ -54,3 +54,10 @@ Ordinary-create and restore acceptance remain separate.
 
 See [Base contract](../design/base-images-and-custom-environments.md) and
 [snapshot contract](../design/environment-snapshots.md).
+
+Recovery from a durable `created` receipt is now automatic on the next Ensure:
+verify the exact existing material again, then atomically publish ready. Failed
+verification or publication preserves ownership. A `planned` row still cannot be
+adopted from a stopped-instance observation alone: the original provider operation
+may be incomplete even if a same-name instance appears. Resolving ambiguous creates
+requires stronger provider completion evidence or proven-safe cleanup.
