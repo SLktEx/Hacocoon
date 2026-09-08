@@ -59,4 +59,4 @@ through observation and delivery. Save uses an exclusive random file and synced
 atomic replacement. Predictable temporary names can redirect writes through a
 link; unlinking the lock can split ownership across inodes. Both are rejected.
 This is client-owned presentation state, not a capability authority or an
-exactly-once delivery guarantee. Background startup remains separate work.
+exactly-once delivery guarantee. Windows setup now owns optional background startup after desktop registration.

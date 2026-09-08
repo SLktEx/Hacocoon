@@ -114,16 +114,22 @@ func (r *Runtime) completeTrustedHost(ctx context.Context, state, pool string) e
 // ConfigureWSLInterop uses the installer-owned setup script. It does not
 // register binfmt handlers or install a Windows executable launcher.
 func (r *Runtime) ConfigureWSLInterop() {
-	r.trustedHostInterop = func(ctx context.Context) error {
+	configure := func(ctx context.Context, mode string) error {
 		const script = "/usr/local/libexec/hacocoon-wsl-interop"
 		if _, _, err := trustedClientSource(script); err != nil {
 			return fmt.Errorf("WSL interop setup unavailable; rerun Windows installer: %w", err)
 		}
-		if _, err := r.runner.Run(ctx, "/usr/bin/python3", "-I", script); err != nil {
+		args := []string{"-I", script}
+		if mode != "" {
+			args = append(args, mode)
+		}
+		if _, err := r.runner.Run(ctx, "/usr/bin/python3", args...); err != nil {
 			return fmt.Errorf("refresh trusted Host Windows access; rerun Windows installer: %w", err)
 		}
 		return nil
 	}
+	r.trustedHostInterop = func(ctx context.Context) error { return configure(ctx, "") }
+	r.trustedHostNotifications = func(ctx context.Context) error { return configure(ctx, "--notifications=refresh") }
 }
 
 // ProvisionTrustedHostClient installs the client-only haco-host binary into the

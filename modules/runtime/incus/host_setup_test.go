@@ -67,8 +67,9 @@ func TestHostSetupReusesOwnedHostAndRecoversPartialClientInstall(t *testing.T) {
 		}
 		if len(args) >= 4 && args[0] == "file" && args[1] == "push" {
 			target := strings.TrimPrefix(args[3], trustedHostName)
-			pushes[target]++
-			if target == trustedHostProductClientPath && failProduct {
+			logical := "/usr/local/bin/" + filepath.Base(args[2])
+			pushes[logical]++
+			if logical == trustedHostProductClientPath && failProduct {
 				return host.Result{}, errors.New("interrupted install")
 			}
 			data, err := os.ReadFile(args[2])
@@ -87,9 +88,26 @@ func TestHostSetupReusesOwnedHostAndRecoversPartialClientInstall(t *testing.T) {
 		if len(args) >= 9 && args[0] == "exec" && args[5] == "stat" {
 			return host.Result{Stdout: "755:0:0"}, nil
 		}
+		if len(args) >= 10 && args[0] == "exec" && args[5] == "mv" {
+			installed[args[9]] = installed[args[8]]
+			delete(installed, args[8])
+			return host.Result{}, nil
+		}
+		if len(args) >= 6 && args[0] == "exec" && (args[5] == "mkdir" || args[5] == "rm" || args[5] == "rmdir") {
+			return host.Result{}, nil
+		}
 		return original(ctx, n, name, args)
 	}
 	runtime := New(runner)
+
+	refreshes := 0
+	runtime.trustedHostNotifications = func(context.Context) error {
+		if installed[trustedHostProductClientPath] == "" || installed["/usr/local/bin/haco-notify"] == "" {
+			t.Fatal("notification restart before companion publication")
+		}
+		refreshes++
+		return nil
+	}
 	if err := runtime.SetupTrustedHost(context.Background(), dir); err == nil {
 		t.Fatal("partial install accepted")
 	}
@@ -99,6 +117,9 @@ func TestHostSetupReusesOwnedHostAndRecoversPartialClientInstall(t *testing.T) {
 	}
 	if err := runtime.SetupTrustedHost(context.Background(), dir); err != nil {
 		t.Fatal(err)
+	}
+	if refreshes != 2 {
+		t.Fatalf("notification refresh count=%d", refreshes)
 	}
 	if pushes[trustedHostClientPath] != 1 || pushes[trustedHostProductClientPath] != 2 || pushes["/usr/local/bin/haco-notify"] != 1 {
 		t.Fatalf("non-idempotent pushes=%v", pushes)

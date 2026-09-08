@@ -1,19 +1,29 @@
 # Implementation Status
 
+## Automatic desktop notification follow-up
+
+Implemented in the working branch: Windows post-install enables an owned Host
+notification service after registration; `-SkipDesktopReview` stops/disables it.
+First start skips historical presentation, while existing cursors resume normally.
+Companion publication uses verified atomic replacement so a running notifier does
+not block updates. Unit parser, ownership, opt-out, from-now and race regressions passed.
+Installed automatic service acceptance remains pending.
+At `6d516d3`, test, Ubuntu and corrected Incus E2E passed. Windows remains running.
+
+
 ## Host notification acceptance and state safety
 
 At `213fb2b`, Ubuntu installer run 34173412741 passed installed Host notification
 subscription and listener cleanup (job 101898000285). The test workflow passed.
 Incus run 34173412776 failed Host setup: its standalone CLI fixture builds no
 notification companion, now required by setup. The fixture is updated to build
-and verify its installed digest/ownership; the corrected real Incus run is pending.
+and verify its installed digest/ownership; the corrected Incus run 34174437698 at `6d516d3` passed.
 Windows run 34173412761 remains in progress.
 
 Native cursor storage now rejects linked/special files, bounds reads, pins the
 owned parent, synchronizes atomic saves and locks one writer for the process
 lifetime. Focused tests and vet passed, including separate-process exclusion and
-parent replacement. Automatic notification startup and fresh native decisions
-remain incomplete; this change does not claim them.
+parent replacement. Windows automatic startup is now implemented; fresh native decisions remain incomplete.
 
 
 Real Host component acceptance also passed in Hacocoon-Review-6771f2f using the
@@ -115,7 +125,7 @@ The Standard queue bounds background approval waiting; the common private review
 also uses original Git prompts. One-shot decisions, six saved choices, cancellation,
 expiry, duplicate submission, exact completion ownership, Policy changes, sanitized
 failure receipts and real local Git helper integration passed related race/vet tests.
-Notification activation remains planned. See [pending review](design/pending-approval-review.md).
+Windows notification activation is implemented; fresh native decision acceptance remains partial. See [pending review](design/pending-approval-review.md).
 
 Installed GHA now includes ordinary configuration plus actual HTTPS saved-ask denial,
 one-shot approval, re-prompt/denial and scoped cleanup. At `5ad8c3e`, Windows run

@@ -312,3 +312,43 @@ func TestWindowsNotificationDoesNotBypassNativeInterop(t *testing.T) {
 		t.Fatal("Windows notification must preserve the normal interop boundary")
 	}
 }
+
+type fromNowReader struct {
+	scriptedReader
+	starts int
+}
+
+func (r *fromNowReader) Stream(_ context.Context, _ int64, emit func(interaction.Event) error) (int64, error) {
+	r.starts++
+	if err := emit(interaction.Event{EventID: "historical", Kind: interaction.ApprovalRequired, NextOffset: 40}); err != nil {
+		return 0, err
+	}
+	return 40, nil
+}
+func TestNativeFromNowOnlyInitializesMissingState(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		t.Run(fmt.Sprint(existing), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state.json")
+			if existing {
+				if err := saveState(path, notifyState{Offset: 20}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			reader := &fromNowReader{scriptedReader: scriptedReader{batch: interaction.Batch{Events: []interaction.Event{{EventID: "new", Kind: interaction.ApprovalRequired, NextOffset: 50}}, NextOffset: 50}}}
+			presenter := &recordingNotifier{}
+			if err := runNativeWithStart(context.Background(), reader, presenter, path, time.Second, true, false, true); err != nil {
+				t.Fatal(err)
+			}
+			if existing {
+				if reader.starts != 0 || reader.seenOffset != 20 {
+					t.Fatal("existing cursor was skipped")
+				}
+			} else if reader.starts != 1 || reader.seenOffset != 40 {
+				t.Fatal("first start did not capture the current end")
+			}
+			if len(presenter.titles) != 1 {
+				t.Fatal("history was presented or new event lost")
+			}
+		})
+	}
+}

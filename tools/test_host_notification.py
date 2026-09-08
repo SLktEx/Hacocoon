@@ -19,6 +19,8 @@ assert os.environ.get('HACO_CLIENT_MODE') == 'controller'
 assert len(sys.argv) in (1, 2)
 if len(sys.argv) == 2:
     assert os.environ.get('WSL_DISTRO_NAME') == sys.argv[1], 'wrong native notification distribution'
+    subprocess.run(['systemctl','is-enabled','--quiet','hacocoon-notify.service'], check=True)
+    subprocess.run(['systemctl','is-active','--quiet','hacocoon-notify.service'], check=True)
 assert not Path('/var/lib/hacocoon/audit/capabilities.jsonl').exists()
 with socket.socket() as reservation:
     reservation.bind(('127.0.0.1', 0))

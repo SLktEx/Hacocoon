@@ -29,17 +29,18 @@ type runtimeStorageState struct {
 }
 
 type Runtime struct {
-	environmentDNS     string
-	trustedHostInterop func(context.Context) error
-	runner             host.Runner
-	project            string
-	image              string
-	storage            *runtimeStorageState
-	stdin              io.Reader
-	stdout             io.Writer
-	stderr             io.Writer
-	cleanupTimeout     time.Duration
-	managedWorkspace   func(context.Context, string) ([]WorkspaceAttachment, error)
+	environmentDNS           string
+	trustedHostInterop       func(context.Context) error
+	trustedHostNotifications func(context.Context) error
+	runner                   host.Runner
+	project                  string
+	image                    string
+	storage                  *runtimeStorageState
+	stdin                    io.Reader
+	stdout                   io.Writer
+	stderr                   io.Writer
+	cleanupTimeout           time.Duration
+	managedWorkspace         func(context.Context, string) ([]WorkspaceAttachment, error)
 }
 
 func New(runner host.Runner) *Runtime {

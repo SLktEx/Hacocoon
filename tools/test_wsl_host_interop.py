@@ -97,6 +97,61 @@ class DistributionTests(unittest.TestCase):
         with self.assertRaises(ValueError): interop.plan(config, {}, 'Hacocoon')
 
 
+class NotificationServiceTests(unittest.TestCase):
+    def test_unit_environment_is_quoted_and_parser_accepts_it(self):
+        unit = interop.notification_unit(['/mnt/c/Tools With Spaces', '/mnt/c/Percent%And"Quote'], 'Hacocoon-Test')
+        self.assertIn('HACO_CONTROL_SOCKET=/var/lib/hacocoon-control.sock', unit)
+        self.assertIn('HOME=/root', unit)
+        self.assertIn('UMask=0077', unit)
+        self.assertIn('%%', unit)
+        self.assertNotIn('/var/lib/hacocoon/audit', unit)
+        with self.assertRaises(ValueError): interop.notification_unit(['/mnt/c/bad\nvalue'], 'Hacocoon')
+        with self.assertRaises(ValueError): interop.notification_unit([], 'Hacocoon;command')
+        if not shutil.which('systemd-analyze'):
+            self.skipTest('systemd-analyze required for unit parser acceptance')
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'hacocoon-notify.service'
+            # Verify the real unit syntax with an available harmless executable.
+            path.write_text(unit.replace('/usr/local/bin/haco-notify', '/bin/true'))
+            subprocess.run(['systemd-analyze', 'verify', str(path)], check=True, capture_output=True)
+
+    def test_owned_service_enable_disable_and_foreign_refusal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            target = directory / 'hacocoon-notify.service'
+            run = mock.Mock()
+            unit = interop.notification_unit(['/mnt/c/Windows/System32'], 'Hacocoon')
+            original = Path.lstat
+            def owned(path, *args, **kwargs):
+                info = original(path, *args, **kwargs)
+                return types.SimpleNamespace(st_mode=info.st_mode, st_uid=0, st_nlink=info.st_nlink, st_size=info.st_size)
+            with mock.patch.object(Path, 'lstat', owned):
+                interop.install_notification_unit(unit, True, directory, run)
+                self.assertEqual(target.read_text(), unit)
+                self.assertEqual([call.args[0][1] for call in run.call_args_list], ['daemon-reload','reset-failed','enable','restart','is-active'])
+                run.reset_mock()
+                run.return_value = subprocess.CompletedProcess([], 0)
+                interop.install_notification_unit(unit, None, directory, run)
+                self.assertEqual(run.call_args_list[0].args[0], ['systemctl','is-enabled','--quiet','hacocoon-notify.service'])
+                self.assertIn(mock.call(['systemctl','restart','hacocoon-notify.service'], check=True), run.call_args_list)
+                run.reset_mock()
+                interop.install_notification_unit(unit, False, directory, run)
+                run.assert_called_once_with(['systemctl','disable','--now','hacocoon-notify.service'], check=True)
+                run.reset_mock()
+                run.return_value = subprocess.CompletedProcess([], 1)
+                interop.install_notification_unit(unit, None, directory, run)
+                run.assert_called_once_with(['systemctl','is-enabled','--quiet','hacocoon-notify.service'], check=False)
+                run.reset_mock()
+                target.write_text('[Service]\nExecStart=/bin/false\n')
+                with self.assertRaises(ValueError): interop.install_notification_unit(unit, True, directory, run)
+                run.assert_not_called()
+                self.assertIn('/bin/false', target.read_text())
+                target.unlink()
+                target.symlink_to('/dev/null')
+                with self.assertRaises(ValueError): interop.install_notification_unit(unit, True, directory, run)
+                run.assert_not_called()
+
+
 class NativeBinfmtTests(unittest.TestCase):
     handler = 'enabled\ninterpreter /init\nflags: P\noffset 0\nmagic 4d5a\n'
 

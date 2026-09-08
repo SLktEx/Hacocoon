@@ -152,6 +152,7 @@ func nativeCommand(ctx context.Context, args []string) error {
 	statePath := fs.String("state", defaultStatePath(), "cursor/dedup state file")
 	poll := fs.Duration("poll", 2*time.Second, "poll interval")
 	once := fs.Bool("once", false, "process one available batch and exit")
+	fromNow := fs.Bool("from-now", false, "start at the current end only when no saved state exists")
 	includeCompleted := fs.Bool("include-completed", false, "show low-priority completed events")
 	backend := fs.String("backend", "auto", "notification backend: auto, windows, linux")
 	if err := fs.Parse(args); err != nil {
@@ -169,10 +170,14 @@ func nativeCommand(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	return runNative(ctx, reader, presenter, *statePath, *poll, *once, *includeCompleted)
+	return runNativeWithStart(ctx, reader, presenter, *statePath, *poll, *once, *includeCompleted, *fromNow)
 }
 
 func runNative(ctx context.Context, reader batchReader, presenter notifier, statePath string, poll time.Duration, once, includeCompleted bool) error {
+	return runNativeWithStart(ctx, reader, presenter, statePath, poll, once, includeCompleted, false)
+}
+
+func runNativeWithStart(ctx context.Context, reader batchReader, presenter notifier, statePath string, poll time.Duration, once, includeCompleted, fromNow bool) error {
 	if reader == nil || presenter == nil || statePath == "" || poll < 250*time.Millisecond {
 		return interaction.ErrInvalidArgument
 	}
@@ -184,6 +189,27 @@ func runNative(ctx context.Context, reader batchReader, presenter notifier, stat
 	state, err := store.load()
 	if err != nil {
 		return err
+	}
+
+	if fromNow {
+		if _, statErr := store.root.Lstat(store.name); errors.Is(statErr, os.ErrNotExist) {
+			stream, ok := reader.(interface {
+				Stream(context.Context, int64, func(interaction.Event) error) (int64, error)
+			})
+			if !ok {
+				return interaction.ErrInvalidArgument
+			}
+			offset, streamErr := stream.Stream(ctx, 0, func(interaction.Event) error { return nil })
+			if streamErr != nil {
+				return streamErr
+			}
+			state.Offset = offset
+			if err := store.save(state); err != nil {
+				return err
+			}
+		} else if statErr != nil {
+			return statErr
+		}
 	}
 
 	for {

@@ -157,6 +157,29 @@ files, limits input to 128 KiB, and saves through an exclusive random temporary
 file, file sync, atomic rename and directory sync. It never writes through the
 old predictable `.tmp` path. Unsupported platforms fail closed rather than
 silently omitting ownership or process locking. These guarantees prepare for
-background use; automatic notification startup remains unimplemented.
+background use; Windows automatic startup is implemented below; installed acceptance remains separate.
 
 Notification delivery and cursor persistence are separate operations. A crash between them can repeat a presentation after restart; it cannot approve or replay a capability.
+
+## Automatic Windows notifications
+
+Windows installation enables the owned `hacocoon-notify.service` in trusted Host
+after desktop protocol registration. It starts with the Host, reads only the
+existing controller endpoint and resumes its private cursor. No extra daily
+command is required. `-SkipDesktopReview` disables/stops the owned service as
+well as skipping registration. An unowned or linked unit is rejected, not replaced.
+Linux desktop autostart is not configured by this Windows integration.
+
+First automatic start uses the current event end to avoid replaying historical
+notifications. Existing saved cursors are never reset; pending requests remain
+available through `haco approve`. The optional helper flag `--from-now` implements
+this first-start policy. Notification failures get bounded systemd restarts; the
+notifier never repairs native interop or restarts a controller. Failed startup
+is reported by the installer. Later failure is visible in the service journal.
+
+Companion upgrades stage a new file in a private directory, verify its digest and
+root-owned executable permissions, then atomically replace the installed name.
+A running old executable is not truncated. Cleanup removes only the exact owned
+staging file/directory and reports recovery-required if cleanup fails.
+
+Normal `haco setup` refreshes an already enabled notification service after companion publication. It preserves a disabled service and does not create one before Windows desktop registration.

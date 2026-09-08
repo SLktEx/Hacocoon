@@ -32,5 +32,11 @@ func (r *Runtime) SetupTrustedHost(ctx context.Context, clientDirectory string) 
 	if err := r.ProvisionTrustedHostProductClient(ctx, paths[1]); err != nil {
 		return err
 	}
-	return r.provisionTrustedHostCompanion(ctx, paths[2], "/usr/local/bin/haco-notify")
+	if err := r.provisionTrustedHostCompanion(ctx, paths[2], "/usr/local/bin/haco-notify"); err != nil {
+		return err
+	}
+	if r.trustedHostNotifications != nil {
+		return r.trustedHostNotifications(ctx)
+	}
+	return nil
 }

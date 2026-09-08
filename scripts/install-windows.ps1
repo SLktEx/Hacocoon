@@ -752,6 +752,11 @@ if (-not $SkipIncus -and -not $SkipDesktopReview) {
     . (Join-Path $PSScriptRoot "windows-review.ps1")
     Install-HacocoonDesktopReview $InstanceName $PSScriptRoot
 }
+if (-not $SkipIncus) {
+    $notificationMode = if ($SkipDesktopReview) { '--notifications=off' } else { '--notifications=on' }
+    $notification = Invoke-WslCapture @('--distribution', $InstanceName, '--user', 'root', '--exec', '/usr/bin/python3', '-I', '/usr/local/libexec/hacocoon-wsl-interop', $notificationMode)
+    if ($notification.ExitCode -ne 0) { throw 'Host desktop notification service setup failed.' }
+}
 Write-Step "Hacocoon WSL installation complete"
 Write-Host "Instance: $InstanceName"
 Write-Host "Ubuntu user: $loginUser"
