@@ -7,15 +7,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const environmentStateVersion = 7
+const environmentStateVersion = 8
 const previousEnvironmentStateVersion = 2
 
 type environmentFileState struct {
+	Restores            map[string]core.SnapshotRestore    `json:"restores,omitempty"`
 	BaseAssets          map[string]core.BaseAsset          `json:"base_assets,omitempty"`
 	Snapshots           map[string]core.Snapshot           `json:"snapshots,omitempty"`
 	PersistentResources map[string]core.PersistentResource `json:"persistent_resources,omitempty"`
@@ -288,6 +290,7 @@ func validateEphemeralRun(run core.EphemeralRun) error {
 
 func newEnvironmentFileState() environmentFileState {
 	return environmentFileState{
+		Restores:            map[string]core.SnapshotRestore{},
 		BaseAssets:          map[string]core.BaseAsset{},
 		Snapshots:           map[string]core.Snapshot{},
 		PersistentResources: map[string]core.PersistentResource{},
@@ -320,6 +323,9 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 	if data.EphemeralRuns == nil {
 		data.EphemeralRuns = map[string]core.EphemeralRun{}
 	}
+	if data.Restores == nil {
+		data.Restores = map[string]core.SnapshotRestore{}
+	}
 	if data.BaseAssets == nil {
 		data.BaseAssets = map[string]core.BaseAsset{}
 	}
@@ -336,12 +342,12 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 }
 
 func normalizeEnvironmentState(data *environmentFileState) error {
-	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != 5 && data.Version != 6 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
+	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != 5 && data.Version != 6 && data.Version != 7 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
 		return fmt.Errorf("environment state version %d is unsupported (want %d): %w", data.Version, environmentStateVersion, core.ErrIncompatibleState)
 	}
 
 	for id, a := range data.BaseAssets {
-		if data.Version != environmentStateVersion || id != a.ID || validateBaseAsset(a) != nil {
+		if (data.Version != 7 && data.Version != environmentStateVersion) || id != a.ID || validateBaseAsset(a) != nil {
 			return core.ErrIncompatibleState
 		}
 		for otherID, b := range data.BaseAssets {
@@ -358,8 +364,52 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 				}
 			}
 		}
-		if (data.Version != 5 && data.Version != 6 && data.Version != environmentStateVersion) || id != snapshot.ID || validateSnapshot(snapshot) != nil {
+		if (data.Version != 5 && data.Version != 6 && data.Version != 7 && data.Version != environmentStateVersion) || id != snapshot.ID || validateSnapshot(snapshot) != nil {
 			return core.ErrIncompatibleState
+		}
+	}
+	for id, op := range data.Restores {
+		if data.Version != environmentStateVersion || id != op.ID || validateRestore(op) != nil || !reflect.DeepEqual(data.Snapshots[op.Saved.ID], op.Saved) || !reflect.DeepEqual(data.Snapshots[op.Before.ID], op.Before) {
+			return core.ErrIncompatibleState
+		}
+		before := op.Before.Source
+		lease := data.Leases[before.Environment.Name]
+		if !reflect.DeepEqual(data.Environments[before.Environment.Name], before.Environment) || lease.InstanceID != before.InstanceID || lease.State != core.WorkspaceLeaseActive || validateEnvironmentCreateCommit(before.Environment, lease) != nil {
+			return core.ErrIncompatibleState
+		}
+		for _, c := range op.Components {
+			for _, env := range data.Environments {
+				if c.NativeRef == env.RuntimeRef {
+					return core.ErrIncompatibleState
+				}
+			}
+			for _, snap := range data.Snapshots {
+				for _, old := range snap.Components {
+					if c.NativeRef == old.NativeRef || c.Owner == old.Owner {
+						return core.ErrIncompatibleState
+					}
+				}
+			}
+			for _, a := range data.BaseAssets {
+				if c.NativeRef == a.NativeRef || c.Owner == a.Owner {
+					return core.ErrIncompatibleState
+				}
+			}
+		}
+		for otherID, other := range data.Restores {
+			if otherID == id {
+				continue
+			}
+			if op.Before.Source.Environment.Name == other.Before.Source.Environment.Name {
+				return core.ErrIncompatibleState
+			}
+			for _, a := range op.Components {
+				for _, b := range other.Components {
+					if a.NativeRef == b.NativeRef || a.Owner == b.Owner {
+						return core.ErrIncompatibleState
+					}
+				}
+			}
 		}
 	}
 	for name, environment := range data.Environments {

@@ -4,6 +4,10 @@
 検証を再開できます。installed 受け入れ・planned 作成の復旧・回収・
 snapshot/restore への接続は未完了です。
 
+復元準備は内部の後続実装です。schema 8 が保存元・復元前退避 snapshot と
+コピー先の所有権を保持します。provider コピー、正規切替、公開 restore は未完了で、
+復元の受入完了を示すものではありません。現在の checkpoint は変更しません。
+
 
 v0.46 の snapshot 作業に schema 7 の Base 保持用所有権と内部の保持
 コーディネータを追加しました。Incus の実体保持 adapter は実装済みですが、通常作成への自動接続は

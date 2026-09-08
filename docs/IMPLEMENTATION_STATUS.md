@@ -1,5 +1,15 @@
 # Implementation Status
 
+## Restore preparation catalog
+
+Implemented internally: schema 8 reserves saved and pre-restore snapshots plus
+complete independent destination ownership. It blocks snapshot deletion and
+conflicting target lifecycle until every new component is positively absent.
+Created/verified/prepared transitions never publish an Environment. Restart,
+partial cleanup, stale binding, downgrade and deletion-race regressions passed.
+Provider staging, fresh backup capture, canonical replacement and public restore
+remain pending; no real-host restore was executed. See [ADR 0039](adr/0039-snapshot-restore-preparation.md).
+
 ## Retained Bases and snapshot capture
 
 Implemented internally: ordinary Incus Environment and temporary-run creation

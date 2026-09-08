@@ -20,9 +20,11 @@ class CleanupTest(unittest.TestCase):
         return dict(version=7, base_assets={asset["id"]: asset}), name, instance
 
     def test_exact_cleanup_and_refusal(self):
-        for mode in ("ok", "absent", "lease", "foreign-owner", "host-device", "running", "duplicate", "still-present", "failed-delete"):
+        for mode in ("ok", "schema8", "restore", "absent", "lease", "foreign-owner", "host-device", "running", "duplicate", "still-present", "failed-delete"):
             with self.subTest(mode=mode):
                 data, name, instance = self.fixture()
+                if mode in ("schema8", "restore"): data["version"] = 8
+                if mode == "restore": data["restores"] = {"restore-owned": {}}
                 if mode == "lease": data["workspace_leases"] = {"dev": {}}
                 if mode == "foreign-owner": instance["config"]["user.hacocoon.owner"] = "c" * 32
                 if mode == "host-device": instance["devices"]["host"] = dict(type="disk", source="/", path="/host")
@@ -37,11 +39,11 @@ class CleanupTest(unittest.TestCase):
                     rows = [] if mode == "absent" or (len(calls) > 1 and mode != "still-present") else [instance]
                     if mode == "duplicate": rows += rows
                     return json.dumps(rows)
-                if mode in ("ok", "absent"): cleanup(data, name, run)
+                if mode in ("ok", "schema8", "absent"): cleanup(data, name, run)
                 else:
                     with self.assertRaises(RuntimeError): cleanup(data, name, run)
                 deletes = sum(c[0] == "delete" for c in calls)
-                self.assertEqual(deletes, int(mode in ("ok", "still-present", "failed-delete")))
+                self.assertEqual(deletes, int(mode in ("ok", "schema8", "still-present", "failed-delete")))
 
 
 if __name__ == "__main__": unittest.main()
