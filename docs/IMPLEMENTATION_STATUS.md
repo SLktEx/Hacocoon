@@ -1,5 +1,17 @@
 # Implementation Status
 
+## Host OCI publication input
+
+Partial: the optional plugin now prepares deterministic image inventory through
+an owned-Host Incus adapter. Full local IDs preserve locally built and dangling
+images without requiring registry digests. Malformed/truncated inventories and
+incomplete Host ownership fail closed. No new daily CLI operation is added.
+Focused OCI/Incus race tests, vet and documentation checks passed.
+This input is not yet wired to publication or Environment creation; offline
+population, refresh, Docker persistence and real populated COW acceptance remain
+open. See [the owning contract](design/persistent-oci-store.md#host-publication-inventory).
+
+
 ## Git and network approval parity
 
 Implemented shared approval behavior is now covered by cross-capability CLI and
@@ -19,7 +31,7 @@ First start skips historical presentation, while existing cursors resume normall
 Companion publication uses verified atomic replacement so a running notifier does
 not block updates. Unit parser, ownership, opt-out, from-now and race regressions passed.
 Installed automatic service acceptance remains pending.
-At `4bb8dad`, test, Ubuntu and Incus E2E passed. Windows remains running.
+At `4bb8dad`, test, Ubuntu and Incus E2E passed. Windows failed during installation: the native review adapter required unavailable Get-FileHash. The .NET checksum fix passed PowerShell 5.1 component tests; installed acceptance is pending. At `7ebfe1e`, test, Ubuntu and Incus passed; Windows remains running.
 
 
 ## Host notification acceptance and state safety

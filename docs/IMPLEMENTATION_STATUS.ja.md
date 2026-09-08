@@ -1,5 +1,16 @@
 # 実装状況
 
+## Host OCI 公開の入力
+
+partial: 任意 plugin が、所有権を確認する Incus adapter 経由で Host のイメージ一覧を
+作成します。完全なローカル ID を保持し、registry digest のない build イメージやタグなし
+イメージも落としません。不正・省略された一覧や不完全な Host 所有権は拒否します。
+対象の OCI／Incus race テスト・vet・文書検査は成功しました。
+日常 CLI の操作は増やしていません。この入力はまだ公開処理や Environment 作成へ
+接続しておらず、offline データ作成・更新・Docker 永続化・実データの COW 受け入れは未完了です。
+[契約](design/persistent-oci-store.md#host-publication-inventory)を参照してください。
+
+
 ## Git と network の承認の一致
 
 実装済みの共通承認について、CLI と Policy／監査の capability 間比較テストを追加しました。
@@ -17,7 +28,7 @@
 通常通り使います。バイナリは検証した atomic 置換により、notifier 動作中も更新できます。
 unit parser・所有権・opt-out・from-now と race 回帰は成功しました。
 インストール済みの自動サービス受入は pending です。
-`4bb8dad` では test・Ubuntu・Incus E2E が成功し、Windows は実行中です。
+`4bb8dad` では test・Ubuntu・Incus E2E が成功しました。Windows は native review adapter が使用できない Get-FileHash を要求してインストールで失敗しました。.NET checksum への修正は PowerShell 5.1 component で成功し、installed 受け入れは pending です。`7ebfe1e` は test・Ubuntu・Incus が成功し、Windows は実行中です。
 
 
 ## Host 通知の受入と状態保存

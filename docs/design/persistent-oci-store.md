@@ -181,3 +181,29 @@ delivery; Store reattachment alone does not complete that request. Trusted Host
 acquisition/publication without Host credential/live-state sharing, complete
 containerd/nerdctl and Docker image acceptance, and interrupted-copy recovery
 remain follow-up work. Never attach guest-populated Stores to trusted Host.
+
+## Host publication inventory
+
+Status: **partial**, internal producer preparation only. No new user command is
+required or exposed. The optional OCI plugin now reads a bounded local inventory
+through an Incus adapter that verifies trusted Host ownership, fixes the engine's
+local Unix endpoint, clears inherited configuration and selects nerdctl's default
+namespace explicitly. An absent or failing selected engine is an error, not an
+empty image set. This path never pulls from a registry.
+
+Selection retains tagged, digest-only and dangling local images. A full local
+engine ID is required; registry digest is optional so locally built Docker images
+are not dropped. Docker and nerdctl identities stay distinct. Ordering and exact
+duplicates do not change the revision; changed tag targets do. Conflicting rows,
+truncated output and malformed identities fail closed without reflecting raw
+engine output. Registry digest and local engine ID are not interchangeable.
+
+This inventory has component regression coverage. It is not yet connected to the
+ordinary initializer: offline image export/import, exact publication ownership,
+quiescence, refresh/recovery, Docker data-root attachment and real populated COW
+acceptance remain incomplete. Runtime inventory is currently scoped to rootful
+local Docker and nerdctl's default namespace; rootless and other namespaces need
+explicit selection/support before they can be claimed as copied.
+
+CLI contracts follow the [nerdctl command reference](https://github.com/containerd/nerdctl/blob/main/docs/command-reference.md)
+and [configuration contract](https://github.com/containerd/nerdctl/blob/main/docs/config.md).

@@ -380,8 +380,8 @@ func (r *Runtime) trustedHostState(ctx context.Context) (string, bool, error) {
 
 func (r *Runtime) verifyTrustedHostOwnership(ctx context.Context) error {
 	result, err := r.runner.Run(ctx, "incus", "config", "get", trustedHostName, trustedHostRoleKey, "--project", r.project)
-	if err != nil {
-		return fmt.Errorf("read trusted host ownership marker: %w", err)
+	if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
+		return fmt.Errorf("read trusted host ownership marker: %w", core.ErrRuntimeUnavailable)
 	}
 	if strings.TrimSpace(result.Stdout) != trustedHostRoleValue {
 		return fmt.Errorf("Incus instance %q is not owned as the Hacocoon trusted host; refusing takeover: %w", trustedHostName, core.ErrIncompatibleState)
