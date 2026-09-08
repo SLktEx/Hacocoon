@@ -19,6 +19,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/baseasset"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
+	"github.com/SLktEx/Hacocoon/internal/environmentcopy"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 	"github.com/SLktEx/Hacocoon/internal/snapshotrestore"
@@ -420,6 +421,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			server := control.NewServer()
 			must(controlapi.RegisterSnapshots(server, resumedService))
 			must(controlapi.RegisterSnapshotRestore(server, &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}))
+			must(controlapi.RegisterEnvironmentCopy(server, &environmentcopy.Service{Catalog: reopened, Snapshots: resumedService, Restorer: &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}}))
 			socket := filepath.Join(dir, "cli.sock")
 			listener, err := control.ListenUnix(socket, 0600)
 			must(err)
@@ -477,6 +479,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		server := control.NewServer()
 		must(controlapi.RegisterSnapshots(server, resumedService))
 		must(controlapi.RegisterSnapshotRestore(server, &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}))
+		must(controlapi.RegisterEnvironmentCopy(server, &environmentcopy.Service{Catalog: reopened, Snapshots: resumedService, Restorer: &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}}))
 		socket := filepath.Join(dir, "delete.sock")
 		listener, err := control.ListenUnix(socket, 0600)
 		must(err)
@@ -534,6 +537,55 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			t.Fatal("public OCI lost")
 		}
 		t.Logf("public restore running %s with Workspace %s and OCI %s", restored.Environment, restored.Workspace, restored.OCI)
+
+		copyName := resumedName + "-copy"
+		beforeCopies, e := resumedService.ListSnapshots(ctx, "")
+		must(e)
+		if output, e := exec.CommandContext(ctx, binary, "env", "copy", "--json", resumedName, copyName).CombinedOutput(); e == nil {
+			t.Fatalf("running copy accepted: %s", output)
+		}
+		afterCopies, e := resumedService.ListSnapshots(ctx, "")
+		must(e)
+		if len(afterCopies) != len(beforeCopies) {
+			t.Fatal("running copy created a save")
+		}
+		must(resumedService.Stop(ctx, resumedName))
+		copyOutput, copyErr := exec.CommandContext(ctx, binary, "env", "copy", "--json", resumedName, copyName).CombinedOutput()
+		var copied environmentcopy.Result
+		if copyErr != nil || json.Unmarshal(copyOutput, &copied) != nil || copied.State != "running" || copied.TemporarySnapshot != "" {
+			t.Fatalf("public copy: %v: %s", copyErr, copyOutput)
+		}
+		copiedEnv, e := reopened.GetEnvironment(ctx, copyName)
+		must(e)
+		copiedGeneration, e := reopened.EnvironmentInstance(ctx, copiedEnv)
+		must(e)
+		if copiedGeneration == publicGeneration {
+			t.Fatal("copy reused generation")
+		}
+		copiedWork, e := restoredRepositories.Get("work", copied.Workspace)
+		must(e)
+		copiedOCI, e := reopened.GetPersistentResource(ctx, copied.OCI)
+		must(e)
+		afterCopies, e = resumedService.ListSnapshots(ctx, "")
+		must(e)
+		if len(afterCopies) != len(beforeCopies) {
+			t.Fatal("copy retained temporary save")
+		}
+		if command("incus", "exec", "haco-"+copyName, "--project", r.project, "--", "cat", "/root/snapshot-marker") != "guest-only bytes" {
+			t.Fatal("copied rootfs lost")
+		}
+		command("incus", "exec", "haco-"+copyName, "--project", r.project, "--", "/bin/sh", "-c", "printf copied > /root/snapshot-marker")
+		sourceStatus, e := r.InspectEnvironment(ctx, "haco-"+resumedName)
+		must(e)
+		if sourceStatus.State != core.EnvironmentStopped {
+			t.Fatal("copy started the source")
+		}
+		must(resumedService.Start(ctx, resumedName))
+		if command("incus", "exec", "haco-"+resumedName, "--project", r.project, "--", "cat", "/root/snapshot-marker") != "guest-only bytes" {
+			t.Fatal("copy mutation changed source")
+		}
+		must(resumedService.Stop(ctx, resumedName))
+
 		cmd := exec.CommandContext(ctx, binary, "snapshot", "delete", cliSavedID)
 		output, deleteErr := cmd.CombinedOutput()
 		stop()
@@ -545,6 +597,34 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			t.Fatal("save not deleted", err)
 		}
 		must(resumedService.Delete(ctx, publicEnv.Name))
+		if command("incus", "exec", "haco-"+copyName, "--project", r.project, "--", "cat", "/root/snapshot-marker") != "copied" {
+			t.Fatal("copy depends on deleted source")
+		}
+		copiedMounts, e := repository.WorkspaceAttachments(ctx, copiedWork)
+		must(e)
+		for _, m := range copiedMounts {
+			if command("incus", "exec", "haco-"+copyName, "--project", r.project, "--", "cat", m.Path+"/tracked") != "uncommitted "+m.Device {
+				t.Fatal("copied Work lost")
+			}
+			copiedPath := volumePath(m.Volume)
+			read(copiedPath, "untracked", "independent registered copy")
+			if command("git", "-c", "safe.directory="+copiedPath, "-C", copiedPath, "rev-parse", "HEAD") != commits[m.Device] {
+				t.Fatal("copied unpushed commit lost")
+			}
+			command("incus", "exec", "haco-"+copyName, "--project", r.project, "--", "/bin/sh", "-c", `printf copied-work > "$1"`, "--", m.Path+"/tracked")
+		}
+		if command("incus", "exec", "haco-"+copyName, "--project", r.project, "--", "cat", OCIStorePath+"/containerd/data") != "independent registered OCI copy" {
+			t.Fatal("copied OCI lost")
+		}
+		must(resumedService.Delete(ctx, copyName))
+		must(resumedService.CleanupRestoredData(ctx, copiedEnv.Workspace, func(ctx context.Context) error {
+			if err := restoredStores.DeleteRestoredCopy(ctx, copiedOCI); err != nil {
+				return err
+			}
+			return restoredRepositories.DeleteRestoredCopy(ctx, copiedWork)
+		}))
+		t.Log("PASS public Env copy: running source refused, stopped source copied, temporary save removed, fresh generation, independent rootfs/Work/OCI after source deletion, owned cleanup")
+
 		must(persistent.Verify(ctx, publicOCI))
 		for _, m := range publicMounts {
 			read(volumePath(m.Volume), "tracked", "uncommitted "+m.Device)

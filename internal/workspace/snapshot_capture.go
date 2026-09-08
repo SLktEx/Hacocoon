@@ -35,7 +35,17 @@ type snapshotCatalog interface {
 
 // CaptureSnapshot holds canonical source locks through all capture and publication
 // steps. A nonempty result ID on error names a durable reservation for recovery.
-func (s *Service) CaptureSnapshot(ctx context.Context, name string) (result core.Snapshot, err error) {
+func (s *Service) CaptureSnapshot(ctx context.Context, name string) (core.Snapshot, error) {
+	return s.captureSnapshot(ctx, name, true)
+}
+
+// CaptureStoppedSnapshot refuses a running source under the canonical locks.
+// Copy callers must not stop or restart somebody else's running workload.
+func (s *Service) CaptureStoppedSnapshot(ctx context.Context, name string) (core.Snapshot, error) {
+	return s.captureSnapshot(ctx, name, false)
+}
+
+func (s *Service) captureSnapshot(ctx context.Context, name string, quiesce bool) (result core.Snapshot, err error) {
 	backend, ok := s.runtime.(SnapshotBackend)
 	if !ok {
 		return result, core.ErrUnsupported
@@ -44,7 +54,7 @@ func (s *Service) CaptureSnapshot(ctx context.Context, name string) (result core
 	if !ok {
 		return result, core.ErrUnsupported
 	}
-	err = s.withSnapshotSourceMode(ctx, name, true, func(ctx context.Context, source core.SnapshotSource) error {
+	err = s.withSnapshotSourceMode(ctx, name, quiesce, func(ctx context.Context, source core.SnapshotSource) error {
 		result, err = s.captureSnapshotLocked(ctx, source, backend, catalog)
 		return err
 	})

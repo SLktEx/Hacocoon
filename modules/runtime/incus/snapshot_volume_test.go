@@ -48,7 +48,7 @@ func TestSnapshotVolumeCopyBindsSourceAndIndependentTarget(t *testing.T) {
 						if mode == "running" {
 							status = "RUNNING"
 						}
-						return host.Result{Stdout: status, StdoutTruncated: mode == "state-truncated"}, nil
+						return host.Result{Stdout: p.SourceInstance + "," + status, StdoutTruncated: mode == "state-truncated"}, nil
 					case "query":
 						if args[1] == "/1.0/storage-pools/pool" {
 							driver := "btrfs"

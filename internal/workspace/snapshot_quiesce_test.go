@@ -106,3 +106,22 @@ func TestSnapshotCancelledBeforeCaptureDoesNotStopSource(t *testing.T) {
 		t.Fatal(saved, err, rt.events, store.trace.events)
 	}
 }
+
+func TestStoppedCopyCaptureRefusesRunningSourceWithoutMutation(t *testing.T) {
+	for _, running := range []bool{false, true} {
+		_, store, backend := captureFixture(t)
+		rt := &quiesceRuntime{captureRuntime: backend, running: running}
+		svc := New(rt, store)
+		saved, err := svc.CaptureStoppedSnapshot(context.Background(), "resume")
+		if running {
+			if !errors.Is(err, core.ErrIncompatibleState) || saved.ID != "" || len(store.trace.events) != 0 {
+				t.Fatal(saved, err, store.trace.events)
+			}
+		} else if err != nil || saved.State != "ready" {
+			t.Fatal(saved, err)
+		}
+		if rt.running != running || !reflect.DeepEqual(rt.events, []string{"inspect"}) {
+			t.Fatal(rt.events)
+		}
+	}
+}

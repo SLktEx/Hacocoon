@@ -56,7 +56,7 @@ func TestResumeValidatesNetworkBeforeStartingAndPreservesRuntime(t *testing.T) {
 					t.Fatal("resume recreated runtime")
 				}
 				if args[0] == "list" && len(args) > 1 && args[1] == "haco-demo" {
-					return host.Result{Stdout: state}, nil
+					return host.Result{Stdout: "haco-demo," + state + "\nhaco-demo-copy,RUNNING\n"}, nil
 				}
 				if len(args) > 3 && args[0] == "config" && args[1] == "get" && args[3] == managedEnvironmentMarkerKey {
 					marker := managedEnvironmentMarkerValue
