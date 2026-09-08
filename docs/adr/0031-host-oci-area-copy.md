@@ -1,6 +1,6 @@
 # ADR 0031: Copy the actual Host OCI storage area
 
-Status: accepted requirement; Host quiescence integration planned
+Status: accepted; provider pause/copy/resume slice implemented; full Host area integration partial
 Date: 2026-09-08
 
 ## Decision
@@ -26,8 +26,42 @@ Use the canonical durable resource lifecycle. Record ownership before mutations;
 uncertain copy/cleanup retains source and destination until the operation is
 known quiescent and the owned object is absent. Source writer restoration must
 not race an unfinished copy. A future recovery path must handle process death;
-`defer` cleanup alone is insufficient. Current attached-source rejection remains
-until the provider has verified quiescence support.
+`defer` cleanup alone is insufficient. Attached-source rejection remains except for the exact owned Host area under the
+provider protocol below.
+
+## Provider pause and restart guard
+
+The Incus copier now recognizes only source-only `oci-source:host` with one exact
+Host consumer and one matching disk at `/var/lib/hacocoon-oci`. It verifies the
+Host role, volume ownership and expanded attachment configuration. Other attached
+sources remain refused. The canonical catalog reserves source and destination
+before this provider action begins.
+
+Host start and the attached-area copy also share a Linux cross-process lock,
+implemented by an exclusive abstract Unix socket bind per project. No commands
+or state are served on that socket. A process crash releases the lock, while the
+persistent copy marker still blocks restart. The marker check and start happen
+under this lock so a concurrent start cannot pass the check before pause and
+then thaw the Host during the copy. Unsupported platforms fail closed.
+
+Before pausing, one provider configuration PATCH records the destination ownership
+token and previous autostart setting, and disables autostart. The copier verifies
+that durable guard, pauses the running Host and verifies the frozen status plus
+unchanged ownership/attachment before copying. Ordinary Host entry refuses an
+unfinished copy marker. A pre-existing paused Host or marker is never adopted.
+
+This pause suspends Host processes; it is not a graceful Docker/containerd shutdown
+or a saved running-container migration. It offers a filesystem snapshot boundary;
+application crash recovery and usable image metadata require actual runtime
+acceptance. That acceptance is still missing. Do not claim clean application
+shutdown or complete OCI distribution from the provider tests.
+
+Only positive copy completion permits resume. After verified running status, the
+copier restores autostart and removes its marker, then verifies both. Any uncertain
+copy outcome retains the marker, disabled autostart and source reservation instead
+of resuming in `defer`. Failed resume/marker cleanup stays recovery-required. A
+complete operator recovery implementation is still required; editing away the
+marker or forcing Host start is not a supported recovery procedure.
 
 ## Rejected alternatives
 
@@ -47,3 +81,8 @@ both Docker and nerdctl: images prepared in Host, automatic Environment creation
 unchanged local identities without registry access, independent source/copy
 changes and deletion, opt-out and recreation. Add deterministic failure/restart
 regressions at the lifecycle layer and actual stopped-writer/copy checks in E2E.
+
+The dedicated local Incus/WSL provider E2E passed actual pause, attached-volume COW,
+resume, Btrfs ancestry and bidirectional mutation/deletion independence with full
+fixture cleanup. It uses synthetic data and does not prove Docker/containerd
+application recovery. The maintained GHA Btrfs job runs the same provider fixture.

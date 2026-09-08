@@ -45,7 +45,7 @@ func TestDefaultWorkspaceCopyReusesExactPersistedAssociation(t *testing.T) {
 	if err != nil || empty != (core.PersistentResource{}) || backend.copies != 0 {
 		t.Fatalf("no source: %+v %v", empty, err)
 	}
-	if _, err := svc.PublishSource(ctx, PublishedStoreID, StoreKind, func(context.Context, core.PersistentResource) error { return nil }); err != nil {
+	if _, err := svc.PublishSource(ctx, HostStoreID, StoreKind, func(context.Context, core.PersistentResource) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	first, err := resolver.Resolve(ctx, work)
@@ -71,7 +71,7 @@ func TestFailedAutomaticCopyDoesNotRetryOrPublishEmptyStore(t *testing.T) {
 	st := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
 	backend := &workspaceCopyBackend{store: st, failure: errors.New("lost completion")}
 	svc := &persistentresource.Service{Store: st, Backend: backend}
-	if _, err := svc.PublishSource(ctx, PublishedStoreID, StoreKind, func(context.Context, core.PersistentResource) error { return nil }); err != nil {
+	if _, err := svc.PublishSource(ctx, HostStoreID, StoreKind, func(context.Context, core.PersistentResource) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	resolver := WorkspaceStores{Resources: svc}
@@ -92,7 +92,7 @@ func TestFailedAutomaticCopyDoesNotRetryOrPublishEmptyStore(t *testing.T) {
 	for _, r := range list {
 		if r.WorkspaceID == work.ID {
 			found = true
-			if r.State != "creating" || r.CopySource.ID != PublishedStoreID {
+			if r.State != "creating" || r.CopySource.ID != HostStoreID {
 				t.Fatalf("lost recovery evidence: %+v", r)
 			}
 		}
@@ -107,7 +107,7 @@ func TestPublicationIsNotCopyableOrDeletableUntilContentPreparationCompletes(t *
 	st := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
 	backend := &workspaceCopyBackend{store: st}
 	svc := &persistentresource.Service{Store: st, Backend: backend}
-	_, err := svc.PublishSource(ctx, PublishedStoreID, StoreKind, func(ctx context.Context, source core.PersistentResource) error {
+	_, err := svc.PublishSource(ctx, HostStoreID, StoreKind, func(ctx context.Context, source core.PersistentResource) error {
 		saved, err := st.GetPersistentResource(ctx, source.ID)
 		if err != nil {
 			return err
@@ -134,7 +134,7 @@ func TestTemporaryCopyCleanupChecksWorkspaceOwnershipAndKeepsSource(t *testing.T
 	backend := &workspaceCopyBackend{store: st}
 	resources := &persistentresource.Service{Store: st, Backend: backend}
 	resolver := WorkspaceStores{Resources: resources}
-	if _, err := resources.PublishSource(ctx, PublishedStoreID, StoreKind, func(context.Context, core.PersistentResource) error { return nil }); err != nil {
+	if _, err := resources.PublishSource(ctx, HostStoreID, StoreKind, func(context.Context, core.PersistentResource) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	work, err := core.NewTemporaryWorkspace()
@@ -154,7 +154,7 @@ func TestTemporaryCopyCleanupChecksWorkspaceOwnershipAndKeepsSource(t *testing.T
 	if _, err := st.GetPersistentResource(ctx, copied.ID); !errors.Is(err, core.ErrNotFound) {
 		t.Fatal("temporary copy retained")
 	}
-	if _, err := st.GetPersistentResource(ctx, PublishedStoreID); err != nil {
+	if _, err := st.GetPersistentResource(ctx, HostStoreID); err != nil {
 		t.Fatal("source removed")
 	}
 	if err := resolver.CleanupTemporary(ctx, work); err != nil {

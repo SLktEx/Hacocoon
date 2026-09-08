@@ -1,5 +1,30 @@
 # 実装状況
 
+## Host 領域コピーの provider
+
+partial: Incus backend は、専用 source-only volume を持つ所有確認済み Host を一時停止し、
+既存の領域 COW コピーを行い、完了を確認して再開できます。永続のコピー記録により
+自動起動を無効にし、不明な状態では通常の Host entry を拒否します。他所有者・複数の利用者・
+異なる接続先・既存の一時停止・コピーや再開や後処理の未確認を拒否する component テストは
+成功しました。実 Incus E2E はローカルで成功し、既存 Btrfs job に組み込みました。GHA 結果は pending です。
+
+実 Host 保存領域の構成、Docker/containerd のアプリケーション復旧、途中コピーの運用復旧は
+未完了です。プロセスの一時停止は daemon の正常終了ではありません。イメージ列挙や
+export/import は使用しません。[手順と限界](adr/0031-host-oci-area-copy.md#provider-pause-and-restart-guard)を参照してください。
+
+
+専用 WSL の project `haco-area-23ef9c90488e244b` で provider の実機検証が
+成功しました（39.15 秒）。一時停止・COW・再開、Btrfs parent UUID、双方向の変更の独立性、
+コピー元削除、正確な後片付けを確認しました。初回はコピーと独立性の検査後、download した
+Base image が残って project 削除で失敗しました。その正確な fixture image・project・pool は
+削除済みで、E2E に記録した Base ID の削除を追加しました。それより前の PowerShell 起動も
+引数解析で失敗しましたがテスト開始前です。いずれも成功扱いしません。データは合成データであり、
+OCI runtime の image ではありません。対象 race・vet・workflow policy・文書検査は成功しました。
+
+維持されている local CI test は Go tests/vet、WSL の Python 11 件・承認の Python 3 件、JS 27 件が成功しました。その後の Host 起動／コピーのプロセス間ロック変更は、対象回帰と新しい provider E2E で別途検証します。
+
+プロセス間ロックと正確な autostart 復元を含む最終 provider コードは、`haco-area-a7d74034ed65d7d4` の専用 E2E で成功しました（37.98 秒）。所有する image・Host・volume・project・pool・非公開の復旧 catalog は後片付け済みです。最終の対象 race／vet も成功しました。
+
 ## 実際の Host OCI 領域のコピー
 
 B4 の要件は実際の Host イメージ保存領域をそのまま Btrfs COW でコピーすることです。
@@ -11,8 +36,8 @@ B4 の要件は実際の Host イメージ保存領域をそのまま Btrfs COW 
 Windows `4bb8dad` の run 34176272125 は native review が使用できない Get-FileHash を
 要求して失敗しました。`8d7a2ea` で .NET SHA-256 に置き換え、PowerShell 5.1 component は
 成功しました。修正後の Windows 実受け入れは pending です。取り消した OCI 一覧処理の
-対象テストは成功しましたが、実装と一緒に削除しました。その全体 local CI は Go テスト成功後、
-vet 中に中断しました。全 CI 成功や、訂正後の領域コピーの検証結果とは扱いません。
+対象テストは成功しましたが、実装と一緒に削除しました。その全体 local CI は一部 Go package の成功出力後、
+実行中に中断しました。Go 全体・全 CI の完了は確認しておらず、全 CI 成功や、訂正後の領域コピーの検証結果とは扱いません。
 
 
 ## Git と network の承認の一致
@@ -710,7 +735,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.39** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.40** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

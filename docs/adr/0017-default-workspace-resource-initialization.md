@@ -21,7 +21,9 @@ adopted. A failed copy remains identifiable and recovery-required; creation does
 not continue with empty data. Successful resources survive later Environment
 creation failure and remain explicitly deletable after leases are released.
 
-Publication sources carry a generic immutable `source_only` role. The catalog
+Sources carry a generic `source_only` role that excludes workload attachment.
+The actual Host area may change outside a reserved copy; the role does not imply
+an immutable image publication. See [ADR 0031](0031-host-oci-area-copy.md). The catalog
 forbids direct Environment attachment of these resources and attachment of a
 Workspace-bound resource to another Workspace. Incus mirrors/verifies the source
 role in provider metadata and also rejects direct source attachment. Copying

@@ -1,5 +1,34 @@
 # Implementation Status
 
+## Host area copy provider
+
+Partial: the Incus backend can pause an exact owned Host with its source-only data
+volume, perform existing area-level COW, verify completion and resume. A durable
+copy marker disables autostart and blocks ordinary Host entry during uncertainty.
+Foreign/duplicate consumers, mismatched attachments, pre-existing pauses and
+unconfirmed copy/resume/cleanup are refused. Component tests and local provider E2E passed. The new real
+Incus E2E is wired into the existing Btrfs job; its GHA result is pending.
+
+Actual Host storage provisioning, Docker/containerd application recovery and
+operator recovery of interrupted copies are still missing. Pausing processes is
+not graceful daemon shutdown. No image enumeration or export/import is used.
+[Protocol and limits](adr/0031-host-oci-area-copy.md#provider-pause-and-restart-guard).
+
+
+Local dedicated WSL acceptance passed the provider mechanism in project
+`haco-area-23ef9c90488e244b`, including real pause/COW/resume, Btrfs parent UUID,
+bidirectional write independence, source deletion and exact cleanup (39.15 s).
+The first actual run reached the copy/independence checks but failed final project
+deletion because its downloaded Base image remained. That exact fixture image,
+project and pool were removed; the E2E now removes its recorded Base identity.
+A preceding PowerShell invocation failed argument parsing before starting the test.
+Neither failure is counted as a pass. This uses synthetic area data, not OCI
+runtime images. Focused race tests/vet, workflow policy and docs passed.
+
+The maintained local CI test entry passed Go tests/vet, 11 WSL and 3 approval Python regressions, and 27 JS tests. The final Host start/copy process-lock change is checked separately with focused regressions and a new provider E2E run.
+
+Final provider code, including the cross-process lock and exact autostart restoration, passed the dedicated E2E in `haco-area-a7d74034ed65d7d4` (37.98 s). The owned image, Host, volumes, project, pool and private recovery catalog were cleaned up. Final focused race/vet also passed.
+
 ## Actual Host OCI area copying
 
 B4 requires direct area-level Btrfs COW of the actual Host image storage, not
@@ -12,8 +41,8 @@ Windows `4bb8dad` run 34176272125 failed: native review required unavailable
 Get-FileHash. `8d7a2ea` replaces that dependency with .NET SHA-256; PowerShell 5.1
 component tests passed. Installed Windows acceptance after the fix is pending.
 The former OCI focused tests passed, but were removed with that withdrawn slice.
-Its broader local CI was canceled during vet after Go tests passed; it was not a
-full CI pass and is not evidence for the corrected area-copy implementation.
+Its broader local CI was canceled while still running after successful individual
+Go package results; full Go-suite and CI completion were not established and is not evidence for the corrected area-copy implementation.
 
 
 ## Git and network approval parity
@@ -808,7 +837,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.39**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.40**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

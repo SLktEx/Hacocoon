@@ -1,5 +1,7 @@
 # バージョン番号とリリース状況
-現在の checkpoint v0.39 は Windows 通知 review adapter と distribution 別登録を追加します。実機の通知履歴・protocol 起動・古い要求拒否は成功しましたが、通知からの新規回答と Linux 起動は未完了です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
+現在の checkpoint v0.40 は所有確認済み Host の一時停止・COW・再開と永続再起動 guard を追加します。実 Host 領域の構成と Docker/containerd 復旧受け入れは partial です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
+
+前の checkpoint v0.39 は Windows 通知 review adapter と distribution 別登録を追加します。実機の通知履歴・protocol 起動・古い要求拒否は成功しましたが、通知からの新規回答と Linux 起動は未完了です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
 
 
 partial の承認段階で、通常 Git pending／approve／deny を再利用する保存範囲と
@@ -129,8 +131,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.37 | Approval Configuration Editing | 実装済み |
 | v0.38 | Pending Approval Review | 実装済み |
 | v0.39 | Windows Notification Review | 実装済み |
+| v0.40 | Host OCI Area Copy Boundary | partial |
 
-現在のmilestone位置は **v0.39** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.40** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

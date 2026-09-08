@@ -10,9 +10,9 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 )
 
-// PublishedStoreID is outside the user-managed oci: namespace. Only a trusted
-// image publisher should create this source; guest Stores never return to Host.
-const PublishedStoreID = "oci-source:host"
+// HostStoreID is outside the user-managed oci: namespace. Only trusted Host
+// storage setup may own this source; guest Stores never return to Host.
+const HostStoreID = "oci-source:host"
 
 type WorkspaceStores struct{ Resources *persistentresource.Service }
 
@@ -39,7 +39,7 @@ func (s WorkspaceStores) Resolve(ctx context.Context, work core.Workspace) (core
 	if !errors.Is(err, core.ErrNotFound) {
 		return core.PersistentResource{}, err
 	}
-	source, err := s.Resources.Store.GetPersistentResource(ctx, PublishedStoreID)
+	source, err := s.Resources.Store.GetPersistentResource(ctx, HostStoreID)
 	if errors.Is(err, core.ErrNotFound) {
 		return core.PersistentResource{}, nil
 	} // no published OCI content
@@ -49,7 +49,7 @@ func (s WorkspaceStores) Resolve(ctx context.Context, work core.Workspace) (core
 	if source.Kind != StoreKind || source.State != "ready" || source.WorkspaceID != "" || !source.SourceOnly {
 		return core.PersistentResource{}, core.ErrRecoveryRequired
 	}
-	return s.Resources.CopyForWorkspace(ctx, id, StoreKind, PublishedStoreID, work.ID)
+	return s.Resources.CopyForWorkspace(ctx, id, StoreKind, HostStoreID, work.ID)
 }
 
 func workspaceStoreID(work core.WorkspaceID) string {

@@ -122,9 +122,9 @@ data reuse is not proof that a compatible runtime is installed.
 The source remains Host-owned; a copy receives fresh ownership and is never
 reattached to Host. Reusing a Workspace's retained Store preserves guest changes.
 Copy failure must retain source/target identities and the writer-stopped state
-until completion or absence is proven. The existing backend currently rejects
-all attached sources; do not relax that guard without an owned Host quiescence
-protocol and regression coverage. The full flow remains incomplete until actual
+until completion or absence is proven. The backend now permits the exact owned Host area only through the pause/copy/resume
+protocol in ADR 0031; other attached sources remain refused. This is a provider
+slice, not automatic Host area provisioning or application recovery acceptance. The full flow remains incomplete until actual
 Host area copy, immediate local-image use, opt-out, recreation, source/target
 independent mutation/deletion and interrupted cleanup are demonstrated.
 

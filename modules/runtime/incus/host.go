@@ -390,6 +390,14 @@ func (r *Runtime) verifyTrustedHostOwnership(ctx context.Context) error {
 }
 
 func (r *Runtime) ensureTrustedHostRunning(ctx context.Context, state string) error {
+	unlock, err := lockHostOperation(ctx, r.project)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if err := r.rejectPendingHostCopy(ctx); err != nil {
+		return err
+	}
 	switch strings.ToUpper(strings.TrimSpace(state)) {
 	case "RUNNING":
 		return nil

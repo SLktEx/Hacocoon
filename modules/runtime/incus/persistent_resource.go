@@ -210,9 +210,7 @@ func (b *PersistentResourceBackend) Copy(ctx context.Context, source, target cor
 	if observed == nil {
 		return core.ErrNotFound
 	}
-	if len(observed.UsedBy) != 0 {
-		return core.ErrStorageBusy
-	}
+
 	// Incus refuses a destination name collision. Supply new ownership markers,
 	// never copy arbitrary source config (especially authority-bearing settings).
 	config := map[string]string{"user.hacocoon.owner": target.Owner, "user.hacocoon.resource": target.ID, "user.hacocoon.kind": target.Kind, "user.hacocoon.source-only": strconv.FormatBool(target.SourceOnly)}
@@ -232,8 +230,26 @@ func (b *PersistentResourceBackend) Copy(ctx context.Context, source, target cor
 	if err != nil {
 		return err
 	}
-	_, err = b.Runtime.runner.Run(ctx, "incus", "query", "-X", "POST", "--wait", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project, "--data", string(data))
-	return err
+	var resume func(context.Context) error
+	if len(observed.UsedBy) != 0 {
+		unlock, lockErr := lockHostOperation(ctx, b.Runtime.project)
+		if lockErr != nil {
+			return lockErr
+		}
+		defer unlock()
+		resume, err = b.quiesceHostCopy(ctx, source, target, observed)
+		if err != nil {
+			return err
+		}
+	}
+	result, err = b.Runtime.runner.Run(ctx, "incus", "query", "-X", "POST", "--wait", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project, "--data", string(data))
+	if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
+		return fmt.Errorf("persistent copy completion unconfirmed: %w", core.ErrRecoveryRequired)
+	}
+	if resume != nil {
+		return resume(ctx)
+	}
+	return nil
 }
 
 func matchesSourceOnlyMarker(marker string, sourceOnly bool) bool {
