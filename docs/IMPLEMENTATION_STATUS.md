@@ -9,6 +9,9 @@ identity fail closed; concurrent deletion is excluded. Focused race tests passed
 The schema-5 component catalog now persists capture/recovery ownership and blocks
 start/delete until all components are verified or cleanup proves every target absent.
 Restart, transition, cleanup, migration and concurrent reservation regressions pass.
+The internal capture/delete coordinator now enforces reservation/create-receipt/
+verification/publication order and preserves ownership through cancellation and
+partial cleanup. Real-catalog failure-injection tests cover each capture boundary.
 Provider capture, complete backend manifests, restore, CLI and real data round trips
 remain planned.
 See [snapshot design](design/environment-snapshots.md) and [ADR 0037](adr/0037-snapshot-aggregate-ownership.md).

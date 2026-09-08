@@ -42,3 +42,9 @@ rewrite the file without snapshot reservations. Ready components must survive
 source deletion; instance-bound snapshots alone cannot satisfy that contract.
 Catalog restart, transition, cleanup and concurrent-reservation regressions pass;
 provider capture and restore remain planned.
+
+Capture and delete now have one Workspace-service coordinator enforcing the
+reservation/receipt/verification sequence under the canonical lifecycle locks.
+A backend supplies only plan/create/verify/proven-absent deletion; it cannot
+publish the catalog or release source ownership. Production Incus integration
+and restore remain planned.

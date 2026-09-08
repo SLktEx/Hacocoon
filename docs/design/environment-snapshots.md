@@ -1,7 +1,7 @@
 # Environment snapshots and restore
 
 Status: **partial internal foundation**. Source validation and lifecycle locking
-and a durable component catalog are implemented. Provider capture, restore and
+and a durable component catalog/capture coordinator are implemented. Incus capture, restore and
 public CLI are planned; no saved snapshot is produced yet.
 
 ## Scope
@@ -65,7 +65,17 @@ that enumeration is complete.
 
 ## Capture and restore work still required
 
-Wire provider capture to the durable reservation and component transitions above.
+The internal CaptureSnapshot coordinator now wires an optional SnapshotBackend to
+the locked source guard and durable component transitions. Plan is read-only,
+reservation precedes all creates, each create receipt precedes verification, and
+publication follows verification of every component. Failure returns the reserved
+snapshot ID and retains recovery state, including caller cancellation or failure
+to write the recovery marker. DeleteSnapshot holds the same lifecycle locks,
+rechecks the manifest, and retries only components not durably confirmed absent.
+The production Incus runtime does not yet implement this optional backend, so
+production capture fails as unsupported before reserving or mutating resources.
+
+Implement the Incus backend for this contract.
 Record each newly created identity immediately, before another fallible step.
 A storage backend, full member inventory and independent saved data are still
 required before these internal records represent a usable snapshot.
@@ -93,3 +103,8 @@ publication order, stale component updates, source drift, invalid/omitted
 components, concurrent reservation, schema migration and canceled writes.
 Service regressions reject start/delete/inspection before provider access when
 recovery is pending. These checks do not establish real capture/restore acceptance.
+
+Coordinator integration tests use the real JSON catalog and a recording backend.
+They inject failures at every capture step, verify exact durable state before
+provider calls, and exercise cancellation, failed recovery markers and partial
+cleanup retries. These are repository integration tests, not Incus data round trips.

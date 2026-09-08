@@ -7,7 +7,9 @@ E2 の内部基盤を部分実装しました。Environment/Workspace lock の�
 不正な接続 ID は拒否し、同時削除を防ぎます。focused race は成功しました。
 schema 5 の component catalog で作成・復旧中の所有権を永続化し、全保存物の確認または
 全対象の消失確認まで start/delete を拒否します。再起動・状態遷移・cleanup・migration・
-同時予約の回帰テストは成功しました。provider 保存・全構成の manifest・restore・CLI・
+同時予約の回帰テストは成功しました。内部の capture/delete 処理で予約・作成記録・確認・
+公開の順序を保証し、キャンセルや部分 cleanup でも所有権を保持します。実 JSON catalog
+を使った各段階の失敗注入テストを追加しました。provider 保存・全構成の manifest・restore・CLI・
 実データ往復は未実装です。
 [snapshot 設計](design/environment-snapshots.md)と [ADR 0037](adr/0037-snapshot-aggregate-ownership.md)を参照してください。
 

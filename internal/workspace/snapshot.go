@@ -8,7 +8,7 @@ import (
 )
 
 // InspectSnapshotSource checks the canonical aggregate under the lifecycle locks.
-// Provider capture, durable manifests and restore are separate unfinished work.
+// This inspection is not a reservation. CaptureSnapshot uses the locked guard.
 func (s *Service) InspectSnapshotSource(ctx context.Context, name string) (core.SnapshotSource, error) {
 	var source core.SnapshotSource
 	err := s.withSnapshotSource(ctx, name, func(_ context.Context, verified core.SnapshotSource) error { source = verified; return nil })
