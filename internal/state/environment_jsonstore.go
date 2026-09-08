@@ -13,7 +13,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const environmentStateVersion = 8
+const environmentStateVersion = 10 // 9 was an unpublished replacement prototype; reject it.
 const previousEnvironmentStateVersion = 2
 
 type environmentFileState struct {
@@ -342,12 +342,12 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 }
 
 func normalizeEnvironmentState(data *environmentFileState) error {
-	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != 5 && data.Version != 6 && data.Version != 7 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
+	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != 5 && data.Version != 6 && data.Version != 7 && data.Version != 8 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
 		return fmt.Errorf("environment state version %d is unsupported (want %d): %w", data.Version, environmentStateVersion, core.ErrIncompatibleState)
 	}
 
 	for id, a := range data.BaseAssets {
-		if (data.Version != 7 && data.Version != environmentStateVersion) || id != a.ID || validateBaseAsset(a) != nil {
+		if (data.Version != 7 && data.Version != 8 && data.Version != environmentStateVersion) || id != a.ID || validateBaseAsset(a) != nil {
 			return core.ErrIncompatibleState
 		}
 		for otherID, b := range data.BaseAssets {
@@ -364,15 +364,24 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 				}
 			}
 		}
-		if (data.Version != 5 && data.Version != 6 && data.Version != 7 && data.Version != environmentStateVersion) || id != snapshot.ID || validateSnapshot(snapshot) != nil {
+		if (data.Version != 5 && data.Version != 6 && data.Version != 7 && data.Version != 8 && data.Version != environmentStateVersion) || id != snapshot.ID || validateSnapshot(snapshot) != nil {
 			return core.ErrIncompatibleState
 		}
 	}
+	if data.Version == 8 {
+		for id, op := range data.Restores {
+			if op.Current.Environment.Name != "" || op.Before.ID == "" {
+				return core.ErrIncompatibleState
+			}
+			op.Current = op.Before.Source
+			data.Restores[id] = op
+		}
+	}
 	for id, op := range data.Restores {
-		if data.Version != environmentStateVersion || id != op.ID || validateRestore(op) != nil || !reflect.DeepEqual(data.Snapshots[op.Saved.ID], op.Saved) || !reflect.DeepEqual(data.Snapshots[op.Before.ID], op.Before) {
+		if (data.Version != 8 && data.Version != environmentStateVersion) || id != op.ID || validateRestore(op) != nil || !reflect.DeepEqual(data.Snapshots[op.Saved.ID], op.Saved) || (op.Before.ID != "" && !reflect.DeepEqual(data.Snapshots[op.Before.ID], op.Before)) {
 			return core.ErrIncompatibleState
 		}
-		before := op.Before.Source
+		before := op.Current
 		lease := data.Leases[before.Environment.Name]
 		if !reflect.DeepEqual(data.Environments[before.Environment.Name], before.Environment) || lease.InstanceID != before.InstanceID || lease.State != core.WorkspaceLeaseActive || validateEnvironmentCreateCommit(before.Environment, lease) != nil {
 			return core.ErrIncompatibleState
@@ -400,7 +409,7 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 			if otherID == id {
 				continue
 			}
-			if op.Before.Source.Environment.Name == other.Before.Source.Environment.Name {
+			if op.Current.Environment.Name == other.Current.Environment.Name {
 				return core.ErrIncompatibleState
 			}
 			for _, a := range op.Components {

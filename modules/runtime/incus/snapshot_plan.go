@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"sort"
 	"strings"
 
@@ -19,7 +18,7 @@ func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, 
 	if !strings.HasPrefix(id, "snap-") || len(id) != 37 || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:check", Owner: strings.TrimPrefix(id, "snap-")}) || !core.ValidEnvironmentInstanceID(source.InstanceID) || !strings.HasPrefix(source.Environment.Workspace.Path, "managed:") || source.Environment.RuntimeRef == trustedHostName {
 		return nil, core.ErrInvalidArgument
 	}
-	if validateManagedInstanceRef(source.Environment.RuntimeRef) != nil || r.managedWorkspace == nil || source.Environment.Base == nil {
+	if validateManagedInstanceRef(source.Environment.RuntimeRef) != nil || r.managedWorkspace == nil {
 		return nil, core.ErrUnsupported
 	}
 	mounts, err := r.managedWorkspace(ctx, source.Environment.Workspace.Path)
@@ -161,29 +160,6 @@ func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, 
 		if d["type"] != "disk" && d["type"] != "nic" && d["type"] != "proxy" && d["type"] != "none" {
 			return nil, core.ErrUnsupported
 		}
-	}
-	baseOwner, err := owner()
-	if err != nil {
-		return nil, err
-	}
-	base := snapshotBasePlan{Pool: pool, Owner: baseOwner, Base: *source.Environment.Base}
-	if err := base.validate(); err != nil {
-		return nil, err
-	}
-	if r.retainedBase != nil {
-		asset, err := r.retainedBase(ctx, base.Base, r.project+"/"+pool)
-		if err == nil {
-			base.Asset = &asset
-		} else if !errors.Is(err, core.ErrNotFound) {
-			return nil, err
-		}
-	}
-	if _, err := r.snapshotBaseSource(ctx, base); err != nil {
-		return nil, err
-	}
-
-	if err := add(snapshotBinding{Base: &base}); err != nil {
-		return nil, err
 	}
 	return components, nil
 }

@@ -12,7 +12,16 @@ import (
 var restoreIDPattern = regexp.MustCompile(`^restore-[a-f0-9]{32}$`)
 
 func validateRestore(op core.SnapshotRestore) error {
-	if !restoreIDPattern.MatchString(op.ID) || validateSnapshot(op.Saved) != nil || validateSnapshot(op.Before) != nil || op.Saved.State != "ready" || op.Before.State != "ready" || op.Saved.ID == op.Before.ID {
+	if !restoreIDPattern.MatchString(op.ID) || validateSnapshot(op.Saved) != nil || op.Saved.State != "ready" {
+		return core.ErrInvalidArgument
+	}
+	if !core.ValidEnvironmentInstanceID(op.Current.InstanceID) || op.Current.Environment.Name == "" || op.Current.Environment.Workspace.ID == "" {
+		return core.ErrInvalidArgument
+	}
+	if op.Before.ID == "" && !reflect.DeepEqual(op.Before, core.Snapshot{}) {
+		return core.ErrInvalidArgument
+	}
+	if op.Before.ID != "" && (validateSnapshot(op.Before) != nil || op.Before.State != "ready" || op.Before.ID == op.Saved.ID || !reflect.DeepEqual(op.Before.Source, op.Current)) {
 		return core.ErrInvalidArgument
 	}
 	if op.State != "preparing" && op.State != "prepared" && op.State != "recovery-required" && op.State != "deleting" {
@@ -25,7 +34,7 @@ func validateRestore(op core.SnapshotRestore) error {
 	if op.State == "deleting" {
 		shape.State = "deleting"
 	}
-	if validateSnapshot(shape) != nil || len(op.Components) != len(op.Saved.Components) {
+	if validateSnapshot(shape) != nil {
 		return core.ErrInvalidArgument
 	}
 	roles, refs, owners := map[string]bool{}, map[string]bool{}, map[string]bool{}
@@ -39,7 +48,12 @@ func validateRestore(op core.SnapshotRestore) error {
 		}
 	}
 	for _, c := range op.Saved.Components {
-		roles[c.Role] = true
+		if c.Role != "base" || op.Before.ID != "" {
+			roles[c.Role] = true
+		}
+	}
+	if len(op.Components) != len(roles) {
+		return core.ErrInvalidArgument
 	}
 	for _, c := range op.Components {
 		if !roles[c.Role] || c.Binding == "" || refs[c.NativeRef] || owners[c.Owner] {
@@ -59,9 +73,8 @@ func restoreUsesSnapshot(data environmentFileState, id string) bool {
 	return false
 }
 
-// BeginSnapshotRestore reserves the complete plan and both immutable snapshots
-// atomically. The service must hold lifecycle/Workspace locks and create Before
-// from current stopped data before invoking this transition.
+// BeginSnapshotRestore reserves the saved data and current target identity.
+// No current data is copied or replaced by this transition.
 func (s *EnvironmentJSONStore) BeginSnapshotRestore(ctx context.Context, op core.SnapshotRestore) error {
 	if validateRestore(op) != nil || op.State != "preparing" {
 		return core.ErrInvalidArgument
@@ -75,10 +88,10 @@ func (s *EnvironmentJSONStore) BeginSnapshotRestore(ctx context.Context, op core
 		if _, ok := d.Restores[op.ID]; ok {
 			return false, core.ErrAlreadyExists
 		}
-		if !reflect.DeepEqual(d.Snapshots[op.Saved.ID], op.Saved) || !reflect.DeepEqual(d.Snapshots[op.Before.ID], op.Before) {
+		if !reflect.DeepEqual(d.Snapshots[op.Saved.ID], op.Saved) || (op.Before.ID != "" && !reflect.DeepEqual(d.Snapshots[op.Before.ID], op.Before)) {
 			return false, core.ErrCapabilityStale
 		}
-		current := op.Before.Source
+		current := op.Current
 		lease := d.Leases[current.Environment.Name]
 		if !reflect.DeepEqual(d.Environments[current.Environment.Name], current.Environment) || lease.InstanceID != current.InstanceID || lease.State != core.WorkspaceLeaseActive || validateEnvironmentCreateCommit(current.Environment, lease) != nil {
 			return false, core.ErrCapabilityStale

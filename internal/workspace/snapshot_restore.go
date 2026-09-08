@@ -31,8 +31,8 @@ type restoreCatalog interface {
 	FinalizeRestoreCleanup(context.Context, string) error
 }
 
-// PrepareSnapshotRestore saves current stopped work before copying the complete
-// saved aggregate. It supports the original Environment name; cross-Environment
+// PrepareSnapshotRestore copies saved data without backing up current work.
+// It leaves current data unchanged. It supports the original Environment name; cross-Environment
 // copy is a separate operation. Prepared storage is not a completed restore.
 func (s *Service) PrepareSnapshotRestore(ctx context.Context, name, savedID string) (result core.SnapshotRestore, err error) {
 	backend, ok := s.runtime.(RestoreBackend)
@@ -61,6 +61,9 @@ func (s *Service) PrepareSnapshotRestore(ctx context.Context, name, savedID stri
 			return core.ErrIncompatibleState
 		}
 		for _, c := range saved.Components {
+			if c.Role == "base" {
+				continue
+			}
 			if c.Binding == "" {
 				return core.ErrUnsupported
 			}
@@ -72,15 +75,10 @@ func (s *Service) PrepareSnapshotRestore(ctx context.Context, name, savedID stri
 		if err != nil {
 			return err
 		}
-		before, err := s.captureSnapshotLocked(ctx, current, snapshots, catalog)
-		if err != nil {
-			return err
-		}
-		// Even if reservation fails, the newly captured backup remains discoverable.
-		result = core.SnapshotRestore{ID: id, Saved: saved, Before: before, State: "preparing", Components: components}
+		result = core.SnapshotRestore{ID: id, Saved: saved, Current: current, State: "preparing", Components: components}
 		if err := catalog.BeginSnapshotRestore(ctx, result); err != nil {
 			result.ID = ""
-			return fmt.Errorf("pre-restore snapshot %s preserved: %w", before.ID, err)
+			return err
 		}
 		fail := func(cause error) error {
 			recovery, cancel := s.newCleanupContext(context.WithoutCancel(ctx))
@@ -89,7 +87,17 @@ func (s *Service) PrepareSnapshotRestore(ctx context.Context, name, savedID stri
 			if markErr == nil {
 				result.State = "recovery-required"
 			}
-			return fmt.Errorf("restore %s retained for recovery: %w", id, errors.Join(core.ErrRecoveryRequired, cause, markErr))
+			cleanupErr := cleanupSnapshotRestoreLocked(recovery, catalog, backend, result)
+			if cleanupErr == nil {
+				// An ambiguous provider reply no longer requires recovery once every
+				// destination is positively absent. Preserve cancellation/other errors.
+				if errors.Is(cause, core.ErrRecoveryRequired) {
+					cause = core.ErrRuntimeUnavailable
+				}
+				result = core.SnapshotRestore{}
+				return fmt.Errorf("restore %s failed; temporary copies removed: %w", id, errors.Join(cause, markErr))
+			}
+			return fmt.Errorf("restore %s cleanup incomplete: %w", id, errors.Join(core.ErrRecoveryRequired, cause, markErr, cleanupErr))
 		}
 		for i, c := range result.Components {
 			if err := ctx.Err(); err != nil {
@@ -122,7 +130,7 @@ func (s *Service) PrepareSnapshotRestore(ctx context.Context, name, savedID stri
 }
 
 // CleanupSnapshotRestore discards only the staged replacement. The current
-// Environment, selected save and pre-restore backup remain owned and unchanged.
+// Environment and saved snapshots remain owned and unchanged.
 func (s *Service) CleanupSnapshotRestore(ctx context.Context, id string) error {
 	backend, ok := s.runtime.(RestoreBackend)
 	if !ok {
@@ -136,36 +144,48 @@ func (s *Service) CleanupSnapshotRestore(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	unlock, err := lockLifecycle(ctx, "environment", op.Before.Source.Environment.Name)
+	unlock, err := lockLifecycle(ctx, "environment", op.Current.Environment.Name)
 	if err != nil {
 		return err
 	}
 	defer unlock()
-	release, err := lockWorkspace(ctx, op.Before.Source.Environment.Workspace.ID)
+	release, err := lockWorkspace(ctx, op.Current.Environment.Workspace.ID)
 	if err != nil {
 		return err
 	}
 	defer release()
+	return cleanupSnapshotRestoreLocked(ctx, catalog, backend, op)
+}
+
+// Caller holds the canonical Environment and Workspace locks. Both explicit
+// cleanup and failure cleanup use the same ownership/positive-absence contract.
+func cleanupSnapshotRestoreLocked(ctx context.Context, catalog restoreCatalog, backend RestoreBackend, op core.SnapshotRestore) error {
+	id := op.ID
 	current, err := catalog.GetSnapshotRestore(ctx, id)
 	if err != nil {
 		return err
 	}
-	if !reflect.DeepEqual(current.Before, op.Before) || !reflect.DeepEqual(current.Saved, op.Saved) {
+	if !reflect.DeepEqual(current.Current, op.Current) || !reflect.DeepEqual(current.Saved, op.Saved) {
 		return core.ErrCapabilityStale
 	}
 	if err := catalog.BeginRestoreCleanup(ctx, id); err != nil {
 		return err
 	}
+	var cleanupErrors []error
 	for _, c := range current.Components {
 		if c.State == "absent" {
 			continue
 		}
 		if err := backend.DeleteRestoreComponent(ctx, c); err != nil {
-			return fmt.Errorf("restore %s cleanup incomplete: %w", id, errors.Join(core.ErrRecoveryRequired, err))
+			cleanupErrors = append(cleanupErrors, err)
+			continue
 		}
 		if err := catalog.RecordRestoreComponent(ctx, id, c, "absent"); err != nil {
-			return err
+			cleanupErrors = append(cleanupErrors, err)
 		}
+	}
+	if len(cleanupErrors) != 0 {
+		return fmt.Errorf("restore %s cleanup incomplete: %w", id, errors.Join(append([]error{core.ErrRecoveryRequired}, cleanupErrors...)...))
 	}
 	return catalog.FinalizeRestoreCleanup(ctx, id)
 }

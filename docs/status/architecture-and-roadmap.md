@@ -81,6 +81,21 @@ The roadmap is organized by architectural direction instead of copying per-check
   proxy to Environment sshd, with Windows-owned private keys and strict pinning.
 - B6: retain readable Environment location/state and next-action guidance.
 
+## Incus-first lifetime and recovery scope
+
+Incus+Btrfs is the current foundation. Use native instance, volume, snapshot/copy,
+device and network operations, adding only data associations and security guards.
+Disposable Env recreation must preserve Workspace/Git, retained OCI and saved
+snapshots. Snapshot rootfs is independently copied; Base is provenance only and
+restore creates no automatic backup. See [snapshot contract](../design/environment-snapshots.md).
+
+Cleanup requires exact ownership and positive absence, not complete runtime
+recovery. Doctor should report Incus/storage/network state, data accessibility and
+whether a new Env can be created. Backup/WSL migration should move required
+persistent data and settings and recreate execution environments. Use existing
+Incus tools where suitable; do not build a generic recovery/storage platform.
+DB volumes and a management UI are deferred and outside this refactor.
+
 ## User-facing development order
 
 The revised user roadmap prioritizes ordinary development with a small `haco`
@@ -106,7 +121,8 @@ After those B gaps, proceed in this order:
   explicit cleanup of retained Workspaces/images.
 - F: storage reclamation across Btrfs/Incus loop/WSL disk, optional management UI,
   diagnostics, reinstall and upgrade.
-- G: Environment export/import, complete backup and restore into a new WSL.
+- G: export/import required Workspace/OCI/configuration, then create new Environments
+  in the new WSL. Exact old runtime or WSL reproduction is not required.
 
 Agent orchestration stays outside Core. `switch-base` remains disabled and on
 hold; this roadmap does not schedule its return. Native Windows haco.exe, optional

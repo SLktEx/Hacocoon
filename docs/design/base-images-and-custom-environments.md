@@ -7,7 +7,7 @@ This document defines the v0.11 Base-image contract. `BASE_IMAGES.md` remains th
 ## Goal
 
 The product CLI exposes `haco base list`, `haco base inspect <base>` and
-`haco env create --base <base> --workspace managed:<workspace> <environment>`.
+`haco create --base <base> --workspace managed:<workspace> <environment>`.
 `haco env switch-base` is currently disabled and is not a Stage B requirement.
 Its need, semantics and CLI UX are deferred to Stage D or later, without blocking
 Stage A-C. The underlying historical composition/tests and
@@ -268,73 +268,14 @@ See [`../BASE_IMAGES.md`](../BASE_IMAGES.md) for the broader design and future l
 
 > **v0.11 now gives Environment creation a provider-neutral logical Base that is resolved once to an immutable revision and persisted; mutable Incus image names remain adapter details.**
 
-## Independently retained Base assets
+## Legacy retained Base material
 
-Partial: schema 7 now stores exact Base-asset ownership alongside Environment and
-snapshot state. The internal retention coordinator reserves a provider-native
-plan, immediately records successful creation, verifies it and publishes ready.
-A ready asset can be reused only for the same name/revision, provider and storage
-scope and only after provider verification. An ambiguous create, failed receipt or
-failed verification leaves recoverable ownership; it does not trigger another
-create or forget the resource. Existing snapshot schema 6 bindings survive upgrade.
+Normal creation uses Incus image resolution and init. Automatic extra Base
+instance retention has been removed: independent snapshot rootfs does not need
+it. Base metadata remains provenance, not a saved-filesystem dependency.
 
-The local Incus composition now connects retention automatically during ordinary
-Environment creation. The snapshot planner now prefers the exact retained Base asset;
-using retained material for snapshot capture remains follow-up work. No command or required
-argument is added. Asset removal requires future reference-aware collection; this
-slice exposes no deletion API. See [ADR 0038](../adr/0038-retained-base-assets.md).
-
-The Incus adapter creates a stopped `haco-base-<owner>` with the exact pinned
-image, no profiles, no host devices and no autostart. It rechecks Btrfs placement
-before creation. Canonical bindings qualify project/pool, source revision, owner,
-asset ID and provider before provider access. Verification checks the independently
-retained rootfs rather than re-querying the source image. Existing snapshot Base
-validation uses the same storage checks while retaining its own namespace.
-Component regressions cover cache-independent verification, lost create replies,
-binding drift and inherited authority refusal. Real-provider E2E is included in
-the existing Incus workflow; its new execution is pending.
-
-### Retained-material acceptance
-
-Dedicated WSL Incus 6.0.5 passed TestRealIncusBaseAssetE2E in 10.50 seconds.
-Asset base-b8b35a1f72ffee3934eb3916ecce88a6 reached ready through the real catalog
-and retention coordinator. The fixture proved project image isolation and that
-no other Environment used its explicitly selected source image before deleting
-1c0521930f3ac10dd5b9e61f236a7f61f8ebb5487a7b44aa4d7d9e75197f81af.
-After positive image absence and catalog reload, Ensure reused exactly the same
-asset and its Ubuntu rootfs remained readable. Exact asset deletion and private
-catalog cleanup then succeeded. Source-image deletion was executed successfully
-in this dedicated run; the shared-cache deletion variant remains disabled in GHA.
-This does not yet establish ordinary-create wiring or snapshot restore.
-
-An initial local compile/vet attempt failed on a missing BaseRevision conversion
-in the new regression test. The type was corrected; focused tests and the real
-fixture passed. The full local CI rerun remains pending.
-
-When creation completion was durably recorded but verification/publication was
-interrupted, the next retention request re-verifies the same owned material and
-finishes ready publication. It issues no new create. A merely planned reservation
-still requires recovery; resource presence alone does not prove completed creation.
-
-## Automatic retention during Environment creation
-
-Implemented in the local Incus composition: ordinary `haco create` and temporary
-`haco run` retain the resolved Base before the Environment is initialized. No new
-command, argument or opt-in is required. The resolved immutable source is passed
-into the asset plan, including local effective revisions, without resolving a
-moving alias again. The exact ready provider/scope/revision/binding is checked
-before Environment creation continues.
-
-The Base catalog owns failed retention independently. If retention fails before
-Environment creation starts, creation returns unavailable and its unused
-Workspace reservation can be released. Completed asset creation can finish
-verification/publication on the next request; ambiguous planned creation remains
-reserved for recovery. Deleting an Environment keeps its independent Base asset.
-Reference-aware asset collection remains planned.
-
-The existing ordinary-user Incus storage CLI E2E now asserts ready Base ownership
-and isolated stopped material after create. Its disposable CI cleanup verifies
-the exact unused catalog-owned asset and positive absence. New installed/GHA
-execution is reported in implementation status. Snapshot planning/copy now uses
-exact ready retained assets, with cached-image fallback only for absent catalog
-entries. Restore remains planned.
+Existing catalogued Base assets and snapshot Base components are preserved.
+Their ownership validation and cleanup implementation remain available; upgrade
+never guesses their ownership or deletes them. No new retention object replaces
+this removed dependency. See [snapshots](environment-snapshots.md) and
+[ADR 0040](../adr/0040-incus-first-snapshots.md).

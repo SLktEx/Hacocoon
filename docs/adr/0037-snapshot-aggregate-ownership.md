@@ -1,5 +1,8 @@
 # ADR 0037: Snapshot the complete owned Environment aggregate
 
+Base retention and automatic backup decisions below are historical where
+superseded by [ADR 0040](0040-incus-first-snapshots.md).
+
 Status: accepted design; source guard and durable catalog implemented; capture/restore planned
 Date: 2026-09-08
 

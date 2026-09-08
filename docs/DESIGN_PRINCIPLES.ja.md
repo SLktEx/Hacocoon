@@ -6,22 +6,19 @@ Status: authoritative cross-cutting design principles.
 
 この文書は、Hacocoonの実装やEnvironment backendが増えても維持する設計上の原則を定義します。将来予定している機能がすべて実装済みであることを示す文書ではありません。
 
-## 1. Hacocoonは特定runtimeではなくEnvironmentを扱う
+## 1. Incus を土台にする開発 runtime
 
-Hacocoonは、隔離された開発Environmentを作成・操作するための仕組みです。Incus wrapperではありません。
+Hacocoon は Incus に開発用の小さな便利機能、Workspace／OCI の特別な寿命、
+独自のセキュリティ境界を加えるものです。Incus の既存機能から考え、足りない
+差分だけを追加します。現在は Incus+Btrfs を第一級の対象とします。
+責務分離やテストの interface は利用しますが、架空の将来 backend のために
+現在の実装を制約したり、復旧状態を増やしたりしません。
 
-Incus system containerは、Linux互換性、systemd、起動速度、storage効率、運用の単純さのバランスが良いため最初のbackendとして採用します。ただし、Incusを恒久的なCore依存にはしません。
-
-将来、必要性が確認できれば、Environment backendとして次のような実装を追加できます。
-
-- Incus container
-- Incus VM
-- microVM
-- Kubernetesなどscheduler-backedなEnvironment
-- remote / SSH-backed host
-- その他のlocal / remote isolation technology
-
-CoreはEnvironment lifecycleと必要なcapabilityを表現し、backend固有の仕組みはEnvironment境界の内側に閉じ込めます。
+Environment は使い捨てです。通常の Env 削除では Workspace／Git、保持 OCI、
+明示した永続データ、保存済み snapshot を守ります。未保存の実行状態の完全復旧は
+要求しません。recreate は現在データ、snapshot restore は保存データを使います。
+権限の世代識別と、所有・削除完了の確認は引き続き必須です。
+[snapshot 設計](design/environment-snapshots.md)を参照してください。
 
 ## 2. Environmentの中はuntrusted、境界の外はtrusted
 
@@ -207,11 +204,12 @@ Standard or alternative enforcement implementation
 
 Gitのように一般network destinationだけではauthorityを十分に表現できない操作は、org / repository / branch/ref / operationなどを含むspecialized Capabilityとして扱えます。特殊化してもPolicy / ApprovalのCore semanticsは共有します。
 
-## 13. Portabilityを設計上の制約にする
+## 13. クライアントと任意ツールを独立させる
 
-Environmentは、異なるclientや異なるbackendから概念的に同じように利用できる状態を保ちます。
-
-VS Code、Incus、特定container runtime、特定cloud providerをEnvironmentの定義そのものに含めません。Client-specificなlaunch、backend-specificなlifecycle、workload-specificなtoolingはCore domain modelの外に置きます。
+Environment は異なるクライアントから利用できるようにします。クライアント固有の
+起動処理と任意の workload ツールは domain model の外へ分離します。Incus 呼び出しは
+責務とテストを明確にする adapter 内に置き、既存能力をそのまま活かします。
+移植性を理由に架空の backend 用 runtime や復旧機構を増やしません。
 
 ## Security promise summary
 

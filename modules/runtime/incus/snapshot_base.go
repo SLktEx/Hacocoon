@@ -77,12 +77,6 @@ func (r *Runtime) deleteSnapshotBase(ctx context.Context, p snapshotBasePlan) er
 	return r.deleteBaseStorage(ctx, p.storageIdentity())
 }
 
-// ConfigureRetainedBases installs the composition-owned read-only catalog lookup.
-// Configure once before concurrent use. Absence alone permits legacy cache use.
-func (r *Runtime) ConfigureRetainedBases(find func(context.Context, core.BaseRef, string) (core.BaseAsset, error)) {
-	r.retainedBase = find
-}
-
 func (r *Runtime) snapshotBaseSource(ctx context.Context, p snapshotBasePlan) (map[string]any, error) {
 	if p.Asset != nil {
 		identity, err := r.decodeSnapshotBaseAsset(p)

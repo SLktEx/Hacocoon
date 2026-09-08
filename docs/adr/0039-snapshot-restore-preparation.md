@@ -1,5 +1,8 @@
 # ADR 0039: Preserve ownership through snapshot restore preparation
 
+Base retention and automatic backup decisions below are historical where
+superseded by [ADR 0040](0040-incus-first-snapshots.md).
+
 Status: accepted design; internal preparation catalog implemented; service/provider staging implemented; lifecycle replacement pending
 Date: 2026-09-08
 

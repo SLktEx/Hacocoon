@@ -69,19 +69,15 @@ func TestSnapshotBindingSchemaMigration(t *testing.T) {
 		})
 	}
 }
-func TestSnapshotBaseCannotBeOmittedAtReservation(t *testing.T) {
+func TestSnapshotBaseIsProvenanceOnly(t *testing.T) {
 	s, snap := snapshotCatalogFixture(t)
 	ctx := context.Background()
 	snap.Source.Environment.Base = &core.BaseRef{Name: "custom/base", Revision: "immutable-revision"}
 	mustSnapshot(t, s.PutEnvironment(ctx, snap.Source.Environment))
-	if !errors.Is(s.BeginSnapshot(ctx, snap), core.ErrInvalidArgument) {
-		t.Fatal("Base silently omitted")
-	}
-	snap.Components = append(snap.Components, core.SnapshotComponent{Role: "base", Owner: strings.Repeat("c", 32), NativeRef: "provider:saved-base", Binding: "base-plan", State: "planned"})
 	mustSnapshot(t, s.BeginSnapshot(ctx, snap))
 	mustSnapshot(t, s.RecordSnapshotComponent(ctx, snap.ID, snap.Components[0], "created"))
 	if !errors.Is(s.CommitSnapshot(ctx, snap.ID), core.ErrRecoveryRequired) {
-		t.Fatal("incomplete Base published")
+		t.Fatal("incomplete snapshot published")
 	}
 }
 func TestSnapshotBindingBounds(t *testing.T) {

@@ -1,24 +1,10 @@
 # Versioning and release status
-Current checkpoint v0.47 connects automatic Base retention to ordinary Incus
-Environment creation without extra user steps. Completed creation receipts can
-resume verification on retry. Installed acceptance, planned-create recovery,
-collection and snapshot/restore integration remain incomplete.
-
-Restore preparation is an implemented internal follow-up: schema 8 preserves
-source/pre-restore snapshots and staging ownership. Provider staging is now connected and accepted on dedicated WSL. Canonical
-replacement and public restore remain pending; preparation does not satisfy
-completed restore acceptance.
-
-
-The v0.46 snapshot work now includes schema-7 retained Base ownership and an
-internal retention coordinator. The Incus retained-material adapter is implemented; automatic normal
-creation integration remains planned; no new public command is introduced.
-Checkpoint v0.46 introduced complete stopped snapshot capture through
-schema-6 ownership, provider routing and independent rootfs/Workspace/OCI/Base
-storage. Dedicated WSL passed five-component save, catalog reload, source deletion,
-saved Git/data retention and owned cleanup. Restore and public daily operations
-remain planned; aggregate GHA execution is pending. See
-[implementation status](../IMPLEMENTATION_STATUS.md).
+The current development checkpoint remains v0.49. Incus-first refactoring removes
+new snapshot Base storage, ordinary automatic Base retention and pre-restore
+backup. Existing saved data/ownership migrates without deletion. Restore
+preparation remains internal; runnable activation/public CLI are planned. Full
+runtime recovery is not a milestone prerequisite. See [implementation status](../IMPLEMENTATION_STATUS.md)
+and [ADR 0040](../adr/0040-incus-first-snapshots.md).
 
 Fresh Host setup now binds the owned OCI area automatically; existing data migration and runtime acceptance remain partial.
 Preceding checkpoint v0.39 adds the Windows notification review adapter and per-distribution registration. Native history/protocol/stale-refusal checks passed locally; fresh notification decisions and Linux activation remain incomplete. See [implementation status](../IMPLEMENTATION_STATUS.md).

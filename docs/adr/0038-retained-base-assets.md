@@ -1,5 +1,8 @@
 # ADR 0038: Retain Base material independently of image caches
 
+Base retention and automatic backup decisions below are historical where
+superseded by [ADR 0040](0040-incus-first-snapshots.md).
+
 Status: accepted design; catalog/coordinator and Incus storage implemented; normal creation integration implemented; installed acceptance pending
 Date: 2026-09-08
 

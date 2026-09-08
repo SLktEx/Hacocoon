@@ -68,7 +68,7 @@ func validateSnapshot(s core.Snapshot) error {
 }
 func snapshotBusy(data environmentFileState, name string) bool {
 	for _, op := range data.Restores {
-		if op.Before.Source.Environment.Name == name {
+		if op.Current.Environment.Name == name {
 			return true
 		}
 	}
@@ -90,17 +90,6 @@ func (s *EnvironmentJSONStore) CheckSnapshotIdle(ctx context.Context, name strin
 func (s *EnvironmentJSONStore) BeginSnapshot(ctx context.Context, snapshot core.Snapshot) error {
 	if validateSnapshot(snapshot) != nil || snapshot.State != "capturing" {
 		return core.ErrInvalidArgument
-	}
-	if snapshot.Source.Environment.Base != nil {
-		found := false
-		for _, c := range snapshot.Components {
-			if c.Role == "base" {
-				found = true
-			}
-		}
-		if !found {
-			return core.ErrInvalidArgument
-		}
 	}
 	for _, c := range snapshot.Components {
 		if c.State != "planned" {

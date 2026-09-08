@@ -2,7 +2,7 @@
 
 These rules apply to the entire repository.
 
-Hacocoon is a secure workspace runtime, not an AI orchestrator. Keep Core small, provider-neutral, and explicit about trust boundaries.
+Hacocoon is a secure workspace runtime, not an AI orchestrator. Keep Core small and explicit about trust boundaries. Start from Incus capabilities and add only the missing development, data-lifetime and security behavior; do not constrain Incus for hypothetical future backends.
 
 ## Start here
 

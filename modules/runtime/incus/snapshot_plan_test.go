@@ -74,17 +74,7 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 				case strings.Contains(args[1], "/volumes/custom?"):
 					value = volumes
 				case strings.HasPrefix(args[1], "/1.0/images/"):
-					if strings.HasPrefix(mode, "retained") {
-						t.Fatal("retained Base fell back to image cache")
-					}
-					if mode == "missing-image" {
-						return host.Result{ExitCode: 1}, nil
-					}
-					fingerprint := strings.Repeat("b", 64)
-					if mode == "wrong-image" {
-						fingerprint = strings.Repeat("c", 64)
-					}
-					value = map[string]string{"fingerprint": fingerprint, "type": "container"}
+					t.Fatal("snapshot consulted original image")
 				default:
 					t.Fatal(args)
 				}
@@ -97,34 +87,16 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 				}
 				return mounts, nil
 			})
-			if strings.HasPrefix(mode, "retained") {
-				r.ConfigureRetainedBases(func(_ context.Context, b core.BaseRef, scope string) (core.BaseAsset, error) {
-					if b != base.Base || scope != "hacocoon/pool" {
-						t.Fatal(b, scope)
-					}
-					a := asset
-					if mode == "retained-not-ready" {
-						a.State = "created"
-					}
-					if mode == "retained-drift" {
-						a.Base.Revision = "wrong"
-					}
-					if mode == "retained-lookup-error" {
-						return core.BaseAsset{}, core.ErrIncompatibleState
-					}
-					return a, nil
-				})
-			}
 			components, err := r.PlanSnapshot(context.Background(), source, "snap-"+strings.Repeat("e", 32))
-			if mode != "ok" && mode != "no-oci" && mode != "retained" {
+			if mode != "ok" && mode != "no-oci" && mode != "missing-base" && mode != "missing-image" && mode != "wrong-image" && !strings.HasPrefix(mode, "retained") {
 				if err == nil || len(components) != 0 {
 					t.Fatal("incomplete aggregate accepted", err, components)
 				}
 				return
 			}
-			want := 5
+			want := 4
 			if mode == "no-oci" {
-				want = 4
+				want = 3
 			}
 			if err != nil || len(components) != want || reads == 0 {
 				t.Fatal(err, len(components), reads)
@@ -143,7 +115,7 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 					t.Fatal("lost mount layout")
 				}
 			}
-			if !roles["rootfs"] || !roles["base"] || !roles["workspace:work-one"] || !roles["workspace:work-two"] || roles["oci"] != (mode != "no-oci") {
+			if !roles["rootfs"] || roles["base"] || !roles["workspace:work-one"] || !roles["workspace:work-two"] || roles["oci"] != (mode != "no-oci") {
 				t.Fatal(roles)
 			}
 		})

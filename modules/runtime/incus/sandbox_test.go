@@ -13,13 +13,9 @@ import (
 const sandboxTestFingerprint = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
-	retained := false
 	values := map[string]string{}
 	guardCreated := false
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) > 0 && args[0] == "init" && !retained {
-			t.Fatal("Environment init preceded Base retention")
-		}
 		if len(args) >= 2 && args[0] == "image" && args[1] == "info" {
 			return host.Result{Stdout: `{"fingerprint":"` + sandboxTestFingerprint + `"}`}, nil
 		}
@@ -59,10 +55,6 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	provider.ConfigureBaseRetention(func(_ context.Context, base core.BaseRef, scope, source string) (core.BaseAsset, error) {
-		retained = true
-		return readyBaseReceipt(base, scope, source), nil
-	})
 	budget := core.ResourceBudget{
 		CPU:         core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 4},
 		MemoryBytes: core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 8 << 30},
@@ -90,6 +82,9 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 	seenIPGuard := false
 	for i, call := range runner.calls {
 		joined := strings.Join(call.args, " ")
+		if strings.Contains(joined, "haco-base-") {
+			t.Fatal("ordinary create retained a redundant Base instance")
+		}
 		if len(call.args) > 0 && call.args[0] == "init" && !strings.Contains(joined, "--config "+environmentInstanceKey+"="+testEnvironmentInstance) {
 			t.Fatal("creation omitted durable ID", call.args)
 		}

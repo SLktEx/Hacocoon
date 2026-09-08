@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -44,16 +43,17 @@ func (s *restoreTraceStore) CommitRestorePreparation(ctx context.Context, id str
 
 type restoreTraceRuntime struct {
 	*snapshotRuntime
-	t         *testing.T
-	store     *restoreTraceStore
-	nextOwner int
-	plans     map[string]string
-	data      map[string]string
-	current   string
-	savedID   string
-	restoreID string
-	fail      string
-	cancel    context.CancelFunc
+	t           *testing.T
+	store       *restoreTraceStore
+	nextOwner   int
+	plans       map[string]string
+	data        map[string]string
+	current     string
+	savedID     string
+	restoreID   string
+	fail        string
+	cleanupFail string
+	cancel      context.CancelFunc
 }
 
 func (r *restoreTraceRuntime) components(id string) []core.SnapshotComponent {
@@ -133,13 +133,8 @@ func (r *restoreTraceRuntime) receipt(c core.SnapshotComponent, state string) co
 }
 func (r *restoreTraceRuntime) CreateRestoreComponent(_ context.Context, saved core.Snapshot, c core.SnapshotComponent) error {
 	op := r.receipt(c, "planned")
-	if op.Before.State != "ready" {
-		r.t.Fatal("restore before completed backup")
-	}
-	for _, b := range op.Before.Components {
-		if r.data[b.NativeRef] != r.current+":"+b.Role {
-			r.t.Fatal("backup not current work")
-		}
+	if op.Before.ID != "" {
+		r.t.Fatal("unexpected automatic backup")
 	}
 	for _, src := range saved.Components {
 		if src.Role == c.Role {
@@ -148,6 +143,9 @@ func (r *restoreTraceRuntime) CreateRestoreComponent(_ context.Context, saved co
 	}
 	if r.cancel != nil {
 		r.cancel()
+	}
+	if r.fail == "ambiguous-create" {
+		return core.ErrRecoveryRequired
 	}
 	if r.fail == "create:"+c.Role {
 		return errors.New("injected lost create reply")
@@ -166,7 +164,7 @@ func (r *restoreTraceRuntime) DeleteRestoreComponent(_ context.Context, c core.S
 	if op.State != "deleting" {
 		r.t.Fatal("cleanup not durable")
 	}
-	if r.fail == "delete:"+c.Role {
+	if r.fail == "delete:"+c.Role || r.cleanupFail == "delete:"+c.Role {
 		return errors.New("injected cleanup")
 	}
 	delete(r.data, c.NativeRef)
@@ -174,7 +172,7 @@ func (r *restoreTraceRuntime) DeleteRestoreComponent(_ context.Context, c core.S
 }
 
 func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) {
-	for _, failure := range []string{"", "source", "plan", "backup", "reserve", "create:rootfs", "record-created:rootfs", "verify:workspace:main", "record-verified:workspace:main", "commit", "cancel"} {
+	for _, failure := range []string{"", "source", "plan", "reserve", "create:rootfs", "record-created:rootfs", "verify:workspace:main", "record-verified:workspace:main", "commit", "cancel", "create-and-cleanup", "commit-and-root-cleanup", "ambiguous-create"} {
 		t.Run(failure, func(t *testing.T) {
 			_, catalog, original := captureFixture(t)
 			store := &restoreTraceStore{EnvironmentJSONStore: catalog.EnvironmentJSONStore}
@@ -193,6 +191,14 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 			}
 			r.fail = failure
 			store.fail = failure
+			if failure == "create-and-cleanup" {
+				r.fail = "create:rootfs"
+				r.cleanupFail = "delete:workspace:main"
+			}
+			if failure == "commit-and-root-cleanup" {
+				store.fail = "commit"
+				r.cleanupFail = "delete:rootfs"
+			}
 			request, cancel := context.WithCancel(ctx)
 			defer cancel()
 			if failure == "cancel" {
@@ -206,6 +212,9 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 			} else if err == nil {
 				t.Fatal("injected failure succeeded")
 			}
+			if len(r.plans) != len(saved.Components) {
+				t.Fatal("restore created an automatic snapshot")
+			}
 			current, readErr := store.GetEnvironment(ctx, "resume")
 			if readErr != nil || !reflect.DeepEqual(current, expectedEnv) {
 				t.Fatal("current Environment changed", readErr)
@@ -216,14 +225,14 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 				}
 			}
 			if op.ID == "" {
-				if failure == "reserve" {
-					if op.Before.ID == "" {
-						t.Fatal("backup handle lost")
-					}
-					backup, e := store.GetSnapshot(ctx, op.Before.ID)
-					if e != nil || backup.State != "ready" {
-						t.Fatal("backup missing", e)
-					}
+				if errors.Is(err, core.ErrRecoveryRequired) {
+					t.Fatal("cleaned failure still requires recovery", err)
+				}
+				if len(r.data) != len(saved.Components) {
+					t.Fatal("temporary resources leaked after completed cleanup")
+				}
+				if e := store.CheckSnapshotIdle(ctx, "resume"); e != nil {
+					t.Fatal("clean failure blocked current Environment", e)
 				}
 				return
 			}
@@ -235,8 +244,13 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 			if failure != "" && !errors.Is(err, core.ErrRecoveryRequired) {
 				t.Fatal("failure lost recovery indication", err)
 			}
-			if reloaded.BeginSnapshotDelete(ctx, saved.ID) == nil || reloaded.BeginSnapshotDelete(ctx, op.Before.ID) == nil || reloaded.CheckSnapshotIdle(ctx, "resume") == nil {
+			if reloaded.BeginSnapshotDelete(ctx, saved.ID) == nil || reloaded.CheckSnapshotIdle(ctx, "resume") == nil {
 				t.Fatal("restore references released")
+			}
+			if failure == "commit-and-root-cleanup" {
+				if persisted.Components[0].State == "absent" || persisted.Components[1].State != "absent" {
+					t.Fatal("one cleanup failure blocked independent cleanup")
+				}
 			}
 			store.fail = ""
 			r.cancel = nil
@@ -248,17 +262,13 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 				t.Fatal("partial cleanup lost ownership", e)
 			}
 			r.fail = ""
+			r.cleanupFail = ""
 			if e := svc.CleanupSnapshotRestore(ctx, op.ID); e != nil {
 				t.Fatal(e)
 			}
 			for _, c := range persisted.Components {
 				if _, exists := r.data[c.NativeRef]; exists {
 					t.Fatal("copy remains")
-				}
-			}
-			for _, c := range op.Before.Components {
-				if !strings.HasPrefix(r.data[c.NativeRef], "new uncommitted work:") {
-					t.Fatal("current backup lost")
 				}
 			}
 			if e := reloaded.CheckSnapshotIdle(ctx, "resume"); e != nil {

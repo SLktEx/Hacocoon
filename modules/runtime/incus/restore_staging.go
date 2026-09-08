@@ -86,6 +86,10 @@ func (r *Runtime) PlanSnapshotRestore(ctx context.Context, saved core.Snapshot, 
 	}
 	out := []core.SnapshotComponent{}
 	for _, src := range saved.Components {
+		// Legacy Base material remains catalogued, but rootfs is self-contained.
+		if src.Role == "base" {
+			continue
+		}
 		if err := r.VerifySnapshotComponent(ctx, src); err != nil {
 			return nil, err
 		}

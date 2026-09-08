@@ -1,12 +1,13 @@
 package core
 
-// SnapshotRestore owns preparation of a replacement aggregate. Before is a
-// completed pre-restore backup; preparation never authorizes replacing it or
-// publishing a runnable Environment. Those require a canonical lifecycle commit.
+// SnapshotRestore owns independent copies and the current target identity.
+// Preparation never publishes an Environment or changes current data.
 type SnapshotRestore struct {
-	ID         string              `json:"id"`
-	Saved      Snapshot            `json:"saved"`
-	Before     Snapshot            `json:"before"`
+	ID    string   `json:"id"`
+	Saved Snapshot `json:"saved"`
+	// Before preserves schema-8 backup ownership only; new operations leave it empty.
+	Before     Snapshot            `json:"before,omitzero"`
+	Current    SnapshotSource      `json:"current"`
 	State      string              `json:"state"`
 	Components []SnapshotComponent `json:"components"`
 }
