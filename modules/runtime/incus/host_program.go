@@ -24,10 +24,7 @@ func (r *Runtime) RunTrustedHostPython(ctx context.Context, program string, inpu
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	result, err := runner.RunWithInput(ctx, input, "incus", "exec", trustedHostName, "--project", r.project, "--cwd", "/root", "--",
-		"/usr/bin/systemd-run", "--quiet", "--collect", "--wait", "--pipe", "--service-type=exec",
-		"--working-directory=/root", "--property=KillMode=control-group", "--property=TimeoutStopSec=5s", "--property=RuntimeMaxSec=110s", "--property=MemoryMax=512M", "--property=TasksMax=64",
-		"/usr/bin/env", "-i", "PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/root", "/usr/bin/python3", "-I", "-c", program)
+	result, err := runner.RunWithInput(ctx, input, "incus", r.trustedHostPythonArgs(program, "110s")...)
 	if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
 		return nil, fmt.Errorf("trusted Host integration failed: %w", core.ErrRuntimeUnavailable)
 	}

@@ -1,5 +1,8 @@
 import importlib.util
 import io
+import base64
+import hashlib
+from contextlib import redirect_stdout
 import json
 import unittest
 from pathlib import Path
@@ -20,20 +23,29 @@ STS = ("<GetCallerIdentityResponse xmlns=\"https://sts.amazonaws.com/doc/2011-06
 class Raw:
     def __init__(self, data):
         self.data = data
+        self.buffer = io.BytesIO(data)
+    def read(self, amt=None):
+        return self.buffer.read(amt)
+    def close(self):
+        self.buffer.close()
     def stream(self, amt=None, decode_content=False):
         yield self.data
 
 class AgentTest(unittest.TestCase):
     def setUp(self):
         self.requests = []
+        self.object_payload = None
         self.s3 = [(200, {}, b'<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><IsTruncated>false</IsTruncated><Contents><Key>project/config.json</Key><Size>42</Size></Contents></ListBucketResult>')]
         def send(session, request):
             self.requests.append(request)
             if request.url.startswith("https://sts.ap-northeast-1.amazonaws.com"):
                 return AWSResponse(request.url, 200, {}, Raw(STS))
-            self.assertTrue(request.url.startswith("https://s3.ap-northeast-1.amazonaws.com/example-bucket?"))
+            self.assertTrue(request.url.startswith("https://s3.ap-northeast-1.amazonaws.com/example-bucket"))
             self.assertEqual(request.method, "GET")
-            self.assertIn("list-type=2", request.url)
+            if self.object_payload is None:
+                self.assertIn("list-type=2", request.url)
+            else:
+                self.assertEqual(request.url, "https://s3.ap-northeast-1.amazonaws.com/example-bucket/project/data.bin")
             self.assertEqual(request.headers["x-amz-expected-bucket-owner"], ACCOUNT.encode())
             auth = request.headers["Authorization"].decode()
             self.assertIn("Credential=ASIAFIXTUREONLY/", auth)
@@ -103,6 +115,35 @@ class AgentTest(unittest.TestCase):
         self.s3 = [(200, {}, b"<ListBucketResult><IsTruncated>true</IsTruncated><NextContinuationToken>same</NextContinuationToken></ListBucketResult>")] * 2
         with self.assertRaisesRegex(agent.Failure, "aws_failed"):
             agent.execute(self.request())
+
+    def test_download_streams_binary_and_empty_objects(self):
+        for data in (bytes(range(256)) * 1024, b""):
+            with self.subTest(size=len(data)):
+                self.object_payload = data
+                self.s3 = [(200, {"content-length":str(len(data))}, data)]
+                captured = io.StringIO()
+                with redirect_stdout(captured):
+                    result = agent.execute(self.request(mode="get", key="project/data.bin"))
+                chunks = [base64.b64decode(json.loads(line)["data"]) for line in captured.getvalue().splitlines()]
+                self.assertTrue(all(len(chunk)<=65536 for chunk in chunks))
+                self.assertEqual(b"".join(chunks),data)
+                self.assertEqual(result["receipt"],{"bytes":len(data),"sha256":hashlib.sha256(data).hexdigest()})
+    def test_download_truncation_never_returns_receipt(self):
+        self.object_payload = b"partial"
+        self.s3 = [(200, {"content-length":"100"}, b"partial")]
+        captured = io.StringIO()
+        with redirect_stdout(captured):
+            with self.assertRaises(Exception):
+                agent.execute(self.request(mode="get", key="project/data.bin"))
+        self.assertNotIn("receipt", captured.getvalue())
+    def test_download_refuses_partial_content_response(self):
+        self.object_payload = b"partial"
+        self.s3 = [(206, {"content-length":"7","content-range":"bytes 0-6/100"}, b"partial")]
+        captured = io.StringIO()
+        with redirect_stdout(captured):
+            with self.assertRaisesRegex(agent.Failure,"aws_failed"):
+                agent.execute(self.request(mode="get", key="project/data.bin"))
+        self.assertEqual(captured.getvalue(),"")
 
 if __name__ == "__main__":
     unittest.main()

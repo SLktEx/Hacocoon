@@ -24,7 +24,7 @@ func RegisterAWS(server *control.Server, service awsListService) error {
 	if service == nil {
 		return control.ErrInvalidArgument
 	}
-	return server.Register(MethodAWSList, func(ctx context.Context, payload json.RawMessage) (any, error) {
+	if err := server.Register(MethodAWSList, func(ctx context.Context, payload json.RawMessage) (any, error) {
 		var spec awsplugin.ListSpec
 		d := json.NewDecoder(bytes.NewReader(payload))
 		d.DisallowUnknownFields()
@@ -33,7 +33,13 @@ func RegisterAWS(server *control.Server, service awsListService) error {
 		}
 		result, err := service.List(ctx, spec)
 		return awsResponse{Result: result, Error: statusFromError(err)}, nil
-	})
+	}); err != nil {
+		return err
+	}
+	if stream, ok := service.(awsDownloadService); ok {
+		return registerAWSDownload(server, stream)
+	}
+	return nil
 }
 func (c *Client) ListS3(ctx context.Context, spec awsplugin.ListSpec) (core.CapabilityResult, error) {
 	var response awsResponse

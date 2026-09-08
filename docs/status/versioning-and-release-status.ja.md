@@ -1,5 +1,5 @@
 # バージョン番号とリリース状況
-現在の checkpoint v0.43 は、共通の承認・Policy を使う trusted Host の S3 一覧取得という D3 の部分実装です。ファイル取得・guest 専用要求・実 AWS 受入は planned です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
+現在の checkpoint v0.44 は、共通の承認・Policy を通す S3 ファイルのストリーム取得と、検証後の不可分な保存を追加します。guest 専用要求・実 AWS 検証は planned です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
 
 新規 Host の所有確認済み OCI 領域は setup で自動接続されます。既存データの移行と runtime 受け入れは partial です。
 前の checkpoint v0.39 は Windows 通知 review adapter と distribution 別登録を追加します。実機の通知履歴・protocol 起動・古い要求拒否は成功しましたが、通知からの新規回答と Linux 起動は未完了です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
@@ -136,8 +136,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.41 | Interactive Environment Selection | 実装済み |
 | v0.42 | Completed OCI Copy Recovery | 実装済み |
 | v0.43 | Approved AWS S3 Listing | 実装済み |
+| v0.44 | Verified AWS Object Downloads | 実装済み |
 
-現在のmilestone位置は **v0.43** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.44** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

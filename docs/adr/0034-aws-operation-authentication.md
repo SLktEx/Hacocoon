@@ -46,7 +46,8 @@ AWS authentication remains distinct from granting Hacocoon operation permission.
 
 ## Remaining scope
 
-Object download, guest-scoped requests, configurable friendly account labels and
+Object download is now implemented through [ADR 0035](0035-streamed-aws-downloads.md).
+Guest-scoped requests, configurable friendly account labels and
 additional actual-use operations are future slices. The first slice supports
 same-account ordinary commercial S3 buckets and bounded complete listings.
 Real AWS/SSO and installed desktop acceptance remain separate from repository

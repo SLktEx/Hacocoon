@@ -1,5 +1,17 @@
 # 実装状況
 
+## AWS オブジェクトのストリーム取得
+
+repository 実装です。haco aws s3 cp は承認済み current object を trusted Host・controller
+経由で転送し、サイズ・SHA-256・最終の実行／監査 receipt を確認して atomic に保存します。
+公開前に失敗した場合は既存ファイルを保持します。実 controller stream の 20 MiB 転送を含む
+scope・SDK 応答・filesystem の回帰が成功しました。
+[AWS 操作](design/aws-operations.ja.md) と [ADR 0035](adr/0035-streamed-aws-downloads.md) を参照してください。
+local CI と SDK 11 テストも成功しました。現在の所有確認付き Host streaming adapter は
+専用 WSL で AWS 通信なしに 20 MiB を転送できました。
+Host の前提不足による実 AWS の SKIP は継続します。guest 要求経路、native Windows
+filesystem と AWS desktop 判断の受入は別の残項目です。
+
 ## 承認を経由する AWS S3 一覧
 
 D3 の部分実装です。trusted Host の S3 一覧取得を製品 CLI・controller・共通の
@@ -859,7 +871,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.43** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.44** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

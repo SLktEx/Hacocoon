@@ -34,8 +34,12 @@ func runAWS(args []string) int {
 	return awsCommand(ctx, client, args, os.Stdout, os.Stderr)
 }
 func awsCommand(ctx context.Context, client awsClient, args []string, out, diagnostic io.Writer) int {
+	if len(args) >= 2 && args[0] == "s3" && args[1] == "cp" {
+		return awsDownloadCommand(ctx, client, args[2:], out, diagnostic)
+	}
 	usage := func() int {
 		fmt.Fprintln(diagnostic, "Usage: haco aws s3 ls [--env name] [--profile name] [--region region] s3://bucket/prefix")
+		fmt.Fprintln(diagnostic, "       haco aws s3 cp [--env name] [--profile name] [--region region] s3://bucket/key <file>")
 		return 2
 	}
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {

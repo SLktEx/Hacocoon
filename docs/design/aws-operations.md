@@ -2,8 +2,8 @@
 
 [日本語](aws-operations.ja.md) | English
 
-Status: **partial D3 implementation**. Trusted Host S3 listing is implemented.
-Object download, guest-scoped transport, friendly account-name configuration and
+Status: **partial D3 implementation**. Trusted Host S3 listing and streamed downloads are implemented.
+Guest-scoped transport, friendly account-name configuration and
 real AWS/desktop acceptance remain planned. This does not reintroduce the deferred
 EC2 runtime.
 
@@ -17,7 +17,7 @@ haco aws s3 ls s3://example-bucket/project/
 
 A single Environment is inferred. Use `--env dev` when several exist.
 `--profile` defaults to `default`; `--region` defaults to that Host profile.
-Options precede the S3 URL. The initial command returns a JSON array of exact
+Options precede the S3 URL. The listing command returns a JSON array of exact
 object keys and sizes. Unicode is escaped for safe terminal display without
 changing the decoded keys. An oversized or incomplete listing fails rather than
 returning a partial listing as success; narrow the prefix when necessary.
@@ -121,3 +121,46 @@ Dedicated WSL Hacocoon-Review-6771f2f verified the current Host adapter, transie
 unit and fail-closed not-configured response. The owned Host has no AWS CLI,
 botocore or AWS config; real AWS was SKIP for these missing prerequisites. No
 AWS operation or login was attempted. This is not authenticated AWS acceptance.
+
+## Download an object
+
+On the Linux/WSL client in the trusted Host:
+
+```sh
+haco aws s3 cp s3://example-bucket/project/config.json ./config.json
+```
+
+The optional env/profile/region flags behave like listing and precede the URL.
+The destination is a local file on the machine running that client. GetObject
+requires a separate Policy scope: API action `GetObject`, IAM action
+`s3:GetObject`, the complete object ARN as resource and a `key` attribute in place
+of `prefix`. The description is `Download current object at execution`; other
+identity attributes are unchanged. ListBucket permission does not imply download
+permission. The current version at execution is fetched in one request; there is
+no automatic archive restore, upload, range reconstruction or SSE-C key input.
+
+Data is streamed in 64 KiB frames, with no small whole-object JSON limit.
+ContentLength, final byte count/SHA-256, complete transport, execution success and
+completed audit must all agree before publication. Hashes verify transfer
+consistency, not a user-supplied expected object version. Binary and empty objects
+are supported. Keys containing dot path segments are refused rather than risking
+path normalization to a different object.
+
+The client keeps provisional data in a private directory beside the destination.
+Only after verification does it atomically replace an existing regular file;
+symlinks and other file types are refused. The resulting file is private to the
+client user. Renaming the parent or staging directory cannot redirect publication.
+Failure or cancellation before publication leaves the previous file intact.
+Cleanup identity drift is reported and unexpected contents are retained, never
+recursively removed. Filesystems that cannot enforce private permissions fail
+closed; native Windows filesystem acceptance remains separate.
+
+See [ADR 0035](../adr/0035-streamed-aws-downloads.md). Repository verification
+includes 20 MiB through the actual controller wire and the ordinary review,
+saved-policy and revocation path. Eleven intercepted real-SDK tests cover listing
+and downloads. Authenticated S3 downloads remain SKIP because the dedicated Host
+has no AWS CLI, botocore or AWS config; those tests have not become real AWS proof.
+
+The current verified Host streaming adapter also transferred 20 MiB successfully
+in dedicated WSL without contacting AWS. Maintained local CI, the eleven SDK
+tests and documentation checks passed. This does not verify authenticated S3.

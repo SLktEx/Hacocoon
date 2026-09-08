@@ -1,5 +1,7 @@
 """Trusted Host AWS adapter. Request data never becomes shell code or credentials."""
 import json
+import base64
+import hashlib
 import os
 import re
 import selectors
@@ -58,7 +60,7 @@ def run(args, env, payload=None):
         process.stdout.close()
         process.stderr.close()
 
-def api(service, action, region, env, fields):
+def api(service, action, region, env, fields, consume=None):
     # Signing and transport both remain bound to the reviewed region/endpoint.
     import botocore.session
     from botocore.config import Config
@@ -90,8 +92,9 @@ def api(service, action, region, env, fields):
     client.meta.events.register_first("before-send." + service, before_send)
     try:
         method = {"get-caller-identity": "get_caller_identity",
-                  "list-objects-v2": "list_objects_v2"}[action]
-        return getattr(client, method)(**fields)
+                  "list-objects-v2": "list_objects_v2", "get-object": "get_object"}[action]
+        response = getattr(client, method)(**fields)
+        return consume(response) if consume else response
     except ClientError as error:
         code = error.response.get("Error", {}).get("Code")
         if code in ("AccessDenied", "AccessDeniedException", "Forbidden"):
@@ -101,11 +104,11 @@ def api(service, action, region, env, fields):
         client.close()
 
 def execute(req):
-    allowed = {"mode", "profile", "region", "account", "principal", "bucket", "prefix"}
+    allowed = {"mode", "profile", "region", "account", "principal", "bucket", "prefix", "key"}
     if not isinstance(req, dict) or set(req) - allowed or any(not isinstance(v, str) for v in req.values()):
         raise Failure("invalid")
     mode, profile, region = req.get("mode"), req.get("profile"), req.get("region", "")
-    if mode not in ("identity", "list") or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", profile or ""):
+    if mode not in ("identity", "list", "get") or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", profile or ""):
         raise Failure("invalid")
     try:
         import botocore.session
@@ -140,6 +143,34 @@ def execute(req):
         raise Failure("invalid")
     if len(prefix.encode()) > 1024 or not re.fullmatch(r"[0-9]{12}", req.get("account", "")):
         raise Failure("invalid")
+    if mode == "get":
+        key = req.get("key", "")
+        if not key or len(key.encode())>1024 or any(part in (".", "..") for part in key.split("/")):
+            raise Failure("invalid")
+        def consume(response):
+            body = response["Body"]
+            try:
+                length = response.get("ContentLength")
+                if type(length) is not int or length<0 or response.get("ResponseMetadata",{}).get("HTTPStatusCode")!=200 or "ContentRange" in response:
+                    raise Failure("aws_failed")
+                digest = hashlib.sha256()
+                received = 0
+                while True:
+                    chunk = body.read(65536)
+                    if not chunk:
+                        break
+                    received += len(chunk)
+                    if received > length:
+                        raise Failure("aws_failed")
+                    digest.update(chunk)
+                    print(json.dumps({"data":base64.b64encode(chunk).decode("ascii")}), flush=True)
+                if received != length:
+                    raise Failure("aws_failed")
+                return {"identity":identity,"receipt":{"bytes":received,"sha256":digest.hexdigest()}}
+            finally:
+                body.close()
+        return api("s3", "get-object", region, frozen,
+                   {"Bucket":bucket,"Key":key,"ExpectedBucketOwner":identity["account"]},consume)
     fields = {"Bucket": bucket, "Prefix": prefix, "ExpectedBucketOwner": identity["account"], "MaxKeys": 1000}
     objects, tokens = [], set()
     for _ in range(100):

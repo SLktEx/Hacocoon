@@ -2,8 +2,8 @@
 
 [English](aws-operations.md) | 日本語
 
-Status: **D3 の部分実装**。trusted Host からの S3 一覧取得を実装しています。
-ファイル取得、guest 専用の要求経路、アカウント名の設定、実 AWS・デスクトップ受入は
+Status: **D3 の部分実装**。trusted Host からの S3 一覧取得とストリームによるファイル取得を実装しています。
+guest 専用の要求経路、アカウント名の設定、実 AWS・デスクトップ受入は
 planned です。deferred の EC2 runtime を再導入する変更ではありません。
 
 ## 普段の使い方
@@ -84,3 +84,42 @@ GHA の aws-plugin job でも専用 SDK 環境を用意します。
 専用 WSL Hacocoon-Review-6771f2f で現行 Host adapter・transient unit・未設定時の拒否が
 動作しました。所有確認済み Host に AWS CLI・botocore・AWS config がないため、実 AWS は
 前提不足で SKIP です。AWS 操作やログインは試行していません。認証済み AWS の受入とは別です。
+
+## オブジェクトを取得する
+
+trusted Host の Linux／WSL client で実行します。
+
+```sh
+haco aws s3 cp s3://example-bucket/project/config.json ./config.json
+```
+
+env／profile／region option は一覧と同じで、URL より前に置きます。
+保存先は client が動くマシンのローカルファイルです。取得には別の Policy scope が必要です。
+API action は `GetObject`、IAM action は `s3:GetObject`、resource は完全な object ARN、
+`prefix` の代わりに `key` attribute、description は
+`Download current object at execution` です。その他の identity attribute は変わりません。
+一覧の許可を取得の許可へ広げません。実行時の current version を一回で取得し、
+archive restore・upload・range による再構成・SSE-C key 入力は自動で行いません。
+
+64 KiB frame で転送し、オブジェクト全体を一件の JSON へ詰め込む上限は設けません。
+ContentLength、最終サイズ・SHA-256、transport の終了、実行成功、監査完了が一致して
+初めて保存先へ反映します。hash は転送の整合性を検証するもので、ユーザー指定の
+object version を保証するものではありません。バイナリと空ファイルを扱えます。
+dot path segment を含む key は、別 object への正規化を避けるため拒否します。
+
+保存先の隣の private directory に仮置きし、確認後に既存 regular file を atomic に
+置き換えます。symlink 等は拒否し、結果は client ユーザー専用の権限で保存します。
+親・仮置き directory の rename でも公開先を変えません。公開前の失敗・キャンセルでは
+以前のファイルを保持します。cleanup 対象の identity が変わった場合は失敗として報告し、
+不明な内容を再帰削除しません。private 権限を保証できない filesystem は fail-closed とし、
+native Windows filesystem の受入は別に残します。
+
+[ADR 0035](../adr/0035-streamed-aws-downloads.md) を参照してください。
+実 controller wire の 20 MiB 転送と、通常 review・保存方針・撤回を repository 検証しています。
+実 SDK の HTTP transport を置換した 11 テストは一覧と取得を扱います。
+専用 Host に AWS CLI・botocore・AWS config がないため認証済み S3 取得は SKIP です。
+これらのテストから実 AWS の成功を推測しません。
+
+現在の所有確認付き Host streaming adapter は、専用 WSL でも AWS 通信なしで
+20 MiB の転送に成功しました。保守対象の local CI、SDK 11 テスト、文書検査は成功です。
+認証済み S3 の検証を代替するものではありません。

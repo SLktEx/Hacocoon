@@ -56,6 +56,7 @@ type agentRequest struct {
 	Principal string `json:"principal,omitempty"`
 	Bucket    string `json:"bucket,omitempty"`
 	Prefix    string `json:"prefix,omitempty"`
+	Key       string `json:"key,omitempty"`
 }
 type agentResponse struct {
 	Error    string    `json:"error,omitempty"`
@@ -125,37 +126,57 @@ type Broker struct {
 }
 
 func (b *Broker) List(ctx context.Context, s ListSpec) (core.CapabilityResult, error) {
-	s, bucket, prefix, err := parse(s)
+	req, err := b.prepare(ctx, s, false)
 	if err != nil {
 		return core.CapabilityResult{}, err
 	}
-	if b == nil || b.Host == nil || b.Capabilities == nil || b.Environments == nil {
-		return core.CapabilityResult{}, core.ErrUnsupported
-	}
-	environment, err := b.Environments.GetEnvironment(ctx, s.Environment)
-	if err != nil {
-		return core.CapabilityResult{}, err
-	}
-	instance, err := b.Environments.EnvironmentInstance(ctx, environment)
-	if err != nil {
-		return core.CapabilityResult{}, err
-	}
-	out, err := call(ctx, b.Host, agentRequest{Mode: "identity", Profile: s.Profile, Region: s.Region})
-	if err != nil {
-		return core.CapabilityResult{}, err
-	}
-	if out.Identity == nil || !validIdentity(*out.Identity) || len(out.Objects) != 0 || s.Region != "" && out.Identity.Region != s.Region {
-		return core.CapabilityResult{}, core.ErrIncompatibleState
-	}
-	req := request(s, bucket, prefix, *out.Identity)
-	req.EnvironmentInstance = instance
 	return b.Capabilities.Request(ctx, req)
 }
 
-type Provider struct{ Host Host }
+func (b *Broker) prepare(ctx context.Context, s ListSpec, get bool) (core.CapabilityRequest, error) {
+	s, bucket, prefix, err := parse(s)
+	if err != nil || get && !validObjectKey(prefix) {
+		if err == nil {
+			err = core.ErrInvalidArgument
+		}
+		return core.CapabilityRequest{}, err
+	}
+	if b == nil || b.Host == nil || b.Capabilities == nil || b.Environments == nil {
+		return core.CapabilityRequest{}, core.ErrUnsupported
+	}
+	environment, err := b.Environments.GetEnvironment(ctx, s.Environment)
+	if err != nil {
+		return core.CapabilityRequest{}, err
+	}
+	instance, err := b.Environments.EnvironmentInstance(ctx, environment)
+	if err != nil {
+		return core.CapabilityRequest{}, err
+	}
+	out, err := call(ctx, b.Host, agentRequest{Mode: "identity", Profile: s.Profile, Region: s.Region})
+	if err != nil {
+		return core.CapabilityRequest{}, err
+	}
+	if out.Identity == nil || !validIdentity(*out.Identity) || len(out.Objects) != 0 || s.Region != "" && out.Identity.Region != s.Region {
+		return core.CapabilityRequest{}, core.ErrIncompatibleState
+	}
+	req := request(s, bucket, prefix, *out.Identity)
+	if get {
+		req = getRequest(s, bucket, prefix, *out.Identity)
+	}
+	req.EnvironmentInstance = instance
+	return req, nil
+}
+
+type Provider struct {
+	Host   Host
+	Stream HostStream
+}
 
 func (*Provider) Capability() string { return Capability }
 func (p *Provider) Execute(ctx context.Context, r core.CapabilityRequest) (core.CapabilityResult, error) {
+	if p != nil && r.Action == GetAction {
+		return p.download(ctx, r)
+	}
 	if p == nil || p.Host == nil {
 		return core.CapabilityResult{}, core.ErrUnsupported
 	}

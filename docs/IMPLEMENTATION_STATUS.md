@@ -1,5 +1,18 @@
 # Implementation Status
 
+## Streamed AWS object downloads
+
+Implemented repository slice: haco aws s3 cp streams an approved current object
+through the trusted Host and controller, verifies byte count/SHA-256 and the final
+execution/audit receipt, then atomically publishes the local file. Existing files
+remain unchanged on pre-publication failure. Scope, SDK response and filesystem
+regressions passed, including 20 MiB through the actual controller stream. See
+[AWS operations](design/aws-operations.md) and [ADR 0035](adr/0035-streamed-aws-downloads.md).
+Maintained local CI and eleven intercepted SDK tests passed. The current owned
+Host streaming adapter transferred 20 MiB in dedicated WSL without AWS access.
+Real AWS remains SKIP for absent Host prerequisites. Guest transport, native Windows
+filesystem acceptance and AWS desktop decisions are still separate pending scope.
+
 ## Approved AWS S3 listing
 
 Partial D3: trusted Host S3 listing is wired through the product CLI, controller,
@@ -9,8 +22,8 @@ signing-region-only changes, are refused before transport. See
 [AWS operations](design/aws-operations.md) for preparation, exact scope and limits.
 Focused race tests and ordinary controller review/config revocation checks passed.
 Eight real-SDK tests with synthetic credentials and intercepted HTTP transport
-passed, including a signing-region-only redirect regression. Object download,
-guest request transport, account labels and real AWS/desktop acceptance remain
+passed, including a signing-region-only redirect regression. Downloads are now
+implemented above; guest request transport, account labels and real AWS/desktop acceptance remain
 planned. Intercepted SDK tests do not prove real AWS acceptance.
 
 The current Host adapter also passed a dedicated WSL execution with missing AWS
@@ -976,7 +989,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.43**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.44**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

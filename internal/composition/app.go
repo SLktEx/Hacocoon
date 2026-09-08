@@ -167,7 +167,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		egressapp.Provider{},
 		dnsproxy.Provider{},
 		gitProvider,
-		&awsplugin.Provider{Host: incusRuntime.RunTrustedHostPython},
+		&awsplugin.Provider{Host: incusRuntime.RunTrustedHostPython, Stream: incusRuntime.RunTrustedHostPythonStream},
 		gitBroker,
 	)
 	if err != nil {
