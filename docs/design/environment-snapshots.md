@@ -213,6 +213,7 @@ state machine is introduced.
 
 - `modules/runtime/incus`: native copy/instance/volume/device operations and exact
   provider observations. Btrfs is an explicit supported precondition.
+- `modules/standard/gitrepo`: normal Workspace registration and destination-owned cleanup.
 - `internal/workspace`: aggregate locks and ordered capture/preparation/cleanup.
 - `internal/state`: durable data/generation ownership and atomic lifecycle guards.
 - `internal/environment`: routing and qualification of Incus native references.
@@ -220,6 +221,8 @@ state machine is introduced.
 
 `SnapshotBackend` and `RestoreBackend` keep native storage mechanics testable and
 out of orchestration. The catalog interface protects receipts and atomic checks.
+`SnapshotWorkspaceCatalog` provides only atomic begin/finish source guards to
+the registry; it introduces no native storage abstraction or runtime recovery state.
 These interfaces do not promise hypothetical future backend equivalence. Removed
 production Base-retention callbacks are not replaced with another abstraction.
 Legacy Base storage code remains only to read, verify and clean recorded material
