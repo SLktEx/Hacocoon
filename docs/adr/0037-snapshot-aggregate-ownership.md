@@ -82,3 +82,10 @@ inventing a provider binding. This prevents restart recovery from reconstructing
 an operation using a same-name resource or changed runtime defaults. New Base
 sources must reserve Base storage too. Production aggregate enumeration remains
 required before the internal dispatcher becomes a usable capture backend.
+
+The production router now forwards the optional backend to Incus. Its read-only
+aggregate planner compares canonical member ownership and actual disk inventory,
+requires a single Btrfs pool and cached effective Base, and refuses omitted or
+extra storage before reservation. Device/path layout joins the persisted volume
+binding. Provider-qualified component refs prevent cross-provider cleanup or
+source confusion. Real full-aggregate acceptance and restore remain pending.

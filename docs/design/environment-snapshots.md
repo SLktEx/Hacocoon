@@ -1,9 +1,10 @@
 # Environment snapshots and restore
 
-Status: **partial internal foundation**. Source validation and lifecycle locking
-and a durable component catalog/capture coordinator are implemented. Incus custom
-volume, independent rootfs and exact-revision Base COW primitives are implemented and tested; complete aggregate capture,
-restore and public CLI are planned. No usable Environment snapshot is produced yet.
+Status: **partial internal capture backend**. The durable component catalog and
+capture coordinator now connect through the provider router to an Incus aggregate
+planner and owned storage. Individual storage primitives have real-host evidence;
+the full aggregate path has component tests, with real aggregate acceptance,
+restore and public CLI still pending.
 
 ## Scope
 
@@ -73,13 +74,14 @@ publication follows verification of every component. Failure returns the reserve
 snapshot ID and retains recovery state, including caller cancellation or failure
 to write the recovery marker. DeleteSnapshot holds the same lifecycle locks,
 rechecks the manifest, and retries only components not durably confirmed absent.
-The production Incus runtime does not yet implement this optional backend, so
-production capture fails as unsupported before reserving or mutating resources.
+The production Incus runtime now implements this optional backend and the existing
+Base/provider router forwards it. Source enumeration and storage remain behind
+the Incus boundary; controller-facing public operations are not yet exposed.
 
-Implement the Incus backend for this contract.
+The following ownership rule applies to this backend:
 Record each newly created identity immediately, before another fallible step.
-A storage backend, full member inventory and independent saved data are still
-required before these internal records represent a usable snapshot.
+Real acceptance of the complete aggregate, restoration and public operations are
+still required before this internal path becomes a usable daily snapshot feature.
 
 Restore must show which current changes will be replaced and preserve recoverable
 pre-restore state. All component restoration and failure recovery must precede
@@ -246,7 +248,7 @@ access. Creation also compares the source creation ID or effective Base revision
 
 This internal dispatcher can verify/delete a saved binding after JSON reload,
 including a planned target without a creation receipt. Full member enumeration
-and production routing are still planned. No public save/restore command is
+and production routing are implemented below; real aggregate acceptance is pending. No public save/restore command is
 introduced. New reservations with a Base must include a Base component. Legacy
 schema-5 records retain recovery ownership without inventing absent provider
 bindings; Incus refuses to execute them as complete storage plans. Schema-5 files
@@ -259,3 +261,28 @@ that record. Fixture haco-snapshot-base-b5cbeb5867500feef28b98adb957b428 retaine
 the same Btrfs ancestry and independent-write guarantees. This is real adapter
 binding acceptance; the canonical catalog/coordinator and complete aggregate
 remain covered separately, not an installed public snapshot round trip.
+
+## Stopped aggregate planner and provider routing
+
+Implemented internally: the planner resolves registered managed Workspace members
+with exact owners/repository IDs and compares their disk names, paths, pools and
+volume identities against an ownership-verified stopped Incus instance. It records
+the mount layout in each volume binding, includes optional attached OCI and the
+exact cached Base, and uses fresh independent ownership for every target. One
+Btrfs pool is supported initially. Missing Base cache, extra disks, omitted or
+duplicate members, unsupported devices/options, foreign volume users and ownership
+drift refuse planning before any write. The callback inventory is copied before
+sorting. Old volume bindings without mount fields remain decodable for cleanup.
+
+The existing provider router wraps component references with the selected provider,
+unwraps them only for that provider, and refuses source/target provider mismatch.
+There is no Incus conditional in Core and no fallible operation after a create
+returns before the coordinator writes its receipt. The Base router inherits this
+optional backend. No new public command is registered by this change.
+
+Component regressions cover two Workspace members plus OCI/Base, explicit absence
+of OCI, missing/extra storage, malformed ownership, source changes and wrong Base
+image. Router regressions cover nondefault providers and cross-provider refusal.
+These are not real aggregate capture/restore acceptance. The next required check
+is the canonical catalog/coordinator/router with all real storage components,
+followed by restore and the simple daily command flow.

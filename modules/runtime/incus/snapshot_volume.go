@@ -14,6 +14,8 @@ import (
 // persist this complete binding before createSnapshotVolume; a source name alone
 // is not authority to copy it. This primitive is not a complete Environment save.
 type snapshotVolumePlan struct {
+	Device                                          string `json:"device,omitempty"`
+	Path                                            string `json:"path,omitempty"`
 	Pool, Source, SourceOwner, SourceKind, SourceID string
 	SourceInstance, SourceInstanceID                string
 	Owner, Role                                     string
@@ -29,6 +31,14 @@ func (p snapshotVolumePlan) validate() error {
 	}
 	if err := validateManagedInstanceRef(p.SourceInstance); err != nil {
 		return err
+	}
+	if p.Device != "" || p.Path != "" {
+		if p.SourceKind == "work" && !validWorkspaceAttachment(WorkspaceAttachment{Device: p.Device, Path: p.Path, Pool: p.Pool, Volume: p.Source}) {
+			return core.ErrInvalidArgument
+		}
+		if p.SourceKind == OCIStoreKind && (p.Device != "persistent-resource" || p.Path != OCIStorePath) {
+			return core.ErrInvalidArgument
+		}
 	}
 	switch p.SourceKind {
 	case "work":

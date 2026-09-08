@@ -252,7 +252,7 @@ func (r *Runtime) ConfigureManagedWorkspaces(resolve func(context.Context, strin
 	r.managedWorkspace = resolve
 }
 
-type WorkspaceAttachment struct{ Device, Pool, Volume, Path string }
+type WorkspaceAttachment struct{ Device, Pool, Volume, Path, Owner, Repository string }
 
 func validWorkspaceAttachment(m WorkspaceAttachment) bool {
 	if !safeIncusRef(m.Pool) || !safeIncusRef(m.Volume) {
@@ -275,7 +275,7 @@ func (b *RepositoryBackend) WorkspaceAttachments(ctx context.Context, object git
 		if err != nil {
 			return nil, err
 		}
-		mount := WorkspaceAttachment{Device: "workspace", Pool: pool, Volume: volume, Path: "/workspace"}
+		mount := WorkspaceAttachment{Device: "workspace", Pool: pool, Volume: volume, Path: "/workspace", Owner: member.Owner, Repository: member.Repository}
 		if len(object.Members) != 0 {
 			mount.Device += "-" + member.Repository
 			mount.Path += "/" + member.Repository

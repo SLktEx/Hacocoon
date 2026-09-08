@@ -2,11 +2,17 @@
 
 ## Snapshot source guard
 
+The internal stopped aggregate planner and production provider routing are now
+implemented. Canonical Workspace member ownership is compared with actual disks;
+OCI/Base are included, unknown/missing storage is refused before mutation, and
+mount layout persists in bindings. Component and route tests passed. Real full
+aggregate capture, restore and public daily operations remain pending.
+
 Schema 6 now preserves complete opaque adapter bindings and exact CAS across
 restart. Incus validates canonical project/version/role/owner/ref and source
 identity before dispatching saved component operations. Legacy schema-5 ownership
 is retained without fabricating plans; Base omission in new reservations is
-refused. Complete member enumeration and production routing remain planned.
+refused. Complete aggregate acceptance and restoration remain planned.
 
 Internal Base rootfs retention now pins the exact local effective image revision.
 Dedicated WSL passed isolated stopped configuration, Btrfs COW ancestry, independent

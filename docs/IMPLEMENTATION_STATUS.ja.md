@@ -2,10 +2,15 @@
 
 ## snapshot の送信元検査
 
+内部の停止中一括 planner と本番 provider routing を実装しました。登録済み Workspace
+全メンバーの所有権と実 disk を照合し、OCI/Base と mount 配置を記録します。
+欠落・未登録の保存対象は変更前に拒否します。component/route テストは成功しました。
+実際の全体保存・復元・日常 CLI は引き続き未検証／未実装です。
+
 Schema 6 で provider の完全な保存計画を永続化し、再起動後も CAS で正確に照合します。
 Incus は project/version/role/owner/ref と送信元 ID を確認してから処理します。
 旧 schema 5 の所有権は計画を捏造せず保持し、新規予約での Base 欠落は拒否します。
-全メンバーの列挙と本番 routing は残作業です。
+全体の実機受入と復元は残作業です。
 
 内部 Base 保存もローカルの正確な image revision に固定しました。専用 WSL で
 停止中の設定分離、Btrfs COW の親 UUID、保存先書込みの独立性と cleanup に成功しました。
