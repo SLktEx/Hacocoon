@@ -1,5 +1,23 @@
 # Implementation Status
 
+## Fresh Host OCI storage setup
+
+Partial: ordinary `haco setup` creates and binds an owned source area for a fresh
+Host, configures its containerd/Docker data roots and verifies repeat setup.
+Existing data, symlinks and custom configuration are refused without migration;
+failed preparation retains ownership. No new daily command or mandatory runtime
+installation is added. Docker Environment configuration, existing-data migration
+and actual runtime recovery remain incomplete. Host nesting is unchanged.
+
+Local dedicated Incus/WSL setup, repeat verification, area COW, independent writes
+and deletion, and exact fixture cleanup passed (53.19 s). This used synthetic
+area data, not Docker/nerdctl images. The earlier provider commit `29fd6d1` passed
+GHA test, Ubuntu installer and Incus E2E; its Windows run 34181502807 failed at notification service setup; downstream acceptance was skipped.
+
+The initial configuration regression failed on Python without `tomllib`. The final implementation avoids that dependency and passed focused race tests and the real provider E2E.
+
+Maintained local CI passed all Go tests/vet, 11 WSL and 3 approval Python cases, and 27 JS cases. Documentation consistency and its seven regressions passed.
+
 ## Host area copy provider
 
 Partial: the Incus backend can pause an exact owned Host with its source-only data
@@ -7,9 +25,9 @@ volume, perform existing area-level COW, verify completion and resume. A durable
 copy marker disables autostart and blocks ordinary Host entry during uncertainty.
 Foreign/duplicate consumers, mismatched attachments, pre-existing pauses and
 unconfirmed copy/resume/cleanup are refused. Component tests and local provider E2E passed. The new real
-Incus E2E is wired into the existing Btrfs job; its GHA result is pending.
+Incus E2E is wired into the existing Btrfs job and passed at `29fd6d1`.
 
-Actual Host storage provisioning, Docker/containerd application recovery and
+Existing Host data migration, Docker/containerd application recovery and
 operator recovery of interrupted copies are still missing. Pausing processes is
 not graceful daemon shutdown. No image enumeration or export/import is used.
 [Protocol and limits](adr/0031-host-oci-area-copy.md#provider-pause-and-restart-guard).
@@ -34,7 +52,7 @@ Final provider code, including the cross-process lock and exact autostart restor
 B4 requires direct area-level Btrfs COW of the actual Host image storage, not
 image selection or export/import reconstruction. The contrary inventory slice
 was reverted. Existing independent volume copy is aligned; the missing actual
-Host source/quiescence integration remains planned. Do not claim delivery from
+Host runtime compatibility and existing-data migration remain incomplete. Do not claim delivery from
 synthetic storage tests. [Decision](adr/0031-host-oci-area-copy.md).
 
 Windows `4bb8dad` run 34176272125 failed: native review required unavailable

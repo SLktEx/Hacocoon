@@ -164,16 +164,24 @@ func TestRealIncusHostAreaCopyE2E(t *testing.T) {
 	statePath := filepath.Join(stateRoot, "state.json")
 	t.Logf("failure retains recovery catalog at %s", statePath)
 	service := &persistentresource.Service{Store: state.NewEnvironmentJSONStore(statePath), Backend: &PersistentResourceBackend{Runtime: runtime}}
-	source, err := service.PublishSource(ctx, ociplugin.HostStoreID, OCIStoreKind, func(context.Context, core.PersistentResource) error { return nil })
-	if err != nil {
-		t.Fatal(err)
-	}
 	command("launch", defaultImage, trustedHostName, "--project", project, "--storage", pool, "--no-profiles", "--config", trustedHostRoleKey+"="+trustedHostRoleValue, "--config", "boot.autostart=true")
 	imageFingerprint := strings.TrimSpace(command("config", "get", trustedHostName, "volatile.base_image", "--project", project))
 	if decoded, err := hex.DecodeString(imageFingerprint); err != nil || len(decoded) != 32 {
 		t.Fatal("fixture Base identity unavailable")
 	}
-	command("config", "device", "add", trustedHostName, "oci-source", "disk", "pool="+pool, "source=haco-persistent-"+source.Owner, "path="+OCIStorePath, "--project", project)
+	stores := ociplugin.WorkspaceStores{Resources: service}
+	if err := stores.EnsureHost(ctx, &PersistentResourceBackend{Runtime: runtime}); err != nil {
+		t.Fatal(err)
+	}
+	source, err := service.Store.GetPersistentResource(ctx, ociplugin.HostStoreID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stores.EnsureHost(ctx, &PersistentResourceBackend{Runtime: runtime}); err != nil {
+		t.Fatal("Host binding not reusable", err)
+	}
+	command("exec", trustedHostName, "--project", project, "--", "/bin/sh", "-ec", `grep -Fx 'root = "/var/lib/hacocoon-oci/containerd"' /etc/containerd/config.toml >/dev/null; grep -F '"data-root":"/var/lib/hacocoon-oci/docker"' /etc/docker/daemon.json >/dev/null`)
+	t.Log("PASS ordinary source setup and repeated binding verification")
 	command("exec", trustedHostName, "--project", project, "--", "/bin/sh", "-ec", "printf 'Host area content\\n' > /var/lib/hacocoon-oci/marker; sync")
 	target, err := (ociplugin.WorkspaceStores{Resources: service}).Resolve(ctx, core.Workspace{ID: "area-copy-work"})
 	if err != nil {

@@ -91,7 +91,7 @@ Environment data and do not attach them to the trusted Host.
 ## Default Environment creation flow
 
 Status: **partial**. Default copy/reuse and opt-out are implemented; trusted Host
-image publication and Docker/runtime acceptance remain incomplete. The explicit Store
+existing-data migration and Docker/runtime acceptance remain incomplete. The explicit Store
 commands above are implemented advanced/recovery operations, not the intended
 ordinary create sequence. Environment creation must automatically make an independent
 Btrfs COW copy of the actual image storage area used by Docker/nerdctl in
@@ -101,8 +101,11 @@ as part of the storage area. The goal is a fast area-level copy that makes the
 same local images available immediately with a compatible runtime.
 
 A single optional `--no-oci` opt-out is implemented. Existing wiring consumes a
-ready source-only `oci-source:host`, but does not yet connect the actual Host data
-area. The proposed image-inventory producer was withdrawn because it did not
+ready source-only `oci-source:host`. Ordinary `haco setup` now connects the
+managed area for a fresh Host and configures its rootful containerd/Docker data
+roots. No extra daily command is required. Existing data or custom configuration
+is refused pending an area-preserving migration; do not remove it to bypass the
+check. Repeat setup verifies the binding without rewriting the source. The proposed image-inventory producer was withdrawn because it did not
 satisfy this requirement. A prepared empty/synthetic source is not acceptance of
 Host image delivery. See [ADR 0031](../adr/0031-host-oci-area-copy.md).
 
@@ -124,7 +127,7 @@ reattached to Host. Reusing a Workspace's retained Store preserves guest changes
 Copy failure must retain source/target identities and the writer-stopped state
 until completion or absence is proven. The backend now permits the exact owned Host area only through the pause/copy/resume
 protocol in ADR 0031; other attached sources remain refused. This is a provider
-slice, not automatic Host area provisioning or application recovery acceptance. The full flow remains incomplete until actual
+slice with fresh Host binding, not existing-data migration or application recovery acceptance. The full flow remains incomplete until actual
 Host area copy, immediate local-image use, opt-out, recreation, source/target
 independent mutation/deletion and interrupted cleanup are demonstrated.
 

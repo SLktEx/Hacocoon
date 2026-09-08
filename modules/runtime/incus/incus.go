@@ -32,6 +32,7 @@ type Runtime struct {
 	environmentDNS           string
 	trustedHostInterop       func(context.Context) error
 	trustedHostNotifications func(context.Context) error
+	trustedHostStorage       func(context.Context) error
 	runner                   host.Runner
 	project                  string
 	image                    string

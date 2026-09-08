@@ -90,6 +90,9 @@ func (b *PersistentResourceBackend) Verify(ctx context.Context, r core.Persisten
 		return core.ErrNotFound
 	}
 	if len(v.UsedBy) != 0 {
+		if r.SourceOnly {
+			return b.VerifyHostSource(ctx, r)
+		}
 		return core.ErrStorageBusy
 	}
 	return nil

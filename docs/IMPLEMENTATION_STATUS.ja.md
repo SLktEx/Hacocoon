@@ -1,14 +1,31 @@
 # 実装状況
 
+## 新規 Host の OCI 保存領域設定
+
+partial: 通常の `haco setup` が新規 Host の所有確認済み保存領域を作成・接続し、
+containerd/Docker の保存先を設定して、再実行時に接続と設定を確認します。
+既存データ・symlink・独自設定は移行待ちとして拒否し、準備失敗時は所有記録を残します。
+日常コマンドや必須 runtime は増やしません。Docker の Environment 設定、既存データの
+移行、実 runtime の復旧は未完了です。Host の nesting 設定は変更していません。
+
+専用 Incus/WSL で設定・再確認・領域 COW・独立した変更と削除・正確な後片付けが
+成功しました（53.19 秒）。合成データであり Docker/nerdctl image の検証ではありません。
+先行 provider commit `29fd6d1` の GHA test・Ubuntu installer・Incus E2E は成功し、
+Windows run 34181502807 は通知サービス設定で失敗し、後続の受け入れ検証は SKIP です。
+
+最初の設定回帰は Python に `tomllib` がなく失敗しました。この依存を除いた最終実装で、対象 race テストと実 provider E2E は成功しました。
+
+保守されている local CI で Go tests/vet、WSL の Python 11 件・承認の Python 3 件、JS 27 件が成功しました。文書整合性とその回帰 7 件も成功しました。
+
 ## Host 領域コピーの provider
 
 partial: Incus backend は、専用 source-only volume を持つ所有確認済み Host を一時停止し、
 既存の領域 COW コピーを行い、完了を確認して再開できます。永続のコピー記録により
 自動起動を無効にし、不明な状態では通常の Host entry を拒否します。他所有者・複数の利用者・
 異なる接続先・既存の一時停止・コピーや再開や後処理の未確認を拒否する component テストは
-成功しました。実 Incus E2E はローカルで成功し、既存 Btrfs job に組み込みました。GHA 結果は pending です。
+成功しました。実 Incus E2E はローカルで成功し、既存 Btrfs job に組み込み、`29fd6d1` の GHA でも成功しました。
 
-実 Host 保存領域の構成、Docker/containerd のアプリケーション復旧、途中コピーの運用復旧は
+既存 Host データの移行、Docker/containerd のアプリケーション復旧、途中コピーの運用復旧は
 未完了です。プロセスの一時停止は daemon の正常終了ではありません。イメージ列挙や
 export/import は使用しません。[手順と限界](adr/0031-host-oci-area-copy.md#provider-pause-and-restart-guard)を参照してください。
 
@@ -30,7 +47,7 @@ OCI runtime の image ではありません。対象 race・vet・workflow polic
 B4 の要件は実際の Host イメージ保存領域をそのまま Btrfs COW でコピーすることです。
 イメージ選択や export/import による再構成ではありません。方向の異なる一覧処理は
 取り消しました。既存の独立 volume コピーは一致していますが、実 Host 保存領域と
-書き込み停止を接続する処理は planned です。合成データの検証を配布完了と扱いません。
+書き込み停止の provider と新規領域の接続までの partial です。合成データの検証を配布完了と扱いません。
 [判断](adr/0031-host-oci-area-copy.md)を参照してください。
 
 Windows `4bb8dad` の run 34176272125 は native review が使用できない Get-FileHash を

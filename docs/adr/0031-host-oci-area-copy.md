@@ -63,6 +63,19 @@ of resuming in `defer`. Failed resume/marker cleanup stays recovery-required. A
 complete operator recovery implementation is still required; editing away the
 marker or forcing Host start is not a supported recovery procedure.
 
+## Fresh Host storage binding
+
+Ordinary Host setup now creates the source through the canonical resource
+lifecycle and attaches its exact owned volume at `/var/lib/hacocoon-oci`.
+Preparation refuses existing data, symlinks, non-directory roots and existing
+runtime configuration. It does not hide or migrate a populated default root.
+The fresh Host receives containerd/Docker data roots in that area; `/run`
+remains outside. Repeat setup verifies ownership, attachment, readiness marker
+and bounded daemon configuration instead of overwriting them. Failed preparation
+retains the creating source for recovery. Existing-data/custom-layout migration
+is still incomplete, as are runtime installation and Docker Environment setup.
+This does not enable Host nesting or prove actual runtime image recovery.
+
 ## Rejected alternatives
 
 - Image enumeration, tag selection and export/import rebuild a different storage

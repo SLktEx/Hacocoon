@@ -1,6 +1,7 @@
 # バージョン番号とリリース状況
 現在の checkpoint v0.40 は所有確認済み Host の一時停止・COW・再開と永続再起動 guard を追加します。実 Host 領域の構成と Docker/containerd 復旧受け入れは partial です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
 
+新規 Host の所有確認済み OCI 領域は setup で自動接続されます。既存データの移行と runtime 受け入れは partial です。
 前の checkpoint v0.39 は Windows 通知 review adapter と distribution 別登録を追加します。実機の通知履歴・protocol 起動・古い要求拒否は成功しましたが、通知からの新規回答と Linux 起動は未完了です。[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
 
 

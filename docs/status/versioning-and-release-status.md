@@ -1,6 +1,7 @@
 # Versioning and release status
 Current checkpoint v0.40 adds the owned Host pause/COW/resume provider boundary and persistent restart guard. The actual Host area provisioning and Docker/containerd recovery acceptance remain partial. See [implementation status](../IMPLEMENTATION_STATUS.md).
 
+Fresh Host setup now binds the owned OCI area automatically; existing data migration and runtime acceptance remain partial.
 Preceding checkpoint v0.39 adds the Windows notification review adapter and per-distribution registration. Native history/protocol/stale-refusal checks passed locally; fresh notification decisions and Linux activation remain incomplete. See [implementation status](../IMPLEMENTATION_STATUS.md).
 
 
