@@ -134,7 +134,7 @@ func TestRealIncusHostAreaCopyE2E(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Fatal("root required for independent Btrfs inspection")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
 	defer cancel()
 	runner := host.ExecRunner{}
 	command := func(args ...string) string {
@@ -192,6 +192,7 @@ func TestRealIncusHostAreaCopyE2E(t *testing.T) {
 	}
 	command("exec", trustedHostName, "--project", project, "--", "/usr/bin/unshare", "--mount", "/bin/true")
 	t.Log("PASS owned Host nesting/reuse and nested mount namespace; OCI runtime acceptance remains separate")
+	verifyRuntimeCopy := prepareHostRuntimeCopy(t, ctx, runtime, command)
 	command("exec", trustedHostName, "--project", project, "--", "/bin/sh", "-ec", "printf 'Host area content\\n' > /var/lib/hacocoon-oci/marker; sync")
 	target, err := (ociplugin.WorkspaceStores{Resources: service}).Resolve(ctx, core.Workspace{ID: "area-copy-work"})
 	if err != nil {
@@ -201,6 +202,9 @@ func TestRealIncusHostAreaCopyE2E(t *testing.T) {
 	instance, err := backend.hostCopyInstance(ctx, source)
 	if err != nil || instance.StatusCode != 103 || instance.Config[hostOCICopyKey] != "" || instance.Config["boot.autostart"] != "true" {
 		t.Fatalf("Host not safely resumed: %v", err)
+	}
+	if verifyRuntimeCopy != nil {
+		verifyRuntimeCopy(target)
 	}
 	pathFor := func(resource core.PersistentResource) string {
 		return filepath.Join("/var/lib/incus/storage-pools", pool, "custom", project+"_haco-persistent-"+resource.Owner)

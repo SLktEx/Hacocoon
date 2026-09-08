@@ -1,8 +1,8 @@
 # Persistent OCI Store
 
 Status: implemented for containerd/nerdctl; packaged acceptance is recorded in
-[implementation status](../IMPLEMENTATION_STATUS.md). Docker Store compatibility
-is deferred. Container tooling remains optional and is not installed by Core.
+[implementation status](../IMPLEMENTATION_STATUS.md). Docker data-root configuration is implemented; full Docker Store compatibility
+acceptance remains partial. Container tooling remains optional and is not installed by Core.
 
 An Environment has a disposable root filesystem, a persistent Workspace and an
 optional persistent OCI Store. The controller owns the Store catalog and its
@@ -41,6 +41,8 @@ anti-spoofing rules. Its containerd configuration uses:
 | Data | Location | Lifetime |
 |---|---|---|
 | Images, content/layers, snapshots and metadata | `/var/lib/hacocoon-oci/containerd` | Store |
+| Docker images and persistent daemon metadata | `/var/lib/hacocoon-oci/docker` | Store |
+| Docker process state and socket | `/run/docker`, `/run/docker.sock` | Environment |
 | Local BuildKit build cache | `/var/lib/hacocoon-oci/buildkit` | Store |
 | containerd process state and socket | `/run/containerd` | Environment |
 | BuildKit process/socket | `/run/buildkit` | Environment |
@@ -192,3 +194,39 @@ historical. Revised B4 requires both persistent Stores and independent COW image
 delivery; Store reattachment alone does not complete that request. Actual Host storage-area copying without Host credential/live-state sharing, complete
 containerd/nerdctl and Docker image acceptance, and interrupted-copy recovery
 remain follow-up work. Never attach guest-populated Stores to trusted Host.
+
+## Docker root configuration and actual Host-area acceptance
+
+Normal Store attachment also configures `/etc/docker/daemon.json`. It preserves
+unrelated options and writes the managed `data-root` and `exec-root` atomically.
+Conflicting roots, existing default-root data, active Docker units, symlinks,
+hardlinks, writable or malformed configuration are refused before replacement.
+An already matching configuration is reused. Existing-data migration remains
+unimplemented. No additional daily command or mandatory runtime installation is
+introduced.
+
+The owned Host-area E2E can build and run actual Docker/nerdctl images in the Host,
+copy its area through the canonical resource service, and run the same identities
+in a separate networkless instance with `--pull never`. The copy path does not
+export/import images. Docker 28.5.2 uses vfs and nerdctl 2.3.5/containerd 2.3.3 uses
+the native snapshotter in this fixture; other drivers/versions and full installed
+CLI recreation are separate acceptance scopes. It verifies independent image
+deletion and exact owned cleanup. Runtime binaries and build context are fixture
+inputs, not shared Host management sockets or credentials.
+
+The maintained Btrfs GHA job enables this extension. On a dedicated root
+Linux/WSL Incus host, prepare a new fixture directory and run:
+
+```bash
+python3 tools/prepare-oci-runtime-fixture.py /tmp/haco-oci-runtime-assets
+CGO_ENABLED=0 go build -o /tmp/haco-oci-runtime-assets/oci-probe ./modules/runtime/incus/testdata/oci-probe
+go test -c -o /tmp/haco-area.test ./modules/runtime/incus
+HACO_E2E_INCUS_HOST_AREA_COPY=1 HACO_E2E_OCI_RUNTIME_ASSETS=/tmp/haco-oci-runtime-assets \
+  /tmp/haco-area.test -test.run='^TestRealIncusHostAreaCopyE2E$' -test.v -test.timeout=14m
+```
+
+A failure retains the printed project and catalog for inspection. The explicit
+`TestCleanupRealIncusHostAreaFixture` helper accepts only the exact printed
+`HACO_E2E_CLEANUP_AREA_PROJECT` and `HACO_E2E_CLEANUP_AREA_STATE`; it revalidates
+ownership, both consumers and absent pending-copy state, then uses canonical
+resource deletion. It is fixture teardown, not an operator recovery API.

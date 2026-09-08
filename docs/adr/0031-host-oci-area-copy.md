@@ -59,8 +59,10 @@ unfinished copy marker. A pre-existing paused Host or marker is never adopted.
 This pause suspends Host processes; it is not a graceful Docker/containerd shutdown
 or a saved running-container migration. It offers a filesystem snapshot boundary;
 application crash recovery and usable image metadata require actual runtime
-acceptance. That acceptance is still missing. Do not claim clean application
-shutdown or complete OCI distribution from the provider tests.
+acceptance. The real fixture now proves built-image recovery for Docker
+28.5.2/vfs and nerdctl 2.3.5/containerd 2.3.3/native after this pause/COW protocol.
+It does not prove clean application shutdown, running-container migration or
+all runtime versions/drivers.
 
 Only positive copy completion permits resume. After verified running status, the
 copier restores autostart and removes its marker, then verifies both. Any uncertain
@@ -78,8 +80,9 @@ runtime configuration. It does not hide or migrate a populated default root.
 The fresh Host receives containerd/Docker data roots in that area; `/run`
 remains outside. Repeat setup verifies ownership, attachment, readiness marker
 and bounded daemon configuration instead of overwriting them. Failed preparation
-retains the creating source for recovery. Existing-data/custom-layout migration
-is still incomplete, as are runtime installation and Docker Environment setup.
+retains the creating source for recovery. Existing-data/custom-layout migration and optional runtime installation remain
+incomplete. Environment setup now supplies the Docker managed roots while
+preserving unrelated options and refusing conflicts or existing default data.
 Owned Host nesting is enabled by the maintained setup integration under
 [ADR 0032](0032-owned-host-nested-runtime.md). Actual runtime image recovery
 remains a separate acceptance requirement.
@@ -96,14 +99,19 @@ remains a separate acceptance requirement.
 
 ## Acceptance
 
-The Host producer is incomplete. Existing synthetic Btrfs volume tests prove
-storage COW and independent writes only. Required real runtime acceptance covers
-both Docker and nerdctl: images prepared in Host, automatic Environment creation,
-unchanged local identities without registry access, independent source/copy
-changes and deletion, opt-out and recreation. Add deterministic failure/restart
-regressions at the lifecycle layer and actual stopped-writer/copy checks in E2E.
+The real owned-area fixture now builds and executes images inside Host before
+copying its area. A separate networkless instance with compatible runtimes keeps
+the same image IDs and runs with `--pull never`; copy-image deletion leaves Host
+images usable. The fixture also verifies Btrfs ancestry and bidirectional area
+mutation/deletion, then removes its owned instances, volumes, Base, project and
+pool. Docker 28.5.2 uses vfs; nerdctl 2.3.5/containerd 2.3.3 uses native snapshots.
+This is provider/runtime acceptance, not full installed CLI recreation or proof
+for arbitrary drivers, active tasks, runtime upgrades or interrupted copies.
 
-The dedicated local Incus/WSL provider E2E passed actual pause, attached-volume COW,
-resume, Btrfs ancestry and bidirectional mutation/deletion independence with full
-fixture cleanup. It uses synthetic data and does not prove Docker/containerd
-application recovery. The maintained GHA Btrfs job runs the same provider fixture.
+The first actual-runtime run exposed missing Environment Docker data-root
+configuration. The configuration now preserves other options while refusing
+conflicts, unsafe files, active Docker units and existing default-root data.
+A corrected fresh dedicated WSL run passed all fixture checks and cleanup.
+The maintained GHA Btrfs job enables the same pinned-runtime extension.
+Existing-data migration, opt-out/recreation combinations with real OCI tools and
+interrupted-copy recovery remain required follow-up acceptance.

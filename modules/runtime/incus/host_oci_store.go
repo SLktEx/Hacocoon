@@ -26,13 +26,8 @@ for path in /etc/containerd/config.toml /etc/docker/daemon.json /etc/systemd/sys
 done
 `
 
-// Docker configuration is limited to the preflighted fresh Host. Environment
-// Docker service lifecycle/configuration requires its own compatibility work.
-const hostOCIConfiguration = persistentOCIConfiguration + `mkdir -p /etc/docker
-cat > /etc/docker/daemon.json <<'HACO_DOCKER'
-{"data-root":"/var/lib/hacocoon-oci/docker","exec-root":"/run/docker"}
-HACO_DOCKER
-`
+// Host fresh-layout preflight is stricter than Environment configuration.
+const hostOCIConfiguration = persistentOCIConfiguration
 
 // Read only known daemon configuration; never return its contents to the controller.
 const hostOCILayoutVerify = `import json, os, stat

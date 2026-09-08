@@ -1,5 +1,29 @@
 # 実装状況
 
+## Docker Store の root 設定と Host 実イメージ検証
+
+実装済み: Store 接続時に Docker の永続・一時 root を設定し、他の option を保持します。
+既存の default data、競合する root、稼働 Docker unit、不安全な設定ファイルは拒否し、
+一致する設定は再利用します。対象 race 回帰・vet は成功しました。Host で Docker/
+nerdctl の実イメージを build し、コピー先の同一 identity・オフライン実行を調べる
+E2E を追加し、維持済み Btrfs GHA に組み込みました。
+
+初回実検証は両方の Host イメージを build・実行後、コピー先の Docker image inspect
+で失敗しました（336.37 秒）。Host は `/var/lib/hacocoon-oci/docker`、コピー先は
+`/var/lib/docker` を使用していました。確認後、canonical resource deletion で
+fixture を全削除しました（11.75 秒）。修正後の新規検証は成功しました（376.60 秒、
+project `haco-area-3147b9dd5920fb2c`）。COW 後の両イメージの同一 ID・オフライン
+実行、コピー先イメージ削除後の Host 実行、Btrfs ancestry、双方向の領域変更・削除、
+全 fixture cleanup を確認しました。Docker 28.5.2/vfs と nerdctl 2.3.5/containerd
+2.3.3/native の provider fixture の結果であり、全 driver/version や installed CLI
+での再作成を証明しません。更新後の実 runtime GHA は pending で、初回の失敗は記録に残します。
+
+`470a2b8` は Windows run 34188963290 を含む全 4 GHA workflow に成功しました。
+実 Remote-SSH の editor 読み書き・terminal・trusted review、Host customization の
+cleanup、installed notification subscription が成功しました。人間の fresh toast
+判断と VPN/NRPT は明示的 SKIP のままで、workflow の成功をそれらの成功とは扱いません。
+
+
 ## 所有確認済み Host の nesting
 
 実装済み: 通常の OCI setup は、所有権・非特権 instance・profile・source・
@@ -10,8 +34,8 @@ lifecycle を確認してから nesting を有効にします。設定は永続�
 namespace、Host pause/COW/resume、独立した変更・削除、所有 fixture の全後片付け
 に成功しました（58.56 秒、project `haco-area-e8168370b7f8d3f8`）。検証設定は
 残っていません。初回は PowerShell の引数解釈でテスト開始前に失敗し、修正後に
-成功しました。Docker/nerdctl の実データ復旧は未検証であり、namespace の成功を
-その受け入れ成功とは扱いません。
+成功しました。後続の Docker/nerdctl 実データ結果は上記に記録しています。
+namespace だけの成功を実イメージの受け入れ成功とは扱いません。
 
 
 ## デスクトップ接続時の Environment 選択
@@ -32,7 +56,7 @@ Windows／VS Code 実接続の証明ではありません。既存の単一 Envi
 到達を再現し、健康で同じサービスを再利用するよう修正しています。実行ファイルや設定の変更時は
 再起動します。Python 回帰 12 件と実 systemd の連続 8 回の再設定・後片付けは成功しました。
 途中の編集で Python indentation error があり、修正後に上記検証を通しました。
-更新後の Windows 全体の受け入れは pending です。
+Windows 全体の後続検証は上記 `470a2b8` で成功しました。人間の toast 操作と VPN は SKIP のままです。
 
 ## 新規通知サービスの起動
 
@@ -49,7 +73,7 @@ Python 回帰 11 件と実 systemd の新規起動・再設定・所有物の後
 partial: 通常の `haco setup` が新規 Host の所有確認済み保存領域を作成・接続し、
 containerd/Docker の保存先を設定して、再実行時に接続と設定を確認します。
 既存データ・symlink・独自設定は移行待ちとして拒否し、準備失敗時は所有記録を残します。
-日常コマンドや必須 runtime は増やしません。Docker の Environment 設定、既存データの
+日常コマンドや必須 runtime は増やしません。既存データの
 移行、実 runtime の復旧は未完了です。Host の nesting は上記の所有確認付き setup で扱います。
 
 専用 Incus/WSL で設定・再確認・領域 COW・独立した変更と削除・正確な後片付けが

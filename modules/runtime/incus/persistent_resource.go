@@ -157,7 +157,7 @@ until systemctl show --property=Version --value >/dev/null 2>&1; do
   fi
   sleep 0.5
 done
-was_active=false
+` + persistentDockerConfiguration + `was_active=false
 if systemctl is-active --quiet containerd; then was_active=true; systemctl stop containerd; fi
 mkdir -p /etc/containerd /etc/systemd/system
 cat > /etc/containerd/config.toml <<'HACO_CONTAINERD'

@@ -1,5 +1,32 @@
 # Implementation Status
 
+## Docker Store roots and real Host-image acceptance
+
+Implemented: Store attachment configures Docker's managed persistent/transient
+roots, preserves unrelated options and refuses existing default data, conflicting
+roots, active Docker units and unsafe configuration files. Matching configuration
+is reused. Focused race regressions and vet passed. The owned-area E2E now builds
+actual Docker/nerdctl images in Host and checks copied identities and offline
+execution; the maintained Btrfs GHA job enables it.
+
+The first real run built and executed both Host images, then failed Docker image
+inspection in the copy (336.37 s): Host used `/var/lib/hacocoon-oci/docker` but the
+copy used `/var/lib/docker`. The inspected fixture was fully removed through
+canonical resource deletion (11.75 s). The corrected fresh run passed (376.60 s; project
+`haco-area-3147b9dd5920fb2c`): both locally built images retained their identities
+and executed offline after COW; deleting copy images left Host images usable.
+Btrfs ancestry, bidirectional area writes/deletion and complete fixture cleanup
+also passed. This covers Docker 28.5.2/vfs and nerdctl 2.3.5/containerd 2.3.3/native
+in owned provider fixtures, not every driver/version or installed CLI recreation.
+Updated GHA runtime acceptance is pending; the initial failure stays recorded.
+
+At `470a2b8`, all four GHA workflows passed, including Windows run 34188963290.
+Actual Remote-SSH editor read/write, terminal execution, trusted review, Host
+customization cleanup and installed notification subscription passed. Human
+fresh-toast decision and VPN/NRPT remained explicitly SKIP; successful workflow
+completion does not turn those into passes.
+
+
 ## Owned Host nesting
 
 Implemented: the maintained OCI setup enables nested runtimes only after positive
@@ -10,8 +37,8 @@ Dedicated WSL `Hacocoon-Review-6771f2f` passed real nesting/reuse, nested mount
 namespace, Host pause/COW/resume, independent writes/deletion and complete owned
 fixture cleanup (58.56 s; project `haco-area-e8168370b7f8d3f8`). No fixture setting
 remains. An initial PowerShell argument parsing failure occurred before test
-execution and was corrected. Actual Docker/nerdctl image recovery remains
-unverified; namespace success does not prove that acceptance.
+execution and was corrected. The later actual Docker/nerdctl result is recorded above; the namespace-only
+result did not itself prove image recovery.
 
 
 ## Interactive desktop Environment selection
@@ -34,7 +61,8 @@ reproduced exhausting systemd's start limit. Healthy identical services now rema
 running; changed executable revisions/configuration still restart. Twelve Python
 regressions and eight consecutive real-systemd refreshes plus cleanup passed.
 An intermediate edit had a Python indentation error and was corrected before
-these successful runs. Full updated Windows acceptance remains pending.
+these successful runs. Full Windows acceptance subsequently passed at `470a2b8`
+as recorded above, with human toast/VPN scopes still skipped.
 
 ## Fresh notification service startup
 
@@ -44,8 +72,9 @@ reproduced on dedicated WSL: unconditional `reset-failed` rejects a new unloaded
 unit. An attempted explicit load still failed because systemd can unload it again.
 Startup now resets only an observed failed unit; unknown results fail closed.
 The 11 Python regressions and real systemd fresh startup/refresh/owned cleanup
-passed. These checks do not prove that the full Windows installer failure is
-resolved; the new GHA run and fresh notification activation remain unverified.
+passed. These component checks alone did not prove installed resolution. The
+full Windows path later passed at `470a2b8`; fresh human notification activation
+remains unverified.
 
 ## Fresh Host OCI storage setup
 
@@ -53,7 +82,7 @@ Partial: ordinary `haco setup` creates and binds an owned source area for a fres
 Host, configures its containerd/Docker data roots and verifies repeat setup.
 Existing data, symlinks and custom configuration are refused without migration;
 failed preparation retains ownership. No new daily command or mandatory runtime
-installation is added. Docker Environment configuration, existing-data migration
+installation is added. Existing-data migration
 and actual runtime recovery remain incomplete. Host nesting is covered by the owned-Host setup slice above.
 
 Local dedicated Incus/WSL setup, repeat verification, area COW, independent writes
