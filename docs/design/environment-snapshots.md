@@ -2,7 +2,7 @@
 
 Status: **partial internal foundation**. Source validation and lifecycle locking
 and a durable component catalog/capture coordinator are implemented. Incus custom
-volume COW primitives are implemented and tested; complete aggregate capture,
+volume and independent rootfs COW primitives are implemented and tested; complete aggregate capture,
 restore and public CLI are planned. No usable Environment snapshot is produced yet.
 
 ## Scope
@@ -168,3 +168,37 @@ fixture, not a claim that live Docker/containerd databases were quiesced or that
 all Environment components were restored. Existing Incus-owned-Btrfs GHA now runs
 the same opt-in fixture after normal CLI storage acceptance; new-head execution
 is pending.
+
+## Independent rootfs storage
+
+Implemented internally: the Incus rootfs primitive copies a stopped, exact-owned
+container into a separate stopped snapshot-rootfs instance on the same Btrfs pool.
+It sets fresh ownership/source markers in the creation request, clears source
+config except required idmap bookkeeping, masks every non-root device with none,
+uses no profiles and disables autostart. It excludes existing instance snapshots.
+The caller must record creation before invoking target verification.
+
+Explicit overrides are necessary because [Incus copy merges omitted source keys](https://github.com/lxc/incus/blob/main/cmd/incusd/instances_post.go).
+Device masking follows the [Incus none-device contract](https://linuxcontainers.org/incus/docs/main/reference/devices_none/).
+Verification requires exact markers, stopped/non-ephemeral state, no profiles,
+one root disk in the planned pool, only masked other devices, and no unexpected
+non-volatile config. Cleanup rechecks this boundary and positively observes
+absence. It does not force-stop or adopt a changed target.
+
+Saved rootfs instances are not registered as runnable Hacocoon Environments.
+Autostart is disabled; trusted Incus administrators can still change or start an
+instance directly. No newer Incus start-protection extension is required: this
+primitive was exercised on the supported Incus 6.0.5 baseline. No management
+socket or original workload connection is retained by the snapshot config.
+
+Dedicated WSL TestRealIncusSnapshotRootfsE2E passed with source
+haco-root-probe-dc2e92a1d1cb24dd and target
+haco-snapshot-root-dc2e92a1d1cb24ddad89921d09c82566. It verified guest-only file
+retention, Btrfs parent UUID ec4b0e81-f190-5a4f-a30b-9e076b7b17e8, config/device
+masking and survival of source edits/deletion. Cleanup and final inventory were
+verified. Existing Incus GHA now runs both volume and rootfs fixtures. The previous
+volume-only checkpoint's Incus GHA passed; the updated rootfs GHA is pending.
+
+Base asset capture, durable complete aggregate binding, production coordinator
+routing and restore remain planned. These primitives do not yet provide a public
+save/restore operation or complete Environment round-trip acceptance.

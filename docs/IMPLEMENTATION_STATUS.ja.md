@@ -18,7 +18,9 @@ Environment 全体の実データ往復は未実装です。内部の Incus Work
 保存先検査・消失確認付き削除を実装しました。専用 WSL でファイル/リンク保持、Btrfs の
 親 UUID、双方向の独立性、元 volume 削除後の保持に成功し、片付けも確認済みです。
 同じ fixture を既存 Incus GHA に追加し、新 HEAD の実行は未確認です。完全な manifest・
-rootfs/Base 保存・復元・CLI は残作業であり、稼働中 OCI DB の整合性は未検証です。
+Base 保存・本番の全体保存/復元・CLI は残作業であり、稼働中 OCI DB の整合性は未検証です。
+独立した rootfs COW も専用 WSL で保存元 ID/停止状態、設定/デバイスの遮断、データ保持、
+元環境削除後の独立性を確認しました。既存 Incus GHA に追加した rootfs fixture は実行待ちです。
 [snapshot 設計](design/environment-snapshots.md)と [ADR 0037](adr/0037-snapshot-aggregate-ownership.md)を参照してください。
 
 

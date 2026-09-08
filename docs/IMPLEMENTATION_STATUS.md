@@ -22,8 +22,12 @@ Internal Incus Workspace/OCI volume COW, target verification and proven-absent
 cleanup are implemented. Dedicated WSL file/link retention, Btrfs ancestry,
 bidirectional independence and source-deletion retention passed; fixture cleanup
 was confirmed. The same fixture was added to existing Incus GHA, pending execution.
-Complete aggregate manifests, rootfs/Base capture, restore, CLI and full Environment
-round trips remain planned. Live OCI database consistency is not claimed.
+Independent rootfs COW storage also passed dedicated WSL acceptance: source
+identity/stopped state, config/device masking, data retention and source-deletion
+independence. The updated Incus GHA includes this fixture and remains pending.
+Complete aggregate manifests, Base assets, production capture/restore wiring, CLI
+and full Environment round trips remain planned. Live OCI database consistency
+is not claimed.
 See [snapshot design](design/environment-snapshots.md) and [ADR 0037](adr/0037-snapshot-aggregate-ownership.md).
 
 
