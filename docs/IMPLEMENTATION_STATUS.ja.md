@@ -2,6 +2,11 @@
 
 ## snapshot の送信元検査
 
+内部 Base 保存もローカルの正確な image revision に固定しました。専用 WSL で
+停止中の設定分離、Btrfs COW の親 UUID、保存先書込みの独立性と cleanup に成功しました。
+E2E で検出した Incus 6.0.5 の image info 非互換は JSON API へ修正済みです。
+共有キャッシュのため元イメージ削除の確認は SKIP。一括保存・復元は残作業、Base GHA は待機中です。
+
 E2 の内部基盤を部分実装しました。Environment/Workspace lock の下で全対象の対応を
 検査し、provider の停止と正確な永続作成 ID を要求します。不一致・running/unknown・
 不正な接続 ID は拒否し、同時削除を防ぎます。focused race は成功しました。
@@ -18,7 +23,7 @@ Environment 全体の実データ往復は未実装です。内部の Incus Work
 保存先検査・消失確認付き削除を実装しました。専用 WSL でファイル/リンク保持、Btrfs の
 親 UUID、双方向の独立性、元 volume 削除後の保持に成功し、片付けも確認済みです。
 同じ fixture を既存 Incus GHA に追加し、新 HEAD の実行は未確認です。完全な manifest・
-Base 保存・本番の全体保存/復元・CLI は残作業であり、稼働中 OCI DB の整合性は未検証です。
+Base を含む本番の全体保存/復元・CLI は残作業であり、稼働中 OCI DB の整合性は未検証です。
 独立した rootfs COW も専用 WSL で保存元 ID/停止状態、設定/デバイスの遮断、データ保持、
 元環境削除後の独立性を確認しました。既存 Incus GHA に追加した rootfs fixture は実行待ちです。
 [snapshot 設計](design/environment-snapshots.md)と [ADR 0037](adr/0037-snapshot-aggregate-ownership.md)を参照してください。

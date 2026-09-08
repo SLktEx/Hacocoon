@@ -67,3 +67,10 @@ source configuration, creation explicitly clears inherited settings and masks
 non-root devices. No profiles/autostart are retained; exact target verification
 precedes publication. Real 6.0.5/Btrfs acceptance proved source-deletion independence.
 Base/aggregate integration and restore are not implemented by this storage slice.
+
+Base retention uses an independent stopped rootfs initialized from the exact
+local effective image fingerprint. A Base name/revision alone is insufficient
+preservation if its image is later removed. Saved ownership, no inherited profile
+or host device, disabled autostart and positive-absence cleanup apply as for other
+components. The primitive does not itself publish a usable aggregate or registry
+entry. Image properties are metadata, not authority. Full restore remains planned.
