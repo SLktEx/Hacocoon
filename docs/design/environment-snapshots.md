@@ -109,6 +109,19 @@ Older controllers reject the new schema. Stop the controller before changing
 binaries; do not edit the schema number manually. There is no automatic data
 removal or general-purpose migration/rollback framework.
 
+## Shared runtime configuration
+
+The ordinary SandboxProvider post-init path is isolated in
+`sandbox_configuration.go`: network/source guard, managed marker, resource limits,
+Workspace/OCI attachments, start, anti-spoof checks, DNS and data-root setup stay in
+one implementation. Production ordinary creation records its runtime before this
+fallible phase using the canonical lifecycle receipt described in
+[ADR 0002](../adr/0002-environment-lifecycle-ownership.md).
+
+This prepares the same configuration path for a new rootfs copied from a save.
+The saved-copy activation and persistent-data ownership transfer are still planned;
+the extraction does not expose an API that adopts arbitrary existing instances.
+
 ## Package and interface responsibilities
 
 - `modules/runtime/incus`: native copy/instance/volume/device operations and exact

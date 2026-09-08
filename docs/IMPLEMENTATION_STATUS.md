@@ -1,5 +1,17 @@
 # Implementation Status
 
+## Runtime ownership before configuration
+
+Implemented: production Incus creation records its exact routed runtime immediately
+after init, before device/network/resource configuration or start. The lease stays
+acquiring until complete publication. The shared post-init configuration path is
+ready for saved-rootfs activation; activation/data ownership transfer remains
+planned. Receipt omissions, duplicates, changed references and cleanup failure
+have focused race coverage. No schema, CLI or saved-data format changes.
+
+Full local CI passed; real Incus acceptance is tracked on the implementation PR.
+PR #493's final local CI and all applicable GHA passed before merge at 632484a.
+
 ## Incus-first snapshot simplification
 
 Implemented internally: new captures save independent rootfs, managed Workspace
@@ -17,7 +29,8 @@ Base retention callbacks were removed. See [ADR 0040](adr/0040-incus-first-snaps
 
 Focused state/service/router/provider/ordinary-create and race tests passed.
 Full local CI (`bash tools/ci-local.sh test`) passed, including Go tests/vet,
-documentation/helper checks and all 27 JavaScript tests. GHA is pending.
+documentation/helper checks and all 27 JavaScript tests. All applicable GHA passed
+on PR #493.
 Dedicated WSL Incus 6.0.5/Btrfs aggregate acceptance passed in 5.95 seconds:
 fixture `haco-aggregate-822d7154c3c2f6dc`, snapshot
 `snap-d849c57477844eef6f02e54e9c9b4364`. The test deleted its original Base and

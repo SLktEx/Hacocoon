@@ -130,3 +130,19 @@ Rejected. E2E remains the product guarantee, but deterministic lifecycle invaria
 Revisit this ADR only if Hacocoon replaces the JSON state backend or introduces a distributed control plane where atomic mutation of Environment metadata and Workspace reservation cannot share one local transaction boundary.
 
 Even then, preserve the semantic invariants: explicit lifecycle state, durable ownership before later fallible work, fail-closed ambiguity, and one canonical transition API.
+
+## Incus creation receipt implementation
+
+The production SandboxProvider supports `CreateEnvironmentWithReceipt`. It invokes
+the supplied synchronous receipt immediately after successful Incus init, before
+any device/network/resource configuration or guest start. The BaseRouter qualifies
+the native reference; Workspace persists it through `RecordEnvironmentRuntime`
+while the lease remains acquiring. Only then does the provider run the shared
+configuration path. Duplicate/missing receipts and a changed returned reference
+fail closed. This is ownership accounting, not automatic runtime recovery.
+
+After invoking the receipt, the provider delegates failure cleanup to the canonical
+Workspace lifecycle owner. It does not independently delete the same resource.
+Legacy direct provider creation still performs its own cleanup; it is not claimed
+to provide the early durable receipt. The production Incus composition uses the
+receipt path. No schema or user-command change is needed.

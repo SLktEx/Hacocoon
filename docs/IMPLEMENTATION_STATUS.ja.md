@@ -1,5 +1,16 @@
 # 実装状況
 
+## 構成前の runtime 所有記録
+
+実装済み：本番 Incus 作成は init の直後、device／network／resource 設定と起動の
+前に正規 lifecycle API で runtime を記録します。全構成が完了するまで lease は
+acquiring のままです。共通の構成処理を保存 rootfs の起動にも使えるように分離しましたが、
+保存物からの起動とデータ所有権の引き渡しは planned です。receipt の欠落・重複・参照変更、
+cleanup 失敗の race テストは成功。schema・CLI・保存形式の変更はありません。
+
+この段階の全体 local CI は成功、実 Incus 検証結果は実装 PR で追跡します。PR #493 は final local CI と
+適用対象 GHA の全成功後に main 632484a へマージ済みです。
+
 ## Incus-first の snapshot 整理
 
 内部実装済み：新規保存は独立 rootfs、管理 Workspace の全メンバー、接続 OCI とし、
@@ -16,7 +27,7 @@ schema 10 は schema 8 の復元対象識別を移行し、古い backup／Base 
 
 state/service/router/provider/通常作成と race の関連テストは成功しました。
 全体 local CI（`bash tools/ci-local.sh test`）も成功しました。Go tests/vet、
-文書・helper 検証、JavaScript 27 件すべてを含みます。GHA は待機中です。
+文書・helper 検証、JavaScript 27 件すべてを含みます。PR #493 の対象 GHA も成功しました。
 専用 WSL の Incus 6.0.5/Btrfs 検証は 5.95 秒で成功しました。
 fixture は `haco-aggregate-822d7154c3c2f6dc`、snapshot は
 `snap-d849c57477844eef6f02e54e9c9b4364` です。元 Base と専用 Ubuntu image を
