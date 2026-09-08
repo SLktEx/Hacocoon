@@ -321,3 +321,13 @@ script 自身の出力を調べるときは、元の script を trusted Host 内
 保存 file の不正な権限や link は拒否するため、controller 所有の設定を確認する必要があります。
 Host 再作成後の明示的な controller setup から保存内容を再利用できますが、実際の再作成と setup 外での暗黙の再作成は未検証です。
 [ADR 0019](../adr/0019-trusted-host-customization.md) を参照してください。
+
+## ネストした OCI runtime
+
+通常の OCI setup は、非特権の所有確認済み Host と canonical な ready source
+領域を検証してから `security.nesting=true` を設定します。所有権の欠落、継承
+profile、pause 中・コピー未完了の状態、曖昧な provider 応答は setup を拒否します。
+設定は永続化され、再 setup で確認して再利用します。
+[ADR 0032](../adr/0032-owned-host-nested-runtime.md) を参照してください。
+Runtime バイナリは任意のままで、イメージの実データ復旧は Docker/nerdctl ごとの
+独立した受け入れ確認が必要です。

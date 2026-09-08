@@ -1,5 +1,19 @@
 # Implementation Status
 
+## Owned Host nesting
+
+Implemented: the maintained OCI setup enables nested runtimes only after positive
+ownership, unprivileged instance, profile, source and lifecycle verification.
+The setting is persistent and reused on repeated setup. See
+[ADR 0032](adr/0032-owned-host-nested-runtime.md). Focused race tests and vet passed, as did composition/OCI lifecycle tests.
+Dedicated WSL `Hacocoon-Review-6771f2f` passed real nesting/reuse, nested mount
+namespace, Host pause/COW/resume, independent writes/deletion and complete owned
+fixture cleanup (58.56 s; project `haco-area-e8168370b7f8d3f8`). No fixture setting
+remains. An initial PowerShell argument parsing failure occurred before test
+execution and was corrected. Actual Docker/nerdctl image recovery remains
+unverified; namespace success does not prove that acceptance.
+
+
 ## Interactive desktop Environment selection
 
 Implemented: `haco open` and `haco ssh setup` offer an Environment/Workspace list
@@ -40,7 +54,7 @@ Host, configures its containerd/Docker data roots and verifies repeat setup.
 Existing data, symlinks and custom configuration are refused without migration;
 failed preparation retains ownership. No new daily command or mandatory runtime
 installation is added. Docker Environment configuration, existing-data migration
-and actual runtime recovery remain incomplete. Host nesting is unchanged.
+and actual runtime recovery remain incomplete. Host nesting is covered by the owned-Host setup slice above.
 
 Local dedicated Incus/WSL setup, repeat verification, area COW, independent writes
 and deletion, and exact fixture cleanup passed (53.19 s). This used synthetic

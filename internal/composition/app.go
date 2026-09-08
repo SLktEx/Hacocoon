@@ -203,7 +203,15 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	resources := &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime}}
 	workspaceStores := ociplugin.WorkspaceStores{Resources: resources}
 	incusRuntime.ConfigureHostStorage(func(ctx context.Context) error {
-		return workspaceStores.EnsureHost(ctx, &incus.PersistentResourceBackend{Runtime: incusRuntime})
+		backend := &incus.PersistentResourceBackend{Runtime: incusRuntime}
+		if err := workspaceStores.EnsureHost(ctx, backend); err != nil {
+			return err
+		}
+		source, err := store.GetPersistentResource(ctx, ociplugin.HostStoreID)
+		if err != nil {
+			return err
+		}
+		return backend.EnableHostOCI(ctx, source)
 	})
 	environments.ConfigureDefaultResource(workspaceStores.Resolve)
 	runs := runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks"))

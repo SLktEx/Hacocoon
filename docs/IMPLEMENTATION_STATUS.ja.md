@@ -1,5 +1,19 @@
 # 実装状況
 
+## 所有確認済み Host の nesting
+
+実装済み: 通常の OCI setup は、所有権・非特権 instance・profile・source・
+lifecycle を確認してから nesting を有効にします。設定は永続化され、再 setup
+で確認して再利用します。[ADR 0032](adr/0032-owned-host-nested-runtime.md) を参照。
+対象の race test・vet と composition/OCI lifecycle テストは成功しました。
+専用 WSL `Hacocoon-Review-6771f2f` の実検証で nesting 設定・再利用、mount
+namespace、Host pause/COW/resume、独立した変更・削除、所有 fixture の全後片付け
+に成功しました（58.56 秒、project `haco-area-e8168370b7f8d3f8`）。検証設定は
+残っていません。初回は PowerShell の引数解釈でテスト開始前に失敗し、修正後に
+成功しました。Docker/nerdctl の実データ復旧は未検証であり、namespace の成功を
+その受け入れ成功とは扱いません。
+
+
 ## デスクトップ接続時の Environment 選択
 
 implemented: 対話端末の `haco open` と `haco ssh setup` は、複数の Environment が
@@ -36,7 +50,7 @@ partial: 通常の `haco setup` が新規 Host の所有確認済み保存領域
 containerd/Docker の保存先を設定して、再実行時に接続と設定を確認します。
 既存データ・symlink・独自設定は移行待ちとして拒否し、準備失敗時は所有記録を残します。
 日常コマンドや必須 runtime は増やしません。Docker の Environment 設定、既存データの
-移行、実 runtime の復旧は未完了です。Host の nesting 設定は変更していません。
+移行、実 runtime の復旧は未完了です。Host の nesting は上記の所有確認付き setup で扱います。
 
 専用 Incus/WSL で設定・再確認・領域 COW・独立した変更と削除・正確な後片付けが
 成功しました（53.19 秒）。合成データであり Docker/nerdctl image の検証ではありません。

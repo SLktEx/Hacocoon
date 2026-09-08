@@ -182,6 +182,16 @@ func TestRealIncusHostAreaCopyE2E(t *testing.T) {
 	}
 	command("exec", trustedHostName, "--project", project, "--", "/bin/sh", "-ec", `grep -Fx 'root = "/var/lib/hacocoon-oci/containerd"' /etc/containerd/config.toml >/dev/null; grep -F '"data-root":"/var/lib/hacocoon-oci/docker"' /etc/docker/daemon.json >/dev/null`)
 	t.Log("PASS ordinary source setup and repeated binding verification")
+	for i := 0; i < 2; i++ {
+		if err := (&PersistentResourceBackend{Runtime: runtime}).EnableHostOCI(ctx, source); err != nil {
+			t.Fatal("owned Host nesting", err)
+		}
+	}
+	if strings.TrimSpace(command("config", "get", trustedHostName, "security.nesting", "--project", project)) != "true" {
+		t.Fatal("nesting not enabled")
+	}
+	command("exec", trustedHostName, "--project", project, "--", "/usr/bin/unshare", "--mount", "/bin/true")
+	t.Log("PASS owned Host nesting/reuse and nested mount namespace; OCI runtime acceptance remains separate")
 	command("exec", trustedHostName, "--project", project, "--", "/bin/sh", "-ec", "printf 'Host area content\\n' > /var/lib/hacocoon-oci/marker; sync")
 	target, err := (ociplugin.WorkspaceStores{Resources: service}).Resolve(ctx, core.Workspace{ID: "area-copy-work"})
 	if err != nil {

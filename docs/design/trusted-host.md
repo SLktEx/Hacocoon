@@ -328,3 +328,13 @@ To inspect a recipe's own output, run the original script directly in the truste
 Host. Unsafe stored-file permissions or links fail closed and require inspection
 of the controller-owned configuration. Explicit controller setup after Host recreation can reuse the snapshot; real
 recreation acceptance and implicit recreation outside setup remain unverified. See [ADR 0019](../adr/0019-trusted-host-customization.md).
+
+## Nested OCI runtimes
+
+The maintained OCI setup integration enables `security.nesting=true` only after
+verifying the unprivileged owned Host and its canonical ready source area.
+Missing ownership, inherited profiles, paused/pending copies or ambiguous
+provider results refuse setup. The setting persists; repeated setup revalidates
+and reuses it. See [ADR 0032](../adr/0032-owned-host-nested-runtime.md).
+Runtime binaries remain optional and actual image recovery requires separate
+Docker/nerdctl acceptance.

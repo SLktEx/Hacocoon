@@ -20,6 +20,8 @@ type hostOCICopyJournal struct {
 }
 
 type hostOCICopyInstance struct {
+	Type        string                       `json:"type"`
+	Profiles    []string                     `json:"profiles"`
 	Name        string                       `json:"name"`
 	StatusCode  int                          `json:"status_code"`
 	Config      map[string]string            `json:"expanded_config"`

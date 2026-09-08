@@ -80,7 +80,9 @@ remains outside. Repeat setup verifies ownership, attachment, readiness marker
 and bounded daemon configuration instead of overwriting them. Failed preparation
 retains the creating source for recovery. Existing-data/custom-layout migration
 is still incomplete, as are runtime installation and Docker Environment setup.
-This does not enable Host nesting or prove actual runtime image recovery.
+Owned Host nesting is enabled by the maintained setup integration under
+[ADR 0032](0032-owned-host-nested-runtime.md). Actual runtime image recovery
+remains a separate acceptance requirement.
 
 ## Rejected alternatives
 
