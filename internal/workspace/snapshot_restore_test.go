@@ -144,6 +144,9 @@ func (r *restoreTraceRuntime) CreateRestoreComponent(_ context.Context, saved co
 	if r.cancel != nil {
 		r.cancel()
 	}
+	if r.fail == "ambiguous-create" {
+		return core.ErrRecoveryRequired
+	}
 	if r.fail == "create:"+c.Role {
 		return errors.New("injected lost create reply")
 	}
@@ -169,7 +172,7 @@ func (r *restoreTraceRuntime) DeleteRestoreComponent(_ context.Context, c core.S
 }
 
 func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) {
-	for _, failure := range []string{"", "source", "plan", "reserve", "create:rootfs", "record-created:rootfs", "verify:workspace:main", "record-verified:workspace:main", "commit", "cancel", "create-and-cleanup", "commit-and-root-cleanup"} {
+	for _, failure := range []string{"", "source", "plan", "reserve", "create:rootfs", "record-created:rootfs", "verify:workspace:main", "record-verified:workspace:main", "commit", "cancel", "create-and-cleanup", "commit-and-root-cleanup", "ambiguous-create"} {
 		t.Run(failure, func(t *testing.T) {
 			_, catalog, original := captureFixture(t)
 			store := &restoreTraceStore{EnvironmentJSONStore: catalog.EnvironmentJSONStore}
@@ -222,6 +225,9 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 				}
 			}
 			if op.ID == "" {
+				if errors.Is(err, core.ErrRecoveryRequired) {
+					t.Fatal("cleaned failure still requires recovery", err)
+				}
 				if len(r.data) != len(saved.Components) {
 					t.Fatal("temporary resources leaked after completed cleanup")
 				}

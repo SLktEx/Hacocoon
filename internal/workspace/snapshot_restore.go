@@ -89,6 +89,11 @@ func (s *Service) PrepareSnapshotRestore(ctx context.Context, name, savedID stri
 			}
 			cleanupErr := cleanupSnapshotRestoreLocked(recovery, catalog, backend, result)
 			if cleanupErr == nil {
+				// An ambiguous provider reply no longer requires recovery once every
+				// destination is positively absent. Preserve cancellation/other errors.
+				if errors.Is(cause, core.ErrRecoveryRequired) {
+					cause = core.ErrRuntimeUnavailable
+				}
 				result = core.SnapshotRestore{}
 				return fmt.Errorf("restore %s failed; temporary copies removed: %w", id, errors.Join(cause, markErr))
 			}
