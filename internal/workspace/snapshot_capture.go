@@ -44,7 +44,7 @@ func (s *Service) CaptureSnapshot(ctx context.Context, name string) (result core
 	if !ok {
 		return result, core.ErrUnsupported
 	}
-	err = s.withSnapshotSource(ctx, name, func(ctx context.Context, source core.SnapshotSource) error {
+	err = s.withSnapshotSourceMode(ctx, name, true, func(ctx context.Context, source core.SnapshotSource) error {
 		result, err = s.captureSnapshotLocked(ctx, source, backend, catalog)
 		return err
 	})

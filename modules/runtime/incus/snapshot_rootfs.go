@@ -124,15 +124,7 @@ func (r *Runtime) createSnapshotRootfs(ctx context.Context, p snapshotRootfsPlan
 	if json.Unmarshal([]byte(out.Stdout), &pool) != nil || pool.Name != p.Pool || pool.Driver != "btrfs" {
 		return core.ErrIncompatibleState
 	}
-	// Incus fills omitted keys from the source. Explicit empty values prevent
-	// inheritance, without sending arbitrary source config values to the command.
-	config := map[string]string{}
-	for key := range source.Config {
-		config[key] = ""
-	}
-	for key := range source.ExpandedConfig {
-		config[key] = ""
-	}
+	config := clearedSnapshotInstanceConfig(source.Config, source.ExpandedConfig)
 	for _, key := range []string{"volatile.idmap.current", "volatile.idmap.next", "volatile.last_state.idmap"} {
 		value := source.Config[key]
 		if value == "" {

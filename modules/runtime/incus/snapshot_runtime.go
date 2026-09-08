@@ -110,10 +110,7 @@ func (r *Runtime) copySavedRuntime(ctx context.Context, source snapshotRootfsPla
 	if json.Unmarshal([]byte(out.Stdout), &storage) != nil || storage.Name != source.Pool || storage.Driver != "btrfs" {
 		return nil, core.ErrUnsupported
 	}
-	config := map[string]string{}
-	for k := range observed.Config {
-		config[k] = ""
-	}
+	config := clearedSnapshotInstanceConfig(observed.Config)
 	for _, k := range []string{"volatile.idmap.current", "volatile.idmap.next", "volatile.last_state.idmap"} {
 		value := observed.Config[k]
 		if value == "" {

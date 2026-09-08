@@ -105,6 +105,8 @@ func run(args []string) int {
 		return runOpen(args[1:])
 	case "run":
 		return runTemporary(args[1:])
+	case "snapshot":
+		return runSnapshot(args[1:])
 	case "env":
 		return runEnvironment(args[1:])
 	case "base":
@@ -157,6 +159,7 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  approve    Review a pending request and optionally save its Policy")
 	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
 	fmt.Fprintln(out, "  env        Create, inspect and access development Environments")
+	fmt.Fprintln(out, "  snapshot   Save, list and explicitly delete independent saved data")
 	fmt.Fprintln(out, "  run        Execute a command in a temporary Environment and clean up")
 	fmt.Fprintln(out, "  ssh setup  Prepare desktop SSH keys and connection settings")
 	fmt.Fprintln(out, "  open       Open an Environment in a desktop client")

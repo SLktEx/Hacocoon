@@ -1,8 +1,14 @@
 # バージョン番号とリリース状況
+
+公開 snapshot の create/list/delete は既存 lifecycle と Incus copy を利用し、
+実行中の保存元は停止・保存・再開します。公開 aggregate restore は planned、
+checkpoint は v0.49 のままです。新しい catalog 形式や backup 機構は追加しません。
+[使い方](../design/environment-snapshots.md)を参照してください。
+
 現在の開発 checkpoint は v0.49 です。Incus-first の整理により、新規 snapshot の
 Base 実体、通常作成の Base 自動保持、復元前自動 backup を削除します。既存保存物と
 所有記録は削除せず移行します。復元準備、Workspace／OCI 登録、保存 rootfs の実行用
-コピーと正規作成経路は内部実装、aggregate の起動調整と公開 CLI は planned です。schema 12 は
+コピーと正規作成経路は内部実装、aggregate の起動調整と公開 restore は planned です。schema 12 は
 schema 11 の OCI 作成記録と既存保存物を維持しながら、作成中の保存元予約を追加します。実行環境の完全復旧を checkpoint の前提にはしません。
 [実装状況](../IMPLEMENTATION_STATUS.ja.md)と [ADR 0040](../adr/0040-incus-first-snapshots.md)を参照してください。
 

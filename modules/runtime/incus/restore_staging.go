@@ -173,6 +173,7 @@ func (r *Runtime) CreateRestoreComponent(ctx context.Context, saved core.Snapsho
 	}
 	keys := []string{"volatile.idmap.last", "volatile.idmap.next"}
 	if instance {
+		config = clearedSnapshotInstanceConfig(sourceConfig)
 		keys = []string{"volatile.idmap.current", "volatile.idmap.next", "volatile.last_state.idmap"}
 	}
 	for _, k := range keys {

@@ -1,5 +1,46 @@
 # 実装状況
 
+## 公開 snapshot の保存・管理
+
+実装済み：`haco snapshot create <env>`、`list [env]`、`delete <id>` は既存の
+controller・lifecycle・catalog と Incus copy を利用します。実行中なら停止して
+保存完了後だけ再開し、停止中なら停止を維持します。保存失敗・部分保存では ID を
+保持して失敗を返します。元 Env 削除後も一覧に残り、内部 binding は公開しません。
+schema 変更、Base 実体の追加、自動 pre-restore backup はありません。公開 aggregate
+restore は planned です。検証結果は本変更の PR に記録します。
+[使い方・契約](design/environment-snapshots.md)を参照してください。
+
+PR #498 は対象の 4 workflow が head `5cf9bb7` で成功し、`d54618b` として
+マージ済みです。実 Incus aggregate は 10.62 秒、Windows の実 SSH と VS Code
+編集・terminal も成功しました。private registry、共有 image 削除、VPN/NRPT、
+新しい人手の通知判断は、それぞれの既存 gate により SKIP のままです。
+
+
+実 WSL の初回・2 回目の公開保存は 116.15 秒・138.25 秒で失敗し、部分保存 ID を
+保持しました。限定した native 検証で、`volatile.last_state.ready` を空文字に
+消去すると Incus の boolean 検証に拒否されると判明しました。保存・保存 rootfs の
+起動用 copy・復元 staging は `false` に戻すよう修正し、native 要求の回帰テストを
+追加しています。別の start 検証で見つかった fixture のネットワーク所有 wrapper
+不足も production と揃えました。最初の fixture `haco-aggregate-52a680aada6ca3e6` の
+所有対象 cleanup は成功し、証跡 metadata だけを
+`/var/lib/haco-snapshot-aggregate-1076841042` に保持しています。
+
+修正後の native 検証では 2 番目の失敗 fixture の保存・再開に成功し、
+`snap-bc49bb612ad51ab361840aa59488913f` が完成しました。保存物・runtime・所有 network・
+Workspace・OCI の cleanup も成功し、metadata のみを
+`/var/lib/haco-snapshot-aggregate-4240550795` に保持しています。application・state・API・
+CLI の関連 race テストと、native 保存・staging・起動用 copy の回帰テストは成功です。
+
+修正後の新規 WSL Incus/Btrfs aggregate は 211.58 秒で成功しました。fixture は
+`haco-aggregate-53f70c5d1b1341e5`、最初の保存は
+`snap-2e55b4514894de3adb8f71e2ddac39fa`、公開 CLI 保存は
+`snap-5f11941d2fdab09a0049716565d86d29` です。実ビルドした `haco` と専用 controller
+socket で create/list/delete を実行し、実行中保存元の停止・保存・再開、元 Env
+削除後の保存物検証・一覧、明示削除、現在の Workspace／OCI 保持に成功しました。
+fixture 全体の cleanup も成功です。共有 cache image 削除は専用 image 許可がないため
+SKIP、公開 aggregate restore・復元 Env の SSH 実接続・稼働中 OCI DB の整合性は
+未検証です。全体 local CI と exact-head GHA の結果は実装 PR に記録します。
+
 ## 保存 rootfs の正規作成経路
 
 内部実装済み：保存 rootfs の作成を通常の lifecycle、保存元予約、参照付き receipt、

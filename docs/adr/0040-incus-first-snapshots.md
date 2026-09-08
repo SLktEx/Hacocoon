@@ -66,3 +66,13 @@ not saved management config or permission generation. Renew managed guest SSH
 identity before publication. Keep this native primitive in the Incus package;
 aggregate reservations and publication remain orchestration responsibilities.
 It introduces no Base retention, backup or general runtime rollback coordinator.
+
+## Capture interruption
+
+Public capture may stop a running source using Incus under the existing
+Environment/Workspace locks. Verify the same generation before copying and again
+before restart. Restart only after all saved components are verified and the
+catalog is ready; do not restart an incomplete capture and destroy its consistent
+source. An already stopped source stays stopped. Keep the ready save ID even if
+restart fails. No extra durable runtime-resume state or automatic retry/rollback
+is needed: the user can inspect saved data and use ordinary start after cleanup.
