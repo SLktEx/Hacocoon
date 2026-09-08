@@ -213,6 +213,9 @@ func (s *EnvironmentJSONStore) FinalizeEnvironmentDelete(_ context.Context, envi
 	if err != nil {
 		return err
 	}
+	if snapshotBusy(data, environmentID) {
+		return core.ErrRecoveryRequired
+	}
 	_, environmentExists := data.Environments[environmentID]
 	_, leaseExists := data.Leases[environmentID]
 	if !environmentExists && !leaseExists {

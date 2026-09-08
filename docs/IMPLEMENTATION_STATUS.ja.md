@@ -5,7 +5,10 @@
 E2 の内部基盤を部分実装しました。Environment/Workspace lock の下で全対象の対応を
 検査し、provider の停止と正確な永続作成 ID を要求します。不一致・running/unknown・
 不正な接続 ID は拒否し、同時削除を防ぎます。focused race は成功しました。
-provider 保存・manifest・restore・CLI・実データ往復は未実装です。
+schema 5 の component catalog で作成・復旧中の所有権を永続化し、全保存物の確認または
+全対象の消失確認まで start/delete を拒否します。再起動・状態遷移・cleanup・migration・
+同時予約の回帰テストは成功しました。provider 保存・全構成の manifest・restore・CLI・
+実データ往復は未実装です。
 [snapshot 設計](design/environment-snapshots.md)と [ADR 0037](adr/0037-snapshot-aggregate-ownership.md)を参照してください。
 
 
@@ -16,7 +19,8 @@ E1 の基本構成が専用 WSL の product 093ed159b80e で成功しました�
 外部 Workspace を保持して guest 内だけの状態を除去しました。修正版 fixture
 m1-egress-708dfbc120260908 と、最初に /tmp marker で失敗した fixture は両方とも
 片付け済みです。各段階・identity 判定と local CI は成功しました。Windows installed E2E
-にも追加し、新 HEAD の GHA は未完了です。managed Git/OCI の組合せと E2-E5 は別の残作業です。
+にも追加し、b73f965 の GHA は既定 OCI を無効化しなかった fixture の前提条件で失敗しました。
+create/recreate で明示的に opt-out する修正後の Windows GHA は未確認です。managed Git/OCI の組合せと E2-E5 は別の残作業です。
 [Workspace lifecycle](design/workspace-abstraction-and-lease.md#resume-and-recreate-an-external-workspace)を参照してください。
 
 

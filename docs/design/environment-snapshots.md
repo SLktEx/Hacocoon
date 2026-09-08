@@ -1,8 +1,8 @@
 # Environment snapshots and restore
 
 Status: **partial internal foundation**. Source validation and lifecycle locking
-are implemented. Snapshot storage, provider capture, restore and public CLI are
-planned; no saved snapshot is produced yet.
+and a durable component catalog are implemented. Provider capture, restore and
+public CLI are planned; no saved snapshot is produced yet.
 
 ## Scope
 
@@ -34,13 +34,41 @@ reservation, durable completion receipt or authority to restore. Execution must
 reuse the locked guard and revalidate provider ownership; a caller must not act
 later on an old inspection result.
 
+## Durable capture and recovery catalog
+
+Implemented internally: the canonical Environment catalog reserves the exact
+source creation ID and complete planned component identities before provider
+creation. Each component moves from planned to created to verified. Publishing
+requires every component verified; a crash or ambiguous result leaves capturing
+or recovery-required state. Start, delete and another capture refuse that source
+after catalog reload, before calling the provider. Canonical delete finalization
+also retains its Environment and Workspace lease while reserved.
+
+Cleanup enters deleting and retains every planned identity, including targets
+whose create receipt was never written. The caller must positively verify each
+exact owned target absent before recording absent. Only then can finalization
+remove the manifest and release the source reservation. Component updates compare
+the complete previous identity/state; changed owners, refs or stale states fail.
+
+Catalog schema 5 preserves these records across ordinary lifecycle writes and
+rejects malformed manifests. Schema 4 without snapshots can migrate on write;
+older binaries must reject schema 5 instead of silently dropping recovery state.
+Do not manually downgrade the schema number. These APIs do not themselves inspect
+provider resources: the future locked capture adapter must establish the evidence
+before recording created, verified or absent.
+
+A ready snapshot must own storage that survives deletion of its source Environment.
+Provider snapshots tied to an instance that disappears with that instance are not
+sufficient. The backend must enumerate every managed Workspace member and Base
+asset and verify its ownership; the catalog's role checks alone do not establish
+that enumeration is complete.
+
 ## Capture and restore work still required
 
-Before provider mutation, durably reserve the complete operation and intended
-owned component identities. Record each newly created provider identity before
-another fallible step. Publish a usable snapshot only after every component is
-positively verified. Partial creation and ambiguous deletion retain ownership
-until recovery proves the resources absent.
+Wire provider capture to the durable reservation and component transitions above.
+Record each newly created identity immediately, before another fallible step.
+A storage backend, full member inventory and independent saved data are still
+required before these internal records represent a usable snapshot.
 
 Restore must show which current changes will be replaced and preserve recoverable
 pre-restore state. All component restoration and failure recovery must precede
@@ -59,3 +87,9 @@ running/unknown provider state, missing ownership, mismatched/invalid OCI
 attachments and deletion blocked during the guarded operation. They establish
 the internal source boundary only. Provider snapshots, real restore, guest data
 round trips and partial-provider recovery remain unexecuted.
+
+Catalog regression tests cover restart with partial ownership, incomplete cleanup,
+publication order, stale component updates, source drift, invalid/omitted
+components, concurrent reservation, schema migration and canceled writes.
+Service regressions reject start/delete/inspection before provider access when
+recovery is pending. These checks do not establish real capture/restore acceptance.

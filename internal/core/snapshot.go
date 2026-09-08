@@ -6,3 +6,16 @@ type SnapshotSource struct {
 	Environment Environment `json:"environment"`
 	InstanceID  string      `json:"instance_id"`
 }
+
+type SnapshotComponent struct {
+	Role      string `json:"role"`
+	NativeRef string `json:"native_ref"`
+	Owner     string `json:"owner"`
+	State     string `json:"state"`
+}
+type Snapshot struct {
+	ID         string              `json:"id"`
+	Source     SnapshotSource      `json:"source"`
+	State      string              `json:"state"`
+	Components []SnapshotComponent `json:"components"`
+}

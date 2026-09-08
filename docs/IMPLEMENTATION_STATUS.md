@@ -6,7 +6,11 @@ Partial E2 foundation: the Workspace service validates the complete source
 aggregate under Environment/Workspace locks, requiring stopped provider state and
 the exact durable creation ID. Drift, running/unknown state and invalid attachment
 identity fail closed; concurrent deletion is excluded. Focused race tests passed.
-Provider capture, manifests, restore, CLI and real data round trips remain planned.
+The schema-5 component catalog now persists capture/recovery ownership and blocks
+start/delete until all components are verified or cleanup proves every target absent.
+Restart, transition, cleanup, migration and concurrent reservation regressions pass.
+Provider capture, complete backend manifests, restore, CLI and real data round trips
+remain planned.
 See [snapshot design](design/environment-snapshots.md) and [ADR 0037](adr/0037-snapshot-aggregate-ownership.md).
 
 
@@ -17,7 +21,9 @@ stop/start retained Workspace and permanent guest files; delete/recreate retaine
 the guest-written external Workspace file and removed guest-only state. Corrected
 fixture m1-egress-708dfbc120260908 and the initial failed /tmp-marker fixture were
 fully cleaned. Phase/identity regressions and local CI passed. Windows installed
-E2E now includes the flow; new-head GHA is pending. Managed Git/OCI combinations
+E2E includes the flow. At b73f965 its fixture failed because it did not opt out
+of default OCI attachment; the fixture now explicitly opts out on create/recreate.
+Corrected Windows GHA remains pending. Managed Git/OCI combinations
 and E2-E5 remain separate work. See [Workspace lifecycle](design/workspace-abstraction-and-lease.md#resume-and-recreate-an-external-workspace).
 
 

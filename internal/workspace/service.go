@@ -344,6 +344,9 @@ func (s *Service) delete(ctx context.Context, name string, expected *core.Worksp
 		return err
 	}
 	defer unlock()
+	if err := s.checkSnapshotIdle(ctx, name); err != nil {
+		return err
+	}
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err == nil {
 		if expected != nil && environment.Workspace != *expected {

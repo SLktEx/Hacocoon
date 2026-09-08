@@ -110,3 +110,34 @@ func TestSnapshotOperationKeepsLifecycleLock(t *testing.T) {
 		t.Fatal("delete overtook snapshot", err)
 	}
 }
+
+type snapshotBlockedStore struct{ *snapshotStore }
+
+func (*snapshotBlockedStore) CheckSnapshotIdle(context.Context, string) error {
+	return core.ErrRecoveryRequired
+}
+func TestSnapshotRecoveryBlocksLifecycleBeforeProvider(t *testing.T) {
+	for _, op := range []string{"start", "delete", "inspect"} {
+		t.Run(op, func(t *testing.T) {
+			store, runtime := snapshotFixture()
+			runtime.inspect = func(context.Context, string) (core.EnvironmentRuntimeStatus, error) {
+				t.Fatal("provider called while snapshot requires recovery")
+				return core.EnvironmentRuntimeStatus{}, nil
+			}
+			svc := New(runtime, &snapshotBlockedStore{store})
+			ctx := context.Background()
+			var err error
+			switch op {
+			case "start":
+				err = svc.Start(ctx, "resume")
+			case "delete":
+				err = svc.Delete(ctx, "resume")
+			case "inspect":
+				_, err = svc.InspectSnapshotSource(ctx, "resume")
+			}
+			if !errors.Is(err, core.ErrRecoveryRequired) || len(runtime.deleteRefs) != 0 {
+				t.Fatal("recovery bypassed", err)
+			}
+		})
+	}
+}

@@ -1,6 +1,6 @@
 # ADR 0037: Snapshot the complete owned Environment aggregate
 
-Status: accepted design; source guard implemented; capture/restore planned
+Status: accepted design; source guard and durable catalog implemented; capture/restore planned
 Date: 2026-09-08
 
 ## Decision
@@ -17,8 +17,10 @@ and eventual capture. Exact persisted creation identity prevents a recycled name
 from becoming the source or restore target.
 
 An inspection result is not a durable reservation or completed snapshot.
-Capture/restore implementation must add an owned manifest and recovery protocol,
-record exact created resources immediately, and preserve ownership on ambiguity
+The schema-5 owned component catalog reserves capture before mutation and blocks
+source start/delete across restart until publication or proven-absent cleanup.
+Provider integration must record exact created resources immediately and preserve
+ownership on ambiguity
 as required by ADR 0002. Restore cannot silently discard the current working state.
 
 ## Rejected alternatives
@@ -34,3 +36,9 @@ as required by ADR 0002. Restore cannot silently discard the current working sta
 Internal race tests validate the source guard and concurrent delete exclusion.
 No provider capture or restore is implemented by this decision's first change.
 See [snapshot design](../design/environment-snapshots.md).
+
+The catalog uses a new schema version so older controllers reject it rather than
+rewrite the file without snapshot reservations. Ready components must survive
+source deletion; instance-bound snapshots alone cannot satisfy that contract.
+Catalog restart, transition, cleanup and concurrent-reservation regressions pass;
+provider capture and restore remain planned.

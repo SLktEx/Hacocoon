@@ -25,6 +25,9 @@ func (s *Service) withSnapshotSource(ctx context.Context, name string, operation
 		return err
 	}
 	defer unlock()
+	if err := s.checkSnapshotIdle(ctx, name); err != nil {
+		return err
+	}
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err != nil {
 		return err
@@ -79,4 +82,13 @@ func (s *Service) withSnapshotSource(ctx context.Context, name string, operation
 		return err
 	}
 	return operation(ctx, core.SnapshotSource{Environment: environment, InstanceID: instance})
+}
+
+func (s *Service) checkSnapshotIdle(ctx context.Context, name string) error {
+	if store, ok := s.store.(interface {
+		CheckSnapshotIdle(context.Context, string) error
+	}); ok {
+		return store.CheckSnapshotIdle(ctx, name)
+	}
+	return nil
 }
