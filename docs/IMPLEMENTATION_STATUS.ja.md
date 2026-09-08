@@ -1,12 +1,32 @@
 # 実装状況
 
+## 保存 OCI の再登録
+
+内部実装済み：保存 OCI volume を同じ Btrfs pool の通常 Store に独立コピーし、
+新しい所有者と任意の Workspace 対応を登録します。catalog は保存元を予約し、
+検証前にコピー完了を記録します。公開または所有対象の不在確認後に予約を解除します。
+schema 11 は schema 10 と既存の対応済みデータを保持し、旧 controller は新形式を
+拒否します。所有記録・予約・schema の対象 race テストは成功しました。
+専用 WSL Incus/Btrfs aggregate は 108.40 秒で成功しました。fixture
+`haco-aggregate-87d745d6b76c16c0`、snapshot
+`snap-cfc7eae81e93e176a380b5bd171c3e77` で、元 Env／volume 削除後の Workspace／OCI
+登録、新しい所有者・Workspace 対応、予約解除、再読み込み、保存データ、独立した
+変更と正規 cleanup を確認しました。共有 image 削除は SKIP です。
+全体 local CI 成功後、追加回帰でコピー中の通常削除ガード不足を失敗として再現し、
+修正しました。最終差分の state／persistentresource／Incus 全 package の race・vet、
+文書・cleanup helper は成功し、同一 head の GHA は PR に記録します。
+Workspace 登録の PR #495 は
+適用対象 GHA の全成功後に 239b3e6 へマージ済みです。Env 起動と公開 CLI は planned、
+live OCI database の整合性は未検証です。
+
+
 ## 保存 Workspace の再登録
 
 内部実装済み：Incus/Btrfs の同一 pool 内コピーを、新しい所有者と管理側の
 remote／branch 情報を持つ通常の Workspace として登録します。検証前に作成完了を
 記録し、途中失敗は今回の所有対象だけを限定 cleanup します。Git の由来情報がない
-旧 manifest は保持しますが、自動再登録は未対応です。Env の起動、復元 OCI の
-登録、公開 snapshot／restore CLI は planned です。
+旧 manifest は保持しますが、自動再登録は未対応です。Env 起動と公開
+snapshot／restore CLI は planned、OCI 登録は上記の段階で内部実装済みです。
 
 対象 race テストと専用 WSL Incus/Btrfs aggregate は成功しました（4.09 秒）。
 fixture `haco-aggregate-42d34d51baa33c72`、snapshot

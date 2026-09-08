@@ -97,7 +97,9 @@ though the executing Environment remains disposable.
 
 ## Catalog upgrade
 
-Schema 10 adds the current target identity independently of saved data. Schema 8
+Schema 10 added the current target identity independently of saved data.
+Schema 11 retains that data and adds OCI-copy ownership receipts and temporary
+saved-source reservations; schema 10 migrates on write without deleting anything. Schema 8
 restore records migrate on write by deriving it from their recorded `before`
 source. Their existing backup manifest and snapshot references remain intact;
 cleanup does not delete those snapshots. Existing schema 5–8 snapshot ownership
@@ -119,8 +121,10 @@ fallible phase using the canonical lifecycle receipt described in
 [ADR 0002](../adr/0002-environment-lifecycle-ownership.md).
 
 This prepares the same configuration path for a new rootfs copied from a save.
-The saved-copy activation and persistent-data ownership transfer are still planned;
+Saved-rootfs activation into the runnable Environment is still planned;
 the extraction does not expose an API that adopts arbitrary existing instances.
+Independent Workspace and OCI registration are implemented internally; the latter
+uses the existing [Store catalog](persistent-oci-store.md#store-registration-from-a-snapshot).
 
 ## Registering restored Workspaces
 

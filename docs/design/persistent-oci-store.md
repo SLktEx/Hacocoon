@@ -251,3 +251,31 @@ receipt or incompatible journal remains recovery-required. Do not edit the state
 remove the provider marker or force a restart. See
 [ADR 0033](../adr/0033-completed-copy-recovery.md) for the exact proof and remaining
 unconfirmed-operation gap.
+
+## Store registration from a snapshot
+
+Implemented internally: `RestoreSnapshot` copies the saved OCI volume into a
+new ordinary Store with a fresh owner, optionally associated with the newly
+restored Workspace. Incus performs an independent same-pool Btrfs copy. No old
+Store, Base, image cache, default profile or Host source area is required. Saved
+config/ownership is cleared except necessary Incus idmap bookkeeping.
+
+The catalog atomically reserves the ready snapshot and new Store identity before
+copy. It records `created` immediately after provider completion, verifies the
+volume, then publishes `ready` and releases the snapshot reservation. These are
+storage ownership receipts, not runtime resume/rollback states. Failure attempts
+bounded cleanup with an exact owner comparison; uncertain deletion keeps both
+residue identity and snapshot reservation for explicit Store cleanup. Normal
+Store deletion refuses an active creating/created restore; it can retry a failed
+cleanup already marked deleting. A process crash before failure handling retains
+the exact record for owned cleanup after stopping the controller, rather than
+allowing a delete to race a possibly live copy. Automatic crash recovery is not
+implemented. Ordinary
+Env deletion still preserves the Store. No pre-restore backup is created.
+
+Schema 11 adds the temporary saved-source reference and `created` receipt. Schema
+10 and earlier supported catalogs migrate on write without removing existing
+snapshots, legacy Base components, backup manifests or Store data. Old controllers
+reject schema 11; stop the controller before changing binaries and never relabel
+the schema manually. Runnable Env activation and public snapshot/restore remain
+planned. File-copy acceptance does not establish live OCI database consistency.

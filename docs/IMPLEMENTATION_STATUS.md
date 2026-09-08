@@ -1,13 +1,34 @@
 # Implementation Status
 
+## Saved OCI registration
+
+Implemented internally: saved OCI volumes copy into ordinary Stores in their
+saved Btrfs pool with a fresh owner and optional Workspace association. The
+catalog reserves saved data, records copy completion before verification, and
+releases the source on publication or positive owned cleanup. Schema 11 preserves
+schema 10 and earlier supported data; old controllers reject the new format.
+Focused ownership/reservation/schema race tests passed. Dedicated WSL Incus/Btrfs
+aggregate passed in 108.40s: fixture `haco-aggregate-87d745d6b76c16c0`, snapshot
+`snap-cfc7eae81e93e176a380b5bd171c3e77`. Original Env/volumes were removed before
+Workspace/OCI registration; new owner/Workspace association, source reservation
+release, durable reload, saved bytes, independent edits and canonical cleanup
+passed. Shared-image deletion was SKIP. Full local CI passed before the final
+ordinary-delete guard. A new regression then reproduced that missing guard as a
+failure and was fixed. Final full-package race/vet for state, persistentresource
+and Incus, docs and cleanup-helper tests passed; exact-head GHA is tracked on the
+implementation PR. PR #495 Workspace registration
+passed all applicable GHA and merged at 239b3e6. Runnable activation/public CLI
+remain planned; no live OCI database consistency claim is made.
+
+
 ## Saved Workspace registration
 
 Implemented internally: same-pool Incus/Btrfs copies register as normal managed
 Workspaces with fresh ownership and trusted remote/branch provenance. Completion
 receipts precede verification; incomplete copies use bounded exact-owned cleanup.
 Source-less legacy manifests without Git provenance remain preserved but are
-unsupported for automatic registration. Runnable activation, restored OCI
-registration and the public snapshot/restore CLI remain planned.
+unsupported for automatic registration. Runnable activation and the public snapshot/restore CLI remain planned;
+OCI registration is implemented in the slice above.
 
 Focused race tests passed. Dedicated WSL Incus/Btrfs aggregate passed in 4.09s
 with fixture `haco-aggregate-42d34d51baa33c72`, snapshot

@@ -183,6 +183,11 @@ func (s *EnvironmentJSONStore) MarkSnapshotRecovery(ctx context.Context, id stri
 }
 func (s *EnvironmentJSONStore) BeginSnapshotDelete(ctx context.Context, id string) error {
 	return s.catalogTransaction(ctx, func(d *environmentFileState) (bool, error) {
+		for _, r := range d.PersistentResources {
+			if r.RestoreSource == id {
+				return false, core.ErrStorageBusy
+			}
+		}
 		if restoreUsesSnapshot(*d, id) {
 			return false, core.ErrStorageBusy
 		}

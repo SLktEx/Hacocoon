@@ -61,7 +61,7 @@ func (s *EnvironmentJSONStore) GetPersistentResource(ctx context.Context, id str
 }
 
 func (s *EnvironmentJSONStore) BeginPersistentResourceCreate(_ context.Context, r core.PersistentResource) error {
-	if !core.ValidPersistentResourceRef(r.Ref()) || r.Kind == "" || r.NativeRef == "" || r.State != "creating" || r.CreatedAt.IsZero() || (r.CopySource != (core.PersistentResourceRef{}) || r.CopyCompleted) {
+	if !core.ValidPersistentResourceRef(r.Ref()) || r.Kind == "" || r.NativeRef == "" || r.State != "creating" || r.CreatedAt.IsZero() || r.RestoreSource != "" || (r.CopySource != (core.PersistentResourceRef{}) || r.CopyCompleted) {
 		return core.ErrInvalidArgument
 	}
 	return s.resourceTransaction(func(d *environmentFileState) error {
@@ -91,13 +91,17 @@ func (s *EnvironmentJSONStore) MarkPersistentResourceCopyCompleted(_ context.Con
 
 func (s *EnvironmentJSONStore) CommitPersistentResourceCreate(_ context.Context, r core.PersistentResource) error {
 	return s.resourceTransaction(func(d *environmentFileState) error {
-		if existing, ok := d.PersistentResources[r.ID]; !ok || existing != r || r.State != "creating" {
+		if existing, ok := d.PersistentResources[r.ID]; !ok || existing != r || (r.State != "creating" && r.State != "created") {
 			return core.ErrIncompatibleState
+		}
+		if r.RestoreSource != "" && r.State != "created" {
+			return core.ErrRecoveryRequired
 		}
 		if r.CopySource != (core.PersistentResourceRef{}) && !r.CopyCompleted {
 			return core.ErrRecoveryRequired
 		}
 		r.State = "ready"
+		r.RestoreSource = ""
 		r.CopySource = core.PersistentResourceRef{}
 		r.CopyCompleted = false
 		d.PersistentResources[r.ID] = r
@@ -106,7 +110,7 @@ func (s *EnvironmentJSONStore) CommitPersistentResourceCreate(_ context.Context,
 }
 
 func (s *EnvironmentJSONStore) BeginPersistentResourceDelete(ctx context.Context, id string) (core.PersistentResource, error) {
-	return s.beginPersistentResourceDelete(ctx, id, "")
+	return s.beginPersistentResourceDelete(ctx, id, "", "")
 }
 
 // Workspace ownership is compared in the same transaction that excludes new attachments.
@@ -114,15 +118,25 @@ func (s *EnvironmentJSONStore) BeginWorkspaceResourceDelete(ctx context.Context,
 	if work == "" {
 		return core.PersistentResource{}, core.ErrInvalidArgument
 	}
-	return s.beginPersistentResourceDelete(ctx, id, work)
+	return s.beginPersistentResourceDelete(ctx, id, work, "")
 }
 
-func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, id string, expected core.WorkspaceID) (r core.PersistentResource, err error) {
+func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, id string, expected core.WorkspaceID, owner string) (r core.PersistentResource, err error) {
 	err = s.resourceTransaction(func(d *environmentFileState) error {
 		var ok bool
 		r, ok = d.PersistentResources[id]
 		if !ok {
 			return core.ErrNotFound
+		}
+		if owner != "" && r.Owner != owner {
+			return core.ErrCapabilityStale
+		}
+		// Normal deletion must not release the saved-source reservation while
+		// a creator can still materialize its planned volume. Failure cleanup
+		// supplies the exact owner after creation has returned; its deleting
+		// record permits later explicit retries.
+		if r.RestoreSource != "" && r.State != "deleting" && owner == "" {
+			return core.ErrRecoveryRequired
 		}
 		if expected != "" && (r.WorkspaceID != expected || r.SourceOnly) {
 			return core.ErrIncompatibleState
@@ -144,7 +158,7 @@ func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, 
 				return core.ErrStorageBusy
 			}
 		}
-		if r.State != "ready" && r.State != "creating" && r.State != "deleting" {
+		if r.State != "ready" && r.State != "creating" && r.State != "created" && r.State != "deleting" {
 			return core.ErrRecoveryRequired
 		}
 		r.State = "deleting"
@@ -172,12 +186,24 @@ func (s *EnvironmentJSONStore) FinalizePersistentResourceDelete(_ context.Contex
 
 func validatePersistentResourceState(data environmentFileState) error {
 	for id, r := range data.PersistentResources {
-		if (r.SourceOnly && r.WorkspaceID != "") || id != r.ID || !core.ValidPersistentResourceRef(r.Ref()) || r.Kind == "" || r.NativeRef == "" || r.CreatedAt.IsZero() || (r.State != "creating" && r.State != "ready" && r.State != "deleting") {
+		if (r.SourceOnly && r.WorkspaceID != "") || id != r.ID || !core.ValidPersistentResourceRef(r.Ref()) || r.Kind == "" || r.NativeRef == "" || r.CreatedAt.IsZero() || (r.State != "creating" && r.State != "created" && r.State != "ready" && r.State != "deleting") {
 			return fmt.Errorf("invalid persistent resource catalog: %w", core.ErrIncompatibleState)
 		}
 	}
 
 	for _, r := range data.PersistentResources {
+		if (r.State == "created" || r.RestoreSource != "") && data.Version != environmentStateVersion {
+			return core.ErrIncompatibleState
+		}
+		if r.State == "created" && (r.RestoreSource == "" || r.SourceOnly || r.CopySource != (core.PersistentResourceRef{})) {
+			return core.ErrIncompatibleState
+		}
+		if r.RestoreSource != "" {
+			saved, ok := data.Snapshots[r.RestoreSource]
+			if !ok || saved.State != "ready" || r.State == "ready" || r.SourceOnly || r.CopySource != (core.PersistentResourceRef{}) {
+				return core.ErrIncompatibleState
+			}
+		}
 		if r.CopySource == (core.PersistentResourceRef{}) {
 			if r.CopyCompleted {
 				return core.ErrIncompatibleState
