@@ -76,3 +76,13 @@ catalog is ready; do not restart an incomplete capture and destroy its consisten
 source. An already stopped source stays stopped. Keep the ready save ID even if
 restart fails. No extra durable runtime-resume state or automatic retry/rollback
 is needed: the user can inspect saved data and use ordinary start after cleanup.
+
+## Workspace copy source lifetime
+
+The registry records exact destination ownership before copying. The catalog also
+holds the saved source until complete publication or positive owned cleanup;
+a caller-held in-memory reservation cannot protect an interrupted native copy.
+Schema 13 preserves older saved data and schema 12/11 source receipts. Failed
+reservation release retains the registry record. Retry on an already published
+Workspace releases only that reservation, without deleting its data. This is a
+data-lifetime guard, not a runtime recovery state machine or hidden backup.

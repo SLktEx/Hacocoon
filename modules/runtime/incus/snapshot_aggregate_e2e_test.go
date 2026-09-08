@@ -329,6 +329,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	// The original runtime and volumes are absent. Register normal managed copies
 	// using only the saved aggregate, then reopen the registry and inspect Git data.
 	restoredRepositories := gitrepo.NewRepositoryService(dir, repository)
+	restoredRepositories.SnapshotCatalog = store
 	restoredWork, err := restoredRepositories.RestoreWorkspace(ctx, "restored-"+strings.TrimPrefix(name, "aggregate-"), snap)
 	must(err)
 	reopenedRepositories := gitrepo.NewRepositoryService(dir, repository)

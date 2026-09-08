@@ -183,7 +183,8 @@ uses the existing [Store catalog](persistent-oci-store.md#store-registration-fro
 
 Implemented internally: `RepositoryService.RestoreWorkspace` registers one or up
 to eight independent normal managed Workspace volumes from saved components.
-The caller holds the snapshot reservation. Incus performs same-pool Btrfs copies;
+The service requires the shared snapshot catalog and holds a durable source
+reservation while copying. Incus performs same-pool Btrfs copies;
 the registry reserves fresh names/owners before copy, records each completion
 before verification, and publishes only the complete collection. Source Env,
 source volumes, Base and image cache are unnecessary. No Git network operation
@@ -201,8 +202,10 @@ JSON or discard them during upgrade.
 
 Failures attempt cleanup of all newly reserved exact-owned volumes, even if one
 cleanup fails. Unknown ownership/attachment/absence retains the registry record;
-`CleanupRestoredWorkspace` can retry incomplete copies only. Ready Workspaces are
-rejected by failure cleanup. The normal Env delete lifetime is unchanged. No
+`CleanupRestoredWorkspace` retries incomplete copies. Once ready, it can only
+release a pending source reservation; it never deletes published volumes. Release
+failure retains the registry ownership record for retry. A ready Workspace with
+no pending reservation is rejected by failure cleanup. The normal Env delete lifetime is unchanged. No
 backup of current data, ownership transfer of the saved volumes, or crash-resume
 state machine is introduced.
 
@@ -210,6 +213,7 @@ state machine is introduced.
 
 - `modules/runtime/incus`: native copy/instance/volume/device operations and exact
   provider observations. Btrfs is an explicit supported precondition.
+- `modules/standard/gitrepo`: normal Workspace registration and destination-owned cleanup.
 - `internal/workspace`: aggregate locks and ordered capture/preparation/cleanup.
 - `internal/state`: durable data/generation ownership and atomic lifecycle guards.
 - `internal/environment`: routing and qualification of Incus native references.
@@ -217,6 +221,8 @@ state machine is introduced.
 
 `SnapshotBackend` and `RestoreBackend` keep native storage mechanics testable and
 out of orchestration. The catalog interface protects receipts and atomic checks.
+`SnapshotWorkspaceCatalog` provides only atomic begin/finish source guards to
+the registry; it introduces no native storage abstraction or runtime recovery state.
 These interfaces do not promise hypothetical future backend equivalence. Removed
 production Base-retention callbacks are not replaced with another abstraction.
 Legacy Base storage code remains only to read, verify and clean recorded material
@@ -248,10 +254,11 @@ Publication clears it; positive runtime absence removes the lease. This adds no
 new lifecycle states. A recreated name receives a new generation. Missing original
 Env, Base or cache is permitted; no default Host OCI copy runs implicitly.
 
-Schema 12 preserves schema 11 and all earlier supported catalogs, including OCI
+Schema 13 adds Workspace copy source reservations and preserves schema 12
+creation-time source reservations, schema 11 and all earlier supported catalogs, including OCI
 copy receipts, legacy Base components and legacy before snapshots. Older
 controllers reject the new version instead of dropping a source reservation.
-Do not relabel a new catalog as schema 11 or run an old writer against it. Ordinary
+Do not relabel a new catalog as schema 12 or earlier or run an old writer against it. Ordinary
 upgrades need no manual saved-data rewrite. The unpublished schema 9 remains
 explicitly unsupported.
 

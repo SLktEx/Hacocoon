@@ -37,9 +37,10 @@ type Backend interface {
 }
 
 type RepositoryService struct {
-	Root    string
-	Backend Backend
-	mu      sync.Mutex
+	SnapshotCatalog SnapshotWorkspaceCatalog
+	Root            string
+	Backend         Backend
+	mu              sync.Mutex
 }
 
 func NewRepositoryService(root string, backend Backend) *RepositoryService {

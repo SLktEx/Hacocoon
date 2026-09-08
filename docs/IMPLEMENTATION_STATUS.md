@@ -1,5 +1,20 @@
 # Implementation Status
 
+## Workspace snapshot copy source protection
+
+Implemented: Workspace copy now reserves its saved source in the shared catalog.
+Partial cleanup retains both ownership and source protection; a published copy
+with failed release can retry only that release. Schema 13 preserves schema 12
+runtime source holds, schema 11 OCI receipts and older saved data. No CLI command,
+Base component, backup or runtime recovery state was added. State, registry, lifecycle and composition race tests passed, as did docs and
+cleanup-helper checks. Dedicated WSL Incus/Btrfs aggregate passed in 184.64s: fixture
+`haco-aggregate-e742fe53ad8dc2db`, save `snap-6331fdeac4c8f8350a8604af677cdbbd`,
+public save `snap-4dd65c2c8d0da67de8dc358c24689332`. Source-independent normal
+Workspace/OCI copies, same-name fresh runtime generation, public snapshot CLI,
+data retention and complete owned cleanup passed. Shared image deletion was
+SKIP (not dedicated); public restore, restored SSH handshake and live OCI
+consistency remain unverified. Full CI results are recorded with the change.
+
 ## Public snapshot capture and management
 
 Implemented: `haco snapshot create <env>`, `list [env]` and `delete <id>` use the
