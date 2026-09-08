@@ -5,7 +5,8 @@
 Implemented internally: new captures save independent rootfs, managed Workspace
 members and attached OCI, with Base provenance only. Ordinary create/run no longer
 retains an extra Base instance. Restore preparation copies saved data without an
-automatic backup or changing current data. Exact receipts, source write exclusion,
+automatic backup or changing current data. Failure attempts bounded owned cleanup, continues independent components and
+retains recovery records only when absence cannot be confirmed. Exact receipts, source write exclusion,
 positive cleanup and generation/security boundaries remain.
 
 Schema 10 migrates schema-8 restore target identity while preserving every old

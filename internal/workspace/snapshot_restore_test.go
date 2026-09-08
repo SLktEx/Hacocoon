@@ -43,16 +43,17 @@ func (s *restoreTraceStore) CommitRestorePreparation(ctx context.Context, id str
 
 type restoreTraceRuntime struct {
 	*snapshotRuntime
-	t         *testing.T
-	store     *restoreTraceStore
-	nextOwner int
-	plans     map[string]string
-	data      map[string]string
-	current   string
-	savedID   string
-	restoreID string
-	fail      string
-	cancel    context.CancelFunc
+	t           *testing.T
+	store       *restoreTraceStore
+	nextOwner   int
+	plans       map[string]string
+	data        map[string]string
+	current     string
+	savedID     string
+	restoreID   string
+	fail        string
+	cleanupFail string
+	cancel      context.CancelFunc
 }
 
 func (r *restoreTraceRuntime) components(id string) []core.SnapshotComponent {
@@ -160,7 +161,7 @@ func (r *restoreTraceRuntime) DeleteRestoreComponent(_ context.Context, c core.S
 	if op.State != "deleting" {
 		r.t.Fatal("cleanup not durable")
 	}
-	if r.fail == "delete:"+c.Role {
+	if r.fail == "delete:"+c.Role || r.cleanupFail == "delete:"+c.Role {
 		return errors.New("injected cleanup")
 	}
 	delete(r.data, c.NativeRef)
@@ -168,7 +169,7 @@ func (r *restoreTraceRuntime) DeleteRestoreComponent(_ context.Context, c core.S
 }
 
 func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) {
-	for _, failure := range []string{"", "source", "plan", "reserve", "create:rootfs", "record-created:rootfs", "verify:workspace:main", "record-verified:workspace:main", "commit", "cancel"} {
+	for _, failure := range []string{"", "source", "plan", "reserve", "create:rootfs", "record-created:rootfs", "verify:workspace:main", "record-verified:workspace:main", "commit", "cancel", "create-and-cleanup", "commit-and-root-cleanup"} {
 		t.Run(failure, func(t *testing.T) {
 			_, catalog, original := captureFixture(t)
 			store := &restoreTraceStore{EnvironmentJSONStore: catalog.EnvironmentJSONStore}
@@ -187,6 +188,14 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 			}
 			r.fail = failure
 			store.fail = failure
+			if failure == "create-and-cleanup" {
+				r.fail = "create:rootfs"
+				r.cleanupFail = "delete:workspace:main"
+			}
+			if failure == "commit-and-root-cleanup" {
+				store.fail = "commit"
+				r.cleanupFail = "delete:rootfs"
+			}
 			request, cancel := context.WithCancel(ctx)
 			defer cancel()
 			if failure == "cancel" {
@@ -213,7 +222,12 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 				}
 			}
 			if op.ID == "" {
-
+				if len(r.data) != len(saved.Components) {
+					t.Fatal("temporary resources leaked after completed cleanup")
+				}
+				if e := store.CheckSnapshotIdle(ctx, "resume"); e != nil {
+					t.Fatal("clean failure blocked current Environment", e)
+				}
 				return
 			}
 			reloaded := state.NewEnvironmentJSONStore(catalog.path)
@@ -227,6 +241,11 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 			if reloaded.BeginSnapshotDelete(ctx, saved.ID) == nil || reloaded.CheckSnapshotIdle(ctx, "resume") == nil {
 				t.Fatal("restore references released")
 			}
+			if failure == "commit-and-root-cleanup" {
+				if persisted.Components[0].State == "absent" || persisted.Components[1].State != "absent" {
+					t.Fatal("one cleanup failure blocked independent cleanup")
+				}
+			}
 			store.fail = ""
 			r.cancel = nil
 			r.fail = "delete:workspace:main"
@@ -237,6 +256,7 @@ func TestRestoreServicePreservesCurrentWorkAndEveryPartialFailure(t *testing.T) 
 				t.Fatal("partial cleanup lost ownership", e)
 			}
 			r.fail = ""
+			r.cleanupFail = ""
 			if e := svc.CleanupSnapshotRestore(ctx, op.ID); e != nil {
 				t.Fatal(e)
 			}

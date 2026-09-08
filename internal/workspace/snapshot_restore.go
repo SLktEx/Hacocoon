@@ -87,7 +87,12 @@ func (s *Service) PrepareSnapshotRestore(ctx context.Context, name, savedID stri
 			if markErr == nil {
 				result.State = "recovery-required"
 			}
-			return fmt.Errorf("restore %s retained for recovery: %w", id, errors.Join(core.ErrRecoveryRequired, cause, markErr))
+			cleanupErr := cleanupSnapshotRestoreLocked(recovery, catalog, backend, result)
+			if cleanupErr == nil {
+				result = core.SnapshotRestore{}
+				return fmt.Errorf("restore %s failed; temporary copies removed: %w", id, errors.Join(cause, markErr))
+			}
+			return fmt.Errorf("restore %s cleanup incomplete: %w", id, errors.Join(core.ErrRecoveryRequired, cause, markErr, cleanupErr))
 		}
 		for i, c := range result.Components {
 			if err := ctx.Err(); err != nil {
@@ -144,6 +149,13 @@ func (s *Service) CleanupSnapshotRestore(ctx context.Context, id string) error {
 		return err
 	}
 	defer release()
+	return cleanupSnapshotRestoreLocked(ctx, catalog, backend, op)
+}
+
+// Caller holds the canonical Environment and Workspace locks. Both explicit
+// cleanup and failure cleanup use the same ownership/positive-absence contract.
+func cleanupSnapshotRestoreLocked(ctx context.Context, catalog restoreCatalog, backend RestoreBackend, op core.SnapshotRestore) error {
+	id := op.ID
 	current, err := catalog.GetSnapshotRestore(ctx, id)
 	if err != nil {
 		return err
@@ -154,16 +166,21 @@ func (s *Service) CleanupSnapshotRestore(ctx context.Context, id string) error {
 	if err := catalog.BeginRestoreCleanup(ctx, id); err != nil {
 		return err
 	}
+	var cleanupErrors []error
 	for _, c := range current.Components {
 		if c.State == "absent" {
 			continue
 		}
 		if err := backend.DeleteRestoreComponent(ctx, c); err != nil {
-			return fmt.Errorf("restore %s cleanup incomplete: %w", id, errors.Join(core.ErrRecoveryRequired, err))
+			cleanupErrors = append(cleanupErrors, err)
+			continue
 		}
 		if err := catalog.RecordRestoreComponent(ctx, id, c, "absent"); err != nil {
-			return err
+			cleanupErrors = append(cleanupErrors, err)
 		}
+	}
+	if len(cleanupErrors) != 0 {
+		return fmt.Errorf("restore %s cleanup incomplete: %w", id, errors.Join(append([]error{core.ErrRecoveryRequired}, cleanupErrors...)...))
 	}
 	return catalog.FinalizeRestoreCleanup(ctx, id)
 }

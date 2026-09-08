@@ -77,9 +77,11 @@ not adopt the old source's devices, grants or authentication. Prepare independen
 data before switching; replace only the target data explicitly selected by the
 user. Same-name recreation must not inherit the prior generation's approvals.
 
-On failure, the current implementation reports the restore ID and retains exact
-owned destinations for `CleanupSnapshotRestore`. Cleanup removes only verified
-owned copies, positively checks absence and keeps records on ambiguous results.
+On failure, the service attempts bounded cleanup under the existing locks. It
+returns failure even if cleanup succeeds, without retaining a recovery reservation.
+If cleanup cannot confirm absence, the error reports the restore ID and preserves
+exact destinations for `CleanupSnapshotRestore`. Both paths remove only verified
+owned copies, positively check absence and keep records on ambiguous results.
 Retry cleanup or start a fresh preparation after cleanup. There is no activation
 rollback or automatic resume from every crash point. Future activation must not
 introduce these as prerequisites for disposable Environments.
