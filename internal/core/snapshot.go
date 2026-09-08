@@ -8,6 +8,9 @@ type SnapshotSource struct {
 }
 
 type SnapshotComponent struct {
+	// Binding is an opaque, versioned provider plan. It contains storage identity,
+	// never credentials or arbitrary workload configuration, and is compared in CAS.
+	Binding   string `json:"binding,omitempty"`
 	Role      string `json:"role"`
 	NativeRef string `json:"native_ref"`
 	Owner     string `json:"owner"`

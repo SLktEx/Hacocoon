@@ -35,7 +35,11 @@ func TestRealIncusSnapshotBaseE2E(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := json.Marshal(p)
+	component, err := r.snapshotComponent(snapshotBinding{Version: 1, Project: r.project, Base: &p})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(component)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,10 +53,20 @@ func TestRealIncusSnapshotBaseE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("owned Base target %s; failure recovery record %s", p.target(), file.Name())
-	if err := r.createSnapshotBase(ctx, p); err != nil {
+	savedPlan, err := os.ReadFile(file.Name())
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := r.verifySnapshotBase(ctx, p); err != nil {
+	var restored core.SnapshotComponent
+	if err := json.Unmarshal(savedPlan, &restored); err != nil {
+		t.Fatal(err)
+	}
+	source := core.SnapshotSource{Environment: core.Environment{Base: &p.Base}}
+	if err := r.createSnapshotComponent(ctx, source, restored); err != nil {
+		t.Fatal(err)
+	}
+	restored.State = "created"
+	if err := r.verifySnapshotComponent(ctx, restored); err != nil {
 		t.Fatal(err)
 	}
 	root := filepath.Join("/var/lib/incus/storage-pools", pool, "containers", r.project+"_"+p.target())
@@ -85,7 +99,7 @@ func TestRealIncusSnapshotBaseE2E(t *testing.T) {
 	if _, err := os.Lstat(filepath.Join(original, "rootfs", "root", "snapshot-base-marker")); !os.IsNotExist(err) {
 		t.Fatal("saved write affected cached image", err)
 	}
-	if err := r.deleteSnapshotBase(ctx, p); err != nil {
+	if err := r.deleteSnapshotComponent(ctx, restored); err != nil {
 		t.Fatal(err)
 	}
 	if field(original, "UUID") != uuid {
@@ -94,5 +108,5 @@ func TestRealIncusSnapshotBaseE2E(t *testing.T) {
 	if err := os.Remove(file.Name()); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("PASS exact Base revision, isolated stopped config, Btrfs parent UUID %s, independent saved write and owned cleanup; shared cached image retained", uuid)
+	t.Logf("PASS reloaded durable binding, exact Base revision, isolated stopped config, Btrfs parent UUID %s, independent saved write and owned cleanup; shared cached image retained", uuid)
 }

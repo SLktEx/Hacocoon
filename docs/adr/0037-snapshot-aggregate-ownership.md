@@ -17,7 +17,7 @@ and eventual capture. Exact persisted creation identity prevents a recycled name
 from becoming the source or restore target.
 
 An inspection result is not a durable reservation or completed snapshot.
-The schema-5 owned component catalog reserves capture before mutation and blocks
+The schema-6 owned component catalog reserves capture before mutation and blocks
 source start/delete across restart until publication or proven-absent cleanup.
 Provider integration must record exact created resources immediately and preserve
 ownership on ambiguity
@@ -74,3 +74,11 @@ preservation if its image is later removed. Saved ownership, no inherited profil
 or host device, disabled autostart and positive-absence cleanup apply as for other
 components. The primitive does not itself publish a usable aggregate or registry
 entry. Image properties are metadata, not authority. Full restore remains planned.
+
+Complete adapter storage plans now persist in schema 6 and participate in CAS.
+Canonical version/project/role/owner/ref agreement is mandatory before provider
+access. Legacy ownership-only records retain cleanup reservations without
+inventing a provider binding. This prevents restart recovery from reconstructing
+an operation using a same-name resource or changed runtime defaults. New Base
+sources must reserve Base storage too. Production aggregate enumeration remains
+required before the internal dispatcher becomes a usable capture backend.

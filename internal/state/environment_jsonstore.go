@@ -12,7 +12,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const environmentStateVersion = 5
+const environmentStateVersion = 6
 const previousEnvironmentStateVersion = 2
 
 type environmentFileState struct {
@@ -331,12 +331,19 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 }
 
 func normalizeEnvironmentState(data *environmentFileState) error {
-	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
+	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != 5 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
 		return fmt.Errorf("environment state version %d is unsupported (want %d): %w", data.Version, environmentStateVersion, core.ErrIncompatibleState)
 	}
 
 	for id, snapshot := range data.Snapshots {
-		if data.Version != environmentStateVersion || id != snapshot.ID || validateSnapshot(snapshot) != nil {
+		if data.Version == 5 {
+			for _, component := range snapshot.Components {
+				if component.Binding != "" || component.Role == "base" {
+					return core.ErrIncompatibleState
+				}
+			}
+		}
+		if (data.Version != 5 && data.Version != environmentStateVersion) || id != snapshot.ID || validateSnapshot(snapshot) != nil {
 			return core.ErrIncompatibleState
 		}
 	}

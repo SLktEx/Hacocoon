@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -22,9 +23,9 @@ func validateSnapshot(s core.Snapshot) error {
 	}
 	refs := map[string]bool{}
 	roles := map[string]bool{}
-	root, work, oci := 0, 0, 0
+	root, work, oci, base := 0, 0, 0, 0
 	for _, c := range s.Components {
-		if c.NativeRef == "" || len(c.NativeRef) > 1024 || len(c.Role) > 1024 || !snapshotOwnerPattern.MatchString(c.Owner) || refs[c.NativeRef] || roles[c.Role] {
+		if len(c.Binding) > 16384 || !utf8.ValidString(c.Binding) || c.NativeRef == "" || len(c.NativeRef) > 1024 || len(c.Role) > 1024 || !snapshotOwnerPattern.MatchString(c.Owner) || refs[c.NativeRef] || roles[c.Role] {
 			return core.ErrInvalidArgument
 		}
 		for _, r := range c.NativeRef + c.Role {
@@ -35,6 +36,8 @@ func validateSnapshot(s core.Snapshot) error {
 		refs[c.NativeRef] = true
 		roles[c.Role] = true
 		switch {
+		case c.Role == "base":
+			base++
 		case c.Role == "rootfs":
 			root++
 		case c.Role == "oci":
@@ -54,7 +57,7 @@ func validateSnapshot(s core.Snapshot) error {
 			return core.ErrInvalidArgument
 		}
 	}
-	if root != 1 || work == 0 {
+	if root != 1 || work == 0 || base > 1 || (base != 0 && (s.Source.Environment.Base == nil || s.Source.Environment.Base.Name == "" || s.Source.Environment.Base.Revision == "")) {
 		return core.ErrInvalidArgument
 	}
 	hasOCI := s.Source.Environment.PersistentResource != (core.PersistentResourceRef{})
@@ -82,6 +85,17 @@ func (s *EnvironmentJSONStore) CheckSnapshotIdle(ctx context.Context, name strin
 func (s *EnvironmentJSONStore) BeginSnapshot(ctx context.Context, snapshot core.Snapshot) error {
 	if validateSnapshot(snapshot) != nil || snapshot.State != "capturing" {
 		return core.ErrInvalidArgument
+	}
+	if snapshot.Source.Environment.Base != nil {
+		found := false
+		for _, c := range snapshot.Components {
+			if c.Role == "base" {
+				found = true
+			}
+		}
+		if !found {
+			return core.ErrInvalidArgument
+		}
 	}
 	for _, c := range snapshot.Components {
 		if c.State != "planned" {

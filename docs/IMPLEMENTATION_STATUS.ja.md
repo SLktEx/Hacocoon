@@ -2,6 +2,11 @@
 
 ## snapshot の送信元検査
 
+Schema 6 で provider の完全な保存計画を永続化し、再起動後も CAS で正確に照合します。
+Incus は project/version/role/owner/ref と送信元 ID を確認してから処理します。
+旧 schema 5 の所有権は計画を捏造せず保持し、新規予約での Base 欠落は拒否します。
+全メンバーの列挙と本番 routing は残作業です。
+
 内部 Base 保存もローカルの正確な image revision に固定しました。専用 WSL で
 停止中の設定分離、Btrfs COW の親 UUID、保存先書込みの独立性と cleanup に成功しました。
 E2E で検出した Incus 6.0.5 の image info 非互換は JSON API へ修正済みです。
@@ -10,7 +15,7 @@ E2E で検出した Incus 6.0.5 の image info 非互換は JSON API へ修正�
 E2 の内部基盤を部分実装しました。Environment/Workspace lock の下で全対象の対応を
 検査し、provider の停止と正確な永続作成 ID を要求します。不一致・running/unknown・
 不正な接続 ID は拒否し、同時削除を防ぎます。focused race は成功しました。
-schema 5 の component catalog で作成・復旧中の所有権を永続化し、全保存物の確認または
+schema 6 の component catalog で作成・復旧中の所有権を永続化し、全保存物の確認または
 全対象の消失確認まで start/delete を拒否します。再起動・状態遷移・cleanup・migration・
 同時予約の回帰テストは成功しました。新規の stateful Incus 作成では予約 ID を作成要求に
 記録し、snapshot 検査時に provider route 経由で照合します。marker のない既存環境や
