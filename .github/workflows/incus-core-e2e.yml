@@ -147,7 +147,7 @@ jobs:
             "$RUNNER_TEMP/persistent-copy.test" -test.run='^TestRealIncus(PersistentCopy|HostAreaCopy|CompletedHostCopyRecovery|VolumeTransfer|RootfsTransfer|OwnedVolumeExport)E2E$' -test.v -test.timeout=22m
       - name: Verify isolated retained Store maintenance preparation
         run: |
-          incus image copy images:ubuntu/26.04 haco-ci: --project hacocoon --alias haco-maintenance-fixture-base
+          incus image copy images:ubuntu/26.04 haco-ci: --target-project hacocoon --alias haco-maintenance-fixture-base
           image="$(incus image list --project hacocoon --format=json | python3 -c 'import json,sys; rows=[i for i in json.load(sys.stdin) if i.get("type") == "container" and any(a.get("name") == "haco-maintenance-fixture-base" for a in i.get("aliases", []))]; assert len(rows) == 1; print(rows[0]["fingerprint"])')"
           sudo env HACO_E2E_RESOURCE_MAINTENANCE=1 \
             HACO_E2E_INCUS_RESUME_IMAGE="$image" HACO_E2E_INCUS_RESUME_POOL=haco-local-default \
