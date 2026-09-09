@@ -286,3 +286,19 @@ or record deletion. Explicit interrupted-operation review, protected installatio
 binding and the public workflow are still planned. Existing catalog/snapshot
 formats and the name-only Linux interop record are unchanged. The record describes
 the stop/compact/resume sequence; later handle-close errors still reach the caller.
+
+At `e263f89`, the dedicated WSL native sequence with both guard and durable
+record PASSED in 127.22s (seven native open attempts). Windows allocation fell
+from 6,827,278,336 to 6,787,432,448 bytes (38MiB); virtual capacity stayed 1TiB.
+The live operation was observed as pending. After process completion, the stored
+complete record matched the full operation/registration identifiers, pinned file
+identity, measurements and virtual identifier. The same WSL resumed, with matching
+sentinel SHA-256 and nine-instance inventory. The completed record remains; no
+record or existing data was deleted for acceptance.
+
+This supersedes the untested-sequence qualification for the record/guard above.
+It does not establish power-loss recovery, cross-user/session acceptance,
+controller readiness, every Workspace/OCI byte, or the future public all-layer
+entry. Existing root-owned Linux interop stores a distribution name only; preserve
+that format for its current users and add explicit installed-registration/disk
+binding before exposing destructive Windows operations.

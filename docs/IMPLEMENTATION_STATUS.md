@@ -1,5 +1,16 @@
 # Implementation Status
 
+## Native recorded Windows continuation acceptance
+
+Status: **partial, internal only**. At `e263f89`, the dedicated WSL sequence with
+exclusion and durable intent/result PASSED in 127.22s, reclaiming 38MiB. Stored
+complete observations matched the live pending operation's full identities and
+native results. Sentinel hash and nine-instance inventory matched after resume;
+the completed record is retained. This updates the sequence's pending acceptance
+below. Public all-layer operation, installed-Host authorization and explicit
+interrupted-record review remain planned; power-loss/controller/full-data
+acceptance is unverified. See the [contract](design/storage-reclamation.md#durable-last-operation-record).
+
 ## Windows reclamation operation records
 
 Status: **partial, internal only**. Intent is durably flushed before WSL shutdown;
