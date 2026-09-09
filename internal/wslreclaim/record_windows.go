@@ -159,3 +159,19 @@ func (s *operationStore) finish(intent operationRecord, observation continuation
 	}
 	return s.write(result)
 }
+
+// requirePending consumes no state. Only the exact recorded handoff may run;
+// stale, foreign, completed and malformed records remain byte-for-byte intact.
+func (s *operationStore) requirePending(id windows.GUID, r registration, disk diskIdentity) (operationRecord, error) {
+	if id == (windows.GUID{}) {
+		return operationRecord{}, errors.New("prepared operation identity required")
+	}
+	intent, err := s.read()
+	if err != nil {
+		return operationRecord{}, err
+	}
+	if intent.State != "pending" || intent.Operation != id || intent.Registration != r || intent.Disk != disk {
+		return operationRecord{}, errors.New("prepared operation no longer matches the exact pending target")
+	}
+	return intent, nil
+}

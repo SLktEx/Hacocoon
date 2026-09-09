@@ -145,3 +145,62 @@ func TestContinuationPreservesFailureAndAlwaysAttemptsBoundedResume(t *testing.T
 		t.Fatal(result, err)
 	}
 }
+
+func TestPreparedContinuationRejectsBeforeAccess(t *testing.T) {
+	r := registration{}
+	if result, err := r.continuePrepared(context.Background(), windows.GUID{}); err == nil || result.StopAttempted {
+		t.Fatal(result, err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if intent, err := r.prepareContinuation(ctx); !errors.Is(err, context.Canceled) || intent != (operationRecord{}) {
+		t.Fatal(intent, err)
+	}
+	id, err := windows.GenerateGUID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result, err := r.continuePrepared(ctx, id); !errors.Is(err, context.Canceled) || result.StopAttempted {
+		t.Fatal(result, err)
+	}
+}
+
+func TestDedicatedWSLPreparedContinuation(t *testing.T) {
+	if os.Getenv("HACO_E2E_RECLAIM_HANDOFF") != "1" {
+		t.Skip("requires exact dedicated prepared stop/compact/resume authorization")
+	}
+	r, err := readRegistration(os.Getenv("HACO_E2E_RECLAIM_REGISTRATION"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := r.diskPath()
+	if err != nil || path != os.Getenv("HACO_E2E_RECLAIM_VHD") {
+		t.Fatal("registered VHD path mismatch", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
+	defer cancel()
+	intent, err := r.prepareContinuation(ctx)
+	if err != nil {
+		t.Fatal("prepare failed; preserve any saved intent", err)
+	}
+	// Preparation has released its guard and file handles. Reopen the persisted
+	// record before executing, as a worker in another process must do.
+	records, err := openOperationStore(r.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer records.close()
+	saved, err := records.read()
+	if err != nil || saved != intent || saved.State != "pending" {
+		t.Fatal("prepared identity not durable", saved, err)
+	}
+	result, err := r.continuePrepared(ctx, intent.Operation)
+	if err != nil {
+		t.Fatalf("prepared continuation failed; observation=%+v error=%v", result, err)
+	}
+	completed, err := records.read()
+	if err != nil || completed.Operation != intent.Operation || completed.Registration != intent.Registration || completed.Disk != intent.Disk || completed.State != "complete" || completed.Observation != result {
+		t.Fatal("handoff result differs from exact prepared identity", completed, err)
+	}
+	t.Logf("PASS prepared native continuation: %+v; separate-process/public/controller/data acceptance is separate", result)
+}

@@ -457,3 +457,33 @@ The first combined local run of the new sharing fixture FAILED because the child
 was not yet ready. An explicit ready/release handshake removed that test race;
 the same PowerShell 5.1 component-plus-BAT sequence then PASSED. The production
 installer is unchanged by this fixture correction.
+
+## Explicit prepared-operation handoff
+
+Status: **partial, internal only**. Preparation validates saved enrollment under
+exclusion and native pins, then flushes the existing pending operation record.
+Execution takes the exact operation ID, reacquires the same exclusion and pins,
+rechecks registration/Windows owner/disk/installed identity, and requires that
+same pending record before using the shared stop/compact/resume sequence. Foreign,
+stale, completed, failed and malformed records are refused without rewriting.
+
+The synchronous internal entry shares these same authorization and execution
+functions. The operation schema and existing data remain unchanged. There is no
+implicit adoption, scan/replay, new recovery coordinator or public resume command.
+An operation ID selects a prepared request; it is not installation or controller
+authority. A preparation/launch crash leaves pending evidence for explicit review.
+Connecting the independent Windows worker and public all-layer request remains
+planned; two calls in one Windows process do not prove separate-process handoff.
+
+At `7f4d7f4`, all four GHA workflows PASSED, including the packaged helper
+installation/reinstallation and subsequent Windows E2E. This closes that
+corrected-head installer acceptance gap; the older failed run remains failed.
+
+Prepared native execution PASSED in 165.68s: 70 open attempts, actual allocation
+6,833,569,792 to 6,832,521,216 bytes (1MiB), virtual capacity unchanged at 1TiB.
+The saved complete result retained the exact prepared operation/registration/file
+identity and matched observed stages. Sentinel hash, instance inventory and saved
+enrollment bytes were unchanged. Windows refusal/unit suite and both architecture
+builds passed; the Windows symlink fixture was SKIP for privilege. This is a
+same-process prepare/reopen/execute test, not an independent worker or complete
+public/controller/Workspace/OCI-content acceptance.

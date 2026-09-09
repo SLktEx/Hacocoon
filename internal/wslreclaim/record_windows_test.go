@@ -39,6 +39,30 @@ func TestNativeOperationRecordRetainsInterruptedAndFailedIntent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if saved, err := s.requirePending(intent.Operation, r, disk); err != nil || saved != intent {
+		t.Fatal("exact handoff refused", saved, err)
+	}
+	otherID, err := windows.GenerateGUID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	changedRegistration := r
+	changedRegistration.Name = "replacement"
+	for _, request := range []struct {
+		id     windows.GUID
+		target registration
+		file   diskIdentity
+	}{
+		{windows.GUID{}, r, disk}, {otherID, r, disk}, {intent.Operation, changedRegistration, disk},
+		{intent.Operation, r, diskIdentity{Volume: 1, Low: 3}},
+	} {
+		if _, err := s.requirePending(request.id, request.target, request.file); err == nil {
+			t.Fatal("foreign handoff accepted")
+		}
+		if saved, err := s.read(); err != nil || saved != intent {
+			t.Fatal("refusal changed pending intent", saved, err)
+		}
+	}
 	reopened, err := registry.OpenKey(registry.CURRENT_USER, path, registry.QUERY_VALUE|registry.SET_VALUE)
 	if err != nil {
 		t.Fatal(err)
@@ -65,6 +89,9 @@ func TestNativeOperationRecordRetainsInterruptedAndFailedIntent(t *testing.T) {
 	failed, err := s.read()
 	if err != nil || failed.State != "failed" {
 		t.Fatal(failed, err)
+	}
+	if _, err := s.requirePending(intent.Operation, r, disk); err == nil {
+		t.Fatal("failed handoff replay accepted")
 	}
 	if _, err := s.begin(r, disk); !errors.Is(err, errOperationNeedsReview) {
 		t.Fatal("failed intent overwritten", err)
@@ -105,6 +132,9 @@ func TestNativeOperationRecordSuccessfulReplacementAndMalformedRefusal(t *testin
 	o := continuationObservation{StopAttempted: true, StopRequested: true, Compaction: compactObservation{Attempted: true, Completed: true}, ResumeAttempted: true, Resumed: true}
 	if err := s.finish(intent, o, nil); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := s.requirePending(intent.Operation, r, disk); err == nil {
+		t.Fatal("completed handoff replay accepted")
 	}
 	if _, err := s.begin(r, diskIdentity{Volume: 1, Low: 3}); err == nil {
 		t.Fatal("replacement disk accepted")

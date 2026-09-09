@@ -1,138 +1,28 @@
 # 実装状況
 
-`8c8a543` の GHA は test・Ubuntu・Incus が成功しました。Windows は native テスト・build・
-package・component assertion の成功後、BAT テスト fixture の cleanup 共有違反で失敗しました。
-後続の実導入は SKIP です。共有違反だけに限定した期限付き待機と native 回帰を追加しました。
-修正 head の実導入検証は未完了です。[契約](design/storage-reclamation.ja.md)を参照してください。
+## ストレージ容量回収
 
-## 配布用 Windows 登録処理
+状態: **partial、内部のみ**。Incus が設定済み Btrfs pool と mount の寿命を管理します。
+内部の回収処理は native 識別情報を固定し、Btrfs・外側 ext4 の discard と、正確な GUID による
+停止・再開を伴う Windows VHDX 圧縮を行います。論理容量を保持し、オブジェクトや保存データを削除しません。
 
-状態: **partial**。通常の管理対象 Windows installer は Linux の識別情報取得後、
-アーキテクチャ別の内部 `haco-wsl.exe` を検証して呼び出します。利用者のコマンド・option は増えません。
-helper・component・package テストと両アーキテクチャのビルドが成功しました。この変更を含む installer
-全体の確認は未完了です。直前の `d85df9a` は GHA 4 workflow が成功しました。独立した子プロセス・
-中断記録の確認・公開の全層一括回収は planned です。[契約](design/storage-reclamation.ja.md)を参照してください。
+通常の管理対象 Windows installer は同梱 helper を検証し、登録・導入済み Host・Windows 所有者・
+VHDX の対応を保存します。変更操作は保存済み対応を要求します。準備時に既存 pending 操作を永続化し、
+実行時は排他を取り直して対象を再照合し、その正確な操作 ID だけを受け付けます。同期・準備済み経路は
+同じ実行処理を使います。不正・別対象・失敗済み・完了済みの引き継ぎは書き換えず拒否します。
+schema 移行・公開 reclaim/resume コマンド・自動再実行は追加していません。
 
-## 内部の回収処理での Windows 導入情報の照合
+Linux native discard と Windows 圧縮・登録・拒否検証は成功しました。準備済み実行は165.68秒で成功し、
+仮想容量1TiBを保持して1MiBを回収しました。正確な保存操作と結果、確認ファイル・一覧・登録情報を照合しました。
+読み取り prototype は呼び出し元終了後の子の生存を確認しましたが、WSL 停止後の生存は未検証です。
+`7f4d7f4` は GHA 4 workflow が成功し、配布 Windows 導入・再導入と後続 E2E も成功しました。
+それより新しい準備済み引き継ぎ変更の CI は別途確認が必要です。
 
-状態: **partial、内部のみ**。明示的な登録が Host・登録・Windows ユーザー・ファイル実体の
-対応を保存し、通常処理は停止・圧縮前に未登録・変更を拒否して自動登録しません。native 拒否テストと
-両アーキテクチャのビルドは成功しました。専用 WSL の登録は53.48秒、登録済みの停止・圧縮・再開は
-128.69秒で成功し、22MiBを回収して確認ファイル・一覧・導入情報を保持しました。配布用の登録入口、
-中断確認、独立した子プロセス、公開の全層一括操作は planned です。PR #511 の `81d105f` は
-GHA test・Ubuntu・Incus が成功し、Windows は Remote-SSH インストールと承認レビューの前提 setup で
-失敗しました。原因は未確定です。[契約](design/storage-reclamation.ja.md)を参照してください。
-
-## Windows からの導入済み Host の識別情報の観測
-
-状態: **partial、内部のみ**。Windows の観測処理は圧縮と同じ排他・ディスク固定の下で、
-固定 GUID のコマンドから root 所有の導入識別情報を読み取ります。上限付きの正規形式を検査し、
-登録・導入・ファイル・Windows ユーザーの識別情報をまとめますが、登録・変更の認可は行いません。
-Linux interop 16件、Windows 回帰、両アーキテクチャのビルドが成功し、専用 WSL の native 観測は
-26.87秒で成功しました。認可された対応の永続保存・強制と公開の全層一括操作は planned です。
-[契約](design/storage-reclamation.ja.md)を参照してください。
-
-## Installer の登録識別情報の作成
-
-状態: **partial**。通常の managed Windows setup は一意に解決した WSL 2 GUID で共通 setup を
-実行し、root 所有の別ファイルへ登録・導入 ID を作成します。同じ GUID の再実行は識別情報を保持し、
-変更・不正な所有状態・不正形式の記録は残して拒否します。既存の名前だけの接続記録と SkipIncus の
-扱いは維持します。Linux native interop 15件と Windows installer の部品テストは成功しました。
-専用 WSL での実際の記録作成も成功し、installer 全体の実機検証と Windows のファイル・所有者の
-認可は未完了です。[契約](design/storage-reclamation.ja.md)を参照してください。
-
-## 実行記録を含む Windows 処理の実機検証
-
-状態: **partial、内部のみ**。`e263f89` で排他と実行意図・結果の永続記録を含む専用 WSL
-処理が127.22秒で成功し、38MiBを回収しました。保存された complete 結果は実行中の pending
-操作の識別子全体と native 結果に一致しました。再開後の確認ファイルのハッシュ・instance 9件も一致し、
-完了記録は残しています。以下の全体処理の検証待ち状態を更新します。公開の全層一括操作、
-導入済み Host の認可、中断記録の明示的な確認は planned、電源断・controller・全データの
-検証は未実施です。[契約](design/storage-reclamation.ja.md)を参照してください。
-
-## Windows の回収操作の実行記録
-
-状態: **partial、内部のみ**。WSL 停止前に実行意図を永続化し、最終結果で完了・失敗を
-区別します。未完了・失敗・対象不一致・不正形式の記録は削除せず次の実行を拒否します。
-Windows 実機での記録書き込み・再読込・拒否と既存回帰検証、amd64・arm64 ビルドは成功。
-symlink fixture は権限不足で SKIP です。電源断と、記録を追加した WSL 全体処理は未検証です。
-中断記録の明示的な確認、導入済み Host の認可、公開の全層一括操作は planned です。
-catalog・snapshot の移行はありません。[契約](design/storage-reclamation.ja.md)を参照してください。
-
-## Windows の処理の多重実行防止
-
-状態: **partial、内部のみ**。停止・圧縮・再開は停止前に、現在の Windows ユーザーと
-正確な WSL 登録に対応する native object を確保します。別プロセスの競合拒否・解放、
-異なる GUID の独立性、既存の native 回帰検証と amd64・arm64 ビルドは成功しました。
-異なる Windows セッション・ユーザーでの実行は未検証です。公開コマンド、中断処理の
-永続記録、新しいストレージ interface は追加していません。
-[契約](design/storage-reclamation.ja.md)を参照してください。
-
-## 登録 GUID に結び付けた Windows の停止・圧縮・再開
-
-状態: **partial、内部のみ**。固定 GUID で systemd の停止要求・再開を行い、名前や
-既定の distribution へ切り替えません。実機検証は193.47秒で成功し、102MiBを回収しました。
-確認ファイルのハッシュと instance 9件の一覧も一致しました。ディスク・親の handle を
-保持し、失敗・キャンセル後も時間制限付きで再開を試み、元の失敗を残します。
-Windows の単体・拒否検証と amd64・arm64 ビルドは成功、symlink 作成は権限不足で SKIP。
-公開の全層一括操作、所有権・結果の永続記録、導入済み Host との対応付け、controller
-readiness は planned です。新しい利用者コマンド・データ移行はありません。
-[契約](design/storage-reclamation.ja.md)を参照してください。
-
-## 設定済み pool の容量回収入口
-
-状態: **partial、内部のみ**。構成層が既存 pool を選び、呼び出し側の path・pool 引数は
-受け付けません。Incus の入口は設定と固定した実体を結び付け、各 discard 前に再照合し、
-native 利用と close を直列化します。失敗・曖昧な backend 応答から trim へ進みません。
-回帰・race 検証は成功し、専用 Incus/Btrfs 検証も26.52秒で成功しました。隔離 volume・
-snapshot の内容と容量を保持し、backing 割当量は72,523,776から1,417,216 byte に減少、
-所有 fixture の cleanup 後の不在も確認しました。公開の全層継続・Windows との結び付けは
-planned です。[契約](design/storage-reclamation.ja.md)を参照してください。
-
-## Windows 登録照合と停止から圧縮までの待機
-
-状態: **partial、内部のみ**。非ゼロの正確な登録 GUID・リテラルの VHDX 情報の読み取りと
-変更値の再照合を実装し、既定・名前へのフォールバックは行いません。native 拒否回帰、
-実登録の事前照合（4.42秒）、Windows amd64／arm64 ビルドは成功しました。読み取り観測で
-open 開始から57.70秒後の解放を確認し、停止表示だけでは証明できなかった条件を絞りました。
-共有違反の open 予算を30秒から90秒に変更後、停止直後の実圧縮は79.16秒で成功しました。
-実割当量6,768,558,080から6,747,586,560 byte、圧縮前後の仮想容量・識別子不変、同じ登録
-ID の再開後の確認ファイル・9件の instance 一致を確認しました。停止・再開は検証 driver
-が担当し、製品の全層連携は planned です。以下の過去の失敗は失敗のまま記録します。
-[契約](design/storage-reclamation.ja.md)を参照してください。
-
-## Windows native 圧縮: 部分的な検証
-
-専用 WSL VHDX の内部 native 圧縮は、file・親 handle の固定を保持したまま17.66秒で
-成功しました。実割当量は8,373,927,936から6,719,275,008 byte に減り、仮想容量1TiBと
-識別子は不変です。同じ登録 ID の再開、確認ファイル hash、9件の停止中 instance 記録が
-一致しました。隔離 native VHDX の回帰も成功しました。初回の共有違反だけで固定と
-native open の衝突を断定した点は訂正します。続く停止直後の検証は期限付き待機でも
-34.21秒・69回の open で失敗し、圧縮は未実行です。WSL 再開は成功しました。
-公開の対象選択、確実な停止・圧縮・再開、全層の連携は未完了です。
-[契約](design/storage-reclamation.ja.md)を参照してください。
-
-## Windows 容量回収の測定段階
-
-内部の Windows ファイル実体固定・割当量測定を実装しました。実 Windows で sparse 測定
-（ファイル長32MiB・実割当64KiB）、ファイルと親の rename 拒否、hardlink・junction 拒否、
-内容保持に成功しました。最初の属性読み取り handle は rename 拒否に失敗し、読み取り
-handle への修正後に成功しました。symlink 生成は権限不足で SKIP です。専用 WSL VHDX
-のファイル長・実割当量は8,373,927,936 byte で、WSL 停止・圧縮は行っていません。
-公開の対象選択・停止と再開の連携は planned で、F1 は未完了です。
-[契約](design/storage-reclamation.ja.md)を参照してください。
-
-## ストレージ回収の実装途中
-
-状態: **partial、内部のみ**。Incus/Btrfs の実体を固定した測定・trim と、その backing
-filesystem が ext4 の場合の discard を実装しました。不正対象拒否・割当量の回帰は成功。
-専用 WSL の連続 trim は19.81秒で成功し、隔離1GiB pool の volume・snapshot の内容と
-論理容量を保持したまま、割当量が72,523,776から1,417,216 byte に減りました。
-外側 kernel は discard を報告しましたが、Windows 割当量は未測定です。所有 fixture の
-cleanup は成功し、所有記録を残しています。以前の未 mount 状態の照合は trim 前に
-unsupported で失敗し、その後の mount 維持・内側 trim は成功しました。公開の対象選択・
-一つの入口・Windows の自動停止と再開は planned で、F1 全体の完了は主張しません。
-[現行契約](design/storage-reclamation.ja.md)を参照してください。
+独立 Windows worker、中断記録の明示的な確認、公開の全層一括操作は planned です。controller・電源断・
+Workspace/OCI 内容全体の検証は未完了です。Windows symlink fixture は権限不足、private registry は gate により
+SKIP でした。以前の共有違反・readiness・旧ファイル欠落・CI の失敗は、対象範囲とともに
+[所有文書](design/storage-reclamation.ja.md)へ記録しています。後の成功で以前の失敗を成功扱いにしません。
+F1 は未完了です。
 
 ## 現在の Incus-first snapshot 契約
 

@@ -85,3 +85,10 @@ Keep enrollment and interrupted-operation results separate; neither implicitly
 acknowledges or overwrites the other. Reject changed/unknown bindings rather than
 silently adopting a recreated distribution or disk. Controller request authority
 and the packaged installer entry remain separate requirements.
+
+For explicit worker handoff, prepare the existing pending record under the same
+saved enrollment and native exclusion. Execute only its exact operation ID after
+reacquiring and revalidating all native/installed identities. Reuse the synchronous
+sequence and durable result, not a second state machine. A record ID is not
+controller authority; never discover and replay an interrupted operation. Pending
+launch failures retain evidence for explicit review rather than auto-recovery.

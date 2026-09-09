@@ -1,159 +1,35 @@
 # Implementation Status
 
-At `8c8a543`, test/Ubuntu/Incus GHA passed; Windows stopped at a BAT test fixture
-cleanup sharing violation, after successful native tests/build/package/component
-assertions. Later real installation was SKIP. The fixture now has bounded,
-sharing-only cleanup with native regression. Corrected-head installer acceptance
-remains pending. See the [contract](design/storage-reclamation.md#packaged-enrollment-acceptance).
+## Storage reclamation
 
-## Packaged Windows enrollment
+Status: **partial, internal only**. Incus owns the configured Btrfs pool and mount
+lifecycle. Internal reclamation pins native identities and performs Btrfs/outer
+ext4 discard, then Windows VHDX compaction with exact-GUID stop/resume. Logical
+capacity is preserved; objects and saved data are not deleted.
 
-Status: **partial**. The normal managed Windows installer now verifies and invokes
-an architecture-specific internal `haco-wsl.exe` after Linux identity capture.
-No extra user command or option is required. Helper/component/package tests and
-both architecture builds passed; full installer acceptance for this slice is
-pending. Preceding `d85df9a` passed all four GHA workflows. Independent child,
-interrupted review and public all-layer reclamation remain planned. See the
-[contract](design/storage-reclamation.md#packaged-enrollment-acceptance).
+Normal managed Windows installation now verifies its bundled helper and persists
+the registration, installed Host, Windows user and VHDX correspondence. Mutation
+requires that saved binding. Preparation flushes the existing pending operation;
+execution accepts only its exact ID after reacquiring exclusion and revalidating
+the target. Both synchronous and prepared paths use one execution sequence.
+Unknown, foreign, failed or completed handoffs are refused without rewriting.
+No schema migration, public reclaim/resume command or automatic replay is added.
 
-## Windows enrollment enforced by internal reclamation
+Native Linux discard and Windows compaction/enrollment/refusal tests passed.
+Prepared execution passed in 165.68s, reclaiming 1MiB at unchanged 1TiB virtual
+capacity; its exact saved operation/result, sentinel, inventory and enrollment
+were verified. A read-only prototype proved child survival after caller exit,
+but not after WSL shutdown. At `7f4d7f4`, all four GHA workflows passed, including
+packaged Windows installation/reinstallation and later E2E. The newer prepared
+handoff change still requires its own CI evaluation.
 
-Status: **partial, internal only**. Explicit enrollment persists the exact Host,
-registration, Windows user and native file correspondence; ordinary continuation
-refuses missing/changed bindings before stop/compact and never self-enrolls.
-Native refusal tests and both architecture builds passed. Dedicated enrollment
-passed in 53.48s; enrolled stop/compact/resume passed in 128.69s, reclaiming 22MiB
-with sentinel/inventory/binding preservation. Packaged enrollment, interrupted
-review, surviving child and public all-layer operation remain planned. PR #511's
-`81d105f` passed test/Ubuntu/Incus GHA; Windows failed Remote-SSH installation and
-pending-review prerequisite setup, with causes unconfirmed. See the [contract](design/storage-reclamation.md#persisted-enrollment-and-mutation-checks).
-
-## Windows observation of installed Host identity
-
-Status: **partial, internal only**. The Windows observer reads the installed
-root-owned identity through a fixed GUID command under the same exclusion and
-native disk pins as compaction. It validates bounded canonical output and returns
-registration, installation, file and Windows user identity together; it does not
-enroll or authorize mutation. Linux interop 16 tests, Windows regressions and both
-architecture builds passed. Dedicated native observation passed in 26.87s.
-Persisted enrollment/enforcement and public all-layer operation remain planned.
-See the [contract](design/storage-reclamation.md#reading-the-installed-identity-from-windows).
-
-## Installer registration identity capture
-
-Status: **partial**. Normal managed Windows setup now uses a uniquely resolved
-WSL 2 GUID for common setup and captures a separate root-owned registration and
-installation ID. Same-GUID retries preserve identity; changed/unsafe/malformed
-records are retained and refused. Existing name-only connection records and
-SkipIncus behavior are preserved. Fifteen native Linux interop tests and Windows
-installer component tests passed. Actual dedicated WSL capture passed; complete
-installer acceptance and Windows file/owner authorization remain pending.
-See the [contract](design/storage-reclamation.md#installer-registration-binding).
-
-## Native recorded Windows continuation acceptance
-
-Status: **partial, internal only**. At `e263f89`, the dedicated WSL sequence with
-exclusion and durable intent/result PASSED in 127.22s, reclaiming 38MiB. Stored
-complete observations matched the live pending operation's full identities and
-native results. Sentinel hash and nine-instance inventory matched after resume;
-the completed record is retained. This updates the sequence's pending acceptance
-below. Public all-layer operation, installed-Host authorization and explicit
-interrupted-record review remain planned; power-loss/controller/full-data
-acceptance is unverified. See the [contract](design/storage-reclamation.md#durable-last-operation-record).
-
-## Windows reclamation operation records
-
-Status: **partial, internal only**. Intent is durably flushed before WSL shutdown;
-final observations distinguish complete/failed. Pending, failed, mismatched or
-malformed records refuse a new attempt without discarding them. Native Windows
-record write/reopen/refusal tests and existing regressions passed; amd64/arm64
-builds passed. Symlink fixture remains SKIP for privilege. Power-loss and the
-full WSL sequence with this record have not been exercised. Explicit interrupted
-record review, installed-Host authorization and public all-layer operation remain
-planned. No catalog/snapshot migration. See the [contract](design/storage-reclamation.md#durable-last-operation-record).
-
-## Windows continuation exclusion
-
-Status: **partial, internal only**. Stop/compact/resume now reserves a native
-object for the current Windows user and exact WSL registration before stopping.
-Cross-process refusal/release, separate-GUID scope and existing native regressions
-passed; amd64/arm64 builds passed. Different Windows sessions/users remain
-unverified. No public command, durable interrupted-operation record or new
-storage interface is introduced. See the [contract](design/storage-reclamation.md#live-continuation-exclusion).
-
-## GUID-bound Windows stop/compact/resume
-
-Status: **partial, internal only**. Fixed GUID launches now request systemd
-shutdown and resume without name/default fallback. Native acceptance passed in
-193.47s and reclaimed 102MiB; sentinel hash and nine-instance inventory matched.
-Disk/ancestor handles remain pinned, and failure/cancellation still attempts
-bounded resumption while preserving failures. Windows unit/refusal tests and
-amd64/arm64 builds passed; symlink creation was SKIPPED for missing privilege.
-The public all-layer entry, durable ownership/results, installed Host binding
-and controller readiness remain planned. No new user command or data migration.
-See the [contract](design/storage-reclamation.md#guid-bound-windows-sequence).
-
-## Configured pool reclamation entry
-
-Status: **partial, internal only**. Composition now selects its existing pool
-without caller path/pool arguments. The Incus entry binds that configuration to
-pinned native objects and rechecks it before each discard stage; native use and
-close are serialized. Failed/ambiguous backend observations cannot reach trim.
-Focused and race tests passed. Dedicated Incus/Btrfs acceptance PASSED in 26.52s,
-retaining isolated volume/snapshot contents and capacity, with 72,523,776 to
-1,417,216 backing allocated bytes and verified owned-fixture absence afterward.
-Public all-layer continuation/Windows binding remains planned. See the
-[contract](design/storage-reclamation.md#configured-incus-pool-entry).
-
-## Windows registration and stop-to-compaction readiness
-
-Status: **partial, internal only**. Exact nonzero registration GUID/literal VHDX
-metadata reads and changed-value revalidation are implemented, without default or
-name fallback. Native refusal tests, real registration preflight (4.42s), and
-Windows amd64/arm64 builds passed. A read-only native probe observed readiness
-57.70s after open attempts began; stopped inventory alone had failed to prove it.
-Increasing the sharing-only open budget from 30 to 90 seconds enabled dedicated
-immediate-stop compaction to PASS in 79.16s: 6,768,558,080 to 6,747,586,560 allocated
-bytes, unchanged virtual capacity/identifier across compaction, and matching
-probe/nine-instance observations after same-registration resume. The test driver
-owns stop/resume; the product's trusted all-layer continuation remains planned.
-Historical failures below remain failures. See the [contract](design/storage-reclamation.md#distribution-readiness-and-registration).
-
-## Windows native compaction: partial acceptance
-
-Internal native compaction PASSED on the dedicated WSL VHDX in 17.66s with file
-and ancestor pins held: allocated bytes 8,373,927,936 to 6,719,275,008; virtual
-capacity 1TiB and identifier unchanged. Same-registration resume, probe hash and
-nine stopped instance records matched. An isolated native VHDX regression also
-passed. The initial sharing failure did not prove a pin/native-open conflict.
-A subsequent immediate-stop test FAILED after 34.21s/69 opens despite bounded
-waiting; compaction was not attempted and WSL resumed successfully. Public target
-selection, reliable stop/compact/resume and the all-layer workflow remain unfinished.
-See the [contract](design/storage-reclamation.md#native-compaction-acceptance).
-
-## Windows reclaim measurement in progress
-
-Internal Windows file pinning/allocation is implemented. Native tests passed
-sparse allocation (32MiB logical file, 64KiB allocated), file/parent rename refusal,
-hardlink and junction rejection, and retained bytes. The first attribute-only
-handle implementation FAILED rename refusal; the corrected read handle passed.
-Symlink creation was SKIP for missing Windows privilege. Dedicated WSL VHDX read
-measured file length/allocation 8,373,927,936 bytes; it did not stop or compact WSL.
-Public target selection and stop/resume orchestration remain planned.
-F1 is incomplete. See the [contract](design/storage-reclamation.md#windows-file-identity-and-allocation).
-
-## Storage reclamation implementation in progress
-
-Status: **partial; internal only**. Pinned Incus/Btrfs target measurement and
-trim, followed by discard of the backing filesystem on ext4, are implemented.
-Focused refusal/allocation tests passed. Dedicated WSL combined trim passed in
-19.81s: isolated 1GiB pool, retained volume/snapshot bytes, backing allocation
-72,523,776 to 1,417,216 bytes and unchanged logical capacity. The outer kernel
-reported discard; Windows allocation was not measured. Exact fixture cleanup
-passed and ownership evidence remains. An earlier unmounted inspection failed
-unsupported without trim; mounted inspection and inner trim subsequently passed.
-The public trusted target/one-entry flow and automatic Windows stop/resume remain
-planned; separate native compaction acceptance is recorded above. No complete F1 acceptance is claimed. See the [owning contract](design/storage-reclamation.md).
+The independent Windows worker, explicit interrupted-record review and public
+single all-layer flow remain planned. Full controller, power-loss and all
+Workspace/OCI-content acceptance are unverified. Windows symlink fixture was SKIP
+for privilege; private-registry acceptance was gated SKIP. Earlier sharing,
+readiness, missing-legacy-file and CI failures remain documented with their exact
+scope in the [owning contract](design/storage-reclamation.md). Passing later runs
+does not retroactively mark those attempts successful. F1 is not complete.
 
 ## Current Incus-first snapshot contract
 

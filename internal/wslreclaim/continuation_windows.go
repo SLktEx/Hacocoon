@@ -88,58 +88,99 @@ type continuationObservation struct {
 	ResumeAttempted, Resumed     bool
 }
 
-// reclaimWithResume is an internal native sequence, not installation authority or
-// a crash-resumption protocol. Pending/failed records block retry. The public
-// workflow still needs its installer entry and explicit interrupted-state review.
-func (r registration) reclaimWithResume(ctx context.Context) (result continuationObservation, err error) {
+// withReclamationTarget holds exclusion and native pins through the entire
+// action. Prepared handoff does not bypass any ordinary mutation authorization.
+func (r registration) withReclamationTarget(ctx context.Context, visit func(*operationStore, *pinnedDisk, installationObservation) error) (err error) {
 	if err := ctx.Err(); err != nil {
-		return result, err
+		return err
 	}
 	if err := r.revalidate(); err != nil {
-		return result, err
+		return err
 	}
 	guard, err := acquireContinuation(r.ID)
 	if err != nil {
-		return result, err
+		return err
 	}
 	defer func() { err = errors.Join(err, guard.Close()) }()
 	path, err := r.diskPath()
 	if err != nil {
-		return result, err
+		return err
 	}
 	pin, err := pinDisk(path)
 	if err != nil {
-		return result, err
+		return err
 	}
 	defer func() { err = errors.Join(err, pin.Close()) }()
 	records, err := openOperationStore(r.ID)
 	if err != nil {
-		return result, err
+		return err
 	}
 	defer func() { err = errors.Join(err, records.close()) }()
 	user, err := windows.GetCurrentProcessToken().GetTokenUser()
 	if err != nil {
-		return result, err
+		return err
 	}
 	enrolled, err := records.readBinding()
 	if err != nil {
-		return result, fmt.Errorf("managed WSL enrollment required: %w", err)
+		return fmt.Errorf("managed WSL enrollment required: %w", err)
 	}
 	if enrolled.Target.Registration != r || enrolled.Target.Disk != pin.identity || enrolled.Target.WindowsOwner != user.User.Sid.String() {
-		return result, errors.New("managed WSL registration, owner or disk differs from enrollment")
+		return errors.New("managed WSL registration, owner or disk differs from enrollment")
 	}
 	identity, err := r.readInstallation(ctx)
 	if err != nil {
-		return result, err
+		return err
 	}
 	target := installationObservation{Registration: r, Installation: identity, Disk: pin.identity, WindowsOwner: user.User.Sid.String()}
 	if err := records.requireBinding(target); err != nil {
-		return result, err
+		return err
 	}
-	intent, err := records.begin(r, pin.identity)
-	if err != nil {
-		return result, err
+	return visit(records, pin, target)
+}
+
+// prepareContinuation records one exact future execution before launching its
+// Windows worker. A crash leaves the same pending record for explicit review.
+func (r registration) prepareContinuation(ctx context.Context) (intent operationRecord, err error) {
+	err = r.withReclamationTarget(ctx, func(records *operationStore, pin *pinnedDisk, _ installationObservation) error {
+		var beginErr error
+		intent, beginErr = records.begin(r, pin.identity)
+		return beginErr
+	})
+	return
+}
+
+// continuePrepared is only an explicit handoff of an exact operation, never a
+// scan/replay of whichever interrupted record happens to exist.
+func (r registration) continuePrepared(ctx context.Context, operation windows.GUID) (result continuationObservation, err error) {
+	if operation == (windows.GUID{}) {
+		return result, errors.New("prepared operation identity required")
 	}
+	err = r.withReclamationTarget(ctx, func(records *operationStore, pin *pinnedDisk, target installationObservation) error {
+		intent, checkErr := records.requirePending(operation, r, pin.identity)
+		if checkErr != nil {
+			return checkErr
+		}
+		result, checkErr = r.executeRecorded(ctx, records, pin, target, intent)
+		return checkErr
+	})
+	return
+}
+
+// reclaimWithResume retains the synchronous internal entry for native acceptance.
+// Both paths share authorization and the canonical stop/compact/resume sequence.
+func (r registration) reclaimWithResume(ctx context.Context) (result continuationObservation, err error) {
+	err = r.withReclamationTarget(ctx, func(records *operationStore, pin *pinnedDisk, target installationObservation) error {
+		intent, beginErr := records.begin(r, pin.identity)
+		if beginErr != nil {
+			return beginErr
+		}
+		result, beginErr = r.executeRecorded(ctx, records, pin, target, intent)
+		return beginErr
+	})
+	return
+}
+
+func (r registration) executeRecorded(ctx context.Context, records *operationStore, pin *pinnedDisk, target installationObservation, intent operationRecord) (result continuationObservation, err error) {
 	defer func() { err = errors.Join(err, records.finish(intent, result, err)) }()
 	return executeContinuation(ctx,
 		func(ctx context.Context) error {
