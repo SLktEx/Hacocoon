@@ -1,5 +1,7 @@
 # 実装状況
 
+ca5ba79 は controller 起動後、最初の画像一覧で失敗しました（native fixture 112.27秒）。maintenance が既存 Store の明示指定と `SkipDefaultResource` を併用し、canonical create に拒否されていました。不要な指定を削除しました。実 catalog／lifecycle の回帰テストで修正前の失敗を再現しています。修正後の native 操作は未確認です。
+
 ca6e5fb の controller gate は起動準備前に失敗しました。fixture が登録済みの `runtime.incus` ではなく `incus` を指定していました。正規の定数参照に修正しました。native のツール配置・画像操作は成功し、失敗後は保持 Store が残るため pool cleanup も失敗しました。controller 全体の受け入れは引き続き未確認です。
 
 controller／CLI の受け入れ経路を使い捨て GHA 限定 gate として追加しました。実行結果は未確認です。製品 composition と実 catalog／lifecycle を使い、Store の内容だけを合成 fixture が供給します。

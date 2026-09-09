@@ -33,7 +33,7 @@ func TestMaintainResourceSharesRunOwnershipAndCleanup(t *testing.T) {
 			runtime := maintenanceEnvironments{fakeEnvironments: &fakeEnvironments{}}
 			runtime.create = func(ctx context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
 				marker := store.runs[spec.Name]
-				if marker.State != core.EphemeralRunCreating || marker.TemporaryWorkspace == nil || spec.TemporaryWorkspace == nil || *marker.TemporaryWorkspace != *spec.TemporaryWorkspace || spec.PersistentResource != resource.ID || spec.ExpectedResource != resource || !spec.SkipDefaultResource || spec.WorkspacePath != "" {
+				if marker.State != core.EphemeralRunCreating || marker.TemporaryWorkspace == nil || spec.TemporaryWorkspace == nil || *marker.TemporaryWorkspace != *spec.TemporaryWorkspace || spec.PersistentResource != resource.ID || spec.ExpectedResource != resource || spec.SkipDefaultResource || spec.WorkspacePath != "" {
 					t.Fatal("maintenance reservation not pinned", spec)
 				}
 				if mode == "create-failure" {

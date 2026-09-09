@@ -1,5 +1,7 @@
 # OCI image inventory and deletion
 
+Maintenance specifies the reviewed existing Store without `SkipDefaultResource`: explicit selection already bypasses default provisioning. The canonical lifecycle rejects contradictory Store selections. An integration regression uses the real catalog/lifecycle to verify reservation, preserved original Workspace association and cleanup after both success and operation failure.
+
 The GHA native fixture now includes an opt-in shipped controller/product CLI gate. It registers only its freshly created synthetic Store in a private real catalog, then exercises detached inventory, referenced-image refusal, confirmed deletion and temporary lifecycle cleanup. This gate is restricted to disposable GitHub-hosted runners; implementation of the gate is not evidence of a successful run.
 
 [日本語](oci-image-deletion.ja.md) | English

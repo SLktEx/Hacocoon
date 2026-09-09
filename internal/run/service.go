@@ -163,7 +163,9 @@ func (s *Service) MaintainResource(ctx context.Context, resource core.Persistent
 	if !s.recoveryEnabled() || s.cleanupTemporaryWorkspace == nil {
 		return Result{}, core.ErrUnsupported
 	}
-	return s.run(ctx, Spec{SkipDefaultResource: true}, resource, func(ctx context.Context, environment core.Environment) (core.ExecutionResult, error) {
+	// An explicit Store already bypasses default provisioning. Combining it with
+	// SkipDefaultResource would contradict the canonical create contract.
+	return s.run(ctx, Spec{}, resource, func(ctx context.Context, environment core.Environment) (core.ExecutionResult, error) {
 		if environment.PersistentResource != resource {
 			return core.ExecutionResult{}, core.ErrCapabilityStale
 		}

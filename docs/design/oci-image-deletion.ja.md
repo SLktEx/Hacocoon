@@ -1,5 +1,7 @@
 # OCI image の一覧と削除
 
+maintenance は確認済みの既存 Store を指定し、`SkipDefaultResource` は併用しません。明示した Store は既定 Store の自動準備を通りません。矛盾する指定を canonical lifecycle が拒否する契約を維持します。実 catalog／lifecycle の回帰テストで予約、元 Workspace 対応の保持、正常時と操作失敗時の cleanup を確認します。
+
 GHA の native fixture に、製品 controller／CLI を使う明示 gate を追加しました。試験が新規作成した合成 Store だけを非公開の実 catalog に登録し、未接続の一覧、参照画像の削除拒否、確認付き削除、一時 lifecycle の cleanup を実行します。使い捨ての GitHub-hosted runner に限定します。gate の追加自体を実行成功とは扱いません。
 
 日本語 | [English](oci-image-deletion.md)
