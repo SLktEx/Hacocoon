@@ -1,5 +1,18 @@
 # Implementation Status
 
+## Storage reclamation implementation in progress
+
+Status: **partial; internal only**. Pinned Incus/Btrfs target measurement and
+trim, followed by discard of the backing filesystem on ext4, are implemented.
+Focused refusal/allocation tests passed. Dedicated WSL combined trim passed in
+19.81s: isolated 1GiB pool, retained volume/snapshot bytes, backing allocation
+72,523,776 to 1,417,216 bytes and unchanged logical capacity. The outer kernel
+reported discard; Windows allocation was not measured. Exact fixture cleanup
+passed and ownership evidence remains. An earlier unmounted inspection failed
+unsupported without trim; mounted inspection and inner trim subsequently passed.
+The public trusted target/one-entry flow and Windows VHDX compaction/resume remain
+planned. No complete F1 acceptance is claimed. See the [owning contract](design/storage-reclamation.md).
+
 ## Current Incus-first snapshot contract
 
 Status: **implemented for capture and restore into a new Environment**. The

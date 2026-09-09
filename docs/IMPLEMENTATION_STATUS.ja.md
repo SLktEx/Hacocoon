@@ -1,5 +1,17 @@
 # 実装状況
 
+## ストレージ回収の実装途中
+
+状態: **partial、内部のみ**。Incus/Btrfs の実体を固定した測定・trim と、その backing
+filesystem が ext4 の場合の discard を実装しました。不正対象拒否・割当量の回帰は成功。
+専用 WSL の連続 trim は19.81秒で成功し、隔離1GiB pool の volume・snapshot の内容と
+論理容量を保持したまま、割当量が72,523,776から1,417,216 byte に減りました。
+外側 kernel は discard を報告しましたが、Windows 割当量は未測定です。所有 fixture の
+cleanup は成功し、所有記録を残しています。以前の未 mount 状態の照合は trim 前に
+unsupported で失敗し、その後の mount 維持・内側 trim は成功しました。公開の対象選択・
+一つの入口・Windows VHDX 圧縮と再開は planned で、F1 全体の完了は主張しません。
+[現行契約](design/storage-reclamation.ja.md)を参照してください。
+
 ## 現在の Incus-first snapshot 契約
 
 状態: **保存と新しい Environment への restore は implemented** です。
