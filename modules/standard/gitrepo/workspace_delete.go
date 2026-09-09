@@ -49,6 +49,7 @@ func (s *RepositoryService) DeleteWorkspace(ctx context.Context, id, owner strin
 		return core.ErrInvalidArgument
 	}
 	backend, ok := s.Backend.(interface {
+		CheckWorkspaceVolumeDeletion(context.Context, Object) error
 		DeleteWorkspaceVolume(context.Context, Object) error
 	})
 	if !ok {
@@ -65,6 +66,11 @@ func (s *RepositoryService) DeleteWorkspace(ctx context.Context, id, owner strin
 	}
 	if object.State != "ready" && object.State != "deleting" {
 		return core.ErrRecoveryRequired
+	}
+	for _, member := range object.Copies() {
+		if err := backend.CheckWorkspaceVolumeDeletion(ctx, member); err != nil {
+			return err
+		}
 	}
 	object.State = "deleting"
 	if err := s.save(object); err != nil {

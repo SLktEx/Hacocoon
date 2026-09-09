@@ -14,8 +14,15 @@ type deleteWorkBackend struct {
 	t       *testing.T
 	calls   []string
 	fail    bool
+	busy    bool
 }
 
+func (b *deleteWorkBackend) CheckWorkspaceVolumeDeletion(_ context.Context, o Object) error {
+	if b.busy && o.Repository == "two" {
+		return core.ErrStorageBusy
+	}
+	return nil
+}
 func (b *deleteWorkBackend) DeleteWorkspaceVolume(_ context.Context, o Object) error {
 	current, err := b.service.readObject("work", "both")
 	if err != nil || current.State != "deleting" {
@@ -43,6 +50,14 @@ func TestWorkspaceDeleteKeepsPartialOwnershipAndRefusesReplacement(t *testing.T)
 	if err := s.DeleteWorkspace(ctx, "both", strings.Repeat("c", 32)); !errors.Is(err, core.ErrCapabilityStale) || len(backend.calls) != 0 {
 		t.Fatal(err)
 	}
+	backend.busy = true
+	if err := s.DeleteWorkspace(ctx, "both", owner); !errors.Is(err, core.ErrStorageBusy) || len(backend.calls) != 0 {
+		t.Fatal("preflight deleted earlier member", err)
+	}
+	if got, err := s.Get("work", "both"); err != nil || got.State != "ready" {
+		t.Fatal("refusal made usable Workspace unavailable", got, err)
+	}
+	backend.busy = false
 	if err := s.DeleteWorkspace(ctx, "both", owner); !errors.Is(err, core.ErrRecoveryRequired) {
 		t.Fatal(err)
 	}

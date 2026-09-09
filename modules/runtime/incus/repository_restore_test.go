@@ -116,7 +116,7 @@ func TestSavedWorkspaceNativeCopyAndRefusal(t *testing.T) {
 	}
 }
 func TestSavedWorkspaceCleanupRequiresOwnedUnattachedPositiveAbsence(t *testing.T) {
-	for _, mode := range []string{"ok", "foreign", "attached", "remains", "malformed"} {
+	for _, mode := range []string{"ok", "foreign", "attached", "remains", "malformed", "snapshots", "backups", "schedule", "bad-children", "unavailable-children", "truncated-children"} {
 		t.Run(mode, func(t *testing.T) {
 			object := gitrepo.Object{Kind: "work", ID: "restored", Repository: "repo", Owner: strings.Repeat("d", 32), NativeRef: "pool/haco-work-restored"}
 			deleted := false
@@ -125,7 +125,25 @@ func TestSavedWorkspaceCleanupRequiresOwnedUnattachedPositiveAbsence(t *testing.
 					deleted = true
 					return host.Result{}, nil
 				}
+				if strings.Contains(args[1], "/snapshots?") || strings.Contains(args[1], "/backups?") {
+					if mode == "bad-children" {
+						return host.Result{Stdout: "null"}, nil
+					}
+					if mode == "unavailable-children" {
+						return host.Result{ExitCode: 1}, nil
+					}
+					if mode == "truncated-children" {
+						return host.Result{Stdout: "[]", StdoutTruncated: true}, nil
+					}
+					if (mode == "snapshots" && strings.Contains(args[1], "/snapshots?")) || (mode == "backups" && strings.Contains(args[1], "/backups?")) {
+						return host.Result{Stdout: `["native-saved-object"]`}, nil
+					}
+					return host.Result{Stdout: "[]"}, nil
+				}
 				v := persistentVolumeObservation{Name: "haco-work-restored", Type: "custom", ContentType: "filesystem", Config: volumeConfig(object)}
+				if mode == "schedule" {
+					v.Config["snapshots.schedule"] = "@daily"
+				}
 				if mode == "foreign" {
 					v.Config["user.hacocoon.owner"] = "foreign"
 				}

@@ -23,7 +23,11 @@ record `deleting`. This state prevents new consumers and retains the exact membe
 identities after partial failure. A retry removes only those owned members.
 
 Incus owns volume deletion. The adapter checks native ownership, filesystem type
-and `used_by`, calls native deletion, and independently observes absence before
+and `used_by`. It refuses native child snapshots, backups and snapshot schedules
+because Incus custom-volume deletion also deletes child saved objects. All members
+pass this preflight before a ready registry enters `deleting`; a refusal therefore
+keeps it usable. The adapter repeats the check immediately before native deletion,
+and independently observes absence before
 removing the registry entry. Collection members cannot be deleted independently.
 No recursive Host filesystem deletion or storage fallback is added. External
 path Workspaces are outside this deletion surface.
@@ -46,6 +50,7 @@ remain visible and are refused by this initial deletion path.
 - Delete an OCI Store implicitly with its associated Workspace.
 - Treat independent snapshot provenance as a dependency on the live source volume.
 - Add a second cleanup catalog or crash-replay coordinator.
+- Assume native volume deletion preserves its child snapshots or backups.
 
 ## Compatibility and validation
 

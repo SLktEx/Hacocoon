@@ -677,6 +677,30 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			if !found {
 				t.Fatal("retained Workspace missing")
 			}
+
+			// Native children are not Hacocoon aggregate snapshots. Neither kind may
+			// disappear as a side effect of deleting the live Workspace volume.
+			member := reloadedWork.Copies()[0]
+			pool, volume, err := volumeRef(member)
+			must(err)
+			nativePath := "/1.0/storage-pools/" + pool + "/volumes/custom/" + volume
+			for _, kind := range []string{"snapshots", "backups"} {
+				child := "retained-fixture"
+				command("incus", "query", "-X", "POST", nativePath+"/"+kind+"?project="+r.project, "--data", `{"name":"retained-fixture"}`, "--wait")
+				output, err := exec.CommandContext(ctx, binary, "workspace", "delete", "--yes", reloadedWork.ID).CombinedOutput()
+				if err == nil {
+					t.Fatalf("native %s unexpectedly deleted: %s", kind, output)
+				}
+				if record, err := reopenedRepositories.Get("work", reloadedWork.ID); err != nil || record.State != "ready" {
+					t.Fatal("native saved-data refusal disabled Workspace", record, err)
+				}
+				command("incus", "query", nativePath+"/"+kind+"/"+child+"?project="+r.project)
+				for _, m := range reloadedWork.Copies() {
+					must(repository.InspectVolume(ctx, m))
+				}
+				command("incus", "query", "-X", "DELETE", nativePath+"/"+kind+"/"+child+"?project="+r.project, "--wait")
+			}
+			t.Log("PASS native child snapshot/backup refusal before deletion; registry remains ready and every member volume remains; explicit owned child cleanup")
 			output, err = exec.CommandContext(ctx, binary, "workspace", "delete", "--yes", reloadedWork.ID).CombinedOutput()
 			if err != nil {
 				t.Fatalf("Workspace cleanup CLI: %v %s", err, output)

@@ -168,6 +168,11 @@ deletion destroys all its files and independent Git metadata, including unpushed
 uncommitted and untracked work. It preserves source repositories, OCI Stores and
 saved snapshots. External Host paths and collection members are not selectable.
 Current Environments and intermediate leases block deletion, including stopped
-Environments. Partial cleanup keeps a `deleting` record with exact native owners;
+Environments. Native Incus child snapshots, backups and configured snapshot
+schedules also block deletion: Incus deletes those children with their parent.
+Every member is checked before changing a ready registry record to `deleting`,
+so a preflight refusal keeps the Workspace usable. The adapter checks again
+immediately before each deletion. Remove or export native saved objects explicitly
+through Incus before retrying; Hacocoon never silently discards them. Partial cleanup keeps a `deleting` record with exact native owners;
 retry the same explicit command. Incomplete creation is visible but not deleted
 by this initial path. See [ADR 0042](../adr/0042-explicit-workspace-deletion.md).

@@ -11,10 +11,19 @@ source repositories and independent snapshots remain. Create re-resolves Workspa
 identity after locking, refusing same-name replacement. No schema change or new
 cleanup catalog is introduced. See [the contract](design/workspace-abstraction-and-lease.md#explicit-retained-workspace-deletion).
 
-Workspace/Git registry, CLI/controller and Incus package tests passed. Maintained
-local CI and the extended real-Incus GHA fixture are pending; native Workspace
-cleanup is not yet accepted. E5 Base/source
-repository and OCI image cleanup, F reclamation and G migration remain separate work.
+All related package/race tests, maintained local CI and local E2E passed on the
+initial candidate. Real Incus/Btrfs GHA run 34301447147 passed the public Workspace
+CLI fixture (31.19 seconds), including attached refusal, Git retention after Env
+deletion, exact member deletion and independent OCI/snapshot preservation. All four
+applicable workflows passed on that candidate. The subsequent native-child guard
+passed focused package tests and a dedicated WSL Incus/Btrfs test (23.23 seconds):
+child snapshot/backup refusal, parent/child preservation and explicit owned cleanup.
+Native snapshot schedules and malformed/unavailable observations are also refused.
+Preflight checks every member before recording `deleting`, and repeats before each
+native deletion. Final-candidate workflow results are recorded in PR #504; the
+initial candidate's green workflows do not validate this later guard.
+E5 Base/source repository and OCI image cleanup, F reclamation and G migration
+remain separate work.
 
 Base builder PR #503 was merged as `2ba5434` after all four applicable workflows
 passed on candidate `15fed95`. The documented create command is `haco env create`.

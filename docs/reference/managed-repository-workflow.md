@@ -272,7 +272,11 @@ including uncommitted, untracked and unpushed work. Source repositories, saved
 snapshots and OCI Stores remain. Use `--yes` only to explicitly confirm the same
 operation in automation. `list --json` provides machine-readable metadata.
 
-A stopped Environment still holds its Workspace lease and blocks deletion. A
+A stopped Environment still holds its Workspace lease and blocks deletion.
+Native Incus snapshots, backups or a snapshot schedule on any member also block
+deletion before the registry changes state. Export or explicitly remove those
+native saved objects and disable their schedule through Incus before retrying.
+Independent Hacocoon snapshots remain preserved. A
 failed deletion keeps its owned record visible as `deleting`; retry the same
 command. Incomplete creation requires inspection and is refused. This does not
 reclaim Windows VHDX allocation; capacity reclamation is separate roadmap work.

@@ -4,7 +4,7 @@
 
 E5 は partial です。`haco workspace list [--json]` と `haco workspace delete [--yes] <id>` で保持中の managed Workspace を確認・個別削除します。既存 lifecycle lock で Env・途中 lease の利用を拒否し、表示した所有 ID を照合して registry に `deleting` を記録します。途中失敗では member の正確な所有情報を保持します。Incus の volume 所有・使用中・不在確認を再利用し、OCI Store・元 repository・独立 snapshot は残します。create は lock 取得後にも Workspace を解決し直し、同名の所有者入れ替えを拒否します。schema 変更や別の cleanup catalog はありません。[契約](design/workspace-abstraction-and-lease.md#explicit-retained-workspace-deletion)を参照してください。
 
-Workspace・Git registry・CLI/controller・Incus package のテストは成功しました。maintained local CI と追加した実 Incus GHA fixture は未完了で、実 Incus の Workspace 削除成功とはまだ扱いません。E5 の Base・元 repository・OCI image 整理、F の容量回収、G の移行は残作業です。
+初期候補では関連 package・race test、maintained local CI、local E2E が成功しました。実 Incus/Btrfs GHA run 34301447147 の公開 Workspace CLI fixture は31.19秒で成功し、利用中の拒否、Env 削除後の Git 保持、member の個別削除、独立 OCI・snapshot の保持を確認しています。その候補の適用対象4 workflow は成功しました。後から追加した native 保存物の保護は、対象 package test と専用 WSL Incus/Btrfs test（23.23秒）で成功しました。子 snapshot・backup による削除拒否、親子の保持、所有対象の明示 cleanup を確認しています。native snapshot schedule、不正・不明な応答も拒否します。全 member を `deleting` 記録前に確認し、削除直前にも再確認します。最終候補の workflow 結果は PR #504 に記録します。初期候補の CI 成功で、後から追加した保護まで検証済みとは扱いません。E5 の Base・元 repository・OCI image 整理、F の容量回収、G の移行は残作業です。
 
 Base builder PR #503 は候補 `15fed95` の適用対象4 workflow 成功後、`2ba5434` にマージ済みです。作成コマンドの正しい表記は `haco env create` です。
 
