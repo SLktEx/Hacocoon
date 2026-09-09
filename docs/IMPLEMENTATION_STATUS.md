@@ -1,5 +1,24 @@
 # Implementation Status
 
+## Explicit managed Workspace cleanup
+
+Partial E5: `haco workspace list [--json]` and `haco workspace delete [--yes] <id>`
+list and explicitly delete retained managed Workspace data. The existing lifecycle
+lock excludes Environment/lease users; the registry compares the reviewed owner,
+records `deleting`, and retains exact member identities after failure. Native Incus
+volume ownership, attachment and positive absence checks are reused. OCI Stores,
+source repositories and independent snapshots remain. Create re-resolves Workspace
+identity after locking, refusing same-name replacement. No schema change or new
+cleanup catalog is introduced. See [the contract](design/workspace-abstraction-and-lease.md#explicit-retained-workspace-deletion).
+
+Workspace/Git registry, CLI/controller and Incus package tests passed. Maintained
+local CI and the extended real-Incus GHA fixture are pending; native Workspace
+cleanup is not yet accepted. E5 Base/source
+repository and OCI image cleanup, F reclamation and G migration remain separate work.
+
+Base builder PR #503 was merged as `2ba5434` after all four applicable workflows
+passed on candidate `15fed95`. The documented create command is `haco env create`.
+
 ## Base builder
 
 Base builder validation: all five related packages passed ordinary tests and
@@ -1297,7 +1316,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.52**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.53**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

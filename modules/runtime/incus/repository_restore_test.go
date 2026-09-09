@@ -142,7 +142,7 @@ func TestSavedWorkspaceCleanupRequiresOwnedUnattachedPositiveAbsence(t *testing.
 				}
 				return host.Result{Stdout: string(raw)}, nil
 			}})
-			err := (&RepositoryBackend{Runtime: r}).DeleteRestoredWorkspaceVolume(context.Background(), object)
+			err := (&RepositoryBackend{Runtime: r}).DeleteWorkspaceVolume(context.Background(), object)
 			if mode == "ok" {
 				if err != nil || !deleted {
 					t.Fatal(err)

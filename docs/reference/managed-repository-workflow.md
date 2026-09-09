@@ -257,3 +257,22 @@ Policy saved; inspect Policy and remote before retrying.
 Existing hand-written push rules need update_kind=fast-forward, as shown above.
 Rules without that field fail closed. The saved branch scope never grants force,
 deletion or branch creation. See [ADR 0026](../adr/0026-reusable-git-approval-scope.md).
+
+## Remove retained Workspace data
+
+```bash
+haco workspace list
+haco env delete sample-dev
+haco workspace delete sample-work
+```
+
+The final command displays the exact managed identity, members and references,
+then asks for confirmation. It deletes every file and Git record in that Workspace,
+including uncommitted, untracked and unpushed work. Source repositories, saved
+snapshots and OCI Stores remain. Use `--yes` only to explicitly confirm the same
+operation in automation. `list --json` provides machine-readable metadata.
+
+A stopped Environment still holds its Workspace lease and blocks deletion. A
+failed deletion keeps its owned record visible as `deleting`; retry the same
+command. Incomplete creation requires inspection and is refused. This does not
+reclaim Windows VHDX allocation; capacity reclamation is separate roadmap work.

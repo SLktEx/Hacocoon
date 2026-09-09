@@ -203,3 +203,5 @@ Published tags/releases and acceptance/support evidence are separate concepts. S
 Old commits, branches, PRs, and document versions may use superseded checkpoint assignments or describe removed cloud implementations. Git history is the archive for those states; it does not override the current status/version authority.
 
 Stopped-source Environment copy is implemented through existing Incus COW and canonical creation; see [its contract](../design/environment-copy.md). The representative E4 definition-driven Base build/create/SSH workflow is implemented with acceptance tracked in the [Base contract](../design/base-images-and-custom-environments.md). Broader retained-data cleanup, reclamation and export/migration remain separate roadmap work.
+
+E5 retained-data cleanup now includes explicit managed Workspace listing/deletion through canonical locks and owned Incus volume cleanup. Base/source-repository and OCI image selection/deletion remain partial; see [Workspace deletion](../design/workspace-abstraction-and-lease.md#explicit-retained-workspace-deletion).
