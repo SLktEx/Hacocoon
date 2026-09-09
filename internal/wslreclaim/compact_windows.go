@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sys/windows"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -26,6 +27,7 @@ type compactObservation struct {
 	Before, After        diskAllocation
 	Virtual              virtualDiskIdentity
 	Attempted, Completed bool
+	OpenAttempts         int
 }
 
 // Resolve the held file to a volume GUID path rather than reusing a drive letter
@@ -138,11 +140,22 @@ func (p *pinnedDisk) compact(ctx context.Context) (result compactObservation, er
 		Version, InfoOnly, ReadOnly uint32
 		Resiliency                  windows.GUID
 	}{Version: 2}
-	var h windows.Handle
-	// V2 uses ACCESS_NONE. NO_PARENTS prevents following a differencing chain.
-	code, _, _ := openVirtualDisk.Call(uintptr(unsafe.Pointer(&storage)), uintptr(unsafe.Pointer(name)), 0, 1, uintptr(unsafe.Pointer(&parameters)), uintptr(unsafe.Pointer(&h)))
-	if code != 0 {
-		return result, fmt.Errorf("open virtual disk: %w", syscall.Errno(code))
+	// WSL termination may return before the backing disk can be opened for
+	// metadata operations. Wait only for this pre-mutation sharing condition.
+	openCtx, cancelOpen := context.WithTimeout(ctx, 30*time.Second)
+	h, attempts, openErr := waitVirtualDiskOpen(openCtx, func() (windows.Handle, error) {
+		var handle windows.Handle
+		// V2 uses ACCESS_NONE. NO_PARENTS prevents following a differencing chain.
+		code, _, _ := openVirtualDisk.Call(uintptr(unsafe.Pointer(&storage)), uintptr(unsafe.Pointer(name)), 0, 1, uintptr(unsafe.Pointer(&parameters)), uintptr(unsafe.Pointer(&handle)))
+		if code != 0 {
+			return 0, syscall.Errno(code)
+		}
+		return handle, nil
+	})
+	cancelOpen()
+	result.OpenAttempts = attempts
+	if openErr != nil {
+		return result, fmt.Errorf("open virtual disk: %w", openErr)
 	}
 	defer func() { err = errors.Join(err, windows.CloseHandle(h)) }()
 	result.Virtual, err = inspectDetachedDynamic(h)
@@ -157,7 +170,7 @@ func (p *pinnedDisk) compact(ctx context.Context) (result compactObservation, er
 	}
 	parametersCompact := [2]uint32{1, 0}
 	result.Attempted = true
-	code, _, _ = compactVirtualDisk.Call(uintptr(h), 0, uintptr(unsafe.Pointer(&parametersCompact[0])), 0)
+	code, _, _ := compactVirtualDisk.Call(uintptr(h), 0, uintptr(unsafe.Pointer(&parametersCompact[0])), 0)
 	if code == 0 {
 		result.Completed = true
 	} else {
@@ -172,4 +185,30 @@ func (p *pinnedDisk) compact(ctx context.Context) (result compactObservation, er
 	// A synchronous kernel operation can finish after cancellation. Preserve its
 	// actual observations rather than claiming the operation never happened.
 	return result, errors.Join(err, measureErr, identityErr, ctx.Err())
+}
+
+// No retry after a handle has been returned or for any error other than the
+// sharing violation observed at native open. The held file/parents are unchanged.
+func waitVirtualDiskOpen(ctx context.Context, open func() (windows.Handle, error)) (windows.Handle, int, error) {
+	attempts := 0
+	for {
+		if err := ctx.Err(); err != nil {
+			return 0, attempts, err
+		}
+		attempts++
+		handle, err := open()
+		if err == nil {
+			return handle, attempts, nil
+		}
+		if !errors.Is(err, windows.ERROR_SHARING_VIOLATION) {
+			return 0, attempts, err
+		}
+		timer := time.NewTimer(250 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return 0, attempts, errors.Join(ctx.Err(), err)
+		case <-timer.C:
+		}
+	}
 }

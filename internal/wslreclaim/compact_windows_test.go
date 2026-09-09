@@ -4,10 +4,14 @@ package wslreclaim
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
+	"golang.org/x/sys/windows"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
+	"unsafe"
 )
 
 func TestCompactionRefusesCancellationAndNonVirtualFile(t *testing.T) {
@@ -54,5 +58,90 @@ func TestDedicatedWSLVHDCompaction(t *testing.T) {
 	if !result.Attempted || !result.Completed {
 		t.Fatal("compaction completion unproven", result)
 	}
-	t.Logf("PASS native compact; before=%+v after=%+v virtual=%+v; filesystem bytes/resume checked separately", result.Before, result.After, result.Virtual)
+	t.Logf("PASS native compact; observation=%+v; filesystem bytes/resume checked separately", result)
+}
+
+// Create an isolated real dynamic VHDX without a parent, source or attachment.
+func nativeEmptyVHD(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "isolated.vhdx")
+	name, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var storage struct {
+		Device uint32
+		Vendor windows.GUID
+	}
+	storage.Device = 3
+	storage.Vendor = windows.GUID{Data1: 0xec984aec, Data2: 0xa0f9, Data3: 0x47e9, Data4: [8]byte{0x90, 0x1f, 0x71, 0x41, 0x5a, 0x66, 0x34, 0x5b}}
+	// CREATE_VIRTUAL_DISK_PARAMETERS V2, union aligned to eight bytes.
+	var params [128]byte
+	binary.LittleEndian.PutUint32(params[:], 2)
+	binary.LittleEndian.PutUint64(params[24:], 256<<20)
+	binary.LittleEndian.PutUint32(params[36:], 512)
+	binary.LittleEndian.PutUint32(params[40:], 4096)
+	var h windows.Handle
+	code, _, _ := virtualDiskDLL.NewProc("CreateVirtualDisk").Call(uintptr(unsafe.Pointer(&storage)), uintptr(unsafe.Pointer(name)), 0, 0, 0, 0, uintptr(unsafe.Pointer(&params[0])), 0, uintptr(unsafe.Pointer(&h)))
+	if code != 0 {
+		t.Fatalf("create isolated VHDX: %v", syscall.Errno(code))
+	}
+	if err := windows.CloseHandle(h); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestNativeVirtualDiskCompactionPreservesPinnedIdentity(t *testing.T) {
+	path := nativeEmptyVHD(t)
+	pin, err := pinDisk(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pin.Close()
+	compacted, err := pin.compact(context.Background())
+	if err != nil || !compacted.Attempted || !compacted.Completed {
+		t.Fatalf("owned empty VHD native compaction: %+v %v", compacted, err)
+	}
+	if compacted.Virtual.Capacity != 256<<20 || compacted.OpenAttempts != 1 {
+		t.Fatal("unexpected native disk observation", compacted)
+	}
+	if err := os.Rename(path, path+".moved"); err == nil {
+		t.Fatal("compaction released file rename exclusion")
+	}
+	if _, err := pin.Allocation(); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("owned empty VHD compact while pinned: %+v", compacted)
+}
+
+func TestVirtualDiskOpenWaitIsBoundedAndOnlyBeforeMutation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	calls := 0
+	_, attempts, err := waitVirtualDiskOpen(ctx, func() (windows.Handle, error) { calls++; return 42, nil })
+	if !errors.Is(err, context.Canceled) || calls != 0 || attempts != 0 {
+		t.Fatal(calls, attempts, err)
+	}
+	_, attempts, err = waitVirtualDiskOpen(context.Background(), func() (windows.Handle, error) { return 0, windows.ERROR_ACCESS_DENIED })
+	if !errors.Is(err, windows.ERROR_ACCESS_DENIED) || attempts != 1 {
+		t.Fatal(attempts, err)
+	}
+	calls = 0
+	handle, attempts, err := waitVirtualDiskOpen(context.Background(), func() (windows.Handle, error) {
+		calls++
+		if calls == 1 {
+			return 0, windows.ERROR_SHARING_VIOLATION
+		}
+		return 42, nil
+	})
+	if err != nil || handle != 42 || attempts != 2 {
+		t.Fatal(handle, attempts, err)
+	}
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+	_, attempts, err = waitVirtualDiskOpen(ctx, func() (windows.Handle, error) { cancel(); return 0, windows.ERROR_SHARING_VIOLATION })
+	if !errors.Is(err, context.Canceled) || !errors.Is(err, windows.ERROR_SHARING_VIOLATION) || attempts != 1 {
+		t.Fatal(attempts, err)
+	}
 }

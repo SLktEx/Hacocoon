@@ -1,11 +1,14 @@
 # 実装状況
 
-## Windows native 圧縮は受け入れ未完了
+## Windows native 圧縮: 部分的な検証
 
-内部の native 圧縮処理とキャンセル・通常ファイル拒否テストを追加し、拒否テストは成功。
-専用 VHDX の実検証は4.27秒で native open の共有違反により失敗しました。圧縮は未実行で、
-実体固定を弱めていません。同じ登録 ID の WSL 再開後、確認ファイル hash と9件の停止中
-instance 記録は一致しました。安全な handle 引き渡し、圧縮成功、公開の全層操作は未完了です。
+専用 WSL VHDX の内部 native 圧縮は、file・親 handle の固定を保持したまま17.66秒で
+成功しました。実割当量は8,373,927,936から6,719,275,008 byte に減り、仮想容量1TiBと
+識別子は不変です。同じ登録 ID の再開、確認ファイル hash、9件の停止中 instance 記録が
+一致しました。隔離 native VHDX の回帰も成功しました。初回の共有違反だけで固定と
+native open の衝突を断定した点は訂正します。続く停止直後の検証は期限付き待機でも
+34.21秒・69回の open で失敗し、圧縮は未実行です。WSL 再開は成功しました。
+公開の対象選択、確実な停止・圧縮・再開、全層の連携は未完了です。
 [契約](design/storage-reclamation.ja.md)を参照してください。
 
 ## Windows 容量回収の測定段階
@@ -15,7 +18,7 @@ instance 記録は一致しました。安全な handle 引き渡し、圧縮成
 内容保持に成功しました。最初の属性読み取り handle は rename 拒否に失敗し、読み取り
 handle への修正後に成功しました。symlink 生成は権限不足で SKIP です。専用 WSL VHDX
 のファイル長・実割当量は8,373,927,936 byte で、WSL 停止・圧縮は行っていません。
-公開の対象選択・virtual disk 圧縮・停止と再開は planned で、F1 は未完了です。
+公開の対象選択・停止と再開の連携は planned で、F1 は未完了です。
 [契約](design/storage-reclamation.ja.md)を参照してください。
 
 ## ストレージ回収の実装途中
@@ -27,7 +30,7 @@ filesystem が ext4 の場合の discard を実装しました。不正対象拒
 外側 kernel は discard を報告しましたが、Windows 割当量は未測定です。所有 fixture の
 cleanup は成功し、所有記録を残しています。以前の未 mount 状態の照合は trim 前に
 unsupported で失敗し、その後の mount 維持・内側 trim は成功しました。公開の対象選択・
-一つの入口・Windows VHDX 圧縮と再開は planned で、F1 全体の完了は主張しません。
+一つの入口・Windows の自動停止と再開は planned で、F1 全体の完了は主張しません。
 [現行契約](design/storage-reclamation.ja.md)を参照してください。
 
 ## 現在の Incus-first snapshot 契約

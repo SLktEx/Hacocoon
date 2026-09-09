@@ -5,8 +5,8 @@
 Status: **partial, internal implementation**. Pinned Linux identity/allocation,
 Btrfs trim and outer ext4 discard are implemented and passed isolated native
 acceptance. Trusted target selection, the one-entry workflow and Windows VHDX
-compaction/resume are not yet implemented. Windows handle-based file
-measurement is implemented internally below. F1 remains incomplete.
+stop/compact/resume orchestration are not yet implemented. Windows handle-based
+measurement and native compaction are implemented internally below. F1 remains incomplete.
 This is separate from resource deletion/GC and migration.
 
 ## Required result
@@ -85,8 +85,8 @@ exact owned fixture resources. Ownership receipts remain for inspection.
 Use `HACO_E2E_RECLAIM_TRIM=1` for the dedicated root Incus fixture. Adding
 `HACO_E2E_RECLAIM_OUTER_TRIM=1` separately permits discard of the dedicated
 fixture distribution's outer filesystem. Never set this on an unrelated/shared
-host merely to pass a test. Windows compaction and the public all-layer workflow
-remain unverified. See [ADR 0048](../adr/0048-storage-reclamation-identity.md).
+host merely to pass a test. The public all-layer workflow remains unverified;
+separate Windows compaction acceptance is recorded below. See [ADR 0048](../adr/0048-storage-reclamation-identity.md).
 
 ## Windows file identity and allocation
 
@@ -106,29 +106,42 @@ that failure. Native symlink creation was SKIP for missing Windows privilege;
 junction coverage passed but does not claim that skipped fixture ran.
 
 The exact dedicated WSL VHDX was read successfully at file length/allocation
-8,373,927,936 bytes. No termination, compression or recovered-space claim was made.
-Compaction still requires trusted distribution selection, native virtual-disk
-identity, safe path-based API opening and stop/compact/resume orchestration. Do not
+8,373,927,936 bytes in the initial measurement-only check. Subsequent compaction
+acceptance is below. Public use still requires trusted distribution selection
+and stop/compact/resume orchestration. Do not
 relax the pinning checks merely to make `OpenVirtualDisk` accept a handle.
 
-## Native compaction attempt
+## Native compaction acceptance
 
-Internal Windows compaction code now resolves the held file to a volume-GUID
-path, opens VHDX without following parent disks, and requires a dynamic, detached
-virtual disk. It records native completion separately from measured allocation
-and checks virtual capacity/identifier after compaction. Cancellation is not
-interpreted as undoing a synchronous operation. This remains **unpublished and
-not accepted**; the public workflow must not call it yet.
+Internal Windows compaction resolves the held file to a volume-GUID path, opens
+VHDX without following parent disks, and requires a dynamic, detached disk.
+It retains file/ancestor pins throughout, records native completion separately
+from measured allocation, and checks virtual capacity/identifier afterwards.
+Cancellation cannot undo a synchronous operation. Sharing violations at native
+open have a 30-second retry budget; individual synchronous calls can exceed that
+budget. Other errors fail immediately. Compaction itself is never retried.
+This remains **partial, internal only**; public orchestration is not implemented.
 
-The cancellation/non-VHD file regression passed. The dedicated real VHDX attempt
-FAILED in 4.27s at `OpenVirtualDisk` with a sharing violation while the original
-file/ancestor pins were held. `CompactVirtualDisk` was not attempted. No pin was
-released to bypass the failure. A safe identity-preserving handoff to the native
-virtual-disk handle is still required and unproven.
+The first dedicated VHDX attempt FAILED in 4.27s at `OpenVirtualDisk` with a sharing
+violation, without attempting compaction. Later isolated native VHDX tests and
+real WSL compaction succeeded with the same pins held. The earlier assertion that
+pinning conflicts with native open was incorrect; the initial cause is unresolved.
+No release/handoff of the file pin is required in the tested native path.
 
-The exact dedicated WSL registration was resumed after failure. The newly created
-probe file hash and all nine stopped instance names/states matched the preflight
-record. This verifies resumption and those observations, not all saved filesystem
-bytes or a successful compaction. The probe remains under
-`/var/lib/haco-reclaim-compact.7NTvx7` for the next verification. Windows file
-length/allocation before the attempt was 8,373,927,936 bytes; no reduction is claimed.
+Dedicated WSL compaction PASSED in 17.66s: Windows file length/allocation decreased
+from 8,373,927,936 to 6,719,275,008 bytes (1,654,652,928 bytes reclaimed). Virtual
+capacity remained 1TiB and its identifier was unchanged. The exact registration
+was resumed; the probe hash and nine stopped instance names/states matched.
+These observations do not prove every saved Workspace/OCI/snapshot byte.
+
+A subsequent immediate-stop acceptance with bounded open waiting FAILED in
+34.21s after 69 open attempts. Sharing violations persisted to the deadline;
+compaction was not attempted. Same-registration resumption and the probe/instance
+checks passed again. Automatic stop-to-compaction readiness remains unresolved;
+the earlier successful compaction does not turn this failure into a pass.
+The probe remains under `/var/lib/haco-reclaim-compact.7NTvx7`.
+
+Native isolated VHDX compaction, retained file identity/rename exclusion,
+cancellation, invalid-file refusal and bounded sharing-wait regressions passed.
+The public all-layer flow, automatic stop/resume, and full saved-data acceptance
+through that flow remain unverified.

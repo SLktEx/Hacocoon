@@ -1,14 +1,16 @@
 # Implementation Status
 
-## Windows native compaction remains unaccepted
+## Windows native compaction: partial acceptance
 
-Internal native compaction code and cancellation/non-VHD refusal tests are added;
-the refusal tests passed. Dedicated VHDX acceptance FAILED at native open with a
-sharing violation in 4.27s. Compaction was not attempted, and file identity pins
-were not weakened. Same-registration WSL resumption, probe hash and nine stopped
-instance records matched after failure. Safe native-handle handoff, successful
-compaction and the public all-layer workflow remain unfinished. See the
-[contract](design/storage-reclamation.md#native-compaction-attempt).
+Internal native compaction PASSED on the dedicated WSL VHDX in 17.66s with file
+and ancestor pins held: allocated bytes 8,373,927,936 to 6,719,275,008; virtual
+capacity 1TiB and identifier unchanged. Same-registration resume, probe hash and
+nine stopped instance records matched. An isolated native VHDX regression also
+passed. The initial sharing failure did not prove a pin/native-open conflict.
+A subsequent immediate-stop test FAILED after 34.21s/69 opens despite bounded
+waiting; compaction was not attempted and WSL resumed successfully. Public target
+selection, reliable stop/compact/resume and the all-layer workflow remain unfinished.
+See the [contract](design/storage-reclamation.md#native-compaction-acceptance).
 
 ## Windows reclaim measurement in progress
 
@@ -18,7 +20,7 @@ hardlink and junction rejection, and retained bytes. The first attribute-only
 handle implementation FAILED rename refusal; the corrected read handle passed.
 Symlink creation was SKIP for missing Windows privilege. Dedicated WSL VHDX read
 measured file length/allocation 8,373,927,936 bytes; it did not stop or compact WSL.
-Public target selection, virtual-disk compaction and stop/resume remain planned.
+Public target selection and stop/resume orchestration remain planned.
 F1 is incomplete. See the [contract](design/storage-reclamation.md#windows-file-identity-and-allocation).
 
 ## Storage reclamation implementation in progress
@@ -31,8 +33,8 @@ Focused refusal/allocation tests passed. Dedicated WSL combined trim passed in
 reported discard; Windows allocation was not measured. Exact fixture cleanup
 passed and ownership evidence remains. An earlier unmounted inspection failed
 unsupported without trim; mounted inspection and inner trim subsequently passed.
-The public trusted target/one-entry flow and Windows VHDX compaction/resume remain
-planned. No complete F1 acceptance is claimed. See the [owning contract](design/storage-reclamation.md).
+The public trusted target/one-entry flow and automatic Windows stop/resume remain
+planned; separate native compaction acceptance is recorded above. No complete F1 acceptance is claimed. See the [owning contract](design/storage-reclamation.md).
 
 ## Current Incus-first snapshot contract
 

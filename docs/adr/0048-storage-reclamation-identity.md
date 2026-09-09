@@ -18,8 +18,8 @@ rollback snapshot or full runtime-recovery framework is introduced.
 
 See [storage reclamation](../design/storage-reclamation.md). The current internal slice pins identity and performs Btrfs/outer ext4 discard.
 Outer discard requires separate managed-distribution authorization, beyond the
-pool permission. Windows measurement/compaction and the public all-layer entry
-remain pending; Linux kernel trim counts are not Windows recovered allocation.
+pool permission. Windows measurement/compaction now have internal native acceptance;
+the public all-layer entry remains pending; Linux kernel trim counts are not Windows recovered allocation.
 
 Windows measurement uses native file/ancestor handles and explicit sharing
 exclusions. Attribute-only opens do not enforce the rename exclusion required by
@@ -27,8 +27,10 @@ this design; native regression caught that failure. File length and physical
 allocation remain separate. The actual WSL registration and virtual disk must
 still be bound before mutation. This read-only primitive is not that authority.
 
-The initial native compaction attempt failed because the pin and OpenVirtualDisk
-sharing requirements conflict. Do not remove the pin and accept a path race as a
-compatibility fallback. Establish a verified native-handle identity handoff before
-publishing compaction. Windows shared-open failure is a failure, not reclaimed
-space or permission to weaken the Windows/WSL ownership invariant.
+The initial native compaction attempt failed with a sharing violation. Subsequent
+native fixture and dedicated WSL compaction passed with the same pins held,
+disproving the earlier claimed incompatibility. Do not release pins or introduce
+a path race. Only native open sharing violations receive a bounded pre-mutation
+wait; compaction is never retried. Immediate-stop acceptance still failed at the
+open deadline, so automatic readiness remains unresolved. Preserve that failure
+and resume the exact distribution; do not stop unrelated WSL distributions.
