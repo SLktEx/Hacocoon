@@ -1,5 +1,7 @@
 # Implementation Status
 
+The first controller gate at ca6e5fb failed before readiness: the fixture used `incus` instead of the registered `runtime.incus` provider identifier. The fixture now uses the canonical constant. Native tool/image operations passed; retained Store ownership prevented pool cleanup after failure. Full controller acceptance remains pending.
+
 Controller/CLI acceptance expansion is implemented as a disposable-GHA-only gate; its real execution remains pending. It uses production composition and real catalog/lifecycle transitions with synthetic fixture Store contents.
 
 ## Detached Store maintenance in progress

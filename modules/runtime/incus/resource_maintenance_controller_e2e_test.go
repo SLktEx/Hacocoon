@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	"github.com/SLktEx/Hacocoon/modules/plugin/oci"
 )
@@ -46,7 +47,7 @@ func verifyMaintenanceControllerCLI(t *testing.T, ctx context.Context, runtime *
 	must(catalog.BeginPersistentResourceCreate(ctx, creating))
 	must(catalog.CommitPersistentResourceCreate(ctx, creating))
 	socket := filepath.Join(root, "control.sock")
-	environment := append(os.Environ(), "HACO_ROOT="+root, "HACO_CONTROL_SOCKET="+socket, "HACO_PLUGIN_OCI=", "HACO_RUNTIME_PROVIDER=incus")
+	environment := append(os.Environ(), "HACO_ROOT="+root, "HACO_CONTROL_SOCKET="+socket, "HACO_PLUGIN_OCI=", "HACO_RUNTIME_PROVIDER="+environmentapp.ProviderIncus)
 	log, err := os.OpenFile(filepath.Join(root, "controller.log"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	must(err)
 	defer log.Close()

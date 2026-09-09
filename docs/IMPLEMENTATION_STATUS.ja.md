@@ -1,5 +1,7 @@
 # 実装状況
 
+ca6e5fb の controller gate は起動準備前に失敗しました。fixture が登録済みの `runtime.incus` ではなく `incus` を指定していました。正規の定数参照に修正しました。native のツール配置・画像操作は成功し、失敗後は保持 Store が残るため pool cleanup も失敗しました。controller 全体の受け入れは引き続き未確認です。
+
 controller／CLI の受け入れ経路を使い捨て GHA 限定 gate として追加しました。実行結果は未確認です。製品 composition と実 catalog／lifecycle を使い、Store の内容だけを合成 fixture が供給します。
 
 ## 未接続 Store maintenance の実装中の範囲
