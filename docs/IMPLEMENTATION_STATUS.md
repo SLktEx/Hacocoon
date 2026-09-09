@@ -1,5 +1,16 @@
 # Implementation Status
 
+## Windows reclaim measurement in progress
+
+Internal Windows file pinning/allocation is implemented. Native tests passed
+sparse allocation (32MiB logical file, 64KiB allocated), file/parent rename refusal,
+hardlink and junction rejection, and retained bytes. The first attribute-only
+handle implementation FAILED rename refusal; the corrected read handle passed.
+Symlink creation was SKIP for missing Windows privilege. Dedicated WSL VHDX read
+measured file length/allocation 8,373,927,936 bytes; it did not stop or compact WSL.
+Public target selection, virtual-disk compaction and stop/resume remain planned.
+F1 is incomplete. See the [contract](design/storage-reclamation.md#windows-file-identity-and-allocation).
+
 ## Storage reclamation implementation in progress
 
 Status: **partial; internal only**. Pinned Incus/Btrfs target measurement and

@@ -20,3 +20,9 @@ See [storage reclamation](../design/storage-reclamation.md). The current interna
 Outer discard requires separate managed-distribution authorization, beyond the
 pool permission. Windows measurement/compaction and the public all-layer entry
 remain pending; Linux kernel trim counts are not Windows recovered allocation.
+
+Windows measurement uses native file/ancestor handles and explicit sharing
+exclusions. Attribute-only opens do not enforce the rename exclusion required by
+this design; native regression caught that failure. File length and physical
+allocation remain separate. The actual WSL registration and virtual disk must
+still be bound before mutation. This read-only primitive is not that authority.

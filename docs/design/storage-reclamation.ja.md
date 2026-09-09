@@ -4,7 +4,8 @@
 
 状態: **partial、内部実装**。Linux の実体照合・割当量測定、Btrfs trim と外側 ext4
 への discard を実装し、隔離した実環境で検証しました。信頼できる対象選択、一つの
-入口で全層を回収する操作、Windows VHDX の測定・圧縮・再開は未実装です。F1 は
+入口で全層を回収する操作、Windows VHDX の圧縮・再開は未実装です。Windows の
+ファイル測定は以下の内部実装まで進んでいます。F1 は
 未完了であり、データの明示削除・GC・移行とは別の機能です。
 
 ## 必要な結果
@@ -63,3 +64,22 @@ ext4 の kernel 報告は1,075,829,817,344 byte ですが、Windows 割当量は
 `HACO_E2E_RECLAIM_OUTER_TRIM=1` を追加した場合だけ、専用 WSL の外側 filesystem
 も discard します。無関係な共用 Host に検証目的で指定しないでください。Windows 圧縮と
 公開の全層操作は未検証です。[ADR 0048](../adr/0048-storage-reclamation-identity.md)を参照してください。
+
+## Windows のファイル実体と割当量
+
+`internal/wslreclaim` に Windows 専用の内部測定を実装しました。VHDX と全親 directory
+を handle で保持し、reparse point・複数 hardlink を拒否し、共有制約で rename を防ぎます。
+現在はローカル drive path に対応し、UNC・device path・別 stream・曖昧な Win32 正規化を
+拒否します。公開呼び出しは未接続で、この観測だけで WSL 停止や圧縮を許可しません。
+
+native `FILE_STANDARD_INFO` で実割当量とファイル長を測定します。ファイル長は VHDX 内の
+仮想 filesystem 容量とは別です。実 Windows で32MiBの sparse fixture を実割当64KiBと測定し、
+内容保持・ファイルと親の rename 拒否・hardlink 拒否・junction 祖先の拒否を確認しました。
+最初の属性読み取りだけの実装は rename テストに失敗し、`GENERIC_READ` で修正後に成功しました。
+symlink fixture の生成は Windows 権限不足で SKIP です。junction 検証の成功を、その未実行
+fixture の成功とは扱いません。
+
+専用 WSL の正確な VHDX も読み取り測定し、ファイル長・実割当量とも8,373,927,936 byte
+でした。停止・圧縮・回収量の確認は行っていません。信頼できる distribution 選択、native
+virtual disk の識別、パス指定 API の安全な open、停止・圧縮・再開は残課題です。
+`OpenVirtualDisk` を通すために実体固定を弱めてはいけません。

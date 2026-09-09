@@ -5,7 +5,8 @@
 Status: **partial, internal implementation**. Pinned Linux identity/allocation,
 Btrfs trim and outer ext4 discard are implemented and passed isolated native
 acceptance. Trusted target selection, the one-entry workflow and Windows VHDX
-measurement/compaction/resume are not yet implemented. F1 remains incomplete.
+compaction/resume are not yet implemented. Windows handle-based file
+measurement is implemented internally below. F1 remains incomplete.
 This is separate from resource deletion/GC and migration.
 
 ## Required result
@@ -86,3 +87,26 @@ Use `HACO_E2E_RECLAIM_TRIM=1` for the dedicated root Incus fixture. Adding
 fixture distribution's outer filesystem. Never set this on an unrelated/shared
 host merely to pass a test. Windows compaction and the public all-layer workflow
 remain unverified. See [ADR 0048](../adr/0048-storage-reclamation-identity.md).
+
+## Windows file identity and allocation
+
+Implemented internally in `internal/wslreclaim`, with Windows build constraints:
+measurement pins the VHDX and every parent directory, rejects reparse points and
+multiple hardlinks, and holds sharing exclusions against rename. Local drive paths
+are currently supported; UNC/device paths, alternate streams and ambiguous Win32
+normalization are refused. No public caller supplies arbitrary paths today.
+This observation alone does not authorize WSL termination or compaction.
+
+Use native handle-based `FILE_STANDARD_INFO` for allocated bytes and file length.
+The latter is not the virtual filesystem capacity inside the VHDX. Windows native
+acceptance measured a 32MiB sparse fixture at 64KiB allocated, preserved its bytes,
+and refused file/parent rename, hardlinks and a junction ancestor. The first
+attribute-only open implementation failed the rename test; `GENERIC_READ` fixed
+that failure. Native symlink creation was SKIP for missing Windows privilege;
+junction coverage passed but does not claim that skipped fixture ran.
+
+The exact dedicated WSL VHDX was read successfully at file length/allocation
+8,373,927,936 bytes. No termination, compression or recovered-space claim was made.
+Compaction still requires trusted distribution selection, native virtual-disk
+identity, safe path-based API opening and stop/compact/resume orchestration. Do not
+relax the pinning checks merely to make `OpenVirtualDisk` accept a handle.

@@ -1,5 +1,15 @@
 # 実装状況
 
+## Windows 容量回収の測定段階
+
+内部の Windows ファイル実体固定・割当量測定を実装しました。実 Windows で sparse 測定
+（ファイル長32MiB・実割当64KiB）、ファイルと親の rename 拒否、hardlink・junction 拒否、
+内容保持に成功しました。最初の属性読み取り handle は rename 拒否に失敗し、読み取り
+handle への修正後に成功しました。symlink 生成は権限不足で SKIP です。専用 WSL VHDX
+のファイル長・実割当量は8,373,927,936 byte で、WSL 停止・圧縮は行っていません。
+公開の対象選択・virtual disk 圧縮・停止と再開は planned で、F1 は未完了です。
+[契約](design/storage-reclamation.ja.md)を参照してください。
+
 ## ストレージ回収の実装途中
 
 状態: **partial、内部のみ**。Incus/Btrfs の実体を固定した測定・trim と、その backing
