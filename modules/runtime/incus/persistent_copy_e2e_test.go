@@ -52,7 +52,12 @@ func TestRealIncusPersistentCopyE2E(t *testing.T) {
 	if err := runtime.ensureProject(ctx); err != nil {
 		t.Fatal(err)
 	}
-	svc := &persistentresource.Service{Store: state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json")), Backend: &PersistentResourceBackend{Runtime: runtime}}
+	receiptDir, err := os.MkdirTemp("/var/lib", "haco-persistent-copy-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("retained fixture ownership catalog", receiptDir)
+	svc := &persistentresource.Service{Store: state.NewEnvironmentJSONStore(filepath.Join(receiptDir, "state.json")), Backend: &PersistentResourceBackend{Runtime: runtime}}
 	t.Logf("test-owned pool/project: %s; failure retains exact resources for inspection", pool)
 	var sourcePath string
 	marker := []byte("independent OCI Store copy test\n")
@@ -118,9 +123,31 @@ func TestRealIncusPersistentCopyE2E(t *testing.T) {
 	if read(targetPath) != "copy edited\n" {
 		t.Fatal("source deletion lost copy")
 	}
-	if err := svc.Delete(ctx, target.ID); err != nil {
+
+	volume := "haco-persistent-" + target.Owner
+	command("incus", "storage", "volume", "snapshot", "create", pool, volume, "keep", "--project", project)
+	if err := svc.DeleteReviewed(ctx, target.Ref()); !errors.Is(err, core.ErrStorageBusy) {
+		t.Fatalf("saved child deletion refusal: %v", err)
+	}
+	retained, err := svc.Store.GetPersistentResource(ctx, target.ID)
+	if err != nil || retained.State != "ready" || read(targetPath) != "copy edited\n" {
+		t.Fatalf("saved-child refusal changed ready Store: %+v %v", retained, err)
+	}
+	command("incus", "storage", "volume", "snapshot", "show", pool, volume+"/keep", "--project", project)
+	command("incus", "storage", "volume", "snapshot", "delete", pool, volume, "keep", "--project", project)
+	stale := target.Ref()
+	stale.Owner = strings.Repeat("f", 32)
+	if err := svc.DeleteReviewed(ctx, stale); !errors.Is(err, core.ErrCapabilityStale) {
+		t.Fatalf("stale review: %v", err)
+	}
+	if err := svc.DeleteReviewed(ctx, target.Ref()); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := svc.Store.GetPersistentResource(ctx, target.ID); !errors.Is(err, core.ErrNotFound) {
+		t.Fatalf("deleted Store catalog remains: %v", err)
+	}
+	t.Log("PASS OCI reviewed deletion: native child snapshot refused with ready Store/data retained, stale owner refused, explicit child then owned Store deletion confirmed")
+
 	command("incus", "project", "delete", project)
 	command("incus", "storage", "delete", pool)
 	t.Log(fmt.Sprintf("PASS independent contents, bidirectional mutation isolation, source deletion and Btrfs parent UUID %s", originalUUID))

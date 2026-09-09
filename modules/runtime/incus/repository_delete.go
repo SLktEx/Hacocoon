@@ -3,8 +3,6 @@ package incus
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
@@ -58,27 +56,11 @@ func (b *RepositoryBackend) CheckWorkspaceVolumeDeletion(ctx context.Context, ta
 	if err != nil || volume == nil {
 		return err
 	}
-	if strings.TrimSpace(volume.Config["snapshots.schedule"]) != "" {
-		return fmt.Errorf("scheduled native snapshots prevent Workspace deletion: %w", core.ErrStorageBusy)
-	}
 	pool, name, err := volumeRef(target)
 	if err != nil {
 		return err
 	}
-	for _, kind := range []string{"snapshots", "backups"} {
-		result, err := b.Runtime.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+pool+"/volumes/custom/"+name+"/"+kind+"?project="+b.Runtime.project)
-		if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
-			return core.ErrRuntimeUnavailable
-		}
-		var saved []string
-		if json.Unmarshal([]byte(result.Stdout), &saved) != nil || saved == nil {
-			return core.ErrIncompatibleState
-		}
-		if len(saved) != 0 {
-			return fmt.Errorf("native %s prevent Workspace deletion: %w", kind, core.ErrStorageBusy)
-		}
-	}
-	return nil
+	return b.Runtime.checkVolumeSavedObjects(ctx, pool, name, volume.Config)
 }
 
 // DeleteWorkspaceVolume succeeds only after independent native absence checks.

@@ -125,3 +125,29 @@ func TestPublicationAndWorkspaceAssociationsCannotBeBypassedByDirectLease(t *tes
 		}
 	}
 }
+
+func TestReviewedStoreDeleteCannotUseOwnerToCancelCreation(t *testing.T) {
+	ctx := context.Background()
+	s := NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
+	r := core.PersistentResource{ID: "oci:review", Owner: strings.Repeat("a", 32), Kind: "oci-containerd", NativeRef: "pool/owned", State: "creating", CreatedAt: time.Now().UTC()}
+	if err := s.BeginPersistentResourceCreate(ctx, r); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginPersistentResourceDeleteReviewed(ctx, r.Ref()); !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatal(err)
+	}
+	if held, err := s.GetPersistentResource(ctx, r.ID); err != nil || held != r {
+		t.Fatal(held, err)
+	}
+	if err := s.CommitPersistentResourceCreate(ctx, r); err != nil {
+		t.Fatal(err)
+	}
+	stale := r.Ref()
+	stale.Owner = strings.Repeat("b", 32)
+	if _, err := s.BeginPersistentResourceDeleteReviewed(ctx, stale); !errors.Is(err, core.ErrCapabilityStale) {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginPersistentResourceDeleteReviewed(ctx, r.Ref()); err != nil {
+		t.Fatal(err)
+	}
+}

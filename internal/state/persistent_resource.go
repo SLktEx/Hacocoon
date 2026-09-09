@@ -109,8 +109,17 @@ func (s *EnvironmentJSONStore) CommitPersistentResourceCreate(_ context.Context,
 	})
 }
 
+// BeginPersistentResourceDeleteReviewed is the public selection boundary. It
+// cannot use a known owner token to cancel an in-flight creation or restoration.
+func (s *EnvironmentJSONStore) BeginPersistentResourceDeleteReviewed(ctx context.Context, ref core.PersistentResourceRef) (core.PersistentResource, error) {
+	if !core.ValidPersistentResourceRef(ref) {
+		return core.PersistentResource{}, core.ErrInvalidArgument
+	}
+	return s.beginPersistentResourceDelete(ctx, ref.ID, "", ref.Owner, true)
+}
+
 func (s *EnvironmentJSONStore) BeginPersistentResourceDelete(ctx context.Context, id string) (core.PersistentResource, error) {
-	return s.beginPersistentResourceDelete(ctx, id, "", "")
+	return s.beginPersistentResourceDelete(ctx, id, "", "", false)
 }
 
 // Workspace ownership is compared in the same transaction that excludes new attachments.
@@ -118,10 +127,10 @@ func (s *EnvironmentJSONStore) BeginWorkspaceResourceDelete(ctx context.Context,
 	if work == "" {
 		return core.PersistentResource{}, core.ErrInvalidArgument
 	}
-	return s.beginPersistentResourceDelete(ctx, id, work, "")
+	return s.beginPersistentResourceDelete(ctx, id, work, "", false)
 }
 
-func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, id string, expected core.WorkspaceID, owner string) (r core.PersistentResource, err error) {
+func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, id string, expected core.WorkspaceID, owner string, reviewed bool) (r core.PersistentResource, err error) {
 	err = s.resourceTransaction(func(d *environmentFileState) error {
 		var ok bool
 		r, ok = d.PersistentResources[id]
@@ -130,6 +139,9 @@ func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, 
 		}
 		if owner != "" && r.Owner != owner {
 			return core.ErrCapabilityStale
+		}
+		if reviewed && (r.SourceOnly || (r.State != "ready" && r.State != "deleting")) {
+			return core.ErrRecoveryRequired
 		}
 		// Normal deletion must not release the saved-source reservation while
 		// a creator can still materialize its planned volume. Failure cleanup

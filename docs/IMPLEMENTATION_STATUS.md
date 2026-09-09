@@ -1,5 +1,9 @@
 # Implementation Status
 
+## Explicit OCI Store cleanup
+
+Partial E5: reviewed OCI Store list/delete is implemented. The existing catalog owns identity and reservations; Incus owns volume deletion. Native child snapshots/backups/schedules, Host sources and unfinished creation block removal. Schema 13 and independent snapshots are unchanged. Six related package tests passed. Dedicated WSL Incus/Btrfs acceptance passed in 11.21s: independent COW data, source deletion, child snapshot refusal with ready state/data retained, stale owner refusal and exact deletion/absence. The initial native test failed on incorrect fixture `snapshot show` arguments; corrected before the passing run. Its exact owned leftovers were explicitly removed and the empty pool verified. Docker compatibility and broad OCI image operations were not tested. See [the owning contract](design/persistent-oci-store.md#explicit-retained-store-deletion).
+
 ## Explicit built Base image cleanup
 
 Partial E5: `haco base list --all [--json]` and `haco base delete [--yes]
@@ -10,12 +14,13 @@ protected alias users block removal. Independent snapshot provenance does not
 require retaining the original image. No schema change, retention object or
 migration is introduced. See [the owning Base contract](design/base-images-and-custom-environments.md#explicit-built-image-cleanup).
 
-Initial related package tests and all six related race tests passed after
-correcting a fixture runner type. Final observation guards and extended native E2E
-are still under validation. This is not yet a
-real Incus cleanup acceptance claim. Workspace cleanup PR #504 was merged as
-`4adfa81` after all four workflows passed at `687357f`; its native saved-child test
-and public aggregate CLI fixture passed in 0.83s and 31.81s respectively.
+Base cleanup PR #505 merged as `32dd1e4` after all four workflows succeeded at
+`9d8ff82`. Real Incus/Btrfs Base cleanup and saved-rootfs independence passed in
+111.30s. Local maintained CI passed on an exact committed tree on WSL ext4 after
+the Windows-mounted repository-copy test exceeded its ten-minute limit. Windows
+attempt 1 failed at generated-alias SSH; the same-commit retry passed. Those first
+failures remain recorded in PR #505; their success is not inferred from a retry.
+Workspace PR #504 merged as `4adfa81` with all applicable workflows green.
 
 ## Explicit managed Workspace cleanup
 
@@ -1342,7 +1347,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.54**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.55**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|
