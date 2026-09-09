@@ -314,11 +314,12 @@ Windows ユーザーの違いは Linux へ問い合わせる前に拒否し、�
 自動登録しません。既存の操作記録・catalog・snapshot の schema は変更していません。
 Linux の識別情報のコピーだけでは Windows のファイル・所有者の対応を満たしません。
 
-installer entry は現在内部処理であり、明示的な acceptance で実行します。配布用 Windows installer・
-helper への接続は未完了です。公開の変更操作や自動登録へのフォールバックはありません。
-中断記録の確認、呼び出し元 WSL が終了しても動く Windows 子プロセス、公開の全層一括操作は
-未完了です。所有ユーザーによる直接の Windows 管理はこの排他の対象外であり、controller の
-リクエスト認可の代わりにはなりません。
+内部の `haco-wsl.exe enroll <registration-guid>` を Windows amd64/arm64 用パッケージに同梱します。
+通常の管理対象インストールは Linux の識別情報取得後、同梱チェックサムを検証して一意に解決した GUID で
+呼び出します。Windows 呼び出し元の権限で動き、昇格・圧縮・汎用コマンド実行は提供しません。
+SkipIncus は管理対象の登録に含めません。公開の変更入口・暗黙の登録 fallback はありません。
+中断記録の確認、呼び出し元 WSL の終了後も生きる Windows 子プロセス、公開の全層一括操作は未完成です。
+所有ユーザーによる直接の Windows 管理はこの排他の対象外であり、controller のリクエスト認可の代わりにはなりません。
 
 Windows native の保存・拒否テスト（暗黙登録の禁止、同名での登録置換、別の導入・ユーザー・
 ファイル、未知 schema／field、拒否時の元バイト保持）と amd64・arm64 ビルドは成功しました。
@@ -333,3 +334,22 @@ registry は gate により SKIP でした。Windows の導入・再導入、Env
 SSH、setup、preview、doctor、通知は成功しましたが、Remote-SSH 拡張インストールと承認レビューの
 前提 setup-start（internal）で workflow は失敗しました。取得したログでは両方の原因を確定できません。
 ローカルの回収検証でこれらを確認済みとしたり、成功扱いにしたりしません。
+
+## 配布用登録処理の検証
+
+状態: **partial**。native helper の引数・失敗・ログ秘匿テストと Windows PowerShell installer
+fixture が成功しました。チェックサムの重複・欠落・不一致と helper の非ゼロ終了を拒否します。
+パッケージ検証ではアーキテクチャと両実行ファイルのチェックサムを確認し、Windows 両アーキテクチャの
+ビルドが成功しました。既存 Windows GHA はパッケージ作成前に native 拒否テストも実行します。
+チェックサムは同梱内容の確認であり、guest から渡された実行ファイルを信頼する仕組みではありません。
+固定 entry は installer パッケージのみが供給します。利用者のコマンド・option は増えません。
+既存導入は通常の管理対象 installer 再実行で登録できますが、対応が変わっていれば拒否し、自動移行しません。
+
+直前の head `d85df9a` は GHA 4 workflow すべてが成功しました。上記 `81d105f` の Windows 失敗を
+取り消したり、その原因を確定したりするものではありません。同梱 helper を含む installer 全体の GHA は
+未確認です。公開の容量回収・独立 Windows 子プロセス・中断記録の確認は planned のままです。
+この変更に Env・Workspace・OCI・snapshot・catalog の schema 変更はありません。
+
+実際の installer 関数からビルド済み helper を専用 WSL に対して呼び出し、47.54秒で成功しました。
+Installation と Operation の既存バイトは不変でした。実登録への呼び出し検証であり、
+新規インストール全体や容量回収の検証ではありません。

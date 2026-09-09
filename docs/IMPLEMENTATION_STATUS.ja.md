@@ -1,5 +1,13 @@
 # 実装状況
 
+## 配布用 Windows 登録処理
+
+状態: **partial**。通常の管理対象 Windows installer は Linux の識別情報取得後、
+アーキテクチャ別の内部 `haco-wsl.exe` を検証して呼び出します。利用者のコマンド・option は増えません。
+helper・component・package テストと両アーキテクチャのビルドが成功しました。この変更を含む installer
+全体の確認は未完了です。直前の `d85df9a` は GHA 4 workflow が成功しました。独立した子プロセス・
+中断記録の確認・公開の全層一括回収は planned です。[契約](design/storage-reclamation.ja.md)を参照してください。
+
 ## 内部の回収処理での Windows 導入情報の照合
 
 状態: **partial、内部のみ**。明示的な登録が Host・登録・Windows ユーザー・ファイル実体の

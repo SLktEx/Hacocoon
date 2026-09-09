@@ -311,6 +311,45 @@ try {
     [IO.File]::Delete($reviewChecksums)
     [IO.Directory]::Delete($reviewHashRoot, $false)
 }
+# Enrollment executes only the verified bundled helper and preserves its failure.
+$enrollTestRoot = Join-Path ([IO.Path]::GetTempPath()) ('haco-enroll-' + [guid]::NewGuid().ToString('N'))
+[void][IO.Directory]::CreateDirectory($enrollTestRoot)
+$enrollExe = Join-Path $enrollTestRoot 'haco-wsl.exe'
+$enrollChecksums = Join-Path $enrollTestRoot 'checksums.txt'
+$enrollFunction = 'function:' + $enrollExe
+[IO.File]::WriteAllText($enrollExe, 'test fixture only')
+$enrollHash = Get-Sha256Hex $enrollExe
+$enrollId = [guid]::NewGuid().ToString('B')
+$script:enrollInvocations = 0
+Set-Item -LiteralPath $enrollFunction -Value {
+    Assert-Equal ($args -join '|') ('enroll|' + $enrollId)
+    $script:enrollInvocations++
+    $global:LASTEXITCODE = $script:enrollExit
+}
+try {
+    $validChecksum = $enrollHash + '  haco-wsl.exe'
+    foreach ($lines in @('bad', ($validChecksum + "`n" + $validChecksum), (('0' * 64) + '  haco-wsl.exe'))) {
+        [IO.File]::WriteAllText($enrollChecksums, $lines)
+        $rejected = $false
+        try { Invoke-WslEnrollment $enrollTestRoot $enrollId } catch { $rejected = $true }
+        Assert-Equal $rejected $true
+        Assert-Equal $script:enrollInvocations 0
+    }
+    [IO.File]::WriteAllText($enrollChecksums, $validChecksum)
+    $script:enrollExit = 0
+    Invoke-WslEnrollment $enrollTestRoot $enrollId
+    Assert-Equal $script:enrollInvocations 1
+    $script:enrollExit = 1
+    $rejected = $false
+    try { Invoke-WslEnrollment $enrollTestRoot $enrollId } catch { $rejected = $true }
+    Assert-Equal $rejected $true
+    Assert-Equal $script:enrollInvocations 2
+} finally {
+    Remove-Item -LiteralPath $enrollFunction
+    [IO.File]::Delete($enrollExe)
+    [IO.File]::Delete($enrollChecksums)
+    [IO.Directory]::Delete($enrollTestRoot, $false)
+}
 # Failure-case probes intentionally change LASTEXITCODE. GitHub's PowerShell
 # wrapper returns it after this script, so publish success only after every
 # assertion and cleanup has completed. A thrown failure never reaches here.

@@ -33,6 +33,11 @@ with tempfile.TemporaryDirectory() as temp:
         with zipfile.ZipFile(native, "w") as zf:
             zf.writestr("haco-review.exe", f"fake-review-{arch}".encode())
         checksum_lines.append(f"{digest(native)}  {native.name}\n")
+        helper = dist / f"haco_wsl_windows_{arch}.zip"
+        with zipfile.ZipFile(helper, "w") as zf:
+            zf.writestr("haco-wsl.exe", f"fake-wsl-{arch}".encode())
+        checksum_lines.append(f"{digest(helper)}  {helper.name}\n")
+
     (dist / "checksums.txt").write_text("".join(checksum_lines), encoding="utf-8")
 
     subprocess.run(
@@ -75,6 +80,7 @@ with tempfile.TemporaryDirectory() as temp:
                 "install-windows.ps1",
                 "windows-review.ps1",
                 "haco-review.exe",
+                "haco-wsl.exe",
                 "install.sh",
                 "setup-wsl-host-interop.py",
                 "incus-boot-guard.py",
@@ -90,6 +96,9 @@ with tempfile.TemporaryDirectory() as temp:
             if f"haco_linux_{other}.tar.gz" in names:
                 raise SystemExit(f"Windows {arch} package contains the wrong architecture")
             native_checksum = hashlib.sha256(f"fake-review-{arch}".encode()).hexdigest() + "  haco-review.exe\n"
+            native_checksum += hashlib.sha256(f"fake-wsl-{arch}".encode()).hexdigest() + "  haco-wsl.exe\n"
+            if zf.read("haco-wsl.exe") != f"fake-wsl-{arch}".encode():
+                raise SystemExit("Wrong Windows helper architecture")
             if zf.read("checksums.txt").decode() != checksum_line + native_checksum:
                 raise SystemExit(f"Windows {arch} inner checksum mismatch")
             if zf.read("VERSION").decode() != VERSION + "\n":
@@ -168,6 +177,23 @@ with tempfile.TemporaryDirectory() as temp:
     for name in expected_release - {"checksums.txt"}:
         if release_checksums.get(name) != digest(out / name):
             raise SystemExit(f"release checksum mismatch for {name}")
+
+    # Corrupt a release helper after checksums were produced. No Windows bundle
+    # may be published from a mismatched executable archive.
+    bad_helper = dist / "haco_wsl_windows_amd64.zip"
+    with bad_helper.open("ab") as stream:
+        stream.write(b"corrupted-after-checksum")
+    rejected_out = temp_root / "rejected"
+    rejected = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "package_installers.py"),
+         "--dist", str(dist), "--output", str(rejected_out),
+         "--version", VERSION, "--arch", "amd64"],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    if rejected.returncode == 0 or "Windows WSL helper archive checksum mismatch" not in rejected.stderr:
+        raise SystemExit("corrupt WSL helper archive was not refused")
+    if (rejected_out / "hacocoon-windows-amd64.zip").exists():
+        raise SystemExit("corrupt WSL helper published a Windows bundle")
 
 # A ConPTY cmd.exe session emits OSC title sequences before and after installer
 # output. Normalization must remove each OSC sequence independently instead of

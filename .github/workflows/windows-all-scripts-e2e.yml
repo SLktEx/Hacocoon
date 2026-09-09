@@ -52,6 +52,12 @@ jobs:
           check-latest: false
           cache: false
 
+      - name: Test native Windows reclamation boundaries
+        shell: pwsh
+        run: |
+          go test -v -timeout 3m ./internal/wslreclaim ./cmd/haco-wsl
+          if ($LASTEXITCODE -ne 0) { throw "Native Windows reclamation tests failed." }
+
       - name: Install pinned GoReleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:

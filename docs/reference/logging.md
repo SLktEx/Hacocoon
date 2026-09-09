@@ -31,7 +31,7 @@ HACO_LOG_LEVEL=debug haco doctor
 HACO_LOG_FORMAT=json HACO_LOG_LEVEL=debug haco create --workspace /work demo
 ```
 
-`haco`, `haco-vscode`, `haco-agent-host`, and `haco-notify` use the same configuration. Supported formats are `text` (default) and `json`. Logs are written to stderr so command output on stdout remains machine-consumable.
+`haco`, `haco-vscode`, `haco-wsl`, `haco-agent-host`, and `haco-notify` use the same configuration. Supported formats are `text` (default) and `json`. Logs are written to stderr so command output on stdout remains machine-consumable.
 
 ## Stable structured fields
 

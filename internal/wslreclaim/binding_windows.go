@@ -127,3 +127,13 @@ func (r registration) enrollInstallation(ctx context.Context) error {
 	})
 	return err
 }
+
+// EnrollInstallation is the native installer's explicit entry. Ordinary
+// reclamation never calls this function to adopt a missing or changed target.
+func EnrollInstallation(ctx context.Context, registrationID string) error {
+	r, err := readRegistration(registrationID)
+	if err != nil {
+		return err
+	}
+	return r.enrollInstallation(ctx)
+}

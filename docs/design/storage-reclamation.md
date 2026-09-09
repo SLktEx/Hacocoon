@@ -388,8 +388,11 @@ revalidates native registration before compaction. It never self-enrolls on a
 missing record. Existing operation/catalog/snapshot schemas are unchanged.
 A copied Linux identity alone cannot satisfy the Windows file/owner binding.
 
-The installer entry is currently internal and explicitly exercised by acceptance;
-the packaged Windows installer/helper still needs wiring. There is no public
+The internal `haco-wsl.exe enroll <registration-guid>` entry is bundled for Windows
+amd64/arm64. Normal managed installation verifies its bundled checksum and invokes
+it after Linux identity capture, using the uniquely resolved GUID. It runs as the
+Windows caller without elevation and exposes no compaction or general command mode.
+SkipIncus remains outside managed enrollment. There is no public
 mutation entry or automatic enrollment fallback. Interrupted-operation review,
 a Windows child surviving its WSL caller and the public all-layer workflow remain
 pending. Raw Windows administration by the owning user is outside this exclusion;
@@ -412,3 +415,25 @@ preview, doctor and notification checks passed, but the workflow FAILED on
 Remote-SSH extension installation and pending-review prerequisite setup-start
 (internal). The available log does not establish either root cause. These failures
 are not covered by the local reclamation acceptance or counted as success.
+
+## Packaged enrollment acceptance
+
+Status: **partial**. The native helper argument/failure/redaction tests and Windows
+PowerShell installer fixtures passed, including duplicate/missing/mismatched
+checksums and nonzero helper exit. Installer packaging checks verify architecture
+and both executable checksums. Both Windows architecture builds passed. The
+existing Windows GHA workflow now runs the native refusal suite before packaging.
+The checksum verifies bundled content, not trust in a guest-supplied executable;
+only the installer package supplies this fixed entry. No user command or option
+is added. Existing installations enroll by rerunning normal managed installation;
+changed correspondence remains an explicit refusal, with no automatic migration.
+
+At preceding head `d85df9a`, all four GHA workflows passed. This does not erase the
+`81d105f` Windows failures above or establish their causes. Full installer GHA for
+the packaged helper is pending. Public reclamation, independent Windows child and
+interrupted-record review remain planned. No Env, Workspace, OCI, snapshot or
+catalog schema changes are part of this slice.
+
+The actual installer function invoked the built helper against the dedicated WSL
+and PASSED in 47.54s. Existing Installation and Operation bytes were unchanged.
+This tests real registration dispatch, not a complete fresh install or compaction.

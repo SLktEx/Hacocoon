@@ -1,5 +1,15 @@
 # Implementation Status
 
+## Packaged Windows enrollment
+
+Status: **partial**. The normal managed Windows installer now verifies and invokes
+an architecture-specific internal `haco-wsl.exe` after Linux identity capture.
+No extra user command or option is required. Helper/component/package tests and
+both architecture builds passed; full installer acceptance for this slice is
+pending. Preceding `d85df9a` passed all four GHA workflows. Independent child,
+interrupted review and public all-layer reclamation remain planned. See the
+[contract](design/storage-reclamation.md#packaged-enrollment-acceptance).
+
 ## Windows enrollment enforced by internal reclamation
 
 Status: **partial, internal only**. Explicit enrollment persists the exact Host,

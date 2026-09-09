@@ -83,6 +83,19 @@ function Resolve-WslRegistrationId([string]$Name) {
     return $id.ToString('B')
 }
 
+function Invoke-WslEnrollment([string]$BundleRoot, [string]$RegistrationId) {
+    $id = [guid]::Empty
+    if (-not [guid]::TryParse($RegistrationId, [ref]$id) -or $id -eq [guid]::Empty) { throw 'Invalid enrollment registration.' }
+    $source = Join-Path $BundleRoot 'haco-wsl.exe'
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf) -or ((Get-Item -LiteralPath $source).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Missing or redirected Windows enrollment helper.' }
+    $entries = @(Get-Content -LiteralPath (Join-Path $BundleRoot 'checksums.txt') | Where-Object { $_ -cmatch '^[a-f0-9]{64}  haco-wsl.exe$' })
+    if ($entries.Count -ne 1 -or (Get-Sha256Hex $source) -cne $entries[0].Substring(0,64)) { throw 'Windows enrollment helper checksum mismatch.' }
+    # This is a bundled installer component running as the Windows caller, not
+    # an elevated helper or a command derived from guest/controller output.
+    & $source enroll $id.ToString('B')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows installation enrollment failed; saved correspondence was retained.' }
+}
+
 function Write-WslContinuation([string]$Directory, [string]$Name, [bool]$RestartRequired) {
     Assert-SafeName $Name "WSL instance name"
     Assert-SafeName $BaseDistro "WSL base distribution"
@@ -788,6 +801,7 @@ if (-not $SkipIncus) {
     }
     $binding = Invoke-WslCapture @('--distribution-id', $managedRegistrationId, '--user', 'root', '--exec', '/usr/bin/python3', '-I', '/usr/local/libexec/hacocoon-wsl-interop', '--capture-registration', $managedRegistrationId)
     if ($binding.ExitCode -ne 0) { throw 'Managed WSL registration capture failed; existing records were retained.' }
+    Invoke-WslEnrollment $PSScriptRoot $managedRegistrationId
     Configure-WslPost $InstanceName $loginUser
     $probe = Invoke-WslCapture @("--distribution", $InstanceName, "--user", "root", "--exec", "incus", "exec", "haco-host", "--project", "hacocoon", "--", "/usr/local/bin/haco-host", "doctor")
     if ($probe.ExitCode -ne 0) { throw "WSL post-install haco-host acceptance failed." }
