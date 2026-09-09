@@ -118,7 +118,7 @@ VHDX without following parent disks, and requires a dynamic, detached disk.
 It retains file/ancestor pins throughout, records native completion separately
 from measured allocation, and checks virtual capacity/identifier afterwards.
 Cancellation cannot undo a synchronous operation. Sharing violations at native
-open have a 30-second retry budget; individual synchronous calls can exceed that
+open have a 90-second retry budget; individual synchronous calls can exceed that
 budget. Other errors fail immediately. Compaction itself is never retried.
 This remains **partial, internal only**; public orchestration is not implemented.
 
@@ -137,11 +137,46 @@ These observations do not prove every saved Workspace/OCI/snapshot byte.
 A subsequent immediate-stop acceptance with bounded open waiting FAILED in
 34.21s after 69 open attempts. Sharing violations persisted to the deadline;
 compaction was not attempted. Same-registration resumption and the probe/instance
-checks passed again. Automatic stop-to-compaction readiness remains unresolved;
-the earlier successful compaction does not turn this failure into a pass.
+checks passed again. This historical 30-second attempt failed; the later 90-second acceptance below
+does not turn it into a pass. Public orchestration remains unfinished.
 The probe remains under `/var/lib/haco-reclaim-compact.7NTvx7`.
 
 Native isolated VHDX compaction, retained file identity/rename exclusion,
 cancellation, invalid-file refusal and bounded sharing-wait regressions passed.
 The public all-layer flow, automatic stop/resume, and full saved-data acceptance
 through that flow remain unverified.
+
+## Distribution readiness and registration
+
+On WSL 2.7.13, a stopped distribution listing did not prove native disk readiness:
+a read-only open immediately after individual termination FAILED in 4.10s.
+A bounded read-only observation subsequently PASSED in 61.62s, with 204 opens
+and 57.70s spent waiting; the native disk was detached. Same-registration resume,
+probe hash and nine stopped instance records matched. No disk mutation ran.
+The 30-second budget was shorter than this observed release time; native open
+now allows 90 seconds. This does not guarantee readiness while other WSL users
+keep the shared VM alive or when its idle timeout is disabled/longer.
+
+The installed-version [WSL session implementation](https://github.com/microsoft/WSL/blob/2.7.13/src/windows/service/exe/LxssUserSession.cpp)
+separates distribution stop from shared-VM idle termination. Do not change global
+WSL configuration or stop unrelated distributions to force this step to pass.
+The installed CLI has no native compact command; newer upstream source must not
+be mistaken for an installed capability.
+
+Internal registration reads use an explicit nonzero GUID under the current user's
+WSL registry, literal name/base/VHD filename values and WSL 2. They refuse missing
+values, ambiguous paths and default/name fallback. Revalidation rejects changed
+registration values. This observation still needs binding to the authorized
+managed installation and to held file identity at each mutation boundary; it is
+not a new permission source or a completed public continuation.
+
+After this adjustment, exact registration/pinned-file preflight PASSED in 4.42s,
+and immediate-stop compaction PASSED in 79.16s with 144 native open attempts.
+Windows file length/allocation went from 6,768,558,080 to 6,747,586,560 bytes
+(20MiB reclaimed); virtual capacity 1TiB and identifier matched across compaction.
+The same registration resumed and the sentinel/nine-instance checks matched.
+The acceptance driver performed stop/resume; product orchestration is still planned.
+Native registration type/path rejection tests and amd64/arm64 builds passed.
+Existing catalog/snapshot data and WSL registration/configuration were not migrated
+or rewritten. Full Workspace/OCI/snapshot content acceptance through the future
+public all-layer operation is still pending.

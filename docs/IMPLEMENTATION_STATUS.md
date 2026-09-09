@@ -1,5 +1,19 @@
 # Implementation Status
 
+## Windows registration and stop-to-compaction readiness
+
+Status: **partial, internal only**. Exact nonzero registration GUID/literal VHDX
+metadata reads and changed-value revalidation are implemented, without default or
+name fallback. Native refusal tests, real registration preflight (4.42s), and
+Windows amd64/arm64 builds passed. A read-only native probe observed readiness
+57.70s after open attempts began; stopped inventory alone had failed to prove it.
+Increasing the sharing-only open budget from 30 to 90 seconds enabled dedicated
+immediate-stop compaction to PASS in 79.16s: 6,768,558,080 to 6,747,586,560 allocated
+bytes, unchanged virtual capacity/identifier across compaction, and matching
+probe/nine-instance observations after same-registration resume. The test driver
+owns stop/resume; the product's trusted all-layer continuation remains planned.
+Historical failures below remain failures. See the [contract](design/storage-reclamation.md#distribution-readiness-and-registration).
+
 ## Windows native compaction: partial acceptance
 
 Internal native compaction PASSED on the dedicated WSL VHDX in 17.66s with file

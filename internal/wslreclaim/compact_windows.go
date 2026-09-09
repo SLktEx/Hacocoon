@@ -140,9 +140,10 @@ func (p *pinnedDisk) compact(ctx context.Context) (result compactObservation, er
 		Version, InfoOnly, ReadOnly uint32
 		Resiliency                  windows.GUID
 	}{Version: 2}
-	// WSL termination may return before the backing disk can be opened for
-	// metadata operations. Wait only for this pre-mutation sharing condition.
-	openCtx, cancelOpen := context.WithTimeout(ctx, 30*time.Second)
+	// WSL 2.7.13 can retain the backing disk until the shared VM idle timer
+	// expires (native acceptance observed about 58s). Allow that natural release;
+	// never stop another distribution. Only wait before mutation.
+	openCtx, cancelOpen := context.WithTimeout(ctx, 90*time.Second)
 	h, attempts, openErr := waitVirtualDiskOpen(openCtx, func() (windows.Handle, error) {
 		var handle windows.Handle
 		// V2 uses ACCESS_NONE. NO_PARENTS prevents following a differencing chain.

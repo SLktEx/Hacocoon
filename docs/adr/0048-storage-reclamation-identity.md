@@ -31,6 +31,11 @@ The initial native compaction attempt failed with a sharing violation. Subsequen
 native fixture and dedicated WSL compaction passed with the same pins held,
 disproving the earlier claimed incompatibility. Do not release pins or introduce
 a path race. Only native open sharing violations receive a bounded pre-mutation
-wait; compaction is never retried. Immediate-stop acceptance still failed at the
-open deadline, so automatic readiness remains unresolved. Preserve that failure
-and resume the exact distribution; do not stop unrelated WSL distributions.
+wait; compaction is never retried. The initial 30-second immediate-stop attempt
+failed. A read-only probe then observed natural readiness after about 58 seconds
+on WSL 2.7.13; a 90-second budget allowed immediate-stop compaction to pass.
+This budget never authorizes stopping unrelated distributions or altering the
+shared VM idle timeout. Preserve each attempt's result and resume the exact
+registration. A registration GUID/value observation is not an authorization
+record: the public continuation must still bind the managed installation and
+pinned file at mutation boundaries, and reject changed/reused identities.
