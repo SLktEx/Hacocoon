@@ -74,6 +74,68 @@ class WindowsPathTests(unittest.TestCase):
         self.assertEqual(devices['haco-wsl-drive-q']['path'], '/mnt/q')
         self.assertNotIn('haco-wsl-drive-c', devices)
 
+@unittest.skipUnless(hasattr(os, 'geteuid') and os.geteuid() == 0, 'native root-owned Linux record fixture required')
+class RegistrationBindingTests(unittest.TestCase):
+    def test_capture_preserves_identity_and_rejects_replacement(self):
+        import uuid
+        from concurrent.futures import ThreadPoolExecutor
+        value = '{' + str(uuid.uuid4()) + '}'
+        with tempfile.TemporaryDirectory() as directory:
+            record = Path(directory) / 'registration.json'
+            with mock.patch.object(interop, 'REGISTRATION_RECORD', record):
+                with ThreadPoolExecutor(max_workers=4) as workers:
+                    results = list(workers.map(interop.capture_registration, [value] * 8))
+                self.assertTrue(all(item == results[0] for item in results))
+                self.assertEqual(record.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(record.stat().st_nlink, 1)
+                saved = record.read_bytes()
+                with self.assertRaises(ValueError):
+                    interop.capture_registration('{' + str(uuid.uuid4()) + '}')
+                self.assertEqual(record.read_bytes(), saved)
+                self.assertEqual(list(Path(directory).iterdir()), [record])
+
+    def test_hostile_records_are_retained(self):
+        import uuid
+        value = '{' + str(uuid.uuid4()) + '}'
+        with tempfile.TemporaryDirectory() as directory:
+            record = Path(directory) / 'registration.json'
+            with mock.patch.object(interop, 'REGISTRATION_RECORD', record):
+                interop.capture_registration(value)
+                valid = record.read_bytes()
+                for data in [valid.replace(b'"schema_version":1', b'"schema_version":2'),
+                             valid.replace(b'"schema_version":1', b'"schema_version":1,"schema_version":1'),
+                             valid.replace(b'"schema_version":1', b'"schema_version":1,"future":true'), b'x' * 4097]:
+                    record.write_bytes(data)
+                    with self.assertRaises(ValueError): interop.capture_registration(value)
+                    self.assertEqual(record.read_bytes(), data)
+                record.write_bytes(valid)
+                record.chmod(0o644)
+                with self.assertRaises(ValueError): interop.capture_registration(value)
+                record.chmod(0o600)
+                link = Path(directory) / 'extra'
+                os.link(record, link)
+                with self.assertRaises(ValueError): interop.capture_registration(value)
+                link.unlink()
+                record.unlink()
+                record.symlink_to(Path(directory) / 'absent')
+                with self.assertRaises(OSError): interop.capture_registration(value)
+                self.assertTrue(record.is_symlink())
+
+    def test_ancestor_redirection_and_guid_refusal(self):
+        import uuid
+        value = '{' + str(uuid.uuid4()) + '}'
+        with tempfile.TemporaryDirectory() as directory:
+            real = Path(directory) / 'real'
+            real.mkdir()
+            link = Path(directory) / 'link'
+            link.symlink_to(real, target_is_directory=True)
+            with mock.patch.object(interop, 'REGISTRATION_RECORD', link / 'registration.json'):
+                with self.assertRaises(OSError): interop.capture_registration(value)
+            self.assertEqual(list(real.iterdir()), [])
+        for value in ['', 'default', '--shutdown', '{00000000-0000-0000-0000-000000000000}', str(uuid.uuid4())]:
+            with self.assertRaises(ValueError): interop.canonical_registration_id(value)
+
+
 class DistributionTests(unittest.TestCase):
     def test_validated_record_and_collision(self):
         with tempfile.TemporaryDirectory() as directory:

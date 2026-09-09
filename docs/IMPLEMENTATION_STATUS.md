@@ -1,5 +1,16 @@
 # Implementation Status
 
+## Installer registration identity capture
+
+Status: **partial**. Normal managed Windows setup now uses a uniquely resolved
+WSL 2 GUID for common setup and captures a separate root-owned registration and
+installation ID. Same-GUID retries preserve identity; changed/unsafe/malformed
+records are retained and refused. Existing name-only connection records and
+SkipIncus behavior are preserved. Fifteen native Linux interop tests and Windows
+installer component tests passed. Actual dedicated WSL capture passed; complete
+installer acceptance and Windows file/owner authorization remain pending.
+See the [contract](design/storage-reclamation.md#installer-registration-binding).
+
 ## Native recorded Windows continuation acceptance
 
 Status: **partial, internal only**. At `e263f89`, the dedicated WSL sequence with

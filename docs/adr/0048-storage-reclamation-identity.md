@@ -70,3 +70,10 @@ records, without automatic replay, rollback or deletion. A completed record can
 be superseded only for the same target. Registry flush is used at the two durable
 boundaries; it is not a progress store. This record does not grant installation
 authority and requires explicit interrupted-state handling before public use.
+
+Preserve the legacy name-only interop record and capture a separate root-owned
+registration/installation identity during normal Windows installation. Resolve
+the name once for common setup, use the GUID, then reject changed correspondence.
+Capture cannot overwrite a changed or malformed existing identity. This Linux
+record is only one enrollment component; Windows file/owner binding must still
+be enforced before mutation. Do not treat a copied root record as authority.

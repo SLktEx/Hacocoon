@@ -1,5 +1,14 @@
 # 実装状況
 
+## Installer の登録識別情報の作成
+
+状態: **partial**。通常の managed Windows setup は一意に解決した WSL 2 GUID で共通 setup を
+実行し、root 所有の別ファイルへ登録・導入 ID を作成します。同じ GUID の再実行は識別情報を保持し、
+変更・不正な所有状態・不正形式の記録は残して拒否します。既存の名前だけの接続記録と SkipIncus の
+扱いは維持します。Linux native interop 15件と Windows installer の部品テストは成功しました。
+専用 WSL での実際の記録作成も成功し、installer 全体の実機検証と Windows のファイル・所有者の
+認可は未完了です。[契約](design/storage-reclamation.ja.md)を参照してください。
+
 ## 実行記録を含む Windows 処理の実機検証
 
 状態: **partial、内部のみ**。`e263f89` で排他と実行意図・結果の永続記録を含む専用 WSL

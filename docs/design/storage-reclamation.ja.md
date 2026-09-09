@@ -246,3 +246,33 @@ handle close の失敗も呼び出し元に返します。
 証明するものではありません。既存の root 所有の Linux interop は distribution 名だけを保存するため、
 現在の利用者向けの形式を維持し、Windows の変更操作の公開前に導入済み登録・ディスクとの
 明示的な対応付けを追加する必要があります。
+
+## Installer の登録対応付け
+
+通常の Windows 導入は共通 Ubuntu setup 前に、一意のリテラルな WSL 2 登録 GUID を解決し、
+その GUID を対象に共通 setup を実行して、終了後に名前との対応を再照合します。GUID 指定で
+導入済み interop helper を呼び、root として `/etc/hacocoon/windows-registration.json` を作成します。
+別の version 付き記録に正規形式の登録 GUID とランダムな導入 ID を保持します。既存の
+`windows-distribution.json` は接続・通知用の名前文字列の JSON として維持します。
+`-SkipIncus` は managed Host の登録を行いません。
+
+記録作成は symlink をたどらず directory handle で進み、root 所有かつ他者が書けない親を要求します。
+並行処理を直列化し、flush した mode 0600 のファイルを既存名の置き換えなしで公開します。
+同じ GUID の再実行は導入 ID を保持し、GUID の変更、不正な所有者・mode・link、過大・未知・
+不正形式の記録は上書きせず確認用に残します。クラッシュ時に公開途中の状態が残る場合も、
+自動復旧・上書きはしません。既存導入は通常の installer の再実行で記録を取得し、追加オプションは不要です。
+
+これは Linux 側の導入記録であり、Windows の変更操作の認可ではありません。Windows 側では
+固定した VHDX・Windows 所有者を導入済み Host に対応付け、強制する必要があります。
+Linux の記録のコピーだけで別の登録・ディスクを認可しません。公開操作と独立した Windows 子プロセスは
+未完了です。Core の新しいストレージ interface は追加していません。
+
+Linux native interop 15件（並行作成、不正・変更された記録の拒否を含む）、Windows installer
+部品テスト、専用 WSL の実登録の解決が成功しました。実際の root 所有記録の作成も成功しました。
+最初の再実行・既存ファイル比較プローブは、その WSL に `windows-distribution.json` がないため
+失敗し、再実行の assertion に到達していません。既存名前ファイルの内容比較はこの fixture では
+SKIP とし、成功扱いにしません。installer 全体と Windows の変更操作の認可の検証は未完了です。
+
+別の native 再実行プローブでは、root 所有・mode 0600・単一リンクと、2回の作成呼び出し後も
+内容・inode が同じことを確認し成功しました。既存名前記録は未作成のままで、上記の最初の
+プローブ失敗は記録として残しています。

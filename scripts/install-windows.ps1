@@ -48,6 +48,41 @@ function Invoke-WslInstall([string]$Name, [string[]]$Arguments) {
     }
 }
 
+function Read-WslRegistrationCandidates {
+    $root = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Microsoft\Windows\CurrentVersion\Lxss')
+    if ($null -eq $root) { throw 'WSL registration registry is unavailable.' }
+    try {
+        foreach ($id in $root.GetSubKeyNames()) {
+            $key = $root.OpenSubKey($id)
+            if ($null -eq $key) { throw 'WSL registration changed during lookup.' }
+            try {
+                [pscustomobject]@{
+                    Id = $id
+                    Name = $key.GetValue('DistributionName', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                    NameKind = $key.GetValueKind('DistributionName').ToString()
+                    Version = $key.GetValue('Version')
+                    VersionKind = $key.GetValueKind('Version').ToString()
+                }
+            } finally { $key.Close() }
+        }
+    } finally { $root.Close() }
+}
+
+function Resolve-WslRegistrationId([string]$Name) {
+    Assert-SafeName $Name 'WSL instance name'
+    $registrationMatches = @(Read-WslRegistrationCandidates | Where-Object {
+        $_.Name -is [string] -and [string]::Equals($_.Name, $Name, [StringComparison]::OrdinalIgnoreCase)
+    })
+    if ($registrationMatches.Count -ne 1) { throw 'Expected one exact WSL registration; refusing name/default fallback.' }
+    $selected = $registrationMatches[0]
+    $id = [guid]::Empty
+    if ($selected.NameKind -cne 'String' -or $selected.VersionKind -cne 'DWord' -or $selected.Version -ne 2 -or
+        -not [guid]::TryParse($selected.Id, [ref]$id) -or $id -eq [guid]::Empty) {
+        throw 'Unsupported WSL registration identity.'
+    }
+    return $id.ToString('B')
+}
+
 function Write-WslContinuation([string]$Directory, [string]$Name, [bool]$RestartRequired) {
     Assert-SafeName $Name "WSL instance name"
     Assert-SafeName $BaseDistro "WSL base distribution"
@@ -727,8 +762,14 @@ if ($probe.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($linuxAssetRoot)) {
 $skipIncusValue = if ($SkipIncus) { "1" } else { "0" }
 $grantIncusAdminValue = if ($GrantIncusAdmin) { "1" } else { "0" }
 $requireProvenance = if ($env:HACO_REQUIRE_PROVENANCE) { $env:HACO_REQUIRE_PROVENANCE } else { "1" }
+$managedRegistrationId = $null
+$managedDistributionArgs = @('--distribution', $InstanceName)
+if (-not $SkipIncus) {
+    $managedRegistrationId = Resolve-WslRegistrationId $InstanceName
+    $managedDistributionArgs = @('--distribution-id', $managedRegistrationId)
+}
 Write-Step "Running common Ubuntu install.sh inside '$InstanceName'"
-& wsl.exe --distribution $InstanceName --user root --exec env `
+& wsl.exe @managedDistributionArgs --user root --exec env `
     "HACO_INSTALL_USER=$loginUser" `
     "HACO_BUNDLE_ROOT=$linuxAssetRoot" `
     "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue" `
@@ -742,6 +783,11 @@ Assert-SystemdActive $InstanceName
 
 # post
 if (-not $SkipIncus) {
+    if ((Resolve-WslRegistrationId $InstanceName) -cne $managedRegistrationId) {
+        throw 'WSL registration changed during common setup.'
+    }
+    $binding = Invoke-WslCapture @('--distribution-id', $managedRegistrationId, '--user', 'root', '--exec', '/usr/bin/python3', '-I', '/usr/local/libexec/hacocoon-wsl-interop', '--capture-registration', $managedRegistrationId)
+    if ($binding.ExitCode -ne 0) { throw 'Managed WSL registration capture failed; existing records were retained.' }
     Configure-WslPost $InstanceName $loginUser
     $probe = Invoke-WslCapture @("--distribution", $InstanceName, "--user", "root", "--exec", "incus", "exec", "haco-host", "--project", "hacocoon", "--", "/usr/local/bin/haco-host", "doctor")
     if ($probe.ExitCode -ne 0) { throw "WSL post-install haco-host acceptance failed." }

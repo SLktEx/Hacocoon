@@ -22,6 +22,24 @@ Assert-LoginUserName '_ubuntu-user'
 function Assert-Equal($Actual, $Expected) {
     if ($Actual -cne $Expected) { throw "Expected '$Expected', got '$Actual'." }
 }
+# Resolve enrollment through one literal registry identity, never default WSL.
+$realRegistrations = ${function:Read-WslRegistrationCandidates}
+function Read-WslRegistrationCandidates { $script:registrationCandidates }
+try {
+    $registrationId = [guid]::NewGuid().ToString('B')
+    $validRegistration = [pscustomobject]@{ Id=$registrationId; Name='Hacocoon'; NameKind='String'; Version=2; VersionKind='DWord' }
+    $script:registrationCandidates = @($validRegistration)
+    Assert-Equal (Resolve-WslRegistrationId 'hacocoon') $registrationId
+    foreach ($candidates in @(@(), @($validRegistration,$validRegistration),
+        @([pscustomobject]@{ Id=[guid]::Empty.ToString('B'); Name='Hacocoon'; NameKind='String'; Version=2; VersionKind='DWord' }),
+        @([pscustomobject]@{ Id=$registrationId; Name='Hacocoon'; NameKind='ExpandString'; Version=2; VersionKind='DWord' }),
+        @([pscustomobject]@{ Id=$registrationId; Name='Hacocoon'; NameKind='String'; Version=1; VersionKind='DWord' }))) {
+        $script:registrationCandidates = $candidates
+        $rejected = $false
+        try { Resolve-WslRegistrationId 'Hacocoon' | Out-Null } catch { $rejected = $true }
+        Assert-Equal $rejected $true
+    }
+} finally { Set-Item -LiteralPath function:Read-WslRegistrationCandidates -Value $realRegistrations }
 # Mock only the native command boundary. Product stdout must remain visible,
 # never become part of the exit-code decision, and no extra elevation may run.
 $systemWsl = Join-Path ([Environment]::SystemDirectory) 'wsl.exe'

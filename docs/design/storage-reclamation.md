@@ -302,3 +302,40 @@ controller readiness, every Workspace/OCI byte, or the future public all-layer
 entry. Existing root-owned Linux interop stores a distribution name only; preserve
 that format for its current users and add explicit installed-registration/disk
 binding before exposing destructive Windows operations.
+
+## Installer registration binding
+
+Normal Windows setup now resolves exactly one literal WSL 2 registration GUID
+before common Ubuntu setup, runs common setup against that GUID and rechecks the
+name/GUID correspondence afterward. It invokes the installed interop helper by
+GUID to capture `/etc/hacocoon/windows-registration.json` as root. The separate
+versioned record has a canonical registration GUID and a random installation ID.
+Existing `windows-distribution.json` remains a JSON name string for current
+connection/notification users. `-SkipIncus` does not enroll a managed Host.
+
+Capture walks directory handles without following symlinks, requires a root-owned
+nonwritable parent, serializes callers and publishes a flushed mode-0600 file
+without replacing an existing name. Same-GUID retries preserve the installation
+ID. Changed GUID, unsafe owner/mode/links, oversized, unknown or malformed records
+fail closed and remain for review. A crash can leave an incomplete publication;
+there is no automatic recovery or overwrite. Existing installations obtain the
+record by rerunning the normal installer; no extra user option is required.
+
+This establishes the Linux side of enrollment, not Windows mutation authority.
+The Windows continuation must still bind its pinned VHDX and Windows owner to
+this installed Host and enforce that binding. A copied Linux record alone cannot
+authorize a replacement registration/disk. Public activation and the independent
+Windows child remain pending; no new Core storage interface is introduced.
+
+Fifteen native Linux interop tests passed, including concurrent capture and
+unsafe/changed-record refusal. Windows installer component tests and real
+registration resolution on the dedicated WSL passed. Actual root-owned record
+creation passed. The first repeat/legacy comparison probe FAILED because that
+WSL has no `windows-distribution.json`; repeat assertions had not run. Existing
+legacy-file content comparison is therefore SKIPPED on this fixture, not counted
+as success. Complete installer and Windows mutation-authorization acceptance
+remain pending.
+
+A separate native repeat probe then PASSED: root ownership, mode 0600, one link,
+and identical bytes/inode after two captures. The absent legacy name record
+remained absent. The first probe failure above remains recorded.
