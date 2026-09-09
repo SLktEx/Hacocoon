@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -60,7 +61,7 @@ func TestRealIncusOwnedVolumeExportE2E(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := json.NewEncoder(plan).Encode(map[string]any{"pool": pool, "owner": owner, "project": "default", "saved": c, "import": "restored"}); err != nil {
+	if err := json.NewEncoder(plan).Encode(map[string]any{"pool": pool, "owner": owner, "project": "default", "saved": c, "import": "restored", "retained_backup": "retained-archive"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := plan.Sync(); err != nil {
@@ -97,11 +98,30 @@ func TestRealIncusOwnedVolumeExportE2E(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(source, "retained"), marker, 0600); err != nil {
 		t.Fatal(err)
 	}
+	backupPath := "/1.0/storage-pools/" + pool + "/volumes/custom/" + p.target() + "/backups"
+	run("query", "-X", "POST", "--wait", backupPath, "--data", `{"name":"retained-archive","volume_only":true,"compression_algorithm":"none"}`)
+	retainedBefore, err := runtime.savedVolumeBackups(ctx, p)
+	if err != nil || len(retainedBefore) != 1 {
+		t.Fatal("existing native backup unavailable", err)
+	}
 	archive, err := runtime.ExportSnapshotVolume(ctx, c, dir, 16<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer archive.Close()
+	retainedAfter, err := runtime.savedVolumeBackups(ctx, p)
+	if err != nil || !reflect.DeepEqual(retainedAfter, retainedBefore) {
+		t.Fatal("existing backup changed during export", err)
+	}
+	// This backup was explicitly created by this fixture in its exact owned volume.
+	if err := runtime.verifySnapshotVolume(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	run("query", "-X", "DELETE", "--wait", backupPath+"/retained-archive")
+	remainingBackups, err := runtime.savedVolumeBackups(ctx, p)
+	if err != nil || len(remainingBackups) != 0 {
+		t.Fatal("fixture backup cleanup unconfirmed", err)
+	}
 	output := filepath.Join(dir, "volume.tar")
 	file, err := os.OpenFile(output, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {

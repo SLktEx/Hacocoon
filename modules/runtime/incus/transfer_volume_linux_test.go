@@ -28,7 +28,7 @@ func TestExportSnapshotVolumeOwnershipAndCleanup(t *testing.T) {
 					p := snapshotVolumeFixture(kind)
 					observed, exports, backupCalls := 0, 0, 0
 					data := []byte("native-volume-archive")
-					old := volumeBackupObservation{Name: "existing", CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+					old := volumeBackupObservation{Name: "existing.backup", CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 					runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
 						if name != "incus" {
 							t.Fatal(name)

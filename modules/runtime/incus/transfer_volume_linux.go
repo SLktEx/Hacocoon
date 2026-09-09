@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"unicode/utf8"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"golang.org/x/sys/unix"
@@ -63,12 +64,13 @@ func (r *Runtime) savedVolumeBackups(ctx context.Context, p snapshotVolumePlan) 
 		return nil, errors.Join(core.ErrRuntimeUnavailable, err)
 	}
 	var items []volumeBackupObservation
-	if json.Unmarshal([]byte(out.Stdout), &items) != nil || items == nil || len(items) > 2048 {
+	if !utf8.ValidString(out.Stdout) || json.Unmarshal([]byte(out.Stdout), &items) != nil || items == nil || len(items) > 2048 {
 		return nil, core.ErrIncompatibleState
 	}
 	result := make(map[string]volumeBackupObservation, len(items))
 	for _, v := range items {
-		if !safeIncusRef(v.Name) || v.CreatedAt.IsZero() {
+		// Backup names are observed data, never argv, paths or deletion authority.
+		if v.Name == "" || len(v.Name) > 1024 || v.CreatedAt.IsZero() {
 			return nil, core.ErrIncompatibleState
 		}
 		if _, exists := result[v.Name]; exists {
