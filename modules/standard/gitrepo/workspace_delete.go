@@ -12,6 +12,10 @@ import (
 func (s *RepositoryService) ListWorkspaces(ctx context.Context) ([]Object, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.listObjects(ctx, "work")
+}
+
+func (s *RepositoryService) listObjects(ctx context.Context, kind string) ([]Object, error) {
 	entries, err := os.ReadDir(s.Root)
 	if os.IsNotExist(err) {
 		return []Object{}, nil
@@ -25,14 +29,14 @@ func (s *RepositoryService) ListWorkspaces(ctx context.Context) ([]Object, error
 			return nil, err
 		}
 		name := entry.Name()
-		if !strings.HasPrefix(name, "work-") || !strings.HasSuffix(name, ".json") {
+		if !strings.HasPrefix(name, kind+"-") || !strings.HasSuffix(name, ".json") {
 			continue
 		}
-		id := strings.TrimSuffix(strings.TrimPrefix(name, "work-"), ".json")
+		id := strings.TrimSuffix(strings.TrimPrefix(name, kind+"-"), ".json")
 		if !ValidID(id) || !entry.Type().IsRegular() {
 			return nil, core.ErrIncompatibleState
 		}
-		o, err := s.readObject("work", id)
+		o, err := s.readObject(kind, id)
 		if err != nil {
 			return nil, err
 		}

@@ -207,3 +207,5 @@ Stopped-source Environment copy is implemented through existing Incus COW and ca
 E5 retained-data cleanup now includes explicit managed Workspace listing/deletion through canonical locks and owned Incus volume cleanup. Base/source-repository and OCI image selection/deletion remain partial; see [Workspace deletion](../design/workspace-abstraction-and-lease.md#explicit-retained-workspace-deletion).
 
 E5 also includes reviewed whole-Store OCI deletion; native saved children remain protected. Individual OCI images, source repositories and candidate-selected GC remain planned. See [Store cleanup](../design/persistent-oci-store.md#explicit-retained-store-deletion).
+
+Source repository list/review/delete is implemented with current Git dependencies protected. Individual OCI image cleanup, candidate-selected GC and F/G remain planned; see [source deletion](../design/git-and-github-capability.md#explicit-source-repository-deletion).

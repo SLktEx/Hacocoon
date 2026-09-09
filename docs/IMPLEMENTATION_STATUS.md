@@ -1,5 +1,10 @@
 # Implementation Status
 
+## Explicit source repository cleanup
+
+Partial E5: `haco repo list [--json]` and `haco repo delete [--yes] <id>` are implemented. Referencing Workspace records protect the current Git transport. Existing registry and Host-operation locks preserve identity, pending Host-copy state and native child saved objects. Schema 13 and independent data remain unchanged. Related package tests passed. Dedicated WSL Incus/Btrfs public source CLI acceptance passed in 30.43s: Workspace reference refusal, child snapshot and Host mount retention, stale review refusal, exact detach/delete and positive absence. The isolated project was removed; shared image/pool and the ownership receipt were retained. A subsequent guard rechecks queued Git requests under the registry lock; final race/CI results are tracked in the implementation PR. See [the contract](design/git-and-github-capability.md#explicit-source-repository-deletion). OCI cleanup PR #506 merged as `6903319` after all four workflows succeeded at `73175b4`; its new native regression passed in GHA in 0.71s.
+
+
 ## Explicit OCI Store cleanup
 
 Partial E5: reviewed OCI Store list/delete is implemented. The existing catalog owns identity and reservations; Incus owns volume deletion. Native child snapshots/backups/schedules, Host sources and unfinished creation block removal. Schema 13 and independent snapshots are unchanged. Six related package tests passed. Dedicated WSL Incus/Btrfs acceptance passed in 11.21s: independent COW data, source deletion, child snapshot refusal with ready state/data retained, stale owner refusal and exact deletion/absence. The initial native test failed on incorrect fixture `snapshot show` arguments; corrected before the passing run. Its exact owned leftovers were explicitly removed and the empty pool verified. Docker compatibility and broad OCI image operations were not tested. See [the owning contract](design/persistent-oci-store.md#explicit-retained-store-deletion).
@@ -1347,7 +1352,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.55**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.56**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

@@ -130,7 +130,7 @@ jobs:
           sudo env HACO_E2E_BASE_ASSET=1 HACO_E2E_SNAPSHOT_VOLUME=1 HACO_E2E_SNAPSHOT_ROOTFS=1 HACO_E2E_SNAPSHOT_BASE=1 HACO_E2E_SNAPSHOT_AGGREGATE=1 HACO_E2E_WORKSPACE_DELETE=1 \
             HACO_E2E_SNAPSHOT_CLI="$RUNNER_TEMP/snapshot-cli" \
             HACO_E2E_INCUS_RESUME_IMAGE="$image" HACO_E2E_INCUS_RESUME_POOL=haco-local-default \
-            "$RUNNER_TEMP/snapshot-storage.test" -test.run='^TestRealIncus(BaseAsset|WorkspaceDeletion|Snapshot(Volumes|Rootfs|Base|Aggregate))E2E$' -test.v -test.timeout=6m
+            "$RUNNER_TEMP/snapshot-storage.test" -test.run='^TestRealIncus(BaseAsset|WorkspaceDeletion|SourceDeletion|Snapshot(Volumes|Rootfs|Base|Aggregate))E2E$' -test.v -test.timeout=6m
       - name: Verify definition-driven Base build and immutable revisions
         run: |
           image="$(incus image list --project hacocoon --format=json | python3 -c 'import json,sys; images=json.load(sys.stdin); print(sorted(i["fingerprint"] for i in images if i.get("type") == "container")[0])')"

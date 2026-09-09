@@ -1,5 +1,7 @@
 # Versioning and release status
 
+Source repository cleanup is implemented through the existing registry and Incus volume/device operations. Workspace Git references and queued request identities remain protected. Individual OCI images, candidate-selected GC, reclamation and export/migration remain planned.
+
 Whole OCI Store review/deletion is implemented using existing owner/reservation records and Incus volume operations. Individual OCI image cleanup and candidate-selected GC remain planned; see [Store cleanup](../design/persistent-oci-store.md#explicit-retained-store-deletion).
 
 Environment copy adds a stopped-source, independent-data convenience flow using existing Incus COW and canonical creation. No schema change or automatic backup is added. See [the copy contract](../design/environment-copy.md).
@@ -168,8 +170,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.53 | Workspace Cleanup | ✅ implemented |
 | v0.54 | Base Image Cleanup | ✅ implemented |
 | v0.55 | OCI Store Cleanup | ✅ implemented |
+| v0.56 | Source Repository Cleanup | ✅ implemented |
 
-The current milestone position is **v0.55**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.56**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 
