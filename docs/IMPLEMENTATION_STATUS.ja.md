@@ -2,6 +2,11 @@
 
 ## Environment 持ち出しの前提確認
 
+Linux／WSL の Incus adapter は所有済みの保存 Workspace／OCI volume を匿名・読み取り専用 archive へ export し、
+native 所有情報と backup cleanup を確認します。専用 Incus 6.0.5／Btrfs の adapter 検証は5.92秒で成功し、
+関連 race test と vet も成功しました。公開 export/import 全体と rootfs archive 作成は未実装です。
+[所有文書](design/environment-transfer.ja.md)を参照してください。
+
 公開 G1 export/import は **planned** です。内部の snapshot／archive 照合は現行上限までの全 Workspace と任意の OCI を扱います。
 保存元の読み取り境界は canonical な削除ロックを共有し、保持 component を検証します。
 native archive 作成と公開 command は、まだ接続していません。native Incus rootfs／volume archive の opt-in テストと既存 GHA への追加を実装しました。

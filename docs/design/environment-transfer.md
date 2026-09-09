@@ -182,3 +182,46 @@ controller platform. No backup, durable export state or automatic replay is adde
 This boundary is not yet wired to native archive production or a public export
 command. Its source locks do not replace exact temporary-resource ownership,
 complete output publication or destination security reconstruction.
+
+## Native saved-volume export adapter
+
+`incus.Runtime.ExportSnapshotVolume` is **implemented** on Linux/WSL for a saved
+Workspace or OCI volume. It decodes the existing protected component binding and
+verifies detached native ownership before and after ordinary, volume-only Incus
+export. The caller still holds `ReadSnapshot` throughout use. This method does not
+export rootfs or publish a complete Environment bundle.
+
+The CLI writes into an unnamed local file through the live parent process's
+`/proc/<pid>/fd/<fd>` path. The writable descriptor is closed before hashing and
+returning read-only bytes. No archive bytes pass through the bounded stdout logger,
+no path is returned to consumers, and failure leaves no named local archive. The
+private controller directory must support `openat2` and `O_TMPFILE`; unsupported
+systems fail explicitly. The size budget is checked after native materialization,
+not a disk quota while Incus writes. Host administrators with descriptor authority
+are outside the file-replacement guarantee.
+
+[Incus 6.0.5 volume export](https://github.com/lxc/incus/blob/v6.0.5/cmd/incus/storage_volume.go)
+creates a temporary native backup and ignores errors from its deferred deletion.
+The adapter compares backup names, creation/expiry times and flags before and
+after export. New or changed remaining backups, or a failed final observation,
+prevent a successful result. Errors identify the saved volume to inspect. Existing
+backups are never removed by Hacocoon; a name alone is not cleanup ownership.
+A failed native command remains a failure even if all output bytes were written.
+
+Focused tests cover ownership changes, native errors after output, retained or
+unobservable backups, reused backup names, empty/oversized output and actual child
+process access to the anonymous file. `TestRealIncusOwnedVolumeExportE2E`, enabled
+by `HACO_E2E_INCUS_VOLUME_TRANSFER=1`, uses one new owned Btrfs pool and synthetic
+saved/imported volumes. It retains an exact plan and archive, checks source-deletion
+independence, and deletes only identified fixture resources after verification.
+The existing Incus GHA job includes this test. Public aggregate export/import,
+rootfs production, OCI daemon contents and destination authority remain unfinished.
+
+The dedicated Incus 6.0.5/Btrfs run passed in 5.92s. The retained plan and 4096-byte
+archive are under `/var/lib/haco-owned-volume-export-778805159`; archive SHA-256 is
+`33e2785b3d574d504fb104c4a16bd154339d1c675d43241418ab1ecc171d155f`.
+The source and imported fixture volumes and their owned pool were removed after
+checks. Local focused race tests and vet passed. Initial unused-import and string-
+literal fixture build errors were corrected before native execution. This proves
+the new single saved-volume adapter, not public aggregate transfer or OCI daemon
+acceptance. Anonymous staging on a Btrfs destination filesystem remains unverified.
