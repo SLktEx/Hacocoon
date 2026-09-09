@@ -101,3 +101,8 @@ must not start WSL or create/acknowledge a record, and pending has unknown outco
 The current worker refuses every Job and console before WSL access. Native local
 validation rejected a remaining Job; broader nested-Job support is unresolved.
 Do not claim WSL shutdown survival from a successful process launch.
+
+The launcher waits for a bounded private readiness frame and EOF after target
+validation, before WSL stop. This separates startup refusal from dispatch success
+without adding recovery states. Cancellation or timeout does not cancel the worker
+or clear the durable intent; completion still comes from the recorded result.

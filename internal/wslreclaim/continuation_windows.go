@@ -151,7 +151,11 @@ func (r registration) prepareContinuation(ctx context.Context) (intent operation
 
 // continuePrepared is only an explicit handoff of an exact operation, never a
 // scan/replay of whichever interrupted record happens to exist.
-func (r registration) continuePrepared(ctx context.Context, operation windows.GUID) (result continuationObservation, err error) {
+func (r registration) continuePrepared(ctx context.Context, operation windows.GUID) (continuationObservation, error) {
+	return r.continuePreparedReady(ctx, operation, nil)
+}
+
+func (r registration) continuePreparedReady(ctx context.Context, operation windows.GUID, ready func() error) (result continuationObservation, err error) {
 	if operation == (windows.GUID{}) {
 		return result, errors.New("prepared operation identity required")
 	}
@@ -159,6 +163,11 @@ func (r registration) continuePrepared(ctx context.Context, operation windows.GU
 		intent, checkErr := records.requirePending(operation, r, pin.identity)
 		if checkErr != nil {
 			return checkErr
+		}
+		if ready != nil {
+			if err := ready(); err != nil {
+				return err
+			}
 		}
 		result, checkErr = r.executeRecorded(ctx, records, pin, target, intent)
 		return checkErr

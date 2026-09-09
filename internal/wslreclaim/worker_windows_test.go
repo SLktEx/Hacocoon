@@ -153,3 +153,32 @@ func TestWorkerRefusesJobBeforeRegistrationAccess(t *testing.T) {
 		t.Fatal("Job refusal must precede missing-registration access", err)
 	}
 }
+
+func TestWorkerReadinessRequiresExactFrameAndEOF(t *testing.T) {
+	for _, frame := range []string{"RDY\n", "", "RDY", "RDY\nextra", "FAIL"} {
+		read, write, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := write.Write([]byte(frame)); err != nil {
+			t.Fatal(err)
+		}
+		write.Close()
+		err = readWorkerReady(context.Background(), read)
+		read.Close()
+		if (err == nil) != (frame == "RDY\n") {
+			t.Fatalf("readiness frame rejected/accepted incorrectly: %v", err)
+		}
+	}
+	read, write, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer write.Close()
+	defer read.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := readWorkerReady(ctx, read); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+}

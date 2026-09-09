@@ -404,9 +404,9 @@ instance 一覧・保存済み登録のバイトも不変でした。Windows 拒
 
 launcher はディスク観測と共通の native 検査で、自分自身の実行ファイルと親を固定します。
 実行ファイルの書き込み・削除共有を禁止し、VHDX に必要な書き込み共有は維持します。起動するのは自分自身の
-固定 worker mode だけで、detached・明示的な job breakaway・NUL stdio・OS 由来の作業ディレクトリ・
+固定 worker mode だけで、detached・明示的な job breakaway・NUL stdin/stderr・OS 由来の作業ディレクトリ・
 クリアした環境を使います。呼び出し元からの path・command や起動の自動再試行は受け付けません。
-PID は dispatch 済みを示し、完了を意味しません。現状の worker は WSL アクセス前にすべての Windows Job 所属と
+起動成功には専用 stdout pipe の準備通知と EOF が必要です。PID は完了を意味しません。現状の worker は WSL アクセス前にすべての Windows Job 所属と
 console 接続を拒否します。breakaway 後も外側の Job が残る場合の対応は別途判断が必要であり、
 暗黙の fallback は行いません。Windows の既存 Job 制限は変更しません。
 
@@ -423,6 +423,18 @@ Windows symlink fixture は権限不足で SKIP です。
 専用 worker の初回起動は exit 1 で失敗しました。同じ準備済み操作に対する明示的な診断起動も exit 1 で終了し、
 WSL アクセス前に `worker is bound to a Windows Job` を報告しました。両プロセスは終了済みで、pending 記録を
 保持しています。worker の停止・圧縮・再開経路は未検証です。別の pending 記録への置き換えや保存データの削除は
-行っていません。提案した Job 条件の限定は未適用です。standalone・nested Job の実機検証、起動エラーの伝達、
-公開 controller 連携、全層一括操作は未完了です。直前の `e7d94d5` は GHA 4 workflow が成功し、
-新しい worker 変更の CI は別途確認が必要です。
+行っていません。提案した Job 条件の限定は未適用です。standalone・nested Job の実機検証、
+中断記録の確認、公開 controller 連携、全層一括操作は未完了です。
+
+準備通知は4 byte（`RDY\n`）と EOF だけです。worker は排他・native pin の下で保存済み対応と
+正確な pending 操作を確認した後に通知し、WSL 停止前に pipe を閉じます。launcher は最大3分待ち、
+通知の欠落・不足・余分な出力を失敗として返して process handle を解放します。キャンセルは pipe
+だけを閉じ、worker の kill・再試行・引き継ぎは行いません。タイムアウトと native 操作が競合し得るため、
+保存記録を保持し結果不明として扱います。command・guest 出力・認証情報は通さず、最終結果は既存の
+操作記録で確認します。公開コマンドや記録 schema は追加しません。
+
+Windows native pipe の通知・EOF・キャンセルと command/library テストは成功しました。存在しない登録を
+使った実 helper 起動は dispatch 成功でなく exit 1 を返し、既存 pending 記録のバイトは不変でした。
+これは起動拒否の検証であり、worker の停止・圧縮・再開の検証ではありません。最初のテストコマンドは
+PowerShell の引数解析で失敗し、引用符を付けた再実行は成功しました。`ee5e017` は GHA 4 workflow が
+成功しました。準備通知の変更は別途 CI 確認が必要です。

@@ -500,9 +500,10 @@ pending target through the shared continuation path.
 The launcher pins its own executable and ancestors with the same native file
 checks used by disk observation; executable write/delete sharing is excluded,
 while the VHDX retains its required write sharing. It starts only its own fixed
-worker mode, detached with explicit job breakaway, NUL stdio, OS-sourced working
+worker mode, detached with explicit job breakaway, NUL stdin/stderr, OS-sourced working
 directory and a cleared environment. No caller path/command or startup retry is
-accepted. The PID means dispatched, never completed. The worker currently refuses
+accepted. A successful launch requires a private stdout readiness frame and EOF, not just
+process creation. The PID never proves completion. The worker currently refuses
 any Windows Job or attached console before WSL access. Windows nested outer jobs
 can remain after breakaway; support for that case requires a separate decision,
 not an implicit fallback. Existing Job restrictions are not modified.
@@ -525,7 +526,23 @@ launch of the same prepared operation also exited 1 and reported `worker is boun
 to a Windows Job` before WSL access. Both processes are terminal and the pending
 record is retained. The worker stop/compact/resume path is therefore unverified;
 no new pending record was substituted and no saved data was removed. The proposed
-narrower Job condition is not applied. Standalone/nested-Job acceptance, startup
-error transport, public controller integration and the complete all-layer flow
-remain incomplete. Preceding `e7d94d5` passed all four GHA workflows; this new
-worker slice requires its own CI evaluation.
+narrower Job condition is not applied. Standalone/nested-Job acceptance,
+interrupted-record review and the controller/public all-layer entry remain
+incomplete. At `ee5e017`, all four GHA workflows passed; the readiness change
+requires its own CI evaluation.
+
+The startup pipe accepts only four bytes (`RDY\n`) followed by EOF. The worker
+publishes after the saved binding and exact pending operation are checked under
+exclusion and native pins, then closes the pipe before any WSL stop. The launcher
+waits at most three minutes, releases its process handle and reports missing,
+truncated or excessive output as failure. Cancellation closes only this pipe;
+it does not kill, retry or take over the worker. A timeout can race native work
+and therefore leaves the saved operation intact with an unknown outcome.
+The pipe carries no commands, guest output or credentials; final results remain
+in the existing operation record. No new public command or record schema is added.
+
+Native Windows pipe framing, EOF and cancellation tests and command/library tests
+passed. A real helper launch using an absent registration returned exit 1 instead
+of dispatch success, and the existing pending record remained byte-identical.
+This tests startup refusal, not worker stop/compact/resume. The first test command
+failed argument parsing in PowerShell; the correctly quoted invocation passed.

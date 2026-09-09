@@ -80,9 +80,9 @@ func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, acti
 	}
 	if args[0] == "_launch" {
 		fmt.Fprintf(stdout, "Dispatched Windows worker %d; inspect the prepared operation for completion.\n", pid)
-	} else {
-		fmt.Fprintln(stdout, "Prepared WSL continuation complete.")
 	}
+	// Worker stdout is its startup channel and is closed before WSL shutdown.
+	// Completion is available only through the persisted operation status.
 	return 0
 }
 

@@ -3,12 +3,15 @@
 package wslreclaim
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -59,8 +62,16 @@ func LaunchPreparedWorker(ctx context.Context, registrationID, operationID strin
 	child.Dir = system
 	child.Env = []string{"SystemRoot=" + root, "WINDIR=" + root}
 	// DETACHED_PROCESS | CREATE_BREAKAWAY_FROM_JOB | CREATE_NEW_PROCESS_GROUP.
-	// Stdio defaults to NUL; no WSL pipes, console, caller environment or handles.
+	// Stdin/stderr remain NUL. A private native stdout pipe carries readiness
+	// only and is closed by the worker before any WSL stop; no caller WSL pipes.
 	child.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x00000008 | 0x01000000 | 0x00000200}
+	read, write, err := os.Pipe()
+	if err != nil {
+		return 0, err
+	}
+	defer read.Close()
+	defer write.Close()
+	child.Stdout = write
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -68,7 +79,16 @@ func LaunchPreparedWorker(ctx context.Context, registrationID, operationID strin
 		return 0, fmt.Errorf("launch independent Windows worker: %w", err)
 	}
 	pid = child.Process.Pid
-	if err := child.Process.Release(); err != nil {
+	// The launcher must release its write copy to observe worker EOF.
+	if closeErr := write.Close(); closeErr != nil {
+		return pid, errors.Join(closeErr, child.Process.Release())
+	}
+	readyErr := readWorkerReady(ctx, read)
+	releaseErr := child.Process.Release()
+	if readyErr != nil {
+		return pid, errors.Join(fmt.Errorf("worker %d did not report readiness: %w", pid, readyErr), releaseErr)
+	}
+	if err := releaseErr; err != nil {
 		return pid, fmt.Errorf("worker dispatched but process handle release failed: %w", err)
 	}
 	return pid, nil
@@ -109,7 +129,7 @@ func ExecutePreparedWorker(ctx context.Context, registrationID, operationID stri
 	if err != nil {
 		return err
 	}
-	_, err = r.continuePrepared(ctx, operation)
+	_, err = r.continuePreparedReady(ctx, operation, publishWorkerReady)
 	return err
 }
 
@@ -148,4 +168,40 @@ func ReadPreparedStatus(ctx context.Context, registrationID, operationID string)
 		status.Observation = &record.Observation
 	}
 	return status, nil
+}
+
+// Four fixed bytes plus EOF are the entire startup protocol. No guest output,
+// commands or credentials pass through it. Unknown/truncated output fails closed.
+func readWorkerReady(ctx context.Context, pipe io.ReadCloser) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	defer cancel()
+	stop := context.AfterFunc(ctx, func() { _ = pipe.Close() })
+	defer stop()
+	raw, err := io.ReadAll(io.LimitReader(pipe, 5))
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(raw, []byte("RDY\n")) {
+		return errors.New("invalid or missing worker readiness")
+	}
+	return nil
+}
+
+func publishWorkerReady() error {
+	kind, err := windows.GetFileType(windows.Handle(os.Stdout.Fd()))
+	if err != nil {
+		return err
+	}
+	if kind != windows.FILE_TYPE_PIPE {
+		return errors.New("worker readiness requires its private pipe")
+	}
+	if _, err := io.WriteString(os.Stdout, "RDY\n"); err != nil {
+		return err
+	}
+	// The native channel must be gone before shutdown. The persisted operation,
+	// rather than this pipe or launcher lifetime, carries the final result.
+	return os.Stdout.Close()
 }

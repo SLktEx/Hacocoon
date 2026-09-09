@@ -70,7 +70,7 @@ func TestPreparedWorkerDispatch(t *testing.T) {
 			if mode == "_launch" && (!strings.Contains(out.String(), "Dispatched Windows worker 42") || strings.Contains(out.String(), "continuation complete")) {
 				t.Fatal("dispatch claimed completion", out.String())
 			}
-			if mode == "_continue" && out.String() != "Prepared WSL continuation complete.\n" {
+			if mode == "_continue" && out.Len() != 0 {
 				t.Fatal(out.String())
 			}
 		}
