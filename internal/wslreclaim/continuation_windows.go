@@ -90,7 +90,7 @@ type continuationObservation struct {
 
 // reclaimWithResume is an internal native sequence, not installation authority or
 // a crash-resumption protocol. Pending/failed records block retry. The public
-// workflow still needs installation authority and explicit interrupted-state review.
+// workflow still needs its installer entry and explicit interrupted-state review.
 func (r registration) reclaimWithResume(ctx context.Context) (result continuationObservation, err error) {
 	if err := ctx.Err(); err != nil {
 		return result, err
@@ -117,14 +117,46 @@ func (r registration) reclaimWithResume(ctx context.Context) (result continuatio
 		return result, err
 	}
 	defer func() { err = errors.Join(err, records.close()) }()
+	user, err := windows.GetCurrentProcessToken().GetTokenUser()
+	if err != nil {
+		return result, err
+	}
+	enrolled, err := records.readBinding()
+	if err != nil {
+		return result, fmt.Errorf("managed WSL enrollment required: %w", err)
+	}
+	if enrolled.Target.Registration != r || enrolled.Target.Disk != pin.identity || enrolled.Target.WindowsOwner != user.User.Sid.String() {
+		return result, errors.New("managed WSL registration, owner or disk differs from enrollment")
+	}
+	identity, err := r.readInstallation(ctx)
+	if err != nil {
+		return result, err
+	}
+	target := installationObservation{Registration: r, Installation: identity, Disk: pin.identity, WindowsOwner: user.User.Sid.String()}
+	if err := records.requireBinding(target); err != nil {
+		return result, err
+	}
 	intent, err := records.begin(r, pin.identity)
 	if err != nil {
 		return result, err
 	}
 	defer func() { err = errors.Join(err, records.finish(intent, result, err)) }()
 	return executeContinuation(ctx,
-		func(ctx context.Context) error { return r.runWSL(ctx, wslStop) },
-		pin.compact,
+		func(ctx context.Context) error {
+			if err := records.requireBinding(target); err != nil {
+				return err
+			}
+			return r.runWSL(ctx, wslStop)
+		},
+		func(ctx context.Context) (compactObservation, error) {
+			if err := records.requireBinding(target); err != nil {
+				return compactObservation{}, err
+			}
+			if err := r.revalidate(); err != nil {
+				return compactObservation{}, err
+			}
+			return pin.compact(ctx)
+		},
 		func(ctx context.Context) error {
 			if err := r.runWSL(ctx, wslResume); err != nil {
 				return err

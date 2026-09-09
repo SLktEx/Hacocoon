@@ -299,3 +299,37 @@ root の systemd ユーザーセッションの起動警告が出ましたが、
 controller・systemd ユーザーセッションの readiness 検証ではありません。Windows の symlink fixture は
 権限不足で SKIP、Linux symlink・Windows junction の拒否は成功しています。観測処理は登録・圧縮を
 行わず、installer 全体と公開の全層一括操作の検証は未完了です。
+
+## 保存した導入情報と変更時の照合
+
+Windows の内部 installer entry は、管理対象の登録 key の `Operation` とは別に schema 1 の
+`Installation` を保存します。既存の排他とファイル固定を保持したまま、登録値・Linux の導入 ID・
+Windows プロセスのユーザー SID・VHDX のファイル識別子を取得して永続化します。明示的な登録だけが
+この値を作成し、同じ内容の再実行は許可しますが、変更・不正な記録は上書きしません。操作履歴は
+別の値であり、登録によって確認済み扱いや置き換えはしません。
+
+通常の内部処理は実行意図の記録・停止要求前に保存済みの対応を要求します。登録・ファイル・
+Windows ユーザーの違いは Linux へ問い合わせる前に拒否し、その後に導入 ID を照合します。
+停止と圧縮の直前に保存した対応を再読込し、圧縮前にも native 登録を再照合します。記録がなければ
+自動登録しません。既存の操作記録・catalog・snapshot の schema は変更していません。
+Linux の識別情報のコピーだけでは Windows のファイル・所有者の対応を満たしません。
+
+installer entry は現在内部処理であり、明示的な acceptance で実行します。配布用 Windows installer・
+helper への接続は未完了です。公開の変更操作や自動登録へのフォールバックはありません。
+中断記録の確認、呼び出し元 WSL が終了しても動く Windows 子プロセス、公開の全層一括操作は
+未完了です。所有ユーザーによる直接の Windows 管理はこの排他の対象外であり、controller の
+リクエスト認可の代わりにはなりません。
+
+Windows native の保存・拒否テスト（暗黙登録の禁止、同名での登録置換、別の導入・ユーザー・
+ファイル、未知 schema／field、拒否時の元バイト保持）と amd64・arm64 ビルドは成功しました。
+専用 WSL の明示的な登録・同じ内容の再登録は53.48秒で成功し、以前の操作記録も保持しました。
+登録済みの停止・圧縮・再開は128.69秒で成功し、native open 6回、割当量は6,840,909,824から
+6,817,841,152 byteへ22MiB減少、仮想容量1TiBは維持しました。再開後の確認ファイルのハッシュ・
+instance 9件・保存した導入情報のバイト列も一致しました。公開操作・controller・全データ・電源断の
+検証は未完了です。
+
+PR #511 の head `81d105f` では GHA test 全10ジョブ・Ubuntu・Incus が成功し、認証付き private
+registry は gate により SKIP でした。Windows の導入・再導入、Environment egress、native interop・
+SSH、setup、preview、doctor、通知は成功しましたが、Remote-SSH 拡張インストールと承認レビューの
+前提 setup-start（internal）で workflow は失敗しました。取得したログでは両方の原因を確定できません。
+ローカルの回収検証でこれらを確認済みとしたり、成功扱いにしたりしません。

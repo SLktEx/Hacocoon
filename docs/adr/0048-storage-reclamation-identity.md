@@ -77,3 +77,11 @@ the name once for common setup, use the GUID, then reject changed correspondence
 Capture cannot overwrite a changed or malformed existing identity. This Linux
 record is only one enrollment component; Windows file/owner binding must still
 be enforced before mutation. Do not treat a copied root record as authority.
+
+Only explicit installation enrollment persists the observed Linux installation,
+WSL registration, Windows user and pinned VHDX identity. A mutation must require
+that saved tuple and never bootstrap it from the target it is about to mutate.
+Keep enrollment and interrupted-operation results separate; neither implicitly
+acknowledges or overwrites the other. Reject changed/unknown bindings rather than
+silently adopting a recreated distribution or disk. Controller request authority
+and the packaged installer entry remain separate requirements.

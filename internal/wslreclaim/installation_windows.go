@@ -81,7 +81,11 @@ func (r registration) readInstallation(ctx context.Context) (installationIdentit
 // restart WSL during compaction. File/ancestor pins stay held across the query.
 // Enrollment must separately persist and enforce this correspondence; observing
 // the current tuple alone must never enroll or authorize a replacement target.
-func (r registration) observeInstallation(ctx context.Context) (result installationObservation, err error) {
+func (r registration) observeInstallation(ctx context.Context) (installationObservation, error) {
+	return r.withInstallation(ctx, nil)
+}
+
+func (r registration) withInstallation(ctx context.Context, visit func(installationObservation) error) (result installationObservation, err error) {
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
@@ -116,5 +120,9 @@ func (r registration) observeInstallation(ctx context.Context) (result installat
 	if err != nil {
 		return result, err
 	}
-	return installationObservation{Registration: r, Installation: identity, Disk: pin.identity, WindowsOwner: user.User.Sid.String()}, nil
+	result = installationObservation{Registration: r, Installation: identity, Disk: pin.identity, WindowsOwner: user.User.Sid.String()}
+	if visit != nil {
+		return result, visit(result)
+	}
+	return result, nil
 }

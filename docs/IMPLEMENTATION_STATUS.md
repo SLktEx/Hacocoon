@@ -1,5 +1,17 @@
 # Implementation Status
 
+## Windows enrollment enforced by internal reclamation
+
+Status: **partial, internal only**. Explicit enrollment persists the exact Host,
+registration, Windows user and native file correspondence; ordinary continuation
+refuses missing/changed bindings before stop/compact and never self-enrolls.
+Native refusal tests and both architecture builds passed. Dedicated enrollment
+passed in 53.48s; enrolled stop/compact/resume passed in 128.69s, reclaiming 22MiB
+with sentinel/inventory/binding preservation. Packaged enrollment, interrupted
+review, surviving child and public all-layer operation remain planned. PR #511's
+`81d105f` passed test/Ubuntu/Incus GHA; Windows failed Remote-SSH installation and
+pending-review prerequisite setup, with causes unconfirmed. See the [contract](design/storage-reclamation.md#persisted-enrollment-and-mutation-checks).
+
 ## Windows observation of installed Host identity
 
 Status: **partial, internal only**. The Windows observer reads the installed

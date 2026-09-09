@@ -369,3 +369,46 @@ check exited successfully. This is not controller or systemd-user readiness
 acceptance. Symlink fixture on Windows remains SKIP for privilege; the Linux
 symlink and Windows junction refusals passed. No enrollment/compaction was run by
 the observer and full installer/public all-layer acceptance remains pending.
+
+## Persisted enrollment and mutation checks
+
+The Windows internal installer entry now persists schema-1 `Installation` beside
+`Operation` in the managed registration's registry key. It holds the existing
+exclusion and native file pins while capturing and flushing the exact tuple:
+registration values, Linux installation ID, Windows process user SID and VHDX
+file identity. Only explicit enrollment creates this value. An identical repeat
+is accepted; changed or malformed enrollment is never overwritten. The operation
+history is a separate value and is not acknowledged or replaced by enrollment.
+
+The ordinary internal continuation requires this saved binding before writing
+operation intent or requesting shutdown. It rejects a different registration,
+file or Windows user before querying Linux, then checks the installed identity.
+It rereads saved correspondence immediately before stop and compaction, and
+revalidates native registration before compaction. It never self-enrolls on a
+missing record. Existing operation/catalog/snapshot schemas are unchanged.
+A copied Linux identity alone cannot satisfy the Windows file/owner binding.
+
+The installer entry is currently internal and explicitly exercised by acceptance;
+the packaged Windows installer/helper still needs wiring. There is no public
+mutation entry or automatic enrollment fallback. Interrupted-operation review,
+a Windows child surviving its WSL caller and the public all-layer workflow remain
+pending. Raw Windows administration by the owning user is outside this exclusion;
+this is not a replacement for controller request authorization.
+
+Native Windows binding/refusal tests passed, including no implicit enrollment,
+same-name registration replacement, different installation/user/file, unknown
+schema/fields and byte-preserving refusal. amd64/arm64 builds passed. Dedicated
+explicit enrollment and unchanged repeat PASSED in 53.48s and retained the prior
+operation bytes. The enrolled stop/compact/resume sequence PASSED in 128.69s:
+6 native open attempts, allocation 6,840,909,824 to 6,817,841,152 bytes (22MiB),
+unchanged 1TiB virtual capacity. Sentinel hash, nine-instance inventory and saved
+enrollment bytes matched after resume. Complete public flow/controller/full-data
+and power-loss acceptance remain unverified.
+
+At PR #511 head `81d105f`, GHA test (all ten jobs), Ubuntu and Incus workflows
+passed; authenticated private-registry acceptance was SKIP behind its gate.
+Windows installer/reinstall, Environment egress, native interop/SSH, setup,
+preview, doctor and notification checks passed, but the workflow FAILED on
+Remote-SSH extension installation and pending-review prerequisite setup-start
+(internal). The available log does not establish either root cause. These failures
+are not covered by the local reclamation acceptance or counted as success.
