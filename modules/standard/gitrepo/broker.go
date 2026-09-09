@@ -307,12 +307,12 @@ func (b *Broker) exchange(ctx context.Context, bound binding, req Request) (Resp
 	}
 	proposal := Proposal{Environment: bound.Environment.Name, Repository: repo.ID, Remote: repo.Remote, Ref: ref, OldOID: req.OldOID, NewOID: req.NewOID, Operation: "fetch"}
 	if req.Operation != "push" {
-		return b.perform(ctx, bound, proposal, func(ctx context.Context) (Response, error) { return b.Repositories.Backend.RunGit(ctx, agent) })
+		return b.perform(ctx, bound, proposal, func(ctx context.Context) (Response, error) { return b.Repositories.RunGit(ctx, repo, agent) })
 	}
 	// Fetch authorization covers the remote observation used to prepare a push.
 	// It does not authorize the later external write.
 	agent.Operation = "prepare"
-	prepared, err := b.perform(ctx, bound, proposal, func(ctx context.Context) (Response, error) { return b.Repositories.Backend.RunGit(ctx, agent) })
+	prepared, err := b.perform(ctx, bound, proposal, func(ctx context.Context) (Response, error) { return b.Repositories.RunGit(ctx, repo, agent) })
 	if err != nil {
 		return Response{}, err
 	}
@@ -320,7 +320,7 @@ func (b *Broker) exchange(ctx context.Context, bound binding, req Request) (Resp
 	proposal.Summary = prepared.Summary
 	agent.Operation = "push"
 	agent.Pack = nil
-	return b.perform(ctx, bound, proposal, func(ctx context.Context) (Response, error) { return b.Repositories.Backend.RunGit(ctx, agent) })
+	return b.perform(ctx, bound, proposal, func(ctx context.Context) (Response, error) { return b.Repositories.RunGit(ctx, repo, agent) })
 }
 
 func (b *Broker) perform(ctx context.Context, bound binding, proposal Proposal, execute func(context.Context) (Response, error)) (Response, error) {

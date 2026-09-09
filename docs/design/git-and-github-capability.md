@@ -60,3 +60,27 @@ A policy can automatically allow a narrowly scoped push and require explicit hum
 ## Compatibility note
 
 Git/GitHub authority must stay explicit even if the exact CLI, policy attributes, credential adapter, or transport changes. Pre-1.0 compatibility must not force broad ambient credentials or preserve an unsafe authority model.
+
+## Explicit source repository deletion
+
+Implemented: `haco repo list [--json]` and `haco repo delete [--yes] <id>` expose
+retained Host source checkouts and reviewed deletion. A source remains part of
+current brokered Git routing even though Workspace filesystem copies are
+independent. Every referencing Workspace record, including intermediate records,
+therefore blocks deletion. This preserves local Git data and the ability to use
+the existing approved transport. It is not an automatic unused-data collector.
+
+The registry lock serializes clone, Workspace copy and source deletion. The service
+rechecks the reviewed owner, refuses incomplete preparation, preflights native
+storage, then uses the existing `deleting` record until positive native absence.
+Git execution rechecks the exact source under the same registry lock after approval; queued requests cannot use a same-name replacement. The Incus adapter takes the existing Host lifecycle lock. It respects pending Host OCI-copy records, checks exact native volume
+ownership and the specific current Host device, and detaches only that device.
+Native snapshots, backups, schedules, extra users and changed devices fail closed.
+A failed detach/delete keeps its receipt for explicit retry; no backup or rollback
+is created. Remote repositories, credentials, independent Workspace/OCI/snapshot
+data and Env permission generations are unchanged.
+
+Schema 13 and existing repository records are preserved. No data migration is
+required. Current snapshot Git provenance remains independent of a source checkout;
+a restored Workspace may require explicit Git reconnection under current policy.
+See [ADR 0045](../adr/0045-explicit-source-repository-deletion.md).

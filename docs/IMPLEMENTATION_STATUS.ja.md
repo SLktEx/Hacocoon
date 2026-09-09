@@ -1,5 +1,12 @@
 # 実装状況
 
+## source repository の明示的 cleanup
+
+E5 の partial です。`haco repo list [--json]` と `haco repo delete [--yes] <id>` を実装しました。Workspace の参照が現在の Git 経路を保護し、既存 registry・Host operation lock が所有 ID・未完了 Host copy・native 保存物を守ります。schema 13 と独立データは保持します。関連 package test は成功しました。専用 WSL Incus/Btrfs の公開 source CLI 検証は30.43秒で成功し、Workspace 参照拒否・子 snapshot と Host mount 保持・旧 owner 拒否・正しい detach/delete と不存在を確認しました。専用 project は削除し、共有 image・pool・所有記録は保持しました。追加で、待機した Git 操作を registry lock 内で再照合する保護を加えています。最終 race/CI 結果は実装 PR で追跡します。[契約](design/git-and-github-capability.md#explicit-source-repository-deletion)を参照してください。OCI cleanup PR #506 は `73175b4` の4 workflow 成功後に `6903319` へマージし、新しい native 回帰は GHA で0.71秒で成功しました。
+
+
+source cleanup の最初の2つの GHA 候補は、削除処理より前の fixture instance 作成で失敗しました。元 image の project を明示した版は専用 WSL で28.05秒で成功しましたが、2回目の GHA 失敗を解消できず、image project だけが原因とは確定していません。fixture は空の停止した Incus instance を作る形へ変更しました。このテストに必要なのは管理対象 Host の接続情報で、image や稼働中 guest は不要です。両失敗 job の後続 Base・OCI 検証は SKIP であり、成功扱いにしません。空 instance 版は専用 WSL Incus/Btrfs で13.82秒で成功し、公開 CLI・参照／子 snapshot／旧 owner の拒否・所有対象の cleanup を確認しました。その前のローカル起動は PowerShell の引数分割でテスト実行前に失敗し、引数を引用して再実行しました。関連 package test と文書チェックも成功しています。最新候補の GHA は未完了です。
+
 ## OCI Store の明示的 cleanup
 
 E5 の partial です。OCI Store の一覧・確認付き削除を実装しました。既存 catalog が所有者と予約を管理し、Incus が volume を削除します。native snapshot・backup・schedule、Host の元 Store、作成途中・利用中の資源は削除を拒否します。schema 13 と独立 snapshot は変わりません。関連6 package test は成功しました。専用 WSL Incus/Btrfs 検証は11.21秒で成功し、独立 COW・元 Store 削除・子 snapshot による削除拒否と ready/data 保持・旧 owner 拒否・正確な削除と不存在を確認しました。初回は fixture の snapshot show 引数誤りで失敗し、修正後に成功しました。初回の残骸は所有確認付きで削除し、専用 pool が空であることも確認しました。Docker 互換性と個別 OCI image 操作は未検証です。[所有文書](design/persistent-oci-store.md#explicit-retained-store-deletion)を参照してください。
@@ -1150,7 +1157,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.55** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.56** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

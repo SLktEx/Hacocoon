@@ -42,6 +42,7 @@ func RegisterRepositories(server *control.Server, repositories *gitrepo.Reposito
 		method  string
 		handler control.Handler
 	}{
+		{MethodRepositoryManage, repositoryManageHandler(repositories)},
 		{MethodRepositoryClone, func(ctx context.Context, payload json.RawMessage) (any, error) {
 			var req RepositoryCloneRequest
 			if json.Unmarshal(payload, &req) != nil {

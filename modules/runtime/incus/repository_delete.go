@@ -14,6 +14,13 @@ func (b *RepositoryBackend) workspaceVolumeForDeletion(ctx context.Context, targ
 	if target.Kind != "work" {
 		return nil, core.ErrInvalidArgument
 	}
+	return b.managedVolumeForDeletion(ctx, target, "")
+}
+
+func (b *RepositoryBackend) managedVolumeForDeletion(ctx context.Context, target gitrepo.Object, allowedUser string) (*persistentVolumeObservation, error) {
+	if target.Kind != "work" && target.Kind != "repo" {
+		return nil, core.ErrInvalidArgument
+	}
 	pool, name, err := volumeRef(target)
 	if err != nil {
 		return nil, err
@@ -39,7 +46,7 @@ func (b *RepositoryBackend) workspaceVolumeForDeletion(ctx context.Context, targ
 				return nil, core.ErrCapabilityStale
 			}
 		}
-		if len(v.UsedBy) != 0 {
+		if len(v.UsedBy) != 0 && (allowedUser == "" || len(v.UsedBy) != 1 || v.UsedBy[0] != allowedUser) {
 			return nil, core.ErrStorageBusy
 		}
 		copy := v
@@ -52,7 +59,13 @@ func (b *RepositoryBackend) workspaceVolumeForDeletion(ctx context.Context, targ
 // immediately before native deletion. Incus deletes child snapshots/backups with
 // their volume, so those saved objects must be handled explicitly first.
 func (b *RepositoryBackend) CheckWorkspaceVolumeDeletion(ctx context.Context, target gitrepo.Object) error {
-	volume, err := b.workspaceVolumeForDeletion(ctx, target)
+	if target.Kind != "work" {
+		return core.ErrInvalidArgument
+	}
+	return b.checkManagedVolumeDeletion(ctx, target)
+}
+func (b *RepositoryBackend) checkManagedVolumeDeletion(ctx context.Context, target gitrepo.Object) error {
+	volume, err := b.managedVolumeForDeletion(ctx, target, "")
 	if err != nil || volume == nil {
 		return err
 	}
@@ -65,10 +78,16 @@ func (b *RepositoryBackend) CheckWorkspaceVolumeDeletion(ctx context.Context, ta
 
 // DeleteWorkspaceVolume succeeds only after independent native absence checks.
 func (b *RepositoryBackend) DeleteWorkspaceVolume(ctx context.Context, target gitrepo.Object) error {
-	if err := b.CheckWorkspaceVolumeDeletion(ctx, target); err != nil {
+	if target.Kind != "work" {
+		return core.ErrInvalidArgument
+	}
+	return b.deleteManagedVolume(ctx, target)
+}
+func (b *RepositoryBackend) deleteManagedVolume(ctx context.Context, target gitrepo.Object) error {
+	if err := b.checkManagedVolumeDeletion(ctx, target); err != nil {
 		return err
 	}
-	volume, err := b.workspaceVolumeForDeletion(ctx, target)
+	volume, err := b.managedVolumeForDeletion(ctx, target, "")
 	if err != nil || volume == nil {
 		return err
 	}
@@ -80,7 +99,7 @@ func (b *RepositoryBackend) DeleteWorkspaceVolume(ctx context.Context, target gi
 	if err != nil || result.ExitCode != 0 {
 		return core.ErrRecoveryRequired
 	}
-	volume, err = b.workspaceVolumeForDeletion(ctx, target)
+	volume, err = b.managedVolumeForDeletion(ctx, target, "")
 	if err != nil {
 		return err
 	}

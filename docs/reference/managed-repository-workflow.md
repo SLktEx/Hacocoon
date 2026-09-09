@@ -280,3 +280,22 @@ Independent Hacocoon snapshots remain preserved. A
 failed deletion keeps its owned record visible as `deleting`; retry the same
 command. Incomplete creation requires inspection and is refused. This does not
 reclaim Windows VHDX allocation; capacity reclamation is separate roadmap work.
+
+## Inspect and remove a retained source repository
+
+```bash
+haco repo list
+haco repo list --json
+haco repo delete sample
+```
+
+Deletion previews the source identity, owner, upstream, branch and Workspace users,
+then asks for confirmation. `--yes` is available for deliberate automation. It
+removes only the selected local Host source checkout. The remote GitHub repository,
+Host credentials, OCI Stores and independent saved snapshots remain.
+
+A referencing Workspace prevents source deletion, even when its Env is stopped or
+absent: the Git broker still uses this source. Keep the source while that Workspace
+is needed. Do not delete valuable Workspaces merely to clear a source dependency.
+Native child snapshots/backups or uncertain ownership also block removal. Inspect
+those retained objects; retries use the exact current owner and never guess paths.
