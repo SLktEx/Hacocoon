@@ -213,6 +213,6 @@ Host-copy/ownership boundary. Detached-Store images, candidate-selected GC, F
 reclamation/operability and G export/migration remain planned. These remaining stages preserve data and permissions while using
 Incus capabilities; they do not require full disposable-Env reconstruction.
 
-G1 public transfer remains planned. Native custom-volume file archives now have an
-opt-in cross-pool acceptance test; this does not complete rootfs/security/import
+G1 public transfer remains planned. Native rootfs image and custom-volume archives have
+opt-in acceptance tests; this does not complete rootfs/security/import
 or whole-installation evacuation. See [Environment transfer](../design/environment-transfer.md).

@@ -1,11 +1,12 @@
 # Environment transfer
 
-Status: **planned** for the public export/import flow. The native custom-volume
-acceptance test is an internal prerequisite, not a usable Hacocoon importer.
+Status: **planned** for the public export/import flow. The native rootfs/volume
+acceptance tests are internal prerequisites, not a usable Hacocoon importer.
 
 ## Incus foundation
 
-Use Incus export/import for independent archives of rootfs and custom volumes.
+Use native Incus archives for rootfs and custom volumes. Rootfs can be transported
+as a single published image archive; custom volumes use volume export/import.
 An instance archive does not contain attached Workspace or OCI custom-volume
 contents. Hacocoon must bind those archives to their intended roles and check that
 all required components were saved before reporting a complete export. Base names
@@ -51,7 +52,7 @@ files, hardlinks, symlinks, file mode, independent writes, archive immutability 
 source-deletion independence. It also checks that native import carries the old
 user-config marker, making the need for fresh Hacocoon ownership explicit.
 
-Rootfs import, UID/GID and extended-attribute coverage, real Docker/containerd
+Public rootfs import, UID/GID and extended-attribute coverage, real Docker/containerd
 contents, public commands, Windows artifact delivery and cross-host acceptance
 remain unverified. A passing volume test does not prove the complete G1 flow.
 
@@ -62,3 +63,30 @@ and empty inventories. The corrected run inside the current daemon namespace
 passed in 11.24s on Incus 6.0.5/Btrfs. Both test pools were cleaned; the exact plan
 and two archives remain at `/var/lib/haco-volume-transfer-2481101147`. The original
 failed-run plan remains at `/var/lib/haco-volume-transfer-3035986437`.
+
+## Native rootfs image acceptance
+
+`TestRealIncusRootfsTransferE2E` runs with `HACO_E2E_INCUS_ROOTFS_TRANSFER=1`.
+It creates a fresh isolated project/pool and an empty stopped instance without any
+Base or cached image. Incus publish/image export saves one rootfs archive. The
+source instance and published image are deleted, and the project image inventory
+is positively empty before import. Creating a new instance from the imported
+image uses explicit current config and `--no-profiles`: the old environment token,
+instance ID and profiles are not restored. Guest file bytes and archive checksum
+are checked. Exact marker checks protect cleanup; the archive and plan remain.
+This is the rootfs component itself, not an additional Base filesystem, Base
+registration or renamed Base retention object. Existing snapshot copies are unchanged.
+
+The dedicated Incus 6.0.5/Btrfs run passed in 14.88s. Its retained archive is
+`/var/lib/haco-rootfs-transfer-2526041618/rootfs.tar`, SHA-256
+`9df946096ec6eb1b2a7a999937dd1d78bf79b61db91ebea43a6310f0843abf78`.
+The initial run failed on the fixture's unsupported `image get` command. It was
+changed to the existing JSON image API; exact owned leftovers were removed after
+marker checks, while `/var/lib/haco-rootfs-transfer-430939700/plan.json` remains.
+
+This tiny data fixture is not bootable-OS, SSH, managed network, credential,
+template or aggregate-import acceptance. Public import still needs canonical
+ownership/creation, archive validation and current connection/security setup.
+Published/imported image properties and profile associations never grant authority;
+callers must use the current configuration explicitly. No public command or new
+catalog schema is introduced by these tests.

@@ -2,12 +2,15 @@
 
 ## Environment transfer prerequisites
 
-Public G1 export/import remains **planned**. An opt-in native Incus volume
-export/import test and its existing-GHA integration are implemented. The dedicated
+Public G1 export/import remains **planned**. Opt-in native Incus rootfs/volume
+archive tests and their existing-GHA integration are implemented. The dedicated
 Incus 6.0.5/Btrfs run passed in 11.24s after correcting fixture path/namespace
 assumptions; source/destination independence, Git state, links, mode and retained
-archive checks passed. Rootfs and public import authority handling remain
-unimplemented. See [the owning contract](design/environment-transfer.md).
+archive checks passed. Public rootfs import and authority reconstruction remain
+unimplemented. A separate empty-rootfs image round trip passed in 14.88s with no
+Base/image source, source instance/image removal before import and fresh explicit
+configuration. It does not prove OS/SSH/public-import acceptance. See
+[the owning contract](design/environment-transfer.md).
 
 ## Current Incus-first snapshot contract
 
