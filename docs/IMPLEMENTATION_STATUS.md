@@ -2,6 +2,12 @@
 
 ## Environment transfer prerequisites
 
+The Linux/WSL Incus adapter now exports an owned saved Workspace/OCI volume into
+an unnamed read-only archive, checking native ownership and backup cleanup. Its
+dedicated Incus 6.0.5/Btrfs adapter test passed in 5.92s; local race and vet passed. The
+whole public export/import flow and rootfs archive producer remain unimplemented.
+See the [owning contract](design/environment-transfer.md#native-saved-volume-export-adapter).
+
 Public G1 export/import remains **planned**. Internal snapshot/archive inventory
 matching covers all currently supported Workspace components and optional OCI;
 the saved-source read boundary now shares canonical deletion locks and verifies

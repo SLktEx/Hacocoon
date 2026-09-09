@@ -138,3 +138,36 @@ backup、永続的な export 状態、自動再開は追加しません。
 
 native archive 作成や公開 export command への接続はまだ未実装です。この source lock で、
 一時資源の厳密な所有管理、出力の完全な公開、復元先の security 再構成を代替しません。
+
+## 保存 volume の native export adapter
+
+Linux／WSL の `incus.Runtime.ExportSnapshotVolume` は、保存された Workspace／OCI volume 向けに
+**implemented** です。既存の保護された component binding を検証し、通常の volume-only Incus export の
+前後で、未接続の保存 volume の native 所有情報を確認します。呼び出し元は処理中 `ReadSnapshot` を保持します。
+rootfs の export や、Environment 全体の bundle 公開はまだ行いません。
+
+CLI は、生存中の親 process の `/proc/<pid>/fd/<fd>` 経由で名前のないローカルファイルへ出力します。
+書き込み descriptor を閉じてから hash を計算し、読み取り専用の内容を返します。archive を容量制限付き stdout log
+へ流さず、consumer にパスを渡さず、失敗時に名前付きローカル archive を残しません。controller の非公開ディレクトリは
+`openat2` と `O_TMPFILE` に対応する必要があり、未対応なら明示的に失敗します。サイズ予算は native 出力後の検査であり、
+Incus 書き込み中の disk quota ではありません。descriptor を操作できる Host 管理者に対する封印ではありません。
+
+[Incus 6.0.5 volume export](https://github.com/lxc/incus/blob/v6.0.5/cmd/incus/storage_volume.go) は一時 native backup を作り、
+終了時の削除エラーを無視します。adapter は export 前後の backup 名・作成／期限時刻・flags を比較します。
+新しい／変化した backup が残る場合や最終確認に失敗した場合は、成功を返さず、確認対象の保存 volume をエラーに示します。
+既存 backup を Hacocoon が削除することはありません。名前だけでは cleanup の所有根拠になりません。
+出力 bytes が完成していても、native command の失敗を成功にはしません。
+
+関連テストは所有情報の変化、出力後の native 失敗、backup の残存・確認不能・名前の再利用、空／過大出力、
+実際の子 process による匿名ファイルへの書き込みを確認します。`HACO_E2E_INCUS_VOLUME_TRANSFER=1` で動く
+`TestRealIncusOwnedVolumeExportE2E` は、新しい所有済み Btrfs pool 1個と合成の保存／import volume を使います。
+正確な計画と archive を保持し、保存元削除後の独立性を確認して、特定した fixture 資源だけを検証後に削除します。
+既存 Incus GHA job にこのテストを追加しました。公開の全体 export/import、rootfs 作成、OCI daemon 内容、復元先の権限処理は未完了です。
+
+専用 Incus 6.0.5／Btrfs の実行は5.92秒で成功しました。計画と4096 bytes の archive は
+`/var/lib/haco-owned-volume-export-778805159` に保持し、archive の SHA-256 は
+`33e2785b3d574d504fb104c4a16bd154339d1c675d43241418ab1ecc171d155f` です。
+元・import 先の fixture volume と所有 pool は、確認後に削除しました。関連 race test と vet も成功しました。
+初期の未使用 import・文字列記述による fixture ビルド失敗は、native 実行前に修正しました。
+新しい単一保存 volume adapter の確認であり、公開の全体転送や OCI daemon の受入ではありません。
+出力先 filesystem が Btrfs の場合の匿名 staging は引き続き未検証です。
