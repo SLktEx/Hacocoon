@@ -1,5 +1,14 @@
 # Implementation Status
 
+## Environment transfer prerequisites
+
+Public G1 export/import remains **planned**. An opt-in native Incus volume
+export/import test and its existing-GHA integration are implemented. The dedicated
+Incus 6.0.5/Btrfs run passed in 11.24s after correcting fixture path/namespace
+assumptions; source/destination independence, Git state, links, mode and retained
+archive checks passed. Rootfs and public import authority handling remain
+unimplemented. See [the owning contract](design/environment-transfer.md).
+
 ## Current Incus-first snapshot contract
 
 Status: **implemented for capture and restore into a new Environment**. The

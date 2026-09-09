@@ -1,5 +1,12 @@
 # 実装状況
 
+## Environment 持ち出しの前提確認
+
+公開 G1 export/import は **planned** です。native Incus volume export/import の opt-in テストと既存 GHA への追加を実装しました。
+fixture の path／namespace の想定を修正後、専用 Incus 6.0.5／Btrfs で11.24秒の検証が成功しました。
+保存元・復元先の独立性、Git 状態、リンク、mode、archive 保持を確認しました。rootfs と公開 import の権限処理は未実装です。
+[所有文書](design/environment-transfer.ja.md)を参照してください。
+
 ## 現在の Incus-first snapshot 契約
 
 状態: **保存と新しい Environment への restore は implemented** です。
