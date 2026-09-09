@@ -12,6 +12,9 @@ fixture の path／namespace の想定を修正後、専用 Incus 6.0.5／Btrfs 
 固定 role の内部ストリーム書き込み／検証を追加し、展開や Incus 操作なしで完全な内容を確認します。
 関連 race test と vet は成功しました。公開 lifecycle への接続は planned です。
 
+Linux／WSL staging は検証済み bytes を名前のない読み取り専用ファイルに保持します。
+実 filesystem の race test と vet は成功しました。Btrfs 上の staging は未検証、公開 lifecycle 接続は planned です。
+
 ## 現在の Incus-first snapshot 契約
 
 状態: **保存と新しい Environment への restore は implemented** です。

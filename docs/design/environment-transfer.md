@@ -120,3 +120,26 @@ Go's tar reader permits EOF without closing blocks; explicit closing-block
 accounting corrected it. Regression coverage includes missing/changed payloads,
 missing OCI, Base/extra/reordered components, path/link/header attacks, duplicate
 JSON, over-budget and overflowing sizes, and bounded pre-manifest reads.
+
+## Internal Linux staging
+
+`Stage` is **implemented** for Linux/WSL. It opens a controller-owned private
+staging directory without following symlinks, copies bounded input into a native
+`O_TMPFILE`, reopens that same inode read-only and closes the writable handle
+before whole-envelope verification. Only verified bytes and copied metadata are
+returned. Readers do not expose a file descriptor or pathname. Replacing the input
+or staging-directory path cannot replace those bytes. Host administrators with
+process-descriptor authority remain outside this guarantee.
+
+Closing the result or exiting the process releases the unnamed file. Failed input
+leaves no named artifact or Incus resource. This is process-lifetime staging, not a
+durable recovery record or automatic backup. Unsupported `openat2`/`O_TMPFILE`
+filesystems fail explicitly; there is no fallback or permission repair. The caller
+must cancel its transport to unblock a pending source read.
+
+Linux real-filesystem race tests and vet passed, including path replacement,
+read-only handles, malformed/oversized input, maximum integer budget and transport
+failure after complete bytes. An initial validation invocation failed before tests
+started because of shell PATH quoting; the corrected invocation passed. Btrfs
+staging and public import integration remain unverified. Earlier native Incus
+archive acceptance does not establish those claims.

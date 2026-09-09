@@ -90,3 +90,22 @@ producer は保護された capture 一覧と宣言対象を照合する必要�
 関連 race test と vet は成功しました。初回の切断回帰は Go tar reader が終端なしの EOF を受け入れて失敗し、終端の明示確認で修正しました。
 payload 欠落・変更、OCI 欠落、Base／余分・順序違いの component、path／link／header 攻撃、重複 JSON、総量・overflow、
 manifest 前の読み取り上限を回帰テストで確認しています。
+
+## Linux の内部 staging
+
+`Stage` は Linux／WSL 向けに **implemented** です。controller 所有の非公開ディレクトリを
+symlink をたどらず開き、上限付き入力を native `O_TMPFILE` へコピーします。同じ inode を
+読み取り専用で開き直し、書き込み handle を閉じてから envelope 全体を検証します。
+検証済みの bytes とコピーした metadata だけを返し、reader は descriptor や pathname を公開しません。
+入力や staging directory のパスを差し替えても、保持した内容は変わりません。
+process descriptor を操作できる Host 管理者に対する封印ではありません。
+
+結果を閉じるか process が終了すると、名前のないファイルは解放されます。入力失敗時に名前付きの
+保存物や Incus 資源を残しません。process の寿命内の staging であり、永続的な復旧記録や自動 backup
+ではありません。`openat2`／`O_TMPFILE` が未対応なら明示的に失敗し、fallback や権限修復は行いません。
+入力の Read が停止した場合は、呼び出し元が transport をキャンセルして解除する必要があります。
+
+Linux の実 filesystem を使う race test と vet が成功しました。パス差し替え、読み取り専用 handle、
+不正・過大入力、整数上限、全 bytes 受信後の通信失敗を検証しています。最初の検証起動は shell の
+PATH 引用エラーでテスト開始前に失敗し、修正後の起動で成功しました。Btrfs 上の staging と公開 import
+への接続は未検証です。先行する native Incus archive の成功から、それらの成功を推定しません。

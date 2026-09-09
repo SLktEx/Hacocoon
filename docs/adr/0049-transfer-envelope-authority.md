@@ -1,6 +1,6 @@
 # ADR 0049: Transfer envelopes do not carry authority
 
-Status: accepted for the internal transfer codec; public lifecycle integration is planned.
+Status: accepted for the internal transfer codec and Linux staging; public lifecycle integration is planned.
 
 ## Context
 
@@ -23,6 +23,13 @@ Import still uses fresh canonical ownership, current security/configuration and
 immutable staging or repeated validation. A failed writer result must not publish
 its output, even if bytes were delivered before the error. Uncertain cleanup keeps
 its ownership evidence instead of guessing resource names or reporting success.
+
+Linux staging uses a native anonymous temporary file in a private controller
+folder. It pins the same inode and closes its writable descriptor before inspection;
+only read access is returned. This prevents pathname replacement without a named
+cleanup catalog. It does not promise persistence or protection from Host process-
+descriptor administrators. Unsupported filesystem/kernel primitives fail explicitly.
+No fallback, source extraction, permission repair or crash replay is added.
 
 ## Rejected alternatives
 

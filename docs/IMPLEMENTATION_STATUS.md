@@ -14,7 +14,9 @@ configuration. It does not prove OS/SSH/public-import acceptance. See
 
 An internal fixed-role streaming envelope writer/verifier now checks complete
 bytes without extraction or Incus effects; focused race tests and vet passed.
-Public lifecycle integration remains planned.
+Linux/WSL staging now retains verified bytes in an unnamed read-only file; real-
+filesystem race tests and vet passed. Btrfs staging and public lifecycle integration
+remain unverified/planned respectively.
 
 ## Current Incus-first snapshot contract
 
