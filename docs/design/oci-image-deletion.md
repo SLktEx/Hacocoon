@@ -1,5 +1,7 @@
 # OCI image inventory and deletion
 
+The GHA native fixture now includes an opt-in shipped controller/product CLI gate. It registers only its freshly created synthetic Store in a private real catalog, then exercises detached inventory, referenced-image refusal, confirmed deletion and temporary lifecycle cleanup. This gate is restricted to disposable GitHub-hosted runners; implementation of the gate is not evidence of a successful run.
+
 [日本語](oci-image-deletion.ja.md) | English
 
 ## Current attached-Store commands

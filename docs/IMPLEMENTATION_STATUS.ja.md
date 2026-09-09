@@ -1,5 +1,7 @@
 # 実装状況
 
+controller／CLI の受け入れ経路を使い捨て GHA 限定 gate として追加しました。実行結果は未確認です。製品 composition と実 catalog／lifecycle を使い、Store の内容だけを合成 fixture が供給します。
+
 ## 未接続 Store maintenance の実装中の範囲
 
 状態: **partial**。既存 image list/delete は保持 Store ID を受け付けます。OCI module が

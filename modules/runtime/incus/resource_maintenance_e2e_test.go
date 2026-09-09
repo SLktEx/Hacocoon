@@ -24,7 +24,11 @@ func TestRealIncusResourceMaintenancePreparationE2E(t *testing.T) {
 	if os.Geteuid() != 0 || !safeIncusRef(pool) || !baseFingerprintPattern.MatchString(image) {
 		t.Fatal("explicit root pool and full cached image required")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	duration := 5 * time.Minute
+	if os.Getenv("HACO_E2E_MAINTENANCE_CONTROLLER") != "" {
+		duration = 12 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 	r := New(host.ExecRunner{})
 	p, err := NewSandboxProvider(r)
@@ -134,6 +138,9 @@ test "$(systemctl show --property=LoadState --value docker.service)" = masked`)
 	}
 	if err := backend.Verify(ctx, resource); err != nil {
 		t.Fatal("Store lost with runtime", err)
+	}
+	if verifyMaintenanceControllerCLI(t, ctx, r, resource, dir) {
+		return
 	}
 	if err := backend.Delete(ctx, resource); err != nil {
 		t.Fatal(err)

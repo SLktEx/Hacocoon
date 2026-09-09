@@ -1,5 +1,7 @@
 # Implementation Status
 
+Controller/CLI acceptance expansion is implemented as a disposable-GHA-only gate; its real execution remains pending. It uses production composition and real catalog/lifecycle transitions with synthetic fixture Store contents.
+
 ## Detached Store maintenance in progress
 
 Status: **partial**. Existing image list/delete commands accept a retained Store ID.

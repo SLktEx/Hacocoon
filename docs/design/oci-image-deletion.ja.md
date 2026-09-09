@@ -1,5 +1,7 @@
 # OCI image の一覧と削除
 
+GHA の native fixture に、製品 controller／CLI を使う明示 gate を追加しました。試験が新規作成した合成 Store だけを非公開の実 catalog に登録し、未接続の一覧、参照画像の削除拒否、確認付き削除、一時 lifecycle の cleanup を実行します。使い捨ての GitHub-hosted runner に限定します。gate の追加自体を実行成功とは扱いません。
+
 日本語 | [English](oci-image-deletion.md)
 
 Status: partial。接続済み Store の実装と専用環境での実 runtime 検証は完了し、インストール済み controller 経由の受け入れ検証は未完了です。
