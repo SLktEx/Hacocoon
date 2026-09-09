@@ -419,6 +419,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	if binary != "" {
 		func() {
 			server := control.NewServer()
+			must(controlapi.RegisterManagedWorkspaces(server, resumedService))
 			must(controlapi.RegisterSnapshots(server, resumedService))
 			must(controlapi.RegisterSnapshotRestore(server, &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}))
 			must(controlapi.RegisterEnvironmentCopy(server, &environmentcopy.Service{Catalog: reopened, Snapshots: resumedService, Restorer: &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}}))
@@ -430,6 +431,11 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			go func() { done <- server.Serve(serveCtx, listener) }()
 			defer func() { stopServer(); <-done }()
 			t.Setenv("HACO_CONTROL_SOCKET", socket)
+			refused := exec.CommandContext(ctx, binary, "workspace", "delete", "--yes", reloadedWork.ID)
+			if output, err := refused.CombinedOutput(); err == nil || !strings.Contains(string(output), "referenced by an Environment") {
+				t.Fatalf("attached Workspace deletion not refused: %v %s", err, output)
+			}
+
 			invoke := func(args ...string) []controlapi.SnapshotSummary {
 				t.Helper()
 				cmd := exec.CommandContext(ctx, binary, args...)
@@ -642,12 +648,94 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		read(volumePath(m.Volume), "tracked", "uncommitted "+m.Device)
 	}
 	t.Log("PASS canonical saved-rootfs activation without Base, same-name fresh generation/current source guard, guest root/Workspace/OCI bytes, managed SSH authorization reset, canonical runtime deletion retaining data; actual restored SSH handshake not tested")
+
+	if binary != "" {
+		func() {
+			server := control.NewServer()
+			must(controlapi.RegisterManagedWorkspaces(server, resumedService))
+			socket := filepath.Join(dir, "workspace-cleanup.sock")
+			listener, err := control.ListenUnix(socket, 0600)
+			must(err)
+			serveCtx, stop := context.WithCancel(ctx)
+			done := make(chan error, 1)
+			go func() { done <- server.Serve(serveCtx, listener) }()
+			defer func() { stop(); <-done }()
+			t.Setenv("HACO_CONTROL_SOCKET", socket)
+			output, err := exec.CommandContext(ctx, binary, "workspace", "list", "--json").CombinedOutput()
+			must(err)
+			var listed []workspace.ManagedWorkspace
+			must(json.Unmarshal(output, &listed))
+			found := false
+			for _, w := range listed {
+				if w.Name == reloadedWork.ID {
+					found = true
+					if len(w.Environments) != 0 || len(w.Stores) != 1 || w.Stores[0] != restoredOCI.ID {
+						t.Fatal("incorrect retained-data references", w)
+					}
+				}
+			}
+			if !found {
+				t.Fatal("retained Workspace missing")
+			}
+
+			// Native children are not Hacocoon aggregate snapshots. Neither kind may
+			// disappear as a side effect of deleting the live Workspace volume.
+			member := reloadedWork.Copies()[0]
+			pool, volume, err := volumeRef(member)
+			must(err)
+			nativePath := "/1.0/storage-pools/" + pool + "/volumes/custom/" + volume
+			for _, kind := range []string{"snapshots", "backups"} {
+				child := "retained-fixture"
+				command("incus", "query", "-X", "POST", nativePath+"/"+kind+"?project="+r.project, "--data", `{"name":"retained-fixture"}`, "--wait")
+				output, err := exec.CommandContext(ctx, binary, "workspace", "delete", "--yes", reloadedWork.ID).CombinedOutput()
+				if err == nil {
+					t.Fatalf("native %s unexpectedly deleted: %s", kind, output)
+				}
+				if record, err := reopenedRepositories.Get("work", reloadedWork.ID); err != nil || record.State != "ready" {
+					t.Fatal("native saved-data refusal disabled Workspace", record, err)
+				}
+				command("incus", "query", nativePath+"/"+kind+"/"+child+"?project="+r.project)
+				for _, m := range reloadedWork.Copies() {
+					must(repository.InspectVolume(ctx, m))
+				}
+				command("incus", "query", "-X", "DELETE", nativePath+"/"+kind+"/"+child+"?project="+r.project, "--wait")
+			}
+			t.Log("PASS native child snapshot/backup refusal before deletion; registry remains ready and every member volume remains; explicit owned child cleanup")
+			output, err = exec.CommandContext(ctx, binary, "workspace", "delete", "--yes", reloadedWork.ID).CombinedOutput()
+			if err != nil {
+				t.Fatalf("Workspace cleanup CLI: %v %s", err, output)
+			}
+			if _, err := reopenedRepositories.Get("work", reloadedWork.ID); !errors.Is(err, core.ErrNotFound) {
+				t.Fatal("Workspace registration remains", err)
+			}
+			for _, member := range reloadedWork.Copies() {
+				pool, name, err := volumeRef(member)
+				must(err)
+				raw := command("incus", "query", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+r.project+"&recursion=1")
+				var volumes []persistentVolumeObservation
+				must(json.Unmarshal([]byte(raw), &volumes))
+				if volumes == nil {
+					t.Fatal("absence observation missing")
+				}
+				for _, v := range volumes {
+					if v.Name == name {
+						t.Fatal("CLI left owned Workspace volume", name)
+					}
+				}
+			}
+			must(persistent.Verify(ctx, restoredOCI))
+			for _, component := range snap.Components {
+				must(runtime.VerifySnapshotComponent(ctx, component))
+			}
+			t.Log("PASS public Workspace list/delete: attached refusal, retained Git data after Env deletion, exact managed identity, independent snapshot and OCI preservation, all owned member volumes absent")
+		}()
+	} else {
+		must(resumedService.DeleteManagedWorkspace(ctx, resumedEnv.Workspace))
+		t.Log("SKIP public Workspace cleanup CLI: HACO_E2E_SNAPSHOT_CLI not supplied; canonical native deletion ran")
+	}
 	must(restoredStores.DeleteForWorkspace(ctx, restoredOCI.ID, restoredOCI.WorkspaceID))
 	t.Log("PASS restored OCI registered with new owner and Workspace, source reservation released, durable reload, saved bytes and independent edits, canonical owned deletion")
 
-	for _, member := range reloadedWork.Copies() {
-		must(repository.DeleteRestoredWorkspaceVolume(ctx, member))
-	}
 	t.Log("PASS normal Workspace registration/reload from saved data after original Env/volumes deletion; Git commits/uncommitted/untracked retained; independent mutation; exact copy cleanup; no Git network operation")
 
 	// Intentionally remove the fixture-owned original Base to prove snapshot independence.
@@ -710,4 +798,23 @@ func (p aggregateWorkspaceResolver) Resolve(ctx context.Context, req workspace.W
 		return core.Workspace{}, core.ErrInvalidArgument
 	}
 	return p.repositories.Workspace(ctx, strings.TrimPrefix(req.Path, "managed:"))
+}
+
+func (p aggregateWorkspaceResolver) ListManagedWorkspaces(ctx context.Context) ([]workspace.ManagedWorkspace, error) {
+	objects, err := p.repositories.ListWorkspaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := []workspace.ManagedWorkspace{}
+	for _, o := range objects {
+		repos := []string{}
+		for _, m := range o.Copies() {
+			repos = append(repos, m.Repository)
+		}
+		result = append(result, workspace.ManagedWorkspace{Name: o.ID, State: o.State, Repositories: repos, Workspace: core.Workspace{ID: core.WorkspaceID("workspace:managed:" + o.Owner), Path: "managed:" + o.ID}})
+	}
+	return result, nil
+}
+func (p aggregateWorkspaceResolver) DeleteWorkspace(ctx context.Context, w core.Workspace) error {
+	return p.repositories.DeleteWorkspace(ctx, strings.TrimPrefix(w.Path, "managed:"), strings.TrimPrefix(string(w.ID), "workspace:managed:"))
 }

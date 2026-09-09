@@ -205,16 +205,9 @@ func (s *RepositoryService) Get(kind, id string) (Object, error) {
 	if (kind != "repo" && kind != "work") || !ValidID(id) {
 		return Object{}, core.ErrInvalidArgument
 	}
-	var object Object
-	content, err := os.ReadFile(s.path(kind, id))
-	if os.IsNotExist(err) {
-		return object, core.ErrNotFound
-	}
+	object, err := s.readObject(kind, id)
 	if err != nil {
 		return object, err
-	}
-	if len(content) > 16384 || json.Unmarshal(content, &object) != nil || object.ID != id || object.Kind != kind || !validObject(object) {
-		return Object{}, core.ErrIncompatibleState
 	}
 	if object.State != "ready" {
 		return object, fmt.Errorf("%s %s has incomplete preparation; owned data retained: %w", kind, id, core.ErrRecoveryRequired)
@@ -300,4 +293,19 @@ func randomID() string {
 		panic(err)
 	}
 	return hex.EncodeToString(value[:])
+}
+
+func (s *RepositoryService) readObject(kind, id string) (Object, error) {
+	var object Object
+	content, err := os.ReadFile(s.path(kind, id))
+	if os.IsNotExist(err) {
+		return object, core.ErrNotFound
+	}
+	if err != nil {
+		return object, err
+	}
+	if len(content) > 16384 || json.Unmarshal(content, &object) != nil || object.ID != id || object.Kind != kind || !validObject(object) {
+		return Object{}, core.ErrIncompatibleState
+	}
+	return object, nil
 }

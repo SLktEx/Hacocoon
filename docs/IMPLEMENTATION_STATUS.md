@@ -1,5 +1,33 @@
 # Implementation Status
 
+## Explicit managed Workspace cleanup
+
+Partial E5: `haco workspace list [--json]` and `haco workspace delete [--yes] <id>`
+list and explicitly delete retained managed Workspace data. The existing lifecycle
+lock excludes Environment/lease users; the registry compares the reviewed owner,
+records `deleting`, and retains exact member identities after failure. Native Incus
+volume ownership, attachment and positive absence checks are reused. OCI Stores,
+source repositories and independent snapshots remain. Create re-resolves Workspace
+identity after locking, refusing same-name replacement. No schema change or new
+cleanup catalog is introduced. See [the contract](design/workspace-abstraction-and-lease.md#explicit-retained-workspace-deletion).
+
+All related package/race tests, maintained local CI and local E2E passed on the
+initial candidate. Real Incus/Btrfs GHA run 34301447147 passed the public Workspace
+CLI fixture (31.19 seconds), including attached refusal, Git retention after Env
+deletion, exact member deletion and independent OCI/snapshot preservation. All four
+applicable workflows passed on that candidate. The subsequent native-child guard
+passed focused package tests and a dedicated WSL Incus/Btrfs test (23.23 seconds):
+child snapshot/backup refusal, parent/child preservation and explicit owned cleanup.
+Native snapshot schedules and malformed/unavailable observations are also refused.
+Preflight checks every member before recording `deleting`, and repeats before each
+native deletion. Final-candidate workflow results are recorded in PR #504; the
+initial candidate's green workflows do not validate this later guard.
+E5 Base/source repository and OCI image cleanup, F reclamation and G migration
+remain separate work.
+
+Base builder PR #503 was merged as `2ba5434` after all four applicable workflows
+passed on candidate `15fed95`. The documented create command is `haco env create`.
+
 ## Base builder
 
 Base builder validation: all five related packages passed ordinary tests and
@@ -1297,7 +1325,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.52**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.53**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

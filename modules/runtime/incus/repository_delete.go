@@ -1,0 +1,109 @@
+package incus
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
+)
+
+// workspaceVolumeForDeletion verifies exact native ownership and all users.
+// A missing volume is positively observed from the complete native collection.
+func (b *RepositoryBackend) workspaceVolumeForDeletion(ctx context.Context, target gitrepo.Object) (*persistentVolumeObservation, error) {
+	if target.Kind != "work" {
+		return nil, core.ErrInvalidArgument
+	}
+	pool, name, err := volumeRef(target)
+	if err != nil {
+		return nil, err
+	}
+	result, err := b.Runtime.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project+"&recursion=1")
+	if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
+		return nil, core.ErrRuntimeUnavailable
+	}
+	var volumes []persistentVolumeObservation
+	if json.Unmarshal([]byte(result.Stdout), &volumes) != nil || volumes == nil {
+		return nil, core.ErrIncompatibleState
+	}
+	var found *persistentVolumeObservation
+	for _, v := range volumes {
+		if v.Name != name {
+			continue
+		}
+		if found != nil || v.Type != "custom" || v.ContentType != "filesystem" {
+			return nil, core.ErrIncompatibleState
+		}
+		for k, want := range volumeConfig(target) {
+			if v.Config[k] != want {
+				return nil, core.ErrCapabilityStale
+			}
+		}
+		if len(v.UsedBy) != 0 {
+			return nil, core.ErrStorageBusy
+		}
+		copy := v
+		found = &copy
+	}
+	return found, nil
+}
+
+// CheckWorkspaceVolumeDeletion runs before a registry enters deleting, and again
+// immediately before native deletion. Incus deletes child snapshots/backups with
+// their volume, so those saved objects must be handled explicitly first.
+func (b *RepositoryBackend) CheckWorkspaceVolumeDeletion(ctx context.Context, target gitrepo.Object) error {
+	volume, err := b.workspaceVolumeForDeletion(ctx, target)
+	if err != nil || volume == nil {
+		return err
+	}
+	if strings.TrimSpace(volume.Config["snapshots.schedule"]) != "" {
+		return fmt.Errorf("scheduled native snapshots prevent Workspace deletion: %w", core.ErrStorageBusy)
+	}
+	pool, name, err := volumeRef(target)
+	if err != nil {
+		return err
+	}
+	for _, kind := range []string{"snapshots", "backups"} {
+		result, err := b.Runtime.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+pool+"/volumes/custom/"+name+"/"+kind+"?project="+b.Runtime.project)
+		if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
+			return core.ErrRuntimeUnavailable
+		}
+		var saved []string
+		if json.Unmarshal([]byte(result.Stdout), &saved) != nil || saved == nil {
+			return core.ErrIncompatibleState
+		}
+		if len(saved) != 0 {
+			return fmt.Errorf("native %s prevent Workspace deletion: %w", kind, core.ErrStorageBusy)
+		}
+	}
+	return nil
+}
+
+// DeleteWorkspaceVolume succeeds only after independent native absence checks.
+func (b *RepositoryBackend) DeleteWorkspaceVolume(ctx context.Context, target gitrepo.Object) error {
+	if err := b.CheckWorkspaceVolumeDeletion(ctx, target); err != nil {
+		return err
+	}
+	volume, err := b.workspaceVolumeForDeletion(ctx, target)
+	if err != nil || volume == nil {
+		return err
+	}
+	pool, name, err := volumeRef(target)
+	if err != nil {
+		return err
+	}
+	result, err := b.Runtime.runner.Run(ctx, "incus", "storage", "volume", "delete", pool, name, "--project", b.Runtime.project)
+	if err != nil || result.ExitCode != 0 {
+		return core.ErrRecoveryRequired
+	}
+	volume, err = b.workspaceVolumeForDeletion(ctx, target)
+	if err != nil {
+		return err
+	}
+	if volume != nil {
+		return core.ErrRecoveryRequired
+	}
+	return nil
+}

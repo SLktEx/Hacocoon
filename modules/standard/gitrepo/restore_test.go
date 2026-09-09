@@ -66,7 +66,7 @@ func (b *savedBackend) Populate(context.Context, Object) error {
 	b.t.Fatal("restore rewrote Git data")
 	return nil
 }
-func (b *savedBackend) DeleteRestoredWorkspaceVolume(_ context.Context, member Object) error {
+func (b *savedBackend) DeleteWorkspaceVolume(_ context.Context, member Object) error {
 	b.deleted = append(b.deleted, member.ID)
 	if b.fail == "cleanup" && member.ID == "restored-one" {
 		return core.ErrCapabilityStale

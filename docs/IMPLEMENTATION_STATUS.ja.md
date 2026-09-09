@@ -1,5 +1,13 @@
 # 実装状況
 
+## managed Workspace の明示的削除
+
+E5 は partial です。`haco workspace list [--json]` と `haco workspace delete [--yes] <id>` で保持中の managed Workspace を確認・個別削除します。既存 lifecycle lock で Env・途中 lease の利用を拒否し、表示した所有 ID を照合して registry に `deleting` を記録します。途中失敗では member の正確な所有情報を保持します。Incus の volume 所有・使用中・不在確認を再利用し、OCI Store・元 repository・独立 snapshot は残します。create は lock 取得後にも Workspace を解決し直し、同名の所有者入れ替えを拒否します。schema 変更や別の cleanup catalog はありません。[契約](design/workspace-abstraction-and-lease.md#explicit-retained-workspace-deletion)を参照してください。
+
+初期候補では関連 package・race test、maintained local CI、local E2E が成功しました。実 Incus/Btrfs GHA run 34301447147 の公開 Workspace CLI fixture は31.19秒で成功し、利用中の拒否、Env 削除後の Git 保持、member の個別削除、独立 OCI・snapshot の保持を確認しています。その候補の適用対象4 workflow は成功しました。後から追加した native 保存物の保護は、対象 package test と専用 WSL Incus/Btrfs test（23.23秒）で成功しました。子 snapshot・backup による削除拒否、親子の保持、所有対象の明示 cleanup を確認しています。native snapshot schedule、不正・不明な応答も拒否します。全 member を `deleting` 記録前に確認し、削除直前にも再確認します。最終候補の workflow 結果は PR #504 に記録します。初期候補の CI 成功で、後から追加した保護まで検証済みとは扱いません。E5 の Base・元 repository・OCI image 整理、F の容量回収、G の移行は残作業です。
+
+Base builder PR #503 は候補 `15fed95` の適用対象4 workflow 成功後、`2ba5434` にマージ済みです。作成コマンドの正しい表記は `haco env create` です。
+
 ## Base builder
 
 Base builder 検証: 関連5パッケージの通常テストと race テストは成功しました。実 WSL の1回目は稼働中の machine-id 初期化で失敗し、2回目は guest exec 専用の stdin 経路で管理操作が拒否されました。停止後に通常の検証付き runner で行う Incus file 操作は専用 probe で成功しています。3回目は最初の Base 公開・作成・ツール実行まで成功しましたが、再 build 中に600秒のテスト制限で失敗しました。実検証全体の成功とは扱いません。GHA run 34297739368 の実 Incus/Btrfs build・再 build は70.69秒で成功し、Windows run 34297739417 は installed build → SSH での追加ツール実行と VS Code 接続に成功しました。local CI test も成功しました。最初の test workflow は Incus なしの Base 一覧 fixture で失敗し、その fixture を修正しました。後続候補の結果は PR #503 に記録します。ローカル timeout fixture の cleanup は Incus が停止中と実行中を矛盾して返したため一度失敗しました。所有確認付きの native force-stop 後、Env 2個の canonical 削除と専用 image 2個の削除・不在確認に成功しました。診断 catalog と共有元 image は保持しています。
@@ -1132,7 +1140,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.52** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.53** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

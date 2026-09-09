@@ -25,8 +25,11 @@ func runRepository(namespace string, args []string) int {
 }
 func repositoryCommand(ctx context.Context, namespace string, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco repo clone --branch <branch> <id> <URL> | haco workspace create --repo <id> <workspace> | haco git connect <environment> | haco git pending | haco git approve [--save env|all|ask-env|ask-all] <id> | haco git deny [--save env|all|ask-env|ask-all] <id>")
+		fmt.Fprintln(diagnostic, "Usage: haco repo clone --branch <branch> <id> <URL> | haco workspace create --repo <id> <workspace> | haco workspace list [--json] | haco workspace delete [--yes] <workspace> | haco git connect <environment> | haco git pending | haco git approve [--save env|all|ask-env|ask-all] <id> | haco git deny [--save env|all|ask-env|ask-all] <id>")
 		return 2
+	}
+	if namespace == "workspace" && len(args) > 0 && (args[0] == "list" || args[0] == "delete") {
+		return managedWorkspaceCommand(ctx, args, os.Stdin, out, diagnostic)
 	}
 	if len(args) == 0 {
 		return usage()

@@ -138,6 +138,17 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 		return core.Environment{}, fmt.Errorf("lock workspace: %w", err)
 	}
 	defer unlock()
+	// Resolution may have waited behind explicit Workspace deletion. Never attach
+	// a new same-name Workspace using the previous owner's lease or permissions.
+	if spec.TemporaryWorkspace == nil {
+		current, resolveErr := s.provider.Resolve(ctx, WorkspaceRequest{Path: spec.WorkspacePath})
+		if resolveErr != nil {
+			return core.Environment{}, resolveErr
+		}
+		if current != workspace {
+			return core.Environment{}, core.ErrCapabilityStale
+		}
+	}
 	if _, err := s.store.GetEnvironment(ctx, name); err == nil {
 		return core.Environment{}, fmt.Errorf("environment %q: %w", name, core.ErrAlreadyExists)
 	} else if !isNotFound(err) {

@@ -154,3 +154,25 @@ The corrected verifier passed in dedicated WSL at product 093ed159b80e with
 fixture m1-egress-b73f965020260908. Canonical cleanup removed the Environment
 and fixture Workspace. This older local installation does not replace acceptance
 of the corrected fixture against the default-OCI Windows installer in GHA.
+
+## Explicit retained Workspace deletion
+
+Status: implemented command/service slice; native acceptance is tracked separately.
+`haco workspace list [--json]` displays managed Workspace records, including
+incomplete states, repository members, current Environment/lease users, independent
+snapshot origins and retained OCI Store associations. `haco workspace delete <id>`
+reviews one Workspace and asks for confirmation (`--yes` for automation).
+
+Deleting an Environment still retains all Workspace data. Explicit Workspace
+deletion destroys all its files and independent Git metadata, including unpushed,
+uncommitted and untracked work. It preserves source repositories, OCI Stores and
+saved snapshots. External Host paths and collection members are not selectable.
+Current Environments and intermediate leases block deletion, including stopped
+Environments. Native Incus child snapshots, backups and configured snapshot
+schedules also block deletion: Incus deletes those children with their parent.
+Every member is checked before changing a ready registry record to `deleting`,
+so a preflight refusal keeps the Workspace usable. The adapter checks again
+immediately before each deletion. Remove or export native saved objects explicitly
+through Incus before retrying; Hacocoon never silently discards them. Partial cleanup keeps a `deleting` record with exact native owners;
+retry the same explicit command. Incomplete creation is visible but not deleted
+by this initial path. See [ADR 0042](../adr/0042-explicit-workspace-deletion.md).

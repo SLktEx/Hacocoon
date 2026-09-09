@@ -30,7 +30,7 @@ type savedWorkspaceBackend interface {
 	SavedWorkspaces(context.Context, core.Snapshot) ([]SavedWorkspace, error)
 	PlanSavedWorkspace(context.Context, string, SavedWorkspace) (string, error)
 	CreateSavedWorkspace(context.Context, Object, SavedWorkspace) error
-	DeleteRestoredWorkspaceVolume(context.Context, Object) error
+	DeleteWorkspaceVolume(context.Context, Object) error
 }
 
 func validSavedID(id string) bool {
@@ -163,7 +163,7 @@ func (s *RepositoryService) CleanupRestoredWorkspace(ctx context.Context, id str
 func (s *RepositoryService) cleanupRestoredWorkspace(ctx context.Context, backend savedWorkspaceBackend, object Object) error {
 	var failures []error
 	for _, member := range object.Copies() {
-		if err := backend.DeleteRestoredWorkspaceVolume(ctx, member); err != nil {
+		if err := backend.DeleteWorkspaceVolume(ctx, member); err != nil {
 			failures = append(failures, err)
 		}
 	}
