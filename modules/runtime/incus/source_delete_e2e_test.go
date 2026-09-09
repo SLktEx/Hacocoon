@@ -23,9 +23,9 @@ func TestRealIncusSourceDeletionE2E(t *testing.T) {
 	if os.Getenv("HACO_E2E_WORKSPACE_DELETE") != "1" {
 		t.Skip("set HACO_E2E_WORKSPACE_DELETE=1 on dedicated Incus/Btrfs host")
 	}
-	pool, image, binary := os.Getenv("HACO_E2E_INCUS_RESUME_POOL"), os.Getenv("HACO_E2E_INCUS_RESUME_IMAGE"), os.Getenv("HACO_E2E_SNAPSHOT_CLI")
-	if os.Geteuid() != 0 || !safeIncusRef(pool) || !baseFingerprintPattern.MatchString(image) || binary == "" {
-		t.Fatal("root, explicit pool/image and built product CLI required")
+	pool, binary := os.Getenv("HACO_E2E_INCUS_RESUME_POOL"), os.Getenv("HACO_E2E_SNAPSHOT_CLI")
+	if os.Geteuid() != 0 || !safeIncusRef(pool) || binary == "" {
+		t.Fatal("root, explicit pool and built product CLI required")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -71,11 +71,9 @@ func TestRealIncusSourceDeletionE2E(t *testing.T) {
 	write("repo-source.json", o)
 	t.Log("exact isolated fixture receipt", dir, project)
 	command("project", "create", project, "--config", "features.images=false", "--config", "features.profiles=false")
-	// The workflow selects its cached image from Hacocoon's project. Do not
-	// assume that fingerprint is also present in the default project's image set.
-	init, err := json.Marshal(map[string]any{"name": trustedHostName, "type": "container", "profiles": []string{}, "config": map[string]string{trustedHostRoleKey: trustedHostRoleValue}, "devices": map[string]map[string]string{"root": {"type": "disk", "path": "/", "pool": pool}}, "source": map[string]string{"type": "image", "fingerprint": image, "project": defaultProject}})
-	must(err)
-	command("query", "-X", "POST", "--wait", "/1.0/instances?project="+project, "--data", string(init))
+	// This fixture only inspects a stopped Host's managed volume attachment.
+	// An empty native instance avoids unrelated image/project dependencies.
+	command("init", "--empty", trustedHostName, "--project", project, "--storage", pool, "--no-profiles", "--config", trustedHostRoleKey+"="+trustedHostRoleValue)
 	backend := &RepositoryBackend{Runtime: r}
 	must(backend.CreateVolume(ctx, o, nil))
 	command("config", "device", "add", trustedHostName, "haco-repo-source", "disk", "pool="+pool, "source=haco-repo-source", "path="+gitrepo.RepositoryRoot+"/source", "--project", project)

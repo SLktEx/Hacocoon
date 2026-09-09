@@ -5,7 +5,7 @@
 E5 の partial です。`haco repo list [--json]` と `haco repo delete [--yes] <id>` を実装しました。Workspace の参照が現在の Git 経路を保護し、既存 registry・Host operation lock が所有 ID・未完了 Host copy・native 保存物を守ります。schema 13 と独立データは保持します。関連 package test は成功しました。専用 WSL Incus/Btrfs の公開 source CLI 検証は30.43秒で成功し、Workspace 参照拒否・子 snapshot と Host mount 保持・旧 owner 拒否・正しい detach/delete と不存在を確認しました。専用 project は削除し、共有 image・pool・所有記録は保持しました。追加で、待機した Git 操作を registry lock 内で再照合する保護を加えています。最終 race/CI 結果は実装 PR で追跡します。[契約](design/git-and-github-capability.md#explicit-source-repository-deletion)を参照してください。OCI cleanup PR #506 は `73175b4` の4 workflow 成功後に `6903319` へマージし、新しい native 回帰は GHA で0.71秒で成功しました。
 
 
-source cleanup の初回 GHA 候補は fixture instance 作成で失敗しました。Hacocoon project で選んだ image を、隔離 project から default project の image として参照していました。Incus native create で image 元 project を明示するよう修正しました。失敗した job の後続 Base・OCI 検証は SKIP であり、成功扱いにはしません。修正版の専用 WSL native fixture は28.05秒で成功し、公開 CLI と所有対象の cleanup を確認しました。最新候補の GHA 検証は継続中です。
+source cleanup の最初の2つの GHA 候補は、削除処理より前の fixture instance 作成で失敗しました。元 image の project を明示した版は専用 WSL で28.05秒で成功しましたが、2回目の GHA 失敗を解消できず、image project だけが原因とは確定していません。fixture は空の停止した Incus instance を作る形へ変更しました。このテストに必要なのは管理対象 Host の接続情報で、image や稼働中 guest は不要です。両失敗 job の後続 Base・OCI 検証は SKIP であり、成功扱いにしません。空 instance 版は専用 WSL Incus/Btrfs で13.82秒で成功し、公開 CLI・参照／子 snapshot／旧 owner の拒否・所有対象の cleanup を確認しました。その前のローカル起動は PowerShell の引数分割でテスト実行前に失敗し、引数を引用して再実行しました。関連 package test と文書チェックも成功しています。最新候補の GHA は未完了です。
 
 ## OCI Store の明示的 cleanup
 
