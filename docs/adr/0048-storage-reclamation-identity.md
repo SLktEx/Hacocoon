@@ -92,3 +92,12 @@ reacquiring and revalidating all native/installed identities. Reuse the synchron
 sequence and durable result, not a second state machine. A record ID is not
 controller authority; never discover and replay an interrupted operation. Pending
 launch failures retain evidence for explicit review rather than auto-recovery.
+
+The internal worker launcher reuses native file pins for its own executable,
+excludes executable write/delete sharing, and launches only a fixed self-worker
+with detached/job-breakaway flags and cleared context. Dispatch is not completion;
+the existing operation record remains the result authority. Read-only inspection
+must not start WSL or create/acknowledge a record, and pending has unknown outcome.
+The current worker refuses every Job and console before WSL access. Native local
+validation rejected a remaining Job; broader nested-Job support is unresolved.
+Do not claim WSL shutdown survival from a successful process launch.

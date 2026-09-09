@@ -183,6 +183,10 @@ func TestDedicatedWSLPreparedContinuation(t *testing.T) {
 	if err != nil {
 		t.Fatal("prepare failed; preserve any saved intent", err)
 	}
+	if os.Getenv("HACO_E2E_RECLAIM_PREPARE_ONLY") == "1" {
+		t.Logf("PREPARED_OPERATION=%s; pending only, execution is not complete", intent.Operation.String())
+		return
+	}
 	// Preparation has released its guard and file handles. Reopen the persisted
 	// record before executing, as a worker in another process must do.
 	records, err := openOperationStore(r.ID)

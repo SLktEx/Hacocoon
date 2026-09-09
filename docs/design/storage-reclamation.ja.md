@@ -394,3 +394,35 @@ Windows 所有者・ディスク・導入識別情報を再照合します。同
 instance 一覧・保存済み登録のバイトも不変でした。Windows 拒否・単体検証と両アーキテクチャの
 ビルドが成功し、Windows symlink fixture は権限不足で SKIP です。同じプロセスでの準備・再読込・実行の
 検証であり、独立 worker・公開操作・controller・Workspace/OCI 内容全体の検証ではありません。
+
+## 内部 Windows worker と結果の照会
+
+状態: **partial。ローカルの Job context で native worker 検証は失敗**しました。
+`cmd/haco-wsl` に正確な登録・準備済み操作 ID を扱う内部 `_launch`・`_continue`・`_status` を
+追加しました。通常の `haco` コマンドではなく、transport・診断用の入口です。公開の準備・全層要求は
+提供していません。worker は共通処理で保存済み登録と同じ pending 対象を引き続き要求します。
+
+launcher はディスク観測と共通の native 検査で、自分自身の実行ファイルと親を固定します。
+実行ファイルの書き込み・削除共有を禁止し、VHDX に必要な書き込み共有は維持します。起動するのは自分自身の
+固定 worker mode だけで、detached・明示的な job breakaway・NUL stdio・OS 由来の作業ディレクトリ・
+クリアした環境を使います。呼び出し元からの path・command や起動の自動再試行は受け付けません。
+PID は dispatch 済みを示し、完了を意味しません。現状の worker は WSL アクセス前にすべての Windows Job 所属と
+console 接続を拒否します。breakaway 後も外側の Job が残る場合の対応は別途判断が必要であり、
+暗黙の fallback は行いません。Windows の既存 Job 制限は変更しません。
+
+`_status` は既存 registry key を読み取り専用で開き、操作・登録の一致を確認します。WSL 起動・登録作成・
+記録の確認済み扱い・worker の引き継ぎは行いません。pending は結果不明のため段階別観測を出しません。
+complete/failed は保存済み観測だけを返します。起動前段の失敗ではプロセス終了後も pending が残り得ます。
+成功や native 操作未実行の証拠にはなりません。中断記録の確認操作は未実装です。
+
+Windows command/library テストと amd64/arm64 ビルドは成功しました。共通ファイル処理への整理で既存の
+nil disk テストが一度失敗しましたが、nil の安全な拒否を戻し、native suite は成功しました。実行ファイルの
+書き込み・rename 拒否と、実際の pending 記録を含む読み取り時のバイト保持も成功しました。
+Windows symlink fixture は権限不足で SKIP です。
+
+専用 worker の初回起動は exit 1 で失敗しました。同じ準備済み操作に対する明示的な診断起動も exit 1 で終了し、
+WSL アクセス前に `worker is bound to a Windows Job` を報告しました。両プロセスは終了済みで、pending 記録を
+保持しています。worker の停止・圧縮・再開経路は未検証です。別の pending 記録への置き換えや保存データの削除は
+行っていません。提案した Job 条件の限定は未適用です。standalone・nested Job の実機検証、起動エラーの伝達、
+公開 controller 連携、全層一括操作は未完了です。直前の `e7d94d5` は GHA 4 workflow が成功し、
+新しい worker 変更の CI は別途確認が必要です。

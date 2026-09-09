@@ -19,12 +19,16 @@ Native Linux discard and Windows compaction/enrollment/refusal tests passed.
 Prepared execution passed in 165.68s, reclaiming 1MiB at unchanged 1TiB virtual
 capacity; its exact saved operation/result, sentinel, inventory and enrollment
 were verified. A read-only prototype proved child survival after caller exit,
-but not after WSL shutdown. At `7f4d7f4`, all four GHA workflows passed, including
-packaged Windows installation/reinstallation and later E2E. The newer prepared
-handoff change still requires its own CI evaluation.
+but not after WSL shutdown. At `e7d94d5`, all four GHA workflows passed, including
+packaged Windows installation/reinstallation and later E2E. The newer worker
+change still requires its own CI evaluation.
 
-The independent Windows worker, explicit interrupted-record review and public
-single all-layer flow remain planned. Full controller, power-loss and all
+An internal detached-worker launch and read-only exact-operation status now exist.
+Command/library tests and both Windows builds passed. Native worker acceptance
+FAILED on its Job-membership refusal; the exact pending record is retained and
+status reads preserve its bytes. The Job condition is unchanged. Worker execution,
+startup error transport, interrupted-record review and public all-layer flow remain
+incomplete. Full controller, power-loss and all
 Workspace/OCI-content acceptance are unverified. Windows symlink fixture was SKIP
 for privilege; private-registry acceptance was gated SKIP. Earlier sharing,
 readiness, missing-legacy-file and CI failures remain documented with their exact

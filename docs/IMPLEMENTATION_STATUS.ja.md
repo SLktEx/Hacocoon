@@ -15,10 +15,12 @@ schema 移行・公開 reclaim/resume コマンド・自動再実行は追加し
 Linux native discard と Windows 圧縮・登録・拒否検証は成功しました。準備済み実行は165.68秒で成功し、
 仮想容量1TiBを保持して1MiBを回収しました。正確な保存操作と結果、確認ファイル・一覧・登録情報を照合しました。
 読み取り prototype は呼び出し元終了後の子の生存を確認しましたが、WSL 停止後の生存は未検証です。
-`7f4d7f4` は GHA 4 workflow が成功し、配布 Windows 導入・再導入と後続 E2E も成功しました。
-それより新しい準備済み引き継ぎ変更の CI は別途確認が必要です。
+`e7d94d5` は GHA 4 workflow が成功し、配布 Windows 導入・再導入と後続 E2E も成功しました。
+それより新しい worker 変更の CI は別途確認が必要です。
 
-独立 Windows worker、中断記録の明示的な確認、公開の全層一括操作は planned です。controller・電源断・
+内部の独立 worker 起動と正確な操作の読み取り status を追加し、command/library テストと Windows 両ビルドは成功しました。
+native worker 検証は Job 所属の拒否で失敗し、正確な pending 記録を保持しています。status は記録を変更しません。
+Job 条件は未変更です。worker 実行、起動エラーの伝達、中断記録の確認、公開の全層一括操作は未完了です。controller・電源断・
 Workspace/OCI 内容全体の検証は未完了です。Windows symlink fixture は権限不足、private registry は gate により
 SKIP でした。以前の共有違反・readiness・旧ファイル欠落・CI の失敗は、対象範囲とともに
 [所有文書](design/storage-reclamation.ja.md)へ記録しています。後の成功で以前の失敗を成功扱いにしません。

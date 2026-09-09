@@ -16,7 +16,9 @@ import (
 
 type diskIdentity struct{ Volume, High, Low uint32 }
 type diskAllocation struct{ LogicalBytes, AllocatedBytes uint64 }
-type pinnedDisk struct {
+type pinnedDisk struct{ *pinnedFile }
+
+type pinnedFile struct {
 	path     string
 	handles  []windows.Handle
 	identity diskIdentity
@@ -24,20 +26,22 @@ type pinnedDisk struct {
 
 // A narrow local-drive path excludes UNC, device paths, alternate streams and
 // Win32 normalization ambiguities before any file operation.
-func diskPathParts(path string) ([]string, error) {
+func diskPathParts(path string) ([]string, error) { return localFileParts(path, ".vhdx") }
+
+func localFileParts(path, extension string) ([]string, error) {
 	if len(path) < 9 || len(path) > 240 || path[1:3] != `:\` ||
 		!((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) ||
-		filepath.Clean(path) != path || !strings.EqualFold(filepath.Ext(path), ".vhdx") {
-		return nil, errors.New("unsupported VHDX path")
+		filepath.Clean(path) != path || !strings.EqualFold(filepath.Ext(path), extension) {
+		return nil, errors.New("unsupported local file path")
 	}
 	parts := strings.Split(path[3:], `\`)
 	for _, part := range parts {
 		if part == "" || part == "." || part == ".." || strings.TrimRight(part, " .") != part {
-			return nil, errors.New("ambiguous VHDX path")
+			return nil, errors.New("ambiguous local file path")
 		}
 		for _, c := range part {
 			if c < 32 || strings.ContainsRune(`/:*?"<>|`, c) {
-				return nil, errors.New("invalid VHDX path component")
+				return nil, errors.New("invalid local file path component")
 			}
 		}
 	}
@@ -49,12 +53,20 @@ func diskPathParts(path string) ([]string, error) {
 // Hold each directory against write/delete sharing; do not follow reparse points.
 // GENERIC_READ is intentional: attribute-only opens do not establish the
 // sharing exclusion needed to prevent renames (covered by native regression).
-func pinDisk(path string) (_ *pinnedDisk, err error) {
-	parts, err := diskPathParts(path)
+func pinDisk(path string) (*pinnedDisk, error) {
+	file, err := pinLocalFile(path, ".vhdx", true)
 	if err != nil {
 		return nil, err
 	}
-	p := &pinnedDisk{path: path}
+	return &pinnedDisk{file}, nil
+}
+
+func pinLocalFile(path, extension string, allowWrite bool) (_ *pinnedFile, err error) {
+	parts, err := localFileParts(path, extension)
+	if err != nil {
+		return nil, err
+	}
+	p := &pinnedFile{path: path}
 	defer func() {
 		if err != nil {
 			_ = p.Close()
@@ -71,13 +83,13 @@ func pinDisk(path string) (_ *pinnedDisk, err error) {
 			return nil, e
 		}
 		share := uint32(windows.FILE_SHARE_READ)
-		if !directory {
+		if !directory && allowWrite {
 			share |= windows.FILE_SHARE_WRITE
 		}
 		h, e := windows.CreateFile(ptr, windows.GENERIC_READ, share, nil, windows.OPEN_EXISTING,
 			windows.FILE_FLAG_OPEN_REPARSE_POINT|windows.FILE_FLAG_BACKUP_SEMANTICS, 0)
 		if e != nil {
-			return nil, fmt.Errorf("pin VHDX component: %w", e)
+			return nil, fmt.Errorf("pin local file component: %w", e)
 		}
 		p.handles = append(p.handles, h)
 		var info windows.ByHandleFileInformation
@@ -86,11 +98,11 @@ func pinDisk(path string) (_ *pinnedDisk, err error) {
 		}
 		if info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 ||
 			(info.FileAttributes&windows.FILE_ATTRIBUTE_DIRECTORY != 0) != directory {
-			return nil, errors.New("VHDX path contains a reparse point or wrong object type")
+			return nil, errors.New("local file path contains a reparse point or wrong object type")
 		}
 		if !directory {
 			if info.NumberOfLinks != 1 {
-				return nil, errors.New("VHDX must have exactly one link")
+				return nil, errors.New("pinned file must have exactly one link")
 			}
 			p.identity = diskIdentity{info.VolumeSerialNumber, info.FileIndexHigh, info.FileIndexLow}
 		}
@@ -101,7 +113,10 @@ func pinDisk(path string) (_ *pinnedDisk, err error) {
 	return p, nil
 }
 
-func (p *pinnedDisk) Close() error {
+func (p *pinnedFile) Close() error {
+	if p == nil {
+		return nil
+	}
 	var errs []error
 	for i := len(p.handles) - 1; i >= 0; i-- {
 		errs = append(errs, windows.CloseHandle(p.handles[i]))
@@ -113,7 +128,7 @@ func (p *pinnedDisk) Close() error {
 // FILE_STANDARD_INFO is the native handle-based allocation observation, not
 // os.Stat().Size(). Both fields are retained; zero allocation is valid.
 // https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_standard_info
-func (p *pinnedDisk) Allocation() (diskAllocation, error) {
+func (p *pinnedFile) Allocation() (diskAllocation, error) {
 	if p == nil || len(p.handles) == 0 {
 		return diskAllocation{}, errors.New("closed VHDX observation")
 	}
@@ -139,4 +154,11 @@ func (p *pinnedDisk) Allocation() (diskAllocation, error) {
 		return diskAllocation{}, errors.New("invalid VHDX allocation observation")
 	}
 	return diskAllocation{uint64(standard.EndOfFile), uint64(standard.AllocationSize)}, nil
+}
+
+func (p *pinnedDisk) Allocation() (diskAllocation, error) {
+	if p == nil {
+		return diskAllocation{}, errors.New("closed VHDX observation")
+	}
+	return p.pinnedFile.Allocation()
 }

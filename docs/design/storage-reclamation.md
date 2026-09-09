@@ -472,8 +472,8 @@ functions. The operation schema and existing data remain unchanged. There is no
 implicit adoption, scan/replay, new recovery coordinator or public resume command.
 An operation ID selects a prepared request; it is not installation or controller
 authority. A preparation/launch crash leaves pending evidence for explicit review.
-Connecting the independent Windows worker and public all-layer request remains
-planned; two calls in one Windows process do not prove separate-process handoff.
+The internal worker launch/status entry exists below; public all-layer activation
+remains planned. Two calls in one process do not prove separate-process handoff.
 
 At `7f4d7f4`, all four GHA workflows PASSED, including the packaged helper
 installation/reinstallation and subsequent Windows E2E. This closes that
@@ -487,3 +487,45 @@ enrollment bytes were unchanged. Windows refusal/unit suite and both architectur
 builds passed; the Windows symlink fixture was SKIP for privilege. This is a
 same-process prepare/reopen/execute test, not an independent worker or complete
 public/controller/Workspace/OCI-content acceptance.
+
+## Internal Windows worker and result inspection
+
+Status: **partial; native worker acceptance failed on the local Job context**.
+`cmd/haco-wsl` now has internal `_launch`, `_continue` and `_status` modes for an
+exact registration and prepared operation ID. These are transport/diagnostic
+entries, not new ordinary `haco` commands. No public prepare or all-layer request
+is exposed. Worker execution still requires persisted enrollment and the exact
+pending target through the shared continuation path.
+
+The launcher pins its own executable and ancestors with the same native file
+checks used by disk observation; executable write/delete sharing is excluded,
+while the VHDX retains its required write sharing. It starts only its own fixed
+worker mode, detached with explicit job breakaway, NUL stdio, OS-sourced working
+directory and a cleared environment. No caller path/command or startup retry is
+accepted. The PID means dispatched, never completed. The worker currently refuses
+any Windows Job or attached console before WSL access. Windows nested outer jobs
+can remain after breakaway; support for that case requires a separate decision,
+not an implicit fallback. Existing Job restrictions are not modified.
+
+`_status` opens only the existing read-only registry key and checks the exact
+operation and registration. It never starts WSL, creates enrollment, acknowledges
+records or takes over a worker. Pending omits stage observations because its
+outcome is unknown. Complete/failed report only persisted observations. A bootstrap
+failure can leave pending after process exit; it is not evidence of success or
+that no native action occurred. Interrupted review remains unimplemented.
+
+Windows command/library tests and amd64/arm64 builds passed. The initial shared
+file refactor failed the existing nil-disk test; nil-safe refusal was restored and
+the full native suite passed. Executable write/rename exclusion and read-only
+status byte preservation passed, including the actual retained pending record.
+Windows symlink fixture was SKIP for privilege.
+
+The dedicated worker launch FAILED with exit 1. A second explicit diagnostic
+launch of the same prepared operation also exited 1 and reported `worker is bound
+to a Windows Job` before WSL access. Both processes are terminal and the pending
+record is retained. The worker stop/compact/resume path is therefore unverified;
+no new pending record was substituted and no saved data was removed. The proposed
+narrower Job condition is not applied. Standalone/nested-Job acceptance, startup
+error transport, public controller integration and the complete all-layer flow
+remain incomplete. Preceding `e7d94d5` passed all four GHA workflows; this new
+worker slice requires its own CI evaluation.
