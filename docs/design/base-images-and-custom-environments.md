@@ -6,7 +6,7 @@ Incus/Btrfs and Windows-to-WSL SSH acceptance passed at `a2fcb72`.
 ## Daily use
 
 `haco base list` and `haco base inspect <name>` show starting points. Create with
-`haco create --base <name> --workspace managed:<workspace> <environment>`.
+`haco env create --base <name> --workspace managed:<workspace> <environment>`.
 Existing Environments retain their original immutable revision when a name moves.
 No switch-base step is required.
 
@@ -23,7 +23,7 @@ To add a reusable tool, save this definition as `base.json`:
 ```bash
 haco base build base.json
 haco base inspect my-tools
-haco create --base my-tools --workspace managed:my-project dev
+haco env create --base my-tools --workspace managed:my-project dev
 haco ssh setup dev
 ssh haco-dev my-tool
 ```

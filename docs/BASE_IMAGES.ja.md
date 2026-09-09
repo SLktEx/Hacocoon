@@ -31,7 +31,7 @@ BaseRef{Name, Revision}
 ```text
 haco base list [--json]
 haco base inspect <base> [--json]
-haco create --base <base> --workspace <path> <environment>
+haco env create --base <base> --workspace <path> <environment>
 ```
 
 `haco base` は Hacocoon Environment の starting point 専用とする。OCI/container image の操作は optional な `haco plugin oci ...` namespace に分離する。

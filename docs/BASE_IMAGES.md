@@ -38,7 +38,7 @@ Current commands:
 ```text
 haco base list [--json]
 haco base inspect <base> [--json]
-haco create --base <base> --workspace <path> <environment>
+haco env create --base <base> --workspace <path> <environment>
 ```
 
 `haco base` is deliberately reserved for Hacocoon Environment starting points. OCI/container images belong to the separate optional `haco plugin oci ...` namespace.
