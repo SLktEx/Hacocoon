@@ -15,9 +15,12 @@ Refuse known container users, including stopped containers, and use native remov
 without force. Resolve tags in the preview and send the immutable runtime ID to
 removal. Native failure or unproven post-removal absence is failure. Do not create
 an image registry, tombstones, backup or rollback to model native runtime behavior.
-Independent Store/snapshot copies retain their content. Host-source and detached
-Store operations require their existing ownership/Host-copy boundaries and remain
-separate work, rather than pretending attached-Env execution covers them.
+Independent Store/snapshot copies retain their content. Host-source operations use the existing Host-operation lock and independent native
+source ownership/layout checks. A strict adapter command allowlist prevents this
+path from becoming arbitrary Host execution. Host and Env selectors are mutually
+exclusive; guest Store data never moves into the Host. Pending copy journals remain
+authoritative and are never cleared by image operations. Detached-Store operations
+remain separate work, rather than pretending attached-Env execution covers them.
 
 ## Alternatives rejected
 

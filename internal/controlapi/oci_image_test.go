@@ -16,6 +16,8 @@ func TestOCIImageRejectsExtraAuthorityBeforeService(t *testing.T) {
 	})
 	c, _ := NewClient(socket)
 	for _, raw := range []string{
+		`{"operation":"list","host":true,"environment":"dev","runtime":"docker"}`,
+		`{"operation":"delete","host":true,"id":"sha256:bad"}`,
 		`{"operation":"delete","id":"sha256:bad"}`,
 		`{"operation":"list","environment":"dev","runtime":"docker","executable":"sh"}`,
 		`{"operation":"list","environment":"dev","runtime":"arbitrary"}`,

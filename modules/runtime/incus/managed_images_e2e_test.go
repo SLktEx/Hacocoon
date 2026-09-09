@@ -70,3 +70,44 @@ func verifyManagedRuntimeImages(t *testing.T, ctx context.Context, runtime *Runt
 	}
 	t.Log("PASS managed", kind, "image inventory, stopped-container refusal, immutable runtime ID deletion and absence; source-copy independence checked by caller")
 }
+
+func verifyHostSourceImages(t *testing.T, ctx context.Context, runtime *Runtime, source core.PersistentResource, tool string, guest func(string, string) string) {
+	t.Helper()
+	kind := "nerdctl"
+	if strings.Contains(tool, "docker") {
+		kind = "docker"
+	}
+	catalog := &runtimeImageFixture{runtime: runtime, name: trustedHostName, resource: source}
+	service := &oci.ManagedImages{Catalog: catalog, Host: &PersistentResourceBackend{Runtime: runtime}}
+	all, err := service.ListHost(ctx, kind)
+	if err != nil {
+		t.Fatal("Host source inventory", kind, err)
+	}
+	id := ""
+	for _, image := range all.Images {
+		for _, tag := range image.Tags {
+			if tag == "hacocoon-host-delete:Dev" || strings.HasSuffix(tag, "/hacocoon-host-delete:Dev") {
+				if id != "" && id != image.ID {
+					t.Fatal("ambiguous fixture image")
+				}
+				id = image.ID
+			}
+		}
+	}
+	if len(all.Images) != 2 || id == "" || !all.Target.Host || all.Target.Store != source.Ref() {
+		t.Fatal("Host source review lost ownership or images", kind)
+	}
+	guest(trustedHostName, tool+" create --name host-image-guard --pull never --network none hacocoon-host-delete:Dev")
+	if err := service.Delete(ctx, all.Target, id); !errors.Is(err, core.ErrStorageBusy) {
+		t.Fatal("Host source container reference not protected", kind, err)
+	}
+	guest(trustedHostName, tool+" rm host-image-guard")
+	if err := service.Delete(ctx, all.Target, id); err != nil {
+		t.Fatal("Host source selected image deletion", kind, err)
+	}
+	after, err := service.ListHost(ctx, kind)
+	if err != nil || len(after.Images) != 1 || after.Images[0].ID == id {
+		t.Fatal("Host source absence/other image preservation unproven", kind, err)
+	}
+	t.Log("PASS managed Host", kind, "source inventory, stopped-container refusal, selected deletion and other-image retention; retained image is used by subsequent COW test")
+}

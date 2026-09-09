@@ -67,3 +67,28 @@ func TestImageReviewConfirmationAndImmutableDeletion(t *testing.T) {
 		})
 	}
 }
+
+func TestHostImageConfirmationKeepsSourceIdentity(t *testing.T) {
+	id := "sha256:" + strings.Repeat("a", 64)
+	for _, mode := range []string{"valid", "extra-env", "wrong-role"} {
+		t.Run(mode, func(t *testing.T) {
+			c := &imageReviewClient{result: oci.ManagedImageList{Target: oci.ImageTarget{Host: true, Store: core.PersistentResourceRef{ID: oci.HostStoreID, Owner: strings.Repeat("c", 32)}, Runtime: "docker"}, Images: []oci.ManagedImage{{ID: id, Tags: []string{"app:dev"}}}}}
+			args := []string{"delete", "--host", "--runtime", "docker", "--yes", "app:dev"}
+			if mode == "extra-env" {
+				args = append(args, "dev")
+			}
+			if mode == "wrong-role" {
+				c.result.Target.Host = false
+			}
+			var out, diagnostic strings.Builder
+			code := ociImageManageCommand(context.Background(), c, args, strings.NewReader(""), &out, &diagnostic)
+			if mode == "valid" {
+				if code != 0 || len(c.requests) != 2 || !c.requests[0].Host || c.requests[0].Environment != "" || c.requests[1].Target != c.result.Target || c.requests[1].ID != id || !strings.Contains(out.String(), "Host source") {
+					t.Fatalf("host review: code=%d requests=%+v output=%s diagnostic=%s", code, c.requests, out.String(), diagnostic.String())
+				}
+			} else if code == 0 || len(c.requests) > 1 {
+				t.Fatalf("mixed authority accepted: %d %+v", code, c.requests)
+			}
+		})
+	}
+}

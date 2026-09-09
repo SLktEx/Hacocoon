@@ -16,6 +16,7 @@ import (
 type ManagedImages struct {
 	Catalog      ManagedImageCatalog
 	Environments ResourceExecutor
+	Host         HostImageExecutor
 }
 type ManagedImageCatalog interface {
 	GetEnvironment(context.Context, string) (core.Environment, error)
@@ -23,10 +24,14 @@ type ManagedImageCatalog interface {
 	GetPersistentResource(context.Context, string) (core.PersistentResource, error)
 	ListSnapshots(context.Context) ([]core.Snapshot, error)
 }
+type HostImageExecutor interface {
+	ExecHostImage(context.Context, core.PersistentResource, string, []string) (core.ExecutionResult, error)
+}
 type ResourceExecutor interface {
 	ExecForResource(context.Context, string, string, core.PersistentResourceRef, core.ExecutionRequest) (core.ExecutionResult, error)
 }
 type ImageTarget struct {
+	Host        bool                       `json:"host,omitempty"`
 	Environment string                     `json:"environment"`
 	Instance    string                     `json:"instance"`
 	Store       core.PersistentResourceRef `json:"store"`
@@ -45,12 +50,31 @@ type ManagedImageList struct {
 }
 
 var imageIDPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-var imageReferencePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._:/@-]{0,999}$`)
+var imageReferencePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,999}$`)
 var containerIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // ValidImageSelection rejects incomplete reviewed identities before dispatch.
 func ValidImageSelection(target ImageTarget, id string) bool {
-	return validImageRuntime(target.Runtime) && core.ValidEnvironmentInstanceID(target.Instance) && core.ValidPersistentResourceRef(target.Store) && target.Environment != "" && imageIDPattern.MatchString(id)
+	return validImageTarget(target) && imageIDPattern.MatchString(id)
+}
+func validImageTarget(target ImageTarget) bool {
+	if !validImageRuntime(target.Runtime) || !core.ValidPersistentResourceRef(target.Store) {
+		return false
+	}
+	if target.Host {
+		return target.Store.ID == HostStoreID && target.Environment == "" && target.Instance == ""
+	}
+	return target.Environment != "" && core.ValidEnvironmentInstanceID(target.Instance) && target.Store.ID != HostStoreID
+}
+func (s *ManagedImages) ListHost(ctx context.Context, runtime string) (ManagedImageList, error) {
+	if !validImageRuntime(runtime) {
+		return ManagedImageList{}, core.ErrInvalidArgument
+	}
+	source, err := s.Catalog.GetPersistentResource(ctx, HostStoreID)
+	if err != nil {
+		return ManagedImageList{}, err
+	}
+	return s.inspect(ctx, ImageTarget{Host: true, Store: source.Ref(), Runtime: runtime})
 }
 func validImageRuntime(runtime string) bool { return runtime == "docker" || runtime == "nerdctl" }
 func (s *ManagedImages) List(ctx context.Context, name, runtime string) (ManagedImageList, error) {
@@ -69,14 +93,14 @@ func (s *ManagedImages) List(ctx context.Context, name, runtime string) (Managed
 	return s.inspect(ctx, target)
 }
 func (s *ManagedImages) checkTarget(ctx context.Context, target ImageTarget) error {
-	if !validImageRuntime(target.Runtime) || !core.ValidEnvironmentInstanceID(target.Instance) || !core.ValidPersistentResourceRef(target.Store) || target.Environment == "" {
+	if !validImageTarget(target) {
 		return core.ErrInvalidArgument
 	}
 	resource, err := s.Catalog.GetPersistentResource(ctx, target.Store.ID)
 	if err != nil {
 		return err
 	}
-	if resource.Ref() != target.Store || resource.Kind != StoreKind || resource.SourceOnly || resource.State != "ready" {
+	if resource.Ref() != target.Store || resource.Kind != StoreKind || resource.SourceOnly != target.Host || resource.State != "ready" || (target.Host && resource.WorkspaceID != "") {
 		return core.ErrCapabilityStale
 	}
 	return nil
@@ -91,7 +115,23 @@ func (s *ManagedImages) command(ctx context.Context, target ImageTarget, args ..
 	} else {
 		argv = append(argv, "nerdctl", "--address", "/run/containerd/containerd.sock", "--namespace", "default", "--snapshotter", "native")
 	}
-	result, err := s.Environments.ExecForResource(ctx, target.Environment, target.Instance, target.Store, core.ExecutionRequest{Argv: append(argv, args...)})
+	var result core.ExecutionResult
+	var err error
+	if target.Host {
+		if s.Host == nil {
+			return "", core.ErrUnsupported
+		}
+		source, e := s.Catalog.GetPersistentResource(ctx, target.Store.ID)
+		if e != nil {
+			return "", e
+		}
+		if source.Ref() != target.Store {
+			return "", core.ErrCapabilityStale
+		}
+		result, err = s.Host.ExecHostImage(ctx, source, target.Runtime, args)
+	} else {
+		result, err = s.Environments.ExecForResource(ctx, target.Environment, target.Instance, target.Store, core.ExecutionRequest{Argv: append(argv, args...)})
+	}
 	if err != nil {
 		return "", err
 	}

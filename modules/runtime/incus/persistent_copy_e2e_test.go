@@ -224,7 +224,7 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 	}
 	command("exec", trustedHostName, "--project", project, "--", "/usr/bin/unshare", "--mount", "/bin/true")
 	t.Log("PASS owned Host nesting/reuse and nested mount namespace; OCI runtime acceptance remains separate")
-	verifyRuntimeCopy := prepareHostRuntimeCopy(t, ctx, runtime, command)
+	verifyRuntimeCopy := prepareHostRuntimeCopy(t, ctx, runtime, source, command)
 	command("exec", trustedHostName, "--project", project, "--", "/bin/sh", "-ec", "printf 'Host area content\\n' > /var/lib/hacocoon-oci/marker; sync")
 	var interrupted *hostCopyResumeFailureRunner
 	if interruptResume {

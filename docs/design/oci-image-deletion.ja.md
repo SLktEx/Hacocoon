@@ -37,11 +37,39 @@ socket や実行ファイルを選べず、layer file を直接削除しませ�
 
 ## 範囲と検証
 
-この段階は runtime が利用できる Env に接続済みの Store が対象です。Host の配布元、
+この段階は runtime が利用できる Env に接続済みの Store が対象です。Host の配布元は次節で扱います。
 未接続 Store、候補を選ぶ GC、管理用 Env の自動起動は planned です。Seed・tombstone・
 隠れた backup・新 catalog 状態・schema 移行は追加しません。保存 snapshot は独立コピー
 なので削除の影響を受けません。unit／CLI 回帰と既存の実 runtime COW fixture は別の範囲を
 検証します。実際の実行結果は実装状況と PR に記録します。
+
+## 管理対象 Host source
+
+partial の実装です。専用環境の実 runtime 検証は成功し、インストール済み controller 経由の検証は未完了です。
+
+```bash
+haco plugin oci image list --host
+haco plugin oci image delete --host --runtime docker example.local/app:dev
+```
+
+`--host` と Env 名は同時指定できません。確認画面は正確な source owner と、今後の
+Store コピーの元を変更することを表示します。既存の独立 Store／snapshot コピーには
+影響しません。旧 Seed namespace・tombstone・全 Env 削除は復活させません。
+対象は現在の管理 source `oci-source:host` であり、guest Store を Host に接続するための
+指定には使えません。自動 setup・移行・復旧も実行しません。
+
+plugin は現在の ready source owner を照合します。Incus adapter も独立して、固定の
+image／container 一覧、限定した inspect template、不変 ID の非 force 削除だけを許可します。
+実行ファイルの検索先・daemon socket は固定し、CLI の環境をクリアします。任意 shell・
+program・daemon option・inspect template は Host 境界へ渡せません。
+
+各命令は既存 Host-operation lock を保持し、未完了 copy journal を拒否します。
+native volume owner、単独の接続先、正確な mount、local Host/source marker、非特権の
+container 型、空の profiles、running 状態、管理対象 daemon layout を確認します。
+停止中 Host を再開したり、復旧記録を消したりしません。所有・layout が不明、または
+観測が失敗／切り詰められていれば拒否します。native 命令は2分、全体 request は5分で
+制限します。container 参照と削除後の不在確認は接続済み Store と同じ runtime の検証を使い、
+既存 copy／cleanup 状態は変更しません。
 
 ## 過去の Seed 削除
 

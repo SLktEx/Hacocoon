@@ -14,6 +14,7 @@ import (
 const MethodOCIImage = "plugin.oci.image"
 
 type OCIImageRequest struct {
+	Host        bool            `json:"host,omitempty"`
 	Operation   string          `json:"operation"`
 	Environment string          `json:"environment,omitempty"`
 	Runtime     string          `json:"runtime,omitempty"`
@@ -21,6 +22,7 @@ type OCIImageRequest struct {
 	ID          string          `json:"id,omitempty"`
 }
 type OCIImageService interface {
+	ListHost(context.Context, string) (oci.ManagedImageList, error)
 	List(context.Context, string, string) (oci.ManagedImageList, error)
 	Delete(context.Context, oci.ImageTarget, string) error
 }
@@ -37,13 +39,19 @@ func RegisterOCIImages(server *control.Server, service OCIImageService) error {
 		defer cancel()
 		switch req.Operation {
 		case "list":
-			if req.Environment == "" || req.ID != "" || req.Target != (oci.ImageTarget{}) || (req.Runtime != "docker" && req.Runtime != "nerdctl") {
+			if (req.Host && req.Environment != "") || (!req.Host && req.Environment == "") || req.ID != "" || req.Target != (oci.ImageTarget{}) || (req.Runtime != "docker" && req.Runtime != "nerdctl") {
 				return nil, translateError(core.ErrInvalidArgument)
 			}
-			result, err := service.List(ctx, req.Environment, req.Runtime)
+			var result oci.ManagedImageList
+			var err error
+			if req.Host {
+				result, err = service.ListHost(ctx, req.Runtime)
+			} else {
+				result, err = service.List(ctx, req.Environment, req.Runtime)
+			}
 			return result, translateError(err)
 		case "delete":
-			if req.Environment != "" || req.Runtime != "" || !oci.ValidImageSelection(req.Target, req.ID) {
+			if req.Host || req.Environment != "" || req.Runtime != "" || !oci.ValidImageSelection(req.Target, req.ID) {
 				return nil, translateError(core.ErrInvalidArgument)
 			}
 			return struct{}{}, translateError(service.Delete(ctx, req.Target, req.ID))

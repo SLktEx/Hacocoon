@@ -208,7 +208,7 @@ E5 implements reviewed deletion of retained Workspaces, built Base revisions,
 whole OCI Stores and unused source repositories. Their existing references,
 exact ownership and native saved children remain protected. Individual images in
 attached Stores are partial through the current runtime-backed OCI plugin; see
-[image operations](../design/oci-image-deletion.md). Host-source/detached-Store
-images, candidate-selected GC, F reclamation/operability and G export/migration
-remain planned. These remaining stages preserve data and permissions while using
+[image operations](../design/oci-image-deletion.md). Host-source image operations extend this same partial checkpoint through the existing
+Host-copy/ownership boundary. Detached-Store images, candidate-selected GC, F
+reclamation/operability and G export/migration remain planned. These remaining stages preserve data and permissions while using
 Incus capabilities; they do not require full disposable-Env reconstruction.
