@@ -88,8 +88,11 @@ native 不在確認後に lease を解放するまで、根拠となる run 記�
 未接続 Store の実 Docker／nerdctl image 操作は未検証です。
 [ADR 0047](../adr/0047-detached-store-maintenance.md) を参照してください。
 
-daemon 起動と接続の統合が完了するまで、Incus の全 Env 作成入口は maintenance 指定を
-native 操作前に明示的に拒否します。独立した準備処理だけでは maintenance lifecycle は有効になりません。
+SandboxProvider の receipt 付き作成は、現在の network 検証後に準備→Store 接続→metadata
+起動を行います。receipt なし作成と snapshot restore は maintenance を拒否します。
+既存 run service が確認済み owner を固定し、操作全体と canonical cleanup の間、所有記録と
+lock を保持します。公開の image 経路は未接続です。関連 run／adapter race test は成功し、
+統合した作成経路全体の実機受入は未完了です。
 
 ## 未接続 containerd metadata service
 
@@ -97,7 +100,7 @@ native 操作前に明示的に拒否します。独立した準備処理だけ�
 照合して containerd 2.3.3 の metadata service を起動します。guest 内の専用 socket／設定／
 実行状態は、保存済み設定や通常 daemon の起動から分離します。task・restart・CRI・NRI・
 sandbox controller を無効にし、保存済み container 記録と restart label は維持します。
-専用 Incus 6.0.5/Btrfs テストは177.86秒で成功し、task API の拒否、restart 設定を持つ
+専用 Incus 6.0.5/Btrfs テストは179.66秒で成功し、task API の拒否、restart 設定を持つ
 container 情報の不変性、使用中 image 保持、未使用 alias 削除、Store 保持と所有対象の
 cleanup を確認しました。既存 Incus/Btrfs GHA にも接続しています。処理単体の受入であり、
 公開 maintenance 作成や Docker 対応は有効にならず、

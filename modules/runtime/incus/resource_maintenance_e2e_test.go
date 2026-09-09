@@ -90,6 +90,7 @@ mkdir -p /var/lib/hacocoon-oci
 cat > /etc/systemd/system/docker.service <<'UNIT'
 [Unit]
 Description=Isolated maintenance guard fixture
+DefaultDependencies=no
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/touch /var/lib/hacocoon-oci/unwanted-start
@@ -98,7 +99,7 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
-systemctl enable --now docker.service
+timeout 30 systemctl enable --now docker.service
 test -f /var/lib/hacocoon-oci/unwanted-start`)
 	if err := p.prepareResourceMaintenance(ctx, ref); err != nil {
 		t.Fatal(err)

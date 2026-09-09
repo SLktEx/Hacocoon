@@ -9,6 +9,11 @@ import (
 // retained Store is attached. It never runs in haco-host or on the Physical Host.
 // Daemon-specific safe startup and Store attachment are separate subsequent steps.
 const resourceMaintenancePreparation = `set -eu
+# Incus start may precede the guest manager socket becoming ready.
+n=0
+until systemctl show --property=Version --value >/dev/null 2>&1; do
+ n=$((n+1)); test "$n" -lt 60; sleep 0.5
+done
 # Refuse preparation after data attachment, even if a caller reverses the order.
 if grep -Fq ' /var/lib/hacocoon-oci ' /proc/self/mountinfo; then
   exit 40

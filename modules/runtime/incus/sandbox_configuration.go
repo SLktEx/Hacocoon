@@ -37,8 +37,10 @@ func (p *SandboxProvider) configureSandboxEnvironment(ctx context.Context, ref s
 	if err := p.addWorkspaceDevice(ctx, ref, spec); err != nil {
 		return err
 	}
-	if err := p.attachPersistentResource(ctx, ref, spec.PersistentResource); err != nil {
-		return err
+	if !spec.ResourceMaintenance {
+		if err := p.attachPersistentResource(ctx, ref, spec.PersistentResource); err != nil {
+			return err
+		}
 	}
 	if result, err := p.runner.Run(ctx, "incus", "start", ref, "--project", p.project); err != nil {
 		reason := strings.TrimSpace(result.Stderr)
@@ -53,7 +55,17 @@ func (p *SandboxProvider) configureSandboxEnvironment(ctx context.Context, ref s
 	if err := p.provisionEnvironmentDNS(ctx, ref); err != nil {
 		return err
 	}
-	if spec.PersistentResource.ID != "" {
+	if spec.ResourceMaintenance {
+		if err := p.prepareResourceMaintenance(ctx, ref); err != nil {
+			return err
+		}
+		if err := p.attachPersistentResource(ctx, ref, spec.PersistentResource); err != nil {
+			return err
+		}
+		if err := p.startContainerdMaintenance(ctx, ref, spec.InstanceID, spec.PersistentResource); err != nil {
+			return err
+		}
+	} else if spec.PersistentResource.ID != "" {
 		if _, err := p.runner.Run(ctx, "incus", "exec", ref, "--project", p.project, "--", "/bin/sh", "-c", persistentOCIConfiguration); err != nil {
 			return fmt.Errorf("configure Environment-local OCI data roots: %w", err)
 		}

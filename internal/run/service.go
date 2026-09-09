@@ -144,7 +144,35 @@ func (s *Service) Reconcile(ctx context.Context) error {
 }
 
 func (s *Service) Run(ctx context.Context, spec Spec) (Result, error) {
-	if s == nil || s.environments == nil || len(spec.Argv) == 0 {
+	if len(spec.Argv) == 0 {
+		return Result{}, core.ErrInvalidArgument
+	}
+	return s.run(ctx, spec, core.PersistentResourceRef{}, func(ctx context.Context, environment core.Environment) (core.ExecutionResult, error) {
+		return s.environments.Exec(ctx, environment.Name, core.ExecutionRequest{WorkingDirectory: "/workspace", Argv: append([]string(nil), spec.Argv...)})
+	})
+}
+
+// MaintainResource holds the existing ephemeral-run ownership through the whole
+// operation and cleanup. The reviewed resource is borrowed, never rebound or
+// passed to temporary-resource cleanup as the temporary Workspace's own data.
+// Callers must use the Environment's current generation for guarded execution.
+func (s *Service) MaintainResource(ctx context.Context, resource core.PersistentResourceRef, operation func(context.Context, core.Environment) error) (Result, error) {
+	if !core.ValidPersistentResourceRef(resource) || operation == nil {
+		return Result{}, core.ErrInvalidArgument
+	}
+	if !s.recoveryEnabled() || s.cleanupTemporaryWorkspace == nil {
+		return Result{}, core.ErrUnsupported
+	}
+	return s.run(ctx, Spec{SkipDefaultResource: true}, resource, func(ctx context.Context, environment core.Environment) (core.ExecutionResult, error) {
+		if environment.PersistentResource != resource {
+			return core.ExecutionResult{}, core.ErrCapabilityStale
+		}
+		return core.ExecutionResult{}, operation(ctx, environment)
+	})
+}
+
+func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentResourceRef, operation func(context.Context, core.Environment) (core.ExecutionResult, error)) (Result, error) {
+	if s == nil || s.environments == nil || operation == nil {
 		return Result{}, core.ErrInvalidArgument
 	}
 	runCtx, stopSignals := withTerminationSignals(ctx)
@@ -194,6 +222,8 @@ func (s *Service) Run(ctx context.Context, spec Spec) (Result, error) {
 	}
 
 	environment, err := s.environments.Create(ctx, core.EnvironmentSpec{
+		PersistentResource:  resource.ID,
+		ExpectedResource:    resource,
 		TemporaryWorkspace:  temporary,
 		Base:                spec.Base,
 		SkipDefaultResource: spec.SkipDefaultResource,
@@ -245,7 +275,7 @@ func (s *Service) Run(ctx context.Context, spec Spec) (Result, error) {
 	}
 
 	result := Result{Environment: environment.Name}
-	execution, execErr := s.environments.Exec(ctx, environment.Name, core.ExecutionRequest{WorkingDirectory: "/workspace", Argv: append([]string(nil), spec.Argv...)})
+	execution, execErr := operation(ctx, environment)
 	_, stdoutMarker, stdoutMarkerBytes := host.DecodeCapturedOutput(execution.Stdout)
 	_, stderrMarker, stderrMarkerBytes := host.DecodeCapturedOutput(execution.Stderr)
 	result.Execution = ExecutionResult{

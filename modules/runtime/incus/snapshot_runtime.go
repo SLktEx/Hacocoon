@@ -13,7 +13,7 @@ import (
 // the saved aggregate and canonical creation lease, supplies new data bindings,
 // records the receipt immediately, and owns failure cleanup/publication.
 func (p *SandboxProvider) CreateEnvironmentFromSnapshot(ctx context.Context, spec core.EnvironmentRuntimeSpec, saved core.Snapshot, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
-	if p == nil || p.BaseProvider == nil || p.Runtime == nil || record == nil || !core.ValidEnvironmentInstanceID(spec.InstanceID) || spec.WorkspacePath == "" || spec.TemporaryWorkspace || spec.Base != "" || saved.State != "ready" {
+	if p == nil || p.BaseProvider == nil || p.Runtime == nil || record == nil || !core.ValidEnvironmentInstanceID(spec.InstanceID) || spec.WorkspacePath == "" || spec.TemporaryWorkspace || spec.ResourceMaintenance || spec.Base != "" || saved.State != "ready" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
 	ref := "haco-" + spec.Name

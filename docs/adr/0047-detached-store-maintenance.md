@@ -51,12 +51,21 @@ identity in creating, active and cleanup-required run states. Admission still
 requires creating. Put/delete of run evidence must preserve all persistent
 resource invariants before writing; a failed cleanup cannot lose its supporting
 record. Focused state/workspace/run race tests passed, including the formerly
-failing positive paths and evidence replacement/deletion refusal. No public route
-or daemon integration is enabled.
+failing positive paths and evidence replacement/deletion refusal. Public image routing is not enabled.
 
-Until daemon startup and attachment are integrated, every Incus Environment
-creation entry explicitly refuses maintenance requests before native access.
-The independent preparation primitive is not an enabled maintenance lifecycle.
+The SandboxProvider receipt-based create path now composes preparation before
+attachment and metadata startup after current network guards and verification.
+It requires a temporary Workspace and an owned ready guest OCI Store. The caller
+records exact runtime ownership immediately after init and owns failure cleanup.
+Runtime/BaseProvider, receipt-free creation and snapshot restore cannot enter
+maintenance. Public image routing is still not connected.
+
+The existing run service holds its ownership lock across a maintenance callback
+and bounded cleanup. It pins the reviewed resource owner in canonical creation,
+skips a default Store copy, and verifies the returned binding before executing.
+It reuses the ordinary run marker, cancellation and cleanup-required handling;
+only the scratch Workspace's own resources are eligible for temporary cleanup.
+No new state machine or borrowed-Store deletion path is introduced.
 
 ## Containerd metadata-only startup
 
@@ -67,11 +76,12 @@ ordinary daemons remain masked. A fresh private guest `/run` directory contains
 explicit configuration and runtime state; retained configuration is never loaded.
 Restart, CRI, NRI, task service/runtime and sandbox controllers are disabled.
 Container records and restart labels are not rewritten. The dedicated Incus
-6.0.5/Btrfs primitive test passed in 177.86s, including task API refusal, unchanged
+6.0.5/Btrfs primitive test passed in 179.66s, including task API refusal, unchanged
 restart-marked container metadata, retained used image, unused-alias deletion,
 Store retention after runtime deletion and exact cleanup. Inactive plugin entries
 are distinguished from loaded plugins. Fixture import config explicitly selects
-the native unpack platform. Public maintenance creation remains unsupported.
+the native unpack platform. Public image operations remain unconnected; the receipt-based create sequence
+is covered by focused adapter regressions, not yet full native integration acceptance.
 
 The [containerd restart monitor](https://github.com/containerd/containerd/blob/v2.3.3/plugins/restart/monitor.go)
 can start containers from persisted labels. Its

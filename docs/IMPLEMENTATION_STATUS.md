@@ -17,10 +17,17 @@ The internal containerd 2.3.3 startup primitive validates native ownership and
 generation, uses private guest configuration, and disables task/restart/CRI/NRI
 services. Focused race tests and adapter vet passed. Its opt-in native test is
 now included in the existing Incus/Btrfs GHA path. The dedicated Incus 6.0.5/Btrfs
-primitive test passed in 177.86s: task API refused, restart-marked container metadata
+primitive test passed in 179.66s: task API refused, restart-marked container metadata
 unchanged, used image retained, unused alias removed, Store retained after Env
 deletion, and exact fixture cleanup confirmed. This is not public detached-image
 acceptance. No public command or schema change is introduced.
+
+The shared run service now holds durable scratch ownership across retained-Store
+maintenance and canonical cleanup, pinning the reviewed owner without a default
+copy. Its full race suite passed (2.751s). SandboxProvider receipt-based creation
+composes prepare-before-attach with metadata startup and existing network guards;
+related adapter race tests passed (2.196s). Receipt-free and snapshot creation
+remain refused. Public routing and composed native acceptance are still pending.
 
 ## Environment transfer prerequisites
 

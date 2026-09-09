@@ -95,9 +95,12 @@ until the associated lease is released after confirmed native absence. The indep
 passed a dedicated systemd/Btrfs fixture; actual detached Docker/nerdctl image
 operations remain unverified. See [ADR 0047](../adr/0047-detached-store-maintenance.md).
 
-Until daemon startup and attachment are integrated, every Incus Environment
-creation entry explicitly refuses maintenance requests before native access.
-The independent preparation primitive is not an enabled maintenance lifecycle.
+Receipt-based SandboxProvider creation now prepares before attachment and starts
+metadata services after current network validation. Receipt-free creation and
+snapshot restore refuse maintenance. The existing run service pins the reviewed
+owner and holds its marker/lock across the whole operation and canonical cleanup.
+Public image routing is still not connected. Focused run and adapter race tests
+passed; full native acceptance of the composed creation path remains pending.
 
 ## Detached containerd metadata service
 
@@ -107,7 +110,7 @@ containerd 2.3.3 metadata service. Its private guest socket/configuration/state
 are independent of retained configuration and ordinary daemon startup. Task,
 restart, CRI, NRI and sandbox controllers are disabled; persisted container
 records and restart labels are preserved. Its dedicated Incus 6.0.5/Btrfs test
-passed in 177.86s, checking task API refusal, unchanged restart-marked metadata,
+passed in 179.66s, checking task API refusal, unchanged restart-marked metadata,
 used-image retention, unused-alias deletion and retained Store cleanup. The test
 is also wired into existing Incus/Btrfs GHA; this is primitive acceptance. This
 primitive does not enable public maintenance creation, Docker support or a

@@ -14,10 +14,17 @@ state／workspace／run の関連 race 回帰が成功しました。公開経�
 内部の containerd 2.3.3 起動処理は native 所有者と世代を確認し、guest 専用設定で
 task・restart・CRI・NRI を無効にします。限定 race test と adapter の vet は成功しました。
 opt-in の実機テストを既存 Incus/Btrfs GHA に追加しています。専用 Incus 6.0.5/Btrfs の
-単体実機検証は177.86秒で成功しました。task API の拒否、restart 設定を持つ container 情報の
+単体実機検証は179.66秒で成功しました。task API の拒否、restart 設定を持つ container 情報の
 不変性、使用中 image の保持、未使用 alias の削除、Env 削除後の Store 保持、試験所有資源だけの
 cleanup を確認しています。公開の未接続 image 操作全体の受入ではありません。
 公開コマンドや schema の変更はありません。
+
+共通 run service は、未接続 Store の操作と canonical cleanup の間、scratch 所有記録と
+lock を保持します。確認済み owner を固定し、default copy は作りません。run 全体の
+race suite は2.751秒で成功しました。SandboxProvider の receipt 付き作成は、既存の
+network 保護を通して、準備→Store 接続→metadata 起動を行います。関連 adapter の
+race test は2.196秒で成功しました。receipt なし作成と snapshot restore は拒否を維持し、
+公開経路と統合全体の実機受入は未完了です。
 
 ## Environment 持ち出しの前提確認
 
