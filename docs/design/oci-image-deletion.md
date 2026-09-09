@@ -83,3 +83,18 @@ a current Store retention model. Historical behavior is recoverable from Git;
 existing records are not silently deleted by this change. The release table's
 v0.16 link identifies that historical checkpoint, not this new partial slice.
 See [ADR 0046](../adr/0046-reviewed-runtime-image-deletion.md).
+
+## Detached Store implementation in progress
+
+Not exposed through the public CLI yet. A scratch-run reservation must match the
+exact Store owner and a durable run identity; normal Workspace associations,
+exclusive Store leases and source-only refusal remain required. Catalog read-time
+validation preserves admitted leases through active execution and cleanup while
+requiring the exact scratch identity. Run evidence cannot be deleted or replaced
+until the associated lease is released after confirmed native absence. The independent Incus preparation primitive
+passed a dedicated systemd/Btrfs fixture; actual detached Docker/nerdctl image
+operations remain unverified. See [ADR 0047](../adr/0047-detached-store-maintenance.md).
+
+Until daemon startup and attachment are integrated, every Incus Environment
+creation entry explicitly refuses maintenance requests before native access.
+The independent preparation primitive is not an enabled maintenance lifecycle.

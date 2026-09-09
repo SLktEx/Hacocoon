@@ -77,3 +77,16 @@ v0.16 の Host Seed cache・tombstone・全 Env 操作は隔離された旧実�
 現在の製品コマンドや Store 寿命モデルではありません。過去の仕様は Git 履歴で確認でき、
 今回の変更で既存記録を黙って削除しません。release 表の v0.16 リンクは過去の checkpoint
 を示し、今回の partial 実装の番号ではありません。[ADR 0046](../adr/0046-reviewed-runtime-image-deletion.md)を参照してください。
+
+## 未接続 Store の実装中の範囲
+
+公開 CLI にはまだ接続していません。一時 run の予約は、正確な Store owner と
+永続化した run の識別情報に一致させます。通常の Workspace 対応、Store の排他 lease、
+source-only の拒否は維持します。catalog 再読込時も正確な scratch identity を要求し、実行中・cleanup 中の lease を維持します。
+native 不在確認後に lease を解放するまで、根拠となる run 記録の削除・差し替えを拒否します。
+独立した Incus 準備処理は専用の systemd／Btrfs fixture で成功しましたが、
+未接続 Store の実 Docker／nerdctl image 操作は未検証です。
+[ADR 0047](../adr/0047-detached-store-maintenance.md) を参照してください。
+
+daemon 起動と接続の統合が完了するまで、Incus の全 Env 作成入口は maintenance 指定を
+native 操作前に明示的に拒否します。独立した準備処理だけでは maintenance lifecycle は有効になりません。

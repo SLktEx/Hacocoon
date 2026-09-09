@@ -43,6 +43,11 @@ func (p *SandboxProvider) CreateEnvironmentWithReceipt(ctx context.Context, spec
 }
 
 func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
+	// Retained Store startup is not wired yet. Never fall through to ordinary
+	// creation, which may start daemons before maintenance preparation.
+	if spec.ResourceMaintenance {
+		return core.EnvironmentRuntime{}, core.ErrUnsupported
+	}
 	if p == nil || p.BaseProvider == nil || p.Runtime == nil || spec.Name == "" || spec.WorkspacePath == "" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}

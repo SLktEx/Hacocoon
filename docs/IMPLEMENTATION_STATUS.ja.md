@@ -1,5 +1,15 @@
 # 実装状況
 
+## 未接続 Store maintenance の実装中の範囲
+
+partial・未公開で、CLI には接続していません。native adapter の単体テストと、専用 WSL
+Incus/Btrfs の準備 fixture が成功しました（57.21秒）。接続後の準備拒否、mask を維持した
+再起動、Env 削除後の Store 保持、所有対象だけの cleanup を確認しました。
+未接続 Store の実 Docker／nerdctl image 操作は未検証です。catalog の再読込検証は実行中・不明な cleanup 中も正確な scratch-run lease を維持し、
+根拠となる run 記録の削除・差し替えを拒否します。以前失敗した正常経路を含め、
+state／workspace／run の関連 race 回帰が成功しました。公開経路と daemon 統合は未完了です。
+[契約](design/oci-image-deletion.ja.md#未接続-store-の実装中の範囲)を参照してください。
+
 
 ## Host source の image 操作
 

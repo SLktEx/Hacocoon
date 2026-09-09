@@ -1,5 +1,17 @@
 # Implementation Status
 
+## Detached Store maintenance in progress
+
+Partial, unpublished and not exposed by the CLI. Focused native-adapter tests and
+a dedicated WSL Incus/Btrfs preparation fixture passed (57.21s), including late
+preparation refusal, masked restart, retained Store identity after Env deletion
+and exact owned cleanup. Actual detached Docker/nerdctl image operations remain
+unverified. Catalog read-time validation now retains exact scratch-run leases through active
+execution and uncertain cleanup. Deleting or replacing their supporting run
+evidence is refused. Focused state/workspace/run race regressions passed, including
+the formerly failing positive paths. Public routing and daemon integration remain
+incomplete. See [the contract](design/oci-image-deletion.md#detached-store-implementation-in-progress).
+
 
 ## Host-source image operations
 
