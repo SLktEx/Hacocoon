@@ -82,8 +82,8 @@ type continuationObservation struct {
 }
 
 // reclaimWithResume is an internal native sequence, not installation authority or
-// a crash-resumption protocol. Its future public caller must durably record intent
-// and results across WSL shutdown before exposing this operation to users.
+// a crash-resumption protocol. Pending/failed records block retry. The public
+// workflow still needs installation authority and explicit interrupted-state review.
 func (r registration) reclaimWithResume(ctx context.Context) (result continuationObservation, err error) {
 	if err := ctx.Err(); err != nil {
 		return result, err
@@ -105,6 +105,16 @@ func (r registration) reclaimWithResume(ctx context.Context) (result continuatio
 		return result, err
 	}
 	defer func() { err = errors.Join(err, pin.Close()) }()
+	records, err := openOperationStore(r.ID)
+	if err != nil {
+		return result, err
+	}
+	defer func() { err = errors.Join(err, records.close()) }()
+	intent, err := records.begin(r, pin.identity)
+	if err != nil {
+		return result, err
+	}
+	defer func() { err = errors.Join(err, records.finish(intent, result, err)) }()
 	return executeContinuation(ctx,
 		func(ctx context.Context) error { return r.runWSL(ctx, wslStop) },
 		pin.compact,

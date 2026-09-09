@@ -63,3 +63,10 @@ and pin cleanup; an existing object always refuses, without waiting or takeover.
 The global namespace covers sessions, while its protected DACL limits access.
 Do not confuse automatic kernel-handle cleanup with a successful operation or
 durable recovery record. This adds no storage lifecycle or Core interface.
+
+Persist the last operation's exact registration/file identity and stage observations
+outside WSL before requesting shutdown. Refuse pending/failed or unrecognized
+records, without automatic replay, rollback or deletion. A completed record can
+be superseded only for the same target. Registry flush is used at the two durable
+boundaries; it is not a progress store. This record does not grant installation
+authority and requires explicit interrupted-state handling before public use.

@@ -265,3 +265,24 @@ builds passed. Separate Windows login sessions/users were not exercised, and
 symlink creation remained SKIPPED for missing privilege (junction refusal passed).
 The dedicated WSL stop/compact/resume acceptance above predates this guard;
 that full sequence was not rerun for this change.
+
+## Durable last-operation record
+
+The internal sequence now writes versioned intent under the current Windows
+user's `Software\Hacocoon\Reclamation\<registration GUID>` registry key before
+requesting shutdown. It holds the continuation guard and records a random
+operation ID, registration values and pinned file identity. A single bounded
+binary value contains canonical JSON; malformed, unknown-version/field, duplicate
+field, oversized or wrong-type values fail closed and remain untouched.
+[RegFlushKey](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regflushkey)
+completes persistence before shutdown can start. This flush can affect the user's
+registry hive and is limited to intent and final result, not progress polling.
+
+The final record distinguishes complete from failed and retains each stage's
+observations, without credentials or subprocess output. Pending/failed records
+block another attempt; completed results may be replaced by fresh intent only
+for the same registration and disk. There is no automatic replay, acknowledgment
+or record deletion. Explicit interrupted-operation review, protected installation
+binding and the public workflow are still planned. Existing catalog/snapshot
+formats and the name-only Linux interop record are unchanged. The record describes
+the stop/compact/resume sequence; later handle-close errors still reach the caller.

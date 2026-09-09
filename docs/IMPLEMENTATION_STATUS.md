@@ -1,5 +1,16 @@
 # Implementation Status
 
+## Windows reclamation operation records
+
+Status: **partial, internal only**. Intent is durably flushed before WSL shutdown;
+final observations distinguish complete/failed. Pending, failed, mismatched or
+malformed records refuse a new attempt without discarding them. Native Windows
+record write/reopen/refusal tests and existing regressions passed; amd64/arm64
+builds passed. Symlink fixture remains SKIP for privilege. Power-loss and the
+full WSL sequence with this record have not been exercised. Explicit interrupted
+record review, installed-Host authorization and public all-layer operation remain
+planned. No catalog/snapshot migration. See the [contract](design/storage-reclamation.md#durable-last-operation-record).
+
 ## Windows continuation exclusion
 
 Status: **partial, internal only**. Stop/compact/resume now reserves a native
