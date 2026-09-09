@@ -71,7 +71,11 @@ func TestRealIncusSourceDeletionE2E(t *testing.T) {
 	write("repo-source.json", o)
 	t.Log("exact isolated fixture receipt", dir, project)
 	command("project", "create", project, "--config", "features.images=false", "--config", "features.profiles=false")
-	command("init", image, trustedHostName, "--project", project, "--storage", pool, "--no-profiles", "--config", trustedHostRoleKey+"="+trustedHostRoleValue)
+	// The workflow selects its cached image from Hacocoon's project. Do not
+	// assume that fingerprint is also present in the default project's image set.
+	init, err := json.Marshal(map[string]any{"name": trustedHostName, "type": "container", "profiles": []string{}, "config": map[string]string{trustedHostRoleKey: trustedHostRoleValue}, "devices": map[string]map[string]string{"root": {"type": "disk", "path": "/", "pool": pool}}, "source": map[string]string{"type": "image", "fingerprint": image, "project": defaultProject}})
+	must(err)
+	command("query", "-X", "POST", "--wait", "/1.0/instances?project="+project, "--data", string(init))
 	backend := &RepositoryBackend{Runtime: r}
 	must(backend.CreateVolume(ctx, o, nil))
 	command("config", "device", "add", trustedHostName, "haco-repo-source", "disk", "pool="+pool, "source=haco-repo-source", "path="+gitrepo.RepositoryRoot+"/source", "--project", project)
