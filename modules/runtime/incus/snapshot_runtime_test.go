@@ -158,7 +158,7 @@ func TestSavedRuntimeRecordsBeforeCurrentConfiguration(t *testing.T) {
 				if len(args) >= 4 && args[0] == "config" && args[1] == "get" {
 					return host.Result{Stdout: values[args[3]]}, nil
 				}
-				if args[0] == "exec" && args[len(args)-1] == restoredSSHIdentity {
+				if args[0] == "exec" && args[len(args)-1] == freshGuestSSHIdentity {
 					renewed = true
 					if mode == "ssh-exit" {
 						return host.Result{ExitCode: 1}, nil

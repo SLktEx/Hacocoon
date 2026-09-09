@@ -1,6 +1,6 @@
 # Base Image Architecture — 日本語ガイド
 
-Status: **v0.11 first slice は実装済み。この文書には今後の Base lifecycle 構想も含みます。** 現在の最小 contract は [`design/base-images-and-custom-environments.md`](design/base-images-and-custom-environments.md)、実装事実は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) を参照してください。
+Status: **Base 選択は実装済み、定義からの build は partial です。この文書には今後の Base lifecycle 構想も含みます。** 現在の最小 contract は [`design/base-images-and-custom-environments.md`](design/base-images-and-custom-environments.md)、実装事実は [`IMPLEMENTATION_STATUS.ja.md`](IMPLEMENTATION_STATUS.ja.md) を参照してください。
 
 ## 何をする機能か
 
@@ -106,11 +106,9 @@ Environment
 
 Project Setup の具体 schema はまだ固定しません。
 
-## Build / Import は今後
+## 定義からの Base build
 
-Custom Base build/import は **first slice では未実装**です。
-
-追加するときは build/import input を hostile data/code として扱い、archive traversal、unsafe symlink、malformed metadata、resource exhaustion、partial cleanup、credential capture を明示的に防ぎます。
+`haco base build <definition.json>` は専用の一時 Env で定義を実行し、停止後に private な Incus image として登録します。定義・使い方・所有境界・検証状況は [Base 契約](design/base-images-and-custom-environments.md)を参照してください。archive import は未実装です。新しい image catalog や保持用 Base filesystem は追加しません。
 
 ## History / Rollback / Delete / GC も今後
 
@@ -139,6 +137,8 @@ Incus は最初の/default provider ですが、Core は Incus alias / remote / 
 
 repository CI では list、inspect、explicit selection、alias -> fingerprint resolution、pinned init、persisted revision identity を unit/adversarial test と fake-Incus E2E で確認します。
 
-real Incus image remote / custom image acceptance は host-dependent です。build/import/history/rollback/delete/GC は API 自体がまだないため今後の acceptance です。
+real Incus image remote / custom image acceptance は host-dependent です。定義からの build は追加済みで検証を進めています。import/history/rollback/delete/GC は後続の acceptance です。
 
 > **Base は guest contents を選ぶ機能で、immutable revision が再現性の anchor です。Host authority を与える機能ではありません。**
+
+定義からの build の実 Incus／SSH 検証は変更単位で記録します。Import・history・rollback・delete・GC は別の後続作業です。

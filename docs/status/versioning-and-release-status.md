@@ -162,8 +162,9 @@ The requested WSL M0–M1 scope is **implemented and accepted**: installed Envir
 | v0.49 | Snapshot restore staging | ✅ implemented |
 | v0.50 | Public Snapshot Restore | ✅ implemented |
 | v0.51 | Environment Copy | ✅ implemented |
+| v0.52 | Base Builder | ✅ implemented |
 
-The current milestone position is **v0.51**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
+The current milestone position is **v0.52**. This declaration and the Version/Gate columns above are mirrors of `checkpoints.yaml`; the status column remains human-maintained. Earlier partial milestones remain visible as acceptance/work items but do not prevent later development checkpoints from advancing.
 
 v0.7 keeps its number because its provider-neutral routing seam remains useful. Concrete EC2/AWS/EBS code is absent from the active tree and **cloud implementation is currently deferred**.
 

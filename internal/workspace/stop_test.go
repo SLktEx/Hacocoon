@@ -36,3 +36,12 @@ func TestStopRetainsEnvironmentAndLeaseEvenOnFailure(t *testing.T) {
 		}
 	}
 }
+
+func TestStopForWorkspaceRejectsRecycledName(t *testing.T) {
+	store := newFakeEnvironmentStore()
+	store.environments["dev"] = core.Environment{Name: "dev", Workspace: core.Workspace{ID: "new"}}
+	runtime := &stoppingRuntime{}
+	if err := New(runtime, store).StopForWorkspace(context.Background(), "dev", "old"); err == nil || runtime.stopped != "" {
+		t.Fatal(err, runtime.stopped)
+	}
+}

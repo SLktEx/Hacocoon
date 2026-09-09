@@ -1,5 +1,27 @@
 # Implementation Status
 
+## Base builder
+
+Base builder validation: all five related packages passed ordinary tests and
+race tests. Real WSL attempt 1 failed during live machine-id cleanup; attempt 2
+was refused by the exec-only stdin decorator. Stopped Incus file transfer through
+the normal decorated runner passed a scoped native probe. Attempt 3 published
+`ba2ff1a2815fcc9953016151cb6407ba2505eed09671289b96af458ea67cb7a1`
+and passed first Base creation/tool execution, but failed at the 600-second test
+limit during rebuild. It is not a complete native pass. Native GHA and Windows
+build-to-SSH acceptance are pending. Retained fixture identities remain in their
+private catalogs; no shared source image was selected for deletion.
+
+
+
+Partial: definition-driven `haco base build <definition.json>` now composes normal
+temporary Env execution and stopped native Incus image publication. Ownership is
+stored in Incus image properties; verified aliases feed normal pinned creation.
+Older revisions, snapshots and catalogs are unchanged. Focused/native/SSH
+acceptance is tracked on the change; do not infer real-host success from this
+implementation entry. See [the Base contract](design/base-images-and-custom-environments.md).
+
+
 ## Environment copy
 
 Dedicated WSL Incus/Btrfs acceptance passed in 357.13s after the correction: stopped-source copy, source-name prefix collision, fresh generation, independent rootfs/Git/OCI after source deletion and owned cleanup. Fixture `haco-aggregate-1a17295b1a6f50e1` was fully cleaned. The expanded aggregate fixture has an eight-minute budget; product timeouts are unchanged.
@@ -1269,7 +1291,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.51**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.52**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

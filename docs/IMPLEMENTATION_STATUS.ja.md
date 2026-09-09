@@ -1,5 +1,14 @@
 # 実装状況
 
+## Base builder
+
+Base builder 検証: 関連5パッケージの通常テストと race テストは成功しました。実 WSL の1回目は稼働中の machine-id 初期化で失敗し、2回目は guest exec 専用の stdin 経路で管理操作が拒否されました。停止後に通常の検証付き runner で行う Incus file 操作は専用 probe で成功しています。3回目は最初の Base 公開・作成・ツール実行まで成功しましたが、再 build 中に600秒のテスト制限で失敗しました。実検証全体の成功とは扱いません。GHA の実 Incus と Windows の build → SSH 検証は未実行です。残った fixture の所有情報は専用 catalog に保持し、共有元 image は削除対象にしていません。
+
+
+
+partial: `haco base build <definition.json>` が、通常の一時 Env での定義実行と、停止後の Incus image 公開を組み合わせます。所有情報は Incus image に記録し、検証後の alias を通常の revision 固定 create から選択します。旧 revision・snapshot・catalog は保持します。対象テスト・実 Incus・SSH の検証結果は変更単位で記録し、この実装記載だけで実機成功とは扱いません。[Base 契約](design/base-images-and-custom-environments.md)を参照してください。
+
+
 ## Environment copy
 
 修正後の専用 WSL Incus/Btrfs 検証は 357.13 秒で成功しました。停止済み元 Env の copy、名前の前方一致、新しい世代、元削除後の rootfs/Git/OCI の独立性、所有 cleanup を確認しました。fixture `haco-aggregate-1a17295b1a6f50e1` は完全に片付けました。項目が増えた aggregate fixture の時間枠は 8 分とし、製品の timeout は変更していません。
@@ -1123,7 +1132,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.51** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.52** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

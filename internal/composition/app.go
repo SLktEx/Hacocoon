@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
+	"github.com/SLktEx/Hacocoon/internal/basebuild"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	clientapp "github.com/SLktEx/Hacocoon/internal/client"
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -43,6 +44,7 @@ const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
 	EnvironmentCopy     *environmentcopy.Service
+	BaseBuild           *basebuild.Service
 	SnapshotRestore     *snapshotrestore.Service
 	AWS                 *awsplugin.Broker
 	Reviews             *review.Service
@@ -230,6 +232,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	awsBroker := &awsplugin.Broker{Host: incusRuntime.RunTrustedHostPython, Capabilities: capabilities, Environments: store}
 	return &App{
 		SnapshotRestore:     restorer,
+		BaseBuild:           &basebuild.Service{Environments: environments},
 		EnvironmentCopy:     &environmentcopy.Service{Catalog: store, Snapshots: environments, Restorer: restorer},
 		AWS:                 awsBroker,
 		ProjectSetup:        &projectsetup.Service{Root: filepath.Join(root, "project-setup"), Environments: environments},

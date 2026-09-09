@@ -216,6 +216,7 @@ config_file() {
 }
 case "$command_name" in
   query)
+    if [ "${1:-}" = "-X" ] && [ "${2:-}" = "GET" ] && [ "${3:-}" = "/1.0/images/aliases?project=hacocoon&recursion=1" ]; then printf "[]\n"; exit 0; fi
     python3 - "$state" "${1:-}" <<'PYQUERY'
 import json, pathlib, sys
 state, endpoint = pathlib.Path(sys.argv[1]), sys.argv[2]

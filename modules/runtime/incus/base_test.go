@@ -17,7 +17,12 @@ const testFingerprintB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 
 func TestBaseProviderListsLogicalNamesWithoutIncusDetails(t *testing.T) {
 	t.Setenv(baseConfigEnv, `{"my-dev":"local:mutable-alias"}`)
-	provider, err := NewBaseProvider(New(&fakeRunner{}))
+	provider, err := NewBaseProvider(New(&fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if strings.Contains(strings.Join(args, " "), "/images/aliases?") {
+			return host.Result{Stdout: "[]"}, nil
+		}
+		return host.Result{}, errors.New("unexpected call")
+	}}))
 	if err != nil {
 		t.Fatal(err)
 	}
