@@ -2,29 +2,29 @@
 
 ## 未接続 Store maintenance の実装中の範囲
 
-partial・未公開で、CLI には接続していません。native adapter の単体テストと、専用 WSL
-Incus/Btrfs の準備 fixture が成功しました（57.21秒）。接続後の準備拒否、mask を維持した
-再起動、Env 削除後の Store 保持、所有対象だけの cleanup を確認しました。
-未接続 Store の実 Docker／nerdctl image 操作は未検証です。catalog の再読込検証は実行中・不明な cleanup 中も正確な scratch-run lease を維持し、
-根拠となる run 記録の削除・差し替えを拒否します。以前失敗した正常経路を含め、
-state／workspace／run の関連 race 回帰が成功しました。公開経路と daemon 統合は未完了です。
-[契約](design/oci-image-deletion.ja.md#未接続-store-の実装中の範囲)を参照してください。
+状態: **partial**。既存 image list/delete は保持 Store ID を受け付けます。OCI module が
+正確な owner を確認し、canonical run service が操作全体と cleanup の間、一つの予約を保持します。
+各 runtime 呼び出しは新しい一時 Env の世代を照合します。元の Workspace 対応と借用 Store は保持します。
+混在・古い識別情報、source Store、未対応の未接続 Docker は拒否します。
+新しいコマンド・schema・隠れた backup・復旧状態は追加しません。
 
+OCI・control API・製品 CLI・run の race suite は成功しました（3.402秒、47.590秒、6.456秒、2.794秒）。
+native metadata 起動は以前179.66秒で成功しました。拡張した製品画像操作の native fixture は別の検証です。
+catalog・lifecycle の識別情報は fixture が供給するため、導入済み controller の受け入れとは扱いません。
+最初の試行は digest 件数と同じ表示タグについての fixture の仮定で失敗しました。
+その正確な所有 fixture は cleanup し、receipt は保持しています。
 
-内部の containerd 2.3.3 起動処理は native 所有者と世代を確認し、guest 専用設定で
-task・restart・CRI・NRI を無効にします。限定 race test と adapter の vet は成功しました。
-opt-in の実機テストを既存 Incus/Btrfs GHA に追加しています。専用 Incus 6.0.5/Btrfs の
-単体実機検証は179.66秒で成功しました。task API の拒否、restart 設定を持つ container 情報の
-不変性、使用中 image の保持、未使用 alias の削除、Env 削除後の Store 保持、試験所有資源だけの
-cleanup を確認しています。公開の未接続 image 操作全体の受入ではありません。
-公開コマンドや schema の変更はありません。
+対応 OCI ツールの自動配置と controller 経由の作成全体の native 検証は未完了です。
+素の Ubuntu には必要なツールがなく、公開経路の接続だけで通常導入が動くとは主張しません。
+候補選択 GC と未接続 Docker は未実装です。[契約](design/oci-image-deletion.ja.md#未接続-store-の実装中の範囲)を参照してください。
 
-共通 run service は、未接続 Store の操作と canonical cleanup の間、scratch 所有記録と
-lock を保持します。確認済み owner を固定し、default copy は作りません。run 全体の
-race suite は2.751秒で成功しました。SandboxProvider の receipt 付き作成は、既存の
-network 保護を通して、準備→Store 接続→metadata 起動を行います。関連 adapter の
-race test は2.196秒で成功しました。receipt なし作成と snapshot restore は拒否を維持し、
-公開経路と統合全体の実機受入は未完了です。
+d3013a3 の test・Ubuntu installer・Incus GHA は成功しました。Windows installer は
+pending approval の Python 前提 setup で失敗しました。private registry は workflow_dispatch gate により SKIP です。
+失敗を承認待ちとは扱いません。
+
+修正後の拡張 native fixture は224.64秒で成功しました。製品の一覧、実参照による削除拒否、
+選択 digest の削除と不在、container metadata 保持、mask 付き再起動、Store 保持、
+所有対象だけの cleanup を確認しました。
 
 ## Environment 持ち出しの前提確認
 

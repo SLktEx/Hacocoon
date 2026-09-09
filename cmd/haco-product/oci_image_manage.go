@@ -32,7 +32,7 @@ func runOCIImageManage(args []string) int {
 }
 func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string, in io.Reader, out, diagnostic io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(diagnostic, "Usage: haco plugin oci image list [--runtime nerdctl|docker] [--json] [--host] [<env>] | delete [--runtime nerdctl|docker] [--yes] [--host] [<env>] <image-id-or-tag>")
+		fmt.Fprintln(diagnostic, "Usage: haco plugin oci image list [--runtime nerdctl|docker] [--json] [--host] [<env-or-store-id>] | delete [--runtime nerdctl|docker] [--yes] [--host] [<env-or-store-id>] <image-id-or-tag>")
 		return 2
 	}
 	f := flag.NewFlagSet("haco plugin oci image "+args[0], flag.ContinueOnError)
@@ -105,7 +105,11 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 		fmt.Fprintln(diagnostic, "haco: image not found; use image list to review exact IDs and tags")
 		return 1
 	}
-	if !oci.ValidImageSelection(all.Target, selected.ID) || all.Target.Environment != environment || all.Target.Host != *hostSource || all.Target.Runtime != *runtime {
+	matchingTarget := all.Target.Environment == environment
+	if all.Target.Detached {
+		matchingTarget = !*hostSource && all.Target.Store.ID == environment && all.Target.Environment == "" && all.Target.Instance == ""
+	}
+	if !oci.ValidImageSelection(all.Target, selected.ID) || !matchingTarget || all.Target.Host != *hostSource || all.Target.Runtime != *runtime {
 		fmt.Fprintln(diagnostic, "haco: invalid image review identity")
 		return 1
 	}
@@ -144,6 +148,9 @@ func writeOCIImages(out io.Writer, all oci.ManagedImageList) error {
 	if all.Target.Host {
 		role = "Host source for future copies"
 		fmt.Fprintln(table, "Target: managed Host source")
+	} else if all.Target.Detached {
+		role = "detached retained Store"
+		fmt.Fprintln(table, "Target: retained Store via a disposable Environment")
 	} else {
 		fmt.Fprintf(table, "Environment: %q (generation %q)\n", all.Target.Environment, all.Target.Instance)
 	}

@@ -3,13 +3,16 @@ package incus
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/modules/plugin/oci"
 )
 
 func verifyContainerdMaintenanceRuntime(t *testing.T, ctx context.Context, p *SandboxProvider, ref, generation string, resource core.PersistentResource, command func(...string) string) {
@@ -43,21 +46,20 @@ func verifyContainerdMaintenanceRuntime(t *testing.T, ctx context.Context, p *Sa
 	if err := p.startContainerdMaintenance(ctx, ref, generation, resource); err != nil {
 		t.Fatal(err)
 	}
+	verifyMetadataImageOperations(t, ctx, p.Runtime, ref, generation, resource)
 	guest(`set -eu
 ctr=/usr/local/bin/ctr
 sock=/run/hacocoon-maintenance/containerd.sock
 $ctr --address "$sock" plugins list > /var/lib/haco-maintenance-plugins
 if awk '$NF == "ok"' /var/lib/haco-maintenance-plugins | grep -E 'restart|tasks-service|[[:space:]]tasks[[:space:]]|[[:space:]]task[[:space:]]|cri|nri|podsandbox'; then exit 50; fi
 if $ctr --address "$sock" --namespace default tasks list >/dev/null 2>&1; then exit 52; fi
-$ctr --address "$sock" --namespace default containers info retained-container > /tmp/container-after.json
+$ctr --address "$sock" --namespace default containers info aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa > /tmp/container-after.json
 cmp /tmp/container-before.json /tmp/container-after.json
 $ctr --address "$sock" --namespace default images list --quiet | grep -Fx docker.io/library/maintenance-used:local
-$ctr --address "$sock" --namespace default images remove docker.io/library/maintenance-unused:local
 $ctr --address "$sock" --namespace default images list --quiet > /tmp/images-after
-if grep -Fx docker.io/library/maintenance-unused:local /tmp/images-after; then exit 51; fi
 grep -Fx docker.io/library/maintenance-used:local /tmp/images-after
 sleep 12
-$ctr --address "$sock" --namespace default containers info retained-container > /tmp/container-later.json
+$ctr --address "$sock" --namespace default containers info aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa > /tmp/container-later.json
 cmp /tmp/container-before.json /tmp/container-later.json
 systemctl stop hacocoon-maintenance-containerd
 `)
@@ -88,9 +90,88 @@ n=0
 until ctr --address /run/haco-fixture-containerd.sock version >/dev/null 2>&1; do n=$((n+1)); test "$n" -lt 60; sleep 0.5; done
 printf "HACO_MAINTENANCE_PHASE=import\n"
 nerdctl --address /run/haco-fixture-containerd.sock --snapshotter native import /tmp/maintenance-root.tar maintenance-used:local
-ctr --address /run/haco-fixture-containerd.sock --namespace default images tag docker.io/library/maintenance-used:local docker.io/library/maintenance-unused:local
+printf 'independent unused image\n' > /tmp/maintenance-root/unused
+ tar -cf /tmp/maintenance-unused.tar -C /tmp/maintenance-root .
+ nerdctl --address /run/haco-fixture-containerd.sock --snapshotter native import /tmp/maintenance-unused.tar maintenance-unused:local
 printf "HACO_MAINTENANCE_PHASE=container\n"
-ctr --address /run/haco-fixture-containerd.sock --namespace default containers create --label containerd.io/restart.policy=always --label containerd.io/restart.status=running docker.io/library/maintenance-used:local retained-container /oci-probe
-ctr --address /run/haco-fixture-containerd.sock --namespace default containers info retained-container > /tmp/container-before.json
+ctr --address /run/haco-fixture-containerd.sock --namespace default containers create --label containerd.io/restart.policy=always --label containerd.io/restart.status=running docker.io/library/maintenance-used:local aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa /oci-probe
+ctr --address /run/haco-fixture-containerd.sock --namespace default containers info aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa > /tmp/container-before.json
 systemctl stop haco-fixture-containerd
 `
+
+// This fixture supplies catalog/lifecycle identities; execution and OCI formats
+// are native. It does not assert installed-controller creation or provisioning.
+func verifyMetadataImageOperations(t *testing.T, ctx context.Context, runtime *Runtime, name, generation string, resource core.PersistentResource) {
+	t.Helper()
+	f := &runtimeImageFixture{runtime: runtime, name: name, resource: resource, instance: generation}
+	service := &oci.ManagedImages{Catalog: f, Environments: f}
+	work, err := core.NewTemporaryWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.Maintain = func(ctx context.Context, ref core.PersistentResourceRef, action func(context.Context, core.Environment) error) error {
+		if ref != resource.Ref() {
+			return core.ErrCapabilityStale
+		}
+		return action(ctx, core.Environment{Name: name, Workspace: work, PersistentResource: ref})
+	}
+	all, err := service.List(ctx, resource.ID, "nerdctl")
+	if err != nil {
+		t.Fatal("metadata product inventory", err)
+	}
+	if !all.Target.Detached || len(all.Images) < 2 {
+		t.Fatal("invalid metadata inventory", len(all.Images))
+	}
+	used, referenced, unused := map[string]bool{}, map[string]bool{}, ""
+	for _, img := range all.Images {
+		classified := false
+		for _, tag := range img.Tags {
+			if strings.HasSuffix(tag, "maintenance-used:local") {
+				used[img.ID] = true
+				if len(img.Containers) > 0 {
+					referenced[img.ID] = true
+				}
+				classified = true
+			}
+			if strings.HasSuffix(tag, "maintenance-unused:local") {
+				if unused == "" {
+					unused = img.ID
+				}
+				classified = true
+			}
+		}
+		if !classified {
+			t.Fatal("unexpected fixture image", img.ID)
+		}
+	}
+	if len(used) == 0 || len(referenced) == 0 || unused == "" || used[unused] {
+		t.Fatal("independent fixture digests required")
+	}
+	for id := range referenced {
+		if err := service.Delete(ctx, all.Target, id); !errors.Is(err, core.ErrStorageBusy) {
+			t.Fatal("retained container image not protected", err)
+		}
+	}
+	if err := service.Delete(ctx, all.Target, unused); err != nil {
+		t.Fatal("metadata product deletion", err)
+	}
+	after, err := service.List(ctx, resource.ID, "nerdctl")
+	if err != nil {
+		t.Fatal("metadata image absence unproven", err)
+	}
+	for _, img := range after.Images {
+		if img.ID == unused {
+			t.Fatal("selected digest still present")
+		}
+		if used[img.ID] {
+			if referenced[img.ID] && len(img.Containers) != 1 {
+				t.Fatal("container reference lost")
+			}
+			delete(used, img.ID)
+		}
+	}
+	if len(used) != 0 {
+		t.Fatal("used image digest lost")
+	}
+	t.Log("PASS product image operations on native metadata socket: inventory, referenced-image refusal, independent unused digest deletion and confirmed absence")
+}

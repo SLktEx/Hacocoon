@@ -37,11 +37,7 @@ socket や実行ファイルを選べず、layer file を直接削除しませ�
 
 ## 範囲と検証
 
-この段階は runtime が利用できる Env に接続済みの Store が対象です。Host の配布元は次節で扱います。
-未接続 Store、候補を選ぶ GC、管理用 Env の自動起動は planned です。Seed・tombstone・
-隠れた backup・新 catalog 状態・schema 移行は追加しません。保存 snapshot は独立コピー
-なので削除の影響を受けません。unit／CLI 回帰と既存の実 runtime COW fixture は別の範囲を
-検証します。実際の実行結果は実装状況と PR に記録します。
+接続済み Store と Host source に加え、未接続 Store の経路は後述の partial 実装です。候補選択 GC は planned です。保存 snapshot は独立コピーであり、画像削除の影響を受けません。schema 移行や自動 backup は追加しません。
 
 ## 管理対象 Host source
 
@@ -80,28 +76,40 @@ v0.16 の Host Seed cache・tombstone・全 Env 操作は隔離された旧実�
 
 ## 未接続 Store の実装中の範囲
 
-公開 CLI にはまだ接続していません。一時 run の予約は、正確な Store owner と
-永続化した run の識別情報に一致させます。通常の Workspace 対応、Store の排他 lease、
-source-only の拒否は維持します。catalog 再読込時も正確な scratch identity を要求し、実行中・cleanup 中の lease を維持します。
-native 不在確認後に lease を解放するまで、根拠となる run 記録の削除・差し替えを拒否します。
-独立した Incus 準備処理は専用の systemd／Btrfs fixture で成功しましたが、
-未接続 Store の実 Docker／nerdctl image 操作は未検証です。
+状態: **partial**。既存の image コマンドは Env 名の代わりに保持 Store ID を受け付けます。
+新しいコマンドや必須 option は追加しません。
+
+```bash
+haco plugin oci image list oci:store-id
+haco plugin oci image delete oci:store-id sha256:<displayed-digest>
+```
+
+確認対象は正確な Store ID・owner であり、古い一時 Env の識別情報は保持しません。
+一覧・削除はそれぞれ一つの canonical maintenance run を取得し、全 runtime 呼び出しで
+現在の Env 世代を確認します。run がキャンセル・Store 排他・cleanup を所有し、元の
+Workspace 対応や借用 Store を変更・削除しません。cleanup が不明なら所有記録を保持します。
+Host・Env・Store の混在した対象や古い確認結果は拒否します。未接続 Store の Docker は未対応です。
+
+SandboxProvider の receipt 付き作成は、保持データなしで起動し、現在の network 保護を維持し、
+通常 daemon を mask してから Store を接続し、専用の containerd 2.3.3 metadata service を起動します。
+task・restart・CRI・NRI・sandbox service は無効にします。保持設定・restart label・権限は引き継ぎません。
+receipt なしの作成と snapshot restore は maintenance を拒否します。
 [ADR 0047](../adr/0047-detached-store-maintenance.md) を参照してください。
 
-SandboxProvider の receipt 付き作成は、現在の network 検証後に準備→Store 接続→metadata
-起動を行います。receipt なし作成と snapshot restore は maintenance を拒否します。
-既存 run service が確認済み owner を固定し、操作全体と canonical cleanup の間、所有記録と
-lock を保持します。公開の image 経路は未接続です。関連 run／adapter race test は成功し、
-統合した作成経路全体の実機受入は未完了です。
+一時 Base への対応 OCI 実行ファイルの自動配置と、導入済み controller 経由の受け入れは未完了です。
+素の Ubuntu Base に必要な containerd・ctr・nerdctl は揃わないため、公開経路の接続だけでは
+通常導入で動作しません。ツール不足・未対応は操作失敗として返します。
+schema 移行・自動 backup・任意の実行ファイルや socket を選ぶ option はありません。
 
 ## 未接続 containerd metadata service
 
-内部の起動処理は、native Store owner、単独の接続先、現在の Env 世代、非特権の mount を
-照合して containerd 2.3.3 の metadata service を起動します。guest 内の専用 socket／設定／
-実行状態は、保存済み設定や通常 daemon の起動から分離します。task・restart・CRI・NRI・
-sandbox controller を無効にし、保存済み container 記録と restart label は維持します。
-専用 Incus 6.0.5/Btrfs テストは179.66秒で成功し、task API の拒否、restart 設定を持つ
-container 情報の不変性、使用中 image 保持、未使用 alias 削除、Store 保持と所有対象の
-cleanup を確認しました。既存 Incus/Btrfs GHA にも接続しています。処理単体の受入であり、
-公開 maintenance 作成や Docker 対応は有効にならず、
-利用者指定の socket も受け付けません。[ADR 0047](../adr/0047-detached-store-maintenance.md#containerd-metadata-only-startup)を参照してください。
+独立した Incus 6.0.5/Btrfs primitive は179.66秒で成功し、task API 拒否、restart 設定付き
+container metadata の不変性、使用中画像保持、未使用 alias 削除、mask 付き再起動、
+所有対象だけの cleanup を確認しました。同じ socket 上の製品画像操作は別の受け入れ検証です。
+fixture は表示タグ・不変 digest・実際の container 参照を区別します。同じタグであることは、
+各 digest が参照されている証拠にはなりません。fixture の catalog・lifecycle adapter は、
+controller 全体の作成とツール配置を表していません。
+
+拡張した native fixture は224.64秒で成功しました。製品の一覧、実際の container 参照による削除拒否、
+選択した未使用 digest の削除と不在、container metadata 保持、mask 付き再起動、Env 削除後の
+Store 保持、所有対象だけの cleanup を確認しました。lifecycle・catalog adapter は fixture のままです。

@@ -37,8 +37,7 @@ delete into its replacement. Ordinary guest work may change runtime inventory;
 the runtime's non-force deletion remains the final reference check.
 
 This slice handles a Store attached to an Env whose runtime is available. Host
-source images are addressed below. Detached Stores, candidate-selected GC and
-automatic startup of a maintenance Env remain planned. No Seed/tombstone path, hidden backup, new catalog
+source images are addressed below. Detached Store routing is partial as described below; candidate-selected GC remains planned. No Seed/tombstone path, hidden backup, new catalog
 state or schema migration is introduced. Existing saved snapshots are independent
 copies, so image deletion does not modify them. Unit and CLI regressions and the
 existing optional real-runtime COW fixture cover different scopes; exact executed
@@ -86,32 +85,46 @@ See [ADR 0046](../adr/0046-reviewed-runtime-image-deletion.md).
 
 ## Detached Store implementation in progress
 
-Not exposed through the public CLI yet. A scratch-run reservation must match the
-exact Store owner and a durable run identity; normal Workspace associations,
-exclusive Store leases and source-only refusal remain required. Catalog read-time
-validation preserves admitted leases through active execution and cleanup while
-requiring the exact scratch identity. Run evidence cannot be deleted or replaced
-until the associated lease is released after confirmed native absence. The independent Incus preparation primitive
-passed a dedicated systemd/Btrfs fixture; actual detached Docker/nerdctl image
-operations remain unverified. See [ADR 0047](../adr/0047-detached-store-maintenance.md).
+Status: **partial**. The existing image commands accept a retained Store ID in
+place of an Environment name; there are no additional commands or required flags:
 
-Receipt-based SandboxProvider creation now prepares before attachment and starts
-metadata services after current network validation. Receipt-free creation and
-snapshot restore refuse maintenance. The existing run service pins the reviewed
-owner and holds its marker/lock across the whole operation and canonical cleanup.
-Public image routing is still not connected. Focused run and adapter race tests
-passed; full native acceptance of the composed creation path remains pending.
+```bash
+haco plugin oci image list oci:store-id
+haco plugin oci image delete oci:store-id sha256:<displayed-digest>
+```
+
+The review contains the exact Store ID/owner, without a stale scratch Environment
+identity. Each list or delete acquires one canonical maintenance run and uses its
+current Environment generation for all runtime calls. The run owns cancellation,
+exclusive Store reservation and cleanup; it never rebinds the original Workspace
+or deletes the borrowed Store. Ambiguous cleanup preserves ownership evidence.
+Mixed Host/Environment/Store targets and stale reviews are refused. Docker on a
+detached Store is explicitly unsupported.
+
+Receipt-based SandboxProvider creation starts without retained data, preserves
+current network guards, masks ordinary daemons, attaches the Store, then starts a
+private containerd 2.3.3 metadata service. Task/restart/CRI/NRI and sandbox services
+are disabled. No retained configuration, restart labels or authority is adopted.
+Receipt-free creation and snapshot restore refuse maintenance. See
+[ADR 0047](../adr/0047-detached-store-maintenance.md).
+
+Automatic provisioning of compatible OCI executables into the scratch Base and
+installed-controller acceptance remain incomplete. A plain Ubuntu Base does not
+supply the required containerd/ctr/nerdctl binaries; public routing alone is not a
+working default installation. Missing or unsupported tools must fail the operation.
+There is no schema migration, automatic backup or arbitrary executable/socket option.
 
 ## Detached containerd metadata service
 
-An internal startup primitive now checks the exact native Store owner, single
-consumer, current Env generation and unprivileged mount before starting a
-containerd 2.3.3 metadata service. Its private guest socket/configuration/state
-are independent of retained configuration and ordinary daemon startup. Task,
-restart, CRI, NRI and sandbox controllers are disabled; persisted container
-records and restart labels are preserved. Its dedicated Incus 6.0.5/Btrfs test
-passed in 179.66s, checking task API refusal, unchanged restart-marked metadata,
-used-image retention, unused-alias deletion and retained Store cleanup. The test
-is also wired into existing Incus/Btrfs GHA; this is primitive acceptance. This
-primitive does not enable public maintenance creation, Docker support or a
-caller-selected socket. See [ADR 0047](../adr/0047-detached-store-maintenance.md#containerd-metadata-only-startup).
+The independent Incus 6.0.5/Btrfs primitive passed in 179.66s, including task API
+refusal, unchanged restart-marked container metadata, retained used image, unused
+alias removal, masked restart and exact owned cleanup. Product image operations on
+that socket are a separate acceptance test. Its fixture must distinguish displayed
+tags from immutable digests and actual container references: a shared tag is not
+proof that every corresponding digest is referenced. Whole-controller creation and
+tool provisioning are not represented by its fixture catalog/lifecycle adapter.
+
+The expanded native fixture passed in 224.64s: product inventory, actual-container
+reference refusal, selected unused digest removal and confirmed absence, retained
+container metadata, masked restart, Store survival after Env deletion and exact
+owned cleanup. Its lifecycle/catalog adapter remains a fixture.

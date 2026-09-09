@@ -2,32 +2,32 @@
 
 ## Detached Store maintenance in progress
 
-Partial, unpublished and not exposed by the CLI. Focused native-adapter tests and
-a dedicated WSL Incus/Btrfs preparation fixture passed (57.21s), including late
-preparation refusal, masked restart, retained Store identity after Env deletion
-and exact owned cleanup. Actual detached Docker/nerdctl image operations remain
-unverified. Catalog read-time validation now retains exact scratch-run leases through active
-execution and uncertain cleanup. Deleting or replacing their supporting run
-evidence is refused. Focused state/workspace/run race regressions passed, including
-the formerly failing positive paths. Public routing and daemon integration remain
-incomplete. See [the contract](design/oci-image-deletion.md#detached-store-implementation-in-progress).
+Status: **partial**. Existing image list/delete commands accept a retained Store ID.
+The OCI module reviews its exact owner; the canonical run service reserves it once
+for the complete operation and cleanup. Every runtime call checks the new temporary
+Environment generation. Original Workspace associations and borrowed Stores remain
+intact. Mixed/stale identities, source Stores and unsupported detached Docker are
+refused. No new command, schema, hidden backup or recovery state is introduced.
 
+Full OCI, control API, product CLI and run race suites passed (3.402s, 47.590s,
+6.456s and 2.794s). Native metadata startup previously passed in 179.66s. The expanded
+product-image native fixture is a separate test, with fixture catalog/lifecycle
+identities; it must not be reported as installed-controller acceptance. Initial
+attempts failed on fixture assumptions about digest count and shared displayed tags;
+those exact owned fixtures were cleaned up, with their receipts retained.
 
-The internal containerd 2.3.3 startup primitive validates native ownership and
-generation, uses private guest configuration, and disables task/restart/CRI/NRI
-services. Focused race tests and adapter vet passed. Its opt-in native test is
-now included in the existing Incus/Btrfs GHA path. The dedicated Incus 6.0.5/Btrfs
-primitive test passed in 179.66s: task API refused, restart-marked container metadata
-unchanged, used image retained, unused alias removed, Store retained after Env
-deletion, and exact fixture cleanup confirmed. This is not public detached-image
-acceptance. No public command or schema change is introduced.
+Automatic compatible OCI tool provisioning and complete native creation through the
+controller remain incomplete. Plain Ubuntu lacks the required tools, so public
+routing alone does not establish a working default. Candidate-selected GC and
+detached Docker remain unimplemented. See [the contract](design/oci-image-deletion.md#detached-store-implementation-in-progress).
 
-The shared run service now holds durable scratch ownership across retained-Store
-maintenance and canonical cleanup, pinning the reviewed owner without a default
-copy. Its full race suite passed (2.751s). SandboxProvider receipt-based creation
-composes prepare-before-attach with metadata startup and existing network guards;
-related adapter race tests passed (2.196s). Receipt-free and snapshot creation
-remain refused. Public routing and composed native acceptance are still pending.
+At d3013a3, test, Ubuntu installer and Incus GHA passed. Windows installer failed at
+its pending-approval Python prerequisite setup. Private-registry acceptance was
+SKIP because it is gated to workflow_dispatch. Failure is not approval pending.
+
+The expanded native fixture then passed in 224.64s, including product inventory,
+actual referenced-image refusal, selected digest deletion/absence, unchanged
+container metadata, masked restart, Store retention and exact owned cleanup.
 
 ## Environment transfer prerequisites
 
