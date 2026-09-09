@@ -154,8 +154,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.51 | Environment Copy | 実装済み |
 | v0.52 | Base Builder | 実装済み |
 | v0.53 | Workspace Cleanup | 実装済み |
+| v0.54 | Base Image Cleanup | 実装済み |
 
-現在のmilestone位置は **v0.53** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.54** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

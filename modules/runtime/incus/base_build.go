@@ -111,6 +111,8 @@ func (p *BaseProvider) builtBases(ctx context.Context) (map[core.BaseName]core.B
 // held. Incus stores the exact build identity with the image in its own database
 // atomically at publication; no second Hacocoon image catalog is maintained.
 func (p *BaseProvider) PublishBase(ctx context.Context, env core.Environment, lease core.WorkspaceLease, name core.BaseName) (core.BaseInfo, error) {
+	p.baseMu.Lock()
+	defer p.baseMu.Unlock()
 	result := core.BaseInfo{Name: name}
 	if !basebuild.NamePattern.MatchString(string(name)) || !core.ValidTemporaryWorkspace(env.Workspace) || env.PersistentResource != (core.PersistentResourceRef{}) || lease.RuntimeRef != env.RuntimeRef || lease.EnvironmentID != env.Name || lease.WorkspaceID != env.Workspace.ID || lease.SourcePath != env.Workspace.Path || lease.State != core.WorkspaceLeaseActive || !core.ValidEnvironmentInstanceID(lease.InstanceID) {
 		return result, core.ErrInvalidArgument

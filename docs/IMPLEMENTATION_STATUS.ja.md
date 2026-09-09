@@ -1,5 +1,11 @@
 # 実装状況
 
+## build 済み Base image の明示 cleanup
+
+E5 は partial です。`haco base list --all [--json]` と `haco base delete [--yes] <name-or-fingerprint>` で保持中の build revision を確認・個別削除します。Incus が image・alias を管理し、service は catalog 参照と確認した所有 ID を照合します。native create・publication と削除を同期し、Env・保護対象 alias の利用中は拒否します。独立 snapshot の由来情報は元 image の保持を必須にしません。schema 変更・保持オブジェクト追加・移行はありません。[Base 契約](design/base-images-and-custom-environments.md#explicit-built-image-cleanup)を参照してください。
+
+初期の関連 package test と関連6 package の race test は fixture runner の型名修正後に成功しました。最後に追加した観測保護と拡張 native E2E は検証中で、実 Incus cleanup の受入成功とは扱いません。Workspace cleanup PR #504 は `687357f` の4 workflow 成功後、`4adfa81` にマージ済みです。native 保存物保護 test は0.83秒、公開 aggregate CLI fixture は31.81秒で成功しています。
+
 ## managed Workspace の明示的削除
 
 E5 は partial です。`haco workspace list [--json]` と `haco workspace delete [--yes] <id>` で保持中の managed Workspace を確認・個別削除します。既存 lifecycle lock で Env・途中 lease の利用を拒否し、表示した所有 ID を照合して registry に `deleting` を記録します。途中失敗では member の正確な所有情報を保持します。Incus の volume 所有・使用中・不在確認を再利用し、OCI Store・元 repository・独立 snapshot は残します。create は lock 取得後にも Workspace を解決し直し、同名の所有者入れ替えを拒否します。schema 変更や別の cleanup catalog はありません。[契約](design/workspace-abstraction-and-lease.md#explicit-retained-workspace-deletion)を参照してください。
@@ -1140,7 +1146,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.53** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.54** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

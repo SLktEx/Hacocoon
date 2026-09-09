@@ -1,5 +1,22 @@
 # Implementation Status
 
+## Explicit built Base image cleanup
+
+Partial E5: `haco base list --all [--json]` and `haco base delete [--yes]
+<name-or-fingerprint>` expose retained built-image revisions and explicit removal.
+Incus owns images/aliases; the service adds catalog references and reviewed owner
+identity. Native create/publication and deletion are serialized; Environment and
+protected alias users block removal. Independent snapshot provenance does not
+require retaining the original image. No schema change, retention object or
+migration is introduced. See [the owning Base contract](design/base-images-and-custom-environments.md#explicit-built-image-cleanup).
+
+Initial related package tests and all six related race tests passed after
+correcting a fixture runner type. Final observation guards and extended native E2E
+are still under validation. This is not yet a
+real Incus cleanup acceptance claim. Workspace cleanup PR #504 was merged as
+`4adfa81` after all four workflows passed at `687357f`; its native saved-child test
+and public aggregate CLI fixture passed in 0.83s and 31.81s respectively.
+
 ## Explicit managed Workspace cleanup
 
 Partial E5: `haco workspace list [--json]` and `haco workspace delete [--yes] <id>`
@@ -1325,7 +1342,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.53**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.54**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

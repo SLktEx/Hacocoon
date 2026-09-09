@@ -112,3 +112,31 @@ image remain. Do not count the failed build attempts as successes.
 
 Explicit retained-image cleanup and broader migration/reclamation remain later
 roadmap work. Archive import, concurrent builds and automatic retries are deferred.
+
+## Explicit built-image cleanup
+
+Status: implementation in progress; native acceptance is not yet established.
+
+`haco base list --all [--json]` shows retained built-image revisions, their exact
+fingerprints and build owners, current aliases, Environment/native users and
+independent snapshot provenance. The ordinary Base list still shows selectable
+starting points. `haco base delete <name>` selects the current built revision;
+a fingerprint or an unambiguous hexadecimal prefix of at least eight characters
+selects an older revision. Deletion previews the exact selection and asks for
+confirmation (`--yes` for explicit automation). It does not delete every revision
+sharing a name or select configured/upstream images as owned built images.
+
+Incus owns image removal and its aliases. `internal/basemanage` adds current
+catalog references and the reviewed identity; `modules/runtime/incus` verifies
+native ownership and references and serializes removal against native create and
+publication. The controller transports the exact fingerprint and build owner,
+so alias movement cannot silently change the deletion target. Used images and
+images with protected external aliases are refused. A failed or ambiguous delete
+is reported without deleting any catalog records or launching rollback.
+
+Workspace, OCI Stores, independent snapshot rootfs and existing Base assets are
+not deleted. Snapshot BaseRef values remain provenance: image deletion must not
+make snapshot restore depend on an image cache or original Base. No catalog schema
+change, image retention object, automatic GC or migration is introduced. Source
+repository/OCI-image cleanup and capacity reclamation remain separate work. See
+[ADR 0043](../adr/0043-explicit-built-image-deletion.md).
