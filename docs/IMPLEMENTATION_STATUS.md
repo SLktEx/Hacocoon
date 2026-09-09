@@ -1,5 +1,14 @@
 # Implementation Status
 
+## Windows continuation exclusion
+
+Status: **partial, internal only**. Stop/compact/resume now reserves a native
+object for the current Windows user and exact WSL registration before stopping.
+Cross-process refusal/release, separate-GUID scope and existing native regressions
+passed; amd64/arm64 builds passed. Different Windows sessions/users remain
+unverified. No public command, durable interrupted-operation record or new
+storage interface is introduced. See the [contract](design/storage-reclamation.md#live-continuation-exclusion).
+
 ## GUID-bound Windows stop/compact/resume
 
 Status: **partial, internal only**. Fixed GUID launches now request systemd

@@ -1,5 +1,14 @@
 # 実装状況
 
+## Windows の処理の多重実行防止
+
+状態: **partial、内部のみ**。停止・圧縮・再開は停止前に、現在の Windows ユーザーと
+正確な WSL 登録に対応する native object を確保します。別プロセスの競合拒否・解放、
+異なる GUID の独立性、既存の native 回帰検証と amd64・arm64 ビルドは成功しました。
+異なる Windows セッション・ユーザーでの実行は未検証です。公開コマンド、中断処理の
+永続記録、新しいストレージ interface は追加していません。
+[契約](design/storage-reclamation.ja.md)を参照してください。
+
 ## 登録 GUID に結び付けた Windows の停止・圧縮・再開
 
 状態: **partial、内部のみ**。固定 GUID で systemd の停止要求・再開を行い、名前や

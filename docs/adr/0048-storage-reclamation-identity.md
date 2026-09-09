@@ -56,3 +56,10 @@ caller cancellation while preserving both failures. This is stop-release
 protection, not complete Environment recovery. Native sequence acceptance
 passed; durable operation ownership and managed-installation authorization
 remain mandatory before public activation.
+
+Exclude live continuations with an exclusively created Windows kernel object
+keyed by user SID and WSL GUID. Keep its noninheritable handle through resume
+and pin cleanup; an existing object always refuses, without waiting or takeover.
+The global namespace covers sessions, while its protected DACL limits access.
+Do not confuse automatic kernel-handle cleanup with a successful operation or
+durable recovery record. This adds no storage lifecycle or Core interface.

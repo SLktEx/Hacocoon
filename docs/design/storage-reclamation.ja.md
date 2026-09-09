@@ -4,7 +4,7 @@
 
 状態: **partial、内部実装**。Linux の実体照合・割当量測定、Btrfs trim と外側 ext4
 への discard を実装し、隔離した実環境で検証しました。設定済み Incus pool の選択は内部実装済みです。
-一つの入口で全層を回収する操作、Windows の停止・圧縮・再開の連携は未実装です。Windows の
+一つの入口で全層を回収する操作は未実装です。Windows の停止・圧縮・再開、
 ファイル測定と native 圧縮は以下の内部実装まで進んでいます。F1 は
 未完了であり、データの明示削除・GC・移行とは別の機能です。
 
@@ -194,3 +194,24 @@ Workspace・OCI 全内容や controller readiness の検証ではありません
 拒否・失敗／キャンセル検証と amd64・arm64 ビルドは成功しました。symlink fixture は
 Windows アカウントの作成権限不足で SKIP、junction 拒否は成功しました。
 catalog・保存済みデータの移行はありません。
+
+## 実行中の処理の排他
+
+native 処理は WSL の固定・停止前に、実行ユーザーの SID と登録 GUID に対応する
+[Windows の名前付き mutex object](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexexw)
+を global namespace に排他的に作成します。保護した DACL で実行ユーザー・SYSTEM のみ
+アクセスを許可し、handle は継承しません。既存 object や作成エラーは処理を拒否します。
+待機・thread による mutex 所有・自動再試行・引き継ぎはありません。再開とディスクの
+固定解除まで handle を保持し、close でデータを削除しません。
+
+これは Hacocoon の処理の同時実行だけを防ぎます。登録の認可、Windows 所有者による
+直接の WSL 操作の禁止、中断した処理の結果保持は担当しません。名前の先取りでサービスを
+妨害できても、操作の許可にはなりません。公開前には実行意図・結果の永続記録と中断時の
+扱いが必要です。Windows object が消えたことを前回の成功の証拠にはしません。
+
+Windows 実機で別プロセスの競合拒否・解放後の再取得、異なる GUID の独立性、
+不正識別子の拒否、close の冪等性が成功しました。既存の native file・空 VHD・失敗系
+検証と amd64・arm64 ビルドも成功しました。別の Windows ログインセッション・ユーザー
+での実行は未検証です。symlink 作成は権限不足で SKIP、junction 拒否は成功しました。
+上記の専用 WSL の停止・圧縮・再開検証はこの排他追加前のものであり、今回その全体処理は
+再実行していません。

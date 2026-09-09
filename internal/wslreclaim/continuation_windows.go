@@ -91,6 +91,11 @@ func (r registration) reclaimWithResume(ctx context.Context) (result continuatio
 	if err := r.revalidate(); err != nil {
 		return result, err
 	}
+	guard, err := acquireContinuation(r.ID)
+	if err != nil {
+		return result, err
+	}
+	defer func() { err = errors.Join(err, guard.Close()) }()
 	path, err := r.diskPath()
 	if err != nil {
 		return result, err

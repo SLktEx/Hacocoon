@@ -5,8 +5,9 @@
 Status: **partial, internal implementation**. Pinned Linux identity/allocation,
 Btrfs trim and outer ext4 discard are implemented and passed isolated native
 acceptance. Configured Incus pool selection is implemented internally; the public
-one-entry workflow and Windows stop/compact/resume orchestration are not yet implemented. Windows handle-based
-measurement and native compaction are implemented internally below. F1 remains incomplete.
+one-entry workflow is not yet implemented. Windows stop/compact/resume,
+handle-based measurement and native compaction are internal implementations
+described below. F1 remains incomplete.
 This is separate from resource deletion/GC and migration.
 
 ## Required result
@@ -239,3 +240,28 @@ Workspace/OCI content or controller readiness acceptance. Windows unit/refusal
 and failure/cancellation tests passed; amd64/arm64 builds passed. The symlink
 fixture was SKIPPED because the Windows account lacked creation privilege;
 the junction refusal fixture passed. No catalog or saved-data migration occurs.
+
+## Live continuation exclusion
+
+Before pinning or stopping WSL, the native sequence exclusively creates a
+[Windows named mutex object](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexexw)
+under the global namespace, keyed by the process user's SID and registration GUID.
+Its protected DACL grants the user and SYSTEM access; the handle is not inherited.
+An existing object or any creation error refuses the operation. There is no wait,
+thread-owned mutex acquisition, automatic retry or takeover. The handle remains
+held until resume and disk-pin cleanup finish. Closing it deletes no data.
+
+This only excludes simultaneous Hacocoon continuations. It does not authorize a
+registration, prevent its Windows owner from using raw WSL, or preserve an
+interrupted operation's result. Precreating the name can cause denial of service,
+never permission to proceed. Durable intent/results and interrupted-operation
+handling remain required before public activation. Windows object lifetime is
+not proof that the prior operation completed successfully.
+
+Native Windows tests passed cross-process contention and reacquisition after
+release, separate-GUID independence, invalid identity refusal and idempotent
+close. Existing native file/empty-VHD and failure tests passed; amd64/arm64
+builds passed. Separate Windows login sessions/users were not exercised, and
+symlink creation remained SKIPPED for missing privilege (junction refusal passed).
+The dedicated WSL stop/compact/resume acceptance above predates this guard;
+that full sequence was not rerun for this change.
