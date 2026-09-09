@@ -1,5 +1,11 @@
 # Implementation Status
 
+At `8c8a543`, test/Ubuntu/Incus GHA passed; Windows stopped at a BAT test fixture
+cleanup sharing violation, after successful native tests/build/package/component
+assertions. Later real installation was SKIP. The fixture now has bounded,
+sharing-only cleanup with native regression. Corrected-head installer acceptance
+remains pending. See the [contract](design/storage-reclamation.md#packaged-enrollment-acceptance).
+
 ## Packaged Windows enrollment
 
 Status: **partial**. The normal managed Windows installer now verifies and invokes

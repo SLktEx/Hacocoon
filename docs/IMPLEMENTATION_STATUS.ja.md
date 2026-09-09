@@ -1,5 +1,10 @@
 # 実装状況
 
+`8c8a543` の GHA は test・Ubuntu・Incus が成功しました。Windows は native テスト・build・
+package・component assertion の成功後、BAT テスト fixture の cleanup 共有違反で失敗しました。
+後続の実導入は SKIP です。共有違反だけに限定した期限付き待機と native 回帰を追加しました。
+修正 head の実導入検証は未完了です。[契約](design/storage-reclamation.ja.md)を参照してください。
+
 ## 配布用 Windows 登録処理
 
 状態: **partial**。通常の管理対象 Windows installer は Linux の識別情報取得後、

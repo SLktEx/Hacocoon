@@ -353,3 +353,20 @@ fixture が成功しました。チェックサムの重複・欠落・不一致
 実際の installer 関数からビルド済み helper を専用 WSL に対して呼び出し、47.54秒で成功しました。
 Installation と Operation の既存バイトは不変でした。実登録への呼び出し検証であり、
 新規インストール全体や容量回収の検証ではありません。
+
+`8c8a543` の GHA は test・Ubuntu・Incus が成功しました。Windows の native テスト・release build・
+package 作成・installer component の assertion は成功しましたが、別の BAT 終了コードテストが
+空の fixture ディレクトリ削除時に共有違反で失敗しました。その後の新規導入・再導入などは SKIP です。
+テストは正確な空 fixture に対する共有・ロック違反だけ最大10秒待機し、実際の子プロセスによる
+ロック解放と非空ディレクトリの拒否を回帰検証します。インストールの再試行や失敗の成功扱いはしません。
+元の CI でロックを保持した主体は未確定であり、製品の不具合とは断定しません。修正 head の実導入 GHA は未確認です。
+
+専用 WSL の読み取り用 prototype では Windows 親が Job に所属することを観測し、明示的な
+job breakaway とクリアした実行環境で独立した子を起動できました。子は呼び出し元終了後に隔離マーカーを
+作成しました。WSL 停止・圧縮は行っていません。このホストでの起動方式の検証であり、WSL 停止を越えた
+継続や公開の引き継ぎの検証ではありません。[Windows の要件](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags)
+により親 Job の breakaway 許可が必要です。未対応の Job では停止前に拒否し、親に拘束される子へ黙って切り替えません。
+
+新しい共有 fixture の初回ローカル連続実行は子の準備前に検査して失敗しました。明示的な
+ready/release 合図でテストの競合を除き、同じ PowerShell 5.1 の component と BAT の連続実行は
+成功しました。この fixture 修正で製品 installer の動作は変更していません。

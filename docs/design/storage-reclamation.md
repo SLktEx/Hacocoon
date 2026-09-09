@@ -429,11 +429,31 @@ is added. Existing installations enroll by rerunning normal managed installation
 changed correspondence remains an explicit refusal, with no automatic migration.
 
 At preceding head `d85df9a`, all four GHA workflows passed. This does not erase the
-`81d105f` Windows failures above or establish their causes. Full installer GHA for
-the packaged helper is pending. Public reclamation, independent Windows child and
+`81d105f` Windows failures above or establish their causes. At `8c8a543`, test/Ubuntu/Incus GHA passed. Windows native tests, release builds,
+package assembly and installer component assertions passed, but the separate BAT
+exit test FAILED while deleting its empty fixture directory with a sharing
+violation. Fresh install/reinstall and later acceptance were SKIP after that
+failure. The test now waits up to ten seconds only for native sharing/lock errors
+on the exact empty fixture, with real held-directory release and nonempty-refusal
+regressions. This does not retry installation or turn a failed operation into
+success. The original CI lock holder is unknown; it is not diagnosed as a product
+failure. Full installer GHA on the corrected head remains pending. Public reclamation, independent Windows child and
 interrupted-record review remain planned. No Env, Workspace, OCI, snapshot or
 catalog schema changes are part of this slice.
 
 The actual installer function invoked the built helper against the dedicated WSL
 and PASSED in 47.54s. Existing Installation and Operation bytes were unchanged.
 This tests real registration dispatch, not a complete fresh install or compaction.
+
+A dedicated WSL read-only prototype observed its Windows parent in a Job and
+successfully launched a detached child with explicit job breakaway and cleared
+execution context. The child wrote its isolated marker after the caller exited.
+No WSL shutdown or compaction ran. This supports the child-launch mechanism on
+this host, not surviving WSL shutdown or public handoff acceptance. Windows
+[requires the parent Job to permit breakaway](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags);
+an unsupported Job must fail before shutdown, not silently launch a coupled child.
+
+The first combined local run of the new sharing fixture FAILED because the child
+was not yet ready. An explicit ready/release handshake removed that test race;
+the same PowerShell 5.1 component-plus-BAT sequence then PASSED. The production
+installer is unchanged by this fixture correction.
