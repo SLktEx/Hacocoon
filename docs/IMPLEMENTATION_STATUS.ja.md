@@ -1,5 +1,13 @@
 # 実装状況
 
+## Environment copy
+
+修正後の専用 WSL Incus/Btrfs 検証は 357.13 秒で成功しました。停止済み元 Env の copy、名前の前方一致、新しい世代、元削除後の rootfs/Git/OCI の独立性、所有 cleanup を確認しました。fixture `haco-aggregate-1a17295b1a6f50e1` は完全に片付けました。項目が増えた aggregate fixture の時間枠は 8 分とし、製品の timeout は変更していません。
+
+実 Incus 検証は最初、名前の前方一致で元 Env と copy の両方が返り、停止状態確認に失敗しました。名前と状態の CSV から厳密に対象を選ぶよう修正し、不正・重複応答の回帰テストを追加しました。初回ローカル CI はこの修正前に成功しています。最終検証は PR に記録します。
+
+実装済み: `haco env copy <stopped-env> [new-env]` は既存の Incus COW 保存と通常の復元経路を組み合わせ、独立データと新しい権限世代を作ります。実行中の元 Env と既存の宛先は拒否します。一時保存は処理後に削除し、削除不明時は ID を返します。schema 追加や restore 前の自動 backup はありません。検証結果は変更に記録します。[仕様](design/environment-copy.md)を参照してください。
+
 ## 公開 snapshot restore
 
 implemented: `haco snapshot restore <id> [new-env]` が保存 Workspace／OCI のコピー、
@@ -1115,7 +1123,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.50** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.51** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

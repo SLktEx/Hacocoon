@@ -98,3 +98,15 @@ Once published, a failed start keeps the Env and data for ordinary start/recreat
 Per-copy saved-source holds suffice: source deletion between completed copies may
 fail the next stage, but cannot mutate an independent completed copy. There is no
 need to introduce another aggregate recovery catalog or hidden backup.
+
+## Stopped Environment copy
+
+Reuse stopped aggregate capture and canonical restore for public Env copy. The
+intermediate uses native Btrfs COW and the existing exact ownership catalog;
+remove it after the attempt, retaining its visible ID on uncertain cleanup.
+This trades an extra native COW stage for one ownership/lifecycle implementation.
+Do not adopt partially prepared volumes, transfer their cleanup ownership, hold
+source and destination lifecycle locks simultaneously, or add a second recovery
+catalog merely to avoid that stage. Source and destination must be different,
+the source must be stopped, and the destination must be new. This is not an
+automatic pre-restore backup or a mechanism for rolling back existing data.

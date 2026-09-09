@@ -201,3 +201,5 @@ Published tags/releases and acceptance/support evidence are separate concepts. S
 ## Historical note
 
 Old commits, branches, PRs, and document versions may use superseded checkpoint assignments or describe removed cloud implementations. Git history is the archive for those states; it does not override the current status/version authority.
+
+Stopped-source Environment copy is implemented through existing Incus COW and canonical creation; see [its contract](../design/environment-copy.md). Base building, broader retained-data cleanup, reclamation and export/migration remain separate roadmap work.

@@ -1,5 +1,7 @@
 # バージョン番号とリリース状況
 
+Environment copy は、停止済みの元 Env から独立データを作る操作です。既存の Incus COW と通常の作成経路を使い、schema 変更や自動 backup は追加しません。[仕様](../design/environment-copy.md)を参照してください。
+
 v0.50 checkpoint の公開 snapshot restore が Workspace／OCI の独立コピー、保存 rootfs からの正規作成と
 起動をまとめます。既存 Env 名は拒否し、cleanup が不確実なら所有記録を保持します。
 schema 13 は変更しません。Base 実体・自動 backup・完全な runtime 復旧は追加しません。
@@ -149,8 +151,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.48 | Retained Base snapshot capture | 実装済み |
 | v0.49 | Snapshot restore staging | 実装済み |
 | v0.50 | Public Snapshot Restore | 実装済み |
+| v0.51 | Environment Copy | 実装済み |
 
-現在のmilestone位置は **v0.50** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.51** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

@@ -1,5 +1,13 @@
 # Implementation Status
 
+## Environment copy
+
+Dedicated WSL Incus/Btrfs acceptance passed in 357.13s after the correction: stopped-source copy, source-name prefix collision, fresh generation, independent rootfs/Git/OCI after source deletion and owned cleanup. Fixture `haco-aggregate-1a17295b1a6f50e1` was fully cleaned. The expanded aggregate fixture has an eight-minute budget; product timeouts are unchanged.
+
+Real Incus initially failed at source-state verification: Incus prefix filtering returned both source and source-copy. The runtime now selects the exact name from name/state CSV, with ambiguity/malformed-output regressions. Initial local CI passed before this correction; final acceptance is recorded on the PR.
+
+Implemented: `haco env copy <stopped-env> [new-env]` composes existing Incus COW capture and canonical restore, with fresh data owners and permission generation. Running sources and existing targets are refused. Temporary aggregate saves are removed after the attempt; uncertain cleanup reports their IDs. No new schema or automatic restore backup is added. Validation results are recorded with the change. See [the copy contract](design/environment-copy.md).
+
 ## Public snapshot restore
 
 Implemented: `haco snapshot restore <id> [new-env]` copies saved Workspaces/OCI,
@@ -1261,7 +1269,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.50**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.51**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

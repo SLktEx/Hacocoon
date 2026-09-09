@@ -414,7 +414,7 @@ PYINIT
     instance="${1:-}"; [ -f "$state/instance-$instance" ] || exit 0
     column=''; previous=''
     for arg in "$@"; do [ "$previous" = -c ] && column="$arg"; previous="$arg"; done
-    case "$column" in n) printf '%s\n' "$instance" ;; s|*) cat "$state/instance-$instance" ;; esac
+    case "$column" in n) printf '%s\n' "$instance" ;; ns) printf '%s,%s\n' "$instance" "$(cat "$state/instance-$instance")" ;; s|*) cat "$state/instance-$instance" ;; esac
     ;;
   delete)
     instance="${1:-}"

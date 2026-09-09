@@ -11,13 +11,13 @@ import (
 
 func TestInspectEnvironmentMapsIncusState(t *testing.T) {
 	runner := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
-		return host.Result{Stdout: "RUNNING\n"}, nil
+		return host.Result{Stdout: "haco-demo,RUNNING\n"}, nil
 	}}
 	status, err := New(runner).InspectEnvironment(context.Background(), "haco-demo")
 	if err != nil || status.State != core.EnvironmentRunning {
 		t.Fatalf("status=%#v err=%v", status, err)
 	}
-	assertRunnerCall(t, runner.calls[0], "incus", "list", "haco-demo", "--project", defaultProject, "--format", "csv", "-c", "s")
+	assertRunnerCall(t, runner.calls[0], "incus", "list", "haco-demo", "--project", defaultProject, "--format", "csv", "-c", "ns")
 }
 
 func TestForwardLocalPortIsLoopbackOnly(t *testing.T) {
@@ -66,4 +66,36 @@ func TestRemoveClientConnectionUsesScopedDeviceName(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "remove", "haco-demo", "haco-tcp-8080-3000", "--project", defaultProject)
+}
+
+func TestInspectEnvironmentUsesExactNameAmongPrefixMatches(t *testing.T) {
+	for _, tc := range []struct {
+		data   string
+		want   core.EnvironmentState
+		failed bool
+	}{
+		{"haco-demo-copy,RUNNING\nhaco-demo,STOPPED\n", core.EnvironmentStopped, false},
+		{"haco-demo,RUNNING\nhaco-demo-copy,STOPPED\n", core.EnvironmentRunning, false},
+		{"haco-demo-copy,RUNNING\n", core.EnvironmentUnknown, false},
+		{"haco-demo,STOPPED\nhaco-demo,RUNNING\n", core.EnvironmentUnknown, true},
+		{"STOPPED\n", core.EnvironmentUnknown, true},
+	} {
+		runner := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+			return host.Result{Stdout: tc.data}, nil
+		}}
+		got, err := New(runner).InspectEnvironment(context.Background(), "haco-demo")
+		if (err != nil) != tc.failed || (!tc.failed && got.State != tc.want) {
+			t.Fatal(tc, got, err)
+		}
+	}
+}
+
+func TestLegacyInspectUsesTheSameExactIdentity(t *testing.T) {
+	runner := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+		return host.Result{Stdout: "haco-demo-copy,RUNNING\nhaco-demo,STOPPED\n"}, nil
+	}}
+	got, err := New(runner).Inspect(context.Background(), "haco-demo")
+	if err != nil || got.Observed != core.ObservedStopped {
+		t.Fatal(got, err)
+	}
 }
