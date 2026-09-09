@@ -503,10 +503,10 @@ while the VHDX retains its required write sharing. It starts only its own fixed
 worker mode, detached with explicit job breakaway, NUL stdin/stderr, OS-sourced working
 directory and a cleared environment. No caller path/command or startup retry is
 accepted. A successful launch requires a private stdout readiness frame and EOF, not just
-process creation. The PID never proves completion. The worker currently refuses
-any Windows Job or attached console before WSL access. Windows nested outer jobs
-can remain after breakaway; support for that case requires a separate decision,
-not an implicit fallback. Existing Job restrictions are not modified.
+process creation. The PID never proves completion. The worker refuses an attached console before WSL access. A remaining outer
+Windows Job is allowed after explicit breakaway; its termination may also end the
+worker. No existing Job restrictions are changed. Durable pending evidence and
+exact registration/operation checks remain mandatory.
 
 `_status` opens only the existing read-only registry key and checks the exact
 operation and registration. It never starts WSL, creates enrollment, acknowledges
@@ -525,8 +525,12 @@ The dedicated worker launch FAILED with exit 1. A second explicit diagnostic
 launch of the same prepared operation also exited 1 and reported `worker is bound
 to a Windows Job` before WSL access. Both processes are terminal and the pending
 record is retained. The worker stop/compact/resume path is therefore unverified;
-no new pending record was substituted and no saved data was removed. The proposed
-narrower Job condition is not applied. Standalone/nested-Job acceptance,
+no new pending record was substituted and no saved data was removed. The blanket Job-membership refusal has now been removed after explicit user
+acceptance of outer-Job termination risk; the new native run reached shutdown and resume but FAILED before compaction
+when native disk opening exhausted its bounded wait (320 attempts). The exact
+operation `{37688660-6DA9-4DB7-BF10-23222CD15A5F}` remains failed, with no record
+replacement or retry. No other distribution was stopped. Workspace/OCI-wide
+acceptance and public reclamation remain incomplete. Standalone/nested-Job acceptance,
 interrupted-record review and the controller/public all-layer entry remain
 incomplete. At `ee5e017`, all four GHA workflows passed; the readiness change
 requires its own CI evaluation.

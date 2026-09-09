@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -94,19 +93,12 @@ func LaunchPreparedWorker(ctx context.Context, registrationID, operationID strin
 	return pid, nil
 }
 
-// requireIndependentWorker refuses a console or Job-bound process before any WSL
-// observation or stop. The process is not an authority: saved enrollment and the
-// exact pending operation must still be checked by continuePrepared.
+// requireIndependentWorker refuses an attached console before any WSL access.
+// Launch still requires explicit Job breakaway. A remaining outer Job may end
+// this worker; durable pending evidence must survive rather than imply success.
+// Saved enrollment and the exact operation remain the mutation authority.
 func requireIndependentWorker() error {
 	kernel := windows.NewLazySystemDLL("kernel32.dll")
-	var inJob uint32
-	ok, _, err := kernel.NewProc("IsProcessInJob").Call(uintptr(windows.CurrentProcess()), 0, uintptr(unsafe.Pointer(&inJob)))
-	if ok == 0 {
-		return fmt.Errorf("inspect worker job: %w", err)
-	}
-	if inJob != 0 {
-		return errors.New("worker is bound to a Windows Job")
-	}
 	console, _, _ := kernel.NewProc("GetConsoleWindow").Call()
 	if console != 0 {
 		return errors.New("worker is bound to a Windows console")

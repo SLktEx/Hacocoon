@@ -406,9 +406,9 @@ launcher はディスク観測と共通の native 検査で、自分自身の実
 実行ファイルの書き込み・削除共有を禁止し、VHDX に必要な書き込み共有は維持します。起動するのは自分自身の
 固定 worker mode だけで、detached・明示的な job breakaway・NUL stdin/stderr・OS 由来の作業ディレクトリ・
 クリアした環境を使います。呼び出し元からの path・command や起動の自動再試行は受け付けません。
-起動成功には専用 stdout pipe の準備通知と EOF が必要です。PID は完了を意味しません。現状の worker は WSL アクセス前にすべての Windows Job 所属と
-console 接続を拒否します。breakaway 後も外側の Job が残る場合の対応は別途判断が必要であり、
-暗黙の fallback は行いません。Windows の既存 Job 制限は変更しません。
+起動成功には専用 stdout pipe の準備通知と EOF が必要です。PID は完了を意味しません。worker は WSL アクセス前に console 接続を拒否します。明示的な breakaway 後に残る外側の Job は
+許容します。その Job の終了で worker も終了し得ます。既存の Job 制限は変更せず、pending 記録と
+正確な登録・操作の照合を維持します。
 
 `_status` は既存 registry key を読み取り専用で開き、操作・登録の一致を確認します。WSL 起動・登録作成・
 記録の確認済み扱い・worker の引き継ぎは行いません。pending は結果不明のため段階別観測を出しません。
@@ -423,7 +423,7 @@ Windows symlink fixture は権限不足で SKIP です。
 専用 worker の初回起動は exit 1 で失敗しました。同じ準備済み操作に対する明示的な診断起動も exit 1 で終了し、
 WSL アクセス前に `worker is bound to a Windows Job` を報告しました。両プロセスは終了済みで、pending 記録を
 保持しています。worker の停止・圧縮・再開経路は未検証です。別の pending 記録への置き換えや保存データの削除は
-行っていません。提案した Job 条件の限定は未適用です。standalone・nested Job の実機検証、
+行っていません。外側 Job による終了リスクの明示的な承認を受け、Job 所属の一律拒否を解除しました。変更後は停止要求・再開に成功しましたが、native disk open の待機上限（320回）で圧縮前に失敗しました。正確な操作記録を failed として保持し、再試行・記録の置き換え・他 distro の停止は行っていません。standalone・nested Job の実機検証、
 中断記録の確認、公開 controller 連携、全層一括操作は未完了です。
 
 準備通知は4 byte（`RDY\n`）と EOF だけです。worker は排他・native pin の下で保存済み対応と

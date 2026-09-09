@@ -98,8 +98,11 @@ excludes executable write/delete sharing, and launches only a fixed self-worker
 with detached/job-breakaway flags and cleared context. Dispatch is not completion;
 the existing operation record remains the result authority. Read-only inspection
 must not start WSL or create/acknowledge a record, and pending has unknown outcome.
-The current worker refuses every Job and console before WSL access. Native local
-validation rejected a remaining Job; broader nested-Job support is unresolved.
+The worker refuses an attached console before WSL access. Explicit Job breakaway
+remains mandatory at launch, but a remaining outer Job is allowed: membership
+alone does not grant WSL, enrollment or operation authority. An outer Job may
+terminate the worker; retain the pending record and require explicit inspection.
+This does not guarantee survival of arbitrary Windows process supervision.
 Do not claim WSL shutdown survival from a successful process launch.
 
 The launcher waits for a bounded private readiness frame and EOF after target

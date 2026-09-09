@@ -11,9 +11,7 @@ import (
 	"golang.org/x/sys/windows/registry"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
-	"unsafe"
 )
 
 func TestPreparedWorkerRejectsInvalidRequestBeforeLaunch(t *testing.T) {
@@ -136,21 +134,11 @@ func TestPreparedStatusIsReadOnlyAndPendingIsUnknown(t *testing.T) {
 	}
 }
 
-func TestWorkerRefusesJobBeforeRegistrationAccess(t *testing.T) {
-	var inJob uint32
-	ok, _, err := windows.NewLazySystemDLL("kernel32.dll").NewProc("IsProcessInJob").Call(uintptr(windows.CurrentProcess()), 0, uintptr(unsafe.Pointer(&inJob)))
-	if ok == 0 {
-		t.Fatal(err)
-	}
-	if inJob == 0 {
-		t.Skip("requires a Job-bound native runner; no Job is assigned by this test")
-	}
-	id, err := windows.GenerateGUID()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ExecutePreparedWorker(context.Background(), id.String(), id.String()); err == nil || !strings.Contains(err.Error(), "bound to a Windows Job") {
-		t.Fatal("Job refusal must precede missing-registration access", err)
+func TestWorkerConsoleBoundary(t *testing.T) {
+	console, _, _ := windows.NewLazySystemDLL("kernel32.dll").NewProc("GetConsoleWindow").Call()
+	err := requireIndependentWorker()
+	if (console != 0) != (err != nil) {
+		t.Fatalf("console boundary mismatch: console=%v error=%v", console != 0, err)
 	}
 }
 

@@ -21,7 +21,7 @@ Linux native discard と Windows 圧縮・登録・拒否検証は成功しま�
 内部の独立 worker 起動と正確な操作の読み取り status を追加し、command/library テストと Windows 両ビルドは成功しました。
 native worker 検証は Job 所属の拒否で失敗し、正確な pending 記録を保持しています。status は記録を変更しません。
 起動は専用 pipe の準備通知を期限付きで待ちます。native pipe と実 helper の起動拒否検証は成功しました。
-タイムアウトでも pending 記録を保持し、native 操作の未実行を断定しません。Job 条件は未変更です。worker 実行、中断記録の確認、公開の全層一括操作は未完了です。controller・電源断・
+タイムアウトでも pending 記録を保持し、native 操作の未実行を断定しません。Job 所属の一律拒否を解除し、明示的な breakaway・console 分離・登録／操作照合を維持しました。外側 Job による終了時も pending は不明を意味します。変更後は停止要求・再開に成功しましたが、native disk open の待機上限（320回）で圧縮前に失敗しました。正確な操作記録を failed として保持し、再試行・記録の置き換え・他 distro の停止は行っていません。worker 実行、中断記録の確認、公開の全層一括操作は未完了です。controller・電源断・
 Workspace/OCI 内容全体の検証は未完了です。Windows symlink fixture は権限不足、private registry は gate により
 SKIP でした。以前の共有違反・readiness・旧ファイル欠落・CI の失敗は、対象範囲とともに
 [所有文書](design/storage-reclamation.ja.md)へ記録しています。後の成功で以前の失敗を成功扱いにしません。

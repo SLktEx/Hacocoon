@@ -29,7 +29,11 @@ pipe tests and real absent-registration startup refusal passed. Timeout preserve
 the pending record and does not prove whether native work began.
 Command/library tests and both Windows builds passed. Native worker acceptance
 FAILED on its Job-membership refusal; the exact pending record is retained and
-status reads preserve its bytes. The Job condition is unchanged. Worker execution,
+status reads preserve its bytes. The blanket Job refusal is now removed; explicit breakaway, console separation
+and exact registration/operation checks remain. An outer Job may terminate the
+worker; pending still means unknown. Native worker execution reached shutdown and resume, but failed before compaction
+when native disk opening exhausted its bounded wait (320 attempts). The exact
+operation is retained as failed; no retry or record replacement was performed. Worker execution,
 interrupted-record review and public all-layer flow remain
 incomplete. Full controller, power-loss and all
 Workspace/OCI-content acceptance are unverified. Windows symlink fixture was SKIP
