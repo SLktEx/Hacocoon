@@ -37,12 +37,43 @@ delete into its replacement. Ordinary guest work may change runtime inventory;
 the runtime's non-force deletion remains the final reference check.
 
 This slice handles a Store attached to an Env whose runtime is available. Host
-source images, detached Stores, candidate-selected GC and automatic startup of a
-maintenance Env remain planned. No Seed/tombstone path, hidden backup, new catalog
+source images are addressed below. Detached Stores, candidate-selected GC and
+automatic startup of a maintenance Env remain planned. No Seed/tombstone path, hidden backup, new catalog
 state or schema migration is introduced. Existing saved snapshots are independent
 copies, so image deletion does not modify them. Unit and CLI regressions and the
 existing optional real-runtime COW fixture cover different scopes; exact executed
 results are recorded in implementation status and the PR.
+
+## Managed Host source
+
+Partial implementation; dedicated native runtime acceptance passed, installed-controller acceptance pending:
+
+```bash
+haco plugin oci image list --host
+haco plugin oci image delete --host --runtime docker example.local/app:dev
+```
+
+`--host` and an Env name are mutually exclusive. The preview identifies the exact
+managed source owner and explains that removal changes the source of future Store
+copies. Existing independent Store/snapshot copies are unaffected. This does not
+resurrect the historical Seed namespace, tombstones or all-Environment deletion.
+The current managed source is `oci-source:host`; callers cannot substitute a guest
+Store as a Host attachment. No automatic setup, migration or recovery runs here.
+
+The plugin requires the current ready source owner. The Incus adapter independently
+accepts only fixed image/container inventory, limited inspect templates and
+immutable-ID removal without force. It supplies fixed executable search paths and
+local daemon sockets with a cleared CLI environment. No caller-controlled shell,
+program, daemon option or arbitrary inspect template crosses this Host boundary.
+
+Each command holds the existing Host-operation lock, rejects pending copy journals,
+and verifies the native volume owner, sole consumer, exact mount, local Host/source
+markers, unprivileged container type, empty profiles, running state and managed
+daemon layout. It neither resumes a paused Host nor clears recovery evidence.
+Unknown ownership/layout or failed/truncated observations refuse the operation.
+The native command is bounded to two minutes; the full request remains bounded to
+five minutes. Container references and post-removal absence use the same runtime
+checks as attached Stores. Existing copy/cleanup state remains unchanged.
 
 ## Historical Seed deletion
 

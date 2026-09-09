@@ -10,6 +10,7 @@ import (
 )
 
 type managedImageFixture struct {
+	upperReference                            bool
 	target                                    ImageTarget
 	resource                                  core.PersistentResource
 	deleted, used, malformed, truncated, keep bool
@@ -77,6 +78,9 @@ func (f *managedImageFixture) ExecForResource(_ context.Context, name, instance 
 		image := id
 		if f.target.Runtime == "nerdctl" {
 			image = "example.local/app:dev"
+			if f.upperReference {
+				image = "example.local/app:Dev"
+			}
 		}
 		result.Stdout = encode(image, "test-user")
 	case "image rm":
@@ -100,12 +104,13 @@ func newManagedImageFixture(runtime string) (*ManagedImages, *managedImageFixtur
 }
 func TestManagedImageDeletionGuardsAndRuntimeIdentity(t *testing.T) {
 	for _, runtime := range []string{"docker", "nerdctl"} {
-		for _, mode := range []string{"unused", "used", "owner-changed", "source", "malformed", "truncated", "still-present"} {
+		for _, mode := range []string{"unused", "used", "used-uppercase", "owner-changed", "source", "malformed", "truncated", "still-present"} {
 			t.Run(runtime+"/"+mode, func(t *testing.T) {
 				s, f := newManagedImageFixture(runtime)
 				switch mode {
-				case "used":
+				case "used", "used-uppercase":
 					f.used = true
+					f.upperReference = mode == "used-uppercase"
 				case "owner-changed":
 					f.resource.Owner = strings.Repeat("c", 32)
 				case "source":
@@ -130,7 +135,7 @@ func TestManagedImageDeletionGuardsAndRuntimeIdentity(t *testing.T) {
 						t.Fatal("mutated on refusal")
 					}
 				}
-				if mode == "used" && !errors.Is(err, core.ErrStorageBusy) {
+				if strings.HasPrefix(mode, "used") && !errors.Is(err, core.ErrStorageBusy) {
 					t.Fatalf("in-use classification: %v", err)
 				}
 				if mode == "still-present" && !errors.Is(err, core.ErrRecoveryRequired) {
@@ -143,5 +148,45 @@ func TestManagedImageDeletionGuardsAndRuntimeIdentity(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+type hostManagedImageFixture struct{ *managedImageFixture }
+
+func (f *hostManagedImageFixture) ExecHostImage(ctx context.Context, resource core.PersistentResource, runtime string, args []string) (core.ExecutionResult, error) {
+	if resource.Ref() != f.target.Store || !resource.SourceOnly || runtime != f.target.Runtime {
+		return core.ExecutionResult{}, core.ErrCapabilityStale
+	}
+	return f.ExecForResource(ctx, "", "", resource.Ref(), core.ExecutionRequest{Argv: args})
+}
+func TestManagedHostImageUsesExactSourceWithoutEnvAuthority(t *testing.T) {
+	for _, mode := range []string{"valid", "owner", "guest-source", "mixed-target", "used"} {
+		t.Run(mode, func(t *testing.T) {
+			service, fixture := newManagedImageFixture("docker")
+			fixture.resource.ID = HostStoreID
+			fixture.resource.SourceOnly = true
+			fixture.target = ImageTarget{Host: true, Store: fixture.resource.Ref(), Runtime: "docker"}
+			service.Host = &hostManagedImageFixture{fixture}
+			service.Environments = nil
+			target := fixture.target
+			switch mode {
+			case "owner":
+				target.Store.Owner = strings.Repeat("f", 32)
+			case "guest-source":
+				fixture.resource.SourceOnly = false
+			case "mixed-target":
+				target.Environment = "guest"
+			case "used":
+				fixture.used = true
+			}
+			err := service.Delete(context.Background(), target, "sha256:"+strings.Repeat("1", 64))
+			if mode == "valid" {
+				if err != nil || !fixture.deleted {
+					t.Fatalf("host delete: %v", err)
+				}
+			} else if err == nil || fixture.deleted {
+				t.Fatalf("unsafe host delete: %v", err)
+			}
+		})
 	}
 }

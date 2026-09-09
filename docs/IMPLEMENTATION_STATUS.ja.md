@@ -1,8 +1,13 @@
 # 実装状況
 
+
+## Host source の image 操作
+
+partial の実装です。`image list/delete --host` は正確な管理対象 Host source のみを選びます。現在の plugin／controller／CLI と Incus adapter が、source 所有者、local role／mount／layout、非特権で running の状態、既存 Host-copy operation lock、固定命令／template の制限を確認します。guest Store を Host source として指定できません。関連5 package が成功し、security／CLI 回帰を追加しています。共有 Host-copy lock の保護を含む関連4 package の race と、大文字 tag の追加回帰は成功しました。専用 WSL Incus/Btrfs の実検証は487.19秒で成功しました。両 runtime で Host source 一覧、停止 container の参照による拒否、選択 image のみの削除、他 image の保持を確認し、その後の独立 Store copy／削除と所有 fixture の cleanup も成功しました。実 Host adapter と fixture catalog を使う検証であり、インストール済み controller／公開 CLI の実接続は未検証です。既存の独立コピーは保持し、未接続 Store と GC は planned です。[契約](design/oci-image-deletion.ja.md#管理対象-host-source)を参照してください。
+
 ## 接続済み Store の image 操作
 
-partial です。image list/delete を現在の OCI plugin・controller・製品 CLI に接続しました。旧 Seed 選択ではなく runtime の一覧・削除を使い、確認済み Env 世代・Store 所有 ID で実行を保護します。初回の controller 配線・正規表現・無効 RPC エラー分類の不具合を修正し、関連7 package と文書チェックが成功しました。専用 WSL Incus/Btrfs の native COW 検証は417.80秒で成功し、Docker・nerdctl の一覧、停止済み container の参照拒否、不変 runtime ID の削除、不在確認、元 image の独立性を確認しました。専用 project・pool・不要になった catalog は cleanup 済みです。関連4 package の race と、Env 削除の割り込みを防ぐ個別回帰も成功しました。この fixture は実行用 test adapter を使うため、インストール済み controller／公開 CLI からの native 操作は未検証です。この候補の全体 CI・GHA は未完了です。Host 配布元・未接続 Store・候補 GC・容量回収は planned です。schema 移行はありません。[契約](design/oci-image-deletion.ja.md)を参照してください。
+partial です。image list/delete を現在の OCI plugin・controller・製品 CLI に接続しました。旧 Seed 選択ではなく runtime の一覧・削除を使い、確認済み Env 世代・Store 所有 ID で実行を保護します。初回の controller 配線・正規表現・無効 RPC エラー分類の不具合を修正し、関連7 package と文書チェックが成功しました。専用 WSL Incus/Btrfs の native COW 検証は417.80秒で成功し、Docker・nerdctl の一覧、停止済み container の参照拒否、不変 runtime ID の削除、不在確認、元 image の独立性を確認しました。専用 project・pool・不要になった catalog は cleanup 済みです。関連4 package の race と、Env 削除の割り込みを防ぐ個別回帰も成功しました。この fixture は実行用 test adapter を使うため、インストール済み controller／公開 CLI からの native 操作は未検証です。PR #508 は `4d9038b7` の4 workflow 成功後、`3aa8b07f` にマージしました。固定したファイルを使う WSL ext4 のローカル docs・policy・Go test／vet・JS・E2E は成功しました。systemd は古い Ubuntu tool で最初に失敗し、専用 Hacocoon WSL では成功しました。初回失敗は記録に残しています。ローカル packaging は必要 tool 不在で SKIP し、GHA release-config で成功を確認しました。未接続 Store・候補 GC・容量回収は planned です。schema 移行はありません。[契約](design/oci-image-deletion.ja.md)を参照してください。
 
 
 ## source repository の明示的 cleanup
@@ -10,7 +15,7 @@ partial です。image list/delete を現在の OCI plugin・controller・製品
 E5 の partial です。`haco repo list [--json]` と `haco repo delete [--yes] <id>` を実装しました。Workspace の参照が現在の Git 経路を保護し、既存 registry・Host operation lock が所有 ID・未完了 Host copy・native 保存物を守ります。schema 13 と独立データは保持します。関連 package test は成功しました。専用 WSL Incus/Btrfs の公開 source CLI 検証は30.43秒で成功し、Workspace 参照拒否・子 snapshot と Host mount 保持・旧 owner 拒否・正しい detach/delete と不存在を確認しました。専用 project は削除し、共有 image・pool・所有記録は保持しました。追加で、待機した Git 操作を registry lock 内で再照合する保護を加えています。最終 race/CI 結果は実装 PR で追跡します。[契約](design/git-and-github-capability.md#explicit-source-repository-deletion)を参照してください。OCI cleanup PR #506 は `73175b4` の4 workflow 成功後に `6903319` へマージし、新しい native 回帰は GHA で0.71秒で成功しました。
 
 
-source cleanup の最初の2つの GHA 候補は、削除処理より前の fixture instance 作成で失敗しました。元 image の project を明示した版は専用 WSL で28.05秒で成功しましたが、2回目の GHA 失敗を解消できず、image project だけが原因とは確定していません。fixture は空の停止した Incus instance を作る形へ変更しました。このテストに必要なのは管理対象 Host の接続情報で、image や稼働中 guest は不要です。両失敗 job の後続 Base・OCI 検証は SKIP であり、成功扱いにしません。空 instance 版は専用 WSL Incus/Btrfs で13.82秒で成功し、公開 CLI・参照／子 snapshot／旧 owner の拒否・所有対象の cleanup を確認しました。その前のローカル起動は PowerShell の引数分割でテスト実行前に失敗し、引数を引用して再実行しました。関連 package test と文書チェックも成功しています。最新候補の GHA は未完了です。
+source cleanup の最初の2つの GHA 候補は、削除処理より前の fixture instance 作成で失敗しました。元 image の project を明示した版は専用 WSL で28.05秒で成功しましたが、2回目の GHA 失敗を解消できず、image project だけが原因とは確定していません。fixture は空の停止した Incus instance を作る形へ変更しました。このテストに必要なのは管理対象 Host の接続情報で、image や稼働中 guest は不要です。両失敗 job の後続 Base・OCI 検証は SKIP であり、成功扱いにしません。空 instance 版は専用 WSL Incus/Btrfs で13.82秒で成功し、公開 CLI・参照／子 snapshot／旧 owner の拒否・所有対象の cleanup を確認しました。その前のローカル起動は PowerShell の引数分割でテスト実行前に失敗し、引数を引用して再実行しました。関連 package test と文書チェックも成功しています。PR #507 は `c4842c2` の4 workflow 成功後、`19c4bdd9` にマージし、native source fixture は GHA で0.80秒で成功しました。
 
 ## OCI Store の明示的 cleanup
 

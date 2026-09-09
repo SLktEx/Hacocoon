@@ -32,11 +32,12 @@ func runOCIImageManage(args []string) int {
 }
 func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string, in io.Reader, out, diagnostic io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(diagnostic, "Usage: haco plugin oci image list [--runtime nerdctl|docker] [--json] <env> | delete [--runtime nerdctl|docker] [--yes] <env> <image-id-or-tag>")
+		fmt.Fprintln(diagnostic, "Usage: haco plugin oci image list [--runtime nerdctl|docker] [--json] [--host] [<env>] | delete [--runtime nerdctl|docker] [--yes] [--host] [<env>] <image-id-or-tag>")
 		return 2
 	}
 	f := flag.NewFlagSet("haco plugin oci image "+args[0], flag.ContinueOnError)
 	f.SetOutput(diagnostic)
+	hostSource := f.Bool("host", false, "operate on the managed Host source for future Store copies")
 	runtime := f.String("runtime", "nerdctl", "OCI runtime owning these images")
 	var yes, machine bool
 	switch args[0] {
@@ -53,10 +54,23 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 		}
 		return 2
 	}
-	if (*runtime != "docker" && *runtime != "nerdctl") || (args[0] == "list" && f.NArg() != 1) || (args[0] == "delete" && f.NArg() != 2) {
+	expected := 1
+	if args[0] == "delete" {
+		expected++
+	}
+	if *hostSource {
+		expected--
+	}
+	if (*runtime != "docker" && *runtime != "nerdctl") || f.NArg() != expected {
 		return 2
 	}
-	all, err := c.OCIImage(ctx, controlapi.OCIImageRequest{Operation: "list", Environment: f.Arg(0), Runtime: *runtime})
+	environment := f.Arg(0)
+	selection := f.Arg(1)
+	if *hostSource {
+		environment = ""
+		selection = f.Arg(0)
+	}
+	all, err := c.OCIImage(ctx, controlapi.OCIImageRequest{Operation: "list", Environment: environment, Host: *hostSource, Runtime: *runtime})
 	if err != nil {
 		fmt.Fprintln(diagnostic, "haco:", err)
 		return 1
@@ -75,9 +89,9 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 	var selected *oci.ManagedImage
 	for i := range all.Images {
 		image := &all.Images[i]
-		match := image.ID == f.Arg(1)
+		match := image.ID == selection
 		for _, tag := range image.Tags {
-			match = match || tag == f.Arg(1)
+			match = match || tag == selection
 		}
 		if match {
 			if selected != nil {
@@ -91,7 +105,7 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 		fmt.Fprintln(diagnostic, "haco: image not found; use image list to review exact IDs and tags")
 		return 1
 	}
-	if !oci.ValidImageSelection(all.Target, selected.ID) || all.Target.Environment != f.Arg(0) || all.Target.Runtime != *runtime {
+	if !oci.ValidImageSelection(all.Target, selected.ID) || all.Target.Environment != environment || all.Target.Host != *hostSource || all.Target.Runtime != *runtime {
 		fmt.Fprintln(diagnostic, "haco: invalid image review identity")
 		return 1
 	}
@@ -103,6 +117,9 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 	if len(selected.Containers) > 0 {
 		fmt.Fprintln(diagnostic, "haco: image is referenced by a container; retained")
 		return 1
+	}
+	if *hostSource {
+		fmt.Fprintln(diagnostic, "This changes the Host source used for future Store copies. Existing independent copies remain.")
 	}
 	fmt.Fprintln(diagnostic, "Delete this image from the selected Store. Independent copies, saved snapshots and remote registry images remain. The runtime may refuse images with multiple tags or other references; no force is used.")
 	if !yes {
@@ -123,7 +140,14 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 }
 func writeOCIImages(out io.Writer, all oci.ManagedImageList) error {
 	table := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(table, "Environment: %q (generation %q)\nStore: %q (owner %q, independent copy)\nRuntime: %q\nSaved snapshots (independent): %q\n", all.Target.Environment, all.Target.Instance, all.Target.Store.ID, all.Target.Store.Owner, all.Target.Runtime, strings.Join(all.IndependentSnapshots, ","))
+	role := "independent copy"
+	if all.Target.Host {
+		role = "Host source for future copies"
+		fmt.Fprintln(table, "Target: managed Host source")
+	} else {
+		fmt.Fprintf(table, "Environment: %q (generation %q)\n", all.Target.Environment, all.Target.Instance)
+	}
+	fmt.Fprintf(table, "Store: %q (owner %q, %s)\nRuntime: %q\nSaved snapshots (independent): %q\n", all.Target.Store.ID, all.Target.Store.Owner, role, all.Target.Runtime, strings.Join(all.IndependentSnapshots, ","))
 	fmt.Fprintln(table, "TYPE\tIMAGE ID\tTAGS\tDIGESTS\tCONTAINER USERS")
 	for _, image := range all.Images {
 		fmt.Fprintf(table, "oci-image\t%q\t%q\t%q\t%q\n", image.ID, strings.Join(image.Tags, ","), strings.Join(image.Digests, ","), strings.Join(image.Containers, ","))

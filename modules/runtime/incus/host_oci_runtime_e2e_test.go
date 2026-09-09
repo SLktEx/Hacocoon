@@ -15,7 +15,7 @@ import (
 
 // Optional real runtime extension of the owned-area fixture. The Host builds and
 // uses the images before copying; no image export/import participates in copying.
-func prepareHostRuntimeCopy(t *testing.T, ctx context.Context, runtime *Runtime, command func(...string) string) func(core.PersistentResource) {
+func prepareHostRuntimeCopy(t *testing.T, ctx context.Context, runtime *Runtime, source core.PersistentResource, command func(...string) string) func(core.PersistentResource) {
 	t.Helper()
 	assets := os.Getenv("HACO_E2E_OCI_RUNTIME_ASSETS")
 	if assets == "" {
@@ -74,6 +74,17 @@ nerdctl --snapshotter native build --network none -t hacocoon-area:local /tmp/ar
 		runImage(trustedHostName, tool)
 	}
 	t.Log("PASS Host Docker and nerdctl locally built images execute before area copy")
+	guest(trustedHostName, `printf '\nLABEL hacocoon.fixture=host-image-delete\n' >> /tmp/area-context/Dockerfile
+DOCKER_BUILDKIT=0 /opt/docker/docker build --network none -t hacocoon-host-delete:Dev /tmp/area-context
+nerdctl --snapshotter native build --network none -t hacocoon-host-delete:Dev /tmp/area-context`)
+	for _, tool := range tools {
+		verifyHostSourceImages(t, ctx, runtime, source, tool, guest)
+		if imageID(trustedHostName, tool) != ids[tool] {
+			t.Fatal("Host source deletion changed the retained image")
+		}
+		runImage(trustedHostName, tool)
+	}
+
 	return func(target core.PersistentResource) {
 		name := "haco-area-runtime-copy"
 		command("launch", defaultImage, name, "--project", runtime.project, "--storage", strings.Split(target.NativeRef, "/")[0], "--no-profiles", "--config", "user.hacocoon.kind=runtime-copy-fixture")
