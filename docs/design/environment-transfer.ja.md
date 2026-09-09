@@ -75,14 +75,21 @@ image の property・profile 関連付けは権限ではなく、現在の設定
 
 `internal/environmenttransfer` にストリーム書き込みの `Write` と読み取り専用の `Inspect` を実装しました。
 内部 version 1 の manifest は、上限付きの source label、OCI の有無、順序付き role／size／SHA-256 を持ちます。
-外側の USTAR は固定名の通常ファイル `manifest.json`、`rootfs.tar`、`workspace.tar`、任意の `oci.tar` だけです。
+外側の USTAR は固定名の通常ファイル `manifest.json`、`rootfs.tar`、`workspace.tar`、追加分の連番 `workspace-002.tar`〜`workspace-253.tar`、任意の `oci.tar` です。
+Workspace 数は現行 Incus snapshot の上限に合わせ、番号の欠落を認めません。metadata は64 KiB、envelope の
+付加部分は512 KiB に制限し、payload の呼び出し元予算とは別に上限を設けます。
 Base component、provider path、元の管理 ID、認証情報 map は持ちません。公開交換形式や公開 export/import ではありません。
 
 上限付き canonical JSON で重複・未知フィールドを拒否し、role と順序、サイズ、呼び出し側の総量上限、header の種類・形式、
 payload hash、完全な終端、余分な内容がないことを確認します。tar が内部で処理する拡張 header を含め、manifest 前の読み取りも
 上限付きです。展開・Incus 呼び出し・全検証前の consumer callback は行いません。内側 archive の安全性や送信元の真正性は証明しません。
 
-producer は保護された capture 一覧と宣言対象を照合する必要があります。この codec だけでは元 OCI Store の省略を発見できません。
+`WriteSnapshot` は保護された ready snapshot の全対象と archive を照合し、Workspace role 順に整列します。
+component の identity・binding・状態の完全一致を要求し、欠落・余分・重複・不一致を出力前に拒否します。
+Workspace／OCI の欠落も対象です。legacy Base record は元 catalog に残し、archive や Base filesystem の照会を要求しません。
+未知の保持 role は黙って省略せず拒否します。呼び出し元は canonical な source reservation を保持し、archive 作成中の
+native 所有権を検証する必要があります。渡された snapshot object 自体を権限とは扱わず、lifecycle lock や native 確認を
+この関数で代替しません。`Inspect` だけでは信頼できない manifest から省略された元データを発見できません。
 書き込み成功の場合だけ公開し、失敗した出力は公開しません。削除不明なら cleanup の所有情報を保持します。
 後の import は不変の staging bytes を保持するか再検証し、canonical lifecycle と現在の security 設定を使います。
 検証は source label や古い設定を適用する権限ではありません。[ADR 0049](../adr/0049-transfer-envelope-authority.md)を参照してください。
@@ -109,3 +116,8 @@ Linux の実 filesystem を使う race test と vet が成功しました。パ�
 不正・過大入力、整数上限、全 bytes 受信後の通信失敗を検証しています。最初の検証起動は shell の
 PATH 引用エラーでテスト開始前に失敗し、修正後の起動で成功しました。Btrfs 上の staging と公開 import
 への接続は未検証です。先行する native Incus archive の成功から、それらの成功を推定しません。
+
+保存対象照合の回帰テストは、現行上限253個の Workspace、OCI の有無、順序の違い、対象の欠落・不一致、
+catalog を変更しない legacy Base 除外を確認します。これは repository test であり、複数 Workspace の native な
+全体 export は未検証です。先行する1 Workspace 限定の内部 envelope は公開形式や catalog schema ではありませんでした。
+その1 Workspace の encoding は引き続き読み取り可能で、既存保存データの移行はありません。

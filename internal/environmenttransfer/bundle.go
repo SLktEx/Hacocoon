@@ -14,8 +14,10 @@ import (
 	"regexp"
 )
 
-const manifestLimit = 4096
-const envelopeOverhead = 16 * 1024
+const manifestLimit = 64 * 1024
+const maxWorkspaces = 253 // Same supported attachment bound as the Incus snapshot planner.
+const maxComponents = maxWorkspaces + 2
+const envelopeOverhead = 512 * 1024
 
 func validLimit(n int64) bool { return n > 0 && n <= (1<<63-1)-envelopeOverhead }
 
@@ -41,12 +43,19 @@ func (m Manifest) validate(limit int64) error {
 	if m.Version != 1 || !sourceName.MatchString(m.Source) || !validLimit(limit) {
 		return ErrInvalidBundle
 	}
-	roles := []string{"rootfs", "workspace"}
+	count := len(m.Components) - 1
+	if m.HasOCI {
+		count--
+	}
+	if count < 1 || count > maxWorkspaces {
+		return ErrInvalidBundle
+	}
+	roles := []string{"rootfs"}
+	for i := 0; i < count; i++ {
+		roles = append(roles, workspaceRole(i))
+	}
 	if m.HasOCI {
 		roles = append(roles, "oci")
-	}
-	if len(m.Components) != len(roles) {
-		return ErrInvalidBundle
 	}
 	for i, c := range m.Components {
 		if c.Role != roles[i] || c.Bytes <= 0 || c.Bytes > limit || !digestPattern.MatchString(c.SHA256) {
@@ -55,6 +64,14 @@ func (m Manifest) validate(limit int64) error {
 		limit -= c.Bytes // Checked subtraction avoids attacker-controlled size overflow.
 	}
 	return nil
+}
+
+// Numbering identifies transport order, never a destination path or authority.
+func workspaceRole(index int) string {
+	if index == 0 {
+		return "workspace"
+	}
+	return fmt.Sprintf("workspace-%03d", index+1)
 }
 
 func copyComponent(dst io.Writer, src io.Reader, c Component) error {
@@ -74,7 +91,7 @@ func copyComponent(dst io.Writer, src io.Reader, c Component) error {
 // Readers must end at their declared sizes. The limit is a caller-owned budget,
 // not an additional user CLI argument. Native payloads remain opaque here.
 func Write(dst io.Writer, m Manifest, parts []io.Reader, limit int64) error {
-	if len(m.Components) < 2 || len(m.Components) > 3 || len(parts) != len(m.Components) {
+	if len(m.Components) < 2 || len(m.Components) > maxComponents || len(parts) != len(m.Components) {
 		return ErrInvalidBundle
 	}
 	// Reader/writer callbacks must not change descriptors after validation.

@@ -14,8 +14,10 @@ continues to protect data; this transport format is not another recovery catalog
 Use one fixed-role streaming envelope and bounded canonical metadata. Verify all
 sizes, hashes, structure and closing bytes before returning a valid observation.
 Do not extract or invoke import callbacks while validation is still in progress.
-Require the producer to match the protected source inventory; declared completeness
-is not proof of source completeness. A checksum is not authentication or approval.
+Match every exported component to the protected source inventory before writing,
+including all currently supported Workspace attachments. Transport numbering is
+not a path or authority. Declared completeness is not proof of source completeness;
+canonical reservations and native ownership checks remain caller obligations. A checksum is not authentication or approval.
 
 Keep source labels separate from new destination identity. Do not serialize
 provider paths, credentials, leases, approval state or a Base filesystem component.

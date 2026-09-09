@@ -2,7 +2,9 @@
 
 ## Environment transfer prerequisites
 
-Public G1 export/import remains **planned**. Opt-in native Incus rootfs/volume
+Public G1 export/import remains **planned**. Internal snapshot/archive inventory
+matching covers all currently supported Workspace components and optional OCI;
+public source reservations and native archive production are not yet connected. Opt-in native Incus rootfs/volume
 archive tests and their existing-GHA integration are implemented. The dedicated
 Incus 6.0.5/Btrfs run passed in 11.24s after correcting fixture path/namespace
 assumptions; source/destination independence, Git state, links, mode and retained

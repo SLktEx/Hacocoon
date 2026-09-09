@@ -191,7 +191,7 @@ func TestBundleBoundsReadsBeforeManifest(t *testing.T) {
 	if extended.Len() < 1536 {
 		t.Fatal("expected extended header fixture")
 	}
-	input := &countedReader{Reader: bytes.NewReader(bytes.Repeat(extended.Bytes()[:1024], 100))}
+	input := &countedReader{Reader: bytes.NewReader(bytes.Repeat(extended.Bytes()[:1024], envelopeOverhead/1024+100))}
 	if _, err := Inspect(input, 1024); !errors.Is(err, ErrInvalidBundle) {
 		t.Fatal("extended metadata accepted", err)
 	}

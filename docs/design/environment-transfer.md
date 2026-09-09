@@ -96,7 +96,11 @@ catalog schema is introduced by these tests.
 `internal/environmenttransfer` implements streaming `Write` and read-only `Inspect`.
 The internal version-1 manifest contains a bounded source label, OCI presence and
 an ordered list of role/size/SHA-256 records. The outer USTAR has fixed regular
-entries: `manifest.json`, `rootfs.tar`, `workspace.tar`, and optional `oci.tar`.
+entries: `manifest.json`, `rootfs.tar`, `workspace.tar`, additional numbered
+`workspace-002.tar` through `workspace-253.tar`, and optional `oci.tar`.
+The Workspace count follows the current Incus snapshot attachment bound; every
+number must be consecutive. Metadata is bounded to 64 KiB and total envelope
+overhead to 512 KiB, independently of the caller-owned payload budget.
 There is no Base component, provider path, source management ID or credential map.
 This is not yet a published interchange format or a public export/import command.
 
@@ -107,8 +111,16 @@ even before manifest parsing, including tar's hidden extended-header processing.
 Neither function extracts files, calls Incus or invokes a consumer before whole
 verification. Native inner-archive safety and source authenticity are not proved.
 
-The producer must compare the protected capture inventory with the declared set;
-this codec cannot discover an omitted source OCI Store from an untrusted manifest.
+`WriteSnapshot` compares archives against the entire protected ready-snapshot
+inventory, sorting Workspace roles for deterministic transport order and requiring
+exact component identity, binding and state. It rejects missing, extra, duplicate
+or mismatched components before output, including omitted Workspace/OCI archives.
+Legacy Base records remain in the source catalog but need no archive or Base
+filesystem lookup. Unknown retained roles are rejected rather than silently omitted.
+The caller must hold canonical source reservations and verify native ownership
+while creating archives. A supplied snapshot object is not itself authority; this
+function does not replace lifecycle locks or native checks. `Inspect` alone cannot
+discover source data omitted from an untrusted manifest.
 Only a successful writer result may be published. Any failed output remains
 unpublished, with cleanup ownership retained if removal is uncertain. Later import
 must keep immutable staged bytes or reverify them, then use canonical lifecycle
@@ -143,3 +155,10 @@ failure after complete bytes. An initial validation invocation failed before tes
 started because of shell PATH quoting; the corrected invocation passed. Btrfs
 staging and public import integration remain unverified. Earlier native Incus
 archive acceptance does not establish those claims.
+
+The inventory regression tests exercise all 253 supported Workspace components,
+with and without OCI, independent ordering, missing/mismatched components and
+legacy Base exclusion without catalog mutation. These are repository tests;
+multi-Workspace native aggregate export remains unverified. The earlier single-
+Workspace-only internal envelope was never a public format or catalog schema.
+Its original single-Workspace encoding remains readable, and no saved data migrates.
