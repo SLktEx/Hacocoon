@@ -1,10 +1,14 @@
 # 実装状況
 
+## OCI Store の明示的 cleanup
+
+E5 の partial です。OCI Store の一覧・確認付き削除を実装しました。既存 catalog が所有者と予約を管理し、Incus が volume を削除します。native snapshot・backup・schedule、Host の元 Store、作成途中・利用中の資源は削除を拒否します。schema 13 と独立 snapshot は変わりません。関連6 package test は成功しました。専用 WSL Incus/Btrfs 検証は11.21秒で成功し、独立 COW・元 Store 削除・子 snapshot による削除拒否と ready/data 保持・旧 owner 拒否・正確な削除と不存在を確認しました。初回は fixture の snapshot show 引数誤りで失敗し、修正後に成功しました。初回の残骸は所有確認付きで削除し、専用 pool が空であることも確認しました。Docker 互換性と個別 OCI image 操作は未検証です。[所有文書](design/persistent-oci-store.md#explicit-retained-store-deletion)を参照してください。
+
 ## build 済み Base image の明示 cleanup
 
 E5 は partial です。`haco base list --all [--json]` と `haco base delete [--yes] <name-or-fingerprint>` で保持中の build revision を確認・個別削除します。Incus が image・alias を管理し、service は catalog 参照と確認した所有 ID を照合します。native create・publication と削除を同期し、Env・保護対象 alias の利用中は拒否します。独立 snapshot の由来情報は元 image の保持を必須にしません。schema 変更・保持オブジェクト追加・移行はありません。[Base 契約](design/base-images-and-custom-environments.md#explicit-built-image-cleanup)を参照してください。
 
-初期の関連 package test と関連6 package の race test は fixture runner の型名修正後に成功しました。最後に追加した観測保護と拡張 native E2E は検証中で、実 Incus cleanup の受入成功とは扱いません。Workspace cleanup PR #504 は `687357f` の4 workflow 成功後、`4adfa81` にマージ済みです。native 保存物保護 test は0.83秒、公開 aggregate CLI fixture は31.81秒で成功しています。
+Base cleanup PR #505 は `9d8ff82` の適用対象4 workflow が成功し、`32dd1e4` にマージしました。実 Incus/Btrfs の Base 削除と保存 rootfs の独立性は111.30秒で成功しました。local CI は Windows mount 上の repository-copy test が10分で失敗した後、同一 commit を WSL ext4 に置いて成功しました。Windows 初回は生成 alias の SSH で失敗し、同一 commit の再実行で成功しました。初回の失敗記録は PR #505 に残しています。Workspace PR #504 は適用 CI 成功後に `4adfa81` へマージ済みです。
 
 ## managed Workspace の明示的削除
 
@@ -1146,7 +1150,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.54** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.55** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

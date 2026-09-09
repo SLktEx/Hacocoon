@@ -61,7 +61,7 @@ func (b *PersistentResourceBackend) observe(ctx context.Context, r core.Persiste
 		return nil, err
 	}
 	out, err := b.Runtime.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project+"&recursion=1")
-	if err != nil || out.StdoutTruncated {
+	if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
 		return nil, core.ErrRuntimeUnavailable
 	}
 	var volumes []persistentVolumeObservation
@@ -98,7 +98,26 @@ func (b *PersistentResourceBackend) Verify(ctx context.Context, r core.Persisten
 	return nil
 }
 
+// CheckDeletion is read-only and runs before a public deletion changes the catalog.
+func (b *PersistentResourceBackend) CheckDeletion(ctx context.Context, r core.PersistentResource) error {
+	v, err := b.observe(ctx, r)
+	if err != nil || v == nil {
+		return err
+	}
+	if len(v.UsedBy) > 0 {
+		return core.ErrStorageBusy
+	}
+	pool, name, err := persistentVolume(r)
+	if err != nil {
+		return err
+	}
+	return b.Runtime.checkVolumeSavedObjects(ctx, pool, name, v.Config)
+}
+
 func (b *PersistentResourceBackend) Delete(ctx context.Context, r core.PersistentResource) error {
+	if err := b.CheckDeletion(ctx, r); err != nil {
+		return err
+	}
 	v, err := b.observe(ctx, r)
 	if err != nil {
 		return err

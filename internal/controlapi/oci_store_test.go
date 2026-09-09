@@ -22,6 +22,9 @@ func TestOCIFromCannotSelectForeignKindsOrOtherOperations(t *testing.T) {
 		{Operation: "delete", ID: "oci:dev", From: "oci:source"},
 		{Operation: "inspect", ID: "oci:dev", From: "oci:source"},
 		{Operation: "list", From: "oci:source"},
+		{Operation: "delete", ID: "oci:dev"},
+		{Operation: "delete", ID: "oci:dev", Owner: "invalid"},
+		{Operation: "list", Owner: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 	} {
 		_, err := client.OCIStore(context.Background(), req)
 		var status *control.StatusError

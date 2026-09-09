@@ -14,8 +14,11 @@ import (
 )
 
 func runPlugin(args []string) int {
+	if len(args) >= 3 && args[0] == "oci" && args[1] == "store" && (args[2] == "list" || args[2] == "delete") {
+		return runOCIStoreManage(args[2:])
+	}
 	usage := func() int {
-		fmt.Fprintln(os.Stderr, "Usage: haco plugin oci store create <store> [--from <store>] | haco plugin oci store inspect|delete <store> | haco plugin oci store list")
+		fmt.Fprintln(os.Stderr, "Usage: haco plugin oci store create <store> [--from <store>] | haco plugin oci store inspect <store> | haco plugin oci store delete [--yes] <store> | haco plugin oci store list [--json]")
 		return 2
 	}
 	if len(args) < 3 || args[0] != "oci" || args[1] != "store" {

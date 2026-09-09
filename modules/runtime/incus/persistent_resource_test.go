@@ -13,7 +13,7 @@ import (
 
 func TestPersistentVolumeDeletionRequiresExactOwnershipAndConfirmedAbsence(t *testing.T) {
 	resource := core.PersistentResource{ID: "oci:demo", Kind: OCIStoreKind, Owner: strings.Repeat("a", 32), NativeRef: "pool/haco-persistent-" + strings.Repeat("a", 32)}
-	for _, scenario := range []string{"absent", "owned", "foreign", "busy", "malformed", "truncated", "still-present", "failed-delete-but-absent"} {
+	for _, scenario := range []string{"absent", "owned", "foreign", "busy", "malformed", "truncated", "still-present", "failed-delete-but-absent", "snapshots", "backups", "schedule", "child-error", "query-exit"} {
 		t.Run(scenario, func(t *testing.T) {
 			removed := false
 			deletes := 0
@@ -26,6 +26,18 @@ func TestPersistentVolumeDeletionRequiresExactOwnershipAndConfirmedAbsence(t *te
 					}
 					return host.Result{}, nil
 				}
+				if strings.Contains(args[1], "/snapshots?") || strings.Contains(args[1], "/backups?") {
+					if scenario == "child-error" {
+						return host.Result{ExitCode: 1}, nil
+					}
+					if (scenario == "snapshots" && strings.Contains(args[1], "/snapshots?")) || (scenario == "backups" && strings.Contains(args[1], "/backups?")) {
+						return host.Result{Stdout: `["saved"]`}, nil
+					}
+					return host.Result{Stdout: "[]"}, nil
+				}
+				if scenario == "query-exit" {
+					return host.Result{ExitCode: 1, Stdout: "[]"}, nil
+				}
 				if scenario == "malformed" {
 					return host.Result{Stdout: "{}"}, nil
 				}
@@ -36,6 +48,9 @@ func TestPersistentVolumeDeletionRequiresExactOwnershipAndConfirmedAbsence(t *te
 					return host.Result{Stdout: "[]"}, nil
 				}
 				v := persistentVolumeObservation{Name: "haco-persistent-" + resource.Owner, Type: "custom", ContentType: "filesystem", Config: map[string]string{"user.hacocoon.owner": resource.Owner, "user.hacocoon.resource": resource.ID, "user.hacocoon.kind": resource.Kind}}
+				if scenario == "schedule" {
+					v.Config["snapshots.schedule"] = "@daily"
+				}
 				if scenario == "foreign" {
 					v.Config["user.hacocoon.owner"] = strings.Repeat("b", 32)
 				}
@@ -50,7 +65,7 @@ func TestPersistentVolumeDeletionRequiresExactOwnershipAndConfirmedAbsence(t *te
 			if (err == nil) != success {
 				t.Fatalf("err=%v", err)
 			}
-			if (scenario == "foreign" || scenario == "busy" || scenario == "malformed" || scenario == "truncated" || scenario == "absent") && deletes != 0 {
+			if (scenario == "foreign" || scenario == "busy" || scenario == "malformed" || scenario == "truncated" || scenario == "absent" || scenario == "snapshots" || scenario == "backups" || scenario == "schedule" || scenario == "child-error" || scenario == "query-exit") && deletes != 0 {
 				t.Fatal("unsafe provider delete")
 			}
 		})

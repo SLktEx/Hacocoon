@@ -1,9 +1,12 @@
 package controlapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"strings"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -14,20 +17,29 @@ import (
 const MethodOCIStore = "plugin.oci.store"
 
 type OCIStoreRequest struct {
+	Owner     string `json:"owner,omitempty"`
 	Operation string `json:"operation"`
 	ID        string `json:"id,omitempty"`
 	From      string `json:"from,omitempty"`
 }
 type OCIStoreResponse struct {
+	Uses      []oci.StoreUse            `json:"uses,omitempty"`
 	Resources []core.PersistentResource `json:"resources"`
 }
 
 func RegisterOCIStores(server *control.Server, service *persistentresource.Service) error {
 	return server.Register(MethodOCIStore, func(ctx context.Context, payload json.RawMessage) (any, error) {
 		var req OCIStoreRequest
-		if json.Unmarshal(payload, &req) != nil {
+		decoder := json.NewDecoder(bytes.NewReader(payload))
+		decoder.DisallowUnknownFields()
+		if decoder.Decode(&req) != nil || decoder.Decode(new(any)) != io.EOF {
 			return nil, translateError(core.ErrInvalidArgument)
 		}
+		if (req.Owner != "" && req.Operation != "delete") || (req.Operation == "delete" && !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: req.ID, Owner: req.Owner})) {
+			return nil, translateError(core.ErrInvalidArgument)
+		}
+		ctx, cancel := context.WithTimeout(ctx, 12*time.Minute)
+		defer cancel()
 		if req.From != "" && (req.Operation != "create" || !strings.HasPrefix(req.From, "oci:") || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: req.From, Owner: strings.Repeat("0", 32)})) {
 			return nil, translateError(core.ErrInvalidArgument)
 		}
@@ -44,6 +56,14 @@ func RegisterOCIStores(server *control.Server, service *persistentresource.Servi
 				if r.Kind == oci.StoreKind {
 					result.Resources = append(result.Resources, r)
 				}
+			}
+			catalog, ok := service.Store.(oci.StoreReferenceCatalog)
+			if !ok {
+				return nil, translateError(core.ErrUnsupported)
+			}
+			result.Uses, err = oci.StoreUses(ctx, catalog, all)
+			if err != nil {
+				return nil, translateError(err)
 			}
 			return result, nil
 		}
@@ -66,7 +86,7 @@ func RegisterOCIStores(server *control.Server, service *persistentresource.Servi
 				err = core.ErrIncompatibleState
 			}
 			if err == nil && req.Operation == "delete" {
-				err = service.Delete(ctx, req.ID)
+				err = service.DeleteReviewed(ctx, core.PersistentResourceRef{ID: req.ID, Owner: req.Owner})
 				resource.State = "deleted"
 			}
 		default:

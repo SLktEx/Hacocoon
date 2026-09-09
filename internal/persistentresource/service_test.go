@@ -89,3 +89,45 @@ func TestDurableOwnershipAndExplicitDeletion(t *testing.T) {
 		})
 	}
 }
+
+func (b *backend) CheckDeletion(context.Context, core.PersistentResource) error {
+	if b.fail == "saved" {
+		return core.ErrStorageBusy
+	}
+	return nil
+}
+func TestReviewedStoreDeletionPreservesReadyOnPreflightRefusal(t *testing.T) {
+	ctx := context.Background()
+	store := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
+	b := &backend{store: store}
+	s := &persistentresource.Service{Store: store, Backend: b}
+	r, err := s.Create(ctx, "oci:review", "oci-containerd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.fail = "saved"
+	if err = s.DeleteReviewed(ctx, r.Ref()); !errors.Is(err, core.ErrStorageBusy) {
+		t.Fatal(err)
+	}
+	held, err := store.GetPersistentResource(ctx, r.ID)
+	if err != nil || held.State != "ready" || !b.exists {
+		t.Fatal(held, err)
+	}
+	stale := r.Ref()
+	stale.Owner = "cccccccccccccccccccccccccccccccc"
+	if err = s.DeleteReviewed(ctx, stale); !errors.Is(err, core.ErrCapabilityStale) {
+		t.Fatal(err)
+	}
+	b.fail = "delete"
+	if err = s.DeleteReviewed(ctx, r.Ref()); !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatal(err)
+	}
+	held, err = store.GetPersistentResource(ctx, r.ID)
+	if err != nil || held.State != "deleting" || held.Ref() != r.Ref() {
+		t.Fatal(held, err)
+	}
+	b.fail = ""
+	if err = s.DeleteReviewed(ctx, r.Ref()); err != nil || b.exists {
+		t.Fatal(err)
+	}
+}

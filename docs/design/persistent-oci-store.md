@@ -279,3 +279,28 @@ snapshots, legacy Base components, backup manifests or Store data. Old controlle
 reject schema 11; stop the controller before changing binaries and never relabel
 the schema manually. Runnable Env activation and public snapshot/restore remain
 planned. File-copy acceptance does not establish live OCI database consistency.
+
+## Explicit retained Store deletion
+
+Implemented: `haco plugin oci store list [--json]` reports each Store's exact owner,
+role (Host source or independent copy), Workspace, Environment/lease users,
+pending copies and independent saved snapshots. `delete [--yes] <store>` previews
+that identity and asks for confirmation; use `--yes` for deliberate automation.
+The JSON list now includes a `uses` projection alongside existing `resources`.
+
+The reviewed owner is required by the controller, so replacing a same-name Store
+cannot redirect the deletion. Host sources, incomplete creation, active users and
+pending copies are refused. Incus child snapshots, backups or snapshot schedules
+also block deletion; those children would otherwise disappear with their parent.
+The preflight runs before the catalog enters its existing `deleting` state, and
+native checks repeat at deletion. Ambiguous cleanup retains the exact owned record
+for an explicit retry. Independent Hacocoon snapshots remain readable without the
+original Store. No automatic backup, GC or additional cleanup catalog is added.
+
+This removes the selected entire Store, including images, runtime metadata, build
+cache and persistent container data. Individual image/layer cleanup belongs to the
+OCI runtime and is not implemented by this operation. Normal Env deletion still
+retains the Store and Workspace. Existing catalog schema 13 and saved data are
+unchanged; no data migration is required. Old direct delete RPC callers must send
+the reviewed owner, and scripts consuming list JSON must use `--json`.
+See [ADR 0044](../adr/0044-explicit-oci-store-deletion.md).
