@@ -1,7 +1,7 @@
 # Base images and custom Environments
 
-Status: partial. Logical Base selection is implemented. Definition-driven build
-is implemented in this change; real acceptance results are recorded separately.
+Status: implemented for the representative definition-build workflow. Native
+Incus/Btrfs and Windows-to-WSL SSH acceptance passed at `a2fcb72`.
 
 ## Daily use
 
@@ -93,9 +93,22 @@ assets and snapshot Base components retain their existing ownership/explicit
 cleanup. New snapshot rootfs remains independent and never gains a Base image
 retention dependency. See [snapshots](environment-snapshots.md).
 
-## Remaining acceptance
+## Acceptance and remaining scope
 
-Verify a representative WSL build, registered Base selection, ordinary create and
-an added tool invoked through SSH. Keep repository tests, native Incus behavior and
-Windows client acceptance distinct. Explicit retained-image cleanup and broader
-migration/reclamation remain later roadmap work.
+At `a2fcb72`, native Incus/Btrfs GHA passed definition build, registration,
+immutable revision selection, rebuild without changing an existing Env, future
+creation from the updated alias and exact fixture cleanup (70.69 seconds).
+Windows GHA passed definition build through the installed product, ordinary
+creation, strict SSH invocation of the added tool and VS Code connection.
+These are separate native and client checks, not mock acceptance.
+
+Local WSL attempts failed during machine-ID cleanup, an unsupported stdin
+management operation and a 600-second rebuild timeout; the first two defects
+were corrected before the successful GHA runs. Local timeout fixture cleanup
+also encountered inconsistent Incus stopped/running state. An ownership-checked
+native force-stop allowed canonical cleanup and positive absence checks for the
+exact two Environments and two images; diagnostic catalogs and the shared parent
+image remain. Do not count the failed build attempts as successes.
+
+Explicit retained-image cleanup and broader migration/reclamation remain later
+roadmap work. Archive import, concurrent builds and automatic retries are deferred.

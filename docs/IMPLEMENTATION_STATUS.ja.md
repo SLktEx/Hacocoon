@@ -2,11 +2,11 @@
 
 ## Base builder
 
-Base builder 検証: 関連5パッケージの通常テストと race テストは成功しました。実 WSL の1回目は稼働中の machine-id 初期化で失敗し、2回目は guest exec 専用の stdin 経路で管理操作が拒否されました。停止後に通常の検証付き runner で行う Incus file 操作は専用 probe で成功しています。3回目は最初の Base 公開・作成・ツール実行まで成功しましたが、再 build 中に600秒のテスト制限で失敗しました。実検証全体の成功とは扱いません。GHA の実 Incus と Windows の build → SSH 検証は未実行です。残った fixture の所有情報は専用 catalog に保持し、共有元 image は削除対象にしていません。
+Base builder 検証: 関連5パッケージの通常テストと race テストは成功しました。実 WSL の1回目は稼働中の machine-id 初期化で失敗し、2回目は guest exec 専用の stdin 経路で管理操作が拒否されました。停止後に通常の検証付き runner で行う Incus file 操作は専用 probe で成功しています。3回目は最初の Base 公開・作成・ツール実行まで成功しましたが、再 build 中に600秒のテスト制限で失敗しました。実検証全体の成功とは扱いません。GHA run 34297739368 の実 Incus/Btrfs build・再 build は70.69秒で成功し、Windows run 34297739417 は installed build → SSH での追加ツール実行と VS Code 接続に成功しました。local CI test も成功しました。最初の test workflow は Incus なしの Base 一覧 fixture で失敗し、その fixture を修正しました。後続候補の結果は PR #503 に記録します。ローカル timeout fixture の cleanup は Incus が停止中と実行中を矛盾して返したため一度失敗しました。所有確認付きの native force-stop 後、Env 2個の canonical 削除と専用 image 2個の削除・不在確認に成功しました。診断 catalog と共有元 image は保持しています。
 
 
 
-partial: `haco base build <definition.json>` が、通常の一時 Env での定義実行と、停止後の Incus image 公開を組み合わせます。所有情報は Incus image に記録し、検証後の alias を通常の revision 固定 create から選択します。旧 revision・snapshot・catalog は保持します。対象テスト・実 Incus・SSH の検証結果は変更単位で記録し、この実装記載だけで実機成功とは扱いません。[Base 契約](design/base-images-and-custom-environments.md)を参照してください。
+implemented（代表的な E4 フロー）: `haco base build <definition.json>` が、通常の一時 Env での定義実行と、停止後の Incus image 公開を組み合わせます。所有情報は Incus image に記録し、検証後の alias を通常の revision 固定 create から選択します。旧 revision・snapshot・catalog は保持します。対象テスト・実 Incus・SSH の検証結果は変更単位で記録し、この実装記載だけで実機成功とは扱いません。[Base 契約](design/base-images-and-custom-environments.md)を参照してください。
 
 
 ## Environment copy

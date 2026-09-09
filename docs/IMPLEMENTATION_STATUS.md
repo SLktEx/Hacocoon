@@ -8,13 +8,19 @@ was refused by the exec-only stdin decorator. Stopped Incus file transfer throug
 the normal decorated runner passed a scoped native probe. Attempt 3 published
 `ba2ff1a2815fcc9953016151cb6407ba2505eed09671289b96af458ea67cb7a1`
 and passed first Base creation/tool execution, but failed at the 600-second test
-limit during rebuild. It is not a complete native pass. Native GHA and Windows
-build-to-SSH acceptance are pending. Retained fixture identities remain in their
-private catalogs; no shared source image was selected for deletion.
+limit during rebuild. It is not a complete native pass.
+Native GHA run 34297739368 passed the complete build/rebuild fixture in
+70.69 seconds; Windows run 34297739417 passed installed build-to-SSH tool execution
+and VS Code. Local maintained CI test and related race tests passed. The first
+test workflow failed in its Incus-free Base-list fixture; that fixture is corrected
+and subsequent candidate results are tracked in PR #503. The local timeout fixture initially failed cleanup because Incus reported both
+stopped and running. After an ownership-checked native force-stop, canonical
+deletion and positive absence checks passed for its two Environments and two
+images. Diagnostic catalogs and the shared source image remain.
 
 
 
-Partial: definition-driven `haco base build <definition.json>` now composes normal
+Implemented representative E4 workflow: definition-driven `haco base build <definition.json>` now composes normal
 temporary Env execution and stopped native Incus image publication. Ownership is
 stored in Incus image properties; verified aliases feed normal pinned creation.
 Older revisions, snapshots and catalogs are unchanged. Focused/native/SSH
