@@ -1,5 +1,22 @@
 # 実装状況
 
+## Environment 持ち出しの前提確認
+
+公開 G1 export/import は **planned** です。内部の snapshot／archive 照合は現行上限までの全 Workspace と任意の OCI を扱います。
+保存元の読み取り境界は canonical な削除ロックを共有し、保持 component を検証します。
+native archive 作成と公開 command は、まだ接続していません。native Incus rootfs／volume archive の opt-in テストと既存 GHA への追加を実装しました。
+fixture の path／namespace の想定を修正後、専用 Incus 6.0.5／Btrfs で11.24秒の検証が成功しました。
+保存元・復元先の独立性、Git 状態、リンク、mode、archive 保持を確認しました。rootfs と公開 import の権限処理は未実装です。
+別の空 rootfs image 検証は14.88秒で成功し、Base/image を使わない作成、import 前の保存元 instance/image 削除、
+現在の明示設定を確認しました。OS／SSH／公開 import の受入ではありません。
+[所有文書](design/environment-transfer.ja.md)を参照してください。
+
+固定 role の内部ストリーム書き込み／検証を追加し、展開や Incus 操作なしで完全な内容を確認します。
+関連 race test と vet は成功しました。公開 lifecycle への接続は planned です。
+
+Linux／WSL staging は検証済み bytes を名前のない読み取り専用ファイルに保持します。
+実 filesystem の race test と vet は成功しました。Btrfs 上の staging は未検証、公開 lifecycle 接続は planned です。
+
 ## 現在の Incus-first snapshot 契約
 
 状態: **保存と新しい Environment への restore は implemented** です。
