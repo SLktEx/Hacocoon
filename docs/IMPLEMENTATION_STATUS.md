@@ -1,5 +1,17 @@
 # Implementation Status
 
+## GUID-bound Windows stop/compact/resume
+
+Status: **partial, internal only**. Fixed GUID launches now request systemd
+shutdown and resume without name/default fallback. Native acceptance passed in
+193.47s and reclaimed 102MiB; sentinel hash and nine-instance inventory matched.
+Disk/ancestor handles remain pinned, and failure/cancellation still attempts
+bounded resumption while preserving failures. Windows unit/refusal tests and
+amd64/arm64 builds passed; symlink creation was SKIPPED for missing privilege.
+The public all-layer entry, durable ownership/results, installed Host binding
+and controller readiness remain planned. No new user command or data migration.
+See the [contract](design/storage-reclamation.md#guid-bound-windows-sequence).
+
 ## Configured pool reclamation entry
 
 Status: **partial, internal only**. Composition now selects its existing pool

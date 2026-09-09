@@ -1,5 +1,16 @@
 # 実装状況
 
+## 登録 GUID に結び付けた Windows の停止・圧縮・再開
+
+状態: **partial、内部のみ**。固定 GUID で systemd の停止要求・再開を行い、名前や
+既定の distribution へ切り替えません。実機検証は193.47秒で成功し、102MiBを回収しました。
+確認ファイルのハッシュと instance 9件の一覧も一致しました。ディスク・親の handle を
+保持し、失敗・キャンセル後も時間制限付きで再開を試み、元の失敗を残します。
+Windows の単体・拒否検証と amd64・arm64 ビルドは成功、symlink 作成は権限不足で SKIP。
+公開の全層一括操作、所有権・結果の永続記録、導入済み Host との対応付け、controller
+readiness は planned です。新しい利用者コマンド・データ移行はありません。
+[契約](design/storage-reclamation.ja.md)を参照してください。
+
 ## 設定済み pool の容量回収入口
 
 状態: **partial、内部のみ**。構成層が既存 pool を選び、呼び出し側の path・pool 引数は

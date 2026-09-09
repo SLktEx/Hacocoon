@@ -45,3 +45,14 @@ Incus entry binds its exact standard backing layout, configured mount policy and
 live native objects, rereading correspondence before each discard. Unsupported
 custom layouts fail closed; no independent mount or pool-creation fallback is
 introduced. The entry owns handles only, so closing it never deletes storage.
+
+Use fixed GUID-bound WSL launches for shutdown and resumption. The installed
+WSL terminate command resolves a name again, so it is unsuitable for the
+identity-bound sequence. Systemd poweroff inside the selected distribution,
+followed by native detached-disk validation, preserves the existing boundary.
+Retain disk/ancestor pins throughout and clear inherited execution context.
+After any stop attempt, attempt bounded same-GUID resumption independently of
+caller cancellation while preserving both failures. This is stop-release
+protection, not complete Environment recovery. Native sequence acceptance
+passed; durable operation ownership and managed-installation authorization
+remain mandatory before public activation.

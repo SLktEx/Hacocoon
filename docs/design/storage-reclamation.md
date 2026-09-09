@@ -205,3 +205,37 @@ and inner/outer discard. Incus pool and backing-image absence were checked after
 owned fixture cleanup; the ownership receipt remains. Windows allocation was
 not measured in this Linux test. Focused selection/refusal tests and race checks
 passed. No catalog migration or user command change is introduced by this slice.
+
+## GUID-bound Windows sequence
+
+The installed WSL 2.7.13 [terminate implementation](https://github.com/microsoft/WSL/blob/2.7.13/src/windows/common/WslClient.cpp)
+resolves the supplied name again. The internal sequence instead launches a fixed
+`systemctl --no-block poweroff` through `wsl.exe --distribution-id <GUID>`.
+[WSL systemd](https://learn.microsoft.com/en-us/windows/wsl/systemd) owns shutdown
+inside that distribution; no global WSL shutdown, unregister or name fallback is
+used. Native read-only acceptance of this stop path passed in 68.82s, then the
+same registration resumed with matching sentinel/nine-instance observations.
+
+The Windows binding uses the operating system's System32 `wsl.exe`, a fixed root
+working directory and fixed arguments with cleared caller environment. It pins
+the VHDX and ancestors across stop, compaction and resume and revalidates registry
+values around WSL calls. Request acceptance is not proof of completed shutdown.
+Once stop is attempted, failure or cancellation still triggers a bounded two-minute
+resume attempt against the same GUID. Compaction/resume failures are preserved
+separately; successful resume does not turn failed compaction into success.
+
+This remains an internal sequence. Launching `/usr/bin/true` proves WSL process
+resumption only, not Incus/controller readiness. Durable intent/results, exclusive
+operation ownership, authorization bound to the installed Physical Host, and a
+Windows child that survives its WSL caller are required before public activation.
+There is no automatic crash replay or backup in this sequence.
+
+The native internal sequence then PASSED in 193.47s: stop request, 91 native
+open attempts, compaction and same-GUID resume. Windows allocation decreased
+from 6,883,901,440 to 6,776,946,688 bytes (102MiB), with unchanged 1TiB virtual
+capacity and virtual identifier during compaction. The retained sentinel hash
+and nine stopped Incus instances matched after resume. This is not full
+Workspace/OCI content or controller readiness acceptance. Windows unit/refusal
+and failure/cancellation tests passed; amd64/arm64 builds passed. The symlink
+fixture was SKIPPED because the Windows account lacked creation privilege;
+the junction refusal fixture passed. No catalog or saved-data migration occurs.

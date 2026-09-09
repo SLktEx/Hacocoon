@@ -165,3 +165,32 @@ backing 割当量は72,523,776から1,417,216 byte に減りました。所有 f
 Incus pool・backing image の不在も確認し、所有記録を残しています。この Linux 検証では
 Windows 割当量を測定していません。選択・拒否の回帰と race 検証も成功しました。
 この段階では catalog 移行や利用者向けコマンドの変更はありません。
+
+## 登録 GUID に結び付けた Windows 処理
+
+導入済み WSL 2.7.13 の [terminate 実装](https://github.com/microsoft/WSL/blob/2.7.13/src/windows/common/WslClient.cpp)
+は指定名を改めて解決します。内部処理では `wsl.exe --distribution-id <GUID>` を使い、
+固定した `systemctl --no-block poweroff` を実行します。対象 distribution 内の終了は
+[WSL の systemd](https://learn.microsoft.com/en-us/windows/wsl/systemd) が担当し、全体の
+shutdown・unregister・名前へのフォールバックは行いません。この停止経路の読み取り専用
+実機確認は68.82秒で成功し、同じ登録の再開後、確認ファイル・9件の instance が一致しました。
+
+Windows 側は OS の System32 にある `wsl.exe` と固定引数・root 作業 directory を使い、
+呼び出し元の環境変数を除去します。停止・圧縮・再開の間は VHDX と親を固定し、WSL 呼び出しの
+前後で登録値を再照合します。停止要求の受理だけを終了完了とは扱いません。停止を試みた後は、
+失敗・キャンセル時も独立した2分の制限内で同じ GUID の再開を試みます。圧縮と再開の失敗は
+それぞれ残し、再開成功で圧縮失敗を成功扱いにしません。
+
+これは内部処理です。`/usr/bin/true` の起動成功は WSL のプロセス再開だけを確認し、
+Incus・controller の readiness は証明しません。公開前には、実行意図・結果の永続記録、
+操作の排他、導入済み Physical Host に結び付く認可、呼び出し元 WSL が終了しても存続する
+Windows 子プロセスが必要です。自動クラッシュ再実行や backup は追加していません。
+
+続いて内部処理の実機検証が193.47秒で成功しました。停止要求、91回の native open、
+圧縮、同じ GUID の再開を確認しました。Windows 割当量は6,883,901,440から
+6,776,946,688 byte（102MiB減）になり、圧縮前後の仮想容量1TiB・仮想ディスク識別子は
+一致しました。再開後の確認ファイルのハッシュと停止中の Incus instance 9件も一致しました。
+Workspace・OCI 全内容や controller readiness の検証ではありません。Windows の単体・
+拒否・失敗／キャンセル検証と amd64・arm64 ビルドは成功しました。symlink fixture は
+Windows アカウントの作成権限不足で SKIP、junction 拒否は成功しました。
+catalog・保存済みデータの移行はありません。
