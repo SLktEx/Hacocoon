@@ -28,6 +28,20 @@ mkdir -p "$bin" "$root/home" "$root/haco-root"
 export HACO_ROOT="$root/haco-root"
 unset WSL_DISTRO_NAME || true
 
+# Base discovery reads the native image catalog. This command-only fixture has
+# no Incus daemon and supplies an empty catalog; real images are covered by E2E.
+cat >"$bin/incus" <<'INCUS'
+#!/usr/bin/env bash
+if [[ "$*" == 'query -X GET /1.0/images/aliases?project=hacocoon&recursion=1' ]]; then
+  printf '[]\n'
+  exit 0
+fi
+printf 'unexpected Incus command in command-only fixture\n' >&2
+exit 1
+INCUS
+chmod +x "$bin/incus"
+export PATH="$bin:$PATH"
+
 go build -o "$bin/haco" ./cmd/haco-product
 go build -o "$bin/hacoq" ./cmd/haco
 for name in haco-controller haco-vscode haco-agent-host haco-notify; do

@@ -14,6 +14,9 @@ $PrivateKey = Join-Path $Work 'id_ed25519'
 $PublicKey = "$PrivateKey.pub"
 $ConfigPath = Join-Path $Work 'ssh-config'
 $KnownHosts = Join-Path $Work 'known_hosts'
+$BaseDefinition = Join-Path $Work 'base.json'
+$BuiltBaseName = 'win-base-' + $EnvironmentName.Substring(8)
+$BuiltBaseFingerprint = $null
 $ConnectionId = $null
 $EnvironmentAttempted = $false
 $WorkspaceCreated = $false
@@ -147,8 +150,15 @@ try {
     [void](Invoke-Wsl @('--exec', 'mkdir', '-m', '700', $Workspace) 'Create acceptance Workspace on the WSL Physical Host')
     $WorkspaceCreated = $true
     [void](Invoke-Wsl @('--exec', 'sh', '-c', "printf 'windows-workspace-ok\n' > '$Workspace/windows-marker'") 'Seed acceptance Workspace marker')
+    $definition = @{name=$BuiltBaseName; run="printf '#!/bin/sh\necho windows-base-tool-ok\n' > /usr/local/bin/haco-base-tool`nchmod 0755 /usr/local/bin/haco-base-tool`n"} | ConvertTo-Json -Compress
+    [IO.File]::WriteAllText($BaseDefinition, $definition, [Text.UTF8Encoding]::new($false))
+    $translatedDefinition = Invoke-Wsl @('--exec','wslpath','-u','-a',$BaseDefinition) 'Translate test Base definition'
+    $built = Invoke-HacoHost @('/usr/local/bin/haco','base','build',$translatedDefinition.Stdout.Trim()) 'Build and register test Base through ordinary haco'
+    $builtResult = $built.Stdout.Trim() | ConvertFrom-Json
+    if ($builtResult.state -ne 'ready' -or $builtResult.base.name -ne $BuiltBaseName -or $builtResult.base.revision -notmatch '^sha256:[a-f0-9]{64}$') { throw 'Incomplete test Base build' }
+    $BuiltBaseFingerprint = $builtResult.base.revision.Substring(7)
     $EnvironmentAttempted = $true
-    [void](Invoke-Wsl @('--exec', '/usr/local/bin/haco', 'env', 'create', '--workspace', $Workspace, $EnvironmentName) 'Create acceptance Environment')
+    [void](Invoke-Wsl @('--exec', '/usr/local/bin/haco', 'env', 'create', '--workspace', $Workspace, '--base', $BuiltBaseName, $EnvironmentName) 'Create acceptance Environment from built Base')
 
     Update-SSHTestPolicy 'add'
     if ($env:GITHUB_ACTIONS -eq 'true') {
@@ -216,15 +226,16 @@ try {
         '-o', 'BatchMode=yes',
         '-o', 'ConnectTimeout=10',
         $alias,
-        'pwd && test -d /workspace && echo windows-ssh-ok && cat /workspace/windows-marker && test ! -e /init && test ! -e /var/lib/hacocoon-wsl && test ! -e /run/WSL && test ! -e /var/lib/hacocoon-control.sock && test -z "$WSL_INTEROP" && test -z "$(find /mnt -mindepth 1 -maxdepth 1 -print -quit)" && ! command -v cmd.exe'
+        'haco-base-tool && pwd && test -d /workspace && echo windows-ssh-ok && cat /workspace/windows-marker && test ! -e /init && test ! -e /var/lib/hacocoon-wsl && test ! -e /run/WSL && test ! -e /var/lib/hacocoon-control.sock && test -z "$WSL_INTEROP" && test -z "$(find /mnt -mindepth 1 -maxdepth 1 -print -quit)" && ! command -v cmd.exe'
     ) 'Connect from Windows OpenSSH to the Hacocoon Environment'
     $remoteLines = $remote.Stdout -split "`r?`n"
-    if ($remoteLines -notcontains 'windows-ssh-ok' -or $remoteLines -notcontains 'windows-workspace-ok') {
+    if ($remoteLines -notcontains 'windows-base-tool-ok' -or $remoteLines -notcontains 'windows-ssh-ok' -or $remoteLines -notcontains 'windows-workspace-ok') {
         throw "Windows SSH did not execute in the expected Environment Workspace. Output: $($remote.Stdout.Trim())"
     }
 
 
     # The disposable GHA Windows user exercises real desktop-home installation.
+    Write-Host 'BASE DEFINITION / NATIVE IMAGE / ORDINARY CREATE / WINDOWS SSH TOOL: PASS'
     # Local manual invocations keep the operator's SSH configuration untouched.
     if ($env:GITHUB_ACTIONS -eq 'true') {
         [void](Invoke-HacoHost @('/usr/local/bin/haco', 'ssh', 'setup', $EnvironmentName) 'Prepare ordinary desktop SSH settings')
@@ -511,7 +522,29 @@ fi
             $CleanupFailed = $true; Write-Warning $_
         }
     }
-    foreach ($path in @($KnownHosts, $ConfigPath, $PublicKey, $PrivateKey)) {
+    if ($BuiltBaseFingerprint -and $EnvironmentGone) {
+        try {
+            $cleanupBase = @'
+import json, re, subprocess, sys
+fingerprint, name = sys.argv[1:]
+if not re.fullmatch(r'[a-f0-9]{64}',fingerprint) or not re.fullmatch(r'win-base-[a-f0-9]{16}',name):
+    raise SystemExit('invalid fixture Base identity')
+def query(path):
+    return json.loads(subprocess.check_output(['incus','query',path],text=True))
+image=query('/1.0/images/'+fingerprint+'?project=hacocoon')
+props=image.get('properties',{})
+if image.get('fingerprint')!=fingerprint or image.get('public') or image.get('type')!='container' or props.get('user.hacocoon.kind')!='base-image' or props.get('user.hacocoon.base-name')!=name or not re.fullmatch(r'env-[a-f0-9]{32}',props.get('user.hacocoon.build-instance','')):
+    raise SystemExit('fixture Base ownership mismatch')
+subprocess.run(['incus','image','delete',fingerprint,'--project','hacocoon'],check=True)
+images=query('/1.0/images?project=hacocoon&recursion=1')
+if any(i.get('fingerprint')==fingerprint for i in images):
+    raise SystemExit('fixture Base deletion unconfirmed')
+print('PASS exact-owned test Base image removed; shared parent retained')
+'@
+            [void](Invoke-Wsl @('-u','root','--exec','python3','-c',$cleanupBase,$BuiltBaseFingerprint,$BuiltBaseName) 'Delete only the verified test Base image')
+        } catch { $CleanupFailed=$true; Write-Warning $_ }
+    }
+    foreach ($path in @($KnownHosts, $ConfigPath, $PublicKey, $PrivateKey, $BaseDefinition)) {
         if (Test-Path -LiteralPath $path -PathType Leaf) {
             Remove-Item -LiteralPath $path -Force
         }

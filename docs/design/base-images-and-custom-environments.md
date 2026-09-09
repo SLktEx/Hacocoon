@@ -1,281 +1,114 @@
-# v0.11 — Base Images & Custom Environments
+# Base images and custom Environments
 
-Status: **first implementation slice present on `main`; real-Incus acceptance and richer Base lifecycle remain pending.**
+Status: implemented for the representative definition-build workflow. Native
+Incus/Btrfs and Windows-to-WSL SSH acceptance passed at `a2fcb72`.
 
-This document defines the v0.11 Base-image contract. `BASE_IMAGES.md` remains the broader design companion. `IMPLEMENTATION_STATUS.md` is authoritative for current code reality.
+## Daily use
 
-## Goal
+`haco base list` and `haco base inspect <name>` show starting points. Create with
+`haco env create --base <name> --workspace managed:<workspace> <environment>`.
+Existing Environments retain their original immutable revision when a name moves.
+No switch-base step is required.
 
-The product CLI exposes `haco base list`, `haco base inspect <base>` and
-`haco create --base <base> --workspace managed:<workspace> <environment>`.
-`haco env switch-base` is currently disabled and is not a Stage B requirement.
-Its need, semantics and CLI UX are deferred to Stage D or later, without blocking
-Stage A-C. The underlying historical composition/tests and
-[ADR 0011](../adr/0011-managed-workspace-base-switch.md) remain available.
-
-When necessary, use ordinary Environment deletion and creation with another
-Base, then attach the retained Workspace and optional persistent resource.
-This lifecycle is available today; it does not prescribe a future helper UX.
-See [ADR 0014](../adr/0014-persistent-managed-resources.md).
-
-Allow an Environment to start from a selectable Hacocoon **Base** without exposing Incus image aliases, remotes, or fingerprints as Core/public architecture.
-
-```text
-logical Base name
-        |
-        v
-provider-owned mutable source
-        |
- resolve once at create
-        v
-immutable Base revision
-        |
-        v
-Environment
-```
-
-An Environment records one immutable Base revision at creation time. Updating a logical Base affects only future Environment creation.
-
-## Public/domain model
-
-The Core/domain vocabulary is provider-neutral:
-
-```text
-BaseName
-BaseRevision
-BaseRef
-Environment
-```
-
-The Incus adapter may resolve a Base to an Incus image fingerprint internally, but Incus alias/remote/fingerprint names are not required Core concepts.
-
-The current implementation persists `BaseRef{Name, Revision}` on the Environment record.
-
-## Implemented first slice
-
-The current v0.11 implementation includes:
-
-1. deterministic default Base selection for Incus;
-2. explicit Base selection through `haco create --base <base> ...`;
-3. `haco base list` for configured logical Base names;
-4. `haco base inspect <base>` to resolve and display the current immutable revision;
-5. immutable revision persistence on the Environment;
-6. adapter-side alias/source -> fingerprint resolution before `incus init`;
-7. initialization from the pinned fingerprint rather than the mutable alias;
-8. official logical Bases plus operator-defined custom logical mappings;
-9. adversarial input validation for Base names, adapter sources, and returned fingerprints;
-10. tests proving alias movement changes only future resolution, not an already-recorded revision.
-
-The current CLI is pre-1.0 and may change:
-
-```text
-haco base list [--json]
-haco base inspect <base> [--json]
-haco create --base <base> --workspace <path> <environment>
-```
-
-The Base namespace is intentionally distinct from OCI/container image operations, which live under the optional `haco plugin oci ...` namespace.
-
-## Official and custom Bases
-
-The Incus adapter currently provides official logical names including:
-
-```text
-haco/ubuntu-26.04
-haco/ubuntu-24.04
-```
-
-Host/operator-defined logical mappings can be supplied through:
-
-```text
-HACO_INCUS_BASES_JSON
-```
-
-Example:
+To add a reusable tool, save this definition as `base.json`:
 
 ```json
-{"my-dev":"images:my-moving-alias"}
+{
+  "name": "my-tools",
+  "from": "haco/ubuntu-26.04",
+  "run": "printf '#!/bin/sh\\necho hello-from-my-base\\n' > /usr/local/bin/my-tool\nchmod 0755 /usr/local/bin/my-tool\n"
+}
 ```
 
-The `haco/` namespace is reserved for Hacocoon-owned logical Bases and cannot be overridden by custom mapping input.
-
-`HACO_INCUS_BASES_JSON` is an adapter configuration detail, not a frozen Core/public schema.
-
-## Immutable revision rule
-
-The central contract is:
-
-> A Hacocoon Environment is created from one immutable Base revision. Updating a logical Base affects future Environment creation only.
-
-Example:
-
-```text
-my-dev -> revision A
-Environment 1 -> revision A
-
-move my-dev -> revision B
-
-Environment 1 -> revision A
-Environment 2 -> revision B
+```bash
+haco base build base.json
+haco base inspect my-tools
+haco env create --base my-tools --workspace managed:my-project dev
+haco ssh setup dev
+ssh haco-dev my-tool
 ```
 
-Creation performs this sequence:
+`from` may be omitted for the normal default Base. The definition is a strict
+JSON object with `name`, optional `from`, and `run`. Names are lowercase letters,
+digits, dots and hyphens, start with a letter/digit and contain at most 63
+characters. Script text is bounded to 64 KiB. Shell steps execute as guest root
+inside an ordinary isolated Environment, never as Host commands. Network access
+uses the ordinary permission path; package downloads are not implicitly allowed.
+No private Workspace, OCI Store or Host credentials are supplied to the builder.
 
-```text
-logical Base
-  -> adapter source
-  -> `incus image info ...`
-  -> validate full immutable fingerprint
-  -> derive provider-neutral BaseRevision
-  -> `incus init` from pinned fingerprint
-  -> persist BaseRef on Environment
-```
+The command returns JSON containing the Base name/revision, state and any retained
+builder name. Build output is not copied into controller logs or error messages.
+A failure is nonzero. The destination name must differ from an explicitly selected parent. Concurrent
+builds, caching, import and history UI are not
+promised by this first build path.
 
-The mutable alias is therefore not used at `incus init` after resolution.
+## Incus owns images
 
-## Incus boundary
+Incus creates the builder instance and publishes its stopped rootfs as a private
+image. It stores build ownership properties at image creation. The adapter
+verifies the full fingerprint and ownership before updating an Incus alias for
+the logical name. Older images remain; moving the alias only affects later creates.
+There is no second Hacocoon Base catalog or filesystem retention object.
+Publication produces a compressed image and is not claimed to be a cheap COW
+operation. See [Incus image creation](https://linuxcontainers.org/incus/docs/main/howto/images_create/).
 
-Incus remains the first/default Environment implementation.
+`modules/runtime/incus` owns native image/alias operations and pinned resolution.
+`internal/basebuild` composes canonical temporary Env creation, guest execution,
+stop, publication and bounded cleanup. `internal/workspace` holds existing
+lifecycle locks and checks the unique temporary Workspace and creation lease.
+`internal/environment` only routes native references; CLI/control transport
+transfers the bounded definition. No generic builder backend or replay state
+machine is introduced. See [ADR 0041](../adr/0041-incus-base-publication.md).
 
-The adapter may internally keep:
+## Security and failure
 
-```text
-Hacocoon Base name
-        |
-        v
-Incus source/alias
-        |
-        v
-Incus image fingerprint
-        |
-        v
-Hacocoon BaseRevision
-```
+Base contents are untrusted. They do not grant Incus management, Host mounts,
+privileged mode, direct egress, credentials or prior approvals. Every create
+applies current normal configuration and a new generation. Built-image creation
+renews managed guest SSH identity before publication, using the same helper as
+snapshot restore. Explicit built Bases
+do not pass through the historical Seed replacement resolver.
 
-The following stay outside Core except for explicit Incus-specific diagnostics/configuration:
+Before publication, the builder removes instance SSH keys, machine IDs and
+its scratch Workspace; Incus metadata templates are cleared. This cannot identify
+arbitrary secrets deliberately written by a definition: do not bake credentials
+into a Base. Hacocoon never injects reusable Host credentials into the builder.
 
-- Incus image aliases;
-- Incus remotes;
-- Incus fingerprints;
-- native import/publish mechanics.
+Script/stop failure triggers bounded cleanup of the exact temporary Workspace
+owner through canonical Env deletion. Publication uncertainty retains the builder
+name and any native image/build alias evidence. A successfully published image
+survives builder cleanup failure. Inspect `haco env list` and the reported native
+image/alias before explicit cleanup; retry starts a fresh builder. No automatic
+rollback, old-image deletion or crash replay is attempted.
 
-This leaves room for later providers to map a Hacocoon Base to their own immutable starting-point mechanism.
+## Existing Base and saved data
 
-## Security contract
+Official names include `haco/ubuntu-26.04` and `haco/ubuntu-24.04`. Operator mappings
+in `HACO_INCUS_BASES_JSON` remain supported; build cannot replace these configured
+names or the reserved official namespace. Native built images are scoped to the
+Hacocoon Incus project. Image alias movement never rewrites saved `BaseRef` values.
 
-A Base controls guest filesystem/runtime contents. It does **not** grant host-side authority.
+No catalog schema change or manual saved-data migration is required. Old Base
+assets and snapshot Base components retain their existing ownership/explicit
+cleanup. New snapshot rootfs remains independent and never gains a Base image
+retention dependency. See [snapshots](environment-snapshots.md).
 
-Selecting a Base must not implicitly add:
+## Acceptance and remaining scope
 
-- host filesystem mounts beyond the normal Workspace contract;
-- Incus devices;
-- privileged-container mode;
-- Linux capabilities;
-- host network authority;
-- GitHub/AWS/cloud credentials;
-- SSH private keys;
-- registry credentials;
-- Hacocoon/Incus control-plane authority.
+At `a2fcb72`, native Incus/Btrfs GHA passed definition build, registration,
+immutable revision selection, rebuild without changing an existing Env, future
+creation from the updated alias and exact fixture cleanup (70.69 seconds).
+Windows GHA passed definition build through the installed product, ordinary
+creation, strict SSH invocation of the added tool and VS Code connection.
+These are separate native and client checks, not mock acceptance.
 
-Custom Base contents are untrusted.
+Local WSL attempts failed during machine-ID cleanup, an unsupported stdin
+management operation and a 600-second rebuild timeout; the first two defects
+were corrected before the successful GHA runs. Local timeout fixture cleanup
+also encountered inconsistent Incus stopped/running state. An ownership-checked
+native force-stop allowed canonical cleanup and positive absence checks for the
+exact two Environments and two images; diagnostic catalogs and the shared parent
+image remain. Do not count the failed build attempts as successes.
 
-The first slice does not expose arbitrary Incus config passthrough. Base names/sources/fingerprints are validated and passed as argv values rather than shell-interpolated strings.
-
-## Reference and deletion safety
-
-The first slice intentionally does **not** implement Hacocoon Base deletion, physical image garbage collection, history pruning, or rollback.
-
-That omission is deliberate: Hacocoon therefore cannot currently delete a referenced Base revision through this public Base API.
-
-When deletion/GC is added, a revision must not be physically removed while a running or recoverable Environment depends on it. If Hacocoon cannot prove deletion is safe, it must retain storage rather than destroy a dependency.
-
-Concurrent operations such as these remain future lifecycle work:
-
-```text
-create --base my-dev  vs update my-dev
-create --base my-dev  vs remove my-dev
-gc                    vs create --base my-dev
-```
-
-## Build/import trust boundary
-
-Custom image build/import/history/rollback/GC are **not part of the first implemented slice**.
-
-When build/import is introduced, arbitrary image contents and build steps must not execute directly with Hacocoon host authority. Local archives must be treated as untrusted data, including path traversal, unsafe symlink, malformed metadata, resource exhaustion, and partial-import cleanup risks.
-
-## Project Setup boundary
-
-Repository/workspace-specific setup remains distinct from a reusable Base:
-
-```text
-Base
-  common OS/runtime/tooling
-        |
-        v
-Project Setup
-  workspace-specific dependency/setup work
-        |
-        v
-Environment
-```
-
-The exact project-setup schema is not frozen by v0.11.
-
-## Acceptance status
-
-Repository-level acceptance for the current first slice covers:
-
-- multiple selectable logical Bases;
-- explicit create-time Base selection;
-- alias/source resolution to a validated immutable revision;
-- pinned fingerprint use for actual Incus initialization;
-- persisted `BaseRef` identity;
-- list/inspect CLI behavior;
-- alias movement not rewriting a previously resolved revision;
-- reserved official namespace;
-- malformed Base/source/fingerprint rejection;
-- provider-neutral Core types;
-- existing v0.1-v0.10 lifecycle/security boundaries remaining intact;
-- host-independent fake-Incus E2E.
-
-Real-Incus image-remote/custom-image acceptance remains separate because repository CI cannot substitute for a supported real Incus host.
-
-The broader design acceptance for build/import/deletion/history/rollback/GC remains pending because those operations are intentionally not exposed yet.
-
-## Relationship to earlier and later gates
-
-v0.8 introduced the thin `haco-vscode` Client Adapter. v0.9 added the trusted per-agent Environment broker. v0.10 added the `haco-agent-host` bridge for the VS Code Agents window.
-
-v0.11 changes the starting filesystem/runtime Base of an Environment; it does not move Base authority into VS Code or an AI/orchestrator UI.
-
-v0.12 Resource Budgets must compose with v0.11 so a custom Base cannot raise or disable host-selected resource ceilings.
-
-## Explicit non-goals of the first slice
-
-- changing the Base of an existing Environment in place;
-- transparent migration of existing Environments to newer Base revisions;
-- exposing the full Incus image API through `haco`;
-- custom Base build/import;
-- revision history and rollback;
-- physical image deletion/GC;
-- snapshotting arbitrary live Environments into reusable Bases;
-- baking reusable credentials into images;
-- freezing CLI/configuration compatibility before 1.0.
-
-## Detailed companion
-
-See [`../BASE_IMAGES.md`](../BASE_IMAGES.md) for the broader design and future lifecycle work.
-
-> **v0.11 now gives Environment creation a provider-neutral logical Base that is resolved once to an immutable revision and persisted; mutable Incus image names remain adapter details.**
-
-## Legacy retained Base material
-
-Normal creation uses Incus image resolution and init. Automatic extra Base
-instance retention has been removed: independent snapshot rootfs does not need
-it. Base metadata remains provenance, not a saved-filesystem dependency.
-
-Existing catalogued Base assets and snapshot Base components are preserved.
-Their ownership validation and cleanup implementation remain available; upgrade
-never guesses their ownership or deletes them. No new retention object replaces
-this removed dependency. See [snapshots](environment-snapshots.md) and
-[ADR 0040](../adr/0040-incus-first-snapshots.md).
+Explicit retained-image cleanup and broader migration/reclamation remain later
+roadmap work. Archive import, concurrent builds and automatic retries are deferred.

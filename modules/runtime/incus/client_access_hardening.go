@@ -21,6 +21,7 @@ if ! command -v sshd >/dev/null 2>&1; then
   apt-get update
   apt-get install -y --no-install-recommends openssh-server
 fi
+ssh-keygen -A
 systemctl enable --now ssh
 install -d -m 0700 /root/.ssh
 key="$1"

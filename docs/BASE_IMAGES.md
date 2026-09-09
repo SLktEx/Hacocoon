@@ -1,6 +1,6 @@
 # Base Image Architecture
 
-Status: **v0.11 first slice implemented; this document also describes future Base lifecycle work.** The minimum current contract is [`design/base-images-and-custom-environments.md`](design/base-images-and-custom-environments.md), and `IMPLEMENTATION_STATUS.md` is authoritative for code reality.
+Status: **Base selection implemented; definition-driven build partial. This document also describes future Base lifecycle work.** The minimum current contract is [`design/base-images-and-custom-environments.md`](design/base-images-and-custom-environments.md), and `IMPLEMENTATION_STATUS.md` is authoritative for code reality.
 
 This document describes reusable Environment starting points without leaking Incus-specific image mechanics into Core.
 
@@ -38,7 +38,7 @@ Current commands:
 ```text
 haco base list [--json]
 haco base inspect <base> [--json]
-haco create --base <base> --workspace <path> <environment>
+haco env create --base <base> --workspace <path> <environment>
 ```
 
 `haco base` is deliberately reserved for Hacocoon Environment starting points. OCI/container images belong to the separate optional `haco plugin oci ...` namespace.
@@ -117,27 +117,14 @@ Environment
 
 The exact Project Setup schema is not frozen.
 
-## Future build/import work
+## Definition-driven build
 
-Custom Base build/import is **not implemented in the first v0.11 slice**.
-
-When added, build/import inputs must be treated as hostile data/code. The implementation must consider archive traversal, unsafe symlinks, malformed metadata, resource exhaustion, partial-import cleanup, and accidental credential capture.
-
-Preferred future shape:
-
-```text
-Host
-  |
-  +-- Hacocoon / Incus authority
-  |
-  +-- isolated builder Environment
-          |
-          +-- build/import processing
-          +-- produce immutable image
-          +-- register Base revision
-```
-
-Host credentials must not be injected implicitly.
+`haco base build <definition.json>` builds inside a temporary isolated Environment
+and registers a private native Incus image. Follow the current
+[Base build contract](design/base-images-and-custom-environments.md) for the
+definition, usage, ownership boundaries and acceptance status. Archive import
+remains unimplemented. No second image catalog or retained Base filesystem is
+introduced.
 
 ## Future history, rollback, deletion, and GC
 
@@ -194,6 +181,6 @@ A future provider may map the same Hacocoon Base concepts to a different immutab
 
 Repository CI covers the current first slice with unit/adversarial tests and fake-Incus E2E for list, inspect, explicit selection, alias-to-fingerprint resolution, pinned initialization, and persisted revision identity.
 
-Real Incus image-remote/custom-image acceptance remains host-dependent. Build/import/history/rollback/deletion/GC acceptance remains future work because those APIs are not exposed yet.
+Real Incus image-remote/custom-image acceptance remains host-dependent. Definition-driven build acceptance is recorded in the owning contract and change. Import/history/rollback/deletion/GC remain future work.
 
 > **A Base chooses guest contents. Its immutable revision anchors reproducibility. It never grants host-side authority.**
