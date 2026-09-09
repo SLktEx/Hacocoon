@@ -204,8 +204,11 @@ Old commits, branches, PRs, and document versions may use superseded checkpoint 
 
 Stopped-source Environment copy is implemented through existing Incus COW and canonical creation; see [its contract](../design/environment-copy.md). The representative E4 definition-driven Base build/create/SSH workflow is implemented with acceptance tracked in the [Base contract](../design/base-images-and-custom-environments.md). Broader retained-data cleanup, reclamation and export/migration remain separate roadmap work.
 
-E5 retained-data cleanup now includes explicit managed Workspace listing/deletion through canonical locks and owned Incus volume cleanup. Base/source-repository and OCI image selection/deletion remain partial; see [Workspace deletion](../design/workspace-abstraction-and-lease.md#explicit-retained-workspace-deletion).
-
-E5 also includes reviewed whole-Store OCI deletion; native saved children remain protected. Individual OCI images, source repositories and candidate-selected GC remain planned. See [Store cleanup](../design/persistent-oci-store.md#explicit-retained-store-deletion).
-
-Source repository list/review/delete is implemented with current Git dependencies protected. Individual OCI image cleanup, candidate-selected GC and F/G remain planned; see [source deletion](../design/git-and-github-capability.md#explicit-source-repository-deletion).
+E5 implements reviewed deletion of retained Workspaces, built Base revisions,
+whole OCI Stores and unused source repositories. Their existing references,
+exact ownership and native saved children remain protected. Individual images in
+attached Stores are partial through the current runtime-backed OCI plugin; see
+[image operations](../design/oci-image-deletion.md). Host-source/detached-Store
+images, candidate-selected GC, F reclamation/operability and G export/migration
+remain planned. These remaining stages preserve data and permissions while using
+Incus capabilities; they do not require full disposable-Env reconstruction.

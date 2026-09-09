@@ -1,5 +1,10 @@
 # 実装状況
 
+## 接続済み Store の image 操作
+
+partial です。image list/delete を現在の OCI plugin・controller・製品 CLI に接続しました。旧 Seed 選択ではなく runtime の一覧・削除を使い、確認済み Env 世代・Store 所有 ID で実行を保護します。初回の controller 配線・正規表現・無効 RPC エラー分類の不具合を修正し、関連7 package と文書チェックが成功しました。専用 WSL Incus/Btrfs の native COW 検証は417.80秒で成功し、Docker・nerdctl の一覧、停止済み container の参照拒否、不変 runtime ID の削除、不在確認、元 image の独立性を確認しました。専用 project・pool・不要になった catalog は cleanup 済みです。関連4 package の race と、Env 削除の割り込みを防ぐ個別回帰も成功しました。この fixture は実行用 test adapter を使うため、インストール済み controller／公開 CLI からの native 操作は未検証です。この候補の全体 CI・GHA は未完了です。Host 配布元・未接続 Store・候補 GC・容量回収は planned です。schema 移行はありません。[契約](design/oci-image-deletion.ja.md)を参照してください。
+
+
 ## source repository の明示的 cleanup
 
 E5 の partial です。`haco repo list [--json]` と `haco repo delete [--yes] <id>` を実装しました。Workspace の参照が現在の Git 経路を保護し、既存 registry・Host operation lock が所有 ID・未完了 Host copy・native 保存物を守ります。schema 13 と独立データは保持します。関連 package test は成功しました。専用 WSL Incus/Btrfs の公開 source CLI 検証は30.43秒で成功し、Workspace 参照拒否・子 snapshot と Host mount 保持・旧 owner 拒否・正しい detach/delete と不存在を確認しました。専用 project は削除し、共有 image・pool・所有記録は保持しました。追加で、待機した Git 操作を registry lock 内で再照合する保護を加えています。最終 race/CI 結果は実装 PR で追跡します。[契約](design/git-and-github-capability.md#explicit-source-repository-deletion)を参照してください。OCI cleanup PR #506 は `73175b4` の4 workflow 成功後に `6903319` へマージし、新しい native 回帰は GHA で0.71秒で成功しました。
@@ -1157,7 +1162,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.56** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.57** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

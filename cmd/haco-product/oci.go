@@ -14,6 +14,9 @@ import (
 )
 
 func runPlugin(args []string) int {
+	if len(args) >= 2 && args[0] == "oci" && args[1] == "image" {
+		return runOCIImageManage(args[2:])
+	}
 	if len(args) >= 3 && args[0] == "oci" && args[1] == "store" && (args[2] == "list" || args[2] == "delete") {
 		return runOCIStoreManage(args[2:])
 	}
