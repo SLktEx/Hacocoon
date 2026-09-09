@@ -41,13 +41,17 @@ func verifyMaintenanceControllerCLI(t *testing.T, ctx context.Context, runtime *
 	}
 	must(os.Mkdir(root, 0700))
 	must(os.Mkdir(filepath.Join(root, "state"), 0700))
+	// Earlier workflow steps run as the ordinary runner. Their lifecycle locks
+	// must not be adopted by this root-only, independently owned fixture.
+	temporary := filepath.Join(root, "tmp")
+	must(os.Mkdir(temporary, 0700))
 	catalog := state.NewEnvironmentJSONStore(filepath.Join(root, "state", "environments.json"))
 	creating := resource
 	creating.State = "creating"
 	must(catalog.BeginPersistentResourceCreate(ctx, creating))
 	must(catalog.CommitPersistentResourceCreate(ctx, creating))
 	socket := filepath.Join(root, "control.sock")
-	environment := append(os.Environ(), "HACO_ROOT="+root, "HACO_CONTROL_SOCKET="+socket, "HACO_PLUGIN_OCI=", "HACO_RUNTIME_PROVIDER="+environmentapp.ProviderIncus)
+	environment := append(os.Environ(), "HACO_ROOT="+root, "TMPDIR="+temporary, "HACO_CONTROL_SOCKET="+socket, "HACO_PLUGIN_OCI=", "HACO_RUNTIME_PROVIDER="+environmentapp.ProviderIncus)
 	log, err := os.OpenFile(filepath.Join(root, "controller.log"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	must(err)
 	defer log.Close()
@@ -201,6 +205,8 @@ func maintenanceDiagnosticStages(raw string) string {
 	var found []string
 	for _, item := range []struct{ token, label string }{
 		{"resolve Base ", "base_resolution"},
+		{"workspace lock directory", "lifecycle_lock_directory"},
+		{"not owned by effective uid", "lock_owner_mismatch"},
 		{"ensure Incus project:", "project"},
 		{"resolve isolated root storage:", "root_storage"},
 		{"ensure Hacocoon routed sandbox substrate:", "routed_substrate"},
