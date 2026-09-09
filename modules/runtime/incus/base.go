@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -37,6 +38,7 @@ func WithSeedResolver(resolver SeedResolver) BaseProviderOption {
 }
 
 type BaseProvider struct {
+	baseMu sync.RWMutex
 	*Runtime
 	sources      map[core.BaseName]string
 	seedResolver SeedResolver
@@ -134,6 +136,8 @@ func hasControlString(value string) bool {
 }
 
 func (p *BaseProvider) CreateEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
+	p.baseMu.RLock()
+	defer p.baseMu.RUnlock()
 	resolved, err := p.resolveBase(ctx, spec.Base)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err

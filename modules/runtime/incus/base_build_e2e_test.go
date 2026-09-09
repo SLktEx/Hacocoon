@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/SLktEx/Hacocoon/internal/basebuild"
+	"github.com/SLktEx/Hacocoon/internal/basemanage"
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -48,6 +49,7 @@ func TestRealIncusBaseBuildE2E(t *testing.T) {
 	service := &basebuild.Service{Environments: envs}
 	server := control.NewServer()
 	must(controlapi.RegisterBaseBuild(server, service))
+	must(controlapi.RegisterBaseManage(server, &basemanage.Service{Backend: p.BaseProvider, Catalog: store}))
 	socket := filepath.Join(dir, "cli.sock")
 	listener, err := control.ListenUnix(socket, 0600)
 	must(err)
@@ -98,6 +100,10 @@ func TestRealIncusBaseBuildE2E(t *testing.T) {
 		}
 	}
 	read("one")
+	if output, err := exec.CommandContext(ctx, binary, "base", "delete", "--yes", string(name)).CombinedOutput(); err == nil {
+		t.Fatalf("in-use Base deleted: %s", output)
+	}
+	must(p.baseQuery(ctx, "GET", p.basePath("/"+revisions[0]), nil, new(baseImage)))
 	second := build("two")
 	if first.Revision == second.Revision {
 		t.Fatal("revision did not change")
@@ -118,7 +124,39 @@ func TestRealIncusBaseBuildE2E(t *testing.T) {
 	if out.ExitCode != 0 || strings.TrimSpace(out.Stdout) != "two" || env2.Base.Revision != second.Revision {
 		t.Fatal("new create not updated", out, env2.Base)
 	}
+	// Save an independent rootfs before deleting the source Env and Base image.
+	must(envs.StopForWorkspace(ctx, env2.Name, work2.ID))
+	lease, err := store.GetWorkspaceLease(ctx, env2.Name)
+	must(err)
+	savedRoot := snapshotRootfsPlan{Pool: pool, Source: env2.RuntimeRef, SourceInstanceID: lease.InstanceID, Owner: strings.TrimPrefix(lease.InstanceID, "env-")}
+	must(savedRoot.validate())
+	receipt, err := json.Marshal(savedRoot)
+	must(err)
+	receiptFile, err := os.OpenFile(filepath.Join(dir, "saved-rootfs.json"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	must(err)
+	_, err = receiptFile.Write(receipt)
+	must(err)
+	must(receiptFile.Sync())
+	must(receiptFile.Close())
+	must(r.createSnapshotRootfs(ctx, savedRoot))
+	// Exact native ownership is already recorded before further provider validation.
+	must(r.verifySnapshotRootfs(ctx, savedRoot))
 	must(envs.DeleteTemporary(ctx, env2.Name, work2))
+	output, err := exec.CommandContext(ctx, binary, "base", "list", "--all", "--json").Output()
+	must(err)
+	var retained []basemanage.Image
+	must(json.Unmarshal(output, &retained))
+	for _, fingerprint := range revisions {
+		found := false
+		for _, v := range retained {
+			if v.Name == name && v.Fingerprint == fingerprint {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatal("Env deletion removed Base image", fingerprint)
+		}
+	}
 	// Delete only this fixture's fully observed owned images, never the shared parent.
 	for _, fingerprint := range revisions {
 		im, err := p.ownedBaseImage(ctx, name, baseAlias{Target: fingerprint, Description: builtBaseDescription, Type: "container"})
@@ -126,8 +164,25 @@ func TestRealIncusBaseBuildE2E(t *testing.T) {
 		if im.Fingerprint == image {
 			t.Fatal("shared parent selected")
 		}
-		must(p.baseQuery(ctx, "DELETE", p.basePath("/"+fingerprint), nil, nil))
+		output, err := exec.CommandContext(ctx, binary, "base", "delete", "--yes", fingerprint).CombinedOutput()
+		if err != nil {
+			t.Fatalf("owned Base CLI delete: %v %s", err, output)
+		}
 	}
+	must(r.verifySnapshotRootfs(ctx, savedRoot))
+	savedTool := filepath.Join(dir, "saved-tool")
+	pulled, err := r.runner.Run(ctx, "incus", "file", "pull", savedRoot.target()+"/usr/local/bin/haco-test-tool", savedTool, "--project", r.project)
+	must(err)
+	if pulled.ExitCode != 0 {
+		t.Fatal("saved rootfs unreadable after Base deletion")
+	}
+	savedBytes, err := os.ReadFile(savedTool)
+	must(err)
+	if !strings.Contains(string(savedBytes), "echo two") {
+		t.Fatal("saved rootfs content changed")
+	}
+	must(r.deleteSnapshotRootfs(ctx, savedRoot))
+	t.Log("PASS saved rootfs remains owned and readable after source Env and Base image deletion; explicit owned saved-rootfs cleanup")
 	stop()
 	<-done
 	done <- nil
@@ -144,5 +199,6 @@ func TestRealIncusBaseBuildE2E(t *testing.T) {
 		}
 	}
 	must(os.RemoveAll(dir))
+	t.Log("PASS public Base cleanup: in-use refusal, all retained revisions visible after Env deletion, reviewed revision deletion and exact native absence")
 	t.Log("PASS actual CLI definition/build/register, pinned creation, existing Env unchanged by rebuild, future create updated, exact image/Env cleanup; SSH handshake is separate")
 }

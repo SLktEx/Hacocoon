@@ -49,6 +49,9 @@ func main() {
 	if err := controlapi.Register(server, app.Environments, app.Clients); err != nil {
 		fail(err)
 	}
+	if err := controlapi.RegisterBaseManage(server, app.BaseManage); err != nil {
+		fail(err)
+	}
 	if err := controlapi.RegisterBaseBuild(server, app.BaseBuild); err != nil {
 		fail(err)
 	}

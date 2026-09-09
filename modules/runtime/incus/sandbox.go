@@ -46,6 +46,8 @@ func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.Envir
 	if p == nil || p.BaseProvider == nil || p.Runtime == nil || spec.Name == "" || spec.WorkspacePath == "" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
+	p.baseMu.RLock()
+	defer p.baseMu.RUnlock()
 	identityArgs, err := environmentIdentityArgs(spec.InstanceID)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err

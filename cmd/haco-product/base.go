@@ -50,11 +50,14 @@ func switchBase(ctx context.Context, c baseSwitchClient, name string, base core.
 }
 
 func runBase(args []string) int {
+	if len(args) > 0 && (args[0] == "delete" || (args[0] == "list" && len(args) > 1)) {
+		return runBaseManage(args)
+	}
 	if len(args) > 0 && args[0] == "build" {
 		return runBaseBuild(args[1:])
 	}
 	if len(args) == 0 || (args[0] != "list" && args[0] != "inspect") || (args[0] == "list" && len(args) != 1) || (args[0] == "inspect" && len(args) != 2) {
-		fmt.Fprintln(os.Stderr, "Usage: haco base list | haco base inspect <base> | haco base build <definition.json>")
+		fmt.Fprintln(os.Stderr, "Usage: haco base list [--all [--json]] | haco base inspect <base> | haco base build <definition.json> | haco base delete [--yes] <name-or-fingerprint>")
 		return 2
 	}
 	c, err := controlapi.NewDefaultClient()
