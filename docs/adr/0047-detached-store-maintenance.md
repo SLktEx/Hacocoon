@@ -1,6 +1,6 @@
 # ADR 0047: Inspect retained Stores in disposable Environments
 
-Status: partial implementation; public commands and native acceptance pending.
+Status: partial implementation; native primitives accepted, public maintenance integration pending.
 
 ## Decision
 
@@ -22,7 +22,8 @@ Current permission generations and network guards remain mandatory.
 
 ## Runtime preparation
 
-Planned: prepare the disposable runtime before connecting retained data, so its
+Implemented as an independent primitive; public integration is planned. Prepare
+the disposable runtime before connecting retained data, so its
 ordinary daemon startup cannot run stored containers merely for image inventory.
 Do not mount guest Store data into the trusted Host. Do not mutate container
 restart policies or hide an automatic backup/copy-and-swap implementation.
@@ -56,3 +57,25 @@ or daemon integration is enabled.
 Until daemon startup and attachment are integrated, every Incus Environment
 creation entry explicitly refuses maintenance requests before native access.
 The independent preparation primitive is not an enabled maintenance lifecycle.
+
+## Containerd metadata-only startup
+
+An independent primitive targets pinned containerd 2.3.3. It checks
+native Store ownership, a single exact consumer, the current Environment generation
+and its unprivileged local mount before starting a transient guest service. The
+ordinary daemons remain masked. A fresh private guest `/run` directory contains
+explicit configuration and runtime state; retained configuration is never loaded.
+Restart, CRI, NRI, task service/runtime and sandbox controllers are disabled.
+Container records and restart labels are not rewritten. The dedicated Incus
+6.0.5/Btrfs primitive test passed in 177.86s, including task API refusal, unchanged
+restart-marked container metadata, retained used image, unused-alias deletion,
+Store retention after runtime deletion and exact cleanup. Inactive plugin entries
+are distinguished from loaded plugins. Fixture import config explicitly selects
+the native unpack platform. Public maintenance creation remains unsupported.
+
+The [containerd restart monitor](https://github.com/containerd/containerd/blob/v2.3.3/plugins/restart/monitor.go)
+can start containers from persisted labels. Its
+[plugin filter](https://github.com/containerd/containerd/blob/v2.3.3/cmd/containerd/server/config/config.go)
+uses exact identities, so wildcard disabling is not a substitute for the explicit
+list. Docker startup is a separate unresolved path; this does not assert Docker
+safety or expose an arbitrary socket/executable option.

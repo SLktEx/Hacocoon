@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,7 +72,14 @@ func TestRealIncusResourceMaintenancePreparationE2E(t *testing.T) {
 		t.Helper()
 		out, err := r.runner.Run(ctx, "incus", args...)
 		if err != nil || out.ExitCode != 0 || out.StdoutTruncated || out.StderrTruncated {
-			t.Fatalf("Incus fixture command failed: %v", err)
+			phase := "native-call"
+			for _, line := range strings.Split(out.Stdout, "\n") {
+				switch line {
+				case "HACO_MAINTENANCE_PHASE=install", "HACO_MAINTENANCE_PHASE=daemon", "HACO_MAINTENANCE_PHASE=import", "HACO_MAINTENANCE_PHASE=container":
+					phase = strings.TrimPrefix(line, "HACO_MAINTENANCE_PHASE=")
+				}
+			}
+			t.Fatalf("Incus fixture command failed at %s (exit %d): %v", phase, out.ExitCode, err)
 		}
 		return out.Stdout
 	}
@@ -106,6 +114,7 @@ test -f /var/lib/hacocoon-oci/unwanted-start`)
 		t.Fatal(err)
 	}
 	command("exec", ref, "--project", r.project, "--", "/bin/sh", "-ec", "printf retained > /var/lib/hacocoon-oci/sentinel; test ! -e /var/lib/hacocoon-oci/unwanted-start")
+	verifyContainerdMaintenanceRuntime(t, ctx, p, ref, instance, resource, command)
 	if err := p.prepareResourceMaintenance(ctx, ref); err == nil {
 		t.Fatal("preparation accepted after Store attachment")
 	}

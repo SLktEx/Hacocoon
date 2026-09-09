@@ -98,3 +98,17 @@ operations remain unverified. See [ADR 0047](../adr/0047-detached-store-maintena
 Until daemon startup and attachment are integrated, every Incus Environment
 creation entry explicitly refuses maintenance requests before native access.
 The independent preparation primitive is not an enabled maintenance lifecycle.
+
+## Detached containerd metadata service
+
+An internal startup primitive now checks the exact native Store owner, single
+consumer, current Env generation and unprivileged mount before starting a
+containerd 2.3.3 metadata service. Its private guest socket/configuration/state
+are independent of retained configuration and ordinary daemon startup. Task,
+restart, CRI, NRI and sandbox controllers are disabled; persisted container
+records and restart labels are preserved. Its dedicated Incus 6.0.5/Btrfs test
+passed in 177.86s, checking task API refusal, unchanged restart-marked metadata,
+used-image retention, unused-alias deletion and retained Store cleanup. The test
+is also wired into existing Incus/Btrfs GHA; this is primitive acceptance. This
+primitive does not enable public maintenance creation, Docker support or a
+caller-selected socket. See [ADR 0047](../adr/0047-detached-store-maintenance.md#containerd-metadata-only-startup).

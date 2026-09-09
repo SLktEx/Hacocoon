@@ -13,6 +13,15 @@ the formerly failing positive paths. Public routing and daemon integration remai
 incomplete. See [the contract](design/oci-image-deletion.md#detached-store-implementation-in-progress).
 
 
+The internal containerd 2.3.3 startup primitive validates native ownership and
+generation, uses private guest configuration, and disables task/restart/CRI/NRI
+services. Focused race tests and adapter vet passed. Its opt-in native test is
+now included in the existing Incus/Btrfs GHA path. The dedicated Incus 6.0.5/Btrfs
+primitive test passed in 177.86s: task API refused, restart-marked container metadata
+unchanged, used image retained, unused alias removed, Store retained after Env
+deletion, and exact fixture cleanup confirmed. This is not public detached-image
+acceptance. No public command or schema change is introduced.
+
 ## Environment transfer prerequisites
 
 The Linux/WSL Incus adapter now exports an owned saved Workspace/OCI volume into

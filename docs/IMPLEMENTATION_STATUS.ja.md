@@ -11,6 +11,14 @@ state／workspace／run の関連 race 回帰が成功しました。公開経�
 [契約](design/oci-image-deletion.ja.md#未接続-store-の実装中の範囲)を参照してください。
 
 
+内部の containerd 2.3.3 起動処理は native 所有者と世代を確認し、guest 専用設定で
+task・restart・CRI・NRI を無効にします。限定 race test と adapter の vet は成功しました。
+opt-in の実機テストを既存 Incus/Btrfs GHA に追加しています。専用 Incus 6.0.5/Btrfs の
+単体実機検証は177.86秒で成功しました。task API の拒否、restart 設定を持つ container 情報の
+不変性、使用中 image の保持、未使用 alias の削除、Env 削除後の Store 保持、試験所有資源だけの
+cleanup を確認しています。公開の未接続 image 操作全体の受入ではありません。
+公開コマンドや schema の変更はありません。
+
 ## Environment 持ち出しの前提確認
 
 Linux／WSL の Incus adapter は所有済みの保存 Workspace／OCI volume を匿名・読み取り専用 archive へ export し、

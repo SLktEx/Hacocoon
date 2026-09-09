@@ -90,3 +90,15 @@ native 不在確認後に lease を解放するまで、根拠となる run 記�
 
 daemon 起動と接続の統合が完了するまで、Incus の全 Env 作成入口は maintenance 指定を
 native 操作前に明示的に拒否します。独立した準備処理だけでは maintenance lifecycle は有効になりません。
+
+## 未接続 containerd metadata service
+
+内部の起動処理は、native Store owner、単独の接続先、現在の Env 世代、非特権の mount を
+照合して containerd 2.3.3 の metadata service を起動します。guest 内の専用 socket／設定／
+実行状態は、保存済み設定や通常 daemon の起動から分離します。task・restart・CRI・NRI・
+sandbox controller を無効にし、保存済み container 記録と restart label は維持します。
+専用 Incus 6.0.5/Btrfs テストは177.86秒で成功し、task API の拒否、restart 設定を持つ
+container 情報の不変性、使用中 image 保持、未使用 alias 削除、Store 保持と所有対象の
+cleanup を確認しました。既存 Incus/Btrfs GHA にも接続しています。処理単体の受入であり、
+公開 maintenance 作成や Docker 対応は有効にならず、
+利用者指定の socket も受け付けません。[ADR 0047](../adr/0047-detached-store-maintenance.md#containerd-metadata-only-startup)を参照してください。
