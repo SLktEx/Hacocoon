@@ -213,3 +213,7 @@ Host-copy/ownership boundary. Detached-Store images, candidate-selected GC, F
 public reclamation/operability and G export/migration remain planned. Internal F1
 trim/compaction and installer enrollment are partial; see the [reclamation contract](../design/storage-reclamation.md). These remaining stages preserve data and permissions while using
 Incus capabilities; they do not require full disposable-Env reconstruction.
+
+G1 public transfer remains planned. Native rootfs image and custom-volume archives have
+opt-in acceptance tests; this does not complete rootfs/security/import
+or whole-installation evacuation. See [Environment transfer](../design/environment-transfer.md).

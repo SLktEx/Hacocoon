@@ -42,6 +42,27 @@ readiness, missing-legacy-file and CI failures remain documented with their exac
 scope in the [owning contract](design/storage-reclamation.md). Passing later runs
 does not retroactively mark those attempts successful. F1 is not complete.
 
+## Environment transfer prerequisites
+
+Public G1 export/import remains **planned**. Internal snapshot/archive inventory
+matching covers all currently supported Workspace components and optional OCI;
+the saved-source read boundary now shares canonical deletion locks and verifies
+retained components. Native archive production and public commands are not yet connected. Opt-in native Incus rootfs/volume
+archive tests and their existing-GHA integration are implemented. The dedicated
+Incus 6.0.5/Btrfs run passed in 11.24s after correcting fixture path/namespace
+assumptions; source/destination independence, Git state, links, mode and retained
+archive checks passed. Public rootfs import and authority reconstruction remain
+unimplemented. A separate empty-rootfs image round trip passed in 14.88s with no
+Base/image source, source instance/image removal before import and fresh explicit
+configuration. It does not prove OS/SSH/public-import acceptance. See
+[the owning contract](design/environment-transfer.md).
+
+An internal fixed-role streaming envelope writer/verifier now checks complete
+bytes without extraction or Incus effects; focused race tests and vet passed.
+Linux/WSL staging now retains verified bytes in an unnamed read-only file; real-
+filesystem race tests and vet passed. Btrfs staging and public lifecycle integration
+remain unverified/planned respectively.
+
 ## Current Incus-first snapshot contract
 
 Status: **implemented for capture and restore into a new Environment**. The

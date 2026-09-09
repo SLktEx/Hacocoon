@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"reflect"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -130,40 +129,21 @@ func (s *Service) DeleteSnapshot(ctx context.Context, id string) error {
 	if !ok {
 		return core.ErrUnsupported
 	}
-	snapshot, err := catalog.GetSnapshot(ctx, id)
-	if err != nil {
-		return err
-	}
-	unlock, err := lockLifecycle(ctx, "environment", snapshot.Source.Environment.Name)
-	if err != nil {
-		return err
-	}
-	defer unlock()
-	release, err := lockWorkspace(ctx, snapshot.Source.Environment.Workspace.ID)
-	if err != nil {
-		return err
-	}
-	defer release()
-	current, err := catalog.GetSnapshot(ctx, id)
-	if err != nil {
-		return err
-	}
-	if current.ID != snapshot.ID || !reflect.DeepEqual(current.Source, snapshot.Source) {
-		return core.ErrCapabilityStale
-	}
-	if err := catalog.BeginSnapshotDelete(ctx, id); err != nil {
-		return err
-	}
-	for _, component := range current.Components {
-		if component.State == "absent" {
-			continue
-		}
-		if err := backend.DeleteSnapshotComponent(ctx, component); err != nil {
-			return fmt.Errorf("snapshot %s cleanup incomplete: %w", id, errors.Join(core.ErrRecoveryRequired, err))
-		}
-		if err := catalog.RecordSnapshotComponent(ctx, id, component, "absent"); err != nil {
+	return s.withSavedSnapshot(ctx, id, func(ctx context.Context, current core.Snapshot) error {
+		if err := catalog.BeginSnapshotDelete(ctx, id); err != nil {
 			return err
 		}
-	}
-	return catalog.FinalizeSnapshotDelete(ctx, id)
+		for _, component := range current.Components {
+			if component.State == "absent" {
+				continue
+			}
+			if err := backend.DeleteSnapshotComponent(ctx, component); err != nil {
+				return fmt.Errorf("snapshot %s cleanup incomplete: %w", id, errors.Join(core.ErrRecoveryRequired, err))
+			}
+			if err := catalog.RecordSnapshotComponent(ctx, id, component, "absent"); err != nil {
+				return err
+			}
+		}
+		return catalog.FinalizeSnapshotDelete(ctx, id)
+	})
 }
