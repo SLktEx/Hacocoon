@@ -1,50 +1,33 @@
 # Implementation Status
 
-The ca5ba79 controller started, but its first image list failed (native fixture 112.27s). Maintenance incorrectly combined an explicit retained Store with `SkipDefaultResource`, which canonical create rejects. The redundant flag is removed; the new real-catalog/lifecycle regression reproduced both failures before the fix. Native acceptance of the corrected operation is pending.
-
-The first controller gate at ca6e5fb failed before readiness: the fixture used `incus` instead of the registered `runtime.incus` provider identifier. The fixture now uses the canonical constant. Native tool/image operations passed; retained Store ownership prevented pool cleanup after failure. Full controller acceptance remains pending.
-
-Controller/CLI acceptance expansion is implemented as a disposable-GHA-only gate; its real execution remains pending. It uses production composition and real catalog/lifecycle transitions with synthetic fixture Store contents.
-
 ## Detached Store maintenance in progress
 
-Status: **partial**. Existing image list/delete commands accept a retained Store ID.
-The OCI module reviews its exact owner; the canonical run service reserves it once
-for the complete operation and cleanup. Every runtime call checks the new temporary
-Environment generation. Original Workspace associations and borrowed Stores remain
-intact. Mixed/stale identities, source Stores and unsupported detached Docker are
-refused. No new command, schema, hidden backup or recovery state is introduced.
+Status: **partial E5**. Existing image list/delete commands accept retained Store
+IDs for nerdctl on Linux/WSL amd64. Production composition provisions pinned OCI
+tools automatically before attaching retained data. Canonical maintenance runs
+preserve Store reservation, the original Workspace association, fresh Env identity
+and uncertain-cleanup evidence. No new user command, schema, backup or recovery
+state is added; detached Docker and candidate-selected GC remain unimplemented.
 
-Full OCI, control API, product CLI and run race suites passed (3.402s, 47.590s,
-6.456s and 2.794s). Native metadata startup previously passed in 179.66s. The expanded
-product-image native fixture is a separate test, with fixture catalog/lifecycle
-identities; it must not be reported as installed-controller acceptance. Initial
-attempts failed on fixture assumptions about digest count and shared displayed tags;
-those exact owned fixtures were cleaned up, with their receipts retained.
+At `bd1c9a5`, all four GHA workflows passed. The real Incus/Btrfs shipped-controller
+and CLI gate [passed in 588.51s](https://github.com/SLktEx/Hacocoon/actions/runs/34417051340/job/102684134054):
+detached inventory, referenced-image refusal, confirmed digest deletion/absence,
+retained container metadata, canonical temporary cleanup and explicit owned Store
+cleanup. This uses a bare root controller/private socket with a real isolated
+catalog. Full installed Standard-egress, ordinary-user/desktop acceptance and
+other tooling architectures remain unverified or unsupported.
 
-Linux/WSL amd64 composition now supplies pinned OCI tools before retained attachment.
-Private cache acquisition, bounded fixed-member extraction, verified Incus transfer
-and temporary-file release are implemented. Tooling cache race tests passed (2.158s)
-and adapter/creation refusal tests passed (1.956s); composition was compiled in that
-focused run, not tested. Native tool delivery passed; complete controller creation remains
-unverified. Other architectures are unsupported by the tooling preparer. Candidate-selected GC and
-detached Docker remain unimplemented. See [the contract](design/oci-image-deletion.md#detached-store-implementation-in-progress).
+Earlier controller gates failed. Corrections use the canonical provider ID,
+remove contradictory SkipDefaultResource from explicit Store creation, and give
+the root fixture a private TMPDIR without weakening lock ownership validation.
+The real-catalog/lifecycle regression reproduced the explicit-Store failure before
+the fix and verifies reservation and cleanup on success and operation failure.
+Those failures are recorded in PR #514, not reclassified as SKIP.
 
-At d3013a3, test, Ubuntu installer and Incus GHA passed. Windows installer failed at
-its pending-approval Python prerequisite setup. Private-registry acceptance was
-SKIP because it is gated to workflow_dispatch. Failure is not approval pending.
-
-The expanded native fixture then passed in 224.64s, including product inventory,
-actual referenced-image refusal, selected digest deletion/absence, unchanged
-container metadata, masked restart, Store retention and exact owned cleanup.
-
-Automatic tool delivery with the production preparer/Incus adapter passed in the
-237.37s native fixture, followed by image operations, retained metadata/Store
-protection and exact cleanup. Real empty-cache HTTPS acquisition and fixed-member
-extraction passed separately in 70.71s; no downloaded Host executable ran. Full
-OCI/Incus/composition race suites passed (4.332s, 22.135s, 1.856s) and vet passed.
-At the preceding 71a40e0, all four GHA workflows passed. These results do not prove
-whole-controller maintenance acceptance or other architectures.
+Earlier dedicated native tool delivery and image operations passed in 237.37s;
+empty-cache HTTPS acquisition passed in 70.71s without running downloaded binaries
+on the Host. Related race/vet checks passed. Private-registry acceptance is
+workflow_dispatch-gated SKIP. See [the owning contract](design/oci-image-deletion.md#detached-store-implementation-in-progress).
 
 ## Environment transfer prerequisites
 
@@ -98,11 +81,11 @@ image maintenance and migration are separate unfinished work.
 
 ## Host-source image operations
 
-Partial implementation: `image list/delete --host` selects only the exact managed Host source. The current plugin/controller/CLI route and Incus adapter enforce source ownership, local role/mount/layout, unprivileged running state, the existing Host-copy operation lock and a fixed command/template allowlist. No guest Store can be used as a Host source. Five related package tests passed; focused security/CLI regressions are included. Four related race packages passed, including the shared Host-copy lock guard. Additional uppercase-tag reference regressions passed. Dedicated WSL Incus/Btrfs acceptance passed in 487.19s: both runtimes listed the Host source, refused a stopped-container reference, removed only the selected image, retained other images, then completed independent Store copy/deletion and exact fixture cleanup. This uses the real Host adapter with a fixture catalog; installed-controller/public-CLI native acceptance remains unverified. Existing independent copies remain; detached Stores and GC remain planned. See [the contract](design/oci-image-deletion.md#managed-host-source).
+Partial implementation: `image list/delete --host` selects only the exact managed Host source. The current plugin/controller/CLI route and Incus adapter enforce source ownership, local role/mount/layout, unprivileged running state, the existing Host-copy operation lock and a fixed command/template allowlist. No guest Store can be used as a Host source. Five related package tests passed; focused security/CLI regressions are included. Four related race packages passed, including the shared Host-copy lock guard. Additional uppercase-tag reference regressions passed. Dedicated WSL Incus/Btrfs acceptance passed in 487.19s: both runtimes listed the Host source, refused a stopped-container reference, removed only the selected image, retained other images, then completed independent Store copy/deletion and exact fixture cleanup. This uses the real Host adapter with a fixture catalog; installed-controller/public-CLI native acceptance remains unverified. Existing independent copies remain; detached Store acceptance is recorded above and candidate GC remains planned. See [the contract](design/oci-image-deletion.md#managed-host-source).
 
 ## Attached-Store image operations
 
-Partial: image list/delete is connected to the current OCI plugin, controller and product CLI. Runtime inventory/removal replaces legacy Seed selection semantics; reviewed Env generation and Store ownership guard execution. All seven related packages passed after correcting initial controller wiring, regexp and invalid-RPC error classification failures. Documentation checks passed. Dedicated WSL Incus/Btrfs native COW acceptance passed in 417.80s: Docker and nerdctl inventory, stopped-container refusal, immutable runtime ID removal, positive absence and source-copy image independence. The isolated project/pool and its now-empty catalog were cleaned up. Four related race packages passed; a focused concurrent Env-delete exclusion regression also passed. This fixture uses a test execution adapter, so installed-controller/public-CLI native acceptance remains unverified. PR #508 merged as `3aa8b07f` after all four workflows succeeded on `4d9038b7`. Maintained local docs, policy, Go tests/vet, JS and E2E passed on exact files in WSL ext4. Systemd verification first failed on an older Ubuntu tool and passed on dedicated Hacocoon WSL; the initial failure remains recorded. Local packaging was skipped for missing tools, with GHA release-config passing instead. Detached-Store image operations, candidate GC and reclamation remain planned. No schema migration. See [the owning contract](design/oci-image-deletion.md).
+Partial: image list/delete is connected to the current OCI plugin, controller and product CLI. Runtime inventory/removal replaces legacy Seed selection semantics; reviewed Env generation and Store ownership guard execution. All seven related packages passed after correcting initial controller wiring, regexp and invalid-RPC error classification failures. Documentation checks passed. Dedicated WSL Incus/Btrfs native COW acceptance passed in 417.80s: Docker and nerdctl inventory, stopped-container refusal, immutable runtime ID removal, positive absence and source-copy image independence. The isolated project/pool and its now-empty catalog were cleaned up. Four related race packages passed; a focused concurrent Env-delete exclusion regression also passed. This fixture uses a test execution adapter, so installed-controller/public-CLI native acceptance remains unverified. PR #508 merged as `3aa8b07f` after all four workflows succeeded on `4d9038b7`. Maintained local docs, policy, Go tests/vet, JS and E2E passed on exact files in WSL ext4. Systemd verification first failed on an older Ubuntu tool and passed on dedicated Hacocoon WSL; the initial failure remains recorded. Local packaging was skipped for missing tools, with GHA release-config passing instead. Detached Store acceptance is recorded above; candidate GC and reclamation remain incomplete. No schema migration. See [the owning contract](design/oci-image-deletion.md).
 
 
 ## Explicit source repository cleanup

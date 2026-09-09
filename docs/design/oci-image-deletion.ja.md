@@ -1,9 +1,5 @@
 # OCI image の一覧と削除
 
-maintenance は確認済みの既存 Store を指定し、`SkipDefaultResource` は併用しません。明示した Store は既定 Store の自動準備を通りません。矛盾する指定を canonical lifecycle が拒否する契約を維持します。実 catalog／lifecycle の回帰テストで予約、元 Workspace 対応の保持、正常時と操作失敗時の cleanup を確認します。
-
-GHA の native fixture に、製品 controller／CLI を使う明示 gate を追加しました。試験が新規作成した合成 Store だけを非公開の実 catalog に登録し、未接続の一覧、参照画像の削除拒否、確認付き削除、一時 lifecycle の cleanup を実行します。使い捨ての GitHub-hosted runner に限定します。gate の追加自体を実行成功とは扱いません。
-
 日本語 | [English](oci-image-deletion.md)
 
 Status: partial。接続済み Store の実装と専用環境での実 runtime 検証は完了し、インストール済み controller 経由の受け入れ検証は未完了です。
@@ -112,6 +108,26 @@ archive 内の path で Host の出力先を選びません。署名付き downl
 取得エラーに含めません。非 Linux と amd64 以外の自動配置は現在未対応です。
 ツール配置の native 検証は成功し、導入済み controller 全体の受け入れは未完了です。
 schema 移行・自動 backup・任意の実行ファイルや socket を選ぶ option はありません。
+
+maintenance は確認済みの既存 Store を指定し、`SkipDefaultResource` は併用しません。明示した Store は既定 Store の自動準備を通りません。矛盾する指定を canonical lifecycle が拒否する契約を維持します。実 catalog／lifecycle の回帰テストで予約、元 Workspace 対応の保持、正常時と操作失敗時の cleanup を確認します。
+
+## Controller／CLI の受け入れ検証
+
+製品 controller／CLI を使う gate は、[bd1c9a5 の GHA](https://github.com/SLktEx/Hacocoon/actions/runs/34417051340/job/102684134054) の
+実 Incus/Btrfs で成功しました（588.51 秒）。production composition と、
+試験が新規作成した合成 Store だけを登録した非公開の実 catalog を使います。
+未接続 Store の一覧、参照中画像の削除拒否、確認後の未使用 digest の削除と不在、
+container metadata の保持、一時 Env／lease の正確な cleanup、試験用 Store の
+明示削除を確認しました。この commit の全 4 GHA workflow が成功しています。
+
+使い捨ての GitHub-hosted runner に限定した fixture です。root controller は
+専用の 0700 TMPDIR を使い、先行する通常ユーザーの lifecycle lock を引き継ぎません。
+製品の lock 所有者確認は変更していません。fixture と明示 Store 作成の修正前に
+失敗した gate の結果は PR に記録しています。
+
+確認したのは bare controller と private socket の経路です。インストール済みの
+Standard egress 全体、通常ユーザー／desktop での利用、未接続 Docker、候補選択型 GC は
+未検証または未実装です。接続済み Store／Host source の検証範囲を広げたとは扱いません。
 
 ## 未接続 containerd metadata service
 

@@ -1,9 +1,5 @@
 # OCI image inventory and deletion
 
-Maintenance specifies the reviewed existing Store without `SkipDefaultResource`: explicit selection already bypasses default provisioning. The canonical lifecycle rejects contradictory Store selections. An integration regression uses the real catalog/lifecycle to verify reservation, preserved original Workspace association and cleanup after both success and operation failure.
-
-The GHA native fixture now includes an opt-in shipped controller/product CLI gate. It registers only its freshly created synthetic Store in a private real catalog, then exercises detached inventory, referenced-image refusal, confirmed deletion and temporary lifecycle cleanup. This gate is restricted to disposable GitHub-hosted runners; implementation of the gate is not evidence of a successful run.
-
 [日本語](oci-image-deletion.ja.md) | English
 
 ## Current attached-Store commands
@@ -105,6 +101,8 @@ or deletes the borrowed Store. Ambiguous cleanup preserves ownership evidence.
 Mixed Host/Environment/Store targets and stale reviews are refused. Docker on a
 detached Store is explicitly unsupported.
 
+Maintenance specifies the reviewed existing Store without `SkipDefaultResource`: explicit selection already bypasses default provisioning. The canonical lifecycle rejects contradictory Store selections. An integration regression uses the real catalog/lifecycle to verify reservation, preserved original Workspace association and cleanup after both success and operation failure.
+
 Receipt-based SandboxProvider creation starts without retained data, preserves
 current network guards, masks ordinary daemons, attaches the Store, then starts a
 private containerd 2.3.3 metadata service. Task/restart/CRI/NRI and sandbox services
@@ -125,8 +123,29 @@ Cache access is serialized; symlinks, hardlinks, unsafe permissions and corrupt
 entries are refused without silently replacing them. Archive paths never select
 Host output paths. Signed download URLs and response bodies are not included in
 transport errors. Non-Linux and non-amd64 tool provisioning are currently unsupported.
-Native tool delivery is accepted; complete installed-controller acceptance remains pending.
+Native tool delivery and the controller/CLI gate below are accepted; complete installed-controller acceptance remains pending.
 There is no schema migration, automatic backup or arbitrary executable/socket option.
+
+## Controller/CLI acceptance
+
+The shipped controller/product CLI gate passed on real Incus/Btrfs in
+[the bd1c9a5 GHA run](https://github.com/SLktEx/Hacocoon/actions/runs/34417051340/job/102684134054) (588.51s).
+It uses production composition and a private real catalog containing only its
+new synthetic Store. It checks detached list, referenced-image refusal, confirmed
+unused-digest deletion and absence, retained container metadata, exact temporary
+Env/lease cleanup and explicit deletion of the owned test Store. All four GHA
+workflows passed at that commit.
+
+The fixture is restricted to disposable GitHub-hosted runners. Its root controller
+uses a private 0700 TMPDIR rather than adopting the preceding ordinary runner's
+lifecycle locks. Production lock ownership checks remain unchanged. Earlier gate
+candidates failed before these fixture and explicit-Store creation corrections;
+those failures remain recorded in the PR.
+
+This accepts the bare controller/private-socket path. Full installed Standard
+egress, ordinary-user/desktop use, detached Docker and candidate-selected GC
+remain unverified or unimplemented. It does not extend attached/Host-source
+acceptance beyond their separately recorded scope.
 
 ## Detached containerd metadata service
 
