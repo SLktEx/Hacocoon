@@ -121,3 +121,20 @@ PATH 引用エラーでテスト開始前に失敗し、修正後の起動で成
 catalog を変更しない legacy Base 除外を確認します。これは repository test であり、複数 Workspace の native な
 全体 export は未検証です。先行する1 Workspace 限定の内部 envelope は公開形式や catalog schema ではありませんでした。
 その1 Workspace の encoding は引き続き読み取り可能で、既存保存データの移行はありません。
+
+## export 中の保存元の寿命
+
+`workspace.Service.ReadSnapshot` は保存元を利用する境界として **implemented** です。
+`DeleteSnapshot` と既存の Environment → Workspace の lifecycle lock 経路を共有し、
+ロック後に catalog を再取得します。元の識別情報が変わった場合や ready でない保存物は拒否します。
+保持された rootfs／Workspace／OCI は、既存 runtime adapter による全件の所有確認後に consumer へ渡します。
+historical な Base filesystem は照会せず、元 Env の存在も要求しません。
+
+consumer は返る前に元データの読み取りを完了し、lifecycle 操作へ再入してはいけません。
+snapshot の値を保持するだけでは reservation になりません。cancel や consumer／検証の失敗では、
+保存物を変更せず process lock を解放します。Linux／WSL は既存の process 間 filesystem lock を使い、
+非 Linux のテスト実装は process 内のままです。新しい native controller platform の追加ではありません。
+backup、永続的な export 状態、自動再開は追加しません。
+
+native archive 作成や公開 export command への接続はまだ未実装です。この source lock で、
+一時資源の厳密な所有管理、出力の完全な公開、復元先の security 再構成を代替しません。

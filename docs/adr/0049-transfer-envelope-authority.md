@@ -33,6 +33,14 @@ cleanup catalog. It does not promise persistence or protection from Host process
 descriptor administrators. Unsupported filesystem/kernel primitives fail explicitly.
 No fallback, source extraction, permission repair or crash replay is added.
 
+Saved-source reading and deletion share the canonical Environment/Workspace lock
+path. Re-read the catalog under those locks and verify every non-Base saved
+component before consumption. The source Env and Base filesystem need not survive.
+The callback must finish source reads before release; copied metadata cannot carry
+the reservation beyond the callback. Reuse existing process locks instead of
+adding a durable export/recovery catalog. Native temporary resource ownership and
+successful aggregate publication remain separate required checks.
+
 ## Rejected alternatives
 
 - Generic file extraction would add path/link/permission effects before authorization.

@@ -162,3 +162,23 @@ legacy Base exclusion without catalog mutation. These are repository tests;
 multi-Workspace native aggregate export remains unverified. The earlier single-
 Workspace-only internal envelope was never a public format or catalog schema.
 Its original single-Workspace encoding remains readable, and no saved data migrates.
+
+## Saved source lifetime during export
+
+`workspace.Service.ReadSnapshot` is **implemented** as the source-use boundary.
+It shares the existing Environment-then-Workspace lifecycle lock path with
+`DeleteSnapshot`, reloads the catalog after locking and rejects a changed source
+identity or non-ready save. Every retained rootfs/Workspace/OCI component is
+verified through the existing runtime adapter before the consumer runs. Historical
+Base filesystem components are not looked up. The original Env need not exist.
+
+The consumer must finish reading all source data before returning, and must not
+re-enter lifecycle operations. Keeping a returned snapshot value is not a
+reservation. Cancellation and consumer/verification failure release process locks
+without altering the save. Linux/WSL uses the existing cross-process filesystem
+locks; the non-Linux test implementation remains process-local, not a new native
+controller platform. No backup, durable export state or automatic replay is added.
+
+This boundary is not yet wired to native archive production or a public export
+command. Its source locks do not replace exact temporary-resource ownership,
+complete output publication or destination security reconstruction.

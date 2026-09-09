@@ -3,7 +3,8 @@
 ## Environment 持ち出しの前提確認
 
 公開 G1 export/import は **planned** です。内部の snapshot／archive 照合は現行上限までの全 Workspace と任意の OCI を扱います。
-公開操作の source reservation と native archive 作成は、まだ接続していません。native Incus rootfs／volume archive の opt-in テストと既存 GHA への追加を実装しました。
+保存元の読み取り境界は canonical な削除ロックを共有し、保持 component を検証します。
+native archive 作成と公開 command は、まだ接続していません。native Incus rootfs／volume archive の opt-in テストと既存 GHA への追加を実装しました。
 fixture の path／namespace の想定を修正後、専用 Incus 6.0.5／Btrfs で11.24秒の検証が成功しました。
 保存元・復元先の独立性、Git 状態、リンク、mode、archive 保持を確認しました。rootfs と公開 import の権限処理は未実装です。
 別の空 rootfs image 検証は14.88秒で成功し、Base/image を使わない作成、import 前の保存元 instance/image 削除、
