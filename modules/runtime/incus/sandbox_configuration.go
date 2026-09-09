@@ -59,6 +59,9 @@ func (p *SandboxProvider) configureSandboxEnvironment(ctx context.Context, ref s
 		if err := p.prepareResourceMaintenance(ctx, ref); err != nil {
 			return err
 		}
+		if err := p.provisionMaintenanceTooling(ctx, ref, spec.InstanceID); err != nil {
+			return err
+		}
 		if err := p.attachPersistentResource(ctx, ref, spec.PersistentResource); err != nil {
 			return err
 		}

@@ -108,10 +108,20 @@ are disabled. No retained configuration, restart labels or authority is adopted.
 Receipt-free creation and snapshot restore refuse maintenance. See
 [ADR 0047](../adr/0047-detached-store-maintenance.md).
 
-Automatic provisioning of compatible OCI executables into the scratch Base and
-installed-controller acceptance remain incomplete. A plain Ubuntu Base does not
-supply the required containerd/ctr/nerdctl binaries; public routing alone is not a
-working default installation. Missing or unsupported tools must fail the operation.
+Linux/WSL amd64 composition now supplies compatible tools automatically before
+retained attachment. The OCI module downloads the pinned nerdctl 2.3.5 distribution,
+verifies its SHA-256, and reuses a private archive cache under the configured Haco
+root. It prepares only containerd, ctr and nerdctl in a private temporary directory.
+The Incus adapter rechecks ownership, generation and absence of retained mounts,
+transfers and hashes these files, then installs them in the disposable rootfs.
+Downloaded binaries never execute on the Physical Host. A failed preparation does
+not attach the retained Store. No user preparation command is required.
+
+Cache access is serialized; symlinks, hardlinks, unsafe permissions and corrupt
+entries are refused without silently replacing them. Archive paths never select
+Host output paths. Signed download URLs and response bodies are not included in
+transport errors. Non-Linux and non-amd64 tool provisioning are currently unsupported.
+Native tool delivery is accepted; complete installed-controller acceptance remains pending.
 There is no schema migration, automatic backup or arbitrary executable/socket option.
 
 ## Detached containerd metadata service
@@ -128,3 +138,9 @@ The expanded native fixture passed in 224.64s: product inventory, actual-contain
 reference refusal, selected unused digest removal and confirmed absence, retained
 container metadata, masked restart, Store survival after Env deletion and exact
 owned cleanup. Its lifecycle/catalog adapter remains a fixture.
+
+Automatic tool delivery through the production preparer and Incus adapter passed
+in the dedicated native fixture (237.37s), including subsequent image operations,
+retained metadata/Store protection and exact cleanup. A separate empty-cache real
+HTTPS acquisition and extraction test passed in 70.71s without executing downloaded
+binaries on the Host. Full OCI/Incus/composition race suites and vet passed.

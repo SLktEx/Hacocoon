@@ -2,9 +2,7 @@ package incus
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -25,19 +23,7 @@ func verifyContainerdMaintenanceRuntime(t *testing.T, ctx context.Context, p *Sa
 	if !filepath.IsAbs(assets) {
 		t.Fatal("absolute fixture assets required")
 	}
-	file, err := os.Open(filepath.Join(assets, "nerdctl-full.tar.gz"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	h := sha256.New()
-	n, err := io.Copy(h, io.LimitReader(file, 512<<20+1))
-	file.Close()
-	if err != nil || n > 512<<20 || fmt.Sprintf("%x", h.Sum(nil)) != "b697295c623639734aaab737523c808fd3cc8d3046039fd94fff1744e4c317aa" {
-		t.Fatal("invalid native fixture archive")
-	}
-	for _, name := range []string{"nerdctl-full.tar.gz", "oci-probe"} {
-		command("file", "push", filepath.Join(assets, name), ref+"/tmp/"+name, "--project", p.project)
-	}
+	command("file", "push", filepath.Join(assets, "oci-probe"), ref+"/tmp/oci-probe", "--project", p.project)
 	guest := func(script string) string {
 		t.Helper()
 		return command("exec", ref, "--project", p.project, "--", "/bin/sh", "-ec", `exec /bin/sh -ec "$1" 2>/var/lib/haco-maintenance-fixture.stderr`, "fixture", script)
@@ -68,7 +54,6 @@ systemctl stop hacocoon-maintenance-containerd
 
 const containerdMaintenanceFixture = `set -eu
 printf "HACO_MAINTENANCE_PHASE=install\n"
-tar -xzf /tmp/nerdctl-full.tar.gz -C /usr/local bin/containerd bin/ctr bin/nerdctl
 mkdir /var/lib/hacocoon-oci/containerd
 mkdir /tmp/maintenance-root
 cp /tmp/oci-probe /tmp/maintenance-root/oci-probe
@@ -174,4 +159,47 @@ func verifyMetadataImageOperations(t *testing.T, ctx context.Context, runtime *R
 		t.Fatal("used image digest lost")
 	}
 	t.Log("PASS product image operations on native metadata socket: inventory, referenced-image refusal, independent unused digest deletion and confirmed absence")
+}
+
+// Exercise the actual pinned tool preparer and Incus transfer before the fixture
+// creates or attaches its retained Store. No runtime binary executes on the Host.
+func installNativeMaintenanceTooling(t *testing.T, ctx context.Context, p *SandboxProvider, ref, generation, receiptDirectory string) {
+	t.Helper()
+	assets := os.Getenv("HACO_E2E_OCI_RUNTIME_ASSETS")
+	if assets == "" {
+		return
+	}
+	if !filepath.IsAbs(assets) {
+		t.Fatal("absolute fixture assets required")
+	}
+	cache := filepath.Join(receiptDirectory, "tool-cache")
+	if err := os.Mkdir(cache, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(cache); err != nil {
+			t.Error("owned tool cache cleanup", err)
+		}
+	})
+	input, err := os.Open(filepath.Join(assets, "nerdctl-full.tar.gz"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer input.Close()
+	output, err := os.OpenFile(filepath.Join(cache, "b697295c623639734aaab737523c808fd3cc8d3046039fd94fff1744e4c317aa.tar.gz"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, copyErr := io.Copy(output, io.LimitReader(input, 512<<20+1))
+	closeErr := output.Close()
+	if copyErr != nil || closeErr != nil || n > 512<<20 {
+		t.Fatal("bounded fixture asset copy", copyErr, closeErr)
+	}
+	// Prepare revalidates the full production SHA and extracts only fixed members.
+	tooling := &oci.MaintenanceTooling{Directory: cache}
+	p.ConfigureMaintenanceTooling(tooling.Prepare)
+	if err := p.provisionMaintenanceTooling(ctx, ref, generation); err != nil {
+		t.Fatal("production maintenance tool provisioning", err)
+	}
+	t.Log("PASS production pinned tool materializer and owned Incus transfer before retained attachment")
 }

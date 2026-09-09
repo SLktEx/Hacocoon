@@ -16,9 +16,12 @@ identities; it must not be reported as installed-controller acceptance. Initial
 attempts failed on fixture assumptions about digest count and shared displayed tags;
 those exact owned fixtures were cleaned up, with their receipts retained.
 
-Automatic compatible OCI tool provisioning and complete native creation through the
-controller remain incomplete. Plain Ubuntu lacks the required tools, so public
-routing alone does not establish a working default. Candidate-selected GC and
+Linux/WSL amd64 composition now supplies pinned OCI tools before retained attachment.
+Private cache acquisition, bounded fixed-member extraction, verified Incus transfer
+and temporary-file release are implemented. Tooling cache race tests passed (2.158s)
+and adapter/creation refusal tests passed (1.956s); composition was compiled in that
+focused run, not tested. Native tool delivery passed; complete controller creation remains
+unverified. Other architectures are unsupported by the tooling preparer. Candidate-selected GC and
 detached Docker remain unimplemented. See [the contract](design/oci-image-deletion.md#detached-store-implementation-in-progress).
 
 At d3013a3, test, Ubuntu installer and Incus GHA passed. Windows installer failed at
@@ -28,6 +31,14 @@ SKIP because it is gated to workflow_dispatch. Failure is not approval pending.
 The expanded native fixture then passed in 224.64s, including product inventory,
 actual referenced-image refusal, selected digest deletion/absence, unchanged
 container metadata, masked restart, Store retention and exact owned cleanup.
+
+Automatic tool delivery with the production preparer/Incus adapter passed in the
+237.37s native fixture, followed by image operations, retained metadata/Store
+protection and exact cleanup. Real empty-cache HTTPS acquisition and fixed-member
+extraction passed separately in 70.71s; no downloaded Host executable ran. Full
+OCI/Incus/composition race suites passed (4.332s, 22.135s, 1.856s) and vet passed.
+At the preceding 71a40e0, all four GHA workflows passed. These results do not prove
+whole-controller maintenance acceptance or other architectures.
 
 ## Environment transfer prerequisites
 

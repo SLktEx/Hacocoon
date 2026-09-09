@@ -104,6 +104,7 @@ test -f /var/lib/hacocoon-oci/unwanted-start`)
 	if err := p.prepareResourceMaintenance(ctx, ref); err != nil {
 		t.Fatal(err)
 	}
+	installNativeMaintenanceTooling(t, ctx, p, ref, instance, dir)
 	backend := &PersistentResourceBackend{Runtime: r}
 	if err := backend.Create(ctx, resource); err != nil {
 		t.Fatal(err)

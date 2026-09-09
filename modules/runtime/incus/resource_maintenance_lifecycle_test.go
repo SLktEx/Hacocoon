@@ -12,7 +12,7 @@ import (
 )
 
 func TestMaintenanceCreationRecordsBeforePreparingAndAttaching(t *testing.T) {
-	for _, mode := range []string{"ok", "preparation-failure", "startup-failure"} {
+	for _, mode := range []string{"ok", "preparation-failure", "tooling-failure", "startup-failure"} {
 		t.Run(mode, func(t *testing.T) {
 			work, _ := core.NewTemporaryWorkspace()
 			resource := core.PersistentResource{ID: "oci:retained", Owner: strings.Repeat("a", 32), Kind: OCIStoreKind, State: "ready", NativeRef: "pool/haco-persistent-" + strings.Repeat("a", 32)}
@@ -73,6 +73,9 @@ func TestMaintenanceCreationRecordsBeforePreparingAndAttaching(t *testing.T) {
 				}
 				if args[0] == "query" && strings.HasPrefix(args[1], "/1.0/instances/haco-demo?") {
 					devices := map[string]map[string]string{"persistent-resource": {"type": "disk", "pool": "pool", "source": "haco-persistent-" + resource.Owner, "path": OCIStorePath}}
+					if !attached {
+						devices = map[string]map[string]string{}
+					}
 					data, _ := json.Marshal(snapshotInstanceObservation{Name: "haco-demo", Type: "container", Status: "Running", Profiles: []string{}, Config: config, ExpandedConfig: config, Devices: devices, ExpandedDevices: devices})
 					return host.Result{Stdout: string(data)}, nil
 				}
@@ -106,6 +109,14 @@ func TestMaintenanceCreationRecordsBeforePreparingAndAttaching(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if mode == "tooling-failure" {
+				provider.ConfigureMaintenanceTooling(func(context.Context) (string, func() error, error) {
+					if !recorded || !prepared || attached {
+						t.Fatal("tooling violated receipt/preparation/mount order")
+					}
+					return "", nil, core.ErrRuntimeUnavailable
+				})
+			}
 			created, err := provider.CreateEnvironmentWithReceipt(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", InstanceID: testEnvironmentInstance, TemporaryWorkspace: true, WorkspacePath: work.Path, PersistentResource: resource, ResourceMaintenance: true}, func(created core.EnvironmentRuntime) error {
 				if !initialized || recorded || created.Ref != "haco-demo" {
 					t.Fatal("invalid receipt")
@@ -119,7 +130,7 @@ func TestMaintenanceCreationRecordsBeforePreparingAndAttaching(t *testing.T) {
 			if !recorded || created.Ref != "haco-demo" || !guardCreated {
 				t.Fatal("creation lost ownership or source guard")
 			}
-			if mode == "preparation-failure" {
+			if mode == "preparation-failure" || mode == "tooling-failure" {
 				if attached || maintenance {
 					t.Fatal("failed preparation attached data")
 				}

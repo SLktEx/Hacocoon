@@ -96,9 +96,17 @@ task・restart・CRI・NRI・sandbox service は無効にします。保持設�
 receipt なしの作成と snapshot restore は maintenance を拒否します。
 [ADR 0047](../adr/0047-detached-store-maintenance.md) を参照してください。
 
-一時 Base への対応 OCI 実行ファイルの自動配置と、導入済み controller 経由の受け入れは未完了です。
-素の Ubuntu Base に必要な containerd・ctr・nerdctl は揃わないため、公開経路の接続だけでは
-通常導入で動作しません。ツール不足・未対応は操作失敗として返します。
+Linux/WSL amd64 の composition は、保持 Store 接続前に対応ツールを自動配置します。
+OCI module が固定した nerdctl 2.3.5 配布物の SHA-256 を検証し、設定済み Haco root 内の
+private archive cache を再利用します。一時 private directory に containerd・ctr・nerdctl
+だけを準備します。Incus adapter は所有・世代・保持 mount 不在を再確認し、転送後の hash を
+照合して disposable rootfs に配置します。取得したバイナリは Physical Host では実行しません。
+準備失敗時は保持 Store を接続しません。利用者の準備コマンドは不要です。
+
+cache は排他制御し、symlink・hardlink・不適切な権限・破損した内容を黙って置き換えず拒否します。
+archive 内の path で Host の出力先を選びません。署名付き download URL や response body を
+取得エラーに含めません。非 Linux と amd64 以外の自動配置は現在未対応です。
+ツール配置の native 検証は成功し、導入済み controller 全体の受け入れは未完了です。
 schema 移行・自動 backup・任意の実行ファイルや socket を選ぶ option はありません。
 
 ## 未接続 containerd metadata service
@@ -113,3 +121,8 @@ controller 全体の作成とツール配置を表していません。
 拡張した native fixture は224.64秒で成功しました。製品の一覧、実際の container 参照による削除拒否、
 選択した未使用 digest の削除と不在、container metadata 保持、mask 付き再起動、Env 削除後の
 Store 保持、所有対象だけの cleanup を確認しました。lifecycle・catalog adapter は fixture のままです。
+
+製品の準備処理と Incus adapter による自動配置を含む専用 native fixture は237.37秒で成功しました。
+後続の画像操作、metadata・Store の保護、所有対象だけの cleanup も確認しました。
+空 cache からの実 HTTPS 取得・展開は別に70.71秒で成功し、取得したバイナリは Host で実行していません。
+OCI・Incus・composition 全体の race suite と vet も成功しました。

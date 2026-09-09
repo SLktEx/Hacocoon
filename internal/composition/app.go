@@ -118,6 +118,8 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	// unmanaged bridge even if they bypass a higher-level network helper.
 	runtimeRunner = incus.WrapEnvironmentNetworkOwnershipRunner(runtimeRunner)
 	incusRuntime := incus.New(runtimeRunner)
+	maintenanceTools := &ociplugin.MaintenanceTooling{Directory: filepath.Join(root, "oci-maintenance-tools")}
+	incusRuntime.ConfigureMaintenanceTooling(maintenanceTools.Prepare)
 	if kernel, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil && strings.Contains(strings.ToLower(string(kernel)), "microsoft") {
 		incusRuntime.ConfigureWSLInterop()
 	}

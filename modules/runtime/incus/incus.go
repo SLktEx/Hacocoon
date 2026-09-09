@@ -30,6 +30,7 @@ type runtimeStorageState struct {
 }
 
 type Runtime struct {
+	maintenanceTooling       func(context.Context) (string, func() error, error)
 	environmentDNS           string
 	trustedHostInterop       func(context.Context) error
 	trustedHostNotifications func(context.Context) error

@@ -14,8 +14,11 @@ catalog・lifecycle の識別情報は fixture が供給するため、導入済
 最初の試行は digest 件数と同じ表示タグについての fixture の仮定で失敗しました。
 その正確な所有 fixture は cleanup し、receipt は保持しています。
 
-対応 OCI ツールの自動配置と controller 経由の作成全体の native 検証は未完了です。
-素の Ubuntu には必要なツールがなく、公開経路の接続だけで通常導入が動くとは主張しません。
+Linux/WSL amd64 の composition は保持 Store 接続前に固定 OCI ツールを自動配置します。
+private cache、上限付きの固定 member 展開、hash 照合付き Incus 転送、一時ファイル解放を実装しました。
+cache の race test は2.158秒、adapter・作成の拒否 test は1.956秒で成功しました。
+その focused run の composition はコンパイルのみで、テスト実行ではありません。
+native 配置は成功し、controller 全体の作成は未検証です。amd64 以外のツール準備は未対応です。
 候補選択 GC と未接続 Docker は未実装です。[契約](design/oci-image-deletion.ja.md#未接続-store-の実装中の範囲)を参照してください。
 
 d3013a3 の test・Ubuntu installer・Incus GHA は成功しました。Windows installer は
@@ -25,6 +28,13 @@ pending approval の Python 前提 setup で失敗しました。private registr
 修正後の拡張 native fixture は224.64秒で成功しました。製品の一覧、実参照による削除拒否、
 選択 digest の削除と不在、container metadata 保持、mask 付き再起動、Store 保持、
 所有対象だけの cleanup を確認しました。
+
+製品の準備処理・Incus adapter による自動配置を含む native fixture は237.37秒で成功しました。
+画像操作、metadata・Store 保護、所有対象だけの cleanup まで確認しました。空 cache からの
+実 HTTPS 取得・固定 member 展開は別に70.71秒で成功し、取得バイナリは Host で実行していません。
+OCI・Incus・composition 全体の race suite は4.332秒・22.135秒・1.856秒で成功し、vet も成功しました。
+先行する71a40e0の GHA は4 workflow すべて成功しました。controller 全体や他 architecture の
+受け入れを証明する結果ではありません。
 
 ## Environment 持ち出しの前提確認
 

@@ -1,6 +1,6 @@
 # ADR 0047: Inspect retained Stores in disposable Environments
 
-Status: partial implementation; native primitives accepted, public routing partial; automatic tooling and composed native acceptance pending.
+Status: partial implementation; native primitives accepted, public routing partial; automatic tooling and native delivery accepted on Linux amd64; controller acceptance pending.
 
 ## Decision
 
@@ -58,7 +58,7 @@ attachment and metadata startup after current network guards and verification.
 It requires a temporary Workspace and an owned ready guest OCI Store. The caller
 records exact runtime ownership immediately after init and owns failure cleanup.
 Runtime/BaseProvider, receipt-free creation and snapshot restore cannot enter
-maintenance. Public image routing uses this path; default tooling provisioning remains incomplete.
+maintenance. Public image routing uses this path; default tooling is now supplied on Linux amd64.
 
 The existing run service holds its ownership lock across a maintenance callback
 and bounded cleanup. It pins the reviewed resource owner in canonical creation,
@@ -100,8 +100,9 @@ and uncertain cleanup. The OCI module owns inventory and non-force deletion.
 No new lifecycle coordinator, schema state or CLI operation is introduced.
 
 Plain Ubuntu does not supply compatible containerd/ctr/nerdctl executables.
-Automatic provisioning and installed-controller native acceptance remain required
-before claiming the default public workflow complete. Detached Docker is refused.
+Linux amd64 composition now supplies pinned tools automatically, as described below.
+Installed-controller native acceptance remains required before claiming the default
+public workflow complete. Detached Docker is refused.
 The native image fixture exercises product OCI commands with fixture catalog/run
 identities; it cannot establish complete canonical creation or tool delivery.
 
@@ -110,3 +111,20 @@ on the fixed metadata socket, actual referenced-digest refusal, selected unused
 digest deletion/absence, unchanged container records and exact owned cleanup.
 It preserves every unselected used-image digest, without assuming that all digests
 with the same displayed tag are referenced by a container.
+
+## Automatic tool delivery
+
+Keep release acquisition and bounded member extraction in the OCI module. Use one
+pinned archive hash, a private serialized cache and fixed output names, not a new
+runtime backend or generic package manager. Incus transfers the verified files into
+the newly owned rootfs before retained attachment. Recheck current generation,
+unprivileged empty-profile identity and absence of non-scratch disk devices before
+transfer and installation. Do not execute downloaded OCI binaries on the Host or
+expose guest-controlled archive URLs, executables, sockets or retained configuration.
+
+The caller releases temporary tool files after transfer. Failures propagate through
+the existing creation receipt and cleanup path. Cache corruption is refused, never
+silently treated as a valid download or recovered by replacing unknown data. Signed
+transport URLs and response bodies are not part of error diagnostics. Linux amd64
+is the current supported tooling target; complete controller acceptance and
+other architectures remain separate work.
