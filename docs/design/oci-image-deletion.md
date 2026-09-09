@@ -1,66 +1,54 @@
-# v0.16 — OCI Image Deletion
+# OCI image inventory and deletion
 
-Status: **first deletion slice implemented on `main`; physical immutable-Seed rebuild/GC remains v0.17.**
+[日本語](oci-image-deletion.ja.md) | English
 
-v0.16 adds explicit OCI image deletion semantics under the optional OCI plugin for the trusted Host Seed cache and, when requested, currently managed Environments.
+## Current attached-Store commands
 
-## CLI
+Partial implementation; dedicated native runtime acceptance passed, installed-controller acceptance pending: use the existing plugin namespace:
 
-```text
-haco plugin oci image delete <reference[@sha256:...]> [--all-environments] [--json]
+```bash
+haco plugin oci image list dev
+haco plugin oci image list --runtime docker --json dev
+haco plugin oci image delete dev example.local/app:dev
 ```
 
-The removed pre-1.0 `haco image ...` namespace is not retained as an alias.
+`nerdctl` is the default; Docker is an explicit runtime selection. List shows the
+Env generation, exact Store owner, image IDs/tags/digests, container users and
+independent snapshot provenance. Delete accepts an exact displayed ID or tag,
+resolves it to the runtime's immutable ID, previews it and asks for confirmation.
+`--yes` skips the prompt, never identity or reference checks. This deletes the
+whole selected image; it is not a tag-only untag operation. Runtime refusal for
+multiple tags, containers or other references is returned without force.
 
-The default command affects the Host Seed cache and future Seed selection. It does not rewrite existing Environments.
+The OCI plugin queries the runtime instead of maintaining another image catalog.
+Docker uses config IDs; nerdctl uses manifest/index digests for selection/removal,
+while its Docker-compatible inspect exposes config IDs and container image names.
+The plugin resolves these native differences explicitly. It invokes fixed local
+sockets with a cleared CLI environment and fixed containerd namespace/snapshotter.
+It neither accesses layer files nor accepts a caller-selected socket/executable.
+Unparseable, incomplete or failed runtime observations fail closed. A successful
+remove must be followed by an inventory proving absence; otherwise report failure.
 
-`--all-environments` additionally attempts to remove the same immutable image identity from every managed Environment.
+`internal/workspace.ExecForResource` holds the canonical Env lifecycle lock while
+comparing both the reviewed generation and attached Store identity and invoking
+normal execution. Each runtime call repeats that check. The plugin separately
+checks current ready Store ownership. Recreating a name cannot redirect a pending
+delete into its replacement. Ordinary guest work may change runtime inventory;
+the runtime's non-force deletion remains the final reference check.
 
-## Immutable deletion identity
+This slice handles a Store attached to an Env whose runtime is available. Host
+source images, detached Stores, candidate-selected GC and automatic startup of a
+maintenance Env remain planned. No Seed/tombstone path, hidden backup, new catalog
+state or schema migration is introduced. Existing saved snapshots are independent
+copies, so image deletion does not modify them. Unit and CLI regressions and the
+existing optional real-runtime COW fixture cover different scopes; exact executed
+results are recorded in implementation status and the PR.
 
-Deletion identity is `reference + immutable digest`.
+## Historical Seed deletion
 
-For an implicit mutable reference, Hacocoon resolves one digest from trusted telemetry. If multiple digests are observed, deletion fails closed and requires an explicit `reference@sha256:...` target.
-
-Immediately before local removal, the mutable reference is revalidated. If the tag moved to another digest, Hacocoon refuses to delete the newer image as though it were the older target.
-
-## Host Seed-cache deletion
-
-The current first slice operates on the dedicated Host nerdctl namespace/cache (`hacocoon-seed`). It:
-
-1. validates the target identity;
-2. removes the matching local reference with ordinary `nerdctl rmi` when present;
-3. records a trusted deletion tombstone;
-4. keeps that exact identity out of v0.15 recommendation/automatic promotion;
-5. leaves physical immutable-Seed replacement and old-Seed GC to v0.17.
-
-Published immutable Seeds are never edited in place.
-
-## All-Environment deletion
-
-`--all-environments` preflights every managed Environment before destructive changes. Hacocoon uses the provider-neutral execution path and does not use `nerdctl rmi --force`.
-
-An image referenced by a container may therefore fail removal rather than silently breaking the container. Partial cross-Environment completion is surfaced as recovery-required and retry treats already-absent images as no-ops.
-
-## Tombstone semantics
-
-A deletion tombstone is an explicit Seed-selection override, not a runtime/network denylist.
-
-While the exact tombstone exists:
-
-- v0.15 telemetry may still observe the image;
-- recommendation/automatic promotion must not re-add the exact identity;
-- an Environment may still pull/use the image through its ordinary runtime/network authority;
-- re-adding the exact identity to a future Seed requires an explicit operator override.
-
-## Security requirements
-
-- mutable-tag ambiguity fails closed;
-- moved tags are never deleted as stale identities;
-- explicit old-digest deletion never removes a newer image behind the same mutable tag;
-- Host credentials are never copied into Environments;
-- Environment credentials are never harvested;
-- all-Environment deletion is explicit;
-- `--force` is not used;
-- immutable published Seeds are not mutated in place;
-- partial destructive work is reported as recovery-required.
+The old v0.16 Host Seed-cache/tombstone and all-Environment operation belongs to
+the quarantined legacy implementation. It is not the current product command or
+a current Store retention model. Historical behavior is recoverable from Git;
+existing records are not silently deleted by this change. The release table's
+v0.16 link identifies that historical checkpoint, not this new partial slice.
+See [ADR 0046](../adr/0046-reviewed-runtime-image-deletion.md).

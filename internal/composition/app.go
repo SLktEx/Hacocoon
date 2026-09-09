@@ -68,6 +68,7 @@ type App struct {
 	Repositories        *gitrepo.RepositoryService
 	GitBroker           *gitrepo.Broker
 	PersistentResources *persistentresource.Service
+	OCIImages           *ociplugin.ManagedImages
 }
 
 func Local(ctx context.Context) (*App, error) {
@@ -241,6 +242,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		ProjectSetup:        &projectsetup.Service{Root: filepath.Join(root, "project-setup"), Environments: environments},
 		HostCustomization:   &recipes.Service{Root: filepath.Join(root, "host-customization"), Execute: incusRuntime.RunTrustedHostCustomization},
 		PersistentResources: resources,
+		OCIImages:           &ociplugin.ManagedImages{Catalog: store, Environments: environments},
 		Environments:        environments,
 		AgentHosts:          agenthostapp.New(environments, store, bindingStore),
 		Clients:             clientapp.New(runtime, store),

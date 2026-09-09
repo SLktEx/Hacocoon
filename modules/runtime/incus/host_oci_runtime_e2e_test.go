@@ -91,7 +91,7 @@ nerdctl --snapshotter native build --network none -t hacocoon-area:local /tmp/ar
 				t.Fatal("copied image identity changed")
 			}
 			runImage(name, tool)
-			guest(name, tool+" image rm hacocoon-area:local")
+			verifyManagedRuntimeImages(t, ctx, runtime, name, target, tool, guest)
 			if imageID(trustedHostName, tool) != ids[tool] {
 				t.Fatal("copy deletion changed Host image")
 			}
@@ -121,6 +121,7 @@ mkdir -p /opt/docker /usr/local/bin /etc/systemd/system
 # Extract only fixed required runtime files from digest-verified distributions.
 tar -xzf /tmp/nerdctl-full.tar.gz -C /usr/local bin/nerdctl bin/containerd bin/containerd-shim-runc-v2 bin/ctr bin/runc bin/buildkitd bin/buildctl
 tar -xzf /tmp/docker.tgz -C /opt/docker --strip-components=1
+ln -s /opt/docker/docker /usr/local/bin/docker
 cat > /etc/systemd/system/containerd.service <<'UNIT'
 [Unit]
 Description=Owned test fixture containerd

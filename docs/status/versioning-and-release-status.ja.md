@@ -161,8 +161,9 @@ Controller経由setup、trusted network、controller所有Standard proxy、設�
 | v0.54 | Base Image Cleanup | 実装済み |
 | v0.55 | OCI Store Cleanup | 実装済み |
 | v0.56 | Source Repository Cleanup | 実装済み |
+| v0.57 | OCI Image Cleanup | partial |
 
-現在のmilestone位置は **v0.56** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
+現在のmilestone位置は **v0.57** です。この宣言と上のVersion/Gate列は `checkpoints.yaml` のmirrorで、status列だけを人間が管理します。前のpartial milestoneは残件として追跡しますが、後続のdevelopment checkpointを進める妨げにはしません。
 
 v0.7のprovider-neutral routing seamは維持しますが、concrete EC2/AWS/EBS codeはactive treeになく、**cloud implementationは現在deferred**です。
 

@@ -1,5 +1,10 @@
 # Implementation Status
 
+## Attached-Store image operations
+
+Partial: image list/delete is connected to the current OCI plugin, controller and product CLI. Runtime inventory/removal replaces legacy Seed selection semantics; reviewed Env generation and Store ownership guard execution. All seven related packages passed after correcting initial controller wiring, regexp and invalid-RPC error classification failures. Documentation checks passed. Dedicated WSL Incus/Btrfs native COW acceptance passed in 417.80s: Docker and nerdctl inventory, stopped-container refusal, immutable runtime ID removal, positive absence and source-copy image independence. The isolated project/pool and its now-empty catalog were cleaned up. Four related race packages passed; a focused concurrent Env-delete exclusion regression also passed. This fixture uses a test execution adapter, so installed-controller/public-CLI native acceptance remains unverified. Maintained CI/GHA for this candidate remain pending. Host-source and detached-Store image operations, candidate GC and reclamation remain planned. No schema migration. See [the owning contract](design/oci-image-deletion.md).
+
+
 ## Explicit source repository cleanup
 
 Partial E5: `haco repo list [--json]` and `haco repo delete [--yes] <id>` are implemented. Referencing Workspace records protect the current Git transport. Existing registry and Host-operation locks preserve identity, pending Host-copy state and native child saved objects. Schema 13 and independent data remain unchanged. Related package tests passed. Dedicated WSL Incus/Btrfs public source CLI acceptance passed in 30.43s: Workspace reference refusal, child snapshot and Host mount retention, stale review refusal, exact detach/delete and positive absence. The isolated project was removed; shared image/pool and the ownership receipt were retained. A subsequent guard rechecks queued Git requests under the registry lock; final race/CI results are tracked in the implementation PR. See [the contract](design/git-and-github-capability.md#explicit-source-repository-deletion). OCI cleanup PR #506 merged as `6903319` after all four workflows succeeded at `73175b4`; its new native regression passed in GHA in 0.71s.
@@ -1354,7 +1359,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.56**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.57**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

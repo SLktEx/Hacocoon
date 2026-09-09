@@ -277,8 +277,8 @@ Schema 11 adds the temporary saved-source reference and `created` receipt. Schem
 10 and earlier supported catalogs migrate on write without removing existing
 snapshots, legacy Base components, backup manifests or Store data. Old controllers
 reject schema 11; stop the controller before changing binaries and never relabel
-the schema manually. Runnable Env activation and public snapshot/restore remain
-planned. File-copy acceptance does not establish live OCI database consistency.
+the schema manually. Runnable Env activation and public snapshot/restore are implemented through
+the current canonical lifecycle; see [snapshot design](environment-snapshots.md). File-copy acceptance does not establish live OCI database consistency.
 
 ## Explicit retained Store deletion
 
@@ -304,3 +304,10 @@ retains the Store and Workspace. Existing catalog schema 13 and saved data are
 unchanged; no data migration is required. Old direct delete RPC callers must send
 the reviewed owner, and scripts consuming list JSON must use `--json`.
 See [ADR 0044](../adr/0044-explicit-oci-store-deletion.md).
+
+
+## Individual images in an attached Store
+
+The OCI plugin delegates individual image inventory and deletion to the selected
+runtime. See [image deletion](oci-image-deletion.md) for commands, native ID
+semantics, review guards and the remaining Host-source/detached-Store scope.
