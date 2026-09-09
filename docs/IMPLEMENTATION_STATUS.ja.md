@@ -9,6 +9,9 @@ fixture の path／namespace の想定を修正後、専用 Incus 6.0.5／Btrfs 
 現在の明示設定を確認しました。OS／SSH／公開 import の受入ではありません。
 [所有文書](design/environment-transfer.ja.md)を参照してください。
 
+固定 role の内部ストリーム書き込み／検証を追加し、展開や Incus 操作なしで完全な内容を確認します。
+関連 race test と vet は成功しました。公開 lifecycle への接続は planned です。
+
 ## 現在の Incus-first snapshot 契約
 
 状態: **保存と新しい Environment への restore は implemented** です。

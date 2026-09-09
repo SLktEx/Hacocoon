@@ -90,3 +90,33 @@ ownership/creation, archive validation and current connection/security setup.
 Published/imported image properties and profile associations never grant authority;
 callers must use the current configuration explicitly. No public command or new
 catalog schema is introduced by these tests.
+
+## Internal transfer envelope
+
+`internal/environmenttransfer` implements streaming `Write` and read-only `Inspect`.
+The internal version-1 manifest contains a bounded source label, OCI presence and
+an ordered list of role/size/SHA-256 records. The outer USTAR has fixed regular
+entries: `manifest.json`, `rootfs.tar`, `workspace.tar`, and optional `oci.tar`.
+There is no Base component, provider path, source management ID or credential map.
+This is not yet a published interchange format or a public export/import command.
+
+Canonical bounded JSON rejects duplicate/unknown fields. Required role/order,
+sizes, caller-owned aggregate budget, header type/format, payload hashes, complete
+closing blocks and absence of trailing content are checked. Reads are bounded
+even before manifest parsing, including tar's hidden extended-header processing.
+Neither function extracts files, calls Incus or invokes a consumer before whole
+verification. Native inner-archive safety and source authenticity are not proved.
+
+The producer must compare the protected capture inventory with the declared set;
+this codec cannot discover an omitted source OCI Store from an untrusted manifest.
+Only a successful writer result may be published. Any failed output remains
+unpublished, with cleanup ownership retained if removal is uncertain. Later import
+must keep immutable staged bytes or reverify them, then use canonical lifecycle
+and current security settings. Verification does not authorize source labels or
+old configuration. See [ADR 0049](../adr/0049-transfer-envelope-authority.md).
+
+Focused race tests and vet passed. The first truncation regression failed because
+Go's tar reader permits EOF without closing blocks; explicit closing-block
+accounting corrected it. Regression coverage includes missing/changed payloads,
+missing OCI, Base/extra/reordered components, path/link/header attacks, duplicate
+JSON, over-budget and overflowing sizes, and bounded pre-manifest reads.

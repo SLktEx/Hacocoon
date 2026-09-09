@@ -70,3 +70,23 @@ archive checksum を確認します。cleanup は正確な marker を照合し�
 公開 import は canonical な所有権・作成、archive の検証、現在の接続・security setup が引き続き必要です。
 image の property・profile 関連付けは権限ではなく、現在の設定を明示して使います。
 公開コマンドや catalog schema はこれらのテストで追加しません。
+
+## 内部 transfer envelope
+
+`internal/environmenttransfer` にストリーム書き込みの `Write` と読み取り専用の `Inspect` を実装しました。
+内部 version 1 の manifest は、上限付きの source label、OCI の有無、順序付き role／size／SHA-256 を持ちます。
+外側の USTAR は固定名の通常ファイル `manifest.json`、`rootfs.tar`、`workspace.tar`、任意の `oci.tar` だけです。
+Base component、provider path、元の管理 ID、認証情報 map は持ちません。公開交換形式や公開 export/import ではありません。
+
+上限付き canonical JSON で重複・未知フィールドを拒否し、role と順序、サイズ、呼び出し側の総量上限、header の種類・形式、
+payload hash、完全な終端、余分な内容がないことを確認します。tar が内部で処理する拡張 header を含め、manifest 前の読み取りも
+上限付きです。展開・Incus 呼び出し・全検証前の consumer callback は行いません。内側 archive の安全性や送信元の真正性は証明しません。
+
+producer は保護された capture 一覧と宣言対象を照合する必要があります。この codec だけでは元 OCI Store の省略を発見できません。
+書き込み成功の場合だけ公開し、失敗した出力は公開しません。削除不明なら cleanup の所有情報を保持します。
+後の import は不変の staging bytes を保持するか再検証し、canonical lifecycle と現在の security 設定を使います。
+検証は source label や古い設定を適用する権限ではありません。[ADR 0049](../adr/0049-transfer-envelope-authority.md)を参照してください。
+
+関連 race test と vet は成功しました。初回の切断回帰は Go tar reader が終端なしの EOF を受け入れて失敗し、終端の明示確認で修正しました。
+payload 欠落・変更、OCI 欠落、Base／余分・順序違いの component、path／link／header 攻撃、重複 JSON、総量・overflow、
+manifest 前の読み取り上限を回帰テストで確認しています。

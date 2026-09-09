@@ -12,6 +12,10 @@ Base/image source, source instance/image removal before import and fresh explici
 configuration. It does not prove OS/SSH/public-import acceptance. See
 [the owning contract](design/environment-transfer.md).
 
+An internal fixed-role streaming envelope writer/verifier now checks complete
+bytes without extraction or Incus effects; focused race tests and vet passed.
+Public lifecycle integration remains planned.
+
 ## Current Incus-first snapshot contract
 
 Status: **implemented for capture and restore into a new Environment**. The
