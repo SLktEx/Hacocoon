@@ -4,8 +4,8 @@
 
 Status: **partial, internal implementation**. Pinned Linux identity/allocation,
 Btrfs trim and outer ext4 discard are implemented and passed isolated native
-acceptance. Trusted target selection, the one-entry workflow and Windows VHDX
-stop/compact/resume orchestration are not yet implemented. Windows handle-based
+acceptance. Configured Incus pool selection is implemented internally; the public
+one-entry workflow and Windows stop/compact/resume orchestration are not yet implemented. Windows handle-based
 measurement and native compaction are implemented internally below. F1 remains incomplete.
 This is separate from resource deletion/GC and migration.
 
@@ -180,3 +180,28 @@ Native registration type/path rejection tests and amd64/arm64 builds passed.
 Existing catalog/snapshot data and WSL registration/configuration were not migrated
 or rewritten. Full Workspace/OCI/snapshot content acceptance through the future
 public all-layer operation is still pending.
+
+## Configured Incus pool entry
+
+`Runtime.PrepareStorageReclamation` now binds trusted local configuration to the
+existing pool and held native filesystem/loop/image. It requires one matching
+created Btrfs pool, the configured mount policy and the exact installed path
+`/var/lib/incus/disks/<pool>.img`. Arbitrary data directories/custom Incus layouts
+are currently unsupported; backend output cannot select another Host directory.
+It rereads pool correspondence after pinning and before each discard stage.
+Missing, malformed, duplicate, truncated, failed or incompatible observations
+stop before mutation. Native methods and close are serialized.
+
+This entry never creates a pool or independently mounts it. Normal Incus use must
+keep a cold pool mounted before selection. The composition entry supplies
+its existing configured pool without accepting caller pool/path arguments. Outer-filesystem authority and
+the Windows continuation still need their separate installation binding. The
+public all-layer operation remains planned; there is no Linux-only public command.
+
+The existing dedicated Incus/Btrfs fixture now uses this entry and PASSED in
+26.52s. An isolated 1GiB pool retained its volume and native snapshot bytes;
+backing allocation fell from 72,523,776 to 1,417,216 bytes after filler removal
+and inner/outer discard. Incus pool and backing-image absence were checked after
+owned fixture cleanup; the ownership receipt remains. Windows allocation was
+not measured in this Linux test. Focused selection/refusal tests and race checks
+passed. No catalog migration or user command change is introduced by this slice.

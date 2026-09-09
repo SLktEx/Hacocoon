@@ -1,5 +1,17 @@
 # Implementation Status
 
+## Configured pool reclamation entry
+
+Status: **partial, internal only**. Composition now selects its existing pool
+without caller path/pool arguments. The Incus entry binds that configuration to
+pinned native objects and rechecks it before each discard stage; native use and
+close are serialized. Failed/ambiguous backend observations cannot reach trim.
+Focused and race tests passed. Dedicated Incus/Btrfs acceptance PASSED in 26.52s,
+retaining isolated volume/snapshot contents and capacity, with 72,523,776 to
+1,417,216 backing allocated bytes and verified owned-fixture absence afterward.
+Public all-layer continuation/Windows binding remains planned. See the
+[contract](design/storage-reclamation.md#configured-incus-pool-entry).
+
 ## Windows registration and stop-to-compaction readiness
 
 Status: **partial, internal only**. Exact nonzero registration GUID/literal VHDX

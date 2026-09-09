@@ -39,3 +39,9 @@ shared VM idle timeout. Preserve each attempt's result and resume the exact
 registration. A registration GUID/value observation is not an authorization
 record: the public continuation must still bind the managed installation and
 pinned file at mutation boundaries, and reject changed/reused identities.
+
+The local composition selects its configured pool without caller paths. The
+Incus entry binds its exact standard backing layout, configured mount policy and
+live native objects, rereading correspondence before each discard. Unsupported
+custom layouts fail closed; no independent mount or pool-creation fallback is
+introduced. The entry owns handles only, so closing it never deletes storage.

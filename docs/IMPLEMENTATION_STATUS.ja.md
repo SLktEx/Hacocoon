@@ -1,5 +1,15 @@
 # 実装状況
 
+## 設定済み pool の容量回収入口
+
+状態: **partial、内部のみ**。構成層が既存 pool を選び、呼び出し側の path・pool 引数は
+受け付けません。Incus の入口は設定と固定した実体を結び付け、各 discard 前に再照合し、
+native 利用と close を直列化します。失敗・曖昧な backend 応答から trim へ進みません。
+回帰・race 検証は成功し、専用 Incus/Btrfs 検証も26.52秒で成功しました。隔離 volume・
+snapshot の内容と容量を保持し、backing 割当量は72,523,776から1,417,216 byte に減少、
+所有 fixture の cleanup 後の不在も確認しました。公開の全層継続・Windows との結び付けは
+planned です。[契約](design/storage-reclamation.ja.md)を参照してください。
+
 ## Windows 登録照合と停止から圧縮までの待機
 
 状態: **partial、内部のみ**。非ゼロの正確な登録 GUID・リテラルの VHDX 情報の読み取りと

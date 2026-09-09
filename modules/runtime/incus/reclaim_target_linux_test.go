@@ -300,42 +300,43 @@ func TestRealIncusPoolTrimPreservesVolumeAndSnapshot(t *testing.T) {
 	if err := file.Close(); err != nil {
 		t.Fatal(err)
 	}
-	target, err := pinReclaimTarget(pool, "/var/lib/incus/disks/"+pool+".img")
+	selected, err := r.PrepareStorageReclamation(ctx, BtrfsLoopPoolSpec{Name: pool, MountOptions: "compress=zstd:3,noatime,nodiscard"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	target := selected.target
 	// Flush test allocation before measuring; remove only the fixture filler.
 	if err := unix.Syncfs(int(target.mount.Fd())); err != nil {
-		_ = target.Close()
+		_ = selected.Close()
 		t.Fatal(err)
 	}
 	allocated, err := target.Allocation()
 	if err != nil {
-		_ = target.Close()
+		_ = selected.Close()
 		t.Fatal(err)
 	}
 	if err := backend.Verify(ctx, resource); err != nil {
-		_ = target.Close()
+		_ = selected.Close()
 		t.Fatal(err)
 	}
 	if err := os.Remove(filler); err != nil {
-		_ = target.Close()
+		_ = selected.Close()
 		t.Fatal(err)
 	}
-	result, trimErr := target.Trim(ctx)
+	result, trimErr := selected.TrimPool(ctx)
 	if trimErr == nil && os.Getenv("HACO_E2E_RECLAIM_OUTER_TRIM") == "1" {
 		// This extra opt-in authorizes the dedicated WSL fixture's outer filesystem,
 		// not merely the new Incus pool. No mount/resize/delete is performed here.
-		outer, outerErr := target.TrimBackingFilesystem(ctx)
+		outer, outerErr := selected.TrimBackingFilesystem(ctx)
 		if outerErr != nil || !outer.Attempted || !outer.KernelReportKnown {
-			_ = target.Close()
+			_ = selected.Close()
 			t.Fatal("outer discard failed; this does not undo inner trim", outer, outerErr)
 		}
 		t.Logf("PASS outer ext4 discard via pinned image fd; kernel-reported=%d; Windows allocation not measured", outer.KernelTrimmedBytes)
 	} else if trimErr == nil {
 		t.Log("SKIP outer filesystem trim: separate dedicated-distribution opt-in not enabled")
 	}
-	closeErr := target.Close()
+	closeErr := selected.Close()
 	if trimErr != nil || closeErr != nil {
 		t.Fatal(result, trimErr, closeErr)
 	}

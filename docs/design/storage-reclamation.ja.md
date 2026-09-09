@@ -3,8 +3,8 @@
 日本語 | [English](storage-reclamation.md)
 
 状態: **partial、内部実装**。Linux の実体照合・割当量測定、Btrfs trim と外側 ext4
-への discard を実装し、隔離した実環境で検証しました。信頼できる対象選択、一つの
-入口で全層を回収する操作、Windows の停止・圧縮・再開の連携は未実装です。Windows の
+への discard を実装し、隔離した実環境で検証しました。設定済み Incus pool の選択は内部実装済みです。
+一つの入口で全層を回収する操作、Windows の停止・圧縮・再開の連携は未実装です。Windows の
 ファイル測定と native 圧縮は以下の内部実装まで進んでいます。F1 は
 未完了であり、データの明示削除・GC・移行とは別の機能です。
 
@@ -142,3 +142,26 @@ WSL 2.7.13 では停止表示だけで native disk の解放を確認できま�
 登録の型・パス拒否の native 回帰と amd64／arm64 ビルドも成功しました。
 既存 catalog・snapshot の移行、WSL 登録・設定の書き換えはありません。将来の公開操作を
 通じた Workspace・OCI・snapshot の保存内容全体の検証は未完了です。
+
+## 設定済み Incus pool の入口
+
+`Runtime.PrepareStorageReclamation` は、信頼済みのローカル設定と既存 pool、保持した
+filesystem・loop・image の実体を結び付けます。Created 状態の Btrfs pool が一件だけ一致し、
+設定した mount policy と標準パス `/var/lib/incus/disks/<pool>.img` が一致することを
+要求します。任意の data directory・独自 Incus 配置は現時点で未対応です。backend の
+応答から別の Host directory を選びません。固定後と各 discard の直前に pool の対応を
+読み直し、欠落・不正・重複・切り詰め・失敗・不一致を変更前に拒否します。native 操作と
+close は直列化しています。
+
+この入口は pool を作成せず、独自 mount もしません。cold pool は通常の Incus 利用によって
+mount を保持する必要があります。構成層の入口は引数なしで既存設定の pool を選び、呼び出し側の
+pool・path 指定を受け付けません。外側 filesystem の権限と Windows 継続処理には
+別途管理対象との結び付けが必要です。公開の全層操作は planned のままで、Linux だけを
+回収する公開コマンドは追加していません。
+
+既存の専用 Incus/Btrfs fixture をこの入口経由へ変更し、26.52秒で成功しました。
+隔離1GiB pool の volume・native snapshot の内容を保持し、filler 削除と内外 discard 後、
+backing 割当量は72,523,776から1,417,216 byte に減りました。所有 fixture の cleanup 後は
+Incus pool・backing image の不在も確認し、所有記録を残しています。この Linux 検証では
+Windows 割当量を測定していません。選択・拒否の回帰と race 検証も成功しました。
+この段階では catalog 移行や利用者向けコマンドの変更はありません。
