@@ -103,16 +103,17 @@ def canonical_registration_id(value):
     return value
 
 
-def capture_registration(value):
+def registration_record(value=None, capture=False):
     """Installer-only binding component, not permission to stop or compact WSL.
 
     Keep the existing name record unchanged. No replacement/migration/recovery is
     inferred from a caller-supplied name or from an unreadable binding.
     """
     import fcntl
-    value = canonical_registration_id(value)
+    if capture:
+        value = canonical_registration_id(value)
     if os.geteuid() != 0:
-        raise ValueError('registration capture requires Physical Host root')
+        raise ValueError('registration access requires Physical Host root')
     parent = REGISTRATION_RECORD.parent
     if not parent.is_absolute():
         raise ValueError('registration directory must be absolute')
@@ -142,7 +143,7 @@ def capture_registration(value):
                 record = json.loads(raw)
                 if (set(record) != {'schema_version', 'registration_id', 'installation_id'} or
                         type(record['schema_version']) is not int or record['schema_version'] != 1 or
-                        canonical_registration_id(record['registration_id']) != value or
+                        (canonical_registration_id(record['registration_id']) != value and value is not None) or
                         str(uuid.UUID(record['installation_id'])) != record['installation_id'] or
                         uuid.UUID(record['installation_id']).int == 0 or
                         raw != (json.dumps(record, sort_keys=True, separators=(',', ':')) + '\n').encode()):
@@ -150,6 +151,8 @@ def capture_registration(value):
             except (KeyError, TypeError, AttributeError, json.JSONDecodeError):
                 raise ValueError('invalid registration record; retain it for review') from None
             return record
+        if not capture:
+            raise FileNotFoundError('managed Windows registration is not enrolled')
         record = {'schema_version': 1, 'registration_id': value, 'installation_id': str(uuid.uuid4())}
         raw = (json.dumps(record, sort_keys=True, separators=(',', ':')) + '\n').encode()
         temporary = '.windows-registration-' + uuid.uuid4().hex
@@ -167,6 +170,10 @@ def capture_registration(value):
         return record
     finally:
         os.close(directory)
+
+
+def capture_registration(value):
+    return registration_record(value, capture=True)
 
 
 def drive_mounts(mounts):
@@ -376,6 +383,9 @@ def main():
         raise ValueError("run as root on the WSL Physical Host")
     if not Path("/init").is_file() or not Path("/run/WSL/1_interop").is_socket():
         raise ValueError("WSL interop is unavailable; enable Windows interop and enter WSL again")
+    if sys.argv[1:] == ['--read-registration']:
+        print(json.dumps(registration_record(), sort_keys=True, separators=(',', ':')))
+        return
     if len(sys.argv) == 3 and sys.argv[1] == '--capture-registration':
         capture_registration(sys.argv[2])
         print('Recorded managed WSL registration identity')

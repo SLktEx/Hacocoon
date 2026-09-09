@@ -1,5 +1,14 @@
 # 実装状況
 
+## Windows からの導入済み Host の識別情報の観測
+
+状態: **partial、内部のみ**。Windows の観測処理は圧縮と同じ排他・ディスク固定の下で、
+固定 GUID のコマンドから root 所有の導入識別情報を読み取ります。上限付きの正規形式を検査し、
+登録・導入・ファイル・Windows ユーザーの識別情報をまとめますが、登録・変更の認可は行いません。
+Linux interop 16件、Windows 回帰、両アーキテクチャのビルドが成功し、専用 WSL の native 観測は
+26.87秒で成功しました。認可された対応の永続保存・強制と公開の全層一括操作は planned です。
+[契約](design/storage-reclamation.ja.md)を参照してください。
+
 ## Installer の登録識別情報の作成
 
 状態: **partial**。通常の managed Windows setup は一意に解決した WSL 2 GUID で共通 setup を

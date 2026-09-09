@@ -339,3 +339,33 @@ remain pending.
 A separate native repeat probe then PASSED: root ownership, mode 0600, one link,
 and identical bytes/inode after two captures. The absent legacy name record
 remained absent. The first probe failure above remains recorded.
+
+## Reading the installed identity from Windows
+
+The installed interop helper now has a read-only registration mode. It uses the
+same protected-directory/file and canonical-format checks as capture, but missing
+records fail without enrollment and valid records are never rewritten. The
+Windows observer launches only this fixed helper mode through the exact GUID,
+with the existing cleared execution environment and a two-minute bound. Output
+is limited to 4KiB, requires canonical schema/UUIDs and must name that same GUID;
+unknown/duplicate fields, extra output, truncation and overflow are rejected.
+Raw helper output is not logged and stderr is discarded.
+
+The observer holds the continuation exclusion and VHDX/ancestor handles while
+reading, then revalidates native file and registry identity. The result combines
+the installed identity, registration, pinned file identity and current Windows
+process user SID. It does not persist enrollment, issue a permission or compact
+anything. The exclusive observation prevents this query from restarting WSL in
+the middle of a Hacocoon compaction. Persisting the authorized correspondence
+and enforcing it at mutation remain required before public activation.
+
+Sixteen native Linux interop tests passed, including read-without-enrollment and
+unchanged bytes/inode. Windows output/identity/refusal regressions and amd64/arm64
+builds passed. Dedicated native observation PASSED in 26.87s with the expected
+VHDX file identity and a current Windows owner. The installed Hacocoon helper was
+updated on that dedicated WSL; its direct read preserved the record. WSL reported
+a root systemd user-session startup warning during helper setup, while the helper
+check exited successfully. This is not controller or systemd-user readiness
+acceptance. Symlink fixture on Windows remains SKIP for privilege; the Linux
+symlink and Windows junction refusals passed. No enrollment/compaction was run by
+the observer and full installer/public all-layer acceptance remains pending.

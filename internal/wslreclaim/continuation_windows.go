@@ -19,6 +19,7 @@ type wslOperation uint8
 const (
 	wslStop wslOperation = iota + 1
 	wslResume
+	wslReadRegistration
 )
 
 // wslArguments deliberately has no caller command, shell, name lookup or
@@ -33,12 +34,18 @@ func (r registration) wslArguments(operation wslOperation) ([]string, error) {
 		return append(args, "/usr/bin/env", "-i", "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "/usr/bin/systemctl", "--no-block", "poweroff"), nil
 	case wslResume:
 		return append(args, "/usr/bin/env", "-i", "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "/usr/bin/true"), nil
+	case wslReadRegistration:
+		return append(args, "/usr/bin/env", "-i", "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "/usr/bin/python3", "-I", "/usr/local/libexec/hacocoon-wsl-interop", "--read-registration"), nil
 	default:
 		return nil, errors.New("invalid managed WSL operation")
 	}
 }
 
 func (r registration) runWSL(ctx context.Context, operation wslOperation) error {
+	return r.runWSLTo(ctx, operation, io.Discard)
+}
+
+func (r registration) runWSLTo(ctx context.Context, operation wslOperation, output io.Writer) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -63,7 +70,7 @@ func (r registration) runWSL(ctx context.Context, operation wslOperation) error 
 	command.Env = []string{"SystemRoot=" + root, "WINDIR=" + root}
 	command.Dir = system
 	command.Stdin = nil
-	command.Stdout = io.Discard
+	command.Stdout = output
 	command.Stderr = io.Discard
 	command.WaitDelay = 5 * time.Second
 	if err := command.Run(); err != nil {

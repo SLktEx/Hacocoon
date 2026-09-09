@@ -76,6 +76,20 @@ class WindowsPathTests(unittest.TestCase):
 
 @unittest.skipUnless(hasattr(os, 'geteuid') and os.geteuid() == 0, 'native root-owned Linux record fixture required')
 class RegistrationBindingTests(unittest.TestCase):
+    def test_read_does_not_enroll_or_rewrite(self):
+        import uuid
+        with tempfile.TemporaryDirectory() as directory:
+            record = Path(directory) / 'registration.json'
+            with mock.patch.object(interop, 'REGISTRATION_RECORD', record):
+                with self.assertRaises(FileNotFoundError): interop.registration_record()
+                self.assertFalse(record.exists())
+                created = interop.capture_registration('{' + str(uuid.uuid4()) + '}')
+                before = record.read_bytes()
+                info = record.stat()
+                self.assertEqual(interop.registration_record(), created)
+                self.assertEqual(record.read_bytes(), before)
+                self.assertEqual(record.stat().st_ino, info.st_ino)
+
     def test_capture_preserves_identity_and_rejects_replacement(self):
         import uuid
         from concurrent.futures import ThreadPoolExecutor
@@ -107,6 +121,7 @@ class RegistrationBindingTests(unittest.TestCase):
                              valid.replace(b'"schema_version":1', b'"schema_version":1,"future":true'), b'x' * 4097]:
                     record.write_bytes(data)
                     with self.assertRaises(ValueError): interop.capture_registration(value)
+                    with self.assertRaises(ValueError): interop.registration_record()
                     self.assertEqual(record.read_bytes(), data)
                 record.write_bytes(valid)
                 record.chmod(0o644)

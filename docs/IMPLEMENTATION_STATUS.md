@@ -1,5 +1,16 @@
 # Implementation Status
 
+## Windows observation of installed Host identity
+
+Status: **partial, internal only**. The Windows observer reads the installed
+root-owned identity through a fixed GUID command under the same exclusion and
+native disk pins as compaction. It validates bounded canonical output and returns
+registration, installation, file and Windows user identity together; it does not
+enroll or authorize mutation. Linux interop 16 tests, Windows regressions and both
+architecture builds passed. Dedicated native observation passed in 26.87s.
+Persisted enrollment/enforcement and public all-layer operation remain planned.
+See the [contract](design/storage-reclamation.md#reading-the-installed-identity-from-windows).
+
 ## Installer registration identity capture
 
 Status: **partial**. Normal managed Windows setup now uses a uniquely resolved

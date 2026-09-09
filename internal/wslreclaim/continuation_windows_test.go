@@ -31,6 +31,10 @@ func TestWSLOperationsUseGUIDAndFixedCommands(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(resume, append(prefix, "/usr/bin/true")) {
 		t.Fatal(resume, err)
 	}
+	read, err := r.wslArguments(wslReadRegistration)
+	if err != nil || !reflect.DeepEqual(read, append(prefix, "/usr/bin/python3", "-I", "/usr/local/libexec/hacocoon-wsl-interop", "--read-registration")) {
+		t.Fatal("registration read must use the fixed isolated helper", read, err)
+	}
 	r.Name = "Same-GUID-Renamed"
 	if renamed, err := r.wslArguments(wslStop); err != nil || !reflect.DeepEqual(renamed, stop) {
 		t.Fatal("stop depends on name", renamed, err)
