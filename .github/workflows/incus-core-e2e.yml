@@ -142,9 +142,9 @@ jobs:
           python3 tools/prepare-oci-runtime-fixture.py "$RUNNER_TEMP/oci-runtime-assets"
           CGO_ENABLED=0 go build -o "$RUNNER_TEMP/oci-runtime-assets/oci-probe" ./modules/runtime/incus/testdata/oci-probe
           go test -c -o "$RUNNER_TEMP/persistent-copy.test" ./modules/runtime/incus
-          sudo env HACO_E2E_INCUS_PERSISTENT_COPY=1 HACO_E2E_INCUS_HOST_AREA_COPY=1 \
+          sudo env HACO_E2E_INCUS_PERSISTENT_COPY=1 HACO_E2E_INCUS_HOST_AREA_COPY=1 HACO_E2E_INCUS_VOLUME_TRANSFER=1 HACO_E2E_INCUS_ROOTFS_TRANSFER=1 \
             HACO_E2E_OCI_RUNTIME_ASSETS="$RUNNER_TEMP/oci-runtime-assets" \
-            "$RUNNER_TEMP/persistent-copy.test" -test.run='^TestRealIncus(PersistentCopy|HostAreaCopy|CompletedHostCopyRecovery)E2E$' -test.v -test.timeout=22m
+            "$RUNNER_TEMP/persistent-copy.test" -test.run='^TestRealIncus(PersistentCopy|HostAreaCopy|CompletedHostCopyRecovery|VolumeTransfer|RootfsTransfer|OwnedVolumeExport)E2E$' -test.v -test.timeout=22m
       - name: Capture storage CLI diagnostics
         if: failure()
         run: |

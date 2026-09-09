@@ -100,7 +100,7 @@ staging and runnable copies. Incus's `volatile.last_state.ready` is reset to
 requires a boolean even for this volatile key. This does not preserve processes
 or old authority, and changes no saved-data schema.
 
-## Restore preparation and future activation
+## Internal restore preparation
 
 The implemented flow is: select a ready snapshot, verify its required saved
 components, reserve the current target identity and independent destination names,
@@ -109,12 +109,15 @@ Current Environment data remains untouched. No automatic pre-restore backup,
 rollback snapshot or hidden equivalent is created. Save explicitly first if the
 current state should be retained after a future explicit replacement.
 
-Prepared copies are stopped/unattached and are not a runnable Environment. The
-remaining activation must use the canonical lifecycle API, a new creation ID,
-current network/security configuration and fresh connection credentials. It must
-not adopt the old source's devices, grants or authentication. Prepare independent
-data before switching; replace only the target data explicitly selected by the
-user. Same-name recreation must not inherit the prior generation's approvals.
+This internal staging API creates stopped/unattached copies, not a runnable
+Environment. It remains available for its recorded preparations and exact-owned
+cleanup; the public command does not require users to prepare bindings or invoke
+this API. [Public restore](#restore-into-a-new-environment) composes normal data
+registration and canonical creation directly, with a new creation ID, current
+network/security configuration and fresh connection credentials. It refuses an
+existing target name and never adopts the old source's devices, grants or
+authentication. Same-name recreation must not inherit the prior generation's
+approvals.
 
 On failure, the service attempts bounded cleanup under the existing locks. It
 returns failure even if cleanup succeeds, without retaining a recovery reservation.
@@ -122,8 +125,8 @@ If cleanup cannot confirm absence, the error reports the restore ID and preserve
 exact destinations for `CleanupSnapshotRestore`. Both paths remove only verified
 owned copies, positively check absence and keep records on ambiguous results.
 Retry cleanup or start a fresh preparation after cleanup. There is no activation
-rollback or automatic resume from every crash point. Future activation must not
-introduce these as prerequisites for disposable Environments.
+rollback or automatic resume from every crash point. Public restore preserves
+these limits; a published Env with a start failure is retained for ordinary start.
 
 ## Lifetime and ordinary recreation
 
@@ -216,7 +219,11 @@ state machine is introduced.
 - `modules/runtime/incus`: native copy/instance/volume/device operations and exact
   provider observations. Btrfs is an explicit supported precondition.
 - `modules/standard/gitrepo`: normal Workspace registration and destination-owned cleanup.
-- `internal/workspace`: aggregate locks and ordered capture/preparation/cleanup.
+- `internal/workspace`: aggregate locks and ordered capture/preparation/cleanup,
+  plus canonical creation and lifecycle leases.
+- `internal/snapshotrestore`: the public restore application service, composing
+  normal Workspace/Store registration and canonical creation/start without a new
+  recovery catalog.
 - `internal/state`: durable data/generation ownership and atomic lifecycle guards.
 - `internal/environment`: routing and qualification of Incus native references.
 - `internal/core`: small manifests and domain identity types.

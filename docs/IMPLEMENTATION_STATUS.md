@@ -13,6 +13,56 @@ the formerly failing positive paths. Public routing and daemon integration remai
 incomplete. See [the contract](design/oci-image-deletion.md#detached-store-implementation-in-progress).
 
 
+## Environment transfer prerequisites
+
+The Linux/WSL Incus adapter now exports an owned saved Workspace/OCI volume into
+an unnamed read-only archive, checking native ownership and backup cleanup. Its
+dedicated Incus 6.0.5/Btrfs adapter test passed in 5.92s; local race and vet passed. The
+whole public export/import flow and rootfs archive producer remain unimplemented.
+See the [owning contract](design/environment-transfer.md#native-saved-volume-export-adapter).
+
+Public G1 export/import remains **planned**. Internal snapshot/archive inventory
+matching covers all currently supported Workspace components and optional OCI;
+the saved-source read boundary now shares canonical deletion locks and verifies
+retained components. Native archive production and public commands are not yet connected. Opt-in native Incus rootfs/volume
+archive tests and their existing-GHA integration are implemented. The dedicated
+Incus 6.0.5/Btrfs run passed in 11.24s after correcting fixture path/namespace
+assumptions; source/destination independence, Git state, links, mode and retained
+archive checks passed. Public rootfs import and authority reconstruction remain
+unimplemented. A separate empty-rootfs image round trip passed in 14.88s with no
+Base/image source, source instance/image removal before import and fresh explicit
+configuration. It does not prove OS/SSH/public-import acceptance. See
+[the owning contract](design/environment-transfer.md).
+
+An internal fixed-role streaming envelope writer/verifier now checks complete
+bytes without extraction or Incus effects; focused race tests and vet passed.
+Linux/WSL staging now retains verified bytes in an unnamed read-only file; real-
+filesystem race tests and vet passed. Btrfs staging and public lifecycle integration
+remain unverified/planned respectively.
+
+## Current Incus-first snapshot contract
+
+Status: **implemented for capture and restore into a new Environment**. The
+current command is `haco snapshot restore <snapshot-id> [new-env]`; in-place
+replacement remains **planned**. Earlier checkpoint entries below describe the
+acceptance at that revision: their former “public restore planned” statements do
+not override the implemented command. See the [owning contract](design/environment-snapshots.md#restore-into-a-new-environment).
+
+Incus owns independent rootfs/volume copies and runtime operations. Hacocoon adds
+aggregate consistency, retained data ownership and fresh security generations.
+New saves contain rootfs, Workspace, optional OCI and metadata, with no Base
+filesystem or automatic pre-restore backup. Schema 13 retains legacy saved
+Base/backup ownership and source reservations; ordinary upgrades need no manual
+saved-data rewrite. Existing records are not silently discarded.
+
+[PR #493](https://github.com/SLktEx/Hacocoon/pull/493) records real Incus/Btrfs
+Base/cache-independent capture and preparation. [PR #501](https://github.com/SLktEx/Hacocoon/pull/501)
+records real public restore after source deletion, fresh generation, retained
+Git/OCI bytes and exact-owned cleanup. These are executed results at those
+revisions, not new acceptance of every later change. Restored SSH handshake and
+live OCI database consistency remain unverified. Reclamation, detached Store
+image maintenance and migration are separate unfinished work.
+
 ## Host-source image operations
 
 Partial implementation: `image list/delete --host` selects only the exact managed Host source. The current plugin/controller/CLI route and Incus adapter enforce source ownership, local role/mount/layout, unprivileged running state, the existing Host-copy operation lock and a fixed command/template allowlist. No guest Store can be used as a Host source. Five related package tests passed; focused security/CLI regressions are included. Four related race packages passed, including the shared Host-copy lock guard. Additional uppercase-tag reference regressions passed. Dedicated WSL Incus/Btrfs acceptance passed in 487.19s: both runtimes listed the Host source, refused a stopped-container reference, removed only the selected image, retained other images, then completed independent Store copy/deletion and exact fixture cleanup. This uses the real Host adapter with a fixture catalog; installed-controller/public-CLI native acceptance remains unverified. Existing independent copies remain; detached Stores and GC remain planned. See [the contract](design/oci-image-deletion.md#managed-host-source).

@@ -11,6 +11,51 @@ state／workspace／run の関連 race 回帰が成功しました。公開経�
 [契約](design/oci-image-deletion.ja.md#未接続-store-の実装中の範囲)を参照してください。
 
 
+## Environment 持ち出しの前提確認
+
+Linux／WSL の Incus adapter は所有済みの保存 Workspace／OCI volume を匿名・読み取り専用 archive へ export し、
+native 所有情報と backup cleanup を確認します。専用 Incus 6.0.5／Btrfs の adapter 検証は5.92秒で成功し、
+関連 race test と vet も成功しました。公開 export/import 全体と rootfs archive 作成は未実装です。
+[所有文書](design/environment-transfer.ja.md)を参照してください。
+
+公開 G1 export/import は **planned** です。内部の snapshot／archive 照合は現行上限までの全 Workspace と任意の OCI を扱います。
+保存元の読み取り境界は canonical な削除ロックを共有し、保持 component を検証します。
+native archive 作成と公開 command は、まだ接続していません。native Incus rootfs／volume archive の opt-in テストと既存 GHA への追加を実装しました。
+fixture の path／namespace の想定を修正後、専用 Incus 6.0.5／Btrfs で11.24秒の検証が成功しました。
+保存元・復元先の独立性、Git 状態、リンク、mode、archive 保持を確認しました。rootfs と公開 import の権限処理は未実装です。
+別の空 rootfs image 検証は14.88秒で成功し、Base/image を使わない作成、import 前の保存元 instance/image 削除、
+現在の明示設定を確認しました。OS／SSH／公開 import の受入ではありません。
+[所有文書](design/environment-transfer.ja.md)を参照してください。
+
+固定 role の内部ストリーム書き込み／検証を追加し、展開や Incus 操作なしで完全な内容を確認します。
+関連 race test と vet は成功しました。公開 lifecycle への接続は planned です。
+
+Linux／WSL staging は検証済み bytes を名前のない読み取り専用ファイルに保持します。
+実 filesystem の race test と vet は成功しました。Btrfs 上の staging は未検証、公開 lifecycle 接続は planned です。
+
+## 現在の Incus-first snapshot 契約
+
+状態: **保存と新しい Environment への restore は implemented** です。
+現在のコマンドは `haco snapshot restore <snapshot-id> [new-env]` で、既存 Env の
+置換は **planned** です。以下の古い checkpoint は各 revision 当時の検証記録です。
+当時の「公開 restore は planned」という記述は、現在の実装状態を上書きしません。
+[現行の契約](design/environment-snapshots.md#restore-into-a-new-environment)を参照してください。
+
+Incus が独立した rootfs・volume のコピーと runtime 操作を担当します。Hacocoon は
+保存全体の整合性、永続データの所有確認、新しい権限世代を加えます。新しい保存物は
+rootfs・Workspace・任意の OCI・metadata で構成され、Base filesystem と自動
+pre-restore backup は作りません。schema 13 は既存の Base・backup 所有記録と
+保存元の予約を保持し、通常の更新に保存データの手動書き換えは不要です。
+既存の記録を黙って破棄しません。
+
+[PR #493](https://github.com/SLktEx/Hacocoon/pull/493)に、元 Base・image cache に
+依存しない実 Incus/Btrfs の保存・復元準備を記録しています。
+[PR #501](https://github.com/SLktEx/Hacocoon/pull/501)には、保存元削除後の公開 restore、
+新しい世代、Git・OCI の内容保持、所有対象だけの cleanup の実検証を記録しています。
+これらは各 revision で実行した結果で、以後の全変更を再検証したという意味ではありません。
+復元後の SSH handshake と稼働中 OCI DB の整合性は未検証です。容量回収、未接続 Store
+の image 操作、移行は別の未完了作業です。
+
 ## Host source の image 操作
 
 partial の実装です。`image list/delete --host` は正確な管理対象 Host source のみを選びます。現在の plugin／controller／CLI と Incus adapter が、source 所有者、local role／mount／layout、非特権で running の状態、既存 Host-copy operation lock、固定命令／template の制限を確認します。guest Store を Host source として指定できません。関連5 package が成功し、security／CLI 回帰を追加しています。共有 Host-copy lock の保護を含む関連4 package の race と、大文字 tag の追加回帰は成功しました。専用 WSL Incus/Btrfs の実検証は487.19秒で成功しました。両 runtime で Host source 一覧、停止 container の参照による拒否、選択 image のみの削除、他 image の保持を確認し、その後の独立 Store copy／削除と所有 fixture の cleanup も成功しました。実 Host adapter と fixture catalog を使う検証であり、インストール済み controller／公開 CLI の実接続は未検証です。既存の独立コピーは保持し、未接続 Store と GC は planned です。[契約](design/oci-image-deletion.ja.md#管理対象-host-source)を参照してください。
