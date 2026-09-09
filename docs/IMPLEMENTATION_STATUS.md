@@ -1,5 +1,27 @@
 # Implementation Status
 
+## Current Incus-first snapshot contract
+
+Status: **implemented for capture and restore into a new Environment**. The
+current command is `haco snapshot restore <snapshot-id> [new-env]`; in-place
+replacement remains **planned**. Earlier checkpoint entries below describe the
+acceptance at that revision: their former “public restore planned” statements do
+not override the implemented command. See the [owning contract](design/environment-snapshots.md#restore-into-a-new-environment).
+
+Incus owns independent rootfs/volume copies and runtime operations. Hacocoon adds
+aggregate consistency, retained data ownership and fresh security generations.
+New saves contain rootfs, Workspace, optional OCI and metadata, with no Base
+filesystem or automatic pre-restore backup. Schema 13 retains legacy saved
+Base/backup ownership and source reservations; ordinary upgrades need no manual
+saved-data rewrite. Existing records are not silently discarded.
+
+[PR #493](https://github.com/SLktEx/Hacocoon/pull/493) records real Incus/Btrfs
+Base/cache-independent capture and preparation. [PR #501](https://github.com/SLktEx/Hacocoon/pull/501)
+records real public restore after source deletion, fresh generation, retained
+Git/OCI bytes and exact-owned cleanup. These are executed results at those
+revisions, not new acceptance of every later change. Restored SSH handshake and
+live OCI database consistency remain unverified. Reclamation, detached Store
+image maintenance and migration are separate unfinished work.
 
 ## Host-source image operations
 

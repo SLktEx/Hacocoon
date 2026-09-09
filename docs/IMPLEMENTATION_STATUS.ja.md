@@ -1,5 +1,27 @@
 # 実装状況
 
+## 現在の Incus-first snapshot 契約
+
+状態: **保存と新しい Environment への restore は implemented** です。
+現在のコマンドは `haco snapshot restore <snapshot-id> [new-env]` で、既存 Env の
+置換は **planned** です。以下の古い checkpoint は各 revision 当時の検証記録です。
+当時の「公開 restore は planned」という記述は、現在の実装状態を上書きしません。
+[現行の契約](design/environment-snapshots.md#restore-into-a-new-environment)を参照してください。
+
+Incus が独立した rootfs・volume のコピーと runtime 操作を担当します。Hacocoon は
+保存全体の整合性、永続データの所有確認、新しい権限世代を加えます。新しい保存物は
+rootfs・Workspace・任意の OCI・metadata で構成され、Base filesystem と自動
+pre-restore backup は作りません。schema 13 は既存の Base・backup 所有記録と
+保存元の予約を保持し、通常の更新に保存データの手動書き換えは不要です。
+既存の記録を黙って破棄しません。
+
+[PR #493](https://github.com/SLktEx/Hacocoon/pull/493)に、元 Base・image cache に
+依存しない実 Incus/Btrfs の保存・復元準備を記録しています。
+[PR #501](https://github.com/SLktEx/Hacocoon/pull/501)には、保存元削除後の公開 restore、
+新しい世代、Git・OCI の内容保持、所有対象だけの cleanup の実検証を記録しています。
+これらは各 revision で実行した結果で、以後の全変更を再検証したという意味ではありません。
+復元後の SSH handshake と稼働中 OCI DB の整合性は未検証です。容量回収、未接続 Store
+の image 操作、移行は別の未完了作業です。
 
 ## Host source の image 操作
 
