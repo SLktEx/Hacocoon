@@ -1,5 +1,13 @@
 # 実装状況
 
+## Windows native 圧縮は受け入れ未完了
+
+内部の native 圧縮処理とキャンセル・通常ファイル拒否テストを追加し、拒否テストは成功。
+専用 VHDX の実検証は4.27秒で native open の共有違反により失敗しました。圧縮は未実行で、
+実体固定を弱めていません。同じ登録 ID の WSL 再開後、確認ファイル hash と9件の停止中
+instance 記録は一致しました。安全な handle 引き渡し、圧縮成功、公開の全層操作は未完了です。
+[契約](design/storage-reclamation.ja.md)を参照してください。
+
 ## Windows 容量回収の測定段階
 
 内部の Windows ファイル実体固定・割当量測定を実装しました。実 Windows で sparse 測定

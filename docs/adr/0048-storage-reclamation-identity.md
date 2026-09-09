@@ -26,3 +26,9 @@ exclusions. Attribute-only opens do not enforce the rename exclusion required by
 this design; native regression caught that failure. File length and physical
 allocation remain separate. The actual WSL registration and virtual disk must
 still be bound before mutation. This read-only primitive is not that authority.
+
+The initial native compaction attempt failed because the pin and OpenVirtualDisk
+sharing requirements conflict. Do not remove the pin and accept a path race as a
+compatibility fallback. Establish a verified native-handle identity handoff before
+publishing compaction. Windows shared-open failure is a failure, not reclaimed
+space or permission to weaken the Windows/WSL ownership invariant.

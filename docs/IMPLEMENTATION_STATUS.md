@@ -1,5 +1,15 @@
 # Implementation Status
 
+## Windows native compaction remains unaccepted
+
+Internal native compaction code and cancellation/non-VHD refusal tests are added;
+the refusal tests passed. Dedicated VHDX acceptance FAILED at native open with a
+sharing violation in 4.27s. Compaction was not attempted, and file identity pins
+were not weakened. Same-registration WSL resumption, probe hash and nine stopped
+instance records matched after failure. Safe native-handle handoff, successful
+compaction and the public all-layer workflow remain unfinished. See the
+[contract](design/storage-reclamation.md#native-compaction-attempt).
+
 ## Windows reclaim measurement in progress
 
 Internal Windows file pinning/allocation is implemented. Native tests passed

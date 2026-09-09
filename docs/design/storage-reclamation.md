@@ -110,3 +110,25 @@ The exact dedicated WSL VHDX was read successfully at file length/allocation
 Compaction still requires trusted distribution selection, native virtual-disk
 identity, safe path-based API opening and stop/compact/resume orchestration. Do not
 relax the pinning checks merely to make `OpenVirtualDisk` accept a handle.
+
+## Native compaction attempt
+
+Internal Windows compaction code now resolves the held file to a volume-GUID
+path, opens VHDX without following parent disks, and requires a dynamic, detached
+virtual disk. It records native completion separately from measured allocation
+and checks virtual capacity/identifier after compaction. Cancellation is not
+interpreted as undoing a synchronous operation. This remains **unpublished and
+not accepted**; the public workflow must not call it yet.
+
+The cancellation/non-VHD file regression passed. The dedicated real VHDX attempt
+FAILED in 4.27s at `OpenVirtualDisk` with a sharing violation while the original
+file/ancestor pins were held. `CompactVirtualDisk` was not attempted. No pin was
+released to bypass the failure. A safe identity-preserving handoff to the native
+virtual-disk handle is still required and unproven.
+
+The exact dedicated WSL registration was resumed after failure. The newly created
+probe file hash and all nine stopped instance names/states matched the preflight
+record. This verifies resumption and those observations, not all saved filesystem
+bytes or a successful compaction. The probe remains under
+`/var/lib/haco-reclaim-compact.7NTvx7` for the next verification. Windows file
+length/allocation before the attempt was 8,373,927,936 bytes; no reduction is claimed.
