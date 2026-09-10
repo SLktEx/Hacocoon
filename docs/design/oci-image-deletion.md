@@ -190,3 +190,5 @@ absence. Images appearing after review are not added. A new reference or changed
 owner can refuse deletion. Stop at the first failure, report the completed count,
 and retain the remaining images; no rollback or hidden backup is attempted.
 Independent snapshots/Stores, containers and cache are not GC targets here.
+
+Native acceptance at 779b0e5 failed at the 720-second aggregate test deadline during confirmed candidate deletion. This is a failed run, not successful batch acceptance. The expanded fixture now records fixed step numbers/durations and allows 20 minutes, inside a 22-minute Go deadline and 45-minute job deadline. Product operation timeouts, ownership checks and all refusal/retention assertions are unchanged; updated native acceptance is pending.

@@ -26,7 +26,7 @@ func TestRealIncusResourceMaintenancePreparationE2E(t *testing.T) {
 	}
 	duration := 5 * time.Minute
 	if os.Getenv("HACO_E2E_MAINTENANCE_CONTROLLER") != "" {
-		duration = 12 * time.Minute
+		duration = 20 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()

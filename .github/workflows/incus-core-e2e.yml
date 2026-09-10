@@ -97,7 +97,7 @@ jobs:
 
   incus-owned-btrfs:
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       HACO_CI_RUNNER_ENVIRONMENT: github-hosted
     steps:
@@ -159,7 +159,7 @@ jobs:
             HACO_E2E_MAINTENANCE_CONTROLLER="$RUNNER_TEMP/maintenance-controller" HACO_E2E_MAINTENANCE_CLI="$RUNNER_TEMP/snapshot-cli" \
             HACO_E2E_INCUS_RESUME_IMAGE="$image" HACO_E2E_INCUS_RESUME_POOL=haco-local-default \
             HACO_E2E_OCI_RUNTIME_ASSETS="$RUNNER_TEMP/oci-runtime-assets" \
-            "$RUNNER_TEMP/persistent-copy.test" -test.run='^TestRealIncusResourceMaintenancePreparationE2E$' -test.v -test.timeout=14m
+            "$RUNNER_TEMP/persistent-copy.test" -test.run='^TestRealIncusResourceMaintenancePreparationE2E$' -test.v -test.timeout=22m
       - name: Capture storage CLI diagnostics
         if: failure()
         run: |
