@@ -953,7 +953,7 @@ remain unverified. The native script is opt-in with
 `HACO_E2E_ENCRYPTED_EVACUATION=1`; `HACO_E2E_ENCRYPTED_OUTPUT_ROOT` can select an
 existing external destination parent for its new synthetic test directory.
 
-Dedicated WSL acceptance passed in 1.03s with age 1.2.1 (distribution package `age_1.2.1-1build1_amd64.deb`). Direct package installation failed because dpkg had an interrupted libc6 configuration; the package was then downloaded through apt and extracted into a private tool directory without changing system package state. Ciphertext and receipt remain at the new Windows output directory; Windows independently verified 10440 bytes and SHA-256 `bf25c5334464947c0ea0c8645ecc535195cd930dad98efd18550243323eb5804`. Synthetic source, restored data and test identities remain inside WSL at the private WSL test directory. This does not verify identity recovery after deleting WSL.
+Dedicated WSL acceptance passed in 1.03s with age 1.2.1 (distribution package `age_1.2.1-1build1_amd64.deb`). Direct package installation failed because dpkg had an interrupted libc6 configuration; the package was then downloaded through apt and extracted into a private tool directory without changing system package state. Ciphertext and receipt remain at the new Windows output directory; Windows independently verified 10440 bytes and SHA-256 `bf25c5334464947c0ea0c8645ecc535195cd930dad98efd18550243323eb5804`. Synthetic source, restored data and test identities were initially inside the WSL temporary fixture. A later read found that exact directory absent in both the outer and current Incus mount namespaces; `/tmp` is tmpfs on that WSL. The existing Windows ciphertext and its digest remain intact, but its original identity is currently unavailable. The attempted transfer preflight failed before any key transfer or decryption; restoring that ciphertext into the new WSL is SKIP. This does not establish the exact time or cause of removal, and no different key can recover that archive.
 
 At 55be427 the existing native GHA [job](https://github.com/SLktEx/Hacocoon/actions/runs/34508162748/job/102975354767)
 passed, including the real tar/age test in 0.029s. This result belongs to that
@@ -1068,3 +1068,29 @@ are explicitly incomplete. The private report remains inside that WSL at
 `/var/lib/haco-file-inventory-4kvt5eyb/wsl-root.json`, not in an external archive.
 A separate small synthetic manual-data tree enumerated fully without exposing
 its file contents. Neither result classifies or saves the whole installation.
+
+## Retention of encrypted acceptance fixtures
+
+The root-only native tar/age test now keeps its synthetic identities, source,
+restored bytes and receipt under a new mode-0700 `/var/lib` directory. It must not
+advertise an ephemeral `/tmp` tree as retained evidence. Keys remain mode 0600;
+no identity contents are printed or transferred. The existing native GHA step
+runs `tools/test_encrypted_evacuation_retention.py`, which executes the real
+crypto test in a transient systemd unit with `PrivateTmp=yes` and then checks
+that its declared private evidence still exists with the expected permissions
+after unit exit. The old implementation failed this real-systemd regression
+because its declared directory disappeared.
+
+This is fixture retention within the same installation, not independent recovery
+of the earlier unavailable identity, recovery after WSL deletion or a production
+credential backup. Keep a production decryption identity independently accessible
+before replacing its storage. A preserved ciphertext alone cannot establish
+restorability, and the old ciphertext is not replaced or reclassified by a new
+synthetic test run. No extra public `haco` command is introduced.
+
+Dedicated WSL validation: the old fixture failed the real PrivateTmp-exit check;
+the corrected fixture passed in 2.31s, including the existing encryption,
+decryption, wrong-key/tamper/truncation checks and retained private file modes.
+The transient unit has its own runtime/stop bounds below the wrapper timeout.
+The newly generated synthetic identity stays inside this WSL and was not used
+to decrypt the earlier Windows ciphertext. Cross-WSL key transfer is unverified.
