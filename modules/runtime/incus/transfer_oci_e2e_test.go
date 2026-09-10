@@ -127,8 +127,10 @@ const transferContainerdImageIdentity = `set -eu
 nerdctl --snapshotter native image inspect --format '{{.Id}}' hacocoon-transfer:local > /var/lib/haco-transfer-image-id
 `
 const transferContainerdRun = `set -eu
-test "$(nerdctl --snapshotter native run --pull never --net none --name haco-transfer-persist hacocoon-transfer:local /probe)" = created
-test -z "$(ctr tasks list -q)"
+result=$(nerdctl --snapshotter native run --pull never --net none --name haco-transfer-persist hacocoon-transfer:local /probe) || { printf '%s\n' 'transfer container execution failed' >&2; exit 1; }
+if [ "$result" != created ]; then printf '%s\n' 'transfer probe result mismatch' >&2; exit 1; fi
+tasks=$(ctr tasks list -q)
+if [ -n "$tasks" ]; then printf '%s\n' 'transfer exited task remains' >&2; exit 1; fi
 `
 const transferContainerdQuiesce = `set -eu
 rm /var/lib/haco-transfer-input/image.tar /var/lib/haco-transfer-input/probe /var/lib/haco-transfer-input/root/probe
@@ -161,7 +163,7 @@ func TestTransferOCIShellSyntax(t *testing.T) {
 // Only fixed categories leave the fixture boundary; never print backend output.
 func transferFailureCategory(stderr string) string {
 	lower := strings.ToLower(stderr)
-	for _, category := range []string{"permission denied", "no such file or directory", "not found", "does not exist", "not authorized", "connection refused", "no space left on device", "is not running", "read-only file system", "failed to create shim", "apparmor", "cgroup", "failed to extract layer", "no unpack platforms defined", "cni"} {
+	for _, category := range []string{"permission denied", "no such file or directory", "not found", "does not exist", "not authorized", "connection refused", "no space left on device", "is not running", "read-only file system", "failed to create shim", "apparmor", "cgroup", "failed to extract layer", "no unpack platforms defined", "transfer container execution failed", "transfer probe result mismatch", "transfer exited task remains", "cni"} {
 		if strings.Contains(lower, category) {
 			return category
 		}
