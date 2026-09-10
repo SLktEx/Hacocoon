@@ -1,6 +1,6 @@
 # ADR 0050: Own temporary native rootfs images explicitly
 
-Status: accepted for the internal Linux/WSL export adapter; public G1 integration is planned.
+Status: accepted for the Linux/WSL export adapter and Linux public export delivery; public import remains planned.
 
 ## Context
 

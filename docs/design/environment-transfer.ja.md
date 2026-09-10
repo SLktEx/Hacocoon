@@ -309,3 +309,17 @@ CLI binary 指定時に shipped export CLI を呼ぶよう拡張しましたが�
 明示的な cleanup のため保持しています。追加した archive 全体の転送・検証時間を含め、
 fixture は12分、既存 CI の native test 群は15分の期限にします。製品の期限や隔離は変更せず、
 修正後の native 受入は未完了です。`081beda` の local Go/vet/docs/通知 CI は成功しました。
+
+修正後の専用実行も、最後の公開 Workspace cleanup 中に 720.06 秒で失敗しました。
+その期限までに export・元 Env 削除・公開 snapshot restore/copy・同名での世代更新・
+保存物の独立性・管理 SSH key のリセット・native child snapshot/backup の削除拒否は
+成功しました。失敗 fixture は `/var/lib/haco-snapshot-aggregate-462967548` に残し、
+残りの cleanup を成功とは扱いません。さらに期限を延ばす変更は行いません。
+同じ GHA aggregate step は `3d0dd9a` で成功し、workflow 全体と最終 log は別途確認します。
+これは Linux Incus/Btrfs の代替検証であり、local WSL gate 成功や復元後の実 SSH handshake
+を証明するものではありません。
+
+事後確認で、両方の失敗 fixture に Environment と Workspace lease が残っていないことを
+確認しました。元の9個の instance、保護 sentinel の SHA-256、登録ファイルの mode/link 数は
+維持しています。fixture の snapshot 4個・保持 OCI Store 4個・対応 Workspace 記録と
+export archive 2個は、明示的な cleanup のため残しています。

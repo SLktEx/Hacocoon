@@ -5,8 +5,8 @@
 Status: **partial**. Linux `haco env export <stopped-env> [file.haco]` now uses the
 management stream and verified, no-overwrite client publication. Default output
 is `<env>.haco`; no separate snapshot command or controller path is required.
-Unix stream and real-filesystem CLI race tests passed. Shipped native CLI acceptance
-is pending; public import and native Windows output remain planned. See
+Unix stream and real-filesystem CLI race tests passed. Local shipped CLI full gates failed on fixture deadlines after export passed;
+the equivalent GHA aggregate step succeeded. Full workflow verification is pending; public import and native Windows output remain planned. See
 [the owning contract](design/environment-transfer.md#linux-export-command).
 
 The internal stopped-Env exporter now composes canonical capture/read/delete,
@@ -47,8 +47,7 @@ workflow_dispatch-gated SKIP. See [the owning contract](design/oci-image-deletio
 
 The Linux/WSL Incus adapter now exports an owned saved Workspace/OCI volume into
 an unnamed read-only archive, checking native ownership and backup cleanup. Its
-dedicated Incus 6.0.5/Btrfs adapter test passed in 5.92s; local race and vet passed. The
-whole public export/import flow remains unimplemented. The internal rootfs producer now uses a uniquely owned native image and an anonymous archive; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s.
+dedicated Incus 6.0.5/Btrfs adapter test passed in 5.92s; local race and vet passed. Linux public export is connected; public import remains unimplemented. The internal rootfs producer now uses a uniquely owned native image and an anonymous archive; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s.
 See the [owning contract](design/environment-transfer.md#native-saved-volume-export-adapter).
 
 Public G1 remains **partial**: Linux export is implemented; import is **planned**. Internal snapshot/archive inventory

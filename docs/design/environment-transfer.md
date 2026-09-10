@@ -391,3 +391,18 @@ now has twelve minutes for the added full-archive delivery/verification work, an
 the existing CI invocation has fifteen minutes for its group of native tests.
 Production deadlines and isolation are unchanged; corrected native acceptance is
 still pending. Full local Go/vet/docs/notification CI passed on `081beda`.
+
+The corrected dedicated run also failed, at 720.06s, during the final public
+Workspace cleanup. Before that deadline, export, source deletion, public
+snapshot restore and copy, same-name generation renewal, saved-copy independence,
+managed SSH-key reset and native child snapshot/backup deletion refusal passed.
+The failed fixture remains at `/var/lib/haco-snapshot-aggregate-462967548`;
+remaining cleanup is not claimed successful. No further timeout increase is made.
+The equivalent GHA aggregate step succeeded at `3d0dd9a`; the full workflow and
+its final log are checked separately. This substitutes Linux Incus/Btrfs coverage,
+not a successful local WSL gate or an actual restored SSH handshake.
+
+Postcheck found no Environment or Workspace lease in either failed fixture. The
+original nine instances, protected sentinel SHA-256 and registration mode/link count
+were unchanged. Four fixture snapshots and four retained OCI Stores, their
+Workspace records and two complete export archives remain for explicit cleanup.

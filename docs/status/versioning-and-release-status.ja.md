@@ -4,11 +4,11 @@ Linux 公開 export は partial（`haco env export <stopped-env> [file.haco]`）
 shipped native 受入、公開 import、Windows 出力は未完了で、release/checkpoint は宣言しません。
 [Environment 持ち出し](../design/environment-transfer.ja.md)を参照してください。
 
-次の G1 内部実装は、停止 Env の capture と全 native archive を非公開の検証済み bundle に
-まとめます。公開 export/import は planned のままで、release/checkpoint は宣言しません。
+実装済みの G1 内部処理は、停止 Env の capture と全 native archive を非公開の検証済み bundle に
+まとめます。Linux export は接続済み、公開 import は planned で、release/checkpoint は宣言しません。
 [Environment 持ち出し](../design/environment-transfer.ja.md)を参照してください。
 
-公開 G1 は planned のままです。内部の保存 rootfs export に、所有確認した native Incus image と上限付き archive streaming を追加しました。専用 Incus 6.0.5/Btrfs adapter 受入は 13.44 秒で成功し、リリースや checkpoint の宣言は追加しません。[Environment 持ち出し](../design/environment-transfer.ja.md)を参照してください。
+G1 は partial で、Linux export は実装済み、公開 import は planned です。内部の保存 rootfs export に、所有確認した native Incus image と上限付き archive streaming を追加しました。専用 Incus 6.0.5/Btrfs adapter 受入は 13.44 秒で成功し、リリースや checkpoint の宣言は追加しません。[Environment 持ち出し](../design/environment-transfer.ja.md)を参照してください。
 
 v0.57 の OCI image cleanup は partial です。未接続の nerdctl Store の一覧・削除は、production composition と bare controller／CLI を使い、bd1c9a5 の実 Incus/Btrfs で成功しました。導入済み controller 全体の受け入れ、未接続 Docker、候補選択型 GC は未完了です。[画像操作](../design/oci-image-deletion.ja.md)を参照してください。
 

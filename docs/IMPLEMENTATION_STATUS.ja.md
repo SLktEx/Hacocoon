@@ -5,7 +5,8 @@
 Status: **partial**。Linux の `haco env export <stopped-env> [file.haco]` は管理 stream と
 検証後の上書きしない client 公開を使います。既定は `<env>.haco` で、別の snapshot コマンドや
 controller path は不要です。Unix stream と実 filesystem の CLI race test は成功しました。
-shipped native CLI 受入は実行待ち、公開 import と Windows native 出力は planned です。
+local shipped CLI 全体 gate は export 成功後に fixture 期限で失敗し、同じ GHA aggregate step は成功しました。
+workflow 全体の確認は継続中で、公開 import と Windows native 出力は planned です。
 [契約](design/environment-transfer.ja.md)を参照してください。
 
 停止 Env の内部 exporter は canonical capture/read/delete、native component producer、
@@ -58,7 +59,7 @@ OCI・Incus・composition 全体の race suite は4.332秒・22.135秒・1.856�
 
 Linux／WSL の Incus adapter は所有済みの保存 Workspace／OCI volume を匿名・読み取り専用 archive へ export し、
 native 所有情報と backup cleanup を確認します。専用 Incus 6.0.5／Btrfs の adapter 検証は5.92秒で成功し、
-関連 race test と vet も成功しました。公開 export/import 全体は未実装です。内部 rootfs producer は固有所有の native image と匿名 archive を使う実装を追加し、専用 Incus 6.0.5/Btrfs adapter 受入は 13.44 秒で成功しました。
+関連 race test と vet も成功しました。Linux 公開 export は接続済みで、公開 import は未実装です。内部 rootfs producer は固有所有の native image と匿名 archive を使う実装を追加し、専用 Incus 6.0.5/Btrfs adapter 受入は 13.44 秒で成功しました。
 [所有文書](design/environment-transfer.ja.md)を参照してください。
 
 公開 G1 は **partial** で、Linux export を実装し import は **planned** です。内部の snapshot／archive 照合は現行上限までの全 Workspace と任意の OCI を扱います。
