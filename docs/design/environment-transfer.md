@@ -595,3 +595,21 @@ collection import and native attachment-metadata checks passed in 29.52s. Offlin
 snapshot copying and broker refusal are covered by component/service tests; real
 offline snapshot restore, attached/running Env and live Git/OCI acceptance remain
 unverified.
+
+## Native rootfs image import
+
+Status: **implemented internally**. Native Incus/Btrfs transport acceptance passed
+(22.28s), including source removal and independent destination data after temporary
+image deletion. This does not verify boot, SSH or public aggregate import. A bounded anonymous archive
+preserves rootfs data while replacing image properties with a fresh import owner
+and omitting image creation templates. The original archive stays unchanged.
+Incus imports the unified container image; a synchronous consumer must create an
+independent instance with current explicit configuration. The temporary image is
+then removed using exact ownership and positive absence checks shared with export.
+Unconfirmed creation or cleanup keeps the receipt; no Base or backup is added.
+
+The pinned SDK's context-aware raw operation provides native upload and operation
+waiting. Current local Unix daemon/project and bounded response checks remain.
+Only uncompressed unified x86_64/aarch64 container images are supported initially.
+See [ADR 0056](../adr/0056-native-rootfs-import.md). Canonical Env creation, public
+aggregate import, boot/SSH and OCI consistency are separate remaining work.

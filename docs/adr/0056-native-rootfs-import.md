@@ -1,0 +1,37 @@
+# ADR 0056: Import rootfs through an owned temporary Incus image
+
+Status: accepted for the native adapter; public Environment import remains planned.
+
+## Decision
+
+Incus imports a unified container image, and its consumer creates an independent
+instance with current explicit configuration. A synchronous image lifetime covers
+only that consumption. The image is not a Base, saved component or automatic backup.
+
+Prepare a bounded, anonymous, read-only archive without extracting it. Keep rootfs
+bytes, numeric ownership, modes, links and extended attributes. Replace image
+properties with a fresh random import owner and omit creation templates outside
+rootfs. The saved input is untouched. Changing only transport metadata creates a
+distinct fingerprint, preventing repeated imports from relabeling an existing
+content-addressed image. Independently refuse any existing target fingerprint.
+
+Share the existing image ownership receipt and owned deletion checks with export.
+Record the fresh owner and expected digest before upload, then the returned native
+operation. Only confirmed operation success, matching fingerprint and owned private
+container-image verification permit consumption. Native cleanup must verify owner,
+aliases and positive absence; failure keeps the receipt. A lost upload reply or
+unfinished operation is not cleaned up by guessing absence. No replay is added.
+
+Use the pinned SDK's context-aware RawOperation upload, not its CreateImage upload
+which constructs an unbound request. Keep selected local Unix daemon/project,
+non-cluster restriction, bounded metadata responses and separate cleanup context.
+
+## Scope and compatibility
+
+The initial adapter accepts uncompressed unified x86_64/aarch64 container images.
+Incus remains responsible for image/instance storage; no new storage engine,
+fallback backend or catalog schema is introduced. Source image properties and
+templates do not constitute management authority or required rootfs data. The
+saved archive is preserved byte-for-byte. Lifecycle integration must retain
+canonical Env ownership, fresh permissions and current configuration; this adapter
+alone does not prove public import, boot or SSH.
