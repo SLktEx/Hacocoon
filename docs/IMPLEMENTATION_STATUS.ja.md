@@ -1,8 +1,8 @@
 # 実装状況
 
 停止 Env の内部 exporter は canonical capture/read/delete、native component producer、
-匿名の一式 staging を接続しました。公開 CLI/controller の artifact 転送は planned、
-native aggregate 受入は未実行です。[Environment 持ち出し](design/environment-transfer.ja.md)を参照してください。
+匿名の一式 staging を接続しました。公開 CLI/controller の artifact 転送は planned です。
+native aggregate export 受入は 314.12 秒で成功し、公開 bundle import/SSH の証明ではありません。[Environment 持ち出し](design/environment-transfer.ja.md)を参照してください。
 
 ca5ba79 は controller 起動後、最初の画像一覧で失敗しました（native fixture 112.27秒）。maintenance が既存 Store の明示指定と `SkipDefaultResource` を併用し、canonical create に拒否されていました。不要な指定を削除しました。実 catalog／lifecycle の回帰テストで修正前の失敗を再現しています。修正後の native 操作は未確認です。
 

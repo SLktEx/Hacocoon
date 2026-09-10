@@ -2,8 +2,8 @@
 
 The internal stopped-Env exporter now composes canonical capture/read/delete,
 native component producers and anonymous whole-bundle staging. Public CLI and
-controller artifact delivery are still planned; native aggregate acceptance has
-not run. See [Environment transfer](design/environment-transfer.md#internal-stopped-environment-export).
+controller artifact delivery are still planned. Dedicated native aggregate export
+acceptance passed in 314.12s; this does not prove public bundle import or SSH. See [Environment transfer](design/environment-transfer.md#internal-stopped-environment-export).
 
 ## Detached Store maintenance in progress
 

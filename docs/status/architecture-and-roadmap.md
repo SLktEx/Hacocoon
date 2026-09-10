@@ -1,8 +1,8 @@
 # Architecture and roadmap
 
 G1 internal export now composes canonical stopped-Env capture, all protected native
-archives and anonymous verified output. Public export/import and native aggregate
-acceptance remain planned or unverified. See [Environment transfer](../design/environment-transfer.md#internal-stopped-environment-export).
+archives and anonymous verified output. Dedicated native aggregate export passed
+in 314.12s; public export/import remains planned. See [Environment transfer](../design/environment-transfer.md#internal-stopped-environment-export).
 
 > **Architecture baseline · Updated 2026-08-31**
 >

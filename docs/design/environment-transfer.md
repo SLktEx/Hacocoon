@@ -319,5 +319,18 @@ or unverified; the preceding native component tests prove only their own scope.
 The existing Linux `TestRealIncusSnapshotAggregateE2E` now exercises the exporter
 through the routed catalog and actual native producers after Base removal, then
 reverifies all exported bytes after source mutation/deletion. Its existing GHA
-gate runs this check; the extended native test has not yet completed. It still
-proves no public transfer transport, import authority, boot or SSH flow.
+gate runs this check. Dedicated WSL Incus 6.0.5/Btrfs acceptance passed in
+314.12s, including confirmed temporary-capture cleanup before bundle return and
+whole-bundle verification after source deletion. Existing snapshot restore and
+fresh-generation/authorization-reset checks in the same fixture also passed;
+that restore uses the saved snapshot, not the exported bundle. All owned fixture
+resources and its recovery directory were cleaned. No export archive is retained.
+
+The native run skipped shared source-image deletion and the optional public
+snapshot/Workspace CLI paths because this invocation preserved the shared image
+and supplied no CLI binary. The existing GHA aggregate gate supplies the CLI.
+Actual SSH handshake, live OCI consistency and public bundle import remain
+unverified or unimplemented. Full local CI (Go tests/vet, 27 notification tests)
+and documentation checks passed on `bbcf7ea`; the first canonical integration
+fixture failed on duplicate native names, corrected with per-capture identities.
+No product ownership check or timeout was relaxed.

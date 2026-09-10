@@ -249,5 +249,15 @@ cleanup 不明時の記録を確認します。これは実 Incus の aggregate 
 
 既存の Linux `TestRealIncusSnapshotAggregateE2E` に、Base 削除後の routed catalog と
 実 native producer を通る export、および元データ変更・元 Env 削除後の全 export bytes
-再検証を加えました。既存 GHA gate で実行しますが、拡張した native テストはまだ
-完了していません。公開転送・import 権限・起動・SSH 全体の受入ではありません。
+再検証を加えました。専用 WSL Incus 6.0.5/Btrfs 受入は 314.12 秒で成功し、bundle を
+返す前の一時 capture cleanup と元 Env 削除後の bundle 全体検証を確認しました。
+同じ fixture の既存 snapshot restore・新世代識別・承認状態リセットも成功しましたが、
+その restore は export bundle ではなく保存 snapshot を使います。今回所有する全 fixture
+資源と recovery directory を cleanup しました。export archive は保持していません。
+
+ローカルでは共有 source image を保持し、CLI binary を指定しなかったため、image 削除と
+任意の公開 snapshot/Workspace CLI 経路は SKIP しました。既存 GHA aggregate gate は CLI を
+指定します。実 SSH handshake・live OCI 整合性・公開 bundle import は未検証または未実装
+です。`bbcf7ea` の全体 local CI（Go test/vet、通知27テスト）と文書チェックは成功しました。
+最初の canonical 結合 fixture は native 名の重複で失敗し、capture ごとの固有名に修正しました。
+製品の所有チェックや timeout は緩めていません。
