@@ -703,3 +703,5 @@ query エラーはありませんでした。private な一覧はその WSL 内�
 外部への backup や snapshot 削除失敗時の退避を実証したものではありません。
 
 拡張後も専用 WSL で instance 13 行・disk 対応 26 件を query エラーなしで取得できました。private な一覧は /var/tmp/haco-evacuation-inventory-hp1r9_bs/inventory.json です。参照先は記録するだけで開かず、外部 backup や所有確認の成功を意味しません。
+
+一覧には instance の disk 対応に加え、pool の保存元参照と volume の `content_type` を含めます。パスは利用者が確認する参照情報であり、この補助は参照先を開いたり、背後の VHD を特定したり、所有権を推定したりしません。block volume を通常の filesystem tree として扱わないでください。URI 形式の参照は埋め込まれた認証情報を出力しないため伏せます。不正な pool 参照があっても他の一覧を残し、不完全と記録します。対象テスト 11 件に加え、専用 WSL の実 Incus 確認も query error なしで成功しました。Btrfs の保存元パス参照 1 件と filesystem の内容種別を確認し、私有の一覧を `/var/tmp/haco-evacuation-inventory-zcdndzfm/inventory.json` に残しています。外付け／block storage は metadata のテストのみで、実 block volume の退避は未検証です。

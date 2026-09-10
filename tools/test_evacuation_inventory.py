@@ -103,6 +103,44 @@ class InventoryTests(unittest.TestCase):
         self.assertTrue(result["projects"][0]["volumes"])
         self.assertIsNone(result["projects"][0]["instances"][0]["disks"])
         self.assertIn("disks:default/saved-env", result["errors"])
+    def test_pool_backing_and_block_content_are_references_not_opened_files(self):
+        def fetch(url):
+            data = self.fixture(url)
+            if url.startswith("/1.0/storage-pools?"):
+                data[0]["config"]["source"] = "/dev/disk/by-id/external-data"
+            if "/volumes?" in url:
+                data[0]["content_type"] = "block"
+            return data
+        with patch("builtins.open", side_effect=AssertionError("must not open sources")):
+            result = subject.inventory(fetch)
+        self.assertTrue(result["native_queries_complete"])
+        self.assertEqual(result["pools"][0]["source"], "/dev/disk/by-id/external-data")
+        self.assertEqual(result["pools"][0]["source_review"], "required")
+        self.assertEqual(result["projects"][0]["volumes"][0]["content_type"], "block")
+        self.assertNotIn("never-copy", json.dumps(result))
+
+    def test_invalid_pool_reference_keeps_other_data_and_requires_review(self):
+        def fetch(url):
+            data = self.fixture(url)
+            if url.startswith("/1.0/storage-pools?"):
+                data[0]["config"] = []
+            return data
+        result = subject.inventory(fetch)
+        self.assertFalse(result["native_queries_complete"])
+        self.assertIn("pool-source:data", result["errors"])
+        self.assertEqual(result["pools"][0]["source_kind"], "unavailable")
+        self.assertTrue(result["projects"][0]["volumes"])
+
+    def test_uri_pool_reference_does_not_publish_credentials(self):
+        def fetch(url):
+            data = self.fixture(url)
+            if url.startswith("/1.0/storage-pools?"):
+                data[0]["config"]["source"] = "https://user:never-copy@example.invalid/data"
+            return data
+        result = subject.inventory(fetch)
+        self.assertNotIn("never-copy", json.dumps(result))
+        self.assertEqual(result["pools"][0]["source_kind"], "unreported-reference-review-in-incus")
+
     @patch("evacuation_inventory.subprocess.run")
     def test_command_is_read_only_and_errors_are_not_exposed(self, run):
         run.return_value = subprocess.CompletedProcess([], 0, b"[]", b"secret")

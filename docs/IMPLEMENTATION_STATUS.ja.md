@@ -1542,3 +1542,5 @@ E5 OCI image list/delete は、コンテナの参照がないタグ付き画像�
 G1 の実 containerd 転送 fixture を実装し、native 受入は実行待ちです。source 削除後に両 import 構成で offline image と停止コンテナの書込データを確認します。Docker／cache／アプリ整合性は未検証です。[対象範囲](design/environment-transfer.ja.md#実-oci-データ転送の受入)を参照してください。
 
 G2 に読み取り専用の native 退避一覧補助を追加し、専用 WSL の実 Incus で確認しました。全量のデータ列挙・外部 backup・復元後照合は未実装です。[一覧の範囲](design/environment-transfer.ja.md#退避対象の-native-一覧)を参照してください。
+
+G2 の native 一覧は pool の保存元参照と volume の内容種別も示し、参照先を開かず URI の認証情報を出力しません。対象テスト 11 件は成功しました。これらの参照情報だけで全量を把握したことや、削除権限があることにはなりません。

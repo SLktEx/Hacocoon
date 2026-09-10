@@ -1808,3 +1808,5 @@ E5 OCI image list/delete now support reviewed --unused candidates (including tag
 G1 live containerd transfer fixture is implemented; native acceptance is pending. It checks an offline image and stopped container writable data after source deletion through both import compositions. Docker/cache/application consistency remain unverified. See [scope](design/environment-transfer.md#live-oci-transfer-acceptance).
 
 G2 now has a read-only native evacuation inventory helper, verified against dedicated WSL Incus. Whole-installation data enumeration, external backup and restored-data comparison remain unimplemented. See [inventory scope](design/environment-transfer.md#evacuation-inventory).
+
+G2 native inventory also reports pool backing references and volume content types without opening them or exposing URI credentials. Eleven focused tests pass; these references do not establish whole-installation coverage or cleanup authority.

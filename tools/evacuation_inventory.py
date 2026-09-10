@@ -43,6 +43,21 @@ def rows(value):
     return value
 
 
+def source_reference(source):
+    """Classify a native reference without opening it or publishing URI secrets."""
+    source = text(source)
+    result = {"source_review": "required"}
+    if not source:
+        result["source_kind"] = "unspecified"
+    elif source.startswith("/"):
+        result.update(source_kind="host-path-reference", source=source)
+    elif re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", source):
+        result.update(source_kind="volume-or-backend-reference", source=source)
+    else:
+        result["source_kind"] = "unreported-reference-review-in-incus"
+    return result
+
+
 def disk_bindings(instance):
     """Describe native attachments without opening sources or trusting ownership."""
     devices = instance.get("expanded_devices", instance.get("devices", {}))
@@ -56,18 +71,9 @@ def disk_bindings(instance):
             continue
         binding = {"device": text(name), "pool": text(device.get("pool", "")),
                    "path": text(device.get("path", "")), "source_review": "required"}
-        source = text(device.get("source", ""))
-        if not source:
+        binding.update(source_reference(device.get("source", "")))
+        if binding["source_kind"] == "unspecified":
             binding["source_kind"] = "instance-root-or-unspecified"
-        elif source.startswith("/"):
-            binding["source_kind"] = "host-path-reference"
-            binding["source"] = source
-        elif re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", source):
-            binding["source_kind"] = "volume-or-backend-reference"
-            binding["source"] = source
-        else:
-            # Do not publish arbitrary URI/config content, which can carry secrets.
-            binding["source_kind"] = "unreported-reference-review-in-incus"
         result.append(binding)
     return result
 
@@ -98,7 +104,16 @@ def inventory(fetch=query):
     try:
         pools = read("/1.0/storage-pools?recursion=1", "pools")
         for pool in pools:
-            report["pools"].append({"name": pool["name"], "driver": text(pool.get("driver", ""))})
+            record = {"name": pool["name"], "driver": text(pool.get("driver", ""))}
+            try:
+                config = pool.get("config", {})
+                if not isinstance(config, dict):
+                    raise ValueError("invalid pool configuration")
+                record.update(source_reference(config.get("source", "")))
+            except (ValueError, TypeError):
+                record.update(source_review="required", source_kind="unavailable")
+                report["errors"].append("pool-source:" + pool["name"])
+            report["pools"].append(record)
         for project in read("/1.0/projects?recursion=1", "projects"):
             name = project["name"]
             suffix = urlencode({"project": name, "recursion": 1})
@@ -123,6 +138,11 @@ def inventory(fetch=query):
                 for volume in read(base + "?" + suffix, "volumes:" + name + "/" + pool["name"]):
                     kind = text(volume.get("type", ""))
                     record = {"name": volume["name"], "type": kind, "pool": pool["name"]}
+                    try:
+                        record["content_type"] = text(volume.get("content_type", ""))
+                    except ValueError:
+                        record["content_type"] = None
+                        report["errors"].append("volume-content:" + name + "/" + pool["name"] + "/" + volume["name"])
                     # Instance snapshots were listed above; image cache is not a saved snapshot.
                     if kind == "custom":
                         endpoint = base + "/custom/" + quote(volume["name"], safe="")
