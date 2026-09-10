@@ -9,8 +9,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -45,6 +47,36 @@ func (b workspaceImportAcceptanceBackend) Plan(_ context.Context, kind, id strin
 		return "", core.ErrInvalidArgument
 	}
 	return b.pool + "/haco-work-" + id, nil
+}
+
+type failedWorkspaceImportAcceptanceBackend struct {
+	workspaceImportAcceptanceBackend
+	failure string
+	last    gitrepo.Object
+}
+
+func (b *failedWorkspaceImportAcceptanceBackend) ImportWorkspaceVolume(ctx context.Context, o gitrepo.Object, r io.ReadSeeker) error {
+	b.last = o
+	if err := b.RepositoryBackend.ImportWorkspaceVolume(ctx, o, r); err != nil {
+		return err
+	}
+	if b.failure == "creation-unknown" {
+		return errors.New("injected lost import reply")
+	}
+	return nil
+}
+func (b *failedWorkspaceImportAcceptanceBackend) InspectVolume(ctx context.Context, o gitrepo.Object) error {
+	b.last = o
+	if err := b.RepositoryBackend.InspectVolume(ctx, o); err != nil {
+		return err
+	}
+	return errors.New("injected post-import verification failure")
+}
+func (b *failedWorkspaceImportAcceptanceBackend) DeleteWorkspaceVolume(ctx context.Context, o gitrepo.Object) error {
+	if b.failure == "cleanup-failed" {
+		return errors.New("injected cleanup uncertainty")
+	}
+	return b.RepositoryBackend.DeleteWorkspaceVolume(ctx, o)
 }
 
 func TestRealIncusOwnedVolumeImportE2E(t *testing.T) {
@@ -245,6 +277,49 @@ func TestRealIncusOwnedVolumeImportE2E(t *testing.T) {
 	must(works.DeleteWorkspace(ctx, object.ID, object.Owner))
 	if _, err := works.Get("work", object.ID); !errors.Is(err, core.ErrNotFound) {
 		t.Fatal("deleted Workspace still registered", err)
+	}
+	for i, failure := range []string{"verification", "cleanup-failed", "creation-unknown"} {
+		failedBackend := &failedWorkspaceImportAcceptanceBackend{workspaceImportAcceptanceBackend: workspaceImportAcceptanceBackend{workBackend, targetPool}, failure: failure}
+		failedWorks := gitrepo.NewRepositoryService(filepath.Join(root, "failed-"+failure), failedBackend)
+		failedID := "failed-" + strconv.Itoa(i) + "-" + owner
+		failedObject, importErr := failedWorks.ImportWorkspace(ctx, failedID, "repo", object.Remote, object.Branch, input)
+		if importErr == nil {
+			t.Fatal("injected failure reported success")
+		}
+		if failure == "verification" {
+			if failedObject.ID != "" || !errors.Is(importErr, core.ErrRuntimeUnavailable) || errors.Is(importErr, core.ErrRecoveryRequired) {
+				t.Fatal("completed cleanup classification", failedObject, importErr)
+			}
+			if _, err := failedWorks.Get("work", failedID); !errors.Is(err, core.ErrNotFound) {
+				t.Fatal("completed cleanup kept registry", err)
+			}
+			observed, err := workBackend.workspaceVolumeForDeletion(ctx, failedBackend.last)
+			must(err)
+			if observed != nil {
+				t.Fatal("cleanup reported success with native volume remaining")
+			}
+		} else {
+			if failedObject.ID != failedID || !errors.Is(importErr, core.ErrRecoveryRequired) {
+				t.Fatal("unknown cleanup lost identity", failedObject, importErr)
+			}
+			records, err := failedWorks.ListWorkspaces(ctx)
+			must(err)
+			if len(records) != 1 || records[0].Owner != failedObject.Owner || records[0].NativeRef != failedObject.NativeRef {
+				t.Fatal("failed ownership receipt lost")
+			}
+			want := "created"
+			if failure == "creation-unknown" {
+				want = "creating"
+			}
+			if records[0].State != want {
+				t.Fatal("failure state rewritten", records[0].State)
+			}
+			must(workBackend.InspectVolume(ctx, failedObject))
+			// Only this fixture knows that the injected lost reply followed a
+			// completed native import. Remove its exact owned test volume via
+			// the real deletion API, retaining the failure registry as evidence.
+			must(workBackend.DeleteWorkspaceVolume(ctx, failedObject))
+		}
 	}
 	for _, pool := range []string{sourcePool, targetPool} {
 		if run("storage", "get", pool, ownerKey) != owner {

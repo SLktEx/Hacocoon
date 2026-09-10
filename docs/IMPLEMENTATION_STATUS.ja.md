@@ -1,5 +1,9 @@
 # 実装状況
 
+作成完了済み・未公開の Workspace import 失敗時は、正確な所有対象の cleanup を試みます。
+作成不確定・所有者変更・cleanup 不確定は receipt を残し、新しい状態や自動再開は追加しません。
+対象 race／vet は成功し、native／全体検証は実行待ちです。
+
 単一 Workspace の native import は既存の所有管理を再利用し、Git のデータ準備を
 実行しません。専用 Incus/Btrfs の Workspace import と所有対象 cleanup は20.67秒で成功し、
 ローカル Go／vet／docs／JS と対象 race も成功しました。公開一式の import

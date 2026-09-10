@@ -523,3 +523,25 @@ All local Go tests, vet, docs/workflow policy and 27 JavaScript tests passed on 
 same source. Focused race tests passed for the Git service (1.568s) and native adapter (2.541s);
 the complete local validation invocation exited successfully. This does not prove Env attachment/idmap shifting, boot,
 SSH, a live OCI daemon, multi-Workspace import or the public aggregate command.
+
+## Cleanup after native Workspace import failure
+
+Status: **implemented internally** for completed, unpublished single-Workspace
+creation. The failed import cleans up only when its returned and re-read registry
+record are identical and `created`. The existing native deletion contract checks
+owner, users and saved children and confirms absence before the registry is removed.
+Cleanup has a bounded context independent of client cancellation. An import that
+was cleaned up still returns failure; it never becomes a ready Workspace.
+
+A `creating` result may have an unresolved native request, and a `ready` result may
+have consumers after a publication error. Neither is automatically deleted. Changed
+identity or uncertain cleanup retains/returns the exact receipt and reports
+recovery-required. No automatic replay, hidden backup or new state is added. See
+[ADR 0054](../adr/0054-completed-import-cleanup.md).
+
+Focused race tests and vet passed (2.072s) for cleanup completion/failure, changed
+owner, publication, cancellation and unknown creation. The existing real Incus
+volume-import gate now injects post-create verification failure, cleanup failure
+and lost native replies. Native and full-suite verification for this extension
+remain pending. Unresolved creation and published aggregate cleanup are still
+explicit remaining work; this is not a general incomplete-Workspace repair API.

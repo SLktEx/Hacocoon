@@ -429,3 +429,22 @@ volume 削除後の Workspace 登録、commit・未commit・untracked ファイ�
 同じソースの全 Go テスト・vet・docs／workflow policy・JS 27件は成功しました。対象 Git service
 race は1.568秒、native adapter race は2.541秒で成功し、ローカル検証の全呼び出しが正常終了しました。Env 接続時の idmap shift、
 boot、SSH、live OCI daemon、複数 Workspace import、公開一式のコマンドの成功は主張しません。
+
+## native Workspace import 失敗時の cleanup
+
+Status: 作成完了済み・未公開の単一 Workspace について **内部実装済み**です。
+失敗した import の戻り値と読み直した registry が完全一致し、`created` の場合だけ掃除します。
+既存 native 削除経路が所有者・利用者・保存済み子要素を確認し、実体の不在を確認してから
+registry を削除します。cleanup はクライアントのキャンセルから独立した期限付き context で
+実行します。掃除できても import 自体は失敗として返し、ready Workspace にはしません。
+
+`creating` は native 要求の応答未確定、`ready` は公開エラー後に利用者がいる可能性があります。
+どちらも自動削除しません。所有情報の変更や cleanup の不確定時は正確な receipt を保持・返却し、
+recovery-required とします。自動再開・隠れた backup・新しい状態は追加しません。
+[ADR 0054](../adr/0054-completed-import-cleanup.md) を参照してください。
+
+cleanup 完了・失敗、所有者変更、公開済み、キャンセル、作成応答不明の対象 race テストは
+2.072秒で成功し、vet も成功しました。既存実 Incus volume-import gate に、作成後の検証失敗、
+cleanup 失敗、native 応答喪失の注入を追加しました。この拡張の native と全体検証は実行待ちです。
+作成要求の不確定と公開後 aggregate cleanup は残課題であり、すべての未完了 Workspace を
+修復する API ではありません。
