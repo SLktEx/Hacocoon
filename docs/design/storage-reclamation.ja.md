@@ -438,3 +438,13 @@ Windows native pipe の通知・EOF・キャンセルと command/library テス�
 これは起動拒否の検証であり、worker の停止・圧縮・再開の検証ではありません。最初のテストコマンドは
 PowerShell の引数解析で失敗し、引用符を付けた再実行は成功しました。`ee5e017` は GHA 4 workflow が
 成功しました。準備通知の変更は別途 CI 確認が必要です。
+
+## 最新 main との統合確認
+
+`98a5626` で `55b0377` までの main を取り込み、回収処理の動作は変更していません。
+Windows native library/helper、installer component、配布 package、PowerShell 5.1 の
+BAT 終了コードテストは成功しました。新規所有の空256MiB VHDX は0.22秒・open 1回で圧縮が
+成功し、割当4MiBは不変でした。専用 WSL gate は有効化せず、symlink fixture は権限不足で
+SKIP です。以前の worker 圧縮失敗は失敗のまま保持します。Windows の package 初回実行は
+子の `python3` 不在で失敗し、Ubuntu で成功しました。BAT テストは PowerShell Core で失敗し、
+必要な5.1で成功しました。最新 head の GHA は確認待ちで、公開の全層受入ではありません。

@@ -550,3 +550,15 @@ passed. A real helper launch using an absent registration returned exit 1 instea
 of dispatch success, and the existing pending record remained byte-identical.
 This tests startup refusal, not worker stop/compact/resume. The first test command
 failed argument parsing in PowerShell; the correctly quoted invocation passed.
+
+## Latest main integration check
+
+At `98a5626`, main through `55b0377` is integrated without changing reclamation
+behavior. Windows native library/helper tests, installer components, installer
+packages and the PowerShell 5.1 BAT exit test passed. The empty owned 256MiB VHDX
+compacted in 0.22s with one open and unchanged 4MiB allocation. Dedicated WSL
+gates were not enabled; the symlink fixture skipped for privilege. The previous
+worker compaction failure remains a failure. The initial package invocation on
+Windows failed because its `python3` child was unavailable; execution on Ubuntu
+passed. The BAT test failed on PowerShell Core and passed on its required 5.1.
+Latest-head GHA remains pending; this is not public all-layer acceptance.
