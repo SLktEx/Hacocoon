@@ -1538,3 +1538,5 @@ Windows 39b5ce4 で承認 setup の失敗が再現し、DNS start-limit-hit を�
 G1 の Windows ファイル受入は c4449e1 の [Windows run 34482712957](https://github.com/SLktEx/Hacocoon/actions/runs/34482712957) で成功しました。完成した Linux bundle の排他的コピー、Windows 側の長さ／hash 照合、既存共有 drive から Linux client での import を確認します。Windows native CLI／直接 export 公開は未実装です。[経路](design/environment-transfer.ja.md#既存ドライブ共有を使う-windows-bundle-ファイル)を参照してください。
 
 E5 OCI image list/delete は、コンテナの参照がないタグ付き画像も含め、--unused で候補を確認・選択できます。画像ごとの所有・参照・不在確認を維持します。実 controller/CLI の一括検証は 9484d06（run 34493016558）で成功し、cache・他資源の GC は planned です。[候補選択](design/oci-image-deletion.ja.md#未使用画像候補の確認)を参照してください。
+
+G1 の実 containerd 転送 fixture を実装し、native 受入は実行待ちです。source 削除後に両 import 構成で offline image と停止コンテナの書込データを確認します。Docker／cache／アプリ整合性は未検証です。[対象範囲](design/environment-transfer.ja.md#実-oci-データ転送の受入)を参照してください。
