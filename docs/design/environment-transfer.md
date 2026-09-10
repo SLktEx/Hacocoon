@@ -637,7 +637,7 @@ live OCI runtime consistency are not established by this test.
 
 ## Native bundle import composition
 
-Status: **implemented internally; acceptance pending**. Import verifies the whole
+Status: **implemented internally; native bundle activation verified**. Import verifies the whole
 bundle before mutation, imports one Workspace or a collection, imports OCI with a
 durable association to that new Workspace, then creates/starts a new Env through
 canonical lifecycle. The default destination is SOURCE-imported; an existing name
@@ -657,3 +657,9 @@ cleanup keeps its Workspace. Startup failure retains the Env/data. No schema cha
 automatic backup, Base component or import recovery catalog is introduced. See
 [ADR 0057](../adr/0057-native-bundle-import.md). Public import, reconnection, an SSH
 handshake and live OCI consistency remain unfinished.
+
+At 6360a23, the dedicated Incus/Btrfs aggregate passed in 558.35s, including
+independent import of rootfs, both Git Workspaces and OCI after source deletion,
+Env startup, generation checks, retained data after Env deletion and owned cleanup.
+The local run omitted the CLI binary and skipped public CLI checks and shared-image
+deletion. Public import, SSH handshake and live OCI consistency remain unverified.

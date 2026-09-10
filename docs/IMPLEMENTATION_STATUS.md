@@ -3,8 +3,11 @@
 Native bundle import now composes verified staging, independent Workspace/OCI import
 and canonical Env creation. OCI is durably associated before native creation; file
 routes/legacy descriptors import offline. Focused race tests passed after fixing
-initial compile errors and the long-name ID contract. Native aggregate acceptance
-and full local CI are pending; public CLI upload remains unimplemented.
+initial compile errors and the long-name ID contract. At 6360a23, full local CI
+passed (Go/vet, docs/workflow policy, 27 JavaScript tests), and dedicated
+Incus/Btrfs aggregate acceptance passed in 558.35s. It imported rootfs, both Git
+Workspaces and OCI from the bundle after source deletion, retained independent
+data, and completed owned cleanup. Public CLI upload remains unimplemented.
 
 Archive import uses canonical Env lifecycle through the production BaseRouter and
 the Incus native image adapter. Current sandbox configuration, fresh generation,

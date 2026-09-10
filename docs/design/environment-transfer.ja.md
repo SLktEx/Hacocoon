@@ -522,7 +522,7 @@ native data cleanup も確認しました。CLI バイナリを渡さないロ�
 
 ## native bundle import の接続
 
-Status: **内部実装済み・受入検証待ち**です。bundle 全体を変更前に検証し、単一／複数 Workspace、
+Status: **内部実装済み・native bundle 起動確認済み**です。bundle 全体を変更前に検証し、単一／複数 Workspace、
 その新しい Workspace への永続的な対応付けを持つ OCI、canonical lifecycle による新規 Env の作成・起動を
 順に行います。既定の復元先は SOURCE-imported で、既存名は拒否します。公開 CLI／controller upload は
 planned で、現時点では新しい利用者コマンドではありません。
@@ -537,3 +537,8 @@ native 作成不明時は既存の所有記録を保持します。Env 作成失
 schema 変更・自動 backup・Base component・import 専用復旧 catalog は追加しません。
 [ADR 0057](../adr/0057-native-bundle-import.md)を参照してください。公開 import、再接続、SSH 実ハンドシェイク、
 live OCI 整合性は未完了です。
+
+6360a23 の専用 Incus/Btrfs aggregate は558.35秒で成功しました。保存元削除後の rootfs・2つの
+Git Workspace・OCI の独立 import、Env 起動、世代確認、Env 削除後のデータ保持、所有対象の cleanup を
+確認しました。ローカル実行は CLI バイナリ未指定のため公開 CLI 検証を SKIP し、共有 image の削除も
+SKIP しました。公開 import、SSH 実ハンドシェイク、live OCI 整合性は未検証です。

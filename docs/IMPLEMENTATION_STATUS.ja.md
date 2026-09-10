@@ -2,8 +2,10 @@
 
 native bundle import を、全体検証、独立した Workspace／OCI import、canonical Env 作成に接続しました。
 OCI は native 作成前に新しい Workspace と対応付け、file 接続先／旧 descriptor は offline とします。
-初回のコンパイルエラーと長い名前の ID 制約を修正し、対象 race は成功しました。実 aggregate 受入と全体 CI は
-未確定で、公開 CLI upload は未実装です。
+初回のコンパイルエラーと長い名前の ID 制約を修正し、対象 race は成功しました。6360a23 の全ローカル CI
+（Go・vet・文書・workflow policy・JS 27件）と専用 Incus/Btrfs aggregate 受入（558.35秒）が成功しました。
+保存元削除後の bundle から rootfs・2つの Git Workspace・OCI を import し、データの独立性と所有対象の
+cleanup を確認しました。公開 CLI upload は未実装です。
 
 archive import は通常の BaseRouter と Incus native image adapter を経由し、canonical Env lifecycle を使います。
 現在の sandbox 設定、新しい世代、管理 SSH identity の更新、即時の所有記録、所有する image／instance の
