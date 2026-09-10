@@ -164,11 +164,33 @@ func verifyMaintenanceControllerCLI(t *testing.T, ctx context.Context, runtime *
 	}
 	invoke("yes\n", false, "plugin", "oci", "image", "delete", resource.ID, used)
 	clean()
-	invoke("yes\n", true, "plugin", "oci", "image", "delete", resource.ID, unused)
+	var candidates oci.ManagedImageList
+	must(json.Unmarshal(invoke("", true, "plugin", "oci", "image", "list", "--unused", "--json", resource.ID), &candidates))
+	if candidates.Target != before.Target || len(candidates.Images) == 0 {
+		t.Fatal("candidate target or images lost")
+	}
+	selected := map[string]bool{}
+	for _, image := range candidates.Images {
+		if len(image.Containers) != 0 || image.ID == used {
+			t.Fatal("referenced candidate selected")
+		}
+		selected[image.ID] = true
+	}
+	if !selected[unused] {
+		t.Fatal("unused image omitted")
+	}
+	clean()
+	invoke("no\n", false, "plugin", "oci", "image", "delete", "--unused", resource.ID)
+	clean()
+	retained := list()
+	if len(retained.Images) != len(before.Images) {
+		t.Fatal("declined candidates changed")
+	}
+	invoke("yes\n", true, "plugin", "oci", "image", "delete", "--unused", resource.ID)
 	after := list()
 	found := false
 	for _, image := range after.Images {
-		if image.ID == unused {
+		if selected[image.ID] {
 			t.Fatal("deleted digest still present")
 		}
 		if image.ID == used && len(image.Containers) != 0 {
@@ -180,7 +202,7 @@ func verifyMaintenanceControllerCLI(t *testing.T, ctx context.Context, runtime *
 	}
 	// Explicit public deletion applies only to this test's freshly owned Store.
 	invoke("yes\n", true, "plugin", "oci", "store", "delete", strings.TrimPrefix(resource.ID, "oci:"))
-	t.Log("PASS real controller/CLI detached list, referenced refusal, confirmed digest deletion, canonical temporary cleanup and explicit owned Store cleanup")
+	t.Log("PASS real controller/CLI detached list, referenced refusal, reviewed unused candidates and confirmed deletion, canonical temporary cleanup and explicit owned Store cleanup")
 	return true
 }
 
