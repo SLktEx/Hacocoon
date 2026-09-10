@@ -27,7 +27,7 @@ func transferOCIGuest(t *testing.T, ctx context.Context, r *Runtime, ref, phase,
 	t.Helper()
 	result, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "/bin/sh", "-ec", script)
 	if err != nil || result.ExitCode != 0 || result.StdoutTruncated || result.StderrTruncated {
-		t.Fatalf("containerd transfer fixture phase=%s exit=%d runner_failed=%t truncated=%t", phase, result.ExitCode, err != nil, result.StdoutTruncated || result.StderrTruncated)
+		t.Fatalf("containerd transfer fixture phase=%s exit=%d runner_failed=%t truncated=%t category=%s", phase, result.ExitCode, err != nil, result.StdoutTruncated || result.StderrTruncated, transferFailureCategory(result.Stderr))
 	}
 }
 
@@ -70,7 +70,10 @@ func prepareTransferOCI(t *testing.T, ctx context.Context, r *Runtime, ref, gene
 	transferOCIGuest(t, ctx, r, ref, "configure-store", persistentOCIConfiguration)
 	transferOCIGuest(t, ctx, r, ref, "install-runtime", transferContainerdSetup)
 	transferOCIGuest(t, ctx, r, ref, "start-containerd", transferContainerdStart)
-	transferOCIGuest(t, ctx, r, ref, "seed-container", transferContainerdSeed)
+	transferOCIGuest(t, ctx, r, ref, "import-image", transferContainerdSeed)
+	transferOCIGuest(t, ctx, r, ref, "inspect-image", transferContainerdImageIdentity)
+	transferOCIGuest(t, ctx, r, ref, "run-container", transferContainerdRun)
+	transferOCIGuest(t, ctx, r, ref, "quiesce-containerd", transferContainerdQuiesce)
 	run("stop-source", "stop", ref, "--project", r.project, "--timeout", "30")
 	t.Log("PASS source containerd image executed and stopped container writable data persisted before export")
 }
@@ -111,9 +114,15 @@ cp /var/lib/haco-transfer-input/probe /var/lib/haco-transfer-input/root/probe
 chmod 755 /var/lib/haco-transfer-input/root/probe
 tar -cf /var/lib/haco-transfer-input/image.tar -C /var/lib/haco-transfer-input/root .
 nerdctl --snapshotter native import /var/lib/haco-transfer-input/image.tar hacocoon-transfer:local
+`
+const transferContainerdImageIdentity = `set -eu
 nerdctl --snapshotter native image inspect --format '{{.Id}}' hacocoon-transfer:local > /var/lib/haco-transfer-image-id
+`
+const transferContainerdRun = `set -eu
 test "$(nerdctl --snapshotter native run --pull never --net none --name haco-transfer-persist hacocoon-transfer:local /probe)" = created
 test -z "$(ctr tasks list -q)"
+`
+const transferContainerdQuiesce = `set -eu
 rm /var/lib/haco-transfer-input/image.tar /var/lib/haco-transfer-input/probe /var/lib/haco-transfer-input/root/probe
 rmdir /var/lib/haco-transfer-input/root /var/lib/haco-transfer-input
 systemctl stop containerd
@@ -129,7 +138,7 @@ systemctl stop containerd
 func TestTransferOCIShellSyntax(t *testing.T) {
 	for name, script := range map[string]string{
 		"setup": transferContainerdSetup, "start": transferContainerdStart,
-		"seed": transferContainerdSeed, "verify": transferContainerdVerify,
+		"seed": transferContainerdSeed, "identity": transferContainerdImageIdentity, "run": transferContainerdRun, "quiesce": transferContainerdQuiesce, "verify": transferContainerdVerify,
 	} {
 		t.Run(name, func(t *testing.T) {
 			command := exec.Command("/bin/sh", "-n")
@@ -144,7 +153,7 @@ func TestTransferOCIShellSyntax(t *testing.T) {
 // Only fixed categories leave the fixture boundary; never print backend output.
 func transferFailureCategory(stderr string) string {
 	lower := strings.ToLower(stderr)
-	for _, category := range []string{"permission denied", "no such file or directory", "not found", "does not exist", "not authorized", "connection refused", "no space left on device", "is not running", "read-only file system"} {
+	for _, category := range []string{"permission denied", "no such file or directory", "not found", "does not exist", "not authorized", "connection refused", "no space left on device", "is not running", "read-only file system", "failed to create shim", "apparmor", "cgroup", "failed to extract layer", "cni"} {
 		if strings.Contains(lower, category) {
 			return category
 		}
