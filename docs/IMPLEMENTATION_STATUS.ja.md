@@ -1536,3 +1536,5 @@ local CI 全体は docs／workflow 検査後、WSL の pwsh 不在で失敗し�
 Windows 39b5ce4 で承認 setup の失敗が再現し、DNS start-limit-hit を確認しました。同じ DNS 構成では冪等な systemd start を使い、companion／unit 変更時は restart します。修正後の installed Windows 検証は 226991b（run 34479510230）で成功しました。[service 起動](design/name-resolution.ja.md#繰り返す-setup-と-service-起動)を参照してください。
 
 G1 の Windows ファイル受入は c4449e1 の [Windows run 34482712957](https://github.com/SLktEx/Hacocoon/actions/runs/34482712957) で成功しました。完成した Linux bundle の排他的コピー、Windows 側の長さ／hash 照合、既存共有 drive から Linux client での import を確認します。Windows native CLI／直接 export 公開は未実装です。[経路](design/environment-transfer.ja.md#既存ドライブ共有を使う-windows-bundle-ファイル)を参照してください。
+
+E5 OCI image list/delete は、コンテナの参照がないタグ付き画像も含め、--unused で候補を確認・選択できます。画像ごとの所有・参照・不在確認を維持します。実 runtime の一括検証は未完了、cache・他資源の GC は planned です。[候補選択](design/oci-image-deletion.ja.md#未使用画像候補の確認)を参照してください。

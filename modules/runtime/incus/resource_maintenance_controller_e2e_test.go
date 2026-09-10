@@ -90,13 +90,18 @@ func verifyMaintenanceControllerCLI(t *testing.T, ctx context.Context, runtime *
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	invoke := func(input string, success bool, args ...string) []byte {
+	invocation := 0
+	invokeExpect := func(input string, success bool, refusal string, args ...string) []byte {
 		t.Helper()
+		invocation++
+		started := time.Now()
+		t.Logf("maintenance CLI step=%d started", invocation)
+		defer func() { t.Logf("maintenance CLI step=%d duration_ms=%d", invocation, time.Since(started).Milliseconds()) }()
 		cmd := exec.CommandContext(ctx, product, args...)
 		var diagnostic bytes.Buffer
 		cmd.Env, cmd.Stdin, cmd.Stderr = environment, strings.NewReader(input), io.MultiWriter(log, &diagnostic)
 		output, err := cmd.Output()
-		if (err == nil) != success || len(output) > 1<<20 || (!success && !strings.Contains(diagnostic.String(), "image is referenced by a container; retained")) {
+		if (err == nil) != success || len(output) > 1<<20 || (!success && !strings.Contains(diagnostic.String(), refusal)) {
 			exitCode := -1
 			if cmd.ProcessState != nil {
 				exitCode = cmd.ProcessState.ExitCode()
@@ -104,6 +109,10 @@ func verifyMaintenanceControllerCLI(t *testing.T, ctx context.Context, runtime *
 			t.Fatalf("maintenance CLI operation=%s exit_code=%d expected_success=%t context_done=%t category=%s stages=%s; private diagnostics: %s", strings.Join(args[:4], " "), exitCode, success, ctx.Err() != nil, maintenanceDiagnosticCategory(diagnostic.String()), maintenanceDiagnosticStages(diagnostic.String()), log.Name())
 		}
 		return output
+	}
+	invoke := func(input string, success bool, args ...string) []byte {
+		t.Helper()
+		return invokeExpect(input, success, "image is referenced by a container; retained", args...)
 	}
 	providerRuns := func() string {
 		t.Helper()
@@ -164,11 +173,33 @@ func verifyMaintenanceControllerCLI(t *testing.T, ctx context.Context, runtime *
 	}
 	invoke("yes\n", false, "plugin", "oci", "image", "delete", resource.ID, used)
 	clean()
-	invoke("yes\n", true, "plugin", "oci", "image", "delete", resource.ID, unused)
+	var candidates oci.ManagedImageList
+	must(json.Unmarshal(invoke("", true, "plugin", "oci", "image", "list", "--unused", "--json", resource.ID), &candidates))
+	if candidates.Target != before.Target || len(candidates.Images) == 0 {
+		t.Fatal("candidate target or images lost")
+	}
+	selected := map[string]bool{}
+	for _, image := range candidates.Images {
+		if len(image.Containers) != 0 || image.ID == used {
+			t.Fatal("referenced candidate selected")
+		}
+		selected[image.ID] = true
+	}
+	if !selected[unused] {
+		t.Fatal("unused image omitted")
+	}
+	clean()
+	invokeExpect("no\n", false, "Image retained.", "plugin", "oci", "image", "delete", "--unused", resource.ID)
+	clean()
+	retained := list()
+	if len(retained.Images) != len(before.Images) {
+		t.Fatal("declined candidates changed")
+	}
+	invoke("yes\n", true, "plugin", "oci", "image", "delete", "--unused", resource.ID)
 	after := list()
 	found := false
 	for _, image := range after.Images {
-		if image.ID == unused {
+		if selected[image.ID] {
 			t.Fatal("deleted digest still present")
 		}
 		if image.ID == used && len(image.Containers) != 0 {
@@ -180,7 +211,7 @@ func verifyMaintenanceControllerCLI(t *testing.T, ctx context.Context, runtime *
 	}
 	// Explicit public deletion applies only to this test's freshly owned Store.
 	invoke("yes\n", true, "plugin", "oci", "store", "delete", strings.TrimPrefix(resource.ID, "oci:"))
-	t.Log("PASS real controller/CLI detached list, referenced refusal, confirmed digest deletion, canonical temporary cleanup and explicit owned Store cleanup")
+	t.Log("PASS real controller/CLI detached list, referenced refusal, reviewed unused candidates and confirmed deletion, canonical temporary cleanup and explicit owned Store cleanup")
 	return true
 }
 

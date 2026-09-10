@@ -37,7 +37,7 @@ socket や実行ファイルを選べず、layer file を直接削除しませ�
 
 ## 範囲と検証
 
-接続済み Store と Host source に加え、未接続 Store の経路は後述の partial 実装です。候補選択 GC は planned です。保存 snapshot は独立コピーであり、画像削除の影響を受けません。schema 移行や自動 backup は追加しません。
+接続済み Store と Host source に加え、未接続 Store の経路は後述の partial 実装です。候補選択は後述の implemented 機能で、実 runtime の一括検証は未完了です。保存 snapshot は独立コピーであり、画像削除の影響を受けません。schema 移行や自動 backup は追加しません。
 
 ## 管理対象 Host source
 
@@ -146,3 +146,27 @@ Store 保持、所有対象だけの cleanup を確認しました。lifecycle�
 後続の画像操作、metadata・Store の保護、所有対象だけの cleanup も確認しました。
 空 cache からの実 HTTPS 取得・展開は別に70.71秒で成功し、取得したバイナリは Host で実行していません。
 OCI・Incus・composition 全体の race suite と vet も成功しました。
+
+## 未使用画像候補の確認
+
+CLI の候補選択は implemented、実 runtime での一括検証は未完了です。既存の
+コマンドへ任意のフラグを一つ加えます。
+
+```bash
+haco plugin oci image list --unused dev
+haco plugin oci image delete --unused dev
+```
+
+保持 Store ID または `--host` も指定できます。観測した一覧で、実行中・停止中の
+どちらのコンテナからも参照されていない画像を、タグ付きも含めて選びます。
+dangling layer、未使用 build cache、回収可能な容量という意味ではありません。
+表示した ID・タグを確認して承認します。`--yes` はその確認集合への明示的な同意です。
+`--unused` と画像 ID は同時に指定できません。
+
+選択した immutable ID ごとに既存 controller の削除契約を使い、現在の所有者・世代、
+最新の参照、非 force 削除、削除後の不在を確認します。確認後に現れた画像は追加しません。
+新しい参照や所有者の変更は削除を拒否できます。最初の失敗で停止し、完了数を報告して
+残りを保持します。rollback・隠れた backup はありません。独立 snapshot・Store、
+コンテナ、cache はこの GC の対象外です。
+
+779b0e5 の実環境検証は、候補削除の確認後に全体の 720 秒期限で失敗しました。一括削除の成功とは扱いません。拡張した fixture は固定の step 番号と所要時間を記録し、20 分の期限を設けます（Go test は 22 分、job は 45 分）。製品の操作期限・所有確認・拒否／保持の検証は変更せず、修正後の実環境検証は pending です。

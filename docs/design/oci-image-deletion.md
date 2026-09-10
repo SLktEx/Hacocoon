@@ -37,7 +37,7 @@ delete into its replacement. Ordinary guest work may change runtime inventory;
 the runtime's non-force deletion remains the final reference check.
 
 This slice handles a Store attached to an Env whose runtime is available. Host
-source images are addressed below. Detached Store routing is partial as described below; candidate-selected GC remains planned. No Seed/tombstone path, hidden backup, new catalog
+source images are addressed below. Detached Store routing is partial as described below; candidate selection is implemented below; native batch acceptance remains pending. No Seed/tombstone path, hidden backup, new catalog
 state or schema migration is introduced. Existing saved snapshots are independent
 copies, so image deletion does not modify them. Unit and CLI regressions and the
 existing optional real-runtime COW fixture cover different scopes; exact executed
@@ -167,3 +167,28 @@ in the dedicated native fixture (237.37s), including subsequent image operations
 retained metadata/Store protection and exact cleanup. A separate empty-cache real
 HTTPS acquisition and extraction test passed in 70.71s without executing downloaded
 binaries on the Host. Full OCI/Incus/composition race suites and vet passed.
+
+## Review unused image candidates
+
+Implemented CLI selection; native batch acceptance is pending. Use the existing
+commands with one optional flag:
+
+```bash
+haco plugin oci image list --unused dev
+haco plugin oci image delete --unused dev
+```
+
+The same flag accepts a retained Store ID or `--host`. It selects images with no
+running **or stopped** container users in the observed inventory, including tagged
+images. It does not mean dangling layers, unused build cache, or reclaimable bytes.
+Review the displayed IDs and tags before confirming. `--yes` explicitly accepts
+that reviewed set. Do not supply an image ID together with `--unused`.
+
+Each selected immutable ID goes through the existing controller deletion contract:
+current owner/generation, fresh runtime references, non-force removal and positive
+absence. Images appearing after review are not added. A new reference or changed
+owner can refuse deletion. Stop at the first failure, report the completed count,
+and retain the remaining images; no rollback or hidden backup is attempted.
+Independent snapshots/Stores, containers and cache are not GC targets here.
+
+Native acceptance at 779b0e5 failed at the 720-second aggregate test deadline during confirmed candidate deletion. This is a failed run, not successful batch acceptance. The expanded fixture now records fixed step numbers/durations and allows 20 minutes, inside a 22-minute Go deadline and 45-minute job deadline. Product operation timeouts, ownership checks and all refusal/retention assertions are unchanged; updated native acceptance is pending.

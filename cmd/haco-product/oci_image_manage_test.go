@@ -122,3 +122,75 @@ func TestDetachedImageReviewPinsStoreWithoutReusingEnvironment(t *testing.T) {
 		})
 	}
 }
+
+func TestUnusedImageReview(t *testing.T) {
+	for _, mode := range []string{"yes", "no", "list", "none", "duplicate", "extra-id", "partial"} {
+		t.Run(mode, func(t *testing.T) {
+			id := func(c string) string { return "sha256:" + strings.Repeat(c, 64) }
+			target := oci.ImageTarget{Environment: "dev", Instance: "env-" + strings.Repeat("b", 32), Store: core.PersistentResourceRef{ID: "oci:dev", Owner: strings.Repeat("c", 32)}, Runtime: "nerdctl"}
+			c := &unusedReviewClient{result: oci.ManagedImageList{Target: target, Images: []oci.ManagedImage{
+				{ID: id("a"), Tags: []string{"keep-name:latest"}},
+				{ID: id("b"), Containers: []string{"stopped-user"}},
+				{ID: id("c")},
+			}}}
+			args, input := []string{"delete", "--unused", "dev"}, "yes\n"
+			switch mode {
+			case "no":
+				input = "no\n"
+			case "list":
+				args = []string{"list", "--unused", "--json", "dev"}
+			case "none":
+				c.result.Images = c.result.Images[1:2]
+			case "duplicate":
+				c.result.Images = append(c.result.Images, c.result.Images[0])
+			case "extra-id":
+				args = append(args, id("a"))
+			case "partial":
+				c.failAt = 2
+			}
+			var out, diagnostic strings.Builder
+			code := ociImageManageCommand(context.Background(), c, args, strings.NewReader(input), &out, &diagnostic)
+			if mode == "yes" {
+				if code != 0 || len(c.deleted) != 2 || c.deleted[0].ID != id("a") || c.deleted[1].ID != id("c") {
+					t.Fatal(code, c.deleted, diagnostic.String())
+				}
+				for _, r := range c.deleted {
+					if r.Target != target {
+						t.Fatal("reviewed target changed")
+					}
+				}
+			} else if mode == "partial" {
+				if code == 0 || len(c.deleted) != 2 || strings.Count(out.String(), "OCI image deleted:") != 1 || !strings.Contains(diagnostic.String(), "stopped after 1 of 2") {
+					t.Fatal(code, out.String(), diagnostic.String())
+				}
+			} else {
+				if len(c.deleted) != 0 {
+					t.Fatal("unapproved delete", c.deleted)
+				}
+				success := mode == "list" || mode == "none"
+				if (code == 0) != success {
+					t.Fatal(code, diagnostic.String())
+				}
+				if mode == "list" && (strings.Contains(out.String(), id("b")) || !strings.Contains(out.String(), id("a"))) {
+					t.Fatal("candidate list wrong", out.String())
+				}
+			}
+		})
+	}
+}
+
+type unusedReviewClient struct {
+	result  oci.ManagedImageList
+	deleted []controlapi.OCIImageRequest
+	failAt  int
+}
+
+func (c *unusedReviewClient) OCIImage(_ context.Context, r controlapi.OCIImageRequest) (oci.ManagedImageList, error) {
+	if r.Operation == "delete" {
+		c.deleted = append(c.deleted, r)
+		if len(c.deleted) == c.failAt {
+			return oci.ManagedImageList{}, errors.New("current runtime reference refuses deletion")
+		}
+	}
+	return c.result, nil
+}
