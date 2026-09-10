@@ -198,12 +198,11 @@ not runnable Environment activation or completed Git-broker acceptance.
 
 New volume bindings include credential-free remote/branch provenance from the
 trusted Workspace registry. Guest `.git/config` is never promoted to Host routing
-or authorization policy. Old bindings omit these fields and remain readable,
-verifiable and deletable without rewriting their saved bytes. Automatic Workspace
-registration returns unsupported when this provenance is absent. Re-save from an
-available original Environment to obtain it; a source-less legacy metadata import
-is not implemented. Keep those manifests and saved volumes; do not edit binding
-JSON or discard them during upgrade.
+or authorization policy. Old bindings that omit both fields now restore as offline
+Workspace data, without a Host source lookup or invented Git authority. Their saved
+bytes remain unchanged and readable/verifiable/deletable. Partial routing remains
+invalid. Keep saved manifests and volumes unchanged during upgrade; no manual
+binding rewrite is needed. See [ADR 0055](../adr/0055-offline-workspace-routing.md).
 
 Failures attempt cleanup of all newly reserved exact-owned volumes, even if one
 cleanup fails. Unknown ownership/attachment/absence retains the registry record;

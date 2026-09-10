@@ -14,13 +14,13 @@ import (
 
 // ImportWorkspace registers one independent archive without cloning, checking out
 // or executing guest Git configuration. The public aggregate importer is separate.
-// Local source remotes and absent routing require an explicit offline/rebinding
-// policy; this initial registration primitive does not adopt destination Host paths.
+// Empty remote and branch explicitly register offline data. Source file remotes
+// remain refused; they cannot authorize destination Host paths.
 func (s *RepositoryService) ImportWorkspace(ctx context.Context, id, repository, remote, branch string, archive io.ReadSeeker) (Object, error) {
-	if !ValidID(id) || !ValidID(repository) || !ValidBranch(branch) || ValidateRemote(remote) != nil || archive == nil {
+	if !ValidID(id) || !ValidID(repository) || !ValidWorkspaceRouting(remote, branch) || archive == nil {
 		return Object{}, core.ErrInvalidArgument
 	}
-	if !strings.HasPrefix(remote, "https://github.com/") {
+	if remote != "" && !strings.HasPrefix(remote, "https://github.com/") {
 		return Object{}, core.ErrUnsupported
 	}
 	backend, ok := s.Backend.(interface {

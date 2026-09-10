@@ -66,7 +66,7 @@ Git/GitHub authority must stay explicit even if the exact CLI, policy attributes
 Implemented: `haco repo list [--json]` and `haco repo delete [--yes] <id>` expose
 retained Host source checkouts and reviewed deletion. A source remains part of
 current brokered Git routing even though Workspace filesystem copies are
-independent. Every referencing Workspace record, including intermediate records,
+independent. Every Workspace record with a configured Git source, including intermediate records,
 therefore blocks deletion. This preserves local Git data and the ability to use
 the existing approved transport. It is not an automatic unused-data collector.
 
@@ -84,3 +84,13 @@ Schema 13 and existing repository records are preserved. No data migration is
 required. Current snapshot Git provenance remains independent of a source checkout;
 a restored Workspace may require explicit Git reconnection under current policy.
 See [ADR 0045](../adr/0045-explicit-source-repository-deletion.md).
+
+## Offline Workspace routing
+
+Offline Workspace members have empty managed remote/branch fields. They never
+select a Host source by name or appear in a Git broker binding. Mixed collections
+bind only their configured members; every request rechecks the registered remote
+and branch against its exact current Host source, alongside existing generation,
+ownership and approval checks. Entirely offline Workspaces do not create a Git
+endpoint. Guest Git configuration stays data. See
+[ADR 0055](../adr/0055-offline-workspace-routing.md).

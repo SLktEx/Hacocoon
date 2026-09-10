@@ -79,7 +79,7 @@ func TestSavedWorkspaceNativeCopyAndRefusal(t *testing.T) {
 			c.State = "verified"
 			backend := &RepositoryBackend{Runtime: r}
 			sources, err := backend.SavedWorkspaces(context.Background(), core.Snapshot{State: "ready", Components: []core.SnapshotComponent{c}})
-			if mode == "foreign" || mode == "busy" || mode == "missing" || mode == "legacy" {
+			if mode == "foreign" || mode == "busy" || mode == "missing" {
 				if err == nil || posts != 0 {
 					t.Fatal("accepted invalid source", err)
 				}
@@ -100,7 +100,7 @@ func TestSavedWorkspaceNativeCopyAndRefusal(t *testing.T) {
 				target.Remote = "https://github.com/example/other.git"
 			}
 			err = backend.CreateSavedWorkspace(context.Background(), target, sources[0])
-			if mode == "ok" {
+			if mode == "ok" || mode == "legacy" {
 				if err != nil || posts != 1 {
 					t.Fatal(err, posts)
 				}

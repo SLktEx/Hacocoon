@@ -160,7 +160,11 @@ func validObject(o Object) bool {
 		return false
 	}
 	if len(o.Members) == 0 {
-		return ValidID(o.Repository) && ValidBranch(o.Branch) && ValidateRemote(o.Remote) == nil && o.NativeRef != ""
+		routing := ValidBranch(o.Branch) && ValidateRemote(o.Remote) == nil
+		if o.Kind == "work" {
+			routing = ValidWorkspaceRouting(o.Remote, o.Branch)
+		}
+		return ValidID(o.Repository) && routing && o.NativeRef != ""
 	}
 	if o.Kind != "work" || len(o.Members) < 2 || len(o.Members) > 8 || o.NativeRef != "" || o.Repository != "" || o.Remote != "" || o.Branch != "" {
 		return false

@@ -29,7 +29,7 @@ func (s *RepositoryService) ListSources(ctx context.Context) ([]SourceUse, error
 		v := SourceUse{Source: source, Workspaces: []string{}}
 		for _, w := range work {
 			for _, member := range w.Copies() {
-				if member.Repository == source.ID {
+				if member.Remote != "" && member.Repository == source.ID {
 					v.Workspaces = append(v.Workspaces, w.ID)
 					break
 				}
@@ -41,7 +41,8 @@ func (s *RepositoryService) ListSources(ctx context.Context) ([]SourceUse, error
 }
 
 // DeleteSource shares the registry lock with clone/copy. All Workspace records,
-// including interrupted creations and deletions, keep their Git source alive.
+// with Git routing, including interrupted creations/deletions, keep their source alive.
+// Offline data has no dependency on a coincidentally same-named Host repository.
 func (s *RepositoryService) DeleteSource(ctx context.Context, id, owner string) error {
 	if !ValidID(id) || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:identity", Owner: owner}) {
 		return core.ErrInvalidArgument
@@ -71,7 +72,7 @@ func (s *RepositoryService) DeleteSource(ctx context.Context, id, owner string) 
 	}
 	for _, w := range work {
 		for _, member := range w.Copies() {
-			if member.Repository == id {
+			if member.Remote != "" && member.Repository == id {
 				return core.ErrStorageBusy
 			}
 		}
