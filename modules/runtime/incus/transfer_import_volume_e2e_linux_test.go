@@ -19,6 +19,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 	"github.com/SLktEx/Hacocoon/internal/state"
+	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
 	"github.com/lxc/incus/v6/shared/cliconfig"
 )
 
@@ -32,6 +33,18 @@ func (b importAcceptanceBackend) Plan(_ context.Context, kind, owner string) (st
 		return "", core.ErrInvalidArgument
 	}
 	return b.pool + "/haco-persistent-" + owner, nil
+}
+
+type workspaceImportAcceptanceBackend struct {
+	*RepositoryBackend
+	pool string
+}
+
+func (b workspaceImportAcceptanceBackend) Plan(_ context.Context, kind, id string) (string, error) {
+	if kind != "work" || !gitrepo.ValidID(id) {
+		return "", core.ErrInvalidArgument
+	}
+	return b.pool + "/haco-work-" + id, nil
 }
 
 func TestRealIncusOwnedVolumeImportE2E(t *testing.T) {
@@ -106,6 +119,25 @@ func TestRealIncusOwnedVolumeImportE2E(t *testing.T) {
 	for _, key := range []string{"volatile.idmap.last", "volatile.idmap.next"} {
 		run("storage", "volume", "set", sourcePool, "source", key, mapping, "--project", "default")
 	}
+	git := func(path string, args ...string) string {
+		t.Helper()
+		commandArgs := append([]string{"-C", path}, args...)
+		out, e := runner.Run(ctx, "git", commandArgs...)
+		must(e)
+		if out.ExitCode != 0 {
+			t.Fatal("fixture Git command failed", out.ExitCode)
+		}
+		return strings.TrimSpace(out.Stdout)
+	}
+	git(src, "init", "--quiet")
+	must(os.WriteFile(filepath.Join(src, "tracked-change"), []byte("committed"), 0600))
+	git(src, "add", "data", "tracked-change")
+	git(src, "-c", "user.name=Import Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "retained commit")
+	savedCommit := git(src, "rev-parse", "HEAD")
+	git(src, "config", "remote.origin.url", "file:///source-only/untrusted.git")
+	must(os.WriteFile(filepath.Join(src, "data"), []byte("persistent data"), 0600))
+	must(os.WriteFile(filepath.Join(src, "untracked"), []byte("untracked data"), 0600))
+	must(os.WriteFile(filepath.Join(src, "tracked-change"), []byte("uncommitted"), 0600))
 	archivePath := filepath.Join(root, "source.tar")
 	run("storage", "volume", "export", sourcePool, "source", archivePath, "--volume-only", "--compression=none", "--project", "default")
 	original, err := os.ReadFile(archivePath)
@@ -179,6 +211,40 @@ func TestRealIncusOwnedVolumeImportE2E(t *testing.T) {
 	must(service.Delete(ctx, resource.ID))
 	if _, err := catalog.GetPersistentResource(ctx, resource.ID); !errors.Is(err, core.ErrNotFound) {
 		t.Fatal("catalog retained deleted volume")
+	}
+	workBackend := &RepositoryBackend{Runtime: runtime, ImportRoot: root, ImportLimit: 16 << 20}
+	works := gitrepo.NewRepositoryService(filepath.Join(root, "workspaces"), workspaceImportAcceptanceBackend{workBackend, targetPool})
+	object, err := works.ImportWorkspace(ctx, "imported-"+owner, "repo", "https://github.com/SLktEx/Hacocoon-test.git", "main", input)
+	must(err)
+	if object.State != "ready" || object.Owner == resource.Owner || object.Owner == owner {
+		t.Fatal("Workspace ownership was reused")
+	}
+	must(workBackend.InspectVolume(ctx, object))
+	workPath := volumePath(targetPool, "haco-work-"+object.ID)
+	if git(workPath, "rev-parse", "HEAD") != savedCommit || git(workPath, "config", "remote.origin.url") != "file:///source-only/untrusted.git" {
+		t.Fatal("saved Git data rewritten")
+	}
+	workData, err := os.ReadFile(filepath.Join(workPath, "untracked"))
+	must(err)
+	if string(workData) != "untracked data" {
+		t.Fatal("untracked data lost")
+	}
+	dirty, err := os.ReadFile(filepath.Join(workPath, "tracked-change"))
+	must(err)
+	if string(dirty) != "uncommitted" || git(workPath, "status", "--porcelain", "--", "tracked-change") == "" {
+		t.Fatal("uncommitted data lost")
+	}
+	if object.Remote != "https://github.com/SLktEx/Hacocoon-test.git" {
+		t.Fatal("guest Git config adopted as routing")
+	}
+	if _, err := works.ImportWorkspace(ctx, object.ID, "repo", object.Remote, object.Branch, input); !errors.Is(err, core.ErrAlreadyExists) {
+		t.Fatal("duplicate Workspace import", err)
+	}
+	// This isolated fixture has no Env or lease. Use the existing owned native
+	// deletion path and retain the registry if any absence check fails.
+	must(works.DeleteWorkspace(ctx, object.ID, object.Owner))
+	if _, err := works.Get("work", object.ID); !errors.Is(err, core.ErrNotFound) {
+		t.Fatal("deleted Workspace still registered", err)
 	}
 	for _, pool := range []string{sourcePool, targetPool} {
 		if run("storage", "get", pool, ownerKey) != owner {

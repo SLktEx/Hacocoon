@@ -493,3 +493,33 @@ composition compiled with no selected tests. Documentation checks passed. The fi
 build failed because the Router forwarding method was missing; it was added with
 a mixed-route regression before the passing run. Full CI and native acceptance
 for version-2 export remain pending.
+
+## Native Workspace registration
+
+Status: **implemented internally** for a single Workspace with explicit GitHub
+routing. `RepositoryService.ImportWorkspace` reuses normal ownership reservation,
+created/inspect/ready publication, and deliberately skips Git population. Native
+volume import uses the same bounded Incus archive preparation as OCI import with
+fresh Workspace config. Existing targets are refused before import. No clone,
+checkout, remote request, guest hook or credential operation is run.
+
+Source local-file URLs and absent routing are currently refused by this internal
+registration method; public offline/rebinding and multi-Workspace composition remain
+planned. Failure retains the exact incomplete record; public aggregate cleanup is
+not implemented. See [ADR 0053](../adr/0053-workspace-native-import.md). Existing
+catalog schema, normal clone/copy behavior and ready Workspace deletion are unchanged.
+
+Focused service/native-boundary tests passed (0.427s/0.536s), including durable
+ownership before import, no population, duplicate refusal and failure retention.
+The existing native volume E2E is extended to register Workspace data after source
+volume deletion and check commits, dirty/untracked files, preserved guest Git
+config, independent management routing and owned cleanup. The dedicated Incus/Btrfs
+run passed in 20.67s at `b7c7ec5`, including canonical Workspace registration/deletion
+and both isolated pool deletions. The original archive and fixture plan remain at
+`/var/lib/haco-owned-import-1590527782`. Postcheck confirmed the original nine
+instances, sentinel checksum and registration mode/link count unchanged.
+
+All local Go tests, vet, docs/workflow policy and 27 JavaScript tests passed on the
+same source. Focused race tests passed for the Git service (1.568s) and native adapter (2.541s);
+the complete local validation invocation exited successfully. This does not prove Env attachment/idmap shifting, boot,
+SSH, a live OCI daemon, multi-Workspace import or the public aggregate command.

@@ -1,5 +1,10 @@
 # 実装状況
 
+単一 Workspace の native import は既存の所有管理を再利用し、Git のデータ準備を
+実行しません。専用 Incus/Btrfs の Workspace import と所有対象 cleanup は20.67秒で成功し、
+ローカル Go／vet／docs／JS と対象 race も成功しました。公開一式の import
+（offline 接続先・失敗時 cleanup・起動を含む）は未完了です。
+
 公開 Linux export は、保護された snapshot binding の Workspace 接続先情報を
 version 2 に含めます。version 1 の検査は維持し、Git 承認・認証情報は移譲しません。
 対象 metadata・Router テストと文書検証は成功しました。全体 CI と native version 2
