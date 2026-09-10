@@ -283,3 +283,54 @@ The plan and archive remain at `/var/lib/haco-rootfs-export-1396608668`; archive
 SHA-256 is `195bb069299c130f187cd1cb814806a8e39966f2b089a86fcb9460e5d3e8da85`.
 Focused race regressions passed in 3.614s; package vet passed. This native result
 covers this component adapter, not the unfinished public G1 workflow.
+
+## Internal stopped-Environment export
+
+Status: **implemented internally**, with public CLI/controller delivery still planned.
+`environmenttransfer.Exporter.ExportStopped` uses the existing canonical
+`CaptureStoppedSnapshot`, `ReadSnapshot` and `DeleteSnapshot` operations. It does
+not stop a running Environment or require a separate user snapshot command. The
+one temporary COW capture is the coherent export source, not a pre-restore backup.
+
+The private output directory is opened before capture. Inside the saved-source
+reservation, the full rootfs/Workspace/optional OCI inventory is validated before
+native export, then every archive consumes the same aggregate byte budget. Legacy
+Base filesystem records stay in the catalog and are excluded from transport.
+All native handles are closed inside the reservation. Only this invocation's
+canonical capture is deleted, using a bounded cleanup context even after caller
+cancellation; uncertain deletion retains its exact snapshot ID and catalog state.
+
+The envelope is written synchronously into the existing anonymous staging file.
+Neither complete bytes followed by a producer/cleanup error nor an incomplete
+aggregate can return a bundle. The final read-only file passes whole-envelope
+verification before return. Source Env identity, leases, existing snapshots and
+current data remain unchanged. There is no new catalog, crash replay, rollback
+or automatic import/restore backup. Incus still supplies the native copy/export
+behavior through its component producers; this package composes the data boundary.
+
+Regression coverage includes all 253 Workspace roles with optional OCI, historical
+Base exclusion, aggregate budgets, late failures, cancellation and descriptor
+cleanup. A real JSON catalog/canonical-lifecycle test covers running refusal,
+shared deletion locks, retained snapshots and uncertain-cleanup records with a
+fake native adapter. This does not establish real Incus aggregate export, public
+artifact delivery, archive import, OS boot or SSH acceptance. Those remain planned
+or unverified; the preceding native component tests prove only their own scope.
+
+The existing Linux `TestRealIncusSnapshotAggregateE2E` now exercises the exporter
+through the routed catalog and actual native producers after Base removal, then
+reverifies all exported bytes after source mutation/deletion. Its existing GHA
+gate runs this check. Dedicated WSL Incus 6.0.5/Btrfs acceptance passed in
+314.12s, including confirmed temporary-capture cleanup before bundle return and
+whole-bundle verification after source deletion. Existing snapshot restore and
+fresh-generation/authorization-reset checks in the same fixture also passed;
+that restore uses the saved snapshot, not the exported bundle. All owned fixture
+resources and its recovery directory were cleaned. No export archive is retained.
+
+The native run skipped shared source-image deletion and the optional public
+snapshot/Workspace CLI paths because this invocation preserved the shared image
+and supplied no CLI binary. The existing GHA aggregate gate supplies the CLI.
+Actual SSH handshake, live OCI consistency and public bundle import remain
+unverified or unimplemented. Full local CI (Go tests/vet, 27 notification tests)
+and documentation checks passed on `bbcf7ea`; the first canonical integration
+fixture failed on duplicate native names, corrected with per-capture identities.
+No product ownership check or timeout was relaxed.

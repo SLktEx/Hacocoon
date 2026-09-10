@@ -53,10 +53,25 @@ func (r *contextReader) Read(p []byte) (int, error) {
 // by its transport. The byte budget also bounds invalid pre-manifest input.
 // No O_TMPFILE fallback, named output, chmod repair or process-crash replay exists.
 func Stage(ctx context.Context, root string, src io.Reader, limit int64) (result *Staged, err error) {
+	if src == nil {
+		return nil, ErrInvalidBundle
+	}
+	return stageProduced(ctx, root, limit, func(dst io.Writer) error {
+		input := &contextReader{ctx, src}
+		if _, err := io.Copy(dst, io.LimitReader(input, limit+envelopeOverhead)); err != nil {
+			return err
+		}
+		return requireEOF(input)
+	})
+}
+
+// stageProduced keeps synchronous producers private until their entire operation,
+// including cleanup, succeeds. No goroutine or partially published pathname exists.
+func stageProduced(ctx context.Context, root string, limit int64, produce func(io.Writer) error) (result *Staged, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if src == nil || !validLimit(limit) || len(root) > 4096 || !filepath.IsAbs(root) || filepath.Clean(root) != root {
+	if produce == nil || !validLimit(limit) || len(root) > 4096 || !filepath.IsAbs(root) || filepath.Clean(root) != root {
 		return nil, ErrInvalidBundle
 	}
 	dir, err := unix.Openat2(unix.AT_FDCWD, root, &unix.OpenHow{Flags: unix.O_RDONLY | unix.O_DIRECTORY | unix.O_CLOEXEC, Resolve: unix.RESOLVE_NO_SYMLINKS | unix.RESOLVE_NO_MAGICLINKS})
@@ -81,16 +96,11 @@ func Stage(ctx context.Context, root string, src io.Reader, limit int64) (result
 			err = errors.Join(err, writable.Close())
 		}
 	}()
-	maximum := limit + envelopeOverhead
-	input := &contextReader{ctx, src}
-	n, err := io.Copy(writable, io.LimitReader(input, maximum))
-	if err != nil {
+	output := &stagingWriter{ctx: ctx, dst: writable, remaining: limit + envelopeOverhead}
+	if err := produce(output); err != nil {
 		return nil, err
 	}
-	// Probe separately: adding one to the maximum budget can overflow int64.
-	if err := requireEOF(input); err != nil {
-		return nil, err
-	}
+	n := limit + envelopeOverhead - output.remaining
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -129,4 +139,26 @@ func Stage(ctx context.Context, root string, src io.Reader, limit int64) (result
 		return nil, err
 	}
 	return &Staged{file: readonly, manifest: m, size: n}, nil
+}
+
+// Never expose the staging file itself to a producer. Bound even faulty writers.
+type stagingWriter struct {
+	ctx       context.Context
+	dst       io.Writer
+	remaining int64
+}
+
+func (w *stagingWriter) Write(p []byte) (int, error) {
+	if err := w.ctx.Err(); err != nil {
+		return 0, err
+	}
+	if int64(len(p)) > w.remaining {
+		return 0, ErrInvalidBundle
+	}
+	n, err := w.dst.Write(p)
+	w.remaining -= int64(n)
+	if err == nil && n != len(p) {
+		err = io.ErrShortWrite
+	}
+	return n, err
 }

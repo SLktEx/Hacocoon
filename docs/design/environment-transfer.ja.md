@@ -217,3 +217,47 @@ import した一時 image は確認後に削除しました。計画と archive 
 保持し、archive の SHA-256 は `195bb069299c130f187cd1cb814806a8e39966f2b089a86fcb9460e5d3e8da85` です。
 関連 race 回帰は 3.614 秒で成功し、package vet も成功しました。この native 結果は component adapter の確認で、
 未完成の公開 G1 フローを受け入れたものではありません。
+
+## 停止 Environment export の内部処理
+
+Status: **内部実装済み**。公開 CLI/controller の転送経路は planned です。
+`environmenttransfer.Exporter.ExportStopped` は既存の canonical な
+`CaptureStoppedSnapshot`、`ReadSnapshot`、`DeleteSnapshot` を使います。
+実行中 Environment を停止せず、利用者に別の snapshot コマンドも要求しません。
+今回だけの COW capture は一貫した export 元であり、restore 前の backup ではありません。
+
+capture 前に非公開の出力 directory を開きます。保存元の予約内で rootfs・全 Workspace・
+任意 OCI の完全な inventory を確認してから native export を行い、全 archive で一つの
+合計 byte 上限を消費します。過去の Base filesystem 記録は catalog に残し、転送から
+除外します。native handle は予約内で閉じます。今回作成した canonical capture だけを
+削除し、呼び出し元の取消後も期限付き cleanup を実行します。削除が不明なら、その
+snapshot ID と catalog の途中状態を保持します。
+
+envelope は既存の匿名 staging file に同期的に書き込みます。完成 bytes の後に producer
+や cleanup が失敗した場合も、一部 component が欠けた場合も bundle は返しません。
+最後に read-only file 全体を検証してから返します。元 Env の識別・lease・既存 snapshot・
+現在データは変更しません。新しい catalog、クラッシュ再開、rollback、import/restore の
+自動 backup は追加しません。native copy/export は Incus の component producer に任せ、
+この package はデータを束ねる境界を担当します。
+
+回帰テストは最大 253 Workspace と任意 OCI、過去 Base の除外、合計上限、遅い段階の
+失敗、取消、descriptor cleanup を対象にします。実 JSON catalog/canonical lifecycle と
+fake native adapter の結合テストで、running 拒否・共有削除 lock・既存 snapshot 保持・
+cleanup 不明時の記録を確認します。これは実 Incus の aggregate export、公開 artifact
+転送、archive import、OS 起動、SSH の受入ではありません。それらは planned または
+未検証です。先行する native component テストの証明範囲も各 component に限ります。
+
+既存の Linux `TestRealIncusSnapshotAggregateE2E` に、Base 削除後の routed catalog と
+実 native producer を通る export、および元データ変更・元 Env 削除後の全 export bytes
+再検証を加えました。専用 WSL Incus 6.0.5/Btrfs 受入は 314.12 秒で成功し、bundle を
+返す前の一時 capture cleanup と元 Env 削除後の bundle 全体検証を確認しました。
+同じ fixture の既存 snapshot restore・新世代識別・承認状態リセットも成功しましたが、
+その restore は export bundle ではなく保存 snapshot を使います。今回所有する全 fixture
+資源と recovery directory を cleanup しました。export archive は保持していません。
+
+ローカルでは共有 source image を保持し、CLI binary を指定しなかったため、image 削除と
+任意の公開 snapshot/Workspace CLI 経路は SKIP しました。既存 GHA aggregate gate は CLI を
+指定します。実 SSH handshake・live OCI 整合性・公開 bundle import は未検証または未実装
+です。`bbcf7ea` の全体 local CI（Go test/vet、通知27テスト）と文書チェックは成功しました。
+最初の canonical 結合 fixture は native 名の重複で失敗し、capture ごとの固有名に修正しました。
+製品の所有チェックや timeout は緩めていません。

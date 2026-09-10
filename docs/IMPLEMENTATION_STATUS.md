@@ -1,5 +1,10 @@
 # Implementation Status
 
+The internal stopped-Env exporter now composes canonical capture/read/delete,
+native component producers and anonymous whole-bundle staging. Public CLI and
+controller artifact delivery are still planned. Dedicated native aggregate export
+acceptance passed in 314.12s; this does not prove public bundle import or SSH. See [Environment transfer](design/environment-transfer.md#internal-stopped-environment-export).
+
 ## Detached Store maintenance in progress
 
 Status: **partial E5**. Existing image list/delete commands accept retained Store
@@ -40,7 +45,7 @@ See the [owning contract](design/environment-transfer.md#native-saved-volume-exp
 Public G1 export/import remains **planned**. Internal snapshot/archive inventory
 matching covers all currently supported Workspace components and optional OCI;
 the saved-source read boundary now shares canonical deletion locks and verifies
-retained components. Native archive production and public commands are not yet connected. Opt-in native Incus rootfs/volume
+retained components. Native archive production is composed internally; public commands are not yet connected. Opt-in native Incus rootfs/volume
 archive tests and their existing-GHA integration are implemented. The dedicated
 Incus 6.0.5/Btrfs run passed in 11.24s after correcting fixture path/namespace
 assumptions; source/destination independence, Git state, links, mode and retained
