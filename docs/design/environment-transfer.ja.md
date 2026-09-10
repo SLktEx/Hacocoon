@@ -1,6 +1,6 @@
 # Environment の持ち出し
 
-状態: 公開 export/import は **planned** です。native rootfs／volume の受入テストは内部の前提確認であり、
+状態: Linux 公開 export は **partial**、公開 import は **planned** です。native rootfs／volume の受入テストは内部の前提確認であり、
 利用可能な Hacocoon importer ではありません。
 
 ## Incus を土台にする
@@ -141,7 +141,7 @@ snapshot の値を保持するだけでは reservation になりません。canc
 非 Linux のテスト実装は process 内のままです。新しい native controller platform の追加ではありません。
 backup、永続的な export 状態、自動再開は追加しません。
 
-native archive 作成や公開 export command への接続はまだ未実装です。この source lock で、
+native archive 作成と Linux 公開 export command を接続しました。この source lock で、
 一時資源の厳密な所有管理、出力の完全な公開、復元先の security 再構成を代替しません。
 
 ## 保存 volume の native export adapter
@@ -300,3 +300,12 @@ Unix stream と Linux filesystem/CLI の race test は成功しました。最�
 socket mode 引数不足で compile に失敗し、fixture を修正しました。既存 native aggregate E2E は
 CLI binary 指定時に shipped export CLI を呼ぶよう拡張しましたが、この公開経路はまだ実行完了
 していません。先行の 314.12 秒成功は内部 producer の証明に限ります。
+
+最初の専用 shipped CLI 実行では export・元 Env 削除・公開 snapshot create/restore が成功し、
+その後の copy が元の fixture の8分期限に達して終了したため、全体は 480.07 秒で失敗しました。
+これは gate の失敗であり、成功や SKIP ではありません。正確な catalog と保存 archive は
+`/var/lib/haco-snapshot-aggregate-2545909325` に残しています。test Env 2個は世代の一致を
+確認して canonical な削除を完了しました。Workspace・OCI・snapshot と失敗 catalog は
+明示的な cleanup のため保持しています。追加した archive 全体の転送・検証時間を含め、
+fixture は12分、既存 CI の native test 群は15分の期限にします。製品の期限や隔離は変更せず、
+修正後の native 受入は未完了です。`081beda` の local Go/vet/docs/通知 CI は成功しました。

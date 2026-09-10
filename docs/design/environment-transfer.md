@@ -379,3 +379,15 @@ fixture failed to compile because its socket mode argument was missing; the fixt
 was corrected. The existing native aggregate E2E now calls the shipped export CLI
 when its CLI binary is supplied; this extended public path has not yet run to
 completion. The earlier 314.12s native result proves the internal producer only.
+
+The first dedicated run of the shipped public CLI passed export and source-Env
+removal, then public snapshot create/restore, but failed at 480.07s when the
+fixture's original eight-minute deadline killed the later copy command. This is
+a failed full gate, not a successful gate or SKIP. Its exact catalog and retained
+archive remain under `/var/lib/haco-snapshot-aggregate-2545909325`; the two test Environments were subsequently removed through canonical deletion
+after exact generation verification. Workspace/OCI/snapshots and the failed-run
+catalog remain retained for explicit cleanup. The aggregate fixture
+now has twelve minutes for the added full-archive delivery/verification work, and
+the existing CI invocation has fifteen minutes for its group of native tests.
+Production deadlines and isolation are unchanged; corrected native acceptance is
+still pending. Full local Go/vet/docs/notification CI passed on `081beda`.
