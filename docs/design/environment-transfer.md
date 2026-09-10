@@ -778,3 +778,27 @@ checks passed again. A failure-only, read-only query through the existing pinned
 SSH connection now reports only an allowlisted DNS service Result. This diagnostic
 does not retry setup, restart services or change the failure result. Live OCI consistency and native Windows
 bundle delivery remain unverified.
+
+## Windows bundle file through existing drive projection
+
+Status: **acceptance fixture implemented; installed execution pending**. The
+Windows gate copies the exported Linux bundle to a new Windows temporary file
+through the trusted Host's existing drive projection. Exclusive file creation
+refuses an existing target, and Windows checks its byte count and SHA-256 against
+the export receipt. The source Env is then deleted and the ordinary Linux import
+client reads that projected Windows file. Windows checks the file's digest again
+after imported work and retained-data recreation. The Windows file is retained
+outside the SSH fixture's cleanup directory for inspection.
+
+This uses the existing file and management interfaces. It is not a native Windows
+haco executable or direct export publication on DrvFS: export still first completes
+on a supported Linux filesystem. The intended manual route is to copy that finished
+bundle to a Windows folder, then use its projected path with the Linux client:
+
+```bash
+haco env import /mnt/c/Users/USER/Backups/dev.haco dev-imported
+```
+
+Native Windows export/import commands, automatic copying and whole-WSL evacuation
+remain separate work. The local copy regression proves exclusive target handling;
+only the installed GHA gate can prove this drive-projection route.
