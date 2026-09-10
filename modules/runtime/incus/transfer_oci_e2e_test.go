@@ -59,7 +59,7 @@ func prepareTransferOCI(t *testing.T, ctx context.Context, r *Runtime, ref, gene
 		t.Helper()
 		result, err := r.runner.Run(ctx, "incus", args...)
 		if err != nil || result.ExitCode != 0 {
-			t.Fatalf("prepare owned transfer runtime phase=%s exit=%d runner_failed=%t", phase, result.ExitCode, err != nil)
+			t.Fatalf("prepare owned transfer runtime phase=%s exit=%d runner_failed=%t category=%s", phase, result.ExitCode, err != nil, transferFailureCategory(result.Stderr))
 		}
 	}
 	run("enable-nesting", "config", "set", ref, "security.nesting", "true", "--project", r.project)
@@ -137,5 +137,24 @@ func TestTransferOCIShellSyntax(t *testing.T) {
 				t.Fatalf("invalid owned fixture shell: %v %s", err, output)
 			}
 		})
+	}
+}
+
+// Only fixed categories leave the fixture boundary; never print backend output.
+func transferFailureCategory(stderr string) string {
+	lower := strings.ToLower(stderr)
+	for _, category := range []string{"permission denied", "no such file or directory", "not found", "does not exist", "not authorized", "connection refused", "no space left on device", "is not running", "read-only file system"} {
+		if strings.Contains(lower, category) {
+			return category
+		}
+	}
+	return "unclassified"
+}
+func TestTransferFailureCategory(t *testing.T) {
+	if transferFailureCategory("Error: open secret-path: no such file or directory") != "no such file or directory" {
+		t.Fatal("missing fixed category")
+	}
+	if transferFailureCategory("credential=secret") != "unclassified" {
+		t.Fatal("untrusted output exposed")
 	}
 }
