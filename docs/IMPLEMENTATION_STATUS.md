@@ -1,5 +1,10 @@
 # Implementation Status
 
+Import input preparation now exposes independently seekable native component views
+only after full staged-bundle validation. Linux filesystem/race tests and vet passed;
+this does not implement public import or native destination creation.
+
+
 ## Public Environment export in progress
 
 Status: **partial**. Linux `haco env export <stopped-env> [file.haco]` now uses the

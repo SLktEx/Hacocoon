@@ -326,3 +326,18 @@ fixture は12分、既存 CI の native test 群は15分の期限にします。
 維持しています。その後、fixture の snapshot 4個は
 全 component の所有確認後に canonical API で削除しました。保持 OCI Store 4個・対応 Workspace
 記録と export archive 2個は、明示的な cleanup のため残しています。
+
+## import 向けの検証済み component 読み取り
+
+Status: **内部実装済み**。公開 importer は planned です。
+`Staged.ComponentReader(role)` は、native archive 1個の seek 可能な read-only view を
+返します。位置は全 component と envelope 全体を検証する同じ上限付き parser で記録し、
+途中までの検証では公開しません。reader の位置は独立し、隣の component、manifest、
+外側の file handle は読み取れません。staged bundle を close すると reader も使えなくなります。
+Host directory への archive 展開は行いません。
+
+これは今後の Incus image/volume import adapter へ渡す入力境界であり、元の設定を適用する
+権限ではありません。内側 archive の検証、新しい native 所有情報、canonical な Workspace/OCI
+登録、新しい Env の作成と現行 security 設定は引き続き必要です。CLI 引数と catalog schema は
+追加しません。Linux の実 filesystem component test と既存 transfer suite は race detector
+付きで成功し、vet も成功しました。native import は実行していません。

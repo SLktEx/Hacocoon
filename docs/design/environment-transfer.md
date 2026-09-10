@@ -408,3 +408,20 @@ original nine instances, protected sentinel SHA-256 and registration mode/link c
 were unchanged. All four failed-fixture snapshots were then verified component by component and
 deleted through the canonical API. Four retained OCI Stores, their Workspace
 records and two complete export archives remain for explicit cleanup.
+
+## Verified component delivery for import
+
+Status: **implemented internally**; the public importer remains planned.
+`Staged.ComponentReader(role)` exposes a seekable, read-only view of one native
+archive. Its offsets come from the same bounded parser that verifies every
+component and the complete envelope; no component view is published on partial
+validation. Each reader has its own cursor and cannot read adjacent component
+bytes, the manifest or an outer file handle. Closing the staged bundle invalidates
+its readers. No archive is extracted into a Host directory.
+
+This is the input boundary for the future Incus image/volume import adapter, not
+permission to restore source configuration. Inner archive validation, exact new
+native ownership, canonical Workspace/OCI registration, fresh Environment creation
+and current security setup are still required. No CLI argument or catalog schema
+is added by this boundary. Linux real-filesystem component tests and the existing
+transfer suite passed with the race detector; vet passed. No native import ran.
