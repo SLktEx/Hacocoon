@@ -14,7 +14,7 @@ class InventoryTests(unittest.TestCase):
             return [{"name": "default"}, {"name": "hacocoon"}]
         if url.startswith("/1.0/instances?"):
             return [{"name": "saved-env", "type": "container", "status": "Stopped",
-                     "config": {"environment.TOKEN": "never-copy"}, "devices": {"credential": "never-copy"}}]
+                     "config": {"environment.TOKEN": "never-copy"}, "devices": {"credential": {"type": "proxy", "connect": "never-copy"}}}]
         if "/instances/saved-env/snapshots?" in url:
             return [{"name": "saved"}]
         if "/volumes/custom/work/snapshots?" in url:
@@ -77,6 +77,32 @@ class InventoryTests(unittest.TestCase):
         self.assertFalse(result["native_queries_complete"])
         self.assertIn("native-query-budget-exhausted", result["errors"])
         self.assertGreater(len(result["projects"][0]["instances"]), 0)
+    def test_disk_references_are_inventory_not_authority_or_file_access(self):
+        value = {"expanded_devices": {
+            "root": {"type": "disk", "path": "/", "pool": "data"},
+            "work": {"type": "disk", "path": "/work", "pool": "data", "source": "work-volume"},
+            "windows": {"type": "disk", "path": "/windows", "source": "/mnt/c/Users/shared"},
+            "uri": {"type": "disk", "source": "https://user:secret@example.invalid/data"},
+            "proxy": {"type": "proxy", "connect": "secret"}}}
+        with patch("builtins.open", side_effect=AssertionError("must not open sources")):
+            bindings = subject.disk_bindings(value)
+        self.assertEqual(len(bindings), 4)
+        self.assertEqual(bindings[1]["source"], "work-volume")
+        self.assertEqual(bindings[2]["source"], "/mnt/c/Users/shared")
+        self.assertEqual(bindings[3]["source_kind"], "unreported-reference-review-in-incus")
+        self.assertNotIn("secret", json.dumps(bindings))
+        self.assertTrue(all(x["source_review"] == "required" for x in bindings))
+    def test_invalid_attachment_retains_inventory_with_explicit_error(self):
+        def fetch(url):
+            data = self.fixture(url)
+            if url.startswith("/1.0/instances?"):
+                data[0]["devices"] = {"broken": "not-a-device"}
+            return data
+        result = subject.inventory(fetch)
+        self.assertFalse(result["native_queries_complete"])
+        self.assertTrue(result["projects"][0]["volumes"])
+        self.assertIsNone(result["projects"][0]["instances"][0]["disks"])
+        self.assertIn("disks:default/saved-env", result["errors"])
     @patch("evacuation_inventory.subprocess.run")
     def test_command_is_read_only_and_errors_are_not_exposed(self, run):
         run.return_value = subprocess.CompletedProcess([], 0, b"[]", b"secret")

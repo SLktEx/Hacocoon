@@ -837,7 +837,7 @@ umask 077
 python3 tools/evacuation_inventory.py > inventory.json
 ```
 
-The JSON contains resource names and types, not config bodies or credentials.
+The JSON contains resource names and types, not config bodies or credentials. Instance disk bindings include the pool, mount path and simple volume or Host-path reference; references are not opened or followed. Arbitrary URI sources are withheld with an explicit review marker. Every binding still requires ownership and external-data review. A malformed device leaves its binding unknown and the rest of the inventory available.
 It preserves failed query labels and other successful results. Exit status 1 and
 `native_queries_complete: false` mean at least one native query was incomplete.
 Project views may refer to shared resources; rows do not establish distinct
@@ -855,3 +855,5 @@ A dedicated WSL Incus read passed: 2 project views, 1 pool, 13 instance rows and
 55 volume rows, with no query errors. The private report remains at
 `/var/tmp/haco-evacuation-inventory-tb_t97dj/inventory.json` inside that WSL; this is
 not an external backup or a snapshot-deletion-failure evacuation test.
+
+The extended dedicated WSL read also passed with 13 instance rows and 26 disk bindings, with no query errors. Its private report is /var/tmp/haco-evacuation-inventory-hp1r9_bs/inventory.json. Source references were only recorded, never opened; no external backup or ownership confirmation is implied.

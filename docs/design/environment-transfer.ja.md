@@ -684,7 +684,7 @@ umask 077
 python3 tools/evacuation_inventory.py > inventory.json
 ```
 
-JSON は資源名と種類を含みますが、config 本文や認証情報は出力しません。
+JSON は資源名と種類を含みますが、config 本文や認証情報は出力しません。instance の disk 対応には pool・mount 先・単純な volume 名または Host パスの参照を含め、参照先は開いたり追跡したりしません。任意の URI 本文は表示せず要確認とし、全ての対応に所有・外部データの確認を残します。不正 device があればその対応を不明と記録し、他の一覧は保持します。
 取得に失敗した query の対象を残し、他の取得結果は保持します。終了コード 1 と
 `native_queries_complete: false` は native query の未完了を示します。
 project 間で同じ資源が見える場合があり、行数は独立した所有資源数ではありません。
@@ -701,3 +701,5 @@ project 間で同じ資源が見える場合があり、行数は独立した所
 query エラーはありませんでした。private な一覧はその WSL 内の
 `/var/tmp/haco-evacuation-inventory-tb_t97dj/inventory.json` に残しています。
 外部への backup や snapshot 削除失敗時の退避を実証したものではありません。
+
+拡張後も専用 WSL で instance 13 行・disk 対応 26 件を query エラーなしで取得できました。private な一覧は /var/tmp/haco-evacuation-inventory-hp1r9_bs/inventory.json です。参照先は記録するだけで開かず、外部 backup や所有確認の成功を意味しません。

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read-only Incus inventory for manual evacuation planning, not a backup."""
 import json
+import re
 import subprocess
 import sys
 import time
@@ -42,6 +43,34 @@ def rows(value):
     return value
 
 
+def disk_bindings(instance):
+    """Describe native attachments without opening sources or trusting ownership."""
+    devices = instance.get("expanded_devices", instance.get("devices", {}))
+    if not isinstance(devices, dict) or len(devices) > LIMIT:
+        raise ValueError("invalid devices")
+    result = []
+    for name, device in devices.items():
+        if not isinstance(device, dict):
+            raise ValueError("invalid device")
+        if device.get("type") != "disk":
+            continue
+        binding = {"device": text(name), "pool": text(device.get("pool", "")),
+                   "path": text(device.get("path", "")), "source_review": "required"}
+        source = text(device.get("source", ""))
+        if not source:
+            binding["source_kind"] = "instance-root-or-unspecified"
+        elif source.startswith("/"):
+            binding["source_kind"] = "host-path-reference"
+            binding["source"] = source
+        elif re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", source):
+            binding["source_kind"] = "volume-or-backend-reference"
+            binding["source"] = source
+        else:
+            # Do not publish arbitrary URI/config content, which can carry secrets.
+            binding["source_kind"] = "unreported-reference-review-in-incus"
+        result.append(binding)
+    return result
+
 def inventory(fetch=query):
     report = {"format": 1, "backup_complete": False, "native_queries_complete": False,
               "projects": [], "pools": [], "errors": [], "unreviewed": [
@@ -79,9 +108,15 @@ def inventory(fetch=query):
                 ident = quote(instance["name"], safe="")
                 snapshots = read("/1.0/instances/" + ident + "/snapshots?" + suffix,
                                  "instance-snapshots:" + name + "/" + instance["name"])
+                try:
+                    disks = disk_bindings(instance)
+                except (ValueError, TypeError):
+                    disks = None
+                    report["errors"].append("disks:" + name + "/" + instance["name"])
                 entry["instances"].append({"name": instance["name"],
                                           "type": text(instance.get("type", "")),
                                           "status": text(instance.get("status", "")),
+                                          "disks": disks,
                                           "snapshots": [x["name"] for x in snapshots]})
             for pool in pools:
                 base = "/1.0/storage-pools/" + quote(pool["name"], safe="") + "/volumes"
