@@ -612,22 +612,25 @@ The pinned SDK's context-aware raw operation provides native upload and operatio
 waiting. Current local Unix daemon/project and bounded response checks remain.
 Only uncompressed unified x86_64/aarch64 container images are supported initially.
 See [ADR 0056](../adr/0056-native-rootfs-import.md) and canonical creation below.
-Public aggregate import, boot/SSH and OCI consistency remain unfinished.
+Public aggregate import, SSH handshake and live OCI consistency remain unfinished.
 
 ## Archive to Environment
 
-Status: **implemented internally; acceptance pending**. The Workspace service's
+Status: **implemented internally; native activation verified**. The Workspace service's
 CreateFromArchive uses canonical Env creation with caller-prepared Workspace/OCI
 bindings. It skips current Host OCI defaults. The Incus adapter initializes an
 independent instance from the owned temporary image, records ownership immediately,
 then applies current sandbox configuration and renews guest SSH identity. Unknown
 native init completion retains the lease; cleanup never removes attached data.
 No CLI, catalog migration, Base filesystem or automatic backup is added. Full
-bundle orchestration, public usage and real boot/SSH remain unverified.
+bundle orchestration, public usage and an SSH handshake remain unverified.
 
 The production BaseRouter forwards this native archive to Incus through the shared
 receipt protocol. The existing aggregate E2E now exercises this router with an
 exported bundle after prior Env deletion, followed by native startup, explicit
 Workspace/OCI binding, generation/managed SSH reset and deletion retaining data.
-Adding this test is not an acceptance result; execution is pending. It does not
-exercise public import or an SSH transport handshake.
+Dedicated Incus/Btrfs execution at 47bf7a8 passed in 439.76s. The same run covered
+existing capture/restore/export and native data cleanup. Public CLI checks were
+skipped locally because no CLI binary was supplied; GHA supplies that binary.
+Shared-image deletion was skipped. Public import, an SSH transport handshake and
+live OCI runtime consistency are not established by this test.
