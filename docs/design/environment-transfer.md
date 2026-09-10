@@ -624,3 +624,10 @@ then applies current sandbox configuration and renews guest SSH identity. Unknow
 native init completion retains the lease; cleanup never removes attached data.
 No CLI, catalog migration, Base filesystem or automatic backup is added. Full
 bundle orchestration, public usage and real boot/SSH remain unverified.
+
+The production BaseRouter forwards this native archive to Incus through the shared
+receipt protocol. The existing aggregate E2E now exercises this router with an
+exported bundle after prior Env deletion, followed by native startup, explicit
+Workspace/OCI binding, generation/managed SSH reset and deletion retaining data.
+Adding this test is not an acceptance result; execution is pending. It does not
+exercise public import or an SSH transport handshake.

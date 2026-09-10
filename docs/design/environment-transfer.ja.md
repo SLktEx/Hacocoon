@@ -512,3 +512,9 @@ Incus adapter は所有確認付き一時 image から独立 instance を作り�
 現在の sandbox 設定と guest SSH identity の再生成を行います。native init の完了不明時は lease を保持し、
 cleanup は接続データを削除しません。CLI・catalog 移行・Base 実体・自動 backup は追加しません。
 一式の orchestration、公開利用経路、実機の boot／SSH は未検証です。
+
+通常の BaseRouter は native archive を共通の所有記録プロトコルで Incus へ渡します。
+既存 aggregate E2E に、旧 Env 削除後の export bundle をこの router から import し、
+実起動・明示した Workspace／OCI の接続・世代と管理 SSH 権限の更新・削除後のデータ保持を
+確認する処理を追加しました。テスト追加は受入成功を意味せず、実行結果は未確定です。
+公開 import と SSH transport の実ハンドシェイクは対象外です。

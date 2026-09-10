@@ -1,5 +1,10 @@
 # Implementation Status
 
+Archive import now traverses the production BaseRouter; receipt protocol regressions
+pass. Real aggregate acceptance has been extended to exercise the routed archive
+creation/start/delete path; its result is pending. Public import/SSH handshake
+remain unverified.
+
 Archive-to-Env creation is implemented internally through canonical lifecycle,
 with current sandbox configuration, fresh generation/SSH identity and separate
 owned image/instance cleanup. All local Go/vet/docs/workflow-policy and 27 JavaScript tests passed at b7f7fac;

@@ -51,3 +51,9 @@ durable receipt. Unknown init completion keeps the lease for explicit inspection
 Image cleanup belongs to the transport adapter; instance cleanup belongs to the
 canonical lifecycle. Public bundle orchestration and boot/SSH acceptance remain
 separate unfinished work.
+
+The normal BaseRouter forwards Incus unified archives explicitly to the registered
+Incus provider, regardless of the default or source Base. It uses the existing
+creation-receipt protocol to encode ownership references and reject omitted,
+duplicate or changed receipts. Supporting only the native Incus archive format
+is intentional; no generic archive interpreter or fallback is introduced.

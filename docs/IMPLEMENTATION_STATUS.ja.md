@@ -1,5 +1,9 @@
 # 実装状況
 
+archive import を通常の BaseRouter に接続し、所有記録プロトコルの回帰検証は成功しました。
+実 aggregate 受入テストに、router 経由の archive 作成・起動・削除を追加しました。結果は未確定です。
+公開 import と SSH 実ハンドシェイクは未検証です。
+
 archive から Env への作成を canonical lifecycle に接続しました。現在の sandbox 設定、新しい世代／SSH identity、
 所有する image と instance の独立した cleanup を使います。b7f7fac の全 Go・vet・docs・workflow policy・JS 27件と、Workspace／Incus 全体の race は成功しました。
 実機で一式を import する受入検証は未完了です。
