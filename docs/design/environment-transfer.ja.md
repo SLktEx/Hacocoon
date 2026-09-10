@@ -246,3 +246,8 @@ fake native adapter の結合テストで、running 拒否・共有削除 lock�
 cleanup 不明時の記録を確認します。これは実 Incus の aggregate export、公開 artifact
 転送、archive import、OS 起動、SSH の受入ではありません。それらは planned または
 未検証です。先行する native component テストの証明範囲も各 component に限ります。
+
+既存の Linux `TestRealIncusSnapshotAggregateE2E` に、Base 削除後の routed catalog と
+実 native producer を通る export、および元データ変更・元 Env 削除後の全 export bytes
+再検証を加えました。既存 GHA gate で実行しますが、拡張した native テストはまだ
+完了していません。公開転送・import 権限・起動・SSH 全体の受入ではありません。

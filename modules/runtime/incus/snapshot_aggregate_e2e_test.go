@@ -1,3 +1,5 @@
+//go:build linux
+
 package incus
 
 import (
@@ -20,6 +22,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	"github.com/SLktEx/Hacocoon/internal/environmentcopy"
+	"github.com/SLktEx/Hacocoon/internal/environmenttransfer"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 	"github.com/SLktEx/Hacocoon/internal/snapshotrestore"
@@ -228,6 +231,21 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		}
 	}
 	service = workspace.New(runtime, reopened)
+	// Reuse the ordinary canonical routed catalog with native Incus producers.
+	// The Base filesystem was already removed; the complete stopped aggregate is
+	// the export source, without a separate user snapshot operation.
+	exporter := environmenttransfer.Exporter{Snapshots: service, Root: dir, Component: runtime.ExportSnapshotComponent}
+	exported, err := exporter.ExportStopped(ctx, name, 4<<30)
+	must(err)
+	if exported.Bundle == nil || exported.TemporarySnapshot != "" {
+		t.Fatal("aggregate export incomplete", exported.TemporarySnapshot)
+	}
+	defer exported.Bundle.Close()
+	manifest := exported.Bundle.Manifest()
+	if manifest.Source != name || !manifest.HasOCI || len(manifest.Components) != 4 {
+		t.Fatal("aggregate export omitted managed data", manifest)
+	}
+	t.Log("PASS canonical routed native export: rootfs, both Git Workspace volumes and OCI; no Base filesystem; temporary capture cleaned before bundle return")
 	// Change current work after saving, then prove preparation preserves it and
 	// stages the earlier saved bytes. This does not publish or start a replacement.
 	write(filepath.Join(rootPath(native), "root"), "snapshot-marker", "changed current work")
@@ -304,6 +322,10 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	t.Log("PASS four-component restore preparation without Base or automatic backup, durable reload, saved rootfs/Git/OCI bytes staged, current work unchanged, staging edits independent, owned staging cleanup; no Environment replacement performed")
 	must(r.VerifyEnvironmentIdentity(ctx, native, id))
 	must(service.Delete(ctx, name))
+	if _, err := environmenttransfer.Inspect(exported.Bundle.Reader(), 4<<30); err != nil {
+		t.Fatal("exported bundle changed after source mutation/deletion", err)
+	}
+	t.Log("PASS exported native aggregate remains complete after source Env deletion; public import/SSH not asserted by export")
 	if exists, err := r.environmentExists(ctx, native); err != nil || exists {
 		t.Fatal("source instance absence unproven", err)
 	}

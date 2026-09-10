@@ -315,3 +315,9 @@ shared deletion locks, retained snapshots and uncertain-cleanup records with a
 fake native adapter. This does not establish real Incus aggregate export, public
 artifact delivery, archive import, OS boot or SSH acceptance. Those remain planned
 or unverified; the preceding native component tests prove only their own scope.
+
+The existing Linux `TestRealIncusSnapshotAggregateE2E` now exercises the exporter
+through the routed catalog and actual native producers after Base removal, then
+reverifies all exported bytes after source mutation/deletion. Its existing GHA
+gate runs this check; the extended native test has not yet completed. It still
+proves no public transfer transport, import authority, boot or SSH flow.
