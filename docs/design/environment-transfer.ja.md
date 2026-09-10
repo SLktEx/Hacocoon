@@ -669,3 +669,5 @@ Docker、BuildKit cache、任意のアプリ／DB 整合性は未検証です。
 native snapshotter、停止コンテナのデータを対象にします。
 
 ba4dbcd の実 OCI 検証は export 前の source runtime 準備で FAILED。fixture は生の subprocess 出力を出さず、固定の失敗段階と終了コードを示すようになった。所有情報の復旧記録は保持し、転送の検証成功とは扱わない。
+
+オフライン source fixture では containerd transfer service に linux/amd64 の native unpack を明示設定します。標準の unpack 選択は native を含まないためで、source の準備だけに使います。復元先は起動前に現在の Hacocoon 設定へ置き換えます。8103e3f は export 前の image import で失敗し、CLI の platform 指定だけでは解決しませんでした。unpack 設定の実環境検証は pending です。

@@ -822,3 +822,5 @@ consistency remain unverified; this slice covers the pinned containerd version,
 native snapshotter and stopped container data only.
 
 At ba4dbcd, native OCI acceptance FAILED during source runtime preparation before export. The fixture now identifies the fixed failed phase and exit code without raw subprocess output. Ownership recovery records remain; no transfer acceptance is claimed.
+
+The offline source fixture explicitly configures the containerd transfer service for linux/amd64 native unpack. Its default unpack selection does not cover native; this is source preparation only. Import still replaces that configuration with current Hacocoon settings before starting the restored Environment. At 8103e3f, direct image import still failed before export; explicit CLI platform alone was insufficient. Native acceptance of the unpack configuration remains pending.

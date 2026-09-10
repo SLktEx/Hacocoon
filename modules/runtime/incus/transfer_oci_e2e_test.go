@@ -89,6 +89,14 @@ func verifyTransferredOCI(t *testing.T, ctx context.Context, r *Runtime, ref str
 }
 
 const transferContainerdSetup = `set -eu
+# This offline fixture imports directly into native. The transfer service defaults
+# to overlayfs; production's documented pull path instead defers unpack to run.
+cat >> /etc/containerd/config.toml <<'UNPACK'
+[[plugins."io.containerd.transfer.v1.local".unpack_config]]
+  platform = "linux/amd64"
+  snapshotter = "native"
+  differ = "walking"
+UNPACK
 tar -xzf /var/lib/haco-transfer-input/runtime.tar.gz -C /usr/local bin/nerdctl bin/containerd bin/containerd-shim-runc-v2 bin/ctr bin/runc
 rm /var/lib/haco-transfer-input/runtime.tar.gz
 cat > /etc/systemd/system/containerd.service <<'UNIT'
@@ -153,7 +161,7 @@ func TestTransferOCIShellSyntax(t *testing.T) {
 // Only fixed categories leave the fixture boundary; never print backend output.
 func transferFailureCategory(stderr string) string {
 	lower := strings.ToLower(stderr)
-	for _, category := range []string{"permission denied", "no such file or directory", "not found", "does not exist", "not authorized", "connection refused", "no space left on device", "is not running", "read-only file system", "failed to create shim", "apparmor", "cgroup", "failed to extract layer", "cni"} {
+	for _, category := range []string{"permission denied", "no such file or directory", "not found", "does not exist", "not authorized", "connection refused", "no space left on device", "is not running", "read-only file system", "failed to create shim", "apparmor", "cgroup", "failed to extract layer", "no unpack platforms defined", "cni"} {
 		if strings.Contains(lower, category) {
 			return category
 		}
