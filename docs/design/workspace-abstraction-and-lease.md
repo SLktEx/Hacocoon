@@ -176,3 +176,14 @@ immediately before each deletion. Remove or export native saved objects explicit
 through Incus before retrying; Hacocoon never silently discards them. Partial cleanup keeps a `deleting` record with exact native owners;
 retry the same explicit command. Incomplete creation is visible but not deleted
 by this initial path. See [ADR 0042](../adr/0042-explicit-workspace-deletion.md).
+
+## Explicit start after a Physical Host boot
+
+Environment creation and guarded resume use Incus `boot.autostart=false` so the
+provider cannot resume a previous running state before Hacocoon prepares its
+volatile source guards. Use the existing `haco env start NAME` after boot.
+Workspace/OCI lifetime and creation identity are unchanged. Before restarting
+an upgraded legacy installation, apply the setting through normal stop/start
+for each retained Environment; untouched legacy instances are not migrated.
+See [ADR 0059](../adr/0059-explicit-environment-start.md) for ownership, failure
+behavior and the distinction from complete Environment recovery.

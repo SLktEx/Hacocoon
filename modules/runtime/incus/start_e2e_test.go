@@ -109,6 +109,9 @@ func TestRealIncusResumeE2E(t *testing.T) {
 	if err := svc.Start(ctx, name); err != nil {
 		t.Fatal(err)
 	}
+	if got := strings.TrimSpace(run("config", "get", ref, "boot.autostart", "--project", r.project)); got != "false" {
+		t.Fatalf("legacy resume left Incus autostart enabled: %q", got)
+	}
 	run("exec", ref, "--project", r.project, "--", "sh", "-ceu", "printf retained-root > /root/resume-marker; printf retained-work > /workspace/resume-marker")
 	if err := svc.Stop(ctx, name); err != nil {
 		t.Fatal(err)

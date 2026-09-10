@@ -43,6 +43,9 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 					return host.Result{Stdout: string(data)}, nil
 				}
 				if args[0] == "init" {
+					if !strings.Contains(strings.Join(args, " "), "--config boot.autostart=false") {
+						t.Fatal("new Environment can autostart before Hacocoon guards")
+					}
 					initialized = true
 				}
 				if len(args) >= 2 && args[0] == "image" && args[1] == "info" {
