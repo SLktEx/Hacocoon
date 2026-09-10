@@ -341,3 +341,28 @@ Host directory への archive 展開は行いません。
 登録、新しい Env の作成と現行 security 設定は引き続き必要です。CLI 引数と catalog schema は
 追加しません。Linux の実 filesystem component test と既存 transfer suite は race detector
 付きで成功し、vet も成功しました。native import は実行していません。
+
+## native OCI volume import
+
+Status: **内部実装済み**。persistent-resource service の import は、既存の新 owner の
+`creating`／verify／`ready` 遷移を使います。Linux Incus adapter は、native metadata を
+新しい所有情報へ置き換えた非公開の匿名 archive を作り、通常の
+`incus storage volume import` を呼びます。投入後の所有情報修復や新しい復旧 catalog は
+追加しません。[ADR 0051](../adr/0051-native-import-ownership.md) を参照してください。
+
+初期対応は child snapshot を含まない、無圧縮・非 optimized の Btrfs filesystem volume
+archive です。controller の archive 上限内で、index は64 KiB、path は4096 byte、entry は
+100万件までです。元の権限情報は破棄し、検証済み idmap 情報は numeric file ID と一緒に
+保持します。既存 volume、危険な path/link、重複 metadata、不完全 archive は拒否し、
+未対応形式は明示的に失敗します。実際の展開は Incus が担当します。
+
+専用 Incus/Btrfs gate は、新規2 pool と実 catalog を使い0.56秒で成功しました。新しい
+owner/config、data、hardlink、symlink、mode、numeric UID/GID、idmap、重複拒否、独立した
+変更、保存元削除、canonical な所有対象 cleanup を確認しました。pool は marker と空を
+確認して削除し、元 archive と plan は `/var/lib/haco-owned-import-4138767719` に残しました。
+`HACO_E2E_INCUS_VOLUME_IMPORT=1` で実行でき、既存 Incus GHA job にも追加しました。
+
+Store/import と native 準備の focused race test は1.052秒／1.057秒で成功し、vet も
+成功しました。最初の fixture build は複数行文字列の構文で失敗し、修正しました。
+rootfs/Workspace 一式の import、Env 起動、接続時の実 idmap shift、live OCI daemon は
+未検証・未実装です。公開 import は planned のままです。

@@ -425,3 +425,30 @@ native ownership, canonical Workspace/OCI registration, fresh Environment creati
 and current security setup are still required. No CLI argument or catalog schema
 is added by this boundary. Linux real-filesystem component tests and the existing
 transfer suite passed with the race detector; vet passed. No native import ran.
+
+## Native OCI volume import
+
+Status: **implemented internally**. The persistent-resource service's import method
+uses the existing new-owner `creating`/verify/`ready` transition. The Linux Incus
+adapter prepares a private anonymous archive with fresh native metadata before
+calling ordinary `incus storage volume import`; there is no post-import ownership
+repair or new recovery catalog. See [ADR 0051](../adr/0051-native-import-ownership.md).
+
+The initial input is an uncompressed, non-optimized Btrfs filesystem-volume archive
+without child snapshots. Its index is limited to 64 KiB, paths to 4096 bytes and
+entries to one million, within the controller's archive budget. Source authority
+is discarded; validated idmap bookkeeping remains with numeric file IDs. Existing
+volumes, unsafe paths/links, duplicate metadata and incomplete archives are refused.
+Unsupported formats fail explicitly. Native extraction remains Incus's responsibility.
+
+The dedicated Incus/Btrfs gate passed in 0.56s using two fresh pools and a real
+catalog: new owner/config, data, hardlinks, symlinks, mode, numeric UID/GID and idmap,
+duplicate refusal, independent mutation, source deletion and canonical owned cleanup.
+Both pools were removed after emptiness/marker checks. The original archive and
+plan remain at `/var/lib/haco-owned-import-4138767719`. `HACO_E2E_INCUS_VOLUME_IMPORT=1`
+runs the gate; it is also connected to the existing Incus GHA job.
+
+Focused Store/import and native preparation race tests passed (1.052s/1.057s);
+vet passed. The first fixture build failed on a quoted multiline string and was
+corrected. No rootfs/Workspace aggregate import, Env activation, actual idmap shift
+on attachment or live OCI daemon was tested. Public import remains planned.

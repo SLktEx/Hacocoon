@@ -131,6 +131,9 @@ jobs:
             HACO_E2E_SNAPSHOT_CLI="$RUNNER_TEMP/snapshot-cli" \
             HACO_E2E_INCUS_RESUME_IMAGE="$image" HACO_E2E_INCUS_RESUME_POOL=haco-local-default \
             "$RUNNER_TEMP/snapshot-storage.test" -test.run='^TestRealIncus(BaseAsset|WorkspaceDeletion|SourceDeletion|Snapshot(Volumes|Rootfs|Base|Aggregate))E2E$' -test.v -test.timeout=15m
+      - name: Verify owned native volume import
+        run: |
+          sudo env HACO_E2E_INCUS_VOLUME_IMPORT=1 "$RUNNER_TEMP/snapshot-storage.test" -test.run='^TestRealIncusOwnedVolumeImportE2E$' -test.v -test.timeout=7m
       - name: Verify definition-driven Base build and immutable revisions
         run: |
           image="$(incus image list --project hacocoon --format=json | python3 -c 'import json,sys; images=json.load(sys.stdin); print(sorted(i["fingerprint"] for i in images if i.get("type") == "container")[0])')"

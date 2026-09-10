@@ -7,6 +7,7 @@ require (
 	golang.org/x/net v0.58.0
 	golang.org/x/sys v0.47.0
 	golang.org/x/term v0.45.0
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -50,5 +51,4 @@ require (
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	google.golang.org/protobuf v1.36.7 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

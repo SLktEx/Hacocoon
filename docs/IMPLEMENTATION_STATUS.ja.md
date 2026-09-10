@@ -1,5 +1,10 @@
 # 実装状況
 
+native OCI volume import は canonical な新 owner の作成経路を使い、Incus が volume を
+作る前に元 metadata を置き換えます。専用 Btrfs adapter/catalog 受入は0.56秒で成功し、
+公開 aggregate import と Env 起動は planned のままです。
+
+
 import 入力の準備として、staged bundle 全体の検証後にだけ個別の native component を
 独立して seek できる読み取りを実装しました。Linux filesystem/race test と vet は成功し、
 公開 import と native 復元先の作成は未実装です。
