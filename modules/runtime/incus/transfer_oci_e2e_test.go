@@ -113,7 +113,7 @@ mkdir /var/lib/haco-transfer-input/root
 cp /var/lib/haco-transfer-input/probe /var/lib/haco-transfer-input/root/probe
 chmod 755 /var/lib/haco-transfer-input/root/probe
 tar -cf /var/lib/haco-transfer-input/image.tar -C /var/lib/haco-transfer-input/root .
-nerdctl --snapshotter native import /var/lib/haco-transfer-input/image.tar hacocoon-transfer:local
+nerdctl --snapshotter native import --platform linux/amd64 /var/lib/haco-transfer-input/image.tar hacocoon-transfer:local
 `
 const transferContainerdImageIdentity = `set -eu
 nerdctl --snapshotter native image inspect --format '{{.Id}}' hacocoon-transfer:local > /var/lib/haco-transfer-image-id
