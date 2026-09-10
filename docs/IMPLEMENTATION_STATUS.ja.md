@@ -1,5 +1,11 @@
 # 実装状況
 
+## Ubuntu bridge の DNS 依存
+
+Status: **implemented**。common installer は、Incus が recommended package なしで導入済みの場合も、bridge の DNS/DHCP 用に `dnsmasq-base` を明示的に導入する。CLI と network の所有確認・隔離契約は変更しない。[trusted-host network](design/trusted-host.ja.md#専用trusted-host-network)を参照。
+
+隔離した新規 Ubuntu 26.04 WSL・Incus 6.0.5 で、旧 installer は `dnsmasq` 不在により失敗した。この修正とローカルビルドした ad80acc payload では通常インストールが完了し、実 Btrfs mount policy、正確な Host/network 所有確認、controller 往復、DNS、default route、HTTPS が成功した。ローカル candidate の受入であり、公開 release の provenance やデータ・Environment 移行全体の受入ではない。installer shell 回帰 7 件が成功し、依存導入失敗の回帰は旧実装で失敗することを確認した。
+
 7517c27 の対象 Incus・通常テストの全 job と Windows VS Code は成功しましたが、transfer は SSH 内の Git 導入で失敗しました（exit 100）。SSH 準備時に現在の管理対象 proxy を sshd セッションへ設定する修正を追加し、684e411 でローカル tests／vet と実 Windows SSH 内の Git 導入が成功しました。[ADR 0058](adr/0058-ssh-session-egress-environment.md)を参照してください。
 
 GitHub の接続情報を持つ import は既存の source clone と Git connect を使います。一致する接続、不一致・offline・同名再作成の拒否の component テストと package の race・vet は成功しました。import 後の実 Git fetch・push は未検証です。[契約](design/git-and-github-capability.md#reconnect-an-imported-github-workspace)を参照してください。

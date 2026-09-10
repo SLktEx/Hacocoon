@@ -305,7 +305,9 @@ prepare_ubuntu_host() {
   fi
 
   printf '==> Installing and starting Incus\n'
-  $SUDO apt-get install -y incus iptables nftables
+  # Incus may already be installed without recommended packages. The trusted
+  # bridge still requires DNS/DHCP; do not rely on apt installing Recommends.
+  $SUDO apt-get install -y incus iptables nftables dnsmasq-base
   printf '==> Authorizing the local Hacocoon workspace owner for Incus idmap\n'
   configure_workspace_owner_idmap
   printf '==> Preparing bridge netfilter for Hacocoon sandbox filtering\n'

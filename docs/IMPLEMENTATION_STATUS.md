@@ -1,5 +1,11 @@
 # Implementation Status
 
+## Ubuntu bridge DNS dependency
+
+Status: **implemented**. The common installer explicitly installs `dnsmasq-base` for Incus bridge DNS/DHCP, including a preinstalled Incus without recommended packages. CLI and network ownership/isolation contracts are unchanged. See [trusted-host networking](design/trusted-host.md#dedicated-trusted-host-network).
+
+In an isolated fresh Ubuntu 26.04 WSL with Incus 6.0.5, the previous installer failed because `dnsmasq` was absent. With this installer change and a locally built ad80acc payload, ordinary installation completed: real Btrfs mount policy, exact Host/network ownership, controller round trip, DNS, default route and HTTPS passed. This is local candidate acceptance, not published-release provenance or complete data/Environment migration acceptance. Seven installer shell regressions passed; the dependency-failure regression failed against the previous implementation.
+
 At 7517c27 all applicable Incus and normal-test jobs passed; Windows VS Code passed, but transfer failed installing Git over SSH (exit 100). SSH preparation now configures the current managed proxy for sshd sessions; local tests/vet and installed Windows Git-over-SSH preparation passed at 684e411. See [ADR 0058](adr/0058-ssh-session-egress-environment.md).
 
 GitHub-route import reconnection uses existing source clone and Git connect commands. Component acceptance and package race/vet passed for matching routes, mismatches, offline refusal and same-name replacement; native imported Git fetch/push remains unverified. See [the owning contract](design/git-and-github-capability.md#reconnect-an-imported-github-workspace).
