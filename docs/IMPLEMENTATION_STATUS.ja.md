@@ -1,5 +1,10 @@
 # 実装状況
 
+公開 Linux export は、保護された snapshot binding の Workspace 接続先情報を
+version 2 に含めます。version 1 の検査は維持し、Git 承認・認証情報は移譲しません。
+対象 metadata・Router テストと文書検証は成功しました。全体 CI と native version 2
+受入は実行待ちで、公開 import は planned です。
+
 native OCI volume import は canonical な新 owner の作成経路を使い、Incus が volume を
 作る前に元 metadata を置き換えます。専用 Btrfs adapter/catalog 受入は0.56秒で成功し、
 公開 aggregate import と Env 起動は planned のままです。

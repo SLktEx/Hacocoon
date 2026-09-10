@@ -238,7 +238,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	// Reuse the ordinary canonical routed catalog with native Incus producers.
 	// The Base filesystem was already removed; the complete stopped aggregate is
 	// the export source, without a separate user snapshot operation.
-	exporter := environmenttransfer.Exporter{Snapshots: service, Root: dir, Component: runtime.ExportSnapshotComponent}
+	exporter := environmenttransfer.Exporter{Snapshots: service, Root: dir, Component: runtime.ExportSnapshotComponent, Workspaces: runtime.ExportSnapshotWorkspaces}
 	var readExport func() io.Reader
 	var manifest environmenttransfer.Manifest
 	if exportCLI := os.Getenv("HACO_E2E_SNAPSHOT_CLI"); exportCLI != "" {
@@ -293,8 +293,19 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		readExport = exported.Bundle.Reader
 		t.Log("SKIP public export CLI: HACO_E2E_SNAPSHOT_CLI not supplied; internal native export ran")
 	}
-	if manifest.Source != name || !manifest.HasOCI || len(manifest.Components) != 4 {
+	if manifest.Version != 2 || manifest.Source != name || !manifest.HasOCI || len(manifest.Components) != 4 || len(manifest.Workspaces) != 2 {
 		t.Fatal("aggregate export omitted managed data", manifest)
+	}
+	for _, w := range manifest.Workspaces {
+		matched := false
+		for _, member := range collection.Members {
+			if member.Repository == w.Name && member.Remote == w.Remote && member.Branch == w.Branch {
+				matched = true
+			}
+		}
+		if !matched {
+			t.Fatal("export routing differs from protected Workspace", w)
+		}
 	}
 	t.Log("PASS canonical routed native export: rootfs, both Git Workspace volumes and OCI; no Base filesystem; temporary capture cleaned before bundle return")
 	// Change current work after saving, then prove preparation preserves it and

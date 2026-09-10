@@ -15,6 +15,6 @@ func (a *App) ExportEnvironment(ctx context.Context, source, root string, limit 
 	if a == nil || a.Environments == nil || a.Bases == nil {
 		return environmenttransfer.ExportResult{}, core.ErrUnsupported
 	}
-	exporter := environmenttransfer.Exporter{Snapshots: a.Environments, Root: root, Component: a.Bases.ExportSnapshotComponent}
+	exporter := environmenttransfer.Exporter{Snapshots: a.Environments, Root: root, Component: a.Bases.ExportSnapshotComponent, Workspaces: a.Bases.ExportSnapshotWorkspaces}
 	return exporter.ExportStopped(ctx, source, limit)
 }
