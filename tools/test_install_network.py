@@ -13,12 +13,12 @@ CONNECTIVITY = re.search(r"^verify_trusted_host_connectivity\(\) \{\n.*?^\}", IN
 
 
 class InstallerNetworkTests(unittest.TestCase):
-    def prepare(self, ready):
+    def prepare(self, ready, fail_dns_package=False):
         with tempfile.TemporaryDirectory() as directory:
             trace = Path(directory) / "commands"
             script = PREPARE + r'''
 set -eu
-trace="$1"; ready="$2"
+trace="$1"; ready="$2"; fail_dns_package="$3"
 SUDO=privileged; SKIP_INCUS=0; GRANT_INCUS_ADMIN=0; INSTALL_UID=1000
 die() { printf '%s\n' "$*" >&2; exit 1; }
 assert_ubuntu() { :; }
@@ -33,6 +33,10 @@ incus() { :; }
 privileged() {
   printf '%s\n' "$*" >> "$trace"
   case "$*" in
+    'apt-get install '*)
+      for arg do
+        if [ "$arg" = dnsmasq-base ] && [ "$fail_dns_package" = 1 ]; then return 42; fi
+      done ;;
     'incus info') [ "$ready" = 1 ] ;;
     'incus storage '*|'incus admin '*) return 2 ;;
     *) return 0 ;;
@@ -40,7 +44,7 @@ privileged() {
 }
 prepare_ubuntu_host
 '''
-            result = subprocess.run(["sh", "-c", script, "sh", str(trace), str(int(ready))],
+            result = subprocess.run(["sh", "-c", script, "sh", str(trace), str(int(ready)), str(int(fail_dns_package))],
                                     capture_output=True, text=True)
             return result, trace.read_text().splitlines()
 
@@ -48,7 +52,13 @@ prepare_ubuntu_host
         result, commands = self.prepare(True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual([c for c in commands if c.startswith("incus ")], ["incus info"])
-        self.assertIn("apt-get install -y incus iptables nftables", commands)
+        self.assertIn("apt-get install -y incus iptables nftables dnsmasq-base", commands)
+
+    def test_bridge_dns_install_failure_stops_before_daemon_start(self):
+        result, commands = self.prepare(True, fail_dns_package=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(any(command.startswith('systemctl ') for command in commands))
+        self.assertNotIn('incus info', commands)
 
     def test_unavailable_daemon_fails_without_initialization(self):
         result, commands = self.prepare(False)
