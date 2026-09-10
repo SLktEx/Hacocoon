@@ -918,3 +918,39 @@ backup, protected credential delivery or restoration in another WSL.
 The additional `TestRealIncusSavedReadableDataEvacuationE2E` case prepares an owned native volume snapshot before capture, then removes a marker from the live volume. Direct tar capture reads the existing snapshot tree and restores that snapshot-only marker into a fresh owned volume. The ordinary live-volume case remains separate. Preparation creates a snapshot; capture does not create/export/delete one. This is not a simulation of snapshot deletion failure or proof of all saved rootfs/Workspace/OCI associations. The dedicated Incus/Btrfs run passed in 24.52s. Both owned pools were cleaned; archives and ownership plan remain at `/var/lib/haco-volume-transfer-2483709670`, outside both pools but inside WSL. The source snapshot was unchanged during capture. This does not prove whole-installation evacuation or new-WSL restoration.
 
 At b8ef557, the native GHA gate passed direct readable-file evacuation (0.89s) and saved-only evacuation (1.87s). Its Windows SSH gate failed at the five-minute native-client timeout. The branch now includes the separately validated SSH progress diagnostic from main; the latest head must pass its own CI. This does not reclassify the earlier Windows failure or prove its cause.
+
+## Encrypted readable-data transport
+
+Whole-installation evacuation remains **partial**. Use existing GNU tar and
+[age](https://github.com/FiloSottile/age) for reviewed, quiescent file trees rather
+than introducing a Hacocoon encryption format. The private decryption identity
+stays on trusted storage; encryption uses only its public recipient. The native
+acceptance script `tools/test_encrypted_evacuation.py` uses synthetic credentials,
+checks the producer and encryptor exit statuses, and writes no plaintext archive
+to the external destination. It checks decryption and private file modes before
+extracting only its own fixture, plus wrong-key, ciphertext-tamper and truncation
+refusal. A failed or partial decryption must never be piped directly into restore.
+
+For an already reviewed and stopped source tree, set SOURCE to that directory,
+DEST to a new archive outside the WSL/pool being replaced, and RECIPIENT to your
+age public recipient. Keep the matching private identity independently accessible:
+
+```bash
+umask 077
+set -o pipefail
+set -o noclobber
+env -u TAR_OPTIONS tar --one-file-system --acls --xattrs --numeric-owner --sparse -C "$SOURCE" -cpf - . |
+  age --recipient "$RECIPIENT" > "$DEST"
+```
+
+Check the whole pipeline's exit status; an output file alone is not completion.
+Mounts skipped by `--one-file-system` require separate reviewed capture. Preserve
+partial output for inspection and do not delete the source. Decrypt completely
+into trusted private staging and verify success before considering extraction;
+this is not a safe importer for arbitrary untrusted tar files. Actual credentials,
+whole-installation coverage, key recovery after WSL removal and new-WSL restoration
+remain unverified. The native script is opt-in with
+`HACO_E2E_ENCRYPTED_EVACUATION=1`; `HACO_E2E_ENCRYPTED_OUTPUT_ROOT` can select an
+existing external destination parent for its new synthetic test directory.
+
+Dedicated WSL acceptance passed in 1.03s with age 1.2.1 (distribution package `age_1.2.1-1build1_amd64.deb`). Direct package installation failed because dpkg had an interrupted libc6 configuration; the package was then downloaded through apt and extracted into a private tool directory without changing system package state. Ciphertext and receipt remain at `C:/Users/gddro/AppData/Local/Temp/haco-encrypted-output-okbf5rkf`; Windows independently verified 10440 bytes and SHA-256 `bf25c5334464947c0ea0c8645ecc535195cd930dad98efd18550243323eb5804`. Synthetic source, restored data and test identities remain inside WSL at `/tmp/haco-encrypted-evacuation-ki7g5h3v`. This does not verify identity recovery after deleting WSL.

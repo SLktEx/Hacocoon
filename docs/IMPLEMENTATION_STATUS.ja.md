@@ -1562,3 +1562,5 @@ ssh.exe が5分を超えたため失敗しました。ラッパーは成功マ�
 G2 の Btrfs 直接ファイル保存は専用 WSL で 20.59 秒で成功し、Git 状態・リンク・数値 owner・user xattr を確認しました。Incus の非 optimized Btrfs backup も内部 snapshot を使います。全量退避は未完了です。[読み出せるファイルの範囲](design/environment-transfer.ja.md#snapshot-操作が使えない場合の読み出せるファイル)を参照してください。
 
 G2 の snapshot にしか残らないファイルの保存は、専用 Incus/Btrfs で 24.52 秒で成功しました。準備済みの合成 snapshot データと独立した復元 volume を使っています。全保存データの把握と snapshot 削除失敗時の全量退避は未完了です。
+
+G2 の暗号化ファイル転送は標準 tar／age コマンドと opt-in の合成データ受入で扱います。実 Host 認証情報と全量復元は未検証で、製品の暗号 backend や日常 CLI は追加しません。

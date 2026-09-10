@@ -759,3 +759,34 @@ constrained language mode の制限で失敗し、通常の文字出力による
 追加の `TestRealIncusSavedReadableDataEvacuationE2E` は、準備時に所有する native volume snapshot を作り、live volume から marker を削除します。直接 tar 保存は既存 snapshot tree を読み、snapshot にしか残らない marker を新しい所有 volume へ復元します。通常の live volume の検証は別に維持します。snapshot 作成は準備段階だけで、保存処理では作成・export・削除しません。snapshot 削除失敗の模擬や、全 rootfs／Workspace／OCI の保存対応の確認ではありません。専用 Incus/Btrfs で 24.52 秒で成功しました。所有する両 pool は片付け、アーカイブと所有記録を `/var/lib/haco-volume-transfer-2483709670` に残しています（両 pool の外、WSL の内）。保存処理中に元 snapshot は変更していません。全量退避や新 WSL への復元を確認したものではありません。
 
 b8ef557 の native GHA は、直接ファイル退避（0.89 秒）と saved-only 退避（1.87 秒）に成功しました。同 head の Windows SSH は native client の5分タイムアウトで失敗しました。現在の branch は、別途検証済みの main の SSH 進捗診断を含み、最新 head 自身の CI が必要です。以前の Windows 失敗を成功へ変更したり、原因が判明したことにはしません。
+
+## 読み出せるデータの暗号化転送
+
+全量退避は **partial** です。確認済みで書込のない file tree には既存の GNU tar と
+[age](https://github.com/FiloSottile/age) を使い、Hacocoon 独自の暗号形式は作りません。
+復号の秘密 identity は trusted storage に保持し、暗号化では公開 recipient だけを使います。
+実検証 `tools/test_encrypted_evacuation.py` は合成の認証情報を使い、tar と age の終了状態を
+両方確認します。外部保存先に平文 archive は書きません。自分で作った fixture だけを、
+復号成功の確認後に展開し、private な mode、誤鍵・暗号文の改変・切詰めの拒否を確認します。
+失敗または途中の復号出力を直接 restore へ流してはいけません。
+
+停止・確認済みの source tree を SOURCE、入替対象 WSL／pool の外の新規 archive を DEST、
+age の公開 recipient を RECIPIENT に設定します。対応する秘密 identity は別途アクセス可能に保持します。
+
+```bash
+umask 077
+set -o pipefail
+set -o noclobber
+env -u TAR_OPTIONS tar --one-file-system --acls --xattrs --numeric-owner --sparse -C "$SOURCE" -cpf - . |
+  age --recipient "$RECIPIENT" > "$DEST"
+```
+
+pipeline 全体の終了状態を確認し、出力ファイルの存在だけで完了としません。
+`--one-file-system` が飛ばす mount は別の確認済み保存が必要です。部分出力は調査用に残し、
+source は削除しません。trusted な私有 staging で復号を最後まで終え、成功を確認してから
+展開を検討します。任意の非信頼 tar の安全な importer ではありません。実認証情報、全量、
+WSL 削除後の鍵の確保、新 WSL 復元は未検証です。実 script は
+`HACO_E2E_ENCRYPTED_EVACUATION=1` で opt-in し、`HACO_E2E_ENCRYPTED_OUTPUT_ROOT` に
+既存の外部保存先 parent を指定すると、その下の新規テスト directory を使います。
+
+専用 WSL では age 1.2.1（配布 package `age_1.2.1-1build1_amd64.deb`）で 1.03 秒で成功しました。直接の package 導入は libc6 の dpkg 設定中断により失敗し、その後 apt で取得した package を私有の tool directory に展開して、システムの package 状態を変更せず検証しました。暗号文と記録は `C:/Users/gddro/AppData/Local/Temp/haco-encrypted-output-okbf5rkf` に残し、Windows 側でも 10440 bytes と SHA-256 `bf25c5334464947c0ea0c8645ecc535195cd930dad98efd18550243323eb5804` を独立に確認しました。合成 source・復元データ・試験 identity は WSL 内の `/tmp/haco-encrypted-evacuation-ki7g5h3v` に残しています。WSL 削除後の identity 回復は未検証です。
