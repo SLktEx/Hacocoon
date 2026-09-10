@@ -1546,3 +1546,5 @@ G2 に読み取り専用の native 退避一覧補助を追加し、専用 WSL �
 G2 の native 一覧は pool の保存元参照と volume の内容種別も示し、参照先を開かず URI の認証情報を出力しません。対象テスト 11 件は成功しました。これらの参照情報だけで全量を把握したことや、削除権限があることにはなりません。
 
 G2 に任意の Linux 読み取り専用 schema-13 catalog 参照抽出を追加しました。catalog 移行・認証情報の出力・所有権の付与は行いません。全対応関係の確認と全量退避は引き続き partial です。
+
+G2 一覧は任意の repository 個別記録・collection member 参照も扱います。remote URL は出力せず、不完全／変動中の directory を完全な backup と扱いません。

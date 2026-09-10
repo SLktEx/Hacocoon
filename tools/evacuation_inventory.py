@@ -159,7 +159,7 @@ def inventory(fetch=query):
     return report
 
 
-def catalog_inventory(path):
+def catalog_inventory(path, project=None):
     """Observe one catalog file without migration, locking writes or authority."""
     if not hasattr(os, "O_NOFOLLOW"):
         raise OSError("catalog observation requires Linux")
@@ -174,7 +174,7 @@ def catalog_inventory(path):
     identity = lambda value: (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
     if len(raw) > 16 * 1024 * 1024 or identity(before) != identity(after) or identity(after) != identity(current):
         raise ValueError("catalog changed")
-    result = catalog_references(json.loads(raw))
+    result = (project or catalog_references)(json.loads(raw))
     result["sha256"] = hashlib.sha256(raw).hexdigest()
     return result
 
@@ -235,22 +235,100 @@ def catalog_references(data):
     return result
 
 
+def repository_references(data):
+    result = {"projection_complete": False, "authority": False, "records": [], "errors": []}
+    try:
+        if not isinstance(data, dict) or data.get("kind") not in ("repo", "work"):
+            raise ValueError("invalid repository record")
+        members = data.get("members", [])
+        if not isinstance(members, list) or len(members) > 8:
+            raise ValueError("invalid members")
+        for item in [data] + members:
+            if not isinstance(item, dict):
+                raise ValueError("invalid member")
+            row = {"review": "required"}
+            for field in ("kind", "id", "repository", "native_ref", "owner", "state", "restored_from"):
+                if field in item:
+                    value = text(item[field])
+                    if value and (not re.fullmatch(r"[A-Za-z0-9_.:/-]+", value) or "://" in value):
+                        raise ValueError("unreportable reference")
+                    row[field] = value
+            if not row.get("id") or not row.get("owner") or not row.get("state"):
+                raise ValueError("missing identity")
+            if item is not data and item.get("members"):
+                raise ValueError("nested members")
+            result["records"].append(row)
+    except (ValueError, TypeError, KeyError):
+        result["errors"].append("repository-reference-incomplete")
+    result["projection_complete"] = not result["errors"]
+    return result
+
+
+def repository_inventory(root):
+    result = {"projection_complete": False, "authority": False, "files": [], "errors": []}
+    # An explicit directory only; do not follow child symlinks or recurse into data.
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise OSError("Linux required")
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        with os.scandir(fd) as entries:
+            for index, entry in enumerate(entries):
+                if index >= LIMIT:
+                    result["errors"].append("repository-file-budget")
+                    break
+                if not re.fullmatch(r"(?:repo|work)-[A-Za-z0-9_-]+\.json", entry.name):
+                    result["errors"].append("unreviewed-repository-entry:" + str(index))
+                    continue
+                try:
+                    if not entry.is_file(follow_symlinks=False):
+                        raise ValueError("not regular")
+                    # Pin the directory FD even if its path is replaced.
+                    record = catalog_inventory("/proc/self/fd/" + str(fd) + "/" + entry.name, repository_references)
+                    if record["records"]:
+                        first = record["records"][0]
+                        if first.get("kind", "") + "-" + first.get("id", "") + ".json" != entry.name:
+                            raise ValueError("record filename mismatch")
+                    record["file"] = entry.name
+                    result["files"].append(record)
+                    if not record["projection_complete"]:
+                        result["errors"].append("repository-file:" + str(index))
+                except (ValueError, TypeError, KeyError, OSError):
+                    result["errors"].append("repository-file:" + str(index))
+    finally:
+        os.close(fd)
+    result["projection_complete"] = not result["errors"]
+    result["unreviewed"] = ["native ownership and catalog associations", "consistent capture; directory may change during observation", "Git contents, remote routing and credentials"]
+    return result
+
+
 def main():
-    if len(sys.argv) != 1 and not (len(sys.argv) == 3 and sys.argv[1] == "--catalog"):
-        print("Usage: python3 tools/evacuation_inventory.py [--catalog environments.json]", file=sys.stderr)
-        return 2
+    args = sys.argv[1:]
+    options = {}
+    while args:
+        if len(args) < 2 or args[0] not in ("--catalog", "--repositories") or args[0] in options:
+            print("Usage: python3 tools/evacuation_inventory.py [--catalog environments.json] [--repositories directory]", file=sys.stderr)
+            return 2
+        options[args[0]] = args[1]
+        args = args[2:]
     try:
         report = inventory()
     except (ValueError, TypeError, KeyError):
         print("Invalid Incus inventory metadata; inventory incomplete", file=sys.stderr)
         return 1
     catalog_ok = True
-    if len(sys.argv) == 3:
+    if "--catalog" in options:
         try:
-            report["catalog"] = catalog_inventory(sys.argv[2])
+            report["catalog"] = catalog_inventory(options["--catalog"])
             catalog_ok = report["catalog"]["projection_complete"]
         except (ValueError, TypeError, KeyError, OSError):
             report["catalog"] = {"projection_complete": False, "authority": False, "errors": ["catalog-unavailable-or-changing"]}
+            catalog_ok = False
+    if "--repositories" in options:
+        try:
+            report["repositories"] = repository_inventory(options["--repositories"])
+            catalog_ok = catalog_ok and report["repositories"]["projection_complete"]
+        except (ValueError, TypeError, KeyError, OSError):
+            report["repositories"] = {"projection_complete": False, "errors": ["repositories-unavailable"]}
             catalog_ok = False
     json.dump(report, sys.stdout, ensure_ascii=True, indent=2)
     print()

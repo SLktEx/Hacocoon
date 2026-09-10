@@ -187,6 +187,33 @@ class InventoryTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 subject.catalog_inventory(path)
 
+    def test_repository_collection_includes_members_without_remote_credentials(self):
+        member = {"kind": "work", "id": "group-app", "owner": "abc", "state": "ready", "native_ref": "pool/work", "remote": "https://user:secret@example.invalid/repo"}
+        result = subject.repository_references({"kind": "work", "id": "group", "owner": "abc", "state": "ready", "members": [member]})
+        self.assertTrue(result["projection_complete"])
+        self.assertEqual(len(result["records"]), 2)
+        self.assertEqual(result["records"][1]["native_ref"], "pool/work")
+        self.assertNotIn("secret", json.dumps(result))
+        member["members"] = [member.copy()]
+        self.assertFalse(subject.repository_references({"kind": "work", "id": "group", "owner": "abc", "state": "ready", "members": [member]})["projection_complete"])
+
+    @unittest.skipUnless(hasattr(os, "O_NOFOLLOW"), "Linux directory observation required")
+    def test_repository_directory_preserves_good_files_and_refuses_links_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            good = root / "work-app.json"
+            raw = json.dumps({"kind": "work", "id": "app", "owner": "abc", "state": "ready", "native_ref": "pool/work"})
+            good.write_text(raw)
+            (root / "work-link.json").symlink_to(good)
+            (root / "work-mismatch.json").write_text(raw)
+            (root / "manual.txt").write_text("secret")
+            result = subject.repository_inventory(root)
+            self.assertFalse(result["projection_complete"])
+            self.assertEqual(len(result["files"]), 1)
+            self.assertEqual(len(result["errors"]), 3)
+            self.assertNotIn("secret", json.dumps(result))
+            self.assertEqual(good.read_text(), raw)
+
     @patch("evacuation_inventory.subprocess.run")
     def test_command_is_read_only_and_errors_are_not_exposed(self, run):
         run.return_value = subprocess.CompletedProcess([], 0, b"[]", b"secret")

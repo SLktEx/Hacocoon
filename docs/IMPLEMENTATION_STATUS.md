@@ -1812,3 +1812,5 @@ G2 now has a read-only native evacuation inventory helper, verified against dedi
 G2 native inventory also reports pool backing references and volume content types without opening them or exposing URI credentials. Eleven focused tests pass; these references do not establish whole-installation coverage or cleanup authority.
 
 G2 adds an optional Linux read-only schema-13 catalog reference projection; no catalog migration, credential output or ownership authority is introduced. Full associations and whole-installation evacuation remain partial.
+
+G2 inventory includes optional separate repository-record and collection-member references. It does not output remote URLs or treat an incomplete/changing directory as a complete backup.
