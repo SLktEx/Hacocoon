@@ -1,5 +1,10 @@
 # Implementation Status
 
+Native multi-Workspace import now shares the existing collection reservation and
+publication transition, without Git population or separately leaseable members.
+Focused/native validation is pending; incomplete collection cleanup and public
+aggregate import remain planned.
+
 Completed, unpublished Workspace import failures now attempt exact-owned cleanup.
 Unknown creation, changed ownership and uncertain cleanup keep their receipt; no
 new state or replay is added. All local Go/vet/docs/JS checks and focused race tests passed. Dedicated

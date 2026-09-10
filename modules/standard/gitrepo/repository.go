@@ -104,12 +104,21 @@ func (s *RepositoryService) CopyWorkspaceSet(ctx context.Context, id string, rep
 		object.Members = append(object.Members, Object{Kind: "work", ID: id + "-" + name, Repository: name, Remote: source.Remote, Branch: source.Branch, NativeRef: ref, Owner: randomID(), State: "creating"})
 		sources = append(sources, source)
 	}
+	return s.createPreparedSet(ctx, object, func(ctx context.Context, i int, member Object) error {
+		return s.Backend.CreateVolume(ctx, member, &sources[i])
+	}, s.Backend.Populate)
+}
+
+// createPreparedSet reserves all member identities before native creation and
+// publishes only the whole collection. Members never get independent records.
+// Callers hold the service lock throughout preparation.
+func (s *RepositoryService) createPreparedSet(ctx context.Context, object Object, create func(context.Context, int, Object) error, populate func(context.Context, Object) error) (Object, error) {
 	if err := s.reserve(object); err != nil {
 		return Object{}, err
 	}
 	for i := range object.Members {
 		member := &object.Members[i]
-		if err := s.Backend.CreateVolume(ctx, *member, &sources[i]); err != nil {
+		if err := create(ctx, i, *member); err != nil {
 			return object, errors.Join(err, core.ErrRecoveryRequired)
 		}
 		member.State = "created"
@@ -119,8 +128,10 @@ func (s *RepositoryService) CopyWorkspaceSet(ctx context.Context, id string, rep
 		if err := s.Backend.InspectVolume(ctx, *member); err != nil {
 			return object, errors.Join(err, core.ErrRecoveryRequired)
 		}
-		if err := s.Backend.Populate(ctx, *member); err != nil {
-			return object, errors.Join(err, core.ErrRecoveryRequired)
+		if populate != nil {
+			if err := populate(ctx, *member); err != nil {
+				return object, errors.Join(err, core.ErrRecoveryRequired)
+			}
 		}
 		member.State = "ready"
 		if err := s.save(object); err != nil {

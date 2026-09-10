@@ -278,6 +278,41 @@ func TestRealIncusOwnedVolumeImportE2E(t *testing.T) {
 	if _, err := works.Get("work", object.ID); !errors.Is(err, core.ErrNotFound) {
 		t.Fatal("deleted Workspace still registered", err)
 	}
+	collection, err := works.ImportWorkspaceSet(ctx, "set-"+owner, []gitrepo.WorkspaceImport{
+		{Repository: "one", Remote: object.Remote, Branch: object.Branch, Archive: input},
+		{Repository: "two", Remote: object.Remote, Branch: object.Branch, Archive: input},
+	})
+	must(err)
+	if collection.State != "ready" || len(collection.Members) != 2 {
+		t.Fatal("collection import incomplete")
+	}
+	for _, member := range collection.Members {
+		must(workBackend.InspectVolume(ctx, member))
+		if _, err := works.Get("work", member.ID); !errors.Is(err, core.ErrNotFound) {
+			t.Fatal("collection member independently registered", err)
+		}
+		memberPath := volumePath(targetPool, "haco-work-"+member.ID)
+		if git(memberPath, "rev-parse", "HEAD") != savedCommit {
+			t.Fatal("collection Git history lost")
+		}
+		data, err := os.ReadFile(filepath.Join(memberPath, "untracked"))
+		must(err)
+		if string(data) != "untracked data" {
+			t.Fatal("collection untracked data lost")
+		}
+	}
+	firstPath := volumePath(targetPool, "haco-work-"+collection.Members[0].ID)
+	secondPath := volumePath(targetPool, "haco-work-"+collection.Members[1].ID)
+	must(os.WriteFile(filepath.Join(firstPath, "untracked"), []byte("independent member"), 0600))
+	secondData, err := os.ReadFile(filepath.Join(secondPath, "untracked"))
+	must(err)
+	if string(secondData) != "untracked data" {
+		t.Fatal("collection imports share writable data")
+	}
+	must(works.DeleteWorkspace(ctx, collection.ID, collection.Owner))
+	if _, err := works.Get("work", collection.ID); !errors.Is(err, core.ErrNotFound) {
+		t.Fatal("deleted collection still registered", err)
+	}
 	for i, failure := range []string{"verification", "cleanup-failed", "creation-unknown"} {
 		failedBackend := &failedWorkspaceImportAcceptanceBackend{workspaceImportAcceptanceBackend: workspaceImportAcceptanceBackend{workBackend, targetPool}, failure: failure}
 		failedWorks := gitrepo.NewRepositoryService(filepath.Join(root, "failed-"+failure), failedBackend)

@@ -550,3 +550,23 @@ their native fixtures after known completed creation. This does not prove
 production uncertain cleanup succeeded. Postcheck confirmed the original nine
 instances, sentinel checksum and registration attributes unchanged. Unresolved creation and published aggregate cleanup are still
 explicit remaining work; this is not a general incomplete-Workspace repair API.
+
+## Native multi-Workspace registration
+
+Status: **implemented internally** for two to eight Workspace archives with explicit
+GitHub routing. Import shares normal collection creation: reserve all fresh member
+identities in one record, import and durably record each completed native creation,
+inspect each volume, then publish the whole collection. Git population is omitted.
+Members have no separately resolvable records. Distinct native targets are required;
+invalid input is rejected before reservation. Incus owns the actual volume imports.
+
+Partial failure retains the complete collection receipt and completed/uncertain
+member identities. It never publishes a partial Workspace, replays unknown imports,
+or applies the single-volume cleanup helper to a collection. Explicit incomplete
+collection cleanup remains needed before public import ships. Ready collections use
+existing canonical lease exclusion and owned member deletion. No new catalog,
+schema, state, CLI command or source permission is introduced. Existing records do
+not require migration. This extends ADR 0053 using the existing collection model.
+
+Focused regression and native collection acceptance are being verified; public
+aggregate import, offline routing, rootfs and Env activation remain planned.

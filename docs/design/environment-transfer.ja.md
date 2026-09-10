@@ -452,3 +452,20 @@ archive と receipt は /var/lib/haco-owned-import-490401733 に保持してい�
 本番の不確定 cleanup の成功は主張しません。既存9 instance・sentinel checksum・登録ファイル属性の不変も確認しました。
 作成要求の不確定と公開後 aggregate cleanup は残課題であり、すべての未完了 Workspace を
 修復する API ではありません。
+
+## 複数 Workspace の native 登録
+
+Status: 明示的な GitHub 接続先を持つ2〜8 archive について **内部実装済み**です。
+通常の collection 作成と同じ遷移で、全 member の新しい所有情報を単一記録へ予約し、
+native import の完了を永続記録・検査してから全体を公開します。Git の populate は実行しません。
+member 単独の参照用記録は作りません。native 実体は別々であることを要求し、不正な入力は
+予約前に拒否します。volume import 自体は Incus に任せます。
+
+部分失敗では全 collection と完了済み・作成不確定 member の所有記録を残します。
+一部だけ公開したり、不確定 import を再実行したり、単一 volume 用 cleanup を適用したりしません。
+未完了 collection の明示的 cleanup は公開 import 前の残課題です。ready collection の削除は
+既存の lease 排除・所有対象確認を使います。catalog・schema・状態・CLI・元の権限は追加せず、
+既存データの移行も不要です。ADR 0053 を既存 collection モデルで拡張しています。
+
+対象回帰テストと native collection 検証を実行中です。公開一式の import、offline 接続先、
+rootfs と Env 起動は planned のままです。
