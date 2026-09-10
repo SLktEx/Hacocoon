@@ -94,3 +94,12 @@ and branch against its exact current Host source, alongside existing generation,
 ownership and approval checks. Entirely offline Workspaces do not create a Git
 endpoint. Guest Git configuration stays data. See
 [ADR 0055](../adr/0055-offline-workspace-routing.md).
+
+## Real push acceptance target
+
+The legacy Git transport fixture is manually dispatched on trusted main and may
+push only to `SLktEx/Hacocoon-test`. It uses the dedicated
+`HACO_TEST_REPOSITORY_TOKEN` secret; without it, the workflow reports SKIP and does
+not execute the push. Per-run test branches are retained with their commit receipt.
+This fixture is not installed-product/import approval acceptance. See
+[ADR 0059](../adr/0059-dedicated-git-push-test-target.md).

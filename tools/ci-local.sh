@@ -37,6 +37,7 @@ run_workflow_policy() {
   section "workflow-policy"
   python3 tools/check_workflow_policy.py
   python3 tools/test_workflow_policy.py
+  python3 tools/test_real_git_push_target.py
   python3 tools/test_public_release_readiness.py
   python3 tools/check_renovate_policy.py
   python3 tools/test_renovate_policy.py

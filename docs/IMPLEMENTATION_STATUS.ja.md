@@ -1527,3 +1527,6 @@ d4aef8d では 4 workflow が成功しました。Windows run [34139245378](http
 5272434 の GHA では Go 1.26／1.27 の tests・vet、race、release-config、docs、Ubuntu、Incus が PASS です。test workflow は orchestrator E2E で未作成の名前を承認元に使っていたため失敗しました。fixture を通常の create／delete に直し、ローカル E2E は PASS しました。Capability の保存範囲・再作成と Git transport 拒否の E2E も PASS です。
 
 local CI 全体は docs／workflow 検査後、WSL の pwsh 不在で失敗し、それ以降の工程はその呼び出しでは未実行です。Go 工程の個別実行では、空の select が SIGKILL 用 helper を deadlock 終了させ、親が生存中の lock を確認する前に解放するテスト不具合が見つかりました。制限時間付き timer で親からの kill まで生存させ、実 subprocess／SIGKILL の回帰 20 回と run package の race 検証が PASS です。cleanup の権限を変える修正ではありません。
+
+
+実 Git push CI は trusted main での手動実行と固定の SLktEx/Hacocoon-test 送信先に限定します。専用 credential がない場合は SKIP で、push 受入成功ではありません。旧 fixture は製品インストール後の import や対話承認を検証しません。[ADR 0059](adr/0059-dedicated-git-push-test-target.md)を参照してください。
