@@ -983,3 +983,11 @@ reconfiguration, live OCI application state, saved-only data in a new WSL,
 whole-installation coverage or WSL replacement. Encrypted private-identity transfer
 has not run. Complete those checks and review restored data before selecting an
 old WSL for removal; this partial result authorizes no old-data deletion.
+
+### Installed controller and restored Workspace
+
+A fresh Ubuntu 26.04 WSL with Incus 6.0.5 and the local ad80acc controller candidate accepted a restored synthetic external Workspace through ordinary `haco env create`, including a new default OCI Store (40.88s). After an observed source-guard refusal, ordinary stop/start succeeded. SSH package preparation first failed with exit 100; applying only the test Env's Ubuntu package destinations through `haco config` allowed normal preparation (84.69s) and pinned SSH Workspace read/write (1.68s). No management socket was present inside the Env.
+
+Git was installed over that SSH/package route, and local commit `cafa5fc` was created in the restored repository. A combined development check then failed because it assumed an already populated containerd directory in the new Store; that attempt is not a passing live-OCI test. Separate checks verified the owned Store mount and wrote a marker. Normal stop/delete/create retained that Store identity and marker, Workspace identity, Git commit, modified/untracked files, owners, permissions, links and xattr. The same Env name received a new generation; the old SSH endpoint refused connection, its generated config and authorized keys were absent, and an Env-rootfs-only marker was gone. Native readback supplemented the public lifecycle/SSH operations.
+
+This proves synthetic external-Workspace development and retained new-Store bytes on a fresh installation. It does not restore an old live OCI daemon, reconstitute all managed repository/Store associations, transfer real credentials, recover the existing encrypted identity, or authorize deletion of the old WSL. A separate [startup-boundary fix](../adr/0060-explicit-environment-start.md) addresses Incus autostart before volatile guards; cold-boot acceptance of that fix is recorded separately.

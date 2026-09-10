@@ -129,3 +129,13 @@ Moving a credential-using operation into trusted `haco-host` does not make crede
 ## Fail closed
 
 Failure to evaluate policy, obtain required approval, acquire a scoped credential, verify trusted-host ownership, or verify a backend security guarantee must deny the privileged operation. Cleanup failures must be surfaced rather than hidden.
+
+## Environment startup after Host reboot
+
+Untrusted Environments must not use Incus automatic startup to restore a previous
+running state before Hacocoon's volatile source guards are prepared. New and
+restored instances use `boot.autostart=false`; guarded resume sets and verifies
+this policy after ownership/network checks. Failed configuration or readback
+fails closed. Legacy instances require normal stop/start with the updated
+controller before a Host reboot; untouched instances are not silently migrated.
+Trusted `haco-host` remains a separate lifecycle. See [ADR 0060](../adr/0060-explicit-environment-start.md).

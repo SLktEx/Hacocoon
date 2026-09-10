@@ -24,6 +24,11 @@ func (p *SandboxProvider) configureSandboxEnvironment(ctx context.Context, ref s
 		return fmt.Errorf("mark managed Incus Environment for trusted Seed harvest: %w", err)
 	}
 
+	// Incus must not restore a prior running state before volatile guards exist.
+	if err := p.setAndVerifyConfig(ctx, ref, "boot.autostart", "false"); err != nil {
+		return fmt.Errorf("disable automatic Environment startup: %w", err)
+	}
+
 	if nested {
 		if err := p.configureNestedOCIInstance(ctx, ref); err != nil {
 			return fmt.Errorf("configure nested OCI support for Seed environment: %w", err)

@@ -10,7 +10,7 @@ import (
 )
 
 func TestResumeValidatesNetworkBeforeStartingAndPreservesRuntime(t *testing.T) {
-	for _, scenario := range []string{"stopped", "running", "foreign", "drift", "unknown", "foreign-network", "isolation-off", "post-start-drift", "missing-guard", "running-missing-guard", "guard-drift"} {
+	for _, scenario := range []string{"stopped", "running", "foreign", "drift", "unknown", "foreign-network", "isolation-off", "post-start-drift", "missing-guard", "running-missing-guard", "guard-drift", "autostart-write-failure", "autostart-readback-drift", "autostart-readback-truncated"} {
 		t.Run(scenario, func(t *testing.T) {
 			state := "STOPPED"
 			if scenario == "running" || scenario == "running-missing-guard" {
@@ -20,6 +20,7 @@ func TestResumeValidatesNetworkBeforeStartingAndPreservesRuntime(t *testing.T) {
 				state = "FROZEN"
 			}
 			starts, stops := 0, 0
+			autostartDisabled := false
 			guardPresent := scenario != "missing-guard" && scenario != "running-missing-guard"
 			guardWrites := 0
 			runner := &fakeRunner{run: func(_ context.Context, _ int, command string, args []string) (host.Result, error) {
@@ -39,7 +40,28 @@ func TestResumeValidatesNetworkBeforeStartingAndPreservesRuntime(t *testing.T) {
 						t.Fatal("resume deleted an existing guard")
 					}
 				}
+				if command == "incus" && len(args) > 3 && args[0] == "config" {
+					if args[1] == "set" && args[3] == "boot.autostart=false" {
+						if scenario == "autostart-write-failure" {
+							return host.Result{}, errors.New("config write failed")
+						}
+						autostartDisabled = true
+						return host.Result{}, nil
+					}
+					if args[1] == "get" && args[3] == "boot.autostart" {
+						if scenario == "autostart-readback-truncated" {
+							return host.Result{Stdout: "false", StdoutTruncated: true}, nil
+						}
+						if scenario == "autostart-readback-drift" || !autostartDisabled {
+							return host.Result{Stdout: "true"}, nil
+						}
+						return host.Result{Stdout: "false"}, nil
+					}
+				}
 				if args[0] == "start" {
+					if !autostartDisabled {
+						t.Fatal("start before disabling Incus autostart")
+					}
 					if scenario == "missing-guard" && guardWrites != 5 {
 						t.Fatal("started before source guard was restored")
 					}
@@ -102,6 +124,9 @@ func TestResumeValidatesNetworkBeforeStartingAndPreservesRuntime(t *testing.T) {
 			}
 			if scenario != "missing-guard" && guardWrites != 0 {
 				t.Fatal("unexpected guard repair")
+			}
+			if !wantFailure && !autostartDisabled {
+				t.Fatal("successful resume left automatic startup enabled")
 			}
 			if starts != wantStarts {
 				t.Fatalf("starts=%d err=%v", starts, err)

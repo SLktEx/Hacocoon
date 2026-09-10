@@ -52,6 +52,10 @@ func (p *SandboxProvider) StartEnvironment(ctx context.Context, ref string) erro
 	if err := p.verifyRoutedSandboxAntiSpoofForStart(ctx, ref, status.State == core.EnvironmentStopped); err != nil {
 		return err
 	}
+	// Adopt this boot policy for owned legacy instances only after validation.
+	if err := p.setAndVerifyConfig(ctx, ref, "boot.autostart", "false"); err != nil {
+		return fmt.Errorf("disable automatic Environment startup: %w", err)
+	}
 	if status.State == core.EnvironmentRunning {
 		return p.provisionEnvironmentDNS(ctx, ref)
 	}

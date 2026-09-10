@@ -1838,3 +1838,11 @@ G2 snapshot-only file capture passed on dedicated Incus/Btrfs in 24.52s, using p
 G2 encrypted file transport uses standard tar/age commands with an opt-in synthetic acceptance test. Actual Host credentials and whole-installation restoration remain unverified; no product encryption backend or daily CLI is added.
 
 G3 partial acceptance restored synthetic Workspace/OCI archives from Windows into a fresh WSL/Btrfs pool, compared file metadata/content and resumed Git work (8.04s). Native snapshot create/delete also passed. Encrypted identity recovery, installed Hacocoon reconstruction and whole-installation replacement remain unverified; see [scope](design/environment-transfer.md#fresh-wsl-data-restoration-acceptance).
+
+## Explicit Environment startup
+
+The Incus adapter supplies `boot.autostart=false` during new instance initialization and verifies it before new/restored startup and guarded resume. No CLI command, recovery coordinator or Core state is added. Existing instances adopt the setting through normal stop/start; see [ADR 0060](adr/0060-explicit-environment-start.md) for the pre-reboot upgrade procedure.
+
+An isolated fresh-WSL candidate restored a synthetic Workspace and created an Env with the default OCI Store (40.88s). A later running Env had no explicit boot setting and a missing source guard; start refused it, while normal stop/start succeeded (3.54s/16.43s). At controller 61a26e3, real WSL PID-namespace restart left both new and migrated Envs stopped; normal guarded start passed in 17.14s with the same generation and retained Workspace/Git/OCI bytes. The adapter package and vet passed. SSH preparation failed at package exit 100 before scoped package Policy was applied. With that Policy, normal SSH preparation passed in 84.69s and pinned SSH Workspace read/write and management-socket absence passed in 1.68s. Complete new-WSL migration remains unverified.
+
+The native resume E2E passed in 37.43s with the boot-setting readback and retained ownership ledger; mismatch refusal, repeated start, retained root/Workspace and canonical cleanup passed.

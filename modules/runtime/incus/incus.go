@@ -120,7 +120,7 @@ func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (cor
 	if err := validateManagedInstanceRef(name); err != nil {
 		return core.RuntimeSession{}, err
 	}
-	args := []string{"launch", r.image, name, "--project", r.project, "--profile", sandboxProfile}
+	args := []string{"launch", r.image, name, "--project", r.project, "--profile", sandboxProfile, "--config", "boot.autostart=false"}
 	if pool != "" {
 		args = append(args, "--storage", pool)
 	}
@@ -158,7 +158,7 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return core.EnvironmentRuntime{}, fmt.Errorf("resolve isolated root storage: %w", err)
 	}
 
-	initArgs := append([]string{"init", r.image, ref, "--project", r.project, "--profile", sandboxProfile, "--storage", rootPool}, identityArgs...)
+	initArgs := append([]string{"init", r.image, ref, "--project", r.project, "--profile", sandboxProfile, "--storage", rootPool, "--config", "boot.autostart=false"}, identityArgs...)
 	if _, err := r.runner.Run(ctx, "incus", initArgs...); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}

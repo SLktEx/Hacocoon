@@ -94,6 +94,7 @@ func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.Envir
 		"--project", p.project,
 		"--no-profiles",
 		"--storage", rootPool,
+		"--config", "boot.autostart=false",
 	}
 	configKeys := make([]string, 0, len(profileConfig))
 	for key := range profileConfig {
@@ -304,7 +305,7 @@ func (p *SandboxProvider) setAndVerifyConfig(ctx context.Context, ref, key, valu
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(got.Stdout) != value {
+	if got.StdoutTruncated || strings.TrimSpace(got.Stdout) != value {
 		return fmt.Errorf("provider returned %q for %s, want %q: %w", strings.TrimSpace(got.Stdout), key, value, core.ErrIncompatibleState)
 	}
 	return nil
