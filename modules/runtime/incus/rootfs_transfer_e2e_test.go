@@ -142,6 +142,17 @@ func TestRealIncusRootfsTransferE2E(t *testing.T) {
 	// Drop the imported transport image while the newly created rootfs remains.
 	imageOwner()
 	run("image", "delete", image.Target, "--project", project)
+	if err := json.Unmarshal([]byte(run("image", "list", "--format=json", "--project", project)), &images); err != nil || len(images) != 0 {
+		t.Fatal("imported transport image not positively absent", err)
+	}
+	// Re-read after image deletion: the earlier read alone does not prove that
+	// the instance's independent rootfs survives removal of its source image.
+	postDelete := filepath.Join(dir, "readback-after-image-delete")
+	run("file", "pull", target+"/root/retained", postDelete, "--project", project)
+	retained, err := os.ReadFile(postDelete)
+	if err != nil || string(retained) != string(restored) {
+		t.Fatal("rootfs bytes lost after source image deletion", err)
+	}
 	if run("config", "get", target, key, "--project", project) != owner {
 		t.Fatal("foreign destination")
 	}

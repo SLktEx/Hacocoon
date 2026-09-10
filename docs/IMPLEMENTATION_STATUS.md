@@ -47,7 +47,10 @@ assumptions; source/destination independence, Git state, links, mode and retaine
 archive checks passed. Public rootfs import and authority reconstruction remain
 unimplemented. A separate empty-rootfs image round trip passed in 14.88s with no
 Base/image source, source instance/image removal before import and fresh explicit
-configuration. It does not prove OS/SSH/public-import acceptance. See
+configuration. An extended dedicated WSL Incus/Btrfs run passed in 22.44s,
+checking positive source-image absence and a fresh destination file read after
+image deletion, plus retained archive immutability. This stopped-instance fixture
+does not prove running-container OCI deletion or OS/SSH/public-import acceptance. See
 [the owning contract](design/environment-transfer.md).
 
 An internal fixed-role streaming envelope writer/verifier now checks complete
