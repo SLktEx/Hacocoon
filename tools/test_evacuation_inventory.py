@@ -1,4 +1,7 @@
 import json
+import os
+import tempfile
+from pathlib import Path
 import subprocess
 import unittest
 from unittest.mock import patch
@@ -140,6 +143,49 @@ class InventoryTests(unittest.TestCase):
         result = subject.inventory(fetch)
         self.assertNotIn("never-copy", json.dumps(result))
         self.assertEqual(result["pools"][0]["source_kind"], "unreported-reference-review-in-incus")
+
+    def test_catalog_projection_preserves_saved_components_without_config(self):
+        data = {"version": 13, "snapshots": {"saved": {"id": "saved", "state": "ready", "source": {"secret": "never-copy"}, "components": [{"role": "workspace", "native_ref": "pool/saved-work", "owner": "abc", "state": "ready", "binding": "never-copy"}]}}, "persistent_resources": {"oci:work": {"id": "oci:work", "owner": "abc", "kind": "oci", "native_ref": "pool/work", "state": "ready"}}, "workspace_leases": {"dev": {"workspace_id": "work", "instance_id": "new-generation", "persistent_resource": {"id": "oci:work", "owner": "abc"}}}}
+        original = json.dumps(data, sort_keys=True)
+        result = subject.catalog_references(data)
+        self.assertTrue(result["projection_complete"])
+        self.assertFalse(result["authority"])
+        self.assertEqual(len(result["records"]), 3)
+        self.assertNotIn("never-copy", json.dumps(result))
+        self.assertEqual(json.dumps(data, sort_keys=True), original)
+        self.assertTrue(result["unreviewed"])
+
+    def test_catalog_unknown_schema_and_bad_rows_remain_incomplete(self):
+        for version in (12, 14, True, None):
+            self.assertFalse(subject.catalog_references({"version": version})["projection_complete"])
+        data = {"version": 13, "persistent_resources": {"bad": {"native_ref": "https://user:secret@example.invalid"}, "good": {"native_ref": "pool/volume"}}}
+        result = subject.catalog_references(data)
+        self.assertFalse(result["projection_complete"])
+        self.assertEqual(len(result["records"]), 1)
+        self.assertNotIn("secret", json.dumps(result))
+
+    @unittest.skipUnless(hasattr(os, "O_NOFOLLOW"), "Linux no-follow catalog reader required")
+    def test_catalog_file_observation_does_not_rewrite_or_follow_symlink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "catalog.json"
+            raw = b'{"version":13,"persistent_resources":{}}'
+            path.write_bytes(raw)
+            before = path.stat()
+            self.assertTrue(subject.catalog_inventory(path)["projection_complete"])
+            self.assertEqual(path.read_bytes(), raw)
+            self.assertEqual(path.stat().st_mtime_ns, before.st_mtime_ns)
+            alias = Path(directory) / "alias"
+            alias.symlink_to(path)
+            with self.assertRaises(OSError):
+                subject.catalog_inventory(alias)
+
+    @unittest.skipUnless(hasattr(os, "O_NOFOLLOW"), "Linux no-follow catalog reader required")
+    def test_catalog_special_file_is_refused_without_blocking(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "fifo"
+            os.mkfifo(path)
+            with self.assertRaises(ValueError):
+                subject.catalog_inventory(path)
 
     @patch("evacuation_inventory.subprocess.run")
     def test_command_is_read_only_and_errors_are_not_exposed(self, run):

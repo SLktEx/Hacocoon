@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Read-only Incus inventory for manual evacuation planning, not a backup."""
 import json
+import hashlib
+import os
+import stat
 import re
 import subprocess
 import sys
@@ -156,18 +159,102 @@ def inventory(fetch=query):
     return report
 
 
+def catalog_inventory(path):
+    """Observe one catalog file without migration, locking writes or authority."""
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise OSError("catalog observation requires Linux")
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as source:
+        before = os.fstat(source.fileno())
+        if not stat.S_ISREG(before.st_mode) or before.st_size > 16 * 1024 * 1024:
+            raise ValueError("invalid catalog file")
+        raw = source.read(16 * 1024 * 1024 + 1)
+        after = os.fstat(source.fileno())
+        current = os.stat(path, follow_symlinks=False)
+    identity = lambda value: (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
+    if len(raw) > 16 * 1024 * 1024 or identity(before) != identity(after) or identity(after) != identity(current):
+        raise ValueError("catalog changed")
+    result = catalog_references(json.loads(raw))
+    result["sha256"] = hashlib.sha256(raw).hexdigest()
+    return result
+
+
+def catalog_references(data):
+    result = {"projection_complete": False, "authority": False, "records": [], "errors": []}
+    if not isinstance(data, dict) or type(data.get("version")) is not int or data["version"] != 13:
+        result["errors"].append("unsupported-catalog-schema")
+        return result
+    result["version"] = 13
+    fields = {
+        "persistent_resources": ("id", "owner", "kind", "native_ref", "state", "workspace_id", "restore_source"),
+        "base_assets": ("id", "owner", "native_ref", "state"),
+        "workspace_leases": ("workspace_id", "environment_id", "owner", "instance_id", "runtime_ref", "state", "snapshot_source"),
+        "snapshots": ("id", "state"),
+    }
+    def reference(value):
+        value = text(value)
+        # Native identifiers only; no URI, arbitrary configuration or source content.
+        if value and not re.fullmatch(r"[A-Za-z0-9_.:/-]+", value):
+            raise ValueError("unreportable reference")
+        if "://" in value:
+            raise ValueError("unreportable URI")
+        return value
+    for section, allowed in fields.items():
+        rows = data.get(section, {})
+        if not isinstance(rows, dict) or len(rows) > LIMIT:
+            result["errors"].append(section)
+            continue
+        for index, (key, value) in enumerate(rows.items()):
+            try:
+                if not isinstance(value, dict):
+                    raise ValueError("invalid catalog row")
+                row = {"section": section, "key": reference(key), "review": "required"}
+                for field in allowed:
+                    if field in value:
+                        row[field] = reference(value[field])
+                if section == "snapshots":
+                    components = value.get("components", [])
+                    if not isinstance(components, list) or len(components) > LIMIT:
+                        raise ValueError("invalid components")
+                    row["components"] = []
+                    for component in components:
+                        if not isinstance(component, dict):
+                            raise ValueError("invalid component")
+                        row["components"].append({f: reference(component[f]) for f in ("role", "native_ref", "owner", "state")})
+                if section == "workspace_leases" and "persistent_resource" in value:
+                    attached = value["persistent_resource"]
+                    if not isinstance(attached, dict):
+                        raise ValueError("invalid attachment")
+                    row["persistent_resource"] = {f: reference(attached[f]) for f in ("id", "owner") if f in attached}
+                result["records"].append(row)
+            except (ValueError, TypeError, KeyError):
+                # Do not put the malformed backend value in diagnostics.
+                result["errors"].append(section + ":row:" + str(index))
+    result["projection_complete"] = not result["errors"]
+    result["unreviewed"] = ["native ownership comparison", "repository catalog and Workspace source paths", "pending copies/restores and transient records", "settings, Policy and credentials", "manual and unregistered data"]
+    return result
+
+
 def main():
-    if len(sys.argv) != 1:
-        print("Usage: python3 tools/evacuation_inventory.py", file=sys.stderr)
+    if len(sys.argv) != 1 and not (len(sys.argv) == 3 and sys.argv[1] == "--catalog"):
+        print("Usage: python3 tools/evacuation_inventory.py [--catalog environments.json]", file=sys.stderr)
         return 2
     try:
         report = inventory()
     except (ValueError, TypeError, KeyError):
         print("Invalid Incus inventory metadata; inventory incomplete", file=sys.stderr)
         return 1
+    catalog_ok = True
+    if len(sys.argv) == 3:
+        try:
+            report["catalog"] = catalog_inventory(sys.argv[2])
+            catalog_ok = report["catalog"]["projection_complete"]
+        except (ValueError, TypeError, KeyError, OSError):
+            report["catalog"] = {"projection_complete": False, "authority": False, "errors": ["catalog-unavailable-or-changing"]}
+            catalog_ok = False
     json.dump(report, sys.stdout, ensure_ascii=True, indent=2)
     print()
-    return 0 if report["native_queries_complete"] else 1
+    return 0 if report["native_queries_complete"] and catalog_ok else 1
 
 
 if __name__ == "__main__":

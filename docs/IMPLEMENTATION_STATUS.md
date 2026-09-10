@@ -1810,3 +1810,5 @@ G1 live containerd transfer fixture is implemented; native acceptance is pending
 G2 now has a read-only native evacuation inventory helper, verified against dedicated WSL Incus. Whole-installation data enumeration, external backup and restored-data comparison remain unimplemented. See [inventory scope](design/environment-transfer.md#evacuation-inventory).
 
 G2 native inventory also reports pool backing references and volume content types without opening them or exposing URI credentials. Eleven focused tests pass; these references do not establish whole-installation coverage or cleanup authority.
+
+G2 adds an optional Linux read-only schema-13 catalog reference projection; no catalog migration, credential output or ownership authority is introduced. Full associations and whole-installation evacuation remain partial.

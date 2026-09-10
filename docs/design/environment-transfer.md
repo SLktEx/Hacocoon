@@ -859,3 +859,20 @@ not an external backup or a snapshot-deletion-failure evacuation test.
 The extended dedicated WSL read also passed with 13 instance rows and 26 disk bindings, with no query errors. Its private report is /var/tmp/haco-evacuation-inventory-hp1r9_bs/inventory.json. Source references were only recorded, never opened; no external backup or ownership confirmation is implied.
 
 The inventory now includes pool backing-source references and volume `content_type` alongside instance disk bindings. Paths are references for operator review: the helper does not open them, discover underlying VHDs, or infer ownership. A block volume must not be treated as a filesystem tree. URI-shaped sources are withheld to avoid publishing embedded credentials; malformed pool sources retain other inventory and mark the report incomplete. Eleven focused tests pass. The dedicated WSL Incus check also passed with no query errors: one Btrfs backing-path reference and filesystem volume content types were reported. Its private report remains at `/var/tmp/haco-evacuation-inventory-zcdndzfm/inventory.json`. External/block storage is covered by metadata tests only; no real block-volume evacuation is claimed.
+
+Optionally add `--catalog /var/lib/hacocoon/state/environments.json` (substitute
+the actual controller root). This Linux-only reader opens the existing regular
+file without following a final symlink, refuses special/oversized/changing files,
+and never invokes catalog migration or writes a lock/catalog file. Schema 13 is
+currently supported; other schemas produce an explicit incomplete projection.
+The allowlisted projection lists persistent-resource, Base-asset, Workspace-lease
+and snapshot-component native references, including owner/generation evidence.
+It does not validate those owners against Incus or grant restore/deletion authority.
+`projection_complete` means only that these selected fields were read; repository
+catalogs, pending operations, source paths, configuration/Policy/credentials and
+manual data still require review. Unknown or malformed rows preserve other results
+and cause exit status 1. Native queries and catalog projection have separate results;
+`backup_complete` remains false. The input digest identifies the observed bytes,
+not authenticity or an authorized migration. The file is never used to configure an Env.
+
+Validation: 15 tests passed on Linux (Windows: 13 passed, 2 Linux-only tests skipped). Reading the existing dedicated WSL catalog failed explicitly because it is schema 4, with none of the four projected sections; it was not migrated. The failed observation receipt remains at `/var/tmp/haco-catalog-inventory-iuzdd46h/catalog.json`. Real schema-13 catalog coverage is unverified; the successful Linux file-reader regression uses an isolated fixture.

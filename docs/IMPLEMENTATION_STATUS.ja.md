@@ -1544,3 +1544,5 @@ G1 の実 containerd 転送 fixture を実装し、native 受入は実行待ち�
 G2 に読み取り専用の native 退避一覧補助を追加し、専用 WSL の実 Incus で確認しました。全量のデータ列挙・外部 backup・復元後照合は未実装です。[一覧の範囲](design/environment-transfer.ja.md#退避対象の-native-一覧)を参照してください。
 
 G2 の native 一覧は pool の保存元参照と volume の内容種別も示し、参照先を開かず URI の認証情報を出力しません。対象テスト 11 件は成功しました。これらの参照情報だけで全量を把握したことや、削除権限があることにはなりません。
+
+G2 に任意の Linux 読み取り専用 schema-13 catalog 参照抽出を追加しました。catalog 移行・認証情報の出力・所有権の付与は行いません。全対応関係の確認と全量退避は引き続き partial です。

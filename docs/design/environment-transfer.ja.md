@@ -705,3 +705,18 @@ query エラーはありませんでした。private な一覧はその WSL 内�
 拡張後も専用 WSL で instance 13 行・disk 対応 26 件を query エラーなしで取得できました。private な一覧は /var/tmp/haco-evacuation-inventory-hp1r9_bs/inventory.json です。参照先は記録するだけで開かず、外部 backup や所有確認の成功を意味しません。
 
 一覧には instance の disk 対応に加え、pool の保存元参照と volume の `content_type` を含めます。パスは利用者が確認する参照情報であり、この補助は参照先を開いたり、背後の VHD を特定したり、所有権を推定したりしません。block volume を通常の filesystem tree として扱わないでください。URI 形式の参照は埋め込まれた認証情報を出力しないため伏せます。不正な pool 参照があっても他の一覧を残し、不完全と記録します。対象テスト 11 件に加え、専用 WSL の実 Incus 確認も query error なしで成功しました。Btrfs の保存元パス参照 1 件と filesystem の内容種別を確認し、私有の一覧を `/var/tmp/haco-evacuation-inventory-zcdndzfm/inventory.json` に残しています。外付け／block storage は metadata のテストのみで、実 block volume の退避は未検証です。
+
+任意で `--catalog /var/lib/hacocoon/state/environments.json` を指定できます
+（実際の controller root に合わせてください）。Linux 専用の reader は既存の通常ファイルを
+末尾 symlink を追わずに開き、特殊ファイル・サイズ超過・読み取り中の変更を拒否します。
+catalog の移行処理は呼ばず、lock や catalog を書き込みません。現在は schema 13 を扱い、
+他の schema は明示的に不完全と報告します。永続資源・Base asset・Workspace lease・snapshot
+component の native 参照と owner／generation の情報だけを抽出します。Incus 側の所有者との
+一致は検証せず、復元や削除の権限を与えません。`projection_complete` は選択した項目の
+読み取りが完了したという意味だけです。repository catalog・進行中操作・source path・
+設定／Policy／認証情報・手動データは引き続き確認が必要です。不正な行があっても他の結果を
+残し、exit status 1 とします。native query と catalog 抽出は別の結果を持ち、
+`backup_complete` は常に false です。入力の digest は読んだ bytes の識別用であり、
+真正性や移行の承認を証明しません。このファイルから Env を構成することはありません。
+
+検証は Linux で 15 件成功しました（Windows は 13 件成功、Linux 専用 2 件を SKIP）。専用 WSL の既存 catalog は schema 4 で、抽出対象の 4 区分を持たないため、実 catalog の読み取り確認は明示的に失敗しました。移行は行わず、失敗の記録を `/var/tmp/haco-catalog-inventory-iuzdd46h/catalog.json` に残しています。実 schema-13 catalog は未検証で、成功した Linux reader の回帰テストは隔離 fixture を使っています。
