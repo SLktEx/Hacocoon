@@ -1,7 +1,7 @@
 # Environment transfer
 
-Status: **partial** for Linux public export; public import remains **planned**. The native rootfs/volume
-acceptance tests are internal prerequisites, not a usable Hacocoon importer.
+Status: **partial** for Linux public export; public import acceptance remains **pending**. Linux import wiring is implemented; its public-path acceptance is pending.
+See [Linux import command](#linux-import-command) for current usage and limits.
 
 ## Incus foundation
 
@@ -91,7 +91,7 @@ archive checksum also remains unchanged. This checks native image/rootfs
 independence, not deletion of container-referenced OCI images.
 
 This tiny data fixture is not bootable-OS, SSH, managed network, credential,
-template or aggregate-import acceptance. Public import still needs canonical
+template or aggregate-import acceptance. The original component test did not cover canonical
 ownership/creation, archive validation and current connection/security setup.
 Published/imported image properties and profile associations never grant authority;
 callers must use the current configuration explicitly. No public command or new
@@ -109,7 +109,7 @@ number must be consecutive. Metadata is bounded to 64 KiB and total envelope
 overhead to 512 KiB, independently of the caller-owned payload budget.
 There is no Base component, provider path, source management ID or credential map.
 The version-1 envelope remains readable; new Linux exports use version 2 as described
-below. Public import is not implemented.
+below. Public CLI wiring is implemented; acceptance remains pending.
 
 Canonical bounded JSON rejects duplicate/unknown fields. Required role/order,
 sizes, caller-owned aggregate budget, header type/format, payload hashes, complete
@@ -412,7 +412,7 @@ records and two complete export archives remain for explicit cleanup.
 
 ## Verified component delivery for import
 
-Status: **implemented internally**; the public importer remains planned.
+Status: **implemented internally**; the public importer acceptance remains pending.
 `Staged.ComponentReader(role)` exposes a seekable, read-only view of one native
 archive. Its offsets come from the same bounded parser that verifies every
 component and the complete envelope; no component view is published on partial
@@ -452,7 +452,7 @@ runs the gate; it is also connected to the existing Incus GHA job.
 Focused Store/import and native preparation race tests passed (1.052s/1.057s);
 vet passed. The first fixture build failed on a quoted multiline string and was
 corrected. No rootfs/Workspace aggregate import, Env activation, actual idmap shift
-on attachment or live OCI daemon was tested. Public import remains planned.
+on attachment or live OCI daemon was tested. Public import acceptance remains pending.
 
 The native runner boundary regression also covers owned/foreign target refusal,
 malformed/truncated inventory, failed inventory queries, nonzero native exit and
@@ -470,7 +470,7 @@ or unreadable. Existing inspection/component access remains supported.
 
 ## Workspace routing in new exports
 
-Status: **implemented** for public Linux export; aggregate import remains planned.
+Status: **implemented** for public Linux export; aggregate import acceptance remains pending.
 New public exports use envelope version 2 and include ordered Workspace
 name/remote/branch records from protected saved bindings. The role ties each record
 to exactly one native archive. Names are unique; existing Git validators reject
@@ -573,7 +573,7 @@ focused race passed (2.782s). Dedicated real Incus/Btrfs acceptance passed (29.6
 source-deleted archives, two independent native copies, retained Git/untracked data,
 no separate member records and canonical collection deletion. Partial collection
 failure retention is covered by service tests, not a native injected-failure run.
-Public aggregate import, offline routing, rootfs and Env activation remain planned.
+Public aggregate import acceptance remains pending; offline routing and native activation are implemented.
 
 ## Offline Workspace data
 
@@ -588,7 +588,7 @@ Existing catalog fields and source archives are retained unchanged. No schema or
 CLI change is needed. Offline members do not keep unrelated same-name source
 repositories alive; their native data remains subject to normal owned deletion.
 See [ADR 0055](../adr/0055-offline-workspace-routing.md). Public metadata mapping,
-reconnection, rootfs import and aggregate activation remain planned. At 634590d,
+reconnection remains planned; native rootfs import and aggregate activation are implemented. At 634590d,
 all local Go/vet/docs/workflow-policy and 27 JavaScript tests passed; focused race
 passed for Git (11.451s) and Incus (2.386s). Dedicated real Incus/Btrfs mixed-
 collection import and native attachment-metadata checks passed in 29.52s. Offline
@@ -634,3 +634,80 @@ existing capture/restore/export and native data cleanup. Public CLI checks were
 skipped locally because no CLI binary was supplied; GHA supplies that binary.
 Shared-image deletion was skipped. Public import, an SSH transport handshake and
 live OCI runtime consistency are not established by this test.
+
+## Native bundle import composition
+
+Status: **implemented internally; native bundle activation verified**. Import verifies the whole
+bundle before mutation, imports one Workspace or a collection, imports OCI with a
+durable association to that new Workspace, then creates/starts a new Env through
+canonical lifecycle. The default destination is SOURCE-imported; an existing name
+is refused. Public CLI/controller upload is connected; see the Linux import command below.
+
+Version 2 preserves repository names and GitHub routing metadata without granting
+authentication or approval. Source Host file URLs import offline. Version 1 imports
+component labels offline because it has no routing descriptors. Guest Git data and
+the original bundle are unchanged. Up to eight Workspace members are supported;
+larger bundles fail before native mutation. Long repository names retain their
+names while their private native IDs derive from fresh member owners.
+
+Uncertain native creation keeps the existing receipts. Failed Env creation cleans
+only published, unleased new data through existing ownership APIs; unresolved OCI
+cleanup keeps its Workspace. Startup failure retains the Env/data. No schema change,
+automatic backup, Base component or import recovery catalog is introduced. See
+[ADR 0057](../adr/0057-native-bundle-import.md). Public import, reconnection, an SSH
+handshake and live OCI consistency remain unfinished.
+
+At 6360a23, the dedicated Incus/Btrfs aggregate passed in 558.35s, including
+independent import of rootfs, both Git Workspaces and OCI after source deletion,
+Env startup, generation checks, retained data after Env deletion and owned cleanup.
+The local run omitted the CLI binary and skipped public CLI checks and shared-image
+deletion. Public import, SSH handshake and live OCI consistency remain unverified.
+
+## Management import transport
+
+Status: **implemented for the Linux management endpoint**. The typed
+`environment.import` stream accepts an optional destination name and bounded 64 KiB
+data frames. Its explicit end record carries the byte count and SHA-256. The existing
+importer stages and validates all input before native mutation. No client-selected
+Host path, owner, OCI kind or budget is accepted. The current 64 GiB payload budget
+plus bounded envelope overhead is shared with export.
+
+Disconnect or additional input after upload cancels activation. The response returns
+the existing import result, including retained-resource names on failure. Success
+requires matching transfer count/digest, a running destination and terminal EOF.
+The operation has a 30-minute deadline, and upload reads/writes have 30-second idle
+deadlines. A caller-owned input reader must support finishing or cancellation.
+No automatic retry or backup is added. The shipped Linux controller registers this
+API only on its management endpoint, never guest or notification endpoints.
+
+## Linux import command
+
+Status: **partial**; CLI and shipped controller wiring are implemented, with public
+native acceptance pending. Run from the Linux client that can read the bundle:
+
+```bash
+haco env import dev.haco
+haco env import dev.haco new-dev
+haco env import --json dev.haco new-dev
+```
+
+Only the file is required. The default destination uses the saved source name with
+`-imported`; an existing Env or unresolved lease is refused. Import creates new
+Workspace/OCI copies and a fresh Env, verifies current ownership/security and starts
+it. The saved file and any existing Env/data are untouched. No Base material or
+pre-import backup is required, and old approval/connection authority is not restored.
+
+The client opens a read-only regular file, refuses final symlinks and special files,
+inspects the bundle and uploads bytes. The controller validates the complete input
+again before mutation. Input path replacement cannot change the open descriptor;
+concurrent content changes cannot bypass the controller's complete bundle check.
+The CLI's import operation has a 30-minute deadline. The shared payload limit is
+64 GiB; there is no required size or storage argument.
+
+A failed operation exits nonzero. `--json` also returns any retained-resource names;
+plain output reports them on stderr. Inspect those resources before retrying because
+a disconnect can leave an operation whose final result was not delivered. There is
+no automatic retry. File routes and legacy bundles import offline; reconnection is
+still planned. Linux/WSL is supported; native Windows file input is unsupported, and
+files must be available to the client inside trusted `haco-host` when running there.
+SSH handshake and live OCI daemon consistency remain separate acceptance items.

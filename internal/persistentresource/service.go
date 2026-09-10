@@ -42,7 +42,7 @@ type Service struct {
 }
 
 func (s *Service) Create(ctx context.Context, id, kind string) (core.PersistentResource, error) {
-	return s.create(ctx, id, kind, false, nil)
+	return s.create(ctx, id, kind, false, nil, "")
 }
 
 // PublishSource records ownership before preparing content and publishes only
@@ -52,14 +52,14 @@ func (s *Service) PublishSource(ctx context.Context, id, kind string, prepare fu
 	if prepare == nil {
 		return core.PersistentResource{}, core.ErrInvalidArgument
 	}
-	return s.create(ctx, id, kind, true, prepare)
+	return s.create(ctx, id, kind, true, prepare, "")
 }
-func (s *Service) create(ctx context.Context, id, kind string, sourceOnly bool, prepare func(context.Context, core.PersistentResource) error) (core.PersistentResource, error) {
+func (s *Service) create(ctx context.Context, id, kind string, sourceOnly bool, prepare func(context.Context, core.PersistentResource) error, workspaceID core.WorkspaceID) (core.PersistentResource, error) {
 	var nonce [16]byte
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return core.PersistentResource{}, err
 	}
-	r := core.PersistentResource{SourceOnly: sourceOnly, ID: id, Kind: kind, Owner: hex.EncodeToString(nonce[:]), State: "creating", CreatedAt: time.Now().UTC()}
+	r := core.PersistentResource{WorkspaceID: workspaceID, SourceOnly: sourceOnly, ID: id, Kind: kind, Owner: hex.EncodeToString(nonce[:]), State: "creating", CreatedAt: time.Now().UTC()}
 	if !core.ValidPersistentResourceRef(r.Ref()) {
 		return core.PersistentResource{}, core.ErrInvalidArgument
 	}

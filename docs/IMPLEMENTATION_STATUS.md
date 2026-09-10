@@ -1,59 +1,30 @@
 # Implementation Status
 
-Archive import uses canonical Env lifecycle through the production BaseRouter and
-the Incus native image adapter. Current sandbox configuration, fresh generation,
-managed SSH identity reset, immediate ownership receipts and separate owned
-image/instance cleanup are retained. No Base filesystem or automatic backup is added.
+## Public Environment import in progress
 
-At 47bf7a8, dedicated Incus/Btrfs aggregate acceptance passed in 439.76s, including
-archive-to-running-Env, explicit prepared Workspace/OCI bindings, source-generation
-refusal, temporary-image cleanup and data retained after Env deletion. Router race
-and relevant vet checks passed. Earlier b7f7fac full local Go/vet/docs/workflow-policy
-and 27 JavaScript tests, Workspace/Incus race, and native image transport (22.28s)
-also passed. The initial transport fixture permission failure was corrected without
-relaxing private-directory protection.
+Status: **partial**. Linux `haco env import <file.haco> [new-env]` now connects the
+client file reader, management upload, native Workspace/OCI owners and canonical
+Env creation/start. The default name is SOURCE-imported; existing names are refused.
+The input remains unchanged. Version-1 and source Host file routes import offline;
+GitHub descriptors preserve routing only, without approval or credentials.
 
-Public bundle import, SSH handshake and live OCI consistency remain unverified.
-This local aggregate run skipped public export/snapshot/Workspace CLI checks because
-no CLI binary was supplied, and skipped shared-image deletion. Maintained GHA supplies
-the CLI binary; its latest-head result remains separate from local acceptance.
+Current composition configures private staging and one 64 GiB payload budget for
+all native import adapters. Fresh resource owners, Env generation and current
+sandbox/managed SSH setup are retained. No Base filesystem, automatic backup,
+replacement of current data, import catalog or schema migration is added.
+Failure receipts identify retained data; startup failure leaves it for inspection.
 
-Offline Workspace registration/restoration now preserves data without a Git route.
-Mixed broker bindings exclude offline members and reject mismatched Host routing.
-No schema/CLI change is added. All local Go/vet/docs/JS and focused race checks
-passed; real Incus/Btrfs mixed collection import passed in 29.52s. Public aggregate
-import and reconnection remain planned; real offline snapshot restore is unverified.
+Before public CLI wiring, the internal Incus/Btrfs aggregate passed in 558.35s at
+6360a23, with independent rootfs, two Git Workspaces and OCI imported after source
+deletion, running Env and owned cleanup. Typed upload race tests passed in 4.808s;
+all Go/vet/27 JS tests, docs and workflow policy passed at 2992c47. The all-entry
+local CI attempt failed because Ubuntu lacked pwsh; later all-entry stages were
+not executed. This is separate from latest-head GHA.
 
-Native multi-Workspace import now shares the existing collection reservation and
-publication transition, without Git population or separately leaseable members.
-All local Go/vet/docs/JS and focused race checks passed; dedicated real Incus/Btrfs
-collection acceptance passed in 29.64s. Incomplete collection cleanup and public
-aggregate import remain planned.
-
-Completed, unpublished Workspace import failures now attempt exact-owned cleanup.
-Unknown creation, changed ownership and uncertain cleanup keep their receipt; no
-new state or replay is added. All local Go/vet/docs/JS checks and focused race tests passed. Dedicated
-Incus/Btrfs failure-cleanup acceptance passed in 21.65s at 2917714.
-
-Single-Workspace native import now reuses canonical repository ownership without
-Git population. Dedicated Incus/Btrfs Workspace import and owned cleanup passed in
-20.67s, and local Go/vet/docs/JS plus focused race tests passed. Public aggregate
-import (including offline routing, failed-import cleanup and activation) remains pending.
-
-New public Linux exports use version-2 Workspace routing metadata from protected
-snapshot bindings; version-1 inspection remains supported. No Git approval or
-credential is transferred. Focused metadata/Router tests and documentation checks passed; full CI and native
-version-2 acceptance remain pending. Public import remains planned.
-
-Native OCI volume import now uses canonical new-owner creation and replaces source
-metadata before Incus creates the volume. Dedicated Btrfs adapter/catalog acceptance
-passed in 0.56s; public aggregate import and Env activation remain planned.
-
-
-Import input preparation now exposes independently seekable native component views
-only after full staged-bundle validation. Linux filesystem/race tests and vet passed;
-this does not implement public import or native destination creation.
-
+Public CLI/native acceptance for the new wiring is pending. The existing aggregate
+E2E now uses the shipped import CLI when its binary is supplied. SSH handshake,
+live OCI consistency, Git reconnection, incomplete collection cleanup and native
+Windows file input remain unfinished. See [Environment transfer](design/environment-transfer.md#linux-import-command).
 
 ## Public Environment export in progress
 
@@ -62,7 +33,7 @@ management stream and verified, no-overwrite client publication. Default output
 is `<env>.haco`; no separate snapshot command or controller path is required.
 Unix stream and real-filesystem CLI race tests passed. Local shipped CLI full gates failed on fixture deadlines after export passed;
 the equivalent GHA aggregate gate passed in 47.06s at `3d0dd9a`, with all four
-applicable workflows successful; public import and native Windows output remain planned. See
+applicable workflows successful; public import acceptance and native Windows output remain pending. See
 [the owning contract](design/environment-transfer.md#linux-export-command).
 
 The internal stopped-Env exporter now composes canonical capture/read/delete,
@@ -103,13 +74,13 @@ workflow_dispatch-gated SKIP. See [the owning contract](design/oci-image-deletio
 
 The Linux/WSL Incus adapter now exports an owned saved Workspace/OCI volume into
 an unnamed read-only archive, checking native ownership and backup cleanup. Its
-dedicated Incus 6.0.5/Btrfs adapter test passed in 5.92s; local race and vet passed. Linux public export is connected; public import remains unimplemented. The internal rootfs producer now uses a uniquely owned native image and an anonymous archive; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s.
+dedicated Incus 6.0.5/Btrfs adapter test passed in 5.92s; local race and vet passed. Linux public export is connected; public import acceptance remains pending. The internal rootfs producer now uses a uniquely owned native image and an anonymous archive; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s.
 See the [owning contract](design/environment-transfer.md#native-saved-volume-export-adapter).
 
-Public G1 remains **partial**: Linux export is implemented; import is **planned**. Internal snapshot/archive inventory
+Public G1 remains **partial**: Linux export/import are implemented, with public import acceptance pending. Internal snapshot/archive inventory
 matching covers all currently supported Workspace components and optional OCI;
 the saved-source read boundary now shares canonical deletion locks and verifies
-retained components. Native archive production and Linux export are connected; public import remains planned. Opt-in native Incus rootfs/volume
+retained components. Native archive production and Linux export are connected; public import acceptance remains pending. Opt-in native Incus rootfs/volume
 archive tests and their existing-GHA integration are implemented. The dedicated
 Incus 6.0.5/Btrfs run passed in 11.24s after correcting fixture path/namespace
 assumptions; source/destination independence, Git state, links, mode and retained

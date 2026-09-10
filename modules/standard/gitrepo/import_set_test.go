@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -157,5 +158,21 @@ func TestWorkspaceCollectionImportRejectsBeforeReservation(t *testing.T) {
 				t.Fatal("invalid input reserved", err)
 			}
 		})
+	}
+}
+
+func TestImportCollectionPreservesLongRepositoryNames(t *testing.T) {
+	b := &collectionImportBackend{t: t}
+	service := NewRepositoryService(t.TempDir(), b)
+	b.service = service
+	inputs := collectionInputs()
+	inputs[0].Repository = strings.Repeat("a", 48)
+	inputs[0].Archive = strings.NewReader(inputs[0].Repository)
+	object, err := service.ImportWorkspaceSet(context.Background(), "both", inputs)
+	if err != nil || len(object.Members) != 2 {
+		t.Fatal(object, err)
+	}
+	if object.Members[0].Repository != inputs[0].Repository || !ValidID(object.Members[0].ID) || object.Members[0].ID == object.Members[1].ID {
+		t.Fatal("repository name or native identity lost")
 	}
 }

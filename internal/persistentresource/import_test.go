@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -58,5 +59,24 @@ func TestResourceImportUsesCanonicalFreshOwnershipAndRetainsFailure(t *testing.T
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestImportForWorkspaceRecordsAssociationBeforeNativeCreation(t *testing.T) {
+	ctx := context.Background()
+	store := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
+	b := &importResourceBackend{backend: &backend{store: store}}
+	service := persistentresource.Service{Store: store, Backend: b}
+	work := core.WorkspaceID("workspace:managed:" + strings.Repeat("a", 32))
+	resource, err := service.ImportForWorkspace(ctx, "oci:bound", "oci-containerd", bytes.NewReader([]byte("archive")), work)
+	if err != nil || resource.WorkspaceID != work {
+		t.Fatal(resource, err)
+	}
+	current, err := store.GetPersistentResource(ctx, resource.ID)
+	if err != nil || current.WorkspaceID != work {
+		t.Fatal("lost durable association", err)
+	}
+	if _, err := service.ImportForWorkspace(ctx, "oci:unbound", "oci-containerd", bytes.NewReader([]byte("archive")), ""); !errors.Is(err, core.ErrInvalidArgument) || b.imports != 1 {
+		t.Fatal("invalid association imported", err)
 	}
 }
