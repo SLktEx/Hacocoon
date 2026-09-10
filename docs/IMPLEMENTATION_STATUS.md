@@ -2,7 +2,8 @@
 
 Completed, unpublished Workspace import failures now attempt exact-owned cleanup.
 Unknown creation, changed ownership and uncertain cleanup keep their receipt; no
-new state or replay is added. Focused race/vet passed; native/full validation is pending.
+new state or replay is added. All local Go/vet/docs/JS checks and focused race tests passed. Dedicated
+Incus/Btrfs failure-cleanup acceptance passed in 21.65s at 2917714.
 
 Single-Workspace native import now reuses canonical repository ownership without
 Git population. Dedicated Incus/Btrfs Workspace import and owned cleanup passed in

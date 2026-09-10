@@ -542,6 +542,11 @@ recovery-required. No automatic replay, hidden backup or new state is added. See
 Focused race tests and vet passed (2.072s) for cleanup completion/failure, changed
 owner, publication, cancellation and unknown creation. The existing real Incus
 volume-import gate now injects post-create verification failure, cleanup failure
-and lost native replies. Native and full-suite verification for this extension
-remain pending. Unresolved creation and published aggregate cleanup are still
+and lost native replies. Dedicated Incus/Btrfs acceptance passed in 21.65s at
+2917714; full local Go/vet/docs/workflow-policy/JS checks and focused race (1.928s)
+also passed. Archive/receipts remain at /var/lib/haco-owned-import-490401733.
+Unknown-creation and cleanup-failure receipts remain; test-only teardown removes
+their native fixtures after known completed creation. This does not prove
+production uncertain cleanup succeeded. Postcheck confirmed the original nine
+instances, sentinel checksum and registration attributes unchanged. Unresolved creation and published aggregate cleanup are still
 explicit remaining work; this is not a general incomplete-Workspace repair API.

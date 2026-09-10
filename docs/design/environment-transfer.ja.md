@@ -445,6 +445,10 @@ recovery-required とします。自動再開・隠れた backup・新しい状�
 
 cleanup 完了・失敗、所有者変更、公開済み、キャンセル、作成応答不明の対象 race テストは
 2.072秒で成功し、vet も成功しました。既存実 Incus volume-import gate に、作成後の検証失敗、
-cleanup 失敗、native 応答喪失の注入を追加しました。この拡張の native と全体検証は実行待ちです。
+cleanup 失敗、native 応答喪失の注入を追加しました。2917714 の専用 Incus/Btrfs 検証は21.65秒で成功し、
+全 Go・vet・docs・workflow policy・JS と対象 race（1.928秒）も成功しました。
+archive と receipt は /var/lib/haco-owned-import-490401733 に保持しています。
+作成不確定・cleanup 失敗の receipt は残し、試験専用 teardown は作成完了を把握した native fixture のみ削除します。
+本番の不確定 cleanup の成功は主張しません。既存9 instance・sentinel checksum・登録ファイル属性の不変も確認しました。
 作成要求の不確定と公開後 aggregate cleanup は残課題であり、すべての未完了 Workspace を
 修復する API ではありません。
