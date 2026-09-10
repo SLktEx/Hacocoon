@@ -13,9 +13,9 @@ done
   exit 1
 }
 case "${GITHUB_EVENT_NAME:-}" in
-  push|workflow_dispatch) ;;
+  workflow_dispatch) ;;
   *)
-    echo 'real GitHub push E2E requires a trusted main push or manual workflow dispatch' >&2
+    echo 'real GitHub push E2E requires a manual main workflow dispatch' >&2
     exit 1
     ;;
 esac
@@ -40,7 +40,7 @@ root="$(mktemp -d)"
 workspace="$root/workspace"
 export HACO_ROOT="$root/haco-root"
 haco="$root/haco"
-repo_slug="$GITHUB_REPOSITORY"
+readonly repo_slug="SLktEx/Hacocoon-test"
 owner="${repo_slug%%/*}"
 repo="${repo_slug#*/}"
 branch="haco-e2e/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -48,27 +48,30 @@ denied_branch="${branch}-denied"
 target_ref="refs/heads/$branch"
 marker=".haco-real-push-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
-github_ref_exists() {
+require_absent_ref() {
   local ref="$1"
-  GH_TOKEN="$HACO_GITHUB_TOKEN" gh api "repos/$repo_slug/git/ref/heads/$ref" >/dev/null 2>&1
+  if GH_TOKEN="$HACO_GITHUB_TOKEN" gh api "repos/$repo_slug/git/ref/heads/$ref" >"$root/ref.out" 2>"$root/ref.err"; then
+    echo 'refusing to reuse an existing real-push E2E branch' >&2
+    return 1
+  fi
+  if ! grep -Fq '(HTTP 404)' "$root/ref.err"; then
+    echo 'cannot confirm remote branch absence; refusing further Git operations' >&2
+    return 1
+  fi
 }
 
 cleanup() {
   set +e
-  GH_TOKEN="$HACO_GITHUB_TOKEN" gh api --method DELETE "repos/$repo_slug/git/refs/heads/$branch" >/dev/null 2>&1 || true
-  GH_TOKEN="$HACO_GITHUB_TOKEN" gh api --method DELETE "repos/$repo_slug/git/refs/heads/$denied_branch" >/dev/null 2>&1 || true
   rm -rf "$root"
 }
 trap cleanup EXIT
 
-if github_ref_exists "$branch" || github_ref_exists "$denied_branch"; then
-  echo 'refusing to reuse an existing real-push E2E branch' >&2
-  exit 1
-fi
+require_absent_ref "$branch"
+require_absent_ref "$denied_branch"
 
 go build -o "$haco" ./cmd/haco
 
-git clone -q --no-hardlinks "$GITHUB_WORKSPACE" "$workspace"
+git clone -q "https://github.com/$repo_slug.git" "$workspace"
 git -C "$workspace" remote set-url origin "https://github.com/$repo_slug.git"
 git -C "$workspace" config user.email 'haco-e2e@users.noreply.github.com'
 git -C "$workspace" config user.name 'Hacocoon E2E'
@@ -121,10 +124,7 @@ if [[ "$denied_code" == 0 ]]; then
   echo 'policy unexpectedly allowed a push to the denied branch' >&2
   exit 1
 fi
-if github_ref_exists "$denied_branch"; then
-  echo 'denied branch was created on GitHub' >&2
-  exit 1
-fi
+require_absent_ref "$denied_branch"
 
 # The host-side broker receives HACO_GITHUB_TOKEN, maps it only into the
 # isolated Git credential path, and pushes the exact SHA approved by policy.
@@ -143,4 +143,4 @@ if grep -R -q -F -- "$HACO_GITHUB_TOKEN" "$HACO_ROOT"; then
   exit 1
 fi
 
-echo "PASS: real Hacocoon GitHub push created $target_ref at $expected_sha"
+echo "PASS: legacy broker push to $repo_slug created $target_ref at $expected_sha; branch retained for inspection"
