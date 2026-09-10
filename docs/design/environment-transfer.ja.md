@@ -1,6 +1,6 @@
 # Environment の持ち出し
 
-状態: 公開 export/import は **planned** です。native rootfs／volume の受入テストは内部の前提確認であり、
+状態: Linux 公開 export は **partial**、公開 import は **planned** です。native rootfs／volume の受入テストは内部の前提確認であり、
 利用可能な Hacocoon importer ではありません。
 
 ## Incus を土台にする
@@ -141,7 +141,7 @@ snapshot の値を保持するだけでは reservation になりません。canc
 非 Linux のテスト実装は process 内のままです。新しい native controller platform の追加ではありません。
 backup、永続的な export 状態、自動再開は追加しません。
 
-native archive 作成や公開 export command への接続はまだ未実装です。この source lock で、
+native archive 作成と Linux 公開 export command を接続しました。この source lock で、
 一時資源の厳密な所有管理、出力の完全な公開、復元先の security 再構成を代替しません。
 
 ## 保存 volume の native export adapter
@@ -220,7 +220,7 @@ import した一時 image は確認後に削除しました。計画と archive 
 
 ## 停止 Environment export の内部処理
 
-Status: **内部実装済み**。公開 CLI/controller の転送経路は planned です。
+Status: **内部実装済み**。Linux 公開 CLI/controller の転送経路は後述の partial です。
 `environmenttransfer.Exporter.ExportStopped` は既存の canonical な
 `CaptureStoppedSnapshot`、`ReadSnapshot`、`DeleteSnapshot` を使います。
 実行中 Environment を停止せず、利用者に別の snapshot コマンドも要求しません。
@@ -261,3 +261,68 @@ cleanup 不明時の記録を確認します。これは実 Incus の aggregate 
 です。`bbcf7ea` の全体 local CI（Go test/vet、通知27テスト）と文書チェックは成功しました。
 最初の canonical 結合 fixture は native 名の重複で失敗し、capture ごとの固有名に修正しました。
 製品の所有チェックや timeout は緩めていません。
+
+## Linux export コマンド
+
+Status: **partial**。trusted controller stream を使う `haco env export` を実装しました。
+import は planned です。保存元 Env は停止している必要があります。
+
+```bash
+haco env stop dev
+haco env export dev
+haco env export dev /path/to/dev.haco
+```
+
+必須引数は保存元の名前だけで、既定では client の現在 directory に `dev.haco` を作ります。
+任意の `--json` は保存先と byte/digest receipt を返します。保存先は client だけで扱い、
+controller の filesystem path として送信しません。既存ファイルは、並行して作られた場合も
+上書きしません。別の snapshot コマンド、元 Env の削除、restore 前の自動 backup は不要です。
+
+管理専用の `environment.export` stream は source 名だけを受け取ります。controller の非公開
+`$HACO_ROOT/transfers` を使い、canonical な停止済み capture を、合計 payload 64 GiB と
+上限付き envelope overhead の範囲で export します。取消・切断は capture を取り消し、
+cleanup が不明なら既存の所有記録を残します。guest Git や read-only 通知 socket には登録しません。
+
+上限付き canonical JSON frame は最大 64 KiB の data を運びます。client は明示的な完了
+count/SHA-256 receipt、cleanup 成功、EOF を要求します。早い EOF、重複 field、余分な
+frame、cleanup 失敗、digest 不一致は失敗です。Linux CLI は匿名 file で envelope と
+source label を独立に検証して sync し、固定した出力 directory に生きた inode を link します。
+既存名は置き換えず、名前付きの途中 file や path による cleanup はありません。
+[O_TMPFILE の文書化された公開手順](https://man7.org/linux/man-pages/man2/open.2.html)を使います。
+
+出力先は現在、匿名 file を扱える Linux filesystem（ext4/Btrfs など）が必要です。
+Windows native の file 公開と Windows mount への保存受入は未実装・未検証で、暗黙の fallback は
+ありません。trusted `haco-host` 内で動く `haco` はその client の filesystem に保存し、Windows
+desktop へ自動で保存するわけではありません。公開 bundle import、新しい権限での import、
+import 後の起動/SSH、G1 全体の受入は planned です。
+
+Unix stream と Linux filesystem/CLI の race test は成功しました。最初の CLI fixture は
+socket mode 引数不足で compile に失敗し、fixture を修正しました。既存 native aggregate E2E は
+CLI binary 指定時に shipped export CLI を呼ぶよう拡張しました。先行の 314.12 秒成功は
+内部 producer の証明に限り、公開経路の GHA 結果は下記に示します。
+
+最初の専用 shipped CLI 実行では export・元 Env 削除・公開 snapshot create/restore が成功し、
+その後の copy が元の fixture の8分期限に達して終了したため、全体は 480.07 秒で失敗しました。
+これは gate の失敗であり、成功や SKIP ではありません。正確な catalog と保存 archive は
+`/var/lib/haco-snapshot-aggregate-2545909325` に残しています。test Env 2個は世代の一致を
+確認して canonical な削除を完了しました。Workspace・OCI・snapshot と失敗 catalog は
+明示的な cleanup のため保持しています。追加した archive 全体の転送・検証時間を含め、
+fixture は12分、既存 CI の native test 群は15分の期限にします。製品の期限や隔離は変更せず、
+修正後の native 受入は未完了です。`081beda` の local Go/vet/docs/通知 CI は成功しました。
+
+修正後の専用実行も、最後の公開 Workspace cleanup 中に 720.06 秒で失敗しました。
+その期限までに export・元 Env 削除・公開 snapshot restore/copy・同名での世代更新・
+保存物の独立性・管理 SSH key のリセット・native child snapshot/backup の削除拒否は
+成功しました。失敗 fixture は `/var/lib/haco-snapshot-aggregate-462967548` に残し、
+残りの cleanup を成功とは扱いません。さらに期限を延ばす変更は行いません。
+同じ [GHA aggregate gate](https://github.com/SLktEx/Hacocoon/actions/runs/34430493864/job/102724802406) は
+`3d0dd9a` で 47.06 秒で成功しました。shipped export、snapshot/restore/copy、Workspace 削除、
+所有対象 cleanup を含みます。該当する4 workflow もすべて成功しました。
+これは Linux Incus/Btrfs の代替検証であり、local WSL gate 成功や復元後の実 SSH handshake
+を証明するものではありません。
+
+事後確認で、両方の失敗 fixture に Environment と Workspace lease が残っていないことを
+確認しました。元の9個の instance、保護 sentinel の SHA-256、登録ファイルの mode/link 数は
+維持しています。その後、fixture の snapshot 4個は
+全 component の所有確認後に canonical API で削除しました。保持 OCI Store 4個・対応 Workspace
+記録と export archive 2個は、明示的な cleanup のため残しています。

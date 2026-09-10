@@ -2,7 +2,7 @@
 
 G1 internal export now composes canonical stopped-Env capture, all protected native
 archives and anonymous verified output. Dedicated native aggregate export passed
-in 314.12s; public export/import remains planned. See [Environment transfer](../design/environment-transfer.md#internal-stopped-environment-export).
+in 314.12s; Linux public export is partial and public import remains planned. See [Environment transfer](../design/environment-transfer.md#internal-stopped-environment-export).
 
 > **Architecture baseline · Updated 2026-08-31**
 >

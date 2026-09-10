@@ -284,3 +284,11 @@ The optional guest AWS operation endpoint shares the guarded Standard HTTP liste
 not the management socket. It accepts only list/get requests and uses trusted source
 creation identity. Approval/configuration/lifecycle methods remain inaccessible.
 See [AWS operations](aws-operations.md#guest-request-boundary).
+
+## Environment export stream
+
+The management controller registers `environment.export` on Linux. It accepts a
+stopped source name, never a client-selected Host path, and streams an already
+verified bundle with bounded canonical frames and an explicit count/digest
+completion. Disconnect cancels work; canonical cleanup preserves uncertain
+ownership. See [Environment export](environment-transfer.md#linux-export-command).
