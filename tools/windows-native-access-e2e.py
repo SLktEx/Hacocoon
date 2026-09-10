@@ -44,6 +44,21 @@ def run_acceptance(command, timeout=1800):
             out.decode('utf-8', errors='replace'), err.decode('utf-8', errors='replace'))
 
 
+def verify_acceptance_result(name, result, require_vscode=False):
+    # A real child failure takes precedence over missing success markers.
+    if result.returncode:
+        raise RuntimeError(f'{name} failed with exit {result.returncode}')
+    expected = {
+        'test_windows_host_interop.ps1': 'Direct .exe / Windows PATH / stdout / stderr / exit 23 / spaces: PASS',
+        'test_windows_environment_ssh.ps1': 'WINDOWS DIRECT ENVIRONMENT SSH: PASS',
+        'test_host_customization.ps1': 'HOST CUSTOMIZATION SAVE / REPLAY / UPDATE / CLEAR: PASS',
+    }[name]
+    if expected not in result.stdout:
+        raise RuntimeError(f'{name} did not report its acceptance assertions')
+    if name == 'test_windows_environment_ssh.ps1' and require_vscode and 'VS CODE REMOTE ENVIRONMENT: PASS' not in result.stdout:
+        raise RuntimeError('Real VS Code acceptance did not report its assertions')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--interop-only', action='store_true')
@@ -81,12 +96,7 @@ def main():
                 result = run_acceptance([powershell, '-NoLogo', '-NoProfile', '-NonInteractive',
                     '-ExecutionPolicy', 'Bypass', '-File', str(here / name), *options], timeout=1800)
                 print(result.stdout, result.stderr, flush=True)
-                expected = 'Direct .exe / Windows PATH / stdout / stderr / exit 23 / spaces: PASS' if name == 'test_windows_host_interop.ps1' else 'WINDOWS DIRECT ENVIRONMENT SSH: PASS'
-                if name == 'test_host_customization.ps1': expected = 'HOST CUSTOMIZATION SAVE / REPLAY / UPDATE / CLEAR: PASS'
-                if expected not in result.stdout: raise RuntimeError(f'{name} did not report its acceptance assertions')
-                if name == 'test_windows_environment_ssh.ps1' and os.environ.get('GITHUB_ACTIONS') == 'true' and 'VS CODE REMOTE ENVIRONMENT: PASS' not in result.stdout:
-                    raise RuntimeError('Real VS Code acceptance did not report its assertions')
-                if result.returncode: raise RuntimeError(f'{name} failed with exit {result.returncode}')
+                verify_acceptance_result(name, result, os.environ.get('GITHUB_ACTIONS') == 'true')
             process.write('exit\r\n')
             stage, sent_at = 2, len(output)
         elif stage == 2 and driver.cmd_prompt_count(output[sent_at:]):

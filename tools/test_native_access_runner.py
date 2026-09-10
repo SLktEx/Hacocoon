@@ -12,6 +12,19 @@ runner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runner)
 
 class NativeRunnerTests(unittest.TestCase):
+    def test_result_requires_success_and_all_markers(self):
+        name = 'test_windows_environment_ssh.ps1'
+        marker = 'WINDOWS DIRECT ENVIRONMENT SSH: PASS'
+        for output in ('', marker):
+            with self.assertRaisesRegex(RuntimeError, 'failed with exit 17'):
+                runner.verify_acceptance_result(name, subprocess.CompletedProcess([], 17, output))
+        with self.assertRaisesRegex(RuntimeError, 'acceptance assertions'):
+            runner.verify_acceptance_result(name, subprocess.CompletedProcess([], 0, ''))
+        with self.assertRaisesRegex(RuntimeError, 'Real VS Code'):
+            runner.verify_acceptance_result(name, subprocess.CompletedProcess([], 0, marker), True)
+        runner.verify_acceptance_result(name, subprocess.CompletedProcess([], 0, marker))
+        runner.verify_acceptance_result(name, subprocess.CompletedProcess([], 0, marker + '\nVS CODE REMOTE ENVIRONMENT: PASS'), True)
+
     def test_capture_and_exit_status(self):
         result = runner.run_acceptance([sys.executable, '-c', "import sys;print('marker');sys.exit(17)"], timeout=5)
         self.assertEqual(result.returncode, 17)
