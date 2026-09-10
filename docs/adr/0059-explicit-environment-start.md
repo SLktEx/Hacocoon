@@ -38,8 +38,11 @@ An already running instance with a missing source guard still requires stop/star
 setting the boot option must not bypass that refusal. An incompatible instance
 can instead be deleted and recreated through the normal retained-data workflow.
 
-After a host boot, resume work with the existing `haco env start NAME`. A prior
-running state alone does not authorize startup before security preparation.
+After a host boot, use the existing `haco open` (or `haco open NAME`): SSH
+preparation already resumes a stopped Environment through the guarded lifecycle
+and checks that its generation has not changed. No extra daily command is needed.
+Explicit `haco env start NAME` remains available. A prior running state alone does
+not authorize startup before security preparation.
 
 ## Validation scope
 
