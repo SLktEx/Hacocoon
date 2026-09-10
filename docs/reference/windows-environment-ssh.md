@@ -21,6 +21,11 @@ for ownership and recovery.
 
 The installed Windows acceptance fixture records editor, project setup, preview
 and Environment doctor failures separately and continues the independent probes.
+For the initial native SSH probe, a timeout records only allowlisted client
+progress and fixed fixture markers: connection, authentication, session, received
+exit status and command progress. Raw verbose SSH output and key/peer details
+are not emitted. These observations diagnose a failure and never replace pinned
+host-key checks or successful completion. The five-minute deadline is unchanged.
 Any recorded failure still fails the job after host-key refusal checks and
 cleanup. A later PASS marker never erases an earlier failure.
 

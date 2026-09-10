@@ -1814,3 +1814,11 @@ G2 native inventory also reports pool backing references and volume content type
 G2 adds an optional Linux read-only schema-13 catalog reference projection; no catalog migration, credential output or ownership authority is introduced. Full associations and whole-installation evacuation remain partial.
 
 G2 inventory includes optional separate repository-record and collection-member references. It does not output remote URLs or treat an incomplete/changing directory as a complete backup.
+
+## Windows SSH timeout diagnosis
+
+At b8ef557 the installed Windows gate failed: native ssh.exe exceeded five minutes
+after SSH preparation and DNS checks passed. The wrapper now reports a nonzero
+child exit before checking success markers. The initial SSH probe retains only
+allowlisted progress on timeout; no deadline, pinning or isolation change is made.
+This improves diagnosis and does not establish that the SSH failure is fixed.
