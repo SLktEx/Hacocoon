@@ -667,3 +667,5 @@ source 削除後、canonical importer と製品 controller の import で保存 
 維持します。fixture の native 準備は通常の installed Base／runtime 導入の受入ではありません。
 Docker、BuildKit cache、任意のアプリ／DB 整合性は未検証です。この段階は固定版 containerd、
 native snapshotter、停止コンテナのデータを対象にします。
+
+ba4dbcd の実 OCI 検証は export 前の source runtime 準備で FAILED。fixture は生の subprocess 出力を出さず、固定の失敗段階と終了コードを示すようになった。所有情報の復旧記録は保持し、転送の検証成功とは扱わない。

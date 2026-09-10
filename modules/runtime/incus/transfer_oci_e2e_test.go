@@ -23,11 +23,11 @@ func transferOCIEnabled(t *testing.T) bool {
 	return true
 }
 
-func transferOCIGuest(t *testing.T, ctx context.Context, r *Runtime, ref, script string) {
+func transferOCIGuest(t *testing.T, ctx context.Context, r *Runtime, ref, phase, script string) {
 	t.Helper()
 	result, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "/bin/sh", "-ec", script)
 	if err != nil || result.ExitCode != 0 || result.StdoutTruncated || result.StderrTruncated {
-		t.Fatal("containerd transfer fixture command failed", err)
+		t.Fatalf("containerd transfer fixture phase=%s exit=%d runner_failed=%t truncated=%t", phase, result.ExitCode, err != nil, result.StdoutTruncated || result.StderrTruncated)
 	}
 }
 
@@ -55,22 +55,22 @@ func prepareTransferOCI(t *testing.T, ctx context.Context, r *Runtime, ref, gene
 	if err := r.VerifyEnvironmentIdentity(ctx, ref, generation); err != nil {
 		t.Fatal(err)
 	}
-	run := func(args ...string) {
+	run := func(phase string, args ...string) {
 		t.Helper()
 		result, err := r.runner.Run(ctx, "incus", args...)
 		if err != nil || result.ExitCode != 0 {
-			t.Fatal("prepare owned transfer runtime", err)
+			t.Fatalf("prepare owned transfer runtime phase=%s exit=%d runner_failed=%t", phase, result.ExitCode, err != nil)
 		}
 	}
-	run("config", "set", ref, "security.nesting", "true", "--project", r.project)
-	run("start", ref, "--project", r.project)
-	run("file", "push", filepath.Join(assets, "nerdctl-full.tar.gz"), ref+"/tmp/haco-transfer-runtime.tar.gz", "--project", r.project)
-	run("file", "push", filepath.Join(assets, "oci-transfer-probe"), ref+"/tmp/haco-transfer-probe", "--project", r.project)
-	transferOCIGuest(t, ctx, r, ref, persistentOCIConfiguration)
-	transferOCIGuest(t, ctx, r, ref, transferContainerdSetup)
-	transferOCIGuest(t, ctx, r, ref, transferContainerdStart)
-	transferOCIGuest(t, ctx, r, ref, transferContainerdSeed)
-	run("stop", ref, "--project", r.project, "--timeout", "30")
+	run("enable-nesting", "config", "set", ref, "security.nesting", "true", "--project", r.project)
+	run("start-source", "start", ref, "--project", r.project)
+	run("push-runtime", "file", "push", filepath.Join(assets, "nerdctl-full.tar.gz"), ref+"/tmp/haco-transfer-runtime.tar.gz", "--project", r.project)
+	run("push-probe", "file", "push", filepath.Join(assets, "oci-transfer-probe"), ref+"/tmp/haco-transfer-probe", "--project", r.project)
+	transferOCIGuest(t, ctx, r, ref, "configure-store", persistentOCIConfiguration)
+	transferOCIGuest(t, ctx, r, ref, "install-runtime", transferContainerdSetup)
+	transferOCIGuest(t, ctx, r, ref, "start-containerd", transferContainerdStart)
+	transferOCIGuest(t, ctx, r, ref, "seed-container", transferContainerdSeed)
+	run("stop-source", "stop", ref, "--project", r.project, "--timeout", "30")
 	t.Log("PASS source containerd image executed and stopped container writable data persisted before export")
 }
 
@@ -79,8 +79,8 @@ func verifyTransferredOCI(t *testing.T, ctx context.Context, r *Runtime, ref str
 	if !transferOCIEnabled(t) {
 		return
 	}
-	transferOCIGuest(t, ctx, r, ref, transferContainerdStart)
-	transferOCIGuest(t, ctx, r, ref, transferContainerdVerify)
+	transferOCIGuest(t, ctx, r, ref, "start-containerd", transferContainerdStart)
+	transferOCIGuest(t, ctx, r, ref, "verify-container", transferContainerdVerify)
 	t.Log("PASS imported containerd image identity and stopped container writable data; explicit start resumed saved work without task migration")
 }
 

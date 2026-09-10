@@ -820,3 +820,5 @@ remain required. The fixture's native setup is not ordinary installed Base/runti
 installation acceptance. Docker, BuildKit cache and arbitrary application/database
 consistency remain unverified; this slice covers the pinned containerd version,
 native snapshotter and stopped container data only.
+
+At ba4dbcd, native OCI acceptance FAILED during source runtime preparation before export. The fixture now identifies the fixed failed phase and exit code without raw subprocess output. Ownership recovery records remain; no transfer acceptance is claimed.
