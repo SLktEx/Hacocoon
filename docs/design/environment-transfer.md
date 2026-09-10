@@ -805,7 +805,7 @@ the installed GHA gate passed this drive-projection route, including source Env 
 
 ## Live OCI transfer acceptance
 
-Status: **implemented fixture; native execution pending**. The existing aggregate
+Status: **implemented fixture; native acceptance passed at 6974272**. The existing aggregate
 can opt into the same pinned containerd/nerdctl assets used by Store acceptance.
 Its newly owned source executes an offline image, writes and syncs a file in a
 named container's writable filesystem, exits that container, stops containerd and
@@ -823,4 +823,60 @@ native snapshotter and stopped container data only.
 
 At ba4dbcd, native OCI acceptance FAILED during source runtime preparation before export. The fixture now identifies the fixed failed phase and exit code without raw subprocess output. Ownership recovery records remain; no transfer acceptance is claimed.
 
-The offline source fixture explicitly configures the containerd transfer service for linux/amd64 native unpack. Its default unpack selection does not cover native; this is source preparation only. Import still replaces that configuration with current Hacocoon settings before starting the restored Environment. At 8103e3f, direct image import still failed before export; explicit CLI platform alone was insufficient. Native acceptance of the unpack configuration remains pending.
+The offline source fixture explicitly configures the containerd transfer service for linux/amd64 native unpack. Its default unpack selection does not cover native; this is source preparation only. Import still replaces that configuration with current Hacocoon settings before starting the restored Environment. At 8103e3f, direct image import still failed before export; explicit CLI platform alone was insufficient. Native acceptance passed at 6974272 in [run 34501951826](https://github.com/SLktEx/Hacocoon/actions/runs/34501951826): aggregate 103.36s and shipped-controller import 22.00s, including source Env deletion and resumed containerd writable data. All applicable CI, including Windows, passed; the optional authenticated-private-registry job was skipped. Earlier failed attempts remain failures. No Docker, BuildKit/cache or arbitrary application consistency acceptance is claimed.
+
+## Evacuation inventory
+
+G2 is **partial**: `tools/evacuation_inventory.py` lists native Incus projects,
+pools, instances, custom volumes and saved snapshots through read-only queries.
+Run it from the repository on the Physical Host with existing Incus administration
+access; it is an occasional recovery tool, not a new daily `haco` command:
+
+```bash
+umask 077
+python3 tools/evacuation_inventory.py > inventory.json
+```
+
+The JSON contains resource names and types, not config bodies or credentials. Instance disk bindings include the pool, mount path and simple volume or Host-path reference; references are not opened or followed. Arbitrary URI sources are withheld with an explicit review marker. Every binding still requires ownership and external-data review. A malformed device leaves its binding unknown and the rest of the inventory available.
+It preserves failed query labels and other successful results. Exit status 1 and
+`native_queries_complete: false` mean at least one native query was incomplete.
+Project views may refer to shared resources; rows do not establish distinct
+ownership. The report grants no deletion or restore authority. Collection is bounded to 256 queries and five minutes between queries (each query has a 30-second deadline); reaching a bound preserves collected rows and reports incomplete inventory.
+
+`backup_complete` is always false. The explicit unreviewed list still requires
+catalog associations, controller/Policy settings, protected trusted Host data,
+manual/unregistered files, external pools/VHDs and Windows references, readability,
+consistent capture and restoration comparison. Neither all-file enumeration nor
+export is implemented here. A successful native inventory is not whole-WSL
+coverage. Keep the old WSL and data; no snapshot/create/delete operation is used.
+The report itself must later be saved outside the storage being replaced.
+
+A dedicated WSL Incus read passed: 2 project views, 1 pool, 13 instance rows and
+55 volume rows, with no query errors. The private report remains at
+`/var/tmp/haco-evacuation-inventory-tb_t97dj/inventory.json` inside that WSL; this is
+not an external backup or a snapshot-deletion-failure evacuation test.
+
+The extended dedicated WSL read also passed with 13 instance rows and 26 disk bindings, with no query errors. Its private report is /var/tmp/haco-evacuation-inventory-hp1r9_bs/inventory.json. Source references were only recorded, never opened; no external backup or ownership confirmation is implied.
+
+The inventory now includes pool backing-source references and volume `content_type` alongside instance disk bindings. Paths are references for operator review: the helper does not open them, discover underlying VHDs, or infer ownership. A block volume must not be treated as a filesystem tree. URI-shaped sources are withheld to avoid publishing embedded credentials; malformed pool sources retain other inventory and mark the report incomplete. Eleven focused tests pass. The dedicated WSL Incus check also passed with no query errors: one Btrfs backing-path reference and filesystem volume content types were reported. Its private report remains at `/var/tmp/haco-evacuation-inventory-zcdndzfm/inventory.json`. External/block storage is covered by metadata tests only; no real block-volume evacuation is claimed.
+
+Optionally add `--catalog /var/lib/hacocoon/state/environments.json` (substitute
+the actual controller root). This Linux-only reader opens the existing regular
+file without following a final symlink, refuses special/oversized/changing files,
+and never invokes catalog migration or writes a lock/catalog file. Schema 13 is
+currently supported; other schemas produce an explicit incomplete projection.
+The allowlisted projection lists persistent-resource, Base-asset, Workspace-lease
+and snapshot-component native references, including owner/generation evidence.
+It does not validate those owners against Incus or grant restore/deletion authority.
+`projection_complete` means only that these selected fields were read; repository
+catalogs, pending operations, source paths, configuration/Policy/credentials and
+manual data still require review. Unknown or malformed rows preserve other results
+and cause exit status 1. Native queries and catalog projection have separate results;
+`backup_complete` remains false. The input digest identifies the observed bytes,
+not authenticity or an authorized migration. The file is never used to configure an Env.
+
+Validation: 15 tests passed on Linux (Windows: 13 passed, 2 Linux-only tests skipped). Reading the existing dedicated WSL catalog failed explicitly because it is schema 4, with none of the four projected sections; it was not migrated. The failed observation receipt remains at `/var/tmp/haco-catalog-inventory-iuzdd46h/catalog.json`. A subsequent read of the retained native Incus aggregate catalog `/var/lib/haco-snapshot-aggregate-1920048809/state.json` passed: 9 records (3 snapshots, 3 persistent resources, 1 Base asset and 2 Workspace leases), with no projection errors. Its private receipt is `/var/tmp/haco-catalog-inventory-s5o_tdw4/catalog.json`. This is a real schema-13 reference observation, not native ownership comparison or full-data capture. The schema-4 default catalog was empty; no legacy migration was attempted.
+
+Use `--repositories /var/lib/hacocoon/state/repositories` to include the separate repository records (adjust the controller root). The Linux reader pins the directory, does not recurse, and projects native references for each repo/work record and collection member. It omits remote URLs and credentials. Child symlinks, filename/record mismatches, unknown entries, oversized records and malformed members leave explicit gaps while retaining other results. The directory may change during observation; this is not an atomic installation snapshot or a complete backup. Whole-installation capture still needs quiescence and data comparison. The combined inventory regressions now include 17 cases; production repository-directory acceptance remains unverified.
+
+Unreviewed repository entries include their directory-relative filenames alongside the error index, without opening their contents. This lets the operator locate manual files, links and malformed records; treat the inventory itself as private metadata. A read of the retained native aggregate directory extracted 3 repository files and 9 references, but exited with failure because 4 other entries still required review. Receipt: `/var/tmp/haco-repository-inventory-icbsgg5s/repositories.json`. This partial result is not complete repository-directory acceptance.

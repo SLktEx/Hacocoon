@@ -656,7 +656,7 @@ Windows native の export／import コマンド、自動コピー、WSL 全体�
 
 ## 実 OCI データ転送の受入
 
-Status: **fixture 実装済み・native 実行待ち**。既存 aggregate で、Store 受入と同じ固定版
+Status: **fixture 実装済み・6974272 で native 受入成功**。既存 aggregate で、Store 受入と同じ固定版
 containerd／nerdctl 資材を使用する検証を選択できます。今回作った所有確認済み source で
 offline image を実行し、名前付きコンテナの書込 filesystem にファイルを書いて sync します。
 コンテナの終了後に containerd と source Env を停止し、既存 aggregate export を実行します。
@@ -670,4 +670,57 @@ native snapshotter、停止コンテナのデータを対象にします。
 
 ba4dbcd の実 OCI 検証は export 前の source runtime 準備で FAILED。fixture は生の subprocess 出力を出さず、固定の失敗段階と終了コードを示すようになった。所有情報の復旧記録は保持し、転送の検証成功とは扱わない。
 
-オフライン source fixture では containerd transfer service に linux/amd64 の native unpack を明示設定します。標準の unpack 選択は native を含まないためで、source の準備だけに使います。復元先は起動前に現在の Hacocoon 設定へ置き換えます。8103e3f は export 前の image import で失敗し、CLI の platform 指定だけでは解決しませんでした。unpack 設定の実環境検証は pending です。
+オフライン source fixture では containerd transfer service に linux/amd64 の native unpack を明示設定します。標準の unpack 選択は native を含まないためで、source の準備だけに使います。復元先は起動前に現在の Hacocoon 設定へ置き換えます。8103e3f は export 前の image import で失敗し、CLI の platform 指定だけでは解決しませんでした。6974272 の [run 34501951826](https://github.com/SLktEx/Hacocoon/actions/runs/34501951826) では aggregate が 103.36 秒、製品 controller の import が 22.00 秒で成功し、元 Env の削除後も containerd の書込データから作業を再開できました。Windows を含む対象 CI は成功し、任意の authenticated-private-registry job は SKIP です。以前の失敗は失敗として残し、Docker・BuildKit/cache・任意のアプリ整合性の成功とは扱いません。
+
+## 退避対象の native 一覧
+
+G2 は **partial** です。`tools/evacuation_inventory.py` は Incus の project、pool、
+instance、custom volume、保存済み snapshot を読み取り query だけで一覧化します。
+既存の Incus 管理権限がある Physical Host 上で repository から実行する復旧用の補助です。
+日常の `haco` コマンドは増やしません。
+
+```bash
+umask 077
+python3 tools/evacuation_inventory.py > inventory.json
+```
+
+JSON は資源名と種類を含みますが、config 本文や認証情報は出力しません。instance の disk 対応には pool・mount 先・単純な volume 名または Host パスの参照を含め、参照先は開いたり追跡したりしません。任意の URI 本文は表示せず要確認とし、全ての対応に所有・外部データの確認を残します。不正 device があればその対応を不明と記録し、他の一覧は保持します。
+取得に失敗した query の対象を残し、他の取得結果は保持します。終了コード 1 と
+`native_queries_complete: false` は native query の未完了を示します。
+project 間で同じ資源が見える場合があり、行数は独立した所有資源数ではありません。
+この一覧は削除や復元の権限にはなりません。query は最大 256 回・全体で 5 分を上限に次の実行を判断し、各 query も 30 秒で打ち切ります。上限到達時は取得済みの行を残して未完了とします。
+
+`backup_complete` は常に false です。catalog の対応関係、controller／Policy 設定、
+保護する trusted Host データ、手動追加・未登録ファイル、外部 pool／VHD と Windows の参照、
+読み出し可否、整合性を保った保存、復元後の照合は unreviewed に残します。
+全ファイルの列挙・export は未実装で、native 一覧の成功は WSL 全体の退避完了ではありません。
+旧 WSL とデータは保持し、この処理では snapshot 作成・削除を行いません。
+一覧ファイルも後で入替対象 storage の外へ保存する必要があります。
+
+専用 WSL の実 Incus で、2 project、1 pool、instance 13 行・volume 55 行の取得が成功し、
+query エラーはありませんでした。private な一覧はその WSL 内の
+`/var/tmp/haco-evacuation-inventory-tb_t97dj/inventory.json` に残しています。
+外部への backup や snapshot 削除失敗時の退避を実証したものではありません。
+
+拡張後も専用 WSL で instance 13 行・disk 対応 26 件を query エラーなしで取得できました。private な一覧は /var/tmp/haco-evacuation-inventory-hp1r9_bs/inventory.json です。参照先は記録するだけで開かず、外部 backup や所有確認の成功を意味しません。
+
+一覧には instance の disk 対応に加え、pool の保存元参照と volume の `content_type` を含めます。パスは利用者が確認する参照情報であり、この補助は参照先を開いたり、背後の VHD を特定したり、所有権を推定したりしません。block volume を通常の filesystem tree として扱わないでください。URI 形式の参照は埋め込まれた認証情報を出力しないため伏せます。不正な pool 参照があっても他の一覧を残し、不完全と記録します。対象テスト 11 件に加え、専用 WSL の実 Incus 確認も query error なしで成功しました。Btrfs の保存元パス参照 1 件と filesystem の内容種別を確認し、私有の一覧を `/var/tmp/haco-evacuation-inventory-zcdndzfm/inventory.json` に残しています。外付け／block storage は metadata のテストのみで、実 block volume の退避は未検証です。
+
+任意で `--catalog /var/lib/hacocoon/state/environments.json` を指定できます
+（実際の controller root に合わせてください）。Linux 専用の reader は既存の通常ファイルを
+末尾 symlink を追わずに開き、特殊ファイル・サイズ超過・読み取り中の変更を拒否します。
+catalog の移行処理は呼ばず、lock や catalog を書き込みません。現在は schema 13 を扱い、
+他の schema は明示的に不完全と報告します。永続資源・Base asset・Workspace lease・snapshot
+component の native 参照と owner／generation の情報だけを抽出します。Incus 側の所有者との
+一致は検証せず、復元や削除の権限を与えません。`projection_complete` は選択した項目の
+読み取りが完了したという意味だけです。repository catalog・進行中操作・source path・
+設定／Policy／認証情報・手動データは引き続き確認が必要です。不正な行があっても他の結果を
+残し、exit status 1 とします。native query と catalog 抽出は別の結果を持ち、
+`backup_complete` は常に false です。入力の digest は読んだ bytes の識別用であり、
+真正性や移行の承認を証明しません。このファイルから Env を構成することはありません。
+
+検証は Linux で 15 件成功しました（Windows は 13 件成功、Linux 専用 2 件を SKIP）。専用 WSL の既存 catalog は schema 4 で、抽出対象の 4 区分を持たないため、実 catalog の読み取り確認は明示的に失敗しました。移行は行わず、失敗の記録を `/var/tmp/haco-catalog-inventory-iuzdd46h/catalog.json` に残しています。その後、実 Incus aggregate テストが残した `/var/lib/haco-snapshot-aggregate-1920048809/state.json` の読み取りは成功しました。snapshot 3 件・永続資源 3 件・Base asset 1 件・Workspace lease 2 件、計 9 件を抽出し、error はありません。私有の記録は `/var/tmp/haco-catalog-inventory-s5o_tdw4/catalog.json` です。実 schema-13 の参照抽出の確認であり、native 所有者との照合や全データの保存ではありません。既定の schema-4 catalog は空で、legacy 移行は行っていません。
+
+`--repositories /var/lib/hacocoon/state/repositories` で別管理の repository 記録を含められます（controller root に合わせてください）。Linux reader は directory を固定して再帰せず、repo／work 記録と collection member の native 参照を抽出します。remote URL と認証情報は出力しません。子 symlink、ファイル名と記録の不一致、未知の項目、サイズ超過、不正な member は明示的な欠落として残し、他の結果を保持します。観測中に directory が変わる可能性があり、全体の atomic snapshot や完全な backup ではありません。全量保存には停止・整合性確認が必要です。一覧の回帰テストは 17 件となり、実運用の repository directory に対する受入は未検証です。
+
+未確認の repository 項目には error 番号と directory 相対のファイル名を残し、内容は開きません。手動ファイル・リンク・不正な記録を利用者が特定できるようにするためで、一覧自体も private な metadata として扱います。保持していた native aggregate directory では repository 3 ファイルから 9 参照を抽出しましたが、他の 4 項目が未確認のため終了結果は失敗です。記録は `/var/tmp/haco-repository-inventory-icbsgg5s/repositories.json` にあります。この部分取得を directory 全体の受入成功とは扱いません。
