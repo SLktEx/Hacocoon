@@ -20,6 +20,7 @@ type Staged struct {
 	file     *os.File
 	manifest Manifest
 	size     int64
+	spans    []componentSpan
 }
 
 func (s *Staged) Manifest() Manifest {
@@ -131,14 +132,15 @@ func stageProduced(ctx context.Context, root string, limit int64, produce func(i
 	if err != nil {
 		return nil, err
 	}
-	m, err := Inspect(&contextReader{ctx, io.NewSectionReader(readonly, 0, n)}, limit)
+	var spans []componentSpan
+	m, err := inspect(&contextReader{ctx, io.NewSectionReader(readonly, 0, n)}, limit, &spans)
 	if err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &Staged{file: readonly, manifest: m, size: n}, nil
+	return &Staged{file: readonly, manifest: m, size: n, spans: spans}, nil
 }
 
 // Never expose the staging file itself to a producer. Bound even faulty writers.
@@ -161,4 +163,27 @@ func (w *stagingWriter) Write(p []byte) (int, error) {
 		err = io.ErrShortWrite
 	}
 	return n, err
+}
+
+// ComponentReader supplies one verified native archive to the Incus importer.
+// No outer-envelope bytes, path, writable handle or source authority escape.
+// Readers have independent cursors and remain valid only while Staged is open.
+// Inner archive validation and fresh destination ownership are separate duties.
+func (s *Staged) ComponentReader(role string) (io.ReadSeeker, error) {
+	if s == nil || s.file == nil {
+		return nil, ErrInvalidBundle
+	}
+	for _, span := range s.spans {
+		if span.component.Role == role {
+			return &componentReader{reader: io.NewSectionReader(s.file, span.offset, span.component.Bytes)}, nil
+		}
+	}
+	return nil, ErrInvalidBundle
+}
+
+type componentReader struct{ reader *io.SectionReader }
+
+func (r *componentReader) Read(p []byte) (int, error) { return r.reader.Read(p) }
+func (r *componentReader) Seek(offset int64, whence int) (int64, error) {
+	return r.reader.Seek(offset, whence)
 }

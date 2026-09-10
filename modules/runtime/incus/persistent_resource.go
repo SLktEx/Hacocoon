@@ -13,7 +13,12 @@ import (
 const OCIStoreKind = "oci-containerd"
 const OCIStorePath = "/var/lib/hacocoon-oci"
 
-type PersistentResourceBackend struct{ Runtime *Runtime }
+type PersistentResourceBackend struct {
+	Runtime *Runtime
+	// ImportRoot and ImportLimit are trusted controller staging configuration.
+	ImportRoot  string
+	ImportLimit int64
+}
 
 func (b *PersistentResourceBackend) Plan(ctx context.Context, kind, owner string) (string, error) {
 	if kind != OCIStoreKind || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:check", Owner: owner}) {

@@ -326,3 +326,55 @@ fixture は12分、既存 CI の native test 群は15分の期限にします。
 維持しています。その後、fixture の snapshot 4個は
 全 component の所有確認後に canonical API で削除しました。保持 OCI Store 4個・対応 Workspace
 記録と export archive 2個は、明示的な cleanup のため残しています。
+
+## import 向けの検証済み component 読み取り
+
+Status: **内部実装済み**。公開 importer は planned です。
+`Staged.ComponentReader(role)` は、native archive 1個の seek 可能な read-only view を
+返します。位置は全 component と envelope 全体を検証する同じ上限付き parser で記録し、
+途中までの検証では公開しません。reader の位置は独立し、隣の component、manifest、
+外側の file handle は読み取れません。staged bundle を close すると reader も使えなくなります。
+Host directory への archive 展開は行いません。
+
+これは今後の Incus image/volume import adapter へ渡す入力境界であり、元の設定を適用する
+権限ではありません。内側 archive の検証、新しい native 所有情報、canonical な Workspace/OCI
+登録、新しい Env の作成と現行 security 設定は引き続き必要です。CLI 引数と catalog schema は
+追加しません。Linux の実 filesystem component test と既存 transfer suite は race detector
+付きで成功し、vet も成功しました。native import は実行していません。
+
+## native OCI volume import
+
+Status: **内部実装済み**。persistent-resource service の import は、既存の新 owner の
+`creating`／verify／`ready` 遷移を使います。Linux Incus adapter は、native metadata を
+新しい所有情報へ置き換えた非公開の匿名 archive を作り、通常の
+`incus storage volume import` を呼びます。投入後の所有情報修復や新しい復旧 catalog は
+追加しません。[ADR 0051](../adr/0051-native-import-ownership.md) を参照してください。
+
+初期対応は child snapshot を含まない、無圧縮・非 optimized の Btrfs filesystem volume
+archive です。controller の archive 上限内で、index は64 KiB、path は4096 byte、entry は
+100万件までです。元の権限情報は破棄し、検証済み idmap 情報は numeric file ID と一緒に
+保持します。既存 volume、危険な path/link、重複 metadata、不完全 archive は拒否し、
+未対応形式は明示的に失敗します。実際の展開は Incus が担当します。
+
+専用 Incus/Btrfs gate は、新規2 pool と実 catalog を使い0.56秒で成功しました。新しい
+owner/config、data、hardlink、symlink、mode、numeric UID/GID、idmap、重複拒否、独立した
+変更、保存元削除、canonical な所有対象 cleanup を確認しました。pool は marker と空を
+確認して削除し、元 archive と plan は `/var/lib/haco-owned-import-4138767719` に残しました。
+`HACO_E2E_INCUS_VOLUME_IMPORT=1` で実行でき、既存 Incus GHA job にも追加しました。
+
+Store/import と native 準備の focused race test は1.052秒／1.057秒で成功し、vet も
+成功しました。最初の fixture build は複数行文字列の構文で失敗し、修正しました。
+rootfs/Workspace 一式の import、Env 起動、接続時の実 idmap shift、live OCI daemon は
+未検証・未実装です。公開 import は planned のままです。
+
+ネイティブ呼び出し境界の回帰テストでは、所有済み・他所有者の対象、不正・切り詰め済みの一覧、
+一覧取得失敗、native の非ゼロ終了、応答喪失も確認しています。import 呼び出し時点の新しい
+所有 metadata と、成功・失敗の両方で匿名入力を閉じることを確認し、対象 race テストは
+2.359 秒で成功しました。PR 初期 head の既存 Incus GHA でも owned volume import step は
+成功しましたが、PR 全体の green を意味しません。
+
+Environment 全体の import には Workspace 登録 metadata の定義も必要です。version 1 の
+転送形式は順序付き archive を保持しますが、repository 名・remote・branch の対応は持ちません。
+現行の管理 Workspace service はこの対応を必要とし、ゲスト内の Git config を暗黙に信頼済みの
+broker 接続先として採用してはいけません。これは公開 import の残実装であり、既存 bundle の
+喪失や読み取り不能を意味しません。既存の検査・component 読み取りは引き続き利用できます。
