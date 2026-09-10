@@ -1023,3 +1023,48 @@ The maintained Go regression also passed on that dedicated Incus/Btrfs host in
 ownership ledger and archives at `/var/lib/haco-volume-transfer-56267304`.
 The adapter package passed in 19.17s; docs consistency and 25 workflow-policy
 regressions passed. Latest-head GHA acceptance remains separate.
+
+## Manual-file inventory for evacuation review
+
+Status: **partial G2**. Add `--files /absolute/root` to the existing read-only
+`tools/evacuation_inventory.py` command to enumerate directory metadata that may
+not appear in controller catalogs. Use `/` for the dedicated WSL root, or inspect
+a specific reviewed data tree. Keep the resulting JSON private: filenames and
+ownership metadata can themselves be sensitive.
+
+The Linux reader records relative names, file types, mode, numeric UID/GID,
+size, inode/device/link counts and modification time. It opens only directories
+and kernel mount metadata, never regular-file contents, symlink targets, ACLs or
+xattr values. No symlink component of the selected root is followed. Child
+directories are pinned and checked against the observed inode; descriptor mount
+IDs also prevent traversing an unlisted bind mount on the same filesystem.
+
+Known mountpoints are recorded by relative path without even calling stat on
+them, avoiding that access to disconnected external storage. Every mount
+boundary, symlink and special file is listed as deferred. Read errors,
+directory/root replacement, observed directory or mount-table changes, and the
+50,000-entry / 64-level / 60-second budgets preserve partial results and make
+`enumeration_complete` false, with exit status 1. Review each gap separately;
+explicitly select additional owned mount roots for their own reports. The time
+budget is checked between entries; it cannot interrupt a blocked kernel metadata
+call and is not a hard execution timeout. Run in the
+Incus daemon mount namespace when that is needed to see its storage mounts.
+External Windows references remain references; this reader neither opens their
+file contents nor deletes them.
+
+An enumeration is not an atomic snapshot, content comparison, ownership grant or
+backup. All entries still require classification, quiescent capture and restored
+content/attribute comparison. `backup_complete` remains false even when a small
+selected tree is fully enumerated. The rest of the installation, trusted secrets
+and old-WSL replacement remain outside that result. No public `haco` command or
+new automatic recovery state is added.
+
+Validation: 10 Linux file-enumeration regressions, 18 combined inventory regressions,
+and 25 workflow-policy cases passed. The final reader observed 47,848 entries in
+20.87s on a dedicated Ubuntu 26.04 WSL without read errors: 39,061 files, 5,050
+directories, 17 mount references, 3,718 symlinks and 2 special files. All 17 mount
+boundaries, symlinks and special files remain deferred, so enumeration and backup
+are explicitly incomplete. The private report remains inside that WSL at
+`/var/lib/haco-file-inventory-4kvt5eyb/wsl-root.json`, not in an external archive.
+A separate small synthetic manual-data tree enumerated fully without exposing
+its file contents. Neither result classifies or saves the whole installation.

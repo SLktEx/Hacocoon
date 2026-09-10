@@ -1612,3 +1612,5 @@ native resume E2E は boot 設定の読み戻しと所有台帳保持を含め 3
 G2 は実 snapshot 削除の EPERM 中に退避する明示実行の回帰を既存 native gate に追加しました。別途の隔離 WSL 手動検証では、失敗中の取得・独立復元・所有 pool の cleanup が成功しました。全量退避・破損復旧は未完了です。[対応する設計](design/environment-transfer.ja.md#snapshot-削除失敗後の読み出し退避)を参照してください。
 
 F1 に現在の終端 failed 操作だけを明示確認する内部処理を追加しました。新しい試行を許可する前に元の結果を ID ごとに保持します。pending／結果不明は引き続き拒否し、Windows native registry と command/library 回帰は成功しました。実登録 WSL の確認操作は未検証です。[失敗の確認](design/storage-reclamation.ja.md#終端の失敗結果を明示確認する)を参照してください。
+
+G2 の読み取り専用 inventory に `--files /absolute/root` の Linux ファイル metadata 列挙を追加しました。mount・symlink・特殊ファイル・エラー・上限による未処理を明示し、内容の取得や backup／所有権の付与とはしません。[手動追加ファイル一覧](design/environment-transfer.ja.md#退避確認のための手動追加ファイル一覧)を参照してください。
