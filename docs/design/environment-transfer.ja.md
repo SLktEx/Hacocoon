@@ -823,3 +823,31 @@ untracked file が残り、復元先で新しい local commit を作成できま
 同じ SSH/package 経路で Git を導入し、復元 repo にローカル commit `cafa5fc` を作成しました。続く複合検証は、新 Store に containerd directory が既にあると仮定したため失敗しており、live OCI 成功とは扱いません。別の検証で所有 Store の mount を確認して marker を書き、通常の stop/delete/create 後も Store の同一性と marker、Workspace の同一性、Git commit、modified/untracked、所有権・permission・link・xattr を保持しました。同名 Env の世代は変わり、旧 SSH endpoint は接続を拒否し、旧生成 config と authorized keys は存在せず、Env rootfs 内だけの marker は消えていました。通常 lifecycle/SSH に native readback を併用しています。
 
 新規インストール上の合成外部 Workspace での開発と、新 Store の保持データの検証です。旧 live OCI daemon、全 managed repo/Store 対応、実認証情報、既存暗号 identity の回復は対象外で、旧 WSL 削除を許可する確認ではありません。揮発性 guard より先に Incus が自動起動する問題は別の[起動境界修正](../adr/0060-explicit-environment-start.md)で扱い、その cold-boot 受入は別途記録します。
+
+
+## snapshot 削除失敗後の読み出し退避
+
+状態: **G2 の一部**。明示実行の
+`TestRealIncusFailedDeleteReadableDataEvacuationE2E` は、新規の所有 Btrfs pool と
+合成 Workspace／OCI データだけを使います。snapshot の親ディレクトリだけを
+immutable にして、実 Incus の snapshot 削除が EPERM で失敗することを確認し、
+その状態のまま GNU tar で保存済みファイルを取り出します。既存の比較で Git 状態、
+snapshot にだけ残るデータ、リンク、数値所有者、mode、xattr を確認します。
+別の新規 pool に復元し、保存元・archive の独立性と所有対象だけの cleanup を確認します。
+
+属性変更前に、private な fixture 記録へ親のパスと inode 識別情報を保存します。
+cleanup は同じディレクトリと確認できた場合だけ属性を解除し、失敗時も記録を残します。
+これはテストだけの障害注入で、利用者向けの復旧手順や製品の削除保護の変更ではありません。
+
+隔離 Ubuntu 26.04 WSL の実 Incus 6.0.5／Btrfs による手動検証は成功しました。
+削除が EPERM で失敗し、保存済みデータの取得・別 pool への復元・独立した編集が成功し、
+cleanup 後に両テスト pool の不在も確認しました。10240 byte の archive と記録は
+両 pool の外に保持しています。読める状態の削除失敗の一条件だけの検証であり、
+Btrfs 破損、全量網羅、WSL 外への転送、旧 WSL 入替は未完了です。
+既存 native GHA gate にこの回帰を追加します。その結果は手動検証や通常の package
+テストと区別して報告します。
+
+追加した Go 回帰も同じ隔離 Incus／Btrfs で 11.74 秒で成功しました。合成 Workspace と
+OCI の両 volume を確認し、所有記録と archive は `/var/lib/haco-volume-transfer-56267304`
+に保持しています。adapter 全体のテストは 19.17 秒で成功し、文書整合性と workflow
+policy 回帰 25 件も成功しました。最新 head の GHA 受入とは区別します。
