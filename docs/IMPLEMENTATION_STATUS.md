@@ -42,6 +42,13 @@ independent acceptance while preserving the local failure record. The extended
 local-budget variant has compiled but has not been rerun locally; all four b7297a3 workflows passed. The follow-up fixture-budget commit requires
 its own latest-head CI result.
 
+The aggregate also includes an opt-in shipped-controller import gate with a new,
+empty catalog and private management socket on a disposable GitHub-hosted runner.
+It checks native data, fresh generation, managed SSH reset, Env deletion retaining
+Workspace/OCI and explicit canonical owned-data cleanup. This gate is implemented;
+its real execution result is pending. It does not establish installed Standard-egress,
+ordinary-user/desktop, SSH handshake or live OCI acceptance.
+
 ## Public Environment export in progress
 
 Status: **partial**. Linux `haco env export <stopped-env> [file.haco]` now uses the

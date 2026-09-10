@@ -32,6 +32,12 @@ fixture の12分期限に達して720.07秒で失敗しました。全体は FAI
 製品 import CLI と全 aggregate assertion を含めて成功しました。ローカル失敗は保持し、GHA を独立した受入結果として
 扱います。延長後の local-budget 版はコンパイル済みですがローカル再実行はしていません。b7297a3 の4 workflow は成功しました。後続の fixture 期限変更は、その最新 head の CI を別に追跡します。
 
+aggregate には、使い捨ての GitHub-hosted runner 上で、新しい空の catalog と専用の管理
+socket を使う製品 controller の import gate も追加しています。native データ、新しい世代、
+管理 SSH の初期化、Env 削除後の Workspace／OCI 保持、canonical な所有対象の明示的 cleanup
+を確認します。gate は実装済みですが、実実行の結果は pending です。インストール済み Standard-egress、
+一般ユーザー／desktop、SSH ハンドシェイク、live OCI の受入を証明するものではありません。
+
 ## 公開 Environment export の作業状況
 
 Status: **partial**。Linux の `haco env export <stopped-env> [file.haco]` は管理 stream と
