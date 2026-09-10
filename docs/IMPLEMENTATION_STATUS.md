@@ -21,10 +21,26 @@ all Go/vet/27 JS tests, docs and workflow policy passed at 2992c47. The all-entr
 local CI attempt failed because Ubuntu lacked pwsh; later all-entry stages were
 not executed. This is separate from latest-head GHA.
 
-Public CLI/native acceptance for the new wiring is pending. The existing aggregate
-E2E now uses the shipped import CLI when its binary is supplied. SSH handshake,
+At b7297a3, dedicated Incus/Btrfs execution passed the shipped import CLI, management
+stream and canonical importer: independent rootfs/Git/OCI, real startup, old-generation
+refusal, managed SSH reset, retention after Env deletion and owned cleanup. This used
+a fixture controller; installed-controller/desktop import remains unverified. Overall
+aggregate completion, including subsequent snapshot/copy checks, is recorded separately. SSH handshake,
 live OCI consistency, Git reconnection, incomplete collection cleanup and native
 Windows file input remain unfinished. See [Environment transfer](design/environment-transfer.md#linux-import-command).
+
+The first complete public-import aggregate at b7297a3 passed export, native import
+and restore, then failed during public copy at the fixture's 12-minute deadline
+(720.07s). This is an overall FAIL, not a successful aggregate or SKIP. Its ownership
+catalog and saved data remain at `/var/lib/haco-snapshot-aggregate-1920048809` for
+explicit cleanup; shared data was not selected for deletion. The expanded test
+sequence now has a 20-minute fixture budget and a 25-minute GHA test-process budget.
+Product timeouts and isolation are unchanged. At b7297a3, GHA's real Incus/Btrfs
+[aggregate step](https://github.com/SLktEx/Hacocoon/actions/runs/34455660292/job/102801320149)
+succeeded with the shipped import CLI and all aggregate assertions. This provides
+independent acceptance while preserving the local failure record. The extended
+local-budget variant has compiled but has not been rerun locally; all four b7297a3 workflows passed. The follow-up fixture-budget commit requires
+its own latest-head CI result.
 
 ## Public Environment export in progress
 

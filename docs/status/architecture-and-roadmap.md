@@ -2,7 +2,7 @@
 
 G1 internal export now composes canonical stopped-Env capture, all protected native
 archives and anonymous verified output. Dedicated native aggregate export passed
-in 314.12s; Linux public export is partial and public import acceptance remains pending. See [Environment transfer](../design/environment-transfer.md#internal-stopped-environment-export).
+in 314.12s; Linux public export is partial and public CLI/fixture-controller import is verified; installed/desktop import remains pending. See [Environment transfer](../design/environment-transfer.md#internal-stopped-environment-export).
 
 > **Architecture baseline · Updated 2026-08-31**
 >
@@ -217,7 +217,7 @@ Host-copy/ownership boundary. Detached-Store image routing is partial; automatic
 reclamation/operability and G export/migration remain planned. These remaining stages preserve data and permissions while using
 Incus capabilities; they do not require full disposable-Env reconstruction.
 
-G1 public transfer remains partial: Linux export/import exist; public import acceptance is pending.
+G1 public transfer remains partial: Linux export/import exist; public CLI/fixture-controller import is verified; installed/desktop acceptance remains pending.
 Internal import now connects prepared data and the native rootfs image adapter to
 canonical Env creation, with fresh identity and current sandbox configuration.
 Internal archive-to-running-Env acceptance passed on real Incus/Btrfs (439.76s);
