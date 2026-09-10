@@ -248,6 +248,10 @@ func (s *EnvironmentJSONStore) PutEphemeralRun(_ context.Context, run core.Ephem
 		return err
 	}
 	data.EphemeralRuns[run.EnvironmentID] = run
+	// Do not remove or replace evidence supporting an admitted Store lease.
+	if err := validatePersistentResourceState(data); err != nil {
+		return err
+	}
 	return s.writeEnvironments(data)
 }
 
@@ -271,6 +275,10 @@ func (s *EnvironmentJSONStore) DeleteEphemeralRun(_ context.Context, environment
 		return nil
 	}
 	delete(data.EphemeralRuns, environmentID)
+	// Do not remove or replace evidence supporting an admitted Store lease.
+	if err := validatePersistentResourceState(data); err != nil {
+		return err
+	}
 	return s.writeEnvironments(data)
 }
 

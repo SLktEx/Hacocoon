@@ -66,6 +66,11 @@ archive checksum を確認します。cleanup は正確な marker を照合し�
 初回は fixture が未対応の `image get` を使って失敗しました。既存と同じ JSON image API へ修正し、
 所有 marker の確認後に正確な残骸を削除しました。`/var/lib/haco-rootfs-transfer-430939700/plan.json` は保持しています。
 
+追加確認を含む専用 WSL Incus/Btrfs テストは 22.44 秒で成功しました。import した元 image の削除後、
+image 一覧が空であることと、停止中の復元先から再取得したファイルが削除前と一致することを確認します。
+保持 archive の checksum も不変です。native image と rootfs の独立性の確認であり、
+コンテナが参照中の OCI image 削除の受入ではありません。
+
 この小さなデータ fixture は OS 起動・SSH・管理 network・認証情報・template・全対象 import の受入ではありません。
 公開 import は canonical な所有権・作成、archive の検証、現在の接続・security setup が引き続き必要です。
 image の property・profile 関連付けは権限ではなく、現在の設定を明示して使います。

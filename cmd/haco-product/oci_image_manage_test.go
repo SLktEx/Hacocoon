@@ -92,3 +92,33 @@ func TestHostImageConfirmationKeepsSourceIdentity(t *testing.T) {
 		})
 	}
 }
+
+func TestDetachedImageReviewPinsStoreWithoutReusingEnvironment(t *testing.T) {
+	for _, mode := range []string{"yes", "no", "wrong-store", "mixed-env", "mixed-host"} {
+		t.Run(mode, func(t *testing.T) {
+			id := "sha256:" + strings.Repeat("a", 64)
+			target := oci.ImageTarget{Detached: true, Store: core.PersistentResourceRef{ID: "oci:retained", Owner: strings.Repeat("b", 32)}, Runtime: "nerdctl"}
+			c := &imageReviewClient{result: oci.ManagedImageList{Target: target, Images: []oci.ManagedImage{{ID: id, Tags: []string{"app:dev"}}}}}
+			input := "yes\n"
+			switch mode {
+			case "no":
+				input = "no\n"
+			case "wrong-store":
+				c.result.Target.Store.ID = "oci:foreign"
+			case "mixed-env":
+				c.result.Target.Environment = "dev"
+			case "mixed-host":
+				c.result.Target.Host = true
+			}
+			var out, diagnostic strings.Builder
+			code := ociImageManageCommand(context.Background(), c, []string{"delete", "oci:retained", "app:dev"}, strings.NewReader(input), &out, &diagnostic)
+			if mode == "yes" {
+				if code != 0 || len(c.requests) != 2 || c.requests[0].Environment != "oci:retained" || c.requests[1].Target != target || !strings.Contains(out.String(), "detached retained Store") {
+					t.Fatal(code, c.requests, diagnostic.String())
+				}
+			} else if code == 0 || len(c.requests) != 1 {
+				t.Fatal("unreviewed authority dispatched", code, c.requests)
+			}
+		})
+	}
+}

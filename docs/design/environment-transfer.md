@@ -84,6 +84,12 @@ The initial run failed on the fixture's unsupported `image get` command. It was
 changed to the existing JSON image API; exact owned leftovers were removed after
 marker checks, while `/var/lib/haco-rootfs-transfer-430939700/plan.json` remains.
 
+The extended dedicated WSL Incus/Btrfs test passed in 22.44s: after deleting
+the imported source image, the image inventory is empty and a fresh file pull
+from the stopped destination still matches its pre-deletion bytes. The retained
+archive checksum also remains unchanged. This checks native image/rootfs
+independence, not deletion of container-referenced OCI images.
+
 This tiny data fixture is not bootable-OS, SSH, managed network, credential,
 template or aggregate-import acceptance. Public import still needs canonical
 ownership/creation, archive validation and current connection/security setup.
