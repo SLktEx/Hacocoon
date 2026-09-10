@@ -62,7 +62,7 @@ func (s *EnvironmentJSONStore) beginEnvironmentCreate(_ context.Context, lease c
 	}
 	if lease.PersistentResource != (core.PersistentResourceRef{}) {
 		resource, ok := data.PersistentResources[lease.PersistentResource.ID]
-		if !ok || resource.Ref() != lease.PersistentResource || resource.State != "ready" || resource.SourceOnly || (resource.WorkspaceID != "" && resource.WorkspaceID != lease.WorkspaceID) {
+		if !ok || resource.Ref() != lease.PersistentResource || resource.State != "ready" || resource.SourceOnly || (resource.WorkspaceID != "" && resource.WorkspaceID != lease.WorkspaceID && !resourceMaintenanceReservation(data, lease)) {
 			return fmt.Errorf("persistent resource is unavailable or changed: %w", core.ErrIncompatibleState)
 		}
 		if persistentCopyReserved(data, resource.ID) {
@@ -312,4 +312,24 @@ func validateSameLeaseReservation(existing, next core.WorkspaceLease) error {
 		return fmt.Errorf("workspace lease reservation for environment %q changed identity during lifecycle transition: %w", next.EnvironmentID, core.ErrIncompatibleState)
 	}
 	return nil
+}
+
+// resourceMaintenanceReservation recognizes an existing durable scratch-run
+// reservation, not a caller's temporary-looking name. It is evaluated under the
+// same catalog transaction as the exact Store owner and exclusive Store lease.
+// Ordinary Workspaces and missing, different or already-active runs cannot use
+// this path. The original Store/Workspace association is never rewritten.
+func resourceMaintenanceReservation(data environmentFileState, lease core.WorkspaceLease) bool {
+	return resourceMaintenanceLease(data, lease) && data.EphemeralRuns[lease.EnvironmentID].State == core.EphemeralRunCreating
+}
+
+// An admitted lease keeps its exact durable scratch identity during execution
+// and uncertain cleanup. Only admission requires the creating run state.
+func resourceMaintenanceLease(data environmentFileState, lease core.WorkspaceLease) bool {
+	work := core.Workspace{ID: lease.WorkspaceID, Path: lease.SourcePath}
+	if lease.AccessMode != core.WorkspaceReadWrite || !core.ValidTemporaryWorkspace(work) {
+		return false
+	}
+	run, ok := data.EphemeralRuns[lease.EnvironmentID]
+	return ok && validateEphemeralRun(run) == nil && run.EnvironmentID == lease.EnvironmentID && run.TemporaryWorkspace != nil && *run.TemporaryWorkspace == work
 }

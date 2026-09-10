@@ -118,6 +118,8 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	// unmanaged bridge even if they bypass a higher-level network helper.
 	runtimeRunner = incus.WrapEnvironmentNetworkOwnershipRunner(runtimeRunner)
 	incusRuntime := incus.New(runtimeRunner)
+	maintenanceTools := &ociplugin.MaintenanceTooling{Directory: filepath.Join(root, "oci-maintenance-tools")}
+	incusRuntime.ConfigureMaintenanceTooling(maintenanceTools.Prepare)
 	if kernel, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil && strings.Contains(strings.ToLower(string(kernel)), "microsoft") {
 		incusRuntime.ConfigureWSLInterop()
 	}
@@ -242,22 +244,25 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		ProjectSetup:        &projectsetup.Service{Root: filepath.Join(root, "project-setup"), Environments: environments},
 		HostCustomization:   &recipes.Service{Root: filepath.Join(root, "host-customization"), Execute: incusRuntime.RunTrustedHostCustomization},
 		PersistentResources: resources,
-		OCIImages:           &ociplugin.ManagedImages{Catalog: store, Environments: environments, Host: &incus.PersistentResourceBackend{Runtime: incusRuntime}},
-		Environments:        environments,
-		AgentHosts:          agenthostapp.New(environments, store, bindingStore),
-		Clients:             clientapp.New(runtime, store),
-		Capabilities:        capabilities,
-		Configuration:       &capabilityapp.PolicyConfiguration{Evaluator: policy, Audit: audit},
-		Git:                 gitcapapp.NewBroker(runner, store, capabilities),
-		OCI:                 ociPlugin,
-		Seeds:               seeds,
-		Runner:              runs,
-		Events:              eventsapp.New(auditPath),
-		Bases:               runtime,
-		Runtime:             incusRuntime,
-		EgressProxy:         egressproxy.NewWithOperations(egressBroker, egressSources, nameresolution.New(capabilities), awsplugin.NewGuestHandler(awsBroker, egressSources)),
-		Repositories:        repositories,
-		GitBroker:           gitBroker,
+		OCIImages: &ociplugin.ManagedImages{Catalog: store, Environments: environments, Host: &incus.PersistentResourceBackend{Runtime: incusRuntime}, Maintain: func(ctx context.Context, resource core.PersistentResourceRef, operation func(context.Context, core.Environment) error) error {
+			_, err := runs.MaintainResource(ctx, resource, operation)
+			return err
+		}},
+		Environments:  environments,
+		AgentHosts:    agenthostapp.New(environments, store, bindingStore),
+		Clients:       clientapp.New(runtime, store),
+		Capabilities:  capabilities,
+		Configuration: &capabilityapp.PolicyConfiguration{Evaluator: policy, Audit: audit},
+		Git:           gitcapapp.NewBroker(runner, store, capabilities),
+		OCI:           ociPlugin,
+		Seeds:         seeds,
+		Runner:        runs,
+		Events:        eventsapp.New(auditPath),
+		Bases:         runtime,
+		Runtime:       incusRuntime,
+		EgressProxy:   egressproxy.NewWithOperations(egressBroker, egressSources, nameresolution.New(capabilities), awsplugin.NewGuestHandler(awsBroker, egressSources)),
+		Repositories:  repositories,
+		GitBroker:     gitBroker,
 	}, nil
 }
 

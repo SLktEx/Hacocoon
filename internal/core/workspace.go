@@ -82,23 +82,28 @@ type EnvironmentSpec struct {
 	TemporaryWorkspace  *Workspace
 	SkipDefaultResource bool
 	PersistentResource  string
-	Name                string
-	WorkspacePath       string
-	AccessMode          WorkspaceAccessMode
-	Base                BaseName
-	Resources           ResourceBudget
+	// ExpectedResource pins an explicit resource to its reviewed owner.
+	ExpectedResource PersistentResourceRef
+	Name             string
+	WorkspacePath    string
+	AccessMode       WorkspaceAccessMode
+	Base             BaseName
+	Resources        ResourceBudget
 }
 
 type EnvironmentRuntimeSpec struct {
 	// InstanceID binds the provider resource to the durable creation reservation.
 	InstanceID         string
 	TemporaryWorkspace bool
-	PersistentResource PersistentResource
-	Name               string
-	WorkspacePath      string
-	ReadOnly           bool
-	Base               BaseName
-	Resources          ResourceBudget
+	// ResourceMaintenance requires preparation before retained data attachment.
+	// Runtimes must refuse it until that sequence is supported.
+	ResourceMaintenance bool
+	PersistentResource  PersistentResource
+	Name                string
+	WorkspacePath       string
+	ReadOnly            bool
+	Base                BaseName
+	Resources           ResourceBudget
 }
 
 type EnvironmentRuntime struct {

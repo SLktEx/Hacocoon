@@ -1,5 +1,47 @@
 # 実装状況
 
+ca5ba79 は controller 起動後、最初の画像一覧で失敗しました（native fixture 112.27秒）。maintenance が既存 Store の明示指定と `SkipDefaultResource` を併用し、canonical create に拒否されていました。不要な指定を削除しました。実 catalog／lifecycle の回帰テストで修正前の失敗を再現しています。修正後の native 操作は未確認です。
+
+ca6e5fb の controller gate は起動準備前に失敗しました。fixture が登録済みの `runtime.incus` ではなく `incus` を指定していました。正規の定数参照に修正しました。native のツール配置・画像操作は成功し、失敗後は保持 Store が残るため pool cleanup も失敗しました。controller 全体の受け入れは引き続き未確認です。
+
+controller／CLI の受け入れ経路を使い捨て GHA 限定 gate として追加しました。実行結果は未確認です。製品 composition と実 catalog／lifecycle を使い、Store の内容だけを合成 fixture が供給します。
+
+## 未接続 Store maintenance の実装中の範囲
+
+状態: **partial**。既存 image list/delete は保持 Store ID を受け付けます。OCI module が
+正確な owner を確認し、canonical run service が操作全体と cleanup の間、一つの予約を保持します。
+各 runtime 呼び出しは新しい一時 Env の世代を照合します。元の Workspace 対応と借用 Store は保持します。
+混在・古い識別情報、source Store、未対応の未接続 Docker は拒否します。
+新しいコマンド・schema・隠れた backup・復旧状態は追加しません。
+
+OCI・control API・製品 CLI・run の race suite は成功しました（3.402秒、47.590秒、6.456秒、2.794秒）。
+native metadata 起動は以前179.66秒で成功しました。拡張した製品画像操作の native fixture は別の検証です。
+catalog・lifecycle の識別情報は fixture が供給するため、導入済み controller の受け入れとは扱いません。
+最初の試行は digest 件数と同じ表示タグについての fixture の仮定で失敗しました。
+その正確な所有 fixture は cleanup し、receipt は保持しています。
+
+Linux/WSL amd64 の composition は保持 Store 接続前に固定 OCI ツールを自動配置します。
+private cache、上限付きの固定 member 展開、hash 照合付き Incus 転送、一時ファイル解放を実装しました。
+cache の race test は2.158秒、adapter・作成の拒否 test は1.956秒で成功しました。
+その focused run の composition はコンパイルのみで、テスト実行ではありません。
+native 配置は成功し、controller 全体の作成は未検証です。amd64 以外のツール準備は未対応です。
+候補選択 GC と未接続 Docker は未実装です。[契約](design/oci-image-deletion.ja.md#未接続-store-の実装中の範囲)を参照してください。
+
+d3013a3 の test・Ubuntu installer・Incus GHA は成功しました。Windows installer は
+pending approval の Python 前提 setup で失敗しました。private registry は workflow_dispatch gate により SKIP です。
+失敗を承認待ちとは扱いません。
+
+修正後の拡張 native fixture は224.64秒で成功しました。製品の一覧、実参照による削除拒否、
+選択 digest の削除と不在、container metadata 保持、mask 付き再起動、Store 保持、
+所有対象だけの cleanup を確認しました。
+
+製品の準備処理・Incus adapter による自動配置を含む native fixture は237.37秒で成功しました。
+画像操作、metadata・Store 保護、所有対象だけの cleanup まで確認しました。空 cache からの
+実 HTTPS 取得・固定 member 展開は別に70.71秒で成功し、取得バイナリは Host で実行していません。
+OCI・Incus・composition 全体の race suite は4.332秒・22.135秒・1.856秒で成功し、vet も成功しました。
+先行する71a40e0の GHA は4 workflow すべて成功しました。controller 全体や他 architecture の
+受け入れを証明する結果ではありません。
+
 ## Environment 持ち出しの前提確認
 
 Linux／WSL の Incus adapter は所有済みの保存 Workspace／OCI volume を匿名・読み取り専用 archive へ export し、
