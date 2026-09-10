@@ -948,9 +948,38 @@ Mounts skipped by `--one-file-system` require separate reviewed capture. Preserv
 partial output for inspection and do not delete the source. Decrypt completely
 into trusted private staging and verify success before considering extraction;
 this is not a safe importer for arbitrary untrusted tar files. Actual credentials,
-whole-installation coverage, key recovery after WSL removal and new-WSL restoration
+whole-installation coverage, key recovery after WSL removal and encrypted new-WSL restoration
 remain unverified. The native script is opt-in with
 `HACO_E2E_ENCRYPTED_EVACUATION=1`; `HACO_E2E_ENCRYPTED_OUTPUT_ROOT` can select an
 existing external destination parent for its new synthetic test directory.
 
 Dedicated WSL acceptance passed in 1.03s with age 1.2.1 (distribution package `age_1.2.1-1build1_amd64.deb`). Direct package installation failed because dpkg had an interrupted libc6 configuration; the package was then downloaded through apt and extracted into a private tool directory without changing system package state. Ciphertext and receipt remain at the new Windows output directory; Windows independently verified 10440 bytes and SHA-256 `bf25c5334464947c0ea0c8645ecc535195cd930dad98efd18550243323eb5804`. Synthetic source, restored data and test identities remain inside WSL at the private WSL test directory. This does not verify identity recovery after deleting WSL.
+
+At 55be427 the existing native GHA [job](https://github.com/SLktEx/Hacocoon/actions/runs/34508162748/job/102975354767)
+passed, including the real tar/age test in 0.029s. This result belongs to that
+commit; the latest rebased head requires its own CI.
+
+## Fresh WSL data restoration acceptance
+
+Status: **partial G3**, separate from encrypted identity recovery. A fresh Ubuntu
+26.04 WSL was imported under a new name using the official cached image after its
+SHA-256 matched current Microsoft distribution metadata. Existing WSLs were retained.
+This uses the standard [WSL import operation](https://learn.microsoft.com/en-us/windows/wsl/use-custom-distro),
+not an old WSL filesystem or Incus database restored wholesale.
+
+On Incus 6.0.5-8, synthetic Workspace/OCI tar archives previously evacuated to
+Windows were restored into fresh, explicitly owned custom volumes in a new
+1 GiB Btrfs pool. Their expected SHA-256 digests were checked before extraction;
+only these known fixture archives were used. GNU tar comparison and explicit
+checks passed for bytes, numeric owners, permissions, hardlinks, symlinks and
+user xattrs. The saved Git HEAD and untracked file survived, and a new local
+commit resumed work in the destination. The check passed in 8.04s and left the
+source archives unchanged. Native snapshot creation/deletion and positive absence
+then passed for a newly created snapshot of the restored Workspace volume.
+The destination volumes and ownership receipts remain available for inspection.
+
+This does not prove installed Hacocoon import, Env authority/network/credential
+reconfiguration, live OCI application state, saved-only data in a new WSL,
+whole-installation coverage or WSL replacement. Encrypted private-identity transfer
+has not run. Complete those checks and review restored data before selecting an
+old WSL for removal; this partial result authorizes no old-data deletion.

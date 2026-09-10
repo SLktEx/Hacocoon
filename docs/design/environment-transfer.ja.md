@@ -785,8 +785,33 @@ pipeline 全体の終了状態を確認し、出力ファイルの存在だけ�
 `--one-file-system` が飛ばす mount は別の確認済み保存が必要です。部分出力は調査用に残し、
 source は削除しません。trusted な私有 staging で復号を最後まで終え、成功を確認してから
 展開を検討します。任意の非信頼 tar の安全な importer ではありません。実認証情報、全量、
-WSL 削除後の鍵の確保、新 WSL 復元は未検証です。実 script は
+WSL 削除後の鍵の確保、暗号化データの新 WSL 復元は未検証です。実 script は
 `HACO_E2E_ENCRYPTED_EVACUATION=1` で opt-in し、`HACO_E2E_ENCRYPTED_OUTPUT_ROOT` に
 既存の外部保存先 parent を指定すると、その下の新規テスト directory を使います。
 
 専用 WSL では age 1.2.1（配布 package `age_1.2.1-1build1_amd64.deb`）で 1.03 秒で成功しました。直接の package 導入は libc6 の dpkg 設定中断により失敗し、その後 apt で取得した package を私有の tool directory に展開して、システムの package 状態を変更せず検証しました。暗号文と記録は 新規の Windows 出力 directory に残し、Windows 側でも 10440 bytes と SHA-256 `bf25c5334464947c0ea0c8645ecc535195cd930dad98efd18550243323eb5804` を独立に確認しました。合成 source・復元データ・試験 identity は WSL 内の WSL の私有テスト directory に残しています。WSL 削除後の identity 回復は未検証です。
+
+55be427 の既存 native GHA [job](https://github.com/SLktEx/Hacocoon/actions/runs/34508162748/job/102975354767)
+は成功し、実 tar／age テストは 0.029 秒で成功しました。この結果は当該 commit のもので、
+rebase 後の最新 head は改めて CI が必要です。
+
+## 新 WSL へのデータ復元の受入
+
+状態は **partial G3** で、暗号化 identity の回復とは別です。公式キャッシュ image の
+SHA-256 を現在の Microsoft 配布 metadata と照合し、別名の新 Ubuntu 26.04 WSL を
+作成しました。既存 WSL は残しています。標準の
+[WSL import](https://learn.microsoft.com/en-us/windows/wsl/use-custom-distro) を使い、
+旧 WSL の filesystem や Incus DB を丸ごと戻す方式ではありません。
+
+Incus 6.0.5-8 で、先に Windows へ退避した合成 Workspace／OCI tar archive を、新規の
+1 GiB Btrfs pool の明示的に所有する custom volume へ復元しました。展開前に期待する
+SHA-256 を照合し、既知の試験 archive だけを使用しました。GNU tar の比較と個別確認で、
+内容・数値の所有者・権限・hardlink・symlink・user xattr が一致しました。保存 Git HEAD と
+untracked file が残り、復元先で新しい local commit を作成できました。8.04 秒で成功し、
+元 archive は変更していません。その後、復元 Workspace volume に新規 snapshot を作成し、
+その snapshot の削除と消失確認にも成功しました。復元 volume と所有記録は確認用に残しています。
+
+インストール済み Hacocoon の import、Env の権限・network・credential 再構成、実 OCI
+アプリ状態、新 WSL 上の saved-only data、全量の網羅、WSL 入替は証明していません。
+暗号化の秘密 identity の移送は未実行です。残る確認を終え、復元結果を確認してから
+削除する旧 WSL を選びます。この部分結果を旧データ削除の根拠にしてはいけません。
