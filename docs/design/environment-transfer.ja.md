@@ -719,4 +719,4 @@ component の native 参照と owner／generation の情報だけを抽出しま
 `backup_complete` は常に false です。入力の digest は読んだ bytes の識別用であり、
 真正性や移行の承認を証明しません。このファイルから Env を構成することはありません。
 
-検証は Linux で 15 件成功しました（Windows は 13 件成功、Linux 専用 2 件を SKIP）。専用 WSL の既存 catalog は schema 4 で、抽出対象の 4 区分を持たないため、実 catalog の読み取り確認は明示的に失敗しました。移行は行わず、失敗の記録を `/var/tmp/haco-catalog-inventory-iuzdd46h/catalog.json` に残しています。実 schema-13 catalog は未検証で、成功した Linux reader の回帰テストは隔離 fixture を使っています。
+検証は Linux で 15 件成功しました（Windows は 13 件成功、Linux 専用 2 件を SKIP）。専用 WSL の既存 catalog は schema 4 で、抽出対象の 4 区分を持たないため、実 catalog の読み取り確認は明示的に失敗しました。移行は行わず、失敗の記録を `/var/tmp/haco-catalog-inventory-iuzdd46h/catalog.json` に残しています。その後、実 Incus aggregate テストが残した `/var/lib/haco-snapshot-aggregate-1920048809/state.json` の読み取りは成功しました。snapshot 3 件・永続資源 3 件・Base asset 1 件・Workspace lease 2 件、計 9 件を抽出し、error はありません。私有の記録は `/var/tmp/haco-catalog-inventory-s5o_tdw4/catalog.json` です。実 schema-13 の参照抽出の確認であり、native 所有者との照合や全データの保存ではありません。既定の schema-4 catalog は空で、legacy 移行は行っていません。
