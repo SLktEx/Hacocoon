@@ -67,19 +67,25 @@ func dnsSetupFailureStage(output string) string {
 			}
 		}
 		switch line {
-		case "HACO_DNS_STAGE=manager", "HACO_DNS_STAGE=install", "HACO_DNS_STAGE=unit", "HACO_DNS_STAGE=reload", "HACO_DNS_STAGE=enable", "HACO_DNS_STAGE=restart", "HACO_DNS_STAGE=active", "HACO_DNS_STAGE=resolver":
+		case "HACO_DNS_STAGE=start", "HACO_DNS_STAGE=manager", "HACO_DNS_STAGE=install", "HACO_DNS_STAGE=unit", "HACO_DNS_STAGE=reload", "HACO_DNS_STAGE=enable", "HACO_DNS_STAGE=restart", "HACO_DNS_STAGE=active", "HACO_DNS_STAGE=resolver":
 			stage = strings.TrimPrefix(line, "HACO_DNS_STAGE=")
 		}
 	}
-	if (stage == "restart" || stage == "active") && unitExit >= 0 {
+	if (stage == "start" || stage == "restart" || stage == "active") && unitExit >= 0 {
 		return fmt.Sprintf("%s; service_exit=%d", stage, unitExit)
 	}
 	return stage
 }
 
 const environmentDNSSetup = `stage=install
-trap 'code=$?; if [ "$code" -ne 0 ]; then printf "HACO_DNS_STAGE=%s\n" "$stage" >&2; if [ "$stage" = restart ] || [ "$stage" = active ]; then unit_exit=$(systemctl show -p ExecMainStatus --value hacocoon-dns.service 2>/dev/null || :); printf "HACO_DNS_UNIT_EXIT=%s\n" "$unit_exit" >&2; fi; fi' EXIT
-mv -T /usr/local/libexec/hacocoon-dns.next /usr/local/libexec/hacocoon-dns
+trap 'code=$?; if [ "$code" -ne 0 ]; then printf "HACO_DNS_STAGE=%s\n" "$stage" >&2; if [ "$stage" = start ] || [ "$stage" = restart ] || [ "$stage" = active ]; then unit_exit=$(systemctl show -p ExecMainStatus --value hacocoon-dns.service 2>/dev/null || :); printf "HACO_DNS_UNIT_EXIT=%s\n" "$unit_exit" >&2; fi; fi' EXIT
+changed=false
+if test ! -L /usr/local/libexec/hacocoon-dns && test -f /usr/local/libexec/hacocoon-dns && cmp -s /usr/local/libexec/hacocoon-dns.next /usr/local/libexec/hacocoon-dns; then
+  rm /usr/local/libexec/hacocoon-dns.next
+else
+  mv -T /usr/local/libexec/hacocoon-dns.next /usr/local/libexec/hacocoon-dns
+  changed=true
+fi
 stage=unit
 test -d /etc/systemd/system
 test ! -L /etc/systemd/system/hacocoon-dns.service
@@ -89,7 +95,7 @@ if [ -e /usr/local/bin/haco ] || [ -L /usr/local/bin/haco ]; then
 else
   ln -s /usr/local/libexec/hacocoon-dns /usr/local/bin/haco
 fi
-cat > /etc/systemd/system/hacocoon-dns.service <<'HACO_DNS_UNIT'
+unit_content=$(cat <<'HACO_DNS_UNIT'
 [Unit]
 Description=Hacocoon policy-bound name resolution
 After=network.target
@@ -109,6 +115,11 @@ RestrictAddressFamilies=AF_INET AF_UNIX
 [Install]
 WantedBy=multi-user.target
 HACO_DNS_UNIT
+)
+if test ! -f /etc/systemd/system/hacocoon-dns.service || [ "$(cat /etc/systemd/system/hacocoon-dns.service)" != "$unit_content" ]; then
+  printf '%s\n' "$unit_content" > /etc/systemd/system/hacocoon-dns.service
+  changed=true
+fi
 stage=manager
 attempt=0
 until systemctl show --property=Version --value >/dev/null 2>&1; do
@@ -120,8 +131,13 @@ stage=reload
 systemctl daemon-reload
 stage=enable
 systemctl enable hacocoon-dns.service
-stage=restart
-systemctl restart hacocoon-dns.service
+if "$changed"; then
+  stage=restart
+  systemctl restart hacocoon-dns.service
+else
+  stage=start
+  systemctl start hacocoon-dns.service
+fi
 stage=active
 systemctl is-active --quiet hacocoon-dns.service
 stage=resolver

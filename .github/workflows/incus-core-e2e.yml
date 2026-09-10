@@ -126,9 +126,11 @@ jobs:
         run: |
           image="$(incus image list --project hacocoon --format=json | python3 -c 'import json,sys; images=json.load(sys.stdin); print(sorted(i["fingerprint"] for i in images if i.get("type") == "container")[0])')"
           go build -o "$RUNNER_TEMP/snapshot-cli" ./cmd/haco-product
+          go build -o "$RUNNER_TEMP/import-controller" ./cmd/haco-controller
           go test -c -o "$RUNNER_TEMP/snapshot-storage.test" ./modules/runtime/incus
           sudo env HACO_E2E_BASE_ASSET=1 HACO_E2E_SNAPSHOT_VOLUME=1 HACO_E2E_SNAPSHOT_ROOTFS=1 HACO_E2E_SNAPSHOT_BASE=1 HACO_E2E_SNAPSHOT_AGGREGATE=1 HACO_E2E_WORKSPACE_DELETE=1 \
             HACO_E2E_SNAPSHOT_CLI="$RUNNER_TEMP/snapshot-cli" \
+            HACO_E2E_IMPORT_CONTROLLER="$RUNNER_TEMP/import-controller" GITHUB_ACTIONS=true HACO_CI_RUNNER_ENVIRONMENT=github-hosted \
             HACO_E2E_INCUS_RESUME_IMAGE="$image" HACO_E2E_INCUS_RESUME_POOL=haco-local-default \
             "$RUNNER_TEMP/snapshot-storage.test" -test.run='^TestRealIncus(BaseAsset|WorkspaceDeletion|SourceDeletion|Snapshot(Volumes|Rootfs|Base|Aggregate))E2E$' -test.v -test.timeout=25m
       - name: Verify owned native volume import

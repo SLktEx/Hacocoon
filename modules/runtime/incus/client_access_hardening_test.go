@@ -65,7 +65,7 @@ func TestPrepareSSHAccessUsesConnectionScopedManagedKey(t *testing.T) {
 	}
 	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "add", "haco-demo", "haco-ssh-2222", "proxy", "listen=tcp:127.0.0.1:2222", "connect=tcp:127.0.0.1:22", "--project", defaultProject)
 	provision := runner.calls[1]
-	if provision.args[len(provision.args)-2] != key || provision.args[len(provision.args)-1] != "haco:ssh-2222" {
+	if provision.args[len(provision.args)-3] != key || provision.args[len(provision.args)-2] != "haco:ssh-2222" || provision.args[len(provision.args)-1] != managedSSHProxySettings() {
 		t.Fatalf("managed key argv = %#v", provision.args)
 	}
 }

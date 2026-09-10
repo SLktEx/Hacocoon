@@ -1,5 +1,9 @@
 # Implementation Status
 
+At 7517c27 all applicable Incus and normal-test jobs passed; Windows VS Code passed, but transfer failed installing Git over SSH (exit 100). SSH preparation now configures the current managed proxy for sshd sessions; local tests/vet and installed Windows Git-over-SSH preparation passed at 684e411. See [ADR 0058](adr/0058-ssh-session-egress-environment.md).
+
+Windows transfer at 0cc27a5 failed during seed-repository (exit 127); VS Code passed. The fixture now installs missing Git in trusted Host and the source Env through normal package routes. Transfer subsequently passed at 684e411; the independent approval probe failed.
+
 ## Public Environment import in progress
 
 Status: **partial**. Linux `haco env import <file.haco> [new-env]` now connects the
@@ -24,8 +28,8 @@ not executed. This is separate from latest-head GHA.
 At b7297a3, dedicated Incus/Btrfs execution passed the shipped import CLI, management
 stream and canonical importer: independent rootfs/Git/OCI, real startup, old-generation
 refusal, managed SSH reset, retention after Env deletion and owned cleanup. This used
-a fixture controller; installed-controller/desktop import remains unverified. Overall
-aggregate completion, including subsequent snapshot/copy checks, is recorded separately. SSH handshake,
+a fixture controller; installed-controller/desktop import subsequently passed at 684e411. Overall
+aggregate completion, including subsequent snapshot/copy checks, is recorded separately. Live SSH passed at 684e411;
 live OCI consistency, Git reconnection, incomplete collection cleanup and native
 Windows file input remain unfinished. See [Environment transfer](design/environment-transfer.md#linux-import-command).
 
@@ -41,6 +45,15 @@ succeeded with the shipped import CLI and all aggregate assertions. This provide
 independent acceptance while preserving the local failure record. The extended
 local-budget variant has compiled but has not been rerun locally; all four b7297a3 workflows passed. The follow-up fixture-budget commit requires
 its own latest-head CI result.
+
+The bare shipped controller passed native import/data/owned cleanup in 20.35s at
+a58d553, but the full gate failed on diagnostic-directory layout, now corrected.
+SSH attempts at 6d5e027/e598270 failed; the latter confirmed missing sshd and SSH
+provisioning failure in the bare fixture. SSH continuation is now wired into the
+existing installed Windows gate with a separate managed source, normal scoped
+package Policy, public export/import, fresh pinned Windows SSH and retained-data
+recreation. This installed transfer gate and native controller checks passed at 684e411; both remain
+required. See [the acceptance record](design/environment-transfer.md#installed-controller-and-ssh-acceptance).
 
 ## Public Environment export in progress
 
@@ -1783,3 +1796,5 @@ The local CI entry point passed docs/workflow checks, then failed because WSL la
 
 
 Real Git push CI is restricted to manual trusted-main dispatch and the fixed SLktEx/Hacocoon-test target. Missing dedicated credentials produce SKIP, not push acceptance. The legacy fixture does not verify installed-product import or interactive approval. See [ADR 0059](adr/0059-dedicated-git-push-test-target.md).
+
+Windows 39b5ce4 reproduced approval setup failure and diagnosed DNS start-limit-hit. Unchanged DNS provisioning now uses idempotent systemd start; changed companion/unit still restart. Installed verification of this fix is pending. See [service activation](design/name-resolution.md#repeated-setup-and-service-activation).

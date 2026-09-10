@@ -685,8 +685,8 @@ API only on its management endpoint, never guest or notification endpoints.
 
 Status: **partial**; CLI and shipped controller wiring are implemented. Dedicated
 execution at b7297a3 verified shipped-CLI/fixture-controller native import, startup,
-data retention and owned cleanup. Installed-controller/desktop import remains
-unverified; overall aggregate completion is recorded separately. Run from the Linux client that can read the bundle:
+data retention and owned cleanup. Installed-controller/desktop import was initially
+unverified and subsequently passed at 684e411; overall aggregate completion is recorded separately. Run from the Linux client that can read the bundle:
 
 ```bash
 haco env import dev.haco
@@ -727,3 +727,54 @@ succeeded with the shipped import CLI and all aggregate assertions. This provide
 independent acceptance while preserving the local failure record. The extended
 local-budget variant has compiled but has not been rerun locally; all four b7297a3 workflows passed. The follow-up fixture-budget commit requires
 its own latest-head CI result.
+
+## Installed controller and SSH acceptance
+
+The Incus aggregate includes a shipped-controller subtest with an empty private
+catalog. It verifies native rootfs/Git/OCI, fresh generation, managed SSH key reset,
+Env deletion retaining data and canonical owned cleanup. Diagnostics are kept
+separately from the aggregate's strictly checked flat receipt directory.
+
+| Commit | Actual result |
+|---|---|
+| a58d553 | Controller subtest PASS in 20.35s; aggregate FAIL in 89.56s because its final receipt check rejected the nested diagnostics. |
+| 6d5e027 | SSH preparation FAIL before handshake; aggregate FAIL in 81.43s. Later cleanup correctly refused retained aggregate-owned resources. |
+| e598270 | Confirmed sshd absent and failure in SSH provisioning; aggregate FAIL in 86.49s. |
+| 0cc27a5 | Windows transfer FAIL at seed-repository (exit 127); VS Code PASS. The fixture now prepares Git in trusted Host and source Env through normal package installation. The rerun is pending. |
+
+The bare fixture has no installed package-egress service. SSH continuation now
+uses the existing Windows installed-product gate. It creates a separate managed
+Workspace/OCI source and uses the existing narrowly scoped package Policy for
+source SSH preparation. Windows OpenSSH creates unpushed/uncommitted/untracked
+work; the source is stopped, exported, and its Env deleted before import through
+the trusted Host client and installed controller. The imported Env receives no
+source package grant: sshd comes from saved rootfs. A fresh controller-provided
+host-key pin protects the real Windows SSH session. The gate checks Git, rootfs
+and OCI markers, saves more work, deletes the Env, reattaches retained data to a
+new Env, and explicitly deletes only its own test data through public commands.
+
+This installed gate **passed at 684e411** (see the result below). Standalone native
+controller checks remain required. The original external-path Windows SSH fixture
+keeps its scope. Transfer failures are recorded while independent desktop probes
+continue; neither gate is silently skipped to make CI pass. The bundle and raw
+local test repository remain inside trusted Host for inspection. Windows-native
+bundle file delivery and live Docker/containerd consistency remain unverified.
+No product command, backend, Base component, backup or schema is added.
+
+At 7517c27, transfer failed installing Git over Windows SSH (exit 100).
+At 684e411, [Windows attempt 1](https://github.com/SLktEx/Hacocoon/actions/runs/34471376143/attempts/1)
+passed Git installation, VS Code, export, source Env deletion, independent import,
+fresh pinned Windows SSH, resumed work, retained Workspace/OCI recreation and
+owned public cleanup. The bundle and raw fixture repository remain at
+`/tmp/haco-transfer-4844a07f73644223` inside the trusted Host. OCI assertions use
+synthetic persisted markers, not a running containerd/Docker workload.
+All applicable native Incus/Btrfs and normal-test jobs passed at that commit.
+
+The Windows job overall **failed** on the independent pending-approval probe:
+`prepare-python-prerequisite-setup-start-internal`, exit 1, cleanup_failed=false.
+Earlier project setup and subsequent preview/doctor probes passed; the cause is
+unresolved. Attempt 2 failed at the same phase; transfer and independent desktop
+checks passed again. A failure-only, read-only query through the existing pinned
+SSH connection now reports only an allowlisted DNS service Result. This diagnostic
+does not retry setup, restart services or change the failure result. Live OCI consistency and native Windows
+bundle delivery remain unverified.
