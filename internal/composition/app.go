@@ -15,6 +15,7 @@ import (
 	egressapp "github.com/SLktEx/Hacocoon/internal/egress"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	"github.com/SLktEx/Hacocoon/internal/environmentcopy"
+	"github.com/SLktEx/Hacocoon/internal/environmenttransfer"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
 	"github.com/SLktEx/Hacocoon/internal/host"
@@ -44,6 +45,7 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
+	transferCatalog     *state.EnvironmentJSONStore
 	EnvironmentCopy     *environmentcopy.Service
 	BaseBuild           *basebuild.Service
 	BaseManage          *basemanage.Service
@@ -153,7 +155,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	if err != nil {
 		return nil, err
 	}
-	repositoryBackend := &incus.RepositoryBackend{Runtime: incusRuntime, ProductBinary: filepath.Join(filepath.Dir(executable), "haco")}
+	repositoryBackend := &incus.RepositoryBackend{Runtime: incusRuntime, ImportRoot: filepath.Join(root, "transfers"), ImportLimit: environmenttransfer.DefaultPayloadLimit, ProductBinary: filepath.Join(filepath.Dir(executable), "haco")}
 	repositories := gitrepo.NewRepositoryService(filepath.Join(stateDir, "repositories"), repositoryBackend)
 	repositories.SnapshotCatalog = store
 	incusRuntime.ConfigureManagedWorkspaces(func(ctx context.Context, source string) ([]incus.WorkspaceAttachment, error) {
@@ -216,7 +218,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	}
 
 	environments := workspaceapp.NewWithProvider(runtime, store, repositoryWorkspaceProvider{repositories: repositories})
-	resources := &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime}}
+	resources := &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime, ImportRoot: filepath.Join(root, "transfers"), ImportLimit: environmenttransfer.DefaultPayloadLimit}}
 	workspaceStores := ociplugin.WorkspaceStores{Resources: resources}
 	incusRuntime.ConfigureHostCopyRecovery(workspaceStores.RecoverHostCopies)
 	incusRuntime.ConfigureHostStorage(func(ctx context.Context) error {
@@ -236,6 +238,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	restorer := &snapshotrestore.Service{Catalog: store, Environments: environments, Workspaces: repositories, Stores: resources}
 	awsBroker := &awsplugin.Broker{Host: incusRuntime.RunTrustedHostPython, Capabilities: capabilities, Environments: store}
 	return &App{
+		transferCatalog:     store,
 		SnapshotRestore:     restorer,
 		BaseBuild:           &basebuild.Service{Environments: environments},
 		BaseManage:          &basemanage.Service{Backend: incusProvider.BaseProvider, Catalog: store},

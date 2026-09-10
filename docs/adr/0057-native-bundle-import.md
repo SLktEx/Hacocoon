@@ -1,6 +1,6 @@
 # ADR 0057: Compose native bundle import through retained-data owners
 
-Status: accepted for internal composition; public CLI integration remains planned.
+Status: accepted; Linux public CLI/controller integration is implemented, acceptance pending.
 
 ## Decision
 
@@ -41,8 +41,8 @@ check. No automatic backup or rollback of the disposable Env is required.
 The current managed Workspace collection limit is eight. Larger bundles are rejected
 before native mutation. Empty routing is supported; reconnection is separate work.
 The byte limit, private staging root and OCI kind belong to trusted composition.
-Public CLI/controller upload, SSH handshake and live OCI runtime acceptance remain
-separate requirements. Native aggregate tests must distinguish these from internal
+Public CLI/controller upload is connected; SSH handshake and live OCI runtime
+acceptance remain separate requirements. Native aggregate tests must distinguish these from internal
 bundle-to-running-Env acceptance.
 
 ## Management upload boundary
@@ -57,4 +57,6 @@ After upload, disconnect or additional input cancels activation. A terminal resp
 preserves the importer failure receipt and identifies retained resources by public
 names. Success requires the upload digest/count, running destination and terminal EOF;
 EOF alone is failure. The client does not retry a failed or disconnected import.
-Shipped controller registration and CLI wiring remain planned in this transport slice.
+The shipped Linux controller registers this stream only on its management socket.
+The Linux CLI accepts one required file and an optional destination name; no input
+path is passed to the controller. Native Windows file input remains unsupported.

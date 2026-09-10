@@ -58,6 +58,9 @@ func main() {
 	if err := registerEnvironmentExport(server, app); err != nil {
 		fail(err)
 	}
+	if err := registerEnvironmentImport(server, app); err != nil {
+		fail(err)
+	}
 	if err := controlapi.RegisterEnvironmentCopy(server, app.EnvironmentCopy); err != nil {
 		fail(err)
 	}

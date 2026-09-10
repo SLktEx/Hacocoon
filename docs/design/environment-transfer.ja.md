@@ -1,7 +1,7 @@
 # Environment の持ち出し
 
-状態: Linux 公開 export は **partial**、公開 import は **planned** です。native rootfs／volume の受入テストは内部の前提確認であり、
-利用可能な Hacocoon importer ではありません。
+状態: Linux 公開 export は **partial**、公開 import の実経路受入は **pending** です。Linux import の接続は実装済みで、公開経路の受入は未確定です。
+[Linux import コマンド](#linux-import-コマンド)を参照してください。
 
 ## Incus を土台にする
 
@@ -265,7 +265,7 @@ cleanup 不明時の記録を確認します。これは実 Incus の aggregate 
 ## Linux export コマンド
 
 Status: **partial**。trusted controller stream を使う `haco env export` を実装しました。
-import は planned です。保存元 Env は停止している必要があります。
+import の実経路受入は pending です。保存元 Env は停止している必要があります。
 
 ```bash
 haco env stop dev
@@ -329,7 +329,7 @@ fixture は12分、既存 CI の native test 群は15分の期限にします。
 
 ## import 向けの検証済み component 読み取り
 
-Status: **内部実装済み**。公開 importer は planned です。
+Status: **内部実装済み**。公開 importer の受入は pending です。
 `Staged.ComponentReader(role)` は、native archive 1個の seek 可能な read-only view を
 返します。位置は全 component と envelope 全体を検証する同じ上限付き parser で記録し、
 途中までの検証では公開しません。reader の位置は独立し、隣の component、manifest、
@@ -365,7 +365,7 @@ owner/config、data、hardlink、symlink、mode、numeric UID/GID、idmap、重�
 Store/import と native 準備の focused race test は1.052秒／1.057秒で成功し、vet も
 成功しました。最初の fixture build は複数行文字列の構文で失敗し、修正しました。
 rootfs/Workspace 一式の import、Env 起動、接続時の実 idmap shift、live OCI daemon は
-未検証・未実装です。公開 import は planned のままです。
+未検証・未実装です。公開 import の実経路受入は pending のままです。
 
 ネイティブ呼び出し境界の回帰テストでは、所有済み・他所有者の対象、不正・切り詰め済みの一覧、
 一覧取得失敗、native の非ゼロ終了、応答喪失も確認しています。import 呼び出し時点の新しい
@@ -381,7 +381,7 @@ broker 接続先として採用してはいけません。これは公開 import
 
 ## 新しい export の Workspace 接続先情報
 
-Status: 公開 Linux export に **implemented**。一式の import は planned です。
+Status: 公開 Linux export に **implemented**。一式の import の実経路受入は pending です。
 新しい公開 export は envelope version 2 を使い、保護された保存済み binding から順序付きの
 Workspace 名・remote・branch を含めます。role が各情報を native archive 1個に対応付けます。
 名前の重複、認証情報付き・未対応の接続先は既存 Git validator で拒否し、remote は4096 byte、
@@ -524,8 +524,7 @@ native data cleanup も確認しました。CLI バイナリを渡さないロ�
 
 Status: **内部実装済み・native bundle 起動確認済み**です。bundle 全体を変更前に検証し、単一／複数 Workspace、
 その新しい Workspace への永続的な対応付けを持つ OCI、canonical lifecycle による新規 Env の作成・起動を
-順に行います。既定の復元先は SOURCE-imported で、既存名は拒否します。公開 CLI／controller upload は
-planned で、現時点では新しい利用者コマンドではありません。
+順に行います。既定の復元先は SOURCE-imported で、既存名は拒否します。公開 CLI／controller upload は接続済みです。下記の Linux import コマンドを参照してください。
 
 version 2 は repository 名と GitHub の接続先 metadata を保持しますが、認証や承認は付与しません。
 元 Host の file URL は offline として扱います。version 1 は接続先 descriptor がないため component 名で
@@ -545,7 +544,7 @@ SKIP しました。公開 import、SSH 実ハンドシェイク、live OCI 整�
 
 ## 管理接続の import 転送
 
-Status: **内部実装済み・公開登録と CLI は planned** です。型付き `environment.import` stream は
+Status: **Linux 管理接続に実装済み** です。型付き `environment.import` stream は
 任意の復元先名と最大64 KiBの data frame を受け取り、明示的な終端の byte 数と SHA-256 を確認します。
 既存 importer が全入力を staging・検証してから native 変更を行います。client 指定の Host path、
 owner、OCI kind、上限は受け取りません。export と同じ64 GiBの payload 上限と上限付き envelope を使います。
@@ -553,4 +552,30 @@ owner、OCI kind、上限は受け取りません。export と同じ64 GiBの pa
 upload 後の切断・追加入力は起動処理を取り消します。応答は失敗時に保持した資源名を含む既存 import result
 を返します。成功には転送 count/digest の一致、復元先の running、終端 EOF が必要です。操作は30分、
 upload の読み書きは30秒の待機期限を設けます。呼出元の入力 reader は完了または取消可能である必要があります。
-自動再試行や backup は追加しません。製品 controller への登録は未実装で、guest／通知接続にも公開しません。
+自動再試行や backup は追加しません。製品 Linux controller の管理接続に登録し、guest／通知接続には公開しません。
+
+## Linux import コマンド
+
+Status: **partial**。CLI と製品 controller への接続は実装済みで、公開 native 経路の受入は未確定です。
+bundle を読める Linux client から実行します。
+
+```bash
+haco env import dev.haco
+haco env import dev.haco new-dev
+haco env import --json dev.haco new-dev
+```
+
+必須入力はファイルだけです。既定名は保存元名に `-imported` を付け、既存 Env や未解消の lease は拒否します。
+新しい Workspace／OCI コピーと Env を作り、現在の所有・セキュリティ条件で検証して起動します。
+保存ファイルと既存 Env／データは変更しません。Base 実体や事前 backup は不要で、古い承認・接続権限は戻しません。
+
+client は読取専用の通常ファイルを開き、末尾 symlink と特殊ファイルを拒否して bundle を検証し、内容だけを
+upload します。controller は変更前に全入力を再検証します。パスの入れ替えで開いた descriptor は変わらず、
+内容の同時変更でも controller の全体検証を回避できません。CLI の import 操作は30分の期限、payload は
+共通の64 GiB上限を使い、容量やストレージの必須引数はありません。
+
+失敗は非0で終了します。`--json` は保持資源名も返し、通常表示は stderr に表示します。切断によって最終結果が
+届かないことがあるため、再試行前に保持資源を確認してください。自動再試行は行いません。file 接続先や旧形式は
+ offline で import し、再接続は planned です。Linux／WSL が対象で、Windows native のファイル入力は未対応です。
+trusted `haco-host` 内で実行する場合、ファイルはその client から読める必要があります。
+SSH 実ハンドシェイクと live OCI daemon の整合性は別の受入項目です。

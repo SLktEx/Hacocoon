@@ -567,8 +567,34 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	// CLI transport and an SSH handshake are separate acceptance requirements.
 	func() {
 		importer := environmenttransfer.Importer{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores, Root: dir, StoreKind: OCIStoreKind}
-		receipt, err := importer.Import(ctx, readExport(), resumedName, 4<<30)
-		must(err)
+		var receipt environmenttransfer.ImportResult
+		if binary != "" {
+			server := control.NewServer()
+			must(controlapi.RegisterEnvironmentImport(server, func(ctx context.Context, r io.Reader, name string) (environmenttransfer.ImportResult, error) {
+				return importer.Import(ctx, r, name, 4<<30)
+			}))
+			socket := filepath.Join(dir, "import.sock")
+			listener, err := control.ListenUnix(socket, 0600)
+			must(err)
+			serveCtx, stop := context.WithCancel(ctx)
+			done := make(chan error, 1)
+			go func() { done <- server.Serve(serveCtx, listener) }()
+			func() {
+				defer func() { stop(); <-done }()
+				t.Setenv("HACO_CONTROL_SOCKET", socket)
+				output, err := exec.CommandContext(ctx, binary, "env", "import", "--json", filepath.Join(dir, name+".haco"), resumedName).CombinedOutput()
+				if err != nil {
+					t.Fatalf("public import CLI: %v: %s", err, output)
+				}
+				must(json.Unmarshal(output, &receipt))
+			}()
+			t.Log("PASS shipped haco env import: client file, management stream, canonical importer and independent data; native checks follow")
+		} else {
+			var err error
+			receipt, err = importer.Import(ctx, readExport(), resumedName, 4<<30)
+			must(err)
+			t.Log("SKIP public import CLI: HACO_E2E_SNAPSHOT_CLI not supplied; internal import ran")
+		}
 		if receipt.State != "running" || receipt.Workspace == reloadedWork.ID || receipt.OCI == restoredOCI.ID {
 			t.Fatal("bundle reused existing data", receipt)
 		}
@@ -630,7 +656,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			}
 			return restoredRepositories.DeleteWorkspace(ctx, importedWork.ID, importedWork.Owner)
 		}))
-		t.Log("PASS canonical bundle import: normal router, real running Env, fresh generation, current sandbox/managed SSH reset, independently imported Workspace/OCI, no Base, temporary image cleanup and retained data after Env deletion; public import and SSH handshake not tested")
+		t.Log("PASS canonical bundle import: normal router, real running Env, fresh generation, current sandbox/managed SSH reset, independently imported Workspace/OCI, no Base, temporary image cleanup and retained data after Env deletion; public CLI coverage reported separately; SSH handshake not tested")
 	}()
 	if cliSavedID != "" {
 		saved, err := reopened.GetSnapshot(ctx, cliSavedID)

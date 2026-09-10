@@ -1,61 +1,25 @@
 # 実装状況
 
-型付き管理 import 転送を内部実装しました。上限付き frame、count/digest による明示完了、取消、失敗時の保持資源応答を扱います。製品 controller への登録と CLI は planned で、転送テストと native import 受入は区別します。
+## 公開 Environment import の作業状況
 
-native bundle import を、全体検証、独立した Workspace／OCI import、canonical Env 作成に接続しました。
-OCI は native 作成前に新しい Workspace と対応付け、file 接続先／旧 descriptor は offline とします。
-初回のコンパイルエラーと長い名前の ID 制約を修正し、対象 race は成功しました。6360a23 の全ローカル CI
-（Go・vet・文書・workflow policy・JS 27件）と専用 Incus/Btrfs aggregate 受入（558.35秒）が成功しました。
-保存元削除後の bundle から rootfs・2つの Git Workspace・OCI を import し、データの独立性と所有対象の
-cleanup を確認しました。公開 CLI upload は未実装です。
+Status: **partial** です。Linux の `haco env import <file.haco> [new-env]` を、client のファイル読取、
+管理 upload、native Workspace／OCI の所有管理、canonical Env 作成・起動へ接続しました。
+既定名は SOURCE-imported で既存名は拒否します。入力は変更しません。version 1 と元 Host の file 接続先は
+ offline で import し、GitHub descriptor は接続先だけを保持して承認・認証情報は引き継ぎません。
 
-archive import は通常の BaseRouter と Incus native image adapter を経由し、canonical Env lifecycle を使います。
-現在の sandbox 設定、新しい世代、管理 SSH identity の更新、即時の所有記録、所有する image／instance の
-独立した cleanup を維持します。Base 実体や自動 backup は追加しません。
+製品構成で private staging と64 GiBの共通 payload 上限を全 native import adapter へ設定します。
+新しい資源 owner・Env 世代・現在の sandbox／管理 SSH 設定を維持します。Base 実体、自動 backup、
+現在データの置換、import catalog、schema 移行は追加しません。失敗 receipt は保持資源を示し、
+起動失敗時はデータを残して確認できるようにします。
 
-47bf7a8 の専用 Incus/Btrfs aggregate 受入は439.76秒で成功しました。archive からの実起動、明示した
-準備済み Workspace／OCI の接続、旧世代の拒否、一時 image cleanup、Env 削除後のデータ保持を確認しました。
-router race と関連 vet も成功しました。既存 b7f7fac の全ローカル Go・vet・docs・workflow policy・JS 27件、
-Workspace／Incus race、native image transport（22.28秒）も成功しています。初回 transport fixture の
-権限エラーは private directory の保護条件を弱めずに修正しました。
+公開 CLI 接続前の内部 Incus/Btrfs aggregate は6360a23で558.35秒成功しました。保存元削除後の rootfs・
+2つの Git Workspace・OCI の独立 import、Env 起動、所有 cleanup を確認しました。転送 race は4.808秒で
+成功し、2992c47の全 Go・vet・JS 27件・文書・workflow policy も成功しました。全体 local CI は Ubuntu の
+pwsh 不在で失敗し、その後の all-entry 項目は未実行です。最新 head の GHA とは区別します。
 
-公開一式の import、SSH 実ハンドシェイク、live OCI 整合性は未検証です。今回のローカル aggregate では CLI
-バイナリを渡していないため公開 export／snapshot／Workspace CLI を SKIP し、共有 image の削除も SKIP しました。
-既存 GHA は CLI バイナリを渡しますが、最新 head の結果はローカル受入と区別します。
-
-offline Workspace の登録・復元は Git 接続先なしでデータを保持します。混在 broker binding は
-offline member を除外し、Host 接続先の不一致を拒否します。schema・CLI は追加しません。全 Go・vet・
-docs・JS と対象 race、実 Incus/Btrfs の混在 import（29.52秒）は成功しました。公開一式の import と
-再接続は planned で、実機の offline snapshot restore は未検証です。
-
-複数 Workspace の native import は既存 collection の予約・公開遷移を共用し、
-Git の populate と member 単独の lease を許しません。全 Go・vet・docs・JS と対象 race は成功し、
-実 Incus/Btrfs collection 検証も29.64秒で成功しました。未完了 collection の cleanup と
-公開一式の import は planned です。
-
-作成完了済み・未公開の Workspace import 失敗時は、正確な所有対象の cleanup を試みます。
-作成不確定・所有者変更・cleanup 不確定は receipt を残し、新しい状態や自動再開は追加しません。
-全 Go・vet・docs・JS と対象 race は成功しました。2917714 の専用 Incus/Btrfs 失敗時 cleanup 検証も21.65秒で成功しました。
-
-単一 Workspace の native import は既存の所有管理を再利用し、Git のデータ準備を
-実行しません。専用 Incus/Btrfs の Workspace import と所有対象 cleanup は20.67秒で成功し、
-ローカル Go／vet／docs／JS と対象 race も成功しました。公開一式の import
-（offline 接続先・失敗時 cleanup・起動を含む）は未完了です。
-
-公開 Linux export は、保護された snapshot binding の Workspace 接続先情報を
-version 2 に含めます。version 1 の検査は維持し、Git 承認・認証情報は移譲しません。
-対象 metadata・Router テストと文書検証は成功しました。全体 CI と native version 2
-受入は実行待ちで、公開 import は planned です。
-
-native OCI volume import は canonical な新 owner の作成経路を使い、Incus が volume を
-作る前に元 metadata を置き換えます。専用 Btrfs adapter/catalog 受入は0.56秒で成功し、
-公開 aggregate import と Env 起動は planned のままです。
-
-
-import 入力の準備として、staged bundle 全体の検証後にだけ個別の native component を
-独立して seek できる読み取りを実装しました。Linux filesystem/race test と vet は成功し、
-公開 import と native 復元先の作成は未実装です。
-
+今回の公開 CLI／native 経路の受入は未確定です。既存 aggregate E2E は binary 指定時に製品 import CLI を
+使います。SSH 実ハンドシェイク、live OCI 整合性、Git 再接続、未完了 collection の cleanup、Windows native
+ファイル入力は未完了です。[Environment transfer](design/environment-transfer.ja.md#linux-import-コマンド)を参照してください。
 
 ## 公開 Environment export の作業状況
 
@@ -116,12 +80,12 @@ OCI・Incus・composition 全体の race suite は4.332秒・22.135秒・1.856�
 
 Linux／WSL の Incus adapter は所有済みの保存 Workspace／OCI volume を匿名・読み取り専用 archive へ export し、
 native 所有情報と backup cleanup を確認します。専用 Incus 6.0.5／Btrfs の adapter 検証は5.92秒で成功し、
-関連 race test と vet も成功しました。Linux 公開 export は接続済みで、公開 import は未実装です。内部 rootfs producer は固有所有の native image と匿名 archive を使う実装を追加し、専用 Incus 6.0.5/Btrfs adapter 受入は 13.44 秒で成功しました。
+関連 race test と vet も成功しました。Linux 公開 export は接続済みで、公開 import の実経路受入は未確定です。内部 rootfs producer は固有所有の native image と匿名 archive を使う実装を追加し、専用 Incus 6.0.5/Btrfs adapter 受入は 13.44 秒で成功しました。
 [所有文書](design/environment-transfer.ja.md)を参照してください。
 
 公開 G1 は **partial** で、Linux export を実装し import は **planned** です。内部の snapshot／archive 照合は現行上限までの全 Workspace と任意の OCI を扱います。
 保存元の読み取り境界は canonical な削除ロックを共有し、保持 component を検証します。
-native archive 作成と Linux export を接続し、公開 import は planned です。native Incus rootfs／volume archive の opt-in テストと既存 GHA への追加を実装しました。
+native archive 作成と Linux export を接続し、公開 import の実経路受入は pending です。native Incus rootfs／volume archive の opt-in テストと既存 GHA への追加を実装しました。
 fixture の path／namespace の想定を修正後、専用 Incus 6.0.5／Btrfs で11.24秒の検証が成功しました。
 保存元・復元先の独立性、Git 状態、リンク、mode、archive 保持を確認しました。rootfs と公開 import の権限処理は未実装です。
 別の空 rootfs image 検証は14.88秒で成功し、Base/image を使わない作成、import 前の保存元 instance/image 削除、

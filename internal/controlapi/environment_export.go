@@ -12,12 +12,13 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/environmenttransfer"
 )
 
 const MethodEnvironmentExport = "environment.export"
 
 // A product safety budget, independent of Incus compression or client file paths.
-const EnvironmentExportLimit int64 = 64 << 30
+const EnvironmentExportLimit int64 = environmenttransfer.DefaultPayloadLimit
 const environmentExportWireLimit = EnvironmentExportLimit + (512 << 10)
 
 var exportSourcePattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,55}[a-z0-9])?$`)
