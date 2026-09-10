@@ -991,3 +991,35 @@ A fresh Ubuntu 26.04 WSL with Incus 6.0.5 and the local ad80acc controller candi
 Git was installed over that SSH/package route, and local commit `cafa5fc` was created in the restored repository. A combined development check then failed because it assumed an already populated containerd directory in the new Store; that attempt is not a passing live-OCI test. Separate checks verified the owned Store mount and wrote a marker. Normal stop/delete/create retained that Store identity and marker, Workspace identity, Git commit, modified/untracked files, owners, permissions, links and xattr. The same Env name received a new generation; the old SSH endpoint refused connection, its generated config and authorized keys were absent, and an Env-rootfs-only marker was gone. Native readback supplemented the public lifecycle/SSH operations.
 
 This proves synthetic external-Workspace development and retained new-Store bytes on a fresh installation. It does not restore an old live OCI daemon, reconstitute all managed repository/Store associations, transfer real credentials, recover the existing encrypted identity, or authorize deletion of the old WSL. A separate [startup-boundary fix](../adr/0060-explicit-environment-start.md) addresses Incus autostart before volatile guards; cold-boot acceptance of that fix is recorded separately.
+
+
+## Readable evacuation after a failed snapshot deletion
+
+Status: **partial G2**. The opt-in
+`TestRealIncusFailedDeleteReadableDataEvacuationE2E` uses new, owned Btrfs pools
+and synthetic Workspace/OCI bytes. It makes only the snapshot parent directory
+immutable, requires the real Incus snapshot deletion to fail with EPERM, and
+captures the saved files with GNU tar while that condition remains in place.
+The existing comparison covers Git state, saved-only bytes, links, numeric
+ownership, modes and xattrs. Restoration goes into a separate fresh pool; source
+and archive independence and exact-owner cleanup remain checked.
+
+The private fixture ledger records the parent path and inode identity before
+changing attributes. Cleanup clears the flag only for that same directory and
+keeps the ledger on failure. This is test-only fault injection, not an operator
+recovery technique or a change to product lifecycle/deletion protection.
+
+A manual real Incus 6.0.5/Btrfs run on isolated Ubuntu 26.04 WSL passed: deletion
+failed with EPERM, saved-only bytes were captured, restoration and independent
+editing passed, and both test pools were positively absent after cleanup. The
+10240-byte archive and receipts remain outside those pools. This tests one
+readable deletion-failure condition, not Btrfs corruption, whole-installation
+coverage, external delivery or replacement of an old WSL. Those remain incomplete.
+The maintained native GHA gate runs the regression; its result must be reported
+separately from the manual probe and ordinary package tests.
+
+The maintained Go regression also passed on that dedicated Incus/Btrfs host in
+11.74s, covering both Workspace and OCI synthetic volumes and retaining its
+ownership ledger and archives at `/var/lib/haco-volume-transfer-56267304`.
+The adapter package passed in 19.17s; docs consistency and 25 workflow-policy
+regressions passed. Latest-head GHA acceptance remains separate.
