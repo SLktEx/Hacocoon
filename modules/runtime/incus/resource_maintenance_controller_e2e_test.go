@@ -90,13 +90,13 @@ func verifyMaintenanceControllerCLI(t *testing.T, ctx context.Context, runtime *
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	invoke := func(input string, success bool, args ...string) []byte {
+	invokeExpect := func(input string, success bool, refusal string, args ...string) []byte {
 		t.Helper()
 		cmd := exec.CommandContext(ctx, product, args...)
 		var diagnostic bytes.Buffer
 		cmd.Env, cmd.Stdin, cmd.Stderr = environment, strings.NewReader(input), io.MultiWriter(log, &diagnostic)
 		output, err := cmd.Output()
-		if (err == nil) != success || len(output) > 1<<20 || (!success && !strings.Contains(diagnostic.String(), "image is referenced by a container; retained")) {
+		if (err == nil) != success || len(output) > 1<<20 || (!success && !strings.Contains(diagnostic.String(), refusal)) {
 			exitCode := -1
 			if cmd.ProcessState != nil {
 				exitCode = cmd.ProcessState.ExitCode()
@@ -104,6 +104,10 @@ func verifyMaintenanceControllerCLI(t *testing.T, ctx context.Context, runtime *
 			t.Fatalf("maintenance CLI operation=%s exit_code=%d expected_success=%t context_done=%t category=%s stages=%s; private diagnostics: %s", strings.Join(args[:4], " "), exitCode, success, ctx.Err() != nil, maintenanceDiagnosticCategory(diagnostic.String()), maintenanceDiagnosticStages(diagnostic.String()), log.Name())
 		}
 		return output
+	}
+	invoke := func(input string, success bool, args ...string) []byte {
+		t.Helper()
+		return invokeExpect(input, success, "image is referenced by a container; retained", args...)
 	}
 	providerRuns := func() string {
 		t.Helper()
@@ -180,7 +184,7 @@ func verifyMaintenanceControllerCLI(t *testing.T, ctx context.Context, runtime *
 		t.Fatal("unused image omitted")
 	}
 	clean()
-	invoke("no\n", false, "plugin", "oci", "image", "delete", "--unused", resource.ID)
+	invokeExpect("no\n", false, "Image retained.", "plugin", "oci", "image", "delete", "--unused", resource.ID)
 	clean()
 	retained := list()
 	if len(retained.Images) != len(before.Images) {
