@@ -789,4 +789,4 @@ WSL 削除後の鍵の確保、新 WSL 復元は未検証です。実 script は
 `HACO_E2E_ENCRYPTED_EVACUATION=1` で opt-in し、`HACO_E2E_ENCRYPTED_OUTPUT_ROOT` に
 既存の外部保存先 parent を指定すると、その下の新規テスト directory を使います。
 
-専用 WSL では age 1.2.1（配布 package `age_1.2.1-1build1_amd64.deb`）で 1.03 秒で成功しました。直接の package 導入は libc6 の dpkg 設定中断により失敗し、その後 apt で取得した package を私有の tool directory に展開して、システムの package 状態を変更せず検証しました。暗号文と記録は `C:/Users/gddro/AppData/Local/Temp/haco-encrypted-output-okbf5rkf` に残し、Windows 側でも 10440 bytes と SHA-256 `bf25c5334464947c0ea0c8645ecc535195cd930dad98efd18550243323eb5804` を独立に確認しました。合成 source・復元データ・試験 identity は WSL 内の `/tmp/haco-encrypted-evacuation-ki7g5h3v` に残しています。WSL 削除後の identity 回復は未検証です。
+専用 WSL では age 1.2.1（配布 package `age_1.2.1-1build1_amd64.deb`）で 1.03 秒で成功しました。直接の package 導入は libc6 の dpkg 設定中断により失敗し、その後 apt で取得した package を私有の tool directory に展開して、システムの package 状態を変更せず検証しました。暗号文と記録は 新規の Windows 出力 directory に残し、Windows 側でも 10440 bytes と SHA-256 `bf25c5334464947c0ea0c8645ecc535195cd930dad98efd18550243323eb5804` を独立に確認しました。合成 source・復元データ・試験 identity は WSL 内の WSL の私有テスト directory に残しています。WSL 削除後の identity 回復は未検証です。
