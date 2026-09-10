@@ -5,8 +5,8 @@
 Status: **partial**。Linux の `haco env export <stopped-env> [file.haco]` は管理 stream と
 検証後の上書きしない client 公開を使います。既定は `<env>.haco` で、別の snapshot コマンドや
 controller path は不要です。Unix stream と実 filesystem の CLI race test は成功しました。
-local shipped CLI 全体 gate は export 成功後に fixture 期限で失敗し、同じ GHA aggregate step は成功しました。
-workflow 全体の確認は継続中で、公開 import と Windows native 出力は planned です。
+local shipped CLI 全体 gate は export 成功後に fixture 期限で失敗し、同じ GHA aggregate gate は
+`3d0dd9a` で47.06秒で成功し、該当4 workflow も成功しました。公開 import と Windows native 出力は planned です。
 [契約](design/environment-transfer.ja.md)を参照してください。
 
 停止 Env の内部 exporter は canonical capture/read/delete、native component producer、

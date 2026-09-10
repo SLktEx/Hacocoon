@@ -377,8 +377,8 @@ authority, boot/SSH after import and complete G1 acceptance remain planned.
 Unix stream and Linux filesystem/CLI race tests passed. An initial CLI regression
 fixture failed to compile because its socket mode argument was missing; the fixture
 was corrected. The existing native aggregate E2E now calls the shipped export CLI
-when its CLI binary is supplied; this extended public path has not yet run to
-completion. The earlier 314.12s native result proves the internal producer only.
+when its CLI binary is supplied. The earlier 314.12s native result proves the
+internal producer only; the public GHA result is recorded below.
 
 The first dedicated run of the shipped public CLI passed export and source-Env
 removal, then public snapshot create/restore, but failed at 480.07s when the
@@ -398,11 +398,13 @@ snapshot restore and copy, same-name generation renewal, saved-copy independence
 managed SSH-key reset and native child snapshot/backup deletion refusal passed.
 The failed fixture remains at `/var/lib/haco-snapshot-aggregate-462967548`;
 remaining cleanup is not claimed successful. No further timeout increase is made.
-The equivalent GHA aggregate step succeeded at `3d0dd9a`; the full workflow and
-its final log are checked separately. This substitutes Linux Incus/Btrfs coverage,
+The equivalent [GHA aggregate gate](https://github.com/SLktEx/Hacocoon/actions/runs/34430493864/job/102724802406)
+passed in 47.06s at `3d0dd9a`, including shipped export, snapshot/restore/copy,
+Workspace deletion and owned cleanup. All four applicable workflows passed. This substitutes Linux Incus/Btrfs coverage,
 not a successful local WSL gate or an actual restored SSH handshake.
 
 Postcheck found no Environment or Workspace lease in either failed fixture. The
 original nine instances, protected sentinel SHA-256 and registration mode/link count
-were unchanged. Four fixture snapshots and four retained OCI Stores, their
-Workspace records and two complete export archives remain for explicit cleanup.
+were unchanged. All four failed-fixture snapshots were then verified component by component and
+deleted through the canonical API. Four retained OCI Stores, their Workspace
+records and two complete export archives remain for explicit cleanup.

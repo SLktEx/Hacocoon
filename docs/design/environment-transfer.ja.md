@@ -298,8 +298,8 @@ import 後の起動/SSH、G1 全体の受入は planned です。
 
 Unix stream と Linux filesystem/CLI の race test は成功しました。最初の CLI fixture は
 socket mode 引数不足で compile に失敗し、fixture を修正しました。既存 native aggregate E2E は
-CLI binary 指定時に shipped export CLI を呼ぶよう拡張しましたが、この公開経路はまだ実行完了
-していません。先行の 314.12 秒成功は内部 producer の証明に限ります。
+CLI binary 指定時に shipped export CLI を呼ぶよう拡張しました。先行の 314.12 秒成功は
+内部 producer の証明に限り、公開経路の GHA 結果は下記に示します。
 
 最初の専用 shipped CLI 実行では export・元 Env 削除・公開 snapshot create/restore が成功し、
 その後の copy が元の fixture の8分期限に達して終了したため、全体は 480.07 秒で失敗しました。
@@ -315,11 +315,14 @@ fixture は12分、既存 CI の native test 群は15分の期限にします。
 保存物の独立性・管理 SSH key のリセット・native child snapshot/backup の削除拒否は
 成功しました。失敗 fixture は `/var/lib/haco-snapshot-aggregate-462967548` に残し、
 残りの cleanup を成功とは扱いません。さらに期限を延ばす変更は行いません。
-同じ GHA aggregate step は `3d0dd9a` で成功し、workflow 全体と最終 log は別途確認します。
+同じ [GHA aggregate gate](https://github.com/SLktEx/Hacocoon/actions/runs/34430493864/job/102724802406) は
+`3d0dd9a` で 47.06 秒で成功しました。shipped export、snapshot/restore/copy、Workspace 削除、
+所有対象 cleanup を含みます。該当する4 workflow もすべて成功しました。
 これは Linux Incus/Btrfs の代替検証であり、local WSL gate 成功や復元後の実 SSH handshake
 を証明するものではありません。
 
 事後確認で、両方の失敗 fixture に Environment と Workspace lease が残っていないことを
 確認しました。元の9個の instance、保護 sentinel の SHA-256、登録ファイルの mode/link 数は
-維持しています。fixture の snapshot 4個・保持 OCI Store 4個・対応 Workspace 記録と
-export archive 2個は、明示的な cleanup のため残しています。
+維持しています。その後、fixture の snapshot 4個は
+全 component の所有確認後に canonical API で削除しました。保持 OCI Store 4個・対応 Workspace
+記録と export archive 2個は、明示的な cleanup のため残しています。

@@ -6,7 +6,8 @@ Status: **partial**. Linux `haco env export <stopped-env> [file.haco]` now uses 
 management stream and verified, no-overwrite client publication. Default output
 is `<env>.haco`; no separate snapshot command or controller path is required.
 Unix stream and real-filesystem CLI race tests passed. Local shipped CLI full gates failed on fixture deadlines after export passed;
-the equivalent GHA aggregate step succeeded. Full workflow verification is pending; public import and native Windows output remain planned. See
+the equivalent GHA aggregate gate passed in 47.06s at `3d0dd9a`, with all four
+applicable workflows successful; public import and native Windows output remain planned. See
 [the owning contract](design/environment-transfer.md#linux-export-command).
 
 The internal stopped-Env exporter now composes canonical capture/read/delete,

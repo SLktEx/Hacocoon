@@ -1,7 +1,8 @@
 # バージョン番号とリリース状況
 
 Linux 公開 export は partial（`haco env export <stopped-env> [file.haco]`）です。
-shipped native 受入、公開 import、Windows 出力は未完了で、release/checkpoint は宣言しません。
+shipped Linux Incus/Btrfs aggregate 受入は GHA で47.06秒で成功し、local WSL 全体 gate は
+fixture 期限で失敗しました。公開 import と Windows 出力は未完了で、release/checkpoint は宣言しません。
 [Environment 持ち出し](../design/environment-transfer.ja.md)を参照してください。
 
 実装済みの G1 内部処理は、停止 Env の capture と全 native archive を非公開の検証済み bundle に

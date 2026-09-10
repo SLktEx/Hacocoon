@@ -1,7 +1,8 @@
 # Versioning and release status
 
 Linux public export is now partial (`haco env export <stopped-env> [file.haco]`).
-Shipped native acceptance, public import and Windows output remain pending.
+Shipped Linux Incus/Btrfs aggregate acceptance passed in GHA (47.06s); local WSL
+full gates failed on fixture deadlines. Public import and Windows output remain pending.
 No release/checkpoint is declared. See [Environment transfer](../design/environment-transfer.md#linux-export-command).
 
 The implemented internal G1 slice composes a stopped Env capture and all native archives into a
