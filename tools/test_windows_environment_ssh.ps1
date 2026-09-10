@@ -335,6 +335,19 @@ haco setup "$name"
                 $reviewPhase = $Matches[1] + '-cleanup-failed-' + $Matches[2]
             }
             Write-DesktopProbeFailure 'PENDING APPROVAL REVIEW' $reviewPhase $_
+            # Read only, through the existing pinned connection. Keep the original
+            # failure even if diagnostics fail; no service restart or retry.
+            try {
+                . (Join-Path $PSScriptRoot 'windows_dns_diagnostic.ps1')
+                $dnsState = Invoke-Captured $NativeSSH @('-F', $ConfigPath, '-i', $PrivateKey,
+                    '-o', "UserKnownHostsFile=$KnownHosts", '-o', 'BatchMode=yes',
+                    '-o', 'ConnectTimeout=10', $alias,
+                    'systemctl show hacocoon-dns.service --property=Result --value')
+                $dnsCategory = Get-DNSServiceFailureState $dnsState.Stdout $dnsState.ExitCode
+                Write-Host "PENDING APPROVAL DNS RESULT: $dnsCategory"
+            } catch {
+                Write-Host 'PENDING APPROVAL DNS RESULT: unavailable'
+            }
         }
         $previewProbe = @'
 set -eu

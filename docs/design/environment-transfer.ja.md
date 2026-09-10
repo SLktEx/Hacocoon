@@ -631,5 +631,5 @@ OCI は合成した永続 marker の確認であり、実 containerd／Docker wo
 Windows job 全体は、独立した承認待ち probe の
 `prepare-python-prerequisite-setup-start-internal` で **失敗**しました（exit 1、cleanup_failed=false）。
 直前の project setup と後続 preview／doctor は成功しましたが、原因は未解明です。
-再現性を確認するため失敗した Windows job を attempt 2 として再実行しています。初回失敗の記録は残します。
+attempt 2 でも同じ段階で失敗し、transfer と独立した desktop 検証は再度成功しました。失敗直後に既存の鍵固定 SSH で DNS service の Result だけを読み、許可した定型値のみを出す診断を追加しました。setup の再試行・service 再起動・失敗判定の変更は行いません。
 live OCI の整合性と Windows native の bundle 受け渡しは未検証です。

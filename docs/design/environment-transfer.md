@@ -773,6 +773,8 @@ All applicable native Incus/Btrfs and normal-test jobs passed at that commit.
 The Windows job overall **failed** on the independent pending-approval probe:
 `prepare-python-prerequisite-setup-start-internal`, exit 1, cleanup_failed=false.
 Earlier project setup and subsequent preview/doctor probes passed; the cause is
-unresolved. Attempt 2 reruns the failed Windows job to check reproducibility;
-it does not erase the first failure. Live OCI consistency and native Windows
+unresolved. Attempt 2 failed at the same phase; transfer and independent desktop
+checks passed again. A failure-only, read-only query through the existing pinned
+SSH connection now reports only an allowlisted DNS service Result. This diagnostic
+does not retry setup, restart services or change the failure result. Live OCI consistency and native Windows
 bundle delivery remain unverified.
