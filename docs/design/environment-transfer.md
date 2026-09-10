@@ -1,6 +1,6 @@
 # Environment transfer
 
-Status: **partial** for Linux public export; public import acceptance remains **pending**. Linux import wiring is implemented; its public-path acceptance is pending.
+Status: **partial overall**. Linux public export/import and Windows-file projected import are implemented and verified through the installed controller, fresh pinned SSH and retained-data recreation. Live OCI runtime consistency, Git reconnection acceptance and whole-installation evacuation remain incomplete.
 See [Linux import command](#linux-import-command) for current usage and limits.
 
 ## Incus foundation
@@ -21,7 +21,7 @@ later damaged-storage evacuation workflow. That workflow remains separate.
 
 ## Data and authority
 
-A future public import creates new managed resources through canonical lifecycle
+Public import creates new managed resources through canonical lifecycle
 ownership, preserving Workspace Git state and retained OCI data. It must not
 replace an existing Environment or restore old approval, connection or management
 authority. Host credentials and control sockets are outside Environment export.
@@ -781,7 +781,7 @@ bundle delivery remain unverified.
 
 ## Windows bundle file through existing drive projection
 
-Status: **acceptance fixture implemented; installed execution pending**. The
+Status: **implemented; installed GHA acceptance passed at c4449e1** in [Windows run 34482712957](https://github.com/SLktEx/Hacocoon/actions/runs/34482712957). The
 Windows gate copies the exported Linux bundle to a new Windows temporary file
 through the trusted Host's existing drive projection. Exclusive file creation
 refuses an existing target, and Windows checks its byte count and SHA-256 against
@@ -801,4 +801,4 @@ haco env import /mnt/c/Users/USER/Backups/dev.haco dev-imported
 
 Native Windows export/import commands, automatic copying and whole-WSL evacuation
 remain separate work. The local copy regression proves exclusive target handling;
-only the installed GHA gate can prove this drive-projection route.
+the installed GHA gate passed this drive-projection route, including source Env deletion, imported work over Windows SSH, retained-data recreation and final bundle immutability. This does not establish a native Windows CLI, direct DrvFS export or another WSL installation.

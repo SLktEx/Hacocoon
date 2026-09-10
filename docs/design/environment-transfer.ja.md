@@ -1,6 +1,6 @@
 # Environment の持ち出し
 
-状態: Linux 公開 export は **partial**、公開 import の実経路受入は **pending** です。Linux import の接続は実装済みで、公開経路の受入は未確定です。
+状態: **全体として partial** です。Linux 公開 export/import と Windows ファイル共有経由の import は実装済みで、インストール済み controller、更新した鍵での SSH、保持データの再接続を実検証しました。実 OCI runtime の整合性、Git 再接続の実受入、全量退避は未完了です。
 [Linux import コマンド](#linux-import-コマンド)を参照してください。
 
 ## Incus を土台にする
@@ -19,7 +19,7 @@ custom volume は volume export/import を使えます。instance archive には
 
 ## データと権限
 
-将来の公開 import は canonical lifecycle の所有確認を使って新しい管理資源を作り、Workspace の Git 状態と
+公開 import は canonical lifecycle の所有確認を使って新しい管理資源を作り、Workspace の Git 状態と
 保持対象 OCI データを保存します。既存 Environment の上書きや、古い承認・接続・管理権限の復元は行いません。
 Host の認証情報と control socket は Environment export の対象外です。archive checksum は変更検出であり、
 設定を適用する権限ではありません。import された owner label も元の metadata であり、新しい lease ではありません。
@@ -636,7 +636,7 @@ live OCI の整合性と Windows native の bundle 受け渡しは未検証で�
 
 ## 既存ドライブ共有を使う Windows bundle ファイル
 
-Status: **受入 fixture 実装済み・installed 実行待ち**。Windows gate は export 済みの Linux bundle を、
+Status: **実装済み・c4449e1 の installed GHA 受入成功**。[Windows run 34482712957](https://github.com/SLktEx/Hacocoon/actions/runs/34482712957) で確認しました。Windows gate は export 済みの Linux bundle を、
 trusted Host の既存ドライブ共有を通して、新しい Windows 一時ファイルへコピーします。
 排他的な新規作成で既存ファイルを拒否し、Windows 側で長さと SHA-256 を export receipt と照合します。
 source Env を削除した後、通常の Linux import client が共有経由の Windows ファイルを読みます。
@@ -652,4 +652,4 @@ haco env import /mnt/c/Users/USER/Backups/dev.haco dev-imported
 ```
 
 Windows native の export／import コマンド、自動コピー、WSL 全体の退避は別の作業です。
-ローカルのコピー回帰は既存対象を上書きしない確認であり、ドライブ共有経路は installed GHA で確認します。
+ローカルのコピー回帰は既存対象を上書きしない確認であり、ドライブ共有経路は installed GHA で成功しました。保存元 Env の削除、Windows SSH による作業再開、保持データの再接続、最後の bundle 不変確認を含みます。native Windows CLI、直接 DrvFS export、別 WSL への復元の受入ではありません。
