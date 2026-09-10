@@ -186,18 +186,26 @@ func (t *imageExportTransport) RoundTrip(request *http.Request) (*http.Response,
 }
 
 func verifyExportImage(server incusclient.InstanceServer, fingerprint, owner string) error {
+	return verifyOwnedTransferImage(server, fingerprint, exportImageOwnerKey, owner)
+}
+
+func verifyOwnedTransferImage(server incusclient.InstanceServer, fingerprint, ownerKey, owner string) error {
 	image, _, err := server.GetImage(fingerprint)
 	if err != nil {
 		return err
 	}
-	if image.Fingerprint != fingerprint || image.Properties[exportImageOwnerKey] != owner || image.Public || image.Type != "container" || len(image.Aliases) != 0 {
+	if image.Fingerprint != fingerprint || image.Properties[ownerKey] != owner || image.Public || image.Type != "container" || len(image.Aliases) != 0 {
 		return core.ErrCapabilityStale
 	}
 	return nil
 }
 
 func removeExportImage(ctx context.Context, server incusclient.InstanceServer, fingerprint, owner string) error {
-	if err := verifyExportImage(server, fingerprint, owner); err != nil {
+	return removeOwnedTransferImage(ctx, server, fingerprint, exportImageOwnerKey, owner)
+}
+
+func removeOwnedTransferImage(ctx context.Context, server incusclient.InstanceServer, fingerprint, ownerKey, owner string) error {
+	if err := verifyOwnedTransferImage(server, fingerprint, ownerKey, owner); err != nil {
 		return err
 	}
 	operation, err := server.DeleteImage(fingerprint)
@@ -293,13 +301,20 @@ func (w *boundedImageWriter) Write(p []byte) (int, error) {
 // The append-only receipt identifies a unique native owner before publication,
 // then the exact returned operation and image. Uncertain cleanup keeps it for
 // explicit inspection; there is no automatic replay or snapshot backup.
-type imageExportJournal struct {
+type imageTransferJournal struct {
 	dir               int
 	file              *os.File
 	root, name, owner string
 }
 
-func newImageExportJournal(root, project, source, socket string) (*imageExportJournal, error) {
+func newImageExportJournal(root, project, source, socket string) (*imageTransferJournal, error) {
+	return newImageTransferJournal(root, project, source, socket, "export")
+}
+
+func newImageTransferJournal(root, project, source, socket, operation string) (*imageTransferJournal, error) {
+	if operation != "export" && operation != "import" {
+		return nil, core.ErrInvalidArgument
+	}
 	if !filepath.IsAbs(root) || filepath.Clean(root) != root || len(root) > 4096 {
 		return nil, core.ErrInvalidArgument
 	}
@@ -325,12 +340,12 @@ func newImageExportJournal(root, project, source, socket string) (*imageExportJo
 		return nil, err
 	}
 	owner := hex.EncodeToString(random[:])
-	name := "rootfs-export-" + owner + ".jsonl"
+	name := "rootfs-" + operation + "-" + owner + ".jsonl"
 	fd, err := unix.Openat(dir, name, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)
 	if err != nil {
 		return nil, err
 	}
-	journal := &imageExportJournal{dir: dir, file: os.NewFile(uintptr(fd), name), root: root, name: name, owner: owner}
+	journal := &imageTransferJournal{dir: dir, file: os.NewFile(uintptr(fd), name), root: root, name: name, owner: owner}
 	if err := journal.record(map[string]string{"owner": owner, "project": project, "source": source, "socket": socket}); err != nil {
 		journal.file.Close()
 		return nil, err
@@ -342,18 +357,18 @@ func newImageExportJournal(root, project, source, socket string) (*imageExportJo
 	keep = true
 	return journal, nil
 }
-func (j *imageExportJournal) path() string { return filepath.Join(j.root, j.name) }
-func (j *imageExportJournal) record(value map[string]string) error {
+func (j *imageTransferJournal) path() string { return filepath.Join(j.root, j.name) }
+func (j *imageTransferJournal) record(value map[string]string) error {
 	if err := json.NewEncoder(j.file).Encode(value); err != nil {
 		return err
 	}
 	return j.file.Sync()
 }
-func (j *imageExportJournal) unconfirmed(err error) error {
-	return errors.Join(fmt.Errorf("rootfs publication unconfirmed; receipt %s: %w", j.path(), core.ErrRecoveryRequired), err)
+func (j *imageTransferJournal) unconfirmed(err error) error {
+	return errors.Join(fmt.Errorf("rootfs image transfer unconfirmed; receipt %s: %w", j.path(), core.ErrRecoveryRequired), err)
 }
-func (j *imageExportJournal) close() { j.file.Close(); unix.Close(j.dir) }
-func (j *imageExportJournal) finish() error {
+func (j *imageTransferJournal) close() { j.file.Close(); unix.Close(j.dir) }
+func (j *imageTransferJournal) finish() error {
 	var open, named unix.Stat_t
 	if err := unix.Fstat(int(j.file.Fd()), &open); err != nil {
 		return err

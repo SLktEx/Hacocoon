@@ -1,5 +1,12 @@
 # Implementation Status
 
+Native rootfs import now prepares fresh image metadata and uses an owned temporary
+Incus image. Export/import share ownership receipt and deletion checks. Incus package
+tests, focused race tests and vet passed; dedicated real Incus/Btrfs transport
+acceptance passed in 22.28s. Canonical Env/public aggregate import and boot/SSH remain
+planned and unverified. The initial test-directory permission failure was corrected
+in the fixture without weakening the private-directory requirement.
+
 Offline Workspace registration/restoration now preserves data without a Git route.
 Mixed broker bindings exclude offline members and reject mismatched Host routing.
 No schema/CLI change is added. All local Go/vet/docs/JS and focused race checks

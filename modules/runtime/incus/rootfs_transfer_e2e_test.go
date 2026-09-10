@@ -1,3 +1,5 @@
+//go:build linux
+
 package incus
 
 import (
@@ -111,42 +113,55 @@ func TestRealIncusRootfsTransferE2E(t *testing.T) {
 	if err := json.Unmarshal([]byte(run("image", "list", "--format=json", "--project", project)), &images); err != nil || len(images) != 0 {
 		t.Fatal("source image not positively absent", err)
 	}
-	run("image", "import", archive, "--alias", alias, "--project", project)
-	var imported struct {
-		Target string `json:"target"`
+	input, err := os.Open(archive)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := json.Unmarshal([]byte(run("query", "/1.0/images/aliases/"+alias+"?project="+project)), &imported); err != nil || imported.Target != image.Target {
-		t.Fatal("archive fingerprint changed", err)
-	}
+	defer input.Close()
+	runtime := New(runner)
+	runtime.project = project
 	newID, err := core.NewEnvironmentInstanceID()
 	if err != nil {
 		t.Fatal(err)
 	}
-	run("init", "local:"+image.Target, target, "--project", project, "--no-profiles", "--storage", pool, "--config", key+"="+owner, "--config", environmentInstanceKey+"="+newID, "--config", "boot.autostart=false", "--config", "security.privileged=false", "--config", "security.nesting=false")
-	var observed snapshotInstanceObservation
-	if err := json.Unmarshal([]byte(run("query", "/1.0/instances/"+target+"?project="+project)), &observed); err != nil {
-		t.Fatal(err)
+	var restored []byte
+	err = runtime.WithImportedRootfs(ctx, input, dir, 16<<20, func(fingerprint string) error {
+		if fingerprint == image.Target {
+			t.Fatal("transport import reused source image identity")
+		}
+		var importedInfo struct{ Properties map[string]string }
+		if err := json.Unmarshal([]byte(run("query", "/1.0/images/"+fingerprint+"?project="+project)), &importedInfo); err != nil {
+			t.Fatal(err)
+		}
+		if importedInfo.Properties[key] != "" || len(importedInfo.Properties[importImageOwnerKey]) != 32 {
+			t.Fatal("source image properties adopted")
+		}
+		run("init", "local:"+fingerprint, target, "--project", project, "--no-profiles", "--storage", pool, "--config", key+"="+owner, "--config", environmentInstanceKey+"="+newID, "--config", "boot.autostart=false", "--config", "security.privileged=false", "--config", "security.nesting=false")
+		var observed snapshotInstanceObservation
+		if err := json.Unmarshal([]byte(run("query", "/1.0/instances/"+target+"?project="+project)), &observed); err != nil {
+			t.Fatal(err)
+		}
+		if observed.Status != "Stopped" && observed.Status != "STOPPED" {
+			t.Fatal("import unexpectedly running")
+		}
+		if len(observed.Profiles) != 0 || len(observed.ExpandedDevices) != 1 || observed.ExpandedConfig["environment.OLD_TOKEN"] != "" || observed.Config[environmentInstanceKey] != newID {
+			t.Fatal("source configuration/identity inherited")
+		}
+		output := filepath.Join(dir, "readback")
+		run("file", "pull", target+"/root/retained", output, "--project", project)
+		restored, err = os.ReadFile(output)
+		if err != nil || string(restored) != "explicit rootfs bytes without a Base"+string(byte(10)) {
+			t.Fatal("rootfs bytes lost", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal("owned native rootfs import", err)
 	}
-	if observed.Status != "Stopped" && observed.Status != "STOPPED" {
-		t.Fatal("import unexpectedly running")
-	}
-	if len(observed.Profiles) != 0 || len(observed.ExpandedDevices) != 1 || observed.ExpandedConfig["environment.OLD_TOKEN"] != "" || observed.Config[environmentInstanceKey] != newID {
-		t.Fatal("source configuration/identity inherited")
-	}
-	output := filepath.Join(dir, "readback")
-	run("file", "pull", target+"/root/retained", output, "--project", project)
-	restored, err := os.ReadFile(output)
-	if err != nil || string(restored) != "explicit rootfs bytes without a Base\n" {
-		t.Fatal("rootfs bytes lost", err)
-	}
-	// Drop the imported transport image while the newly created rootfs remains.
-	imageOwner()
-	run("image", "delete", image.Target, "--project", project)
 	if err := json.Unmarshal([]byte(run("image", "list", "--format=json", "--project", project)), &images); err != nil || len(images) != 0 {
-		t.Fatal("imported transport image not positively absent", err)
+		t.Fatal("transport image not positively absent", err)
 	}
-	// Re-read after image deletion: the earlier read alone does not prove that
-	// the instance's independent rootfs survives removal of its source image.
+	// The consumer's independently created rootfs survives automatic image cleanup.
 	postDelete := filepath.Join(dir, "readback-after-image-delete")
 	run("file", "pull", target+"/root/retained", postDelete, "--project", project)
 	retained, err := os.ReadFile(postDelete)
@@ -173,5 +188,5 @@ func TestRealIncusRootfsTransferE2E(t *testing.T) {
 	if err != nil || sha256.Sum256(after) != before {
 		t.Fatal("archive changed", err)
 	}
-	t.Logf("rootfs image round trip passed; source instance/image removed before import; archive %s sha256 %x; no Base, cache, startup, Workspace/OCI or public importer used", archive, before)
+	t.Logf("owned rootfs image adapter round trip passed; source instance/image removed before import; archive %s sha256 %x; no Base, cache, startup, Workspace/OCI or public importer used", archive, before)
 }

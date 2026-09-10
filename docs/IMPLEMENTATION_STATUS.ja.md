@@ -1,5 +1,11 @@
 # 実装状況
 
+native rootfs import は新しい image metadata と所有確認付き一時 Incus image を使います。
+export／import は所有記録と削除確認を共用します。Incus package 全体・対象 race・vet は成功し、
+専用の実 Incus/Btrfs transport 検証も22.28秒で成功しました。canonical な Env／公開一式の import と
+boot／SSH は planned・未検証です。初回のテスト用ディレクトリ権限による失敗は fixture を修正し、
+private directory の保護条件は維持しました。
+
 offline Workspace の登録・復元は Git 接続先なしでデータを保持します。混在 broker binding は
 offline member を除外し、Host 接続先の不一致を拒否します。schema・CLI は追加しません。全 Go・vet・
 docs・JS と対象 race、実 Incus/Btrfs の混在 import（29.52秒）は成功しました。公開一式の import と
