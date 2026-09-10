@@ -503,3 +503,12 @@ image properties は新しい import owner に置き換え、image 作成時 tem
 接続・project と応答上限を維持します。現時点では非圧縮の統合 x86_64／aarch64 container image のみ対応します。
 [ADR 0056](../adr/0056-native-rootfs-import.md) を参照してください。canonical な Env 作成、公開一式の
 import、boot／SSH、OCI 整合性は別の残課題です。
+
+## archive から Environment へ
+
+Status: **内部実装済み・受入検証待ち**です。Workspace service の CreateFromArchive は、
+呼出元が用意した Workspace／OCI を canonical な Env 作成で接続し、現在の Host OCI の自動コピーを省きます。
+Incus adapter は所有確認付き一時 image から独立 instance を作り、直ちに所有記録を保存した後で、
+現在の sandbox 設定と guest SSH identity の再生成を行います。native init の完了不明時は lease を保持し、
+cleanup は接続データを削除しません。CLI・catalog 移行・Base 実体・自動 backup は追加しません。
+一式の orchestration、公開利用経路、実機の boot／SSH は未検証です。

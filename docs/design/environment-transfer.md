@@ -613,3 +613,14 @@ waiting. Current local Unix daemon/project and bounded response checks remain.
 Only uncompressed unified x86_64/aarch64 container images are supported initially.
 See [ADR 0056](../adr/0056-native-rootfs-import.md). Canonical Env creation, public
 aggregate import, boot/SSH and OCI consistency are separate remaining work.
+
+## Archive to Environment
+
+Status: **implemented internally; acceptance pending**. The Workspace service's
+CreateFromArchive uses canonical Env creation with caller-prepared Workspace/OCI
+bindings. It skips current Host OCI defaults. The Incus adapter initializes an
+independent instance from the owned temporary image, records ownership immediately,
+then applies current sandbox configuration and renews guest SSH identity. Unknown
+native init completion retains the lease; cleanup never removes attached data.
+No CLI, catalog migration, Base filesystem or automatic backup is added. Full
+bundle orchestration, public usage and real boot/SSH remain unverified.

@@ -1,9 +1,12 @@
 # 実装状況
 
+archive から Env への作成を canonical lifecycle に接続しました。現在の sandbox 設定、新しい世代／SSH identity、
+所有する image と instance の独立した cleanup を使います。対象テストは成功し、一式の受入検証は待機中です。
+公開一式の import と実機の boot／SSH は未完了です。
+
 native rootfs import は新しい image metadata と所有確認付き一時 Incus image を使います。
 export／import は所有記録と削除確認を共用します。Incus package 全体・対象 race・vet は成功し、
-専用の実 Incus/Btrfs transport 検証も22.28秒で成功しました。canonical な Env／公開一式の import と
-boot／SSH は planned・未検証です。初回のテスト用ディレクトリ権限による失敗は fixture を修正し、
+専用の実 Incus/Btrfs transport 検証も22.28秒で成功しました。公開一式の import と boot／SSH は planned・未検証です。初回のテスト用ディレクトリ権限による失敗は fixture を修正し、
 private directory の保護条件は維持しました。
 
 offline Workspace の登録・復元は Git 接続先なしでデータを保持します。混在 broker binding は

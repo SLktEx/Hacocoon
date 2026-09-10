@@ -1,10 +1,14 @@
 # Implementation Status
 
+Archive-to-Env creation is implemented internally through canonical lifecycle,
+with current sandbox configuration, fresh generation/SSH identity and separate
+owned image/instance cleanup. Focused tests passed; full acceptance is pending.
+Public aggregate import and real boot/SSH remain unfinished.
+
 Native rootfs import now prepares fresh image metadata and uses an owned temporary
 Incus image. Export/import share ownership receipt and deletion checks. Incus package
 tests, focused race tests and vet passed; dedicated real Incus/Btrfs transport
-acceptance passed in 22.28s. Canonical Env/public aggregate import and boot/SSH remain
-planned and unverified. The initial test-directory permission failure was corrected
+acceptance passed in 22.28s. Public aggregate import and boot/SSH remain planned and unverified. The initial test-directory permission failure was corrected
 in the fixture without weakening the private-directory requirement.
 
 Offline Workspace registration/restoration now preserves data without a Git route.
