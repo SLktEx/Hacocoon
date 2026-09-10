@@ -265,7 +265,7 @@ def repository_references(data):
 
 
 def repository_inventory(root):
-    result = {"projection_complete": False, "authority": False, "files": [], "errors": []}
+    result = {"projection_complete": False, "authority": False, "files": [], "errors": [], "unreviewed_entries": []}
     # An explicit directory only; do not follow child symlinks or recurse into data.
     if not hasattr(os, "O_NOFOLLOW"):
         raise OSError("Linux required")
@@ -278,6 +278,7 @@ def repository_inventory(root):
                     break
                 if not re.fullmatch(r"(?:repo|work)-[A-Za-z0-9_-]+\.json", entry.name):
                     result["errors"].append("unreviewed-repository-entry:" + str(index))
+                    result["unreviewed_entries"].append({"index": index, "name": text(entry.name)})
                     continue
                 try:
                     if not entry.is_file(follow_symlinks=False):
@@ -294,6 +295,7 @@ def repository_inventory(root):
                         result["errors"].append("repository-file:" + str(index))
                 except (ValueError, TypeError, KeyError, OSError):
                     result["errors"].append("repository-file:" + str(index))
+                    result["unreviewed_entries"].append({"index": index, "name": text(entry.name)})
     finally:
         os.close(fd)
     result["projection_complete"] = not result["errors"]

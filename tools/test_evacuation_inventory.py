@@ -211,6 +211,8 @@ class InventoryTests(unittest.TestCase):
             self.assertFalse(result["projection_complete"])
             self.assertEqual(len(result["files"]), 1)
             self.assertEqual(len(result["errors"]), 3)
+            self.assertEqual({entry["name"] for entry in result["unreviewed_entries"]}, {"manual.txt", "work-link.json", "work-mismatch.json"})
+            self.assertEqual(len({entry["index"] for entry in result["unreviewed_entries"]}), 3)
             self.assertNotIn("secret", json.dumps(result))
             self.assertEqual(good.read_text(), raw)
 
