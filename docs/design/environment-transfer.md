@@ -588,5 +588,10 @@ Existing catalog fields and source archives are retained unchanged. No schema or
 CLI change is needed. Offline members do not keep unrelated same-name source
 repositories alive; their native data remains subject to normal owned deletion.
 See [ADR 0055](../adr/0055-offline-workspace-routing.md). Public metadata mapping,
-reconnection, rootfs import and aggregate activation remain planned. Focused and
-native acceptance of this extension are being verified.
+reconnection, rootfs import and aggregate activation remain planned. At 634590d,
+all local Go/vet/docs/workflow-policy and 27 JavaScript tests passed; focused race
+passed for Git (11.451s) and Incus (2.386s). Dedicated real Incus/Btrfs mixed-
+collection import and native attachment-metadata checks passed in 29.52s. Offline
+snapshot copying and broker refusal are covered by component/service tests; real
+offline snapshot restore, attached/running Env and live Git/OCI acceptance remain
+unverified.

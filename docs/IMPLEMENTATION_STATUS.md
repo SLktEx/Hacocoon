@@ -2,8 +2,9 @@
 
 Offline Workspace registration/restoration now preserves data without a Git route.
 Mixed broker bindings exclude offline members and reject mismatched Host routing.
-No schema/CLI change is added. Focused/native verification is pending; public
-aggregate import and reconnection remain planned.
+No schema/CLI change is added. All local Go/vet/docs/JS and focused race checks
+passed; real Incus/Btrfs mixed collection import passed in 29.52s. Public aggregate
+import and reconnection remain planned; real offline snapshot restore is unverified.
 
 Native multi-Workspace import now shares the existing collection reservation and
 publication transition, without Git population or separately leaseable members.

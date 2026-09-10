@@ -484,4 +484,8 @@ Status: **内部実装済み**です。remote と branch が両方空なら offl
 既存 catalog の項目と元 archive は書き換えません。schema・CLI の変更も不要です。
 offline member は無関係な同名 source repository の削除を妨げず、データは通常の所有確認付き削除で守ります。
 [ADR 0055](../adr/0055-offline-workspace-routing.md) を参照してください。公開 import での metadata の
-対応付け、再接続、rootfs import、一式の起動は planned です。対象・native 検証を実行中です。
+対応付け、再接続、rootfs import、一式の起動は planned です。634590d の全 Go・vet・docs・
+workflow policy・JS 27件と対象 race（Git 11.451秒、Incus 2.386秒）は成功しました。
+実 Incus/Btrfs の混在 collection import と native attachment metadata 検証も29.52秒で成功しました。
+offline snapshot copy と broker 拒否は component／service テストで確認し、実機の offline snapshot
+restore、接続・起動済み Env、live Git／OCI は未検証です。
