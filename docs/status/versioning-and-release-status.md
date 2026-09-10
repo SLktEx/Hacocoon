@@ -1,5 +1,7 @@
 # Versioning and release status
 
+G1 remains planned publicly. Internal saved-rootfs export now uses an owned native Incus image and bounded archive streaming; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s. This adds no release or checkpoint declaration. See [Environment transfer](../design/environment-transfer.md#native-saved-rootfs-export-adapter).
+
 Source repository cleanup is implemented through the existing registry and Incus volume/device operations. Workspace Git references and queued request identities remain protected. Individual OCI images, candidate-selected GC, reclamation and export/migration remain planned.
 
 Whole OCI Store review/deletion is implemented using existing owner/reservation records and Incus volume operations. Individual OCI image cleanup and candidate-selected GC remain planned; see [Store cleanup](../design/persistent-oci-store.md#explicit-retained-store-deletion).

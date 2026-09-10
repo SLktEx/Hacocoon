@@ -1,5 +1,7 @@
 # バージョン番号とリリース状況
 
+公開 G1 は planned のままです。内部の保存 rootfs export に、所有確認した native Incus image と上限付き archive streaming を追加しました。専用 Incus 6.0.5/Btrfs adapter 受入は 13.44 秒で成功し、リリースや checkpoint の宣言は追加しません。[Environment 持ち出し](../design/environment-transfer.ja.md)を参照してください。
+
 source repository の整理は既存 registry と Incus volume・device 操作で実装しました。Workspace の Git 参照と待機中の要求の所有 ID を保護します。個別 OCI image、候補選択 GC、容量回収、export・移行は planned です。
 
 OCI Store 一式の確認・削除は、既存の所有・予約記録と Incus volume 操作で実装しました。個別 OCI image 整理と候補選択式 GC は planned です。[Store cleanup](../design/persistent-oci-store.md#explicit-retained-store-deletion)を参照してください。
