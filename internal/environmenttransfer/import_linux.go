@@ -40,13 +40,6 @@ type Importer struct {
 	Root         string
 	StoreKind    string // Trusted local composition, never bundle metadata.
 }
-type ImportResult struct {
-	Environment string   `json:"environment"`
-	Workspace   string   `json:"workspace,omitempty"`
-	OCI         string   `json:"oci,omitempty"`
-	State       string   `json:"state"`
-	Offline     []string `json:"offline,omitempty"`
-}
 
 // Import verifies the complete input before mutation. Existing native services
 // own resources and exact cleanup receipts; no transfer catalog is introduced.

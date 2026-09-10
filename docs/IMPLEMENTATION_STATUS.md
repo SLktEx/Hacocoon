@@ -1,5 +1,7 @@
 # Implementation Status
 
+Typed management import upload is internally implemented with bounded framing, explicit count/digest completion, cancellation and retained-resource failure responses. Shipped controller registration and CLI remain planned; transport tests are separate from native import acceptance.
+
 Native bundle import now composes verified staging, independent Workspace/OCI import
 and canonical Env creation. OCI is durably associated before native creation; file
 routes/legacy descriptors import offline. Focused race tests passed after fixing

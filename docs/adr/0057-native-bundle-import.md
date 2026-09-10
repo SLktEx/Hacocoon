@@ -44,3 +44,17 @@ The byte limit, private staging root and OCI kind belong to trusted composition.
 Public CLI/controller upload, SSH handshake and live OCI runtime acceptance remain
 separate requirements. Native aggregate tests must distinguish these from internal
 bundle-to-running-Env acceptance.
+
+## Management upload boundary
+
+The typed import stream sends bounded byte frames and an explicit byte-count/SHA-256
+end record. The existing importer must consume and verify the complete staged bundle
+before native mutation. No controller-side input path, owner, OCI kind or configurable
+budget is accepted from the client. This reuses the management stream; it adds no
+native backend or import catalog. Register it only on the management endpoint.
+
+After upload, disconnect or additional input cancels activation. A terminal response
+preserves the importer failure receipt and identifies retained resources by public
+names. Success requires the upload digest/count, running destination and terminal EOF;
+EOF alone is failure. The client does not retry a failed or disconnected import.
+Shipped controller registration and CLI wiring remain planned in this transport slice.

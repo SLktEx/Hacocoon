@@ -663,3 +663,20 @@ independent import of rootfs, both Git Workspaces and OCI after source deletion,
 Env startup, generation checks, retained data after Env deletion and owned cleanup.
 The local run omitted the CLI binary and skipped public CLI checks and shared-image
 deletion. Public import, SSH handshake and live OCI consistency remain unverified.
+
+## Management import transport
+
+Status: **implemented internally; public registration and CLI planned**. The typed
+`environment.import` stream accepts an optional destination name and bounded 64 KiB
+data frames. Its explicit end record carries the byte count and SHA-256. The existing
+importer stages and validates all input before native mutation. No client-selected
+Host path, owner, OCI kind or budget is accepted. The current 64 GiB payload budget
+plus bounded envelope overhead is shared with export.
+
+Disconnect or additional input after upload cancels activation. The response returns
+the existing import result, including retained-resource names on failure. Success
+requires matching transfer count/digest, a running destination and terminal EOF.
+The operation has a 30-minute deadline, and upload reads/writes have 30-second idle
+deadlines. A caller-owned input reader must support finishing or cancellation.
+No automatic retry or backup is added. This API is not yet registered by the shipped
+controller and is not exposed on guest or notification endpoints.

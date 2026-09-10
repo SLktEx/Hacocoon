@@ -542,3 +542,15 @@ live OCI 整合性は未完了です。
 Git Workspace・OCI の独立 import、Env 起動、世代確認、Env 削除後のデータ保持、所有対象の cleanup を
 確認しました。ローカル実行は CLI バイナリ未指定のため公開 CLI 検証を SKIP し、共有 image の削除も
 SKIP しました。公開 import、SSH 実ハンドシェイク、live OCI 整合性は未検証です。
+
+## 管理接続の import 転送
+
+Status: **内部実装済み・公開登録と CLI は planned** です。型付き `environment.import` stream は
+任意の復元先名と最大64 KiBの data frame を受け取り、明示的な終端の byte 数と SHA-256 を確認します。
+既存 importer が全入力を staging・検証してから native 変更を行います。client 指定の Host path、
+owner、OCI kind、上限は受け取りません。export と同じ64 GiBの payload 上限と上限付き envelope を使います。
+
+upload 後の切断・追加入力は起動処理を取り消します。応答は失敗時に保持した資源名を含む既存 import result
+を返します。成功には転送 count/digest の一致、復元先の running、終端 EOF が必要です。操作は30分、
+upload の読み書きは30秒の待機期限を設けます。呼出元の入力 reader は完了または取消可能である必要があります。
+自動再試行や backup は追加しません。製品 controller への登録は未実装で、guest／通知接続にも公開しません。

@@ -1,5 +1,7 @@
 # 実装状況
 
+型付き管理 import 転送を内部実装しました。上限付き frame、count/digest による明示完了、取消、失敗時の保持資源応答を扱います。製品 controller への登録と CLI は planned で、転送テストと native import 受入は区別します。
+
 native bundle import を、全体検証、独立した Workspace／OCI import、canonical Env 作成に接続しました。
 OCI は native 作成前に新しい Workspace と対応付け、file 接続先／旧 descriptor は offline とします。
 初回のコンパイルエラーと長い名前の ID 制約を修正し、対象 race は成功しました。6360a23 の全ローカル CI
