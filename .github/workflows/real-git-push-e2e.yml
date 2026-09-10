@@ -1,9 +1,6 @@
 name: real-git-push-e2e
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -18,18 +15,24 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-26.04
     timeout-minutes: 10
-    permissions:
-      contents: write
+    env:
+      HACO_PUSH_TEST_READY: ${{ secrets.HACO_TEST_REPOSITORY_TOKEN != '' }}
     steps:
+      - name: Report unavailable test-repository credential
+        if: env.HACO_PUSH_TEST_READY != 'true'
+        run: echo 'SKIP real Git push - HACO_TEST_REPOSITORY_TOKEN for SLktEx/Hacocoon-test is not configured; no push acceptance was executed.'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.HACO_PUSH_TEST_READY == 'true'
         with:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: env.HACO_PUSH_TEST_READY == 'true'
         with:
           go-version: 1.27.x
           check-latest: true
           cache: false
-      - name: Verify real brokered GitHub push
+      - name: Verify legacy brokered push to the dedicated test repository
+        if: env.HACO_PUSH_TEST_READY == 'true'
         env:
-          HACO_GITHUB_TOKEN: ${{ github.token }}
+          HACO_GITHUB_TOKEN: ${{ secrets.HACO_TEST_REPOSITORY_TOKEN }}
         run: bash test/e2e/git_github_real_push.sh

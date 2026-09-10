@@ -1780,3 +1780,6 @@ The production Capability service now resolves every named request to trusted ca
 At 5272434, GHA Go 1.26/1.27 tests/vet, race, release-config, docs, Ubuntu and Incus passed. The test workflow failed only in the orchestrator E2E, whose approval source name had never been created. The fixture now uses ordinary create/delete, and its local E2E passed. Capability saved-scope/recreation and Git transport-refusal E2Es passed.
 
 The local CI entry point passed docs/workflow checks, then failed because WSL lacks pwsh; subsequent stages in that invocation were unexecuted. Its separate Go stage exposed a test-helper deadlock: an empty select could terminate the SIGKILL helper before the parent checked its live lock. A bounded timer preserves the helper until the parent kills it. The actual subprocess/SIGKILL regression passed 20 repetitions and the run package race tests passed. These are fixture fixes, not changes to cleanup authority.
+
+
+Real Git push CI is restricted to manual trusted-main dispatch and the fixed SLktEx/Hacocoon-test target. Missing dedicated credentials produce SKIP, not push acceptance. The legacy fixture does not verify installed-product import or interactive approval. See [ADR 0059](adr/0059-dedicated-git-push-test-target.md).
