@@ -64,8 +64,9 @@ func prepareTransferOCI(t *testing.T, ctx context.Context, r *Runtime, ref, gene
 	}
 	run("enable-nesting", "config", "set", ref, "security.nesting", "true", "--project", r.project)
 	run("start-source", "start", ref, "--project", r.project)
-	run("push-runtime", "file", "push", filepath.Join(assets, "nerdctl-full.tar.gz"), ref+"/tmp/haco-transfer-runtime.tar.gz", "--project", r.project)
-	run("push-probe", "file", "push", filepath.Join(assets, "oci-transfer-probe"), ref+"/tmp/haco-transfer-probe", "--project", r.project)
+	transferOCIGuest(t, ctx, r, ref, "prepare-input-directory", "mkdir -m 700 /var/lib/haco-transfer-input")
+	run("push-runtime", "file", "push", filepath.Join(assets, "nerdctl-full.tar.gz"), ref+"/var/lib/haco-transfer-input/runtime.tar.gz", "--project", r.project)
+	run("push-probe", "file", "push", filepath.Join(assets, "oci-transfer-probe"), ref+"/var/lib/haco-transfer-input/probe", "--project", r.project)
 	transferOCIGuest(t, ctx, r, ref, "configure-store", persistentOCIConfiguration)
 	transferOCIGuest(t, ctx, r, ref, "install-runtime", transferContainerdSetup)
 	transferOCIGuest(t, ctx, r, ref, "start-containerd", transferContainerdStart)
@@ -85,8 +86,8 @@ func verifyTransferredOCI(t *testing.T, ctx context.Context, r *Runtime, ref str
 }
 
 const transferContainerdSetup = `set -eu
-tar -xzf /tmp/haco-transfer-runtime.tar.gz -C /usr/local bin/nerdctl bin/containerd bin/containerd-shim-runc-v2 bin/ctr bin/runc
-rm /tmp/haco-transfer-runtime.tar.gz
+tar -xzf /var/lib/haco-transfer-input/runtime.tar.gz -C /usr/local bin/nerdctl bin/containerd bin/containerd-shim-runc-v2 bin/ctr bin/runc
+rm /var/lib/haco-transfer-input/runtime.tar.gz
 cat > /etc/systemd/system/containerd.service <<'UNIT'
 [Unit]
 Description=Owned transfer fixture containerd
@@ -105,16 +106,16 @@ until ctr version >/dev/null 2>&1; do
 done
 `
 const transferContainerdSeed = `set -eu
-mkdir /tmp/haco-transfer-root
-cp /tmp/haco-transfer-probe /tmp/haco-transfer-root/probe
-chmod 755 /tmp/haco-transfer-root/probe
-tar -cf /tmp/haco-transfer-image.tar -C /tmp/haco-transfer-root .
-nerdctl --snapshotter native import /tmp/haco-transfer-image.tar hacocoon-transfer:local
+mkdir /var/lib/haco-transfer-input/root
+cp /var/lib/haco-transfer-input/probe /var/lib/haco-transfer-input/root/probe
+chmod 755 /var/lib/haco-transfer-input/root/probe
+tar -cf /var/lib/haco-transfer-input/image.tar -C /var/lib/haco-transfer-input/root .
+nerdctl --snapshotter native import /var/lib/haco-transfer-input/image.tar hacocoon-transfer:local
 nerdctl --snapshotter native image inspect --format '{{.Id}}' hacocoon-transfer:local > /var/lib/haco-transfer-image-id
 test "$(nerdctl --snapshotter native run --pull never --net none --name haco-transfer-persist hacocoon-transfer:local /probe)" = created
 test -z "$(ctr tasks list -q)"
-rm /tmp/haco-transfer-image.tar /tmp/haco-transfer-probe /tmp/haco-transfer-root/probe
-rmdir /tmp/haco-transfer-root
+rm /var/lib/haco-transfer-input/image.tar /var/lib/haco-transfer-input/probe /var/lib/haco-transfer-input/root/probe
+rmdir /var/lib/haco-transfer-input/root /var/lib/haco-transfer-input
 systemctl stop containerd
 `
 const transferContainerdVerify = `set -eu
