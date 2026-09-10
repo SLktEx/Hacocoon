@@ -35,6 +35,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, enroll fu
 }
 
 type helperActions struct {
+	review func(context.Context, string, string) error
 	enroll func(context.Context, string) error
 	launch func(context.Context, string, string) (int, error)
 	worker func(context.Context, string, string) error
@@ -45,7 +46,7 @@ func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, acti
 	if len(args) == 0 || args[0] == "enroll" {
 		return run(ctx, args, stdout, stderr, actions.enroll)
 	}
-	if len(args) != 3 || (args[0] != "_launch" && args[0] != "_continue" && args[0] != "_status") {
+	if len(args) != 3 || (args[0] != "_launch" && args[0] != "_continue" && args[0] != "_status" && args[0] != "_review-failed") {
 		fmt.Fprintln(stderr, "Invalid internal Windows helper arguments.")
 		return 2
 	}
@@ -53,6 +54,14 @@ func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, acti
 	if err != nil {
 		fmt.Fprintln(stderr, "Invalid logging configuration.")
 		return 2
+	}
+	if args[0] == "_review-failed" {
+		if err := actions.review(ctx, args[1], args[2]); err != nil {
+			logger.Error("Failed reclamation review failed", "component", "host", "operation", "review_wsl_failure", "error", err)
+			return 1
+		}
+		fmt.Fprintln(stdout, "Failed result retained; a new operation may now be prepared.")
+		return 0
 	}
 	if args[0] == "_status" {
 		status, readErr := actions.status(ctx, args[1], args[2])
@@ -91,7 +100,7 @@ func main() {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	code := dispatch(ctx, os.Args[1:], os.Stdout, os.Stderr, helperActions{wslreclaim.EnrollInstallation, wslreclaim.LaunchPreparedWorker, wslreclaim.ExecutePreparedWorker, wslreclaim.ReadPreparedStatus})
+	code := dispatch(ctx, os.Args[1:], os.Stdout, os.Stderr, helperActions{review: wslreclaim.ReviewFailedOperation, enroll: wslreclaim.EnrollInstallation, launch: wslreclaim.LaunchPreparedWorker, worker: wslreclaim.ExecutePreparedWorker, status: wslreclaim.ReadPreparedStatus})
 	cancel()
 	stop()
 	os.Exit(code)

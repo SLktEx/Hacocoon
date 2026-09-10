@@ -76,3 +76,40 @@ func TestPreparedWorkerDispatch(t *testing.T) {
 		}
 	}
 }
+
+// Review has its own structured failure boundary; no continuation action runs.
+func TestFailedReviewDispatch(t *testing.T) {
+	t.Setenv("HACO_LOG_LEVEL", "info")
+	t.Setenv("HACO_LOG_FORMAT", "json")
+	for _, args := range [][]string{{"_review-failed"}, {"_review-failed", "r"}, {"_review-failed", "r", "o", "extra"}} {
+		var out, errout bytes.Buffer
+		if code := dispatch(context.Background(), args, &out, &errout, helperActions{}); code != 2 {
+			t.Fatal(code)
+		}
+	}
+	for _, failed := range []bool{false, true} {
+		var out, errout bytes.Buffer
+		calls := 0
+		actions := helperActions{review: func(ctx context.Context, r, o string) error {
+			calls++
+			if r != "registration" || o != "operation" {
+				t.Fatal("changed target")
+			}
+			if failed {
+				return errors.New("token=private-review-value")
+			}
+			return nil
+		}}
+		code := dispatch(context.Background(), []string{"_review-failed", "registration", "operation"}, &out, &errout, actions)
+		if calls != 1 {
+			t.Fatal("review not dispatched exactly once")
+		}
+		if failed {
+			if code != 1 || out.Len() != 0 || strings.Contains(errout.String(), "private-review-value") || !strings.Contains(errout.String(), "review_wsl_failure") {
+				t.Fatal("wrong review failure boundary", code, out.String(), errout.String())
+			}
+		} else if code != 0 || !strings.Contains(out.String(), "Failed result retained") || errout.Len() != 0 {
+			t.Fatal("wrong review success", code)
+		}
+	}
+}

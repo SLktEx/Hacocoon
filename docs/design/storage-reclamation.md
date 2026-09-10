@@ -562,3 +562,31 @@ worker compaction failure remains a failure. The initial package invocation on
 Windows failed because its `python3` child was unavailable; execution on Ubuntu
 passed. The BAT test failed on PowerShell Core and passed on its required 5.1.
 Latest-head GHA remains pending; this is not public all-layer acceptance.
+
+## Explicit review of a terminal failure
+
+The internal Windows helper accepts `_review-failed REGISTRATION_GUID OPERATION_GUID`
+after the exact `_status` result has been inspected. Existing continuation exclusion,
+installation enrollment, Windows owner, Host identity and pinned disk checks still
+apply. Review may start the selected distribution to read its installation identity;
+it does not request shutdown, compact a disk or launch another worker.
+
+Only the current terminal `failed` result can be reviewed. The complete canonical
+version-1 record is copied to `ReviewedFailed-<operation GUID>` in the same private
+registry key, flushed and read back before a future intent may replace it. The
+current result is unchanged by review, and the old operation remains `failed`.
+A new intent has a new ID; `_status` can still read the preserved failure by its
+original ID after a newer operation starts. Repeated review of the same current
+failure is idempotent. Unknown or conflicting retained evidence is never overwritten.
+
+Pending/unknown work cannot be acknowledged this way: a launcher may still dispatch
+its worker later. Successful, stale and foreign results are also refused. There is
+no automatic review, replay, new record schema or new recovery state. The public
+all-layer command and interrupted-pending review remain incomplete. The earlier
+real WSL failure is not acknowledged or retried by these new regression tests.
+
+Validation: Windows native registry review regression passed in 0.04s, including
+verbatim retention, idempotence, pending/foreign/malformed refusal and old-ID
+readback after a new attempt. Full native library and helper tests and vet passed.
+Dedicated WSL gates were not enabled; symlink creation skipped for privilege.
+No real enrolled failure was acknowledged or retried; that acceptance remains open.

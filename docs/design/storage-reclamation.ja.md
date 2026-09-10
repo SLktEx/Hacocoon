@@ -448,3 +448,29 @@ BAT 終了コードテストは成功しました。新規所有の空256MiB VHD
 SKIP です。以前の worker 圧縮失敗は失敗のまま保持します。Windows の package 初回実行は
 子の `python3` 不在で失敗し、Ubuntu で成功しました。BAT テストは PowerShell Core で失敗し、
 必要な5.1で成功しました。最新 head の GHA は確認待ちで、公開の全層受入ではありません。
+
+## 終端の失敗結果を明示確認する
+
+内部 Windows helper は、正確な `_status` 結果を確認した後の
+`_review-failed REGISTRATION_GUID OPERATION_GUID` を受け付けます。
+既存の continuation 排他、導入済み対応、Windows 所有者、Host 識別、disk の固定と照合を
+維持します。導入識別の読み取りで選択した WSL を起動する場合はありますが、停止要求、
+disk 圧縮、別 worker の起動は行いません。
+
+確認できるのは現在の終端 `failed` 結果だけです。canonical な version 1 記録全体を
+同じ private registry key の `ReviewedFailed-<operation GUID>` へ保存し、flush と
+読み戻しを確認してから将来の新規 intent に進めます。確認自体では現在の結果を書き換えず、
+旧操作は `failed` のままです。新しい intent は別 ID を持ち、その後も旧 ID の `_status`
+で保存した失敗を読めます。同じ現在の失敗の再確認は冪等で、不明・競合する保存証拠を
+上書きしません。
+
+pending／結果不明の操作には使えません。launcher が後から worker を起動し得るためです。
+成功済み、古い対象、別対象も拒否します。自動確認・再実行・新 schema・新復旧状態は追加
+しません。公開の全層操作と pending の中断確認は未完了です。新しい回帰テストは、以前の
+実 WSL 失敗の確認解除や再試行を行いません。
+
+検証: Windows native registry の確認回帰は0.04秒で成功し、原文保持、冪等性、
+pending・別対象・不正記録の拒否、新試行後の旧 ID 照会を確認しました。
+native library 全体、helper テスト、vet も成功しました。専用 WSL gate は有効化せず、
+symlink 作成は権限不足で SKIP です。実登録の失敗は確認解除・再試行しておらず、
+その受入は未完了です。

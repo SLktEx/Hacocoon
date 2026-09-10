@@ -109,3 +109,11 @@ The launcher waits for a bounded private readiness frame and EOF after target
 validation, before WSL stop. This separates startup refusal from dispatch success
 without adding recovery states. Cancellation or timeout does not cancel the worker
 or clear the durable intent; completion still comes from the recorded result.
+
+Terminal failure review retains the original canonical result under its operation
+GUID before allowing a new intent, under the existing continuation exclusion and
+enrolled target checks. Do not equate acknowledgement with successful compaction,
+delete evidence to unblock retry, or allow this path for pending work: a delayed
+launcher could still execute that exact pending operation. Preserved failures stay
+readable by ID. This adds an explicit acknowledgement boundary, not automatic replay
+or a generic recovery state machine.

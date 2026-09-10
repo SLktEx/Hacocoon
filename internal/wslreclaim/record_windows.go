@@ -69,12 +69,14 @@ func (r operationRecord) validate() error {
 	return nil
 }
 
-func (s *operationStore) read() (operationRecord, error) {
+func (s *operationStore) read() (operationRecord, error) { return s.readValue("Operation") }
+
+func (s *operationStore) readValue(name string) (operationRecord, error) {
 	var r operationRecord
 	// Fixed allocation even for a hostile registry value. Require our canonical
 	// encoding, rejecting duplicate/unknown fields rather than silently dropping them.
 	data := make([]byte, 16384)
-	n, kind, err := s.key.GetValue("Operation", data)
+	n, kind, err := s.key.GetValue(name, data)
 	if err != nil {
 		return r, err
 	}
@@ -121,12 +123,21 @@ func (s *operationStore) write(r operationRecord) error {
 	return nil
 }
 
-// Caller holds the registration's continuation guard. Completed observations may
-// be replaced by a new intent; pending/failed/unknown records remain untouched.
+// Caller holds the registration's continuation guard. A failed result may be
+// replaced only after explicit review has durably retained that exact result.
+// Pending and unknown records cannot be released this way.
 func (s *operationStore) begin(r registration, disk diskIdentity) (operationRecord, error) {
 	old, err := s.read()
 	if err == nil {
-		if old.State != "complete" {
+		if old.State == "failed" {
+			reviewed, reviewErr := s.readValue(failedReviewName(old.Operation))
+			if reviewErr != nil || reviewed != old {
+				return operationRecord{}, errOperationNeedsReview
+			}
+			if err := s.reviewFailed(old.Operation, r, disk); err != nil {
+				return operationRecord{}, err
+			}
+		} else if old.State != "complete" {
 			return operationRecord{}, errOperationNeedsReview
 		}
 		if old.Registration != r || old.Disk != disk {

@@ -148,7 +148,7 @@ func ReadPreparedStatus(ctx context.Context, registrationID, operationID string)
 		return PreparedStatus{}, err
 	}
 	defer key.Close()
-	record, err := (&operationStore{key: key}).read()
+	record, err := (&operationStore{key: key}).readOperation(o)
 	if err != nil {
 		return PreparedStatus{}, err
 	}

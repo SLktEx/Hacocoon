@@ -1891,3 +1891,5 @@ The native resume E2E passed in 37.43s with the boot-setting readback and retain
 
 
 G2 now includes an opt-in real snapshot-deletion EPERM evacuation regression in the existing native gate. A separate isolated WSL manual probe passed capture during failure, independent restoration and owned-pool cleanup. Full installation/corruption recovery remains incomplete; see [the owning contract](design/environment-transfer.md#readable-evacuation-after-a-failed-snapshot-deletion).
+
+F1 now has internal explicit review of the current terminal failed operation, retaining its original result by ID before a new attempt is permitted. Pending/unknown work stays blocked; Windows native registry and command/library regressions passed; real enrolled-WSL review remains unverified. See [failure review](design/storage-reclamation.md#explicit-review-of-a-terminal-failure).
