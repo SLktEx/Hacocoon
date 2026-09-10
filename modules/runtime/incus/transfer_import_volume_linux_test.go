@@ -6,11 +6,16 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/host"
 	"gopkg.in/yaml.v2"
 )
 
@@ -152,5 +157,109 @@ func TestPrepareVolumeImportRejectsUnsafeOrIncompleteArchives(t *testing.T) {
 		if validImportedIDMap(value) {
 			t.Fatal("unsafe idmap", value)
 		}
+	}
+}
+
+func TestVolumeImportNativeBoundaryRefusesAmbiguityAndRetainsFailures(t *testing.T) {
+	for _, scenario := range []string{"success", "owned", "foreign", "malformed", "truncated", "query-error", "native-exit", "native-error"} {
+		t.Run(scenario, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.Chmod(root, 0700); err != nil {
+				t.Fatal(err)
+			}
+			resource := core.PersistentResource{ID: "oci:imported", Kind: OCIStoreKind, Owner: strings.Repeat("a", 32), NativeRef: "pool/haco-persistent-" + strings.Repeat("a", 32), State: "creating"}
+			imports := 0
+			archivePath := ""
+			lostReply := errors.New("lost native reply")
+			runner := &fakeRunner{run: func(_ context.Context, _ int, command string, args []string) (host.Result, error) {
+				if command != "incus" {
+					t.Fatalf("unexpected executable %s", command)
+				}
+				if args[0] == "query" {
+					switch scenario {
+					case "query-error":
+						return host.Result{}, lostReply
+					case "malformed":
+						return host.Result{Stdout: "{}"}, nil
+					case "truncated":
+						return host.Result{Stdout: "[]", StdoutTruncated: true}, nil
+					case "owned", "foreign":
+						owner := resource.Owner
+						if scenario == "foreign" {
+							owner = strings.Repeat("b", 32)
+						}
+						v := persistentVolumeObservation{Name: "haco-persistent-" + resource.Owner, Type: "custom", ContentType: "filesystem", Config: map[string]string{"user.hacocoon.owner": owner, "user.hacocoon.resource": resource.ID, "user.hacocoon.kind": resource.Kind, "user.hacocoon.source-only": "false"}}
+						data, err := json.Marshal([]persistentVolumeObservation{v})
+						return host.Result{Stdout: string(data)}, err
+					default:
+						return host.Result{Stdout: "[]"}, nil
+					}
+				}
+				imports++
+				if len(args) != 8 {
+					t.Fatalf("unexpected mutation: %v", args)
+				}
+				archivePath = args[4]
+				want := []string{"storage", "volume", "import", "pool", archivePath, "haco-persistent-" + resource.Owner, "--project", "hacocoon"}
+				if !reflect.DeepEqual(args, want) || !strings.HasPrefix(archivePath, "/proc/") {
+					t.Fatalf("unplanned destination: %v", args)
+				}
+				f, err := os.Open(archivePath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer f.Close()
+				tr := tar.NewReader(f)
+				if _, err = tr.Next(); err != nil {
+					t.Fatal(err)
+				}
+				data, err := io.ReadAll(tr)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var index volumeImportIndex
+				if err = yaml.UnmarshalStrict(data, &index); err != nil {
+					t.Fatal(err)
+				}
+				if index.Config.Volume.Config["user.hacocoon.owner"] != resource.Owner || index.Config.Volume.Config["user.hacocoon.resource"] != resource.ID {
+					t.Fatal("native creation observed old authority")
+				}
+				switch scenario {
+				case "native-exit":
+					return host.Result{ExitCode: 1}, nil
+				case "native-error":
+					return host.Result{}, lostReply
+				default:
+					return host.Result{}, nil
+				}
+			}}
+			backend := &PersistentResourceBackend{Runtime: New(runner), ImportRoot: root, ImportLimit: 1 << 20}
+			err := backend.Import(context.Background(), resource, bytes.NewReader(importVolumeFixture(t, importIndexFixture)))
+			switch scenario {
+			case "success":
+				if err != nil || imports != 1 {
+					t.Fatal(imports, err)
+				}
+			case "native-exit", "native-error":
+				if !errors.Is(err, core.ErrRecoveryRequired) || imports != 1 {
+					t.Fatal(imports, err)
+				}
+				if scenario == "native-error" && !errors.Is(err, lostReply) {
+					t.Fatal("lost underlying error", err)
+				}
+			default:
+				if err == nil || imports != 0 {
+					t.Fatal("ambiguous native target mutated", imports, err)
+				}
+			}
+			if archivePath != "" {
+				if _, err := os.Stat(archivePath); !errors.Is(err, os.ErrNotExist) {
+					t.Fatal("native input descriptor retained", err)
+				}
+			}
+			if entries, err := os.ReadDir(root); err != nil || len(entries) != 0 {
+				t.Fatal("named staging residue", err)
+			}
+		})
 	}
 }

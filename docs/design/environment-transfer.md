@@ -452,3 +452,17 @@ Focused Store/import and native preparation race tests passed (1.052s/1.057s);
 vet passed. The first fixture build failed on a quoted multiline string and was
 corrected. No rootfs/Workspace aggregate import, Env activation, actual idmap shift
 on attachment or live OCI daemon was tested. Public import remains planned.
+
+The native runner boundary regression also covers owned/foreign target refusal,
+malformed/truncated inventory, failed inventory queries, nonzero native exit and
+lost native replies. It checks fresh metadata at the actual import invocation and
+closes anonymous input after both success and failure. Focused race tests passed
+in 2.359s. The initial PR head's existing Incus GHA job also passed the owned
+volume-import step; this is not yet an all-green PR result.
+
+Whole-Environment import must also define Workspace registration metadata: the
+version-1 envelope carries ordered archives but no repository name, remote or
+branch mapping. The current managed Workspace service needs that mapping; guest
+Git configuration must not silently become trusted broker routing. This remains
+part of public import implementation, not a claim that existing bundles are lost
+or unreadable. Existing inspection/component access remains supported.

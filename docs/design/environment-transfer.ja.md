@@ -366,3 +366,15 @@ Store/import と native 準備の focused race test は1.052秒／1.057秒で成
 成功しました。最初の fixture build は複数行文字列の構文で失敗し、修正しました。
 rootfs/Workspace 一式の import、Env 起動、接続時の実 idmap shift、live OCI daemon は
 未検証・未実装です。公開 import は planned のままです。
+
+ネイティブ呼び出し境界の回帰テストでは、所有済み・他所有者の対象、不正・切り詰め済みの一覧、
+一覧取得失敗、native の非ゼロ終了、応答喪失も確認しています。import 呼び出し時点の新しい
+所有 metadata と、成功・失敗の両方で匿名入力を閉じることを確認し、対象 race テストは
+2.359 秒で成功しました。PR 初期 head の既存 Incus GHA でも owned volume import step は
+成功しましたが、PR 全体の green を意味しません。
+
+Environment 全体の import には Workspace 登録 metadata の定義も必要です。version 1 の
+転送形式は順序付き archive を保持しますが、repository 名・remote・branch の対応は持ちません。
+現行の管理 Workspace service はこの対応を必要とし、ゲスト内の Git config を暗黙に信頼済みの
+broker 接続先として採用してはいけません。これは公開 import の残実装であり、既存 bundle の
+喪失や読み取り不能を意味しません。既存の検査・component 読み取りは引き続き利用できます。
