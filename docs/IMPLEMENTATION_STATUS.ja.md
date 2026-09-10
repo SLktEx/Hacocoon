@@ -17,9 +17,20 @@ Status: **partial** です。Linux の `haco env import <file.haco> [new-env]` �
 成功し、2992c47の全 Go・vet・JS 27件・文書・workflow policy も成功しました。全体 local CI は Ubuntu の
 pwsh 不在で失敗し、その後の all-entry 項目は未実行です。最新 head の GHA とは区別します。
 
-今回の公開 CLI／native 経路の受入は未確定です。既存 aggregate E2E は binary 指定時に製品 import CLI を
-使います。SSH 実ハンドシェイク、live OCI 整合性、Git 再接続、未完了 collection の cleanup、Windows native
+b7297a3 の専用 Incus/Btrfs 実行では、製品 import CLI・管理 stream・canonical importer による
+rootfs／Git／OCI の独立復元、実起動、旧世代の拒否、管理 SSH 更新、Env 削除後の保持と所有 cleanup が成功しました。
+これは fixture controller の実検証で、インストール済み controller／desktop からの import は未検証です。
+aggregate 全体の後続 snapshot／copy の完了判定は別に扱います。SSH 実ハンドシェイク、live OCI 整合性、Git 再接続、未完了 collection の cleanup、Windows native
 ファイル入力は未完了です。[Environment transfer](design/environment-transfer.ja.md#linux-import-コマンド)を参照してください。
+
+b7297a3 の初回公開 import aggregate は export・native import・restore に成功し、続く公開 copy で
+fixture の12分期限に達して720.07秒で失敗しました。全体は FAIL であり、成功や SKIP ではありません。
+所有 catalog と保存データは `/var/lib/haco-snapshot-aggregate-1920048809` に明示 cleanup のため残しています。
+共有データは削除対象にしていません。増えた検証量に合わせて fixture を20分、GHA の test process を25分に
+設定します。製品の期限・隔離は変更しません。b7297a3 の GHA 実 Incus/Btrfs
+[aggregate step](https://github.com/SLktEx/Hacocoon/actions/runs/34455660292/job/102801320149)は、
+製品 import CLI と全 aggregate assertion を含めて成功しました。ローカル失敗は保持し、GHA を独立した受入結果として
+扱います。延長後の local-budget 版はコンパイル済みですがローカル再実行はしていません。b7297a3 の4 workflow は成功しました。後続の fixture 期限変更は、その最新 head の CI を別に追跡します。
 
 ## 公開 Environment export の作業状況
 

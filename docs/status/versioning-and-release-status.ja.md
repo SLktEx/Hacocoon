@@ -1,15 +1,11 @@
 # バージョン番号とリリース状況
 
-Linux 公開 export は partial（`haco env export <stopped-env> [file.haco]`）です。
-shipped Linux Incus/Btrfs aggregate 受入は GHA で47.06秒で成功し、local WSL 全体 gate は
-fixture 期限で失敗しました。公開 import と Windows 出力は未完了で、release/checkpoint は宣言しません。
-[Environment 持ち出し](../design/environment-transfer.ja.md)を参照してください。
-
-実装済みの G1 内部処理は、停止 Env の capture と全 native archive を非公開の検証済み bundle に
-まとめます。Linux export は接続済み、公開 import は planned で、release/checkpoint は宣言しません。
-[Environment 持ち出し](../design/environment-transfer.ja.md)を参照してください。
-
-G1 は partial で、Linux export は実装済み、公開 import は planned です。内部の保存 rootfs export に、所有確認した native Incus image と上限付き archive streaming を追加しました。専用 Incus 6.0.5/Btrfs adapter 受入は 13.44 秒で成功し、リリースや checkpoint の宣言は追加しません。[Environment 持ち出し](../design/environment-transfer.ja.md)を参照してください。
+G1 は **partial** です。Linux の `haco env export` と `haco env import <file.haco> [new-env]` を
+#530 経由で main に実装しました。製品 CLI と fixture controller の実 Incus/Btrfs aggregate は
+GHA で72.06秒（b7297a3）で成功し、4 workflow も成功しました。ローカル全体は import・restore 成功後に
+fixture の12分期限で失敗しており、両方を記録します。導入済み controller／desktop の import、SSH 実接続、
+live OCI 整合性、Windows native のファイル受渡しは未完了です。新しい release／checkpoint は宣言しません。
+[Environment 持ち出し](../design/environment-transfer.ja.md#linux-import-コマンド)を参照してください。
 
 v0.57 の OCI image cleanup は partial です。未接続の nerdctl Store の一覧・削除は、production composition と bare controller／CLI を使い、bd1c9a5 の実 Incus/Btrfs で成功しました。導入済み controller 全体の受け入れ、未接続 Docker、候補選択型 GC は未完了です。[画像操作](../design/oci-image-deletion.ja.md)を参照してください。
 

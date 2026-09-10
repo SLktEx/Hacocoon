@@ -31,8 +31,9 @@ configuration. Imported owner labels are source metadata, not a newly issued lea
 The dedicated Incus 6.0.5 CLI has no instance-import config/device override flags,
 although the current upstream documentation describes them. Do not implement
 import by assuming newer flags or by starting an instance before replacing its
-old configuration. Rootfs archive validation, current security reconstruction,
-file-path handling and aggregate publication still need implementation and tests.
+old configuration. The implemented path imports an owned temporary image and creates an instance with
+explicit current configuration. It validates rootfs input and reconstructs security
+before startup; it does not activate an imported instance with source configuration.
 
 ## Native custom-volume acceptance
 
@@ -339,7 +340,7 @@ No product ownership check or timeout was relaxed.
 ## Linux export command
 
 Status: **partial**. Repository implementation provides `haco env export` through
-the trusted controller stream; import remains planned. The source must be stopped:
+the trusted controller stream. Import usage is documented below. The export source must be stopped:
 
 ```bash
 haco env stop dev
@@ -412,7 +413,7 @@ records and two complete export archives remain for explicit cleanup.
 
 ## Verified component delivery for import
 
-Status: **implemented internally**; the public importer acceptance remains pending.
+Status: **implemented internally**; public importer acceptance remains pending.
 `Staged.ComponentReader(role)` exposes a seekable, read-only view of one native
 archive. Its offsets come from the same bounded parser that verifies every
 component and the complete envelope; no component view is published on partial
@@ -682,8 +683,10 @@ API only on its management endpoint, never guest or notification endpoints.
 
 ## Linux import command
 
-Status: **partial**; CLI and shipped controller wiring are implemented, with public
-native acceptance pending. Run from the Linux client that can read the bundle:
+Status: **partial**; CLI and shipped controller wiring are implemented. Dedicated
+execution at b7297a3 verified shipped-CLI/fixture-controller native import, startup,
+data retention and owned cleanup. Installed-controller/desktop import remains
+unverified; overall aggregate completion is recorded separately. Run from the Linux client that can read the bundle:
 
 ```bash
 haco env import dev.haco
@@ -711,3 +714,16 @@ no automatic retry. File routes and legacy bundles import offline; reconnection 
 still planned. Linux/WSL is supported; native Windows file input is unsupported, and
 files must be available to the client inside trusted `haco-host` when running there.
 SSH handshake and live OCI daemon consistency remain separate acceptance items.
+
+The first complete public-import aggregate at b7297a3 passed export, native import
+and restore, then failed during public copy at the fixture's 12-minute deadline
+(720.07s). This is an overall FAIL, not a successful aggregate or SKIP. Its ownership
+catalog and saved data remain at `/var/lib/haco-snapshot-aggregate-1920048809` for
+explicit cleanup; shared data was not selected for deletion. The expanded test
+sequence now has a 20-minute fixture budget and a 25-minute GHA test-process budget.
+Product timeouts and isolation are unchanged. At b7297a3, GHA's real Incus/Btrfs
+[aggregate step](https://github.com/SLktEx/Hacocoon/actions/runs/34455660292/job/102801320149)
+succeeded with the shipped import CLI and all aggregate assertions. This provides
+independent acceptance while preserving the local failure record. The extended
+local-budget variant has compiled but has not been rerun locally; all four b7297a3 workflows passed. The follow-up fixture-budget commit requires
+its own latest-head CI result.

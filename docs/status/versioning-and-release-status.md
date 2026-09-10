@@ -1,15 +1,12 @@
 # Versioning and release status
 
-Linux public export is now partial (`haco env export <stopped-env> [file.haco]`).
-Shipped Linux Incus/Btrfs aggregate acceptance passed in GHA (47.06s); local WSL
-full gates failed on fixture deadlines. Public import and Windows output remain pending.
-No release/checkpoint is declared. See [Environment transfer](../design/environment-transfer.md#linux-export-command).
-
-The implemented internal G1 slice composes a stopped Env capture and all native archives into a
-private verified bundle. Linux export is connected; public import remains planned; no release or
-checkpoint is declared. See [the owning flow](../design/environment-transfer.md#internal-stopped-environment-export).
-
-G1 remains partial: Linux export is implemented and public import is planned. Internal saved-rootfs export now uses an owned native Incus image and bounded archive streaming; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s. This adds no release or checkpoint declaration. See [Environment transfer](../design/environment-transfer.md#native-saved-rootfs-export-adapter).
+G1 remains **partial**. Linux `haco env export` and `haco env import <file.haco> [new-env]`
+are implemented on main through #530. The shipped CLI with a fixture controller passed
+real Incus/Btrfs aggregate acceptance in GHA (72.06s at b7297a3); all four workflows
+passed. The local full aggregate failed at its 12-minute fixture deadline after import
+and restore succeeded. Both results remain recorded. Installed-controller/desktop
+import, SSH handshake, live OCI consistency and native Windows file delivery remain
+unfinished. No new release or checkpoint is declared. See [Environment transfer](../design/environment-transfer.md#linux-import-command).
 
 The v0.57 OCI image cleanup checkpoint is partial. Detached nerdctl Store list/delete through production composition and the bare controller/CLI passed real Incus/Btrfs acceptance at bd1c9a5. Full installed-controller acceptance, detached Docker and candidate-selected GC remain incomplete. See [image operations](../design/oci-image-deletion.md#controllercli-acceptance).
 

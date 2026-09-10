@@ -471,7 +471,7 @@ b7dca44 の全 Go・vet・docs・workflow policy・JS 27件と対象 race（2.78
 専用の実 Incus/Btrfs 検証も29.64秒で成功し、保存元削除後の archive からの独立2コピー、
 Git・untracked データ保持、member 単独記録の不在、canonical な collection 削除を確認しました。
 collection の部分失敗時の保持は service テストで確認し、native への失敗注入では未検証です。
-公開一式の import、offline 接続先、rootfs と Env 起動は planned のままです。
+公開一式の import 受入は未確定です。offline 接続先、rootfs と Env 起動は実装済みです。
 
 ## offline Workspace データ
 
@@ -484,7 +484,7 @@ Status: **内部実装済み**です。remote と branch が両方空なら offl
 既存 catalog の項目と元 archive は書き換えません。schema・CLI の変更も不要です。
 offline member は無関係な同名 source repository の削除を妨げず、データは通常の所有確認付き削除で守ります。
 [ADR 0055](../adr/0055-offline-workspace-routing.md) を参照してください。公開 import での metadata の
-対応付け、再接続、rootfs import、一式の起動は planned です。634590d の全 Go・vet・docs・
+対応付けと rootfs import・一式の起動は実装済みで、再接続は planned です。634590d の全 Go・vet・docs・
 workflow policy・JS 27件と対象 race（Git 11.451秒、Incus 2.386秒）は成功しました。
 実 Incus/Btrfs の混在 collection import と native attachment metadata 検証も29.52秒で成功しました。
 offline snapshot copy と broker 拒否は component／service テストで確認し、実機の offline snapshot
@@ -556,7 +556,9 @@ upload の読み書きは30秒の待機期限を設けます。呼出元の入�
 
 ## Linux import コマンド
 
-Status: **partial**。CLI と製品 controller への接続は実装済みで、公開 native 経路の受入は未確定です。
+Status: **partial**。CLI と製品 controller への接続は実装済みです。b7297a3 の専用実行で、製品 CLI と fixture controller
+による native import・起動・データ保持・所有 cleanup を確認しました。インストール済み controller／desktop の
+import は未検証で、aggregate 全体の完了は別に判定します。
 bundle を読める Linux client から実行します。
 
 ```bash
@@ -579,3 +581,12 @@ upload します。controller は変更前に全入力を再検証します。�
  offline で import し、再接続は planned です。Linux／WSL が対象で、Windows native のファイル入力は未対応です。
 trusted `haco-host` 内で実行する場合、ファイルはその client から読める必要があります。
 SSH 実ハンドシェイクと live OCI daemon の整合性は別の受入項目です。
+
+b7297a3 の初回公開 import aggregate は export・native import・restore に成功し、続く公開 copy で
+fixture の12分期限に達して720.07秒で失敗しました。全体は FAIL であり、成功や SKIP ではありません。
+所有 catalog と保存データは `/var/lib/haco-snapshot-aggregate-1920048809` に明示 cleanup のため残しています。
+共有データは削除対象にしていません。増えた検証量に合わせて fixture を20分、GHA の test process を25分に
+設定します。製品の期限・隔離は変更しません。b7297a3 の GHA 実 Incus/Btrfs
+[aggregate step](https://github.com/SLktEx/Hacocoon/actions/runs/34455660292/job/102801320149)は、
+製品 import CLI と全 aggregate assertion を含めて成功しました。ローカル失敗は保持し、GHA を独立した受入結果として
+扱います。延長後の local-budget 版はコンパイル済みですがローカル再実行はしていません。b7297a3 の4 workflow は成功しました。後続の fixture 期限変更は、その最新 head の CI を別に追跡します。
