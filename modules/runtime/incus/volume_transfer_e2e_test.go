@@ -18,7 +18,17 @@ import (
 // This proves native file-archive portability for synthetic Work/OCI bytes.
 // It is not a Hacocoon importer and does not trust imported ownership metadata.
 func TestRealIncusVolumeTransferE2E(t *testing.T) {
-	if os.Getenv("HACO_E2E_INCUS_VOLUME_TRANSFER") != "1" {
+	testVolumeArchiveTransfer(t, true, "HACO_E2E_INCUS_VOLUME_TRANSFER")
+}
+
+// File-only evacuation must not require Incus backup's implicit Btrfs snapshot.
+// This is a quiescent synthetic-volume primitive, not whole-WSL recovery.
+func TestRealIncusReadableDataEvacuationE2E(t *testing.T) {
+	testVolumeArchiveTransfer(t, false, "HACO_E2E_READABLE_DATA_EVACUATION")
+}
+
+func testVolumeArchiveTransfer(t *testing.T, native bool, gate string) {
+	if os.Getenv(gate) != "1" {
 		t.Skip("requires explicit root Incus/Btrfs volume transfer acceptance")
 	}
 	if os.Geteuid() != 0 {
@@ -113,11 +123,33 @@ func TestRealIncusVolumeTransferE2E(t *testing.T) {
 		if err := os.Symlink("retained", filepath.Join(src, "symlink")); err != nil {
 			t.Fatal(err)
 		}
+		if !native {
+			run("python3", "-c", "import os,sys; os.chown(sys.argv[1],100123,100124); os.setxattr(sys.argv[1],b'user.haco-evacuation',b'saved-attribute')", filepath.Join(src, "retained"))
+		}
 		archive := filepath.Join(dir, volume+".tar")
-		run("incus", "storage", "volume", "export", sourcePool, volume, archive, "--volume-only", "--compression=none", "--project", "default")
+		if native {
+			run("incus", "storage", "volume", "export", sourcePool, volume, archive, "--volume-only", "--compression=none", "--project", "default")
+		} else {
+			// Source is newly owned, unattached and has no concurrent writer. The
+			// archive is outside both pools in the private fixture directory.
+			run("env", "-u", "TAR_OPTIONS", "tar", "--acls", "--xattrs", "--numeric-owner", "--sparse", "-cpf", archive, "-C", src, ".")
+			if err := os.Chmod(archive, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
 		before := digest(archive)
-		run("incus", "storage", "volume", "import", targetPool, archive, volume, "--project", "default")
+		if native {
+			run("incus", "storage", "volume", "import", targetPool, archive, volume, "--project", "default")
+		} else {
+			// Extract only this test's own archive into its freshly owned empty
+			// volume. This is not an arbitrary user archive importer.
+			run("incus", "storage", "volume", "create", targetPool, volume, ownerKey+"="+owner, "--project", "default")
+			run("env", "-u", "TAR_OPTIONS", "tar", "--acls", "--xattrs", "--numeric-owner", "--same-owner", "--same-permissions", "-xpf", archive, "-C", volumePath(targetPool, volume))
+		}
 		dst := volumePath(targetPool, volume)
+		if !native {
+			run("python3", "-c", "import os,sys; s=os.stat(sys.argv[1]); assert (s.st_uid,s.st_gid)==(100123,100124); assert os.getxattr(sys.argv[1],b'user.haco-evacuation')==b'saved-attribute'", filepath.Join(dst, "retained"))
+		}
 		if read(filepath.Join(src, "retained")) != read(filepath.Join(dst, "retained")) {
 			t.Fatal("import lost bytes")
 		}
@@ -140,7 +172,7 @@ func TestRealIncusVolumeTransferE2E(t *testing.T) {
 				t.Fatal("Git working state changed")
 			}
 		}
-		// Incus preserves user config. It is provenance, not fresh import authority.
+		// Native import preserves user config; file-only restoration uses the fresh fixture label. Neither establishes production import authority.
 		if run("incus", "storage", "volume", "get", targetPool, volume, ownerKey, "--project", "default") != owner {
 			t.Fatal("unexpected native imported config")
 		}
@@ -171,5 +203,5 @@ func TestRealIncusVolumeTransferE2E(t *testing.T) {
 		}
 		run("incus", "storage", "delete", pool)
 	}
-	t.Log("plain Incus export/import between independent Btrfs pools passed; archives retained outside both pools; rootfs, Hacocoon import and daemon acceptance not tested")
+	t.Logf("archive transfer native=%t between independent Btrfs pools passed; archives retained outside both pools; whole-WSL and damaged-storage evacuation not tested", native)
 }

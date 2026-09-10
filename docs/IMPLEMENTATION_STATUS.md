@@ -1822,3 +1822,7 @@ after SSH preparation and DNS checks passed. The wrapper now reports a nonzero
 child exit before checking success markers. The initial SSH probe retains only
 allowlisted progress on timeout; no deadline, pinning or isolation change is made.
 This improves diagnosis and does not establish that the SSH failure is fixed.
+
+## Readable-data evacuation
+
+G2 direct file-archive Btrfs acceptance passed on dedicated WSL in 20.59s, including Git state, links, numeric owners and a user xattr. Incus non-optimized Btrfs backup still takes an internal snapshot. Whole-installation evacuation remains incomplete. See [readable file scope](design/environment-transfer.md#readable-files-when-snapshot-operations-are-unavailable).

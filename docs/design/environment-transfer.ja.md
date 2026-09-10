@@ -724,3 +724,24 @@ component の native 参照と owner／generation の情報だけを抽出しま
 `--repositories /var/lib/hacocoon/state/repositories` で別管理の repository 記録を含められます（controller root に合わせてください）。Linux reader は directory を固定して再帰せず、repo／work 記録と collection member の native 参照を抽出します。remote URL と認証情報は出力しません。子 symlink、ファイル名と記録の不一致、未知の項目、サイズ超過、不正な member は明示的な欠落として残し、他の結果を保持します。観測中に directory が変わる可能性があり、全体の atomic snapshot や完全な backup ではありません。全量保存には停止・整合性確認が必要です。一覧の回帰テストは 17 件となり、実運用の repository directory に対する受入は未検証です。
 
 未確認の repository 項目には error 番号と directory 相対のファイル名を残し、内容は開きません。手動ファイル・リンク・不正な記録を利用者が特定できるようにするためで、一覧自体も private な metadata として扱います。保持していた native aggregate directory では repository 3 ファイルから 9 参照を抽出しましたが、他の 4 項目が未確認のため終了結果は失敗です。記録は `/var/tmp/haco-repository-inventory-icbsgg5s/repositories.json` にあります。この部分取得を directory 全体の受入成功とは扱いません。
+
+## snapshot 操作が使えない場合の読み出せるファイル
+
+G2 のファイル退避は **partial** です。Incus 6.0.5 の Btrfs
+[BackupVolume 実装](https://github.com/lxc/incus/blob/v6.0.5/internal/server/storage/drivers/driver_btrfs_volumes.go)
+は、非 optimized の filesystem volume 保存でも一時的な read-only snapshot を作ります。
+`--volume-only` はこの内部依存を除きません。通常の G1 export は Incus backup を利用し続け、
+snapshot に依存しない退避経路とは区別します。
+
+opt-in の `TestRealIncusReadableDataEvacuationE2E` は、新規・所有確認済み・未接続の
+Btrfs custom volume 二つの間で GNU tar の保存と復元を検証します。既存 volume 転送 fixture を
+再利用し、Git commit／status／untracked、内容、hardlink、symlink、mode、数値 UID/GID、
+user xattr、archive 不変性、保存元削除後の独立性を確認します。archive は両 pool の外にある
+fixture の private directory に保持します。保存には Incus export・snapshot コマンドを使わず、
+既存の利用データや pool は選択しません。
+
+専用 WSL の実 Incus/Btrfs で 20.59 秒で成功しました。試験用 pool 二つは cleanup し、archive と所有記録は両 pool の外にある /var/lib/haco-volume-transfer-2051477010 に残しています（WSL 内です）。書込がないファイルのコピーを検証する基本部分です。
+snapshot 削除失敗の模擬、全インストールファイルの列挙、live OCI daemon の移行、任意の
+非信頼 tar の安全な import、trusted credential の暗号化、WSL 外への保存、新 WSL 復元は
+未確認です。全量退避を主張する前にこれらを扱い、読めない・変更中の source を完全保存済み
+とはしません。
