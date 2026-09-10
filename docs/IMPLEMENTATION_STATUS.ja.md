@@ -51,6 +51,11 @@ Env・lease・OCI の catalog 項目が残っていないことも確認しま�
 保持を確認します。この拡張はまだ実行しておらず、実 Incus で成功するまで SSH 受入成功とは
 しません。インストール済み desktop の alias や VS Code は対象外です。
 
+6d5e027 の SSH 拡張は、公開 CLI の SSH 準備で失敗し、ハンドシェイクまで到達しませんでした。
+aggregate は81.43秒で失敗し、Env が残ったため後続の storage fixture cleanup も失敗しました。
+SSH や修正版 aggregate の成功は主張しません。gate には固定のエラー分類・処理段階と sshd の
+有無だけを出す診断を追加し、生の controller 診断は非公開のまま保持します。原因はまだ未確定です。
+
 ## 公開 Environment export の作業状況
 
 Status: **partial**。Linux の `haco env export <stopped-env> [file.haco]` は管理 stream と

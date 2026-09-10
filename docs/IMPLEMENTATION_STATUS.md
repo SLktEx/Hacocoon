@@ -64,6 +64,12 @@ checks that the write survives Env deletion. This extension is not yet executed;
 it must pass in real Incus before SSH acceptance is claimed. It does not exercise
 the installed desktop alias or VS Code.
 
+The SSH extension at 6d5e027 FAILED in the public CLI's SSH preparation before a
+handshake. The aggregate failed at 81.43s, and subsequent storage-fixture cleanup
+also failed with the retained Env. No SSH or corrected aggregate success is claimed.
+The gate now reports only fixed error-category/stage labels and whether sshd is
+present; raw controller diagnostics remain private. The exact cause is not yet proven.
+
 ## Public Environment export in progress
 
 Status: **partial**. Linux `haco env export <stopped-env> [file.haco]` now uses the

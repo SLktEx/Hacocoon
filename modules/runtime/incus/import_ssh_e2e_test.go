@@ -35,6 +35,14 @@ func verifyImportedSSH(t *testing.T, ctx context.Context, runtime *Runtime, root
 	must(err)
 	publicPath := filepath.Join(root, "client.pub")
 	must(os.WriteFile(publicPath, ssh.MarshalAuthorizedKey(signer.PublicKey()), 0600))
+	prerequisite, probeErr := runtime.runner.Run(ctx, "incus", "exec", native, "--project", runtime.project, "--", "sh", "-ec", "if command -v sshd >/dev/null 2>&1; then exit 0; else exit 3; fi")
+	state := "unavailable"
+	if probeErr == nil && prerequisite.ExitCode == 0 {
+		state = "present"
+	} else if prerequisite.ExitCode == 3 {
+		state = "absent"
+	}
+	t.Logf("imported sshd prerequisite: %s", state)
 	var connection core.ClientConnection
 	must(json.Unmarshal(invoke("env", "ssh", "--key", publicPath, name), &connection))
 	if connection.Kind != "ssh" || connection.Host != "127.0.0.1" || connection.Port < 1 || connection.Port > 65535 || connection.TargetPort != 22 || connection.User != "root" || connection.ID == "" {

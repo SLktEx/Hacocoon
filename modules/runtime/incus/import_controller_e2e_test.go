@@ -94,10 +94,10 @@ func verifyImportControllerCLI(t *testing.T, ctx context.Context, runtime *Runti
 	invoke := func(args ...string) []byte {
 		t.Helper()
 		command := exec.CommandContext(ctx, product, args...)
-		var output bytes.Buffer
-		command.Env, command.Stdout, command.Stderr = environment, &output, log
+		var output, diagnostic bytes.Buffer
+		command.Env, command.Stdout, command.Stderr = environment, &output, io.MultiWriter(log, &diagnostic)
 		if err := command.Run(); err != nil || output.Len() > 1<<20 {
-			t.Fatalf("import controller CLI operation=%s failed; private diagnostics: %s", args[1], log.Name())
+			t.Fatalf("import controller CLI operation=%s failed category=%s stages=%s; private diagnostics: %s", args[1], maintenanceDiagnosticCategory(diagnostic.String()), maintenanceDiagnosticStages(diagnostic.String()), log.Name())
 		}
 		return output.Bytes()
 	}

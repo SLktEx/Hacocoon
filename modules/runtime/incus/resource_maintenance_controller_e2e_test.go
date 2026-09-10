@@ -205,6 +205,9 @@ func maintenanceDiagnosticStages(raw string) string {
 	var found []string
 	for _, item := range []struct{ token, label string }{
 		{"resolve Base ", "base_resolution"},
+		{"prepare SSH in ", "ssh_provision"},
+		{"verify SSH host public key", "ssh_host_identity"},
+		{"add local proxy ", "ssh_proxy"},
 		{"workspace lock directory", "lifecycle_lock_directory"},
 		{"not owned by effective uid", "lock_owner_mismatch"},
 		{"ensure Incus project:", "project"},
@@ -230,6 +233,7 @@ func maintenanceDiagnosticStages(raw string) string {
 func TestMaintenanceDiagnosticsNeverReturnExternalText(t *testing.T) {
 	for _, raw := range []string{
 		"Authorization: Bearer synthetic-secret",
+		"prepare SSH in synthetic-secret: verify SSH host public key: add local proxy secret",
 		"haco: internal: resolve Base synthetic-secret from https://user:password@example.invalid: runtime unavailable",
 		"haco: unknown-secret: arbitrary output",
 		"haco: invalid_argument: invalid argument\nsecret payload",
