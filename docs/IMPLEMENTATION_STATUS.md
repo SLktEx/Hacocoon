@@ -1853,3 +1853,5 @@ G2 now includes an opt-in real snapshot-deletion EPERM evacuation regression in 
 G2 read-only inventory optionally enumerates Linux file metadata with `--files /absolute/root`. Mounts, symlinks, special files, errors and bounds remain explicit gaps; no content is read and no backup/ownership authority is claimed. See [manual-file inventory](design/environment-transfer.md#manual-file-inventory-for-evacuation-review).
 
 Encrypted acceptance fixture retention now uses private `/var/lib` storage and a real systemd PrivateTmp-exit regression. The old synthetic identity path is currently absent, so its preserved ciphertext has not been restored into another WSL. See [fixture retention and limits](design/environment-transfer.md#retention-of-encrypted-acceptance-fixtures).
+
+A separate synthetic cross-OS crypto check passed with a newly generated identity kept exclusively on Windows: WSL public-recipient encryption, native Windows decryption/hash comparison and tamper refusal. This does not recover the old missing identity or prove whole-installation restoration. See [external identity custody](design/environment-transfer.md#recovery-identity-kept-outside-wsl).

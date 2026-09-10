@@ -1094,3 +1094,25 @@ decryption, wrong-key/tamper/truncation checks and retained private file modes.
 The transient unit has its own runtime/stop bounds below the wrapper timeout.
 The newly generated synthetic identity stays inside this WSL and was not used
 to decrypt the earlier Windows ciphertext. Cross-WSL key transfer is unverified.
+
+## Recovery identity kept outside WSL
+
+A separate synthetic acceptance uses the standard [age public-recipient workflow](https://github.com/FiloSottile/age/tree/v1.2.1).
+Windows age/keygen v1.2.1 was built from the pinned official Go module with the Go
+checksum database enabled. A new recovery directory grants access only to the
+current Windows user and SYSTEM. The private identity was generated and used
+there; only its public recipient was sent to the dedicated WSL. No existing
+identity was read or transferred, and the earlier unavailable identity/ciphertext
+result remains unresolved.
+
+WSL age encrypted the known synthetic saved-rootfs archive to Windows (10440 bytes).
+Native Windows age decrypted it into that private directory (10240 bytes), matching
+SHA-256 `ab82a108262f499b89576c218bec974df10e31a56267d25bef7ccefbb2536e7f`.
+A tampered ciphertext was refused with exit 1; its zero-byte partial staging file
+was never restored. Evidence and the new identity remain under
+`%LOCALAPPDATA%/Hacocoon/RecoveryTests/<fixture-id>`.
+This is manual cross-OS crypto acceptance, not a complete backup, real-credential
+migration, arbitrary archive importer or proof after deleting WSL. Protect and
+retain the independently accessible identity before any storage replacement;
+verify complete decryption before restoration. Never infer key recoverability
+from ciphertext presence alone.

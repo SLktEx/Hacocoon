@@ -911,3 +911,23 @@ root で明示実行する native tar/age テストは、合成 identity・sourc
 ファイルの権限を含みます。一時 unit にも wrapper の timeout より短い実行・停止上限を
 設定します。新たに生成した合成 identity は当該 WSL 内にあり、以前の Windows 暗号文の
 復号には使っていません。WSL 間の鍵転送は未検証です。
+
+## 復号 identity を WSL 外へ保持する
+
+別の合成受入で、標準の [age の公開 recipient 手順](https://github.com/FiloSottile/age/tree/v1.2.1)
+を使いました。Windows age/keygen v1.2.1 は公式 Go module の固定版から checksum database を
+有効にしてビルドしています。新規 Windows 復旧ディレクトリの ACL を現在ユーザーと SYSTEM
+だけに限定し、秘密 identity はそこで生成・利用しました。専用 WSL へ渡したのは公開 recipient
+だけで、既存 identity の読み出し・転送はありません。以前見つからなくなった identity と
+暗号文の未解決結果は別に保持します。
+
+WSL age で既知の合成保存 rootfs archive を Windows へ暗号化し、10440 bytes を保存しました。
+Windows native age の復号結果は10240 bytes、SHA-256
+`ab82a108262f499b89576c218bec974df10e31a56267d25bef7ccefbb2536e7f` と一致しました。
+改ざんした暗号文は exit 1 で拒否し、0 byte の部分 staging ファイルは復元していません。
+証拠と新しい identity は
+`%LOCALAPPDATA%/Hacocoon/RecoveryTests/<fixture-id>`
+に保持しています。手動の OS 間暗号化検証であり、全量 backup、実 credential 移行、任意 archive
+の安全な import、WSL 削除後の復旧の証明ではありません。storage 入替前に独立してアクセス
+できる identity を保護して保持し、完全な復号を確認してから復元します。暗号文の存在だけで
+鍵が復旧可能とは判断しません。
