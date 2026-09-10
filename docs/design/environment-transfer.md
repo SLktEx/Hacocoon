@@ -880,3 +880,41 @@ Validation: 15 tests passed on Linux (Windows: 13 passed, 2 Linux-only tests ski
 Use `--repositories /var/lib/hacocoon/state/repositories` to include the separate repository records (adjust the controller root). The Linux reader pins the directory, does not recurse, and projects native references for each repo/work record and collection member. It omits remote URLs and credentials. Child symlinks, filename/record mismatches, unknown entries, oversized records and malformed members leave explicit gaps while retaining other results. The directory may change during observation; this is not an atomic installation snapshot or a complete backup. Whole-installation capture still needs quiescence and data comparison. The combined inventory regressions now include 17 cases; production repository-directory acceptance remains unverified.
 
 Unreviewed repository entries include their directory-relative filenames alongside the error index, without opening their contents. This lets the operator locate manual files, links and malformed records; treat the inventory itself as private metadata. A read of the retained native aggregate directory extracted 3 repository files and 9 references, but exited with failure because 4 other entries still required review. Receipt: `/var/tmp/haco-repository-inventory-icbsgg5s/repositories.json`. This partial result is not complete repository-directory acceptance.
+
+## Readable files when snapshot operations are unavailable
+
+G2 file evacuation remains **partial**. Incus 6.0.5's Btrfs
+[BackupVolume implementation](https://github.com/lxc/incus/blob/v6.0.5/internal/server/storage/drivers/driver_btrfs_volumes.go)
+creates a temporary read-only snapshot even for non-optimized filesystem-volume
+archives. `--volume-only` does not remove that internal dependency. Normal G1
+export continues to use Incus backups; it is not the no-snapshot evacuation path.
+
+The opt-in `TestRealIncusReadableDataEvacuationE2E` adds a direct GNU tar round trip
+between two newly owned, unattached Btrfs custom volumes. It reuses the native
+volume-transfer fixture and checks Git commits/status/untracked files, bytes,
+hardlinks, symlinks, modes, numeric UID/GID, a user xattr, archive immutability and
+independence after source deletion. Its archives stay in the fixture's private
+directory outside both pools. No Incus export or snapshot command is used for
+capture. Existing application data and pools are never selected.
+
+The dedicated WSL Incus/Btrfs run passed in 20.59s. Both owned pools were cleaned; archives and ownership plan remain at /var/lib/haco-volume-transfer-2051477010, outside both pools but inside WSL. This verifies a quiescent file-copy primitive only.
+It does not simulate a failed snapshot deletion, enumerate every installation
+file, transfer a live OCI daemon, safely import arbitrary untrusted tar files,
+encrypt trusted credentials, save the whole installation outside WSL or restore a new WSL. These remain
+required before claiming whole-installation evacuation. An inaccessible or
+changing source must not be reported as completely saved.
+
+At a16f3b1, all applicable CI passed (the optional private-registry job was skipped).
+The native GHA test passed in 0.84s in [run 34498433003](https://github.com/SLktEx/Hacocoon/actions/runs/34498433003).
+A subsequent manual check exclusively copied the two synthetic archives to a new
+Windows Temp directory, `C:/Users/gddro/AppData/Local/Temp/haco-readable-evacuation-egpq6g7c`.
+The source before/after and destination SHA-256 checks passed, followed by independent
+Windows byte-count and hash checks: `work.tar` is 112640 bytes and `oci.tar` is 10240 bytes.
+The first Windows result-formatting attempt failed under constrained language mode;
+plain-output verification then passed. `receipt.json` remains with the archives.
+This proves delivery of these synthetic archives outside WSL, not whole-installation
+backup, protected credential delivery or restoration in another WSL.
+
+The additional `TestRealIncusSavedReadableDataEvacuationE2E` case prepares an owned native volume snapshot before capture, then removes a marker from the live volume. Direct tar capture reads the existing snapshot tree and restores that snapshot-only marker into a fresh owned volume. The ordinary live-volume case remains separate. Preparation creates a snapshot; capture does not create/export/delete one. This is not a simulation of snapshot deletion failure or proof of all saved rootfs/Workspace/OCI associations. The dedicated Incus/Btrfs run passed in 24.52s. Both owned pools were cleaned; archives and ownership plan remain at `/var/lib/haco-volume-transfer-2483709670`, outside both pools but inside WSL. The source snapshot was unchanged during capture. This does not prove whole-installation evacuation or new-WSL restoration.
+
+At b8ef557, the native GHA gate passed direct readable-file evacuation (0.89s) and saved-only evacuation (1.87s). Its Windows SSH gate failed at the five-minute native-client timeout. The branch now includes the separately validated SSH progress diagnostic from main; the latest head must pass its own CI. This does not reclassify the earlier Windows failure or prove its cause.

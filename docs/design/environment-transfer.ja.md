@@ -724,3 +724,38 @@ component の native 参照と owner／generation の情報だけを抽出しま
 `--repositories /var/lib/hacocoon/state/repositories` で別管理の repository 記録を含められます（controller root に合わせてください）。Linux reader は directory を固定して再帰せず、repo／work 記録と collection member の native 参照を抽出します。remote URL と認証情報は出力しません。子 symlink、ファイル名と記録の不一致、未知の項目、サイズ超過、不正な member は明示的な欠落として残し、他の結果を保持します。観測中に directory が変わる可能性があり、全体の atomic snapshot や完全な backup ではありません。全量保存には停止・整合性確認が必要です。一覧の回帰テストは 17 件となり、実運用の repository directory に対する受入は未検証です。
 
 未確認の repository 項目には error 番号と directory 相対のファイル名を残し、内容は開きません。手動ファイル・リンク・不正な記録を利用者が特定できるようにするためで、一覧自体も private な metadata として扱います。保持していた native aggregate directory では repository 3 ファイルから 9 参照を抽出しましたが、他の 4 項目が未確認のため終了結果は失敗です。記録は `/var/tmp/haco-repository-inventory-icbsgg5s/repositories.json` にあります。この部分取得を directory 全体の受入成功とは扱いません。
+
+## snapshot 操作が使えない場合の読み出せるファイル
+
+G2 のファイル退避は **partial** です。Incus 6.0.5 の Btrfs
+[BackupVolume 実装](https://github.com/lxc/incus/blob/v6.0.5/internal/server/storage/drivers/driver_btrfs_volumes.go)
+は、非 optimized の filesystem volume 保存でも一時的な read-only snapshot を作ります。
+`--volume-only` はこの内部依存を除きません。通常の G1 export は Incus backup を利用し続け、
+snapshot に依存しない退避経路とは区別します。
+
+opt-in の `TestRealIncusReadableDataEvacuationE2E` は、新規・所有確認済み・未接続の
+Btrfs custom volume 二つの間で GNU tar の保存と復元を検証します。既存 volume 転送 fixture を
+再利用し、Git commit／status／untracked、内容、hardlink、symlink、mode、数値 UID/GID、
+user xattr、archive 不変性、保存元削除後の独立性を確認します。archive は両 pool の外にある
+fixture の private directory に保持します。保存には Incus export・snapshot コマンドを使わず、
+既存の利用データや pool は選択しません。
+
+専用 WSL の実 Incus/Btrfs で 20.59 秒で成功しました。試験用 pool 二つは cleanup し、archive と所有記録は両 pool の外にある /var/lib/haco-volume-transfer-2051477010 に残しています（WSL 内です）。書込がないファイルのコピーを検証する基本部分です。
+snapshot 削除失敗の模擬、全インストールファイルの列挙、live OCI daemon の移行、任意の
+非信頼 tar の安全な import、trusted credential の暗号化、WSL 外への保存、新 WSL 復元は
+未確認です。全量退避を主張する前にこれらを扱い、読めない・変更中の source を完全保存済み
+とはしません。
+
+a16f3b1 では対象 CI がすべて成功しました（任意の private-registry job は SKIP）。
+実 GHA の直接ファイル退避テストは [run 34498433003](https://github.com/SLktEx/Hacocoon/actions/runs/34498433003) で 0.84 秒で成功しました。
+その後の手動確認では、合成データのアーカイブ 2 個を Windows Temp の新規ディレクトリ
+`C:/Users/gddro/AppData/Local/Temp/haco-readable-evacuation-egpq6g7c` へ排他的にコピーしました。
+元ファイルのコピー前後と保存先の SHA-256 が一致し、Windows 側でもサイズと hash を独立に確認しました。
+`work.tar` は 112640 bytes、`oci.tar` は 10240 bytes です。最初の Windows 結果表示は
+constrained language mode の制限で失敗し、通常の文字出力による再確認は成功しました。
+`receipt.json` をアーカイブと一緒に残しています。これは合成データの WSL 外への保存の確認であり、
+全量 backup、保護した認証情報の持ち出し、別 WSL への復元は未検証です。
+
+追加の `TestRealIncusSavedReadableDataEvacuationE2E` は、準備時に所有する native volume snapshot を作り、live volume から marker を削除します。直接 tar 保存は既存 snapshot tree を読み、snapshot にしか残らない marker を新しい所有 volume へ復元します。通常の live volume の検証は別に維持します。snapshot 作成は準備段階だけで、保存処理では作成・export・削除しません。snapshot 削除失敗の模擬や、全 rootfs／Workspace／OCI の保存対応の確認ではありません。専用 Incus/Btrfs で 24.52 秒で成功しました。所有する両 pool は片付け、アーカイブと所有記録を `/var/lib/haco-volume-transfer-2483709670` に残しています（両 pool の外、WSL の内）。保存処理中に元 snapshot は変更していません。全量退避や新 WSL への復元を確認したものではありません。
+
+b8ef557 の native GHA は、直接ファイル退避（0.89 秒）と saved-only 退避（1.87 秒）に成功しました。同 head の Windows SSH は native client の5分タイムアウトで失敗しました。現在の branch は、別途検証済みの main の SSH 進捗診断を含み、最新 head 自身の CI が必要です。以前の Windows 失敗を成功へ変更したり、原因が判明したことにはしません。
