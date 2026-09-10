@@ -602,6 +602,7 @@ Incus aggregate の製品 controller subtest は、空の専用 catalog を使�
 | a58d553 | controller subtest は20.35秒で成功。診断ディレクトリを最後の receipt 確認が拒否し、aggregate は89.56秒で失敗。 |
 | 6d5e027 | SSH 準備で失敗し、ハンドシェイク未到達。aggregate は81.43秒で失敗。後続 cleanup は別 fixture 所有の残存物を正しく拒否。 |
 | e598270 | sshd 不在と SSH 導入段階の失敗を確認。aggregate は86.49秒で失敗。 |
+| 0cc27a5 | Windows transfer は seed-repository で失敗（exit 127）、VS Code は成功。fixture に通常のパッケージ導入による trusted Host と source Env の Git 準備を追加。再検証は未完了。 |
 
 単独 fixture にはインストール済みの package egress サービスがありません。SSH 継続は、既存の
 Windows 製品インストール gate で別の管理 Workspace／OCI を持つ source を作り、既存の限定した

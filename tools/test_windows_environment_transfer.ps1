@@ -18,6 +18,9 @@ function Invoke-InstalledEnvironmentTransfer {
     $phase = 'seed-repository'
     $policyAdded = $false
     try {
+        $phase = 'host-git-prerequisite'
+        [void](Invoke-HacoHost @('/bin/sh','-ec','if ! command -v git >/dev/null 2>&1; then apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git; fi; command -v git >/dev/null') 'Prepare Git inside trusted Host through normal package installation')
+        $phase = 'seed-repository'
         $seed = 'set -eu
 umask 077
 dir=$1
@@ -50,6 +53,9 @@ git -C "$dir/repository" -c user.name=Transfer -c user.email=transfer@example.in
         }
         & $configure $first
         $sshArguments = @('-F',$config,'-i',$PrivateKey,'-o',"UserKnownHostsFile=$known",'-o','BatchMode=yes','-o','ConnectTimeout=10','transfer')
+        $phase = 'source-git-prerequisite'
+        [void](Invoke-Checked $NativeSSH ($sshArguments + @('set -eu; if ! command -v git >/dev/null 2>&1; then apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git; fi; command -v git >/dev/null')) 'Prepare Git over Windows SSH through source package Policy')
+        $phase = 'source-work'
         $sourceScript = 'set -eu; cd /workspace; test -d .git; printf unpushed > committed-locally; git add committed-locally; git -c user.name=Transfer -c user.email=transfer@example.invalid commit --quiet -m local; printf uncommitted > tracked; printf untracked > untracked; printf rootfs-kept > /root/transfer-marker; printf oci-kept > /var/lib/hacocoon-oci/transfer-marker; git rev-parse HEAD'
         $commit = (Invoke-Checked $NativeSSH ($sshArguments + @($sourceScript)) 'Make real unpushed, uncommitted and untracked work over Windows SSH').Stdout.Trim()
         if ($commit -notmatch '^[a-f0-9]{40}$') { throw 'Source Git commit missing' }

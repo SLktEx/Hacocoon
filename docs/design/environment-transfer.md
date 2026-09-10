@@ -740,6 +740,7 @@ separately from the aggregate's strictly checked flat receipt directory.
 | a58d553 | Controller subtest PASS in 20.35s; aggregate FAIL in 89.56s because its final receipt check rejected the nested diagnostics. |
 | 6d5e027 | SSH preparation FAIL before handshake; aggregate FAIL in 81.43s. Later cleanup correctly refused retained aggregate-owned resources. |
 | e598270 | Confirmed sshd absent and failure in SSH provisioning; aggregate FAIL in 86.49s. |
+| 0cc27a5 | Windows transfer FAIL at seed-repository (exit 127); VS Code PASS. The fixture now prepares Git in trusted Host and source Env through normal package installation. The rerun is pending. |
 
 The bare fixture has no installed package-egress service. SSH continuation now
 uses the existing Windows installed-product gate. It creates a separate managed

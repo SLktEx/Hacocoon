@@ -1,5 +1,7 @@
 # Implementation Status
 
+Windows transfer at 0cc27a5 failed during seed-repository (exit 127); VS Code passed. The fixture now installs missing Git in trusted Host and the source Env through normal package routes. Rerun pending.
+
 ## Public Environment import in progress
 
 Status: **partial**. Linux `haco env import <file.haco> [new-env]` now connects the

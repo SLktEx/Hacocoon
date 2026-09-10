@@ -1,5 +1,7 @@
 # 実装状況
 
+0cc27a5 の Windows transfer は seed-repository で失敗（exit 127）、VS Code は成功しました。fixture に通常のパッケージ導入経路で trusted Host と source Env の不足する Git を準備する処理を追加しました。再検証は未完了です。
+
 ## 公開 Environment import の作業状況
 
 Status: **partial** です。Linux の `haco env import <file.haco> [new-env]` を、client のファイル読取、
