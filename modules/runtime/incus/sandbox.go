@@ -43,6 +43,16 @@ func (p *SandboxProvider) CreateEnvironmentWithReceipt(ctx context.Context, spec
 }
 
 func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
+	// Maintenance requires durable ownership before preparation or attachment.
+	// Receipt-free entry points cannot acquire this authority.
+	if spec.ResourceMaintenance {
+		if record == nil {
+			return core.EnvironmentRuntime{}, core.ErrUnsupported
+		}
+		if !spec.TemporaryWorkspace || spec.ReadOnly || spec.PersistentResource.SourceOnly || spec.PersistentResource.Kind != OCIStoreKind || spec.PersistentResource.State != "ready" || !core.ValidPersistentResourceRef(spec.PersistentResource.Ref()) {
+			return core.EnvironmentRuntime{}, core.ErrInvalidArgument
+		}
+	}
 	if p == nil || p.BaseProvider == nil || p.Runtime == nil || spec.Name == "" || spec.WorkspacePath == "" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}

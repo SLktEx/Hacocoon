@@ -1,8 +1,8 @@
 # Versioning and release status
 
-Source repository cleanup is implemented through the existing registry and Incus volume/device operations. Workspace Git references and queued request identities remain protected. Individual OCI images, candidate-selected GC, reclamation and export/migration remain planned.
+The v0.57 OCI image cleanup checkpoint is partial. Detached nerdctl Store list/delete through production composition and the bare controller/CLI passed real Incus/Btrfs acceptance at bd1c9a5. Full installed-controller acceptance, detached Docker and candidate-selected GC remain incomplete. See [image operations](../design/oci-image-deletion.md#controllercli-acceptance).
 
-Whole OCI Store review/deletion is implemented using existing owner/reservation records and Incus volume operations. Individual OCI image cleanup and candidate-selected GC remain planned; see [Store cleanup](../design/persistent-oci-store.md#explicit-retained-store-deletion).
+Source repositories and whole OCI Stores support reviewed deletion through existing registry/reservation records and Incus volume/device operations. Workspace Git references, queued request identities and retained snapshots remain protected. Reclamation and export/migration remain separate unfinished work.
 
 Environment copy adds a stopped-source, independent-data convenience flow using existing Incus COW and canonical creation. No schema change or automatic backup is added. See [the copy contract](../design/environment-copy.md).
 

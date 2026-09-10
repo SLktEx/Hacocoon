@@ -6,7 +6,9 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestTemporaryWorkspaceUsesCanonicalLeaseAndRefusesRecycledName(t *testing.T) {
@@ -58,5 +60,60 @@ func TestTemporaryWorkspaceCannotAliasHostPath(t *testing.T) {
 		if _, err := service.Create(context.Background(), core.EnvironmentSpec{Name: "temp", TemporaryWorkspace: &work}); !errors.Is(err, core.ErrInvalidArgument) {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestTemporaryResourceRequiresReviewedOwnerAndRetainsStore(t *testing.T) {
+	for _, mode := range []string{"valid", "missing-owner", "stale-owner", "missing-run", "source"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx := context.Background()
+			work, _ := core.NewTemporaryWorkspace()
+			store := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
+			resource := core.PersistentResource{ID: "oci:retained", Owner: strings.Repeat("a", 32), Kind: "oci-containerd", NativeRef: "pool/owned", State: "creating", WorkspaceID: "original", CreatedAt: time.Now().UTC()}
+			if mode == "source" {
+				resource.SourceOnly = true
+				resource.WorkspaceID = ""
+			}
+			if err := store.BeginPersistentResourceCreate(ctx, resource); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.CommitPersistentResourceCreate(ctx, resource); err != nil {
+				t.Fatal(err)
+			}
+			if mode != "missing-run" {
+				if err := store.PutEphemeralRun(ctx, core.EphemeralRun{EnvironmentID: "maintenance", TemporaryWorkspace: &work, State: core.EphemeralRunCreating, CreatedAt: time.Now().UTC()}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			runtime := &fakeEnvironmentRuntime{createResult: core.EnvironmentRuntime{Ref: "haco-maintenance"}}
+			service := New(runtime, store)
+			spec := core.EnvironmentSpec{Name: "maintenance", TemporaryWorkspace: &work, PersistentResource: resource.ID, ExpectedResource: resource.Ref()}
+			if mode == "missing-owner" {
+				spec.ExpectedResource = core.PersistentResourceRef{}
+			}
+			if mode == "stale-owner" {
+				spec.ExpectedResource.Owner = strings.Repeat("b", 32)
+			}
+			env, err := service.Create(ctx, spec)
+			if mode != "valid" {
+				if err == nil || runtime.createSpec.Name != "" {
+					t.Fatalf("unsafe native creation: %+v %v", runtime.createSpec, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !runtime.createSpec.ResourceMaintenance || !runtime.createSpec.TemporaryWorkspace || env.PersistentResource != resource.Ref() {
+				t.Fatal("maintenance binding lost")
+			}
+			if err := service.DeleteTemporary(ctx, env.Name, work); err != nil {
+				t.Fatal(err)
+			}
+			retained, err := store.GetPersistentResource(ctx, resource.ID)
+			if err != nil || retained.Ref() != resource.Ref() || retained.WorkspaceID != "original" || retained.State != "ready" {
+				t.Fatalf("Store changed: %+v %v", retained, err)
+			}
+		})
 	}
 }

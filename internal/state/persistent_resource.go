@@ -239,7 +239,7 @@ func validatePersistentResourceState(data environmentFileState) error {
 			continue
 		}
 		resource, ok := data.PersistentResources[ref.ID]
-		if !ok || resource.Ref() != ref || resource.State != "ready" || resource.SourceOnly || (resource.WorkspaceID != "" && resource.WorkspaceID != lease.WorkspaceID) {
+		if !ok || resource.Ref() != ref || resource.State != "ready" || resource.SourceOnly || (resource.WorkspaceID != "" && resource.WorkspaceID != lease.WorkspaceID && !resourceMaintenanceLease(data, lease)) {
 			return fmt.Errorf("invalid persistent resource reservation: %w", core.ErrIncompatibleState)
 		}
 		if _, duplicate := held[ref.ID]; duplicate {
