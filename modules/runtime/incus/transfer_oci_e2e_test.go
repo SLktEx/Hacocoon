@@ -129,8 +129,9 @@ nerdctl --snapshotter native image inspect --format '{{.Id}}' hacocoon-transfer:
 const transferContainerdRun = `set -eu
 result=$(nerdctl --snapshotter native run --pull never --net none --name haco-transfer-persist hacocoon-transfer:local /probe) || { printf '%s\n' 'transfer container execution failed' >&2; exit 1; }
 if [ "$result" != created ]; then printf '%s\n' 'transfer probe result mismatch' >&2; exit 1; fi
-tasks=$(ctr tasks list -q)
-if [ -n "$tasks" ]; then printf '%s\n' 'transfer exited task remains' >&2; exit 1; fi
+# nerdctl retains an exited task record for a named container. Absence of every
+# task record is not the quiescence contract; the process must have exited.
+test "$(nerdctl container inspect --format '{{.State.Status}}' haco-transfer-persist)" = exited
 `
 const transferContainerdQuiesce = `set -eu
 rm /var/lib/haco-transfer-input/image.tar /var/lib/haco-transfer-input/probe /var/lib/haco-transfer-input/root/probe
@@ -141,7 +142,7 @@ const transferContainerdVerify = `set -eu
 test -z "$(ctr tasks list -q)"
 test "$(nerdctl --snapshotter native image inspect --format '{{.Id}}' hacocoon-transfer:local)" = "$(cat /var/lib/haco-transfer-image-id)"
 test "$(nerdctl --snapshotter native start --attach haco-transfer-persist)" = retained
-test -z "$(ctr tasks list -q)"
+test "$(nerdctl container inspect --format '{{.State.Status}}' haco-transfer-persist)" = exited
 systemctl stop containerd
 `
 
