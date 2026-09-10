@@ -33,3 +33,13 @@ can be published; incomplete records must not be called recovered or discarded.
 Do not import by clone/checkout, populate a trusted Host checkout from guest data,
 reuse a source owner, or treat the source remote as a destination Host capability.
 Do not add import flags to normal user creation merely to expose this internal step.
+
+## Collection extension
+
+Multi-Workspace import uses the existing CopyWorkspaceSet reservation/publication
+transition with native import and no Git population. All exact member identities
+are reserved before the first import; no member gets an independently leasable
+record. Partial failure retains the collection and per-member completion receipts.
+The single-volume cleanup amendment does not apply to collections. No new state
+or ownership model is introduced; explicit incomplete collection cleanup remains
+required before the public importer is published.

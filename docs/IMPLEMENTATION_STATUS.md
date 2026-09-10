@@ -1,5 +1,11 @@
 # Implementation Status
 
+Native multi-Workspace import now shares the existing collection reservation and
+publication transition, without Git population or separately leaseable members.
+All local Go/vet/docs/JS and focused race checks passed; dedicated real Incus/Btrfs
+collection acceptance passed in 29.64s. Incomplete collection cleanup and public
+aggregate import remain planned.
+
 Completed, unpublished Workspace import failures now attempt exact-owned cleanup.
 Unknown creation, changed ownership and uncertain cleanup keep their receipt; no
 new state or replay is added. All local Go/vet/docs/JS checks and focused race tests passed. Dedicated
