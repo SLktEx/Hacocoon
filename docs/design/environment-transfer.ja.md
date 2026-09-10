@@ -656,7 +656,7 @@ Windows native の export／import コマンド、自動コピー、WSL 全体�
 
 ## 実 OCI データ転送の受入
 
-Status: **fixture 実装済み・native 実行待ち**。既存 aggregate で、Store 受入と同じ固定版
+Status: **fixture 実装済み・6974272 で native 受入成功**。既存 aggregate で、Store 受入と同じ固定版
 containerd／nerdctl 資材を使用する検証を選択できます。今回作った所有確認済み source で
 offline image を実行し、名前付きコンテナの書込 filesystem にファイルを書いて sync します。
 コンテナの終了後に containerd と source Env を停止し、既存 aggregate export を実行します。
@@ -670,7 +670,7 @@ native snapshotter、停止コンテナのデータを対象にします。
 
 ba4dbcd の実 OCI 検証は export 前の source runtime 準備で FAILED。fixture は生の subprocess 出力を出さず、固定の失敗段階と終了コードを示すようになった。所有情報の復旧記録は保持し、転送の検証成功とは扱わない。
 
-オフライン source fixture では containerd transfer service に linux/amd64 の native unpack を明示設定します。標準の unpack 選択は native を含まないためで、source の準備だけに使います。復元先は起動前に現在の Hacocoon 設定へ置き換えます。8103e3f は export 前の image import で失敗し、CLI の platform 指定だけでは解決しませんでした。unpack 設定の実環境検証は pending です。
+オフライン source fixture では containerd transfer service に linux/amd64 の native unpack を明示設定します。標準の unpack 選択は native を含まないためで、source の準備だけに使います。復元先は起動前に現在の Hacocoon 設定へ置き換えます。8103e3f は export 前の image import で失敗し、CLI の platform 指定だけでは解決しませんでした。6974272 の [run 34501951826](https://github.com/SLktEx/Hacocoon/actions/runs/34501951826) では aggregate が 103.36 秒、製品 controller の import が 22.00 秒で成功し、元 Env の削除後も containerd の書込データから作業を再開できました。Windows を含む対象 CI は成功し、任意の authenticated-private-registry job は SKIP です。以前の失敗は失敗として残し、Docker・BuildKit/cache・任意のアプリ整合性の成功とは扱いません。
 
 ## 退避対象の native 一覧
 

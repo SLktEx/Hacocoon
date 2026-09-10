@@ -805,7 +805,7 @@ the installed GHA gate passed this drive-projection route, including source Env 
 
 ## Live OCI transfer acceptance
 
-Status: **implemented fixture; native execution pending**. The existing aggregate
+Status: **implemented fixture; native acceptance passed at 6974272**. The existing aggregate
 can opt into the same pinned containerd/nerdctl assets used by Store acceptance.
 Its newly owned source executes an offline image, writes and syncs a file in a
 named container's writable filesystem, exits that container, stops containerd and
@@ -823,7 +823,7 @@ native snapshotter and stopped container data only.
 
 At ba4dbcd, native OCI acceptance FAILED during source runtime preparation before export. The fixture now identifies the fixed failed phase and exit code without raw subprocess output. Ownership recovery records remain; no transfer acceptance is claimed.
 
-The offline source fixture explicitly configures the containerd transfer service for linux/amd64 native unpack. Its default unpack selection does not cover native; this is source preparation only. Import still replaces that configuration with current Hacocoon settings before starting the restored Environment. At 8103e3f, direct image import still failed before export; explicit CLI platform alone was insufficient. Native acceptance of the unpack configuration remains pending.
+The offline source fixture explicitly configures the containerd transfer service for linux/amd64 native unpack. Its default unpack selection does not cover native; this is source preparation only. Import still replaces that configuration with current Hacocoon settings before starting the restored Environment. At 8103e3f, direct image import still failed before export; explicit CLI platform alone was insufficient. Native acceptance passed at 6974272 in [run 34501951826](https://github.com/SLktEx/Hacocoon/actions/runs/34501951826): aggregate 103.36s and shipped-controller import 22.00s, including source Env deletion and resumed containerd writable data. All applicable CI, including Windows, passed; the optional authenticated-private-registry job was skipped. Earlier failed attempts remain failures. No Docker, BuildKit/cache or arbitrary application consistency acceptance is claimed.
 
 ## Evacuation inventory
 
