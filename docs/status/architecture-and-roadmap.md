@@ -227,3 +227,8 @@ readable-data evacuation independent of snapshot creation/deletion, restoration
 into a new WSL/pool, data comparison and explicit replacement after acceptance.
 Base filesystem retention and automatic backup remain absent. See
 [Environment transfer](../design/environment-transfer.md).
+
+G2 has a native test-only EPERM deletion-failure evacuation case using immutable
+snapshot parents in isolated pools. Manual capture, independent restore and cleanup
+passed; whole-installation coverage and actual corruption recovery remain incomplete.
+See [the scoped acceptance](../design/environment-transfer.md#readable-evacuation-after-a-failed-snapshot-deletion).

@@ -1607,3 +1607,6 @@ Incus adapter は新規 instance 初期化時に `boot.autostart=false` を渡�
 隔離した新規 WSL の candidate では、合成 Workspace を復元し、既定 OCI Store 付き Env を作成できた（40.88 秒）。その後、明示的な boot 設定がない実行中 Env で source guard がなく、start は拒否した。通常の stop/start は成功した（3.54 秒／16.43 秒）。controller 61a26e3 では実 WSL PID namespace 再起動後も新規・既存 Env とも停止状態を保ち、通常の guarded start が 17.14 秒で成功した。世代と Workspace/Git/OCI データも保持した。adapter 全体のテストと vet は成功。SSH 準備は限定 package Policy の適用前に package exit 100 で失敗した。適用後は通常 SSH 準備が 84.69 秒、固定 Host 鍵での Workspace 読書きと管理 socket 非露出が 1.68 秒で成功した。新 WSL 移行全体は未検証。
 
 native resume E2E は boot 設定の読み戻しと所有台帳保持を含め 37.43 秒で成功し、世代不一致の拒否、繰返し start、root/Workspace 保持、canonical cleanup を確認した。
+
+
+G2 は実 snapshot 削除の EPERM 中に退避する明示実行の回帰を既存 native gate に追加しました。別途の隔離 WSL 手動検証では、失敗中の取得・独立復元・所有 pool の cleanup が成功しました。全量退避・破損復旧は未完了です。[対応する設計](design/environment-transfer.ja.md#snapshot-削除失敗後の読み出し退避)を参照してください。

@@ -18,20 +18,24 @@ import (
 // This proves native file-archive portability for synthetic Work/OCI bytes.
 // It is not a Hacocoon importer and does not trust imported ownership metadata.
 func TestRealIncusVolumeTransferE2E(t *testing.T) {
-	testVolumeArchiveTransfer(t, true, "HACO_E2E_INCUS_VOLUME_TRANSFER", false)
+	testVolumeArchiveTransfer(t, true, "HACO_E2E_INCUS_VOLUME_TRANSFER", false, false)
 }
 
 // File-only evacuation must not require Incus backup's implicit Btrfs snapshot.
 // This is a quiescent synthetic-volume primitive, not whole-WSL recovery.
 func TestRealIncusReadableDataEvacuationE2E(t *testing.T) {
-	testVolumeArchiveTransfer(t, false, "HACO_E2E_READABLE_DATA_EVACUATION", false)
+	testVolumeArchiveTransfer(t, false, "HACO_E2E_READABLE_DATA_EVACUATION", false, false)
 }
 
 func TestRealIncusSavedReadableDataEvacuationE2E(t *testing.T) {
-	testVolumeArchiveTransfer(t, false, "HACO_E2E_SAVED_READABLE_DATA_EVACUATION", true)
+	testVolumeArchiveTransfer(t, false, "HACO_E2E_SAVED_READABLE_DATA_EVACUATION", true, false)
 }
 
-func testVolumeArchiveTransfer(t *testing.T, native bool, gate string, savedOnly bool) {
+func TestRealIncusFailedDeleteReadableDataEvacuationE2E(t *testing.T) {
+	testVolumeArchiveTransfer(t, false, "HACO_E2E_FAILED_DELETE_EVACUATION", true, true)
+}
+
+func testVolumeArchiveTransfer(t *testing.T, native bool, gate string, savedOnly, deleteFailure bool) {
 	if os.Getenv(gate) != "1" {
 		t.Skip("requires explicit root Incus/Btrfs volume transfer acceptance")
 	}
@@ -64,7 +68,7 @@ func testVolumeArchiveTransfer(t *testing.T, native bool, gate string, savedOnly
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := json.NewEncoder(plan).Encode(map[string]any{"owner": owner, "pools": []string{sourcePool, targetPool}, "project": "default", "volumes": []string{"work", "oci"}, "saved_snapshot": savedOnly}); err != nil {
+	if err := json.NewEncoder(plan).Encode(map[string]any{"owner": owner, "pools": []string{sourcePool, targetPool}, "project": "default", "volumes": []string{"work", "oci"}, "saved_snapshot": savedOnly, "delete_failure": deleteFailure}); err != nil {
 		t.Fatal(err)
 	}
 	if err := plan.Sync(); err != nil {
@@ -150,6 +154,21 @@ func testVolumeArchiveTransfer(t *testing.T, native bool, gate string, savedOnly
 				t.Fatal("saved-only fixture data unavailable")
 			}
 		}
+		release := func() bool { return true }
+		if deleteFailure {
+			release = blockOwnedSnapshotDeletion(t, ctx, runner, src, dir)
+			out, err := runner.Run(ctx, "incus", "storage", "volume", "snapshot", "delete", sourcePool, volume, "saved", "--project", "default")
+			if err == nil && out.ExitCode == 0 {
+				t.Fatal("immutable parent did not prevent snapshot deletion")
+			}
+			if !strings.Contains(out.Stderr, "Operation not permitted") {
+				t.Fatal("snapshot deletion failed for an unexpected reason")
+			}
+			run("incus", "query", "/1.0/storage-pools/"+sourcePool+"/volumes/custom/"+volume+"/snapshots/saved?project=default")
+			if read(filepath.Join(src, "saved-only")) != "data only in saved snapshot\n" {
+				t.Fatal("failed deletion lost saved data")
+			}
+		}
 		archive := filepath.Join(dir, volume+".tar")
 		if native {
 			run("incus", "storage", "volume", "export", sourcePool, volume, archive, "--volume-only", "--compression=none", "--project", "default")
@@ -160,6 +179,10 @@ func testVolumeArchiveTransfer(t *testing.T, native bool, gate string, savedOnly
 			if err := os.Chmod(archive, 0600); err != nil {
 				t.Fatal(err)
 			}
+		}
+		// Capture completed while the native deletion failure was still enforced.
+		if !release() {
+			t.Fatal("immutable parent cleanup remains unresolved")
 		}
 		before := digest(archive)
 		if native {
@@ -230,5 +253,5 @@ func testVolumeArchiveTransfer(t *testing.T, native bool, gate string, savedOnly
 		}
 		run("incus", "storage", "delete", pool)
 	}
-	t.Logf("archive transfer native=%t saved-only=%t between independent Btrfs pools passed; archives retained outside both pools; whole-WSL and damaged-storage evacuation not tested", native, savedOnly)
+	t.Logf("archive transfer native=%t saved-only=%t delete-failure=%t between independent Btrfs pools passed; archives retained outside both pools; whole-WSL and corruption recovery not tested", native, savedOnly, deleteFailure)
 }
