@@ -653,3 +653,21 @@ haco env import /mnt/c/Users/USER/Backups/dev.haco dev-imported
 
 Windows native の export／import コマンド、自動コピー、WSL 全体の退避は別の作業です。
 ローカルのコピー回帰は既存対象を上書きしない確認であり、ドライブ共有経路は installed GHA で成功しました。保存元 Env の削除、Windows SSH による作業再開、保持データの再接続、最後の bundle 不変確認を含みます。native Windows CLI、直接 DrvFS export、別 WSL への復元の受入ではありません。
+
+## 実 OCI データ転送の受入
+
+Status: **fixture 実装済み・native 実行待ち**。既存 aggregate で、Store 受入と同じ固定版
+containerd／nerdctl 資材を使用する検証を選択できます。今回作った所有確認済み source で
+offline image を実行し、名前付きコンテナの書込 filesystem にファイルを書いて sync します。
+コンテナの終了後に containerd と source Env を停止し、既存 aggregate export を実行します。
+
+source 削除後、canonical importer と製品 controller の import で保存 image ID と実行 task 不在を
+確認し、保持されたコンテナを明示的に起動して以前の内容を要求します。source registry、image pull、
+旧 Base 実体、task の移行は使いません。bundle 不変性、所有・新しい世代・データ cleanup の既存確認も
+維持します。fixture の native 準備は通常の installed Base／runtime 導入の受入ではありません。
+Docker、BuildKit cache、任意のアプリ／DB 整合性は未検証です。この段階は固定版 containerd、
+native snapshotter、停止コンテナのデータを対象にします。
+
+ba4dbcd の実 OCI 検証は export 前の source runtime 準備で FAILED。fixture は生の subprocess 出力を出さず、固定の失敗段階と終了コードを示すようになった。所有情報の復旧記録は保持し、転送の検証成功とは扱わない。
+
+オフライン source fixture では containerd transfer service に linux/amd64 の native unpack を明示設定します。標準の unpack 選択は native を含まないためで、source の準備だけに使います。復元先は起動前に現在の Hacocoon 設定へ置き換えます。8103e3f は export 前の image import で失敗し、CLI の platform 指定だけでは解決しませんでした。unpack 設定の実環境検証は pending です。

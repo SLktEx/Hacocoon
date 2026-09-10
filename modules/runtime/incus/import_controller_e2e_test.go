@@ -153,6 +153,7 @@ func verifyImportControllerCLI(t *testing.T, ctx context.Context, runtime *Runti
 		readGuest(mount.Path+"/untracked", "untracked "+mount.Device)
 	}
 	readGuest(OCIStorePath+"/containerd/data", "actual stored bytes")
+	verifyTransferredOCI(t, ctx, runtime, native)
 	invoke("env", "delete", name)
 	if exists, err := runtime.environmentExists(ctx, native); err != nil || exists {
 		t.Fatal("deleted imported instance absence unproven")

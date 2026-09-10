@@ -802,3 +802,25 @@ haco env import /mnt/c/Users/USER/Backups/dev.haco dev-imported
 Native Windows export/import commands, automatic copying and whole-WSL evacuation
 remain separate work. The local copy regression proves exclusive target handling;
 the installed GHA gate passed this drive-projection route, including source Env deletion, imported work over Windows SSH, retained-data recreation and final bundle immutability. This does not establish a native Windows CLI, direct DrvFS export or another WSL installation.
+
+## Live OCI transfer acceptance
+
+Status: **implemented fixture; native execution pending**. The existing aggregate
+can opt into the same pinned containerd/nerdctl assets used by Store acceptance.
+Its newly owned source executes an offline image, writes and syncs a file in a
+named container's writable filesystem, exits that container, stops containerd and
+then stops the source Env before ordinary aggregate export.
+
+After source deletion, both the canonical importer and the shipped-controller
+import check the saved image ID, verify there are no running tasks, explicitly
+start the retained container and require its previously written bytes. No source
+registry, image pull, old Base filesystem or task migration is involved. The
+existing bundle immutability, ownership, fresh identity and data cleanup assertions
+remain required. The fixture's native setup is not ordinary installed Base/runtime
+installation acceptance. Docker, BuildKit cache and arbitrary application/database
+consistency remain unverified; this slice covers the pinned containerd version,
+native snapshotter and stopped container data only.
+
+At ba4dbcd, native OCI acceptance FAILED during source runtime preparation before export. The fixture now identifies the fixed failed phase and exit code without raw subprocess output. Ownership recovery records remain; no transfer acceptance is claimed.
+
+The offline source fixture explicitly configures the containerd transfer service for linux/amd64 native unpack. Its default unpack selection does not cover native; this is source preparation only. Import still replaces that configuration with current Hacocoon settings before starting the restored Environment. At 8103e3f, direct image import still failed before export; explicit CLI platform alone was insufficient. Native acceptance of the unpack configuration remains pending.

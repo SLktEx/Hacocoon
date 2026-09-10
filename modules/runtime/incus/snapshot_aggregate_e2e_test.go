@@ -165,6 +165,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	write(volumePath("haco-persistent-"+resource.Owner), "docker/volumes/data", "persistent volume bytes")
 	write(filepath.Join(rootPath(native), "root"), "snapshot-marker", "guest-only bytes")
 	write(filepath.Join(rootPath(native), "root"), ".ssh/authorized_keys", "ssh-ed25519 AAAA user-key\nssh-ed25519 BBBB haco:ssh-old-generation\n")
+	prepareTransferOCI(t, ctx, r, native, id)
 	command("sync")
 	env := core.Environment{Name: name, RuntimeRef: native, Workspace: core.Workspace{ID: lease.WorkspaceID, Path: lease.SourcePath}, AccessMode: lease.AccessMode, Base: &core.BaseRef{Name: "fixture/base", Revision: core.BaseRevision("sha256:" + image)}, PersistentResource: resource.Ref(), CreatedAt: lease.AcquiredAt}
 	lease.State = core.WorkspaceLeaseActive
@@ -319,6 +320,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	}
 	write(volumePath("haco-persistent-"+resource.Owner), "containerd/data", "changed containerd")
 	write(volumePath("haco-persistent-"+resource.Owner), "docker/volumes/data", "changed Docker volume")
+
 	command("sync")
 	prepared, err := service.PrepareSnapshotRestore(ctx, name, snap.ID)
 	must(err)
@@ -639,6 +641,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		if err != nil || len(receipts) != 0 {
 			t.Fatal("temporary image cleanup incomplete", err)
 		}
+		verifyTransferredOCI(t, ctx, r, resumed.Ref)
 		must(resumedService.Delete(ctx, resumedName))
 		must(persistent.Verify(ctx, importedOCI))
 		for _, m := range importedMounts {
