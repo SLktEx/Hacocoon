@@ -2,6 +2,8 @@
 
 At 7517c27 all applicable Incus and normal-test jobs passed; Windows VS Code passed, but transfer failed installing Git over SSH (exit 100). SSH preparation now configures the current managed proxy for sshd sessions; local tests/vet and installed Windows Git-over-SSH preparation passed at 684e411. See [ADR 0058](adr/0058-ssh-session-egress-environment.md).
 
+GitHub-route import reconnection uses existing source clone and Git connect commands. Component acceptance and package race/vet passed for matching routes, mismatches, offline refusal and same-name replacement; native imported Git fetch/push remains unverified. See [the owning contract](design/git-and-github-capability.md#reconnect-an-imported-github-workspace).
+
 Windows transfer at 0cc27a5 failed during seed-repository (exit 127); VS Code passed. The fixture now installs missing Git in trusted Host and the source Env through normal package routes. Transfer subsequently passed at 684e411; the independent approval probe failed.
 
 ## Public Environment import in progress
