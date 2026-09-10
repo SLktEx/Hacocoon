@@ -26,10 +26,10 @@ func (b *RepositoryBackend) SavedWorkspaces(ctx context.Context, saved core.Snap
 		if p == nil || p.SourceKind != "work" || c.State != "verified" {
 			return nil, core.ErrIncompatibleState
 		}
-		// Old manifests remain readable/deletable. They cannot invent missing trusted
-		// Git routing metadata from mutable guest files or a recycled registry name.
-		if p.Remote == "" || p.Branch == "" {
-			return nil, core.ErrUnsupported
+		// Absent routing restores offline data, never a same-name Host source.
+		// decodeSavedComponent already rejects partially specified routing.
+		if !gitrepo.ValidWorkspaceRouting(p.Remote, p.Branch) {
+			return nil, core.ErrIncompatibleState
 		}
 		if seen[p.SourceID] {
 			return nil, core.ErrIncompatibleState
@@ -67,7 +67,7 @@ func (b *RepositoryBackend) CreateSavedWorkspace(ctx context.Context, target git
 	if p == nil || p.SourceKind != "work" || source.Component.State != "verified" || target.Kind != "work" ||
 		target.Repository != p.SourceID || target.Remote != p.Remote || target.Branch != p.Branch ||
 		source.Repository != p.SourceID || source.Remote != p.Remote || source.Branch != p.Branch ||
-		p.Remote == "" || target.Owner == p.Owner || target.Owner == p.SourceOwner {
+		!gitrepo.ValidWorkspaceRouting(p.Remote, p.Branch) || target.Owner == p.Owner || target.Owner == p.SourceOwner {
 		return core.ErrCapabilityStale
 	}
 	pool, name, err := volumeRef(target)

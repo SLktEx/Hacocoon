@@ -1,5 +1,10 @@
 # 実装状況
 
+offline Workspace の登録・復元は Git 接続先なしでデータを保持します。混在 broker binding は
+offline member を除外し、Host 接続先の不一致を拒否します。schema・CLI は追加しません。全 Go・vet・
+docs・JS と対象 race、実 Incus/Btrfs の混在 import（29.52秒）は成功しました。公開一式の import と
+再接続は planned で、実機の offline snapshot restore は未検証です。
+
 複数 Workspace の native import は既存 collection の予約・公開遷移を共用し、
 Git の populate と member 単独の lease を許しません。全 Go・vet・docs・JS と対象 race は成功し、
 実 Incus/Btrfs collection 検証も29.64秒で成功しました。未完了 collection の cleanup と

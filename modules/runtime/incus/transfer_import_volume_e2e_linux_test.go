@@ -280,11 +280,19 @@ func TestRealIncusOwnedVolumeImportE2E(t *testing.T) {
 	}
 	collection, err := works.ImportWorkspaceSet(ctx, "set-"+owner, []gitrepo.WorkspaceImport{
 		{Repository: "one", Remote: object.Remote, Branch: object.Branch, Archive: input},
-		{Repository: "two", Remote: object.Remote, Branch: object.Branch, Archive: input},
+		{Repository: "two", Archive: input},
 	})
 	must(err)
 	if collection.State != "ready" || len(collection.Members) != 2 {
 		t.Fatal("collection import incomplete")
+	}
+	if collection.Members[1].Remote != "" || collection.Members[1].Branch != "" {
+		t.Fatal("offline member adopted a Git route")
+	}
+	mounts, err := workBackend.WorkspaceAttachments(ctx, collection)
+	must(err)
+	if len(mounts) != 2 || mounts[1].Remote != "" || mounts[1].Branch != "" {
+		t.Fatal("offline attachment lost its routing boundary")
 	}
 	for _, member := range collection.Members {
 		must(workBackend.InspectVolume(ctx, member))

@@ -405,15 +405,15 @@ version 2 export の全体 CI と native 受入検証は実行待ちです。
 
 ## native Workspace 登録
 
-Status: GitHub 接続先を明示した単一 Workspace について **内部実装済み**です。
+Status: GitHub 接続先または offline を明示した単一 Workspace について **内部実装済み**です。
 `RepositoryService.ImportWorkspace` は通常の所有予約、created／inspect／ready 公開を
 再利用し、Git によるデータ準備は実行しません。native volume import は OCI と同じ上限付き
 Incus archive 準備処理を使い、新しい Workspace config を作成前に設定します。既存対象は
 取り込み前に拒否します。clone・checkout・remote 通信・guest hook・認証情報操作は行いません。
 
-この内部登録では元の local-file URL と欠落した接続先は未対応として拒否します。公開する
-offline／明示的な再設定と複数 Workspace の統合は planned です。失敗時は正確な未完了の所有
-記録を残し、公開 aggregate cleanup は未実装です。
+この内部登録では元の local-file URL は拒否します。明示的な空の接続先と複数 Workspace の
+統合は下記のとおり内部対応済みです。公開 metadata の対応付けと再接続は planned です。
+失敗時の記録保持と完成済み単一 volume の cleanup は下記を参照してください。
 [ADR 0053](../adr/0053-workspace-native-import.md) を参照してください。catalog schema、
 通常の clone／copy、ready Workspace の削除経路は変更しません。
 
@@ -455,7 +455,7 @@ archive と receipt は /var/lib/haco-owned-import-490401733 に保持してい�
 
 ## 複数 Workspace の native 登録
 
-Status: 明示的な GitHub 接続先を持つ2〜8 archive について **内部実装済み**です。
+Status: 明示的な GitHub 接続先または offline の2〜8 archive について **内部実装済み**です。
 通常の collection 作成と同じ遷移で、全 member の新しい所有情報を単一記録へ予約し、
 native import の完了を永続記録・検査してから全体を公開します。Git の populate は実行しません。
 member 単独の参照用記録は作りません。native 実体は別々であることを要求し、不正な入力は
@@ -472,3 +472,20 @@ b7dca44 の全 Go・vet・docs・workflow policy・JS 27件と対象 race（2.78
 Git・untracked データ保持、member 単独記録の不在、canonical な collection 削除を確認しました。
 collection の部分失敗時の保持は service テストで確認し、native への失敗注入では未検証です。
 公開一式の import、offline 接続先、rootfs と Env 起動は planned のままです。
+
+## offline Workspace データ
+
+Status: **内部実装済み**です。remote と branch が両方空なら offline Workspace として登録します。
+片方だけの指定は不正で、import 元 Host の file URL は引き続き拒否します。架空の Host repository、
+承認、認証情報は作りません。混在 collection でも offline member のデータを保持し、Git broker は
+接続先のある member だけを扱います。online binding は現在の Host source と remote・branch の
+一致を要求します。接続先がない snapshot Workspace のコピーも offline で復元できます。
+
+既存 catalog の項目と元 archive は書き換えません。schema・CLI の変更も不要です。
+offline member は無関係な同名 source repository の削除を妨げず、データは通常の所有確認付き削除で守ります。
+[ADR 0055](../adr/0055-offline-workspace-routing.md) を参照してください。公開 import での metadata の
+対応付け、再接続、rootfs import、一式の起動は planned です。634590d の全 Go・vet・docs・
+workflow policy・JS 27件と対象 race（Git 11.451秒、Incus 2.386秒）は成功しました。
+実 Incus/Btrfs の混在 collection import と native attachment metadata 検証も29.52秒で成功しました。
+offline snapshot copy と broker 拒否は component／service テストで確認し、実機の offline snapshot
+restore、接続・起動済み Env、live Git／OCI は未検証です。

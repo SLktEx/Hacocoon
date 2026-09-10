@@ -497,15 +497,15 @@ for version-2 export remain pending.
 ## Native Workspace registration
 
 Status: **implemented internally** for a single Workspace with explicit GitHub
-routing. `RepositoryService.ImportWorkspace` reuses normal ownership reservation,
+or offline routing. `RepositoryService.ImportWorkspace` reuses normal ownership reservation,
 created/inspect/ready publication, and deliberately skips Git population. Native
 volume import uses the same bounded Incus archive preparation as OCI import with
 fresh Workspace config. Existing targets are refused before import. No clone,
 checkout, remote request, guest hook or credential operation is run.
 
-Source local-file URLs and absent routing are currently refused by this internal
-registration method; public offline/rebinding and multi-Workspace composition remain
-planned. Failure retains the exact incomplete record; public aggregate cleanup is
+Source local-file URLs remain refused by this registration method. Explicit empty
+routing and multi-Workspace composition are now supported internally as described
+below; public metadata mapping and reconnection remain planned. Failure retains the exact incomplete record; public aggregate cleanup is
 not implemented. See [ADR 0053](../adr/0053-workspace-native-import.md). Existing
 catalog schema, normal clone/copy behavior and ready Workspace deletion are unchanged.
 
@@ -554,7 +554,7 @@ explicit remaining work; this is not a general incomplete-Workspace repair API.
 ## Native multi-Workspace registration
 
 Status: **implemented internally** for two to eight Workspace archives with explicit
-GitHub routing. Import shares normal collection creation: reserve all fresh member
+GitHub or offline routing. Import shares normal collection creation: reserve all fresh member
 identities in one record, import and durably record each completed native creation,
 inspect each volume, then publish the whole collection. Git population is omitted.
 Members have no separately resolvable records. Distinct native targets are required;
@@ -574,3 +574,24 @@ source-deleted archives, two independent native copies, retained Git/untracked d
 no separate member records and canonical collection deletion. Partial collection
 failure retention is covered by service tests, not a native injected-failure run.
 Public aggregate import, offline routing, rootfs and Env activation remain planned.
+
+## Offline Workspace data
+
+Status: **implemented internally**. Empty remote and branch register an offline
+Workspace; partial routing is invalid and imported source file URLs remain refused.
+No synthetic Host repository, approval or credential is created. Mixed collections
+retain data for offline members while the Git broker binds only configured members.
+Online bindings require an exact remote/branch match with the current Host source.
+Snapshot Workspace copies with absent routing can now restore offline as well.
+
+Existing catalog fields and source archives are retained unchanged. No schema or
+CLI change is needed. Offline members do not keep unrelated same-name source
+repositories alive; their native data remains subject to normal owned deletion.
+See [ADR 0055](../adr/0055-offline-workspace-routing.md). Public metadata mapping,
+reconnection, rootfs import and aggregate activation remain planned. At 634590d,
+all local Go/vet/docs/workflow-policy and 27 JavaScript tests passed; focused race
+passed for Git (11.451s) and Incus (2.386s). Dedicated real Incus/Btrfs mixed-
+collection import and native attachment-metadata checks passed in 29.52s. Offline
+snapshot copying and broker refusal are covered by component/service tests; real
+offline snapshot restore, attached/running Env and live Git/OCI acceptance remain
+unverified.

@@ -29,10 +29,10 @@ func (s *RepositoryService) ImportWorkspaceSet(ctx context.Context, id string, i
 	seen := map[string]bool{}
 	for _, input := range inputs {
 		if !ValidID(input.Repository) || !ValidID(id+"-"+input.Repository) || seen[input.Repository] ||
-			!ValidBranch(input.Branch) || ValidateRemote(input.Remote) != nil || input.Archive == nil {
+			!ValidWorkspaceRouting(input.Remote, input.Branch) || input.Archive == nil {
 			return Object{}, core.ErrInvalidArgument
 		}
-		if !strings.HasPrefix(input.Remote, "https://github.com/") {
+		if input.Remote != "" && !strings.HasPrefix(input.Remote, "https://github.com/") {
 			return Object{}, core.ErrUnsupported
 		}
 		seen[input.Repository] = true

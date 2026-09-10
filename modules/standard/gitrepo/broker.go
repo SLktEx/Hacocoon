@@ -160,15 +160,24 @@ func (b *Broker) Connect(ctx context.Context, name string) error {
 	}
 	bound := binding{Environment: environment, Workspace: workspace}
 	for _, member := range workspace.Copies() {
+		if member.Remote == "" {
+			continue // Offline data never selects a same-name Host repository.
+		}
 		repo, err := b.Repositories.Get("repo", member.Repository)
 		if err != nil {
 			return err
+		}
+		if repo.Remote != member.Remote || repo.Branch != member.Branch {
+			return core.ErrCapabilityStale
 		}
 		if len(workspace.Members) == 0 {
 			bound.Repository = repo
 		} else {
 			bound.Repositories = append(bound.Repositories, repo)
 		}
+	}
+	if bound.Repository.ID == "" && len(bound.Repositories) == 0 {
+		return core.ErrUnsupported // No Git route, endpoint or credential grant.
 	}
 	if err := b.validateBinding(ctx, bound); err != nil {
 		return err
@@ -254,14 +263,22 @@ func (b *Broker) validateBinding(ctx context.Context, bound binding) error {
 		return core.ErrCapabilityStale
 	}
 	repos := bound.repositories()
-	if len(repos) != len(workspace.Copies()) {
-		return core.ErrCapabilityStale
-	}
-	for i, member := range workspace.Copies() {
-		repo, err := b.Repositories.Get("repo", member.Repository)
-		if err != nil || !reflect.DeepEqual(repo, repos[i]) {
+	i := 0
+	for _, member := range workspace.Copies() {
+		if member.Remote == "" {
+			continue
+		}
+		if i >= len(repos) {
 			return core.ErrCapabilityStale
 		}
+		repo, err := b.Repositories.Get("repo", member.Repository)
+		if err != nil || !reflect.DeepEqual(repo, repos[i]) || repo.Remote != member.Remote || repo.Branch != member.Branch {
+			return core.ErrCapabilityStale
+		}
+		i++
+	}
+	if i == 0 || i != len(repos) {
+		return core.ErrCapabilityStale
 	}
 	return nil
 }
