@@ -1841,7 +1841,7 @@ G3 partial acceptance restored synthetic Workspace/OCI archives from Windows int
 
 ## Explicit Environment startup
 
-The Incus adapter supplies `boot.autostart=false` during new instance initialization and verifies it before new/restored startup and guarded resume. No CLI command, recovery coordinator or Core state is added. Existing instances adopt the setting through normal stop/start; see [ADR 0059](adr/0059-explicit-environment-start.md) for the pre-reboot upgrade procedure.
+The Incus adapter supplies `boot.autostart=false` during new instance initialization and verifies it before new/restored startup and guarded resume. No CLI command, recovery coordinator or Core state is added. Existing instances adopt the setting through normal stop/start; see [ADR 0060](adr/0060-explicit-environment-start.md) for the pre-reboot upgrade procedure.
 
 An isolated fresh-WSL candidate restored a synthetic Workspace and created an Env with the default OCI Store (40.88s). A later running Env had no explicit boot setting and a missing source guard; start refused it, while normal stop/start succeeded (3.54s/16.43s). At controller 61a26e3, real WSL PID-namespace restart left both new and migrated Envs stopped; normal guarded start passed in 17.14s with the same generation and retained Workspace/Git/OCI bytes. The adapter package and vet passed. SSH preparation failed at package exit 100 before scoped package Policy was applied. With that Policy, normal SSH preparation passed in 84.69s and pinned SSH Workspace read/write and management-socket absence passed in 1.68s. Complete new-WSL migration remains unverified.
 

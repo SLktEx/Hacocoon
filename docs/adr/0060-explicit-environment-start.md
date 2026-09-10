@@ -1,4 +1,4 @@
-# ADR 0059: Start Environments through the guarded lifecycle
+# ADR 0060: Start Environments through the guarded lifecycle
 
 Status: accepted
 Date: 2026-09-11

@@ -822,4 +822,4 @@ untracked file が残り、復元先で新しい local commit を作成できま
 
 同じ SSH/package 経路で Git を導入し、復元 repo にローカル commit `cafa5fc` を作成しました。続く複合検証は、新 Store に containerd directory が既にあると仮定したため失敗しており、live OCI 成功とは扱いません。別の検証で所有 Store の mount を確認して marker を書き、通常の stop/delete/create 後も Store の同一性と marker、Workspace の同一性、Git commit、modified/untracked、所有権・permission・link・xattr を保持しました。同名 Env の世代は変わり、旧 SSH endpoint は接続を拒否し、旧生成 config と authorized keys は存在せず、Env rootfs 内だけの marker は消えていました。通常 lifecycle/SSH に native readback を併用しています。
 
-新規インストール上の合成外部 Workspace での開発と、新 Store の保持データの検証です。旧 live OCI daemon、全 managed repo/Store 対応、実認証情報、既存暗号 identity の回復は対象外で、旧 WSL 削除を許可する確認ではありません。揮発性 guard より先に Incus が自動起動する問題は別の[起動境界修正](../adr/0059-explicit-environment-start.md)で扱い、その cold-boot 受入は別途記録します。
+新規インストール上の合成外部 Workspace での開発と、新 Store の保持データの検証です。旧 live OCI daemon、全 managed repo/Store 対応、実認証情報、既存暗号 identity の回復は対象外で、旧 WSL 削除を許可する確認ではありません。揮発性 guard より先に Incus が自動起動する問題は別の[起動境界修正](../adr/0060-explicit-environment-start.md)で扱い、その cold-boot 受入は別途記録します。

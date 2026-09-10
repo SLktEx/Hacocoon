@@ -138,4 +138,4 @@ restored instances use `boot.autostart=false`; guarded resume sets and verifies
 this policy after ownership/network checks. Failed configuration or readback
 fails closed. Legacy instances require normal stop/start with the updated
 controller before a Host reboot; untouched instances are not silently migrated.
-Trusted `haco-host` remains a separate lifecycle. See [ADR 0059](../adr/0059-explicit-environment-start.md).
+Trusted `haco-host` remains a separate lifecycle. See [ADR 0060](../adr/0060-explicit-environment-start.md).

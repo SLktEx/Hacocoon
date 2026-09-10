@@ -187,5 +187,5 @@ available. No additional daily command is required.
 Workspace/OCI lifetime and creation identity are unchanged. Before restarting
 an upgraded legacy installation, apply the setting through normal stop/start
 for each retained Environment; untouched legacy instances are not migrated.
-See [ADR 0059](../adr/0059-explicit-environment-start.md) for ownership, failure
+See [ADR 0060](../adr/0060-explicit-environment-start.md) for ownership, failure
 behavior and the distinction from complete Environment recovery.
