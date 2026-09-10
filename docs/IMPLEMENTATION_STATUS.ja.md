@@ -1589,3 +1589,5 @@ G2 の読み取り専用 inventory に `--files /absolute/root` の Linux ファ
 暗号化受入 fixture は private な `/var/lib` に保持し、実 systemd PrivateTmp 終了後の回帰を追加しました。旧合成 identity のパスは現在見つからないため、保存した暗号文の別 WSL 復元は未実行です。[fixture 保持と限界](design/environment-transfer.ja.md#暗号化受入-fixture-の保持)を参照してください。
 
 新規 identity を Windows 内だけに置いた別の合成 OS 間暗号化検証で、WSL の公開 recipient 暗号化、Windows native 復号・hash 照合、改ざん拒否が成功しました。旧 identity の回復や全量復元を示しません。[WSL 外の identity 保持](design/environment-transfer.ja.md#復号-identity-を-wsl-外へ保持する)を参照してください。
+
+Git Workspace 2個と OCI の管理 bundle が、別 WSL の通常 installed-controller import（171.27秒）、保存 volume 全94エントリの照合、鍵固定 SSH・ローカル Git 作業、同名 Env 再作成でのデータ保持に成功しました。Host 生 ID 比較と最初の SSH package 準備は失敗し、guest ID 比較と世代限定の package 許可で確認が通りました。全量復元・認証済み Git は未完了です。[別 WSL の管理対象受入](design/environment-transfer.ja.md#別-wsl-への管理対象-bundle-復元)を参照してください。

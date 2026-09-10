@@ -238,3 +238,5 @@ unregistered data review. Mounts, symlinks, special files and observation failur
 remain explicit gaps. Classification, quiescent content capture and restored-data
 comparison remain required; enumeration does not authorize old-WSL deletion.
 See [file inventory](../design/environment-transfer.md#manual-file-inventory-for-evacuation-review).
+
+G3 now has native acceptance for one managed bundle on a separate fresh WSL: complete fixture-volume comparison, fresh pinned SSH/local Git work and retained Workspace/OCI after same-name recreation. Whole-installation coverage and G4 replacement remain required; see [managed cross-WSL acceptance](../design/environment-transfer.md#managed-bundle-restoration-in-a-separate-wsl).
