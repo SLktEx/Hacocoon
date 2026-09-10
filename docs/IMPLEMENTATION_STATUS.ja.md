@@ -1532,3 +1532,5 @@ local CI 全体は docs／workflow 検査後、WSL の pwsh 不在で失敗し�
 実 Git push CI は trusted main での手動実行と固定の SLktEx/Hacocoon-test 送信先に限定します。専用 credential がない場合は SKIP で、push 受入成功ではありません。旧 fixture は製品インストール後の import や対話承認を検証しません。[ADR 0059](adr/0059-dedicated-git-push-test-target.md)を参照してください。
 
 Windows 39b5ce4 で承認 setup の失敗が再現し、DNS start-limit-hit を確認しました。同じ DNS 構成では冪等な systemd start を使い、companion／unit 変更時は restart します。修正後の installed 検証は未完了です。[service 起動](design/name-resolution.ja.md#繰り返す-setup-と-service-起動)を参照してください。
+
+G1 の Windows ファイル受入を実装し、実行は未検証です。完成した Linux bundle の排他的コピー、Windows 側の長さ／hash 照合、既存共有 drive から Linux client での import を確認します。Windows native CLI／直接 export 公開は未実装です。[経路](design/environment-transfer.ja.md#既存ドライブ共有を使う-windows-bundle-ファイル)を参照してください。

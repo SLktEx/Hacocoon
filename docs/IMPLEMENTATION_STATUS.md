@@ -1798,3 +1798,5 @@ The local CI entry point passed docs/workflow checks, then failed because WSL la
 Real Git push CI is restricted to manual trusted-main dispatch and the fixed SLktEx/Hacocoon-test target. Missing dedicated credentials produce SKIP, not push acceptance. The legacy fixture does not verify installed-product import or interactive approval. See [ADR 0059](adr/0059-dedicated-git-push-test-target.md).
 
 Windows 39b5ce4 reproduced approval setup failure and diagnosed DNS start-limit-hit. Unchanged DNS provisioning now uses idempotent systemd start; changed companion/unit still restart. Installed verification of this fix is pending. See [service activation](design/name-resolution.md#repeated-setup-and-service-activation).
+
+G1 Windows-file acceptance is implemented but unverified: exclusive copy of a completed Linux bundle, Windows size/hash receipt and Linux import from the existing projected drive. Direct native Windows CLI/export publication is not implemented. See [the route](design/environment-transfer.md#windows-bundle-file-through-existing-drive-projection).

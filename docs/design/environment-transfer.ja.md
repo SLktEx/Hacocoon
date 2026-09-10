@@ -633,3 +633,23 @@ Windows job 全体は、独立した承認待ち probe の
 直前の project setup と後続 preview／doctor は成功しましたが、原因は未解明です。
 attempt 2 でも同じ段階で失敗し、transfer と独立した desktop 検証は再度成功しました。失敗直後に既存の鍵固定 SSH で DNS service の Result だけを読み、許可した定型値のみを出す診断を追加しました。setup の再試行・service 再起動・失敗判定の変更は行いません。
 live OCI の整合性と Windows native の bundle 受け渡しは未検証です。
+
+## 既存ドライブ共有を使う Windows bundle ファイル
+
+Status: **受入 fixture 実装済み・installed 実行待ち**。Windows gate は export 済みの Linux bundle を、
+trusted Host の既存ドライブ共有を通して、新しい Windows 一時ファイルへコピーします。
+排他的な新規作成で既存ファイルを拒否し、Windows 側で長さと SHA-256 を export receipt と照合します。
+source Env を削除した後、通常の Linux import client が共有経由の Windows ファイルを読みます。
+import 後の作業・保持データからの再作成後にも Windows 側の digest を確認します。
+確認用ファイルは SSH fixture の cleanup ディレクトリ外に保持します。
+
+既存のファイル・管理インターフェースを使います。Windows ネイティブ haco や DrvFS への直接 export
+公開の実装ではなく、export は対応 Linux filesystem 上で完了させます。手動では完成した bundle を
+Windows フォルダへコピーし、その共有パスを Linux client の入力にする経路を想定しています。
+
+```bash
+haco env import /mnt/c/Users/USER/Backups/dev.haco dev-imported
+```
+
+Windows native の export／import コマンド、自動コピー、WSL 全体の退避は別の作業です。
+ローカルのコピー回帰は既存対象を上書きしない確認であり、ドライブ共有経路は installed GHA で確認します。
