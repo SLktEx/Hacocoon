@@ -232,3 +232,9 @@ G2 has a native test-only EPERM deletion-failure evacuation case using immutable
 snapshot parents in isolated pools. Manual capture, independent restore and cleanup
 passed; whole-installation coverage and actual corruption recovery remain incomplete.
 See [the scoped acceptance](../design/environment-transfer.md#readable-evacuation-after-a-failed-snapshot-deletion).
+
+G2 inventory includes an optional bounded Linux file-metadata walk for manual and
+unregistered data review. Mounts, symlinks, special files and observation failures
+remain explicit gaps. Classification, quiescent content capture and restored-data
+comparison remain required; enumeration does not authorize old-WSL deletion.
+See [file inventory](../design/environment-transfer.md#manual-file-inventory-for-evacuation-review).

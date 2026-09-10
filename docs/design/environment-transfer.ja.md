@@ -866,10 +866,13 @@ symlink の参照先、ACL、xattr 値は読みません。指定 root の途中
 子ディレクトリは descriptor を保持して観測 inode と照合し、descriptor の mount ID で
 一覧にまだなかった同一 filesystem の bind mount への進入も防ぎます。
 
+既知の mountpoint は相対パスだけを記録し、切断された外部 storage への stat も行いません。
 mount 境界、symlink、特殊ファイルはすべて deferred として記録します。読取エラー、
 ディレクトリ/root の置換、観測できたディレクトリや mount 一覧の変更、50,000 entry／
 64 階層／60 秒の上限では途中結果を残し、`enumeration_complete=false` と終了値 1 にします。
 未処理箇所は個別に確認し、追加の所有 mount root は明示指定して別途列挙してください。
+時間上限は entry 間で確認します。kernel の metadata 読取が停止した場合に割り込む
+実行時間保証ではありません。
 Incus の storage mount が別 namespace にある場合は daemon の mount namespace 内で
 実行します。Windows 外部参照のファイル内容を読んだり削除したりはしません。
 
@@ -878,9 +881,11 @@ Incus の storage mount が別 namespace にある場合は daemon の mount nam
 列挙できても `backup_complete=false` を維持します。installation 全体、trusted な秘密情報、
 旧 WSL 入替の確認にはなりません。公開 `haco` コマンドや自動復旧 state は増やしません。
 
-検証: Linux のファイル列挙回帰 9 件、統合 inventory 回帰 18 件、workflow policy 25 件が
-成功しました。専用 Ubuntu 26.04 WSL では 22.70 秒で 47,826 entry を列挙し、読取エラーは
-ありませんでした（通常ファイル 39,049、ディレクトリ 5,057、symlink 3,718、特殊ファイル 2）。
-mount 境界 17 件、全 symlink、両特殊ファイルは deferred のため、列挙・backup とも
-未完了です。13,596,260 byte の private report は WSL 内にあり、外部 archive ではありません。
+検証: Linux のファイル列挙回帰 10 件、統合 inventory 回帰 18 件、workflow policy 25 件が
+成功しました。最終版は専用 Ubuntu 26.04 WSL で 20.87 秒に 47,848 entry を観測し、
+読取エラーはありませんでした（通常ファイル 39,061、ディレクトリ 5,050、mount 参照 17、
+symlink 3,718、特殊ファイル 2）。17 mount 境界、全 symlink、両特殊ファイルは deferred のため、
+列挙・backup とも未完了です。private report は WSL 内の
+`/var/lib/haco-file-inventory-4kvt5eyb/wsl-root.json` にあり、外部 archive ではありません。
 別の小さな合成の手動追加データ領域では内容を出力せずに全 entry を列挙できました。
+どちらも installation 全体を分類・保存した結果ではありません。

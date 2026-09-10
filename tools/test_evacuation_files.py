@@ -1,4 +1,5 @@
 import json
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import tempfile
@@ -58,6 +59,19 @@ class FileInventoryTests(unittest.TestCase):
         self.assertFalse(result["enumeration_complete"])
         self.assertNotIn("mounted/hidden", {x["path"] for x in result["entries"]})
         self.assertEqual(result["deferred"][0]["reason"], "separate-mount-or-filesystem")
+
+    def test_known_mount_is_not_even_statted(self):
+        class MountEntry:
+            name = "disconnected"
+            def stat(self, **kwargs):
+                raise AssertionError("external mount stat must not run")
+        @contextmanager
+        def entries(fd):
+            yield iter([MountEntry()])
+        with patch.object(subject, "mountpoints", return_value={str(self.root / "disconnected")}), patch.object(subject.os, "scandir", side_effect=entries):
+            result = self.inventory()
+        self.assertEqual(result["entries"][1], {"path": "disconnected", "kind": "mount"})
+        self.assertFalse(result["enumeration_complete"])
 
     def test_opened_mount_identity_blocks_unlisted_bind_mount(self):
         child = self.root / "mounted"

@@ -1039,11 +1039,15 @@ xattr values. No symlink component of the selected root is followed. Child
 directories are pinned and checked against the observed inode; descriptor mount
 IDs also prevent traversing an unlisted bind mount on the same filesystem.
 
-Every mount boundary, symlink and special file is listed as deferred. Read errors,
+Known mountpoints are recorded by relative path without even calling stat on
+them, avoiding that access to disconnected external storage. Every mount
+boundary, symlink and special file is listed as deferred. Read errors,
 directory/root replacement, observed directory or mount-table changes, and the
-50,000-entry / 64-level / 60-second limits preserve partial results and make
+50,000-entry / 64-level / 60-second budgets preserve partial results and make
 `enumeration_complete` false, with exit status 1. Review each gap separately;
-explicitly select additional owned mount roots for their own reports. Run in the
+explicitly select additional owned mount roots for their own reports. The time
+budget is checked between entries; it cannot interrupt a blocked kernel metadata
+call and is not a hard execution timeout. Run in the
 Incus daemon mount namespace when that is needed to see its storage mounts.
 External Windows references remain references; this reader neither opens their
 file contents nor deletes them.
@@ -1055,11 +1059,12 @@ selected tree is fully enumerated. The rest of the installation, trusted secrets
 and old-WSL replacement remain outside that result. No public `haco` command or
 new automatic recovery state is added.
 
-Validation: 9 Linux file-enumeration regressions, 18 combined inventory regressions,
-and 25 workflow-policy cases passed. A dedicated Ubuntu 26.04 WSL run enumerated
-47,826 entries in 22.70s without read errors: 39,049 files, 5,057 directories,
-3,718 symlinks and 2 special files. Seventeen mount boundaries, all symlinks and
-both special files remain deferred, so enumeration and backup are explicitly
-incomplete. The 13,596,260-byte private report is inside that WSL; it is not an
-external archive. A separate small synthetic manual-data tree enumerated fully
-without exposing its file contents.
+Validation: 10 Linux file-enumeration regressions, 18 combined inventory regressions,
+and 25 workflow-policy cases passed. The final reader observed 47,848 entries in
+20.87s on a dedicated Ubuntu 26.04 WSL without read errors: 39,061 files, 5,050
+directories, 17 mount references, 3,718 symlinks and 2 special files. All 17 mount
+boundaries, symlinks and special files remain deferred, so enumeration and backup
+are explicitly incomplete. The private report remains inside that WSL at
+`/var/lib/haco-file-inventory-4kvt5eyb/wsl-root.json`, not in an external archive.
+A separate small synthetic manual-data tree enumerated fully without exposing
+its file contents. Neither result classifies or saves the whole installation.

@@ -98,10 +98,15 @@ def file_inventory(root, entry_limit=50000, depth_limit=64, seconds=60):
                         break
                     path = entry.name if relative == "." else relative + "/" + entry.name
                     try:
+                        absolute = os.path.join(root, path)
+                        if absolute in mounts:
+                            # Even stat can block on a disconnected external mount.
+                            report["entries"].append({"path": path, "kind": "mount"})
+                            report["deferred"].append({"path": path, "reason": "separate-mount-or-filesystem"})
+                            continue
                         value = entry.stat(follow_symlinks=False)
                         kind = record(path, value)
-                        absolute = os.path.join(root, path)
-                        if absolute in mounts or value.st_dev != root_info.st_dev:
+                        if value.st_dev != root_info.st_dev:
                             report["deferred"].append({"path": path, "reason": "separate-mount-or-filesystem"})
                         elif kind == "directory":
                             if depth >= depth_limit:
