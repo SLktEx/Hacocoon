@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -82,7 +84,58 @@ func verifyTransferredOCI(t *testing.T, ctx context.Context, r *Runtime, ref str
 	t.Log("PASS imported containerd image identity and stopped container writable data; explicit start resumed saved work without task migration")
 }
 
-const transferContainerdSetup = "set -eu\ntar -xzf /tmp/haco-transfer-runtime.tar.gz -C /usr/local bin/nerdctl bin/containerd bin/containerd-shim-runc-v2 bin/ctr bin/runc\nrm /tmp/haco-transfer-runtime.tar.gz\ncat > /etc/systemd/system/containerd.service <<'UNIT'\n[Unit]\nDescription=Owned transfer fixture containerd\n[Service]\nExecStart=/usr/local/bin/containerd --config /etc/containerd/config.toml\nDelegate=yes\nKillMode=process\nUNIT\nsystemctl daemon-reload\n"
-const transferContainerdStart = "set -eu\nsystemctl start containerd\nattempt=0\nuntil ctr version >/dev/null 2>&1; do\n attempt=$((attempt+1)); test \"$attempt\" -lt 60; sleep 0.5\ndone\n"
-const transferContainerdSeed = "set -eu\nmkdir /tmp/haco-transfer-root\ncp /tmp/haco-transfer-probe /tmp/haco-transfer-root/probe\nchmod 755 /tmp/haco-transfer-root/probe\ntar -cf /tmp/haco-transfer-image.tar -C /tmp/haco-transfer-root .\nnerdctl --snapshotter native import /tmp/haco-transfer-image.tar hacocoon-transfer:local\nnerdctl --snapshotter native image inspect --format '{{.Id}}' hacocoon-transfer:local > /var/lib/haco-transfer-image-id\ntest \"$(nerdctl --snapshotter native run --pull never --net none --name haco-transfer-persist hacocoon-transfer:local /probe)\" = created\ntest -z \"$(ctr tasks list -q)\"\nrm /tmp/haco-transfer-image.tar /tmp/haco-transfer-probe /tmp/haco-transfer-root/probe\nrmdir /tmp/haco-transfer-root\nsystemctl stop containerd\n"
-const transferContainerdVerify = "set -eu\ntest -z \"$(ctr tasks list -q)\"\ntest \"$(nerdctl --snapshotter native image inspect --format '{{.Id}}' hacocoon-transfer:local)\" = \"$(cat /var/lib/haco-transfer-image-id)\"\ntest \"$(nerdctl --snapshotter native start --attach haco-transfer-persist)\" = retained\ntest -z \"$(ctr tasks list -q)\"\nsystemctl stop containerd\n"
+const transferContainerdSetup = `set -eu
+tar -xzf /tmp/haco-transfer-runtime.tar.gz -C /usr/local bin/nerdctl bin/containerd bin/containerd-shim-runc-v2 bin/ctr bin/runc
+rm /tmp/haco-transfer-runtime.tar.gz
+cat > /etc/systemd/system/containerd.service <<'UNIT'
+[Unit]
+Description=Owned transfer fixture containerd
+[Service]
+ExecStart=/usr/local/bin/containerd --config /etc/containerd/config.toml
+Delegate=yes
+KillMode=process
+UNIT
+systemctl daemon-reload
+`
+const transferContainerdStart = `set -eu
+systemctl start containerd
+attempt=0
+until ctr version >/dev/null 2>&1; do
+ attempt=$((attempt+1)); test "$attempt" -lt 60; sleep 0.5
+done
+`
+const transferContainerdSeed = `set -eu
+mkdir /tmp/haco-transfer-root
+cp /tmp/haco-transfer-probe /tmp/haco-transfer-root/probe
+chmod 755 /tmp/haco-transfer-root/probe
+tar -cf /tmp/haco-transfer-image.tar -C /tmp/haco-transfer-root .
+nerdctl --snapshotter native import /tmp/haco-transfer-image.tar hacocoon-transfer:local
+nerdctl --snapshotter native image inspect --format '{{.Id}}' hacocoon-transfer:local > /var/lib/haco-transfer-image-id
+test "$(nerdctl --snapshotter native run --pull never --net none --name haco-transfer-persist hacocoon-transfer:local /probe)" = created
+test -z "$(ctr tasks list -q)"
+rm /tmp/haco-transfer-image.tar /tmp/haco-transfer-probe /tmp/haco-transfer-root/probe
+rmdir /tmp/haco-transfer-root
+systemctl stop containerd
+`
+const transferContainerdVerify = `set -eu
+test -z "$(ctr tasks list -q)"
+test "$(nerdctl --snapshotter native image inspect --format '{{.Id}}' hacocoon-transfer:local)" = "$(cat /var/lib/haco-transfer-image-id)"
+test "$(nerdctl --snapshotter native start --attach haco-transfer-persist)" = retained
+test -z "$(ctr tasks list -q)"
+systemctl stop containerd
+`
+
+func TestTransferOCIShellSyntax(t *testing.T) {
+	for name, script := range map[string]string{
+		"setup": transferContainerdSetup, "start": transferContainerdStart,
+		"seed": transferContainerdSeed, "verify": transferContainerdVerify,
+	} {
+		t.Run(name, func(t *testing.T) {
+			command := exec.Command("/bin/sh", "-n")
+			command.Stdin = strings.NewReader(script)
+			if output, err := command.CombinedOutput(); err != nil {
+				t.Fatalf("invalid owned fixture shell: %v %s", err, output)
+			}
+		})
+	}
+}
