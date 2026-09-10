@@ -32,29 +32,12 @@ fixture の12分期限に達して720.07秒で失敗しました。全体は FAI
 製品 import CLI と全 aggregate assertion を含めて成功しました。ローカル失敗は保持し、GHA を独立した受入結果として
 扱います。延長後の local-budget 版はコンパイル済みですがローカル再実行はしていません。b7297a3 の4 workflow は成功しました。後続の fixture 期限変更は、その最新 head の CI を別に追跡します。
 
-aggregate には、使い捨ての GitHub-hosted runner 上で、新しい空の catalog と専用の管理
-socket を使う製品 controller の import gate も追加しています。native データ、新しい世代、
-管理 SSH の初期化、Env 削除後の Workspace／OCI 保持、canonical な所有対象の明示的 cleanup
-を確認します。gate は実装済みですが、実実行の結果は pending です。インストール済み Standard-egress、
-一般ユーザー／desktop、SSH ハンドシェイク、live OCI の受入を証明するものではありません。
-
-a58d553 の初回 GHA では、所有対象の cleanup を含む製品 controller の subtest が20.35秒で
-成功しました。aggregate 全体は89.56秒で失敗しました。最後の「receipt は通常ファイルのみ」
-という確認が、追加した controller 診断用サブディレクトリを拒否したためです。controller の
-専用 catalog／診断は別に一意作成する `/var/lib/haco-import-controller-*` に保持し、cleanup 後に
-Env・lease・OCI の catalog 項目が残っていないことも確認します。aggregate の厳密な receipt
-確認は変更しません。修正版の全体受入は pending です。
-
-修正版の controller gate には、公開 `haco env ssh --key` と実 SSH 通信も追加しています。
-新しいクライアント秘密鍵は検証プロセス内だけに持ち、controller が返すサーバー鍵を固定して
-認証します。import 済み Git Workspace への書き込み、接続・鍵の解除、Env 削除後の書き込み
-保持を確認します。この拡張はまだ実行しておらず、実 Incus で成功するまで SSH 受入成功とは
-しません。インストール済み desktop の alias や VS Code は対象外です。
-
-6d5e027 の SSH 拡張は、公開 CLI の SSH 準備で失敗し、ハンドシェイクまで到達しませんでした。
-aggregate は81.43秒で失敗し、Env が残ったため後続の storage fixture cleanup も失敗しました。
-SSH や修正版 aggregate の成功は主張しません。gate には固定のエラー分類・処理段階と sshd の
-有無だけを出す診断を追加し、生の controller 診断は非公開のまま保持します。原因はまだ未確定です。
+a58d553 の単独製品 controller は native import・データ・所有 cleanup を20.35秒で確認しましたが、
+全体 gate は診断ディレクトリの配置で失敗し、配置を修正しました。6d5e027／e598270 の SSH は失敗し、
+後者で sshd 不在と SSH 導入段階の失敗を確認しました。SSH 継続は、別の管理 source と通常の限定
+package Policy を使い、公開 export／import、新しい鍵を固定した Windows SSH、保持データからの
+Env 再作成を行う既存 installed Windows gate へ接続しました。この新 gate は未検証で、単独 native
+controller 確認も必須です。[受入記録](design/environment-transfer.ja.md#インストール済み-controller-と-ssh-の受入)を参照してください。
 
 ## 公開 Environment export の作業状況
 

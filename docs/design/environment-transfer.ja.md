@@ -591,26 +591,30 @@ fixture の12分期限に達して720.07秒で失敗しました。全体は FAI
 製品 import CLI と全 aggregate assertion を含めて成功しました。ローカル失敗は保持し、GHA を独立した受入結果として
 扱います。延長後の local-budget 版はコンパイル済みですがローカル再実行はしていません。b7297a3 の4 workflow は成功しました。後続の fixture 期限変更は、その最新 head の CI を別に追跡します。
 
-aggregate には、使い捨ての GitHub-hosted runner 上で、新しい空の catalog と専用の管理
-socket を使う製品 controller の import gate も追加しています。native データ、新しい世代、
-管理 SSH の初期化、Env 削除後の Workspace／OCI 保持、canonical な所有対象の明示的 cleanup
-を確認します。gate は実装済みですが、実実行の結果は pending です。インストール済み Standard-egress、
-一般ユーザー／desktop、SSH ハンドシェイク、live OCI の受入を証明するものではありません。
+## インストール済み controller と SSH の受入
 
-a58d553 の初回 GHA では、所有対象の cleanup を含む製品 controller の subtest が20.35秒で
-成功しました。aggregate 全体は89.56秒で失敗しました。最後の「receipt は通常ファイルのみ」
-という確認が、追加した controller 診断用サブディレクトリを拒否したためです。controller の
-専用 catalog／診断は別に一意作成する `/var/lib/haco-import-controller-*` に保持し、cleanup 後に
-Env・lease・OCI の catalog 項目が残っていないことも確認します。aggregate の厳密な receipt
-確認は変更しません。修正版の全体受入は pending です。
+Incus aggregate の製品 controller subtest は、空の専用 catalog を使って native rootfs／Git／OCI、
+新しい世代、管理 SSH 鍵の初期化、Env 削除後のデータ保持、canonical な所有対象の cleanup を
+確認します。診断は、通常ファイルのみを許す aggregate の receipt ディレクトリとは別に保持します。
 
-修正版の controller gate には、公開 `haco env ssh --key` と実 SSH 通信も追加しています。
-新しいクライアント秘密鍵は検証プロセス内だけに持ち、controller が返すサーバー鍵を固定して
-認証します。import 済み Git Workspace への書き込み、接続・鍵の解除、Env 削除後の書き込み
-保持を確認します。この拡張はまだ実行しておらず、実 Incus で成功するまで SSH 受入成功とは
-しません。インストール済み desktop の alias や VS Code は対象外です。
+| commit | 実際の結果 |
+|---|---|
+| a58d553 | controller subtest は20.35秒で成功。診断ディレクトリを最後の receipt 確認が拒否し、aggregate は89.56秒で失敗。 |
+| 6d5e027 | SSH 準備で失敗し、ハンドシェイク未到達。aggregate は81.43秒で失敗。後続 cleanup は別 fixture 所有の残存物を正しく拒否。 |
+| e598270 | sshd 不在と SSH 導入段階の失敗を確認。aggregate は86.49秒で失敗。 |
 
-6d5e027 の SSH 拡張は、公開 CLI の SSH 準備で失敗し、ハンドシェイクまで到達しませんでした。
-aggregate は81.43秒で失敗し、Env が残ったため後続の storage fixture cleanup も失敗しました。
-SSH や修正版 aggregate の成功は主張しません。gate には固定のエラー分類・処理段階と sshd の
-有無だけを出す診断を追加し、生の controller 診断は非公開のまま保持します。原因はまだ未確定です。
+単独 fixture にはインストール済みの package egress サービスがありません。SSH 継続は、既存の
+Windows 製品インストール gate で別の管理 Workspace／OCI を持つ source を作り、既存の限定した
+package Policy で source SSH を準備して検証します。Windows OpenSSH で未push・未commit・untracked
+の作業を作り、stop・export・source Env の削除後、trusted Host のクライアントとインストール済み
+controller から import します。復元先へ source の package 許可は与えず、保存 rootfs の sshd を使います。
+controller が返す新しいホスト鍵を固定した実 Windows SSH で Git・rootfs・OCI marker を確認し、
+追加作業を保存します。Env 削除後、新しい Env に保持データを再接続し、公開コマンドで検証所有の
+データだけを明示的に削除します。
+
+この installed gate は実装済みですが、**実行による検証は未完了**です。単独 native controller gate
+も必須のままです。既存 external-path Windows SSH fixture の対象は維持し、transfer の失敗を記録しながら
+独立した desktop probe を続けます。CI を通すための黙った SKIP は行いません。bundle と生のローカル
+検証 repo は確認用に trusted Host 内へ保持します。Windows native の bundle ファイル受け渡しと
+live Docker／containerd 整合性は未検証です。製品コマンド、backend、Base component、自動 backup、
+schema は追加しません。

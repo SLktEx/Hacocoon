@@ -20,6 +20,7 @@ on:
       - "tools/installed-egress-check/**"
       - "tools/test_installed_egress.ps1"
       - "tools/test_windows_environment_ssh.ps1"
+      - "tools/test_windows_environment_transfer.ps1"
       - "tools/windows-native-access-e2e.py"
       - "tools/setup-vscode-acceptance.ps1"
       - "tools/test_native_access_runner.py"

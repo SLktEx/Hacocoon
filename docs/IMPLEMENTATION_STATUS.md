@@ -42,33 +42,14 @@ independent acceptance while preserving the local failure record. The extended
 local-budget variant has compiled but has not been rerun locally; all four b7297a3 workflows passed. The follow-up fixture-budget commit requires
 its own latest-head CI result.
 
-The aggregate also includes an opt-in shipped-controller import gate with a new,
-empty catalog and private management socket on a disposable GitHub-hosted runner.
-It checks native data, fresh generation, managed SSH reset, Env deletion retaining
-Workspace/OCI and explicit canonical owned-data cleanup. This gate is implemented;
-its real execution result is pending. It does not establish installed Standard-egress,
-ordinary-user/desktop, SSH handshake or live OCI acceptance.
-
-The first shipped-controller GHA run at a58d553 passed the controller subtest in
-20.35s, including owned cleanup. The full aggregate FAILED at 89.56s because its
-final flat-receipt check rejected the nested controller diagnostics directory.
-The controller now keeps its private catalog/diagnostics in a separate, uniquely
-created `/var/lib/haco-import-controller-*` directory, and explicitly verifies no
-Env, lease or OCI catalog entries remain after cleanup. The aggregate's strict
-receipt check is unchanged. Full corrected-run acceptance remains pending.
-
-The corrected controller gate also exercises public `haco env ssh --key` and a
-real SSH session with a fresh in-memory client key and the controller-pinned server
-key. It writes into the imported Git Workspace, revokes the connection/key and
-checks that the write survives Env deletion. This extension is not yet executed;
-it must pass in real Incus before SSH acceptance is claimed. It does not exercise
-the installed desktop alias or VS Code.
-
-The SSH extension at 6d5e027 FAILED in the public CLI's SSH preparation before a
-handshake. The aggregate failed at 81.43s, and subsequent storage-fixture cleanup
-also failed with the retained Env. No SSH or corrected aggregate success is claimed.
-The gate now reports only fixed error-category/stage labels and whether sshd is
-present; raw controller diagnostics remain private. The exact cause is not yet proven.
+The bare shipped controller passed native import/data/owned cleanup in 20.35s at
+a58d553, but the full gate failed on diagnostic-directory layout, now corrected.
+SSH attempts at 6d5e027/e598270 failed; the latter confirmed missing sshd and SSH
+provisioning failure in the bare fixture. SSH continuation is now wired into the
+existing installed Windows gate with a separate managed source, normal scoped
+package Policy, public export/import, fresh pinned Windows SSH and retained-data
+recreation. This new installed gate is unverified; native controller checks remain
+required. See [the acceptance record](design/environment-transfer.md#installed-controller-and-ssh-acceptance).
 
 ## Public Environment export in progress
 

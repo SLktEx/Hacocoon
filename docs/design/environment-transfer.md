@@ -728,30 +728,34 @@ independent acceptance while preserving the local failure record. The extended
 local-budget variant has compiled but has not been rerun locally; all four b7297a3 workflows passed. The follow-up fixture-budget commit requires
 its own latest-head CI result.
 
-The aggregate also includes an opt-in shipped-controller import gate with a new,
-empty catalog and private management socket on a disposable GitHub-hosted runner.
-It checks native data, fresh generation, managed SSH reset, Env deletion retaining
-Workspace/OCI and explicit canonical owned-data cleanup. This gate is implemented;
-its real execution result is pending. It does not establish installed Standard-egress,
-ordinary-user/desktop, SSH handshake or live OCI acceptance.
+## Installed controller and SSH acceptance
 
-The first shipped-controller GHA run at a58d553 passed the controller subtest in
-20.35s, including owned cleanup. The full aggregate FAILED at 89.56s because its
-final flat-receipt check rejected the nested controller diagnostics directory.
-The controller now keeps its private catalog/diagnostics in a separate, uniquely
-created `/var/lib/haco-import-controller-*` directory, and explicitly verifies no
-Env, lease or OCI catalog entries remain after cleanup. The aggregate's strict
-receipt check is unchanged. Full corrected-run acceptance remains pending.
+The Incus aggregate includes a shipped-controller subtest with an empty private
+catalog. It verifies native rootfs/Git/OCI, fresh generation, managed SSH key reset,
+Env deletion retaining data and canonical owned cleanup. Diagnostics are kept
+separately from the aggregate's strictly checked flat receipt directory.
 
-The corrected controller gate also exercises public `haco env ssh --key` and a
-real SSH session with a fresh in-memory client key and the controller-pinned server
-key. It writes into the imported Git Workspace, revokes the connection/key and
-checks that the write survives Env deletion. This extension is not yet executed;
-it must pass in real Incus before SSH acceptance is claimed. It does not exercise
-the installed desktop alias or VS Code.
+| Commit | Actual result |
+|---|---|
+| a58d553 | Controller subtest PASS in 20.35s; aggregate FAIL in 89.56s because its final receipt check rejected the nested diagnostics. |
+| 6d5e027 | SSH preparation FAIL before handshake; aggregate FAIL in 81.43s. Later cleanup correctly refused retained aggregate-owned resources. |
+| e598270 | Confirmed sshd absent and failure in SSH provisioning; aggregate FAIL in 86.49s. |
 
-The SSH extension at 6d5e027 FAILED in the public CLI's SSH preparation before a
-handshake. The aggregate failed at 81.43s, and subsequent storage-fixture cleanup
-also failed with the retained Env. No SSH or corrected aggregate success is claimed.
-The gate now reports only fixed error-category/stage labels and whether sshd is
-present; raw controller diagnostics remain private. The exact cause is not yet proven.
+The bare fixture has no installed package-egress service. SSH continuation now
+uses the existing Windows installed-product gate. It creates a separate managed
+Workspace/OCI source and uses the existing narrowly scoped package Policy for
+source SSH preparation. Windows OpenSSH creates unpushed/uncommitted/untracked
+work; the source is stopped, exported, and its Env deleted before import through
+the trusted Host client and installed controller. The imported Env receives no
+source package grant: sshd comes from saved rootfs. A fresh controller-provided
+host-key pin protects the real Windows SSH session. The gate checks Git, rootfs
+and OCI markers, saves more work, deletes the Env, reattaches retained data to a
+new Env, and explicitly deletes only its own test data through public commands.
+
+This installed gate is implemented but **not yet verified**. Standalone native
+controller checks remain required. The original external-path Windows SSH fixture
+keeps its scope. Transfer failures are recorded while independent desktop probes
+continue; neither gate is silently skipped to make CI pass. The bundle and raw
+local test repository remain inside trusted Host for inspection. Windows-native
+bundle file delivery and live Docker/containerd consistency remain unverified.
+No product command, backend, Base component, backup or schema is added.

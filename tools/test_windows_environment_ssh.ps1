@@ -91,7 +91,7 @@ function Write-DesktopProbeFailure([string]$Label, [string]$Phase, [Management.A
 
 # This is the documented administrator Policy operation, scoped to this test
 # Environment. Existing rules are preserved; no network/provider repair occurs.
-function Update-SSHTestPolicy([string]$Action) {
+function Update-SSHTestPolicy([string]$Action, [string]$TargetEnvironment = $EnvironmentName) {
     $policyScript=@"
 import json, os, pathlib, re, stat, sys, tempfile
 operation, environment = sys.argv[1:]
@@ -119,7 +119,7 @@ with tempfile.NamedTemporaryFile(mode='w',dir=p.parent,delete=False) as f:
     json.dump(data,f); f.flush(); os.fsync(f.fileno()); temporary=f.name
 os.replace(temporary,p)
 "@
-    [void](Invoke-Wsl @('-u','root','--exec','python3','-c',$policyScript,$Action,$EnvironmentName) 'Configure only this SSH test Environment package Policy')
+    [void](Invoke-Wsl @('-u','root','--exec','python3','-c',$policyScript,$Action,$TargetEnvironment) 'Configure only this SSH test Environment package Policy')
 }
 [IO.Directory]::CreateDirectory($Work) | Out-Null
 try {
@@ -446,6 +446,13 @@ fi
                 $previewPhase = $Matches[1].ToLowerInvariant()
             }
             Write-DesktopProbeFailure 'WINDOWS HTTP PREVIEW' $previewPhase $_
+        }
+        try {
+            . (Join-Path $PSScriptRoot 'test_windows_environment_transfer.ps1')
+            Invoke-InstalledEnvironmentTransfer -BaseName $BuiltBaseName -PublicKeyWsl $PublicKeyWsl -PrivateKey $PrivateKey -NativeSSH $NativeSSH -Directory $Work
+        } catch {
+            $DesktopFailures.Add('environment-transfer')
+            Write-Host 'INSTALLED ENV TRANSFER: FAIL; continuing independent probes'
         }
         $doctorPhase = 'invoke'
         try {
