@@ -34,7 +34,7 @@ workflow_dispatch-gated SKIP. See [the owning contract](design/oci-image-deletio
 The Linux/WSL Incus adapter now exports an owned saved Workspace/OCI volume into
 an unnamed read-only archive, checking native ownership and backup cleanup. Its
 dedicated Incus 6.0.5/Btrfs adapter test passed in 5.92s; local race and vet passed. The
-whole public export/import flow and rootfs archive producer remain unimplemented.
+whole public export/import flow remains unimplemented. The internal rootfs producer now uses a uniquely owned native image and an anonymous archive; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s.
 See the [owning contract](design/environment-transfer.md#native-saved-volume-export-adapter).
 
 Public G1 export/import remains **planned**. Internal snapshot/archive inventory

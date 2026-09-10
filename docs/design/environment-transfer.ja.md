@@ -167,7 +167,7 @@ Incus 書き込み中の disk quota ではありません。descriptor を操作
 実際の子 process による匿名ファイルへの書き込みを確認します。`HACO_E2E_INCUS_VOLUME_TRANSFER=1` で動く
 `TestRealIncusOwnedVolumeExportE2E` は、新しい所有済み Btrfs pool 1個と合成の保存／import volume を使います。
 正確な計画と archive を保持し、保存元削除後の独立性を確認して、特定した fixture 資源だけを検証後に削除します。
-既存 Incus GHA job にこのテストを追加しました。公開の全体 export/import、rootfs 作成、OCI daemon 内容、復元先の権限処理は未完了です。
+既存 Incus GHA job にこのテストを追加しました。公開の全体 export/import、OCI daemon 内容、復元先の権限処理は未完了です。
 
 専用 Incus 6.0.5／Btrfs の実行は5.92秒で成功しました。計画と4096 bytes の archive は
 `/var/lib/haco-owned-volume-export-778805159` に保持し、archive の SHA-256 は
@@ -176,3 +176,44 @@ Incus 書き込み中の disk quota ではありません。descriptor を操作
 初期の未使用 import・文字列記述による fixture ビルド失敗は、native 実行前に修正しました。
 新しい単一保存 volume adapter の確認であり、公開の全体転送や OCI daemon の受入ではありません。
 出力先 filesystem が Btrfs の場合の匿名 staging は引き続き未検証です。
+
+## 保存 rootfs の native export adapter
+
+状態は **内部実装済み、専用 native adapter 受入は成功** です。公開 G1 には停止中 Env の export/import/start/SSH が
+必要であり、export のために利用者へ別途 snapshot 作成を必須にはしません。この adapter は、保護済みの
+独立した保存 rootfs を使う前提機能であり、公開フローそのものではありません。
+
+Linux/WSL の Incus adapter の `ExportSnapshotRootfs` は公式 Incus 6.0.5 client を使います。
+呼び出し元の `ReadSnapshot` reservation 中に保存 component を検証し、非圧縮 unified image として publish、
+既存の匿名 `NativeArchive` へ streaming 取得、保存元の再確認、一時 image の削除を行います。
+この image は転送中の rootfs component であり、追加の Base filesystem ではありません。
+元 Base/image cache の検索、保存元の削除、自動 backup、古い権限の復元は行いません。
+
+Incus CLI config から private Unix remote を選びます。publication 前に socket・project・ランダム owner を
+記録し、戻された operation・fingerprint も後続確認より先に永続追記します。最初の local フローでは
+HTTPS remote と cluster daemon は明示的に未対応で、local への暗黙 fallback はありません。
+SDK metadata の受信上限は 1 MiB、event listener は無効、operation 待機は最終的な成功状態を必須にします。
+
+image endpoint は選択済み Unix transport と明示的な request context を使います。redirect・split image を拒否し、
+実際の書き込み量を制限して、archive 全体の SHA-256 と fingerprint を照合します。応答の filename をパスにしません。
+これにより SDK 6.0.5 の `GetImageFile` が別の `/dev/incus/sock` を試すことと、download context の非継承を避けます。
+archive の展開・実行はしません。
+
+publication や cleanup が不明なら、非公開の `rootfs-export-<owner>.jsonl` receipt を残します。
+自動再実行せず、記録された socket/project/operation と正確な `user.hacocoon.export-owner` property を調べます。
+所有確認でき、alias のない一時 image だけを削除し、不在確認後に receipt を削除します。
+置き換えられた、または共有された receipt は unlink しません。保存 rootfs は変更しません。
+[ADR 0050](../adr/0050-native-rootfs-export-ownership.md)を参照してください。
+
+回帰テストは保存元/image の owner 変化、publication 応答喪失、未完了 operation、download 失敗、digest/size 不一致、
+cleanup 不明、receipt 置換、split/redirect 拒否、停止した通信のキャンセルを確認します。
+`TestRealIncusSnapshotRootfsExportE2E` は既存 GHA の opt-in rootfs transfer gate に追加しています。
+隔離 project/pool と合成した保存 rootfs を使い、native export、一時 image の不在、保存元保持、archive の
+native 再 import を確認するテストです。起動可能な公開 import・SSH・OCI data の受入ではありません。
+native 実行結果は単体テストの結果と分けて記録します。
+
+専用 WSL Incus 6.0.5/Btrfs adapter 検証は 13.44 秒で成功しました。隔離した保存元・project・pool と
+import した一時 image は確認後に削除しました。計画と archive は `/var/lib/haco-rootfs-export-1396608668` に
+保持し、archive の SHA-256 は `195bb069299c130f187cd1cb814806a8e39966f2b089a86fcb9460e5d3e8da85` です。
+関連 race 回帰は 3.614 秒で成功し、package vet も成功しました。この native 結果は component adapter の確認で、
+未完成の公開 G1 フローを受け入れたものではありません。

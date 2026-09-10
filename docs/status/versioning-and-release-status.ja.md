@@ -1,5 +1,7 @@
 # バージョン番号とリリース状況
 
+公開 G1 は planned のままです。内部の保存 rootfs export に、所有確認した native Incus image と上限付き archive streaming を追加しました。専用 Incus 6.0.5/Btrfs adapter 受入は 13.44 秒で成功し、リリースや checkpoint の宣言は追加しません。[Environment 持ち出し](../design/environment-transfer.ja.md)を参照してください。
+
 v0.57 の OCI image cleanup は partial です。未接続の nerdctl Store の一覧・削除は、production composition と bare controller／CLI を使い、bd1c9a5 の実 Incus/Btrfs で成功しました。導入済み controller 全体の受け入れ、未接続 Docker、候補選択型 GC は未完了です。[画像操作](../design/oci-image-deletion.ja.md)を参照してください。
 
 source repository と OCI Store 一式の確認・削除は、既存の registry・予約記録と Incus volume・device 操作を使います。Workspace の Git 参照、待機中要求の識別、保存済み snapshot を保護します。容量回収と export・移行は別の未完了作業です。

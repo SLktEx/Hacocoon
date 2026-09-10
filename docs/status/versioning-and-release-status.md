@@ -1,5 +1,7 @@
 # Versioning and release status
 
+G1 remains planned publicly. Internal saved-rootfs export now uses an owned native Incus image and bounded archive streaming; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s. This adds no release or checkpoint declaration. See [Environment transfer](../design/environment-transfer.md#native-saved-rootfs-export-adapter).
+
 The v0.57 OCI image cleanup checkpoint is partial. Detached nerdctl Store list/delete through production composition and the bare controller/CLI passed real Incus/Btrfs acceptance at bd1c9a5. Full installed-controller acceptance, detached Docker and candidate-selected GC remain incomplete. See [image operations](../design/oci-image-deletion.md#controllercli-acceptance).
 
 Source repositories and whole OCI Stores support reviewed deletion through existing registry/reservation records and Incus volume/device operations. Workspace Git references, queued request identities and retained snapshots remain protected. Reclamation and export/migration remain separate unfinished work.

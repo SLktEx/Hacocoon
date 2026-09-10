@@ -214,5 +214,5 @@ reclamation/operability and G export/migration remain planned. These remaining s
 Incus capabilities; they do not require full disposable-Env reconstruction.
 
 G1 public transfer remains planned. Native rootfs image and custom-volume archives have
-opt-in acceptance tests; this does not complete rootfs/security/import
+opt-in acceptance tests. The internal saved-rootfs archive producer adds explicit temporary-image ownership and cleanup; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s. This does not complete public rootfs/security/import
 or whole-installation evacuation. See [Environment transfer](../design/environment-transfer.md).

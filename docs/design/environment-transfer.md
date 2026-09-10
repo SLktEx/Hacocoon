@@ -221,7 +221,7 @@ by `HACO_E2E_INCUS_VOLUME_TRANSFER=1`, uses one new owned Btrfs pool and synthet
 saved/imported volumes. It retains an exact plan and archive, checks source-deletion
 independence, and deletes only identified fixture resources after verification.
 The existing Incus GHA job includes this test. Public aggregate export/import,
-rootfs production, OCI daemon contents and destination authority remain unfinished.
+public orchestration, OCI daemon contents and destination authority remain unfinished.
 
 The dedicated Incus 6.0.5/Btrfs run passed in 5.92s. The retained plan and 4096-byte
 archive are under `/var/lib/haco-owned-volume-export-778805159`; archive SHA-256 is
@@ -231,3 +231,55 @@ checks. Local focused race tests and vet passed. Initial unused-import and strin
 literal fixture build errors were corrected before native execution. This proves
 the new single saved-volume adapter, not public aggregate transfer or OCI daemon
 acceptance. Anonymous staging on a Btrfs destination filesystem remains unverified.
+
+## Native saved-rootfs export adapter
+
+Status: **implemented internally; dedicated native adapter acceptance passed**. Public G1 still
+requires the stopped-Env export/import/start/SSH flow; users must not need to take
+a separate snapshot merely to export an Env. This adapter is a prerequisite using
+an already protected independent saved rootfs, not that public flow.
+
+`ExportSnapshotRootfs` uses the official Incus 6.0.5 client in the Linux/WSL
+Incus adapter. It verifies the saved component under the caller's `ReadSnapshot`
+reservation, publishes a unified uncompressed image, streams its bytes into the
+existing anonymous `NativeArchive`, verifies the source again and removes its own
+transport image. The image is the rootfs component in transit, not an additional
+Base filesystem. Source Base/image cache lookup, saved-source deletion, automatic
+backup and restoration of old authority are not part of export.
+
+The selected private Unix remote comes from Incus CLI configuration. The socket
+and project are recorded with a random owner before publication; the returned
+operation and fingerprint are durably appended before later checks. HTTPS remotes
+and clustered daemons are explicitly unsupported for this initial local flow.
+There is no silent local fallback. SDK metadata reads are limited to 1 MiB, event
+listeners are disabled and operation waits must report terminal success.
+
+The image endpoint uses the selected Unix transport and an explicit request
+context. It rejects redirects and split images, bounds actual writes and checks
+the full archive SHA-256 against the fingerprint. Response filenames never become
+local paths. This avoids SDK 6.0.5 `GetImageFile`'s alternative `/dev/incus/sock`
+attempt and lack of inherited download context. No archive is extracted or run.
+
+A private `rootfs-export-<owner>.jsonl` receipt is retained if publication or cleanup
+is uncertain. An ambiguous operation is not replayed automatically: inspect its
+recorded socket/project/operation and identify images by the exact owner property
+`user.hacocoon.export-owner`. Only a verified owned image with no aliases is
+removed; positive absence must precede receipt deletion. A replaced or shared
+receipt is not unlinked. The saved rootfs remains untouched. See
+[ADR 0050](../adr/0050-native-rootfs-export-ownership.md).
+
+Regression tests cover source/image owner changes, lost publication replies,
+unfinished operations, failed downloads, digest/size failures, uncertain cleanup,
+receipt replacement, split/redirect refusal and stalled-transfer cancellation.
+`TestRealIncusSnapshotRootfsExportE2E` is in the existing opt-in GHA rootfs transfer
+gate. It creates an isolated project/pool and synthetic saved rootfs, then checks
+native export, temporary-image absence, saved-source preservation and native
+archive re-import. It does not establish bootable public import, SSH or OCI data
+acceptance. Native execution results must be recorded separately from unit tests.
+
+The dedicated WSL Incus 6.0.5/Btrfs adapter run passed in 13.44s. The isolated
+source/project/pool and imported transport image were cleaned after their checks.
+The plan and archive remain at `/var/lib/haco-rootfs-export-1396608668`; archive
+SHA-256 is `195bb069299c130f187cd1cb814806a8e39966f2b089a86fcb9460e5d3e8da85`.
+Focused race regressions passed in 3.614s; package vet passed. This native result
+covers this component adapter, not the unfinished public G1 workflow.
