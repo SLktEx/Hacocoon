@@ -1,5 +1,9 @@
 # Versioning and release status
 
+Linux public export is now partial (`haco env export <stopped-env> [file.haco]`).
+Shipped native acceptance, public import and Windows output remain pending.
+No release/checkpoint is declared. See [Environment transfer](../design/environment-transfer.md#linux-export-command).
+
 The next G1 slice composes a stopped Env capture and all native archives into a
 private verified bundle. Public export/import remains planned; no release or
 checkpoint is declared. See [the owning flow](../design/environment-transfer.md#internal-stopped-environment-export).

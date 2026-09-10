@@ -1,5 +1,9 @@
 # バージョン番号とリリース状況
 
+Linux 公開 export は partial（`haco env export <stopped-env> [file.haco]`）です。
+shipped native 受入、公開 import、Windows 出力は未完了で、release/checkpoint は宣言しません。
+[Environment 持ち出し](../design/environment-transfer.ja.md)を参照してください。
+
 次の G1 内部実装は、停止 Env の capture と全 native archive を非公開の検証済み bundle に
 まとめます。公開 export/import は planned のままで、release/checkpoint は宣言しません。
 [Environment 持ち出し](../design/environment-transfer.ja.md)を参照してください。

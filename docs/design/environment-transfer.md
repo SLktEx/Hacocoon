@@ -1,6 +1,6 @@
 # Environment transfer
 
-Status: **planned** for the public export/import flow. The native rootfs/volume
+Status: **partial** for Linux public export; public import remains **planned**. The native rootfs/volume
 acceptance tests are internal prerequisites, not a usable Hacocoon importer.
 
 ## Incus foundation
@@ -108,7 +108,7 @@ The Workspace count follows the current Incus snapshot attachment bound; every
 number must be consecutive. Metadata is bounded to 64 KiB and total envelope
 overhead to 512 KiB, independently of the caller-owned payload budget.
 There is no Base component, provider path, source management ID or credential map.
-This is not yet a published interchange format or a public export/import command.
+The version-1 envelope is now used by Linux export; public import is not implemented.
 
 Canonical bounded JSON rejects duplicate/unknown fields. Required role/order,
 sizes, caller-owned aggregate budget, header type/format, payload hashes, complete
@@ -286,7 +286,7 @@ covers this component adapter, not the unfinished public G1 workflow.
 
 ## Internal stopped-Environment export
 
-Status: **implemented internally**, with public CLI/controller delivery still planned.
+Status: **implemented internally**; Linux public delivery is partial as described below.
 `environmenttransfer.Exporter.ExportStopped` uses the existing canonical
 `CaptureStoppedSnapshot`, `ReadSnapshot` and `DeleteSnapshot` operations. It does
 not stop a running Environment or require a separate user snapshot command. The
@@ -334,3 +334,48 @@ unverified or unimplemented. Full local CI (Go tests/vet, 27 notification tests)
 and documentation checks passed on `bbcf7ea`; the first canonical integration
 fixture failed on duplicate native names, corrected with per-capture identities.
 No product ownership check or timeout was relaxed.
+
+## Linux export command
+
+Status: **partial**. Repository implementation provides `haco env export` through
+the trusted controller stream; import remains planned. The source must be stopped:
+
+```bash
+haco env stop dev
+haco env export dev
+haco env export dev /path/to/dev.haco
+```
+
+Only the source name is required; the default file is `dev.haco` in the client's
+current directory. Optional `--json` returns the path and byte/digest receipt.
+The destination stays on the client and is never sent as a controller filesystem
+path. Existing files are refused, including a name created concurrently. No extra
+snapshot command, source deletion or automatic restore backup is required.
+
+The management-only `environment.export` stream accepts only the source name.
+It exports a canonical stopped capture using the controller's private
+`$HACO_ROOT/transfers` directory, with a 64 GiB aggregate payload budget plus bounded
+envelope overhead. Cancellation/disconnection cancels capture while canonical
+cleanup retains uncertain ownership. The endpoint is not registered on guest Git
+or read-only notification sockets.
+
+Bounded canonical JSON frames carry at most 64 KiB of data each. The client requires
+an explicit terminal count/SHA-256 receipt, successful cleanup and EOF; early EOF,
+duplicate fields, extra frames, failed cleanup or a mismatched digest are failures.
+The Linux CLI independently verifies the received envelope and source label in an
+anonymous file, syncs it, and links the live inode into a pinned destination
+folder without replacing an existing name. There is no named partial output or
+pathname-based cleanup. This uses the documented [O_TMPFILE publication mechanism](https://man7.org/linux/man-pages/man2/open.2.html).
+
+Client output currently requires Linux filesystem support for anonymous files
+(e.g. ext4/Btrfs). Native Windows file publication and Windows-mounted output
+acceptance remain unimplemented/unverified; there is no silent filesystem fallback.
+A `haco` running inside trusted `haco-host` writes in that client's filesystem,
+not implicitly on the Windows desktop. Public bundle import, fresh imported
+authority, boot/SSH after import and complete G1 acceptance remain planned.
+
+Unix stream and Linux filesystem/CLI race tests passed. An initial CLI regression
+fixture failed to compile because its socket mode argument was missing; the fixture
+was corrected. The existing native aggregate E2E now calls the shipped export CLI
+when its CLI binary is supplied; this extended public path has not yet run to
+completion. The earlier 314.12s native result proves the internal producer only.

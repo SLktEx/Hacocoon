@@ -277,3 +277,10 @@ desktop からの実到達、browser 描画は別途確認が必要です。
 共有します。list/get 要求だけを受け付け、trusted な送信元作成 ID を使います。
 承認決定・config・lifecycle メソッドは公開しません。
 [AWS 操作](aws-operations.ja.md)を参照してください。
+
+## Environment export stream
+
+Linux の管理 controller は `environment.export` を登録します。停止済み source 名だけを受け取り、
+client が指定する Host path は受け取りません。検証済み bundle を上限付き canonical frame と
+明示的な count/digest 完了情報で転送します。切断で処理を取り消し、cleanup が不明なら既存の
+所有記録を残します。[Environment export](environment-transfer.ja.md)を参照してください。

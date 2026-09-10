@@ -11,6 +11,7 @@ import (
 	"errors"
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -235,13 +236,60 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	// The Base filesystem was already removed; the complete stopped aggregate is
 	// the export source, without a separate user snapshot operation.
 	exporter := environmenttransfer.Exporter{Snapshots: service, Root: dir, Component: runtime.ExportSnapshotComponent}
-	exported, err := exporter.ExportStopped(ctx, name, 4<<30)
-	must(err)
-	if exported.Bundle == nil || exported.TemporarySnapshot != "" {
-		t.Fatal("aggregate export incomplete", exported.TemporarySnapshot)
+	var readExport func() io.Reader
+	var manifest environmenttransfer.Manifest
+	if exportCLI := os.Getenv("HACO_E2E_SNAPSHOT_CLI"); exportCLI != "" {
+		func() {
+			server := control.NewServer()
+			must(controlapi.RegisterEnvironmentExport(server, func(ctx context.Context, source string) (environmenttransfer.ExportResult, error) {
+				return exporter.ExportStopped(ctx, source, 4<<30)
+			}))
+			socket := filepath.Join(dir, "export.sock")
+			listener, err := control.ListenUnix(socket, 0600)
+			must(err)
+			serveCtx, stop := context.WithCancel(ctx)
+			done := make(chan error, 1)
+			go func() { done <- server.Serve(serveCtx, listener) }()
+			defer func() { stop(); <-done }()
+			t.Setenv("HACO_CONTROL_SOCKET", socket)
+			cmd := exec.CommandContext(ctx, exportCLI, "env", "export", "--json", name)
+			cmd.Dir = dir
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("public export CLI failed: %v: %s", err, output)
+			}
+			var receipt struct {
+				File   string                             `json:"file"`
+				Result controlapi.EnvironmentExportResult `json:"result"`
+			}
+			must(json.Unmarshal(output, &receipt))
+			if receipt.File != name+".haco" || receipt.Result.Bytes <= 0 || receipt.Result.TemporarySnapshot != "" {
+				t.Fatal("incomplete public export receipt", receipt)
+			}
+		}()
+		file, err := os.Open(filepath.Join(dir, name+".haco"))
+		must(err)
+		defer file.Close()
+		info, err := file.Stat()
+		must(err)
+		if !info.Mode().IsRegular() || info.Mode().Perm() != 0600 {
+			t.Fatal("public export permissions", info.Mode())
+		}
+		readExport = func() io.Reader { return io.NewSectionReader(file, 0, info.Size()) }
+		manifest, err = environmenttransfer.Inspect(readExport(), 4<<30)
+		must(err)
+		t.Log("PASS shipped haco env export with source only, private Unix controller stream, default .haco file, complete verified bundle and no required snapshot command")
+	} else {
+		exported, err := exporter.ExportStopped(ctx, name, 4<<30)
+		must(err)
+		if exported.Bundle == nil || exported.TemporarySnapshot != "" {
+			t.Fatal("aggregate export incomplete", exported.TemporarySnapshot)
+		}
+		defer exported.Bundle.Close()
+		manifest = exported.Bundle.Manifest()
+		readExport = exported.Bundle.Reader
+		t.Log("SKIP public export CLI: HACO_E2E_SNAPSHOT_CLI not supplied; internal native export ran")
 	}
-	defer exported.Bundle.Close()
-	manifest := exported.Bundle.Manifest()
 	if manifest.Source != name || !manifest.HasOCI || len(manifest.Components) != 4 {
 		t.Fatal("aggregate export omitted managed data", manifest)
 	}
@@ -322,7 +370,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	t.Log("PASS four-component restore preparation without Base or automatic backup, durable reload, saved rootfs/Git/OCI bytes staged, current work unchanged, staging edits independent, owned staging cleanup; no Environment replacement performed")
 	must(r.VerifyEnvironmentIdentity(ctx, native, id))
 	must(service.Delete(ctx, name))
-	if _, err := environmenttransfer.Inspect(exported.Bundle.Reader(), 4<<30); err != nil {
+	if _, err := environmenttransfer.Inspect(readExport(), 4<<30); err != nil {
 		t.Fatal("exported bundle changed after source mutation/deletion", err)
 	}
 	t.Log("PASS exported native aggregate remains complete after source Env deletion; public import/SSH not asserted by export")

@@ -220,7 +220,7 @@ import した一時 image は確認後に削除しました。計画と archive 
 
 ## 停止 Environment export の内部処理
 
-Status: **内部実装済み**。公開 CLI/controller の転送経路は planned です。
+Status: **内部実装済み**。Linux 公開 CLI/controller の転送経路は後述の partial です。
 `environmenttransfer.Exporter.ExportStopped` は既存の canonical な
 `CaptureStoppedSnapshot`、`ReadSnapshot`、`DeleteSnapshot` を使います。
 実行中 Environment を停止せず、利用者に別の snapshot コマンドも要求しません。
@@ -261,3 +261,42 @@ cleanup 不明時の記録を確認します。これは実 Incus の aggregate 
 です。`bbcf7ea` の全体 local CI（Go test/vet、通知27テスト）と文書チェックは成功しました。
 最初の canonical 結合 fixture は native 名の重複で失敗し、capture ごとの固有名に修正しました。
 製品の所有チェックや timeout は緩めていません。
+
+## Linux export コマンド
+
+Status: **partial**。trusted controller stream を使う `haco env export` を実装しました。
+import は planned です。保存元 Env は停止している必要があります。
+
+```bash
+haco env stop dev
+haco env export dev
+haco env export dev /path/to/dev.haco
+```
+
+必須引数は保存元の名前だけで、既定では client の現在 directory に `dev.haco` を作ります。
+任意の `--json` は保存先と byte/digest receipt を返します。保存先は client だけで扱い、
+controller の filesystem path として送信しません。既存ファイルは、並行して作られた場合も
+上書きしません。別の snapshot コマンド、元 Env の削除、restore 前の自動 backup は不要です。
+
+管理専用の `environment.export` stream は source 名だけを受け取ります。controller の非公開
+`$HACO_ROOT/transfers` を使い、canonical な停止済み capture を、合計 payload 64 GiB と
+上限付き envelope overhead の範囲で export します。取消・切断は capture を取り消し、
+cleanup が不明なら既存の所有記録を残します。guest Git や read-only 通知 socket には登録しません。
+
+上限付き canonical JSON frame は最大 64 KiB の data を運びます。client は明示的な完了
+count/SHA-256 receipt、cleanup 成功、EOF を要求します。早い EOF、重複 field、余分な
+frame、cleanup 失敗、digest 不一致は失敗です。Linux CLI は匿名 file で envelope と
+source label を独立に検証して sync し、固定した出力 directory に生きた inode を link します。
+既存名は置き換えず、名前付きの途中 file や path による cleanup はありません。
+[O_TMPFILE の文書化された公開手順](https://man7.org/linux/man-pages/man2/open.2.html)を使います。
+
+出力先は現在、匿名 file を扱える Linux filesystem（ext4/Btrfs など）が必要です。
+Windows native の file 公開と Windows mount への保存受入は未実装・未検証で、暗黙の fallback は
+ありません。trusted `haco-host` 内で動く `haco` はその client の filesystem に保存し、Windows
+desktop へ自動で保存するわけではありません。公開 bundle import、新しい権限での import、
+import 後の起動/SSH、G1 全体の受入は planned です。
+
+Unix stream と Linux filesystem/CLI の race test は成功しました。最初の CLI fixture は
+socket mode 引数不足で compile に失敗し、fixture を修正しました。既存 native aggregate E2E は
+CLI binary 指定時に shipped export CLI を呼ぶよう拡張しましたが、この公開経路はまだ実行完了
+していません。先行の 314.12 秒成功は内部 producer の証明に限ります。

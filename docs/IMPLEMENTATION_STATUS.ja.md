@@ -1,7 +1,15 @@
 # 実装状況
 
+## 公開 Environment export の作業状況
+
+Status: **partial**。Linux の `haco env export <stopped-env> [file.haco]` は管理 stream と
+検証後の上書きしない client 公開を使います。既定は `<env>.haco` で、別の snapshot コマンドや
+controller path は不要です。Unix stream と実 filesystem の CLI race test は成功しました。
+shipped native CLI 受入は実行待ち、公開 import と Windows native 出力は planned です。
+[契約](design/environment-transfer.ja.md)を参照してください。
+
 停止 Env の内部 exporter は canonical capture/read/delete、native component producer、
-匿名の一式 staging を接続しました。公開 CLI/controller の artifact 転送は planned です。
+匿名の一式 staging を接続しました。Linux 公開 CLI/controller の artifact 転送は partial です。
 native aggregate export 受入は 314.12 秒で成功し、公開 bundle import/SSH の証明ではありません。[Environment 持ち出し](design/environment-transfer.ja.md)を参照してください。
 
 ca5ba79 は controller 起動後、最初の画像一覧で失敗しました（native fixture 112.27秒）。maintenance が既存 Store の明示指定と `SkipDefaultResource` を併用し、canonical create に拒否されていました。不要な指定を削除しました。実 catalog／lifecycle の回帰テストで修正前の失敗を再現しています。修正後の native 操作は未確認です。
@@ -53,9 +61,9 @@ native 所有情報と backup cleanup を確認します。専用 Incus 6.0.5／
 関連 race test と vet も成功しました。公開 export/import 全体は未実装です。内部 rootfs producer は固有所有の native image と匿名 archive を使う実装を追加し、専用 Incus 6.0.5/Btrfs adapter 受入は 13.44 秒で成功しました。
 [所有文書](design/environment-transfer.ja.md)を参照してください。
 
-公開 G1 export/import は **planned** です。内部の snapshot／archive 照合は現行上限までの全 Workspace と任意の OCI を扱います。
+公開 G1 は **partial** で、Linux export を実装し import は **planned** です。内部の snapshot／archive 照合は現行上限までの全 Workspace と任意の OCI を扱います。
 保存元の読み取り境界は canonical な削除ロックを共有し、保持 component を検証します。
-native archive 作成は内部で接続し、公開 command はまだ接続していません。native Incus rootfs／volume archive の opt-in テストと既存 GHA への追加を実装しました。
+native archive 作成と Linux export を接続し、公開 import は planned です。native Incus rootfs／volume archive の opt-in テストと既存 GHA への追加を実装しました。
 fixture の path／namespace の想定を修正後、専用 Incus 6.0.5／Btrfs で11.24秒の検証が成功しました。
 保存元・復元先の独立性、Git 状態、リンク、mode、archive 保持を確認しました。rootfs と公開 import の権限処理は未実装です。
 別の空 rootfs image 検証は14.88秒で成功し、Base/image を使わない作成、import 前の保存元 instance/image 削除、

@@ -25,11 +25,14 @@ func runEnvironment(args []string) int {
 
 func environmentCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--port <port>] <name> | ssh-config <name> | disconnect <name> <connection-id> | copy [--json] <stopped-env> [new-env] | start <name> | stop <name> | delete <name>")
+		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--port <port>] <name> | ssh-config <name> | disconnect <name> <connection-id> | copy [--json] <stopped-env> [new-env] | export [--json] <stopped-env> [file.haco] | start <name> | stop <name> | delete <name>")
 		return 2
 	}
 	if len(args) == 0 {
 		return usage()
+	}
+	if args[0] == "export" {
+		return exportEnvironment(ctx, args[1:], out, diagnostic)
 	}
 	if args[0] == "copy" {
 		return copyEnvironment(ctx, args[1:], out, diagnostic)

@@ -56,4 +56,14 @@ capture is an export consistency source, not an import/restore backup. Do not
 replace these calls with separate metadata/lease mutations or another transfer
 recovery catalog. A bundle remains anonymous until all production, exact capture
 cleanup and whole-envelope verification succeed. Failed cleanup keeps its existing
-snapshot reservation ID. Public commands and import authority remain future work.
+snapshot reservation ID. Public import authority remains future work.
+
+## Public export delivery
+
+Linux management-stream delivery sends no client filesystem path to the controller.
+It requires explicit digest/count completion after owned source cleanup, bounded
+frames and EOF. The client independently verifies the envelope before publishing
+an anonymous inode without replacement. Do not substitute bare EOF success,
+client-selected controller paths, named partial-file cleanup or overwrite races.
+The output is data, not import authority. Windows publication and public import
+remain separate unfinished work; Linux output does not imply desktop delivery.

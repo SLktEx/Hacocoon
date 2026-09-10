@@ -1,8 +1,17 @@
 # Implementation Status
 
+## Public Environment export in progress
+
+Status: **partial**. Linux `haco env export <stopped-env> [file.haco]` now uses the
+management stream and verified, no-overwrite client publication. Default output
+is `<env>.haco`; no separate snapshot command or controller path is required.
+Unix stream and real-filesystem CLI race tests passed. Shipped native CLI acceptance
+is pending; public import and native Windows output remain planned. See
+[the owning contract](design/environment-transfer.md#linux-export-command).
+
 The internal stopped-Env exporter now composes canonical capture/read/delete,
-native component producers and anonymous whole-bundle staging. Public CLI and
-controller artifact delivery are still planned. Dedicated native aggregate export
+native component producers and anonymous whole-bundle staging. Linux public CLI
+and controller artifact delivery are now partial. Dedicated native aggregate export
 acceptance passed in 314.12s; this does not prove public bundle import or SSH. See [Environment transfer](design/environment-transfer.md#internal-stopped-environment-export).
 
 ## Detached Store maintenance in progress
@@ -42,10 +51,10 @@ dedicated Incus 6.0.5/Btrfs adapter test passed in 5.92s; local race and vet pas
 whole public export/import flow remains unimplemented. The internal rootfs producer now uses a uniquely owned native image and an anonymous archive; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s.
 See the [owning contract](design/environment-transfer.md#native-saved-volume-export-adapter).
 
-Public G1 export/import remains **planned**. Internal snapshot/archive inventory
+Public G1 remains **partial**: Linux export is implemented; import is **planned**. Internal snapshot/archive inventory
 matching covers all currently supported Workspace components and optional OCI;
 the saved-source read boundary now shares canonical deletion locks and verifies
-retained components. Native archive production is composed internally; public commands are not yet connected. Opt-in native Incus rootfs/volume
+retained components. Native archive production and Linux export are connected; public import remains planned. Opt-in native Incus rootfs/volume
 archive tests and their existing-GHA integration are implemented. The dedicated
 Incus 6.0.5/Btrfs run passed in 11.24s after correcting fixture path/namespace
 assumptions; source/destination independence, Git state, links, mode and retained
