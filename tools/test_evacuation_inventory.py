@@ -1,4 +1,6 @@
 import json
+import io
+from contextlib import redirect_stdout
 import os
 import tempfile
 from pathlib import Path
@@ -10,6 +12,21 @@ import evacuation_inventory as subject
 
 
 class InventoryTests(unittest.TestCase):
+    @unittest.skipUnless(hasattr(os, "O_NOFOLLOW") and Path("/proc/self/mountinfo").exists(), "Linux metadata observation required")
+    def test_cli_file_gaps_return_failure_without_losing_native_inventory(self):
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, "link").symlink_to("/proc")
+            output = io.StringIO()
+            with patch.object(subject.sys, "argv", ["inventory", "--files", root]), patch.object(subject, "inventory", return_value={"backup_complete": False, "native_queries_complete": True, "projects": [{"name": "retained"}]}), redirect_stdout(output):
+                code = subject.main()
+            self.assertEqual(code, 1)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["projects"], [{"name": "retained"}])
+            self.assertTrue(result["native_queries_complete"])
+            self.assertFalse(result["backup_complete"])
+            self.assertFalse(result["files"]["enumeration_complete"])
+            self.assertEqual(result["files"]["deferred"][0]["path"], "link")
+
     def fixture(self, url):
         if url == "/1.0/storage-pools?recursion=1":
             return [{"name": "data", "driver": "btrfs", "config": {"secret": "never-copy"}}]

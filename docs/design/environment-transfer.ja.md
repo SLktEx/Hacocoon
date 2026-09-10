@@ -851,3 +851,41 @@ Btrfs 破損、全量網羅、WSL 外への転送、旧 WSL 入替は未完了�
 OCI の両 volume を確認し、所有記録と archive は `/var/lib/haco-volume-transfer-56267304`
 に保持しています。adapter 全体のテストは 19.17 秒で成功し、文書整合性と workflow
 policy 回帰 25 件も成功しました。最新 head の GHA 受入とは区別します。
+
+## 退避確認のための手動追加ファイル一覧
+
+状態: **G2 の一部**。既存の読み取り専用 `tools/evacuation_inventory.py` に
+`--files /absolute/root` を付けると、controller catalog にない可能性のある
+ディレクトリ metadata を列挙します。専用 WSL の root は `/`、個別の確認済み
+データ領域はその絶対パスを指定します。ファイル名や所有情報自体も機密になり得るため、
+結果の JSON は private に保存してください。
+
+Linux reader は相対名、種類、mode、数値 UID/GID、size、inode/device/link 数、更新時刻を
+記録します。開くのはディレクトリと kernel の mount 情報だけです。通常ファイルの内容、
+symlink の参照先、ACL、xattr 値は読みません。指定 root の途中の symlink も辿りません。
+子ディレクトリは descriptor を保持して観測 inode と照合し、descriptor の mount ID で
+一覧にまだなかった同一 filesystem の bind mount への進入も防ぎます。
+
+既知の mountpoint は相対パスだけを記録し、切断された外部 storage への stat も行いません。
+mount 境界、symlink、特殊ファイルはすべて deferred として記録します。読取エラー、
+ディレクトリ/root の置換、観測できたディレクトリや mount 一覧の変更、50,000 entry／
+64 階層／60 秒の上限では途中結果を残し、`enumeration_complete=false` と終了値 1 にします。
+未処理箇所は個別に確認し、追加の所有 mount root は明示指定して別途列挙してください。
+時間上限は entry 間で確認します。kernel の metadata 読取が停止した場合に割り込む
+実行時間保証ではありません。
+Incus の storage mount が別 namespace にある場合は daemon の mount namespace 内で
+実行します。Windows 外部参照のファイル内容を読んだり削除したりはしません。
+
+一覧は atomic snapshot、内容の照合、所有権の付与、backup ではありません。
+全 entry に分類・停止後の取得・復元後の内容と属性の照合が必要です。小さな指定領域を
+列挙できても `backup_complete=false` を維持します。installation 全体、trusted な秘密情報、
+旧 WSL 入替の確認にはなりません。公開 `haco` コマンドや自動復旧 state は増やしません。
+
+検証: Linux のファイル列挙回帰 10 件、統合 inventory 回帰 18 件、workflow policy 25 件が
+成功しました。最終版は専用 Ubuntu 26.04 WSL で 20.87 秒に 47,848 entry を観測し、
+読取エラーはありませんでした（通常ファイル 39,061、ディレクトリ 5,050、mount 参照 17、
+symlink 3,718、特殊ファイル 2）。17 mount 境界、全 symlink、両特殊ファイルは deferred のため、
+列挙・backup とも未完了です。private report は WSL 内の
+`/var/lib/haco-file-inventory-4kvt5eyb/wsl-root.json` にあり、外部 archive ではありません。
+別の小さな合成の手動追加データ領域では内容を出力せずに全 entry を列挙できました。
+どちらも installation 全体を分類・保存した結果ではありません。
