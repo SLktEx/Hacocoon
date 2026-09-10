@@ -1,5 +1,9 @@
 # Implementation Status
 
+Single-Workspace native import now reuses canonical repository ownership without
+Git population. Focused tests passed; real Workspace import/full CI and public
+aggregate import (including offline routing and failure cleanup) remain pending.
+
 New public Linux exports use version-2 Workspace routing metadata from protected
 snapshot bindings; version-1 inspection remains supported. No Git approval or
 credential is transferred. Focused metadata/Router tests and documentation checks passed; full CI and native

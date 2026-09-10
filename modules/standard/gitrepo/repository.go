@@ -169,6 +169,14 @@ func validObject(o Object) bool {
 }
 
 func (s *RepositoryService) create(ctx context.Context, object Object, source *Object) (Object, error) {
+	return s.createPrepared(ctx, object, func(ctx context.Context, object Object) error {
+		return s.Backend.CreateVolume(ctx, object, source)
+	}, s.Backend.Populate)
+}
+
+// createPrepared is the existing single-volume ownership/publication transition.
+// Native imports already contain their data and do not run Git population.
+func (s *RepositoryService) createPrepared(ctx context.Context, object Object, create func(context.Context, Object) error, populate func(context.Context, Object) error) (Object, error) {
 	ref, err := s.Backend.Plan(ctx, object.Kind, object.ID)
 	if err != nil {
 		return Object{}, err
@@ -181,7 +189,7 @@ func (s *RepositoryService) create(ctx context.Context, object Object, source *O
 	if err := s.reserve(object); err != nil {
 		return Object{}, err
 	}
-	if err := s.Backend.CreateVolume(ctx, object, source); err != nil {
+	if err := create(ctx, object); err != nil {
 		return object, errors.Join(err, core.ErrRecoveryRequired)
 	}
 	object.State = "created"
@@ -191,8 +199,10 @@ func (s *RepositoryService) create(ctx context.Context, object Object, source *O
 	if err := s.Backend.InspectVolume(ctx, object); err != nil {
 		return object, errors.Join(err, core.ErrRecoveryRequired)
 	}
-	if err := s.Backend.Populate(ctx, object); err != nil {
-		return object, errors.Join(err, core.ErrRecoveryRequired)
+	if populate != nil {
+		if err := populate(ctx, object); err != nil {
+			return object, errors.Join(err, core.ErrRecoveryRequired)
+		}
 	}
 	object.State = "ready"
 	if err := s.save(object); err != nil {

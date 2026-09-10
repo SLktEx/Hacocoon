@@ -493,3 +493,25 @@ composition compiled with no selected tests. Documentation checks passed. The fi
 build failed because the Router forwarding method was missing; it was added with
 a mixed-route regression before the passing run. Full CI and native acceptance
 for version-2 export remain pending.
+
+## Native Workspace registration
+
+Status: **implemented internally** for a single Workspace with explicit GitHub
+routing. `RepositoryService.ImportWorkspace` reuses normal ownership reservation,
+created/inspect/ready publication, and deliberately skips Git population. Native
+volume import uses the same bounded Incus archive preparation as OCI import with
+fresh Workspace config. Existing targets are refused before import. No clone,
+checkout, remote request, guest hook or credential operation is run.
+
+Source local-file URLs and absent routing are currently refused by this internal
+registration method; public offline/rebinding and multi-Workspace composition remain
+planned. Failure retains the exact incomplete record; public aggregate cleanup is
+not implemented. See [ADR 0053](../adr/0053-workspace-native-import.md). Existing
+catalog schema, normal clone/copy behavior and ready Workspace deletion are unchanged.
+
+Focused service/native-boundary tests passed (0.427s/0.536s), including durable
+ownership before import, no population, duplicate refusal and failure retention.
+The existing native volume E2E is extended to register Workspace data after source
+volume deletion and check commits, dirty/untracked files, preserved guest Git
+config, independent management routing and owned cleanup. That extension and full
+CI are pending; no real Workspace import or Env attachment is claimed yet.

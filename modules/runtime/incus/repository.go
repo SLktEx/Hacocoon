@@ -21,6 +21,9 @@ import (
 type RepositoryBackend struct {
 	Runtime       *Runtime
 	ProductBinary string
+	// ImportRoot and ImportLimit are trusted controller staging configuration.
+	ImportRoot  string
+	ImportLimit int64
 }
 
 func (b *RepositoryBackend) Plan(ctx context.Context, kind, id string) (string, error) {

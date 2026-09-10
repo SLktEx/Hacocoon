@@ -402,3 +402,23 @@ rootfs import、Env 起動の実装が残っています。
 composition は対象テストなしで compile を確認しました。文書検証も成功しました。最初の
 build は Router の中継不足で失敗し、混在 route の回帰を追加してから再検証が成功しました。
 version 2 export の全体 CI と native 受入検証は実行待ちです。
+
+## native Workspace 登録
+
+Status: GitHub 接続先を明示した単一 Workspace について **内部実装済み**です。
+`RepositoryService.ImportWorkspace` は通常の所有予約、created／inspect／ready 公開を
+再利用し、Git によるデータ準備は実行しません。native volume import は OCI と同じ上限付き
+Incus archive 準備処理を使い、新しい Workspace config を作成前に設定します。既存対象は
+取り込み前に拒否します。clone・checkout・remote 通信・guest hook・認証情報操作は行いません。
+
+この内部登録では元の local-file URL と欠落した接続先は未対応として拒否します。公開する
+offline／明示的な再設定と複数 Workspace の統合は planned です。失敗時は正確な未完了の所有
+記録を残し、公開 aggregate cleanup は未実装です。
+[ADR 0053](../adr/0053-workspace-native-import.md) を参照してください。catalog schema、
+通常の clone／copy、ready Workspace の削除経路は変更しません。
+
+対象 service／native 境界テストは0.427秒／0.536秒で成功し、import 前の所有記録、Git 準備を
+呼ばないこと、重複拒否、失敗記録の保持を確認しました。既存 native volume E2E に、保存元
+volume 削除後の Workspace 登録、commit・未commit・untracked ファイル、guest Git config の
+保持、独立した管理接続先と所有対象 cleanup の確認を追加しました。拡張した E2E と全体 CI は
+実行待ちで、実 Workspace import や Env 接続の受入成功はまだ主張しません。

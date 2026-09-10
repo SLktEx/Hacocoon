@@ -66,12 +66,18 @@ func (b *PersistentResourceBackend) Import(ctx context.Context, r core.Persisten
 		return core.ErrAlreadyExists
 	}
 	config := map[string]string{"user.hacocoon.owner": r.Owner, "user.hacocoon.resource": r.ID, "user.hacocoon.kind": r.Kind, "user.hacocoon.source-only": strconv.FormatBool(r.SourceOnly)}
-	archive, err := prepareVolumeImport(ctx, source, b.ImportRoot, b.ImportLimit, b.Runtime.project, pool, name, config)
+	return b.Runtime.importVolumeArchive(ctx, source, b.ImportRoot, b.ImportLimit, pool, name, config)
+}
+
+// importVolumeArchive receives a destination already reserved and checked absent
+// by the owning domain. Incus creates it with fresh config from the first write.
+func (r *Runtime) importVolumeArchive(ctx context.Context, source io.ReadSeeker, root string, limit int64, pool, name string, config map[string]string) (resultErr error) {
+	archive, err := prepareVolumeImport(ctx, source, root, limit, r.project, pool, name, config)
 	if err != nil {
 		return err
 	}
 	defer func() { resultErr = errors.Join(resultErr, archive.Close()) }()
-	output, err := b.Runtime.runner.Run(ctx, "incus", "storage", "volume", "import", pool, fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), archive.file.Fd()), name, "--project", b.Runtime.project)
+	output, err := r.runner.Run(ctx, "incus", "storage", "volume", "import", pool, fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), archive.file.Fd()), name, "--project", r.project)
 	if err != nil || output.ExitCode != 0 {
 		return errors.Join(core.ErrRecoveryRequired, err)
 	}
