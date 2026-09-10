@@ -1,5 +1,10 @@
 # Implementation Status
 
+New public Linux exports use version-2 Workspace routing metadata from protected
+snapshot bindings; version-1 inspection remains supported. No Git approval or
+credential is transferred. Focused metadata/Router tests and documentation checks passed; full CI and native
+version-2 acceptance remain pending. Public import remains planned.
+
 Native OCI volume import now uses canonical new-owner creation and replaces source
 metadata before Incus creates the volume. Dedicated Btrfs adapter/catalog acceptance
 passed in 0.56s; public aggregate import and Env activation remain planned.

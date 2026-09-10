@@ -23,6 +23,10 @@ type SnapshotArchive struct {
 // Legacy Base components stay in their catalog but are not part of rootfs transport.
 // A failed return must never publish the output, including underlying write errors.
 func WriteSnapshot(dst io.Writer, saved core.Snapshot, archives []SnapshotArchive, limit int64) error {
+	return writeSnapshot(dst, saved, archives, limit, nil)
+}
+
+func writeSnapshot(dst io.Writer, saved core.Snapshot, archives []SnapshotArchive, limit int64, workspaces []Workspace) error {
 	ordered, err := snapshotComponents(saved)
 	if err != nil {
 		return err
@@ -38,6 +42,10 @@ func WriteSnapshot(dst io.Writer, saved core.Snapshot, archives []SnapshotArchiv
 		bySource[a.Component] = a
 	}
 	m := Manifest{Version: 1, Source: saved.Source.Environment.Name, HasOCI: ordered[len(ordered)-1].Role == "oci"}
+	if workspaces != nil {
+		m.Version = 2
+		m.Workspaces = append([]Workspace(nil), workspaces...)
+	}
 	readers := make([]io.Reader, 0, len(ordered))
 	for i, c := range ordered {
 		a, found := bySource[c]

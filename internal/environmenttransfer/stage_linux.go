@@ -26,6 +26,7 @@ type Staged struct {
 func (s *Staged) Manifest() Manifest {
 	m := s.manifest
 	m.Components = append([]Component(nil), m.Components...)
+	m.Workspaces = append([]Workspace(nil), m.Workspaces...)
 	return m
 }
 func (s *Staged) Reader() io.Reader {

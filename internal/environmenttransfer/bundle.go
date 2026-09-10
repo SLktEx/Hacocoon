@@ -32,6 +32,7 @@ type Manifest struct {
 	Source     string      `json:"source"`
 	HasOCI     bool        `json:"has_oci"`
 	Components []Component `json:"components"`
+	Workspaces []Workspace `json:"workspaces,omitempty"`
 }
 type Component struct {
 	Role   string `json:"role"`
@@ -40,7 +41,7 @@ type Component struct {
 }
 
 func (m Manifest) validate(limit int64) error {
-	if m.Version != 1 || !sourceName.MatchString(m.Source) || !validLimit(limit) {
+	if (m.Version != 1 && m.Version != 2) || !sourceName.MatchString(m.Source) || !validLimit(limit) {
 		return ErrInvalidBundle
 	}
 	count := len(m.Components) - 1
@@ -49,6 +50,9 @@ func (m Manifest) validate(limit int64) error {
 	}
 	if count < 1 || count > maxWorkspaces {
 		return ErrInvalidBundle
+	}
+	if err := m.validateWorkspaces(count); err != nil {
+		return err
 	}
 	roles := []string{"rootfs"}
 	for i := 0; i < count; i++ {

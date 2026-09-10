@@ -373,8 +373,32 @@ rootfs/Workspace 一式の import、Env 起動、接続時の実 idmap shift、l
 2.359 秒で成功しました。PR 初期 head の既存 Incus GHA でも owned volume import step は
 成功しましたが、PR 全体の green を意味しません。
 
-Environment 全体の import には Workspace 登録 metadata の定義も必要です。version 1 の
+下記 version 2 の実装は、不足していた Workspace 登録 metadata を補います。version 1 の
 転送形式は順序付き archive を保持しますが、repository 名・remote・branch の対応は持ちません。
 現行の管理 Workspace service はこの対応を必要とし、ゲスト内の Git config を暗黙に信頼済みの
 broker 接続先として採用してはいけません。これは公開 import の残実装であり、既存 bundle の
 喪失や読み取り不能を意味しません。既存の検査・component 読み取りは引き続き利用できます。
+
+## 新しい export の Workspace 接続先情報
+
+Status: 公開 Linux export に **implemented**。一式の import は planned です。
+新しい公開 export は envelope version 2 を使い、保護された保存済み binding から順序付きの
+Workspace 名・remote・branch を含めます。role が各情報を native archive 1個に対応付けます。
+名前の重複、認証情報付き・未対応の接続先は既存 Git validator で拒否し、remote は4096 byte、
+manifest 全体は既存の64 KiB上限です。staged metadata のコピーから検証済み状態は変更できません。
+
+これらはデータであり、権限の移譲ではありません。元 owner・承認・認証情報・native path は
+追加しません。`file:` remote は保存元 Host の情報であり、復元先 Host のファイルアクセスを
+許可しません。古い保存物にない接続先は空のまま保持します。
+[ADR 0052](../adr/0052-transfer-routing-metadata.md) を参照してください。
+
+操作は `haco env export <stopped-env> [file.haco]` のままです。既存 version 1 bundle の
+完全検査・component 読み取りは維持し、保存済みデータの移行・書き換えは不要です。
+version 2 未対応の古い reader は新しい export を明示的に拒否するため、更新した Hacocoon で
+読み取ってください。公開 import には新 Workspace 登録、欠落・ローカル接続先の扱い、
+rootfs import、Env 起動の実装が残っています。
+
+対象の transfer・Router・Incus metadata テストは0.612秒／0.089秒／0.298秒で成功し、
+composition は対象テストなしで compile を確認しました。文書検証も成功しました。最初の
+build は Router の中継不足で失敗し、混在 route の回帰を追加してから再検証が成功しました。
+version 2 export の全体 CI と native 受入検証は実行待ちです。

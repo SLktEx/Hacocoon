@@ -108,7 +108,8 @@ The Workspace count follows the current Incus snapshot attachment bound; every
 number must be consecutive. Metadata is bounded to 64 KiB and total envelope
 overhead to 512 KiB, independently of the caller-owned payload budget.
 There is no Base component, provider path, source management ID or credential map.
-The version-1 envelope is now used by Linux export; public import is not implemented.
+The version-1 envelope remains readable; new Linux exports use version 2 as described
+below. Public import is not implemented.
 
 Canonical bounded JSON rejects duplicate/unknown fields. Required role/order,
 sizes, caller-owned aggregate budget, header type/format, payload hashes, complete
@@ -460,9 +461,35 @@ closes anonymous input after both success and failure. Focused race tests passed
 in 2.359s. The initial PR head's existing Incus GHA job also passed the owned
 volume-import step; this is not yet an all-green PR result.
 
-Whole-Environment import must also define Workspace registration metadata: the
+The version-2 work below addresses the previously missing registration metadata: the
 version-1 envelope carries ordered archives but no repository name, remote or
 branch mapping. The current managed Workspace service needs that mapping; guest
 Git configuration must not silently become trusted broker routing. This remains
 part of public import implementation, not a claim that existing bundles are lost
 or unreadable. Existing inspection/component access remains supported.
+
+## Workspace routing in new exports
+
+Status: **implemented** for public Linux export; aggregate import remains planned.
+New public exports use envelope version 2 and include ordered Workspace
+name/remote/branch records from protected saved bindings. The role ties each record
+to exactly one native archive. Names are unique; existing Git validators reject
+credentials and unsupported routing, with a 4096-byte remote bound and the existing
+64 KiB manifest budget. Staged metadata copies cannot mutate verified state.
+
+These fields are data, not transferred permission. No source owners, approvals,
+credentials or native paths are added. Local `file:` remotes describe the source
+Host only and must not authorize destination Host access. Missing legacy routing
+remains empty. See [ADR 0052](../adr/0052-transfer-routing-metadata.md).
+
+The command remains `haco env export <stopped-env> [file.haco]`. Existing version-1
+bundles still support full inspection and component reads; there is no migration
+or rewrite of saved data. Readers predating version 2 explicitly reject new
+exports. Use an updated Hacocoon reader. Public import still needs fresh Workspace
+registration, missing/local routing handling, rootfs import and Env activation.
+
+Focused transfer, Router and Incus metadata tests passed (0.612s/0.089s/0.298s);
+composition compiled with no selected tests. Documentation checks passed. The first
+build failed because the Router forwarding method was missing; it was added with
+a mixed-route regression before the passing run. Full CI and native acceptance
+for version-2 export remain pending.
