@@ -1826,3 +1826,5 @@ This improves diagnosis and does not establish that the SSH failure is fixed.
 ## Readable-data evacuation
 
 G2 direct file-archive Btrfs acceptance passed on dedicated WSL in 20.59s, including Git state, links, numeric owners and a user xattr. Incus non-optimized Btrfs backup still takes an internal snapshot. Whole-installation evacuation remains incomplete. See [readable file scope](design/environment-transfer.md#readable-files-when-snapshot-operations-are-unavailable).
+
+G2 snapshot-only file capture passed on dedicated Incus/Btrfs in 24.52s, using pre-existing synthetic saved data and independent restore volumes. Full saved-data coverage and snapshot-deletion-failure evacuation remain unfinished.

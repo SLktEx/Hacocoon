@@ -755,3 +755,5 @@ a16f3b1 では対象 CI がすべて成功しました（任意の private-regis
 constrained language mode の制限で失敗し、通常の文字出力による再確認は成功しました。
 `receipt.json` をアーカイブと一緒に残しています。これは合成データの WSL 外への保存の確認であり、
 全量 backup、保護した認証情報の持ち出し、別 WSL への復元は未検証です。
+
+追加の `TestRealIncusSavedReadableDataEvacuationE2E` は、準備時に所有する native volume snapshot を作り、live volume から marker を削除します。直接 tar 保存は既存 snapshot tree を読み、snapshot にしか残らない marker を新しい所有 volume へ復元します。通常の live volume の検証は別に維持します。snapshot 作成は準備段階だけで、保存処理では作成・export・削除しません。snapshot 削除失敗の模擬や、全 rootfs／Workspace／OCI の保存対応の確認ではありません。専用 Incus/Btrfs で 24.52 秒で成功しました。所有する両 pool は片付け、アーカイブと所有記録を `/var/lib/haco-volume-transfer-2483709670` に残しています（両 pool の外、WSL の内）。保存処理中に元 snapshot は変更していません。全量退避や新 WSL への復元を確認したものではありません。

@@ -914,3 +914,5 @@ The first Windows result-formatting attempt failed under constrained language mo
 plain-output verification then passed. `receipt.json` remains with the archives.
 This proves delivery of these synthetic archives outside WSL, not whole-installation
 backup, protected credential delivery or restoration in another WSL.
+
+The additional `TestRealIncusSavedReadableDataEvacuationE2E` case prepares an owned native volume snapshot before capture, then removes a marker from the live volume. Direct tar capture reads the existing snapshot tree and restores that snapshot-only marker into a fresh owned volume. The ordinary live-volume case remains separate. Preparation creates a snapshot; capture does not create/export/delete one. This is not a simulation of snapshot deletion failure or proof of all saved rootfs/Workspace/OCI associations. The dedicated Incus/Btrfs run passed in 24.52s. Both owned pools were cleaned; archives and ownership plan remain at `/var/lib/haco-volume-transfer-2483709670`, outside both pools but inside WSL. The source snapshot was unchanged during capture. This does not prove whole-installation evacuation or new-WSL restoration.

@@ -18,16 +18,20 @@ import (
 // This proves native file-archive portability for synthetic Work/OCI bytes.
 // It is not a Hacocoon importer and does not trust imported ownership metadata.
 func TestRealIncusVolumeTransferE2E(t *testing.T) {
-	testVolumeArchiveTransfer(t, true, "HACO_E2E_INCUS_VOLUME_TRANSFER")
+	testVolumeArchiveTransfer(t, true, "HACO_E2E_INCUS_VOLUME_TRANSFER", false)
 }
 
 // File-only evacuation must not require Incus backup's implicit Btrfs snapshot.
 // This is a quiescent synthetic-volume primitive, not whole-WSL recovery.
 func TestRealIncusReadableDataEvacuationE2E(t *testing.T) {
-	testVolumeArchiveTransfer(t, false, "HACO_E2E_READABLE_DATA_EVACUATION")
+	testVolumeArchiveTransfer(t, false, "HACO_E2E_READABLE_DATA_EVACUATION", false)
 }
 
-func testVolumeArchiveTransfer(t *testing.T, native bool, gate string) {
+func TestRealIncusSavedReadableDataEvacuationE2E(t *testing.T) {
+	testVolumeArchiveTransfer(t, false, "HACO_E2E_SAVED_READABLE_DATA_EVACUATION", true)
+}
+
+func testVolumeArchiveTransfer(t *testing.T, native bool, gate string, savedOnly bool) {
 	if os.Getenv(gate) != "1" {
 		t.Skip("requires explicit root Incus/Btrfs volume transfer acceptance")
 	}
@@ -60,7 +64,7 @@ func testVolumeArchiveTransfer(t *testing.T, native bool, gate string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := json.NewEncoder(plan).Encode(map[string]any{"owner": owner, "pools": []string{sourcePool, targetPool}, "project": "default", "volumes": []string{"work", "oci"}}); err != nil {
+	if err := json.NewEncoder(plan).Encode(map[string]any{"owner": owner, "pools": []string{sourcePool, targetPool}, "project": "default", "volumes": []string{"work", "oci"}, "saved_snapshot": savedOnly}); err != nil {
 		t.Fatal(err)
 	}
 	if err := plan.Sync(); err != nil {
@@ -126,6 +130,26 @@ func testVolumeArchiveTransfer(t *testing.T, native bool, gate string) {
 		if !native {
 			run("python3", "-c", "import os,sys; os.chown(sys.argv[1],100123,100124); os.setxattr(sys.argv[1],b'user.haco-evacuation',b'saved-attribute')", filepath.Join(src, "retained"))
 		}
+		if savedOnly {
+			// Prepare saved-only data before capture. Capture must not create a
+			// snapshot or depend on successfully deleting this existing snapshot.
+			write(filepath.Join(src, "saved-only"), "data only in saved snapshot\n")
+			run("incus", "storage", "volume", "snapshot", "create", sourcePool, volume, "saved", "--project", "default")
+			if err := os.Remove(filepath.Join(src, "saved-only")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Lstat(filepath.Join(src, "saved-only")); !os.IsNotExist(err) {
+				t.Fatal("saved-only marker still present in live volume", err)
+			}
+			src = filepath.Join("/var/lib/incus/storage-pools", sourcePool, "custom-snapshots", "default_"+volume, "saved")
+			info, err := os.Lstat(src)
+			if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+				t.Fatal("owned saved volume path unavailable", err)
+			}
+			if read(filepath.Join(src, "saved-only")) != "data only in saved snapshot\n" {
+				t.Fatal("saved-only fixture data unavailable")
+			}
+		}
 		archive := filepath.Join(dir, volume+".tar")
 		if native {
 			run("incus", "storage", "volume", "export", sourcePool, volume, archive, "--volume-only", "--compression=none", "--project", "default")
@@ -147,6 +171,9 @@ func testVolumeArchiveTransfer(t *testing.T, native bool, gate string) {
 			run("env", "-u", "TAR_OPTIONS", "tar", "--acls", "--xattrs", "--numeric-owner", "--same-owner", "--same-permissions", "-xpf", archive, "-C", volumePath(targetPool, volume))
 		}
 		dst := volumePath(targetPool, volume)
+		if savedOnly && read(filepath.Join(dst, "saved-only")) != "data only in saved snapshot\n" {
+			t.Fatal("snapshot-only data not restored")
+		}
 		if !native {
 			run("python3", "-c", "import os,sys; s=os.stat(sys.argv[1]); assert (s.st_uid,s.st_gid)==(100123,100124); assert os.getxattr(sys.argv[1],b'user.haco-evacuation')==b'saved-attribute'", filepath.Join(dst, "retained"))
 		}
@@ -203,5 +230,5 @@ func testVolumeArchiveTransfer(t *testing.T, native bool, gate string) {
 		}
 		run("incus", "storage", "delete", pool)
 	}
-	t.Logf("archive transfer native=%t between independent Btrfs pools passed; archives retained outside both pools; whole-WSL and damaged-storage evacuation not tested", native)
+	t.Logf("archive transfer native=%t saved-only=%t between independent Btrfs pools passed; archives retained outside both pools; whole-WSL and damaged-storage evacuation not tested", native, savedOnly)
 }
