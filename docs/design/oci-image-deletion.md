@@ -170,7 +170,7 @@ binaries on the Host. Full OCI/Incus/composition race suites and vet passed.
 
 ## Review unused image candidates
 
-Implemented CLI selection; native batch acceptance is pending. Use the existing
+Implemented CLI selection; native controller/CLI batch acceptance passed at 9484d06. Use the existing
 commands with one optional flag:
 
 ```bash
@@ -191,4 +191,4 @@ owner can refuse deletion. Stop at the first failure, report the completed count
 and retain the remaining images; no rollback or hidden backup is attempted.
 Independent snapshots/Stores, containers and cache are not GC targets here.
 
-Native acceptance at 779b0e5 failed at the 720-second aggregate test deadline during confirmed candidate deletion. This is a failed run, not successful batch acceptance. The expanded fixture now records fixed step numbers/durations and allows 20 minutes, inside a 22-minute Go deadline and 45-minute job deadline. Product operation timeouts, ownership checks and all refusal/retention assertions are unchanged; updated native acceptance is pending.
+Native acceptance at 779b0e5 failed at the 720-second aggregate test deadline during confirmed candidate deletion. This is a failed run, not successful batch acceptance. The expanded fixture now records fixed step numbers/durations and allows 20 minutes, inside a 22-minute Go deadline and 45-minute job deadline. Product operation timeouts, ownership checks and all refusal/retention assertions are unchanged; updated native acceptance passed at 9484d06 in 975.86s ([run 34493016558](https://github.com/SLktEx/Hacocoon/actions/runs/34493016558)). The gate checked candidate listing, decline/retention, confirmed deletion, referenced-image protection and exact temporary/Store cleanup. Detached list/refusal operations took about 95–96s each and the confirmed batch took 288s on this fixture; these results do not establish fast large-batch operation.
