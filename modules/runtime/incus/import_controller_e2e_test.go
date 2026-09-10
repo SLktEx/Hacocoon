@@ -25,7 +25,7 @@ import (
 
 // Use the shipped composition with an empty catalog. The aggregate's catalog is
 // never adopted; only the immutable bundle crosses this controller boundary.
-func verifyImportControllerCLI(t *testing.T, ctx context.Context, runtime *Runtime, directory, bundle, name string, oldIDs []string) {
+func verifyImportControllerCLI(t *testing.T, ctx context.Context, runtime *Runtime, bundle, name string, oldIDs []string) {
 	t.Helper()
 	controller, product := os.Getenv("HACO_E2E_IMPORT_CONTROLLER"), os.Getenv("HACO_E2E_SNAPSHOT_CLI")
 	if controller == "" {
@@ -41,8 +41,11 @@ func verifyImportControllerCLI(t *testing.T, ctx context.Context, runtime *Runti
 			t.Fatal(err)
 		}
 	}
-	root := filepath.Join(directory, "import-controller")
-	must(os.Mkdir(root, 0700))
+	// Keep controller diagnostics outside the aggregate's flat receipt directory.
+	// Native cleanup is verified below; diagnostics remain available independently.
+	root, err := os.MkdirTemp("/var/lib", "haco-import-controller-")
+	must(err)
+	t.Logf("shipped controller private catalog and diagnostics: %s", root)
 	temporary := filepath.Join(root, "tmp")
 	must(os.Mkdir(temporary, 0700))
 	socket := filepath.Join(root, "control.sock")
@@ -150,12 +153,20 @@ func verifyImportControllerCLI(t *testing.T, ctx context.Context, runtime *Runti
 		readGuest(mount.Path+"/untracked", "untracked "+mount.Device)
 	}
 	readGuest(OCIStorePath+"/containerd/data", "actual stored bytes")
+	verifyImportedSSH(t, ctx, runtime, root, name, native, mounts[0].Path, invoke)
+	readGuest(mounts[0].Path+"/import-ssh-marker", "continued-over-ssh")
 	invoke("env", "delete", name)
 	if exists, err := runtime.environmentExists(ctx, native); err != nil || exists {
 		t.Fatal("deleted imported instance absence unproven")
 	}
 	persistent := &PersistentResourceBackend{Runtime: runtime}
 	must(persistent.Verify(ctx, store))
+	marker := filepath.Join("/var/lib/incus/storage-pools", mounts[0].Pool, "custom", runtime.project+"_"+mounts[0].Volume, "import-ssh-marker")
+	continued, err := os.ReadFile(marker)
+	must(err)
+	if string(continued) != "continued-over-ssh" {
+		t.Fatal("SSH work was not retained after Env deletion")
+	}
 	_, err = repository.WorkspaceAttachments(ctx, work)
 	must(err)
 	file, err := os.Open(bundle)
@@ -175,5 +186,14 @@ func verifyImportControllerCLI(t *testing.T, ctx context.Context, runtime *Runti
 		}
 		return repositories.DeleteWorkspace(ctx, work.ID, work.Owner)
 	}))
-	t.Log("PASS shipped import controller/CLI: empty catalog, real native data and running Env, fresh generation, no Base, managed SSH reset, retained Workspace/OCI after Env deletion and canonical owned cleanup; installed desktop, SSH handshake and live OCI remain unverified")
+	environments, err := catalog.ListEnvironments(ctx)
+	must(err)
+	leases, err := catalog.ListWorkspaceLeases(ctx)
+	must(err)
+	resources, err := catalog.ListPersistentResources(ctx)
+	must(err)
+	if len(environments) != 0 || len(leases) != 0 || len(resources) != 0 {
+		t.Fatal("import controller owned catalog entries remained after cleanup")
+	}
+	t.Log("PASS shipped import controller/CLI: empty catalog, real native data and running Env, fresh generation, no Base, managed SSH reset, retained Workspace/OCI after Env deletion and canonical owned cleanup; installed desktop and live OCI remain unverified")
 }

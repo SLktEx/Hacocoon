@@ -660,7 +660,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		t.Log("PASS canonical bundle import: normal router, real running Env, fresh generation, current sandbox/managed SSH reset, independently imported Workspace/OCI, no Base, temporary image cleanup and retained data after Env deletion; public CLI coverage reported separately; SSH handshake not tested")
 	}()
 	if !t.Run("shipped-controller-import", func(t *testing.T) {
-		verifyImportControllerCLI(t, ctx, r, dir, filepath.Join(dir, name+".haco"), name+"-controller", []string{id, resumedID})
+		verifyImportControllerCLI(t, ctx, r, filepath.Join(dir, name+".haco"), name+"-controller", []string{id, resumedID})
 	}) {
 		t.Fatal("shipped import controller acceptance failed; fixture retained")
 	}

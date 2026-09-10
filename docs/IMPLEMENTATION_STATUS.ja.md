@@ -38,6 +38,19 @@ socket を使う製品 controller の import gate も追加しています。nat
 を確認します。gate は実装済みですが、実実行の結果は pending です。インストール済み Standard-egress、
 一般ユーザー／desktop、SSH ハンドシェイク、live OCI の受入を証明するものではありません。
 
+a58d553 の初回 GHA では、所有対象の cleanup を含む製品 controller の subtest が20.35秒で
+成功しました。aggregate 全体は89.56秒で失敗しました。最後の「receipt は通常ファイルのみ」
+という確認が、追加した controller 診断用サブディレクトリを拒否したためです。controller の
+専用 catalog／診断は別に一意作成する `/var/lib/haco-import-controller-*` に保持し、cleanup 後に
+Env・lease・OCI の catalog 項目が残っていないことも確認します。aggregate の厳密な receipt
+確認は変更しません。修正版の全体受入は pending です。
+
+修正版の controller gate には、公開 `haco env ssh --key` と実 SSH 通信も追加しています。
+新しいクライアント秘密鍵は検証プロセス内だけに持ち、controller が返すサーバー鍵を固定して
+認証します。import 済み Git Workspace への書き込み、接続・鍵の解除、Env 削除後の書き込み
+保持を確認します。この拡張はまだ実行しておらず、実 Incus で成功するまで SSH 受入成功とは
+しません。インストール済み desktop の alias や VS Code は対象外です。
+
 ## 公開 Environment export の作業状況
 
 Status: **partial**。Linux の `haco env export <stopped-env> [file.haco]` は管理 stream と

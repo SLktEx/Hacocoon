@@ -49,6 +49,21 @@ Workspace/OCI and explicit canonical owned-data cleanup. This gate is implemente
 its real execution result is pending. It does not establish installed Standard-egress,
 ordinary-user/desktop, SSH handshake or live OCI acceptance.
 
+The first shipped-controller GHA run at a58d553 passed the controller subtest in
+20.35s, including owned cleanup. The full aggregate FAILED at 89.56s because its
+final flat-receipt check rejected the nested controller diagnostics directory.
+The controller now keeps its private catalog/diagnostics in a separate, uniquely
+created `/var/lib/haco-import-controller-*` directory, and explicitly verifies no
+Env, lease or OCI catalog entries remain after cleanup. The aggregate's strict
+receipt check is unchanged. Full corrected-run acceptance remains pending.
+
+The corrected controller gate also exercises public `haco env ssh --key` and a
+real SSH session with a fresh in-memory client key and the controller-pinned server
+key. It writes into the imported Git Workspace, revokes the connection/key and
+checks that the write survives Env deletion. This extension is not yet executed;
+it must pass in real Incus before SSH acceptance is claimed. It does not exercise
+the installed desktop alias or VS Code.
+
 ## Public Environment export in progress
 
 Status: **partial**. Linux `haco env export <stopped-env> [file.haco]` now uses the
