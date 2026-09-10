@@ -1,11 +1,22 @@
 # Implementation Status
 
-Native rootfs import now prepares fresh image metadata and uses an owned temporary
-Incus image. Export/import share ownership receipt and deletion checks. Incus package
-tests, focused race tests and vet passed; dedicated real Incus/Btrfs transport
-acceptance passed in 22.28s. Canonical Env/public aggregate import and boot/SSH remain
-planned and unverified. The initial test-directory permission failure was corrected
-in the fixture without weakening the private-directory requirement.
+Archive import uses canonical Env lifecycle through the production BaseRouter and
+the Incus native image adapter. Current sandbox configuration, fresh generation,
+managed SSH identity reset, immediate ownership receipts and separate owned
+image/instance cleanup are retained. No Base filesystem or automatic backup is added.
+
+At 47bf7a8, dedicated Incus/Btrfs aggregate acceptance passed in 439.76s, including
+archive-to-running-Env, explicit prepared Workspace/OCI bindings, source-generation
+refusal, temporary-image cleanup and data retained after Env deletion. Router race
+and relevant vet checks passed. Earlier b7f7fac full local Go/vet/docs/workflow-policy
+and 27 JavaScript tests, Workspace/Incus race, and native image transport (22.28s)
+also passed. The initial transport fixture permission failure was corrected without
+relaxing private-directory protection.
+
+Public bundle import, SSH handshake and live OCI consistency remain unverified.
+This local aggregate run skipped public export/snapshot/Workspace CLI checks because
+no CLI binary was supplied, and skipped shared-image deletion. Maintained GHA supplies
+the CLI binary; its latest-head result remains separate from local acceptance.
 
 Offline Workspace registration/restoration now preserves data without a Git route.
 Mixed broker bindings exclude offline members and reject mismatched Host routing.

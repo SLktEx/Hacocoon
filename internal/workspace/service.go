@@ -63,10 +63,10 @@ func NewWithProvider(runtime environmentRuntime, store environmentStore, provide
 }
 
 func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
-	return s.create(ctx, spec, nil)
+	return s.create(ctx, spec, nil, nil)
 }
 
-func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *core.Snapshot) (environment core.Environment, err error) {
+func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *core.Snapshot, creator runtimeCreation) (environment core.Environment, err error) {
 	started := time.Now()
 	ctx = logging.With(ctx, "operation", "create_environment", "environment_id", spec.Name)
 	logger := logging.FromContext(ctx).With("component", "core")
@@ -216,7 +216,9 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 		return nil
 	}
 	var created core.EnvironmentRuntime
-	if saved != nil {
+	if creator != nil {
+		created, err = creator(ctx, runtimeSpec, record)
+	} else if saved != nil {
 		created, err = s.runtime.(snapshotRuntimeCreator).CreateEnvironmentFromSnapshot(ctx, runtimeSpec, *saved, record)
 	} else if provider, ok := s.runtime.(interface {
 		CreateEnvironmentWithReceipt(context.Context, core.EnvironmentRuntimeSpec, func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error)

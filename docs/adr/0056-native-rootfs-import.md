@@ -35,3 +35,25 @@ templates do not constitute management authority or required rootfs data. The
 saved archive is preserved byte-for-byte. Lifecycle integration must retain
 canonical Env ownership, fresh permissions and current configuration; this adapter
 alone does not prove public import, boot or SSH.
+
+## Canonical Environment creation
+
+Archive creation enters the existing Workspace lifecycle service with prepared
+Workspace/OCI bindings. A private runtime-creation function selects the archive
+adapter; it cannot replace lease reservation, fresh generation, immediate runtime
+receipt, publication or failed-instance cleanup. No fake Snapshot or Base is
+created, and an absent imported OCI binding does not copy the current Host store.
+
+The Incus sandbox adapter consumes the temporary image with explicit current
+configuration, no profiles, managed root storage and fresh identity. Normal
+sandbox attachment/network preparation and guest SSH identity renewal follow the
+durable receipt. Unknown init completion keeps the lease for explicit inspection.
+Image cleanup belongs to the transport adapter; instance cleanup belongs to the
+canonical lifecycle. Public bundle orchestration and boot/SSH acceptance remain
+separate unfinished work.
+
+The normal BaseRouter forwards Incus unified archives explicitly to the registered
+Incus provider, regardless of the default or source Base. It uses the existing
+creation-receipt protocol to encode ownership references and reject omitted,
+duplicate or changed receipts. Supporting only the native Incus archive format
+is intentional; no generic archive interpreter or fallback is introduced.

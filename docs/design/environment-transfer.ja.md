@@ -501,5 +501,21 @@ image properties は新しい import owner に置き換え、image 作成時 tem
 
 固定 SDK の context を保持する raw operation で upload・完了待ちを行い、選択済み local Unix
 接続・project と応答上限を維持します。現時点では非圧縮の統合 x86_64／aarch64 container image のみ対応します。
-[ADR 0056](../adr/0056-native-rootfs-import.md) を参照してください。canonical な Env 作成、公開一式の
-import、boot／SSH、OCI 整合性は別の残課題です。
+[ADR 0056](../adr/0056-native-rootfs-import.md) と次節の canonical 作成を参照してください。公開一式の
+import、SSH 実ハンドシェイク、live OCI 整合性は残課題です。
+
+## archive から Environment へ
+
+Status: **内部実装済み・native 起動確認済み**です。Workspace service の CreateFromArchive は、
+呼出元が用意した Workspace／OCI を canonical な Env 作成で接続し、現在の Host OCI の自動コピーを省きます。
+Incus adapter は所有確認付き一時 image から独立 instance を作り、直ちに所有記録を保存した後で、
+現在の sandbox 設定と guest SSH identity の再生成を行います。native init の完了不明時は lease を保持し、
+cleanup は接続データを削除しません。CLI・catalog 移行・Base 実体・自動 backup は追加しません。
+一式の orchestration、公開利用経路、SSH 実ハンドシェイクは未検証です。
+
+通常の BaseRouter は native archive を共通の所有記録プロトコルで Incus へ渡します。
+既存 aggregate E2E に、旧 Env 削除後の export bundle をこの router から import し、
+実起動・明示した Workspace／OCI の接続・世代と管理 SSH 権限の更新・削除後のデータ保持を
+確認する処理を追加しました。47bf7a8 の専用 Incus/Btrfs 実行は439.76秒で成功し、既存の capture／restore／export と
+native data cleanup も確認しました。CLI バイナリを渡さないローカル実行では公開 CLI を SKIP し、GHA は同バイナリを渡します。
+共有 image の削除も SKIP しました。公開 import、SSH 実ハンドシェイク、live OCI 整合性はこの検証では証明しません。
