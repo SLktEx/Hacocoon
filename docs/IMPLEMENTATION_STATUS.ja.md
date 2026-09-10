@@ -1,8 +1,8 @@
 # 実装状況
 
-7517c27 の対象 Incus・通常テストの全 job と Windows VS Code は成功しましたが、transfer は SSH 内の Git 導入で失敗しました（exit 100）。SSH 準備時に現在の管理対象 proxy を sshd セッションへ設定する修正を追加し、ローカル・実環境の検証を進めています。[ADR 0058](adr/0058-ssh-session-egress-environment.md)を参照してください。
+7517c27 の対象 Incus・通常テストの全 job と Windows VS Code は成功しましたが、transfer は SSH 内の Git 導入で失敗しました（exit 100）。SSH 準備時に現在の管理対象 proxy を sshd セッションへ設定する修正を追加し、684e411 でローカル tests／vet と実 Windows SSH 内の Git 導入が成功しました。[ADR 0058](adr/0058-ssh-session-egress-environment.md)を参照してください。
 
-0cc27a5 の Windows transfer は seed-repository で失敗（exit 127）、VS Code は成功しました。fixture に通常のパッケージ導入経路で trusted Host と source Env の不足する Git を準備する処理を追加しました。再検証は未完了です。
+0cc27a5 の Windows transfer は seed-repository で失敗（exit 127）、VS Code は成功しました。fixture に通常のパッケージ導入経路で trusted Host と source Env の不足する Git を準備する処理を追加しました。後続684e411でtransferは成功し、独立した承認probeは失敗しました。
 
 ## 公開 Environment import の作業状況
 
@@ -23,8 +23,8 @@ pwsh 不在で失敗し、その後の all-entry 項目は未実行です。最�
 
 b7297a3 の専用 Incus/Btrfs 実行では、製品 import CLI・管理 stream・canonical importer による
 rootfs／Git／OCI の独立復元、実起動、旧世代の拒否、管理 SSH 更新、Env 削除後の保持と所有 cleanup が成功しました。
-これは fixture controller の実検証で、インストール済み controller／desktop からの import は未検証です。
-aggregate 全体の後続 snapshot／copy の完了判定は別に扱います。SSH 実ハンドシェイク、live OCI 整合性、Git 再接続、未完了 collection の cleanup、Windows native
+これは fixture controller の実検証です。後続 684e411 でインストール済み controller／desktop からの import も成功しました。
+aggregate 全体の後続 snapshot／copy の完了判定は別に扱います。SSH 実ハンドシェイクは684e411で成功しました。live OCI 整合性、Git 再接続、未完了 collection の cleanup、Windows native
 ファイル入力は未完了です。[Environment transfer](design/environment-transfer.ja.md#linux-import-コマンド)を参照してください。
 
 b7297a3 の初回公開 import aggregate は export・native import・restore に成功し、続く公開 copy で
@@ -40,8 +40,8 @@ a58d553 の単独製品 controller は native import・データ・所有 cleanu
 全体 gate は診断ディレクトリの配置で失敗し、配置を修正しました。6d5e027／e598270 の SSH は失敗し、
 後者で sshd 不在と SSH 導入段階の失敗を確認しました。SSH 継続は、別の管理 source と通常の限定
 package Policy を使い、公開 export／import、新しい鍵を固定した Windows SSH、保持データからの
-Env 再作成を行う既存 installed Windows gate へ接続しました。この新 gate は未検証で、単独 native
-controller 確認も必須です。[受入記録](design/environment-transfer.ja.md#インストール済み-controller-と-ssh-の受入)を参照してください。
+Env 再作成を行う既存 installed Windows gate へ接続しました。684e411 でこの gate と単独 native
+controller 確認は成功し、両方を必須のまま維持します。[受入記録](design/environment-transfer.ja.md#インストール済み-controller-と-ssh-の受入)を参照してください。
 
 ## 公開 Environment export の作業状況
 

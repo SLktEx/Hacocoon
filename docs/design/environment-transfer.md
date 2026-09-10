@@ -685,8 +685,8 @@ API only on its management endpoint, never guest or notification endpoints.
 
 Status: **partial**; CLI and shipped controller wiring are implemented. Dedicated
 execution at b7297a3 verified shipped-CLI/fixture-controller native import, startup,
-data retention and owned cleanup. Installed-controller/desktop import remains
-unverified; overall aggregate completion is recorded separately. Run from the Linux client that can read the bundle:
+data retention and owned cleanup. Installed-controller/desktop import was initially
+unverified and subsequently passed at 684e411; overall aggregate completion is recorded separately. Run from the Linux client that can read the bundle:
 
 ```bash
 haco env import dev.haco
@@ -753,10 +753,26 @@ host-key pin protects the real Windows SSH session. The gate checks Git, rootfs
 and OCI markers, saves more work, deletes the Env, reattaches retained data to a
 new Env, and explicitly deletes only its own test data through public commands.
 
-This installed gate is implemented but **not yet verified**. Standalone native
+This installed gate **passed at 684e411** (see the result below). Standalone native
 controller checks remain required. The original external-path Windows SSH fixture
 keeps its scope. Transfer failures are recorded while independent desktop probes
 continue; neither gate is silently skipped to make CI pass. The bundle and raw
 local test repository remain inside trusted Host for inspection. Windows-native
 bundle file delivery and live Docker/containerd consistency remain unverified.
 No product command, backend, Base component, backup or schema is added.
+
+At 7517c27, transfer failed installing Git over Windows SSH (exit 100).
+At 684e411, [Windows attempt 1](https://github.com/SLktEx/Hacocoon/actions/runs/34471376143/attempts/1)
+passed Git installation, VS Code, export, source Env deletion, independent import,
+fresh pinned Windows SSH, resumed work, retained Workspace/OCI recreation and
+owned public cleanup. The bundle and raw fixture repository remain at
+`/tmp/haco-transfer-4844a07f73644223` inside the trusted Host. OCI assertions use
+synthetic persisted markers, not a running containerd/Docker workload.
+All applicable native Incus/Btrfs and normal-test jobs passed at that commit.
+
+The Windows job overall **failed** on the independent pending-approval probe:
+`prepare-python-prerequisite-setup-start-internal`, exit 1, cleanup_failed=false.
+Earlier project setup and subsequent preview/doctor probes passed; the cause is
+unresolved. Attempt 2 reruns the failed Windows job to check reproducibility;
+it does not erase the first failure. Live OCI consistency and native Windows
+bundle delivery remain unverified.

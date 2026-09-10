@@ -558,7 +558,7 @@ upload の読み書きは30秒の待機期限を設けます。呼出元の入�
 
 Status: **partial**。CLI と製品 controller への接続は実装済みです。b7297a3 の専用実行で、製品 CLI と fixture controller
 による native import・起動・データ保持・所有 cleanup を確認しました。インストール済み controller／desktop の
-import は未検証で、aggregate 全体の完了は別に判定します。
+import は当時未検証でしたが、後続684e411で成功しました。aggregate 全体の完了は別に判定します。
 bundle を読める Linux client から実行します。
 
 ```bash
@@ -613,9 +613,23 @@ controller が返す新しいホスト鍵を固定した実 Windows SSH で Git�
 追加作業を保存します。Env 削除後、新しい Env に保持データを再接続し、公開コマンドで検証所有の
 データだけを明示的に削除します。
 
-この installed gate は実装済みですが、**実行による検証は未完了**です。単独 native controller gate
+この installed gate は **684e411 で成功**しました（下記の実行記録を参照）。単独 native controller gate
 も必須のままです。既存 external-path Windows SSH fixture の対象は維持し、transfer の失敗を記録しながら
 独立した desktop probe を続けます。CI を通すための黙った SKIP は行いません。bundle と生のローカル
 検証 repo は確認用に trusted Host 内へ保持します。Windows native の bundle ファイル受け渡しと
 live Docker／containerd 整合性は未検証です。製品コマンド、backend、Base component、自動 backup、
 schema は追加しません。
+
+7517c27 の transfer は Windows SSH 内の Git 導入で失敗しました（exit 100）。
+684e411 の [Windows attempt 1](https://github.com/SLktEx/Hacocoon/actions/runs/34471376143/attempts/1)
+では Git 導入、VS Code、export、source Env 削除、独立 import、新しい鍵を固定した Windows SSH、
+作業再開、保持 Workspace／OCI からの Env 再作成、公開コマンドでの所有 cleanup が成功しました。
+bundle と生の検証 repo は trusted Host 内の `/tmp/haco-transfer-4844a07f73644223` に残しています。
+OCI は合成した永続 marker の確認であり、実 containerd／Docker workload の検証ではありません。
+同 commit の対象 native Incus／Btrfs・通常テストの job はすべて成功しました。
+
+Windows job 全体は、独立した承認待ち probe の
+`prepare-python-prerequisite-setup-start-internal` で **失敗**しました（exit 1、cleanup_failed=false）。
+直前の project setup と後続 preview／doctor は成功しましたが、原因は未解明です。
+再現性を確認するため失敗した Windows job を attempt 2 として再実行しています。初回失敗の記録は残します。
+live OCI の整合性と Windows native の bundle 受け渡しは未検証です。
