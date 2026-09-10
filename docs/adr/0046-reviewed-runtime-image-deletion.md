@@ -36,3 +36,5 @@ network/credential guards remain. Focused tests exercise generation and Store
 replacement, malformed observations, container users, confirmation and absence.
 The maintained isolated COW fixture exercises real Docker/nerdctl formats and
 removal separately from installed-controller/CLI acceptance.
+
+Candidate batches reuse this contract once per reviewed immutable ID. The CLI selects images with no container users, including tagged images, and confirms the displayed set. It never invokes native force/prune, expands the set after review or creates batch recovery state. A partial failure reports completed removals and stops.

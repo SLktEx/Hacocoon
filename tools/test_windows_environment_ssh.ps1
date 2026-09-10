@@ -22,8 +22,9 @@ $EnvironmentAttempted = $false
 $WorkspaceCreated = $false
 $CleanupFailed = $false
 $DesktopFailures = [Collections.Generic.List[string]]::new()
+. (Join-Path $PSScriptRoot 'windows_ssh_diagnostic.ps1')
 
-function Invoke-Captured([string]$FileName, [string[]]$Arguments) {
+function Invoke-Captured([string]$FileName, [string[]]$Arguments, [switch]$SSHProgress, [int]$TimeoutMilliseconds = 300000) {
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $FileName
     $start.UseShellExecute = $false
@@ -39,11 +40,15 @@ function Invoke-Captured([string]$FileName, [string[]]$Arguments) {
     }
     $stdoutTask = $process.StandardOutput.ReadToEndAsync()
     $stderrTask = $process.StandardError.ReadToEndAsync()
-    if (-not $process.WaitForExit(300000)) {
+    if (-not $process.WaitForExit($TimeoutMilliseconds)) {
         $process.Kill($true)
         [void]$process.WaitForExit(10000)
+        $evidence = 'unavailable'
+        if ($SSHProgress -and [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($stdoutTask, $stderrTask), 10000)) {
+            $evidence = Get-SSHProgressEvidence $stdoutTask.GetAwaiter().GetResult() $stderrTask.GetAwaiter().GetResult()
+        }
         $process.Dispose()
-        throw "Acceptance child exceeded five minutes: $FileName"
+        throw "Acceptance child timed out after ${TimeoutMilliseconds}ms; ssh_progress=$evidence"
     }
     if (-not [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($stdoutTask, $stderrTask), 10000)) {
         $process.Dispose()
@@ -51,18 +56,23 @@ function Invoke-Captured([string]$FileName, [string[]]$Arguments) {
     }
     $stdout = $stdoutTask.GetAwaiter().GetResult()
     $stderr = $stderrTask.GetAwaiter().GetResult()
+    if ($SSHProgress) { $stderr = Get-SSHProgressEvidence $stdout $stderr }
+    $exitCode = $process.ExitCode
+    $process.Dispose()
     return [pscustomobject]@{
-        ExitCode = $process.ExitCode
+        ExitCode = $exitCode
         Stdout = $stdout
         Stderr = $stderr
     }
 }
 
-function Invoke-Checked([string]$FileName, [string[]]$Arguments, [string]$Description) {
+function Invoke-Checked([string]$FileName, [string[]]$Arguments, [string]$Description, [switch]$SSHProgress) {
     Write-Host "ACCEPTANCE: $Description"
-    $result = Invoke-Captured $FileName $Arguments
+    $result = Invoke-Captured $FileName $Arguments -SSHProgress:$SSHProgress
     if ($result.ExitCode -ne 0) {
-        $details = @($result.Stderr.Trim(), $result.Stdout.Trim()) | Where-Object { $_ }
+        $details = @($result.Stderr.Trim())
+        if (-not $SSHProgress) { $details += $result.Stdout.Trim() }
+        $details = $details | Where-Object { $_ }
         $detail = $details -join "`n"
         $failure = [Exception]::new("$Description failed with exit $($result.ExitCode). $detail")
         $failure.Data['acceptance_exit_code'] = $result.ExitCode
@@ -91,7 +101,7 @@ function Write-DesktopProbeFailure([string]$Label, [string]$Phase, [Management.A
 
 # This is the documented administrator Policy operation, scoped to this test
 # Environment. Existing rules are preserved; no network/provider repair occurs.
-function Update-SSHTestPolicy([string]$Action) {
+function Update-SSHTestPolicy([string]$Action, [string]$TargetEnvironment = $EnvironmentName) {
     $policyScript=@"
 import json, os, pathlib, re, stat, sys, tempfile
 operation, environment = sys.argv[1:]
@@ -119,7 +129,7 @@ with tempfile.NamedTemporaryFile(mode='w',dir=p.parent,delete=False) as f:
     json.dump(data,f); f.flush(); os.fsync(f.fileno()); temporary=f.name
 os.replace(temporary,p)
 "@
-    [void](Invoke-Wsl @('-u','root','--exec','python3','-c',$policyScript,$Action,$EnvironmentName) 'Configure only this SSH test Environment package Policy')
+    [void](Invoke-Wsl @('-u','root','--exec','python3','-c',$policyScript,$Action,$TargetEnvironment) 'Configure only this SSH test Environment package Policy')
 }
 [IO.Directory]::CreateDirectory($Work) | Out-Null
 try {
@@ -220,17 +230,18 @@ try {
 
     $alias = "haco-$EnvironmentName"
     $remote = Invoke-Checked $NativeSSH @(
+        '-v',
         '-F', $ConfigPath,
         '-i', $PrivateKey,
         '-o', "UserKnownHostsFile=$KnownHosts",
         '-o', 'BatchMode=yes',
         '-o', 'ConnectTimeout=10',
         $alias,
-        'haco-base-tool && pwd && test -d /workspace && echo windows-ssh-ok && cat /workspace/windows-marker && test ! -e /init && test ! -e /var/lib/hacocoon-wsl && test ! -e /run/WSL && test ! -e /var/lib/hacocoon-control.sock && test -z "$WSL_INTEROP" && test -z "$(find /mnt -mindepth 1 -maxdepth 1 -print -quit)" && ! command -v cmd.exe'
-    ) 'Connect from Windows OpenSSH to the Hacocoon Environment'
+        'haco-base-tool && pwd && test -d /workspace && echo windows-ssh-ok && cat /workspace/windows-marker && test ! -e /init && test ! -e /var/lib/hacocoon-wsl && test ! -e /run/WSL && test ! -e /var/lib/hacocoon-control.sock && test -z "$WSL_INTEROP" && test -z "$(find /mnt -mindepth 1 -maxdepth 1 -print -quit)" && ! command -v cmd.exe && echo windows-ssh-command-complete'
+    ) 'Connect from Windows OpenSSH to the Hacocoon Environment' -SSHProgress
     $remoteLines = $remote.Stdout -split "`r?`n"
-    if ($remoteLines -notcontains 'windows-base-tool-ok' -or $remoteLines -notcontains 'windows-ssh-ok' -or $remoteLines -notcontains 'windows-workspace-ok') {
-        throw "Windows SSH did not execute in the expected Environment Workspace. Output: $($remote.Stdout.Trim())"
+    if ($remoteLines -notcontains 'windows-base-tool-ok' -or $remoteLines -notcontains 'windows-ssh-ok' -or $remoteLines -notcontains 'windows-workspace-ok' -or $remoteLines -notcontains 'windows-ssh-command-complete') {
+        throw "Windows SSH did not complete the expected Workspace assertions; $($remote.Stderr)"
     }
 
 
@@ -335,6 +346,19 @@ haco setup "$name"
                 $reviewPhase = $Matches[1] + '-cleanup-failed-' + $Matches[2]
             }
             Write-DesktopProbeFailure 'PENDING APPROVAL REVIEW' $reviewPhase $_
+            # Read only, through the existing pinned connection. Keep the original
+            # failure even if diagnostics fail; no service restart or retry.
+            try {
+                . (Join-Path $PSScriptRoot 'windows_dns_diagnostic.ps1')
+                $dnsState = Invoke-Captured $NativeSSH @('-F', $ConfigPath, '-i', $PrivateKey,
+                    '-o', "UserKnownHostsFile=$KnownHosts", '-o', 'BatchMode=yes',
+                    '-o', 'ConnectTimeout=10', $alias,
+                    'systemctl show hacocoon-dns.service --property=Result --value')
+                $dnsCategory = Get-DNSServiceFailureState $dnsState.Stdout $dnsState.ExitCode
+                Write-Host "PENDING APPROVAL DNS RESULT: $dnsCategory"
+            } catch {
+                Write-Host 'PENDING APPROVAL DNS RESULT: unavailable'
+            }
         }
         $previewProbe = @'
 set -eu
@@ -446,6 +470,13 @@ fi
                 $previewPhase = $Matches[1].ToLowerInvariant()
             }
             Write-DesktopProbeFailure 'WINDOWS HTTP PREVIEW' $previewPhase $_
+        }
+        try {
+            . (Join-Path $PSScriptRoot 'test_windows_environment_transfer.ps1')
+            Invoke-InstalledEnvironmentTransfer -BaseName $BuiltBaseName -PublicKeyWsl $PublicKeyWsl -PrivateKey $PrivateKey -NativeSSH $NativeSSH -Directory $Work
+        } catch {
+            $DesktopFailures.Add('environment-transfer')
+            Write-Host 'INSTALLED ENV TRANSFER: FAIL; continuing independent probes'
         }
         $doctorPhase = 'invoke'
         try {

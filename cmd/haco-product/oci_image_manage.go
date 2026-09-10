@@ -32,13 +32,14 @@ func runOCIImageManage(args []string) int {
 }
 func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string, in io.Reader, out, diagnostic io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(diagnostic, "Usage: haco plugin oci image list [--runtime nerdctl|docker] [--json] [--host] [<env>] | delete [--runtime nerdctl|docker] [--yes] [--host] [<env>] <image-id-or-tag>")
+		fmt.Fprintln(diagnostic, "Usage: haco plugin oci image list [--unused] [--runtime nerdctl|docker] [--json] [--host] [<env-or-store-id>] | delete [--unused] [--runtime nerdctl|docker] [--yes] [--host] [<env-or-store-id>] [<image-id-or-tag>]")
 		return 2
 	}
 	f := flag.NewFlagSet("haco plugin oci image "+args[0], flag.ContinueOnError)
 	f.SetOutput(diagnostic)
 	hostSource := f.Bool("host", false, "operate on the managed Host source for future Store copies")
 	runtime := f.String("runtime", "nerdctl", "OCI runtime owning these images")
+	unused := f.Bool("unused", false, "select images with no container users, including tagged images")
 	var yes, machine bool
 	switch args[0] {
 	case "list":
@@ -55,7 +56,7 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 		return 2
 	}
 	expected := 1
-	if args[0] == "delete" {
+	if args[0] == "delete" && !*unused {
 		expected++
 	}
 	if *hostSource {
@@ -75,7 +76,35 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 		fmt.Fprintln(diagnostic, "haco:", err)
 		return 1
 	}
+	matchingTarget := all.Target.Environment == environment
+	if all.Target.Detached {
+		matchingTarget = !*hostSource && all.Target.Store.ID == environment && all.Target.Environment == "" && all.Target.Instance == ""
+	}
+	if !matchingTarget || all.Target.Host != *hostSource || all.Target.Runtime != *runtime {
+		fmt.Fprintln(diagnostic, "haco: invalid image review identity")
+		return 1
+	}
+	selected := []oci.ManagedImage{}
+	seen := map[string]bool{}
+	for _, image := range all.Images {
+		if !oci.ValidImageSelection(all.Target, image.ID) || seen[image.ID] {
+			fmt.Fprintln(diagnostic, "haco: invalid or duplicate image review identity")
+			return 1
+		}
+		seen[image.ID] = true
+		match := image.ID == selection
+		for _, tag := range image.Tags {
+			match = match || tag == selection
+		}
+		if *unused {
+			match = len(image.Containers) == 0
+		}
+		if (args[0] == "list" && !*unused) || match {
+			selected = append(selected, image)
+		}
+	}
 	if args[0] == "list" {
+		all.Images = selected
 		if machine {
 			err = json.NewEncoder(out).Encode(all)
 		} else {
@@ -86,44 +115,36 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 		}
 		return 0
 	}
-	var selected *oci.ManagedImage
-	for i := range all.Images {
-		image := &all.Images[i]
-		match := image.ID == selection
-		for _, tag := range image.Tags {
-			match = match || tag == selection
+	if len(selected) == 0 {
+		if *unused {
+			fmt.Fprintln(out, "No images without container users; nothing deleted")
+			return 0
 		}
-		if match {
-			if selected != nil {
-				fmt.Fprintln(diagnostic, "haco: ambiguous image selection")
-				return 1
-			}
-			selected = image
-		}
-	}
-	if selected == nil {
 		fmt.Fprintln(diagnostic, "haco: image not found; use image list to review exact IDs and tags")
 		return 1
 	}
-	if !oci.ValidImageSelection(all.Target, selected.ID) || all.Target.Environment != environment || all.Target.Host != *hostSource || all.Target.Runtime != *runtime {
-		fmt.Fprintln(diagnostic, "haco: invalid image review identity")
+	if !*unused && len(selected) != 1 {
+		fmt.Fprintln(diagnostic, "haco: ambiguous image selection")
 		return 1
 	}
 	review := all
-	review.Images = []oci.ManagedImage{*selected}
+	review.Images = selected
 	if writeOCIImages(out, review) != nil {
 		return 1
 	}
-	if len(selected.Containers) > 0 {
+	if len(selected[0].Containers) > 0 {
 		fmt.Fprintln(diagnostic, "haco: image is referenced by a container; retained")
 		return 1
+	}
+	if *unused {
+		fmt.Fprintln(diagnostic, "Selection includes tagged images with no running or stopped container users. This is not an estimate of reclaimable bytes.")
 	}
 	if *hostSource {
 		fmt.Fprintln(diagnostic, "This changes the Host source used for future Store copies. Existing independent copies remain.")
 	}
 	fmt.Fprintln(diagnostic, "Delete this image from the selected Store. Independent copies, saved snapshots and remote registry images remain. The runtime may refuse images with multiple tags or other references; no force is used.")
 	if !yes {
-		fmt.Fprint(diagnostic, "Delete this image? [y/N] ")
+		fmt.Fprint(diagnostic, "Delete the reviewed image(s)? [y/N] ")
 		answer, err := bufio.NewReader(io.LimitReader(in, 128)).ReadString('\n')
 		answer = strings.ToLower(strings.TrimSpace(answer))
 		if err != nil || (answer != "y" && answer != "yes") {
@@ -131,11 +152,13 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 			return 1
 		}
 	}
-	if _, err := c.OCIImage(ctx, controlapi.OCIImageRequest{Operation: "delete", Target: all.Target, ID: selected.ID}); err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
-		return 1
+	for i, image := range selected {
+		if _, err := c.OCIImage(ctx, controlapi.OCIImageRequest{Operation: "delete", Target: all.Target, ID: image.ID}); err != nil {
+			fmt.Fprintf(diagnostic, "haco: deletion stopped after %d of %d images: %v\n", i, len(selected), err)
+			return 1
+		}
+		fmt.Fprintf(out, "OCI image deleted: %s\n", image.ID)
 	}
-	fmt.Fprintln(out, "OCI image deleted")
 	return 0
 }
 func writeOCIImages(out io.Writer, all oci.ManagedImageList) error {
@@ -144,6 +167,9 @@ func writeOCIImages(out io.Writer, all oci.ManagedImageList) error {
 	if all.Target.Host {
 		role = "Host source for future copies"
 		fmt.Fprintln(table, "Target: managed Host source")
+	} else if all.Target.Detached {
+		role = "detached retained Store"
+		fmt.Fprintln(table, "Target: retained Store via a disposable Environment")
 	} else {
 		fmt.Fprintf(table, "Environment: %q (generation %q)\n", all.Target.Environment, all.Target.Instance)
 	}

@@ -34,3 +34,18 @@ Provisioning now waits up to 30 seconds for the guest systemd manager before
 mutating service state. A failed reload is not retried. Shell regression tests
 cover delayed readiness, timeout, and reload failure; real installer acceptance
 of this correction passed Ubuntu and Incus at `c05528a`. The Windows DNS fixture and VS Code connection passed, but the workflow failed later in the project-setup test harness before setup execution.
+
+## Repeated setup and service activation
+
+Windows acceptance at 39b5ce4 reproduced an independent approval-setup failure
+and observed the DNS service Result as start-limit-hit through the existing
+pinned SSH connection. Each setup started its Env, which unconditionally restarted
+the DNS service even when its verified companion and unit were unchanged.
+
+Provisioning now compares the verified companion and canonical unit. Changes
+still restart the service; an unchanged configuration uses systemd start, which
+keeps an active service running and starts an inactive one. Manager readiness,
+daemon reload, enablement, active-state checking and resolver configuration remain.
+Systemd's start limit, peer identity, network Policy and ownership checks are not
+relaxed. A failed start remains a failure. The repeated-setup regression simulates
+the observed start limit; actual installed acceptance of this fix is pending.

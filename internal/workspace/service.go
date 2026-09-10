@@ -63,10 +63,10 @@ func NewWithProvider(runtime environmentRuntime, store environmentStore, provide
 }
 
 func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
-	return s.create(ctx, spec, nil)
+	return s.create(ctx, spec, nil, nil)
 }
 
-func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *core.Snapshot) (environment core.Environment, err error) {
+func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *core.Snapshot, creator runtimeCreation) (environment core.Environment, err error) {
 	started := time.Now()
 	ctx = logging.With(ctx, "operation", "create_environment", "environment_id", spec.Name)
 	logger := logging.FromContext(ctx).With("component", "core")
@@ -102,7 +102,7 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	if err != nil {
 		return core.Environment{}, err
 	}
-	if spec.SkipDefaultResource && spec.PersistentResource != "" {
+	if (spec.SkipDefaultResource && spec.PersistentResource != "") || (spec.ExpectedResource != (core.PersistentResourceRef{}) && (!core.ValidPersistentResourceRef(spec.ExpectedResource) || spec.ExpectedResource.ID != spec.PersistentResource)) {
 		return core.Environment{}, core.ErrInvalidArgument
 	}
 	var persistent core.PersistentResource
@@ -121,9 +121,12 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 			return core.Environment{}, core.ErrRecoveryRequired
 		}
 	}
+	if spec.ExpectedResource != (core.PersistentResourceRef{}) && persistent.Ref() != spec.ExpectedResource {
+		return core.Environment{}, core.ErrCapabilityStale
+	}
 	var workspace core.Workspace
 	if spec.TemporaryWorkspace != nil {
-		if spec.WorkspacePath != "" || !core.ValidTemporaryWorkspace(*spec.TemporaryWorkspace) || mode != core.WorkspaceReadWrite || spec.PersistentResource != "" {
+		if spec.WorkspacePath != "" || !core.ValidTemporaryWorkspace(*spec.TemporaryWorkspace) || mode != core.WorkspaceReadWrite || (spec.PersistentResource != "" && (spec.ExpectedResource != persistent.Ref() || persistent.SourceOnly)) {
 			return core.Environment{}, core.ErrInvalidArgument
 		}
 		workspace = *spec.TemporaryWorkspace
@@ -190,14 +193,15 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	}
 
 	runtimeSpec := core.EnvironmentRuntimeSpec{
-		InstanceID:         instanceID,
-		TemporaryWorkspace: spec.TemporaryWorkspace != nil,
-		PersistentResource: persistent,
-		Name:               name,
-		WorkspacePath:      workspace.Path,
-		ReadOnly:           mode == core.WorkspaceReadOnly,
-		Base:               spec.Base,
-		Resources:          resources,
+		InstanceID:          instanceID,
+		TemporaryWorkspace:  spec.TemporaryWorkspace != nil,
+		ResourceMaintenance: spec.TemporaryWorkspace != nil && spec.PersistentResource != "",
+		PersistentResource:  persistent,
+		Name:                name,
+		WorkspacePath:       workspace.Path,
+		ReadOnly:            mode == core.WorkspaceReadOnly,
+		Base:                spec.Base,
+		Resources:           resources,
 	}
 	recorded := false
 	record := func(created core.EnvironmentRuntime) error {
@@ -212,7 +216,9 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 		return nil
 	}
 	var created core.EnvironmentRuntime
-	if saved != nil {
+	if creator != nil {
+		created, err = creator(ctx, runtimeSpec, record)
+	} else if saved != nil {
 		created, err = s.runtime.(snapshotRuntimeCreator).CreateEnvironmentFromSnapshot(ctx, runtimeSpec, *saved, record)
 	} else if provider, ok := s.runtime.(interface {
 		CreateEnvironmentWithReceipt(context.Context, core.EnvironmentRuntimeSpec, func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error)

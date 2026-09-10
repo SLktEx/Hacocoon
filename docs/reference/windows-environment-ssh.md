@@ -21,6 +21,11 @@ for ownership and recovery.
 
 The installed Windows acceptance fixture records editor, project setup, preview
 and Environment doctor failures separately and continues the independent probes.
+For the initial native SSH probe, a timeout records only allowlisted client
+progress and fixed fixture markers: connection, authentication, session, received
+exit status and command progress. Raw verbose SSH output and key/peer details
+are not emitted. These observations diagnose a failure and never replace pinned
+host-key checks or successful completion. The five-minute deadline is unchanged.
 Any recorded failure still fails the job after host-key refusal checks and
 cleanup. A later PASS marker never erases an earlier failure.
 
@@ -82,3 +87,12 @@ After a fresh candidate ZIP passes the ordinary Windows installer gate, run
 a writable additional drive. The maintained ConPTY driver keeps an ordinary
 trusted Host shell open, checks native interop before and after the complete
 SSH lifecycle, and leaves the user's SSH configuration untouched.
+
+## Package access from SSH sessions
+
+SSH preparation installs current managed HTTP(S)/NO_PROXY session settings through
+an OpenSSH SetEnv drop-in, validates sshd configuration and reloads it. Interactive
+and command sessions can use the same policy-controlled proxy as Incus exec.
+This does not permit a domain or inherit an old Env grant; configure current
+network Policy as usual. See [ADR 0058](../adr/0058-ssh-session-egress-environment.md).
+Installed SSH package acceptance is pending; 7517c27 failed before this fix.

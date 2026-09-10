@@ -41,6 +41,14 @@ the reservation beyond the callback. Reuse existing process locks instead of
 adding a durable export/recovery catalog. Native temporary resource ownership and
 successful aggregate publication remain separate required checks.
 
+Native volume export writes through a live parent descriptor into an unnamed
+file, then closes writable access before hashing. This keeps binary archives out
+of diagnostic stdout and avoids a named local cleanup catalog. Incus's temporary
+volume backup is part of native archive production, not a pre-restore backup.
+Because the CLI ignores deferred cleanup errors, compare native backup inventory
+before and after success; new/changed residue or unknown cleanup prevents success.
+Do not delete backups merely because their names appeared during the operation.
+
 ## Rejected alternatives
 
 - Generic file extraction would add path/link/permission effects before authorization.

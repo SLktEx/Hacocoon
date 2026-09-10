@@ -140,7 +140,7 @@ func TestCreateSessionUsesSandboxProfileByDefault(t *testing.T) {
 
 	for _, call := range runner.calls {
 		if len(call.args) > 0 && call.args[0] == "launch" {
-			assertRunnerCall(t, call, "incus", "launch", defaultImage, "haco-abc123", "--project", defaultProject, "--profile", sandboxProfile)
+			assertRunnerCall(t, call, "incus", "launch", defaultImage, "haco-abc123", "--project", defaultProject, "--profile", sandboxProfile, "--config", "boot.autostart=false")
 			return
 		}
 	}

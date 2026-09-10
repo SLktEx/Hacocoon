@@ -37,6 +37,7 @@ run_workflow_policy() {
   section "workflow-policy"
   python3 tools/check_workflow_policy.py
   python3 tools/test_workflow_policy.py
+  python3 tools/test_real_git_push_target.py
   python3 tools/test_public_release_readiness.py
   python3 tools/check_renovate_policy.py
   python3 tools/test_renovate_policy.py
@@ -180,6 +181,8 @@ run_test() {
   need python3
   python3 tools/test_wsl_host_interop.py
   python3 tools/test_pending_approvals_test.py
+  python3 tools/test_windows_transfer_bundle_copy.py
+  python3 tools/test_evacuation_inventory.py
   python3 tools/test_cleanup_ci_base_asset.py
   section "test"
   go test -count=1 -shuffle=on ./...

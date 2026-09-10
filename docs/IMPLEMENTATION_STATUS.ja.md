@@ -27,11 +27,122 @@ SKIP でした。以前の共有違反・readiness・旧ファイル欠落・CI 
 [所有文書](design/storage-reclamation.ja.md)へ記録しています。後の成功で以前の失敗を成功扱いにしません。
 F1 は未完了です。
 
+## Ubuntu bridge の DNS 依存
+
+Status: **implemented**。common installer は、Incus が recommended package なしで導入済みの場合も、bridge の DNS/DHCP 用に `dnsmasq-base` を明示的に導入する。CLI と network の所有確認・隔離契約は変更しない。[trusted-host network](design/trusted-host.ja.md#専用trusted-host-network)を参照。
+
+隔離した新規 Ubuntu 26.04 WSL・Incus 6.0.5 で、旧 installer は `dnsmasq` 不在により失敗した。この修正とローカルビルドした ad80acc payload では通常インストールが完了し、実 Btrfs mount policy、正確な Host/network 所有確認、controller 往復、DNS、default route、HTTPS が成功した。ローカル candidate の受入であり、公開 release の provenance やデータ・Environment 移行全体の受入ではない。installer shell 回帰 7 件が成功し、依存導入失敗の回帰は旧実装で失敗することを確認した。
+
+7517c27 の対象 Incus・通常テストの全 job と Windows VS Code は成功しましたが、transfer は SSH 内の Git 導入で失敗しました（exit 100）。SSH 準備時に現在の管理対象 proxy を sshd セッションへ設定する修正を追加し、684e411 でローカル tests／vet と実 Windows SSH 内の Git 導入が成功しました。[ADR 0058](adr/0058-ssh-session-egress-environment.md)を参照してください。
+
+GitHub の接続情報を持つ import は既存の source clone と Git connect を使います。一致する接続、不一致・offline・同名再作成の拒否の component テストと package の race・vet は成功しました。import 後の実 Git fetch・push は未検証です。[契約](design/git-and-github-capability.md#reconnect-an-imported-github-workspace)を参照してください。
+
+0cc27a5 の Windows transfer は seed-repository で失敗（exit 127）、VS Code は成功しました。fixture に通常のパッケージ導入経路で trusted Host と source Env の不足する Git を準備する処理を追加しました。後続684e411でtransferは成功し、独立した承認probeは失敗しました。
+
+## 公開 Environment import の作業状況
+
+Status: **partial** です。Linux の `haco env import <file.haco> [new-env]` を、client のファイル読取、
+管理 upload、native Workspace／OCI の所有管理、canonical Env 作成・起動へ接続しました。
+既定名は SOURCE-imported で既存名は拒否します。入力は変更しません。version 1 と元 Host の file 接続先は
+ offline で import し、GitHub descriptor は接続先だけを保持して承認・認証情報は引き継ぎません。
+
+製品構成で private staging と64 GiBの共通 payload 上限を全 native import adapter へ設定します。
+新しい資源 owner・Env 世代・現在の sandbox／管理 SSH 設定を維持します。Base 実体、自動 backup、
+現在データの置換、import catalog、schema 移行は追加しません。失敗 receipt は保持資源を示し、
+起動失敗時はデータを残して確認できるようにします。
+
+公開 CLI 接続前の内部 Incus/Btrfs aggregate は6360a23で558.35秒成功しました。保存元削除後の rootfs・
+2つの Git Workspace・OCI の独立 import、Env 起動、所有 cleanup を確認しました。転送 race は4.808秒で
+成功し、2992c47の全 Go・vet・JS 27件・文書・workflow policy も成功しました。全体 local CI は Ubuntu の
+pwsh 不在で失敗し、その後の all-entry 項目は未実行です。最新 head の GHA とは区別します。
+
+b7297a3 の専用 Incus/Btrfs 実行では、製品 import CLI・管理 stream・canonical importer による
+rootfs／Git／OCI の独立復元、実起動、旧世代の拒否、管理 SSH 更新、Env 削除後の保持と所有 cleanup が成功しました。
+これは fixture controller の実検証です。後続 684e411 でインストール済み controller／desktop からの import も成功しました。
+aggregate 全体の後続 snapshot／copy の完了判定は別に扱います。SSH 実ハンドシェイクは684e411で成功しました。live OCI 整合性、Git 再接続、未完了 collection の cleanup、Windows native
+ファイル入力は未完了です。[Environment transfer](design/environment-transfer.ja.md#linux-import-コマンド)を参照してください。
+
+b7297a3 の初回公開 import aggregate は export・native import・restore に成功し、続く公開 copy で
+fixture の12分期限に達して720.07秒で失敗しました。全体は FAIL であり、成功や SKIP ではありません。
+所有 catalog と保存データは `/var/lib/haco-snapshot-aggregate-1920048809` に明示 cleanup のため残しています。
+共有データは削除対象にしていません。増えた検証量に合わせて fixture を20分、GHA の test process を25分に
+設定します。製品の期限・隔離は変更しません。b7297a3 の GHA 実 Incus/Btrfs
+[aggregate step](https://github.com/SLktEx/Hacocoon/actions/runs/34455660292/job/102801320149)は、
+製品 import CLI と全 aggregate assertion を含めて成功しました。ローカル失敗は保持し、GHA を独立した受入結果として
+扱います。延長後の local-budget 版はコンパイル済みですがローカル再実行はしていません。b7297a3 の4 workflow は成功しました。後続の fixture 期限変更は、その最新 head の CI を別に追跡します。
+
+a58d553 の単独製品 controller は native import・データ・所有 cleanup を20.35秒で確認しましたが、
+全体 gate は診断ディレクトリの配置で失敗し、配置を修正しました。6d5e027／e598270 の SSH は失敗し、
+後者で sshd 不在と SSH 導入段階の失敗を確認しました。SSH 継続は、別の管理 source と通常の限定
+package Policy を使い、公開 export／import、新しい鍵を固定した Windows SSH、保持データからの
+Env 再作成を行う既存 installed Windows gate へ接続しました。684e411 でこの gate と単独 native
+controller 確認は成功し、両方を必須のまま維持します。[受入記録](design/environment-transfer.ja.md#インストール済み-controller-と-ssh-の受入)を参照してください。
+
+## 公開 Environment export の作業状況
+
+Status: **partial**。Linux の `haco env export <stopped-env> [file.haco]` は管理 stream と
+検証後の上書きしない client 公開を使います。既定は `<env>.haco` で、別の snapshot コマンドや
+controller path は不要です。Unix stream と実 filesystem の CLI race test は成功しました。
+local shipped CLI 全体 gate は export 成功後に fixture 期限で失敗し、同じ GHA aggregate gate は
+`3d0dd9a` で47.06秒で成功し、該当4 workflow も成功しました。公開 import と Windows native 出力は planned です。
+[契約](design/environment-transfer.ja.md)を参照してください。
+
+停止 Env の内部 exporter は canonical capture/read/delete、native component producer、
+匿名の一式 staging を接続しました。Linux 公開 CLI/controller の artifact 転送は partial です。
+native aggregate export 受入は 314.12 秒で成功し、公開 bundle import/SSH の証明ではありません。[Environment 持ち出し](design/environment-transfer.ja.md)を参照してください。
+
+ca5ba79 は controller 起動後、最初の画像一覧で失敗しました（native fixture 112.27秒）。maintenance が既存 Store の明示指定と `SkipDefaultResource` を併用し、canonical create に拒否されていました。不要な指定を削除しました。実 catalog／lifecycle の回帰テストで修正前の失敗を再現しています。修正後の native 操作は未確認です。
+
+ca6e5fb の controller gate は起動準備前に失敗しました。fixture が登録済みの `runtime.incus` ではなく `incus` を指定していました。正規の定数参照に修正しました。native のツール配置・画像操作は成功し、失敗後は保持 Store が残るため pool cleanup も失敗しました。controller 全体の受け入れは引き続き未確認です。
+
+controller／CLI の受け入れ経路を使い捨て GHA 限定 gate として追加しました。実行結果は未確認です。製品 composition と実 catalog／lifecycle を使い、Store の内容だけを合成 fixture が供給します。
+
+## 未接続 Store maintenance の実装中の範囲
+
+状態: **partial**。既存 image list/delete は保持 Store ID を受け付けます。OCI module が
+正確な owner を確認し、canonical run service が操作全体と cleanup の間、一つの予約を保持します。
+各 runtime 呼び出しは新しい一時 Env の世代を照合します。元の Workspace 対応と借用 Store は保持します。
+混在・古い識別情報、source Store、未対応の未接続 Docker は拒否します。
+新しいコマンド・schema・隠れた backup・復旧状態は追加しません。
+
+OCI・control API・製品 CLI・run の race suite は成功しました（3.402秒、47.590秒、6.456秒、2.794秒）。
+native metadata 起動は以前179.66秒で成功しました。拡張した製品画像操作の native fixture は別の検証です。
+catalog・lifecycle の識別情報は fixture が供給するため、導入済み controller の受け入れとは扱いません。
+最初の試行は digest 件数と同じ表示タグについての fixture の仮定で失敗しました。
+その正確な所有 fixture は cleanup し、receipt は保持しています。
+
+Linux/WSL amd64 の composition は保持 Store 接続前に固定 OCI ツールを自動配置します。
+private cache、上限付きの固定 member 展開、hash 照合付き Incus 転送、一時ファイル解放を実装しました。
+cache の race test は2.158秒、adapter・作成の拒否 test は1.956秒で成功しました。
+その focused run の composition はコンパイルのみで、テスト実行ではありません。
+native 配置は成功し、controller 全体の作成は未検証です。amd64 以外のツール準備は未対応です。
+候補選択 GC と未接続 Docker は未実装です。[契約](design/oci-image-deletion.ja.md#未接続-store-の実装中の範囲)を参照してください。
+
+d3013a3 の test・Ubuntu installer・Incus GHA は成功しました。Windows installer は
+pending approval の Python 前提 setup で失敗しました。private registry は workflow_dispatch gate により SKIP です。
+失敗を承認待ちとは扱いません。
+
+修正後の拡張 native fixture は224.64秒で成功しました。製品の一覧、実参照による削除拒否、
+選択 digest の削除と不在、container metadata 保持、mask 付き再起動、Store 保持、
+所有対象だけの cleanup を確認しました。
+
+製品の準備処理・Incus adapter による自動配置を含む native fixture は237.37秒で成功しました。
+画像操作、metadata・Store 保護、所有対象だけの cleanup まで確認しました。空 cache からの
+実 HTTPS 取得・固定 member 展開は別に70.71秒で成功し、取得バイナリは Host で実行していません。
+OCI・Incus・composition 全体の race suite は4.332秒・22.135秒・1.856秒で成功し、vet も成功しました。
+先行する71a40e0の GHA は4 workflow すべて成功しました。controller 全体や他 architecture の
+受け入れを証明する結果ではありません。
+
 ## Environment 持ち出しの前提確認
 
-公開 G1 export/import は **planned** です。内部の snapshot／archive 照合は現行上限までの全 Workspace と任意の OCI を扱います。
+Linux／WSL の Incus adapter は所有済みの保存 Workspace／OCI volume を匿名・読み取り専用 archive へ export し、
+native 所有情報と backup cleanup を確認します。専用 Incus 6.0.5／Btrfs の adapter 検証は5.92秒で成功し、
+関連 race test と vet も成功しました。Linux 公開 export は接続済みで、公開 import の実経路受入は未確定です。内部 rootfs producer は固有所有の native image と匿名 archive を使う実装を追加し、専用 Incus 6.0.5/Btrfs adapter 受入は 13.44 秒で成功しました。
+[所有文書](design/environment-transfer.ja.md)を参照してください。
+
+公開 G1 は **partial** で、Linux export を実装し import は **planned** です。内部の snapshot／archive 照合は現行上限までの全 Workspace と任意の OCI を扱います。
 保存元の読み取り境界は canonical な削除ロックを共有し、保持 component を検証します。
-native archive 作成と公開 command は、まだ接続していません。native Incus rootfs／volume archive の opt-in テストと既存 GHA への追加を実装しました。
+native archive 作成と Linux export を接続し、公開 import の実経路受入は pending です。native Incus rootfs／volume archive の opt-in テストと既存 GHA への追加を実装しました。
 fixture の path／namespace の想定を修正後、専用 Incus 6.0.5／Btrfs で11.24秒の検証が成功しました。
 保存元・復元先の独立性、Git 状態、リンク、mode、archive 保持を確認しました。rootfs と公開 import の権限処理は未実装です。
 別の空 rootfs image 検証は14.88秒で成功し、Base/image を使わない作成、import 前の保存元 instance/image 削除、
@@ -1451,3 +1562,48 @@ d4aef8d では 4 workflow が成功しました。Windows run [34139245378](http
 5272434 の GHA では Go 1.26／1.27 の tests・vet、race、release-config、docs、Ubuntu、Incus が PASS です。test workflow は orchestrator E2E で未作成の名前を承認元に使っていたため失敗しました。fixture を通常の create／delete に直し、ローカル E2E は PASS しました。Capability の保存範囲・再作成と Git transport 拒否の E2E も PASS です。
 
 local CI 全体は docs／workflow 検査後、WSL の pwsh 不在で失敗し、それ以降の工程はその呼び出しでは未実行です。Go 工程の個別実行では、空の select が SIGKILL 用 helper を deadlock 終了させ、親が生存中の lock を確認する前に解放するテスト不具合が見つかりました。制限時間付き timer で親からの kill まで生存させ、実 subprocess／SIGKILL の回帰 20 回と run package の race 検証が PASS です。cleanup の権限を変える修正ではありません。
+
+
+実 Git push CI は trusted main での手動実行と固定の SLktEx/Hacocoon-test 送信先に限定します。専用 credential がない場合は SKIP で、push 受入成功ではありません。旧 fixture は製品インストール後の import や対話承認を検証しません。[ADR 0059](adr/0059-dedicated-git-push-test-target.md)を参照してください。
+
+Windows 39b5ce4 で承認 setup の失敗が再現し、DNS start-limit-hit を確認しました。同じ DNS 構成では冪等な systemd start を使い、companion／unit 変更時は restart します。修正後の installed Windows 検証は 226991b（run 34479510230）で成功しました。[service 起動](design/name-resolution.ja.md#繰り返す-setup-と-service-起動)を参照してください。
+
+G1 の Windows ファイル受入は c4449e1 の [Windows run 34482712957](https://github.com/SLktEx/Hacocoon/actions/runs/34482712957) で成功しました。完成した Linux bundle の排他的コピー、Windows 側の長さ／hash 照合、既存共有 drive から Linux client での import を確認します。Windows native CLI／直接 export 公開は未実装です。[経路](design/environment-transfer.ja.md#既存ドライブ共有を使う-windows-bundle-ファイル)を参照してください。
+
+E5 OCI image list/delete は、コンテナの参照がないタグ付き画像も含め、--unused で候補を確認・選択できます。画像ごとの所有・参照・不在確認を維持します。実 controller/CLI の一括検証は 9484d06（run 34493016558）で成功し、cache・他資源の GC は planned です。[候補選択](design/oci-image-deletion.ja.md#未使用画像候補の確認)を参照してください。
+
+G1 の実 containerd 転送 fixture は 6974272（run 34501951826）で native 受入に成功し、Windows を含む対象 CI も成功しました。source 削除後に両 import 構成で offline image と停止コンテナの書込データを確認します。Docker／cache／アプリ整合性は未検証です。[対象範囲](design/environment-transfer.ja.md#実-oci-データ転送の受入)を参照してください。
+
+G2 に読み取り専用の native 退避一覧補助を追加し、専用 WSL の実 Incus で確認しました。全量のデータ列挙・外部 backup・復元後照合は未実装です。[一覧の範囲](design/environment-transfer.ja.md#退避対象の-native-一覧)を参照してください。
+
+G2 の native 一覧は pool の保存元参照と volume の内容種別も示し、参照先を開かず URI の認証情報を出力しません。対象テスト 11 件は成功しました。これらの参照情報だけで全量を把握したことや、削除権限があることにはなりません。
+
+G2 に任意の Linux 読み取り専用 schema-13 catalog 参照抽出を追加しました。catalog 移行・認証情報の出力・所有権の付与は行いません。全対応関係の確認と全量退避は引き続き partial です。
+
+G2 一覧は任意の repository 個別記録・collection member 参照も扱います。remote URL は出力せず、不完全／変動中の directory を完全な backup と扱いません。
+
+## Windows SSH タイムアウトの診断
+
+b8ef557 のインストール済み Windows 検証は、SSH 準備と DNS 確認の成功後に
+ssh.exe が5分を超えたため失敗しました。ラッパーは成功マーカーの確認より先に
+子プロセスの非ゼロ終了を報告します。最初の SSH 検証はタイムアウト時に許可リスト内の
+進捗だけを残します。期限・ホスト鍵固定・隔離は変更していません。
+これは診断の改善であり、SSH の失敗が修正済みであることを示しません。
+
+## 読み出せるデータの退避
+
+G2 の Btrfs 直接ファイル保存は専用 WSL で 20.59 秒で成功し、Git 状態・リンク・数値 owner・user xattr を確認しました。Incus の非 optimized Btrfs backup も内部 snapshot を使います。全量退避は未完了です。[読み出せるファイルの範囲](design/environment-transfer.ja.md#snapshot-操作が使えない場合の読み出せるファイル)を参照してください。
+
+G2 の snapshot にしか残らないファイルの保存は、専用 Incus/Btrfs で 24.52 秒で成功しました。準備済みの合成 snapshot データと独立した復元 volume を使っています。全保存データの把握と snapshot 削除失敗時の全量退避は未完了です。
+
+G2 の暗号化ファイル転送は標準 tar／age コマンドと opt-in の合成データ受入で扱います。実 Host 認証情報と全量復元は未検証で、製品の暗号 backend や日常 CLI は追加しません。
+
+G3 の部分受入として Windows 上の合成 Workspace／OCI archive を新 WSL・Btrfs pool に復元し、内容・属性の照合と Git 作業再開に 8.04 秒で成功しました。native snapshot の作成・削除も成功しました。暗号 identity の回復、インストール済み Hacocoon の再構成、全量入替は未検証です。[範囲](design/environment-transfer.ja.md#新-wsl-へのデータ復元の受入)を参照してください。
+
+## Environment の明示的な起動
+
+Incus adapter は新規 instance 初期化時に `boot.autostart=false` を渡し、新規・復元起動と guarded resume の前に確認する。CLI コマンド、復旧 coordinator、Core state は追加しない。既存 instance は通常の stop/start で適用する。再起動前の更新手順は [ADR 0060](adr/0060-explicit-environment-start.md) を参照。
+
+隔離した新規 WSL の candidate では、合成 Workspace を復元し、既定 OCI Store 付き Env を作成できた（40.88 秒）。その後、明示的な boot 設定がない実行中 Env で source guard がなく、start は拒否した。通常の stop/start は成功した（3.54 秒／16.43 秒）。controller 61a26e3 では実 WSL PID namespace 再起動後も新規・既存 Env とも停止状態を保ち、通常の guarded start が 17.14 秒で成功した。世代と Workspace/Git/OCI データも保持した。adapter 全体のテストと vet は成功。SSH 準備は限定 package Policy の適用前に package exit 100 で失敗した。適用後は通常 SSH 準備が 84.69 秒、固定 Host 鍵での Workspace 読書きと管理 socket 非露出が 1.68 秒で成功した。新 WSL 移行全体は未検証。
+
+native resume E2E は boot 設定の読み戻しと所有台帳保持を含め 37.43 秒で成功し、世代不一致の拒否、繰返し start、root/Workspace 保持、canonical cleanup を確認した。

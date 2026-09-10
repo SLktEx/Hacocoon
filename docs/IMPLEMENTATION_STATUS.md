@@ -42,19 +42,134 @@ readiness, missing-legacy-file and CI failures remain documented with their exac
 scope in the [owning contract](design/storage-reclamation.md). Passing later runs
 does not retroactively mark those attempts successful. F1 is not complete.
 
+## Ubuntu bridge DNS dependency
+
+Status: **implemented**. The common installer explicitly installs `dnsmasq-base` for Incus bridge DNS/DHCP, including a preinstalled Incus without recommended packages. CLI and network ownership/isolation contracts are unchanged. See [trusted-host networking](design/trusted-host.md#dedicated-trusted-host-network).
+
+In an isolated fresh Ubuntu 26.04 WSL with Incus 6.0.5, the previous installer failed because `dnsmasq` was absent. With this installer change and a locally built ad80acc payload, ordinary installation completed: real Btrfs mount policy, exact Host/network ownership, controller round trip, DNS, default route and HTTPS passed. This is local candidate acceptance, not published-release provenance or complete data/Environment migration acceptance. Seven installer shell regressions passed; the dependency-failure regression failed against the previous implementation.
+
+At 7517c27 all applicable Incus and normal-test jobs passed; Windows VS Code passed, but transfer failed installing Git over SSH (exit 100). SSH preparation now configures the current managed proxy for sshd sessions; local tests/vet and installed Windows Git-over-SSH preparation passed at 684e411. See [ADR 0058](adr/0058-ssh-session-egress-environment.md).
+
+GitHub-route import reconnection uses existing source clone and Git connect commands. Component acceptance and package race/vet passed for matching routes, mismatches, offline refusal and same-name replacement; native imported Git fetch/push remains unverified. See [the owning contract](design/git-and-github-capability.md#reconnect-an-imported-github-workspace).
+
+Windows transfer at 0cc27a5 failed during seed-repository (exit 127); VS Code passed. The fixture now installs missing Git in trusted Host and the source Env through normal package routes. Transfer subsequently passed at 684e411; the independent approval probe failed.
+
+## Public Environment import in progress
+
+Status: **partial**. Linux `haco env import <file.haco> [new-env]` now connects the
+client file reader, management upload, native Workspace/OCI owners and canonical
+Env creation/start. The default name is SOURCE-imported; existing names are refused.
+The input remains unchanged. Version-1 and source Host file routes import offline;
+GitHub descriptors preserve routing only, without approval or credentials.
+
+Current composition configures private staging and one 64 GiB payload budget for
+all native import adapters. Fresh resource owners, Env generation and current
+sandbox/managed SSH setup are retained. No Base filesystem, automatic backup,
+replacement of current data, import catalog or schema migration is added.
+Failure receipts identify retained data; startup failure leaves it for inspection.
+
+Before public CLI wiring, the internal Incus/Btrfs aggregate passed in 558.35s at
+6360a23, with independent rootfs, two Git Workspaces and OCI imported after source
+deletion, running Env and owned cleanup. Typed upload race tests passed in 4.808s;
+all Go/vet/27 JS tests, docs and workflow policy passed at 2992c47. The all-entry
+local CI attempt failed because Ubuntu lacked pwsh; later all-entry stages were
+not executed. This is separate from latest-head GHA.
+
+At b7297a3, dedicated Incus/Btrfs execution passed the shipped import CLI, management
+stream and canonical importer: independent rootfs/Git/OCI, real startup, old-generation
+refusal, managed SSH reset, retention after Env deletion and owned cleanup. This used
+a fixture controller; installed-controller/desktop import subsequently passed at 684e411. Overall
+aggregate completion, including subsequent snapshot/copy checks, is recorded separately. Live SSH passed at 684e411;
+live OCI consistency, Git reconnection, incomplete collection cleanup and native
+Windows file input remain unfinished. See [Environment transfer](design/environment-transfer.md#linux-import-command).
+
+The first complete public-import aggregate at b7297a3 passed export, native import
+and restore, then failed during public copy at the fixture's 12-minute deadline
+(720.07s). This is an overall FAIL, not a successful aggregate or SKIP. Its ownership
+catalog and saved data remain at `/var/lib/haco-snapshot-aggregate-1920048809` for
+explicit cleanup; shared data was not selected for deletion. The expanded test
+sequence now has a 20-minute fixture budget and a 25-minute GHA test-process budget.
+Product timeouts and isolation are unchanged. At b7297a3, GHA's real Incus/Btrfs
+[aggregate step](https://github.com/SLktEx/Hacocoon/actions/runs/34455660292/job/102801320149)
+succeeded with the shipped import CLI and all aggregate assertions. This provides
+independent acceptance while preserving the local failure record. The extended
+local-budget variant has compiled but has not been rerun locally; all four b7297a3 workflows passed. The follow-up fixture-budget commit requires
+its own latest-head CI result.
+
+The bare shipped controller passed native import/data/owned cleanup in 20.35s at
+a58d553, but the full gate failed on diagnostic-directory layout, now corrected.
+SSH attempts at 6d5e027/e598270 failed; the latter confirmed missing sshd and SSH
+provisioning failure in the bare fixture. SSH continuation is now wired into the
+existing installed Windows gate with a separate managed source, normal scoped
+package Policy, public export/import, fresh pinned Windows SSH and retained-data
+recreation. This installed transfer gate and native controller checks passed at 684e411; both remain
+required. See [the acceptance record](design/environment-transfer.md#installed-controller-and-ssh-acceptance).
+
+## Public Environment export in progress
+
+Status: **partial**. Linux `haco env export <stopped-env> [file.haco]` now uses the
+management stream and verified, no-overwrite client publication. Default output
+is `<env>.haco`; no separate snapshot command or controller path is required.
+Unix stream and real-filesystem CLI race tests passed. Local shipped CLI full gates failed on fixture deadlines after export passed;
+the equivalent GHA aggregate gate passed in 47.06s at `3d0dd9a`, with all four
+applicable workflows successful; public import acceptance and native Windows output remain pending. See
+[the owning contract](design/environment-transfer.md#linux-export-command).
+
+The internal stopped-Env exporter now composes canonical capture/read/delete,
+native component producers and anonymous whole-bundle staging. Linux public CLI
+and controller artifact delivery are now partial. Dedicated native aggregate export
+acceptance passed in 314.12s; this does not prove public bundle import or SSH. See [Environment transfer](design/environment-transfer.md#internal-stopped-environment-export).
+
+## Detached Store maintenance in progress
+
+Status: **partial E5**. Existing image list/delete commands accept retained Store
+IDs for nerdctl on Linux/WSL amd64. Production composition provisions pinned OCI
+tools automatically before attaching retained data. Canonical maintenance runs
+preserve Store reservation, the original Workspace association, fresh Env identity
+and uncertain-cleanup evidence. No new user command, schema, backup or recovery
+state is added; detached Docker and candidate-selected GC remain unimplemented.
+
+At `bd1c9a5`, all four GHA workflows passed. The real Incus/Btrfs shipped-controller
+and CLI gate [passed in 588.51s](https://github.com/SLktEx/Hacocoon/actions/runs/34417051340/job/102684134054):
+detached inventory, referenced-image refusal, confirmed digest deletion/absence,
+retained container metadata, canonical temporary cleanup and explicit owned Store
+cleanup. This uses a bare root controller/private socket with a real isolated
+catalog. Full installed Standard-egress, ordinary-user/desktop acceptance and
+other tooling architectures remain unverified or unsupported.
+
+Earlier controller gates failed. Corrections use the canonical provider ID,
+remove contradictory SkipDefaultResource from explicit Store creation, and give
+the root fixture a private TMPDIR without weakening lock ownership validation.
+The real-catalog/lifecycle regression reproduced the explicit-Store failure before
+the fix and verifies reservation and cleanup on success and operation failure.
+Those failures are recorded in PR #514, not reclassified as SKIP.
+
+Earlier dedicated native tool delivery and image operations passed in 237.37s;
+empty-cache HTTPS acquisition passed in 70.71s without running downloaded binaries
+on the Host. Related race/vet checks passed. Private-registry acceptance is
+workflow_dispatch-gated SKIP. See [the owning contract](design/oci-image-deletion.md#detached-store-implementation-in-progress).
+
 ## Environment transfer prerequisites
 
-Public G1 export/import remains **planned**. Internal snapshot/archive inventory
+The Linux/WSL Incus adapter now exports an owned saved Workspace/OCI volume into
+an unnamed read-only archive, checking native ownership and backup cleanup. Its
+dedicated Incus 6.0.5/Btrfs adapter test passed in 5.92s; local race and vet passed. Linux public export is connected; public import acceptance remains pending. The internal rootfs producer now uses a uniquely owned native image and an anonymous archive; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s.
+See the [owning contract](design/environment-transfer.md#native-saved-volume-export-adapter).
+
+Public G1 remains **partial**: Linux export/import are implemented, with public import acceptance pending. Internal snapshot/archive inventory
 matching covers all currently supported Workspace components and optional OCI;
 the saved-source read boundary now shares canonical deletion locks and verifies
-retained components. Native archive production and public commands are not yet connected. Opt-in native Incus rootfs/volume
+retained components. Native archive production and Linux export are connected; public import acceptance remains pending. Opt-in native Incus rootfs/volume
 archive tests and their existing-GHA integration are implemented. The dedicated
 Incus 6.0.5/Btrfs run passed in 11.24s after correcting fixture path/namespace
 assumptions; source/destination independence, Git state, links, mode and retained
 archive checks passed. Public rootfs import and authority reconstruction remain
 unimplemented. A separate empty-rootfs image round trip passed in 14.88s with no
 Base/image source, source instance/image removal before import and fresh explicit
-configuration. It does not prove OS/SSH/public-import acceptance. See
+configuration. An extended dedicated WSL Incus/Btrfs run passed in 22.44s,
+checking positive source-image absence and a fresh destination file read after
+image deletion, plus retained archive immutability. This stopped-instance fixture
+does not prove running-container OCI deletion or OS/SSH/public-import acceptance. See
 [the owning contract](design/environment-transfer.md).
 
 An internal fixed-role streaming envelope writer/verifier now checks complete
@@ -88,11 +203,11 @@ image maintenance and migration are separate unfinished work.
 
 ## Host-source image operations
 
-Partial implementation: `image list/delete --host` selects only the exact managed Host source. The current plugin/controller/CLI route and Incus adapter enforce source ownership, local role/mount/layout, unprivileged running state, the existing Host-copy operation lock and a fixed command/template allowlist. No guest Store can be used as a Host source. Five related package tests passed; focused security/CLI regressions are included. Four related race packages passed, including the shared Host-copy lock guard. Additional uppercase-tag reference regressions passed. Dedicated WSL Incus/Btrfs acceptance passed in 487.19s: both runtimes listed the Host source, refused a stopped-container reference, removed only the selected image, retained other images, then completed independent Store copy/deletion and exact fixture cleanup. This uses the real Host adapter with a fixture catalog; installed-controller/public-CLI native acceptance remains unverified. Existing independent copies remain; detached Stores and GC remain planned. See [the contract](design/oci-image-deletion.md#managed-host-source).
+Partial implementation: `image list/delete --host` selects only the exact managed Host source. The current plugin/controller/CLI route and Incus adapter enforce source ownership, local role/mount/layout, unprivileged running state, the existing Host-copy operation lock and a fixed command/template allowlist. No guest Store can be used as a Host source. Five related package tests passed; focused security/CLI regressions are included. Four related race packages passed, including the shared Host-copy lock guard. Additional uppercase-tag reference regressions passed. Dedicated WSL Incus/Btrfs acceptance passed in 487.19s: both runtimes listed the Host source, refused a stopped-container reference, removed only the selected image, retained other images, then completed independent Store copy/deletion and exact fixture cleanup. This uses the real Host adapter with a fixture catalog; installed-controller/public-CLI native acceptance remains unverified. Existing independent copies remain; detached Store acceptance is recorded above and candidate GC remains planned. See [the contract](design/oci-image-deletion.md#managed-host-source).
 
 ## Attached-Store image operations
 
-Partial: image list/delete is connected to the current OCI plugin, controller and product CLI. Runtime inventory/removal replaces legacy Seed selection semantics; reviewed Env generation and Store ownership guard execution. All seven related packages passed after correcting initial controller wiring, regexp and invalid-RPC error classification failures. Documentation checks passed. Dedicated WSL Incus/Btrfs native COW acceptance passed in 417.80s: Docker and nerdctl inventory, stopped-container refusal, immutable runtime ID removal, positive absence and source-copy image independence. The isolated project/pool and its now-empty catalog were cleaned up. Four related race packages passed; a focused concurrent Env-delete exclusion regression also passed. This fixture uses a test execution adapter, so installed-controller/public-CLI native acceptance remains unverified. PR #508 merged as `3aa8b07f` after all four workflows succeeded on `4d9038b7`. Maintained local docs, policy, Go tests/vet, JS and E2E passed on exact files in WSL ext4. Systemd verification first failed on an older Ubuntu tool and passed on dedicated Hacocoon WSL; the initial failure remains recorded. Local packaging was skipped for missing tools, with GHA release-config passing instead. Detached-Store image operations, candidate GC and reclamation remain planned. No schema migration. See [the owning contract](design/oci-image-deletion.md).
+Partial: image list/delete is connected to the current OCI plugin, controller and product CLI. Runtime inventory/removal replaces legacy Seed selection semantics; reviewed Env generation and Store ownership guard execution. All seven related packages passed after correcting initial controller wiring, regexp and invalid-RPC error classification failures. Documentation checks passed. Dedicated WSL Incus/Btrfs native COW acceptance passed in 417.80s: Docker and nerdctl inventory, stopped-container refusal, immutable runtime ID removal, positive absence and source-copy image independence. The isolated project/pool and its now-empty catalog were cleaned up. Four related race packages passed; a focused concurrent Env-delete exclusion regression also passed. This fixture uses a test execution adapter, so installed-controller/public-CLI native acceptance remains unverified. PR #508 merged as `3aa8b07f` after all four workflows succeeded on `4d9038b7`. Maintained local docs, policy, Go tests/vet, JS and E2E passed on exact files in WSL ext4. Systemd verification first failed on an older Ubuntu tool and passed on dedicated Hacocoon WSL; the initial failure remains recorded. Local packaging was skipped for missing tools, with GHA release-config passing instead. Detached Store acceptance is recorded above; candidate GC and reclamation remain incomplete. No schema migration. See [the owning contract](design/oci-image-deletion.md).
 
 
 ## Explicit source repository cleanup
@@ -1728,3 +1843,48 @@ The production Capability service now resolves every named request to trusted ca
 At 5272434, GHA Go 1.26/1.27 tests/vet, race, release-config, docs, Ubuntu and Incus passed. The test workflow failed only in the orchestrator E2E, whose approval source name had never been created. The fixture now uses ordinary create/delete, and its local E2E passed. Capability saved-scope/recreation and Git transport-refusal E2Es passed.
 
 The local CI entry point passed docs/workflow checks, then failed because WSL lacks pwsh; subsequent stages in that invocation were unexecuted. Its separate Go stage exposed a test-helper deadlock: an empty select could terminate the SIGKILL helper before the parent checked its live lock. A bounded timer preserves the helper until the parent kills it. The actual subprocess/SIGKILL regression passed 20 repetitions and the run package race tests passed. These are fixture fixes, not changes to cleanup authority.
+
+
+Real Git push CI is restricted to manual trusted-main dispatch and the fixed SLktEx/Hacocoon-test target. Missing dedicated credentials produce SKIP, not push acceptance. The legacy fixture does not verify installed-product import or interactive approval. See [ADR 0059](adr/0059-dedicated-git-push-test-target.md).
+
+Windows 39b5ce4 reproduced approval setup failure and diagnosed DNS start-limit-hit. Unchanged DNS provisioning now uses idempotent systemd start; changed companion/unit still restart. Installed Windows verification passed at 226991b (run 34479510230). See [service activation](design/name-resolution.md#repeated-setup-and-service-activation).
+
+G1 Windows-file acceptance passed at c4449e1 in [Windows run 34482712957](https://github.com/SLktEx/Hacocoon/actions/runs/34482712957): exclusive copy of a completed Linux bundle, Windows size/hash receipt and Linux import from the existing projected drive. Direct native Windows CLI/export publication is not implemented. See [the route](design/environment-transfer.md#windows-bundle-file-through-existing-drive-projection).
+
+E5 OCI image list/delete now support reviewed --unused candidates (including tagged images without container users). Existing per-image ownership, reference and absence checks remain. Native controller/CLI batch acceptance passed at 9484d06 (run 34493016558); cache/other-resource GC remains planned. See [image selection](design/oci-image-deletion.md#review-unused-image-candidates).
+
+G1 live containerd transfer fixture passed native acceptance at 6974272 (run 34501951826); all applicable CI including Windows passed. It checks an offline image and stopped container writable data after source deletion through both import compositions. Docker/cache/application consistency remain unverified. See [scope](design/environment-transfer.md#live-oci-transfer-acceptance).
+
+G2 now has a read-only native evacuation inventory helper, verified against dedicated WSL Incus. Whole-installation data enumeration, external backup and restored-data comparison remain unimplemented. See [inventory scope](design/environment-transfer.md#evacuation-inventory).
+
+G2 native inventory also reports pool backing references and volume content types without opening them or exposing URI credentials. Eleven focused tests pass; these references do not establish whole-installation coverage or cleanup authority.
+
+G2 adds an optional Linux read-only schema-13 catalog reference projection; no catalog migration, credential output or ownership authority is introduced. Full associations and whole-installation evacuation remain partial.
+
+G2 inventory includes optional separate repository-record and collection-member references. It does not output remote URLs or treat an incomplete/changing directory as a complete backup.
+
+## Windows SSH timeout diagnosis
+
+At b8ef557 the installed Windows gate failed: native ssh.exe exceeded five minutes
+after SSH preparation and DNS checks passed. The wrapper now reports a nonzero
+child exit before checking success markers. The initial SSH probe retains only
+allowlisted progress on timeout; no deadline, pinning or isolation change is made.
+This improves diagnosis and does not establish that the SSH failure is fixed.
+
+## Readable-data evacuation
+
+G2 direct file-archive Btrfs acceptance passed on dedicated WSL in 20.59s, including Git state, links, numeric owners and a user xattr. Incus non-optimized Btrfs backup still takes an internal snapshot. Whole-installation evacuation remains incomplete. See [readable file scope](design/environment-transfer.md#readable-files-when-snapshot-operations-are-unavailable).
+
+G2 snapshot-only file capture passed on dedicated Incus/Btrfs in 24.52s, using pre-existing synthetic saved data and independent restore volumes. Full saved-data coverage and snapshot-deletion-failure evacuation remain unfinished.
+
+G2 encrypted file transport uses standard tar/age commands with an opt-in synthetic acceptance test. Actual Host credentials and whole-installation restoration remain unverified; no product encryption backend or daily CLI is added.
+
+G3 partial acceptance restored synthetic Workspace/OCI archives from Windows into a fresh WSL/Btrfs pool, compared file metadata/content and resumed Git work (8.04s). Native snapshot create/delete also passed. Encrypted identity recovery, installed Hacocoon reconstruction and whole-installation replacement remain unverified; see [scope](design/environment-transfer.md#fresh-wsl-data-restoration-acceptance).
+
+## Explicit Environment startup
+
+The Incus adapter supplies `boot.autostart=false` during new instance initialization and verifies it before new/restored startup and guarded resume. No CLI command, recovery coordinator or Core state is added. Existing instances adopt the setting through normal stop/start; see [ADR 0060](adr/0060-explicit-environment-start.md) for the pre-reboot upgrade procedure.
+
+An isolated fresh-WSL candidate restored a synthetic Workspace and created an Env with the default OCI Store (40.88s). A later running Env had no explicit boot setting and a missing source guard; start refused it, while normal stop/start succeeded (3.54s/16.43s). At controller 61a26e3, real WSL PID-namespace restart left both new and migrated Envs stopped; normal guarded start passed in 17.14s with the same generation and retained Workspace/Git/OCI bytes. The adapter package and vet passed. SSH preparation failed at package exit 100 before scoped package Policy was applied. With that Policy, normal SSH preparation passed in 84.69s and pinned SSH Workspace read/write and management-socket absence passed in 1.68s. Complete new-WSL migration remains unverified.
+
+The native resume E2E passed in 37.43s with the boot-setting readback and retained ownership ledger; mismatch refusal, repeated start, retained root/Workspace and canonical cleanup passed.

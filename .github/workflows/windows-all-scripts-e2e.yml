@@ -20,6 +20,11 @@ on:
       - "tools/installed-egress-check/**"
       - "tools/test_installed_egress.ps1"
       - "tools/test_windows_environment_ssh.ps1"
+      - "tools/test_windows_environment_transfer.ps1"
+      - "tools/windows_dns_diagnostic.ps1"
+      - "tools/test_windows_dns_diagnostic.ps1"
+      - "tools/windows_ssh_diagnostic.ps1"
+      - "tools/test_windows_ssh_diagnostic.ps1"
       - "tools/windows-native-access-e2e.py"
       - "tools/setup-vscode-acceptance.ps1"
       - "tools/test_native_access_runner.py"
@@ -164,6 +169,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Native acceptance runner regression failed" }
           ./tools/test_windows_installer.ps1
           ./tools/test_windows_installer_exit.ps1
+          ./tools/test_windows_dns_diagnostic.ps1
+          pwsh -NoLogo -NoProfile -File ./tools/test_windows_ssh_diagnostic.ps1
+          if ($LASTEXITCODE -ne 0) { throw "SSH diagnostic regressions failed" }
 
       - name: Reject Hacocoon test overrides before user path
         shell: pwsh

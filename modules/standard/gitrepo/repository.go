@@ -104,12 +104,21 @@ func (s *RepositoryService) CopyWorkspaceSet(ctx context.Context, id string, rep
 		object.Members = append(object.Members, Object{Kind: "work", ID: id + "-" + name, Repository: name, Remote: source.Remote, Branch: source.Branch, NativeRef: ref, Owner: randomID(), State: "creating"})
 		sources = append(sources, source)
 	}
+	return s.createPreparedSet(ctx, object, func(ctx context.Context, i int, member Object) error {
+		return s.Backend.CreateVolume(ctx, member, &sources[i])
+	}, s.Backend.Populate)
+}
+
+// createPreparedSet reserves all member identities before native creation and
+// publishes only the whole collection. Members never get independent records.
+// Callers hold the service lock throughout preparation.
+func (s *RepositoryService) createPreparedSet(ctx context.Context, object Object, create func(context.Context, int, Object) error, populate func(context.Context, Object) error) (Object, error) {
 	if err := s.reserve(object); err != nil {
 		return Object{}, err
 	}
 	for i := range object.Members {
 		member := &object.Members[i]
-		if err := s.Backend.CreateVolume(ctx, *member, &sources[i]); err != nil {
+		if err := create(ctx, i, *member); err != nil {
 			return object, errors.Join(err, core.ErrRecoveryRequired)
 		}
 		member.State = "created"
@@ -119,8 +128,10 @@ func (s *RepositoryService) CopyWorkspaceSet(ctx context.Context, id string, rep
 		if err := s.Backend.InspectVolume(ctx, *member); err != nil {
 			return object, errors.Join(err, core.ErrRecoveryRequired)
 		}
-		if err := s.Backend.Populate(ctx, *member); err != nil {
-			return object, errors.Join(err, core.ErrRecoveryRequired)
+		if populate != nil {
+			if err := populate(ctx, *member); err != nil {
+				return object, errors.Join(err, core.ErrRecoveryRequired)
+			}
 		}
 		member.State = "ready"
 		if err := s.save(object); err != nil {
@@ -149,14 +160,18 @@ func validObject(o Object) bool {
 		return false
 	}
 	if len(o.Members) == 0 {
-		return ValidID(o.Repository) && ValidBranch(o.Branch) && ValidateRemote(o.Remote) == nil && o.NativeRef != ""
+		routing := ValidBranch(o.Branch) && ValidateRemote(o.Remote) == nil
+		if o.Kind == "work" {
+			routing = ValidWorkspaceRouting(o.Remote, o.Branch)
+		}
+		return ValidID(o.Repository) && routing && o.NativeRef != ""
 	}
 	if o.Kind != "work" || len(o.Members) < 2 || len(o.Members) > 8 || o.NativeRef != "" || o.Repository != "" || o.Remote != "" || o.Branch != "" {
 		return false
 	}
 	seen := map[string]bool{}
 	for _, member := range o.Members {
-		expectedID := o.ID + "-" + member.Repository
+		expectedID := workspaceMemberID(o.ID, member.Repository, member.Owner)
 		if o.RestoredFrom != "" {
 			expectedID = restoredWorkspaceMemberID(o.ID, member.Repository, member.Owner)
 		}
@@ -169,6 +184,14 @@ func validObject(o Object) bool {
 }
 
 func (s *RepositoryService) create(ctx context.Context, object Object, source *Object) (Object, error) {
+	return s.createPrepared(ctx, object, func(ctx context.Context, object Object) error {
+		return s.Backend.CreateVolume(ctx, object, source)
+	}, s.Backend.Populate)
+}
+
+// createPrepared is the existing single-volume ownership/publication transition.
+// Native imports already contain their data and do not run Git population.
+func (s *RepositoryService) createPrepared(ctx context.Context, object Object, create func(context.Context, Object) error, populate func(context.Context, Object) error) (Object, error) {
 	ref, err := s.Backend.Plan(ctx, object.Kind, object.ID)
 	if err != nil {
 		return Object{}, err
@@ -181,7 +204,7 @@ func (s *RepositoryService) create(ctx context.Context, object Object, source *O
 	if err := s.reserve(object); err != nil {
 		return Object{}, err
 	}
-	if err := s.Backend.CreateVolume(ctx, object, source); err != nil {
+	if err := create(ctx, object); err != nil {
 		return object, errors.Join(err, core.ErrRecoveryRequired)
 	}
 	object.State = "created"
@@ -191,8 +214,10 @@ func (s *RepositoryService) create(ctx context.Context, object Object, source *O
 	if err := s.Backend.InspectVolume(ctx, object); err != nil {
 		return object, errors.Join(err, core.ErrRecoveryRequired)
 	}
-	if err := s.Backend.Populate(ctx, object); err != nil {
-		return object, errors.Join(err, core.ErrRecoveryRequired)
+	if populate != nil {
+		if err := populate(ctx, object); err != nil {
+			return object, errors.Join(err, core.ErrRecoveryRequired)
+		}
 	}
 	object.State = "ready"
 	if err := s.save(object); err != nil {
@@ -308,4 +333,14 @@ func (s *RepositoryService) readObject(kind, id string) (Object, error) {
 		return Object{}, core.ErrIncompatibleState
 	}
 	return object, nil
+}
+
+// Short native IDs preserve long portable repository names without weakening
+// member ownership: the fallback is derived from the recorded fresh owner.
+func workspaceMemberID(group, repository, owner string) string {
+	id := group + "-" + repository
+	if !ValidID(id) {
+		return "work-" + owner
+	}
+	return id
 }

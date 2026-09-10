@@ -15,6 +15,7 @@ import (
 	egressapp "github.com/SLktEx/Hacocoon/internal/egress"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	"github.com/SLktEx/Hacocoon/internal/environmentcopy"
+	"github.com/SLktEx/Hacocoon/internal/environmenttransfer"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
 	"github.com/SLktEx/Hacocoon/internal/host"
@@ -44,6 +45,7 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
+	transferCatalog     *state.EnvironmentJSONStore
 	EnvironmentCopy     *environmentcopy.Service
 	BaseBuild           *basebuild.Service
 	BaseManage          *basemanage.Service
@@ -118,6 +120,8 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	// unmanaged bridge even if they bypass a higher-level network helper.
 	runtimeRunner = incus.WrapEnvironmentNetworkOwnershipRunner(runtimeRunner)
 	incusRuntime := incus.New(runtimeRunner)
+	maintenanceTools := &ociplugin.MaintenanceTooling{Directory: filepath.Join(root, "oci-maintenance-tools")}
+	incusRuntime.ConfigureMaintenanceTooling(maintenanceTools.Prepare)
 	if kernel, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil && strings.Contains(strings.ToLower(string(kernel)), "microsoft") {
 		incusRuntime.ConfigureWSLInterop()
 	}
@@ -151,7 +155,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	if err != nil {
 		return nil, err
 	}
-	repositoryBackend := &incus.RepositoryBackend{Runtime: incusRuntime, ProductBinary: filepath.Join(filepath.Dir(executable), "haco")}
+	repositoryBackend := &incus.RepositoryBackend{Runtime: incusRuntime, ImportRoot: filepath.Join(root, "transfers"), ImportLimit: environmenttransfer.DefaultPayloadLimit, ProductBinary: filepath.Join(filepath.Dir(executable), "haco")}
 	repositories := gitrepo.NewRepositoryService(filepath.Join(stateDir, "repositories"), repositoryBackend)
 	repositories.SnapshotCatalog = store
 	incusRuntime.ConfigureManagedWorkspaces(func(ctx context.Context, source string) ([]incus.WorkspaceAttachment, error) {
@@ -214,7 +218,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	}
 
 	environments := workspaceapp.NewWithProvider(runtime, store, repositoryWorkspaceProvider{repositories: repositories})
-	resources := &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime}}
+	resources := &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime, ImportRoot: filepath.Join(root, "transfers"), ImportLimit: environmenttransfer.DefaultPayloadLimit}}
 	workspaceStores := ociplugin.WorkspaceStores{Resources: resources}
 	incusRuntime.ConfigureHostCopyRecovery(workspaceStores.RecoverHostCopies)
 	incusRuntime.ConfigureHostStorage(func(ctx context.Context) error {
@@ -234,6 +238,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	restorer := &snapshotrestore.Service{Catalog: store, Environments: environments, Workspaces: repositories, Stores: resources}
 	awsBroker := &awsplugin.Broker{Host: incusRuntime.RunTrustedHostPython, Capabilities: capabilities, Environments: store}
 	return &App{
+		transferCatalog:     store,
 		SnapshotRestore:     restorer,
 		BaseBuild:           &basebuild.Service{Environments: environments},
 		BaseManage:          &basemanage.Service{Backend: incusProvider.BaseProvider, Catalog: store},
@@ -242,22 +247,25 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		ProjectSetup:        &projectsetup.Service{Root: filepath.Join(root, "project-setup"), Environments: environments},
 		HostCustomization:   &recipes.Service{Root: filepath.Join(root, "host-customization"), Execute: incusRuntime.RunTrustedHostCustomization},
 		PersistentResources: resources,
-		OCIImages:           &ociplugin.ManagedImages{Catalog: store, Environments: environments, Host: &incus.PersistentResourceBackend{Runtime: incusRuntime}},
-		Environments:        environments,
-		AgentHosts:          agenthostapp.New(environments, store, bindingStore),
-		Clients:             clientapp.New(runtime, store),
-		Capabilities:        capabilities,
-		Configuration:       &capabilityapp.PolicyConfiguration{Evaluator: policy, Audit: audit},
-		Git:                 gitcapapp.NewBroker(runner, store, capabilities),
-		OCI:                 ociPlugin,
-		Seeds:               seeds,
-		Runner:              runs,
-		Events:              eventsapp.New(auditPath),
-		Bases:               runtime,
-		Runtime:             incusRuntime,
-		EgressProxy:         egressproxy.NewWithOperations(egressBroker, egressSources, nameresolution.New(capabilities), awsplugin.NewGuestHandler(awsBroker, egressSources)),
-		Repositories:        repositories,
-		GitBroker:           gitBroker,
+		OCIImages: &ociplugin.ManagedImages{Catalog: store, Environments: environments, Host: &incus.PersistentResourceBackend{Runtime: incusRuntime}, Maintain: func(ctx context.Context, resource core.PersistentResourceRef, operation func(context.Context, core.Environment) error) error {
+			_, err := runs.MaintainResource(ctx, resource, operation)
+			return err
+		}},
+		Environments:  environments,
+		AgentHosts:    agenthostapp.New(environments, store, bindingStore),
+		Clients:       clientapp.New(runtime, store),
+		Capabilities:  capabilities,
+		Configuration: &capabilityapp.PolicyConfiguration{Evaluator: policy, Audit: audit},
+		Git:           gitcapapp.NewBroker(runner, store, capabilities),
+		OCI:           ociPlugin,
+		Seeds:         seeds,
+		Runner:        runs,
+		Events:        eventsapp.New(auditPath),
+		Bases:         runtime,
+		Runtime:       incusRuntime,
+		EgressProxy:   egressproxy.NewWithOperations(egressBroker, egressSources, nameresolution.New(capabilities), awsplugin.NewGuestHandler(awsBroker, egressSources)),
+		Repositories:  repositories,
+		GitBroker:     gitBroker,
 	}, nil
 }
 

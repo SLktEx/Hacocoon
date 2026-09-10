@@ -43,6 +43,16 @@ func (p *SandboxProvider) CreateEnvironmentWithReceipt(ctx context.Context, spec
 }
 
 func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
+	// Maintenance requires durable ownership before preparation or attachment.
+	// Receipt-free entry points cannot acquire this authority.
+	if spec.ResourceMaintenance {
+		if record == nil {
+			return core.EnvironmentRuntime{}, core.ErrUnsupported
+		}
+		if !spec.TemporaryWorkspace || spec.ReadOnly || spec.PersistentResource.SourceOnly || spec.PersistentResource.Kind != OCIStoreKind || spec.PersistentResource.State != "ready" || !core.ValidPersistentResourceRef(spec.PersistentResource.Ref()) {
+			return core.EnvironmentRuntime{}, core.ErrInvalidArgument
+		}
+	}
 	if p == nil || p.BaseProvider == nil || p.Runtime == nil || spec.Name == "" || spec.WorkspacePath == "" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
@@ -84,6 +94,7 @@ func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.Envir
 		"--project", p.project,
 		"--no-profiles",
 		"--storage", rootPool,
+		"--config", "boot.autostart=false",
 	}
 	configKeys := make([]string, 0, len(profileConfig))
 	for key := range profileConfig {
@@ -294,7 +305,7 @@ func (p *SandboxProvider) setAndVerifyConfig(ctx context.Context, ref, key, valu
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(got.Stdout) != value {
+	if got.StdoutTruncated || strings.TrimSpace(got.Stdout) != value {
 		return fmt.Errorf("provider returned %q for %s, want %q: %w", strings.TrimSpace(got.Stdout), key, value, core.ErrIncompatibleState)
 	}
 	return nil

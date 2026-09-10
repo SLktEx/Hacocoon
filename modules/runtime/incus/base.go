@@ -136,6 +136,11 @@ func hasControlString(value string) bool {
 }
 
 func (p *BaseProvider) CreateEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
+	// Retained Store startup is not wired yet. Never fall through to ordinary
+	// creation, which may start daemons before maintenance preparation.
+	if spec.ResourceMaintenance {
+		return core.EnvironmentRuntime{}, core.ErrUnsupported
+	}
 	p.baseMu.RLock()
 	defer p.baseMu.RUnlock()
 	resolved, err := p.resolveBase(ctx, spec.Base)

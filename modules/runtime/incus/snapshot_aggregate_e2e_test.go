@@ -1,3 +1,5 @@
+//go:build linux
+
 package incus
 
 import (
@@ -9,6 +11,7 @@ import (
 	"errors"
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +23,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	"github.com/SLktEx/Hacocoon/internal/environmentcopy"
+	"github.com/SLktEx/Hacocoon/internal/environmenttransfer"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 	"github.com/SLktEx/Hacocoon/internal/snapshotrestore"
@@ -36,7 +40,11 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	if os.Geteuid() != 0 || !safeIncusRef(pool) || !baseFingerprintPattern.MatchString(image) {
 		t.Fatal("root and explicit pool/full image required")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	// The complete public export/import plus snapshot/restore/copy sequence performs
+	// several independent native archive passes. A dedicated run passed import and
+	// restore, then reached the former 12-minute fixture budget during copy. Keep a
+	// bounded test-only allowance; product operation deadlines are unchanged.
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 	must := func(err error) {
 		t.Helper()
@@ -50,6 +58,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	id, err := core.NewEnvironmentInstanceID()
 	must(err)
 	r := New(WrapEnvironmentNetworkOwnershipRunner(host.ExecRunner{}))
+	r.setRootPool(pool)
 	observed, imageErr := r.runner.Run(ctx, "incus", "query", "/1.0/images/"+image+"?project="+r.project)
 	var cached struct{ Fingerprint, Type string }
 	if imageErr != nil || observed.ExitCode != 0 || observed.StdoutTruncated || json.Unmarshal([]byte(observed.Stdout), &cached) != nil || cached.Fingerprint != image || cached.Type != "container" {
@@ -100,7 +109,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	baseIdentity, _, err := baseBackend.decode(asset)
 	must(err)
 
-	persistent := &PersistentResourceBackend{Runtime: r}
+	persistent := &PersistentResourceBackend{Runtime: r, ImportRoot: dir, ImportLimit: 4 << 30}
 	must(store.BeginPersistentResourceCreate(ctx, resource))
 	must(persistent.Create(ctx, resource))
 	must(persistent.Verify(ctx, resource))
@@ -110,7 +119,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	command("incus", "init", "local:"+image, native, "--project", r.project, "--no-profiles", "--storage", pool, "--config", environmentInstanceKey+"="+id, "--config", managedEnvironmentMarkerKey+"="+managedEnvironmentMarkerValue)
 	lease.RuntimeRef = native
 	must(store.RecordEnvironmentRuntime(ctx, lease))
-	repository := &RepositoryBackend{Runtime: r}
+	repository := &RepositoryBackend{Runtime: r, ImportRoot: dir, ImportLimit: 4 << 30}
 	for _, member := range collection.Members {
 		must(repository.CreateVolume(ctx, member, nil))
 	}
@@ -156,6 +165,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	write(volumePath("haco-persistent-"+resource.Owner), "docker/volumes/data", "persistent volume bytes")
 	write(filepath.Join(rootPath(native), "root"), "snapshot-marker", "guest-only bytes")
 	write(filepath.Join(rootPath(native), "root"), ".ssh/authorized_keys", "ssh-ed25519 AAAA user-key\nssh-ed25519 BBBB haco:ssh-old-generation\n")
+	prepareTransferOCI(t, ctx, r, native, id)
 	command("sync")
 	env := core.Environment{Name: name, RuntimeRef: native, Workspace: core.Workspace{ID: lease.WorkspaceID, Path: lease.SourcePath}, AccessMode: lease.AccessMode, Base: &core.BaseRef{Name: "fixture/base", Revision: core.BaseRevision("sha256:" + image)}, PersistentResource: resource.Ref(), CreatedAt: lease.AcquiredAt}
 	lease.State = core.WorkspaceLeaseActive
@@ -228,6 +238,79 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		}
 	}
 	service = workspace.New(runtime, reopened)
+	// Reuse the ordinary canonical routed catalog with native Incus producers.
+	// The Base filesystem was already removed; the complete stopped aggregate is
+	// the export source, without a separate user snapshot operation.
+	exporter := environmenttransfer.Exporter{Snapshots: service, Root: dir, Component: runtime.ExportSnapshotComponent, Workspaces: runtime.ExportSnapshotWorkspaces}
+	var readExport func() io.Reader
+	var manifest environmenttransfer.Manifest
+	if exportCLI := os.Getenv("HACO_E2E_SNAPSHOT_CLI"); exportCLI != "" {
+		func() {
+			server := control.NewServer()
+			must(controlapi.RegisterEnvironmentExport(server, func(ctx context.Context, source string) (environmenttransfer.ExportResult, error) {
+				return exporter.ExportStopped(ctx, source, 4<<30)
+			}))
+			socket := filepath.Join(dir, "export.sock")
+			listener, err := control.ListenUnix(socket, 0600)
+			must(err)
+			serveCtx, stop := context.WithCancel(ctx)
+			done := make(chan error, 1)
+			go func() { done <- server.Serve(serveCtx, listener) }()
+			defer func() { stop(); <-done }()
+			t.Setenv("HACO_CONTROL_SOCKET", socket)
+			cmd := exec.CommandContext(ctx, exportCLI, "env", "export", "--json", name)
+			cmd.Dir = dir
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("public export CLI failed: %v: %s", err, output)
+			}
+			var receipt struct {
+				File   string                             `json:"file"`
+				Result controlapi.EnvironmentExportResult `json:"result"`
+			}
+			must(json.Unmarshal(output, &receipt))
+			if receipt.File != name+".haco" || receipt.Result.Bytes <= 0 || receipt.Result.TemporarySnapshot != "" {
+				t.Fatal("incomplete public export receipt", receipt)
+			}
+		}()
+		file, err := os.Open(filepath.Join(dir, name+".haco"))
+		must(err)
+		defer file.Close()
+		info, err := file.Stat()
+		must(err)
+		if !info.Mode().IsRegular() || info.Mode().Perm() != 0600 {
+			t.Fatal("public export permissions", info.Mode())
+		}
+		readExport = func() io.Reader { return io.NewSectionReader(file, 0, info.Size()) }
+		manifest, err = environmenttransfer.Inspect(readExport(), 4<<30)
+		must(err)
+		t.Log("PASS shipped haco env export with source only, private Unix controller stream, default .haco file, complete verified bundle and no required snapshot command")
+	} else {
+		exported, err := exporter.ExportStopped(ctx, name, 4<<30)
+		must(err)
+		if exported.Bundle == nil || exported.TemporarySnapshot != "" {
+			t.Fatal("aggregate export incomplete", exported.TemporarySnapshot)
+		}
+		defer exported.Bundle.Close()
+		manifest = exported.Bundle.Manifest()
+		readExport = exported.Bundle.Reader
+		t.Log("SKIP public export CLI: HACO_E2E_SNAPSHOT_CLI not supplied; internal native export ran")
+	}
+	if manifest.Version != 2 || manifest.Source != name || !manifest.HasOCI || len(manifest.Components) != 4 || len(manifest.Workspaces) != 2 {
+		t.Fatal("aggregate export omitted managed data", manifest)
+	}
+	for _, w := range manifest.Workspaces {
+		matched := false
+		for _, member := range collection.Members {
+			if member.Repository == w.Name && member.Remote == w.Remote && member.Branch == w.Branch {
+				matched = true
+			}
+		}
+		if !matched {
+			t.Fatal("export routing differs from protected Workspace", w)
+		}
+	}
+	t.Log("PASS canonical routed native export: rootfs, both Git Workspace volumes and OCI; no Base filesystem; temporary capture cleaned before bundle return")
 	// Change current work after saving, then prove preparation preserves it and
 	// stages the earlier saved bytes. This does not publish or start a replacement.
 	write(filepath.Join(rootPath(native), "root"), "snapshot-marker", "changed current work")
@@ -237,6 +320,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	}
 	write(volumePath("haco-persistent-"+resource.Owner), "containerd/data", "changed containerd")
 	write(volumePath("haco-persistent-"+resource.Owner), "docker/volumes/data", "changed Docker volume")
+
 	command("sync")
 	prepared, err := service.PrepareSnapshotRestore(ctx, name, snap.ID)
 	must(err)
@@ -304,6 +388,10 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	t.Log("PASS four-component restore preparation without Base or automatic backup, durable reload, saved rootfs/Git/OCI bytes staged, current work unchanged, staging edits independent, owned staging cleanup; no Environment replacement performed")
 	must(r.VerifyEnvironmentIdentity(ctx, native, id))
 	must(service.Delete(ctx, name))
+	if _, err := environmenttransfer.Inspect(readExport(), 4<<30); err != nil {
+		t.Fatal("exported bundle changed after source mutation/deletion", err)
+	}
+	t.Log("PASS exported native aggregate remains complete after source Env deletion; public import/SSH not asserted by export")
 	if exists, err := r.environmentExists(ctx, native); err != nil || exists {
 		t.Fatal("source instance absence unproven", err)
 	}
@@ -475,6 +563,109 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	must(resumedService.Delete(ctx, resumedName))
 	if exists, err := r.environmentExists(ctx, resumed.Ref); err != nil || exists {
 		t.Fatal("restored runtime absence unproven", err)
+	}
+	// Exercise the normal router and canonical archive creation against the
+	// already exported bundle after deleting both prior executing Environments.
+	// All data bindings are independently imported from the verified bundle. Public
+	// CLI transport and an SSH handshake are separate acceptance requirements.
+	func() {
+		importer := environmenttransfer.Importer{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores, Root: dir, StoreKind: OCIStoreKind}
+		var receipt environmenttransfer.ImportResult
+		if binary != "" {
+			server := control.NewServer()
+			must(controlapi.RegisterEnvironmentImport(server, func(ctx context.Context, r io.Reader, name string) (environmenttransfer.ImportResult, error) {
+				return importer.Import(ctx, r, name, 4<<30)
+			}))
+			socket := filepath.Join(dir, "import.sock")
+			listener, err := control.ListenUnix(socket, 0600)
+			must(err)
+			serveCtx, stop := context.WithCancel(ctx)
+			done := make(chan error, 1)
+			go func() { done <- server.Serve(serveCtx, listener) }()
+			func() {
+				defer func() { stop(); <-done }()
+				t.Setenv("HACO_CONTROL_SOCKET", socket)
+				output, err := exec.CommandContext(ctx, binary, "env", "import", "--json", filepath.Join(dir, name+".haco"), resumedName).CombinedOutput()
+				if err != nil {
+					t.Fatalf("public import CLI: %v: %s", err, output)
+				}
+				must(json.Unmarshal(output, &receipt))
+			}()
+			t.Log("PASS shipped haco env import: client file, management stream, canonical importer and independent data; native checks follow")
+		} else {
+			var err error
+			receipt, err = importer.Import(ctx, readExport(), resumedName, 4<<30)
+			must(err)
+			t.Log("SKIP public import CLI: HACO_E2E_SNAPSHOT_CLI not supplied; internal import ran")
+		}
+		if receipt.State != "running" || receipt.Workspace == reloadedWork.ID || receipt.OCI == restoredOCI.ID {
+			t.Fatal("bundle reused existing data", receipt)
+		}
+		imported, err := reopened.GetEnvironment(ctx, receipt.Environment)
+		must(err)
+		importedWork, err := restoredRepositories.Get("work", receipt.Workspace)
+		must(err)
+		importedOCI, err := reopened.GetPersistentResource(ctx, receipt.OCI)
+		must(err)
+		if importedOCI.WorkspaceID != imported.Workspace.ID || importedOCI.Owner == restoredOCI.Owner || importedWork.Owner == reloadedWork.Owner {
+			t.Fatal("import data association/owner lost")
+		}
+		importedMounts, err := repository.WorkspaceAttachments(ctx, importedWork)
+		must(err)
+		importedID, err := reopened.EnvironmentInstance(ctx, imported)
+		must(err)
+		if imported.Base != nil || importedID == resumedID || importedID == id {
+			t.Fatal("archive import adopted Base or generation")
+		}
+		must(r.VerifyEnvironmentIdentity(ctx, resumed.Ref, importedID))
+		for _, old := range []string{id, resumedID} {
+			if err := r.VerifyEnvironmentIdentity(ctx, resumed.Ref, old); err == nil {
+				t.Fatal("archive import accepted old identity")
+			}
+		}
+		if command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", "/root/snapshot-marker") != "guest-only bytes" {
+			t.Fatal("imported rootfs bytes lost")
+		}
+		if command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", "/root/.ssh/authorized_keys") != "ssh-ed25519 AAAA user-key" {
+			t.Fatal("imported managed SSH authority retained")
+		}
+		for _, m := range importedMounts {
+			if command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", m.Path+"/tracked") != "uncommitted "+m.Device {
+				t.Fatal("imported Workspace binding lost")
+			}
+		}
+		if command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", OCIStorePath+"/containerd/data") != "actual stored bytes" {
+			t.Fatal("imported OCI binding lost")
+		}
+		receipts, err := filepath.Glob(filepath.Join(dir, "rootfs-import-*.jsonl"))
+		if err != nil || len(receipts) != 0 {
+			t.Fatal("temporary image cleanup incomplete", err)
+		}
+		verifyTransferredOCI(t, ctx, r, resumed.Ref)
+		must(resumedService.Delete(ctx, resumedName))
+		must(persistent.Verify(ctx, importedOCI))
+		for _, m := range importedMounts {
+			read(volumePath(m.Volume), "untracked", "untracked "+m.Device)
+			path := volumePath(m.Volume)
+			if command("git", "-c", "safe.directory="+path, "-C", path, "rev-parse", "HEAD") != commits[m.Device] {
+				t.Fatal("import lost unpushed commit")
+			}
+		}
+		if _, err := environmenttransfer.Inspect(readExport(), 4<<30); err != nil {
+			t.Fatal("source bundle changed", err)
+		}
+		must(resumedService.CleanupRestoredData(ctx, imported.Workspace, func(ctx context.Context) error {
+			if err := restoredStores.DeleteRestoredCopy(ctx, importedOCI); err != nil {
+				return err
+			}
+			return restoredRepositories.DeleteWorkspace(ctx, importedWork.ID, importedWork.Owner)
+		}))
+		t.Log("PASS canonical bundle import: normal router, real running Env, fresh generation, current sandbox/managed SSH reset, independently imported Workspace/OCI, no Base, temporary image cleanup and retained data after Env deletion; public CLI coverage reported separately; SSH handshake not tested")
+	}()
+	if !t.Run("shipped-controller-import", func(t *testing.T) {
+		verifyImportControllerCLI(t, ctx, r, filepath.Join(dir, name+".haco"), name+"-controller", []string{id, resumedID})
+	}) {
+		t.Fatal("shipped import controller acceptance failed; fixture retained")
 	}
 	if cliSavedID != "" {
 		saved, err := reopened.GetSnapshot(ctx, cliSavedID)

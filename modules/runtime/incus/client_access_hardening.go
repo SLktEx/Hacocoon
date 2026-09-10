@@ -23,6 +23,19 @@ if ! command -v sshd >/dev/null 2>&1; then
 fi
 ssh-keygen -A
 systemctl enable --now ssh
+# Incus exec inherits environment.*; sshd creates a separate session environment.
+# Replace only our drop-in and validate sshd before reloading current settings.
+test ! -L /etc/ssh
+test ! -L /etc/ssh/sshd_config.d
+install -d -m 0755 /etc/ssh/sshd_config.d
+proxy_config="$(mktemp /etc/ssh/sshd_config.d/.haco-egress.XXXXXX)"
+trap 'rm -f "$proxy_config"' EXIT
+printf '%s\n' "$3" > "$proxy_config"
+chmod 0644 "$proxy_config"
+mv -T "$proxy_config" /etc/ssh/sshd_config.d/00-hacocoon-egress.conf
+trap - EXIT
+sshd -t
+systemctl reload ssh
 install -d -m 0700 /root/.ssh
 key="$1"
 marker="$2"
@@ -36,6 +49,13 @@ chmod 0600 "$tmp"
 mv "$tmp" /root/.ssh/authorized_keys
 trap - EXIT
 `
+
+// These are the same controller-owned endpoint and exclusions as the Incus
+// sandbox profile. Never copy caller or saved guest environment into SSH.
+func managedSSHProxySettings() string {
+	proxy := "http://" + net.JoinHostPort(sandboxRoutedHostIPv4, strconv.Itoa(sandboxEgressProxyPort))
+	return "SetEnv HTTP_PROXY=" + proxy + " HTTPS_PROXY=" + proxy + " NO_PROXY=localhost,127.0.0.1,::1 http_proxy=" + proxy + " https_proxy=" + proxy + " no_proxy=localhost,127.0.0.1,::1"
+}
 
 const managedSSHRevokeScript = `
 set -eu
@@ -65,7 +85,7 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 	}
 
 	marker := "haco:" + id
-	if _, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", managedSSHProvisionScript, "haco-ssh", req.PublicKey, marker); err != nil {
+	if _, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", managedSSHProvisionScript, "haco-ssh", req.PublicKey, marker, managedSSHProxySettings()); err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cleanupTimeout)
 		defer cancel()
 		cleanupErr := r.RemoveClientConnection(cleanupCtx, ref, id)

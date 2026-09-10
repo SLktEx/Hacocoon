@@ -1,8 +1,16 @@
 # Versioning and release status
 
-Source repository cleanup is implemented through the existing registry and Incus volume/device operations. Workspace Git references and queued request identities remain protected. Individual OCI images, candidate-selected GC, reclamation and export/migration remain planned.
+G1 remains **partial**. Linux `haco env export` and `haco env import <file.haco> [new-env]`
+are implemented on main through #530. The shipped CLI with a fixture controller passed
+real Incus/Btrfs aggregate acceptance in GHA (72.06s at b7297a3); all four workflows
+passed. The local full aggregate failed at its 12-minute fixture deadline after import
+and restore succeeded. Both results remain recorded. Installed-controller/desktop
+import, SSH handshake, live OCI consistency and native Windows file delivery remain
+unfinished. No new release or checkpoint is declared. See [Environment transfer](../design/environment-transfer.md#linux-import-command).
 
-Whole OCI Store review/deletion is implemented using existing owner/reservation records and Incus volume operations. Individual OCI image cleanup and candidate-selected GC remain planned; see [Store cleanup](../design/persistent-oci-store.md#explicit-retained-store-deletion).
+The v0.57 OCI image cleanup checkpoint is partial. Detached nerdctl Store list/delete through production composition and the bare controller/CLI passed real Incus/Btrfs acceptance at bd1c9a5. Full installed-controller acceptance, detached Docker and candidate-selected GC remain incomplete. See [image operations](../design/oci-image-deletion.md#controllercli-acceptance).
+
+Source repositories and whole OCI Stores support reviewed deletion through existing registry/reservation records and Incus volume/device operations. Workspace Git references, queued request identities and retained snapshots remain protected. Reclamation and export/migration remain separate unfinished work.
 
 Environment copy adds a stopped-source, independent-data convenience flow using existing Incus COW and canonical creation. No schema change or automatic backup is added. See [the copy contract](../design/environment-copy.md).
 

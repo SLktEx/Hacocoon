@@ -14,6 +14,8 @@ import (
 // ManagedImages uses current Store ownership and runtime inventories, never Seed
 // selections, a Host cache, tombstones or direct layer-file deletion.
 type ManagedImages struct {
+	Maintain     func(context.Context, core.PersistentResourceRef, func(context.Context, core.Environment) error) error
+	metadataOnly bool
 	Catalog      ManagedImageCatalog
 	Environments ResourceExecutor
 	Host         HostImageExecutor
@@ -31,6 +33,7 @@ type ResourceExecutor interface {
 	ExecForResource(context.Context, string, string, core.PersistentResourceRef, core.ExecutionRequest) (core.ExecutionResult, error)
 }
 type ImageTarget struct {
+	Detached    bool                       `json:"detached,omitempty"`
 	Host        bool                       `json:"host,omitempty"`
 	Environment string                     `json:"environment"`
 	Instance    string                     `json:"instance"`
@@ -61,6 +64,9 @@ func validImageTarget(target ImageTarget) bool {
 	if !validImageRuntime(target.Runtime) || !core.ValidPersistentResourceRef(target.Store) {
 		return false
 	}
+	if target.Detached {
+		return !target.Host && target.Runtime == "nerdctl" && target.Environment == "" && target.Instance == "" && target.Store.ID != HostStoreID
+	}
 	if target.Host {
 		return target.Store.ID == HostStoreID && target.Environment == "" && target.Instance == ""
 	}
@@ -80,6 +86,9 @@ func validImageRuntime(runtime string) bool { return runtime == "docker" || runt
 func (s *ManagedImages) List(ctx context.Context, name, runtime string) (ManagedImageList, error) {
 	if !validImageRuntime(runtime) {
 		return ManagedImageList{}, core.ErrInvalidArgument
+	}
+	if strings.HasPrefix(name, "oci:") {
+		return s.listDetached(ctx, name, runtime)
 	}
 	env, err := s.Catalog.GetEnvironment(ctx, name)
 	if err != nil {
@@ -113,7 +122,11 @@ func (s *ManagedImages) command(ctx context.Context, target ImageTarget, args ..
 	if target.Runtime == "docker" {
 		argv = append(argv, "docker", "--host", "unix:///run/docker.sock")
 	} else {
-		argv = append(argv, "nerdctl", "--address", "/run/containerd/containerd.sock", "--namespace", "default", "--snapshotter", "native")
+		socket := "/run/containerd/containerd.sock"
+		if s.metadataOnly {
+			socket = "/run/hacocoon-maintenance/containerd.sock"
+		}
+		argv = append(argv, "nerdctl", "--address", socket, "--namespace", "default", "--snapshotter", "native")
 	}
 	var result core.ExecutionResult
 	var err error
@@ -262,6 +275,11 @@ func (s *ManagedImages) inspect(ctx context.Context, target ImageTarget) (Manage
 func (s *ManagedImages) Delete(ctx context.Context, target ImageTarget, id string) error {
 	if !imageIDPattern.MatchString(id) {
 		return core.ErrInvalidArgument
+	}
+	if target.Detached {
+		return s.withDetached(ctx, target, func(ctx context.Context, session *ManagedImages, live ImageTarget) error {
+			return session.Delete(ctx, live, id)
+		})
 	}
 	before, err := s.inspect(ctx, target)
 	if err != nil {

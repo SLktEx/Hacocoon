@@ -41,7 +41,12 @@ func TestRealIncusResumeE2E(t *testing.T) {
 	}
 	name := "resume-e2e-" + hex.EncodeToString(nonce[:])
 	ref := "haco-" + name
-	root := t.TempDir()
+	// Retain the ownership ledger even if native cleanup is uncertain.
+	root, err := os.MkdirTemp("", "haco-resume-e2e-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("retained native ownership ledger: %s", root)
 	work := filepath.Join(root, "work")
 	if err := os.Mkdir(work, 0755); err != nil {
 		t.Fatal(err)
@@ -108,6 +113,9 @@ func TestRealIncusResumeE2E(t *testing.T) {
 	}
 	if err := svc.Start(ctx, name); err != nil {
 		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(run("config", "get", ref, "boot.autostart", "--project", r.project)); got != "false" {
+		t.Fatalf("legacy resume left Incus autostart enabled: %q", got)
 	}
 	run("exec", ref, "--project", r.project, "--", "sh", "-ceu", "printf retained-root > /root/resume-marker; printf retained-work > /workspace/resume-marker")
 	if err := svc.Stop(ctx, name); err != nil {

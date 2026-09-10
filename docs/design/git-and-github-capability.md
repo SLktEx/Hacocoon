@@ -66,7 +66,7 @@ Git/GitHub authority must stay explicit even if the exact CLI, policy attributes
 Implemented: `haco repo list [--json]` and `haco repo delete [--yes] <id>` expose
 retained Host source checkouts and reviewed deletion. A source remains part of
 current brokered Git routing even though Workspace filesystem copies are
-independent. Every referencing Workspace record, including intermediate records,
+independent. Every Workspace record with a configured Git source, including intermediate records,
 therefore blocks deletion. This preserves local Git data and the ability to use
 the existing approved transport. It is not an automatic unused-data collector.
 
@@ -84,3 +84,46 @@ Schema 13 and existing repository records are preserved. No data migration is
 required. Current snapshot Git provenance remains independent of a source checkout;
 a restored Workspace may require explicit Git reconnection under current policy.
 See [ADR 0045](../adr/0045-explicit-source-repository-deletion.md).
+
+## Offline Workspace routing
+
+Offline Workspace members have empty managed remote/branch fields. They never
+select a Host source by name or appear in a Git broker binding. Mixed collections
+bind only their configured members; every request rechecks the registered remote
+and branch against its exact current Host source, alongside existing generation,
+ownership and approval checks. Entirely offline Workspaces do not create a Git
+endpoint. Guest Git configuration stays data. See
+[ADR 0055](../adr/0055-offline-workspace-routing.md).
+
+## Real push acceptance target
+
+The legacy Git transport fixture is manually dispatched on trusted main and may
+push only to `SLktEx/Hacocoon-test`. It uses the dedicated
+`HACO_TEST_REPOSITORY_TOKEN` secret; without it, the workflow reports SKIP and does
+not execute the push. Per-run test branches are retained with their commit receipt.
+This fixture is not installed-product/import approval acceptance. See
+[ADR 0059](../adr/0059-dedicated-git-push-test-target.md).
+
+## Reconnect an imported GitHub Workspace
+
+An imported Workspace with a saved GitHub route can use the existing commands.
+On a new installation, authenticate GitHub in trusted Host as usual and explicitly
+register the saved repository ID, URL and branch before connecting:
+
+```bash
+haco repo clone --branch main sample https://github.com/OWNER/REPO.git
+haco git connect dev-imported
+```
+
+Here `sample`, the URL and `main` must match the saved Workspace route. If that
+matching source is already registered, only `haco git connect` is needed. This
+does not replace the imported checkout or its uncommitted/untracked/unpushed work.
+Current Policy and approval still apply; imported data grants no credentials.
+A missing source, mismatched URL/branch, or replaced Env/source identity cannot
+reuse a connection. An offline import stays offline even if a same-name source
+appears. Assigning a new route to offline data remains unimplemented.
+
+Status: existing service composition verified by a component test combining
+Workspace import, explicit source clone and broker connection, including mismatch,
+offline and same-name replacement refusal. Native imported Git fetch/push remains
+unverified; this is not a real-provider or network acceptance result.

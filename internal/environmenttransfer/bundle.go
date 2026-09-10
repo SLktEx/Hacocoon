@@ -32,6 +32,7 @@ type Manifest struct {
 	Source     string      `json:"source"`
 	HasOCI     bool        `json:"has_oci"`
 	Components []Component `json:"components"`
+	Workspaces []Workspace `json:"workspaces,omitempty"`
 }
 type Component struct {
 	Role   string `json:"role"`
@@ -40,7 +41,7 @@ type Component struct {
 }
 
 func (m Manifest) validate(limit int64) error {
-	if m.Version != 1 || !sourceName.MatchString(m.Source) || !validLimit(limit) {
+	if (m.Version != 1 && m.Version != 2) || !sourceName.MatchString(m.Source) || !validLimit(limit) {
 		return ErrInvalidBundle
 	}
 	count := len(m.Components) - 1
@@ -49,6 +50,9 @@ func (m Manifest) validate(limit int64) error {
 	}
 	if count < 1 || count > maxWorkspaces {
 		return ErrInvalidBundle
+	}
+	if err := m.validateWorkspaces(count); err != nil {
+		return err
 	}
 	roles := []string{"rootfs"}
 	for i := 0; i < count; i++ {
@@ -166,6 +170,17 @@ func regularHeader(h *tar.Header, name string, size int64) bool {
 // Later use must retain immutable staged bytes or reverify them; paths alone do
 // not bind this observation to a subsequent import.
 func Inspect(src io.Reader, limit int64) (Manifest, error) {
+	return inspect(src, limit, nil)
+}
+
+// Component locations are recorded by the same parser that verifies all bytes.
+// They are private until the complete envelope has passed validation.
+type componentSpan struct {
+	component Component
+	offset    int64
+}
+
+func inspect(src io.Reader, limit int64, spans *[]componentSpan) (Manifest, error) {
 	fail := func(err error) (Manifest, error) { return Manifest{}, errors.Join(ErrInvalidBundle, err) }
 	if src == nil || !validLimit(limit) {
 		return fail(nil)
@@ -205,6 +220,9 @@ func Inspect(src io.Reader, limit int64) (Manifest, error) {
 		}
 		if !regularHeader(h, c.Role+".tar", c.Bytes) {
 			return fail(nil)
+		}
+		if spans != nil {
+			*spans = append(*spans, componentSpan{component: c, offset: int64(counted.n)})
 		}
 		if err := copyComponent(io.Discard, archive, c); err != nil {
 			return fail(err)

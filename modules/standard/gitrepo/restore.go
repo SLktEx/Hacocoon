@@ -61,7 +61,7 @@ func (s *RepositoryService) RestoreWorkspace(ctx context.Context, id string, sav
 	object := Object{Kind: "work", ID: id, Owner: randomID(), State: "creating", RestoredFrom: saved.ID}
 	seen := map[string]bool{}
 	for _, source := range sources {
-		if !ValidID(source.Repository) || ValidateRemote(source.Remote) != nil || !ValidBranch(source.Branch) || seen[source.Repository] || source.Component.State != "verified" {
+		if !ValidID(source.Repository) || !ValidWorkspaceRouting(source.Remote, source.Branch) || seen[source.Repository] || source.Component.State != "verified" {
 			return Object{}, core.ErrIncompatibleState
 		}
 		seen[source.Repository] = true

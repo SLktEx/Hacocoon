@@ -1,5 +1,9 @@
 # Architecture and roadmap
 
+G1 internal export now composes canonical stopped-Env capture, all protected native
+archives and anonymous verified output. Dedicated native aggregate export passed
+in 314.12s; Linux public export is partial and public CLI/fixture-controller import is verified; installed/desktop import and Windows-file projection are verified. See [Environment transfer](../design/environment-transfer.md#internal-stopped-environment-export).
+
 > **Architecture baseline · Updated 2026-08-31**
 >
 > Hacocoon is a **Secure Workspace Runtime**. Use [`../IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md) for current code reality and [`versioning-and-release-status.md`](versioning-and-release-status.md) for authoritative development-checkpoint numbering/history.
@@ -209,11 +213,17 @@ whole OCI Stores and unused source repositories. Their existing references,
 exact ownership and native saved children remain protected. Individual images in
 attached Stores are partial through the current runtime-backed OCI plugin; see
 [image operations](../design/oci-image-deletion.md). Host-source image operations extend this same partial checkpoint through the existing
-Host-copy/ownership boundary. Detached-Store images, candidate-selected GC, F
-public reclamation/operability and G export/migration remain planned. Internal F1
-trim/compaction and installer enrollment are partial; see the [reclamation contract](../design/storage-reclamation.md). These remaining stages preserve data and permissions while using
+Host-copy/ownership boundary. Detached-Store image routing is partial; automatic compatible tooling is implemented on Linux amd64; native delivery and bare controller/CLI acceptance passed at bd1c9a5. Full installed-controller acceptance remains pending. Reviewed unused-image candidate deletion passed native controller/CLI acceptance at 9484d06. Broader candidate GC, F
+reclamation/operability and G export/migration remain planned. Internal F1 trim/compaction and installer enrollment are partial; see the [reclamation contract](../design/storage-reclamation.md). These remaining stages preserve data and permissions while using
 Incus capabilities; they do not require full disposable-Env reconstruction.
 
-G1 public transfer remains planned. Native rootfs image and custom-volume archives have
-opt-in acceptance tests; this does not complete rootfs/security/import
-or whole-installation evacuation. See [Environment transfer](../design/environment-transfer.md).
+G1 remains partial overall. Linux export/import and the installed controller path,
+source Env deletion, fresh pinned Windows SSH, continued work and retained-data
+recreation passed. Windows-file delivery through the existing drive projection
+also passed at c4449e1; native Windows CLI/direct DrvFS publication and migration
+to another WSL are not implied. Live OCI runtime consistency and actual Git
+reconnection remain incomplete. G2–G4 still require whole-installation inventory,
+readable-data evacuation independent of snapshot creation/deletion, restoration
+into a new WSL/pool, data comparison and explicit replacement after acceptance.
+Base filesystem retention and automatic backup remain absent. See
+[Environment transfer](../design/environment-transfer.md).

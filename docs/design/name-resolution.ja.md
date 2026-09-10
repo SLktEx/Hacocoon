@@ -32,3 +32,15 @@ service 終了コードに限定し、生の guest log や script 内容を転�
 service の変更前に guest systemd manager を最大 30 秒待ちます。
 reload 自体の失敗は再試行しません。起動遅延・timeout・reload 失敗を
 shell 回帰テストで確認します。この修正は `c05528a` の Ubuntu・Incus で成功しました。Windows の DNS fixture と VS Code 実接続も成功しましたが、workflow はその後の project setup 検証スクリプトで、setup 実行前に失敗しました。
+
+## 繰り返す setup と service 起動
+
+39b5ce4 の Windows 受入で承認 setup の失敗が再現し、既存の鍵固定 SSH による照会で DNS service の
+Result が start-limit-hit と確認できました。各 setup が Env を開始する際、検証済み companion と
+unit が同じでも DNS service を毎回 restart していました。
+
+companion と正規の unit を比較し、変更時は従来どおり restart、同一なら systemd start を使います。
+稼働中 service は継続し、停止中なら起動します。manager の準備待ち、daemon-reload、enable、
+稼働確認、resolver 設定は維持します。systemd の起動制限、接続元識別、network Policy、所有確認は
+緩めません。起動失敗は失敗として返します。連続 setup の回帰は観測した起動制限を模擬しますが、
+修正後の installed 受入は未完了です。

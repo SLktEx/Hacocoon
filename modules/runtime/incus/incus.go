@@ -30,6 +30,7 @@ type runtimeStorageState struct {
 }
 
 type Runtime struct {
+	maintenanceTooling       func(context.Context) (string, func() error, error)
 	environmentDNS           string
 	trustedHostInterop       func(context.Context) error
 	trustedHostNotifications func(context.Context) error
@@ -119,7 +120,7 @@ func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (cor
 	if err := validateManagedInstanceRef(name); err != nil {
 		return core.RuntimeSession{}, err
 	}
-	args := []string{"launch", r.image, name, "--project", r.project, "--profile", sandboxProfile}
+	args := []string{"launch", r.image, name, "--project", r.project, "--profile", sandboxProfile, "--config", "boot.autostart=false"}
 	if pool != "" {
 		args = append(args, "--storage", pool)
 	}
@@ -130,6 +131,11 @@ func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (cor
 }
 
 func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
+	// Retained Store startup is not wired yet. Never fall through to ordinary
+	// creation, which may start daemons before maintenance preparation.
+	if spec.ResourceMaintenance {
+		return core.EnvironmentRuntime{}, core.ErrUnsupported
+	}
 	if spec.Name == "" || spec.WorkspacePath == "" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
@@ -152,7 +158,7 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return core.EnvironmentRuntime{}, fmt.Errorf("resolve isolated root storage: %w", err)
 	}
 
-	initArgs := append([]string{"init", r.image, ref, "--project", r.project, "--profile", sandboxProfile, "--storage", rootPool}, identityArgs...)
+	initArgs := append([]string{"init", r.image, ref, "--project", r.project, "--profile", sandboxProfile, "--storage", rootPool, "--config", "boot.autostart=false"}, identityArgs...)
 	if _, err := r.runner.Run(ctx, "incus", initArgs...); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}
