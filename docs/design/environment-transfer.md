@@ -598,7 +598,9 @@ unverified.
 
 ## Native rootfs image import
 
-Status: **implemented internally**, pending acceptance. A bounded anonymous archive
+Status: **implemented internally**. Native Incus/Btrfs transport acceptance passed
+(22.28s), including source removal and independent destination data after temporary
+image deletion. This does not verify boot, SSH or public aggregate import. A bounded anonymous archive
 preserves rootfs data while replacing image properties with a fresh import owner
 and omitting image creation templates. The original archive stays unchanged.
 Incus imports the unified container image; a synchronous consumer must create an

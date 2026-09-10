@@ -492,7 +492,8 @@ restore、接続・起動済み Env、live Git／OCI は未検証です。
 
 ## native rootfs image import
 
-Status: **内部実装済み・受入検証中**です。上限付き匿名 archive で rootfs データを保持し、
+Status: **内部実装済み**です。実 Incus/Btrfs transport 検証は22.28秒で成功し、元 instance／image の削除と
+一時 image 削除後の復元先データ保持を確認しました。boot・SSH・公開一式の import は未検証です。上限付き匿名 archive で rootfs データを保持し、
 image properties は新しい import owner に置き換え、image 作成時 template は除きます。
 元 archive は変更しません。Incus が統合 container image を取り込み、同期 consumer が現在の
 明示的な設定で独立 instance を作ります。一時 image は export と共通の所有・不在確認で削除します。
