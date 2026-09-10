@@ -1,0 +1,46 @@
+# ADR 0057: Compose native bundle import through retained-data owners
+
+Status: accepted for internal composition; public CLI integration remains planned.
+
+## Decision
+
+Verify the complete versioned bundle in bounded anonymous staging before reserving
+or creating destination resources. Existing Workspace import and persistent-resource
+creation own native volumes, metadata publication and exact receipts. Canonical Env
+creation consumes the rootfs archive through the current Incus sandbox and router.
+No import catalog, automatic backup, guessed native path or replay state is added.
+
+A fresh random Workspace name and independently generated owners identify new data.
+OCI import records the Workspace association before its native create, so deleting
+and recreating an Env does not lose that association. New short member IDs derive
+from the recorded member owner when a portable repository name would exceed the
+existing ID bound. Repository names are preserved; existing restored-member ID rules
+remain readable without catalog migration or rewriting saved data.
+
+GitHub routing metadata is preserved as routing only: the existing broker still
+requires a matching trusted Host source and current Env approval/generation. Source
+Host file URLs are registered offline, never interpreted as destination Host access.
+The original bundle and guest Git data remain unchanged. Version-1 bundles lack
+routing descriptors; their component labels become offline repository names.
+
+## Failure and lifetime
+
+Unknown Workspace/OCI creation retains exact existing records and reports public
+resource names with cleanup-required. It cannot be treated as confirmed absence.
+After data publication, failed Env creation uses the existing Workspace lifecycle
+lock and lease guard before cleanup. Delete the exact ready OCI generation first,
+then the owned Workspace; failed OCI cleanup keeps its Workspace. A retained Env
+lease blocks both. Startup failure preserves the Env and data for retry/inspection.
+
+Saved input and pre-existing data are never replacement targets. Name collisions
+fail before new native mutation, with canonical creation providing the final race
+check. No automatic backup or rollback of the disposable Env is required.
+
+## Scope
+
+The current managed Workspace collection limit is eight. Larger bundles are rejected
+before native mutation. Empty routing is supported; reconnection is separate work.
+The byte limit, private staging root and OCI kind belong to trusted composition.
+Public CLI/controller upload, SSH handshake and live OCI runtime acceptance remain
+separate requirements. Native aggregate tests must distinguish these from internal
+bundle-to-running-Env acceptance.

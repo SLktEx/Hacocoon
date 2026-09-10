@@ -634,3 +634,26 @@ existing capture/restore/export and native data cleanup. Public CLI checks were
 skipped locally because no CLI binary was supplied; GHA supplies that binary.
 Shared-image deletion was skipped. Public import, an SSH transport handshake and
 live OCI runtime consistency are not established by this test.
+
+## Native bundle import composition
+
+Status: **implemented internally; acceptance pending**. Import verifies the whole
+bundle before mutation, imports one Workspace or a collection, imports OCI with a
+durable association to that new Workspace, then creates/starts a new Env through
+canonical lifecycle. The default destination is SOURCE-imported; an existing name
+is refused. Public CLI/controller upload remains planned, so this is not a new
+copy-pasteable user command yet.
+
+Version 2 preserves repository names and GitHub routing metadata without granting
+authentication or approval. Source Host file URLs import offline. Version 1 imports
+component labels offline because it has no routing descriptors. Guest Git data and
+the original bundle are unchanged. Up to eight Workspace members are supported;
+larger bundles fail before native mutation. Long repository names retain their
+names while their private native IDs derive from fresh member owners.
+
+Uncertain native creation keeps the existing receipts. Failed Env creation cleans
+only published, unleased new data through existing ownership APIs; unresolved OCI
+cleanup keeps its Workspace. Startup failure retains the Env/data. No schema change,
+automatic backup, Base component or import recovery catalog is introduced. See
+[ADR 0057](../adr/0057-native-bundle-import.md). Public import, reconnection, an SSH
+handshake and live OCI consistency remain unfinished.

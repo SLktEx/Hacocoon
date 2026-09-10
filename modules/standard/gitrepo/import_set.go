@@ -28,7 +28,7 @@ func (s *RepositoryService) ImportWorkspaceSet(ctx context.Context, id string, i
 	inputs = append([]WorkspaceImport(nil), inputs...)
 	seen := map[string]bool{}
 	for _, input := range inputs {
-		if !ValidID(input.Repository) || !ValidID(id+"-"+input.Repository) || seen[input.Repository] ||
+		if !ValidID(input.Repository) || seen[input.Repository] ||
 			!ValidWorkspaceRouting(input.Remote, input.Branch) || input.Archive == nil {
 			return Object{}, core.ErrInvalidArgument
 		}
@@ -48,7 +48,8 @@ func (s *RepositoryService) ImportWorkspaceSet(ctx context.Context, id string, i
 	object := Object{Kind: "work", ID: id, Owner: randomID(), State: "creating"}
 	refs := map[string]bool{}
 	for _, input := range inputs {
-		memberID := id + "-" + input.Repository
+		owner := randomID()
+		memberID := workspaceMemberID(id, input.Repository, owner)
 		ref, err := s.Backend.Plan(ctx, "work", memberID)
 		if err != nil {
 			return Object{}, err
@@ -59,7 +60,7 @@ func (s *RepositoryService) ImportWorkspaceSet(ctx context.Context, id string, i
 		refs[ref] = true
 		object.Members = append(object.Members, Object{
 			Kind: "work", ID: memberID, Repository: input.Repository, Remote: input.Remote,
-			Branch: input.Branch, NativeRef: ref, Owner: randomID(), State: "creating",
+			Branch: input.Branch, NativeRef: ref, Owner: owner, State: "creating",
 		})
 	}
 	return s.createPreparedSet(ctx, object, func(ctx context.Context, i int, member Object) error {

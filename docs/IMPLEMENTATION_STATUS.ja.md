@@ -1,5 +1,10 @@
 # 実装状況
 
+native bundle import を、全体検証、独立した Workspace／OCI import、canonical Env 作成に接続しました。
+OCI は native 作成前に新しい Workspace と対応付け、file 接続先／旧 descriptor は offline とします。
+初回のコンパイルエラーと長い名前の ID 制約を修正し、対象 race は成功しました。実 aggregate 受入と全体 CI は
+未確定で、公開 CLI upload は未実装です。
+
 archive import は通常の BaseRouter と Incus native image adapter を経由し、canonical Env lifecycle を使います。
 現在の sandbox 設定、新しい世代、管理 SSH identity の更新、即時の所有記録、所有する image／instance の
 独立した cleanup を維持します。Base 実体や自動 backup は追加しません。

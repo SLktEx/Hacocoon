@@ -1,5 +1,11 @@
 # Implementation Status
 
+Native bundle import now composes verified staging, independent Workspace/OCI import
+and canonical Env creation. OCI is durably associated before native creation; file
+routes/legacy descriptors import offline. Focused race tests passed after fixing
+initial compile errors and the long-name ID contract. Native aggregate acceptance
+and full local CI are pending; public CLI upload remains unimplemented.
+
 Archive import uses canonical Env lifecycle through the production BaseRouter and
 the Incus native image adapter. Current sandbox configuration, fresh generation,
 managed SSH identity reset, immediate ownership receipts and separate owned

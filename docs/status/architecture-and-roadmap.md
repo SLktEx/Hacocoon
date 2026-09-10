@@ -221,7 +221,8 @@ G1 public transfer remains partial: Linux export exists; public import is planne
 Internal import now connects prepared data and the native rootfs image adapter to
 canonical Env creation, with fresh identity and current sandbox configuration.
 Internal archive-to-running-Env acceptance passed on real Incus/Btrfs (439.76s);
-public bundle orchestration, SSH handshake and live OCI consistency remain unverified. No new command, Base filesystem or automatic backup is introduced.
+internal bundle orchestration is implemented with acceptance pending; public CLI
+upload, SSH handshake and live OCI consistency remain unverified. No new command, Base filesystem or automatic backup is introduced.
 Native rootfs image and custom-volume archives have
 opt-in acceptance tests. The internal saved-rootfs archive producer adds explicit temporary-image ownership and cleanup; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s. This does not complete public rootfs/security/import
 or whole-installation evacuation. See [Environment transfer](../design/environment-transfer.md).

@@ -519,3 +519,21 @@ cleanup は接続データを削除しません。CLI・catalog 移行・Base �
 確認する処理を追加しました。47bf7a8 の専用 Incus/Btrfs 実行は439.76秒で成功し、既存の capture／restore／export と
 native data cleanup も確認しました。CLI バイナリを渡さないローカル実行では公開 CLI を SKIP し、GHA は同バイナリを渡します。
 共有 image の削除も SKIP しました。公開 import、SSH 実ハンドシェイク、live OCI 整合性はこの検証では証明しません。
+
+## native bundle import の接続
+
+Status: **内部実装済み・受入検証待ち**です。bundle 全体を変更前に検証し、単一／複数 Workspace、
+その新しい Workspace への永続的な対応付けを持つ OCI、canonical lifecycle による新規 Env の作成・起動を
+順に行います。既定の復元先は SOURCE-imported で、既存名は拒否します。公開 CLI／controller upload は
+planned で、現時点では新しい利用者コマンドではありません。
+
+version 2 は repository 名と GitHub の接続先 metadata を保持しますが、認証や承認は付与しません。
+元 Host の file URL は offline として扱います。version 1 は接続先 descriptor がないため component 名で
+offline 登録します。guest の Git データと元 bundle は変更しません。Workspace は既存 collection 上限の8件までで、
+超過は native 変更前に拒否します。長い repository 名はそのまま保持し、内部 native ID を新しい member owner から決めます。
+
+native 作成不明時は既存の所有記録を保持します。Env 作成失敗時は既存所有 API により、公開済みで lease のない
+今回のデータだけを cleanup し、OCI cleanup 不明時は対応する Workspace も保持します。起動失敗時は Env とデータを残します。
+schema 変更・自動 backup・Base component・import 専用復旧 catalog は追加しません。
+[ADR 0057](../adr/0057-native-bundle-import.md)を参照してください。公開 import、再接続、SSH 実ハンドシェイク、
+live OCI 整合性は未完了です。

@@ -108,7 +108,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	baseIdentity, _, err := baseBackend.decode(asset)
 	must(err)
 
-	persistent := &PersistentResourceBackend{Runtime: r}
+	persistent := &PersistentResourceBackend{Runtime: r, ImportRoot: dir, ImportLimit: 4 << 30}
 	must(store.BeginPersistentResourceCreate(ctx, resource))
 	must(persistent.Create(ctx, resource))
 	must(persistent.Verify(ctx, resource))
@@ -118,7 +118,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	command("incus", "init", "local:"+image, native, "--project", r.project, "--no-profiles", "--storage", pool, "--config", environmentInstanceKey+"="+id, "--config", managedEnvironmentMarkerKey+"="+managedEnvironmentMarkerValue)
 	lease.RuntimeRef = native
 	must(store.RecordEnvironmentRuntime(ctx, lease))
-	repository := &RepositoryBackend{Runtime: r}
+	repository := &RepositoryBackend{Runtime: r, ImportRoot: dir, ImportLimit: 4 << 30}
 	for _, member := range collection.Members {
 		must(repository.CreateVolume(ctx, member, nil))
 	}
@@ -563,15 +563,25 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	}
 	// Exercise the normal router and canonical archive creation against the
 	// already exported bundle after deleting both prior executing Environments.
-	// Data bindings are the explicit retained copies; public bundle orchestration
-	// and an SSH transport handshake are separate acceptance requirements.
+	// All data bindings are independently imported from the verified bundle. Public
+	// CLI transport and an SSH handshake are separate acceptance requirements.
 	func() {
-		staged, err := environmenttransfer.Stage(ctx, dir, readExport(), 4<<30)
+		importer := environmenttransfer.Importer{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores, Root: dir, StoreKind: OCIStoreKind}
+		receipt, err := importer.Import(ctx, readExport(), resumedName, 4<<30)
 		must(err)
-		defer staged.Close()
-		rootfs, err := staged.ComponentReader("rootfs")
+		if receipt.State != "running" || receipt.Workspace == reloadedWork.ID || receipt.OCI == restoredOCI.ID {
+			t.Fatal("bundle reused existing data", receipt)
+		}
+		imported, err := reopened.GetEnvironment(ctx, receipt.Environment)
 		must(err)
-		imported, err := resumedService.CreateFromArchive(ctx, core.EnvironmentSpec{Name: resumedName, WorkspacePath: resumedPath, PersistentResource: restoredOCI.ID, ExpectedResource: restoredOCI.Ref()}, rootfs, dir, 4<<30)
+		importedWork, err := restoredRepositories.Get("work", receipt.Workspace)
+		must(err)
+		importedOCI, err := reopened.GetPersistentResource(ctx, receipt.OCI)
+		must(err)
+		if importedOCI.WorkspaceID != imported.Workspace.ID || importedOCI.Owner == restoredOCI.Owner || importedWork.Owner == reloadedWork.Owner {
+			t.Fatal("import data association/owner lost")
+		}
+		importedMounts, err := repository.WorkspaceAttachments(ctx, importedWork)
 		must(err)
 		importedID, err := reopened.EnvironmentInstance(ctx, imported)
 		must(err)
@@ -590,12 +600,12 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		if command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", "/root/.ssh/authorized_keys") != "ssh-ed25519 AAAA user-key" {
 			t.Fatal("imported managed SSH authority retained")
 		}
-		for _, m := range restoredMounts {
+		for _, m := range importedMounts {
 			if command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", m.Path+"/tracked") != "uncommitted "+m.Device {
 				t.Fatal("imported Workspace binding lost")
 			}
 		}
-		if command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", OCIStorePath+"/containerd/data") != "independent registered OCI copy" {
+		if command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", OCIStorePath+"/containerd/data") != "actual stored bytes" {
 			t.Fatal("imported OCI binding lost")
 		}
 		receipts, err := filepath.Glob(filepath.Join(dir, "rootfs-import-*.jsonl"))
@@ -603,14 +613,24 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			t.Fatal("temporary image cleanup incomplete", err)
 		}
 		must(resumedService.Delete(ctx, resumedName))
-		must(persistent.Verify(ctx, restoredOCI))
-		for _, m := range restoredMounts {
-			read(volumePath(m.Volume), "untracked", "independent registered copy")
+		must(persistent.Verify(ctx, importedOCI))
+		for _, m := range importedMounts {
+			read(volumePath(m.Volume), "untracked", "untracked "+m.Device)
+			path := volumePath(m.Volume)
+			if command("git", "-c", "safe.directory="+path, "-C", path, "rev-parse", "HEAD") != commits[m.Device] {
+				t.Fatal("import lost unpushed commit")
+			}
 		}
-		if _, err := environmenttransfer.Inspect(staged.Reader(), 4<<30); err != nil {
+		if _, err := environmenttransfer.Inspect(readExport(), 4<<30); err != nil {
 			t.Fatal("source bundle changed", err)
 		}
-		t.Log("PASS canonical archive import: normal router, real running Env, fresh generation, current sandbox/managed SSH reset, explicit Workspace/OCI, no Base, temporary image cleanup and retained data after Env deletion; public import and SSH handshake not tested")
+		must(resumedService.CleanupRestoredData(ctx, imported.Workspace, func(ctx context.Context) error {
+			if err := restoredStores.DeleteRestoredCopy(ctx, importedOCI); err != nil {
+				return err
+			}
+			return restoredRepositories.DeleteWorkspace(ctx, importedWork.ID, importedWork.Owner)
+		}))
+		t.Log("PASS canonical bundle import: normal router, real running Env, fresh generation, current sandbox/managed SSH reset, independently imported Workspace/OCI, no Base, temporary image cleanup and retained data after Env deletion; public import and SSH handshake not tested")
 	}()
 	if cliSavedID != "" {
 		saved, err := reopened.GetSnapshot(ctx, cliSavedID)

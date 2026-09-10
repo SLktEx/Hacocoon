@@ -171,7 +171,7 @@ func validObject(o Object) bool {
 	}
 	seen := map[string]bool{}
 	for _, member := range o.Members {
-		expectedID := o.ID + "-" + member.Repository
+		expectedID := workspaceMemberID(o.ID, member.Repository, member.Owner)
 		if o.RestoredFrom != "" {
 			expectedID = restoredWorkspaceMemberID(o.ID, member.Repository, member.Owner)
 		}
@@ -333,4 +333,14 @@ func (s *RepositoryService) readObject(kind, id string) (Object, error) {
 		return Object{}, core.ErrIncompatibleState
 	}
 	return object, nil
+}
+
+// Short native IDs preserve long portable repository names without weakening
+// member ownership: the fallback is derived from the recorded fresh owner.
+func workspaceMemberID(group, repository, owner string) string {
+	id := group + "-" + repository
+	if !ValidID(id) {
+		return "work-" + owner
+	}
+	return id
 }
