@@ -420,5 +420,12 @@ offline／明示的な再設定と複数 Workspace の統合は planned です�
 対象 service／native 境界テストは0.427秒／0.536秒で成功し、import 前の所有記録、Git 準備を
 呼ばないこと、重複拒否、失敗記録の保持を確認しました。既存 native volume E2E に、保存元
 volume 削除後の Workspace 登録、commit・未commit・untracked ファイル、guest Git config の
-保持、独立した管理接続先と所有対象 cleanup の確認を追加しました。拡張した E2E と全体 CI は
-実行待ちで、実 Workspace import や Env 接続の受入成功はまだ主張しません。
+保持、独立した管理接続先と所有対象 cleanup の確認を追加しました。専用 Incus/Btrfs の
+`b7c7ec5` は20.67秒で成功し、canonical な Workspace 登録・削除と隔離2 pool の削除を
+確認しました。元 archive と fixture plan は `/var/lib/haco-owned-import-1590527782` に
+保持しています。事後確認で既存9 instance、sentinel checksum、登録ファイルの mode／link数は
+変更されていません。
+
+同じソースの全 Go テスト・vet・docs／workflow policy・JS 27件は成功しました。対象 Git service
+race は1.568秒、native adapter race は2.541秒で成功し、ローカル検証の全呼び出しが正常終了しました。Env 接続時の idmap shift、
+boot、SSH、live OCI daemon、複数 Workspace import、公開一式のコマンドの成功は主張しません。

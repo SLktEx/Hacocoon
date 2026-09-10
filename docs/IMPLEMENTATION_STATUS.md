@@ -1,8 +1,9 @@
 # Implementation Status
 
 Single-Workspace native import now reuses canonical repository ownership without
-Git population. Focused tests passed; real Workspace import/full CI and public
-aggregate import (including offline routing and failure cleanup) remain pending.
+Git population. Dedicated Incus/Btrfs Workspace import and owned cleanup passed in
+20.67s, and local Go/vet/docs/JS plus focused race tests passed. Public aggregate
+import (including offline routing, failed-import cleanup and activation) remains pending.
 
 New public Linux exports use version-2 Workspace routing metadata from protected
 snapshot bindings; version-1 inspection remains supported. No Git approval or

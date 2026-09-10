@@ -513,5 +513,13 @@ Focused service/native-boundary tests passed (0.427s/0.536s), including durable
 ownership before import, no population, duplicate refusal and failure retention.
 The existing native volume E2E is extended to register Workspace data after source
 volume deletion and check commits, dirty/untracked files, preserved guest Git
-config, independent management routing and owned cleanup. That extension and full
-CI are pending; no real Workspace import or Env attachment is claimed yet.
+config, independent management routing and owned cleanup. The dedicated Incus/Btrfs
+run passed in 20.67s at `b7c7ec5`, including canonical Workspace registration/deletion
+and both isolated pool deletions. The original archive and fixture plan remain at
+`/var/lib/haco-owned-import-1590527782`. Postcheck confirmed the original nine
+instances, sentinel checksum and registration mode/link count unchanged.
+
+All local Go tests, vet, docs/workflow policy and 27 JavaScript tests passed on the
+same source. Focused race tests passed for the Git service (1.568s) and native adapter (2.541s);
+the complete local validation invocation exited successfully. This does not prove Env attachment/idmap shifting, boot,
+SSH, a live OCI daemon, multi-Workspace import or the public aggregate command.
