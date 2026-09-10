@@ -745,3 +745,13 @@ snapshot 削除失敗の模擬、全インストールファイルの列挙、li
 非信頼 tar の安全な import、trusted credential の暗号化、WSL 外への保存、新 WSL 復元は
 未確認です。全量退避を主張する前にこれらを扱い、読めない・変更中の source を完全保存済み
 とはしません。
+
+a16f3b1 では対象 CI がすべて成功しました（任意の private-registry job は SKIP）。
+実 GHA の直接ファイル退避テストは [run 34498433003](https://github.com/SLktEx/Hacocoon/actions/runs/34498433003) で 0.84 秒で成功しました。
+その後の手動確認では、合成データのアーカイブ 2 個を Windows Temp の新規ディレクトリ
+`C:/Users/gddro/AppData/Local/Temp/haco-readable-evacuation-egpq6g7c` へ排他的にコピーしました。
+元ファイルのコピー前後と保存先の SHA-256 が一致し、Windows 側でもサイズと hash を独立に確認しました。
+`work.tar` は 112640 bytes、`oci.tar` は 10240 bytes です。最初の Windows 結果表示は
+constrained language mode の制限で失敗し、通常の文字出力による再確認は成功しました。
+`receipt.json` をアーカイブと一緒に残しています。これは合成データの WSL 外への保存の確認であり、
+全量 backup、保護した認証情報の持ち出し、別 WSL への復元は未検証です。

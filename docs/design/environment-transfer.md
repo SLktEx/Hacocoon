@@ -900,6 +900,17 @@ capture. Existing application data and pools are never selected.
 The dedicated WSL Incus/Btrfs run passed in 20.59s. Both owned pools were cleaned; archives and ownership plan remain at /var/lib/haco-volume-transfer-2051477010, outside both pools but inside WSL. This verifies a quiescent file-copy primitive only.
 It does not simulate a failed snapshot deletion, enumerate every installation
 file, transfer a live OCI daemon, safely import arbitrary untrusted tar files,
-encrypt trusted credentials, save outside WSL or restore a new WSL. These remain
+encrypt trusted credentials, save the whole installation outside WSL or restore a new WSL. These remain
 required before claiming whole-installation evacuation. An inaccessible or
 changing source must not be reported as completely saved.
+
+At a16f3b1, all applicable CI passed (the optional private-registry job was skipped).
+The native GHA test passed in 0.84s in [run 34498433003](https://github.com/SLktEx/Hacocoon/actions/runs/34498433003).
+A subsequent manual check exclusively copied the two synthetic archives to a new
+Windows Temp directory, `C:/Users/gddro/AppData/Local/Temp/haco-readable-evacuation-egpq6g7c`.
+The source before/after and destination SHA-256 checks passed, followed by independent
+Windows byte-count and hash checks: `work.tar` is 112640 bytes and `oci.tar` is 10240 bytes.
+The first Windows result-formatting attempt failed under constrained language mode;
+plain-output verification then passed. `receipt.json` remains with the archives.
+This proves delivery of these synthetic archives outside WSL, not whole-installation
+backup, protected credential delivery or restoration in another WSL.
