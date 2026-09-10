@@ -1,5 +1,7 @@
 # 実装状況
 
+7517c27 の対象 Incus・通常テストの全 job と Windows VS Code は成功しましたが、transfer は SSH 内の Git 導入で失敗しました（exit 100）。SSH 準備時に現在の管理対象 proxy を sshd セッションへ設定する修正を追加し、ローカル・実環境の検証を進めています。[ADR 0058](adr/0058-ssh-session-egress-environment.md)を参照してください。
+
 0cc27a5 の Windows transfer は seed-repository で失敗（exit 127）、VS Code は成功しました。fixture に通常のパッケージ導入経路で trusted Host と source Env の不足する Git を準備する処理を追加しました。再検証は未完了です。
 
 ## 公開 Environment import の作業状況

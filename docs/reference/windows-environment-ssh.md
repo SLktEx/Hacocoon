@@ -82,3 +82,12 @@ After a fresh candidate ZIP passes the ordinary Windows installer gate, run
 a writable additional drive. The maintained ConPTY driver keeps an ordinary
 trusted Host shell open, checks native interop before and after the complete
 SSH lifecycle, and leaves the user's SSH configuration untouched.
+
+## Package access from SSH sessions
+
+SSH preparation installs current managed HTTP(S)/NO_PROXY session settings through
+an OpenSSH SetEnv drop-in, validates sshd configuration and reloads it. Interactive
+and command sessions can use the same policy-controlled proxy as Incus exec.
+This does not permit a domain or inherit an old Env grant; configure current
+network Policy as usual. See [ADR 0058](../adr/0058-ssh-session-egress-environment.md).
+Installed SSH package acceptance is pending; 7517c27 failed before this fix.

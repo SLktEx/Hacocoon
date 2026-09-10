@@ -1,5 +1,7 @@
 # Implementation Status
 
+At 7517c27 all applicable Incus and normal-test jobs passed; Windows VS Code passed, but transfer failed installing Git over SSH (exit 100). SSH preparation now configures the current managed proxy for sshd sessions; local and installed verification of this fix is pending. See [ADR 0058](adr/0058-ssh-session-egress-environment.md).
+
 Windows transfer at 0cc27a5 failed during seed-repository (exit 127); VS Code passed. The fixture now installs missing Git in trusted Host and the source Env through normal package routes. Rerun pending.
 
 ## Public Environment import in progress
