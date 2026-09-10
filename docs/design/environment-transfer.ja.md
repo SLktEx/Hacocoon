@@ -757,3 +757,5 @@ constrained language mode の制限で失敗し、通常の文字出力による
 全量 backup、保護した認証情報の持ち出し、別 WSL への復元は未検証です。
 
 追加の `TestRealIncusSavedReadableDataEvacuationE2E` は、準備時に所有する native volume snapshot を作り、live volume から marker を削除します。直接 tar 保存は既存 snapshot tree を読み、snapshot にしか残らない marker を新しい所有 volume へ復元します。通常の live volume の検証は別に維持します。snapshot 作成は準備段階だけで、保存処理では作成・export・削除しません。snapshot 削除失敗の模擬や、全 rootfs／Workspace／OCI の保存対応の確認ではありません。専用 Incus/Btrfs で 24.52 秒で成功しました。所有する両 pool は片付け、アーカイブと所有記録を `/var/lib/haco-volume-transfer-2483709670` に残しています（両 pool の外、WSL の内）。保存処理中に元 snapshot は変更していません。全量退避や新 WSL への復元を確認したものではありません。
+
+b8ef557 の native GHA は、直接ファイル退避（0.89 秒）と saved-only 退避（1.87 秒）に成功しました。同 head の Windows SSH は native client の5分タイムアウトで失敗しました。現在の branch は、別途検証済みの main の SSH 進捗診断を含み、最新 head 自身の CI が必要です。以前の Windows 失敗を成功へ変更したり、原因が判明したことにはしません。
