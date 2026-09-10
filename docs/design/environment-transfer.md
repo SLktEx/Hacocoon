@@ -824,3 +824,34 @@ native snapshotter and stopped container data only.
 At ba4dbcd, native OCI acceptance FAILED during source runtime preparation before export. The fixture now identifies the fixed failed phase and exit code without raw subprocess output. Ownership recovery records remain; no transfer acceptance is claimed.
 
 The offline source fixture explicitly configures the containerd transfer service for linux/amd64 native unpack. Its default unpack selection does not cover native; this is source preparation only. Import still replaces that configuration with current Hacocoon settings before starting the restored Environment. At 8103e3f, direct image import still failed before export; explicit CLI platform alone was insufficient. Native acceptance of the unpack configuration remains pending.
+
+## Evacuation inventory
+
+G2 is **partial**: `tools/evacuation_inventory.py` lists native Incus projects,
+pools, instances, custom volumes and saved snapshots through read-only queries.
+Run it from the repository on the Physical Host with existing Incus administration
+access; it is an occasional recovery tool, not a new daily `haco` command:
+
+```bash
+umask 077
+python3 tools/evacuation_inventory.py > inventory.json
+```
+
+The JSON contains resource names and types, not config bodies or credentials.
+It preserves failed query labels and other successful results. Exit status 1 and
+`native_queries_complete: false` mean at least one native query was incomplete.
+Project views may refer to shared resources; rows do not establish distinct
+ownership. The report grants no deletion or restore authority. Collection is bounded to 256 queries and five minutes between queries (each query has a 30-second deadline); reaching a bound preserves collected rows and reports incomplete inventory.
+
+`backup_complete` is always false. The explicit unreviewed list still requires
+catalog associations, controller/Policy settings, protected trusted Host data,
+manual/unregistered files, external pools/VHDs and Windows references, readability,
+consistent capture and restoration comparison. Neither all-file enumeration nor
+export is implemented here. A successful native inventory is not whole-WSL
+coverage. Keep the old WSL and data; no snapshot/create/delete operation is used.
+The report itself must later be saved outside the storage being replaced.
+
+A dedicated WSL Incus read passed: 2 project views, 1 pool, 13 instance rows and
+55 volume rows, with no query errors. The private report remains at
+`/var/tmp/haco-evacuation-inventory-tb_t97dj/inventory.json` inside that WSL; this is
+not an external backup or a snapshot-deletion-failure evacuation test.

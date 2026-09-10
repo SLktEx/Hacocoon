@@ -1806,3 +1806,5 @@ G1 Windows-file acceptance passed at c4449e1 in [Windows run 34482712957](https:
 E5 OCI image list/delete now support reviewed --unused candidates (including tagged images without container users). Existing per-image ownership, reference and absence checks remain. Native controller/CLI batch acceptance passed at 9484d06 (run 34493016558); cache/other-resource GC remains planned. See [image selection](design/oci-image-deletion.md#review-unused-image-candidates).
 
 G1 live containerd transfer fixture is implemented; native acceptance is pending. It checks an offline image and stopped container writable data after source deletion through both import compositions. Docker/cache/application consistency remain unverified. See [scope](design/environment-transfer.md#live-oci-transfer-acceptance).
+
+G2 now has a read-only native evacuation inventory helper, verified against dedicated WSL Incus. Whole-installation data enumeration, external backup and restored-data comparison remain unimplemented. See [inventory scope](design/environment-transfer.md#evacuation-inventory).

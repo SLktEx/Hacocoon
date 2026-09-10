@@ -671,3 +671,33 @@ native snapshotter、停止コンテナのデータを対象にします。
 ba4dbcd の実 OCI 検証は export 前の source runtime 準備で FAILED。fixture は生の subprocess 出力を出さず、固定の失敗段階と終了コードを示すようになった。所有情報の復旧記録は保持し、転送の検証成功とは扱わない。
 
 オフライン source fixture では containerd transfer service に linux/amd64 の native unpack を明示設定します。標準の unpack 選択は native を含まないためで、source の準備だけに使います。復元先は起動前に現在の Hacocoon 設定へ置き換えます。8103e3f は export 前の image import で失敗し、CLI の platform 指定だけでは解決しませんでした。unpack 設定の実環境検証は pending です。
+
+## 退避対象の native 一覧
+
+G2 は **partial** です。`tools/evacuation_inventory.py` は Incus の project、pool、
+instance、custom volume、保存済み snapshot を読み取り query だけで一覧化します。
+既存の Incus 管理権限がある Physical Host 上で repository から実行する復旧用の補助です。
+日常の `haco` コマンドは増やしません。
+
+```bash
+umask 077
+python3 tools/evacuation_inventory.py > inventory.json
+```
+
+JSON は資源名と種類を含みますが、config 本文や認証情報は出力しません。
+取得に失敗した query の対象を残し、他の取得結果は保持します。終了コード 1 と
+`native_queries_complete: false` は native query の未完了を示します。
+project 間で同じ資源が見える場合があり、行数は独立した所有資源数ではありません。
+この一覧は削除や復元の権限にはなりません。query は最大 256 回・全体で 5 分を上限に次の実行を判断し、各 query も 30 秒で打ち切ります。上限到達時は取得済みの行を残して未完了とします。
+
+`backup_complete` は常に false です。catalog の対応関係、controller／Policy 設定、
+保護する trusted Host データ、手動追加・未登録ファイル、外部 pool／VHD と Windows の参照、
+読み出し可否、整合性を保った保存、復元後の照合は unreviewed に残します。
+全ファイルの列挙・export は未実装で、native 一覧の成功は WSL 全体の退避完了ではありません。
+旧 WSL とデータは保持し、この処理では snapshot 作成・削除を行いません。
+一覧ファイルも後で入替対象 storage の外へ保存する必要があります。
+
+専用 WSL の実 Incus で、2 project、1 pool、instance 13 行・volume 55 行の取得が成功し、
+query エラーはありませんでした。private な一覧はその WSL 内の
+`/var/tmp/haco-evacuation-inventory-tb_t97dj/inventory.json` に残しています。
+外部への backup や snapshot 削除失敗時の退避を実証したものではありません。
