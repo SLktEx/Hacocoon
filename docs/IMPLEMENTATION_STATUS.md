@@ -2,7 +2,8 @@
 
 Archive-to-Env creation is implemented internally through canonical lifecycle,
 with current sandbox configuration, fresh generation/SSH identity and separate
-owned image/instance cleanup. Focused tests passed; full acceptance is pending.
+owned image/instance cleanup. All local Go/vet/docs/workflow-policy and 27 JavaScript tests passed at b7f7fac;
+Workspace/Incus package-wide race checks also passed. Real full-import acceptance is pending.
 Public aggregate import and real boot/SSH remain unfinished.
 
 Native rootfs import now prepares fresh image metadata and uses an owned temporary

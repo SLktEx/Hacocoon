@@ -1,7 +1,8 @@
 # 実装状況
 
 archive から Env への作成を canonical lifecycle に接続しました。現在の sandbox 設定、新しい世代／SSH identity、
-所有する image と instance の独立した cleanup を使います。対象テストは成功し、一式の受入検証は待機中です。
+所有する image と instance の独立した cleanup を使います。b7f7fac の全 Go・vet・docs・workflow policy・JS 27件と、Workspace／Incus 全体の race は成功しました。
+実機で一式を import する受入検証は未完了です。
 公開一式の import と実機の boot／SSH は未完了です。
 
 native rootfs import は新しい image metadata と所有確認付き一時 Incus image を使います。

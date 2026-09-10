@@ -611,8 +611,8 @@ Unconfirmed creation or cleanup keeps the receipt; no Base or backup is added.
 The pinned SDK's context-aware raw operation provides native upload and operation
 waiting. Current local Unix daemon/project and bounded response checks remain.
 Only uncompressed unified x86_64/aarch64 container images are supported initially.
-See [ADR 0056](../adr/0056-native-rootfs-import.md). Canonical Env creation, public
-aggregate import, boot/SSH and OCI consistency are separate remaining work.
+See [ADR 0056](../adr/0056-native-rootfs-import.md) and canonical creation below.
+Public aggregate import, boot/SSH and OCI consistency remain unfinished.
 
 ## Archive to Environment
 

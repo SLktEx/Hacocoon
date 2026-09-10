@@ -217,6 +217,11 @@ Host-copy/ownership boundary. Detached-Store image routing is partial; automatic
 reclamation/operability and G export/migration remain planned. These remaining stages preserve data and permissions while using
 Incus capabilities; they do not require full disposable-Env reconstruction.
 
-G1 public transfer remains planned. Native rootfs image and custom-volume archives have
+G1 public transfer remains partial: Linux export exists; public import is planned.
+Internal import now connects prepared data and the native rootfs image adapter to
+canonical Env creation, with fresh identity and current sandbox configuration.
+Full archive-to-running-Env/SSH acceptance and public bundle orchestration remain
+unverified. No new command, Base filesystem or automatic backup is introduced.
+Native rootfs image and custom-volume archives have
 opt-in acceptance tests. The internal saved-rootfs archive producer adds explicit temporary-image ownership and cleanup; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s. This does not complete public rootfs/security/import
 or whole-installation evacuation. See [Environment transfer](../design/environment-transfer.md).
