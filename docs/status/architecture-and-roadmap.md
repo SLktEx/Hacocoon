@@ -2,7 +2,7 @@
 
 G1 internal export now composes canonical stopped-Env capture, all protected native
 archives and anonymous verified output. Dedicated native aggregate export passed
-in 314.12s; Linux public export is partial and public CLI/fixture-controller import is verified; installed/desktop import remains pending. See [Environment transfer](../design/environment-transfer.md#internal-stopped-environment-export).
+in 314.12s; Linux public export is partial and public CLI/fixture-controller import is verified; installed/desktop import and Windows-file projection are verified. See [Environment transfer](../design/environment-transfer.md#internal-stopped-environment-export).
 
 > **Architecture baseline · Updated 2026-08-31**
 >
@@ -217,12 +217,13 @@ Host-copy/ownership boundary. Detached-Store image routing is partial; automatic
 reclamation/operability and G export/migration remain planned. These remaining stages preserve data and permissions while using
 Incus capabilities; they do not require full disposable-Env reconstruction.
 
-G1 public transfer remains partial: Linux export/import exist; public CLI/fixture-controller import is verified; installed/desktop acceptance remains pending.
-Internal import now connects prepared data and the native rootfs image adapter to
-canonical Env creation, with fresh identity and current sandbox configuration.
-Internal archive-to-running-Env acceptance passed on real Incus/Btrfs (439.76s);
-internal bundle orchestration is implemented with acceptance pending; public CLI
-upload, SSH handshake and live OCI consistency remain unverified. No new command, Base filesystem or automatic backup is introduced.
-Native rootfs image and custom-volume archives have
-opt-in acceptance tests. The internal saved-rootfs archive producer adds explicit temporary-image ownership and cleanup; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s. This does not complete public rootfs/security/import
-or whole-installation evacuation. See [Environment transfer](../design/environment-transfer.md).
+G1 remains partial overall. Linux export/import and the installed controller path,
+source Env deletion, fresh pinned Windows SSH, continued work and retained-data
+recreation passed. Windows-file delivery through the existing drive projection
+also passed at c4449e1; native Windows CLI/direct DrvFS publication and migration
+to another WSL are not implied. Live OCI runtime consistency and actual Git
+reconnection remain incomplete. G2–G4 still require whole-installation inventory,
+readable-data evacuation independent of snapshot creation/deletion, restoration
+into a new WSL/pool, data comparison and explicit replacement after acceptance.
+Base filesystem retention and automatic backup remain absent. See
+[Environment transfer](../design/environment-transfer.md).
