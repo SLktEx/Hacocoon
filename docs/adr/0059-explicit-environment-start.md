@@ -44,5 +44,17 @@ running state alone does not authorize startup before security preparation.
 ## Validation scope
 
 Provider regressions cover initialization, guarded resume, write failure and
-readback mismatch. Real Incus/WSL acceptance must separately verify cold-boot
-behavior; a unit-test pass or a config value alone does not prove that acceptance.
+mismatched/truncated readback. The Incus adapter package and vet passed.
+
+A locally built controller at 61a26e3 passed real Incus 6.0.5 acceptance in an
+isolated Ubuntu 26.04 WSL: a new Env and a migrated existing Env both had explicit
+`false` settings while running. After terminating only that WSL and proving a new
+PID namespace, both remained stopped. Normal `haco env start` then passed in
+17.14s with unchanged generation and retained Workspace/Git/OCI bytes. The probe
+Env was deleted through the normal lifecycle; the retained Env was stopped.
+This does not establish behavior on every Incus/WSL release or full migration.
+
+The existing native resume E2E also passed in 37.43s, including generation
+mismatch refusal, repeated start, root/Workspace retention, unchanged lease and
+canonical cleanup. Its ownership ledger is retained outside automatic test
+cleanup, including on failures. This test does not itself simulate a Host reboot.

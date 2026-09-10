@@ -41,7 +41,12 @@ func TestRealIncusResumeE2E(t *testing.T) {
 	}
 	name := "resume-e2e-" + hex.EncodeToString(nonce[:])
 	ref := "haco-" + name
-	root := t.TempDir()
+	// Retain the ownership ledger even if native cleanup is uncertain.
+	root, err := os.MkdirTemp("", "haco-resume-e2e-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("retained native ownership ledger: %s", root)
 	work := filepath.Join(root, "work")
 	if err := os.Mkdir(work, 0755); err != nil {
 		t.Fatal(err)

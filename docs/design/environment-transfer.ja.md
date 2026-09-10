@@ -815,3 +815,11 @@ untracked file が残り、復元先で新しい local commit を作成できま
 アプリ状態、新 WSL 上の saved-only data、全量の網羅、WSL 入替は証明していません。
 暗号化の秘密 identity の移送は未実行です。残る確認を終え、復元結果を確認してから
 削除する旧 WSL を選びます。この部分結果を旧データ削除の根拠にしてはいけません。
+
+### インストール済み controller と復元 Workspace
+
+新規 Ubuntu 26.04 WSL・Incus 6.0.5・ローカル ad80acc controller candidate で、合成の外部 Workspace を復元し、通常の `haco env create` により新しい既定 OCI Store 付きで作成できました（40.88 秒）。source guard の拒否を観測した後、通常の stop/start は成功しました。SSH の package 準備は最初 exit 100 で失敗し、`haco config` で試験 Env の Ubuntu 配布先だけを許可した後は通常準備（84.69 秒）と固定 Host 鍵の SSH による Workspace 読書き（1.68 秒）に成功しました。Env 内に管理 socket はありませんでした。
+
+同じ SSH/package 経路で Git を導入し、復元 repo にローカル commit `cafa5fc` を作成しました。続く複合検証は、新 Store に containerd directory が既にあると仮定したため失敗しており、live OCI 成功とは扱いません。別の検証で所有 Store の mount を確認して marker を書き、通常の stop/delete/create 後も Store の同一性と marker、Workspace の同一性、Git commit、modified/untracked、所有権・permission・link・xattr を保持しました。同名 Env の世代は変わり、旧 SSH endpoint は接続を拒否し、旧生成 config と authorized keys は存在せず、Env rootfs 内だけの marker は消えていました。通常 lifecycle/SSH に native readback を併用しています。
+
+新規インストール上の合成外部 Workspace での開発と、新 Store の保持データの検証です。旧 live OCI daemon、全 managed repo/Store 対応、実認証情報、既存暗号 identity の回復は対象外で、旧 WSL 削除を許可する確認ではありません。揮発性 guard より先に Incus が自動起動する問題は別の[起動境界修正](../adr/0059-explicit-environment-start.md)で扱い、その cold-boot 受入は別途記録します。

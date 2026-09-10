@@ -1577,4 +1577,6 @@ G3 の部分受入として Windows 上の合成 Workspace／OCI archive を新 
 
 Incus adapter は新規 instance 初期化時に `boot.autostart=false` を渡し、新規・復元起動と guarded resume の前に確認する。CLI コマンド、復旧 coordinator、Core state は追加しない。既存 instance は通常の stop/start で適用する。再起動前の更新手順は [ADR 0059](adr/0059-explicit-environment-start.md) を参照。
 
-隔離した新規 WSL の candidate では、合成 Workspace を復元し、既定 OCI Store 付き Env を作成できた（40.88 秒）。その後、明示的な boot 設定がない実行中 Env で source guard がなく、start は拒否した。通常の stop/start は成功した（3.54 秒／16.43 秒）。boot policy の cold-boot 受入は未検証。SSH 準備は限定 package Policy の適用前に package exit 100 で失敗した。適用後は通常 SSH 準備が 84.69 秒、固定 Host 鍵での Workspace 読書きと管理 socket 非露出が 1.68 秒で成功した。新 WSL 移行全体は未検証。
+隔離した新規 WSL の candidate では、合成 Workspace を復元し、既定 OCI Store 付き Env を作成できた（40.88 秒）。その後、明示的な boot 設定がない実行中 Env で source guard がなく、start は拒否した。通常の stop/start は成功した（3.54 秒／16.43 秒）。controller 61a26e3 では実 WSL PID namespace 再起動後も新規・既存 Env とも停止状態を保ち、通常の guarded start が 17.14 秒で成功した。世代と Workspace/Git/OCI データも保持した。adapter 全体のテストと vet は成功。SSH 準備は限定 package Policy の適用前に package exit 100 で失敗した。適用後は通常 SSH 準備が 84.69 秒、固定 Host 鍵での Workspace 読書きと管理 socket 非露出が 1.68 秒で成功した。新 WSL 移行全体は未検証。
+
+native resume E2E は boot 設定の読み戻しと所有台帳保持を含め 37.43 秒で成功し、世代不一致の拒否、繰返し start、root/Workspace 保持、canonical cleanup を確認した。
