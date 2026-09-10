@@ -103,3 +103,27 @@ push only to `SLktEx/Hacocoon-test`. It uses the dedicated
 not execute the push. Per-run test branches are retained with their commit receipt.
 This fixture is not installed-product/import approval acceptance. See
 [ADR 0059](../adr/0059-dedicated-git-push-test-target.md).
+
+## Reconnect an imported GitHub Workspace
+
+An imported Workspace with a saved GitHub route can use the existing commands.
+On a new installation, authenticate GitHub in trusted Host as usual and explicitly
+register the saved repository ID, URL and branch before connecting:
+
+```bash
+haco repo clone --branch main sample https://github.com/OWNER/REPO.git
+haco git connect dev-imported
+```
+
+Here `sample`, the URL and `main` must match the saved Workspace route. If that
+matching source is already registered, only `haco git connect` is needed. This
+does not replace the imported checkout or its uncommitted/untracked/unpushed work.
+Current Policy and approval still apply; imported data grants no credentials.
+A missing source, mismatched URL/branch, or replaced Env/source identity cannot
+reuse a connection. An offline import stays offline even if a same-name source
+appears. Assigning a new route to offline data remains unimplemented.
+
+Status: existing service composition verified by a component test combining
+Workspace import, explicit source clone and broker connection, including mismatch,
+offline and same-name replacement refusal. Native imported Git fetch/push remains
+unverified; this is not a real-provider or network acceptance result.

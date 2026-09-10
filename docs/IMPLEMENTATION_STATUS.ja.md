@@ -2,6 +2,8 @@
 
 7517c27 の対象 Incus・通常テストの全 job と Windows VS Code は成功しましたが、transfer は SSH 内の Git 導入で失敗しました（exit 100）。SSH 準備時に現在の管理対象 proxy を sshd セッションへ設定する修正を追加し、684e411 でローカル tests／vet と実 Windows SSH 内の Git 導入が成功しました。[ADR 0058](adr/0058-ssh-session-egress-environment.md)を参照してください。
 
+GitHub の接続情報を持つ import は既存の source clone と Git connect を使います。一致する接続、不一致・offline・同名再作成の拒否の component テストと package の race・vet は成功しました。import 後の実 Git fetch・push は未検証です。[契約](design/git-and-github-capability.md#reconnect-an-imported-github-workspace)を参照してください。
+
 0cc27a5 の Windows transfer は seed-repository で失敗（exit 127）、VS Code は成功しました。fixture に通常のパッケージ導入経路で trusted Host と source Env の不足する Git を準備する処理を追加しました。後続684e411でtransferは成功し、独立した承認probeは失敗しました。
 
 ## 公開 Environment import の作業状況
