@@ -1,8 +1,9 @@
 # 実装状況
 
 複数 Workspace の native import は既存 collection の予約・公開遷移を共用し、
-Git の populate と member 単独の lease を許しません。対象・native 検証は実行中で、
-未完了 collection の cleanup と公開一式の import は planned です。
+Git の populate と member 単独の lease を許しません。全 Go・vet・docs・JS と対象 race は成功し、
+実 Incus/Btrfs collection 検証も29.64秒で成功しました。未完了 collection の cleanup と
+公開一式の import は planned です。
 
 作成完了済み・未公開の Workspace import 失敗時は、正確な所有対象の cleanup を試みます。
 作成不確定・所有者変更・cleanup 不確定は receipt を残し、新しい状態や自動再開は追加しません。

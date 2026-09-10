@@ -568,5 +568,9 @@ existing canonical lease exclusion and owned member deletion. No new catalog,
 schema, state, CLI command or source permission is introduced. Existing records do
 not require migration. This extends ADR 0053 using the existing collection model.
 
-Focused regression and native collection acceptance are being verified; public
-aggregate import, offline routing, rootfs and Env activation remain planned.
+At b7dca44, all local Go/vet/docs/workflow-policy and 27 JavaScript tests passed;
+focused race passed (2.782s). Dedicated real Incus/Btrfs acceptance passed (29.64s):
+source-deleted archives, two independent native copies, retained Git/untracked data,
+no separate member records and canonical collection deletion. Partial collection
+failure retention is covered by service tests, not a native injected-failure run.
+Public aggregate import, offline routing, rootfs and Env activation remain planned.

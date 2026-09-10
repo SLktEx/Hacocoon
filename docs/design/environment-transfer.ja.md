@@ -467,5 +467,8 @@ member 単独の参照用記録は作りません。native 実体は別々であ
 既存の lease 排除・所有対象確認を使います。catalog・schema・状態・CLI・元の権限は追加せず、
 既存データの移行も不要です。ADR 0053 を既存 collection モデルで拡張しています。
 
-対象回帰テストと native collection 検証を実行中です。公開一式の import、offline 接続先、
-rootfs と Env 起動は planned のままです。
+b7dca44 の全 Go・vet・docs・workflow policy・JS 27件と対象 race（2.782秒）は成功しました。
+専用の実 Incus/Btrfs 検証も29.64秒で成功し、保存元削除後の archive からの独立2コピー、
+Git・untracked データ保持、member 単独記録の不在、canonical な collection 削除を確認しました。
+collection の部分失敗時の保持は service テストで確認し、native への失敗注入では未検証です。
+公開一式の import、offline 接続先、rootfs と Env 起動は planned のままです。

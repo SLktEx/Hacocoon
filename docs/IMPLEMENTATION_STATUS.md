@@ -2,7 +2,8 @@
 
 Native multi-Workspace import now shares the existing collection reservation and
 publication transition, without Git population or separately leaseable members.
-Focused/native validation is pending; incomplete collection cleanup and public
+All local Go/vet/docs/JS and focused race checks passed; dedicated real Incus/Btrfs
+collection acceptance passed in 29.64s. Incomplete collection cleanup and public
 aggregate import remain planned.
 
 Completed, unpublished Workspace import failures now attempt exact-owned cleanup.
