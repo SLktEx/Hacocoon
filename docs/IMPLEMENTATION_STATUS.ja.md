@@ -1583,3 +1583,5 @@ native resume E2E は boot 設定の読み戻しと所有台帳保持を含め 3
 
 
 G2 は実 snapshot 削除の EPERM 中に退避する明示実行の回帰を既存 native gate に追加しました。別途の隔離 WSL 手動検証では、失敗中の取得・独立復元・所有 pool の cleanup が成功しました。全量退避・破損復旧は未完了です。[対応する設計](design/environment-transfer.ja.md#snapshot-削除失敗後の読み出し退避)を参照してください。
+
+G2 の読み取り専用 inventory に `--files /absolute/root` の Linux ファイル metadata 列挙を追加しました。mount・symlink・特殊ファイル・エラー・上限による未処理を明示し、内容の取得や backup／所有権の付与とはしません。[手動追加ファイル一覧](design/environment-transfer.ja.md#退避確認のための手動追加ファイル一覧)を参照してください。

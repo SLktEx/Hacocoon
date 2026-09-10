@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from urllib.parse import quote, urlencode
+from evacuation_files import file_inventory
 
 LIMIT = 4096
 
@@ -307,8 +308,8 @@ def main():
     args = sys.argv[1:]
     options = {}
     while args:
-        if len(args) < 2 or args[0] not in ("--catalog", "--repositories") or args[0] in options:
-            print("Usage: python3 tools/evacuation_inventory.py [--catalog environments.json] [--repositories directory]", file=sys.stderr)
+        if len(args) < 2 or args[0] not in ("--catalog", "--repositories", "--files") or args[0] in options:
+            print("Usage: python3 tools/evacuation_inventory.py [--catalog environments.json] [--repositories directory] [--files /absolute/root]", file=sys.stderr)
             return 2
         options[args[0]] = args[1]
         args = args[2:]
@@ -332,6 +333,9 @@ def main():
         except (ValueError, TypeError, KeyError, OSError):
             report["repositories"] = {"projection_complete": False, "errors": ["repositories-unavailable"]}
             catalog_ok = False
+    if "--files" in options:
+        report["files"] = file_inventory(options["--files"])
+        catalog_ok = catalog_ok and report["files"]["enumeration_complete"]
     json.dump(report, sys.stdout, ensure_ascii=True, indent=2)
     print()
     return 0 if report["native_queries_complete"] and catalog_ok else 1

@@ -1849,3 +1849,5 @@ The native resume E2E passed in 37.43s with the boot-setting readback and retain
 
 
 G2 now includes an opt-in real snapshot-deletion EPERM evacuation regression in the existing native gate. A separate isolated WSL manual probe passed capture during failure, independent restoration and owned-pool cleanup. Full installation/corruption recovery remains incomplete; see [the owning contract](design/environment-transfer.md#readable-evacuation-after-a-failed-snapshot-deletion).
+
+G2 read-only inventory optionally enumerates Linux file metadata with `--files /absolute/root`. Mounts, symlinks, special files, errors and bounds remain explicit gaps; no content is read and no backup/ownership authority is claimed. See [manual-file inventory](design/environment-transfer.md#manual-file-inventory-for-evacuation-review).
