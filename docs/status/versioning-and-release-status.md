@@ -1,5 +1,9 @@
 # Versioning and release status
 
+The next G1 slice composes a stopped Env capture and all native archives into a
+private verified bundle. Public export/import remains planned; no release or
+checkpoint is declared. See [the owning flow](../design/environment-transfer.md#internal-stopped-environment-export).
+
 G1 remains planned publicly. Internal saved-rootfs export now uses an owned native Incus image and bounded archive streaming; dedicated Incus 6.0.5/Btrfs adapter acceptance passed in 13.44s. This adds no release or checkpoint declaration. See [Environment transfer](../design/environment-transfer.md#native-saved-rootfs-export-adapter).
 
 The v0.57 OCI image cleanup checkpoint is partial. Detached nerdctl Store list/delete through production composition and the bare controller/CLI passed real Incus/Btrfs acceptance at bd1c9a5. Full installed-controller acceptance, detached Docker and candidate-selected GC remain incomplete. See [image operations](../design/oci-image-deletion.md#controllercli-acceptance).

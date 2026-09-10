@@ -47,3 +47,13 @@ recovery. Public G1 must still handle a stopped Env, all managed Workspace/OCI d
 fresh import identity/current security, start and development access without a
 separate user snapshot step. Source and transport metadata never grant destination
 authority. Existing saved data and catalog schema are unchanged.
+
+## Aggregate export composition
+
+The stopped-Env exporter reuses canonical capture/read/delete, holding the saved
+source reservation through native production and archive closure. Its temporary
+capture is an export consistency source, not an import/restore backup. Do not
+replace these calls with separate metadata/lease mutations or another transfer
+recovery catalog. A bundle remains anonymous until all production, exact capture
+cleanup and whole-envelope verification succeed. Failed cleanup keeps its existing
+snapshot reservation ID. Public commands and import authority remain future work.

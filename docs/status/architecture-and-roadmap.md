@@ -1,5 +1,9 @@
 # Architecture and roadmap
 
+G1 internal export now composes canonical stopped-Env capture, all protected native
+archives and anonymous verified output. Public export/import and native aggregate
+acceptance remain planned or unverified. See [Environment transfer](../design/environment-transfer.md#internal-stopped-environment-export).
+
 > **Architecture baseline · Updated 2026-08-31**
 >
 > Hacocoon is a **Secure Workspace Runtime**. Use [`../IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md) for current code reality and [`versioning-and-release-status.md`](versioning-and-release-status.md) for authoritative development-checkpoint numbering/history.
