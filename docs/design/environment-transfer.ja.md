@@ -789,7 +789,7 @@ WSL 削除後の鍵の確保、暗号化データの新 WSL 復元は未検証�
 `HACO_E2E_ENCRYPTED_EVACUATION=1` で opt-in し、`HACO_E2E_ENCRYPTED_OUTPUT_ROOT` に
 既存の外部保存先 parent を指定すると、その下の新規テスト directory を使います。
 
-専用 WSL では age 1.2.1（配布 package `age_1.2.1-1build1_amd64.deb`）で 1.03 秒で成功しました。直接の package 導入は libc6 の dpkg 設定中断により失敗し、その後 apt で取得した package を私有の tool directory に展開して、システムの package 状態を変更せず検証しました。暗号文と記録は 新規の Windows 出力 directory に残し、Windows 側でも 10440 bytes と SHA-256 `bf25c5334464947c0ea0c8645ecc535195cd930dad98efd18550243323eb5804` を独立に確認しました。合成 source・復元データ・試験 identity は WSL 内の WSL の私有テスト directory に残しています。WSL 削除後の identity 回復は未検証です。
+専用 WSL では age 1.2.1（配布 package `age_1.2.1-1build1_amd64.deb`）で 1.03 秒で成功しました。直接の package 導入は libc6 の dpkg 設定中断により失敗し、その後 apt で取得した package を私有の tool directory に展開して、システムの package 状態を変更せず検証しました。暗号文と記録は 新規の Windows 出力 directory に残し、Windows 側でも 10440 bytes と SHA-256 `bf25c5334464947c0ea0c8645ecc535195cd930dad98efd18550243323eb5804` を独立に確認しました。合成 source・復元データ・試験 identity は当初 WSL の一時 fixture 内にありました。その後の読取確認では、その正確な directory は通常側にも現在の Incus mount namespace 側にもなく、当該 WSL の `/tmp` は tmpfs でした。Windows の暗号文と digest は保持していますが、元 identity は現時点で確認できません。転送前の確認は失敗し、鍵の転送・復号は未実行です。この暗号文の新 WSL 復元は SKIP とします。削除の正確な時刻・原因を確定した結果ではなく、別の鍵ではこの archive を復元できません。
 
 55be427 の既存 native GHA [job](https://github.com/SLktEx/Hacocoon/actions/runs/34508162748/job/102975354767)
 は成功し、実 tar／age テストは 0.029 秒で成功しました。この結果は当該 commit のもので、
@@ -889,3 +889,45 @@ symlink 3,718、特殊ファイル 2）。17 mount 境界、全 symlink、両特
 `/var/lib/haco-file-inventory-4kvt5eyb/wsl-root.json` にあり、外部 archive ではありません。
 別の小さな合成の手動追加データ領域では内容を出力せずに全 entry を列挙できました。
 どちらも installation 全体を分類・保存した結果ではありません。
+
+## 暗号化受入 fixture の保持
+
+root で明示実行する native tar/age テストは、合成 identity・source・復元データ・記録を
+新規 mode 0700 の `/var/lib` directory に保存します。揮発性の `/tmp` を保持済みの証拠と
+表示しません。鍵は mode 0600 で、内容の出力や転送は行いません。既存 native GHA step は
+`tools/test_encrypted_evacuation_retention.py` を実行します。実暗号化テストを
+`PrivateTmp=yes` の一時 systemd unit 内で実行し、unit 終了後も表示した private 証拠が
+期待した権限で存在することを確認します。旧実装は表示した directory が消失し、
+この実 systemd 回帰で失敗しました。
+
+同じ installation 内での fixture 保持であり、以前の未確認 identity の回復、WSL 削除後の
+復旧、製品の認証情報 backup ではありません。本番の復号 identity は storage 入替前に
+独立してアクセスできる場所へ保管する必要があります。暗号文が残るだけでは復元可能とは
+言えず、新しい合成テストによって旧暗号文を置き換えたり成功扱いしたりもしません。
+公開 `haco` コマンドは増やしません。
+
+専用 WSL の検証では、旧 fixture は実 PrivateTmp 終了後の確認で失敗し、修正版は
+2.31 秒で成功しました。既存の暗号化・復号・異なる鍵／改変／切詰めの拒否と private
+ファイルの権限を含みます。一時 unit にも wrapper の timeout より短い実行・停止上限を
+設定します。新たに生成した合成 identity は当該 WSL 内にあり、以前の Windows 暗号文の
+復号には使っていません。WSL 間の鍵転送は未検証です。
+
+## 復号 identity を WSL 外へ保持する
+
+別の合成受入で、標準の [age の公開 recipient 手順](https://github.com/FiloSottile/age/tree/v1.2.1)
+を使いました。Windows age/keygen v1.2.1 は公式 Go module の固定版から checksum database を
+有効にしてビルドしています。新規 Windows 復旧ディレクトリの ACL を現在ユーザーと SYSTEM
+だけに限定し、秘密 identity はそこで生成・利用しました。専用 WSL へ渡したのは公開 recipient
+だけで、既存 identity の読み出し・転送はありません。以前見つからなくなった identity と
+暗号文の未解決結果は別に保持します。
+
+WSL age で既知の合成保存 rootfs archive を Windows へ暗号化し、10440 bytes を保存しました。
+Windows native age の復号結果は10240 bytes、SHA-256
+`ab82a108262f499b89576c218bec974df10e31a56267d25bef7ccefbb2536e7f` と一致しました。
+改ざんした暗号文は exit 1 で拒否し、0 byte の部分 staging ファイルは復元していません。
+証拠と新しい identity は
+`%LOCALAPPDATA%/Hacocoon/RecoveryTests/<fixture-id>`
+に保持しています。手動の OS 間暗号化検証であり、全量 backup、実 credential 移行、任意 archive
+の安全な import、WSL 削除後の復旧の証明ではありません。storage 入替前に独立してアクセス
+できる identity を保護して保持し、完全な復号を確認してから復元します。暗号文の存在だけで
+鍵が復旧可能とは判断しません。

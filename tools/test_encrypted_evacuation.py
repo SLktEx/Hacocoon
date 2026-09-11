@@ -15,7 +15,10 @@ class EncryptedEvacuationTests(unittest.TestCase):
     def test_encrypted_archive_and_failure_detection(self):
         for tool in ("tar", "age", "age-keygen"):
             self.assertIsNotNone(shutil.which(tool), "required tool missing: " + tool)
-        private = Path(tempfile.mkdtemp(prefix="haco-encrypted-evacuation-"))
+        self.assertEqual(os.geteuid(), 0, "native durable fixture requires root")
+        # /tmp may be tmpfs or service-private and disappear after this run.
+        # This keeps review evidence across normal service/WSL restarts, not WSL deletion.
+        private = Path(tempfile.mkdtemp(prefix="haco-encrypted-evacuation-", dir="/var/lib"))
         os.chmod(private, 0o700)
         # Retain exact synthetic artifacts for review, including failed attempts.
         print("Synthetic evacuation fixture retained at " + str(private), flush=True)

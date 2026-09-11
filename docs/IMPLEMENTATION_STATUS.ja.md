@@ -1614,3 +1614,7 @@ G2 は実 snapshot 削除の EPERM 中に退避する明示実行の回帰を既
 F1 に現在の終端 failed 操作だけを明示確認する内部処理を追加しました。新しい試行を許可する前に元の結果を ID ごとに保持します。pending／結果不明は引き続き拒否し、Windows native registry と command/library 回帰は成功しました。実登録 WSL の確認操作は未検証です。[失敗の確認](design/storage-reclamation.ja.md#終端の失敗結果を明示確認する)を参照してください。
 
 G2 の読み取り専用 inventory に `--files /absolute/root` の Linux ファイル metadata 列挙を追加しました。mount・symlink・特殊ファイル・エラー・上限による未処理を明示し、内容の取得や backup／所有権の付与とはしません。[手動追加ファイル一覧](design/environment-transfer.ja.md#退避確認のための手動追加ファイル一覧)を参照してください。
+
+暗号化受入 fixture は private な `/var/lib` に保持し、実 systemd PrivateTmp 終了後の回帰を追加しました。旧合成 identity のパスは現在見つからないため、保存した暗号文の別 WSL 復元は未実行です。[fixture 保持と限界](design/environment-transfer.ja.md#暗号化受入-fixture-の保持)を参照してください。
+
+新規 identity を Windows 内だけに置いた別の合成 OS 間暗号化検証で、WSL の公開 recipient 暗号化、Windows native 復号・hash 照合、改ざん拒否が成功しました。旧 identity の回復や全量復元を示しません。[WSL 外の identity 保持](design/environment-transfer.ja.md#復号-identity-を-wsl-外へ保持する)を参照してください。
