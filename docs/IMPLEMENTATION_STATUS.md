@@ -1936,3 +1936,5 @@ Evacuation reference inventory now includes bounded reverse review of observed i
 Reference inventory also recognizes existing retained Base instance references and Environment/lease runtime routes. Runtime name observations remain unresolved for generation/ownership review.
 
 Read-only evacuation reference projection covers catalog schemas 10–13 without migration and preserves the source version. Schema 9 remains unsupported. Unprojected restore/copy/ephemeral records are counted for review; this does not validate or import old lifecycle state.
+
+Evacuation native restore tests now explicitly restore and directly compare a non-user extended attribute. A dedicated WSL reproduction confirmed that default GNU tar extraction omitted the synthetic trusted attribute while explicit inclusion retained it. This corrects verification coverage; whole-installation restore and previously restored rootfs attribute comparison remain incomplete.

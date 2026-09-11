@@ -1664,3 +1664,5 @@ tree capture の成功時は `sha256sum` でコピーを検証する標準 SHA-2
 参照 inventory は、保存 Base の既存 instance 参照と Env/lease の runtime 経路も認識します。runtime 名の観測は、世代・所有権の確認が必要な状態として残します。
 
 読み取り専用の退避参照 projection は、移行せず元の番号を保持して catalog schema 10〜13 を扱います。schema 9 は未対応のままです。未投影の restore/copy/ephemeral 記録は確認用に件数を残し、古い lifecycle state の検証・import は行いません。
+
+退避のネイティブ復元テストは user 名前空間以外の拡張属性を明示的に復元し、直接照合します。専用 WSL での再現では、GNU tar の既定展開は合成した trusted 属性を失い、明示指定では保持しました。検証範囲の修正であり、全量復元と既存の復元済み rootfs の属性照合は未完了です。

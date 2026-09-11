@@ -16,6 +16,8 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
+
+	"golang.org/x/sys/unix"
 )
 
 // This evacuates only a freshly owned, stopped, saved rootfs. It is not an
@@ -117,6 +119,11 @@ func TestRealIncusSavedRootfsEvacuationE2E(t *testing.T) {
 		return result
 	}
 	savedRoot := path(p.target())
+	const attribute = "trusted.hacocoon.evacuation-test"
+	const attributeValue = "saved-rootfs-attribute"
+	if err := unix.Setxattr(filepath.Join(savedRoot, "root", "retained"), attribute, []byte(attributeValue), 0); err != nil {
+		t.Fatal("set owned rootfs attribute", err)
+	}
 	archive := filepath.Join(root, "saved-rootfs.tar")
 	// No publish/export/snapshot operation takes place during capture. Nothing is
 	// started; only this test's quiescent rootfs and known archive are used.
@@ -132,8 +139,13 @@ func TestRealIncusSavedRootfsEvacuationE2E(t *testing.T) {
 	}
 	run("incus", "init", "--empty", "destination", "--project", project, "--no-profiles", "--storage", pool, "--config", key+"="+owner, "--config", environmentInstanceKey+"="+newGeneration, "--config", "boot.autostart=false", "--config", "security.privileged=false")
 	targetRoot := path("destination")
-	run("env", "-u", "TAR_OPTIONS", "tar", "--acls", "--xattrs", "--numeric-owner", "--same-owner", "--same-permissions", "-xpf", archive, "-C", targetRoot)
-	run("env", "-u", "TAR_OPTIONS", "tar", "--acls", "--xattrs", "--numeric-owner", "-dpf", archive, "-C", targetRoot)
+	run("env", "-u", "TAR_OPTIONS", "tar", "--acls", "--xattrs", "--xattrs-include=*", "--numeric-owner", "--same-owner", "--same-permissions", "-xpf", archive, "-C", targetRoot)
+	run("env", "-u", "TAR_OPTIONS", "tar", "--acls", "--xattrs", "--xattrs-include=*", "--numeric-owner", "-dpf", archive, "-C", targetRoot)
+	attributeBytes := make([]byte, 128)
+	n, err := unix.Getxattr(filepath.Join(targetRoot, "root", "retained"), attribute, attributeBytes)
+	if err != nil || string(attributeBytes[:n]) != attributeValue {
+		t.Fatal("saved non-user attribute lost", err)
+	}
 	readback := filepath.Join(root, "readback")
 	run("incus", "file", "pull", "destination/root/retained", readback, "--project", project)
 	got, err := os.ReadFile(readback)
