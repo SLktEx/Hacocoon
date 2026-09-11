@@ -25,8 +25,6 @@ type pinnedReclaimTarget struct {
 	source, mountpoint   string
 }
 
-type backingAllocation struct{ LogicalBytes, AllocatedBytes uint64 }
-
 func (p *pinnedReclaimTarget) Close() error {
 	var errs []error
 	for _, f := range []*os.File{p.loop, p.mount, p.backing} {
@@ -51,15 +49,15 @@ func openReclaimPath(path string, directory bool) (*os.File, error) {
 	return os.NewFile(uintptr(fd), path), nil
 }
 
-func (p *pinnedReclaimTarget) Allocation() (backingAllocation, error) {
+func (p *pinnedReclaimTarget) Allocation() (ReclaimAllocation, error) {
 	var st unix.Stat_t
 	if err := unix.Fstat(int(p.backing.Fd()), &st); err != nil {
-		return backingAllocation{}, err
+		return ReclaimAllocation{}, err
 	}
 	if st.Mode&unix.S_IFMT != unix.S_IFREG || st.Nlink != 1 || st.Size < 0 || st.Blocks < 0 || uint64(st.Blocks) > ^uint64(0)/512 {
-		return backingAllocation{}, core.ErrIncompatibleState
+		return ReclaimAllocation{}, core.ErrIncompatibleState
 	}
-	return backingAllocation{uint64(st.Size), uint64(st.Blocks) * 512}, nil
+	return ReclaimAllocation{uint64(st.Size), uint64(st.Blocks) * 512}, nil
 }
 
 func pinReclaimTarget(pool, source string) (_ *pinnedReclaimTarget, err error) {
@@ -200,13 +198,8 @@ func btrfsSingleDevice(mount *os.File) (string, error) {
 
 // KernelTrimmedBytes describes discard requests, not recovered physical capacity.
 // Before/After are the backing file's independently measured allocation.
-type poolTrimObservation struct {
-	Before, After                backingAllocation
-	Attempted, KernelReportKnown bool
-	KernelTrimmedBytes           uint64
-}
 
-func (p *pinnedReclaimTarget) Trim(ctx context.Context) (result poolTrimObservation, err error) {
+func (p *pinnedReclaimTarget) Trim(ctx context.Context) (result PoolTrimObservation, err error) {
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
@@ -218,6 +211,10 @@ func (p *pinnedReclaimTarget) Trim(ctx context.Context) (result poolTrimObservat
 	}
 	if err := unix.Syncfs(int(p.mount.Fd())); err != nil {
 		return result, fmt.Errorf("sync pool before trim: %w", err)
+	}
+	result.FilesystemBefore, err = reclaimFilesystemUsage(int(p.mount.Fd()), unix.BTRFS_SUPER_MAGIC)
+	if err != nil {
+		return result, err
 	}
 	result.Before, err = p.Allocation()
 	if err != nil {
@@ -239,21 +236,22 @@ func (p *pinnedReclaimTarget) Trim(ctx context.Context) (result poolTrimObservat
 	}
 	var measureErr error
 	result.After, measureErr = p.Allocation()
+	var filesystemErr error
+	result.FilesystemAfter, filesystemErr = reclaimFilesystemUsage(int(p.mount.Fd()), unix.BTRFS_SUPER_MAGIC)
 	identityErr := p.Validate()
 	if measureErr == nil && result.Before.LogicalBytes != result.After.LogicalBytes {
 		identityErr = errors.Join(identityErr, core.ErrCapabilityStale)
 	}
 	// The kernel operation can finish after cancellation. Preserve observations
 	// and return failure; never claim that a timeout prevented an attempted trim.
-	return result, errors.Join(err, measureErr, identityErr, ctx.Err())
+	if filesystemErr == nil && result.FilesystemBefore.CapacityBytes != result.FilesystemAfter.CapacityBytes {
+		filesystemErr = core.ErrCapabilityStale
+	}
+	return result, errors.Join(err, measureErr, filesystemErr, identityErr, ctx.Err())
 }
 
-// outerTrimObservation reports filesystem discard, not Windows VHD allocation.
+// OuterTrimObservation reports filesystem discard, not Windows VHD allocation.
 // Filesystem capacity/free space are not the backing VHD's physical size.
-type outerTrimObservation struct {
-	Attempted, KernelReportKnown bool
-	KernelTrimmedBytes           uint64
-}
 
 // TrimBackingFilesystem forwards discard to the filesystem containing the pinned
 // Incus image. The caller must authorize the managed WSL distribution as well as
@@ -262,7 +260,7 @@ type outerTrimObservation struct {
 // ext4 FITRIM operates on file_inode(file)->i_sb, including a regular-file fd:
 // https://github.com/torvalds/linux/blob/v6.6/fs/ext4/ioctl.c
 // Other outer filesystems are unsupported, not silently treated as equivalent.
-func (p *pinnedReclaimTarget) TrimBackingFilesystem(ctx context.Context) (result outerTrimObservation, err error) {
+func (p *pinnedReclaimTarget) TrimBackingFilesystem(ctx context.Context) (result OuterTrimObservation, err error) {
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
@@ -283,6 +281,10 @@ func (p *pinnedReclaimTarget) TrimBackingFilesystem(ctx context.Context) (result
 	if err := unix.Syncfs(int(p.backing.Fd())); err != nil {
 		return result, fmt.Errorf("sync outer filesystem before trim: %w", err)
 	}
+	result.FilesystemBefore, err = reclaimFilesystemUsage(int(p.backing.Fd()), unix.EXT4_SUPER_MAGIC)
+	if err != nil {
+		return result, err
+	}
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
@@ -298,5 +300,26 @@ func (p *pinnedReclaimTarget) TrimBackingFilesystem(ctx context.Context) (result
 	}
 	// Cancellation cannot undo a kernel operation already attempted. Keep its
 	// observation even when the request was canceled during the syscall.
-	return result, errors.Join(trimErr, p.Validate(), ctx.Err())
+	var measureErr error
+	result.FilesystemAfter, measureErr = reclaimFilesystemUsage(int(p.backing.Fd()), unix.EXT4_SUPER_MAGIC)
+	if measureErr == nil && result.FilesystemBefore.CapacityBytes != result.FilesystemAfter.CapacityBytes {
+		measureErr = core.ErrCapabilityStale
+	}
+	return result, errors.Join(trimErr, measureErr, p.Validate(), ctx.Err())
+}
+
+// Read only through an existing pinned descriptor. This creates no mount or
+// storage target and makes filesystem use distinct from physical allocation.
+func reclaimFilesystemUsage(fd int, filesystem int64) (*ReclaimFilesystemUsage, error) {
+	var fs unix.Statfs_t
+	if err := unix.Fstatfs(fd, &fs); err != nil {
+		return nil, err
+	}
+	return reclaimFilesystemCounters(fs, filesystem)
+}
+func reclaimFilesystemCounters(fs unix.Statfs_t, filesystem int64) (*ReclaimFilesystemUsage, error) {
+	if fs.Type != filesystem || fs.Bsize <= 0 || fs.Blocks == 0 || fs.Bfree > fs.Blocks || uint64(fs.Bsize) > ^uint64(0)/fs.Blocks {
+		return nil, core.ErrIncompatibleState
+	}
+	return &ReclaimFilesystemUsage{CapacityBytes: fs.Blocks * uint64(fs.Bsize), UsedBytes: (fs.Blocks - fs.Bfree) * uint64(fs.Bsize)}, nil
 }

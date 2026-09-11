@@ -535,3 +535,48 @@ Windows の準備境界でテスト用 binary を使う必要がなくなりま�
 通常の controller 起動・一覧取得も成功しました。準備にテスト binary は使わず、
 worker 生存中に他の WSL 操作を差し込んでいません。Linux trim との統合や
 現行アプリ一式・OCI の受入は依然としてこの確認に含みません。
+
+## Linux 段階の controller 接続
+
+状態: **内部接続は実装済み、導入済み環境での実機受入は確認待ち**。
+管理 endpoint 専用の `storage.reclaim-linux` は、正確な canonical 形式の
+registration/installation 識別を受け取ります。pool、file、mountpoint、loop device、
+shell command は受け付けません。controller は既存の root 所有の導入記録を
+固定 reader で確認し、設定済み Incus pool の trim、導入識別の再確認、
+外側 ext4 の discard の順に実行します。pool/mount の所有と native handle 検証は
+引き続き Incus adapter が担当します。
+
+server は5分の上限と同時呼び出し拒否を設けます。client 中断は再実行の許可には
+なりません。失敗時も実行済み段階と観測結果を残し、後続段階は SKIP とします。
+先行する trim 失敗と後片付け失敗が重なっても両方を保持します。失敗 report が
+返ったことは RPC 応答の完了であり、容量回収の成功ではありません。内部 client は
+report を出力して exit 1 を返します。不正な結果や通信断はエラーです。
+
+| 配置 | 責務 |
+|---|---|
+| `modules/runtime/incus` | native pin、対応照合、FITRIM、計測 |
+| `internal/composition` | 導入 WSL の照合と設定済み二段階操作 |
+| `internal/reclamation` | 上限を持つ識別・結果の形式と検証。永続状態は持たない |
+| `internal/controlapi` | 管理専用 request、排他、deadline、typed client |
+| `cmd/haco-product` | Windows continuation 用の固定内部 `_reclaim-linux` 経路 |
+
+composition の狭い target interface は失敗・順序のテストに使い、Incus adapter を
+汎用 storage backend に変えるものではありません。観測型をこの境界で公開しています。
+catalog schema、所有 ledger、backup、lifecycle transition は増やしていません。
+通常の help・日常 CLI は不変です。公開の全層入口と、Windows 側がこの Linux report
+を受け取る処理は未完了です。
+
+固定した Btrfs/ext4 descriptor の `statfs` から前後の容量・使用量を取得します。
+Incus loop file の長さ・割り当て、kernel の discard 報告量とは別項目です。
+filesystem 使用量には内部の集計・予約も含まれ、正確な物理 file 使用量や Windows
+の回収量ではありません。[Linux Btrfs statfs 実装](https://github.com/torvalds/linux/blob/v6.6/fs/btrfs/super.c)
+を参照してください。未計測は0で埋めず省略します。不正カウンタ、演算 overflow、
+filesystem 種別や観測容量の変化は成功扱いしません。
+
+既存 Windows installation workflow に別の内部実機 gate を追加しました。
+通常の setup で Incus 所有の Host/pool 利用を確立し、別 installation ID の拒否、
+導入済み client/controller 経由の両 Linux 段階、既存 Host sentinel の保持を確認します。
+正規の日常利用経路の gate は変更せず、WSL 停止や VHDX 圧縮、Workspace/OCI 全体の
+保持までは検証しません。最新 head の結果を確認するまでは実機受入済みとしません。
+
+既存 Incus-owned Btrfs workflow でも、専用の合成 pool を使う volume/snapshot 保持 trim gate を実行します。file 割り当てと filesystem 集計を検証しますが、runner の外側 filesystem 操作は許可しません。その outer discard は明示的に SKIP とし、専用 WSL gate が担当します。

@@ -396,3 +396,25 @@ func TestOuterTrimCanceledOrInvalidTargetNeverAttemptsMutation(t *testing.T) {
 		t.Fatal("invalid target changed", err)
 	}
 }
+
+func TestReclaimFilesystemCountersDistinguishUseFromAllocation(t *testing.T) {
+	valid := unix.Statfs_t{Type: unix.EXT4_SUPER_MAGIC, Bsize: 4096, Blocks: 100, Bfree: 30}
+	got, err := reclaimFilesystemCounters(valid, unix.EXT4_SUPER_MAGIC)
+	if err != nil || got.CapacityBytes != 409600 || got.UsedBytes != 286720 {
+		t.Fatal(got, err)
+	}
+	for _, mutate := range []func(*unix.Statfs_t){
+		func(f *unix.Statfs_t) { f.Type = unix.BTRFS_SUPER_MAGIC },
+		func(f *unix.Statfs_t) { f.Bsize = 0 },
+		func(f *unix.Statfs_t) { f.Bsize = -1 },
+		func(f *unix.Statfs_t) { f.Blocks = 0 },
+		func(f *unix.Statfs_t) { f.Bfree = 101 },
+		func(f *unix.Statfs_t) { f.Blocks = ^uint64(0) },
+	} {
+		fs := valid
+		mutate(&fs)
+		if _, err := reclaimFilesystemCounters(fs, unix.EXT4_SUPER_MAGIC); err == nil {
+			t.Fatal("invalid filesystem counters accepted", fs)
+		}
+	}
+}

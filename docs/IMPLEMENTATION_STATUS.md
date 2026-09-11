@@ -1916,3 +1916,10 @@ using the canonical enrolled-target API rather than a test-only entry. Preparati
 does not dispatch; output failure preserves pending evidence. The public all-layer
 flow remains incomplete. Native helper preparation/launch reclaimed another 33 MiB
 with capacity, known files and same-registration resume preserved. See [preparation](design/storage-reclamation.md#preparing-through-the-installed-helper).
+
+F1 connects the configured Incus Btrfs/outer ext4 stages to a management-only
+controller RPC and fixed internal client bridge. Exact installed WSL identity,
+stage failure/cleanup evidence and distinct filesystem/file-allocation metrics
+are preserved. The Windows native workflow includes an installed integration gate;
+its new-head result and public all-layer connection remain pending. See
+[Linux controller connection](design/storage-reclamation.md#controller-connection-for-linux-stages).

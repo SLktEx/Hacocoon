@@ -125,3 +125,14 @@ replay. This makes shutdown result inspection possible without adding operation
 states or treating discovery as execution authority. Dedicated native worker
 acceptance now covers stop/compact/same-registration resume; public all-layer
 activation and interrupted-pending handling remain separate incomplete work.
+
+The Linux-stage connection belongs to the existing controller management endpoint.
+It accepts an exact installed WSL identity, never target paths or pool selection.
+Compare the root-owned installer binding before selecting the configured pool and
+again before outer-filesystem discard. This authorizes only those Linux stages;
+a successful RPC report never substitutes for Windows enrollment/disk validation.
+Keep per-stage results transient and explicit, including skipped work and cleanup
+failure, rather than creating another recovery journal. The fixed internal client
+bridge returns nonzero for failed reports and never retries mutations. Filesystem
+statfs accounting, Incus backing-file allocation and Windows VHD allocation remain
+distinct measurements. Guest Git/notification endpoints must not register this API.

@@ -97,6 +97,8 @@ func run(args []string) int {
 		return runAWS(args[1:])
 	case "approve":
 		return runApproval(args[1:])
+	case "_reclaim-linux":
+		return runReclaimLinux(args[1:])
 	case "doctor":
 		return runDoctor(args[1:])
 	case "ssh":

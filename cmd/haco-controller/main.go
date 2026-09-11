@@ -103,6 +103,9 @@ func main() {
 	if err := controlapi.RegisterSetup(server, app); err != nil {
 		fail(err)
 	}
+	if err := registerReclamation(server, app); err != nil {
+		fail(err)
+	}
 	if err := controlapi.RegisterDoctor(server, app); err != nil {
 		fail(err)
 	}

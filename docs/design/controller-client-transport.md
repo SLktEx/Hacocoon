@@ -292,3 +292,8 @@ stopped source name, never a client-selected Host path, and streams an already
 verified bundle with bounded canonical frames and an explicit count/digest
 completion. Disconnect cancels work; canonical cleanup preserves uncertain
 ownership. See [Environment export](environment-transfer.md#linux-export-command).
+
+The internal `storage.reclaim-linux` method is registered only on this management
+endpoint. It requires the exact installed WSL identity and returns explicit
+per-stage observations, including operation failure. It grants no Windows disk
+authority; see [Linux reclamation](storage-reclamation.md#controller-connection-for-linux-stages).

@@ -658,3 +658,52 @@ bundle hash and both retained Workspace files matched, and normal controller
 startup/listing passed. No test binary prepared this operation, and no other WSL
 operation was injected while the worker was live. This still excludes Linux
 trim integration and full current-application/OCI acceptance.
+
+## Controller connection for Linux stages
+
+Status: **implemented internal connection; native installed acceptance pending**.
+The management-only `storage.reclaim-linux` request carries the exact canonical
+registration/installation identity. It accepts no pool, file, mountpoint, loop
+device or shell command. The controller checks the existing root-owned installer
+record through the fixed registration reader, selects its configured Incus pool,
+trims that pool, rechecks installation identity and then discards the outer ext4
+filesystem. Incus retains all pool/mount ownership and native handle checks.
+
+The server bounds the request to five minutes and refuses simultaneous calls.
+An interrupted client does not authorize replay. Failure results preserve the
+attempted stages and measured observations; later stages are skipped. Cleanup
+failure remains explicit even alongside an earlier trim failure. A failed report
+is a completed RPC exchange, not successful reclamation: the internal client
+returns exit 1 with that report. Invalid results and transport loss remain errors.
+
+| Location | Responsibility |
+|---|---|
+| `modules/runtime/incus` | Native pins, correspondence checks, FITRIM and measurements |
+| `internal/composition` | Exact installed WSL comparison and configured two-stage sequence |
+| `internal/reclamation` | Bounded identity/result projection and validation; no persisted state |
+| `internal/controlapi` | Management-only request, exclusion, deadline and typed client |
+| `cmd/haco-product` | Fixed internal `_reclaim-linux` bridge for the Windows continuation |
+
+The composition's narrow target interface permits failure/order tests without
+turning the Incus adapter into a generic storage backend. Its observation types
+are exported at that adapter boundary. No new catalog schema, ownership ledger,
+backup or lifecycle transition is introduced. The regular help/daily CLI is
+unchanged; the public all-layer entry and Windows-side consumption of this Linux
+report remain unfinished.
+
+Both pinned Btrfs and ext4 descriptors provide `statfs` capacity/use before/after;
+the Incus loop file separately provides file length and allocated bytes. Kernel
+discard counts remain separate from both. Filesystem use includes filesystem
+accounting/reserves and is not exact physical-file usage or Windows recovered
+allocation; see the [Linux Btrfs statfs implementation](https://github.com/torvalds/linux/blob/v6.6/fs/btrfs/super.c).
+Missing measurements are omitted, never zero-filled. Invalid counters, arithmetic
+overflow, filesystem-type changes and observed capacity changes refuse success.
+
+The existing Windows installation workflow now has a separate internal native
+gate: ordinary setup establishes Incus-owned Host/pool use, a foreign installation
+ID is refused, the installed client/controller performs both Linux stages, and
+the existing installer Host sentinel remains. This does not alter the exact
+daily-user-path gate, stop WSL, compact a VHDX or prove all Workspace/OCI data.
+Its latest-head result must be observed before claiming native acceptance.
+
+The existing Incus-owned Btrfs workflow also runs the retained-volume/snapshot trim gate against its own synthetic pool. It validates file allocation and filesystem accounting without authorizing the runner's outer filesystem; outer discard is explicitly SKIP there and belongs to the dedicated WSL gate.

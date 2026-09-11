@@ -1634,3 +1634,9 @@ F1 の Windows 操作準備を内部 helper に接続しました。テスト専
 既存の登録済み対象の API を使います。準備だけでは worker を起動せず、出力失敗時も
 pending を保持します。helper 準備からの実機操作も33 MiB 回収・容量維持・再開に成功しました。公開全層操作は未完了です。
 [準備の境界](design/storage-reclamation.ja.md#導入する-helper-から操作を準備する)を参照してください。
+
+F1 の設定済み Incus Btrfs・外側 ext4 段階を、管理専用 controller RPC と固定内部 client
+に接続しました。導入 WSL 識別、段階別の失敗・後片付け結果、filesystem と file 割り当ての
+区別を維持します。Windows workflow に導入済み環境の gate を追加しましたが、
+新 head の実機結果と公開全層接続は確認待ちです。
+[Linux controller 接続](design/storage-reclamation.ja.md#linux-段階の-controller-接続)を参照してください。

@@ -101,28 +101,28 @@ func (s *StorageReclamation) validate(ctx context.Context) error {
 	return s.target.Validate()
 }
 
-func (s *StorageReclamation) TrimPool(ctx context.Context) (poolTrimObservation, error) {
+func (s *StorageReclamation) TrimPool(ctx context.Context) (PoolTrimObservation, error) {
 	if s == nil {
-		return poolTrimObservation{}, core.ErrIncompatibleState
+		return PoolTrimObservation{}, core.ErrIncompatibleState
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.validate(ctx); err != nil {
-		return poolTrimObservation{}, err
+		return PoolTrimObservation{}, err
 	}
 	return s.target.Trim(ctx)
 }
 
 // TrimBackingFilesystem additionally requires authority over the managed WSL
 // distribution's outer filesystem. Permission for one pool is insufficient.
-func (s *StorageReclamation) TrimBackingFilesystem(ctx context.Context) (outerTrimObservation, error) {
+func (s *StorageReclamation) TrimBackingFilesystem(ctx context.Context) (OuterTrimObservation, error) {
 	if s == nil {
-		return outerTrimObservation{}, core.ErrIncompatibleState
+		return OuterTrimObservation{}, core.ErrIncompatibleState
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.validate(ctx); err != nil {
-		return outerTrimObservation{}, err
+		return OuterTrimObservation{}, err
 	}
 	return s.target.TrimBackingFilesystem(ctx)
 }
