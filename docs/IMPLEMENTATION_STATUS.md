@@ -1871,3 +1871,5 @@ The explicit tree capture helper now has a maintenance script entry point with r
 Successful tree captures include a standard SHA-256 checksum file for copy verification with `sha256sum`; this does not establish external retention or recoverable decryption keys.
 
 Evacuation reference inventory now includes bounded reverse review of observed instances/custom volumes, retaining unmatched and conflicting project views without granting cleanup authority.
+
+Reference inventory also recognizes existing retained Base instance references and Environment/lease runtime routes. Runtime name observations remain unresolved for generation/ownership review.

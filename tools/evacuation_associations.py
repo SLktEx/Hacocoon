@@ -54,6 +54,10 @@ def compare_associations(native, catalog=None, repositories=None):
                         yield {**source, "role": component["role"]}, component, "snapshot"
                 elif row["section"] == "persistent_resources":
                     yield source, row, "volume"
+                elif row["section"] == "base_assets":
+                    yield source, row, "saved-instance"
+                elif row["section"] in ("environments", "workspace_leases"):
+                    yield source, row, "runtime"
                 else:
                     yield source, row, "unreviewed"
         if repositories:
@@ -68,13 +72,17 @@ def compare_associations(native, catalog=None, repositories=None):
         if len(result["rows"]) >= LIMIT:
             result["errors"].append("comparison-budget-exhausted")
             break
-        ref = item.get("native_ref", "")
+        ref = item.get("runtime_ref", "") if kind == "runtime" else item.get("native_ref", "")
         parts = native_reference(ref) or []
         key = None
         if kind == "volume" and len(parts) == 2 and all(parts):
             key = ("volume", *parts)
         elif kind == "snapshot" and ((len(parts) == 2 and parts[0] == "instance") or (len(parts) == 3 and parts[0] == "volume")) and all(parts):
             key = tuple(parts)
+        elif kind == "saved-instance" and len(parts) == 2 and parts[0] == "instance":
+            key = tuple(parts)
+        elif kind == "runtime" and len(parts) == 1:
+            key = ("instance", parts[0])
         candidates = index.get(key, []) if key else []
         owner = item.get("owner", "")
         if key is None:
@@ -85,6 +93,9 @@ def compare_associations(native, catalog=None, repositories=None):
             status = "ambiguous"
         elif not candidates:
             status = "not-observed"
+        elif kind == "runtime":
+            # Runtime refs do not carry the generation proof required by lifecycle APIs.
+            status = "runtime-reference-observed"
         elif not isinstance(owner, str) or not re.fullmatch(r"[a-f0-9]{32}", owner):
             status = "catalog-owner-unavailable"
         elif candidates[0]["owner_marker"] is None:

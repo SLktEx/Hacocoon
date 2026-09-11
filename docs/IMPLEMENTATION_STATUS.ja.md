@@ -1605,3 +1605,5 @@ Catalog 参照の照合は **partial** です。読み取り専用の退避 inve
 tree capture の成功時は、`sha256sum` でコピーを検証するための標準 SHA-256 checksum ファイルも出力します。外部保管や復号鍵の復旧可能性を証明するものではありません。
 
 退避用の参照 inventory は、観測した instance/custom volume の逆方向の確認も上限付きで行います。未照合・不一致の project 表示を残し、cleanup 権限は付与しません。
+
+参照 inventory は、保存 Base の既存 instance 参照と Env/lease の runtime 経路も認識します。runtime 名の観測は、世代・所有権の確認が必要な状態として残します。

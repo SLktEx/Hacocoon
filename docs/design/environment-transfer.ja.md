@@ -1030,9 +1030,9 @@ python3 tools/evacuation_inventory.py --catalog /var/lib/hacocoon/state/environm
 
 native instance/volume の設定からは `user.hacocoon.owner` マーカーだけを記録します。マーカーの欠落は不明として扱い、不正形式は native 観測の未完了となります。照合は provider 内の参照と、長さ制限・正規 encoding を確認した既存の `haco-runtime-v1:runtime.incus:<base64url>` 形式を扱います。他 provider は未対応です。参照・マーカーの観測、資源の未観測、マーカーの欠落・不一致、複数 project の候補、native inventory の未完了、未対応参照を区別します。削除途中の snapshot も含め component と上位記録の状態を残し、比較の 4096 行制限に達した場合も明示します。
 
-この観測は所有権、Env の世代、権限の証明にはなりません。Base・lease・Env の所有照合は未完了で、共有 project の候補をマーカー一致だけで選びません。`authority` は false、`review_required` は true のままです。終了コード 0 は要求した inventory/projection を読み取れたことを示し、全対応の一致や backup の保存を意味しません。報告は private に保持し、データ保存を計画する前に未解決行を確認してください。普段の `haco` コマンドは増やしません。
+この観測は所有権、Env の世代、権限の証明にはなりません。保存 Base の instance 参照は native 所有マーカーと照合します。Env と lease の runtime 参照は `runtime-reference-observed` を報告できますが、世代・所有権の検証は未完了で、共有 project の候補をマーカー一致だけで選びません。`authority` は false、`review_required` は true のままです。終了コード 0 は要求した inventory/projection を読み取れたことを示し、全対応の一致や backup の保存を意味しません。報告は private に保持し、データ保存を計画する前に未解決行を確認してください。普段の `haco` コマンドは増やしません。
 
-`associations.native_review` は、観測した instance と custom volume から逆方向にも参照を確認します。各 project の表示について種類、名前、該当する pool、所有マーカーを残し、`reference-and-marker-observed`、`unresolved-reference`、`no-supported-reference` を区別します。対応する参照が一つあっても、別の対応可能な参照に不一致があれば要確認のままです。列挙は4096行までで、省略は明示的なエラーにします。これは孤立資源や削除対象の一覧ではありません。未対応の Environment/Base 参照、repository catalog の欠如、不完全な inventory により、正当な管理資源にも対応する参照が見つからない場合があります。image、native snapshot の子要素、外部・手動ファイル、filesystem にだけ残った資源は元の inventory と実 storage で引き続き確認が必要です。削除・退避する資源を自動選択しません。
+`associations.native_review` は、観測した instance と custom volume から逆方向にも参照を確認します。各 project の表示について種類、名前、該当する pool、所有マーカーを残し、`reference-and-marker-observed`、`unresolved-reference`、`no-supported-reference` を区別します。対応する参照が一つあっても、別の対応可能な参照に不一致があれば要確認のままです。列挙は4096行までで、省略は明示的なエラーにします。これは孤立資源や削除対象の一覧ではありません。未対応の参照形式、repository catalog の欠如、不完全な inventory により、正当な管理資源にも対応する参照が見つからない場合があります。image、native snapshot の子要素、外部・手動ファイル、filesystem にだけ残った資源は元の inventory と実 storage で引き続き確認が必要です。削除・退避する資源を自動選択しません。
 
 ## 明示したデータツリーの暗号化保存
 
