@@ -828,7 +828,7 @@ The offline source fixture explicitly configures the containerd transfer service
 ## Evacuation inventory
 
 G2 is **partial**: `tools/evacuation_inventory.py` lists native Incus projects,
-pools, instances, custom volumes and saved snapshots through read-only queries.
+pools, images, instances, custom volumes and saved snapshots through read-only queries.
 Run it from the repository on the Physical Host with existing Incus administration
 access; it is an occasional recovery tool, not a new daily `haco` command:
 
@@ -842,6 +842,10 @@ It preserves failed query labels and other successful results. Exit status 1 and
 `native_queries_complete: false` mean at least one native query was incomplete.
 Project views may refer to shared resources; rows do not establish distinct
 ownership. The report grants no deletion or restore authority. Collection is bounded to 256 queries and five minutes between queries (each query has a 30-second deadline); reaching a bound preserves collected rows and reports incomplete inventory.
+
+Image rows contain the full fingerprint, type and alias names; descriptions, properties and update-source URLs are excluded. `image_source_project` records the native image namespace, not Hacocoon ownership. With `features.images` unset or false it is `default`; true uses the queried project, following [Incus project features](https://linuxcontainers.org/incus/docs/main/reference/projects/). Unknown configuration leaves the source unknown and marks the inventory incomplete. Invalid, duplicate or unavailable image rows likewise preserve other resource results and report an error. These are image references, not saved snapshot components; restoring an independent saved rootfs does not require retaining its original Base image.
+
+Linux regression tests passed (21 inventory and 10 file-inventory tests, no skips). A read-only dedicated WSL Incus comparison passed with one image in the default view and two in an isolated project view; full fingerprints matched direct native queries. Non-default shared-project behavior is covered by regression tests only. This did not export images, capture their contents or restore a whole installation.
 
 `backup_complete` is always false. The explicit unreviewed list still requires
 catalog associations, controller/Policy settings, protected trusted Host data,

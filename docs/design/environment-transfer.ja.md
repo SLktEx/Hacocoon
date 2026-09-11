@@ -675,7 +675,7 @@ ba4dbcd の実 OCI 検証は export 前の source runtime 準備で FAILED。fix
 ## 退避対象の native 一覧
 
 G2 は **partial** です。`tools/evacuation_inventory.py` は Incus の project、pool、
-instance、custom volume、保存済み snapshot を読み取り query だけで一覧化します。
+image、instance、custom volume、保存済み snapshot を読み取り query だけで一覧化します。
 既存の Incus 管理権限がある Physical Host 上で repository から実行する復旧用の補助です。
 日常の `haco` コマンドは増やしません。
 
@@ -689,6 +689,10 @@ JSON は資源名と種類を含みますが、config 本文や認証情報は�
 `native_queries_complete: false` は native query の未完了を示します。
 project 間で同じ資源が見える場合があり、行数は独立した所有資源数ではありません。
 この一覧は削除や復元の権限にはなりません。query は最大 256 回・全体で 5 分を上限に次の実行を判断し、各 query も 30 秒で打ち切ります。上限到達時は取得済みの行を残して未完了とします。
+
+image の行には完全な fingerprint・種類・alias 名だけを記録し、description・properties・更新元 URL は出力しません。`image_source_project` は Incus の image 名前空間であり、Hacocoon の所有権ではありません。[Incus の project features](https://linuxcontainers.org/incus/docs/main/reference/projects/) に従い、`features.images` が未設定または false なら `default`、true なら query 対象 project です。不明な設定は共有元を不明として一覧を未完了にします。不正・重複・取得不能の image 行も、他の資源一覧を保持してエラーを記録します。image の参照は保存済み snapshot component ではなく、独立した保存 rootfs の復元に元 Base image の保持は要求しません。
+
+Linux の回帰テストは inventory 21 件・file inventory 10 件が SKIP なしで成功しました。専用 WSL の実 Incus の読み取り比較も成功し、default の image 1 件・独立 project の 2 件の完全な fingerprint が直接 query と一致しました。default 以外の共有 project は回帰テストのみです。image の export・内容の保存・installation 全体の復元は実行していません。
 
 `backup_complete` は常に false です。catalog の対応関係、controller／Policy 設定、
 保護する trusted Host データ、手動追加・未登録ファイル、外部 pool／VHD と Windows の参照、

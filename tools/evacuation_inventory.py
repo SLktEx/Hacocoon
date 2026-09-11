@@ -47,6 +47,42 @@ def rows(value):
     return value
 
 
+def image_records(value):
+    """Project only image identifiers; properties and update sources may be secret."""
+    if not isinstance(value, list) or len(value) > LIMIT:
+        raise ValueError("invalid images")
+    result, seen = [], set()
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError("invalid image")
+        fingerprint = text(item.get("fingerprint"))
+        if not re.fullmatch(r"[0-9a-f]{64}", fingerprint) or fingerprint in seen:
+            raise ValueError("invalid or duplicate fingerprint")
+        seen.add(fingerprint)
+        kind = item.get("type")
+        if kind not in ("container", "virtual-machine"):
+            raise ValueError("unsupported image type")
+        aliases = item.get("aliases")
+        if aliases is None:
+            aliases = []
+        names = [x["name"] for x in rows(aliases)]
+        if len(set(names)) != len(names):
+            raise ValueError("duplicate alias")
+        result.append({"fingerprint": fingerprint, "type": kind, "aliases": names})
+    return result
+
+
+def image_source_project(project):
+    # Unset features default to false, unlike the initial project creation value.
+    config = project.get("config", {})
+    if not isinstance(config, dict):
+        raise ValueError("invalid project config")
+    enabled = config.get("features.images", "false")
+    if enabled not in ("true", "false", ""):
+        raise ValueError("invalid image sharing")
+    return project["name"] if enabled == "true" else "default"
+
+
 def source_reference(source):
     """Classify a native reference without opening it or publishing URI secrets."""
     source = text(source)
@@ -94,13 +130,13 @@ def inventory(fetch=query):
     requests = 0
     deadline = time.monotonic() + 300
 
-    def read(url, label):
+    def read(url, label, validate=rows):
         nonlocal requests
         if requests >= 256 or time.monotonic() >= deadline:
             raise InventoryLimit()
         requests += 1
         try:
-            return rows(fetch(url))
+            return validate(fetch(url))
         except (ValueError, TypeError, KeyError, OSError, subprocess.SubprocessError):
             report["errors"].append(label)
             return []
@@ -121,8 +157,14 @@ def inventory(fetch=query):
         for project in read("/1.0/projects?recursion=1", "projects"):
             name = project["name"]
             suffix = urlencode({"project": name, "recursion": 1})
-            entry = {"name": name, "instances": [], "volumes": []}
+            entry = {"name": name, "instances": [], "volumes": [], "images": [],
+                     "image_source_project": None}
             report["projects"].append(entry)
+            try:
+                entry["image_source_project"] = image_source_project(project)
+            except (ValueError, TypeError):
+                report["errors"].append("image-source-project:" + name)
+            entry["images"] = read("/1.0/images?" + suffix, "images:" + name, image_records)
             for instance in read("/1.0/instances?" + suffix, "instances:" + name):
                 ident = quote(instance["name"], safe="")
                 snapshots = read("/1.0/instances/" + ident + "/snapshots?" + suffix,

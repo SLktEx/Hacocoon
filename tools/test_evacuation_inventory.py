@@ -32,6 +32,9 @@ class InventoryTests(unittest.TestCase):
             return [{"name": "data", "driver": "btrfs", "config": {"secret": "never-copy"}}]
         if url == "/1.0/projects?recursion=1":
             return [{"name": "default"}, {"name": "hacocoon"}]
+        if url.startswith("/1.0/images?"):
+            return [{"fingerprint": "a" * 64, "type": "container", "aliases": [{"name": "base", "description": "never-copy"}],
+                     "properties": {"secret": "never-copy"}, "update_source": {"server": "never-copy"}}]
         if url.startswith("/1.0/instances?"):
             return [{"name": "saved-env", "type": "container", "status": "Stopped",
                      "config": {"environment.TOKEN": "never-copy"}, "devices": {"credential": {"type": "proxy", "connect": "never-copy"}}}]
@@ -42,6 +45,46 @@ class InventoryTests(unittest.TestCase):
         if "/volumes?" in url:
             return [{"name": "work", "type": "custom"}, {"name": "cached", "type": "image"}]
         self.fail(url)
+
+    def test_image_project_sharing_and_missing_feature_default(self):
+        for config, expected in [({}, "default"), ({"features.images": "false"}, "default"),
+                                 ({"features.images": "true"}, "hacocoon")]:
+            def fetch(url):
+                if url.startswith("/1.0/projects?"):
+                    return [{"name": "hacocoon", "config": config}]
+                return self.fixture(url)
+            result = subject.inventory(fetch)
+            self.assertTrue(result["native_queries_complete"])
+            project = result["projects"][0]
+            self.assertEqual(project["image_source_project"], expected)
+            self.assertEqual(project["images"], [{"fingerprint": "a" * 64, "type": "container", "aliases": ["base"]}])
+            self.assertNotIn("never-copy", json.dumps(result))
+
+    def test_image_errors_do_not_hide_saved_volumes(self):
+        good = {"fingerprint": "a" * 64, "type": "container"}
+        for invalid in [None, [good, good], [{**good, "fingerprint": "secret"}],
+                        [{**good, "type": "unknown"}], [{**good, "aliases": [{}]}],
+                        [{**good, "aliases": [{"name": "same"}, {"name": "same", "type": "foreign"}]}]]:
+            def fetch(url):
+                return invalid if url.startswith("/1.0/images?") else self.fixture(url)
+            result = subject.inventory(fetch)
+            self.assertFalse(result["native_queries_complete"])
+            self.assertFalse(result["backup_complete"])
+            self.assertEqual(result["errors"], ["images:default", "images:hacocoon"])
+            self.assertTrue(result["projects"][0]["volumes"])
+            self.assertNotIn("secret", json.dumps(result))
+
+    def test_unknown_image_sharing_preserves_observed_images_without_assuming_owner(self):
+        def fetch(url):
+            if url.startswith("/1.0/projects?"):
+                return [{"name": "hacocoon", "config": {"features.images": "secret"}}]
+            return self.fixture(url)
+        result = subject.inventory(fetch)
+        self.assertFalse(result["native_queries_complete"])
+        self.assertEqual(result["errors"], ["image-source-project:hacocoon"])
+        self.assertIsNone(result["projects"][0]["image_source_project"])
+        self.assertEqual(len(result["projects"][0]["images"]), 1)
+        self.assertNotIn("secret", json.dumps(result))
 
     def test_inventory_preserves_native_resources_without_credentials_or_backup_claim(self):
         result = subject.inventory(self.fixture)
