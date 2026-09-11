@@ -1593,3 +1593,7 @@ G2 の読み取り専用 inventory に `--files /absolute/root` の Linux ファ
 G2 に、既存 native snapshot adapter の保存 rootfs を直接ファイル退避する明示実行テストを追加しました。復元先は新しい設定を使い、所有対象だけを cleanup します。専用 Incus/Btrfs の実機受入は9.37秒で成功しました。全量退避ではありません。[対象契約](design/environment-transfer.ja.md#保存-rootfs-ファイルの直接退避)を参照してください。
 
 Git Workspace 2個と OCI の管理 bundle が、別 WSL の通常 installed-controller import（171.27秒）、保存 volume 全94エントリの照合、鍵固定 SSH・ローカル Git 作業、同名 Env 再作成でのデータ保持に成功しました。Host 生 ID 比較と最初の SSH package 準備は失敗し、guest ID 比較と世代限定の package 許可で確認が通りました。全量復元・認証済み Git は未完了です。[別 WSL の管理対象受入](design/environment-transfer.ja.md#別-wsl-への管理対象-bundle-復元)を参照してください。
+
+G2 の読み取り専用一覧に image の fingerprint・種類・alias 名・native project の共有元を追加しました。Linux 回帰テストと専用 Incus の比較は成功しました。image export と installation 全体の保存は未実装です。[退避対象一覧](design/environment-transfer.ja.md#退避対象の-native-一覧)を参照してください。
+
+Catalog 参照の照合は **partial** です。読み取り専用の退避 inventory は Env とデータの対応、Incus 資源と owner の一致を観測しますが、権限を与えません。曖昧・未観測・削除途中・未対応の記録も残し、この inventory 自体はインストール全体の保存を実装しません。[Catalog 参照の照合](design/environment-transfer.ja.md)を参照してください。

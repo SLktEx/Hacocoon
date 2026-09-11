@@ -242,3 +242,5 @@ See [file inventory](../design/environment-transfer.md#manual-file-inventory-for
 G2 adds a scoped native gate for direct saved-rootfs evacuation without Incus export or Base retention. Whole-installation classification, complete capture and managed reconstruction remain required; see [the rootfs data gate](../design/environment-transfer.md#direct-evacuation-of-saved-rootfs-files).
 
 G3 now has native acceptance for one managed bundle on a separate fresh WSL: complete fixture-volume comparison, fresh pinned SSH/local Git work and retained Workspace/OCI after same-name recreation. Whole-installation coverage and G4 replacement remain required; see [managed cross-WSL acceptance](../design/environment-transfer.md#managed-bundle-restoration-in-a-separate-wsl).
+
+G2 inventory also records native image identities and project sharing. These references do not add a Base filesystem snapshot component or prove image capture; whole-installation evacuation and restore comparison remain required. See [inventory scope](../design/environment-transfer.md#evacuation-inventory).
