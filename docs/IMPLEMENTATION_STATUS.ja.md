@@ -1607,3 +1607,5 @@ tree capture の成功時は、`sha256sum` でコピーを検証するための�
 退避用の参照 inventory は、観測した instance/custom volume の逆方向の確認も上限付きで行います。未照合・不一致の project 表示を残し、cleanup 権限は付与しません。
 
 参照 inventory は、保存 Base の既存 instance 参照と Env/lease の runtime 経路も認識します。runtime 名の観測は、世代・所有権の確認が必要な状態として残します。
+
+読み取り専用の退避参照 projection は、移行せず元の番号を保持して catalog schema 10〜13 を扱います。schema 9 は未対応のままです。未投影の restore/copy/ephemeral 記録は確認用に件数を残し、古い lifecycle state の検証・import は行いません。

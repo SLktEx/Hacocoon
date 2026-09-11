@@ -287,8 +287,33 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(json.dumps(data, sort_keys=True), original)
         self.assertTrue(result["unreviewed"])
 
+    def test_legacy_reference_projection_preserves_version_and_input(self):
+        for version in (10, 11, 12, 13):
+            data = {"version": version, "base_assets": {"saved": {"native_ref": "instance/saved", "owner": "a" * 32}},
+                    "snapshots": {"saved": {"components": [{"role": "rootfs", "native_ref": "instance/saved", "owner": "a" * 32, "state": "verified"}]}}}
+            original = json.dumps(data, sort_keys=True)
+            result = subject.catalog_references(data)
+            self.assertTrue(result["projection_complete"])
+            self.assertEqual(result["version"], version)
+            self.assertFalse(result["state_validated"])
+            self.assertFalse(result["authority"])
+            self.assertEqual(len(result["records"]), 2)
+            self.assertEqual(json.dumps(data, sort_keys=True), original)
+
+    def test_unprojected_operation_records_remain_visible_without_secret_fields(self):
+        data = {"version": 12, "restores": {"never-copy-key": {"credential": "never-copy"}},
+                "ephemeral_runs": {"private": {}}, "snapshot_workspace_copies": {"private": {}}}
+        result = subject.catalog_references(data)
+        self.assertEqual({row["section"] for row in result["unprojected_records"]},
+                         {"restores", "ephemeral_runs", "snapshot_workspace_copies"})
+        self.assertTrue(all(row["count"] == 1 and row["review_required"] for row in result["unprojected_records"]))
+        self.assertNotIn("never-copy", json.dumps(result))
+        self.assertFalse(result["state_validated"])
+        data["restores"] = []
+        self.assertFalse(subject.catalog_references(data)["projection_complete"])
+
     def test_catalog_unknown_schema_and_bad_rows_remain_incomplete(self):
-        for version in (12, 14, True, None):
+        for version in (4, 9, 14, True, None):
             self.assertFalse(subject.catalog_references({"version": version})["projection_complete"])
         data = {"version": 13, "persistent_resources": {"bad": {"native_ref": "https://user:secret@example.invalid"}, "good": {"native_ref": "pool/volume"}}}
         result = subject.catalog_references(data)

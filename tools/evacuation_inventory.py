@@ -247,10 +247,22 @@ def catalog_inventory(path, project=None):
 
 def catalog_references(data):
     result = {"projection_complete": False, "authority": False, "records": [], "errors": []}
-    if not isinstance(data, dict) or type(data.get("version")) is not int or data["version"] != 13:
+    # These versions share the projected reference fields in the canonical store.
+    # Schema 9 was an unpublished replacement prototype and remains unsupported.
+    if isinstance(data, dict) and type(data.get("version")) is int:
+        result["version"] = data["version"]
+    if result.get("version") not in (10, 11, 12, 13):
         result["errors"].append("unsupported-catalog-schema")
         return result
-    result["version"] = 13
+    result["state_validated"] = False
+    result["unprojected_records"] = []
+    for section in ("restores", "snapshot_workspace_copies", "ephemeral_runs"):
+        if section in data:
+            entries = data[section]
+            if not isinstance(entries, dict):
+                result["errors"].append(section + ":invalid-section")
+            elif entries:
+                result["unprojected_records"].append({"section": section, "count": len(entries), "review_required": True})
     fields = {
         "environments": ("name", "runtime_ref", "access_mode"),
         "persistent_resources": ("id", "owner", "kind", "native_ref", "state", "workspace_id", "restore_source"),

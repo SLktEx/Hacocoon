@@ -1026,7 +1026,7 @@ umask 077
 python3 tools/evacuation_inventory.py --catalog /var/lib/hacocoon/state/environments.json > inventory.json
 ```
 
-該当ディレクトリがある場合は `--repositories /var/lib/hacocoon/state/repositories` を追加できます。schema 13 の projection は Env の runtime 参照、Workspace ID と所在、永続資源との対応、Base 名・revision の由来情報を含みます。所在パスは参照として記録するだけで開きません。Base filesystem、任意の設定本体、認証情報は含めず、URI 形式の Workspace 所在は出力を控えます。未対応 schema は移行や入力の書き換えを行わず報告します。
+該当ディレクトリがある場合は `--repositories /var/lib/hacocoon/state/repositories` を追加できます。schema 10〜13 の参照 projection は Env の runtime 参照、Workspace ID と所在、永続資源との対応、Base 名・revision の由来情報を含みます。所在パスは参照として記録するだけで開きません。Base filesystem、任意の設定本体、認証情報は含めず、URI 形式の Workspace 所在は出力を控えます。元の schema 番号を保持します。schema 9 とその他の未対応形式は拒否し、catalog の移行・書き換えは行いません。この projection は lifecycle state を検証せず、`state_validated` は false のままです。途中の restore、snapshot Workspace-copy、ephemeral-run の各 section は、内容を出さず `unprojected_records` に件数を記録します。これらの所有関係や処理途中のデータは別途確認が必要です。
 
 native instance/volume の設定からは `user.hacocoon.owner` マーカーだけを記録します。マーカーの欠落は不明として扱い、不正形式は native 観測の未完了となります。照合は provider 内の参照と、長さ制限・正規 encoding を確認した既存の `haco-runtime-v1:runtime.incus:<base64url>` 形式を扱います。他 provider は未対応です。参照・マーカーの観測、資源の未観測、マーカーの欠落・不一致、複数 project の候補、native inventory の未完了、未対応参照を区別します。削除途中の snapshot も含め component と上位記録の状態を残し、比較の 4096 行制限に達した場合も明示します。
 

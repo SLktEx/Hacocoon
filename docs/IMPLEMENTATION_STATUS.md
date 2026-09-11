@@ -1873,3 +1873,5 @@ Successful tree captures include a standard SHA-256 checksum file for copy verif
 Evacuation reference inventory now includes bounded reverse review of observed instances/custom volumes, retaining unmatched and conflicting project views without granting cleanup authority.
 
 Reference inventory also recognizes existing retained Base instance references and Environment/lease runtime routes. Runtime name observations remain unresolved for generation/ownership review.
+
+Read-only evacuation reference projection covers catalog schemas 10–13 without migration and preserves the source version. Schema 9 remains unsupported. Unprojected restore/copy/ephemeral records are counted for review; this does not validate or import old lifecycle state.
