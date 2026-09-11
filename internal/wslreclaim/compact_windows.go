@@ -146,6 +146,7 @@ func (p *pinnedDisk) compact(ctx context.Context) (result compactObservation, er
 	// expires (native acceptance observed about 58s). Allow that natural release;
 	// never stop another distribution. Only wait before mutation.
 	openCtx, cancelOpen := context.WithTimeout(ctx, 90*time.Second)
+	defer cancelOpen()
 	h, attempts, openErr := waitVirtualDiskOpen(openCtx, func() (windows.Handle, error) {
 		var handle windows.Handle
 		// V2 uses ACCESS_NONE. NO_PARENTS prevents following a differencing chain.
@@ -155,13 +156,14 @@ func (p *pinnedDisk) compact(ctx context.Context) (result compactObservation, er
 		}
 		return handle, nil
 	})
-	cancelOpen()
 	result.OpenAttempts = attempts
 	if openErr != nil {
 		return result, fmt.Errorf("open virtual disk: %w", openErr)
 	}
 	defer func() { err = errors.Join(err, windows.CloseHandle(h)) }()
-	result.Virtual, err = inspectDetachedDynamic(h)
+	result.Virtual, err = waitVirtualDiskDetached(openCtx, func() (virtualDiskIdentity, error) {
+		return inspectDetachedDynamic(h)
+	})
 	if err != nil {
 		return result, err
 	}
@@ -211,6 +213,28 @@ func waitVirtualDiskOpen(ctx context.Context, open func() (windows.Handle, error
 		case <-ctx.Done():
 			timer.Stop()
 			return 0, attempts, errors.Join(ctx.Err(), err)
+		case <-timer.C:
+		}
+	}
+}
+
+// Native open may succeed before WSL releases the attachment. Keep the same
+// handle and all ownership pins; only observe until detached within the shared
+// open/detach deadline. No compaction or stop operation is retried.
+func waitVirtualDiskDetached(ctx context.Context, inspect func() (virtualDiskIdentity, error)) (virtualDiskIdentity, error) {
+	for {
+		if err := ctx.Err(); err != nil {
+			return virtualDiskIdentity{}, err
+		}
+		identity, err := inspect()
+		if err == nil || !errors.Is(err, errVirtualDiskAttached) {
+			return identity, err
+		}
+		timer := time.NewTimer(250 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return virtualDiskIdentity{}, errors.Join(ctx.Err(), err)
 		case <-timer.C:
 		}
 	}

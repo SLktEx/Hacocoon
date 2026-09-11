@@ -145,3 +145,45 @@ func TestVirtualDiskOpenWaitIsBoundedAndOnlyBeforeMutation(t *testing.T) {
 		t.Fatal(attempts, err)
 	}
 }
+
+func TestVirtualDiskDetachWaitObservesWithoutReopeningOrMutating(t *testing.T) {
+	expected := virtualDiskIdentity{Capacity: 42, Identifier: [16]byte{1}}
+	calls := 0
+	got, err := waitVirtualDiskDetached(context.Background(), func() (virtualDiskIdentity, error) {
+		calls++
+		if calls == 1 {
+			return virtualDiskIdentity{}, errVirtualDiskAttached
+		}
+		return expected, nil
+	})
+	if err != nil || got != expected || calls != 2 {
+		t.Fatal(got, calls, err)
+	}
+	for _, failure := range []error{windows.ERROR_ACCESS_DENIED, errors.New("invalid disk format")} {
+		calls = 0
+		_, err = waitVirtualDiskDetached(context.Background(), func() (virtualDiskIdentity, error) {
+			calls++
+			return virtualDiskIdentity{}, failure
+		})
+		if !errors.Is(err, failure) || calls != 1 {
+			t.Fatal(calls, err)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	calls = 0
+	_, err = waitVirtualDiskDetached(ctx, func() (virtualDiskIdentity, error) {
+		calls++
+		cancel()
+		return virtualDiskIdentity{}, errVirtualDiskAttached
+	})
+	if !errors.Is(err, context.Canceled) || !errors.Is(err, errVirtualDiskAttached) || calls != 1 {
+		t.Fatal(calls, err)
+	}
+	_, err = waitVirtualDiskDetached(ctx, func() (virtualDiskIdentity, error) {
+		t.Fatal("inspection after cancellation")
+		return expected, nil
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+}
