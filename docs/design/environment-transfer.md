@@ -1246,3 +1246,11 @@ python3 tools/evacuation_capture.py /absolute/reviewed-source /absolute/private-
 ```
 
 `AGE_RECIPIENT` must contain only the public age recipient. `--quiesced` records the operator's confirmation; it does not stop or detect all writers. Optional `--byte-limit` and `--seconds` bound encrypted output and the tar/age pipeline (defaults: 64 GiB and 900 seconds). Exit zero and JSON on stdout mean this archive completed; `backup_complete` is still false. Failure exits nonzero and leaves existing artifacts for inspection. Use a new destination for a retry; do not overwrite or interpret partial ciphertext as complete. Keep stdout/receipts private because they identify the captured source.
+
+Successful captures also emit `data.tar.age.sha256` in standard SHA-256 checksum format, before the completion receipt. Copy this file together with the ciphertext and both receipts to the reviewed retention location. In that copied directory, run:
+
+```bash
+sha256sum --check --status data.tar.age.sha256
+```
+
+A nonzero exit means the copied ciphertext is missing or does not match. Compare the checksum with the original private completion receipt as well: a checksum transported with an archive is not an authenticity guarantee against replacement of both. This check needs no decryption key and does not prove that a location survives WSL deletion, that the key is recoverable, or that restored files are correct. Older captures without this checksum file remain valid; their completion receipt contains the digest for manual comparison. No saved capture is rewritten.

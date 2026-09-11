@@ -1601,3 +1601,5 @@ Catalog 参照の照合は **partial** です。読み取り専用の退避 inve
 明示したデータツリーの暗号化保存は **partial** です。Linux 保守用 helper は確認したツリーを GNU tar と age へ渡し、失敗時の部分成果物を残し、archive 完了と全体 backup を区別します。書き込み停止、外部保存・鍵の保護、復元照合は別途必要です。[暗号化保存](design/environment-transfer.ja.md)を参照してください。
 
 明示的 tree capture helper に、書き込み停止の確認を必須とする保守スクリプトの実行入口を追加しています。stream 上限を指定でき、失敗は非ゼロで終了します。日常用 `haco` コマンドは追加しません。
+
+tree capture の成功時は、`sha256sum` でコピーを検証するための標準 SHA-256 checksum ファイルも出力します。外部保管や復号鍵の復旧可能性を証明するものではありません。

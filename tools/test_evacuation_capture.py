@@ -70,6 +70,7 @@ class CapturePreflightTests(unittest.TestCase):
         self.assertTrue((self.output / "capture-intent.json").is_file())
         self.assertTrue((self.output / "data.tar.age").is_file())
         self.assertFalse((self.output / "capture-complete.json").exists())
+        self.assertFalse((self.output / "data.tar.age.sha256").exists())
         self.assertEqual((self.source / "work").read_text(), "retained")
 
 

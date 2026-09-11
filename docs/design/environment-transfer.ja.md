@@ -1051,3 +1051,11 @@ python3 tools/evacuation_capture.py /absolute/reviewed-source /absolute/private-
 ```
 
 `AGE_RECIPIENT` には公開 age recipient のみを指定します。`--quiesced` は操作者による確認であり、書き込み元の停止や完全な検出は行いません。任意の `--byte-limit` と `--seconds` は暗号化出力と tar/age pipeline の上限です（既定値: 64 GiB、900 秒）。終了コード 0 と標準出力の JSON はこの archive の完了を示しますが、`backup_complete` は false のままです。失敗時は非ゼロで終了し、確認用に出力物を残します。再試行には新しい出力先を使い、部分的な暗号文を上書きしたり完了扱いしたりしないでください。標準出力と receipt には元の場所が含まれるため、非公開で保管してください。
+
+退避成功時は、完了 receipt より先に標準 SHA-256 形式の `data.tar.age.sha256` も出力します。暗号文と両 receipt に加え、このファイルを確認済みの保管先へコピーしてください。コピー先のディレクトリで次を実行します。
+
+```bash
+sha256sum --check --status data.tar.age.sha256
+```
+
+終了コードが非ゼロなら、暗号文が欠落しているか checksum と一致しません。元の非公開の完了 receipt とも checksum を比較してください。暗号文と一緒に運んだ checksum だけでは、両方の置き換えに対する真正性を保証できません。この確認に復号鍵は不要ですが、WSL 削除後の保管先の存続、鍵の復旧可能性、復元したファイルの正しさは証明しません。checksum ファイルがない既存の退避物も有効であり、完了 receipt の digest を手動で比較できます。保存済みの退避物は書き換えません。

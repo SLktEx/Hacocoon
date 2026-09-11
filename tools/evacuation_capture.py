@@ -141,6 +141,11 @@ def capture_tree(source, destination, recipient, *, byte_limit=64 * 1024**3, sec
         complete = {**intent, "archive_complete": True, "bytes": size,
                     "sha256": digest.hexdigest(), "consistency_requires_quiescence": True,
                     "external_retention_verified": False}
+        # Fixed leaf name: directly usable by sha256sum without interpreting source paths.
+        with _create(destination_fd, "data.tar.age.sha256") as checksum:
+            checksum.write((digest.hexdigest() + "  data.tar.age\n").encode("ascii"))
+            checksum.flush()
+            os.fsync(checksum.fileno())
         _receipt(destination_fd, "capture-complete.json", complete)
         return complete
     finally:

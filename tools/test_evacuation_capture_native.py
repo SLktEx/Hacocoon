@@ -17,7 +17,7 @@ import evacuation_capture as subject
 @unittest.skipUnless(os.environ.get("HACO_E2E_ENCRYPTED_EVACUATION") == "1", "requires explicit tar/age acceptance")
 class NativeCaptureTests(unittest.TestCase):
     def setUp(self):
-        for name in ("tar", "age", "age-keygen"):
+        for name in ("tar", "age", "age-keygen", "sha256sum"):
             self.assertIsNotNone(shutil.which(name), "missing native tool: " + name)
         self.temp = tempfile.TemporaryDirectory(prefix="haco-capture-native-")
         self.addCleanup(self.temp.cleanup)
@@ -65,6 +65,21 @@ class NativeCaptureTests(unittest.TestCase):
             self.assertEqual(regular.pax_headers["SCHILY.xattr.user.haco-capture"], "retained")
         receipt = json.loads((self.output / "capture-complete.json").read_text())
         self.assertEqual(receipt["sha256"], result["sha256"])
+        # A separate copy is checked with the maintained system tool, without the key.
+        copied = self.source.parent / "copied"
+        copied.mkdir(mode=0o700)
+        for leaf in ("data.tar.age", "data.tar.age.sha256", "capture-complete.json"):
+            shutil.copyfile(self.output / leaf, copied / leaf)
+        def check_copy():
+            return subprocess.run(["sha256sum", "--check", "--status", "data.tar.age.sha256"],
+                                  cwd=copied, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30).returncode
+        self.assertEqual(check_copy(), 0)
+        (copied / "data.tar.age").write_bytes(cipher[:-1])
+        self.assertNotEqual(check_copy(), 0)
+        (copied / "data.tar.age").write_bytes(cipher)
+        self.assertEqual(check_copy(), 0)
+        (copied / "data.tar.age").unlink()
+        self.assertNotEqual(check_copy(), 0)
         with self.assertRaises(subject.CaptureError):
             self.capture()
         self.assertEqual((self.output / "data.tar.age").read_bytes(), cipher)
@@ -99,6 +114,21 @@ class NativeCaptureTests(unittest.TestCase):
         self.assert_incomplete()
         self.assertTrue((self.output / "retained.age").is_file())
         self.assertEqual((self.output / "data.tar.age").read_bytes(), b"replacement")
+
+    def test_checksum_collision_retains_existing_data_without_completion(self):
+        original = subject._tree
+        calls = 0
+        def observe(root):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                (self.output / "data.tar.age.sha256").write_bytes(b"existing-checksum")
+            return original(root)
+        with patch.object(subject, "_tree", side_effect=observe):
+            with self.assertRaises(FileExistsError):
+                self.capture()
+        self.assert_incomplete()
+        self.assertEqual((self.output / "data.tar.age.sha256").read_bytes(), b"existing-checksum")
 
     def test_byte_limit_preserves_partial_ciphertext_without_completion(self):
         with self.assertRaisesRegex(subject.CaptureError, "byte limit"):
