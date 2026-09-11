@@ -136,3 +136,116 @@ func TestNativeFailedReviewPreservesEvidenceAndRefusesPending(t *testing.T) {
 		t.Fatal("completion discarded prior failure", err)
 	}
 }
+
+func TestNativeInterruptedReviewRetiresHandoffAndRetainsUnknownEvidence(t *testing.T) {
+	id, err := windows.GenerateGUID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := `Software\Hacocoon\Tests\` + id.String()
+	key, existed, err := registry.CreateKey(registry.CURRENT_USER, path, registry.ALL_ACCESS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if existed {
+		key.Close()
+		t.Fatal("test key exists")
+	}
+	defer func() {
+		key.Close()
+		if err := registry.DeleteKey(registry.CURRENT_USER, path); err != nil {
+			t.Error(err)
+		}
+	}()
+	s := &operationStore{key: key}
+	r := registration{ID: id, Name: "Hacocoon-Test", BasePath: `C:\owned`, VHDFileName: "ext4.vhdx"}
+	disk := diskIdentity{Volume: 1, Low: 2}
+	intent, err := s.beginVersion(r, disk, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent.LinuxStarted = true // The child result was lost; never invent a result.
+	if err := s.write(intent); err != nil {
+		t.Fatal(err)
+	}
+	original, _, err := key.GetBinaryValue("Operation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := windows.GenerateGUID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := r
+	changed.Name = "replacement"
+	for _, request := range []struct {
+		id   windows.GUID
+		r    registration
+		disk diskIdentity
+	}{
+		{other, r, disk}, {intent.Operation, changed, disk}, {intent.Operation, r, diskIdentity{Volume: 1, Low: 3}},
+	} {
+		if err := s.reviewInterrupted(request.id, request.r, request.disk); err == nil {
+			t.Fatal("foreign interruption review")
+		}
+	}
+	name := interruptedReviewName(intent.Operation)
+	if err := key.SetBinaryValue(name, []byte("unknown")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.reviewInterrupted(intent.Operation, r, disk); err == nil {
+		t.Fatal("overwrote unknown evidence")
+	}
+	now, _, _ := key.GetBinaryValue("Operation")
+	if !bytes.Equal(now, original) {
+		t.Fatal("refusal changed intent")
+	}
+	if err := key.DeleteValue(name); err != nil {
+		t.Fatal(err)
+	} // only injected fixture
+	for i := 0; i < 2; i++ {
+		if err := s.reviewInterrupted(intent.Operation, r, disk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	saved, _, err := key.GetBinaryValue(name)
+	if err != nil || !bytes.Equal(saved, original) {
+		t.Fatal("original evidence changed", err)
+	}
+	retired, err := s.read()
+	if err != nil || retired.State != "interrupted" || !retired.LinuxStarted || retired.Linux != nil || retired.Observation != (continuationObservation{}) {
+		t.Fatal("invented completion", retired, err)
+	}
+	if _, err := s.requirePending(intent.Operation, r, disk); err == nil {
+		t.Fatal("retired handoff replayed")
+	}
+	if err := s.finish(intent, continuationObservation{}, errors.New("late worker")); err == nil {
+		t.Fatal("late worker replaced reviewed intent")
+	}
+	if err := key.DeleteValue(name); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.beginVersion(r, disk, 2); err == nil {
+		t.Fatal("missing evidence permitted a new operation")
+	}
+	if err := s.reviewInterrupted(intent.Operation, r, disk); err == nil {
+		t.Fatal("reconstructed missing evidence")
+	}
+	if err := key.SetBinaryValue(name, saved); err != nil {
+		t.Fatal(err)
+	}
+	next, err := s.beginVersion(r, disk, 2)
+	if err != nil || next.Operation == intent.Operation {
+		t.Fatal("new operation unavailable", err)
+	}
+	historical, err := s.readOperation(intent.Operation)
+	if err != nil || historical.State != "interrupted" || historical.Linux != nil {
+		t.Fatal("historical unknown result lost", err)
+	}
+	if err := s.reviewInterrupted(intent.Operation, r, disk); err == nil {
+		t.Fatal("stale review accepted")
+	}
+	if err := s.requireInterruptedEvidence(retired); err != nil {
+		t.Fatal(err)
+	}
+}

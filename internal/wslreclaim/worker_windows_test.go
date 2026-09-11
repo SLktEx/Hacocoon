@@ -177,6 +177,24 @@ func TestPreparedStatusIsReadOnlyAndPendingIsUnknown(t *testing.T) {
 	if err != nil || !status.LinuxStarted || status.Linux != nil || status.State != "failed" {
 		t.Fatal("lost Linux result claimed success", status, err)
 	}
+
+	v2.State = "pending"
+	if err := store.write(v2); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.reviewInterrupted(v2.Operation, v2.Registration, v2.Disk); err != nil {
+		t.Fatal(err)
+	}
+	status, err = ReadLatestPreparedStatus(context.Background(), id.String())
+	if err != nil || status.State != "interrupted" || status.Observation != nil || !status.LinuxStarted || status.Linux != nil {
+		t.Fatal("interrupted status invented results", status, err)
+	}
+	if err := store.key.DeleteValue(interruptedReviewName(v2.Operation)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadLatestPreparedStatus(context.Background(), id.String()); err == nil {
+		t.Fatal("status claimed missing evidence was retained")
+	}
 	// A current record is not permission to follow another registration or to
 	// ignore malformed state in favor of historical evidence.
 	foreign := record

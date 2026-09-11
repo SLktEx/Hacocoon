@@ -204,8 +204,13 @@ func readPreparedStatus(ctx context.Context, r, o windows.GUID) (PreparedStatus,
 	if (o != (windows.GUID{}) && record.Operation != o) || record.Registration.ID != r {
 		return PreparedStatus{}, errors.New("saved result belongs to another operation or registration")
 	}
+	if record.State == "interrupted" {
+		if err := store.requireInterruptedEvidence(record); err != nil {
+			return PreparedStatus{}, err
+		}
+	}
 	status := PreparedStatus{Operation: record.Operation.String(), State: record.State, LinuxStarted: record.LinuxStarted, Linux: record.Linux}
-	if record.State != "pending" {
+	if record.State != "pending" && record.State != "interrupted" {
 		status.Observation = &record.Observation
 	}
 	return status, nil

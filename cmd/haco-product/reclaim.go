@@ -162,7 +162,7 @@ type windowsReclaimStatus struct {
 
 func writeReclamationStatus(out, diagnostic io.Writer, raw []byte) int {
 	var result windowsReclaimStatus
-	if decodeReclaimOutput(raw, &result) != nil || !validReclaimOperation(result.Operation) || (result.State != "pending" && result.State != "failed" && result.State != "complete") || (result.Linux != nil && result.Linux.Validate() != nil) {
+	if decodeReclaimOutput(raw, &result) != nil || !validReclaimOperation(result.Operation) || (result.State != "pending" && result.State != "failed" && result.State != "complete" && result.State != "interrupted") || (result.Linux != nil && result.Linux.Validate() != nil) {
 		fmt.Fprintln(diagnostic, "Saved reclamation result is invalid; retain it for inspection.")
 		return 1
 	}
@@ -170,7 +170,7 @@ func writeReclamationStatus(out, diagnostic io.Writer, raw []byte) int {
 		fmt.Fprintln(diagnostic, "Saved Linux result has no recorded attempt.")
 		return 1
 	}
-	if result.State == "pending" && result.Observation != nil {
+	if (result.State == "pending" || result.State == "interrupted") && result.Observation != nil {
 		fmt.Fprintln(diagnostic, "Pending Windows result has unconfirmed observations.")
 		return 1
 	}
@@ -233,7 +233,10 @@ func writeReclamationStatus(out, diagnostic io.Writer, raw []byte) int {
 	if result.State == "pending" {
 		fmt.Fprintln(out, "Completion is unknown. This command does not retry or clear the operation.")
 	}
-	if result.State == "failed" {
+	if result.State == "interrupted" {
+		fmt.Fprintln(out, "Original pending evidence retained; outcome unknown. The old handoff cannot run. No new operation was started.")
+	}
+	if result.State == "failed" || result.State == "interrupted" {
 		return 1
 	}
 	return 0

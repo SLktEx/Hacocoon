@@ -727,3 +727,30 @@ CLI に表示する操作 ID は診断用であり、必須入力ではありま
 Job・console 隔離と worker の起動 flag は変更しません。従来の runner 直接起動の失敗は
 失敗のままで、この通常経路 gate の native 成功はまだ未確認です。照会の拒否回帰テストは
 WSL 操作なしで成功しました。Workspace/OCI 内容全体は対象外で、F1 完了とは扱いません。
+
+## 中断した操作の明示確認
+
+状態: **内部 helper は実装済み、公開の確認 UI と実登録 WSL の受入は未完了**。
+`_review-interrupted` は正確な registration・operation ID を受け取り、準備時と同じ
+continuation guard、enrollment の Windows ユーザー、登録・disk pin、導入識別の照合を
+使います。動作中 worker があれば WSL に触れる前に拒否します。識別確認で選択した登録済み
+WSL を開き直す場合はありますが、trim・圧縮・次の準備・起動は行いません。
+
+最初に元の canonical pending 記録を操作 ID ごとに永続保存し、その後に現在記録の state
+だけを `interrupted` にします。開始済み・結果欠落を含む元の Linux 観測は保持し、Windows
+結果や成功を作りません。同一の明示確認は繰り返せますが、証拠欠落・変更・不正形式・別所有は
+拒否します。新しい準備には元の pending 証拠との完全一致が必要で、操作 ID は新しくします。
+次の準備前でも、遅れた旧 worker の実行・結果保存を拒否します。
+
+この一つの state は旧 handoff の無効化に必要です。別の確認済み印だけでは旧 helper が
+pending のままの操作を実行できてしまいます。既存 version 1/2 の encoding は維持します。
+旧 helper は未知の `interrupted` を拒否するため、その読取・確認には更新済み helper を
+使います。catalog 移行・記録削除・暗黙の再試行・全クラッシュ地点の復旧機構は追加しません。
+元の pending バイト列は保存し、読み取り status だけ中断・結果不明として表示します。
+回収成功にはしません。保存確認ができない場合、新しい操作への置換は許可しません。
+
+native Windows の回帰は一意な一時 registry key で、元バイト列保持、別所有・disk・操作の
+拒否、不正・欠落 archive、反復確認、遅延実行・結果の拒否、新規操作 ID を検証しました。
+helper dispatch と公開の結果不明表示も成功しました。これらの隔離テストは、実登録 WSL の
+動作中 worker を中断した受入の証拠ではありません。日常の `haco reclaim` から確認する接続は
+未完了です。記録削除で回避しないでください。

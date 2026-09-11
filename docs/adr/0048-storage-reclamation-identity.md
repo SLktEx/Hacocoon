@@ -157,3 +157,12 @@ never kill a worker or weaken its sharing exclusions to finish an installation.
 This adds no daily command, PATH entry or elevated service.
 
 The public CLI selects identity through the management read endpoint and uses one concrete Windows client bridge. It never clears/retries pending state and reports dispatch separately from completion. Native authority remains in the existing helper; the bridge does not introduce another backend or recovery state machine.
+
+Explicit interrupted review holds the existing continuation exclusion and enrolled
+target pins, retains the canonical pending evidence, then marks its current state
+`interrupted`. This prevents delayed and older helpers from accepting the old
+handoff; a side acknowledgement alone is insufficient. New preparation requires
+that exact evidence and uses a new operation ID. Review can reopen the enrolled
+WSL for identity checking but never performs reclamation or automatically retries.
+Unknown outcome remains unknown; older readers reject this state without dropping
+data. This is permission to retire a handoff, not a claim of storage recovery.

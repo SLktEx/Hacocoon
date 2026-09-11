@@ -877,3 +877,38 @@ isolation and worker launch flags are unchanged. The previous direct-runner laun
 failure remains a failure; this user-path gate has not yet established native
 success. Observer refusal regressions pass without WSL mutation. Full Workspace/OCI
 contents are still outside this gate, so it does not complete F1 acceptance.
+
+## Explicit review of an interrupted operation
+
+Status: **internal helper implemented; public review UI and real enrolled-WSL
+acceptance pending**. `_review-interrupted` takes the exact registration and
+operation IDs. It reuses the same continuation guard, enrolled Windows user,
+registration/disk pins and installed-identity check as preparation. A live worker
+excludes review before any WSL access. The identity check may reopen only the
+selected enrolled WSL; review does not trim, compact, prepare or launch another run.
+
+Review first durably retains the original canonical pending record under its
+operation ID. It then changes only the current record state to `interrupted`.
+The original Linux observations, including started-without-result, remain intact;
+no Windows results or successful completion are invented. Repeating an exact
+review is idempotent. Missing, changed, malformed or foreign evidence is refused.
+A new intent is allowed only when the exact original pending evidence remains
+available. Its operation ID is new. A late worker cannot run or finish the retired
+handoff, even before a replacement is prepared.
+
+This one state is necessary to invalidate old handoffs: keeping only a side
+acknowledgement would let an older helper accept the still-pending operation.
+Existing version-1/2 records keep their encoding. Older helpers reject the unknown
+`interrupted` state; use the updated helper to review/read it. No catalog migration,
+record deletion, implicit retry or full crash-recovery state machine is added.
+Historical pending bytes remain archived; read-only status projects them as
+interrupted with unknown outcome, never as a successful reclamation. If archival
+persistence cannot be confirmed, the operation remains unavailable for replacement.
+
+Native Windows regression tests use unique temporary registry keys and cover
+verbatim retention, changed ownership/disk/operation refusal, malformed/missing
+archives, repeated review, late execution/result refusal and fresh-operation IDs.
+The helper dispatch regression and public unknown-outcome display also pass.
+These isolated tests do not prove interruption of a real enrolled WSL worker.
+The daily `haco reclaim` review connection remains unfinished; do not use record
+removal as a workaround.

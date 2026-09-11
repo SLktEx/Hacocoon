@@ -68,7 +68,7 @@ func (r operationRecord) validate() error {
 		return errors.New("inconsistent reclamation observations")
 	}
 	switch r.State {
-	case "pending":
+	case "pending", "interrupted":
 		if o != (continuationObservation{}) {
 			return errors.New("pending record has results")
 		}
@@ -139,7 +139,8 @@ func (s *operationStore) write(r operationRecord) error {
 
 // Caller holds the registration's continuation guard. A failed result may be
 // replaced only after explicit review has durably retained that exact result.
-// Pending and unknown records cannot be released this way.
+// Pending and unknown records cannot be released. Explicitly interrupted records
+// require the verbatim original pending evidence before a new intent can replace them.
 // Version 1 remains only for the existing disk-only native primitive/tests.
 func (s *operationStore) begin(r registration, disk diskIdentity) (operationRecord, error) {
 	return s.beginVersion(r, disk, 1)
@@ -157,6 +158,10 @@ func (s *operationStore) beginVersion(r registration, disk diskIdentity, version
 				return operationRecord{}, errOperationNeedsReview
 			}
 			if err := s.reviewFailed(old.Operation, r, disk); err != nil {
+				return operationRecord{}, err
+			}
+		} else if old.State == "interrupted" {
+			if err := s.requireInterruptedEvidence(old); err != nil {
 				return operationRecord{}, err
 			}
 		} else if old.State != "complete" {

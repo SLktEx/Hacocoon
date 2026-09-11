@@ -85,6 +85,7 @@ func TestReclamationStatusDoesNotInventCompletionOrAllocation(t *testing.T) {
 		contains  string
 	}{
 		{"pending", `{"operation":"` + commandReclaimOperation + `","state":"pending"}`, 0, "outcome unknown"},
+		{"interrupted", `{"operation":"` + commandReclaimOperation + `","state":"interrupted","linux_started":true}`, 1, "outcome unknown"},
 		{"failed", `{"operation":"` + commandReclaimOperation + `","state":"failed"}`, 1, "failed"},
 		{"unproven", `{"operation":"` + commandReclaimOperation + `","state":"complete"}`, 1, ""},
 		{"extra", `{"operation":"` + commandReclaimOperation + `","state":"pending","command":"private"}`, 1, ""},

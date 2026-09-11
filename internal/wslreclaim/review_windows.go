@@ -88,6 +88,18 @@ func (s *operationStore) readOperation(id windows.GUID) (operationRecord, error)
 		return operationRecord{}, err
 	}
 	saved, err := s.readValue(failedReviewName(id))
+	if errors.Is(err, registry.ErrNotExist) {
+		saved, err = s.readValue(interruptedReviewName(id))
+		if err != nil {
+			return operationRecord{}, err
+		}
+		if saved.Operation != id || saved.State != "pending" {
+			return operationRecord{}, errors.New("invalid reviewed pending evidence")
+		}
+		// Read-only projection: the original archive bytes remain pending/unknown.
+		saved.State = "interrupted"
+		return saved, nil
+	}
 	if err != nil {
 		return operationRecord{}, err
 	}
@@ -95,4 +107,83 @@ func (s *operationStore) readOperation(id windows.GUID) (operationRecord, error)
 		return operationRecord{}, errors.New("invalid reviewed failure evidence")
 	}
 	return saved, nil
+}
+
+func interruptedReviewName(id windows.GUID) string { return "ReviewedPending-" + id.String() }
+
+// Caller holds the continuation guard and verified enrollment/disk pins. Retain
+// the unknown original before retiring its handoff. Never rewrite it as success.
+func (s *operationStore) reviewInterrupted(id windows.GUID, r registration, disk diskIdentity) error {
+	current, err := s.read()
+	if err != nil {
+		return err
+	}
+	if id == (windows.GUID{}) || current.Operation != id || current.Registration != r || current.Disk != disk || (current.State != "pending" && current.State != "interrupted") {
+		return errors.New("review requires the exact interrupted operation and enrolled target")
+	}
+	original := current
+	original.State = "pending"
+	name := interruptedReviewName(id)
+	prior, err := s.readValue(name)
+	if err == nil {
+		if !reflect.DeepEqual(prior, original) {
+			return errors.New("existing pending evidence differs; retain records")
+		}
+	} else if errors.Is(err, registry.ErrNotExist) && current.State == "pending" {
+		raw, marshalErr := json.Marshal(original)
+		if marshalErr != nil {
+			return marshalErr
+		}
+		if err := s.key.SetBinaryValue(name, raw); err != nil {
+			return err
+		}
+	} else {
+		return errors.New("original pending evidence unavailable")
+	}
+	status, _, _ := flushOperationKey.Call(uintptr(s.key))
+	if status != 0 {
+		return syscall.Errno(status)
+	}
+	saved, err := s.readValue(name)
+	if err != nil || !reflect.DeepEqual(saved, original) {
+		return errors.New("pending evidence persistence unconfirmed")
+	}
+	latest, err := s.read()
+	if err != nil || !reflect.DeepEqual(latest, current) {
+		return errors.New("operation changed during interrupted review")
+	}
+	// The changed state also makes older helpers refuse the old handoff. A side
+	// acknowledgement alone would leave their requirePending check able to run it.
+	current.State = "interrupted"
+	return s.write(current)
+}
+
+// ReviewInterruptedOperation may reopen only the enrolled WSL for its installed
+// identity check. A live continuation excludes review before any WSL access.
+// It performs no discard/compaction and does not prepare or launch another attempt.
+func ReviewInterruptedOperation(ctx context.Context, registrationID, operationID string) error {
+	rID, id, err := preparedIDs(registrationID, operationID)
+	if err != nil {
+		return err
+	}
+	r, err := readRegistration(rID.String())
+	if err != nil {
+		return err
+	}
+	return r.withReclamationTarget(ctx, func(records *operationStore, pin *pinnedDisk, _ installationObservation) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return records.reviewInterrupted(id, r, pin.identity)
+	})
+}
+
+func (s *operationStore) requireInterruptedEvidence(current operationRecord) error {
+	original, err := s.readValue(interruptedReviewName(current.Operation))
+	expected := current
+	expected.State = "pending"
+	if current.State != "interrupted" || err != nil || !reflect.DeepEqual(original, expected) {
+		return errors.New("interrupted operation lacks its exact original evidence")
+	}
+	return nil
 }

@@ -244,3 +244,30 @@ func TestLaunchFailureLogsNativeCodeWithoutSuccess(t *testing.T) {
 		t.Fatal(record)
 	}
 }
+
+func TestInterruptedReviewUsesOnlyExactReviewAction(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		var out, diagnostic bytes.Buffer
+		calls := 0
+		actions := helperActions{interruptedReview: func(ctx context.Context, r, o string) error {
+			calls++
+			if r != "registration" || o != "operation" {
+				t.Fatal("changed identity")
+			}
+			if fail {
+				return errors.New("review refused")
+			}
+			return nil
+		}}
+		code := dispatch(context.Background(), []string{"_review-interrupted", "registration", "operation"}, &out, &diagnostic, actions)
+		if calls != 1 || (fail && code != 1) || (!fail && code != 0) {
+			t.Fatal(code, calls)
+		}
+		if fail && out.Len() != 0 {
+			t.Fatal("failed review claimed success")
+		}
+		if !fail && !strings.Contains(out.String(), "unknown outcome") {
+			t.Fatal(out.String())
+		}
+	}
+}

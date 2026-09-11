@@ -1644,3 +1644,5 @@ Linux 成功後の `_launch` で失敗し、原因・worker 未起動は未確�
 F1 に `haco reclaim` と読み取り専用 `haco reclaim --status` を追加し、GUID・path の必須引数をなくしました。起動受付と完了を区別し、native PowerShell protocol fixture は成功しました。`d675c5a` の Windows 一連 gate は process 作成の Access denied 5 で失敗し、Linux 未開始の pending を保持しました。公開操作の導入済み受入・中断 pending の明示確認は未完了です。[公開回収操作](design/storage-reclamation.ja.md#公開の起動と結果照会)を参照してください。
 
 Windows F1 gate を通常 Host terminal の公開 reclaim/status に接続し、再入場前は Windows の読み取りだけで終了を確認します。拒否テストは成功、native 受入は確認待ちです。[通常経路 gate](design/storage-reclamation.ja.md#通常の-host-入口による受入)を参照してください。
+
+F1 の内部中断確認は元の pending バイト列を保持して旧 handoff を無効にし、新しい準備前に証拠の完全一致を要求します。所有・pin・排他照合は再利用し、native 隔離回帰は成功しました。公開の確認操作への接続と実登録の中断受入は未完了です。[中断確認](design/storage-reclamation.ja.md#中断した操作の明示確認)を参照してください。
