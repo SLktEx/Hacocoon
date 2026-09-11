@@ -1,4 +1,5 @@
 import copy
+import base64
 import unittest
 from unittest.mock import patch
 import evacuation_associations as subject
@@ -51,6 +52,36 @@ class AssociationTests(unittest.TestCase):
         result = subject.compare_associations(self.native(), catalog, repos)
         self.assertEqual(len(result["rows"]), 3)
         self.assertTrue(all(row["status"] == "reference-and-marker-observed" for row in result["rows"]))
+
+    def test_deleting_snapshot_keeps_missing_component_state_for_review(self):
+        for state in ("absent", "verified"):
+            catalog = {"projection_complete": True, "records": [{"section": "snapshots", "key": "saved", "state": "deleting", "components": [
+                {"role": "rootfs", "native_ref": "instance/missing", "owner": OWNER, "state": state}]}]}
+            row = subject.compare_associations(self.native(), catalog)["rows"][0]
+            self.assertEqual(row["status"], "not-observed")
+            self.assertEqual(row["source"]["state"], "deleting")
+            self.assertEqual(row["recorded_state"], state)
+
+    def test_router_wrapped_snapshot_matches_current_persisted_format(self):
+        ref = "instance/saved-root"
+        wrapped = "haco-runtime-v1:runtime.incus:" + base64.urlsafe_b64encode(ref.encode()).decode().rstrip("=")
+        catalog = {"projection_complete": True, "records": [{"section": "snapshots", "key": "saved", "components": [
+            {"role": "rootfs", "native_ref": wrapped, "owner": OWNER}]}]}
+        row = subject.compare_associations(self.native(), catalog)["rows"][0]
+        self.assertEqual(row["status"], "reference-and-marker-observed")
+        self.assertEqual(row["native_ref"], wrapped)
+
+    def test_router_rejects_other_providers_and_malformed_or_unsafe_payloads(self):
+        encode = lambda value: base64.urlsafe_b64encode(value).decode().rstrip("=")
+        prefix = "haco-runtime-v1:runtime.incus:"
+        refs = ["haco-runtime-v1:runtime.other:" + encode(b"pool/work"), prefix,
+                prefix + "a", prefix + "***", prefix + "YQ==", prefix + "YR",
+                prefix + encode(b"../work"), prefix + encode(b"volume/pool/../work"),
+                prefix + encode(b"https://secret@example.invalid"), prefix + encode(b"pool/\xff"),
+                prefix + encode(b"instance/name\n"), prefix + "A" * 4097]
+        for ref in refs:
+            with self.subTest(ref=ref[:60]):
+                self.assertIsNone(subject.native_reference(ref))
 
     def test_empty_snapshot_and_incomplete_projection_remain_visible(self):
         catalog = {"projection_complete": False, "records": [
