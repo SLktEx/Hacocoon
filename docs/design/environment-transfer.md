@@ -1211,3 +1211,18 @@ comparison are outside this run. G2/G3 overall and reviewed G4 replacement remai
 incomplete; this acceptance does not authorize deleting the old WSL. The private
 Windows evidence is under `%LOCALAPPDATA%/Hacocoon/RecoveryTests/<fixture-id>`,
 with target receipts under `/var/lib/haco-managed-cross-restore-<fixture-id>`.
+
+## Catalog reference comparison
+
+With `--catalog` or `--repositories`, the inventory emits `associations` from the already-read native inventory and selected catalog fields. Run this on the Physical Host that owns the controller state, with the actual controller root substituted when configured differently:
+
+```bash
+umask 077
+python3 tools/evacuation_inventory.py --catalog /var/lib/hacocoon/state/environments.json > inventory.json
+```
+
+Add `--repositories /var/lib/hacocoon/state/repositories` when that directory is available. The schema-13 projection includes Environment runtime references, Workspace IDs and source locations, persistent-resource links and Base name/revision provenance. Source paths are references only and are never opened. Base filesystem contents, arbitrary configuration and credentials are not projected; URI-shaped Workspace sources are withheld. Unsupported schemas are reported without migration or rewriting the input.
+
+Native instance/volume rows include only the `user.hacocoon.owner` marker from configuration. Missing markers are unknown; malformed markers make native observation incomplete. Comparison accepts provider-local references and the existing `haco-runtime-v1:runtime.incus:<base64url>` route with bounded canonical encoding. Other provider routes remain unsupported. It distinguishes observed references and markers, missing resources, missing/mismatched markers, ambiguous project views, incomplete native inventory and unsupported references. It retains component and enclosing record states, including deleting snapshots, and reports the 4096-row comparison limit explicitly.
+
+These observations never establish ownership, Environment generation or permission. Base/lease/Environment ownership comparison remains incomplete; shared project views are not resolved by choosing a matching marker. `authority` remains false and `review_required` remains true. Exit zero means the requested inventory/projections were read, not that every association matched or a backup was captured. Keep the report private and review unresolved rows before planning data capture; no new daily `haco` command is added.

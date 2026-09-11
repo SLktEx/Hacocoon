@@ -1016,3 +1016,18 @@ Windows native の SSH／VS Code、ACL／xattr／link、trusted Host のデー�
 G2／G3 全体と確認後の G4 入替は未完了で、旧 WSL の削除を許可する結果ではありません。
 Windows の private 証拠は `%LOCALAPPDATA%/Hacocoon/RecoveryTests/<fixture-id>`、
 復元先記録は `/var/lib/haco-managed-cross-restore-<fixture-id>` に保持しています。
+
+## Catalog 参照の照合
+
+`--catalog` または `--repositories` を指定すると、読み取り済みの native inventory と選択した catalog 項目から `associations` を出力します。controller state を所有する Physical Host で実行し、controller root を変更している場合は実際のパスに置き換えてください。
+
+```bash
+umask 077
+python3 tools/evacuation_inventory.py --catalog /var/lib/hacocoon/state/environments.json > inventory.json
+```
+
+該当ディレクトリがある場合は `--repositories /var/lib/hacocoon/state/repositories` を追加できます。schema 13 の projection は Env の runtime 参照、Workspace ID と所在、永続資源との対応、Base 名・revision の由来情報を含みます。所在パスは参照として記録するだけで開きません。Base filesystem、任意の設定本体、認証情報は含めず、URI 形式の Workspace 所在は出力を控えます。未対応 schema は移行や入力の書き換えを行わず報告します。
+
+native instance/volume の設定からは `user.hacocoon.owner` マーカーだけを記録します。マーカーの欠落は不明として扱い、不正形式は native 観測の未完了となります。照合は provider 内の参照と、長さ制限・正規 encoding を確認した既存の `haco-runtime-v1:runtime.incus:<base64url>` 形式を扱います。他 provider は未対応です。参照・マーカーの観測、資源の未観測、マーカーの欠落・不一致、複数 project の候補、native inventory の未完了、未対応参照を区別します。削除途中の snapshot も含め component と上位記録の状態を残し、比較の 4096 行制限に達した場合も明示します。
+
+この観測は所有権、Env の世代、権限の証明にはなりません。Base・lease・Env の所有照合は未完了で、共有 project の候補をマーカー一致だけで選びません。`authority` は false、`review_required` は true のままです。終了コード 0 は要求した inventory/projection を読み取れたことを示し、全対応の一致や backup の保存を意味しません。報告は private に保持し、データ保存を計画する前に未解決行を確認してください。普段の `haco` コマンドは増やしません。
