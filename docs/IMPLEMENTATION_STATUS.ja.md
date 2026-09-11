@@ -1603,3 +1603,5 @@ Catalog 参照の照合は **partial** です。読み取り専用の退避 inve
 明示的 tree capture helper に、書き込み停止の確認を必須とする保守スクリプトの実行入口を追加しています。stream 上限を指定でき、失敗は非ゼロで終了します。日常用 `haco` コマンドは追加しません。
 
 tree capture の成功時は、`sha256sum` でコピーを検証するための標準 SHA-256 checksum ファイルも出力します。外部保管や復号鍵の復旧可能性を証明するものではありません。
+
+退避用の参照 inventory は、観測した instance/custom volume の逆方向の確認も上限付きで行います。未照合・不一致の project 表示を残し、cleanup 権限は付与しません。

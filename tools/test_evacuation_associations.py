@@ -91,6 +91,52 @@ class AssociationTests(unittest.TestCase):
         self.assertEqual(result["rows"][0]["source"]["key"], "empty")
         self.assertEqual(result["rows"][0]["status"], "unsupported-reference")
 
+    def test_reverse_review_keeps_native_data_without_supported_references(self):
+        result = subject.compare_associations(self.native(), self.catalog())
+        rows = {row["name"]: row for row in result["native_review"]}
+        self.assertEqual(rows["work"]["status"], "reference-and-marker-observed")
+        self.assertEqual(rows["saved-root"]["status"], "no-supported-reference")
+        self.assertEqual(rows["saved-root"]["project"], "hacocoon")
+        self.assertFalse(result["authority"])
+        # An incomplete catalog does not establish that a native resource is orphaned.
+        catalog = {"projection_complete": False, "records": []}
+        result = subject.compare_associations(self.native(), catalog)
+        self.assertTrue(all(row["status"] == "no-supported-reference" for row in result["native_review"]))
+        self.assertIn("catalog-projection-incomplete", result["errors"])
+
+    def test_reverse_review_preserves_ambiguous_project_views(self):
+        native = self.native()
+        other = copy.deepcopy(native["projects"][0]); other["name"] = "other"
+        native["projects"].append(other)
+        result = subject.compare_associations(native, self.catalog())
+        volumes = [row for row in result["native_review"] if row["kind"] == "volume"]
+        self.assertEqual({row["project"] for row in volumes}, {"hacocoon", "other"})
+        self.assertTrue(all(row["status"] == "unresolved-reference" for row in volumes))
+
+    def test_reverse_review_does_not_hide_owner_mismatch_or_native_read_failure(self):
+        for incomplete in (False, True):
+            native = self.native()
+            native["native_queries_complete"] = not incomplete
+            native["projects"][0]["volumes"][0]["owner_marker"] = "b" * 32
+            result = subject.compare_associations(native, self.catalog())
+            volume = next(row for row in result["native_review"] if row["kind"] == "volume")
+            self.assertEqual(volume["status"], "unresolved-reference")
+
+    def test_reverse_review_matching_record_does_not_hide_conflicting_record(self):
+        catalog = self.catalog()
+        conflicting = copy.deepcopy(catalog["records"][0])
+        conflicting.update(key="other", owner="b" * 32)
+        catalog["records"].append(conflicting)
+        result = subject.compare_associations(self.native(), catalog)
+        volume = next(row for row in result["native_review"] if row["kind"] == "volume")
+        self.assertEqual(volume["status"], "unresolved-reference")
+
+    def test_reverse_review_budget_reports_omitted_native_rows(self):
+        with patch.object(subject, "LIMIT", 1):
+            result = subject.compare_associations(self.native())
+        self.assertEqual(len(result["native_review"]), 1)
+        self.assertEqual(result["errors"], ["native-review-budget-exhausted"])
+
     def test_unsupported_references_and_budget_are_explicit(self):
         catalog = self.catalog("legacy-format")
         self.assertEqual(subject.compare_associations(self.native(), catalog)["rows"][0]["status"], "unsupported-reference")

@@ -29,7 +29,7 @@ def native_reference(ref):
 
 
 def compare_associations(native, catalog=None, repositories=None):
-    result = {"authority": False, "review_required": True, "rows": [], "errors": []}
+    result = {"authority": False, "review_required": True, "rows": [], "native_review": [], "errors": []}
     index = {}
     for project in native.get("projects", []):
         for item in project.get("instances", []):
@@ -63,6 +63,7 @@ def compare_associations(native, catalog=None, repositories=None):
                 for row in file.get("records", []):
                     yield {"file": file["file"], "id": row["id"]}, row, "volume"
 
+    referenced, unresolved = set(), set()
     for source, item, kind in records():
         if len(result["rows"]) >= LIMIT:
             result["errors"].append("comparison-budget-exhausted")
@@ -93,4 +94,18 @@ def compare_associations(native, catalog=None, repositories=None):
         else:
             status = "reference-and-marker-observed"
         result["rows"].append({"source": source, "native_ref": ref, "status": status, "recorded_state": item.get("state"), "candidates": [dict(c) for c in candidates]})
+        if candidates:
+            referenced.add(key)
+            if status != "reference-and-marker-observed":
+                unresolved.add(key)
+    # Reverse coverage is observation only. Unsupported/missing catalogs can leave
+    # legitimate managed resources here; absence of a match never permits deletion.
+    for key in sorted(index):
+        for candidate in index[key]:
+            if len(result["native_review"]) >= LIMIT:
+                result["errors"].append("native-review-budget-exhausted")
+                return result
+            status = ("unresolved-reference" if key in unresolved else
+                      "reference-and-marker-observed" if key in referenced else "no-supported-reference")
+            result["native_review"].append({"kind": key[0], **candidate, "status": status})
     return result
