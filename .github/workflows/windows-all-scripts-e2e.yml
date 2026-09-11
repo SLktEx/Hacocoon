@@ -27,6 +27,8 @@ on:
       - "tools/test_windows_ssh_diagnostic.ps1"
       - "tools/windows-native-access-e2e.py"
       - "tools/windows-reclamation-linux-e2e.py"
+      - "tools/windows-reclamation-user-path-e2e.py"
+      - "tools/test_reclamation_user_path.py"
       - "tools/setup-vscode-acceptance.ps1"
       - "tools/test_native_access_runner.py"
       - "tools/test_vscode_environment.ps1"
@@ -240,11 +242,20 @@ jobs:
         shell: pwsh
         run: python ./tools/windows-native-access-e2e.py
 
-      - name: Verify installed controller and Windows worker reclamation stages
-        id: reclamation
+      - name: Verify installed Linux reclamation stages
+        id: reclamation_linux
         if: ${{ !cancelled() && steps.installed.outcome == 'success' }}
         shell: pwsh
-        run: python ./tools/windows-reclamation-linux-e2e.py --with-worker
+        run: python ./tools/windows-reclamation-linux-e2e.py
+
+      - name: Verify public reclamation through ordinary Host entry
+        id: reclamation
+        if: ${{ !cancelled() && steps.reclamation_linux.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          python ./tools/test_reclamation_user_path.py
+          if ($LASTEXITCODE -ne 0) { throw "Reclamation observer regressions failed." }
+          python ./tools/windows-reclamation-user-path-e2e.py
 
       # A failed launch may still have a live worker; do not restart WSL then.
       - name: Verify installed native notification review route

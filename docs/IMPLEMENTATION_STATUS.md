@@ -1914,3 +1914,5 @@ unproven. Permanent-helper and bounded launch-diagnostic follow-up CI are pendin
 See [the current scope](design/storage-reclamation.md#discovering-the-managed-target).
 
 F1 adds `haco reclaim` and read-only `haco reclaim --status`, without required GUID/path arguments. Dispatch is distinguished from completion; native PowerShell protocol fixtures passed. The combined Windows gate at `d675c5a` failed at process creation (Access denied 5), retaining pending with Linux not started. Public installed acceptance and interrupted-pending review remain incomplete. See [public reclamation](design/storage-reclamation.md#public-dispatch-and-result-inspection).
+
+The Windows F1 gate now drives public reclaim/status through the ordinary Host terminal and waits using Windows-only observations before reentry. Refusal tests passed; native acceptance is pending. See [the user-path gate](design/storage-reclamation.md#acceptance-through-the-ordinary-host-entry).

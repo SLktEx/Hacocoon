@@ -115,6 +115,7 @@ func reclaimCommand(ctx context.Context, args []string, in io.Reader, out, diagn
 		fmt.Fprintln(diagnostic, "Dispatch result unavailable. Inspect haco reclaim --status; the operation may already be running.")
 		return 1
 	}
+	fmt.Fprintf(out, "Operation: %s\n", started.Operation)
 	fmt.Fprintln(out, "Worker dispatched; reclamation is not yet confirmed. Reopen Hacocoon after restart and run haco reclaim --status.")
 	return 0
 }

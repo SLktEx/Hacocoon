@@ -859,3 +859,21 @@ The preceding direct installed Linux stages passed. The error alone does not pro
 which Job or process restriction caused it. Public Host-to-Windows dispatch and
 combined Workspace/OCI preservation are **unverified**; the native protocol fixture
 does not substitute for that acceptance. See the [failed Windows run](https://github.com/SLktEx/Hacocoon/actions/runs/34555588035).
+
+## Acceptance through the ordinary Host entry
+
+The Windows workflow keeps direct installed Linux identity/discard checks and then
+opens its ordinary `wsl -d Hacocoon` terminal using the existing ConPTY driver.
+It types `haco reclaim --yes`, observes the dispatched operation ID and uses only
+Windows read-only status/process queries until that exact operation is complete
+and no process for the installed helper remains. Unknown process identity, pending
+without a worker, failure or timeout fails the gate without retry/record clearing.
+The public CLI prints the operation ID for diagnostics; it is not a required input.
+
+Only after both completion and process absence does the gate reopen the ordinary
+Host and run `haco reclaim --status`, checking the retained installer Host sentinel.
+Later notification acceptance still requires successful reclamation. Job/console
+isolation and worker launch flags are unchanged. The previous direct-runner launch
+failure remains a failure; this user-path gate has not yet established native
+success. Observer refusal regressions pass without WSL mutation. Full Workspace/OCI
+contents are still outside this gate, so it does not complete F1 acceptance.

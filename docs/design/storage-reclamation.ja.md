@@ -712,3 +712,18 @@ pool の接続・選択と native discard、`internal/wslreclaim` は Windows en
 Linux 両段階は成功しています。エラーだけで原因の Job・process 制約は断定できません。
 公開 Host → Windows 起動と一連の Workspace/OCI 保持は **未検証** です。native protocol
 fixture をその受入の代わりにはしません。[失敗した Windows run](https://github.com/SLktEx/Hacocoon/actions/runs/34555588035)を参照してください。
+
+## 通常の Host 入口による受入
+
+Windows workflow は導入済み Linux の識別・discard 直接検証を残し、その後は既存の
+ConPTY driver で通常の `wsl -d Hacocoon` terminal を開きます。`haco reclaim --yes` を
+入力し、表示された操作 ID の結果が complete かつ常設 helper の process が存在しなくなる
+まで、Windows の読み取り専用 status・process 照会だけを行います。process 識別不能、
+worker 不在の pending、失敗・timeout は、再試行や記録消去をせず gate の失敗にします。
+CLI に表示する操作 ID は診断用であり、必須入力ではありません。
+
+完了と process 不在の両方を確認した後だけ通常 Host を開き直し、`haco reclaim --status`
+と installer の Host sentinel 保持を確認します。後続の通知受入にも回収成功が必要です。
+Job・console 隔離と worker の起動 flag は変更しません。従来の runner 直接起動の失敗は
+失敗のままで、この通常経路 gate の native 成功はまだ未確認です。照会の拒否回帰テストは
+WSL 操作なしで成功しました。Workspace/OCI 内容全体は対象外で、F1 完了とは扱いません。
