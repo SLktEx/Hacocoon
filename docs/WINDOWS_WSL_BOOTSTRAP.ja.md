@@ -1,7 +1,9 @@
 # Windows / WSL セットアップ
 
-通常の管理対象インストールは同梱の Windows `haco-wsl.exe` を検証し、正確な WSL GUID・
-導入済み Host の識別情報・Windows 所有者・VHDX ファイルを登録します。追加 option は不要です。
+通常の管理対象インストールは同梱の Windows `haco-wsl.exe` を検証して Windows ユーザーの
+アプリ用フォルダーへ登録ごとに常設し、正確な WSL GUID・
+導入済み Host の識別情報・Windows 所有者・VHDX ファイルを登録します。追加 option・PATH 変更は不要で、
+展開 package を保持する必要もありません。
 同じ登録の installer 再実行は受け付け、対応が変わった場合は情報を保持して拒否します。
 公開の容量回収を有効にするものではありません。[契約](design/storage-reclamation.ja.md)を参照してください。
 

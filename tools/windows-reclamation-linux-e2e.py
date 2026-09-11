@@ -31,7 +31,7 @@ def registration():
 def worker_cycle(reg):
     import ctypes
     from ctypes import wintypes
-    helper = Path(os.environ["RUNNER_TEMP"]) / "hacocoon-windows-amd64" / "haco-wsl.exe"
+    helper = Path(os.environ["LOCALAPPDATA"]) / "Hacocoon" / "reclamation" / uuid.UUID(reg).hex / "haco-wsl.exe"
     assert helper.is_file(), "packaged enrolled Windows helper missing"
     def invoke(*args):
         p = subprocess.run([str(helper), *args], capture_output=True, text=True,

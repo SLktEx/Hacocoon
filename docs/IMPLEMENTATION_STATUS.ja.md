@@ -10,8 +10,9 @@ Linux の失敗・完了不明時は停止しません。保存済み enrollment
 
 新規準備は操作記録 version 2 を使います。既存 version 1 は canonical バイト列と
 Windows disk-only の意味を保持し、catalog・一括移行は不要です。開始済み pending から
-Linux 操作を再実行しません。公開の一括コマンド、Windows helper の固定場所への導入、
-結果不明 pending の利用者向け操作は未完了です。
+Linux 操作を再実行しません。公開の一括コマンドと結果不明 pending の利用者向け操作は未完了です。
+通常の Windows 導入で helper を登録ごとの固定場所へ配置します。常設実体からの worker 実機受入は
+確認待ちです。
 
 `29886ed` の導入済み Windows Linux 段階 gate と Incus Btrfs volume/snapshot 保持 trim step
 は成功しました。以前の専用 Windows worker は容量を維持して895 MiB、33 MiBを回収しましたが、

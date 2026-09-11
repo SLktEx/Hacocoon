@@ -320,6 +320,12 @@ $enrollFunction = 'function:' + $enrollExe
 [IO.File]::WriteAllText($enrollExe, 'test fixture only')
 $enrollHash = Get-Sha256Hex $enrollExe
 $enrollId = [guid]::NewGuid().ToString('B')
+$realInstallHelper = ${function:Install-HacocoonWslHelper}
+function Install-HacocoonWslHelper([string]$Source, [string]$RegistrationId, [string]$ExpectedHash) {
+    Assert-Equal $RegistrationId $enrollId
+    Assert-Equal $ExpectedHash $enrollHash
+    return $Source
+}
 $script:enrollInvocations = 0
 Set-Item -LiteralPath $enrollFunction -Value {
     Assert-Equal ($args -join '|') ('enroll|' + $enrollId)
@@ -345,10 +351,85 @@ try {
     Assert-Equal $rejected $true
     Assert-Equal $script:enrollInvocations 2
 } finally {
+    Set-Item -LiteralPath function:Install-HacocoonWslHelper -Value $realInstallHelper
     Remove-Item -LiteralPath $enrollFunction
     [IO.File]::Delete($enrollExe)
     [IO.File]::Delete($enrollChecksums)
     [IO.Directory]::Delete($enrollTestRoot, $false)
+}
+# Real ordinary-file installation is isolated from the user's actual app folder.
+$realDataRoot = ${function:Get-HacocoonWindowsDataRoot}
+$helperTestRoot = Join-Path ([IO.Path]::GetTempPath()) ('haco-helper-install-' + [guid]::NewGuid().ToString('N'))
+[void][IO.Directory]::CreateDirectory($helperTestRoot)
+function Get-HacocoonWindowsDataRoot { return $helperTestRoot }
+$helperSource = Join-Path $helperTestRoot 'source.exe'
+$helperId = [guid]::NewGuid()
+$helperDirectory = Join-Path $helperTestRoot ('Hacocoon\reclamation\' + $helperId.ToString('N'))
+$helperTarget = Join-Path $helperDirectory 'haco-wsl.exe'
+$helperRecord = Join-Path $helperDirectory 'installation.json'
+try {
+    [IO.File]::WriteAllText($helperSource, 'first candidate')
+    $firstHash = Get-Sha256Hex $helperSource
+    Assert-Equal (Install-HacocoonWslHelper $helperSource $helperId.ToString('B') $firstHash) $helperTarget
+    Assert-Equal (Get-Sha256Hex $helperTarget) $firstHash
+    $recordBefore = [IO.File]::ReadAllText($helperRecord)
+    # Reinstall succeeds at the same path with retained ownership.
+    [IO.File]::WriteAllText($helperSource, 'updated candidate')
+    $nextHash = Get-Sha256Hex $helperSource
+    Assert-Equal (Install-HacocoonWslHelper $helperSource $helperId.ToString('B') $nextHash) $helperTarget
+    Assert-Equal (Get-Sha256Hex $helperTarget) $nextHash
+    Assert-Equal ([IO.File]::ReadAllText($helperRecord)) $recordBefore
+    # A pinned worker refuses replacement, retaining its exact executable.
+    $held = [IO.File]::Open($helperTarget, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    try {
+        $refused = $false
+        try { Install-HacocoonWslHelper $helperSource $helperId.ToString('B') $nextHash | Out-Null } catch { $refused = $true }
+        Assert-Equal $refused $true
+    } finally { $held.Dispose() }
+    Assert-Equal (Get-Sha256Hex $helperTarget) $nextHash
+    foreach ($bad in @(('0' * 64), $firstHash)) {
+        $refused = $false
+        try { Install-HacocoonWslHelper $helperSource $helperId.ToString('B') $bad | Out-Null } catch { $refused = $true }
+        Assert-Equal $refused $true
+        Assert-Equal (Get-Sha256Hex $helperTarget) $nextHash
+    }
+    # Unknown/foreign ownership is not adopted, even at the expected location.
+    [IO.File]::WriteAllText($helperRecord, '{"schema_version":1,"registration_id":"foreign"}')
+    $refused = $false
+    try { Install-HacocoonWslHelper $helperSource $helperId.ToString('B') $nextHash | Out-Null } catch { $refused = $true }
+    Assert-Equal $refused $true
+    Assert-Equal (Get-Sha256Hex $helperTarget) $nextHash
+    [IO.File]::Delete($helperRecord)
+    $refused = $false
+    try { Install-HacocoonWslHelper $helperSource $helperId.ToString('B') $nextHash | Out-Null } catch { $refused = $true }
+    Assert-Equal $refused $true
+    Assert-Equal ([IO.Directory]::GetFiles($helperDirectory, 'install-*.tmp').Count) 0
+    $helperLinkedRoot = Join-Path $helperTestRoot 'redirected'
+    $helperLinkTarget = Join-Path $helperTestRoot 'link-target'
+    [void][IO.Directory]::CreateDirectory($helperLinkTarget)
+    try {
+        New-Item -ItemType Junction -Path $helperLinkedRoot -Target $helperLinkTarget -ErrorAction Stop | Out-Null
+        function Get-HacocoonWindowsDataRoot { return $helperLinkedRoot }
+        $refused = $false
+        try { Install-HacocoonWslHelper $helperSource $helperId.ToString('B') $nextHash | Out-Null } catch { $refused = $true }
+        Assert-Equal $refused $true
+        Assert-Equal ([IO.Directory]::GetFileSystemEntries($helperLinkTarget).Count) 0
+    } finally {
+        if (Test-Path -LiteralPath $helperLinkedRoot) { [IO.Directory]::Delete($helperLinkedRoot, $false) }
+        [IO.Directory]::Delete($helperLinkTarget, $false)
+    }
+    Write-Host 'Permanent Windows helper install/reinstall/ownership/locked-worker/junction refusal: PASS'
+} finally {
+    Set-Item -LiteralPath function:Get-HacocoonWindowsDataRoot -Value $realDataRoot
+    # Exact fixture files and empty directories only; no recursive deletion.
+    [IO.File]::Delete($helperSource)
+    [IO.File]::Delete($helperTarget)
+    [IO.File]::Delete($helperRecord)
+    if (Test-Path -LiteralPath $helperDirectory) { [IO.Directory]::Delete($helperDirectory, $false) }
+    foreach ($relative in @('Hacocoon\reclamation', 'Hacocoon', '')) {
+        $empty = if ($relative) { Join-Path $helperTestRoot $relative } else { $helperTestRoot }
+        if (Test-Path -LiteralPath $empty) { [IO.Directory]::Delete($empty, $false) }
+    }
 }
 # Failure-case probes intentionally change LASTEXITCODE. GitHub's PowerShell
 # wrapper returns it after this script, so publish success only after every

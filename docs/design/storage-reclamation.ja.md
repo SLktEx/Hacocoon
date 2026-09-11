@@ -608,8 +608,8 @@ worker の上限は10分、controller 起動待ちを含む Linux 子プロセ�
 
 Windows の引き継ぎと native 記録は `internal/wslreclaim` が担当します。controller、
 Incus adapter、結果型 package の責務は維持します。内部 helper の引数は不変です。
-Windows helper の固定場所への導入、簡単な公開の一括操作、結果不明の pending を利用者が
-扱う経路は未完了です。日常の `haco` コマンドは増やさず、F1 完了とも扱いません。
+Windows helper の常設は下記のとおり接続しました。簡単な公開の一括操作と、結果不明の
+pending を利用者が扱う経路は未完了です。日常の `haco` コマンドは増やさず、F1 完了とも扱いません。
 
 既存 Windows CI gate に、配布 helper の準備・一度の起動、同じ Windows worker の終了待ち、
 保存済み Linux/Windows 完了確認、再開後の通常 setup・Host sentinel 確認を追加しました。
@@ -624,3 +624,27 @@ native 記録・順序・拒否テストは、停止前の永続化、結果欠�
 helper build、文書整合、workflow policy、gate 構文確認が成功しました。ローカルの専用 WSL
 opt-in gate は有効化せず、symlink fixture は権限不足で SKIP です。上記の旧 version
 assertion による初回失敗は失敗のまま残し、その後の修正版実行は成功として区別します。
+
+## Windows helper の常設
+
+状態: **実装済み、常設 helper からの worker 実機受入は確認待ち**。
+通常の管理対象 Windows インストールで同梱 helper の checksum を確認し、Windows ユーザーの
+アプリ用フォルダー配下の
+`Hacocoon/reclamation/<括弧・ハイフンなしの registration UUID>/haco-wsl.exe`
+へ導入し、その実体から enrollment を行います。追加 option、PATH 変更、昇格は不要で、
+展開した package フォルダーを保持する必要もありません。更新も通常の installer を使います。
+
+実行ファイルのコピー前に正確な登録を `installation.json` へ記録します。これは導入ファイルの
+所有記録であり、WSL/disk 操作の認可ではありません。helper の別の native enrollment・操作照合
+は引き続き必要です。所有不明・記録欠落・別登録・パス転送を拒否します。
+排他的な一時ファイルへコピーし、flush・checksum 確認後に backup なしで原子的に置換します。
+実行中 worker の native pin が置換を拒否した場合、installer は失敗を報告して既存実体を保持します。
+後片付けは自分で作った一時ファイルだけです。途中導入は所有記録を保持し、明示的な installer
+再実行で続けられますが、回収の自動起動・再実行は行いません。既存の操作・enrollment 記録は
+このファイル導入処理では変更しません。
+
+PowerShell 5.1 の component テストは隔離フォルダーの実ファイルを使い、新規導入・更新、
+checksum/所有の拒否、実行ファイルのロック、junction 転送を検証します。初回更新は PowerShell が
+`$null` を空の backup path に変換して失敗しました。明示的な .NET null へ修正し、修正版の
+component 実行は成功しました。既存 native CI gate も展開 package のコピーではなく常設 helper を
+使います。新しい head の結果は確認待ちです。

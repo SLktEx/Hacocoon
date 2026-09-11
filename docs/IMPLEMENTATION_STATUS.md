@@ -10,8 +10,10 @@ pins, exclusion, data/capacity protection and explicit failed-result retention r
 
 New preparations use operation record version 2. Existing version-1 records keep
 their canonical bytes and disk-only meaning; no catalog/bulk migration is needed.
-Started pending operations cannot replay Linux work. The public one-entry command,
-stable Windows helper installation and interrupted-pending handling are unfinished.
+Started pending operations cannot replay Linux work. The public one-entry command
+and interrupted-pending handling are unfinished. Normal Windows installation now
+places the verified helper at a registration-specific permanent path; its native
+worker acceptance is pending.
 
 At `29886ed`, installed Windows Linux-stage acceptance and the Incus Btrfs
 volume/snapshot trim step passed. Prior dedicated Windows workers reclaimed 895 MiB

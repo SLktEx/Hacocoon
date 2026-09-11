@@ -740,9 +740,8 @@ pending result is silently cleared, acknowledged or replayed.
 
 `internal/wslreclaim` owns this Windows handoff and native record. The controller,
 Incus adapter and result-type package keep their existing responsibilities. The
-internal helper arguments remain unchanged. Stable installation of the Windows
-helper, a simple public one-entry action and interrupted-pending operator handling
-remain unfinished; this does not introduce a daily `haco` command or claim F1 done.
+internal helper arguments remain unchanged. Windows helper installation is connected below; a simple public one-entry action
+and interrupted-pending operator handling remain unfinished; this does not introduce a daily `haco` command or claim F1 done.
 
 The existing Windows CI gate now additionally invokes packaged prepare/one launch,
 waits for the same Windows worker process to exit without issuing WSL calls, checks
@@ -759,3 +758,31 @@ passed, as did Windows amd64/arm64 helper builds, documentation consistency,
 workflow policy and gate syntax checks. Local dedicated-WSL opt-in gates were not
 enabled; the symlink fixture skipped for privilege. The initial obsolete-version
 assertion failure above remains a failed run, followed by the corrected passing run.
+
+## Permanent Windows helper installation
+
+Status: **implemented; installed worker acceptance pending**. Normal managed
+Windows installation checks the bundled helper checksum, installs it under the
+Windows user's application directory at
+`Hacocoon/reclamation/<registration UUID without braces or hyphens>/haco-wsl.exe`,
+and enrolls using that installed executable. There is no extra installer option,
+PATH change, elevation or requirement to keep the extracted package directory.
+The ordinary installation step is also the update path.
+
+The installer records the exact registration in `installation.json` before copying
+the executable. This is ownership of the installed files, not WSL/disk authority:
+the helper still requires its separate native enrollment and operation checks.
+Unknown/missing ownership, another registration and redirected paths are refused.
+Copy uses an exclusive temporary file, flush and checksum validation before atomic
+replacement without backup. An executing worker's native pin prevents replacement;
+the installer reports failure and leaves that executable intact. Only its own
+created temporary file is cleaned up. A partial install retains ownership so an
+explicit installer rerun can finish; it does not auto-launch or replay reclamation.
+Existing operation/enrollment records are unchanged by this installation step.
+
+PowerShell 5.1 component coverage uses an isolated folder and real file operations
+for first install, update, checksum/ownership refusal, a locked executable and a
+junction redirect. The initial update attempt failed because PowerShell converted
+`$null` to an empty backup path; explicit .NET null fixed it and the corrected
+component run passed. The existing native CI gate now uses the permanent helper
+rather than the extracted package copy. Its new-head result remains pending.

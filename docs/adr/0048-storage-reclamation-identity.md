@@ -146,3 +146,12 @@ meaning intact, including reviewed failures; reject unknown schemas rather than
 discarding data. New preparation uses version 2 with no bulk migration. These
 observations preserve operation evidence across WSL shutdown; they do not grant
 authority or promise automatic resumption. Public activation remains separate.
+
+Install the checked Windows helper in the user's application directory, separated
+by exact registration UUID, rather than depending on the extracted package path.
+A small file-ownership record permits ordinary installer updates; it is not the
+native WSL enrollment and grants no disk authority. Refuse unknown ownership and
+redirected paths, validate the copied checksum, and atomically replace without
+backup. Native executable pins cause updates during worker execution to fail;
+never kill a worker or weaken its sharing exclusions to finish an installation.
+This adds no daily command, PATH entry or elevated service.

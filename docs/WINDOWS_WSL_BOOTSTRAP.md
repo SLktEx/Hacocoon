@@ -1,8 +1,9 @@
 # Windows / WSL installation
 
-Normal managed installation now verifies the bundled Windows `haco-wsl.exe` and
-enrolls the exact WSL GUID, installed Host identity, Windows owner and VHDX file.
-No extra option is needed. Rerunning the installer accepts identical enrollment;
+Normal managed installation verifies the bundled Windows `haco-wsl.exe`, installs
+it permanently in the Windows user application directory per registration, and enrolls the exact WSL GUID, installed Host identity, Windows owner and VHDX file.
+No extra option or PATH change is needed; the extracted package need not remain.
+Rerunning the installer accepts identical enrollment;
 changed correspondence is retained and refused. This does not enable public
 capacity reclamation. See [the contract](design/storage-reclamation.md#packaged-enrollment-acceptance).
 
