@@ -81,7 +81,7 @@ class NativeCaptureTests(unittest.TestCase):
             self.capture()
         self.assertEqual((self.output / "data.tar").read_bytes(), plain)
 
-    @unittest.skipUnless(os.geteuid() == 0, "requires root for trusted xattrs")
+    @unittest.skipUnless(hasattr(os, "geteuid") and os.geteuid() == 0, "requires root for trusted xattrs")
     def test_non_user_attribute_survives_explicit_native_restore(self):
         key = "trusted.hacocoon-evacuation"
         os.setxattr(self.source / "data", key, b"synthetic-only")
