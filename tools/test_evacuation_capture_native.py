@@ -44,7 +44,10 @@ class NativeCaptureTests(unittest.TestCase):
         os.link(self.source / "data", self.source / "hard")
         os.chmod(self.source / "data", 0o750)
         os.setxattr(self.source / "data", b"user.haco-capture", b"retained")
-        result = self.capture()
+        command = [sys.executable, str(Path(subject.__file__).resolve()),
+                   str(self.source), str(self.output), self.recipient, "--quiesced"]
+        process = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+        result = json.loads(process.stdout)
         self.assertTrue(result["archive_complete"])
         self.assertFalse(result["backup_complete"])
         cipher = (self.output / "data.tar.age").read_bytes()

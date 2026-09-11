@@ -1,4 +1,5 @@
 """Explicit Linux tree capture using GNU tar and age; no restore or authority."""
+import argparse
 import hashlib
 import json
 import os
@@ -6,6 +7,7 @@ import re
 import selectors
 import stat
 import subprocess
+import sys
 import time
 
 from evacuation_files import file_inventory, open_directory
@@ -155,3 +157,29 @@ def capture_tree(source, destination, recipient, *, byte_limit=64 * 1024**3, sec
                 os.close(source_fd)
                 if destination_fd is not None:
                     os.close(destination_fd)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Encrypt one reviewed Linux tree; does not produce a whole-installation backup.")
+    parser.add_argument("source", help="absolute path to a quiescent source directory")
+    parser.add_argument("destination", help="new empty private directory outside source")
+    parser.add_argument("recipient", help="age public recipient; never supply a private key")
+    parser.add_argument("--quiesced", action="store_true", required=True,
+                        help="confirm all writers to this tree have been stopped")
+    parser.add_argument("--byte-limit", type=int, default=64 * 1024**3)
+    parser.add_argument("--seconds", type=float, default=900)
+    args = parser.parse_args(argv)
+    try:
+        result = capture_tree(args.source, args.destination, args.recipient,
+                              byte_limit=args.byte_limit, seconds=args.seconds)
+    except (CaptureError, OSError, ValueError, subprocess.TimeoutExpired):
+        # Paths and subprocess diagnostics may contain private data.
+        print("Capture failed; retain and inspect the destination. No backup completion is claimed.", file=sys.stderr)
+        return 1
+    json.dump(result, sys.stdout, sort_keys=True)
+    print()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

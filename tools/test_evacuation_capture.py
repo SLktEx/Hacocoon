@@ -1,3 +1,6 @@
+import contextlib
+import io
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -68,6 +71,32 @@ class CapturePreflightTests(unittest.TestCase):
         self.assertTrue((self.output / "data.tar.age").is_file())
         self.assertFalse((self.output / "capture-complete.json").exists())
         self.assertEqual((self.source / "work").read_text(), "retained")
+
+
+class CaptureCommandTests(unittest.TestCase):
+    def test_quiescence_confirmation_is_required_before_capture(self):
+        with patch.object(subject, "capture_tree") as capture, contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as raised:
+                subject.main(["/source", "/destination", RECIPIENT])
+        self.assertEqual(raised.exception.code, 2)
+        capture.assert_not_called()
+
+    def test_completion_output_remains_explicitly_partial(self):
+        result = {"archive_complete": True, "backup_complete": False}
+        stdout = io.StringIO()
+        with patch.object(subject, "capture_tree", return_value=result) as capture, contextlib.redirect_stdout(stdout):
+            self.assertEqual(subject.main(["/source", "/destination", RECIPIENT, "--quiesced", "--byte-limit", "100", "--seconds", "20"]), 0)
+        capture.assert_called_once_with("/source", "/destination", RECIPIENT, byte_limit=100, seconds=20)
+        self.assertEqual(json.loads(stdout.getvalue()), result)
+
+    def test_failure_is_nonzero_and_does_not_disclose_exception_data(self):
+        for error in (subject.CaptureError("private source"), OSError("private path"), ValueError("private recipient"), subject.subprocess.TimeoutExpired("private command", 1)):
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with self.subTest(error=type(error).__name__), patch.object(subject, "capture_tree", side_effect=error), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                self.assertEqual(subject.main(["/source", "/destination", RECIPIENT, "--quiesced"]), 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn("Capture failed", stderr.getvalue())
+            self.assertNotIn("private", stderr.getvalue())
 
 
 if __name__ == "__main__":

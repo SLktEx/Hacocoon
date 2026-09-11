@@ -1236,3 +1236,13 @@ Source and destination directories are opened without following symlink componen
 The output directory contains `capture-intent.json`, `data.tar.age` and, only after success, `capture-complete.json`. Completion requires both tar and age to exit successfully, the encrypted output to be synced, and the observed source metadata and directory identities to remain unchanged. Encrypted bytes and tar/age execution have configurable limits. Failure retains the intent and any partial ciphertext without a completion record; only the processes launched by this call are terminated on failure. Existing destination contents are never overwritten or automatically cleaned up.
 
 An archive completion record is not an atomic snapshot, proof of application consistency, external retention or a whole-installation backup. The caller must separately protect the decryption key, copy the ciphertext and receipts outside the WSL/storage being replaced, and verify restored data before replacement. The helper does not extract arbitrary archives or adopt imported management authority. Full source classification, coordinated quiescence, external retention and installation reconstruction remain follow-up work.
+
+For an explicit maintenance capture, stop every writer first, review mount gaps in the inventory, and use a fresh destination:
+
+```bash
+umask 077
+mkdir -m 700 /absolute/private-capture
+python3 tools/evacuation_capture.py /absolute/reviewed-source /absolute/private-capture "$AGE_RECIPIENT" --quiesced
+```
+
+`AGE_RECIPIENT` must contain only the public age recipient. `--quiesced` records the operator's confirmation; it does not stop or detect all writers. Optional `--byte-limit` and `--seconds` bound encrypted output and the tar/age pipeline (defaults: 64 GiB and 900 seconds). Exit zero and JSON on stdout mean this archive completed; `backup_complete` is still false. Failure exits nonzero and leaves existing artifacts for inspection. Use a new destination for a retry; do not overwrite or interpret partial ciphertext as complete. Keep stdout/receipts private because they identify the captured source.

@@ -1041,3 +1041,13 @@ source と destination はパス途中の symlink を追わずに開き、file d
 destination には `capture-intent.json`、`data.tar.age` と、成功時のみ `capture-complete.json` を残します。tar と age の両方の正常終了、暗号化出力の同期、観測した source metadata と directory identity の一致が完了条件です。暗号化出力の byte 数と tar/age 実行時間には変更可能な上限があります。失敗時は intent と部分 ciphertext を残し、完了記録は作りません。失敗時に終了させるのは当該呼び出しが起動したプロセスだけです。既存の destination 内容を上書きしたり自動で掃除したりしません。
 
 archive の完了記録は atomic snapshot、アプリの整合性、外部保存、インストール全体の backup の証明ではありません。復号鍵の保護、入替対象 WSL/storage の外への ciphertext・記録の保存、入替前の復元照合は呼び出し側で別途行う必要があります。任意の archive の展開や、保存された管理権限の採用は行いません。全対象の分類、writer 停止の統括、外部保存、インストール再構築は引き続き未完了です。
+
+保守用の明示的な退避では、すべての書き込み元を停止し、inventory の mount 境界などの未確認項目を確認してから、新しい出力先を使います。
+
+```bash
+umask 077
+mkdir -m 700 /absolute/private-capture
+python3 tools/evacuation_capture.py /absolute/reviewed-source /absolute/private-capture "$AGE_RECIPIENT" --quiesced
+```
+
+`AGE_RECIPIENT` には公開 age recipient のみを指定します。`--quiesced` は操作者による確認であり、書き込み元の停止や完全な検出は行いません。任意の `--byte-limit` と `--seconds` は暗号化出力と tar/age pipeline の上限です（既定値: 64 GiB、900 秒）。終了コード 0 と標準出力の JSON はこの archive の完了を示しますが、`backup_complete` は false のままです。失敗時は非ゼロで終了し、確認用に出力物を残します。再試行には新しい出力先を使い、部分的な暗号文を上書きしたり完了扱いしたりしないでください。標準出力と receipt には元の場所が含まれるため、非公開で保管してください。
