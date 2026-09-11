@@ -1,5 +1,8 @@
 # Trusted `haco-host`
 
+Implemented: Host `haco setup` waits for controller readiness through bounded read-only Ping probes before sending setup once. A failed setup response is never retried automatically. This handles the interval between systemd service activation and socket readiness without adding CLI steps.
+
+
 ## Notification companion
 
 Implemented: setup also provisions same-release `/usr/local/bin/haco-notify`,

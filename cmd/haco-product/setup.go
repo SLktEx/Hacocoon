@@ -106,7 +106,7 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		return 0
 	}
-	if err := client.SetupHost(ctx, update); err != nil {
+	if err := setupHostWhenReady(ctx, client, update); err != nil {
 		var status *control.StatusError
 		switch {
 		case ctx.Err() != nil:
@@ -147,4 +147,23 @@ func safeProjectSetupFailure(stage, code string) (string, string) {
 		code = "internal"
 	}
 	return stage, code
+}
+
+// Readiness probes may repeat; the potentially mutating setup request never does.
+type hostSetupClient interface {
+	Ping(context.Context) (controlapi.PingResponse, error)
+	SetupHost(context.Context, recipes.Update) error
+}
+
+func setupHostWhenReady(ctx context.Context, client hostSetupClient, update recipes.Update) error {
+	readyCtx, cancel := context.WithTimeout(ctx, controllerStartupTimeout)
+	err := waitForController(readyCtx, func(ctx context.Context) error {
+		_, err := client.Ping(ctx)
+		return err
+	})
+	cancel()
+	if err != nil {
+		return err
+	}
+	return client.SetupHost(ctx, update)
 }

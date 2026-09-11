@@ -1,5 +1,10 @@
 # Implementation Status
 
+## Host setup controller readiness
+
+Implemented: Host setup uses bounded read-only controller readiness probes before a single setup request. Mutation failures are not retried. See [trusted Host](design/trusted-host.md). Native observation identified the startup race; acceptance of this client fix is separate.
+
+
 ## Storage reclamation
 
 Status: **partial, internal only**. Incus owns the configured Btrfs pool/mount.
