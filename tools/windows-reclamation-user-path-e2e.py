@@ -134,6 +134,8 @@ def main():
     helper = Path(os.environ["LOCALAPPDATA"]) / "Hacocoon/reclamation" / uuid.UUID(reg).hex / "haco-wsl.exe"
     if not helper.is_file():
         raise RuntimeError("Installed helper missing")
+    import reclamation_retention
+    retention = reclamation_retention.load_manifest()
     terminal = driver.TerminalProcess()
     stage, sent_at = 0, 0
     terminal_confirmed = False
@@ -186,7 +188,7 @@ def main():
         if terminal_confirmed and terminal.proc.isalive():
             terminal.proc.terminate(force=True)
     print("PUBLIC RECLAMATION AND HOST SENTINEL AFTER RESUME: PASS")
-    print("Whole Workspace/OCI acceptance: not exercised by this gate")
+    reclamation_retention.verify_installed(retention, reg)
 
 
 if __name__ == "__main__":

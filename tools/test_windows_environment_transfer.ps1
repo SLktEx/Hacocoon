@@ -18,6 +18,8 @@ function Invoke-InstalledEnvironmentTransfer {
     $phase = 'seed-repository'
     $policyAdded = $false
     $windowsBundle = $null
+    $retainForReclaim = $env:HACO_E2E_RECLAIM_RETENTION -eq '1'
+    $savedForReclaim = $null
     try {
         $phase = 'host-git-prerequisite'
         [void](Invoke-HacoHost @('/bin/sh','-ec','if ! command -v git >/dev/null 2>&1; then apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git; fi; command -v git >/dev/null') 'Prepare Git inside trusted Host through normal package installation')
@@ -105,6 +107,12 @@ with open(sys.argv[1], 'rb') as source, open(sys.argv[2], 'xb') as target:
         if ($continued.Stdout -cne 'transfer-ssh-ok') { throw 'Imported SSH work not confirmed' }
         $phase = 'retention-recreate'
         [void](Invoke-HacoHost @('/usr/local/bin/haco','env','disconnect',$destination,[string]$second.id) 'Revoke imported SSH')
+        if ($retainForReclaim) {
+            $phase = 'save-reclamation-fixture'
+            $savedRows = @((Invoke-HacoHost @('/usr/local/bin/haco','snapshot','create','--json',$destination) 'Save imported fixture for post-reclamation restore').Stdout | ConvertFrom-Json)
+            if ($savedRows.Count -ne 1 -or $savedRows[0].id -notmatch '^snap-[a-f0-9]{32}$' -or $savedRows[0].state -ne 'ready') { throw 'Reclamation snapshot incomplete' }
+            $savedForReclaim = [string]$savedRows[0].id
+        }
         [void](Invoke-HacoHost @('/usr/local/bin/haco','env','delete',$destination) 'Delete imported Env while retaining resumed work')
         [void](Invoke-HacoHost @('/usr/local/bin/haco','env','create','--workspace',('managed:' + $imported.workspace),'--resource',[string]$imported.oci,'--base',$BaseName,$resume) 'Reattach imported Workspace and OCI to a fresh Env')
         $read = Invoke-Wsl @('-u','root','--exec','incus','exec',('haco-' + $resume),'--project','hacocoon','--','/bin/sh','-ec','test "$(cat /workspace/continued)" = continued-over-ssh; test "$(cat /var/lib/hacocoon-oci/transfer-marker)" = oci-kept; printf retained') 'Verify SSH work survived Env deletion and recreation'
@@ -114,13 +122,26 @@ with open(sys.argv[1], 'rb') as source, open(sys.argv[2], 'xb') as target:
         Write-Host 'WINDOWS BUNDLE FILE / HASH / PROJECTED IMPORT / IMMUTABILITY: PASS'
         $phase = 'owned-cleanup'
         [void](Invoke-HacoHost @('/usr/local/bin/haco','env','delete',$resume) 'Delete transfer recreation fixture')
-        foreach ($id in @([string]$imported.oci, $sourceStore)) {
+        $storesToDelete = @($sourceStore)
+        if (-not $retainForReclaim) { $storesToDelete += [string]$imported.oci }
+        foreach ($id in $storesToDelete) {
             [void](Invoke-HacoHost @('/usr/local/bin/haco','plugin','oci','store','delete','--yes',$id.Substring(4)) 'Explicitly delete exact transfer fixture Store')
         }
-        foreach ($id in @([string]$imported.workspace, $workspace)) {
+        $workspacesToDelete = @($workspace)
+        if (-not $retainForReclaim) { $workspacesToDelete += [string]$imported.workspace }
+        foreach ($id in $workspacesToDelete) {
             [void](Invoke-HacoHost @('/usr/local/bin/haco','workspace','delete','--yes',$id) 'Explicitly delete exact transfer fixture Workspace')
         }
         [void](Invoke-HacoHost @('/usr/local/bin/haco','repo','delete','--yes',$repository) 'Delete exact transfer source repository registration')
+        if ($retainForReclaim) {
+            if (-not $env:GITHUB_ENV) { throw 'Reclamation fixture handoff requires GHA environment file' }
+            $manifest = Join-Path $windowsDirectory 'reclamation.json'
+            $record = @{version=1; nonce=$nonce; workspace=[string]$imported.workspace; oci=[string]$imported.oci; snapshot=$savedForReclaim; commit=$commit} | ConvertTo-Json -Compress
+            $stream = [IO.File]::Open($manifest,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+            try { $bytes=[Text.UTF8Encoding]::new($false).GetBytes($record); $stream.Write($bytes,0,$bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
+            [IO.File]::AppendAllText($env:GITHUB_ENV, "HACO_RECLAIM_RETENTION_MANIFEST=$manifest`n", [Text.UTF8Encoding]::new($false))
+            Write-Host 'Detached imported Workspace, OCI and snapshot retained for reclamation acceptance'
+        }
         Write-Host 'INSTALLED ENV EXPORT / SOURCE DELETE / IMPORT / WINDOWS SSH / RETAINED WORK RECREATE: PASS'
         Write-Host ('Transfer bundle and raw local test repository retained inside trusted Host: ' + $hostDirectory)
         Write-Host ('Windows transfer bundle retained: ' + $windowsBundle)
