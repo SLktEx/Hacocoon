@@ -9,14 +9,19 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
+	"github.com/SLktEx/Hacocoon/internal/recipes"
 )
 
 func productSetupServer(t *testing.T, failure error) string {
 	t.Helper()
 	server := control.NewServer()
+	_ = server.Register(controlapi.MethodPing, func(context.Context, json.RawMessage) (any, error) {
+		return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, nil
+	})
 	_ = server.Register(controlapi.MethodSetup, func(_ context.Context, payload json.RawMessage) (any, error) {
 		if string(payload) != "{}" {
 			t.Errorf("setup accepted caller parameters: %q", payload)
@@ -56,7 +61,9 @@ func TestProductSetupHelpUsageAndFailures(t *testing.T) {
 	t.Setenv("HACO_CONTROL_SOCKET", filepath.Join(t.TempDir(), "missing.sock"))
 	for _, args := range [][]string{{"--help"}, {"--force"}, {"first", "second"}, {"--script", ""}, nil} {
 		var stdout, stderr bytes.Buffer
-		code := setup(context.Background(), args, &stdout, &stderr)
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		code := setup(ctx, args, &stdout, &stderr)
+		cancel()
 		want := 2
 		if len(args) == 0 {
 			want = 1
@@ -99,5 +106,46 @@ func TestProjectSetupFailureDiagnosticsAllowOnlyKnownCategories(t *testing.T) {
 	stage, code = safeProjectSetupFailure("SECRET-private-script", "SECRET-backend-error")
 	if stage != "unknown" || code != "internal" {
 		t.Fatal("arbitrary error leaked", stage, code)
+	}
+}
+
+type readinessSetupClient struct {
+	pingErrors    []error
+	pings, setups int
+	setupError    error
+}
+
+func (c *readinessSetupClient) Ping(context.Context) (controlapi.PingResponse, error) {
+	i := c.pings
+	c.pings++
+	if i < len(c.pingErrors) {
+		return controlapi.PingResponse{}, c.pingErrors[i]
+	}
+	return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, nil
+}
+func (c *readinessSetupClient) SetupHost(context.Context, recipes.Update) error {
+	c.setups++
+	return c.setupError
+}
+func TestHostSetupWaitsWithoutReplayingMutation(t *testing.T) {
+	client := &readinessSetupClient{pingErrors: []error{control.ErrUnavailable}, setupError: control.ErrUnavailable}
+	err := setupHostWhenReady(context.Background(), client, recipes.Update{})
+	if !errors.Is(err, control.ErrUnavailable) || client.pings != 2 || client.setups != 1 {
+		t.Fatalf("err=%v pings=%d setups=%d", err, client.pings, client.setups)
+	}
+}
+func TestHostSetupReadinessFailureDoesNotMutate(t *testing.T) {
+	for _, failure := range []error{control.ErrProtocol, context.Canceled} {
+		client := &readinessSetupClient{pingErrors: []error{failure}}
+		err := setupHostWhenReady(context.Background(), client, recipes.Update{})
+		if !errors.Is(err, failure) || client.pings != 1 || client.setups != 0 {
+			t.Fatalf("err=%v pings=%d setups=%d", err, client.pings, client.setups)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client := &readinessSetupClient{}
+	if err := setupHostWhenReady(ctx, client, recipes.Update{}); !errors.Is(err, context.Canceled) || client.pings != 0 || client.setups != 0 {
+		t.Fatalf("canceled request contacted controller: %v", err)
 	}
 }

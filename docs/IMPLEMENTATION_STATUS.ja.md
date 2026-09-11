@@ -1,5 +1,10 @@
 # 実装状況
 
+## Host setup の controller 起動待ち
+
+実装済み: Host setup は時間制限付きの読み取り専用プローブで controller の準備を待ち、setup を一度だけ送信します。変更操作の失敗は再試行しません。[信頼済み Host](design/trusted-host.ja.md) を参照してください。起動時の競合は実機で確認済みですが、このクライアント修正の実機受入確認は別です。
+
+
 ## ストレージ容量回収
 
 状態: **partial、内部のみ**。Incus が設定済み Btrfs pool/mount を管理します。

@@ -1,5 +1,8 @@
 # Trusted `haco-host`
 
+実装済み: Host の `haco setup` は、時間制限付きの読み取り専用 Ping で controller の準備を待ち、setup を一度だけ送ります。setup の失敗応答は自動再試行しません。systemd のサービス起動から socket の準備完了までの差を吸収し、CLI の手順は増やしません。
+
+
 ## 通知バイナリ
 
 実装済み: setup は同じリリースの `/usr/local/bin/haco-notify` も配布し、provider の
