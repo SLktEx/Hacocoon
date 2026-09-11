@@ -5,9 +5,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/SLktEx/Hacocoon/internal/wslreclaim"
 )
 
 func TestInstallerHelperArgumentsAndFailureBoundary(t *testing.T) {
@@ -110,6 +113,65 @@ func TestFailedReviewDispatch(t *testing.T) {
 			}
 		} else if code != 0 || !strings.Contains(out.String(), "Failed result retained") || errout.Len() != 0 {
 			t.Fatal("wrong review success", code)
+		}
+	}
+}
+
+func TestStatusWithOrWithoutOperationIsReadOnlyDispatch(t *testing.T) {
+	t.Setenv("HACO_LOG_LEVEL", "info")
+	t.Setenv("HACO_LOG_FORMAT", "json")
+	for _, invalid := range [][]string{{"_status"}, {"_status", "r", "o", "extra"}} {
+		var out, diagnostic bytes.Buffer
+		if dispatch(context.Background(), invalid, &out, &diagnostic, helperActions{}) != 2 {
+			t.Fatal("invalid status arguments accepted")
+		}
+	}
+	for _, latest := range []bool{false, true} {
+		for _, fail := range []bool{false, true} {
+			var out, diagnostic bytes.Buffer
+			calls := 0
+			read := func(r string) (wslreclaim.PreparedStatus, error) {
+				calls++
+				if r != "registration" {
+					t.Fatal("changed registration")
+				}
+				if fail {
+					return wslreclaim.PreparedStatus{}, errors.New("token=private-status-value")
+				}
+				return wslreclaim.PreparedStatus{Operation: "operation", State: "pending"}, nil
+			}
+			actions := helperActions{
+				latest: func(ctx context.Context, r string) (wslreclaim.PreparedStatus, error) {
+					if !latest {
+						t.Fatal("explicit status used latest")
+					}
+					return read(r)
+				},
+				status: func(ctx context.Context, r, o string) (wslreclaim.PreparedStatus, error) {
+					if latest || o != "operation" {
+						t.Fatal("changed explicit status")
+					}
+					return read(r)
+				},
+			}
+			args := []string{"_status", "registration"}
+			if !latest {
+				args = append(args, "operation")
+			}
+			code := dispatch(context.Background(), args, &out, &diagnostic, actions)
+			if calls != 1 || strings.Contains(diagnostic.String(), "private-status-value") {
+				t.Fatal("wrong status failure boundary")
+			}
+			if fail {
+				if code != 1 || out.Len() != 0 {
+					t.Fatal("failed status claimed a result")
+				}
+			} else {
+				var got wslreclaim.PreparedStatus
+				if code != 0 || json.Unmarshal(out.Bytes(), &got) != nil || got.State != "pending" || got.Operation != "operation" || got.Observation != nil {
+					t.Fatal("status claimed completion")
+				}
+			}
 		}
 	}
 }

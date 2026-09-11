@@ -40,13 +40,16 @@ type helperActions struct {
 	launch func(context.Context, string, string) (int, error)
 	worker func(context.Context, string, string) error
 	status func(context.Context, string, string) (wslreclaim.PreparedStatus, error)
+	latest func(context.Context, string) (wslreclaim.PreparedStatus, error)
 }
 
 func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, actions helperActions) int {
 	if len(args) == 0 || args[0] == "enroll" {
 		return run(ctx, args, stdout, stderr, actions.enroll)
 	}
-	if len(args) != 3 || (args[0] != "_launch" && args[0] != "_continue" && args[0] != "_status" && args[0] != "_review-failed") {
+	statusRequest := args[0] == "_status" && (len(args) == 2 || len(args) == 3)
+	operationRequest := len(args) == 3 && (args[0] == "_launch" || args[0] == "_continue" || args[0] == "_review-failed")
+	if !statusRequest && !operationRequest {
 		fmt.Fprintln(stderr, "Invalid internal Windows helper arguments.")
 		return 2
 	}
@@ -64,7 +67,13 @@ func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, acti
 		return 0
 	}
 	if args[0] == "_status" {
-		status, readErr := actions.status(ctx, args[1], args[2])
+		var status wslreclaim.PreparedStatus
+		var readErr error
+		if len(args) == 2 {
+			status, readErr = actions.latest(ctx, args[1])
+		} else {
+			status, readErr = actions.status(ctx, args[1], args[2])
+		}
 		if readErr != nil {
 			logger.Error("Windows continuation status failed", "component", "host", "operation", "inspect_wsl_worker", "error", readErr)
 			return 1
@@ -100,7 +109,7 @@ func main() {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	code := dispatch(ctx, os.Args[1:], os.Stdout, os.Stderr, helperActions{review: wslreclaim.ReviewFailedOperation, enroll: wslreclaim.EnrollInstallation, launch: wslreclaim.LaunchPreparedWorker, worker: wslreclaim.ExecutePreparedWorker, status: wslreclaim.ReadPreparedStatus})
+	code := dispatch(ctx, os.Args[1:], os.Stdout, os.Stderr, helperActions{latest: wslreclaim.ReadLatestPreparedStatus, review: wslreclaim.ReviewFailedOperation, enroll: wslreclaim.EnrollInstallation, launch: wslreclaim.LaunchPreparedWorker, worker: wslreclaim.ExecutePreparedWorker, status: wslreclaim.ReadPreparedStatus})
 	cancel()
 	stop()
 	os.Exit(code)

@@ -1618,3 +1618,10 @@ G2 の読み取り専用 inventory に `--files /absolute/root` の Linux ファ
 暗号化受入 fixture は private な `/var/lib` に保持し、実 systemd PrivateTmp 終了後の回帰を追加しました。旧合成 identity のパスは現在見つからないため、保存した暗号文の別 WSL 復元は未実行です。[fixture 保持と限界](design/environment-transfer.ja.md#暗号化受入-fixture-の保持)を参照してください。
 
 新規 identity を Windows 内だけに置いた別の合成 OS 間暗号化検証で、WSL の公開 recipient 暗号化、Windows native 復号・hash 照合、改ざん拒否が成功しました。旧 identity の回復や全量復元を示しません。[WSL 外の identity 保持](design/environment-transfer.ja.md#復号-identity-を-wsl-外へ保持する)を参照してください。
+
+F1 はその後、実登録の失敗の明示確認と一度の detached worker による停止・圧縮・
+再開に成功しました。895 MiB 回収、容量1 TiB は不変で、旧失敗も保持しています。
+現在結果の読み取りは操作 ID 不要になりましたが、変更操作には必要です。
+Windows native 回帰は成功しました。導入済みの過去の v0.45 では OCI directory の
+assertion が失敗しており、現行アプリ一式と公開全層操作の受入は未完了です。
+[worker 実機確認](design/storage-reclamation.ja.md#専用-wsl-の-worker-実機確認)を参照してください。

@@ -83,6 +83,9 @@ func TestPreparedStatusIsReadOnlyAndPendingIsUnknown(t *testing.T) {
 	if _, err := ReadPreparedStatus(context.Background(), id.String(), operation.String()); err == nil {
 		t.Fatal("missing result accepted")
 	}
+	if _, err := ReadLatestPreparedStatus(context.Background(), id.String()); err == nil {
+		t.Fatal("missing latest result accepted")
+	}
 	if key, err := registry.OpenKey(registry.CURRENT_USER, path, registry.QUERY_VALUE); err == nil {
 		key.Close()
 		t.Fatal("status created a key")
@@ -114,6 +117,10 @@ func TestPreparedStatusIsReadOnlyAndPendingIsUnknown(t *testing.T) {
 	if err != nil || status.State != "pending" || status.Observation != nil {
 		t.Fatal("pending claimed native results", status, err)
 	}
+	latest, err := ReadLatestPreparedStatus(context.Background(), id.String())
+	if err != nil || latest != status {
+		t.Fatal("latest pending result changed identity or claimed completion", latest, err)
+	}
 	raw, err := json.Marshal(status)
 	if err != nil || bytes.Contains(raw, []byte("observation")) {
 		t.Fatal(string(raw), err)
@@ -131,6 +138,41 @@ func TestPreparedStatusIsReadOnlyAndPendingIsUnknown(t *testing.T) {
 	status, err = ReadPreparedStatus(context.Background(), id.String(), operation.String())
 	if err != nil || status.State != "failed" || status.Observation == nil || !status.Observation.StopAttempted || status.Observation.Resumed {
 		t.Fatal("failed result changed", status, err)
+	}
+	latest, err = ReadLatestPreparedStatus(context.Background(), id.String())
+	if err != nil || latest.Operation != status.Operation || latest.State != "failed" || latest.Observation == nil || *latest.Observation != *status.Observation {
+		t.Fatal("latest failed result changed", latest, err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := ReadLatestPreparedStatus(ctx, id.String()); !errors.Is(err, context.Canceled) {
+		t.Fatal("canceled latest inspection proceeded", err)
+	}
+	for _, invalid := range []string{"", "--shutdown", windows.GUID{}.String()} {
+		if _, err := ReadLatestPreparedStatus(context.Background(), invalid); err == nil {
+			t.Fatal("invalid latest registration accepted")
+		}
+	}
+	// A current record is not permission to follow another registration or to
+	// ignore malformed state in favor of historical evidence.
+	foreign := record
+	foreign.Registration.ID = operation
+	if err := store.write(foreign); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadLatestPreparedStatus(context.Background(), id.String()); err == nil {
+		t.Fatal("foreign current result accepted")
+	}
+	broken := []byte("not a canonical operation")
+	if err := key.SetBinaryValue("Operation", broken); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadLatestPreparedStatus(context.Background(), id.String()); err == nil {
+		t.Fatal("malformed latest result accepted")
+	}
+	after, _, err = key.GetBinaryValue("Operation")
+	if err != nil || !bytes.Equal(after, broken) {
+		t.Fatal("latest read modified malformed state", err)
 	}
 }
 

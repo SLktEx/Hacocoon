@@ -1899,3 +1899,10 @@ G2 read-only inventory optionally enumerates Linux file metadata with `--files /
 Encrypted acceptance fixture retention now uses private `/var/lib` storage and a real systemd PrivateTmp-exit regression. The old synthetic identity path is currently absent, so its preserved ciphertext has not been restored into another WSL. See [fixture retention and limits](design/environment-transfer.md#retention-of-encrypted-acceptance-fixtures).
 
 A separate synthetic cross-OS crypto check passed with a newly generated identity kept exclusively on Windows: WSL public-recipient encryption, native Windows decryption/hash comparison and tamper refusal. This does not recover the old missing identity or prove whole-installation restoration. See [external identity custody](design/environment-transfer.md#recovery-identity-kept-outside-wsl).
+
+F1 subsequently passed real enrolled failure review and one detached worker
+stop/compact/resume: 895 MiB reclaimed, 1 TiB capacity unchanged, old failure
+retained. Read-only current-result inspection no longer needs the operation ID;
+mutations still do. Native Windows regressions passed. The installed historical
+v0.45 OCI-directory assertion failed; full current-app and public all-layer
+acceptance remain incomplete. See [worker acceptance](design/storage-reclamation.md#dedicated-worker-acceptance).

@@ -590,3 +590,46 @@ verbatim retention, idempotence, pending/foreign/malformed refusal and old-ID
 readback after a new attempt. Full native library and helper tests and vet passed.
 Dedicated WSL gates were not enabled; symlink creation skipped for privilege.
 No real enrolled failure was acknowledged or retried; that acceptance remains open.
+
+## Current result after WSL shutdown
+
+The internal helper also accepts `_status REGISTRATION_GUID` to read the current
+persisted operation when the caller lost its operation ID during shutdown. This
+is query-only: no WSL startup, enrollment, acknowledgement, replay or lock takeover.
+It returns the actual saved ID. Exact-ID status remains available for retained
+failures; malformed current data fails closed instead of searching history.
+Launch, continuation and failed-result review still require the exact operation ID.
+
+Native Windows library/helper tests, vet and amd64/arm64 builds passed. Registry
+regressions cover missing-key noncreation, cancellation, invalid/foreign identity,
+malformed-current refusal and byte preservation. Real current-result inspection
+also left the completed record unchanged and retained access to the old failed ID.
+
+## Dedicated worker acceptance
+
+A subsequent explicit review of the previously failed enrolled operation passed:
+both its unchanged current bytes and its retained failure copy matched. Normal
+prepare then created a different pending operation; one detached launch completed
+stop, disk compaction and same-registration resume. The terminal worker process
+was absent and the saved result was complete. No other distribution was stopped.
+
+Native disk open succeeded on attempt 131. Both file length and allocation changed
+from 10565451776 to 9626976256 bytes: **938475520 bytes (895 MiB) reclaimed**.
+Virtual capacity remained 1099511627776 bytes (1 TiB), with the native identity
+checks intact. The earlier 320-attempt open failure remains a retained failure;
+this success does not establish its cause or guarantee survival of every Job.
+
+The known 550415872-byte synthetic bundle retained its SHA-256. All 13 instance
+and 54 volume identities matched the pre-run inventory. Controller start and
+ordinary Env listing passed. This checks that bundle and inventory, not every
+persistent byte. A fresh Env on the installed historical v0.45 development build
+(commit 093ed15) passed create/start and Workspace read/write, but its OCI-directory
+assertion **failed**; the returned persistent-resource association was empty.
+This is not acceptance of current default OCI provisioning. After checking the
+recorded creation identity, ordinary stop/delete succeeded; the owned Env was
+absent and both Workspace marker files remained.
+
+This run did not combine Linux trim stages and Windows compaction into one public
+entry. Public all-layer orchestration, interrupted-pending handling and full
+current-installation Workspace/OCI acceptance remain incomplete. No new daily
+command, schema, backup, storage lifecycle or permission is introduced.

@@ -117,3 +117,11 @@ delete evidence to unblock retry, or allow this path for pending work: a delayed
 launcher could still execute that exact pending operation. Preserved failures stay
 readable by ID. This adds an explicit acknowledgement boundary, not automatic replay
 or a generic recovery state machine.
+
+Allow discovery of the current persisted result only through the read-only status
+path. Mutating continuation and review still require the exact operation ID.
+A missing/malformed current result never causes enrollment, history fallback or
+replay. This makes shutdown result inspection possible without adding operation
+states or treating discovery as execution authority. Dedicated native worker
+acceptance now covers stop/compact/same-registration resume; public all-layer
+activation and interrupted-pending handling remain separate incomplete work.

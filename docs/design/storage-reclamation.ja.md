@@ -474,3 +474,42 @@ pending・別対象・不正記録の拒否、新試行後の旧 ID 照会を確
 native library 全体、helper テスト、vet も成功しました。専用 WSL gate は有効化せず、
 symlink 作成は権限不足で SKIP です。実登録の失敗は確認解除・再試行しておらず、
 その受入は未完了です。
+
+## WSL 停止後に現在の結果を読む
+
+内部 helper は `_status REGISTRATION_GUID` でも現在の保存済み結果を読めます。
+停止中に呼び出し元が操作 ID を失った場合の読み取り専用経路です。WSL 起動、
+登録、失敗の確認扱い、再実行、ロック引き継ぎは行いません。結果には保存された
+実際の ID を返します。旧 ID を指定した失敗記録の読み取りも維持します。
+現在の記録が不正なら履歴を探索せず拒否します。起動・継続・失敗の明示確認には
+引き続き正確な操作 ID が必要です。
+
+Windows native library/helper テスト、vet、amd64/arm64 build は成功しました。
+registry 回帰は、不在 key を作らないこと、キャンセル、不正・別対象の識別、
+不正な現在記録の拒否、元の bytes 保持を確認します。実際の完了結果の読み取りでも
+記録は不変で、旧 ID の失敗を引き続き読めました。
+
+## 専用 WSL の worker 実機確認
+
+その後、以前の登録済み対象の失敗を明示確認しました。現在記録と保存した失敗の
+bytes は一致し、元の結果も不変でした。通常の prepare で別 ID の pending を作成し、
+一度の detached launch で停止・disk 圧縮・同じ登録の再開が完了しました。
+worker process の終了と保存結果 complete を確認しています。他の WSL は停止していません。
+
+native disk open は131回目で成功しました。ファイル長と割り当てはともに
+10565451776 bytes から9626976256 bytes へ減り、**938475520 bytes（895 MiB）**
+を回収しました。仮想容量1099511627776 bytes（1 TiB）と native 識別確認は維持しました。
+以前の320回の open 失敗は失敗のまま保存しています。今回の成功だけで以前の原因や
+任意の Job 下での生存を証明したとは扱いません。
+
+既知の550415872-byte 合成 bundle の SHA-256 は不変でした。13 instance と54 volume
+の識別一覧も前後で一致し、controller 起動と通常の Env 一覧取得は成功しました。
+対象 bundle と一覧の確認であり、永続データ全体の bytes 比較ではありません。
+導入済みの過去の v0.45 開発 build（commit 093ed15）では新規 Env の create/start、
+Workspace 読み書きは成功しましたが、OCI directory の assertion は**失敗**しました。
+作成結果の persistent-resource 対応は空でした。現行の OCI 自動構成の受入ではありません。保存した作成識別と照合した後、
+通常の stop/delete は成功し、対象 Env の不在と Workspace の両 marker 保持を確認しました。
+
+今回は Linux trim と Windows 圧縮を一つの公開入口から実行していません。
+公開の全層操作、pending 中断の扱い、現行導入一式での Workspace/OCI 受入は未完了です。
+日常コマンド、schema、backup、独自ストレージ lifecycle、権限は増やしていません。

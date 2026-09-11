@@ -141,6 +141,27 @@ func ReadPreparedStatus(ctx context.Context, registrationID, operationID string)
 	if err != nil {
 		return PreparedStatus{}, err
 	}
+	return readPreparedStatus(ctx, r, o)
+}
+
+// ReadLatestPreparedStatus reads the current persisted result without requiring
+// the caller to retain its operation ID across WSL shutdown. It never executes,
+// acknowledges or replays the selected record.
+func ReadLatestPreparedStatus(ctx context.Context, registrationID string) (PreparedStatus, error) {
+	if err := ctx.Err(); err != nil {
+		return PreparedStatus{}, err
+	}
+	r, err := windows.GUIDFromString(registrationID)
+	if err != nil || r == (windows.GUID{}) {
+		return PreparedStatus{}, errors.New("exact registration GUID required")
+	}
+	return readPreparedStatus(ctx, r, windows.GUID{})
+}
+
+func readPreparedStatus(ctx context.Context, r, o windows.GUID) (PreparedStatus, error) {
+	if err := ctx.Err(); err != nil {
+		return PreparedStatus{}, err
+	}
 	// Do not create a key, observe/start WSL, take over a live worker, or require a
 	// live registration merely to inspect a retained interrupted operation.
 	key, err := registry.OpenKey(registry.CURRENT_USER, `Software\Hacocoon\Reclamation\`+r.String(), registry.QUERY_VALUE)
@@ -148,14 +169,20 @@ func ReadPreparedStatus(ctx context.Context, registrationID, operationID string)
 		return PreparedStatus{}, err
 	}
 	defer key.Close()
-	record, err := (&operationStore{key: key}).readOperation(o)
+	store := &operationStore{key: key}
+	var record operationRecord
+	if o == (windows.GUID{}) {
+		record, err = store.read()
+	} else {
+		record, err = store.readOperation(o)
+	}
 	if err != nil {
 		return PreparedStatus{}, err
 	}
-	if record.Operation != o || record.Registration.ID != r {
+	if (o != (windows.GUID{}) && record.Operation != o) || record.Registration.ID != r {
 		return PreparedStatus{}, errors.New("saved result belongs to another operation or registration")
 	}
-	status := PreparedStatus{Operation: o.String(), State: record.State}
+	status := PreparedStatus{Operation: record.Operation.String(), State: record.State}
 	if record.State != "pending" {
 		status.Observation = &record.Observation
 	}
