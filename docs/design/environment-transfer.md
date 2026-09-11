@@ -925,6 +925,8 @@ At b8ef557, the native GHA gate passed direct readable-file evacuation (0.89s) a
 
 ## Encrypted readable-data transport
 
+Status: **historical optional acceptance**. The following records an earlier encrypted fixture. Ordinary export and the current evacuation workflow use unencrypted archives; no key setup or post-export encryption is required. See [tree capture](#explicit-tree-capture).
+
 Whole-installation evacuation remains **partial**. Use existing GNU tar and
 [age](https://github.com/FiloSottile/age) for reviewed, quiescent file trees rather
 than introducing a Hacocoon encryption format. The private decryption identity
@@ -1230,30 +1232,28 @@ These observations never establish ownership, Environment generation or permissi
 
 The `associations.native_review` list also walks the observed instances and custom volumes in reverse. Each project view retains its kind, name, pool where applicable and owner marker. It distinguishes `reference-and-marker-observed`, `unresolved-reference` and `no-supported-reference`; any conflicting supported reference keeps the resource unresolved even when another reference matches. Enumeration is bounded to 4096 rows, with explicit truncation errors. This is not an orphan or deletion list: unsupported reference forms, absent repository catalogs and incomplete inventory can all leave legitimate managed resources without a supported match. Images, native snapshot children, external/manual files and filesystem-only remnants still require review in the original inventory and on the storage substrate. No resource is selected for deletion or capture automatically.
 
-## Explicit encrypted tree capture
+## Explicit tree capture
 
-Status: **partial**. `tools/evacuation_capture.py` provides `capture_tree(source, destination, recipient)` for a reviewed, quiescent Linux data tree. It uses GNU tar and age directly; it does not create/delete an Incus snapshot, change a catalog or restore an Environment. This maintenance helper adds no daily `haco` command. The caller must stop all writers and select a new, empty mode-0700 destination owned by the caller, outside the source tree. The recipient is an age public key; the helper never reads a private key.
+Status: **partial**. Normal Environment transfer remains `haco env export <stopped-env> [file.haco]` followed by `haco env import <file.haco> [new-env]`. Export requires no encryption, recipient or key, and no encryption step is added after export.
 
-Source and destination directories are opened without following symlink components and pinned by file descriptors. A bounded metadata inventory runs before and after capture, including ctime; separate mounts/filesystems, special files and incomplete enumeration are refused rather than silently omitted. File symlinks are archived without following their targets. GNU tar preserves numeric ownership, modes, links, ACLs, xattrs and sparse-file metadata. Captured numeric IDs are filesystem IDs, not an automatic conversion to another Incus idmap.
-
-The output directory contains `capture-intent.json`, `data.tar.age` and, only after success, `capture-complete.json`. Completion requires both tar and age to exit successfully, the encrypted output to be synced, and the observed source metadata and directory identities to remain unchanged. Encrypted bytes and tar/age execution have configurable limits. Failure retains the intent and any partial ciphertext without a completion record; only the processes launched by this call are terminated on failure. Existing destination contents are never overwritten or automatically cleaned up.
-
-An archive completion record is not an atomic snapshot, proof of application consistency, external retention or a whole-installation backup. The caller must separately protect the decryption key, copy the ciphertext and receipts outside the WSL/storage being replaced, and verify restored data before replacement. The helper does not extract arbitrary archives or adopt imported management authority. Full source classification, coordinated quiescence, external retention and installation reconstruction remain follow-up work.
-
-For an explicit maintenance capture, stop every writer first, review mount gaps in the inventory, and use a fresh destination:
+For a reviewed, quiescent Linux tree that needs direct maintenance capture, `tools/evacuation_capture.py` uses GNU tar directly. It adds no daily `haco` command, Incus snapshot, catalog state or restore mechanism. Stop every writer and select a new empty mode-0700 directory owned by the caller, outside the source:
 
 ```bash
 umask 077
 mkdir -m 700 /absolute/private-capture
-python3 tools/evacuation_capture.py /absolute/reviewed-source /absolute/private-capture "$AGE_RECIPIENT" --quiesced
+python3 tools/evacuation_capture.py /absolute/reviewed-source /absolute/private-capture --quiesced
 ```
 
-`AGE_RECIPIENT` must contain only the public age recipient. `--quiesced` records the operator's confirmation; it does not stop or detect all writers. Optional `--byte-limit` and `--seconds` bound encrypted output and the tar/age pipeline (defaults: 64 GiB and 900 seconds). Exit zero and JSON on stdout mean this archive completed; `backup_complete` is still false. Failure exits nonzero and leaves existing artifacts for inspection. Use a new destination for a retry; do not overwrite or interpret partial ciphertext as complete. Keep stdout/receipts private because they identify the captured source.
-
-Successful captures also emit `data.tar.age.sha256` in standard SHA-256 checksum format, before the completion receipt. Copy this file together with the ciphertext and both receipts to the reviewed retention location. In that copied directory, run:
+The result is ordinary `data.tar`, with an intent, a standard `data.tar.sha256` checksum and a completion receipt. There is no key generation or encryption. Copy the archive and receipts to the chosen retention location, then check there:
 
 ```bash
-sha256sum --check --status data.tar.age.sha256
+sha256sum --check --status data.tar.sha256
 ```
 
-A nonzero exit means the copied ciphertext is missing or does not match. Compare the checksum with the original private completion receipt as well: a checksum transported with an archive is not an authenticity guarantee against replacement of both. This check needs no decryption key and does not prove that a location survives WSL deletion, that the key is recoverable, or that restored files are correct. Older captures without this checksum file remain valid; their completion receipt contains the digest for manual comparison. No saved capture is rewritten.
+The helper pins source/destination directory identities without following symlink components, inventories bounded metadata before and after capture, and refuses incomplete enumeration, separate mounts and special files. File symlinks are stored without following targets. GNU tar preserves numeric filesystem IDs, modes, links, ACLs, xattrs and sparse-file metadata; it does not convert Incus idmaps.
+
+Completion requires tar success, synced output and unchanged observed source metadata and directory/output identities. Optional `--byte-limit` and `--seconds` bound output and tar execution (defaults 64 GiB and 900 seconds). Failure is nonzero, retains partial output and intent, and does not write completion. Existing files are never overwritten or automatically deleted; retries use a new destination. Only the child process created by this call is terminated.
+
+`--quiesced` is the operator's confirmation, not writer detection or an atomic snapshot. Archive completion does not prove application consistency, external retention or a whole-installation backup; `backup_complete` remains false. Compare restored contents separately before replacement. Checksums detect copy damage, not replacement of both archive and checksum. Keep receipts private because they identify source locations. No imported management authority is adopted.
+
+Historical encrypted fixtures and existing ciphertext remain unchanged and are not prerequisites for ordinary export. Old encrypted captures still need their original keys if accessed; no migration or rewriting is performed. Full source classification, coordinated quiescence and installation reconstruction remain unfinished.

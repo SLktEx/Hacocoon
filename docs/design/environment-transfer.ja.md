@@ -766,6 +766,8 @@ b8ef557 の native GHA は、直接ファイル退避（0.89 秒）と saved-onl
 
 ## 読み出せるデータの暗号化転送
 
+状態: **過去の任意受入記録（historical）**。以下は以前の暗号化 fixture の記録です。通常 export と現在の退避手順は暗号化しない archive を使い、鍵準備や export 後の暗号化は不要です。[ツリー保存](#明示したデータツリーの保存)を参照してください。
+
 全量退避は **partial** です。確認済みで書込のない file tree には既存の GNU tar と
 [age](https://github.com/FiloSottile/age) を使い、Hacocoon 独自の暗号形式は作りません。
 復号の秘密 identity は trusted storage に保持し、暗号化では公開 recipient だけを使います。
@@ -1034,30 +1036,28 @@ native instance/volume の設定からは `user.hacocoon.owner` マーカーだ�
 
 `associations.native_review` は、観測した instance と custom volume から逆方向にも参照を確認します。各 project の表示について種類、名前、該当する pool、所有マーカーを残し、`reference-and-marker-observed`、`unresolved-reference`、`no-supported-reference` を区別します。対応する参照が一つあっても、別の対応可能な参照に不一致があれば要確認のままです。列挙は4096行までで、省略は明示的なエラーにします。これは孤立資源や削除対象の一覧ではありません。未対応の参照形式、repository catalog の欠如、不完全な inventory により、正当な管理資源にも対応する参照が見つからない場合があります。image、native snapshot の子要素、外部・手動ファイル、filesystem にだけ残った資源は元の inventory と実 storage で引き続き確認が必要です。削除・退避する資源を自動選択しません。
 
-## 明示したデータツリーの暗号化保存
+## 明示したデータツリーの保存
 
-状態は **partial** です。`tools/evacuation_capture.py` の `capture_tree(source, destination, recipient)` は、確認済みで書き込みを停止した Linux データツリーを対象とします。GNU tar と age を直接使い、Incus snapshot の作成・削除、catalog の変更、Env の復元は行いません。保守用 helper であり、普段の `haco` コマンドは増やしません。呼び出し側で全 writer を停止し、source の外にある新規・空・mode 0700・呼び出しユーザー所有の destination を選びます。recipient は age 公開鍵で、helper は秘密鍵を読みません。
+状態: **partial**。通常の移行は `haco env export <stopped-env> [file.haco]` と `haco env import <file.haco> [new-env]` を使います。暗号化・recipient・鍵は不要で、export 後にも暗号化を挟みません。
 
-source と destination はパス途中の symlink を追わずに開き、file descriptor で保持します。保存の前後に ctime を含む件数・時間制限付き metadata inventory を取得し、別 mount/filesystem、特殊ファイル、列挙未完了は黙って省かず拒否します。ファイル symlink はリンク先を追わず保存します。GNU tar で数値所有者、mode、link、ACL、xattr、sparse file の情報を保存します。数値 ID は元 filesystem の ID であり、別 Incus idmap への自動変換ではありません。
-
-destination には `capture-intent.json`、`data.tar.age` と、成功時のみ `capture-complete.json` を残します。tar と age の両方の正常終了、暗号化出力の同期、観測した source metadata と directory identity の一致が完了条件です。暗号化出力の byte 数と tar/age 実行時間には変更可能な上限があります。失敗時は intent と部分 ciphertext を残し、完了記録は作りません。失敗時に終了させるのは当該呼び出しが起動したプロセスだけです。既存の destination 内容を上書きしたり自動で掃除したりしません。
-
-archive の完了記録は atomic snapshot、アプリの整合性、外部保存、インストール全体の backup の証明ではありません。復号鍵の保護、入替対象 WSL/storage の外への ciphertext・記録の保存、入替前の復元照合は呼び出し側で別途行う必要があります。任意の archive の展開や、保存された管理権限の採用は行いません。全対象の分類、writer 停止の統括、外部保存、インストール再構築は引き続き未完了です。
-
-保守用の明示的な退避では、すべての書き込み元を停止し、inventory の mount 境界などの未確認項目を確認してから、新しい出力先を使います。
+確認済みで書き込みを停止した Linux ツリーを直接退避する保守用途では、`tools/evacuation_capture.py` が GNU tar を使います。普段使う `haco` コマンド、Incus snapshot、catalog state、復元機構は追加しません。すべての書き込み元を停止し、保存元の外に、実行者所有の空の mode-0700 ディレクトリを新しく用意します。
 
 ```bash
 umask 077
 mkdir -m 700 /absolute/private-capture
-python3 tools/evacuation_capture.py /absolute/reviewed-source /absolute/private-capture "$AGE_RECIPIENT" --quiesced
+python3 tools/evacuation_capture.py /absolute/reviewed-source /absolute/private-capture --quiesced
 ```
 
-`AGE_RECIPIENT` には公開 age recipient のみを指定します。`--quiesced` は操作者による確認であり、書き込み元の停止や完全な検出は行いません。任意の `--byte-limit` と `--seconds` は暗号化出力と tar/age pipeline の上限です（既定値: 64 GiB、900 秒）。終了コード 0 と標準出力の JSON はこの archive の完了を示しますが、`backup_complete` は false のままです。失敗時は非ゼロで終了し、確認用に出力物を残します。再試行には新しい出力先を使い、部分的な暗号文を上書きしたり完了扱いしたりしないでください。標準出力と receipt には元の場所が含まれるため、非公開で保管してください。
-
-退避成功時は、完了 receipt より先に標準 SHA-256 形式の `data.tar.age.sha256` も出力します。暗号文と両 receipt に加え、このファイルを確認済みの保管先へコピーしてください。コピー先のディレクトリで次を実行します。
+通常の `data.tar` と、開始記録・標準形式の `data.tar.sha256`・完了記録を出力します。鍵生成や暗号化は行いません。archive と記録を選択した保管先にコピーし、そこで確認します。
 
 ```bash
-sha256sum --check --status data.tar.age.sha256
+sha256sum --check --status data.tar.sha256
 ```
 
-終了コードが非ゼロなら、暗号文が欠落しているか checksum と一致しません。元の非公開の完了 receipt とも checksum を比較してください。暗号文と一緒に運んだ checksum だけでは、両方の置き換えに対する真正性を保証できません。この確認に復号鍵は不要ですが、WSL 削除後の保管先の存続、鍵の復旧可能性、復元したファイルの正しさは証明しません。checksum ファイルがない既存の退避物も有効であり、完了 receipt の digest を手動で比較できます。保存済みの退避物は書き換えません。
+保存元・保存先は symlink 成分を辿らず directory identity を固定し、前後の metadata を上限付きで調べます。不完全な列挙・別 mount・特殊ファイルは拒否します。ファイルの symlink は参照先を辿らず保存します。GNU tar は filesystem の数値 ID・mode・link・ACL・xattr・sparse file 情報を保存しますが、Incus idmap は変換しません。
+
+完了には tar の成功、出力の同期、観測した保存元 metadata と directory／出力 identity の一致が必要です。任意の `--byte-limit` と `--seconds` は出力と tar 実行の上限です（既定値 64 GiB・900秒）。失敗は非ゼロで終了し、部分出力と開始記録を残し、完了記録は作りません。既存ファイルの上書き・自動削除は行わず、再試行には新しい保存先を使います。終了させるのは当該呼び出しが作った子プロセスだけです。
+
+`--quiesced` は操作した人による確認であり、書き込み元の検出や atomic snapshot ではありません。archive 完了はアプリ整合性・外部保管・全量 backup の証明ではなく、`backup_complete` は false のままです。入替前に復元内容を別途照合してください。checksum はコピー破損を検出しますが、archive と checksum 両方の置換には真正性を保証しません。記録には保存元の場所が含まれるため非公開で保持します。保存物の管理権限は引き継ぎません。
+
+過去の暗号化 fixture と既存の暗号文は変更せず、通常 export の前提条件にしません。古い暗号文を読む場合は元の鍵が必要ですが、移行・書き換えは行いません。全対象の分類・書き込み停止の同期・installation 再構築は未完了です。

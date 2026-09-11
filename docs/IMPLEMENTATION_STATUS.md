@@ -1864,11 +1864,11 @@ G2 read-only inventory now includes image fingerprints, types, alias names and n
 
 Catalog reference comparison is **partial**. The read-only evacuation inventory projects Environment-to-data references and observes Incus resource/owner matches without granting authority. Ambiguous, missing, deleting and unsupported records remain visible; whole-installation capture is not implemented by this inventory. See [catalog reference comparison](design/environment-transfer.md#catalog-reference-comparison).
 
-Explicit encrypted tree capture is **partial**: a Linux maintenance helper streams a reviewed tree through GNU tar and age, retains incomplete output on failure, and records successful archive completion separately from whole-installation backup. Quiescence, external/key retention and restoration comparison remain separate requirements. See [encrypted tree capture](design/environment-transfer.md#explicit-encrypted-tree-capture).
+Explicit tree capture is **partial**: the Linux maintenance helper writes ordinary GNU tar archives with no recipient, key or post-export encryption. Existing destination protection, bounded capture and incomplete-output evidence remain. See [tree capture](design/environment-transfer.md#explicit-tree-capture).
 
 The explicit tree capture helper now has a maintenance script entry point with required writer-quiescence confirmation, bounded stream options and nonzero failure results; it adds no daily `haco` command.
 
-Successful tree captures include a standard SHA-256 checksum file for copy verification with `sha256sum`; this does not establish external retention or recoverable decryption keys.
+Successful tree captures include a standard SHA-256 checksum file for copy verification with `sha256sum`; restored-data comparison and whole-installation retention remain separate checks.
 
 Evacuation reference inventory now includes bounded reverse review of observed instances/custom volumes, retaining unmatched and conflicting project views without granting cleanup authority.
 
