@@ -2,11 +2,23 @@
 
 日本語 | [English](storage-reclamation.md)
 
-状態: **partial、公開の起動・結果照会は実装済み**。Linux の実体照合・割当量測定、Btrfs trim と外側 ext4
-への discard を実装し、隔離した実環境で検証しました。設定済み Incus pool の選択は内部実装済みです。
-一つの入口の CLI は実装しましたが、一連の実機受入は未完了です。Windows の停止・圧縮・再開、
-ファイル測定と native 圧縮は以下の内部実装まで進んでいます。F1 は
-未完了であり、データの明示削除・GC・移行とは別の機能です。
+状態: **implemented、native Windows/WSL CI の受入は成功**。公開の起動・結果照会・
+明示的な失敗確認は、設定済み Incus pool と登録済み WSL の実体を使います。
+データの明示削除・GC・移行は別の機能です。既存の手元環境での受入は別途記録します。
+
+## 現在の native 受入
+
+commit 5100d86 では、通常の Host 入口から haco reclaim --yes を実行し、再接続後の
+haco reclaim --status まで通しました。Windows VHDX の実割当量は
+7,964,983,296 bytes から 4,224,712,704 bytes へ減り、**3,740,270,592 bytes を回収**しました。
+仮想容量は 1 TiB、Incus pool の容量は 128 GiB のままです。Linux discard、
+対象 WSL の停止・圧縮・再開、Host に保持した marker、および切離し済み fixture の
+Workspace・OCI・snapshot の復元を
+[Windows の利用経路の job](https://github.com/SLktEx/Hacocoon/actions/runs/34623036552/job/103341362151)で確認しました。
+
+これは記録した GHA の Windows/WSL 構成での結果であり、すべての手元環境や disk・platform の
+受入を示すものではありません。以下の過去 commit ごとの結果は、失敗を含む歴史的な
+checkpoint です。現在の結果は上記を参照してください。
 
 ## 必要な結果
 
@@ -36,7 +48,7 @@ cold WSL では pool が未 mount の場合があります。Incus 外で独自 
 ext4 discard は照合済み backing file の handle が属する filesystem に対して行います。
 [Linux ext4 FITRIM](https://github.com/torvalds/linux/blob/v6.6/fs/ext4/ioctl.c) を使い、
 別の mount path は選択しません。pool の許可とは別に管理対象 WSL 全体への操作許可が
-必要です。他の外側 filesystem は未対応です。両段階とも公開経路には未接続です。
+必要です。他の外側 filesystem は未対応です。両段階は公開の回収操作に接続されています。
 
 同期と前後の実体確認を行い、kernel 内でキャンセルされた場合も実行を試みた記録と
 取得できた結果を保持します。キャンセルを未実行の証拠とは扱いません。

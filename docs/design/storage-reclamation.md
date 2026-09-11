@@ -2,13 +2,24 @@
 
 [日本語](storage-reclamation.ja.md) | English
 
-Status: **partial; public dispatch and result inspection implemented**. Pinned Linux identity/allocation,
-Btrfs trim and outer ext4 discard are implemented and passed isolated native
-acceptance. Configured Incus pool selection is implemented internally; the public
-one-entry CLI is implemented, with combined native acceptance still incomplete. Windows stop/compact/resume,
-handle-based measurement and native compaction are internal implementations
-described below. F1 remains incomplete.
-This is separate from resource deletion/GC and migration.
+Status: **implemented; native Windows/WSL CI acceptance passed**. Public
+dispatch, status and explicit failure review use the configured Incus pool and
+enrolled WSL identity. Resource deletion/GC and migration remain separate.
+Local acceptance on an existing installation must be recorded separately.
+
+## Current native acceptance
+
+At commit 5100d86, the ordinary Host entry ran haco reclaim --yes, followed by
+reentry and haco reclaim --status. Windows VHDX allocation decreased from
+7,964,983,296 to 4,224,712,704 bytes: **3,740,270,592 bytes reclaimed**. Virtual
+capacity remained 1 TiB and the Incus pool capacity remained 128 GiB. Linux
+discard, exact-WSL stop/compact/resume, a retained Host marker, and detached fixture
+Workspace/OCI/snapshot restoration passed in the
+[Windows user-path job](https://github.com/SLktEx/Hacocoon/actions/runs/34623036552/job/103341362151).
+
+This is a recorded GHA Windows/WSL configuration, not acceptance of every local
+disk or platform. Earlier commit-specific results below are historical
+checkpoints, including failures; they do not override this current result.
 
 ## Required result
 
@@ -62,7 +73,7 @@ The ext4 stage uses the already pinned Incus backing-file descriptor. Linux
 operates on that file's filesystem; no independent mount path is selected.
 Require separate authorization for the managed WSL distribution: permission to
 trim one pool alone does not authorize its whole outer filesystem. Other outer
-filesystems currently return unsupported. Neither stage is publicly wired yet.
+filesystems currently return unsupported. Both stages are connected through the public reclamation operation.
 
 Both stages synchronize before discard, validate native identity before/after,
 and retain attempted/kernel-result information if cancellation occurs inside the

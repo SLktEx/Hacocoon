@@ -1666,3 +1666,5 @@ tree capture の成功時は `sha256sum` でコピーを検証する標準 SHA-2
 読み取り専用の退避参照 projection は、移行せず元の番号を保持して catalog schema 10〜13 を扱います。schema 9 は未対応のままです。未投影の restore/copy/ephemeral 記録は確認用に件数を残し、古い lifecycle state の検証・import は行いません。
 
 退避のネイティブ復元テストは user 名前空間以外の拡張属性を明示的に復元し、直接照合します。専用 WSL での再現では、GNU tar の既定展開は合成した trusted 属性を失い、明示指定では保持しました。検証範囲の修正であり、全量復元と既存の復元済み rootfs の属性照合は未完了です。
+
+F1 の公開回収経路は 5100d86 の native Windows/WSL CI で成功しました。容量を維持して Windows の実割当を 3,740,270,592 bytes 回収し、対象 WSL の再開と保持 Workspace・OCI・snapshot の復元を確認しました。既存の手元環境での受入は別です。[現在の native 受入](design/storage-reclamation.ja.md#現在の-native-受入)を参照してください。
