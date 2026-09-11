@@ -1646,3 +1646,5 @@ F1 に `haco reclaim` と読み取り専用 `haco reclaim --status` を追加し
 Windows F1 gate を通常 Host terminal の公開 reclaim/status に接続し、再入場前は Windows の読み取りだけで終了を確認します。拒否テストは成功、native 受入は確認待ちです。[通常経路 gate](design/storage-reclamation.ja.md#通常の-host-入口による受入)を参照してください。
 
 F1 の内部中断確認は元の pending バイト列を保持して旧 handoff を無効にし、新しい準備前に証拠の完全一致を要求します。所有・pin・排他照合は再利用し、native 隔離回帰は成功しました。公開の確認操作への接続と実登録の中断受入は未完了です。[中断確認](design/storage-reclamation.ja.md#中断した操作の明示確認)を参照してください。
+
+F1 の公開 `haco reclaim --review` を接続し、GUID 引数なしで正確な未成功操作を確認します。自動再試行はしません。CLI・vet・native PowerShell fixture は成功しました。de72119 の通常 Host gate は起動成功後の保存 worker 結果で失敗し、段階報告を追加しました。一連の native 成功は未証明です。[公開の確認](design/storage-reclamation.ja.md#haco-から明示確認する)を参照してください。

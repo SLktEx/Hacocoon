@@ -11,6 +11,7 @@ import (
 	"errors"
 	"io"
 	"os/exec"
+	"strings"
 	"time"
 	"unicode/utf16"
 
@@ -23,11 +24,43 @@ func windowsReclaimScript(target reclamation.WSLTarget, mode string) (string, er
 	if target.Validate() != nil || (mode != "start" && mode != "status") {
 		return "", errors.New("invalid reclamation request")
 	}
-	prefix := `$ErrorActionPreference='Stop';[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);$reg=[guid]'` + target.RegistrationID + `';$root=[Environment]::GetFolderPath('LocalApplicationData');if([string]::IsNullOrWhiteSpace($root)){exit 1};$helper=Join-Path $root ('Hacocoon\reclamation\'+$reg.ToString('N')+'\haco-wsl.exe');if(!(Test-Path -LiteralPath $helper -PathType Leaf)){exit 1};`
+	prefix := windowsReclaimPrefix(target)
 	if mode == "status" {
 		return prefix + `& $helper _status $reg.ToString('B');exit $LASTEXITCODE`, nil
 	}
 	return prefix + `$raw=& $helper _prepare $reg.ToString('B');if($LASTEXITCODE -ne 0){exit 1};$prepared=($raw -join "` + "`n" + `")|ConvertFrom-Json;$op=[guid]::Empty;if($prepared.state -cne 'pending' -or ![guid]::TryParse($prepared.operation,[ref]$op) -or $op -eq [guid]::Empty){exit 1};$dispatch=& $helper _launch $reg.ToString('B') $op.ToString('B');if($LASTEXITCODE -ne 0){exit 1};$text=$dispatch -join "` + "`n" + `";if($text -cnotmatch '^Dispatched Windows worker ([1-9][0-9]*); inspect the prepared operation for completion\.\s*$'){exit 1};[ordered]@{operation=$op.ToString('B');worker_pid=[int]$Matches[1]}|ConvertTo-Json -Compress`, nil
+}
+
+func windowsReclaimPrefix(target reclamation.WSLTarget) string {
+	return `$ErrorActionPreference='Stop';[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);$reg=[guid]'` + target.RegistrationID + `';$root=[Environment]::GetFolderPath('LocalApplicationData');if([string]::IsNullOrWhiteSpace($root)){exit 1};$helper=Join-Path $root ('Hacocoon\reclamation\'+$reg.ToString('N')+'\haco-wsl.exe');if(!(Test-Path -LiteralPath $helper -PathType Leaf)){exit 1};`
+}
+
+func windowsReviewScript(target reclamation.WSLTarget, operation, state string) (string, error) {
+	operation = strings.ToLower(operation)
+	if target.Validate() != nil || (reclamation.WSLTarget{RegistrationID: operation, InstallationID: target.InstallationID}).Validate() != nil {
+		return "", errors.New("invalid reclamation review identity")
+	}
+	var action string
+	switch state {
+	case "failed":
+		action = "_review-failed"
+	case "pending", "interrupted":
+		action = "_review-interrupted"
+	default:
+		return "", errors.New("invalid reclamation review state")
+	}
+	return windowsReclaimPrefix(target) + `$null=& $helper ` + action + ` $reg.ToString('B') '` + operation + `';exit $LASTEXITCODE`, nil
+}
+
+// ReviewWindows acknowledges only the selected observed operation. It never
+// prepares/launches another run; native enrollment, pins and exclusion still apply.
+func ReviewWindows(ctx context.Context, target reclamation.WSLTarget, operation, state string) error {
+	script, err := windowsReviewScript(target, operation, state)
+	if err != nil {
+		return err
+	}
+	_, err = invokeWindowsScript(ctx, script)
+	return err
 }
 
 type reclaimOutput struct{ bytes.Buffer }
@@ -43,6 +76,10 @@ func InvokeWindows(ctx context.Context, target reclamation.WSLTarget, mode strin
 	if err != nil {
 		return nil, err
 	}
+	return invokeWindowsScript(ctx, script)
+}
+
+func invokeWindowsScript(ctx context.Context, script string) ([]byte, error) {
 	executable, err := exec.LookPath("powershell.exe")
 	if err != nil {
 		return nil, errors.New("Windows interop unavailable")

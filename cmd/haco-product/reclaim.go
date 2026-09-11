@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -24,7 +23,7 @@ func runReclaim(args []string) int {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Minute)
 	defer cancel()
-	return reclaimCommand(ctx, args, os.Stdin, os.Stdout, os.Stderr, func(ctx context.Context) (reclamation.WSLTarget, error) {
+	target := func(ctx context.Context) (reclamation.WSLTarget, error) {
 		client, err := controlapi.NewDefaultClient()
 		if err != nil {
 			return reclamation.WSLTarget{}, err
@@ -35,7 +34,15 @@ func runReclaim(args []string) int {
 			return reclamation.WSLTarget{}, err
 		}
 		return client.ReclamationTarget(ctx)
-	}, reclaimclient.InvokeWindows)
+	}
+	for i, arg := range args {
+		if arg == "--review" {
+			reviewArgs := append([]string{}, args[:i]...)
+			reviewArgs = append(reviewArgs, args[i+1:]...)
+			return reclaimReviewCommand(ctx, reviewArgs, os.Stdin, os.Stdout, os.Stderr, target, reclaimclient.InvokeWindows, reclaimclient.ReviewWindows)
+		}
+	}
+	return reclaimCommand(ctx, args, os.Stdin, os.Stdout, os.Stderr, target, reclaimclient.InvokeWindows)
 }
 
 func reclaimCommand(ctx context.Context, args []string, in io.Reader, out, diagnostic io.Writer,
@@ -47,22 +54,22 @@ func reclaimCommand(ctx context.Context, args []string, in io.Reader, out, diagn
 	for _, arg := range args {
 		switch arg {
 		case "--help", "-h":
-			fmt.Fprintln(out, "Usage: haco reclaim [--yes | --status]\nReclaim unused disk space in this managed WSL. Running sessions disconnect.\nUse --status after reopening Hacocoon to inspect the saved result.")
+			fmt.Fprintln(out, "Usage: haco reclaim [--yes | --status | --review [--yes]]\nReclaim unused disk space in this managed WSL. Running sessions disconnect.\nUse --status after reopening Hacocoon to inspect the saved result.")
 			return 0
 		case "--status":
 			if mode != "start" || yes {
-				fmt.Fprintln(diagnostic, "Usage: haco reclaim [--yes | --status]")
+				fmt.Fprintln(diagnostic, "Usage: haco reclaim [--yes | --status | --review [--yes]]")
 				return 2
 			}
 			mode = "status"
 		case "--yes":
 			if yes || mode != "start" {
-				fmt.Fprintln(diagnostic, "Usage: haco reclaim [--yes | --status]")
+				fmt.Fprintln(diagnostic, "Usage: haco reclaim [--yes | --status | --review [--yes]]")
 				return 2
 			}
 			yes = true
 		default:
-			fmt.Fprintln(diagnostic, "Usage: haco reclaim [--yes | --status]")
+			fmt.Fprintln(diagnostic, "Usage: haco reclaim [--yes | --status | --review [--yes]]")
 			return 2
 		}
 	}
@@ -76,18 +83,10 @@ func reclaimCommand(ctx context.Context, args []string, in io.Reader, out, diagn
 			return 1
 		}
 		if !yes {
-			if _, err := fmt.Fprint(out, "Continue? [y/N] "); err != nil {
+			confirmed, err := confirmReclamation(ctx, in, out)
+			if err != nil {
+				fmt.Fprintln(diagnostic, "Confirmation unavailable; no Windows operation was invoked.")
 				return 1
-			}
-			answers := make(chan bool, 1)
-			go func() {
-				answer, err := bufio.NewReader(io.LimitReader(in, 128)).ReadString('\n')
-				answers <- err == nil && (strings.EqualFold(strings.TrimSpace(answer), "y") || strings.EqualFold(strings.TrimSpace(answer), "yes"))
-			}()
-			confirmed := false
-			select {
-			case confirmed = <-answers:
-			case <-ctx.Done():
 			}
 			if !confirmed {
 				fmt.Fprintln(out, "Canceled.")
@@ -160,29 +159,33 @@ type windowsReclaimStatus struct {
 	} `json:"observation,omitempty"`
 }
 
-func writeReclamationStatus(out, diagnostic io.Writer, raw []byte) int {
+func parseReclamationStatus(raw []byte) (windowsReclaimStatus, error) {
 	var result windowsReclaimStatus
 	if decodeReclaimOutput(raw, &result) != nil || !validReclaimOperation(result.Operation) || (result.State != "pending" && result.State != "failed" && result.State != "complete" && result.State != "interrupted") || (result.Linux != nil && result.Linux.Validate() != nil) {
-		fmt.Fprintln(diagnostic, "Saved reclamation result is invalid; retain it for inspection.")
-		return 1
+		return result, errors.New("Saved reclamation result is invalid; retain it for inspection.")
 	}
 	if result.Linux != nil && !result.LinuxStarted {
-		fmt.Fprintln(diagnostic, "Saved Linux result has no recorded attempt.")
-		return 1
+		return result, errors.New("Saved Linux result has no recorded attempt.")
 	}
 	if (result.State == "pending" || result.State == "interrupted") && result.Observation != nil {
-		fmt.Fprintln(diagnostic, "Pending Windows result has unconfirmed observations.")
-		return 1
+		return result, errors.New("Pending Windows result has unconfirmed observations.")
 	}
 	if result.Observation != nil {
 		o := result.Observation
 		if (o.StopRequested && !o.StopAttempted) || (o.Resumed && !o.ResumeAttempted) || (o.Compaction.Completed && !o.Compaction.Attempted) || (o.Compaction.Attempted && !o.StopRequested) || o.Compaction.OpenAttempts < 0 {
-			fmt.Fprintln(diagnostic, "Saved Windows observations are inconsistent.")
-			return 1
+			return result, errors.New("Saved Windows observations are inconsistent.")
 		}
 	}
 	if result.State == "complete" && (result.Observation == nil || !result.Observation.StopRequested || !result.Observation.Compaction.Completed || !result.Observation.Resumed || result.Observation.Compaction.Virtual.Capacity == 0 || result.Observation.Compaction.Before.LogicalBytes == 0 || result.Observation.Compaction.After.LogicalBytes == 0 || (result.LinuxStarted && (result.Linux == nil || !result.Linux.Complete()))) {
-		fmt.Fprintln(diagnostic, "Saved reclamation completion is unproven.")
+		return result, errors.New("Saved reclamation completion is unproven.")
+	}
+	return result, nil
+}
+
+func writeReclamationStatus(out, diagnostic io.Writer, raw []byte) int {
+	result, err := parseReclamationStatus(raw)
+	if err != nil {
+		fmt.Fprintln(diagnostic, err)
 		return 1
 	}
 	if result.State == "complete" && result.Linux == nil {

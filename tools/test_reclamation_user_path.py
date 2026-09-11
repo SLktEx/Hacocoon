@@ -2,6 +2,7 @@
 """Refusal tests for the native gate's resume decision, without WSL mutation."""
 import importlib.util
 from pathlib import Path
+import json
 import unittest
 from unittest.mock import patch
 
@@ -36,6 +37,14 @@ class ReclamationUserPathTests(unittest.TestCase):
                 gate.wait_for_worker(Path("fixture-haco-wsl.exe"), OP, OP)
             self.assertEqual(read.call_count, 1)
             self.assertEqual(read.call_args.args[0][1:], ["_status", OP, OP])
+
+    def test_failure_summary_does_not_emit_child_secrets(self):
+        result = {"state": "failed", "linux_started": True, "linux": {"failure": "secret-token", "incus_btrfs_loop": {"status": "failed"}}, "observation": {"StopAttempted": False, "Resumed": "secret-token"}, "credentials": "secret-token"}
+        summary = gate.failure_summary(result)
+        self.assertNotIn("secret-token", json.dumps(summary))
+        self.assertEqual(summary["linux_pool"], "failed")
+        self.assertIsNone(summary["windows_resumed"])
+        self.assertEqual(gate.failure_summary(None), {"worker_result": "unrecognized"})
 
     def test_all_stages_are_required(self):
         result = {"operation": OP, "state": "complete", "linux_started": True,

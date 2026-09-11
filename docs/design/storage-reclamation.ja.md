@@ -688,7 +688,7 @@ GUID・disk path・pool の必須引数はありません。controller の読み
 起動の exit 0 は worker の受付であり、**回収完了ではありません**。出力欠落・起動失敗を
 理由に再試行せず、保存結果を確認してください。`--status` は起動・再試行・記録消去・
 確認済み化をしません。pending は完了不明、failed は非ゼロ終了で証拠を保持します。
-中断 pending の明示確認は未実装です。再試行のために記録を削除しないでください。
+中断 pending の明示確認には `haco reclaim --review` を使います。再試行のために記録を削除しないでください。
 現行 controller と常設 Windows helper が必要で、旧導入先は通常の installer で更新します。
 
 `cmd/haco-product` は引数・確認・表示、`internal/reclaimclient` は上限付きの具体的な
@@ -730,7 +730,7 @@ WSL 操作なしで成功しました。Workspace/OCI 内容全体は対象外�
 
 ## 中断した操作の明示確認
 
-状態: **内部 helper は実装済み、公開の確認 UI と実登録 WSL の受入は未完了**。
+状態: **helper・公開 CLI は実装済み、実登録 WSL の受入は未完了**。
 `_review-interrupted` は正確な registration・operation ID を受け取り、準備時と同じ
 continuation guard、enrollment の Windows ユーザー、登録・disk pin、導入識別の照合を
 使います。動作中 worker があれば WSL に触れる前に拒否します。識別確認で選択した登録済み
@@ -752,5 +752,28 @@ pending のままの操作を実行できてしまいます。既存 version 1/2
 native Windows の回帰は一意な一時 registry key で、元バイト列保持、別所有・disk・操作の
 拒否、不正・欠落 archive、反復確認、遅延実行・結果の拒否、新規操作 ID を検証しました。
 helper dispatch と公開の結果不明表示も成功しました。これらの隔離テストは、実登録 WSL の
-動作中 worker を中断した受入の証拠ではありません。日常の `haco reclaim` から確認する接続は
-未完了です。記録削除で回避しないでください。
+動作中 worker を中断した受入の証拠ではありません。日常の確認操作への接続は下記のとおりです。記録削除で回避しないでください。
+
+## haco から明示確認する
+
+同じ trusted Host で `haco reclaim --status` を確認し、明示的に実行します。
+
+```sh
+haco reclaim --review
+```
+
+CLI が導入先・保存済み操作を取得するため GUID・path 入力は不要です。状態を表示し、
+確認前の正確な対象・操作を固定します。`--yes` は質問だけを省略します。動作中 worker や
+記録変更は拒否し、新しい別操作へ同意を流用しません。導入識別のため登録済み WSL を
+開き直す場合はありますが、discard・圧縮・自動再試行は行いません。必要なときに別途
+`haco reclaim` で新しい試行を始めます。完了済み・既に中断確認済みなら変更は不要です。
+結果不正・取得不能・中断・確認文の出力不能では確認しません。enrollment・排他・pin・
+証拠の照合は引き続き native helper が担当します。
+
+公開 CLI のテスト・vet と native PowerShell 5.1 fixture は、正確な pending/failed の
+確認選択・確認拒否を含め成功しました。これは protocol/component 検証で、実 worker 中断の
+確認を証明するものではありません。`de72119` の公開 E2E は通常 Host interop からの
+worker 起動に成功しましたが、保存結果が failed となり **失敗** しました。以前の runner
+直接起動の Access denied は今回の原因を示しません。失敗段階は当時の出力にないため、
+gate に保存証拠の固定 state・failure 語彙と真偽値だけを報告する処理と秘密値の除外回帰を
+追加しました。任意の子出力は表示しません。[native run](https://github.com/SLktEx/Hacocoon/actions/runs/34559101015)を参照してください。

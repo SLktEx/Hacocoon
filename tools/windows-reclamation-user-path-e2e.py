@@ -52,6 +52,34 @@ def require_complete(result, operation):
     return True
 
 
+def failure_summary(result):
+    # Fixed vocabulary/booleans only: never emit arbitrary child fields or logs.
+    if not isinstance(result, dict):
+        return {"worker_result": "unrecognized"}
+    allowed = {"identity_unavailable", "identity_changed", "pool_unavailable", "pool_trim_failed", "outer_trim_failed", "cleanup_failed", "canceled"}
+    linux = result.get("linux")
+    linux = linux if isinstance(linux, dict) else {}
+    windows = result.get("observation")
+    windows = windows if isinstance(windows, dict) else {}
+    def boolean(value):
+        return value if type(value) is bool else None
+    def stage(key):
+        value = linux.get(key)
+        value = value.get("status") if isinstance(value, dict) else None
+        return value if value in ("complete", "failed", "skipped") else "unrecorded"
+    reason = linux.get("failure")
+    compact = windows.get("Compaction")
+    compact = compact if isinstance(compact, dict) else {}
+    return {"worker_result": result.get("state") if result.get("state") in ("pending", "failed", "complete", "interrupted") else "unrecognized",
+            "linux_started": boolean(result.get("linux_started")),
+            "linux_report_present": isinstance(result.get("linux"), dict),
+            "linux_failure": reason if isinstance(reason,str) and reason in allowed else "unrecorded",
+            "linux_pool": stage("incus_btrfs_loop"), "linux_outer": stage("wsl_ext4"),
+            "windows_stop_attempted": boolean(windows.get("StopAttempted")),
+            "windows_compaction_attempted": boolean(compact.get("Attempted")),
+            "windows_resumed": boolean(windows.get("Resumed"))}
+
+
 def read_json(command):
     result = subprocess.run(command, capture_output=True, timeout=25)
     if result.returncode or len(result.stdout) > 16384:
@@ -66,7 +94,11 @@ def wait_for_worker(helper, registration, operation):
     while time.monotonic() < deadline:
         # These commands never enter WSL, mutate records or launch a worker.
         result = read_json([str(helper), "_status", registration, operation])
-        complete = require_complete(result, operation)
+        try:
+            complete = require_complete(result, operation)
+        except (RuntimeError, TypeError, AttributeError):
+            print(json.dumps(failure_summary(result)), flush=True)
+            raise
         rows = read_json([powershell, "-NoProfile", "-NonInteractive", "-Command", script])
         running = helper_is_running(rows, helper)
         if complete and not running:

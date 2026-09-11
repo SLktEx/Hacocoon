@@ -45,3 +45,21 @@ func TestWindowsReclaimScriptHasFixedHelperAndExactGUID(t *testing.T) {
 		t.Fatal("unbounded capture")
 	}
 }
+
+func TestWindowsReviewScriptIsBoundedToObservedOperation(t *testing.T) {
+	operation := "{33333333-3333-4333-8333-333333333333}"
+	for _, state := range []string{"pending", "failed", "interrupted"} {
+		script, err := windowsReviewScript(commandReclaimTarget, operation, state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(script, "_prepare") || strings.Contains(script, "_launch") || !strings.Contains(script, operation) {
+			t.Fatal("review became a new operation")
+		}
+	}
+	for _, request := range []struct{ operation, state string }{{"';exit 0;#", "pending"}, {"{00000000-0000-0000-0000-000000000000}", "pending"}, {operation, "complete"}, {operation, "_launch"}} {
+		if _, err := windowsReviewScript(commandReclaimTarget, request.operation, request.state); err == nil {
+			t.Fatal("invalid review request accepted")
+		}
+	}
+}

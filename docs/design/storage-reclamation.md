@@ -830,7 +830,7 @@ Exit 0 from dispatch means a worker was accepted, **not** that reclamation finis
 Lost output or a failed dispatch is not permission to retry: inspect the saved
 result. `--status` never launches, retries, clears or acknowledges an operation.
 Pending means unknown completion; failed exits nonzero and retains its evidence.
-Explicit interrupted-pending review remains unfinished. Do not delete its record
+Use `haco reclaim --review` for explicit unsuccessful-operation review. Do not delete its record
 to force another attempt. The current controller and permanently installed Windows
 helper are required; a historical installation needs its ordinary installer update.
 
@@ -880,8 +880,7 @@ contents are still outside this gate, so it does not complete F1 acceptance.
 
 ## Explicit review of an interrupted operation
 
-Status: **internal helper implemented; public review UI and real enrolled-WSL
-acceptance pending**. `_review-interrupted` takes the exact registration and
+Status: **helper and public CLI implemented; real enrolled-WSL acceptance pending**. `_review-interrupted` takes the exact registration and
 operation IDs. It reuses the same continuation guard, enrolled Windows user,
 registration/disk pins and installed-identity check as preparation. A live worker
 excludes review before any WSL access. The identity check may reopen only the
@@ -910,5 +909,32 @@ verbatim retention, changed ownership/disk/operation refusal, malformed/missing
 archives, repeated review, late execution/result refusal and fresh-operation IDs.
 The helper dispatch regression and public unknown-outcome display also pass.
 These isolated tests do not prove interruption of a real enrolled WSL worker.
-The daily `haco reclaim` review connection remains unfinished; do not use record
-removal as a workaround.
+The daily review connection is described below; do not remove records to force retry.
+
+## Reviewing through haco
+
+From the same trusted Host, inspect `haco reclaim --status` and explicitly run:
+
+```sh
+haco reclaim --review
+```
+
+The CLI discovers the installation and saved operation without GUID/path inputs,
+displays its state and freezes that exact target/operation before confirmation.
+`--yes` skips only the prompt. A live continuation or changed record refuses;
+consent is never transferred to a newer operation. Review may reopen the enrolled
+WSL to verify its installation, but performs no discard/compaction or automatic
+retry. Afterwards, a separate `haco reclaim` starts a fresh attempt when wanted.
+Completed/already-interrupted results need no mutation. Malformed or unavailable
+results, cancellation and confirmation-output failure do not review anything.
+The native helper still owns all enrollment, exclusion, pins and evidence checks.
+
+Public CLI tests/vet and native PowerShell 5.1 fixtures passed, including exact
+pending/failed review selection and refused review. This is protocol/component
+coverage, not proof of reviewing an interrupted real worker. The new public E2E
+at `de72119` did dispatch its worker successfully through ordinary Host interop,
+then **failed** on its saved failed result. The previous direct-runner Access
+denied does not establish the cause of this later failure. Its failing stage was
+not printed. The gate now reports only fixed state/failure vocabulary and booleans
+from saved evidence, with a secret-redaction regression; arbitrary child output
+is not printed. [Native run](https://github.com/SLktEx/Hacocoon/actions/runs/34559101015).
