@@ -8,6 +8,8 @@ import subprocess
 import tempfile
 import unittest
 
+from evacuation_capture import capture_tree
+
 
 @unittest.skipUnless(os.environ.get("HACO_E2E_ENCRYPTED_EVACUATION") == "1",
                      "requires explicit Linux tar/age evacuation acceptance")
@@ -44,24 +46,10 @@ class EncryptedEvacuationTests(unittest.TestCase):
         env = os.environ.copy()
         env.pop("TAR_OPTIONS", None)
         # No plaintext archive is written outside the trusted Linux fixture.
-        with archive.open("xb") as output:
-            producer = subprocess.Popen(["tar", "--acls", "--xattrs", "--numeric-owner", "--sparse", "-cpf", "-", "-C", str(source), "."],
-                                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
-            try:
-                consumer = subprocess.run(["age", "-r", public], stdin=producer.stdout,
-                                          stdout=output, stderr=subprocess.PIPE, timeout=60)
-            finally:
-                producer.stdout.close()
-                try:
-                    producer_code = producer.wait(timeout=60)
-                except subprocess.TimeoutExpired:
-                    producer.kill()
-                    producer.wait()
-                    raise
-            output.flush()
-            os.fsync(output.fileno())
-        self.assertEqual(producer_code, 0, "tar source capture failed")
-        self.assertEqual(consumer.returncode, 0, "age encryption failed")
+        captured = capture_tree(str(source), str(destination), public, seconds=60)
+        self.assertTrue(captured["archive_complete"])
+        self.assertFalse(captured["backup_complete"])
+        self.assertFalse(captured["external_retention_verified"])
         ciphertext = archive.read_bytes()
         self.assertNotIn(marker, ciphertext)
         digest = hashlib.sha256(ciphertext).hexdigest()

@@ -81,7 +81,7 @@ def file_inventory(root, entry_limit=50000, depth_limit=64, seconds=60):
         report["entries"].append({"path": path, "kind": kind, "mode": oct(stat.S_IMODE(mode)),
                                   "uid": value.st_uid, "gid": value.st_gid, "bytes": value.st_size,
                                   "device": value.st_dev, "inode": value.st_ino, "links": value.st_nlink,
-                                  "mtime_ns": value.st_mtime_ns})
+                                  "mtime_ns": value.st_mtime_ns, "ctime_ns": value.st_ctime_ns})
         return kind
     record(".", root_info)
     def walk(directory, relative, depth):

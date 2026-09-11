@@ -1597,3 +1597,5 @@ Git Workspace 2個と OCI の管理 bundle が、別 WSL の通常 installed-con
 G2 の読み取り専用一覧に image の fingerprint・種類・alias 名・native project の共有元を追加しました。Linux 回帰テストと専用 Incus の比較は成功しました。image export と installation 全体の保存は未実装です。[退避対象一覧](design/environment-transfer.ja.md#退避対象の-native-一覧)を参照してください。
 
 Catalog 参照の照合は **partial** です。読み取り専用の退避 inventory は Env とデータの対応、Incus 資源と owner の一致を観測しますが、権限を与えません。曖昧・未観測・削除途中・未対応の記録も残し、この inventory 自体はインストール全体の保存を実装しません。[Catalog 参照の照合](design/environment-transfer.ja.md)を参照してください。
+
+明示したデータツリーの暗号化保存は **partial** です。Linux 保守用 helper は確認したツリーを GNU tar と age へ渡し、失敗時の部分成果物を残し、archive 完了と全体 backup を区別します。書き込み停止、外部保存・鍵の保護、復元照合は別途必要です。[暗号化保存](design/environment-transfer.ja.md)を参照してください。
