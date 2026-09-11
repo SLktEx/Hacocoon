@@ -29,6 +29,24 @@ func preparedIDs(registrationID, operationID string) (windows.GUID, windows.GUID
 	return r, o, nil
 }
 
+// PrepareWorker durably records a new operation for the enrolled registration.
+// It does not launch a worker or stop WSL. An error after persistence may leave
+// pending evidence; inspect it rather than retrying or clearing it automatically.
+func PrepareWorker(ctx context.Context, registrationID string) (PreparedStatus, error) {
+	if err := ctx.Err(); err != nil {
+		return PreparedStatus{}, err
+	}
+	r, err := readRegistration(registrationID)
+	if err != nil {
+		return PreparedStatus{}, err
+	}
+	intent, err := r.prepareContinuation(ctx)
+	if err != nil {
+		return PreparedStatus{}, err
+	}
+	return PreparedStatus{Operation: intent.Operation.String(), State: intent.State}, nil
+}
+
 // LaunchPreparedWorker launches this helper's fixed worker mode, not a caller
 // executable or command. A PID reports dispatch only; the durable record owns
 // completion. No retry or fallback to a child tied to the caller's Job is allowed.

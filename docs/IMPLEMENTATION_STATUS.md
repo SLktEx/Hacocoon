@@ -1906,3 +1906,8 @@ retained. Read-only current-result inspection no longer needs the operation ID;
 mutations still do. Native Windows regressions passed. The installed historical
 v0.45 OCI-directory assertion failed; full current-app and public all-layer
 acceptance remain incomplete. See [worker acceptance](design/storage-reclamation.md#dedicated-worker-acceptance).
+
+F1 Windows preparation is now available through the internal installed helper,
+using the canonical enrolled-target API rather than a test-only entry. Preparation
+does not dispatch; output failure preserves pending evidence. The public all-layer
+flow remains incomplete. See [preparation](design/storage-reclamation.md#preparing-through-the-installed-helper).

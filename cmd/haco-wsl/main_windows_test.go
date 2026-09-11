@@ -175,3 +175,55 @@ func TestStatusWithOrWithoutOperationIsReadOnlyDispatch(t *testing.T) {
 		}
 	}
 }
+
+type rejectedPreparedOutput struct{}
+
+func (rejectedPreparedOutput) Write(p []byte) (int, error) {
+	return 0, errors.New("output unavailable")
+}
+
+func TestPreparationDoesNotDispatchOrDiscardOnOutputFailure(t *testing.T) {
+	t.Setenv("HACO_LOG_LEVEL", "info")
+	t.Setenv("HACO_LOG_FORMAT", "json")
+	for _, args := range [][]string{{"_prepare"}, {"_prepare", "r", "extra"}} {
+		var out, diagnostic bytes.Buffer
+		if dispatch(context.Background(), args, &out, &diagnostic, helperActions{}) != 2 {
+			t.Fatal("invalid preparation accepted")
+		}
+	}
+	for _, failed := range []bool{false, true} {
+		var out, diagnostic bytes.Buffer
+		calls := 0
+		actions := helperActions{prepare: func(ctx context.Context, r string) (wslreclaim.PreparedStatus, error) {
+			calls++
+			if r != "registration" {
+				t.Fatal("changed registration")
+			}
+			if failed {
+				return wslreclaim.PreparedStatus{}, errors.New("token=private-prepare-value")
+			}
+			return wslreclaim.PreparedStatus{Operation: "operation", State: "pending"}, nil
+		}}
+		code := dispatch(context.Background(), []string{"_prepare", "registration"}, &out, &diagnostic, actions)
+		if calls != 1 || strings.Contains(diagnostic.String(), "private-prepare-value") {
+			t.Fatal("wrong preparation failure boundary")
+		}
+		if failed {
+			if code != 1 || out.Len() != 0 || !strings.Contains(diagnostic.String(), "prepare_wsl_worker") {
+				t.Fatal("failed prepare claimed success")
+			}
+		} else {
+			var got wslreclaim.PreparedStatus
+			if code != 0 || json.Unmarshal(out.Bytes(), &got) != nil || got.State != "pending" || got.Operation != "operation" || got.Observation != nil {
+				t.Fatal("preparation claimed execution")
+			}
+			diagnostic.Reset()
+			if dispatch(context.Background(), []string{"_prepare", "registration"}, rejectedPreparedOutput{}, &diagnostic, actions) != 1 || calls != 2 {
+				t.Fatal("output failure retried or succeeded")
+			}
+			if !strings.Contains(diagnostic.String(), "prepare_wsl_worker") {
+				t.Fatal("missing output failure boundary")
+			}
+		}
+	}
+}

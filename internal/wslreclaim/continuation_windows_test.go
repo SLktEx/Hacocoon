@@ -179,12 +179,12 @@ func TestDedicatedWSLPreparedContinuation(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 	defer cancel()
-	intent, err := r.prepareContinuation(ctx)
+	prepared, err := PrepareWorker(ctx, r.ID.String())
 	if err != nil {
 		t.Fatal("prepare failed; preserve any saved intent", err)
 	}
 	if os.Getenv("HACO_E2E_RECLAIM_PREPARE_ONLY") == "1" {
-		t.Logf("PREPARED_OPERATION=%s; pending only, execution is not complete", intent.Operation.String())
+		t.Logf("PREPARED_OPERATION=%s; pending only, execution is not complete", prepared.Operation)
 		return
 	}
 	// Preparation has released its guard and file handles. Reopen the persisted
@@ -195,9 +195,10 @@ func TestDedicatedWSLPreparedContinuation(t *testing.T) {
 	}
 	defer records.close()
 	saved, err := records.read()
-	if err != nil || saved != intent || saved.State != "pending" {
+	if err != nil || saved.Operation.String() != prepared.Operation || saved.State != prepared.State || saved.State != "pending" {
 		t.Fatal("prepared identity not durable", saved, err)
 	}
+	intent := saved
 	result, err := r.continuePrepared(ctx, intent.Operation)
 	if err != nil {
 		t.Fatalf("prepared continuation failed; observation=%+v error=%v", result, err)

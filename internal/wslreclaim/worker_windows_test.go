@@ -212,3 +212,28 @@ func TestWorkerReadinessRequiresExactFrameAndEOF(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Production preparation refuses before touching an enrollment/operation when
+// the registration is malformed, absent or the caller is canceled.
+func TestPrepareWorkerRefusesInvalidOrAbsentRegistration(t *testing.T) {
+	id, err := windows.GenerateGUID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, input := range []string{"", "--shutdown", windows.GUID{}.String(), id.String()} {
+		got, err := PrepareWorker(context.Background(), input)
+		if err == nil || got != (PreparedStatus{}) {
+			t.Fatal("invalid preparation accepted", got, err)
+		}
+	}
+	path := `Software\Hacocoon\Reclamation\` + id.String()
+	if key, err := registry.OpenKey(registry.CURRENT_USER, path, registry.QUERY_VALUE); err == nil {
+		key.Close()
+		t.Fatal("missing registration created an operation key")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if got, err := PrepareWorker(ctx, id.String()); !errors.Is(err, context.Canceled) || got != (PreparedStatus{}) {
+		t.Fatal("canceled preparation proceeded", got, err)
+	}
+}

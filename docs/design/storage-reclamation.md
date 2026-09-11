@@ -633,3 +633,18 @@ This run did not combine Linux trim stages and Windows compaction into one publi
 entry. Public all-layer orchestration, interrupted-pending handling and full
 current-installation Workspace/OCI acceptance remain incomplete. No new daily
 command, schema, backup, storage lifecycle or permission is introduced.
+
+## Preparing through the installed helper
+
+The internal helper now accepts `_prepare REGISTRATION_GUID`. It invokes the same
+canonical preparation used by native acceptance and returns the saved pending ID
+as JSON. Enrollment, exact disk/owner/installation checks, exclusion and durable
+record rules are unchanged. It neither launches nor stops WSL. Output failure
+returns nonzero and retains any recorded intent; use read-only status to inspect
+it, never assume failure means that no intent exists. A pending or unreviewed
+failed result still prevents a new intent.
+
+This removes the need for a test binary at the Windows preparation boundary.
+It is not the public all-layer entry: controller authority, Linux stage handoff
+and ordinary-user result presentation remain to be connected. The native handoff
+gate now calls this same preparation API.

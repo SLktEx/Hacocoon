@@ -1625,3 +1625,8 @@ F1 はその後、実登録の失敗の明示確認と一度の detached worker 
 Windows native 回帰は成功しました。導入済みの過去の v0.45 では OCI directory の
 assertion が失敗しており、現行アプリ一式と公開全層操作の受入は未完了です。
 [worker 実機確認](design/storage-reclamation.ja.md#専用-wsl-の-worker-実機確認)を参照してください。
+
+F1 の Windows 操作準備を内部 helper に接続しました。テスト専用入口ではなく、
+既存の登録済み対象の API を使います。準備だけでは worker を起動せず、出力失敗時も
+pending を保持します。公開全層操作は未完了です。
+[準備の境界](design/storage-reclamation.ja.md#導入する-helper-から操作を準備する)を参照してください。

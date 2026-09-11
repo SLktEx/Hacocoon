@@ -513,3 +513,16 @@ Workspace 読み書きは成功しましたが、OCI directory の assertion は
 今回は Linux trim と Windows 圧縮を一つの公開入口から実行していません。
 公開の全層操作、pending 中断の扱い、現行導入一式での Workspace/OCI 受入は未完了です。
 日常コマンド、schema、backup、独自ストレージ lifecycle、権限は増やしていません。
+
+## 導入する helper から操作を準備する
+
+内部 helper は `_prepare REGISTRATION_GUID` を受け付けます。実機検証と同じ
+canonical 準備処理を呼び、保存した pending の ID を JSON で返します。
+登録済み対応、正確な disk・所有者・導入識別、排他、永続記録の規則は不変です。
+worker 起動や WSL 停止は行いません。出力失敗は非ゼロ終了とし、保存済み intent
+を残します。読み取り専用 status で確認し、失敗だから記録がないとは判断しません。
+pending または未確認の失敗があれば、新しい intent は引き続き拒否します。
+
+Windows の準備境界でテスト用 binary を使う必要がなくなります。公開の全層入口では
+なく、controller の権限、Linux 段階との接続、通常利用者への結果表示は未接続です。
+既存の実機 handoff gate もこの準備 API を呼びます。

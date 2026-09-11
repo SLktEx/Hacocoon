@@ -35,12 +35,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, enroll fu
 }
 
 type helperActions struct {
-	review func(context.Context, string, string) error
-	enroll func(context.Context, string) error
-	launch func(context.Context, string, string) (int, error)
-	worker func(context.Context, string, string) error
-	status func(context.Context, string, string) (wslreclaim.PreparedStatus, error)
-	latest func(context.Context, string) (wslreclaim.PreparedStatus, error)
+	prepare func(context.Context, string) (wslreclaim.PreparedStatus, error)
+	review  func(context.Context, string, string) error
+	enroll  func(context.Context, string) error
+	launch  func(context.Context, string, string) (int, error)
+	worker  func(context.Context, string, string) error
+	status  func(context.Context, string, string) (wslreclaim.PreparedStatus, error)
+	latest  func(context.Context, string) (wslreclaim.PreparedStatus, error)
 }
 
 func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, actions helperActions) int {
@@ -49,7 +50,8 @@ func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, acti
 	}
 	statusRequest := args[0] == "_status" && (len(args) == 2 || len(args) == 3)
 	operationRequest := len(args) == 3 && (args[0] == "_launch" || args[0] == "_continue" || args[0] == "_review-failed")
-	if !statusRequest && !operationRequest {
+	prepareRequest := args[0] == "_prepare" && len(args) == 2
+	if !statusRequest && !operationRequest && !prepareRequest {
 		fmt.Fprintln(stderr, "Invalid internal Windows helper arguments.")
 		return 2
 	}
@@ -57,6 +59,18 @@ func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, acti
 	if err != nil {
 		fmt.Fprintln(stderr, "Invalid logging configuration.")
 		return 2
+	}
+	if prepareRequest {
+		prepared, prepareErr := actions.prepare(ctx, args[1])
+		if prepareErr != nil {
+			logger.Error("Windows continuation preparation failed", "component", "host", "operation", "prepare_wsl_worker", "error", prepareErr)
+			return 1
+		}
+		if err := json.NewEncoder(stdout).Encode(prepared); err != nil {
+			logger.Error("Prepared operation output failed; inspect the retained result", "component", "host", "operation", "prepare_wsl_worker", "error", err)
+			return 1
+		}
+		return 0
 	}
 	if args[0] == "_review-failed" {
 		if err := actions.review(ctx, args[1], args[2]); err != nil {
@@ -109,7 +123,7 @@ func main() {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	code := dispatch(ctx, os.Args[1:], os.Stdout, os.Stderr, helperActions{latest: wslreclaim.ReadLatestPreparedStatus, review: wslreclaim.ReviewFailedOperation, enroll: wslreclaim.EnrollInstallation, launch: wslreclaim.LaunchPreparedWorker, worker: wslreclaim.ExecutePreparedWorker, status: wslreclaim.ReadPreparedStatus})
+	code := dispatch(ctx, os.Args[1:], os.Stdout, os.Stderr, helperActions{prepare: wslreclaim.PrepareWorker, latest: wslreclaim.ReadLatestPreparedStatus, review: wslreclaim.ReviewFailedOperation, enroll: wslreclaim.EnrollInstallation, launch: wslreclaim.LaunchPreparedWorker, worker: wslreclaim.ExecutePreparedWorker, status: wslreclaim.ReadPreparedStatus})
 	cancel()
 	stop()
 	os.Exit(code)
