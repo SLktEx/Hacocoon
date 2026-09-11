@@ -41,7 +41,7 @@ ext4 discard は照合済み backing file の handle が属する filesystem に
 同期と前後の実体確認を行い、kernel 内でキャンセルされた場合も実行を試みた記録と
 取得できた結果を保持します。キャンセルを未実行の証拠とは扱いません。
 
-Windows 側は planned です。正確な一つの WSL 登録・VHDX を照合し、その WSL の
+Windows 側は内部実装済みです。正確な一つの WSL 登録・VHDX を照合し、その WSL の
 終了を越えて処理を継続し、圧縮・実割当量測定・再開を行います。全 WSL の停止や
 drive 全体の処理、隠れた backup、Env 完全復旧の仕組みは追加しません。
 [CompactVirtualDisk](https://learn.microsoft.com/en-us/windows/win32/api/virtdisk/nf-virtdisk-compactvirtualdisk)
@@ -457,7 +457,7 @@ SKIP です。以前の worker 圧縮失敗は失敗のまま保持します。W
 維持します。導入識別の読み取りで選択した WSL を起動する場合はありますが、停止要求、
 disk 圧縮、別 worker の起動は行いません。
 
-確認できるのは現在の終端 `failed` 結果だけです。canonical な version 1 記録全体を
+確認できるのは現在の終端 `failed` 結果だけです。canonical な記録全体を
 同じ private registry key の `ReviewedFailed-<operation GUID>` へ保存し、flush と
 読み戻しを確認してから将来の新規 intent に進めます。確認自体では現在の結果を書き換えず、
 旧操作は `failed` のままです。新しい intent は別 ID を持ち、その後も旧 ID の `_status`
@@ -538,7 +538,7 @@ worker 生存中に他の WSL 操作を差し込んでいません。Linux trim 
 
 ## Linux 段階の controller 接続
 
-状態: **内部接続は実装済み、導入済み環境での実機受入は確認待ち**。
+状態: **内部接続は実装済み、導入済み環境での Linux 実機受入は成功**。
 管理 endpoint 専用の `storage.reclaim-linux` は、正確な canonical 形式の
 registration/installation 識別を受け取ります。pool、file、mountpoint、loop device、
 shell command は受け付けません。controller は既存の root 所有の導入記録を
@@ -563,8 +563,8 @@ report を出力して exit 1 を返します。不正な結果や通信断は�
 composition の狭い target interface は失敗・順序のテストに使い、Incus adapter を
 汎用 storage backend に変えるものではありません。観測型をこの境界で公開しています。
 catalog schema、所有 ledger、backup、lifecycle transition は増やしていません。
-通常の help・日常 CLI は不変です。公開の全層入口と、Windows 側がこの Linux report
-を受け取る処理は未完了です。
+通常の help・日常 CLI は不変です。Windows 側の Linux report 受け取りは下記のとおり
+接続しました。公開の全層入口は未完了です。
 
 固定した Btrfs/ext4 descriptor の `statfs` から前後の容量・使用量を取得します。
 Incus loop file の長さ・割り当て、kernel の discard 報告量とは別項目です。
@@ -577,6 +577,50 @@ filesystem 種別や観測容量の変化は成功扱いしません。
 通常の setup で Incus 所有の Host/pool 利用を確立し、別 installation ID の拒否、
 導入済み client/controller 経由の両 Linux 段階、既存 Host sentinel の保持を確認します。
 正規の日常利用経路の gate は変更せず、WSL 停止や VHDX 圧縮、Workspace/OCI 全体の
-保持までは検証しません。最新 head の結果を確認するまでは実機受入済みとしません。
+保持までは検証しません。`29886ed` の Windows workflow とこの導入済み Linux gate は
+成功し、Incus の Btrfs volume/snapshot 保持 trim step も成功しました。これは各 gate の
+範囲の証拠であり、その後追加した Windows worker との一連の実行の証明ではありません。
 
 既存 Incus-owned Btrfs workflow でも、専用の合成 pool を使う volume/snapshot 保持 trim gate を実行します。file 割り当てと filesystem 集計を検証しますが、runner の外側 filesystem 操作は許可しません。その outer discard は明示的に SKIP とし、専用 WSL gate が担当します。
+
+## Windows worker による Linux 結果の保持
+
+状態: **内部の実行順序は実装済み、一連の実機受入は確認待ち**。
+通常の `_prepare` は version 2 の intent を作ります。独立 worker は保存済み enrollment と
+正確な導入識別を検証し、Linux 実行開始を記録してから、固定した導入済み
+`/usr/local/bin/haco _reclaim-linux` へ対応済み registration/installation ID だけを渡します。
+Windows のコマンド環境は消去します。Linux stdout は4 KiB以下の canonical な型付き report
+に限定し、未知・重複 field、不正な測定値、未対応 protocol は拒否します。
+子プロセスの生出力や認証情報を失敗記録として保存しません。
+
+検証した段階別 report を保存した後で WSL 停止を要求します。結果欠落、失敗終了、中断、
+Linux 段階の失敗時は Windows 停止・圧縮へ進みません。終了確認に失敗しても取得済み report
+は保持します。開始済みで report がない状態は結果不明であり、SKIP や回収量0ではありません。
+開始済み pending 操作の再実行は拒否します。停止直前に導入識別も再読取します。
+Windows disk pin、保存済み enrollment、native 排他、同一 registration の再開を維持します。
+worker の上限は10分、controller 起動待ちを含む Linux 子プロセスの上限は6分です。
+
+記録は既存の最終操作結果であり、自動復旧 journal にはしません。version 1 は元の canonical
+バイト列と disk-only の意味を維持して読み取り・保持し、新規準備だけ version 2 を使います。
+一括移行や catalog 変更は不要です。version 2 の読取には更新した helper を使ってください。
+旧 helper は field を捨てず拒否します。明示的な失敗確認では、どちらの版も正確な操作 ID で
+保持してから新しい試行を許可します。pending の黙った消去・確認済み化・再実行はしません。
+
+Windows の引き継ぎと native 記録は `internal/wslreclaim` が担当します。controller、
+Incus adapter、結果型 package の責務は維持します。内部 helper の引数は不変です。
+Windows helper の固定場所への導入、簡単な公開の一括操作、結果不明の pending を利用者が
+扱う経路は未完了です。日常の `haco` コマンドは増やさず、F1 完了とも扱いません。
+
+既存 Windows CI gate に、配布 helper の準備・一度の起動、同じ Windows worker の終了待ち、
+保存済み Linux/Windows 完了確認、再開後の通常 setup・Host sentinel 確認を追加しました。
+worker 終了までは WSL 呼び出しを差し込まず、失敗・不明記録を保持して自動再試行しません。
+新しい head の結果は確認待ちです。Workspace/OCI 内容全体はこの gate の対象外です。
+native 記録・順序・拒否テストは、停止前の永続化、結果欠落、再実行拒否、旧記録と失敗記録の
+同一バイト列保持を検証します。初回 native 実行は旧「version 2 は未知」の assertion で失敗し、
+その assertion を引き続き未知の version 3 へ更新しました。専用 WSL の opt-in 実機検証は
+これらのローカル native 回帰検証とは区別します。
+
+今回の接続の検証では、Windows native library/helper 回帰と vet、Windows amd64/arm64
+helper build、文書整合、workflow policy、gate 構文確認が成功しました。ローカルの専用 WSL
+opt-in gate は有効化せず、symlink fixture は権限不足で SKIP です。上記の旧 version
+assertion による初回失敗は失敗のまま残し、その後の修正版実行は成功として区別します。

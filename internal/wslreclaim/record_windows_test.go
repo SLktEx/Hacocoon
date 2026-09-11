@@ -148,7 +148,7 @@ func TestNativeOperationRecordSuccessfulReplacementAndMalformedRefusal(t *testin
 		t.Fatal(err)
 	}
 	for _, data := range [][]byte{
-		[]byte(strings.Replace(string(valid), `"Version":1`, `"Version":2`, 1)),
+		[]byte(strings.Replace(string(valid), `"Version":1`, `"Version":3`, 1)),
 		[]byte(strings.Replace(string(valid), `"Version":1`, `"Version":1,"Version":1`, 1)),
 		[]byte(strings.Replace(string(valid), `"Version":1`, `"Version":1,"Future":true`, 1)),
 		make([]byte, 16385),

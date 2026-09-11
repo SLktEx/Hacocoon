@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/reclamation"
+
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -40,7 +42,7 @@ func PrepareWorker(ctx context.Context, registrationID string) (PreparedStatus, 
 	if err != nil {
 		return PreparedStatus{}, err
 	}
-	intent, err := r.prepareContinuation(ctx)
+	intent, err := r.prepareContinuationVersion(ctx, 2)
 	if err != nil {
 		return PreparedStatus{}, err
 	}
@@ -146,9 +148,11 @@ func ExecutePreparedWorker(ctx context.Context, registrationID, operationID stri
 // PreparedStatus is a read-only projection of the last persisted result. Pending
 // means the outcome is unknown, not that no native operation was attempted.
 type PreparedStatus struct {
-	Operation   string                   `json:"operation"`
-	State       string                   `json:"state"`
-	Observation *continuationObservation `json:"observation,omitempty"`
+	LinuxStarted bool                     `json:"linux_started,omitempty"`
+	Linux        *reclamation.LinuxReport `json:"linux,omitempty"`
+	Operation    string                   `json:"operation"`
+	State        string                   `json:"state"`
+	Observation  *continuationObservation `json:"observation,omitempty"`
 }
 
 func ReadPreparedStatus(ctx context.Context, registrationID, operationID string) (PreparedStatus, error) {
@@ -200,7 +204,7 @@ func readPreparedStatus(ctx context.Context, r, o windows.GUID) (PreparedStatus,
 	if (o != (windows.GUID{}) && record.Operation != o) || record.Registration.ID != r {
 		return PreparedStatus{}, errors.New("saved result belongs to another operation or registration")
 	}
-	status := PreparedStatus{Operation: record.Operation.String(), State: record.State}
+	status := PreparedStatus{Operation: record.Operation.String(), State: record.State, LinuxStarted: record.LinuxStarted, Linux: record.Linux}
 	if record.State != "pending" {
 		status.Observation = &record.Observation
 	}

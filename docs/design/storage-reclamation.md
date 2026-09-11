@@ -45,7 +45,7 @@ fixture uses a temporary instance and retains the shared image/pool.
 
 ## Windows continuation
 
-Planned: a Windows-side continuation must outlive termination of the exact managed
+Implemented internally: a Windows-side continuation must outlive termination of the exact managed
 WSL distribution, compact its verified VHDX, report actual Windows allocation and
 resume the required entry. Do not terminate every WSL distribution or compact a
 whole Windows drive. Preserve step results after failure rather than claiming the
@@ -572,7 +572,7 @@ apply. Review may start the selected distribution to read its installation ident
 it does not request shutdown, compact a disk or launch another worker.
 
 Only the current terminal `failed` result can be reviewed. The complete canonical
-version-1 record is copied to `ReviewedFailed-<operation GUID>` in the same private
+record is copied to `ReviewedFailed-<operation GUID>` in the same private
 registry key, flushed and read back before a future intent may replace it. The
 current result is unchanged by review, and the old operation remains `failed`.
 A new intent has a new ID; `_status` can still read the preserved failure by its
@@ -661,7 +661,7 @@ trim integration and full current-application/OCI acceptance.
 
 ## Controller connection for Linux stages
 
-Status: **implemented internal connection; native installed acceptance pending**.
+Status: **implemented internal connection; native installed Linux acceptance passed**.
 The management-only `storage.reclaim-linux` request carries the exact canonical
 registration/installation identity. It accepts no pool, file, mountpoint, loop
 device or shell command. The controller checks the existing root-owned installer
@@ -688,8 +688,8 @@ The composition's narrow target interface permits failure/order tests without
 turning the Incus adapter into a generic storage backend. Its observation types
 are exported at that adapter boundary. No new catalog schema, ownership ledger,
 backup or lifecycle transition is introduced. The regular help/daily CLI is
-unchanged; the public all-layer entry and Windows-side consumption of this Linux
-report remain unfinished.
+unchanged. Windows-side consumption is connected below; the public all-layer
+entry remains unfinished.
 
 Both pinned Btrfs and ext4 descriptors provide `statfs` capacity/use before/after;
 the Incus loop file separately provides file length and allocated bytes. Kernel
@@ -704,6 +704,58 @@ gate: ordinary setup establishes Incus-owned Host/pool use, a foreign installati
 ID is refused, the installed client/controller performs both Linux stages, and
 the existing installer Host sentinel remains. This does not alter the exact
 daily-user-path gate, stop WSL, compact a VHDX or prove all Workspace/OCI data.
-Its latest-head result must be observed before claiming native acceptance.
+At `29886ed`, the Windows workflow and this installed Linux gate passed. The
+Incus Btrfs volume/snapshot trim step also passed. This proves those scoped checks,
+not the subsequently added combined Windows worker.
 
 The existing Incus-owned Btrfs workflow also runs the retained-volume/snapshot trim gate against its own synthetic pool. It validates file allocation and filesystem accounting without authorizing the runner's outer filesystem; outer discard is explicitly SKIP there and belongs to the dedicated WSL gate.
+
+## Linux results in the Windows worker
+
+Status: **implemented internal sequence; combined native acceptance pending**.
+Normal `_prepare` now writes a version-2 intent. The detached worker validates
+saved enrollment and the exact installation, records that Linux execution started,
+then invokes the fixed installed `/usr/local/bin/haco _reclaim-linux` entry with
+only the bound registration/installation IDs. The Windows command environment is
+cleared. Linux stdout is bounded to 4 KiB and must match the canonical typed report;
+unknown fields, duplicate fields, malformed metrics and unsupported protocols are
+refused. Raw child output and credentials are never saved as failure evidence.
+
+The worker stores the validated per-stage report before requesting WSL shutdown.
+A missing result, failed exit, cancellation or failed Linux stage prevents Windows
+stop/compaction. An available report is retained even if process completion fails.
+A started operation without a report means unknown outcome, not skipped or zero
+reclamation. Re-execution of a started pending operation is refused. Before stop,
+the installed identity is read again. Windows disk pins, saved enrollment, native
+exclusion and same-registration resume are unchanged. The worker has a ten-minute
+bound; its Linux subprocess has a six-minute bound covering controller startup.
+
+The record remains the existing last-operation result, not an automatic recovery
+journal. Version 1 is read and retained with its original canonical bytes and
+keeps its disk-only meaning; new preparation uses version 2. No bulk migration or
+catalog change is required. Use the updated helper to read version 2: an older
+helper refuses it instead of dropping fields. Explicit failed-result review retains
+either version by its exact operation ID before permitting a new attempt. No
+pending result is silently cleared, acknowledged or replayed.
+
+`internal/wslreclaim` owns this Windows handoff and native record. The controller,
+Incus adapter and result-type package keep their existing responsibilities. The
+internal helper arguments remain unchanged. Stable installation of the Windows
+helper, a simple public one-entry action and interrupted-pending operator handling
+remain unfinished; this does not introduce a daily `haco` command or claim F1 done.
+
+The existing Windows CI gate now additionally invokes packaged prepare/one launch,
+waits for the same Windows worker process to exit without issuing WSL calls, checks
+the persisted Linux/Windows completion and verifies ordinary setup and the Host
+sentinel after resume. It retains failure/unknown records and never auto-retries.
+Its new-head result is pending. Whole Workspace/OCI contents are outside this gate.
+Native record/order/refusal tests cover durable-before-stop, lost results, no replay
+and verbatim legacy/failed-result retention. The first native run failed the old
+unknown-version-2 assertion; that assertion now uses the still-unknown version 3.
+Dedicated WSL opt-in tests remain separate from these local native regressions.
+
+Validation for this connection: Windows native library/helper regressions and vet
+passed, as did Windows amd64/arm64 helper builds, documentation consistency,
+workflow policy and gate syntax checks. Local dedicated-WSL opt-in gates were not
+enabled; the symlink fixture skipped for privilege. The initial obsolete-version
+assertion failure above remains a failed run, followed by the corrected passing run.

@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/reclamation"
+
 	"golang.org/x/sys/windows"
 )
 
@@ -46,14 +48,19 @@ func (r registration) runWSL(ctx context.Context, operation wslOperation) error 
 }
 
 func (r registration) runWSLTo(ctx context.Context, operation wslOperation, output io.Writer) error {
+	args, err := r.wslArguments(operation)
+	if err != nil {
+		return err
+	}
+	return r.runWSLArguments(ctx, args, output)
+}
+
+// Only fixed operation builders in this package supply arguments.
+func (r registration) runWSLArguments(ctx context.Context, args []string, output io.Writer) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if err := r.revalidate(); err != nil {
-		return err
-	}
-	args, err := r.wslArguments(operation)
-	if err != nil {
 		return err
 	}
 	system, err := windows.GetSystemDirectory()
@@ -74,7 +81,7 @@ func (r registration) runWSLTo(ctx context.Context, operation wslOperation, outp
 	command.Stderr = io.Discard
 	command.WaitDelay = 5 * time.Second
 	if err := command.Run(); err != nil {
-		return fmt.Errorf("managed WSL operation %d: %w", operation, err)
+		return fmt.Errorf("managed WSL operation: %w", err)
 	}
 	return r.revalidate()
 }
@@ -140,10 +147,14 @@ func (r registration) withReclamationTarget(ctx context.Context, visit func(*ope
 
 // prepareContinuation records one exact future execution before launching its
 // Windows worker. A crash leaves the same pending record for explicit review.
-func (r registration) prepareContinuation(ctx context.Context) (intent operationRecord, err error) {
+func (r registration) prepareContinuation(ctx context.Context) (operationRecord, error) {
+	return r.prepareContinuationVersion(ctx, 1)
+}
+
+func (r registration) prepareContinuationVersion(ctx context.Context, version int) (intent operationRecord, err error) {
 	err = r.withReclamationTarget(ctx, func(records *operationStore, pin *pinnedDisk, _ installationObservation) error {
 		var beginErr error
-		intent, beginErr = records.begin(r, pin.identity)
+		intent, beginErr = records.beginVersion(r, pin.identity, version)
 		return beginErr
 	})
 	return
@@ -190,30 +201,45 @@ func (r registration) reclaimWithResume(ctx context.Context) (result continuatio
 }
 
 func (r registration) executeRecorded(ctx context.Context, records *operationStore, pin *pinnedDisk, target installationObservation, intent operationRecord) (result continuationObservation, err error) {
-	defer func() { err = errors.Join(err, records.finish(intent, result, err)) }()
-	return executeContinuation(ctx,
-		func(ctx context.Context) error {
-			if err := records.requireBinding(target); err != nil {
+	return executeRecordedStages(ctx, records, intent, func(ctx context.Context) (*reclamation.LinuxReport, error) {
+		if err := records.requireBinding(target); err != nil {
+			return nil, err
+		}
+		return r.reclaimLinux(ctx, target.Installation)
+	}, func(ctx context.Context) (continuationObservation, error) {
+		return executeContinuation(ctx,
+			func(ctx context.Context) error {
+				if err := records.requireBinding(target); err != nil {
+					return err
+				}
+				// Linux discard may take minutes. Recheck the installed identity before
+				// poweroff rather than trusting the earlier observation indefinitely.
+				identity, err := r.readInstallation(ctx)
+				if err != nil {
+					return err
+				}
+				if identity != target.Installation {
+					return errors.New("managed installation changed before WSL stop")
+				}
+				return r.runWSL(ctx, wslStop)
+			},
+			func(ctx context.Context) (compactObservation, error) {
+				if err := records.requireBinding(target); err != nil {
+					return compactObservation{}, err
+				}
+				if err := r.revalidate(); err != nil {
+					return compactObservation{}, err
+				}
+				return pin.compact(ctx)
+			},
+			func(ctx context.Context) error {
+				if err := r.runWSL(ctx, wslResume); err != nil {
+					return err
+				}
+				_, err := pin.Allocation()
 				return err
-			}
-			return r.runWSL(ctx, wslStop)
-		},
-		func(ctx context.Context) (compactObservation, error) {
-			if err := records.requireBinding(target); err != nil {
-				return compactObservation{}, err
-			}
-			if err := r.revalidate(); err != nil {
-				return compactObservation{}, err
-			}
-			return pin.compact(ctx)
-		},
-		func(ctx context.Context) error {
-			if err := r.runWSL(ctx, wslResume); err != nil {
-				return err
-			}
-			_, err := pin.Allocation()
-			return err
-		})
+			})
+	})
 }
 
 // Only the native binding above supplies these actions in production. This small

@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/SLktEx/Hacocoon/internal/reclamation"
+
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	"os"
@@ -152,6 +154,27 @@ func TestPreparedStatusIsReadOnlyAndPendingIsUnknown(t *testing.T) {
 		if _, err := ReadLatestPreparedStatus(context.Background(), invalid); err == nil {
 			t.Fatal("invalid latest registration accepted")
 		}
+	}
+	// The new report is available through the same read-only status route,
+	// including an attempted operation whose result was lost.
+	v2 := record
+	v2.Version, v2.State, v2.LinuxStarted = 2, "failed", true
+	failed := reclamation.NotStarted("identity_changed")
+	v2.Linux = &failed
+	if err := store.write(v2); err != nil {
+		t.Fatal(err)
+	}
+	status, err = ReadLatestPreparedStatus(context.Background(), id.String())
+	if err != nil || !status.LinuxStarted || status.Linux == nil || status.Linux.Failure != "identity_changed" {
+		t.Fatal("Linux evidence missing from status", status, err)
+	}
+	v2.Linux = nil
+	if err := store.write(v2); err != nil {
+		t.Fatal(err)
+	}
+	status, err = ReadLatestPreparedStatus(context.Background(), id.String())
+	if err != nil || !status.LinuxStarted || status.Linux != nil || status.State != "failed" {
+		t.Fatal("lost Linux result claimed success", status, err)
 	}
 	// A current record is not permission to follow another registration or to
 	// ignore malformed state in favor of historical evidence.

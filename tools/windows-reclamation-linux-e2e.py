@@ -2,12 +2,16 @@
 """Installed Linux stages on the existing dedicated Windows/WSL acceptance runner.
 
 This is an internal integration gate, separate from the exact daily user-path
-gate. It never stops WSL, compacts a VHD or independently mounts/deletes storage.
+gate. The optional worker check stops/compacts/resumes only the enrolled runner
+WSL. It never independently mounts or deletes storage.
 """
 import json
 import os
 import subprocess
 import uuid
+import sys
+import re
+from pathlib import Path
 
 def registration():
     import winreg
@@ -24,7 +28,53 @@ def registration():
     assert len(found) == 1, "exact dedicated WSL registration required"
     return found[0]
 
+def worker_cycle(reg):
+    import ctypes
+    from ctypes import wintypes
+    helper = Path(os.environ["RUNNER_TEMP"]) / "hacocoon-windows-amd64" / "haco-wsl.exe"
+    assert helper.is_file(), "packaged enrolled Windows helper missing"
+    def invoke(*args):
+        p = subprocess.run([str(helper), *args], capture_output=True, text=True,
+                           encoding="utf-8", timeout=210)
+        assert p.returncode == 0, f"Windows helper {args[0]} failed with exit {p.returncode}; retain its operation"
+        assert len(p.stdout) <= 16384, "unbounded Windows helper output"
+        return p.stdout
+    intent = json.loads(invoke("_prepare", reg))
+    assert intent["state"] == "pending"
+    operation = "{" + str(uuid.UUID(intent["operation"])) + "}"
+    # Launch exactly once. A startup timeout/failure never means no worker exists.
+    dispatched = invoke("_launch", reg, operation)
+    match = re.fullmatch(r"Dispatched Windows worker ([1-9][0-9]*); inspect the prepared operation for completion\.\s*", dispatched)
+    assert match, "unrecognized worker dispatch; inspect retained operation"
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    kernel.OpenProcess.restype = wintypes.HANDLE
+    kernel.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+    kernel.WaitForSingleObject.restype = wintypes.DWORD
+    kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel.CloseHandle.restype = wintypes.BOOL
+    handle = kernel.OpenProcess(0x00100000, False, int(match[1]))  # SYNCHRONIZE only
+    if handle:
+        try:
+            assert kernel.WaitForSingleObject(handle, 660000) == 0, "worker not terminal; retain pending evidence, do not restart WSL"
+        finally:
+            kernel.CloseHandle(handle)
+    else:
+        assert ctypes.get_last_error() == 87, "worker state unavailable; do not restart WSL"
+    # No WSL query is issued until the Windows worker has exited.
+    result = json.loads(invoke("_status", reg, operation))
+    assert result["state"] == "complete", f"worker terminal state {result['state']}; retain recorded failure"
+    assert result.get("linux_started") and not result["linux"].get("failure")
+    assert all(result["linux"][k]["status"] == "complete" for k in ("incus_btrfs_loop", "wsl_ext4"))
+    windows = result["observation"]
+    assert all(windows[k] for k in ("StopAttempted", "StopRequested", "ResumeAttempted", "Resumed"))
+    compact = windows["Compaction"]
+    assert compact["Attempted"] and compact["Completed"] and compact["Virtual"]["Capacity"] > 0
+    print(json.dumps({"worker_stages": "PASS", "observations": result}))
+
+
 def main():
+    assert sys.argv[1:] in ([], ["--with-worker"]), "unknown test arguments"
     assert os.name == "nt", "requires the installed Windows/WSL gate"
     reg = registration()
     def run(*args, expected=0):
@@ -60,7 +110,15 @@ def main():
     run("incus", "exec", "haco-host", "--project", "hacocoon", "--", "sh", "-ec", marker)
     print(json.dumps({"linux_stages": "PASS", "foreign_identity": "refused",
                       "host_sentinel": "retained", "observations": report}))
-    print("Windows VHDX compaction and whole persistent-data acceptance: not exercised by this gate")
+    if sys.argv[1:] == ["--with-worker"]:
+        worker_cycle(reg)
+        # Worker resume proves exact WSL startup; ordinary setup proves Host readiness.
+        run("haco", "setup")
+        run("incus", "exec", "haco-host", "--project", "hacocoon", "--", "sh", "-ec", marker)
+        print("Worker Host sentinel and ordinary setup after resume: PASS")
+    else:
+        print("Windows VHDX compaction: not exercised by this gate")
+    print("Whole Workspace/OCI persistent-data acceptance: not exercised by this gate")
 
 if __name__ == "__main__":
     main()

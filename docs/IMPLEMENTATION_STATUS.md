@@ -2,45 +2,25 @@
 
 ## Storage reclamation
 
-Status: **partial, internal only**. Incus owns the configured Btrfs pool and mount
-lifecycle. Internal reclamation pins native identities and performs Btrfs/outer
-ext4 discard, then Windows VHDX compaction with exact-GUID stop/resume. Logical
-capacity is preserved; objects and saved data are not deleted.
+Status: **partial, internal only**. Incus owns the configured Btrfs pool/mount.
+The controller performs pinned Btrfs/outer ext4 discard; the Windows worker now
+consumes its bounded typed report before exact-GUID stop/VHDX compaction/resume.
+Linux failure or unknown completion prevents shutdown. Saved enrollment, native
+pins, exclusion, data/capacity protection and explicit failed-result retention remain.
 
-Normal managed Windows installation now verifies its bundled helper and persists
-the registration, installed Host, Windows user and VHDX correspondence. Mutation
-requires that saved binding. Preparation flushes the existing pending operation;
-execution accepts only its exact ID after reacquiring exclusion and revalidating
-the target. Both synchronous and prepared paths use one execution sequence.
-Unknown, foreign, failed or completed handoffs are refused without rewriting.
-No schema migration, public reclaim/resume command or automatic replay is added.
+New preparations use operation record version 2. Existing version-1 records keep
+their canonical bytes and disk-only meaning; no catalog/bulk migration is needed.
+Started pending operations cannot replay Linux work. The public one-entry command,
+stable Windows helper installation and interrupted-pending handling are unfinished.
 
-Native Linux discard and Windows compaction/enrollment/refusal tests passed.
-Prepared execution passed in 165.68s, reclaiming 1MiB at unchanged 1TiB virtual
-capacity; its exact saved operation/result, sentinel, inventory and enrollment
-were verified. A read-only prototype proved child survival after caller exit,
-but not after WSL shutdown. At `ee5e017`, all four GHA workflows passed, including
-packaged Windows installation/reinstallation and later E2E. The newer readiness
-change still requires its own CI evaluation.
+At `29886ed`, installed Windows Linux-stage acceptance and the Incus Btrfs
+volume/snapshot trim step passed. Prior dedicated Windows workers reclaimed 895 MiB
+and 33 MiB with unchanged capacity, but did not include Linux stages. The newly
+combined worker requires its own native CI acceptance. Earlier Job/open failures
+and the historical installed-build OCI-directory failure remain failures; scoped
+later successes do not establish whole persistent-data acceptance. See the
+[owning contract](design/storage-reclamation.md). F1 is not complete.
 
-An internal detached-worker launch and read-only exact-operation status now exist.
-Launch waits for a bounded private readiness frame before reporting success; native
-pipe tests and real absent-registration startup refusal passed. Timeout preserves
-the pending record and does not prove whether native work began.
-Command/library tests and both Windows builds passed. Native worker acceptance
-FAILED on its Job-membership refusal; the exact pending record is retained and
-status reads preserve its bytes. The blanket Job refusal is now removed; explicit breakaway, console separation
-and exact registration/operation checks remain. An outer Job may terminate the
-worker; pending still means unknown. Native worker execution reached shutdown and resume, but failed before compaction
-when native disk opening exhausted its bounded wait (320 attempts). The exact
-operation is retained as failed; no retry or record replacement was performed. Worker execution,
-interrupted-record review and public all-layer flow remain
-incomplete. Full controller, power-loss and all
-Workspace/OCI-content acceptance are unverified. Windows symlink fixture was SKIP
-for privilege; private-registry acceptance was gated SKIP. Earlier sharing,
-readiness, missing-legacy-file and CI failures remain documented with their exact
-scope in the [owning contract](design/storage-reclamation.md). Passing later runs
-does not retroactively mark those attempts successful. F1 is not complete.
 
 ## Ubuntu bridge DNS dependency
 
@@ -1921,5 +1901,6 @@ F1 connects the configured Incus Btrfs/outer ext4 stages to a management-only
 controller RPC and fixed internal client bridge. Exact installed WSL identity,
 stage failure/cleanup evidence and distinct filesystem/file-allocation metrics
 are preserved. The Windows native workflow includes an installed integration gate;
-its new-head result and public all-layer connection remain pending. See
+its Linux-only gate passed at `29886ed`; combined-worker acceptance and public
+activation remain pending. See
 [Linux controller connection](design/storage-reclamation.md#controller-connection-for-linux-stages).

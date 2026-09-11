@@ -214,7 +214,7 @@ exact ownership and native saved children remain protected. Individual images in
 attached Stores are partial through the current runtime-backed OCI plugin; see
 [image operations](../design/oci-image-deletion.md). Host-source image operations extend this same partial checkpoint through the existing
 Host-copy/ownership boundary. Detached-Store image routing is partial; automatic compatible tooling is implemented on Linux amd64; native delivery and bare controller/CLI acceptance passed at bd1c9a5. Full installed-controller acceptance remains pending. Reviewed unused-image candidate deletion passed native controller/CLI acceptance at 9484d06. Broader candidate GC, F
-reclamation/operability and G export/migration remain planned. Internal F1 trim/compaction and installer enrollment are partial; see the [reclamation contract](../design/storage-reclamation.md). These remaining stages preserve data and permissions while using
+reclamation/operability and G export/migration remain planned. Internal F1 now connects controller Linux discard to the enrolled Windows worker, preserving per-stage evidence and refusing shutdown after Linux failure. Public one-entry activation and combined native acceptance remain partial; see the [reclamation contract](../design/storage-reclamation.md). These remaining stages preserve data and permissions while using
 Incus capabilities; they do not require full disposable-Env reconstruction.
 
 G1 remains partial overall. Linux export/import and the installed controller path,

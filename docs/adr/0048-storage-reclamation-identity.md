@@ -67,8 +67,8 @@ durable recovery record. This adds no storage lifecycle or Core interface.
 Persist the last operation's exact registration/file identity and stage observations
 outside WSL before requesting shutdown. Refuse pending/failed or unrecognized
 records, without automatic replay, rollback or deletion. A completed record can
-be superseded only for the same target. Registry flush is used at the two durable
-boundaries; it is not a progress store. This record does not grant installation
+be superseded only for the same target. Registry flush is used at intent, Linux handoff/result and terminal-result
+boundaries; it is not a general progress store. This record does not grant installation
 authority and requires explicit interrupted-state handling before public use.
 
 Preserve the legacy name-only interop record and capture a separate root-owned
@@ -136,3 +136,13 @@ failure, rather than creating another recovery journal. The fixed internal clien
 bridge returns nonzero for failed reports and never retries mutations. Filesystem
 statfs accounting, Incus backing-file allocation and Windows VHD allocation remain
 distinct measurements. Guest Git/notification endpoints must not register this API.
+
+The Windows worker now consumes the Linux report under the same enrolled-target
+exclusion. Version-2 intents record Linux-started before the subprocess and its
+bounded typed result before Windows shutdown. Missing/failed/unconfirmed Linux
+completion prevents shutdown; a started pending record cannot replay that call.
+Recheck installation identity before stop. Keep version-1 bytes and disk-only
+meaning intact, including reviewed failures; reject unknown schemas rather than
+discarding data. New preparation uses version 2 with no bulk migration. These
+observations preserve operation evidence across WSL shutdown; they do not grant
+authority or promise automatic resumption. Public activation remains separate.

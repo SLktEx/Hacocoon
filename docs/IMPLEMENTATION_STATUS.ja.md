@@ -2,30 +2,24 @@
 
 ## ストレージ容量回収
 
-状態: **partial、内部のみ**。Incus が設定済み Btrfs pool と mount の寿命を管理します。
-内部の回収処理は native 識別情報を固定し、Btrfs・外側 ext4 の discard と、正確な GUID による
-停止・再開を伴う Windows VHDX 圧縮を行います。論理容量を保持し、オブジェクトや保存データを削除しません。
+状態: **partial、内部のみ**。Incus が設定済み Btrfs pool/mount を管理します。
+controller が固定した対象に Btrfs・外側 ext4 の discard を行い、Windows worker が
+上限付きの型付き report を受け取ってから、正確な GUID の停止・VHDX 圧縮・再開へ進みます。
+Linux の失敗・完了不明時は停止しません。保存済み enrollment、native pin、排他、
+データ・容量の保護、明示的な失敗記録保持を維持します。
 
-通常の管理対象 Windows installer は同梱 helper を検証し、登録・導入済み Host・Windows 所有者・
-VHDX の対応を保存します。変更操作は保存済み対応を要求します。準備時に既存 pending 操作を永続化し、
-実行時は排他を取り直して対象を再照合し、その正確な操作 ID だけを受け付けます。同期・準備済み経路は
-同じ実行処理を使います。不正・別対象・失敗済み・完了済みの引き継ぎは書き換えず拒否します。
-schema 移行・公開 reclaim/resume コマンド・自動再実行は追加していません。
+新規準備は操作記録 version 2 を使います。既存 version 1 は canonical バイト列と
+Windows disk-only の意味を保持し、catalog・一括移行は不要です。開始済み pending から
+Linux 操作を再実行しません。公開の一括コマンド、Windows helper の固定場所への導入、
+結果不明 pending の利用者向け操作は未完了です。
 
-Linux native discard と Windows 圧縮・登録・拒否検証は成功しました。準備済み実行は165.68秒で成功し、
-仮想容量1TiBを保持して1MiBを回収しました。正確な保存操作と結果、確認ファイル・一覧・登録情報を照合しました。
-読み取り prototype は呼び出し元終了後の子の生存を確認しましたが、WSL 停止後の生存は未検証です。
-`ee5e017` は GHA 4 workflow が成功し、配布 Windows 導入・再導入と後続 E2E も成功しました。
-それより新しい準備通知の変更の CI は別途確認が必要です。
+`29886ed` の導入済み Windows Linux 段階 gate と Incus Btrfs volume/snapshot 保持 trim step
+は成功しました。以前の専用 Windows worker は容量を維持して895 MiB、33 MiBを回収しましたが、
+Linux 段階を含みません。今回接続した worker には別途 native CI 受入が必要です。
+以前の Job/open 失敗や歴史的な導入 build の OCI directory 検証失敗は失敗のままです。
+後の限定的な成功を永続データ全体の受入としません。[所有文書](design/storage-reclamation.ja.md)
+を参照してください。F1 は未完了です。
 
-内部の独立 worker 起動と正確な操作の読み取り status を追加し、command/library テストと Windows 両ビルドは成功しました。
-native worker 検証は Job 所属の拒否で失敗し、正確な pending 記録を保持しています。status は記録を変更しません。
-起動は専用 pipe の準備通知を期限付きで待ちます。native pipe と実 helper の起動拒否検証は成功しました。
-タイムアウトでも pending 記録を保持し、native 操作の未実行を断定しません。Job 所属の一律拒否を解除し、明示的な breakaway・console 分離・登録／操作照合を維持しました。外側 Job による終了時も pending は不明を意味します。変更後は停止要求・再開に成功しましたが、native disk open の待機上限（320回）で圧縮前に失敗しました。正確な操作記録を failed として保持し、再試行・記録の置き換え・他 distro の停止は行っていません。worker 実行、中断記録の確認、公開の全層一括操作は未完了です。controller・電源断・
-Workspace/OCI 内容全体の検証は未完了です。Windows symlink fixture は権限不足、private registry は gate により
-SKIP でした。以前の共有違反・readiness・旧ファイル欠落・CI の失敗は、対象範囲とともに
-[所有文書](design/storage-reclamation.ja.md)へ記録しています。後の成功で以前の失敗を成功扱いにしません。
-F1 は未完了です。
 
 ## Ubuntu bridge の DNS 依存
 
@@ -1637,6 +1631,6 @@ pending を保持します。helper 準備からの実機操作も33 MiB 回収�
 
 F1 の設定済み Incus Btrfs・外側 ext4 段階を、管理専用 controller RPC と固定内部 client
 に接続しました。導入 WSL 識別、段階別の失敗・後片付け結果、filesystem と file 割り当ての
-区別を維持します。Windows workflow に導入済み環境の gate を追加しましたが、
-新 head の実機結果と公開全層接続は確認待ちです。
+区別を維持します。Windows workflow の導入済み Linux gate は `29886ed` で成功しました。
+worker との一連の実機受入と公開全層操作は確認待ちです。
 [Linux controller 接続](design/storage-reclamation.ja.md#linux-段階の-controller-接続)を参照してください。

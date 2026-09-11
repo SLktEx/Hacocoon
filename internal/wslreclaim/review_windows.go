@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"syscall"
 
 	"golang.org/x/sys/windows"
@@ -14,7 +15,7 @@ import (
 
 func failedReviewName(id windows.GUID) string { return "ReviewedFailed-" + id.String() }
 
-// The original version-1 result is retained verbatim, not rewritten as success.
+// The original canonical result is retained verbatim, not rewritten as success.
 // This is an explicit acknowledgement of a terminal failure, never crash replay.
 func (s *operationStore) reviewFailed(id windows.GUID, r registration, disk diskIdentity) error {
 	current, err := s.read()
@@ -27,7 +28,7 @@ func (s *operationStore) reviewFailed(id windows.GUID, r registration, disk disk
 	name := failedReviewName(id)
 	prior, err := s.readValue(name)
 	if err == nil {
-		if prior != current {
+		if !reflect.DeepEqual(prior, current) {
 			return errors.New("existing failed evidence differs; retain both records")
 		}
 	} else if errors.Is(err, registry.ErrNotExist) {
@@ -47,11 +48,11 @@ func (s *operationStore) reviewFailed(id windows.GUID, r registration, disk disk
 		return syscall.Errno(status)
 	}
 	saved, err := s.readValue(name)
-	if err != nil || saved != current {
+	if err != nil || !reflect.DeepEqual(saved, current) {
 		return errors.New("failed evidence persistence unconfirmed")
 	}
 	latest, err := s.read()
-	if err != nil || latest != current {
+	if err != nil || !reflect.DeepEqual(latest, current) {
 		return errors.New("operation changed during review")
 	}
 	return nil

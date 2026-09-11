@@ -121,7 +121,7 @@ func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, acti
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	code := dispatch(ctx, os.Args[1:], os.Stdout, os.Stderr, helperActions{prepare: wslreclaim.PrepareWorker, latest: wslreclaim.ReadLatestPreparedStatus, review: wslreclaim.ReviewFailedOperation, enroll: wslreclaim.EnrollInstallation, launch: wslreclaim.LaunchPreparedWorker, worker: wslreclaim.ExecutePreparedWorker, status: wslreclaim.ReadPreparedStatus})
 	cancel()
