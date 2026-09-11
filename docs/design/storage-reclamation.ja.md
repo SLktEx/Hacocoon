@@ -526,3 +526,12 @@ pending または未確認の失敗があれば、新しい intent は引き続�
 Windows の準備境界でテスト用 binary を使う必要がなくなります。公開の全層入口では
 なく、controller の権限、Linux 段階との接続、通常利用者への結果表示は未接続です。
 既存の実機 handoff gate もこの準備 API を呼びます。
+
+導入用 helper API からの実機確認は成功しました。prepare が一つの pending ID を返し、
+その ID の一度の起動で停止・圧縮・同一登録の再開が完了しました。worker の終了と
+保存結果 complete を確認しています。open は95回目で成功し、ファイル長・割り当ては
+9899606016 bytes から9865003008 bytes へ **33 MiB** 減少しました。仮想容量は1 TiB
+のままです。既知 bundle の hash と保持済み Workspace の両ファイルは一致し、
+通常の controller 起動・一覧取得も成功しました。準備にテスト binary は使わず、
+worker 生存中に他の WSL 操作を差し込んでいません。Linux trim との統合や
+現行アプリ一式・OCI の受入は依然としてこの確認に含みません。

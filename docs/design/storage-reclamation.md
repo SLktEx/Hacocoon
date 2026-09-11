@@ -648,3 +648,13 @@ This removes the need for a test binary at the Windows preparation boundary.
 It is not the public all-layer entry: controller authority, Linux stage handoff
 and ordinary-user result presentation remain to be connected. The native handoff
 gate now calls this same preparation API.
+
+Native follow-up through the packaged helper API passed: prepare returned one
+pending ID, a single exact-ID launch completed stop/compact/same-registration
+resume, and the worker process was absent with a complete saved result. Open
+succeeded on attempt 95; file length/allocation fell from 9899606016 to
+9865003008 bytes (**33 MiB**), with 1 TiB virtual capacity unchanged. The known
+bundle hash and both retained Workspace files matched, and normal controller
+startup/listing passed. No test binary prepared this operation, and no other WSL
+operation was injected while the worker was live. This still excludes Linux
+trim integration and full current-application/OCI acceptance.
