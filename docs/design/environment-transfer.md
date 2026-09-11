@@ -1117,6 +1117,40 @@ retain the independently accessible identity before any storage replacement;
 verify complete decryption before restoration. Never infer key recoverability
 from ciphertext presence alone.
 
+## Direct evacuation of saved rootfs files
+
+Status: **partial G2**. The opt-in `TestRealIncusSavedRootfsEvacuationE2E`
+uses the existing saved-rootfs adapter to make an independent stopped Incus copy
+in a new Btrfs pool. It deletes the original instance, reads the saved rootfs
+with GNU tar, and extracts only its own archive into a fresh empty instance.
+Capture does not publish/export an image or create/delete a snapshot, and no
+Base or cached image participates. The saved object remains unchanged when the
+destination is edited; the destination has a fresh generation and no copied
+source configuration. Exact-owner cleanup and retained archive/ledger are checked.
+
+This is a synthetic, stopped-rootfs data test, not an arbitrary archive importer,
+a bootable Env restore, a rootfs deletion-failure test or whole-installation
+coverage. It does not transfer Workspace/OCI associations or trusted credentials.
+The existing readable volume/deletion-failure gates remain separate. Native
+execution and latest-head CI results must be recorded before claiming acceptance.
+
+Dedicated Ubuntu 26.04 WSL / Incus 6.0.5 / Btrfs acceptance passed in 9.37s.
+The saved-only rootfs archive and ownership plan remain at
+`/var/lib/haco-saved-rootfs-evacuation-476527331`; archive SHA-256 is
+`ab82a108262f499b89576c218bec974df10e31a56267d25bef7ccefbb2536e7f`.
+All three owned instances and the pool were absent after cleanup. The source
+was a newly created empty instance with one synthetic file; no actual credential
+or application data was selected. Native startup, arbitrary archives and
+whole-installation restoration remain unverified. Package regressions passed in
+19.82s; documentation consistency and 25 workflow-policy cases passed.
+
+A separate transfer of that exact synthetic archive to Windows passed: 10240 bytes
+and the same SHA-256. Archive and receipt remain at
+`%TEMP%/haco-saved-rootfs-output-<fixture-id>`.
+The archive contains only its root directory and synthetic `root/retained` file.
+This proves external delivery of that saved-rootfs fixture, not full installation
+backup or a new-WSL managed restore.
+
 ## Managed bundle restoration in a separate WSL
 
 Status: **partial G3**, with native acceptance for one managed Environment bundle.
