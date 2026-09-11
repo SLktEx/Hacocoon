@@ -1150,3 +1150,60 @@ and the same SHA-256. Archive and receipt remain at
 The archive contains only its root directory and synthetic `root/retained` file.
 This proves external delivery of that saved-rootfs fixture, not full installation
 backup or a new-WSL managed restore.
+
+## Managed bundle restoration in a separate WSL
+
+Status: **partial G3**, with native acceptance for one managed Environment bundle.
+The retained synthetic aggregate bundle was copied from its original WSL to a
+private Windows directory, verified component by component, and delivered to the
+separate Ubuntu 26.04 WSL used for fresh-installation acceptance. The installed
+local controller candidate at 61a26e3, Incus 6.0.5 and Btrfs imported it through
+ordinary `haco env import` in 171.27s. No source catalog, Incus database, Base
+filesystem, approval or Host credential was adopted.
+
+The 550415872-byte bundle has SHA-256
+`0aaaf7ab43e183f4bc489b7c8f3b6da9c1d24ff7063e4501b0051ed6d0a47fba`.
+It contains rootfs, two Git Workspaces and one synthetic OCI Store. All 94 volume
+entries (44, 44 and 6), including Git internal files, matched their saved contents,
+types, modes and guest-visible numeric owners. A first comparison against raw Host
+UID/GID **failed** because Incus mapped guest 0 to Host 1000000. Its receipt remains;
+the subsequent guest-side comparison passed without changing ownership or bypassing
+the mapping. The existing native aggregate also checks restored Workspace/OCI
+UID/GID and mode from inside the guest.
+
+Normal guarded start succeeded after the new WSL restarted with the Env stopped.
+Fresh ownership, generation, current devices and `boot.autostart=false` were checked.
+The saved rootfs marker survived import; the old managed SSH key did not. No
+Hacocoon/Incus management socket or Windows drive was exposed inside the Env.
+
+SSH preparation first **failed** with package exit 100. Four temporary Ubuntu
+package rules, limited to this Env's new generation, were added with ordinary
+revision-bound `haco config`. Preparation then passed in 86.57s. A new client key
+and the controller's pinned host key allowed SSH from the destination WSL, Git
+installation and a local development commit in the imported Workspace. All four
+temporary rules were removed and their absence rechecked through the same API.
+
+Ordinary stop/delete/create/start of the same Env name reattached that managed
+Workspace collection and OCI Store. Both Git heads, modified/untracked files, the
+new commit and OCI marker files survived. The Env generation changed, old SSH
+configuration was refused, and the old port refused connections. The old rootfs
+marker disappeared as expected for recreation from the normal Base. The new Env
+was stopped after acceptance; its persistent data and both WSLs remain.
+
+After delivering and verifying a bundle in the destination WSL, the existing
+user flow remains:
+
+```bash
+haco env import backup.haco recovered
+haco open recovered
+```
+
+This fixture uses synthetic OCI files, not live Docker/containerd application
+state. Git fetch/push is **SKIP**: its saved example routes are synthetic and this
+run has no authenticated test-repository connection. No Git push was attempted.
+Windows-native SSH/VS Code, ACL/xattr/link coverage, trusted Host data/credentials,
+all other managed or unregistered resources, saved snapshots and whole-installation
+comparison are outside this run. G2/G3 overall and reviewed G4 replacement remain
+incomplete; this acceptance does not authorize deleting the old WSL. The private
+Windows evidence is under `%LOCALAPPDATA%/Hacocoon/RecoveryTests/<fixture-id>`,
+with target receipts under `/var/lib/haco-managed-cross-restore-<fixture-id>`.

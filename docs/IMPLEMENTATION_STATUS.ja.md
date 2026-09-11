@@ -1591,3 +1591,5 @@ G2 の読み取り専用 inventory に `--files /absolute/root` の Linux ファ
 新規 identity を Windows 内だけに置いた別の合成 OS 間暗号化検証で、WSL の公開 recipient 暗号化、Windows native 復号・hash 照合、改ざん拒否が成功しました。旧 identity の回復や全量復元を示しません。[WSL 外の identity 保持](design/environment-transfer.ja.md#復号-identity-を-wsl-外へ保持する)を参照してください。
 
 G2 に、既存 native snapshot adapter の保存 rootfs を直接ファイル退避する明示実行テストを追加しました。復元先は新しい設定を使い、所有対象だけを cleanup します。専用 Incus/Btrfs の実機受入は9.37秒で成功しました。全量退避ではありません。[対象契約](design/environment-transfer.ja.md#保存-rootfs-ファイルの直接退避)を参照してください。
+
+Git Workspace 2個と OCI の管理 bundle が、別 WSL の通常 installed-controller import（171.27秒）、保存 volume 全94エントリの照合、鍵固定 SSH・ローカル Git 作業、同名 Env 再作成でのデータ保持に成功しました。Host 生 ID 比較と最初の SSH package 準備は失敗し、guest ID 比較と世代限定の package 許可で確認が通りました。全量復元・認証済み Git は未完了です。[別 WSL の管理対象受入](design/environment-transfer.ja.md#別-wsl-への管理対象-bundle-復元)を参照してください。

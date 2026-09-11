@@ -240,3 +240,5 @@ comparison remain required; enumeration does not authorize old-WSL deletion.
 See [file inventory](../design/environment-transfer.md#manual-file-inventory-for-evacuation-review).
 
 G2 adds a scoped native gate for direct saved-rootfs evacuation without Incus export or Base retention. Whole-installation classification, complete capture and managed reconstruction remain required; see [the rootfs data gate](../design/environment-transfer.md#direct-evacuation-of-saved-rootfs-files).
+
+G3 now has native acceptance for one managed bundle on a separate fresh WSL: complete fixture-volume comparison, fresh pinned SSH/local Git work and retained Workspace/OCI after same-name recreation. Whole-installation coverage and G4 replacement remain required; see [managed cross-WSL acceptance](../design/environment-transfer.md#managed-bundle-restoration-in-a-separate-wsl).

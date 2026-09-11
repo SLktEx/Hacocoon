@@ -1,12 +1,6 @@
 # Versioning and release status
 
-G1 remains **partial**. Linux `haco env export` and `haco env import <file.haco> [new-env]`
-are implemented on main through #530. The shipped CLI with a fixture controller passed
-real Incus/Btrfs aggregate acceptance in GHA (72.06s at b7297a3); all four workflows
-passed. The local full aggregate failed at its 12-minute fixture deadline after import
-and restore succeeded. Both results remain recorded. Installed-controller/desktop
-import, SSH handshake, live OCI consistency and native Windows file delivery remain
-unfinished. No new release or checkpoint is declared. See [Environment transfer](../design/environment-transfer.md#linux-import-command).
+G1 and G3 remain **partial**. Public Environment export/import, installed-controller/desktop delivery and SSH have scoped acceptance; a managed bundle also passed import, all saved volume entries, SSH/local Git work and retained-data recreation on a separate fresh WSL. The earlier full local aggregate timeout remains a failure. Whole-installation evacuation/restoration, authenticated imported Git and broader live OCI remain incomplete. No new release or checkpoint is declared. See [current managed cross-WSL acceptance](../design/environment-transfer.md#managed-bundle-restoration-in-a-separate-wsl).
 
 The v0.57 OCI image cleanup checkpoint is partial. Detached nerdctl Store list/delete through production composition and the bare controller/CLI passed real Incus/Btrfs acceptance at bd1c9a5. Full installed-controller acceptance, detached Docker and candidate-selected GC remain incomplete. See [image operations](../design/oci-image-deletion.md#controllercli-acceptance).
 
