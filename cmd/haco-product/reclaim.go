@@ -145,6 +145,8 @@ type windowsReclaimStatus struct {
 	Operation    string                   `json:"operation"`
 	State        string                   `json:"state"`
 	Observation  *struct {
+		Failure                      string
+		NativeError                  uint32
 		StopAttempted, StopRequested bool
 		Compaction                   struct {
 			Before, After struct{ LogicalBytes, AllocatedBytes uint64 }
@@ -172,6 +174,18 @@ func parseReclamationStatus(raw []byte) (windowsReclaimStatus, error) {
 	}
 	if result.Observation != nil {
 		o := result.Observation
+		switch o.Failure {
+		case "":
+			if o.NativeError != 0 {
+				return result, errors.New("Native error has no failure stage.")
+			}
+		case "stop", "compact", "compact_attached", "resume":
+			if result.State != "failed" {
+				return result, errors.New("Failure reported on a nonfailed operation.")
+			}
+		default:
+			return result, errors.New("Unknown Windows failure stage.")
+		}
 		if (o.StopRequested && !o.StopAttempted) || (o.Resumed && !o.ResumeAttempted) || (o.Compaction.Completed && !o.Compaction.Attempted) || (o.Compaction.Attempted && !o.StopRequested) || o.Compaction.OpenAttempts < 0 {
 			return result, errors.New("Saved Windows observations are inconsistent.")
 		}
@@ -220,6 +234,12 @@ func writeReclamationStatus(out, diagnostic io.Writer, raw []byte) int {
 	} else {
 		o := result.Observation
 		fmt.Fprintf(out, "Windows: stop requested=%t, compaction complete=%t, resumed=%t\n", o.StopRequested, o.Compaction.Completed, o.Resumed)
+		if o.Failure != "" {
+			fmt.Fprintf(out, "  failure stage: %s\n", o.Failure)
+		}
+		if o.NativeError != 0 {
+			fmt.Fprintf(out, "  native error: %d\n", o.NativeError)
+		}
 		c := o.Compaction
 		if c.Virtual.Capacity > 0 {
 			fmt.Fprintf(out, "  virtual capacity: %d bytes\n", c.Virtual.Capacity)

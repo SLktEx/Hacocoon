@@ -70,12 +70,19 @@ def failure_summary(result):
     reason = linux.get("failure")
     compact = windows.get("Compaction")
     compact = compact if isinstance(compact, dict) else {}
+    linux_failure = "unrecorded"
+    if isinstance(result.get("linux"), dict):
+        linux_failure = "none" if reason in (None, "") else reason if isinstance(reason, str) and reason in allowed else "unrecognized"
     return {"worker_result": result.get("state") if result.get("state") in ("pending", "failed", "complete", "interrupted") else "unrecognized",
             "linux_started": boolean(result.get("linux_started")),
             "linux_report_present": isinstance(result.get("linux"), dict),
-            "linux_failure": reason if isinstance(reason,str) and reason in allowed else "unrecorded",
+            "linux_failure": linux_failure,
             "linux_pool": stage("incus_btrfs_loop"), "linux_outer": stage("wsl_ext4"),
             "windows_stop_attempted": boolean(windows.get("StopAttempted")),
+            "windows_stop_requested": boolean(windows.get("StopRequested")),
+            "windows_failure": windows.get("Failure") if windows.get("Failure") in ("stop", "compact", "compact_attached", "resume") else "unrecorded",
+            "windows_native_error": windows.get("NativeError") if type(windows.get("NativeError")) is int and 0 < windows["NativeError"] <= 0xffffffff else None,
+            "windows_open_attempts": compact.get("OpenAttempts") if type(compact.get("OpenAttempts")) is int and 0 <= compact["OpenAttempts"] <= 10000 else None,
             "windows_compaction_attempted": boolean(compact.get("Attempted")),
             "windows_resumed": boolean(windows.get("Resumed"))}
 

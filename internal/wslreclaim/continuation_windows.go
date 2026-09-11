@@ -9,6 +9,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/reclamation"
@@ -90,6 +91,8 @@ func (r registration) runWSLArguments(ctx context.Context, args []string, output
 // native compaction completion. Resume only proves that the exact WSL can launch;
 // controller/Host readiness must be checked separately by the public workflow.
 type continuationObservation struct {
+	Failure                      string `json:",omitempty"`
+	NativeError                  uint32 `json:",omitempty"`
 	StopAttempted, StopRequested bool
 	Compaction                   compactObservation
 	ResumeAttempted, Resumed     bool
@@ -259,13 +262,33 @@ func executeContinuation(ctx context.Context, stop func(context.Context) error,
 		result.ResumeAttempted = true
 		resumeErr := resume(resumeCtx)
 		result.Resumed = resumeErr == nil
+		if resumeErr != nil && result.Failure == "" {
+			result.recordFailure("resume", resumeErr)
+		}
 		err = errors.Join(err, resumeErr)
 	}()
 	result.StopAttempted = true
 	if err := stop(ctx); err != nil {
+		result.recordFailure("stop", err)
 		return result, err
 	}
 	result.StopRequested = true
 	result.Compaction, err = compact(ctx)
+	if err != nil {
+		result.recordFailure("compact", err)
+	}
 	return result, err
+}
+
+// Persist only fixed failure categories and an optional Win32 code, never raw
+// subprocess/backend errors. These fields are observations, not retry authority.
+func (o *continuationObservation) recordFailure(stage string, err error) {
+	o.Failure = stage
+	if stage == "compact" && errors.Is(err, errVirtualDiskAttached) {
+		o.Failure = "compact_attached"
+	}
+	var native syscall.Errno
+	if errors.As(err, &native) {
+		o.NativeError = uint32(native)
+	}
 }

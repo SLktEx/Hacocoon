@@ -39,7 +39,7 @@ class ReclamationUserPathTests(unittest.TestCase):
             self.assertEqual(read.call_args.args[0][1:], ["_status", OP, OP])
 
     def test_failure_summary_does_not_emit_child_secrets(self):
-        result = {"state": "failed", "linux_started": True, "linux": {"failure": "secret-token", "incus_btrfs_loop": {"status": "failed"}}, "observation": {"StopAttempted": False, "Resumed": "secret-token"}, "credentials": "secret-token"}
+        result = {"state": "failed", "linux_started": True, "linux": {"failure": "secret-token", "incus_btrfs_loop": {"status": "failed"}}, "observation": {"StopAttempted": False, "Resumed": "secret-token", "Failure": "secret-token", "NativeError": "secret-token"}, "credentials": "secret-token"}
         summary = gate.failure_summary(result)
         self.assertNotIn("secret-token", json.dumps(summary))
         self.assertEqual(summary["linux_pool"], "failed")

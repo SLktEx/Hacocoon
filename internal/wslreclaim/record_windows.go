@@ -64,6 +64,18 @@ func (r operationRecord) validate() error {
 		return errors.New("Windows reclamation requires proven Linux completion")
 	}
 	o := r.Observation
+	switch o.Failure {
+	case "":
+		if o.NativeError != 0 {
+			return errors.New("native error lacks failure stage")
+		}
+	case "stop", "compact", "compact_attached", "resume":
+		if r.State != "failed" {
+			return errors.New("failure observation on nonfailed operation")
+		}
+	default:
+		return errors.New("unknown Windows failure stage")
+	}
 	if o.StopRequested && !o.StopAttempted || o.Resumed && !o.ResumeAttempted || o.Compaction.Completed && !o.Compaction.Attempted || o.Compaction.Attempted && !o.StopRequested || o.Compaction.OpenAttempts < 0 {
 		return errors.New("inconsistent reclamation observations")
 	}

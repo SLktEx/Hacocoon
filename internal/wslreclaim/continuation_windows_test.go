@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"reflect"
+	"syscall"
 	"testing"
 	"time"
 
@@ -208,4 +209,22 @@ func TestDedicatedWSLPreparedContinuation(t *testing.T) {
 		t.Fatal("handoff result differs from exact prepared identity", completed, err)
 	}
 	t.Logf("PASS prepared native continuation: %+v; separate-process/public/controller/data acceptance is separate", result)
+}
+
+func TestContinuationFailureDiagnosticsAreFixedAndPreservePrimaryFailure(t *testing.T) {
+	for _, tc := range []struct {
+		stage                 string
+		stop, compact, resume error
+		code                  uint32
+	}{
+		{stage: "stop", stop: syscall.Errno(5), code: 5},
+		{stage: "compact", compact: syscall.Errno(32), code: 32},
+		{stage: "compact_attached", compact: errVirtualDiskAttached, resume: syscall.Errno(5)},
+		{stage: "resume", resume: syscall.Errno(5), code: 5},
+	} {
+		result, err := executeContinuation(context.Background(), func(context.Context) error { return tc.stop }, func(context.Context) (compactObservation, error) { return compactObservation{}, tc.compact }, func(context.Context) error { return tc.resume })
+		if err == nil || result.Failure != tc.stage || result.NativeError != tc.code {
+			t.Fatal(result, err)
+		}
+	}
 }

@@ -14,6 +14,8 @@ import (
 	"unsafe"
 )
 
+var errVirtualDiskAttached = errors.New("VHDX is still attached")
+
 var virtualDiskDLL = windows.NewLazySystemDLL("virtdisk.dll")
 var openVirtualDisk = virtualDiskDLL.NewProc("OpenVirtualDisk")
 var getVirtualDiskInformation = virtualDiskDLL.NewProc("GetVirtualDiskInformation")
@@ -85,7 +87,7 @@ func inspectDetachedDynamic(h windows.Handle) (virtualDiskIdentity, error) {
 		return result, err
 	}
 	if binary.LittleEndian.Uint32(loaded[8:]) != 0 {
-		return result, errors.New("VHDX is still attached")
+		return result, errVirtualDiskAttached
 	}
 	format, err := virtualInfo(h, 6)
 	if err != nil {

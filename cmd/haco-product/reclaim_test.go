@@ -89,6 +89,8 @@ func TestReclamationStatusDoesNotInventCompletionOrAllocation(t *testing.T) {
 		{"failed", `{"operation":"` + commandReclaimOperation + `","state":"failed"}`, 1, "failed"},
 		{"unproven", `{"operation":"` + commandReclaimOperation + `","state":"complete"}`, 1, ""},
 		{"extra", `{"operation":"` + commandReclaimOperation + `","state":"pending","command":"private"}`, 1, ""},
+		{"unknown failure", `{"operation":"` + commandReclaimOperation + `","state":"failed","observation":{"Failure":"token=private"}}`, 1, ""},
+		{"native error", `{"operation":"` + commandReclaimOperation + `","state":"failed","observation":{"Failure":"stop","NativeError":5,"StopAttempted":true}}`, 1, "native error: 5"},
 		{"inconsistent", `{"operation":"` + commandReclaimOperation + `","state":"failed","observation":{"StopRequested":true}}`, 1, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
