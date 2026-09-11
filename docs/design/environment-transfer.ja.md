@@ -713,8 +713,8 @@ query エラーはありませんでした。private な一覧はその WSL 内�
 任意で `--catalog /var/lib/hacocoon/state/environments.json` を指定できます
 （実際の controller root に合わせてください）。Linux 専用の reader は既存の通常ファイルを
 末尾 symlink を追わずに開き、特殊ファイル・サイズ超過・読み取り中の変更を拒否します。
-catalog の移行処理は呼ばず、lock や catalog を書き込みません。現在は schema 13 を扱い、
-他の schema は明示的に不完全と報告します。永続資源・Base asset・Workspace lease・snapshot
+catalog の移行処理は呼ばず、lock や catalog を書き込みません。参照 projection は schema 10 から 13 を番号変更なしで扱い、
+9 を含む他の schema は明示的に不完全と報告します。永続資源・Base asset・Workspace lease・snapshot
 component の native 参照と owner／generation の情報だけを抽出します。Incus 側の所有者との
 一致は検証せず、復元や削除の権限を与えません。`projection_complete` は選択した項目の
 読み取りが完了したという意味だけです。repository catalog・進行中操作・source path・
@@ -746,7 +746,7 @@ fixture の private directory に保持します。保存には Incus export・s
 
 専用 WSL の実 Incus/Btrfs で 20.59 秒で成功しました。試験用 pool 二つは cleanup し、archive と所有記録は両 pool の外にある /var/lib/haco-volume-transfer-2051477010 に残しています（WSL 内です）。書込がないファイルのコピーを検証する基本部分です。
 snapshot 削除失敗の模擬、全インストールファイルの列挙、live OCI daemon の移行、任意の
-非信頼 tar の安全な import、trusted credential の暗号化、WSL 外への保存、新 WSL 復元は
+非信頼 tar の安全な import、trusted Host データの保全、WSL 外への保存、新 WSL 復元は
 未確認です。全量退避を主張する前にこれらを扱い、読めない・変更中の source を完全保存済み
 とはしません。
 
@@ -768,15 +768,15 @@ b8ef557 の native GHA は、直接ファイル退避（0.89 秒）と saved-onl
 
 状態: **過去の任意受入記録（historical）**。以下は以前の暗号化 fixture の記録です。通常 export と現在の退避手順は暗号化しない archive を使い、鍵準備や export 後の暗号化は不要です。[ツリー保存](#明示したデータツリーの保存)を参照してください。
 
-全量退避は **partial** です。確認済みで書込のない file tree には既存の GNU tar と
-[age](https://github.com/FiloSottile/age) を使い、Hacocoon 独自の暗号形式は作りません。
+この過去の fixture は、確認済みで書込のない file tree に既存の GNU tar と
+[age](https://github.com/FiloSottile/age) を使い、Hacocoon 独自の暗号形式を作らず検証しました。
 復号の秘密 identity は trusted storage に保持し、暗号化では公開 recipient だけを使います。
 実検証 `tools/test_encrypted_evacuation.py` は合成の認証情報を使い、tar と age の終了状態を
 両方確認します。外部保存先に平文 archive は書きません。自分で作った fixture だけを、
 復号成功の確認後に展開し、private な mode、誤鍵・暗号文の改変・切詰めの拒否を確認します。
 失敗または途中の復号出力を直接 restore へ流してはいけません。
 
-停止・確認済みの source tree を SOURCE、入替対象 WSL／pool の外の新規 archive を DEST、
+この任意の過去 fixture だけを再現する場合は、停止・確認済みの source tree を SOURCE、入替対象 WSL／pool の外の新規 archive を DEST、
 age の公開 recipient を RECIPIENT に設定します。対応する秘密 identity は別途アクセス可能に保持します。
 
 ```bash

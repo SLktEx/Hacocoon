@@ -867,8 +867,8 @@ The inventory now includes pool backing-source references and volume `content_ty
 Optionally add `--catalog /var/lib/hacocoon/state/environments.json` (substitute
 the actual controller root). This Linux-only reader opens the existing regular
 file without following a final symlink, refuses special/oversized/changing files,
-and never invokes catalog migration or writes a lock/catalog file. Schema 13 is
-currently supported; other schemas produce an explicit incomplete projection.
+and never invokes catalog migration or writes a lock/catalog file. Reference projection supports schemas 10 through 13 without changing their version;
+other schemas, including 9, produce an explicit incomplete projection.
 The allowlisted projection lists persistent-resource, Base-asset, Workspace-lease
 and snapshot-component native references, including owner/generation evidence.
 It does not validate those owners against Incus or grant restore/deletion authority.
@@ -904,7 +904,7 @@ capture. Existing application data and pools are never selected.
 The dedicated WSL Incus/Btrfs run passed in 20.59s. Both owned pools were cleaned; archives and ownership plan remain at /var/lib/haco-volume-transfer-2051477010, outside both pools but inside WSL. This verifies a quiescent file-copy primitive only.
 It does not simulate a failed snapshot deletion, enumerate every installation
 file, transfer a live OCI daemon, safely import arbitrary untrusted tar files,
-encrypt trusted credentials, save the whole installation outside WSL or restore a new WSL. These remain
+preserve trusted Host data, save the whole installation outside WSL or restore a new WSL. These remain
 required before claiming whole-installation evacuation. An inaccessible or
 changing source must not be reported as completely saved.
 
@@ -927,9 +927,9 @@ At b8ef557, the native GHA gate passed direct readable-file evacuation (0.89s) a
 
 Status: **historical optional acceptance**. The following records an earlier encrypted fixture. Ordinary export and the current evacuation workflow use unencrypted archives; no key setup or post-export encryption is required. See [tree capture](#explicit-tree-capture).
 
-Whole-installation evacuation remains **partial**. Use existing GNU tar and
+This historical fixture used GNU tar and
 [age](https://github.com/FiloSottile/age) for reviewed, quiescent file trees rather
-than introducing a Hacocoon encryption format. The private decryption identity
+than introducing a Hacocoon encryption format. Its private decryption identity
 stays on trusted storage; encryption uses only its public recipient. The native
 acceptance script `tools/test_encrypted_evacuation.py` uses synthetic credentials,
 checks the producer and encryptor exit statuses, and writes no plaintext archive
@@ -937,7 +937,7 @@ to the external destination. It checks decryption and private file modes before
 extracting only its own fixture, plus wrong-key, ciphertext-tamper and truncation
 refusal. A failed or partial decryption must never be piped directly into restore.
 
-For an already reviewed and stopped source tree, set SOURCE to that directory,
+To reproduce only this optional historical fixture, set SOURCE to its reviewed, stopped tree,
 DEST to a new archive outside the WSL/pool being replaced, and RECIPIENT to your
 age public recipient. Keep the matching private identity independently accessible:
 
