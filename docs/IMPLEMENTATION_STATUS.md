@@ -1902,6 +1902,8 @@ A separate synthetic cross-OS crypto check passed with a newly generated identit
 
 G2 includes an opt-in direct saved-rootfs file evacuation test through the existing native snapshot adapter, with fresh destination configuration and owned cleanup. Dedicated Incus/Btrfs acceptance passed in 9.37s; this is not whole-installation capture. See [the scoped contract](design/environment-transfer.md#direct-evacuation-of-saved-rootfs-files).
 
+A managed bundle with two Git Workspaces and OCI passed ordinary installed-controller import into a separate WSL (171.27s), all 94 saved volume entries, pinned SSH/local Git work and same-name retained-data recreation. Raw Host-ID comparison and initial SSH package preparation failed; guest-ID comparison and generation-scoped package permission resolved those checks. Whole-installation restoration and authenticated Git remain incomplete. See [cross-WSL managed acceptance](design/environment-transfer.md#managed-bundle-restoration-in-a-separate-wsl).
+
 F1 subsequently passed real enrolled failure review and one detached worker
 stop/compact/resume: 895 MiB reclaimed, 1 TiB capacity unchanged, old failure
 retained. Read-only current-result inspection no longer needs the operation ID;
@@ -1912,4 +1914,5 @@ acceptance remain incomplete. See [worker acceptance](design/storage-reclamation
 F1 Windows preparation is now available through the internal installed helper,
 using the canonical enrolled-target API rather than a test-only entry. Preparation
 does not dispatch; output failure preserves pending evidence. The public all-layer
-flow remains incomplete. See [preparation](design/storage-reclamation.md#preparing-through-the-installed-helper).
+flow remains incomplete. Native helper preparation/launch reclaimed another 33 MiB
+with capacity, known files and same-registration resume preserved. See [preparation](design/storage-reclamation.md#preparing-through-the-installed-helper).

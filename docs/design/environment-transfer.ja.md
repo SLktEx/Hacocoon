@@ -961,3 +961,54 @@ workflow policy 25件も成功しました。
 `%TEMP%/haco-saved-rootfs-output-<fixture-id>` に保持しています。
 内容は root ディレクトリと合成 `root/retained` ファイルだけです。保存 rootfs fixture の
 外部保存を示し、全量 backup や新 WSL の管理対象 Env 復元の証明ではありません。
+
+## 別 WSL への管理対象 bundle 復元
+
+状態: **G3 の一部**。管理対象 Env bundle 1 件の実機受入です。
+保持済みの合成 aggregate bundle を元 WSL から private な Windows directory へ複製し、
+成分ごとに検証して、新規 installation の受入に使った別の Ubuntu 26.04 WSL へ渡しました。
+インストール済み local controller candidate 61a26e3、Incus 6.0.5、Btrfs において、
+通常の `haco env import` が171.27秒で成功しました。元 catalog・Incus DB・Base 実体・
+承認・Host credential は引き継いでいません。
+
+bundle は550415872 bytes、SHA-256 は
+`0aaaf7ab43e183f4bc489b7c8f3b6da9c1d24ff7063e4501b0051ed6d0a47fba` です。
+rootfs、Git Workspace 2 個、合成 OCI Store 1 個を含みます。Git 内部ファイルを含む
+volume の全94エントリ（44・44・6）について、内容・種類・mode・guest から見える
+数値所有者が保存時と一致しました。最初の Host 生 UID/GID との比較は、Incus が guest 0 を
+Host 1000000 に対応付けていたため **失敗** しました。その記録を保持し、所有権の変更や
+mapping の回避をせず、guest 内で再比較して成功しました。既存 native aggregate にも、
+復元 Workspace／OCI の UID/GID・mode を guest 内で確認する検査を追加しています。
+
+新 WSL の再起動後は Env が停止したままで、通常の guarded start が成功しました。
+新しい所有者・世代・現在の device・`boot.autostart=false` を確認しています。
+保存 rootfs の marker は import 後も残り、旧管理 SSH 鍵は残りませんでした。
+Env 内に Hacocoon／Incus 管理 socket や Windows drive は公開されていません。
+
+SSH 準備は最初に package exit 100 で **失敗** しました。通常の revision-bound
+`haco config` で、この Env の新世代だけに Ubuntu package の一時許可4件を追加すると、
+86.57秒で成功しました。新しい client 鍵と controller が返した host 鍵の固定により、
+復元先 WSL から SSH 接続し、Git の導入と復元 Workspace 内でのローカル開発 commit が
+成功しました。一時ルール4件は同じ API で削除し、不在を再確認しています。
+
+同名 Env を通常の stop/delete/create/start で再作成し、同じ管理 Workspace collection と
+OCI Store を再接続しました。両 Git HEAD、modified／untracked、新 commit、OCI marker
+ファイルが残りました。Env 世代は更新され、旧 SSH 設定の取得と旧 port への接続は拒否されました。
+通常 Base からの再作成なので旧 rootfs marker は失われます。受入後の新 Env は停止し、
+永続データと両 WSL は保持しています。
+
+検証済み bundle を復元先 WSL に配置した後の利用手順は、既存のままです。
+
+```bash
+haco env import backup.haco recovered
+haco open recovered
+```
+
+OCI は合成ファイルであり、実 Docker／containerd のアプリ状態ではありません。
+Git fetch/push は **SKIP** です。保存された example route は合成で、この実行には認証済み
+検証 repository への接続がないためです。Git push は実行していません。
+Windows native の SSH／VS Code、ACL／xattr／link、trusted Host のデータ・credential、
+他の管理対象・未登録資源、保存 snapshot、installation 全体の照合は対象外です。
+G2／G3 全体と確認後の G4 入替は未完了で、旧 WSL の削除を許可する結果ではありません。
+Windows の private 証拠は `%LOCALAPPDATA%/Hacocoon/RecoveryTests/<fixture-id>`、
+復元先記録は `/var/lib/haco-managed-cross-restore-<fixture-id>` に保持しています。

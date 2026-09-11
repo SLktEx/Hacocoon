@@ -633,9 +633,16 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			if command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", m.Path+"/tracked") != "uncommitted "+m.Device {
 				t.Fatal("imported Workspace binding lost")
 			}
+			// Check the guest-visible IDs: Incus may shift the storage-side IDs.
+			if command("incus", "exec", resumed.Ref, "--project", r.project, "--", "stat", "--format=%u:%g:%a", m.Path+"/tracked") != "0:0:600" {
+				t.Fatal("imported Workspace numeric ownership or mode changed")
+			}
 		}
 		if command("incus", "exec", resumed.Ref, "--project", r.project, "--", "cat", OCIStorePath+"/containerd/data") != "actual stored bytes" {
 			t.Fatal("imported OCI binding lost")
+		}
+		if command("incus", "exec", resumed.Ref, "--project", r.project, "--", "stat", "--format=%u:%g:%a", OCIStorePath+"/containerd/data") != "0:0:600" {
+			t.Fatal("imported OCI numeric ownership or mode changed")
 		}
 		receipts, err := filepath.Glob(filepath.Join(dir, "rootfs-import-*.jsonl"))
 		if err != nil || len(receipts) != 0 {

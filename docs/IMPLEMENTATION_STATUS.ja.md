@@ -1621,6 +1621,8 @@ G2 の読み取り専用 inventory に `--files /absolute/root` の Linux ファ
 
 G2 に、既存 native snapshot adapter の保存 rootfs を直接ファイル退避する明示実行テストを追加しました。復元先は新しい設定を使い、所有対象だけを cleanup します。専用 Incus/Btrfs の実機受入は9.37秒で成功しました。全量退避ではありません。[対象契約](design/environment-transfer.ja.md#保存-rootfs-ファイルの直接退避)を参照してください。
 
+Git Workspace 2個と OCI の管理 bundle が、別 WSL の通常 installed-controller import（171.27秒）、保存 volume 全94エントリの照合、鍵固定 SSH・ローカル Git 作業、同名 Env 再作成でのデータ保持に成功しました。Host 生 ID 比較と最初の SSH package 準備は失敗し、guest ID 比較と世代限定の package 許可で確認が通りました。全量復元・認証済み Git は未完了です。[別 WSL の管理対象受入](design/environment-transfer.ja.md#別-wsl-への管理対象-bundle-復元)を参照してください。
+
 F1 はその後、実登録の失敗の明示確認と一度の detached worker による停止・圧縮・
 再開に成功しました。895 MiB 回収、容量1 TiB は不変で、旧失敗も保持しています。
 現在結果の読み取りは操作 ID 不要になりましたが、変更操作には必要です。
@@ -1630,5 +1632,5 @@ assertion が失敗しており、現行アプリ一式と公開全層操作の�
 
 F1 の Windows 操作準備を内部 helper に接続しました。テスト専用入口ではなく、
 既存の登録済み対象の API を使います。準備だけでは worker を起動せず、出力失敗時も
-pending を保持します。公開全層操作は未完了です。
+pending を保持します。helper 準備からの実機操作も33 MiB 回収・容量維持・再開に成功しました。公開全層操作は未完了です。
 [準備の境界](design/storage-reclamation.ja.md#導入する-helper-から操作を準備する)を参照してください。
