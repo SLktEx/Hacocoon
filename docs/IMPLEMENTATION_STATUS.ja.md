@@ -1635,3 +1635,8 @@ F1 の設定済み Incus Btrfs・外側 ext4 段階を、管理専用 controller
 区別を維持します。Windows workflow の導入済み Linux gate は `29886ed` で成功しました。
 worker との一連の実機受入と公開全層操作は確認待ちです。
 [Linux controller 接続](design/storage-reclamation.ja.md#linux-段階の-controller-接続)を参照してください。
+
+F1 に controller 自身の対象識別を読み取る API を追加し、公開操作で GUID を必須にしない準備を
+進めました。関連 package テスト・vet は成功しました。`4369fdb` の一連の native worker gate は
+Linux 成功後の `_launch` で失敗し、原因・worker 未起動は未確定です。常設 helper と上限付き
+起動診断の追試 CI は確認待ちです。[現状](design/storage-reclamation.ja.md#管理対象の識別取得)を参照してください。

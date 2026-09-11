@@ -35,7 +35,35 @@ def worker_cycle(reg):
     assert helper.is_file(), "packaged enrolled Windows helper missing"
     def invoke(*args):
         p = subprocess.run([str(helper), *args], capture_output=True, text=True,
-                           encoding="utf-8", timeout=210)
+                           encoding="utf-8", timeout=210, env={**os.environ, "HACO_LOG_FORMAT": "json"})
+        if p.returncode != 0:
+            # Select only fixed structured diagnostics; never print raw child logs.
+            for line in p.stderr[:16384].splitlines():
+                try:
+                    record = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                if not isinstance(record, dict):
+                    continue
+                stage = record.get("stage")
+                native_error = record.get("native_error")
+                if stage in ("other", "pin_executable", "process_start", "readiness"):
+                    diagnostic = {"worker_failure_stage": stage}
+                    if type(native_error) is int and 0 < native_error <= 0xffffffff:
+                        diagnostic["native_error"] = native_error
+                    print(json.dumps(diagnostic), flush=True)
+            if args[0] == "_launch":
+                # Read-only status does not start WSL or retry a failed dispatch.
+                try:
+                    observed = subprocess.run([str(helper), "_status", args[1], args[2]],
+                        capture_output=True, text=True, encoding="utf-8", timeout=20)
+                    if observed.returncode == 0 and len(observed.stdout) <= 16384:
+                        saved = json.loads(observed.stdout)
+                        if isinstance(saved, dict) and saved.get("state") in ("pending", "failed", "complete"):
+                            print(json.dumps({"retained_state": saved["state"],
+                                "linux_started": saved.get("linux_started") is True}), flush=True)
+                except (subprocess.TimeoutExpired, ValueError, OSError):
+                    print("Retained worker status unavailable; outcome remains unconfirmed", flush=True)
         assert p.returncode == 0, f"Windows helper {args[0]} failed with exit {p.returncode}; retain its operation"
         assert len(p.stdout) <= 16384, "unbounded Windows helper output"
         return p.stdout

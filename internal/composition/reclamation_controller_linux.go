@@ -33,6 +33,18 @@ func (a *App) ReclaimLinux(ctx context.Context, expected reclamation.WSLTarget) 
 	})
 }
 
+// ReclamationTarget lets a trusted client discover this installation without
+// asking its user for GUIDs. This observation is not Windows mutation authority.
+func (a *App) ReclamationTarget(ctx context.Context) (reclamation.WSLTarget, error) {
+	if a == nil || a.Runtime == nil {
+		return reclamation.WSLTarget{}, errors.New("Incus runtime unavailable")
+	}
+	if err := ctx.Err(); err != nil {
+		return reclamation.WSLTarget{}, err
+	}
+	return readReclaimInstallation(ctx, host.ExecRunner{})
+}
+
 func readReclaimInstallation(ctx context.Context, runner host.Runner) (reclamation.WSLTarget, error) {
 	result, err := runner.Run(ctx, "/usr/bin/env", "-i", "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "/usr/bin/python3", "-I", "/usr/local/libexec/hacocoon-wsl-interop", "--read-registration")
 	if err != nil || result.ExitCode != 0 || result.StdoutTruncated || result.StderrTruncated || len(result.Stdout) > 4096 {

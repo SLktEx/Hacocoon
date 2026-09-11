@@ -648,3 +648,20 @@ checksum/所有の拒否、実行ファイルのロック、junction 転送を�
 `$null` を空の backup path に変換して失敗しました。明示的な .NET null へ修正し、修正版の
 component 実行は成功しました。既存 native CI gate も展開 package のコピーではなく常設 helper を
 使います。新しい head の結果は確認待ちです。
+
+## 管理対象の識別取得
+
+管理専用の読み取り `storage.reclamation-target` は、この controller の検証済み
+registration/installation ID を15秒の上限で返します。呼び出し側の対象選択・path・pool は
+受け付けません。型付き client は不正な応答や protocol 不一致を拒否し、service のエラーも
+backend の生出力を公開しません。取得だけでは変更対象 storage の選択や Windows 操作の
+認可を行いません。公開 CLI への接続は未完了ですが、接続時に利用者へ GUID を要求しないための
+API です。関連 controlapi/composition/controller テストと vet は成功しました。
+
+`4369fdb` の一連の worker gate は **失敗** しました。導入済み Linux 両段階は成功しましたが、
+`_launch` が exit 1 を返しました。取得結果から原因や worker 未起動までは断定できません。
+その run の後続通知確認は成功しましたが、回収全体の証明ではありません。
+gate の診断は固定した起動段階と native Windows エラー番号だけを記録し、子プロセスの生ログは
+出しません。Job breakaway・console 分離・native pin は維持します。回収 gate が失敗した場合は
+worker 完了が不明な可能性があるため、その後の通知 gate から WSL にアクセスしないようにしました。
+常設 helper と診断を加えた追試の受入は確認待ちです。

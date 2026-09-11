@@ -107,7 +107,15 @@ func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, acti
 		err = actions.worker(ctx, args[1], args[2])
 	}
 	if err != nil {
-		logger.Error("Windows continuation failed", "component", "host", "operation", operation, "error", err)
+		fields := []any{"component", "host", "operation", operation, "error", err}
+		if args[0] == "_launch" {
+			stage, nativeCode := wslreclaim.WorkerLaunchFailure(err)
+			fields = append(fields, "stage", stage)
+			if nativeCode != 0 {
+				fields = append(fields, "native_error", nativeCode)
+			}
+		}
+		logger.Error("Windows continuation failed", fields...)
 		return 1
 	}
 	if args[0] == "_launch" {

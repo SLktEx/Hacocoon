@@ -786,3 +786,22 @@ junction redirect. The initial update attempt failed because PowerShell converte
 `$null` to an empty backup path; explicit .NET null fixed it and the corrected
 component run passed. The existing native CI gate now uses the permanent helper
 rather than the extracted package copy. Its new-head result remains pending.
+
+## Discovering the managed target
+
+The management-only `storage.reclamation-target` read returns this controller's
+validated registration/installation IDs with a 15-second bound. It accepts no
+caller selection, path or pool. The typed client refuses invalid/protocol-mismatched
+responses; service errors expose no raw backend output. Discovery neither selects
+storage for mutation nor grants Windows authority. The public CLI connection is
+still pending; this API avoids requiring users to supply GUIDs when it is connected.
+Related controlapi/composition/controller tests and vet passed.
+
+The combined worker gate at `4369fdb` **failed**: both installed Linux stages passed,
+but `_launch` returned exit 1. The captured result does not identify the cause or
+prove that no worker started. The following notification check passed in that run;
+it does not prove combined reclamation. The gate now records only fixed launch
+stages and a native Windows error number, omitting raw subprocess logs. Job
+breakaway, console separation and native pins remain unchanged. A failed reclamation
+gate now prevents later notification WSL access because worker completion may be
+unknown. Permanent-helper and diagnostic follow-up acceptance remain pending.

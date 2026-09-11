@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sys/windows/registry"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 )
 
@@ -258,5 +259,23 @@ func TestPrepareWorkerRefusesInvalidOrAbsentRegistration(t *testing.T) {
 	cancel()
 	if got, err := PrepareWorker(ctx, id.String()); !errors.Is(err, context.Canceled) || got != (PreparedStatus{}) {
 		t.Fatal("canceled preparation proceeded", got, err)
+	}
+}
+
+func TestWorkerLaunchDiagnosticsUseFixedStagesAndNativeCodes(t *testing.T) {
+	for _, tc := range []struct {
+		err   error
+		stage string
+		code  uint32
+	}{
+		{&workerLaunchError{stage: "process_start", err: syscall.Errno(5)}, "process_start", 5},
+		{errors.Join(&workerLaunchError{stage: "pin_executable", err: syscall.Errno(32)}, errors.New("close")), "pin_executable", 32},
+		{&workerLaunchError{stage: "readiness", err: errors.New("token=private")}, "readiness", 0},
+		{&workerLaunchError{stage: "token=private", err: errors.New("private")}, "other", 0},
+	} {
+		stage, code := WorkerLaunchFailure(tc.err)
+		if stage != tc.stage || code != tc.code {
+			t.Fatal(stage, code)
+		}
 	}
 }

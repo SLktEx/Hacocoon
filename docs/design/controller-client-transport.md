@@ -297,3 +297,8 @@ The internal `storage.reclaim-linux` method is registered only on this managemen
 endpoint. It requires the exact installed WSL identity and returns explicit
 per-stage observations, including operation failure. It grants no Windows disk
 authority; see [Linux reclamation](storage-reclamation.md#controller-connection-for-linux-stages).
+
+The reclamation management surface also provides read-only `storage.reclamation-target`
+for discovery of this installed controller's bounded WSL identity. No caller-selected
+target or raw backend error crosses that response; it grants no Windows mutation
+authority. See [target discovery](storage-reclamation.md#discovering-the-managed-target).

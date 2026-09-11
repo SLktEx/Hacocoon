@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/wslreclaim"
@@ -225,5 +226,21 @@ func TestPreparationDoesNotDispatchOrDiscardOnOutputFailure(t *testing.T) {
 				t.Fatal("missing output failure boundary")
 			}
 		}
+	}
+}
+
+func TestLaunchFailureLogsNativeCodeWithoutSuccess(t *testing.T) {
+	t.Setenv("HACO_LOG_FORMAT", "json")
+	var out, diagnostic bytes.Buffer
+	code := dispatch(context.Background(), []string{"_launch", "r", "o"}, &out, &diagnostic, helperActions{launch: func(context.Context, string, string) (int, error) { return 0, syscall.Errno(5) }})
+	if code != 1 || out.Len() != 0 {
+		t.Fatal(code, out.String())
+	}
+	var record map[string]any
+	if err := json.Unmarshal(diagnostic.Bytes(), &record); err != nil {
+		t.Fatal(err)
+	}
+	if record["stage"] != "other" || record["native_error"] != float64(5) {
+		t.Fatal(record)
 	}
 }

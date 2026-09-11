@@ -241,11 +241,13 @@ jobs:
         run: python ./tools/windows-native-access-e2e.py
 
       - name: Verify installed controller and Windows worker reclamation stages
+        id: reclamation
         if: ${{ !cancelled() && steps.installed.outcome == 'success' }}
         shell: pwsh
         run: python ./tools/windows-reclamation-linux-e2e.py --with-worker
 
+      # A failed launch may still have a live worker; do not restart WSL then.
       - name: Verify installed native notification review route
-        if: ${{ !cancelled() && steps.installed.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.installed.outcome == 'success' && steps.reclamation.outcome == 'success' }}
         shell: pwsh
         run: ./tools/test_windows_native_review.ps1

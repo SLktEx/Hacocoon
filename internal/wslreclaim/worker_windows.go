@@ -66,7 +66,7 @@ func LaunchPreparedWorker(ctx context.Context, registrationID, operationID strin
 	}
 	pin, err := pinLocalFile(executable, ".exe", false)
 	if err != nil {
-		return 0, err
+		return 0, &workerLaunchError{stage: "pin_executable", err: err}
 	}
 	defer func() { err = errors.Join(err, pin.Close()) }()
 	system, err := windows.GetSystemDirectory()
@@ -95,7 +95,7 @@ func LaunchPreparedWorker(ctx context.Context, registrationID, operationID strin
 		return 0, err
 	}
 	if err := child.Start(); err != nil {
-		return 0, fmt.Errorf("launch independent Windows worker: %w", err)
+		return 0, &workerLaunchError{stage: "process_start", err: err}
 	}
 	pid = child.Process.Pid
 	// The launcher must release its write copy to observe worker EOF.
@@ -105,7 +105,7 @@ func LaunchPreparedWorker(ctx context.Context, registrationID, operationID strin
 	readyErr := readWorkerReady(ctx, read)
 	releaseErr := child.Process.Release()
 	if readyErr != nil {
-		return pid, errors.Join(fmt.Errorf("worker %d did not report readiness: %w", pid, readyErr), releaseErr)
+		return pid, &workerLaunchError{stage: "readiness", err: errors.Join(readyErr, releaseErr)}
 	}
 	if err := releaseErr; err != nil {
 		return pid, fmt.Errorf("worker dispatched but process handle release failed: %w", err)
@@ -245,4 +245,30 @@ func publishWorkerReady() error {
 	// The native channel must be gone before shutdown. The persisted operation,
 	// rather than this pipe or launcher lifetime, carries the final result.
 	return os.Stdout.Close()
+}
+
+// Fixed diagnostics for the owning CLI boundary; never expose child output.
+type workerLaunchError struct {
+	stage string
+	err   error
+}
+
+func (e *workerLaunchError) Error() string {
+	return "Windows worker " + e.stage + " failed: " + e.err.Error()
+}
+func (e *workerLaunchError) Unwrap() error { return e.err }
+func WorkerLaunchFailure(err error) (stage string, nativeCode uint32) {
+	stage = "other"
+	var failure *workerLaunchError
+	if errors.As(err, &failure) {
+		switch failure.stage {
+		case "pin_executable", "process_start", "readiness":
+			stage = failure.stage
+		}
+	}
+	var code syscall.Errno
+	if errors.As(err, &code) {
+		nativeCode = uint32(code)
+	}
+	return
 }

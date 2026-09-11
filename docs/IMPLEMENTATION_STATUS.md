@@ -1906,3 +1906,9 @@ are preserved. The Windows native workflow includes an installed integration gat
 its Linux-only gate passed at `29886ed`; combined-worker acceptance and public
 activation remain pending. See
 [Linux controller connection](design/storage-reclamation.md#controller-connection-for-linux-stages).
+
+F1 has read-only controller target discovery to avoid required GUID arguments in
+the future public flow. Its package tests/vet passed. The combined native worker
+gate at `4369fdb` failed at `_launch` after Linux success; cause/worker absence are
+unproven. Permanent-helper and bounded launch-diagnostic follow-up CI are pending.
+See [the current scope](design/storage-reclamation.md#discovering-the-managed-target).

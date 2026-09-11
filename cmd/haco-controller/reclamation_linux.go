@@ -9,5 +9,8 @@ import (
 )
 
 func registerReclamation(server *control.Server, app *composition.App) error {
-	return controlapi.RegisterReclamation(server, app)
+	if err := controlapi.RegisterReclamation(server, app); err != nil {
+		return err
+	}
+	return controlapi.RegisterReclamationTarget(server, app)
 }
