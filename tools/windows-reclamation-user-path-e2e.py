@@ -4,6 +4,7 @@
 Only Windows read-only observations run between dispatch and worker exit. No
 retry, record clearing, Job changes or internal mutation commands are used.
 """
+import argparse
 import importlib.util
 import json
 import ntpath
@@ -126,7 +127,10 @@ def load_driver(name, filename):
 
 
 def main():
-    if os.name != "nt" or sys.argv[1:]:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--retention-manifest", required=True)
+    args = parser.parse_args()
+    if os.name != "nt":
         raise RuntimeError("requires installed Windows acceptance without overrides")
     driver = load_driver("reclamation_user_driver", "windows-installer-user-path-e2e.py")
     installed = load_driver("reclamation_registration", "windows-reclamation-linux-e2e.py")
@@ -135,7 +139,7 @@ def main():
     if not helper.is_file():
         raise RuntimeError("Installed helper missing")
     import reclamation_retention
-    retention = reclamation_retention.load_manifest()
+    retention = reclamation_retention.load_manifest(args.retention_manifest)
     terminal = driver.TerminalProcess()
     stage, sent_at = 0, 0
     terminal_confirmed = False

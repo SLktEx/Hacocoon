@@ -1,6 +1,6 @@
 # Installed G1 acceptance; called by the existing Windows SSH fixture.
 function Invoke-InstalledEnvironmentTransfer {
-    param([string]$BaseName, [string]$PublicKeyWsl, [string]$PrivateKey, [string]$NativeSSH, [string]$Directory)
+    param([string]$BaseName, [string]$PublicKeyWsl, [string]$PrivateKey, [string]$NativeSSH, [string]$Directory, [string]$ReclamationManifest)
     if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Transfer fixture requires the disposable GHA user' }
     $nonce = [guid]::NewGuid().ToString('N').Substring(0,16)
     $source = 'win-ssh-' + $nonce
@@ -18,7 +18,7 @@ function Invoke-InstalledEnvironmentTransfer {
     $phase = 'seed-repository'
     $policyAdded = $false
     $windowsBundle = $null
-    $retainForReclaim = $env:HACO_E2E_RECLAIM_RETENTION -eq '1'
+    $retainForReclaim = -not [string]::IsNullOrEmpty($ReclamationManifest)
     $savedForReclaim = $null
     try {
         $phase = 'host-git-prerequisite'
@@ -134,12 +134,10 @@ with open(sys.argv[1], 'rb') as source, open(sys.argv[2], 'xb') as target:
         }
         [void](Invoke-HacoHost @('/usr/local/bin/haco','repo','delete','--yes',$repository) 'Delete exact transfer source repository registration')
         if ($retainForReclaim) {
-            if (-not $env:GITHUB_ENV) { throw 'Reclamation fixture handoff requires GHA environment file' }
-            $manifest = Join-Path $windowsDirectory 'reclamation.json'
+            $manifest = $ReclamationManifest
             $record = @{version=1; nonce=$nonce; workspace=[string]$imported.workspace; oci=[string]$imported.oci; snapshot=$savedForReclaim; commit=$commit} | ConvertTo-Json -Compress
             $stream = [IO.File]::Open($manifest,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
             try { $bytes=[Text.UTF8Encoding]::new($false).GetBytes($record); $stream.Write($bytes,0,$bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
-            [IO.File]::AppendAllText($env:GITHUB_ENV, "HACO_RECLAIM_RETENTION_MANIFEST=$manifest`n", [Text.UTF8Encoding]::new($false))
             Write-Host 'Detached imported Workspace, OCI and snapshot retained for reclamation acceptance'
         }
         Write-Host 'INSTALLED ENV EXPORT / SOURCE DELETE / IMPORT / WINDOWS SSH / RETAINED WORK RECREATE: PASS'

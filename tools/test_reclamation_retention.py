@@ -1,4 +1,7 @@
 import json
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 import unittest
 from unittest.mock import Mock
 import reclamation_retention as subject
@@ -29,6 +32,16 @@ class RetentionTests(unittest.TestCase):
         self.assertTrue(any(args[:2] == ("env", "create") and RECORD["oci"] in args for args in self.calls))
         self.assertFalse(any("delete" in args for args in self.calls))
         self.assertEqual(sum(args[:2] == ("snapshot", "restore") for args in self.calls), 1)
+
+    def test_explicit_manifest_does_not_require_product_environment_overrides(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "fixture.json")
+            path.write_text(json.dumps(RECORD), encoding="utf-8")
+            with patch.dict("os.environ", {}, clear=True):
+                self.assertEqual(subject.load_manifest(path), RECORD)
+            path.write_bytes(b" " * 4097)
+            with self.assertRaisesRegex(RuntimeError, "oversized"):
+                subject.load_manifest(path)
 
     def test_untrusted_manifest_refused_before_commands(self):
         for key, value in [("nonce", "../foreign"), ("oci", "oci:existing"), ("commit", "-option"), ("version", True)]:

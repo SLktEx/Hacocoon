@@ -242,9 +242,7 @@ jobs:
 
       - name: Verify native Windows interop and strict OpenSSH through ordinary Host entry
         shell: pwsh
-        env:
-          HACO_E2E_RECLAIM_RETENTION: "1"
-        run: python ./tools/windows-native-access-e2e.py
+        run: python ./tools/windows-native-access-e2e.py --reclamation-manifest "$env:RUNNER_TEMP/reclamation-fixture.json"
 
       - name: Verify installed Linux reclamation stages
         id: reclamation_linux
@@ -261,7 +259,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Reclamation retention regressions failed." }
           python ./tools/test_reclamation_user_path.py
           if ($LASTEXITCODE -ne 0) { throw "Reclamation observer regressions failed." }
-          python ./tools/windows-reclamation-user-path-e2e.py
+          python ./tools/windows-reclamation-user-path-e2e.py --retention-manifest "$env:RUNNER_TEMP/reclamation-fixture.json"
 
       # A failed launch may still have a live worker; do not restart WSL then.
       - name: Verify installed native notification review route

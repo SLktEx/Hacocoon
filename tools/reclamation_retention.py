@@ -1,6 +1,5 @@
 """Synthetic installed-transfer fixtures checked only after confirmed reclamation."""
 import json
-import os
 import re
 import subprocess
 import tempfile
@@ -18,8 +17,7 @@ def validate(record):
     return record
 
 
-def load_manifest():
-    name = os.environ.get("HACO_RECLAIM_RETENTION_MANIFEST")
+def load_manifest(name):
     if not name:
         raise RuntimeError("Required reclamation retention fixture missing")
     with open(name, "rb") as source:

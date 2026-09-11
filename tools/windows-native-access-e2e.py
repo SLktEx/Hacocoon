@@ -64,6 +64,7 @@ def main():
     parser.add_argument('--interop-only', action='store_true')
     parser.add_argument('--require-non-c', action='store_true')
     parser.add_argument('--persistence-manifest')
+    parser.add_argument('--reclamation-manifest')
     args = parser.parse_args()
     here = Path(__file__).resolve().parent
     spec = importlib.util.spec_from_file_location('native_access_driver', here / 'windows-installer-user-path-e2e.py')
@@ -87,7 +88,7 @@ def main():
             if not args.interop_only:
                 # Environment creation/deletion must not break interop in the
                 # already-open trusted Host session.
-                scripts.extend([('test_windows_environment_ssh.ps1', [])])
+                scripts.extend([('test_windows_environment_ssh.ps1', ['-ReclamationManifest', str(Path(args.reclamation_manifest).resolve())] if args.reclamation_manifest else [])])
                 if os.environ.get('GITHUB_ACTIONS') == 'true':
                     scripts.append(('test_host_customization.ps1', []))
                 scripts.append(scripts[0])
