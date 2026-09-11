@@ -81,6 +81,20 @@ class NativeCaptureTests(unittest.TestCase):
             self.capture()
         self.assertEqual((self.output / "data.tar").read_bytes(), plain)
 
+    @unittest.skipUnless(os.geteuid() == 0, "requires root for trusted xattrs")
+    def test_non_user_attribute_survives_explicit_native_restore(self):
+        key = "trusted.hacocoon-evacuation"
+        os.setxattr(self.source / "data", key, b"synthetic-only")
+        self.capture()
+        restored = self.source.parent / "restored"
+        restored.mkdir(mode=0o700)
+        subprocess.run(["tar", "--acls", "--xattrs", "--xattrs-include=*",
+                        "--numeric-owner", "-xpf", str(self.output / "data.tar"),
+                        "-C", str(restored)], check=True, timeout=60,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.assertEqual(os.getxattr(restored / "data", key), b"synthetic-only")
+        self.assertEqual((restored / "data").read_bytes(), (self.source / "data").read_bytes())
+
     def test_changed_source_never_receives_completion(self):
         original = subject._tree
         calls = 0
