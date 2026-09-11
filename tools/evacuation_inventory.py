@@ -252,6 +252,7 @@ def catalog_references(data):
         return result
     result["version"] = 13
     fields = {
+        "environments": ("name", "runtime_ref", "access_mode"),
         "persistent_resources": ("id", "owner", "kind", "native_ref", "state", "workspace_id", "restore_source"),
         "base_assets": ("id", "owner", "native_ref", "state"),
         "workspace_leases": ("workspace_id", "environment_id", "owner", "instance_id", "runtime_ref", "state", "snapshot_source"),
@@ -278,6 +279,26 @@ def catalog_references(data):
                 for field in allowed:
                     if field in value:
                         row[field] = reference(value[field])
+                if section == "environments":
+                    workspace = value.get("workspace")
+                    if not isinstance(workspace, dict):
+                        raise ValueError("invalid environment workspace")
+                    row["workspace_id"] = reference(workspace["id"])
+                    path = text(workspace["path"])
+                    if path.startswith("managed:") and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", path[8:]):
+                        row["workspace_source"] = {"source_kind": "managed-workspace-reference", "source": path, "source_review": "required"}
+                    else:
+                        row["workspace_source"] = source_reference(path)
+                    base = value.get("base")
+                    if base is not None:
+                        if not isinstance(base, dict):
+                            raise ValueError("invalid base provenance")
+                        row["base_provenance"] = {f: reference(base[f]) for f in ("name", "revision") if f in base}
+                    resource = value.get("persistent_resource")
+                    if resource is not None:
+                        if not isinstance(resource, dict):
+                            raise ValueError("invalid environment resource")
+                        row["persistent_resource"] = {f: reference(resource[f]) for f in ("id", "owner") if f in resource}
                 if section == "snapshots":
                     components = value.get("components", [])
                     if not isinstance(components, list) or len(components) > LIMIT:

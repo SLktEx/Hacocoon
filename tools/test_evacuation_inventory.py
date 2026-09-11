@@ -251,6 +251,31 @@ class InventoryTests(unittest.TestCase):
         self.assertNotIn("never-copy", json.dumps(result))
         self.assertEqual(result["pools"][0]["source_kind"], "unreported-reference-review-in-incus")
 
+    def test_environment_workspace_references_preserve_topology_without_opening_paths(self):
+        env = {"name": "dev", "runtime_ref": "haco-dev", "access_mode": "exclusive", "workspace": {"id": "work", "path": "managed:app"}, "base": {"name": "dev", "revision": "abc", "credential": "never-copy"}, "persistent_resource": {"id": "oci:work", "owner": "abc"}, "resources": {"secret": "never-copy"}}
+        data = {"version": 13, "environments": {"dev": env}}
+        original = json.dumps(data, sort_keys=True)
+        with patch("builtins.open", side_effect=AssertionError("must not open workspace")):
+            result = subject.catalog_references(data)
+        self.assertTrue(result["projection_complete"])
+        row = result["records"][0]
+        self.assertEqual(row["workspace_id"], "work")
+        self.assertEqual(row["workspace_source"]["source"], "managed:app")
+        self.assertEqual(row["persistent_resource"]["id"], "oci:work")
+        self.assertEqual(row["base_provenance"], {"name": "dev", "revision": "abc"})
+        self.assertNotIn("never-copy", json.dumps(result))
+        self.assertEqual(json.dumps(data, sort_keys=True), original)
+        env["workspace"]["path"] = "/mnt/c/shared"
+        self.assertEqual(subject.catalog_references(data)["records"][0]["workspace_source"]["source"], "/mnt/c/shared")
+        env["workspace"]["path"] = "https://user:never-copy@example.invalid/repo"
+        self.assertNotIn("never-copy", json.dumps(subject.catalog_references(data)))
+
+    def test_malformed_environment_workspace_retains_other_records_and_error(self):
+        result = subject.catalog_references({"version": 13, "environments": {"broken": {"workspace": []}}, "persistent_resources": {"saved": {"native_ref": "pool/saved"}}})
+        self.assertFalse(result["projection_complete"])
+        self.assertEqual(result["errors"], ["environments:row:0"])
+        self.assertEqual(result["records"][0]["section"], "persistent_resources")
+
     def test_catalog_projection_preserves_saved_components_without_config(self):
         data = {"version": 13, "snapshots": {"saved": {"id": "saved", "state": "ready", "source": {"secret": "never-copy"}, "components": [{"role": "workspace", "native_ref": "pool/saved-work", "owner": "abc", "state": "ready", "binding": "never-copy"}]}}, "persistent_resources": {"oci:work": {"id": "oci:work", "owner": "abc", "kind": "oci", "native_ref": "pool/work", "state": "ready"}}, "workspace_leases": {"dev": {"workspace_id": "work", "instance_id": "new-generation", "persistent_resource": {"id": "oci:work", "owner": "abc"}}}}
         original = json.dumps(data, sort_keys=True)
