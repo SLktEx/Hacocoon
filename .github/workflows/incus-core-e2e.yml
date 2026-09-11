@@ -119,9 +119,15 @@ jobs:
           printf 'HACO_CI_INCUS_CONF=%s/haco-incus-client\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           bash tools/ci-incus-core.sh setup
       - name: Prepare normal-user haco CLI acceptance
+        id: reclaim_substrate
         run: bash tools/ci-incus-storage-cli.sh setup
       - name: Run normal haco create and run against Incus-owned Btrfs
         run: bash tools/ci-incus-storage-cli.sh test
+      - name: Verify Incus pool trim retains volume and snapshot
+        if: ${{ !cancelled() && steps.reclaim_substrate.outcome == 'success' }}
+        run: |
+          go test -c -o "$RUNNER_TEMP/reclaim-storage.test" ./modules/runtime/incus
+          sudo env HACO_E2E_RECLAIM_TRIM=1 "$RUNNER_TEMP/reclaim-storage.test" -test.run='^TestRealIncusPoolTrimPreservesVolumeAndSnapshot$' -test.v -test.timeout=6m
       - name: Verify encrypted readable-data transport
         run: |
           sudo apt-get install --no-install-recommends -y age

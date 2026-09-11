@@ -31,7 +31,7 @@ HACO_LOG_LEVEL=debug haco doctor
 HACO_LOG_FORMAT=json HACO_LOG_LEVEL=debug haco create --workspace /work demo
 ```
 
-`haco`、`haco-vscode`、`haco-agent-host`、`haco-notify` は同じ設定を使います。formatは `text`（default）と `json` をsupportします。Logはstderrへ出し、stdoutのcommand outputをmachine-consumableなまま保ちます。
+`haco`、`haco-vscode`、`haco-wsl`、 `haco-agent-host`、`haco-notify` は同じ設定を使います。formatは `text`（default）と `json` をsupportします。Logはstderrへ出し、stdoutのcommand outputをmachine-consumableなまま保ちます。
 
 ## Stable structured field
 

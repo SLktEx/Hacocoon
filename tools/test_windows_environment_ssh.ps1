@@ -3,7 +3,7 @@
 # SSH transport. Desktop SSH setup is also exercised on the disposable GHA user;
 # local manual execution preserves the operator's SSH configuration.
 #Requires -Version 7.0
-param([string]$Distro = 'Hacocoon', [int]$Port = 0)
+param([string]$Distro = 'Hacocoon', [int]$Port = 0, [string]$ReclamationManifest)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
@@ -473,7 +473,7 @@ fi
         }
         try {
             . (Join-Path $PSScriptRoot 'test_windows_environment_transfer.ps1')
-            Invoke-InstalledEnvironmentTransfer -BaseName $BuiltBaseName -PublicKeyWsl $PublicKeyWsl -PrivateKey $PrivateKey -NativeSSH $NativeSSH -Directory $Work
+            Invoke-InstalledEnvironmentTransfer -BaseName $BuiltBaseName -PublicKeyWsl $PublicKeyWsl -PrivateKey $PrivateKey -NativeSSH $NativeSSH -Directory $Work -ReclamationManifest $ReclamationManifest
         } catch {
             $DesktopFailures.Add('environment-transfer')
             Write-Host 'INSTALLED ENV TRANSFER: FAIL; continuing independent probes'

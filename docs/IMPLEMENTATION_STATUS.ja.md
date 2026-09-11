@@ -1,5 +1,27 @@
 # 実装状況
 
+## ストレージ容量回収
+
+状態: **partial、内部のみ**。Incus が設定済み Btrfs pool/mount を管理します。
+controller が固定した対象に Btrfs・外側 ext4 の discard を行い、Windows worker が
+上限付きの型付き report を受け取ってから、正確な GUID の停止・VHDX 圧縮・再開へ進みます。
+Linux の失敗・完了不明時は停止しません。保存済み enrollment、native pin、排他、
+データ・容量の保護、明示的な失敗記録保持を維持します。
+
+新規準備は操作記録 version 2 を使います。既存 version 1 は canonical バイト列と
+Windows disk-only の意味を保持し、catalog・一括移行は不要です。開始済み pending から
+Linux 操作を再実行しません。公開の一括コマンドと結果不明 pending の利用者向け操作は未完了です。
+通常の Windows 導入で helper を登録ごとの固定場所へ配置します。常設実体からの worker 実機受入は
+確認待ちです。
+
+`29886ed` の導入済み Windows Linux 段階 gate と Incus Btrfs volume/snapshot 保持 trim step
+は成功しました。以前の専用 Windows worker は容量を維持して895 MiB、33 MiBを回収しましたが、
+Linux 段階を含みません。今回接続した worker には別途 native CI 受入が必要です。
+以前の Job/open 失敗や歴史的な導入 build の OCI directory 検証失敗は失敗のままです。
+後の限定的な成功を永続データ全体の受入としません。[所有文書](design/storage-reclamation.ja.md)
+を参照してください。F1 は未完了です。
+
+
 ## Ubuntu bridge の DNS 依存
 
 Status: **implemented**。common installer は、Incus が recommended package なしで導入済みの場合も、bridge の DNS/DHCP 用に `dnsmasq-base` を明示的に導入する。CLI と network の所有確認・隔離契約は変更しない。[trusted-host network](design/trusted-host.ja.md#専用trusted-host-network)を参照。
@@ -1584,6 +1606,8 @@ native resume E2E は boot 設定の読み戻しと所有台帳保持を含め 3
 
 G2 は実 snapshot 削除の EPERM 中に退避する明示実行の回帰を既存 native gate に追加しました。別途の隔離 WSL 手動検証では、失敗中の取得・独立復元・所有 pool の cleanup が成功しました。全量退避・破損復旧は未完了です。[対応する設計](design/environment-transfer.ja.md#snapshot-削除失敗後の読み出し退避)を参照してください。
 
+F1 に現在の終端 failed 操作だけを明示確認する内部処理を追加しました。新しい試行を許可する前に元の結果を ID ごとに保持します。pending／結果不明は引き続き拒否し、Windows native registry と command/library 回帰は成功しました。実登録 WSL の確認操作は未検証です。[失敗の確認](design/storage-reclamation.ja.md#終端の失敗結果を明示確認する)を参照してください。
+
 G2 の読み取り専用 inventory に `--files /absolute/root` の Linux ファイル metadata 列挙を追加しました。mount・symlink・特殊ファイル・エラー・上限による未処理を明示し、内容の取得や backup／所有権の付与とはしません。[手動追加ファイル一覧](design/environment-transfer.ja.md#退避確認のための手動追加ファイル一覧)を参照してください。
 
 暗号化受入 fixture は private な `/var/lib` に保持し、実 systemd PrivateTmp 終了後の回帰を追加しました。旧合成 identity のパスは現在見つからないため、保存した暗号文の別 WSL 復元は未実行です。[fixture 保持と限界](design/environment-transfer.ja.md#暗号化受入-fixture-の保持)を参照してください。
@@ -1593,6 +1617,37 @@ G2 の読み取り専用 inventory に `--files /absolute/root` の Linux ファ
 G2 に、既存 native snapshot adapter の保存 rootfs を直接ファイル退避する明示実行テストを追加しました。復元先は新しい設定を使い、所有対象だけを cleanup します。専用 Incus/Btrfs の実機受入は9.37秒で成功しました。全量退避ではありません。[対象契約](design/environment-transfer.ja.md#保存-rootfs-ファイルの直接退避)を参照してください。
 
 Git Workspace 2個と OCI の管理 bundle が、別 WSL の通常 installed-controller import（171.27秒）、保存 volume 全94エントリの照合、鍵固定 SSH・ローカル Git 作業、同名 Env 再作成でのデータ保持に成功しました。Host 生 ID 比較と最初の SSH package 準備は失敗し、guest ID 比較と世代限定の package 許可で確認が通りました。全量復元・認証済み Git は未完了です。[別 WSL の管理対象受入](design/environment-transfer.ja.md#別-wsl-への管理対象-bundle-復元)を参照してください。
+
+F1 はその後、実登録の失敗の明示確認と一度の detached worker による停止・圧縮・
+再開に成功しました。895 MiB 回収、容量1 TiB は不変で、旧失敗も保持しています。
+現在結果の読み取りは操作 ID 不要になりましたが、変更操作には必要です。
+Windows native 回帰は成功しました。導入済みの過去の v0.45 では OCI directory の
+assertion が失敗しており、現行アプリ一式と公開全層操作の受入は未完了です。
+[worker 実機確認](design/storage-reclamation.ja.md#専用-wsl-の-worker-実機確認)を参照してください。
+
+F1 の Windows 操作準備を内部 helper に接続しました。テスト専用入口ではなく、
+既存の登録済み対象の API を使います。準備だけでは worker を起動せず、出力失敗時も
+pending を保持します。helper 準備からの実機操作も33 MiB 回収・容量維持・再開に成功しました。公開全層操作は未完了です。
+[準備の境界](design/storage-reclamation.ja.md#導入する-helper-から操作を準備する)を参照してください。
+
+F1 の設定済み Incus Btrfs・外側 ext4 段階を、管理専用 controller RPC と固定内部 client
+に接続しました。導入 WSL 識別、段階別の失敗・後片付け結果、filesystem と file 割り当ての
+区別を維持します。Windows workflow の導入済み Linux gate は `29886ed` で成功しました。
+worker との一連の実機受入と公開全層操作は確認待ちです。
+[Linux controller 接続](design/storage-reclamation.ja.md#linux-段階の-controller-接続)を参照してください。
+
+F1 に controller 自身の対象識別を読み取る API を追加し、公開操作で GUID を必須にしない準備を
+進めました。関連 package テスト・vet は成功しました。`4369fdb` の一連の native worker gate は
+Linux 成功後の `_launch` で失敗し、原因・worker 未起動は未確定です。常設 helper と上限付き
+起動診断の追試 CI は確認待ちです。[現状](design/storage-reclamation.ja.md#管理対象の識別取得)を参照してください。
+
+F1 に `haco reclaim` と読み取り専用 `haco reclaim --status` を追加し、GUID・path の必須引数をなくしました。起動受付と完了を区別し、native PowerShell protocol fixture は成功しました。`d675c5a` の Windows 一連 gate は process 作成の Access denied 5 で失敗し、Linux 未開始の pending を保持しました。公開操作の導入済み受入・中断 pending の明示確認は未完了です。[公開回収操作](design/storage-reclamation.ja.md#公開の起動と結果照会)を参照してください。
+
+Windows F1 gate を通常 Host terminal の公開 reclaim/status に接続し、再入場前は Windows の読み取りだけで終了を確認します。拒否テストは成功、native 受入は確認待ちです。[通常経路 gate](design/storage-reclamation.ja.md#通常の-host-入口による受入)を参照してください。
+
+F1 の内部中断確認は元の pending バイト列を保持して旧 handoff を無効にし、新しい準備前に証拠の完全一致を要求します。所有・pin・排他照合は再利用し、native 隔離回帰は成功しました。公開の確認操作への接続と実登録の中断受入は未完了です。[中断確認](design/storage-reclamation.ja.md#中断した操作の明示確認)を参照してください。
+
+F1 の公開 `haco reclaim --review` を接続し、GUID 引数なしで正確な未成功操作を確認します。自動再試行はしません。CLI・vet・native PowerShell fixture は成功しました。de72119 の通常 Host gate は起動成功後の保存 worker 結果で失敗し、段階報告を追加しました。一連の native 成功は未証明です。[公開の確認](design/storage-reclamation.ja.md#haco-から明示確認する)を参照してください。
 
 G2 の読み取り専用一覧に image の fingerprint・種類・alias 名・native project の共有元を追加しました。Linux 回帰テストと専用 Incus の比較は成功しました。image export と installation 全体の保存は未実装です。[退避対象一覧](design/environment-transfer.ja.md#退避対象の-native-一覧)を参照してください。
 

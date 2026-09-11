@@ -212,3 +212,5 @@ v0.23は新しいarchitecture contractではなくacceptance checkpointです。
 > **意味のあるproduct、operator、observability、acceptanceの進捗がlandしたら次minorへ進めてよい。pre-1.0ではversion番号を節約するよりcheckpointを見える化する。**
 
 d4aef8d の Windows 受け入れ確認では、VS Code に加えて C4 の基本 recipe 操作、C5 の HTTP／Edge preview、C6 の Environment doctor 前提確認が PASS になりました。C4 の再作成・キャンセル、既定ブラウザ起動、VPN／NRPT は別の受け入れ項目です。partial の承認 checkpoint では、追加 CLI 引数なしで名前付き要求を catalog の作成 ID に結び付けます。
+
+F1 の公開起動・結果照会 CLI を実装しました。native Windows 起動失敗があり、一連の導入済み受入は partial のままです。追加の release・checkpoint は宣言しません。[現在の回収操作](../design/storage-reclamation.ja.md#公開の起動と結果照会)を参照してください。

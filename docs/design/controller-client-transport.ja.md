@@ -284,3 +284,11 @@ Linux の管理 controller は `environment.export` を登録します。停止�
 client が指定する Host path は受け取りません。検証済み bundle を上限付き canonical frame と
 明示的な count/digest 完了情報で転送します。切断で処理を取り消し、cleanup が不明なら既存の
 所有記録を残します。[Environment export](environment-transfer.ja.md)を参照してください。
+
+内部 `storage.reclaim-linux` は管理 endpoint のみに登録します。導入済み WSL の正確な
+識別が必要で、操作失敗を含む段階別の観測結果を返します。Windows disk の権限は
+付与しません。[Linux 容量回収](storage-reclamation.ja.md#linux-段階の-controller-接続)を参照してください。
+
+回収の管理経路には、導入済み controller 自身の検証済み WSL 識別を返す読み取り専用
+`storage.reclamation-target` もあります。呼び出し側の対象選択や backend の生エラーは返さず、
+Windows 操作権限も与えません。[対象識別の取得](storage-reclamation.ja.md#管理対象の識別取得)を参照してください。

@@ -1,5 +1,12 @@
 # Windows / WSL installation
 
+Normal managed installation verifies the bundled Windows `haco-wsl.exe`, installs
+it permanently in the Windows user application directory per registration, and enrolls the exact WSL GUID, installed Host identity, Windows owner and VHDX file.
+No extra option or PATH change is needed; the extracted package need not remain.
+Rerunning the installer accepts identical enrollment;
+changed correspondence is retained and refused. This does not enable public
+capacity reclamation. See [the contract](design/storage-reclamation.md#packaged-enrollment-acceptance).
+
 Status: **partial**. Managed-account bootstrap is implemented; real Windows install/network/restart acceptance is tracked separately in [implementation status](IMPLEMENTATION_STATUS.md). Product `haco` provides controller-backed setup, diagnostics, managed repository/Workspace preparation, Environment SSH/stop and Git approvals. Follow the [managed repository workflow](reference/managed-repository-workflow.md) after installation. Remaining legacy commands belong to temporary `hacoq` during [CLI migration](CLI_MIGRATION.md).
 
 Packaged acceptance, exact commits and unresolved startup failures are tracked in [implementation status](IMPLEMENTATION_STATUS.md). A later successful run does not erase an earlier unexplained failure.

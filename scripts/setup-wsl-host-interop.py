@@ -15,9 +15,11 @@ import stat
 import sys
 import subprocess
 import tempfile
+import uuid
 
 PATH_RECORD = Path('/etc/hacocoon/windows-path.json')
 DISTRIBUTION_RECORD = Path('/etc/hacocoon/windows-distribution.json')
+REGISTRATION_RECORD = Path('/etc/hacocoon/windows-registration.json')
 GUEST_LINUX_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 
 
@@ -86,6 +88,92 @@ def distribution_record(capture=False):
     if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}', name):
         raise ValueError('invalid Windows distribution record')
     return name
+
+
+
+def canonical_registration_id(value):
+    if not isinstance(value, str):
+        raise ValueError('invalid Windows registration GUID')
+    try:
+        parsed = uuid.UUID(value)
+    except (ValueError, AttributeError):
+        raise ValueError('invalid Windows registration GUID') from None
+    if parsed.int == 0 or value != '{' + str(parsed) + '}':
+        raise ValueError('require a canonical nonzero Windows registration GUID')
+    return value
+
+
+def registration_record(value=None, capture=False):
+    """Installer-only binding component, not permission to stop or compact WSL.
+
+    Keep the existing name record unchanged. No replacement/migration/recovery is
+    inferred from a caller-supplied name or from an unreadable binding.
+    """
+    import fcntl
+    if capture:
+        value = canonical_registration_id(value)
+    if os.geteuid() != 0:
+        raise ValueError('registration access requires Physical Host root')
+    parent = REGISTRATION_RECORD.parent
+    if not parent.is_absolute():
+        raise ValueError('registration directory must be absolute')
+    directory = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        # Walk using held directories, never follow an ancestor symlink.
+        for part in parent.parts[1:]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory)
+            os.close(directory)
+            directory = child
+        info = os.fstat(directory)
+        if info.st_uid != 0 or info.st_mode & 0o022:
+            raise ValueError('unsafe registration directory')
+        fcntl.flock(directory, fcntl.LOCK_EX)
+        name = REGISTRATION_RECORD.name
+        try:
+            fd = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory)
+        except FileNotFoundError:
+            fd = None
+        if fd is not None:
+            with os.fdopen(fd, 'rb') as stream:
+                info = os.fstat(stream.fileno())
+                if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o077 or info.st_nlink != 1 or info.st_size > 4096:
+                    raise ValueError('unsafe registration record')
+                raw = stream.read(4097)
+            try:
+                record = json.loads(raw)
+                if (set(record) != {'schema_version', 'registration_id', 'installation_id'} or
+                        type(record['schema_version']) is not int or record['schema_version'] != 1 or
+                        (canonical_registration_id(record['registration_id']) != value and value is not None) or
+                        str(uuid.UUID(record['installation_id'])) != record['installation_id'] or
+                        uuid.UUID(record['installation_id']).int == 0 or
+                        raw != (json.dumps(record, sort_keys=True, separators=(',', ':')) + '\n').encode()):
+                    raise ValueError('registration binding mismatch or unsupported format')
+            except (KeyError, TypeError, AttributeError, json.JSONDecodeError):
+                raise ValueError('invalid registration record; retain it for review') from None
+            return record
+        if not capture:
+            raise FileNotFoundError('managed Windows registration is not enrolled')
+        record = {'schema_version': 1, 'registration_id': value, 'installation_id': str(uuid.uuid4())}
+        raw = (json.dumps(record, sort_keys=True, separators=(',', ':')) + '\n').encode()
+        temporary = '.windows-registration-' + uuid.uuid4().hex
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=directory)
+        try:
+            with os.fdopen(fd, 'wb') as stream:
+                stream.write(raw)
+                stream.flush()
+                os.fsync(stream.fileno())
+            # Publish without replacing a name even if another root process races.
+            os.link(temporary, name, src_dir_fd=directory, dst_dir_fd=directory, follow_symlinks=False)
+        finally:
+            os.unlink(temporary, dir_fd=directory)
+        os.fsync(directory)
+        return record
+    finally:
+        os.close(directory)
+
+
+def capture_registration(value):
+    return registration_record(value, capture=True)
 
 
 def drive_mounts(mounts):
@@ -295,6 +383,13 @@ def main():
         raise ValueError("run as root on the WSL Physical Host")
     if not Path("/init").is_file() or not Path("/run/WSL/1_interop").is_socket():
         raise ValueError("WSL interop is unavailable; enable Windows interop and enter WSL again")
+    if sys.argv[1:] == ['--read-registration']:
+        print(json.dumps(registration_record(), sort_keys=True, separators=(',', ':')))
+        return
+    if len(sys.argv) == 3 and sys.argv[1] == '--capture-registration':
+        capture_registration(sys.argv[2])
+        print('Recorded managed WSL registration identity')
+        return
     mounts = json.loads(subprocess.check_output(["findmnt", "--json", "--list", "-o", "TARGET,FSTYPE,OPTIONS"]))["filesystems"]
     drives = drive_mounts(mounts)
     if not drives:

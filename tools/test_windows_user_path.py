@@ -5,11 +5,22 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location("windows_user_path", Path(__file__).with_name("windows-installer-user-path-e2e.py"))
 gate = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = gate
 spec.loader.exec_module(gate)
+
+
+class EnvironmentBoundaryTest(unittest.TestCase):
+    def test_retention_flags_are_not_allowed_in_the_product_environment(self):
+        for name in ("HACO_E2E_RECLAIM_RETENTION", "HACO_RECLAIM_RETENTION_MANIFEST"):
+            with patch.dict(gate.os.environ, {name: "fixture"}, clear=True):
+                with self.assertRaisesRegex(RuntimeError, "refuses Hacocoon environment overrides"):
+                    gate.inherited_child_environment()
+        with patch.dict(gate.os.environ, {"RUNNER_TEMP": "fixture-directory"}, clear=True):
+            self.assertEqual(gate.inherited_child_environment(), {"RUNNER_TEMP": "fixture-directory"})
 
 
 class DoctorAssertionTest(unittest.TestCase):

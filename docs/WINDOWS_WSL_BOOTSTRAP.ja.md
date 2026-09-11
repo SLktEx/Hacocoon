@@ -1,5 +1,12 @@
 # Windows / WSL セットアップ
 
+通常の管理対象インストールは同梱の Windows `haco-wsl.exe` を検証して Windows ユーザーの
+アプリ用フォルダーへ登録ごとに常設し、正確な WSL GUID・
+導入済み Host の識別情報・Windows 所有者・VHDX ファイルを登録します。追加 option・PATH 変更は不要で、
+展開 package を保持する必要もありません。
+同じ登録の installer 再実行は受け付け、対応が変わった場合は情報を保持して拒否します。
+公開の容量回収を有効にするものではありません。[契約](design/storage-reclamation.ja.md)を参照してください。
+
 Status: **partial**。固定管理accountのbootstrapはimplemented、実Windowsでのinstall/network/restart受入は[実装status](IMPLEMENTATION_STATUS.ja.md)で別管理する。製品 `haco` はcontroller経由のsetup・診断、管理対象repo/Workspaceの準備、EnvironmentのSSH・停止、Git承認を提供する。導入後は[管理対象repoの利用手順](reference/managed-repository-workflow.md)を参照する。残る旧commandは[CLI移行](CLI_MIGRATION.md)中の一時的な `hacoq` の機能である。
 
 Package受入、対象commit、未解決の起動失敗は[実装status](IMPLEMENTATION_STATUS.ja.md)で管理する。後の成功をもって以前の原因未確定の失敗を解消済みとしない。

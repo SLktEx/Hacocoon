@@ -48,6 +48,123 @@ function Invoke-WslInstall([string]$Name, [string[]]$Arguments) {
     }
 }
 
+function Read-WslRegistrationCandidates {
+    $root = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Microsoft\Windows\CurrentVersion\Lxss')
+    if ($null -eq $root) { throw 'WSL registration registry is unavailable.' }
+    try {
+        foreach ($id in $root.GetSubKeyNames()) {
+            $key = $root.OpenSubKey($id)
+            if ($null -eq $key) { throw 'WSL registration changed during lookup.' }
+            try {
+                [pscustomobject]@{
+                    Id = $id
+                    Name = $key.GetValue('DistributionName', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                    NameKind = $key.GetValueKind('DistributionName').ToString()
+                    Version = $key.GetValue('Version')
+                    VersionKind = $key.GetValueKind('Version').ToString()
+                }
+            } finally { $key.Close() }
+        }
+    } finally { $root.Close() }
+}
+
+function Resolve-WslRegistrationId([string]$Name) {
+    Assert-SafeName $Name 'WSL instance name'
+    $registrationMatches = @(Read-WslRegistrationCandidates | Where-Object {
+        $_.Name -is [string] -and [string]::Equals($_.Name, $Name, [StringComparison]::OrdinalIgnoreCase)
+    })
+    if ($registrationMatches.Count -ne 1) { throw 'Expected one exact WSL registration; refusing name/default fallback.' }
+    $selected = $registrationMatches[0]
+    $id = [guid]::Empty
+    if ($selected.NameKind -cne 'String' -or $selected.VersionKind -cne 'DWord' -or $selected.Version -ne 2 -or
+        -not [guid]::TryParse($selected.Id, [ref]$id) -or $id -eq [guid]::Empty) {
+        throw 'Unsupported WSL registration identity.'
+    }
+    return $id.ToString('B')
+}
+
+function Get-HacocoonWindowsDataRoot {
+    $root = [Environment]::GetFolderPath('LocalApplicationData')
+    if ([string]::IsNullOrWhiteSpace($root)) { throw 'Windows user application directory unavailable.' }
+    return [IO.Path]::GetFullPath($root)
+}
+
+function Install-HacocoonWslHelper([string]$Source, [string]$RegistrationId, [string]$ExpectedHash) {
+    $id = [guid]::Empty
+    if (-not [guid]::TryParse($RegistrationId, [ref]$id) -or $id -eq [guid]::Empty -or $ExpectedHash -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid installed helper identity.' }
+    $root = Get-HacocoonWindowsDataRoot
+    $directory = [IO.Path]::GetFullPath((Join-Path $root ('Hacocoon\reclamation\' + $id.ToString('N'))))
+    $cursor = $directory
+    while ($cursor.Length -ge $root.Length) {
+        if (Test-Path -LiteralPath $cursor) {
+            $item = Get-Item -LiteralPath $cursor -Force
+            if (-not $item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Refusing redirected Windows helper directory.' }
+        }
+        if ($cursor -ceq $root) { break }
+        $cursor = [IO.Path]::GetDirectoryName($cursor)
+    }
+    $configuration = Join-Path $directory 'installation.json'
+    if (Test-Path -LiteralPath $directory) {
+        if (-not (Test-Path -LiteralPath $configuration -PathType Leaf) -or ((Get-Item -LiteralPath $configuration -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Existing Windows helper directory has no ordinary ownership record.' }
+        $owned = Get-Content -Raw -LiteralPath $configuration | ConvertFrom-Json
+        $fields = @($owned.PSObject.Properties.Name | Sort-Object)
+        if (($fields -join ',') -cne 'registration_id,schema_version' -or $owned.schema_version -ne 1 -or $owned.registration_id -cne $id.ToString('B')) { throw 'Windows helper directory ownership differs.' }
+    } else {
+        [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($directory))
+        # Unlike CreateDirectory, creation without Force refuses a raced leaf.
+        New-Item -ItemType Directory -Path $directory -ErrorAction Stop | Out-Null
+        # A failed installation retains its exact ownership for explicit retry.
+        $ownership = [ordered]@{ registration_id=$id.ToString('B'); schema_version=1 } | ConvertTo-Json -Compress
+        $record = [IO.File]::Open($configuration, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+        try {
+            $bytes = [Text.Encoding]::UTF8.GetBytes($ownership)
+            $record.Write($bytes, 0, $bytes.Length)
+            $record.Flush($true)
+        } finally { $record.Dispose() }
+    }
+    $target = Join-Path $directory 'haco-wsl.exe'
+    if (Test-Path -LiteralPath $target) {
+        $item = Get-Item -LiteralPath $target -Force
+        if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Refusing redirected Windows helper executable.' }
+    }
+    $temporary = Join-Path $directory ('install-' + [guid]::NewGuid().ToString('N') + '.tmp')
+    $created = $false
+    try {
+        $inputFile = [IO.File]::Open($Source, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+        try {
+            $outputFile = [IO.File]::Open($temporary, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+            $created = $true
+            try { $inputFile.CopyTo($outputFile); $outputFile.Flush($true) }
+            finally { $outputFile.Dispose() }
+        } finally { $inputFile.Dispose() }
+        if ((Get-Sha256Hex $temporary) -cne $ExpectedHash) { throw 'Installed Windows helper checksum mismatch.' }
+        if (Test-Path -LiteralPath $target) {
+            # Atomic replacement fails if a running worker pins the executable.
+            [IO.File]::Replace($temporary, $target, [System.Management.Automation.Language.NullString]::Value)
+        } else {
+            [IO.File]::Move($temporary, $target)
+        }
+        $created = $false
+    } finally {
+        if ($created -and (Test-Path -LiteralPath $temporary -PathType Leaf)) { [IO.File]::Delete($temporary) }
+    }
+    return $target
+}
+
+function Invoke-WslEnrollment([string]$BundleRoot, [string]$RegistrationId) {
+    $id = [guid]::Empty
+    if (-not [guid]::TryParse($RegistrationId, [ref]$id) -or $id -eq [guid]::Empty) { throw 'Invalid enrollment registration.' }
+    $source = Join-Path $BundleRoot 'haco-wsl.exe'
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf) -or ((Get-Item -LiteralPath $source).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Missing or redirected Windows enrollment helper.' }
+    $entries = @(Get-Content -LiteralPath (Join-Path $BundleRoot 'checksums.txt') | Where-Object { $_ -cmatch '^[a-f0-9]{64}  haco-wsl.exe$' })
+    if ($entries.Count -ne 1 -or (Get-Sha256Hex $source) -cne $entries[0].Substring(0,64)) { throw 'Windows enrollment helper checksum mismatch.' }
+    # This is a bundled installer component running as the Windows caller, not
+    # an elevated helper or a command derived from guest/controller output.
+    $installed = Install-HacocoonWslHelper $source $id.ToString('B') $entries[0].Substring(0,64)
+    & $installed enroll $id.ToString('B')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows installation enrollment failed; saved correspondence was retained.' }
+}
+
 function Write-WslContinuation([string]$Directory, [string]$Name, [bool]$RestartRequired) {
     Assert-SafeName $Name "WSL instance name"
     Assert-SafeName $BaseDistro "WSL base distribution"
@@ -727,8 +844,14 @@ if ($probe.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($linuxAssetRoot)) {
 $skipIncusValue = if ($SkipIncus) { "1" } else { "0" }
 $grantIncusAdminValue = if ($GrantIncusAdmin) { "1" } else { "0" }
 $requireProvenance = if ($env:HACO_REQUIRE_PROVENANCE) { $env:HACO_REQUIRE_PROVENANCE } else { "1" }
+$managedRegistrationId = $null
+$managedDistributionArgs = @('--distribution', $InstanceName)
+if (-not $SkipIncus) {
+    $managedRegistrationId = Resolve-WslRegistrationId $InstanceName
+    $managedDistributionArgs = @('--distribution-id', $managedRegistrationId)
+}
 Write-Step "Running common Ubuntu install.sh inside '$InstanceName'"
-& wsl.exe --distribution $InstanceName --user root --exec env `
+& wsl.exe @managedDistributionArgs --user root --exec env `
     "HACO_INSTALL_USER=$loginUser" `
     "HACO_BUNDLE_ROOT=$linuxAssetRoot" `
     "HACO_BOOTSTRAP_SKIP_INCUS=$skipIncusValue" `
@@ -742,6 +865,12 @@ Assert-SystemdActive $InstanceName
 
 # post
 if (-not $SkipIncus) {
+    if ((Resolve-WslRegistrationId $InstanceName) -cne $managedRegistrationId) {
+        throw 'WSL registration changed during common setup.'
+    }
+    $binding = Invoke-WslCapture @('--distribution-id', $managedRegistrationId, '--user', 'root', '--exec', '/usr/bin/python3', '-I', '/usr/local/libexec/hacocoon-wsl-interop', '--capture-registration', $managedRegistrationId)
+    if ($binding.ExitCode -ne 0) { throw 'Managed WSL registration capture failed; existing records were retained.' }
+    Invoke-WslEnrollment $PSScriptRoot $managedRegistrationId
     Configure-WslPost $InstanceName $loginUser
     $probe = Invoke-WslCapture @("--distribution", $InstanceName, "--user", "root", "--exec", "incus", "exec", "haco-host", "--project", "hacocoon", "--", "/usr/local/bin/haco-host", "doctor")
     if ($probe.ExitCode -ne 0) { throw "WSL post-install haco-host acceptance failed." }

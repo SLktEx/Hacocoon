@@ -73,6 +73,17 @@ def package_windows(output: Path, archive: Path, checksum_line: str, version: st
             raise ValueError("Windows review executable missing or invalid")
         adapter = source.read(entries[0])
     checksum_line += hashlib.sha256(adapter).hexdigest() + "  haco-review.exe\n"
+    helper_archive = archive.parent / archive.name.replace("haco_linux_", "haco_wsl_windows_").replace(".tar.gz", ".zip")
+    expected_helper = archive_checksum_line(archive.parent / "checksums.txt", helper_archive.name).split()[0]
+    if sha256(helper_archive) != expected_helper:
+        raise ValueError("Windows WSL helper archive checksum mismatch")
+    with zipfile.ZipFile(helper_archive) as source:
+        entries = [entry for entry in source.infolist() if entry.filename == "haco-wsl.exe"]
+        if len(entries) != 1 or entries[0].file_size > 64 * 1024 * 1024:
+            raise ValueError("Windows WSL helper missing or invalid")
+        helper = source.read(entries[0])
+    checksum_line += hashlib.sha256(helper).hexdigest() + "  haco-wsl.exe\n"
+
     temporary = output.with_suffix(output.suffix + ".tmp")
     temporary.unlink(missing_ok=True)
     with zipfile.ZipFile(temporary, "w") as zf:
@@ -80,6 +91,7 @@ def package_windows(output: Path, archive: Path, checksum_line: str, version: st
         add_zip_file(zf, ROOT / "scripts" / "install-windows.ps1", "install-windows.ps1", 0o644)
         add_zip_file(zf, ROOT / "scripts" / "windows-review.ps1", "windows-review.ps1", 0o644)
         add_zip_bytes(zf, adapter, "haco-review.exe", 0o755)
+        add_zip_bytes(zf, helper, "haco-wsl.exe", 0o755)
         add_zip_file(zf, ROOT / "scripts" / "install.sh", "install.sh", 0o755)
         add_zip_file(zf, ROOT / "scripts" / "setup-wsl-host-interop.py", "setup-wsl-host-interop.py", 0o755)
         add_zip_file(zf, ROOT / "modules/runtime/incus/packaging/incus-boot-guard.py", "incus-boot-guard.py", 0o755)

@@ -1,5 +1,29 @@
 # Implementation Status
 
+## Storage reclamation
+
+Status: **partial, internal only**. Incus owns the configured Btrfs pool/mount.
+The controller performs pinned Btrfs/outer ext4 discard; the Windows worker now
+consumes its bounded typed report before exact-GUID stop/VHDX compaction/resume.
+Linux failure or unknown completion prevents shutdown. Saved enrollment, native
+pins, exclusion, data/capacity protection and explicit failed-result retention remain.
+
+New preparations use operation record version 2. Existing version-1 records keep
+their canonical bytes and disk-only meaning; no catalog/bulk migration is needed.
+Started pending operations cannot replay Linux work. The public one-entry command
+and interrupted-pending handling are unfinished. Normal Windows installation now
+places the verified helper at a registration-specific permanent path; its native
+worker acceptance is pending.
+
+At `29886ed`, installed Windows Linux-stage acceptance and the Incus Btrfs
+volume/snapshot trim step passed. Prior dedicated Windows workers reclaimed 895 MiB
+and 33 MiB with unchanged capacity, but did not include Linux stages. The newly
+combined worker requires its own native CI acceptance. Earlier Job/open failures
+and the historical installed-build OCI-directory failure remain failures; scoped
+later successes do not establish whole persistent-data acceptance. See the
+[owning contract](design/storage-reclamation.md). F1 is not complete.
+
+
 ## Ubuntu bridge DNS dependency
 
 Status: **implemented**. The common installer explicitly installs `dnsmasq-base` for Incus bridge DNS/DHCP, including a preinstalled Incus without recommended packages. CLI and network ownership/isolation contracts are unchanged. See [trusted-host networking](design/trusted-host.md#dedicated-trusted-host-network).
@@ -1850,6 +1874,8 @@ The native resume E2E passed in 37.43s with the boot-setting readback and retain
 
 G2 now includes an opt-in real snapshot-deletion EPERM evacuation regression in the existing native gate. A separate isolated WSL manual probe passed capture during failure, independent restoration and owned-pool cleanup. Full installation/corruption recovery remains incomplete; see [the owning contract](design/environment-transfer.md#readable-evacuation-after-a-failed-snapshot-deletion).
 
+F1 now has internal explicit review of the current terminal failed operation, retaining its original result by ID before a new attempt is permitted. Pending/unknown work stays blocked; Windows native registry and command/library regressions passed; real enrolled-WSL review remains unverified. See [failure review](design/storage-reclamation.md#explicit-review-of-a-terminal-failure).
+
 G2 read-only inventory optionally enumerates Linux file metadata with `--files /absolute/root`. Mounts, symlinks, special files, errors and bounds remain explicit gaps; no content is read and no backup/ownership authority is claimed. See [manual-file inventory](design/environment-transfer.md#manual-file-inventory-for-evacuation-review).
 
 Encrypted acceptance fixture retention now uses private `/var/lib` storage and a real systemd PrivateTmp-exit regression. The old synthetic identity path is currently absent, so its preserved ciphertext has not been restored into another WSL. See [fixture retention and limits](design/environment-transfer.md#retention-of-encrypted-acceptance-fixtures).
@@ -1859,6 +1885,41 @@ A separate synthetic cross-OS crypto check passed with a newly generated identit
 G2 includes an opt-in direct saved-rootfs file evacuation test through the existing native snapshot adapter, with fresh destination configuration and owned cleanup. Dedicated Incus/Btrfs acceptance passed in 9.37s; this is not whole-installation capture. See [the scoped contract](design/environment-transfer.md#direct-evacuation-of-saved-rootfs-files).
 
 A managed bundle with two Git Workspaces and OCI passed ordinary installed-controller import into a separate WSL (171.27s), all 94 saved volume entries, pinned SSH/local Git work and same-name retained-data recreation. Raw Host-ID comparison and initial SSH package preparation failed; guest-ID comparison and generation-scoped package permission resolved those checks. Whole-installation restoration and authenticated Git remain incomplete. See [cross-WSL managed acceptance](design/environment-transfer.md#managed-bundle-restoration-in-a-separate-wsl).
+
+F1 subsequently passed real enrolled failure review and one detached worker
+stop/compact/resume: 895 MiB reclaimed, 1 TiB capacity unchanged, old failure
+retained. Read-only current-result inspection no longer needs the operation ID;
+mutations still do. Native Windows regressions passed. The installed historical
+v0.45 OCI-directory assertion failed; full current-app and public all-layer
+acceptance remain incomplete. See [worker acceptance](design/storage-reclamation.md#dedicated-worker-acceptance).
+
+F1 Windows preparation is now available through the internal installed helper,
+using the canonical enrolled-target API rather than a test-only entry. Preparation
+does not dispatch; output failure preserves pending evidence. The public all-layer
+flow remains incomplete. Native helper preparation/launch reclaimed another 33 MiB
+with capacity, known files and same-registration resume preserved. See [preparation](design/storage-reclamation.md#preparing-through-the-installed-helper).
+
+F1 connects the configured Incus Btrfs/outer ext4 stages to a management-only
+controller RPC and fixed internal client bridge. Exact installed WSL identity,
+stage failure/cleanup evidence and distinct filesystem/file-allocation metrics
+are preserved. The Windows native workflow includes an installed integration gate;
+its Linux-only gate passed at `29886ed`; combined-worker acceptance and public
+activation remain pending. See
+[Linux controller connection](design/storage-reclamation.md#controller-connection-for-linux-stages).
+
+F1 has read-only controller target discovery to avoid required GUID arguments in
+the future public flow. Its package tests/vet passed. The combined native worker
+gate at `4369fdb` failed at `_launch` after Linux success; cause/worker absence are
+unproven. Permanent-helper and bounded launch-diagnostic follow-up CI are pending.
+See [the current scope](design/storage-reclamation.md#discovering-the-managed-target).
+
+F1 adds `haco reclaim` and read-only `haco reclaim --status`, without required GUID/path arguments. Dispatch is distinguished from completion; native PowerShell protocol fixtures passed. The combined Windows gate at `d675c5a` failed at process creation (Access denied 5), retaining pending with Linux not started. Public installed acceptance and interrupted-pending review remain incomplete. See [public reclamation](design/storage-reclamation.md#public-dispatch-and-result-inspection).
+
+The Windows F1 gate now drives public reclaim/status through the ordinary Host terminal and waits using Windows-only observations before reentry. Refusal tests passed; native acceptance is pending. See [the user-path gate](design/storage-reclamation.md#acceptance-through-the-ordinary-host-entry).
+
+F1 adds internal explicit interrupted review: retain original pending bytes, retire the old handoff, and require exact evidence before a fresh operation. Ownership/pin/exclusion checks are reused; native isolated regressions passed. Public review connection and real enrolled interruption acceptance remain pending. See [interrupted review](design/storage-reclamation.md#explicit-review-of-an-interrupted-operation).
+
+F1 public `haco reclaim --review` now discovers and confirms an exact unsuccessful operation without GUID arguments or automatic retry. CLI/vet and native PowerShell fixtures passed. The ordinary Host worker gate at de72119 dispatched successfully but failed on the saved worker result; failure-stage reporting is added and combined native success remains unproven. See [public review](design/storage-reclamation.md#reviewing-through-haco).
 
 G2 read-only inventory now includes image fingerprints, types, alias names and native project-sharing references. Linux regressions and a dedicated Incus comparison passed; image export and whole-installation capture remain unimplemented. See [evacuation inventory](design/environment-transfer.md#evacuation-inventory).
 
