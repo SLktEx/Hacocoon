@@ -151,3 +151,40 @@ func TestLoginAliasDetection(t *testing.T) {
 		t.Fatal("normal haco must not be treated as the login alias")
 	}
 }
+
+func TestTrustedHostNoticeFollowsWSLMessageLocale(t *testing.T) {
+	tests := []struct {
+		name       string
+		lcAll      string
+		lcMessages string
+		lang       string
+		want       string
+	}{
+		{name: "Japanese LANG", lang: "ja_JP.UTF-8", want: trustedHostNoticeJapanese},
+		{name: "Japanese LC_MESSAGES", lcMessages: "ja_JP.UTF-8", lang: "en_US.UTF-8", want: trustedHostNoticeJapanese},
+		{name: "LC_ALL overrides Japanese LANG", lcAll: "C.UTF-8", lcMessages: "ja_JP.UTF-8", lang: "ja_JP.UTF-8", want: trustedHostNoticeEnglish},
+		{name: "English LANG", lang: "en_US.UTF-8", want: trustedHostNoticeEnglish},
+		{name: "Japanese BCP47 style", lang: "ja-JP.UTF-8", want: trustedHostNoticeJapanese},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("LC_ALL", tt.lcAll)
+			t.Setenv("LC_MESSAGES", tt.lcMessages)
+			t.Setenv("LANG", tt.lang)
+			if got := trustedHostNotice(); got != tt.want {
+				t.Fatalf("trustedHostNotice()=%q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTrustedHostNoticeYellowFormatting(t *testing.T) {
+	const message = "notice"
+	if got, want := formatTrustedHostNotice(message, true), "\x1b[33mnotice\x1b[0m"; got != want {
+		t.Fatalf("colored notice=%q, want %q", got, want)
+	}
+	if got := formatTrustedHostNotice(message, false); got != message {
+		t.Fatalf("plain notice=%q, want %q", got, message)
+	}
+}
