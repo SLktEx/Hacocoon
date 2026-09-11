@@ -2,9 +2,9 @@
 
 日本語 | [English](storage-reclamation.md)
 
-状態: **partial、内部実装**。Linux の実体照合・割当量測定、Btrfs trim と外側 ext4
+状態: **partial、公開の起動・結果照会は実装済み**。Linux の実体照合・割当量測定、Btrfs trim と外側 ext4
 への discard を実装し、隔離した実環境で検証しました。設定済み Incus pool の選択は内部実装済みです。
-一つの入口で全層を回収する操作は未実装です。Windows の停止・圧縮・再開、
+一つの入口の CLI は実装しましたが、一連の実機受入は未完了です。Windows の停止・圧縮・再開、
 ファイル測定と native 圧縮は以下の内部実装まで進んでいます。F1 は
 未完了であり、データの明示削除・GC・移行とは別の機能です。
 
@@ -608,8 +608,8 @@ worker の上限は10分、controller 起動待ちを含む Linux 子プロセ�
 
 Windows の引き継ぎと native 記録は `internal/wslreclaim` が担当します。controller、
 Incus adapter、結果型 package の責務は維持します。内部 helper の引数は不変です。
-Windows helper の常設は下記のとおり接続しました。簡単な公開の一括操作と、結果不明の
-pending を利用者が扱う経路は未完了です。日常の `haco` コマンドは増やさず、F1 完了とも扱いません。
+Windows helper の常設と公開操作は下記のとおり接続しました。結果不明の pending を
+明示確認する経路は未完了で、F1 完了とは扱いません。
 
 既存 Windows CI gate に、配布 helper の準備・一度の起動、同じ Windows worker の終了待ち、
 保存済み Linux/Windows 完了確認、再開後の通常 setup・Host sentinel 確認を追加しました。
@@ -655,8 +655,7 @@ component 実行は成功しました。既存 native CI gate も展開 package 
 registration/installation ID を15秒の上限で返します。呼び出し側の対象選択・path・pool は
 受け付けません。型付き client は不正な応答や protocol 不一致を拒否し、service のエラーも
 backend の生出力を公開しません。取得だけでは変更対象 storage の選択や Windows 操作の
-認可を行いません。公開 CLI への接続は未完了ですが、接続時に利用者へ GUID を要求しないための
-API です。関連 controlapi/composition/controller テストと vet は成功しました。
+認可を行いません。公開 CLI はこの API を使い、利用者へ GUID を要求しません。関連 controlapi/composition/controller テストと vet は成功しました。
 
 `4369fdb` の一連の worker gate は **失敗** しました。導入済み Linux 両段階は成功しましたが、
 `_launch` が exit 1 を返しました。取得結果から原因や worker 未起動までは断定できません。
@@ -671,3 +670,45 @@ worker 完了が不明な可能性があるため、その後の通知 gate か�
 stdout は空、該当 probe process は残らず、登録・操作記録も作成されませんでした。
 これは起動拒否 probe の成功であり、GHA の起動失敗原因や停止・圧縮・再開の成功を
 示すものではありません。この probe は実在する WSL を選択していません。
+
+## 公開の起動と結果照会
+
+状態: **CLI 実装済み、一連の導入済み実機受入は未完了**。
+管理対象の trusted Hacocoon Host で作業を保存して実行します。
+
+```sh
+haco reclaim
+# Hacocoon 再開後に Host を開き直す:
+haco reclaim --status
+```
+
+最初の操作は停止・再開を確認し、`--yes` はこの質問だけを省略します。
+GUID・disk path・pool の必須引数はありません。controller の読み取りで導入先を識別し、
+既存 Host Windows interop を通して常設 helper が操作を準備し、一度だけ起動します。
+起動の exit 0 は worker の受付であり、**回収完了ではありません**。出力欠落・起動失敗を
+理由に再試行せず、保存結果を確認してください。`--status` は起動・再試行・記録消去・
+確認済み化をしません。pending は完了不明、failed は非ゼロ終了で証拠を保持します。
+中断 pending の明示確認は未実装です。再試行のために記録を削除しないでください。
+現行 controller と常設 Windows helper が必要で、旧導入先は通常の installer で更新します。
+
+`cmd/haco-product` は引数・確認・表示、`internal/reclaimclient` は上限付きの具体的な
+PowerShell 呼び出しを担当します。後者に backend interface や storage 権限はありません。
+`internal/reclamation` は識別と結果の値、管理 endpoint は導入先の識別、Incus adapter は
+pool の接続・選択と native discard、`internal/wslreclaim` は Windows enrollment・pin・
+排他・停止解除と結果の永続記録を担当します。CLI の関数引数はテスト用の差し替え点であり、
+別 provider のモデルではありません。catalog schema・Base 保存・snapshot backup・
+自動復旧は追加せず、保存データの移行も不要です。
+
+表示は Linux filesystem 使用量・loop file 割当・kernel discard・Windows VHD 割当を
+区別します。欠けた測定値は不明のまま、過去の Windows-only 完了はそう明記します。
+起動失敗でも pending 証拠を消しません。既存の Job breakaway・console 隔離は維持します。
+
+公開 CLI の回帰検証は確認・中断・固定対象・再試行なし・出力不能・不正結果・測定値の表示を
+扱います。native PowerShell 5.1 の起動・照会・準備拒否 fixture は隔離した通常ファイルで
+成功しました。この fixture は実 WSL worker を動かしません。
+
+`d675c5a` の一連の GHA 追試は `process_start`、native error 5 (Access denied) で
+**失敗** しました。保存記録は pending、`linux_started=false` でした。先行する導入済み
+Linux 両段階は成功しています。エラーだけで原因の Job・process 制約は断定できません。
+公開 Host → Windows 起動と一連の Workspace/OCI 保持は **未検証** です。native protocol
+fixture をその受入の代わりにはしません。[失敗した Windows run](https://github.com/SLktEx/Hacocoon/actions/runs/34555588035)を参照してください。

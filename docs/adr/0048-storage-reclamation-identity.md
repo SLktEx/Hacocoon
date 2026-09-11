@@ -1,6 +1,6 @@
 # ADR 0048: Reclaim allocation without a second storage lifecycle
 
-Status: in progress; no public reclaim command yet.
+Status: in progress; public dispatch/status implemented, installed acceptance incomplete.
 
 Use Incus's pool and mount model. Native Btrfs discard and Windows VHD compaction
 must preserve data and capacity; they do not implement object deletion or generic
@@ -19,7 +19,7 @@ rollback snapshot or full runtime-recovery framework is introduced.
 See [storage reclamation](../design/storage-reclamation.md). The current internal slice pins identity and performs Btrfs/outer ext4 discard.
 Outer discard requires separate managed-distribution authorization, beyond the
 pool permission. Windows measurement/compaction now have internal native acceptance;
-the public all-layer entry remains pending; Linux kernel trim counts are not Windows recovered allocation.
+the public all-layer entry remains unverified; Linux kernel trim counts are not Windows recovered allocation.
 
 Windows measurement uses native file/ancestor handles and explicit sharing
 exclusions. Attribute-only opens do not enforce the rename exclusion required by
@@ -155,3 +155,5 @@ redirected paths, validate the copied checksum, and atomically replace without
 backup. Native executable pins cause updates during worker execution to fail;
 never kill a worker or weaken its sharing exclusions to finish an installation.
 This adds no daily command, PATH entry or elevated service.
+
+The public CLI selects identity through the management read endpoint and uses one concrete Windows client bridge. It never clears/retries pending state and reports dispatch separately from completion. Native authority remains in the existing helper; the bridge does not introduce another backend or recovery state machine.

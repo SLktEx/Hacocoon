@@ -2,10 +2,10 @@
 
 [日本語](storage-reclamation.ja.md) | English
 
-Status: **partial, internal implementation**. Pinned Linux identity/allocation,
+Status: **partial; public dispatch and result inspection implemented**. Pinned Linux identity/allocation,
 Btrfs trim and outer ext4 discard are implemented and passed isolated native
 acceptance. Configured Incus pool selection is implemented internally; the public
-one-entry workflow is not yet implemented. Windows stop/compact/resume,
+one-entry CLI is implemented, with combined native acceptance still incomplete. Windows stop/compact/resume,
 handle-based measurement and native compaction are internal implementations
 described below. F1 remains incomplete.
 This is separate from resource deletion/GC and migration.
@@ -740,8 +740,7 @@ pending result is silently cleared, acknowledged or replayed.
 
 `internal/wslreclaim` owns this Windows handoff and native record. The controller,
 Incus adapter and result-type package keep their existing responsibilities. The
-internal helper arguments remain unchanged. Windows helper installation is connected below; a simple public one-entry action
-and interrupted-pending operator handling remain unfinished; this does not introduce a daily `haco` command or claim F1 done.
+internal helper arguments remain unchanged. Windows helper installation is connected below; the public action is described below. Interrupted-pending operator handling remains unfinished; F1 is not complete.
 
 The existing Windows CI gate now additionally invokes packaged prepare/one launch,
 waits for the same Windows worker process to exit without issuing WSL calls, checks
@@ -793,8 +792,7 @@ The management-only `storage.reclamation-target` read returns this controller's
 validated registration/installation IDs with a 15-second bound. It accepts no
 caller selection, path or pool. The typed client refuses invalid/protocol-mismatched
 responses; service errors expose no raw backend output. Discovery neither selects
-storage for mutation nor grants Windows authority. The public CLI connection is
-still pending; this API avoids requiring users to supply GUIDs when it is connected.
+storage for mutation nor grants Windows authority. The public CLI uses this API without requiring GUID arguments.
 Related controlapi/composition/controller tests and vet passed.
 
 The combined worker gate at `4369fdb` **failed**: both installed Linux stages passed,
@@ -812,3 +810,52 @@ reported the fixed `readiness` stage, stdout was empty, no exact probe process
 remained, and no registration or operation record was created. This is a passed
 startup-refusal probe, not the cause of the GHA launch failure or successful
 stop/compaction/resume. No actual WSL was selected by that probe.
+
+## Public dispatch and result inspection
+
+Status: **implemented CLI; combined installed acceptance incomplete**.
+From the managed trusted Hacocoon Host, save active work and run:
+
+```sh
+haco reclaim
+# After Hacocoon restarts, reopen its Host:
+haco reclaim --status
+```
+
+The first command confirms the stop/restart; `--yes` skips only that prompt.
+There are no required GUID, disk-path or pool arguments. Read-only controller
+identity discovery selects this managed installation. The installed Windows helper
+prepares one operation and dispatches once through existing Host Windows interop.
+Exit 0 from dispatch means a worker was accepted, **not** that reclamation finished.
+Lost output or a failed dispatch is not permission to retry: inspect the saved
+result. `--status` never launches, retries, clears or acknowledges an operation.
+Pending means unknown completion; failed exits nonzero and retains its evidence.
+Explicit interrupted-pending review remains unfinished. Do not delete its record
+to force another attempt. The current controller and permanently installed Windows
+helper are required; a historical installation needs its ordinary installer update.
+
+`cmd/haco-product` owns argument handling, confirmation and display.
+`internal/reclaimclient` is a concrete, bounded PowerShell bridge; it adds no backend
+interface or storage authority. `internal/reclamation` supplies identity/result
+values, the management endpoint selects its installed identity, the Incus adapter
+owns pool attachment/selection and native discard, and `internal/wslreclaim` keeps
+Windows enrollment, pins, exclusion and durable stop/result ownership. The CLI
+function parameters are test seams, not alternative providers. No catalog schema,
+Base data, snapshot backup, automatic recovery or saved-data migration is added.
+
+The display separates Linux filesystem use, loop-file allocation, kernel discard
+and Windows VHD allocation. Missing observations stay unknown; a historical
+Windows-only completion is labelled as such. A dispatch failure does not erase
+pending evidence. Existing Job breakaway and console isolation are unchanged.
+
+Public CLI regression tests cover confirmation/cancellation, fixed target, no retry,
+unavailable output, invalid results and measured allocation display. Native
+PowerShell 5.1 protocol fixtures passed start, status and preparation refusal using
+isolated ordinary files; these fixtures do not run a real WSL worker.
+
+The combined GHA follow-up at `d675c5a` **failed** with `process_start`, native error
+5 (Access denied). Its saved record was pending with `linux_started=false`.
+The preceding direct installed Linux stages passed. The error alone does not prove
+which Job or process restriction caused it. Public Host-to-Windows dispatch and
+combined Workspace/OCI preservation are **unverified**; the native protocol fixture
+does not substitute for that acceptance. See the [failed Windows run](https://github.com/SLktEx/Hacocoon/actions/runs/34555588035).

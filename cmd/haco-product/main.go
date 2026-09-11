@@ -97,6 +97,8 @@ func run(args []string) int {
 		return runAWS(args[1:])
 	case "approve":
 		return runApproval(args[1:])
+	case "reclaim":
+		return runReclaim(args[1:])
 	case "_reclaim-linux":
 		return runReclaimLinux(args[1:])
 	case "doctor":
@@ -160,6 +162,7 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  config     Inspect or edit approval policy configuration")
 	fmt.Fprintln(out, "  approve    Review a pending request and optionally save its Policy")
 	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
+	fmt.Fprintln(out, "  reclaim    Reclaim unused managed WSL disk space or inspect its result")
 	fmt.Fprintln(out, "  env        Create, inspect and access development Environments")
 	fmt.Fprintln(out, "  snapshot   Save, restore, list and explicitly delete independent saved data")
 	fmt.Fprintln(out, "  run        Execute a command in a temporary Environment and clean up")

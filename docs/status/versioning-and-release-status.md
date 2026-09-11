@@ -235,3 +235,5 @@ is pending, so the C4 roadmap item remains partial.
 The current partial approval checkpoint now includes creation-specific Environment identity and Policy binding. This is repository implementation evidence; ordinary Git saved choices and network/provider acceptance remain separate work.
 
 Windows acceptance at d4aef8d now covers the basic C4 recipe cycle, C5 HTTP/Edge preview and C6 Environment doctor prerequisites, alongside VS Code. C4 recreation/cancellation, default-browser launch and VPN/NRPT remain separate acceptance work. The partial approval checkpoint additionally resolves named requests to catalog identity without extra CLI arguments.
+
+F1 now has a simple public dispatch/status CLI; full installed acceptance remains partial after a native Windows launch failure. This does not declare another release or checkpoint. See [current reclamation](../design/storage-reclamation.md#public-dispatch-and-result-inspection).

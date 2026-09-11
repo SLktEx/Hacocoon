@@ -61,7 +61,7 @@ jobs:
       - name: Test native Windows reclamation boundaries
         shell: pwsh
         run: |
-          go test -v -timeout 3m ./internal/wslreclaim ./cmd/haco-wsl
+          go test -v -timeout 3m ./internal/wslreclaim ./internal/reclaimclient ./cmd/haco-wsl
           if ($LASTEXITCODE -ne 0) { throw "Native Windows reclamation tests failed." }
 
       - name: Install pinned GoReleaser
