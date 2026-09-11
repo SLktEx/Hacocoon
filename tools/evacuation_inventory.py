@@ -83,6 +83,19 @@ def image_source_project(project):
     return project["name"] if enabled == "true" else "default"
 
 
+def native_owner(item):
+    """Observe only the native owner marker; it is not ownership authority."""
+    config = item.get("config", {})
+    if not isinstance(config, dict) or len(config) > LIMIT:
+        raise ValueError("invalid native configuration")
+    if "user.hacocoon.owner" not in config:
+        return None
+    owner = config["user.hacocoon.owner"]
+    if not isinstance(owner, str) or not re.fullmatch(r"[0-9a-f]{32}", owner):
+        raise ValueError("invalid owner marker")
+    return owner
+
+
 def source_reference(source):
     """Classify a native reference without opening it or publishing URI secrets."""
     source = text(source)
@@ -141,6 +154,13 @@ def inventory(fetch=query):
             report["errors"].append(label)
             return []
 
+    def owner(item, label):
+        try:
+            return native_owner(item)
+        except (ValueError, TypeError):
+            report["errors"].append("owner-marker:" + label)
+            return None
+
     try:
         pools = read("/1.0/storage-pools?recursion=1", "pools")
         for pool in pools:
@@ -175,6 +195,7 @@ def inventory(fetch=query):
                     disks = None
                     report["errors"].append("disks:" + name + "/" + instance["name"])
                 entry["instances"].append({"name": instance["name"],
+                                          "owner_marker": owner(instance, "instance:" + name + "/" + instance["name"]),
                                           "type": text(instance.get("type", "")),
                                           "status": text(instance.get("status", "")),
                                           "disks": disks,
@@ -183,7 +204,8 @@ def inventory(fetch=query):
                 base = "/1.0/storage-pools/" + quote(pool["name"], safe="") + "/volumes"
                 for volume in read(base + "?" + suffix, "volumes:" + name + "/" + pool["name"]):
                     kind = text(volume.get("type", ""))
-                    record = {"name": volume["name"], "type": kind, "pool": pool["name"]}
+                    record = {"name": volume["name"], "type": kind, "pool": pool["name"],
+                              "owner_marker": owner(volume, "volume:" + name + "/" + pool["name"] + "/" + volume["name"])}
                     try:
                         record["content_type"] = text(volume.get("content_type", ""))
                     except ValueError:

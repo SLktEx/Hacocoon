@@ -96,6 +96,35 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(result["projects"][0]["instances"][0]["snapshots"], ["saved"])
         self.assertEqual(result["projects"][0]["volumes"][0]["snapshots"], ["work/saved"])
 
+    def test_native_owner_marker_is_observed_without_other_configuration(self):
+        def fetch(url):
+            values = self.fixture(url)
+            if url.startswith("/1.0/instances?") or "/volumes?" in url:
+                values[0]["config"] = {"user.hacocoon.owner": "a" * 32, "user.secret": "never-copy"}
+            return values
+        result = subject.inventory(fetch)
+        self.assertTrue(result["native_queries_complete"])
+        view = result["projects"][0]
+        self.assertEqual(view["instances"][0]["owner_marker"], "a" * 32)
+        self.assertEqual(view["volumes"][0]["owner_marker"], "a" * 32)
+        self.assertIsNone(view["volumes"][1]["owner_marker"])
+        self.assertNotIn("never-copy", json.dumps(result))
+        self.assertFalse(result["backup_complete"])
+
+    def test_invalid_owner_marker_preserves_resources_and_marks_incomplete(self):
+        for owner in (None, "secret-token", "https://user:secret@example.invalid", [], 32, ""):
+            def fetch(url):
+                values = self.fixture(url)
+                if "/volumes?" in url:
+                    values[0]["config"] = {"user.hacocoon.owner": owner}
+                return values
+            result = subject.inventory(fetch)
+            self.assertFalse(result["native_queries_complete"])
+            self.assertEqual(result["errors"], ["owner-marker:volume:default/data/work", "owner-marker:volume:hacocoon/data/work"])
+            self.assertEqual(result["projects"][0]["volumes"][0]["snapshots"], ["work/saved"])
+            self.assertIsNone(result["projects"][0]["volumes"][0]["owner_marker"])
+            self.assertNotIn("secret", json.dumps(result))
+
     def test_failed_query_retains_other_resources_and_marks_incomplete(self):
         def fetch(url):
             if url.startswith("/1.0/instances?") and "project=default" in url:
