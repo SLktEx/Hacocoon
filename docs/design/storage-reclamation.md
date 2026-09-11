@@ -805,3 +805,10 @@ stages and a native Windows error number, omitting raw subprocess logs. Job
 breakaway, console separation and native pins remain unchanged. A failed reclamation
 gate now prevents later notification WSL access because worker completion may be
 unknown. Permanent-helper and diagnostic follow-up acceptance remain pending.
+
+The current helper's startup diagnostic was also exercised natively on Windows
+with independently generated, absent registration/operation IDs. Expected exit 1
+reported the fixed `readiness` stage, stdout was empty, no exact probe process
+remained, and no registration or operation record was created. This is a passed
+startup-refusal probe, not the cause of the GHA launch failure or successful
+stop/compaction/resume. No actual WSL was selected by that probe.

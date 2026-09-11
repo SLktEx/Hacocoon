@@ -665,3 +665,9 @@ gate の診断は固定した起動段階と native Windows エラー番号だ�
 出しません。Job breakaway・console 分離・native pin は維持します。回収 gate が失敗した場合は
 worker 完了が不明な可能性があるため、その後の通知 gate から WSL にアクセスしないようにしました。
 常設 helper と診断を加えた追試の受入は確認待ちです。
+
+現在の helper の起動診断を、別途生成した存在しない registration/operation ID で
+実 Windows 上でも確認しました。期待する exit 1 が固定の `readiness` 段階として記録され、
+stdout は空、該当 probe process は残らず、登録・操作記録も作成されませんでした。
+これは起動拒否 probe の成功であり、GHA の起動失敗原因や停止・圧縮・再開の成功を
+示すものではありません。この probe は実在する WSL を選択していません。
