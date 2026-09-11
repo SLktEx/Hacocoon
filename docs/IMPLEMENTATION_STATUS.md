@@ -1900,6 +1900,8 @@ Encrypted acceptance fixture retention now uses private `/var/lib` storage and a
 
 A separate synthetic cross-OS crypto check passed with a newly generated identity kept exclusively on Windows: WSL public-recipient encryption, native Windows decryption/hash comparison and tamper refusal. This does not recover the old missing identity or prove whole-installation restoration. See [external identity custody](design/environment-transfer.md#recovery-identity-kept-outside-wsl).
 
+G2 includes an opt-in direct saved-rootfs file evacuation test through the existing native snapshot adapter, with fresh destination configuration and owned cleanup. Dedicated Incus/Btrfs acceptance passed in 9.37s; this is not whole-installation capture. See [the scoped contract](design/environment-transfer.md#direct-evacuation-of-saved-rootfs-files).
+
 F1 subsequently passed real enrolled failure review and one detached worker
 stop/compact/resume: 895 MiB reclaimed, 1 TiB capacity unchanged, old failure
 retained. Read-only current-result inspection no longer needs the operation ID;

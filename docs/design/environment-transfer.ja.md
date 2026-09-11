@@ -931,3 +931,33 @@ Windows native age の復号結果は10240 bytes、SHA-256
 の安全な import、WSL 削除後の復旧の証明ではありません。storage 入替前に独立してアクセス
 できる identity を保護して保持し、完全な復号を確認してから復元します。暗号文の存在だけで
 鍵が復旧可能とは判断しません。
+
+## 保存 rootfs ファイルの直接退避
+
+状態: **G2 の一部**。明示実行の `TestRealIncusSavedRootfsEvacuationE2E` は、
+既存の保存 rootfs adapter で新規 Btrfs pool に独立した停止 Incus copy を作ります。
+元 instance を削除後、保存 rootfs を GNU tar で読み出し、このテスト自身の archive だけを
+新しい空 instance に展開します。取得中に image の publish/export や snapshot の作成・削除は
+行わず、Base や image cache も使いません。復元先を変更しても保存物が変わらず、復元先が
+新しい世代を持ち、元の設定を引き継がないこと、所有対象だけの cleanup と archive／記録の
+保持を確認します。
+
+これは合成した停止 rootfs のデータ検証です。任意 archive の安全な importer、起動できる
+Env の復元、rootfs 削除失敗、全量退避の検証ではありません。Workspace／OCI の対応関係や
+trusted credential は転送しません。既存の volume・削除失敗 gate と区別し、実機実行と
+最新 head の CI 結果を記録してから受入を判断します。
+
+専用 Ubuntu 26.04 WSL／Incus 6.0.5／Btrfs の受入は9.37秒で成功しました。
+保存 rootfs の archive と所有記録は `/var/lib/haco-saved-rootfs-evacuation-476527331`
+に保持し、archive の SHA-256 は
+`ab82a108262f499b89576c218bec974df10e31a56267d25bef7ccefbb2536e7f` です。
+所有する3 instance と pool は cleanup 後の不在を確認しました。元は新規の空 instance と
+合成ファイル1件であり、実 credential やアプリのデータは選択していません。
+実起動・任意 archive・全量復元は未検証です。package 回帰19.82秒、文書整合性、
+workflow policy 25件も成功しました。
+
+その合成 archive の Windows への別途転送も成功し、10240 bytes と同じ SHA-256 を
+確認しました。archive と receipt は
+`%TEMP%/haco-saved-rootfs-output-<fixture-id>` に保持しています。
+内容は root ディレクトリと合成 `root/retained` ファイルだけです。保存 rootfs fixture の
+外部保存を示し、全量 backup や新 WSL の管理対象 Env 復元の証明ではありません。

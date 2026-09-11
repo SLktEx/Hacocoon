@@ -1619,6 +1619,8 @@ G2 の読み取り専用 inventory に `--files /absolute/root` の Linux ファ
 
 新規 identity を Windows 内だけに置いた別の合成 OS 間暗号化検証で、WSL の公開 recipient 暗号化、Windows native 復号・hash 照合、改ざん拒否が成功しました。旧 identity の回復や全量復元を示しません。[WSL 外の identity 保持](design/environment-transfer.ja.md#復号-identity-を-wsl-外へ保持する)を参照してください。
 
+G2 に、既存 native snapshot adapter の保存 rootfs を直接ファイル退避する明示実行テストを追加しました。復元先は新しい設定を使い、所有対象だけを cleanup します。専用 Incus/Btrfs の実機受入は9.37秒で成功しました。全量退避ではありません。[対象契約](design/environment-transfer.ja.md#保存-rootfs-ファイルの直接退避)を参照してください。
+
 F1 はその後、実登録の失敗の明示確認と一度の detached worker による停止・圧縮・
 再開に成功しました。895 MiB 回収、容量1 TiB は不変で、旧失敗も保持しています。
 現在結果の読み取りは操作 ID 不要になりましたが、変更操作には必要です。

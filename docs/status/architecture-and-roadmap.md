@@ -238,3 +238,5 @@ unregistered data review. Mounts, symlinks, special files and observation failur
 remain explicit gaps. Classification, quiescent content capture and restored-data
 comparison remain required; enumeration does not authorize old-WSL deletion.
 See [file inventory](../design/environment-transfer.md#manual-file-inventory-for-evacuation-review).
+
+G2 adds a scoped native gate for direct saved-rootfs evacuation without Incus export or Base retention. Whole-installation classification, complete capture and managed reconstruction remain required; see [the rootfs data gate](../design/environment-transfer.md#direct-evacuation-of-saved-rootfs-files).
