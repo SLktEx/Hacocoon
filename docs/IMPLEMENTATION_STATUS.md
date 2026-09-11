@@ -1938,3 +1938,5 @@ Reference inventory also recognizes existing retained Base instance references a
 Read-only evacuation reference projection covers catalog schemas 10–13 without migration and preserves the source version. Schema 9 remains unsupported. Unprojected restore/copy/ephemeral records are counted for review; this does not validate or import old lifecycle state.
 
 Evacuation native restore tests now explicitly restore and directly compare a non-user extended attribute. A dedicated WSL reproduction confirmed that default GNU tar extraction omitted the synthetic trusted attribute while explicit inclusion retained it. This corrects verification coverage; whole-installation restore and previously restored rootfs attribute comparison remain incomplete.
+
+F1 public reclamation passed native Windows/WSL CI at 5100d86: 3,740,270,592 Windows allocation bytes reclaimed with capacities preserved, exact-WSL resume, and retained Workspace/OCI/snapshot restoration. Existing local installation acceptance remains separate. See [current native acceptance](design/storage-reclamation.md#current-native-acceptance).
