@@ -12,6 +12,24 @@ import evacuation_inventory as subject
 
 
 class InventoryTests(unittest.TestCase):
+    @unittest.skipUnless(hasattr(os, "O_NOFOLLOW"), "Linux catalog observation required")
+    def test_cli_catalog_comparison_is_observation_not_backup_success(self):
+        with tempfile.TemporaryDirectory() as root:
+            catalog = Path(root, "environments.json")
+            raw = json.dumps({"version": 13, "persistent_resources": {
+                "oci:missing": {"native_ref": "pool/missing", "owner": "a" * 32}}})
+            catalog.write_text(raw)
+            output = io.StringIO()
+            with patch.object(subject.sys, "argv", ["inventory", "--catalog", str(catalog)]), patch.object(subject, "inventory", return_value={"backup_complete": False, "native_queries_complete": True, "projects": []}), redirect_stdout(output):
+                code = subject.main()
+            result = json.loads(output.getvalue())
+            self.assertEqual(code, 0)  # Reading succeeded; this is not a capture command.
+            self.assertFalse(result["backup_complete"])
+            self.assertFalse(result["associations"]["authority"])
+            self.assertTrue(result["associations"]["review_required"])
+            self.assertEqual(result["associations"]["rows"][0]["status"], "not-observed")
+            self.assertEqual(catalog.read_text(), raw)
+
     @unittest.skipUnless(hasattr(os, "O_NOFOLLOW") and Path("/proc/self/mountinfo").exists(), "Linux metadata observation required")
     def test_cli_file_gaps_return_failure_without_losing_native_inventory(self):
         with tempfile.TemporaryDirectory() as root:

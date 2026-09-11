@@ -10,6 +10,7 @@ import sys
 import time
 from urllib.parse import quote, urlencode
 from evacuation_files import file_inventory
+from evacuation_associations import compare_associations
 
 LIMIT = 4096
 
@@ -400,6 +401,8 @@ def main():
     if "--files" in options:
         report["files"] = file_inventory(options["--files"])
         catalog_ok = catalog_ok and report["files"]["enumeration_complete"]
+    if "--catalog" in options or "--repositories" in options:
+        report["associations"] = compare_associations(report, report.get("catalog"), report.get("repositories"))
     json.dump(report, sys.stdout, ensure_ascii=True, indent=2)
     print()
     return 0 if report["native_queries_complete"] and catalog_ok else 1

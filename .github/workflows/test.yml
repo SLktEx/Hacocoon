@@ -241,6 +241,7 @@ jobs:
           python3 tools/test_pending_approvals_test.py
           python3 tools/test_windows_transfer_bundle_copy.py
           python3 tools/test_evacuation_inventory.py
+          python3 tools/test_evacuation_associations.py
           python3 tools/test_evacuation_files.py
           python3 tools/package_vscode_notifications.py "$RUNNER_TEMP/hacocoon-notifications.vsix"
       - name: Test VS Code agent workspace client
