@@ -675,7 +675,7 @@ ba4dbcd の実 OCI 検証は export 前の source runtime 準備で FAILED。fix
 ## 退避対象の native 一覧
 
 G2 は **partial** です。`tools/evacuation_inventory.py` は Incus の project、pool、
-instance、custom volume、保存済み snapshot を読み取り query だけで一覧化します。
+image、instance、custom volume、保存済み snapshot を読み取り query だけで一覧化します。
 既存の Incus 管理権限がある Physical Host 上で repository から実行する復旧用の補助です。
 日常の `haco` コマンドは増やしません。
 
@@ -689,6 +689,10 @@ JSON は資源名と種類を含みますが、config 本文や認証情報は�
 `native_queries_complete: false` は native query の未完了を示します。
 project 間で同じ資源が見える場合があり、行数は独立した所有資源数ではありません。
 この一覧は削除や復元の権限にはなりません。query は最大 256 回・全体で 5 分を上限に次の実行を判断し、各 query も 30 秒で打ち切ります。上限到達時は取得済みの行を残して未完了とします。
+
+image の行には完全な fingerprint・種類・alias 名だけを記録し、description・properties・更新元 URL は出力しません。`image_source_project` は Incus の image 名前空間であり、Hacocoon の所有権ではありません。[Incus の project features](https://linuxcontainers.org/incus/docs/main/reference/projects/) に従い、`features.images` が未設定または false なら `default`、true なら query 対象 project です。不明な設定は共有元を不明として一覧を未完了にします。不正・重複・取得不能の image 行も、他の資源一覧を保持してエラーを記録します。image の参照は保存済み snapshot component ではなく、独立した保存 rootfs の復元に元 Base image の保持は要求しません。
+
+Linux の回帰テストは inventory 21 件・file inventory 10 件が SKIP なしで成功しました。専用 WSL の実 Incus の読み取り比較も成功し、default の image 1 件・独立 project の 2 件の完全な fingerprint が直接 query と一致しました。default 以外の共有 project は回帰テストのみです。image の export・内容の保存・installation 全体の復元は実行していません。
 
 `backup_complete` は常に false です。catalog の対応関係、controller／Policy 設定、
 保護する trusted Host データ、手動追加・未登録ファイル、外部 pool／VHD と Windows の参照、
@@ -709,8 +713,8 @@ query エラーはありませんでした。private な一覧はその WSL 内�
 任意で `--catalog /var/lib/hacocoon/state/environments.json` を指定できます
 （実際の controller root に合わせてください）。Linux 専用の reader は既存の通常ファイルを
 末尾 symlink を追わずに開き、特殊ファイル・サイズ超過・読み取り中の変更を拒否します。
-catalog の移行処理は呼ばず、lock や catalog を書き込みません。現在は schema 13 を扱い、
-他の schema は明示的に不完全と報告します。永続資源・Base asset・Workspace lease・snapshot
+catalog の移行処理は呼ばず、lock や catalog を書き込みません。参照 projection は schema 10 から 13 を番号変更なしで扱い、
+9 を含む他の schema は明示的に不完全と報告します。永続資源・Base asset・Workspace lease・snapshot
 component の native 参照と owner／generation の情報だけを抽出します。Incus 側の所有者との
 一致は検証せず、復元や削除の権限を与えません。`projection_complete` は選択した項目の
 読み取りが完了したという意味だけです。repository catalog・進行中操作・source path・
@@ -742,7 +746,7 @@ fixture の private directory に保持します。保存には Incus export・s
 
 専用 WSL の実 Incus/Btrfs で 20.59 秒で成功しました。試験用 pool 二つは cleanup し、archive と所有記録は両 pool の外にある /var/lib/haco-volume-transfer-2051477010 に残しています（WSL 内です）。書込がないファイルのコピーを検証する基本部分です。
 snapshot 削除失敗の模擬、全インストールファイルの列挙、live OCI daemon の移行、任意の
-非信頼 tar の安全な import、trusted credential の暗号化、WSL 外への保存、新 WSL 復元は
+非信頼 tar の安全な import、trusted Host データの保全、WSL 外への保存、新 WSL 復元は
 未確認です。全量退避を主張する前にこれらを扱い、読めない・変更中の source を完全保存済み
 とはしません。
 
@@ -762,15 +766,17 @@ b8ef557 の native GHA は、直接ファイル退避（0.89 秒）と saved-onl
 
 ## 読み出せるデータの暗号化転送
 
-全量退避は **partial** です。確認済みで書込のない file tree には既存の GNU tar と
-[age](https://github.com/FiloSottile/age) を使い、Hacocoon 独自の暗号形式は作りません。
+状態: **過去の任意受入記録（historical）**。以下は以前の暗号化 fixture の記録です。通常 export と現在の退避手順は暗号化しない archive を使い、鍵準備や export 後の暗号化は不要です。[ツリー保存](#明示したデータツリーの保存)を参照してください。
+
+この過去の fixture は、確認済みで書込のない file tree に既存の GNU tar と
+[age](https://github.com/FiloSottile/age) を使い、Hacocoon 独自の暗号形式を作らず検証しました。
 復号の秘密 identity は trusted storage に保持し、暗号化では公開 recipient だけを使います。
 実検証 `tools/test_encrypted_evacuation.py` は合成の認証情報を使い、tar と age の終了状態を
 両方確認します。外部保存先に平文 archive は書きません。自分で作った fixture だけを、
 復号成功の確認後に展開し、private な mode、誤鍵・暗号文の改変・切詰めの拒否を確認します。
 失敗または途中の復号出力を直接 restore へ流してはいけません。
 
-停止・確認済みの source tree を SOURCE、入替対象 WSL／pool の外の新規 archive を DEST、
+この任意の過去 fixture だけを再現する場合は、停止・確認済みの source tree を SOURCE、入替対象 WSL／pool の外の新規 archive を DEST、
 age の公開 recipient を RECIPIENT に設定します。対応する秘密 identity は別途アクセス可能に保持します。
 
 ```bash
@@ -1012,3 +1018,46 @@ Windows native の SSH／VS Code、ACL／xattr／link、trusted Host のデー�
 G2／G3 全体と確認後の G4 入替は未完了で、旧 WSL の削除を許可する結果ではありません。
 Windows の private 証拠は `%LOCALAPPDATA%/Hacocoon/RecoveryTests/<fixture-id>`、
 復元先記録は `/var/lib/haco-managed-cross-restore-<fixture-id>` に保持しています。
+
+## Catalog 参照の照合
+
+`--catalog` または `--repositories` を指定すると、読み取り済みの native inventory と選択した catalog 項目から `associations` を出力します。controller state を所有する Physical Host で実行し、controller root を変更している場合は実際のパスに置き換えてください。
+
+```bash
+umask 077
+python3 tools/evacuation_inventory.py --catalog /var/lib/hacocoon/state/environments.json > inventory.json
+```
+
+該当ディレクトリがある場合は `--repositories /var/lib/hacocoon/state/repositories` を追加できます。schema 10〜13 の参照 projection は Env の runtime 参照、Workspace ID と所在、永続資源との対応、Base 名・revision の由来情報を含みます。所在パスは参照として記録するだけで開きません。Base filesystem、任意の設定本体、認証情報は含めず、URI 形式の Workspace 所在は出力を控えます。元の schema 番号を保持します。schema 9 とその他の未対応形式は拒否し、catalog の移行・書き換えは行いません。この projection は lifecycle state を検証せず、`state_validated` は false のままです。途中の restore、snapshot Workspace-copy、ephemeral-run の各 section は、内容を出さず `unprojected_records` に件数を記録します。これらの所有関係や処理途中のデータは別途確認が必要です。
+
+native instance/volume の設定からは `user.hacocoon.owner` マーカーだけを記録します。マーカーの欠落は不明として扱い、不正形式は native 観測の未完了となります。照合は provider 内の参照と、長さ制限・正規 encoding を確認した既存の `haco-runtime-v1:runtime.incus:<base64url>` 形式を扱います。他 provider は未対応です。参照・マーカーの観測、資源の未観測、マーカーの欠落・不一致、複数 project の候補、native inventory の未完了、未対応参照を区別します。削除途中の snapshot も含め component と上位記録の状態を残し、比較の 4096 行制限に達した場合も明示します。
+
+この観測は所有権、Env の世代、権限の証明にはなりません。保存 Base の instance 参照は native 所有マーカーと照合します。Env と lease の runtime 参照は `runtime-reference-observed` を報告できますが、世代・所有権の検証は未完了で、共有 project の候補をマーカー一致だけで選びません。`authority` は false、`review_required` は true のままです。終了コード 0 は要求した inventory/projection を読み取れたことを示し、全対応の一致や backup の保存を意味しません。報告は private に保持し、データ保存を計画する前に未解決行を確認してください。普段の `haco` コマンドは増やしません。
+
+`associations.native_review` は、観測した instance と custom volume から逆方向にも参照を確認します。各 project の表示について種類、名前、該当する pool、所有マーカーを残し、`reference-and-marker-observed`、`unresolved-reference`、`no-supported-reference` を区別します。対応する参照が一つあっても、別の対応可能な参照に不一致があれば要確認のままです。列挙は4096行までで、省略は明示的なエラーにします。これは孤立資源や削除対象の一覧ではありません。未対応の参照形式、repository catalog の欠如、不完全な inventory により、正当な管理資源にも対応する参照が見つからない場合があります。image、native snapshot の子要素、外部・手動ファイル、filesystem にだけ残った資源は元の inventory と実 storage で引き続き確認が必要です。削除・退避する資源を自動選択しません。
+
+## 明示したデータツリーの保存
+
+状態: **partial**。通常の移行は `haco env export <stopped-env> [file.haco]` と `haco env import <file.haco> [new-env]` を使います。暗号化・recipient・鍵は不要で、export 後にも暗号化を挟みません。
+
+確認済みで書き込みを停止した Linux ツリーを直接退避する保守用途では、`tools/evacuation_capture.py` が GNU tar を使います。普段使う `haco` コマンド、Incus snapshot、catalog state、復元機構は追加しません。すべての書き込み元を停止し、保存元の外に、実行者所有の空の mode-0700 ディレクトリを新しく用意します。
+
+```bash
+umask 077
+mkdir -m 700 /absolute/private-capture
+python3 tools/evacuation_capture.py /absolute/reviewed-source /absolute/private-capture --quiesced
+```
+
+通常の `data.tar` と、開始記録・標準形式の `data.tar.sha256`・完了記録を出力します。鍵生成や暗号化は行いません。archive と記録を選択した保管先にコピーし、そこで確認します。
+
+```bash
+sha256sum --check --status data.tar.sha256
+```
+
+保存元・保存先は symlink 成分を辿らず directory identity を固定し、前後の metadata を上限付きで調べます。不完全な列挙・別 mount・特殊ファイルは拒否します。ファイルの symlink は参照先を辿らず保存します。GNU tar は filesystem の数値 ID・mode・link・ACL・xattr・sparse file 情報を保存しますが、Incus idmap は変換しません。
+
+完了には tar の成功、出力の同期、観測した保存元 metadata と directory／出力 identity の一致が必要です。任意の `--byte-limit` と `--seconds` は出力と tar 実行の上限です（既定値 64 GiB・900秒）。失敗は非ゼロで終了し、部分出力と開始記録を残し、完了記録は作りません。既存ファイルの上書き・自動削除は行わず、再試行には新しい保存先を使います。終了させるのは当該呼び出しが作った子プロセスだけです。
+
+`--quiesced` は操作した人による確認であり、書き込み元の検出や atomic snapshot ではありません。archive 完了はアプリ整合性・外部保管・全量 backup の証明ではなく、`backup_complete` は false のままです。入替前に復元内容を別途照合してください。checksum はコピー破損を検出しますが、archive と checksum 両方の置換には真正性を保証しません。記録には保存元の場所が含まれるため非公開で保持します。保存物の管理権限は引き継ぎません。
+
+過去の暗号化 fixture と既存の暗号文は変更せず、通常 export の前提条件にしません。古い暗号文を読む場合は元の鍵が必要ですが、移行・書き換えは行いません。全対象の分類・書き込み停止の同期・installation 再構築は未完了です。

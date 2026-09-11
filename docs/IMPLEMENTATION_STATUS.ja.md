@@ -1648,3 +1648,19 @@ Windows F1 gate を通常 Host terminal の公開 reclaim/status に接続し、
 F1 の内部中断確認は元の pending バイト列を保持して旧 handoff を無効にし、新しい準備前に証拠の完全一致を要求します。所有・pin・排他照合は再利用し、native 隔離回帰は成功しました。公開の確認操作への接続と実登録の中断受入は未完了です。[中断確認](design/storage-reclamation.ja.md#中断した操作の明示確認)を参照してください。
 
 F1 の公開 `haco reclaim --review` を接続し、GUID 引数なしで正確な未成功操作を確認します。自動再試行はしません。CLI・vet・native PowerShell fixture は成功しました。de72119 の通常 Host gate は起動成功後の保存 worker 結果で失敗し、段階報告を追加しました。一連の native 成功は未証明です。[公開の確認](design/storage-reclamation.ja.md#haco-から明示確認する)を参照してください。
+
+G2 の読み取り専用一覧に image の fingerprint・種類・alias 名・native project の共有元を追加しました。Linux 回帰テストと専用 Incus の比較は成功しました。image export と installation 全体の保存は未実装です。[退避対象一覧](design/environment-transfer.ja.md#退避対象の-native-一覧)を参照してください。
+
+Catalog 参照の照合は **partial** です。読み取り専用の退避 inventory は Env とデータの対応、Incus 資源と owner の一致を観測しますが、権限を与えません。曖昧・未観測・削除途中・未対応の記録も残し、この inventory 自体はインストール全体の保存を実装しません。[Catalog 参照の照合](design/environment-transfer.ja.md)を参照してください。
+
+明示したデータツリーの保存は **partial** です。Linux 保守 helper は通常の GNU tar archive を作り、recipient・鍵・export 後の暗号化は不要です。既存保存先の保護、上限、不完全な出力の記録は維持します。[ツリー保存](design/environment-transfer.ja.md#明示したデータツリーの保存)を参照してください。
+
+明示的 tree capture helper に、書き込み停止の確認を必須とする保守スクリプトの実行入口を追加しています。stream 上限を指定でき、失敗は非ゼロで終了します。日常用 `haco` コマンドは追加しません。
+
+tree capture の成功時は `sha256sum` でコピーを検証する標準 SHA-256 checksum を出力します。復元内容の照合と installation 全体の保管確認は別途必要です。
+
+退避用の参照 inventory は、観測した instance/custom volume の逆方向の確認も上限付きで行います。未照合・不一致の project 表示を残し、cleanup 権限は付与しません。
+
+参照 inventory は、保存 Base の既存 instance 参照と Env/lease の runtime 経路も認識します。runtime 名の観測は、世代・所有権の確認が必要な状態として残します。
+
+読み取り専用の退避参照 projection は、移行せず元の番号を保持して catalog schema 10〜13 を扱います。schema 9 は未対応のままです。未投影の restore/copy/ephemeral 記録は確認用に件数を残し、古い lifecycle state の検証・import は行いません。

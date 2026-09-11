@@ -828,7 +828,7 @@ The offline source fixture explicitly configures the containerd transfer service
 ## Evacuation inventory
 
 G2 is **partial**: `tools/evacuation_inventory.py` lists native Incus projects,
-pools, instances, custom volumes and saved snapshots through read-only queries.
+pools, images, instances, custom volumes and saved snapshots through read-only queries.
 Run it from the repository on the Physical Host with existing Incus administration
 access; it is an occasional recovery tool, not a new daily `haco` command:
 
@@ -842,6 +842,10 @@ It preserves failed query labels and other successful results. Exit status 1 and
 `native_queries_complete: false` mean at least one native query was incomplete.
 Project views may refer to shared resources; rows do not establish distinct
 ownership. The report grants no deletion or restore authority. Collection is bounded to 256 queries and five minutes between queries (each query has a 30-second deadline); reaching a bound preserves collected rows and reports incomplete inventory.
+
+Image rows contain the full fingerprint, type and alias names; descriptions, properties and update-source URLs are excluded. `image_source_project` records the native image namespace, not Hacocoon ownership. With `features.images` unset or false it is `default`; true uses the queried project, following [Incus project features](https://linuxcontainers.org/incus/docs/main/reference/projects/). Unknown configuration leaves the source unknown and marks the inventory incomplete. Invalid, duplicate or unavailable image rows likewise preserve other resource results and report an error. These are image references, not saved snapshot components; restoring an independent saved rootfs does not require retaining its original Base image.
+
+Linux regression tests passed (21 inventory and 10 file-inventory tests, no skips). A read-only dedicated WSL Incus comparison passed with one image in the default view and two in an isolated project view; full fingerprints matched direct native queries. Non-default shared-project behavior is covered by regression tests only. This did not export images, capture their contents or restore a whole installation.
 
 `backup_complete` is always false. The explicit unreviewed list still requires
 catalog associations, controller/Policy settings, protected trusted Host data,
@@ -863,8 +867,8 @@ The inventory now includes pool backing-source references and volume `content_ty
 Optionally add `--catalog /var/lib/hacocoon/state/environments.json` (substitute
 the actual controller root). This Linux-only reader opens the existing regular
 file without following a final symlink, refuses special/oversized/changing files,
-and never invokes catalog migration or writes a lock/catalog file. Schema 13 is
-currently supported; other schemas produce an explicit incomplete projection.
+and never invokes catalog migration or writes a lock/catalog file. Reference projection supports schemas 10 through 13 without changing their version;
+other schemas, including 9, produce an explicit incomplete projection.
 The allowlisted projection lists persistent-resource, Base-asset, Workspace-lease
 and snapshot-component native references, including owner/generation evidence.
 It does not validate those owners against Incus or grant restore/deletion authority.
@@ -900,7 +904,7 @@ capture. Existing application data and pools are never selected.
 The dedicated WSL Incus/Btrfs run passed in 20.59s. Both owned pools were cleaned; archives and ownership plan remain at /var/lib/haco-volume-transfer-2051477010, outside both pools but inside WSL. This verifies a quiescent file-copy primitive only.
 It does not simulate a failed snapshot deletion, enumerate every installation
 file, transfer a live OCI daemon, safely import arbitrary untrusted tar files,
-encrypt trusted credentials, save the whole installation outside WSL or restore a new WSL. These remain
+preserve trusted Host data, save the whole installation outside WSL or restore a new WSL. These remain
 required before claiming whole-installation evacuation. An inaccessible or
 changing source must not be reported as completely saved.
 
@@ -921,9 +925,11 @@ At b8ef557, the native GHA gate passed direct readable-file evacuation (0.89s) a
 
 ## Encrypted readable-data transport
 
-Whole-installation evacuation remains **partial**. Use existing GNU tar and
+Status: **historical optional acceptance**. The following records an earlier encrypted fixture. Ordinary export and the current evacuation workflow use unencrypted archives; no key setup or post-export encryption is required. See [tree capture](#explicit-tree-capture).
+
+This historical fixture used GNU tar and
 [age](https://github.com/FiloSottile/age) for reviewed, quiescent file trees rather
-than introducing a Hacocoon encryption format. The private decryption identity
+than introducing a Hacocoon encryption format. Its private decryption identity
 stays on trusted storage; encryption uses only its public recipient. The native
 acceptance script `tools/test_encrypted_evacuation.py` uses synthetic credentials,
 checks the producer and encryptor exit statuses, and writes no plaintext archive
@@ -931,7 +937,7 @@ to the external destination. It checks decryption and private file modes before
 extracting only its own fixture, plus wrong-key, ciphertext-tamper and truncation
 refusal. A failed or partial decryption must never be piped directly into restore.
 
-For an already reviewed and stopped source tree, set SOURCE to that directory,
+To reproduce only this optional historical fixture, set SOURCE to its reviewed, stopped tree,
 DEST to a new archive outside the WSL/pool being replaced, and RECIPIENT to your
 age public recipient. Keep the matching private identity independently accessible:
 
@@ -1207,3 +1213,47 @@ comparison are outside this run. G2/G3 overall and reviewed G4 replacement remai
 incomplete; this acceptance does not authorize deleting the old WSL. The private
 Windows evidence is under `%LOCALAPPDATA%/Hacocoon/RecoveryTests/<fixture-id>`,
 with target receipts under `/var/lib/haco-managed-cross-restore-<fixture-id>`.
+
+## Catalog reference comparison
+
+With `--catalog` or `--repositories`, the inventory emits `associations` from the already-read native inventory and selected catalog fields. Run this on the Physical Host that owns the controller state, with the actual controller root substituted when configured differently:
+
+```bash
+umask 077
+python3 tools/evacuation_inventory.py --catalog /var/lib/hacocoon/state/environments.json > inventory.json
+```
+
+Add `--repositories /var/lib/hacocoon/state/repositories` when that directory is available. The schema-10-through-13 reference projection includes Environment runtime references, Workspace IDs and source locations, persistent-resource links and Base name/revision provenance. Source paths are references only and are never opened. Base filesystem contents, arbitrary configuration and credentials are not projected; URI-shaped Workspace sources are withheld. The source version is preserved. Schema 9 and other unsupported versions remain refused; no catalog is migrated or rewritten. This projection does not validate lifecycle state (`state_validated` remains false). Pending restore, snapshot Workspace-copy and ephemeral-run sections are listed by count in `unprojected_records` without disclosing their contents; their ownership and in-progress data still require separate review.
+
+Native instance/volume rows include only the `user.hacocoon.owner` marker from configuration. Missing markers are unknown; malformed markers make native observation incomplete. Comparison accepts provider-local references and the existing `haco-runtime-v1:runtime.incus:<base64url>` route with bounded canonical encoding. Other provider routes remain unsupported. It distinguishes observed references and markers, missing resources, missing/mismatched markers, ambiguous project views, incomplete native inventory and unsupported references. It retains component and enclosing record states, including deleting snapshots, and reports the 4096-row comparison limit explicitly.
+
+These observations never establish ownership, Environment generation or permission. Retained Base instance references are compared with native owner markers. Environment and lease runtime references can report `runtime-reference-observed`, but generation and ownership verification remain incomplete; shared project views are not resolved by choosing a matching marker. `authority` remains false and `review_required` remains true. Exit zero means the requested inventory/projections were read, not that every association matched or a backup was captured. Keep the report private and review unresolved rows before planning data capture; no new daily `haco` command is added.
+
+
+The `associations.native_review` list also walks the observed instances and custom volumes in reverse. Each project view retains its kind, name, pool where applicable and owner marker. It distinguishes `reference-and-marker-observed`, `unresolved-reference` and `no-supported-reference`; any conflicting supported reference keeps the resource unresolved even when another reference matches. Enumeration is bounded to 4096 rows, with explicit truncation errors. This is not an orphan or deletion list: unsupported reference forms, absent repository catalogs and incomplete inventory can all leave legitimate managed resources without a supported match. Images, native snapshot children, external/manual files and filesystem-only remnants still require review in the original inventory and on the storage substrate. No resource is selected for deletion or capture automatically.
+
+## Explicit tree capture
+
+Status: **partial**. Normal Environment transfer remains `haco env export <stopped-env> [file.haco]` followed by `haco env import <file.haco> [new-env]`. Export requires no encryption, recipient or key, and no encryption step is added after export.
+
+For a reviewed, quiescent Linux tree that needs direct maintenance capture, `tools/evacuation_capture.py` uses GNU tar directly. It adds no daily `haco` command, Incus snapshot, catalog state or restore mechanism. Stop every writer and select a new empty mode-0700 directory owned by the caller, outside the source:
+
+```bash
+umask 077
+mkdir -m 700 /absolute/private-capture
+python3 tools/evacuation_capture.py /absolute/reviewed-source /absolute/private-capture --quiesced
+```
+
+The result is ordinary `data.tar`, with an intent, a standard `data.tar.sha256` checksum and a completion receipt. There is no key generation or encryption. Copy the archive and receipts to the chosen retention location, then check there:
+
+```bash
+sha256sum --check --status data.tar.sha256
+```
+
+The helper pins source/destination directory identities without following symlink components, inventories bounded metadata before and after capture, and refuses incomplete enumeration, separate mounts and special files. File symlinks are stored without following targets. GNU tar preserves numeric filesystem IDs, modes, links, ACLs, xattrs and sparse-file metadata; it does not convert Incus idmaps.
+
+Completion requires tar success, synced output and unchanged observed source metadata and directory/output identities. Optional `--byte-limit` and `--seconds` bound output and tar execution (defaults 64 GiB and 900 seconds). Failure is nonzero, retains partial output and intent, and does not write completion. Existing files are never overwritten or automatically deleted; retries use a new destination. Only the child process created by this call is terminated.
+
+`--quiesced` is the operator's confirmation, not writer detection or an atomic snapshot. Archive completion does not prove application consistency, external retention or a whole-installation backup; `backup_complete` remains false. Compare restored contents separately before replacement. Checksums detect copy damage, not replacement of both archive and checksum. Keep receipts private because they identify source locations. No imported management authority is adopted.
+
+Historical encrypted fixtures and existing ciphertext remain unchanged and are not prerequisites for ordinary export. Old encrypted captures still need their original keys if accessed; no migration or rewriting is performed. Full source classification, coordinated quiescence and installation reconstruction remain unfinished.

@@ -1920,3 +1920,19 @@ The Windows F1 gate now drives public reclaim/status through the ordinary Host t
 F1 adds internal explicit interrupted review: retain original pending bytes, retire the old handoff, and require exact evidence before a fresh operation. Ownership/pin/exclusion checks are reused; native isolated regressions passed. Public review connection and real enrolled interruption acceptance remain pending. See [interrupted review](design/storage-reclamation.md#explicit-review-of-an-interrupted-operation).
 
 F1 public `haco reclaim --review` now discovers and confirms an exact unsuccessful operation without GUID arguments or automatic retry. CLI/vet and native PowerShell fixtures passed. The ordinary Host worker gate at de72119 dispatched successfully but failed on the saved worker result; failure-stage reporting is added and combined native success remains unproven. See [public review](design/storage-reclamation.md#reviewing-through-haco).
+
+G2 read-only inventory now includes image fingerprints, types, alias names and native project-sharing references. Linux regressions and a dedicated Incus comparison passed; image export and whole-installation capture remain unimplemented. See [evacuation inventory](design/environment-transfer.md#evacuation-inventory).
+
+Catalog reference comparison is **partial**. The read-only evacuation inventory projects Environment-to-data references and observes Incus resource/owner matches without granting authority. Ambiguous, missing, deleting and unsupported records remain visible; whole-installation capture is not implemented by this inventory. See [catalog reference comparison](design/environment-transfer.md#catalog-reference-comparison).
+
+Explicit tree capture is **partial**: the Linux maintenance helper writes ordinary GNU tar archives with no recipient, key or post-export encryption. Existing destination protection, bounded capture and incomplete-output evidence remain. See [tree capture](design/environment-transfer.md#explicit-tree-capture).
+
+The explicit tree capture helper now has a maintenance script entry point with required writer-quiescence confirmation, bounded stream options and nonzero failure results; it adds no daily `haco` command.
+
+Successful tree captures include a standard SHA-256 checksum file for copy verification with `sha256sum`; restored-data comparison and whole-installation retention remain separate checks.
+
+Evacuation reference inventory now includes bounded reverse review of observed instances/custom volumes, retaining unmatched and conflicting project views without granting cleanup authority.
+
+Reference inventory also recognizes existing retained Base instance references and Environment/lease runtime routes. Runtime name observations remain unresolved for generation/ownership review.
+
+Read-only evacuation reference projection covers catalog schemas 10–13 without migration and preserves the source version. Schema 9 remains unsupported. Unprojected restore/copy/ephemeral records are counted for review; this does not validate or import old lifecycle state.

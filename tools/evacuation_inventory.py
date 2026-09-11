@@ -10,6 +10,7 @@ import sys
 import time
 from urllib.parse import quote, urlencode
 from evacuation_files import file_inventory
+from evacuation_associations import compare_associations
 
 LIMIT = 4096
 
@@ -45,6 +46,55 @@ def rows(value):
             raise ValueError("duplicate row")
         seen.add(key)
     return value
+
+
+def image_records(value):
+    """Project only image identifiers; properties and update sources may be secret."""
+    if not isinstance(value, list) or len(value) > LIMIT:
+        raise ValueError("invalid images")
+    result, seen = [], set()
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError("invalid image")
+        fingerprint = text(item.get("fingerprint"))
+        if not re.fullmatch(r"[0-9a-f]{64}", fingerprint) or fingerprint in seen:
+            raise ValueError("invalid or duplicate fingerprint")
+        seen.add(fingerprint)
+        kind = item.get("type")
+        if kind not in ("container", "virtual-machine"):
+            raise ValueError("unsupported image type")
+        aliases = item.get("aliases")
+        if aliases is None:
+            aliases = []
+        names = [x["name"] for x in rows(aliases)]
+        if len(set(names)) != len(names):
+            raise ValueError("duplicate alias")
+        result.append({"fingerprint": fingerprint, "type": kind, "aliases": names})
+    return result
+
+
+def image_source_project(project):
+    # Unset features default to false, unlike the initial project creation value.
+    config = project.get("config", {})
+    if not isinstance(config, dict):
+        raise ValueError("invalid project config")
+    enabled = config.get("features.images", "false")
+    if enabled not in ("true", "false", ""):
+        raise ValueError("invalid image sharing")
+    return project["name"] if enabled == "true" else "default"
+
+
+def native_owner(item):
+    """Observe only the native owner marker; it is not ownership authority."""
+    config = item.get("config", {})
+    if not isinstance(config, dict) or len(config) > LIMIT:
+        raise ValueError("invalid native configuration")
+    if "user.hacocoon.owner" not in config:
+        return None
+    owner = config["user.hacocoon.owner"]
+    if not isinstance(owner, str) or not re.fullmatch(r"[0-9a-f]{32}", owner):
+        raise ValueError("invalid owner marker")
+    return owner
 
 
 def source_reference(source):
@@ -94,16 +144,23 @@ def inventory(fetch=query):
     requests = 0
     deadline = time.monotonic() + 300
 
-    def read(url, label):
+    def read(url, label, validate=rows):
         nonlocal requests
         if requests >= 256 or time.monotonic() >= deadline:
             raise InventoryLimit()
         requests += 1
         try:
-            return rows(fetch(url))
+            return validate(fetch(url))
         except (ValueError, TypeError, KeyError, OSError, subprocess.SubprocessError):
             report["errors"].append(label)
             return []
+
+    def owner(item, label):
+        try:
+            return native_owner(item)
+        except (ValueError, TypeError):
+            report["errors"].append("owner-marker:" + label)
+            return None
 
     try:
         pools = read("/1.0/storage-pools?recursion=1", "pools")
@@ -121,8 +178,14 @@ def inventory(fetch=query):
         for project in read("/1.0/projects?recursion=1", "projects"):
             name = project["name"]
             suffix = urlencode({"project": name, "recursion": 1})
-            entry = {"name": name, "instances": [], "volumes": []}
+            entry = {"name": name, "instances": [], "volumes": [], "images": [],
+                     "image_source_project": None}
             report["projects"].append(entry)
+            try:
+                entry["image_source_project"] = image_source_project(project)
+            except (ValueError, TypeError):
+                report["errors"].append("image-source-project:" + name)
+            entry["images"] = read("/1.0/images?" + suffix, "images:" + name, image_records)
             for instance in read("/1.0/instances?" + suffix, "instances:" + name):
                 ident = quote(instance["name"], safe="")
                 snapshots = read("/1.0/instances/" + ident + "/snapshots?" + suffix,
@@ -133,6 +196,7 @@ def inventory(fetch=query):
                     disks = None
                     report["errors"].append("disks:" + name + "/" + instance["name"])
                 entry["instances"].append({"name": instance["name"],
+                                          "owner_marker": owner(instance, "instance:" + name + "/" + instance["name"]),
                                           "type": text(instance.get("type", "")),
                                           "status": text(instance.get("status", "")),
                                           "disks": disks,
@@ -141,7 +205,8 @@ def inventory(fetch=query):
                 base = "/1.0/storage-pools/" + quote(pool["name"], safe="") + "/volumes"
                 for volume in read(base + "?" + suffix, "volumes:" + name + "/" + pool["name"]):
                     kind = text(volume.get("type", ""))
-                    record = {"name": volume["name"], "type": kind, "pool": pool["name"]}
+                    record = {"name": volume["name"], "type": kind, "pool": pool["name"],
+                              "owner_marker": owner(volume, "volume:" + name + "/" + pool["name"] + "/" + volume["name"])}
                     try:
                         record["content_type"] = text(volume.get("content_type", ""))
                     except ValueError:
@@ -182,11 +247,24 @@ def catalog_inventory(path, project=None):
 
 def catalog_references(data):
     result = {"projection_complete": False, "authority": False, "records": [], "errors": []}
-    if not isinstance(data, dict) or type(data.get("version")) is not int or data["version"] != 13:
+    # These versions share the projected reference fields in the canonical store.
+    # Schema 9 was an unpublished replacement prototype and remains unsupported.
+    if isinstance(data, dict) and type(data.get("version")) is int:
+        result["version"] = data["version"]
+    if result.get("version") not in (10, 11, 12, 13):
         result["errors"].append("unsupported-catalog-schema")
         return result
-    result["version"] = 13
+    result["state_validated"] = False
+    result["unprojected_records"] = []
+    for section in ("restores", "snapshot_workspace_copies", "ephemeral_runs"):
+        if section in data:
+            entries = data[section]
+            if not isinstance(entries, dict):
+                result["errors"].append(section + ":invalid-section")
+            elif entries:
+                result["unprojected_records"].append({"section": section, "count": len(entries), "review_required": True})
     fields = {
+        "environments": ("name", "runtime_ref", "access_mode"),
         "persistent_resources": ("id", "owner", "kind", "native_ref", "state", "workspace_id", "restore_source"),
         "base_assets": ("id", "owner", "native_ref", "state"),
         "workspace_leases": ("workspace_id", "environment_id", "owner", "instance_id", "runtime_ref", "state", "snapshot_source"),
@@ -213,6 +291,26 @@ def catalog_references(data):
                 for field in allowed:
                     if field in value:
                         row[field] = reference(value[field])
+                if section == "environments":
+                    workspace = value.get("workspace")
+                    if not isinstance(workspace, dict):
+                        raise ValueError("invalid environment workspace")
+                    row["workspace_id"] = reference(workspace["id"])
+                    path = text(workspace["path"])
+                    if path.startswith("managed:") and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", path[8:]):
+                        row["workspace_source"] = {"source_kind": "managed-workspace-reference", "source": path, "source_review": "required"}
+                    else:
+                        row["workspace_source"] = source_reference(path)
+                    base = value.get("base")
+                    if base is not None:
+                        if not isinstance(base, dict):
+                            raise ValueError("invalid base provenance")
+                        row["base_provenance"] = {f: reference(base[f]) for f in ("name", "revision") if f in base}
+                    resource = value.get("persistent_resource")
+                    if resource is not None:
+                        if not isinstance(resource, dict):
+                            raise ValueError("invalid environment resource")
+                        row["persistent_resource"] = {f: reference(resource[f]) for f in ("id", "owner") if f in resource}
                 if section == "snapshots":
                     components = value.get("components", [])
                     if not isinstance(components, list) or len(components) > LIMIT:
@@ -336,6 +434,8 @@ def main():
     if "--files" in options:
         report["files"] = file_inventory(options["--files"])
         catalog_ok = catalog_ok and report["files"]["enumeration_complete"]
+    if "--catalog" in options or "--repositories" in options:
+        report["associations"] = compare_associations(report, report.get("catalog"), report.get("repositories"))
     json.dump(report, sys.stdout, ensure_ascii=True, indent=2)
     print()
     return 0 if report["native_queries_complete"] and catalog_ok else 1

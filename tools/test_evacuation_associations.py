@@ -1,0 +1,177 @@
+import copy
+import base64
+import unittest
+from unittest.mock import patch
+import evacuation_associations as subject
+
+OWNER = "a" * 32
+
+class AssociationTests(unittest.TestCase):
+    def native(self):
+        return {"native_queries_complete": True, "projects": [{"name": "hacocoon", "instances": [{"name": "saved-root", "owner_marker": OWNER}], "volumes": [{"name": "work", "pool": "pool", "type": "custom", "owner_marker": OWNER}]}]}
+
+    def catalog(self, ref="pool/work"):
+        return {"projection_complete": True, "records": [{"section": "persistent_resources", "key": "oci:work", "native_ref": ref, "owner": OWNER}]}
+
+    def test_matching_reference_is_not_authority_and_inputs_are_unchanged(self):
+        native, catalog = self.native(), self.catalog()
+        before = copy.deepcopy((native, catalog))
+        result = subject.compare_associations(native, catalog)
+        self.assertEqual(result["rows"][0]["status"], "reference-and-marker-observed")
+        self.assertFalse(result["authority"])
+        self.assertTrue(result["review_required"])
+        self.assertEqual((native, catalog), before)
+
+    def test_ambiguous_projects_are_not_resolved_by_matching_owner(self):
+        native = self.native()
+        other = copy.deepcopy(native["projects"][0]); other["name"] = "other"
+        other["volumes"][0]["owner_marker"] = "b" * 32
+        native["projects"].append(other)
+        row = subject.compare_associations(native, self.catalog())["rows"][0]
+        self.assertEqual(row["status"], "ambiguous")
+        self.assertEqual(len(row["candidates"]), 2)
+
+    def test_missing_mismatched_and_unavailable_owners_remain_distinct(self):
+        for marker, expected in [(None, "native-owner-unavailable"), ("b" * 32, "owner-mismatch")]:
+            native = self.native(); native["projects"][0]["volumes"][0]["owner_marker"] = marker
+            self.assertEqual(subject.compare_associations(native, self.catalog())["rows"][0]["status"], expected)
+        self.assertEqual(subject.compare_associations(self.native(), self.catalog("pool/missing"))["rows"][0]["status"], "not-observed")
+        catalog = self.catalog(); catalog["records"][0]["owner"] = ""
+        self.assertEqual(subject.compare_associations(self.native(), catalog)["rows"][0]["status"], "catalog-owner-unavailable")
+
+    def test_incomplete_native_inventory_cannot_prove_unique_match_or_absence(self):
+        native = self.native(); native["native_queries_complete"] = False
+        for ref in ["pool/work", "pool/missing"]:
+            self.assertEqual(subject.compare_associations(native, self.catalog(ref))["rows"][0]["status"], "incomplete-native-inventory")
+
+    def test_snapshot_components_and_repository_members_use_current_native_forms(self):
+        catalog = {"projection_complete": True, "records": [{"section": "snapshots", "key": "saved", "components": [
+            {"role": "rootfs", "native_ref": "instance/saved-root", "owner": OWNER},
+            {"role": "workspace:app", "native_ref": "volume/pool/work", "owner": OWNER}]}]}
+        repos = {"projection_complete": True, "files": [{"file": "work-app.json", "records": [{"id": "app", "native_ref": "pool/work", "owner": OWNER}]}]}
+        result = subject.compare_associations(self.native(), catalog, repos)
+        self.assertEqual(len(result["rows"]), 3)
+        self.assertTrue(all(row["status"] == "reference-and-marker-observed" for row in result["rows"]))
+
+    def test_deleting_snapshot_keeps_missing_component_state_for_review(self):
+        for state in ("absent", "verified"):
+            catalog = {"projection_complete": True, "records": [{"section": "snapshots", "key": "saved", "state": "deleting", "components": [
+                {"role": "rootfs", "native_ref": "instance/missing", "owner": OWNER, "state": state}]}]}
+            row = subject.compare_associations(self.native(), catalog)["rows"][0]
+            self.assertEqual(row["status"], "not-observed")
+            self.assertEqual(row["source"]["state"], "deleting")
+            self.assertEqual(row["recorded_state"], state)
+
+    def test_router_wrapped_snapshot_matches_current_persisted_format(self):
+        ref = "instance/saved-root"
+        wrapped = "haco-runtime-v1:runtime.incus:" + base64.urlsafe_b64encode(ref.encode()).decode().rstrip("=")
+        catalog = {"projection_complete": True, "records": [{"section": "snapshots", "key": "saved", "components": [
+            {"role": "rootfs", "native_ref": wrapped, "owner": OWNER}]}]}
+        row = subject.compare_associations(self.native(), catalog)["rows"][0]
+        self.assertEqual(row["status"], "reference-and-marker-observed")
+        self.assertEqual(row["native_ref"], wrapped)
+
+    def test_router_rejects_other_providers_and_malformed_or_unsafe_payloads(self):
+        encode = lambda value: base64.urlsafe_b64encode(value).decode().rstrip("=")
+        prefix = "haco-runtime-v1:runtime.incus:"
+        refs = ["haco-runtime-v1:runtime.other:" + encode(b"pool/work"), prefix,
+                prefix + "a", prefix + "***", prefix + "YQ==", prefix + "YR",
+                prefix + encode(b"../work"), prefix + encode(b"volume/pool/../work"),
+                prefix + encode(b"https://secret@example.invalid"), prefix + encode(b"pool/\xff"),
+                prefix + encode(b"instance/name\n"), prefix + "A" * 4097]
+        for ref in refs:
+            with self.subTest(ref=ref[:60]):
+                self.assertIsNone(subject.native_reference(ref))
+
+    def test_empty_snapshot_and_incomplete_projection_remain_visible(self):
+        catalog = {"projection_complete": False, "records": [
+            {"section": "snapshots", "key": "empty", "components": []}]}
+        result = subject.compare_associations(self.native(), catalog)
+        self.assertEqual(result["errors"], ["catalog-projection-incomplete"])
+        self.assertEqual(result["rows"][0]["source"]["key"], "empty")
+        self.assertEqual(result["rows"][0]["status"], "unsupported-reference")
+
+    def test_runtime_reference_never_claims_generation_or_ownership(self):
+        wrapped = "haco-runtime-v1:runtime.incus:" + base64.urlsafe_b64encode(b"saved-root").decode().rstrip("=")
+        for section in ("environments", "workspace_leases"):
+            for ref in ("saved-root", wrapped):
+                catalog = {"projection_complete": True, "records": [{"section": section, "key": "env", "runtime_ref": ref, "owner": OWNER}]}
+                result = subject.compare_associations(self.native(), catalog)
+                self.assertEqual(result["rows"][0]["status"], "runtime-reference-observed")
+                self.assertEqual(result["rows"][0]["native_ref"], ref)
+                instance = next(row for row in result["native_review"] if row["kind"] == "instance")
+                self.assertEqual(instance["status"], "unresolved-reference")
+                self.assertFalse(result["authority"])
+
+    def test_runtime_reference_absence_and_ambiguity_are_not_hidden(self):
+        catalog = {"projection_complete": True, "records": [{"section": "environments", "key": "env", "runtime_ref": "missing"}]}
+        self.assertEqual(subject.compare_associations(self.native(), catalog)["rows"][0]["status"], "not-observed")
+        catalog["records"][0]["runtime_ref"] = "saved-root"
+        native = self.native()
+        other = copy.deepcopy(native["projects"][0]); other["name"] = "other"
+        native["projects"].append(other)
+        self.assertEqual(subject.compare_associations(native, catalog)["rows"][0]["status"], "ambiguous")
+
+    def test_retained_base_uses_existing_instance_reference(self):
+        catalog = {"projection_complete": True, "records": [{"section": "base_assets", "key": "base", "native_ref": "instance/saved-root", "owner": OWNER}]}
+        self.assertEqual(subject.compare_associations(self.native(), catalog)["rows"][0]["status"], "reference-and-marker-observed")
+        catalog["records"][0]["native_ref"] = "volume/pool/work"
+        self.assertEqual(subject.compare_associations(self.native(), catalog)["rows"][0]["status"], "unsupported-reference")
+
+    def test_reverse_review_keeps_native_data_without_supported_references(self):
+        result = subject.compare_associations(self.native(), self.catalog())
+        rows = {row["name"]: row for row in result["native_review"]}
+        self.assertEqual(rows["work"]["status"], "reference-and-marker-observed")
+        self.assertEqual(rows["saved-root"]["status"], "no-supported-reference")
+        self.assertEqual(rows["saved-root"]["project"], "hacocoon")
+        self.assertFalse(result["authority"])
+        # An incomplete catalog does not establish that a native resource is orphaned.
+        catalog = {"projection_complete": False, "records": []}
+        result = subject.compare_associations(self.native(), catalog)
+        self.assertTrue(all(row["status"] == "no-supported-reference" for row in result["native_review"]))
+        self.assertIn("catalog-projection-incomplete", result["errors"])
+
+    def test_reverse_review_preserves_ambiguous_project_views(self):
+        native = self.native()
+        other = copy.deepcopy(native["projects"][0]); other["name"] = "other"
+        native["projects"].append(other)
+        result = subject.compare_associations(native, self.catalog())
+        volumes = [row for row in result["native_review"] if row["kind"] == "volume"]
+        self.assertEqual({row["project"] for row in volumes}, {"hacocoon", "other"})
+        self.assertTrue(all(row["status"] == "unresolved-reference" for row in volumes))
+
+    def test_reverse_review_does_not_hide_owner_mismatch_or_native_read_failure(self):
+        for incomplete in (False, True):
+            native = self.native()
+            native["native_queries_complete"] = not incomplete
+            native["projects"][0]["volumes"][0]["owner_marker"] = "b" * 32
+            result = subject.compare_associations(native, self.catalog())
+            volume = next(row for row in result["native_review"] if row["kind"] == "volume")
+            self.assertEqual(volume["status"], "unresolved-reference")
+
+    def test_reverse_review_matching_record_does_not_hide_conflicting_record(self):
+        catalog = self.catalog()
+        conflicting = copy.deepcopy(catalog["records"][0])
+        conflicting.update(key="other", owner="b" * 32)
+        catalog["records"].append(conflicting)
+        result = subject.compare_associations(self.native(), catalog)
+        volume = next(row for row in result["native_review"] if row["kind"] == "volume")
+        self.assertEqual(volume["status"], "unresolved-reference")
+
+    def test_reverse_review_budget_reports_omitted_native_rows(self):
+        with patch.object(subject, "LIMIT", 1):
+            result = subject.compare_associations(self.native())
+        self.assertEqual(len(result["native_review"]), 1)
+        self.assertEqual(result["errors"], ["native-review-budget-exhausted"])
+
+    def test_unsupported_references_and_budget_are_explicit(self):
+        catalog = self.catalog("legacy-format")
+        self.assertEqual(subject.compare_associations(self.native(), catalog)["rows"][0]["status"], "unsupported-reference")
+        catalog["records"] *= 3
+        with patch.object(subject, "LIMIT", 2):
+            result = subject.compare_associations(self.native(), catalog)
+        self.assertEqual(len(result["rows"]), 2)
+        self.assertEqual(result["errors"], ["comparison-budget-exhausted"])
+
+if __name__ == "__main__":
+    unittest.main()

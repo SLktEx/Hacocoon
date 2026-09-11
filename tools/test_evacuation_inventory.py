@@ -12,6 +12,24 @@ import evacuation_inventory as subject
 
 
 class InventoryTests(unittest.TestCase):
+    @unittest.skipUnless(hasattr(os, "O_NOFOLLOW"), "Linux catalog observation required")
+    def test_cli_catalog_comparison_is_observation_not_backup_success(self):
+        with tempfile.TemporaryDirectory() as root:
+            catalog = Path(root, "environments.json")
+            raw = json.dumps({"version": 13, "persistent_resources": {
+                "oci:missing": {"native_ref": "pool/missing", "owner": "a" * 32}}})
+            catalog.write_text(raw)
+            output = io.StringIO()
+            with patch.object(subject.sys, "argv", ["inventory", "--catalog", str(catalog)]), patch.object(subject, "inventory", return_value={"backup_complete": False, "native_queries_complete": True, "projects": []}), redirect_stdout(output):
+                code = subject.main()
+            result = json.loads(output.getvalue())
+            self.assertEqual(code, 0)  # Reading succeeded; this is not a capture command.
+            self.assertFalse(result["backup_complete"])
+            self.assertFalse(result["associations"]["authority"])
+            self.assertTrue(result["associations"]["review_required"])
+            self.assertEqual(result["associations"]["rows"][0]["status"], "not-observed")
+            self.assertEqual(catalog.read_text(), raw)
+
     @unittest.skipUnless(hasattr(os, "O_NOFOLLOW") and Path("/proc/self/mountinfo").exists(), "Linux metadata observation required")
     def test_cli_file_gaps_return_failure_without_losing_native_inventory(self):
         with tempfile.TemporaryDirectory() as root:
@@ -32,6 +50,9 @@ class InventoryTests(unittest.TestCase):
             return [{"name": "data", "driver": "btrfs", "config": {"secret": "never-copy"}}]
         if url == "/1.0/projects?recursion=1":
             return [{"name": "default"}, {"name": "hacocoon"}]
+        if url.startswith("/1.0/images?"):
+            return [{"fingerprint": "a" * 64, "type": "container", "aliases": [{"name": "base", "description": "never-copy"}],
+                     "properties": {"secret": "never-copy"}, "update_source": {"server": "never-copy"}}]
         if url.startswith("/1.0/instances?"):
             return [{"name": "saved-env", "type": "container", "status": "Stopped",
                      "config": {"environment.TOKEN": "never-copy"}, "devices": {"credential": {"type": "proxy", "connect": "never-copy"}}}]
@@ -43,6 +64,46 @@ class InventoryTests(unittest.TestCase):
             return [{"name": "work", "type": "custom"}, {"name": "cached", "type": "image"}]
         self.fail(url)
 
+    def test_image_project_sharing_and_missing_feature_default(self):
+        for config, expected in [({}, "default"), ({"features.images": "false"}, "default"),
+                                 ({"features.images": "true"}, "hacocoon")]:
+            def fetch(url):
+                if url.startswith("/1.0/projects?"):
+                    return [{"name": "hacocoon", "config": config}]
+                return self.fixture(url)
+            result = subject.inventory(fetch)
+            self.assertTrue(result["native_queries_complete"])
+            project = result["projects"][0]
+            self.assertEqual(project["image_source_project"], expected)
+            self.assertEqual(project["images"], [{"fingerprint": "a" * 64, "type": "container", "aliases": ["base"]}])
+            self.assertNotIn("never-copy", json.dumps(result))
+
+    def test_image_errors_do_not_hide_saved_volumes(self):
+        good = {"fingerprint": "a" * 64, "type": "container"}
+        for invalid in [None, [good, good], [{**good, "fingerprint": "secret"}],
+                        [{**good, "type": "unknown"}], [{**good, "aliases": [{}]}],
+                        [{**good, "aliases": [{"name": "same"}, {"name": "same", "type": "foreign"}]}]]:
+            def fetch(url):
+                return invalid if url.startswith("/1.0/images?") else self.fixture(url)
+            result = subject.inventory(fetch)
+            self.assertFalse(result["native_queries_complete"])
+            self.assertFalse(result["backup_complete"])
+            self.assertEqual(result["errors"], ["images:default", "images:hacocoon"])
+            self.assertTrue(result["projects"][0]["volumes"])
+            self.assertNotIn("secret", json.dumps(result))
+
+    def test_unknown_image_sharing_preserves_observed_images_without_assuming_owner(self):
+        def fetch(url):
+            if url.startswith("/1.0/projects?"):
+                return [{"name": "hacocoon", "config": {"features.images": "secret"}}]
+            return self.fixture(url)
+        result = subject.inventory(fetch)
+        self.assertFalse(result["native_queries_complete"])
+        self.assertEqual(result["errors"], ["image-source-project:hacocoon"])
+        self.assertIsNone(result["projects"][0]["image_source_project"])
+        self.assertEqual(len(result["projects"][0]["images"]), 1)
+        self.assertNotIn("secret", json.dumps(result))
+
     def test_inventory_preserves_native_resources_without_credentials_or_backup_claim(self):
         result = subject.inventory(self.fixture)
         self.assertTrue(result["native_queries_complete"])
@@ -52,6 +113,35 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(len(result["projects"]), 2)
         self.assertEqual(result["projects"][0]["instances"][0]["snapshots"], ["saved"])
         self.assertEqual(result["projects"][0]["volumes"][0]["snapshots"], ["work/saved"])
+
+    def test_native_owner_marker_is_observed_without_other_configuration(self):
+        def fetch(url):
+            values = self.fixture(url)
+            if url.startswith("/1.0/instances?") or "/volumes?" in url:
+                values[0]["config"] = {"user.hacocoon.owner": "a" * 32, "user.secret": "never-copy"}
+            return values
+        result = subject.inventory(fetch)
+        self.assertTrue(result["native_queries_complete"])
+        view = result["projects"][0]
+        self.assertEqual(view["instances"][0]["owner_marker"], "a" * 32)
+        self.assertEqual(view["volumes"][0]["owner_marker"], "a" * 32)
+        self.assertIsNone(view["volumes"][1]["owner_marker"])
+        self.assertNotIn("never-copy", json.dumps(result))
+        self.assertFalse(result["backup_complete"])
+
+    def test_invalid_owner_marker_preserves_resources_and_marks_incomplete(self):
+        for owner in (None, "secret-token", "https://user:secret@example.invalid", [], 32, ""):
+            def fetch(url):
+                values = self.fixture(url)
+                if "/volumes?" in url:
+                    values[0]["config"] = {"user.hacocoon.owner": owner}
+                return values
+            result = subject.inventory(fetch)
+            self.assertFalse(result["native_queries_complete"])
+            self.assertEqual(result["errors"], ["owner-marker:volume:default/data/work", "owner-marker:volume:hacocoon/data/work"])
+            self.assertEqual(result["projects"][0]["volumes"][0]["snapshots"], ["work/saved"])
+            self.assertIsNone(result["projects"][0]["volumes"][0]["owner_marker"])
+            self.assertNotIn("secret", json.dumps(result))
 
     def test_failed_query_retains_other_resources_and_marks_incomplete(self):
         def fetch(url):
@@ -161,6 +251,31 @@ class InventoryTests(unittest.TestCase):
         self.assertNotIn("never-copy", json.dumps(result))
         self.assertEqual(result["pools"][0]["source_kind"], "unreported-reference-review-in-incus")
 
+    def test_environment_workspace_references_preserve_topology_without_opening_paths(self):
+        env = {"name": "dev", "runtime_ref": "haco-dev", "access_mode": "exclusive", "workspace": {"id": "work", "path": "managed:app"}, "base": {"name": "dev", "revision": "abc", "credential": "never-copy"}, "persistent_resource": {"id": "oci:work", "owner": "abc"}, "resources": {"secret": "never-copy"}}
+        data = {"version": 13, "environments": {"dev": env}}
+        original = json.dumps(data, sort_keys=True)
+        with patch("builtins.open", side_effect=AssertionError("must not open workspace")):
+            result = subject.catalog_references(data)
+        self.assertTrue(result["projection_complete"])
+        row = result["records"][0]
+        self.assertEqual(row["workspace_id"], "work")
+        self.assertEqual(row["workspace_source"]["source"], "managed:app")
+        self.assertEqual(row["persistent_resource"]["id"], "oci:work")
+        self.assertEqual(row["base_provenance"], {"name": "dev", "revision": "abc"})
+        self.assertNotIn("never-copy", json.dumps(result))
+        self.assertEqual(json.dumps(data, sort_keys=True), original)
+        env["workspace"]["path"] = "/mnt/c/shared"
+        self.assertEqual(subject.catalog_references(data)["records"][0]["workspace_source"]["source"], "/mnt/c/shared")
+        env["workspace"]["path"] = "https://user:never-copy@example.invalid/repo"
+        self.assertNotIn("never-copy", json.dumps(subject.catalog_references(data)))
+
+    def test_malformed_environment_workspace_retains_other_records_and_error(self):
+        result = subject.catalog_references({"version": 13, "environments": {"broken": {"workspace": []}}, "persistent_resources": {"saved": {"native_ref": "pool/saved"}}})
+        self.assertFalse(result["projection_complete"])
+        self.assertEqual(result["errors"], ["environments:row:0"])
+        self.assertEqual(result["records"][0]["section"], "persistent_resources")
+
     def test_catalog_projection_preserves_saved_components_without_config(self):
         data = {"version": 13, "snapshots": {"saved": {"id": "saved", "state": "ready", "source": {"secret": "never-copy"}, "components": [{"role": "workspace", "native_ref": "pool/saved-work", "owner": "abc", "state": "ready", "binding": "never-copy"}]}}, "persistent_resources": {"oci:work": {"id": "oci:work", "owner": "abc", "kind": "oci", "native_ref": "pool/work", "state": "ready"}}, "workspace_leases": {"dev": {"workspace_id": "work", "instance_id": "new-generation", "persistent_resource": {"id": "oci:work", "owner": "abc"}}}}
         original = json.dumps(data, sort_keys=True)
@@ -172,8 +287,33 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(json.dumps(data, sort_keys=True), original)
         self.assertTrue(result["unreviewed"])
 
+    def test_legacy_reference_projection_preserves_version_and_input(self):
+        for version in (10, 11, 12, 13):
+            data = {"version": version, "base_assets": {"saved": {"native_ref": "instance/saved", "owner": "a" * 32}},
+                    "snapshots": {"saved": {"components": [{"role": "rootfs", "native_ref": "instance/saved", "owner": "a" * 32, "state": "verified"}]}}}
+            original = json.dumps(data, sort_keys=True)
+            result = subject.catalog_references(data)
+            self.assertTrue(result["projection_complete"])
+            self.assertEqual(result["version"], version)
+            self.assertFalse(result["state_validated"])
+            self.assertFalse(result["authority"])
+            self.assertEqual(len(result["records"]), 2)
+            self.assertEqual(json.dumps(data, sort_keys=True), original)
+
+    def test_unprojected_operation_records_remain_visible_without_secret_fields(self):
+        data = {"version": 12, "restores": {"never-copy-key": {"credential": "never-copy"}},
+                "ephemeral_runs": {"private": {}}, "snapshot_workspace_copies": {"private": {}}}
+        result = subject.catalog_references(data)
+        self.assertEqual({row["section"] for row in result["unprojected_records"]},
+                         {"restores", "ephemeral_runs", "snapshot_workspace_copies"})
+        self.assertTrue(all(row["count"] == 1 and row["review_required"] for row in result["unprojected_records"]))
+        self.assertNotIn("never-copy", json.dumps(result))
+        self.assertFalse(result["state_validated"])
+        data["restores"] = []
+        self.assertFalse(subject.catalog_references(data)["projection_complete"])
+
     def test_catalog_unknown_schema_and_bad_rows_remain_incomplete(self):
-        for version in (12, 14, True, None):
+        for version in (4, 9, 14, True, None):
             self.assertFalse(subject.catalog_references({"version": version})["projection_complete"])
         data = {"version": 13, "persistent_resources": {"bad": {"native_ref": "https://user:secret@example.invalid"}, "good": {"native_ref": "pool/volume"}}}
         result = subject.catalog_references(data)
