@@ -29,7 +29,7 @@ def native_reference(ref):
 
 
 def compare_associations(native, catalog=None, repositories=None):
-    result = {"authority": False, "review_required": True, "rows": [], "errors": []}
+    result = {"authority": False, "review_required": True, "rows": [], "native_review": [], "errors": []}
     index = {}
     for project in native.get("projects", []):
         for item in project.get("instances", []):
@@ -54,6 +54,10 @@ def compare_associations(native, catalog=None, repositories=None):
                         yield {**source, "role": component["role"]}, component, "snapshot"
                 elif row["section"] == "persistent_resources":
                     yield source, row, "volume"
+                elif row["section"] == "base_assets":
+                    yield source, row, "saved-instance"
+                elif row["section"] in ("environments", "workspace_leases"):
+                    yield source, row, "runtime"
                 else:
                     yield source, row, "unreviewed"
         if repositories:
@@ -63,17 +67,22 @@ def compare_associations(native, catalog=None, repositories=None):
                 for row in file.get("records", []):
                     yield {"file": file["file"], "id": row["id"]}, row, "volume"
 
+    referenced, unresolved = set(), set()
     for source, item, kind in records():
         if len(result["rows"]) >= LIMIT:
             result["errors"].append("comparison-budget-exhausted")
             break
-        ref = item.get("native_ref", "")
+        ref = item.get("runtime_ref", "") if kind == "runtime" else item.get("native_ref", "")
         parts = native_reference(ref) or []
         key = None
         if kind == "volume" and len(parts) == 2 and all(parts):
             key = ("volume", *parts)
         elif kind == "snapshot" and ((len(parts) == 2 and parts[0] == "instance") or (len(parts) == 3 and parts[0] == "volume")) and all(parts):
             key = tuple(parts)
+        elif kind == "saved-instance" and len(parts) == 2 and parts[0] == "instance":
+            key = tuple(parts)
+        elif kind == "runtime" and len(parts) == 1:
+            key = ("instance", parts[0])
         candidates = index.get(key, []) if key else []
         owner = item.get("owner", "")
         if key is None:
@@ -84,6 +93,9 @@ def compare_associations(native, catalog=None, repositories=None):
             status = "ambiguous"
         elif not candidates:
             status = "not-observed"
+        elif kind == "runtime":
+            # Runtime refs do not carry the generation proof required by lifecycle APIs.
+            status = "runtime-reference-observed"
         elif not isinstance(owner, str) or not re.fullmatch(r"[a-f0-9]{32}", owner):
             status = "catalog-owner-unavailable"
         elif candidates[0]["owner_marker"] is None:
@@ -93,4 +105,18 @@ def compare_associations(native, catalog=None, repositories=None):
         else:
             status = "reference-and-marker-observed"
         result["rows"].append({"source": source, "native_ref": ref, "status": status, "recorded_state": item.get("state"), "candidates": [dict(c) for c in candidates]})
+        if candidates:
+            referenced.add(key)
+            if status != "reference-and-marker-observed":
+                unresolved.add(key)
+    # Reverse coverage is observation only. Unsupported/missing catalogs can leave
+    # legitimate managed resources here; absence of a match never permits deletion.
+    for key in sorted(index):
+        for candidate in index[key]:
+            if len(result["native_review"]) >= LIMIT:
+                result["errors"].append("native-review-budget-exhausted")
+                return result
+            status = ("unresolved-reference" if key in unresolved else
+                      "reference-and-marker-observed" if key in referenced else "no-supported-reference")
+            result["native_review"].append({"kind": key[0], **candidate, "status": status})
     return result
