@@ -144,6 +144,9 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 	}
 	fmt.Fprintln(diagnostic, "Delete this image from the selected Store. Independent copies, saved snapshots and remote registry images remain. The runtime may refuse images with multiple tags or other references; no force is used.")
 	if !yes {
+		if !requireInteractiveConfirmation(in, diagnostic) {
+			return 2
+		}
 		fmt.Fprint(diagnostic, "Delete the reviewed image(s)? [y/N] ")
 		answer, err := bufio.NewReader(io.LimitReader(in, 128)).ReadString('\n')
 		answer = strings.ToLower(strings.TrimSpace(answer))

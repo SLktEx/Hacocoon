@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.57**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.58**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on main. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 

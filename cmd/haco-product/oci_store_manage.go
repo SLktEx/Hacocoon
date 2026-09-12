@@ -121,6 +121,9 @@ func ociStoreManageCommand(ctx context.Context, c ociStoreClient, args []string,
 	}
 	fmt.Fprintln(diagnostic, "This deletes all images, container metadata, build cache and persistent data in this Store. Workspace files, the Host source and independent saved snapshots remain.")
 	if !yes {
+		if !requireInteractiveConfirmation(in, diagnostic) {
+			return 2
+		}
 		fmt.Fprint(diagnostic, "Delete this OCI Store? [y/N] ")
 		answer, err := bufio.NewReader(io.LimitReader(in, 128)).ReadString('\n')
 		answer = strings.ToLower(strings.TrimSpace(answer))

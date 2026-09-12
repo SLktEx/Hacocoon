@@ -78,7 +78,8 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.55 | OCI Store Cleanup | implemented（現行の機能制約は実装状況を参照） |
 | v0.56 | Source Repository Cleanup | implemented（現行の機能制約は実装状況を参照） |
 | v0.57 | OCI Image Cleanup | partial（実装・検証の残課題あり） |
+| v0.58 | Daily CLI Entry and Setup Diagnostics | 実装済み |
 
-現在のmilestone位置は **v0.57**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.58**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。

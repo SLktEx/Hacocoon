@@ -220,6 +220,10 @@ def plan(config, devices, distribution=None):
     return [name for name in devices if name not in current]
 
 
+class NativeBinfmtIncompatible(ValueError):
+    """Fixed setup protocol exit 42; contains no guest output."""
+
+
 def ensure_native_binfmt(directory=Path('/proc/sys/fs/binfmt_misc'),
                          generated=Path('/run/systemd/generator/systemd-binfmt.service.d/override.conf'),
                          run=subprocess.run):
@@ -235,7 +239,7 @@ def ensure_native_binfmt(directory=Path('/proc/sys/fs/binfmt_misc'),
             expected = {'enabled', 'interpreter /init', 'offset 0', 'magic 4d5a'}
             # Allow only known native WSL variants; every other field stays exact.
             if lines not in (expected | {'flags: P'}, expected | {'flags: PF'}):
-                raise ValueError('incompatible or disabled native WSL binfmt registration')
+                raise NativeBinfmtIncompatible('incompatible or disabled native WSL binfmt registration')
         return bool(entries)
 
     if check():
@@ -439,8 +443,14 @@ def main():
     print("Open a new haco-host shell; existing WSLInterop supports direct tool.exe execution.")
 
 
-if __name__ == "__main__":
+def cli_main():
     try:
         main()
+    except NativeBinfmtIncompatible:
+        raise SystemExit(42)
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         raise SystemExit("WSL Host setup: " + str(error))
+
+
+if __name__ == "__main__":
+    cli_main()

@@ -12,6 +12,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
+	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 )
 
 func setupClientFixtures(t *testing.T) string {
@@ -182,5 +183,37 @@ func TestHostSetupRequiresNotificationCompanionBeforeProviderAccess(t *testing.T
 	}
 	if len(runner.calls) != 0 {
 		t.Fatal("invalid target reached provider")
+	}
+}
+
+func TestHostSetupMidInteropFailurePreservesPriorStageEvidence(t *testing.T) {
+	runner := trustedHostRunner("RUNNING", trustedHostRoleValue, nil)
+	runtime := New(runner)
+	runtime.trustedHostInterop = func(context.Context) error {
+		return errors.Join(hostsetup.ErrNativeBinfmtIncompatible, errors.New("SECRET-guest-output"))
+	}
+	var events []hostsetup.Event
+	ctx := hostsetup.Observe(context.Background(), func(e hostsetup.Event) { events = append(events, e) })
+	err := runtime.SetupTrustedHost(ctx, setupClientFixtures(t))
+	stage, reason := hostsetup.Details(err)
+	if stage != "wsl_interop" || reason != "native_binfmt_incompatible" || strings.Contains(err.Error(), "SECRET") {
+		t.Fatal(stage, reason, err)
+	}
+	started := false
+	for _, e := range events {
+		if e.Stage == "trusted_host_start" && e.State == "succeeded" {
+			started = true
+		}
+		if e.Stage == "client_provision" {
+			t.Fatal("provisioned after failure")
+		}
+	}
+	if !started {
+		t.Fatal("missing completed start evidence", events)
+	}
+	for _, call := range runner.calls {
+		if len(call.args) > 0 && call.args[0] == "delete" {
+			t.Fatal("unexpected cleanup", call)
+		}
 	}
 }

@@ -80,7 +80,8 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.55 | OCI Store Cleanup | implemented — see current feature limits |
 | v0.56 | Source Repository Cleanup | implemented — see current feature limits |
 | v0.57 | OCI Image Cleanup | partial — implementation and acceptance gaps remain |
+| v0.58 | Daily CLI Entry and Setup Diagnostics | ✅ implemented |
 
-The current milestone position is **v0.57**. This declaration and the table mirror YAML.
+The current milestone position is **v0.58**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).

@@ -3,6 +3,7 @@ package incus
 import (
 	"context"
 	"fmt"
+	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -13,7 +14,8 @@ const (
 	trustedHostClientModeValue  = "controller"
 )
 
-func (r *Runtime) ensureTrustedHostClientMode(ctx context.Context) error {
+func (r *Runtime) ensureTrustedHostClientMode(ctx context.Context) (err error) {
+	defer hostsetup.Track(ctx, "client_mode")(&err)
 	result, err := r.runner.Run(ctx, "incus", "config", "get", trustedHostName, trustedHostClientModeEnvKey, "--project", r.project)
 	if err != nil {
 		return fmt.Errorf("read trusted host client mode: %w", err)

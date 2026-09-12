@@ -114,3 +114,7 @@ storage/pluginの失敗を区別できるようにします。試験は人間向
 プロジェクト設定失敗の診断は許可リスト内の`stage`/`error_code`と数値`exit_code`だけです。
 lookup/recipe/start/execute/scriptを区別し、未知値は`unknown`/`internal`にします。
 バックエンドの生エラー、recipe本文、プロセス出力を診断項目へコピーしません。
+
+## 日常操作の診断
+
+Host setupは固定`stage`、`state`、`reason`と`request_id`、`duration_ms`を記録します。単一のERRORはcontrollerが所有し、個別工程はINFOの観測です。進捗はstderrへ出し、peer由来の任意フィールドを拒否します。journalの保持はsystemd-journaldが担います。helper終了値42はnative WSL binfmt不一致の固定コードであり、stderrの文字列解析には依存しません。[setup診断](../design/trusted-host.ja.md#setupの進捗と失敗診断)を参照してください。

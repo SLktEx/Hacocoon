@@ -58,6 +58,15 @@ SSH setup itself remains editor-neutral. `haco open` defaults to VS Code, while
 Remote-SSH needs its requested dynamic forwarding: generated settings use
 `ClearAllForwardings no` and `GatewayPorts no`; agent forwarding remains disabled.
 
+On first access to a Base without `sshd`, the existing SSH preparation installs
+`openssh-server` through the Env's Policy-controlled package transport. Default deny
+can prevent that preparation; a generic connection failure does not prove either
+a package failure or pending approval. The CLI routes inspection to
+`haco env status`, `haco doctor`, read-only `haco approve --list` and `haco config`.
+Review the actual Base's package endpoints and current Env scope before changing
+Policy. After a failed attempt, inspect connections before disconnecting or
+trying again; preparation is not permission to grant network access automatically.
+
 In WSL (including trusted haco-host), the client resolves the Windows profile and
 uses Windows ssh-keygen. On Linux it uses the local client home. The private key
 stays under that client's `~/.ssh/hacocoon/identity`; only its public key reaches
