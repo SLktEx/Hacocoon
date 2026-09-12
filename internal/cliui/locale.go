@@ -43,10 +43,23 @@ func ParseLocale(value string) Language {
 	return English
 }
 
+// Catalogs are initialized once and only read after package initialization.
+// Splitting by surface does not introduce a registry or mutable language state.
+var messageCatalogs = [...]map[string]translation{catalog, environmentCatalog}
+
+func lookupMessage(id string) (translation, bool) {
+	for _, messages := range messageCatalogs {
+		if message, ok := messages[id]; ok {
+			return message, true
+		}
+	}
+	return translation{}, false
+}
+
 // Text selects a message template. Unknown IDs are returned verbatim so a
 // missing catalog entry never panics or changes the outcome of an operation.
 func (language Language) Text(id string) string {
-	message, ok := catalog[id]
+	message, ok := lookupMessage(id)
 	if !ok {
 		return id
 	}

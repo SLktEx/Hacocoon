@@ -20,13 +20,13 @@ To force English for one invocation:
 LC_ALL=C haco help
 ```
 
-On Windows, setting `$env:LANG` alone does **not** establish forwarding through the Windows launcher in this slice. An explicit invocation can set the locale for the Linux CLI instead:
+On Windows, setting `$env:LANG` alone does **not** establish automatic forwarding in this slice. An explicit invocation can set the locale for the Linux CLI instead:
 
 ```powershell
 wsl -d Hacocoon --exec env LC_ALL=ja_JP.UTF-8 haco help
 ```
 
-Use the actual distribution name in place of `Hacocoon` when different. This command is a configuration example, not evidence of native Windows acceptance. No persistent OS, WSL, Environment, or child-process locale changes are introduced by the CLI selector. The separate installer behavior described in [trusted Host entry](../design/trusted-host.md#host-entry-language) is unchanged.
+Use the actual distribution name in place of `Hacocoon` when different. This command is a configuration example, not evidence of native Windows acceptance. The selector does not set environment variables or persist OS, WSL, Environment, or child-process locale changes. The separate installer behavior described in [trusted Host entry](../design/trusted-host.md#host-entry-language) is unchanged.
 
 ## Implemented surfaces
 
@@ -34,24 +34,35 @@ Use the actual distribution name in place of `Hacocoon` when different. This com
 - The trusted Host entry notice, preserving terminal coloring and plain redirected output.
 - `haco approve` help, request selection, terminal approval options, outcomes, and saved Policy explanations.
 - Root `haco env` usage, create/SSH flag descriptions, and its directly emitted controller/output diagnostics.
-- `haco doctor` usage, human report heading, and next-action label.
+- Human-readable `haco env list` and `haco env status`: headings, empty-list guidance, connection commands, and retained-Workspace notice for a stopped Environment.
+- Human-readable `haco env doctor`: headings, next actions for known local checks, connection labels, and the explicit limit of what the diagnostic tests. It does not run additional probes or repair anything when rendering another language.
+- `haco env copy`, `haco env import`, and `haco env export`: usage, JSON-option descriptions, direct controller/output diagnostics, completion and retained-data notices, and localized failure explanations around the original error.
+- `haco doctor` usage, human report heading, and next-action label. Its controller-provided detail remains unchanged.
 
-## Unchanged contracts
+## Compatibility and boundaries
 
-Command and flag names, accepted input, identifiers, paths, configuration keys, JSON output and values, exit codes, and stdout/stderr routing do not change. This includes Environment operation messages that are currently encoded as JSON strings, approval listings/receipts, and `version --json`. The compact `--version` output stays unchanged.
+Command and flag names, accepted input, resource identifiers, configuration keys, JSON output and values, operation decisions, and stdout/stderr routing do not change with the selected language. This includes Environment operation messages currently encoded as JSON strings, approval listings/receipts, and `version --json`. The compact `--version` output and generated SSH configuration stay unchanged.
+
+Environment state/access values and diagnostic check/status tokens are not translated. The Environment diagnostic's exported `action` and `scope` text remains in its existing English form for JSON. Private rendering metadata selects Japanese explanations without changing those report fields. Unknown report details retain their original text instead of being guessed from string contents.
+
+Human-readable Environment/transfer output applies terminal escaping to nonprintable characters in names, paths and displayed result fields; it does not rename a resource or rewrite its JSON representation. List rendering sorts a copy and does not reorder caller-owned data. Original Git/SSH/OS/backend errors remain intact as error details; they are not passed through a translation filter.
+
+Locale selection does not alter command success/failure or approval exit codes. One separate output-error correction accompanies Environment diagnostic rendering: a failed write after the first heading now returns the existing failure code `1` in both languages, instead of being ignored.
 
 Approval decisions still use the same `y`/`yes`, `N`, and numbered choices. Empty or unknown input does not authorize an operation. Saving an ask-every-time Policy still requires a separate one-shot answer. Rendering preserves existing terminal escaping; display failure cannot grant authority. The stdio approval adapter receives a language value explicitly and retains it for nested prompts. Its existing constructor remains English for other callers.
 
-The shared catalog translates trusted message IDs before substituting values. It is not an output-filtering writer and never translates external process output, arbitrary errors, resource names, or controller/protocol data. No mutable process-wide language or controller language state is introduced.
+The shared catalogs translate trusted message IDs before substituting values. They are not output-filtering writers. No mutable process-wide language, controller language state, transport field, environment forwarding, or guest configuration is introduced.
 
 ## Remaining scope
 
-Other command families and Environment detail/import/export/copy output still need catalog migration. Standard-library flag parse-error details, original Git/SSH/OS errors, structured logs, and controller diagnostic summary/action text remain unchanged; localized explanations around the original details are follow-up work.
+Other command families and lower-level Environment diagnostics still need catalog migration. Standard-library flag parse-error details, original Git/SSH/OS errors, structured logs, and controller diagnostic summary/action text remain unchanged; further localized explanations around those details are follow-up work.
 
-Windows launcher to WSL/Host language handoff is not implemented. No transport field, environment forwarding, or guest configuration is added here. Native Windows/WSL and Incus acceptance is pending. This slice must not close Issue #577.
+Automatic Windows-to-WSL/Host language handoff is not implemented. Native Windows/WSL and Incus acceptance, full command coverage, and the repository-wide implementation-status/index integration remain pending. This partial implementation must not close Issue #577.
 
 ## Validation
 
-The selector/catalog and standalone help/flag adapter have local race-test coverage. Catalog tests check Japanese/English placeholder parity, missing entries, caller message IDs, malformed locales, precedence, fallback, quoted arguments, and independent parallel language values. The locale parser also has fuzz coverage.
+Selector/catalog tests cover locale precedence, malformed values, English fallback, Japanese/English placeholder parity, duplicate IDs across catalogs, literal caller IDs, argument preservation, and independent parallel language values. The locale parser also has fuzz coverage.
 
-Product and approval regression tests cover language-independent JSON, exit codes, approval scope and default denial, nested prompts, escaped untrusted text, and display failure. Full repository execution of those tests, documentation checks, and native acceptance must be recorded separately; the isolated local checks do not establish those results.
+Product and approval regression tests cover language-independent JSON, exit codes, approval scope and default denial, nested prompts, terminal escaping, and display failures. Additional Environment tests cover list ordering without mutation, status values, identical diagnostic/copy JSON, unchanged probe execution, original error preservation, transfer usage, English action compatibility, and failure at each diagnostic write boundary.
+
+Record full-repository CI, documentation checks, and native acceptance separately in the associated PR. Isolated selector/catalog race tests and vet in a partial checkout do not establish product-package compilation, whole-repository validation, or installed Windows/WSL behavior.

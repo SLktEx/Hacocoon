@@ -11,10 +11,13 @@ import (
 )
 
 func copyEnvironment(ctx context.Context, args []string, out, diagnostic io.Writer) int {
+	language := cliLanguage()
 	flags := flag.NewFlagSet("haco env copy", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
-	machine := flags.Bool("json", false, "machine-readable result")
-	flags.Usage = func() { fmt.Fprintln(diagnostic, "Usage: haco env copy [--json] <stopped-env> [new-env]") }
+	machine := flags.Bool("json", false, language.Text("flag.json"))
+	flags.Usage = func() {
+		fmt.Fprintln(diagnostic, language.Format("usage", "haco env copy [--json] <stopped-env> [new-env]"))
+	}
 	if err := flags.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -32,7 +35,7 @@ func copyEnvironment(ctx context.Context, args []string, out, diagnostic io.Writ
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot open controller client")
+		fmt.Fprintln(diagnostic, language.Text("error.controller"))
 		return 1
 	}
 	response, err := client.CopyEnvironment(ctx, req)
@@ -40,23 +43,23 @@ func copyEnvironment(ctx context.Context, args []string, out, diagnostic io.Writ
 	if *machine {
 		outputErr = json.NewEncoder(out).Encode(response.Result)
 	} else if response.Result.Environment != "" {
-		_, outputErr = fmt.Fprintf(out, "Environment %s: %s\n", response.Result.Environment, response.Result.State)
+		_, outputErr = fmt.Fprint(out, language.Format("env.copy.result", displayCell(response.Result.Environment), displayCell(string(response.Result.State))))
 		if response.Result.Workspace != "" && outputErr == nil {
-			_, outputErr = fmt.Fprintf(out, "Workspace: %s\n", response.Result.Workspace)
+			_, outputErr = fmt.Fprint(out, language.Format("env.copy.workspace", displayCell(string(response.Result.Workspace))))
 		}
 		if response.Result.OCI != "" && outputErr == nil {
-			_, outputErr = fmt.Fprintf(out, "OCI: %s\n", response.Result.OCI)
+			_, outputErr = fmt.Fprint(out, language.Format("env.copy.oci", displayCell(string(response.Result.OCI))))
 		}
 		if response.Result.TemporarySnapshot != "" && outputErr == nil {
-			_, outputErr = fmt.Fprintf(out, "Temporary snapshot retained: %s; inspect haco snapshot list before explicit deletion\n", response.Result.TemporarySnapshot)
+			_, outputErr = fmt.Fprint(out, language.Format("env.copy.retained_snapshot", displayCell(string(response.Result.TemporarySnapshot))))
 		}
 	}
 	if outputErr != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot write result")
+		fmt.Fprintln(diagnostic, language.Text("error.write_result"))
 		return 1
 	}
 	if err != nil {
-		fmt.Fprintf(diagnostic, "haco: Environment copy failed: %v\n", err)
+		fmt.Fprint(diagnostic, language.Format("env.copy.failed", err))
 		return 1
 	}
 	return 0

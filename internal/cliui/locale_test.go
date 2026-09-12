@@ -68,10 +68,24 @@ func TestResolverStopsAtFirstNonemptyValue(t *testing.T) {
 	}
 }
 
+func allCatalogMessages(t *testing.T) map[string]translation {
+	t.Helper()
+	messages := make(map[string]translation)
+	for _, group := range messageCatalogs {
+		for id, entry := range group {
+			if _, exists := messages[id]; exists {
+				t.Fatalf("duplicate message ID across catalogs: %q", id)
+			}
+			messages[id] = entry
+		}
+	}
+	return messages
+}
+
 func TestCatalogCompletenessAndPlaceholders(t *testing.T) {
 	// Catalog templates deliberately use ordinary, ordered fmt directives.
 	verbs := regexp.MustCompile(`%[-+# 0]*[0-9]*(?:\.[0-9]+)?[a-zA-Z%]`)
-	for id, entry := range catalog {
+	for id, entry := range allCatalogMessages(t) {
 		t.Run(id, func(t *testing.T) {
 			if id == "" || entry.en == "" || entry.ja == "" {
 				t.Fatal("message ID and both translations are required")
@@ -168,7 +182,7 @@ func TestLiteralMessageIDsUsedByAdaptersExist(t *testing.T) {
 				case *ast.Ident:
 					matched = function.Name == "cliMessage"
 				case *ast.SelectorExpr:
-					if function.Sel.Name == "Text" {
+					if function.Sel.Name == "Text" || function.Sel.Name == "Format" {
 						switch receiver := function.X.(type) {
 						case *ast.Ident:
 							matched = receiver.Name == "language"
@@ -185,7 +199,7 @@ func TestLiteralMessageIDsUsedByAdaptersExist(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, ok := catalog[id]; !ok {
+				if _, ok := lookupMessage(id); !ok {
 					t.Errorf("%s: missing message %q", path, id)
 				}
 				return true
