@@ -194,3 +194,23 @@ controller所有の`/proc/<pid>/fd/<fd>`は意図的に存在するため、こ�
 付けるよう修正しました。所有者・linkなし・非公開の通常ファイルであることを回帰で確認し、
 利用者の既存出力先の上書き拒否は維持します。Windows転送の再試験が必要であり、
 ソース上の原因特定やcomponent試験だけで実機の修正完了とは扱いません。
+
+候補`3cac2e95`はtest CI 34721760620とUbuntu配布物34721760552が成功しました。
+Incus 34721760571は専用Btrfsのaggregate exportとcleanup stepが失敗しました。
+導入ログは7系ではなく **6.0.5-8** です。standalone用helperとは別の`ci-incus-core.sh`が
+まだUbuntuパッケージを導入し、`>= 6.0.5`を受け入れていました。7系用export flagで
+残る導入経路の差異が顕在化しました。Coreとstandaloneは成功、private registryと
+後続Btrfs probeはSKIPです。先行する`96bbbdf8`と`5fe184a6`の全有効job成功も、
+Core／Btrfsについては6.0.5での確認に限定します。Ubuntu／Windows配布物の7.0.1での証拠とは
+区別します。両CI入口を署名検証付き共通LTS導入・版範囲検証へ統一し、経路の回帰を追加しました。
+Core／Btrfsの7系受入は再実行待ちであり、失敗したcleanup記録も保持します。
+
+その後、`3cac2e95`のWindows run 34721760573は全有効stepが成功しました
+（試験merge `d3fb94a6e872bb44fd1d67d08ee842a1882f4843`、Incus 7.0.1）。
+実配布物でbundle hash／不変性、export→元Env削除→import、Windows SSHと保持workからの
+再作成が成功し、先行export失敗とmanifest不足を解消しました。公開reclaimはLinux trim、
+WSL停止、VHDX割当量7,931,428,864→4,033,871,872 bytesへの圧縮、再開、Host sentinel保持、
+非接続Workspace／OCI／snapshot restoreを確認しました。native通知の登録、stale／malformed／
+他者所有の拒否、controller購読と所有listener cleanupも成功しました。人によるトーストクリックと
+新規GUI回答、VPN／NRPTは引き続き明示的な **SKIP** です。既存のSSH／VS Code／review／previewも
+成功しました。使い捨てWindows／WSL一構成での確認であり、巨大レポ実測・日本語UI全体・配布完了ではありません。

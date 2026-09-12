@@ -4,8 +4,8 @@ Status: accepted for the development candidate; native acceptance pending.
 
 ## Context
 
-Issue #479 identified a mismatch: real-Incus CI installed Zabbly 7.0 LTS while
-the Ubuntu/WSL product installer selected Ubuntu's 6.0 package. Historical 6.0.5
+Issue #479 identified a mismatch: standalone real-Incus CI installed Zabbly 7.0 LTS while
+the Ubuntu/WSL product installer and separate Core/Btrfs CI setup selected Ubuntu's 6.0 package. Historical 6.0.5
 acceptance does not establish the intended 7.0 baseline.
 
 ## Decision

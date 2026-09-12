@@ -229,3 +229,16 @@ corrected to distinguish the normalized override. Incus/runtime and architecture
 regressions also pass. `5fe184a6` real Incus run 34719977784 subsequently passed all
 enabled jobs; private registry stayed skipped. This does not accept the unpushed
 language change or resolve Windows volume export.
+
+`3b8eefce` committed normalized language transport and `3cac2e95` committed the
+private-descriptor Incus 7 export adjustment on PR #583. Test and packaged Ubuntu
+CI pass at the latter head. Its Btrfs export failed because the separate Core CI
+setup still installed 6.0.5; prior Core/Btrfs successes are 6.x evidence, not 7.x.
+That setup now uses the canonical signed LTS helper and bounded version check.
+Next: rerun Core/Btrfs on 7.x, finish Windows transfer/reclaim/notification
+acceptance, automatic Windows language selection and GUI-contained decisions.
+See [acceptance evidence](acceptance-evidence.md) for the failed cleanup and
+version correction. Windows run 34721760573 subsequently passed transfer,
+reclaim (7.93 to 4.03 GB allocated VHDX), retained-data restore and notification
+routing on Incus 7.0.1. Human toast/GUI decisions and VPN/NRPT remain skipped.
+M0/M1 remain partial; no main merge or release occurred.
