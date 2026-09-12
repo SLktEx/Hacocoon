@@ -1873,7 +1873,7 @@ G2 direct file-archive Btrfs acceptance passed on dedicated WSL in 20.59s, inclu
 
 G2 snapshot-only file capture passed on dedicated Incus/Btrfs in 24.52s, using pre-existing synthetic saved data and independent restore volumes. Full saved-data coverage and snapshot-deletion-failure evacuation remain unfinished.
 
-G2 encrypted file transport uses standard tar/age commands with an opt-in synthetic acceptance test. Actual Host credentials and whole-installation restoration remain unverified; no product encryption backend or daily CLI is added.
+Historical G2 encrypted transport fixtures remain available for old evidence, but are no longer run by maintained CI. Current evacuation uses ordinary unencrypted tar; its native CI covers archive contents, independent checksum verification, explicit xattr restore and incomplete-capture refusal. No key setup or post-export encryption is required. Actual Host credentials and whole-installation restoration remain unverified.
 
 G3 partial acceptance restored synthetic Workspace/OCI archives from Windows into a fresh WSL/Btrfs pool, compared file metadata/content and resumed Git work (8.04s). Native snapshot create/delete also passed. Encrypted identity recovery, installed Hacocoon reconstruction and whole-installation replacement remain unverified; see [scope](design/environment-transfer.md#fresh-wsl-data-restoration-acceptance).
 

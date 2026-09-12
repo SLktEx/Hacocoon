@@ -898,6 +898,8 @@ symlink 3,718、特殊ファイル 2）。17 mount 境界、全 symlink、両特
 
 ## 暗号化受入 fixture の保持
 
+状態: **過去の任意受入記録（historical）**。この fixture は現在の CI では実行しません。移行の要件ではなく、現在は暗号化しない[ツリー保存](#明示したデータツリーの保存)を使います。
+
 root で明示実行する native tar/age テストは、合成 identity・source・復元データ・記録を
 新規 mode 0700 の `/var/lib` directory に保存します。揮発性の `/tmp` を保持済みの証拠と
 表示しません。鍵は mode 0600 で、内容の出力や転送は行いません。既存 native GHA step は
@@ -919,6 +921,8 @@ root で明示実行する native tar/age テストは、合成 identity・sourc
 復号には使っていません。WSL 間の鍵転送は未検証です。
 
 ## 復号 identity を WSL 外へ保持する
+
+状態: **過去の任意受入記録（historical）**。この fixture は現在の CI では実行しません。移行の要件ではなく、現在は暗号化しない[ツリー保存](#明示したデータツリーの保存)を使います。
 
 別の合成受入で、標準の [age の公開 recipient 手順](https://github.com/FiloSottile/age/tree/v1.2.1)
 を使いました。Windows age/keygen v1.2.1 は公式 Go module の固定版から checksum database を

@@ -1077,6 +1077,8 @@ its file contents. Neither result classifies or saves the whole installation.
 
 ## Retention of encrypted acceptance fixtures
 
+Status: **historical optional acceptance**. This fixture is no longer run by maintained CI. It is not a migration requirement; use the unencrypted [tree capture](#explicit-tree-capture) workflow.
+
 The root-only native tar/age test now keeps its synthetic identities, source,
 restored bytes and receipt under a new mode-0700 `/var/lib` directory. It must not
 advertise an ephemeral `/tmp` tree as retained evidence. Keys remain mode 0600;
@@ -1102,6 +1104,8 @@ The newly generated synthetic identity stays inside this WSL and was not used
 to decrypt the earlier Windows ciphertext. Cross-WSL key transfer is unverified.
 
 ## Recovery identity kept outside WSL
+
+Status: **historical optional acceptance**. This fixture is no longer run by maintained CI. It is not a migration requirement; use the unencrypted [tree capture](#explicit-tree-capture) workflow.
 
 A separate synthetic acceptance uses the standard [age public-recipient workflow](https://github.com/FiloSottile/age/tree/v1.2.1).
 Windows age/keygen v1.2.1 was built from the pinned official Go module with the Go
