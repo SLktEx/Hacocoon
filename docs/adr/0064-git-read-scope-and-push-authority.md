@@ -1,6 +1,7 @@
 # ADR 0064: Separate all-branch Git reads from push authority
 
-Status: accepted for implementation  
+Status: accepted for implementation
+
 Date: 2026-09-13
 
 ## Context

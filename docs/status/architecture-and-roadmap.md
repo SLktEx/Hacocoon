@@ -198,6 +198,10 @@ original failed run and the successful narrower jobs.
 
 Roadmap R2 is now [#584](https://github.com/SLktEx/Hacocoon/issues/584).
 The independent `codex/git-all-branches` worktree starts from M1 `3486b760`.
+Implementation `d93f61fb` and parent integration `51220424` are pushed in
+[PR #585](https://github.com/SLktEx/Hacocoon/pull/585), stacked on #583. Current
+Actions branch filters exclude this temporary base; installed acceptance must run
+after retargeting to `dev/2.x`. This is development-branch implementation only.
 The Standard helper/agent/broker implement all-head discovery, exact-ref read
 checks and ordinary branch switching. A narrow read deny still wins; main
 push retains separate fixed-commit approval. No user configuration is migrated
@@ -215,8 +219,8 @@ external Git service. The maintained `bash tools/ci-local.sh test` passed agains
 an unchanged source snapshot in the dedicated WSL's Linux temporary filesystem:
 all Go tests/vet, Python prerequisites and 27 client tests. The earlier DrvFS run
 failed at the ten-minute milestone-package timeout while copying the repository;
-that failure remains recorded separately. Next: open a separate reviewable R2 PR,
-then add new-branch push and GUI decisions; preserve M1 native failures independently.
+that failure remains recorded separately. Next: review the R2 slice, add new-branch
+push and GUI decisions; preserve M1 native failures independently.
 The focused Git broker and capability race tests also passed.
 
 ### M1 native follow-up
