@@ -31,6 +31,9 @@ func (r *BaseRouter) CreateEnvironment(ctx context.Context, spec core.Environmen
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
+	if err := validateTemporaryProvider(provider, spec); err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
 	created, err := provider.CreateEnvironment(ctx, spec)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
@@ -73,4 +76,20 @@ func (r *BaseRouter) InspectBase(ctx context.Context, name core.BaseName) (core.
 		return core.BaseInfo{}, fmt.Errorf("environment provider %q Base catalog: %w", r.defaultProvider, core.ErrUnsupported)
 	}
 	return catalog.InspectBase(ctx, name)
+}
+
+func (r *BaseRouter) PublishBase(ctx context.Context, env core.Environment, lease core.WorkspaceLease, name core.BaseName) (core.BaseInfo, error) {
+	provider, native, err := r.resolve(env.RuntimeRef)
+	if err != nil {
+		return core.BaseInfo{}, err
+	}
+	publisher, ok := provider.(interface {
+		PublishBase(context.Context, core.Environment, core.WorkspaceLease, core.BaseName) (core.BaseInfo, error)
+	})
+	if !ok {
+		return core.BaseInfo{}, core.ErrUnsupported
+	}
+	env.RuntimeRef = native
+	lease.RuntimeRef = native
+	return publisher.PublishBase(ctx, env, lease, name)
 }

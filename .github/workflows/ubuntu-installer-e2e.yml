@@ -7,6 +7,7 @@ on:
     paths:
       - "cmd/**"
       - "internal/**"
+      - "modules/runtime/incus/packaging/**"
       - ".goreleaser.yaml"
       - "scripts/install-ubuntu.sh"
       - "scripts/install.sh"
@@ -124,7 +125,7 @@ jobs:
           set -e
           test "$product_env_code" = 2
           test ! -s "$RUNNER_TEMP/product-env.out"
-          grep -Fq 'command "env" is not available yet' "$RUNNER_TEMP/product-env.err"
+          grep -Fq 'Usage: haco env create' "$RUNNER_TEMP/product-env.err"
 
           apparmor_userns=/proc/sys/kernel/apparmor_restrict_unprivileged_unconfined
           if test -e "$apparmor_userns"; then
@@ -145,10 +146,11 @@ jobs:
 
           sudo systemctl is-active --quiet haco-controller.service
           sudo test -S /run/hacocoon/control.sock
-          sudo hacoq host ensure
+          sudo haco setup
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco --version >/dev/null
-          sudo incus exec haco-host --project hacocoon -- /usr/local/bin/hacoq env list --json >/dev/null
+          sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host env list >/dev/null
+          sudo incus exec haco-host --project hacocoon --disable-stdin=false -- python3 -I - < tools/test_host_notification.py
           test "$(getent passwd "$login_user" | cut -d: -f7)" != /usr/local/libexec/hacocoon-login
 
       - name: Exercise installed Hacocoon legacy user journey during migration

@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -148,7 +150,7 @@ func TestRunNativeStopsBeforeCursorAdvanceWhenDeliveryFails(t *testing.T) {
 	}
 	wantErr := errors.New("desktop unavailable")
 	reader := &scriptedReader{batch: interaction.Batch{
-		Events: []interaction.Event{{EventID: "req:operation-failed", Kind: interaction.OperationFailed, Environment: "dev", NextOffset: 20}},
+		Events:     []interaction.Event{{EventID: "req:operation-failed", Kind: interaction.OperationFailed, Environment: "dev", NextOffset: 20}},
 		NextOffset: 20,
 	}}
 	notifier := &recordingNotifier{err: wantErr}
@@ -208,6 +210,144 @@ func TestRunNativeRejectsInvalidDependencies(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			if err := runNative(context.Background(), test.reader, test.notifier, test.statePath, test.poll, true, false); !errors.Is(err, interaction.ErrInvalidArgument) {
 				t.Fatalf("expected invalid argument, got %v", err)
+			}
+		})
+	}
+}
+
+type recordingReviewNotifier struct {
+	recordingNotifier
+	requests []string
+}
+
+func (n *recordingReviewNotifier) NotifyReview(ctx context.Context, title, body, id string) error {
+	n.requests = append(n.requests, id)
+	return n.Notify(ctx, title, body)
+}
+func TestOnlyApprovalEventsCarryReviewCorrelation(t *testing.T) {
+	id := strings.Repeat("b", 32)
+	reader := &scriptedReader{batch: interaction.Batch{Events: []interaction.Event{
+		{EventID: id + ":approval-required", RequestID: id, Kind: interaction.ApprovalRequired, NextOffset: 1},
+		{EventID: id + ":operation-failed", RequestID: id, Kind: interaction.OperationFailed, NextOffset: 2},
+	}, NextOffset: 2}}
+	n := &recordingReviewNotifier{}
+	if err := runNative(context.Background(), reader, n, filepath.Join(t.TempDir(), "state"), time.Second, true, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(n.requests) != 1 || n.requests[0] != id || len(n.titles) != 2 {
+		t.Fatal(n.requests, n.titles)
+	}
+}
+func TestWindowsReviewActivationIsOnlyAnExactRegisteredRequest(t *testing.T) {
+	id := strings.Repeat("b", 32)
+	script := windowsReviewToastScript("title", "body", "Hacocoon-Test", id)
+	// The Windows harness can parse this exact generated script with its native
+	// PowerShell parser; keep it tied to the production generator.
+	if output := os.Getenv("HACO_TEST_NATIVE_SCRIPT"); output != "" {
+		f, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = f.WriteString(script); err != nil {
+			t.Fatal(err)
+		}
+		if err = f.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !strings.Contains(script, "$ErrorActionPreference='Stop'") || !strings.Contains(script, "$toast.Tag='"+id[:16]+"'") {
+		t.Fatal("notification errors and per-request identity must be preserved")
+	}
+
+	if !strings.Contains(script, "://request/"+id) || !strings.Contains(script, "HacocoonDistribution") || !strings.Contains(script, "activationType','protocol") {
+		t.Fatal("missing registered request activation")
+	}
+	for _, pair := range [][2]string{{"Hacocoon-Test", id + "?yes"}, {"-x", id}, {"Hacocoon-Test", ""}} {
+		if got := windowsReviewToastScript("title", "body", pair[0], pair[1]); strings.Contains(got, "activationType") {
+			t.Fatal("invalid activation was emitted")
+		}
+	}
+	if strings.Contains(script, "approve --") || strings.Contains(script, "answer=") {
+		t.Fatal("notification must not carry a decision")
+	}
+}
+
+func TestNativeNotificationDoesNotExposeSubprocessOutput(t *testing.T) {
+	if os.Getenv("HACO_NOTIFICATION_TEST_CHILD") == "1" {
+		fmt.Fprintln(os.Stdout, "private-test-output")
+		fmt.Fprintln(os.Stderr, "private-test-output")
+		os.Exit(7)
+	}
+	n := commandNotifier{command: func(ctx context.Context, _, _ string) *exec.Cmd {
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestNativeNotificationDoesNotExposeSubprocessOutput$")
+		cmd.Env = append(os.Environ(), "HACO_NOTIFICATION_TEST_CHILD=1")
+		return cmd
+	}}
+	err := n.Notify(context.Background(), "title", "body")
+	if err == nil || strings.Contains(err.Error(), "private-test-output") {
+		t.Fatal("failed notification must return a fixed error")
+	}
+}
+
+func TestNativeDiagnosticIsBoundedAndCannotPublishFreeText(t *testing.T) {
+	b := &nativeDiagnostic{}
+	payload := []byte(strings.Repeat("secret", 1000))
+	n, err := b.Write(payload)
+	if err != nil || n != len(payload) || len(b.data) != 2048 {
+		t.Fatal("native diagnostics must be bounded")
+	}
+	for _, s := range []string{"HACO_NATIVE_FAILURE:unknown:1", "HACO_NATIVE_FAILURE:show:secret", "private"} {
+		if nativeFailurePattern.MatchString(s) {
+			t.Fatal("unrecognized diagnostic became public")
+		}
+	}
+	if !nativeFailurePattern.MatchString("HACO_NATIVE_FAILURE:show:-2147024809\n") {
+		t.Fatal("missing fixed native failure")
+	}
+}
+func TestWindowsNotificationDoesNotBypassNativeInterop(t *testing.T) {
+	n := windowsNotifier().(windowsReviewNotifier)
+	cmd := n.command(context.Background(), "title", "body")
+	if cmd.Args[0] != "powershell.exe" || strings.Contains(strings.Join(cmd.Args, " "), " /init ") {
+		t.Fatal("Windows notification must preserve the normal interop boundary")
+	}
+}
+
+type fromNowReader struct {
+	scriptedReader
+	starts int
+}
+
+func (r *fromNowReader) Stream(_ context.Context, _ int64, emit func(interaction.Event) error) (int64, error) {
+	r.starts++
+	if err := emit(interaction.Event{EventID: "historical", Kind: interaction.ApprovalRequired, NextOffset: 40}); err != nil {
+		return 0, err
+	}
+	return 40, nil
+}
+func TestNativeFromNowOnlyInitializesMissingState(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		t.Run(fmt.Sprint(existing), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state.json")
+			if existing {
+				if err := saveState(path, notifyState{Offset: 20}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			reader := &fromNowReader{scriptedReader: scriptedReader{batch: interaction.Batch{Events: []interaction.Event{{EventID: "new", Kind: interaction.ApprovalRequired, NextOffset: 50}}, NextOffset: 50}}}
+			presenter := &recordingNotifier{}
+			if err := runNativeWithStart(context.Background(), reader, presenter, path, time.Second, true, false, true); err != nil {
+				t.Fatal(err)
+			}
+			if existing {
+				if reader.starts != 0 || reader.seenOffset != 20 {
+					t.Fatal("existing cursor was skipped")
+				}
+			} else if reader.starts != 1 || reader.seenOffset != 40 {
+				t.Fatal("first start did not capture the current end")
+			}
+			if len(presenter.titles) != 1 {
+				t.Fatal("history was presented or new event lost")
 			}
 		})
 	}

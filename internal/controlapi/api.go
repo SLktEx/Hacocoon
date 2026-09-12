@@ -32,11 +32,13 @@ const (
 )
 
 type EnvironmentCreateRequest struct {
-	Name          string                   `json:"name"`
-	WorkspacePath string                   `json:"workspace_path"`
-	AccessMode    core.WorkspaceAccessMode `json:"access_mode,omitempty"`
-	Base          core.BaseName            `json:"base,omitempty"`
-	Resources     core.ResourceBudget      `json:"resources,omitempty"`
+	SkipDefaultResource bool                     `json:"skip_default_resource,omitempty"`
+	PersistentResource  string                   `json:"persistent_resource,omitempty"`
+	Name                string                   `json:"name"`
+	WorkspacePath       string                   `json:"workspace_path"`
+	AccessMode          core.WorkspaceAccessMode `json:"access_mode,omitempty"`
+	Base                core.BaseName            `json:"base,omitempty"`
+	Resources           core.ResourceBudget      `json:"resources,omitempty"`
 }
 
 type EnvironmentNameRequest struct {
@@ -123,11 +125,13 @@ func Register(server *control.Server, environments environmentService, clients c
 			return nil, control.NewStatusError("invalid_argument", "name and workspace_path are required")
 		}
 		environment, err := environments.Create(ctx, core.EnvironmentSpec{
-			Name:          request.Name,
-			WorkspacePath: request.WorkspacePath,
-			AccessMode:    request.AccessMode,
-			Base:          request.Base,
-			Resources:     request.Resources,
+			PersistentResource:  request.PersistentResource,
+			SkipDefaultResource: request.SkipDefaultResource,
+			Name:                request.Name,
+			WorkspacePath:       request.WorkspacePath,
+			AccessMode:          request.AccessMode,
+			Base:                request.Base,
+			Resources:           request.Resources,
 		})
 		if err != nil {
 			return nil, translateError(err)
@@ -267,8 +271,8 @@ func Register(server *control.Server, environments environmentService, clients c
 }
 
 // RegisterHost adds controller-owned trusted Host operations without widening
-// the Environment API registration surface. Bootstrap-only Host operations stay
-// local to the Physical Host CLI; only the interactive shell is a client API.
+// the Environment API registration surface. RegisterSetup separately exposes
+// the fixed controller-owned bootstrap operation.
 func RegisterHost(server *control.Server, hosts hostService) error {
 	if server == nil || hosts == nil {
 		return control.ErrInvalidArgument

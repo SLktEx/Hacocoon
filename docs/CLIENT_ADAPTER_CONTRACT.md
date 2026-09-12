@@ -134,3 +134,25 @@ See [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md) for event minimization, res
 `pkg/clientadapter` exported signatures use package-owned DTOs and public error sentinels rather than `internal/core` types. Provider/runtime and IDE-specific details remain implementation details behind the adapter boundary.
 
 This is a pre-1.0 contract. Breaking changes are still possible, but client-specific branching should be added in the client adapter, not Hacocoon Core.
+
+## Public host-key pinning
+
+Status: implemented for Incus SSH preparation. `PrepareSSH` returns
+`host_public_key` containing the validated public server identity obtained
+through the provider channel. Comments and arbitrary guest output are excluded;
+malformed key data fails preparation and revokes the managed connection.
+A failed cleanup remains recovery-required. Private host keys are never read.
+The adapter validates the key again before exposing it to clients. Other
+providers and connection-list reconciliation may omit it; clients must obtain
+trusted identity before installing or changing a pin. This does not authorize
+silently replacing an existing known-host key. Automated SSH setup remains
+planned; clients retain ownership of private keys and local configuration.
+
+## Automatic SSH port ownership
+
+`PrepareSSH` accepts `HostPort: 0` to let the runtime authority choose its
+loopback port. The adapter must not allocate an SSH port in the client namespace.
+Incus binds the selected proxy before modifying guest credentials; a bind failure
+is a failed operation. Clients use the returned validated port. Explicit nonzero
+ports remain available. This rule concerns SSH; generic forwarding currently
+retains its earlier client-side port selection.

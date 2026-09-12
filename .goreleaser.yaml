@@ -38,7 +38,12 @@ builds:
     goos: [linux]
     goarch: [amd64, arm64]
     flags: [-trimpath]
-    ldflags: [-s -w]
+    ldflags:
+      - >-
+        -s -w
+        -X github.com/SLktEx/Hacocoon/internal/buildinfo.SoftwareVersion={{ .Version }}
+        -X github.com/SLktEx/Hacocoon/internal/buildinfo.Commit={{ .Commit }}
+        -X github.com/SLktEx/Hacocoon/internal/buildinfo.BuildDate={{ .Date }}
   - id: haco-host
     main: ./cmd/haco-host
     binary: haco-host
@@ -72,6 +77,24 @@ builds:
     flags: [-trimpath]
     ldflags: [-s -w]
 
+  - id: haco-review
+    main: ./cmd/haco-review
+    binary: haco-review
+    env: [CGO_ENABLED=0]
+    goos: [windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
+
+  - id: haco-wsl
+    main: ./cmd/haco-wsl
+    binary: haco-wsl
+    env: [CGO_ENABLED=0]
+    goos: [windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
+
 archives:
   - id: haco
     ids:
@@ -84,6 +107,16 @@ archives:
       - haco-notify
     formats: [tar.gz]
     name_template: "haco_{{ .Os }}_{{ .Arch }}"
+
+  - id: windows-review
+    ids: [haco-review]
+    formats: [zip]
+    name_template: "haco_review_{{ .Os }}_{{ .Arch }}"
+
+  - id: windows-wsl
+    ids: [haco-wsl]
+    formats: [zip]
+    name_template: "haco_wsl_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: checksums.txt

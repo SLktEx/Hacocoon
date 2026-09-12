@@ -11,6 +11,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/composition"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/sshkey"
 	"github.com/SLktEx/Hacocoon/pkg/interaction"
 )
 
@@ -40,12 +41,13 @@ type Environment struct {
 }
 
 type Connection struct {
-	ID         string `json:"id"`
-	Kind       string `json:"kind"`
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	TargetPort int    `json:"target_port"`
-	User       string `json:"user,omitempty"`
+	HostPublicKey string `json:"host_public_key,omitempty"`
+	ID            string `json:"id"`
+	Kind          string `json:"kind"`
+	Host          string `json:"host"`
+	Port          int    `json:"port"`
+	TargetPort    int    `json:"target_port"`
+	User          string `json:"user,omitempty"`
 }
 
 type EnsureRequest struct {
@@ -210,11 +212,12 @@ func (a *Adapter) PrepareSSH(ctx context.Context, req SSHRequest) (Connection, e
 	if a == nil || a.clients == nil || strings.TrimSpace(req.Environment) == "" || strings.TrimSpace(req.PublicKey) == "" {
 		return Connection{}, ErrInvalidArgument
 	}
-	port, err := resolveHostPort(req.HostPort)
-	if err != nil {
-		return Connection{}, err
+	if req.HostPort < 0 || req.HostPort > 65535 {
+		return Connection{}, ErrInvalidArgument
 	}
-	raw, err := a.clients.SSH(ctx, req.Environment, core.SSHAccessRequest{PublicKey: req.PublicKey, HostPort: port})
+	// Port zero must reach the authority that owns the listener. A controller
+	// client may run in a different network namespace from that authority.
+	raw, err := a.clients.SSH(ctx, req.Environment, core.SSHAccessRequest{PublicKey: req.PublicKey, HostPort: req.HostPort})
 	if err != nil {
 		return Connection{}, translateError(err)
 	}
@@ -359,13 +362,22 @@ func projectConnection(raw core.ClientConnection) (Connection, error) {
 	if raw.Kind != "tcp" && raw.Kind != "ssh" {
 		return Connection{}, fmt.Errorf("connection %q has unsupported kind %q: %w", raw.ID, raw.Kind, ErrIncompatibleState)
 	}
+	var hostKey string
+	if raw.HostPublicKey != "" {
+		var err error
+		hostKey, err = sshkey.NormalizePublicKey(raw.HostPublicKey)
+		if err != nil || raw.Kind != "ssh" {
+			return Connection{}, ErrIncompatibleState
+		}
+	}
 	return Connection{
-		ID:         raw.ID,
-		Kind:       raw.Kind,
-		Host:       raw.Host,
-		Port:       raw.Port,
-		TargetPort: raw.TargetPort,
-		User:       raw.User,
+		ID:            raw.ID,
+		HostPublicKey: hostKey,
+		Kind:          raw.Kind,
+		Host:          raw.Host,
+		Port:          raw.Port,
+		TargetPort:    raw.TargetPort,
+		User:          raw.User,
 	}, nil
 }
 

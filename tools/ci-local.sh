@@ -7,7 +7,7 @@ export GOTOOLCHAIN=local
 
 usage() {
   cat <<'USAGE'
-Usage: bash tools/ci-local.sh [all|docs|workflow-policy|release-config|systemd|test|race|e2e]
+Usage: bash tools/ci-local.sh [all|docs|workflow-policy|release-config|systemd|test|race|e2e|forwarding|aws]
 
 Mirrors the checks in .github/workflows/test.yml using the local machine.
 The release-config job intentionally fails if dist/ already exists because
@@ -37,6 +37,7 @@ run_workflow_policy() {
   section "workflow-policy"
   python3 tools/check_workflow_policy.py
   python3 tools/test_workflow_policy.py
+  python3 tools/test_real_git_push_target.py
   python3 tools/test_public_release_readiness.py
   python3 tools/check_renovate_policy.py
   python3 tools/test_renovate_policy.py
@@ -142,6 +143,11 @@ run_release_config() {
   python3 tools/check_release_provenance.py
   bash tools/test_install_archive_safety.sh
   python3 tools/test_installer_packages.py
+  python3 tools/test_install_identity.py
+  python3 tools/test_install_network.py
+  python3 tools/test_incus_boot_guard.py
+  python3 tools/test_windows_user_path.py
+  python3 tools/test_wsl_oobe_config.py
 
   section "release-config: GoReleaser config"
   goreleaser check
@@ -156,6 +162,7 @@ run_release_config() {
   '
 
   section "release-config: pre/main/post boundary"
+  pwsh -NoLogo -NoProfile -NonInteractive -File tools/test_windows_installer.ps1
   validate_install_boundary
   run_systemd
 
@@ -171,19 +178,35 @@ run_release_config() {
 run_test() {
   check_go
   need node
+  need python3
+  python3 tools/test_wsl_host_interop.py
+  python3 tools/test_pending_approvals_test.py
+  python3 tools/test_windows_transfer_bundle_copy.py
+  python3 tools/test_evacuation_inventory.py
+  python3 tools/test_evacuation_associations.py
+  python3 tools/test_evacuation_capture.py
+  python3 tools/test_evacuation_files.py
+  python3 tools/test_cleanup_ci_base_asset.py
   section "test"
   go test -count=1 -shuffle=on ./...
   go vet ./...
   section "notification clients"
   node --check pkg/interactionhttp/web/app.js
   node --check clients/vscode-notify/extension.js
-  node --test test/js/notification_clients.test.js
+  node --check clients/vscode-notify/review.js
+  node --test test/js/notification_clients.test.js test/js/vscode_acceptance.test.js test/js/approval_review.test.js
 }
 
 run_race() {
   check_go
   section "race"
   go test -race -count=1 ./...
+}
+
+run_forwarding() {
+  check_go
+  section "trusted-host forwarding: isolated Linux kernel regression"
+  bash tools/test_trusted_host_forwarding.sh
 }
 
 run_e2e() {
@@ -208,6 +231,7 @@ run_all() {
   run_test
   run_race
   run_e2e
+  run_forwarding
 }
 
 if (( $# > 1 )); then usage >&2; exit 2; fi
@@ -217,9 +241,11 @@ case "${1:-all}" in
   workflow-policy) run_workflow_policy ;;
   release-config) run_release_config ;;
   systemd) run_systemd ;;
+  aws) "${HACO_AWS_TEST_PYTHON:-python3}" modules/capability/aws/test_host_agent.py ;;
   test) run_test ;;
   race) run_race ;;
   e2e) run_e2e ;;
+  forwarding) run_forwarding ;;
   -h|--help|help) usage ;;
   *) usage >&2; exit 2 ;;
 esac

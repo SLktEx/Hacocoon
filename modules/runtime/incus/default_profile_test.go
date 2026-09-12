@@ -47,8 +47,6 @@ func TestPreparedEnvironmentUsesManagedRootPool(t *testing.T) {
 	runtime := New(runner)
 	if err := runtime.Prepare(context.Background(), core.RuntimePrepareSpec{StorageAttachment: map[string]string{
 		"incus_pool": "haco-test-pool",
-		"driver":     "btrfs",
-		"source":     "/var/lib/hacocoon/mounts/test",
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -90,8 +88,6 @@ func TestConfiguredStorageProviderIsLazyAndUsedForEnvironment(t *testing.T) {
 		providerCalls++
 		return map[string]string{
 			"incus_pool": "haco-lazy-pool",
-			"driver":     "btrfs",
-			"source":     "/var/lib/hacocoon/mounts/lazy",
 		}, nil
 	}); err != nil {
 		t.Fatal(err)
@@ -144,7 +140,7 @@ func TestCreateSessionUsesSandboxProfileByDefault(t *testing.T) {
 
 	for _, call := range runner.calls {
 		if len(call.args) > 0 && call.args[0] == "launch" {
-			assertRunnerCall(t, call, "incus", "launch", defaultImage, "haco-abc123", "--project", defaultProject, "--profile", sandboxProfile)
+			assertRunnerCall(t, call, "incus", "launch", defaultImage, "haco-abc123", "--project", defaultProject, "--profile", sandboxProfile, "--config", "boot.autostart=false")
 			return
 		}
 	}

@@ -23,17 +23,14 @@ func (f *fakeHostController) OpenTrustedHostShell(context.Context) (net.Conn, er
 	return f.stream, f.openErr
 }
 
-func TestHandleHostClientArgsLeavesEnsureOnPhysicalHost(t *testing.T) {
+func TestHandleHostClientArgsRejectsEnsureBeforeLocalComposition(t *testing.T) {
 	factoryCalls := 0
 	handled, err := handleHostClientArgs(context.Background(), []string{"host", "ensure"}, func() (hostControllerClient, error) {
 		factoryCalls++
 		return &fakeHostController{}, nil
 	}, bytes.NewBuffer(nil), bytes.NewBuffer(nil), bytes.NewBuffer(nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if handled {
-		t.Fatal("haco host ensure was intercepted as a controller client command")
+	if !handled || !errors.Is(err, core.ErrUnsupported) || !strings.Contains(err.Error(), "haco setup") {
+		t.Fatalf("legacy bootstrap was not rejected before composition: handled=%v err=%v", handled, err)
 	}
 	if factoryCalls != 0 {
 		t.Fatalf("controller factory calls = %d, want 0", factoryCalls)

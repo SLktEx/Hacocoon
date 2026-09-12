@@ -2,6 +2,7 @@ package incus
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,14 +30,21 @@ type runtimeStorageState struct {
 }
 
 type Runtime struct {
-	runner         host.Runner
-	project        string
-	image          string
-	storage        *runtimeStorageState
-	stdin          io.Reader
-	stdout         io.Writer
-	stderr         io.Writer
-	cleanupTimeout time.Duration
+	maintenanceTooling       func(context.Context) (string, func() error, error)
+	environmentDNS           string
+	trustedHostInterop       func(context.Context) error
+	trustedHostNotifications func(context.Context) error
+	trustedHostStorage       func(context.Context) error
+	trustedHostCopyRecovery  func(context.Context) error
+	runner                   host.Runner
+	project                  string
+	image                    string
+	storage                  *runtimeStorageState
+	stdin                    io.Reader
+	stdout                   io.Writer
+	stderr                   io.Writer
+	cleanupTimeout           time.Duration
+	managedWorkspace         func(context.Context, string) ([]WorkspaceAttachment, error)
 }
 
 func New(runner host.Runner) *Runtime {
@@ -112,7 +120,7 @@ func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (cor
 	if err := validateManagedInstanceRef(name); err != nil {
 		return core.RuntimeSession{}, err
 	}
-	args := []string{"launch", r.image, name, "--project", r.project, "--profile", sandboxProfile}
+	args := []string{"launch", r.image, name, "--project", r.project, "--profile", sandboxProfile, "--config", "boot.autostart=false"}
 	if pool != "" {
 		args = append(args, "--storage", pool)
 	}
@@ -123,8 +131,17 @@ func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (cor
 }
 
 func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
+	// Retained Store startup is not wired yet. Never fall through to ordinary
+	// creation, which may start daemons before maintenance preparation.
+	if spec.ResourceMaintenance {
+		return core.EnvironmentRuntime{}, core.ErrUnsupported
+	}
 	if spec.Name == "" || spec.WorkspacePath == "" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
+	}
+	identityArgs, err := environmentIdentityArgs(spec.InstanceID)
+	if err != nil {
+		return core.EnvironmentRuntime{}, err
 	}
 	ref := "haco-" + spec.Name
 	if ref == trustedHostName {
@@ -141,7 +158,8 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return core.EnvironmentRuntime{}, fmt.Errorf("resolve isolated root storage: %w", err)
 	}
 
-	if _, err := r.runner.Run(ctx, "incus", "init", r.image, ref, "--project", r.project, "--profile", sandboxProfile, "--storage", rootPool); err != nil {
+	initArgs := append([]string{"init", r.image, ref, "--project", r.project, "--profile", sandboxProfile, "--storage", rootPool, "--config", "boot.autostart=false"}, identityArgs...)
+	if _, err := r.runner.Run(ctx, "incus", initArgs...); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}
 	cleanup := func(cause error) (core.EnvironmentRuntime, error) {
@@ -218,19 +236,40 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	return core.EnvironmentRuntime{Ref: ref}, nil
 }
 
+func (r *Runtime) SupportsWorkingDirectory() bool { return true }
+func (r *Runtime) SupportsStdin() bool            { _, ok := r.runner.(host.InputRunner); return ok }
+
 func (r *Runtime) ExecEnvironment(ctx context.Context, ref string, req core.ExecutionRequest) (core.ExecutionResult, error) {
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return core.ExecutionResult{}, err
 	}
-	if len(req.Argv) == 0 {
+	if len(req.Argv) == 0 || len(req.Stdin) > core.MaxExecutionInputBytes {
 		return core.ExecutionResult{}, core.ErrInvalidArgument
 	}
-	args := append([]string{"exec", ref, "--project", r.project, "--"}, req.Argv...)
-	result, err := r.runner.Run(ctx, "incus", args...)
+	args := []string{"exec", ref, "--project", r.project}
+	if req.WorkingDirectory != "" {
+		if !strings.HasPrefix(req.WorkingDirectory, "/") || strings.ContainsAny(req.WorkingDirectory, "\x00\r\n") {
+			return core.ExecutionResult{}, core.ErrInvalidArgument
+		}
+		args = append(args, "--cwd", req.WorkingDirectory)
+	}
+	args = append(append(args, "--"), req.Argv...)
+	var result host.Result
+	var err error
+	if req.Stdin != nil {
+		runner, ok := r.runner.(host.InputRunner)
+		if !ok {
+			return core.ExecutionResult{}, core.ErrUnsupported
+		}
+		result, err = runner.RunWithInput(ctx, req.Stdin, "incus", args...)
+	} else {
+		result, err = r.runner.Run(ctx, "incus", args...)
+	}
 	return core.ExecutionResult{
-		ExitCode: result.ExitCode,
-		Stdout:   result.Stdout,
-		Stderr:   result.Stderr,
+		ExitCode:        result.ExitCode,
+		StdoutTruncated: result.StdoutTruncated, StderrTruncated: result.StderrTruncated, StdoutBytes: result.StdoutBytes, StderrBytes: result.StderrBytes,
+		Stdout: result.Stdout,
+		Stderr: result.Stderr,
 	}, err
 }
 
@@ -280,17 +319,38 @@ func (r *Runtime) InspectEnvironment(ctx context.Context, ref string) (core.Envi
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return core.EnvironmentRuntimeStatus{}, err
 	}
-	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "s")
+	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "ns")
 	if err != nil {
 		return core.EnvironmentRuntimeStatus{}, err
+	}
+	if result.ExitCode != 0 || result.StdoutTruncated {
+		return core.EnvironmentRuntimeStatus{}, core.ErrRuntimeUnavailable
 	}
 	states := map[string]core.EnvironmentState{
 		"RUNNING": core.EnvironmentRunning,
 		"STOPPED": core.EnvironmentStopped,
 	}
-	state, ok := states[strings.ToUpper(strings.TrimSpace(result.Stdout))]
-	if !ok {
-		state = core.EnvironmentUnknown
+	// Incus name filtering can also return prefixed names (dev and dev-copy).
+	// A state without the exact instance name cannot identify this Environment.
+	reader := csv.NewReader(strings.NewReader(result.Stdout))
+	reader.FieldsPerRecord = 2
+	rows, err := reader.ReadAll()
+	if err != nil {
+		return core.EnvironmentRuntimeStatus{}, core.ErrRuntimeUnavailable
+	}
+	state := core.EnvironmentUnknown
+	found := false
+	for _, row := range rows {
+		if row[0] != ref {
+			continue
+		}
+		if found {
+			return core.EnvironmentRuntimeStatus{}, core.ErrRuntimeUnavailable
+		}
+		found = true
+		if mapped, ok := states[strings.ToUpper(strings.TrimSpace(row[1]))]; ok {
+			state = mapped
+		}
 	}
 	return core.EnvironmentRuntimeStatus{State: state}, nil
 }
@@ -299,6 +359,17 @@ func (r *Runtime) ForwardLocalPort(ctx context.Context, ref string, req core.Loc
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return core.ClientConnection{}, err
 	}
+	if req.Protocol != "" && req.Protocol != "tcp" {
+		return core.ClientConnection{}, core.ErrUnsupported
+	}
+	if req.TargetPort < 1 || req.TargetPort > 65535 {
+		return core.ClientConnection{}, core.ErrInvalidArgument
+	}
+	port, err := chooseLoopbackPort(ctx, req.HostPort)
+	if err != nil {
+		return core.ClientConnection{}, err
+	}
+	req.HostPort = port
 	id := fmt.Sprintf("tcp-%d-%d", req.HostPort, req.TargetPort)
 	if err := r.addLoopbackProxy(ctx, ref, id, req.HostPort, req.TargetPort); err != nil {
 		return core.ClientConnection{}, err
@@ -369,22 +440,18 @@ func (r *Runtime) Exec(ctx context.Context, ref string, req core.ExecRequest) (c
 }
 
 func (r *Runtime) Inspect(ctx context.Context, ref string) (core.RuntimeState, error) {
-	if err := validateManagedInstanceRef(ref); err != nil {
-		return core.RuntimeState{}, err
-	}
-	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "s")
+	status, err := r.InspectEnvironment(ctx, ref)
 	if err != nil {
 		return core.RuntimeState{}, err
 	}
-	states := map[string]core.ObservedState{
-		"RUNNING": core.ObservedRunning,
-		"STOPPED": core.ObservedStopped,
+	observed := core.ObservedUnknown
+	switch status.State {
+	case core.EnvironmentRunning:
+		observed = core.ObservedRunning
+	case core.EnvironmentStopped:
+		observed = core.ObservedStopped
 	}
-	state, ok := states[strings.ToUpper(strings.TrimSpace(result.Stdout))]
-	if !ok {
-		state = core.ObservedUnknown
-	}
-	return core.RuntimeState{Observed: state}, nil
+	return core.RuntimeState{Observed: observed}, nil
 }
 
 func (r *Runtime) materializeSandboxNIC(ctx context.Context, ref string) error {
@@ -484,25 +551,17 @@ func (r *Runtime) defaultRootPool(ctx context.Context) (string, error) {
 }
 
 func (r *Runtime) ensureStoragePool(ctx context.Context, attachment map[string]string) (string, error) {
-	pool := attachment["incus_pool"]
-	if pool == "" {
+	if len(attachment) == 0 {
 		return "", nil
 	}
-	if _, err := r.runner.Run(ctx, "incus", "storage", "show", pool, "--project", r.project); err == nil {
-		return pool, nil
+	pool := attachment["incus_pool"]
+	// Creation belongs to the Incus-owned storage provider. Do not accept the
+	// removed external driver/source attachment, even when the pool exists.
+	if len(attachment) != 1 || pool == "" || strings.TrimSpace(pool) != pool || strings.HasPrefix(pool, "-") || strings.ContainsAny(pool, ":/\\\x00\r\n\t ") {
+		return "", fmt.Errorf("storage attachment requires only a local incus_pool identity: %w", core.ErrInvalidArgument)
 	}
-	driver := attachment["driver"]
-	source := attachment["source"]
-	if driver == "" || source == "" {
-		return "", fmt.Errorf("storage attachment missing driver/source")
-	}
-	result, err := r.runner.Run(ctx, "incus", "storage", "create", pool, driver, "source="+source, "--project", r.project)
-	if err != nil {
-		reason := strings.TrimSpace(result.Stderr)
-		if reason != "" {
-			return "", fmt.Errorf("create Incus storage pool %q from %q: %s: %w", pool, source, reason, err)
-		}
-		return "", fmt.Errorf("create Incus storage pool %q from %q: %w", pool, source, err)
+	if _, err := r.runner.Run(ctx, "incus", "storage", "show", pool, "--project", r.project); err != nil {
+		return "", fmt.Errorf("Incus-owned storage pool %q is unavailable: %w", pool, err)
 	}
 	return pool, nil
 }

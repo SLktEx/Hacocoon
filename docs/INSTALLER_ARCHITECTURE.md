@@ -30,6 +30,12 @@ install-ubuntu.sh post
 
 WSL lifecycle and login integration stay in PowerShell. Native-Ubuntu-only checks and post-install behavior stay in `install-ubuntu.sh`.
 
+The shared phase installs bundled `incus-boot-guard.py` using isolated Python
+and an Incus service drop-in. First adoption requires the existing daemon to be
+ready. Subsequent namespace boots archive stale network/proxy PID records before
+Incus starts; same-namespace restarts retain them. See
+[ADR 0013](adr/0013-incus-pid-record-boot-identity.md).
+
 ## Architecture-specific installer bundles
 
 Release packaging produces separate amd64 and arm64 bundles. Each installer carries exactly one matching Linux release archive.
@@ -39,6 +45,7 @@ hacocoon-windows-amd64.zip
   install-windows.bat
   install-windows.ps1
   install.sh
+  incus-boot-guard.py
   haco_linux_amd64.tar.gz
   checksums.txt
   VERSION
@@ -50,6 +57,7 @@ hacocoon-windows-arm64.zip
 hacocoon-ubuntu-amd64.tar.gz
   install-ubuntu.sh
   install.sh
+  incus-boot-guard.py
   haco_linux_amd64.tar.gz
   checksums.txt
   VERSION

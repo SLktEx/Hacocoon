@@ -6,6 +6,8 @@ Milestone: **v0.20 Managed Btrfs Rootfs Storage** / **v0.21 Managed Btrfs Transp
 
 ## 既定の local layout
 
+runtimeが受け入れるattachmentはlocal `incus_pool` identityだけです。削除した `driver`/`source` は既存poolがあっても拒否し、検査失敗時に代替poolを作りません。mount policyのread/readback失敗もfail closedです。real-Incus storage CIにはpolicy照合中の既存rootfs・Workspace sentinel data保持も含めます。
+
 local composition は `source=` を指定せず、Incus へ既定 pool を lazy に作成させる。
 
 ```text
@@ -72,6 +74,25 @@ local composition は storage provider を lazy に設定する。Incus root sto
 既存の `haco-local-default` がある場合は、再利用前に `btrfs.mount_options` を `compress=zstd:3,noatime,nodiscard` へ reconcile する。populated pool を破壊・再作成せず Incus pool config を更新し、lifecycle/remount ownership も Incus に残す。
 
 runtime はこの Incus-owned pool shape だけを前提とし、別の Host-managed storage ownership path は持たない。
+
+## 読み取り専用のmount診断
+
+`haco doctor` はIncus設定の検査（`storage`）と稼働中filesystemの検査（`storage_mount`）を区別する。設定の一致だけではlive mountへの反映を証明できない。
+
+| 設定policy | live観測 | 結果 |
+|---|---|---|
+| 一致 | 検証済みBtrfs root mountにpolicy適用済み | `storage_mount: ok` |
+| 一致 | 検証済みBtrfs root mountのoptionが異なる | `storage_mount: pending`、終了1 |
+| 一致 | identity/mountが欠落・不正・曖昧、または観測中に変化 | `storage_mount: failed`、終了1 |
+| 不明または不一致 | live検査をskip | 設定を解決してからlive policyを判断する |
+
+Incus adapterはlocal daemonのpool sourceを読み、Incus所有の `disks/<pool>.img` layoutを検証する。そのdaemonのpool mountpointを導出し、読み取り専用の `stat`・`losetup --list --associated`・`findmnt --kernel` を使う。backing objectはregular fileであり、device/inodeが単一の全image loop関連付けと一致する必要がある。mountはそのloop deviceを使うBtrfs filesystemのrootに限定する。backing identityと関連付けを再照会し、収集中に観測した変化を検出する。別WSL distributionでfilenameが同じだけでは同一としない。
+
+live一致には書き込み可能なBtrfs、`noatime`、`compress=zstd:3` を要求し、active discard・autodefrag・forced compressionは拒否する。否定形の `nodiscard` はkernel出力になくてもよい。reportは選択した結果だけを返し、raw path・mount option・subprocess出力を公開しない。field欠落、関連付け/mountの重複、出力切断、cancel、不明な観測を `ok` / `pending` にしない。
+
+`pending` はdesired設定が記録されているがlive反映を確認できていない状態を表す。maintenanceを予約せず、再起動の安全性も保証しない。作業を保持し、maintenance時にIncus所有のpool remountを行ってから再診断する。診断の修復としてHacocoonがattach・detach・remount・formatを実行することはない。この時点の観測は所有権leaseや後続mutationの前提条件ではない。
+
+common installerは完了表示の前に同じ製品doctorを実行する。live mountがpending/failedなら診断の次の操作を示してinstallを停止し、再実行でも検査を迂回しない。
 
 ## Acceptance coverage
 

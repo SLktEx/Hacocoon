@@ -36,14 +36,14 @@ func (fakeRunner) Run(_ context.Context, spec runapp.Spec) (runapp.Result, error
 	if spec.Argv[0] == "fail" {
 		return runapp.Result{
 			Environment: "run-failed",
-			Execution: runapp.ExecutionResult{ExitCode: 9, Stderr: "failed\n"},
-			CleanedUp: false,
+			Execution:   runapp.ExecutionResult{ExitCode: 9, Stderr: "failed\n"},
+			CleanedUp:   false,
 		}, core.ErrRecoveryRequired
 	}
 	return runapp.Result{
 		Environment: "run-ok",
-		Execution: runapp.ExecutionResult{ExitCode: 0, Stdout: "ok\n"},
-		CleanedUp: true,
+		Execution:   runapp.ExecutionResult{ExitCode: 0, Stdout: "ok\n"},
+		CleanedUp:   true,
 	}, nil
 }
 
@@ -82,7 +82,7 @@ func (f *fakeCapabilities) RequestWithApproval(
 	f.request = request
 	result := core.CapabilityResult{Provider: "demo", Output: "accepted", RequestID: "req-1", ExecutionState: core.CapabilitySucceeded, AuditComplete: true}
 	if request.Action == "approve" {
-		approved, err := approve(ctx, core.ApprovalRequest{CapabilityRequest: request, Reason: "human approval required"})
+		approved, err := approve(ctx, core.ApprovalRequest{RequestID: result.RequestID, CapabilityRequest: request, Reason: "human approval required"})
 		if err != nil {
 			return core.CapabilityResult{}, err
 		}
@@ -194,15 +194,15 @@ func TestGeneralControllerCapabilityApprovalRoundTrip(t *testing.T) {
 
 	request := core.CapabilityRequest{
 		Capability: "demo",
-		Action: "approve",
-		Resource: "sensitive",
+		Action:     "approve",
+		Resource:   "sensitive",
 		Attributes: map[string]string{"scope": "one"},
 		Parameters: map[string]string{"secret-like-input": "must-not-be-in-prompt"},
 	}
 	callbackCalls := 0
 	result, err := client.RequestCapability(context.Background(), request, func(_ context.Context, approval core.ApprovalRequest) (bool, error) {
 		callbackCalls++
-		if approval.Reason != "human approval required" || approval.CapabilityRequest.Resource != "sensitive" {
+		if approval.RequestID != "req-1" || approval.Reason != "human approval required" || approval.CapabilityRequest.Resource != "sensitive" {
 			t.Fatalf("approval = %#v", approval)
 		}
 		if approval.CapabilityRequest.Parameters != nil {

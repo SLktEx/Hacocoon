@@ -29,7 +29,40 @@ func NewSandboxProvider(runtime *Runtime, options ...BaseProviderOption) (*Sandb
 func (*SandboxProvider) SupportsFiniteResourceBudgets() bool { return true }
 
 func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
+	return p.createEnvironment(ctx, spec, nil)
+}
+
+// CreateEnvironmentWithReceipt records exact runtime ownership immediately after
+// Incus init, before configuring devices, limits, networking or starting the guest.
+// After the receipt callback is invoked, the caller owns failure cleanup.
+func (p *SandboxProvider) CreateEnvironmentWithReceipt(ctx context.Context, spec core.EnvironmentRuntimeSpec, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
+	if record == nil || !core.ValidEnvironmentInstanceID(spec.InstanceID) {
+		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
+	}
+	return p.createEnvironment(ctx, spec, record)
+}
+
+func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
+	// Maintenance requires durable ownership before preparation or attachment.
+	// Receipt-free entry points cannot acquire this authority.
+	if spec.ResourceMaintenance {
+		if record == nil {
+			return core.EnvironmentRuntime{}, core.ErrUnsupported
+		}
+		if !spec.TemporaryWorkspace || spec.ReadOnly || spec.PersistentResource.SourceOnly || spec.PersistentResource.Kind != OCIStoreKind || spec.PersistentResource.State != "ready" || !core.ValidPersistentResourceRef(spec.PersistentResource.Ref()) {
+			return core.EnvironmentRuntime{}, core.ErrInvalidArgument
+		}
+	}
 	if p == nil || p.BaseProvider == nil || p.Runtime == nil || spec.Name == "" || spec.WorkspacePath == "" {
+		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
+	}
+	p.baseMu.RLock()
+	defer p.baseMu.RUnlock()
+	identityArgs, err := environmentIdentityArgs(spec.InstanceID)
+	if err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
+	if spec.TemporaryWorkspace && (!core.IsTemporaryWorkspacePath(spec.WorkspacePath) || spec.ReadOnly) {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
 	resources, err := core.ResolveResourceBudget(spec.Resources)
@@ -61,6 +94,7 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 		"--project", p.project,
 		"--no-profiles",
 		"--storage", rootPool,
+		"--config", "boot.autostart=false",
 	}
 	configKeys := make([]string, 0, len(profileConfig))
 	for key := range profileConfig {
@@ -70,10 +104,19 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 	for _, key := range configKeys {
 		initArgs = append(initArgs, "--config", key+"="+profileConfig[key])
 	}
+	initArgs = append(initArgs, identityArgs...)
 	if _, err := p.runner.Run(ctx, "incus", initArgs...); err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}
+	base := resolved.ref
+	created := core.EnvironmentRuntime{Ref: ref, Base: &base, Resources: resources}
 	cleanup := func(cause error) (core.EnvironmentRuntime, error) {
+		// The receipt path delegates cleanup to the canonical lifecycle owner,
+		// which already knows this exact resource. Do not delete twice here.
+		if record != nil {
+			return created, cause
+		}
+
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), p.cleanupTimeout)
 		defer cancel()
 		_, cleanupErr := p.runner.Run(cleanupCtx, "incus", "delete", ref, "--project", p.project, "--force")
@@ -112,56 +155,20 @@ func (p *SandboxProvider) CreateEnvironment(ctx context.Context, spec core.Envir
 		return core.EnvironmentRuntime{}, cause
 	}
 
-	// Environment networking is an authorization boundary. Each Environment
-	// receives its own point-to-point routed veth and never joins a shared L2.
-	// An exact inet/nft source guard is installed before start; rp_filter is
-	// retained as defense-in-depth and verified after start.
-	if err := p.addSandboxNIC(ctx, ref); err != nil {
-		return cleanup(fmt.Errorf("materialize sandbox NIC in %s: %w", ref, err))
-	}
-
-	if err := p.setAndVerifyConfig(ctx, ref, managedEnvironmentMarkerKey, managedEnvironmentMarkerValue); err != nil {
-		return cleanup(fmt.Errorf("mark managed Incus Environment for trusted Seed harvest: %w", err))
-	}
-
-	if resolved.usesSeed {
-		if err := p.configureNestedOCIInstance(ctx, ref); err != nil {
-			return cleanup(fmt.Errorf("configure nested OCI support for Seed environment: %w", err))
+	if record != nil {
+		if err := record(created); err != nil {
+			return cleanup(err)
 		}
 	}
-
-	if err := p.applyResourceBudget(ctx, ref, resources); err != nil {
+	if err := p.configureSandboxEnvironment(ctx, ref, spec, resources, resolved.usesSeed); err != nil {
 		return cleanup(err)
 	}
-
-	if err := p.addWorkspaceDevice(ctx, ref, spec); err != nil {
-		return cleanup(err)
-	}
-	if result, err := p.runner.Run(ctx, "incus", "start", ref, "--project", p.project); err != nil {
-		reason := strings.TrimSpace(result.Stderr)
-		if reason == "" {
-			reason = err.Error()
-		}
-		return cleanup(fmt.Errorf("start Incus environment %s: %s: %w", ref, reason, err))
-	}
-	if err := p.verifyRoutedSandboxAntiSpoof(ctx, ref); err != nil {
-		return cleanup(fmt.Errorf("verify routed sandbox anti-spoofing for %s: %w", ref, err))
-	}
-	if !spec.ReadOnly {
-		result, err := p.runner.Run(ctx, "incus", "exec", ref, "--project", p.project, "--", "test", "-w", "/workspace")
-		if err != nil {
-			reason := strings.TrimSpace(result.Stderr)
-			if reason == "" {
-				reason = err.Error()
-			}
-			return cleanup(errors.Join(
-				fmt.Errorf("workspace %q is not writable from unprivileged environment %s: %s", spec.WorkspacePath, ref, reason),
-				core.ErrUnsupported,
-			))
+	if resolved.built {
+		if err := p.renewGuestSSHIdentity(ctx, ref); err != nil {
+			return cleanup(err)
 		}
 	}
-	base := resolved.ref
-	return core.EnvironmentRuntime{Ref: ref, Base: &base, Resources: resources}, nil
+	return created, nil
 }
 
 func (p *SandboxProvider) addSandboxNIC(ctx context.Context, ref string) error {
@@ -189,7 +196,40 @@ func (p *SandboxProvider) DeleteEnvironment(ctx context.Context, ref string) err
 	return deleteErr
 }
 
+func (p *SandboxProvider) SupportsTemporaryWorkspace() bool { return true }
+
 func (p *SandboxProvider) addWorkspaceDevice(ctx context.Context, ref string, spec core.EnvironmentRuntimeSpec) error {
+	if spec.TemporaryWorkspace {
+		if !core.IsTemporaryWorkspacePath(spec.WorkspacePath) || spec.ReadOnly {
+			return core.ErrInvalidArgument
+		}
+		return nil
+	}
+	if strings.HasPrefix(spec.WorkspacePath, "managed:") {
+		if p.managedWorkspace == nil {
+			return core.ErrUnsupported
+		}
+		attachments, err := p.managedWorkspace(ctx, spec.WorkspacePath)
+		if err != nil {
+			return err
+		}
+		if len(attachments) == 0 {
+			return core.ErrIncompatibleState
+		}
+		for _, mount := range attachments {
+			if !validWorkspaceAttachment(mount) {
+				return core.ErrIncompatibleState
+			}
+			args := []string{"config", "device", "add", ref, mount.Device, "disk", "pool=" + mount.Pool, "source=" + mount.Volume, "path=" + mount.Path, "--project", p.project}
+			if spec.ReadOnly {
+				args = append(args, "readonly=true")
+			}
+			if _, err := p.runner.Run(ctx, "incus", args...); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	deviceArgs := []string{
 		"config", "device", "add", ref, "workspace", "disk",
 		"source=" + spec.WorkspacePath,
@@ -265,7 +305,7 @@ func (p *SandboxProvider) setAndVerifyConfig(ctx context.Context, ref, key, valu
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(got.Stdout) != value {
+	if got.StdoutTruncated || strings.TrimSpace(got.Stdout) != value {
 		return fmt.Errorf("provider returned %q for %s, want %q: %w", strings.TrimSpace(got.Stdout), key, value, core.ErrIncompatibleState)
 	}
 	return nil

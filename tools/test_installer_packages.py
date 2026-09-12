@@ -29,6 +29,15 @@ with tempfile.TemporaryDirectory() as temp:
         archive = dist / f"haco_linux_{arch}.tar.gz"
         archive.write_bytes(f"fake-{arch}-archive\n".encode())
         checksum_lines.append(f"{digest(archive)}  {archive.name}\n")
+        native = dist / f"haco_review_windows_{arch}.zip"
+        with zipfile.ZipFile(native, "w") as zf:
+            zf.writestr("haco-review.exe", f"fake-review-{arch}".encode())
+        checksum_lines.append(f"{digest(native)}  {native.name}\n")
+        helper = dist / f"haco_wsl_windows_{arch}.zip"
+        with zipfile.ZipFile(helper, "w") as zf:
+            zf.writestr("haco-wsl.exe", f"fake-wsl-{arch}".encode())
+        checksum_lines.append(f"{digest(helper)}  {helper.name}\n")
+
     (dist / "checksums.txt").write_text("".join(checksum_lines), encoding="utf-8")
 
     subprocess.run(
@@ -69,7 +78,12 @@ with tempfile.TemporaryDirectory() as temp:
             expected = [
                 "install-windows.bat",
                 "install-windows.ps1",
+                "windows-review.ps1",
+                "haco-review.exe",
+                "haco-wsl.exe",
                 "install.sh",
+                "setup-wsl-host-interop.py",
+                "incus-boot-guard.py",
                 archive_name,
                 "checksums.txt",
                 "VERSION",
@@ -81,95 +95,56 @@ with tempfile.TemporaryDirectory() as temp:
                     raise SystemExit(f"Windows {arch} package unexpectedly contains native haco launcher {forbidden}")
             if f"haco_linux_{other}.tar.gz" in names:
                 raise SystemExit(f"Windows {arch} package contains the wrong architecture")
-            if zf.read("checksums.txt").decode() != checksum_line:
+            native_checksum = hashlib.sha256(f"fake-review-{arch}".encode()).hexdigest() + "  haco-review.exe\n"
+            native_checksum += hashlib.sha256(f"fake-wsl-{arch}".encode()).hexdigest() + "  haco-wsl.exe\n"
+            if zf.read("haco-wsl.exe") != f"fake-wsl-{arch}".encode():
+                raise SystemExit("Wrong Windows helper architecture")
+            if zf.read("checksums.txt").decode() != checksum_line + native_checksum:
                 raise SystemExit(f"Windows {arch} inner checksum mismatch")
             if zf.read("VERSION").decode() != VERSION + "\n":
                 raise SystemExit(f"Windows {arch} version mismatch")
 
             windows_installer = zf.read("install-windows.ps1").decode("utf-8")
             for required in (
-                "function Invoke-ElevatedWsl",
-                "([Environment]::SystemDirectory)",
+                "function Invoke-WslInstall",
                 'Join-Path ([Environment]::SystemDirectory) "wsl.exe"',
-                "Start-Process -FilePath $systemWsl",
-                "-Verb RunAs",
-                "Administrator approval is required only to create",
-                "Invoke-ElevatedWsl $args",
+                "& $systemWsl @Arguments",
+                "New-WslInstance $InstanceName $args",
+                "Invoke-WslInstall $Name $Arguments",
                 "$createExitCode = $LASTEXITCODE",
             ):
                 if required not in windows_installer:
                     raise SystemExit(
-                        f"Windows {arch} package is missing UAC creation behavior: {required!r}"
+                        f"Windows {arch} package is missing native WSL creation behavior: {required!r}"
                     )
             if "Creating the dedicated Hacocoon WSL instance requires an elevated PowerShell." in windows_installer:
                 raise SystemExit(f"Windows {arch} package still contains the old elevation hard failure")
-            if '$process = Start-Process -FilePath "wsl.exe"' in windows_installer:
-                raise SystemExit(f"Windows {arch} package elevates a PATH-resolved wsl.exe")
+            if 'Start-Process' in windows_installer or 'Invoke-ElevatedWsl' in windows_installer:
+                raise SystemExit(f"Windows {arch} package still creates a separate elevated console")
             if "$createExitCode = if (Test-Administrator)" in windows_installer:
                 raise SystemExit(
                     f"Windows {arch} package captures wsl.exe stdout into its exit-code variable"
                 )
 
-            required_windows_contract = [
-                '[switch]$InteractiveUserSetup',
-                '$ManagedLoginUser = "hacocoon"',
-                'Ensure-ManagedWslLoginUser',
-                'Complete-InteractiveWslUserSetup',
-                'Enable-BootstrapSudo',
-                'Disable-BootstrapSudo',
-                'Get-SudoersPolicyFile',
-                'foreach ($policy in @("/etc/sudoers-rs", "/etc/sudoers"))',
-                'Set-HacocoonSudoPolicyBlock',
-                'Remove-HacocoonSudoPolicyBlock',
-                'Set-HacocoonLoginSudoRule',
-                '# BEGIN HACOCOON $marker_name',
-                '$LoginUser ALL=(ALL:ALL) NOPASSWD: ALL',
-                'Validating temporary sudo rule through policy files',
-                '"sudo", "-n", "/usr/bin/true"',
-                'function Invoke-WslRootShellScript',
-                'sh -eu "$tmp" "$@"',
-                'Never send installer-controlled bytes through the Windows native stdin',
-                'base64 -d >> "$2"',
-                '"sh", $encoded, $Path',
-                '$mainFailure = $null',
-                'Bootstrap sudo cleanup also failed after the installer error',
-                '/usr/sbin/visudo -cf "$tmp"',
-                'install -o root -g root -m 0440 "$tmp" "$policy"',
-                'throw $mainFailure',
-                '& wsl.exe --terminate $Name | Out-Null',
-                '& wsl.exe --distribution $Name | Out-Host',
-                'Running common Ubuntu install.sh',
-            ]
-            for contract_marker in required_windows_contract:
-                if contract_marker not in windows_installer:
-                    raise SystemExit(
-                        f"Windows installer lost one-shot bootstrap contract: {contract_marker!r}"
-                    )
-            forbidden_windows_contract = [
-                "Complete normal Ubuntu user setup, then run this installer again.",
-                "After completing the Ubuntu user setup, run install-windows.bat again.",
-                '$normalized | & wsl.exe @Arguments',
-                '"--exec", "sh", "-s"',
-                'function Invoke-WslCaptureWithInput',
-                'Get-SudoersPolicyFiles',
-                'Write-WslUtf8File $Name $policy $block -Append',
-            ]
-            for contract_marker in forbidden_windows_contract:
-                if contract_marker in windows_installer:
-                    raise SystemExit(
-                        f"Windows installer regressed to two-invocation setup: {contract_marker!r}"
-                    )
-            for forbidden_provider_guess in (
-                "$provider.Stdout -match '^sudo-rs'",
-                '"readlink", "-f", "/usr/bin/sudo"',
-                '"update-alternatives"',
-                '@include $RulePath',
+            for required in (
+                '[switch]$InteractiveUserSetup', '[switch]$UseCachedWslImage',
+                '$ManagedLoginUser = "hacocoon"', 'Ensure-ManagedWslLoginUser',
+                'Complete-InteractiveWslUserSetup', 'Configure-ManagedWslOobe',
+                'Invoke-WslRootShellScript', '"HACO_INSTALL_USER=$loginUser"',
+                '--user root --exec env', 'Running common Ubuntu install.sh',
+                '$actualSha256 = Get-Sha256Hex $temporaryPath',
+                '[Security.Cryptography.SHA256]::Create()',
             ):
-                if forbidden_provider_guess in windows_installer:
-                    raise SystemExit(
-                        f"Windows installer regressed to sudo provider guessing: {forbidden_provider_guess!r}"
-                    )
-
+                if required not in windows_installer:
+                    raise SystemExit(f"Windows installer lost current contract: {required!r}")
+            for forbidden in (
+                'NOPASSWD', '/etc/sudoers', 'HACO_BOOTSTRAP_LOGIN_USER',
+                'Invoke-WslCaptureWithInput', '"--exec", "sh", "-s"',
+                'Complete normal Ubuntu user setup, then run this installer again.',
+                '"--lock"',
+            ):
+                if forbidden in windows_installer:
+                    raise SystemExit(f"Windows installer restored rejected behavior: {forbidden!r}")
             windows_bat = zf.read("install-windows.bat").decode("utf-8")
             for forbidden in (
                 "__install-launcher",
@@ -185,7 +160,7 @@ with tempfile.TemporaryDirectory() as temp:
 
         with tarfile.open(out / f"hacocoon-ubuntu-{arch}.tar.gz", "r:gz") as tf:
             names = tf.getnames()
-            expected = ["install-ubuntu.sh", "install.sh", archive_name, "checksums.txt", "VERSION"]
+            expected = ["install-ubuntu.sh", "install.sh", "setup-wsl-host-interop.py", "incus-boot-guard.py", archive_name, "checksums.txt", "VERSION"]
             if names != expected:
                 raise SystemExit(f"unexpected Ubuntu {arch} package: {names!r}")
             if f"haco_linux_{other}.tar.gz" in names:
@@ -202,6 +177,23 @@ with tempfile.TemporaryDirectory() as temp:
     for name in expected_release - {"checksums.txt"}:
         if release_checksums.get(name) != digest(out / name):
             raise SystemExit(f"release checksum mismatch for {name}")
+
+    # Corrupt a release helper after checksums were produced. No Windows bundle
+    # may be published from a mismatched executable archive.
+    bad_helper = dist / "haco_wsl_windows_amd64.zip"
+    with bad_helper.open("ab") as stream:
+        stream.write(b"corrupted-after-checksum")
+    rejected_out = temp_root / "rejected"
+    rejected = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "package_installers.py"),
+         "--dist", str(dist), "--output", str(rejected_out),
+         "--version", VERSION, "--arch", "amd64"],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    if rejected.returncode == 0 or "Windows WSL helper archive checksum mismatch" not in rejected.stderr:
+        raise SystemExit("corrupt WSL helper archive was not refused")
+    if (rejected_out / "hacocoon-windows-amd64.zip").exists():
+        raise SystemExit("corrupt WSL helper published a Windows bundle")
 
 # A ConPTY cmd.exe session emits OSC title sequences before and after installer
 # output. Normalization must remove each OSC sequence independently instead of

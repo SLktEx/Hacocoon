@@ -3,22 +3,55 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/buildinfo"
+	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/terminalbridge"
+	"github.com/SLktEx/Hacocoon/modules/standard/dnsproxy"
+	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
+	"golang.org/x/term"
 )
 
 const loginAlias = "hacocoon-login"
 
-const legacyCLIPath = "/usr/local/bin/hacoq"
+// Cold WSL starts Incus before the controller. A populated Incus installation
+// can exceed 30 seconds; bound startup without delaying an already-ready host.
+const controllerStartupTimeout = 2 * time.Minute
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "_dns-agent" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := dnsproxy.RunAgent(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			fmt.Fprintln(os.Stderr, "haco: guest DNS service failed")
+			os.Exit(1)
+		}
+		return
+	}
+
+	if filepath.Base(os.Args[0]) == "git-remote-haco" {
+		if err := gitrepo.Helper(context.Background(), os.Args[1:], os.Stdin, os.Stdout, os.Stderr, gitrepo.UnixExchange(gitrepo.GuestSocket)); err != nil {
+			fmt.Fprintln(os.Stderr, "git-remote-haco:", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) == 2 && os.Args[1] == "_git-agent" {
+		if err := gitrepo.Agent(context.Background(), os.Stdin, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "haco: invalid trusted Git operation")
+			os.Exit(1)
+		}
+		return
+	}
 	if isLoginAlias(os.Args[0]) {
 		if err := runLoginShim(os.Args[1:]); err != nil {
 			fmt.Fprintln(os.Stderr, "haco:", err)
@@ -56,8 +89,36 @@ func run(args []string) int {
 		return 0
 	case "version":
 		return runVersion(args[1:])
-	case "host":
-		return runLegacyHostBridge(args[1:])
+	case "setup":
+		return runSetup(args[1:])
+	case "config":
+		return runConfiguration(args[1:])
+	case "aws":
+		return runAWS(args[1:])
+	case "approve":
+		return runApproval(args[1:])
+	case "reclaim":
+		return runReclaim(args[1:])
+	case "_reclaim-linux":
+		return runReclaimLinux(args[1:])
+	case "doctor":
+		return runDoctor(args[1:])
+	case "ssh":
+		return runSSH(args[1:])
+	case "open":
+		return runOpen(args[1:])
+	case "run":
+		return runTemporary(args[1:])
+	case "snapshot":
+		return runSnapshot(args[1:])
+	case "env":
+		return runEnvironment(args[1:])
+	case "base":
+		return runBase(args[1:])
+	case "plugin":
+		return runPlugin(args[1:])
+	case "repo", "workspace", "git":
+		return runRepository(args[0], args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "haco: command %q is not available yet; run 'haco help'\n", args[0])
 		return 2
@@ -84,18 +145,6 @@ func runVersion(args []string) int {
 	return 2
 }
 
-func runLegacyHostBridge(args []string) int {
-	if len(args) != 1 || (args[0] != "ensure" && args[0] != "shell") {
-		fmt.Fprintln(os.Stderr, "haco: usage: haco host <ensure|shell>")
-		return 2
-	}
-	if err := execProcess(legacyCLIPath, []string{"hacoq", "host", args[0]}); err != nil {
-		fmt.Fprintln(os.Stderr, "haco:", err)
-		return 1
-	}
-	return 0
-}
-
 func writeShortVersion() {
 	info := buildinfo.Current()
 	fmt.Printf("haco %s (checkpoint %s, commit %s)\n", info.Version, info.Checkpoint, buildinfo.ShortCommit(info.Commit))
@@ -108,6 +157,22 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  haco <command>")
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "Commands:")
+	fmt.Fprintln(out, "  setup      Prepare the Host or replay project setup in an Environment")
+	fmt.Fprintln(out, "  aws        Use approved AWS operations with trusted Host authentication")
+	fmt.Fprintln(out, "  config     Inspect or edit approval policy configuration")
+	fmt.Fprintln(out, "  approve    Review a pending request and optionally save its Policy")
+	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
+	fmt.Fprintln(out, "  reclaim    Reclaim unused managed WSL disk space or inspect its result")
+	fmt.Fprintln(out, "  env        Create, inspect and access development Environments")
+	fmt.Fprintln(out, "  snapshot   Save, restore, list and explicitly delete independent saved data")
+	fmt.Fprintln(out, "  run        Execute a command in a temporary Environment and clean up")
+	fmt.Fprintln(out, "  ssh setup  Prepare desktop SSH keys and connection settings")
+	fmt.Fprintln(out, "  open       Open an Environment in a desktop client")
+	fmt.Fprintln(out, "  base       List and inspect Environment starting points")
+	fmt.Fprintln(out, "  plugin     Optional integrations, including persistent OCI Stores")
+	fmt.Fprintln(out, "  repo       Clone a repository inside the trusted Host")
+	fmt.Fprintln(out, "  workspace  Prepare an independent managed repository copy")
+	fmt.Fprintln(out, "  git        Connect Git and review pending push approvals")
 	fmt.Fprintln(out, "  help       Show this help")
 	fmt.Fprintln(out, "  version    Show Hacocoon version information")
 	fmt.Fprintln(out)
@@ -132,6 +197,14 @@ func runLoginShim(args []string) error {
 		return fmt.Errorf("open Hacocoon controller client: %w", err)
 	}
 	ctx := context.Background()
+	readyCtx, cancelReady := context.WithTimeout(ctx, controllerStartupTimeout)
+	defer cancelReady()
+	if err := waitForController(readyCtx, func(ctx context.Context) error {
+		_, err := client.Ping(ctx)
+		return err
+	}); err != nil {
+		return fmt.Errorf("wait for Physical Host controller: %w", err)
+	}
 	stream, err := client.OpenTrustedHostShell(ctx)
 	if err != nil {
 		return fmt.Errorf("enter trusted haco-host: %w", err)
@@ -141,13 +214,29 @@ func runLoginShim(args []string) error {
 	return terminalbridge.Bridge(ctx, stream, os.Stdin, os.Stdout)
 }
 
-func stdioIsInteractive() bool {
-	stdin, err := os.Stdin.Stat()
-	if err != nil || stdin.Mode()&os.ModeCharDevice == 0 {
-		return false
+// WSL can start a login shell before its enabled systemd controller is ready.
+// Retry only transport unavailability through a read-only probe; never create
+// another controller, restart services, or retry a rejected host operation.
+func waitForController(ctx context.Context, ping func(context.Context) error) error {
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := ping(ctx); !errors.Is(err, control.ErrUnavailable) {
+			return err
+		}
+		timer := time.NewTimer(100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
 	}
-	stdout, err := os.Stdout.Stat()
-	return err == nil && stdout.Mode()&os.ModeCharDevice != 0
+}
+
+func stdioIsInteractive() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 }
 
 func execProcess(path string, argv []string) error {

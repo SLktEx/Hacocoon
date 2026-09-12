@@ -63,12 +63,38 @@ def add_tar_bytes(tf: tarfile.TarFile, data: bytes, name: str, mode: int) -> Non
 
 
 def package_windows(output: Path, archive: Path, checksum_line: str, version: str) -> None:
+    native = archive.parent / archive.name.replace("haco_linux_", "haco_review_windows_").replace(".tar.gz", ".zip")
+    expected = archive_checksum_line(archive.parent / "checksums.txt", native.name).split()[0]
+    if sha256(native) != expected:
+        raise ValueError("Windows review archive checksum mismatch")
+    with zipfile.ZipFile(native) as source:
+        entries = [entry for entry in source.infolist() if entry.filename == "haco-review.exe"]
+        if len(entries) != 1 or entries[0].file_size > 64 * 1024 * 1024:
+            raise ValueError("Windows review executable missing or invalid")
+        adapter = source.read(entries[0])
+    checksum_line += hashlib.sha256(adapter).hexdigest() + "  haco-review.exe\n"
+    helper_archive = archive.parent / archive.name.replace("haco_linux_", "haco_wsl_windows_").replace(".tar.gz", ".zip")
+    expected_helper = archive_checksum_line(archive.parent / "checksums.txt", helper_archive.name).split()[0]
+    if sha256(helper_archive) != expected_helper:
+        raise ValueError("Windows WSL helper archive checksum mismatch")
+    with zipfile.ZipFile(helper_archive) as source:
+        entries = [entry for entry in source.infolist() if entry.filename == "haco-wsl.exe"]
+        if len(entries) != 1 or entries[0].file_size > 64 * 1024 * 1024:
+            raise ValueError("Windows WSL helper missing or invalid")
+        helper = source.read(entries[0])
+    checksum_line += hashlib.sha256(helper).hexdigest() + "  haco-wsl.exe\n"
+
     temporary = output.with_suffix(output.suffix + ".tmp")
     temporary.unlink(missing_ok=True)
     with zipfile.ZipFile(temporary, "w") as zf:
         add_zip_file(zf, ROOT / "scripts" / "install-windows.bat", "install-windows.bat", 0o644)
         add_zip_file(zf, ROOT / "scripts" / "install-windows.ps1", "install-windows.ps1", 0o644)
+        add_zip_file(zf, ROOT / "scripts" / "windows-review.ps1", "windows-review.ps1", 0o644)
+        add_zip_bytes(zf, adapter, "haco-review.exe", 0o755)
+        add_zip_bytes(zf, helper, "haco-wsl.exe", 0o755)
         add_zip_file(zf, ROOT / "scripts" / "install.sh", "install.sh", 0o755)
+        add_zip_file(zf, ROOT / "scripts" / "setup-wsl-host-interop.py", "setup-wsl-host-interop.py", 0o755)
+        add_zip_file(zf, ROOT / "modules/runtime/incus/packaging/incus-boot-guard.py", "incus-boot-guard.py", 0o755)
         add_zip_file(zf, archive, archive.name, 0o644)
         add_zip_bytes(zf, checksum_line.encode(), "checksums.txt", 0o644)
         add_zip_bytes(zf, f"{version}\n".encode(), "VERSION", 0o644)
@@ -83,6 +109,8 @@ def package_ubuntu(output: Path, archive: Path, checksum_line: str, version: str
             with tarfile.open(fileobj=gz, mode="w") as tf:
                 add_tar_bytes(tf, (ROOT / "scripts" / "install-ubuntu.sh").read_bytes(), "install-ubuntu.sh", 0o755)
                 add_tar_bytes(tf, (ROOT / "scripts" / "install.sh").read_bytes(), "install.sh", 0o755)
+                add_tar_bytes(tf, (ROOT / "scripts" / "setup-wsl-host-interop.py").read_bytes(), "setup-wsl-host-interop.py", 0o755)
+                add_tar_bytes(tf, (ROOT / "modules/runtime/incus/packaging/incus-boot-guard.py").read_bytes(), "incus-boot-guard.py", 0o755)
                 add_tar_bytes(tf, archive.read_bytes(), archive.name, 0o644)
                 add_tar_bytes(tf, checksum_line.encode(), "checksums.txt", 0o644)
                 add_tar_bytes(tf, f"{version}\n".encode(), "VERSION", 0o644)

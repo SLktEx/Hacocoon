@@ -35,7 +35,7 @@ func WrapSeedHarvestRunner(next host.Runner) host.Runner {
 	if next == nil {
 		return next
 	}
-	return &seedHarvestRunner{next: next, project: defaultProject}
+	return preserveExecInput(&seedHarvestRunner{next: next, project: defaultProject}, next)
 }
 
 func (r *seedHarvestRunner) Run(ctx context.Context, name string, args ...string) (host.Result, error) {

@@ -43,49 +43,67 @@ type BaseInfo struct {
 }
 
 type WorkspaceLease struct {
-	WorkspaceID   WorkspaceID         `json:"workspace_id"`
-	SourcePath    string              `json:"source_path"`
-	EnvironmentID string              `json:"environment_id"`
-	AccessMode    WorkspaceAccessMode `json:"access_mode"`
-	Owner         string              `json:"owner"`
-	RuntimeRef    string              `json:"runtime_ref,omitempty"`
-	State         WorkspaceLeaseState `json:"state,omitempty"`
-	AcquiredAt    time.Time           `json:"acquired_at"`
+	// SnapshotSource reserves immutable saved data only while this creation is pending.
+	SnapshotSource     string                `json:"snapshot_source,omitempty"`
+	InstanceID         string                `json:"instance_id,omitempty"`
+	PersistentResource PersistentResourceRef `json:"persistent_resource,omitempty"`
+	WorkspaceID        WorkspaceID           `json:"workspace_id"`
+	SourcePath         string                `json:"source_path"`
+	EnvironmentID      string                `json:"environment_id"`
+	AccessMode         WorkspaceAccessMode   `json:"access_mode"`
+	Owner              string                `json:"owner"`
+	RuntimeRef         string                `json:"runtime_ref,omitempty"`
+	State              WorkspaceLeaseState   `json:"state,omitempty"`
+	AcquiredAt         time.Time             `json:"acquired_at"`
 }
 
 // EphemeralRun is trusted host-side evidence that an Environment belongs to
 // haco run. Names alone are never sufficient proof because a user may create an
 // ordinary Environment whose name happens to start with "run-".
 type EphemeralRun struct {
-	EnvironmentID string            `json:"environment_id"`
-	State         EphemeralRunState `json:"state"`
-	CreatedAt     time.Time         `json:"created_at"`
+	TemporaryWorkspace *Workspace        `json:"temporary_workspace,omitempty"`
+	EnvironmentID      string            `json:"environment_id"`
+	State              EphemeralRunState `json:"state"`
+	CreatedAt          time.Time         `json:"created_at"`
 }
 
 type Environment struct {
-	Name       string              `json:"name"`
-	Workspace  Workspace           `json:"workspace"`
-	AccessMode WorkspaceAccessMode `json:"access_mode"`
-	Base       *BaseRef            `json:"base,omitempty"`
-	Resources  ResourceBudget      `json:"resources"`
-	RuntimeRef string              `json:"runtime_ref"`
-	CreatedAt  time.Time           `json:"created_at"`
+	PersistentResource PersistentResourceRef `json:"persistent_resource,omitempty"`
+	Name               string                `json:"name"`
+	Workspace          Workspace             `json:"workspace"`
+	AccessMode         WorkspaceAccessMode   `json:"access_mode"`
+	Base               *BaseRef              `json:"base,omitempty"`
+	Resources          ResourceBudget        `json:"resources"`
+	RuntimeRef         string                `json:"runtime_ref"`
+	CreatedAt          time.Time             `json:"created_at"`
 }
 
 type EnvironmentSpec struct {
-	Name          string
-	WorkspacePath string
-	AccessMode    WorkspaceAccessMode
-	Base          BaseName
-	Resources     ResourceBudget
+	TemporaryWorkspace  *Workspace
+	SkipDefaultResource bool
+	PersistentResource  string
+	// ExpectedResource pins an explicit resource to its reviewed owner.
+	ExpectedResource PersistentResourceRef
+	Name             string
+	WorkspacePath    string
+	AccessMode       WorkspaceAccessMode
+	Base             BaseName
+	Resources        ResourceBudget
 }
 
 type EnvironmentRuntimeSpec struct {
-	Name          string
-	WorkspacePath string
-	ReadOnly      bool
-	Base          BaseName
-	Resources     ResourceBudget
+	// InstanceID binds the provider resource to the durable creation reservation.
+	InstanceID         string
+	TemporaryWorkspace bool
+	// ResourceMaintenance requires preparation before retained data attachment.
+	// Runtimes must refuse it until that sequence is supported.
+	ResourceMaintenance bool
+	PersistentResource  PersistentResource
+	Name                string
+	WorkspacePath       string
+	ReadOnly            bool
+	Base                BaseName
+	Resources           ResourceBudget
 }
 
 type EnvironmentRuntime struct {
@@ -94,8 +112,12 @@ type EnvironmentRuntime struct {
 	Resources ResourceBudget
 }
 
+const MaxExecutionInputBytes = 1 << 20
+
 type ExecutionRequest struct {
-	Argv []string
+	Stdin            []byte
+	WorkingDirectory string
+	Argv             []string
 }
 
 type ExecutionResult struct {

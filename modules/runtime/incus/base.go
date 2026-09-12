@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -37,6 +38,7 @@ func WithSeedResolver(resolver SeedResolver) BaseProviderOption {
 }
 
 type BaseProvider struct {
+	baseMu sync.RWMutex
 	*Runtime
 	sources      map[core.BaseName]string
 	seedResolver SeedResolver
@@ -46,6 +48,7 @@ type resolvedBase struct {
 	ref          core.BaseRef
 	pinnedSource string
 	usesSeed     bool
+	built        bool
 }
 
 func NewBaseProvider(runtime *Runtime, options ...BaseProviderOption) (*BaseProvider, error) {
@@ -133,6 +136,13 @@ func hasControlString(value string) bool {
 }
 
 func (p *BaseProvider) CreateEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
+	// Retained Store startup is not wired yet. Never fall through to ordinary
+	// creation, which may start daemons before maintenance preparation.
+	if spec.ResourceMaintenance {
+		return core.EnvironmentRuntime{}, core.ErrUnsupported
+	}
+	p.baseMu.RLock()
+	defer p.baseMu.RUnlock()
 	resolved, err := p.resolveBase(ctx, spec.Base)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
@@ -148,18 +158,29 @@ func (p *BaseProvider) CreateEnvironment(ctx context.Context, spec core.Environm
 	return created, nil
 }
 
-func (p *BaseProvider) ListBases(context.Context) ([]core.BaseInfo, error) {
+func (p *BaseProvider) ListBases(ctx context.Context) ([]core.BaseInfo, error) {
 	if p == nil {
 		return nil, core.ErrRuntimeUnavailable
 	}
-	names := make([]string, 0, len(p.sources))
+	built, err := p.builtBases(ctx)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(p.sources)+len(built))
+	for name := range built {
+		names = append(names, string(name))
+	}
 	for name := range p.sources {
 		names = append(names, string(name))
 	}
 	sort.Strings(names)
 	result := make([]core.BaseInfo, 0, len(names))
 	for _, name := range names {
-		result = append(result, core.BaseInfo{Name: core.BaseName(name)})
+		info := core.BaseInfo{Name: core.BaseName(name)}
+		if found, ok := built[info.Name]; ok {
+			info = found
+		}
+		result = append(result, info)
 	}
 	return result, nil
 }
@@ -181,7 +202,7 @@ func (p *BaseProvider) resolveBase(ctx context.Context, requested core.BaseName)
 	if err != nil {
 		return resolvedBase{}, err
 	}
-	if p.seedResolver == nil {
+	if p.seedResolver == nil || parent.built {
 		return parent, nil
 	}
 	seedRevision, ok, err := p.seedResolver.CurrentSeed(ctx, parent.ref)
@@ -224,9 +245,25 @@ func (p *BaseProvider) resolveParentBase(ctx context.Context, requested core.Bas
 	}
 	source, ok := p.sources[name]
 	if !ok {
-		return resolvedBase{}, fmt.Errorf("Base %q: %w", name, core.ErrNotFound)
+		built, err := p.builtBases(ctx)
+		if err != nil {
+			return resolvedBase{}, err
+		}
+		info, found := built[name]
+		if !found {
+			return resolvedBase{}, fmt.Errorf("Base %q: %w", name, core.ErrNotFound)
+		}
+		fingerprint, err := baseRevisionFingerprint(info.Revision)
+		if err != nil {
+			return resolvedBase{}, err
+		}
+		return resolvedBase{ref: core.BaseRef{Name: name, Revision: info.Revision}, pinnedSource: "local:" + fingerprint, built: true}, nil
 	}
-	fingerprint, err := p.imageFingerprint(ctx, source, "")
+	project := ""
+	if strings.HasPrefix(source, "local:") {
+		project = p.project
+	}
+	fingerprint, err := p.imageFingerprint(ctx, source, project)
 	if err != nil {
 		return resolvedBase{}, fmt.Errorf("resolve Base %q from %q: %w", name, source, err)
 	}

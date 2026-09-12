@@ -1,0 +1,151 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/SLktEx/Hacocoon/internal/control"
+	"github.com/SLktEx/Hacocoon/internal/controlapi"
+	"github.com/SLktEx/Hacocoon/internal/recipes"
+)
+
+func productSetupServer(t *testing.T, failure error) string {
+	t.Helper()
+	server := control.NewServer()
+	_ = server.Register(controlapi.MethodPing, func(context.Context, json.RawMessage) (any, error) {
+		return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, nil
+	})
+	_ = server.Register(controlapi.MethodSetup, func(_ context.Context, payload json.RawMessage) (any, error) {
+		if string(payload) != "{}" {
+			t.Errorf("setup accepted caller parameters: %q", payload)
+		}
+		return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, failure
+	})
+	path := filepath.Join(t.TempDir(), "control.sock")
+	listener, err := control.ListenUnix(path, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- server.Serve(ctx, listener) }()
+	t.Cleanup(func() { cancel(); <-done })
+	return path
+}
+
+func TestProductSetupUsesOnlyController(t *testing.T) {
+	t.Setenv("HACO_CONTROL_SOCKET", productSetupServer(t, nil))
+	t.Setenv("PATH", t.TempDir())
+	root := filepath.Join(t.TempDir(), "must-not-exist")
+	t.Setenv("HACO_ROOT", root)
+	var stdout, stderr bytes.Buffer
+	if code := setup(context.Background(), nil, &stdout, &stderr); code != 0 || stderr.Len() != 0 {
+		t.Fatalf("code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Host resources prepared") {
+		t.Fatalf("output=%s", stdout.String())
+	}
+	if _, err := os.Stat(root); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("client created local state: %v", err)
+	}
+}
+
+func TestProductSetupHelpUsageAndFailures(t *testing.T) {
+	t.Setenv("HACO_CONTROL_SOCKET", filepath.Join(t.TempDir(), "missing.sock"))
+	for _, args := range [][]string{{"--help"}, {"--force"}, {"first", "second"}, {"--script", ""}, nil} {
+		var stdout, stderr bytes.Buffer
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		code := setup(ctx, args, &stdout, &stderr)
+		cancel()
+		want := 2
+		if len(args) == 0 {
+			want = 1
+		} else if args[0] == "--help" {
+			want = 0
+		}
+		if code != want {
+			t.Fatalf("args=%v code=%d stderr=%s", args, code, stderr.String())
+		}
+	}
+	for _, status := range []string{"busy", "setup_failed", "not_found"} {
+		t.Run(status, func(t *testing.T) {
+			t.Setenv("HACO_CONTROL_SOCKET", productSetupServer(t, control.NewStatusError(status, "raw-backend-secret")))
+			var stdout, stderr bytes.Buffer
+			if code := setup(context.Background(), nil, &stdout, &stderr); code != 1 || stdout.Len() != 0 || strings.Contains(stderr.String(), "raw-backend-secret") {
+				t.Fatalf("code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+			}
+			if status == "setup_failed" && strings.Contains(stderr.String(), "level=ERROR") {
+				t.Fatal("duplicated controller-owned ERROR")
+			}
+		})
+	}
+}
+
+func TestProductSetupCanceledBeforeConnection(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	t.Setenv("HACO_CONTROL_SOCKET", filepath.Join(t.TempDir(), "missing.sock"))
+	var stdout, stderr bytes.Buffer
+	if code := setup(ctx, nil, &stdout, &stderr); code != 1 || stdout.Len() != 0 {
+		t.Fatalf("code=%d stdout=%s", code, stdout.String())
+	}
+}
+
+func TestProjectSetupFailureDiagnosticsAllowOnlyKnownCategories(t *testing.T) {
+	stage, code := safeProjectSetupFailure("start", "unavailable")
+	if stage != "start" || code != "unavailable" {
+		t.Fatal(stage, code)
+	}
+	stage, code = safeProjectSetupFailure("SECRET-private-script", "SECRET-backend-error")
+	if stage != "unknown" || code != "internal" {
+		t.Fatal("arbitrary error leaked", stage, code)
+	}
+}
+
+type readinessSetupClient struct {
+	pingErrors    []error
+	pings, setups int
+	setupError    error
+}
+
+func (c *readinessSetupClient) Ping(context.Context) (controlapi.PingResponse, error) {
+	i := c.pings
+	c.pings++
+	if i < len(c.pingErrors) {
+		return controlapi.PingResponse{}, c.pingErrors[i]
+	}
+	return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, nil
+}
+func (c *readinessSetupClient) SetupHost(context.Context, recipes.Update) error {
+	c.setups++
+	return c.setupError
+}
+func TestHostSetupWaitsWithoutReplayingMutation(t *testing.T) {
+	client := &readinessSetupClient{pingErrors: []error{control.ErrUnavailable}, setupError: control.ErrUnavailable}
+	err := setupHostWhenReady(context.Background(), client, recipes.Update{})
+	if !errors.Is(err, control.ErrUnavailable) || client.pings != 2 || client.setups != 1 {
+		t.Fatalf("err=%v pings=%d setups=%d", err, client.pings, client.setups)
+	}
+}
+func TestHostSetupReadinessFailureDoesNotMutate(t *testing.T) {
+	for _, failure := range []error{control.ErrProtocol, context.Canceled} {
+		client := &readinessSetupClient{pingErrors: []error{failure}}
+		err := setupHostWhenReady(context.Background(), client, recipes.Update{})
+		if !errors.Is(err, failure) || client.pings != 1 || client.setups != 0 {
+			t.Fatalf("err=%v pings=%d setups=%d", err, client.pings, client.setups)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client := &readinessSetupClient{}
+	if err := setupHostWhenReady(ctx, client, recipes.Update{}); !errors.Is(err, context.Canceled) || client.pings != 0 || client.setups != 0 {
+		t.Fatalf("canceled request contacted controller: %v", err)
+	}
+}

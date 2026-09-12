@@ -91,6 +91,9 @@ func requireBrokeredGitTools(t *testing.T) {
 func runDirectGit(t *testing.T, args []string, extraEnv ...string) string {
 	t.Helper()
 	cmd := exec.Command(brokeredGitPath, args...)
+	// Fixture setup must not discover the checkout containing the test binary.
+	// In particular, a Windows worktree gitdir is not a valid WSL gitdir.
+	cmd.Dir = t.TempDir()
 	cmd.Env = append([]string{
 		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 		"GIT_TERMINAL_PROMPT=0",

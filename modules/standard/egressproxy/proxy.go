@@ -15,12 +15,13 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 	egressapp "github.com/SLktEx/Hacocoon/internal/egress"
+	"github.com/SLktEx/Hacocoon/modules/standard/dnsproxy"
 )
 
 const (
-	DefaultPort = 18080
+	DefaultPort         = 18080
 	maxClientHelloBytes = 128 << 10
-	clientHelloTimeout = 10 * time.Second
+	clientHelloTimeout  = 10 * time.Second
 )
 
 type Authorizer interface {
@@ -36,25 +37,51 @@ type DNSResolver interface {
 }
 
 type Proxy struct {
-	authorizer Authorizer
-	sources    SourceResolver
-	resolver   DNSResolver
-	dial       func(context.Context, string, string) (net.Conn, error)
+	operations     http.Handler
+	nameResolution http.Handler
+	authorizer     Authorizer
+	sources        SourceResolver
+	resolver       DNSResolver
+	dial           func(context.Context, string, string) (net.Conn, error)
 }
 
 func New(authorizer Authorizer, sources SourceResolver) *Proxy {
 	dialer := &net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}
 	return &Proxy{
 		authorizer: authorizer,
-		sources: sources,
-		resolver: net.DefaultResolver,
-		dial: dialer.DialContext,
+		sources:    sources,
+		resolver:   net.DefaultResolver,
+		dial:       dialer.DialContext,
 	}
+}
+
+// NewWithNameResolution shares only the guarded listener and persisted source
+// mapping. DNS requests still pass through their own Capability policy and audit.
+func NewWithNameResolution(authorizer Authorizer, sources SourceResolver, lookup dnsproxy.Lookup) *Proxy {
+	p := New(authorizer, sources)
+	p.nameResolution = dnsproxy.NewHandler(lookup, sources)
+	return p
+}
+
+// NewWithOperations admits optional operation handlers only on origin-form
+// reserved paths. Each handler owns source authentication and capability policy.
+func NewWithOperations(authorizer Authorizer, sources SourceResolver, lookup dnsproxy.Lookup, operations http.Handler) *Proxy {
+	p := NewWithNameResolution(authorizer, sources, lookup)
+	p.operations = operations
+	return p
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if p == nil || p.authorizer == nil || p.sources == nil || p.resolver == nil || p.dial == nil {
 		http.Error(w, "egress proxy unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if p.operations != nil && r.URL != nil && !r.URL.IsAbs() && strings.HasPrefix(r.RequestURI, "/_haco/operations/") {
+		p.operations.ServeHTTP(w, r)
+		return
+	}
+	if p.nameResolution != nil && r.URL != nil && !r.URL.IsAbs() && r.RequestURI == dnsproxy.Path {
+		p.nameResolution.ServeHTTP(w, r)
 		return
 	}
 	environment, err := p.resolveSource(r.Context(), r.RemoteAddr)
@@ -109,7 +136,7 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request, environment s
 	}
 
 	transport := &http.Transport{
-		Proxy: nil,
+		Proxy:             nil,
 		DisableKeepAlives: true,
 		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 			requestedHost, requestedPort, splitErr := net.SplitHostPort(address)
@@ -169,6 +196,8 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request, environmen
 		return
 	}
 	defer client.Close()
+	stopClient := context.AfterFunc(r.Context(), func() { _ = client.Close() })
+	defer stopClient()
 	if buffered.Reader.Buffered() != 0 {
 		// A pipelined ClientHello would bypass the bounded SNI reader below.
 		return
@@ -194,7 +223,15 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request, environmen
 	if err != nil {
 		return
 	}
+	if owner, ok := r.Context().Value(proxyConnectionsKey{}).(*proxyListener); ok {
+		upstream, err = owner.trackUpstream(upstream)
+		if err != nil {
+			return
+		}
+	}
 	defer upstream.Close()
+	stopUpstream := context.AfterFunc(r.Context(), func() { _ = upstream.Close() })
+	defer stopUpstream()
 	if _, err := upstream.Write(prefix); err != nil {
 		return
 	}
@@ -429,7 +466,7 @@ func copyHeaders(dst, src http.Header) {
 }
 
 func closeWrite(conn net.Conn) {
-	if tcp, ok := conn.(*net.TCPConn); ok {
+	if tcp, ok := conn.(interface{ CloseWrite() error }); ok {
 		_ = tcp.CloseWrite()
 	}
 }

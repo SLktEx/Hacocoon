@@ -233,7 +233,15 @@ func generalCapabilityCommand(
 		return err
 	}
 	approval := capabilityapp.NewStdioApproval(stdin, stderr)
-	result, requestErr := client.RequestCapability(ctx, request, approval.Approve)
+	var result core.CapabilityResult
+	var requestErr error
+	if saved, ok := client.(interface {
+		RequestCapabilityWithDecision(context.Context, core.CapabilityRequest, func(context.Context, core.ApprovalRequest) (capabilityapp.ApprovalDecision, error)) (core.CapabilityResult, error)
+	}); ok {
+		result, requestErr = saved.RequestCapabilityWithDecision(ctx, request, approval.Decide)
+	} else {
+		result, requestErr = client.RequestCapability(ctx, request, approval.Approve)
+	}
 	if result.Output != "" {
 		if _, err := fmt.Fprintln(stdout, result.Output); err != nil {
 			return err

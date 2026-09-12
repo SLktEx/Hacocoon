@@ -45,6 +45,7 @@ setup() {
 
   go build -trimpath -o "$HACO_BIN" ./cmd/haco
   go build -trimpath -o "$CONTROLLER_BIN" ./cmd/haco-controller
+  go build -trimpath -o "$CLI_ROOT/haco-product" ./cmd/haco-product
   [[ -x "$HACO_BIN" ]] || fail "haco CLI build failed"
   [[ -x "$CONTROLLER_BIN" ]] || fail "haco-controller build failed"
 }
@@ -62,8 +63,8 @@ assert_incus_managed_storage() {
   [[ "$mount_options" == "$BTRFS_MOUNT_OPTIONS" ]] || fail "Incus Btrfs mount options are '$mount_options', expected '$BTRFS_MOUNT_OPTIONS'"
   [[ ",$mount_options," != *,autodefrag,* ]] || fail "autodefrag must remain disabled: $mount_options"
 
-  [[ ! -e "$CLI_ROOT/images/local-default.raw" ]] || fail "default composition still created the legacy Hacocoon raw image"
-  [[ ! -e "$CLI_ROOT/mounts/local-default" ]] || fail "default composition still created the legacy Hacocoon mountpoint"
+  [[ ! -e "$CLI_ROOT/images/local-default.raw" ]] || fail "default composition still created the removed Hacocoon raw image"
+  [[ ! -e "$CLI_ROOT/mounts/local-default" ]] || fail "default composition still created the removed Hacocoon mountpoint"
 
   sudo test -f "$source" || fail "Incus loop backing image is missing"
   logical_bytes="$(sudo stat -Lc '%s' "$source")"
@@ -81,11 +82,10 @@ assert_incus_managed_storage() {
   live_options="$(sudo findmnt -rn -o OPTIONS --mountpoint "$INCUS_POOL_MOUNT")"
   [[ ",$live_options," == *,compress=zstd:3,* || ",$live_options," == *,compress=zstd,* ]] || fail "Incus pool mount is missing zstd compression: $live_options"
   [[ ",$live_options," == *,noatime,* ]] || fail "Incus pool mount is missing noatime: $live_options"
-  # Linux may omit the default negative option `nodiscard` from findmnt output.
-  # The configured Incus desired state above must contain nodiscard; live state
-  # proves the policy by ensuring no discard mode is active.
-  [[ ",$live_options," != *,discard,* && ",$live_options," != *,discard=async,* ]] || fail "Incus pool mount unexpectedly enables discard: $live_options"
+  # Negative defaults may be omitted from findmnt; reject every positive discard mode.
+  [[ ",$live_options," != *,discard,* && ",$live_options," != *,discard=*,* ]] || fail "Incus pool mount unexpectedly enables discard: $live_options"
   [[ ",$live_options," != *,relatime,* && ",$live_options," != *,strictatime,* ]] || fail "Incus pool mount unexpectedly enables atime updates: $live_options"
+  [[ ",$live_options," != *,compress-force* ]] || fail "Incus pool mount unexpectedly forces compression: $live_options"
   [[ ",$live_options," != *,autodefrag,* ]] || fail "live Incus Btrfs mount unexpectedly enables autodefrag: $live_options"
 }
 
@@ -114,10 +114,9 @@ run_test() {
 
   export HACO_ROOT="$CLI_ROOT"
   unset HACO_PLUGIN_OCI
-  unset HACO_STORAGE_PRIVILEGE_MODE
-  unset HACO_BLOCK_BACKEND
 
   "$HACO_BIN" create --base haco/ubuntu-26.04 --workspace "$WORKSPACE" "$ENV_NAME"
+  python3 tools/verify_ci_base_provenance.py "$CLI_ROOT/state/environments.json" "$ENV_NAME"
 
   status_json="$("$HACO_BIN" status "$ENV_NAME" --json)"
   python3 - "$status_json" <<'PY'
@@ -139,15 +138,12 @@ PY
   "$HACO_BIN" exec "$ENV_NAME" -- sh -c 'test -w /workspace && printf "from-environment\n" > /workspace/from-environment.txt'
   [[ "$(cat "$WORKSPACE/from-environment.txt")" == "from-environment" ]] || fail "Environment did not write through the real workspace mount"
 
-  "$HACO_BIN" delete "$ENV_NAME"
-  if incus list "$INSTANCE" --project "$PROJECT" --format csv -c n | grep -Fx "$INSTANCE" >/dev/null 2>&1; then
-    fail "named Environment instance remained after haco delete"
-  fi
+  "$HACO_BIN" exec "$ENV_NAME" -- sh -c 'printf "rootfs-retained\n" > /root/storage-reuse-sentinel'
 
-  # Simulate a pre-policy pool. The next Hacocoon rootfs operation must repair
-  # the existing Incus pool instead of accepting stale mount options forever.
+  # The next rootfs operation must reconcile the existing pool through Incus.
+  # Keep existing workspace data to catch destructive replacement on reuse.
   incus storage set "$POOL" btrfs.mount_options=compress=zstd:3 --project "$PROJECT"
-  [[ "$(incus storage get "$POOL" btrfs.mount_options --project "$PROJECT")" == "compress=zstd:3" ]] || fail "failed to install stale mount policy for reconciliation test"
+  [[ "$(incus storage get "$POOL" btrfs.mount_options --project "$PROJECT")" == "compress=zstd:3" ]] || fail "failed to install stale mount policy"
 
   haco_start_test_controller \
     "$CONTROLLER_BIN" \
@@ -164,9 +160,16 @@ assert row["execution"]["stdout"] == "run-ok\n", row
 assert row["cleaned_up"] is True, row
 PY
   [[ "$(cat "$RUN_WORKSPACE/from-run.txt")" == "from-run" ]] || fail "haco run did not write through the real workspace mount"
+  python3 tools/test_temporary_run.py "$CLI_ROOT/haco-product" "$RUN_WORKSPACE"
   incus storage show "$POOL" --project "$PROJECT" >/dev/null
   assert_incus_managed_storage
+  [[ "$(cat "$WORKSPACE/from-environment.txt")" == "from-environment" ]] || fail "workspace data changed during pool reuse"
+  [[ "$("$HACO_BIN" exec "$ENV_NAME" -- cat /root/storage-reuse-sentinel)" == "rootfs-retained" ]] || fail "existing rootfs data changed during policy reconciliation"
   haco_stop_test_controller
+  "$HACO_BIN" delete "$ENV_NAME"
+  if incus list "$INSTANCE" --project "$PROJECT" --format csv -c n | grep -Fx "$INSTANCE" >/dev/null 2>&1; then
+    fail "named Environment instance remained after hacoq delete"
+  fi
 }
 
 diagnostics() {
@@ -193,6 +196,7 @@ delete_owned_instances() {
   while IFS= read -r instance; do
     [[ -n "$instance" ]] || continue
     case "$instance" in
+      haco-base-*) python3 tools/cleanup_ci_base_asset.py "$instance" || return 1 ;;
       "$INSTANCE"|haco-run-*) incus delete "$instance" --project "$PROJECT" --force || return 1 ;;
       *) echo "ERROR: refusing to delete unexpected instance '$instance'" >&2; unexpected=1 ;;
     esac

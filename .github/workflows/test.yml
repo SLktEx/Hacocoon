@@ -43,7 +43,9 @@ jobs:
       - name: Validate workflow trust boundary
         run: python3 tools/check_workflow_policy.py
       - name: Test workflow trust policy
-        run: python3 tools/test_workflow_policy.py
+        run: |
+          python3 tools/test_workflow_policy.py
+          python3 tools/test_real_git_push_target.py
       - name: Test public release readiness policy
         run: python3 tools/test_public_release_readiness.py
       - name: Validate Renovate fail-closed policy
@@ -72,6 +74,13 @@ jobs:
         run: bash tools/test_install_archive_safety.sh
       - name: Test architecture-specific installer packaging
         run: python3 tools/test_installer_packages.py
+      - name: Test installer identity and managed WSL first launch
+        run: |
+          python3 tools/test_install_identity.py
+          python3 tools/test_install_network.py
+          python3 tools/test_incus_boot_guard.py
+          python3 tools/test_windows_user_path.py
+          python3 tools/test_wsl_oobe_config.py
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.x
@@ -174,6 +183,20 @@ jobs:
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-agent-host" ./cmd/haco-agent-host
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-notify" ./cmd/haco-notify
 
+  aws-plugin:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Prepare optional AWS SDK test environment
+        run: |
+          python3 -m venv "$RUNNER_TEMP/aws-sdk"
+          "$RUNNER_TEMP/aws-sdk/bin/pip" install botocore==1.40.76
+      - name: Verify AWS identity, signing scope and redirect refusal without AWS access
+        run: HACO_AWS_TEST_PYTHON="$RUNNER_TEMP/aws-sdk/bin/python" bash tools/ci-local.sh aws
+
   test:
     runs-on: ubuntu-26.04
     timeout-minutes: 15
@@ -194,6 +217,9 @@ jobs:
           cache: false
       - run: go test -count=1 -shuffle=on ./...
       - run: go vet ./...
+      - name: Test trusted-host forwarding in an isolated Linux network
+        if: matrix.go-version == '1.27.x'
+        run: bash tools/ci-local.sh forwarding
       - name: Smoke-test the new product CLI without runtime state
         if: matrix.go-version == '1.27.x'
         run: |
@@ -210,7 +236,15 @@ jobs:
         run: |
           node --check pkg/interactionhttp/web/app.js
           node --check clients/vscode-notify/extension.js
-          node --test test/js/notification_clients.test.js
+          node --check clients/vscode-notify/review.js
+          node --test test/js/notification_clients.test.js test/js/vscode_acceptance.test.js test/js/approval_review.test.js
+          python3 tools/test_pending_approvals_test.py
+          python3 tools/test_windows_transfer_bundle_copy.py
+          python3 tools/test_evacuation_inventory.py
+          python3 tools/test_evacuation_associations.py
+          python3 tools/test_evacuation_capture.py
+          python3 tools/test_evacuation_files.py
+          python3 tools/package_vscode_notifications.py "$RUNNER_TEMP/hacocoon-notifications.vsix"
       - name: Test VS Code agent workspace client
         if: matrix.go-version == '1.27.x'
         run: |

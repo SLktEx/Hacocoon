@@ -39,6 +39,7 @@ def copy_repo(destination: Path) -> Path:
         repo,
         ignore=shutil.ignore_patterns(
             ".git",
+            "bin",
             "dist",
             "__pycache__",
             ".pytest_cache",

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
@@ -29,17 +30,43 @@ func (c *Client) InspectBase(ctx context.Context, name core.BaseName) (core.Base
 }
 
 func (c *Client) Run(ctx context.Context, spec runapp.Spec) (runapp.Result, error) {
-	var response runResponse
-	if err := c.wire.Call(ctx, MethodRun, spec, &response); err != nil {
+	conn, err := c.wire.OpenStream(ctx, MethodRun, spec)
+	if err != nil {
 		return runapp.Result{}, err
 	}
+	defer conn.Close()
+	data, err := io.ReadAll(io.LimitReader(conn, maxRunResultBytes+1))
+	if err != nil {
+		if ctx.Err() != nil {
+			return runapp.Result{}, ctx.Err()
+		}
+		return runapp.Result{}, fmt.Errorf("read run result: %w", err)
+	}
+	if len(data) > maxRunResultBytes {
+		return runapp.Result{}, fmt.Errorf("run result exceeds size limit: %w", control.ErrProtocol)
+	}
+	var response runResponse
+	if err := json.Unmarshal(data, &response); err != nil {
+		return runapp.Result{}, fmt.Errorf("decode run result: %w", control.ErrProtocol)
+	}
+
 	return response.Result, responseError(response.Error)
 }
 
-func (c *Client) RequestCapability(
+func (c *Client) RequestCapability(ctx context.Context, request core.CapabilityRequest, approve func(context.Context, core.ApprovalRequest) (bool, error)) (core.CapabilityResult, error) {
+	return c.RequestCapabilityWithDecision(ctx, request, func(ctx context.Context, r core.ApprovalRequest) (capabilityapp.ApprovalDecision, error) {
+		if approve == nil {
+			return capabilityapp.ApprovalDecision{}, nil
+		}
+		approved, err := approve(ctx, r)
+		return capabilityapp.ApprovalDecision{Approved: approved}, err
+	})
+}
+
+func (c *Client) RequestCapabilityWithDecision(
 	ctx context.Context,
 	request core.CapabilityRequest,
-	approve func(context.Context, core.ApprovalRequest) (bool, error),
+	approve func(context.Context, core.ApprovalRequest) (capabilityapp.ApprovalDecision, error),
 ) (core.CapabilityResult, error) {
 	conn, err := c.wire.OpenStream(ctx, MethodCapabilityRequest, capabilityPayload(request))
 	if err != nil {
@@ -62,17 +89,20 @@ func (c *Client) RequestCapability(
 			if frame.Approval == nil || frame.Result != nil || frame.Error != nil {
 				return core.CapabilityResult{}, fmt.Errorf("invalid capability approval frame: %w", control.ErrProtocol)
 			}
-			approved := false
+			decision := capabilityapp.ApprovalDecision{}
 			if approve != nil {
-				approved, err = approve(ctx, frame.Approval.coreRequest())
+				decision, err = approve(ctx, frame.Approval.coreRequest())
 				if err != nil {
 					return core.CapabilityResult{}, err
 				}
 			}
+			if decision.Save != "" && !frame.SavedChoices {
+				return core.CapabilityResult{}, fmt.Errorf("controller does not support saved approval choices: %w", core.ErrUnsupported)
+			}
 			// A client without an approval terminal explicitly responds false.
 			// This lets the controller audit an ordinary denial instead of turning
 			// a missing UI callback into a transport failure.
-			if err := encoder.Encode(capabilityClientFrame{Type: capabilityFrameApprovalResponse, Approved: approved}); err != nil {
+			if err := encoder.Encode(capabilityClientFrame{Type: capabilityFrameApprovalResponse, Approved: decision.Approved, Save: decision.Save}); err != nil {
 				return core.CapabilityResult{}, err
 			}
 		case capabilityFrameResult:

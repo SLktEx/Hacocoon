@@ -43,6 +43,11 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 		return fmt.Errorf("resolve trusted host root storage: %w", err)
 	}
 
+	if r.trustedHostCopyRecovery != nil {
+		if err := r.trustedHostCopyRecovery(ctx); err != nil {
+			return err
+		}
+	}
 	state, exists, err := r.trustedHostState(ctx)
 	if err != nil {
 		return err
@@ -57,12 +62,16 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 		if err := r.ensureTrustedHostControlDevice(ctx); err != nil {
 			return err
 		}
-		return r.ensureTrustedHostRunning(ctx, state)
+		return r.completeTrustedHost(ctx, state, rootPool)
 	}
 
+	if err := r.ensureTrustedHostNetwork(ctx); err != nil {
+		return err
+	}
 	_, initErr := r.runner.Run(ctx, "incus", "init", r.image, trustedHostName,
 		"--project", r.project,
 		"--storage", rootPool,
+		"--no-profiles", "--network", trustedHostNetwork,
 		"--config", trustedHostRoleKey+"="+trustedHostRoleValue,
 		"--config", trustedHostControlEnvKey+"="+trustedHostControlSocket,
 	)
@@ -82,7 +91,7 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 		if err := r.ensureTrustedHostControlDevice(ctx); err != nil {
 			return errors.Join(fmt.Errorf("create trusted host: %w", initErr), err)
 		}
-		return r.ensureTrustedHostRunning(ctx, state)
+		return r.completeTrustedHost(ctx, state, rootPool)
 	}
 
 	if err := r.verifyTrustedHostOwnership(ctx); err != nil {
@@ -94,7 +103,38 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 	if err := r.ensureTrustedHostControlDevice(ctx); err != nil {
 		return err
 	}
-	return r.ensureTrustedHostRunning(ctx, "STOPPED")
+	return r.completeTrustedHost(ctx, "STOPPED", rootPool)
+}
+
+func (r *Runtime) completeTrustedHost(ctx context.Context, state, pool string) error {
+	if err := r.ensureTrustedHostNetworkAndRunning(ctx, state, pool); err != nil {
+		return err
+	}
+	if r.trustedHostInterop != nil {
+		return r.trustedHostInterop(ctx)
+	}
+	return nil
+}
+
+// ConfigureWSLInterop uses the installer-owned setup script. It does not
+// register binfmt handlers or install a Windows executable launcher.
+func (r *Runtime) ConfigureWSLInterop() {
+	configure := func(ctx context.Context, mode string) error {
+		const script = "/usr/local/libexec/hacocoon-wsl-interop"
+		if _, _, err := trustedClientSource(script); err != nil {
+			return fmt.Errorf("WSL interop setup unavailable; rerun Windows installer: %w", err)
+		}
+		args := []string{"-I", script}
+		if mode != "" {
+			args = append(args, mode)
+		}
+		if _, err := r.runner.Run(ctx, "/usr/bin/python3", args...); err != nil {
+			return fmt.Errorf("refresh trusted Host Windows access; rerun Windows installer: %w", err)
+		}
+		return nil
+	}
+	r.trustedHostInterop = func(ctx context.Context) error { return configure(ctx, "") }
+	r.trustedHostNotifications = func(ctx context.Context) error { return configure(ctx, "--notifications=refresh") }
 }
 
 // ProvisionTrustedHostClient installs the client-only haco-host binary into the
@@ -355,6 +395,14 @@ func (r *Runtime) verifyTrustedHostOwnership(ctx context.Context) error {
 }
 
 func (r *Runtime) ensureTrustedHostRunning(ctx context.Context, state string) error {
+	unlock, err := lockHostOperation(ctx, r.project)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if err := r.rejectPendingHostCopy(ctx); err != nil {
+		return err
+	}
 	switch strings.ToUpper(strings.TrimSpace(state)) {
 	case "RUNNING":
 		return nil

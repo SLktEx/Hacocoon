@@ -215,6 +215,21 @@ config_file() {
   printf '%s/config-%s-%s' "$state" "$instance" "$safe_key"
 }
 case "$command_name" in
+  query)
+    if [ "${1:-}" = "-X" ] && [ "${2:-}" = "GET" ] && [ "${3:-}" = "/1.0/images/aliases?project=hacocoon&recursion=1" ]; then printf "[]\n"; exit 0; fi
+    python3 - "$state" "${1:-}" <<'PYQUERY'
+import json, pathlib, sys
+state, endpoint = pathlib.Path(sys.argv[1]), sys.argv[2]
+if endpoint.startswith('/1.0/storage-pools/'):
+    pool = endpoint.rsplit('/', 1)[1]
+    assert (state / ('storage-' + pool)).is_file()
+    print(json.dumps(dict(name=pool, driver='btrfs')))
+elif endpoint == '/1.0/instances?project=hacocoon&recursion=1':
+    print(json.dumps([json.loads(p.read_text()) for p in state.glob('retained-base-*.json')]))
+else:
+    raise SystemExit(2)
+PYQUERY
+    ;;
   version) echo '6.12-fake' ;;
   project)
     action="${1:-}"; project="${2:-}"
@@ -316,6 +331,20 @@ case "$command_name" in
     image="${1:-}"; instance="${2:-}"
     [ -n "$image" ] && [ -n "$instance" ] || exit 2
     echo STOPPED > "$state/instance-$instance"
+    python3 - "$state" "$@" <<'PYINIT'
+import json, pathlib, sys
+state, image, name = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+args = sys.argv[4:]
+config = dict(arg.split('=', 1) for i, arg in enumerate(args) if i > 0 and args[i-1] == '--config')
+if config.get('user.hacocoon.kind') == 'base':
+    assert '--no-profiles' in args
+    pool = args[args.index('--storage') + 1]
+    config['volatile.base_image'] = image.split(':', 1)[1]
+    devices = dict(root=dict(type='disk', path='/', pool=pool))
+    item = dict(name=name, type='container', status='Stopped', ephemeral=False, profiles=[],
+                config=config, expanded_config=config, devices=devices, expanded_devices=devices)
+    (state / ('retained-base-' + name + '.json')).write_text(json.dumps(item))
+PYINIT
     ;;
   config)
     case "${1:-}" in
@@ -386,7 +415,7 @@ case "$command_name" in
     instance="${1:-}"; [ -f "$state/instance-$instance" ] || exit 0
     column=''; previous=''
     for arg in "$@"; do [ "$previous" = -c ] && column="$arg"; previous="$arg"; done
-    case "$column" in n) printf '%s\n' "$instance" ;; s|*) cat "$state/instance-$instance" ;; esac
+    case "$column" in n) printf '%s\n' "$instance" ;; ns) printf '%s,%s\n' "$instance" "$(cat "$state/instance-$instance")" ;; s|*) cat "$state/instance-$instance" ;; esac
     ;;
   delete)
     instance="${1:-}"
@@ -523,6 +552,9 @@ set -e
 grep -Fq run-error "$root/run.err"
 [[ "$(grep -c '^delete haco-run-' "$HACO_FAKE_INCUS_LOG")" -ge 2 ]]
 
+# The approval source must be an actual catalog Environment, created through
+# the same canonical lifecycle as the other fake-provider scenarios above.
+"$haco" create --workspace "$workspace" agent-run >/dev/null
 mkdir -p "$HACO_ROOT"
 cat > "$HACO_ROOT/policy.json" <<'JSON'
 {"default":"deny","rules":[{"capability":"local.echo","action":"echo","resource":"*","environment":"agent-run","decision":"require-approval","reason":"security approval test"}]}
@@ -542,5 +574,7 @@ raw=open(sys.argv[1]).read().lower()
 assert 'parameters' not in raw
 assert 'message' not in raw
 PY
+
+"$haco" delete agent-run
 
 echo 'PASS: Hacocoon orchestration, Base, resource, storage, and isolated-bridge E2E'

@@ -8,6 +8,10 @@ v0.17はphysical OCI Seed pipelineを担当します。trusted Host-side image a
 
 Local Registryは必須ではありません。
 
+2026-09-05の方針: Seed撤去は **planned** であり、削除済みではない。新しいSeed依存は追加しない。以降は残存実装と過去の受入範囲の説明として扱う。
+
+`internal/composition` はOCI Plugin有効時のみSeed store/resolverを構成する。`modules/runtime/incus/base.go` は親Baseを独立解決してから任意のcurrent Seed revisionを選ぶ。まずこの任意解決を分離して既存の固定Base revisionとdataを保持し、次にSeed command・builder・recommendation/harvest・関連test/docsを撤去する。Base選択・変更と任意Plugin契約は維持する。独立Workspace repo cloneは別のstorage契約であり、Seed pipelineの後継にはしない。
+
 この実装は、このfeatureがv0.18と呼ばれていた時点からlandし始めました。現在の正本ではSeed Builder/COWをv0.17へ付け替えます。historical commit/PRには旧番号が残る場合があります。
 
 ## Goal

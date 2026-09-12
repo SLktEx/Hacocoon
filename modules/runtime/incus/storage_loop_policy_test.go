@@ -102,3 +102,47 @@ func TestEnsureBtrfsLoopPoolSurfacesMountOptionReconcileFailure(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestEnsureBtrfsLoopPoolFailsClosedOnUnverifiedPolicy(t *testing.T) {
+	const desired = "compress=zstd:3,noatime,nodiscard"
+	for _, stage := range []string{"initial read", "readback", "stale readback"} {
+		t.Run(stage, func(t *testing.T) {
+			reads, writes := 0, 0
+			failure := errors.New("storage inspection unavailable")
+			runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+				switch args[1] {
+				case "show":
+					return host.Result{}, nil
+				case "get":
+					reads++
+					if stage == "initial read" || (stage == "readback" && reads == 2) {
+						return host.Result{}, failure
+					}
+					return host.Result{Stdout: "compress=zstd:3\n"}, nil
+				case "set":
+					writes++
+					return host.Result{}, nil
+				default:
+					t.Fatalf("unexpected mutation: %v", args)
+					return host.Result{}, failure
+				}
+			}}
+			pool, err := New(runner).EnsureBtrfsLoopPool(context.Background(), BtrfsLoopPoolSpec{
+				Name: "haco-local-default", Size: "128GiB", MountOptions: desired,
+			})
+			if err == nil || pool != "" {
+				t.Fatalf("unverified policy returned pool=%q, error=%v", pool, err)
+			}
+			if stage != "stale readback" && !errors.Is(err, failure) {
+				t.Fatalf("inspection error was lost: %v", err)
+			}
+			wantWrites := 1
+			if stage == "initial read" {
+				wantWrites = 0
+			}
+			if writes != wantWrites {
+				t.Fatalf("writes=%d, want %d", writes, wantWrites)
+			}
+		})
+	}
+}

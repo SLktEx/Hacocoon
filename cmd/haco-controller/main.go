@@ -7,9 +7,11 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/composition"
 	"github.com/SLktEx/Hacocoon/internal/control"
@@ -20,15 +22,73 @@ import (
 const controlGroupGIDEnv = "HACO_CONTROL_GROUP_GID"
 
 func main() {
+	logger, err := logging.NewFromEnv(os.Stderr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "controller logging configuration is invalid")
+		os.Exit(1)
+	}
+	logging.SetRoot(logger)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	app, err := composition.Local(ctx)
+	standardEgress, err := controllerMode(os.Args[1:])
+	if err != nil {
+		fail(err)
+	}
+	app, err := composition.Controller(ctx)
 	if err != nil {
 		fail(err)
 	}
 	server := control.NewServer()
+	if err := controlapi.RegisterReviews(server, app.Reviews); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterConfiguration(server, app.Configuration); err != nil {
+		fail(err)
+	}
 	if err := controlapi.Register(server, app.Environments, app.Clients); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterBaseManage(server, app.BaseManage); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterBaseBuild(server, app.BaseBuild); err != nil {
+		fail(err)
+	}
+	if err := registerEnvironmentExport(server, app); err != nil {
+		fail(err)
+	}
+	if err := registerEnvironmentImport(server, app); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterEnvironmentCopy(server, app.EnvironmentCopy); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterSnapshotRestore(server, app.SnapshotRestore); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterSnapshots(server, app.Environments); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterStart(server, app.Environments); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterStop(server, app.Environments); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterAWS(server, app.AWS); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterManagedWorkspaces(server, app.Environments); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterRepositories(server, app.Repositories, app.GitBroker); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterOCIImages(server, app.OCIImages); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterOCIStores(server, app.PersistentResources); err != nil {
 		fail(err)
 	}
 	if err := controlapi.RegisterGeneral(server, app.Bases, app.Runner, app.Events, app.Capabilities); err != nil {
@@ -37,6 +97,40 @@ func main() {
 	if err := controlapi.RegisterHost(server, app.Runtime); err != nil {
 		fail(err)
 	}
+	if err := controlapi.RegisterProjectSetup(server, app.ProjectSetup); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterSetup(server, app); err != nil {
+		fail(err)
+	}
+	if err := registerReclamation(server, app); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterDoctor(server, app); err != nil {
+		fail(err)
+	}
+
+	var proxyListener net.Listener
+	if standardEgress {
+		executable, sourceErr := os.Executable()
+		if sourceErr != nil {
+			fail(sourceErr)
+		}
+		if sourceErr = app.Runtime.ConfigureEnvironmentDNS(filepath.Join(filepath.Dir(executable), "haco")); sourceErr != nil {
+			fail(sourceErr)
+		}
+		prepareCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		address, prepareErr := app.Runtime.PrepareEgressProxy(prepareCtx)
+		cancel()
+		if prepareErr != nil {
+			fail(fmt.Errorf("prepare Standard egress substrate failed"))
+		}
+		proxyListener, err = net.Listen("tcp4", address)
+		if err != nil {
+			fail(fmt.Errorf("bind Standard egress endpoint: %w", err))
+		}
+		defer proxyListener.Close()
+	}
 
 	path := control.SocketPath()
 	listener, err := controllerListener(path)
@@ -44,12 +138,59 @@ func main() {
 		fail(err)
 	}
 	defer listener.Close()
-
-	logger := logging.Root().With("component", "control")
-	logger.InfoContext(ctx, "controller listening", "socket_path", path)
-	if err := server.Serve(ctx, listener); err != nil && !errors.Is(err, context.Canceled) {
+	if err := app.GitBroker.Start(ctx); err != nil {
 		fail(err)
 	}
+	defer app.GitBroker.Close()
+
+	logger = logging.Root().With("component", "control")
+	logger.InfoContext(ctx, "controller listening", "socket_path", path)
+	services := []func(context.Context) error{func(ctx context.Context) error { return server.Serve(ctx, listener) }}
+	if proxyListener != nil {
+		services = append(services, func(ctx context.Context) error { return app.EgressProxy.Serve(ctx, proxyListener) })
+		logging.Root().InfoContext(ctx, "Standard egress proxy listening", "component", "proxy", "operation", "serve_http")
+	}
+	if err := serveControllerServices(ctx, services...); err != nil && !errors.Is(err, context.Canceled) {
+		fail(err)
+	}
+}
+
+// The installed unit explicitly enables the replaceable Standard component.
+// A bare controller remains available for isolated control-transport use.
+func controllerMode(args []string) (bool, error) {
+	if len(args) == 0 {
+		return false, nil
+	}
+	if len(args) == 1 && args[0] == "--standard-egress" {
+		return true, nil
+	}
+	return false, fmt.Errorf("usage: haco-controller [--standard-egress]")
+}
+
+func serveControllerServices(parent context.Context, services ...func(context.Context) error) error {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	if len(services) == 0 {
+		return fmt.Errorf("controller has no services")
+	}
+	results := make(chan error, len(services))
+	for _, serve := range services {
+		go func() { results <- serve(ctx) }()
+	}
+	err := <-results
+	cancel()
+	for range len(services) - 1 {
+		<-results
+	}
+	if parent.Err() != nil {
+		return parent.Err()
+	}
+	// An independently stopped component must restart the whole controller,
+	// including when it returned nil or context.Canceled unexpectedly.
+	if err == nil || errors.Is(err, context.Canceled) {
+		return fmt.Errorf("controller service stopped unexpectedly")
+	}
+	return err
 }
 
 func controllerListener(path string) (net.Listener, error) {

@@ -1,6 +1,67 @@
 # Trusted `haco-host`
 
+Implemented: Host `haco setup` waits for controller readiness through bounded read-only Ping probes before sending setup once. A failed setup response is never retried automatically. This handles the interval between systemd service activation and socket readiness without adding CLI steps.
+
+
+## Notification companion
+
+Implemented: setup also provisions same-release `/usr/local/bin/haco-notify`,
+validating all required companions before provider mutation. Provisioning reuses
+Host ownership, digest and root-owned executable metadata checks. Notifications
+read the existing controller endpoint in controller mode; the Host does not need
+the Physical Host audit file. See [interaction events](../INTERACTION_EVENTS.md).
+Fresh packaged acceptance for this addition remains pending.
+
+
 Status: partial.
+
+The managed-repository WSL slice is **implemented**: registered upstream clones
+and GitHub authentication live in this trusted Host. Independent Workspace
+volume copies are detached before Environment use. Git-only broker requests
+invoke fixed trusted Git operations; the Physical Host retains all controller,
+Policy and Incus authority. See the
+[workflow](../reference/managed-repository-workflow.md) and
+[ADR 0008](../adr/0008-managed-repository-workspaces.md). Windows drive/exe
+integration is reconciled by normal Windows installation and setup; see below.
+
+## Windows interop
+
+The normal Windows installer captures only Windows PATH entries already
+converted by WSL and stores them in the root-owned Physical Host configuration.
+Controller-backed setup projects actual mounted DrvFs drive roots, read-only
+`/init` and the WSL interop socket directory into the owned `haco-host`.
+No drive-letter list is compiled into the product. Linux PATH entries from the
+Physical Host are excluded; the trusted Host keeps its own Linux PATH.
+
+Fresh WSL already registers the native `WSLInterop` binfmt handler. Hacocoon
+reuses it and WSL's `/init`, sets the stable init interop socket path and adds the
+Windows PATH to trusted shell startup. The socket directory is mounted outside
+transient `/run`; standard systemd tmpfiles restores `/run/WSL` as a symlink to
+that read-only projection at every boot, preserving native absolute socket
+symlinks. It does not register another handler or
+create a Windows executable launcher. Healthy native binfmt registration is left
+untouched; if it disappeared, setup asks WSL's own generated systemd integration
+to restore it. Disabled or incompatible registrations are rejected. In a new
+trusted shell:
+
+```bash
+cmd.exe /c ver
+powershell.exe -NoProfile -NonInteractive -Command "[Console]::Out.WriteLine('hello'); exit 23"
+echo $?  # 23
+```
+
+For Windows tools sensitive to UNC current directories, first `cd` to an
+available projected Windows directory. Read/write operations affect the actual
+Windows filesystem and survive Environment/Host recreation; Windows ACLs still
+apply. Projection devices persist in Incus and setup reconciles their identity.
+The installer and ordinary setup can be rerun. Drive hotplug/removal and generic
+recovery remain deferred.
+
+Only trusted `haco-host` receives these mounts, PATH and executable authority.
+Environment creation uses explicit devices without inherited profiles. It never
+receives `/init`, WSL sockets, Windows drives or the trusted controller socket.
+See [ADR 0009](../adr/0009-trusted-host-windows-interop.md) and the commit-bound
+fresh-install/restart results in [implementation status](../IMPLEMENTATION_STATUS.md).
 
 ## Summary
 
@@ -27,8 +88,8 @@ Managed Environments                   UNTRUSTED
 
 The current implementation provides:
 
-- `haco host ensure`, which reconciles one persistent `haco-host`;
-- `haco host shell`, which ensures the instance is running and enters an interactive login shell;
+- `haco setup`, which reconciles one persistent `haco-host`;
+- ordinary `wsl -d Hacocoon` entry and the retained legacy `hacoq host shell` alias;
 - the ownership marker `user.hacocoon.role=trusted-host`;
 - rootfs placement on Hacocoon-managed Incus storage;
 - Environment name `host` reserved to avoid a provider-local collision;
@@ -39,7 +100,7 @@ The current implementation provides:
 - `environment.HACO_CLIENT_MODE=controller`, which prevents still-unmigrated `haco` commands from silently using guest-local composition;
 - supported WSL bootstrap that verifies `haco-host doctor` before enabling default interactive entry.
 
-The broader trusted-Host design is still partial: Git/GitHub, OCI/containerd, cloud credentials, general external tooling, Windows mounts, and WSL interop have not all moved into `haco-host`, and the full `haco` versus `haco-host` responsibility migration is not complete.
+The broader namespace migration, cloud credentials and general external tooling remain partial. Git/GitHub and Windows integration above are implemented. Current OCI Stores attach only to Environments and do not require a Host runtime.
 
 ## Trust and authority
 
@@ -92,7 +153,7 @@ The Physical Host controller uses:
 /run/hacocoon/control.sock
 ```
 
-The supported WSL bootstrap runs `haco-controller` under systemd and verifies the socket is `root:root` mode `0600`.
+The supported WSL bootstrap runs `haco-controller` under systemd and verifies the socket is `root:hacocoon` mode `0660`. Membership in `hacocoon` grants privileged controller authority. The trusted-instance proxy remains root-only as shown below.
 
 The trusted instance receives exactly this proxy shape:
 
@@ -122,7 +183,7 @@ The instance-side socket is intentionally outside `/run` so guest runtime tmpfs 
 
 ## Client provisioning
 
-`haco host ensure` provisions both release client binaries:
+`haco setup` provisions both release client binaries:
 
 ```text
 /usr/local/bin/haco-host
@@ -133,35 +194,55 @@ The Physical Host source for each binary must be a regular executable, owned by 
 
 This makes repeated ensure idempotent and avoids trusting arbitrary pre-existing executables in the trusted instance.
 
-The general `haco` binary is intentionally guarded by `HACO_CLIENT_MODE=controller`. The first-class `haco env ...` namespace always uses the controller path. Historical flat Environment aliases are also forced through the controller while this mode is active, and other still-unmigrated commands fail before `composition.Local()` can initialize guest-local state.
+The product `haco` binary has no guest-local composition fallback and does not invoke `hacoq`. The temporary `hacoq` remains in the Physical Host release payload for unmigrated operations; fresh trusted-host setup no longer provisions it. Existing guest copies are not a product dependency. Its controller-mode guard still refuses guest-local operations.
 
 The mode marker is not an authorization credential. `haco-host` is already trusted, and the Physical Host controller remains the authority for policy, state, and provider operations.
+
+## Dedicated trusted-host network
+
+The Incus adapter owns `haco-host0` in the default resource project, marked `user.hacocoon.owner=trusted-host-network-v1`. It verifies the owner, managed bridge type, private IPv4 subnet, DHCP/DNS/NAT/routing/firewall settings and consumers before use. Unknown routing/DNS overrides, external interfaces or foreign consumers fail closed. IPv6 is disabled in this initial trusted-network contract.
+
+The Ubuntu installer explicitly installs `dnsmasq-base` for Incus bridge DNS/DHCP, including when Incus was previously installed without recommended packages. Package installation failure stops preparation before daemon readiness or trusted-host setup; no additional `haco` option or manual DNS step is required.
+
+Fresh trusted hosts have an explicit local NIC/root disk and no inherited profiles. Common installation checks Incus readiness and does not call minimal initialization or create a default directory pool. Existing exactly owned hosts using the known default-profile `incusbr0` NIC are gracefully stopped once, migrated to the explicit NIC and restarted; root disk, UUID and files are retained. Unknown profiles/devices fail without migration. A failed migration is resumable and never deletes the old shared bridge, profile or storage pool.
+
+Before bootstrap/entry, the adapter checks IPv4 forwarding and reconciles Docker's `DOCKER-USER` extension point when present. Its two rules match only this bridge/subnet's outbound packets and established/related replies. Global FORWARD policy and Environment bridges are untouched. DROP without a supported extension point fails explicitly. A firewall reload or late Docker startup during an open session is not continuously reconciled; another entry rechecks the state.
+
+The installer verifies DNS, a default IPv4 route and HTTPS inside the real trusted host before reporting success. These infrastructure checks are separate from Environment proxy/default-deny acceptance. See [ADR 0005](../adr/0005-trusted-host-network-ownership.md). Repository regressions and isolated Linux packet checks are separate from final packaged Windows acceptance.
 
 ## Storage
 
 `haco-host` uses the root storage pool selected by the normal Hacocoon Incus storage integration. On the default local backend this keeps the instance rootfs in Hacocoon's sparse-raw Btrfs-backed Incus pool.
 
-This does not by itself prove that all future `haco-host` data is physically COW-shared with Seeds or Environments. Physical sharing remains measurement-dependent.
+This does not by itself prove that all future `haco-host` data is physically COW-shared with Base images or Environments. Physical sharing remains measurement-dependent.
 
 ## WSL default entry
 
+The common Ubuntu installer installs an Incus-specific startup guard. Across
+PID namespace boots it archives old network/proxy process records before Incus
+can replay a reused PID against a new worker. Same-namespace service restarts
+retain records. Unknown or unsafe metadata refuses startup; no process is
+signalled and no resource or Workspace is removed. See
+[ADR 0013](../adr/0013-incus-pid-record-boot-identity.md) for initialization,
+durability, trust boundaries and the remaining upstream scope.
+
 After the supported installer succeeds, the normal non-root WSL user's login shell becomes the dedicated `hacocoon-login` entry.
 
-For an interactive no-command launch it delegates to:
+For an interactive no-command launch the product alias connects directly through:
 
 ```text
-sudo -n <system-owned-haco> host shell
+controlapi.Client.OpenTrustedHostShell
 ```
 
-The narrow sudo rule authorizes only exact `haco host ensure` and `haco host shell`; it does not grant `incus-admin` by default.
+No sudo rule or `hacoq` subprocess is involved. Root-side installation preserves the ordinary user's exact UID/GID and grants controller access through the `hacocoon` group; it does not grant `incus-admin` by default. See [ADR 0004](../adr/0004-wsl-installer-authority.md).
 
 Before changing that login shell, bootstrap now requires all of these to succeed:
 
 1. Incus is active;
 2. `haco-controller` is installed as a root-owned system binary;
 3. `haco-controller.service` is restarted on the current release;
-4. `/run/hacocoon/control.sock` is a root-owned mode-`0600` Unix socket;
-5. `haco host ensure` reconciles the trusted Host, proxy, client mode, and both client binaries;
+4. `/run/hacocoon/control.sock` is a `root:hacocoon` mode-`0660` Unix socket;
+5. `haco setup` reconciles the trusted Host, proxy, client mode, and both client binaries;
 6. `haco-host doctor` succeeds from inside the real trusted instance.
 
 Only then does normal entry become:
@@ -172,7 +253,7 @@ wsl -d Hacocoon
 
 ```text
 Physical Host login entry
-    -> haco host shell
+    -> product haco login alias -> Physical Host controller
     -> haco-host
 ```
 
@@ -186,7 +267,7 @@ When `-SkipIncus` is selected, controller/Host automatic entry is not configured
 
 ## Interactive warning
 
-`haco host shell` prints a short privileged-management warning before entering `haco-host`. Japanese locale settings receive Japanese wording; other locales receive English wording.
+`hacoq host shell` prints a short privileged-management warning before entering `haco-host`. Japanese locale settings receive Japanese wording; other locales receive English wording.
 
 The warning is emitted only on the interactive Host-shell path, so non-interactive WSL commands are not polluted.
 
@@ -194,10 +275,10 @@ The warning is emitted only on the interactive Host-shell path, so non-interacti
 
 Still separate work:
 
-- make `haco-host` the normal home for Git/GitHub and selected external-service tooling;
-- run the Host OCI store/containerd inside `haco-host`;
+- extend trusted external-service tooling beyond the implemented Git/GitHub path;
+- evaluate additional optional OCI runtime compatibility; current Stores attach only to Environments;
 - broker credentials without putting reusable credentials in ordinary Environments;
-- add optional WSL/Windows interop only to the trusted Host;
+- evaluate wider Windows application compatibility beyond the accepted native CLI cases;
 - classify and migrate the remaining appropriate `haco` commands to the controller client path;
 - move trusted Host-local operations into their long-term `haco-host` namespaces and remove temporary ambiguity;
 - finish the `haco` versus `haco-host` CLI responsibility split;
@@ -207,6 +288,58 @@ Still separate work:
 
 Repository tests cover ownership reconciliation, collision refusal, state recovery, exact controller-proxy validation, both client binaries' provisioning/idempotency, client-mode drift refusal, CLI routing, fail-closed fallback prevention, warning selection, and login-mode identification.
 
-Real Incus E2E covers trusted instance creation, control endpoint projection, production installation of both client binaries, exact general-client digest equality, `haco-host doctor` and `haco env ...` through the Physical Host controller, restart recovery, legacy Environment alias controller routing, unmigrated-command refusal before guest-local state creation, raw Incus-socket non-exposure, and absence of the trusted endpoint/client-mode marker on ordinary Environments.
+The maintained real Incus E2E gate checks controller-owned `haco setup`, endpoint projection, digest equality of both required clients, `haco-host doctor` and `haco-host env ...` through the Physical Host controller, restart recovery, absence of guest `hacoq` after fresh setup, raw Incus-socket non-exposure, and absence of the trusted endpoint/client-mode marker on ordinary Environments. Retained legacy aliases, Base routing and local-composition guards have component coverage. The updated gate passed on `b71f88e`; commit-bound Windows results and remaining limits are recorded in [implementation status](../IMPLEMENTATION_STATUS.md).
 
-Actual Windows terminal startup, WSL distribution restart behavior, login-shell transition, and Windows integration still require real Windows + WSL acceptance before being claimed as host-verified.
+Windows/WSL claims are limited to the commit-bound real-host acceptance in implementation status. Other hardware and configurations remain unverified.
+
+## Saved customization recipes
+
+Status: **implemented explicit controller setup/replay; Windows GHA acceptance passed at bcc1baf**.
+
+`haco setup --script <path>` saves and runs a user-selected Bash recipe after normal
+Host preparation. `haco setup` replays its saved snapshot; editing the original file
+has no effect until another explicit `--script` update. `haco setup --clear-script`
+removes the saved recipe without executing it. No new top-level command is required.
+
+The client reads a regular UTF-8 file of at most 1 MiB. UTF-8 BOM and Windows CRLF
+are normalized. The controller stores the snapshot privately at
+`/var/lib/hacocoon/host-customization/recipe.sh` (under its configured Hacocoon root).
+It verifies the owned trusted Host and supplies the bytes on stdin to
+`/bin/bash -se` in `/root` through a fixed transient systemd unit. The unit refuses
+overlapping runs and stops its process group after at most 14 minutes, including
+when the controller exits. A shorter request deadline reduces that limit. The recipe is never executed on the Physical Host and
+is never copied to an Environment. Project files are not searched for hooks.
+
+For example, inside trusted `haco-host`:
+
+```sh
+cat > ~/host-setup.sh <<'SH'
+install -d -m 0755 "$HOME/.local/bin"
+cat > "$HOME/.local/bin/hello-haco" <<'HELLO'
+#!/bin/sh
+echo "hello from haco-host"
+HELLO
+chmod 0755 "$HOME/.local/bin/hello-haco"
+SH
+haco setup --script ~/host-setup.sh
+haco setup
+haco setup --clear-script
+```
+
+Write replayable recipes. Setup reports failure and retains the saved recipe if a
+step fails; it does not roll back earlier user commands. Script stdout/stderr are
+not forwarded to controller diagnostics because they may contain credentials.
+To inspect a recipe's own output, run the original script directly in the trusted
+Host. Unsafe stored-file permissions or links fail closed and require inspection
+of the controller-owned configuration. Explicit controller setup after Host recreation can reuse the snapshot; real
+recreation acceptance and implicit recreation outside setup remain unverified. See [ADR 0019](../adr/0019-trusted-host-customization.md).
+
+## Nested OCI runtimes
+
+The maintained OCI setup integration enables `security.nesting=true` only after
+verifying the unprivileged owned Host and its canonical ready source area.
+Missing ownership, inherited profiles, paused/pending copies or ambiguous
+provider results refuse setup. The setting persists; repeated setup revalidates
+and reuses it. See [ADR 0032](../adr/0032-owned-host-nested-runtime.md).
+Runtime binaries remain optional and actual image recovery requires separate
+Docker/nerdctl acceptance.

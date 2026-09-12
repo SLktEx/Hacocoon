@@ -1,0 +1,112 @@
+# ADR 0040: Incus-first saved data and disposable Environments
+
+Status: accepted. Supersedes Base filesystem requirements in ADR 0037/0038 and
+automatic pre-restore backup requirements in ADR 0039.
+
+## Decision
+
+Use Incus instance/custom-volume copies on Btrfs. Keep Hacocoon's aggregate
+ownership, source write exclusion and fresh security generation. Environments
+are disposable; Workspace, OCI and explicitly saved snapshots are not.
+
+A saved rootfs is an independent complete copy. Remove new snapshot Base
+components and automatic Base retention during ordinary creation. Base provenance
+remains metadata. Remove automatic pre-restore backup: prepare independent copies
+without changing current data. Do not add rollback snapshots or an all-crash-point
+runtime recovery machine. Retain ambiguous owned residue until positive cleanup.
+
+Keep the existing package boundaries for native storage, orchestration, catalog
+and routing; they already express real responsibilities. Incus capabilities need
+not be hidden behind constraints for nonexistent providers.
+
+## Alternatives rejected
+
+- Instance-dependent snapshots alone: deleting the source would lose saved rootfs.
+- Retaining Base under another name: duplicates material already in saved rootfs.
+- Automatic backup as a safety prerequisite: changes the explicit restore contract
+  and adds storage and failure paths. Users can explicitly save first.
+- Dropping old fields or downgrading schema: loses ownership of existing saved data.
+- Removing lifecycle receipts: can release a data lease or permission generation
+  while provider resources remain. Security/data guarantees are still required.
+
+## Compatibility and scope
+
+Schema 10 preserves legacy Base components and schema-8 before snapshots and
+migrates only the current target identity. Existing material is not deleted by
+upgrade. The unpublished schema-9 replacement prototype is rejected explicitly.
+Prepared storage alone is not a runnable restore. Public restore now combines
+normal data copies with canonical creation/start; in-place replacement is planned. See the [snapshot contract](../design/environment-snapshots.md).
+
+## Restored Workspace registration
+
+Create normal independently owned Incus volumes from the saved copies rather
+than renaming staging objects and changing ownership underneath their cleanup
+receipts. Keep Git routing provenance in the saved binding, sourced from the
+trusted registry; never reconstruct Host policy from guest `.git/config` or an
+old repository name that may have been reused. Old metadata-less bindings remain
+owned and readable, but automatic registration refuses missing provenance.
+This adds no Base dependency, automatic backup or replacement rollback machine.
+
+## Restored OCI registration
+
+Use the normal Store catalog and an independent Incus volume copy. Keep a
+short-lived snapshot reference while copying, with a durable `created` receipt
+before verification and publication. Schema 11 prevents older controllers from
+silently discarding those new ownership fields. Retain schema 10 records and all
+older supported saved data. Clear the source reservation only on publication or
+positive exact-owned cleanup. This protects immutable saved data; it does not
+promise automatic runtime recovery or replay old approvals/management settings.
+
+## Saved rootfs execution
+
+Copy saved rootfs directly through Incus, then apply the same current security
+and attachment configuration as ordinary creation. Record native ownership before
+that fallible phase. Preserve only the rootfs idmap bookkeeping needed by Incus,
+not saved management config or permission generation. Renew managed guest SSH
+identity before publication. Keep this native primitive in the Incus package;
+aggregate reservations and publication remain orchestration responsibilities.
+It introduces no Base retention, backup or general runtime rollback coordinator.
+
+## Capture interruption
+
+Public capture may stop a running source using Incus under the existing
+Environment/Workspace locks. Verify the same generation before copying and again
+before restart. Restart only after all saved components are verified and the
+catalog is ready; do not restart an incomplete capture and destroy its consistent
+source. An already stopped source stays stopped. Keep the ready save ID even if
+restart fails. No extra durable runtime-resume state or automatic retry/rollback
+is needed: the user can inspect saved data and use ordinary start after cleanup.
+
+## Workspace copy source lifetime
+
+The registry records exact destination ownership before copying. The catalog also
+holds the saved source until complete publication or positive owned cleanup;
+a caller-held in-memory reservation cannot protect an interrupted native copy.
+Schema 13 preserves older saved data and schema 12/11 source receipts. Failed
+reservation release retains the registry record. Retry on an already published
+Workspace releases only that reservation, without deleting its data. This is a
+data-lifetime guard, not a runtime recovery state machine or hidden backup.
+
+## Public restore orchestration
+
+Use a short application service for data copies, canonical creation and start.
+Do not import the rejected full replacement/replay prototype. Refuse an existing
+Env name and create fresh permissions. Before pre-publication failure cleanup,
+hold the canonical Workspace lock, compare its current identity and require all
+durable leases absent. Exact-owner native cleanup preserves uncertain receipts.
+Once published, a failed start keeps the Env and data for ordinary start/recreate.
+Per-copy saved-source holds suffice: source deletion between completed copies may
+fail the next stage, but cannot mutate an independent completed copy. There is no
+need to introduce another aggregate recovery catalog or hidden backup.
+
+## Stopped Environment copy
+
+Reuse stopped aggregate capture and canonical restore for public Env copy. The
+intermediate uses native Btrfs COW and the existing exact ownership catalog;
+remove it after the attempt, retaining its visible ID on uncertain cleanup.
+This trades an extra native COW stage for one ownership/lifecycle implementation.
+Do not adopt partially prepared volumes, transfer their cleanup ownership, hold
+source and destination lifecycle locks simultaneously, or add a second recovery
+catalog merely to avoid that stage. Source and destination must be different,
+the source must be stopped, and the destination must be new. This is not an
+automatic pre-restore backup or a mechanism for rolling back existing data.

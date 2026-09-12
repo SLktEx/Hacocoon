@@ -11,13 +11,13 @@ import (
 
 func TestInspectEnvironmentMapsIncusState(t *testing.T) {
 	runner := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
-		return host.Result{Stdout: "RUNNING\n"}, nil
+		return host.Result{Stdout: "haco-demo,RUNNING\n"}, nil
 	}}
 	status, err := New(runner).InspectEnvironment(context.Background(), "haco-demo")
 	if err != nil || status.State != core.EnvironmentRunning {
 		t.Fatalf("status=%#v err=%v", status, err)
 	}
-	assertRunnerCall(t, runner.calls[0], "incus", "list", "haco-demo", "--project", defaultProject, "--format", "csv", "-c", "s")
+	assertRunnerCall(t, runner.calls[0], "incus", "list", "haco-demo", "--project", defaultProject, "--format", "csv", "-c", "ns")
 }
 
 func TestForwardLocalPortIsLoopbackOnly(t *testing.T) {
@@ -36,7 +36,12 @@ func TestForwardLocalPortIsLoopbackOnly(t *testing.T) {
 }
 
 func TestPrepareSSHDelegatesToTransactionalAccessLifecycle(t *testing.T) {
-	runner := &fakeRunner{}
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if args[len(args)-1] == "/etc/ssh/ssh_host_ed25519_key.pub" {
+			return host.Result{Stdout: testHostPublicKey}, nil
+		}
+		return host.Result{}, nil
+	}}
 	key := "ssh-ed25519 AAAATEST comment with spaces"
 	connection, err := New(runner).PrepareSSH(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: key, HostPort: 2222})
 	if err != nil {
@@ -45,12 +50,12 @@ func TestPrepareSSHDelegatesToTransactionalAccessLifecycle(t *testing.T) {
 	if connection.Command != "ssh -p 2222 root@127.0.0.1" || connection.User != "root" {
 		t.Fatalf("connection=%#v", connection)
 	}
-	if len(runner.calls) != 2 {
+	if len(runner.calls) != 3 {
 		t.Fatalf("calls=%#v", runner.calls)
 	}
 	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "add", "haco-demo", "haco-ssh-2222", "proxy", "listen=tcp:127.0.0.1:2222", "connect=tcp:127.0.0.1:22", "--project", defaultProject)
 	provision := runner.calls[1]
-	if provision.args[len(provision.args)-2] != key || provision.args[len(provision.args)-1] != "haco:ssh-2222" {
+	if provision.args[len(provision.args)-3] != key || provision.args[len(provision.args)-2] != "haco:ssh-2222" || provision.args[len(provision.args)-1] != managedSSHProxySettings() {
 		t.Fatalf("managed SSH argv = %#v", provision.args)
 	}
 }
@@ -61,4 +66,36 @@ func TestRemoveClientConnectionUsesScopedDeviceName(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "remove", "haco-demo", "haco-tcp-8080-3000", "--project", defaultProject)
+}
+
+func TestInspectEnvironmentUsesExactNameAmongPrefixMatches(t *testing.T) {
+	for _, tc := range []struct {
+		data   string
+		want   core.EnvironmentState
+		failed bool
+	}{
+		{"haco-demo-copy,RUNNING\nhaco-demo,STOPPED\n", core.EnvironmentStopped, false},
+		{"haco-demo,RUNNING\nhaco-demo-copy,STOPPED\n", core.EnvironmentRunning, false},
+		{"haco-demo-copy,RUNNING\n", core.EnvironmentUnknown, false},
+		{"haco-demo,STOPPED\nhaco-demo,RUNNING\n", core.EnvironmentUnknown, true},
+		{"STOPPED\n", core.EnvironmentUnknown, true},
+	} {
+		runner := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+			return host.Result{Stdout: tc.data}, nil
+		}}
+		got, err := New(runner).InspectEnvironment(context.Background(), "haco-demo")
+		if (err != nil) != tc.failed || (!tc.failed && got.State != tc.want) {
+			t.Fatal(tc, got, err)
+		}
+	}
+}
+
+func TestLegacyInspectUsesTheSameExactIdentity(t *testing.T) {
+	runner := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+		return host.Result{Stdout: "haco-demo-copy,RUNNING\nhaco-demo,STOPPED\n"}, nil
+	}}
+	got, err := New(runner).Inspect(context.Background(), "haco-demo")
+	if err != nil || got.Observed != core.ObservedStopped {
+		t.Fatal(got, err)
+	}
 }

@@ -271,12 +271,12 @@ require_text("docs/reference/build-release-identity.ja.md", [
 ])
 require_text("docs/IMPLEMENTATION_STATUS.md", [
     "current code reality", "pkg/clientadapter", "haco ssh", "haco plugin oci seed build",
-    "haco-notify", "Incus-owned Btrfs", "haco host ensure", "HACO_PLUGIN_OCI=nerdctl|docker",
+    "haco-notify", "Incus-owned Btrfs", "haco setup", "HACO_PLUGIN_OCI=nerdctl|docker",
     "design/btrfs-storage-layout.md", "design/trusted-host.md", "compress=zstd:3",
     "cloud implementation is currently deferred",
 ])
 require_text("docs/IMPLEMENTATION_STATUS.ja.md", [
-    "haco-notify", "Incus-owned Btrfs", "haco host ensure", "design/trusted-host.ja.md",
+    "haco-notify", "Incus-owned Btrfs", "haco setup", "design/trusted-host.ja.md",
 ])
 require_text("docs/status/architecture-and-roadmap.md", [
     "Hacocoon is a **Secure Workspace Runtime**", "Core", "Standard", "Plugin",
@@ -293,7 +293,7 @@ require_text("docs/README.ja.md", [
     "現在のcheckpoint", "haco-notify", "haco-host", "status/versioning-and-release-status.ja.md",
 ])
 require_text("docs/design/trusted-host.md", [
-    "haco-host", "Physical Host", "haco host ensure", "haco host shell",
+    "haco-host", "Physical Host", "haco setup", "hacoq host shell",
 ])
 require_text("docs/CLIENT_ADAPTER_CONTRACT.md", [
     "pkg/clientadapter", "public-key", "private key", "loopback-only", "/workspace",
@@ -312,7 +312,7 @@ require_text("docs/design/docker-compatibility-plugin.md", [
     "haco plugin oci docker prepare", "fail closed",
 ])
 require_text("docs/EGRESS_AUTHORIZATION.md", [
-    "Domain-aware egress authorization", "network.egress/connect", "haco egress serve", "SNI",
+    "Domain-aware egress authorization", "network.egress/connect", "169.254.254.1:18080", "SNI",
 ])
 require_text("docs/design/btrfs-storage-layout.md", [
     "Incus-owned loop-backed Btrfs", "Managed Btrfs Transparent Compression",

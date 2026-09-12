@@ -35,16 +35,17 @@ Timing-based sleeps are not canonical fault injection. Prefer semantic before/af
 | before authoritative state finalization | `recovery_failpoints_test.go` | selected real-Incus case planned | runtime already absent; retry finalizes atomically |
 | after authoritative state finalization but caller loses response | `recovery_failpoints_test.go` | selected real-Incus case planned | retry is idempotent success |
 
-## `haco host ensure`
+## `haco setup`
 
 | Semantic boundary | Fast deterministic coverage | Real-substrate coverage | Required recovery result |
 | --- | --- | --- | --- |
-| trusted-host ownership/reconciliation | pending | existing trusted-host/installer journeys | never adopt unrelated `haco-host` authority |
+| trusted-host ownership/reconciliation | `host_setup_test.go`, `host_test.go` | existing trusted-host/installer journeys | never adopt unrelated `haco-host` authority |
 | Incus-owned storage pool ensure | Incus storage tests; common harness pending | Incus-owned Btrfs E2E | retry uses only the supported pool identity and fails on unresolved conflict |
 | host instance create/start | pending semantic failpoints | installer + real Incus | partial instance is repaired or retained as recovery-required |
-| same-release binary provisioning | pending | installer journeys | old valid host remains usable until replacement accepted where applicable |
+| same-release binary provisioning | `host_setup_test.go`: source validation, partial push and explicit retry | updated installer journey pending | ownership/data retained; already verified clients reused; atomic binary replacement remains separate |
 | controller endpoint/control channel | pending | installer/user journey | restart/retry restores exact authority boundary |
-| final usable-state validation | pending | installer/user journey | command completion alone never means host Ready |
+| concurrent or lost-client setup | `setup_test.go`: busy gate, disconnected client and explicit retry | process restart acceptance pending | no overlapping setup; retained owned resources; no automatic mutation retry |
+| final usable-state validation | `test_install_network.py`: actual installer stage ordering | updated installer/user journey pending | setup completion alone never means host Ready |
 
 ## Controller / process restart
 

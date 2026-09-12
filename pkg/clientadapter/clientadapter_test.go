@@ -50,19 +50,19 @@ func (f *fakeEnvironmentService) Delete(_ context.Context, name string) error {
 }
 
 type fakeClientService struct {
-	environments *fakeEnvironmentService
-	state        core.EnvironmentState
-	connections  []core.ClientConnection
-	statusErr    error
-	connectionsErr error
-	sshResponse  core.ClientConnection
-	sshErr       error
-	lastSSH      core.SSHAccessRequest
+	environments    *fakeEnvironmentService
+	state           core.EnvironmentState
+	connections     []core.ClientConnection
+	statusErr       error
+	connectionsErr  error
+	sshResponse     core.ClientConnection
+	sshErr          error
+	lastSSH         core.SSHAccessRequest
 	forwardResponse core.ClientConnection
-	forwardErr   error
-	lastForward  core.LocalPortRequest
-	unforwardErr error
-	unforwarded  []string
+	forwardErr      error
+	lastForward     core.LocalPortRequest
+	unforwardErr    error
+	unforwarded     []string
 }
 
 func (f *fakeClientService) Status(_ context.Context, name string) (core.EnvironmentStatus, error) {
@@ -247,7 +247,7 @@ func TestConnectionsRejectNonLoopbackDrift(t *testing.T) {
 	environments := newFakeEnvironmentService()
 	clients := &fakeClientService{
 		environments: environments,
-		connections: []core.ClientConnection{{ID: "web", Kind: "tcp", Host: "192.0.2.10", Port: 8080, TargetPort: 8080}},
+		connections:  []core.ClientConnection{{ID: "web", Kind: "tcp", Host: "192.0.2.10", Port: 8080, TargetPort: 8080}},
 	}
 	adapter := newAdapter(environments, clients, &fakeEventReader{})
 
@@ -260,7 +260,7 @@ func TestConnectionsRejectNonLoopbackDrift(t *testing.T) {
 func TestForwardValidatesExpectedLoopbackMetadata(t *testing.T) {
 	environments := newFakeEnvironmentService()
 	clients := &fakeClientService{
-		environments: environments,
+		environments:    environments,
 		forwardResponse: core.ClientConnection{ID: "web", Kind: "tcp", Host: "127.0.0.1", Port: 8080, TargetPort: 3000},
 	}
 	adapter := newAdapter(environments, clients, &fakeEventReader{})
@@ -304,5 +304,16 @@ func TestTranslateErrorUsesPublicSentinels(t *testing.T) {
 				t.Fatalf("err=%v want %v", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestSSHAutomaticPortReachesControllerUnchanged(t *testing.T) {
+	clients := &fakeClientService{environments: newFakeEnvironmentService(), sshResponse: core.ClientConnection{
+		ID: "ssh-23000", Kind: "ssh", Host: "127.0.0.1", Port: 23000, TargetPort: 22, User: "root",
+	}}
+	adapter := newAdapter(newFakeEnvironmentService(), clients, &fakeEventReader{})
+	c, err := adapter.PrepareSSH(context.Background(), SSHRequest{Environment: "demo", PublicKey: "public-key"})
+	if err != nil || c.Port != 23000 || clients.lastSSH.HostPort != 0 {
+		t.Fatalf("port=%d request=%+v err=%v", c.Port, clients.lastSSH, err)
 	}
 }

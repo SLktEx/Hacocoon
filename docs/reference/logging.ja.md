@@ -31,7 +31,7 @@ HACO_LOG_LEVEL=debug haco doctor
 HACO_LOG_FORMAT=json HACO_LOG_LEVEL=debug haco create --workspace /work demo
 ```
 
-`haco`、`haco-vscode`、`haco-agent-host`、`haco-notify` は同じ設定を使います。formatは `text`（default）と `json` をsupportします。Logはstderrへ出し、stdoutのcommand outputをmachine-consumableなまま保ちます。
+`haco`、`haco-vscode`、`haco-wsl`、 `haco-agent-host`、`haco-notify` は同じ設定を使います。formatは `text`（default）と `json` をsupportします。Logはstderrへ出し、stdoutのcommand outputをmachine-consumableなまま保ちます。
 
 ## Stable structured field
 
@@ -156,3 +156,15 @@ CIでDEBUGを有効にしてもredaction/secret handlingを弱めません。
 - field nameをCI/debugging toolが使える程度にstableに保てるか。
 
 新しいredaction rule、field contract、format behavior、failure boundaryを導入するlogging changeにはfocused testを追加します。
+
+Capability audit の `environment_instance` は、再利用できる表示名とは別に canonical な Environment 作成を識別します。ランダムな公開識別子であり、credential や provider 所有権 token ではありません。Policy と実行の対応を追うため監査に保持します。
+
+設定変更は変更前に `configuration-change-requested`、永続化後に
+`configuration-changed` を監査します。`policy.configuration` の操作 ID と
+`previous_revision`／`revision` の hash だけを記録し、rule 全体・resource 値・
+editor の内容はこの経路からログへ出しません。完了監査の失敗時は成功 receipt を返しません。
+
+Project setup の失敗では、許可リスト内の `stage`・`error_code` と数値の `exit_code`
+だけを診断フィールドに出します。lookup／recipe／start／execute／script を区別し、
+未知の応答値は `unknown`／`internal` にします。backend の生エラー、recipe 本文、
+process 出力を診断フィールドへコピーしません。

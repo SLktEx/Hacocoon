@@ -24,6 +24,15 @@ untrusted workspace process
 
 ## Trusted computing base and non-goals
 
+The managed-repository WSL workflow mounts its upstream repository only in
+trusted `haco-host` and an independent Incus volume copy in the Environment.
+Authenticated Git reads only registered trusted metadata. A per-Environment
+Git-only Unix proxy is bound to one registered repository; it exposes no
+controller methods, Host shell, credentials or Incus socket. Untrusted packs
+are validated before approval. Policy and approval bind the registered upstream,
+ref, old/new OIDs and operation; execution uses those immutable values and an
+exact remote-ref lease. See [ADR 0008](../adr/0008-managed-repository-workspaces.md).
+
 Hacocoon does not promise that every Environment backend has VM-equivalent isolation.
 
 For the Incus system-container backend, the following are part of the trusted computing base:
@@ -41,13 +50,18 @@ Backends with a stronger isolation model, such as a VM or microVM, may reduce th
 
 ## `haco-host` does not get raw Incus authority
 
+The installer-owned Incus startup guard archives obsolete network/proxy PID
+records only on the Physical Host and only across proven namespace boots.
+It never signals a process. Core and clients gain no provider-state repair API;
+unsafe metadata fails closed. See [ADR 0013](../adr/0013-incus-pid-record-boot-identity.md).
+
 Being trusted does not mean every control primitive should be mounted into `haco-host`.
 
-The current local Incus design keeps the Incus daemon socket and `/var/lib/incus` on the Physical Host. `haco host ensure` and `haco host shell` are executed with Physical Host authority and use Incus from there. `haco-host` itself does not need the raw Incus socket to provide its interactive Host UX.
+The local Incus implementation keeps the daemon socket, `/var/lib/incus`, authoritative Hacocoon state and Policy on the Physical Host. Product `haco setup` and the WSL login entry call the existing Physical Host controller. Only that controller constructs the privileged provider composition. The trusted `haco-host` receives a narrow root-only Hacocoon endpoint and client binaries, never an Incus socket or second controller. See [ADR 0006](../adr/0006-controller-owned-host-setup.md).
 
 If an existing Incus instance already occupies the literal `haco-host` name, Hacocoon reuses it only when the Hacocoon ownership marker matches exactly. Otherwise reconciliation fails closed rather than taking over an unrelated instance. The ordinary Environment name `host` is reserved by the Incus adapter because it would collide with that provider-local infrastructure name.
 
-On the supported WSL bootstrap path, the normal non-root WSL user may receive passwordless sudo permission for the exact system-owned `haco host ensure` and `haco host shell` commands so the default interactive WSL entry can reach the trusted Host. This narrow rule is not equivalent to automatically granting `incus-admin`, and the root user's normal Physical Host shell remains an explicit recovery path.
+On the supported WSL path, root performs installation while the ordinary managed account keeps UID/GID 1000 and a locked password. Normal entry uses controller group access to the `root:hacocoon` socket with mode `0660`; it does not use sudo or grant `incus-admin` by default. Membership in that group grants privileged controller authority. The installer creates no sudo policy. Physical Host root remains the explicit recovery path. See [ADR 0004](../adr/0004-wsl-installer-authority.md).
 
 ## Environment-local root is allowed
 
@@ -115,3 +129,13 @@ Moving a credential-using operation into trusted `haco-host` does not make crede
 ## Fail closed
 
 Failure to evaluate policy, obtain required approval, acquire a scoped credential, verify trusted-host ownership, or verify a backend security guarantee must deny the privileged operation. Cleanup failures must be surfaced rather than hidden.
+
+## Environment startup after Host reboot
+
+Untrusted Environments must not use Incus automatic startup to restore a previous
+running state before Hacocoon's volatile source guards are prepared. New and
+restored instances use `boot.autostart=false`; guarded resume sets and verifies
+this policy after ownership/network checks. Failed configuration or readback
+fails closed. Legacy instances require normal stop/start with the updated
+controller before a Host reboot; untouched instances are not silently migrated.
+Trusted `haco-host` remains a separate lifecycle. See [ADR 0060](../adr/0060-explicit-environment-start.md).

@@ -152,7 +152,7 @@ func TestRealIncusEgressProxyE2E(t *testing.T) {
 		t.Fatalf("compose egress capability boundary: %v", err)
 	}
 	egressBroker := egressapp.NewBroker(capabilities)
-	sources, err := egressapp.NewPersistedSourceResolver(runtimeAdapter, store)
+	sources, err := egressapp.NewPersistedSourceResolver(runtimeAdapter.ID(), runtimeAdapter, store)
 	if err != nil {
 		t.Fatalf("compose persisted egress source resolver: %v", err)
 	}

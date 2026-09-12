@@ -30,6 +30,7 @@ class CheckDocsRegressionTest(unittest.TestCase):
             ignore=shutil.ignore_patterns(
                 ".git",
                 "dist",
+                "bin",
                 "__pycache__",
                 ".pytest_cache",
                 ".mypy_cache",

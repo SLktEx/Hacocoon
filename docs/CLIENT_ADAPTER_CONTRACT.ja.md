@@ -134,3 +134,21 @@ minimization、resume cursor、Browser Notification mappingは [`INTERACTION_EVE
 `pkg/clientadapter` のexported signatureはpackage-owned DTOとpublic error sentinelだけを使い、`internal/core` typeを公開しません。provider/runtimeやIDE固有detailはadapter boundaryの内側に残します。
 
 pre-1.0のためbreaking changeはまだあり得ますが、client固有branchingはHacocoon Coreではなくclient adapter側へ置きます。
+
+## 公開ホスト鍵の固定
+
+Status: IncusのSSH準備についてimplementedです。`PrepareSSH` はprovider経路で取得し
+検証した公開server identityを `host_public_key` に返します。commentや任意のguest出力は
+含みません。不正な鍵は準備を失敗させ、管理対象の接続を撤回します。後始末に失敗した場合は
+recovery-requiredです。private host keyは読みません。adapterも公開前に再検証します。
+他providerや接続一覧では省略される場合があり、clientはpinの作成・変更前に信頼できる
+identityを取得する必要があります。既存known-host keyの無断置換を許可する機能ではありません。
+SSH setup自動化はplannedで、private keyとローカル設定はclientが所有します。
+
+## SSHの自動ポート選択
+
+`PrepareSSH`の`HostPort: 0`はruntime権限側にloopbackポート選択を任せます。
+adapterはclientのnetwork namespaceでSSHポートを選びません。Incusはguestの鍵を
+変更する前にproxyをbindし、bind失敗は操作失敗として返します。clientは応答の検証済み
+ポートを使います。明示した非ゼロのポートも利用できます。この規則はSSHが対象で、
+汎用forwardingは従来のclient側ポート選択のままです。

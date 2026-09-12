@@ -6,14 +6,37 @@ on:
     paths:
       - "cmd/**"
       - "internal/**"
+      - "modules/runtime/incus/**"
+      - "modules/standard/egressproxy/**"
       - ".goreleaser.yaml"
       - "scripts/install-windows.bat"
       - "scripts/install-windows.ps1"
       - "scripts/install.sh"
       - "tools/package_installers.py"
       - "tools/windows-installer-user-path-e2e.py"
+      - "tools/test_windows_user_path.py"
       - "tools/windows-installer-restart-e2e.py"
       - "tools/windows-installer-cached-restart-e2e.py"
+      - "tools/installed-egress-check/**"
+      - "tools/test_installed_egress.ps1"
+      - "tools/test_windows_environment_ssh.ps1"
+      - "tools/test_windows_environment_transfer.ps1"
+      - "tools/windows_dns_diagnostic.ps1"
+      - "tools/test_windows_dns_diagnostic.ps1"
+      - "tools/windows_ssh_diagnostic.ps1"
+      - "tools/test_windows_ssh_diagnostic.ps1"
+      - "tools/windows-native-access-e2e.py"
+      - "tools/windows-reclamation-linux-e2e.py"
+      - "tools/windows-reclamation-user-path-e2e.py"
+      - "tools/test_reclamation_user_path.py"
+      - "tools/reclamation_retention.py"
+      - "tools/test_reclamation_retention.py"
+      - "tools/setup-vscode-acceptance.ps1"
+      - "tools/test_native_access_runner.py"
+      - "tools/test_vscode_environment.ps1"
+      - "tools/test_host_customization.ps1"
+      - "tools/package_vscode_acceptance.py"
+      - "tools/vscode-acceptance/**"
       - ".github/workflows/windows-all-scripts-e2e.yml"
   workflow_dispatch:
 
@@ -39,12 +62,22 @@ jobs:
           check-latest: false
           cache: false
 
+      - name: Test native Windows reclamation boundaries
+        shell: pwsh
+        run: |
+          go test -v -timeout 3m ./internal/wslreclaim ./internal/reclaimclient ./cmd/haco-wsl
+          if ($LASTEXITCODE -ne 0) { throw "Native Windows reclamation tests failed." }
+
       - name: Install pinned GoReleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           distribution: goreleaser
           version: v2.17.1
           install-only: true
+
+      - name: Prepare pinned portable VS Code client
+        shell: pwsh
+        run: ./tools/setup-vscode-acceptance.ps1
 
       - name: Record Windows and WSL substrate
         shell: pwsh
@@ -92,6 +125,7 @@ jobs:
             "install-windows.bat",
             "install-windows.ps1",
             "install.sh",
+            "incus-boot-guard.py",
             "haco_linux_amd64.tar.gz",
             "checksums.txt",
             "VERSION"
@@ -130,6 +164,19 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Failed to install the ConPTY test driver dependency." }
           python -m py_compile ./tools/windows-installer-user-path-e2e.py ./tools/windows-installer-restart-e2e.py ./tools/windows-installer-cached-restart-e2e.py
           if ($LASTEXITCODE -ne 0) { throw "Windows user-path drivers failed syntax validation." }
+          python ./tools/test_windows_user_path.py
+          if ($LASTEXITCODE -ne 0) { throw "Windows user-path assertion regressions failed." }
+
+      - name: Verify Windows installer components on PowerShell 5.1
+        shell: powershell
+        run: |
+          python ./tools/test_native_access_runner.py
+          if ($LASTEXITCODE -ne 0) { throw "Native acceptance runner regression failed" }
+          ./tools/test_windows_installer.ps1
+          ./tools/test_windows_installer_exit.ps1
+          ./tools/test_windows_dns_diagnostic.ps1
+          pwsh -NoLogo -NoProfile -File ./tools/test_windows_ssh_diagnostic.ps1
+          if ($LASTEXITCODE -ne 0) { throw "SSH diagnostic regressions failed" }
 
       - name: Reject Hacocoon test overrides before user path
         shell: pwsh
@@ -146,7 +193,7 @@ jobs:
       #   or direct Incus mutation may substitute for a user action.
       # - This regression deliberately includes the exact Windows lifecycle action
       #   `wsl --terminate Hacocoon` after the first successful install and before
-      #   any reinstall. Hacocoon must restart and serve ordinary haco commands
+      #   any reinstall. Hacocoon must restart and serve implemented haco commands
       #   without install-windows.bat getting a chance to repair state first.
       # - The shipped -UseCachedWslImage option remains part of the repeated
       #   validation path, using only a trusted restored cache or its verified
@@ -155,8 +202,10 @@ jobs:
       #   inspect the resulting WSL/systemd/Incus/Btrfs/loop state. Assertions may
       #   use root when required to observe state, but must never create, repair,
       #   restart, remount, attach, detach, delete, or otherwise mutate product
-      #   state.
+      #   state. Product haco exposes help/version and setup/doctor. Trusted-host file
+      #   retention here does not establish Environment/Workspace retention or SSH.
       - name: Exercise cached install, terminate/restart, and reinstall user path
+        id: installed
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -187,3 +236,34 @@ jobs:
 
           Write-Host "=== Exact user-path success tail ==="
           Get-Content -LiteralPath $logPath -Tail 60
+
+      - name: Verify installed controller Environment HTTPS and direct-egress refusal
+        shell: pwsh
+        run: ./tools/test_installed_egress.ps1
+
+      - name: Verify native Windows interop and strict OpenSSH through ordinary Host entry
+        shell: pwsh
+        run: python ./tools/windows-native-access-e2e.py --reclamation-manifest "$env:RUNNER_TEMP/reclamation-fixture.json"
+
+      - name: Verify installed Linux reclamation stages
+        id: reclamation_linux
+        if: ${{ !cancelled() && steps.installed.outcome == 'success' }}
+        shell: pwsh
+        run: python ./tools/windows-reclamation-linux-e2e.py
+
+      - name: Verify public reclamation through ordinary Host entry
+        id: reclamation
+        if: ${{ !cancelled() && steps.reclamation_linux.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          python ./tools/test_reclamation_retention.py
+          if ($LASTEXITCODE -ne 0) { throw "Reclamation retention regressions failed." }
+          python ./tools/test_reclamation_user_path.py
+          if ($LASTEXITCODE -ne 0) { throw "Reclamation observer regressions failed." }
+          python ./tools/windows-reclamation-user-path-e2e.py --retention-manifest "$env:RUNNER_TEMP/reclamation-fixture.json"
+
+      # A failed launch may still have a live worker; do not restart WSL then.
+      - name: Verify installed native notification review route
+        if: ${{ !cancelled() && steps.installed.outcome == 'success' && steps.reclamation.outcome == 'success' }}
+        shell: pwsh
+        run: ./tools/test_windows_native_review.ps1
