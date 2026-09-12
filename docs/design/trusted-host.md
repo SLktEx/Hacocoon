@@ -9,7 +9,7 @@ Implemented: setup also provisions same-release `/usr/local/bin/haco-notify`,
 validating all required companions before provider mutation. Provisioning reuses
 Host ownership, digest and root-owned executable metadata checks. Notifications
 read the existing controller endpoint in controller mode; the Host does not need
-the Physical Host audit file. See [interaction events](../INTERACTION_EVENTS.md).
+the Physical Host audit file. See [interaction events](../reference/interaction-events.md).
 Fresh packaged acceptance for this addition remains pending.
 
 
@@ -20,7 +20,7 @@ and GitHub authentication live in this trusted Host. Independent Workspace
 volume copies are detached before Environment use. Git-only broker requests
 invoke fixed trusted Git operations; the Physical Host retains all controller,
 Policy and Incus authority. See the
-[workflow](../reference/managed-repository-workflow.md) and
+[workflow](../guides/git-workflow.md) and
 [ADR 0008](../adr/0008-managed-repository-workspaces.md). Windows drive/exe
 integration is reconciled by normal Windows installation and setup; see below.
 
@@ -69,7 +69,7 @@ fresh-install/restart results in [implementation status](../IMPLEMENTATION_STATU
 
 `haco-host` is Hacocoon's persistent trusted logical Host. On the local Incus backend it is an Incus system instance named `haco-host`, distinct from ordinary untrusted Environments.
 
-The actual Linux or WSL distribution that runs the Hacocoon controller, Incus daemon, loop devices, and storage mounts is the **Physical Host**. The Physical Host remains the authority for platform primitives. `haco-host` is the normal host-like place users enter and the intended home for future developer/external-service tooling.
+The actual Linux or WSL distribution that runs the Hacocoon controller, Incus daemon, loop devices, and storage mounts is the **Physical Host**. The Physical Host remains the authority for platform primitives. `haco-host` is the normal host-like place users enter and the home for managed repository, Git and optional external-service tooling.
 
 ```text
 Physical Host / WSL
@@ -149,39 +149,7 @@ Concurrent create/device reconciliation races may be accepted only after the fin
 
 ## Controller endpoint
 
-The Physical Host controller uses:
-
-```text
-/run/hacocoon/control.sock
-```
-
-The supported WSL bootstrap runs `haco-controller` under systemd and verifies the socket is `root:hacocoon` mode `0660`. Membership in `hacocoon` grants privileged controller authority. The trusted-instance proxy remains root-only as shown below.
-
-The trusted instance receives exactly this proxy shape:
-
-```text
-device: haco-control
-type=proxy
-bind=instance
-listen=unix:/var/lib/hacocoon-control.sock
-connect=unix:/run/hacocoon/control.sock
-mode=0600
-uid=0
-gid=0
-```
-
-and:
-
-```text
-environment.HACO_CONTROL_SOCKET=/var/lib/hacocoon-control.sock
-environment.HACO_CLIENT_MODE=controller
-```
-
-An existing endpoint configuration with a different target, mode, owner, bind direction, or socket path is incompatible state. Hacocoon does not silently repurpose it.
-
-An unexpected non-empty client-mode value is also incompatible state. Hacocoon does not silently replace a different execution-context policy on the trusted instance.
-
-The instance-side socket is intentionally outside `/run` so guest runtime tmpfs initialization does not hide the listener created by the Incus proxy device.
+The [transport contract](controller-client-transport.md#trusted-haco-host-endpoint) owns the exact proxy, socket modes, ownership and execution-context configuration. Physical Host controller access is privileged. Only the exactly owned trusted Host receives the endpoint; incompatible target, owner, mode, bind direction or nonempty client-mode values fail closed. The stable instance-side socket stays outside /run to survive guest tmpfs initialization.
 
 ## Client provisioning
 
@@ -269,16 +237,14 @@ When `-SkipIncus` is selected, controller/Host automatic entry is not configured
 
 ## Interactive warning
 
-`hacoq host shell` prints a short privileged-management warning before entering `haco-host`. Japanese locale settings receive Japanese wording; other locales receive English wording.
-
-The warning is emitted only on the interactive Host-shell path, so non-interactive WSL commands are not polluted.
+Ordinary product Host entry shows the [authority notice](#host-entry-language). The temporary `hacoq host shell` path retains its own short localized management warning. Neither is an invitation to run ordinary workloads with Host authority.
 
 ## Planned follow-up
 
 Still separate work:
 
 - extend trusted external-service tooling beyond the implemented Git/GitHub path;
-- evaluate additional optional OCI runtime compatibility; current Stores attach only to Environments;
+- evaluate additional optional OCI runtime compatibility; Host-owned source areas and independent Environment Stores are supported;
 - broker credentials without putting reusable credentials in ordinary Environments;
 - evaluate wider Windows application compatibility beyond the accepted native CLI cases;
 - classify and migrate the remaining appropriate `haco` commands to the controller client path;

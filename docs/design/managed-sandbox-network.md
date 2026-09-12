@@ -16,7 +16,7 @@ The shared proxy endpoint is `169.254.254.1:18080`, a Physical Host loopback add
 
 The adapter verifies its shared nftables input/forward rules. Environment-initiated Host traffic is limited to DHCP and the fixed proxy endpoint; established replies to Host-initiated traffic are separate. Direct forwarding to the outside or another Environment is dropped. A per-Environment prerouting guard pins the managed MAC and IPv4 subnet, with only the pre-address DHCP tuple exempted from the subnet check.
 
-Each Environment has its own bridge; the shared-L2 assumptions of the older network do not apply. The proxy maps a connection source through trusted Incus runtime state and the controller's persisted Environment identity. Hostname authorization, public-address pinning and HTTPS SNI verification belong to the replaceable Standard proxy and Core Capability contracts, as described in [egress authorization](../EGRESS_AUTHORIZATION.md).
+Each Environment has its own bridge; the shared-L2 assumptions of the older network do not apply. The proxy maps a connection source through trusted Incus runtime state and the controller's persisted Environment identity. Hostname authorization, public-address pinning and HTTPS SNI verification belong to the replaceable Standard proxy and Core Capability contracts, as described in [egress authorization](egress-authorization.md).
 
 The persistent trusted `haco-host` uses a different, owned NAT bridge for infrastructure connectivity. Its allowed DNS/HTTPS traffic must never be used as evidence that an Environment can bypass its proxy. See [trusted-host networking](trusted-host.md#dedicated-trusted-host-network).
 
@@ -43,4 +43,4 @@ Implemented in the Windows SSH acceptance fixture: after ordinary Env creation a
 
 This supplements installed HTTPS/proxy/direct-TCP acceptance. It checks actual kernel configuration, not delivery of spoofed packets, another Env's deletion, or a full reboot/recreate sequence. Those scopes must not be inferred from this observer. Windows integration runs in the maintained SSH gate; its native outcome must be recorded separately from the observer regressions.
 
-Scoped local acceptance passed on a dedicated Incus/WSL installation: after canonical start of a stopped recovered Env, this observer verified its pinned generation and native guard rules. The first startup attempt failed before controller socket readiness; an earlier standalone observation also failed. These failures are not successes. The full packaged Windows SSH gate and spoofed-packet behavior remain separate acceptance.
+See [scoped acceptance, failed attempts and remaining gates](../status/acceptance-evidence.md#development).

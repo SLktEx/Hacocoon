@@ -1,4 +1,6 @@
-# v0.15 — OCI Seed Recommendation
+# OCI Seed Recommendation
+
+> Legacy optional integration. Commands below use temporary `hacoq` on the Physical Host. See the [current CLI](../reference/cli.md) and [migration boundary](../reference/cli-migration.md) for ordinary product use.
 
 Status: **implemented on `main`; physical Seed build/publish remains v0.17.**
 
@@ -7,11 +9,11 @@ v0.15 makes future OCI Seed selection evidence-based while keeping OCI/container
 ## CLI
 
 ```text
-haco plugin oci seed sample
-haco plugin oci seed recommend
+hacoq plugin oci seed sample
+hacoq plugin oci seed recommend
 ```
 
-The removed pre-1.0 `haco image ...` namespace is not retained as an alias. Hacocoon Environment starting points use `haco base ...`; OCI/container-image lifecycle uses `haco plugin oci ...`.
+The removed pre-1.0 `haco image ...` namespace is not retained as an alias. Hacocoon Environment starting points use `haco base ...`; OCI/container-image lifecycle uses `hacoq plugin oci ...`.
 
 ## Telemetry model
 

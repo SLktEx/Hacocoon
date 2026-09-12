@@ -1,5 +1,7 @@
 # ADR 0050: Own temporary native rootfs images explicitly
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../design/environment-transfer.md) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Status: accepted for the Linux/WSL export adapter and Linux public export delivery; public import remains planned.
 
 ## Context

@@ -1,5 +1,7 @@
 # ADR 0048: Reclaim allocation without a second storage lifecycle
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../design/storage-reclamation.md) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Status: in progress; public dispatch/status implemented, installed acceptance incomplete.
 
 Use Incus's pool and mount model. Native Btrfs discard and Windows VHD compaction

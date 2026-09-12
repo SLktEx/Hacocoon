@@ -1,5 +1,7 @@
 # ADR 0053: Register imported Workspace data without Git population
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../design/environment-transfer.md) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Status: accepted for the initial single-Workspace import service. Failure handling
 is amended by [ADR 0054](0054-completed-import-cleanup.md).
 

@@ -4,9 +4,9 @@
 
 Status: **partial**. The policy-bound resolver, controller HTTP route and UDP/TCP relay components exist. Installed Standard mode configures the guest service automatically on creation and resume. Windows GHA accepted ordinary resolution and default denial at `c05528a`; VPN/change/restart acceptance remains pending.
 
-## Intended ordinary use
+## Ordinary use
 
-Existing Environment creation and resume configure name resolution automatically, without a nameserver argument or a new command to remember. Ordinary applications will use getaddrinfo/getent. The owning decision is [ADR 0021](../adr/0021-policy-bound-name-resolution.md).
+Existing Environment creation and resume configure name resolution automatically, without a nameserver argument or a new command to remember. Ordinary applications use getaddrinfo/getent. The owning decision is [ADR 0021](../adr/0021-policy-bound-name-resolution.md).
 
 Lookup requires a `network.resolve` / `lookup` Policy decision for the Environment and canonical hostname. It does not grant HTTP, HTTPS or private-network connectivity. Existing allow/deny/approval evaluation and audit remain authoritative; this component adds no allow rules or policy UI. A denied lookup must not reach the platform resolver.
 
@@ -22,30 +22,14 @@ Windows DNS changes, VPN connect/disconnect and WSL restart must be checked agai
 
 Maintained component tests cover policy/audit refusal, source-header spoofing, private-address results without connection grants, malformed messages, UDP/TCP and cancellation. Automatic guest provisioning is implemented; actual getaddrinfo equality across Windows, WSL, trusted Host and Environment, plus default DNS denial, passed in Windows GHA run 34132173483 at `c05528a`. VPN/NRPT and OS restart acceptance are not run; they must be reported as SKIP if no suitable host/VPN fixture is available. Connection allow/deny must be tested separately. Do not count proxy-only name resolution as guest acceptance.
 
-Installer acceptance at `72096d8` failed during automatic DNS service setup on
-both Ubuntu and Windows, before the getaddrinfo fixture. The failure is not
-counted as SKIP or success. A local isolated unit-start probe succeeded on an
-older installed substrate and was cleaned up; its success does not validate
-the current installed create path. Failure phase/numeric service status are
-allowlisted; raw guest logs and script contents are not forwarded.
-
-The installer diagnostic at `7eecbdf` narrowed the failure to `daemon-reload`.
-Provisioning now waits up to 30 seconds for the guest systemd manager before
-mutating service state. A failed reload is not retried. Shell regression tests
-cover delayed readiness, timeout, and reload failure; real installer acceptance
-of this correction passed Ubuntu and Incus at `c05528a`. The Windows DNS fixture and VS Code connection passed, but the workflow failed later in the project-setup test harness before setup execution.
-
 ## Repeated setup and service activation
 
-Windows acceptance at 39b5ce4 reproduced an independent approval-setup failure
-and observed the DNS service Result as start-limit-hit through the existing
-pinned SSH connection. Each setup started its Env, which unconditionally restarted
-the DNS service even when its verified companion and unit were unchanged.
+Provisioning waits up to 30 seconds for the guest systemd manager before changing
+service state. A failed reload is not retried. A changed companion/unit restarts
+the DNS service; unchanged verified files use systemd start, preserving an active
+service and starting an inactive one. Readiness, reload, enablement, active-state,
+resolver, ownership, peer-identity and Policy checks remain mandatory.
 
-Provisioning now compares the verified companion and canonical unit. Changes
-still restart the service; an unchanged configuration uses systemd start, which
-keeps an active service running and starts an inactive one. Manager readiness,
-daemon reload, enablement, active-state checking and resolver configuration remain.
-Systemd's start limit, peer identity, network Policy and ownership checks are not
-relaxed. A failed start remains a failure. The repeated-setup regression simulates
-the observed start limit; actual installed acceptance of this fix is pending.
+Installed repeated-setup acceptance passed at `226991b`. Earlier manager-readiness
+and start-limit failures remain in [acceptance evidence](../status/acceptance-evidence.md#development).
+This success does not establish VPN/NRPT or OS-restart DNS propagation.

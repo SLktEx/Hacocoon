@@ -1,5 +1,7 @@
 # ADR 0049: Transfer envelopes do not carry authority
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../design/environment-transfer.md) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Status: accepted for the internal transfer codec and Linux staging; public lifecycle integration is planned.
 
 ## Context

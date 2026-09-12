@@ -34,7 +34,7 @@ The shared phase installs bundled `incus-boot-guard.py` using isolated Python
 and an Incus service drop-in. First adoption requires the existing daemon to be
 ready. Subsequent namespace boots archive stale network/proxy PID records before
 Incus starts; same-namespace restarts retain them. See
-[ADR 0013](adr/0013-incus-pid-record-boot-identity.md).
+[ADR 0013](../adr/0013-incus-pid-record-boot-identity.md).
 
 ## Architecture-specific installer bundles
 

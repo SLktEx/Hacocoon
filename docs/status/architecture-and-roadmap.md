@@ -1,250 +1,124 @@
 # Architecture and roadmap
 
-G1 internal export now composes canonical stopped-Env capture, all protected native
-archives and anonymous verified output. Dedicated native aggregate export passed
-in 314.12s; Linux public export is partial and public CLI/fixture-controller import is verified; installed/desktop import and Windows-file projection are verified. See [Environment transfer](../design/environment-transfer.md#internal-stopped-environment-export).
-
-> **Architecture baseline · Updated 2026-08-31**
->
-> Hacocoon is a **Secure Workspace Runtime**. Use [`../IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md) for current code reality and [`versioning-and-release-status.md`](versioning-and-release-status.md) for authoritative development-checkpoint numbering/history.
-
-This document describes product boundaries and forward direction. It intentionally does **not** duplicate the current checkpoint table or the full implementation-status matrix.
-
-Hacocoon gives developer tools and coding agents broad freedom inside isolated Environments while keeping Host and external authority behind explicit trusted boundaries.
-
-## Current shape
-
-```text
-Client / IDE / Agent / Orchestrator
-              |
-           Workspace
-              v
-       +-------------+
-       |  Hacocoon   |
-       | Environment |
-       | Policy      |
-       | Capability  |
-       +------+------+ 
-              |
-      provider / adapter
-              |
-          Incus (current)
-```
-
-On the supported local path, the Physical Host remains the authority for Incus and privileged platform operations while a persistent trusted logical `haco-host` provides the normal management entry point. Incus owns the local Btrfs backing-image, loop, filesystem, and mount lifecycle. `haco-host` is TCB infrastructure, not an untrusted Environment.
-
-The provider-neutral routing seam remains, but **cloud implementation is currently deferred**. Concrete EC2/AWS/EBS code is intentionally absent from the active tree.
-
-Container tooling is also not Core. Optional OCI plugins may provide nerdctl/Docker behavior; with `HACO_PLUGIN_OCI` unset, Core remains usable without containerd, nerdctl, Docker, or a local Registry.
+Hacocoon is a **Secure Workspace Runtime**. It gives developer tools and agents
+freedom inside isolated Environments while keeping Host/external authority behind
+explicit boundaries. This page owns remaining work and direction, not a second
+feature-status table. Use [implementation status](../IMPLEMENTATION_STATUS.md) and
+[acceptance evidence](acceptance-evidence.md) for current scope and exact results.
 
 ## Product boundaries
 
-Hacocoon owns Workspace identity and leases, Environment lifecycle, execution, client-access primitives, ResourceBudget, Policy/Approval/Audit, narrow capabilities, interaction contracts, trusted Host management boundaries, and trusted session-to-Environment binding.
+Core owns Workspace identity/leases, Environment lifecycle, Execution, resource
+budgets, Policy/Approval/Audit, narrow capabilities and client interaction contracts.
+Provider and client specifics stay behind adapters. Standard supplies maintained
+replaceable defaults; Plugins provide optional integrations.
 
-Hacocoon does not own IDE/AI chat UX, model routing, task DAGs, Git worktree orchestration, a mandatory OCI runtime, or a mandatory local Registry. Provider, client, and developer-tool specifics stay behind adapters, Standard implementations, or Plugins.
+The Physical Host retains Incus and privileged platform authority. Persistent
+trusted `haco-host` is management infrastructure inside the TCB, not an untrusted
+Environment. Incus owns Btrfs backing, loop, mount, instance and volume lifetimes.
+Hacocoon adds data associations, ownership receipts and security guards.
 
-## Core, Standard, Plugin
-
-- **Core** owns stable product semantics and security boundaries.
-- **Standard** contains project-maintained, replaceable default implementations used by normal installations, including the current Incus backend and hostname-aware egress enforcement.
-- **Plugin** contains optional or specialized integrations, including nerdctl/Docker/OCI tooling.
-
-See [`../design/plugin-architecture.md`](../design/plugin-architecture.md) and [`../DESIGN_PRINCIPLES.md`](../DESIGN_PRINCIPLES.md).
+IDE/AI chat, model routing, task DAGs, worktree orchestration, code review and merge
+decisions remain external. Cloud provider seams remain, but concrete cloud Environment
+implementation is deferred. Optional OCI tooling is not a Core dependency.
 
 ## Roadmap model
 
-Development checkpoints are chronological progress markers, not roadmap phases that must all close before later work starts. The complete checkpoint history and current number live only in [`versioning-and-release-status.md`](versioning-and-release-status.md).
-
-The roadmap is organized by architectural direction instead of copying per-checkpoint implementation status:
-
-- strengthen the trusted Host/controller boundary while keeping untrusted Environments free of Host management authority;
-- make the persistent logical `haco-host` the normal local/WSL operating surface without moving raw Incus authority into it;
-- keep client integrations reusable and client-neutral, including interaction events, notification delivery, VS Code, browser, and future IDEs;
-- preserve provider-neutral Environment/Core contracts while keeping concrete cloud backends deferred until local contracts settle;
-- keep OCI/container tooling optional and separate from Core;
-- keep local rootfs storage on one Incus-owned Btrfs/COW lifecycle and strengthen real-host acceptance around it;
-- continue tightening real-host acceptance, especially Windows/WSL, networking, storage behavior, and client integration.
-
-**Local OCI Registry is not a required roadmap gate.** It remains deferred optional infrastructure and may be reconsidered only if measured bandwidth, rate-limit, restricted-network, or centralized-policy needs justify it.
-
-## Current Stage B scope
-
-- B1: fresh Windows installation, native WSL direct `.exe` execution, Windows
-  PATH, and projection of actual Windows drives including non-C drives into
-  trusted `haco-host`; restart and setup rerun are acceptance requirements.
-- B2: preserve multiple independent repository Workspaces and approved Git push.
-- Former B3: `switch-base` is currently disabled, not a Stage B requirement,
-  and on hold with no reintroduction planned by this roadmap. Historical evidence remains. It does
-  not block Stage A-C completion.
-- B4: [Persistent OCI Store](../design/persistent-oci-store.md), with explicit
-  create/attach/reuse/delete lifecycle and independent offline COW copies. Trusted
-  Host image acquisition/publication and full runtime acceptance remain partial.
-  Ordinary Environment creation must perform the image COW copy automatically;
-  only disabling it is an optional user step. See the owning Store contract.
-- B5: real Windows native OpenSSH access through Windows/WSL loopback and Incus
-  proxy to Environment sshd, with Windows-owned private keys and strict pinning.
-- B6: retain readable Environment location/state and next-action guidance.
-
-## Incus-first lifetime and recovery scope
-
-Incus+Btrfs is the current foundation. Use native instance, volume, snapshot/copy,
-device and network operations, adding only data associations and security guards.
-Disposable Env recreation must preserve Workspace/Git, retained OCI and saved
-snapshots. Snapshot rootfs is independently copied; Base is provenance only and
-restore creates no automatic backup. See [snapshot contract](../design/environment-snapshots.md).
-
-Cleanup requires exact ownership and positive absence, not complete runtime
-recovery. Doctor should report Incus/storage/network state, data accessibility and
-whether a new Env can be created. Backup/WSL migration should move required
-persistent data and settings and recreate execution environments. Use existing
-Incus tools where suitable; do not build a generic recovery/storage platform.
-DB volumes and a management UI are deferred and outside this refactor.
+Checkpoints record chronological progress; earlier partial work does not block a
+later useful slice. Numbering policy/history is maintained only in
+[versioning and release status](versioning-and-release-status.md).
+Stages below group user outcomes and their **remaining** work. A stage label alone
+is never proof of implementation or acceptance.
 
 ## User-facing development order
 
-The revised user roadmap prioritizes ordinary development with a small `haco`
-surface. Preserve the completed A workflow and commit-bound B evidence; do not
-reinterpret older acceptance as proof of new requirements. B4 still needs the
-full trusted Host preparation -> independent COW Store -> Environment image-use
-path. Windows standard SSH is accepted on the recorded B candidate; manual
-VS Code Remote - SSH editing/build/test is not yet separately accepted.
+| Stage / outcome | Remaining work and constraints |
+|---|---|
+| A — one managed repository development cycle | Preserve clone → independent Workspace → Env → SSH/Git → stop/reuse. Broader hosts and repositories need their own acceptance. |
+| B — multiple repositories, native Windows access and retained OCI | Preserve collection isolation and approved push. Complete broader trusted Host image preparation → independent Store copy → actual image use acceptance. Windows drive/executable breadth and interrupted-installation cases remain. |
+| C — convenient daily development | SSH setup/selection, Host recipes, DNS, project setup, restricted preview and scoped doctor now exist. Remaining acceptance includes recipe recreation/cancellation, default browser, VPN/NRPT/restart combinations and broader client workflows. |
+| Temporary execution — after basic editor development | Product noninteractive run and cleanup exist. Interactive stdin/TTY and populated OCI execution acceptance are separate work; explicit persistent Workspaces must survive. |
+| D — understandable permissions and optional AWS | Configuration editing, saved choices and review exist. Complete fresh OS notification decisions, Linux activation, broader saved-choice/provider acceptance and authenticated real AWS listing/download. Resolve ambiguous external outcomes without blind replay. |
+| E — retained data, snapshots, copy, Base and explicit cleanup | Keep new-Env restore/copy and reviewed deletion. Broader application consistency, build concurrency/history/import, partial collection/import recovery and full installed image-cleanup acceptance remain. |
+| F — allocation recovery and operability | Public Windows/WSL reclaim has measured CI acceptance. Existing-installation, actual interrupted-worker review, power-loss/session/Job breadth remain. Diagnostics, reinstall/upgrade and an optional management UI are separate scope. |
+| G1 — managed Env transfer | Public stopped export/import and projected Windows file route exist; stopped containerd image/writable-data transfer has native acceptance. Authenticated imported Git, broader OCI/application consistency and native Windows/direct DrvFS publication remain incomplete. |
+| G2 — inventory and readable-data evacuation | Read-only native/catalog/file inventory and explicit tree archives exist. [Native image retention](../guides/data-evacuation.md#retain-ordinary-incus-images) is partial G2/G3, with two split-image transfers accepted. Classify all data, resolve incomplete/unprojected references, coordinate writers and capture required settings/manual/external data. Snapshot failure must not prevent readable-file evacuation. |
+| G3 — reconstruct and compare elsewhere | One managed cross-WSL fixture and two native split-image imports passed. Unified-image import and new-Env boot from those images remain unverified. Whole-installation restore, guest-visible ownership/link/ACL/xattr comparisons, credentials/settings and broader application/client acceptance remain. |
+| G4 — reviewed replacement | Planned. Retain the old WSL/data until required independent restore and comparison succeed. Inventory or one imported bundle never authorizes deletion. |
 
-After those B gaps, proceed in this order:
+`switch-base` is disabled and on hold, with no return scheduled. It does not block
+A–C. If future evidence justifies a convenience operation, reconsider its necessity,
+Workspace/OCI/snapshot semantics and UX first; ordinary delete/create already preserves
+retained data. Historical [ADR 0011](../adr/0011-managed-workspace-base-switch.md)
+does not reinstate a public command.
 
-- C: repeatable `haco ssh setup`, optional VS Code environment/workspace selection,
-  Host customization, Windows DNS for both Host and Environment, project setup,
-  restricted preview and concise diagnostics. `haco open` stays editor-neutral.
-- After VS Code connection/edit/build/test is usable: expose a short temporary
-  Environment execution flow, analogous to `docker run --rm`, with automatic
-  runtime cleanup through the existing canonical ephemeral-run service. Retained
-  Workspaces and persistent data must not be silently deleted.
-- D: human-editable Git/network/AWS approval policy, exact target and scope,
-  OS/optional VS Code decisions, and optional AWS operations. Domain resolution
-  does not itself grant a network connection.
-- E: start/stop and Workspace reuse, snapshots/restore, copy, Base building and
-  explicit cleanup of retained Workspaces/images.
-- F: storage reclamation across Btrfs/Incus loop/WSL disk, optional management UI,
-  diagnostics, reinstall and upgrade.
-- G: export/import required Workspace/OCI/configuration, then create new Environments
-  in the new WSL. Exact old runtime or WSL reproduction is not required.
+## Persistent data and OCI direction
 
-Agent orchestration stays outside Core. `switch-base` remains disabled and on
-hold; this roadmap does not schedule its return. Native Windows haco.exe, optional
-registry/broker infrastructure, concurrent Store sharing and live migration do
-not block the simpler workflows. Prefer extending an existing operation with
-optional configuration over introducing new required commands/arguments.
-Runtime acceptance belongs in [implementation status](../IMPLEMENTATION_STATUS.md).
+The current [Store contract](../design/persistent-oci-store.md) uses independent,
+exclusively reserved data. Environment deletion releases attachment only after runtime
+absence; it does not delete the Store. Ordinary creation initializes/reuses the
+Workspace-bound Store automatically; `--no-oci` is the opt-out.
 
-## Trusted Host direction
+Processes, sockets and `/run` remain disposable. No guest-populated Store is mounted
+into trusted Host, and no Host credentials or control socket enter an Env.
+Completed-copy recovery must prove exact native operation completion; unknown work
+continues blocking attachment/deletion. Do not propose catalog edits as a user flow.
 
-On the local Incus/WSL path, Hacocoon distinguishes the **Physical Host** from the persistent trusted logical **`haco-host`**. The Physical Host retains Incus and platform authority; Incus itself owns the Btrfs pool backing, loop, filesystem, and mount lifecycle. `haco-host` is trusted infrastructure inside the TCB, not an untrusted Environment.
+Docker Store compatibility, runtime-version migration, simultaneous writable sharing,
+large-image/performance breadth and live migration are deferred. Registry proxy,
+credential broker and local registry are optional future directions.
+**Local OCI Registry is not a required roadmap gate**; reconsider it only for measured
+bandwidth, rate limits, restricted-network or centralized-policy needs.
+Legacy Seed/distribution evidence is historical and does not define current B4.
 
-The implemented lifecycle/default-entry slice does not expose the raw Incus control socket. Follow-up work should move ordinary Hacocoon operations toward the logical Host through narrow controller/client contracts while preserving explicit Physical-Host recovery and bootstrap paths.
+Snapshots retain independent rootfs and managed data. Base is provenance only.
+Automatic Base filesystem retention/backup was replaced by the
+[current snapshot model](../design/environment-snapshots.md).
+Do not build a generic recovery/storage platform or require exact old runtime/WSL
+reproduction when required data plus a new Env suffices. DB volumes are deferred.
 
-See [`../design/trusted-host.md`](../design/trusted-host.md) and [`../WINDOWS_WSL_BOOTSTRAP.md`](../WINDOWS_WSL_BOOTSTRAP.md).
+## Trusted Host and networking direction
 
-## Base and OCI separation
+Preserve one controller and narrow management contracts. Installer/setup must not
+gain a second privileged lifecycle implementation or expose raw Incus authority in
+`haco-host`. Explicit Physical Host diagnosis remains available.
 
-```text
-haco base list
-haco base inspect <base>
+Windows drive hotplug/removal/reconnection, additional executable families and
+interrupted upgrades remain unverified. Setup/entry repairs only an absent native
+WSL binfmt registration through WSL's own service; it does not monitor external
+changes continuously. The earlier disappearance trigger remains unconfirmed.
 
-haco plugin oci store create dev
-haco env create --workspace managed:work --resource oci:dev example
-```
+Hostname-aware egress uses Core policy and Standard enforcement, with an Incus
+lower-layer guard. DNS lookup never grants a connection. VPN/NRPT and live
+firewall/network changes need actual supported-host evidence.
+[Incus support/version policy](https://github.com/SLktEx/Hacocoon/issues/479)
+remains a separate decision; do not infer it from a single installed version.
 
-`haco base` describes Environment starting identity. OCI/container lifecycle is an optional Plugin responsibility. Current persistent Stores use containerd/nerdctl and BuildKit data; Docker Store compatibility is deferred. Runtime tooling is optional, and its process/socket stays within each Environment.
+## Client and Git follow-ups
 
-## OCI storage direction
+Clients remain replaceable consumers of [client APIs](../reference/client-adapter.md)
+and [interaction events](../reference/interaction-events.md).
+Agent Host/AHP breadth, other IDEs, native Windows CLI and management UI are separate
+optional work, not reasons to add dependencies to Core.
 
-Current B4 uses a [Persistent OCI Store](../design/persistent-oci-store.md):
-Environment-local containerd image/layer/snapshot metadata and BuildKit cache
-live on an independently managed Incus Btrfs volume. The controller reserves it
-exclusively with the Workspace. Environment deletion releases the attachment
-without deleting the Store; explicit Store deletion verifies ownership and
-absence. `/run`, processes, sockets and Host authority are not persistent data.
-No Seed, image delivery service, registry or credential broker is required.
-Earlier Seed/storage work is historical implementation material and is not the
-current Stage B direction. Never share one writable runtime data root between
-active Environments.
+Automatic SSH proxy variables and ordinary `haco open` are implemented; the old
+manual-export and “SSH setup planned” follow-ups are obsolete. Current desktop
+acceptance is candidate-bound and does not prove every OS/editor combination.
 
-Local rootfs storage routes Hacocoon-owned Base, trusted-host, Environment rootfs and persistent data paths through `haco-local-default`, an Incus-owned loop-backed Btrfs pool, rather than inheriting an unrelated Host default pool. Pool creation requests `compress=zstd:3`; `compress-force` and `autodefrag` are intentionally not desired defaults, and Hacocoon does not automatically rewrite old extents because doing so could reduce reflink/COW sharing.
+[Git interruption/results](https://github.com/SLktEx/Hacocoon/issues/470) includes
+ambiguous remote push completion, larger packs, additional auth methods, LFS,
+submodules and multiple refs. Workspace membership editing and general interrupted
+preparation/recovery also remain. Native caller-owned failures must preserve exact
+identities and reservations.
 
-The ordinary CLI remains non-root. Hacocoon asks Incus to provide the storage pool through the normal runtime boundary and does not implement a separate block-device or mount lifecycle.
+## Operational confidence
 
-See [`../design/oci-seed-and-cow.md`](../design/oci-seed-and-cow.md), [`../design/btrfs-storage-layout.md`](../design/btrfs-storage-layout.md), [`../design/docker-compatibility-plugin.md`](../design/docker-compatibility-plugin.md), and [`../OPTIONAL_LOCAL_OCI_REGISTRY.md`](../OPTIONAL_LOCAL_OCI_REGISTRY.md).
+Maintain real Incus substrate checks independently from lifecycle/product acceptance.
+Ordinary-user and installed-package checks must not be replaced by privileged
+test fixtures that silently repair product gaps. Logging follows the
+[shared redaction contract](../reference/logging.md).
 
-## Egress direction
-
-Hostname-aware egress keeps the authorization contract in Core and concrete default HTTP/HTTPS proxy enforcement in Standard. The Host resolves and pins public destinations only after authorization; the Incus path remains proxy-only at the lower transport layer. Real supported-Incus bridge/nftables/dnsmasq behavior remains an acceptance concern rather than a reason to duplicate status here.
-
-See [`../EGRESS_AUTHORIZATION.md`](../EGRESS_AUTHORIZATION.md).
-
-## Client direction
-
-Clients use generic Hacocoon contracts rather than becoming Core dependencies. `pkg/clientadapter` provides Environment/access operations and composes `pkg/interaction` for client-neutral event observation. Browser/native notifications and the optional VS Code notification extension consume the same minimized event boundary; observation/delivery never becomes an authorization path.
-
-VS Code is the first convenience client. code-server, JetBrains, browser UIs, and future clients should reuse the same boundaries rather than introducing client-specific authority into Core.
-
-See [`../CLIENT_ADAPTER_CONTRACT.md`](../CLIENT_ADAPTER_CONTRACT.md) and [`../INTERACTION_EVENTS.md`](../INTERACTION_EVENTS.md).
-
-## Operational confidence direction
-
-Real-Incus CI acceptance proves the substrate independently before Core lifecycle checks, making substrate failures distinguishable from Hacocoon regressions. Incus-owned storage acceptance exercises the ordinary-user CLI against real Incus and verifies backing-image, loop, Btrfs mount, compression policy, pool reuse, and guarded cleanup; trusted-host acceptance verifies lifecycle/ownership/control-socket isolation.
-
-Structured logging uses `log/slog`, stable operation context, sanitized Host-command diagnostics, and defense-in-depth secret redaction across maintained executables. See [`../reference/logging.md`](../reference/logging.md).
-
-These operational checkpoints improve support confidence and diagnosability without claiming universal Host support. Exact current acceptance remains in [`../IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md).
-
-## Numbering rule
-
-Minor versions are pragmatic pre-1.0 progress checkpoints. Meaningful product, implementation, operator-experience, observability, or acceptance slices may take the next minor even when follow-up work or real-host acceptance remains. Small fixes and maintenance do not automatically consume another version, but substantial support/operability checkpoints may. During pre-1.0 development, visible progression is preferred over conserving minor numbers.
-
-Published tags/releases and acceptance/support evidence are separate concepts. See [`versioning-and-release-status.md`](versioning-and-release-status.md).
-
-## Historical note
-
-Old commits, branches, PRs, and document versions may use superseded checkpoint assignments or describe removed cloud implementations. Git history is the archive for those states; it does not override the current status/version authority.
-
-Stopped-source Environment copy is implemented through existing Incus COW and canonical creation; see [its contract](../design/environment-copy.md). The representative E4 definition-driven Base build/create/SSH workflow is implemented with acceptance tracked in the [Base contract](../design/base-images-and-custom-environments.md). Broader retained-data cleanup, reclamation and export/migration remain separate roadmap work.
-
-E5 implements reviewed deletion of retained Workspaces, built Base revisions,
-whole OCI Stores and unused source repositories. Their existing references,
-exact ownership and native saved children remain protected. Individual images in
-attached Stores are partial through the current runtime-backed OCI plugin; see
-[image operations](../design/oci-image-deletion.md). Host-source image operations extend this same partial checkpoint through the existing
-Host-copy/ownership boundary. Detached-Store image routing is partial; automatic compatible tooling is implemented on Linux amd64; native delivery and bare controller/CLI acceptance passed at bd1c9a5. Full installed-controller acceptance remains pending. Reviewed unused-image candidate deletion passed native controller/CLI acceptance at 9484d06. Broader candidate GC, F
-reclamation/operability and G export/migration remain planned. Internal F1 now connects controller Linux discard to the enrolled Windows worker, preserving per-stage evidence and refusing shutdown after Linux failure. Public dispatch/status/review is implemented; combined Windows/WSL native CI acceptance passed, while existing local installation acceptance remains separate; see the [reclamation contract](../design/storage-reclamation.md). These remaining stages preserve data and permissions while using
-Incus capabilities; they do not require full disposable-Env reconstruction.
-
-G1 remains partial overall. Linux export/import and the installed controller path,
-source Env deletion, fresh pinned Windows SSH, continued work and retained-data
-recreation passed. Windows-file delivery through the existing drive projection
-also passed at c4449e1; native Windows CLI/direct DrvFS publication and migration
-to another WSL are not implied. Live OCI runtime consistency and actual Git
-reconnection remain incomplete. G2–G4 still require whole-installation inventory,
-readable-data evacuation independent of snapshot creation/deletion, restoration
-into a new WSL/pool, data comparison and explicit replacement after acceptance.
-Base filesystem retention and automatic backup remain absent. See
-[Environment transfer](../design/environment-transfer.md).
-
-G2 has a native test-only EPERM deletion-failure evacuation case using immutable
-snapshot parents in isolated pools. Manual capture, independent restore and cleanup
-passed; whole-installation coverage and actual corruption recovery remain incomplete.
-See [the scoped acceptance](../design/environment-transfer.md#readable-evacuation-after-a-failed-snapshot-deletion).
-
-G2 inventory includes an optional bounded Linux file-metadata walk for manual and
-unregistered data review. Mounts, symlinks, special files and observation failures
-remain explicit gaps. Classification, quiescent content capture and restored-data
-comparison remain required; enumeration does not authorize old-WSL deletion.
-See [file inventory](../design/environment-transfer.md#manual-file-inventory-for-evacuation-review).
-
-G2 adds a scoped native gate for direct saved-rootfs evacuation without Incus export or Base retention. Whole-installation classification, complete capture and managed reconstruction remain required; see [the rootfs data gate](../design/environment-transfer.md#direct-evacuation-of-saved-rootfs-files).
-
-G3 now has native acceptance for one managed bundle on a separate fresh WSL: complete fixture-volume comparison, fresh pinned SSH/local Git work and retained Workspace/OCI after same-name recreation. Whole-installation coverage and G4 replacement remain required; see [managed cross-WSL acceptance](../design/environment-transfer.md#managed-bundle-restoration-in-a-separate-wsl).
-
-G2 inventory also records native image identities and project sharing. These references do not add a Base filesystem snapshot component or prove image capture; whole-installation evacuation and restore comparison remain required. See [inventory scope](../design/environment-transfer.md#evacuation-inventory).
-
-G2 capture uses ordinary archives without mandatory encryption or key setup. The maintenance tree helper uses GNU tar directly; G1 keeps the existing `haco env export` / `haco env import` flow. Earlier encrypted acceptance is historical and does not add an export step. Whole-installation restoration and comparison remain unfinished; see [tree capture](../design/environment-transfer.md#explicit-tree-capture).
-
-G2/G3 now include a native procedure and scoped cross-WSL acceptance for retaining ordinary Incus images. Independent snapshot rootfs still require no original Base image. Whole-installation classification and replacement remain incomplete; see [image retention](../design/environment-transfer.md#retain-ordinary-incus-images).
+Use [failed-run and acceptance evidence](acceptance-evidence.md) when prioritizing
+follow-ups. Do not erase unexplained failures because a later run passed, or turn
+a skipped external prerequisite into an implemented support claim. Old progress
+diaries and superseded numbering remain in Git history.

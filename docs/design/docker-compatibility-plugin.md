@@ -1,10 +1,10 @@
-# v0.18 — Docker Compatibility Plugin
+# Docker Compatibility Plugin
+
+> Legacy optional integration. Commands below use temporary `hacoq` on the Physical Host. See the [current CLI](../reference/cli.md) and [migration boundary](../reference/cli-migration.md) for ordinary product use.
 
 Status: **repository implementation complete ahead of milestone order; real-host acceptance remains environment-dependent.**
 
 v0.18 defines Docker compatibility as an optional OCI plugin feature. Hacocoon Core models Environments and execution; it does not require Docker Engine, containerd, or nerdctl.
-
-The implementation originally landed while this feature was numbered v0.17. The authoritative roadmap now places OCI Seed Builder & Btrfs/COW at v0.17 and Docker Compatibility at v0.18 so the Environment/Base/Seed direction is ordered before the compatibility layer. Historical commits and PRs may retain the earlier number.
 
 ## Maintained OCI profile
 
@@ -28,8 +28,8 @@ The goal is to support tools that insist on Docker CLI/Engine APIs without forci
 Docker lifecycle integration is exposed only when `HACO_PLUGIN_OCI=docker` is selected:
 
 ```text
-haco plugin oci docker status <environment> [--json]
-haco plugin oci docker prepare <environment> [--json]
+hacoq plugin oci docker status <environment> [--json]
+hacoq plugin oci docker prepare <environment> [--json]
 ```
 
 `status` is observational. It checks the Environment-local Docker profile without starting `dockerd`.
@@ -50,7 +50,7 @@ An inactive `hacocoon-docker.service` is healthy: the Engine is expected to star
 
 ## Plugin boundary
 
-- Docker/nerdctl-specific orchestration belongs outside Core under `modules/plugin/oci` / `haco plugin oci`.
+- Docker/nerdctl-specific orchestration belongs outside Core under `modules/plugin/oci` / `hacoq plugin oci`.
 - `HACO_PLUGIN_OCI=nerdctl|docker` is explicit opt-in; unset means no OCI plugin.
 - `dockerd` is never an always-on Hacocoon requirement.
 - Engine startup is Environment-local and socket-activated.
@@ -62,9 +62,6 @@ An inactive `hacocoon-docker.service` is healthy: the Engine is expected to star
 
 The repository gate is implemented by the plugin-owned systemd packaging, lifecycle/status service, CLI integration, fail-closed unit-drift checks, and unit tests. Supported-host acceptance remains a separate concern: a real Base must provide the required binaries/units and the target Incus/systemd environment must support the socket-activation path.
 
-## Relationship to v0.17
-
-v0.17 owns the physical OCI Seed build/publish/COW lifecycle. v0.18 does not make Seed construction a Core requirement, and its repository implementation can exist independently, but the roadmap orders the Seed/Base direction first because a project-maintained Environment profile is what supplies the binaries and pinned units that `docker prepare` validates.
 
 ## Non-goals
 
@@ -72,5 +69,5 @@ v0.17 owns the physical OCI Seed build/publish/COW lifecycle. v0.18 does not mak
 - making Docker Engine mandatory;
 - running dockerd permanently when no workload needs it;
 - exposing Host Docker/containerd sockets;
-- installing or upgrading Docker packages from `haco plugin oci docker prepare`;
+- installing or upgrading Docker packages from `hacoq plugin oci docker prepare`;
 - placing Docker-specific concepts into Core.

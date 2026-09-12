@@ -44,7 +44,7 @@ and a late upstream registration. This changes no policy grants or CLI steps.
 
 ## Implemented Incus enforcement
 
-The canonical Environment provider uses one owned bridge per Environment, with NAT disabled, DHCP enabled and DNS disabled. Verified Host inet rules and per-Environment source guards enforce proxy-only access; the trusted `haco-host` NAT bridge is a separate infrastructure path. Proxy environment variables do not weaken the lower-layer boundary. See [managed Environment networking](design/managed-sandbox-network.md) for the authoritative topology and retained legacy paths.
+The canonical Environment provider uses one owned bridge per Environment, with NAT disabled, DHCP enabled and DNS disabled. Verified Host inet rules and per-Environment source guards enforce proxy-only access; the trusted `haco-host` NAT bridge is a separate infrastructure path. Proxy environment variables do not weaken the lower-layer boundary. See [managed Environment networking](managed-sandbox-network.md) for the authoritative topology and retained legacy paths.
 
 The proxy resolves its peer through trusted Incus runtime state and the controller's persisted Environment store, rather than accepting an Environment name from the guest. It listens only on the fixed Physical Host endpoint `169.254.254.1:18080`. Missing, ambiguous or unmanaged source identities fail closed. Restart does not retain a connection grant or turn a hostname grant into an IP allowlist.
 
@@ -79,7 +79,7 @@ The installed unit runs `haco-controller --standard-egress`. This serves the exi
 
 Controller and proxy shutdown are coupled. Every accepted proxy connection, including a hijacked CONNECT tunnel, closes on shutdown. Requests are canceled during ClientHello, upstream writes and established forwarding. Headers are limited to 16 KiB, header reads to 10 seconds and retained connections to 256. HTTP transport failures use a fixed structured log message without raw panic output.
 
-The daemon never consumes ambient stdin. Missing Policy denies traffic. Controller require-approval waits in a bounded Standard queue for haco approve on the trusted Host. Persistence and execution still pass through the existing Policy, audit and identity checks. Use haco config for ordinary Policy editing; no automatic allow is added. See [pending review](design/pending-approval-review.md) and [ADR 0028](adr/0028-pending-approval-sessions.md). Installed acceptance of the new review path remains separate.
+The daemon never consumes ambient stdin. Missing Policy denies traffic. Controller require-approval waits in a bounded Standard queue for haco approve on the trusted Host. Persistence and execution still pass through the existing Policy, audit and identity checks. Use haco config for ordinary Policy editing; no automatic allow is added. See [pending review](pending-approval-review.md) and [ADR 0028](../adr/0028-pending-approval-sessions.md). Installed acceptance of the new review path remains separate.
 
 Git push remains a separate privileged operation through the Git boundary and must not be enabled by handing reusable Host Git credentials to an Environment.
 

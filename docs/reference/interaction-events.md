@@ -22,7 +22,7 @@ identities fail closed. Upgrading an older installation requires rerunning the
 Windows installer so the identity is captured before controller setup.
 
 
-The trusted Host can review current pending requests with haco approve. This is a separate private management path; the optional Windows native adapter opens the same CLI. See [pending approval review](design/pending-approval-review.md).
+The trusted Host can review current pending requests with haco approve. This is a separate private management path; the optional Windows native adapter opens the same CLI. See [pending approval review](../design/pending-approval-review.md).
 
 ## Approval correlation
 
@@ -133,7 +133,7 @@ Native notification text is constructed only from the minimized public interacti
 
 ### VS Code
 
-The optional VS Code presentation client lives at [`../clients/vscode-notify/README.md`](../clients/vscode-notify/README.md). It reads the same loopback `/api/v1/events` bridge, persists cursor/dedup state through VS Code `globalState`, and shows normal VS Code notifications.
+The optional VS Code presentation client lives at [`../clients/vscode-notify/README.md`](../../clients/vscode-notify/README.md). It reads the same loopback `/api/v1/events` bridge, persists cursor/dedup state through VS Code `globalState`, and shows normal VS Code notifications.
 
 The extension is not required by `haco-vscode` and does not replace standard Remote-SSH. Presentation remains read-only; Review opens a separate local CLI. Displaying or clicking a notification is not an approval.
 
@@ -141,7 +141,7 @@ The extension is not required by `haco-vscode` and does not replace standard Rem
 
 `interaction.NewDefaultReader()` follows the same root convention as the local Hacocoon composition: `HACO_ROOT` when set, otherwise `/var/lib/hacocoon`. `NewReader(root)` is available for explicitly scoped adapters and tests.
 
-The optional desktop VS Code Review action now opens the trusted local CLI without answering. Native OS activation remains planned. [Contract](design/pending-approval-review.md).
+The optional desktop VS Code Review action now opens the trusted local CLI without answering. Native OS activation remains planned. [Contract](../design/pending-approval-review.md).
 
 ### Native notification state
 

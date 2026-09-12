@@ -1,4 +1,6 @@
-# Git / GitHub capability
+# Legacy Git / GitHub capability
+
+This is the retained Physical Host `hacoq plugin git` capability contract. Ordinary product development uses [managed Git](../guides/git-workflow.md); its push limits and authority model must not be inferred from this legacy interface.
 
 Hacocoon v0.5 keeps GitHub authority on the host side. An Environment can keep using ordinary Git for local operations, while privileged pushes cross the Hacocoon Policy/Capability boundary.
 
@@ -7,8 +9,8 @@ Hacocoon v0.5 keeps GitHub authority on the host side. An Environment can keep u
 Git integration is exposed under the plugin namespace rather than as a Core top-level CLI command. The current narrow privileged entry point is:
 
 ```bash
-haco plugin git push <environment> --branch feature/x
-haco plugin git push <environment> --branch main --force
+hacoq plugin git push <environment> --branch feature/x
+hacoq plugin git push <environment> --branch main --force
 ```
 
 Optional selectors:
