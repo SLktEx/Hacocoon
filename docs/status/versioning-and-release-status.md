@@ -81,8 +81,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.56 | Source Repository Cleanup | implemented — see current feature limits |
 | v0.57 | OCI Image Cleanup | partial — implementation and acceptance gaps remain |
 | v0.58 | Daily CLI Entry and Setup Diagnostics | implemented on development candidate |
+| v0.59 | All-branch Git Fetch | implemented on development candidate; native acceptance pending |
 
-The current milestone position is **v0.58**. This declaration and the table mirror YAML.
+The current milestone position is **v0.59**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 
@@ -90,3 +91,8 @@ The M0/M1 candidate in PR #583 additionally integrates the existing development
 branches and the shared Incus 7.0 LTS installer/doctor contract. It retains the
 v0.58 development checkpoint while native acceptance remains partial. This is
 not a new tag, main merge, distributed installer or public release.
+
+The separate M2 candidate advances to v0.59 for all-head discovery, per-ref
+read authorization and ordinary branch switching. Earlier M1 native gaps do
+not block this lightweight development checkpoint. See the Git guide for limits;
+this does not claim complete M2, large-pack support or a release.

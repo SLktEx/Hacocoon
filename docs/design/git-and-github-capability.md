@@ -24,9 +24,18 @@ decides its opaque, single-use ID. Approval cancellation or a changed remote
 ref cannot silently authorize another push. Only Git objects cross from the
 Environment; authenticated Git runs in the registered trusted repository.
 
-The initial transport handles one existing SHA-1 branch and packs up to 32 MiB.
+The development candidate reads all upstream heads under an explicit all-heads
+fetch scope, while pushes remain bound to one registered existing branch.
+Fetch revalidates each requested ref/OID against a fresh Host observation;
+unknown, moved, duplicate or excessive refs are refused. At most 1024 heads and
+a 32 MiB aggregate pack are accepted per helper batch. Discovery is checked
+against both the all-heads scope and each exact ref; object fetch executes under
+a new exact-ref decision. An exact-ref deny cannot be bypassed by broad discovery.
+Separate head transfers may repeat shared history, a remaining M4 optimization.
+The initial checkout branch never grants
+push permission. See [ADR 0064](../adr/0064-git-read-scope-and-push-authority.md).
 HTTPS GitHub authentication uses the trusted Host's `gh` credential store.
-Force push, branch creation/deletion, multiple refs, LFS and submodules are
+Force push, branch creation/deletion, multiple-ref pushes, LFS and submodules are
 **deferred**. A transport failure after an external write can leave its result
 unknown; inspect the remote before retrying. Generic retry/recovery is deferred.
 

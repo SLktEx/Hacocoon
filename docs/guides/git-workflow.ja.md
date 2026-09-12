@@ -22,9 +22,9 @@ EnvironmentにはGit専用の仲介接続だけを渡します。
     "environment": "sample-dev", "resource": "https://github.com/SLktEx/Hacocoon.git",
     "attributes": {
       "repository": "sample", "remote": "https://github.com/SLktEx/Hacocoon.git",
-      "target_ref": "refs/heads/main", "old_oid": "*", "new_oid": "*", "operation_id": "*"
+      "target_ref": "refs/heads/*", "old_oid": "*", "new_oid": "*", "operation_id": "*"
     },
-    "decision": "allow", "reason": "Read the registered branch"
+    "decision": "allow", "reason": "Read all branches of this registered repository"
   },
   {
     "capability": "git.repository", "action": "push",
@@ -39,8 +39,11 @@ EnvironmentにはGit専用の仲介接続だけを渡します。
 ]
 ```
 
-要求の全属性がルールに必要です。この例ではコミットIDと操作IDだけを変動可能にし、
-リポジトリとrefを固定します。pushには `update_kind: fast-forward` が必要で、
+要求の全属性がルールに必要です。この例ではリポジトリを固定して全ブランチの読み取りを許可し、
+pushはmainだけを毎回確認します。以前のmain限定の読み取りルールは全ブランチfetchを許可しません。
+範囲を確認して明示的に更新してください。cloneではpush許可を保存しません。
+個別refの読み取り拒否がある場合は一覧全体を拒否し、オブジェクト取得時にも各refのPolicyを再確認します。
+コミットID・操作IDは変動可能です。pushには `update_kind: fast-forward` が必要で、
 この項目のない古いルールは拒否されます。
 [Policyの優先順位](../design/policy-and-capability-foundation.md#matching-rule-precedence)は
 記載順によらず、拒否、承認要求、許可の順です。
@@ -52,8 +55,20 @@ EnvironmentにはGit専用の仲介接続だけを渡します。
 
 Environmentでは通常の `git status`、`git fetch origin`、`git pull --ff-only`、
 `git add`、`git commit`、`git push` を使います。
-現在の仲介機能は既存のSHA-1ブランチ一つ、32 MiBまでのpackに対応します。
-force push、ブランチの作成・削除、複数ref、LFS、submoduleは延期されています。
+この開発候補では1回のbatchで最大1024個のSHA-1ブランチ、合計32 MiBまでのpackを取得できます。
+refごとの転送で共有履歴が重複する場合があり、大容量転送の最適化は未完了です。
+`git branch -r`で一覧を見て、たとえば`git switch --track origin/feature/example`で
+既存ブランチへ切り替えます。pushは登録時に選んだ既存ブランチ一つに対応します。
+新規ブランチpush、force push、ブランチ削除、複数refのpush、LFS、submoduleは延期されています。
+移動・削除されたheadは拒否するため、再fetchで最新状態を確認してください。巨大レポの受入を意味しません。
+
+新規Workspaceは全ブランチのfetch設定を持ちます。既存の独立Workspaceを全ブランチへ広げる場合は、
+読み取りPolicyを確認後、**そのEnvironment内で**次を実行します。変更は手元のGit設定だけです。
+
+```bash
+git config --replace-all remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+git fetch origin
+```
 
 pushの待機中、別の信頼されたHostターミナルで確認します。
 

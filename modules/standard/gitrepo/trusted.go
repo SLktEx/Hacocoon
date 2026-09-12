@@ -51,9 +51,17 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 	ref := "refs/heads/" + req.Branch
 	tracking := "refs/remotes/origin/" + req.Branch
 	git := func(stdin []byte, args ...string) ([]byte, error) { return trustedGit(ctx, dir, stdin, args...) }
+	if req.Operation != "fetch" && len(req.Heads) != 0 {
+		return Response{}, fmt.Errorf("heads are only valid for fetch")
+	}
+	if req.Operation == "fetch" {
+		if _, err := validateHeads(req.Heads); err != nil || req.OldOID != "" || req.NewOID != "" || len(req.Pack) != 0 {
+			return Response{}, fmt.Errorf("invalid fetch heads")
+		}
+	}
 	switch req.Operation {
 	case "clone":
-		_, err := trustedGit(ctx, "", nil, "clone", "--template=", "--no-local", "--single-branch", "--no-tags", "--branch", req.Branch, "--", req.Remote, dir)
+		_, err := trustedGit(ctx, "", nil, "clone", "--template=", "--no-local", "--no-tags", "--branch", req.Branch, "--", req.Remote, dir)
 		return Response{}, err
 	case "workspace":
 		if !ValidID(req.Workspace) {
@@ -62,7 +70,7 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 		workspace := filepath.Join(workspaces, req.Workspace)
 		// This is a fresh owned copy, before any Environment can write it. Keep
 		// only local Git data and the non-authorizing helper URL in its config.
-		config := "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n[remote \"origin\"]\n\turl = haco://" + req.Repository + "\n\tfetch = +" + ref + ":" + tracking + "\n[branch \"" + req.Branch + "\"]\n\tremote = origin\n\tmerge = " + ref + "\n"
+		config := "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n[remote \"origin\"]\n\turl = haco://" + req.Repository + "\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n[branch \"" + req.Branch + "\"]\n\tremote = origin\n\tmerge = " + ref + "\n"
 		info, err := os.Lstat(filepath.Join(workspace, ".git"))
 		if err != nil || !info.IsDir() {
 			return Response{}, fmt.Errorf("Workspace must have its own .git directory")
@@ -75,6 +83,9 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 	info, err := os.Lstat(filepath.Join(dir, ".git"))
 	if err != nil || !info.IsDir() {
 		return Response{}, fmt.Errorf("trusted repository is unavailable")
+	}
+	if req.Operation == "list" || req.Operation == "fetch" {
+		return readHeads(git, req)
 	}
 	if req.Operation == "push" {
 		if !ValidOID(req.OldOID) || !ValidOID(req.NewOID) {
@@ -102,16 +113,6 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 		return Response{}, fmt.Errorf("remote did not return a SHA-1 commit")
 	}
 	result := Response{OID: oid, Ref: ref}
-	if req.Operation == "list" {
-		return result, nil
-	}
-	if req.Operation == "fetch" {
-		if req.NewOID != oid {
-			return Response{}, fmt.Errorf("remote changed since listing; fetch again")
-		}
-		result.Pack, err = git([]byte(oid+"\n"), "pack-objects", "--stdout", "--revs")
-		return result, err
-	}
 	if !ValidOID(req.NewOID) || req.OldOID != oid || len(req.Pack) == 0 {
 		return Response{}, fmt.Errorf("push does not match the listed remote commit")
 	}

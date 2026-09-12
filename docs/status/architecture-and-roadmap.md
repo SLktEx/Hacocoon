@@ -195,6 +195,37 @@ product confirmation regressions cover that boundary; installed Store maintenanc
 must pass again before this gate is accepted. See acceptance evidence for the
 original failed run and the successful narrower jobs.
 
+### M2 all-heads read candidate
+
+Roadmap R2 is now [#584](https://github.com/SLktEx/Hacocoon/issues/584).
+The independent `codex/git-all-branches` worktree starts from M1 `3486b760`.
+Implementation `d93f61fb` and parent integration `51220424` are pushed in
+[PR #585](https://github.com/SLktEx/Hacocoon/pull/585), stacked on #583. Current
+Actions branch filters exclude this temporary base; installed acceptance must run
+after retargeting to `dev/2.x`. This is development-branch implementation only.
+The Standard helper/agent/broker implement all-head discovery, exact-ref read
+checks and ordinary branch switching. A narrow read deny still wins; main
+push retains separate fixed-commit approval. No user configuration is migrated
+automatically. Paired Git guides explain explicit read scope and older Workspace
+fetch mappings. New-branch push, GUI decisions and native/large-repository
+acceptance remain open. Per-head transfers can repeat history; M4 must measure
+and improve this within the 32 MiB aggregate batch limit.
+
+Real Git component regressions pass alternate/multiple/newly advertised heads,
+branch switching, narrow allow/deny scope, no unauthorized Host object fetch,
+stale/deleted/unknown ref refusal, cancellation, default-main deny/approval and
+fixed-commit replay protection. Existing Git module tests and vet passed. These
+run on local Git in the dedicated WSL, not an installed Env or authenticated
+external Git service. The maintained `bash tools/ci-local.sh test` passed against
+an unchanged source snapshot in the dedicated WSL's Linux temporary filesystem:
+all Go tests/vet, Python prerequisites and 27 client tests. The earlier DrvFS run
+failed at the ten-minute milestone-package timeout while copying the repository;
+that failure remains recorded separately. Next: review the R2 slice, add new-branch
+push and GUI decisions; preserve M1 native failures independently.
+The focused Git broker and capability race tests also passed.
+
+### M1 native follow-up
+
 Latest M1 evidence: candidate `96bbbdf8` passed full test CI 34717575075 and
 all enabled real Incus jobs in 34717575098, including the corrected Store
 confirmation. Private registry remains skipped. Windows run 34717575063 passed
