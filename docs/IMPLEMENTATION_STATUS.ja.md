@@ -47,6 +47,8 @@ CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入�
 
 
 M1は**partial**です。階層別の日英ヘルプ、日常失敗・保持／再開の日本語案内、BATの共通
-終了表示・待機省略、nativeの同種失敗通知抑制を実装しました。Windows→WSL→Hostの
-自動言語引き継ぎ、残る翻訳、通常Windows/IDE実機は未完了です。Incus 7.0 LTSのinstaller/CI
-共通導入・実サーバー版診断は開発候補に実装し、新規導入の実機受入は確認待ちです。
+終了表示・待機省略、nativeの同種失敗通知抑制を実装しました。正規化したWSL→Host sessionの
+言語引き継ぎは実装済みで、Windowsの自動言語選択と残る翻訳は未完了です。共通Incus 7.0 LTSは
+Ubuntu配布物と範囲を限定したWindows／Incus受入が成功しました。承認／previewは試験修正後に
+成功し、volume exportと依存するWindows reclaimは失敗が残ります。
+[commitごとの証拠](status/acceptance-evidence.ja.md)を参照してください。配布済み・実機での言語転送完了ではありません。

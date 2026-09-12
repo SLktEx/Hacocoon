@@ -20,11 +20,18 @@ const (
 // the whole value: java, ja_, control characters and shell fragments are not ja.
 var japaneseLocale = regexp.MustCompile(`(?i)^ja(?:[_-](?:[a-z]{2}|[0-9]{3}))?(?:\.[a-z0-9][a-z0-9_-]*)?(?:@[a-z0-9][a-z0-9_-]*)?$`)
 
-// Resolve selects the first nonempty LC_ALL, LC_MESSAGES or LANG value. An
+// Resolve first accepts a normalized HACO_UI_LANGUAGE override, then selects
+// the first nonempty LC_ALL, LC_MESSAGES or LANG value. An
 // unsupported higher-priority value selects English; it must not expose a lower
 // priority Japanese setting. No installed OS locale or setlocale call is needed.
 func Resolve(getenv func(string) string) Language {
 	if getenv == nil {
+		return English
+	}
+	if value := getenv("HACO_UI_LANGUAGE"); value != "" {
+		if value == string(Japanese) {
+			return Japanese
+		}
 		return English
 	}
 	for _, key := range [...]string{"LC_ALL", "LC_MESSAGES", "LANG"} {

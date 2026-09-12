@@ -48,7 +48,10 @@ Implemented on this development candidate: [Workspace entry and independent fork
 
 M1 is **partial**: hierarchical bilingual help, localized daily failure/retention/
 resume guidance, shared BAT final results and unattended opt-out, and native
-failure-notification grouping are implemented. Automatic Windows/WSL/Host language
-handoff, remaining translations and ordinary Windows/IDE acceptance remain
-incomplete. The shared Incus 7.0 LTS installer/CI baseline and version diagnostics
-are implemented in the candidate; fresh native acceptance remains pending.
+failure-notification grouping are implemented. Normalized WSL-to-Host session
+language handoff is implemented; automatic Windows selection and remaining
+translations are incomplete. The shared Incus 7.0 LTS baseline passed packaged
+Ubuntu and scoped Windows/Incus acceptance; Windows approval/preview passed after
+fixture correction, while volume export and dependent Windows reclaim still fail.
+See [exact evidence](status/acceptance-evidence.md); this is not distribution or
+native language-handoff acceptance.

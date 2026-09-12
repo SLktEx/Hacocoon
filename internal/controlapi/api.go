@@ -84,7 +84,8 @@ type EnvironmentShellRequest struct {
 }
 
 type HostShellRequest struct {
-	Terminal TerminalMetadata `json:"terminal,omitempty"`
+	Terminal        TerminalMetadata `json:"terminal,omitempty"`
+	DisplayLanguage string           `json:"display_language,omitempty"`
 }
 
 type environmentService interface {
@@ -288,6 +289,10 @@ func RegisterHost(server *control.Server, hosts hostService) error {
 		if err != nil {
 			return nil, err
 		}
+		if request.DisplayLanguage != "" && request.DisplayLanguage != "en" && request.DisplayLanguage != "ja" {
+			return nil, control.NewStatusError("invalid_argument", "display language must be en or ja")
+		}
+		metadata.DisplayLanguage = request.DisplayLanguage
 		ctx = shellTerminalContext(ctx, metadata)
 		prepared, err := hosts.PrepareTrustedHostShellStream(ctx)
 		if err != nil {

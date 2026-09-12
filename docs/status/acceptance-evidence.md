@@ -207,3 +207,20 @@ standalone runtime, owned Btrfs pool (Base/snapshot/CoW/import and reviewed Stor
 maintenance through a real PTY), and Core egress/lifecycle. Private-registry
 acceptance was skipped for its existing prerequisite. This Linux success does
 not resolve the separate Windows transfer failure above.
+
+Candidate `5fe184a6` passed test CI 34719977795 and packaged Ubuntu 34719977797,
+including ordinary-user doctor, installed journey and network/spoofing guards.
+Windows 34719977824 passed its earlier installation/SSH/VS Code stages and now
+also passed pending-review saved-ask/current-deny/one-shot-allow/reask/cleanup and
+Edge preview/reuse/refusal. This resolves those two preceding failed probes; it
+does not establish GUI-only approval. Export still failed (`phase=export`, fixed
+evidence `volume-export,unavailable`). Linux trim passed; Windows reclamation
+again lacked the transfer manifest and native notification was skipped. The new
+classification localizes the remaining failure without exposing native output.
+
+Upstream Incus 7.0.1's `cmdStorageVolumeExport.run` rejects an existing target
+without `--force`; the controller-owned `/proc/<pid>/fd/<fd>` output intentionally
+exists. The adapter now supplies that flag only for its live anonymous descriptor,
+with ownership/unlinked/private-file regressions. Public destination overwrite
+refusal remains unchanged. Native Windows transfer must rerun to establish the
+fix; it is not inferred from the source diagnosis or component test alone.

@@ -58,13 +58,30 @@ func TestResolverStopsAtFirstNonemptyValue(t *testing.T) {
 	var keys []string
 	got := Resolve(func(key string) string {
 		keys = append(keys, key)
+		if key == "HACO_UI_LANGUAGE" {
+			return ""
+		}
 		if key == "LC_ALL" {
 			return "not-a-locale"
 		}
 		return "ja"
 	})
-	if got != English || !reflect.DeepEqual(keys, []string{"LC_ALL"}) {
+	if got != English || !reflect.DeepEqual(keys, []string{"HACO_UI_LANGUAGE", "LC_ALL"}) {
 		t.Fatalf("language=%q reads=%v", got, keys)
+	}
+}
+
+func TestPresentationOverrideIsNormalizedAndDoesNotChangeLocale(t *testing.T) {
+	for _, value := range []string{"en", "ja", "JA", "ja_JP.UTF-8", "ja\n", "ja;PATH=/tmp", "unknown"} {
+		env := map[string]string{"HACO_UI_LANGUAGE": value, "LC_ALL": "ja_JP.UTF-8", "LANG": "C.UTF-8"}
+		before := fmt.Sprint(env)
+		want := English
+		if value == "ja" {
+			want = Japanese
+		}
+		if got := Resolve(func(key string) string { return env[key] }); got != want || fmt.Sprint(env) != before {
+			t.Fatalf("override %q = %q; environment %v", value, got, env)
+		}
 	}
 }
 
@@ -218,6 +235,9 @@ func FuzzParseLocale(f *testing.F) {
 			t.Fatalf("invalid language: %q", language)
 		}
 		got := Resolve(func(key string) string {
+			if key == "HACO_UI_LANGUAGE" {
+				return ""
+			}
 			if key == "LC_ALL" {
 				return value
 			}

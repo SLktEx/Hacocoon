@@ -324,7 +324,13 @@ Docker/nerdctl acceptance.
 
 Implemented: the trusted Host entry notice follows the Physical Host login process's first nonempty `LC_ALL`, `LC_MESSAGES`, then `LANG`. Japanese locales select Japanese; other locales retain English. The notice still identifies Host authority and directs ordinary development into an Environment. Interactive stderr uses yellow unless `NO_COLOR` is nonempty; redirected output stays plain.
 
-The Windows installer does not generate or persist a locale from the Windows UI language. Hacocoon selects presentation from the calling process locale; OS, Git, SSH and build-tool locale settings remain the user's own. The former development-branch locale initialization has been removed to preserve that boundary. Normalized per-operation Windows/WSL/Host presentation handoff remains pending.
+The Windows installer does not generate or persist a locale from the Windows UI
+language. Hacocoon accepts the normalized `HACO_UI_LANGUAGE=en|ja` override before
+the calling process locale. Host entry forwards only the resolved presentation
+value for that session. OS, Git, SSH and build-tool locales remain the user's own.
+The former OS locale initialization is removed. Automatic Windows language
+selection and native language-handoff acceptance remain pending; see
+[CLI language](../reference/cli-language.md) and [ADR 0065](../adr/0065-host-presentation-language.md).
 ## Setup progress and failure diagnostics
 
 Status: **implemented**. `haco setup` observes the existing owned-resource

@@ -164,7 +164,8 @@ Further M1 work: the candidate now shares signed Incus 7.0 LTS package selection
 patch-series preferences and server verification between Ubuntu/WSL installers
 and Incus CI (#479, ADR 0063). Host doctor fails clearly on unsupported versions.
 Repository helper/host-preparation/package/diagnostic tests passed; fresh native
-7.0 installation remains pending. Six-series compatibility is retained.
+7.0 installation was pending at that point. Six-series acceptance is historical;
+the current packaged baseline and export CLI contract require 7.0 LTS.
 
 `195172f4` passed full test CI 34714239387 and packaged Ubuntu acceptance
 34714239415 after correcting stale horizontal-help assertions. Earlier failed
@@ -240,3 +241,22 @@ its marker before a slow PowerShell startup; its earlier local failures remain
 test-harness failures. Next: rerun the corrected native gates, investigate export
 from the categorized evidence and complete language transport. M0/M1 stay partial;
 no main merge or distribution is claimed.
+
+The next M1 slice forwards only normalized `en`/`ja` from the WSL client into
+one trusted Host shell (`HACO_UI_LANGUAGE`), with request validation before Host
+preparation. It leaves OS locales, JSON/exit codes and Environment execution
+settings unchanged. ADR 0065 and paired language/transport/Host documentation own
+the contract. Automatic Windows language selection and full translation remain
+open. At `5fe184a6`, Ubuntu packaged acceptance and full test CI pass; Windows
+pending-review and preview also pass after the PTY correction. Volume export
+still fails and blocks its dependent Windows reclaim fixture. Next: finish the
+language handoff's native acceptance and repair the Incus 7 existing-target guard for the private
+anonymous export descriptor, then rerun the affected native path.
+
+Language selector/fuzz seeds, product JSON/exit behavior, Host help, management
+API rejection and real Linux shell non-forwarding regressions pass. Initial
+tests using a getter that returned a POSIX locale for every environment key were
+corrected to distinguish the normalized override. Incus/runtime and architecture
+regressions also pass. `5fe184a6` real Incus run 34719977784 subsequently passed all
+enabled jobs; private registry stayed skipped. This does not accept the unpushed
+language change or resolve Windows volume export.
