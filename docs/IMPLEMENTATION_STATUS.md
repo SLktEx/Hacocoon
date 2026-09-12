@@ -2018,3 +2018,12 @@ finalization, including concurrent process writers. Historical normalization and
 schema 13 are unchanged. State, Workspace, ephemeral-run, Git boundary and
 architecture regressions passed in hacocoon-kai. See
 [catalog responsibility](design/workspace-abstraction-and-lease.md#catalog-responsibility).
+
+## Shared ephemeral-run completion
+
+Implemented: normal run completion, failed activation and abandoned-run recovery
+share cleanup and marker outcomes. Cleanup and marker-removal failures consistently
+retain recovery-required and their original causes; existing JSON and guest exits
+are preserved. Three new cases reproduced inconsistent error classification before
+the change. Related package tests and state/Workspace/run race tests passed in
+hacocoon-kai. See [temporary execution](design/temporary-execution.md#cleanup-outcome-ownership).

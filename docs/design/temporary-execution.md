@@ -58,3 +58,16 @@ The maintained Incus GHA fixture passed at 4adfe19 (run 34115004878, job
 101719650209), using ordinary product commands for success, exit 17, retained file
 writes and actual cancellation followed by verified provider absence. Interactive sessions, local installed acceptance and a populated OCI
 image execution are not claimed by these checks.
+
+## Cleanup outcome ownership
+
+Implemented: normal completion, activation failure and abandoned-run recovery
+share bounded canonical runtime/scratch cleanup and one marker-outcome handler.
+Create failure uses the same marker handler, but never removes scratch data while
+canonical creation reports uncertain runtime ownership. A cleanup or marker
+persistence failure consistently returns recovery-required and retains the
+original cause. Retrying uses the existing startup/next-run reconciliation.
+The JSON shape and guest exit status are unchanged: cleaned_up reports completed
+runtime/scratch cleanup, while a failed marker removal still returns an error.
+Repository regressions cover marker-removal retry, activation failure,
+cancellation, retained Workspace/Store boundaries and partial scratch cleanup.

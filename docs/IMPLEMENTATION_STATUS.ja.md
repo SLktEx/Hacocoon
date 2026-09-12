@@ -1742,3 +1742,12 @@ Ubuntu 26.04 の CI 結果、ローカル OS 制約、実 Host 全体の受け�
 schema 13 は変更していません。hacocoon-kai で state、Workspace、一時実行、Git 境界、
 architecture 回帰テストが成功しました。
 [catalog の責任](design/workspace-abstraction-and-lease.md#catalog-responsibility)を参照してください。
+
+## 一時実行の終了処理の共有
+
+実装済み: 通常実行の終了、activation 失敗、中断された一時実行の復旧が cleanup と
+マーカー更新を共有します。cleanup とマーカー削除の失敗は元の原因と recovery-required を
+一貫して保持し、既存 JSON と guest 終了コードは維持します。変更前には新しい3ケースで
+エラー分類の不一致を再現しました。hacocoon-kai で関連パッケージと state／Workspace／run
+の race テストが成功しました。
+[一時実行](design/temporary-execution.ja.md#cleanup-結果の責任)を参照してください。

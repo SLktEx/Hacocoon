@@ -85,64 +85,6 @@ func (s *Service) recoveryEnabled() bool {
 	return s != nil && s.runs != nil && s.lockDir != "" && s.acquireOwnership != nil
 }
 
-// Reconcile removes only Environments with an explicit durable ephemeral-run
-// marker whose process ownership lock is no longer held. A run-* name alone is
-// never treated as proof that an Environment is safe to delete.
-func (s *Service) Reconcile(ctx context.Context) error {
-	if s == nil || s.environments == nil {
-		return core.ErrInvalidArgument
-	}
-	if !s.recoveryEnabled() {
-		return nil
-	}
-	runs, err := s.runs.ListEphemeralRuns(ctx)
-	if err != nil {
-		return fmt.Errorf("list ephemeral runs for recovery: %w", err)
-	}
-	var recoveryErrs []error
-	for _, run := range runs {
-		select {
-		case <-ctx.Done():
-			return errors.Join(append(recoveryErrs, ctx.Err())...)
-		default:
-		}
-		if run.EnvironmentID == "" {
-			recoveryErrs = append(recoveryErrs, fmt.Errorf("ephemeral run marker has no environment identity: %w", core.ErrRecoveryRequired))
-			continue
-		}
-		ownership, acquired, lockErr := s.acquireOwnership(s.lockDir, run.EnvironmentID, true)
-		if lockErr != nil {
-			recoveryErrs = append(recoveryErrs, fmt.Errorf("probe ownership for ephemeral run %q: %w", run.EnvironmentID, lockErr))
-			continue
-		}
-		if !acquired {
-			// Another live Hacocoon process still owns this run.
-			continue
-		}
-
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.cleanupTimeout)
-		deleteErr := s.cleanupRun(cleanupCtx, run)
-		cancel()
-		if deleteErr == nil {
-			if markerErr := s.runs.DeleteEphemeralRun(context.WithoutCancel(ctx), run.EnvironmentID); markerErr != nil {
-				recoveryErrs = append(recoveryErrs, fmt.Errorf("remove recovered ephemeral run marker %q: %w", run.EnvironmentID, markerErr))
-			}
-		} else {
-			run.State = core.EphemeralRunCleanupRequired
-			markErr := s.runs.PutEphemeralRun(context.WithoutCancel(ctx), run)
-			recoveryErrs = append(recoveryErrs, errors.Join(
-				fmt.Errorf("recover abandoned ephemeral run %q: %w", run.EnvironmentID, deleteErr),
-				markErr,
-				core.ErrRecoveryRequired,
-			))
-		}
-		if releaseErr := ownership.Release(); releaseErr != nil {
-			recoveryErrs = append(recoveryErrs, fmt.Errorf("release ownership probe for %q: %w", run.EnvironmentID, releaseErr))
-		}
-	}
-	return errors.Join(recoveryErrs...)
-}
-
 func (s *Service) Run(ctx context.Context, spec Spec) (Result, error) {
 	if len(spec.Argv) == 0 {
 		return Result{}, core.ErrInvalidArgument
@@ -235,44 +177,31 @@ func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentRe
 		Resources:           spec.Resources,
 	})
 	if err != nil {
-		if s.recoveryEnabled() {
-			if errors.Is(err, core.ErrRecoveryRequired) {
-				marker.State = core.EphemeralRunCleanupRequired
-				markErr := s.runs.PutEphemeralRun(context.WithoutCancel(ctx), marker)
-				return Result{Environment: name}, errors.Join(fmt.Errorf("create ephemeral environment: %w", err), markErr)
-			}
-			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.cleanupTimeout)
-			cleanupErr := s.cleanupTemporary(cleanupCtx, temporary)
-			cancel()
-			if cleanupErr != nil {
-				marker.State = core.EphemeralRunCleanupRequired
-				return Result{Environment: name}, errors.Join(err, cleanupErr, s.runs.PutEphemeralRun(context.WithoutCancel(ctx), marker), core.ErrRecoveryRequired)
-			}
-			markerErr := s.runs.DeleteEphemeralRun(context.WithoutCancel(ctx), name)
-			return Result{Environment: name}, errors.Join(fmt.Errorf("create ephemeral environment: %w", err), markerErr)
+		cause := fmt.Errorf("create ephemeral environment: %w", err)
+		if !s.recoveryEnabled() {
+			return Result{Environment: name}, cause
 		}
-		return Result{Environment: name}, fmt.Errorf("create ephemeral environment: %w", err)
+		if errors.Is(err, core.ErrRecoveryRequired) {
+			// Canonical create still owns uncertain runtime cleanup. Do not
+			// attempt temporary-data deletion while its lease may remain.
+			return Result{Environment: name}, s.recordCleanup(ctx, marker, cause)
+		}
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.cleanupTimeout)
+		cleanupErr := s.cleanupTemporary(cleanupCtx, temporary)
+		cancel()
+		return Result{Environment: name}, errors.Join(cause, s.recordCleanup(ctx, marker, cleanupErr))
 	}
 
+	// Carry one exact run identity through activation, completion and retry,
+	// even in compositions that do not persist ephemeral markers.
+	marker.EnvironmentID = environment.Name
+	marker.TemporaryWorkspace = temporary
+	marker.State = core.EphemeralRunActive
 	if s.recoveryEnabled() {
-		marker.EnvironmentID = environment.Name
-		marker.State = core.EphemeralRunActive
 		if err := s.runs.PutEphemeralRun(ctx, marker); err != nil {
-			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.cleanupTimeout)
-			cleanupErr := s.cleanupRun(cleanupCtx, core.EphemeralRun{EnvironmentID: environment.Name, TemporaryWorkspace: temporary})
-			cancel()
-			if cleanupErr == nil {
-				markerErr := s.runs.DeleteEphemeralRun(context.WithoutCancel(ctx), environment.Name)
-				return Result{Environment: environment.Name, CleanedUp: true}, errors.Join(fmt.Errorf("activate ephemeral run marker: %w", err), markerErr)
-			}
-			marker.State = core.EphemeralRunCleanupRequired
-			markErr := s.runs.PutEphemeralRun(context.WithoutCancel(ctx), marker)
-			return Result{Environment: environment.Name}, errors.Join(
-				fmt.Errorf("activate ephemeral run marker: %w", err),
-				fmt.Errorf("cleanup ephemeral environment %q: %w", environment.Name, cleanupErr),
-				markErr,
-				core.ErrRecoveryRequired,
-			)
+			cleaned, cleanupErr := s.cleanupOwnedRun(ctx, marker)
+			return Result{Environment: environment.Name, CleanedUp: cleaned}, errors.Join(
+				fmt.Errorf("activate ephemeral run marker: %w", err), cleanupErr)
 		}
 	}
 
@@ -289,34 +218,9 @@ func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentRe
 		StdoutBytes:     outputByteCount(execution.StdoutBytes, stdoutMarkerBytes),
 		StderrBytes:     outputByteCount(execution.StderrBytes, stderrMarkerBytes),
 	}
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.cleanupTimeout)
-	cleanupErr := s.cleanupRun(cleanupCtx, core.EphemeralRun{EnvironmentID: environment.Name, TemporaryWorkspace: temporary})
-	cancel()
-	result.CleanedUp = cleanupErr == nil
-
-	var markerErr error
-	if s.recoveryEnabled() {
-		if cleanupErr == nil {
-			markerErr = s.runs.DeleteEphemeralRun(context.WithoutCancel(ctx), environment.Name)
-		} else {
-			marker.State = core.EphemeralRunCleanupRequired
-			markerErr = s.runs.PutEphemeralRun(context.WithoutCancel(ctx), marker)
-		}
-	}
-
-	if execErr != nil && cleanupErr != nil {
-		return result, errors.Join(execErr, fmt.Errorf("cleanup ephemeral environment %q: %w", environment.Name, cleanupErr), markerErr)
-	}
-	if execErr != nil {
-		return result, errors.Join(execErr, markerErr)
-	}
-	if cleanupErr != nil {
-		return result, errors.Join(fmt.Errorf("cleanup ephemeral environment %q: %w", environment.Name, cleanupErr), markerErr)
-	}
-	if markerErr != nil {
-		return result, fmt.Errorf("remove completed ephemeral run marker %q: %w", environment.Name, markerErr)
-	}
-	return result, nil
+	cleaned, cleanupErr := s.cleanupOwnedRun(ctx, marker)
+	result.CleanedUp = cleaned
+	return result, errors.Join(execErr, cleanupErr)
 }
 
 func outputByteCount(explicit, decoded int64) int64 {
