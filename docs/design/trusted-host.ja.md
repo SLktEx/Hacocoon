@@ -336,3 +336,10 @@ profile、pause 中・コピー未完了の状態、曖昧な provider 応答は
 [ADR 0032](../adr/0032-owned-host-nested-runtime.md) を参照してください。
 Runtime バイナリは任意のままで、イメージの実データ復旧は Docker/nerdctl ごとの
 独立した受け入れ確認が必要です。
+
+
+## Host 入口の言語
+
+実装済み: 信頼済み Host へ入るときの案内は、Physical Host の login process の `LC_ALL`、`LC_MESSAGES`、`LANG` の順で最初の空でない値を使います。日本語 locale なら日本語、それ以外は英語です。Host 権限を使う場所であることと、通常の開発には Environment を使う案内を維持します。対話端末の stderr は `NO_COLOR` が空なら黄色にし、redirect 時は色コードを付けません。
+
+Windows の新規インストールでは、日本語の Windows UI 言語を Ubuntu の locale tool で `ja_JP.UTF-8` に設定してから login user を準備します。既存 distribution の locale は変更せず、他の Windows 言語は Ubuntu の既定値を維持します。locale 設定に失敗した場合はインストールを中断します。表示だけの変更で、Host／Env 権限、controller 準備待ち、認証情報の転送は変更しません。日本語 Windows 上の新規インストール受入は未検証です。

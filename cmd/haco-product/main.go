@@ -210,7 +210,7 @@ func runLoginShim(args []string) error {
 		return fmt.Errorf("enter trusted haco-host: %w", err)
 	}
 	defer stream.Close()
-	fmt.Fprintln(os.Stderr, "Entering trusted haco-host. Host authority is available here; use an Environment for ordinary development work.")
+	writeTrustedHostNotice(os.Stderr)
 	return terminalbridge.Bridge(ctx, stream, os.Stdin, os.Stdout)
 }
 
