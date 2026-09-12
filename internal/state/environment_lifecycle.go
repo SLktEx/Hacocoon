@@ -13,8 +13,8 @@ import (
 //
 // The reservation deliberately remains in the acquiring state until the
 // provider runtime reference has been durably recorded and the complete
-// Environment can be committed. Callers should use the lifecycle methods in
-// this file rather than composing PutEnvironment/PutWorkspaceLease manually.
+// Environment can be committed. Independent metadata/lease mutation APIs are
+// deliberately absent; this transition owns their aggregate reservation.
 func (s *EnvironmentJSONStore) BeginEnvironmentCreate(ctx context.Context, lease core.WorkspaceLease) error {
 	if lease.SnapshotSource != "" {
 		return core.ErrInvalidArgument

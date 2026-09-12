@@ -193,3 +193,13 @@ Receipt-free direct Incus callers retain their bounded cleanup owner; ordinary
 production creation still delegates cleanup through its existing receipt to
 Workspace. Shared mechanics invoke each provider's own deletion method, so
 Sandbox source guards cannot disappear from that obligation.
+
+## Removal of independent catalog mutations
+
+Implemented: the production catalog no longer exports independent Environment
+metadata or Workspace-lease insert/update/delete methods. Their remaining callers
+were test fixtures; those fixtures now use begin/receipt/commit/finalize, including
+the independent-process lock test. An architecture regression prevents restoring
+the bypass APIs. Historical JSON normalization remains readable and is isolated
+from current lifecycle transitions. This removes a redundant write path without
+changing the on-disk schema, retained-data ownership or supported public commands.

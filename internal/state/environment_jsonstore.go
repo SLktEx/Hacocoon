@@ -1,7 +1,6 @@
 package state
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -34,43 +33,6 @@ type EnvironmentJSONStore struct {
 
 func NewEnvironmentJSONStore(path string) *EnvironmentJSONStore {
 	return &EnvironmentJSONStore{path: path}
-}
-
-func (s *EnvironmentJSONStore) PutEnvironment(_ context.Context, environment core.Environment) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	unlock, err := lockEnvironmentState(s.path)
-	if err != nil {
-		return err
-	}
-	defer unlock()
-
-	data, err := s.readEnvironments()
-	if err != nil {
-		return err
-	}
-	data.Environments[environment.Name] = environment
-	return s.writeEnvironments(data)
-}
-
-func (s *EnvironmentJSONStore) DeleteEnvironment(_ context.Context, name string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	unlock, err := lockEnvironmentState(s.path)
-	if err != nil {
-		return err
-	}
-	defer unlock()
-
-	data, err := s.readEnvironments()
-	if err != nil {
-		return err
-	}
-	if _, ok := data.Environments[name]; !ok {
-		return nil
-	}
-	delete(data.Environments, name)
-	return s.writeEnvironments(data)
 }
 
 func newEnvironmentFileState() environmentFileState {

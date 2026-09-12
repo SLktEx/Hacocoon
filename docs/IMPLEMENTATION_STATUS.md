@@ -2008,3 +2008,13 @@ also passed without publishing or tagging. Final native Incus observation/deleti
 passed again in 0.54s with its dedicated project/pool/instances removed.
 The standard test workflow now includes dev/1.x; its Ubuntu 26.04 CI result is
 separate from the local OS limitation and from full real-host acceptance.
+
+## Canonical catalog write surface
+
+Implemented on the development branch: removed five independent Environment and
+Workspace-lease mutation APIs after verifying they had no production callers.
+Fixtures now exercise canonical reservation, runtime receipt, publication and
+finalization, including concurrent process writers. Historical normalization and
+schema 13 are unchanged. State, Workspace, ephemeral-run, Git boundary and
+architecture regressions passed in hacocoon-kai. See
+[catalog responsibility](design/workspace-abstraction-and-lease.md#catalog-responsibility).

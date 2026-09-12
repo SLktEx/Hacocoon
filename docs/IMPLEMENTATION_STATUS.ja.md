@@ -1733,3 +1733,12 @@ installer package checksum も成功し、公開や tag 作成はしていない
 最終コードの実 Incus 観測/削除も 0.54 秒で再成功し、専用 project/pool/instance
 を削除した。通常 test workflow の対象へ dev/1.x を追加した。
 Ubuntu 26.04 の CI 結果、ローカル OS 制約、実 Host 全体の受け入れは区別する。
+
+## canonical catalog の更新経路
+
+開発ブランチで実装済み: 本番の呼び出し元がないことを確認し、Env と Workspace 予約を
+独立して更新する5つの API を削除しました。fixture も canonical な予約、runtime 所有情報の
+永続化、公開、削除確定を利用し、独立プロセスの同時更新も検証します。旧形式の正規化と
+schema 13 は変更していません。hacocoon-kai で state、Workspace、一時実行、Git 境界、
+architecture 回帰テストが成功しました。
+[catalog の責任](design/workspace-abstraction-and-lease.md#catalog-responsibility)を参照してください。

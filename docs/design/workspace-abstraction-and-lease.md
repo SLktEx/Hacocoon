@@ -209,3 +209,12 @@ recovery-required. A provider inspection failure remains a failure; an unfamilia
 but present runtime state remains unknown. Observation does not write, release
 reservations or remove retained data. Existing legacy read normalization is
 preserved and is not a new authorization proof.
+
+## Catalog responsibility
+
+Implemented: only canonical lifecycle transitions mutate Environment metadata
+and its lease. Independent metadata/lease setters have been removed from the
+production catalog. Persistence, historical normalization, read observations and
+ephemeral-run markers have separate files; optional Store and saved-snapshot
+owners retain their existing contracts. Existing state files remain readable.
+See [lifecycle ownership](../adr/0002-environment-lifecycle-ownership.md#removal-of-independent-catalog-mutations).
