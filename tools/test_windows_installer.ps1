@@ -90,7 +90,18 @@ try {
 } finally { Set-Item -LiteralPath function:Read-WslRegistrationCandidates -Value $realRegistrations }
 # Mock only the native command boundary. Product stdout must remain visible,
 # never become part of the exit-code decision, and no extra elevation may run.
-$systemWsl = Join-Path ([Environment]::SystemDirectory) 'wsl.exe'
+$realSystemWsl = ${function:Get-SystemWslExecutable}
+# Discovery is checked independently from the mocked native invocation. Linux
+# has no Windows system directory and must fail closed instead of using PATH.
+if ([string]::IsNullOrWhiteSpace([Environment]::SystemDirectory)) {
+    $discoveryRejected = $false
+    try { Get-SystemWslExecutable | Out-Null } catch { $discoveryRejected = $true }
+    Assert-Equal $discoveryRejected $true
+} else {
+    Assert-Equal (Get-SystemWslExecutable) (Join-Path ([Environment]::SystemDirectory) 'wsl.exe')
+}
+$systemWsl = 'haco-component-wsl-native'
+function Get-SystemWslExecutable { return 'haco-component-wsl-native' }
 $wslFunctionPath = 'function:' + $systemWsl
 function Start-Process { throw 'Installer must let WSL own prerequisite elevation' }
 Set-Item -LiteralPath $wslFunctionPath -Value {
@@ -119,6 +130,7 @@ try {
     }
 } finally {
     Remove-Item -LiteralPath $wslFunctionPath
+    Set-Item -LiteralPath function:Get-SystemWslExecutable -Value $realSystemWsl
     Remove-Item -LiteralPath function:Start-Process
 }
 # A failed listing is unknown, never an empty inventory. Do not echo stderr.
@@ -409,15 +421,16 @@ $enrollTestRoot = Join-Path ([IO.Path]::GetTempPath()) ('haco-enroll-' + [guid]:
 [void][IO.Directory]::CreateDirectory($enrollTestRoot)
 $enrollExe = Join-Path $enrollTestRoot 'haco-wsl.exe'
 $enrollChecksums = Join-Path $enrollTestRoot 'checksums.txt'
-$enrollFunction = 'function:' + $enrollExe
+$enrollFunction = 'function:haco-component-enroll-native'
 [IO.File]::WriteAllText($enrollExe, 'test fixture only')
 $enrollHash = Get-Sha256Hex $enrollExe
 $enrollId = [guid]::NewGuid().ToString('B')
 $realInstallHelper = ${function:Install-HacocoonWslHelper}
 function Install-HacocoonWslHelper([string]$Source, [string]$RegistrationId, [string]$ExpectedHash) {
+    Assert-Equal $Source $enrollExe
     Assert-Equal $RegistrationId $enrollId
     Assert-Equal $ExpectedHash $enrollHash
-    return $Source
+    return 'haco-component-enroll-native'
 }
 $script:enrollInvocations = 0
 Set-Item -LiteralPath $enrollFunction -Value {
@@ -450,6 +463,10 @@ try {
     [IO.File]::Delete($enrollChecksums)
     [IO.Directory]::Delete($enrollTestRoot, $false)
 }
+# Win32 sharing and junction semantics must be exercised by the Windows job.
+# Linux PowerShell runs the common component cases above; it cannot establish
+# Windows native acceptance. Keep every native assertion active on Windows.
+if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
 # Real ordinary-file installation is isolated from the user's actual app folder.
 $realDataRoot = ${function:Get-HacocoonWindowsDataRoot}
 $helperTestRoot = Join-Path ([IO.Path]::GetTempPath()) ('haco-helper-install-' + [guid]::NewGuid().ToString('N'))
@@ -523,6 +540,9 @@ try {
         $empty = if ($relative) { Join-Path $helperTestRoot $relative } else { $helperTestRoot }
         if (Test-Path -LiteralPath $empty) { [IO.Directory]::Delete($empty, $false) }
     }
+}
+} else {
+    Write-Host 'Windows native locked-worker/junction acceptance: not run on this OS'
 }
 # Failure-case probes intentionally change LASTEXITCODE. GitHub's PowerShell
 # wrapper returns it after this script, so publish success only after every

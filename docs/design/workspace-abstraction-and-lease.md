@@ -1,5 +1,10 @@
 # Workspace Abstraction & Lease
 
+The implemented Standard [Workspace workflow](workspace-workflow.md) composes
+these leases for path-based open and stopped data forks. A reviewed Workspace
+identity is checked before creation, and associated data completes before a
+forked Workspace becomes ready. Env removal retains repo and OCI data.
+
 Status: **roadmap contract implemented on `main`.** This document records the v0.2 design boundary; Hacocoon remains pre-1.0 and the concrete public surface may still change.
 
 ## Goal

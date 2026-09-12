@@ -42,6 +42,34 @@ func (s WorkspaceStores) Resolve(ctx context.Context, work core.Workspace) (core
 	if !errors.Is(err, core.ErrNotFound) {
 		return core.PersistentResource{}, err
 	}
+	// Restored/forked data may have an explicit Store ID instead of the
+	// deterministic automatic ID. Reuse one exact retained association; never
+	// overwrite guest changes with a new Host publication.
+	resources, err := s.Resources.Store.ListPersistentResources(ctx)
+	if err != nil {
+		return core.PersistentResource{}, err
+	}
+	var retained *core.PersistentResource
+	for _, resource := range resources {
+		if resource.WorkspaceID != work.ID {
+			continue
+		}
+		if retained != nil {
+			return core.PersistentResource{}, fmt.Errorf("select a retained OCI Store explicitly: %w", core.ErrStorageBusy)
+		}
+		if resource.State != "ready" || resource.Kind != StoreKind || resource.SourceOnly || !core.ValidPersistentResourceRef(resource.Ref()) {
+			return core.PersistentResource{}, core.ErrRecoveryRequired
+		}
+		copy := resource
+		retained = &copy
+	}
+	if retained != nil {
+		if err := s.Resources.Backend.Verify(ctx, *retained); err != nil {
+			return core.PersistentResource{}, err
+		}
+		return *retained, nil
+	}
+
 	source, err := s.Resources.Store.GetPersistentResource(ctx, HostStoreID)
 	if errors.Is(err, core.ErrNotFound) {
 		return core.PersistentResource{}, nil

@@ -175,3 +175,14 @@ func TestStatusTreatsRetainedAbsentRuntimeAsRecoveryRequired(t *testing.T) {
 		t.Fatalf("retained ownership became ordinary unknown: %v", err)
 	}
 }
+
+func TestForwardPreservesUDPProtocol(t *testing.T) {
+	runtime := &fakeRuntime{}
+	service := New(runtime, fakeStore{environment: core.Environment{Name: "demo", RuntimeRef: "haco-demo"}})
+	if _, err := service.Forward(context.Background(), "demo", core.LocalPortRequest{Protocol: "udp", HostPort: 8081, TargetPort: 3001}); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.forwardReq.Protocol != "udp" || runtime.forwardReq.HostPort != 8081 || runtime.forwardReq.TargetPort != 3001 {
+		t.Fatal(runtime.forwardReq)
+	}
+}

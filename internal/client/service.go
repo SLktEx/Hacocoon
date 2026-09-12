@@ -106,7 +106,7 @@ func normalizePortRequest(req core.LocalPortRequest) (core.LocalPortRequest, err
 	if req.Protocol == "" {
 		req.Protocol = "tcp"
 	}
-	if req.Protocol != "tcp" {
+	if req.Protocol != "tcp" && req.Protocol != "udp" {
 		return core.LocalPortRequest{}, fmt.Errorf("protocol %q: %w", req.Protocol, core.ErrUnsupported)
 	}
 	if req.HostPort < 0 || req.HostPort > 65535 || req.TargetPort < 1 || req.TargetPort > 65535 {

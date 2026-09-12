@@ -85,6 +85,9 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 			return core.Environment{}, err
 		}
 	}
+	if spec.ExpectedWorkspace != "" && workspace.ID != spec.ExpectedWorkspace {
+		return core.Environment{}, core.ErrCapabilityStale
+	}
 	unlock, err := lockWorkspace(ctx, workspace.ID)
 	if err != nil {
 		return core.Environment{}, fmt.Errorf("lock workspace: %w", err)

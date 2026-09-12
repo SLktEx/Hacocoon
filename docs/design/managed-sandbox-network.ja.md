@@ -41,3 +41,10 @@ Standard listener は上限付き DNS query を専用の lookup Capability へ�
 WindowsのSSH検証には、通常のEnv作成とSSH準備後に動く読み取り専用の観測処理があります。Envの世代を固定し、稼働状態、分離したNIC、所有確認済みの非NATブリッジ、カーネルのnftablesテーブルを検査します。テーブルには、MAC不一致の拒否、狭いDHCP初期化例外、IPv4サブネット不一致の拒否がこの順序で必要です。preroutingの優先度は-300です。余分なルールやチェーン、ID不一致、照会不足は失敗とし、修復しません。観測後に世代とNICのIDを再確認します。
 
 これはHTTPS・プロキシ・直接TCPの検証を補います。実際のカーネル設定を調べますが、偽装パケットの送信、別Envの削除、再起動・再作成の一連の動作は検証しません。観測処理の回帰試験と、パッケージ導入からのWindows SSH検証は別の証拠です。限定したローカル成功、準備待ちでの失敗、残る未確認範囲は[検証証拠](../status/acceptance-evidence.ja.md#development)を参照してください。
+
+## Policy に結び付いた開発用 relay
+
+Standard endpoint は [明示的な TCP/UDP 開発接続](network-connections.md)にも
+対応する。通常クライアントはゲスト内の loopback listener を選択する。
+既存 HTTP/SNI、bridge 送信元検証、既定の packet 拒否を維持し、管理 API や
+Incus socket をゲスト endpoint へ公開しない。

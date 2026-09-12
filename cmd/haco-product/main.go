@@ -93,6 +93,8 @@ func run(args []string) int {
 		return runSetup(args[1:])
 	case "config":
 		return runConfiguration(args[1:])
+	case "network":
+		return runNetwork(args[1:])
 	case "aws":
 		return runAWS(args[1:])
 	case "approve":
@@ -158,6 +160,7 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "Commands:")
 	fmt.Fprintln(out, "  setup      Prepare the Host or replay project setup in an Environment")
+	fmt.Fprintln(out, "  network    Connect approved TCP/UDP services and inspect connection authority")
 	fmt.Fprintln(out, "  aws        Use approved AWS operations with trusted Host authentication")
 	fmt.Fprintln(out, "  config     Inspect or edit approval policy configuration")
 	fmt.Fprintln(out, "  approve    Review a pending request and optionally save its Policy")
@@ -167,11 +170,11 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  snapshot   Save, restore, list and explicitly delete independent saved data")
 	fmt.Fprintln(out, "  run        Execute a command in a temporary Environment and clean up")
 	fmt.Fprintln(out, "  ssh setup  Prepare desktop SSH keys and connection settings")
-	fmt.Fprintln(out, "  open       Open an Environment in a desktop client")
+	fmt.Fprintln(out, "  open       Open or resume a Workspace in a desktop client")
 	fmt.Fprintln(out, "  base       List and inspect Environment starting points")
 	fmt.Fprintln(out, "  plugin     Optional integrations, including persistent OCI Stores")
 	fmt.Fprintln(out, "  repo       Clone a repository inside the trusted Host")
-	fmt.Fprintln(out, "  workspace  Prepare an independent managed repository copy")
+	fmt.Fprintln(out, "  workspace  Prepare, inspect and fork retained repository work")
 	fmt.Fprintln(out, "  git        Connect Git and review pending push approvals")
 	fmt.Fprintln(out, "  help       Show this help")
 	fmt.Fprintln(out, "  version    Show Hacocoon version information")
