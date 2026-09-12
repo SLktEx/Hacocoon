@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
@@ -147,59 +146,11 @@ func generalRunCommand(ctx context.Context, client generalControllerClient, args
 		return err
 	}
 	result, runErr := client.Run(ctx, spec)
-	if jsonOutput {
-		if err := json.NewEncoder(stdout).Encode(result); err != nil {
-			return err
-		}
-	} else {
-		if _, err := fmt.Fprint(stdout, result.Execution.Stdout); err != nil {
-			return err
-		}
-		if _, err := fmt.Fprint(stderr, result.Execution.Stderr); err != nil {
-			return err
-		}
-	}
-	if runErr != nil {
-		return runErr
-	}
-	if result.Execution.ExitCode > 0 {
-		return commandExitError{code: result.Execution.ExitCode}
-	}
-	return nil
-}
-
-func parseGeneralEventsArgs(args []string) (bool, int64, error) {
-	jsonOutput := false
-	var sinceOffset int64
-	offsetSeen := false
-	for len(args) > 0 {
-		switch args[0] {
-		case "--json":
-			if jsonOutput {
-				return false, 0, core.ErrInvalidArgument
-			}
-			jsonOutput = true
-			args = args[1:]
-		case "--since-offset":
-			if offsetSeen || len(args) < 2 {
-				return false, 0, core.ErrInvalidArgument
-			}
-			offset, err := strconv.ParseInt(args[1], 10, 64)
-			if err != nil || offset < 0 {
-				return false, 0, fmt.Errorf("invalid events offset %q: %w", args[1], core.ErrInvalidArgument)
-			}
-			sinceOffset = offset
-			offsetSeen = true
-			args = args[2:]
-		default:
-			return false, 0, fmt.Errorf("usage: haco events [--json] [--since-offset <byte-offset>]: %w", core.ErrInvalidArgument)
-		}
-	}
-	return jsonOutput, sinceOffset, nil
+	return writeRunResult(stdout, stderr, result, jsonOutput, runErr)
 }
 
 func generalEventsCommand(ctx context.Context, client generalControllerClient, args []string, out io.Writer) error {
-	jsonOutput, sinceOffset, err := parseGeneralEventsArgs(args)
+	jsonOutput, sinceOffset, err := parseEventsArgs(args)
 	if err != nil {
 		return err
 	}
