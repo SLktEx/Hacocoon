@@ -214,3 +214,12 @@ WSL停止、VHDX割当量7,931,428,864→4,033,871,872 bytesへの圧縮、再�
 他者所有の拒否、controller購読と所有listener cleanupも成功しました。人によるトーストクリックと
 新規GUI回答、VPN／NRPTは引き続き明示的な **SKIP** です。既存のSSH／VS Code／review／previewも
 成功しました。使い捨てWindows／WSL一構成での確認であり、巨大レポ実測・日本語UI全体・配布完了ではありません。
+
+`655f03ce`はtest CI 34723210857が成功しました。Incus 34723210668ではCore／Btrfsも
+**7.0.1**を確認し、standaloneとCore jobが成功しました。Btrfsのaggregate export/import、
+OCI書込みデータ、snapshot／restore／copy、保持とnative child拒否も成功し、この基盤での
+先行export失敗を解消しました。その後`TestRealIncusSourceDeletionE2E`のsnapshot `show`が
+失敗しました。Incus 7はvolumeとsnapshotを別引数に取るため、fixtureを既存create/deleteと
+同じ分離形式へ修正しました。製品の削除判定は変更していません。試験が所有cleanup前に止まり、
+storage cleanup stepはFAIL、全体Incus cleanup stepはPASSでした。後続Btrfs probeと
+private registryはSKIPで、Btrfs job全体の成功には再実行が必要です。

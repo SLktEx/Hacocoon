@@ -250,3 +250,14 @@ and fresh GUI decision remain explicitly **SKIP**, as does VPN/NRPT. Existing
 installed SSH, VS Code, review and preview scopes also passed. This is one
 disposable Windows/WSL configuration, not giant-repository measurement, full
 Japanese UI acceptance or distribution.
+
+At `655f03ce`, test CI 34723210857 passed. Incus run 34723210668 now records
+**7.0.1** for Core/Btrfs. Standalone and Core jobs passed. Btrfs aggregate
+export/import, OCI writable data, snapshot/restore/copy, retention and native
+child refusal all passed, resolving the earlier export failure on this substrate.
+`TestRealIncusSourceDeletionE2E` then failed its snapshot `show` fixture: Incus 7
+requires separate volume and snapshot arguments. The fixture now uses that form,
+as its existing create/delete calls already do. Product deletion checks are
+unchanged. The storage cleanup step failed because that test stopped before its
+owned cleanup; the overall Incus cleanup step passed. Later Btrfs probes and
+private registry were skipped. The complete Btrfs job requires another run.
