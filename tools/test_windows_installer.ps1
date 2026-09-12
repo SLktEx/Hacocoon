@@ -257,6 +257,51 @@ Assert-Equal (Get-WslLoginUser 'Hacocoon') 'hacocoon'
 Assert-Equal $script:userProbeCalls 1
 ${function:Invoke-WslCapture} = $realCapture
 
+# Exercise real user preparation up to the default-user mutation boundary.
+$realRootShell = ${function:Invoke-WslRootShellScript}
+$realDefaultSetter = ${function:Set-WslDefaultUser}
+function Set-WslDefaultUser { throw 'test-default-boundary' }
+function Invoke-WslRootShellScript { return New-WslCaptureResult 0 @() '' }
+function Invoke-WslCapture([string[]]$Arguments) {
+    if ($Arguments -contains 'id') { return New-WslCaptureResult 1 @() '' }
+    if ($Arguments -contains 'getent') { return New-WslCaptureResult $script:groupCode @($script:groupRow) '' }
+    if ($Arguments -contains '/usr/sbin/useradd') {
+        $script:createdUserArgs = $Arguments
+        return New-WslCaptureResult 0 @() ''
+    }
+    throw 'Unexpected user preparation command'
+}
+try {
+    foreach ($case in @(
+        @{ code=0; row='hacocoon:x:1001:'; valid=$true; gid='1001' },
+        @{ code=2; row=''; valid=$true; gid='' },
+        @{ code=1; row=''; valid=$false; gid='' },
+        @{ code=127; row=''; valid=$false; gid='' },
+        @{ code=0; row='hacocoon:x:0:'; valid=$false; gid='' },
+        @{ code=0; row='other:x:1001:'; valid=$false; gid='' },
+        @{ code=0; row='hacocoon:x:4294967295:'; valid=$false; gid='' },
+        @{ code=0; row="hacocoon:x:1001:`nhacocoon:x:1002:"; valid=$false; gid='' }
+    )) {
+        $script:groupCode = $case.code
+        $script:groupRow = $case.row
+        $script:createdUserArgs = @()
+        $failure = $null
+        try { Ensure-ManagedWslLoginUser 'Hacocoon' | Out-Null } catch { $failure = $_ }
+        Assert-Equal ($null -ne $failure) $true
+        Assert-Equal ($failure.Exception.Message -eq 'test-default-boundary') $case.valid
+        Assert-Equal ($script:createdUserArgs.Count -gt 0) $case.valid
+        if ($case.valid) {
+            Assert-Equal $script:createdUserArgs[-1] 'hacocoon'
+            Assert-Equal ($script:createdUserArgs -contains '--gid') ($case.gid -ne '')
+            if ($case.gid) { Assert-Equal $script:createdUserArgs[-2] $case.gid }
+        }
+    }
+} finally {
+    Set-Item function:Invoke-WslCapture $realCapture
+    Set-Item function:Invoke-WslRootShellScript $realRootShell
+    Set-Item function:Set-WslDefaultUser $realDefaultSetter
+}
+
 function Get-WslDefaultUser([string]$Name) { return $script:defaultUser }
 function Get-WslLoginUser([string]$Name) { return $script:defaultUser }
 function Ensure-ManagedWslLoginUser([string]$Name) { $script:managedCalls++; return 'hacocoon' }
