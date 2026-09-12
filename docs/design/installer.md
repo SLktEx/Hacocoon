@@ -12,6 +12,7 @@ install-windows.ps1 pre
         |
         v
      install.sh
+  incus-lts.sh
         |
         v
 install-windows.ps1 post
@@ -21,6 +22,7 @@ install-ubuntu.sh pre
         |
         v
      install.sh
+  incus-lts.sh
         |
         v
 install-ubuntu.sh post
@@ -29,6 +31,20 @@ install-ubuntu.sh post
 `install.sh` contains only the work common to Ubuntu running natively and Ubuntu running under WSL: shared dependencies, Incus, Hacocoon binaries, the Physical Host controller, trusted `haco-host` reconciliation, and the controller round trip.
 
 WSL lifecycle and login integration stay in PowerShell. Native-Ubuntu-only checks and post-install behavior stay in `install-ubuntu.sh`.
+
+## Incus package baseline
+
+Implemented in the development candidate: Ubuntu/WSL installation and dedicated
+Incus CI share `scripts/incus-lts.sh`. The supported server is 7.0 LTS
+(`>= 7.0.1`, `< 7.1`). The helper verifies the pinned Zabbly key, uses its signed
+`lts-7.0` source, and selects the latest available 7.0.x package. APT preferences
+retain the series without freezing a patch. A newer installed series requires an
+explicit migration and is never downgraded automatically. The installer checks
+the actual server version before boot-guard adoption and Hacocoon setup.
+
+See [ADR 0063](../adr/0063-shared-incus-lts-installation.md). Existing 6.0
+compatibility remains best effort. Fresh Ubuntu/WSL acceptance is pending; prior
+6.0.5 results remain historical evidence, not acceptance of the new baseline.
 
 The shared phase installs bundled `incus-boot-guard.py` using isolated Python
 and an Incus service drop-in. First adoption requires the existing daemon to be
@@ -45,6 +61,7 @@ hacocoon-windows-amd64.zip
   install-windows.bat
   install-windows.ps1
   install.sh
+  incus-lts.sh
   incus-boot-guard.py
   haco_linux_amd64.tar.gz
   checksums.txt
@@ -57,6 +74,7 @@ hacocoon-windows-arm64.zip
 hacocoon-ubuntu-amd64.tar.gz
   install-ubuntu.sh
   install.sh
+  incus-lts.sh
   incus-boot-guard.py
   haco_linux_amd64.tar.gz
   checksums.txt
@@ -94,5 +112,6 @@ the pause without consuming or forwarding another installer argument. The normal
 PowerShell arguments and saved continuation procedure are unchanged.
 
 Native Windows component tests cover exits 0, 1, 37 and 3010 plus missing
-PowerShell/adjacent script. Explorer double-click/keypress acceptance remains
-separate from the automated native process checks.
+PowerShell/adjacent script. The final wait uses ConPTY because redirected pipes
+do not establish console key handling. Explorer double-click acceptance remains
+separate from the automated native process and ConPTY checks.

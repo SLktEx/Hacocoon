@@ -1,5 +1,12 @@
 # Trusted `haco-host`
 
+Development candidate: `haco doctor` verifies the actual Incus server release and
+reports unsupported or unknown versions before dependent probes. The supported
+baseline is 7.0 LTS (`>= 7.0.1`, `< 7.1`); malformed backend versions are not
+echoed. See the [shared installer contract](installer.md#incus-package-baseline).
+Existing 6.0 compatibility remains best effort and historical acceptance stays
+recorded separately from fresh 7.0 installation acceptance.
+
 Implemented: Host `haco setup` waits for controller readiness through bounded read-only Ping probes before sending setup once. A failed setup response is never retried automatically. This handles the interval between systemd service activation and socket readiness without adding CLI steps.
 
 

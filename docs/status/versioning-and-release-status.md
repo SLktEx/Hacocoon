@@ -85,3 +85,8 @@ Current feature scope and remaining work are consolidated in implementation stat
 The current milestone position is **v0.58**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
+
+The M0/M1 candidate in PR #583 additionally integrates the existing development
+branches and the shared Incus 7.0 LTS installer/doctor contract. It retains the
+v0.58 development checkpoint while native acceptance remains partial. This is
+not a new tag, main merge, distributed installer or public release.

@@ -83,3 +83,7 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 現在のmilestone位置は **v0.58**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
+
+PR #583のM0/M1候補は、既存開発ブランチとIncus 7.0 LTS共通導入・doctor契約を統合します。
+実機受入がpartialのため、開発checkpointはv0.58を維持します。新規タグ・mainマージ・
+インストーラ配布・公開リリースではありません。

@@ -159,3 +159,15 @@ Windows outbound timeout distinct from later narrower passes. No source data,
 existing Env, retained Store, user branch, tag or release has been deleted.
 
 Review: [PR #583](https://github.com/SLktEx/Hacocoon/pull/583), candidate head "1d2957eb" (development only). Focused CLI/notification/catalog/control API/composition race tests passed. Native BAT component also verified waiting with open stdin, key release and preserved failure exit 37; Explorer launch remains unverified. Existing Windows/Ubuntu installer and Incus PR gates now include dev/2.x, retaining their read-only permissions and unchanged acceptance sequence.
+
+Further M1 work: the candidate now shares signed Incus 7.0 LTS package selection,
+patch-series preferences and server verification between Ubuntu/WSL installers
+and Incus CI (#479, ADR 0063). Host doctor fails clearly on unsupported versions.
+Repository helper/host-preparation/package/diagnostic tests passed; fresh native
+7.0 installation remains pending. Six-series compatibility is retained.
+
+`195172f4` passed full test CI 34714239387 and packaged Ubuntu acceptance
+34714239415 after correcting stale horizontal-help assertions. Earlier failed
+runs remain in acceptance evidence. Windows key-wait validation was corrected
+from pipes to a ConPTY component; local ConPTY passed, while Explorer acceptance
+and the updated Windows CI are still required. These do not complete M1.

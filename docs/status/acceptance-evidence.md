@@ -130,4 +130,29 @@ PRs targeting `dev/v2`.
 
 See [daily workflow](../reference/daily-workflow.md). That dev/v2 acceptance predates the separate Workspace and TCP/UDP implementation on dev/2.x.
 
+## M0/M1 integration candidate, PR #583
 
+At `37c3e679`, test run 34713814211 and Ubuntu installer run 34713814185
+failed because their assertions still required the former horizontal env help.
+The actual Ubuntu installation completed. `195172f4` updated those assertions
+to the hierarchical help contract, preserving exit/output checks; full test run
+34714239387 and packaged Ubuntu run 34714239415 succeeded. These precede the
+shared Incus LTS change and do not accept that later code.
+
+Windows run 34713814252 (job 103607232075) failed at the added pipe-based
+keypress test, before installed Windows acceptance. Local pipe success did not
+establish headless-console behavior. The replacement uses the shipped BAT in
+ConPTY, waits for its prompt, sends a key and checks exit 37. Local native
+ConPTY and 0/1/37/3010/prerequisite components passed; the replacement's CI and
+Explorer double-click remain separate gates. A local dependency-import attempt
+could not read the isolated package under sandbox permissions; the same test
+with that package's installation permissions ran successfully. This was not an
+installed-product failure or a permission change in the product.
+
+The LTS command-boundary regressions reject additional/missing/duplicate signing
+keys, wrong package sources/series, failed dependencies and a newer installed
+series. A malformed multiline version initially passed shell validation; the
+new regression detected it and the corrected validator rejects it. Six helper
+tests, seven host preparation tests, installer packaging and Go HostDiagnostics
+tests passed. No installed WSL packages or retained user resources were changed.
+Fresh 7.0 product installation is still pending.
