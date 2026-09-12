@@ -20,6 +20,7 @@ import (
 	"time"
 	"unicode/utf16"
 
+	"github.com/SLktEx/Hacocoon/internal/cliui"
 	"github.com/SLktEx/Hacocoon/internal/desktopreview"
 	"github.com/SLktEx/Hacocoon/pkg/interaction"
 	"github.com/SLktEx/Hacocoon/pkg/interactionhttp"
@@ -79,8 +80,9 @@ func (b *nativeDiagnostic) Write(data []byte) (int, error) {
 }
 
 type notifyState struct {
-	Offset       int64    `json:"offset"`
-	SeenEventIDs []string `json:"seen_event_ids"`
+	Offset       int64           `json:"offset"`
+	SeenEventIDs []string        `json:"seen_event_ids"`
+	Failures     []failureNotice `json:"failure_notices,omitempty"`
 }
 
 func main() {
@@ -217,6 +219,10 @@ func runNativeWithStart(ctx context.Context, reader batchReader, presenter notif
 		for _, event := range batch.Events {
 			if !state.hasSeen(event.EventID) {
 				title, body, show := notificationText(event, includeCompleted)
+				now := time.Now()
+				if state.suppressFailure(event, now) {
+					show = false
+				}
 				if show {
 					var deliveryErr error
 					if reviewer, ok := presenter.(interface {
@@ -229,8 +235,9 @@ func runNativeWithStart(ctx context.Context, reader batchReader, presenter notif
 					if deliveryErr != nil {
 						return deliveryErr
 					}
-					state.remember(event.EventID)
+					state.rememberFailure(event, now)
 				}
+				state.remember(event.EventID)
 			}
 			state.Offset = event.NextOffset
 			if err := store.save(state); err != nil {
@@ -366,9 +373,13 @@ func encodePowerShell(script string) string {
 }
 
 func notificationText(event interaction.Event, includeCompleted bool) (string, string, bool) {
+	language := cliui.Resolve(os.Getenv)
 	details := strings.Join(nonEmpty(event.Environment, event.Capability, event.Action), " · ")
 	if details == "" {
 		details = event.Code
+	}
+	if failureNoticeKey(event) != "" {
+		details += "\n" + language.Text("notification.inspect_failure")
 	}
 	switch event.Kind {
 	case interaction.ApprovalRequired:
