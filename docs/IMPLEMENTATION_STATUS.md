@@ -21,6 +21,10 @@ Implemented: an absent current Windows reclamation record has an explicit read-o
 
 Partial G2/G3: the maintained procedure uses native Incus image export/import. Two split container images passed cross-WSL import with matching fingerprints and unchanged Windows-retained parts. This does not add a Base snapshot dependency or establish new-Env boot or whole-installation replacement. See [the procedure and scoped acceptance](design/environment-transfer.md#retain-ordinary-incus-images).
 
+## Trusted Host entry language
+
+Implemented: the Host authority notice supports Japanese message locales, with plain redirected output. Fresh Japanese Windows installations configure the new WSL locale; existing distributions remain unchanged. Native Japanese-Windows installation acceptance is pending. See [trusted Host entry](design/trusted-host.md#host-entry-language).
+
 ## Host setup controller readiness
 
 Implemented: Host setup uses bounded read-only controller readiness probes before a single setup request. Mutation failures are not retried. See [trusted Host](design/trusted-host.md). Native observation identified the startup race; acceptance of this client fix is separate.
