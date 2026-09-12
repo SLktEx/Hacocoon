@@ -1,6 +1,10 @@
 package cliui
 
 var commandCatalog = map[string]translation{
+	"command.host":                     {"Use the trusted Host controller client", "信頼済みHostの操作窓口を使う"},
+	"command.host.doctor":              {"Check the connection to the Host controller", "Hostの操作窓口との接続を確認する"},
+	"command.env.exec":                 {"Run a command in an Environment", "環境の中でコマンドを実行する"},
+	"command.env.shell":                {"Open an interactive shell in an Environment", "環境の中で対話シェルを開く"},
 	"daily.unknown_state":              {"Completion is not confirmed; resource state is unknown until inspected. Do not assume cleanup or retry succeeded.", "完了は確認できていません。状態を確認するまで、削除や再試行が成功したと判断しないでください。"},
 	"daily.inspect":                    {"Next: haco env status %s; haco doctor %s. Inspect before retrying or deleting retained data.\n", "次の操作: haco env status %s、haco doctor %s で状態を確認してください。再試行や保持データの削除は確認後に行ってください。\n"},
 	"daily.ssh_policy":                 {"If the Base lacks sshd, SSH preparation needs package access under the current Env Policy. In trusted haco-host, inspect haco approve --list and haco config; review the package endpoints before changing Policy. No approval or package failure is inferred from this error.", "ひな形にsshdがない場合、SSH準備には現在の承認ルールでパッケージ取得が必要です。信頼済みhaco-hostで haco approve --list と haco config を確認し、取得先を確認してからルールを変更してください。このエラーだけでは承認やパッケージ取得の失敗と断定できません。"},

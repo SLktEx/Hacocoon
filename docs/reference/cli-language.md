@@ -74,3 +74,10 @@ failure, retained-data and resume guidance. Help retains `haco open .`, Workspac
 prepare/fork and TCP/UDP additions. The actual Environment diagnostic command is
 `haco doctor <environment>`. This does not complete automatic Windows/WSL/Host
 language handoff or localization of every shipped command.
+
+The product and trusted Host client now use one hierarchical help renderer.
+`haco-host --help` and every public Host subcommand help return locally before
+controller construction. This expands help coverage, not translation of every
+Host result. Windows installation no longer derives and persists the OS locale
+from its display language; normalized per-operation language handoff remains a
+separate pending item.

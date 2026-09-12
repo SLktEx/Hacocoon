@@ -11,14 +11,14 @@ import (
 func TestEveryCommandHelpIsLocalAndUsesStdout(t *testing.T) {
 	// Invalid transport ensures help cannot require a running controller or create
 	// resources. Each public metadata path must be handled before normal dispatch.
-	t.Setenv("HACO_CONTROLLER_SOCKET", "/missing/roadmap-help.sock")
+	t.Setenv("HACO_CONTROL_SOCKET", "/missing/roadmap-help.sock")
 	for _, language := range []string{"C", "ja_JP.UTF-8"} {
 		setCLITestLocale(t, language)
 		for _, page := range helpPages {
 			for _, flag := range []string{"--help", "-h"} {
-				args := append(strings.Fields(page.path), flag)
+				args := append(strings.Fields(page.Path), flag)
 				code, out, diagnostic := captureRun(t, args...)
-				if code != 0 || diagnostic != "" || !strings.Contains(out, "haco "+page.path) || !strings.Contains(out, page.example) {
+				if code != 0 || diagnostic != "" || !strings.Contains(out, "haco "+page.Path) || !strings.Contains(out, page.Example) {
 					t.Fatalf("%v: code=%d stdout=%q stderr=%q", args, code, out, diagnostic)
 				}
 			}
@@ -42,10 +42,10 @@ func TestHelpDoesNotInterceptExecutionArgumentsOrUnknownCommands(t *testing.T) {
 func TestHelpMetadataIsUniqueAndKeepsNewDevelopmentCommands(t *testing.T) {
 	seen := map[string]bool{}
 	for _, page := range helpPages {
-		if seen[page.path] || cliui.English.Text(page.message) == page.message || cliui.Japanese.Text(page.message) == page.message {
+		if seen[page.Path] || cliui.English.Text(page.Message) == page.Message || cliui.Japanese.Text(page.Message) == page.Message {
 			t.Fatalf("invalid page %+v", page)
 		}
-		seen[page.path] = true
+		seen[page.Path] = true
 	}
 	for _, path := range []string{"env forward", "network tcp", "network udp", "workspace prepare", "workspace fork"} {
 		if !seen[path] {

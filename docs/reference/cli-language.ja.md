@@ -73,3 +73,8 @@ M0候補は#580の既存辞書を再利用し、現行の階層別ヘルプと�
 停止後の再開案内を追加しています。`haco open .`、Workspace prepare/fork、TCP/UDP
 拡張をヘルプから欠落させません。通常Envの診断は`haco doctor <environment>`です。
 この追加分もWindows→WSL→Hostの自動言語転送やCLI全体の翻訳完了を意味しません。
+
+製品CLIと信頼済みHost clientの階層ヘルプを共通描画へ揃えました。`haco-host --help`と
+公開サブコマンドのヘルプはcontrollerの準備前にローカルで表示します。Host結果の全文翻訳まで
+完了したという意味ではありません。Windows表示言語からOSのlocaleを永続変更する処理は
+撤去しました。操作ごとの正規化済み言語の引き継ぎは別の残件です。

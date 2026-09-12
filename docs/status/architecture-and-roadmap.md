@@ -171,3 +171,18 @@ Repository helper/host-preparation/package/diagnostic tests passed; fresh native
 runs remain in acceptance evidence. Windows key-wait validation was corrected
 from pipes to a ConPTY component; local ConPTY passed, while Explorer acceptance
 and the updated Windows CI are still required. These do not complete M1.
+
+At cc18a60b, full test CI 34715459033 passed; real Incus standalone and Core
+lifecycle/egress passed. Fresh Ubuntu run 34715458982 installed/verified Incus
+7.0.1 but failed boot-guard adoption: the guard recognized only Ubuntu's daemon
+path. The follow-up recognizes the exact vendor binary while retaining root,
+namespace and MainPID checks; unknown active daemons fail closed. Its 20
+regressions passed; installed acceptance must be rerun.
+
+The remaining M1 client work also shares the help renderer with haco-host and
+removes development-branch OS locale initialization. Windows installer component
+checks passed after removal. Language transport and full option/result coverage
+remain pending. Local ci-local.sh e2e printed PASS for all four stages, then
+reported a shell parse error after its source had been edited during the long
+run. The invocation is recorded as failed; separate current-file syntax checks
+and full CI success do not erase that local harness result.
