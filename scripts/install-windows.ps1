@@ -21,11 +21,20 @@ function Write-Step([string]$Message) {
     Write-Host "==> $Message"
 }
 
-function Invoke-WslInstall([string]$Name, [string[]]$Arguments) {
+function Get-SystemWslExecutable {
+    $systemDirectory = [Environment]::SystemDirectory
+    if ([string]::IsNullOrWhiteSpace($systemDirectory)) {
+        throw "The Windows system directory is unavailable."
+    }
     $systemWsl = Join-Path ([Environment]::SystemDirectory) "wsl.exe"
     if (-not (Test-Path -LiteralPath $systemWsl -PathType Leaf)) {
         throw "The system wsl.exe is unavailable at '$systemWsl'."
     }
+    return $systemWsl
+}
+
+function Invoke-WslInstall([string]$Name, [string[]]$Arguments) {
+    $systemWsl = Get-SystemWslExecutable
     # WSL owns any prerequisite elevation and parent-console attachment. Do not
     # elevate distro registration ourselves or lose diagnostics in a new window.
     $previousPreference = $ErrorActionPreference
