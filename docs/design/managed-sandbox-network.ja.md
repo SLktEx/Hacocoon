@@ -44,3 +44,10 @@ Windows SSH 受入 fixture に実装済みです。通常の Env 作成と SSH �
 既存の HTTPS／proxy／直接 TCP の受入を補う、実 kernel 設定の確認です。偽装 packet の配送、別 Env の削除、再起動／同名再作成の一連の動作は対象外であり、この observer の成功から推測しません。Windows との統合は既存 SSH gate で実行し、その native 結果は observer の回帰テストと区別して記録します。
 
 専用 Incus／WSL のローカル確認は、停止中の復元 Env を通常 start した後、同じ observer による世代と実 guard ルールの照合が成功しました。最初の起動試行は controller socket 準備前に失敗し、先行する単独 observer 実行も失敗しています。これらを成功扱いにはしません。配布 package を使う Windows SSH gate 全体と偽装 packet の動作は別の受入です。
+
+## Policy に結び付いた開発用 relay
+
+Standard endpoint は [明示的な TCP/UDP 開発接続](network-connections.md)にも
+対応する。通常クライアントはゲスト内の loopback listener を選択する。
+既存 HTTP/SNI、bridge 送信元検証、既定の packet 拒否を維持し、管理 API や
+Incus socket をゲスト endpoint へ公開しない。

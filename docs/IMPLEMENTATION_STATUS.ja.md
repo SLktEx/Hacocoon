@@ -1,5 +1,23 @@
 # 実装状況
 
+## Policy に結び付いた TCP/UDP 接続
+
+開発ブランチで Standard relay と製品 CLI を実装。既存 guarded endpoint、
+送信元の作成世代、承認・監査を再利用し、Policy の期限と Host サービス明示登録を
+追加した。専用 hacocoon-second の導入済み CLI/実 Incus で IPv4/IPv6 TCP/UDP、
+Host/Env 間、期限・撤回、送信元/宛先の再作成後の旧許可拒否、DNS 変更・失敗を確認。
+Windows UI と VPN は未検証。
+[接続の契約と受入範囲](design/network-connections.md)を参照。
+
+
+## Policyルールの有効期限
+
+実装済み: 管理者ルールと保存したPolicy判断に任意のRFC 3339期限を指定できます。
+承認後の実行直前にも既存経路で再評価します。期限ちょうどでの失効、制限の優先順位、
+不正な期限、承認待ち中に期限を過ぎた操作の拒否をリポジトリテストで確認します。
+TCP/UDP relay の実装と、範囲を分けた実 provider 受入は
+[接続契約](design/network-connections.md)に記録しています。
+
 ## WSL native binfmt flags
 
 実装済み: native登録のflagsは`P`と`PF`だけを許可し、登録全体の検証と、登録が

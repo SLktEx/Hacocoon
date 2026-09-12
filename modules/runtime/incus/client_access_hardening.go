@@ -178,26 +178,33 @@ func (r *Runtime) ListClientConnections(ctx context.Context, ref string) ([]core
 }
 
 func clientConnectionFromProxy(id, listen, connect string) (core.ClientConnection, error) {
-	listenHost, listenPort, err := parseTCPProxyEndpoint(listen)
+	protocol := "tcp"
+	if strings.HasPrefix(listen, "udp:") {
+		protocol = "udp"
+	}
+	if !strings.HasPrefix(connect, protocol+":") {
+		return core.ClientConnection{}, core.ErrIncompatibleState
+	}
+	listenHost, listenPort, err := parseTCPProxyEndpoint("tcp:" + strings.TrimPrefix(listen, protocol+":"))
 	if err != nil {
 		return core.ClientConnection{}, fmt.Errorf("listen endpoint: %w", err)
 	}
-	_, targetPort, err := parseTCPProxyEndpoint(connect)
+	targetHost, targetPort, err := parseTCPProxyEndpoint("tcp:" + strings.TrimPrefix(connect, protocol+":"))
 	if err != nil {
 		return core.ClientConnection{}, fmt.Errorf("connect endpoint: %w", err)
 	}
-	if listenHost != "127.0.0.1" {
+	if listenHost != "127.0.0.1" || targetHost != "127.0.0.1" {
 		return core.ClientConnection{}, fmt.Errorf("managed proxy %q is not loopback-only: %w", id, core.ErrUnsupported)
 	}
 
 	connection := core.ClientConnection{
 		ID:         id,
-		Kind:       "tcp",
+		Kind:       protocol,
 		Host:       listenHost,
 		Port:       listenPort,
 		TargetPort: targetPort,
 	}
-	if strings.HasPrefix(id, "ssh-") && targetPort == 22 {
+	if protocol == "tcp" && strings.HasPrefix(id, "ssh-") && targetPort == 22 {
 		connection.Kind = "ssh"
 		connection.User = "root"
 		connection.Command = fmt.Sprintf("ssh -p %d root@127.0.0.1", listenPort)
@@ -245,6 +252,36 @@ func chooseLoopbackPort(ctx context.Context, port int) (int, error) {
 		return 0, fmt.Errorf("release loopback port probe: %w", closeErr)
 	}
 	if !ok || address.Port < 1 || address.Port > 65535 || !address.IP.IsLoopback() {
+		return 0, core.ErrIncompatibleState
+	}
+	return address.Port, nil
+}
+
+// UDP probes the same protocol as the eventual Incus listener. The Incus bind,
+// not this probe, remains authoritative if another process races for the port.
+func chooseLoopbackProtocolPort(ctx context.Context, protocol string, port int) (int, error) {
+	if protocol == "tcp" {
+		return chooseLoopbackPort(ctx, port)
+	}
+	if protocol != "udp" || port < 0 || port > 65535 {
+		return 0, core.ErrInvalidArgument
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if port != 0 {
+		return port, nil
+	}
+	var lc net.ListenConfig
+	listener, err := lc.ListenPacket(ctx, "udp4", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	address, ok := listener.LocalAddr().(*net.UDPAddr)
+	if err := listener.Close(); err != nil {
+		return 0, err
+	}
+	if !ok || address.Port < 1 || !address.IP.IsLoopback() {
 		return 0, core.ErrIncompatibleState
 	}
 	return address.Port, nil
