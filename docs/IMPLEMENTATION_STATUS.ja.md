@@ -2,6 +2,8 @@
 
 ## 日常の入口とsetup診断
 
+標準local test/vet/通知clientと全体raceが成功し、fixture CLI E2Eも成功しました。専用WSLで実CLIのhelp/JSON/controller不在/setup中断を確認しました。releaseのtrust/archive/config/syntaxは成功しましたが、Windows専用installer fixtureはLinux PowerShellのSystemDirectoryが空のため実行できません。Incus/Windows IDE実機確認はpendingで、共有WSL bridgeは変更していません。test workflowはdev/v2向けPRも検証します。
+
 Implemented: Host setupは上限付き固定stage/state/reasonとrequest IDをstream表示し、構造化journal診断を記録します。最終応答欠落を成功にせず、切断後も実処理終了まで排他を維持します。日常Env操作はstdout結果を維持してstderrへ進捗を表示し、helpと英日手順で作成・開く・作業・停止・再開へ案内します。保持データ削除では非対話確認の入力待ちを拒否します。専用開発WSLで対象GoテストとPython interop 22件が成功しました。インストール済みIncus/desktop実機確認はpendingであり、テストから成功を推定しません。[日常手順](reference/daily-workflow.ja.md)を参照してください。path発見(#454)、network拡張、保持単位再設計はdeferredです。
 
 
