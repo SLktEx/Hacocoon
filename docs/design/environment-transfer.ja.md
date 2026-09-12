@@ -1,6 +1,6 @@
 # Environment の持ち出し
 
-状態: **全体として partial** です。Linux 公開 export/import と Windows ファイル共有経由の import は実装済みで、インストール済み controller、更新した鍵での SSH、保持データの再接続を実検証しました。実 OCI runtime の整合性、Git 再接続の実受入、全量退避は未完了です。
+状態: **全体として partial** です。Linux 公開 export/import と Windows ファイル共有経由の import は実装済みで、インストール済み controller、更新した鍵での SSH、保持データの再接続を実検証しました。停止済み containerd の image と書き込みデータの移送は実 Incus／Btrfs で検証済みです。Docker と任意のアプリの整合性、Git 再接続の実受入、全量退避は未完了です。
 [Linux import コマンド](#linux-import-コマンド)を参照してください。
 
 ## Incus を土台にする
@@ -671,6 +671,8 @@ native snapshotter、停止コンテナのデータを対象にします。
 ba4dbcd の実 OCI 検証は export 前の source runtime 準備で FAILED。fixture は生の subprocess 出力を出さず、固定の失敗段階と終了コードを示すようになった。所有情報の復旧記録は保持し、転送の検証成功とは扱わない。
 
 オフライン source fixture では containerd transfer service に linux/amd64 の native unpack を明示設定します。標準の unpack 選択は native を含まないためで、source の準備だけに使います。復元先は起動前に現在の Hacocoon 設定へ置き換えます。8103e3f は export 前の image import で失敗し、CLI の platform 指定だけでは解決しませんでした。6974272 の [run 34501951826](https://github.com/SLktEx/Hacocoon/actions/runs/34501951826) では aggregate が 103.36 秒、製品 controller の import が 22.00 秒で成功し、元 Env の削除後も containerd の書込データから作業を再開できました。Windows を含む対象 CI は成功し、任意の authenticated-private-registry job は SKIP です。以前の失敗は失敗として残し、Docker・BuildKit/cache・任意のアプリ整合性の成功とは扱いません。
+
+同じ fixture は 653dc985 の [Incus／Btrfs CI job](https://github.com/SLktEx/Hacocoon/actions/runs/34636086219/job/103384200857) でも成功しました。aggregate は 115.96 秒で、canonical importer と製品 controller の両方で保存済みコンテナを再起動し、image の同一性と書き込みデータを検証しました。export 前に元コンテナと daemon を停止しています。この範囲の実 runtime 検証であり、実行中プロセスの復元や installation 全体の移行ではありません。
 
 ## 退避対象の native 一覧
 

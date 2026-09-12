@@ -9,6 +9,10 @@ refusal before/after restoration. Issue #553 reports installed-script workaround
 acceptance; the packaged fix still needs Windows/WSL setup and doctor acceptance.
 See [Windows interop](design/trusted-host.md#windows-interop).
 
+## Stopped containerd transfer acceptance
+
+Implemented and verified on real Incus/Btrfs at 653dc985: both canonical and shipped-controller imports retain the saved image identity and stopped container writable data after source deletion. Explicit container start resumes the saved work; no running task is migrated. Docker, arbitrary application consistency and whole-installation migration remain incomplete. See [the transfer acceptance scope](design/environment-transfer.md#live-oci-transfer-acceptance).
+
 ## Host setup controller readiness
 
 Implemented: Host setup uses bounded read-only controller readiness probes before a single setup request. Mutation failures are not retried. See [trusted Host](design/trusted-host.md). Native observation identified the startup race; acceptance of this client fix is separate.
