@@ -1,6 +1,6 @@
 # Environment transfer
 
-Status: **partial overall**. Linux public export/import and Windows-file projected import are implemented and verified through the installed controller, fresh pinned SSH and retained-data recreation. Live OCI runtime consistency, Git reconnection acceptance and whole-installation evacuation remain incomplete.
+Status: **partial overall**. Linux public export/import and Windows-file projected import are implemented and verified through the installed controller, fresh pinned SSH and retained-data recreation. Stopped containerd image and writable-data transfer has real Incus/Btrfs acceptance. Docker and arbitrary application consistency, Git reconnection acceptance and whole-installation evacuation remain incomplete. See [OCI transfer acceptance](#live-oci-transfer-acceptance).
 See [Linux import command](#linux-import-command) for current usage and limits.
 
 ## Incus foundation
@@ -825,6 +825,8 @@ At ba4dbcd, native OCI acceptance FAILED during source runtime preparation befor
 
 The offline source fixture explicitly configures the containerd transfer service for linux/amd64 native unpack. Its default unpack selection does not cover native; this is source preparation only. Import still replaces that configuration with current Hacocoon settings before starting the restored Environment. At 8103e3f, direct image import still failed before export; explicit CLI platform alone was insufficient. Native acceptance passed at 6974272 in [run 34501951826](https://github.com/SLktEx/Hacocoon/actions/runs/34501951826): aggregate 103.36s and shipped-controller import 22.00s, including source Env deletion and resumed containerd writable data. All applicable CI, including Windows, passed; the optional authenticated-private-registry job was skipped. Earlier failed attempts remain failures. No Docker, BuildKit/cache or arbitrary application consistency acceptance is claimed.
 
+The same gated fixture passed again at 653dc985 in [the Incus/Btrfs CI job](https://github.com/SLktEx/Hacocoon/actions/runs/34636086219/job/103384200857): aggregate 115.96s, with both canonical and shipped-controller imports restarting the saved container and verifying its image identity and writable data. The source container and daemon were stopped before export. This is native runtime acceptance within that scope, not live-process restoration or whole-installation migration.
+
 ## Evacuation inventory
 
 G2 is **partial**: `tools/evacuation_inventory.py` lists native Incus projects,
@@ -1077,6 +1079,8 @@ its file contents. Neither result classifies or saves the whole installation.
 
 ## Retention of encrypted acceptance fixtures
 
+Status: **historical optional acceptance**. This fixture is no longer run by maintained CI. It is not a migration requirement; use the unencrypted [tree capture](#explicit-tree-capture) workflow.
+
 The root-only native tar/age test now keeps its synthetic identities, source,
 restored bytes and receipt under a new mode-0700 `/var/lib` directory. It must not
 advertise an ephemeral `/tmp` tree as retained evidence. Keys remain mode 0600;
@@ -1102,6 +1106,8 @@ The newly generated synthetic identity stays inside this WSL and was not used
 to decrypt the earlier Windows ciphertext. Cross-WSL key transfer is unverified.
 
 ## Recovery identity kept outside WSL
+
+Status: **historical optional acceptance**. This fixture is no longer run by maintained CI. It is not a migration requirement; use the unencrypted [tree capture](#explicit-tree-capture) workflow.
 
 A separate synthetic acceptance uses the standard [age public-recipient workflow](https://github.com/FiloSottile/age/tree/v1.2.1).
 Windows age/keygen v1.2.1 was built from the pinned official Go module with the Go
@@ -1259,3 +1265,32 @@ Completion requires tar success, synced output and unchanged observed source met
 Historical encrypted fixtures and existing ciphertext remain unchanged and are not prerequisites for ordinary export. Old encrypted captures still need their original keys if accessed; no migration or rewriting is performed. Full source classification, coordinated quiescence and installation reconstruction remain unfinished.
 
 Native evacuation restore checks explicitly include non-user extended attributes when extracting their isolated, owned fixture archives, and compare a synthetic trusted attribute directly. GNU tar's default --xattrs extraction restores only the user namespace. This is same-platform fixture coverage, not permission to apply arbitrary archived security attributes to a Host or to import old management authority. Full restored-data comparison remains required.
+
+
+## Retain ordinary Incus images
+
+Status: **partial G2/G3**, using native Incus commands. Retain an image when it is needed for future creation; an independent snapshot rootfs does not require its original Base image. This procedure does not add a snapshot component, Hacocoon catalog object or daily command.
+
+On the source Physical Host, use the reviewed full fingerprint and its actual image namespace from the inventory. Choose a new private directory; stop if any command fails:
+
+```bash
+umask 077
+mkdir -m 700 /absolute/new-image-export
+incus image export FULL_FINGERPRINT /absolute/new-image-export/image --project SOURCE_PROJECT
+ls -l /absolute/new-image-export
+```
+
+Keep every output part. In the tested split-image case, the prefix produces `image` (metadata) and `image.root` (rootfs); a unified image can instead produce `image.tar`. Do not infer missing output from the prefix alone or export again over existing files. Compute SHA-256 for the actual parts, copy them to a new retention directory outside the source WSL, and compare their checksums there before import.
+
+On the destination Physical Host, record a new project name and unique ownership description before creating it. Enable its own image namespace explicitly; a shared namespace would not isolate this check:
+
+```bash
+incus project create RESTORE_PROJECT --description UNIQUE_RESTORE_DESCRIPTION -c features.images=true
+incus project list --format=json
+incus image import /absolute/retained/image /absolute/retained/image.root --project RESTORE_PROJECT
+incus image list --project RESTORE_PROJECT --format=json
+```
+
+Verify the recorded project description and `features.images` before import. For a unified archive, supply only its actual archive path to `incus image import`. Require the imported full fingerprint and image type to match the source, then recheck the retained files. Record failures and exact resources already created; do not guess cleanup targets or replace an existing project. Keep the source and retained archives. Importing an image does not register a Hacocoon Base, restore aliases, adopt old authority, create an Env or prove it boots.
+
+Native acceptance on separate dedicated WSL installations exported two split container images, copied all parts to new Windows directories, verified SHA-256, and imported into a new isolated Incus image project. Both fingerprints and types matched; the Windows copies remained unchanged. The first project-observation attempt failed because `incus project show` did not support `--format`; its receipt was retained, and observation continued through `project list` before import. The restored images and project remain available. Unified-image import, new-Env boot from these images and whole-installation replacement were not tested in this check.

@@ -286,6 +286,40 @@ function Invoke-WslRootShellScript([string]$Name, [string]$Script, [string[]]$Sc
     return Invoke-WslCapture $arguments
 }
 
+function Convert-WindowsLanguageTagToWslLocale([string]$LanguageTag) {
+    $tag = $LanguageTag.Trim()
+    if ($tag -match '^ja(?:-|$)') {
+        return 'ja_JP.UTF-8'
+    }
+    return ''
+}
+
+function Get-WindowsUiLanguageTag {
+    return [Globalization.CultureInfo]::CurrentUICulture.Name
+}
+
+function Initialize-WslLocaleFromWindows([string]$Name, [bool]$Created) {
+    if (-not $Created) { return }
+
+    $languageTag = Get-WindowsUiLanguageTag
+    $locale = Convert-WindowsLanguageTagToWslLocale $languageTag
+    if ([string]::IsNullOrWhiteSpace($locale)) { return }
+
+    Write-Step "Configuring '$Name' locale from Windows UI language '$languageTag' ($locale)"
+    $script = @'
+set -eu
+locale="$1"
+command -v locale-gen >/dev/null 2>&1
+command -v update-locale >/dev/null 2>&1
+locale-gen "$locale"
+update-locale LANG="$locale"
+'@
+    $probe = Invoke-WslRootShellScript $Name $script @($locale)
+    if ($probe.ExitCode -ne 0) {
+        throw "Failed to configure WSL locale '$locale' in '$Name'."
+    }
+}
+
 function Write-WslUtf8File([string]$Name, [string]$Path, [string]$Content, [switch]$Append) {
     # Never send installer-controlled bytes through the Windows native stdin
     # pipeline. Windows PowerShell 5.1 can change encoding/preambles there.
@@ -506,11 +540,28 @@ function Ensure-ManagedWslLoginUser([string]$Name) {
 
     $probe = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "id", "-u", $ManagedLoginUser)
     if ($probe.ExitCode -ne 0) {
-        $probe = Invoke-WslCapture @(
+        # Linux-first installations may already have the controller access group.
+        # Reuse only its exact, non-root GID; lookup failure is not absence.
+        $group = Invoke-WslCapture @("--distribution", $Name, "--user", "root", "--exec", "getent", "group", $ManagedLoginUser)
+        $groupArgs = @()
+        if ($group.ExitCode -eq 0) {
+            $fields = $group.Stdout -split ':'
+            $gid = [uint32]0
+            if ($fields.Count -ne 4 -or $fields[0] -cne $ManagedLoginUser -or
+                $fields[2] -cnotmatch '^[1-9][0-9]*$' -or
+                -not [uint32]::TryParse($fields[2], [ref]$gid) -or $gid -eq [uint32]::MaxValue -or
+                $group.Stdout.Contains("`n") -or $group.Stdout.Contains("`r")) {
+                throw 'Existing managed login group must have one valid non-root GID.'
+            }
+            $groupArgs = @("--gid", $fields[2])
+        } elseif ($group.ExitCode -ne 2) {
+            throw "Unable to inspect managed login group (WSL exit code $($group.ExitCode))."
+        }
+        $probe = Invoke-WslCapture (@(
             "--distribution", $Name,
             "--user", "root",
-            "--exec", "/usr/sbin/useradd", "--create-home", "--shell", "/bin/bash", $ManagedLoginUser
-        )
+            "--exec", "/usr/sbin/useradd", "--create-home", "--shell", "/bin/bash"
+        ) + $groupArgs + @($ManagedLoginUser))
         if ($probe.ExitCode -ne 0) {
             throw "Failed to create managed WSL login user '$ManagedLoginUser': $($probe.Stderr)"
         }
@@ -821,6 +872,7 @@ if ($probe.ExitCode -ne 0) {
 
 # pre
 Assert-UbuntuBaseline $InstanceName
+Initialize-WslLocaleFromWindows $InstanceName $createdInstance
 $loginUser = Initialize-WslLoginUser $InstanceName $createdInstance
 Enable-WslSystemd $InstanceName
 $arch = Get-WslArch $InstanceName

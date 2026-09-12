@@ -246,3 +246,5 @@ G3 now has native acceptance for one managed bundle on a separate fresh WSL: com
 G2 inventory also records native image identities and project sharing. These references do not add a Base filesystem snapshot component or prove image capture; whole-installation evacuation and restore comparison remain required. See [inventory scope](../design/environment-transfer.md#evacuation-inventory).
 
 G2 capture uses ordinary archives without mandatory encryption or key setup. The maintenance tree helper uses GNU tar directly; G1 keeps the existing `haco env export` / `haco env import` flow. Earlier encrypted acceptance is historical and does not add an export step. Whole-installation restoration and comparison remain unfinished; see [tree capture](../design/environment-transfer.md#explicit-tree-capture).
+
+G2/G3 now include a native procedure and scoped cross-WSL acceptance for retaining ordinary Incus images. Independent snapshot rootfs still require no original Base image. Whole-installation classification and replacement remain incomplete; see [image retention](../design/environment-transfer.md#retain-ordinary-incus-images).

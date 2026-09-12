@@ -126,6 +126,25 @@ def load_driver(name, filename):
     return module
 
 
+def require_absent_history(result):
+    if result != {"operation": "", "state": "none"}:
+        raise RuntimeError("Fresh installation has saved or unrecognized reclamation evidence; retain it")
+
+
+def absent_status_completed(output):
+    # A prompt can be repainted before the command runs. Only its explicit
+    # completion line establishes that the status response has arrived.
+    match = re.search(r"(?m)^HACO_ABSENT_STATUS_EXIT:([0-9]+)\r?\n", output)
+    if not match:
+        return False
+    if match[1] != "0":
+        raise RuntimeError("Ordinary Host reclamation status failed")
+    response = output[:match.start()]
+    if "No saved reclamation result. No operation was started by this status check." not in response:
+        raise RuntimeError("Ordinary Host did not report absent reclamation history")
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--retention-manifest", required=True)
@@ -140,6 +159,7 @@ def main():
         raise RuntimeError("Installed helper missing")
     import reclamation_retention
     retention = reclamation_retention.load_manifest(args.retention_manifest)
+    require_absent_history(read_json([str(helper), "_status", reg]))
     terminal = driver.TerminalProcess()
     stage, sent_at = 0, 0
     terminal_confirmed = False
@@ -152,6 +172,11 @@ def main():
             process.write("wsl -d Hacocoon\r\n")
             stage, sent_at = 1, len(output)
         elif stage == 1 and host:
+            process.write("haco reclaim --status; printf '\\nHACO_ABSENT_STATUS_EXIT:%s\\n' \"$?\"\r\n")
+            stage, sent_at = 10, len(output)
+        elif stage == 10 and absent_status_completed(fresh):
+            require_absent_history(read_json([str(helper), "_status", reg]))
+            print("Public status before first reclamation: PASS; no operation record created", flush=True)
             process.write("haco reclaim --yes\r\n")
             stage, sent_at = 2, len(output)
         elif stage == 2 and "Worker dispatched; reclamation is not yet confirmed." in fresh:

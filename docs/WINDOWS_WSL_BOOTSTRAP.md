@@ -126,6 +126,8 @@ The installer launches the WSL user-setup session itself. After the user complet
 
 The default managed account needs no password input. It does not reset an existing account's password on retry. For this path only, the installer replaces the known Ubuntu account/metrics OOBE command with an empty command and sets the validated default UID, preserving unrelated distribution configuration through an atomic replacement. Unknown OOBE configurations fail closed; the interactive option preserves Ubuntu's normal setup. This does not opt the user into metrics collection. See [ADR 0004](adr/0004-wsl-installer-authority.md).
 
+If Linux setup already created the `hacocoon` access group before the managed login account exists, user preparation reuses its validated non-root GID. A missing group keeps normal private-group creation. Malformed/root group records and failed group lookup stop before account creation; existing accounts and passwords are unchanged.
+
 ## Interrupted registration and Windows restart
 
 The installer requires a successful WSL inventory before deciding to create a distribution. A failed listing is unknown state, not an empty list. After creation, it requires the exact named distribution to appear in a second successful inventory before common Ubuntu setup can begin.

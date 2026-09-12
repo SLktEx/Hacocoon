@@ -13,6 +13,38 @@ OP = "{11111111-1111-4111-8111-111111111111}"
 
 
 class ReclamationUserPathTests(unittest.TestCase):
+    def test_status_waits_for_completion_despite_echo_and_prompt_repaint(self):
+        output = ""
+        chunks = [
+            "root@haco-host:~# \n",
+            'haco reclaim --status; printf \'\\nHACO_ABSENT_STATUS_EXIT:%s\\n\' "$?"\n',
+            "root@haco-host:~# \n",
+            "No saved reclamation result. No operation was started by this status check.\n",
+            "HACO_ABSENT_STATUS_EX",
+            "IT:",
+        ]
+        for chunk in chunks:
+            output += chunk
+            self.assertFalse(gate.absent_status_completed(output))
+        self.assertTrue(gate.absent_status_completed(output + "0\n"))
+
+    def test_status_completion_requires_success_and_response(self):
+        message = "No saved reclamation result. No operation was started by this status check.\n"
+        for output in ("HACO_ABSENT_STATUS_EXIT:0\n",
+                       message + "HACO_ABSENT_STATUS_EXIT:1\n",
+                       "HACO_ABSENT_STATUS_EXIT:0\n" + message):
+            with self.assertRaises(RuntimeError):
+                gate.absent_status_completed(output)
+
+    def test_absent_history_refuses_existing_or_partial_evidence(self):
+        gate.require_absent_history({"operation": "", "state": "none"})
+        for result in (None, {}, {"state": "none"},
+                       {"operation": OP, "state": "pending"},
+                       {"operation": OP, "state": "failed"},
+                       {"operation": "", "state": "none", "linux_started": True}):
+            with self.assertRaises(RuntimeError):
+                gate.require_absent_history(result)
+
     def test_process_identity_must_be_observed(self):
         helper = r"C:\fixture\haco-wsl.exe"
         self.assertFalse(gate.helper_is_running([], helper))

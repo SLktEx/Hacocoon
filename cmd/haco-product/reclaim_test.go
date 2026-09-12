@@ -130,3 +130,30 @@ func TestReclaimDoesNotDispatchWhenWarningCannotBeShown(t *testing.T) {
 		t.Fatal(code)
 	}
 }
+
+func TestReclaimAbsentResultDoesNotClaimExecution(t *testing.T) {
+	var out, diagnostic bytes.Buffer
+	if code := writeReclamationStatus(&out, &diagnostic, []byte(`{"operation":"","state":"none"}`)); code != 0 || !strings.Contains(out.String(), "No saved reclamation result") || strings.Contains(out.String(), "complete") {
+		t.Fatal(code, out.String(), diagnostic.String())
+	}
+	for _, raw := range []string{
+		`{"operation":"` + commandReclaimOperation + `","state":"none"}`,
+		`{"state":"none","linux_started":true}`,
+		`{"state":"none","observation":{}}`,
+		`{"state":"none","extra":true}`,
+	} {
+		if _, err := parseReclamationStatus([]byte(raw)); err == nil {
+			t.Fatal("absent result accepted evidence", raw)
+		}
+	}
+	calls := 0
+	code := reclaimReviewCommand(context.Background(), []string{"--yes"}, strings.NewReader(""), &out, &diagnostic,
+		func(context.Context) (reclamation.WSLTarget, error) { return commandReclaimTarget, nil },
+		func(context.Context, reclamation.WSLTarget, string) ([]byte, error) {
+			return []byte(`{"state":"none"}`), nil
+		},
+		func(context.Context, reclamation.WSLTarget, string, string) error { calls++; return nil })
+	if code != 0 || calls != 0 {
+		t.Fatal("empty status invoked review", code, calls)
+	}
+}

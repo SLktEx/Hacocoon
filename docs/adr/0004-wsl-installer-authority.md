@@ -21,6 +21,8 @@ The reset CLI already uses a Physical Host controller socket owned by `root:haco
 - Preserve the distro on interruption or failure and fail before printing completion. Rerun the current BAT to continue. A normal restart must be tested before reinstall, so repair on rerun cannot hide failed startup.
 - Require successful inventory before creation and confirm the exact registration afterward. WSL exit 0 can still mean prerequisites need a reboot. Preserve a failed creation's stage/options in a new advisory record; never execute that record, trust it as resource ownership, or use it to skip fresh probes. Propagate an explicit restart-required code without claiming installation completed. Resume through the current BAT, without autorun or a saved elevated command.
 
+Linux-first setup can create the controller access group before the managed login user. The installer may reuse the exact named group's validated non-root GID when creating that authorized account. It does not recreate the group, select an unrelated shared group, grant Incus admin, or reset an existing password. Unknown lookup failures are not absence; malformed or root group identities stop account creation.
+
 ## Rejected alternatives
 
 Temporary broad sudo rules expose ambient root authority to existing processes. Replacing them with an operation list still creates a second policy surface for the installer. A fixed precreated user without updating WSL's first-launch contract leaves Ubuntu's account/metrics dialog pending and prevents immediate ordinary entry. Do not repair that gap by injecting consent or account fixtures in CI.

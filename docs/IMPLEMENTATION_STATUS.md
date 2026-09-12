@@ -9,6 +9,26 @@ refusal before/after restoration. Issue #553 reports installed-script workaround
 acceptance; the packaged fix still needs Windows/WSL setup and doctor acceptance.
 See [Windows interop](design/trusted-host.md#windows-interop).
 
+## Stopped containerd transfer acceptance
+
+Implemented and verified on real Incus/Btrfs at 653dc985: both canonical and shipped-controller imports retain the saved image identity and stopped container writable data after source deletion. Explicit container start resumes the saved work; no running task is migrated. Docker, arbitrary application consistency and whole-installation migration remain incomplete. See [the transfer acceptance scope](design/environment-transfer.md#live-oci-transfer-acceptance).
+
+## Reclamation status without saved history
+
+Implemented: an absent current Windows reclamation record has an explicit read-only no-result response. Status and review create no operation; malformed records and explicit-ID lookup failures remain errors. No persisted state or schema changes. See [storage reclamation](design/storage-reclamation.md).
+
+## Native image evacuation and import
+
+Partial G2/G3: the maintained procedure uses native Incus image export/import. Two split container images passed cross-WSL import with matching fingerprints and unchanged Windows-retained parts. This does not add a Base snapshot dependency or establish new-Env boot or whole-installation replacement. See [the procedure and scoped acceptance](design/environment-transfer.md#retain-ordinary-incus-images).
+
+## Trusted Host entry language
+
+Implemented: the Host authority notice supports Japanese message locales, with plain redirected output. Fresh Japanese Windows installations configure the new WSL locale; existing distributions remain unchanged. Native Japanese-Windows installation acceptance is pending. See [trusted Host entry](design/trusted-host.md#host-entry-language).
+
+## Windows source-guard acceptance
+
+Implemented observer, native Windows gate acceptance pending: the existing SSH fixture now checks actual per-Env MAC/DHCP/subnet nft rules and pins the Env generation. It performs no repair or spoofed-packet injection. See [scope and limitations](design/managed-sandbox-network.md#installed-windows-source-guard-observation).
+
 ## Host setup controller readiness
 
 Implemented: Host setup uses bounded read-only controller readiness probes before a single setup request. Mutation failures are not retried. See [trusted Host](design/trusted-host.md). Native observation identified the startup race; acceptance of this client fix is separate.
@@ -1873,7 +1893,7 @@ G2 direct file-archive Btrfs acceptance passed on dedicated WSL in 20.59s, inclu
 
 G2 snapshot-only file capture passed on dedicated Incus/Btrfs in 24.52s, using pre-existing synthetic saved data and independent restore volumes. Full saved-data coverage and snapshot-deletion-failure evacuation remain unfinished.
 
-G2 encrypted file transport uses standard tar/age commands with an opt-in synthetic acceptance test. Actual Host credentials and whole-installation restoration remain unverified; no product encryption backend or daily CLI is added.
+Historical G2 encrypted transport fixtures remain available for old evidence, but are no longer run by maintained CI. Current evacuation uses ordinary unencrypted tar; its native CI covers archive contents, independent checksum verification, explicit xattr restore and incomplete-capture refusal. No key setup or post-export encryption is required. Actual Host credentials and whole-installation restoration remain unverified.
 
 G3 partial acceptance restored synthetic Workspace/OCI archives from Windows into a fresh WSL/Btrfs pool, compared file metadata/content and resumed Git work (8.04s). Native snapshot create/delete also passed. Encrypted identity recovery, installed Hacocoon reconstruction and whole-installation replacement remain unverified; see [scope](design/environment-transfer.md#fresh-wsl-data-restoration-acceptance).
 
@@ -1954,3 +1974,5 @@ Read-only evacuation reference projection covers catalog schemas 10–13 without
 Evacuation native restore tests now explicitly restore and directly compare a non-user extended attribute. A dedicated WSL reproduction confirmed that default GNU tar extraction omitted the synthetic trusted attribute while explicit inclusion retained it. This corrects verification coverage; whole-installation restore and previously restored rootfs attribute comparison remain incomplete.
 
 F1 public reclamation passed native Windows/WSL CI at 5100d86: 3,740,270,592 Windows allocation bytes reclaimed with capacities preserved, exact-WSL resume, and retained Workspace/OCI/snapshot restoration. Existing local installation acceptance remains separate. See [current native acceptance](design/storage-reclamation.md#current-native-acceptance).
+
+Windows managed-user preparation handles a pre-existing non-root `hacocoon` group from Linux-first setup. Group lookup errors, malformed records and GID zero are refused before account creation; existing accounts remain unchanged. PowerShell component regressions pass. On a dedicated recovery WSL, the old function failed at useradd because the group existed; the corrected installer function created the managed account and verified the default user after the exact-distribution restart. This is native account-preparation acceptance, not a complete packaged install or whole-installation restoration.
