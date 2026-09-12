@@ -1717,3 +1717,19 @@ Incus 6.0.0 で、空の停止 instance を使う opt-in 観測・削除 gate �
 cleanup を検証した。専用 directory pool/project を使い、共有 network/profile
 は変更していない。Btrfs・起動 guest・packet enforcement・installed Windows
 全体・live OCI の受け入れを意味しない。
+
+### リファクタリングの検証
+
+hacocoon-kai (Ubuntu 24.04.4) で指定のローカル CI 入口を実行した。
+docs/workflow policy は成功し、all 実行は既存 installer の Ubuntu >=26.04
+前提条件で失敗した。公式 release-upgrade は利用可能な LTS 更新を提示せず、
+OS チェックや installer の保護条件は回避していない。
+
+test・race・e2e・systemd の指定入口は個別に成功した。
+全 Go test/vet・JS 27 件・出荷コマンド/capability/Git/orchestration fixture が
+成功した。forwarding は最初 iptables 不足で失敗し、依存追加後に独立 network
+namespace 内で成功した (3.21 秒)。GoReleaser 設定・ローカル snapshot build・
+installer package checksum も成功し、公開や tag 作成はしていない。
+最終コードの実 Incus 観測/削除も 0.54 秒で再成功し、専用 project/pool/instance
+を削除した。通常 test workflow の対象へ dev/1.x を追加した。
+Ubuntu 26.04 の CI 結果、ローカル OS 制約、実 Host 全体の受け入れは区別する。

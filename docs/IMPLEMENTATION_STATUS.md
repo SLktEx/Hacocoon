@@ -1991,3 +1991,20 @@ gate in 0.59s: stopped/absent distinction, exact-name deletion, prefix-neighbor
 retention, retry and owned cleanup. It used a dedicated directory pool/project
 and changed no shared network or profile. This is not Btrfs, running guest,
 packet enforcement, full installed Windows or live OCI acceptance.
+
+### Refactor validation
+
+The maintained local CI entry was executed in hacocoon-kai (Ubuntu 24.04.4).
+Docs and workflow policy passed; the all-entry run then failed the unchanged
+installer's Ubuntu >=26.04 precondition. The official release-upgrade check
+offered no supported LTS upgrade, so no OS check or installer guard was bypassed.
+
+The maintained test, race, e2e and systemd entries passed independently:
+all Go tests/vet, 27 JS checks and the shipped-command/capability/Git/orchestration
+fixtures passed. The forwarding entry first lacked iptables, then passed in a
+separate network namespace after installing that dependency (3.21s).
+GoReleaser configuration, local snapshot builds and installer-package checksums
+also passed without publishing or tagging. Final native Incus observation/deletion
+passed again in 0.54s with its dedicated project/pool/instances removed.
+The standard test workflow now includes dev/1.x; its Ubuntu 26.04 CI result is
+separate from the local OS limitation and from full real-host acceptance.
