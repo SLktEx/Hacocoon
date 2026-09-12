@@ -19,6 +19,11 @@ class Refused(Exception):
     pass
 
 
+# Exact daemon locations shipped by the retained Ubuntu package and Zabbly LTS.
+# Do not infer identity from a process name, argv, basename or the service PID alone.
+DAEMON_EXECUTABLES = frozenset(('/usr/libexec/incus/incusd', '/opt/incus/bin/incusd'))
+
+
 def namespace_identity():
     boot = str(uuid.UUID(Path('/proc/sys/kernel/random/boot_id').read_text().strip()))
     # comm may contain spaces and ')'; fields after its final ')' start at 3.
@@ -39,7 +44,7 @@ def daemon_available(_root):
         if not entry.isascii() or not entry.isdigit():
             continue
         try:
-            if os.readlink(f'/proc/{entry}/exe').removesuffix(' (deleted)') != '/usr/libexec/incus/incusd':
+            if os.readlink(f'/proc/{entry}/exe').removesuffix(' (deleted)') not in DAEMON_EXECUTABLES:
                 continue
             if os.stat(f'/proc/{entry}/ns/pid').st_ino != namespace:
                 continue
@@ -48,12 +53,13 @@ def daemon_available(_root):
             processes.add(int(entry))
         except (FileNotFoundError, ProcessLookupError):
             continue
-    if not processes:
-        return False
     result = subprocess.run(['/usr/bin/systemctl', 'show', 'incus.service', '--property=MainPID', '--value'],
                             env={'PATH': '/usr/bin:/usr/sbin'}, capture_output=True,
                             text=True, timeout=5, check=True)
-    if int(result.stdout.strip()) not in processes:
+    main_pid = int(result.stdout.strip())
+    if not processes and main_pid == 0:
+        return False
+    if main_pid <= 0 or main_pid not in processes:
         raise Refused('Incus processes exist outside the managed daemon')
     return True
 
