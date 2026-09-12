@@ -173,3 +173,12 @@ Project setup failures expose only allowlisted `stage` and `error_code` plus the
 numeric `exit_code`. Stages distinguish lookup/recipe/start/execute/script;
 unknown response values become `unknown`/`internal`. Raw backend errors, recipe
 contents and process output are not copied into diagnostic fields.
+
+## Daily operation diagnostics
+
+Host setup uses fixed `stage`, `state` and `reason` fields, plus `request_id` and
+`duration_ms`. Its controller owns the single ERROR; individual stages are INFO
+observations. Progress uses stderr and rejects arbitrary peer fields. Journal
+retention belongs to systemd-journald. Helper exit 42 is the fixed native WSL
+binfmt incompatibility code, not parsed stderr. See
+[setup diagnostics](../design/trusted-host.md#setup-progress-and-failure-diagnostics).

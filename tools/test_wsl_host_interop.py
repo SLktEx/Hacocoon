@@ -315,7 +315,7 @@ class NativeBinfmtTests(unittest.TestCase):
                     entry = root / 'WSLInterop'
                     entry.write_text(value)
                     run = mock.Mock()
-                    with self.assertRaisesRegex(ValueError, 'incompatible or disabled'):
+                    with self.assertRaisesRegex(interop.NativeBinfmtIncompatible, 'incompatible or disabled'):
                         interop.ensure_native_binfmt(root, root / 'missing-generator', run)
                     run.assert_not_called()
                     self.assertEqual(entry.read_text(), value)
@@ -327,7 +327,7 @@ class NativeBinfmtTests(unittest.TestCase):
                 (root / 'status').write_text('enabled\n')
                 (root / 'WSLInterop').write_text(self.handler.replace('flags: P', 'flags: ' + flags))
                 run = mock.Mock()
-                with self.assertRaisesRegex(ValueError, 'incompatible or disabled'):
+                with self.assertRaisesRegex(interop.NativeBinfmtIncompatible, 'incompatible or disabled'):
                     interop.ensure_native_binfmt(root, root / 'missing-generator', run)
                 run.assert_not_called()
 
@@ -342,7 +342,7 @@ class NativeBinfmtTests(unittest.TestCase):
             interop.ensure_native_binfmt(root, root / 'missing-generator', run)
             run.assert_not_called()
             other.write_text(self.handler.replace('/init', '/foreign'))
-            with self.assertRaisesRegex(ValueError, 'incompatible or disabled'):
+            with self.assertRaisesRegex(interop.NativeBinfmtIncompatible, 'incompatible or disabled'):
                 interop.ensure_native_binfmt(root, root / 'missing-generator', run)
             run.assert_not_called()
 
@@ -365,6 +365,12 @@ class NativeBinfmtTests(unittest.TestCase):
                         interop.ensure_native_binfmt(root, generated, run)
                     run.assert_called_once_with(['systemctl', 'restart', 'systemd-binfmt.service'], check=True)
                     self.assertEqual((root / 'WSLInterop').read_text(), handler)
+
+    def test_native_binfmt_failure_has_fixed_exit_without_raw_output(self):
+        with mock.patch.object(interop, 'main', side_effect=interop.NativeBinfmtIncompatible('SECRET')):
+            with self.assertRaises(SystemExit) as result:
+                interop.cli_main()
+        self.assertEqual(result.exception.code, 42)
 
     def test_disabled_binfmt_is_not_repaired(self):
         for flags in ('P', 'PF'):

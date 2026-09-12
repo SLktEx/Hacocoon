@@ -19,7 +19,7 @@ var errEnvironmentChoiceCanceled = errors.New("Environment selection canceled")
 // Selection is presentation only; SetupSelected rechecks the selected identity.
 func chooseDesktopEnvironment(environments []core.Environment, interactive bool, in io.Reader, out io.Writer) (core.Environment, error) {
 	if len(environments) == 0 {
-		return core.Environment{}, fmt.Errorf("no Environments; create one with haco create")
+		return core.Environment{}, fmt.Errorf("no Environments; create one with haco env create --workspace <workspace> <name>")
 	}
 	if len(environments) == 1 {
 		return environments[0], nil

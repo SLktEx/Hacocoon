@@ -168,3 +168,7 @@ Project setup の失敗では、許可リスト内の `stage`・`error_code` と
 だけを診断フィールドに出します。lookup／recipe／start／execute／script を区別し、
 未知の応答値は `unknown`／`internal` にします。backend の生エラー、recipe 本文、
 process 出力を診断フィールドへコピーしません。
+
+## 日常操作の診断
+
+Host setupは固定`stage`、`state`、`reason`と`request_id`、`duration_ms`を記録します。単一のERRORはcontrollerが所有し、個別工程はINFOの観測です。進捗はstderrへ出し、peer由来の任意フィールドを拒否します。journalの保持はsystemd-journaldが担います。helper終了値42はnative WSL binfmt不一致の固定コードであり、stderrの文字列解析には依存しません。[setup診断](../design/trusted-host.ja.md#setupの進捗と失敗診断)を参照してください。

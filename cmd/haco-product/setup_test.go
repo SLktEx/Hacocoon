@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/SLktEx/Hacocoon/internal/logging"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,24 +19,28 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/recipes"
 )
 
+type productSetupFixture struct{ failure error }
+
+func (f productSetupFixture) SetupHost(ctx context.Context, update recipes.Update) error {
+	if update.Script != nil || update.Clear {
+		return errors.New("unexpected options")
+	}
+	return f.failure
+}
 func productSetupServer(t *testing.T, failure error) string {
 	t.Helper()
 	server := control.NewServer()
 	_ = server.Register(controlapi.MethodPing, func(context.Context, json.RawMessage) (any, error) {
 		return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, nil
 	})
-	_ = server.Register(controlapi.MethodSetup, func(_ context.Context, payload json.RawMessage) (any, error) {
-		if string(payload) != "{}" {
-			t.Errorf("setup accepted caller parameters: %q", payload)
-		}
-		return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, failure
-	})
+	_ = controlapi.RegisterSetup(server, productSetupFixture{failure})
+
 	path := filepath.Join(t.TempDir(), "control.sock")
 	listener, err := control.ListenUnix(path, 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(logging.WithLogger(context.Background(), slog.New(slog.NewTextHandler(io.Discard, nil))))
 	done := make(chan error, 1)
 	go func() { done <- server.Serve(ctx, listener) }()
 	t.Cleanup(func() { cancel(); <-done })
@@ -46,7 +53,7 @@ func TestProductSetupUsesOnlyController(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "must-not-exist")
 	t.Setenv("HACO_ROOT", root)
 	var stdout, stderr bytes.Buffer
-	if code := setup(context.Background(), nil, &stdout, &stderr); code != 0 || stderr.Len() != 0 {
+	if code := setup(context.Background(), nil, &stdout, &stderr); code != 0 || !strings.Contains(stderr.String(), "[succeeded] setup") {
 		t.Fatalf("code=%d stderr=%s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "Host resources prepared") {
@@ -110,9 +117,8 @@ func TestProjectSetupFailureDiagnosticsAllowOnlyKnownCategories(t *testing.T) {
 }
 
 type readinessSetupClient struct {
-	pingErrors    []error
-	pings, setups int
-	setupError    error
+	pingErrors []error
+	pings      int
 }
 
 func (c *readinessSetupClient) Ping(context.Context) (controlapi.PingResponse, error) {
@@ -123,29 +129,25 @@ func (c *readinessSetupClient) Ping(context.Context) (controlapi.PingResponse, e
 	}
 	return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, nil
 }
-func (c *readinessSetupClient) SetupHost(context.Context, recipes.Update) error {
-	c.setups++
-	return c.setupError
-}
 func TestHostSetupWaitsWithoutReplayingMutation(t *testing.T) {
-	client := &readinessSetupClient{pingErrors: []error{control.ErrUnavailable}, setupError: control.ErrUnavailable}
-	err := setupHostWhenReady(context.Background(), client, recipes.Update{})
-	if !errors.Is(err, control.ErrUnavailable) || client.pings != 2 || client.setups != 1 {
-		t.Fatalf("err=%v pings=%d setups=%d", err, client.pings, client.setups)
+	client := &readinessSetupClient{pingErrors: []error{control.ErrUnavailable}}
+	err := waitForSetupController(context.Background(), client)
+	if err != nil || client.pings != 2 {
+		t.Fatal(err, client.pings)
 	}
 }
 func TestHostSetupReadinessFailureDoesNotMutate(t *testing.T) {
 	for _, failure := range []error{control.ErrProtocol, context.Canceled} {
 		client := &readinessSetupClient{pingErrors: []error{failure}}
-		err := setupHostWhenReady(context.Background(), client, recipes.Update{})
-		if !errors.Is(err, failure) || client.pings != 1 || client.setups != 0 {
-			t.Fatalf("err=%v pings=%d setups=%d", err, client.pings, client.setups)
+		err := waitForSetupController(context.Background(), client)
+		if !errors.Is(err, failure) || client.pings != 1 {
+			t.Fatalf("err=%v pings=%d", err, client.pings)
 		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	client := &readinessSetupClient{}
-	if err := setupHostWhenReady(ctx, client, recipes.Update{}); !errors.Is(err, context.Canceled) || client.pings != 0 || client.setups != 0 {
+	if err := waitForSetupController(ctx, client); !errors.Is(err, context.Canceled) || client.pings != 0 {
 		t.Fatalf("canceled request contacted controller: %v", err)
 	}
 }

@@ -338,3 +338,15 @@ profile、pause 中・コピー未完了の状態、曖昧な provider 応答は
 [ADR 0032](../adr/0032-owned-host-nested-runtime.md) を参照してください。
 Runtime バイナリは任意のままで、イメージの実データ復旧は Docker/nerdctl ごとの
 独立した受け入れ確認が必要です。
+
+## setupの進捗と失敗診断
+
+状態: **implemented**。`haco setup` は既存の所有権確認付き処理を管理controller経由で観測します。stderrにrunning/succeeded/failedの工程を表示し、stdoutは最終結果用に保ちます。進捗率は推測せず、プロセスを起動しただけで完了にしません。対象はclient検証、project/storage、Hostの所有権確認・作成、network、controller endpoint、起動、WSL interop、client mode/provisioning、Host storage、通知、customizationです。同じ工程の再表示は実際の再確認を表し、未設定の任意工程を完了とは表示しません。
+
+controllerは共有構造化loggerに固定stage/state/reason、所要時間、生成した`request_id`を記録します。CLIも上限付きの固定語彙を再検証します。providerの任意エラー、helperの生出力、秘密、recipe本文は診断欄に含めません。WSL helperの終了値42だけを`native_binfmt_incompatible`と分類し、原因未確定は`failed`のままにします。timeout、canceled、incompatible_state、recovery_required、unavailable、denied、busy、not_found、unsupported等も区別します。
+
+現在の状態は`haco doctor`で確認します。WSL/Linuxの**Physical Host**で管理者が`journalctl -u haco-controller.service --since '30 minutes ago' --no-pager`を実行し、表示されたrequest IDを探せます。保存・ローテーションはsystemd-journaldが管理します。既存の`HACO_LOG_LEVEL=debug`と`HACO_LOG_FORMAT=json`を利用できますが、client側設定でcontrollerのDEBUGを遠隔有効化はしません。DEBUGでもredactionを維持します。
+
+Host setupには承認操作はありません。busyは別setupの実行中を表し、承認待ちとは異なります。Capability承認は`haco approve`で別に扱います。Ctrl+Cは観測を終了し、既存lifecycle RPC同様controllerの時間制限付き処理は接続断後も続く可能性があります。排他は実際の処理終了まで保持します。通信断、最終応答欠落、古いcontrollerとの不一致から変更処理を再送したり成功表示したりしません。
+
+成功した工程表示はその試行の記録であり、現在のresource一覧ではありません。失敗時は作成済みresourceが残り得るためrollbackを約束しません。requestとdoctorの状態を確認してから明示的な再実行を判断します。保存したcustomizationには副作用があり、安易な再実行を案内しません。観測の追加によってcleanup権限、所有権、lease、network、認可の不変条件を変更しません。

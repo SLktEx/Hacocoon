@@ -93,6 +93,9 @@ func managedWorkspaceCommand(ctx context.Context, args []string, in io.Reader, o
 	}
 	fmt.Fprintln(diagnostic, "This deletes every repository and file in this Workspace, including uncommitted, untracked and unpushed work. Saved snapshots, OCI Stores and source repositories remain.")
 	if !yes {
+		if !requireInteractiveConfirmation(in, diagnostic) {
+			return 2
+		}
 		fmt.Fprint(diagnostic, "Delete this Workspace? [y/N] ")
 		answer, readErr := bufio.NewReader(io.LimitReader(in, 128)).ReadString('\n')
 		if readErr != nil || (strings.ToLower(strings.TrimSpace(answer)) != "y" && strings.ToLower(strings.TrimSpace(answer)) != "yes") {

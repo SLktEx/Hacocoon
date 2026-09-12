@@ -6,6 +6,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -34,9 +35,13 @@ func TestCreateOCIOptOutUsesExistingCreateRoute(t *testing.T) {
 			args = append(args, "--no-oci")
 		}
 		args = append(args, "dev")
-		code, _, stderr := captureRun(t, args...)
-		if code != 0 || stderr != "" || got.SkipDefaultResource != skip || got.WorkspacePath != "managed:dev" {
+		code, stdout, stderr := captureRun(t, args...)
+		if code != 0 || !strings.Contains(stderr, "[succeeded] environment_create") || got.SkipDefaultResource != skip || got.WorkspacePath != "managed:dev" {
 			t.Fatalf("code=%d req=%+v err=%s", code, got, stderr)
+		}
+		var decoded map[string]any
+		if json.Unmarshal([]byte(stdout), &decoded) != nil {
+			t.Fatal("progress corrupted stdout", stdout)
 		}
 	}
 }
