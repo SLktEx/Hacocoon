@@ -6,24 +6,30 @@ Status: **partial**. The shared selector and the surfaces listed below are imple
 
 ## Select a language
 
+`HACO_UI_LANGUAGE=en` or `HACO_UI_LANGUAGE=ja` selects Hacocoon presentation
+without changing OS locale. A nonempty unsupported value selects English. When
+this override is empty, the POSIX selection below applies. Host entry forwards
+only the resolved `en`/`ja` for that shell session; ordinary Environment shells
+receive no such forwarding. See [ADR 0065](../adr/0065-host-presentation-language.md).
+
 The product CLI selects the first nonempty `LC_ALL`, `LC_MESSAGES`, or `LANG`, in that order. Japanese locales such as `ja`, `ja_JP.UTF-8`, and `ja-JP` select Japanese. English, `C`, `C.UTF-8`, `POSIX`, unsupported or malformed values, and an entirely unset locale select English. An unsupported higher-priority value does not fall through to a lower-priority Japanese value. Empty strings are skipped; whitespace is not an empty string.
 
 No installed OS locale is required for message selection. To select Japanese for one Linux/WSL invocation, clearing higher-priority overrides:
 
 ```bash
-env LC_ALL= LC_MESSAGES= LANG=ja_JP.UTF-8 haco help
+HACO_UI_LANGUAGE=ja haco help
 ```
 
 To force English for one invocation:
 
 ```bash
-LC_ALL=C haco help
+HACO_UI_LANGUAGE=en haco help
 ```
 
 On Windows, setting `$env:LANG` alone does **not** establish automatic forwarding in this slice. An explicit invocation can set the locale for the Linux CLI instead:
 
 ```powershell
-wsl -d Hacocoon --exec env LC_ALL=ja_JP.UTF-8 haco help
+wsl -d Hacocoon --exec env HACO_UI_LANGUAGE=ja haco host shell
 ```
 
 Use the actual distribution name in place of `Hacocoon` when different. This command is a configuration example, not evidence of native Windows acceptance. The selector does not set environment variables or persist OS, WSL, Environment, or child-process locale changes. The separate installer behavior described in [trusted Host entry](../design/trusted-host.md#host-entry-language) is unchanged.
@@ -51,13 +57,18 @@ Locale selection does not alter command success/failure or approval exit codes. 
 
 Approval decisions still use the same `y`/`yes`, `N`, and numbered choices. Empty or unknown input does not authorize an operation. Saving an ask-every-time Policy still requires a separate one-shot answer. Rendering preserves existing terminal escaping; display failure cannot grant authority. The stdio approval adapter receives a language value explicitly and retains it for nested prompts. Its existing constructor remains English for other callers.
 
-The shared catalogs translate trusted message IDs before substituting values. They are not output-filtering writers. No mutable process-wide language, controller language state, transport field, environment forwarding, or guest configuration is introduced.
+The shared catalogs translate trusted message IDs before substituting values.
+They are not output-filtering writers. Language is not mutable controller state.
+The Host-shell request carries a validated presentation hint for that session;
+arbitrary environment forwarding and persisted guest configuration are excluded.
 
 ## Remaining scope
 
 Other command families and lower-level Environment diagnostics still need catalog migration. Standard-library flag parse-error details, original Git/SSH/OS errors, structured logs, and controller diagnostic summary/action text remain unchanged; further localized explanations around those details are follow-up work.
 
-Automatic Windows-to-WSL/Host language handoff is not implemented. Native Windows/WSL and Incus acceptance, full command coverage, and the repository-wide implementation-status/index integration remain pending. This partial implementation must not close Issue #577.
+WSL-to-Host normalized presentation handoff is implemented. Automatic Windows
+language selection, native Windows/WSL and Incus acceptance and full command
+coverage remain pending. This partial implementation must not close Issue #577.
 
 ## Validation
 
@@ -79,5 +90,5 @@ The product and trusted Host client now use one hierarchical help renderer.
 `haco-host --help` and every public Host subcommand help return locally before
 controller construction. This expands help coverage, not translation of every
 Host result. Windows installation no longer derives and persists the OS locale
-from its display language; normalized per-operation language handoff remains a
-separate pending item.
+from its display language. The normalized Host-session handoff is implemented;
+automatic Windows language selection remains pending.

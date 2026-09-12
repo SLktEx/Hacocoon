@@ -10,6 +10,9 @@ type TerminalMetadata struct {
 	ColorTerm string
 	Columns   int
 	Rows      int
+	// DisplayLanguage is a normalized Host presentation hint, never OS locale
+	// or an Environment execution setting. Empty means no hint was supplied.
+	DisplayLanguage string
 	// Resizes contains validated, coalesced updates for this execution only.
 	Resizes <-chan TerminalSize
 }

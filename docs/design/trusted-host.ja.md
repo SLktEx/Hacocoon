@@ -315,7 +315,12 @@ Runtime バイナリは任意のままで、イメージの実データ復旧は
 
 実装済み: 信頼済み Host へ入るときの案内は、Physical Host のログインプロセス の `LC_ALL`、`LC_MESSAGES`、`LANG` の順で最初の空でない値を使います。日本語の言語設定 なら日本語、それ以外は英語です。Host 権限を使う場所であることと、通常の開発には Environment を使う案内を維持します。対話端末の stderr は `NO_COLOR` が空なら黄色にし、出力のリダイレクト時は色コードを付けません。
 
-Windowsインストーラは、Windows UI言語からOSの言語設定を生成・永続変更しません。Hacocoonの表示は呼び出し元プロセスのlocaleで選び、OS・Git・SSH・ビルドツールの設定は利用者が管理します。既存開発ブランチの言語初期化を撤去し、この境界を維持します。操作ごとの正規化済みWindows／WSL／Host言語引き継ぎは確認待ちです。
+Windowsインストーラは、Windows UI言語からOSの言語設定を生成・永続変更しません。
+Hacocoonの表示は正規化した`HACO_UI_LANGUAGE=en|ja`を優先し、未指定なら呼び出し元の
+localeで選びます。Host入場時には判定済みの値だけをそのsessionへ渡します。
+OS・Git・SSH・ビルドツールの設定は利用者が管理し、旧OS言語初期化は撤去しています。
+Windowsの言語自動選択と実機での言語転送受入は残件です。
+[CLI表示言語](../reference/cli-language.ja.md)と[ADR 0065](../adr/0065-host-presentation-language.md)を参照してください。
 
 ## setupの進捗と失敗診断
 

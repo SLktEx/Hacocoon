@@ -59,7 +59,7 @@ func TestShellTerminalControlsReachBothServices(t *testing.T) {
 	metadata := TerminalMetadata{Term: "xterm-256color", Columns: 132, Rows: 43}
 	for _, method := range []string{MethodHostShell, MethodEnvironmentShell} {
 		t.Run(method, func(t *testing.T) {
-			var request any = HostShellRequest{Terminal: metadata}
+			var request any = HostShellRequest{Terminal: metadata, DisplayLanguage: "ja"}
 			if method == MethodEnvironmentShell {
 				request = EnvironmentShellRequest{Environment: "demo", Terminal: metadata}
 			}
@@ -71,6 +71,13 @@ func TestShellTerminalControlsReachBothServices(t *testing.T) {
 			got := hosts.terminalMetadata
 			if method == MethodEnvironmentShell {
 				got = environments.shellMetadata
+			}
+			wantLanguage := "ja"
+			if method == MethodEnvironmentShell {
+				wantLanguage = ""
+			}
+			if got.DisplayLanguage != wantLanguage {
+				t.Fatalf("language crossed shell boundary: %q", got.DisplayLanguage)
 			}
 			if got.Columns != 132 || got.Rows != 43 || got.Resizes == nil {
 				t.Fatalf("terminal metadata = %#v", got)

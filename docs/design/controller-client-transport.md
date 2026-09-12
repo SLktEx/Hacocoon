@@ -206,6 +206,12 @@ The current implementation uses it for interactive Environment shell traffic and
 
 ### Interactive terminal dimensions
 
+The Host-shell request also accepts optional `display_language`, limited to empty,
+`en` or `ja` before Host preparation. The client resolves its presentation language
+and the adapter forwards only `HACO_UI_LANGUAGE` to this Host session. No arbitrary
+environment or OS locale is forwarded; Environment shell requests have no language
+field. See [ADR 0065](../adr/0065-host-presentation-language.md).
+
 Status: **implemented; installed Incus/Windows/WSL acceptance pending**.
 
 Host and Environment shell clients send their initial terminal columns/rows in

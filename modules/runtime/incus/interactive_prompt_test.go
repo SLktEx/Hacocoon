@@ -1,7 +1,9 @@
 package incus
 
 import (
+	"os/exec"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -27,6 +29,27 @@ func TestInteractiveShellWithPrompt(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("interactiveShellWithPrompt() = %#v, want %#v", got, want)
+	}
+}
+
+func TestHostPresentationIsSessionOnlyAndCannotConfigureGuestLocale(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Incus shell execution requires Linux")
+	}
+	for _, context := range []string{"trusted-host", "environment"} {
+		for _, language := range []string{"en", "ja", "", "ja;PATH=/tmp"} {
+			argv := interactiveShellWithPrompt([]string{"/bin/sh", "-c", `printf '%s|%s|%s' "$HACO_UI_LANGUAGE" "$LANG" "$LC_ALL"`}, "prompt", context, core.TerminalMetadata{DisplayLanguage: language})
+			cmd := exec.Command(argv[0], argv[1:]...)
+			cmd.Env = []string{"PATH=/usr/bin:/bin", "LANG=C.UTF-8", "LC_ALL=C"}
+			output, err := cmd.CombinedOutput()
+			want := "|C.UTF-8|C"
+			if context == "trusted-host" && (language == "en" || language == "ja") {
+				want = language + want
+			}
+			if err != nil || string(output) != want {
+				t.Fatalf("%s %q: %q %v", context, language, output, err)
+			}
+		}
 	}
 }
 

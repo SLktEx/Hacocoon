@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/SLktEx/Hacocoon/internal/cliui"
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"golang.org/x/term"
@@ -116,7 +117,9 @@ func (c *Client) DeleteEnvironment(ctx context.Context, environment string) erro
 }
 
 func (c *Client) OpenTrustedHostShell(ctx context.Context) (net.Conn, error) {
-	return c.wire.OpenSession(ctx, MethodHostShell, HostShellRequest{Terminal: currentTerminalMetadata()})
+	return c.wire.OpenSession(ctx, MethodHostShell, HostShellRequest{
+		Terminal: currentTerminalMetadata(), DisplayLanguage: string(cliui.Resolve(os.Getenv)),
+	})
 }
 
 func currentTerminalMetadata() TerminalMetadata {
