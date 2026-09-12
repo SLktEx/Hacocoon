@@ -20,6 +20,8 @@ on:
       - "tools/installed-egress-check/**"
       - "tools/test_installed_egress.ps1"
       - "tools/test_windows_environment_ssh.ps1"
+      - "tools/verify_installed_source_guard.py"
+      - "tools/test_installed_source_guard.py"
       - "tools/test_windows_environment_transfer.ps1"
       - "tools/windows_dns_diagnostic.ps1"
       - "tools/test_windows_dns_diagnostic.ps1"
@@ -164,6 +166,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Failed to install the ConPTY test driver dependency." }
           python -m py_compile ./tools/windows-installer-user-path-e2e.py ./tools/windows-installer-restart-e2e.py ./tools/windows-installer-cached-restart-e2e.py
           if ($LASTEXITCODE -ne 0) { throw "Windows user-path drivers failed syntax validation." }
+          python ./tools/test_installed_source_guard.py
+          if ($LASTEXITCODE -ne 0) { throw "Source guard observer regressions failed." }
           python ./tools/test_windows_user_path.py
           if ($LASTEXITCODE -ne 0) { throw "Windows user-path assertion regressions failed." }
 

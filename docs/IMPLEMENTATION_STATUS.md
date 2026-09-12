@@ -1,5 +1,9 @@
 # Implementation Status
 
+## Windows source-guard acceptance
+
+Implemented observer, native Windows gate acceptance pending: the existing SSH fixture now checks actual per-Env MAC/DHCP/subnet nft rules and pins the Env generation. It performs no repair or spoofed-packet injection. See [scope and limitations](design/managed-sandbox-network.md#installed-windows-source-guard-observation).
+
 ## Host setup controller readiness
 
 Implemented: Host setup uses bounded read-only controller readiness probes before a single setup request. Mutation failures are not retried. See [trusted Host](design/trusted-host.md). Native observation identified the startup race; acceptance of this client fix is separate.
