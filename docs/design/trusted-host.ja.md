@@ -34,7 +34,9 @@ socket pathとWindows PATHをtrusted shellへ設定する。socketディレク�
 `/run`の外へ読み取り専用でmountし、標準systemd tmpfilesが起動時に`/run/WSL`への
 symlinkを復元する。これによりWSLの絶対path symlinkを保持する。別のbinfmt handlerや
 独自Windows executable launcherは作らない。正常な登録は変更せず、消失した場合だけ
-WSL自身が生成したsystemd integrationで復元する。無効化・非互換な登録は拒否する。
+WSL自身が生成したsystemd integrationで復元する。検証は`flags: P`または`flags: PF`だけを
+許可し、enabled・`/init`・offset 0・magic `4d5a`の登録項目は完全一致を要求する。
+復元後も含めて全`WSLInterop*` entryを確認し、無効化・未許可・非互換な登録は拒否する。
 新しいtrusted shellで次を実行できる。
 
 ```bash

@@ -12,6 +12,7 @@ on:
       - "scripts/install-windows.bat"
       - "scripts/install-windows.ps1"
       - "scripts/install.sh"
+      - "scripts/setup-wsl-host-interop.py"
       - "tools/package_installers.py"
       - "tools/windows-installer-user-path-e2e.py"
       - "tools/test_windows_user_path.py"

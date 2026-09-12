@@ -41,8 +41,10 @@ that read-only projection at every boot, preserving native absolute socket
 symlinks. It does not register another handler or
 create a Windows executable launcher. Healthy native binfmt registration is left
 untouched; if it disappeared, setup asks WSL's own generated systemd integration
-to restore it. Disabled or incompatible registrations are rejected. In a new
-trusted shell:
+to restore it. Validation accepts only `flags: P` or `flags: PF`, with the exact
+enabled `/init`, offset-zero, `4d5a` registration fields. Every `WSLInterop*`
+entry must match, including after restoration; disabled, unlisted or incompatible
+registrations are rejected. In a new trusted shell:
 
 ```bash
 cmd.exe /c ver

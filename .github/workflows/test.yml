@@ -217,6 +217,8 @@ jobs:
           cache: false
       - run: go test -count=1 -shuffle=on ./...
       - run: go vet ./...
+      - name: Test native WSL trusted-host interop
+        run: python3 tools/test_wsl_host_interop.py
       - name: Test trusted-host forwarding in an isolated Linux network
         if: matrix.go-version == '1.27.x'
         run: bash tools/ci-local.sh forwarding
