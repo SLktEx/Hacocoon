@@ -328,8 +328,10 @@ The Windows installer does not generate or persist a locale from the Windows UI
 language. Hacocoon accepts the normalized `HACO_UI_LANGUAGE=en|ja` override before
 the calling process locale. Host entry forwards only the resolved presentation
 value for that session. OS, Git, SSH and build-tool locales remain the user's own.
-The former OS locale initialization is removed. Automatic Windows language
-selection and native language-handoff acceptance remain pending; see
+The former OS locale initialization is removed. Normal interactive Windows/WSL
+entry now reads the Windows UI language unless explicitly overridden, using a
+bounded fixed-system query with POSIX fallback. Packaged language acceptance
+remains pending; see
 [CLI language](../reference/cli-language.md) and [ADR 0065](../adr/0065-host-presentation-language.md).
 ## Setup progress and failure diagnostics
 

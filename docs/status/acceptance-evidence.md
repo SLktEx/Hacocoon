@@ -224,3 +224,59 @@ exists. The adapter now supplies that flag only for its live anonymous descripto
 with ownership/unlinked/private-file regressions. Public destination overwrite
 refusal remains unchanged. Native Windows transfer must rerun to establish the
 fix; it is not inferred from the source diagnosis or component test alone.
+
+Candidate `3cac2e95` passed test CI 34721760620 and packaged Ubuntu 34721760552.
+Incus run 34721760571 failed the owned-Btrfs aggregate export and its cleanup
+step. Its package log identifies **6.0.5-8**, not 7.x: `ci-incus-core.sh` still
+installed the distro package and accepted `>= 6.0.5`, unlike the standalone
+helper. The 7.x export flag exposed this remaining setup drift. Core and
+standalone jobs passed; private registry and subsequent Btrfs probes were skipped.
+Earlier all-enabled-job successes at `96bbbdf8` and `5fe184a6` therefore establish
+Core/Btrfs acceptance on 6.0.5 only. Packaged Ubuntu/Windows 7.0.1 evidence remains
+separate. Both maintained CI setup entry points now use the shared signed LTS
+installer and bounded server-version gate, with a routing regression. Native
+Core/Btrfs 7.x acceptance requires a new run; the failed cleanup remains recorded.
+
+Windows run 34721760573 then passed every enabled step at `3cac2e95` (tested
+merge `d3fb94a6e872bb44fd1d67d08ee842a1882f4843`, Incus 7.0.1). The real packaged
+path now passes bundle hash/immutability, export/source deletion/import, native
+Windows SSH and recreation from retained work. This resolves the earlier export
+failure and missing-manifest prerequisite. Public reclaim completed Linux trim,
+WSL stop, VHDX compaction from 7,931,428,864 to 4,033,871,872 allocated bytes,
+resume, Host sentinel and detached Workspace/OCI/snapshot restore checks.
+Native notification registration, stale/malformed/foreign ownership refusal,
+controller subscription and owned listener cleanup passed. A human toast click
+and fresh GUI decision remain explicitly **SKIP**, as does VPN/NRPT. Existing
+installed SSH, VS Code, review and preview scopes also passed. This is one
+disposable Windows/WSL configuration, not giant-repository measurement, full
+Japanese UI acceptance or distribution.
+
+At `655f03ce`, test CI 34723210857 passed. Incus run 34723210668 now records
+**7.0.1** for Core/Btrfs. Standalone and Core jobs passed. Btrfs aggregate
+export/import, OCI writable data, snapshot/restore/copy, retention and native
+child refusal all passed, resolving the earlier export failure on this substrate.
+`TestRealIncusSourceDeletionE2E` then failed its snapshot `show` fixture: Incus 7
+requires separate volume and snapshot arguments. The fixture now uses that form,
+as its existing create/delete calls already do. Product deletion checks are
+unchanged. The storage cleanup step failed because that test stopped before its
+owned cleanup; the overall Incus cleanup step passed. Later Btrfs probes and
+private registry were skipped. The complete Btrfs job requires another run.
+
+At `28ca8ebf`, test 34723923596 and Ubuntu 34723923612 passed. Incus run
+34723923619 passed Core/standalone and Btrfs aggregate/source deletion, native
+volume import and definition-driven Base build. The later persistent-copy
+fixture had the same combined snapshot argument and failed; it is now corrected
+to separate volume/snapshot arguments. Both workflow cleanup steps passed; the
+failed test's explicitly retained recovery fixture remains recorded. Store
+maintenance and private registry were skipped. No complete Btrfs job pass is claimed.
+
+The automatic normal Windows/WSL entry language change passes product,
+control API, selector and architecture tests. The user-path assertion's 12 tests
+also pass, including refusal of absent, echoed, duplicate or mismatched language
+markers. Direct local Windows PowerShell returned `en`. The separate opt-in
+native query from existing `hacocoon-second` failed with `exec format error`;
+read-only inspection found no `/proc/sys/fs/binfmt_misc/WSLInterop` registration.
+That existing installation was not repaired or reconfigured. This failure stays
+distinct from the passing fallback tests. Fresh packaged Windows CI now checks
+the actual Host session value against the Windows user UI setting after ordinary
+entry/restart/reinstall, without injecting a Hacocoon override. Its result is pending.

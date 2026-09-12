@@ -9,6 +9,7 @@ never prepare, repair, restart, remount, attach, detach, create, or delete state
 from __future__ import annotations
 
 import json
+import ctypes
 import os
 import queue
 import secrets
@@ -254,7 +255,8 @@ def host_session(*, create: bool) -> None:
     sent_at = 0
     # Only the currently implemented product CLI is used. Environment/SSH
     # commands remain a separate gate until the reset CLI implements them.
-    commands = ["haco version --json", "haco help", "haco doctor --json && printf '%s\\n' HACO_DOCTOR_OK"]
+    commands = ["haco version --json", "haco help", "haco doctor --json && printf '%s\\n' HACO_DOCTOR_OK",
+                "printf 'HACO_HOST_UI:%s\\n' \"$HACO_UI_LANGUAGE\""]
     # Exercise the installer-created trusted-host network in the ordinary
     # shell. This is infrastructure egress, not Environment proxy acceptance.
     commands += [
@@ -284,10 +286,23 @@ def host_session(*, create: bool) -> None:
     require_output(output, r"(?m)^kept-through-restart-and-rerun\s*$", phase="haco-host data")
     require_output(output, r'"version"\s*:', phase="product CLI")
     require_output(output, r"^HACO_DOCTOR_OK\s*$", phase="product doctor")
+    # Read the Windows user setting independently. Do not inject a product
+    # override or change either OS locale to make the entry fixture pass.
+    language_id = ctypes.windll.kernel32.GetUserDefaultUILanguage()
+    expected_language = "ja" if language_id & 0x3ff == 0x11 else "en"
+    assert_host_language(output, expected_language)
     for check in ("DNS", "ROUTE", "HTTPS"):
         require_output(output, rf"^HACO_HOST_{check}_OK\s*$", phase="trusted-host network")
     if re.search(r"command not found|unknown command|permission denied", output, re.I):
         raise RuntimeError("ordinary host commands failed")
+
+
+def assert_host_language(output: str, expected: str) -> None:
+    if expected not in ("en", "ja"):
+        raise RuntimeError("unsupported expected display language")
+    values = re.findall(r"^HACO_HOST_UI:([^\r\n]*)\r?$", output, re.MULTILINE)
+    if values != [expected]:
+        raise RuntimeError("ordinary Windows entry did not propagate its display language")
 
 
 def assert_doctor_report(output: str, expected_build: dict[str, str]) -> None:

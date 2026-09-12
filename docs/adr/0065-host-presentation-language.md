@@ -24,10 +24,21 @@ change `LANG`/`LC_*`, persist instance configuration or inspect an arbitrary cli
 environment. Existing catalog selection, JSON values, exit codes and approval
 semantics are unchanged. Old clients may omit the hint.
 
+Normal interactive Windows/WSL login now reads the Windows user's UI language
+before opening the Host session, unless `HACO_UI_LANGUAGE` is explicitly set.
+The local product client invokes the fixed system PowerShell under `/mnt/c/Windows`
+without profiles, PATH lookup, WSLENV forwarding or caller script interpolation.
+A fixed query returns exactly `en` or `ja`, with a two-byte output bound and
+three-second timeout. Missing interop, other mount/system paths, malformed output
+or failure fall back to the existing POSIX selector. The same value renders the
+entry notice and travels through the existing validated session request. Explicit
+shell commands, noninteractive login and native Ubuntu never run this query.
+
 ## Rejected alternatives and remaining work
 
 Do not copy the caller's complete environment, initialize the OS locale from the
 Windows display language, or localize controller protocol values. The hint is
-presentation data, never authorization. Windows automatic language detection and
-full CLI translation remain separate M1 work; explicit WSL invocation and local
-transport regressions do not establish native Windows/Incus acceptance.
+presentation data, never authorization. Full CLI translation remains separate M1
+work. Native automatic-language acceptance belongs to the packaged Windows entry
+gate, which independently checks the Windows language against the Host session.
+Explicit WSL invocation and local transport regressions alone do not establish it.
