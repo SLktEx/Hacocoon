@@ -109,4 +109,4 @@ resolution; Core Policy/Approval is not copied into the enforcer. Mismatched gra
 fields fail before DNS. Cancellation is checked around resolution and dialing;
 late connections close without upstream writes. Current HTTP status bodies,
 hostname normalization, SNI checks and the one-attempt grant scope remain.
-See [the existing ADR](adr/0007-controller-owned-standard-egress.md#shared-transport-admission).
+See [the existing ADR](../adr/0007-controller-owned-standard-egress.md#shared-transport-admission).

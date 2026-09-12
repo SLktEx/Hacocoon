@@ -94,6 +94,12 @@ firewall/network changes need actual supported-host evidence.
 [Incus support/version policy](https://github.com/SLktEx/Hacocoon/issues/479)
 remains a separate decision; do not infer it from a single installed version.
 
+Explicit [TCP/UDP relays](../design/network-connections.md) now preserve those
+boundaries with generation-bound authorization, expiry and revocation. Broader
+Windows outbound-service access and VPN remain unverified. [Workspace path entry
+and stopped data forks](../design/workspace-workflow.md) reuse canonical ownership;
+large-repository performance and automatic Windows/editor entry need separate acceptance.
+
 ## Client and Git follow-ups
 
 Clients remain replaceable consumers of [client APIs](../reference/client-adapter.md)

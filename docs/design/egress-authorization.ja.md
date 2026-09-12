@@ -81,3 +81,22 @@ Windows の導入手順が成功した後、同じ導入済みコントローラ
 検証用 Policy は対象 Environment の github.com:443 だけを許可します。既存 Policy は上書きせず、後始末は変更されていない自分の検証用設定だけを対象とします。証明書確認付き HTTPS の成功、未許可ホスト名の403、Host から到達できる公開先への直接 TCP 拒否、管理ソケットの非公開を確認します。
 
 このパケット検証は、別途検証する製品 CLI や設定 UI の証拠を兼ねません。リポジトリ内では許可・拒否・承認、IP 直接指定、共有 IP、別ホスト名、混在 DNS、SNI 不一致、旧ネットワーク移行、不正な DNS／ACL、送信元照合を検査します。実際の Incus・nftables・dnsmasq の条件は[検証証拠](../status/acceptance-evidence.ja.md)で区別します。
+
+## 通信元観測の責任者
+
+implemented: Incus adapter は native runtime reference だけを返す。
+未使用だった Environment 名の直接導出 helper は削除し、永続 state と照合する
+resolver を本番の Environment identity 解決経路として維持する。
+失敗・キャンセル・途中で切れた Incus 出力は、もっともらしい名前が 1 件あっても
+通信元の証明にしない。正規化・Policy/Approval・Standard の具体的な接続処理は
+既存の責任者が担当する。HTTP/HTTPS 対応と公開コマンドは変更しない。
+
+## 通信制御実装の構成
+
+実装済み: Standard proxy の構成／routing、HTTP 転送、CONNECT、authority 解析、
+TLS ClientHello 解析、固定アドレスへの接続を責務別に整理しました。HTTP／CONNECT は
+要求と完全一致する grant の受領と許可後の DNS 解決を共有し、Core の Policy／Approval を
+制御実装へ複製しません。grant の対象が異なる場合は DNS より前に拒否します。
+名前解決と接続の前後でキャンセルを確認し、遅れて返った接続は上流への書込み前に閉じます。
+既存 HTTP 応答、hostname 正規化、SNI 検証、1回の試行に限定した grant を維持します。
+[既存 ADR](../adr/0007-controller-owned-standard-egress.ja.md#通信開始前の共通検証)を参照してください。

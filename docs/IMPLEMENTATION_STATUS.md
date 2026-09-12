@@ -10,6 +10,9 @@ This page describes current code reality on main. Start with the [getting starte
 
 | Feature | State | Available scope, limits and remaining work |
 |---|---|---|
+| [Daily entry / setup diagnostics](reference/daily-workflow.md) | implemented | Bounded setup stages and correlation IDs on stderr, final-frame validation and exclusion through disconnect; noninteractive confirmations do not wait. Dedicated Linux acceptance does not establish Windows default-entry/IDE acceptance. |
+| [Workspace path entry / forks](design/workspace-workflow.md) | implemented | Explicit repository preparation, owner-pinned path reopen and stopped independent Git/OCI data forks through canonical lifecycle. Recovery-required copies retain ownership; Windows automatic entry and large-repository performance remain unverified. |
+| [TCP/UDP development connections](design/network-connections.md) | implemented | Explicit guest loopback listeners, source-generation-bound Policy/approval, optional rule expiry and active revocation. Existing HTTP/SNI and source guards remain. Dedicated provider acceptance is scoped; outbound Internet/VPN and full Windows UI remain incomplete. |
 | [Installation / Host](guides/installation.md) | implemented | Ubuntu 26.04+ / dedicated WSL 2, controller-backed setup and doctor, persistent trusted `haco-host`. Native Ubuntu retains its login shell; no native Windows `haco.exe`. Managed-user preparation tolerates a validated pre-existing non-root access group. Current binfmt P/PF and fresh Japanese-Windows entry still need packaged acceptance. |
 | [Repository / Workspace](guides/git-workflow.md) | implemented | Clone an existing branch; create independent managed copies and collections. Exclusive leases survive stop. Membership editing and general interrupted-preparation recovery remain incomplete. |
 | [Environment lifecycle](guides/data-lifetime.md) | implemented | Managed/external Workspace creation, status/list, stop/start/delete. Rootfs is disposable; Workspace and Store survive deletion. Ownership ambiguity blocks release. `switch-base` is disabled/on hold. |
@@ -32,6 +35,14 @@ This page describes current code reality on main. Start with the [getting starte
 | [Notifications / client APIs](reference/interaction-events.md) | implemented | `pkg/clientadapter`, minimized interaction events and `haco-notify` browser/native/VS Code adapters. Windows review has scoped acceptance; fresh human toast and Linux activation gaps remain. |
 | [Legacy OCI Seed / Docker](reference/cli-migration.md) | partial | Optional `HACO_PLUGIN_OCI=nerdctl` or `docker` integration remains on temporary `hacoq`. Seed build/publish/hardening exists; private-registry/COW/failure breadth remains. It is not the current persistent Store workflow. |
 | [Cloud / registry / management UI](status/architecture-and-roadmap.md) | deferred | Concrete cloud Environment provider, mandatory local registry, management UI, simultaneous writable Store sharing and live migration are not current features. Provider seams and explicit future directions remain. |
+
+Canonical lifecycle finalization releases ownership only after complete provider
+deletion, including source-guard cleanup. Status reports retained-but-absent or
+incomplete runtimes as recovery-required. Independent catalog mutation APIs were
+removed; temporary runs share bounded cleanup and marker outcomes. Incus rootfs
+import accepts SDK architecture aliases while retaining the two supported CPU
+families. See [lifecycle ownership](adr/0002-environment-lifecycle-ownership.md)
+and [transfer](design/environment-transfer.md#incus-architecture-names-in-rootfs-archives).
 
 ## Verification boundary
 

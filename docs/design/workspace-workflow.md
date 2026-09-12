@@ -80,7 +80,7 @@ Acceptance must distinguish component fixtures, actual Incus/Btrfs, installed
 CLI and desktop clients. Record preparation, fork and reopen duration and
 incremental allocation. Small fixtures do not establish Linux-kernel repository
 performance. See [Workspace/lease](workspace-abstraction-and-lease.md),
-[managed repository workflow](../reference/managed-repository-workflow.md),
+[managed repository workflow](../guides/git-workflow.md),
 [persistent OCI](persistent-oci-store.md), and
 [the workflow decision](../adr/0062-workspace-entry-and-data-fork.md).
 
@@ -125,60 +125,4 @@ commands; a recovery-required reference does not trigger another fork or open.
 
 ## Dedicated native acceptance
 
-On 2026-09-13 JST, the installed Linux CLI and actual Incus 6.0.5/Btrfs on the
-dedicated `hacocoon-second` distribution passed:
-
-- Two registered Host repository sources → preparation → open → repeat open.
-  Existing local directory data remained unchanged.
-- Editing staged/untracked repository files over ordinary OpenSSH, provisioned
-  by the installed `haco env ssh`; canonical Env deletion/recreation retained
-  those files and the associated guest-written OCI Store marker.
-- Stopped aggregate fork; both Envs ran independently. Changing the fork's Git
-  index, repository content and OCI data left the source unchanged.
-- No-OCI preparation, fork and recreation; explicit forked Store reuse after
-  Env deletion; the same work resumed on Ubuntu 24.04 after Ubuntu 26.04.
-- A forced destination OCI ID collision after repo copying retained creating
-  Workspace ownership and the source snapshot reservation, refused reopen and
-  left the pre-existing Store unchanged.
-
-Lifecycle operations used ordinary installed product commands. Post-recreation
-data inspection and fork modification additionally used provider `incus exec`;
-those steps are provider acceptance, not desktop UI acceptance. OCI checks here
-cover Store data and ownership, not new Docker/containerd runtime compatibility.
-Guest package installation used narrow, expiring Ubuntu HTTP Policy grants.
-Windows installer component/native filesystem tests are a separate acceptance
-layer. Workspace VS Code UI and VPN acceptance are not established by this run.
-
-| Operation | Seconds | Btrfs pool used increment |
-| --- | ---: | ---: |
-| Prepare two repository copies | 0.556 | 126,976 bytes |
-| Open prepared work with automatic Host OCI copy | 7.064 | 25,333,760 bytes |
-| Reopen same work/Env | 0.793 | 147,456 bytes |
-| Fork two repos and their guest OCI Store | 1.128 | 458,752 bytes |
-| Open fork Env | 6.384 | 23,162,880 bytes |
-| Recreate source Env retaining its Store | 3.396 | 23,650,304 bytes |
-| Change Base to Ubuntu 24.04 and recreate | 17.986 | not measured |
-
-Pool-used deltas include metadata and runtime activity after filesystem sync;
-they are not per-file exclusive-byte accounting or wall-clock benchmarks under
-controlled load. The sources were two small Hacocoon repository copies, each
-12,075,008 bytes reported by Btrfs extent accounting. Prepared copies had zero
-exclusive extent bytes in that observation. These results verify native COW
-behavior and independently writable state; they do not demonstrate the time or
-capacity of multiple Linux-kernel-sized repositories.
-
-
-## Windows client scope
-
-At the same development checkpoint, Windows OpenSSH read the retained repo and
-OCI marker after Base replacement. Its dedicated configuration pinned the public
-host key returned by the installed `haco env ssh` and used an explicit
-`wsl -d hacocoon-second` ProxyCommand into the isolated test network namespace.
-An Env loopback HTTP fixture was then rendered in the Windows-hosted browser
-through a dedicated Windows SSH local forward. Existing SSH configuration and
-keys were not edited.
-
-This proves that the resumed Env is usable over that explicit Windows SSH/browser
-path. It does not establish automatic `haco open` Windows interop, VS Code
-Remote-SSH UI, or an unmodified Windows installer network layout. The dedicated
-namespace exists to avoid the other WSL's shared initial network namespace.
+See [commit-bound acceptance, measurements and Windows limitations](../status/acceptance-evidence.md#development-branch-integration).

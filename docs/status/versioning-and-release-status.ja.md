@@ -83,3 +83,10 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 現在のmilestone位置は **v0.58**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
+
+## 開発ブランチの統合
+
+`dev/1.x`、`dev/v2`、`dev/2.x`のライフサイクル整理、日常操作の診断、明示的なTCP/UDP接続、
+パスによるWorkspace再開とデータforkをmainへ統合しました。取り込んだv0.58の節目を維持し、
+統合によるリリースやタグは作成しません。[現在の範囲](../IMPLEMENTATION_STATUS.ja.md)と
+[限定された検証証拠](acceptance-evidence.ja.md#development-branch-integration)を参照してください。

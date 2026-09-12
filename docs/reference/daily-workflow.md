@@ -3,11 +3,11 @@
 [日本語](daily-workflow.ja.md) | English
 
 Status: **implemented CLI workflow**. Provider/desktop acceptance is recorded
-separately in [implementation status](../IMPLEMENTATION_STATUS.md).
+separately in [acceptance evidence](../status/acceptance-evidence.md#development-branch-integration).
 
 ## Prepare once
 
-Install with the [Windows/WSL installer](../WINDOWS_WSL_BOOTSTRAP.md). In a
+Install with the [Windows/WSL installer](../guides/installation.md). In a
 Windows terminal, `wsl -d <your-installed-distribution>` opens trusted
 `haco-host` when the managed login entry is installed. `haco-host` is trusted
 management infrastructure; run untrusted tools in an Env. Product management
@@ -24,15 +24,16 @@ haco open sample-dev
 ```
 
 Replace OWNER/REPO and the existing branch. Private Git authentication stays in
-trusted haco-host; see [managed repositories](managed-repository-workflow.md).
+trusted haco-host; see [managed repositories](../guides/git-workflow.md).
 Base selection defaults to the configured Base. An optional OCI Store copy is
 automatic; `--no-oci` skips it. There is no required OCI runtime for Core.
 
 For existing files on the **WSL/Linux Physical Host**, an alternative is
 `haco env create --workspace /absolute/path/to/work sample-dev`. The path belongs
 to that Physical Host, not Windows or the haco-host container. Writable files
-are writable by Env workloads. `haco open .` path discovery is **deferred**;
-`open` currently takes an existing Env name.
+are writable by Env workloads. `haco open .` can instead reopen an explicitly prepared, owner-pinned managed
+Workspace reference; it does not copy or mount the directory contents. See
+[Workspace preparation and forks](../design/workspace-workflow.md).
 
 `haco open` prepares desktop-owned SSH keys/settings and launches the configured
 editor. `haco open --client ssh sample-dev` opens a standard SSH shell instead.
@@ -47,7 +48,7 @@ does not mean network access is allowed: default deny creates no approval prompt
 Use `haco config --edit` to review the existing snapshot and add only the required
 Env/hostname/protocol/port rules; preserve other rules and default deny. Ubuntu's
 default package sources use `archive.ubuntu.com` and `security.ubuntu.com`; inspect
-your Base for mirrors. See the [Policy example](../EGRESS_AUTHORIZATION.md#policy-example).
+your Base for mirrors. See the [Policy example](../design/egress-authorization.md#policy-example).
 An SSH failure does not establish its cause. Inspect Env state/connections and
 Policy before explicitly preparing SSH again. Successfully installed packages
 remain in the Env rootfs across stop/start.

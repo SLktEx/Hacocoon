@@ -94,9 +94,9 @@ func TestForwardValidatesPortsAndUsesStoredRuntimeRef(t *testing.T) {
 	if connection.ID != "tcp-8080-3000" || runtime.forwardRef != "haco-demo" || runtime.forwardReq.TargetPort != 3000 {
 		t.Fatalf("connection=%#v ref=%q req=%#v", connection, runtime.forwardRef, runtime.forwardReq)
 	}
-	_, err = service.Forward(context.Background(), "demo", core.LocalPortRequest{Protocol: "udp", HostPort: 1, TargetPort: 1})
+	_, err = service.Forward(context.Background(), "demo", core.LocalPortRequest{Protocol: "sctp", HostPort: 1, TargetPort: 1})
 	if !errors.Is(err, core.ErrUnsupported) {
-		t.Fatalf("udp error=%v", err)
+		t.Fatalf("unsupported protocol error=%v", err)
 	}
 }
 
