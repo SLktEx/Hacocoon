@@ -155,3 +155,9 @@ Zabblyの正規パスを認識し、回帰20件が成功しました。不明な
 同じboot guardのパスで失敗しました。driverがBATの明示的失敗を認識せず、さらに28分待って
 timeoutになりました。最終失敗を認識して所有端末を閉じるよう修正し、2回目のBATで初回受入を
 修復しない回帰試験を追加しました。後続のWindows SSH・reclaim・通知試験はSKIPです。
+
+`96bbbdf8`の全体test（34717575075）は成功し、Ubuntu（34717575034）では修正済みboot guardを
+含む配布物の導入が成功しました。次の試験が一般ユーザーで特権診断の旧`hacoq doctor`を実行して
+失敗しました。Incus 7はdaemon管理権限のないユーザーで失敗を返し、rootでの診断は成功しています。
+正規のcontrollerと利用グループを通る製品`haco doctor`で確認するよう直しました。
+Incus-admin付与や権限緩和は追加していません。後続journey／security試験はSKIPで、再実行が必要です。

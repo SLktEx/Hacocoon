@@ -174,3 +174,12 @@ the ConPTY component, then failed at the same boot-guard path after verifying
 for its timeout. It now fails immediately on that final result and closes its
 owned terminal; a regression prevents a second BAT from repairing acceptance.
 Later Windows SSH, reclamation and notification stages were skipped.
+
+At `96bbbdf8`, full test run 34717575075 passed and Ubuntu run 34717575034
+successfully installed the packaged product with the corrected boot guard.
+Its next assertion failed: it invoked privileged legacy `hacoq doctor` as the
+ordinary user. Incus 7 returns failure when that user lacks daemon authority;
+root's diagnostic succeeded. The gate now uses product `haco doctor`, which
+exercises the installed controller and its intended user group. No Incus-admin
+membership or permission relaxation is added. The remaining journey/security
+steps were skipped and require another run.
