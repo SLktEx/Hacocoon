@@ -188,6 +188,9 @@ func readPreparedStatus(ctx context.Context, r, o windows.GUID) (PreparedStatus,
 	// live registration merely to inspect a retained interrupted operation.
 	key, err := registry.OpenKey(registry.CURRENT_USER, `Software\Hacocoon\Reclamation\`+r.String(), registry.QUERY_VALUE)
 	if err != nil {
+		if o == (windows.GUID{}) && errors.Is(err, registry.ErrNotExist) {
+			return PreparedStatus{State: "none"}, nil
+		}
 		return PreparedStatus{}, err
 	}
 	defer key.Close()
@@ -199,6 +202,9 @@ func readPreparedStatus(ctx context.Context, r, o windows.GUID) (PreparedStatus,
 		record, err = store.readOperation(o)
 	}
 	if err != nil {
+		if o == (windows.GUID{}) && errors.Is(err, registry.ErrNotExist) {
+			return PreparedStatus{State: "none"}, nil
+		}
 		return PreparedStatus{}, err
 	}
 	if (o != (windows.GUID{}) && record.Operation != o) || record.Registration.ID != r {

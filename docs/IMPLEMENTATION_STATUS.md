@@ -1,5 +1,9 @@
 # Implementation Status
 
+## Reclamation status without saved history
+
+Implemented: an absent current Windows reclamation record has an explicit read-only no-result response. Status and review create no operation; malformed records and explicit-ID lookup failures remain errors. No persisted state or schema changes. See [storage reclamation](design/storage-reclamation.md).
+
 ## Host setup controller readiness
 
 Implemented: Host setup uses bounded read-only controller readiness probes before a single setup request. Mutation failures are not retried. See [trusted Host](design/trusted-host.md). Native observation identified the startup race; acceptance of this client fix is separate.

@@ -56,6 +56,10 @@ func reclaimReviewCommand(ctx context.Context, args []string, in io.Reader, out,
 		fmt.Fprintln(diagnostic, err)
 		return 1
 	}
+	if result.State == "none" {
+		fmt.Fprintln(out, "No saved reclamation result to review.")
+		return 0
+	}
 	if result.State == "complete" {
 		fmt.Fprintln(out, "Completed reclamation needs no review.")
 		return 0

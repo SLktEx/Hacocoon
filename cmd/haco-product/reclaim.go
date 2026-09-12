@@ -163,7 +163,16 @@ type windowsReclaimStatus struct {
 
 func parseReclamationStatus(raw []byte) (windowsReclaimStatus, error) {
 	var result windowsReclaimStatus
-	if decodeReclaimOutput(raw, &result) != nil || !validReclaimOperation(result.Operation) || (result.State != "pending" && result.State != "failed" && result.State != "complete" && result.State != "interrupted") || (result.Linux != nil && result.Linux.Validate() != nil) {
+	if err := decodeReclaimOutput(raw, &result); err != nil {
+		return result, errors.New("Saved reclamation result is invalid; retain it for inspection.")
+	}
+	if result.State == "none" {
+		if result.Operation != "" || result.LinuxStarted || result.Linux != nil || result.Observation != nil {
+			return result, errors.New("Absent reclamation result contains operation evidence.")
+		}
+		return result, nil
+	}
+	if !validReclaimOperation(result.Operation) || (result.State != "pending" && result.State != "failed" && result.State != "complete" && result.State != "interrupted") || (result.Linux != nil && result.Linux.Validate() != nil) {
 		return result, errors.New("Saved reclamation result is invalid; retain it for inspection.")
 	}
 	if result.Linux != nil && !result.LinuxStarted {
@@ -201,6 +210,13 @@ func writeReclamationStatus(out, diagnostic io.Writer, raw []byte) int {
 	if err != nil {
 		fmt.Fprintln(diagnostic, err)
 		return 1
+	}
+	if result.State == "none" {
+		_, err := fmt.Fprintln(out, "No saved reclamation result. No operation was started by this status check.")
+		if err != nil {
+			return 1
+		}
+		return 0
 	}
 	if result.State == "complete" && result.Linux == nil {
 		fmt.Fprintln(out, "Saved Windows-only operation: complete")
