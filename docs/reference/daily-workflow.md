@@ -40,6 +40,18 @@ Use `haco ssh setup sample-dev` to prepare SSH without launching a client.
 Desktop keys stay on the desktop. Editor process launch does not prove that its
 connection or build/test is ready. See [Windows SSH](windows-environment-ssh.md).
 
+Before the first `open`, a Base without `sshd` needs package access to install
+`openssh-server`. In **trusted haco-host**, `haco config` shows current Policy and
+`haco approve --list` lists pending requests without deciding. No pending request
+does not mean network access is allowed: default deny creates no approval prompt.
+Use `haco config --edit` to review the existing snapshot and add only the required
+Env/hostname/protocol/port rules; preserve other rules and default deny. Ubuntu's
+default package sources use `archive.ubuntu.com` and `security.ubuntu.com`; inspect
+your Base for mirrors. See the [Policy example](../EGRESS_AUTHORIZATION.md#policy-example).
+An SSH failure does not establish its cause. Inspect Env state/connections and
+Policy before explicitly preparing SSH again. Successfully installed packages
+remain in the Env rootfs across stop/start.
+
 ## Work, stop and return tomorrow
 
 Inside the **Env**, edit under `/workspace` and run that repository's build/test

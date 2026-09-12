@@ -32,6 +32,9 @@ func dailyFailure(out io.Writer, operation, stage, name string, err error) int {
 		name = "<name>"
 	}
 	fmt.Fprintf(out, "Next: haco env status %s; haco doctor %s. Inspect before retrying or deleting retained data.\n", name, name)
+	if stage == "ssh_connection" {
+		fmt.Fprintln(out, "If the Base lacks sshd, SSH preparation needs package access under the current Env Policy. In trusted haco-host, inspect haco approve --list and haco config; review the package endpoints before changing Policy. No approval or package failure is inferred from this error.")
+	}
 	fmt.Fprintln(out, "Diagnostics (WSL/Linux Physical Host, administrator): journalctl -u haco-controller.service --since '30 minutes ago' --no-pager")
 	return 1
 }
