@@ -199,3 +199,13 @@ Store reservations. Creation-failure cleanup uses the same outcome rule.
 Finalization persistence failure also remains an error with ownership retained.
 Retry the existing Environment delete operation after addressing the failure.
 See [lifecycle ownership](../adr/0002-environment-lifecycle-ownership.md#complete-deletion-outcomes).
+
+## Status observation
+
+Implemented: client status reads metadata and its lease under one catalog
+transaction. Incomplete or cleanup-required ownership is an error, not a stopped
+Environment. Complete provider absence while metadata remains is also
+recovery-required. A provider inspection failure remains a failure; an unfamiliar
+but present runtime state remains unknown. Observation does not write, release
+reservations or remove retained data. Existing legacy read normalization is
+preserved and is not a new authorization proof.

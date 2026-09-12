@@ -48,9 +48,7 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 	if err != nil {
 		return fmt.Errorf("snapshot requires durable ownership: %w", core.ErrRecoveryRequired)
 	}
-	if lease.State != core.WorkspaceLeaseActive || lease.Owner == "" || lease.EnvironmentID != name || lease.RuntimeRef == "" || lease.RuntimeRef != environment.RuntimeRef ||
-		lease.WorkspaceID != environment.Workspace.ID || lease.SourcePath != environment.Workspace.Path || lease.AccessMode != environment.AccessMode ||
-		lease.PersistentResource != environment.PersistentResource || !core.ValidEnvironmentInstanceID(lease.InstanceID) {
+	if lease.EnvironmentID != name || !lease.MatchesEnvironment(environment) || lease.Owner == "" || !core.ValidEnvironmentInstanceID(lease.InstanceID) {
 		return core.ErrRecoveryRequired
 	}
 	if environment.PersistentResource != (core.PersistentResourceRef{}) && !core.ValidPersistentResourceRef(environment.PersistentResource) {

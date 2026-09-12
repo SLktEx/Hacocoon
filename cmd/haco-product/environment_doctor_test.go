@@ -59,3 +59,14 @@ func TestEnvironmentDoctorDoesNotExposeProbeFailureOutput(t *testing.T) {
 		t.Fatal("failure hidden or exposed")
 	}
 }
+
+func TestEnvironmentDoctorDoesNotTreatUnknownAsStopped(t *testing.T) {
+	f := &doctorEnvironmentFixture{state: core.EnvironmentUnknown}
+	report, err := diagnoseEnvironment(context.Background(), f, "dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.calls != 0 || len(report.Checks) == 0 || strings.Contains(report.Checks[0].Action, "haco env start") {
+		t.Fatalf("unknown runtime treated as stopped: %#v, calls=%d", report, f.calls)
+	}
+}

@@ -46,7 +46,7 @@ func TestDeleteRetainsAggregateWhenAbsentRuntimeStillNeedsCleanup(t *testing.T) 
 				t.Fatalf("ambiguous cleanup became success: %v", err)
 			}
 			held, err := st.GetWorkspaceLease(ctx, "demo")
-			if err != nil || held.RuntimeRef != env.RuntimeRef || held.InstanceID != lease.InstanceID {
+			if err != nil || held.RuntimeRef != env.RuntimeRef || held.InstanceID != lease.InstanceID || held.State != core.WorkspaceLeaseCleanupRequired {
 				t.Fatalf("ownership lost: %#v, %v", held, err)
 			}
 			if !pending {

@@ -1693,3 +1693,27 @@ snapshot を維持する。schema や新しい復旧状態は追加しない。
 3 経路の不具合を回帰テストで先に再現し、修正後の Core・Workspace・一時実行・
 Incus package test は成功した。今回の実 provider 受け入れは別途記録する。
 [ライフサイクル所有権](adr/0002-environment-lifecycle-ownership.md#complete-deletion-outcomes)を参照。
+
+## 内部責務と状態観測のリファクタリング
+
+開発ブランチで implemented: CLI の dispatch・引数解析・結果表示を分離し、
+local/controller の events 引数と run 結果処理を共通化した。
+Workspace の作成・実行・削除・時間制限付き失敗 cleanup は、既存 canonical
+lifecycle の周囲でファイルを分離した。Incus の観測・実行・client 接続・root
+storage も分離し、receipt を使わない直接作成は provider 固有の削除責務を
+維持したまま cleanup の仕組みを共有する。
+
+ready binding を publication・resume・capture・read-only status で共有する。
+generation と ownership の追加チェックは維持する。未完了 cleanup や、metadata
+が残った runtime 不存在は recovery-required を返し、RPC も複合 error の
+同分類を維持する。doctor は unknown を stopped と解釈しない。
+コマンド名・引数・正常時 JSON・guest 終了コードは維持し、出力先への書き込み
+失敗は両 CLI モードで失敗にする。catalog version・release/checkpoint・通信
+protocol・Workspace UX・Base builder・OCI/client 必須依存は追加しない。
+
+関連 unit/component/process test は成功した。専用 hacocoon-kai WSL の
+Incus 6.0.0 で、空の停止 instance を使う opt-in 観測・削除 gate が 0.59 秒で成功:
+停止/不存在の区別、完全一致削除、似た名前の別資源の保持、再試行、所有確認付き
+cleanup を検証した。専用 directory pool/project を使い、共有 network/profile
+は変更していない。Btrfs・起動 guest・packet enforcement・installed Windows
+全体・live OCI の受け入れを意味しない。

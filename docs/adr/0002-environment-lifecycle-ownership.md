@@ -173,3 +173,23 @@ by Environment finalization.
 Treating any matching `ErrNotFound` in an error tree as complete cleanup is
 rejected: the SandboxProvider can report an absent instance together with failed
 source-guard removal. This decision adds no catalog version or recovery state.
+
+## Observation and error projection
+
+The catalog observes ready metadata and its lease together for client status,
+without writing migration or repair. Resume, snapshot capture and publication
+share the active binding predicate; generation, source reservation and provider
+ownership checks remain with the operation owner. An incomplete lease remains
+recovery-required even when ready metadata is absent.
+
+Incus observations reject failed, canceled, malformed or truncated inventories.
+A unique exact instance row establishes state; a complete empty match establishes
+absence. Unknown state is neither stopped nor absent. The internal absence bit
+does not change successful status JSON. A retained catalog entry with an absent
+runtime reports recovery-required through the existing client API. RPC projection
+preserves recovery-required ahead of other joined errors.
+
+Receipt-free direct Incus callers retain their bounded cleanup owner; ordinary
+production creation still delegates cleanup through its existing receipt to
+Workspace. Shared mechanics invoke each provider's own deletion method, so
+Sandbox source guards cannot disappear from that obligation.

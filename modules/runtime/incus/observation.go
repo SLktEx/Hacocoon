@@ -3,70 +3,99 @@ package incus
 import (
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 func (r *Runtime) Probe(ctx context.Context) (core.RuntimeCapabilities, error) {
-	result, err := r.runner.Run(ctx, "incus", "version")
+	output, err := r.readIncusOutput(ctx, "version")
 	if err != nil {
 		return core.RuntimeCapabilities{Available: false, Details: []string{"incus unavailable"}}, nil
 	}
-	return core.RuntimeCapabilities{Available: true, Details: []string{strings.TrimSpace(result.Stdout)}}, nil
+	return core.RuntimeCapabilities{Available: true, Details: []string{strings.TrimSpace(output)}}, nil
 }
 
-func (r *Runtime) environmentExists(ctx context.Context, ref string) (bool, error) {
-	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "n")
+// readIncusOutput is the read-only observation boundary. A partial or failed
+// command can never establish absence, ownership or an egress source identity.
+func (r *Runtime) readIncusOutput(ctx context.Context, args ...string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	result, err := r.runner.Run(ctx, "incus", args...)
 	if err != nil {
-		return false, err
+		return "", err
 	}
-	for _, line := range strings.Split(result.Stdout, "\n") {
-		if strings.TrimSpace(line) == ref {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (r *Runtime) InspectEnvironment(ctx context.Context, ref string) (core.EnvironmentRuntimeStatus, error) {
-	if err := validateManagedInstanceRef(ref); err != nil {
-		return core.EnvironmentRuntimeStatus{}, err
-	}
-	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "ns")
-	if err != nil {
-		return core.EnvironmentRuntimeStatus{}, err
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
 	if result.ExitCode != 0 || result.StdoutTruncated {
-		return core.EnvironmentRuntimeStatus{}, core.ErrRuntimeUnavailable
+		return "", core.ErrRuntimeUnavailable
 	}
-	states := map[string]core.EnvironmentState{
-		"RUNNING": core.EnvironmentRunning,
-		"STOPPED": core.EnvironmentStopped,
+	return result.Stdout, nil
+}
+
+func (r *Runtime) readIncusJSON(ctx context.Context, target any, args ...string) error {
+	raw, err := r.readIncusOutput(ctx, args...)
+	if err != nil {
+		return err
 	}
-	// Incus name filtering can also return prefixed names (dev and dev-copy).
-	// A state without the exact instance name cannot identify this Environment.
-	reader := csv.NewReader(strings.NewReader(result.Stdout))
-	reader.FieldsPerRecord = 2
+	if err := json.Unmarshal([]byte(raw), target); err != nil {
+		return core.ErrRuntimeUnavailable
+	}
+	return nil
+}
+
+// Incus name filters can include prefix matches. Only a unique exact row is
+// evidence about this instance; malformed output is never an empty inventory.
+func (r *Runtime) readInstanceRow(ctx context.Context, ref, columns string) ([]string, error) {
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return nil, err
+	}
+	raw, err := r.readIncusOutput(ctx, "list", ref, "--project", r.project, "--format", "csv", "-c", columns)
+	if err != nil {
+		return nil, err
+	}
+	reader := csv.NewReader(strings.NewReader(raw))
+	reader.FieldsPerRecord = len(columns)
 	rows, err := reader.ReadAll()
 	if err != nil {
-		return core.EnvironmentRuntimeStatus{}, core.ErrRuntimeUnavailable
+		return nil, core.ErrRuntimeUnavailable
 	}
-	state := core.EnvironmentUnknown
-	found := false
+	var matched []string
 	for _, row := range rows {
 		if row[0] != ref {
 			continue
 		}
-		if found {
-			return core.EnvironmentRuntimeStatus{}, core.ErrRuntimeUnavailable
+		if matched != nil {
+			return nil, core.ErrRuntimeUnavailable
 		}
-		found = true
-		if mapped, ok := states[strings.ToUpper(strings.TrimSpace(row[1]))]; ok {
-			state = mapped
+		matched = row
+	}
+	return matched, nil
+}
+
+func (r *Runtime) environmentExists(ctx context.Context, ref string) (bool, error) {
+	row, err := r.readInstanceRow(ctx, ref, "n")
+	return row != nil, err
+}
+
+func (r *Runtime) InspectEnvironment(ctx context.Context, ref string) (core.EnvironmentRuntimeStatus, error) {
+	row, err := r.readInstanceRow(ctx, ref, "ns")
+	if err != nil {
+		return core.EnvironmentRuntimeStatus{}, err
+	}
+	status := core.EnvironmentRuntimeStatus{State: core.EnvironmentUnknown, Absent: row == nil}
+	if row != nil {
+		switch strings.ToUpper(strings.TrimSpace(row[1])) {
+		case "RUNNING":
+			status.State = core.EnvironmentRunning
+		case "STOPPED":
+			status.State = core.EnvironmentStopped
 		}
 	}
-	return core.EnvironmentRuntimeStatus{State: state}, nil
+	return status, nil
 }
 
 func (r *Runtime) Inspect(ctx context.Context, ref string) (core.RuntimeState, error) {

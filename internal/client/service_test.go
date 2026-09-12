@@ -167,3 +167,11 @@ func TestSSHLeavesAutomaticPortSelectionToRuntime(t *testing.T) {
 		t.Fatalf("%+v", runtime.sshReq)
 	}
 }
+
+func TestStatusTreatsRetainedAbsentRuntimeAsRecoveryRequired(t *testing.T) {
+	runtime := &fakeRuntime{status: core.EnvironmentRuntimeStatus{State: core.EnvironmentUnknown, Absent: true}}
+	service := New(runtime, fakeStore{environment: core.Environment{Name: "demo", RuntimeRef: "haco-demo"}})
+	if _, err := service.Status(context.Background(), "demo"); !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("retained ownership became ordinary unknown: %v", err)
+	}
+}

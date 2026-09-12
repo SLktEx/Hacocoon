@@ -134,36 +134,7 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}
 	cleanup := func(cause error) (core.EnvironmentRuntime, error) {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cleanupTimeout)
-		defer cancel()
-		_, cleanupErr := r.runner.Run(cleanupCtx, "incus", "delete", ref, "--project", r.project, "--force")
-		if cleanupErr == nil {
-			return core.EnvironmentRuntime{}, cause
-		}
-		if cleanupCtx.Err() != nil {
-			return core.EnvironmentRuntime{}, errors.Join(
-				cause,
-				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
-				core.ErrRecoveryRequired,
-			)
-		}
-		exists, inspectErr := r.environmentExists(cleanupCtx, ref)
-		if inspectErr != nil {
-			return core.EnvironmentRuntime{}, errors.Join(
-				cause,
-				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
-				fmt.Errorf("confirm Incus cleanup state for %s: %w", ref, inspectErr),
-				core.ErrRecoveryRequired,
-			)
-		}
-		if exists {
-			return core.EnvironmentRuntime{}, errors.Join(
-				cause,
-				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
-				core.ErrRecoveryRequired,
-			)
-		}
-		return core.EnvironmentRuntime{}, cause
+		return r.cleanupFailedEnvironment(ctx, ref, cause, r.DeleteEnvironment)
 	}
 
 	// Profiles are intentionally shared from the default project, but the
@@ -211,9 +182,15 @@ func (r *Runtime) DeleteEnvironment(ctx context.Context, ref string) error {
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return err
 	}
-	_, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
-	if err == nil {
+	result, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
+	if ctx.Err() != nil {
+		return errors.Join(err, ctx.Err())
+	}
+	if err == nil && result.ExitCode == 0 {
 		return nil
+	}
+	if err == nil {
+		err = core.ErrRuntimeUnavailable
 	}
 	if ctx.Err() != nil {
 		return err

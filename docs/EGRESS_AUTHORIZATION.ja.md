@@ -89,3 +89,12 @@ Windows workflowは正規BATのjourney成功後、install済みcontrollerのpack
 Probeはinstall済みproxy経由での証明書検証付きHTTPS成功、未許可hostnameのproxy 403、Physical Hostで到達を確認したpublic endpointへの直接TCP接続拒否を要求します。管理socket pathがないことも確認します。Guestのroute起動は観測だけで、package、NAT例外、firewall変更、service override、mount修復は注入しません。controller/providerのpacket受入であり、plannedの製品Environment CLIや通常Policy UIが実装済みという主張ではありません。対象commitごとの結果は実装statusに記録します。
 
 repository testsはallow / deny / require-approval、direct-IP reject、shared-IP / alternate-hostname耐性、mixed/private DNS、SNI mismatch、legacy network migration、unmanaged DNS/ACL drift、trusted source-IP mappingをcoverします。real supported-Incusのbridge / nftables / dnsmasq動作はhost acceptanceとして別に確認します。
+
+## 通信元観測の責任者
+
+implemented: Incus adapter は native runtime reference だけを返す。
+未使用だった Environment 名の直接導出 helper は削除し、永続 state と照合する
+resolver を本番の Environment identity 解決経路として維持する。
+失敗・キャンセル・途中で切れた Incus 出力は、もっともらしい名前が 1 件あっても
+通信元の証明にしない。正規化・Policy/Approval・Standard の具体的な接続処理は
+既存の責任者が担当する。HTTP/HTTPS 対応と公開コマンドは変更しない。

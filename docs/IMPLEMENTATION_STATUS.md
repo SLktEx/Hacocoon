@@ -1966,3 +1966,28 @@ Regression first reproduced the three failing cleanup routes, then passed with
 Core, Workspace, ephemeral-run and Incus package tests. Real-provider acceptance
 of this change is tracked separately.
 See [lifecycle ownership](adr/0002-environment-lifecycle-ownership.md#complete-deletion-outcomes).
+
+## Internal responsibility and observation refactor
+
+Implemented on the development branch: CLI routing, option parsing and result
+rendering have separate owners; local/controller event options and run outcomes
+are shared. Workspace creation, execution, deletion and bounded failure cleanup
+are separate files around the existing canonical lifecycle. Incus observation,
+execution, client connections and root storage are separated; receipt-free
+creation cleanup shares mechanics while preserving provider-specific deletion.
+
+Ready-state binding is shared by publication, resume, capture and read-only
+status. Existing generation/ownership checks remain additional requirements.
+Status reports incomplete cleanup or retained-but-absent runtime as
+recovery-required. RPC preserves that category when errors are joined; doctor
+does not interpret unknown as stopped. Normal command names, options, successful
+JSON and guest exit codes remain; output-write errors now fail in both CLI modes.
+No catalog version, release/checkpoint, network protocol, Workspace UX, Base
+builder or mandatory OCI/client dependency is introduced.
+
+Related unit/component and process tests passed. A dedicated hacocoon-kai WSL
+with Incus 6.0.0 passed the opt-in empty stopped-instance observation/deletion
+gate in 0.59s: stopped/absent distinction, exact-name deletion, prefix-neighbor
+retention, retry and owned cleanup. It used a dedicated directory pool/project
+and changed no shared network or profile. This is not Btrfs, running guest,
+packet enforcement, full installed Windows or live OCI acceptance.

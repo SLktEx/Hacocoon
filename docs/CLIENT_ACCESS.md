@@ -73,3 +73,12 @@ haco forward demo --host-port 3000 --target-port 3000
 ```
 
 Authentication remains the responsibility of the service/client. Hacocoon v0.3 only supplies the local connection mechanism.
+
+## Incomplete lifecycle diagnostics
+
+Status, Environment doctor and client adapters share the same service observation.
+Normal running/stopped JSON is unchanged. Incomplete or cleanup-required leases,
+and retained metadata whose provider runtime is positively absent, report the
+existing recovery-required error. Unknown runtime state is not a recommendation
+to start; inspect ownership and provider diagnostics before mutation. Status
+never repairs the catalog or releases Workspace/OCI reservations.
