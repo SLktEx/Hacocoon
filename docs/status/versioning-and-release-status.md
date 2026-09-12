@@ -82,8 +82,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.57 | OCI Image Cleanup | partial — implementation and acceptance gaps remain |
 | v0.58 | Daily CLI Entry and Setup Diagnostics | implemented on development candidate |
 | v0.59 | All-branch Git Fetch | implemented on development candidate; native acceptance pending |
+| v0.60 | Reviewed Git Branch Creation | ✅ implemented |
 
-The current milestone position is **v0.59**. This declaration and the table mirror YAML.
+The current milestone position is **v0.60**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 
@@ -96,3 +97,7 @@ The separate M2 candidate advances to v0.59 for all-head discovery, per-ref
 read authorization and ordinary branch switching. Earlier M1 native gaps do
 not block this lightweight development checkpoint. See the Git guide for limits;
 this does not claim complete M2, large-pack support or a release.
+
+The v0.60 development slice adds separately reviewed creation of one Git branch
+and updates to one exact existing branch. Real Git component and full local test
+CI pass; native Git, GUI decisions and large-repository acceptance remain pending.

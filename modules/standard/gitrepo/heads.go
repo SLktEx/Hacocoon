@@ -44,7 +44,7 @@ func validateHeads(heads []Head) (map[string]string, error) {
 	}
 	result := make(map[string]string, len(heads))
 	for _, head := range heads {
-		if !validHeadRef(head.Ref) || !ValidOID(head.OID) || result[head.Ref] != "" {
+		if !validHeadRef(head.Ref) || !ValidOID(head.OID) || head.OID == ZeroOID || result[head.Ref] != "" {
 			return nil, fmt.Errorf("invalid or duplicate Git head")
 		}
 		result[head.Ref] = head.OID

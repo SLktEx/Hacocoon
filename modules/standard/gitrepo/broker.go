@@ -316,9 +316,10 @@ func (b *Broker) exchange(ctx context.Context, bound binding, req Request) (Resp
 			return Response{}, core.ErrInvalidArgument
 		}
 	case "push":
-		if req.Ref != ref || !ValidOID(req.NewOID) || !ValidOID(req.OldOID) || len(req.Pack) == 0 || len(req.Heads) != 0 {
+		if !validHeadRef(req.Ref) || !ValidOID(req.NewOID) || req.NewOID == ZeroOID || !ValidOID(req.OldOID) || len(req.Pack) == 0 || len(req.Heads) != 0 {
 			return Response{}, core.ErrInvalidArgument
 		}
+		ref, agent.Ref = req.Ref, req.Ref
 	default:
 		return Response{}, core.ErrUnsupported
 	}
@@ -353,11 +354,23 @@ func (b *Broker) exchange(ctx context.Context, bound binding, req Request) (Resp
 	if err != nil {
 		return Response{}, err
 	}
+	if prepared.Ref != req.Ref || prepared.OID != req.OldOID || prepared.Error != "" || len(prepared.Pack) != 0 || len(prepared.Summary) > 8192 {
+		return Response{}, core.ErrIncompatibleState
+	}
 	proposal.Operation = "push"
 	proposal.Summary = prepared.Summary
 	agent.Operation = "push"
 	agent.Pack = nil
-	return b.perform(ctx, bound, proposal, func(ctx context.Context) (Response, error) { return b.Repositories.RunGit(ctx, repo, agent) })
+	return b.perform(ctx, bound, proposal, func(ctx context.Context) (Response, error) {
+		result, err := b.Repositories.RunGit(ctx, repo, agent)
+		if err != nil {
+			return Response{}, err
+		}
+		if result.Ref != req.Ref || result.OID != req.NewOID || result.Error != "" {
+			return Response{}, core.ErrRecoveryRequired
+		}
+		return result, nil
+	})
 }
 
 func (b *Broker) perform(ctx context.Context, bound binding, proposal Proposal, execute func(context.Context) (Response, error)) (Response, error) {
@@ -368,6 +381,9 @@ func (b *Broker) perform(ctx context.Context, bound binding, proposal Proposal, 
 	request := core.CapabilityRequest{Capability: Capability, Action: proposal.Operation, Environment: proposal.Environment, Resource: proposal.Remote, Attributes: map[string]string{"repository": proposal.Repository, "remote": proposal.Remote, "target_ref": proposal.Ref, "old_oid": proposal.OldOID, "new_oid": proposal.NewOID, "operation_id": proposal.ID}}
 	if proposal.Operation == "push" {
 		request.Attributes["update_kind"] = "fast-forward"
+		if proposal.OldOID == ZeroOID {
+			request.Attributes["update_kind"] = "create"
+		}
 	}
 	if identities, ok := b.Environments.(interface {
 		EnvironmentInstance(context.Context, core.Environment) (string, error)
@@ -563,7 +579,7 @@ func (b *Broker) SavedApprovalScope(ctx context.Context, request core.Capability
 	if !ok || ctx.Value(operationContextKey{}) != id || !reflect.DeepEqual(request, operation.request) {
 		return core.CapabilityRequest{}, core.ErrCapabilityStale
 	}
-	if request.Action == "push" && request.Attributes["update_kind"] != "fast-forward" {
+	if request.Action == "push" && request.Attributes["update_kind"] != "fast-forward" && request.Attributes["update_kind"] != "create" {
 		return core.CapabilityRequest{}, core.ErrUnsupported
 	}
 	scope := *cloneScope(&request)

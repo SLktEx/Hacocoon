@@ -133,15 +133,20 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 			}
 			refspec := strings.TrimPrefix(line, "push ")
 			parts := strings.Split(refspec, ":")
-			if len(parts) != 2 || parts[0] == "" || strings.HasPrefix(parts[0], "+") || strings.HasPrefix(parts[0], "-") || parts[1] != listed.Ref || !ValidOID(listed.OID) {
-				return fmt.Errorf("only a normal push to the registered branch is supported")
+			listedHeads, err := validateHeads(listed.Heads)
+			if err != nil || len(parts) != 2 || parts[0] == "" || strings.HasPrefix(parts[0], "+") || strings.HasPrefix(parts[0], "-") || !validHeadRef(parts[1]) {
+				return fmt.Errorf("only a normal single-head creation or fast-forward push is supported")
+			}
+			oldOID := listedHeads[parts[1]]
+			if oldOID == "" {
+				oldOID = ZeroOID
 			}
 			value, err := helperGit(ctx, nil, "rev-parse", "--verify", "--end-of-options", parts[0]+"^{commit}")
 			if err != nil {
 				return err
 			}
 			oid := strings.TrimSpace(string(value))
-			if !ValidOID(oid) {
+			if !ValidOID(oid) || oid == ZeroOID {
 				return fmt.Errorf("invalid local commit")
 			}
 			pack, err := helperGit(ctx, []byte(oid+"\n"), "pack-objects", "--stdout", "--revs")
@@ -149,12 +154,12 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 				return err
 			}
 			fmt.Fprintln(diagnostic, "Push awaits trusted Host Policy/approval. In another Host terminal, run: haco git pending")
-			_, err = exchange(ctx, Request{Operation: "push", Repository: repo, Ref: listed.Ref, OldOID: listed.OID, NewOID: oid, Pack: pack})
+			_, err = exchange(ctx, Request{Operation: "push", Repository: repo, Ref: parts[1], OldOID: oldOID, NewOID: oid, Pack: pack})
 			if err != nil {
 				fmt.Fprintf(diagnostic, "%s\n", err)
-				fmt.Fprintf(output, "error %s broker-failed\n\n", listed.Ref)
+				fmt.Fprintf(output, "error %s broker-failed\n\n", parts[1])
 			} else {
-				fmt.Fprintf(output, "ok %s\n\n", listed.Ref)
+				fmt.Fprintf(output, "ok %s\n\n", parts[1])
 			}
 		default:
 			return fmt.Errorf("unsupported Git helper command")
