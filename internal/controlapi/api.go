@@ -367,6 +367,9 @@ func translateError(err error) error {
 	}
 	code := "internal"
 	switch {
+	// Recovery obligations dominate a joined absence or operation failure.
+	case errors.Is(err, core.ErrRecoveryRequired):
+		code = "recovery_required"
 	case errors.Is(err, core.ErrInvalidArgument):
 		code = "invalid_argument"
 	case errors.Is(err, core.ErrNotFound):
@@ -383,8 +386,6 @@ func translateError(err error) error {
 		code = "busy"
 	case errors.Is(err, core.ErrIncompatibleState):
 		code = "incompatible_state"
-	case errors.Is(err, core.ErrRecoveryRequired):
-		code = "recovery_required"
 	}
 	return control.NewStatusError(code, fmt.Sprint(err))
 }

@@ -63,3 +63,13 @@ acceptance; they are not established by trusted-host connectivity.
 See [egress authorization](../design/egress-authorization.md) and
 [implementation status](../IMPLEMENTATION_STATUS.md).
 
+## Shared transport admission
+
+Implemented: HTTP and CONNECT use the same Standard admission helper after
+their protocol-specific authority checks. It consumes the existing Core grant,
+requires an exact Environment/hostname/protocol/port match and only then pins
+public DNS answers. A nil error with a grant for a different target is not
+authorization. Policy, approval and audit remain in the existing broker;
+CONNECT retains its separate bounded SNI check before dialing. There is no grant
+cache or new transport protocol. Canceled resolution cannot produce a usable
+answer, and a dial completing after cancellation closes its returned connection.

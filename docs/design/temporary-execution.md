@@ -79,3 +79,16 @@ A `run-` name, a marker alone or PID guessing is not deletion authority.
 Live-owner locks are skipped; failure retains `cleanup-required`. Unsupported
 platforms fail rather than substitute weaker ownership proof. SIGINT/SIGTERM
 cleanup uses a separate bounded context independent of execution cancellation.
+
+## Cleanup outcome ownership
+
+Implemented: normal completion, activation failure and abandoned-run recovery
+share bounded canonical runtime/scratch cleanup and one marker-outcome handler.
+Create failure uses the same marker handler, but never removes scratch data while
+canonical creation reports uncertain runtime ownership. A cleanup or marker
+persistence failure consistently returns recovery-required and retains the
+original cause. Retrying uses the existing startup/next-run reconciliation.
+The JSON shape and guest exit status are unchanged: cleaned_up reports completed
+runtime/scratch cleanup, while a failed marker removal still returns an error.
+Repository regressions cover marker-removal retry, activation failure,
+cancellation, retained Workspace/Store boundaries and partial scratch cleanup.

@@ -155,3 +155,19 @@ OCIの後始末が不明ならWorkspaceも保持し、起動失敗ならEnvと�
 確認範囲が異なり、[検証証拠](../status/acceptance-evidence.ja.md#transfer)に失敗・スキップも残します。
 停止したcontainerdの試験は任意の稼働アプリの整合性を保証せず、
 管理bundleは環境全体のbackupではありません。
+
+## rootfs archive の Incus CPU 表記
+
+実装済み: rootfs import は固定済み Incus SDK で CPU 名を解決し、既存の x86_64／aarch64
+という対応 CPU の制限を保って、一時 transport image に正規名を書きます。amd64／arm64
+など Incus の別名は同じ CPU を表し、不明または他の CPU は引き続き fail-closed で拒否します。
+元 archive、所有確認、template 除去、資源の寿命は変えません。
+
+専用 hacocoon-kai WSL の Incus 6.0.0／Btrfs と Ubuntu 26.04 image では、native export が
+amd64 を書いたため初回の公開 import が失敗しました。同じ拒否を archive 層の回帰テストで
+再現しました。Incus の語彙へ統一後、既存 native aggregate は64.20秒で成功し、公開
+export／import、復元 Env の実起動、snapshot 復元／複製、新世代、Git／Workspace／OCI
+データ保持、正確な所有 cleanup を確認しました。初回の失敗 fixture も catalog と native
+owner に基づいて別途 cleanup しました。Ubuntu 24.04 上のローカル native 検証であり、
+対応 OS 上のインストール全体の受入ではありません。製品 controller の import、実 SSH
+handshake、live containerd transfer は未実施です。テスト中は取得済みの元 image を保持しました。

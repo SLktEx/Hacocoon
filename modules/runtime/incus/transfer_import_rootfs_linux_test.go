@@ -169,3 +169,32 @@ func privateRootfsImportDir(t *testing.T) string {
 	}
 	return root
 }
+
+func TestRootfsImportNormalizesIncusArchitectureAliases(t *testing.T) {
+	for _, tc := range []struct{ input, want string }{
+		{"x86_64", "x86_64"}, {"amd64", "x86_64"}, {"generic_64", "x86_64"},
+		{"aarch64", "aarch64"}, {"arm64", "aarch64"}, {"arm64_generic", "aarch64"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			original := rootfsImportFixture(t, strings.Replace(rootfsMetadataFixture, "x86_64", tc.input, 1), nil)
+			a, err := prepareRootfsImport(context.Background(), bytes.NewReader(original), privateRootfsImportDir(t), 1<<20, strings.Repeat("a", 32))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer a.Close()
+			reader := tar.NewReader(a.Reader())
+			h, err := reader.Next()
+			if err != nil || h.Name != "metadata.yaml" {
+				t.Fatal("missing metadata", err)
+			}
+			raw, err := io.ReadAll(reader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var metadata rootfsImportMetadata
+			if err := yaml.UnmarshalStrict(raw, &metadata); err != nil || metadata.Architecture != tc.want {
+				t.Fatalf("metadata=%+v err=%v", metadata, err)
+			}
+		})
+	}
+}

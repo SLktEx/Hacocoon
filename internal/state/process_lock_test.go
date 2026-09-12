@@ -40,9 +40,7 @@ func TestEnvironmentJSONStoreChildWriter(t *testing.T) {
 		RuntimeRef: "haco-" + name,
 		CreatedAt:  time.Now().UTC(),
 	}
-	if err := store.PutEnvironment(context.Background(), environment); err != nil {
-		t.Fatal(err)
-	}
+	commitEnvironmentFixture(t, store, environment)
 }
 
 func TestEnvironmentJSONStoreSerializesIndependentProcesses(t *testing.T) {

@@ -13,8 +13,8 @@ import (
 //
 // The reservation deliberately remains in the acquiring state until the
 // provider runtime reference has been durably recorded and the complete
-// Environment can be committed. Callers should use the lifecycle methods in
-// this file rather than composing PutEnvironment/PutWorkspaceLease manually.
+// Environment can be committed. Independent metadata/lease mutation APIs are
+// deliberately absent; this transition owns their aggregate reservation.
 func (s *EnvironmentJSONStore) BeginEnvironmentCreate(ctx context.Context, lease core.WorkspaceLease) error {
 	if lease.SnapshotSource != "" {
 		return core.ErrInvalidArgument
@@ -290,7 +290,7 @@ func validateEnvironmentCreateCommit(environment core.Environment, lease core.Wo
 	if environment.Name == "" || environment.RuntimeRef == "" || environment.Workspace.ID == "" || environment.Workspace.Path == "" || environment.CreatedAt.IsZero() {
 		return core.ErrInvalidArgument
 	}
-	if lease.EnvironmentID != environment.Name || lease.RuntimeRef != environment.RuntimeRef || lease.WorkspaceID != environment.Workspace.ID || lease.SourcePath != environment.Workspace.Path || lease.AccessMode != environment.AccessMode || lease.State != core.WorkspaceLeaseActive {
+	if !lease.MatchesEnvironment(environment) {
 		return fmt.Errorf("environment %q and Workspace lease do not describe the same ready resource aggregate: %w", environment.Name, core.ErrIncompatibleState)
 	}
 	return nil
