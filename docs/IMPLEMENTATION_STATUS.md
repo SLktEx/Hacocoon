@@ -2,6 +2,8 @@
 
 ## Daily entry and setup diagnostics
 
+Windows installer component fixtures subsequently passed on Windows with actual transport pinned to hacocoon-v2; mutation paths were mocked and files were isolated fixtures. This does not establish installed Env or IDE acceptance.
+
 The standard local test/vet/notification and full race targets passed; fixture CLI E2E passed. Native WSL CLI help/JSON/controller-unavailable/setup-interruption checks passed. Release trust/archive/config/syntax checks passed, but the Windows-only installer fixture cannot execute in Linux PowerShell (empty SystemDirectory). Incus/Windows IDE acceptance remains pending; shared WSL bridges were left untouched. The test workflow also checks PRs targeting dev/v2.
 
 Implemented: Host setup streams bounded fixed stage/state/reason and request IDs,
