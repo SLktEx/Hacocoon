@@ -1,6 +1,6 @@
 # Environment transfer
 
-Status: **partial overall**. Linux public export/import and Windows-file projected import are implemented and verified through the installed controller, fresh pinned SSH and retained-data recreation. Live OCI runtime consistency, Git reconnection acceptance and whole-installation evacuation remain incomplete.
+Status: **partial overall**. Linux public export/import and Windows-file projected import are implemented and verified through the installed controller, fresh pinned SSH and retained-data recreation. Stopped containerd image and writable-data transfer has real Incus/Btrfs acceptance. Docker and arbitrary application consistency, Git reconnection acceptance and whole-installation evacuation remain incomplete. See [OCI transfer acceptance](#live-oci-transfer-acceptance).
 See [Linux import command](#linux-import-command) for current usage and limits.
 
 ## Incus foundation
@@ -824,6 +824,8 @@ native snapshotter and stopped container data only.
 At ba4dbcd, native OCI acceptance FAILED during source runtime preparation before export. The fixture now identifies the fixed failed phase and exit code without raw subprocess output. Ownership recovery records remain; no transfer acceptance is claimed.
 
 The offline source fixture explicitly configures the containerd transfer service for linux/amd64 native unpack. Its default unpack selection does not cover native; this is source preparation only. Import still replaces that configuration with current Hacocoon settings before starting the restored Environment. At 8103e3f, direct image import still failed before export; explicit CLI platform alone was insufficient. Native acceptance passed at 6974272 in [run 34501951826](https://github.com/SLktEx/Hacocoon/actions/runs/34501951826): aggregate 103.36s and shipped-controller import 22.00s, including source Env deletion and resumed containerd writable data. All applicable CI, including Windows, passed; the optional authenticated-private-registry job was skipped. Earlier failed attempts remain failures. No Docker, BuildKit/cache or arbitrary application consistency acceptance is claimed.
+
+The same gated fixture passed again at 653dc985 in [the Incus/Btrfs CI job](https://github.com/SLktEx/Hacocoon/actions/runs/34636086219/job/103384200857): aggregate 115.96s, with both canonical and shipped-controller imports restarting the saved container and verifying its image identity and writable data. The source container and daemon were stopped before export. This is native runtime acceptance within that scope, not live-process restoration or whole-installation migration.
 
 ## Evacuation inventory
 
