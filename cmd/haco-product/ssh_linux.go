@@ -34,7 +34,7 @@ func runOpen(args []string) int {
 	flags := flag.NewFlagSet("haco open", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	flags.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: haco open [--client vscode|ssh | --port <port> [--close | --no-browser]] [environment]\nOpens an existing Env at /workspace; path discovery is not implemented. Blank selection cancels.")
+		fmt.Fprintln(os.Stderr, "Usage: haco open [--client vscode|ssh | --port <port> [--close | --no-browser]] [environment]\n       haco open [--repo first,second] [--name name] [--base base] [--oci auto|none|oci:ID] [--client vscode|ssh|none] <directory>\nReopens an owner-pinned Workspace reference, or prepares one from explicit Host repositories. Existing directory files are not imported. Blank Environment selection cancels.")
 		flags.PrintDefaults()
 	}
 	port := flags.Int("port", 0, "open an Environment HTTP port in the browser")

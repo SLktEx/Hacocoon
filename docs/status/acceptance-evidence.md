@@ -99,3 +99,12 @@ open 7.064s / 25,333,760 bytes; reopen 0.793s / 147,456 bytes; fork 1.128s /
 Each small source reported 12,075,008 extent bytes; prepared copies reported zero
 exclusive extents. Pool deltas include metadata/runtime activity and do not prove
 Linux-kernel-sized repository performance or controlled-load benchmarks.
+
+At integration candidate `215019a`, maintained docs/workflow-policy, full Go test/vet,
+27 JavaScript tests, full race, fixture E2E and systemd checks passed. Native Windows
+installer component fixtures passed with mutations mocked. All-stage local CI stopped
+at the Ubuntu 26.04 installer precondition on the Ubuntu 24.04 validation Host.
+The forwarding entry first stopped because noninteractive sudo was unavailable;
+the same kernel regression passed in a separate root-owned network namespace (3.25s).
+These integration checks do not establish installed Incus, Windows/WSL product journeys,
+private registry or live OCI acceptance of the merged candidate.

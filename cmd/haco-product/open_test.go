@@ -16,6 +16,9 @@ func TestOpenClientChoiceIsExplicitAndValidatedBeforeSetup(t *testing.T) {
 	if code != 0 || !strings.Contains(err, "desktop client: vscode, ssh or none") {
 		t.Fatalf("%d %s", code, err)
 	}
+	if !strings.Contains(err, "<directory>") || !strings.Contains(err, "--repo") || strings.Contains(err, "path discovery is not implemented") {
+		t.Fatalf("help does not describe the integrated Workspace entry: %s", err)
+	}
 }
 
 func TestNoneClientRequiresAPathBeforeControllerSetup(t *testing.T) {

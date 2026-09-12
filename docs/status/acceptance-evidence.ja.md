@@ -98,3 +98,11 @@ fork open 6.384秒/23,162,880バイト、再作成3.396秒/23,650,304バイト�
 Base交換は17.986秒で容量未計測。各sourceのextentは12,075,008バイト、準備したコピーの
 exclusive extentは0バイトでした。プール増分はmetadata・runtimeの活動を含み、
 Linux kernel規模の性能や負荷を統制したbenchmarkを示しません。
+
+統合候補`215019a`ではdocs/workflow-policy、全Go test/vet、JavaScript 27試験、
+全race、模擬E2E、systemd検証が成功しました。変更操作を模擬化したWindows installer
+構成要素試験も成功。全工程のローカルCIは検証HostがUbuntu 24.04のためinstallerの
+26.04以降という条件で停止しました。転送試験は非対話sudoが利用できず一度停止し、
+同じkernel回帰試験をrootの専用network namespaceで実行して3.25秒で成功しました。
+これらは統合候補の導入済みIncus・Windows/WSL製品経路・非公開registry・稼働OCIの
+実機確認を意味しません。
