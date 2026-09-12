@@ -133,3 +133,18 @@ PATH追加や展開ZIPの保持は不要です。同じ登録は再利用し、�
 来歴検証は[リリースの安全性](../security/release-security.ja.md)が管理します。
 パッケージ E2EはBAT・Ubuntuの入口スクリプトから利用準備を確認します。
 ローカルで作成した候補は公開・署名済みリリースではありません。
+
+## Windowsのインストール結果を読む
+
+`install-windows.bat`をダブルクリックすると、完了・失敗・再起動待ちの結果を
+表示した後、キー入力まで画面を残します。終了3010は再起動待ちです。
+Windows再起動後、保存済みの継続手順に従ってください。
+
+自動実行では呼び出し元に`HACO_INSTALL_NO_PAUSE=1`を設定します。
+`CI`環境変数が定義された場合も待機しません。元の終了コードとインストールの
+検証・PowerShell引数は保持し、最後の待機だけを省略します。
+
+```powershell
+$env:HACO_INSTALL_NO_PAUSE = '1'
+cmd /c .\install-windows.bat
+```

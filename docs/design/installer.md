@@ -83,3 +83,16 @@ For each supported user path, E2E:
 6. verifies that Hacocoon is actually usable, including `haco doctor` and the trusted `haco-host` controller round trip.
 
 The locally-built E2E candidate is not a published release and therefore has no publication attestation. Provenance/publication checks remain a separate release gate; installer E2E is responsible for the install-to-usable-Hacocoon path.
+
+## Windows final result
+
+Implemented: the BAT launcher has one final-result path for normal completion,
+PowerShell failure, restart-required exit 3010 and missing prerequisites. It saves
+the original exit code before displaying the outcome and pauses until a key is
+pressed. `HACO_INSTALL_NO_PAUSE=1` or a defined `CI` environment variable skips
+the pause without consuming or forwarding another installer argument. The normal
+PowerShell arguments and saved continuation procedure are unchanged.
+
+Native Windows component tests cover exits 0, 1, 37 and 3010 plus missing
+PowerShell/adjacent script. Explorer double-click/keypress acceptance remains
+separate from the automated native process checks.

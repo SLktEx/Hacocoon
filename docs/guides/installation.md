@@ -133,3 +133,18 @@ has separate dispatch, completion and review semantics.
 [Release security](../security/release-security.md) owns provenance.
 Package E2E starts at BAT/native wrapper and proves user-visible readiness;
 a locally built candidate is not a published/attested release.
+
+## Read the Windows installer result
+
+Double-click `install-windows.bat` and read the final completion, failure or
+restart-required result before pressing a key to close it. Exit 3010 means follow
+the saved continuation instructions after Windows restarts.
+
+For unattended scripts, set `HACO_INSTALL_NO_PAUSE=1` in the calling process;
+CI environments also skip the final pause. The original installer exit code is
+preserved. This setting changes only the final wait, not installation checks.
+
+```powershell
+$env:HACO_INSTALL_NO_PAUSE = '1'
+cmd /c .\install-windows.bat
+```
