@@ -1760,3 +1760,15 @@ DNS／dial 結果を fail-closed で拒否します。対象不一致、試行�
 既存 CONNECT shutdown 回帰と、関連 proxy／egress／DNS／Incus の race テストが成功しました。
 リポジトリ検証であり、新たなインストール済み packet 受入確認ではありません。
 [egress の構成](EGRESS_AUTHORIZATION.ja.md#通信制御実装の構成)を参照してください。
+
+## リファクタリング続行分の native 検証
+
+実装済み: native rootfs import は対応 CPU 2系統の制限を維持して Incus の別名を使用します。
+初回 aggregate は amd64 metadata の公開 import で失敗し、最小回帰でも再現しました。
+修正後、専用 hacocoon-kai（Ubuntu 24.04、Incus 6.0.0、Btrfs、Ubuntu 26.04 image）で
+既存 aggregate が64.20秒で成功しました。公開 export／import、snapshot の作成／一覧／
+復元／削除、停止 Env の複製、新世代／source guard、Git／Workspace／OCI データ保持と
+所有資源の cleanup を確認しました。初回失敗 fixture も正確な catalog／native 所有情報に
+基づいて cleanup しました。製品 controller の import、実 SSH handshake、live OCI 実行は
+明示的にスキップしました。
+[転送契約](design/environment-transfer.ja.md#rootfs-archive-の-incus-cpu-表記)を参照してください。

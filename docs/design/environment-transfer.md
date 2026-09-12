@@ -1259,3 +1259,23 @@ Completion requires tar success, synced output and unchanged observed source met
 Historical encrypted fixtures and existing ciphertext remain unchanged and are not prerequisites for ordinary export. Old encrypted captures still need their original keys if accessed; no migration or rewriting is performed. Full source classification, coordinated quiescence and installation reconstruction remain unfinished.
 
 Native evacuation restore checks explicitly include non-user extended attributes when extracting their isolated, owned fixture archives, and compare a synthetic trusted attribute directly. GNU tar's default --xattrs extraction restores only the user namespace. This is same-platform fixture coverage, not permission to apply arbitrary archived security attributes to a Host or to import old management authority. Full restored-data comparison remains required.
+
+## Incus architecture names in rootfs archives
+
+Implemented: rootfs import resolves architecture names through the pinned Incus
+SDK, then retains the existing x86_64/aarch64 CPU restriction and writes the
+canonical name to its private transport image. Incus aliases such as amd64 and
+arm64 describe those same CPUs; unknown and other architectures still fail
+closed. The source archive, ownership checks, template removal and resource
+lifetime are unchanged.
+
+Dedicated hacocoon-kai WSL acceptance with Incus 6.0.0/Btrfs and a Ubuntu 26.04
+image first failed public import because native export wrote amd64 metadata.
+The same failure was reproduced in archive-level regression tests. After using
+the Incus vocabulary, the existing native aggregate passed in 64.20s, including
+public export/import, running restored Environments, snapshot restore/copy,
+fresh generations, retained Git/Workspace/OCI bytes and exact owned cleanup.
+The first failed fixture was separately cleaned using its catalog/native owners.
+This is local native acceptance on Ubuntu 24.04, not supported-installation
+acceptance: shipped-controller import, actual SSH handshakes and live containerd
+transfer were not run. The cached source image was retained during the test.

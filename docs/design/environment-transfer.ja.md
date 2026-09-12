@@ -1063,3 +1063,19 @@ sha256sum --check --status data.tar.sha256
 過去の暗号化 fixture と既存の暗号文は変更せず、通常 export の前提条件にしません。古い暗号文を読む場合は元の鍵が必要ですが、移行・書き換えは行いません。全対象の分類・書き込み停止の同期・installation 再構築は未完了です。
 
 ネイティブ退避の復元検証では、隔離した所有済み fixture の archive を展開するときに user 名前空間以外の拡張属性も明示的に含め、合成した trusted 属性を直接照合します。GNU tar の --xattrs だけによる既定の展開では user 名前空間しか復元しません。これは同一基盤の fixture 検証であり、任意の保存済みセキュリティ属性を Host に適用したり、旧管理権限を復元したりする許可ではありません。復元データ全体の照合は引き続き必要です。
+
+## rootfs archive の Incus CPU 表記
+
+実装済み: rootfs import は固定済み Incus SDK で CPU 名を解決し、既存の x86_64／aarch64
+という対応 CPU の制限を保って、一時 transport image に正規名を書きます。amd64／arm64
+など Incus の別名は同じ CPU を表し、不明または他の CPU は引き続き fail-closed で拒否します。
+元 archive、所有確認、template 除去、資源の寿命は変えません。
+
+専用 hacocoon-kai WSL の Incus 6.0.0／Btrfs と Ubuntu 26.04 image では、native export が
+amd64 を書いたため初回の公開 import が失敗しました。同じ拒否を archive 層の回帰テストで
+再現しました。Incus の語彙へ統一後、既存 native aggregate は64.20秒で成功し、公開
+export／import、復元 Env の実起動、snapshot 復元／複製、新世代、Git／Workspace／OCI
+データ保持、正確な所有 cleanup を確認しました。初回の失敗 fixture も catalog と native
+owner に基づいて別途 cleanup しました。Ubuntu 24.04 上のローカル native 検証であり、
+対応 OS 上のインストール全体の受入ではありません。製品 controller の import、実 SSH
+handshake、live containerd transfer は未実施です。テスト中は取得済みの元 image を保持しました。

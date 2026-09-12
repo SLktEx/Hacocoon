@@ -2037,3 +2037,16 @@ Target mismatch, fresh authorization per attempt, cancellation and existing
 CONNECT shutdown regressions passed, including related proxy/egress/DNS/Incus
 race tests. This is repository validation, not new installed packet acceptance.
 See [egress structure](EGRESS_AUTHORIZATION.md#transport-implementation-structure).
+
+## Native refactor continuation acceptance
+
+Implemented: native rootfs import now uses Incus architecture aliases while
+retaining the two supported CPU families. Initial aggregate acceptance failed
+public import on amd64 metadata; the focused regression reproduced that failure.
+The corrected existing aggregate passed in 64.20s in dedicated hacocoon-kai
+(Incus 6.0.0, Btrfs, Ubuntu 26.04 image on Ubuntu 24.04). Public export/import,
+snapshot create/list/restore/delete, stopped-Env copy, current-generation/source
+guards, retained Git/Workspace/OCI data and owned resource cleanup passed.
+The initial failed fixture was cleaned from exact catalog/native ownership.
+Shipped-controller import, actual SSH handshakes and live OCI execution were
+explicitly skipped. See [the owning transfer contract](design/environment-transfer.md#incus-architecture-names-in-rootfs-archives).
