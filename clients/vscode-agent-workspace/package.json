@@ -4,6 +4,7 @@
   "description": "Create isolated Hacocoon worktrees and Environments for VS Code coding-agent sessions.",
   "version": "0.0.2",
   "private": true,
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.102.0"
   },
