@@ -261,3 +261,11 @@ as its existing create/delete calls already do. Product deletion checks are
 unchanged. The storage cleanup step failed because that test stopped before its
 owned cleanup; the overall Incus cleanup step passed. Later Btrfs probes and
 private registry were skipped. The complete Btrfs job requires another run.
+
+At `28ca8ebf`, test 34723923596 and Ubuntu 34723923612 passed. Incus run
+34723923619 passed Core/standalone and Btrfs aggregate/source deletion, native
+volume import and definition-driven Base build. The later persistent-copy
+fixture had the same combined snapshot argument and failed; it is now corrected
+to separate volume/snapshot arguments. Both workflow cleanup steps passed; the
+failed test's explicitly retained recovery fixture remains recorded. Store
+maintenance and private registry were skipped. No complete Btrfs job pass is claimed.

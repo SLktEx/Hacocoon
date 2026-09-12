@@ -223,3 +223,10 @@ OCI書込みデータ、snapshot／restore／copy、保持とnative child拒否�
 同じ分離形式へ修正しました。製品の削除判定は変更していません。試験が所有cleanup前に止まり、
 storage cleanup stepはFAIL、全体Incus cleanup stepはPASSでした。後続Btrfs probeと
 private registryはSKIPで、Btrfs job全体の成功には再実行が必要です。
+
+`28ca8ebf`はtest 34723923596とUbuntu 34723923612が成功しました。Incus 34723923619は
+Core／standaloneとBtrfs aggregate／取得元削除、native volume import、定義からのBase buildが
+成功しました。後続persistent-copy fixtureにも同じsnapshot結合引数が残っておりFAILとなったため、
+volume／snapshotを別引数へ修正しました。workflowのcleanup 2stepはPASSですが、失敗した試験が
+明示的に保持した復旧fixtureの記録は残します。Store maintenanceとprivate registryはSKIPです。
+Btrfs job全体の成功とは扱いません。
