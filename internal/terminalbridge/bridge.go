@@ -79,6 +79,12 @@ func BridgeWithTerminal(
 			}
 		}()
 	}
+	stopResize := watchTerminalSize(ctx, stream, stdin)
+	defer func() {
+		if resizeErr := stopResize(); resizeErr != nil && retErr == nil {
+			retErr = resizeErr
+		}
+	}()
 
 	cancelDone := make(chan struct{})
 	defer close(cancelDone)

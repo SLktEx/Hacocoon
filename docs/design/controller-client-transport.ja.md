@@ -194,11 +194,36 @@ Stream handshakeでは可能な検証をsuccess acknowledgementより前に行�
 現在はinteractive Environment shellに利用し、client half-closeも維持します。今後のframingでは次を追加できます。
 
 - streamed non-interactive stdin/stdout/stderrとexit metadata
-- PTY resize/control event
 - Environment TCP forwarding
 - その他のbounded controller-mediated stream
 
 `Session`を新しいpublic domain conceptにはしません。StreamはExecutionまたはclient connectionのimplementation detailです。
+
+### 対話端末の画面サイズ
+
+状態: **implemented。インストール済み Incus/Windows/WSL での受入は pending**。
+
+Host と Environment の shell client は、開始時の端末の列数・行数を request で渡す。
+有効な非ゼロの画面サイズがある session は handshake で `terminal_resize` を通知する。
+以後の変更は既存のランダムな session identity と、サイズを制限した
+`_control.session.resize` RPC で送る。制御データはプロセスの stdin に混ぜない。
+列数・行数はともに 1–10000 とし、連続更新は最新サイズに集約する。
+終了済み・不明な session への制御は拒否し、管理 endpoint や Incus 権限を追加公開しない。
+
+共通 terminal bridge は Linux/WSL の `SIGWINCH` を監視する。他の OS の native client は
+console size を定期取得し、変更時だけ送信する。Linux Incus adapter は初期サイズを設定した
+専用の raw PTY を `incus exec` に与え、その PTY の更新で Incus 本来の resize 転送を使う。
+Incus の設定・project 選択・guest PTY 実装を維持する。Ctrl-C/Ctrl-D は入力バイトとして
+転送する。対話 client の切断時は対応する local Incus process を終了させ、通常終了時は
+最終出力と終了コードを受け取ってから接続を閉じる。
+
+capability を返さない旧 peer は既存 stream 動作を維持する。非 TTY 入力はサイズを渡さず
+既存の pipe 経路を使う。controller service の環境から端末サイズを推測しない。
+
+component test は両 shell service 経路、サイズ検証・更新集約、入力バイト保持、実 PTY の
+初期サイズ・変更 signal、長い入力の readline 編集、終了・切断・呼出元端末の復元を検証する。
+installed acceptance では通常の WSL login と各 Host/Environment shell 入口を使い、
+window resize と全画面 TUI を追加確認する。
 
 ## Performance
 
@@ -235,7 +260,6 @@ BaselineはUnix domain socket上の通常のGo buffered forwardingです。Local
 - replacementが確立したcompatibility aliasをremoveまたは明示deprecate
 - trusted Host-local toolingをlong-termの`haco-host` namespaceへ移行
 - stdout/stderr/exit metadataを持つstreamed Execution framing
-- PTY resize/control framing
 - generic Environment forwarding
 - 実需が出た場合のみremote transport
 - profilingで必要性が示された場合のみFD passing / zero-copy

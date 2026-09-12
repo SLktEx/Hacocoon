@@ -24,10 +24,11 @@ type requestEnvelope struct {
 }
 
 type responseEnvelope struct {
-	Version   int             `json:"version"`
-	SessionID string          `json:"session_id,omitempty"`
-	Payload   json.RawMessage `json:"payload,omitempty"`
-	Error     *wireError      `json:"error,omitempty"`
+	TerminalResize bool            `json:"terminal_resize,omitempty"`
+	Version        int             `json:"version"`
+	SessionID      string          `json:"session_id,omitempty"`
+	Payload        json.RawMessage `json:"payload,omitempty"`
+	Error          *wireError      `json:"error,omitempty"`
 }
 
 type wireError struct {

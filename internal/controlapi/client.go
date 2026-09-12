@@ -8,6 +8,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"golang.org/x/term"
 )
 
 type PingResponse struct {
@@ -119,7 +120,13 @@ func (c *Client) OpenTrustedHostShell(ctx context.Context) (net.Conn, error) {
 }
 
 func currentTerminalMetadata() TerminalMetadata {
+	columns, rows, err := term.GetSize(int(os.Stdin.Fd()))
+	if err != nil || columns <= 0 || rows <= 0 {
+		columns, rows = 0, 0
+	}
 	return TerminalMetadata{
+		Columns:   columns,
+		Rows:      rows,
 		Term:      os.Getenv("TERM"),
 		ColorTerm: os.Getenv("COLORTERM"),
 	}
