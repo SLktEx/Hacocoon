@@ -183,7 +183,7 @@ func (p *SandboxProvider) DeleteEnvironment(ctx context.Context, ref string) err
 		return core.ErrInvalidArgument
 	}
 	deleteErr := p.Runtime.DeleteEnvironment(ctx, ref)
-	if deleteErr != nil && !errors.Is(deleteErr, core.ErrNotFound) {
+	if !core.EnvironmentDeletionComplete(deleteErr) {
 		return deleteErr
 	}
 	guardErr := p.removeRoutedSandboxSourceGuard(ctx, ref)

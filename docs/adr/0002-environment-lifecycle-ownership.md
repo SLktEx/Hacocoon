@@ -155,3 +155,21 @@ lease. That reference blocks source deletion until publication or positively
 completed cleanup. It protects immutable saved data without promising runtime
 resumption after every crash. Do not split source reservation from the canonical
 creation transition, and do not bypass receipts for copied instances.
+
+## Complete deletion outcomes
+
+Provider deletion succeeds only after all provider-owned cleanup completes.
+A wrapped `ErrNotFound` alone can prove absence. A joined error containing
+`ErrNotFound` plus a network cleanup, cancellation, ownership or other failure
+cannot. Filesystem ENOENT is not evidence of provider absence.
+
+`core.EnvironmentDeletionComplete` owns this interpretation. Ready, incomplete,
+temporary and failed-create cleanup use it before the canonical finalization.
+Failed deletion retains the exact lease and marks `cleanup-required` when that
+lease can be read and persisted. A finalization failure retains recovery-required
+evidence for retry. Workspace, retained OCI and saved snapshots are never removed
+by Environment finalization.
+
+Treating any matching `ErrNotFound` in an error tree as complete cleanup is
+rejected: the SandboxProvider can report an absent instance together with failed
+source-guard removal. This decision adds no catalog version or recovery state.

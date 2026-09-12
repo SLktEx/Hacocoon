@@ -43,13 +43,7 @@ func (s *Service) delete(ctx context.Context, name string, expected *core.Worksp
 		if expected != nil && environment.Workspace != *expected {
 			return core.ErrIncompatibleState
 		}
-		if err := s.runtime.DeleteEnvironment(ctx, environment.RuntimeRef); err != nil && !isNotFound(err) {
-			return fmt.Errorf("delete runtime %q: %w", environment.RuntimeRef, err)
-		}
-		if err := s.store.FinalizeEnvironmentDelete(ctx, name); err != nil {
-			return fmt.Errorf("finalize environment deletion %q: %w", name, err)
-		}
-		return nil
+		return s.deleteAndFinalize(ctx, name, environment.RuntimeRef)
 	}
 	if !isNotFound(err) {
 		return err
@@ -68,11 +62,5 @@ func (s *Service) delete(ctx context.Context, name string, expected *core.Worksp
 	if lease.RuntimeRef == "" {
 		return fmt.Errorf("workspace lease for %q has no runtime reference; refusing to reclaim without proof: %w", name, core.ErrRecoveryRequired)
 	}
-	if err := s.runtime.DeleteEnvironment(ctx, lease.RuntimeRef); err != nil && !isNotFound(err) {
-		return fmt.Errorf("recover runtime %q: %w", lease.RuntimeRef, err)
-	}
-	if err := s.store.FinalizeEnvironmentDelete(ctx, name); err != nil {
-		return fmt.Errorf("finalize recovered environment deletion %q: %w", name, err)
-	}
-	return nil
+	return s.deleteAndFinalize(ctx, name, lease.RuntimeRef)
 }

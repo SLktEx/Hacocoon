@@ -189,3 +189,13 @@ an upgraded legacy installation, apply the setting through normal stop/start
 for each retained Environment; untouched legacy instances are not migrated.
 See [ADR 0060](../adr/0060-explicit-environment-start.md) for ownership, failure
 behavior and the distinction from complete Environment recovery.
+
+## Complete deletion and retry
+
+Implemented: normal, incomplete and temporary Environment deletion share one
+canonical delete/finalize path. A provider absence report joined with failed
+network cleanup is recovery-required; it cannot release Workspace or optional
+Store reservations. Creation-failure cleanup uses the same outcome rule.
+Finalization persistence failure also remains an error with ownership retained.
+Retry the existing Environment delete operation after addressing the failure.
+See [lifecycle ownership](../adr/0002-environment-lifecycle-ownership.md#complete-deletion-outcomes).

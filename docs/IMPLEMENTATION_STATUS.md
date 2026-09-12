@@ -1954,3 +1954,15 @@ Read-only evacuation reference projection covers catalog schemas 10–13 without
 Evacuation native restore tests now explicitly restore and directly compare a non-user extended attribute. A dedicated WSL reproduction confirmed that default GNU tar extraction omitted the synthetic trusted attribute while explicit inclusion retained it. This corrects verification coverage; whole-installation restore and previously restored rootfs attribute comparison remain incomplete.
 
 F1 public reclamation passed native Windows/WSL CI at 5100d86: 3,740,270,592 Windows allocation bytes reclaimed with capacities preserved, exact-WSL resume, and retained Workspace/OCI/snapshot restoration. Existing local installation acceptance remains separate. See [current native acceptance](design/storage-reclamation.md#current-native-acceptance).
+
+## Environment cleanup outcome consistency
+
+Implemented: ready, pending and temporary deletion share canonical finalization,
+and creation-failure cleanup uses the same complete-provider-deletion predicate.
+An absent instance joined with source-guard failure no longer releases the lease.
+Failed deletion marks the existing reservation cleanup-required; metadata,
+Workspace and retained OCI/snapshots remain. No schema or new recovery state.
+Regression first reproduced the three failing cleanup routes, then passed with
+Core, Workspace, ephemeral-run and Incus package tests. Real-provider acceptance
+of this change is tracked separately.
+See [lifecycle ownership](adr/0002-environment-lifecycle-ownership.md#complete-deletion-outcomes).

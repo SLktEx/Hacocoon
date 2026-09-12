@@ -1682,3 +1682,14 @@ tree capture の成功時は `sha256sum` でコピーを検証する標準 SHA-2
 退避のネイティブ復元テストは user 名前空間以外の拡張属性を明示的に復元し、直接照合します。専用 WSL での再現では、GNU tar の既定展開は合成した trusted 属性を失い、明示指定では保持しました。検証範囲の修正であり、全量復元と既存の復元済み rootfs の属性照合は未完了です。
 
 F1 の公開回収経路は 5100d86 の native Windows/WSL CI で成功しました。容量を維持して Windows の実割当を 3,740,270,592 bytes 回収し、対象 WSL の再開と保持 Workspace・OCI・snapshot の復元を確認しました。既存の手元環境での受入は別です。[現在の native 受入](design/storage-reclamation.ja.md#現在の-native-受入)を参照してください。
+
+## Environment cleanup 結果の一貫性
+
+implemented: ready・作成途中・一時 Environment の削除は同じ canonical
+finalization を使い、作成失敗時の cleanup も同じ provider 削除完了判定を使う。
+instance 不存在と source guard 削除失敗が併存する場合は lease を解除しない。
+削除失敗は既存予約を cleanup-required にし、metadata・Workspace・保持 OCI・
+snapshot を維持する。schema や新しい復旧状態は追加しない。
+3 経路の不具合を回帰テストで先に再現し、修正後の Core・Workspace・一時実行・
+Incus package test は成功した。今回の実 provider 受け入れは別途記録する。
+[ライフサイクル所有権](adr/0002-environment-lifecycle-ownership.md#complete-deletion-outcomes)を参照。
