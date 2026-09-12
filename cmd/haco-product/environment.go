@@ -29,7 +29,7 @@ func runEnvironment(args []string) int {
 
 func environmentCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--port <port>] <name> | ssh-config <name> | disconnect <name> <connection-id> | copy [--json] <stopped-env> [new-env] | export [--json] <stopped-env> [file.haco] | import [--json] <file.haco> [new-env] | start <name> | stop <name> | delete <name>")
+		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--port <port>] <name> | ssh-config <name> | forward --target-port <port> [--protocol tcp|udp] [--port <local-port>] <name> | disconnect <name> <connection-id> | copy [--json] <stopped-env> [new-env] | export [--json] <stopped-env> [file.haco] | import [--json] <file.haco> [new-env] | start <name> | stop <name> | delete <name>")
 		return 2
 	}
 	if len(args) == 0 {
@@ -54,10 +54,15 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	}
 	flags := flag.NewFlagSet("haco env "+args[0], flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
-	var workspace, keyPath, base, resource string
+	var workspace, keyPath, base, resource, protocol string
+	var targetPort int
 	var port int
 	var jsonOutput, noOCI bool
 	switch args[0] {
+	case "forward":
+		flags.StringVar(&protocol, "protocol", "tcp", "tcp or udp")
+		flags.IntVar(&port, "port", 0, "Physical Host loopback port (automatic by default)")
+		flags.IntVar(&targetPort, "target-port", 0, "Environment destination port")
 	case "create":
 		flags.BoolVar(&noOCI, "no-oci", false, "skip automatic OCI Store copy and attachment")
 		flags.StringVar(&workspace, "workspace", "", "Workspace path on the controller")
@@ -94,6 +99,8 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	}
 	var result any
 	switch args[0] {
+	case "forward":
+		result, err = client.ForwardEnvironment(ctx, pos[0], core.LocalPortRequest{Protocol: protocol, HostPort: port, TargetPort: targetPort})
 	case "create":
 		result, err = client.CreateEnvironment(ctx, controlapi.EnvironmentCreateRequest{Name: pos[0], WorkspacePath: workspace, Base: core.BaseName(base), PersistentResource: resource, SkipDefaultResource: noOCI})
 	case "delete":

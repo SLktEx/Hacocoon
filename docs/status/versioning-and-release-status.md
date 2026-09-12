@@ -1,5 +1,13 @@
 # Versioning and release status
 
+
+The user-directed v2 development track is integrated only through `dev/2.x`.
+Network Everywhere has an implemented relay/CLI with scoped dedicated Incus
+acceptance; Workspace Rework is in progress. These are development milestones,
+not a main-branch release or tag. Windows/VPN and large-repository acceptance
+remain separately stated in the owning contracts. Existing v0.x checkpoints and
+unrelated pending acceptance are preserved.
+
 G1 and G3 remain **partial**. Public Environment export/import, installed-controller/desktop delivery and SSH have scoped acceptance; a managed bundle also passed import, all saved volume entries, SSH/local Git work and retained-data recreation on a separate fresh WSL. The earlier full local aggregate timeout remains a failure. Stopped containerd image and writable-data transfer also passed native Incus/Btrfs CI through canonical and shipped-controller import. Whole-installation evacuation/restoration, authenticated imported Git, Docker and arbitrary application consistency remain incomplete. No new release or checkpoint is declared. See [current managed cross-WSL acceptance](../design/environment-transfer.md#managed-bundle-restoration-in-a-separate-wsl).
 
 The v0.57 OCI image cleanup checkpoint is partial. Detached nerdctl Store list/delete through production composition and the bare controller/CLI passed real Incus/Btrfs acceptance at bd1c9a5. Full installed-controller acceptance, detached Docker and candidate-selected GC remain incomplete. See [image operations](../design/oci-image-deletion.md#controllercli-acceptance).

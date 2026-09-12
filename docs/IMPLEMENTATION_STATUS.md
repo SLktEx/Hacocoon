@@ -1,5 +1,25 @@
 # Implementation Status
 
+## Policy-bound TCP and UDP connections
+
+Implemented Standard relay and product CLI on the development branch. It reuses
+the guarded endpoint, source identities and Approval/Audit services; Policy has
+explicit rule expiry and administrator-selected Host service registrations.
+Dedicated hacocoon-second installed CLI/Incus acceptance passed IPv4/IPv6 TCP/UDP,
+Host/Env paths, live expiry/revocation, source/destination recreation refusal and
+DNS change/failure. Windows UI and VPN remain unverified.
+See [connection behavior and acceptance](design/network-connections.md).
+
+
+## Policy rule expiry
+
+Implemented: optional RFC 3339 deadlines apply to administrator and saved Policy
+rules, including the existing pre-execution recheck after approval. Focused
+repository coverage verifies exact expiry, precedence, malformed input and
+refusal after approval crosses the deadline. Relay behavior and separately scoped
+real-provider acceptance are recorded in the
+[connection contract](design/network-connections.md).
+
 ## WSL native binfmt flags
 
 Implemented: native registration validation accepts exactly `P` and `PF` while

@@ -23,6 +23,18 @@ func New(capabilities Requester) *Broker { return &Broker{capabilities: capabili
 
 // Resolve requests address discovery only. Its result is never a connect grant.
 func (b *Broker) Resolve(ctx context.Context, environment, host string) ([]netip.Addr, error) {
+	return b.resolve(ctx, environment, "", host)
+}
+
+// ResolveInstance binds discovery to the source generation already observed by
+// a trusted transport. Ordinary Resolve callers retain their existing behavior.
+func (b *Broker) ResolveInstance(ctx context.Context, environment, instance, host string) ([]netip.Addr, error) {
+	if !core.ValidEnvironmentInstanceID(instance) {
+		return nil, core.ErrInvalidArgument
+	}
+	return b.resolve(ctx, environment, instance, host)
+}
+func (b *Broker) resolve(ctx context.Context, environment, instance, host string) ([]netip.Addr, error) {
 	if b == nil || b.capabilities == nil {
 		return nil, core.ErrPolicyDenied
 	}
@@ -30,7 +42,7 @@ func (b *Broker) Resolve(ctx context.Context, environment, host string) ([]netip
 	if err != nil || strings.TrimSpace(environment) == "" || strings.TrimSpace(environment) != environment || strings.ContainsAny(environment, "\x00\r\n") {
 		return nil, core.ErrInvalidArgument
 	}
-	result, err := b.capabilities.Request(ctx, core.CapabilityRequest{Capability: Capability, Action: Action, Environment: environment, Resource: host})
+	result, err := b.capabilities.Request(ctx, core.CapabilityRequest{Capability: Capability, Action: Action, Environment: environment, EnvironmentInstance: instance, Resource: host})
 	if err != nil {
 		return nil, err
 	}

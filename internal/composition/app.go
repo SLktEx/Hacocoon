@@ -2,6 +2,9 @@ package composition
 
 import (
 	"context"
+	"net"
+	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +38,7 @@ import (
 	"github.com/SLktEx/Hacocoon/modules/standard/dnsproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/egressproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
+	"github.com/SLktEx/Hacocoon/modules/standard/networkrelay"
 	"github.com/SLktEx/Hacocoon/modules/standard/projectsetup"
 )
 
@@ -45,6 +49,7 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
+	Networks            *networkrelay.Service
 	transferCatalog     *state.EnvironmentJSONStore
 	EnvironmentCopy     *environmentcopy.Service
 	BaseBuild           *basebuild.Service
@@ -181,6 +186,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		capabilityapp.LocalEcho{},
 		egressapp.Provider{},
 		dnsproxy.Provider{},
+		networkrelay.Provider{},
 		gitProvider,
 		&awsplugin.Provider{Host: incusRuntime.RunTrustedHostPython, Stream: incusRuntime.RunTrustedHostPythonStream},
 		gitBroker,
@@ -237,7 +243,33 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	runs.ConfigureTemporaryWorkspace(workspaceStores.CleanupTemporary)
 	restorer := &snapshotrestore.Service{Catalog: store, Environments: environments, Workspaces: repositories, Stores: resources}
 	awsBroker := &awsplugin.Broker{Host: incusRuntime.RunTrustedHostPython, Capabilities: capabilities, Environments: store}
+	configuration := &capabilityapp.PolicyConfiguration{Evaluator: policy, Audit: audit}
+	resolver := nameresolution.New(capabilities)
+	networkAuthority := &networkrelay.ConfiguredAuthority{Catalog: store, Configuration: configuration, Policy: policy, Audit: audit}
+	networks := &networkrelay.Service{
+		Capabilities: capabilities, Authority: networkAuthority,
+		Targets: &networkrelay.ConfiguredTargets{Configuration: configuration, Authority: networkAuthority, DNS: resolver, ExternalAllowed: incusRuntime.ExternalNetworkAddress, HostAllowed: incusRuntime.HostNetworkAddress},
+		DialTarget: func(ctx context.Context, target networkrelay.Target, address netip.Addr) (net.Conn, error) {
+			if target.Kind == "environment" {
+				env, err := store.GetEnvironment(ctx, target.Name)
+				if err != nil {
+					return nil, err
+				}
+				instance, err := store.EnvironmentInstance(ctx, env)
+				if err != nil || instance != target.Owner {
+					return nil, core.ErrCapabilityStale
+				}
+				return runtime.DialEnvironmentNetwork(ctx, env.RuntimeRef, target.Owner, target.Protocol, target.Port)
+			}
+			return incusRuntime.DialDevelopmentNetwork(ctx, address, target.Protocol, target.Port, target.Kind == "host")
+		},
+	}
+	operations := http.NewServeMux()
+	operations.Handle(networkrelay.Path, &networkrelay.Handler{Service: networks, Sources: egressSources})
+	operations.Handle("/", awsplugin.NewGuestHandler(awsBroker, egressSources))
+
 	return &App{
+		Networks:            networks,
 		transferCatalog:     store,
 		SnapshotRestore:     restorer,
 		BaseBuild:           &basebuild.Service{Environments: environments},
@@ -255,7 +287,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		AgentHosts:    agenthostapp.New(environments, store, bindingStore),
 		Clients:       clientapp.New(runtime, store),
 		Capabilities:  capabilities,
-		Configuration: &capabilityapp.PolicyConfiguration{Evaluator: policy, Audit: audit},
+		Configuration: configuration,
 		Git:           gitcapapp.NewBroker(runner, store, capabilities),
 		OCI:           ociPlugin,
 		Seeds:         seeds,
@@ -263,7 +295,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		Events:        eventsapp.New(auditPath),
 		Bases:         runtime,
 		Runtime:       incusRuntime,
-		EgressProxy:   egressproxy.NewWithOperations(egressBroker, egressSources, nameresolution.New(capabilities), awsplugin.NewGuestHandler(awsBroker, egressSources)),
+		EgressProxy:   egressproxy.NewWithOperations(egressBroker, egressSources, resolver, operations),
 		Repositories:  repositories,
 		GitBroker:     gitBroker,
 	}, nil

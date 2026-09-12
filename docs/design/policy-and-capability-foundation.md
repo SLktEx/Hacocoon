@@ -137,3 +137,16 @@ See [configuration usage](../reference/configuration.md) and
 [ADR 0027](../adr/0027-revision-bound-policy-editing.md). This adds no Environment
 permission or notification mutation endpoint. D2 notification approval remains
 pending.
+
+## Rule lifetime
+
+Implemented: administrator and saved rules may contain an optional
+`expires_at` RFC 3339 timestamp. Evaluation ignores a rule at or after that
+absolute deadline, then applies the remaining matching restrictions or the
+configured default. Omitting the field keeps the existing unbounded behavior.
+Malformed timestamps fail Policy loading closed.
+
+The existing pre-execution Policy recheck also checks the deadline. An approval
+that waited past its rule's expiry cannot execute when the current Policy denies
+the operation. Expiry does not undo a completed operation; ongoing network
+session cancellation belongs to the [connection contract](network-connections.md).
