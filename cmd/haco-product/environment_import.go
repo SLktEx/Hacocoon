@@ -6,10 +6,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/SLktEx/Hacocoon/internal/controlapi"
-	"github.com/SLktEx/Hacocoon/internal/environmenttransfer"
 	"io"
 	"strings"
+
+	"github.com/SLktEx/Hacocoon/internal/controlapi"
+	"github.com/SLktEx/Hacocoon/internal/environmenttransfer"
 )
 
 type environmentImportClient interface {
@@ -17,10 +18,13 @@ type environmentImportClient interface {
 }
 
 func importEnvironment(ctx context.Context, args []string, out, diagnostic io.Writer) int {
+	language := cliLanguage()
 	flags := flag.NewFlagSet("haco env import", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
-	flags.Usage = func() { fmt.Fprintln(diagnostic, "Usage: haco env import [--json] <file.haco> [new-env]") }
-	jsonOutput := flags.Bool("json", false, "machine-readable result")
+	flags.Usage = func() {
+		fmt.Fprintln(diagnostic, language.Format("usage", "haco env import [--json] <file.haco> [new-env]"))
+	}
+	jsonOutput := flags.Bool("json", false, language.Text("flag.json"))
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -42,7 +46,7 @@ func importEnvironment(ctx context.Context, args []string, out, diagnostic io.Wr
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot open controller client")
+		fmt.Fprintln(diagnostic, language.Text("error.controller"))
 		return 1
 	}
 	result, err := loadEnvironmentImport(ctx, client, pos[0], name)
@@ -52,24 +56,24 @@ func importEnvironment(ctx context.Context, args []string, out, diagnostic io.Wr
 		}
 	}
 	if err != nil {
-		fmt.Fprintf(diagnostic, "haco: import failed: %v\n", err)
+		fmt.Fprint(diagnostic, language.Format("env.import.failed", err))
 		if result.Environment != "" {
-			fmt.Fprintf(diagnostic, "Import destination: %s (%s)\n", result.Environment, result.State)
+			fmt.Fprint(diagnostic, language.Format("env.import.destination", displayCell(result.Environment), displayCell(string(result.State))))
 		}
 		if result.Workspace != "" {
-			fmt.Fprintf(diagnostic, "Workspace retained: %s\n", result.Workspace)
+			fmt.Fprint(diagnostic, language.Format("env.import.retained_workspace", displayCell(string(result.Workspace))))
 		}
 		if result.OCI != "" {
-			fmt.Fprintf(diagnostic, "OCI retained: %s\n", result.OCI)
+			fmt.Fprint(diagnostic, language.Format("env.import.retained_oci", displayCell(string(result.OCI))))
 		}
 		return 1
 	}
 	if !*jsonOutput {
-		if _, err := fmt.Fprintf(out, "Imported %s\n", result.Environment); err != nil {
+		if _, err := fmt.Fprint(out, language.Format("env.import.completed", displayCell(result.Environment))); err != nil {
 			return 1
 		}
 		if len(result.Offline) > 0 {
-			if _, err := fmt.Fprintf(out, "Offline repositories: %s\n", strings.Join(result.Offline, ", ")); err != nil {
+			if _, err := fmt.Fprint(out, language.Format("env.import.offline", displayCell(strings.Join(result.Offline, ", ")))); err != nil {
 				return 1
 			}
 		}
