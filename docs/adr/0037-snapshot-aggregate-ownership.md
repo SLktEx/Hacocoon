@@ -1,5 +1,7 @@
 # ADR 0037: Snapshot the complete owned Environment aggregate
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../design/environment-snapshots.md) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Base retention and automatic backup decisions below are historical where
 superseded by [ADR 0040](0040-incus-first-snapshots.md).
 

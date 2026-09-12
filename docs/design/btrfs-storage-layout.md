@@ -104,7 +104,7 @@ These checks establish lifecycle and policy behavior on the hosted environment. 
 
 ## Workspace boundary
 
-Host Workspaces remain bind-mounted into Environments and are not required to live inside the Hacocoon Btrfs pool. This layout applies to Hacocoon-owned Incus rootfs/image-volume data, not arbitrary user source trees.
+Managed product Workspaces use independent Incus custom volumes in the managed pool, with canonical leases and separate data ownership. Retained external-path Workspaces instead bind an explicitly selected caller-owned directory; they need not live in the pool. Never move arbitrary user source trees into managed storage merely to match the rootfs layout.
 
 ## Multiple pools
 

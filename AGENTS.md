@@ -8,7 +8,7 @@ Hacocoon is a secure workspace runtime, not an AI orchestrator. Keep Core small 
 
 Before changing code or documentation, read:
 
-1. `docs/README.md` for documentation ownership and source-of-truth order.
+1. `docs/README.md` for reader navigation and the link to documentation ownership rules.
 2. `docs/IMPLEMENTATION_STATUS.md` for current repository reality.
 3. `docs/DOCUMENTATION_STYLE_GUIDE.md` before changing README files or documentation.
 4. The relevant semantic design document under `docs/design/` for the subsystem being changed.
@@ -53,27 +53,10 @@ Follow `docs/reference/logging.md` for every logging change.
 
 ## Documentation
 
-`docs/README.md` defines the authoritative documentation order. Avoid creating another index that duplicates it.
-
-Long-lived documentation addresses are semantic. Normal documentation filenames must not encode a product version, milestone, or arbitrary reading order. Put feature contracts under `docs/design/`, security architecture under `docs/security/`, terminology/reference material under `docs/reference/`, and roadmap/version authority under `docs/status/`. ADR sequence numbers under `docs/adr/` are the intentional exception because the number is part of ADR identity.
-
-When behavior changes:
-
-- update the owning design/reference/security document before summary pages;
-- update `docs/IMPLEMENTATION_STATUS.md` for current repository reality;
-- update `docs/status/versioning-and-release-status.md` when a meaningful development checkpoint consumes or changes a milestone;
-- treat pre-1.0 minor milestones as lightweight progress checkpoints: partial work or pending real-host acceptance in an earlier milestone does not block advancing to a later minor;
-- use `docs/reference/terminology-and-boundaries.md` for canonical vocabulary;
-- preserve `docs/security/security-architecture.md` trust-boundary rules;
-- keep English/Japanese companion documents aligned in the same change when both exist;
-- use explicit `implemented`, `partial`, `planned`, `deferred`, or `historical` wording;
-- keep repository implementation claims separate from real-host/provider acceptance;
-- treat README files as entry points and routing pages, not competing sources of truth;
-- describe historical behavior as historical or recoverable from Git history rather than retaining stale duplicate snapshots.
-
-When moving a document, update every inbound relative link in the same change. Prefer repository-relative Markdown links and current copy-pasteable commands.
-
-Run `python tools/check_docs.py` after documentation changes.
+Follow [documentation ownership and update rules](docs/DOCUMENTATION_STYLE_GUIDE.md).
+That guide owns document roles, source-of-truth resolution, semantic paths, paired
+translations, evidence retention and validation. Read the relevant owning document
+before editing summaries. Run `python tools/check_docs.py` after documentation changes.
 
 ## Adversarial security review
 

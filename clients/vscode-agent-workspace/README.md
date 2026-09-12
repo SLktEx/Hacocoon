@@ -57,7 +57,7 @@ On Windows the extension uses the configured WSL distro, `Hacocoon` by default. 
 
 On Linux, the extension can operate directly on a local `file:` workspace without a WSL wrapper.
 
-The current trusted-host architecture still has an open seam around the long-term physical placement/export of repositories that logically live in `haco-host`. This extension does not pretend that seam is solved: the repository must currently be visible to the execution host that runs Git and `haco-agent-host`. It also does not expose raw Incus or Hacocoon control authority to ordinary coding-agent Environments.
+This extension uses an external-path linked worktree, not the product's managed repository-volume workflow. Its repository must be visible to the execution host that runs Git and `haco-agent-host`. Linked worktrees share repository metadata and must not be described as independent managed Git copies. It also does not expose raw Incus or Hacocoon control authority to ordinary coding-agent Environments.
 
 ## Why the extension is UI-side
 

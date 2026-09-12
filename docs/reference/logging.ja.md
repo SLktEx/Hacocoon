@@ -1,173 +1,119 @@
-# Logging
+# ログ
 
-[English](logging.md) | **日本語**
+[English](logging.md) | 日本語
 
-HacocoonはCore、provider、network、storage、plugin、CI/E2Eを横断して障害を追跡するためにstructured loggingを使います。Loggingはobservability infrastructureであり、credentialやtrust boundaryを弱めずに「どのoperationが、どのlayerで失敗したか」を分かるようにするものです。
+HacocoonはCore、プロバイダー、ネットワーク、ストレージ、プラグイン、CI/E2Eを通して障害を追跡する
+構造化ログを使います。資格情報や信頼境界を弱めず、失敗した操作と責任範囲を特定するためのものです。
 
-## 原則
+## 原則とレベル
 
-1. 実装を逐語的に実況せず、意味のあるoperationとstate transitionを記録する。
-2. 検索・filterしたい情報はfree-form messageだけへ埋め込まず、structured attributeを使う。
-3. 通常の障害はDEBUGなしでもINFO/WARN/ERRORから大枠を判断できるようにする。
-4. DEBUGだけsecretの扱いを緩めてはいけない。全levelで同じsecret ruleを適用する。
-5. Loggingの成否によって本来のoperation結果を変えない。
-6. 失敗したoperationは通常、そのoperationをreportするboundaryでERRORを1回だけ記録する。下位layerはerrorをreturn/wrapし、必要ならDEBUG diagnosticを追加する。
+意味のある操作・状態遷移を記録し、実装の逐語的な実況は避けます。
+検索する値は文章に埋め込まず構造化項目へ置きます。
+通常の障害はDEBUGなしでも判断できるようにし、DEBUGにも同じ秘密情報の制約を適用します。
+ログの成否で本来の操作結果を変えてはいけません。
 
-## Level
+標準の`log/slog`を使い、既定レベルは`INFO`です。
 
-標準の `log/slog` levelを使います。
+| レベル | 用途 |
+|---|---|
+| DEBUG | 機密情報を除いたHostコマンド、再試行、内部状態などの詳細診断 |
+| INFO | Environment作成・実行・削除の開始と完了など |
+| WARN | 要求を継続できるが動作が劣化した場合や代替処理 |
+| ERROR | 要求を正常完了できない場合 |
 
-- `DEBUG`: sanitize済みHost command、retry、provider/backend step、内部state transitionなどの詳細diagnostic。
-- `INFO`: Environment create/exec/deleteの開始・完了など、意味のあるlifecycle event。
-- `WARN`: requested operationを継続できるが、fallbackやdegraded behaviorが発生した場合。
-- `ERROR`: requested operationを成功完了できない場合。
+失敗は通常、その操作を報告する境界でERRORを一度記録します。
+下位層はエラーを返すか付加情報で包み、必要な詳細をDEBUGへ出します。
 
-defaultは `INFO` です。
-
-現在のexecutable設定はenvironment variableで行います。
+## 実行ファイルの設定
 
 ```bash
 HACO_LOG_LEVEL=debug haco doctor
-HACO_LOG_FORMAT=json HACO_LOG_LEVEL=debug haco create --workspace /work demo
+HACO_LOG_FORMAT=json HACO_LOG_LEVEL=debug haco env create --workspace /work demo
 ```
 
-`haco`、`haco-vscode`、`haco-wsl`、 `haco-agent-host`、`haco-notify` は同じ設定を使います。formatは `text`（default）と `json` をsupportします。Logはstderrへ出し、stdoutのcommand outputをmachine-consumableなまま保ちます。
+`haco`、`haco-vscode`、`haco-wsl`、`haco-agent-host`、`haco-notify`は共通設定を使います。
+形式は`text`（既定）または`json`です。ログはstderr、コマンド結果はstdoutへ出します。
+設定はそのプロセスに適用され、クライアントの環境変数で稼働中コントローラーのログ設定が変わるわけではありません。
 
-## Stable structured field
+## 安定したfield名
 
-同じ意味にpackage固有の別名を増やさず、既存fieldを使います。
+同じ意味にパッケージ固有の別名を増やさず、既存項目を使います。
 
 | Field | 意味 |
 |---|---|
-| `component` | `core`、`incus`、`network`、`storage`、`git`、`oci`、`proxy`、`host` などのsubsystem |
-| `operation` | `create_environment` などのstable operation名 |
-| `environment_id` | Hacocoon Environment identity |
-| `runtime_ref` | safeかつdiagnosticに有用なprovider/backend runtime reference |
-| `backend` | disambiguationが必要な場合のprovider/backend |
-| `duration_ms` | operationのwall-clock elapsed time |
-| `attempt` | retry/attempt番号 |
-| `request_id` | request/capability correlation identity |
-| `error` | failure reportを所有するlayerでのsanitize対象error |
-| `exit_code` | child/Environment commandのexit code |
-| `target_host` / `target_port` | normalize済みegress target。full URL/path/queryは記録しない |
+| `component` | `core`、`incus`、`network`、`storage`、`git`、`oci`、`proxy`、`host`など |
+| `operation` | `create_environment`などの操作名 |
+| `environment_id` | HacocoonのEnv ID |
+| `runtime_ref` | 安全で診断に役立つプロバイダー側実行基盤参照 |
+| `backend` | 対象の区別に必要なprovider/backend |
+| `duration_ms` | 操作の実経過時間 |
+| `attempt` | 再試行・試行番号 |
+| `request_id` | 要求・Capabilityの対応を追うID |
+| `error` | 失敗報告の所有層で機密情報を除いたエラー |
+| `exit_code` | 子プロセス・Envコマンドの終了値 |
+| `target_host` / `target_port` | 正規化した通信先。完全なURL・パス・queryは出さない |
 
-任意object dump、filesystem全体、unbounded provider outputよりstable identifierを優先します。
+任意object、全ファイルシステム構造、無制限のプロバイダー出力より、安定したIDを優先します。
 
-## Logger ownershipとpropagation
+## loggerの所有と引渡し
 
-process root loggerはexecutable entrypointがconfigureします。internal packageが無関係なglobal loggerを個別に作ってはいけません。
+実行ファイルの入口がプロセスのroot loggerを設定します。
+内部パッケージごとに無関係なglobal loggerを作りません。
+操作の属性は`context.Context`で引き渡し、下位層はそこからloggerを作り、
+自身の`component`などを追加します。domain契約へlogger依存を入れずに追跡できます。
 
-operation-specific attributeは `context.Context` でpropagateします。下位layerはそのcontextからloggerをderiveし、自分の `component` などを追加します。これによりdomain contractへloggerを持ち込まず、同じoperationをCoreからprovider/Host commandまでcorrelateできます。
+## 秘密情報
 
-```text
-root logger
-  -> operation context
-      -> core
-          -> incus / network / storage / git / oci / proxy / host
-```
+全レベルで、password・passphrase、access/refresh/bearer/approval/session token、
+Git資格情報・helper出力、SSH秘密鍵、API key、cookie、
+`Authorization`/`Proxy-Authorization`、proxy資格情報、
+資格情報付きURL、秘密を含む環境変数・設定値を記録してはいけません。
 
-## Secretとsensitive data
+HTTP header全体、プロセス環境全体、任意設定object、要求・応答body、
+子プロセスの生stdout/stderrを便宜的に記録しません。
+共有handlerの既知パターン秘匿は多層防御であり、任意の機密objectを渡す許可ではありません。
+呼出し元も安全な項目だけを選び、不明な値は省きます。
 
-DEBUGを含む全levelでsecretをlogしてはいけません。
+## Hostコマンド・エラー・時間
 
-対象には次を含みます。
+共有runnerは診断に必要な場合だけ、実行ファイルと安全化したargv、
+分類した構成要素、時間、終了値をDEBUGへ記録します。取得したstdout/stderrは自動記録しません。
+秘密を含み得る引数は省略・秘匿し、生のコマンド行を重ねて記録しません。
 
-- password / passphrase;
-- access / refresh / bearer / approval / session token;
-- Git credential / credential-helper output;
-- SSH private key;
-- API key;
-- cookie;
-- `Authorization` / `Proxy-Authorization` value;
-- proxy credential;
-- credential-bearing URL;
-- secretを含むenvironment variable / config value。
+provider/Host層はエラーと任意のDEBUG詳細を返し、操作の所有層がERRORを一度記録し、
+CLIは返されたエラーを表示します。再試行・代替処理で扱ったエラーは自動的にERRORではありません。
+動作が意味上変わる代替処理はWARNが適切です。不正なバックエンド文言がエラー値に入る場合もあり、
+そもそも秘密情報を含むエラーを組み立てないことを優先します。
 
-HTTP header全体、process environment全体、任意config object、request/response body、raw child stdout/stderrをdebug目的で丸ごとlogしてはいけません。
+Env・Incusのライフサイクル、イメージ取得・Seed作成、network/storage初期化、
+Git fetch/push、後始末・復旧など、遅延が診断に役立つ操作で`duration_ms`を記録します。
+小さなメモリ内処理へ大量の時間ログは追加しません。
 
-shared logging handlerはknown secret-shaped valueをdefense-in-depthでredactします。ただし、これはarbitrary sensitive objectをloggerへ渡してよいという意味ではありません。call site側でもsafeなfieldだけを明示的に選びます。
+## CIと変更時の確認
 
-安全か判断できない値はlogしません。
+CIではrunner準備、Incus基盤、プロバイダー統合、Core ライフサイクル、network/proxy/DNS、
+storage/pluginの失敗を区別できるようにします。試験は人間向け文章形式へ依存せず、
+必要な個別診断artifactも保持します。CIのDEBUGでも秘密情報の規則は変えません。
 
-## Host command logging
+ログ追加時は、運用上の必要性、レベル、構造化可能な値、重複ERROR、
+秘密・任意出力の混入、項目の安定性を確認します。
+新しい秘匿ルール、項目契約、形式、失敗報告境界には対象を絞った回帰試験を追加します。
 
-trusted Host commandはdiagnosticに有用な場合のみDEBUGで記録できます。shared Host runnerは次を行います。
+## 監査の追加field
 
-- executableとsanitize済みargvを記録する。
-- common commandを `incus` / `network` / `storage` / `git` / `oci` / `host` componentへ分類する。
-- durationとexit codeを記録する。
-- captured stdout/stderrは自動でlogしない。
+`environment_instance`は再利用可能な表示名と別に、正規のEnv作成を識別するランダムな公開IDです。
+資格情報やプロバイダー所有tokenではなく、ポリシーと実行の対応を追うために保持します。
 
-sanitize済みlogの横にraw command lineを追加してはいけません。credentialを持つ可能性があるargumentはomitまたはredactしてからemitします。
+`policy-saved`の`saved_scope`は今回の厳密な属性と分け、検証済みのポリシー上の権限と
+プロバイダーが明示したwildcardだけを含みます。資格情報、pack、内部を解釈しないパラメーターは含みません。
 
-## Error
+設定変更は変更前の`configuration-change-requested`と永続化後の`configuration-changed`を
+`policy.configuration`へ記録します。操作IDと`previous_revision`/`revision`のhashだけを含み、
+ルール全体・resource値・editor内容は出しません。完了監査失敗時は成功処理記録を返しません。
 
-同じfailureをcall stackの各layerでERRORにしません。
-
-推奨flow:
-
-```text
-provider/Host layer -> errorをreturn/wrap + 必要ならDEBUG diagnostic
-Core operation boundary -> operation/environment/duration付きでERRORを1回
-CLI -> returnされたerrorをuserへ表示
-```
-
-retry、fallback変換、その他のhandlingで回復したerrorは自動的にERRORではありません。fallbackでbehaviorが意味的に変わる場合はWARNが適切です。
-
-error value自体にuntrusted backend textが含まれる場合があります。shared loggerはcommon credential patternをredactしますが、そもそもsecretを含むerrorを組み立てないことを優先します。
-
-## Durationとexternal operation
-
-latencyがfailure classificationに役立つoperationでは `duration_ms` を記録します。特に:
-
-- Environment create/exec/delete;
-- Incus lifecycle;
-- image acquisition / Seed construction;
-- network/storage initialization;
-- Git fetch/push;
-- cleanup / recovery。
-
-trivialなin-memory helperへhigh-cardinality timing logを追加しません。
-
-## CI / E2E
-
-CI logから最低限、次を切り分けられることを目標にします。
-
-1. runner/setup failure;
-2. Incus substrate failure;
-3. Hacocoon provider/backend integration failure;
-4. Core Environment lifecycle failure;
-5. network/proxy/DNS failure;
-6. storage / optional plugin failure。
-
-automation向けにJSON outputを利用できますが、testはhuman-readable text formatへ依存してはいけません。specialized CI diagnostic artifactは引き続き有用で、application loggingで置き換えません。
-
-CIでDEBUGを有効にしてもredaction/secret handlingを弱めません。
-
-## Logを追加・変更するとき
-
-追加前に確認します。
-
-- operationalに役立つeventか。
-- levelはこのdocumentと一致しているか。
-- message textではなくstructured fieldにできないか。
-- 他layerが所有するERRORと重複しないか。
-- credential、request body、private key、token、header、arbitrary subprocess outputが混ざらないか。
-- field nameをCI/debugging toolが使える程度にstableに保てるか。
-
-新しいredaction rule、field contract、format behavior、failure boundaryを導入するlogging changeにはfocused testを追加します。
-
-Capability audit の `environment_instance` は、再利用できる表示名とは別に canonical な Environment 作成を識別します。ランダムな公開識別子であり、credential や provider 所有権 token ではありません。Policy と実行の対応を追うため監査に保持します。
-
-設定変更は変更前に `configuration-change-requested`、永続化後に
-`configuration-changed` を監査します。`policy.configuration` の操作 ID と
-`previous_revision`／`revision` の hash だけを記録し、rule 全体・resource 値・
-editor の内容はこの経路からログへ出しません。完了監査の失敗時は成功 receipt を返しません。
-
-Project setup の失敗では、許可リスト内の `stage`・`error_code` と数値の `exit_code`
-だけを診断フィールドに出します。lookup／recipe／start／execute／script を区別し、
-未知の応答値は `unknown`／`internal` にします。backend の生エラー、recipe 本文、
-process 出力を診断フィールドへコピーしません。
+プロジェクト設定失敗の診断は許可リスト内の`stage`/`error_code`と数値`exit_code`だけです。
+lookup/recipe/start/execute/scriptを区別し、未知値は`unknown`/`internal`にします。
+バックエンドの生エラー、recipe本文、プロセス出力を診断項目へコピーしません。
 
 ## 日常操作の診断
 

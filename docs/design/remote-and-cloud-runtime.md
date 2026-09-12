@@ -1,4 +1,4 @@
-# v0.7 — Remote / Cloud Runtime & External Capabilities
+# Remote / Cloud Runtime & External Capabilities
 
 > [!NOTE]
 > **Historical/deferred implementation contract.** The provider-neutral routing seam introduced by v0.7 remains in the current tree, but the concrete EC2 runtime, AWS capability, EBS helper, and cloud-specific E2Es have been removed from the active implementation while Hacocoon's local runtime and provider contracts are still changing quickly. Git history preserves the previous implementation for a future reintroduction.
@@ -91,7 +91,7 @@ That mechanism is not a current compatibility promise. The durable architectural
 
 External cloud authority is separate from Environment lifecycle.
 
-The historical `aws.api` capability was deliberately narrow and host-side. If an AWS or other cloud capability returns later, authority-sensitive target information must remain visible to Policy/Approval/Audit rather than hidden in opaque parameters. A capability request must not vend a broad parent cloud credential into the Environment.
+The historical `aws.api` capability was deliberately narrow and host-side. The current optional AWS operations plugin is a separate implementation; its authority-sensitive target information must remain visible to Policy/Approval/Audit rather than hidden in opaque parameters. A capability request must not vend a broad parent cloud credential into the Environment.
 
 Additional mutating cloud operations require explicit capability actions and a reviewed authority model; they must not be smuggled through a generic escape hatch.
 
@@ -126,5 +126,5 @@ The durable properties to preserve are: **explicit opt-in, fail closed before pr
 ## Separate external operations
 
 The optional [AWS operations plugin](aws-operations.md) now implements a partial
-S3 listing path. It does not restore the historical EC2 runtime, EBS helpers or
+S3 listing and streamed download paths. It does not restore the historical EC2 runtime, EBS helpers or
 cloud-provider acceptance described above.

@@ -1,5 +1,7 @@
 # ADR 0055: Retain offline Workspace data without Git authority
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../design/environment-transfer.md) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Status: accepted. Extends [ADR 0053](0053-workspace-native-import.md).
 
 ## Decision

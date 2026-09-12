@@ -50,6 +50,7 @@ func (r *Runtime) PrepareTrustedHostShellStream(ctx context.Context) (func(conte
 		if stdin == nil || stdout == nil || stderr == nil {
 			return core.ErrInvalidArgument
 		}
+		runCtx = core.WithTerminalMetadata(runCtx, terminal)
 		argv := interactiveShellWithPrompt(
 			[]string{"/bin/bash", "-l"},
 			trustedHostPrompt,
@@ -114,7 +115,13 @@ func (r *Runtime) execInteractiveStream(ctx context.Context, ref string, argv []
 	cmd := exec.CommandContext(ctx, "incus", args...)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
-	err := runInteractiveCommand(cmd, stdin)
+	terminal := core.TerminalMetadataFromContext(ctx)
+	var err error
+	if terminal.Columns != 0 || terminal.Rows != 0 {
+		err = runSizedInteractiveCommand(ctx, cmd, stdin, terminal)
+	} else {
+		err = runInteractiveCommand(cmd, stdin)
+	}
 	if err == nil {
 		return core.ExecResult{ExitCode: 0}, nil
 	}

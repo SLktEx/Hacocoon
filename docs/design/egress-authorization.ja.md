@@ -1,0 +1,83 @@
+# ホスト名に基づく外向き通信の認可
+
+状態: **実装済み**。導入済み Windows で、プロキシ経由の許可・拒否と直接通信の拒否を確認しています。
+
+許可対象は Environment が要求したホスト名です。一度解決した IP アドレスだけを許可すると、共有 CDN、DNS の変更、IP 直接指定によって別の接続先へ権限が広がるため、その方式は採用しません。
+
+## 境界
+
+要求と認可の契約は Core、HTTP／HTTPS の制御プロキシは Standard、Incus のネットワーク構成と送信元識別は Incus アダプターが担当します。
+
+```text
+Environment
+  -> 専用ブリッジと Host 通信保護
+  -> 固定プロキシ 169.254.254.1:18080
+  -> 接続元から Environment を照合
+  -> network.egress/connect
+  -> Policy・承認・監査
+  -> Host の DNS 解決と公開アドレスの固定
+  -> 許可した上流
+```
+
+許可は一つの Environment、正規化したホスト名、プロトコル、ポート、一回の接続試行に限定します。プロキシは承認トークンを発行せず、承認を IP 許可リストとして保存しません。
+
+終了時はクライアント側と CONNECT 上流の両方を同期的に閉じます。停止後に完了した接続は、最初の上流書き込み前に拒否します。非同期のキャンセル通知だけを停止完了とはみなしません。ClientHello 待ち、先頭データの書き込み、確立済みトンネル、停止後の上流登録を回帰試験で扱います。
+
+## 認可と通信の検査
+
+- `internal/core` が `EgressRequest`／`EgressGrant`、`internal/egress` がホスト名の正規化と `network.egress/connect` の仲介を担当します。
+- IP アドレスの直接指定は Policy 評価前に拒否します。
+- `modules/standard/egressproxy` が明示的な HTTP／HTTPS プロキシを実装します。HTTP の絶対 URI と `Host` は同じホスト名・ポートを指す必要があります。
+- 認可後に Host 側で DNS 解決し、その接続にアドレス集合を固定します。接続時に名前を再解決しません。
+- 私設、ループバック、リンクローカル、CGNAT、ベンチマーク用、文書用、マルチキャストなどのアドレスを拒否します。公開・私設が混在した応答は全体を拒否します。
+- HTTPS CONNECT の文字列だけを証拠にしません。上流へ TLS データを送る前に上限付きの ClientHello を解析し、SNI が許可した CONNECT ホスト名と一致することを要求します。
+- プロバイダーや監査の失敗は、既存 Capability サービスを通して安全側で拒否します。
+
+## Incus の通信境界
+
+現在の Environment は所有権を確認した専用ブリッジを使います。NAT 無効、DHCP 有効、ブリッジ DNS 無効を要求し、Host の inet ルールと送信元保護処理でプロキシ経由に制限します。信頼された `haco-host` の NAT ブリッジは別の基盤経路です。プロキシ環境変数はこの下位の保護を弱めません。[ネットワーク構成](managed-sandbox-network.ja.md)を参照してください。
+
+Environment の自己申告名は信頼せず、Incus の状態とコントローラーの永続記録から接続元を照合します。固定接続先だけで待ち受け、不在・不明確・管理対象外の識別を拒否します。再起動を越えて接続許可を保持しません。
+
+保存された実行基盤の参照にはプロバイダーの経路も含みます。Environment のルーターを使って復号し、設定した接続元プロバイダーとその内部参照の両方を照合します。別プロバイダーの同じ内部参照に権限を与えません。
+
+## Policy例
+
+特定の HTTPS ホスト名を許可する Policy の例です。通常の `haco config` では既存の `revision` と他のルールを保持して、このルールを追加します。
+
+```json
+{
+  "default": "deny",
+  "rules": [
+    {
+      "capability": "network.egress",
+      "action": "connect",
+      "resource": "api.example.com",
+      "environment": "env-a",
+      "attributes": {"protocol": "https", "port": "443"},
+      "decision": "allow",
+      "reason": "approved development API"
+    }
+  ]
+}
+```
+
+接続ごとの承認には `require-approval` を使います。Environment、ホスト名、プロトコル、ポートは監査する権限範囲に残します。
+
+## 起動経路
+
+インストールしたサービスは `haco-controller --standard-egress` を実行します。Incus 側の保護を検証してから、既存の Policy・監査・永続的な送信元照合を使う Standard プロキシを起動します。引数なしのコントローラーは独立した通信試験用に残りますが、通常のインストーラーは Standard を有効にします。`hacoq egress serve` は旧機能です。
+
+コントローラーとプロキシの終了は連動し、CONNECT を含む全接続を閉じます。ヘッダー上限は16 KiB、読取期限は10秒、保持接続上限は256です。通信失敗は固定の構造化メッセージで記録し、任意の panic 出力を含めません。
+
+デーモンは継承した標準入力を読みません。Policy がなければ拒否します。承認が必要な要求は上限付きの待機列に置き、信頼された Host の `haco approve` で確認します。保存と実行には Policy・監査・識別の確認を適用します。設定編集には `haco config` を使います。[承認待ち](pending-approval-review.ja.md)と [ADR 0028](../adr/0028-pending-approval-sessions.ja.md)を参照してください。
+
+Git push は別の権限操作です。Host の再利用可能な Git 認証情報を Environment に渡して有効化しません。
+
+## 検証範囲
+
+Windows の導入手順が成功した後、同じ導入済みコントローラーでパケットを検証します。通常ユーザーの管理 API から検証用の読み取り専用 Workspace／Environment を作成し、固定 HTTPS 検査を実行して正規の経路で削除します。第二のコントローラー、旧 CLI、製品設定の上書き、NAT・ファイアウォール・マウント修復を使いません。
+
+検証用 Policy は対象 Environment の github.com:443 だけを許可します。既存 Policy は上書きせず、後始末は変更されていない自分の検証用設定だけを対象とします。証明書確認付き HTTPS の成功、未許可ホスト名の403、Host から到達できる公開先への直接 TCP 拒否、管理ソケットの非公開を確認します。
+
+このパケット検証は、別途検証する製品 CLI や設定 UI の証拠を兼ねません。リポジトリ内では許可・拒否・承認、IP 直接指定、共有 IP、別ホスト名、混在 DNS、SNI 不一致、旧ネットワーク移行、不正な DNS／ACL、送信元照合を検査します。実際の Incus・nftables・dnsmasq の条件は[検証証拠](../status/acceptance-evidence.ja.md)で区別します。

@@ -28,10 +28,10 @@ Current executable configuration is environment-based:
 
 ```bash
 HACO_LOG_LEVEL=debug haco doctor
-HACO_LOG_FORMAT=json HACO_LOG_LEVEL=debug haco create --workspace /work demo
+HACO_LOG_FORMAT=json HACO_LOG_LEVEL=debug haco env create --workspace /work demo
 ```
 
-`haco`, `haco-vscode`, `haco-wsl`, `haco-agent-host`, and `haco-notify` use the same configuration. Supported formats are `text` (default) and `json`. Logs are written to stderr so command output on stdout remains machine-consumable.
+`haco`, `haco-vscode`, `haco-wsl`, `haco-agent-host`, and `haco-notify` use the same configuration. Supported formats are `text` (default) and `json`. Logs are written to stderr so command output on stdout remains machine-consumable. Configuration applies to that process; client environment variables do not reconfigure an already running controller.
 
 ## Stable structured fields
 

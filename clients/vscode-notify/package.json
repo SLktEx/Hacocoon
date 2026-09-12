@@ -4,6 +4,7 @@
   "description": "Optional Hacocoon notifications and trusted local approval review.",
   "version": "0.0.2",
   "private": true,
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.100.0"
   },

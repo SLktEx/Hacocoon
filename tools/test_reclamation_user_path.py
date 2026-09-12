@@ -70,6 +70,28 @@ class ReclamationUserPathTests(unittest.TestCase):
             self.assertEqual(read.call_count, 1)
             self.assertEqual(read.call_args.args[0][1:], ["_status", OP, OP])
 
+    def test_worker_completion_between_status_and_process_observation(self):
+        complete = {"operation": OP, "state": "complete", "linux_started": True,
+                    "linux": {"incus_btrfs_loop": {"status": "complete"}, "wsl_ext4": {"status": "complete"}},
+                    "observation": {"StopAttempted": True, "StopRequested": True, "ResumeAttempted": True, "Resumed": True,
+                                    "Compaction": {"Attempted": True, "Completed": True, "Virtual": {"Capacity": 1024}}}}
+        # The worker publishes completion and exits after the first status read.
+        observations = [{"operation": OP, "state": "pending"}, [], complete]
+        with patch.object(gate, "read_json", side_effect=observations) as read, patch.dict(gate.os.environ, {"SystemRoot": r"C:\Windows"}), patch("builtins.print"):
+            gate.wait_for_worker(Path("fixture-haco-wsl.exe"), OP, OP)
+            self.assertEqual(read.call_count, 3)
+            self.assertEqual(read.call_args.args[0][1:], ["_status", OP, OP])
+
+    def test_absent_worker_requires_fresh_complete_result(self):
+        for final in ({"operation": OP, "state": "pending"},
+                      {"operation": OP, "state": "failed"},
+                      {"operation": OP, "state": "complete"},
+                      {"operation": "foreign", "state": "complete"}):
+            with self.subTest(final=final), patch.object(gate, "read_json", side_effect=[{"operation": OP, "state": "pending"}, [], final]) as read, patch.dict(gate.os.environ, {"SystemRoot": r"C:\Windows"}), patch("builtins.print"):
+                with self.assertRaises(RuntimeError):
+                    gate.wait_for_worker(Path("fixture-haco-wsl.exe"), OP, OP)
+                self.assertEqual(read.call_count, 3)
+
     def test_failure_summary_does_not_emit_child_secrets(self):
         result = {"state": "failed", "linux_started": True, "linux": {"failure": "secret-token", "incus_btrfs_loop": {"status": "failed"}}, "observation": {"StopAttempted": False, "Resumed": "secret-token", "Failure": "secret-token", "NativeError": "secret-token"}, "credentials": "secret-token"}
         summary = gate.failure_summary(result)

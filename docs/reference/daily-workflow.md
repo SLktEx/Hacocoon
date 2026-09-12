@@ -7,7 +7,7 @@ separately in [implementation status](../IMPLEMENTATION_STATUS.md).
 
 ## Prepare once
 
-Install with the [Windows/WSL installer](../WINDOWS_WSL_BOOTSTRAP.md). In a
+Install with the [Windows/WSL installer](../guides/installation.md). In a
 Windows terminal, `wsl -d <your-installed-distribution>` opens trusted
 `haco-host` when the managed login entry is installed. `haco-host` is trusted
 management infrastructure; run untrusted tools in an Env. Product management
@@ -24,7 +24,7 @@ haco open sample-dev
 ```
 
 Replace OWNER/REPO and the existing branch. Private Git authentication stays in
-trusted haco-host; see [managed repositories](managed-repository-workflow.md).
+trusted haco-host; see [managed repositories](../guides/git-workflow.md).
 Base selection defaults to the configured Base. An optional OCI Store copy is
 automatic; `--no-oci` skips it. There is no required OCI runtime for Core.
 
@@ -47,7 +47,7 @@ does not mean network access is allowed: default deny creates no approval prompt
 Use `haco config --edit` to review the existing snapshot and add only the required
 Env/hostname/protocol/port rules; preserve other rules and default deny. Ubuntu's
 default package sources use `archive.ubuntu.com` and `security.ubuntu.com`; inspect
-your Base for mirrors. See the [Policy example](../EGRESS_AUTHORIZATION.md#policy-example).
+your Base for mirrors. See the [Policy example](../design/egress-authorization.md#policy-example).
 An SSH failure does not establish its cause. Inspect Env state/connections and
 Policy before explicitly preparing SSH again. Successfully installed packages
 remain in the Env rootfs across stop/start.

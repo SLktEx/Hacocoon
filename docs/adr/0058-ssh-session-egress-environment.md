@@ -1,5 +1,7 @@
 # ADR 0058: Give SSH sessions the current managed egress environment
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../status/acceptance-evidence.md#development) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Status: accepted; real installed acceptance pending.
 
 Incus environment.* settings reach Incus exec processes. They do not configure

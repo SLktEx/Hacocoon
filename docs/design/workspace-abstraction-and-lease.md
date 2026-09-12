@@ -1,4 +1,4 @@
-# v0.2 — Workspace Abstraction & Lease
+# Workspace Abstraction & Lease
 
 The implemented Standard [Workspace workflow](workspace-workflow.md) composes
 these leases for path-based open and stopped data forks. A reviewed Workspace
@@ -17,7 +17,7 @@ Incus-owned Btrfs custom volume copy, never an external-path fallback. Each copy
 contains independent Git metadata. Creation still uses the canonical lifecycle
 transition; graceful Environment stop keeps its metadata, lease and volume.
 See [ADR 0008](../adr/0008-managed-repository-workspaces.md) and the
-[managed repository workflow](../reference/managed-repository-workflow.md).
+[managed repository workflow](../guides/git-workflow.md).
 
 ## In scope
 

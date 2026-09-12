@@ -47,9 +47,10 @@ func (e *SessionExitError) ExitCode() int {
 }
 
 type serverSession struct {
-	done chan struct{}
-	once sync.Once
-	err  error
+	terminal *terminalControl
+	done     chan struct{}
+	once     sync.Once
+	err      error
 }
 
 func newServerSession() *serverSession {
@@ -61,6 +62,12 @@ func (s *serverSession) complete(err error) {
 		return
 	}
 	s.once.Do(func() {
+		if s.terminal != nil {
+			s.terminal.mu.Lock()
+			s.terminal.closed = true
+			s.terminal.resize = nil
+			s.terminal.mu.Unlock()
+		}
 		s.err = err
 		close(s.done)
 	})
@@ -74,7 +81,7 @@ func newSessionID() (string, error) {
 	return hex.EncodeToString(buffer), nil
 }
 
-func (s *Server) createSession() (string, *serverSession, error) {
+func (s *Server) createSession(terminal *terminalControl) (string, *serverSession, error) {
 	if s == nil {
 		return "", nil, ErrInvalidArgument
 	}
@@ -84,6 +91,7 @@ func (s *Server) createSession() (string, *serverSession, error) {
 			return "", nil, err
 		}
 		state := newServerSession()
+		state.terminal = terminal
 		s.sessionMu.Lock()
 		if _, exists := s.sessions[id]; !exists {
 			s.sessions[id] = state
@@ -147,6 +155,7 @@ func (s *Server) waitSession(ctx context.Context, id string) (sessionWaitRespons
 
 type sessionConn struct {
 	net.Conn
+	resize bool
 	client *Client
 	id     string
 	ctx    context.Context

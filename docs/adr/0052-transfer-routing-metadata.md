@@ -1,5 +1,7 @@
 # ADR 0052: Transfer Workspace routing as data, not authority
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../design/environment-transfer.md) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Status: accepted for the version-2 Environment export envelope.
 
 ## Context

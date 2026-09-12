@@ -19,4 +19,4 @@ Base/Seed provisioning for the Docker compatibility profile should install these
 
 Do not enable `hacocoon-docker.service` at boot. Do not use these units to expose or proxy a Host Docker socket.
 
-See [`../../../../../docs/OCI_RUNTIME_AND_DOCKER_COMPAT.md`](../../../../../docs/OCI_RUNTIME_AND_DOCKER_COMPAT.md).
+See [`../../../../../docs/design/docker-compatibility-plugin.md`](../../../../../docs/design/docker-compatibility-plugin.md).

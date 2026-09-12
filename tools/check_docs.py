@@ -3,11 +3,13 @@ from pathlib import Path
 import re
 import sys
 
+from doc_links import check_links
+
 from checkpoint_source import CheckpointSourceError, parse_checkpoint_source
 
 root = Path(__file__).resolve().parents[1]
 docs_root = root / "docs"
-markdown_files = list(root.rglob("*.md"))
+markdown_files = [p for p in root.rglob("*.md") if not any(part in {".git", "node_modules", "dist", "bin"} for part in p.relative_to(root).parts)]
 errors = []
 
 # Long-lived documentation addresses are semantic. ADR sequence numbers are identity.
@@ -22,7 +24,6 @@ for p in docs_root.rglob("*.md"):
 
 legacy_versioned_name = re.compile(r"\b\d{2}[A-Z]?_v0\.\d+_[A-Z0-9_]+(?:\.ja)?\.md\b", re.IGNORECASE)
 legacy_ordered_name = re.compile(r"\b(?:00[A-Z]?|90|91)_[A-Z0-9_]+(?:\.ja)?\.md\b", re.IGNORECASE)
-md_link = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 
 stale_claims = [
     (r"\|\s*v0\.(?:13|18)\s*\|\s*(?:Optional )?Local OCI Registry\s*\|", "stale Local Registry milestone assignment"),
@@ -37,7 +38,7 @@ stale_claims = [
 ]
 
 for p in markdown_files:
-    text = p.read_text()
+    text = p.read_text(encoding="utf-8")
     for pattern, label in (
         (legacy_versioned_name, "legacy versioned documentation address"),
         (legacy_ordered_name, "legacy ordered documentation address"),
@@ -51,24 +52,22 @@ for p in markdown_files:
             line = text[:match.start()].count("\n") + 1
             errors.append(f"{p.relative_to(root)}:{line}: {label}")
 
-    # Repository-relative Markdown document links must survive document moves.
-    for match in md_link.finditer(text):
-        raw = match.group(1).strip()
-        if not raw or raw.startswith(("http://", "https://", "mailto:", "#")):
-            continue
-        target = raw.split("#", 1)[0].split("?", 1)[0]
-        if not target.lower().endswith(".md"):
-            continue
-        resolved = (p.parent / target).resolve()
-        try:
-            resolved.relative_to(root.resolve())
-        except ValueError:
-            line = text[:match.start()].count("\n") + 1
-            errors.append(f"{p.relative_to(root)}:{line}: Markdown link escapes repository: {raw}")
-            continue
-        if not resolved.is_file():
-            line = text[:match.start()].count("\n") + 1
-            errors.append(f"{p.relative_to(root)}:{line}: broken Markdown link: {raw}")
+errors.extend(check_links(root, markdown_files))
+
+# Ordinary entry points must not advertise legacy syntax as product commands.
+# Migration/design pages may intentionally explain retained historical surfaces.
+product_pages = [root / "README.md", root / "README.ja.md",
+                 root / "docs/reference/cli.md", root / "docs/reference/cli.ja.md"]
+product_pages += list((root / "docs/guides").glob("*.md"))
+for path in product_pages:
+    text = path.read_text(encoding="utf-8")
+    for match in re.finditer(
+        r"\b(?:haco\s+(?:create|exec|shell|delete|events|connections|forward|unforward)\b"
+        r"|hacoq\s+plugin\s+oci\s+(?:store\b|image\s+(?:list|delete)\b))", text
+    ):
+        line = text[:match.start()].count("\n") + 1
+        errors.append(f"{path.relative_to(root)}:{line}: legacy/product CLI namespace mismatch: {match[0]}")
+
 
 obsolete_artifacts = [
     "CODEX_START_HERE.md",
@@ -90,9 +89,9 @@ required = [
     "docs/README.md", "docs/README.ja.md", "docs/DOCUMENTATION_STYLE_GUIDE.md",
     "docs/DESIGN_PRINCIPLES.md", "docs/DESIGN_PRINCIPLES.ja.md",
     "docs/IMPLEMENTATION_STATUS.md", "docs/IMPLEMENTATION_STATUS.ja.md",
-    "docs/CLIENT_ADAPTER_CONTRACT.md", "docs/CLIENT_ADAPTER_CONTRACT.ja.md",
-    "docs/INTERACTION_EVENTS.md", "docs/INTERACTION_EVENTS.ja.md",
-    "docs/EGRESS_AUTHORIZATION.md", "docs/EGRESS_AUTHORIZATION.ja.md",
+    "docs/reference/client-adapter.md", "docs/reference/client-adapter.ja.md",
+    "docs/reference/interaction-events.md", "docs/reference/interaction-events.ja.md",
+    "docs/design/egress-authorization.md", "docs/design/egress-authorization.ja.md",
     "docs/design/plugin-architecture.md",
     "docs/design/trusted-host.md", "docs/design/trusted-host.ja.md",
     "docs/security/security-architecture.md",
@@ -104,7 +103,7 @@ required = [
     "docs/design/workspace-abstraction-and-lease.md",
     "docs/design/client-and-interactive-access.md",
     "docs/design/policy-and-capability-foundation.md",
-    "docs/design/git-and-github-capability.md",
+    "docs/design/git-and-github-capability.md", "docs/reference/legacy-git.md",
     "docs/design/agent-and-orchestrator-integration.md",
     "docs/design/remote-and-cloud-runtime.md",
     "docs/design/client-adapters-and-vscode-integration.md",
@@ -113,13 +112,12 @@ required = [
     "docs/design/base-images-and-custom-environments.md",
     "docs/design/sandbox-resource-limits.md", "docs/design/sandbox-resource-limits.ja.md",
     "docs/design/managed-sandbox-network.md", "docs/design/managed-sandbox-network.ja.md",
-    "docs/design/git-fetch-plugin.md", "docs/design/git-fetch-plugin.ja.md",
     "docs/design/oci-seed-recommendation.md", "docs/design/oci-seed-recommendation.ja.md",
     "docs/design/oci-image-deletion.md", "docs/design/oci-image-deletion.ja.md",
     "docs/design/oci-seed-and-cow.md", "docs/design/oci-seed-and-cow.ja.md",
     "docs/design/docker-compatibility-plugin.md", "docs/design/docker-compatibility-plugin.ja.md",
     "docs/design/btrfs-storage-layout.md", "docs/design/btrfs-storage-layout.ja.md",
-    "docs/OPTIONAL_LOCAL_OCI_REGISTRY.md", "docs/OPTIONAL_LOCAL_OCI_REGISTRY.ja.md",
+    "docs/design/optional-local-oci-registry.md", "docs/design/optional-local-oci-registry.ja.md",
 ]
 for rel in required:
     if not (root / rel).exists():
@@ -130,7 +128,7 @@ def require_text(path, items):
     p = root / path
     if not p.is_file():
         return
-    text = p.read_text().lower()
+    text = p.read_text(encoding="utf-8").lower()
     for item in items:
         if item.lower() not in text:
             errors.append(f"{path} missing required text: {item}")
@@ -140,7 +138,7 @@ def extract_checkpoint(path, pattern):
     p = root / path
     if not p.is_file():
         return None
-    text = p.read_text()
+    text = p.read_text(encoding="utf-8")
     matches = re.findall(pattern, text, flags=re.IGNORECASE)
     if len(matches) != 1:
         errors.append(f"{path}: expected exactly one current milestone declaration, found {len(matches)}")
@@ -184,7 +182,7 @@ for path in version_table_paths:
         continue
     rows = re.findall(
         r"^\|\s*(v0\.\d+)\s*\|\s*([^|]+?)\s*\|",
-        p.read_text(),
+        p.read_text(encoding="utf-8"),
         flags=re.IGNORECASE | re.MULTILINE,
     )
     if not rows:
@@ -214,7 +212,7 @@ if not generated_checkpoint_path.is_file():
 elif checkpoint_source is not None:
     generated_matches = re.findall(
         r'const GeneratedCheckpoint = "(v0\.\d+)"',
-        generated_checkpoint_path.read_text(),
+        generated_checkpoint_path.read_text(encoding="utf-8"),
     )
     if len(generated_matches) != 1:
         errors.append("internal/buildinfo/checkpoint_generated.go: expected exactly one GeneratedCheckpoint")
@@ -239,94 +237,78 @@ for path in checkpoint_copy_free:
     p = root / path
     if not p.is_file():
         continue
-    if concrete_checkpoint.search(p.read_text()):
+    if concrete_checkpoint.search(p.read_text(encoding="utf-8")):
         errors.append(f"{path}: concrete checkpoint numbers belong in version/status authorities; link instead")
 
-require_text("AGENTS.md", [
-    "docs/DOCUMENTATION_STYLE_GUIDE.md", "docs/status/versioning-and-release-status.md",
-    "docs/reference/terminology-and-boundaries.md", "docs/security/security-architecture.md",
-    "ADR sequence numbers", "bash tools/ci-local.sh",
-])
+# Require routing at entry points and detailed contracts only at their owners.
+# Do not require README/status pages to duplicate internal implementation prose.
+require_text("AGENTS.md", ["docs/DOCUMENTATION_STYLE_GUIDE.md", "bash tools/ci-local.sh"])
+require_text("CONTRIBUTING.md", ["docs/DOCUMENTATION_STYLE_GUIDE.md", "tools/ci-local.sh"])
 require_text("docs/DOCUMENTATION_STYLE_GUIDE.md", [
-    "stable semantic paths", "ADR sequence numbers", "status/versioning-and-release-status.md",
+    "stable semantic paths", "ADR sequence numbers", "status/checkpoints.yaml",
     "reference/terminology-and-boundaries.md", "security/security-architecture.md",
+    "status/acceptance-evidence.md",
 ])
-require_text("docs/status/versioning-and-release-status.md", [
-    "Minor milestones are lightweight pre-1.0 progress checkpoints",
-    "Interaction Notification Clients", "Real Incus E2E Acceptance", "Structured Logging",
-    "Incus-owned Btrfs Storage Acceptance", "Trusted `haco-host` & Default WSL Entry",
-    "Local Registry infrastructure is deferred and unversioned", "cloud implementation is currently deferred",
-    "Tags/releases are separate",
-])
-require_text("docs/status/versioning-and-release-status.ja.md", [
-    "Interaction Notification Clients", "Real Incus E2E Acceptance", "Structured Logging",
-    "Incus-owned Btrfs Storage Acceptance", "Trusted `haco-host` & Default WSL Entry",
-    "release tagとroadmap milestone番号は別物",
-])
-require_text("docs/reference/build-release-identity.md", [
-    "status/checkpoints.yaml", "tools/bump-milestone", "machine-readable", "generated build input",
-])
-require_text("docs/reference/build-release-identity.ja.md", [
-    "status/checkpoints.yaml", "tools/bump-milestone", "machine-readable", "generated build input",
-])
-require_text("docs/IMPLEMENTATION_STATUS.md", [
-    "current code reality", "pkg/clientadapter", "haco ssh", "haco plugin oci seed build",
-    "haco-notify", "Incus-owned Btrfs", "haco setup", "HACO_PLUGIN_OCI=nerdctl|docker",
-    "design/btrfs-storage-layout.md", "design/trusted-host.md", "compress=zstd:3",
-    "cloud implementation is currently deferred",
-])
-require_text("docs/IMPLEMENTATION_STATUS.ja.md", [
-    "haco-notify", "Incus-owned Btrfs", "haco setup", "design/trusted-host.ja.md",
-])
-require_text("docs/status/architecture-and-roadmap.md", [
-    "Hacocoon is a **Secure Workspace Runtime**", "Core", "Standard", "Plugin",
-    "does **not** duplicate the current checkpoint table", "Roadmap model", "Trusted Host direction",
-    "Client direction", "Operational confidence direction", "Local OCI Registry is not a required roadmap gate",
-])
-require_text("docs/README.md", [
-    "Documentation layout", "Source-of-truth order", "Current checkpoint", "CLIENT_ADAPTER_CONTRACT.md",
-    "pkg/clientadapter", "design/trusted-host.md", "design/oci-seed-and-cow.md",
-    "design/docker-compatibility-plugin.md", "EGRESS_AUTHORIZATION.md", "INTERACTION_EVENTS.md",
-    "reference/logging.md", "design/btrfs-storage-layout.md", "Core", "Standard", "Plugin", "haco-notify",
-])
-require_text("docs/README.ja.md", [
-    "現在のcheckpoint", "haco-notify", "haco-host", "status/versioning-and-release-status.ja.md",
-])
-require_text("docs/design/trusted-host.md", [
-    "haco-host", "Physical Host", "haco setup", "hacoq host shell",
-])
-require_text("docs/CLIENT_ADAPTER_CONTRACT.md", [
+for suffix in ("", ".ja"):
+    require_text(f"README{suffix}.md", [f"docs/guides/getting-started{suffix}.md", "haco repo clone", "haco env create"])
+    require_text(f"docs/README{suffix}.md", [
+        f"guides/getting-started{suffix}.md", f"reference/cli{suffix}.md",
+        "DOCUMENTATION_STYLE_GUIDE.md", f"IMPLEMENTATION_STATUS{suffix}.md",
+        f"status/acceptance-evidence{suffix}.md", "status/architecture-and-roadmap.md",
+    ])
+    for name in ("getting-started", "installation", "git-workflow", "data-lifetime", "data-evacuation"):
+        path = f"docs/guides/{name}{suffix}.md"
+        if not (root / path).is_file():
+            errors.append(f"missing required documentation: {path}")
+    require_text(f"docs/reference/build-release-identity{suffix}.md", [
+        "status/checkpoints.yaml", "tools/bump-milestone",
+    ])
+require_text("docs/design/trusted-host.md", ["haco-host", "Physical Host", "haco setup"])
+require_text("docs/reference/client-adapter.md", [
     "pkg/clientadapter", "public-key", "private key", "loopback-only", "/workspace",
-    "haco ssh", "pkg/interaction", "VS Code", "JetBrains", "code-server",
+    "hacoq ssh", "pkg/interaction", "VS Code", "JetBrains", "code-server",
 ])
 require_text("docs/design/plugin-architecture.md", [
     "Core / Standard / Plugin classification", "HACO_PLUGIN_OCI=nerdctl",
     "HACO_PLUGIN_OCI=docker", "unset HACO_PLUGIN_OCI", "haco base",
 ])
 require_text("docs/design/oci-seed-and-cow.md", [
-    "OCI Seed Builder", "haco plugin oci seed build", "haco plugin oci seed current",
+    "OCI Seed Builder", "hacoq plugin oci seed build", "hacoq plugin oci seed current",
     "/var/lib/containerd", "Btrfs/COW",
 ])
 require_text("docs/design/docker-compatibility-plugin.md", [
-    "Docker Compatibility Plugin", "haco plugin oci docker status",
-    "haco plugin oci docker prepare", "fail closed",
+    "Docker Compatibility Plugin", "hacoq plugin oci docker status",
+    "hacoq plugin oci docker prepare", "fail closed",
 ])
-require_text("docs/EGRESS_AUTHORIZATION.md", [
+require_text("docs/design/egress-authorization.md", [
     "Domain-aware egress authorization", "network.egress/connect", "169.254.254.1:18080", "SNI",
 ])
 require_text("docs/design/btrfs-storage-layout.md", [
     "Incus-owned loop-backed Btrfs", "Managed Btrfs Transparent Compression",
     "haco-local-default", "Environment rootfs", "compress=zstd:3", "compress-force", "autodefrag",
 ])
-require_text("docs/INTERACTION_EVENTS.md", ["browser", "native", "VS Code", "notification"])
-require_text("README.md", [
-    "pre-1.0", "haco base list", "haco plugin oci", "pkg/clientadapter", "haco-notify", "haco-host",
-    "Versioning and release status",
-])
-require_text("README.ja.md", [
-    "読み方: はこーん", "pre-1.0", "haco base list", "haco plugin oci", "pkg/clientadapter",
-    "haco-notify", "haco-host", "Versioning / Release status",
-])
+
+require_text("docs/reference/interaction-events.md", ["browser", "native", "VS Code", "notification"])
+
+# Literal documentation references in maintained tooling/CI must survive moves too.
+# Synthetic negative fixtures are deliberately not production references.
+for directory in ("tools", "scripts", ".github"):
+    for path in (root / directory).rglob("*"):
+        if not path.is_file() or path.name.startswith("test_") or path.name.endswith("_test.go"):
+            continue
+        if "__pycache__" in path.parts or path.suffix == ".md":
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeError, OSError):
+            continue
+        for match in re.finditer(r"(?<![A-Za-z0-9_./-])(docs/[A-Za-z0-9_./-]+\.md)\b", text):
+            target = match[1]
+            if path.name == "check_docs.py" and target in obsolete_artifacts:
+                continue
+            if not (root / target).is_file():
+                line = text[:match.start()].count("\n") + 1
+                errors.append(f"{path.relative_to(root)}:{line}: broken tooling document reference: {target}")
 
 if errors:
     print("DOC CONSISTENCY FAILED")

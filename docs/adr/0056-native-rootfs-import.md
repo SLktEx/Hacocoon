@@ -1,5 +1,7 @@
 # ADR 0056: Import rootfs through an owned temporary Incus image
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../design/environment-transfer.md) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Status: accepted for the native adapter; public Environment import remains planned.
 
 ## Decision

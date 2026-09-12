@@ -1,6 +1,6 @@
 # GitHub Git capability plugin
 
-This package implements the optional GitHub-aware Git capability used by `haco plugin git fetch` and `haco plugin git push`.
+This package implements the optional GitHub-aware Git capability used by `hacoq plugin git fetch` and `hacoq plugin git push`.
 
 It is an adapter/plugin, not a Core domain dependency. Core owns only generic capability contracts and policy decisions. This package owns Git/GitHub-specific behavior such as remote parsing, repository/branch authority checks, stale approval detection, and the final brokered `git fetch` / `git push`.
 
@@ -13,8 +13,8 @@ Headless hosts such as GitHub Actions may instead provide `HACO_GITHUB_TOKEN` to
 CLI:
 
 ```bash
-haco plugin git fetch <environment>
-haco plugin git fetch <environment> --remote upstream
+hacoq plugin git fetch <environment>
+hacoq plugin git fetch <environment> --remote upstream
 ```
 
 With a `default: deny` policy, explicitly allow fetch. For example, to fetch `origin` for `acme/demo`:

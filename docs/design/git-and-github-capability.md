@@ -1,4 +1,4 @@
-# v0.5 — Git / GitHub Capability
+# Git / GitHub Capability
 
 Status: **roadmap contract implemented on `main`.** Brokered host-side Git push exists; Hacocoon remains pre-1.0 and the concrete capability/CLI contract may still change.
 
@@ -14,7 +14,7 @@ real-host acceptance status remain separate in
 [implementation status](../IMPLEMENTATION_STATUS.md).
 
 The product commands and manual setup are documented in the
-[managed repository workflow](../reference/managed-repository-workflow.md).
+[managed repository workflow](../guides/git-workflow.md).
 This Standard integration implements `git.repository` through the existing
 Policy/Approval/Capability/audit service. `fetch` authorization precedes remote
 reads; `push` authorization follows object validation and proposal preparation.
