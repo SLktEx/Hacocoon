@@ -208,6 +208,10 @@ try {
 
     $instance = Invoke-Wsl @('-u', 'root', '--exec', 'incus', 'query', "/1.0/instances/haco-$EnvironmentName`?project=hacocoon") 'Inspect actual SSH proxy binding'
     $observed = $instance.Stdout | ConvertFrom-Json -AsHashtable
+    $guardScript = Invoke-Wsl @('--exec', 'wslpath', '-u', '-a', (Join-Path $PSScriptRoot 'verify_installed_source_guard.py')) 'Locate read-only source guard observer'
+    $guard = Invoke-Wsl @('-u', 'root', '--exec', 'python3', $guardScript.Stdout.Trim(), "haco-$EnvironmentName", [string]$observed.config['user.hacocoon.instance-id']) 'Verify installed Environment MAC/IP source guard'
+    $guardResult = $guard.Stdout | ConvertFrom-Json
+    if ($guardResult.status -ne 'PASS' -or $guardResult.guard_rules -ne 'verified' -or $guardResult.generation -ne $observed.config['user.hacocoon.instance-id']) { throw 'Source guard observation incomplete' }
     $proxy = $observed.expanded_devices["haco-$ConnectionId"]
     if ($proxy.type -ne 'proxy' -or $proxy.listen -ne "tcp:127.0.0.1:$Port" -or $proxy.connect -ne 'tcp:127.0.0.1:22') { throw 'SSH proxy is not loopback-only into Environment sshd' }
     $generated = Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'ssh-config', $EnvironmentName) 'Generate OpenSSH config from trusted haco-host'

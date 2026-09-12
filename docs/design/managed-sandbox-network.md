@@ -35,3 +35,12 @@ Repository tests cover ownership, network/guard configuration, lifecycle and sou
 The Standard listener also routes bounded DNS queries through a separate lookup Capability. This does not enable direct DNS or grant connections to returned addresses. Automatic guest stub provisioning is implemented in installed Standard mode; see [name resolution](name-resolution.md) and [ADR 0021](../adr/0021-policy-bound-name-resolution.md).
 
 Stopped owned Environments restore absent volatile source guards before start; existing drift and missing running-guest guards fail closed. See [ADR 0022](../adr/0022-resume-volatile-source-guards.md).
+
+
+## Installed Windows source-guard observation
+
+Implemented in the Windows SSH acceptance fixture: after ordinary Env creation and SSH preparation, a read-only observer pins the instance generation and checks its running state, isolated NIC, owned non-NAT bridge, and the native nftables source table. The table must contain exactly the ordered MAC rejection, narrow DHCP bootstrap exception, and IPv4 subnet rejection at prerouting priority -300. Unexpected rules, chains, identities or incomplete queries fail the check; the observer never repairs state. Generation and NIC identity are read again after observation.
+
+This supplements installed HTTPS/proxy/direct-TCP acceptance. It checks actual kernel configuration, not delivery of spoofed packets, another Env's deletion, or a full reboot/recreate sequence. Those scopes must not be inferred from this observer. Windows integration runs in the maintained SSH gate; its native outcome must be recorded separately from the observer regressions.
+
+Scoped local acceptance passed on a dedicated Incus/WSL installation: after canonical start of a stopped recovered Env, this observer verified its pinned generation and native guard rules. The first startup attempt failed before controller socket readiness; an earlier standalone observation also failed. These failures are not successes. The full packaged Windows SSH gate and spoofed-packet behavior remain separate acceptance.
