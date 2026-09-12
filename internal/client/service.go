@@ -34,13 +34,16 @@ func New(runtime accessRuntime, store environmentStore) *Service {
 }
 
 func (s *Service) Status(ctx context.Context, name string) (core.EnvironmentStatus, error) {
-	environment, err := s.store.GetEnvironment(ctx, name)
+	environment, err := s.environmentForStatus(ctx, name)
 	if err != nil {
 		return core.EnvironmentStatus{}, err
 	}
 	observed, err := s.runtime.InspectEnvironment(ctx, environment.RuntimeRef)
 	if err != nil {
 		return core.EnvironmentStatus{}, fmt.Errorf("inspect environment %q: %w", name, err)
+	}
+	if observed.Absent {
+		return core.EnvironmentStatus{}, fmt.Errorf("environment %q has retained ownership but no runtime: %w", name, core.ErrRecoveryRequired)
 	}
 	return core.EnvironmentStatus{Environment: environment, State: observed.State}, nil
 }
@@ -103,11 +106,22 @@ func normalizePortRequest(req core.LocalPortRequest) (core.LocalPortRequest, err
 	if req.Protocol == "" {
 		req.Protocol = "tcp"
 	}
-	if req.Protocol != "tcp" {
+	if req.Protocol != "tcp" && req.Protocol != "udp" {
 		return core.LocalPortRequest{}, fmt.Errorf("protocol %q: %w", req.Protocol, core.ErrUnsupported)
 	}
 	if req.HostPort < 0 || req.HostPort > 65535 || req.TargetPort < 1 || req.TargetPort > 65535 {
 		return core.LocalPortRequest{}, fmt.Errorf("ports host=%d target=%d: %w", req.HostPort, req.TargetPort, core.ErrInvalidArgument)
 	}
 	return req, nil
+}
+
+// Production status uses one catalog observation of metadata and its lease.
+// Minimal client stores retain their existing interface for alternate adapters.
+func (s *Service) environmentForStatus(ctx context.Context, name string) (core.Environment, error) {
+	if store, ok := s.store.(interface {
+		GetReadyEnvironment(context.Context, string) (core.Environment, error)
+	}); ok {
+		return store.GetReadyEnvironment(ctx, name)
+	}
+	return s.store.GetEnvironment(ctx, name)
 }

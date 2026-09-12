@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	clientapp "github.com/SLktEx/Hacocoon/internal/client"
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -40,7 +41,20 @@ fi
 
 	store := state.NewEnvironmentJSONStore(filepath.Join(root, "state", "environments.json"))
 	ctx := context.Background()
-	if err := store.PutEnvironment(ctx, core.Environment{Name: "demo", RuntimeRef: "haco-demo"}); err != nil {
+	lease := core.WorkspaceLease{
+		WorkspaceID: "work-demo", SourcePath: "/workspace/demo", EnvironmentID: "demo",
+		AccessMode: core.WorkspaceReadWrite, Owner: "demo", State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC(),
+	}
+	if err := store.BeginEnvironmentCreate(ctx, lease); err != nil {
+		t.Fatal(err)
+	}
+	lease.RuntimeRef = "haco-demo"
+	if err := store.RecordEnvironmentRuntime(ctx, lease); err != nil {
+		t.Fatal(err)
+	}
+	lease.State = core.WorkspaceLeaseActive
+	environment := core.Environment{Name: "demo", RuntimeRef: lease.RuntimeRef, Workspace: core.Workspace{ID: lease.WorkspaceID, Path: lease.SourcePath}, AccessMode: lease.AccessMode, CreatedAt: lease.AcquiredAt}
+	if err := store.CommitEnvironmentCreate(ctx, environment, lease); err != nil {
 		t.Fatal(err)
 	}
 	service := clientapp.New(incus.New(host.ExecRunner{}), store)

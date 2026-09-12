@@ -28,7 +28,7 @@ func TestSnapshotBindingSurvivesRestartAndExactCAS(t *testing.T) {
 		t.Fatal("changed binding accepted")
 	}
 	mustSnapshot(t, reopened.RecordSnapshotComponent(ctx, snap.ID, got.Components[0], "created"))
-	mustSnapshot(t, reopened.PutEnvironment(ctx, snap.Source.Environment))
+	mustSnapshot(t, reopened.BeginEnvironmentCreate(ctx, environmentReservation("other-workspace", "other", core.WorkspaceReadWrite)))
 	got, err = NewEnvironmentJSONStore(s.path).GetSnapshot(ctx, snap.ID)
 	mustSnapshot(t, err)
 	if got.Components[0].Binding != snap.Components[0].Binding || got.Components[0].State != "created" {
@@ -70,10 +70,10 @@ func TestSnapshotBindingSchemaMigration(t *testing.T) {
 	}
 }
 func TestSnapshotBaseIsProvenanceOnly(t *testing.T) {
-	s, snap := snapshotCatalogFixture(t)
+	s, snap := snapshotCatalogFixture(t, func(env *core.Environment) {
+		env.Base = &core.BaseRef{Name: "custom/base", Revision: "immutable-revision"}
+	})
 	ctx := context.Background()
-	snap.Source.Environment.Base = &core.BaseRef{Name: "custom/base", Revision: "immutable-revision"}
-	mustSnapshot(t, s.PutEnvironment(ctx, snap.Source.Environment))
 	mustSnapshot(t, s.BeginSnapshot(ctx, snap))
 	mustSnapshot(t, s.RecordSnapshotComponent(ctx, snap.ID, snap.Components[0], "created"))
 	if !errors.Is(s.CommitSnapshot(ctx, snap.ID), core.ErrRecoveryRequired) {

@@ -10,11 +10,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 type PolicyRule struct {
+	ExpiresAt           *time.Time          `json:"expires_at,omitempty"`
 	EnvironmentInstance string              `json:"environment_instance,omitempty"`
 	Capability          string              `json:"capability"`
 	Action              string              `json:"action"`
@@ -26,17 +28,19 @@ type PolicyRule struct {
 }
 
 type PolicyFile struct {
-	SavedDecisions []PolicyRule        `json:"saved_decisions,omitempty"`
-	Default        core.PolicyDecision `json:"default"`
-	Rules          []PolicyRule        `json:"rules"`
+	NetworkServices []NetworkService    `json:"network_services,omitempty"`
+	SavedDecisions  []PolicyRule        `json:"saved_decisions,omitempty"`
+	Default         core.PolicyDecision `json:"default"`
+	Rules           []PolicyRule        `json:"rules"`
 }
 
 type FilePolicyEvaluator struct {
 	path string
+	now  func() time.Time
 }
 
 func NewFilePolicyEvaluator(path string) *FilePolicyEvaluator {
-	return &FilePolicyEvaluator{path: path}
+	return &FilePolicyEvaluator{path: path, now: time.Now}
 }
 
 func (e *FilePolicyEvaluator) Evaluate(_ context.Context, req core.CapabilityRequest) (core.PolicyEvaluation, error) {
@@ -44,8 +48,15 @@ func (e *FilePolicyEvaluator) Evaluate(_ context.Context, req core.CapabilityReq
 	if err != nil {
 		return core.PolicyEvaluation{}, err
 	}
+	now := time.Now()
+	if e.now != nil {
+		now = e.now()
+	}
 	var selected core.PolicyEvaluation
 	for index, rule := range append(append([]PolicyRule(nil), policy.Rules...), policy.SavedDecisions...) {
+		if rule.ExpiresAt != nil && !now.Before(*rule.ExpiresAt) {
+			continue
+		}
 		if index >= len(policy.Rules) && rule.Environment != "*" && rule.EnvironmentInstance != req.EnvironmentInstance {
 			continue
 		}
@@ -133,6 +144,15 @@ func rejectTrailingJSON(decoder *json.Decoder) error {
 }
 
 func validatePolicy(policy PolicyFile) error {
+	services := make(map[string]bool)
+	identities := make(map[string]bool)
+	for _, service := range policy.NetworkServices {
+		if ValidateNetworkService(service) != nil || services[service.Name] || identities[service.Instance] {
+			return fmt.Errorf("invalid or duplicate network service")
+		}
+		services[service.Name], identities[service.Instance] = true, true
+	}
+
 	if policy.Default != "" && !validDecision(policy.Default) {
 		return fmt.Errorf("invalid default policy decision %q", policy.Default)
 	}

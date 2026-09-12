@@ -99,3 +99,21 @@ func TestLegacyInspectUsesTheSameExactIdentity(t *testing.T) {
 		t.Fatal(got, err)
 	}
 }
+
+func TestUDPForwardAndReconciliationPreserveProtocol(t *testing.T) {
+	runner := &fakeRunner{}
+	got, err := New(runner).ForwardLocalPort(context.Background(), "haco-demo", core.LocalPortRequest{Protocol: "udp", HostPort: 18081, TargetPort: 9000})
+	if err != nil || got.Kind != "udp" || got.ID != "udp-18081-9000" {
+		t.Fatal(got, err)
+	}
+	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "add", "haco-demo", "haco-udp-18081-9000", "proxy", "listen=udp:127.0.0.1:18081", "connect=udp:127.0.0.1:9000", "--project", defaultProject)
+	restored, err := clientConnectionFromProxy(got.ID, "udp:127.0.0.1:18081", "udp:127.0.0.1:9000")
+	if err != nil || restored != got {
+		t.Fatal(restored, err)
+	}
+	for _, endpoints := range [][2]string{{"udp:0.0.0.0:18081", "udp:127.0.0.1:9000"}, {"udp:127.0.0.1:18081", "udp:192.0.2.1:9000"}, {"udp:127.0.0.1:18081", "tcp:127.0.0.1:9000"}} {
+		if _, err := clientConnectionFromProxy(got.ID, endpoints[0], endpoints[1]); err == nil {
+			t.Fatal("unsafe proxy accepted", endpoints)
+		}
+	}
+}

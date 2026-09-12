@@ -67,43 +67,27 @@ func TestResolveRuntimeRefFallbackFailsClosedOnAmbiguousAddress(t *testing.T) {
 	}
 }
 
-func TestResolveEnvironmentUsesIncusRuntimeState(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if len(args) >= 2 && args[0] == "list" && args[1] == "ipv4=10.200.0.23" {
-			return host.Result{Stdout: "haco-demo\n"}, nil
-		}
-		return host.Result{}, nil
-	}}
-	got, err := New(runner).ResolveEnvironment(context.Background(), net.ParseIP("10.200.0.23"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "demo" {
-		t.Fatalf("environment = %q, want demo", got)
-	}
-}
-
-func TestResolveEnvironmentFailsClosedOnAmbiguousSource(t *testing.T) {
+func TestResolveRuntimeRefFailsClosedOnAmbiguousSource(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if len(args) >= 2 && args[0] == "list" {
 			return host.Result{Stdout: "haco-a\nhaco-b\n"}, nil
 		}
 		return host.Result{}, nil
 	}}
-	_, err := New(runner).ResolveEnvironment(context.Background(), net.ParseIP("10.200.0.23"))
+	_, err := New(runner).ResolveRuntimeRef(context.Background(), net.ParseIP("10.200.0.23"))
 	if !errors.Is(err, core.ErrPolicyDenied) {
 		t.Fatalf("error = %v, want ErrPolicyDenied", err)
 	}
 }
 
-func TestResolveEnvironmentRejectsUnmanagedInstanceName(t *testing.T) {
+func TestResolveRuntimeRefRejectsUnmanagedInstanceName(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if len(args) >= 2 && args[0] == "list" {
 			return host.Result{Stdout: "other-instance\n"}, nil
 		}
 		return host.Result{}, nil
 	}}
-	_, err := New(runner).ResolveEnvironment(context.Background(), net.ParseIP("10.200.0.23"))
+	_, err := New(runner).ResolveRuntimeRef(context.Background(), net.ParseIP("10.200.0.23"))
 	if !errors.Is(err, core.ErrPolicyDenied) {
 		t.Fatalf("error = %v, want ErrPolicyDenied", err)
 	}

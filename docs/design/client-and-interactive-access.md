@@ -51,3 +51,12 @@ See [client adapter API](../reference/client-adapter.md),
 Legacy adapter CLI recipes remain on temporary `hacoq`; they do not expand product
 `haco` availability. Neither a successful repository test nor a loopback address
 alone proves real Windows/WSL or IDE acceptance.
+
+## Incomplete lifecycle diagnostics
+
+Status, Environment doctor and client adapters share the same service observation.
+Normal running/stopped JSON is unchanged. Incomplete or cleanup-required leases,
+and retained metadata whose provider runtime is positively absent, report the
+existing recovery-required error. Unknown runtime state is not a recommendation
+to start; inspect ownership and provider diagnostics before mutation. Status
+never repairs the catalog or releases Workspace/OCI reservations.

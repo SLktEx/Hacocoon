@@ -4,9 +4,15 @@ on:
   push:
     branches:
       - main
+      - dev/1.x
+      - dev/v2
+      - dev/2.x
   pull_request:
     branches:
       - main
+      - dev/1.x
+      - dev/v2
+      - dev/2.x
 
 permissions:
   contents: read

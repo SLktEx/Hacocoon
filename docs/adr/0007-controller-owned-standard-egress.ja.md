@@ -56,3 +56,11 @@ install済みWindows Environmentのallow/deny通信、firewall reload/起動順�
 [egress authorization](../design/egress-authorization.ja.md)と
 [実装status](../IMPLEMENTATION_STATUS.ja.md)を参照。
 
+## 通信開始前の共通検証
+
+実装済み: HTTP と CONNECT はそれぞれの authority 検証後、同じ Standard の処理を使います。
+既存 Core grant の Env／hostname／protocol／port が要求と完全一致することを確認してから、
+公開 DNS 応答を固定します。エラーがなくても、別の対象への grant を許可として扱いません。
+Policy、承認、audit は既存 broker が担当し、CONNECT は接続前の上限付き SNI 検証を維持します。
+grant cache や新しい通信 protocol は追加しません。キャンセルされた名前解決結果は採用せず、
+キャンセル後に dial が成功して返した接続は閉じます。

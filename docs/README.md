@@ -17,6 +17,10 @@ Hacocoon is pre-1.0; check [available scope and limits](IMPLEMENTATION_STATUS.md
 - [Reclaim allocation and inspect results](design/storage-reclamation.md#public-dispatch-and-result-inspection)
 - [Host/project setup](design/project-setup.md), [Web preview](design/development-preview.md), [temporary execution](design/temporary-execution.md)
 
+- [Daily development and setup diagnostics](reference/daily-workflow.md)
+- [Prepare, reopen and fork Workspaces](design/workspace-workflow.md)
+- [Explicit TCP/UDP development connections](design/network-connections.md)
+
 ## Concepts
 
 - [Host, Workspace, Environment, Base, OCI Store and data lifetime](guides/data-lifetime.md)

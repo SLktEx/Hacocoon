@@ -42,6 +42,14 @@ func validSavedID(id string) bool {
 // source reservation until publication or positive cleanup. No source
 // checkout, Git network operation, old Base or old Environment is required.
 func (s *RepositoryService) RestoreWorkspace(ctx context.Context, id string, saved core.Snapshot) (Object, error) {
+	return s.RestoreWorkspaceWithData(ctx, id, saved, nil)
+}
+
+// RestoreWorkspaceWithData keeps the aggregate unavailable until associated
+// retained data is prepared. The callback must durably own anything it creates.
+// Failure retains the creating Workspace and source reservation for recovery;
+// it must not implicitly dispose data that another catalog still owns.
+func (s *RepositoryService) RestoreWorkspaceWithData(ctx context.Context, id string, saved core.Snapshot, prepare func(context.Context, core.Workspace) error) (Object, error) {
 	if !ValidID(id) || !validSavedID(saved.ID) || saved.State != "ready" {
 		return Object{}, core.ErrInvalidArgument
 	}
@@ -123,8 +131,22 @@ func (s *RepositoryService) RestoreWorkspace(ctx context.Context, id string, sav
 		}
 		member.State = "ready"
 	}
+	if prepare != nil {
+		object.State = "creating"
+		if err := s.save(object); err != nil {
+			return object, errors.Join(err, core.ErrRecoveryRequired)
+		}
+		work := core.Workspace{ID: core.WorkspaceID("workspace:managed:" + object.Owner), Path: "managed:" + object.ID}
+		if err := prepare(ctx, work); err != nil {
+			return object, errors.Join(err, core.ErrRecoveryRequired)
+		}
+	}
 	object.State = "ready"
 	if err := s.save(object); err != nil {
+		if prepare != nil {
+			object.State = "creating"
+			return object, errors.Join(err, core.ErrRecoveryRequired)
+		}
 		return fail(err)
 	}
 	if err := s.SnapshotCatalog.FinishSnapshotWorkspaceCopy(ctx, saved.ID, object.ID, object.Owner); err != nil {

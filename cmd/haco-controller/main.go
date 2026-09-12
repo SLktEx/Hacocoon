@@ -40,6 +40,16 @@ func main() {
 		fail(err)
 	}
 	server := control.NewServer()
+	if err := controlapi.RegisterWorkflow(server, app.Workflow); err != nil {
+		fail(err)
+	}
+	defer app.Networks.Close()
+	if err := controlapi.RegisterNetworkRules(server, app.Networks, app.Configuration); err != nil {
+		fail(err)
+	}
+	if err := controlapi.RegisterNetwork(server, app.Networks); err != nil {
+		fail(err)
+	}
 	if err := controlapi.RegisterReviews(server, app.Reviews); err != nil {
 		fail(err)
 	}

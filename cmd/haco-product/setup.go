@@ -13,6 +13,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
+	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"github.com/SLktEx/Hacocoon/internal/logging"
 	"github.com/SLktEx/Hacocoon/internal/recipes"
 )
@@ -106,25 +107,56 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		return 0
 	}
-	if err := setupHostWhenReady(ctx, client, update); err != nil {
+	fmt.Fprintln(stderr, "[running] controller_readiness")
+	readyCtx, cancelReady := context.WithTimeout(ctx, controllerStartupTimeout)
+	readyErr := waitForSetupController(readyCtx, client)
+	cancelReady()
+	if readyErr != nil {
+		fmt.Fprintf(stderr, "[failed] controller_readiness reason=%s\n", hostsetup.Reason(readyErr))
+		fmt.Fprintln(stderr, "No setup request sent. Check haco doctor and the controller service on the WSL/Linux Physical Host.")
+		return 1
+	}
+	fmt.Fprintln(stderr, "[succeeded] controller_readiness")
+	requestID := ""
+	if err := client.SetupHostProgress(ctx, update, func(id string, e hostsetup.Event) {
+		if requestID == "" {
+			requestID = id
+			fmt.Fprintln(stderr, "Setup request:", id)
+		}
+		fmt.Fprintf(stderr, "[%s] %s", e.State, e.Stage)
+		if e.Reason != "" {
+			fmt.Fprint(stderr, " reason=", e.Reason)
+		}
+		fmt.Fprintln(stderr)
+	}); err != nil {
+		fmt.Fprintln(stderr, "Setup completion is not confirmed. Completed stages are shown above; resources may remain. Current resource state is unknown until inspected.")
+		fmt.Fprintln(stderr, "Next: haco doctor. Do not delete resources or blindly replay a saved customization script.")
+		fmt.Fprintln(stderr, "Diagnostics (WSL/Linux Physical Host, administrator): journalctl -u haco-controller.service --since '30 minutes ago' --no-pager")
+		if requestID != "" {
+			fmt.Fprintln(stderr, "Find request_id:", requestID)
+		}
+
 		var status *control.StatusError
 		switch {
 		case ctx.Err() != nil:
-			return fail("Host setup timed out or was canceled; inspect haco doctor before retrying")
+			fmt.Fprintln(stderr, "Observation canceled or timed out; controller setup may still be running. Inspect diagnostics before another operation.")
+			return 1
 		case errors.Is(err, control.ErrUnavailable):
-			return fail("Physical Host controller is unavailable; rerun the installer")
+			fmt.Fprintln(stderr, "Controller unavailable; inspect the controller service before another operation.")
+			return 1
 		case errors.Is(err, control.ErrProtocol):
-			return fail("Physical Host controller protocol is incompatible; rerun the current installer")
+			fmt.Fprintln(stderr, "Controller progress protocol unavailable or incomplete; inspect diagnostics and installed client/controller versions.")
+			return 1
 		case errors.As(err, &status) && status.Code == "busy":
-			return fail("Host setup is already running; wait for it to finish before retrying")
+			return fail("[running] setup reason=busy; another setup owns the operation. Wait and inspect its diagnostics")
 		case errors.As(err, &status) && status.Code == "customization_failed":
-			fmt.Fprintln(stderr, "haco: Host prepared, but customization failed; fix your script and rerun haco setup --script <path>, or use --clear-script")
+			fmt.Fprintln(stderr, "haco: stage=customization reason=failed; Host prepared, but customization failed; fix your script and rerun haco setup --script <path>, or use --clear-script")
 			return 1
 		case errors.As(err, &status) && status.Code == "setup_failed":
-			fmt.Fprintln(stderr, "haco: Host setup failed; run haco doctor, then rerun the installer")
+			fmt.Fprintln(stderr, "haco: Host setup failed; inspect haco doctor and the setup request in the journal")
 			return 1
 		default:
-			return fail("Host setup failed; run haco doctor, then rerun the installer")
+			return fail("Host setup failed; inspect haco doctor and the setup request in the journal")
 		}
 	}
 	if _, err := fmt.Fprintln(stdout, "Host resources prepared. Run haco doctor to verify readiness."); err != nil {
@@ -149,21 +181,10 @@ func safeProjectSetupFailure(stage, code string) (string, string) {
 	return stage, code
 }
 
-// Readiness probes may repeat; the potentially mutating setup request never does.
-type hostSetupClient interface {
+func waitForSetupController(ctx context.Context, client interface {
 	Ping(context.Context) (controlapi.PingResponse, error)
-	SetupHost(context.Context, recipes.Update) error
-}
-
-func setupHostWhenReady(ctx context.Context, client hostSetupClient, update recipes.Update) error {
+}) error {
 	readyCtx, cancel := context.WithTimeout(ctx, controllerStartupTimeout)
-	err := waitForController(readyCtx, func(ctx context.Context) error {
-		_, err := client.Ping(ctx)
-		return err
-	})
-	cancel()
-	if err != nil {
-		return err
-	}
-	return client.SetupHost(ctx, update)
+	defer cancel()
+	return waitForController(readyCtx, func(ctx context.Context) error { _, err := client.Ping(ctx); return err })
 }

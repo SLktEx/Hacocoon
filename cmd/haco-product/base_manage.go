@@ -104,6 +104,9 @@ func baseManageCommand(ctx context.Context, client baseImageClient, args []strin
 	}
 	fmt.Fprintln(diagnostic, "This deletes the selected local Base image and its aliases. Existing Workspace, OCI and independent snapshot data remain. This revision cannot be used for new creates afterward.")
 	if !yes {
+		if !requireInteractiveConfirmation(in, diagnostic) {
+			return 2
+		}
 		fmt.Fprint(diagnostic, "Delete this Base image? [y/N] ")
 		answer, err := bufio.NewReader(io.LimitReader(in, 128)).ReadString('\n')
 		answer = strings.ToLower(strings.TrimSpace(answer))

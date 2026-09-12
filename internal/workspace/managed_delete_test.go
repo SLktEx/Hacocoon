@@ -78,3 +78,13 @@ func TestCreateRechecksWorkspaceIdentityAfterLifecycleLock(t *testing.T) {
 		t.Fatal("accepted Workspace replaced after resolution", err)
 	}
 }
+
+func TestCreatePinsReviewedWorkspaceBeforeAnyProviderMutation(t *testing.T) {
+	p := &managedDeleteProvider{work: core.Workspace{ID: "workspace:managed:new", Path: "managed:work"}}
+	// A nil runtime intentionally makes any attempt to mutate the provider fail.
+	s := NewWithProvider(nil, state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json")), p)
+	_, err := s.Create(context.Background(), core.EnvironmentSpec{Name: "dev", WorkspacePath: "managed:work", ExpectedWorkspace: "workspace:managed:old"})
+	if !errors.Is(err, core.ErrCapabilityStale) {
+		t.Fatal("adopted recycled Workspace", err)
+	}
+}

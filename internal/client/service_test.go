@@ -94,9 +94,9 @@ func TestForwardValidatesPortsAndUsesStoredRuntimeRef(t *testing.T) {
 	if connection.ID != "tcp-8080-3000" || runtime.forwardRef != "haco-demo" || runtime.forwardReq.TargetPort != 3000 {
 		t.Fatalf("connection=%#v ref=%q req=%#v", connection, runtime.forwardRef, runtime.forwardReq)
 	}
-	_, err = service.Forward(context.Background(), "demo", core.LocalPortRequest{Protocol: "udp", HostPort: 1, TargetPort: 1})
+	_, err = service.Forward(context.Background(), "demo", core.LocalPortRequest{Protocol: "sctp", HostPort: 1, TargetPort: 1})
 	if !errors.Is(err, core.ErrUnsupported) {
-		t.Fatalf("udp error=%v", err)
+		t.Fatalf("unsupported protocol error=%v", err)
 	}
 }
 
@@ -165,5 +165,24 @@ func TestSSHLeavesAutomaticPortSelectionToRuntime(t *testing.T) {
 	}
 	if runtime.sshRef != "haco-demo" || runtime.sshReq.HostPort != 0 {
 		t.Fatalf("%+v", runtime.sshReq)
+	}
+}
+
+func TestStatusTreatsRetainedAbsentRuntimeAsRecoveryRequired(t *testing.T) {
+	runtime := &fakeRuntime{status: core.EnvironmentRuntimeStatus{State: core.EnvironmentUnknown, Absent: true}}
+	service := New(runtime, fakeStore{environment: core.Environment{Name: "demo", RuntimeRef: "haco-demo"}})
+	if _, err := service.Status(context.Background(), "demo"); !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("retained ownership became ordinary unknown: %v", err)
+	}
+}
+
+func TestForwardPreservesUDPProtocol(t *testing.T) {
+	runtime := &fakeRuntime{}
+	service := New(runtime, fakeStore{environment: core.Environment{Name: "demo", RuntimeRef: "haco-demo"}})
+	if _, err := service.Forward(context.Background(), "demo", core.LocalPortRequest{Protocol: "udp", HostPort: 8081, TargetPort: 3001}); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.forwardReq.Protocol != "udp" || runtime.forwardReq.HostPort != 8081 || runtime.forwardReq.TargetPort != 3001 {
+		t.Fatal(runtime.forwardReq)
 	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -29,7 +30,7 @@ func runEnvironment(args []string) int {
 
 func environmentCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--port <port>] <name> | ssh-config <name> | disconnect <name> <connection-id> | copy [--json] <stopped-env> [new-env] | export [--json] <stopped-env> [file.haco] | import [--json] <file.haco> [new-env] | start <name> | stop <name> | delete <name>")
+		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--port <port>] <name> | ssh-config <name> | forward --target-port <port> [--protocol tcp|udp] [--port <local-port>] <name> | disconnect <name> <connection-id> | copy [--json] <stopped-env> [new-env] | export [--json] <stopped-env> [file.haco] | import [--json] <file.haco> [new-env] | start <name> | stop <name> | delete <name>")
 		return 2
 	}
 	if len(args) == 0 {
@@ -54,10 +55,15 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	}
 	flags := flag.NewFlagSet("haco env "+args[0], flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
-	var workspace, keyPath, base, resource string
+	var workspace, keyPath, base, resource, protocol string
+	var targetPort int
 	var port int
 	var jsonOutput, noOCI bool
 	switch args[0] {
+	case "forward":
+		flags.StringVar(&protocol, "protocol", "tcp", "tcp or udp")
+		flags.IntVar(&port, "port", 0, "Physical Host loopback port (automatic by default)")
+		flags.IntVar(&targetPort, "target-port", 0, "Environment destination port")
 	case "create":
 		flags.BoolVar(&noOCI, "no-oci", false, "skip automatic OCI Store copy and attachment")
 		flags.StringVar(&workspace, "workspace", "", "Workspace path on the controller")
@@ -73,7 +79,11 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	default:
 		return usage()
 	}
+	flags.Usage = func() { usage() }
 	if err := flags.Parse(args[1:]); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	pos := flags.Args()
@@ -92,8 +102,19 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		fmt.Fprintln(diagnostic, "haco: cannot open controller client")
 		return 1
 	}
+	mutating := args[0] == "create" || args[0] == "start" || args[0] == "stop" || args[0] == "delete" || args[0] == "ssh" || args[0] == "disconnect"
+	if args[0] == "delete" {
+		if _, err := fmt.Fprintf(diagnostic, "Delete Env %q: removes its runtime/root filesystem and connections. Workspace files, OCI Stores and independent snapshots remain. Use stop to keep the Env for tomorrow.\n", pos[0]); err != nil {
+			return 1
+		}
+	}
+	if mutating {
+		fmt.Fprintf(diagnostic, "[running] environment_%s target=%q\n", args[0], pos[0])
+	}
 	var result any
 	switch args[0] {
+	case "forward":
+		result, err = client.ForwardEnvironment(ctx, pos[0], core.LocalPortRequest{Protocol: protocol, HostPort: port, TargetPort: targetPort})
 	case "create":
 		result, err = client.CreateEnvironment(ctx, controlapi.EnvironmentCreateRequest{Name: pos[0], WorkspacePath: workspace, Base: core.BaseName(base), PersistentResource: resource, SkipDefaultResource: noOCI})
 	case "delete":
@@ -143,8 +164,24 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		}
 	}
 	if err != nil {
-		fmt.Fprintf(diagnostic, "haco: %v\n", err)
-		return 1
+		name := ""
+		if len(pos) > 0 {
+			name = pos[0]
+		}
+		return dailyFailure(diagnostic, "environment_"+args[0], "controller", name, err)
+	}
+	if mutating {
+		fmt.Fprintf(diagnostic, "[succeeded] environment_%s\n", args[0])
+		if configEnvironmentName.MatchString(pos[0]) {
+			switch args[0] {
+			case "create", "start":
+				fmt.Fprintf(diagnostic, "Next: haco open %s (desktop) or haco env status %s.\n", pos[0], pos[0])
+			case "stop":
+				fmt.Fprintf(diagnostic, "Resume: haco env start %s, then haco open %s.\n", pos[0], pos[0])
+			case "delete":
+				fmt.Fprintln(diagnostic, "Review retained data: haco workspace list; haco plugin oci store list; haco snapshot list.")
+			}
+		}
 	}
 	if err := json.NewEncoder(out).Encode(result); err != nil {
 		fmt.Fprintln(diagnostic, "haco: cannot write result")

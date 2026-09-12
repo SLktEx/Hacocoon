@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ func (r *Runtime) ProvisionTrustedHostProductClient(ctx context.Context, source 
 }
 
 func (r *Runtime) provisionTrustedHostCompanion(ctx context.Context, source, target string) (resultErr error) {
+	defer hostsetup.Track(ctx, "client_provision")(&resultErr)
 	switch target {
 	case trustedHostProductClientPath, "/usr/local/bin/haco-notify":
 	default:

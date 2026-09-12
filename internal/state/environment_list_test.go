@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -11,14 +12,13 @@ import (
 func TestListEnvironmentsReturnsStableNameOrder(t *testing.T) {
 	store := NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "environments.json"))
 	for _, name := range []string{"zeta", "alpha", "middle"} {
-		if err := store.PutEnvironment(context.Background(), core.Environment{
+		commitEnvironmentFixture(t, store, core.Environment{
 			Name:       name,
 			Workspace:  core.Workspace{ID: core.WorkspaceID("/work/" + name), Path: "/work/" + name},
 			AccessMode: core.WorkspaceReadWrite,
 			RuntimeRef: "haco-" + name,
-		}); err != nil {
-			t.Fatal(err)
-		}
+			CreatedAt:  time.Now().UTC(),
+		})
 	}
 
 	environments, err := store.ListEnvironments(context.Background())

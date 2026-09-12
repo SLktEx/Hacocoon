@@ -44,3 +44,11 @@ Implemented in the Windows SSH acceptance fixture: after ordinary Env creation a
 This supplements installed HTTPS/proxy/direct-TCP acceptance. It checks actual kernel configuration, not delivery of spoofed packets, another Env's deletion, or a full reboot/recreate sequence. Those scopes must not be inferred from this observer. Windows integration runs in the maintained SSH gate; its native outcome must be recorded separately from the observer regressions.
 
 See [scoped acceptance, failed attempts and remaining gates](../status/acceptance-evidence.md#development).
+
+## Policy-bound development relay
+
+The Standard endpoint also supports [explicit TCP/UDP development
+connections](network-connections.md). Ordinary clients select a guest loopback
+listener. Existing HTTP/SNI behavior, bridge source guards and default packet
+denial remain unchanged. Private management and Incus socket access are not
+forwarded through the guest endpoint.

@@ -117,42 +117,7 @@ func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.Envir
 			return created, cause
 		}
 
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), p.cleanupTimeout)
-		defer cancel()
-		_, cleanupErr := p.runner.Run(cleanupCtx, "incus", "delete", ref, "--project", p.project, "--force")
-		if cleanupErr == nil {
-			if guardErr := p.removeRoutedSandboxSourceGuard(cleanupCtx, ref); guardErr != nil {
-				return core.EnvironmentRuntime{}, errors.Join(cause, fmt.Errorf("cleanup routed source guard for %s: %w", ref, guardErr), core.ErrRecoveryRequired)
-			}
-			return core.EnvironmentRuntime{}, cause
-		}
-		if cleanupCtx.Err() != nil {
-			return core.EnvironmentRuntime{}, errors.Join(
-				cause,
-				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
-				core.ErrRecoveryRequired,
-			)
-		}
-		exists, inspectErr := p.environmentExists(cleanupCtx, ref)
-		if inspectErr != nil {
-			return core.EnvironmentRuntime{}, errors.Join(
-				cause,
-				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
-				fmt.Errorf("confirm Incus cleanup state for %s: %w", ref, inspectErr),
-				core.ErrRecoveryRequired,
-			)
-		}
-		if exists {
-			return core.EnvironmentRuntime{}, errors.Join(
-				cause,
-				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
-				core.ErrRecoveryRequired,
-			)
-		}
-		if guardErr := p.removeRoutedSandboxSourceGuard(cleanupCtx, ref); guardErr != nil {
-			return core.EnvironmentRuntime{}, errors.Join(cause, fmt.Errorf("cleanup routed source guard for absent %s: %w", ref, guardErr), core.ErrRecoveryRequired)
-		}
-		return core.EnvironmentRuntime{}, cause
+		return p.cleanupFailedEnvironment(ctx, ref, cause, p.DeleteEnvironment)
 	}
 
 	if record != nil {
@@ -183,7 +148,7 @@ func (p *SandboxProvider) DeleteEnvironment(ctx context.Context, ref string) err
 		return core.ErrInvalidArgument
 	}
 	deleteErr := p.Runtime.DeleteEnvironment(ctx, ref)
-	if deleteErr != nil && !errors.Is(deleteErr, core.ErrNotFound) {
+	if !core.EnvironmentDeletionComplete(deleteErr) {
 		return deleteErr
 	}
 	guardErr := p.removeRoutedSandboxSourceGuard(ctx, ref)

@@ -73,3 +73,15 @@ Linux `flock`を保持します。プロセス終了後にロックが取得で�
 識別情報だけ、PID推測は削除権限ではありません。稼働所有者のロックは飛ばし、
 失敗時は`cleanup-required`を保持します。非対応platformでは弱い証明へ切り替えません。
 SIGINT/SIGTERM時の後始末は実行キャンセルとは独立した期限で動きます。
+
+## cleanup 結果の責任
+
+実装済み: 通常終了、activation 失敗、中断された一時実行の復旧は、時間制限付きの
+canonical runtime／scratch cleanup と、共通のマーカー更新処理を使います。
+作成失敗も同じマーカー更新を使いますが、canonical 作成が runtime 所有状態を確認不能と
+報告した間は scratch データを削除しません。cleanup またはマーカー永続化の失敗は元の原因を
+保持して一貫して recovery-required を返し、既存の起動時／次回実行時の復旧で再試行します。
+JSON 形式と guest 終了コードは変わりません。cleaned_up は runtime／scratch cleanup の
+完了を表し、マーカー削除の失敗は引き続きエラーです。リポジトリ回帰テストでマーカー削除の
+再試行、activation 失敗、キャンセル、保持 Workspace／Store の境界、scratch の途中失敗を
+検証します。

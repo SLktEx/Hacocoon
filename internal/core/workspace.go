@@ -79,6 +79,8 @@ type Environment struct {
 }
 
 type EnvironmentSpec struct {
+	// ExpectedWorkspace pins a reviewed retained work before any provider mutation.
+	ExpectedWorkspace   WorkspaceID
 	TemporaryWorkspace  *Workspace
 	SkipDefaultResource bool
 	PersistentResource  string
@@ -128,4 +130,16 @@ type ExecutionResult struct {
 	StderrTruncated bool
 	StdoutBytes     int64
 	StderrBytes     int64
+}
+
+// MatchesEnvironment checks the common active-lease binding. Generation,
+// snapshot and authority-specific checks remain with their operation owners.
+func (lease WorkspaceLease) MatchesEnvironment(environment Environment) bool {
+	return lease.State == WorkspaceLeaseActive && environment.Name != "" &&
+		lease.EnvironmentID == environment.Name && lease.RuntimeRef != "" &&
+		lease.RuntimeRef == environment.RuntimeRef &&
+		lease.WorkspaceID == environment.Workspace.ID &&
+		lease.SourcePath == environment.Workspace.Path &&
+		lease.AccessMode == environment.AccessMode &&
+		lease.PersistentResource == environment.PersistentResource
 }

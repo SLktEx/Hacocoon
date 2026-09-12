@@ -2,7 +2,6 @@ package incus
 
 import (
 	"context"
-	"encoding/json"
 	"reflect"
 	"time"
 
@@ -40,8 +39,7 @@ func (r *Runtime) DiagnoseHost(ctx context.Context, storage BtrfsLoopPoolSpec) (
 		return ok
 	}
 	readJSON := func(ctx context.Context, target any, args ...string) bool {
-		result, err := r.runner.Run(ctx, "incus", args...)
-		return err == nil && result.ExitCode == 0 && !result.StdoutTruncated && json.Unmarshal([]byte(result.Stdout), target) == nil
+		return r.readIncusJSON(ctx, target, args...) == nil
 	}
 	if !check(0, "Incus API is available with trusted management access",
 		"Cannot verify Incus API availability and trusted controller access",

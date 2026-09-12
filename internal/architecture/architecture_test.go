@@ -6,7 +6,10 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
+
+	"github.com/SLktEx/Hacocoon/internal/state"
 	"strconv"
 	"strings"
 	"testing"
@@ -119,4 +122,16 @@ func stringLiteral(expr ast.Expr) (string, bool) {
 	}
 	value, err := strconv.Unquote(literal.Value)
 	return value, err == nil
+}
+
+// The production catalog must not offer an alternate path that can mutate one
+// side of Environment ownership, including to provider/plugin callers outside
+// the application-source scan above.
+func TestCatalogExposesOnlyAggregateEnvironmentMutations(t *testing.T) {
+	catalog := reflect.TypeOf(state.NewEnvironmentJSONStore(""))
+	for _, name := range []string{"PutEnvironment", "DeleteEnvironment", "AcquireWorkspaceLease", "PutWorkspaceLease", "DeleteWorkspaceLease"} {
+		if _, exists := catalog.MethodByName(name); exists {
+			t.Errorf("catalog exposes independent mutation %s", name)
+		}
+	}
 }

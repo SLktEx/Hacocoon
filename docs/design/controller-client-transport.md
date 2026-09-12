@@ -333,3 +333,14 @@ The reclamation management surface also provides read-only `storage.reclamation-
 for discovery of this installed controller's bounded WSL identity. No caller-selected
 target or raw backend error crosses that response; it grants no Windows mutation
 authority. See [target discovery](storage-reclamation.md#windows-enrollment-and-file-identity).
+
+## Host setup observation
+
+`system.setup.progress` is a bounded JSON event stream on the existing privileged
+management socket only. It shares one exclusion with `system.setup` and invokes
+the same service. Each observation contains fixed stage/state/reason, duration
+and a controller-generated correlation ID. Completion requires a final frame;
+EOF is not success. The CLI does not fall back to another mutation. Disconnect
+retains server-side lifecycle ownership until the bounded operation returns.
+There is no guest endpoint registration or new management authority. See
+[setup diagnostics](trusted-host.md#setup-progress-and-failure-diagnostics).

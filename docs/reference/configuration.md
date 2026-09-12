@@ -59,3 +59,8 @@ These tests do not establish installed Windows/WSL acceptance.
 ## Acceptance
 
 Installed round trips passed at `2584ec6` and `71dbb4f`. The original empty-array display failure and unresolved earlier preview/doctor failure are retained in [acceptance evidence](../status/acceptance-evidence.md#development). Repository tests and installed results remain separate.
+
+Rules may specify an optional RFC 3339 `expires_at`. At that deadline the rule
+stops matching; remaining rules and default policy still apply. Malformed values
+fail loading. See [rule lifetime](../design/policy-and-capability-foundation.md#rule-lifetime)
+and [active connection cancellation](../design/network-connections.md).

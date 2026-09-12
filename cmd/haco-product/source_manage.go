@@ -86,6 +86,9 @@ func sourceManageCommand(ctx context.Context, c sourceManageClient, args []strin
 	}
 	fmt.Fprintln(diagnostic, "This deletes the selected Host source repository and its local Git data. Remote repositories, Workspaces, OCI Stores and independent snapshots remain.")
 	if !yes {
+		if !requireInteractiveConfirmation(in, diagnostic) {
+			return 2
+		}
 		fmt.Fprint(diagnostic, "Delete this source repository? [y/N] ")
 		answer, err := bufio.NewReader(io.LimitReader(in, 128)).ReadString('\n')
 		answer = strings.ToLower(strings.TrimSpace(answer))
