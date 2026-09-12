@@ -116,6 +116,13 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	initial := testCommit(t, seed, "hello.txt", "initial\n")
 	testGit(t, seed, "remote", "add", "origin", "file://"+remote)
 	testGit(t, seed, "push", "origin", "main")
+	testGit(t, seed, "switch", "-c", "feature/topic.v2")
+	feature := testCommit(t, seed, "feature.txt", "separate branch\n")
+	testGit(t, seed, "push", "origin", "feature/topic.v2")
+	testGit(t, seed, "switch", "-c", "feature/independent", initial)
+	independent := testCommit(t, seed, "independent.txt", "another branch in one fetch batch\n")
+	testGit(t, seed, "push", "origin", "feature/independent")
+	testGit(t, seed, "switch", "main")
 	backend := localBackend{repos: filepath.Join(root, "repos"), workspaces: filepath.Join(root, "workspaces")}
 	repo := Object{Kind: "repo", ID: "demo", Repository: "demo", Remote: "file://" + remote, Branch: "main", NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}
 	work := repo
@@ -124,6 +131,9 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	work.Owner = strings.Repeat("b", 32)
 	if _, err := backend.RunGit(context.Background(), AgentRequest{Operation: "clone", Repository: repo.ID, Remote: repo.Remote, Branch: repo.Branch}); err != nil {
 		t.Fatal(err)
+	}
+	if got := testGit(t, filepath.Join(backend.repos, "demo"), "rev-parse", "refs/remotes/origin/feature/topic.v2"); got != feature {
+		t.Fatal("Host clone omitted a non-default branch")
 	}
 	workspace := filepath.Join(backend.workspaces, "work")
 	testGit(t, root, "clone", "--no-local", filepath.Join(backend.repos, "demo"), workspace)
@@ -184,7 +194,52 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
 	t.Setenv("HACO_GIT_TEST_HELPER", "1")
 	t.Setenv("HACO_GIT_TEST_SOCKET", broker.socket("dev"))
+	testGit(t, seed, "switch", "feature/topic.v2")
+	feature = testCommit(t, seed, "private.txt", "must not be fetched under a per-ref deny\n")
+	testGit(t, seed, "push", "origin", "feature/topic.v2")
+	testGit(t, seed, "switch", "main")
+	// A prior read rule limited to main cannot silently grant all-heads reads.
+	limitedRead := `{"default":"deny","rules":[{"capability":"git.repository","action":"fetch","environment":"*","resource":"*","attributes":{"repository":"*","remote":"*","target_ref":"refs/heads/main","old_oid":"*","new_oid":"*","operation_id":"*"},"decision":"allow"}]}`
+	if err := os.WriteFile(policyPath, []byte(limitedRead), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := UnixExchange(broker.socket("dev"))(ctx, Request{Operation: "list", Repository: "demo"}); err == nil {
+		t.Fatal("one-branch read rule authorized all heads")
+	}
+	deniedHead := `{"default":"allow","rules":[{"capability":"git.repository","action":"fetch","environment":"*","resource":"*","attributes":{"repository":"*","remote":"*","target_ref":"refs/heads/feature/topic.v2","old_oid":"*","new_oid":"*","operation_id":"*"},"decision":"deny"}]}`
+	if err := os.WriteFile(policyPath, []byte(deniedHead), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, request := range []Request{{Operation: "list", Repository: "demo"}, {Operation: "fetch", Repository: "demo", Heads: []Head{{Ref: "refs/heads/feature/topic.v2", OID: feature}}}} {
+		if _, err := UnixExchange(broker.socket("dev"))(ctx, request); err == nil {
+			t.Fatal("broad reads bypassed exact-ref deny")
+		}
+	}
+	if _, err := trustedGit(ctx, filepath.Join(backend.repos, "demo"), nil, "cat-file", "-e", feature); err == nil {
+		t.Fatal("denied branch objects reached Host before authorization")
+	}
+	if err := os.WriteFile(policyPath, []byte(initialPolicy), 0600); err != nil {
+		t.Fatal(err)
+	}
 	testGit(t, workspace, "fetch", "origin")
+	if got := testGit(t, workspace, "rev-parse", "refs/remotes/origin/feature/topic.v2"); got != feature {
+		t.Fatal("ordinary fetch omitted alternate branch")
+	}
+	if got := testGit(t, workspace, "rev-parse", "refs/remotes/origin/feature/independent"); got != independent {
+		t.Fatal("ordinary batch fetch omitted independent history")
+	}
+	testGit(t, workspace, "switch", "--track", "origin/feature/topic.v2")
+	if got := testGit(t, workspace, "rev-parse", "HEAD"); got != feature {
+		t.Fatal("cannot switch to fetched branch")
+	}
+	testGit(t, workspace, "switch", "main")
+	// A newly advertised branch after clone must pass through the helper too.
+	testGit(t, seed, "branch", "second", feature)
+	testGit(t, seed, "push", "origin", "second")
+	testGit(t, workspace, "fetch", "origin")
+	if got := testGit(t, workspace, "rev-parse", "refs/remotes/origin/second"); got != feature {
+		t.Fatal("new upstream head omitted")
+	}
 	upstream := testCommit(t, seed, "upstream.txt", "pulled normally\n")
 	testGit(t, seed, "push", "origin", "main")
 	testGit(t, workspace, "pull", "--ff-only")

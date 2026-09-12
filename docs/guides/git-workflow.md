@@ -22,9 +22,9 @@ The public example permits reads; it does not confer GitHub push rights.
     "environment": "sample-dev", "resource": "https://github.com/SLktEx/Hacocoon.git",
     "attributes": {
       "repository": "sample", "remote": "https://github.com/SLktEx/Hacocoon.git",
-      "target_ref": "refs/heads/main", "old_oid": "*", "new_oid": "*", "operation_id": "*"
+      "target_ref": "refs/heads/*", "old_oid": "*", "new_oid": "*", "operation_id": "*"
     },
-    "decision": "allow", "reason": "Read the registered branch"
+    "decision": "allow", "reason": "Read all branches of this registered repository"
   },
   {
     "capability": "git.repository", "action": "push",
@@ -40,7 +40,12 @@ The public example permits reads; it does not confer GitHub push rights.
 ```
 
 Every request attribute must be represented. The wildcards above allow changing
-commit IDs and operation IDs while keeping repository/ref authority fixed.
+commit IDs and operation IDs while keeping repository authority fixed. Reads
+cover all branches; pushes remain limited to the exact main ref and still ask.
+An older read rule limited to main does not authorize all-branch fetch: review
+that scope explicitly before updating it. Clone does not save an allow-push rule.
+An exact-ref read denial also refuses the whole listing. Object fetch rechecks
+each exact ref through the ordinary Policy service.
 Push rules need `update_kind: fast-forward`; older rules without it fail closed.
 [Policy precedence](../design/policy-and-capability-foundation.md#matching-rule-precedence)
 is deny, then require-approval, then allow, regardless of rule order.
@@ -52,8 +57,23 @@ proxy. Package downloads and application DNS require their separate network rule
 
 In the Environment, use ordinary `git status`, `git fetch origin`,
 `git pull --ff-only`, `git add`, `git commit` and `git push`.
-The managed helper handles one existing SHA-1 branch and packs up to 32 MiB.
-Force push, branch creation/deletion, multiple refs, LFS and submodules are deferred.
+The development candidate fetches up to 1024 SHA-1 branch heads per batch, with
+an aggregate 32 MiB pack limit. Per-head transfers can repeat shared history;
+large-pack optimization remains pending. Use `git branch -r` to see them, then for example
+`git switch --track origin/feature/example` to work on an existing branch.
+Push currently supports the one existing branch selected at registration.
+New-branch push, force push, branch deletion, multi-ref push, LFS and submodules
+remain deferred. A moved or deleted head is rejected; fetch again to inspect the
+current upstream state. This does not establish large-repository acceptance.
+
+New Workspaces use a wildcard origin fetch mapping. To opt an existing independent
+Workspace into all branches, run the following **inside that Environment** after
+reviewing the read Policy. This updates only its local Git configuration:
+
+```bash
+git config --replace-all remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+git fetch origin
+```
 
 While a push waits, use a second trusted Host terminal:
 
