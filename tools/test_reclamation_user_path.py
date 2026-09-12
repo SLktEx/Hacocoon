@@ -13,6 +13,15 @@ OP = "{11111111-1111-4111-8111-111111111111}"
 
 
 class ReclamationUserPathTests(unittest.TestCase):
+    def test_absent_history_refuses_existing_or_partial_evidence(self):
+        gate.require_absent_history({"operation": "", "state": "none"})
+        for result in (None, {}, {"state": "none"},
+                       {"operation": OP, "state": "pending"},
+                       {"operation": OP, "state": "failed"},
+                       {"operation": "", "state": "none", "linux_started": True}):
+            with self.assertRaises(RuntimeError):
+                gate.require_absent_history(result)
+
     def test_process_identity_must_be_observed(self):
         helper = r"C:\fixture\haco-wsl.exe"
         self.assertFalse(gate.helper_is_running([], helper))
