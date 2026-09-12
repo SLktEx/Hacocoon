@@ -3,7 +3,9 @@
 
 The user-directed v2 development track is integrated only through `dev/2.x`.
 Network Everywhere has an implemented relay/CLI with scoped dedicated Incus
-acceptance; Workspace Rework is in progress. These are development milestones,
+acceptance; Workspace Rework now has implemented path entry, reopen and stopped
+data forks with dedicated installed CLI/Incus acceptance. See the
+[Workspace contract and measurements](../design/workspace-workflow.md). These are development milestones,
 not a main-branch release or tag. Windows/VPN and large-repository acceptance
 remain separately stated in the owning contracts. Existing v0.x checkpoints and
 unrelated pending acceptance are preserved.

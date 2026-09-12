@@ -164,3 +164,28 @@ func TestTemporaryCopyCleanupChecksWorkspaceOwnershipAndKeepsSource(t *testing.T
 		t.Fatal(err)
 	}
 }
+
+func TestRetainedExplicitStoreWinsOverHostPublicationAfterRecreation(t *testing.T) {
+	ctx := context.Background()
+	st := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
+	b := &workspaceCopyBackend{store: st}
+	svc := &persistentresource.Service{Store: st, Backend: b}
+	if _, err := svc.PublishSource(ctx, HostStoreID, StoreKind, func(context.Context, core.PersistentResource) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	work := core.Workspace{ID: "managed:fork"}
+	retained, err := svc.CopyForWorkspace(ctx, "oci:fork", StoreKind, HostStoreID, work.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := (WorkspaceStores{Resources: svc}).Resolve(ctx, work)
+	if err != nil || got.Ref() != retained.Ref() || b.copies != 1 {
+		t.Fatal(got, err, b.copies)
+	}
+	if _, err = svc.CopyForWorkspace(ctx, "oci:second", StoreKind, HostStoreID, work.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = (WorkspaceStores{Resources: svc}).Resolve(ctx, work); !errors.Is(err, core.ErrStorageBusy) {
+		t.Fatal("ambiguous association accepted", err)
+	}
+}

@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -29,14 +30,18 @@ func runOpen(args []string) int {
 	port := flags.Int("port", 0, "open an Environment HTTP port in the browser")
 	closePreview := flags.Bool("close", false, "close the selected preview port")
 	noBrowser := flags.Bool("no-browser", false, "print the preview URL without launching a browser")
-	selected := flags.String("client", "vscode", "desktop client: vscode or ssh")
+	selected := flags.String("client", "vscode", "desktop client: vscode, ssh or none")
+	repos := flags.String("repo", "", "Host repository IDs for a new path reference")
+	workName := flags.String("name", "", "name for a new path reference")
+	base := flags.String("base", "", "Base when creating the work Env")
+	oci := flags.String("oci", "", "auto, none, or a retained oci: Store")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
 		return 2
 	}
-	if flags.NArg() > 1 || (*selected != "vscode" && *selected != "ssh") {
+	if flags.NArg() > 1 || (*selected != "vscode" && *selected != "ssh" && *selected != "none") {
 		fmt.Fprintln(os.Stderr, "Usage: haco open [--client vscode|ssh | --port <port> [--close | --no-browser]] [environment]")
 		return 2
 	}
@@ -46,13 +51,47 @@ func runOpen(args []string) int {
 			portSet = true
 		}
 	})
+	selectedArgs := flags.Args()
+	pathMode := len(selectedArgs) == 1 && workspacePath(selectedArgs[0])
+	if !pathMode && (*repos != "" || *workName != "" || *base != "" || *oci != "" || *selected == "none") {
+		fmt.Fprintln(os.Stderr, "haco: --repo, --name, --base, --oci and --client none require a directory")
+		return 2
+	}
+	if pathMode {
+		if (*closePreview || *noBrowser) && !portSet {
+			return 2
+		}
+		if portSet && (*port < 1 || *port > 65535 || *selected != "vscode") {
+			return 2
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		defer cancel()
+		client, e := controlapi.NewDefaultClient()
+		if e != nil {
+			fmt.Fprintln(os.Stderr, "haco:", e)
+			return 1
+		}
+		result, e := openWorkspacePath(ctx, client, pathOpenOptions{Path: selectedArgs[0], Name: *workName, Repositories: *repos, Base: *base, OCI: *oci})
+		if e != nil {
+			fmt.Fprintln(os.Stderr, "haco:", e)
+			return 1
+		}
+		selectedArgs = []string{result.Environment.Name}
+		if *selected == "none" {
+			if json.NewEncoder(os.Stdout).Encode(result) != nil {
+				return 1
+			}
+			return 0
+		}
+		fmt.Fprintln(os.Stderr, "Workspace ready:", result.Name, "— edit the isolated copy under /workspace")
+	}
 	if portSet {
 		if *port < 1 || *port > 65535 || *selected != "vscode" {
 			return 2
 		}
 		name := ""
-		if flags.NArg() == 1 {
-			name = flags.Arg(0)
+		if len(selectedArgs) == 1 {
+			name = selectedArgs[0]
 		}
 		return openPreview(name, *port, *closePreview, *noBrowser, os.Stdout, os.Stderr)
 	}
@@ -60,7 +99,7 @@ func runOpen(args []string) int {
 		fmt.Fprintln(os.Stderr, "haco: --close and --no-browser require --port")
 		return 2
 	}
-	return setupDesktopSSH(flags.Args(), *selected)
+	return setupDesktopSSH(selectedArgs, *selected)
 }
 func setupDesktopSSH(args []string, launch string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)

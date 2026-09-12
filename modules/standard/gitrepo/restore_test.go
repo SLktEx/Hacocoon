@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -286,5 +287,41 @@ func TestPublishedRestoreCleanupFailureIsNotReady(t *testing.T) {
 	backend.fail = ""
 	if err := service.CleanupRestoredWorkspace(context.Background(), object.ID); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAssociatedDataMustCompleteBeforeWorkspacePublication(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		t.Run(fmt.Sprint(fail), func(t *testing.T) {
+			b := &savedBackend{t: t, sources: []SavedWorkspace{{Repository: "one", Remote: "https://github.com/example/one.git", Branch: "main", Component: core.SnapshotComponent{State: "verified"}}}}
+			s := NewRepositoryService(t.TempDir(), b)
+			b.service = s
+			catalog := &workspaceCopyCatalog{}
+			s.SnapshotCatalog = catalog
+			saved := core.Snapshot{ID: "snap-" + strings.Repeat("a", 32), State: "ready"}
+			called := false
+			result, err := s.RestoreWorkspaceWithData(context.Background(), "restored", saved, func(_ context.Context, work core.Workspace) error {
+				called = true
+				object, e := s.Get("work", "restored")
+				if !errors.Is(e, core.ErrRecoveryRequired) || object.State != "creating" || work.ID != core.WorkspaceID("workspace:managed:"+object.Owner) || catalog.owner == "" {
+					t.Fatalf("premature publication: %+v %v", object, e)
+				}
+				if fail {
+					return core.ErrRuntimeUnavailable
+				}
+				return nil
+			})
+			if !called {
+				t.Fatal("associated data skipped")
+			}
+			if fail {
+				object, e := s.Get("work", "restored")
+				if !errors.Is(err, core.ErrRecoveryRequired) || !errors.Is(e, core.ErrRecoveryRequired) || object.Owner != result.Owner || catalog.owner == "" || len(b.deleted) != 0 {
+					t.Fatalf("lost owned data/reservation: %+v %v %v", object, err, e)
+				}
+			} else if err != nil || result.State != "ready" || catalog.owner != "" {
+				t.Fatal(result, err)
+			}
+		})
 	}
 }

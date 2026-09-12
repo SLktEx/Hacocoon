@@ -40,6 +40,7 @@ import (
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
 	"github.com/SLktEx/Hacocoon/modules/standard/networkrelay"
 	"github.com/SLktEx/Hacocoon/modules/standard/projectsetup"
+	"github.com/SLktEx/Hacocoon/modules/standard/workflow"
 )
 
 const defaultLocalStorageID = "local-default"
@@ -49,6 +50,7 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
+	Workflow            *workflow.Service
 	Networks            *networkrelay.Service
 	transferCatalog     *state.EnvironmentJSONStore
 	EnvironmentCopy     *environmentcopy.Service
@@ -269,6 +271,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	operations.Handle("/", awsplugin.NewGuestHandler(awsBroker, egressSources))
 
 	return &App{
+		Workflow:            &workflow.Service{Repositories: repositories, Environments: environments, Stores: resources},
 		Networks:            networks,
 		transferCatalog:     store,
 		SnapshotRestore:     restorer,

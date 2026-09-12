@@ -1,5 +1,25 @@
 # Implementation Status
 
+## Workspace entry, resume and independent data forks
+
+Implemented Standard workflow on the development branch: `haco open .`,
+explicit Host multi-repo preparation, owner-pinned reuse, stopped COW data forks
+and persistent Base/OCI preferences. Existing catalogs and canonical lifecycle
+remain authoritative. Dedicated installed CLI/Incus acceptance passed editing,
+Env deletion/recreation, Git/OCI independence, OCI none/reuse, another Base and
+partial-failure ownership retention. Scope and measured time/capacity are in
+[the Workspace contract](design/workspace-workflow.md); giant repositories and
+Workspace desktop UI are not claimed.
+
+## Development CI platform coverage
+
+The maintained test workflow includes `dev/2.x` PRs and integration commits.
+Installer component fixtures separate OS discovery from native invocation and
+preserve checksum, argument and failure assertions. Win32 locked-worker and
+junction refusal run on Windows, with explicit non-acceptance wording on Linux.
+Dedicated Windows PowerShell component/native filesystem acceptance passed;
+this is distinct from running the Windows installer or a desktop IDE.
+
 ## Policy-bound TCP and UDP connections
 
 Implemented Standard relay and product CLI on the development branch. It reuses

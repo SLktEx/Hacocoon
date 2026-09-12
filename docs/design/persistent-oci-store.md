@@ -1,5 +1,12 @@
 # Persistent OCI Store
 
+The Standard [Workspace workflow](workspace-workflow.md) retains auto/none/explicit
+Store selection in the local work reference. Automatic selection reuses one
+retained Workspace-bound Store when no automatic ID exists, including forked
+Stores; ambiguous or incomplete associations require explicit resolution.
+Stopped data forks copy guest-modified OCI into a fresh owner before publishing
+the destination work, and never publish guest data back into trusted Host.
+
 Status: implemented for containerd/nerdctl; packaged acceptance is recorded in
 [implementation status](../IMPLEMENTATION_STATUS.md). Docker data-root configuration is implemented; full Docker Store compatibility
 acceptance remains partial. Container tooling remains optional and is not installed by Core.
