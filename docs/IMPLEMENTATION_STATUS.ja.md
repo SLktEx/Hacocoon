@@ -44,3 +44,8 @@ CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入�
 ## 開発候補への統合
 
 実装済み（開発候補のみ）: [Workspace入口・独立fork](design/workspace-workflow.md)、[TCP/UDP接続](design/network-connections.md)、[日常操作・setup診断](reference/daily-workflow.ja.md)。main反映・配布・統合候補の実機確認とは区別します。
+
+
+M1は**partial**です。階層別の日英ヘルプ、日常失敗・保持／再開の日本語案内、BATの共通
+終了表示・待機省略、nativeの同種失敗通知抑制を実装しました。Windows→WSL→Hostの
+自動言語引き継ぎ、残る翻訳、通常Windows/IDE実機、Incus 7.0 LTS統一は未完了です。

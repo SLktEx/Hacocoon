@@ -122,3 +122,38 @@ Use [failed-run and acceptance evidence](acceptance-evidence.md) when prioritizi
 follow-ups. Do not erase unexplained failures because a later run passed, or turn
 a skipped external prerequisite into an implemented support claim. Old progress
 diaries and superseded numbering remain in Git history.
+
+## Active M0–M5 execution record
+
+The user-supplied Hacocoon_Roadmap_2026-09-13.md sets the current execution order.
+The earlier A–G table retains historical acceptance mapping, not a requirement to
+rerun all old tests. Main, dev/v2 and dev/2.x are distinct publication states.
+
+| Stage | Current candidate and next gate |
+|---|---|
+| M0: combine existing improvements | **partial**. Candidate `codex/roadmap-m0-m1` starts at dev/2.x `ac67fadb` (#576/#579), merges dev/v2 `4d74dd53` (#569/#571) as `5e43c8db`, main `9527948b` (#572/#574/#578) as `e941c080`, and #580 `dd7141c1` as `63822b94`. Existing dirty main checkout is retained. Integration target is dev/2.x; no main merge or distribution. Combined installed acceptance remains pending. |
+| M1: ordinary Windows development | **partial**. BAT result/wait (#573), hierarchical bilingual help (#575/#577), daily failure guidance and native failure grouping (#582, roadmap R1) are implemented in the candidate. Remaining: full help/options coverage, language transport, Windows/VS Code/real terminal acceptance and Incus 7.0 LTS (#479). |
+| M2: multi-repo Git and GUI decisions | **partial existing foundation**. Workspace prepare/reopen/fork and scoped native acceptance come from #579. All-branch fetch, new-branch push, read/write permission separation, direct GUI responses (#568) and ambiguous push reconciliation (#470) remain. Main pushes still require the user's decision. |
+| M3: corporate network | **partial existing foundation**. Reuse #576 TCP/UDP plus its expiry/revocation/generation tests. The dedicated Windows-service timeout remains unresolved; VPN/DNS modes, client stream forwarding and temporary-run TTY remain. No firewall exception is introduced to obtain a pass. |
+| M4: large repositories | **planned remaining work**. Preserve existing Base builder/CoW/OCI results. Real Packer HCL2 plus external shell (#566), Host-selected normal-Env cache generation/COW reuse (#570), cleanup and actual large-repo measurement (#241) remain. Small #579 fixtures are not giant-repository acceptance. |
+| M5: cleanup and migration | **partial existing foundation**. Preserve snapshot/copy/export/import/reclaim and stopped-containerd evidence. Deletion diagnosis (#523), required whole-installation inventory/restore/comparison and authenticated restored Git remain. Final old-WSL replacement requires identified verified data and explicit authority for deletion. |
+
+The integration is not a release. R1 now maps to #582. R2–R6 remain document
+candidate labels; create only nonduplicated, bounded issues when their remaining
+implementation scope is established. Web management, other PCs/backends and AWS
+acceptance stay outside this mainline.
+
+Validation so far: dedicated hacocoon-second Go 1.27.1 passed the maintained
+`bash tools/ci-local.sh test` (all Go packages, vet, notification clients 27/27 and
+Python prerequisites); focused CLI/notification/catalog tests passed after the
+new changes. Native Windows BAT component tests passed 0/1/37/3010 and missing
+PowerShell/adjacent-script cases. Documentation consistency passed after resolving
+moved links. A wrapper's final shell exit expansion failed after all initial Go
+packages passed; a direct rerun passed. An intermediate BAT test edit failed to
+parse and was corrected before the recorded passing run. These are not product
+SSH failures or native installer acceptance.
+
+Next: finish candidate-level verification and PR evidence, then continue the M1
+language/ordinary Windows gaps. Keep #553's reported PF-host acceptance and #579's
+Windows outbound timeout distinct from later narrower passes. No source data,
+existing Env, retained Store, user branch, tag or release has been deleted.

@@ -44,3 +44,10 @@ Old development diaries remain in Git history. Decision-relevant unique evidence
 ## Development candidate integration
 
 Implemented on this development candidate: [Workspace entry and independent forks](design/workspace-workflow.md), [TCP/UDP connections](design/network-connections.md), and [daily entry/setup diagnostics](reference/daily-workflow.md). Main integration, distribution and native acceptance of the combined candidate remain separate.
+
+
+M1 is **partial**: hierarchical bilingual help, localized daily failure/retention/
+resume guidance, shared BAT final results and unattended opt-out, and native
+failure-notification grouping are implemented. Automatic Windows/WSL/Host language
+handoff, remaining translations, ordinary Windows/IDE acceptance and the Incus
+7.0 LTS installer baseline remain incomplete.
