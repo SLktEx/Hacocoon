@@ -126,6 +126,8 @@ install-windows.bat -InteractiveUserSetup
 
 既定の管理accountはpassword入力不要で、retry時に既存accountのpasswordをresetしません。この経路だけ、既知のUbuntu account/metrics OOBE commandを空にし、検証済みdefault UIDを設定します。他のdistribution設定を保持してatomicに置換し、未知のOOBE設定ではfail closedします。対話optionでは通常のUbuntu setupを維持し、利用者をmetrics送信へopt-inしません。[ADR 0004](adr/0004-wsl-installer-authority.md)を参照してください。
 
+Linux setup により `hacocoon` access group だけが先に存在する場合、ログインユーザー作成は確認済みの非 root GID を使います。group がなければ通常どおり専用 group を作成します。不正な記録・root GID・group 照会失敗ではユーザー作成前に停止し、既存アカウントとパスワードは変更しません。
+
 ## 登録の中断とWindows再起動
 
 InstallerはWSL一覧の取得成功を確認してからdistributionの作成要否を決めます。一覧取得失敗は状態不明であり、空の一覧として扱いません。作成後も再度一覧を取得し、対象名のdistributionが登録されたことを確認してからcommon Ubuntu setupへ進みます。
