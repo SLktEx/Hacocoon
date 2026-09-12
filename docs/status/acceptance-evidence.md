@@ -156,3 +156,18 @@ new regression detected it and the corrected validator rejects it. Six helper
 tests, seven host preparation tests, installer packaging and Go HostDiagnostics
 tests passed. No installed WSL packages or retained user resources were changed.
 Fresh 7.0 product installation is still pending.
+
+At `cc18a60b`, full test CI 34715459033 passed. Incus run 34715459013
+passed standalone and Core/egress/lifecycle jobs, but failed owned-Btrfs Store
+maintenance: the real CLI correctly rejected piped deletion confirmation with
+exit 2, whereas the old test expected a terminal decline. The replacement uses
+a private Linux PTY for both decline and approval; no product confirmation
+requirement or cleanup assertion is weakened. Native rerun remains required.
+
+Ubuntu run 34715458982 installed and verified Incus 7.0.1, then failed boot-guard
+adoption because the daemon path differed from Ubuntu's package. `2c9faa07`
+recognizes the exact Zabbly daemon path while retaining root, namespace and
+systemd MainPID checks; 20 regressions passed. Unknown active daemons still fail
+closed. This fix also needs installed acceptance. Windows run 34715459045 passed
+the ConPTY component and was still exercising ordinary installation when these
+follow-ups were prepared; this is not a complete Windows pass.

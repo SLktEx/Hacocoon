@@ -141,3 +141,15 @@ LTS回帰は追加／欠落／重複鍵、異なる配布元・系列、依存�
 改行入り版がシェル検証を通る問題を試験で検出・修正しました。helper 6件、Host準備7件、
 梱包、Go HostDiagnosticsが成功しました。既存WSLのパッケージ・保持データは変更していません。
 7.0製品の新規導入受入は確認待ちです。
+
+`cc18a60b`の全体test CI（34715459033）は成功しました。Incus（34715459013）は
+standalone・Core／egress／lifecycleが成功しましたが、owned-BtrfsのStore保守試験で失敗しました。
+製品CLIがパイプによる削除確認を正しく終了2で拒否する一方、旧試験は端末からの拒否を期待していました。
+拒否・承認の両方を専用Linux PTYから回答する形へ直し、製品の確認条件やcleanup検証は維持しています。
+実Incusでの再実行が必要です。
+
+Ubuntu（34715458982）はIncus 7.0.1の導入・版確認後、Ubuntu版と異なるdaemonパスで
+boot guardの採用に失敗しました。`2c9faa07`はroot・namespace・systemd MainPID照合を維持して
+Zabblyの正規パスを認識し、回帰20件が成功しました。不明な稼働daemonは引き続き拒否します。
+修正後の導入受入は未確認です。Windows（34715459045）はConPTY componentが成功し、
+この修正準備時点で通常導入の試験中でした。Windows全体の成功とは扱いません。

@@ -186,3 +186,10 @@ remain pending. Local ci-local.sh e2e printed PASS for all four stages, then
 reported a shell parse error after its source had been edited during the long
 run. The invocation is recorded as failed; separate current-file syntax checks
 and full CI success do not erase that local harness result.
+
+Incus run 34715459013 then failed the detached Store deletion-confirmation
+test because it supplied a pipe to the terminal-only confirmation path. The
+fixture now uses a private PTY for reviewed decline/approval. Lower-cost PTY and
+product confirmation regressions cover that boundary; installed Store maintenance
+must pass again before this gate is accepted. See acceptance evidence for the
+original failed run and the successful narrower jobs.
