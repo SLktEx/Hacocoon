@@ -28,6 +28,7 @@ func writeLocalizedHelp(out io.Writer, language cliui.Language) {
 	fmt.Fprintln(out, language.Text("help.commands"))
 	for _, command := range [...]struct{ name, message string }{
 		{"setup", "help.setup"},
+		{"network", "command.network"},
 		{"aws", "help.aws"},
 		{"config", "help.config"},
 		{"approve", "help.approve"},
@@ -37,16 +38,16 @@ func writeLocalizedHelp(out io.Writer, language cliui.Language) {
 		{"snapshot", "help.snapshot"},
 		{"run", "help.run"},
 		{"ssh setup", "help.ssh"},
-		{"open", "help.open"},
+		{"open", "command.open"},
 		{"base", "help.base"},
 		{"plugin", "help.plugin"},
 		{"repo", "help.repo"},
-		{"workspace", "help.workspace"},
+		{"workspace", "command.workspace"},
 		{"git", "help.git"},
 		{"help", "help.help"},
 		{"version", "help.version"},
 	} {
-		fmt.Fprintf(out, "  %-11s%s\n", command.name, language.Text(command.message))
+		fmt.Fprint(out, cliui.HelpLines(fmt.Sprintf("  %-11s", command.name), language.Text(command.message), 60))
 	}
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, language.Text("help.footer"))

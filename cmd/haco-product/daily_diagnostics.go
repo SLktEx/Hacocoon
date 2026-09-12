@@ -27,15 +27,15 @@ func dailyFailure(out io.Writer, operation, stage, name string, err error) int {
 		reason = "canceled"
 	}
 	fmt.Fprintf(out, "[failed] operation=%s stage=%s reason=%s\n", operation, stage, reason)
-	fmt.Fprintln(out, "Completion is not confirmed; resource state is unknown until inspected. Do not assume cleanup or retry succeeded.")
+	fmt.Fprintln(out, cliLanguage().Text("daily.unknown_state"))
 	if !configEnvironmentName.MatchString(name) {
 		name = "<name>"
 	}
-	fmt.Fprintf(out, "Next: haco env status %s; haco doctor %s. Inspect before retrying or deleting retained data.\n", name, name)
+	fmt.Fprintf(out, cliLanguage().Text("daily.inspect"), name, name)
 	if stage == "ssh_connection" && reason == "failed" {
-		fmt.Fprintln(out, "If the Base lacks sshd, SSH preparation needs package access under the current Env Policy. In trusted haco-host, inspect haco approve --list and haco config; review the package endpoints before changing Policy. No approval or package failure is inferred from this error.")
+		fmt.Fprintln(out, cliLanguage().Text("daily.ssh_policy"))
 	}
-	fmt.Fprintln(out, "Diagnostics (WSL/Linux Physical Host, administrator): journalctl -u haco-controller.service --since '30 minutes ago' --no-pager")
+	fmt.Fprintln(out, cliLanguage().Text("daily.journal"))
 	return 1
 }
 
@@ -43,7 +43,7 @@ func dailyFailure(out io.Writer, operation, stage, name string, err error) int {
 // for a destructive confirmation. In-memory readers support component callers.
 func requireInteractiveConfirmation(in io.Reader, diagnostic io.Writer) bool {
 	if !interactiveInput(in) {
-		fmt.Fprintln(diagnostic, "No changes made: confirmation requires a terminal; review the target and use --yes for scripts.")
+		fmt.Fprintln(diagnostic, cliLanguage().Text("daily.confirmation"))
 		return false
 	}
 	return true

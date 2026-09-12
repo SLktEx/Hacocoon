@@ -29,8 +29,11 @@ func runEnvironment(args []string) int {
 }
 
 func environmentCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
+	if requestedCommandHelp(append([]string{"env"}, args...), out) {
+		return 0
+	}
 	usage := func() int {
-		fmt.Fprintln(diagnostic, cliMessage("usage", "haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--port <port>] <name> | ssh-config <name> | forward --target-port <port> [--protocol tcp|udp] [--port <local-port>] <name> | disconnect <name> <connection-id> | copy [--json] <stopped-env> [new-env] | export [--json] <stopped-env> [file.haco] | import [--json] <file.haco> [new-env] | start <name> | stop <name> | delete <name>"))
+		commandHelp(diagnostic, "env", cliLanguage())
 		return 2
 	}
 	if len(args) == 0 {
@@ -104,7 +107,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	}
 	mutating := args[0] == "create" || args[0] == "start" || args[0] == "stop" || args[0] == "delete" || args[0] == "ssh" || args[0] == "disconnect"
 	if args[0] == "delete" {
-		if _, err := fmt.Fprintf(diagnostic, "Delete Env %q: removes its runtime/root filesystem and connections. Workspace files, OCI Stores and independent snapshots remain. Use stop to keep the Env for tomorrow.\n", pos[0]); err != nil {
+		if _, err := fmt.Fprintf(diagnostic, cliLanguage().Text("daily.delete"), pos[0]); err != nil {
 			return 1
 		}
 	}
@@ -175,11 +178,11 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		if configEnvironmentName.MatchString(pos[0]) {
 			switch args[0] {
 			case "create", "start":
-				fmt.Fprintf(diagnostic, "Next: haco open %s (desktop) or haco env status %s.\n", pos[0], pos[0])
+				fmt.Fprintf(diagnostic, cliLanguage().Text("daily.next_open"), pos[0], pos[0])
 			case "stop":
-				fmt.Fprintf(diagnostic, "Resume: haco env start %s, then haco open %s.\n", pos[0], pos[0])
+				fmt.Fprintf(diagnostic, cliLanguage().Text("daily.resume"), pos[0], pos[0])
 			case "delete":
-				fmt.Fprintln(diagnostic, "Review retained data: haco workspace list; haco plugin oci store list; haco snapshot list.")
+				fmt.Fprintln(diagnostic, cliLanguage().Text("daily.retained"))
 			}
 		}
 	}

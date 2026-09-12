@@ -45,3 +45,14 @@ Ordinary failure exits nonzero; usage usually exits 2. Temporary execution retur
 the guest exit code after confirmed cleanup, 130 after client cancellation, and
 failure for uncertain cleanup. A dispatch receipt (`reclaim`) is not completion.
 Use JSON only on commands that explicitly provide it; there is no global `--json`.
+
+## Hierarchical help
+
+The development candidate uses shared list/detail help for Env, repo, Workspace,
+Git, Base, snapshot, OCI, network, AWS, SSH and open. `haco env --help` lists one
+command and purpose at a time; `haco env create --help` shows its own syntax and
+example. Explicit `--help`/`-h` prints to stdout and exits zero before controller
+or Incus access. Invalid arguments retain stderr and nonzero exits. Explanations
+wrap with aligned indentation at 60 columns. Wrapping long command syntax and
+copyable examples, and companion haco-host help, remain follow-up work.
+See [language coverage](cli-language.md).

@@ -36,14 +36,17 @@ func TestLocalizedHelpKeepsCommands(t *testing.T) {
 	if !strings.Contains(ja.String(), "開発環境を作る") || !strings.Contains(ja.String(), "設定や接続の問題") {
 		t.Fatal(ja.String())
 	}
-	english, japanese := strings.Split(en.String(), "\n"), strings.Split(ja.String(), "\n")
-	if len(english) != len(japanese) {
-		t.Fatal("language changed command count")
-	}
-	for i, line := range english {
-		if strings.HasPrefix(line, "  ") && len(line) >= 13 && line[:13] != japanese[i][:13] {
-			t.Fatalf("command changed: %q -> %q", line, japanese[i])
+	commands := func(text string) string {
+		var names []string
+		for _, line := range strings.Split(text, "\n") {
+			if strings.HasPrefix(line, "  ") && !strings.HasPrefix(line, "   ") && len(line) >= 13 {
+				names = append(names, line[:13])
+			}
 		}
+		return strings.Join(names, "\n")
+	}
+	if commands(en.String()) != commands(ja.String()) {
+		t.Fatal("language changed commands; wrapped explanations may occupy different line counts")
 	}
 	for _, output := range []string{en.String(), ja.String()} {
 		if strings.Contains(output, "\x1b") || strings.Contains(output, "help.") || strings.Contains(output, "%!") {

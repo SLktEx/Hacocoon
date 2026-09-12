@@ -63,7 +63,7 @@ func TestLocalePreservesVersionJSONAndExitCodes(t *testing.T) {
 func TestLocaleEnvironmentAndDoctorHelp(t *testing.T) {
 	setCLITestLocale(t, "ja_JP.UTF-8")
 	var out, diagnostic bytes.Buffer
-	if code := environmentCommand(context.Background(), []string{"--help"}, &out, &diagnostic); code != 0 || !strings.Contains(diagnostic.String(), "使い方: haco env") {
+	if code := environmentCommand(context.Background(), []string{"--help"}, &out, &diagnostic); code != 0 || !strings.Contains(out.String(), "使い方:\n  haco env") || diagnostic.Len() != 0 {
 		t.Fatalf("code=%d diagnostic=%q", code, diagnostic.String())
 	}
 	out.Reset()

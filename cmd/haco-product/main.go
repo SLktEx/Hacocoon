@@ -67,6 +67,9 @@ func main() {
 }
 
 func run(args []string) int {
+	if requestedCommandHelp(args, os.Stdout) {
+		return 0
+	}
 	if len(args) == 0 {
 		writeHelp(os.Stdout)
 		return 0

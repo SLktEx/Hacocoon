@@ -35,7 +35,7 @@ Use the actual distribution name in place of `Hacocoon` when different. This com
 - `haco approve` help, request selection, terminal approval options, outcomes, and saved Policy explanations.
 - Root `haco env` usage, create/SSH flag descriptions, and its directly emitted controller/output diagnostics.
 - Human-readable `haco env list` and `haco env status`: headings, empty-list guidance, connection commands, and retained-Workspace notice for a stopped Environment.
-- Human-readable `haco env doctor`: headings, next actions for known local checks, connection labels, and the explicit limit of what the diagnostic tests. It does not run additional probes or repair anything when rendering another language.
+- Human-readable `haco doctor`: headings, next actions for known local checks, connection labels, and the explicit limit of what the diagnostic tests. It does not run additional probes or repair anything when rendering another language.
 - `haco env copy`, `haco env import`, and `haco env export`: usage, JSON-option descriptions, direct controller/output diagnostics, completion and retained-data notices, and localized failure explanations around the original error.
 - `haco doctor` usage, human report heading, and next-action label. Its controller-provided detail remains unchanged.
 
@@ -66,3 +66,11 @@ Selector/catalog tests cover locale precedence, malformed values, English fallba
 Product and approval regression tests cover language-independent JSON, exit codes, approval scope and default denial, nested prompts, terminal escaping, and display failures. Additional Environment tests cover list ordering without mutation, status values, identical diagnostic/copy JSON, unchanged probe execution, original error preservation, transfer usage, English action compatibility, and failure at each diagnostic write boundary.
 
 Record full-repository CI, documentation checks, and native acceptance separately in the associated PR. Isolated selector/catalog race tests and vet in a partial checkout do not establish product-package compilation, whole-repository validation, or installed Windows/WSL behavior.
+
+## Additional integrated candidate coverage
+
+The M0 candidate reuses #580's catalogs and adds hierarchical help plus daily
+failure, retained-data and resume guidance. Help retains `haco open .`, Workspace
+prepare/fork and TCP/UDP additions. The actual Environment diagnostic command is
+`haco doctor <environment>`. This does not complete automatic Windows/WSL/Host
+language handoff or localization of every shipped command.
