@@ -1,6 +1,6 @@
 # ADR 0026: Separate reusable Git approval from fixed execution
 
-Status: accepted. Installed saved-ask GitHub acceptance passed at eb16300; see [the exact scope](../reference/managed-repository-workflow.md#installed-saved-approval-acceptance). Other saved choices have repository integration coverage.
+Status: accepted. Installed saved-ask GitHub acceptance passed at eb16300; see [the exact scope](../status/acceptance-evidence.md#development). Other saved choices have repository integration coverage.
 
 A trusted provider declares reusable scope for a prepared request. The controller
 preserves capability, action, resource, Environment identity and every attribute

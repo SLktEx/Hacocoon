@@ -3,7 +3,7 @@
 [日本語](project-setup.ja.md) | English
 
 Status: **implemented explicit recipe slice; roadmap C4 acceptance is partial**.
-Installed GHA acceptance is pending.
+Installed basic recipe acceptance passed; recreation and cancellation remain unverified.
 
 ## Ordinary use
 
@@ -59,24 +59,11 @@ layer. Installed GHA should run an explicit nonce recipe through ordinary haco
 commands; package installation must use scoped Policy and be reported separately.
 Physical/VPN-dependent gaps remain explicit SKIP items, not inferred success.
 
-See [Base boundaries](base-images-and-custom-environments.md#project-setup-boundary)
+See [Base boundaries](base-images-and-custom-environments.md#resolution-rules)
 and [trusted Host setup](trusted-host.md).
 
-Component tests pass for Workspace-scoped save/replay/clear, retained recipes
-after failure, identity-bound start refusal, strict controller requests and
-bounded stdin transfer. Installed Windows GHA now includes explicit
-save/replay/nonzero/update/clear acceptance. At `c05528a`, the harness failed
-before setup execution because a CRLF script reached Bash. The harness now
-normalizes scripts to LF; acceptance awaits a rerun.
-Package installation, cancellation descendant cleanup and reuse after actual
-Environment recreation remain unverified at the provider acceptance layer.
-
-At `5f824b4`, Windows DNS and VS Code acceptance passed again, but project setup
-failed after the harness correction. The production Incus command decorators
-dropped the optional stdin interface, so the runtime rejected setup as unsupported.
-Both decorators now preserve stdin for Incus exec only; management commands stay
-on their existing ownership-checked route. A regression uses the production
-decorator chain and checks stdin/result forwarding, unsupported backends and
-management-operation refusal. Installed setup acceptance still awaits a rerun.
-
-Installed Windows run 34135390824 at `347ca50` passed save/replay/nonzero/update/clear through ordinary setup. DNS and actual VS Code also passed. The next preview-server recipe failed; package installation, recreation and cancellation acceptance remain unproven.
+Component tests cover the boundaries above. Installed save/replay/nonzero/update/clear
+passed at `347ca50`; package installation with scoped Policy passed in later
+development gates. Real recreation and cancellation/descendant cleanup remain
+separate acceptance gaps. The CRLF harness failure, dropped stdin-interface failure
+and subsequent preview failure are retained in [acceptance evidence](../status/acceptance-evidence.md#development).

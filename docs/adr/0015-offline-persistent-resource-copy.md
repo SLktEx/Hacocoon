@@ -1,5 +1,7 @@
 # ADR 0015: Reserve offline persistent resources during independent copy
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../design/persistent-oci-store.md) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Status: accepted
 Date: 2026-09-07
 

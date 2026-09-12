@@ -1,45 +1,28 @@
-# Build / checkpoint / release / support identity
+# ビルド・チェックポイント・リリース・対応状況の識別
 
-[English](build-release-identity.md) | **日本語**
+日本語 | [English](build-release-identity.md)
 
-Hacocoonでは、developmentの進行、配布binaryのsoftware identity、Host/backendがsupportされる根拠を意図的に分離します。
+Hacocoon は開発の進捗、配布物の識別、実際に動作を確認した範囲を区別します。
 
-## Development checkpoint
+## 開発チェックポイント
 
-**Development checkpoint** は pre-1.0 の高速な `v0.N` sequenceです。番号・current checkpoint・Gate identityのmachine-readable正本は [`../status/checkpoints.yaml`](../status/checkpoints.yaml) です。
+チェックポイントは pre-1.0 の `v0.N` という進捗の節目です。番号・現在値・Gate 名の機械可読な正本は [checkpoints.yaml](../status/checkpoints.yaml)、運用規則と履歴は[バージョン状況](../status/versioning-and-release-status.ja.md)、現在の機能と制約は[実装状況](../IMPLEMENTATION_STATUS.ja.md)です。
 
-[`../status/versioning-and-release-status.ja.md`](../status/versioning-and-release-status.ja.md) は人間向けのpolicy/status view、[`../IMPLEMENTATION_STATUS.ja.md`](../IMPLEMENTATION_STATUS.ja.md) はcurrent code realityとacceptance gapの正本です。
+チェックポイントは main にまとまった機能・運用・観測・検証のどこまでが入ったかを示します。公開タグ、GitHub Release、互換性保証、過去の全実機試験の完了を意味しません。公開リリースより速く進んでも構いません。
 
-これは **`main` にどのproduct / implementation / operator / observability / acceptance sliceまでlandしたか** を表します。
+## ソフトウェアのバージョン
 
-checkpointは次のものではありません。
+ソフトウェアのバージョンはビルド済みの配布物を識別します。通常の `go build` は注入値がなければ `version: dev` を返します。GoReleaser はリンカーフラグでバージョン、コミット SHA、ビルド日時を注入します。公式公開の権限は[リリースの安全性](../security/release-security.ja.md)に従います。
 
-- 公開済みGit tag
-- GitHub Release
-- compatibility guarantee
-- 過去のすべてのhost-dependent acceptanceが完了した証明
+タグ `v0.8.0` とチェックポイント `v0.8` は別です。`v0.26` の節目があっても `v0.26.0` の配布物があるとは限りません。
 
-そのためcheckpoint番号はsoftware releaseより速く進んで構いません。
+## 実機検証と対応状況
 
-## Software version / release tag
+Host、Incus、ストレージ、WSL、クライアントの具体的な条件に対する証拠です。チェックポイントの実装が済んでも、実機条件に依存する未確認事項は残せます。[実装状況](../IMPLEMENTATION_STATUS.ja.md)から[検証証拠](../status/acceptance-evidence.ja.md)へ進んでください。
 
-**Software version** はbuild済み・配布済みartifactのidentityです。
+## 実行時に確認する
 
-- 通常のlocal `go build` はrelease metadataを注入しない限り `version: dev` を返します。
-- GoReleaserはlinker flagsでsoftware version、commit SHA、build dateを `haco` に注入します。
-- 公式GitHub Releaseのauthorization / publicationは [`../RELEASE_SECURITY.ja.md`](../RELEASE_SECURITY.ja.md) に従います。
-
-たとえばrelease tag `v0.8.0` がdevelopment checkpoint `v0.8` を意味するわけではなく、development checkpoint `v0.26` が存在しても `v0.26.0` Releaseが存在するとは限りません。
-
-## Acceptance / support status
-
-**Acceptance/support status** はHost baseline、Incus behavior、storage path、WSL flow、client environmentなど、具体的な実行境界に対する検証結果です。
-
-現在のrepository realityとacceptance gapは [`../IMPLEMENTATION_STATUS.ja.md`](../IMPLEMENTATION_STATUS.ja.md) を正本として扱います。checkpointがimplementedでも、一部real-host acceptanceをhost-dependentとして明示的に残せます。
-
-## Runtime identity
-
-`haco version` はそれぞれを別フィールドで表示します。
+`haco version` は各情報を別項目で表示します。
 
 ```text
 Hacocoon
@@ -49,39 +32,32 @@ Hacocoon
   built: <release build timestamp or unknown>
 ```
 
-tooling向けには:
-
 ```bash
 haco version --json
-```
-
-IncusやHost stateを初期化せずcompactに確認する場合:
-
-```bash
 haco --version
 ```
 
-`haco` にcompileされるcheckpointはrelease SemVerの定数ではありません。`internal/buildinfo/checkpoint_generated.go` は `tools/bump-milestone` が `docs/status/checkpoints.yaml` から同期するgenerated build inputで、独立したauthorityではありません。
+JSON はツール向け、`--version` は短い表示です。どちらも Incus や Host 状態を初期化しません。
 
-## Checkpointを進める
+`internal/buildinfo/checkpoint_generated.go` は `tools/bump-milestone` が YAML から生成するビルド入力で、リリースの SemVer や独立した正本ではありません。
+
+## チェックポイントを進める
 
 ```bash
 tools/bump-milestone v0.N "Gate Name"
 ```
 
-helperは `docs/status/checkpoints.yaml` からcurrent checkpointを読み、必ず次の `v0.N` だけを受け付けます。staleなMarkdown/build mirrorを拒否し、新しいversion/GateをYAMLへ追加してから、英日current-checkpoint宣言・version table・generated build inputを同期し、documentation consistency checkを実行します。
+補助ツールは YAML の現在値から必ず次の番号だけを受け付けます。古い Markdown・ビルド入力を拒否し、Gate を追加し、英日版の現在値・一覧・生成コードを同期して文書検査を実行します。
 
-YAMLが持つのは番号・current checkpoint・Gate identityだけです。implemented / partial / host-dependentの状態は人間向けstatus documentに残し、acceptance evidenceまでversion-number schemaへ押し込みません。
+YAML は番号と Gate の識別だけを持ちます。実装・部分実装・実機依存の状態は状況文書に残します。機械的な更新の後、実装状況と担当する設計・参照文書を実際のコードに合わせて仕上げます。
 
-機械的なbump後は、`IMPLEMENTATION_STATUS` とowner design/reference docの内容を実際のcode realityに合わせて仕上げます。
+## PR の分類
 
-## Pull request classification
+PR は次の一つを選びます。
 
-maintained PRは必ず次のどれか1つに分類します。
+- 新しい開発チェックポイント。
+- 現在のチェックポイント内の機能・堅牢化・検証。
+- リリース・パッケージだけの変更。
+- 文書・テスト・リファクタリング・保守だけの変更。
 
-- 新しいdevelopment checkpoint
-- existing checkpoint内のfeature / hardening / acceptance
-- release / packaging only
-- docs / test / refactor / maintenance only
-
-new-checkpoint PRではcheckpoint sourceとmirrorを同じ変更内で更新します。release-only変更だけを理由にdevelopment checkpointを暗黙に進めません。
+新しい節目では YAML と写しを同時に更新します。リリースだけの変更や文書整理を理由に、チェックポイントを暗黙に進めません。

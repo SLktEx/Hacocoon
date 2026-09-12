@@ -1,10 +1,10 @@
 # Release security and provenance
 
-[**日本語**](RELEASE_SECURITY.ja.md) | English
+[**日本語**](release-security.ja.md) | English
 
 Hacocoon release verification has separate integrity, source-authorization, privilege-separation, and provenance layers. They protect against different failures.
 
-The current repository model is deliberately **solo-maintainer and contribution-closed**. External pull requests are disabled and the repository owner is the only trusted write authority. See [Public repository security checklist](PUBLIC_RELEASE_CHECKLIST.md).
+The current repository model is deliberately **solo-maintainer and contribution-closed**. External pull requests are disabled and the repository owner is the only trusted write authority. See [Public repository security checklist](../guides/releasing.md).
 
 ## 1. SHA-256 integrity
 

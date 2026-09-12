@@ -131,9 +131,7 @@ reattached to Host. Reusing a Workspace's retained Store preserves guest changes
 Copy failure must retain source/target identities and the writer-stopped state
 until completion or absence is proven. The backend now permits the exact owned Host area only through the pause/copy/resume
 protocol in ADR 0031; other attached sources remain refused. This is a provider
-slice with fresh Host binding, not existing-data migration or application recovery acceptance. The full flow remains incomplete until actual
-Host area copy, immediate local-image use, opt-out, recreation, source/target
-independent mutation/deletion and interrupted cleanup are demonstrated.
+slice with fresh Host binding, not existing-data migration or application recovery acceptance. Dedicated Host-area copy and independent image-use/mutation/deletion fixtures passed. Existing-data migration, full installed recreation and interrupted-operation combinations remain incomplete; see [acceptance evidence](../status/acceptance-evidence.md#storage).
 
 ## Independent offline copies
 
@@ -188,12 +186,10 @@ HACO_E2E_INCUS_PERSISTENT_COPY=1 go test -count=1 \
   -run '^TestRealIncusPersistentCopyE2E$' -v ./modules/runtime/incus
 ```
 
-The former `haco plugin oci distribute` CLI, RPC, archive service and save/load
+The former `hacoq plugin oci distribute` CLI, RPC, archive service and save/load
 adapter remain removed. [ADR 0012](../adr/0012-one-way-oci-distribution.md) is
 historical. Revised B4 requires both persistent Stores and independent COW image
-delivery; Store reattachment alone does not complete that request. Actual Host storage-area copying without Host credential/live-state sharing, complete
-containerd/nerdctl and Docker image acceptance, and interrupted-copy recovery
-remain follow-up work. Never attach guest-populated Stores to trusted Host.
+delivery; Store reattachment alone does not complete that request. Actual Host-area copying has scoped Docker/nerdctl fixture acceptance below. Complete installed runtime compatibility and recovery from unknown copy completion remain follow-up work. Never attach guest-populated Stores to trusted Host.
 
 ## Docker root configuration and actual Host-area acceptance
 

@@ -1,5 +1,7 @@
 # ADR 0051: Assign fresh volume ownership before native import
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../design/environment-transfer.md) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Status: accepted for the initial Linux Incus/Btrfs volume import adapter.
 
 ## Context

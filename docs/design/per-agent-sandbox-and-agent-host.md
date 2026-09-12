@@ -1,4 +1,4 @@
-# v0.9 Per-Agent Sandbox & Agent Host Integration
+# Per-Agent Sandbox & Agent Host Integration
 
 **Status:** broker foundation implemented on 2026-08-29  
 **Compatibility:** pre-1.0; interfaces and integration details may change incompatibly.  
@@ -73,7 +73,7 @@ repository
   +-- worktree/session-b -> Environment B -> Agent B
 ```
 
-Git worktrees isolate code changes. Incus Environments provide OS/runtime security isolation. Worktree creation remains outside Hacocoon Core.
+Git worktrees separate working directories but share repository metadata; they are not the independently copied managed Git Workspaces. Incus Environments provide OS/runtime security isolation. Worktree creation remains outside Hacocoon Core.
 
 ## Relationship to v0.11 Base images
 
@@ -91,7 +91,7 @@ Workspace    Base
     Environment
 ```
 
-When Base selection is implemented, a per-agent Environment must use the normal Base-resolution path and must not bypass immutable Base-revision or provider-policy rules.
+A per-agent Environment uses the normal Base-resolution path and must not bypass immutable Base-revision or provider-policy rules.
 
 ## VS Code Agent Host / AHP
 
@@ -108,7 +108,7 @@ The concrete VS Code Remote Agent Host Adapter is the following v0.10 integratio
 v0.9 is additive. These paths remain available:
 
 ```text
-haco create / exec / shell / delete
+haco env create / status / delete; haco open --client ssh
 haco run
 haco-vscode open / delete
 ```
@@ -132,7 +132,3 @@ Environment-dependent acceptance requires a real supported Incus + current VS Co
 ## Non-goals
 
 v0.9 does not own model selection, task decomposition, retries, token budgets, AI chat UI, Git branch strategy, automatic merge/review, AHP replacement, or hidden-subagent scheduling.
-
-## One-sentence definition
-
-> **v0.9 binds each independently routable coding-agent session to a dedicated Hacocoon Environment while keeping Hacocoon and Incus control authority outside the agent sandbox.**

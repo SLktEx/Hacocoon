@@ -1,242 +1,38 @@
-# v0.12 Sandbox Resource Limits
+# Environmentのリソース制限
 
-**Status:** first implementation slice 実装済み  
-**Compatibility:** pre-1.0。interface、default、provider mapping は互換性なく変更される可能性があります。  
-**Implementation:** provider-neutral ResourceBudget、strict CLI parsing、Incus creation-time enforcement/read-back verification、persistence/status、unsupported provider の fail-closed behavior を実装済み。real supported-Incus acceptance は pending。
+[English](sandbox-resource-limits.md) | 日本語
 
-## 目的
+状態: **実装済み（プロバイダー・旧CLIの範囲）**。実Incusでの広い制限確認は未完了です。
+製品`haco env create/run`にはこのbudget フラグはありません。
+[CLI移行情報](../reference/cli-migration.md)で移行用の境界を確認してください。
 
-v0.12 では Hacocoon Environment に明示的な ResourceBudget を持たせます。
+ResourceBudgetはCPU、MemoryBytes、PIDs、RootBytesを持ちます。
+Env内の消費量を制限するもので、Host境界を越えるCapabilityではありません。
+各値は正の有限値または`unlimited`、省略時は無制限です。
+不正・ゼロ・負数・overflow・曖昧・非対応の値は拒否します。
 
-coding agent や developer tool は Environment 内では広く自由に動けますが、CPU、memory、process/PID count、root filesystem 容量は host/operator が選んだ上限の中でのみ消費できます。
-
-```text
-VS Code / coding agent / tool
-            |
-            v
-      Environment
-   sandbox 内では自由
- ResourceBudget の範囲内
-            |
-     ---- boundary ----
-            |
-        Hacocoon
-  Policy / Capability / Audit
-            |
-   GitHub / AWS / Host
-```
-
-Resource limit は Capability ではありません。
-
-```text
-Capability
-  -> Environment の外へどの authority を使えるか
-
-ResourceBudget
-  -> Environment の中でどれだけ resource を使えるか
-```
-
-## 実装済み first slice
-
-persistent Environment と ephemeral `haco run` の両方で creation-time budget を指定できます。
+以下はPhysical Hostの旧CLI用であり、導入済み製品の通常手順ではありません。
 
 ```bash
-haco create \
-  --cpu 4 \
-  --memory 8GiB \
-  --pids 1024 \
-  --root-size 40GiB \
-  --workspace . dev
-
-haco run --cpu 2 --memory 4GiB --workspace . -- go test ./...
+hacoq create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace /absolute/work dev
+hacoq run --cpu 2 --memory 4GiB --workspace /absolute/work -- go test ./...
 ```
 
-各dimensionは finite value または `unlimited` を受けます。byte size は `B` / `KiB` / `MiB` / `GiB` / `TiB` の明示的なbinary unitを使います。
+CPUとPIDは正の整数です。容量はparserの二進単位を使い、
+曖昧な略記より`MiB`/`GiB`を明示します。
+作成時の有効budgetを永続化し、Base選択や信頼しないエージェントで上限を上げることはできません。
 
-`8G`、`8GB`、符号付き値、fraction、zero finite value、overflow、trailing garbage、practical upper bound超過は provider 実行前にrejectします。
+Incus アダプターは停止中に有限値を適用し、読戻しで確認してから起動します。
+正規の作成処理では、後続のデバイス・resource設定より**前**にnative所有記録を保存します。
+後始末は不存在確認までリースを保持します。適用・確認・起動・永続化の失敗を、
+制限付き作成の成功として報告しません。
 
-## ResourceBudget model
+プロバイダー固有のkeyはアダプター内に置きます。指定した有限値を強制できないプロバイダーは
+作成を拒否し、無視や弱いplatform動作へ切り替えません。
+プロバイダー境界は保持していますが具体的なcloud実装は延期中で、
+稼働中のEC2/EBS制限契約はありません。
 
-Core/public architecture は provider-neutral な概念だけを扱います。
-
-```text
-ResourceBudget
-  CPU
-  MemoryBytes
-  PIDs
-  RootBytes
-```
-
-各resourceは `finite` または `unlimited` です。
-
-未指定dimensionを provider の暗黙defaultには任せません。first sliceでは Hacocoon が explicit `unlimited` effective value に解決し、そのeffective budgetをEnvironment metadataへ保存します。
-
-`haco status` / `haco status --json` からpersisted budgetを確認できます。
-
-## Incus enforcement
-
-Incus providerではfinite limitを **Environment start前** に設定し、read-backして要求値と一致することを確認します。
-
-```text
-resolve Workspace
-  -> acquire WorkspaceLease
-  -> validate ResourceBudget
-  -> v0.11 Baseをimmutable revisionへpin
-  -> stopped Incus Environmentをcreate
-  -> CPU/memory/PID/root limitをapply
-  -> read-back verify
-  -> Workspace attach
-  -> start Environment
-  -> metadata persist
-```
-
-applyに失敗した場合やread-backが一致しない場合は、requested constrained Environmentの作成成功として返しません。既存のcleanup/recovery semanticsに従います。
-
-Incus native keyやcommandはadapter detailです。Core/public architectureのcompatibility contractにはしません。
-
-real supported-Incus acceptanceでは、CPU / memory / PID / root-sizeが実際のworkloadを制限することと、normal Environment accessからlimitを引き上げられないことを別途確認します。
-
-## Provider boundary
-
-resource enforcementはEnvironment provider adapterが担当します。
-
-```text
-Workspace
-   |
-EnvironmentSpec + ResourceBudget
-   |
-Environment provider
-   +-- runtime.incus
-   +-- runtime.ec2 (experimental)
-```
-
-requested finite limitをselected providerがenforceできない場合はsilent ignoreせず **fail closed** します。
-
-experimental EC2 providerは現時点で同等のfinite ResourceBudget enforcementをclaimしません。そのためHacocoonはfinite budgetをwrapped providerのcreateより前に拒否し、制限できないEnvironmentをAWS上に作ってから気づく形を避けます。
-
-EC2自体も従来どおりexperimental / disabled by defaultです。
-
-## Default と precedence
-
-first sliceではdirect CLI inputとomissionをdeterministicに解決します。
-
-未指定dimensionの意味はexplicit `unlimited`です。
-
-将来project/user/global defaultを追加する場合は例えば次のprecedenceを取れます。
-
-```text
-CLI override
-    > project configuration
-    > user/global default
-    > Hacocoon default budget
-```
-
-ただしprovider-ownedな曖昧defaultを再導入しません。
-
-## Persistence
-
-Environment作成時に確定したeffective ResourceBudgetをpersistします。defaultを後で変更しても既存Environmentのbudgetをsilent rewriteしません。
-
-finite requestではproviderが返すcreation metadataも要求budgetと照合します。別budgetをmaterializeして成功扱いすることは許しません。
-
-## Runtime mutation
-
-first sliceはcreation-time budgetを実装し、running Environmentの任意live resizeはscope外です。
-
-## Workspace storageとの区別
-
-`/workspace` はhost-owned Workspaceのmountであり、Environment root filesystemとは別物です。
-
-```text
-Host Workspace
-    |
-    +-- /workspace
-
-Environment root filesystem
-    |
-    +-- OS
-    +-- packages
-    +-- caches
-    +-- logs
-```
-
-`--root-size` はEnvironment root filesystemのbudgetであり、arbitrary host Workspaceのquotaを意味しません。
-
-## Parallel Agent
-
-v0.12は **v0.9 agent-session binding** とv0.10 Agent Host adapterに合成します。
-
-```text
-Agent session A -> Environment A -> ResourceBudget A
-Agent session B -> Environment B -> ResourceBudget B
-Agent session C -> Environment C -> ResourceBudget C
-```
-
-per-Environment limitは一つのagentの暴走を抑えますが、host全体のaggregate capacity schedulingまでは扱いません。
-
-## Capabilityとの関係
-
-CPU/memory/PID/root-size selectionをv0.4 Capability serviceには流しません。
-
-```text
-Environment configuration
-  -> sandboxの形とresource ceiling
-
-Capability policy
-  -> sandbox boundaryを越えるprivileged operation
-```
-
-Environment内のcoding agentには、自分のhost-enforced ceilingをHacocoon/Incus control-plane経由で引き上げるauthorityを渡しません。
-
-## Baseとの関係
-
-v0.12はv0.11 Basesと合成します。
-
-```text
-immutable Base revision
-          |
-          v
-Environment + ResourceBudget
-```
-
-custom Baseはguest filesystem/runtime contentsを決めますが、image metadataからhost-selected resource limitを引き上げたり無効化したりできません。
-
-## Failure / recovery
-
-requested finite budgetが正しく適用されたと証明できない場合、successful constrained creationとして返しません。
-
-invalid input、unsupported provider、provider rejection、apply/read-back mismatch、Workspace attach/start failure、persistence failure、createとstate commitの間のcrashは通常のEnvironment recovery問題として扱います。
-
-ownershipが怪しいpotentially-running Environmentを黙って忘れるより、recovery-requiredとして明示的に残す方を優先します。
-
-## Repository validation
-
-first sliceでは次をrepository CIで検証します。
-
-- ResourceBudget normalization / bounds / malformed mode-value combination;
-- strict CLI parse;
-- finite unsupported providerがinner provider side effect前にfail closedすること;
-- Incus finite limitがstart前にapply/read-backされること;
-- verify mismatch時にstartせずcleanupへ進むこと;
-- fake-Incus CLI E2Eでcreate/run/status/resource-native commandを確認;
-- Go version matrix、`go vet`、race detector、docs consistency、release packaging。
-
-これらはreal provider acceptanceの代替ではありません。
-
-## Non-goals
-
-first sliceのscope外:
-
-- AI scheduler / model budget;
-- task/DAG orchestration;
-- aggregate workstation/cluster scheduling;
-- automatic overcommit;
-- live autoscaling / live resize;
-- Kubernetes-style scheduler semantics;
-- host Workspace quota management;
-- arbitrary Incus configuration passthrough;
-- coding agent自身がlimitを上げるCapability。
-
-## 一文でいうと
-
-> **v0.12 は各 Hacocoon Environment にhost-selected ResourceBudgetを持たせ、requested finite ceilingをsandbox利用開始前に証明できなければfail closedする。**
+RootBytesは強制可能なrootfsを対象とし、任意のWorkspace マウントのquotaではありません。
+cluster scheduling、自動増減、稼働中の上限変更、Host Workspace quota、
+任意のプロバイダー設定引渡しは対象外です。
+[所有権のライフサイクル](../adr/0002-environment-lifecycle-ownership.md)も参照してください。

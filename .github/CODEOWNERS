@@ -22,8 +22,8 @@
 /scripts/install-windows.bat @SLktEx
 /scripts/install-windows.ps1 @SLktEx
 
-/docs/INSTALLER_ARCHITECTURE.md @SLktEx
-/docs/RELEASE_SECURITY.md @SLktEx
-/docs/RELEASE_SECURITY.ja.md @SLktEx
-/docs/PUBLIC_RELEASE_CHECKLIST.md @SLktEx
-/docs/PUBLIC_RELEASE_CHECKLIST.ja.md @SLktEx
+/docs/design/installer.md @SLktEx
+/docs/security/release-security.md @SLktEx
+/docs/security/release-security.ja.md @SLktEx
+/docs/guides/releasing.md @SLktEx
+/docs/guides/releasing.ja.md @SLktEx

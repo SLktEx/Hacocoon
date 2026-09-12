@@ -4,19 +4,19 @@ Pending approvals can be listed and decided through approval.pending / approval.
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product `haco` provides help/version, setup/doctor, WSL login, managed repository/Workspace preparation, Environment create/list/status/SSH/disconnect/stop and Git approval commands. Additional lifecycle conveniences, PTY control framing, general port-forwarding CLI and remote transport remain planned.
+Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product commands are listed in the [CLI reference](../reference/cli.md), including lifecycle, snapshots, transfer and temporary execution. PTY control framing, general forwarding CLI and remote transport remain planned.
 
 ## Summary
 
 The product client exposes Base list/inspect and normal Environment create/delete.
-`switch-base` is currently disabled and deferred to Stage D+. SSH configuration
+`switch-base` is currently disabled without a scheduled return. SSH configuration
 reads existing loopback connection metadata. Optional `plugin.oci.store` manages
 persistent OCI data through the trusted controller; it is never registered on
 the Environment Git-only endpoint. `environment.create` can atomically reserve
 an optional persistent resource with its Workspace. See the
 [Persistent OCI Store contract](persistent-oci-store.md).
 
-Product `haco` calls the existing controller for the [managed repository workflow](../reference/managed-repository-workflow.md). Its typed management API adds `repository.clone`, `workspace.copy`, `environment.stop` and `git.connect/pending/decide`. These methods are available through the trusted management endpoint, not the Git-only Environment socket. See [implementation status](../IMPLEMENTATION_STATUS.md) for acceptance and [CLI migration](../CLI_MIGRATION.md) for remaining legacy commands.
+Product `haco` calls the existing controller for the [managed repository workflow](../guides/git-workflow.md). Its typed management API adds `repository.clone`, `workspace.copy`, `environment.stop` and `git.connect/pending/decide`. These methods are available through the trusted management endpoint, not the Git-only Environment socket. See [implementation status](../IMPLEMENTATION_STATUS.md) for acceptance and [CLI migration](../reference/cli-migration.md) for remaining legacy commands.
 
 WSL may open the login shell before the enabled controller service has bound its socket. The login alias waits up to two minutes using read-only ping calls, retrying only transport unavailability. Protocol/operation rejection is not retried; the client never starts another controller or changes service state. This startup timeout does not limit the interactive session's lifetime.
 
@@ -114,11 +114,14 @@ The supported WSL bootstrap then executes `haco-host doctor` inside the real tru
 
 Status: **implemented**; commit-bound packaged and real-Incus acceptance is recorded in [implementation status](../IMPLEMENTATION_STATUS.md).
 
-`haco setup` invokes `system.setup` on the existing Physical Host controller from either client context. It prepares the owned host, storage, network and the two required client binaries. Requests take no parameters; companion paths are resolved next to the running controller executable. Both sources are validated before provider mutation. No legacy CLI, guest controller or caller-selected root command participates.
+`haco setup` invokes `system.setup` on the existing Physical Host controller from either client context. It prepares the owned host, storage, network and the two required client binaries. Plain setup accepts no resource-path parameters; companion paths are resolved next to the running controller executable. Both sources are validated before provider mutation. No legacy CLI, guest controller or caller-selected root command participates.
 
 Only one setup executes at a time. The server bounds it to 15 minutes and the CLI to 16 minutes. Client cancellation closes the connection; the controller may still finish its bounded operation. Another request receives busy until that operation ends. An explicit retry reuses owned resources and verified clients. Failures retain data and never imply permission to reformat or delete. Setup reports resource preparation; the installer separately verifies the controller round trip and connectivity before completion. Use `haco doctor` for read-only inspection.
 
 The controller owns setup failure logging and returns a selected error/next action without raw provider output. The client renders that failure; transport/protocol failures are logged at the client boundary. See [ADR 0006](../adr/0006-controller-owned-host-setup.md).
+
+
+Explicit saved recipe options are described in [Host customization](trusted-host.md#saved-customization-recipes); they do not accept caller-selected controller commands or resource roots.
 
 ## Host diagnostics
 
@@ -272,7 +275,7 @@ Still planned:
 
 ## Ephemeral execution cancellation
 
-Status: **implemented transport; product temporary-run CLI pending**.
+Status: **implemented transport and product temporary-run CLI**.
 `run.execute` uses a stream handshake followed by one bounded JSON result.
 No input frames are accepted. Closing the client connection or sending unexpected
 input cancels execution. Canonical run cleanup uses its independent deadline; the
@@ -292,7 +295,7 @@ command; populated state routes to `haco open <name>` and status inspection.
 
 ## Environment diagnostics
 
-Status: **implemented local-prerequisite slice; installed acceptance pending**.
+Status: **implemented local-prerequisite slice; installed acceptance passed at d4aef8d**.
 
 `haco doctor [--json] <environment>` reads the selected Environment's Workspace,
 runtime state and client connections through the existing controller. It checks
@@ -319,14 +322,14 @@ The management controller registers `environment.export` on Linux. It accepts a
 stopped source name, never a client-selected Host path, and streams an already
 verified bundle with bounded canonical frames and an explicit count/digest
 completion. Disconnect cancels work; canonical cleanup preserves uncertain
-ownership. See [Environment export](environment-transfer.md#linux-export-command).
+ownership. See [Environment export](environment-transfer.md#commands).
 
 The internal `storage.reclaim-linux` method is registered only on this management
 endpoint. It requires the exact installed WSL identity and returns explicit
 per-stage observations, including operation failure. It grants no Windows disk
-authority; see [Linux reclamation](storage-reclamation.md#controller-connection-for-linux-stages).
+authority; see [Linux reclamation](storage-reclamation.md#ownership-and-linux-stages).
 
 The reclamation management surface also provides read-only `storage.reclamation-target`
 for discovery of this installed controller's bounded WSL identity. No caller-selected
 target or raw backend error crosses that response; it grants no Windows mutation
-authority. See [target discovery](storage-reclamation.md#discovering-the-managed-target).
+authority. See [target discovery](storage-reclamation.md#windows-enrollment-and-file-identity).

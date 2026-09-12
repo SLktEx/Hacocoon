@@ -2,10 +2,7 @@
 
 [日本語](aws-operations.ja.md) | English
 
-Status: **partial D3 implementation**. Trusted Host S3 listing and streamed downloads are implemented.
-ID-bound Host account labels are implemented. Guest server transport and ordinary guest CLI are implemented; installed guest
-and real AWS/desktop acceptance remain pending. This does not reintroduce the deferred
-EC2 runtime.
+Status: **partial D3 implementation**. S3 listing/download, ID-bound account labels, guest transport and ordinary CLI are implemented. Installed guest refusal has scoped acceptance; authenticated real AWS/desktop acceptance remains unperformed for missing prerequisites. This does not reintroduce the deferred EC2 runtime.
 
 ## Ordinary use
 
@@ -108,20 +105,14 @@ listings. See [ADR 0034](../adr/0034-aws-operation-authentication.md).
 
 ## Verification scope
 
-Repository checks cover input/response validation, shared saved Policy and
-revocation, controller review receipts, Host ownership and SDK signing/redirect
-behavior using synthetic credentials with intercepted HTTP transport.
-`HACO_AWS_TEST_PYTHON=/path/to/venv/bin/python bash tools/ci-local.sh aws` runs the
-SDK checks; the maintained GHA aws-plugin job prepares its isolated SDK dependency.
-
-Real AWS, installed Host authentication, SSO renewal, and actual native/VS Code
-AWS review have not run. They are separate acceptance requirements, not inferred
-from the intercepted SDK or existing Git/network desktop checks.
-
-Dedicated WSL Hacocoon-Review-6771f2f verified the current Host adapter, transient
-unit and fail-closed not-configured response. The owned Host has no AWS CLI,
-botocore or AWS config; real AWS was SKIP for these missing prerequisites. No
-AWS operation or login was attempted. This is not authenticated AWS acceptance.
+Repository checks cover input/response, saved Policy/revocation, review/audit,
+Host ownership and real-SDK signing/redirect behavior with synthetic credentials
+and intercepted HTTP. Run
+`HACO_AWS_TEST_PYTHON=/path/to/venv/bin/python bash tools/ci-local.sh aws`;
+the GHA aws-plugin job prepares its SDK dependency.
+Installed guest refusal and a synthetic 20 MiB transfer have scoped acceptance.
+[Evidence](../status/acceptance-evidence.md#development) retains limits and skips.
+Authenticated S3, SSO renewal and actual desktop decisions are not inferred from those tests.
 
 ## Download an object
 
@@ -156,16 +147,7 @@ Cleanup identity drift is reported and unexpected contents are retained, never
 recursively removed. Filesystems that cannot enforce private permissions fail
 closed; native Windows filesystem acceptance remains separate.
 
-See [ADR 0035](../adr/0035-streamed-aws-downloads.md). Repository verification
-includes 20 MiB through the actual controller wire and the ordinary review,
-saved-policy and revocation path. Eleven intercepted real-SDK tests cover listing
-and downloads. Authenticated S3 downloads remain SKIP because the dedicated Host
-has no AWS CLI, botocore or AWS config; those tests have not become real AWS proof.
-
-The current verified Host streaming adapter also transferred 20 MiB successfully
-in dedicated WSL without contacting AWS. Maintained local CI, the eleven SDK
-tests and documentation checks passed. This does not verify authenticated S3.
-
+See [ADR 0035](../adr/0035-streamed-aws-downloads.md) for the download/publication boundary.
 
 ## Account names in review
 
@@ -198,11 +180,6 @@ control/format characters and labels longer than 256 UTF-8 bytes fail closed.
 Profiles with neither field still display unavailable. Labels do not come from
 the Environment or its repository.
 
-Focused race tests and fifteen intercepted SDK/config tests passed, including
-profile isolation, identity mismatch, label changes and unsafe config. Actual
-authenticated AWS and desktop label rendering remain unverified for the same
-missing Host AWS prerequisites.
-
 ## Guest request boundary
 
 The Standard listener now exposes an optional AWS-only origin-form endpoint at
@@ -212,8 +189,7 @@ source evidence and the exact persisted Environment creation ID select the calle
 The plugin rejects recreation before authentication and retains that ID through
 ordinary approval and execution. Forwarding headers do not select the source.
 
-The normal guest haco client is now connected. Installed guest acceptance remains
-pending. The client publishes downloads only after the final verified receipt. See [ADR 0036](../adr/0036-guest-aws-source-identity.md).
+The normal guest haco client is connected; installed refusal acceptance and positive authenticated AWS acceptance remain separate. The client publishes downloads only after the final verified receipt. See [ADR 0036](../adr/0036-guest-aws-source-identity.md).
 
 
 ## Use AWS inside an Environment
@@ -243,31 +219,4 @@ the receipt, bounded frames, byte count/hash and successful execution/audit.
 The short body deadline is cleared after input is complete so it cannot cancel
 a valid human approval wait; the 15-minute operation limit remains.
 
-Local tests passed the actual HTTP socket through the ordinary approval queue,
-saved Policy, revocation and audit using synthetic source/AWS evidence, plus
-redirect/truncation/receipt refusal and guest setup idempotence/conflict refusal.
-The first setup test failed because the new link path was not isolated into its
-temporary root; after fixing that fixture all focused tests passed. These are
-not real Incus guest or authenticated AWS acceptance. Installed guest E2E remains
-pending; real AWS remains SKIP for absent Host authentication/dependencies.
-
-## Installed guest acceptance
-
-Dedicated WSL Hacocoon-Review-6771f2f passed guest acceptance with haco/controller
-built from 093ed159b80e: ordinary user/API creation of m1-egress-093ed15020260908,
-automatic haco companion link, refusal of --env, source-bound controller/Host
-refusal of a unique unconfigured AWS profile, failed-download file preservation
-and canonical deletion. Provider inventory and the temporary Workspace were
-confirmed absent afterward; controller remained active. This was a local binary
-update, not a fresh Windows installer run. Previous binaries remain in the
-root-only /root/hacocoon-validation-093ed15 backup on that dedicated WSL.
-
-The maintained installed-egress-check now exercises these cases in the existing
-Windows installer GHA. Its check-aws mode uses the same create/delete path without
-requiring an unrelated external-network allow rule. Local CI and acceptance
-verifier regressions passed. The initial new test source had a string-literal
-newline error; it was fixed before the successful run. New-head GHA is pending.
-
-Authenticated AWS remains SKIP: Host authentication and optional dependencies are
-absent. Negative unconfigured-profile acceptance does not prove S3 success,
-positive guest file download, SSO renewal or native desktop AWS decisions.
+Real-socket tests exercise ordinary queue/saved Policy/revocation/audit with synthetic source/AWS evidence. Installed guest refusal does not prove S3 success or SSO renewal. See the evidence linked above.

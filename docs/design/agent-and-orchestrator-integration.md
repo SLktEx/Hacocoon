@@ -1,55 +1,35 @@
-# v0.6 — Agent & Orchestrator Integration
+# Agent and orchestrator integration
 
-Status: **roadmap contract implemented on `main`.** Generic `haco run`, machine-readable output, and security-event export exist; orchestration remains outside Hacocoon.
+Status: **implemented execution boundary; orchestration remains external**.
 
-## Goal
+Hacocoon supplies Workspace, Environment, Execution and Policy/Capability boundaries
+under a client or orchestrator. It does not own task graphs, model selection, token
+budgets, worktree orchestration, retries, code review or merge decisions.
 
-Make Hacocoon easy to use below AI development orchestration systems without making Hacocoon itself an orchestrator.
+For a noninteractive command, use [temporary execution](temporary-execution.md):
 
-## Generic execution first
-
-Agent CLIs are just commands from the runtime's perspective:
-
-```text
-haco run --workspace <path> -- codex
-haco run --workspace <path> -- claude
+```bash
+haco run --workspace managed:review --read-only --json -- git status --short
 ```
 
-`run` remains a generic execution convenience over the Environment lifecycle, not a new Core task/orchestration model.
+The Workspace must be available for a new lease. A retained stopped Env still holds
+its lease. Agent tools must already exist in the selected Base or be prepared in a
+retained Env, and must support noninteractive input; an interactive agent shell
+is not implied by `haco run`. Use [ordinary SSH](client-and-interactive-access.md)
+for retained interactive work.
 
-## In scope
+The caller chooses independent Workspaces, invokes exact argv, consumes execution/
+truncation/cleanup results, then decides its own retry or review. It must not retry
+an unknown external outcome as though nothing happened. Runtime-owned cleanup
+and leases stay inside the canonical lifecycle.
 
-- `haco run` or equivalent short-lived execution UX.
-- Structured execution/status result for machine clients.
-- Stable conceptual events/status surface.
-- Agent wrapper examples.
-- External orchestrator integration recipes.
-- MCP adapter if it proves useful for interoperability.
-- Export of security-approval events to an external client.
+Development review belongs to the caller/GitHub/human. Security approval belongs
+to Hacocoon Policy and the trusted capability boundary. Notification delivery,
+agent output and task completion never grant authority.
 
-## External orchestrator responsibility
-
-External orchestrators may own:
-
-- task decomposition;
-- model/agent choice;
-- retries;
-- model budget;
-- worktree creation;
-- development review queues;
-- merge workflow.
-
-Hacocoon owns the secure execution boundary below them.
-
-## Two Human-in-the-loop layers
-
-```text
-Development approval -> Orchestrator / GitHub / Human
-Security approval    -> Hacocoon policy/capability boundary
-```
-
-Do not merge these responsibilities into one giant workflow engine.
-
-## Compatibility note
-
-Machine-facing JSON/event formats are still pre-1.0. They may evolve, but a format change must not silently move orchestration responsibility into Hacocoon or weaken the security-approval boundary.
+Clients observe [minimized interaction events](../reference/interaction-events.md)
+without capability parameters or credentials. Historical raw audit export is
+documented only in [legacy CLI migration](../reference/cli-migration.md#legacy-event-cursor).
+Client APIs and pre-1.0 wire formats may change; use the
+[client adapter contract](../reference/client-adapter.md).
+An MCP adapter is a possible optional integration, not an implemented Core dependency.

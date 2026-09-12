@@ -1,6 +1,6 @@
 # Public repository security checklist
 
-[**日本語**](PUBLIC_RELEASE_CHECKLIST.ja.md) | English
+[**日本語**](releasing.ja.md) | English
 
 Hacocoon is public, but the current repository policy is intentionally **solo-maintainer and contribution-closed**.
 
@@ -146,7 +146,7 @@ Official releases must preserve all of these properties:
 - [ ] release payload receives GitHub/Sigstore attestations;
 - [ ] Actions used in trusted workflows remain pinned to immutable commit SHAs.
 
-See [Release security](RELEASE_SECURITY.md).
+See [Release security](../security/release-security.md).
 
 ## 7. Live readiness check
 

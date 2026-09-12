@@ -42,7 +42,7 @@ For the Incus system-container backend, the following are part of the trusted co
 - the trusted Hacocoon Physical Host process and its policy/capability state;
 - the persistent `haco-host` instance when that trusted logical Host is provisioned.
 
-`haco-host` is therefore not a sandbox. Compromise of it may compromise Hacocoon-managed credentials, external-service authority, or other trusted capabilities as those features move into it. On WSL, future Windows interop or Windows filesystem mounts can extend that authority outside the Linux/Incus boundary and must remain restricted to trusted infrastructure.
+`haco-host` is therefore not a sandbox. Compromise of it may compromise Hacocoon-managed credentials, external-service authority, or other trusted capabilities as those features move into it. On WSL, implemented trusted-Host Windows interoperability and filesystem projection extend that authority outside the Linux/Incus boundary and must remain restricted to trusted infrastructure.
 
 A successful kernel exploit, Incus/container escape, compromise of the Physical Host Hacocoon control plane, or compromise of `haco-host` is outside the containment guarantee of the Incus backend. This limitation is intentional and must be documented rather than hidden behind a generic "sandbox" claim.
 
@@ -71,9 +71,9 @@ The security objective is not to prevent the agent from administering or destroy
 
 Therefore Environment-local root must not imply ambient access to host credentials, host control sockets, unrelated host filesystems, unrestricted devices, `haco-host`, or privileged runtime configuration.
 
-## v0.1 security baseline
+## Historical v0.1 security baseline
 
-v0.1 must at minimum:
+The initial baseline required:
 
 - mount only the requested workspace rather than the host HOME;
 - avoid mounting `~/.ssh`, `~/.aws`, GitHub tokens, Incus control sockets, or Hacocoon state into the Environment;
@@ -81,7 +81,7 @@ v0.1 must at minimum:
 - keep Incus lifecycle authority outside the Environment;
 - report command exit status without silently elevating privileges.
 
-v0.1 does **not** need the full Policy/Capability engine.
+That initial milestone did not require the full Policy/Capability engine. The current implementation includes it; see [Policy](../design/policy-and-capability-foundation.md) and [egress authorization](../design/egress-authorization.md).
 
 ## Workspace blast radius
 

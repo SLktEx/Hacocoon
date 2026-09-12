@@ -106,7 +106,7 @@ repository
   +-- worktree/session-b -> Environment B -> Agent session B
 ```
 
-Git worktrees isolate code changes; Hacocoon Environments provide OS/runtime isolation.
+Git worktrees separate working directories while sharing repository metadata; Hacocoon Environments provide OS/runtime isolation.
 
 ## Security boundary
 

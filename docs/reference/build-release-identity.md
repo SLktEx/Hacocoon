@@ -27,7 +27,7 @@ The **software version** identifies a built or published artifact.
 
 - Local or ordinary `go build` binaries report `version: dev` unless a release build injects another value.
 - GoReleaser injects its software version, commit SHA, and build date into `haco` with linker flags.
-- An official GitHub Release is authorized and published according to [`../RELEASE_SECURITY.md`](../RELEASE_SECURITY.md).
+- An official GitHub Release is authorized and published according to [`../RELEASE_SECURITY.md`](../security/release-security.md).
 
 A release tag such as `v0.8.0` does not imply that the development checkpoint is `v0.8`, and a development checkpoint such as `v0.26` does not imply that a `v0.26.0` release exists.
 

@@ -58,3 +58,24 @@ The maintained Incus GHA fixture passed at 4adfe19 (run 34115004878, job
 101719650209), using ordinary product commands for success, exit 17, retained file
 writes and actual cancellation followed by verified provider absence. Interactive sessions, local installed acceptance and a populated OCI
 image execution are not claimed by these checks.
+
+## Output and crash ownership
+
+The shared Host process runner retains at most 4 MiB each of stdout and stderr by
+default. Excess bytes are consumed and discarded without terminating the child or
+changing its exit code. Truncated output has a visible marker plus JSON
+`stdout_truncated` / `stderr_truncated`; `stdout_bytes` / `stderr_bytes` report
+observed bytes before truncation. Do not interpret that prefix as complete output.
+Control subprocesses have the same boundary; oversized structured output must fail parsing.
+
+The `--json` result includes `environment`, `execution` (exit code, both streams
+and truncation fields), and `cleaned_up`. Execution success and cleanup success
+are separate outcomes.
+
+Before creation, a protected `ephemeral_runs` marker is persisted and a per-run
+Linux `flock` remains held throughout the run. Only after the owner exits and the
+lock can be acquired may reconciliation attempt bounded canonical deletion.
+A `run-` name, a marker alone or PID guessing is not deletion authority.
+Live-owner locks are skipped; failure retains `cleanup-required`. Unsupported
+platforms fail rather than substitute weaker ownership proof. SIGINT/SIGTERM
+cleanup uses a separate bounded context independent of execution cancellation.

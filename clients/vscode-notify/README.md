@@ -31,7 +31,7 @@ Only minimized public interaction fields are consumed: event/request identity, k
 
 ## Install and review
 
-Build the optional extension from the repository and install it in desktop VS Code:
+From the repository root, build the optional extension and install it in desktop VS Code:
 
 ```sh
 python tools/package_vscode_notifications.py hacocoon-notifications.vsix

@@ -92,7 +92,7 @@ actual result on failure but omit provider output and use fixed error categories
 
 ## Notifications
 
-The [interaction stream](../INTERACTION_EVENTS.md) remains read-only and minimized.
+The [interaction stream](../reference/interaction-events.md) remains read-only and minimized.
 Its request ID is correlation data, never an approval token. The optional desktop
 VS Code extension offers Review and a Hacocoon: Review Pending Approvals command.
 Both open the ordinary CLI in a custom terminal owned by the local UI extension
@@ -133,7 +133,7 @@ setup provisions the notification companion and subscribes through the controlle
 raw audit files are not projected. Clicking opens the existing `haco approve`
 console for that request. Inspect the scope and type the ordinary answer; opening
 never answers, saves Policy or retries an operation. Installed Windows automatic
-startup acceptance remains pending; see [interaction delivery](../INTERACTION_EVENTS.md).
+startup acceptance remains pending; see [interaction delivery](../reference/interaction-events.md).
 
 Each distribution has its own user protocol and notification identity. Installing a
 test instance does not redirect another instance's notifications. The helper receives

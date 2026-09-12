@@ -88,31 +88,31 @@ Incus-backed connection reconciliation reconstructs managed proxy metadata, so a
 
 ## Generic non-VS-Code proof
 
-The ordinary `haco` CLI already exercises the same generic client boundary. No VS Code extension or VS Code protocol is needed:
+The retained `hacoq` CLI exercises this external-path adapter on the Physical Host. For ordinary managed Workspace use, follow [getting started](../guides/getting-started.md).
 
 ```sh
-haco create --workspace "$PWD" demo
-haco ssh demo --public-key "$HOME/.ssh/id_ed25519.pub" --host-port 2222
+hacoq create --workspace "$PWD" demo
+hacoq ssh demo --public-key "$HOME/.ssh/id_ed25519.pub" --host-port 2222
 ssh -i "$HOME/.ssh/id_ed25519" -p 2222 root@127.0.0.1
 ```
 
 Inspect/reconnect after restarting the client shell or another adapter process:
 
 ```sh
-haco status demo --json
-haco connections demo --json
+hacoq status demo --json
+hacoq connections demo --json
 ```
 
 Revoke only the client connection:
 
 ```sh
-haco unforward demo ssh-2222
+hacoq unforward demo ssh-2222
 ```
 
 Or delete the Environment when its lifecycle is finished:
 
 ```sh
-haco delete demo
+hacoq delete demo
 ```
 
 The private key is consumed by the ordinary `ssh` client, not Hacocoon.
@@ -127,7 +127,7 @@ For a web workload, a client may prepare a loopback forwarding connection to the
 
 `InteractionBatch` returns the public `pkg/interaction` contract introduced for client-neutral notifications. Reading those events is side-effect free and never approves or executes a capability.
 
-See [`INTERACTION_EVENTS.md`](INTERACTION_EVENTS.md) for event minimization, resume cursors, and Browser Notification mapping.
+See [`INTERACTION_EVENTS.md`](interaction-events.md) for event minimization, resume cursors, and Browser Notification mapping.
 
 ## Public compatibility boundary
 
