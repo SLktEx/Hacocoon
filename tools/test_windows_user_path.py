@@ -24,6 +24,18 @@ class EnvironmentBoundaryTest(unittest.TestCase):
             self.assertEqual(gate.inherited_child_environment(), {"RUNNER_TEMP": "fixture-directory"})
 
 
+class LanguageAssertionTest(unittest.TestCase):
+    def test_only_one_exact_normalized_observation_passes(self):
+        for language in ('en', 'ja'):
+            gate.assert_host_language(f'HACO_HOST_UI:{language}\n', language)
+            gate.assert_host_language(f'HACO_HOST_UI:{language}\r\n', language)
+        for output in ('', 'HACO_HOST_UI:ja_JP\n', 'HACO_HOST_UI:en\n',
+                       "root@haco-host:~# printf 'HACO_HOST_UI:ja'\n",
+                       'HACO_HOST_UI:ja\nHACO_HOST_UI:ja\n'):
+            with self.subTest(output=output), self.assertRaises(RuntimeError):
+                gate.assert_host_language(output, 'ja')
+
+
 class DoctorAssertionTest(unittest.TestCase):
     build = {"checkpoint": "v0.26", "version": "0.26.1-candidate", "commit": "candidate", "build_date": "2026-09-06T00:00:00Z"}
 

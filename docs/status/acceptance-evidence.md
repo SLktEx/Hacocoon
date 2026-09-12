@@ -269,3 +269,14 @@ fixture had the same combined snapshot argument and failed; it is now corrected
 to separate volume/snapshot arguments. Both workflow cleanup steps passed; the
 failed test's explicitly retained recovery fixture remains recorded. Store
 maintenance and private registry were skipped. No complete Btrfs job pass is claimed.
+
+The automatic normal Windows/WSL entry language change passes product,
+control API, selector and architecture tests. The user-path assertion's 12 tests
+also pass, including refusal of absent, echoed, duplicate or mismatched language
+markers. Direct local Windows PowerShell returned `en`. The separate opt-in
+native query from existing `hacocoon-second` failed with `exec format error`;
+read-only inspection found no `/proc/sys/fs/binfmt_misc/WSLInterop` registration.
+That existing installation was not repaired or reconfigured. This failure stays
+distinct from the passing fallback tests. Fresh packaged Windows CI now checks
+the actual Host session value against the Windows user UI setting after ordinary
+entry/restart/reinstall, without injecting a Hacocoon override. Its result is pending.

@@ -242,3 +242,13 @@ version correction. Windows run 34721760573 subsequently passed transfer,
 reclaim (7.93 to 4.03 GB allocated VHDX), retained-data restore and notification
 routing on Incus 7.0.1. Human toast/GUI decisions and VPN/NRPT remain skipped.
 M0/M1 remain partial; no main merge or release occurred.
+
+Normal interactive Windows/WSL entry now selects the Windows user's presentation
+language unless explicitly overridden. The fixed system query is bounded and
+falls back to POSIX selection; the selected value reaches both the entry notice
+and the existing Host-session API. No OS locale or Env configuration is changed.
+Local Windows PowerShell returned `en`; the dedicated existing WSL's direct-EXE
+probe failed with `exec format error` and its WSLInterop registration was absent.
+That existing installation was left unchanged. Component selection/fallback and
+the packaged user-path assertion are separate from native acceptance. The next
+packaged Windows run must compare the Host value with the Windows setting.

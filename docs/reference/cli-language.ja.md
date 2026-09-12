@@ -2,13 +2,16 @@
 
 日本語 | [English](cli-language.md)
 
-状態: **一部実装（partial）**。共通の言語判定と下記の画面を実装しています。出荷対象CLI全体の翻訳やWindowsからの言語引き継ぎは完了していません。Issue #577は未完了です。
+状態: **一部実装（partial）**。共通の言語判定・下記の画面・Windows／WSL通常入場の自動選択を実装しています。CLI全体の翻訳と配布物での言語受入は未完了です。Issue #577は未完了です。
 
 ## 言語を選ぶ
 
 `HACO_UI_LANGUAGE=en`または`HACO_UI_LANGUAGE=ja`で、OS localeを変えずに
-Hacocoonの表示を選べます。空でない未対応値は英語になります。この指定が空なら、下記の
-POSIX設定を使います。Host入場時には判定済みの`en`／`ja`だけをそのshell sessionへ渡し、
+Hacocoonの表示を選べます。空でない未対応値は英語になります。空ならWindows／WSLの通常の
+対話入場時だけWindows表示言語を読み取り、日本語は`ja`、それ以外は`en`にします。
+`/mnt/c/Windows`のsystem PowerShellを時間・出力量を制限して使い、interop不足・別system配置・
+失敗時は下記のPOSIX判定へ戻ります。それ以外のCLI実行はPOSIX設定を直接使います。
+Host入場時には判定済みの`en`／`ja`だけをそのshell sessionへ渡し、
 通常Envのshellへは転送しません。[ADR 0065](../adr/0065-host-presentation-language.md)を参照してください。
 
 製品CLIは `LC_ALL` → `LC_MESSAGES` → `LANG` の順に、最初の空でない値を使います。`ja`、`ja_JP.UTF-8`、`ja-JP` などの日本語ロケールでは日本語になります。英語、`C`、`C.UTF-8`、`POSIX`、未対応・不正な値、すべて未設定の場合は英語になります。上位に未対応の値がある場合、下位の日本語設定には進みません。空文字は飛ばしますが、空白文字だけの値は空文字ではありません。
@@ -64,8 +67,8 @@ Environmentの状態・アクセス方式、診断項目名・状態のトーク
 
 ほかのコマンド群やEnvironmentの下位処理の案内は、辞書への移行が残っています。標準ライブラリの引数解析エラー、Git/SSH/OSの元のエラー、構造化ログ、コントローラーの診断詳細・対処内容はそのままです。これらの詳細に日本語の説明を添える追加対応は今後の作業です。
 
-WSLからHostへの正規化済み表示言語の引き継ぎは実装済みです。Windowsの言語自動選択、
-Windows/WSLとIncusの実機受け入れ、全コマンド対応は残っています。
+WSLからHostへの正規化済み表示言語の引き継ぎと、Windows通常入場時の自動選択は実装済みです。
+配布物での言語受入と全コマンド対応は残っています。
 この部分実装でIssue #577を完了扱いにしません。
 
 ## 検証
@@ -81,10 +84,10 @@ Windows/WSLとIncusの実機受け入れ、全コマンド対応は残ってい�
 M0候補は#580の既存辞書を再利用し、現行の階層別ヘルプと日常操作の失敗・保持データ・
 停止後の再開案内を追加しています。`haco open .`、Workspace prepare/fork、TCP/UDP
 拡張をヘルプから欠落させません。通常Envの診断は`haco doctor <environment>`です。
-この追加分もWindows→WSL→Hostの自動言語転送やCLI全体の翻訳完了を意味しません。
+この追加分もWindows→WSL→Hostの実機言語受入やCLI全体の翻訳完了を意味しません。
 
 製品CLIと信頼済みHost clientの階層ヘルプを共通描画へ揃えました。`haco-host --help`と
 公開サブコマンドのヘルプはcontrollerの準備前にローカルで表示します。Host結果の全文翻訳まで
 完了したという意味ではありません。Windows表示言語からOSのlocaleを永続変更する処理は
 撤去しました。Host sessionへ正規化した表示言語を渡す処理は実装済みで、Windowsの
-言語自動選択は残件です。
+通常の対話入場での言語自動選択も実装しました。

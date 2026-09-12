@@ -230,3 +230,11 @@ Core／standaloneとBtrfs aggregate／取得元削除、native volume import、�
 volume／snapshotを別引数へ修正しました。workflowのcleanup 2stepはPASSですが、失敗した試験が
 明示的に保持した復旧fixtureの記録は残します。Store maintenanceとprivate registryはSKIPです。
 Btrfs job全体の成功とは扱いません。
+
+Windows／WSL通常入場の表示言語自動選択は、製品CLI・control API・共通判定・architecture試験が
+成功しました。user-path assertionも12件成功し、言語markerなし・echoのみ・重複・不一致を拒否します。
+Windows上の直接PowerShell照会は`en`でした。一方、既存`hacocoon-second`からの明示native queryは
+`exec format error`でFAIL、読み取り確認では`/proc/sys/fs/binfmt_misc/WSLInterop`登録がありませんでした。
+既存環境の修復・設定変更は行わず、fallback回帰の成功とは分けて失敗を保持します。新規配布物の
+Windows CIではHacocoonのoverrideを注入せず、通常入場・再起動・再導入後の実Host sessionの値を
+WindowsユーザーのUI設定と照合する項目を追加しました。その実行結果は確認待ちです。

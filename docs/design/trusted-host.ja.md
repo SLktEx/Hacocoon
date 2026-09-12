@@ -319,7 +319,8 @@ Windowsインストーラは、Windows UI言語からOSの言語設定を生成�
 Hacocoonの表示は正規化した`HACO_UI_LANGUAGE=en|ja`を優先し、未指定なら呼び出し元の
 localeで選びます。Host入場時には判定済みの値だけをそのsessionへ渡します。
 OS・Git・SSH・ビルドツールの設定は利用者が管理し、旧OS言語初期化は撤去しています。
-Windowsの言語自動選択と実機での言語転送受入は残件です。
+Windows／WSLの通常対話入場は、明示指定がなければ時間・出力を制限したsystem queryで
+Windows表示言語を読み取り、失敗時はPOSIX判定へ戻ります。配布物での言語受入は残件です。
 [CLI表示言語](../reference/cli-language.ja.md)と[ADR 0065](../adr/0065-host-presentation-language.md)を参照してください。
 
 ## setupの進捗と失敗診断
