@@ -80,8 +80,9 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.57 | OCI Image Cleanup | partial（実装・検証の残課題あり） |
 | v0.58 | Daily CLI Entry and Setup Diagnostics | implemented on development candidate |
 | v0.59 | All-branch Git Fetch | 開発候補に実装済み、実Env受入は未確認 |
+| v0.60 | Reviewed Git Branch Creation | 実装済み |
 
-現在のmilestone位置は **v0.59**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.60**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
 
@@ -92,3 +93,6 @@ PR #583のM0/M1候補は、既存開発ブランチとIncus 7.0 LTS共通導入�
 別のM2候補は全headsの列挙・各refの読み取り承認・通常のブランチ切り替えをv0.59に記録します。
 M1の実機残件はこの軽量な開発checkpointを止めません。Gitガイドに制限を記載し、
 M2全体の完了・巨大pack対応・リリースとは区別します。
+
+v0.60はGitブランチ一つの新規作成と、正確な既存ブランチ一つの更新を別々に承認する開発単位です。
+実Git componentと全体local test CIが成功し、実EnvのGit、GUI回答、巨大レポ受入は未完了です。

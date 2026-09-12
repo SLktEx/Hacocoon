@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -49,10 +48,12 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 	}
 	dir := filepath.Join(repos, req.Repository)
 	ref := "refs/heads/" + req.Branch
-	tracking := "refs/remotes/origin/" + req.Branch
 	git := func(stdin []byte, args ...string) ([]byte, error) { return trustedGit(ctx, dir, stdin, args...) }
 	if req.Operation != "fetch" && len(req.Heads) != 0 {
 		return Response{}, fmt.Errorf("heads are only valid for fetch")
+	}
+	if req.Ref != "" && req.Operation != "prepare" && req.Operation != "push" {
+		return Response{}, fmt.Errorf("target ref is only valid for push preparation or execution")
 	}
 	if req.Operation == "fetch" {
 		if _, err := validateHeads(req.Heads); err != nil || req.OldOID != "" || req.NewOID != "" || len(req.Pack) != 0 {
@@ -87,54 +88,7 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 	if req.Operation == "list" || req.Operation == "fetch" {
 		return readHeads(git, req)
 	}
-	if req.Operation == "push" {
-		if !ValidOID(req.OldOID) || !ValidOID(req.NewOID) {
-			return Response{}, fmt.Errorf("invalid approved OIDs")
-		}
-		if _, err := git(nil, "merge-base", "--is-ancestor", req.OldOID, req.NewOID); err != nil {
-			return Response{}, fmt.Errorf("non-fast-forward push is unsupported")
-		}
-		// Both ends are fixed. The remote atomically compares the approved old
-		// OID; moving a local branch during approval cannot change the payload.
-		if _, err := git(nil, "push", "--porcelain", "--no-verify", "--force-with-lease="+ref+":"+req.OldOID, "--", req.Remote, req.NewOID+":"+ref); err != nil {
-			return Response{}, fmt.Errorf("approved push failed or remote changed; fetch before retrying")
-		}
-		return Response{OID: req.NewOID, Ref: ref}, nil
-	}
-	if _, err := git(nil, "fetch", "--no-tags", "--no-recurse-submodules", "--", req.Remote, "+"+ref+":"+tracking); err != nil {
-		return Response{}, fmt.Errorf("trusted remote fetch failed; check registration and Host authentication")
-	}
-	value, err := git(nil, "rev-parse", "--verify", tracking+"^{commit}")
-	if err != nil {
-		return Response{}, err
-	}
-	oid := strings.TrimSpace(string(value))
-	if !ValidOID(oid) {
-		return Response{}, fmt.Errorf("remote did not return a SHA-1 commit")
-	}
-	result := Response{OID: oid, Ref: ref}
-	if !ValidOID(req.NewOID) || req.OldOID != oid || len(req.Pack) == 0 {
-		return Response{}, fmt.Errorf("push does not match the listed remote commit")
-	}
-	// The pack contains only Git objects, never a guest .git directory/config.
-	if _, err := git(req.Pack, "index-pack", "--stdin", "--strict", "--max-input-size=33554432"); err != nil {
-		return Response{}, fmt.Errorf("invalid Git object pack")
-	}
-	if _, err := git(nil, "cat-file", "-e", req.NewOID+"^{commit}"); err != nil {
-		return Response{}, fmt.Errorf("new OID is not an available commit")
-	}
-	if _, err := git(nil, "merge-base", "--is-ancestor", oid, req.NewOID); err != nil {
-		return Response{}, fmt.Errorf("non-fast-forward push is unsupported")
-	}
-	summary, err := git(nil, "diff", "--no-ext-diff", "--no-textconv", "--stat", oid, req.NewOID, "--")
-	if err != nil {
-		return Response{}, err
-	}
-	if len(summary) > 8192 {
-		summary = summary[:8192]
-	}
-	result.Summary = string(summary)
-	return result, nil
+	return pushOperation(git, req)
 }
 
 func trustedGit(ctx context.Context, dir string, input []byte, args ...string) ([]byte, error) {

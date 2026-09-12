@@ -46,7 +46,11 @@ An older read rule limited to main does not authorize all-branch fetch: review
 that scope explicitly before updating it. Clone does not save an allow-push rule.
 An exact-ref read denial also refuses the whole listing. Object fetch rechecks
 each exact ref through the ordinary Policy service.
-Push rules need `update_kind: fast-forward`; older rules without it fail closed.
+Push rules need `update_kind: fast-forward` for updates or `create` for a new
+branch; older rules without it fail closed. To request review of a development
+branch, add a push rule for its exact `target_ref` with `decision: require-approval`
+and the appropriate update kind. Keep the main rule. With default deny, a missing
+branch/kind rule is denied; default require-approval asks through the common review.
 [Policy precedence](../design/policy-and-capability-foundation.md#matching-rule-precedence)
 is deny, then require-approval, then allow, regardless of rule order.
 
@@ -61,8 +65,11 @@ The development candidate fetches up to 1024 SHA-1 branch heads per batch, with
 an aggregate 32 MiB pack limit. Per-head transfers can repeat shared history;
 large-pack optimization remains pending. Use `git branch -r` to see them, then for example
 `git switch --track origin/feature/example` to work on an existing branch.
-Push currently supports the one existing branch selected at registration.
-New-branch push, force push, branch deletion, multi-ref push, LFS and submodules
+The development candidate supports one new branch or one existing fast-forward
+target per push. For example, create local work with `git switch -c feature/work`,
+commit it, then `git push -u origin feature/work`. Creation requests its own
+approval and displays the exact new commit; subsequent updates are separate.
+Force push, branch deletion, multi-ref push, LFS and submodules
 remain deferred. A moved or deleted head is rejected; fetch again to inspect the
 current upstream state. This does not establish large-repository acceptance.
 
@@ -107,6 +114,12 @@ These are alternatives. `env` binds to this Environment creation;
 `deny --save all` saves global denial. `ask-env` and `ask-all` save future
 require-approval while approve/deny separately answers the present request.
 Omitting `--save` changes no Policy.
+
+A saved choice retains the exact target branch and distinguishes creation from
+fast-forward updates. Saving creation of `feature/work` does not allow its next
+update or a push to main. Creating a branch never overwrites an existing remote
+ref, even if it appeared while approval was pending. Inspect and fetch the remote
+after a competing change; approval is not retried automatically.
 
 Saved allow cannot override an administrator deny or require-approval rule.
 The example deliberately asks on every push. If reusable allow is intended,

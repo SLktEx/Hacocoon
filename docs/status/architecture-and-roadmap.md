@@ -133,7 +133,7 @@ rerun all old tests. Main, dev/v2 and dev/2.x are distinct publication states.
 |---|---|
 | M0: combine existing improvements | **partial**. Candidate `codex/roadmap-m0-m1` starts at dev/2.x `ac67fadb` (#576/#579), merges dev/v2 `4d74dd53` (#569/#571) as `5e43c8db`, main `9527948b` (#572/#574/#578) as `e941c080`, and #580 `dd7141c1` as `63822b94`. Existing dirty main checkout is retained. Integration target is dev/2.x; no main merge or distribution. Combined installed acceptance remains pending. |
 | M1: ordinary Windows development | **partial**. BAT result/wait (#573), hierarchical bilingual help (#575/#577), daily failure guidance and native failure grouping (#582, roadmap R1) are implemented in the candidate. Remaining: full help/options coverage, language transport, Windows/VS Code/real terminal acceptance and Incus 7.0 LTS (#479). |
-| M2: multi-repo Git and GUI decisions | **partial existing foundation**. Workspace prepare/reopen/fork and scoped native acceptance come from #579. All-branch fetch, new-branch push, read/write permission separation, direct GUI responses (#568) and ambiguous push reconciliation (#470) remain. Main pushes still require the user's decision. |
+| M2: multi-repo Git and GUI decisions | **partial**. Workspace prepare/reopen/fork and scoped native acceptance come from #579. All-branch fetch (#584) and separately approved new-branch/fast-forward push (#586) are implemented on development branches. Native Git acceptance, direct GUI responses (#568) and ambiguous push reconciliation (#470) remain. Main pushes still require the user's decision. |
 | M3: corporate network | **partial existing foundation**. Reuse #576 TCP/UDP plus its expiry/revocation/generation tests. The dedicated Windows-service timeout remains unresolved; VPN/DNS modes, client stream forwarding and temporary-run TTY remain. No firewall exception is introduced to obtain a pass. |
 | M4: large repositories | **planned remaining work**. Preserve existing Base builder/CoW/OCI results. Real Packer HCL2 plus external shell (#566), Host-selected normal-Env cache generation/COW reuse (#570), cleanup and actual large-repo measurement (#241) remain. Small #579 fixtures are not giant-repository acceptance. |
 | M5: cleanup and migration | **partial existing foundation**. Preserve snapshot/copy/export/import/reclaim and stopped-containerd evidence. Deletion diagnosis (#523), required whole-installation inventory/restore/comparison and authenticated restored Git remain. Final old-WSL replacement requires identified verified data and explicit authority for deletion. |
@@ -223,6 +223,26 @@ failed at the ten-minute milestone-package timeout while copying the repository;
 that failure remains recorded separately. Next: review the R2 slice, add new-branch
 push and GUI decisions; preserve M1 native failures independently.
 The focused Git broker and capability race tests also passed.
+
+### M2 development-branch push candidate
+
+Roadmap R3 is [#586](https://github.com/SLktEx/Hacocoon/issues/586).
+`codex/git-branch-push` starts from R2 `76bb498d` and implements one new branch
+or one existing fast-forward target per push. It reuses Standard Git preparation,
+the common approval service and exact ownership checks. New creation binds a
+zero old OID and an expected-absent remote lease; saved creation and update
+decisions remain separate and cannot grant main. ADR 0066 records the boundary.
+Real Git regressions pass denial, fixed-commit creation, separately approved
+updates, main approval, competing different/identical creation, replay and
+force/delete/multi-ref refusal. Malformed input and porcelain receipt tests pass.
+This is local component evidence, not native GitHub or installed-Env acceptance.
+The maintained `bash tools/ci-local.sh test` passed on an unchanged Linux
+temporary-filesystem snapshot: all Go tests/vet, Python prerequisites and 27
+client tests. Git broker/common capability race tests and documentation consistency
+also passed. The [development checkpoint](versioning-and-release-status.md)
+records this implementation slice; it is not a release or M2 completion.
+Next: a separate stacked PR, installed Git acceptance and GUI-contained decisions.
+Pack/huge-repo work remains M4.
 
 ### M1 native follow-up
 
