@@ -13,6 +13,10 @@ See [Windows interop](design/trusted-host.md#windows-interop).
 
 Implemented and verified on real Incus/Btrfs at 653dc985: both canonical and shipped-controller imports retain the saved image identity and stopped container writable data after source deletion. Explicit container start resumes the saved work; no running task is migrated. Docker, arbitrary application consistency and whole-installation migration remain incomplete. See [the transfer acceptance scope](design/environment-transfer.md#live-oci-transfer-acceptance).
 
+## Reclamation status without saved history
+
+Implemented: an absent current Windows reclamation record has an explicit read-only no-result response. Status and review create no operation; malformed records and explicit-ID lookup failures remain errors. No persisted state or schema changes. See [storage reclamation](design/storage-reclamation.md).
+
 ## Host setup controller readiness
 
 Implemented: Host setup uses bounded read-only controller readiness probes before a single setup request. Mutation failures are not retried. See [trusted Host](design/trusted-host.md). Native observation identified the startup race; acceptance of this client fix is separate.

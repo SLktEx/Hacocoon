@@ -86,8 +86,8 @@ func TestPreparedStatusIsReadOnlyAndPendingIsUnknown(t *testing.T) {
 	if _, err := ReadPreparedStatus(context.Background(), id.String(), operation.String()); err == nil {
 		t.Fatal("missing result accepted")
 	}
-	if _, err := ReadLatestPreparedStatus(context.Background(), id.String()); err == nil {
-		t.Fatal("missing latest result accepted")
+	if got, err := ReadLatestPreparedStatus(context.Background(), id.String()); err != nil || got != (PreparedStatus{State: "none"}) {
+		t.Fatal("missing latest result not reported without evidence", got, err)
 	}
 	if key, err := registry.OpenKey(registry.CURRENT_USER, path, registry.QUERY_VALUE); err == nil {
 		key.Close()
@@ -107,6 +107,12 @@ func TestPreparedStatusIsReadOnlyAndPendingIsUnknown(t *testing.T) {
 			t.Error(err)
 		}
 	}()
+	if got, err := ReadLatestPreparedStatus(context.Background(), id.String()); err != nil || got != (PreparedStatus{State: "none"}) {
+		t.Fatal("empty existing key not reported without evidence", got, err)
+	}
+	if _, err := ReadPreparedStatus(context.Background(), id.String(), operation.String()); err == nil {
+		t.Fatal("missing explicit operation accepted in existing key")
+	}
 	record := operationRecord{Version: 1, Operation: operation, Registration: registration{ID: id, Name: "Hacocoon-Test", BasePath: `C:\owned`, VHDFileName: "ext4.vhdx"}, Disk: diskIdentity{Volume: 1, Low: 2}, State: "pending"}
 	store := &operationStore{key: key}
 	if err := store.write(record); err != nil {

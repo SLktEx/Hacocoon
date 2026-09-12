@@ -7,6 +7,8 @@ dispatch, status and explicit failure review use the configured Incus pool and
 enrolled WSL identity. Resource deletion/GC and migration remain separate.
 Local acceptance on an existing installation must be recorded separately.
 
+When no current operation record exists, `haco reclaim --status` succeeds with an explicit no-saved-result message. This is a read-only observation, not proof that reclamation never ran or completed. It creates no operation or registry key. `--review` has nothing to acknowledge. Malformed records, access failures and missing explicitly requested operation IDs remain errors; existing pending/failed evidence is never converted to absence.
+
 ## Current native acceptance
 
 At commit 5100d86, the ordinary Host entry ran haco reclaim --yes, followed by
