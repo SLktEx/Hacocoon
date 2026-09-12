@@ -126,7 +126,8 @@ jobs:
           set -e
           test "$product_env_code" = 2
           test ! -s "$RUNNER_TEMP/product-env.out"
-          grep -Fq 'Usage: haco env create' "$RUNNER_TEMP/product-env.err"
+          grep -Fxq '  haco env <command>' "$RUNNER_TEMP/product-env.err"
+          grep -Eq '^  create +[^ ]' "$RUNNER_TEMP/product-env.err"
 
           apparmor_userns=/proc/sys/kernel/apparmor_restrict_unprivileged_unconfined
           if test -e "$apparmor_userns"; then
