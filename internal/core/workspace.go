@@ -79,6 +79,8 @@ type Environment struct {
 }
 
 type EnvironmentSpec struct {
+	// ExpectedWorkspace pins a reviewed retained work before any provider mutation.
+	ExpectedWorkspace   WorkspaceID
 	TemporaryWorkspace  *Workspace
 	SkipDefaultResource bool
 	PersistentResource  string

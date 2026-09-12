@@ -1,5 +1,11 @@
 # バージョン番号とリリース状況
 
+v2.2 Workspace Reworkは開発ブランチで実装済み。pathからの準備・再open・
+独立分岐・Env再作成と保持を専用CLI/Incusで確認した。
+[契約と測定範囲](../design/workspace-workflow.md)を参照。
+v2.1/v2.2の統合先は`dev/2.x`のみで、mainのrelease/tagは作成しない。
+既存v0.x checkpointと別のpending受入は維持する。
+
 G1・G3 は **partial** です。公開 Env export/import、installed-controller／desktop 転送、SSH に対象を限定した受入結果があり、別の新規 WSL でも管理 bundle の import・保存 volume 全エントリ・SSH／ローカル Git 作業・再作成後のデータ保持が成功しました。以前の local aggregate 全体の timeout は失敗として残します。installation 全体の退避・復元、復元 Git の認証済み通信、広い live OCI 受入は未完了です。新しい release／checkpoint は宣言しません。[現在の管理対象 WSL 間受入](../design/environment-transfer.ja.md#別-wsl-への管理対象-bundle-復元)を参照してください。
 
 v0.57 の OCI image cleanup は partial です。未接続の nerdctl Store の一覧・削除は、production composition と bare controller／CLI を使い、bd1c9a5 の実 Incus/Btrfs で成功しました。導入済み controller 全体の受け入れ、未接続 Docker、候補選択型 GC は未完了です。[画像操作](../design/oci-image-deletion.ja.md)を参照してください。

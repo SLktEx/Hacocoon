@@ -13,7 +13,14 @@ func TestOpenClientChoiceIsExplicitAndValidatedBeforeSetup(t *testing.T) {
 		t.Fatalf("%d %s", code, err)
 	}
 	code, _, err = captureRun(t, "open", "--help")
-	if code != 0 || !strings.Contains(err, "desktop client: vscode or ssh") {
+	if code != 0 || !strings.Contains(err, "desktop client: vscode, ssh or none") {
 		t.Fatalf("%d %s", code, err)
+	}
+}
+
+func TestNoneClientRequiresAPathBeforeControllerSetup(t *testing.T) {
+	code, _, diagnostic := captureRun(t, "open", "--client", "none", "missing-env-name")
+	if code != 2 || !strings.Contains(diagnostic, "require a directory") {
+		t.Fatal(code, diagnostic)
 	}
 }

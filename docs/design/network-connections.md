@@ -171,3 +171,22 @@ UDP response-source filtering and one-way activity keeping an association alive.
 The LAN and DNS services are synthetic fixtures, not a corporate VPN. Windows UI,
 VPN/NRPT, public-service credentials, packet loss/MTU behavior, throughput and
 large-scale concurrent workloads remain unverified here.
+
+
+## Dedicated Windows observation
+
+Windows OpenSSH reached the recreated Env through an explicit distribution-bound
+ProxyCommand and dedicated host-key/identity files. A Windows SSH local forward
+also delivered an Env loopback HTTP fixture to the Windows-hosted browser, where
+the content was rendered. This is scoped SSH/browser acceptance, not automatic
+IDE setup or direct Windows-to-Env UDP acceptance.
+
+The separately registered Windows TCP/UDP echo services responded to a Windows
+local probe, but both the controller namespace and a direct WSL probe timed out.
+The guest CLI's approved TCP request recorded phase `connect`, state `failed`,
+reason `timeout` after approximately ten seconds. The UDP caller observed no
+reply; a connected UDP socket is not proof that a service is reachable. No shared
+firewall, Hyper-V or WSL networking settings were changed. Successful outbound
+Windows-service access remains unverified on this host, and the precise filtering
+or routing cause is not established. Linux Physical Host and peer Env TCP/UDP
+paths have separate successful native acceptance above.

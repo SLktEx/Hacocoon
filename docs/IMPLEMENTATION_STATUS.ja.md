@@ -1,12 +1,32 @@
 # 実装状況
 
+## Workspaceの入口・再開・独立分岐
+
+開発ブランチでStandard workflowを実装済み。`haco open .`、明示選択した
+Host複数repoの準備、所有IDを固定した再利用、停止した作業のCOW分岐、
+Base/OCI選択の保持を既存catalogと正規lifecycleへ接続した。
+専用の導入済みCLI・実Incusで編集、Env削除・再作成、Git/OCIの独立性、
+OCIなし・再利用、別Base、途中失敗時の所有記録保持を確認。
+[契約・時間容量の測定範囲](design/workspace-workflow.md)を参照。
+巨大repo性能とWorkspaceのdesktop UI受入は主張しない。
+
+## 開発CIのプラットフォーム検証範囲
+
+既存test workflowを`dev/2.x`向けPRと統合commitにも適用した。
+installer componentはOS照会とnative起動境界を分け、checksum・引数・
+失敗のassertionを維持する。Win32の使用中helper置換拒否とjunction拒否は
+Windowsで実行し、Linuxでは未実行と明記する。専用Windows PowerShellで
+component・native filesystem検証は合格した。Windows installer自体の実行や
+desktop IDEの受入とは区別する。
+
 ## Policy に結び付いた TCP/UDP 接続
 
 開発ブランチで Standard relay と製品 CLI を実装。既存 guarded endpoint、
 送信元の作成世代、承認・監査を再利用し、Policy の期限と Host サービス明示登録を
 追加した。専用 hacocoon-second の導入済み CLI/実 Incus で IPv4/IPv6 TCP/UDP、
 Host/Env 間、期限・撤回、送信元/宛先の再作成後の旧許可拒否、DNS 変更・失敗を確認。
-Windows UI と VPN は未検証。
+専用のWindows SSH/browser経路は確認済み。Windowsサービスへの直接到達、
+自動IDE起動、VPNは未検証。
 [接続の契約と受入範囲](design/network-connections.md)を参照。
 
 

@@ -35,16 +35,24 @@ type snapshotCatalog interface {
 // CaptureSnapshot holds canonical source locks through all capture and publication
 // steps. A nonempty result ID on error names a durable reservation for recovery.
 func (s *Service) CaptureSnapshot(ctx context.Context, name string) (core.Snapshot, error) {
-	return s.captureSnapshot(ctx, name, true)
+	return s.captureSnapshot(ctx, name, true, "")
 }
 
 // CaptureStoppedSnapshot refuses a running source under the canonical locks.
 // Copy callers must not stop or restart somebody else's running workload.
 func (s *Service) CaptureStoppedSnapshot(ctx context.Context, name string) (core.Snapshot, error) {
-	return s.captureSnapshot(ctx, name, false)
+	return s.captureSnapshot(ctx, name, false, "")
 }
 
-func (s *Service) captureSnapshot(ctx context.Context, name string, quiesce bool) (result core.Snapshot, err error) {
+// CaptureStoppedSnapshotForWorkspace refuses a recycled Env name under the
+// canonical locks before capturing any provider component.
+func (s *Service) CaptureStoppedSnapshotForWorkspace(ctx context.Context, name string, expected core.WorkspaceID) (core.Snapshot, error) {
+	if expected == "" {
+		return core.Snapshot{}, core.ErrInvalidArgument
+	}
+	return s.captureSnapshot(ctx, name, false, expected)
+}
+func (s *Service) captureSnapshot(ctx context.Context, name string, quiesce bool, expected core.WorkspaceID) (result core.Snapshot, err error) {
 	backend, ok := s.runtime.(SnapshotBackend)
 	if !ok {
 		return result, core.ErrUnsupported
@@ -54,6 +62,9 @@ func (s *Service) captureSnapshot(ctx context.Context, name string, quiesce bool
 		return result, core.ErrUnsupported
 	}
 	err = s.withSnapshotSourceMode(ctx, name, quiesce, func(ctx context.Context, source core.SnapshotSource) error {
+		if expected != "" && source.Environment.Workspace.ID != expected {
+			return core.ErrCapabilityStale
+		}
 		result, err = s.captureSnapshotLocked(ctx, source, backend, catalog)
 		return err
 	})

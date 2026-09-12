@@ -1,5 +1,10 @@
 # Managed repository workflow
 
+For work-oriented preparation, path-based reopen, independent data forks and
+Base-independent recreation, see [open and branch a Workspace](../design/workspace-workflow.md).
+It composes the repository/collection operations below without moving a local
+source folder or sharing a Git index.
+
 Status: **implemented** for the WSL PoC. Real-host results are recorded separately
 in [implementation status](../IMPLEMENTATION_STATUS.md). This guide covers one
 existing GitHub branch, the default Base and one Environment. It uses the
