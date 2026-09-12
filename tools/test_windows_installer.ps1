@@ -23,51 +23,9 @@ function Assert-Equal($Actual, $Expected) {
     if ($Actual -cne $Expected) { throw "Expected '$Expected', got '$Actual'." }
 }
 
-# Fresh Windows installs inherit Japanese UI language into the WSL locale. The
-# mapping is deliberately narrow so other Windows locales keep Ubuntu defaults.
-foreach ($case in @(
-    @{ Tag = 'ja-JP'; Want = 'ja_JP.UTF-8' },
-    @{ Tag = 'ja'; Want = 'ja_JP.UTF-8' },
-    @{ Tag = 'JA-jp'; Want = 'ja_JP.UTF-8' },
-    @{ Tag = 'en-US'; Want = '' },
-    @{ Tag = ''; Want = '' }
-)) {
-    Assert-Equal (Convert-WindowsLanguageTagToWslLocale $case.Tag) $case.Want
-}
-$realRootShell = ${function:Invoke-WslRootShellScript}
-$realUiLanguage = ${function:Get-WindowsUiLanguageTag}
-function Get-WindowsUiLanguageTag { return $script:windowsUiLanguage }
-function Invoke-WslRootShellScript([string]$Name, [string]$Script, [string[]]$ScriptArguments = @()) {
-    Assert-Equal $Name 'Hacocoon'
-    Assert-Equal ($ScriptArguments -join '|') 'ja_JP.UTF-8'
-    Assert-Equal ($Script -like '*locale-gen*') $true
-    Assert-Equal ($Script -like '*update-locale LANG*') $true
-    $script:localeCalls++
-    return New-WslCaptureResult $script:localeExit @() ''
-}
-try {
-    $script:localeExit = 0
-    $script:windowsUiLanguage = 'ja-JP'
-    $script:localeCalls = 0
-    Initialize-WslLocaleFromWindows 'Hacocoon' $true
-    Assert-Equal $script:localeCalls 1
-
-    $script:localeCalls = 0
-    Initialize-WslLocaleFromWindows 'Hacocoon' $false
-    Assert-Equal $script:localeCalls 0
-
-    $script:windowsUiLanguage = 'en-US'
-    Initialize-WslLocaleFromWindows 'Hacocoon' $true
-    Assert-Equal $script:localeCalls 0
-
-    $script:windowsUiLanguage = 'ja-JP'
-    $script:localeExit = 1
-    $localeRejected = $false
-    try { Initialize-WslLocaleFromWindows 'Hacocoon' $true } catch { $localeRejected = $true }
-    Assert-Equal $localeRejected $true
-} finally {
-    ${function:Invoke-WslRootShellScript} = $realRootShell
-    ${function:Get-WindowsUiLanguageTag} = $realUiLanguage
+# Presentation must not rewrite the OS or toolchain locale during installation.
+foreach ($forbidden in @('locale-gen', 'update-locale', 'Initialize-WslLocaleFromWindows')) {
+    if ($ast.Extent.Text.Contains($forbidden)) { throw "Installer restored global locale mutation: $forbidden" }
 }
 
 # Resolve enrollment through one literal registry identity, never default WSL.
