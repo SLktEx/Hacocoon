@@ -98,3 +98,13 @@ resolver を本番の Environment identity 解決経路として維持する。
 失敗・キャンセル・途中で切れた Incus 出力は、もっともらしい名前が 1 件あっても
 通信元の証明にしない。正規化・Policy/Approval・Standard の具体的な接続処理は
 既存の責任者が担当する。HTTP/HTTPS 対応と公開コマンドは変更しない。
+
+## 通信制御実装の構成
+
+実装済み: Standard proxy の構成／routing、HTTP 転送、CONNECT、authority 解析、
+TLS ClientHello 解析、固定アドレスへの接続を責務別に整理しました。HTTP／CONNECT は
+要求と完全一致する grant の受領と許可後の DNS 解決を共有し、Core の Policy／Approval を
+制御実装へ複製しません。grant の対象が異なる場合は DNS より前に拒否します。
+名前解決と接続の前後でキャンセルを確認し、遅れて返った接続は上流への書込み前に閉じます。
+既存 HTTP 応答、hostname 正規化、SNI 検証、1回の試行に限定した grant を維持します。
+[既存 ADR](adr/0007-controller-owned-standard-egress.ja.md#通信開始前の共通検証)を参照してください。

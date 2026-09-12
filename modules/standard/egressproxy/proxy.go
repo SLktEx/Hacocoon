@@ -1,7 +1,6 @@
 package egressproxy
 
 import (
-	"bufio"
 	"context"
 	"net"
 	"net/http"
@@ -9,15 +8,10 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
-	egressapp "github.com/SLktEx/Hacocoon/internal/egress"
 	"github.com/SLktEx/Hacocoon/modules/standard/dnsproxy"
 )
 
-const (
-	DefaultPort         = 18080
-	maxClientHelloBytes = 128 << 10
-	clientHelloTimeout  = 10 * time.Second
-)
+const DefaultPort = 18080
 
 type Authorizer interface {
 	Authorize(context.Context, core.EgressRequest) (core.EgressGrant, error)
@@ -102,8 +96,3 @@ func (p *Proxy) resolveSource(ctx context.Context, remote string) (string, error
 	}
 	return p.sources.ResolveEnvironment(ctx, ip)
 }
-
-// Ensure imports cannot accidentally drift away from the canonical authority
-// implementation while this package remains the Standard enforcement layer.
-var _ = egressapp.Capability
-var _ = bufio.ErrInvalidUnreadByte

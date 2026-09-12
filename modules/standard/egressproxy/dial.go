@@ -12,9 +12,18 @@ import (
 )
 
 func (p *Proxy) resolvePinned(ctx context.Context, host string) ([]netip.Addr, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	resolved, err := p.resolver.LookupIPAddr(ctx, host)
-	if err != nil || len(resolved) == 0 {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err != nil {
 		return nil, fmt.Errorf("resolve %s: %w", host, err)
+	}
+	if len(resolved) == 0 {
+		return nil, fmt.Errorf("resolve %s returned no addresses: %w", host, core.ErrRuntimeUnavailable)
 	}
 	addresses := make([]netip.Addr, 0, len(resolved))
 	seen := map[netip.Addr]struct{}{}
@@ -44,7 +53,16 @@ func (p *Proxy) resolvePinned(ctx context.Context, host string) ([]netip.Addr, e
 func (p *Proxy) dialPinned(ctx context.Context, addresses []netip.Addr, port int) (net.Conn, error) {
 	var errs []error
 	for _, address := range addresses {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		conn, err := p.dial(ctx, "tcp", net.JoinHostPort(address.String(), strconv.Itoa(port)))
+		if canceled := ctx.Err(); canceled != nil {
+			if conn != nil {
+				_ = conn.Close()
+			}
+			return nil, canceled
+		}
 		if err == nil {
 			return conn, nil
 		}

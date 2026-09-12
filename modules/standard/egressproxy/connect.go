@@ -11,19 +11,16 @@ import (
 	egressapp "github.com/SLktEx/Hacocoon/internal/egress"
 )
 
+const clientHelloTimeout = 10 * time.Second
+
 func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request, environment string) {
 	host, port, err := parseAuthority(r.Host, 443)
 	if err != nil {
 		http.Error(w, "invalid CONNECT authority", http.StatusBadRequest)
 		return
 	}
-	if _, err := p.authorizer.Authorize(r.Context(), core.EgressRequest{Environment: environment, Host: host, Port: port, Protocol: core.EgressHTTPS}); err != nil {
-		http.Error(w, "egress denied", http.StatusForbidden)
-		return
-	}
-	addresses, err := p.resolvePinned(r.Context(), host)
-	if err != nil {
-		http.Error(w, "upstream resolution denied", http.StatusBadGateway)
+	addresses, ok := p.prepareUpstream(w, r, core.EgressRequest{Environment: environment, Host: host, Port: port, Protocol: core.EgressHTTPS})
+	if !ok {
 		return
 	}
 

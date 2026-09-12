@@ -6,6 +6,8 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
+const maxClientHelloBytes = 128 << 10
+
 func readClientHelloServerName(reader io.Reader) ([]byte, string, error) {
 	var raw []byte
 	var handshake []byte

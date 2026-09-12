@@ -2027,3 +2027,13 @@ retain recovery-required and their original causes; existing JSON and guest exit
 are preserved. Three new cases reproduced inconsistent error classification before
 the change. Related package tests and state/Workspace/run race tests passed in
 hacocoon-kai. See [temporary execution](design/temporary-execution.md#cleanup-outcome-ownership).
+
+## Standard proxy responsibility split
+
+Implemented: transport parsing/forwarding and pinned dialing are separate from
+composition and Core authorization. HTTP and CONNECT share exact grant
+consumption; mismatched grants and late canceled DNS/dial results fail closed.
+Target mismatch, fresh authorization per attempt, cancellation and existing
+CONNECT shutdown regressions passed, including related proxy/egress/DNS/Incus
+race tests. This is repository validation, not new installed packet acceptance.
+See [egress structure](EGRESS_AUTHORIZATION.md#transport-implementation-structure).

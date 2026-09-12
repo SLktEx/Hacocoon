@@ -28,13 +28,8 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request, environment s
 			return
 		}
 	}
-	if _, err := p.authorizer.Authorize(r.Context(), core.EgressRequest{Environment: environment, Host: host, Port: port, Protocol: core.EgressHTTP}); err != nil {
-		http.Error(w, "egress denied", http.StatusForbidden)
-		return
-	}
-	addresses, err := p.resolvePinned(r.Context(), host)
-	if err != nil {
-		http.Error(w, "upstream resolution denied", http.StatusBadGateway)
+	addresses, ok := p.prepareUpstream(w, r, core.EgressRequest{Environment: environment, Host: host, Port: port, Protocol: core.EgressHTTP})
+	if !ok {
 		return
 	}
 

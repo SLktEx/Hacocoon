@@ -99,3 +99,14 @@ binding remains the sole production Environment identity resolver. Failed,
 canceled or truncated Incus output cannot establish a source, even if it includes
 one plausible name. Normalization, Policy/Approval and concrete Standard dialing
 retain their existing owners. HTTP/HTTPS support and public commands are unchanged.
+
+## Transport implementation structure
+
+Implemented: Standard proxy composition/routing, HTTP forwarding, CONNECT,
+authority parsing, TLS ClientHello parsing and pinned dialing have separate
+responsibilities. HTTP/CONNECT share exact grant consumption and authorized DNS
+resolution; Core Policy/Approval is not copied into the enforcer. Mismatched grant
+fields fail before DNS. Cancellation is checked around resolution and dialing;
+late connections close without upstream writes. Current HTTP status bodies,
+hostname normalization, SNI checks and the one-attempt grant scope remain.
+See [the existing ADR](adr/0007-controller-owned-standard-egress.md#shared-transport-admission).

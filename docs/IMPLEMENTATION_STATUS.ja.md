@@ -1751,3 +1751,12 @@ architecture 回帰テストが成功しました。
 エラー分類の不一致を再現しました。hacocoon-kai で関連パッケージと state／Workspace／run
 の race テストが成功しました。
 [一時実行](design/temporary-execution.ja.md#cleanup-結果の責任)を参照してください。
+
+## Standard proxy の責務整理
+
+実装済み: 通信の解析／転送と固定アドレスへの接続を、構成処理と Core の許可判断から
+分離しました。HTTP と CONNECT が grant の厳密な受領を共有し、対象不一致とキャンセル後の
+DNS／dial 結果を fail-closed で拒否します。対象不一致、試行ごとの再許可、キャンセル、
+既存 CONNECT shutdown 回帰と、関連 proxy／egress／DNS／Incus の race テストが成功しました。
+リポジトリ検証であり、新たなインストール済み packet 受入確認ではありません。
+[egress の構成](EGRESS_AUTHORIZATION.ja.md#通信制御実装の構成)を参照してください。
