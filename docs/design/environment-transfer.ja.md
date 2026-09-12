@@ -1063,3 +1063,32 @@ sha256sum --check --status data.tar.sha256
 過去の暗号化 fixture と既存の暗号文は変更せず、通常 export の前提条件にしません。古い暗号文を読む場合は元の鍵が必要ですが、移行・書き換えは行いません。全対象の分類・書き込み停止の同期・installation 再構築は未完了です。
 
 ネイティブ退避の復元検証では、隔離した所有済み fixture の archive を展開するときに user 名前空間以外の拡張属性も明示的に含め、合成した trusted 属性を直接照合します。GNU tar の --xattrs だけによる既定の展開では user 名前空間しか復元しません。これは同一基盤の fixture 検証であり、任意の保存済みセキュリティ属性を Host に適用したり、旧管理権限を復元したりする許可ではありません。復元データ全体の照合は引き続き必要です。
+
+
+## 通常の Incus image の保持
+
+状態: **G2／G3 の一部**。Incus 標準コマンドを使います。今後の Env 作成に必要な image を保持する手順であり、独立した snapshot rootfs の復元に元 Base image は不要です。snapshot component、Hacocoon catalog の管理対象、日常のコマンドは追加しません。
+
+保存元の Physical Host で、一覧から確認した完全な fingerprint と実際の image 名前空間を使います。新しい private directory を選び、各コマンドが失敗したら中断してください。
+
+```bash
+umask 077
+mkdir -m 700 /absolute/new-image-export
+incus image export FULL_FINGERPRINT /absolute/new-image-export/image --project SOURCE_PROJECT
+ls -l /absolute/new-image-export
+```
+
+出力された全ての part を保持します。検証した分割 image では、この prefix から `image`（metadata）と `image.root`（rootfs）が作られました。一体型では `image.tar` が作られる場合があります。prefix だけで出力の欠落を判断したり、既存ファイルへ再 export したりしないでください。実際の各 part の SHA-256 を計算し、保存元 WSL の外の新しい保持ディレクトリへコピーして、import 前にコピー先でも照合します。
+
+復元先の Physical Host で、新しい project 名と一意な所有識別用 description を作成前に記録します。共有名前空間では検証を隔離できないため、独立した image 名前空間を明示的に有効にします。
+
+```bash
+incus project create RESTORE_PROJECT --description UNIQUE_RESTORE_DESCRIPTION -c features.images=true
+incus project list --format=json
+incus image import /absolute/retained/image /absolute/retained/image.root --project RESTORE_PROJECT
+incus image list --project RESTORE_PROJECT --format=json
+```
+
+import 前に、記録した project description と `features.images` を確認します。一体型の場合は `incus image import` に実際の archive path だけを渡します。import 後の完全な fingerprint と image 種類が保存元と一致し、保持ファイルも変わっていないことを確認します。失敗と作成済み資源の正確な識別情報を残し、推測で cleanup したり、既存 project を置き換えたりしません。保存元と保持 archive は残します。image の import は Hacocoon Base の登録、alias の復元、旧権限の採用、Env 作成、起動の実証ではありません。
+
+別々の専用 WSL による実検証では、分割 container image 2 件を export し、全 part を Windows の新規ディレクトリへコピーして SHA-256 を照合し、新しい独立 Incus image project へ import しました。両方の fingerprint・種類が一致し、Windows 側のコピーも不変でした。最初の project 確認は `incus project show` が `--format` 非対応のため失敗しました。その記録を保持し、import 前の確認を `project list` で続行しました。復元した image と project は保持しています。この検証では一体型 image の import、これらの image から作った Env の起動、installation 全体の入替は未検証です。
