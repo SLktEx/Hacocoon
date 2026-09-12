@@ -41,6 +41,61 @@ refusal after approval crosses the deadline. Relay behavior and separately scope
 real-provider acceptance are recorded in the
 [connection contract](design/network-connections.md).
 
+## Daily entry and setup diagnostics
+
+Status: **implemented; dedicated WSL/Linux daily acceptance passed**.
+
+Host setup streams bounded fixed stage/state/reason and request IDs, records
+structured journal diagnostics, rejects missing completion and preserves exclusion
+after disconnect. Daily Env progress stays on stderr; stdout JSON remains valid.
+Help and paired instructions cover create/open/work/stop/resume and distinguish
+Env removal from retained data. Noninteractive confirmations never wait for input.
+First SSH failure guidance also routes to read-only approval and Policy inspection
+without claiming that packages or approval caused the failure.
+
+Installed `6cf9295` in the dedicated `hacocoon-v2` Ubuntu 26.04 / Incus 6.0.5
+checkout on 2026-09-12, using locally built binaries through the common installer.
+The local bundle is development acceptance, not signed-release provenance.
+
+| Actual check | Result |
+|---|---|
+| Common installer, setup, Host doctor | Exit 0; all six doctor checks passed, including Incus-owned Btrfs identity/mount policy and trusted-host DNS/HTTPS. |
+| Ordinary user create/open/work | Default Base, external Workspace, `--no-oci`; SSH edited a source file, built an uppercase output and compared expected content. |
+| Stop/start/open | Stopped status observed; Workspace output and a rootfs marker survived; pinned Linux SSH reconnected. |
+| Duplicate create | Refused with `already_exists`; existing Env remained available. |
+| Terminal blank selection | Canceled before desktop/connection changes. |
+| Env delete | Target/data effects preceded canonical deletion; Env absence and retained external Workspace file confirmed. |
+| Setup failure | Synthetic customization exit 29 reported the failed stage/reason/request ID; no false success or synthetic private output in CLI/journal. Cleared the fixture recipe through the normal API. |
+| Setup interruption | Observer exited without completion; another setup was refused busy until the original operation completed in the journal. |
+
+First SSH preparation failed with default-deny Policy and absent sshd. An explicit
+Policy update limited to the current Env generation and Ubuntu package endpoints
+allowed ordinary SSH preparation to complete. This establishes that tested path;
+a generic SSH error still does not prove the same cause for another installation.
+After package installation, only the four fixture rules were removed through the
+configuration API, restoring the original default deny. An actual Linux terminal
+SSH session still verified the retained Workspace in that state.
+
+The dedicated development network namespace, veth and narrow outer NAT isolate
+this Incus/controller from other WSL bridges. Incus and controller share their
+namespace's sysfs/Btrfs mount view; this is local acceptance configuration, not a
+product default. The WSL kernel has AppArmor disabled; no kernel or isolation
+checks were changed. This does not establish AppArmor confinement acceptance.
+Windows IDE/default-entry installation, Windows SSH, private Git/registry,
+OCI retention and a cold distribution restart were not exercised by this run.
+
+Repository validation: standard local test/vet/notification and full race targets
+passed, as did fixture CLI E2E and 22 Python interop tests. Windows installer
+component fixtures passed on Windows with read-only transport pinned to the
+selected WSL; installer mutation paths were mocked. Linux PowerShell cannot run
+that Windows-only fixture because SystemDirectory is empty. These checks do not
+substitute for the actual provider/client results above. The test workflow checks
+PRs targeting `dev/v2`.
+
+See [daily workflow](reference/daily-workflow.md). Path discovery (#454), network
+expansion and retention redesign remain **deferred**.
+
+
 ## WSL native binfmt flags
 
 Implemented: native registration validation accepts exactly `P` and `PF` while
@@ -1621,7 +1676,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.57**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.58**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

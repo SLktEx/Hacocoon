@@ -16,7 +16,7 @@ The Hacocoon-managed persistent trusted logical Host. On the local Incus backend
 
 `haco-host` is not an Environment and is not an agent isolation boundary. It belongs to the trusted computing base. It is intended to become the normal host-like place for operator workflows, developer tooling, selected external-service operations, and optional platform integration while Physical Host primitives remain behind the Hacocoon boundary.
 
-The current implementation provides lifecycle reconciliation and interactive entry but does not yet complete the planned Git/OCI/credential/Windows-interop or controller-channel migration.
+The current implementation provides lifecycle reconciliation, controller-backed management, managed Git workflows and Windows interop. Broader external-tool and credential migration remains partial; see the owning trusted Host design.
 
 ## Workspace
 
@@ -95,3 +95,14 @@ For the Incus system-container backend this includes at least the Physical Host 
 ## Historical Session terminology
 
 Existing code still contains `Session` while the rebaseline is implemented. `Session` is an implementation-migration term, not the preferred new architecture vocabulary. Do not create new public architecture coupling around it; migrate toward Workspace + Environment + Execution where that distinction improves clarity.
+
+## Env, Base and OCI Store
+
+**Env** is the CLI shorthand for **Environment**, the isolated execution place.
+A **Base** is an Environment starting point, not the working files. A
+**Workspace** holds working files independently of the Env runtime. An
+**OCI Store** is optional retained container image/build/runtime data; its
+lifetime is separate from Workspace and Env. `haco env stop` retains the Env;
+`haco env delete` removes its runtime/rootfs while retaining Workspace, OCI
+Store and independent snapshots. Explicit retained-data deletion is separate.
+See [daily workflow](daily-workflow.md) for execution locations and commands.

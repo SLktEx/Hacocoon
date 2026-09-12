@@ -352,3 +352,43 @@ Docker/nerdctl acceptance.
 Implemented: the trusted Host entry notice follows the Physical Host login process's first nonempty `LC_ALL`, `LC_MESSAGES`, then `LANG`. Japanese locales select Japanese; other locales retain English. The notice still identifies Host authority and directs ordinary development into an Environment. Interactive stderr uses yellow unless `NO_COLOR` is nonempty; redirected output stays plain.
 
 A fresh Windows installation maps Japanese Windows UI language to `ja_JP.UTF-8` through Ubuntu's locale tools before login-user setup. Existing distributions keep their locale, and other Windows languages keep Ubuntu defaults. A locale setup failure stops installation. This changes presentation only, not Host/Env authority, controller readiness, or credential forwarding. Fresh Japanese-Windows installation acceptance remains unverified.
+## Setup progress and failure diagnostics
+
+Status: **implemented**. `haco setup` observes the existing owned-resource
+reconciler through the management controller. Stderr shows running/succeeded/
+failed stages; stdout retains the final command result. There is no percentage
+or success inferred from process dispatch. Stages cover client validation,
+project/storage, owned Host inspection/creation, network, controller endpoint,
+start, WSL interop, client mode/provisioning, Host storage, notifications and
+customization. Repeated stages mean actual repeated reconciliation checks.
+Optional stages are absent when not configured, not reported as completed.
+
+The controller records fixed stage/state/reason, duration and a generated
+`request_id` through the shared structured logger. The CLI validates this bounded
+vocabulary again. Arbitrary provider errors, helper output, credentials and
+recipe text are not diagnostic fields. WSL helper exit 42 specifically means
+`native_binfmt_incompatible`; unknown failures remain `failed`, rather than a
+guessed cause. Other reasons include timeout, canceled, incompatible_state,
+recovery_required, unavailable, denied, busy, not_found and unsupported.
+
+Use `haco doctor` to inspect current readiness. On the WSL/Linux **Physical Host**,
+an administrator can read `journalctl -u haco-controller.service --since
+'30 minutes ago' --no-pager` and locate the printed request ID. Journal retention
+and rotation remain systemd-journald responsibilities. Existing
+`HACO_LOG_LEVEL=debug` / `HACO_LOG_FORMAT=json` configure diagnostics; client
+settings do not enable controller DEBUG remotely. DEBUG retains redaction.
+
+There is no approval interaction in Host setup. A busy result means another
+setup owns the operation, not that approval is pending. Capability approvals
+remain separate under `haco approve`. Ctrl+C stops observation; as with the
+existing lifecycle RPC, the bounded controller setup may continue after a lost
+client. Exclusion is held until the actual service returns. A broken stream,
+missing final acknowledgement or incompatible older controller cannot cause a
+second mutating request or a successful completion display.
+
+Completed stage lines describe that attempt, not a fresh resource inventory.
+Failure retains potentially created resources; setup never promises rollback.
+Inspect the request and current doctor result before choosing an explicit retry.
+Saved customization can have external side effects and must not be blindly
+replayed. This observation change adds no cleanup authority and changes no
+ownership, lease, network or authorization invariants.

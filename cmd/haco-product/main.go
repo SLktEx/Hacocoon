@@ -179,7 +179,18 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  help       Show this help")
 	fmt.Fprintln(out, "  version    Show Hacocoon version information")
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, "The product CLI is being rebuilt from the basic workflow outward.")
+	fmt.Fprintln(out, "Daily workflow (trusted haco-host or WSL/Linux Physical Host):")
+	fmt.Fprintln(out, "  haco env list                  Find yesterday's Environment")
+	fmt.Fprintln(out, "  haco env status <name>          Inspect state and retained Workspace")
+	fmt.Fprintln(out, "  haco env start <name>           Resume a stopped Environment")
+	fmt.Fprintln(out, "  haco open <name>                Open /workspace; use --client ssh for a shell")
+	fmt.Fprintln(out, "  haco env stop <name>            Stop work, keeping the Env and data")
+	fmt.Fprintln(out, "  haco env delete <name>          Delete the Env rootfs; retain Workspace/OCI/snapshots")
+	fmt.Fprintln(out, "Create: haco env create --workspace <controller-path|managed:name> <name>")
+	fmt.Fprintln(out, "Build/test in the Env after open. haco run creates a temporary Env.")
+	fmt.Fprintln(out, "open/ssh setup can select from a terminal; blank cancels. Scripts should name the Env.")
+	fmt.Fprintln(out, "Use haco <command> --help. Options go before the target. Progress/diagnostics use stderr.")
+	fmt.Fprintln(out, "haco open . path discovery is not implemented; open an existing Env by name.")
 }
 
 func isLoginAlias(argv0 string) bool {

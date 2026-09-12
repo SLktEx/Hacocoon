@@ -38,6 +38,54 @@ Host/Env 間、期限・撤回、送信元/宛先の再作成後の旧許可拒�
 TCP/UDP relay の実装と、範囲を分けた実 provider 受入は
 [接続契約](design/network-connections.md)に記録しています。
 
+## 日常の入口とsetup診断
+
+状態: **implemented、専用WSL/Linuxでの日常手順の実機確認は成功**。
+
+Host setupは上限付き固定stage/state/reasonとrequest IDをstream表示し、構造化journalに
+診断を記録します。最終応答欠落を成功にせず、切断後も実処理終了まで排他を維持します。
+日常Env操作の進捗はstderr、JSON結果はstdoutです。helpと英日手順は作成・開く・作業・
+停止・再開へ案内し、Env削除と保持データ削除を区別します。非対話確認は入力待ちになりません。
+初回SSH失敗の案内は、原因をパッケージや承認と断定せず、読み取り専用の承認一覧とPolicy確認も示します。
+
+2026-09-12、専用`hacocoon-v2`のUbuntu 26.04 / Incus 6.0.5へ`6cf9295`を
+ローカルビルドし、common installerで導入しました。開発用bundleの実機確認であり、
+署名付きreleaseのprovenance確認ではありません。
+
+| 実際の確認 | 結果 |
+|---|---|
+| common installer・setup・Host doctor | 終了0。Incus所有Btrfsの実体・mount policy、trusted HostのDNS/HTTPSを含むdoctor全6項目が成功。 |
+| 一般ユーザーの作成・開く・作業 | 既定Base、外部Workspace、`--no-oci`。SSHでsourceを編集し、大文字出力をbuildして期待内容と比較。 |
+| 停止・起動・再度開く | stopped状態を観測。Workspace成果物とrootfs markerを保持し、pin付きLinux SSHで再接続。 |
+| 重複作成 | `already_exists`で拒否し、既存Envは利用可能なまま。 |
+| 実端末の空入力選択 | desktop・接続の変更前にキャンセル。 |
+| Env削除 | 対象とデータへの影響を正規削除前に表示。Env不在と外部Workspaceファイル保持を確認。 |
+| setup途中失敗 | 合成customizationのexit 29で失敗stage/reason/request IDを表示。偽の完了表示や合成秘密出力のCLI/journal露出なし。検証用recipeは正規APIで除去。 |
+| setup中断 | 観測側は完了表示せず終了。元の処理のjournal完了まで別setupはbusyで拒否。 |
+
+最初のSSH準備はdefault-deny Policy・sshd不在の状態で失敗しました。現在のEnv世代と
+Ubuntu配布先だけに限定した明示的Policy更新後、通常のSSH準備が完了しました。
+これは今回の経路の結果であり、他の導入で同じ汎用SSHエラーの原因を断定するものではありません。
+パッケージ導入後は今回追加した4規則だけを正規設定APIで除去し、元のdefault denyへ戻しました。
+その状態でも実端末のLinux SSHで保持ファイルの確認が成功しました。
+
+専用の開発network namespace・veth・限定した外側NATで、Incus/controllerを他WSLの
+bridgeから分離しています。両serviceはそのnamespaceのsysfs/Btrfs mount viewを共有します。
+これは手元の検証設定であり製品既定値ではありません。WSLカーネルのAppArmorは無効で、
+カーネルや隔離チェックは変更していません。AppArmorの隔離受入を意味しません。
+Windows IDE・通常入口のinstall、Windows SSH、private Git/registry、OCI保持、
+distribution全体のcold restartは今回未検証です。
+
+repository検証では標準local test/vet/通知client・全体race・fixture CLI E2E・Python interop
+22件が成功しました。Windows installer component fixtureもWindows上で、読み取り実通信先を
+対象WSLへ固定して成功しています。installerの変更経路はmockです。Linux PowerShellは
+SystemDirectoryが空のため、このWindows専用fixtureを実行できません。これらのテストを
+上記provider/clientの実機結果に読み替えません。test workflowは`dev/v2`向けPRも検証します。
+
+[日常手順](reference/daily-workflow.ja.md)を参照してください。path発見(#454)、network拡張、
+保持単位再設計は**deferred**です。
+
+
 ## WSL native binfmt flags
 
 実装済み: native登録のflagsは`P`と`PF`だけを許可し、登録全体の検証と、登録が
@@ -1391,7 +1439,7 @@ package受入の対象は **`c749ff9033b33c3526e108f60ce2009638075152`**:
 
 > 現在の `main` の code reality を示す companion です。番号の正本は [`status/versioning-and-release-status.ja.md`](status/versioning-and-release-status.ja.md) です。
 
-Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.57** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
+Hacocoon は pre-1.0 です。現在のmilestone位置は **v0.58** です。milestoneは軽量なdevelopment checkpointとして扱い、v0.17のacceptance残件のようなpartial状態があっても、後続の実装済みcheckpointへ進めます。repository実装は、明示的に名前を付けたacceptance checkを除き、すべてのreal-host supportを意味しません。
 
 | 領域 | 現在の状態 | Milestone |
 |---|---|---:|

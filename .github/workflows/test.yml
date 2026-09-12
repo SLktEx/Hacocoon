@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - dev/2.x
+      - dev/v2
 
 permissions:
   contents: read

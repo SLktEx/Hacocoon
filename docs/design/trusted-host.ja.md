@@ -345,3 +345,14 @@ Runtime バイナリは任意のままで、イメージの実データ復旧は
 実装済み: 信頼済み Host へ入るときの案内は、Physical Host の login process の `LC_ALL`、`LC_MESSAGES`、`LANG` の順で最初の空でない値を使います。日本語 locale なら日本語、それ以外は英語です。Host 権限を使う場所であることと、通常の開発には Environment を使う案内を維持します。対話端末の stderr は `NO_COLOR` が空なら黄色にし、redirect 時は色コードを付けません。
 
 Windows の新規インストールでは、日本語の Windows UI 言語を Ubuntu の locale tool で `ja_JP.UTF-8` に設定してから login user を準備します。既存 distribution の locale は変更せず、他の Windows 言語は Ubuntu の既定値を維持します。locale 設定に失敗した場合はインストールを中断します。表示だけの変更で、Host／Env 権限、controller 準備待ち、認証情報の転送は変更しません。日本語 Windows 上の新規インストール受入は未検証です。
+## setupの進捗と失敗診断
+
+状態: **implemented**。`haco setup` は既存の所有権確認付き処理を管理controller経由で観測します。stderrにrunning/succeeded/failedの工程を表示し、stdoutは最終結果用に保ちます。進捗率は推測せず、プロセスを起動しただけで完了にしません。対象はclient検証、project/storage、Hostの所有権確認・作成、network、controller endpoint、起動、WSL interop、client mode/provisioning、Host storage、通知、customizationです。同じ工程の再表示は実際の再確認を表し、未設定の任意工程を完了とは表示しません。
+
+controllerは共有構造化loggerに固定stage/state/reason、所要時間、生成した`request_id`を記録します。CLIも上限付きの固定語彙を再検証します。providerの任意エラー、helperの生出力、秘密、recipe本文は診断欄に含めません。WSL helperの終了値42だけを`native_binfmt_incompatible`と分類し、原因未確定は`failed`のままにします。timeout、canceled、incompatible_state、recovery_required、unavailable、denied、busy、not_found、unsupported等も区別します。
+
+現在の状態は`haco doctor`で確認します。WSL/Linuxの**Physical Host**で管理者が`journalctl -u haco-controller.service --since '30 minutes ago' --no-pager`を実行し、表示されたrequest IDを探せます。保存・ローテーションはsystemd-journaldが管理します。既存の`HACO_LOG_LEVEL=debug`と`HACO_LOG_FORMAT=json`を利用できますが、client側設定でcontrollerのDEBUGを遠隔有効化はしません。DEBUGでもredactionを維持します。
+
+Host setupには承認操作はありません。busyは別setupの実行中を表し、承認待ちとは異なります。Capability承認は`haco approve`で別に扱います。Ctrl+Cは観測を終了し、既存lifecycle RPC同様controllerの時間制限付き処理は接続断後も続く可能性があります。排他は実際の処理終了まで保持します。通信断、最終応答欠落、古いcontrollerとの不一致から変更処理を再送したり成功表示したりしません。
+
+成功した工程表示はその試行の記録であり、現在のresource一覧ではありません。失敗時は作成済みresourceが残り得るためrollbackを約束しません。requestとdoctorの状態を確認してから明示的な再実行を判断します。保存したcustomizationには副作用があり、安易な再実行を案内しません。観測の追加によってcleanup権限、所有権、lease、network、認可の不変条件を変更しません。
