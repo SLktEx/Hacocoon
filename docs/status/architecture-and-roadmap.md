@@ -193,3 +193,19 @@ fixture now uses a private PTY for reviewed decline/approval. Lower-cost PTY and
 product confirmation regressions cover that boundary; installed Store maintenance
 must pass again before this gate is accepted. See acceptance evidence for the
 original failed run and the successful narrower jobs.
+
+Latest M1 evidence: candidate `96bbbdf8` passed full test CI 34717575075 and
+all enabled real Incus jobs in 34717575098, including the corrected Store
+confirmation. Private registry remains skipped. Windows run 34717575063 passed
+installation/restart, pinned SSH, stopped resume and real VS Code read/write/
+terminal use; pending-review, preview and export probes failed. Linux trim passed;
+Windows reclaim lacked the failed transfer's manifest and notification was skipped.
+Ubuntu installed successfully but used a stale privileged doctor command as an
+ordinary user; `377ceb6f` changes that check to the controller-backed product CLI.
+The approval fixture now supplies a real PTY and export failures gain only fixed,
+redacted categories. Local terminal regressions (six) and Windows diagnostic
+allowlist/child-timeout/nonzero-exit tests pass. The Windows timeout fixture emits
+its marker before a slow PowerShell startup; its earlier local failures remain
+test-harness failures. Next: rerun the corrected native gates, investigate export
+from the categorized evidence and complete language transport. M0/M1 stay partial;
+no main merge or distribution is claimed.

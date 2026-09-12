@@ -183,3 +183,27 @@ root's diagnostic succeeded. The gate now uses product `haco doctor`, which
 exercises the installed controller and its intended user group. No Incus-admin
 membership or permission relaxation is added. The remaining journey/security
 steps were skipped and require another run.
+
+Windows `96bbbdf8` run 34717575063 passed cached package installation, distro
+terminate/restart/reinstall, controller HTTPS/direct-egress refusal, native
+Windows OpenSSH with key pinning and stopped resume, and VS Code 1.136.1 Remote-SSH
+file read/write plus terminal execution. Project setup save/replay/failure/update
+also passed. The desktop job still failed independent approval-review, preview
+setup and Environment export probes. Approval review supplied piped answers to
+the terminal-only CLI; its fixture now uses a private PTY with separate JSON and
+diagnostics (six regressions passed). Preview failed after that unresolved review;
+the relationship remains unconfirmed until rerun. Export failed at its export
+phase with insufficient categorized evidence; fixed allowlisted diagnostics are
+added without raw output. No transfer success or cleanup is inferred.
+
+The same run passed Linux Btrfs/ext4 trim stages, while public Windows reclamation
+failed because the earlier transfer had not produced its retention manifest.
+That is a missing prerequisite, not a VHDX compaction attempt or pass. The final
+native notification route was skipped. Existing successful narrower results do
+not erase these remaining failures.
+
+Incus run 34717575098 for `96bbbdf8` subsequently passed every enabled job:
+standalone runtime, owned Btrfs pool (Base/snapshot/CoW/import and reviewed Store
+maintenance through a real PTY), and Core egress/lifecycle. Private-registry
+acceptance was skipped for its existing prerequisite. This Linux success does
+not resolve the separate Windows transfer failure above.

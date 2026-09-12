@@ -161,3 +161,21 @@ timeoutになりました。最終失敗を認識して所有端末を閉じる�
 失敗しました。Incus 7はdaemon管理権限のないユーザーで失敗を返し、rootでの診断は成功しています。
 正規のcontrollerと利用グループを通る製品`haco doctor`で確認するよう直しました。
 Incus-admin付与や権限緩和は追加していません。後続journey／security試験はSKIPで、再実行が必要です。
+
+Windows `96bbbdf8`（34717575063）はキャッシュ付き配布物導入、WSL停止／再起動／再導入、
+controller経由HTTPSと直接egress拒否、鍵pin付きWindows OpenSSHと停止からの再開、
+VS Code 1.136.1 Remote-SSHでの実ファイル読み書き・端末実行が成功しました。
+project setupの保存／再実行／失敗／更新も成功しました。一方、承認review・preview setup・
+Env exportの独立probeは失敗しました。承認試験は端末必須のCLIへパイプ入力していたため、
+専用PTYと分離したJSON／診断出力へ修正し、回帰6件が成功しました。previewは未解決のreview後に
+失敗しましたが、因果関係は再実行まで未確定です。exportはexport段階で失敗し、分類証拠が不足して
+いたため、生出力を出さない固定allowlist診断を追加しています。転送成功やcleanupを推定しません。
+
+同じrunでLinux Btrfs／ext4 trimは成功しましたが、公開Windows reclaimは先行転送の保持manifestが
+作成されず失敗しました。前提不足であり、VHDX圧縮の実行・成功ではありません。最後のnative通知経路は
+SKIPです。範囲を限定した成功で、これらの残る失敗を消しません。
+
+`96bbbdf8`のIncus run 34717575098は、その後、有効な全jobが成功しました。
+standalone runtime、専用Btrfs poolでのBase／snapshot／CoW／importと実PTYによる
+Store整理承認、Coreのegress／lifecycleが対象です。private registryは従来の前提不足で
+SKIPでした。このLinuxの成功で、上記Windows転送の失敗を解決済みとは扱いません。
