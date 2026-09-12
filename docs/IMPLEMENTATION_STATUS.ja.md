@@ -1772,3 +1772,19 @@ DNS／dial 結果を fail-closed で拒否します。対象不一致、試行�
 基づいて cleanup しました。製品 controller の import、実 SSH handshake、live OCI 実行は
 明示的にスキップしました。
 [転送契約](design/environment-transfer.ja.md#rootfs-archive-の-incus-cpu-表記)を参照してください。
+
+## リファクタリング続行分の検証結果
+
+ローカルでは maintained CI 入口の test（全 Go、vet、Python、JavaScript）、race、
+e2e、systemd が成功しました。隔離 Linux network namespace の forwarding は3.29秒で
+成功しました。任意の AWS SDK 契約検証は当初 botocore が不足していましたが、CI と同じ
+1.40.76 を作業専用 venv に導入した後、全15テストが成功しました。文書と workflow policy
+検証も成功しました。
+
+all 入口は、hacocoon-kai が Ubuntu 24.04 で installer が26.04以上を要求するため、
+release-provenance で失敗しました。OS 検証は回避せず、後続段階を上記のとおり個別に
+実行しました。native aggregate の初回失敗・最終成功 fixture は後始末し、正確な
+project／pool owner と instance／data の不在を確認してから、この作業の取得 image、
+空 pool、project を削除しました。ローカル導入済み Windows、製品 controller の import、
+SSH handshake、live OCI／registry は今回の受入範囲外です。checkpoint 番号と公開
+release 状態は変更していません。

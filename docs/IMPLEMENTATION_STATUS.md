@@ -2050,3 +2050,20 @@ guards, retained Git/Workspace/OCI data and owned resource cleanup passed.
 The initial failed fixture was cleaned from exact catalog/native ownership.
 Shipped-controller import, actual SSH handshakes and live OCI execution were
 explicitly skipped. See [the owning transfer contract](design/environment-transfer.md#incus-architecture-names-in-rootfs-archives).
+
+## Refactor continuation validation
+
+Local validation passed through the maintained CI entry point's test (all Go,
+vet, Python and JavaScript), race, e2e and systemd stages. Forwarding passed in an
+isolated Linux network namespace (3.29s). The optional AWS SDK contract stage
+initially lacked botocore; after installing CI's pinned 1.40.76 into a task-local
+venv, all 15 tests passed. Documentation and workflow policy checks passed.
+
+The full all-stage entry failed at release-provenance because hacocoon-kai runs
+Ubuntu 24.04 and the installer requires Ubuntu 26.04 or newer. The OS check was
+not bypassed. Later stages were run separately as stated above. The native
+aggregate's first failed fixture and final successful fixture were cleaned;
+exact project/pool ownership and absence of instances/data were checked before
+removing the task's cached image, empty pool and project. Local installed Windows,
+shipped-controller import, SSH handshake and live OCI/registry acceptance remain
+outside this validation. No checkpoint number or public release status changed.
