@@ -184,12 +184,13 @@ func runLoginShim(args []string) error {
 	}); err != nil {
 		return fmt.Errorf("wait for Physical Host controller: %w", err)
 	}
-	stream, err := client.OpenTrustedHostShell(ctx)
+	language := hostEntryLanguage(ctx, os.Getenv, detectWindowsLanguage)
+	stream, err := client.OpenTrustedHostShellWithLanguage(ctx, language)
 	if err != nil {
 		return fmt.Errorf("enter trusted haco-host: %w", err)
 	}
 	defer stream.Close()
-	writeTrustedHostNotice(os.Stderr)
+	writeTrustedHostNoticeInLanguage(os.Stderr, language)
 	return terminalbridge.Bridge(ctx, stream, os.Stdin, os.Stdout)
 }
 

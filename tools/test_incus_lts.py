@@ -15,6 +15,21 @@ SOURCE = 'https://pkgs.zabbly.com/incus/lts-7.0'
 
 
 class LTS(unittest.TestCase):
+    def test_every_native_ci_setup_uses_the_same_install_and_version_gate(self):
+        # CI routing is part of the supported-substrate contract. A distro
+        # package install here previously let Core/Btrfs silently stay on 6.x.
+        for name in ('ci-incus.sh', 'ci-incus-core.sh'):
+            with self.subTest(helper=name):
+                source = (ROOT / 'tools' / name).read_text()
+                self.assertIn('/incus-lts.sh"', source)
+                self.assertIn('sh "$INCUS_LTS_HELPER" install', source)
+                self.assertIn('sh "$INCUS_LTS_HELPER" verify-version "$server_version"', source)
+                self.assertNotIn('ge 6.0', source)
+                commands = source.replace('\\\n', ' ').splitlines()
+                for command in commands:
+                    if 'apt-get install' in command:
+                        self.assertNotRegex(command, r'\bincus(?:-base|-client)?\b')
+
     def install(self, *, keys=KEY, packages=None, installed='', fail=''):
         if packages is None:
             packages = '\n'.join(f'incus-base | {v} | {uri} resolute/main amd64 Packages' for v, uri in [

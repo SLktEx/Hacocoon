@@ -49,9 +49,13 @@ Implemented on this development candidate: [Workspace entry and independent fork
 M1 is **partial**: hierarchical bilingual help, localized daily failure/retention/
 resume guidance, shared BAT final results and unattended opt-out, and native
 failure-notification grouping are implemented. Normalized WSL-to-Host session
-language handoff is implemented; automatic Windows selection and remaining
-translations are incomplete. The shared Incus 7.0 LTS baseline passed packaged
-Ubuntu and scoped Windows/Incus acceptance; Windows approval/preview passed after
-fixture correction, while volume export and dependent Windows reclaim still fail.
+language handoff and automatic normal Windows/WSL entry selection are implemented;
+packaged language acceptance and remaining translations are incomplete. The Incus 7.0 LTS baseline passed packaged
+Ubuntu and scoped Windows acceptance. The separate Core/Btrfs CI setup still
+used 6.0.5 and now routes through the shared installer. Core and scoped Btrfs
+operations pass on 7.0.1; the complete Btrfs job awaits the remaining fixture fix.
+Windows approval/preview passed after
+fixture correction. At `3cac2e95`, Windows transfer, public reclaim and native
+notification routing also pass; human toast/GUI decisions remain skipped.
 See [exact evidence](status/acceptance-evidence.md); this is not distribution or
 native language-handoff acceptance.

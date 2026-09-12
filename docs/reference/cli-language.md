@@ -2,13 +2,17 @@
 
 [日本語](cli-language.ja.md) | English
 
-Status: **partial**. The shared selector and the surfaces listed below are implemented. This is not complete localization of the shipped CLI or Windows language propagation. Issue #577 remains open.
+Status: **partial**. The shared selector and listed surfaces are implemented, including automatic presentation selection at normal Windows/WSL entry. Full CLI localization and packaged language acceptance remain incomplete. Issue #577 remains open.
 
 ## Select a language
 
 `HACO_UI_LANGUAGE=en` or `HACO_UI_LANGUAGE=ja` selects Hacocoon presentation
 without changing OS locale. A nonempty unsupported value selects English. When
-this override is empty, the POSIX selection below applies. Host entry forwards
+this override is empty, normal interactive Windows/WSL login reads the Windows
+display language (Japanese selects `ja`, other languages `en`). This bounded
+read uses the system PowerShell at `/mnt/c/Windows`; missing interop, other system
+paths or failure fall back to the POSIX selection below. Other CLI invocations
+use POSIX selection directly. Host entry forwards
 only the resolved `en`/`ja` for that shell session; ordinary Environment shells
 receive no such forwarding. See [ADR 0065](../adr/0065-host-presentation-language.md).
 
@@ -66,9 +70,9 @@ arbitrary environment forwarding and persisted guest configuration are excluded.
 
 Other command families and lower-level Environment diagnostics still need catalog migration. Standard-library flag parse-error details, original Git/SSH/OS errors, structured logs, and controller diagnostic summary/action text remain unchanged; further localized explanations around those details are follow-up work.
 
-WSL-to-Host normalized presentation handoff is implemented. Automatic Windows
-language selection, native Windows/WSL and Incus acceptance and full command
-coverage remain pending. This partial implementation must not close Issue #577.
+WSL-to-Host normalized presentation handoff and automatic normal Windows entry
+selection are implemented. Packaged language acceptance and full command coverage
+remain pending. This partial implementation must not close Issue #577.
 
 ## Validation
 
@@ -84,11 +88,11 @@ The M0 candidate reuses #580's catalogs and adds hierarchical help plus daily
 failure, retained-data and resume guidance. Help retains `haco open .`, Workspace
 prepare/fork and TCP/UDP additions. The actual Environment diagnostic command is
 `haco doctor <environment>`. This does not complete automatic Windows/WSL/Host
-language handoff or localization of every shipped command.
+language acceptance or localization of every shipped command.
 
 The product and trusted Host client now use one hierarchical help renderer.
 `haco-host --help` and every public Host subcommand help return locally before
 controller construction. This expands help coverage, not translation of every
 Host result. Windows installation no longer derives and persists the OS locale
 from its display language. The normalized Host-session handoff is implemented;
-automatic Windows language selection remains pending.
+automatic Windows selection at normal interactive entry is now implemented.

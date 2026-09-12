@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/cliui"
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -77,6 +79,21 @@ func TestHostPresentationRejectsMalformedRequestBeforePreparation(t *testing.T) 
 		if !errors.As(err, &status) || status.Code != "invalid_argument" {
 			t.Fatalf("language %q reached preparation: %v", language, err)
 		}
+	}
+}
+
+func TestHostPresentationExplicitSessionDoesNotChangeProcessLocale(t *testing.T) {
+	t.Setenv("HACO_UI_LANGUAGE", "en")
+	hosts := &fakeHostService{}
+	client, cancel := startHostControlAPITestServer(t, hosts)
+	defer cancel()
+	stream, err := client.OpenTrustedHostShellWithLanguage(context.Background(), cliui.Japanese)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream.Close()
+	if hosts.terminalMetadata.DisplayLanguage != "ja" || cliui.Resolve(os.Getenv) != cliui.English {
+		t.Fatal("explicit session presentation was lost")
 	}
 }
 
