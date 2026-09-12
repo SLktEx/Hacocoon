@@ -188,3 +188,9 @@ saved-ask／今回拒否／一度だけ許可／再確認／cleanupと、Edge pr
 exportは引き続きFAIL（`phase=export`、固定診断`volume-export,unavailable`）です。
 Linux trimは成功し、Windows reclaimは転送manifest不足で再び失敗、native通知はSKIPでした。
 固定分類により、生出力を公開せず残る失敗箇所を絞れました。
+
+Incus 7.0.1の`cmdStorageVolumeExport.run`は`--force`なしの既存出力先を拒否します。
+controller所有の`/proc/<pid>/fd/<fd>`は意図的に存在するため、この匿名FDだけに同flagを
+付けるよう修正しました。所有者・linkなし・非公開の通常ファイルであることを回帰で確認し、
+利用者の既存出力先の上書き拒否は維持します。Windows転送の再試験が必要であり、
+ソース上の原因特定やcomponent試験だけで実機の修正完了とは扱いません。

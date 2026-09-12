@@ -50,6 +50,11 @@ publication and a native Windows CLI are not established by projected-file accep
 Keep the original installation until [evacuation/restore comparison](../guides/data-evacuation.md)
 has established the required data is independently recoverable.
 
+On the supported Incus 7.0 LTS baseline, native volume export uses `--force` only
+for its live controller-owned anonymous descriptor, which Incus otherwise treats
+as an existing target. The client's output path never reaches that command;
+existing destination files remain refused. See [ADR 0049](../adr/0049-transfer-envelope-authority.md).
+
 Failure returns nonzero and retained resource names (JSON or stderr).
 A lost reply can leave completed or uncertain work: inspect recorded identities
 before retrying. No automatic replay, overwrite or catalog-edit recovery is provided.

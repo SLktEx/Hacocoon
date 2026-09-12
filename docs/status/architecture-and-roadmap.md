@@ -164,7 +164,8 @@ Further M1 work: the candidate now shares signed Incus 7.0 LTS package selection
 patch-series preferences and server verification between Ubuntu/WSL installers
 and Incus CI (#479, ADR 0063). Host doctor fails clearly on unsupported versions.
 Repository helper/host-preparation/package/diagnostic tests passed; fresh native
-7.0 installation remains pending. Six-series compatibility is retained.
+7.0 installation was pending at that point. Six-series acceptance is historical;
+the current packaged baseline and export CLI contract require 7.0 LTS.
 
 `195172f4` passed full test CI 34714239387 and packaged Ubuntu acceptance
 34714239415 after correcting stale horizontal-help assertions. Earlier failed

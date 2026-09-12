@@ -217,3 +217,10 @@ does not establish GUI-only approval. Export still failed (`phase=export`, fixed
 evidence `volume-export,unavailable`). Linux trim passed; Windows reclamation
 again lacked the transfer manifest and native notification was skipped. The new
 classification localizes the remaining failure without exposing native output.
+
+Upstream Incus 7.0.1's `cmdStorageVolumeExport.run` rejects an existing target
+without `--force`; the controller-owned `/proc/<pid>/fd/<fd>` output intentionally
+exists. The adapter now supplies that flag only for its live anonymous descriptor,
+with ownership/unlinked/private-file regressions. Public destination overwrite
+refusal remains unchanged. Native Windows transfer must rerun to establish the
+fix; it is not inferred from the source diagnosis or component test alone.
