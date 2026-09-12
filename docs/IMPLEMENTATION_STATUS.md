@@ -1,5 +1,18 @@
 # Implementation Status
 
+## Daily entry and setup diagnostics
+
+Implemented: Host setup streams bounded fixed stage/state/reason and request IDs,
+records structured journal diagnostics, rejects missing completion and preserves
+single-operation exclusion after disconnect. Daily Env operations report progress
+on stderr while preserving stdout results; help and paired daily instructions
+route create/open/work/stop/resume. Retained-data deletion refuses noninteractive
+confirmation waits. Targeted Go tests and 22 Python interop tests passed in the
+dedicated development WSL. Installed Incus/desktop acceptance is pending and is
+not inferred from these tests. See [daily workflow](reference/daily-workflow.md).
+Path discovery (#454), network expansion and retention redesign remain deferred.
+
+
 ## WSL native binfmt flags
 
 Implemented: native registration validation accepts exactly `P` and `PF` while
@@ -1560,7 +1573,7 @@ Status date: 2026-08-31, after cloud deferral, the Base/OCI CLI split, Docker co
 
 This file reports **current code reality**, not desired architecture. Hacocoon is pre-1.0; implementation does not imply API stability, production support, or real-host acceptance beyond explicitly named acceptance checks.
 
-The current milestone position is **v0.57**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
+The current milestone position is **v0.58**. Milestones are lightweight development checkpoints: v0.17 still has acceptance work, but that partial status does not block later implemented checkpoints such as v0.18-v0.26.
 
 | Area | Current repository reality | Milestone |
 |---|---|---:|

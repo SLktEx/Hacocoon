@@ -1,5 +1,7 @@
 # Hacocoon ドキュメント
 
+日常の手順: [作成・開く・停止・再開](reference/daily-workflow.ja.md)。
+
 [English](README.md) | **日本語**
 
 Hacocoonはpre-1.0です。architecture intent、現在のrepository reality、development checkpoint番号、公開release、real-host acceptanceを分けて扱います。

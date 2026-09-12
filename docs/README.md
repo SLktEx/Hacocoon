@@ -1,5 +1,7 @@
 # Documentation
 
+Daily workflow: [create, open, stop and resume](reference/daily-workflow.md).
+
 [**日本語**](README.ja.md) | English
 
 Hacocoon is pre-1.0. Keep architecture intent, current repository reality, development-checkpoint numbering, published releases, and real-host acceptance separate.

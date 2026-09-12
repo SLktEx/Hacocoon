@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"io"
 	"os"
 	"path/filepath"
@@ -35,16 +36,17 @@ type trustedHostListEntry struct {
 // instance. The instance is intentionally not a normal Environment: it has no
 // Workspace lease and does not receive the managed sandbox profile.
 func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
-	if err := r.ensureProject(ctx); err != nil {
+	if err := hostsetup.Step(ctx, "project", func() error { return r.ensureProject(ctx) }); err != nil {
 		return fmt.Errorf("ensure Incus project for trusted host: %w", err)
 	}
-	rootPool, err := r.defaultRootPool(ctx)
+	var rootPool string
+	err := hostsetup.Step(ctx, "storage", func() error { var err error; rootPool, err = r.defaultRootPool(ctx); return err })
 	if err != nil {
 		return fmt.Errorf("resolve trusted host root storage: %w", err)
 	}
 
 	if r.trustedHostCopyRecovery != nil {
-		if err := r.trustedHostCopyRecovery(ctx); err != nil {
+		if err := hostsetup.Step(ctx, "copy_recovery", func() error { return r.trustedHostCopyRecovery(ctx) }); err != nil {
 			return err
 		}
 	}
@@ -68,13 +70,16 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 	if err := r.ensureTrustedHostNetwork(ctx); err != nil {
 		return err
 	}
-	_, initErr := r.runner.Run(ctx, "incus", "init", r.image, trustedHostName,
-		"--project", r.project,
-		"--storage", rootPool,
-		"--no-profiles", "--network", trustedHostNetwork,
-		"--config", trustedHostRoleKey+"="+trustedHostRoleValue,
-		"--config", trustedHostControlEnvKey+"="+trustedHostControlSocket,
-	)
+	initErr := hostsetup.Step(ctx, "trusted_host_create", func() error {
+		_, err := r.runner.Run(ctx, "incus", "init", r.image, trustedHostName,
+			"--project", r.project,
+			"--storage", rootPool,
+			"--no-profiles", "--network", trustedHostNetwork,
+			"--config", trustedHostRoleKey+"="+trustedHostRoleValue,
+			"--config", trustedHostControlEnvKey+"="+trustedHostControlSocket,
+		)
+		return err
+	})
 	if initErr != nil {
 		// Another reconciler may have won the create race. Only adopt the result
 		// when exact Hacocoon ownership can be proven from the marker.
@@ -111,7 +116,7 @@ func (r *Runtime) completeTrustedHost(ctx context.Context, state, pool string) e
 		return err
 	}
 	if r.trustedHostInterop != nil {
-		return r.trustedHostInterop(ctx)
+		return hostsetup.Step(ctx, "wsl_interop", func() error { return r.trustedHostInterop(ctx) })
 	}
 	return nil
 }
@@ -128,7 +133,10 @@ func (r *Runtime) ConfigureWSLInterop() {
 		if mode != "" {
 			args = append(args, mode)
 		}
-		if _, err := r.runner.Run(ctx, "/usr/bin/python3", args...); err != nil {
+		if result, err := r.runner.Run(ctx, "/usr/bin/python3", args...); err != nil {
+			if result.ExitCode == 42 {
+				return hostsetup.ErrNativeBinfmtIncompatible
+			}
 			return fmt.Errorf("refresh trusted Host Windows access; rerun Windows installer: %w", err)
 		}
 		return nil
@@ -140,7 +148,8 @@ func (r *Runtime) ConfigureWSLInterop() {
 // ProvisionTrustedHostClient installs the client-only haco-host binary into the
 // already-reconciled trusted instance. The source must be an executable owned
 // by the caller and must not be writable by another local user.
-func (r *Runtime) ProvisionTrustedHostClient(ctx context.Context, source string) error {
+func (r *Runtime) ProvisionTrustedHostClient(ctx context.Context, source string) (err error) {
+	defer hostsetup.Track(ctx, "client_provision")(&err)
 	state, exists, err := r.trustedHostState(ctx)
 	if err != nil {
 		return err
@@ -220,7 +229,8 @@ func (r *Runtime) ensureTrustedHostClientEnvironment(ctx context.Context) error 
 	return nil
 }
 
-func (r *Runtime) ensureTrustedHostControlDevice(ctx context.Context) error {
+func (r *Runtime) ensureTrustedHostControlDevice(ctx context.Context) (err error) {
+	defer hostsetup.Track(ctx, "controller_endpoint")(&err)
 	hostSocket, err := physicalHostControlSocket()
 	if err != nil {
 		return err
@@ -383,7 +393,8 @@ func (r *Runtime) trustedHostState(ctx context.Context) (string, bool, error) {
 	return strings.ToUpper(strings.TrimSpace(exact.Status)), true, nil
 }
 
-func (r *Runtime) verifyTrustedHostOwnership(ctx context.Context) error {
+func (r *Runtime) verifyTrustedHostOwnership(ctx context.Context) (err error) {
+	defer hostsetup.Track(ctx, "trusted_host_inspect")(&err)
 	result, err := r.runner.Run(ctx, "incus", "config", "get", trustedHostName, trustedHostRoleKey, "--project", r.project)
 	if err != nil {
 		return fmt.Errorf("read trusted host ownership marker: %w", err)
@@ -394,7 +405,8 @@ func (r *Runtime) verifyTrustedHostOwnership(ctx context.Context) error {
 	return nil
 }
 
-func (r *Runtime) ensureTrustedHostRunning(ctx context.Context, state string) error {
+func (r *Runtime) ensureTrustedHostRunning(ctx context.Context, state string) (err error) {
+	defer hostsetup.Track(ctx, "trusted_host_start")(&err)
 	unlock, err := lockHostOperation(ctx, r.project)
 	if err != nil {
 		return err

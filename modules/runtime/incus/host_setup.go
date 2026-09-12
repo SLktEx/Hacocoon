@@ -3,6 +3,7 @@ package incus
 import (
 	"context"
 	"fmt"
+	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"path/filepath"
 )
 
@@ -12,10 +13,15 @@ import (
 // The temporary hacoq migration client is not a setup dependency.
 func (r *Runtime) SetupTrustedHost(ctx context.Context, clientDirectory string) error {
 	paths := []string{filepath.Join(clientDirectory, "haco-host"), filepath.Join(clientDirectory, "haco"), filepath.Join(clientDirectory, "haco-notify")}
-	for _, path := range paths {
-		if _, _, err := trustedClientSource(path); err != nil {
-			return fmt.Errorf("validate setup client: %w", err)
+	if err := hostsetup.Step(ctx, "client_validation", func() error {
+		for _, path := range paths {
+			if _, _, err := trustedClientSource(path); err != nil {
+				return fmt.Errorf("validate setup client: %w", err)
+			}
 		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -36,12 +42,12 @@ func (r *Runtime) SetupTrustedHost(ctx context.Context, clientDirectory string) 
 		return err
 	}
 	if r.trustedHostStorage != nil {
-		if err := r.trustedHostStorage(ctx); err != nil {
+		if err := hostsetup.Step(ctx, "host_storage", func() error { return r.trustedHostStorage(ctx) }); err != nil {
 			return err
 		}
 	}
 	if r.trustedHostNotifications != nil {
-		return r.trustedHostNotifications(ctx)
+		return hostsetup.Step(ctx, "notification_setup", func() error { return r.trustedHostNotifications(ctx) })
 	}
 	return nil
 }

@@ -345,3 +345,44 @@ provider results refuse setup. The setting persists; repeated setup revalidates
 and reuses it. See [ADR 0032](../adr/0032-owned-host-nested-runtime.md).
 Runtime binaries remain optional and actual image recovery requires separate
 Docker/nerdctl acceptance.
+
+## Setup progress and failure diagnostics
+
+Status: **implemented**. `haco setup` observes the existing owned-resource
+reconciler through the management controller. Stderr shows running/succeeded/
+failed stages; stdout retains the final command result. There is no percentage
+or success inferred from process dispatch. Stages cover client validation,
+project/storage, owned Host inspection/creation, network, controller endpoint,
+start, WSL interop, client mode/provisioning, Host storage, notifications and
+customization. Repeated stages mean actual repeated reconciliation checks.
+Optional stages are absent when not configured, not reported as completed.
+
+The controller records fixed stage/state/reason, duration and a generated
+`request_id` through the shared structured logger. The CLI validates this bounded
+vocabulary again. Arbitrary provider errors, helper output, credentials and
+recipe text are not diagnostic fields. WSL helper exit 42 specifically means
+`native_binfmt_incompatible`; unknown failures remain `failed`, rather than a
+guessed cause. Other reasons include timeout, canceled, incompatible_state,
+recovery_required, unavailable, denied, busy, not_found and unsupported.
+
+Use `haco doctor` to inspect current readiness. On the WSL/Linux **Physical Host**,
+an administrator can read `journalctl -u haco-controller.service --since
+'30 minutes ago' --no-pager` and locate the printed request ID. Journal retention
+and rotation remain systemd-journald responsibilities. Existing
+`HACO_LOG_LEVEL=debug` / `HACO_LOG_FORMAT=json` configure diagnostics; client
+settings do not enable controller DEBUG remotely. DEBUG retains redaction.
+
+There is no approval interaction in Host setup. A busy result means another
+setup owns the operation, not that approval is pending. Capability approvals
+remain separate under `haco approve`. Ctrl+C stops observation; as with the
+existing lifecycle RPC, the bounded controller setup may continue after a lost
+client. Exclusion is held until the actual service returns. A broken stream,
+missing final acknowledgement or incompatible older controller cannot cause a
+second mutating request or a successful completion display.
+
+Completed stage lines describe that attempt, not a fresh resource inventory.
+Failure retains potentially created resources; setup never promises rollback.
+Inspect the request and current doctor result before choosing an explicit retry.
+Saved customization can have external side effects and must not be blindly
+replayed. This observation change adds no cleanup authority and changes no
+ownership, lease, network or authorization invariants.
