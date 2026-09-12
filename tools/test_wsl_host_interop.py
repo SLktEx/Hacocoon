@@ -159,7 +159,14 @@ class DistributionTests(unittest.TestCase):
             def owned(path, *args, **kwargs):
                 info = original(path, *args, **kwargs)
                 return types.SimpleNamespace(st_mode=info.st_mode, st_uid=0, st_size=info.st_size)
-            with mock.patch.object(interop, 'DISTRIBUTION_RECORD', record), mock.patch.object(Path, 'stat', owned), mock.patch.dict(interop.os.environ, {'WSL_DISTRO_NAME':'Hacocoon-Test'}):
+            # lstat does not delegate to Path.stat on every Python version.
+            # Model root ownership for both calls while retaining symlink modes.
+            def owned_lstat(path):
+                return owned(path, follow_symlinks=False)
+            with (mock.patch.object(interop, 'DISTRIBUTION_RECORD', record),
+                  mock.patch.object(Path, 'stat', owned),
+                  mock.patch.object(Path, 'lstat', owned_lstat),
+                  mock.patch.dict(interop.os.environ, {'WSL_DISTRO_NAME':'Hacocoon-Test'})):
                 self.assertEqual(interop.distribution_record(True), 'Hacocoon-Test')
                 self.assertEqual(interop.distribution_record(), 'Hacocoon-Test')
                 with mock.patch.dict(interop.os.environ, {'WSL_DISTRO_NAME':'Other'}):
