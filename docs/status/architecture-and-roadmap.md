@@ -157,3 +157,5 @@ Next: finish candidate-level verification and PR evidence, then continue the M1
 language/ordinary Windows gaps. Keep #553's reported PF-host acceptance and #579's
 Windows outbound timeout distinct from later narrower passes. No source data,
 existing Env, retained Store, user branch, tag or release has been deleted.
+
+Review: [PR #583](https://github.com/SLktEx/Hacocoon/pull/583), candidate head "1d2957eb" (development only). Focused CLI/notification/catalog/control API/composition race tests passed. Native BAT component also verified waiting with open stdin, key release and preserved failure exit 37; Explorer launch remains unverified. Existing Windows/Ubuntu installer and Incus PR gates now include dev/2.x, retaining their read-only permissions and unchanged acceptance sequence.

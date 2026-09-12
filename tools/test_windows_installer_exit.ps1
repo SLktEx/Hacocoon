@@ -88,6 +88,31 @@ class NativeExit {
         } finally { [IO.File]::Move($saved, $original) }
     }
 
+    # A key must release the ordinary final wait while preserving a failure code.
+    [IO.File]::WriteAllText((Join-Path $fixtureRoot 'native-exit.txt'), '37')
+    $info = [Diagnostics.ProcessStartInfo]::new()
+    $info.FileName = Join-Path ([Environment]::SystemDirectory) 'cmd.exe'
+    $info.Arguments = '/d /c install-windows.bat'
+    $info.WorkingDirectory = $fixtureRoot
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.EnvironmentVariables.Remove('HACO_INSTALL_NO_PAUSE')
+    $info.EnvironmentVariables.Remove('CI')
+    $info.RedirectStandardInput = $info.RedirectStandardOutput = $info.RedirectStandardError = $true
+    $waiting = [Diagnostics.Process]::Start($info)
+    try {
+        $stdout = $waiting.StandardOutput.ReadToEndAsync()
+        $stderr = $waiting.StandardError.ReadToEndAsync()
+        if ($waiting.WaitForExit(500)) { throw 'Ordinary BAT did not wait for a key' }
+        $waiting.StandardInput.WriteLine(' ')
+        $waiting.StandardInput.Flush()
+        if (-not $waiting.WaitForExit(10000)) { $waiting.Kill(); throw 'Key did not release BAT' }
+        $output = $stdout.GetAwaiter().GetResult() + $stderr.GetAwaiter().GetResult()
+        if ($waiting.ExitCode -ne 37 -or -not $output.Contains('Press any key to close')) { throw 'Wait lost the failure result' }
+    } finally {
+        if (-not $waiting.HasExited) { $waiting.Kill(); [void]$waiting.WaitForExit(10000) }
+        $waiting.Dispose()
+    }
     # A live native process holds this otherwise empty working directory. Its
     # eventual release must succeed, while unrelated deletion errors stay errors.
     $heldDirectory = Join-Path $fixtureRoot 'held-directory'

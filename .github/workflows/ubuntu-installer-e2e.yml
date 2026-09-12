@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - dev/2.x
     paths:
       - "cmd/**"
       - "internal/**"
