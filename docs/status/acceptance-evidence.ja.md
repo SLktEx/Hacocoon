@@ -151,5 +151,7 @@ standalone・Core／egress／lifecycleが成功しましたが、owned-BtrfsのS
 Ubuntu（34715458982）はIncus 7.0.1の導入・版確認後、Ubuntu版と異なるdaemonパスで
 boot guardの採用に失敗しました。`2c9faa07`はroot・namespace・systemd MainPID照合を維持して
 Zabblyの正規パスを認識し、回帰20件が成功しました。不明な稼働daemonは引き続き拒否します。
-修正後の導入受入は未確認です。Windows（34715459045）はConPTY componentが成功し、
-この修正準備時点で通常導入の試験中でした。Windows全体の成功とは扱いません。
+修正後の導入受入は未確認です。Windows（34715459045）はConPTY componentと7.0.1確認後、
+同じboot guardのパスで失敗しました。driverがBATの明示的失敗を認識せず、さらに28分待って
+timeoutになりました。最終失敗を認識して所有端末を閉じるよう修正し、2回目のBATで初回受入を
+修復しない回帰試験を追加しました。後続のWindows SSH・reclaim・通知試験はSKIPです。

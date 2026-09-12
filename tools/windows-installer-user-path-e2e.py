@@ -223,6 +223,8 @@ def run_bat(package_root: Path) -> None:
         if not sent_bat and cmd_prompt_count(output):
             process.write("install-windows.bat\r\n")
             sent_bat = True
+        elif sent_bat and re.search(r"(?m)^Hacocoon installation failed with exit code [1-9][0-9]*\.\s*$", output):
+            raise RuntimeError("BAT reported installation failure; no second BAT may repair first-install acceptance")
         elif sent_bat and not sent_exit and INSTALL_COMPLETE_RE.search(output):
             process.write("exit\r\n")
             sent_exit = True
@@ -236,7 +238,11 @@ def run_bat(package_root: Path) -> None:
         responder(r"^\[Y/n/e\]:[^\r\n]*$", "\x15n\r\n"),
         responder(r"(?m)^[^\r\n]*@[^\r\n]*:[^\r\n]*\$\s*$", "exit\r\n"),
     ]
-    output = terminal.run(responders=responses, on_output=drive)
+    try:
+        output = terminal.run(responders=responses, on_output=drive)
+    finally:
+        if terminal.proc.isalive():
+            terminal.proc.terminate(force=True)
     if not sent_bat or not sent_exit:
         raise RuntimeError("BAT did not complete; no second BAT may repair first-install acceptance")
     require_output(output, r"Hacocoon WSL installation complete", phase="BAT")

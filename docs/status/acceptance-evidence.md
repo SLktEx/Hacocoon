@@ -169,5 +169,8 @@ adoption because the daemon path differed from Ubuntu's package. `2c9faa07`
 recognizes the exact Zabbly daemon path while retaining root, namespace and
 systemd MainPID checks; 20 regressions passed. Unknown active daemons still fail
 closed. This fix also needs installed acceptance. Windows run 34715459045 passed
-the ConPTY component and was still exercising ordinary installation when these
-follow-ups were prepared; this is not a complete Windows pass.
+the ConPTY component, then failed at the same boot-guard path after verifying
+7.0.1. The driver ignored BAT's explicit failure and waited another 28 minutes
+for its timeout. It now fails immediately on that final result and closes its
+owned terminal; a regression prevents a second BAT from repairing acceptance.
+Later Windows SSH, reclamation and notification stages were skipped.
