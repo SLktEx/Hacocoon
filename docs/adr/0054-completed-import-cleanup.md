@@ -1,5 +1,7 @@
 # ADR 0054: Clean up only completed, unpublished imports
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../design/environment-transfer.md) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Status: accepted. Amends the initial failure handling in [ADR 0053](0053-workspace-native-import.md).
 
 ## Decision

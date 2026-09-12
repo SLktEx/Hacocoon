@@ -79,7 +79,12 @@ haco_env_code=$?
 set -e
 [[ "$haco_env_code" == "2" ]]
 [[ ! -s "$root/haco-env.out" ]]
-grep -Fq 'Usage: haco env create' "$root/haco-env.err"
+grep -Fxq 'Usage:' "$root/haco-env.err"
+grep -Fxq '  haco env <command>' "$root/haco-env.err"
+grep -Eq '^  create +[^ ]' "$root/haco-env.err"
+"$bin/haco" env --help >"$root/haco-env-help.out" 2>"$root/haco-env-help.err"
+cmp "$root/haco-env.err" "$root/haco-env-help.out"
+[[ ! -s "$root/haco-env-help.err" ]]
 
 set +e
 "$bin/haco" definitely-not-a-command >"$root/haco-invalid.out" 2>"$root/haco-invalid.err"

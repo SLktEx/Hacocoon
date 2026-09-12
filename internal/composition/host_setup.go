@@ -3,6 +3,7 @@ package composition
 import (
 	"context"
 	"fmt"
+	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"github.com/SLktEx/Hacocoon/internal/recipes"
 	"os"
 	"path/filepath"
@@ -25,5 +26,5 @@ func (a *App) SetupHost(ctx context.Context, update recipes.Update) error {
 	if err := a.Runtime.SetupTrustedHost(ctx, filepath.Dir(executable)); err != nil {
 		return err
 	}
-	return a.HostCustomization.Apply(ctx, update)
+	return hostsetup.Step(ctx, "customization", func() error { return a.HostCustomization.Apply(ctx, update) })
 }

@@ -70,7 +70,7 @@ type EnvironmentSSHRequest struct {
 
 // TerminalMetadata is the wire representation of the small, explicitly
 // allow-listed terminal metadata that may accompany an interactive session.
-// Columns/Rows are reserved here for the resize work tracked in #410.
+// Columns/Rows set the initial PTY size; later updates use session control RPCs.
 type TerminalMetadata struct {
 	Term      string `json:"term,omitempty"`
 	ColorTerm string `json:"color_term,omitempty"`
@@ -84,7 +84,8 @@ type EnvironmentShellRequest struct {
 }
 
 type HostShellRequest struct {
-	Terminal TerminalMetadata `json:"terminal,omitempty"`
+	Terminal        TerminalMetadata `json:"terminal,omitempty"`
+	DisplayLanguage string           `json:"display_language,omitempty"`
 }
 
 type environmentService interface {
@@ -244,7 +245,7 @@ func Register(server *control.Server, environments environmentService, clients c
 		if err != nil {
 			return nil, err
 		}
-		ctx = core.WithTerminalMetadata(ctx, metadata)
+		ctx = shellTerminalContext(ctx, metadata)
 		prepared, err := environments.PrepareShellStream(ctx, request.Environment)
 		if err != nil {
 			return nil, translateError(err)
@@ -288,7 +289,11 @@ func RegisterHost(server *control.Server, hosts hostService) error {
 		if err != nil {
 			return nil, err
 		}
-		ctx = core.WithTerminalMetadata(ctx, metadata)
+		if request.DisplayLanguage != "" && request.DisplayLanguage != "en" && request.DisplayLanguage != "ja" {
+			return nil, control.NewStatusError("invalid_argument", "display language must be en or ja")
+		}
+		metadata.DisplayLanguage = request.DisplayLanguage
+		ctx = shellTerminalContext(ctx, metadata)
 		prepared, err := hosts.PrepareTrustedHostShellStream(ctx)
 		if err != nil {
 			return nil, translateError(err)
@@ -328,6 +333,9 @@ func validateTerminalMetadata(metadata TerminalMetadata) (core.TerminalMetadata,
 	}
 	if metadata.Columns < 0 || metadata.Columns > maxTerminalDimension || metadata.Rows < 0 || metadata.Rows > maxTerminalDimension {
 		return core.TerminalMetadata{}, control.NewStatusError("invalid_argument", "terminal dimensions are out of range")
+	}
+	if (metadata.Columns == 0) != (metadata.Rows == 0) {
+		return core.TerminalMetadata{}, control.NewStatusError("invalid_argument", "terminal dimensions must be supplied together")
 	}
 	return core.TerminalMetadata{
 		Term:      metadata.Term,

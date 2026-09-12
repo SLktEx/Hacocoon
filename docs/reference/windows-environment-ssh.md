@@ -95,4 +95,4 @@ an OpenSSH SetEnv drop-in, validates sshd configuration and reloads it. Interact
 and command sessions can use the same policy-controlled proxy as Incus exec.
 This does not permit a domain or inherit an old Env grant; configure current
 network Policy as usual. See [ADR 0058](../adr/0058-ssh-session-egress-environment.md).
-Installed SSH package acceptance is pending; 7517c27 failed before this fix.
+Installed SSH package and transfer acceptance passed at `684e411`; `7517c27` failed before this fix. See [the bounded evidence](../status/acceptance-evidence.md#transfer).

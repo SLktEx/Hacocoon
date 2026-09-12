@@ -80,7 +80,7 @@ Acceptance must distinguish component fixtures, actual Incus/Btrfs, installed
 CLI and desktop clients. Record preparation, fork and reopen duration and
 incremental allocation. Small fixtures do not establish Linux-kernel repository
 performance. See [Workspace/lease](workspace-abstraction-and-lease.md),
-[managed repository workflow](../reference/managed-repository-workflow.md),
+[managed repository workflow](../guides/git-workflow.md),
 [persistent OCI](persistent-oci-store.md), and
 [the workflow decision](../adr/0062-workspace-entry-and-data-fork.md).
 

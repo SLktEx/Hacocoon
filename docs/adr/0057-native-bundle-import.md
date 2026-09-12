@@ -1,5 +1,7 @@
 # ADR 0057: Compose native bundle import through retained-data owners
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../design/environment-transfer.md) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Status: accepted; Linux public CLI/controller integration is implemented, acceptance pending.
 
 ## Decision

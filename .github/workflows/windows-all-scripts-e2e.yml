@@ -2,7 +2,7 @@ name: windows-installer-e2e
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev/2.x]
     paths:
       - "cmd/**"
       - "internal/**"
@@ -178,7 +178,7 @@ jobs:
           python ./tools/test_native_access_runner.py
           if ($LASTEXITCODE -ne 0) { throw "Native acceptance runner regression failed" }
           ./tools/test_windows_installer.ps1
-          ./tools/test_windows_installer_exit.ps1
+          ./tools/test_windows_installer_exit.ps1 -PausePython (Get-Command python).Source
           ./tools/test_windows_dns_diagnostic.ps1
           pwsh -NoLogo -NoProfile -File ./tools/test_windows_ssh_diagnostic.ps1
           if ($LASTEXITCODE -ne 0) { throw "SSH diagnostic regressions failed" }

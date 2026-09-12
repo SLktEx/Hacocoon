@@ -37,7 +37,7 @@ delete into its replacement. Ordinary guest work may change runtime inventory;
 the runtime's non-force deletion remains the final reference check.
 
 This slice handles a Store attached to an Env whose runtime is available. Host
-source images are addressed below. Detached Store routing is partial as described below; candidate selection is implemented below; native batch acceptance remains pending. No Seed/tombstone path, hidden backup, new catalog
+source images are addressed below. Detached Store routing is partial as described below; reviewed candidate deletion has scoped native acceptance below. No Seed/tombstone path, hidden backup, new catalog
 state or schema migration is introduced. Existing saved snapshots are independent
 copies, so image deletion does not modify them. Unit and CLI regressions and the
 existing optional real-runtime COW fixture cover different scopes; exact executed
@@ -128,45 +128,11 @@ There is no schema migration, automatic backup or arbitrary executable/socket op
 
 ## Controller/CLI acceptance
 
-The shipped controller/product CLI gate passed on real Incus/Btrfs in
-[the bd1c9a5 GHA run](https://github.com/SLktEx/Hacocoon/actions/runs/34417051340/job/102684134054) (588.51s).
-It uses production composition and a private real catalog containing only its
-new synthetic Store. It checks detached list, referenced-image refusal, confirmed
-unused-digest deletion and absence, retained container metadata, exact temporary
-Env/lease cleanup and explicit deletion of the owned test Store. All four GHA
-workflows passed at that commit.
-
-The fixture is restricted to disposable GitHub-hosted runners. Its root controller
-uses a private 0700 TMPDIR rather than adopting the preceding ordinary runner's
-lifecycle locks. Production lock ownership checks remain unchanged. Earlier gate
-candidates failed before these fixture and explicit-Store creation corrections;
-those failures remain recorded in the PR.
-
-This accepts the bare controller/private-socket path. Full installed Standard
-egress, ordinary-user/desktop use, detached Docker and candidate-selected GC
-remain unverified or unimplemented. It does not extend attached/Host-source
-acceptance beyond their separately recorded scope.
-
-## Detached containerd metadata service
-
-The independent Incus 6.0.5/Btrfs primitive passed in 179.66s, including task API
-refusal, unchanged restart-marked container metadata, retained used image, unused
-alias removal, masked restart and exact owned cleanup. Product image operations on
-that socket are a separate acceptance test. Its fixture must distinguish displayed
-tags from immutable digests and actual container references: a shared tag is not
-proof that every corresponding digest is referenced. Whole-controller creation and
-tool provisioning are not represented by its fixture catalog/lifecycle adapter.
-
-The expanded native fixture passed in 224.64s: product inventory, actual-container
-reference refusal, selected unused digest removal and confirmed absence, retained
-container metadata, masked restart, Store survival after Env deletion and exact
-owned cleanup. Its lifecycle/catalog adapter remains a fixture.
-
-Automatic tool delivery through the production preparer and Incus adapter passed
-in the dedicated native fixture (237.37s), including subsequent image operations,
-retained metadata/Store protection and exact cleanup. A separate empty-cache real
-HTTPS acquisition and extraction test passed in 70.71s without executing downloaded
-binaries on the Host. Full OCI/Incus/composition race suites and vet passed.
+Production detached nerdctl composition and bare controller/CLI passed at `bd1c9a5`.
+Full installed Standard, ordinary-user/desktop and detached Docker acceptance remain
+incomplete. Native primitives, automatic tool delivery and fixture catalogs establish
+different scopes. [Acceptance evidence](../status/acceptance-evidence.md#storage)
+retains passes, failures and limits.
 
 ## Review unused image candidates
 

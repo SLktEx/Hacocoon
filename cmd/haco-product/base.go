@@ -57,7 +57,7 @@ func runBase(args []string) int {
 		return runBaseBuild(args[1:])
 	}
 	if len(args) == 0 || (args[0] != "list" && args[0] != "inspect") || (args[0] == "list" && len(args) != 1) || (args[0] == "inspect" && len(args) != 2) {
-		fmt.Fprintln(os.Stderr, "Usage: haco base list [--all [--json]] | haco base inspect <base> | haco base build <definition.json> | haco base delete [--yes] <name-or-fingerprint>")
+		commandHelp(os.Stderr, "base", cliLanguage())
 		return 2
 	}
 	c, err := controlapi.NewDefaultClient()

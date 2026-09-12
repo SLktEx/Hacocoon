@@ -1,6 +1,6 @@
 # ADR 0027: Revision-bound Policy editing
 
-Status: accepted; repository implementation, installed acceptance pending.
+Status: accepted; implemented. Installed configuration round trip passed at `2584ec6`; see [evidence](../status/acceptance-evidence.md#development).
 
 The Policy view is canonical JSON; the revision still hashes the exact original file, so explicit empty optional arrays do not change the displayed structure during a round trip.
 

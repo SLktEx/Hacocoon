@@ -18,16 +18,27 @@ Before changing code, read `AGENTS.md`, `docs/README.md`, `docs/IMPLEMENTATION_S
 
 Hacocoon is still **pre-1.0**. Breaking changes are allowed when they make the system smaller, safer, or more coherent. Existing behavior on `main` is not automatically a permanent compatibility contract.
 
-## Checkpoint and release classification
+## Documentation and change classification
 
-Every maintained Pull Request should select exactly one classification in `.github/pull_request_template.md`:
+Follow [documentation ownership and writing rules](docs/DOCUMENTATION_STYLE_GUIDE.md).
+For checkpoint/release work, use [the numbering policy](docs/status/versioning-and-release-status.md)
+and [build identity](docs/reference/build-release-identity.md). Select exactly one
+classification in [the PR template](.github/pull_request_template.md).
 
-- new development checkpoint;
-- existing-checkpoint feature/hardening/acceptance work;
-- release/packaging-only work;
-- docs/test/refactor/maintenance-only work.
+## Build entry points
 
-Development checkpoint, published software version/tag, and acceptance/support status are separate identities. `docs/status/checkpoints.yaml` is the machine-readable source for checkpoint numbering/current/Gate identity; the status Markdown documents are human-readable mirrors with acceptance detail. A release-only change must not silently advance the development checkpoint. When a meaningful new checkpoint is intended, use `tools/bump-milestone v0.N "Gate Name"`, then refine the implementation-status and owning design/reference documentation in the same PR.
+From the repository root with the Go version required by [go.mod](go.mod):
+
+```bash
+go build -o ./bin/haco ./cmd/haco-product
+go build -o ./bin/hacoq ./cmd/haco
+```
+
+The second binary is the temporary legacy CLI; it is not the product command.
+A standalone CLI build is not an installed Host. Use [installer architecture](docs/design/installer.md)
+and [release instructions](docs/guides/releasing.md) for the complete package.
+Client-specific development lives in [VS Code Agent Workspace](clients/vscode-agent-workspace/README.md)
+and [VS Code notifications](clients/vscode-notify/README.md).
 
 ## Design checks
 

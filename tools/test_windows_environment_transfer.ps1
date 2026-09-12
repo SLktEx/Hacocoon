@@ -145,6 +145,7 @@ with open(sys.argv[1], 'rb') as source, open(sys.argv[2], 'xb') as target:
         Write-Host ('Windows transfer bundle retained: ' + $windowsBundle)
     } catch {
         Write-DesktopProbeFailure 'INSTALLED ENV TRANSFER' $phase $_
+        Write-Host ('INSTALLED ENV TRANSFER EVIDENCE: ' + (Get-TransferFailureEvidence $_.Exception.Message))
         Write-Host ('Transfer fixture retained: source=' + $source + ' imported=' + $destination + ' resume=' + $resume + ' host_directory=' + $hostDirectory)
         if ($windowsBundle) { Write-Host ('Windows transfer bundle retained for inspection: ' + $windowsBundle) }
         throw [Exception]::new('Installed Environment transfer failed; see fixed phase diagnostics')

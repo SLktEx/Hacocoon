@@ -4,16 +4,18 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/cliui"
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 type fakeHostService struct {
-	prepareErr      error
+	prepareErr       error
 	terminalMetadata core.TerminalMetadata
 }
 
@@ -38,6 +40,7 @@ func TestTrustedHostShellRoundTripOverUnixSocket(t *testing.T) {
 	defer cancel()
 	t.Setenv("TERM", "screen-256color")
 	t.Setenv("COLORTERM", "truecolor")
+	t.Setenv("HACO_UI_LANGUAGE", "ja")
 
 	stream, err := client.OpenTrustedHostShell(context.Background())
 	if err != nil {
@@ -61,13 +64,44 @@ func TestTrustedHostShellRoundTripOverUnixSocket(t *testing.T) {
 	if hosts.terminalMetadata.Term != "screen-256color" || hosts.terminalMetadata.ColorTerm != "truecolor" {
 		t.Fatalf("host terminal metadata = %#v", hosts.terminalMetadata)
 	}
+	if hosts.terminalMetadata.DisplayLanguage != "ja" {
+		t.Fatalf("Host presentation was lost: %#v", hosts.terminalMetadata)
+	}
+}
+
+func TestHostPresentationRejectsMalformedRequestBeforePreparation(t *testing.T) {
+	for _, language := range []string{"JA", "ja_JP.UTF-8", " ja", "ja\n", "ja;PATH=/tmp"} {
+		hosts := &fakeHostService{prepareErr: core.ErrRuntimeUnavailable}
+		client, cancel := startHostControlAPITestServer(t, hosts)
+		_, err := client.wire.OpenSession(context.Background(), MethodHostShell, HostShellRequest{DisplayLanguage: language})
+		cancel()
+		var status *control.StatusError
+		if !errors.As(err, &status) || status.Code != "invalid_argument" {
+			t.Fatalf("language %q reached preparation: %v", language, err)
+		}
+	}
+}
+
+func TestHostPresentationExplicitSessionDoesNotChangeProcessLocale(t *testing.T) {
+	t.Setenv("HACO_UI_LANGUAGE", "en")
+	hosts := &fakeHostService{}
+	client, cancel := startHostControlAPITestServer(t, hosts)
+	defer cancel()
+	stream, err := client.OpenTrustedHostShellWithLanguage(context.Background(), cliui.Japanese)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream.Close()
+	if hosts.terminalMetadata.DisplayLanguage != "ja" || cliui.Resolve(os.Getenv) != cliui.English {
+		t.Fatal("explicit session presentation was lost")
+	}
 }
 
 func TestTrustedHostShellPreparationFailsBeforeStreamOpens(t *testing.T) {
 	client, cancel := startHostControlAPITestServer(t, &fakeHostService{prepareErr: core.ErrRuntimeUnavailable})
 	defer cancel()
 	t.Setenv("TERM", "xterm")
-	 t.Setenv("COLORTERM", "")
+	t.Setenv("COLORTERM", "")
 
 	_, err := client.OpenTrustedHostShell(context.Background())
 	var status *control.StatusError

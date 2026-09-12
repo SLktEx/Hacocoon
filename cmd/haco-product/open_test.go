@@ -12,9 +12,9 @@ func TestOpenClientChoiceIsExplicitAndValidatedBeforeSetup(t *testing.T) {
 	if code != 2 || !strings.Contains(err, "--client vscode|ssh") {
 		t.Fatalf("%d %s", code, err)
 	}
-	code, _, err = captureRun(t, "open", "--help")
-	if code != 0 || !strings.Contains(err, "desktop client: vscode, ssh or none") {
-		t.Fatalf("%d %s", code, err)
+	code, out, err := captureRun(t, "open", "--help")
+	if code != 0 || err != "" || !strings.Contains(out, "--client vscode|ssh|none") {
+		t.Fatalf("%d %s %s", code, out, err)
 	}
 }
 

@@ -93,6 +93,7 @@ def package_windows(output: Path, archive: Path, checksum_line: str, version: st
         add_zip_bytes(zf, adapter, "haco-review.exe", 0o755)
         add_zip_bytes(zf, helper, "haco-wsl.exe", 0o755)
         add_zip_file(zf, ROOT / "scripts" / "install.sh", "install.sh", 0o755)
+        add_zip_file(zf, ROOT / "scripts" / "incus-lts.sh", "incus-lts.sh", 0o755)
         add_zip_file(zf, ROOT / "scripts" / "setup-wsl-host-interop.py", "setup-wsl-host-interop.py", 0o755)
         add_zip_file(zf, ROOT / "modules/runtime/incus/packaging/incus-boot-guard.py", "incus-boot-guard.py", 0o755)
         add_zip_file(zf, archive, archive.name, 0o644)
@@ -109,6 +110,7 @@ def package_ubuntu(output: Path, archive: Path, checksum_line: str, version: str
             with tarfile.open(fileobj=gz, mode="w") as tf:
                 add_tar_bytes(tf, (ROOT / "scripts" / "install-ubuntu.sh").read_bytes(), "install-ubuntu.sh", 0o755)
                 add_tar_bytes(tf, (ROOT / "scripts" / "install.sh").read_bytes(), "install.sh", 0o755)
+                add_tar_bytes(tf, (ROOT / "scripts" / "incus-lts.sh").read_bytes(), "incus-lts.sh", 0o755)
                 add_tar_bytes(tf, (ROOT / "scripts" / "setup-wsl-host-interop.py").read_bytes(), "setup-wsl-host-interop.py", 0o755)
                 add_tar_bytes(tf, (ROOT / "modules/runtime/incus/packaging/incus-boot-guard.py").read_bytes(), "incus-boot-guard.py", 0o755)
                 add_tar_bytes(tf, archive.read_bytes(), archive.name, 0o644)

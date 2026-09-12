@@ -60,6 +60,6 @@ These are repository checks. Installed Windows Environment allow/deny traffic,
 firewall reload/startup order and ordinary policy management require their own
 acceptance; they are not established by trusted-host connectivity.
 
-See [egress authorization](../EGRESS_AUTHORIZATION.md) and
+See [egress authorization](../design/egress-authorization.md) and
 [implementation status](../IMPLEMENTATION_STATUS.md).
 

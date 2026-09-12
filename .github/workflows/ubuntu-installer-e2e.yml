@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - dev/2.x
     paths:
       - "cmd/**"
       - "internal/**"
@@ -125,7 +126,8 @@ jobs:
           set -e
           test "$product_env_code" = 2
           test ! -s "$RUNNER_TEMP/product-env.out"
-          grep -Fq 'Usage: haco env create' "$RUNNER_TEMP/product-env.err"
+          grep -Fxq '  haco env <command>' "$RUNNER_TEMP/product-env.err"
+          grep -Eq '^  create +[^ ]' "$RUNNER_TEMP/product-env.err"
 
           apparmor_userns=/proc/sys/kernel/apparmor_restrict_unprivileged_unconfined
           if test -e "$apparmor_userns"; then
@@ -142,7 +144,9 @@ jobs:
 
           test "$(sudo -u "$login_user" -- id -g)" = "$primary_gid"
           sudo -u "$login_user" -- id -nG | tr ' ' '\n' | grep -Fx hacocoon
-          sudo -u "$login_user" -- /usr/local/bin/hacoq doctor
+          # The ordinary user owns controller access, not Incus management.
+          # Legacy hacoq doctor is a privileged Physical Host diagnostic.
+          sudo -u "$login_user" -- /usr/local/bin/haco doctor
 
           sudo systemctl is-active --quiet haco-controller.service
           sudo test -S /run/hacocoon/control.sock

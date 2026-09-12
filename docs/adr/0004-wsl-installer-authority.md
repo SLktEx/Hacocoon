@@ -35,4 +35,4 @@ WSL's first-launch keys are described in [Microsoft's distribution configuration
 
 The [WSL client implementation](https://github.com/microsoft/WSL/blob/master/src/windows/common/WslClient.cpp) separates local-file registration from Windows prerequisite installation and handles prerequisite elevation itself. On the 2026-09-06 host, the previous explicit-elevation candidate `9d459be` exited 1 before distro creation; its native error was lost with the child console. Direct-invocation candidate `57b6ee2` subsequently completed fresh and repeated packaged BAT execution, ordinary entry and restart with trusted-host file retention. This establishes that path on this host without assigning an unobserved native error to the earlier failure. Network and Environment acceptance remain separate.
 
-See [Windows installation](../WINDOWS_WSL_BOOTSTRAP.md), [trusted Host](../design/trusted-host.md), and [implementation status](../IMPLEMENTATION_STATUS.md).
+See [Windows installation](../guides/installation.md), [trusted Host](../design/trusted-host.md), and [implementation status](../IMPLEMENTATION_STATUS.md).

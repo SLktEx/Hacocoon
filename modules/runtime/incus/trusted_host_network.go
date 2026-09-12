@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"net/netip"
 	"net/url"
 	"reflect"
@@ -43,7 +44,8 @@ type trustedNetwork struct {
 
 // Only the controller's Incus adapter owns trusted-host networking. No default
 // profile, installer storage probe, or Environment network selects this bridge.
-func (r *Runtime) ensureTrustedHostNetwork(ctx context.Context) error {
+func (r *Runtime) ensureTrustedHostNetwork(ctx context.Context) (err error) {
+	defer hostsetup.Track(ctx, "trusted_host_network")(&err)
 	inspect := func() (*trustedNetwork, error) {
 		result, err := r.runner.Run(ctx, "incus", "network", "list", "--project", sandboxResourceProject, "--format", "json")
 		if err != nil {

@@ -98,17 +98,26 @@ def read_json(command):
 def wait_for_worker(helper, registration, operation):
     powershell = str(Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe")
     script = "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);$ErrorActionPreference='Stop';ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process -Filter \"Name='haco-wsl.exe'\" | Select-Object ExecutablePath)"
-    deadline = time.monotonic() + 690
-    while time.monotonic() < deadline:
-        # These commands never enter WSL, mutate records or launch a worker.
+
+    def observe_result():
         result = read_json([str(helper), "_status", registration, operation])
         try:
             complete = require_complete(result, operation)
         except (RuntimeError, TypeError, AttributeError):
             print(json.dumps(failure_summary(result)), flush=True)
             raise
+        return result, complete
+
+    deadline = time.monotonic() + 690
+    while time.monotonic() < deadline:
+        # These commands never enter WSL, mutate records or launch a worker.
+        result, complete = observe_result()
         rows = read_json([powershell, "-NoProfile", "-NonInteractive", "-Command", script])
         running = helper_is_running(rows, helper)
+        if not running and not complete:
+            # Completion can be persisted between the status read and process
+            # observation. Read once after exit before declaring it unknown.
+            result, complete = observe_result()
         if complete and not running:
             print(json.dumps({"public_worker": "PASS", "observations": result}), flush=True)
             return

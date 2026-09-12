@@ -1,4 +1,4 @@
-# v0.4 — Policy & Capability Foundation
+# Policy and capability foundation
 
 Background controller approval now uses a bounded Standard session queue and the trusted haco approve review path. The capability service owns the actual decision, persistence, audit and execution outcome. See [pending approval review](pending-approval-review.md).
 
@@ -82,11 +82,11 @@ Capability names are unique identities. Duplicate or invalid provider names fail
 - Credential lifetime/scope abstraction where needed.
 - Dummy/local capability used to prove the flow before provider-specific behavior.
 
-## Not in scope for the v0.4 gate
+## Separate responsibilities
 
-- Full GitHub integration (introduced by v0.5).
-- Full AWS/EC2 integration (introduced by v0.7).
-- Agent task approval or merge approval.
+Concrete [Git](git-and-github-capability.md) and [AWS](aws-operations.md) operations
+use this boundary. A cloud Environment provider is deferred. Agent task review,
+PR review and merge approval remain outside Hacocoon.
 
 ## Compatibility note
 
@@ -102,7 +102,7 @@ See [ADR 0023](../adr/0023-policy-restriction-precedence.md).
 ## Saved decisions
 
 Status: **storage, service, controller stream and terminal component implemented;
-ordinary Git saved decisions implemented; notification integration pending**.
+ordinary Git saved decisions implemented; notification integration implemented; client acceptance remains scoped**.
 The optional `saved_decisions` array uses the same rule shape, allow, deny or require-approval. It participates alongside `rules` without replacing administrator rules.
 Persistent allow, deny and ask choices have explicit Environment or global scope.
 Persistence keeps every attribute name. A trusted provider may explicitly wildcard
@@ -113,7 +113,7 @@ a client may send a persistent decision. Unsupported peers cannot silently
 downgrade it to one-shot approval. The terminal component offers y/N plus the
 six explicitly labeled scope/decision combinations. Saving ask collects a separate
 y/N answer for this request and keeps later requests subject to approval. The
-ordinary Git queue supports optional approve/deny --save; notifications remain pending.
+ordinary Git queue supports optional approve/deny --save; notification decisions use the shared [review contract](pending-approval-review.md).
 
 The maintained Capability E2E now drives the terminal/controller saved choice,
 replays it without a prompt in the same Environment, requires approval in another
@@ -128,15 +128,14 @@ Saved Environment-specific decisions require and bind to a trusted creation iden
 
 ## Trusted configuration editing
 
-Status: **implemented repository slice; installed acceptance pending**.
+Status: **implemented; scoped installed acceptance recorded in [evidence](../status/acceptance-evidence.md#development)**.
 `haco config` inspects the same rules used by saved approval and evaluation.
 `--edit` or `--file` replaces a reviewed, revision-bound snapshot through the
 trusted controller. Configuration editing and approval saving share the canonical
 private atomic writer; stale snapshots fail instead of erasing another change.
 See [configuration usage](../reference/configuration.md) and
 [ADR 0027](../adr/0027-revision-bound-policy-editing.md). This adds no Environment
-permission or notification mutation endpoint. D2 notification approval remains
-pending.
+permission or notification mutation endpoint. Notification acceptance limits remain in the evidence record.
 
 ## Rule lifetime
 

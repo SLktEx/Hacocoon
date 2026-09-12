@@ -95,27 +95,14 @@ retention dependency. See [snapshots](environment-snapshots.md).
 
 ## Acceptance and remaining scope
 
-At `a2fcb72`, native Incus/Btrfs GHA passed definition build, registration,
-immutable revision selection, rebuild without changing an existing Env, future
-creation from the updated alias and exact fixture cleanup (70.69 seconds).
-Windows GHA passed definition build through the installed product, ordinary
-creation, strict SSH invocation of the added tool and VS Code connection.
-These are separate native and client checks, not mock acceptance.
-
-Local WSL attempts failed during machine-ID cleanup, an unsupported stdin
-management operation and a 600-second rebuild timeout; the first two defects
-were corrected before the successful GHA runs. Local timeout fixture cleanup
-also encountered inconsistent Incus stopped/running state. An ownership-checked
-native force-stop allowed canonical cleanup and positive absence checks for the
-exact two Environments and two images; diagnostic catalogs and the shared parent
-image remain. Do not count the failed build attempts as successes.
-
-Explicit retained-image cleanup and broader migration/reclamation remain later
-roadmap work. Archive import, concurrent builds and automatic retries are deferred.
+Definition build, alias revision independence and installed Windows SSH passed
+on `a2fcb72`. Earlier machine-ID/stdio failures and a local rebuild timeout remain
+recorded in [acceptance evidence](../status/acceptance-evidence.md#storage).
+Archive import, concurrent builds, history UI and automatic retries are deferred.
 
 ## Explicit built-image cleanup
 
-Status: implementation in progress; native acceptance is not yet established.
+Status: implemented; scoped native and Windows acceptance is recorded in [acceptance evidence](../status/acceptance-evidence.md#storage).
 
 `haco base list --all [--json]` shows retained built-image revisions, their exact
 fingerprints and build owners, current aliases, Environment/native users and
@@ -138,5 +125,19 @@ Workspace, OCI Stores, independent snapshot rootfs and existing Base assets are
 not deleted. Snapshot BaseRef values remain provenance: image deletion must not
 make snapshot restore depend on an image cache or original Base. No catalog schema
 change, image retention object, automatic GC or migration is introduced. Source
-repository/OCI-image cleanup and capacity reclamation remain separate work. See
+repository/OCI-image cleanup and capacity reclamation use separate operations. See
 [ADR 0043](../adr/0043-explicit-built-image-deletion.md).
+
+## Resolution rules
+
+Core uses `BaseName`, `BaseRevision` and `BaseRef{Name, Revision}`; provider-specific
+aliases/remotes are adapter details. Explicit `--base` takes precedence over the
+configured Hacocoon default. Project/user precedence layers are future intent,
+not implemented selectors.
+
+Incus resolves a configured alias once with image inspection, validates the full
+fingerprint and initializes from that pinned revision. `haco/` is reserved.
+`HACO_INCUS_BASES_JSON` rejects invalid names, control characters, option-like
+sources, reserved overrides and oversized/malformed configuration. A Base supplies
+guest contents; Policy/Capability supplies authority. Project-specific setup remains
+separate from reusable Base tooling.

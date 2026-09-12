@@ -1,5 +1,12 @@
 # Trusted `haco-host`
 
+Development candidate: `haco doctor` verifies the actual Incus server release and
+reports unsupported or unknown versions before dependent probes. The supported
+baseline is 7.0 LTS (`>= 7.0.1`, `< 7.1`); malformed backend versions are not
+echoed. See the [shared installer contract](installer.md#incus-package-baseline).
+Existing 6.0 compatibility remains best effort and historical acceptance stays
+recorded separately from fresh 7.0 installation acceptance.
+
 Implemented: Host `haco setup` waits for controller readiness through bounded read-only Ping probes before sending setup once. A failed setup response is never retried automatically. This handles the interval between systemd service activation and socket readiness without adding CLI steps.
 
 
@@ -9,7 +16,7 @@ Implemented: setup also provisions same-release `/usr/local/bin/haco-notify`,
 validating all required companions before provider mutation. Provisioning reuses
 Host ownership, digest and root-owned executable metadata checks. Notifications
 read the existing controller endpoint in controller mode; the Host does not need
-the Physical Host audit file. See [interaction events](../INTERACTION_EVENTS.md).
+the Physical Host audit file. See [interaction events](../reference/interaction-events.md).
 Fresh packaged acceptance for this addition remains pending.
 
 
@@ -20,7 +27,7 @@ and GitHub authentication live in this trusted Host. Independent Workspace
 volume copies are detached before Environment use. Git-only broker requests
 invoke fixed trusted Git operations; the Physical Host retains all controller,
 Policy and Incus authority. See the
-[workflow](../reference/managed-repository-workflow.md) and
+[workflow](../guides/git-workflow.md) and
 [ADR 0008](../adr/0008-managed-repository-workspaces.md). Windows drive/exe
 integration is reconciled by normal Windows installation and setup; see below.
 
@@ -69,7 +76,7 @@ fresh-install/restart results in [implementation status](../IMPLEMENTATION_STATU
 
 `haco-host` is Hacocoon's persistent trusted logical Host. On the local Incus backend it is an Incus system instance named `haco-host`, distinct from ordinary untrusted Environments.
 
-The actual Linux or WSL distribution that runs the Hacocoon controller, Incus daemon, loop devices, and storage mounts is the **Physical Host**. The Physical Host remains the authority for platform primitives. `haco-host` is the normal host-like place users enter and the intended home for future developer/external-service tooling.
+The actual Linux or WSL distribution that runs the Hacocoon controller, Incus daemon, loop devices, and storage mounts is the **Physical Host**. The Physical Host remains the authority for platform primitives. `haco-host` is the normal host-like place users enter and the home for managed repository, Git and optional external-service tooling.
 
 ```text
 Physical Host / WSL
@@ -149,39 +156,7 @@ Concurrent create/device reconciliation races may be accepted only after the fin
 
 ## Controller endpoint
 
-The Physical Host controller uses:
-
-```text
-/run/hacocoon/control.sock
-```
-
-The supported WSL bootstrap runs `haco-controller` under systemd and verifies the socket is `root:hacocoon` mode `0660`. Membership in `hacocoon` grants privileged controller authority. The trusted-instance proxy remains root-only as shown below.
-
-The trusted instance receives exactly this proxy shape:
-
-```text
-device: haco-control
-type=proxy
-bind=instance
-listen=unix:/var/lib/hacocoon-control.sock
-connect=unix:/run/hacocoon/control.sock
-mode=0600
-uid=0
-gid=0
-```
-
-and:
-
-```text
-environment.HACO_CONTROL_SOCKET=/var/lib/hacocoon-control.sock
-environment.HACO_CLIENT_MODE=controller
-```
-
-An existing endpoint configuration with a different target, mode, owner, bind direction, or socket path is incompatible state. Hacocoon does not silently repurpose it.
-
-An unexpected non-empty client-mode value is also incompatible state. Hacocoon does not silently replace a different execution-context policy on the trusted instance.
-
-The instance-side socket is intentionally outside `/run` so guest runtime tmpfs initialization does not hide the listener created by the Incus proxy device.
+The [transport contract](controller-client-transport.md#trusted-haco-host-endpoint) owns the exact proxy, socket modes, ownership and execution-context configuration. Physical Host controller access is privileged. Only the exactly owned trusted Host receives the endpoint; incompatible target, owner, mode, bind direction or nonempty client-mode values fail closed. The stable instance-side socket stays outside /run to survive guest tmpfs initialization.
 
 ## Client provisioning
 
@@ -269,16 +244,14 @@ When `-SkipIncus` is selected, controller/Host automatic entry is not configured
 
 ## Interactive warning
 
-`hacoq host shell` prints a short privileged-management warning before entering `haco-host`. Japanese locale settings receive Japanese wording; other locales receive English wording.
-
-The warning is emitted only on the interactive Host-shell path, so non-interactive WSL commands are not polluted.
+Ordinary product Host entry shows the [authority notice](#host-entry-language). The temporary `hacoq host shell` path retains its own short localized management warning. Neither is an invitation to run ordinary workloads with Host authority.
 
 ## Planned follow-up
 
 Still separate work:
 
 - extend trusted external-service tooling beyond the implemented Git/GitHub path;
-- evaluate additional optional OCI runtime compatibility; current Stores attach only to Environments;
+- evaluate additional optional OCI runtime compatibility; Host-owned source areas and independent Environment Stores are supported;
 - broker credentials without putting reusable credentials in ordinary Environments;
 - evaluate wider Windows application compatibility beyond the accepted native CLI cases;
 - classify and migrate the remaining appropriate `haco` commands to the controller client path;
@@ -351,4 +324,52 @@ Docker/nerdctl acceptance.
 
 Implemented: the trusted Host entry notice follows the Physical Host login process's first nonempty `LC_ALL`, `LC_MESSAGES`, then `LANG`. Japanese locales select Japanese; other locales retain English. The notice still identifies Host authority and directs ordinary development into an Environment. Interactive stderr uses yellow unless `NO_COLOR` is nonempty; redirected output stays plain.
 
-A fresh Windows installation maps Japanese Windows UI language to `ja_JP.UTF-8` through Ubuntu's locale tools before login-user setup. Existing distributions keep their locale, and other Windows languages keep Ubuntu defaults. A locale setup failure stops installation. This changes presentation only, not Host/Env authority, controller readiness, or credential forwarding. Fresh Japanese-Windows installation acceptance remains unverified.
+The Windows installer does not generate or persist a locale from the Windows UI
+language. Hacocoon accepts the normalized `HACO_UI_LANGUAGE=en|ja` override before
+the calling process locale. Host entry forwards only the resolved presentation
+value for that session. OS, Git, SSH and build-tool locales remain the user's own.
+The former OS locale initialization is removed. Normal interactive Windows/WSL
+entry now reads the Windows UI language unless explicitly overridden, using a
+bounded fixed-system query with POSIX fallback. Packaged language acceptance
+remains pending; see
+[CLI language](../reference/cli-language.md) and [ADR 0065](../adr/0065-host-presentation-language.md).
+## Setup progress and failure diagnostics
+
+Status: **implemented**. `haco setup` observes the existing owned-resource
+reconciler through the management controller. Stderr shows running/succeeded/
+failed stages; stdout retains the final command result. There is no percentage
+or success inferred from process dispatch. Stages cover client validation,
+project/storage, owned Host inspection/creation, network, controller endpoint,
+start, WSL interop, client mode/provisioning, Host storage, notifications and
+customization. Repeated stages mean actual repeated reconciliation checks.
+Optional stages are absent when not configured, not reported as completed.
+
+The controller records fixed stage/state/reason, duration and a generated
+`request_id` through the shared structured logger. The CLI validates this bounded
+vocabulary again. Arbitrary provider errors, helper output, credentials and
+recipe text are not diagnostic fields. WSL helper exit 42 specifically means
+`native_binfmt_incompatible`; unknown failures remain `failed`, rather than a
+guessed cause. Other reasons include timeout, canceled, incompatible_state,
+recovery_required, unavailable, denied, busy, not_found and unsupported.
+
+Use `haco doctor` to inspect current readiness. On the WSL/Linux **Physical Host**,
+an administrator can read `journalctl -u haco-controller.service --since
+'30 minutes ago' --no-pager` and locate the printed request ID. Journal retention
+and rotation remain systemd-journald responsibilities. Existing
+`HACO_LOG_LEVEL=debug` / `HACO_LOG_FORMAT=json` configure diagnostics; client
+settings do not enable controller DEBUG remotely. DEBUG retains redaction.
+
+There is no approval interaction in Host setup. A busy result means another
+setup owns the operation, not that approval is pending. Capability approvals
+remain separate under `haco approve`. Ctrl+C stops observation; as with the
+existing lifecycle RPC, the bounded controller setup may continue after a lost
+client. Exclusion is held until the actual service returns. A broken stream,
+missing final acknowledgement or incompatible older controller cannot cause a
+second mutating request or a successful completion display.
+
+Completed stage lines describe that attempt, not a fresh resource inventory.
+Failure retains potentially created resources; setup never promises rollback.
+Inspect the request and current doctor result before choosing an explicit retry.
+Saved customization can have external side effects and must not be blindly
+replayed. This observation change adds no cleanup authority and changes no
+ownership, lease, network or authorization invariants.

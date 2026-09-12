@@ -1,4 +1,4 @@
-# Terminology and Boundaries
+# Terminology and boundaries
 
 Status: authoritative terminology.
 
@@ -6,7 +6,7 @@ See [`../DESIGN_PRINCIPLES.md`](../DESIGN_PRINCIPLES.md) for the design constrai
 
 ## Physical Host
 
-The actual Linux or WSL operating-system instance that runs the Hacocoon process and local platform primitives such as the Incus daemon, loop devices, Hacocoon-managed filesystem mounts, and other backend/bootstrap operations that inherently require host authority.
+The actual Linux or WSL operating-system instance that runs the Hacocoon process and local platform primitives such as the Incus daemon, loop devices, Incus-owned filesystem mounts, and other backend/bootstrap operations that inherently require host authority.
 
 When documentation means this substrate specifically, use **Physical Host** rather than the ambiguous bare word "Host".
 
@@ -14,9 +14,9 @@ When documentation means this substrate specifically, use **Physical Host** rath
 
 The Hacocoon-managed persistent trusted logical Host. On the local Incus backend it is the infrastructure instance literally named `haco-host`.
 
-`haco-host` is not an Environment and is not an agent isolation boundary. It belongs to the trusted computing base. It is intended to become the normal host-like place for operator workflows, developer tooling, selected external-service operations, and optional platform integration while Physical Host primitives remain behind the Hacocoon boundary.
+`haco-host` is not an Environment and is not an agent isolation boundary. It belongs to the trusted computing base. It is the normal management place for operator workflows, developer tooling, selected external-service operations, and optional platform integration while Physical Host primitives remain behind the Hacocoon boundary.
 
-The current implementation provides lifecycle reconciliation and interactive entry but does not yet complete the planned Git/OCI/credential/Windows-interop or controller-channel migration.
+Current setup, Git and optional OCI operations, Windows interop and narrow controller transport use this boundary. Exact remaining limits belong to [implementation status](../IMPLEMENTATION_STATUS.md).
 
 ## Workspace
 
@@ -28,7 +28,7 @@ A Workspace's physical location is not part of Core semantics. Local deployments
 
 ## WorkspaceLease
 
-A lifecycle-bound association between one Workspace and one Environment, including access mode and ownership information. It is introduced formally in v0.2. A lease is not required to imply wall-clock expiration.
+A lifecycle-bound association between one Workspace and one Environment, including access mode and ownership information. A lease is not required to imply wall-clock expiration.
 
 ## Environment
 
@@ -54,7 +54,7 @@ One command or interactive process executed inside an Environment, with explicit
 
 A human-facing or tool-facing entry point that asks Hacocoon to operate on a Workspace/Environment. Examples include the CLI, VS Code integration, shell scripts, and external orchestrators using a stable Hacocoon interface.
 
-A Client does not need raw provider authority. In particular, future `haco` invocations from inside `haco-host` should target a Hacocoon-owned control channel rather than requiring the Incus socket in that instance.
+A Client does not need raw provider authority. In particular, product `haco` invocations from inside `haco-host` target a Hacocoon-owned control channel rather than requiring the Incus socket in that instance.
 
 ## Orchestrator
 
@@ -64,27 +64,27 @@ External orchestrators should integrate through a stable Hacocoon client/control
 
 ## WorkspaceProvider
 
-A v0.2+ seam that produces or resolves a Workspace. The direct external-path behavior used by v0.1 does **not** require a formal provider interface. A Git worktree provider is optional convenience functionality, not Core semantics.
+The seam that produces or resolves external or managed Workspaces. Managed Git preparation is an integration; Git worktree orchestration is not Core semantics.
 
 ## EnvironmentProvider
 
-The conceptual boundary for creating, inspecting, connecting to, executing inside, and destroying Environments. Incus is the first implementation. v0.1 may use a concrete Incus adapter without prematurely generalizing a provider framework; a formal provider interface should be justified by testing or another real implementation.
+The conceptual boundary for creating, inspecting, connecting to, executing inside, and destroying Environments. Incus is the first implementation. The current provider/router interfaces separate native operations from Core; additional abstractions need testing or a real implementation to justify them.
 
-When generalized, the provider boundary should expose capabilities/guarantees rather than force Core to branch on backend names.
+The provider boundary exposes capabilities/guarantees rather than force Core to branch on backend names.
 
 Trusted infrastructure instances such as the local Incus `haco-host` are provider/platform support resources and must not be silently modeled as ordinary Environments merely because the same backend creates them.
 
 ## CapabilityRequest
 
-A request to perform an operation that crosses the untrusted execution boundary into privileged host or external-service authority. This vocabulary becomes an implementation concern in v0.4.
+A request to perform an operation that crosses the untrusted execution boundary into privileged host or external-service authority.
 
 ## PolicyDecision
 
-The result of evaluating a CapabilityRequest: `allow`, `deny`, or `require-approval`. Introduced in v0.4.
+The result of evaluating a CapabilityRequest: `allow`, `deny`, or `require-approval`.
 
 ## ApprovalRequest
 
-A durable request for human authorization of a privileged action. Introduced in v0.4.
+A request for human authorization of a privileged action. Pending session lifetime and durable decision/audit receipts are distinct; unfinished requests are not automatically replayed after controller restart.
 
 ## Trusted computing base (TCB)
 
@@ -95,3 +95,23 @@ For the Incus system-container backend this includes at least the Physical Host 
 ## Historical Session terminology
 
 Existing code still contains `Session` while the rebaseline is implemented. `Session` is an implementation-migration term, not the preferred new architecture vocabulary. Do not create new public architecture coupling around it; migrate toward Workspace + Environment + Execution where that distinction improves clarity.
+
+## Base
+
+A named starting point resolved once to an immutable `BaseRef` for Environment creation.
+It selects guest contents, not authority. Saved rootfs is independent of the original
+Base filesystem/image; the saved Base reference is provenance.
+
+## OCI Store
+
+An optional, independently owned persistent runtime-data resource, reserved with its
+Workspace by canonical Environment lifecycle. Stop retains its lease; Env deletion
+releases attachment after positive absence and retains Store data. Processes/sockets
+are not persistent data. Source-only Host areas cannot be attached as workloads.
+
+## Core, Standard and Plugin
+
+Core defines stable product contracts and trust boundaries. Standard supplies
+maintained, replaceable defaults such as Incus and egress enforcement. Plugins add
+optional integrations; their absence must leave a useful Core. See
+[plugin architecture](../design/plugin-architecture.md).

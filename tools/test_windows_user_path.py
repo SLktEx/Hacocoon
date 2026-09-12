@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import unittest
 from unittest.mock import patch
+from unittest.mock import Mock
 
 spec = importlib.util.spec_from_file_location("windows_user_path", Path(__file__).with_name("windows-installer-user-path-e2e.py"))
 gate = importlib.util.module_from_spec(spec)
@@ -21,6 +22,18 @@ class EnvironmentBoundaryTest(unittest.TestCase):
                     gate.inherited_child_environment()
         with patch.dict(gate.os.environ, {"RUNNER_TEMP": "fixture-directory"}, clear=True):
             self.assertEqual(gate.inherited_child_environment(), {"RUNNER_TEMP": "fixture-directory"})
+
+
+class LanguageAssertionTest(unittest.TestCase):
+    def test_only_one_exact_normalized_observation_passes(self):
+        for language in ('en', 'ja'):
+            gate.assert_host_language(f'HACO_HOST_UI:{language}\n', language)
+            gate.assert_host_language(f'HACO_HOST_UI:{language}\r\n', language)
+        for output in ('', 'HACO_HOST_UI:ja_JP\n', 'HACO_HOST_UI:en\n',
+                       "root@haco-host:~# printf 'HACO_HOST_UI:ja'\n",
+                       'HACO_HOST_UI:ja\nHACO_HOST_UI:ja\n'):
+            with self.subTest(output=output), self.assertRaises(RuntimeError):
+                gate.assert_host_language(output, 'ja')
 
 
 class DoctorAssertionTest(unittest.TestCase):
@@ -87,6 +100,22 @@ class ProxyListenerAssertionTest(unittest.TestCase):
             with self.subTest(pid=pid, lines=lines):
                 with self.assertRaises(RuntimeError):
                     gate.assert_proxy_listener(pid, lines)
+
+
+class InstallerFailureTest(unittest.TestCase):
+    def test_reported_failure_ends_owned_terminal_without_a_timeout_or_retry(self):
+        terminal = Mock()
+        terminal.proc.isalive.return_value = True
+        def run(*, responders, on_output):
+            on_output("C:\\package> ", terminal)
+            on_output("C:\\package> install-windows.bat\nHacocoon installation failed with exit code 1. \n", terminal)
+            self.fail("reported failure was ignored")
+        terminal.run.side_effect = run
+        with patch.object(gate, "TerminalProcess", return_value=terminal):
+            with self.assertRaisesRegex(RuntimeError, "BAT reported installation failure"):
+                gate.run_bat(Path("fixture"))
+        terminal.write.assert_called_once_with("install-windows.bat\r\n")
+        terminal.proc.terminate.assert_called_once_with(force=True)
 
 
 class TerminalNormalizationTest(unittest.TestCase):

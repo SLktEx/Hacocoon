@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/SLktEx/Hacocoon/internal/core"
 	"io"
 	"net"
 	"regexp"
@@ -11,6 +10,9 @@ import (
 	"strings"
 	"text/tabwriter"
 	"unicode"
+
+	"github.com/SLktEx/Hacocoon/internal/cliui"
+	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 var configEnvironmentName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,56}$`)
@@ -38,17 +40,21 @@ func writeSSHConfig(out io.Writer, name string, connections []core.ClientConnect
 }
 
 func writeEnvironmentStatus(out io.Writer, status core.EnvironmentStatus) int {
+	return writeEnvironmentStatusLanguage(out, status, cliLanguage())
+}
+
+func writeEnvironmentStatusLanguage(out io.Writer, status core.EnvironmentStatus, language cliui.Language) int {
 	env := status.Environment
-	if _, err := fmt.Fprintf(out, "Environment: %s\nState:       %s\nWorkspace:   %s\nAccess:      %s\n", displayCell(env.Name), displayCell(string(status.State)), displayCell(env.Workspace.Path), displayCell(string(env.AccessMode))); err != nil {
+	if _, err := fmt.Fprint(out, language.Format("env.status.header", displayCell(env.Name), displayCell(string(status.State)), displayCell(env.Workspace.Path), displayCell(string(env.AccessMode)))); err != nil {
 		return 1
 	}
 	if env.Base != nil {
-		if _, err := fmt.Fprintf(out, "Base:        %s\nRevision:    %s\n", displayCell(string(env.Base.Name)), displayCell(string(env.Base.Revision))); err != nil {
+		if _, err := fmt.Fprint(out, language.Format("env.status.base", displayCell(string(env.Base.Name)), displayCell(string(env.Base.Revision)))); err != nil {
 			return 1
 		}
 	}
 	if status.State == core.EnvironmentStopped {
-		if _, err := fmt.Fprintln(out, "Workspace retained; this Environment is stopped."); err != nil {
+		if _, err := fmt.Fprintln(out, language.Text("env.status.stopped")); err != nil {
 			return 1
 		}
 	}
@@ -63,14 +69,18 @@ func displayCell(value string) string {
 }
 
 func writeEnvironmentList(out io.Writer, environments []core.Environment) error {
+	return writeEnvironmentListLanguage(out, environments, cliLanguage())
+}
+
+func writeEnvironmentListLanguage(out io.Writer, environments []core.Environment, language cliui.Language) error {
 	if len(environments) == 0 {
-		_, err := fmt.Fprintln(out, "No Environments. Create one with haco env create --workspace <workspace> <name>.")
+		_, err := fmt.Fprintln(out, language.Text("env.list.empty"))
 		return err
 	}
 	environments = append([]core.Environment(nil), environments...)
 	sort.Slice(environments, func(i, j int) bool { return environments[i].Name < environments[j].Name })
 	table := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	if _, err := fmt.Fprintln(table, "NAME\tWORKSPACE\tBASE"); err != nil {
+	if _, err := fmt.Fprintln(table, language.Text("env.list.header")); err != nil {
 		return err
 	}
 	for _, env := range environments {
@@ -85,6 +95,6 @@ func writeEnvironmentList(out io.Writer, environments []core.Environment) error 
 	if err := table.Flush(); err != nil {
 		return err
 	}
-	_, err := fmt.Fprintln(out, "\nUse haco open <name> to connect, or haco env status <name> to inspect runtime state.")
+	_, err := fmt.Fprintln(out, language.Text("env.list.next"))
 	return err
 }

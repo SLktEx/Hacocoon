@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"regexp"
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/diagnostics"
@@ -12,6 +13,9 @@ import (
 // A running Incus instance can precede its DNS service and DHCP lease. Wait
 // only for these local, read-only prerequisites; never retry an external probe.
 const trustedNetworkStartupProbe = "until systemctl is-active --quiet systemd-resolved.service && ip -4 route show default | grep -q '^default '; do sleep 0.1; done"
+
+var incusReleaseVersion = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
+var supportedIncusLTSVersion = regexp.MustCompile(`^7\.0\.[1-9][0-9]*$`)
 
 // DiagnoseHost observes the configured installation. It deliberately never
 // calls Prepare, defaultRootPool (a lazy creator), EnsureTrustedHost, or a
@@ -43,17 +47,38 @@ func (r *Runtime) DiagnoseHost(ctx context.Context, storage BtrfsLoopPoolSpec) (
 		result, err := r.runner.Run(ctx, "incus", args...)
 		return err == nil && result.ExitCode == 0 && !result.StdoutTruncated && json.Unmarshal([]byte(result.Stdout), target) == nil
 	}
+	serverVersion := ""
 	if !check(0, "Incus API is available with trusted management access",
 		"Cannot verify Incus API availability and trusted controller access",
 		"Check incus.service on the Physical Host; rerun the current installer if setup is incomplete", func(ctx context.Context) bool {
 			var api struct {
-				Version string `json:"api_version"`
-				Auth    string `json:"auth"`
+				Version     string `json:"api_version"`
+				Auth        string `json:"auth"`
+				Environment struct {
+					ServerVersion string `json:"server_version"`
+				} `json:"environment"`
 			}
-			return readJSON(ctx, &api, "query", "/1.0") && api.Version == "1.0" && api.Auth == "trusted"
+			if !readJSON(ctx, &api, "query", "/1.0") || api.Version != "1.0" || api.Auth != "trusted" {
+				return false
+			}
+			serverVersion = api.Environment.ServerVersion
+			return true
 		}) {
 		return report, nil
 	}
+	if len(serverVersion) > 32 || !incusReleaseVersion.MatchString(serverVersion) {
+		report.Checks[0].Status = diagnostics.Failed
+		report.Checks[0].Summary = "Cannot verify the Incus server release version"
+		report.Checks[0].Action = "Inspect Incus on the Physical Host; the supported baseline is 7.0 LTS (>= 7.0.1, < 7.1)"
+		return report, nil
+	}
+	if !supportedIncusLTSVersion.MatchString(serverVersion) {
+		report.Checks[0].Status = diagnostics.Failed
+		report.Checks[0].Summary = "Unsupported Incus " + serverVersion + "; the supported baseline is 7.0 LTS"
+		report.Checks[0].Action = "Preserve existing data and run the current installer for a supported upgrade; do not downgrade a newer series"
+		return report, nil
+	}
+	report.Checks[0].Summary = "Incus " + serverVersion + " (7.0 LTS) is available with trusted management access"
 	storageSource := ""
 	storageOK := check(1, "Configured Btrfs pool and mount policy match",
 		"Configured Btrfs pool is unavailable or its driver, state or mount policy differs",

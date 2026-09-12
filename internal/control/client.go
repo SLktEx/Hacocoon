@@ -80,6 +80,7 @@ func (c *Client) OpenSession(ctx context.Context, method string, request any) (n
 		return conn, nil
 	}
 	return &sessionConn{
+		resize: response.TerminalResize,
 		Conn:   conn,
 		client: c,
 		id:     response.SessionID,

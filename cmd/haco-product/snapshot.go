@@ -26,7 +26,7 @@ func runSnapshot(args []string) int {
 }
 func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco snapshot create [--json] <env> | list [--json] [env] | delete <snapshot-id> | restore [--json] <snapshot-id> [new-env]")
+		commandHelp(diagnostic, "snapshot", cliLanguage())
 		return 2
 	}
 	if len(args) == 0 {

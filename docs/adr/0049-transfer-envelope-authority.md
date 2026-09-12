@@ -1,5 +1,7 @@
 # ADR 0049: Transfer envelopes do not carry authority
 
+> Implementation/acceptance statements below describe the stage when this decision was recorded. See the [current contract and scope](../design/environment-transfer.md) for subsequent implementation and remaining limits. The decision and rejected alternatives are retained.
+
 Status: accepted for the internal transfer codec and Linux staging; public lifecycle integration is planned.
 
 ## Context
@@ -48,6 +50,15 @@ volume backup is part of native archive production, not a pre-restore backup.
 Because the CLI ignores deferred cleanup errors, compare native backup inventory
 before and after success; new/changed residue or unknown cleanup prevents success.
 Do not delete backups merely because their names appeared during the operation.
+
+Incus 7.0.1 adds an existing-target refusal before opening the output. The live
+anonymous descriptor necessarily exists, so the adapter supplies `--force` only
+to that controller-owned descriptor. It never supplies the client's destination
+to this command, and public bundle publication still refuses existing files.
+The supported packaged baseline is now Incus 7.0 LTS; earlier 6.0.5 acceptance is
+historical and does not imply CLI flag compatibility. See the
+[upstream guard](https://github.com/lxc/incus/blob/v7.0.1/cmd/incus/storage_volume.go)
+and [current evidence](../status/acceptance-evidence.md).
 
 ## Rejected alternatives
 
