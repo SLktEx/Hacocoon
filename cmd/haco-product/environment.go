@@ -30,7 +30,7 @@ func runEnvironment(args []string) int {
 
 func environmentCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--port <port>] <name> | ssh-config <name> | forward --target-port <port> [--protocol tcp|udp] [--port <local-port>] <name> | disconnect <name> <connection-id> | copy [--json] <stopped-env> [new-env] | export [--json] <stopped-env> [file.haco] | import [--json] <file.haco> [new-env] | start <name> | stop <name> | delete <name>")
+		fmt.Fprintln(diagnostic, cliMessage("usage", "haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--port <port>] <name> | ssh-config <name> | forward --target-port <port> [--protocol tcp|udp] [--port <local-port>] <name> | disconnect <name> <connection-id> | copy [--json] <stopped-env> [new-env] | export [--json] <stopped-env> [file.haco] | import [--json] <file.haco> [new-env] | start <name> | stop <name> | delete <name>"))
 		return 2
 	}
 	if len(args) == 0 {
@@ -46,7 +46,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		return copyEnvironment(ctx, args[1:], out, diagnostic)
 	}
 	if args[0] == "switch-base" {
-		fmt.Fprintln(diagnostic, "haco: switch-base is currently disabled; its need and UX will be reconsidered in Stage D or later")
+		fmt.Fprintln(diagnostic, cliMessage("env.switch_base_disabled"))
 		return 2
 	}
 	if args[0] == "--help" || args[0] == "-h" {
@@ -54,7 +54,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		return 0
 	}
 	flags := flag.NewFlagSet("haco env "+args[0], flag.ContinueOnError)
-	flags.SetOutput(diagnostic)
+	configureCLIFlags(flags, diagnostic)
 	var workspace, keyPath, base, resource, protocol string
 	var targetPort int
 	var port int
@@ -65,16 +65,16 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		flags.IntVar(&port, "port", 0, "Physical Host loopback port (automatic by default)")
 		flags.IntVar(&targetPort, "target-port", 0, "Environment destination port")
 	case "create":
-		flags.BoolVar(&noOCI, "no-oci", false, "skip automatic OCI Store copy and attachment")
-		flags.StringVar(&workspace, "workspace", "", "Workspace path on the controller")
-		flags.StringVar(&base, "base", "", "logical Base name")
-		flags.StringVar(&resource, "resource", "", "persistent resource to attach exclusively, e.g. oci:dev")
+		flags.BoolVar(&noOCI, "no-oci", false, cliMessage("flag.no_oci"))
+		flags.StringVar(&workspace, "workspace", "", cliMessage("flag.workspace"))
+		flags.StringVar(&base, "base", "", cliMessage("flag.base"))
+		flags.StringVar(&resource, "resource", "", cliMessage("flag.resource"))
 	case "ssh":
-		flags.StringVar(&keyPath, "key", "", "client-owned SSH public key file")
-		flags.IntVar(&port, "port", 0, "Physical Host loopback port (default: automatic)")
+		flags.StringVar(&keyPath, "key", "", cliMessage("flag.ssh_key"))
+		flags.IntVar(&port, "port", 0, cliMessage("flag.ssh_port"))
 	case "ssh-config":
 	case "status", "list":
-		flags.BoolVar(&jsonOutput, "json", false, "machine-readable result")
+		flags.BoolVar(&jsonOutput, "json", false, cliMessage("flag.json"))
 	case "disconnect", "start", "stop", "delete":
 	default:
 		return usage()
@@ -99,7 +99,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot open controller client")
+		fmt.Fprintln(diagnostic, cliMessage("error.controller"))
 		return 1
 	}
 	mutating := args[0] == "create" || args[0] == "start" || args[0] == "stop" || args[0] == "delete" || args[0] == "ssh" || args[0] == "disconnect"
@@ -125,7 +125,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		environments, err = client.ListEnvironments(ctx)
 		if err == nil && !jsonOutput {
 			if err := writeEnvironmentList(out, environments); err != nil {
-				fmt.Fprintln(diagnostic, "haco: cannot write result")
+				fmt.Fprintln(diagnostic, cliMessage("error.write_result"))
 				return 1
 			}
 			return 0
@@ -184,7 +184,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		}
 	}
 	if err := json.NewEncoder(out).Encode(result); err != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot write result")
+		fmt.Fprintln(diagnostic, cliMessage("error.write_result"))
 		return 1
 	}
 	return 0

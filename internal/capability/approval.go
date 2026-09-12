@@ -9,16 +9,24 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/SLktEx/Hacocoon/internal/cliui"
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 type StdioApproval struct {
-	in  io.Reader
-	out io.Writer
+	in       io.Reader
+	out      io.Writer
+	language cliui.Language
 }
 
 func NewStdioApproval(in io.Reader, out io.Writer) *StdioApproval {
-	return &StdioApproval{in: in, out: out}
+	return NewLocalizedStdioApproval(in, out, cliui.English)
+}
+
+// NewLocalizedStdioApproval owns its display language per terminal instance.
+// Language selection cannot change the accepted input or authorization scope.
+func NewLocalizedStdioApproval(in io.Reader, out io.Writer, language cliui.Language) *StdioApproval {
+	return &StdioApproval{in: in, out: out, language: language}
 }
 
 func (a *StdioApproval) Approve(ctx context.Context, req core.ApprovalRequest) (bool, error) {
@@ -39,7 +47,7 @@ func (a *StdioApproval) decide(ctx context.Context, req core.ApprovalRequest, pe
 		return ApprovalDecision{}, fmt.Errorf("approval terminal unavailable")
 	}
 	request := req.CapabilityRequest
-	if _, err := fmt.Fprintf(a.out, "Approve capability %s action=%s resource=%s environment=%s", terminalSafe(request.Capability), terminalSafe(request.Action), terminalSafe(request.Resource), terminalSafe(request.Environment)); err != nil {
+	if _, err := fmt.Fprintf(a.out, a.language.Text("approval.prompt_header"), terminalSafe(request.Capability), terminalSafe(request.Action), terminalSafe(request.Resource), terminalSafe(request.Environment)); err != nil {
 		return ApprovalDecision{}, fmt.Errorf("display approval request: %w", err)
 	}
 	if request.EnvironmentInstance != "" {
@@ -59,7 +67,7 @@ func (a *StdioApproval) decide(ctx context.Context, req core.ApprovalRequest, pe
 	}
 	if persistent && req.SavedScope != nil {
 		scope := *req.SavedScope
-		if _, err := fmt.Fprintf(a.out, " future-scope=%s/%s resource=%s", terminalSafe(scope.Capability), terminalSafe(scope.Action), terminalSafe(scope.Resource)); err != nil {
+		if _, err := fmt.Fprintf(a.out, a.language.Text("approval.prompt_scope"), terminalSafe(scope.Capability), terminalSafe(scope.Action), terminalSafe(scope.Resource)); err != nil {
 			return ApprovalDecision{}, err
 		}
 		keys := make([]string, 0, len(scope.Attributes))
@@ -73,14 +81,14 @@ func (a *StdioApproval) decide(ctx context.Context, req core.ApprovalRequest, pe
 			}
 		}
 	}
-	options := "y/N"
+	options := a.language.Text("approval.options_once")
 	if persistent {
-		options = "y/N; 1=allow this Environment, 2=deny this Environment, 3=allow all Environments, 4=deny all Environments, 5=ask every time in this Environment, 6=ask every time in all Environments"
+		options = a.language.Text("approval.options_persistent")
 		if !core.ValidEnvironmentInstanceID(request.EnvironmentInstance) {
-			options = "y/N; 3=allow all Environments, 4=deny all Environments, 6=ask every time in all Environments"
+			options = a.language.Text("approval.options_global")
 		}
 	}
-	if _, err := fmt.Fprintf(a.out, " reason=%s? [%s] ", terminalSafe(req.Reason), options); err != nil {
+	if _, err := fmt.Fprintf(a.out, a.language.Text("approval.prompt_reason"), terminalSafe(req.Reason), options); err != nil {
 		return ApprovalDecision{}, fmt.Errorf("display approval request: %w", err)
 	}
 	reader := bufio.NewReader(io.LimitReader(a.in, 258))
@@ -122,7 +130,7 @@ func (a *StdioApproval) decide(ctx context.Context, req core.ApprovalRequest, pe
 	if decision.Save == AskEnvironment || decision.Save == AskGlobal {
 		// Saving ask does not authorize this operation. Collect its one-shot answer
 		// from the same buffered reader, including when both lines arrived together.
-		decision.Approved, err = NewStdioApproval(reader, a.out).Approve(ctx, req)
+		decision.Approved, err = NewLocalizedStdioApproval(reader, a.out, a.language).Approve(ctx, req)
 		if err != nil {
 			return ApprovalDecision{}, err
 		}

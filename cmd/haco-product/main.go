@@ -75,14 +75,14 @@ func run(args []string) int {
 	switch args[0] {
 	case "--help", "-h", "help":
 		if len(args) != 1 {
-			fmt.Fprintln(os.Stderr, "haco: usage: haco help")
+			fmt.Fprintln(os.Stderr, cliMessage("error.usage", "haco help"))
 			return 2
 		}
 		writeHelp(os.Stdout)
 		return 0
 	case "--version":
 		if len(args) != 1 {
-			fmt.Fprintln(os.Stderr, "haco: usage: haco --version")
+			fmt.Fprintln(os.Stderr, cliMessage("error.usage", "haco --version"))
 			return 2
 		}
 		writeShortVersion()
@@ -122,7 +122,7 @@ func run(args []string) int {
 	case "repo", "workspace", "git":
 		return runRepository(args[0], args[1:])
 	default:
-		fmt.Fprintf(os.Stderr, "haco: command %q is not available yet; run 'haco help'\n", args[0])
+		fmt.Fprint(os.Stderr, cliMessage("error.unknown_command", args[0]))
 		return 2
 	}
 }
@@ -130,8 +130,7 @@ func run(args []string) int {
 func runVersion(args []string) int {
 	info := buildinfo.Current()
 	if len(args) == 0 {
-		fmt.Printf("Hacocoon\n  checkpoint: %s\n  version: %s\n  commit: %s\n  built: %s\n",
-			info.Checkpoint, info.Version, info.Commit, info.BuildDate)
+		fmt.Print(cliMessage("version.long", info.Checkpoint, info.Version, info.Commit, info.BuildDate))
 		return 0
 	}
 	if len(args) == 1 && args[0] == "--json" {
@@ -143,7 +142,7 @@ func runVersion(args []string) int {
 		}
 		return 0
 	}
-	fmt.Fprintln(os.Stderr, "haco: usage: haco version [--json]")
+	fmt.Fprintln(os.Stderr, cliMessage("error.usage", "haco version [--json]"))
 	return 2
 }
 
@@ -153,44 +152,7 @@ func writeShortVersion() {
 }
 
 func writeHelp(out *os.File) {
-	fmt.Fprintln(out, "Hacocoon")
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Usage:")
-	fmt.Fprintln(out, "  haco <command>")
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Commands:")
-	fmt.Fprintln(out, "  setup      Prepare the Host or replay project setup in an Environment")
-	fmt.Fprintln(out, "  network    Connect approved TCP/UDP services and inspect connection authority")
-	fmt.Fprintln(out, "  aws        Use approved AWS operations with trusted Host authentication")
-	fmt.Fprintln(out, "  config     Inspect or edit approval policy configuration")
-	fmt.Fprintln(out, "  approve    Review a pending request and optionally save its Policy")
-	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
-	fmt.Fprintln(out, "  reclaim    Reclaim unused managed WSL disk space or inspect its result")
-	fmt.Fprintln(out, "  env        Create, inspect and access development Environments")
-	fmt.Fprintln(out, "  snapshot   Save, restore, list and explicitly delete independent saved data")
-	fmt.Fprintln(out, "  run        Execute a command in a temporary Environment and clean up")
-	fmt.Fprintln(out, "  ssh setup  Prepare desktop SSH keys and connection settings")
-	fmt.Fprintln(out, "  open       Open or resume a Workspace in a desktop client")
-	fmt.Fprintln(out, "  base       List and inspect Environment starting points")
-	fmt.Fprintln(out, "  plugin     Optional integrations, including persistent OCI Stores")
-	fmt.Fprintln(out, "  repo       Clone a repository inside the trusted Host")
-	fmt.Fprintln(out, "  workspace  Prepare, inspect and fork retained repository work")
-	fmt.Fprintln(out, "  git        Connect Git and review pending push approvals")
-	fmt.Fprintln(out, "  help       Show this help")
-	fmt.Fprintln(out, "  version    Show Hacocoon version information")
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Daily workflow (trusted haco-host or WSL/Linux Physical Host):")
-	fmt.Fprintln(out, "  haco env list                  Find yesterday's Environment")
-	fmt.Fprintln(out, "  haco env status <name>          Inspect state and retained Workspace")
-	fmt.Fprintln(out, "  haco env start <name>           Resume a stopped Environment")
-	fmt.Fprintln(out, "  haco open <name>                Open /workspace; use --client ssh for a shell")
-	fmt.Fprintln(out, "  haco env stop <name>            Stop work, keeping the Env and data")
-	fmt.Fprintln(out, "  haco env delete <name>          Delete the Env rootfs; retain Workspace/OCI/snapshots")
-	fmt.Fprintln(out, "Create: haco env create --workspace <controller-path|managed:name> <name>")
-	fmt.Fprintln(out, "Build/test in the Env after open. haco run creates a temporary Env.")
-	fmt.Fprintln(out, "open/ssh setup can select from a terminal; blank cancels. Scripts should name the Env.")
-	fmt.Fprintln(out, "Use haco <command> --help. Options go before the target. Progress/diagnostics use stderr.")
-	fmt.Fprintln(out, "haco open . path discovery is not implemented; open an existing Env by name.")
+	writeLocalizedHelp(out, cliLanguage())
 }
 
 func isLoginAlias(argv0 string) bool {
