@@ -1261,3 +1261,32 @@ Completion requires tar success, synced output and unchanged observed source met
 Historical encrypted fixtures and existing ciphertext remain unchanged and are not prerequisites for ordinary export. Old encrypted captures still need their original keys if accessed; no migration or rewriting is performed. Full source classification, coordinated quiescence and installation reconstruction remain unfinished.
 
 Native evacuation restore checks explicitly include non-user extended attributes when extracting their isolated, owned fixture archives, and compare a synthetic trusted attribute directly. GNU tar's default --xattrs extraction restores only the user namespace. This is same-platform fixture coverage, not permission to apply arbitrary archived security attributes to a Host or to import old management authority. Full restored-data comparison remains required.
+
+
+## Retain ordinary Incus images
+
+Status: **partial G2/G3**, using native Incus commands. Retain an image when it is needed for future creation; an independent snapshot rootfs does not require its original Base image. This procedure does not add a snapshot component, Hacocoon catalog object or daily command.
+
+On the source Physical Host, use the reviewed full fingerprint and its actual image namespace from the inventory. Choose a new private directory; stop if any command fails:
+
+```bash
+umask 077
+mkdir -m 700 /absolute/new-image-export
+incus image export FULL_FINGERPRINT /absolute/new-image-export/image --project SOURCE_PROJECT
+ls -l /absolute/new-image-export
+```
+
+Keep every output part. In the tested split-image case, the prefix produces `image` (metadata) and `image.root` (rootfs); a unified image can instead produce `image.tar`. Do not infer missing output from the prefix alone or export again over existing files. Compute SHA-256 for the actual parts, copy them to a new retention directory outside the source WSL, and compare their checksums there before import.
+
+On the destination Physical Host, record a new project name and unique ownership description before creating it. Enable its own image namespace explicitly; a shared namespace would not isolate this check:
+
+```bash
+incus project create RESTORE_PROJECT --description UNIQUE_RESTORE_DESCRIPTION -c features.images=true
+incus project list --format=json
+incus image import /absolute/retained/image /absolute/retained/image.root --project RESTORE_PROJECT
+incus image list --project RESTORE_PROJECT --format=json
+```
+
+Verify the recorded project description and `features.images` before import. For a unified archive, supply only its actual archive path to `incus image import`. Require the imported full fingerprint and image type to match the source, then recheck the retained files. Record failures and exact resources already created; do not guess cleanup targets or replace an existing project. Keep the source and retained archives. Importing an image does not register a Hacocoon Base, restore aliases, adopt old authority, create an Env or prove it boots.
+
+Native acceptance on separate dedicated WSL installations exported two split container images, copied all parts to new Windows directories, verified SHA-256, and imported into a new isolated Incus image project. Both fingerprints and types matched; the Windows copies remained unchanged. The first project-observation attempt failed because `incus project show` did not support `--format`; its receipt was retained, and observation continued through `project list` before import. The restored images and project remain available. Unified-image import, new-Env boot from these images and whole-installation replacement were not tested in this check.
