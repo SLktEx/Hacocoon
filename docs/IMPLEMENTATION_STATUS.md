@@ -27,7 +27,8 @@ the guarded endpoint, source identities and Approval/Audit services; Policy has
 explicit rule expiry and administrator-selected Host service registrations.
 Dedicated hacocoon-second installed CLI/Incus acceptance passed IPv4/IPv6 TCP/UDP,
 Host/Env paths, live expiry/revocation, source/destination recreation refusal and
-DNS change/failure. Windows UI and VPN remain unverified.
+DNS change/failure. Windows SSH/browser have scoped acceptance; direct Windows
+services, automatic IDE setup and VPN remain unverified.
 See [connection behavior and acceptance](design/network-connections.md).
 
 

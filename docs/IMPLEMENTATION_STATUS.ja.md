@@ -25,7 +25,8 @@ desktop IDEの受入とは区別する。
 送信元の作成世代、承認・監査を再利用し、Policy の期限と Host サービス明示登録を
 追加した。専用 hacocoon-second の導入済み CLI/実 Incus で IPv4/IPv6 TCP/UDP、
 Host/Env 間、期限・撤回、送信元/宛先の再作成後の旧許可拒否、DNS 変更・失敗を確認。
-Windows UI と VPN は未検証。
+専用のWindows SSH/browser経路は確認済み。Windowsサービスへの直接到達、
+自動IDE起動、VPNは未検証。
 [接続の契約と受入範囲](design/network-connections.md)を参照。
 
 

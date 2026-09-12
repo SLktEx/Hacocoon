@@ -166,3 +166,19 @@ controlled load. The sources were two small Hacocoon repository copies, each
 exclusive extent bytes in that observation. These results verify native COW
 behavior and independently writable state; they do not demonstrate the time or
 capacity of multiple Linux-kernel-sized repositories.
+
+
+## Windows client scope
+
+At the same development checkpoint, Windows OpenSSH read the retained repo and
+OCI marker after Base replacement. Its dedicated configuration pinned the public
+host key returned by the installed `haco env ssh` and used an explicit
+`wsl -d hacocoon-second` ProxyCommand into the isolated test network namespace.
+An Env loopback HTTP fixture was then rendered in the Windows-hosted browser
+through a dedicated Windows SSH local forward. Existing SSH configuration and
+keys were not edited.
+
+This proves that the resumed Env is usable over that explicit Windows SSH/browser
+path. It does not establish automatic `haco open` Windows interop, VS Code
+Remote-SSH UI, or an unmodified Windows installer network layout. The dedicated
+namespace exists to avoid the other WSL's shared initial network namespace.
