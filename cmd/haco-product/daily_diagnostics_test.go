@@ -40,6 +40,13 @@ func TestSSHFailureRoutesToPolicyInspectionWithoutClaimingCause(t *testing.T) {
 	if strings.Contains(text, "SYNTHETIC_PRIVATE_BACKEND") {
 		t.Fatal("backend output leaked")
 	}
+	for _, reason := range []string{"not_found", "unavailable", "recovery_required"} {
+		out.Reset()
+		dailyFailure(&out, "open", "ssh_connection", "dev", control.NewStatusError(reason, "specific failure"))
+		if strings.Contains(out.String(), "package access") {
+			t.Errorf("unrelated package guidance for %s", reason)
+		}
+	}
 	out.Reset()
 	dailyFailure(&out, "open", "desktop_client", "dev", control.ErrUnavailable)
 	if strings.Contains(out.String(), "package access") {
