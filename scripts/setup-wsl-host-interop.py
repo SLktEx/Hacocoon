@@ -232,8 +232,9 @@ def ensure_native_binfmt(directory=Path('/proc/sys/fs/binfmt_misc'),
         entries = list(directory.glob('WSLInterop*'))
         for entry in entries:
             lines = set(entry.read_text().strip().splitlines())
-            expected = {'enabled', 'interpreter /init', 'flags: P', 'offset 0', 'magic 4d5a'}
-            if lines != expected:
+            expected = {'enabled', 'interpreter /init', 'offset 0', 'magic 4d5a'}
+            # Allow only known native WSL variants; every other field stays exact.
+            if lines not in (expected | {'flags: P'}, expected | {'flags: PF'}):
                 raise ValueError('incompatible or disabled native WSL binfmt registration')
         return bool(entries)
 

@@ -1,5 +1,14 @@
 # Implementation Status
 
+## WSL native binfmt flags
+
+Implemented: native registration validation accepts exactly `P` and `PF` while
+retaining full registration checks and absence-only WSL service restoration.
+Regressions cover both variants, repeated setup checks, multiple entries and
+refusal before/after restoration. Issue #553 reports installed-script workaround
+acceptance; the packaged fix still needs Windows/WSL setup and doctor acceptance.
+See [Windows interop](design/trusted-host.md#windows-interop).
+
 ## Host setup controller readiness
 
 Implemented: Host setup uses bounded read-only controller readiness probes before a single setup request. Mutation failures are not retried. See [trusted Host](design/trusted-host.md). Native observation identified the startup race; acceptance of this client fix is separate.

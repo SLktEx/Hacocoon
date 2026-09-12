@@ -1,5 +1,14 @@
 # 実装状況
 
+## WSL native binfmt flags
+
+実装済み: native登録のflagsは`P`と`PF`だけを許可し、登録全体の検証と、登録が
+消失した場合だけWSLサービスで復元する動作を維持します。回帰テストは両形式、
+繰り返しのsetup検証、複数entry、復元前後の拒否を確認します。issue #553は
+インストール済みスクリプトの応急修正による実機成功報告です。修正版パッケージの
+Windows/WSL setup・doctor受入確認は未実施です。
+[Windows連携](design/trusted-host.ja.md)を参照してください。
+
 ## Host setup の controller 起動待ち
 
 実装済み: Host setup は時間制限付きの読み取り専用プローブで controller の準備を待ち、setup を一度だけ送信します。変更操作の失敗は再試行しません。[信頼済み Host](design/trusted-host.ja.md) を参照してください。起動時の競合は実機で確認済みですが、このクライアント修正の実機受入確認は別です。

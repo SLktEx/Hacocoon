@@ -274,39 +274,122 @@ class NativeBinfmtTests(unittest.TestCase):
     handler = 'enabled\ninterpreter /init\nflags: P\noffset 0\nmagic 4d5a\n'
 
     def test_healthy_native_handler_is_not_recreated(self):
+        for flags in ('P', 'PF'):
+            with self.subTest(flags=flags), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                (root / 'status').write_text('enabled\n')
+                entry = root / 'WSLInterop'
+                handler = self.handler.replace('flags: P', 'flags: ' + flags)
+                entry.write_text(handler)
+                run = mock.Mock()
+                for _ in range(2):
+                    interop.ensure_native_binfmt(root, root / 'missing-generator', run)
+                run.assert_not_called()
+                self.assertEqual(entry.read_text(), handler)
+
+    def test_incompatible_handlers_are_not_repaired(self):
+        for flags in ('P', 'PF'):
+            handler = self.handler.replace('flags: P', 'flags: ' + flags)
+            invalid = [
+                handler.replace('enabled', 'disabled'),
+                handler.replace('/init', '/foreign'),
+                handler.replace('offset 0', 'offset 1'),
+                handler.replace('magic 4d5a', 'magic 7f454c46'),
+                handler.replace('magic 4d5a\n', ''),
+                handler.replace('flags: ' + flags + '\n', ''),
+                handler + 'mask ffff\n',
+                handler + 'flags: F\n',
+                handler + ('flags: PF\n' if flags == 'P' else 'flags: P\n'),
+            ]
+            for value in invalid:
+                with self.subTest(flags=flags, handler=value), tempfile.TemporaryDirectory() as name:
+                    root = Path(name)
+                    (root / 'status').write_text('enabled\n')
+                    entry = root / 'WSLInterop'
+                    entry.write_text(value)
+                    run = mock.Mock()
+                    with self.assertRaisesRegex(ValueError, 'incompatible or disabled'):
+                        interop.ensure_native_binfmt(root, root / 'missing-generator', run)
+                    run.assert_not_called()
+                    self.assertEqual(entry.read_text(), value)
+
+    def test_unlisted_flags_are_rejected(self):
+        for flags in ('', 'F', 'O', 'C', 'PO', 'PC', 'POCF', 'PFZ', 'FP', 'PPF', 'P F'):
+            with self.subTest(flags=flags), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                (root / 'status').write_text('enabled\n')
+                (root / 'WSLInterop').write_text(self.handler.replace('flags: P', 'flags: ' + flags))
+                run = mock.Mock()
+                with self.assertRaisesRegex(ValueError, 'incompatible or disabled'):
+                    interop.ensure_native_binfmt(root, root / 'missing-generator', run)
+                run.assert_not_called()
+
+    def test_every_native_entry_must_be_compatible(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             (root / 'status').write_text('enabled\n')
             (root / 'WSLInterop').write_text(self.handler)
+            other = root / 'WSLInterop-later'
+            other.write_text(self.handler.replace('flags: P', 'flags: PF'))
             run = mock.Mock()
             interop.ensure_native_binfmt(root, root / 'missing-generator', run)
             run.assert_not_called()
-            (root / 'WSLInterop').write_text(self.handler.replace('/init', '/foreign'))
-            with self.assertRaises(ValueError): interop.ensure_native_binfmt(root, root / 'missing', run)
+            other.write_text(self.handler.replace('/init', '/foreign'))
+            with self.assertRaisesRegex(ValueError, 'incompatible or disabled'):
+                interop.ensure_native_binfmt(root, root / 'missing-generator', run)
             run.assert_not_called()
 
     def test_missing_handler_uses_only_wsl_native_service(self):
+        for generator_flags in ('P', 'PF'):
+            for restored_flags in ('P', 'PF'):
+                with self.subTest(generator=generator_flags, restored=restored_flags), tempfile.TemporaryDirectory() as name:
+                    root = Path(name)
+                    (root / 'status').write_text('enabled\n')
+                    generated = root / 'override.conf'
+                    generated.write_text('ExecStart=/bin/sh -c native :WSLInterop:M::MZ::/init:' + generator_flags)
+                    handler = self.handler.replace('flags: P', 'flags: ' + restored_flags)
+                    def restore(args, **kwargs):
+                        (root / 'WSLInterop').write_text(handler)
+                    run = mock.Mock(side_effect=restore)
+                    # Model root-owned WSL metadata without changing real units.
+                    metadata = types.SimpleNamespace(st_mode=stat.S_IFREG | 0o644, st_uid=0)
+                    with mock.patch.object(Path, 'lstat', return_value=metadata):
+                        interop.ensure_native_binfmt(root, generated, run)
+                        interop.ensure_native_binfmt(root, generated, run)
+                    run.assert_called_once_with(['systemctl', 'restart', 'systemd-binfmt.service'], check=True)
+                    self.assertEqual((root / 'WSLInterop').read_text(), handler)
+
+    def test_disabled_binfmt_is_not_repaired(self):
+        for flags in ('P', 'PF'):
+            with self.subTest(flags=flags), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                (root / 'status').write_text('disabled\n')
+                (root / 'WSLInterop').write_text(self.handler.replace('flags: P', 'flags: ' + flags))
+                run = mock.Mock()
+                with self.assertRaisesRegex(ValueError, 'WSL native binfmt is disabled'):
+                    interop.ensure_native_binfmt(root, root / 'missing-generator', run)
+                run.assert_not_called()
+
+    def test_native_service_result_is_revalidated(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             (root / 'status').write_text('enabled\n')
             generated = root / 'override.conf'
             generated.write_text('ExecStart=/bin/sh -c native :WSLInterop:M::MZ::/init:P')
-            calls = []
-            def run(args, **kwargs):
-                calls.append((args, kwargs))
-                (root / 'WSLInterop').write_text(self.handler)
-            # The fixture belongs to the test user; model the required native
-            # root-owned regular generator metadata without changing real units.
+            entry = root / 'WSLInterop'
             metadata = types.SimpleNamespace(st_mode=stat.S_IFREG | 0o644, st_uid=0)
-            original = Path.lstat
-            def lstat(path, *args, **kwargs):
-                return metadata if path == generated else original(path, *args, **kwargs)
-            with mock.patch.object(Path, 'lstat', lstat):
-                interop.ensure_native_binfmt(root, generated, run)
-            self.assertEqual(calls, [(['systemctl','restart','systemd-binfmt.service'], {'check': True})])
-            (root / 'status').write_text('disabled\n')
-            with self.assertRaises(ValueError): interop.ensure_native_binfmt(root, generated, run)
-            self.assertEqual(len(calls), 1)
+            for restored in (None, self.handler.replace('flags: P', 'flags: POCF'),
+                             self.handler.replace('/init', '/foreign').replace('flags: P', 'flags: PF')):
+                with self.subTest(restored=restored):
+                    entry.unlink(missing_ok=True)
+                    def restore(args, **kwargs):
+                        if restored is not None:
+                            entry.write_text(restored)
+                    run = mock.Mock(side_effect=restore)
+                    with mock.patch.object(Path, 'lstat', return_value=metadata):
+                        with self.assertRaises(ValueError):
+                            interop.ensure_native_binfmt(root, generated, run)
+                    run.assert_called_once_with(['systemctl', 'restart', 'systemd-binfmt.service'], check=True)
 
 
 if __name__ == '__main__':
