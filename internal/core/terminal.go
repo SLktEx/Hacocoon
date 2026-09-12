@@ -10,6 +10,13 @@ type TerminalMetadata struct {
 	ColorTerm string
 	Columns   int
 	Rows      int
+	// Resizes contains validated, coalesced updates for this execution only.
+	Resizes <-chan TerminalSize
+}
+
+type TerminalSize struct {
+	Columns int
+	Rows    int
 }
 
 type terminalMetadataContextKey struct{}

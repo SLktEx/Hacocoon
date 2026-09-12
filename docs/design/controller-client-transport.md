@@ -196,11 +196,40 @@ The stream handshake validates the request before acknowledging success where po
 The current implementation uses it for interactive Environment shell traffic and preserves client half-close semantics. Future framing may add:
 
 - streamed non-interactive stdin/stdout/stderr plus exit metadata;
-- PTY resize/control events;
 - Environment TCP forwarding;
 - other bounded controller-mediated streams.
 
 `Session` is not introduced as a new public domain concept; the stream is an implementation detail for an Execution or client connection.
+
+### Interactive terminal dimensions
+
+Status: **implemented; installed Incus/Windows/WSL acceptance pending**.
+
+Host and Environment shell clients send their initial terminal columns/rows in
+the shell request. A session with valid nonzero dimensions negotiates
+`terminal_resize` in the handshake. Subsequent dimensions use the bounded
+`_control.session.resize` RPC and the existing random session identity. Resize
+data never shares the process stdin byte stream. Both dimensions must be within
+1–10000; updates coalesce to the latest size, and completed/unknown sessions
+reject controls. No additional management endpoint or Incus authority is exposed.
+
+The shared terminal bridge observes Linux `SIGWINCH` (including WSL); native
+clients on other platforms sample console size and send only changes. The Linux
+Incus adapter gives `incus exec` a private raw PTY with the initial dimensions.
+Updating that PTY triggers Incus's existing resize forwarding. Incus retains its
+normal configuration, project selection and guest PTY implementation. Typed
+Ctrl-C/Ctrl-D remain input bytes. A disconnected interactive client terminates
+its local Incus process; final output and exit status are drained on normal exit.
+
+Older peers without the negotiated capability retain their existing stream
+behavior. Non-TTY input supplies no dimensions and keeps the pipe path. No
+terminal defaults are guessed from a controller service's environment.
+
+Component tests cover both shell service routes, bounded/coalesced controls,
+byte preservation, actual PTY dimensions and resize signals, long readline
+editing, process exit, disconnect and caller terminal restoration. Installed
+acceptance must additionally exercise ordinary WSL login and each supported
+Host/Environment shell entry, including window resizing and a full-screen TUI.
 
 ## Performance
 
@@ -237,7 +266,6 @@ Still planned:
 - remove or explicitly deprecate compatibility aliases once their replacements are established;
 - move trusted Host-local tooling into the long-term `haco-host` namespaces;
 - streamed Execution framing with explicit stdout/stderr/exit metadata;
-- PTY resize/control framing;
 - generic Environment forwarding;
 - remote transport only if a real use case requires it;
 - FD passing/zero-copy only if profiling demonstrates a worthwhile benefit.

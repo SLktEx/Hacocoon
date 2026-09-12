@@ -128,6 +128,19 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		return
 	}
 
+	if request.Method == methodSessionResize {
+		if request.Stream {
+			_ = writeJSONLine(conn, errorEnvelope(NewStatusError("invalid_argument", "terminal resize is not a stream")))
+			return
+		}
+		if err := s.resizeSession(request.Payload); err != nil {
+			_ = writeJSONLine(conn, errorEnvelope(err))
+		} else {
+			_ = writeJSONLine(conn, responseEnvelope{Version: ProtocolVersion})
+		}
+		return
+	}
+
 	if request.Method == methodSessionWait {
 		if request.Stream {
 			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "invalid_argument", Message: "session wait is not a stream"}))
@@ -160,6 +173,10 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "not_found", Message: "stream method not found"}))
 			return
 		}
+		terminal := &terminalControl{}
+		if request.Session {
+			ctx = context.WithValue(ctx, terminalControlKey{}, terminal)
+		}
 		stream, err := handler(ctx, request.Payload)
 		if err != nil {
 			_ = writeJSONLine(conn, errorEnvelope(err))
@@ -174,12 +191,13 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		var sessionID string
 		var session *serverSession
 		if request.Session {
-			sessionID, session, err = s.createSession()
+			sessionID, session, err = s.createSession(terminal)
 			if err != nil {
 				_ = writeJSONLine(conn, errorEnvelope(err))
 				return
 			}
 			response.SessionID = sessionID
+			response.TerminalResize = terminal.resize != nil
 		}
 		if err := writeJSONLine(conn, response); err != nil {
 			if session != nil {

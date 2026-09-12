@@ -1,5 +1,16 @@
 # Implementation Status
 
+## Interactive shell terminal sizing
+
+Implemented: Host and Environment shell sessions carry initial dimensions and
+negotiate separate, bounded resize RPCs. The shared bridge tracks caller size;
+the Linux adapter uses a private raw PTY to retain native Incus resize behavior.
+Component and real-PTY tests cover long readline editing, resize delivery,
+byte preservation, completion, disconnect and local terminal restoration.
+Installed Incus/Windows/WSL acceptance remains pending; this is not evidence of
+an installed fix on the reported machine. See
+[terminal dimensions](design/controller-client-transport.md#interactive-terminal-dimensions).
+
 ## WSL native binfmt flags
 
 Implemented: native registration validation accepts exactly `P` and `PF` while
