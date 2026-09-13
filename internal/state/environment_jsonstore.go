@@ -13,7 +13,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const environmentStateVersion = 13 // 9 was an unpublished replacement prototype; reject it.
+const environmentStateVersion = 14 // 9 was an unpublished replacement prototype; reject it.
 const previousEnvironmentStateVersion = 2
 
 type environmentFileState struct {
@@ -247,6 +247,15 @@ func (s *EnvironmentJSONStore) PutEphemeralRun(_ context.Context, run core.Ephem
 	if err != nil {
 		return err
 	}
+	if previous, ok := data.EphemeralRuns[run.EnvironmentID]; ok {
+		if previous.InstanceID != run.InstanceID || !previous.CreatedAt.Equal(run.CreatedAt) || !reflect.DeepEqual(previous.TemporaryWorkspace, run.TemporaryWorkspace) {
+			return core.ErrIncompatibleState
+		}
+	} else if _, exists := data.Leases[run.EnvironmentID]; exists {
+		return core.ErrIncompatibleState
+	} else if _, exists := data.Environments[run.EnvironmentID]; exists {
+		return core.ErrIncompatibleState
+	}
 	data.EphemeralRuns[run.EnvironmentID] = run
 	// Do not remove or replace evidence supporting an admitted Store lease.
 	if err := validatePersistentResourceState(data); err != nil {
@@ -274,6 +283,12 @@ func (s *EnvironmentJSONStore) DeleteEphemeralRun(_ context.Context, environment
 	if _, ok := data.EphemeralRuns[environmentID]; !ok {
 		return nil
 	}
+	if _, exists := data.Leases[environmentID]; exists {
+		return core.ErrIncompatibleState
+	}
+	if _, exists := data.Environments[environmentID]; exists {
+		return core.ErrIncompatibleState
+	}
 	delete(data.EphemeralRuns, environmentID)
 	// Do not remove or replace evidence supporting an admitted Store lease.
 	if err := validatePersistentResourceState(data); err != nil {
@@ -283,6 +298,9 @@ func (s *EnvironmentJSONStore) DeleteEphemeralRun(_ context.Context, environment
 }
 
 func validateEphemeralRun(run core.EphemeralRun) error {
+	if run.InstanceID != "" && !core.ValidEnvironmentInstanceID(run.InstanceID) {
+		return core.ErrInvalidArgument
+	}
 	if run.TemporaryWorkspace != nil && !core.ValidTemporaryWorkspace(*run.TemporaryWorkspace) {
 		return core.ErrInvalidArgument
 	}
@@ -355,18 +373,18 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 }
 
 func normalizeEnvironmentState(data *environmentFileState) error {
-	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != 5 && data.Version != 6 && data.Version != 7 && data.Version != 8 && data.Version != 10 && data.Version != 11 && data.Version != 12 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
+	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != 5 && data.Version != 6 && data.Version != 7 && data.Version != 8 && data.Version != 10 && data.Version != 11 && data.Version != 12 && data.Version != previousEnvironmentStateVersion && (data.Version != 13 && data.Version != environmentStateVersion) {
 		return fmt.Errorf("environment state version %d is unsupported (want %d): %w", data.Version, environmentStateVersion, core.ErrIncompatibleState)
 	}
 
 	for id, copy := range data.WorkspaceCopies {
 		saved, ok := data.Snapshots[copy.SnapshotID]
-		if data.Version != environmentStateVersion || !validSnapshotWorkspaceCopy(id, copy) || !ok || saved.State != "ready" {
+		if (data.Version != 13 && data.Version != environmentStateVersion) || !validSnapshotWorkspaceCopy(id, copy) || !ok || saved.State != "ready" {
 			return core.ErrIncompatibleState
 		}
 	}
 	for id, a := range data.BaseAssets {
-		if (data.Version != 7 && data.Version != 8 && data.Version != 10 && data.Version != 11 && data.Version != 12 && data.Version != environmentStateVersion) || id != a.ID || validateBaseAsset(a) != nil {
+		if (data.Version != 7 && data.Version != 8 && data.Version != 10 && data.Version != 11 && data.Version != 12 && (data.Version != 13 && data.Version != environmentStateVersion)) || id != a.ID || validateBaseAsset(a) != nil {
 			return core.ErrIncompatibleState
 		}
 		for otherID, b := range data.BaseAssets {
@@ -383,7 +401,7 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 				}
 			}
 		}
-		if (data.Version != 5 && data.Version != 6 && data.Version != 7 && data.Version != 8 && data.Version != 10 && data.Version != 11 && data.Version != 12 && data.Version != environmentStateVersion) || id != snapshot.ID || validateSnapshot(snapshot) != nil {
+		if (data.Version != 5 && data.Version != 6 && data.Version != 7 && data.Version != 8 && data.Version != 10 && data.Version != 11 && data.Version != 12 && (data.Version != 13 && data.Version != environmentStateVersion)) || id != snapshot.ID || validateSnapshot(snapshot) != nil {
 			return core.ErrIncompatibleState
 		}
 	}
@@ -397,7 +415,7 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 		}
 	}
 	for id, op := range data.Restores {
-		if (data.Version != 8 && data.Version != 10 && data.Version != 11 && data.Version != 12 && data.Version != environmentStateVersion) || id != op.ID || validateRestore(op) != nil || !reflect.DeepEqual(data.Snapshots[op.Saved.ID], op.Saved) || (op.Before.ID != "" && !reflect.DeepEqual(data.Snapshots[op.Before.ID], op.Before)) {
+		if (data.Version != 8 && data.Version != 10 && data.Version != 11 && data.Version != 12 && (data.Version != 13 && data.Version != environmentStateVersion)) || id != op.ID || validateRestore(op) != nil || !reflect.DeepEqual(data.Snapshots[op.Saved.ID], op.Saved) || (op.Before.ID != "" && !reflect.DeepEqual(data.Snapshots[op.Before.ID], op.Before)) {
 			return core.ErrIncompatibleState
 		}
 		before := op.Current
@@ -466,7 +484,7 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 	for environmentID, lease := range data.Leases {
 		if lease.SnapshotSource != "" {
 			saved, ok := data.Snapshots[lease.SnapshotSource]
-			if (data.Version != 12 && data.Version != environmentStateVersion) || !snapshotIDPattern.MatchString(lease.SnapshotSource) || !ok || saved.State != "ready" || !core.ValidEnvironmentInstanceID(lease.InstanceID) || lease.InstanceID == saved.Source.InstanceID || (lease.State != core.WorkspaceLeaseAcquiring && lease.State != core.WorkspaceLeaseCleanupRequired) {
+			if (data.Version != 12 && (data.Version != 13 && data.Version != environmentStateVersion)) || !snapshotIDPattern.MatchString(lease.SnapshotSource) || !ok || saved.State != "ready" || !core.ValidEnvironmentInstanceID(lease.InstanceID) || lease.InstanceID == saved.Source.InstanceID || (lease.State != core.WorkspaceLeaseAcquiring && lease.State != core.WorkspaceLeaseCleanupRequired) {
 				return core.ErrIncompatibleState
 			}
 		}
@@ -496,6 +514,9 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 	if err := validatePersistentResourceState(*data); err != nil {
 		return err
 	}
+	if err := validateEphemeralIdentities(*data); err != nil {
+		return err
+	}
 	data.Version = environmentStateVersion
 	return nil
 }
@@ -517,6 +538,9 @@ func environmentSupportsLease(environment core.Environment) bool {
 }
 
 func (s *EnvironmentJSONStore) writeEnvironments(data environmentFileState) error {
+	if err := validateEphemeralIdentities(data); err != nil {
+		return err
+	}
 	dir := filepath.Dir(s.path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create environment state directory: %w", err)

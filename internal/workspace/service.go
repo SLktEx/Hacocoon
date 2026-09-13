@@ -89,6 +89,9 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	if err != nil {
 		return core.Environment{}, err
 	}
+	if spec.EphemeralInstance != "" && !core.ValidEnvironmentInstanceID(spec.EphemeralInstance) {
+		return core.Environment{}, core.ErrInvalidArgument
+	}
 	unlockEnvironment, err := lockLifecycle(ctx, "environment", name)
 	if err != nil {
 		return core.Environment{}, err
@@ -174,7 +177,11 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	if identityErr != nil {
 		return core.Environment{}, identityErr
 	}
+	if spec.EphemeralInstance != "" {
+		instanceID = spec.EphemeralInstance
+	}
 	lease := core.WorkspaceLease{
+		Ephemeral:          spec.EphemeralInstance != "",
 		InstanceID:         instanceID,
 		PersistentResource: persistent.Ref(),
 		WorkspaceID:        workspace.ID,
@@ -378,9 +385,9 @@ func (s *Service) Shell(ctx context.Context, name string) (err error) {
 	return s.runtime.ShellEnvironment(ctx, environment.RuntimeRef)
 }
 
-func (s *Service) Delete(ctx context.Context, name string) error { return s.delete(ctx, name, nil) }
+func (s *Service) Delete(ctx context.Context, name string) error { return s.delete(ctx, name, nil, "") }
 
-func (s *Service) delete(ctx context.Context, name string, expected *core.Workspace) (err error) {
+func (s *Service) delete(ctx context.Context, name string, expected *core.Workspace, instance string) (err error) {
 	started := time.Now()
 	ctx = logging.With(ctx, "operation", "delete_environment", "environment_id", name)
 	logger := logging.FromContext(ctx).With("component", "core")
@@ -406,6 +413,18 @@ func (s *Service) delete(ctx context.Context, name string, expected *core.Worksp
 	defer unlock()
 	if err := s.checkSnapshotIdle(ctx, name); err != nil {
 		return err
+	}
+	if instance != "" {
+		lease, leaseErr := s.store.GetWorkspaceLease(ctx, name)
+		if leaseErr == nil {
+			if !lease.Ephemeral || lease.InstanceID != instance {
+				return core.ErrCapabilityStale
+			}
+		} else if !isNotFound(leaseErr) {
+			return leaseErr
+		} else if _, envErr := s.store.GetEnvironment(ctx, name); !isNotFound(envErr) {
+			return errors.Join(core.ErrRecoveryRequired, envErr)
+		}
 	}
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err == nil {

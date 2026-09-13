@@ -14,7 +14,14 @@ func (s *Service) ConfigureTemporaryWorkspace(cleanup func(context.Context, core
 
 func (s *Service) cleanupRun(ctx context.Context, marker core.EphemeralRun) error {
 	var err error
-	if marker.TemporaryWorkspace != nil {
+	if marker.InstanceID != "" {
+		if !core.ValidEnvironmentInstanceID(marker.InstanceID) {
+			return core.ErrRecoveryRequired
+		}
+		err = s.environments.DeleteRun(ctx, marker.EnvironmentID, marker.InstanceID)
+	} else if marker.TemporaryWorkspace != nil {
+		// Legacy migration only: an exact random temporary Workspace still binds
+		// cleanup. Never invent a generation for retained legacy runs by name.
 		owner, ok := s.environments.(interface {
 			DeleteTemporary(context.Context, string, core.Workspace) error
 		})
@@ -23,7 +30,7 @@ func (s *Service) cleanupRun(ctx context.Context, marker core.EphemeralRun) erro
 		}
 		err = owner.DeleteTemporary(ctx, marker.EnvironmentID, *marker.TemporaryWorkspace)
 	} else {
-		err = s.environments.Delete(ctx, marker.EnvironmentID)
+		return fmt.Errorf("legacy run lacks a creation identity: %w", core.ErrRecoveryRequired)
 	}
 	if err != nil {
 		return err

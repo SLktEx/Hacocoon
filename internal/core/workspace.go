@@ -43,6 +43,7 @@ type BaseInfo struct {
 }
 
 type WorkspaceLease struct {
+	Ephemeral bool `json:"ephemeral,omitempty"`
 	// SnapshotSource reserves immutable saved data only while this creation is pending.
 	SnapshotSource     string                `json:"snapshot_source,omitempty"`
 	InstanceID         string                `json:"instance_id,omitempty"`
@@ -61,6 +62,7 @@ type WorkspaceLease struct {
 // haco run. Names alone are never sufficient proof because a user may create an
 // ordinary Environment whose name happens to start with "run-".
 type EphemeralRun struct {
+	InstanceID         string            `json:"instance_id,omitempty"`
 	TemporaryWorkspace *Workspace        `json:"temporary_workspace,omitempty"`
 	EnvironmentID      string            `json:"environment_id"`
 	State              EphemeralRunState `json:"state"`
@@ -79,6 +81,9 @@ type Environment struct {
 }
 
 type EnvironmentSpec struct {
+	// EphemeralInstance binds a trusted run reservation to canonical creation.
+	// It is not accepted by ordinary client Environment-create DTOs.
+	EphemeralInstance string
 	// ExpectedWorkspace pins a reviewed retained work before any provider mutation.
 	ExpectedWorkspace   WorkspaceID
 	TemporaryWorkspace  *Workspace

@@ -57,7 +57,11 @@ Ubuntu配布物と範囲を限定したWindows受入が成功しました。別�
 人によるトースト操作／GUI回答はSKIPです。
 [commitごとの証拠](status/acceptance-evidence.ja.md)を参照してください。配布済み・実機での言語転送完了ではありません。
 
-VS CodeはローカルGUI内で回答まで完結し、共通保存範囲と表示snapshotに束縛したprivate sessionを使用します。導入済みGUI確認とWindows通知内回答は残件です。[承認の契約](design/pending-approval-review.ja.md)を参照してください。
+VS CodeはローカルGUI内で回答まで完結し、共通保存範囲と表示snapshotに束縛したprivate sessionを使用します。`e7ba7987`で導入済み画面の描画・古い要求の拒否がPASS、新規要求への人の回答とWindows通知内回答は残件です。[承認の契約](design/pending-approval-review.ja.md)と[検証証拠](status/acceptance-evidence.ja.md)を参照してください。
+
+一時runのcleanupは共通lifecycle APIで正確な作成identityを必須にし、未完了runが
+ある間の名前再利用を拒否します。旧記録のidentity不足は復旧待ちとして保持します。
+この修正の実機確認とstdin／TTY対応は残件です。[一時実行](design/temporary-execution.ja.md)を参照してください。
 
 最新M1候補`0c79f820`では、有効なIncus 7.0.1 Core／BtrfsとUbuntu／Windows配布物のworkflowがすべてPASSです。
 英語WindowsからHostへの表示言語一致、通常SSH／VS Code、移送、public reclaim、通知起動を確認しました。

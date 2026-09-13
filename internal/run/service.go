@@ -42,7 +42,7 @@ type Result struct {
 type environmentLifecycle interface {
 	Create(context.Context, core.EnvironmentSpec) (core.Environment, error)
 	Exec(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error)
-	Delete(context.Context, string) error
+	DeleteRun(context.Context, string, string) error
 }
 
 type ephemeralRunStore interface {
@@ -200,7 +200,11 @@ func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentRe
 		}
 		temporary = &work
 	}
-	var marker core.EphemeralRun
+	instance, err := core.NewEnvironmentInstanceID()
+	if err != nil {
+		return Result{}, err
+	}
+	marker := core.EphemeralRun{InstanceID: instance, TemporaryWorkspace: temporary, EnvironmentID: name, State: core.EphemeralRunCreating, CreatedAt: s.now().UTC()}
 	var ownership runOwnershipLock
 	if s.recoveryEnabled() {
 		var acquired bool
@@ -212,18 +216,13 @@ func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentRe
 			return Result{Environment: name}, fmt.Errorf("ephemeral run identity %q is already owned: %w", name, core.ErrAlreadyExists)
 		}
 		defer func() { _ = ownership.Release() }()
-		marker = core.EphemeralRun{
-			TemporaryWorkspace: temporary,
-			EnvironmentID:      name,
-			State:              core.EphemeralRunCreating,
-			CreatedAt:          s.now().UTC(),
-		}
 		if err := s.runs.PutEphemeralRun(ctx, marker); err != nil {
 			return Result{Environment: name}, fmt.Errorf("persist ephemeral run marker %q: %w", name, err)
 		}
 	}
 
 	environment, err := s.environments.Create(ctx, core.EnvironmentSpec{
+		EphemeralInstance:   instance,
 		PersistentResource:  resource.ID,
 		ExpectedResource:    resource,
 		TemporaryWorkspace:  temporary,
@@ -259,7 +258,7 @@ func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentRe
 		marker.State = core.EphemeralRunActive
 		if err := s.runs.PutEphemeralRun(ctx, marker); err != nil {
 			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.cleanupTimeout)
-			cleanupErr := s.cleanupRun(cleanupCtx, core.EphemeralRun{EnvironmentID: environment.Name, TemporaryWorkspace: temporary})
+			cleanupErr := s.cleanupRun(cleanupCtx, marker)
 			cancel()
 			if cleanupErr == nil {
 				markerErr := s.runs.DeleteEphemeralRun(context.WithoutCancel(ctx), environment.Name)
@@ -290,7 +289,7 @@ func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentRe
 		StderrBytes:     outputByteCount(execution.StderrBytes, stderrMarkerBytes),
 	}
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.cleanupTimeout)
-	cleanupErr := s.cleanupRun(cleanupCtx, core.EphemeralRun{EnvironmentID: environment.Name, TemporaryWorkspace: temporary})
+	cleanupErr := s.cleanupRun(cleanupCtx, marker)
 	cancel()
 	result.CleanedUp = cleanupErr == nil
 

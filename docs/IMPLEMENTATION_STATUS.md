@@ -57,4 +57,9 @@ SSH-failure reproduction and installed long-input/resize verification. Human toa
 and new GUI decisions remain unverified. See [exact evidence](status/acceptance-evidence.md).
 This is development-branch implementation and acceptance, not main integration or distribution.
 
-VS Code review now completes inside a local GUI using exact common saved scopes and private snapshot-bound sessions. Installed GUI acceptance and Windows notification-contained responses remain pending. See the [approval contract](design/pending-approval-review.md).
+VS Code review now completes inside a local GUI using exact common saved scopes and private snapshot-bound sessions. Installed rendering and stale-request refusal passed at `e7ba7987`; fresh human decisions and Windows notification-contained responses remain pending. See the [approval contract](design/pending-approval-review.md) and [acceptance evidence](status/acceptance-evidence.md).
+
+Temporary-run cleanup now requires the exact creation identity through the common
+lifecycle API, fences name reuse while a run remains unfinished, and preserves
+legacy missing-identity records as recovery work. Native acceptance of this fix
+and stdin/TTY support remain pending; see [temporary execution](design/temporary-execution.md).

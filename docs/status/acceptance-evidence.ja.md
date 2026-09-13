@@ -6,6 +6,18 @@
 
 成功・失敗・スキップは試験構成に結び付けて読みます。同じ実行内の一部成功や後続の成功だけで、別の失敗原因が解決したとは判断しません。日々の実行ログを追記するのではなく、判断を変える証拠と未解決事項だけを更新します。
 
+## ローカルGUI候補
+
+`e7ba798728dcbe48a5179845673a333f8ff8968f`（PR #588）はtest 34727370959、
+Ubuntu installer 34727370966、Incus 7 34727370817、Windows installer
+34727370876がすべてPASSです。Windows job 103643786611には
+`VS CODE LOCAL APPROVAL WEBVIEW / REAL RENDERER HANDSHAKE / INSTALLED CONTROLLER STALE REFUSAL: PASS`
+があります。配布相当のローカル画面、実rendererのready、導入済みcontrollerを通した
+古い要求の拒否の証拠です。通常SSH・interop・installer・再起動・reclaimもPASSです。
+人間のtoast click／新GUI回答とVPN／NRPTは明示 **SKIP** です。日本語Windowsは未確認、
+既存ローカルWSLInteropの失敗は未解決です。開発ブランチの証拠であり、配布済みや
+後続run所有権修正の実機確認とは扱いません。
+
 <a id="installation"></a>
 
 ## インストールとHost
