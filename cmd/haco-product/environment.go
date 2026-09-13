@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -30,7 +29,7 @@ func runEnvironment(args []string) int {
 
 func environmentCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--port <port>] <name> | ssh-config <name> | forward --target-port <port> [--protocol tcp|udp] [--port <local-port>] <name> | disconnect <name> <connection-id> | copy [--json] <stopped-env> [new-env] | export [--json] <stopped-env> [file.haco] | import [--json] <file.haco> [new-env] | start <name> | stop <name> | delete <name>")
+		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] [--json] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--port <port>] [--json] <name> | ssh-config <name> | forward --target-port <port> [--protocol tcp|udp] [--port <local-port>] [--json] <name> | disconnect [--json] <name> <connection-id> | copy [--json] <stopped-env> [new-env] | export [--json] <stopped-env> [file.haco] | import [--json] <file.haco> [new-env] | start [--json] <name> | stop [--json] <name> | delete [--json] <name>")
 		return 2
 	}
 	if len(args) == 0 {
@@ -61,21 +60,25 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	var jsonOutput, noOCI bool
 	switch args[0] {
 	case "forward":
+		flags.BoolVar(&jsonOutput, "json", false, "machine-readable result")
 		flags.StringVar(&protocol, "protocol", "tcp", "tcp or udp")
 		flags.IntVar(&port, "port", 0, "Physical Host loopback port (automatic by default)")
 		flags.IntVar(&targetPort, "target-port", 0, "Environment destination port")
 	case "create":
+		flags.BoolVar(&jsonOutput, "json", false, "machine-readable result")
 		flags.BoolVar(&noOCI, "no-oci", false, "skip automatic OCI Store copy and attachment")
 		flags.StringVar(&workspace, "workspace", "", "Workspace path on the controller")
 		flags.StringVar(&base, "base", "", "logical Base name")
 		flags.StringVar(&resource, "resource", "", "persistent resource to attach exclusively, e.g. oci:dev")
 	case "ssh":
+		flags.BoolVar(&jsonOutput, "json", false, "machine-readable result")
 		flags.StringVar(&keyPath, "key", "", "client-owned SSH public key file")
 		flags.IntVar(&port, "port", 0, "Physical Host loopback port (default: automatic)")
 	case "ssh-config":
 	case "status", "list":
 		flags.BoolVar(&jsonOutput, "json", false, "machine-readable result")
 	case "disconnect", "start", "stop", "delete":
+		flags.BoolVar(&jsonOutput, "json", false, "machine-readable result")
 	default:
 		return usage()
 	}
@@ -183,7 +186,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 			}
 		}
 	}
-	if err := json.NewEncoder(out).Encode(result); err != nil {
+	if err := writeCLIResult(out, result, jsonOutput); err != nil {
 		fmt.Fprintln(diagnostic, "haco: cannot write result")
 		return 1
 	}
