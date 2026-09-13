@@ -88,6 +88,21 @@ func (c *Client) OpenSession(ctx context.Context, method string, request any) (n
 	}, nil
 }
 
+// OpenByteSession retains independent completion without turning a peer's
+// half-close into a process-exit wait. Byte relays must deliver EOF before both
+// directions finish, then explicitly Wait for the final operation result.
+func (c *Client) OpenByteSession(ctx context.Context, method string, request any) (net.Conn, error) {
+	conn, response, err := c.openStream(ctx, method, request, true)
+	if err != nil {
+		return nil, err
+	}
+	if response.SessionID == "" {
+		_ = conn.Close()
+		return nil, ErrProtocol
+	}
+	return &byteSessionConn{sessionConn: &sessionConn{Conn: conn, client: c, id: response.SessionID, ctx: ctx}}, nil
+}
+
 func (c *Client) openStream(ctx context.Context, method string, request any, managedSession bool) (net.Conn, responseEnvelope, error) {
 	if c == nil || c.dial == nil || strings.TrimSpace(method) == "" {
 		return nil, responseEnvelope{}, ErrInvalidArgument

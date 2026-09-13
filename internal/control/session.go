@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	methodSessionWait = "_control.session.wait"
-	sessionIDBytes    = 16
-	sessionRetention  = 2 * time.Minute
+	methodSessionWait   = "_control.session.wait"
+	methodSessionCancel = "_control.session.cancel"
+	sessionIDBytes      = 16
+	sessionRetention    = 2 * time.Minute
 )
 
 type sessionWaitRequest struct {
@@ -47,6 +48,7 @@ func (e *SessionExitError) ExitCode() int {
 }
 
 type serverSession struct {
+	cancel   context.CancelFunc
 	terminal *terminalControl
 	done     chan struct{}
 	once     sync.Once
@@ -81,7 +83,7 @@ func newSessionID() (string, error) {
 	return hex.EncodeToString(buffer), nil
 }
 
-func (s *Server) createSession(terminal *terminalControl) (string, *serverSession, error) {
+func (s *Server) createSession(terminal *terminalControl, cancel context.CancelFunc) (string, *serverSession, error) {
 	if s == nil {
 		return "", nil, ErrInvalidArgument
 	}
@@ -92,6 +94,7 @@ func (s *Server) createSession(terminal *terminalControl) (string, *serverSessio
 		}
 		state := newServerSession()
 		state.terminal = terminal
+		state.cancel = cancel
 		s.sessionMu.Lock()
 		if _, exists := s.sessions[id]; !exists {
 			s.sessions[id] = state

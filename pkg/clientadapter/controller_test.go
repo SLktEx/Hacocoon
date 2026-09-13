@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/control"
@@ -66,7 +67,7 @@ func (f *fakeControllerClient) PrepareEnvironmentSSH(_ context.Context, name str
 	if f.environment == nil || f.environment.Name != name {
 		return core.ClientConnection{}, control.NewStatusError("not_found", "missing")
 	}
-	connection := core.ClientConnection{ID: "ssh-one", Kind: "ssh", Host: "127.0.0.1", Port: request.HostPort, TargetPort: 22, User: "root"}
+	connection := core.ClientConnection{ID: "ssh-one", Kind: "ssh", Target: &core.StreamTarget{Environment: name, Instance: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Workspace: "work", AccessMode: core.WorkspaceReadWrite, Service: "ssh", Grant: "ssh-one"}, TargetPort: 22, User: "root"}
 	f.connections = append(f.connections, connection)
 	return connection, nil
 }
@@ -139,12 +140,11 @@ func TestControllerAdapterConnectionLifecycle(t *testing.T) {
 	ssh, err := adapter.PrepareSSH(context.Background(), SSHRequest{
 		Environment: "demo",
 		PublicKey:   "ssh-ed25519 AAAA test",
-		HostPort:    2222,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ssh.ID != "ssh-one" || ssh.Host != "127.0.0.1" || ssh.Port != 2222 || ssh.TargetPort != 22 {
+	if ssh.ID != "ssh-one" || ssh.Host != "" || ssh.Port != 0 || ssh.TargetPort != 22 {
 		t.Fatalf("ssh = %#v", ssh)
 	}
 
@@ -152,7 +152,7 @@ func TestControllerAdapterConnectionLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(connections) != 1 || connections[0] != ssh {
+	if len(connections) != 1 || !reflect.DeepEqual(connections[0], ssh) {
 		t.Fatalf("connections = %#v", connections)
 	}
 	if err := adapter.Revoke(context.Background(), "demo", ssh.ID); err != nil {

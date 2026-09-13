@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -25,8 +26,11 @@ type accessRuntime interface {
 }
 
 type Service struct {
-	runtime accessRuntime
-	store   environmentStore
+	streamMu  sync.Mutex
+	streams   map[streamBinding]map[*ownedStream]struct{}
+	lifecycle accessLifecycle
+	runtime   accessRuntime
+	store     environmentStore
 }
 
 func New(runtime accessRuntime, store environmentStore) *Service {
@@ -57,6 +61,23 @@ func (s *Service) Connections(ctx context.Context, name string) ([]core.ClientCo
 	if err != nil {
 		return nil, fmt.Errorf("list client connections for %q: %w", name, err)
 	}
+	if s.lifecycle != nil {
+		store, ok := s.store.(interface {
+			EnvironmentInstance(context.Context, core.Environment) (string, error)
+		})
+		if !ok {
+			return nil, core.ErrUnsupported
+		}
+		instance, err := store.EnvironmentInstance(ctx, environment)
+		if err != nil {
+			return nil, err
+		}
+		for i := range connections {
+			if connections[i].Kind == "ssh" && connections[i].Port == 0 {
+				connections[i].Target = &core.StreamTarget{Environment: name, Instance: instance, Workspace: environment.Workspace.ID, AccessMode: environment.AccessMode, Service: "ssh", Grant: connections[i].ID}
+			}
+		}
+	}
 	return connections, nil
 }
 
@@ -81,15 +102,19 @@ func (s *Service) Unforward(ctx context.Context, name, connectionID string) erro
 		return err
 	}
 	if strings.HasPrefix(connectionID, "ssh-") {
+		if s.lifecycle != nil {
+			return s.lifecycle.WithClientAccess(ctx, name, nil, true, nil, func(env core.Environment, instance string) error {
+				s.closeStreams(streamBinding{env.Name, instance, connectionID})
+				return s.runtime.RevokeSSHAccess(ctx, env.RuntimeRef, connectionID)
+			})
+		}
 		return s.runtime.RevokeSSHAccess(ctx, environment.RuntimeRef, connectionID)
 	}
 	return s.runtime.RemoveClientConnection(ctx, environment.RuntimeRef, connectionID)
 }
 
 func (s *Service) SSH(ctx context.Context, name string, req core.SSHAccessRequest) (core.ClientConnection, error) {
-	if req.HostPort < 0 || req.HostPort > 65535 {
-		return core.ClientConnection{}, fmt.Errorf("SSH host port %d: %w", req.HostPort, core.ErrInvalidArgument)
-	}
+
 	key, err := normalizePublicKey(req.PublicKey)
 	if err != nil {
 		return core.ClientConnection{}, err
@@ -99,6 +124,25 @@ func (s *Service) SSH(ctx context.Context, name string, req core.SSHAccessReques
 		return core.ClientConnection{}, err
 	}
 	req.PublicKey = key
+	if s.lifecycle != nil {
+		var conn core.ClientConnection
+		err := s.lifecycle.WithClientAccess(ctx, name, nil, true, nil, func(env core.Environment, instance string) error {
+			var err error
+			if migration, ok := s.runtime.(interface {
+				MigrateSSHAccess(context.Context, string) error
+			}); ok {
+				if err = migration.MigrateSSHAccess(ctx, env.RuntimeRef); err != nil {
+					return err
+				}
+			}
+			conn, err = s.runtime.PrepareSSHAccess(ctx, env.RuntimeRef, req)
+			if err == nil {
+				conn.Target = &core.StreamTarget{Environment: name, Instance: instance, Workspace: env.Workspace.ID, AccessMode: env.AccessMode, Service: "ssh", Grant: conn.ID}
+			}
+			return err
+		})
+		return conn, err
+	}
 	return s.runtime.PrepareSSHAccess(ctx, environment.RuntimeRef, req)
 }
 

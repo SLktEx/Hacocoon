@@ -69,7 +69,7 @@ func TestSelectedSetupResumesAndRechecksAfterConnectionPreparation(t *testing.T)
 		} else if err != nil || alias != "haco-dev" {
 			t.Fatalf("%s %v", alias, err)
 		}
-		if c.starts != 1 || c.count != 1 {
+		if c.starts != 0 || c.count != 1 {
 			t.Fatal("ordinary setup was not used")
 		}
 	}

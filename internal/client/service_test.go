@@ -115,14 +115,14 @@ func TestSSHCanonicalizesValidPublicKeyAndRejectsMalformedPayload(t *testing.T) 
 	runtime := &fakeRuntime{connection: core.ClientConnection{Kind: "ssh"}}
 	service := New(runtime, fakeStore{environment: core.Environment{Name: "demo", RuntimeRef: "haco-demo"}})
 	withComment := validEd25519Key + " user@example"
-	if _, err := service.SSH(context.Background(), "demo", core.SSHAccessRequest{PublicKey: withComment + "\n", HostPort: 2222}); err != nil {
+	if _, err := service.SSH(context.Background(), "demo", core.SSHAccessRequest{PublicKey: withComment + "\n"}); err != nil {
 		t.Fatal(err)
 	}
 	if runtime.sshRef != "haco-demo" || runtime.sshReq.PublicKey != validEd25519Key {
 		t.Fatalf("ssh ref=%q req=%#v", runtime.sshRef, runtime.sshReq)
 	}
 	for _, invalid := range []string{"", "not-a-key", "ssh-ed25519 not-base64", withComment + "\n" + withComment} {
-		if _, err := service.SSH(context.Background(), "demo", core.SSHAccessRequest{PublicKey: invalid, HostPort: 2222}); !errors.Is(err, core.ErrInvalidArgument) {
+		if _, err := service.SSH(context.Background(), "demo", core.SSHAccessRequest{PublicKey: invalid}); !errors.Is(err, core.ErrInvalidArgument) {
 			t.Fatalf("invalid key %q error=%v", invalid, err)
 		}
 	}
@@ -163,7 +163,7 @@ func TestSSHLeavesAutomaticPortSelectionToRuntime(t *testing.T) {
 	if _, err := service.SSH(context.Background(), "demo", core.SSHAccessRequest{PublicKey: validEd25519Key}); err != nil {
 		t.Fatal(err)
 	}
-	if runtime.sshRef != "haco-demo" || runtime.sshReq.HostPort != 0 {
+	if runtime.sshRef != "haco-demo" {
 		t.Fatalf("%+v", runtime.sshReq)
 	}
 }

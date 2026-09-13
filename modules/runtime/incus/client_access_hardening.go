@@ -2,6 +2,8 @@ package incus
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -74,21 +76,22 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return core.ClientConnection{}, err
 	}
-	port, err := chooseLoopbackPort(ctx, req.HostPort)
-	if err != nil {
-		return core.ClientConnection{}, err
-	}
-	req.HostPort = port
-	id := fmt.Sprintf("ssh-%d", req.HostPort)
-	if err := r.addLoopbackProxy(ctx, ref, id, req.HostPort, 22); err != nil {
-		return core.ClientConnection{}, err
-	}
 
+	var random [16]byte
+	if _, err := rand.Read(random[:]); err != nil {
+		return core.ClientConnection{}, err
+	}
+	id := "ssh-" + hex.EncodeToString(random[:])
+	// Record pending authority before guest mutation; ambiguous failures remain
+	// visible and cannot authorize a stream.
+	if _, err := r.runner.Run(ctx, "incus", "config", "set", ref, "user.hacocoon."+id+"=pending", "--project", r.project); err != nil {
+		return core.ClientConnection{}, err
+	}
 	marker := "haco:" + id
 	if _, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", managedSSHProvisionScript, "haco-ssh", req.PublicKey, marker, managedSSHProxySettings()); err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cleanupTimeout)
 		defer cancel()
-		cleanupErr := r.RemoveClientConnection(cleanupCtx, ref, id)
+		cleanupErr := r.RevokeSSHAccess(cleanupCtx, ref, id)
 		return core.ClientConnection{}, errors.Join(fmt.Errorf("prepare SSH in %s: %w", ref, err), cleanupErr)
 	}
 
@@ -117,31 +120,33 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 		}
 		return core.ClientConnection{}, errors.Join(fmt.Errorf("verify SSH host public key: %w", keyErr), cleanupErr)
 	}
-	return core.ClientConnection{
-		ID:            id,
-		HostPublicKey: hostKey,
-		Kind:          "ssh",
-		Host:          "127.0.0.1",
-		Port:          req.HostPort,
-		TargetPort:    22,
-		User:          "root",
-		Command:       fmt.Sprintf("ssh -p %d root@127.0.0.1", req.HostPort),
-	}, nil
+	connection := core.ClientConnection{ID: id, HostPublicKey: hostKey, Kind: "ssh", TargetPort: 22, User: "root"}
+	data, err := json.Marshal(connection)
+	if err != nil {
+		return core.ClientConnection{}, err
+	}
+	if _, err := r.runner.Run(ctx, "incus", "config", "set", ref, "user.hacocoon."+id+"="+string(data), "--project", r.project); err != nil {
+		return core.ClientConnection{}, errors.Join(core.ErrRecoveryRequired, err)
+	}
+	return connection, nil
 }
 
 func (r *Runtime) RevokeSSHAccess(ctx context.Context, ref, connectionID string) error {
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return err
 	}
-	if !strings.HasPrefix(connectionID, "ssh-") {
-		return fmt.Errorf("SSH connection id %q: %w", connectionID, core.ErrInvalidArgument)
+	if !validSSHGrantID(connectionID) {
+		return r.revokeLegacySSHProxy(ctx, ref, connectionID)
+	}
+	if _, err := r.runner.Run(ctx, "incus", "config", "set", ref, "user.hacocoon."+connectionID+"=pending", "--project", r.project); err != nil {
+		return err
 	}
 	marker := "haco:" + connectionID
 	if _, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", managedSSHRevokeScript, "haco-ssh-revoke", marker); err != nil {
 		return fmt.Errorf("revoke SSH key %s in %s: %w", connectionID, ref, err)
 	}
-	if err := r.RemoveClientConnection(ctx, ref, connectionID); err != nil {
-		return fmt.Errorf("remove SSH proxy %s: %w", connectionID, err)
+	if _, err := r.runner.Run(ctx, "incus", "config", "unset", ref, "user.hacocoon."+connectionID, "--project", r.project); err != nil {
+		return fmt.Errorf("remove SSH grant %s: %w", connectionID, err)
 	}
 	return nil
 }
@@ -154,14 +159,32 @@ func (r *Runtime) ListClientConnections(ctx context.Context, ref string) ([]core
 	if err != nil {
 		return nil, err
 	}
+	if result.StdoutTruncated {
+		return nil, core.ErrRecoveryRequired
+	}
 	var config struct {
 		Devices map[string]map[string]string `json:"devices"`
+		Config  map[string]string            `json:"config"`
 	}
 	if err := json.Unmarshal([]byte(result.Stdout), &config); err != nil {
 		return nil, fmt.Errorf("decode Incus client devices: %w", err)
 	}
 
 	connections := make([]core.ClientConnection, 0)
+	for key, raw := range config.Config {
+		if !strings.HasPrefix(key, "user.hacocoon.ssh-") {
+			continue
+		}
+		id := strings.TrimPrefix(key, "user.hacocoon.")
+		var c core.ClientConnection
+		if !validSSHGrantID(id) || json.Unmarshal([]byte(raw), &c) != nil || c.ID != id || c.Kind != "ssh" || c.Host != "" || c.Port != 0 || c.TargetPort != 22 || c.User != "root" {
+			return nil, core.ErrRecoveryRequired
+		}
+		if _, err := sshkey.NormalizePublicKey(c.HostPublicKey); err != nil {
+			return nil, core.ErrRecoveryRequired
+		}
+		connections = append(connections, c)
+	}
 	for deviceName, device := range config.Devices {
 		if device["type"] != "proxy" || !strings.HasPrefix(deviceName, "haco-") {
 			continue
@@ -207,7 +230,6 @@ func clientConnectionFromProxy(id, listen, connect string) (core.ClientConnectio
 	if protocol == "tcp" && strings.HasPrefix(id, "ssh-") && targetPort == 22 {
 		connection.Kind = "ssh"
 		connection.User = "root"
-		connection.Command = fmt.Sprintf("ssh -p %d root@127.0.0.1", listenPort)
 	}
 	return connection, nil
 }
@@ -285,4 +307,12 @@ func chooseLoopbackProtocolPort(ctx context.Context, protocol string, port int) 
 		return 0, core.ErrIncompatibleState
 	}
 	return address.Port, nil
+}
+
+func validSSHGrantID(id string) bool {
+	if !strings.HasPrefix(id, "ssh-") {
+		return false
+	}
+	b, err := hex.DecodeString(strings.TrimPrefix(id, "ssh-"))
+	return err == nil && len(b) == 16
 }
