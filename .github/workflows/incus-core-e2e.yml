@@ -26,7 +26,8 @@ jobs:
     env:
       HACO_CI_RUNNER_ENVIRONMENT: github-hosted
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: "[fixture] Validate standalone Incus E2E helpers"
@@ -50,10 +51,10 @@ jobs:
         if: always()
         run: bash tools/ci-incus.sh cleanup-standalone
 
-      - name: Record bounded substrate evidence
+      - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
-      - name: Retain substrate evidence
+      - name: "[infrastructure] Retain substrate evidence"
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -70,10 +71,12 @@ jobs:
     env:
       HACO_CI_RUNNER_ENVIRONMENT: github-hosted
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: "[infrastructure] Install pinned Go"
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.0
           check-latest: false
@@ -108,10 +111,10 @@ jobs:
         if: always()
         run: bash tools/ci-incus.sh cleanup-core
 
-      - name: Record bounded substrate evidence
+      - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
-      - name: Retain substrate evidence
+      - name: "[infrastructure] Retain substrate evidence"
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -128,10 +131,12 @@ jobs:
     env:
       HACO_CI_RUNNER_ENVIRONMENT: github-hosted
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: "[infrastructure] Install pinned Go"
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.0
           check-latest: false
@@ -214,10 +219,10 @@ jobs:
         if: always()
         run: bash tools/ci-incus-core.sh cleanup
 
-      - name: Record bounded substrate evidence
+      - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
-      - name: Retain substrate evidence
+      - name: "[infrastructure] Retain substrate evidence"
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -236,10 +241,12 @@ jobs:
       NERDCTL_VERSION: 2.3.5
       NERDCTL_AMD64_SHA256: de3206aeb7cbd5f20f5fb1f55c1e3bf2db1be567812a8a3f5e65eba2488347ee
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: "[infrastructure] Install pinned Go"
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.0
           check-latest: false
@@ -274,7 +281,8 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Verify required jobs and same-commit history
@@ -282,7 +290,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           CI_NEEDS: ${{ toJSON(needs) }}
         run: python3 tools/ci_history.py --gate --output ci-evidence.json
-      - name: Retain CI evidence
+      - name: "[infrastructure] Retain CI evidence"
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

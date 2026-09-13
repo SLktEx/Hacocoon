@@ -111,6 +111,13 @@ def check_needs(needs, required):
     return all(value.get("result") == "success" for value in needs.values())
 
 
+def missing_job_variants(records, run_id, expected):
+    if not expected or len(set(expected)) != len(expected):
+        raise ValueError("required job variants are empty or duplicated")
+    passed = {r["job"] for r in records if r["run_id"] == run_id and r["conclusion"] == "success"}
+    return sorted(set(expected) - passed)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gate", action="store_true")
@@ -139,6 +146,7 @@ def main(argv=None):
         runs = api.get(f"runs?per_page={args.recent}")["workflow_runs"]
     records = summarize(runs, lambda run, attempt: api.pages(f"runs/{run}/attempts/{attempt}/jobs", "jobs"), required_steps)
     history_failed = any(r["conclusion"] in BAD for r in records)
+    missing_variants = missing_job_variants(records, current["id"], contracts[current["name"]]["job_names"]) if args.gate else []
     # Inspect actual Actions step conclusions even when the job itself is green.
     # Previous failed/skipped attempts are retained; only successful jobs assert
     # that they ran their contract. A cancelled attempt is not labelled a flake.
@@ -146,16 +154,17 @@ def main(argv=None):
     report = {"schema": 1, "checked_sha": os.environ.get("GITHUB_SHA"),
               "needs_success": needs_ok, "unresolved_failure": history_failed,
               "required_steps_unproven": steps_unproven, "records": records}
+    report["missing_job_variants"] = missing_variants
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a", encoding="utf-8") as stream:
             stream.write("### CI evidence\n\n")
-            stream.write(f"Required jobs passed: {needs_ok}. Recorded failed attempts: {history_failed}. Required steps unproven: {steps_unproven}.\n\n")
+            stream.write(f"Required jobs passed: {needs_ok}. Recorded failed attempts: {history_failed}. Required steps unproven: {steps_unproven}. Missing variants: {len(missing_variants)}.\n\n")
             stream.write("Read ci-evidence.json for workflow, SHA, job, attempt and failure boundary. "
                          "A later pass never resolves an earlier failure. Investigate and commit a fix/evidence; do not rerun until green.\n")
-    return 1 if args.gate and (not needs_ok or history_failed or steps_unproven) else 0
+    return 1 if args.gate and (not needs_ok or history_failed or steps_unproven or missing_variants) else 0
 
 
 if __name__ == "__main__":

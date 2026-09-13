@@ -30,6 +30,13 @@ install-ubuntu.sh post
 
 WSL lifecycle and login integration stay in PowerShell. Native-Ubuntu-only checks and post-install behavior stay in `install-ubuntu.sh`.
 
+After terminating the owned WSL distribution for default-user or systemd changes,
+the installer observes successful registered/running distribution lists before
+starting it again. Fixed delay is not evidence of stop completion. Missing
+registration, failed or unrecognized output, or exhaustion of the observation
+budget leaves completion unproven and stops the installer without repeating the
+termination. These read-only observations do not start or repair a distribution.
+
 The shared phase installs bundled `incus-boot-guard.py` using isolated Python
 and an Incus service drop-in. First adoption requires the existing daemon to be
 ready. Subsequent namespace boots archive stale network/proxy PID records before

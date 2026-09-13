@@ -9,7 +9,7 @@ installer 受入が漏れないようにする。否定例を含む同等の検�
 
 実行可能な job 一覧は [ci_contracts.json](../../tools/ci_contracts.json) が所有する。
 [検査ツール](../../tools/check_ci_contracts.py) は PR trigger の欠落、filter、必須 job の
-欠落・条件分岐・失敗許容、証拠 job の依存漏れを拒否する。既存の workflow-policy と
+欠落・条件分岐・失敗許容、必須契約 step の省略、証拠 job の依存漏れを拒否する。既存の workflow-policy と
 local CI から実行する。権限境界は [CI trust boundary](../../.github/security/CI_TRUST_BOUNDARY.md) に従う。
 
 ## 必須検証と範囲
@@ -20,15 +20,15 @@ local CI から実行する。権限境界は [CI trust boundary](../../.github/
 | 配布・release 構成 | `test`: release-config、build | Linux 両 architecture、GoReleaser、installer archive を merge 前に検証。 |
 | Incus lifecycle、network、egress | `incus-core-e2e`: incus-standalone、incus-core-e2e | 独立 runner の native 基盤、provider、出荷 controller/CLI。standalone の Docker 共存ルールを製品 Environment の egress に適用しない。 |
 | Btrfs、Base、snapshot、transfer、保持 OCI | `incus-core-e2e`: incus-owned-btrfs | native adapter と CLI/controller。fixture は保持データを準備し、pool の遅延作成も検証する。全 packaged 受入ではない。 |
-| Ubuntu installer・隔離 | `ubuntu-installer-e2e`: ubuntu-user-path | 未改変の配布 installer、通常ユーザー、移行中 CLI の installed journey と kernel 検証。 |
+| Ubuntu installer・隔離 | `ubuntu-installer-e2e`: ubuntu-user-path | 未改変の配布 installer、通常ユーザー、製品 CLI の run/create/status/stop/start/delete と Workspace 保持、移行中 CLI の installed journey と kernel 検証。 |
 | Windows/WSL install・restart・reinstall | `windows-installer-e2e`: windows-user-path | BAT、ConPTY、通常 WSL/Host entry、reinstall 前の terminate、Host データ保持。phase 時間を記録する。初期 driver 単独では Environment のデータ保持を証明しない。 |
 | SSH・IDE・network・transfer・reclamation・通知 | 同上 | 初期 BAT に続く installed egress と native Windows/OpenSSH/VS Code の実際の検証 step が必要。 |
 
 branch protection には既存 check に加え `test-evidence`、`incus-core-e2e-evidence`、
 `ubuntu-installer-e2e-evidence`、`windows-installer-e2e-evidence` を必須として設定する。
 リポジトリ内のコードだけでは GitHub の保護設定は変更されない。証拠 job は `always()`
-で必要 job を確認し、skip・取消・欠落・失敗を成功として扱わない。履歴・artifact の
-取得失敗も失敗であり、native 試験を focused probe の成功で代用しない。
+で必要 job と契約 step の実際の success を確認し、成功 job 内の skip・取消・欠落・失敗も成功として扱わない。履歴・artifact の
+取得失敗も失敗であり、native 試験を focused probe の成功で代用しない。matrix の architecture や Go 系列ごとの成功記録も要求し、needs の集約成功で検証対象の削除を隠さない。
 
 ## 失敗と再実行
 
@@ -40,7 +40,8 @@ step の `[product]`、`[fixture]`、`[infrastructure]` は失敗した操作の
 された job metadata を取得する。各 workflow は workflow、source SHA、検証 SHA、run、
 attempt、job、失敗 step、責務境界、同一 SHA の red→green を含む `ci-evidence.json` を
 30日保持する。同じ workflow/event/source SHA の別 run や PR 再開も照合し、部分的な
-再実行の成功で元の失敗を消さない。
+再実行の成功で元の失敗を消さない。native Go コマンドは `ci-test-results.jsonl` に
+期待するテスト名、PASS/FAIL/SKIP または結果欠落、終了コードと run の識別子も保持する。
 
 失敗 attempt がある source SHA の証拠 check は失敗し続ける。自動免除や green 化する
 retry はない。原因を修正するか、調査済み基盤障害の解決根拠を新しい commit に残す。
@@ -71,7 +72,7 @@ native test が skip されることと、専用の必須 native job は区別�
 PTY 回帰は foreground command の出力を待ってから resize する。前の command 出力だけ
 では readline の端末状態復元完了を証明できない。guest の state/address/DNS は条件で
 確認し、poll 間隔を同期の根拠にしない。deadline は最後の失敗上限とする。Windows の
-Host entry エラーは操作を retry せず driver を終了する。project cleanup は正常な一覧取得と
+Host entry エラーは操作を retry せず driver を終了する。installer が所有する WSL 再起動は固定750ms待ちを使わず、正常な停止状態一覧を観測する。project cleanup は正常な一覧取得と
 削除後の不存在確認を必要とし、query 失敗を削除許可や cleanup 成功にしない。
 
 ## 外部依存
@@ -99,7 +100,3 @@ apt、製品 image alias も完全には固定されていない。Windows resta
 既存失敗は調査が必要であり、成功と読み替えたり PR から外したりしない。静的検査と
 repository test だけで Issue #615 の native 再現性条件を満たしたとは判断できない。
 candidate/run に結び付いた結果を受入証拠に記録する。
-
-Ubuntu のインストール済み製品 CLI では run/create/status/stop/start/delete と Workspace の保持を検査する。evidence は必須ジョブだけでなく、一覧化した契約ステップの実際の success も要求し、成功ジョブ内の skip や欠落を拒否する。
-
-native Go コマンドは `ci-test-results.jsonl` に期待するテスト名、PASS/FAIL/SKIP または結果欠落、終了コードと run の識別子も保持する。

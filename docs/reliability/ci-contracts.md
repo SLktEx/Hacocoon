@@ -30,7 +30,7 @@ Configure branch protection to require `test-evidence`, `incus-core-e2e-evidence
 `ubuntu-installer-e2e-evidence` and `windows-installer-e2e-evidence`, in addition to
 the existing checks. Repository code cannot configure GitHub branch protection.
 The evidence job uses `always()` and checks every required job and named contract step result explicitly;
-skipped, cancelled, missing or failed jobs cannot satisfy it. Artifact/history
+skipped, cancelled, missing or failed jobs cannot satisfy it. Named matrix variants must also have successful receipts, so an aggregate needs result cannot hide a removed architecture or Go series. Artifact/history
 retrieval failures are also failures. Native prerequisites are never substituted
 with a successful focused probe.
 
@@ -84,7 +84,7 @@ The PTY regression synchronizes on a foreground command marker before resizing;
 command output alone does not establish that readline has finished restoring
 terminal state. Guest state/address/DNS polls use explicit predicates. Poll delays
 are sampling intervals; deadlines remain upper failure bounds. Windows Host entry
-errors terminate the driver without retrying the user action. Project cleanup
+errors terminate the driver without retrying the user action. Installer-owned WSL restarts observe successful stop-state listings instead of waiting a fixed 750 milliseconds. Project cleanup
 requires successful inventory and positive project absence; a failed query cannot
 authorize deletion or report successful cleanup.
 

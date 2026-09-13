@@ -3,6 +3,14 @@
 Implemented: Host `haco setup` waits for controller readiness through bounded read-only Ping probes before sending setup once. A failed setup response is never retried automatically. This handles the interval between systemd service activation and socket readiness without adding CLI steps.
 
 
+Automatic WSL entry distinguishes the real interactive shell from the background
+`login` shell that WSL starts on a separate PTY for systemd user-session setup.
+A login-managed shell remains ordinary Bash on the Physical Host; only real
+interactive entry requests controller-backed Host preparation. Parent command
+identity selects UI behavior and grants no authority. Setup exclusion and peer
+authorization remain unchanged. See [ADR 0064](../adr/0064-wsl-login-bootstrap-routing.md).
+
+
 ## Notification companion
 
 Implemented: setup also provisions same-release `/usr/local/bin/haco-notify`,

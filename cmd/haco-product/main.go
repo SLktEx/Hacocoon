@@ -205,6 +205,15 @@ func runLoginShim(args []string) error {
 	if len(args) != 0 || !stdioIsInteractive() {
 		return execProcess("/bin/bash", append([]string{"bash"}, args...))
 	}
+	bootstrap, err := loginBootstrapParent()
+	if err != nil {
+		return err
+	}
+	if bootstrap {
+		// WSL's PAM bootstrap also has a PTY. Keep that session on the
+		// Physical Host; it must not race the user's real Host entry.
+		return execProcess("/bin/bash", []string{"bash", "--login"})
+	}
 
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {

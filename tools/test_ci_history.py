@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
 import unittest
 
-from ci_history import Actions, check_needs, failure_boundary, summarize
+from ci_history import Actions, check_needs, failure_boundary, summarize, missing_job_variants
 
 
 class HistoryTests(unittest.TestCase):
+    def test_matrix_variant_cannot_disappear_behind_successful_needs(self):
+        rows = [{"run_id": 2, "job": "test (1.27.x)", "conclusion": "success"},
+                {"run_id": 1, "job": "test (1.26.x)", "conclusion": "success"}]
+        expected = ["test (1.26.x)", "test (1.27.x)"]
+        self.assertEqual(missing_job_variants(rows, 2, expected), ["test (1.26.x)"])
+        rows.append(dict(rows[1], run_id=2))
+        self.assertEqual(missing_job_variants(rows, 2, expected), [])
+
     def run_fixture(self, attempts, second_run=False):
         runs = [{"id": 1, "name": "test", "workflow_id": 42, "head_sha": "a" * 40,
                  "event": "pull_request", "run_attempt": len(attempts)}]

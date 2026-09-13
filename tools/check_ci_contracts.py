@@ -33,6 +33,9 @@ def check(text, spec):
     if pr and (set(pr) != {"branches"} or "main" not in pr["branches"]):
         errors.append("PR routing must include main and must not filter paths/types")
     jobs = child(tree, "jobs")
+    variants = spec.get("job_names", [])
+    if len(set(variants)) != len(variants) or {n.split(" (")[0] for n in variants} != set(spec["jobs"]):
+        errors.append("required job variant inventory is incomplete or duplicated")
     for name in spec["jobs"]:
         job = child(jobs, name) if jobs else None
         if job is None:

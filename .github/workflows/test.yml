@@ -30,7 +30,8 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: "[fixture] Check documentation consistency"
@@ -38,10 +39,10 @@ jobs:
       - name: "[fixture] Test documentation consistency regressions"
         run: python3 tools/test_check_docs.py
 
-      - name: Record bounded substrate evidence
+      - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
-      - name: Retain substrate evidence
+      - name: "[infrastructure] Retain substrate evidence"
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -53,7 +54,8 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -83,10 +85,10 @@ jobs:
           GITLEAKS_ENABLE_COMMENTS: "false"
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
 
-      - name: Record bounded substrate evidence
+      - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
-      - name: Retain substrate evidence
+      - name: "[infrastructure] Retain substrate evidence"
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -98,7 +100,8 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: "[fixture] Test release tag trust validation"
@@ -116,7 +119,8 @@ jobs:
           python3 tools/test_incus_boot_guard.py
           python3 tools/test_windows_user_path.py
           python3 tools/test_wsl_oobe_config.py
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: "[infrastructure] Install pinned Go"
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.0
           check-latest: false
@@ -137,7 +141,9 @@ jobs:
         run: bash -n scripts/install.sh scripts/install-ubuntu.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
       - name: "[fixture] Validate Windows installer syntax"
         shell: pwsh
-        run: '[scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null'
+        run: |
+          [scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null
+          ./tools/test_wsl_stop_readiness.ps1
       - name: "[fixture] Validate pre/main/post installer boundary"
         shell: bash
         run: |
@@ -186,10 +192,10 @@ jobs:
             test -f "release-payload-test/$path"
           done
 
-      - name: Record bounded substrate evidence
+      - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
-      - name: Retain substrate evidence
+      - name: "[infrastructure] Retain substrate evidence"
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -207,10 +213,12 @@ jobs:
           - amd64
           - arm64
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: "[infrastructure] Install pinned Go"
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.0
           check-latest: false
@@ -231,10 +239,10 @@ jobs:
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-agent-host" ./cmd/haco-agent-host
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-notify" ./cmd/haco-notify
 
-      - name: Record bounded substrate evidence
+      - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
-      - name: Retain substrate evidence
+      - name: "[infrastructure] Retain substrate evidence"
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -246,7 +254,8 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: "[fixture] Prepare optional AWS SDK test environment"
@@ -256,10 +265,10 @@ jobs:
       - name: "[product] Verify AWS identity, signing scope and redirect refusal without AWS access"
         run: HACO_AWS_TEST_PYTHON="$RUNNER_TEMP/aws-sdk/bin/python" bash tools/ci-local.sh aws
 
-      - name: Record bounded substrate evidence
+      - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
-      - name: Retain substrate evidence
+      - name: "[infrastructure] Retain substrate evidence"
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -280,10 +289,12 @@ jobs:
           - go-version: 1.27.0
             go-series: 1.27.x
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: "[infrastructure] Install pinned Go"
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ matrix.go-version }}
           check-latest: false
@@ -329,10 +340,10 @@ jobs:
           node --check test/js/agent_workspace_tool_security.test.js
           node --test test/js/agent_workspace_client.test.js test/js/agent_workspace_tools.test.js test/js/agent_workspace_tool_security.test.js
 
-      - name: Record bounded substrate evidence
+      - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
-      - name: Retain substrate evidence
+      - name: "[infrastructure] Retain substrate evidence"
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -344,10 +355,12 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: "[infrastructure] Install pinned Go"
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.0
           check-latest: false
@@ -355,10 +368,10 @@ jobs:
       - name: "[product] Go race tests"
         run: go test -race -count=1 ./...
 
-      - name: Record bounded substrate evidence
+      - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
-      - name: Retain substrate evidence
+      - name: "[infrastructure] Retain substrate evidence"
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -370,10 +383,12 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: "[infrastructure] Install pinned Go"
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.0
           check-latest: false
@@ -389,10 +404,10 @@ jobs:
       - name: "[product] Orchestrator E2E"
         run: bash test/e2e/orchestrator.sh
 
-      - name: Record bounded substrate evidence
+      - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
-      - name: Retain substrate evidence
+      - name: "[infrastructure] Retain substrate evidence"
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -409,7 +424,8 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Verify required jobs and same-commit history
@@ -417,7 +433,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           CI_NEEDS: ${{ toJSON(needs) }}
         run: python3 tools/ci_history.py --gate --output ci-evidence.json
-      - name: Retain CI evidence
+      - name: "[infrastructure] Retain CI evidence"
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
