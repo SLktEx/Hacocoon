@@ -30,7 +30,7 @@ done
 const hostOCIConfiguration = persistentOCIConfiguration
 
 // Read only known daemon configuration; never return its contents to the controller.
-const hostOCILayoutVerify = `import json, os, stat
+const hostOCILayoutVerify = `import json, os, stat, platform
 try:
     data = []
     for path in ['/etc/containerd/config.toml', '/etc/docker/daemon.json']:
@@ -45,7 +45,9 @@ root = "/var/lib/hacocoon-oci/containerd"
 state = "/run/containerd"
 [grpc]
   address = "/run/containerd/containerd.sock"'''
-    if data[0].strip() != expected: raise ValueError()
+    arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
+    native = expected + '\n\n[[plugins."io.containerd.transfer.v1.local".unpack_config]]\n  platform = "linux/' + str(arch) + '"\n  snapshotter = "native"'
+    if data[0].strip() not in (expected, native): raise ValueError()
     docker = json.loads(data[1])
     if docker != {'data-root': '/var/lib/hacocoon-oci/docker', 'exec-root': '/run/docker'}: raise ValueError()
 except Exception:
