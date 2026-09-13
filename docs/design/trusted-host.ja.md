@@ -258,42 +258,61 @@ Windows/WSLの確認済み範囲は、実装statusに記録したcommit固定の
 
 ## 保存したカスタマイズ手順
 
-状態: **コントローラー setup からの明示実行・再実行は実装済み、Windows GHA は bcc1baf で成功**。
+Status: **implemented（実装済み）**。所有するIncus Hostの実体ごとに自動適用を記録します。
+旧save/replay経路は`bcc1baf`でWindows GHAに合格していますが、新しい自動適用・再作成・
+結果確認経路のinstalled受入は最新headで別途必要です。
 
-`haco setup --script <path>` は利用者が選んだ Bash 手順を、通常の Host 準備後に保存・実行します。
-`haco setup` は保存した内容を再実行します。元ファイルを編集しただけでは変わらず、再び `--script` を指定して更新します。
-`haco setup --clear-script` は保存した手順を実行せずに解除します。新しいトップレベルコマンドは増やしません。
-
-クライアントは最大1 MiB の通常の UTF-8 ファイルを読み、BOM と Windows CRLF を正規化します。
-コントローラーは設定した Hacocoon root の `host-customization/recipe.sh` に非公開なスナップショットを保存します。
-既定の絶対パスは `/var/lib/hacocoon/host-customization/recipe.sh` です。
-所有権を確認した信頼された Host の `/root` で `/bin/bash -se` を起動し、内容を標準入力から渡します。
-固定名の systemd transient unit が同時実行を拒否し、コントローラー終了後も最長14分でプロセス group を停止します。
-要求の期限が短い場合は unit の期限も短くします。
-Physical Host で実行せず、Environment へコピーせず、project の hook を自動探索しません。
-
-信頼された `haco-host` 内の例:
-
-```sh
-cat > ~/host-setup.sh <<'SH'
-install -d -m 0755 "$HOME/.local/bin"
-cat > "$HOME/.local/bin/hello-haco" <<'HELLO'
-#!/bin/sh
-echo "hello from haco-host"
-HELLO
-chmod 0755 "$HOME/.local/bin/hello-haco"
-SH
-haco setup --script ~/host-setup.sh
-haco setup
-haco setup --clear-script
+```bash
+haco setup --script ~/host-setup.sh   # 保存し、必須provisioningの後に適用
+haco setup                          # 必須処理を照合し、未適用のHostだけ自動実行
+haco setup --reapply-script          # 保存したユーザースクリプトだけ再実行
+haco setup --script-result           # 最後のstdout・stderr・終了コードを確認
+haco setup --clear-script            # 今後の適用を解除
 ```
 
-手順は再実行できる形で書きます。途中で失敗すると保存内容を保持して失敗を返し、それ以前の利用者コマンドを rollback しません。
-認証情報が含まれる可能性があるため、スクリプトの stdout/stderr はコントローラーの診断へ転送しません。
-スクリプト自身の出力を調べるときは、元のスクリプトを信頼された Host 内で直接実行してください。
-保存ファイルの不正な権限や link は拒否するため、コントローラー所有の設定を確認する必要があります。
-Host 再作成後の明示的なコントローラー setup から保存内容を再利用できますが、実際の再作成と setup 外での暗黙の再作成は未検証です。
-[ADR 0019](../adr/0019-trusted-host-customization.md) を参照してください。
+通常のcontroller経由Host shell入口も同じ準備経路を使い、Host再作成時も必須provisioningを
+完了してからユーザー処理を実行します。成功済みの同じHostでは入口、通常コマンド、upgradeや
+reprovisionで再実行しません。providerの`volatile.uuid`が変わると保存内容を再適用します。
+元ファイルの変更だけでは保存内容は変わらず、`--script`で明示的に更新します。
+`--reapply-script`は必須provisioningを省略し、既に所有・起動済みのHostだけで実行します。
+追加した2フラグはHost専用で、Environment指定のWorkspace recipe契約は維持します。
+
+クライアントは最大1 MiBの通常UTF-8ファイルを読みます。実行bitは不要で、UTF-8 BOMと
+CRLFを正規化します。`~/`はクライアント側アカウントで解決します。PowerShellではWSLの
+Physical Hostに入っているLinuxクライアントを使います。
+
+```powershell
+wsl.exe -d Hacocoon --exec /usr/local/bin/haco setup --script 'C:\Users\Example\host-setup.sh'
+wsl.exe -d Hacocoon --exec /usr/local/bin/haco setup --script-result
+```
+
+Windows driveパスは空白や設定済みmountを含めWSL自身の`wslpath`で解決します。
+trusted `haco-host`内では`/mnt/c/Users/Example/host-setup.sh`のような既存の投影先Linuxパスを
+使います。native Windows `haco.exe`、手作業の改行変換、chmodは不要です。
+
+controllerの非公開Hacocoon root（通常`/var/lib/hacocoon`）配下の
+`host-customization/recipe.sh`と`result.json`に保存します。結果はHost実体、正規化したscriptの
+SHA-256、running/succeeded/failed、終了コード、上限付き出力を持ちます。実行前にrunningを
+永続化し、完了時に原子的に更新します。失敗・中断・完了不明は同じHostでの自動再試行を拒否し、
+controller再起動後も維持します。結果を調べ、`--script`で修正するか`--reapply-script`で明示的に
+再試行します。解除後も最後の結果は保持し、実行済み変更は取り消しません。旧版で保存され実行記録が
+まだないrecipeは次のsetup/入口で一度適用し、その後はHost実体ごとの規則に従います。
+
+scriptは明示的な再実行と部分的な副作用に耐えるように書いてください。任意コマンドはrollback
+できません。所有を検証したHost内のrootとして、作業場所と`HOME`を`/root`に固定し、
+`/bin/bash -se`へ上限付きstdinで渡します。固定名`hacocoon-user-setup`のsystemd unitが重複を
+拒否し、最長14分（要求期限が短ければそれ以下）で子孫も終了します。controller終了後もこの上限を
+維持します。非公開storeのlockで変更・実行を直列化し、不正・リンク・公開権限・別所有者のstateを拒否します。
+
+scriptは既存のHost権限を使えるtrusted codeです。Physical Hostのsocket、credential、環境変数、
+mount、controller経路を追加せず、Physical Hostで実行したり通常Environmentへ配布したりしません。
+repository hookの自動検出も行いません。
+
+stdout/stderrは別々に64 KiBまで保持し、打ち切りはmarkerと総byte数で明示します。
+`--script-result`でのみ表示し、秘密を含み得る明示的なcommand outputとして扱ってください。
+application log、progress stage、auditには出しません。非zero終了はsetup失敗、`-1`は確実な
+process終了値がない状態です。controller crashでは出力なしのrunning記録が残り得ますが、成功や
+自動再実行の許可にはしません。[ADR 0019](../adr/0019-trusted-host-customization.md)を参照してください。
 
 ## ネストした OCI runtime
 

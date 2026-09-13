@@ -51,6 +51,11 @@ func RegisterSetup(server *control.Server, service setupService) error {
 		}
 		requestID := hex.EncodeToString(id[:])
 		ctx = logging.With(ctx, "component", "bootstrap", "operation", "setup", "request_id", requestID)
+		ctx = recipes.ObserveHostResult(ctx, func(result recipes.HostResult) {
+			if report != nil {
+				report(setupFrame{Result: &result, RequestID: requestID})
+			}
+		})
 		ctx = hostsetup.Observe(ctx, func(e hostsetup.Event) {
 			logging.FromContext(ctx).InfoContext(ctx, "Host setup stage", "stage", e.Stage, "state", e.State, "reason", e.Reason, "duration_ms", e.DurationMS)
 			if report != nil {
@@ -127,26 +132,29 @@ func decodeSetupUpdate(payload json.RawMessage) (recipes.Update, error) {
 const MethodSetupProgress = "system.setup.progress"
 
 type setupFrame struct {
-	Event     *hostsetup.Event `json:"event,omitempty"`
-	RequestID string           `json:"request_id,omitempty"`
-	Done      bool             `json:"done,omitempty"`
-	Code      string           `json:"code,omitempty"`
+	Result    *recipes.HostResult `json:"result,omitempty"`
+	Event     *hostsetup.Event    `json:"event,omitempty"`
+	RequestID string              `json:"request_id,omitempty"`
+	Done      bool                `json:"done,omitempty"`
+	Code      string              `json:"code,omitempty"`
 }
 
 // SetupHostProgress never falls back to another mutation after a stream failure.
 // A bounded stream needs an explicit final acknowledgement; EOF is not success.
-func (c *Client) SetupHostProgress(ctx context.Context, update recipes.Update, report func(string, hostsetup.Event)) error {
+func (c *Client) SetupHostProgress(ctx context.Context, update recipes.Update, report func(string, hostsetup.Event), results ...func(recipes.HostResult)) error {
 	conn, err := c.wire.OpenStream(ctx, MethodSetupProgress, update)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
-	decoder := json.NewDecoder(io.LimitReader(conn, 256<<10))
+	decoder := json.NewDecoder(io.LimitReader(conn, 2<<20))
 	decoder.DisallowUnknownFields()
 	setupComplete := false
 	activeStages := map[string]int{}
 	started := false
 	var requestID string
+	resultSeen := false
+	resultFailed := false
 	for n := 0; n < 512; n++ {
 		var f setupFrame
 		if err := decoder.Decode(&f); err != nil {
@@ -156,12 +164,12 @@ func (c *Client) SetupHostProgress(ctx context.Context, update recipes.Update, r
 			return control.ErrProtocol
 		}
 		if f.Done {
-			if f.Event != nil || f.RequestID != "" {
+			if f.Event != nil || f.RequestID != "" || f.Result != nil {
 				return control.ErrProtocol
 			}
 			switch f.Code {
 			case "":
-				if !setupComplete {
+				if !setupComplete || (update.ResultOnly && !resultSeen) || (!update.ResultOnly && resultFailed) {
 					return control.ErrProtocol
 				}
 				return nil
@@ -170,6 +178,19 @@ func (c *Client) SetupHostProgress(ctx context.Context, update recipes.Update, r
 			default:
 				return control.ErrProtocol
 			}
+		}
+		if f.Result != nil {
+			if !started || setupComplete || resultSeen || f.Event != nil || f.Code != "" || f.RequestID != requestID || !f.Result.Valid() {
+				return control.ErrProtocol
+			}
+			resultSeen = true
+			resultFailed = f.Result.State == "failed" || f.Result.State == "running"
+			for _, receive := range results {
+				if receive != nil {
+					receive(*f.Result)
+				}
+			}
+			continue
 		}
 		if f.Event == nil || f.Code != "" || !hostsetup.ValidStage(f.Event.Stage) || !hostsetup.ValidReason(f.Event.Reason) || f.Event.DurationMS < 0 {
 			return control.ErrProtocol
