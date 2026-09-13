@@ -102,9 +102,11 @@ elif name not in ('apt-get', 'install'): sys.exit(99)
             self.assertFalse(any(name == 'apt-get' and args[0] == 'install' for name, args in trace))
 
     def test_newer_installed_series_does_not_get_downgraded(self):
-        result, trace, _ = self.install(installed='1:7.2.0-1')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(any(name in ('curl', 'install', 'apt-get') for name, _ in trace))
+        for version in ('1:7.2.0-1', '7.1.0-1', '7.2.0-1', '0:8.0.1-1'):
+            with self.subTest(version=version):
+                result, trace, _ = self.install(installed=version)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(any(name in ('curl', 'install', 'apt-get') for name, _ in trace))
 
     def test_server_version_is_bounded_and_fails_closed(self):
         for version, accepted in [('7.0.1', True), ('7.0.99', True), ('6.0.5', False), ('7.0.0', False),

@@ -25,7 +25,9 @@ grant a user management access. Existing installer and runtime lifecycle owners
 retain these responsibilities.
 
 An installed newer series is refused before source changes instead of being
-automatically downgraded. Existing 6.0 compatibility paths remain, but `haco
+automatically downgraded. This comparison excludes Debian packaging epochs:
+an unepoched distro 7.1 is still a newer Incus series than vendor `1:7.0`.
+Existing 6.0 compatibility paths remain, but `haco
 doctor` reports unsupported servers and skips dependent probes. The actual
 server version must also pass the shared installer/CI check. Unknown or malformed
 versions fail closed without printing raw backend text. Fresh native installation
