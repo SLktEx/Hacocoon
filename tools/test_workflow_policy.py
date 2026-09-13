@@ -9,15 +9,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from check_workflow_policy import check_text  # noqa: E402
 
 SHA = "a" * 40
+QUALITY_WORKFLOW = Path(".github/workflows/quality.yml")
 
 
-def messages(text: str) -> list[str]:
-    return [violation.message for violation in check_text(Path("fixture.yml"), text)]
+def messages(text: str, path: Path = Path("fixture.yml")) -> list[str]:
+    return [violation.message for violation in check_text(path, text)]
 
 
 class WorkflowPolicyTests(unittest.TestCase):
-    def assert_rejected(self, text: str, needle: str) -> None:
-        found = messages(text)
+    def assert_rejected(self, text: str, needle: str, path: Path = Path("fixture.yml")) -> None:
+        found = messages(text, path)
         self.assertTrue(any(needle in message for message in found), found)
 
     def test_accepts_intended_pr_workflow(self) -> None:
@@ -178,6 +179,81 @@ jobs:
     def test_rejects_secret_injection_in_pr(self) -> None:
         self.assert_rejected(
             "on:\n  pull_request:\njobs:\n  test:\n    runs-on: ubuntu-26.04\n    env:\n      TOKEN: ${{ secrets.RELEASE_TOKEN }}\n",
+            "secrets are not permitted",
+        )
+
+    def test_accepts_sonar_token_only_on_pinned_scan_action(self) -> None:
+        workflow = f"""name: quality
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  coverage:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: SonarQube Cloud scan
+        uses: SonarSource/sonarqube-scan-action@{SHA}
+        env:
+          SONAR_TOKEN: ${{{{ secrets.SONAR_TOKEN }}}}
+"""
+        self.assertEqual(messages(workflow, QUALITY_WORKFLOW), [])
+
+    def test_rejects_sonar_token_in_other_workflow(self) -> None:
+        workflow = f"""on:
+  pull_request:
+jobs:
+  scan:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: SonarSource/sonarqube-scan-action@{SHA}
+        env:
+          SONAR_TOKEN: ${{{{ secrets.SONAR_TOKEN }}}}
+"""
+        self.assert_rejected(workflow, "secrets are not permitted")
+
+    def test_rejects_sonar_token_in_run_step(self) -> None:
+        workflow = """on:
+  pull_request:
+jobs:
+  scan:
+    runs-on: ubuntu-26.04
+    steps:
+      - run: echo scan
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+"""
+        self.assert_rejected(workflow, "secrets are not permitted", QUALITY_WORKFLOW)
+
+    def test_rejects_sonar_token_on_other_action(self) -> None:
+        workflow = f"""on:
+  pull_request:
+jobs:
+  scan:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: attacker/example@{SHA}
+        env:
+          SONAR_TOKEN: ${{{{ secrets.SONAR_TOKEN }}}}
+"""
+        self.assert_rejected(workflow, "secrets are not permitted", QUALITY_WORKFLOW)
+
+    def test_rejects_other_secret_in_quality_workflow(self) -> None:
+        workflow = f"""on:
+  pull_request:
+jobs:
+  scan:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: SonarSource/sonarqube-scan-action@{SHA}
+        env:
+          SONAR_TOKEN: ${{{{ secrets.RELEASE_TOKEN }}}}
+"""
+        self.assert_rejected(workflow, "secrets are not permitted", QUALITY_WORKFLOW)
+
+    def test_rejects_bracket_secret_syntax_in_pr(self) -> None:
+        self.assert_rejected(
+            "on:\n  pull_request:\njobs:\n  test:\n    runs-on: ubuntu-26.04\n    env:\n      TOKEN: ${{ secrets['RELEASE_TOKEN'] }}\n",
             "secrets are not permitted",
         )
 

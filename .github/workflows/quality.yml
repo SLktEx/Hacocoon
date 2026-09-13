@@ -1,0 +1,85 @@
+name: quality
+
+on:
+  push:
+    branches:
+      - main
+      - dev/1.x
+      - dev/v2
+      - dev/2.x
+  pull_request:
+    branches:
+      - main
+      - dev/1.x
+      - dev/v2
+      - dev/2.x
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  lint:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Lint changed code
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.13.2
+          only-new-issues: true
+          skip-cache: true
+
+  coverage:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Test with coverage
+        run: go test -count=1 -shuffle=on -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Summarize coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          go tool cover -func=coverage.out | tee coverage.txt
+          total="$(tail -n 1 coverage.txt)"
+          {
+            echo '## Go coverage'
+            echo
+            echo '```text'
+            echo "$total"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: SonarQube Cloud scan
+        if: vars.SONAR_ENABLED == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scannerVersion: 8.1.0.6389
+      - name: Explain disabled SonarQube Cloud scan
+        if: vars.SONAR_ENABLED != 'true'
+        run: echo 'SonarQube Cloud scan is disabled until SONAR_TOKEN is configured and SONAR_ENABLED=true; Go coverage above still runs normally.'
