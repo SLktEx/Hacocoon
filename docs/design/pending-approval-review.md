@@ -2,7 +2,7 @@
 
 [日本語](pending-approval-review.ja.md) | English
 
-Status: **implemented repository slice; VS Code review implemented; Windows native entry implemented; D2 acceptance partial**.
+Status: **VS Code GUI and Windows notification review implemented on the development candidate; fresh installed-answer acceptance partial**.
 Repository tests are separate from installed network, desktop and GitHub acceptance.
 
 ## Ordinary use
@@ -140,33 +140,49 @@ terminal successes are historical evidence, not GUI acceptance; see
 [acceptance evidence](../status/acceptance-evidence.md). Windows notification-contained
 fresh answers remain a separate open part of Issue #568.
 
-## Windows notification entry
+## Answering inside Windows notifications
 
-The Windows installer registers the native review adapter for its own WSL
-distribution and enables the owned notification service in the trusted `haco-host`.
-`-SkipDesktopReview` skips registration and disables that service. Ordinary Host
-setup provisions the notification companion and subscribes through the controller;
-raw audit files are not projected. Clicking opens the existing `haco approve`
-console for that request. Inspect the scope and type the ordinary answer; opening
-never answers, saves Policy or retries an operation. Installed Windows automatic
-startup acceptance remains pending; see [interaction delivery](../reference/interaction-events.md).
+Status: **implemented on the development candidate; fresh installed answers and
+visual layout acceptance remain pending**.
 
-Each distribution has its own user protocol and notification identity. Installing a
-test instance does not redirect another instance's notifications. The helper receives
-only a canonical request URI, fixes executable paths and the configured distribution,
-and strips environment overrides. Invalid links, extra arguments and stale requests
-fail closed. Missing registration leaves a notification without an approval action.
-Linux desktop activation remains planned; VS Code remains optional.
+The Windows installer registers the hidden helper, protocol correlation entry,
+notification identity and COM activator for its own WSL distribution. Owned Host
+setup subscribes through the existing controller transport. `-SkipDesktopReview`
+still skips registration and disables the owned notification service.
 
-Local Windows evidence covers native notification history with the exact protocol URI,
-Windows protocol launch of the expected helper, and the installed controller's stale
-request refusal. These used an already completed dedicated HTTPS test request. Fresh
-decisions through an OS notification and a human's visible toast click are not yet
-verified. See [ADR 0030](../adr/0030-windows-notification-review.md).
+A pending notification opens the complete review in the OS notification itself.
+Use Next/Previous to inspect every current condition, choose whether to save Policy,
+then inspect the actual saved rule before allowing or denying the current operation.
+No saved Policy is the default. This Env means this creation only; all Envs includes
+future creations. Saving ask still needs an explicit current answer. Body clicks,
+display, closing, reopening and URLs never answer. No terminal, browser or separate
+management window is required by this implementation.
 
-Windows run 34176272125 at `4bb8dad` failed before desktop acceptance because
-native adapter checksum verification required unavailable `Get-FileHash`.
-The adapter now hashes through .NET directly; PowerShell 5.1 component regression
-passes with `Get-FileHash` deliberately unavailable. Real Windows installation
-and automatic service acceptance after this fix remain pending. Downstream checks
-in that failed run were skipped, not successful.
+Long authority values continue onto further pages without truncation. Text is literal,
+with control/bidirectional characters escaped. Selection controls contain only common
+saved choices. Each successfully shown page gets a private, single-use native nonce.
+The final intent is reselected through a separate private child and compared with the
+complete displayed request and saved options before the common service decides.
+Controller tokens/answers never enter argv, URLs or public events. Core gains no
+Windows-specific Policy or execution logic; ordinary Environments gain no authority.
+
+The helper validates installed per-user/per-distribution ownership and fixed launch
+paths. Duplicate launches ask the existing COM server to show that read-only request
+and acknowledge actual Show. At most sixteen reviews are active; pending state refreshes
+every three seconds, admitting at most one new notification per refresh. Removed requests
+lose their buttons, and the native notification also has a two-minute expiry. The helper
+and private peers have a fifteen-minute maximum lifetime; submitted children have a
+five-minute bound within it. Shutdown cancels/reaps owned children and clears owned
+review notifications. Old nonces remain invalid even if native cleanup fails.
+
+Display, protocol, registration and transport failures never imply approval. A submission
+is consumed before any fallible call and is not automatically retried. Receipts distinguish
+denial, successful operation with audit, known saved Policy, failed operation and uncertain
+results. Check current Policy and audit before retrying an uncertain result. Native
+diagnostics expose only fixed stages/status values, not raw subprocess output.
+
+See [ADR 0071](../adr/0071-notification-contained-approval.md). Windows COM callbacks and
+English/Japanese selection XML in native history have component coverage. This does not
+prove visible layout, human clicks or fresh installed decisions. Previous console/URI
+acceptance, the historical checksum failure and remaining native gaps stay in
+[acceptance evidence](../status/acceptance-evidence.md). Linux native activation remains planned.

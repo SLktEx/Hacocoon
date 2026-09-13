@@ -84,8 +84,9 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.61 | Local GUI Approval Review | 実装済み |
 | v0.62 | Temporary Process Streams | 開発候補に実装済み、実機pipe／TTY受入は未確認 |
 | v0.63 | Durable Git Push Reconciliation | 実装済み |
+| v0.64 | Notification-contained Approval | 実装済み |
 
-現在のmilestone位置は **v0.63**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.64**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
 
@@ -105,3 +106,5 @@ v0.61はVS Codeのterminal入力をローカルGUI回答へ置き換え、privat
 v0.62は共通の作成／cleanup lifecycleを使い、一時実行にstdinと任意TTYを追加します。
 pipeの出力分離・実際の終了コード・入力上限・cleanup確認を維持します。実機pipe／端末の
 受入は未確認であり、M3完了や配布済みのリリースではありません。
+
+v0.64はWindowsの端末回答を、通知内のページ・選択欄・COM受信へ置き換え、既存の非公開確認sessionを再利用します。開発checkpointでありM2/M3完了や配布済みreleaseではありません。導入済み新規回答と表示の見切れは未確認です。

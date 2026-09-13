@@ -12,6 +12,13 @@ $registration = 'HKCU:\Software\Classes\' + $scheme
 $owner = Get-ItemProperty -LiteralPath $registration
 $command = (Get-Item -LiteralPath ($registration + '\shell\open\command')).GetValue('')
 if ($owner.HacocoonDistribution -ine $Distro -or $command -cne ('"' + $adapter + '" "%1"')) { throw 'Native review registration differs from the installed adapter' }
+& (Join-Path $PSScriptRoot 'test_windows_toast_registration.ps1') -AdapterPath $adapter
+$class = Get-HacocoonReviewClassID $Distro
+$appKey = Get-Item -LiteralPath ('HKCU:\Software\Classes\AppUserModelId\' + $scheme)
+$classKey = 'HKCU:\Software\Classes\CLSID\' + $class
+if ($appKey.GetValue('CustomActivator') -ine $class -or
+    (Get-ItemProperty -LiteralPath $classKey).HacocoonDistribution -ine $Distro -or
+    (Get-Item -LiteralPath ($classKey + '\LocalServer32')).GetValue('') -cne ('"' + $adapter + '" --toast-server')) { throw 'Native COM registration differs' }
 function Invoke-ReviewProbe([string[]]$Arguments, [int]$ExitCode, [string]$Expected) {
     $info = [Diagnostics.ProcessStartInfo]::new()
     $info.FileName = $adapter
@@ -29,8 +36,7 @@ function Invoke-ReviewProbe([string[]]$Arguments, [int]$ExitCode, [string]$Expec
         $started = $true
         $output = $process.StandardOutput.ReadToEndAsync()
         $errorOutput = $process.StandardError.ReadToEndAsync()
-        # No approval answer is sent. The newline only dismisses the stale receipt.
-        $process.StandardInput.WriteLine('')
+        # No approval answer is supplied through stdin or argv.
         $process.StandardInput.Close()
         if (-not $process.WaitForExit(60000)) { throw 'Native review timed out' }
         $receipt = $output.GetAwaiter().GetResult() + $errorOutput.GetAwaiter().GetResult()
@@ -42,7 +48,7 @@ function Invoke-ReviewProbe([string[]]$Arguments, [int]$ExitCode, [string]$Expec
 }
 $id = [guid]::NewGuid().ToString('N')
 $uri = $scheme + '://request/' + $id
-Invoke-ReviewProbe @($uri) 1 'haco: request is no longer pending'
+Invoke-ReviewProbe @($uri) 1 'Hacocoon request is no longer pending.'
 Invoke-ReviewProbe @($uri + '?answer=yes') 2 'Invalid Hacocoon review link.'
 Invoke-ReviewProbe @($uri, '--yes') 2 'requires one Windows notification link'
 
@@ -81,7 +87,7 @@ try {
 }
 Write-Host 'WINDOWS REVIEW FOREIGN OWNERSHIP REFUSAL: PASS'
 Write-Host 'INSTALLED NATIVE REVIEW / EXACT REGISTRATION / STALE AND MALFORMED REFUSAL: PASS'
-Write-Host 'SKIP: this console fixture does not observe a human toast click or fresh UI decision'
+Write-Host 'SKIP: this hidden-launch fixture does not observe a human toast click or fresh UI decision'
 
 Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'test_host_notification.py') | & wsl.exe --distribution $Distro --user root --exec incus exec haco-host --project hacocoon --disable-stdin=false -- python3 -I - $Distro
 if ($LASTEXITCODE -ne 0) { throw 'Installed Host notification subscription failed' }

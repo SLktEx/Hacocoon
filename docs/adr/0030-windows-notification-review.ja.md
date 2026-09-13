@@ -63,3 +63,5 @@ setup の再実行では、所有確認済みの通知サービスが稼働中�
 revision が一致すれば再利用します。保護された Physical Host のインストール済み companion の
 SHA-256 を unit に記録し、バイナリや設定が変わった場合は再起動します。健康な再設定は
 systemd の起動回数制限を消費しません。停止中／failed の復旧と opt-out は維持します。
+
+コンソール表示はhistoricalとなり、[ADR 0071](0071-notification-contained-approval.ja.md)に置き換わりました。信頼された購読とディストリビューション所有権の境界は維持します。

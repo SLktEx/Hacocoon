@@ -22,6 +22,9 @@ on:
       - "tools/installed-egress-check/**"
       - "tools/test_installed_egress.ps1"
       - "tools/test_windows_environment_ssh.ps1"
+      - "scripts/windows-review.ps1"
+      - "tools/test_windows_native_review.ps1"
+      - "tools/test_windows_toast_registration.ps1"
       - "tools/verify_installed_source_guard.py"
       - "tools/test_installed_source_guard.py"
       - "tools/test_windows_environment_transfer.ps1"
@@ -66,11 +69,11 @@ jobs:
           check-latest: false
           cache: false
 
-      - name: Test native Windows reclamation boundaries
+      - name: Test native Windows client boundaries
         shell: pwsh
         run: |
-          go test -v -timeout 3m ./internal/wslreclaim ./internal/reclaimclient ./cmd/haco-wsl
-          if ($LASTEXITCODE -ne 0) { throw "Native Windows reclamation tests failed." }
+          go test -v -timeout 3m ./internal/wslreclaim ./internal/reclaimclient ./cmd/haco-wsl ./cmd/haco-review ./internal/desktopreview
+          if ($LASTEXITCODE -ne 0) { throw "Native Windows client tests failed." }
 
       - name: Install pinned GoReleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3

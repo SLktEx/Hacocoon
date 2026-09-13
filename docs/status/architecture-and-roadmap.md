@@ -362,3 +362,13 @@ window size over the transport's resize. Native Windows/Incus passes and this
 fixture correction remain distinct evidence. Product terminal behavior is
 unchanged. Continue the original SSH-failure and installed long-input gaps,
 then the independent Git result reconciliation in #470.
+
+### Windows notification answers and the M3 target
+
+The user narrowed the current execution target to M3; M4/M5 contracts remain future
+work for this run. The Windows candidate implements notification-contained
+review and responses through the existing common approval service. Complete visible
+layout and fresh installed Windows/VS Code decisions, including simultaneous review
+and saved Policy effects, before closing #568. Native history/COM tests do not replace
+those checks. Continue independent M3 DNS modes, VPN/NRPT and client forwarding while
+retaining M1 Japanese Windows/original SSH gaps and authenticated Git acceptance.

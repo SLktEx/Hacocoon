@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.63**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.64**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on this development candidate. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 
@@ -66,3 +66,5 @@ passed at `9f4cf510`. The later stdin/TTY implementation uses that same lifecycl
 Incus pipe/PTY acceptance passed at `b3169814`; Windows input initially failed, then passed after the driver correction at `9767fd93`. See [temporary execution](design/temporary-execution.md).
 
 Human-facing retained-data reviews, deletion consequences/confirmation/results and snapshot result headings now share the English/Japanese catalog. The five reviewed deletion paths use one confirmation function and refuse failed warning/prompt display. Original errors, JSON, ownership checks and default refusal are preserved; full result translation and Japanese Windows remain partial.
+
+Windows review now uses native notification pages and selection controls with a hidden COM helper, fixed distribution routing and the common private approval session. Component coverage includes native COM and English/Japanese ToastGeneric history; human clicks, visible layout and fresh installed answers remain unverified. See [approval semantics](design/pending-approval-review.md) and [acceptance evidence](status/acceptance-evidence.md).

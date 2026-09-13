@@ -86,8 +86,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.61 | Local GUI Approval Review | implemented on development candidate; installed GUI acceptance pending |
 | v0.62 | Temporary Process Streams | implemented on development candidate; native pipe/TTY acceptance pending |
 | v0.63 | Durable Git Push Reconciliation | ✅ implemented |
+| v0.64 | Notification-contained Approval | ✅ implemented |
 
-The current milestone position is **v0.63**. This declaration and the table mirror YAML.
+The current milestone position is **v0.64**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 
@@ -111,3 +112,5 @@ The v0.62 slice adds stdin and optional TTY to temporary execution through the
 common creation/cleanup lifecycle. It preserves separate piped outputs, actual
 exit codes, input bounds and confirmation of cleanup. Native pipe/terminal gates
 remain pending; this is neither M3 completion nor a distributed release.
+
+The v0.64 slice replaces Windows terminal answers with native notification pages, selection controls and COM activation over the existing private review session. It is a development checkpoint, not completion of M2/M3 or a distributed release. Fresh installed answers and visible layout remain pending.

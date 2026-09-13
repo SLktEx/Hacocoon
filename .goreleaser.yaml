@@ -84,7 +84,7 @@ builds:
     goos: [windows]
     goarch: [amd64, arm64]
     flags: [-trimpath]
-    ldflags: [-s -w]
+    ldflags: [-s -w -H=windowsgui]
 
   - id: haco-wsl
     main: ./cmd/haco-wsl

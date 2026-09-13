@@ -71,3 +71,5 @@ configuration and executable revision match. The unit records a SHA-256 revision
 of the installed, protected Physical Host companion; a new binary or configuration
 therefore still restarts the service. Healthy refresh does not consume systemd
 start-rate limits. Inactive/failed service recovery and opt-out remain explicit.
+
+The console presentation is historical and superseded by [ADR 0071](0071-notification-contained-approval.md). The trusted subscription and distribution ownership boundaries remain.
