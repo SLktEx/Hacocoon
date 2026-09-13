@@ -24,13 +24,13 @@ func sourceManageCommand(ctx context.Context, c sourceManageClient, args []strin
 	}
 	f := flag.NewFlagSet("haco repo "+args[0], flag.ContinueOnError)
 	f.SetOutput(diagnostic)
-	f.Usage = func() { fmt.Fprintln(diagnostic, "Usage: haco repo list [--json] | haco repo delete [--yes] <id>") }
+	f.Usage = func() { commandHelp(diagnostic, "repo "+args[0], cliLanguage()) }
 	var yes, machine bool
 	switch args[0] {
 	case "list":
-		f.BoolVar(&machine, "json", false, "machine-readable source repositories")
+		f.BoolVar(&machine, "json", false, cliMessage("flag.json"))
 	case "delete":
-		f.BoolVar(&yes, "yes", false, "confirm removal of the selected source repository")
+		f.BoolVar(&yes, "yes", false, cliMessage("detail.yes"))
 	default:
 		return 2
 	}

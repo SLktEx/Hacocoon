@@ -44,11 +44,7 @@ func runNetwork(args []string) int {
 	return networkCommand(ctx, client, args, os.Stdout, os.Stderr)
 }
 func networkUsage(out io.Writer) {
-	fmt.Fprintln(out, "Usage: haco network tcp|udp --target name --port port [--kind external|host|environment] [--listen 127.0.0.1:0] [--duration 5m]")
-	fmt.Fprintln(out, "       haco network list | revoke <connection-id>")
-	fmt.Fprintln(out, "       haco network host add --address IP --port port [--protocol tcp|udp] <name>")
-	fmt.Fprintln(out, "       haco network host list | remove <name>")
-	fmt.Fprintln(out, "       haco network rule --env name --target name --port port --decision allow|ask|deny [--kind external|host|environment] [--protocol tcp|udp] [--duration 5m] [--ttl 1h] [--scope instance|environment|global]")
+	commandHelp(out, "network", cliLanguage())
 }
 func networkCommand(ctx context.Context, client networkClient, args []string, out, diagnostic io.Writer) int {
 	usage := func() int { networkUsage(diagnostic); return 2 }
@@ -82,9 +78,9 @@ func networkCommand(ctx context.Context, client networkClient, args []string, ou
 			f := flag.NewFlagSet("network host add", flag.ContinueOnError)
 			f.SetOutput(diagnostic)
 			var service capability.NetworkService
-			f.StringVar(&service.Address, "address", "", "explicit numeric Host/Windows service address")
-			f.IntVar(&service.Port, "port", 0, "destination port")
-			f.StringVar(&service.Protocol, "protocol", "tcp", "tcp or udp")
+			f.StringVar(&service.Address, "address", "", cliMessage("detail.host_address"))
+			f.IntVar(&service.Port, "port", 0, cliMessage("detail.target_port"))
+			f.StringVar(&service.Protocol, "protocol", "tcp", cliMessage("detail.protocol"))
 			if f.Parse(args[2:]) != nil || len(f.Args()) != 1 {
 				return usage()
 			}
@@ -155,11 +151,11 @@ func networkCommand(ctx context.Context, client networkClient, args []string, ou
 		var duration, ttl time.Duration
 		var decision string
 		networkSpecFlags(f, &spec.Connection, &duration)
-		f.StringVar(&spec.Connection.Protocol, "protocol", "tcp", "tcp or udp")
-		f.StringVar(&spec.Environment, "env", "", "source Environment")
-		f.StringVar(&spec.Scope, "scope", "instance", "instance, environment, or global source scope")
-		f.StringVar(&decision, "decision", "", "allow, ask, or deny")
-		f.DurationVar(&ttl, "ttl", time.Hour, "rule validity, at most 31 days")
+		f.StringVar(&spec.Connection.Protocol, "protocol", "tcp", cliMessage("detail.protocol"))
+		f.StringVar(&spec.Environment, "env", "", cliMessage("detail.rule_env"))
+		f.StringVar(&spec.Scope, "scope", "instance", cliMessage("detail.scope"))
+		f.StringVar(&decision, "decision", "", cliMessage("detail.decision"))
+		f.DurationVar(&ttl, "ttl", time.Hour, cliMessage("detail.ttl"))
 		if f.Parse(args[1:]) != nil || len(f.Args()) != 0 || duration < time.Second || duration%time.Second != 0 || ttl <= 0 {
 			return usage()
 		}
@@ -175,10 +171,10 @@ func networkCommand(ctx context.Context, client networkClient, args []string, ou
 	return usage()
 }
 func networkSpecFlags(f *flag.FlagSet, spec *networkrelay.Spec, duration *time.Duration) {
-	f.StringVar(&spec.Kind, "kind", "external", "external, host, or environment")
-	f.StringVar(&spec.Target, "target", "", "destination name or external IP")
-	f.IntVar(&spec.Port, "port", 0, "destination port (optional for registered Host services)")
-	f.DurationVar(duration, "duration", 5*time.Minute, "connection/listener maximum lifetime (UDP at most 5m)")
+	f.StringVar(&spec.Kind, "kind", "external", cliMessage("detail.kind"))
+	f.StringVar(&spec.Target, "target", "", cliMessage("detail.target"))
+	f.IntVar(&spec.Port, "port", 0, cliMessage("detail.network_port"))
+	f.DurationVar(duration, "duration", 5*time.Minute, cliMessage("detail.duration"))
 }
 func networkListenCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	f := flag.NewFlagSet("network "+args[0], flag.ContinueOnError)
@@ -187,7 +183,7 @@ func networkListenCommand(ctx context.Context, args []string, out, diagnostic io
 	var duration time.Duration
 	var listen string
 	networkSpecFlags(f, &spec, &duration)
-	f.StringVar(&listen, "listen", "127.0.0.1:0", "local loopback endpoint")
+	f.StringVar(&listen, "listen", "127.0.0.1:0", cliMessage("detail.listen"))
 	if f.Parse(args[1:]) != nil || len(f.Args()) != 0 || duration < time.Second || duration%time.Second != 0 {
 		networkUsage(diagnostic)
 		return 2

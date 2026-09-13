@@ -2,7 +2,7 @@
 
 [日本語](cli-language.ja.md) | English
 
-Status: **partial**. The shared selector and listed surfaces are implemented, including automatic presentation selection at normal Windows/WSL entry. Full CLI localization and packaged language acceptance remain incomplete. Issue #577 remains open.
+Status: **partial**. The shared selector and listed surfaces are implemented, including automatic presentation selection at normal Windows/WSL entry. Packaged English Windows selection passed; Japanese Windows and remaining result/diagnostic translations are incomplete. Issue #577 remains open.
 
 ## Select a language
 
@@ -68,11 +68,23 @@ arbitrary environment forwarding and persisted guest configuration are excluded.
 
 ## Remaining scope
 
-Other command families and lower-level Environment diagnostics still need catalog migration. Standard-library flag parse-error details, original Git/SSH/OS errors, structured logs, and controller diagnostic summary/action text remain unchanged; further localized explanations around those details are follow-up work.
+The product's public command hierarchy and individual help now describe arguments,
+options, defaults and prerequisites in both languages. Every product FlagSet
+description uses the same message catalogs. `setup`, `config`, `approve`, `doctor`,
+`reclaim` and `version` help also return before controller creation. The trusted
+Host's individual help shares this renderer. Descriptions wrap to 60 display
+columns; copyable examples and option tokens keep their literal text.
+
+Human result/error messages in remaining command families and lower-level
+Environment diagnostics still need catalog migration. Standard-library flag
+parse-error details, original Git/SSH/OS errors, structured logs, and controller
+diagnostic summary/action text remain unchanged. Existing JSON values, including
+messages encoded as JSON strings, are not translated.
 
 WSL-to-Host normalized presentation handoff and automatic normal Windows entry
-selection are implemented. Packaged language acceptance and full command coverage
-remain pending. This partial implementation must not close Issue #577.
+selection are implemented. English packaged selection passed at `0c79f820`;
+Japanese Windows and full result-message coverage remain pending. This partial
+implementation must not close Issue #577.
 
 ## Validation
 

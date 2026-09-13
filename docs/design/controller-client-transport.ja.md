@@ -9,7 +9,8 @@ Status: **部分実装**。Local Unix domain プロトコル、Physical Host コ
 ## 概要
 
 現行product クライアントはBase一覧・確認と通常のEnvironment作成・削除を提供する。
-`switch-base`は現在無効で、再導入時期は未定。SSH設定は既存のループバック接続情報から生成する。
+`switch-base`は無効で、復活は予定しない。別Baseを使う場合は保持Workspaceから新しいEnvironmentを作成する。
+SSH設定は既存のループバック接続情報から生成する。
 任意の`plugin.oci.store`は信頼されたコントローラーで永続OCIデータを管理し、Environmentの
 Git専用接続先には登録しない。Environment作成はWorkspaceと追加永続資源の利用権を
 同じtransactionで予約する。[Persistent OCI Store](persistent-oci-store.md)を参照。

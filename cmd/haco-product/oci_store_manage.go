@@ -38,14 +38,14 @@ func ociStoreManageCommand(ctx context.Context, c ociStoreClient, args []string,
 	f := flag.NewFlagSet("haco plugin oci store "+args[0], flag.ContinueOnError)
 	f.SetOutput(diagnostic)
 	f.Usage = func() {
-		fmt.Fprintln(diagnostic, "Usage: haco plugin oci store list [--json] | haco plugin oci store delete [--yes] <store>")
+		commandHelp(diagnostic, "plugin oci store "+args[0], cliLanguage())
 	}
 	var yes, machine bool
 	switch args[0] {
 	case "list":
-		f.BoolVar(&machine, "json", false, "machine-readable Stores and references")
+		f.BoolVar(&machine, "json", false, cliMessage("flag.json"))
 	case "delete":
-		f.BoolVar(&yes, "yes", false, "confirm deletion of this Store and all its OCI data")
+		f.BoolVar(&yes, "yes", false, cliMessage("detail.yes"))
 	default:
 		f.Usage()
 		return 2

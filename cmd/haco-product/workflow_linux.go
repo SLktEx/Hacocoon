@@ -119,11 +119,11 @@ func openWorkspacePath(ctx context.Context, c workflowClient, opts pathOpenOptio
 func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	flags := flag.NewFlagSet("haco workspace "+args[0], flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
-	path := flags.String("path", "", "existing directory for the Workspace reference")
-	name := flags.String("name", "", "name of the new work (generated when omitted)")
-	repos := flags.String("repo", "", "Host repository IDs separated by commas")
-	base := flags.String("base", "", "Base for later open")
-	oci := flags.String("oci", "", "auto, none, or an existing oci: Store")
+	path := flags.String("path", "", cliMessage("detail.path"))
+	name := flags.String("name", "", cliMessage("detail.work_name"))
+	repos := flags.String("repo", "", cliMessage("detail.repos"))
+	base := flags.String("base", "", cliMessage("detail.base"))
+	oci := flags.String("oci", "", cliMessage("detail.oci"))
 	if err := flags.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -131,7 +131,7 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		return 2
 	}
 	if *path == "" || (args[0] == "prepare" && flags.NArg() != 0) || (args[0] == "fork" && (flags.NArg() != 1 || *repos != "" || *oci != "")) {
-		fmt.Fprintln(diagnostic, "Usage: haco workspace prepare --path DIR --repo first,second [--name NAME] [--oci auto|none|oci:ID] | haco workspace fork --path DIR [--name NAME] [--base BASE] SOURCE")
+		commandHelp(diagnostic, "workspace "+args[0], cliLanguage())
 		return 2
 	}
 	c, err := controlapi.NewDefaultClient()

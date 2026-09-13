@@ -32,20 +32,20 @@ func runOCIImageManage(args []string) int {
 }
 func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string, in io.Reader, out, diagnostic io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(diagnostic, "Usage: haco plugin oci image list [--unused] [--runtime nerdctl|docker] [--json] [--host] [<env-or-store-id>] | delete [--unused] [--runtime nerdctl|docker] [--yes] [--host] [<env-or-store-id>] [<image-id-or-tag>]")
+		commandHelp(diagnostic, "plugin oci image", cliLanguage())
 		return 2
 	}
 	f := flag.NewFlagSet("haco plugin oci image "+args[0], flag.ContinueOnError)
 	f.SetOutput(diagnostic)
-	hostSource := f.Bool("host", false, "operate on the managed Host source for future Store copies")
-	runtime := f.String("runtime", "nerdctl", "OCI runtime owning these images")
-	unused := f.Bool("unused", false, "select images with no container users, including tagged images")
+	hostSource := f.Bool("host", false, cliMessage("detail.host_images"))
+	runtime := f.String("runtime", "nerdctl", cliMessage("detail.runtime"))
+	unused := f.Bool("unused", false, cliMessage("detail.unused_list"))
 	var yes, machine bool
 	switch args[0] {
 	case "list":
-		f.BoolVar(&machine, "json", false, "machine-readable images and users")
+		f.BoolVar(&machine, "json", false, cliMessage("flag.json"))
 	case "delete":
-		f.BoolVar(&yes, "yes", false, "confirm deletion of the reviewed image")
+		f.BoolVar(&yes, "yes", false, cliMessage("detail.yes"))
 	default:
 		return 2
 	}

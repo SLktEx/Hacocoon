@@ -12,7 +12,7 @@ This page describes current code reality on this development candidate. Start wi
 |---|---|---|
 | [Installation / Host](guides/installation.md) | implemented | Ubuntu 26.04+ / dedicated WSL 2, controller-backed setup and doctor, persistent trusted `haco-host`. Native Ubuntu retains its login shell; no native Windows `haco.exe`. Managed-user preparation tolerates a validated pre-existing non-root access group. Packaged English-Windows entry/interop passes; fresh Japanese-Windows entry remains unverified. |
 | [Repository / Workspace](guides/git-workflow.md) | implemented | Clone an existing branch; create independent managed copies and collections. Exclusive leases survive stop. Membership editing and general interrupted-preparation recovery remain incomplete. |
-| [Environment lifecycle](guides/data-lifetime.md) | implemented | Managed/external Workspace creation, status/list, stop/start/delete. Rootfs is disposable; Workspace and Store survive deletion. Ownership ambiguity blocks release. `switch-base` is disabled/on hold. |
+| [Environment lifecycle](guides/data-lifetime.md) | implemented | Managed/external Workspace creation, status/list, stop/start/delete. Rootfs is disposable; Workspace and Store survive deletion. Ownership ambiguity blocks release. `switch-base` is disabled; select another Base through normal recreation. |
 | [SSH / editor](design/client-and-interactive-access.md) | implemented | Repeatable key/config setup, `haco open` selection, pinned loopback SSH, default VS Code or `--client ssh`; proxy environment is automatic. Broader IDE/Windows and AHP acceptance remains client-dependent. |
 | [Interactive terminal sizing](design/controller-client-transport.md#interactive-terminal-dimensions) | implemented | Host/Env shells carry initial dimensions and bounded, separately negotiated resize controls; Linux uses a private raw PTY. Component/real-PTY tests cover editing, resize, bytes, exit and restoration. Installed Incus/Windows/WSL acceptance remains pending. |
 | [Ordinary Git](guides/git-workflow.md) | partial | All-heads fetch/pull (1024 heads, 32 MiB pack) and fixed-content push through controller-owned credentials. Single-ref branch creation and fast-forward updates receive separate exact-ref approvals; competing creation fails closed. Large packs, branch deletion, force/multi-ref push, LFS/submodules and general ambiguous-result recovery remain unsupported. Native all-heads/new-branch acceptance is pending. |
@@ -46,13 +46,13 @@ Old development diaries remain in Git history. Decision-relevant unique evidence
 Implemented on this development candidate: [Workspace entry and independent forks](design/workspace-workflow.md), [TCP/UDP connections](design/network-connections.md), and [daily entry/setup diagnostics](reference/daily-workflow.md). Main integration, distribution and native acceptance of the combined candidate remain separate.
 
 
-M1 is **partial**: hierarchical bilingual help, localized daily guidance, shared
+M1 is **partial**: hierarchical bilingual help with arguments/options/defaults, localized daily guidance, shared
 BAT final results and native failure-notification grouping are implemented.
 Normalized Windows/WSL-to-Host language selection is implemented and matches
 English Windows in packaged acceptance at `0c79f820`. All enabled Incus 7.0.1
 Core/Btrfs jobs and packaged Ubuntu/Windows workflows pass, including ordinary
 SSH/VS Code, transfer, public reclaim and notification routing. Remaining work
-includes full help/options translations, the Japanese Windows flow, the original
+includes remaining result/error translations, the Japanese Windows flow, the original
 SSH-failure reproduction and installed long-input/resize verification. Human toast
 and new GUI decisions remain unverified. See [exact evidence](status/acceptance-evidence.md).
 This is development-branch implementation and acceptance, not main integration or distribution.
@@ -63,4 +63,4 @@ Temporary-run cleanup now requires the exact creation identity through the commo
 lifecycle API, fences name reuse while a run remains unfinished, and preserves
 legacy missing-identity records as recovery work. All maintained native workflows
 passed at `9f4cf510`. The later stdin/TTY implementation uses that same lifecycle;
-its native acceptance remains pending. See [temporary execution](design/temporary-execution.md).
+Incus pipe/PTY acceptance passed at `b3169814`; Windows input failed and its driver correction is awaiting acceptance. See [temporary execution](design/temporary-execution.md).

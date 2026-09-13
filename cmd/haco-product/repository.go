@@ -59,13 +59,13 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	n := 1
 	switch operation {
 	case "repo clone":
-		flags.StringVar(&branch, "branch", "", "one existing upstream branch")
+		flags.StringVar(&branch, "branch", "", cliMessage("detail.branch"))
 		n = 2
 	case "workspace create":
-		flags.StringVar(&repo, "repo", "", "registered repository IDs, separated by commas")
+		flags.StringVar(&repo, "repo", "", cliMessage("detail.repos"))
 	case "git connect":
 	case "git approve", "git deny":
-		flags.StringVar(&save, "save", "", "save this operation scope: env, all, ask-env or ask-all")
+		flags.StringVar(&save, "save", "", cliMessage("detail.saved"))
 	case "git pending":
 		n = 0
 	default:

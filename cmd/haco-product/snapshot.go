@@ -44,7 +44,7 @@ func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	var machine bool
 	switch args[0] {
 	case "create", "list":
-		flags.BoolVar(&machine, "json", false, "machine-readable saved data")
+		flags.BoolVar(&machine, "json", false, cliMessage("flag.json"))
 	case "delete":
 	default:
 		return usage()
@@ -105,10 +105,9 @@ func snapshotRestoreCommand(ctx context.Context, args []string, out, diagnostic 
 	flags := flag.NewFlagSet("haco snapshot restore", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	flags.Usage = func() {
-		fmt.Fprintln(diagnostic, "Usage: haco snapshot restore [--json] <snapshot-id> [new-env]")
-		flags.PrintDefaults()
+		commandHelp(diagnostic, "snapshot restore", cliLanguage())
 	}
-	machine := flags.Bool("json", false, "machine-readable restore result")
+	machine := flags.Bool("json", false, cliMessage("flag.json"))
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
