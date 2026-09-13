@@ -873,3 +873,13 @@ Ubuntuのarchive／securityへのHTTP取得が既存proxyから403で拒否さ�
 導入済みcontrollerの置き換えはしていません。実Packerの完走、Base公開・revision再利用、
 外部plugin失敗、arm64実行、新しいWindows→WSLコマンドの導入済み受入は未確認です。
 過去の旧Base作成の受入は、それぞれの記録された範囲で保持します。
+
+
+実装commitは`1103505b14dedb76151056cc8cf8951435bc3867`で、開発チェックポイントを
+v0.68へ進めました。M4完了や配布を意味しません。Go 1.26.8でBase／Packer／制御API／
+構成／責務境界とCLIのファイル転送・出力の集中回帰、Base／Packerのrace 5回、CLIの入力・出力の
+raceがPASSしました。文書整合性と18件のchecker回帰もPASSです。標準ローカルテスト
+（Go 1.27.1、shuffle 615）は既存の`TestLoginBootstrapPTYDoesNotStartHostSetup`でFAIL
+（6.64秒）しました。今回はBashの入力待ち表示を観測しましたが、共通の5秒期限の残りが約42 msで、
+終了37を待つ処理が時間切れになりました。以前の入力待ち表示が来ない失敗も未解決のままです。
+全体を成功にせず、以前の失敗の修正確認にも読み替えません。期限は延長していません。

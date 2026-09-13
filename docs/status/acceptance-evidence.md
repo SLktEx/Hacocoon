@@ -1060,3 +1060,16 @@ installed-controller replacement was applied. Full Packer execution, Base
 publication/revision reuse, custom-plugin failure, arm64 runtime and the new
 installed Windows-to-WSL command remain unverified. The earlier legacy Base
 acceptance still applies only to its recorded scope.
+
+
+Implementation commit `1103505b14dedb76151056cc8cf8951435bc3867` advances the
+candidate checkpoint to v0.68, not M4 completion or distribution. Focused Go
+1.26.8 tests pass for Base/Packer/control/composition/architecture and CLI file
+transfer/output. Five Base/Packer race repetitions and the CLI context/output
+race check pass. Documentation consistency and all 18 checker regressions pass.
+The maintained local test command (Go 1.27.1, shuffle 615) fails the existing
+`TestLoginBootstrapPTYDoesNotStartHostSetup` in 6.64 seconds. This time the Bash
+ready marker was observed, but only about 42 ms remained in its existing shared
+five-second deadline when waiting for exit 37; the wait timed out. Earlier
+missing-prompt failures remain unresolved too. This is a failed whole-suite run,
+not evidence that either earlier failure was fixed. No deadline was extended.
