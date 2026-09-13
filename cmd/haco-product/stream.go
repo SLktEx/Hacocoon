@@ -41,7 +41,7 @@ func runStream(args []string) int {
 	}
 	conn, err := client.OpenEnvironmentStream(ctx, target)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco: stream target unavailable or no longer authorized")
+		dailyFailure(os.Stderr, "stream", "target", "", err)
 		return 1
 	}
 	defer conn.Close()

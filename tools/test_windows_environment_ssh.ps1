@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $EnvironmentName = 'win-ssh-' + [guid]::NewGuid().ToString('N').Substring(0,16)
-$Workspace = "/tmp/$EnvironmentName-workspace"
+$Workspace = "/var/tmp/$EnvironmentName-workspace"
 $Work = Join-Path ([IO.Path]::GetTempPath()) $EnvironmentName
 $PrivateKey = Join-Path $Work 'id_ed25519'
 $PublicKey = "$PrivateKey.pub"
@@ -269,13 +269,17 @@ try {
                 $start.CreateNoWindow = $true
                 $start.RedirectStandardOutput = $true
                 $start.RedirectStandardError = $true
-                foreach ($arg in @('-o','BatchMode=yes','-o','ConnectTimeout=180',$alias,'cat /workspace/windows-marker')) { [void]$start.ArgumentList.Add($arg) }
+                foreach ($arg in @('-v','-o','BatchMode=yes','-o','ConnectTimeout=180',$alias,'cat /workspace/windows-marker')) { [void]$start.ArgumentList.Add($arg) }
                 $process = [Diagnostics.Process]::Start($start)
                 $reconnects += [pscustomobject]@{ Process=$process; Output=$process.StandardOutput.ReadToEndAsync(); Error=$process.StandardError.ReadToEndAsync() }
             }
             foreach ($probe in $reconnects) {
-                if (-not $probe.Process.WaitForExit(300000) -or $probe.Process.ExitCode -ne 0) { throw 'Parallel cold SSH reconnect failed' }
+                if (-not $probe.Process.WaitForExit(300000)) { throw 'Parallel cold SSH reconnect timed out' }
                 if (-not [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($probe.Output,$probe.Error),10000)) { throw 'Parallel reconnect output did not close' }
+                if ($probe.Process.ExitCode -ne 0) {
+                    $progress = Get-SSHProgressEvidence $probe.Output.GetAwaiter().GetResult() $probe.Error.GetAwaiter().GetResult()
+                    throw "Parallel cold SSH reconnect failed; exit=$($probe.Process.ExitCode) ssh_progress=$progress"
+                }
                 if ($probe.Output.GetAwaiter().GetResult().Trim() -ne 'windows-workspace-ok') { throw 'Parallel reconnect lost Workspace content' }
             }
         } finally {
