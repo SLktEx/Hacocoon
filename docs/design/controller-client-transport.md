@@ -384,9 +384,9 @@ is unreachable, cleanup cannot be confirmed; its one-hour deadline bounds the
 remaining stream. An EOF-ignoring target cannot block acknowledged cancellation.
 
 No persistent Incus forwarding device is created; the existing `env forward`
-and SSH/preview lifecycle remain available. Ordinary Windows/WSL routing and
-a Windows-native listener through `wsl.exe` remain unverified/unimplemented,
-respectively. A trusted-Host client listens inside that Host. Generic process
+and SSH/preview lifecycle remain available. The native Windows companion below
+implements the Windows listener candidate; installed acceptance remains separate.
+A Linux trusted-Host client still listens inside that Host. Generic process
 caller consolidation remains partial. See [ADR 0072](../adr/0072-client-stream-forwarding.md).
 
 ## Windows process transport
@@ -410,6 +410,24 @@ ownership prevents process exit from truncating buffered response data. The
 bridge's dial is bounded to ten seconds and its lifetime to one hour.
 
 Native Windows-to-WSL fixture byte delivery is verified separately from installed
-product acceptance. The public Windows listener companion, its installation and
-ordinary entry integration remain **planned**. This internal entry is not an
-additional user CLI. See [ADR 0073](../adr/0073-wsl-process-transport.md).
+product acceptance. The public Windows listener companion and installer placement
+are **implemented candidates**; automatic delegation from Linux `haco env tunnel`
+remains **planned**. The internal stdio entry is not an additional user CLI. See [ADR 0073](../adr/0073-wsl-process-transport.md).
+
+## Native Windows tunnel client
+
+`haco-tunnel.exe --distribution <WSL name> --target-port <port> [options] <env>`
+places the listener in Windows and uses the fixed WSL controller dialer. The
+required distribution selector precedes tunnel options. The same client command
+owns parsing, target preparation, the 16-connection bound, half-close, one-hour
+maximum and cancellation for Linux and Windows. The helper has no Incus calls,
+management listener, root fallback or credential import. Help uses the common
+English/Japanese vertical option renderer and succeeds without controller access.
+On failure it directs the user to the selected WSL's `haco doctor` and application.
+
+The installer permanently places the matching amd64/arm64 client and prints its
+absolute help command. No user PATH mutation is required. `haco-wsl.exe` keeps
+its installation/reclamation responsibilities. See [installer ownership](installer.md#windows-client-placement).
+This public entry is explicit; ordinary Linux `haco env tunnel` still listens in
+its own namespace. Automatic Windows selection from that entry and installed
+Windows/WSL/Incus acceptance remain unfinished.

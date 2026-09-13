@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.65**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.66**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページは現在の開発候補のコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -95,7 +95,8 @@ M3のclient転送は**開発ブランチの実装候補**です。`env tunnel`�
 Windowsのプロセス転送は**partial**です。共有の固定WSL起動、byte/半切断frame、
 controller UDSへの橋渡し、型付きclientの接続差し替えを開発候補に実装しました。
 子の中断回収・出力保持とWindows→WSLの実binary配送はcomponent確認済みです。
-公開Windows待受の配布・導入済み入口はplannedです。転送開始案内は日英文を一度だけ
+公開Windows待受とインストーラへの組み込みは実装候補です。Linux入口からの自動委譲と
+導入済みWindows/WSL/Incus経路の受入は残件です。転送開始案内は日英文を一度だけ
 書式展開するよう修正し、旧実装の二重展開をCLI/controller回帰で再現しました。
 [転送契約](design/controller-client-transport.ja.md#windowsのプロセス転送)と
 [受入記録](status/acceptance-evidence.ja.md#wslプロセス転送候補)を参照してください。

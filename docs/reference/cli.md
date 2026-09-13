@@ -60,3 +60,8 @@ copyable examples, and companion haco-host help, remain follow-up work.
 See [language coverage](cli-language.md).
 
 `haco env tunnel --target-port <port> [--address <loopback-ip>] [--listen <loopback-ip:port>] [--duration <duration>] <env>`: client TCP listener; defaults are Env-local `127.0.0.1`, client `127.0.0.1:0`, `1h`. Ctrl+C closes it. See [authority, placement and Windows limits](../design/controller-client-transport.md#client-tcp-listeners).
+
+The Windows companion is `haco-tunnel.exe --distribution <WSL name> --target-port <port> [--listen <loopback-ip:port>] [--address <loopback-ip>] [--duration <duration>] <env>`.
+Its defaults and bounds match Linux; its listener is on Windows. Put the required
+`--distribution` selector first. `--help` provides bilingual vertical help. See
+[installation](../guides/installation.md#windows-tcp-client).

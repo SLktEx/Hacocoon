@@ -88,8 +88,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.63 | Durable Git Push Reconciliation | ✅ implemented |
 | v0.64 | Notification-contained Approval | ✅ implemented |
 | v0.65 | Client TCP Stream Forwarding | ✅ implemented |
+| v0.66 | Native Windows TCP Client | ✅ implemented |
 
-The current milestone position is **v0.65**. This declaration and the table mirror YAML.
+The current milestone position is **v0.66**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 

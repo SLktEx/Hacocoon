@@ -647,3 +647,36 @@ partial development implementation, not main integration or distribution.
 The full active user target is M0–M5. Public Windows integration, DNS modes and
 ordinary-network alternatives remain M3 work; M1/M2 native gaps and M4/M5 are
 not excused by component success.
+
+## Windows tunnel client candidate
+
+Development branch `codex/windows-tunnel-client`, based on #632, implements the
+explicit Windows client and installer packaging. Main integration, publication,
+automatic Linux entry delegation and installed Windows/WSL/Incus acceptance are
+not established by this candidate's component checks.
+
+- Native Windows amd64 client/controller/TCP tests passed eight concurrent 1 MiB
+  binary round trips, half-close, invalid-target refusal and listener cleanup.
+- Installer components passed on native PowerShell 7.6.6 for both per-registration
+  components: fresh install, replacement, ownership mismatch, missing ownership,
+  checksum mismatch, pinned worker and junction refusal. Only disposable files
+  were changed. PowerShell 5.1 `-File` was rejected by local script policy before
+  execution; its tests are **not run**, and policy was not relaxed.
+- An initial native command help test failed because the old message key remained
+  after switching to shared help. The corrected native rerun passed in English
+  and Japanese, with explicit help on stdout and no diagnostic output.
+- Focused Go 1.26.8 tests and the final maintained local CI passed after the help
+  correction and v0.66 checkpoint update. Client-forwarding race passed ten repetitions. A broad ten-repeat
+  controlapi batch reached its overall 120-second timeout while an unchanged
+  import subtest had run for one second. The batch is not a pass: its log is kept.
+  Separate forwarding race tests (ten repetitions) and the import regression
+  (one repetition with race) passed.
+- Windows amd64 and arm64 clients build. Architecture-specific bundle contents,
+  inner checksums, corrupted-archive refusal and workflow policy checks pass.
+  arm64 execution is not verified.
+- Parent #632 `e7ca6735` passed test 34763683967, Incus 34763683968 and Ubuntu
+  34763684021. Ubuntu job 103740815424 explicitly passed installed controller
+  forwarding: eight concurrent 2 MiB round trips, half-close, cancellation and
+  listener cleanup. This verifies the correction after #626's readiness failure;
+  that previous failure is retained. Windows 34763683983 was still running when
+  checked; earlier startup and notification failures remain separate.

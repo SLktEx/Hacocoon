@@ -148,3 +148,19 @@ Windows再起動後、保存済みの継続手順に従ってください。
 $env:HACO_INSTALL_NO_PAUSE = '1'
 cmd /c .\install-windows.bat
 ```
+
+## WindowsのTCP転送クライアント
+
+通常の管理対象インストールは`haco-tunnel.exe`もWindowsの利用者領域へ配置します。
+完了画面の絶対path付きヘルプコマンドを使えます。PATHを変更する必要はありません。
+展開した同じWindows bundleのディレクトリから使う場合は、PowerShellで次を実行します。
+`Hacocoon`は導入先WSL名、`demo`は起動中の開発環境名に合わせてください。
+
+```powershell
+.\haco-tunnel.exe --distribution Hacocoon --target-port 8080 demo
+```
+
+表示されたWindowsのloopback接続先をアプリで開き、Ctrl+Cで待受と転送を終了します。
+WSLには同じ候補の製品を導入しておく必要があります。Linux側の`haco env tunnel`は
+まだ自動でこのclientへ委譲しません。導入済み経路の受入状態は
+[受入記録](../status/acceptance-evidence.ja.md#windows公開転送クライアント候補)を参照してください。

@@ -59,3 +59,7 @@ controllerやIncusを必要とせずstdoutへ表示して終了0、不正引数�
 日英の対応範囲は[表示言語](cli-language.ja.md)を参照してください。
 
 `haco env tunnel --target-port <port> [--address <loopback-ip>] [--listen <loopback-ip:port>] [--duration <duration>] <env>`: client側TCP待受。既定はEnv内`127.0.0.1`、手元`127.0.0.1:0`、`1h`。Ctrl+Cで終了。[権限・配置・Windowsの残件](../design/controller-client-transport.ja.md#client側tcp待受)。
+
+Windowsの公開companionは`haco-tunnel.exe --distribution <WSL名> --target-port <ポート> [--listen <loopback-ip:port>] [--address <loopback-ip>] [--duration <duration>] <Env名>`です。
+転送の既定値・上限はLinuxと共通で、Windows上に待受を置きます。`--distribution`は最初に
+指定します。日英の縦ヘルプは`--help`で表示できます。[導入](../guides/installation.ja.md#windowsのtcp転送クライアント)を参照してください。

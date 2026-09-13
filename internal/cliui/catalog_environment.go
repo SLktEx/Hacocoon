@@ -3,6 +3,8 @@ package cliui
 // These templates are only for human-facing rendering. Structured results,
 // diagnostic report fields and generated SSH configuration remain unchanged.
 var environmentCatalog = map[string]translation{
+	"forward.windows_next":           {"Next: open WSL %s and run haco doctor; check that the Environment and its application service are running.", "次にWSL %s を開いて haco doctor を実行し、開発環境と接続先アプリが起動しているか確認してください。"},
+	"forward.distribution":           {"Installed Hacocoon WSL distribution on this PC", "このPCに導入済みのHacocoon WSL名"},
 	"forward.command":                {"Forward a local TCP listener through the controller to an Environment", "手元のTCP接続をcontroller経由で開発環境へ転送する"},
 	"forward.address":                {"Numeric loopback destination inside the Environment (default: 127.0.0.1)", "開発環境内のループバック宛先（既定: 127.0.0.1）"},
 	"forward.listen":                 {"Local numeric loopback address and port (default: 127.0.0.1:0; automatic port)", "手元のループバックアドレスとポート（既定: 127.0.0.1:0、自動選択）"},
