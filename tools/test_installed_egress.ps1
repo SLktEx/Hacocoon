@@ -7,6 +7,7 @@ $environmentName = 'm1-egress-' + [guid]::NewGuid().ToString('N').Substring(0,16
 $work = Join-Path ([IO.Path]::GetTempPath()) $environmentName
 [IO.Directory]::CreateDirectory($work) | Out-Null
 $binary = Join-Path $work 'installed-egress-check'
+$packageBinary = Join-Path $work 'installed-package-egress-check'
 $policyCreated = $false
 $policy = @{default='deny'; rules=@(@{
     capability='network.egress'; action='connect'; resource='github.com'
@@ -20,9 +21,20 @@ try {
         $env:GOOS='linux'; $env:GOARCH='amd64'; $env:CGO_ENABLED='0'
         go build -trimpath -o $binary ./tools/installed-egress-check
         if ($LASTEXITCODE -ne 0) { throw 'Cannot build installed-controller acceptance client' }
+        go build -trimpath -o $packageBinary ./tools/installed-egress-check/package-baseline
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot build installed package-egress acceptance client' }
     } finally { $env:GOOS=$oldGoos; $env:GOARCH=$oldGoarch; $env:CGO_ENABLED=$oldCgo }
     $linuxBinary = (& wsl.exe -d Hacocoon --exec wslpath -a -u $binary).Trim()
     if ($LASTEXITCODE -ne 0 -or -not $linuxBinary.StartsWith('/')) { throw 'Cannot locate acceptance workload in WSL' }
+    $linuxPackageBinary = (& wsl.exe -d Hacocoon --exec wslpath -a -u $packageBinary).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $linuxPackageBinary.StartsWith('/')) { throw 'Cannot locate package acceptance workload in WSL' }
+
+    # Before any administrator Policy is added, the product baseline must allow
+    # only the built-in Ubuntu package repositories. The workload also writes a
+    # third-party APT source and proves that doing so does not widen authority.
+    & wsl.exe -d Hacocoon --exec $linuxPackageBinary $environmentName
+    if ($LASTEXITCODE -ne 0) { throw 'Installed default package egress acceptance failed' }
+    Write-Host 'INSTALLED DEFAULT PACKAGE EGRESS: PASS'
 
     # Never overwrite a pre-existing administrator Policy. This exact allow is
     # independent of the installer and is loaded by its already-running daemon.
@@ -64,6 +76,7 @@ os.unlink(path)
         if ($LASTEXITCODE -ne 0) { throw 'Cannot remove the owned acceptance Policy' }
     }
     [IO.File]::Delete($binary)
+    [IO.File]::Delete($packageBinary)
     [IO.Directory]::Delete($work)
 }
 $global:LASTEXITCODE = 0
