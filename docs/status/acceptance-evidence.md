@@ -55,6 +55,33 @@ provider resource inventory. This rerun resolves the initial input failure withi
 that fixture. Japanese Windows, fresh GUI/toast decisions and VPN/NRPT remain
 outside this acceptance.
 
+## PTY fixture synchronization
+
+The individual-help candidate `c7169760838e4cce24443ae9c27d4b1c21afadb1`
+(PR #592) passed Windows 34734829163, Ubuntu 34734829173 and Incus 34734829154.
+Test run 34734829186 failed `TestSizedInteractivePTYReadlineResizeAndExit` in
+Go 1.26 job 103664252026; its Go 1.27/race successes do not erase that failure.
+The same failure reproduced during a 100-run local Go 1.27 repetition.
+
+Disposable diagnostic observation and a syscall trace establish the race: the
+local Bash stand-in reads 24x80 with `TIOCGWINSZ`, the transport sets 17x37, then
+Bash writes its previously read 24x80 back with `TIOCSWINSZ` while returning to
+its next prompt. This fixture places Bash on the transport PTY; actual Incus and
+the guest have separate PTYs. The trace run was intentionally stopped after the
+cause was captured and is not a successful acceptance run.
+
+An initial prompt-only correction also failed: Bash wrote its prompt to a
+separate stderr pipe, which could overtake the preceding PTY stdout. That long
+repetition was explicitly stopped for diagnosis. The fixture now routes Bash
+stderr into its PTY, matching guest terminal output, and waits for the complete
+fresh input prompt after the preceding command's result. A transcript offset prevents an old prompt from satisfying
+that wait. Real multiline editing, exact size, SIGWINCH, exit 17, final-output
+drainage, invalid-size refusal and disconnect checks remain. Product terminal
+code, deadlines and isolation are unchanged. The final three PTY fixtures passed
+100 repetitions each on both Go 1.26.8 and Go 1.27.1, ten repetitions each with
+the race detector, the full Incus package suite and documentation validation.
+These checks do not establish general installed long-input acceptance.
+
 ## Local GUI candidate
 
 `e7ba798728dcbe48a5179845673a333f8ff8968f` (PR #588) passed test

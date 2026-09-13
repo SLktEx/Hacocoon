@@ -37,14 +37,21 @@ func (o *terminalTranscript) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func (o *terminalTranscript) wait(t *testing.T, ctx context.Context, text string) {
+func (o *terminalTranscript) wait(t *testing.T, ctx context.Context, text string) int {
+	t.Helper()
+	return o.waitAfter(t, ctx, 0, text)
+}
+
+func (o *terminalTranscript) waitAfter(t *testing.T, ctx context.Context, offset int, text string) int {
 	t.Helper()
 	for {
 		o.mu.Lock()
 		got := o.text.String()
 		o.mu.Unlock()
-		if strings.Contains(got, text) {
-			return
+		if offset <= len(got) {
+			if index := strings.Index(got[offset:], text); index >= 0 {
+				return offset + index + len(text)
+			}
 		}
 		select {
 		case <-o.changed:
@@ -63,14 +70,18 @@ func TestSizedInteractivePTYReadlineResizeAndExit(t *testing.T) {
 	output := &terminalTranscript{changed: make(chan struct{}, 1)}
 	updates := make(chan core.TerminalSize, 1)
 	metadata := core.TerminalMetadata{Columns: 80, Rows: 24, Term: "xterm-256color", Resizes: updates}
-	argv := interactiveShellWithPrompt([]string{"/bin/bash", "--noprofile", "--norc", "-i"}, trustedHostPrompt, "trusted-host", metadata)
+	const inputReady = "__HACO_INPUT_READY__ "
+	argv := interactiveShellWithPrompt([]string{"/bin/bash", "--noprofile", "--norc", "-i"}, trustedHostPrompt+inputReady, "trusted-host", metadata)
 	// The real Incus guest has a separate, cooked PTY. Restore those settings
 	// for this local Bash stand-in before exercising its readline behavior.
-	cmd := exec.CommandContext(ctx, "/bin/sh", append([]string{"-c", `stty sane; exec "$@"`, "sh"}, argv...)...)
+	// Guest PTY stdout/stderr share one stream. Route Bash's stderr prompt
+	// through that PTY too, so a separate pipe cannot deliver it before the
+	// preceding command output and invalidate the readiness fence.
+	cmd := exec.CommandContext(ctx, "/bin/sh", append([]string{"-c", `stty sane; exec "$@" 2>&1`, "sh"}, argv...)...)
 	cmd.Stdout, cmd.Stderr = output, output
 	done := make(chan error, 1)
 	go func() { done <- runSizedInteractiveCommand(ctx, cmd, input, metadata) }()
-	output.wait(t, ctx, "[HACO-HOST]")
+	output.wait(t, ctx, inputReady)
 	send := func(s string) {
 		t.Helper()
 		if _, err := io.WriteString(writer, s); err != nil {
@@ -78,12 +89,20 @@ func TestSizedInteractivePTYReadlineResizeAndExit(t *testing.T) {
 		}
 	}
 	send("printf '__SIZE_%s__\\n' \"$(stty size)\"\n")
-	output.wait(t, ctx, "__SIZE_24 80__")
+	sizeEnd := output.wait(t, ctx, "__SIZE_24 80__")
+	output.waitAfter(t, ctx, sizeEnd, inputReady)
 	// Edit the tail of a command spanning several screen rows with readline
 	// arrows and Delete, then verify the exact command result.
 	prefix := strings.Repeat("x", 240)
 	send("printf '__VALUE_%s__\\n' '" + prefix + "BAD'" + strings.Repeat("\x1b[D", 4) + strings.Repeat("\x1b[3~", 3) + "OK\x05\n")
-	output.wait(t, ctx, "__VALUE_"+prefix+"OK__")
+	valueEnd := output.wait(t, ctx, "__VALUE_"+prefix+"OK__")
+	// This local Bash stand-in owns the same PTY as the transport, unlike
+	// the separate Incus/guest PTYs. Bash restores its cached winsize before
+	// the next prompt. Resizing after command output but before that restore
+	// races its TIOCGWINSZ/TIOCSWINSZ pair and can overwrite the new size.
+	// Await the fresh, fully rendered input prompt, never an earlier prompt
+	// already present in the transcript. Keep the actual resize assertion.
+	output.waitAfter(t, ctx, valueEnd, inputReady)
 	updates <- core.TerminalSize{Columns: 37, Rows: 17}
 	send("until [ \"$(stty size)\" = '17 37' ]; do :; done; printf '__RESIZED_%s__\\n' yes\n")
 	output.wait(t, ctx, "__RESIZED_yes__")
