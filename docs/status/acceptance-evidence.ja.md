@@ -513,7 +513,8 @@ Windows側待受から`wsl.exe`を通す経路、汎用process caller統合、�
 
 ## WSLプロセス転送候補
 
-#626を親にした開発ブランチ`codex/windows-stream-forwarding`の部分実装です。
+実装`4b0b5baaf5a7acfdfabd94cea3c22f26745293c2`、
+[PR #632](https://github.com/SLktEx/Hacocoon/pull/632)（親#626）の部分実装です。
 main反映・配布済みではありません。
 
 - Go 1.26.8集中試験と標準ローカルCIがPASS。stream・WSL起動・通知起動の

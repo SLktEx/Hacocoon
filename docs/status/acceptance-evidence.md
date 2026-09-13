@@ -613,8 +613,9 @@ M3 work. Existing native failures and skips above are not superseded.
 
 ## WSL process transport candidate
 
-Development branch `codex/windows-stream-forwarding`, based on #626. This is
-partial implementation, not main integration or distribution.
+Implementation `4b0b5baaf5a7acfdfabd94cea3c22f26745293c2`,
+[PR #632](https://github.com/SLktEx/Hacocoon/pull/632), based on #626. This is
+partial development implementation, not main integration or distribution.
 
 - Focused Go 1.26.8 tests and the maintained local CI passed. Related stream,
   WSL launch and notification launch race tests passed ten repetitions.
