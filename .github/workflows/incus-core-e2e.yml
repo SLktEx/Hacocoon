@@ -274,7 +274,7 @@ jobs:
 
   incus-core-e2e-evidence:
     needs: [incus-standalone, incus-core-e2e, incus-owned-btrfs]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:

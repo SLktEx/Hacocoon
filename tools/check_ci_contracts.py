@@ -30,7 +30,9 @@ def check(text, spec):
     pr = triggers.get("pull_request") if isinstance(triggers, dict) else None
     if not isinstance(triggers, dict) or "pull_request" not in triggers:
         errors.append("required workflow must run on pull_request")
-    if pr and (set(pr) != {"branches"} or "main" not in pr["branches"]):
+    if pr and (set(pr) != {"branches"} or not isinstance(pr["branches"], list)
+               or "main" not in pr["branches"]
+               or any(not isinstance(b, str) or b.startswith("!") for b in pr["branches"])):
         errors.append("PR routing must include main and must not filter paths/types")
     jobs = child(tree, "jobs")
     variants = spec.get("job_names", [])
@@ -69,8 +71,8 @@ def check(text, spec):
     else:
         if set(value(evidence, "needs") or []) != set(spec["jobs"]):
             errors.append("evidence must depend on every required job")
-        if value(evidence, "if") != "always()":
-            errors.append("evidence must inspect failed/skipped jobs with always()")
+        if value(evidence, "if") != "${{ !cancelled() }}":
+            errors.append("evidence must inspect failures/skips without blocking workflow cancellation")
         if value(evidence, "continue-on-error") not in (None, False):
             errors.append("evidence failure cannot be tolerated")
         steps = child(evidence, "steps")

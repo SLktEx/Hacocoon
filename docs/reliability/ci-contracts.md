@@ -29,10 +29,17 @@ owned by [the CI trust boundary](../../.github/security/CI_TRUST_BOUNDARY.md).
 Configure branch protection to require `test-evidence`, `incus-core-e2e-evidence`,
 `ubuntu-installer-e2e-evidence` and `windows-installer-e2e-evidence`, in addition to
 the existing checks. Repository code cannot configure GitHub branch protection.
-The evidence job uses `always()` and checks every required job and named contract step result explicitly;
+The evidence job uses `!cancelled()` and checks every required job and named contract step result explicitly;
 skipped, cancelled, missing or failed jobs cannot satisfy it. Named matrix variants must also have successful receipts, so an aggregate needs result cannot hide a removed architecture or Go series. Artifact/history
 retrieval failures are also failures. Native prerequisites are never substituted
 with a successful focused probe.
+
+Failed or skipped dependencies still reach evidence validation. Whole-workflow
+cancellation stops the evidence job, so a superseded run cannot retain the
+concurrency slot while waiting for an evidence runner. Keep the underlying
+required checks: a cancelled workflow does not establish successful execution.
+Do not use job-level `always()` here; [GitHub cancellation](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-cancellation)
+can leave such a job running after cancellation.
 
 ## Failure and rerun evidence
 

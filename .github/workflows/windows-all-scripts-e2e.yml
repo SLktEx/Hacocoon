@@ -246,7 +246,7 @@ jobs:
           retention-days: 30
   windows-installer-e2e-evidence:
     needs: [windows-user-path]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:

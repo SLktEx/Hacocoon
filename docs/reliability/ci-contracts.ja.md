@@ -26,9 +26,15 @@ local CI から実行する。権限境界は [CI trust boundary](../../.github/
 
 branch protection には既存 check に加え `test-evidence`、`incus-core-e2e-evidence`、
 `ubuntu-installer-e2e-evidence`、`windows-installer-e2e-evidence` を必須として設定する。
-リポジトリ内のコードだけでは GitHub の保護設定は変更されない。証拠 job は `always()`
+リポジトリ内のコードだけでは GitHub の保護設定は変更されない。証拠 job は `!cancelled()`
 で必要 job と契約 step の実際の success を確認し、成功 job 内の skip・取消・欠落・失敗も成功として扱わない。履歴・artifact の
 取得失敗も失敗であり、native 試験を focused probe の成功で代用しない。matrix の architecture や Go 系列ごとの成功記録も要求し、needs の集約成功で検証対象の削除を隠さない。
+
+依存 job の失敗・skip 後も証拠検査を行う。workflow 全体の取消には従い、古い候補の
+証拠 job が runner 待ちのまま concurrency 枠を保持しないようにする。既存の必須 check
+も保持する。取消済み workflow は検証成功を証明しない。job-level の `always()` は
+[GitHub の取消処理](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-cancellation)
+でも継続する場合があるため、ここでは使用しない。
 
 ## 失敗と再実行
 

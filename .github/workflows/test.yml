@@ -417,7 +417,7 @@ jobs:
           retention-days: 30
   test-evidence:
     needs: [docs, workflow-policy, release-config, build, aws-plugin, test, race, e2e]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
